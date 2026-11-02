@@ -20,6 +20,12 @@ func _physics_process(delta: float) -> void:
 	if life <= 0.0 or not main.room.has_point(position):
 		queue_free()
 		return
+	for pl in main.pillars:
+		if position.distance_to(pl["pos"]) < pl["r"]:
+			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
+			main.sfx("arrow_hit", 1.2, -8.0)
+			queue_free()
+			return
 	if friendly:
 		for e in main.enemies():
 			if e in hit:

@@ -33,6 +33,10 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Music on/off | M |
 | Show/hide controls | H |
 
+## The climb
+
+Each floor is one room. Clear it and the **stair** at the top of the room opens: walk onto it to climb. Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Every two floors both bonds grow a step (up to step 5), and each step makes their spells stronger (see `scripts/bonds.gd`). Floors above the first get a random layout of stone pillars, which block movement and arrows, and a group of monsters bought from a budget that grows each floor; monsters also get tougher (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
+
 ## What's in this build
 
 - **The base climber.** Started very clumsy; now a bit tougher: 140 health, quicker on its feet, faster stamina recovery, cheaper rolls, a slightly wider parry window, and a longer grace period after being hit so a crowd can't chain-hit you.
@@ -61,7 +65,9 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | `scenes/main.tscn` | The only scene; everything is built from `main.gd` |
 | `scripts/main.gd` | The room, spawning, restart, effects hooks |
 | `scripts/player.gd` | The climber: movement, roll, strike, parry, casting, overdraw |
-| `scripts/bond.gd` | A bond: essence, steps, burning, and the two spells |
+| `scripts/bond.gd` | A bond: essence, steps, burning, and the spell code |
+| `scripts/bonds.gd` | Bond definitions: spells and what each step changes |
+| `scripts/floors.gd` | Builds each floor: pillar layouts, monster groups, toughness |
 | `scripts/enemy.gd` | Slime, archer and knight |
 | `scripts/projectile.gd` | Enemy arrows |
 | `scripts/fx.gd` | Floating text, lightning and wind cones |

@@ -118,15 +118,35 @@ func _draw() -> void:
 	else:
 		draw_string(font, Vector2(size.x - 120, 26), "H  controls", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
 
+	# Floor counter, top centre.
+	var floor_text := "FLOOR %d" % main.floor_num
+	draw_string_outline(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 5, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, GOLD)
+	draw_string(font, Vector2(0, 48), "best %d" % main.best_floor, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, DIM_TEXT)
+	if main.stair_open and not main.climbing:
+		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.005)
+		draw_string_outline(font, Vector2(0, 68), "The stair is open", HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, 68), "The stair is open", HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(1.0, 0.88, 0.6, pulse))
+
+	# A new floor: its number and what changed, fading out.
+	if not main.banner.is_empty():
+		var b: Dictionary = main.banner
+		var a: float = clampf(b["t"] / 0.6, 0.0, 1.0)
+		var top := size.y * 0.3
+		draw_string_outline(font, Vector2(0, top), b["title"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
+		draw_string(font, Vector2(0, top), b["title"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(GOLD, a))
+		var ly := top + 30.0
+		for line in b["lines"]:
+			draw_string_outline(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8 * a))
+			draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(TEXT, a))
+			ly += 22.0
+
 	# Messages: a banner across the middle.
 	var msg := ""
 	var sub := ""
 	if p.dead:
-		msg = "YOU FELL"
-		sub = "Press R to climb again"
-	elif main.cleared:
-		msg = "ROOM CLEARED"
-		sub = "Burns heal at the stair. Press R to fight again"
+		msg = "YOU FELL ON FLOOR %d" % main.floor_num
+		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, "Tap R" if main.touch_active else "Press R"]
 	if msg != "":
 		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0)
 		draw_rect(band, Color(0, 0, 0, 0.55))
@@ -136,6 +156,10 @@ func _draw() -> void:
 		draw_string_outline(font, Vector2(0, band.position.y + 48), msg, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 6, Color(0, 0, 0, 0.8))
 		draw_string(font, Vector2(0, band.position.y + 48), msg, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, col)
 		draw_string(font, Vector2(0, band.position.y + 74), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
+
+	# Between floors the screen fades to black.
+	if main.fade > 0.0:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, main.fade))
 
 
 func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float, color: Color) -> void:

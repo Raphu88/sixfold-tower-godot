@@ -12,6 +12,10 @@ const AudioScript := preload("res://scripts/audio.gd")
 const RoomScript := preload("res://scripts/room.gd")
 const Palette := preload("res://scripts/palette.gd")
 const TouchScript := preload("res://scripts/touch.gd")
+const Floors := preload("res://scripts/floors.gd")
+
+const SAVE_PATH := "user://sixfold.cfg"
+const STAIR_REACH := 26.0
 
 const WALL := 24.0
 
@@ -26,6 +30,19 @@ var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
 var light_tex: Texture2D
 var touch_active := false  # on-screen controls in use
+
+# The climb
+var floor_num := 1
+var best_floor := 1
+var pillars: Array = []  # {pos, r}
+var pillar_bodies: Array = []
+var stair_open := false
+var stair_pos := Vector2.ZERO
+var climbing := false
+var fade := 0.0  # black screen between floors, 0..1
+var banner := {}  # {title, lines, t}: shown when a floor starts
+var room_view
+var player_start := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -45,14 +62,17 @@ func _ready() -> void:
 	var dim := CanvasModulate.new()
 	dim.color = Palette.AMBIENT
 	add_child(dim)
-	var room_view = RoomScript.new()
+	room_view = RoomScript.new()
 	room_view.setup(room, WALL)
 	add_child(room_view)
 	light_tex = RoomScript.make_light_texture()
 
+	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
+	stair_pos = Vector2(room.get_center().x, room.position.y + 34.0)
+	room_view.stair_pos = stair_pos
 	player = PlayerScript.new()
 	player.main = self
-	player.position = Vector2(300, 365)
+	player.position = Vector2(300, 365)  # floor 1 starts on the left, facing the fight
 	add_child(player)
 	var glow := PointLight2D.new()
 	glow.texture = light_tex
@@ -61,17 +81,8 @@ func _ready() -> void:
 	glow.energy = 0.55
 	player.add_child(glow)
 
-	var spawns := [
-		["knight", Vector2(760, 365)],
-		["slime", Vector2(820, 245)],
-		["slime", Vector2(860, 485)],
-		["archer", Vector2(1080, 365)],
-	]
-	for s in spawns:
-		var e = EnemyScript.new()
-		e.setup(s[0], self)
-		e.position = s[1]
-		add_child(e)
+	_load_best()
+	_start_floor(1)
 
 	fx = FxScript.new()
 	fx.z_index = 10
@@ -138,11 +149,17 @@ func _process(delta: float) -> void:
 		_change_step(-1)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
-	if not cleared and enemies().is_empty():
+	if not cleared and not climbing and enemies().is_empty():
 		cleared = true
-		for b in player.bonds.values():
-			b.burned = false
+		stair_open = true
+		room_view.stair_open = true
 		sfx("clear", 1.0, 0.0, 0.0)
+	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
+		_climb()
+	if not banner.is_empty():
+		banner["t"] -= delta
+		if banner["t"] <= 0.0:
+			banner = {}
 	if player != null:
 		camera.position = player.position
 	# On phones the whole game is already drawn bigger, so pull the camera back.
@@ -177,6 +194,113 @@ func _separate_bodies() -> void:
 			var share: float = b.weight / (a.weight + b.weight)  # a's part of the push
 			a.move_and_collide(-n * overlap * share)
 			b.move_and_collide(n * overlap * (1.0 - share))
+
+
+# --- the climb -------------------------------------------------------------
+
+func _start_floor(n: int) -> void:
+	floor_num = n
+	cleared = false
+	stair_open = false
+	room_view.stair_open = false
+	# Clear out the last floor: monsters, arrows, pillars.
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
+		e.remove_from_group("enemies")
+	for c in get_children():
+		if "reflected" in c:
+			c.queue_free()
+	for b in pillar_bodies:
+		b.queue_free()
+	pillar_bodies.clear()
+
+	var start: Vector2 = player.position if n == 1 else player_start
+	var plan: Dictionary = Floors.build(n, room, start)
+	pillars = plan["pillars"]
+	for p in pillars:
+		var body := StaticBody2D.new()
+		body.collision_layer = 1
+		body.collision_mask = 0
+		body.position = p["pos"]
+		var shape := CollisionShape2D.new()
+		var circle := CircleShape2D.new()
+		circle.radius = p["r"]
+		shape.shape = circle
+		body.add_child(shape)
+		add_child(body)
+		pillar_bodies.append(body)
+	room_view.set_pillars(pillars)
+
+	var tough := Floors.toughness(n)
+	for m in plan["monsters"]:
+		var e = EnemyScript.new()
+		e.setup(m[0], self)
+		e.max_hp *= tough.x
+		e.hp = e.max_hp
+		e.dmg *= tough.y
+		e.position = m[1]
+		add_child(e)
+	player.position = start
+	if camera != null:
+		camera.position = start
+		camera.reset_smoothing()
+
+
+## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
+func _climb() -> void:
+	climbing = true
+	player.set_physics_process(false)
+	sfx("step", 0.8, 0.0, 0.0)
+	var tw := create_tween()
+	tw.tween_property(self, "fade", 1.0, 0.45)
+	tw.tween_callback(_arrive)
+	tw.tween_interval(0.25)
+	tw.tween_property(self, "fade", 0.0, 0.5)
+	tw.tween_callback(func(): climbing = false)
+
+
+func _arrive() -> void:
+	var lines: Array = []
+	# Rest at the stair: burns heal, some health and all stamina return.
+	var healed := minf(player.max_hp - player.hp, player.max_hp * 0.35)
+	player.hp += healed
+	player.sta = player.max_sta
+	var burned := false
+	for b in player.bonds.values():
+		burned = burned or b.burned
+		b.burned = false
+	if burned:
+		lines.append("Your burns heal")
+	if healed >= 1.0:
+		lines.append("Rested: +%d health" % int(healed))
+	# Bonds grow a step every two floors.
+	var next := floor_num + 1
+	var step := clampi(1 + (next - 1) / 2, 1, 5)
+	for b in player.bonds.values():
+		if step > b.step:
+			b.step = step
+			var note: String = b.step_note(step)
+			lines.append("%s grows to step %d%s" % [b.display_name(), step, (": " + note) if note != "" else ""])
+	_start_floor(next)
+	if floor_num > best_floor:
+		best_floor = floor_num
+		_save_best()
+	banner = {"title": "FLOOR %d" % floor_num, "lines": lines, "t": 3.0}
+	player.set_physics_process(true)
+	sfx("clear", 0.8, -8.0, 0.0)
+
+
+func _load_best() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) == OK:
+		best_floor = int(cfg.get_value("climb", "best_floor", 1))
+
+
+func _save_best() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE_PATH)
+	cfg.set_value("climb", "best_floor", best_floor)
+	cfg.save(SAVE_PATH)
 
 
 func _change_step(by: int) -> void:
