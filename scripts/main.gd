@@ -11,6 +11,7 @@ const HudScript := preload("res://scripts/hud.gd")
 const AudioScript := preload("res://scripts/audio.gd")
 const RoomScript := preload("res://scripts/room.gd")
 const Palette := preload("res://scripts/palette.gd")
+const TouchScript := preload("res://scripts/touch.gd")
 
 const WALL := 24.0
 
@@ -24,6 +25,7 @@ var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
 var light_tex: Texture2D
+var touch_active := false  # on-screen controls in use
 
 
 func _ready() -> void:
@@ -96,6 +98,9 @@ func _ready() -> void:
 	var hud = HudScript.new()
 	hud.main = self
 	layer.add_child(hud)
+	var touch = TouchScript.new()
+	touch.main = self
+	layer.add_child(touch)
 
 
 func _build_walls() -> void:

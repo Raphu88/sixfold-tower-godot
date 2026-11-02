@@ -86,6 +86,8 @@ func _draw() -> void:
 
 	# Bonds, bottom left.
 	var y := size.y - 112.0
+	if main.touch_active:
+		y = 132.0  # out from under your thumbs
 	for part in ["hand", "legs"]:
 		var b = p.bonds.get(part)
 		if b == null:
@@ -94,7 +96,9 @@ func _draw() -> void:
 		y += 50.0
 
 	# Controls, top right.
-	if show_help:
+	if main.touch_active:
+		pass  # the touch buttons are labelled; no keyboard help needed
+	elif show_help:
 		var help := [
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],

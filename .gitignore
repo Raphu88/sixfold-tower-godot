@@ -1,5 +1,5 @@
 # Godot 4 editor cache and exports
 .godot/
-export_presets.cfg
 *.translation
 .audio_sources/
+build/
