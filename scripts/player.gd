@@ -7,10 +7,10 @@ const Weapons := preload("res://scripts/weapons.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
-const MAX_HP := 100.0
+const MAX_HP := 140.0  # tougher than the first, very clumsy climber
 const MAX_STA := 100.0
-const WALK := 120.0
-const SPRINT := 185.0
+const WALK := 135.0
+const SPRINT := 200.0
 const STRIKE_DAMAGE := 8.0
 const BUFFER_TIME := 0.2  # presses this early still count when you recover
 const COMBO_WINDOW := 0.35  # time after recovering to continue the chain
@@ -257,7 +257,7 @@ func _tick_timers(delta: float) -> void:
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + 35.0 * delta)
+		sta = minf(MAX_STA, sta + 45.0 * delta)
 
 
 func _winded() -> void:
@@ -270,7 +270,7 @@ func _try_roll(input: Vector2) -> bool:
 		return false
 	# Windwalker's Body: the roll becomes a long wind dash.
 	var wind := has_bond("windwalker")
-	var cost := 20.0 if wind else 30.0
+	var cost := 16.0 if wind else 24.0
 	var dist_mult := 1.0
 	var legs = bonds.get("legs")
 	if legs != null and legs.burned:
@@ -323,7 +323,7 @@ func _melee() -> bool:
 	var heavy: bool = swing["heavy"]
 	combo = (combo + 1) % chain.size()
 	sta = maxf(0.0, sta - swing["sta"])
-	sta_delay = 0.8
+	sta_delay = 0.6
 	attack_cd = swing["recover"]
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
@@ -375,7 +375,7 @@ func release_draw() -> void:
 	drawing = false
 	attack_cd = w["recover"]
 	sta = maxf(0.0, sta - w["sta"])
-	sta_delay = 0.8
+	sta_delay = 0.6
 	var dmg: float = lerpf(w["dmg_min"], w["dmg_max"], k * k)
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
@@ -442,7 +442,7 @@ func _try_parry() -> bool:
 	if parry_cd > 0.0 or attack_cd > 0.0:
 		return false
 	drawing = false
-	parry_t = 0.18
+	parry_t = 0.22  # a little more forgiving, especially on touch
 	parry_cd = 0.6
 	return true
 
@@ -487,7 +487,7 @@ func receive_attack(dmg: float, source) -> void:
 	if hurt_t > 0.0:
 		return
 	hp -= dmg
-	hurt_t = 0.4
+	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
 	if source != null:
 		knock = (global_position - source.global_position).normalized() * 240.0

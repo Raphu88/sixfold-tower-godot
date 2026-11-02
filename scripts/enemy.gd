@@ -11,7 +11,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const TYPES := {
 	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.5, 0.88, 0.4), "dmg": 8.0, "weight": 0.7},
 	"archer": {"hp": 18.0, "speed": 75.0, "radius": 11.0, "color": Color(0.62, 0.5, 0.3), "dmg": 8.0, "weight": 0.8},
-	"knight": {"hp": 48.0, "speed": 68.0, "radius": 15.0, "color": Color(0.66, 0.7, 0.8), "dmg": 14.0, "weight": 3.0},
+	"knight": {"hp": 48.0, "speed": 60.0, "radius": 15.0, "color": Color(0.66, 0.7, 0.8), "dmg": 14.0, "weight": 3.0},
 }
 
 var kind := "slime"
@@ -54,9 +54,10 @@ func setup(k: String, room) -> void:
 	speed = t["speed"]
 	dmg = t["dmg"]
 	weight = t["weight"]
-	state_t = randf_range(0.6, 1.6)
+	# Monsters take a moment to notice you, and not all at once.
+	state_t = randf_range(1.2, 2.4)
 	if kind == "knight":
-		state = "chase"
+		state = "recover"  # stands still until state_t runs out, then gives chase
 
 
 func _ready() -> void:
@@ -124,10 +125,10 @@ func _drift() -> void:
 func _slime(delta: float, dir: Vector2, dist: float, p) -> void:
 	state_t -= delta
 	if state == "hop":
-		velocity = aim_dir * 190.0
+		velocity = aim_dir * 165.0
 		if state_t <= 0.0:
 			state = "rest"
-			state_t = 0.8
+			state_t = 1.0
 	else:
 		velocity = Vector2.ZERO
 		if state_t <= 0.0:
@@ -158,7 +159,7 @@ func _archer(delta: float, dir: Vector2, dist: float) -> void:
 		if aim_dir != Vector2.ZERO:
 			main.spawn_projectile(global_position + aim_dir * radius, aim_dir * 260.0, dmg)
 		aim_dir = Vector2.ZERO
-		state_t = randf_range(1.6, 2.3)
+		state_t = randf_range(2.0, 2.8)
 
 
 # Chases, winds up (turning slowly toward you), then lunges in a straight line.
