@@ -57,6 +57,7 @@ var knock := Vector2.ZERO
 var squash := 0.0
 var buffered := ""
 var buffer_t := 0.0
+var step_t := 0.0
 
 
 func _ready() -> void:
@@ -130,11 +131,22 @@ func _physics_process(delta: float) -> void:
 			sta -= 22.0 * delta
 			sta_delay = 0.6
 		velocity = input * spd
+		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
 	velocity += knock
 	move_and_slide()
 	queue_redraw()
+
+
+func _footsteps(delta: float, speed: float) -> void:
+	if speed <= 1.0:
+		step_t = 0.0
+		return
+	step_t -= delta
+	if step_t <= 0.0:
+		step_t = 36.0 / speed  # one step every ~36 px travelled
+		main.sfx("step", 1.0, -2.0 if speed > WALK else -5.0, 0.08)
 
 
 func _read_buffer() -> void:
@@ -175,7 +187,7 @@ func _equip(id: String) -> void:
 	if wdata()["kind"] == "melee":
 		swing = wdata()["combo"][0]
 	main.fx_text(global_position + Vector2(0, -30), wdata()["name"], Color(0.85, 0.82, 0.9))
-	main.sfx("equip", 1.0, -6.0)
+	main.sfx("equip_" + weapon)
 
 
 ## Returns true once the action is spent (done, or refused for a reason
@@ -216,7 +228,7 @@ func _tick_timers(delta: float) -> void:
 
 func _winded() -> void:
 	main.fx_text(global_position + Vector2(0, -28), "too winded", Color(0.6, 0.6, 0.65))
-	main.sfx("winded", 1.0, -6.0)
+	main.sfx("winded")
 
 
 func _try_roll(input: Vector2) -> bool:
@@ -246,7 +258,9 @@ func _try_roll(input: Vector2) -> bool:
 	ghost_t = 0.0
 	squash = 0.6
 	drawing = false  # rolling drops a drawn arrow
-	main.sfx("gust" if wind else "roll", 1.4 if wind else 1.0, -4.0 if wind else 0.0)
+	main.sfx("roll")
+	if wind:
+		main.sfx("gust", 1.3, -6.0)
 	return true
 
 
@@ -261,7 +275,7 @@ func _try_attack() -> bool:
 		draw_t = 0.0
 		draw_release = false
 		draw_ready = false
-		main.sfx("draw", 1.0, -4.0, 0.0)
+		main.sfx("draw", 1.0, 0.0, 0.03)
 		return true
 	return _melee()
 
@@ -308,7 +322,7 @@ func _tick_draw(delta: float) -> void:
 	draw_t += delta
 	if draw_t >= w["draw_time"] and not draw_ready:
 		draw_ready = true
-		main.sfx("ready", 1.0, -8.0, 0.0)
+		main.sfx("ready", 1.0, 0.0, 0.0)
 		main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 18.0, 0.2, 2.0)
 	if mouse_aim and not Input.is_action_pressed("attack"):
 		draw_release = true
@@ -335,7 +349,7 @@ func release_draw() -> void:
 	var speed: float = lerpf(w["speed_min"], w["speed_max"], k)
 	var force: float = lerpf(w["knock_min"], w["knock_max"], k)
 	main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
-	main.sfx("bow", 0.9 + 0.25 * k, -2.0)
+	main.sfx("bow", 0.9 + 0.2 * k, -6.0 + 6.0 * k)
 	knock = -aim * (60.0 if full else 20.0)
 	if full:
 		main.shake(3.0)
@@ -343,7 +357,7 @@ func release_draw() -> void:
 
 ## Called by your arrows when they hit a monster.
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
-	_strike(e, dmg, dir, force, heavy, "hit_light")
+	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	var hand = bonds.get("hand")
 	if hand != null:
 		hand.fill(6.0)
@@ -366,7 +380,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 				continue
 			if e.global_position.distance_to(other.global_position) < 150.0:
 				main.fx_bolt([e.global_position, other.global_position], Color(0.95, 0.89, 0.42))
-				main.sfx("zap", 1.3, -8.0)
+				main.sfx("zap", 1.25, -6.0)
 				other.take_hit(5.0, Vector2.ZERO)
 				break
 	var contact: Vector2 = e.global_position - dir * e.radius
@@ -380,6 +394,10 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	else:
 		main.fx_burst(contact, dir, Color(1.0, 0.95, 0.85), 8 if heavy else 5)
 		main.sfx("hit_heavy" if heavy else hit_sound)
+	# The monster's body adds its own note: armour clanks, slime squelches.
+	var material: String = e.MATERIAL.get(e.kind, "")
+	if material != "":
+		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
 	e.take_hit(dmg, dir, force)
@@ -403,7 +421,7 @@ func _try_cast(part: String) -> bool:
 	cast_part = part
 	cast_total = b.windup()
 	cast_t = cast_total
-	main.sfx("charge", 1.0 / maxf(cast_total / 0.3, 0.5), -4.0, 0.0)
+	main.sfx("charge", 1.0, 0.0, 0.03)
 	return true
 
 

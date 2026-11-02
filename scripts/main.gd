@@ -99,11 +99,13 @@ func _process(delta: float) -> void:
 		_change_step(1)
 	if Input.is_action_just_pressed("step_down"):
 		_change_step(-1)
+	if Input.is_action_just_pressed("toggle_music") and audio != null:
+		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
 	if not cleared and enemies().is_empty():
 		cleared = true
 		for b in player.bonds.values():
 			b.burned = false
-		sfx("clear", 1.0, -2.0, 0.0)
+		sfx("clear", 1.0, 0.0, 0.0)
 	camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
@@ -170,7 +172,8 @@ func on_enemy_killed(e) -> void:
 	fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)
-	sfx("kill")
+	var kill_sound: String = "kill_" + e.kind
+	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
 	shake(6.0)
 

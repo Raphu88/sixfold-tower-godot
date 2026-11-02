@@ -45,7 +45,7 @@ func _run() -> void:
 	p.mouse_aim = false
 	var foes: Array = main.enemies()
 	_check(foes.size() == 4, "room spawns 4 monsters")
-	_check(main.audio.sounds.size() >= 15, "sounds synthesised (%d)" % main.audio.sounds.size())
+	_check(main.audio.streams.size() >= 30 and main.audio.has_sound("hit"), "sounds loaded (%d)" % main.audio.streams.size())
 
 	# Freeze the monsters so the test controls the fight.
 	for e in foes:

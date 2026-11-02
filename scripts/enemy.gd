@@ -2,6 +2,9 @@ extends CharacterBody2D
 ## Prototype monsters: slime, archer and knight. Every attack is telegraphed,
 ## so a careful player can always read it.
 
+## The sound a hit makes on this monster's body, layered over the weapon's.
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": ""}
+
 const TYPES := {
 	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.53, 0.72, 0.36), "dmg": 8.0, "weight": 0.7},
 	"archer": {"hp": 18.0, "speed": 75.0, "radius": 11.0, "color": Color(0.87, 0.83, 0.74), "dmg": 8.0, "weight": 0.8},
@@ -116,6 +119,7 @@ func _slime(delta: float, dir: Vector2, dist: float, p) -> void:
 			state = "hop"
 			aim_dir = dir
 			state_t = 0.35
+			main.sfx("slime_hop", randf_range(0.9, 1.15))
 	if dist < radius + p.radius + 6.0 and contact_cd <= 0.0:
 		contact_cd = 0.9
 		p.receive_attack(dmg, self)
@@ -134,7 +138,7 @@ func _archer(delta: float, dir: Vector2, dist: float) -> void:
 		velocity = dir.orthogonal() * speed * (1.0 if sin(Time.get_ticks_msec() * 0.0008) > 0.0 else -1.0)
 	if state_t <= 0.42 and aim_dir == Vector2.ZERO and dist < 430.0:
 		aim_dir = dir
-		main.sfx("warn", 1.35, -8.0)
+		main.sfx("warn_archer")  # the bow creaks as it draws
 	if state_t <= 0.0:
 		if aim_dir != Vector2.ZERO:
 			main.spawn_projectile(global_position + aim_dir * radius, aim_dir * 260.0, dmg)
@@ -152,7 +156,7 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "wind"
 				state_t = 0.45
 				lunge_dir = dir
-				main.sfx("warn", 0.75, -4.0)
+				main.sfx("warn_knight")  # armour rattles as it winds up
 		"wind":
 			velocity = Vector2.ZERO
 			if state_t > 0.2:
