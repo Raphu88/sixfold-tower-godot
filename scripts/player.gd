@@ -27,6 +27,7 @@ var aim := Vector2.RIGHT
 var bonds := {}  # body part -> bond
 var dead := false
 var mouse_aim := true  # tests turn this off to aim by hand
+var touch_aim := false  # on phones: face the nearest foe, or where you move
 
 var weapon := "sword"
 var pending_weapon := ""
@@ -103,7 +104,10 @@ func _physics_process(delta: float) -> void:
 		return
 	_tick_timers(delta)
 	var mouse := get_global_mouse_position()
-	if mouse_aim and mouse.distance_to(global_position) > 4.0 and attack_cd <= 0.0:
+	if touch_aim:
+		if attack_cd <= 0.0:
+			_auto_aim()
+	elif mouse_aim and mouse.distance_to(global_position) > 4.0 and attack_cd <= 0.0:
 		aim = (mouse - global_position).normalized()
 	_read_buffer()
 
@@ -146,6 +150,27 @@ func _physics_process(delta: float) -> void:
 	velocity += knock
 	move_and_slide()
 	queue_redraw()
+
+
+## Touch aiming: lock onto the nearest monster in reach (the bow reaches
+## further), otherwise face the way you're moving.
+func _auto_aim() -> void:
+	var reach := 380.0 if weapon == "bow" else 150.0
+	var best = null
+	var best_d := reach
+	for e in main.enemies():
+		var d: float = global_position.distance_to(e.global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	var target := aim
+	if best != null:
+		target = (best.global_position - global_position).normalized()
+	else:
+		var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		if move.length() > 0.2:
+			target = move.normalized()
+	aim = aim.slerp(target, 0.35).normalized()
 
 
 func _footsteps(delta: float, speed: float) -> void:
@@ -333,7 +358,7 @@ func _tick_draw(delta: float) -> void:
 		draw_ready = true
 		main.sfx("ready", 1.0, 0.0, 0.0)
 		main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 18.0, 0.2, 2.0)
-	if mouse_aim and not Input.is_action_pressed("attack"):
+	if (mouse_aim or touch_aim) and not Input.is_action_pressed("attack"):
 		draw_release = true
 	# A quick tap still looses a weak shot once the arrow is nocked.
 	if draw_release and draw_t >= w["min_draw"]:

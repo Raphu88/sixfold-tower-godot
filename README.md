@@ -10,6 +10,12 @@ A first playable test of the new magic system: **bonds** marked on body parts th
 
 Everything visual is drawn in code, so there are no art assets. Sounds and music are recorded CC0 effects in `assets/audio` (see [CREDITS.md](CREDITS.md)).
 
+## Playing on a phone
+
+A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
+
+On a touchscreen, on-screen controls appear as soon as you touch it: a joystick under your left thumb (push it all the way to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, both spells and weapon swap. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+
 ## Controls
 
 | Action | Keys |
@@ -61,6 +67,9 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 | `scripts/fx.gd` | Floating text, lightning and wind cones |
 | `scripts/hud.gd` | Health, stamina, bond bars and help text |
 | `scripts/controls.gd` | Input actions, set up in code |
+| `scripts/touch.gd` | On-screen touch controls |
+| `export_presets.cfg` | Web export settings |
+| `.github/workflows/web.yml` | Builds and publishes the web version |
 | `scripts/audio.gd` | Plays sound effects (random variants) and music |
 | `scripts/sound_bank.gd` | Generated list of sound files |
 | `scripts/room.gd` | The room's look: floor, walls, torches, dust |

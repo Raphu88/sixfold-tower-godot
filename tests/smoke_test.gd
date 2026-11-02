@@ -26,6 +26,26 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+## Touch events arrive in window pixels; convert from game-view pixels.
+func _to_window(pos: Vector2) -> Vector2:
+	return root.get_final_transform() * pos
+
+
+func _touch(index: int, pos: Vector2, down: bool) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.position = _to_window(pos)
+	ev.pressed = down
+	Input.parse_input_event(ev)
+
+
+func _drag(index: int, pos: Vector2) -> void:
+	var ev := InputEventScreenDrag.new()
+	ev.index = index
+	ev.position = _to_window(pos)
+	Input.parse_input_event(ev)
+
+
 ## Waits in real time (headless frames can run much faster than 60 fps).
 func _wait(seconds: float) -> void:
 	await create_timer(seconds, true, false, true).timeout
@@ -163,6 +183,42 @@ func _run() -> void:
 	await _wait(0.5)
 	_check(slime.hp < shp, "arrow hits the slime")
 	p._equip("sword")
+	await _settle()
+
+	print("touch controls")
+	var touch = main.get_children().filter(func(c): return c is CanvasLayer)[0].get_children().filter(func(c): return "stick_touch" in c)[0]
+	var screen: Vector2 = touch.get_viewport_rect().size
+	_touch(0, Vector2(200, screen.y - 200), true)
+	await _frames(1)
+	_check(main.touch_active and p.touch_aim, "first touch turns on touch controls")
+	var before: Vector2 = p.global_position
+	_drag(0, Vector2(280, screen.y - 200))
+	await _frames(1)
+	await _wait(0.3)
+	_check(p.global_position.x > before.x + 5.0, "joystick moves the climber (%.0f px)" % (p.global_position.x - before.x))
+	_touch(0, Vector2(280, screen.y - 200), false)
+	await _wait(0.1)
+	_check(Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "letting go stops moving")
+	p.attack_cd = 0.0
+	p.combo_t = 0.0
+	var cd0: float = p.attack_cd
+	touch._layout()
+	var atk: Vector2 = touch.buttons[0]["c"]
+	_touch(1, atk, true)
+	await _wait(0.1)
+	_touch(1, atk, false)
+	_check(p.combo > 0 or p.attack_cd > cd0, "attack button swings")
+	await _settle()
+	# A key press hands control back to keyboard and mouse.
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_W
+	key.pressed = true
+	Input.parse_input_event(key)
+	await _frames(2)
+	key.pressed = false
+	Input.parse_input_event(key)
+	_check(not main.touch_active, "keyboard turns touch controls off")
+	p.touch_aim = false
 	await _settle()
 
 	print("hurt and death")
