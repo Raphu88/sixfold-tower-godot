@@ -145,6 +145,9 @@ func _process(delta: float) -> void:
 		sfx("clear", 1.0, 0.0, 0.0)
 	if player != null:
 		camera.position = player.position
+	# On phones the whole game is already drawn bigger, so pull the camera back.
+	var want := 1.1 if touch_active else 1.35
+	camera.zoom = Vector2(want, want)
 	camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
