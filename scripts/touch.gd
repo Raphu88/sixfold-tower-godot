@@ -2,16 +2,17 @@ extends Node2D
 ## On-screen controls for phones and tablets. They appear the first time
 ## the screen is touched and hide again if a keyboard or mouse is used.
 ##
-## Left side: a floating joystick (appears under your thumb; push it all
-## the way to sprint). Right side: attack (hold to draw the bow), roll,
+## Left side: a floating joystick (appears under your thumb). Right side: attack (hold to draw the bow), roll,
 ## parry, both bond casts and weapon switch. Top right: fullscreen, music,
 ## restart. The controls press the same input actions as the keyboard, so
 ## the rest of the game doesn't need to know about touch at all.
 
 const Palette := preload("res://scripts/palette.gd")
 
-const STICK_RADIUS := 70.0
-const SPRINT_AT := 0.92
+const STICK_RADIUS := 55.0
+## While touch is active the whole game is drawn bigger, so the world and
+## text are readable on a small screen.
+const PHONE_SCALE := 1.5
 const ONE_SHOT := ["weapon", "music", "restart"]
 
 var main
@@ -29,16 +30,20 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var s := get_viewport_rect().size
+	# Laid out for the scaled-up phone view; k keeps buttons thumb-sized.
+	var k := 0.75
+	var br := Vector2(s.x, s.y)  # bottom-right corner
+	var tr := Vector2(s.x, 0)  # top-right corner
 	buttons = [
-		{"id": "attack", "action": "attack", "c": Vector2(s.x - 130, s.y - 130), "r": 62.0},
-		{"id": "roll", "action": "roll", "c": Vector2(s.x - 268, s.y - 86), "r": 44.0},
-		{"id": "parry", "action": "parry", "c": Vector2(s.x - 150, s.y - 278), "r": 42.0},
-		{"id": "cast_hand", "action": "cast_hand", "c": Vector2(s.x - 282, s.y - 222), "r": 34.0},
-		{"id": "cast_legs", "action": "cast_legs", "c": Vector2(s.x - 52, s.y - 262), "r": 34.0},
-		{"id": "weapon", "action": "weapon_next", "c": Vector2(s.x - 290, s.y - 330), "r": 28.0},
-		{"id": "fullscreen", "action": "", "c": Vector2(s.x - 40, 40), "r": 24.0},
-		{"id": "music", "action": "toggle_music", "c": Vector2(s.x - 100, 40), "r": 24.0},
-		{"id": "restart", "action": "restart", "c": Vector2(s.x - 160, 40), "r": 24.0},
+		{"id": "attack", "action": "attack", "c": br + Vector2(-130, -130) * k, "r": 62.0 * k},
+		{"id": "roll", "action": "roll", "c": br + Vector2(-268, -86) * k, "r": 44.0 * k},
+		{"id": "parry", "action": "parry", "c": br + Vector2(-150, -278) * k, "r": 42.0 * k},
+		{"id": "cast_hand", "action": "cast_hand", "c": br + Vector2(-282, -222) * k, "r": 34.0 * k},
+		{"id": "cast_legs", "action": "cast_legs", "c": br + Vector2(-52, -262) * k, "r": 34.0 * k},
+		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
+		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
+		{"id": "music", "action": "toggle_music", "c": tr + Vector2(-100, 40) * k, "r": 24.0 * k},
+		{"id": "restart", "action": "restart", "c": tr + Vector2(-160, 40) * k, "r": 24.0 * k},
 	]
 
 
@@ -65,6 +70,7 @@ func _input(event: InputEvent) -> void:
 func _set_active(on: bool) -> void:
 	active = on
 	main.touch_active = on
+	get_tree().root.content_scale_factor = PHONE_SCALE if on else 1.0
 	if main.player != null:
 		main.player.touch_aim = on
 	if not on:
@@ -119,10 +125,6 @@ func _set_move(v: Vector2) -> void:
 	var dead := 0.15
 	_axis("move_right", "move_left", v.x if absf(v.x) > dead else 0.0)
 	_axis("move_down", "move_up", v.y if absf(v.y) > dead else 0.0)
-	if v.length() >= SPRINT_AT:
-		Input.action_press("sprint")
-	else:
-		Input.action_release("sprint")
 
 
 func _axis(pos_action: String, neg_action: String, value: float) -> void:
@@ -166,8 +168,7 @@ func _draw() -> void:
 		draw_circle(stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.3))
 		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0)
 		var knob := stick_origin + (stick_pos - stick_origin).limit_length(STICK_RADIUS)
-		var sprinting := (stick_pos - stick_origin).length() >= STICK_RADIUS * SPRINT_AT
-		draw_circle(knob, 28.0, Color(0.95, 0.8, 0.5, 0.55) if sprinting else Color(1, 1, 1, 0.35))
+		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
 	else:
 		draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
 
@@ -209,5 +210,5 @@ func _draw() -> void:
 			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0)
 		if pressed:
 			draw_circle(c, r - 3.0, Color(col, 0.18))
-		var fsize := 15 if r > 30.0 else 12
+		var fsize := 13 if r > 30.0 else 10
 		draw_string(font, c + Vector2(-r, fsize * 0.35), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fsize, Color(col, 0.9))

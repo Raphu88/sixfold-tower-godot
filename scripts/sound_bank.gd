@@ -13,7 +13,7 @@ const SFX := {
 	"parry": ["res://assets/audio/sfx/parry_0.wav", "res://assets/audio/sfx/parry_1.wav"],
 	"arrow_hit": ["res://assets/audio/sfx/arrow_hit_0.wav", "res://assets/audio/sfx/arrow_hit_1.wav"],
 	"draw": ["res://assets/audio/sfx/draw_0.wav"],
-	"bow": ["res://assets/audio/sfx/bow_0.wav"],
+	"bow": ["res://assets/audio/sfx/bow_0.wav", "res://assets/audio/sfx/bow_1.wav"],
 	"ready": ["res://assets/audio/sfx/ready_0.wav"],
 	"equip_sword": ["res://assets/audio/sfx/equip_sword_0.wav"],
 	"equip_fists": ["res://assets/audio/sfx/equip_fists_0.wav"],
