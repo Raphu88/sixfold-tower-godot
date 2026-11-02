@@ -30,6 +30,18 @@ func _draw() -> void:
 	_bar(Vector2(24, 20), 240.0, p.hp / p.max_hp, Color(0.82, 0.31, 0.25), "Health")
 	_bar(Vector2(24, 44), 240.0, p.sta / p.max_sta, Color(0.5, 0.78, 0.45), "Stamina")
 
+	# Weapons: the equipped one is highlighted.
+	var wx := 24.0
+	for i in p.Weapons.ORDER.size():
+		var id: String = p.Weapons.ORDER[i]
+		var label := "%d %s" % [i + 1, p.Weapons.WEAPONS[id]["name"]]
+		var on: bool = id == p.weapon
+		var col := Color(1.0, 0.9, 0.7) if on else Color(0.55, 0.52, 0.6)
+		if on:
+			draw_rect(Rect2(Vector2(wx - 4, 66), Vector2(78, 20)), Color(1, 1, 1, 0.08))
+		draw_string(font, Vector2(wx, 81), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col)
+		wx += 84.0
+
 	var y := size.y - 120.0
 	for part in ["hand", "legs"]:
 		var b = p.bonds.get(part)
@@ -52,7 +64,8 @@ func _draw() -> void:
 
 	var help := [
 		"WASD move, Shift sprint, Space roll",
-		"Left click strike (3-hit chain), Right click parry",
+		"Left click strike (hold to draw the bow)",
+		"Right click parry, 1/2/3 or wheel: weapon",
 		"Q / E cast, [ ] change bond step",
 		"R restart",
 	]

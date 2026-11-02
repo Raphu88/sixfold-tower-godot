@@ -13,6 +13,11 @@ static func setup() -> void:
 	_bind("cast_hand", [_key(KEY_Q)])
 	_bind("cast_legs", [_key(KEY_E)])
 	_bind("restart", [_key(KEY_R)])
+	_bind("weapon_1", [_key(KEY_1)])
+	_bind("weapon_2", [_key(KEY_2)])
+	_bind("weapon_3", [_key(KEY_3)])
+	_bind("weapon_next", [_mouse(MOUSE_BUTTON_WHEEL_DOWN)])
+	_bind("weapon_prev", [_mouse(MOUSE_BUTTON_WHEEL_UP)])
 	_bind("step_up", [_key(KEY_BRACKETRIGHT)])
 	_bind("step_down", [_key(KEY_BRACKETLEFT)])
 

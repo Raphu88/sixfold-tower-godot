@@ -24,6 +24,8 @@ var hurt_flash := 0.0
 
 
 func _ready() -> void:
+	# Run after the bodies have moved, so the shove-apart pass sees this frame.
+	process_physics_priority = 10
 	randomize()
 	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
@@ -107,6 +109,32 @@ func _process(delta: float) -> void:
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
 
 
+func _physics_process(_delta: float) -> void:
+	_separate_bodies()
+
+
+## Bodies can't share space: overlapping ones are pushed apart, and the
+## lighter one gives way more. Foes lifted into the air pass over everyone.
+func _separate_bodies() -> void:
+	var bodies: Array = enemies().filter(func(e): return e.airborne <= 0.0)
+	if player != null and not player.dead:
+		bodies.append(player)
+	for i in bodies.size():
+		for j in range(i + 1, bodies.size()):
+			var a = bodies[i]
+			var b = bodies[j]
+			var d: Vector2 = b.global_position - a.global_position
+			var min_d: float = a.radius + b.radius
+			var dist := d.length()
+			if dist >= min_d:
+				continue
+			var n := d / dist if dist > 0.01 else Vector2.from_angle(randf() * TAU)
+			var overlap := min_d - dist
+			var share: float = b.weight / (a.weight + b.weight)  # a's part of the push
+			a.move_and_collide(-n * overlap * share)
+			b.move_and_collide(n * overlap * (1.0 - share))
+
+
 func _change_step(by: int) -> void:
 	for b in player.bonds.values():
 		b.step = clampi(b.step + by, 1, 5)
@@ -126,6 +154,15 @@ func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
 	p.vel = vel
 	p.dmg = dmg
 	add_child(p)
+	return p
+
+
+func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pierce: bool) -> Node2D:
+	var p = spawn_projectile(pos, vel, dmg)
+	p.friendly = true
+	p.force = force
+	p.pierce = pierce
+	p.life = 1.6
 	return p
 
 

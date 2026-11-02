@@ -3,9 +3,9 @@ extends CharacterBody2D
 ## so a careful player can always read it.
 
 const TYPES := {
-	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.53, 0.72, 0.36), "dmg": 8.0},
-	"archer": {"hp": 18.0, "speed": 75.0, "radius": 11.0, "color": Color(0.87, 0.83, 0.74), "dmg": 8.0},
-	"knight": {"hp": 48.0, "speed": 68.0, "radius": 15.0, "color": Color(0.55, 0.59, 0.67), "dmg": 14.0},
+	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.53, 0.72, 0.36), "dmg": 8.0, "weight": 0.7},
+	"archer": {"hp": 18.0, "speed": 75.0, "radius": 11.0, "color": Color(0.87, 0.83, 0.74), "dmg": 8.0, "weight": 0.8},
+	"knight": {"hp": 48.0, "speed": 68.0, "radius": 15.0, "color": Color(0.55, 0.59, 0.67), "dmg": 14.0, "weight": 3.0},
 }
 
 var kind := "slime"
@@ -16,6 +16,7 @@ var radius := 12.0
 var color := Color.WHITE
 var speed := 60.0
 var dmg := 8.0
+var weight := 1.0  # how hard it is to shove when bodies collide
 var dead := false
 
 var state := "idle"
@@ -44,6 +45,7 @@ func setup(k: String, room) -> void:
 	color = t["color"]
 	speed = t["speed"]
 	dmg = t["dmg"]
+	weight = t["weight"]
 	state_t = randf_range(0.6, 1.6)
 	if kind == "knight":
 		state = "chase"
@@ -114,7 +116,7 @@ func _slime(delta: float, dir: Vector2, dist: float, p) -> void:
 			state = "hop"
 			aim_dir = dir
 			state_t = 0.35
-	if dist < radius + p.radius + 2.0 and contact_cd <= 0.0:
+	if dist < radius + p.radius + 6.0 and contact_cd <= 0.0:
 		contact_cd = 0.9
 		p.receive_attack(dmg, self)
 
