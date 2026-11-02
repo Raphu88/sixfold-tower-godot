@@ -1,11 +1,12 @@
 extends Node2D
-## An enemy arrow. Roll through it to fill your legs, or parry it to break it.
+## An enemy arrow. Roll through it to fill your legs, or parry it to send it back.
 
 var main
 var vel := Vector2.ZERO
 var dmg := 8.0
 var life := 2.5
 var dodged := false
+var reflected := false  # parried arrows fly back and hurt monsters
 
 
 func _physics_process(delta: float) -> void:
@@ -13,6 +14,17 @@ func _physics_process(delta: float) -> void:
 	life -= delta
 	if life <= 0.0 or not main.room.has_point(position):
 		queue_free()
+		return
+	if reflected:
+		for e in main.enemies():
+			if position.distance_to(e.global_position) < e.radius + 4.0:
+				main.fx_burst(position, vel.normalized(), Color(1.0, 0.85, 0.4), 8)
+				main.sfx("hit_heavy")
+				main.hitstop(0.06)
+				e.take_hit(dmg * 2.0, vel.normalized(), 220.0)
+				queue_free()
+				return
+		queue_redraw()
 		return
 	var p = main.player
 	if p == null or p.dead:
@@ -32,10 +44,13 @@ func _physics_process(delta: float) -> void:
 
 
 func on_parried() -> void:
-	queue_free()
+	reflected = true
+	life = 2.5
+	vel = main.player.aim * vel.length() * 1.5
 
 
 func _draw() -> void:
 	var back := -vel.normalized() * 12.0
-	draw_line(back, Vector2.ZERO, Color(0.87, 0.83, 0.74, 0.6), 2.0)
-	draw_circle(Vector2.ZERO, 3.5, Color(0.95, 0.92, 0.85))
+	var col := Color(1.0, 0.85, 0.4) if reflected else Color(0.95, 0.92, 0.85)
+	draw_line(back * (1.6 if reflected else 1.0), Vector2.ZERO, Color(col, 0.6), 2.0)
+	draw_circle(Vector2.ZERO, 3.5, col)

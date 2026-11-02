@@ -17,6 +17,16 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var size := get_viewport_rect().size
 
+	# A red edge flash when you get hurt.
+	if main.hurt_flash > 0.0:
+		var a: float = main.hurt_flash / 0.35 * 0.45
+		var edge := 28.0
+		var col := Color(0.85, 0.1, 0.08, a)
+		draw_rect(Rect2(0, 0, size.x, edge), col)
+		draw_rect(Rect2(0, size.y - edge, size.x, edge), col)
+		draw_rect(Rect2(0, edge, edge, size.y - edge * 2.0), col)
+		draw_rect(Rect2(size.x - edge, edge, edge, size.y - edge * 2.0), col)
+
 	_bar(Vector2(24, 20), 240.0, p.hp / p.max_hp, Color(0.82, 0.31, 0.25), "Health")
 	_bar(Vector2(24, 44), 240.0, p.sta / p.max_sta, Color(0.5, 0.78, 0.45), "Stamina")
 
@@ -42,7 +52,7 @@ func _draw() -> void:
 
 	var help := [
 		"WASD move, Shift sprint, Space roll",
-		"Left click strike, Right click parry",
+		"Left click strike (3-hit chain), Right click parry",
 		"Q / E cast, [ ] change bond step",
 		"R restart",
 	]

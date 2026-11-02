@@ -17,7 +17,7 @@ Everything is drawn in code, so there are no art assets to import.
 | Move | WASD or arrow keys |
 | Sprint | Shift |
 | Roll | Space |
-| Strike | Left click or J |
+| Strike (3-hit chain) | Left click or J |
 | Parry | Right click or K |
 | Cast the hand bond (Stormcaller) | Q |
 | Cast the legs bond (Windwalker) | E |
@@ -31,6 +31,8 @@ Everything is drawn in code, so there are no art assets to import.
 - **Windwalker on the legs.** Fills when you roll through an attack. *Gale Lift* throws foes in front of you into the air, helpless for 1.5 seconds (a wider cone from step 3). Body: your roll becomes a long, cheap wind dash. Passive *Featherweight*: airborne foes take 50% more damage from your strikes.
 - **Overdraw.** Cast without enough essence and the spell still fires, but the body part burns: a burned hand weakens your strikes, burned legs make rolls cost more and travel less. Burns heal when the room is cleared (standing in for reaching a stair).
 - **Marks and motes on the body.** Each bond shows as a sigil that grows lines with its step, circled by motes as its essence fills.
+- **Combat feel.** Strikes chain into a 3-hit combo that costs stamina, with the third swing a heavy finisher; each swing lunges a little and locks your aim. Presses made up to 0.2 s early are buffered. Every hit gets a short hit-pause, sparks, knockback and a squash, and heavier hits get more of each. Hitting a staggered foe is a **riposte** for 2.5x damage. A clean **parry** flashes, rings, refunds some stamina and **reflects arrows** back at monsters. Rolls leave afterimages for exactly as long as you're invulnerable, and a landed dodge shows a ring. Getting hurt knocks you back, flashes the screen edge red and interrupts your swing or cast.
+- **Sound generated in code.** Every sound effect is synthesised at startup (`scripts/audio.gd`), so there are no audio files. The knight's wind-up and the archer's aim lock each play a warning tone.
 - **Three telegraphed monsters.** A slime that hops at you, an archer that locks its aim before firing (a red line), and a knight that winds up a lunge (a filling red bar). Parry the knight's lunge to stagger it.
 
 ## What to look for when testing
@@ -53,3 +55,13 @@ Everything is drawn in code, so there are no art assets to import.
 | `scripts/fx.gd` | Floating text, lightning and wind cones |
 | `scripts/hud.gd` | Health, stamina, bond bars and help text |
 | `scripts/controls.gd` | Input actions, set up in code |
+| `scripts/audio.gd` | Sound effects, synthesised in code |
+| `tests/smoke_test.gd` | Headless test that drives every action |
+
+## Testing
+
+`tests/smoke_test.gd` loads the room and drives the climber through every action (combo, riposte, parry, arrow reflect, roll, both casts, overdraw, getting hurt, death, clearing the room) and checks the results:
+
+```bash
+godot --headless -s tests/smoke_test.gd
+```

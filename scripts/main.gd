@@ -8,6 +8,7 @@ const EnemyScript := preload("res://scripts/enemy.gd")
 const ProjectileScript := preload("res://scripts/projectile.gd")
 const FxScript := preload("res://scripts/fx.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const AudioScript := preload("res://scripts/audio.gd")
 
 const WALL := 24.0
 
@@ -17,11 +18,17 @@ var fx
 var camera: Camera2D
 var cleared := false
 var shake_amount := 0.0
+var audio
+var hitstop_until := 0  # real-time msec when the freeze ends
+var hurt_flash := 0.0
 
 
 func _ready() -> void:
 	randomize()
+	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
+	audio = AudioScript.new()
+	add_child(audio)
 	_build_walls()
 
 	player = PlayerScript.new()
@@ -80,6 +87,9 @@ func _build_walls() -> void:
 
 
 func _process(delta: float) -> void:
+	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
+		hitstop_until = 0
+		Engine.time_scale = 1.0
 	if Input.is_action_just_pressed("restart"):
 		get_tree().reload_current_scene()
 		return
@@ -91,8 +101,10 @@ func _process(delta: float) -> void:
 		cleared = true
 		for b in player.bonds.values():
 			b.burned = false
+		sfx("clear", 1.0, -2.0, 0.0)
 	camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
+	hurt_flash = move_toward(hurt_flash, 0.0, delta)
 
 
 func _change_step(by: int) -> void:
@@ -107,17 +119,52 @@ func enemies() -> Array:
 		func(e): return is_instance_valid(e) and not e.dead)
 
 
-func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> void:
+func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
 	var p = ProjectileScript.new()
 	p.main = self
 	p.position = pos
 	p.vel = vel
 	p.dmg = dmg
 	add_child(p)
+	return p
 
 
 func on_enemy_killed(e) -> void:
 	fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
+	fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
+	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)
+	sfx("kill")
+	hitstop(0.09)
+	shake(6.0)
+
+
+## Hit-pause: freeze the action for a moment so impacts land.
+## Overlapping calls keep the longest freeze.
+func hitstop(seconds: float) -> void:
+	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
+	if until > hitstop_until:
+		hitstop_until = until
+	Engine.time_scale = 0.02
+
+
+func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
+	if audio != null:
+		audio.play(sound, pitch, volume_db, variance)
+
+
+func fx_ring(pos: Vector2, color: Color, reach: float, dur := 0.3, width := 3.0) -> void:
+	if fx != null:
+		fx.ring(pos, color, reach, dur, width)
+
+
+func fx_burst(pos: Vector2, dir: Vector2, color: Color, count: int, speed := 260.0) -> void:
+	if fx != null:
+		fx.burst(pos, dir, color, count, speed)
+
+
+func fx_ghost(pos: Vector2, radius: float, color: Color) -> void:
+	if fx != null:
+		fx.ghost(pos, radius, color)
 
 
 func fx_text(pos: Vector2, s: String, color: Color) -> void:

@@ -116,7 +116,9 @@ func _chain_lightning(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
 	main.fx_bolt(points, color())
-	main.shake(4.0)
+	main.sfx("zap")
+	main.hitstop(0.07)
+	main.shake(5.0)
 	for e in hit:
 		if not is_instance_valid(e) or e.dead:
 			continue
@@ -135,6 +137,7 @@ func _gale_lift(p) -> void:
 	var origin: Vector2 = p.global_position
 	var aim: Vector2 = p.aim
 	main.fx_cone(origin, aim, reach, half_arc, color())
+	main.sfx("gust", 0.9)
 	var lifted := 0
 	for e in main.enemies():
 		var to: Vector2 = e.global_position - origin
@@ -143,6 +146,7 @@ func _gale_lift(p) -> void:
 		if absf(aim.angle_to(to)) > half_arc:
 			continue
 		e.lift(1.5)
+		e.knock = aim * 120.0
 		lifted += 1
 	if lifted == 0:
 		main.fx_text(origin + Vector2(0, -34), "nothing to lift", color())

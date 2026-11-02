@@ -29,6 +29,8 @@ var aim_dir := Vector2.ZERO
 var lunge_dir := Vector2.RIGHT
 var lunge_hit := false
 var knock := Vector2.ZERO
+var squash := 0.0
+var squash_dir := Vector2.RIGHT
 
 
 ## Call before adding to the tree.
@@ -63,6 +65,7 @@ func _physics_process(delta: float) -> void:
 	flash -= delta
 	charged -= delta
 	contact_cd -= delta
+	squash = move_toward(squash, 0.0, 6.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	var p = main.player
 	if airborne > 0.0:
@@ -129,6 +132,7 @@ func _archer(delta: float, dir: Vector2, dist: float) -> void:
 		velocity = dir.orthogonal() * speed * (1.0 if sin(Time.get_ticks_msec() * 0.0008) > 0.0 else -1.0)
 	if state_t <= 0.42 and aim_dir == Vector2.ZERO and dist < 430.0:
 		aim_dir = dir
+		main.sfx("warn", 1.35, -8.0)
 	if state_t <= 0.0:
 		if aim_dir != Vector2.ZERO:
 			main.spawn_projectile(global_position + aim_dir * radius, aim_dir * 260.0, dmg)
@@ -146,6 +150,7 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "wind"
 				state_t = 0.45
 				lunge_dir = dir
+				main.sfx("warn", 0.75, -4.0)
 		"wind":
 			velocity = Vector2.ZERO
 			if state_t > 0.2:
@@ -169,13 +174,16 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 				state_t = randf_range(0.4, 0.9)
 
 
-func take_hit(amount: float, dir: Vector2) -> void:
+func take_hit(amount: float, dir: Vector2, force := 140.0) -> void:
 	if dead:
 		return
 	hp -= amount
 	flash = 0.12
+	squash = 1.0
 	if dir != Vector2.ZERO:
-		knock = dir * (60.0 if kind == "knight" else 140.0)
+		squash_dir = dir
+		# The knight is heavy: it barely budges.
+		knock = dir * force * (0.4 if kind == "knight" else 1.0)
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.95, 0.85))
 	if hp <= 0.0:
 		dead = true
@@ -222,9 +230,12 @@ func _draw() -> void:
 	var body := color
 	if flash > 0.0:
 		body = Color.WHITE
-	draw_circle(Vector2(0, lift_y), radius, body)
+	# Squashed along the direction it was hit from.
+	draw_set_transform(Vector2(0, lift_y), squash_dir.angle(), Vector2(1.0 - squash * 0.35, 1.0 + squash * 0.25))
+	draw_circle(Vector2.ZERO, radius, body)
 	if charged > 0.0:
-		draw_arc(Vector2(0, lift_y), radius + 3.0, 0.0, TAU, 16, Color(0.95, 0.89, 0.42, 0.8), 1.5)
+		draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 16, Color(0.95, 0.89, 0.42, 0.8), 1.5)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if stun > 0.0:
 		var t := Time.get_ticks_msec() * 0.004
 		for i in 3:
