@@ -4,6 +4,8 @@ extends CharacterBody2D
 
 const BondScript := preload("res://scripts/bond.gd")
 const Weapons := preload("res://scripts/weapons.gd")
+const Palette := preload("res://scripts/palette.gd")
+const Draw := preload("res://scripts/draw_util.gd")
 
 const MAX_HP := 100.0
 const MAX_STA := 100.0
@@ -57,6 +59,8 @@ var knock := Vector2.ZERO
 var squash := 0.0
 var buffered := ""
 var buffer_t := 0.0
+var step_t := 0.0
+var overlay: Node2D  # unlit layer for swing trails and rings
 
 
 func _ready() -> void:
@@ -68,6 +72,12 @@ func _ready() -> void:
 	circle.radius = radius
 	shape.shape = circle
 	add_child(shape)
+	overlay = Node2D.new()
+	var unlit := CanvasItemMaterial.new()
+	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	overlay.material = unlit
+	overlay.draw.connect(_draw_overlay)
+	add_child(overlay)
 	bonds["hand"] = BondScript.new("stormcaller", "hand")
 	bonds["legs"] = BondScript.new("windwalker", "legs")
 	swing = wdata()["combo"][0]
@@ -130,11 +140,22 @@ func _physics_process(delta: float) -> void:
 			sta -= 22.0 * delta
 			sta_delay = 0.6
 		velocity = input * spd
+		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
 	velocity += knock
 	move_and_slide()
 	queue_redraw()
+
+
+func _footsteps(delta: float, speed: float) -> void:
+	if speed <= 1.0:
+		step_t = 0.0
+		return
+	step_t -= delta
+	if step_t <= 0.0:
+		step_t = 36.0 / speed  # one step every ~36 px travelled
+		main.sfx("step", 1.0, -2.0 if speed > WALK else -5.0, 0.08)
 
 
 func _read_buffer() -> void:
@@ -175,7 +196,7 @@ func _equip(id: String) -> void:
 	if wdata()["kind"] == "melee":
 		swing = wdata()["combo"][0]
 	main.fx_text(global_position + Vector2(0, -30), wdata()["name"], Color(0.85, 0.82, 0.9))
-	main.sfx("equip", 1.0, -6.0)
+	main.sfx("equip_" + weapon)
 
 
 ## Returns true once the action is spent (done, or refused for a reason
@@ -216,7 +237,7 @@ func _tick_timers(delta: float) -> void:
 
 func _winded() -> void:
 	main.fx_text(global_position + Vector2(0, -28), "too winded", Color(0.6, 0.6, 0.65))
-	main.sfx("winded", 1.0, -6.0)
+	main.sfx("winded")
 
 
 func _try_roll(input: Vector2) -> bool:
@@ -246,7 +267,9 @@ func _try_roll(input: Vector2) -> bool:
 	ghost_t = 0.0
 	squash = 0.6
 	drawing = false  # rolling drops a drawn arrow
-	main.sfx("gust" if wind else "roll", 1.4 if wind else 1.0, -4.0 if wind else 0.0)
+	main.sfx("roll")
+	if wind:
+		main.sfx("gust", 1.3, -6.0)
 	return true
 
 
@@ -261,7 +284,7 @@ func _try_attack() -> bool:
 		draw_t = 0.0
 		draw_release = false
 		draw_ready = false
-		main.sfx("draw", 1.0, -4.0, 0.0)
+		main.sfx("draw", 1.0, 0.0, 0.03)
 		return true
 	return _melee()
 
@@ -308,7 +331,7 @@ func _tick_draw(delta: float) -> void:
 	draw_t += delta
 	if draw_t >= w["draw_time"] and not draw_ready:
 		draw_ready = true
-		main.sfx("ready", 1.0, -8.0, 0.0)
+		main.sfx("ready", 1.0, 0.0, 0.0)
 		main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 18.0, 0.2, 2.0)
 	if mouse_aim and not Input.is_action_pressed("attack"):
 		draw_release = true
@@ -335,7 +358,7 @@ func release_draw() -> void:
 	var speed: float = lerpf(w["speed_min"], w["speed_max"], k)
 	var force: float = lerpf(w["knock_min"], w["knock_max"], k)
 	main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
-	main.sfx("bow", 0.9 + 0.25 * k, -2.0)
+	main.sfx("bow", 0.9 + 0.2 * k, -6.0 + 6.0 * k)
 	knock = -aim * (60.0 if full else 20.0)
 	if full:
 		main.shake(3.0)
@@ -343,7 +366,7 @@ func release_draw() -> void:
 
 ## Called by your arrows when they hit a monster.
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
-	_strike(e, dmg, dir, force, heavy, "hit_light")
+	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	var hand = bonds.get("hand")
 	if hand != null:
 		hand.fill(6.0)
@@ -366,7 +389,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 				continue
 			if e.global_position.distance_to(other.global_position) < 150.0:
 				main.fx_bolt([e.global_position, other.global_position], Color(0.95, 0.89, 0.42))
-				main.sfx("zap", 1.3, -8.0)
+				main.sfx("zap", 1.25, -6.0)
 				other.take_hit(5.0, Vector2.ZERO)
 				break
 	var contact: Vector2 = e.global_position - dir * e.radius
@@ -375,11 +398,16 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.fx_ring(contact, Color(1.0, 0.85, 0.4), 40.0, 0.3, 4.0)
 		main.fx_burst(contact, dir, Color(1.0, 0.9, 0.6), 14, 380.0)
 		main.sfx("crit")
+		main.light_flash(contact, Color(1.0, 0.85, 0.5), 1.0, 1.5, 0.2)
 		main.hitstop(0.14)
 		main.shake(9.0)
 	else:
 		main.fx_burst(contact, dir, Color(1.0, 0.95, 0.85), 8 if heavy else 5)
 		main.sfx("hit_heavy" if heavy else hit_sound)
+	# The monster's body adds its own note: armour clanks, slime squelches.
+	var material: String = e.MATERIAL.get(e.kind, "")
+	if material != "":
+		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
 	e.take_hit(dmg, dir, force)
@@ -403,7 +431,7 @@ func _try_cast(part: String) -> bool:
 	cast_part = part
 	cast_total = b.windup()
 	cast_t = cast_total
-	main.sfx("charge", 1.0 / maxf(cast_total / 0.3, 0.5), -4.0, 0.0)
+	main.sfx("charge", 1.0, 0.0, 0.03)
 	return true
 
 
@@ -414,6 +442,7 @@ func _release_cast() -> void:
 		main.fx_text(global_position + Vector2(0, -40), "%s burned!" % BondScript.PART_NAMES[cast_part], Color(1.0, 0.4, 0.3))
 		main.fx_burst(global_position, Vector2.ZERO, Color(1.0, 0.4, 0.25), 12, 200.0)
 		main.sfx("burn")
+		main.light_flash(global_position, Color(1.0, 0.4, 0.2), 1.2, 1.6, 0.4)
 		main.shake(5.0)
 	b.cast(self)
 
@@ -464,6 +493,7 @@ func _on_parry(source) -> void:
 	main.fx_ring(at, Color(1.0, 0.92, 0.7), 70.0, 0.35, 5.0)
 	main.fx_burst(at, aim, Color(1.0, 0.92, 0.7), 14, 340.0)
 	main.sfx("parry")
+	main.light_flash(at, Color(1.0, 0.92, 0.7), 1.3, 2.0, 0.3)
 	main.hitstop(0.16)
 	main.shake(6.0)
 	if source.has_method("on_parried"):
@@ -486,104 +516,148 @@ func on_dodge() -> void:
 
 func _draw() -> void:
 	var t := Time.get_ticks_msec() * 0.001
-	var body := Color(0.88, 0.83, 0.72)
+	var cloak := Palette.CLIMBER_CLOAK
+	var skin := Palette.CLIMBER_SKIN
 	if hurt_t > 0.25:
-		body = Color(1.0, 0.45, 0.4)
-	if iframes > 0.0:
-		body = body.lerp(Color(0.75, 0.9, 1.0), 0.4)
-		body.a = 0.45
+		cloak = cloak.lerp(Color(1.0, 0.35, 0.3), 0.6)
 	if dead:
-		body = Color(0.4, 0.38, 0.42)
+		cloak = Color(0.3, 0.29, 0.32)
+		skin = Color(0.45, 0.42, 0.42)
+	var alpha := 0.5 if iframes > 0.0 else 1.0
+	modulate.a = alpha
 
-	draw_circle(Vector2(0, radius * 0.7), radius * 0.95, Color(0, 0, 0, 0.25))
+	Draw.shadow(self, Vector2(0, radius * 0.75), radius)
+	var side := aim.orthogonal()
 	# Squash along the facing: stretched when rolling, flattened when hit.
 	var sq_dir := roll_dir if roll_t > 0.0 else aim
 	draw_set_transform(Vector2.ZERO, sq_dir.angle(), Vector2(1.0 + squash * 0.25, 1.0 - squash * 0.2))
-	draw_circle(Vector2.ZERO, radius, body)
+	var body := Transform2D(sq_dir.angle(), Vector2.ZERO).affine_inverse()
+
+	# Weapon held on the far side is drawn before the body.
+	if weapon == "bow":
+		_draw_weapon(body)
+	# Cloak, shoulders and hood, all in the facing frame.
+	var f := body.basis_xform(aim)  # facing, in the transformed frame
+	var sd := body.basis_xform(side)
+	Draw.ball(self, -f * 2.0, radius, cloak)
+	Draw.ball(self, sd * radius * 0.72 + f * 1.5, 5.0, cloak.darkened(0.12))
+	Draw.ball(self, -sd * radius * 0.72 + f * 1.5, 5.0, cloak.darkened(0.12))
+	Draw.ball(self, f * 2.5, 7.5, cloak.darkened(0.25))  # hood
+	draw_circle(f * 6.0, 3.8, skin)  # face peeking out of the hood
+	draw_circle(f * 7.2 + sd * 1.5, 0.9, Palette.OUTLINE)
+	draw_circle(f * 7.2 - sd * 1.5, 0.9, Palette.OUTLINE)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-	_draw_weapon()
-
-	if parry_t > 0.0:
-		var pa := aim.angle()
-		draw_arc(Vector2.ZERO, radius + 9.0, pa - 1.0, pa + 1.0, 12, Color(1.0, 0.89, 0.63), 5.0)
-	if parry_flash > 0.0:
-		var k2 := parry_flash / 0.25
-		draw_circle(Vector2.ZERO, radius + 4.0, Color(1.0, 0.95, 0.8, 0.5 * k2))
-	if cast_t > 0.0:
-		var b = bonds[cast_part]
-		var k := 1.0 - cast_t / maxf(cast_total, 0.001)
-		draw_arc(Vector2.ZERO, radius + 14.0, 0.0, TAU * k, 32, b.color(), 3.0)
+	if weapon != "bow":
+		_draw_weapon(Transform2D.IDENTITY)
 
 	# Marks and motes: power is shown on the body, not only on the HUD.
 	for b in bonds.values():
-		var anchor := Vector2(0, radius * 0.75)
+		var anchor := Vector2(0, radius * 0.55)
 		if b.part == "hand":
-			anchor = aim.rotated(PI / 2.0) * radius * 0.8
+			anchor = side * radius * 0.95 + aim * 3.0
 		var col: Color = b.color()
 		if b.burned:
 			col = Color(1.0, 0.35, 0.25) if fmod(t, 0.4) < 0.2 else col
-		draw_circle(anchor, 3.0, col)
+		draw_circle(anchor, 3.2, Palette.OUTLINE)
+		draw_circle(anchor, 2.4, col)
 		for i in b.step:
 			var spread: float = float(i) - (float(b.step) - 1.0) / 2.0
 			var ang: float = anchor.angle() + PI + spread * 0.5
-			draw_line(anchor, anchor + Vector2.from_angle(ang) * 7.0, col, 1.5)
+			draw_line(anchor, anchor + Vector2.from_angle(ang) * 6.0, col, 1.5)
 		var motes := int(b.essence / 8.0)
 		for i in mini(motes, 6):
 			var ma := t * 2.0 + float(i) * TAU / 6.0
-			draw_circle(anchor + Vector2.from_angle(ma) * 11.0, 1.6, col)
+			draw_circle(anchor + Vector2.from_angle(ma) * 10.0, 1.5, col)
+	if overlay != null:
+		overlay.queue_redraw()
 
 
-func _draw_weapon() -> void:
-	var dark := Color(0.2, 0.18, 0.22)
-	var side := aim.orthogonal()
+## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
+func _draw_overlay() -> void:
+	var c := overlay
+	if swing_t > 0.0 and weapon == "sword":
+		var a := aim.angle()
+		var half := deg_to_rad(swing["arc"])
+		var reach: float = swing["range"]
+		var heavy: bool = swing["heavy"]
+		var k: float = 1.0 - swing_t / wdata()["swing_time"]
+		var sweep: float = swing["side"]
+		var from := a - half * sweep
+		var to := lerpf(from, a + half * sweep, minf(1.0, k * 1.6))
+		var col := Color(1.0, 0.88, 0.55) if heavy else Color(0.95, 0.97, 1.0)
+		# A crescent trail: several arcs fading toward the inside.
+		for i in 5:
+			var rr := reach - i * 3.0
+			c.draw_arc(Vector2.ZERO, rr, minf(from, to), maxf(from, to), 20, Color(col, (0.75 - i * 0.14) * (1.0 - k * 0.5)), 3.5 if heavy else 2.5)
+	if swing_t > 0.0 and weapon == "fists":
+		var k2: float = 1.0 - swing_t / wdata()["swing_time"]
+		if k2 > 0.3:
+			var hand: Vector2 = aim * swing["range"]
+			c.draw_arc(hand, 7.0 + 6.0 * k2, 0.0, TAU, 14, Color(1, 0.95, 0.85, 0.6 * (1.0 - k2)), 2.0)
+	if parry_t > 0.0:
+		var pa := aim.angle()
+		c.draw_arc(Vector2.ZERO, radius + 10.0, pa - 1.0, pa + 1.0, 14, Color(1.0, 0.89, 0.63), 4.0)
+		c.draw_arc(Vector2.ZERO, radius + 14.0, pa - 0.8, pa + 0.8, 14, Color(1.0, 0.89, 0.63, 0.4), 2.0)
+	if parry_flash > 0.0:
+		c.draw_circle(Vector2.ZERO, radius + 6.0, Color(1.0, 0.95, 0.8, 0.5 * parry_flash / 0.25))
+	if cast_t > 0.0:
+		var b = bonds[cast_part]
+		var k3 := 1.0 - cast_t / maxf(cast_total, 0.001)
+		c.draw_arc(Vector2.ZERO, radius + 14.0, -PI / 2.0, -PI / 2.0 + TAU * k3, 32, b.color(), 3.0)
+		c.draw_circle(Vector2.ZERO, radius + 14.0 * k3, Color(b.color(), 0.12))
+	if drawing:
+		var w := wdata()
+		var kd: float = clampf(draw_t / w["draw_time"], 0.0, 1.0)
+		var grip := aim * (radius + 5.0)
+		var col2 := Color(1.0, 0.9, 0.6, 0.8) if kd >= 1.0 else Color(1, 1, 1, 0.15 + 0.3 * kd)
+		c.draw_line(grip + aim * 18.0, grip + aim * (60.0 + 160.0 * kd), col2, 1.0 + kd)
+
+
+func _draw_weapon(xf: Transform2D) -> void:
+	var dir := xf.basis_xform(aim)
+	var side := dir.orthogonal()
 	match weapon:
 		"sword":
-			draw_line(aim * radius * 0.6, aim * (radius + 9.0), dark, 3.0)
+			var grip := side * (radius * 0.95) + dir * 4.0
+			var blade_dir := dir.rotated(0.5)  # resting: angled forward
 			if swing_t > 0.0:
-				var a := aim.angle()
-				var half := deg_to_rad(swing["arc"])
-				var reach: float = swing["range"]
-				var heavy: bool = swing["heavy"]
+				# The blade follows the swing across the arc.
 				var k: float = 1.0 - swing_t / wdata()["swing_time"]
-				# The blade sweeps across the arc, leaving a fading trail.
+				var half := deg_to_rad(swing["arc"])
 				var sweep: float = swing["side"]
-				var from := a - half * sweep
-				var to := lerpf(a - half * sweep, a + half * sweep, minf(1.0, k * 1.6))
-				var col := Color(1.0, 0.9, 0.6, 0.85) if heavy else Color(1, 1, 1, 0.75)
-				draw_arc(Vector2.ZERO, reach, minf(from, to), maxf(from, to), 18, col, 7.0 if heavy else 4.0)
-				draw_arc(Vector2.ZERO, reach - 8.0, minf(from, to), maxf(from, to), 18, Color(col, col.a * 0.35), 3.0)
+				blade_dir = dir.rotated(lerpf(-half * sweep, half * sweep, minf(1.0, k * 1.6)))
+				grip = blade_dir * 8.0
+			elif attack_cd > 0.0:
+				var half2 := deg_to_rad(swing["arc"])
+				blade_dir = dir.rotated(half2 * swing["side"])
+				grip = blade_dir * 8.0
+			Draw.sword(self, grip, blade_dir, 26.0 if swing.get("heavy", false) else 24.0, 1.0 if swing_t > 0.0 else 0.0)
 		"fists":
-			var skin := Color(0.95, 0.88, 0.76)
-			var punching := swing_t > 0.0
+			var skin := Palette.CLIMBER_SKIN
 			for s in [-1.0, 1.0]:
-				var rest: Vector2 = aim * (radius * 0.75) + side * s * radius * 0.6
+				var rest: Vector2 = dir * (radius * 0.7) + side * s * radius * 0.75
 				var pos: Vector2 = rest
-				var r := 3.5
-				if punching and s == swing["side"]:
-					# The punching fist snaps out and back.
+				var r := 3.8
+				if swing_t > 0.0 and s == swing["side"]:
 					var k: float = 1.0 - swing_t / wdata()["swing_time"]
 					var ext: float = sin(PI * minf(1.0, k * 1.2))
-					pos = rest.lerp(aim * swing["range"], ext)
-					r = 5.0 if swing["heavy"] else 4.0
-					if ext > 0.5:
-						var col := Color(1.0, 0.9, 0.6, 0.8) if swing["heavy"] else Color(1, 1, 1, 0.6)
-						draw_line(rest, pos, Color(col, col.a * 0.4), r * 1.6)
-				draw_circle(pos, r, skin)
-				draw_arc(pos, r, 0.0, TAU, 10, dark, 1.0)
+					pos = rest.lerp(dir * swing["range"], ext)
+					r = 5.2 if swing["heavy"] else 4.4
+				Draw.ball(self, pos, r, skin)
 		"bow":
 			var k := 0.0
 			if drawing:
 				k = clampf(draw_t / wdata()["draw_time"], 0.0, 1.0)
-			var grip := aim * (radius + 5.0)
-			var tip_a := grip - aim * 5.0 + side * 13.0
-			var tip_b := grip - aim * 5.0 - side * 13.0
-			var bow_col := Color(0.55, 0.38, 0.22)
-			draw_polyline(PackedVector2Array([tip_a, grip + side * 7.0, grip, grip - side * 7.0, tip_b]), bow_col, 3.0)
+			var grip := dir * (radius + 5.0)
+			var tip_a := grip - dir * 5.0 + side * 14.0
+			var tip_b := grip - dir * 5.0 - side * 14.0
+			var limb := PackedVector2Array([tip_a, grip + side * 7.0, grip, grip - side * 7.0, tip_b])
+			draw_polyline(limb, Palette.OUTLINE, 5.5, true)
+			draw_polyline(limb, Palette.WOOD, 3.0, true)
 			# The string pulls back as you draw.
-			var nock := grip - aim * (5.0 + 12.0 * k)
-			draw_polyline(PackedVector2Array([tip_a, nock, tip_b]), Color(0.9, 0.88, 0.8), 1.0)
+			var nock := grip - dir * (5.0 + 12.0 * k)
+			draw_polyline(PackedVector2Array([tip_a, nock, tip_b]), Color(0.92, 0.9, 0.82), 1.0, true)
 			if drawing:
-				var line_col := Color(1.0, 0.9, 0.6, 0.7) if k >= 1.0 else Color(1, 1, 1, 0.12 + 0.25 * k)
-				draw_line(nock, nock + aim * (16.0 + 18.0 * k), Color(0.9, 0.88, 0.8), 2.0)
-				draw_line(grip + aim * 14.0, grip + aim * (60.0 + 160.0 * k), line_col, 1.0 + k)
+				Draw.stroke(self, nock, nock + dir * (18.0 + 14.0 * k), Palette.WOOD.lightened(0.2), 1.6)
+				draw_circle(nock + dir * (19.0 + 14.0 * k), 2.0, Palette.STEEL)
+			Draw.ball(self, grip + side * 0.5, 3.2, Palette.CLIMBER_SKIN)
