@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen, on-screen controls appear as soon as you touch it: a joystick under your left thumb (push it all the way to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, both spells and weapon swap. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb, and buttons on the right for attack (hold to draw the bow), roll, parry, both spells and weapon swap. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 

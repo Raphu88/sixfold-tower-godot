@@ -92,8 +92,12 @@ func _draw() -> void:
 		var b = p.bonds.get(part)
 		if b == null:
 			continue
-		_bond_panel(b, part, Vector2(16, y), font)
-		y += 50.0
+		if main.touch_active:
+			_bond_compact(b, part, Vector2(12, y), font)
+			y += 40.0
+		else:
+			_bond_panel(b, part, Vector2(16, y), font)
+			y += 50.0
 
 	# Controls, top right.
 	if main.touch_active:
@@ -143,6 +147,27 @@ func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float,
 		draw_rect(Rect2(pos + Vector2(width * ratio, 0), Vector2(width * (trail - ratio), height)), Color(1.0, 0.85, 0.6, 0.8))
 	draw_rect(Rect2(pos, Vector2(width * ratio, height)), color)
 	draw_rect(Rect2(pos, Vector2(width * ratio, height * 0.4)), Color(1, 1, 1, 0.15))
+
+
+## The phone version: sigil, name and essence bar only.
+func _bond_compact(b, part: String, pos: Vector2, font: Font) -> void:
+	var r := Rect2(pos, Vector2(196, 34))
+	draw_style_box(panel, r)
+	var col: Color = b.color()
+	var c := pos + Vector2(17, 17)
+	var ratio: float = b.essence / b.capacity()
+	draw_circle(c, 11.0, Color(0, 0, 0, 0.6))
+	draw_arc(c, 11.0, 0.0, TAU, 28, Color(col, 0.25), 2.5)
+	draw_arc(c, 11.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 28, col, 2.5)
+	var label: String = b.display_name()
+	if b.burned:
+		label = "%s burned!" % BondScript.PART_NAMES[part]
+	draw_string(font, pos + Vector2(34, 14), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.45, 0.35) if b.burned else col)
+	var bar := Rect2(pos + Vector2(34, 21), Vector2(150, 5))
+	draw_rect(bar, Color(1, 1, 1, 0.08))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * ratio, bar.size.y)), col)
+	var cost_x: float = bar.position.x + bar.size.x * b.cost() / b.capacity()
+	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 2), Color(1, 1, 1, 0.8), 1.0)
 
 
 func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:

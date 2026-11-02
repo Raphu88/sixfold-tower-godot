@@ -68,7 +68,11 @@ SOUNDS = {
     ], "level": -2, "verb": -10},
     "arrow_hit": {"variants": [v((S + "wooden_01.ogg", 0, 0, 1.2), (P + "#9", -4, 0, 1.0)), v((S + "wooden_02.ogg", 0, 0, 1.1), (P + "#12", -4, 0, 1.0))], "level": -4},
     "draw": {"variants": [v((K + "creak2.ogg", 0, 0, 1.05))], "level": -8},
-    "bow": {"variants": [v(("synth:pluck", 0, 0, 1.0), (W + "swish-13.wav", -5, 0, 1.4), (S + "wooden_03.ogg", -12, 0, 1.5))], "level": -4},
+    # A sharp string slap and the arrow's whoosh (no synthesised twang).
+    "bow": {"variants": [
+        v((W + "swish-13.wav", 0, 0, 1.5), (S + "wooden_02.ogg", -7, 0, 1.7), (P + "#9", -10, 0, 1.4)),
+        v((W + "swish-10.wav", 0, 0, 1.55), (S + "wooden_02.ogg", -7, 0, 1.8), (P + "#12", -10, 0, 1.4)),
+    ], "level": -6, "verb": -20},
     "ready": {"variants": [v((K + "metalClick.ogg", 0, 0, 1.3))], "level": -10},
     "equip_sword": {"variants": [v((A + "battle/sword-unsheathe2.wav", 0, 0, 1.0))], "level": -8},
     "equip_fists": {"variants": [v((K + "handleSmallLeather.ogg", 0, 0, 1.0))], "level": -6},
