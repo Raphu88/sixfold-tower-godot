@@ -187,4 +187,7 @@ func _run() -> void:
 	_check(not p.bonds["hand"].burned, "burns heal on clear")
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
+	# Free the room (and its music) before quitting, so nothing leaks at exit.
+	main.queue_free()
+	await _frames(2)
 	quit(1 if failures > 0 else 0)

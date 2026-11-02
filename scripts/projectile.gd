@@ -59,11 +59,18 @@ func on_parried() -> void:
 
 
 func _draw() -> void:
-	var back := -vel.normalized() * 12.0
-	var col := Color(0.95, 0.92, 0.85)
+	var dir := vel.normalized()
+	var side := dir.orthogonal()
+	var glow := Color(1.0, 0.35, 0.3)  # monsters' arrows glow red so you can see them
 	if reflected or pierce:
-		col = Color(1.0, 0.85, 0.4)
+		glow = Color(1.0, 0.85, 0.4)
 	elif friendly:
-		col = Color(0.75, 0.95, 0.8)
-	draw_line(back * (1.6 if friendly else 1.0), Vector2.ZERO, Color(col, 0.6), 2.0)
-	draw_circle(Vector2.ZERO, 3.5, col)
+		glow = Color(0.75, 0.95, 0.8)
+	# Motion streak, shaft, head and fletching.
+	draw_line(-dir * 30.0, -dir * 8.0, Color(glow, 0.18), 4.0)
+	draw_line(-dir * 14.0, dir * 4.0, Color(0.06, 0.05, 0.07), 3.5)
+	draw_line(-dir * 14.0, dir * 4.0, Color(0.72, 0.55, 0.35), 1.8)
+	draw_colored_polygon(PackedVector2Array([dir * 9.0, dir * 3.0 + side * 3.0, dir * 3.0 - side * 3.0]), Color(0.85, 0.87, 0.92))
+	draw_line(-dir * 14.0, -dir * 18.0 + side * 3.5, Color(0.9, 0.88, 0.85), 1.5)
+	draw_line(-dir * 14.0, -dir * 18.0 - side * 3.5, Color(0.9, 0.88, 0.85), 1.5)
+	draw_circle(dir * 5.0, 5.0, Color(glow, 0.22))

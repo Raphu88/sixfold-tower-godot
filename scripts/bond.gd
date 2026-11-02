@@ -116,6 +116,8 @@ func _chain_lightning(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
 	main.fx_bolt(points, color())
+	for pt in points:
+		main.light_flash(pt, color(), 1.0, 1.4, 0.3)
 	main.sfx("zap")
 	main.hitstop(0.07)
 	main.shake(5.0)
@@ -137,6 +139,7 @@ func _gale_lift(p) -> void:
 	var origin: Vector2 = p.global_position
 	var aim: Vector2 = p.aim
 	main.fx_cone(origin, aim, reach, half_arc, color())
+	main.light_flash(origin + aim * reach * 0.5, color(), 1.4, 0.8, 0.35)
 	main.sfx("gust", 0.9)
 	var lifted := 0
 	for e in main.enemies():

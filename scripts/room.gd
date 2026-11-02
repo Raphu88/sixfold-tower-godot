@@ -40,6 +40,17 @@ func _ready() -> void:
 		light.position = Vector2(x, y + 30.0)
 		add_child(light)
 		torches.append({"pos": Vector2(x, y), "light": light, "phase": randf() * 10.0})
+	for i in 3:
+		var x := room.position.x + room.size.x * (0.25 + 0.25 * i)
+		var by := room.end.y + wall * 0.5
+		var light := PointLight2D.new()
+		light.texture = light_tex
+		light.texture_scale = 2.4
+		light.color = Palette.TORCH
+		light.energy = 1.1
+		light.position = Vector2(x, by - 24.0)
+		add_child(light)
+		torches.append({"pos": Vector2(x, by), "light": light, "phase": randf() * 10.0})
 	for i in 70:
 		dust.append({
 			"pos": Vector2(randf_range(room.position.x, room.end.x), randf_range(room.position.y, room.end.y)),
@@ -103,31 +114,53 @@ func _draw() -> void:
 	# Beyond the walls: the dark of the tower.
 	draw_rect(outer.grow(400.0), Palette.VOID)
 
-	# Floor: worn flagstones, each a slightly different shade.
+	# Floor: square flagstones, some merged into bigger slabs.
 	var cols := int(ceil(room.size.x / TILE))
 	var rows := int(ceil(room.size.y / TILE))
+	var used := {}
 	for gy in rows:
 		for gx in cols:
-			var r := Rect2(room.position + Vector2(gx, gy) * TILE, Vector2(TILE, TILE))
-			r = r.intersection(room)
+			if used.has(Vector2i(gx, gy)):
+				continue
+			var size := Vector2i(1, 1)
+			var roll := _hash(gx, gy, 2)
+			if roll < 0.14:
+				size = Vector2i(2, 2)
+			elif roll < 0.3:
+				size = Vector2i(2, 1)
+			elif roll < 0.42:
+				size = Vector2i(1, 2)
+			# Shrink if the slab would overlap another one.
+			for dy in size.y:
+				for dx in size.x:
+					if used.has(Vector2i(gx + dx, gy + dy)) or gx + dx >= cols or gy + dy >= rows:
+						size = Vector2i(1, 1)
+			for dy in size.y:
+				for dx in size.x:
+					used[Vector2i(gx + dx, gy + dy)] = true
+			var r := Rect2(room.position + Vector2(gx, gy) * TILE, Vector2(size) * TILE).intersection(room)
 			var n := _hash(gx, gy)
-			var base: Color = Palette.FLOOR.lerp(Palette.FLOOR_LIGHT, n * 0.6)
-			if _hash(gx, gy, 3) < 0.08:
-				base = base.lerp(Palette.MOSS, 0.35)
+			var base: Color = Palette.FLOOR.lerp(Palette.FLOOR_LIGHT, n)
 			var inner := r.grow(-1.5)
 			draw_rect(r, Palette.FLOOR_GAP)
 			draw_rect(inner, base)
-			# Bevel: lit top-left edge, shadowed bottom-right edge.
-			draw_line(inner.position, Vector2(inner.end.x, inner.position.y), base.lightened(0.12), 1.5)
-			draw_line(inner.position, Vector2(inner.position.x, inner.end.y), base.lightened(0.08), 1.5)
-			draw_line(Vector2(inner.position.x, inner.end.y), inner.end, base.darkened(0.25), 1.5)
+			# Bevel: lit top-left edges, shadowed bottom-right edges.
+			draw_line(inner.position, Vector2(inner.end.x, inner.position.y), base.lightened(0.08), 1.5)
+			draw_line(inner.position, Vector2(inner.position.x, inner.end.y), base.lightened(0.04), 1.5)
+			draw_line(Vector2(inner.position.x, inner.end.y), inner.end, base.darkened(0.3), 1.5)
 			draw_line(Vector2(inner.end.x, inner.position.y), inner.end, base.darkened(0.2), 1.5)
+			# Moss creeping in at some corners.
+			if _hash(gx, gy, 3) < 0.1:
+				var corner := inner.position + inner.size * Vector2(round(_hash(gx, gy, 4)), round(_hash(gx, gy, 5)))
+				for k in 6:
+					var mp := corner + Vector2(_hash(gx, gy, 10 + k) - 0.5, _hash(gx, gy, 20 + k) - 0.5) * 22.0
+					draw_circle(mp, 2.0 + 4.0 * _hash(gx, gy, 30 + k), Color(Palette.MOSS, 0.3))
 			# The odd crack.
 			if _hash(gx, gy, 7) < 0.12:
-				var a := inner.position + inner.size * Vector2(_hash(gx, gy, 8), 0.15)
-				var b := inner.position + inner.size * Vector2(0.5, 0.55)
-				var c := inner.position + inner.size * Vector2(_hash(gx, gy, 9), 0.9)
-				draw_polyline(PackedVector2Array([a, b, c]), base.darkened(0.35), 1.0)
+				var p0 := inner.position + inner.size * Vector2(_hash(gx, gy, 8), 0.1)
+				var p1 := inner.position + inner.size * Vector2(0.5, 0.55)
+				var p2 := inner.position + inner.size * Vector2(_hash(gx, gy, 9), 0.92)
+				draw_polyline(PackedVector2Array([p0, p1, p2]), base.darkened(0.4), 1.0)
 
 	# A soft darkening toward the walls, so the floor feels enclosed.
 	for i in 6:

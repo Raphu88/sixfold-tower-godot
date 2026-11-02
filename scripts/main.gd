@@ -9,10 +9,12 @@ const ProjectileScript := preload("res://scripts/projectile.gd")
 const FxScript := preload("res://scripts/fx.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const AudioScript := preload("res://scripts/audio.gd")
+const RoomScript := preload("res://scripts/room.gd")
+const Palette := preload("res://scripts/palette.gd")
 
 const WALL := 24.0
 
-var room := Rect2(80, 80, 1120, 560)
+var room := Rect2(80, 100, 1120, 530)
 var player
 var fx
 var camera: Camera2D
@@ -21,6 +23,7 @@ var shake_amount := 0.0
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
+var light_tex: Texture2D
 
 
 func _ready() -> void:
@@ -33,16 +36,34 @@ func _ready() -> void:
 	add_child(audio)
 	_build_walls()
 
+	# Lighting: the whole room is dimmed, torches and the climber's own glow
+	# light it back up. Effects ignore the dimming so spells always read.
+	RenderingServer.set_default_clear_color(Palette.VOID)
+	y_sort_enabled = true  # lower things draw in front of higher things
+	var dim := CanvasModulate.new()
+	dim.color = Palette.AMBIENT
+	add_child(dim)
+	var room_view = RoomScript.new()
+	room_view.setup(room, WALL)
+	add_child(room_view)
+	light_tex = RoomScript.make_light_texture()
+
 	player = PlayerScript.new()
 	player.main = self
-	player.position = Vector2(300, 360)
+	player.position = Vector2(300, 365)
 	add_child(player)
+	var glow := PointLight2D.new()
+	glow.texture = light_tex
+	glow.texture_scale = 1.4
+	glow.color = Color(1.0, 0.85, 0.7)
+	glow.energy = 0.55
+	player.add_child(glow)
 
 	var spawns := [
-		["knight", Vector2(760, 360)],
-		["slime", Vector2(820, 240)],
-		["slime", Vector2(860, 480)],
-		["archer", Vector2(1080, 360)],
+		["knight", Vector2(760, 365)],
+		["slime", Vector2(820, 245)],
+		["slime", Vector2(860, 485)],
+		["archer", Vector2(1080, 365)],
 	]
 	for s in spawns:
 		var e = EnemyScript.new()
@@ -52,10 +73,21 @@ func _ready() -> void:
 
 	fx = FxScript.new()
 	fx.z_index = 10
+	var unlit := CanvasItemMaterial.new()
+	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	fx.material = unlit
 	add_child(fx)
 
+	# The camera follows the climber, zoomed in, but never past the walls.
 	camera = Camera2D.new()
-	camera.position = room.get_center()
+	camera.zoom = Vector2(1.35, 1.35)
+	camera.position = player.position
+	camera.position_smoothing_enabled = true
+	camera.position_smoothing_speed = 6.0
+	camera.limit_left = int(room.position.x - WALL - 20.0)
+	camera.limit_right = int(room.end.x + WALL + 20.0)
+	camera.limit_top = int(room.position.y - RoomScript.WALL_FACE - WALL - 20.0)
+	camera.limit_bottom = int(room.end.y + WALL + 70.0)  # room for the bond HUD
 	add_child(camera)
 	camera.make_current()
 
@@ -106,6 +138,8 @@ func _process(delta: float) -> void:
 		for b in player.bonds.values():
 			b.burned = false
 		sfx("clear", 1.0, 0.0, 0.0)
+	if player != null:
+		camera.position = player.position
 	camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
@@ -172,6 +206,8 @@ func on_enemy_killed(e) -> void:
 	fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)
+	if fx != null:
+		fx.debris(e.global_position, e.color, int(e.radius * 0.8))
 	var kill_sound: String = "kill_" + e.kind
 	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
@@ -226,15 +262,15 @@ func shake(amount: float) -> void:
 	shake_amount = maxf(shake_amount, amount)
 
 
-func _draw() -> void:
-	draw_rect(room.grow(WALL), Color(0.16, 0.14, 0.2))
-	draw_rect(room, Color(0.1, 0.09, 0.13))
-	var grid := Color(1, 1, 1, 0.03)
-	var x := room.position.x
-	while x <= room.end.x:
-		draw_line(Vector2(x, room.position.y), Vector2(x, room.end.y), grid, 1.0)
-		x += 40.0
-	var y := room.position.y
-	while y <= room.end.y:
-		draw_line(Vector2(room.position.x, y), Vector2(room.end.x, y), grid, 1.0)
-		y += 40.0
+## A brief burst of real light: lightning, parries, crits, burns.
+func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 0.25) -> void:
+	var l := PointLight2D.new()
+	l.texture = light_tex
+	l.texture_scale = size
+	l.color = color
+	l.energy = energy
+	l.position = pos
+	add_child(l)
+	var tw := l.create_tween()
+	tw.tween_property(l, "energy", 0.0, dur).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(l.queue_free)
