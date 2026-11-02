@@ -1,33 +1,13 @@
 extends RefCounted
 ## One bond: a named power marked on one body part.
-## The body part decides how it fills; the bond decides its spells.
+## The body part decides how it fills; the bond's data (bonds.gd) decides
+## its spell and how that spell grows with each step.
 
-const INFO := {
-	"stormcaller": {
-		"name": "Stormcaller",
-		"color": Color(0.95, 0.89, 0.42),
-		"spell": "Chain Lightning",
-		"cost": 12.0,
-		"windup": 0.45,
-	},
-	"windwalker": {
-		"name": "Windwalker",
-		"color": Color(0.75, 0.9, 1.0),
-		"spell": "Gale Lift",
-		"cost": 10.0,
-		"windup": 0.3,
-	},
-}
-
-const PART_NAMES := {"hand": "Hand", "legs": "Legs"}
-const PART_FILLS := {
-	"hand": "fills when you land weapon strikes",
-	"legs": "fills when you roll through an attack",
-}
-const PART_BURN := {
-	"hand": "burned: your strikes deal less damage",
-	"legs": "burned: rolls cost more and travel less",
-}
+const Bonds := preload("res://scripts/bonds.gd")
+const PART_NAMES := Bonds.PART_NAMES
+const PART_FILLS := Bonds.PART_FILLS
+const PART_BURN := Bonds.PART_BURN
+const MAX_STEP := 5
 
 var id: String
 var part: String
@@ -41,16 +21,31 @@ func _init(bond_id: String, body_part: String) -> void:
 	part = body_part
 
 
+func data() -> Dictionary:
+	return Bonds.BONDS[id]
+
+
+## A spell value at the current step: the latest step at or below this one
+## that sets it wins.
+func stat(key: String):
+	var steps: Dictionary = data()["steps"]
+	var value = null
+	for s in range(1, step + 1):
+		if steps.has(s) and steps[s].has(key):
+			value = steps[s][key]
+	return value
+
+
 func display_name() -> String:
-	return INFO[id]["name"]
+	return data()["name"]
 
 
 func spell_name() -> String:
-	return INFO[id]["spell"]
+	return data()["spell"]
 
 
 func color() -> Color:
-	return INFO[id]["color"]
+	return data()["color"]
 
 
 func capacity() -> float:
@@ -58,11 +53,16 @@ func capacity() -> float:
 
 
 func cost() -> float:
-	return INFO[id]["cost"]
+	return stat("cost")
 
 
 func windup() -> float:
-	return INFO[id]["windup"]
+	return stat("windup")
+
+
+## What reaching `new_step` adds, in a few words (empty if nothing to say).
+func step_note(new_step: int) -> String:
+	return Bonds.STEP_NOTES.get(id, {}).get(new_step, "")
 
 
 func fill(amount: float) -> void:
@@ -80,20 +80,19 @@ func pay() -> bool:
 
 
 func cast(p) -> void:
-	match id:
-		"stormcaller":
-			_chain_lightning(p)
-		"windwalker":
-			_gale_lift(p)
+	match data()["type"]:
+		"chain":
+			_chain(p)
+		"lift":
+			_lift(p)
 
 
-# Stormcaller, step 1: lightning leaps between up to 4 foes.
-# Step 3: leaps 2 more times and stuns what it hits.
-func _chain_lightning(p) -> void:
+# Lightning leaps from you to the nearest foe, then foe to foe.
+func _chain(p) -> void:
 	var main = p.main
-	var leaps := 4 + (2 if step >= 3 else 0)
+	var leaps: int = stat("leaps")
 	var from: Vector2 = p.global_position
-	var reach := 280.0
+	var reach: float = stat("reach")
 	var hit: Array = []
 	var points: Array = [from]
 	for i in leaps:
@@ -111,7 +110,7 @@ func _chain_lightning(p) -> void:
 		hit.append(best)
 		points.append(best.global_position)
 		from = best.global_position
-		reach = 170.0
+		reach = stat("hop")
 	if hit.is_empty():
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
@@ -121,35 +120,38 @@ func _chain_lightning(p) -> void:
 	main.sfx("zap")
 	main.hitstop(0.07)
 	main.shake(5.0)
+	var stun: float = stat("stun")
 	for e in hit:
 		if not is_instance_valid(e) or e.dead:
 			continue
 		e.charged = 4.0
-		if step >= 3:
-			e.stagger(0.4)
-		e.take_hit(10.0, Vector2.ZERO)
+		if stun > 0.0:
+			e.stagger(stun)
+		e.take_hit(stat("damage"), Vector2.ZERO)
 
 
-# Windwalker, step 1: a gust lifts foes in front of you, helpless for 1.5 s.
-# Step 3: the cone is much wider.
-func _gale_lift(p) -> void:
+# A gust in front of you throws foes into the air, helpless.
+func _lift(p) -> void:
 	var main = p.main
-	var half_arc := deg_to_rad(35.0 if step < 3 else 70.0)
-	var reach := 140.0 if step < 3 else 175.0
+	var half_arc := deg_to_rad(stat("arc"))
+	var reach: float = stat("reach")
 	var origin: Vector2 = p.global_position
 	var aim: Vector2 = p.aim
 	main.fx_cone(origin, aim, reach, half_arc, color())
 	main.light_flash(origin + aim * reach * 0.5, color(), 1.4, 0.8, 0.35)
 	main.sfx("gust", 0.9)
 	var lifted := 0
+	var dmg: float = stat("damage")
 	for e in main.enemies():
 		var to: Vector2 = e.global_position - origin
 		if to.length() > reach + e.radius:
 			continue
 		if absf(aim.angle_to(to)) > half_arc:
 			continue
-		e.lift(1.5)
+		e.lift(stat("lift"))
 		e.knock = aim * 120.0
+		if dmg > 0.0:
+			e.take_hit(dmg, aim, 60.0)
 		lifted += 1
 	if lifted == 0:
 		main.fx_text(origin + Vector2(0, -34), "nothing to lift", color())

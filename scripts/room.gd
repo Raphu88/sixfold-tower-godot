@@ -15,6 +15,14 @@ var embers: Array = []
 var dust: Array = []
 var light_tex: Texture2D
 var ambient: Node2D  # redrawn every frame: flames, embers, dust
+var pillars: Array = []  # {pos, r}
+var stair_pos := Vector2.ZERO
+var stair_open := false:
+	set(v):
+		stair_open = v
+		if stair_light != null:
+			stair_light.enabled = v
+var stair_light: PointLight2D
 
 
 ## Call before adding to the tree.
@@ -29,6 +37,14 @@ func _ready() -> void:
 	ambient = Node2D.new()
 	ambient.draw.connect(_draw_ambient)
 	add_child(ambient)
+	stair_light = PointLight2D.new()
+	stair_light.texture = light_tex
+	stair_light.texture_scale = 1.6
+	stair_light.color = Color(1.0, 0.85, 0.5)
+	stair_light.energy = 1.4
+	stair_light.enabled = false
+	stair_light.position = stair_pos
+	add_child(stair_light)
 	var y := room.position.y - WALL_FACE * 0.45
 	for i in 4:
 		var x := room.position.x + room.size.x * (0.125 + 0.25 * i)
@@ -77,8 +93,16 @@ static func make_light_texture() -> Texture2D:
 	return tex
 
 
+func set_pillars(list: Array) -> void:
+	pillars = list
+	queue_redraw()
+
+
 func _process(delta: float) -> void:
 	var t := Time.get_ticks_msec() * 0.001
+	if stair_light != null:
+		stair_light.position = stair_pos
+		stair_light.energy = 1.2 + 0.3 * sin(t * 3.0)
 	for torch in torches:
 		var ph: float = torch["phase"]
 		var flick := 0.85 + 0.1 * sin(t * 9.0 + ph) + 0.06 * sin(t * 23.0 + ph * 2.0)
@@ -168,11 +192,59 @@ func _draw() -> void:
 		draw_rect(room.grow(-i * 7.0), Color(0, 0, 0, 0.07 * (1.0 - k)), false, 7.0)
 
 	_draw_walls()
+	for p in pillars:
+		_draw_pillar(p["pos"], p["r"])
+
+
+func _draw_pillar(pos: Vector2, r: float) -> void:
+	# Seen from above: a round stone column with a shadow, rim and cap.
+	draw_set_transform(pos + Vector2(r * 0.25, r * 0.55), 0.0, Vector2(1.0, 0.55))
+	draw_circle(Vector2.ZERO, r * 1.15, Color(0, 0, 0, 0.35))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	draw_circle(pos, r + 2.0, Palette.OUTLINE)
+	draw_circle(pos, r, Palette.WALL_FACE.darkened(0.15))
+	draw_circle(pos + Vector2(-r * 0.1, -r * 0.12), r * 0.86, Palette.WALL_FACE)
+	draw_arc(pos, r * 0.62, 0.0, TAU, 32, Palette.WALL_FACE.darkened(0.25), 1.5)
+	draw_circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color(Palette.WALL_EDGE.lightened(0.2), 0.5))
+	# A few cracks so pillars aren't identical.
+	var h := _hash(int(pos.x), int(pos.y))
+	for i in 2:
+		var a := (h + i * 0.37) * TAU
+		draw_line(pos + Vector2.from_angle(a) * r * 0.3, pos + Vector2.from_angle(a + 0.2) * r * 0.85, Palette.WALL_FACE.darkened(0.35), 1.0)
+
+
+func _draw_stair(c: CanvasItem, t: float) -> void:
+	# Stone steps leading up into the north wall. Sealed until the floor is clear.
+	var w := 68.0
+	var base := stair_pos + Vector2(0, 16)
+	for i in 5:
+		var k := float(i) / 5.0
+		var step_w := w * (1.0 - k * 0.35)
+		var y := base.y - i * 8.0
+		var rect := Rect2(Vector2(stair_pos.x - step_w / 2.0, y - 8.0), Vector2(step_w, 8.0))
+		var col := Palette.WALL_FACE.lightened(0.05 + k * 0.1)
+		if not stair_open:
+			col = col.darkened(0.35)
+		c.draw_rect(rect, Palette.OUTLINE)
+		c.draw_rect(rect.grow(-1.0), col)
+		c.draw_line(rect.position + Vector2(1, 1), Vector2(rect.end.x - 1, rect.position.y + 1), col.lightened(0.15), 1.0)
+	if stair_open:
+		var pulse := 0.5 + 0.5 * sin(t * 3.0)
+		c.draw_arc(stair_pos, 30.0 + pulse * 6.0, 0.0, TAU, 40, Color(1.0, 0.85, 0.5, 0.35 + 0.3 * pulse), 2.5)
+		# A chevron pointing up the steps.
+		var tip := stair_pos + Vector2(0, -26 - pulse * 4.0)
+		c.draw_polyline(PackedVector2Array([tip + Vector2(-9, 7), tip, tip + Vector2(9, 7)]), Color(1.0, 0.9, 0.6, 0.9), 2.5)
+	else:
+		# Sealed: a chain across the steps.
+		for i in 7:
+			var x := stair_pos.x - 33.0 + i * 11.0
+			c.draw_arc(Vector2(x, base.y - 18.0), 4.0, 0.0, TAU, 10, Color(0.35, 0.33, 0.36), 2.0)
 
 
 func _draw_ambient() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var c := ambient
+	_draw_stair(c, t)
 	for torch in torches:
 		_draw_torch(c, torch["pos"], t + torch["phase"])
 	for e in embers:

@@ -7,6 +7,7 @@ extends SceneTree
 
 var main
 var failures := 0
+const EnemyHP := {"slime": 24.0, "archer": 18.0, "knight": 48.0}
 
 
 func _init() -> void:
@@ -240,7 +241,36 @@ func _run() -> void:
 	await _frames(5)
 	await _settle()
 	_check(main.cleared, "room clears")
-	_check(not p.bonds["hand"].burned, "burns heal on clear")
+	_check(main.stair_open, "clearing opens the stair")
+
+	print("the climb")
+	p.dead = false
+	p.hp = 20.0
+	p.set_physics_process(true)
+	p.bonds["hand"].burned = true
+	p.global_position = main.stair_pos
+	await _wait(1.6)
+	_check(main.floor_num == 2, "walking onto the stair climbs to floor 2")
+	_check(not main.climbing and main.fade < 0.05, "the fade finishes")
+	_check(not p.bonds["hand"].burned, "burns heal at the stair")
+	_check(p.hp > 20.0, "resting at the stair restores health")
+	_check(not main.stair_open, "the new floor's stair starts sealed")
+	_check(main.enemies().size() >= 3, "floor 2 has monsters (%d)" % main.enemies().size())
+	_check(main.best_floor >= 2, "best floor recorded")
+	# Skip ahead a few floors.
+	for i in 3:
+		main._arrive()
+	await _frames(3)
+	_check(main.floor_num == 5, "climbed to floor 5")
+	_check(p.bonds["hand"].step == 3 and p.bonds["legs"].step == 3, "bonds reach step 3 by floor 5")
+	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
+	var foes5: Array = main.enemies()
+	_check(foes5.size() >= 4, "floor 5 has more monsters (%d)" % foes5.size())
+	_check(foes5[0].max_hp > EnemyHP.get(foes5[0].kind, 0.0), "monsters are tougher higher up")
+	var inside := true
+	for e in foes5:
+		inside = inside and main.room.has_point(e.global_position)
+	_check(inside, "monsters spawn inside the room")
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
