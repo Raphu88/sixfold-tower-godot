@@ -55,7 +55,7 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
-func on_parried() -> void:
+func on_parried(_perfect := false) -> void:
 	reflected = true
 	friendly = true
 	dmg *= 2.0

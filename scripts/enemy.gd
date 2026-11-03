@@ -1,12 +1,23 @@
 extends CharacterBody2D
-## Prototype monsters: slime, archer and knight. Every attack is telegraphed,
-## so a careful player can always read it.
+## Prototype monsters: slime, archer and knight.
+##
+## Every melee attack follows the same rhythm, so it can be learned:
+##   wind-up  -> GLINT (a white flash and a "ting") -> the hit lands GLINT_LEAD
+##   seconds later -> recovery, where the monster is open to punishment.
+## Parry on the glint. Only a couple of monsters may attack at once (they
+## take turns via the room's attack tokens); the rest circle and wait.
+## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
 const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": ""}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+
+const GLINT_LEAD := 0.25  # seconds from the glint to the hit
+const FLINCH_TIME := 0.3
+const POUNCE_SPEED := 420.0
+const LUNGE_SPEED := 760.0
 
 const TYPES := {
 	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.5, 0.88, 0.4), "dmg": 8.0, "weight": 0.7},
@@ -38,6 +49,10 @@ var lunge_hit := false
 var knock := Vector2.ZERO
 var squash := 0.0
 var squash_dir := Vector2.RIGHT
+var flinch := 0.0  # knocked off balance by a hit (not open to ripostes)
+var glint := 0.0  # the white flash before a hit, for drawing
+var glinted := false
+var attack_from := Vector2.ZERO  # where a pounce or lunge started
 var face := Vector2.LEFT  # where it's looking, eased toward the climber
 var overlay: Node2D  # unlit layer: telegraphs and the health bar
 
@@ -81,7 +96,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	flash -= delta
 	charged -= delta
-	contact_cd -= delta
+	glint -= delta
 	squash = move_toward(squash, 0.0, 6.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	var p = main.player
@@ -93,16 +108,20 @@ func _physics_process(delta: float) -> void:
 		stun -= delta
 		_drift()
 		return
+	if flinch > 0.0:
+		flinch -= delta
+		_drift()
+		return
 	if p == null or p.dead:
+		_end_attack("idle", 1.0)
 		_drift()
 		return
 	var to: Vector2 = p.global_position - global_position
 	var dist := to.length()
 	var dir := to / maxf(dist, 0.001)
-	if not (kind == "knight" and state in ["wind", "lunge"]):
+	# Look at the climber, except once an attack is committed (after the glint).
+	if not (is_attacking() and glinted):
 		face = face.slerp(dir, minf(1.0, 8.0 * delta)).normalized()
-	elif kind == "knight":
-		face = lunge_dir
 	match kind:
 		"slime":
 			_slime(delta, dir, dist, p)
@@ -121,82 +140,166 @@ func _drift() -> void:
 	queue_redraw()
 
 
-# Hops toward you; hurts on contact.
+## True while winding up or striking: the climber's parry looks for these.
+func is_attacking() -> bool:
+	return state.begins_with("wind") or state in ["pounce", "lunge", "aim"]
+
+
+## Counts down a wind-up and flashes the glint GLINT_LEAD seconds before the
+## blow lands. `travel` is how long a pounce or lunge will take to reach the
+## climber after the wind-up, so the glint comes earlier to make up for it.
+func _wind(delta: float, travel := 0.0) -> bool:
+	state_t -= delta
+	if not glinted and state_t + minf(travel, GLINT_LEAD) <= GLINT_LEAD:
+		glinted = true
+		glint = 0.22
+		main.sfx("glint", 1.0, 0.0, 0.03)
+	return state_t <= 0.0
+
+
+func _begin_wind(new_state: String, duration: float) -> void:
+	state = new_state
+	state_t = duration
+	glinted = false
+
+
+func _end_attack(next_state: String, duration: float) -> void:
+	state = next_state
+	state_t = duration
+	glinted = false
+	main.release_attack(self)
+
+
+## Moves around the climber at a distance while waiting for a turn to attack.
+func _circle(dir: Vector2, dist: float, keep: float, spd: float) -> void:
+	var side := dir.orthogonal() * (1.0 if get_instance_id() % 2 == 0 else -1.0)
+	var radial := 0.0
+	if dist > keep + 20.0:
+		radial = 1.0
+	elif dist < keep - 20.0:
+		radial = -1.0
+	velocity = (dir * radial + side * 0.6).normalized() * spd
+
+
+# Creeps up, squats (the wind-up), then pounces at where you were.
 func _slime(delta: float, dir: Vector2, dist: float, p) -> void:
-	state_t -= delta
-	if state == "hop":
-		velocity = aim_dir * 165.0
-		if state_t <= 0.0:
-			state = "rest"
-			state_t = 1.0
-	else:
-		velocity = Vector2.ZERO
-		if state_t <= 0.0:
-			state = "hop"
-			aim_dir = dir
-			state_t = 0.35
-			main.sfx("slime_hop", randf_range(0.9, 1.15))
-	if dist < radius + p.radius + 6.0 and contact_cd <= 0.0:
-		contact_cd = 0.9
-		p.receive_attack(dmg, self)
+	match state:
+		"wind":
+			velocity = Vector2.ZERO
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 6.0)) / POUNCE_SPEED):
+				state = "pounce"
+				state_t = 0.3
+				attack_from = global_position
+				aim_dir = dir
+				lunge_hit = false
+				main.sfx("slime_hop", randf_range(0.9, 1.15))
+		"pounce":
+			state_t -= delta
+			velocity = aim_dir * POUNCE_SPEED
+			if not lunge_hit and dist < radius + p.radius + 6.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("rest", 1.1)  # landed: open for a moment
+		"rest", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "approach"
+		_:  # approach: creep closer; pounce when close and it's our turn
+			if dist < 110.0 and main.request_attack(self):
+				_begin_wind("wind", 0.6)
+			elif dist < 110.0:
+				_circle(dir, dist, 95.0, speed * 0.6)
+			else:
+				velocity = dir * speed * 0.7
 
 
-# Keeps its distance, locks its aim 0.42 s before firing.
+# Keeps its distance, draws (aim locks; a red line), then fires.
 func _archer(delta: float, dir: Vector2, dist: float) -> void:
-	state_t -= delta
-	if aim_dir != Vector2.ZERO:
+	if state == "aim":
 		velocity = Vector2.ZERO
-	elif dist < 170.0:
+		state_t -= delta
+		if state_t <= 0.0:
+			main.spawn_projectile(global_position + aim_dir * radius, aim_dir * 260.0, dmg)
+			aim_dir = Vector2.ZERO
+			_end_attack("reload", randf_range(2.0, 2.8))
+		return
+	state_t -= delta
+	if dist < 170.0:
 		velocity = -dir * speed
 	elif dist > 260.0:
 		velocity = dir * speed
 	else:
 		velocity = dir.orthogonal() * speed * (1.0 if sin(Time.get_ticks_msec() * 0.0008) > 0.0 else -1.0)
-	if state_t <= 0.42 and aim_dir == Vector2.ZERO and dist < 430.0:
+	if state_t <= 0.0 and dist < 430.0 and main.request_attack(self):
+		state = "aim"
+		state_t = 0.5
 		aim_dir = dir
 		main.sfx("warn_archer")  # the bow creaks as it draws
-	if state_t <= 0.0:
-		if aim_dir != Vector2.ZERO:
-			main.spawn_projectile(global_position + aim_dir * radius, aim_dir * 260.0, dmg)
-		aim_dir = Vector2.ZERO
-		state_t = randf_range(2.0, 2.8)
 
 
-# Chases, winds up (turning slowly toward you), then lunges in a straight line.
+# Two moves: a slash up close, or a lunge from further out. Each winds up,
+# glints, strikes, then leaves the knight open.
 func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
-	state_t -= delta
 	match state:
-		"chase":
-			velocity = dir * speed
-			if dist < 110.0 and state_t <= 0.0:
-				state = "wind"
-				state_t = 0.45
-				lunge_dir = dir
-				main.sfx("warn_knight")  # armour rattles as it winds up
-		"wind":
+		"wind_slash":
 			velocity = Vector2.ZERO
-			if state_t > 0.2:
-				lunge_dir = lunge_dir.slerp(dir, minf(1.0, 4.0 * delta))
-			if state_t <= 0.0:
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				_slash(p)
+				_end_attack("recover", 0.9)
+		"wind_lunge":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = lunge_dir.slerp(dir, minf(1.0, 5.0 * delta))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 10.0)) / LUNGE_SPEED):
 				state = "lunge"
-				state_t = 0.22
+				state_t = 0.18
 				lunge_hit = false
+				attack_from = global_position
 		"lunge":
-			velocity = lunge_dir * 480.0
-			if not lunge_hit and dist < radius + p.radius + 8.0:
+			state_t -= delta
+			velocity = lunge_dir * LUNGE_SPEED
+			if not lunge_hit and dist < radius + p.radius + 10.0:
 				lunge_hit = true
 				p.receive_attack(dmg, self)
 			if state_t <= 0.0:
-				state = "recover"
-				state_t = 0.7
-		_:
+				_end_attack("recover", 1.0)
+		"recover", "idle":
+			state_t -= delta
 			velocity = Vector2.ZERO
 			if state_t <= 0.0:
 				state = "chase"
-				state_t = randf_range(0.4, 0.9)
+		_:  # chase
+			if dist < 75.0 and main.request_attack(self):
+				lunge_dir = dir
+				_begin_wind("wind_slash", 0.6)
+				main.sfx("warn_knight")  # armour rattles as it winds up
+			elif dist > 120.0 and dist < 200.0 and randf() < delta * 0.8 and main.request_attack(self):
+				lunge_dir = dir
+				_begin_wind("wind_lunge", 0.7)
+				main.sfx("warn_knight")
+			elif main.holds_attack(self) or main.can_attack():
+				velocity = dir * speed
+			else:
+				_circle(dir, dist, 130.0, speed * 0.7)
 
 
-func take_hit(amount: float, dir: Vector2, force := 140.0) -> void:
+const SLASH_REACH := 64.0
+const SLASH_ARC := 65.0  # half-angle, degrees
+
+
+func _slash(p) -> void:
+	var to: Vector2 = p.global_position - global_position
+	main.fx_cone(global_position, lunge_dir, SLASH_REACH + 10.0, deg_to_rad(SLASH_ARC), Color(1.0, 0.4, 0.3))
+	main.sfx("swing_heavy", 0.8)
+	if to.length() <= SLASH_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(SLASH_ARC):
+		p.receive_attack(dmg, self)
+
+
+func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
 	hp -= amount
@@ -209,17 +312,27 @@ func take_hit(amount: float, dir: Vector2, force := 140.0) -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.95, 0.85))
 	if hp <= 0.0:
 		dead = true
+		main.release_attack(self)
 		main.on_enemy_killed(self)
 		queue_free()
+		return
+	# Flinching: slimes and archers are knocked out of what they were doing.
+	# Knights shrug off hits while winding up; only heavy blows rock them
+	# when they aren't attacking.
+	var poise := kind == "knight" and (is_attacking() or not heavy)
+	if not poise and dir != Vector2.ZERO and stun <= 0.0:
+		flinch = FLINCH_TIME
+		if is_attacking():
+			aim_dir = Vector2.ZERO
+			_end_attack("rest" if kind == "slime" else ("reload" if kind == "archer" else "recover"), 0.6)
 
 
 ## Windwalker's Gale Lift: helpless in the air.
 func lift(duration: float) -> void:
 	airborne = maxf(airborne, duration)
 	aim_dir = Vector2.ZERO
-	if kind == "knight":
-		state = "recover"
-		state_t = 0.3
+	if is_attacking():
+		_end_attack("recover" if kind == "knight" else ("rest" if kind == "slime" else "reload"), 0.3)
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), "Lifted", Color(0.75, 0.9, 1.0))
 
 
@@ -227,19 +340,20 @@ func stagger(duration: float) -> void:
 	stun = maxf(stun, duration)
 
 
-## A parried knight or slime is staggered and open.
-func on_parried() -> void:
-	stun = 1.2
-	state = "recover"
-	state_t = 0.0
+## Parried: staggered and open to a riposte. A perfect parry staggers longer.
+func on_parried(perfect := false) -> void:
+	stun = 1.6 if perfect else 0.9
+	aim_dir = Vector2.ZERO
+	_end_attack("recover" if kind == "knight" else ("rest" if kind == "slime" else "reload"), 0.0)
+	knock = (global_position - main.player.global_position).normalized() * (220.0 if perfect else 140.0)
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), "Staggered", Color(1.0, 0.89, 0.63))
 
 
 func _draw() -> void:
 	var t := Time.get_ticks_msec() * 0.001 + float(get_instance_id() % 100)
 	var lift_y := -18.0 if airborne > 0.0 else 0.0
-	if kind == "slime" and state == "hop":
-		lift_y -= sin(PI * clampf(1.0 - state_t / 0.35, 0.0, 1.0)) * 9.0
+	if kind == "slime" and state == "pounce":
+		lift_y -= sin(PI * clampf(1.0 - state_t / 0.3, 0.0, 1.0)) * 10.0
 	Draw.shadow(self, Vector2(0, radius * 0.7), radius * (0.8 if lift_y < -1.0 else 1.0))
 
 	# Squashed along the direction it was hit from.
@@ -264,10 +378,11 @@ func _draw_slime(t: float, f: Vector2) -> void:
 	# Before a hop it gathers itself: squat and wide, quivering.
 	var sq := Vector2.ONE
 	var wob := 0.05
-	if state == "rest" and state_t < 0.25:
-		sq = Vector2(1.18, 0.82)
-		wob = 0.09
-	elif state == "hop":
+	if state == "wind":
+		var k := clampf(1.0 - state_t / 0.6, 0.0, 1.0)
+		sq = Vector2(1.0 + 0.22 * k, 1.0 - 0.2 * k)
+		wob = 0.05 + 0.06 * k
+	elif state == "pounce":
 		sq = Vector2(0.88, 1.12)
 	var pts := Draw.blob(Vector2.ZERO, radius, t, wob, sq)
 	Draw.poly(self, pts, Color(col.darkened(0.25), 0.95))
@@ -315,7 +430,7 @@ func _draw_knight(f: Vector2) -> void:
 	# Sword: held low, raised high during the wind-up.
 	var sword_dir := f.rotated(-1.1)
 	var grip := -side * (radius * 0.9) + f * 3.0
-	if state == "wind":
+	if state.begins_with("wind"):
 		sword_dir = f.rotated(-2.4)
 		grip = -side * (radius * 0.6) - f * 4.0
 	elif state == "lunge":
@@ -330,7 +445,7 @@ func _draw_knight(f: Vector2) -> void:
 	# Helmet with a visor slit facing you.
 	Draw.ball(self, f * 2.0, 7.5, armor.darkened(0.1))
 	draw_line(f * 6.0 + side * 3.5, f * 6.0 - side * 3.5, Palette.OUTLINE, 2.0)
-	if state == "wind":
+	if state.begins_with("wind"):
 		draw_line(f * 6.0 + side * 2.5, f * 6.0 - side * 2.5, Color(1.0, 0.4, 0.3), 1.0)
 	# Shield on the off hand.
 	var sc := side * (radius * 0.85) + f * 6.0
@@ -350,8 +465,17 @@ func _draw_overlay() -> void:
 	var c := overlay
 	var lift_y := -18.0 if airborne > 0.0 else 0.0
 	var danger := Palette.DANGER
-	if kind == "knight" and state == "wind":
-		var k := 1.0 - state_t / 0.45
+	if kind == "knight" and state == "wind_slash":
+		# The slash: a wedge in front that fills up until it strikes.
+		var ks := clampf(1.0 - state_t / 0.6, 0.0, 1.0)
+		var half := deg_to_rad(SLASH_ARC)
+		var pts := PackedVector2Array([Vector2.ZERO])
+		for i in 13:
+			pts.append(Vector2.from_angle(lunge_dir.angle() - half + 2.0 * half * i / 12.0) * SLASH_REACH)
+		c.draw_colored_polygon(pts, Color(danger, 0.1 + 0.15 * ks))
+		c.draw_arc(Vector2.ZERO, SLASH_REACH * ks, lunge_dir.angle() - half, lunge_dir.angle() + half, 16, Color(danger, 0.7), 2.0)
+	if kind == "knight" and state == "wind_lunge":
+		var k := 1.0 - state_t / 0.7
 		var reach := 140.0
 		var w := radius * 2.0
 		c.draw_line(Vector2.ZERO, lunge_dir * reach, Color(danger, 0.14), w)
@@ -363,10 +487,21 @@ func _draw_overlay() -> void:
 			var at := lunge_dir * d
 			c.draw_polyline(PackedVector2Array([at - lunge_dir * 5.0 + side * 6.0, at, at - lunge_dir * 5.0 - side * 6.0]), Color(danger, 0.6), 2.0)
 	if kind == "archer" and aim_dir != Vector2.ZERO:
-		var k2 := clampf(1.0 - state_t / 0.42, 0.0, 1.0)
+		var k2 := clampf(1.0 - state_t / 0.5, 0.0, 1.0)
 		c.draw_line(aim_dir * 14.0, aim_dir * 420.0, Color(danger, 0.25 + 0.4 * k2), 1.0 + k2)
 		c.draw_circle(aim_dir * 14.0, 2.0 + k2 * 2.0, Color(danger, 0.8))
-	if kind == "slime" and state == "rest" and state_t < 0.25:
+	if glint > 0.0:
+		# The glint: a white four-point star where the blow will come from.
+		var gk := glint / 0.22
+		var gp := Vector2(0, lift_y) + face * (radius + 4.0)
+		var arm := 6.0 + 10.0 * gk
+		var gc := Color(1, 1, 1, gk)
+		c.draw_line(gp - Vector2(arm, 0), gp + Vector2(arm, 0), gc, 2.0)
+		c.draw_line(gp - Vector2(0, arm), gp + Vector2(0, arm), gc, 2.0)
+		c.draw_line(gp - Vector2(arm, arm) * 0.45, gp + Vector2(arm, arm) * 0.45, Color(gc, gk * 0.7), 1.5)
+		c.draw_line(gp - Vector2(arm, -arm) * 0.45, gp + Vector2(arm, -arm) * 0.45, Color(gc, gk * 0.7), 1.5)
+		c.draw_circle(gp, 3.0 * gk + 1.0, gc)
+	if kind == "slime" and state == "wind":
 		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(danger, 0.6), 2.0)
 	if charged > 0.0:
 		var t := Time.get_ticks_msec() * 0.001

@@ -44,6 +44,10 @@ var banner := {}  # {title, lines, t}: shown when a floor starts
 var room_view
 var player_start := Vector2.ZERO
 
+# Attack turns: only this many monsters may be attacking at once.
+const MAX_ATTACKERS := 2
+var attackers: Array = []
+
 
 func _ready() -> void:
 	# Run after the bodies have moved, so the shove-apart pass sees this frame.
@@ -210,6 +214,7 @@ func _start_floor(n: int) -> void:
 	for c in get_children():
 		if "reflected" in c:
 			c.queue_free()
+	attackers.clear()
 	for b in pillar_bodies:
 		b.queue_free()
 	pillar_bodies.clear()
@@ -301,6 +306,35 @@ func _save_best() -> void:
 	cfg.load(SAVE_PATH)
 	cfg.set_value("climb", "best_floor", best_floor)
 	cfg.save(SAVE_PATH)
+
+
+# --- attack turns ------------------------------------------------------------
+
+func _tidy_attackers() -> void:
+	attackers = attackers.filter(func(e): return is_instance_valid(e) and not e.dead)
+
+
+func can_attack() -> bool:
+	_tidy_attackers()
+	return attackers.size() < MAX_ATTACKERS
+
+
+func holds_attack(e) -> bool:
+	return e in attackers
+
+
+## A monster asks for a turn to attack. True if it may go ahead.
+func request_attack(e) -> bool:
+	if e in attackers:
+		return true
+	if not can_attack():
+		return false
+	attackers.append(e)
+	return true
+
+
+func release_attack(e) -> void:
+	attackers.erase(e)
 
 
 func _change_step(by: int) -> void:

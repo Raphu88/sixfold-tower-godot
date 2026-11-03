@@ -28,6 +28,7 @@ const SFX := {
 	"zap": ["res://assets/audio/sfx/zap_0.wav", "res://assets/audio/sfx/zap_1.wav"],
 	"gust": ["res://assets/audio/sfx/gust_0.wav"],
 	"burn": ["res://assets/audio/sfx/burn_0.wav"],
+	"glint": ["res://assets/audio/sfx/glint_0.wav"],
 	"warn_knight": ["res://assets/audio/sfx/warn_knight_0.wav"],
 	"warn_archer": ["res://assets/audio/sfx/warn_archer_0.wav", "res://assets/audio/sfx/warn_archer_1.wav"],
 	"slime_hop": ["res://assets/audio/sfx/slime_hop_0.wav", "res://assets/audio/sfx/slime_hop_1.wav", "res://assets/audio/sfx/slime_hop_2.wav"],
