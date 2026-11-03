@@ -36,6 +36,17 @@ static func step_for_xp(xp: float) -> int:
 	return step
 
 
+## A new climber: forget every mark, all growth and soak, and the best floor.
+func reset() -> void:
+	regarded = false
+	bonds = {}
+	soak = {}
+	tally = {}
+	climbs = 0
+	best_floor = 1
+	save()
+
+
 func load_save() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) != OK:

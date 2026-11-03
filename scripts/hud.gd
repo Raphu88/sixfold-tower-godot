@@ -126,7 +126,7 @@ func _draw() -> void:
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
 			["1 2 3 / wheel", "weapon"], ["Q E F C", "cast marks"],
-			["[  ]", "bond step (testing)"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
+			["[  ]", "bond step (testing)"], ["M", "music"], ["R", "restart"], ["N", "new climber"], ["H", "hide controls"],
 		]
 		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
 		draw_style_box(panel, box)

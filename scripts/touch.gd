@@ -13,7 +13,7 @@ const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
 ## text are readable on a small screen.
 const PHONE_SCALE := 1.5
-const ONE_SHOT := ["weapon", "music", "restart"]
+const ONE_SHOT := ["weapon", "music", "restart", "new"]
 
 var main
 var active := false
@@ -42,6 +42,7 @@ func _layout() -> void:
 		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
 		{"id": "music", "action": "toggle_music", "c": tr + Vector2(-100, 40) * k, "r": 24.0 * k},
 		{"id": "restart", "action": "restart", "c": tr + Vector2(-160, 40) * k, "r": 24.0 * k},
+		{"id": "new", "action": "new_climber", "c": tr + Vector2(-220, 40) * k, "r": 24.0 * k},
 	]
 	# One cast button per mark you carry, in these spots around attack.
 	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150)]
@@ -217,6 +218,8 @@ func _draw() -> void:
 				label = "[ ]"
 			"music":
 				label = "Music"
+			"new":
+				label = "New"
 			"restart":
 				label = "R"
 		draw_circle(c, r, Color(0, 0, 0, 0.45 if not pressed else 0.6))

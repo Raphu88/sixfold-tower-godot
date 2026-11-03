@@ -56,6 +56,7 @@ var climb_essence := {}  # everything gathered this climb
 var climb_soak := {}  # everything soaked this climb
 var regard := {}  # the Regard, while it plays: {fell, part, id, t}
 var regard_pending := false
+var new_climber_t := 0.0  # a first press asks; a second within this time confirms
 
 # Attack turns: only this many monsters may be attacking at once.
 const MAX_ATTACKERS := 2
@@ -174,6 +175,15 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("restart"):
 		get_tree().reload_current_scene()
 		return
+	new_climber_t -= delta / maxf(Engine.time_scale, 0.01)
+	if Input.is_action_just_pressed("new_climber"):
+		if new_climber_t > 0.0:
+			new_climber()
+			return
+		new_climber_t = 3.0
+		var again := "Tap New again" if touch_active else "Press N again"
+		banner = {"title": "NEW CLIMBER?", "lines": ["%s within 3 seconds to start over." % again, "Your marks and all their growth will be lost."], "t": 3.0}
+		sfx("warn_knight", 1.2, -6.0, 0.0)
 	if Input.is_action_just_pressed("step_up"):
 		_change_step(1)
 	if Input.is_action_just_pressed("step_down"):
@@ -430,6 +440,14 @@ func regard_done() -> bool:
 func end_regard() -> void:
 	Engine.time_scale = 1.0
 	get_tree().reload_current_scene()
+
+
+## Starts over as a new climber: no marks, back to the bondless first climb.
+func new_climber() -> void:
+	profile.reset()
+	Engine.time_scale = 1.0
+	if get_tree().current_scene == self:  # (tests run the room outside a scene)
+		get_tree().reload_current_scene()
 
 
 ## Tests: start with two marks instead of a bondless first climb.
