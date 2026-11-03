@@ -40,10 +40,14 @@ Every climb starts by choosing a tower (keys 1 to 3, click, or tap a card). Each
 | Tower | Essence | Monsters | Look |
 | --- | --- | --- | --- |
 | The Gryphon's Tower | Air | archers, bats and thunderlings; the Gryphon on floor 5 | cold, blue stone and pale torches |
-| The Kraken's Tower | Water | mostly slimes | damp, teal stone and green-white torches |
+| The Kraken's Tower | Water | slimes, lurkers and shellbacks; the Kraken on floor 5 | damp, teal stone and green-white torches |
 | The Wyvern's Tower | Iron | mostly knights (the hardest) | hot forge-red stone and orange torches |
 
-**The Gryphon's tower has a summit.** On floor 5 the Gryphon itself waits, alone. It rakes with its talons up close (a red wedge, parryable), dives on you from range (it locks onto where you stood when it glints; the landing can't be parried, so roll out of the red circle), and throws a fan of feathers (parryable, and a Crosswind turns them back). It can't be lifted or interrupted, only staggered, and at half health it calls two bats. Beat it, take the stair, and the climb is complete. (The Kraken's and Wyvern's beasts come with their towers; until then those climbs go on floor after floor.)
+**The Gryphon's tower has a summit.** On floor 5 the Gryphon itself waits, alone. It rakes with its talons up close (a red wedge, parryable), dives on you from range (it locks onto where you stood when it glints; the landing can't be parried, so roll out of the red circle), and throws a fan of feathers (parryable, and a Crosswind turns them back). It can't be lifted or interrupted, only staggered, and at half health it calls two bats. Beat it, take the stair, and the climb is complete.
+
+**The Kraken's tower has a summit too.** On floor 5 the Kraken waits. It sweeps a tentacle across a wide wedge in front of it (parryable), slams three spots at once with one landing where you stand (can't be parried: roll out of the red circles), and spits a fan of ink (parryable). At half health it calls two lurkers. (The Wyvern's beast comes with its tower; until then that climb goes on floor after floor.)
+
+**The Kraken's monsters:** the **lurker** swims under the water, where only ripples and two eyes show and it can't be hit. It rises near you, glints and lunges (parryable), then stays up for a moment: that's your chance. The **shellback** plods toward you behind a shell that blocks most of a blow from the front (heavy blows crack it), and bashes up close; get behind it.
 
 **The Gryphon's monsters:** the **bat** circles you, then glints and swoops straight through where you stood (parryable). The **thunderling** walks up, stops and sparks, then bursts into a ring of lightning: it can't be parried, so step out of the ring or roll through it.
 

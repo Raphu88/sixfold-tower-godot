@@ -316,7 +316,7 @@ func _update_spell_fields(delta: float) -> void:
 ## Bodies can't share space: overlapping ones are pushed apart, and the
 ## lighter one gives way more. Foes lifted into the air pass over everyone.
 func _separate_bodies() -> void:
-	var bodies: Array = enemies().filter(func(e): return e.airborne <= 0.0)
+	var bodies: Array = enemies().filter(func(e): return e.airborne <= 0.0 and not e.submerged)
 	if player != null and not player.dead:
 		bodies.append(player)
 	for i in bodies.size():
@@ -365,7 +365,7 @@ func _start_floor(n: int) -> void:
 	var plan: Dictionary = Floors.build(n, room, start, Towers.TOWERS[tower])
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
-		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": ["Watch for the glint. A landing can't be parried."], "t": 3.0}
+		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
 		sfx("warn_knight", 0.5, 0.0, 0.0)
 	pillars = plan["pillars"]
 	for p in pillars:
@@ -712,6 +712,11 @@ func enemies() -> Array:
 
 
 ## Adds a monster to the room (bosses calling help, tests).
+## Monsters that can be aimed at (not a lurker under the water).
+func targets() -> Array:
+	return enemies().filter(func(e): return not e.submerged)
+
+
 func spawn_enemy(kind: String, pos: Vector2):
 	var e = EnemyScript.new()
 	e.setup(kind, self)

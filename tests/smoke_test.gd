@@ -27,6 +27,12 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+## Kill a monster outright (a lurker is pulled up from the water first).
+func _slay(e) -> void:
+	e.submerged = false
+	e.take_hit(99999.0, Vector2.ZERO, 0.0)
+
+
 ## A brand-new room with a fresh profile: a bondless first climb.
 func _fresh_main() -> void:
 	main.queue_free()
@@ -77,7 +83,7 @@ func _regard_tests() -> void:
 	p = main.player
 	for i in 5:
 		main.add_soak("legs", 3.0)
-	main.gather_essence("air", 10.0, p.global_position)
+	main.gather_essence("air", 30.0, p.global_position)
 	_check(main.leading_part() == "legs", "the HUD's leading part is the most-used one")
 	var predicted: String = main.predicted_bond()
 	_check(predicted == "windwalker", "the HUD predicts the bond: %s" % predicted)
@@ -89,7 +95,7 @@ func _regard_tests() -> void:
 	_check(main.profile.choose_bond("legs", {"iron": 10.0}) == "blade_forger", "...a bond from elsewhere wins when the essence is overwhelmingly its kind")
 	main.floor_num = 3
 	for e in main.enemies():
-		e.take_hit(9999.0, Vector2.RIGHT, 0.0)
+		_slay(e)
 	await _frames(3)
 	_check(main.stair_open, "floor 3's stair opens")
 	p.global_position = main.stair_pos
@@ -332,8 +338,8 @@ func _gryphon_tower_tests() -> void:
 	var bat = await _spawn("bat", p.global_position + Vector2(120, 0))
 	bat.hp = 999.0
 	bat.state = "hover"
-	var r2: Dictionary = await _parry_test(bat, 0.0, "wind", 120.0)
-	_check(r2["glinted"] and r2["parried"] and not r2["hurt"], "a bat's swoop can be parried on the glint")
+	var r2: Dictionary = await _parry_test(bat, 0.0, "wind", 160.0)  # from far: the glint comes earlier
+	_check(r2["glinted"] and r2["parried"] and not r2["hurt"], "a bat's swoop can be parried on the glint %s" % str(r2))
 	bat.queue_free()
 	await _settle()
 
@@ -361,7 +367,7 @@ func _gryphon_tower_tests() -> void:
 	await _wait(0.2)
 	_check(main.enemies().filter(func(e): return e.kind == "bat").size() == 2, "below half health it calls two bats")
 	for e in main.enemies():
-		e.take_hit(99999.0, Vector2.ZERO)
+		_slay(e)
 	await _frames(3)
 	_check(main.stair_open, "the beast's fall opens the stair")
 	p.hp = p.MAX_HP
@@ -375,6 +381,114 @@ func _gryphon_tower_tests() -> void:
 	main.victory = {}
 
 
+func _kraken_tower_tests() -> void:
+	print("the Kraken's tower")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var seen := {}
+	for n in 30:
+		for m in main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["kraken"])["monsters"]:
+			seen[m[0]] = true
+	_check(seen.has("lurker") and seen.has("shellback"), "the Kraken's tower has lurkers and shellbacks")
+	# Lurker: can't be struck under the water, can be once it rises.
+	var lk = await _spawn("lurker", p.global_position + Vector2(200, 0))
+	_check(lk.submerged and not main.targets().has(lk), "a lurker under the water can't be targeted")
+	var hp0: float = lk.hp
+	lk.take_hit(5.0, Vector2.RIGHT)
+	_check(lk.hp == hp0, "...or struck")
+	lk.state = "up"
+	lk.state_t = 1.0
+	lk._physics_process(0.016)
+	lk.take_hit(5.0, Vector2.RIGHT)
+	_check(lk.hp < hp0 and main.targets().has(lk), "once it rises it can be")
+	lk.queue_free()
+	# Shellback: the shell blocks from the front, not from behind.
+	var sb = await _spawn("shellback", p.global_position + Vector2(200, 0))
+	sb.face = Vector2.LEFT
+	var full: float = sb.hp
+	sb.take_hit(10.0, Vector2.RIGHT)  # struck from the front (the blow travels right, into its face)
+	var front: float = full - sb.hp
+	sb.hp = full
+	sb.take_hit(10.0, Vector2.LEFT)  # struck from behind
+	var back: float = full - sb.hp
+	_check(front < back * 0.5, "a shellback's shell blocks blows from the front (%.1f vs %.1f)" % [front, back])
+	sb.queue_free()
+	await _frames(2)
+
+	print("the Kraken")
+	main.profile.regarded = true
+	main.first_climb = false
+	main._start_floor(5)
+	await _frames(3)
+	var foes: Array = main.enemies()
+	_check(foes.size() == 1 and foes[0].kind == "kraken", "floor 5 of the Kraken's tower is the Kraken")
+	var k = foes[0]
+	k.set_physics_process(false)
+	# The sweep is parryable; the slam is not.
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.parry_cd = 0.0
+	p.knock = Vector2.ZERO
+	p.velocity = Vector2.ZERO
+	p.global_position = k.global_position + Vector2(120, 0)
+	main.attackers.clear()
+	main.request_attack(k)
+	k._begin_wind("wind_sweep", 0.7)
+	k.set_physics_process(true)
+	var give_up := Time.get_ticks_msec() + 2000
+	while not k.glinted and Time.get_ticks_msec() < give_up:
+		await physics_frame
+	var glinted: bool = k.glinted
+	p._try_parry()
+	var swept_stun := 0.0
+	var until := Time.get_ticks_msec() + 700
+	while Time.get_ticks_msec() < until:
+		await process_frame
+		swept_stun = maxf(swept_stun, k.stun)
+	k.set_physics_process(false)
+	_check(glinted and swept_stun > 0.0 and p.hp == p.MAX_HP, "the Kraken's sweep can be parried on the glint")
+	k.stun = 0.0
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	k.stun = 0.0
+	k.slam_spots = [p.global_position]
+	k._begin_wind("wind_slam", 0.2)
+	k.set_physics_process(true)
+	await _wait(0.12)
+	p._try_parry()
+	await _wait(0.3)
+	k.set_physics_process(false)
+	_check(p.hp < p.MAX_HP and k.stun <= 0.0, "its slam can't be parried")
+	# Halfway down it calls lurkers.
+	k.take_hit(k.hp - k.max_hp * 0.45, Vector2.ZERO)
+	k.state = "recover"
+	k.state_t = 5.0
+	k.set_physics_process(true)
+	await _wait(0.2)
+	_check(main.enemies().filter(func(e): return e.kind == "lurker").size() == 2, "below half health it calls two lurkers")
+	for e in main.enemies():
+		_slay(e)
+	await _frames(3)
+	_check(main.stair_open, "the Kraken's fall opens the stair")
+	p.hp = p.MAX_HP
+	p.dead = false
+	p.set_physics_process(true)
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.victory.is_empty(), "taking the summit stair completes the climb")
+	await _wait(2.8)
+	main.victory = {}
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -383,11 +497,11 @@ func _tower_tests() -> void:
 	# The stair opens once three of the four are down; the gong waits for the last.
 	var foes: Array = main.enemies()
 	for i in 3:
-		foes[i].take_hit(9999.0, Vector2.RIGHT, 0.0)
+		_slay(foes[i])
 	await _frames(3)
 	_check(main.stair_open and not main.cleared, "the stair opens with one foe left")
 	_check(main.run_essence.get("water", 0.0) >= 3.0 * main.Towers.ESSENCE_BONUS, "every kill gives a little of the tower's essence")
-	foes[3].take_hit(9999.0, Vector2.RIGHT, 0.0)
+	_slay(foes[3])
 	await _frames(3)
 	_check(main.cleared, "the last kill clears the floor")
 	# Towers change the monster mix on higher floors.
@@ -400,7 +514,8 @@ func _tower_tests() -> void:
 				c[m[0]] = c.get(m[0], 0) + 1
 		counts[id] = c
 	_check(counts["gryphon"]["archer"] > counts["kraken"]["archer"], "the Gryphon's tower has more archers (%d vs %d)" % [counts["gryphon"]["archer"], counts["kraken"]["archer"]])
-	_check(counts["kraken"]["slime"] > counts["wyvern"]["slime"], "the Kraken's tower has more slimes (%d vs %d)" % [counts["kraken"]["slime"], counts["wyvern"]["slime"]])
+	var wet: int = counts["kraken"]["slime"] + counts["kraken"].get("lurker", 0)
+	_check(wet > counts["wyvern"]["slime"], "the Kraken's tower has more water creatures (%d vs %d)" % [wet, counts["wyvern"]["slime"]])
 	_check(counts["wyvern"]["knight"] > counts["gryphon"]["knight"], "the Wyvern's tower has more knights (%d vs %d)" % [counts["wyvern"]["knight"], counts["gryphon"]["knight"]])
 	# Choosing a tower restyles the room and restarts floor 1 there.
 	main.choosing_tower = true
@@ -482,24 +597,30 @@ func _parry_test(knight, delay: float, wind_state := "wind_slash", gap := 50.0) 
 	knight.state_t = 0.0
 	knight.glinted = false
 	main.attackers.clear()
+	p.knock = Vector2.ZERO  # no sliding left over from an earlier hit
+	p.velocity = Vector2.ZERO
 	p.global_position = knight.global_position + Vector2(gap, 0)
 	knight.set_physics_process(true)
 	var glinted := false
 	var give_up := Time.get_ticks_msec() + 3000  # watch for the glint for up to 3 real seconds
 	while Time.get_ticks_msec() < give_up:
-		await process_frame
+		await physics_frame  # every game tick, so the press comes right after the glint
 		if knight.glinted and knight.state == wind_state:
 			glinted = true
 			break
 	if delay > 0.0:
 		await _wait(delay)
 	p._try_parry()
+	var pressed := Engine.get_physics_frames()
+	var landed := -1
 	var stun := 0.0
 	var until := Time.get_ticks_msec() + 700
 	while Time.get_ticks_msec() < until:
-		await process_frame
+		await physics_frame
 		stun = maxf(stun, knight.stun)
-	var result := {"glinted": glinted, "parried": stun > 0.0, "stun": stun, "hurt": p.hp < p.MAX_HP}
+		if landed < 0 and (knight.stun > 0.0 or p.hp < p.MAX_HP):
+			landed = Engine.get_physics_frames() - pressed
+	var result := {"glinted": glinted, "parried": stun > 0.0, "stun": stun, "hurt": p.hp < p.MAX_HP, "ticks": landed}
 	knight.set_physics_process(false)
 	knight.stun = 0.0
 	return result
@@ -741,7 +862,7 @@ func _run() -> void:
 	knight.stun = 0.0
 	# The slime's pounce from a distance: the glint still gives the same timing.
 	var r4: Dictionary = await _parry_test(slime, 0.0, "wind", 100.0)
-	_check(r4["glinted"] and r4["parried"] and not r4["hurt"], "parrying a slime's pounce on the glint works")
+	_check(r4["glinted"] and r4["parried"] and not r4["hurt"], "parrying a slime's pounce on the glint works %s" % str(r4))
 	slime.set_physics_process(false)
 	slime.stun = 0.0
 	# Touching a slime is harmless now; only its pounce hurts.
@@ -798,7 +919,7 @@ func _run() -> void:
 
 	print("clear the room")
 	for e in main.enemies():
-		e.take_hit(999.0, Vector2.RIGHT, 200.0)
+		_slay(e)
 	await _frames(5)
 	await _settle()
 	_check(main.cleared, "room clears")
@@ -826,16 +947,16 @@ func _run() -> void:
 	_check(main.run_essence.is_empty(), "the stair banks your essence")
 	_check(main.profile.bonds["hand"]["xp"] > xp0, "banked essence strengthens your marks")
 	# Skip ahead a few floors.
-	for i in 3:
+	for i in 2:
 		main._arrive()
 	await _frames(3)
-	_check(main.floor_num == 5, "climbed to floor 5")
+	_check(main.floor_num == 4, "climbed to floor 4")
 	main.profile.bonds["hand"]["xp"] = 170.0
 	main._give_bonds()
 	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
 	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
 	var foes5: Array = main.enemies()
-	_check(foes5.size() >= 4, "floor 5 has more monsters (%d)" % foes5.size())
+	_check(foes5.size() >= 4, "floor 4 has more monsters (%d)" % foes5.size())
 	_check(foes5[0].max_hp > EnemyHP.get(foes5[0].kind, 0.0), "monsters are tougher higher up")
 	var inside := true
 	for e in foes5:
@@ -846,6 +967,7 @@ func _run() -> void:
 	await _tower_tests()
 	await _gryphon_tests()
 	await _gryphon_tower_tests()
+	await _kraken_tower_tests()
 	await _spell_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

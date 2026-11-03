@@ -38,7 +38,7 @@ func _physics_process(delta: float) -> void:
 			queue_free()
 			return
 	if friendly:
-		for e in main.enemies():
+		for e in main.targets():
 			if e in hit:
 				continue
 			if position.distance_to(e.global_position) < e.radius + 4.0:
@@ -78,6 +78,13 @@ func on_parried(_perfect := false) -> void:
 func _draw() -> void:
 	var dir := vel.normalized()
 	var side := dir.orthogonal()
+	if style == "ink":
+		# A glob of ink with a dark smear behind it.
+		draw_line(-dir * 18.0, Vector2.ZERO, Color(0.1, 0.06, 0.14, 0.5), 7.0)
+		draw_circle(Vector2.ZERO, 5.5, Color(0.08, 0.05, 0.1))
+		draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
+		draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
+		return
 	if style == "feather":
 		# The Gryphon's feathers: a quill with a vane.
 		draw_line(-dir * 12.0, dir * 8.0, Color(0.06, 0.05, 0.07), 3.0)

@@ -18,6 +18,9 @@ const DROPS := {
 	"bat": ["air", 2.0],
 	"thunderling": ["air", 5.0],
 	"gryphon": ["air", 30.0],
+	"lurker": ["water", 4.0],
+	"shellback": ["iron", 5.0],
+	"kraken": ["water", 30.0],
 }
 
 
