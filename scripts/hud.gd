@@ -73,6 +73,10 @@ func _draw() -> void:
 	# Health and stamina.
 	draw_style_box(panel, Rect2(16, 14, 286, 56))
 	_bar(Vector2(28, 24), 262.0, 14.0, p.hp / p.max_hp, hp_trail, Color(0.78, 0.22, 0.2))
+	if p.barrier_hp > 0.0:
+		# The Warden's barrier: a gold band over the health bar.
+		var bw: float = 262.0 * clampf(p.barrier_hp / p.max_hp, 0.0, 1.0)
+		draw_rect(Rect2(Vector2(28, 24), Vector2(bw, 6)), Color(1.0, 0.85, 0.45, 0.85))
 	if p.max_health() < p.max_hp:
 		# A burned heart caps your health: show the lost part as scorched.
 		var cap_x: float = 28.0 + 262.0 * p.max_health() / p.max_hp

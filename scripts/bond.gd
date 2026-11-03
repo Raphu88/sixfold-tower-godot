@@ -170,10 +170,31 @@ func cast(p) -> void:
 			_rain(p)
 		"surge":
 			_surge(p)
+		"riptide":
+			_riptide(p)
+		"carry":
+			_carry(p)
+		"maelstrom":
+			_maelstrom(p)
+		"barrier":
+			_barrier(p)
+		"absorb":
+			_absorb(p)
+		"challenge":
+			_challenge(p)
+		"unbreakable":
+			_unbreakable(p)
+		"drain":
+			_drain(p)
+		"anchor":
+			_anchor(p)
+		"siphon":
+			_siphon(p)
+		"drink":
+			_drink(p)
 		"blades":
 			_blades(p)
-		"ward":
-			_ward(p)
+
 
 
 func _overdrawn() -> bool:
@@ -309,28 +330,189 @@ func _lift(p) -> void:
 		main.fx_text(origin + Vector2(0, -34), "nothing to lift", color())
 
 
-# A wave bursts out around you, hurling every foe in reach away.
+# A wave bursts out around you, hurling every foe in reach away. From step 3
+# it is an aimed wave that travels forward.
 func _surge(p) -> void:
 	var main = p.main
 	var origin: Vector2 = p.global_position
+	if _overdrawn():
+		p.knock = -p.aim * 300.0  # an overdrawn surge knocks you back too
+	main.sfx("hit_slime", 0.6)
+	main.sfx("gust", 0.7, -4.0)
+	main.shake(5.0)
+	if stat("aimed"):
+		main.add_wave(origin, p.aim, stat("width"), stat("travel"), damage(), stat("push"), false, color())
+		return
 	var radius: float = stat("radius")
 	main.fx_ring(origin, color(), radius, 0.45, 6.0)
 	main.fx_ring(origin, Color(1, 1, 1, 0.8), radius * 0.6, 0.3, 2.0)
 	main.fx_burst(origin, Vector2.ZERO, color(), 24, 320.0)
 	main.light_flash(origin, color(), 1.6, 1.2, 0.4)
-	main.sfx("hit_slime", 0.6)
-	main.sfx("gust", 0.7, -4.0)
-	main.shake(5.0)
 	var hit := 0
 	for e in main.enemies():
 		var to: Vector2 = e.global_position - origin
 		if to.length() > radius + e.radius:
 			continue
 		var dir := to.normalized() if to.length() > 0.1 else Vector2.RIGHT
+		e.tide_push(dir * float(stat("push")))
 		e.take_hit(damage(), dir, stat("push"))
 		hit += 1
 	if hit == 0:
 		main.fx_text(origin + Vector2(0, -34), "nothing in reach", color())
+
+
+# Pull every foe in a line toward you.
+func _riptide(p) -> void:
+	var main = p.main
+	var origin: Vector2 = p.global_position
+	var aim: Vector2 = p.aim
+	var length: float = stat("length")
+	var pulled := 0
+	for e in main.enemies():
+		var to: Vector2 = e.global_position - origin
+		var along := to.dot(aim)
+		if along < 0.0 or along > length or absf(to.dot(aim.orthogonal())) > stat("width") * 0.5 + e.radius:
+			continue
+		var pull := -aim * minf(along * 2.4, 520.0)
+		e.tide_push(pull)
+		e.take_hit(damage(), Vector2.ZERO)
+		e.knock = pull
+		pulled += 1
+	main.fx_cone(origin, aim, length, deg_to_rad(6.0), color())
+	main.sfx("gust", 0.6, -2.0)
+	if pulled == 0:
+		main.fx_text(origin + Vector2(0, -34), "nothing in line", color())
+
+
+# A wave carries every foe in front of you until it breaks against a wall.
+func _carry(p) -> void:
+	p.main.add_wave(p.global_position, p.aim, stat("width"), 2000.0, damage(), 0.0, true, color())
+	p.main.sfx("hit_slime", 0.5)
+	p.main.sfx("gust", 0.6)
+
+
+# A whirlpool drags every foe in a wide area to its centre.
+func _maelstrom(p) -> void:
+	var main = p.main
+	var at: Vector2 = p.global_position + p.aim * stat("range")
+	main.maelstroms.append({"pos": at, "r": stat("radius"), "t": stat("duration") * power(), "damage": damage(), "tick": 0.0, "color": color()})
+	main.sfx("gust", 0.5)
+	main.light_flash(at, color(), 1.8, 1.0, 0.5)
+
+
+# A shell that absorbs damage (from step 3 it bursts when it breaks).
+func _barrier(p) -> void:
+	var dur: float = stat("duration") * (0.5 if _overdrawn() else 1.0)  # an overdrawn barrier cracks early
+	p.raise_barrier(float(stat("shield")) * power(), dur, bool(stat("burst")), color())
+	p.main.fx_ring(p.global_position, color(), 40.0, 0.35, 3.0)
+	p.main.sfx("parry", 0.7, -6.0)
+
+
+# For a moment every hit you take is stored in your barrier instead.
+func _absorb(p) -> void:
+	p.absorb_t = stat("duration")
+	if p.barrier_t <= 0.0:
+		p.raise_barrier(1.0, stat("duration") + 2.0, _burst_known(), color())
+	p.main.fx_ring(p.global_position, color(), 30.0, 0.3, 2.0)
+	p.main.sfx("charge", 1.4, -4.0)
+
+
+func _burst_known() -> bool:
+	for sp in spells():
+		if sp["type"] == "barrier":
+			return bool(spell_stat(sp, "burst"))
+	return false
+
+
+# Every foe nearby must come at you, and takes more damage from you.
+func _challenge(p) -> void:
+	var main = p.main
+	var n := 0
+	for e in main.enemies():
+		if e.global_position.distance_to(p.global_position) < stat("radius"):
+			e.challenged_t = stat("duration")
+			n += 1
+	main.fx_ring(p.global_position, color(), stat("radius"), 0.5, 4.0)
+	main.sfx("warn_knight", 0.8)
+	main.shake(3.0)
+	if n == 0:
+		main.fx_text(p.global_position + Vector2(0, -34), "no one to challenge", color())
+
+
+# For a few seconds you take no damage, but cannot attack.
+func _unbreakable(p) -> void:
+	p.unbreak_t = stat("duration")
+	p.main.fx_ring(p.global_position, color(), 60.0, 0.5, 5.0)
+	p.main.light_flash(p.global_position, color(), 1.4, 1.4, 0.5)
+	p.main.sfx("parry", 0.5)
+
+
+## The foes nearest you, up to `count`, within `reach`.
+func _nearest(p, count: int, reach: float) -> Array:
+	var list: Array = p.main.enemies().filter(func(e): return e.global_position.distance_to(p.global_position) < reach)
+	list.sort_custom(func(a, b): return a.global_position.distance_to(p.global_position) < b.global_position.distance_to(p.global_position))
+	return list.slice(0, count)
+
+
+# Drag life out of the nearest foes and drink some of it back.
+func _drain(p) -> void:
+	var main = p.main
+	var foes := _nearest(p, int(stat("targets")), stat("reach"))
+	if foes.is_empty():
+		main.fx_text(p.global_position + Vector2(0, -34), "no one in reach", color())
+		return
+	var total := 0.0
+	for e in foes:
+		main.fx_bolt([e.global_position, p.global_position], color())
+		e.take_hit(damage(), Vector2.ZERO)
+		total += damage()
+	var heal: float = total * float(stat("heal")) * (1.5 if p.main.tower_data()["essence"] == "water" else 1.0)
+	p.hp = minf(p.max_health(), p.hp + heal)
+	main.fx_text(p.global_position + Vector2(0, -40), "+%d" % int(heal), Color(0.5, 1.0, 0.6))
+	main.sfx("zap", 0.5, -4.0)
+	if _overdrawn():
+		p.hp = maxf(1.0, p.hp - 6.0)  # an overdrawn Undertow drains you as well
+
+
+# Tether a foe so it cannot move away from you.
+func _anchor(p) -> void:
+	var target = _target_in_aim(p, stat("reach"))
+	if target == null:
+		p.main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
+		return
+	p.anchor_target = target
+	p.anchor_t = stat("duration")
+	p.anchor_len = stat("length")
+	p.main.sfx("equip_sword", 0.6, -2.0)
+
+
+# Drain essence instead of health: it refills every mark you carry.
+func _siphon(p) -> void:
+	var main = p.main
+	var foes := _nearest(p, int(stat("targets")), stat("reach"))
+	if foes.is_empty():
+		main.fx_text(p.global_position + Vector2(0, -34), "no one in reach", color())
+		return
+	for e in foes:
+		main.fx_bolt([e.global_position, p.global_position], Color(0.6, 0.85, 1.0))
+		e.take_hit(damage(), Vector2.ZERO)
+	for b in p.bonds.values():
+		b.fill(float(stat("refill")) * foes.size())
+	main.fx_text(p.global_position + Vector2(0, -40), "essence drawn", Color(0.6, 0.85, 1.0))
+	main.sfx("zap", 0.6, -4.0)
+
+
+# Channel a drain on one foe; it grows stronger every second it holds.
+func _drink(p) -> void:
+	var target = _target_in_aim(p, stat("reach"))
+	if target == null:
+		p.main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
+		return
+	p.drink_target = target
+	p.drink_t = stat("duration")
+	p.drink_age = 0.0
+	p.drink_dmg = damage()
+	p.main.sfx("charge", 0.6)
 
 
 # A fan of conjured blades that pierce through every foe in their path.
@@ -348,16 +530,6 @@ func _blades(p) -> void:
 	main.sfx("swing", 1.4)
 	main.sfx("equip_sword", 1.3, -4.0)
 	main.light_flash(p.global_position + aim * 30.0, color(), 1.0, 0.9, 0.25)
-
-
-# A short ward around you: blows that land on it are turned aside like a
-# parry (the attacker staggered, arrows sent back).
-func _ward(p) -> void:
-	var main = p.main
-	p.raise_ward(stat("duration") * power(), int(stat("blocks")), bool(stat("perfect")), color())
-	main.fx_ring(p.global_position, color(), 36.0, 0.35, 3.0)
-	main.light_flash(p.global_position, color(), 1.0, 1.0, 0.3)
-	main.sfx("parry", 0.75, -6.0)
 
 
 # A wall of wind across your path that turns enemy arrows back.

@@ -16,6 +16,7 @@ var dust: Array = []
 var light_tex: Texture2D
 var ambient: Node2D  # redrawn every frame: flames, embers, dust
 var pillars: Array = []  # {pos, r}
+var puddles: Array = []  # {pos, r}
 var stair_pos := Vector2.ZERO
 var stair_open := false:
 	set(v):
@@ -96,6 +97,11 @@ static func make_light_texture() -> Texture2D:
 func set_torch_color(c: Color) -> void:
 	for t in torches:
 		t["light"].color = c
+
+
+func set_puddles(list: Array) -> void:
+	puddles = list
+	queue_redraw()
 
 
 func set_pillars(list: Array) -> void:
@@ -197,6 +203,12 @@ func _draw() -> void:
 		draw_rect(room.grow(-i * 7.0), Color(0, 0, 0, 0.07 * (1.0 - k)), false, 7.0)
 
 	_draw_walls()
+	for pd in puddles:
+		# Standing water: dark, with a lighter rim and a glint.
+		draw_circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
+		draw_circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
+		draw_arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
+		draw_arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
 	for p in pillars:
 		_draw_pillar(p["pos"], p["r"])
 

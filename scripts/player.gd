@@ -58,10 +58,23 @@ var parry_t := 0.0
 var parry_cd := 0.0
 var parry_flash := 0.0
 var parry_window := PARRY_WINDOW
-var ward_t := 0.0  # Warden's ward: blows that land on it are turned aside
-var ward_blocks := 0
-var ward_perfect := false
-var ward_color := Color.WHITE
+# Warden
+var barrier_hp := 0.0  # Barrier: absorbs damage until spent or it expires
+var barrier_t := 0.0
+var barrier_stored := 0.0  # what it has absorbed (released as a burst from step 3)
+var barrier_burst := false
+var barrier_color := Color.WHITE
+var absorb_t := 0.0  # Absorb: hits are stored in the barrier instead
+var unbreak_t := 0.0  # Unbreakable: no damage, no attacking
+# Deepcaller
+var anchor_target  # Anchor: a tethered foe
+var anchor_t := 0.0
+var anchor_len := 110.0
+var drink_target  # Drink Deep: a channelled drain
+var drink_t := 0.0
+var drink_age := 0.0
+var drink_dmg := 0.0
+var drink_tick := 0.0
 var cast_t := 0.0
 var cast_total := 0.0
 var cast_part := ""
@@ -186,7 +199,7 @@ func _physics_process(delta: float) -> void:
 			spd = SPRINT
 			sta -= 22.0 * delta
 			sta_delay = 0.6
-		velocity = input * spd
+		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller"))
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
@@ -342,7 +355,7 @@ func _tick_timers(delta: float) -> void:
 	parry_t -= delta
 	parry_cd -= delta
 	parry_flash -= delta
-	ward_t -= delta
+	_tick_bond_effects(delta)
 	thunderhead_t -= delta
 	hawk_t -= delta
 	hurt_t -= delta
@@ -353,7 +366,7 @@ func _tick_timers(delta: float) -> void:
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + 45.0 * delta)
+		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0))  # Deep Lungs
 
 
 func _winded() -> void:
@@ -396,6 +409,8 @@ func _try_roll(input: Vector2) -> bool:
 func _try_attack() -> bool:
 	if attack_cd > 0.0 or drawing:
 		return false
+	if unbreak_t > 0.0:
+		return true  # Unbreakable: you cannot attack
 	if sta <= 0.0:
 		_winded()
 		return true
@@ -639,30 +654,59 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		return
 	if unblockable:
 		source = null  # nothing to parry or turn
-	if ward_t > 0.0 and ward_blocks > 0 and source != null:
-		ward_blocks -= 1
-		if ward_blocks <= 0:
-			ward_t = 0.0
-		main.fx_text(global_position + Vector2(0, -46), "Turned", ward_color)
-		_on_parry(source, ward_perfect)
+	if unbreak_t > 0.0:
+		main.fx_text(global_position + Vector2(0, -30), "Unbreakable", barrier_color)
+		main.sfx("hit_armor", 1.2, -4.0)
+		return
+	if absorb_t > 0.0:
+		barrier_hp += dmg
+		barrier_stored += dmg
+		barrier_t = maxf(barrier_t, 2.0)
+		main.fx_text(global_position + Vector2(0, -30), "Absorbed %d" % int(dmg), barrier_color)
+		main.sfx("parry", 0.6, -6.0)
 		return
 	if parry_t > 0.0 and source != null:
 		var to_source: Vector2 = (source.global_position - global_position).normalized()
 		if aim.dot(to_source) > -0.1:  # anything in front of you, roughly
 			_on_parry(source, parry_window - parry_t <= PARRY_PERFECT)
 			return
+	# Warden's Heavy Frame: keep holding parry to block.
+	if source != null and has_bond("warden") and parry_t <= 0.0 and Input.is_action_pressed("parry") and attack_cd <= 0.0:
+		var to_src: Vector2 = (source.global_position - global_position).normalized()
+		if aim.dot(to_src) > 0.0 and sta >= 12.0:
+			sta -= 12.0
+			sta_delay = 0.8
+			dmg *= 0.3
+			main.fx_text(global_position + Vector2(0, -30), "Blocked", Color(0.85, 0.71, 0.42))
+			main.sfx("hit_armor", 1.0, -2.0)
 	if hurt_t > 0.0:
 		return
+	# The Warden's barrier soaks damage first.
+	var steadfast := barrier_hp > 0.0
+	if barrier_hp > 0.0:
+		var take := minf(barrier_hp, dmg)
+		barrier_hp -= take
+		barrier_stored += take
+		dmg -= take
+		main.fx_ring(global_position, barrier_color, radius + 10.0, 0.2, 2.0)
+		if barrier_hp <= 0.0:
+			_break_barrier()
+		if dmg <= 0.0:
+			main.sfx("hit_armor", 1.3, -4.0)
+			return
 	hp -= dmg
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
-	if source != null:
+	if source != null and not steadfast:
 		knock = (global_position - source.global_position).normalized() * 240.0
-	# Getting hit interrupts swings, draws and cast wind-ups.
-	cast_t = 0.0
-	lunge_t = 0.0
-	drawing = false
-	combo = 0
+	# Getting hit interrupts swings, draws and cast wind-ups (not while
+	# the Warden's barrier holds: Steadfast).
+	if not steadfast:
+		cast_t = 0.0
+		lunge_t = 0.0
+		drawing = false
+		combo = 0
+	drink_target = null
 	main.fx_text(global_position + Vector2(0, -24), "-%d" % int(dmg), Color(1.0, 0.42, 0.34))
 	main.fx_burst(global_position, knock.normalized(), Color(1.0, 0.4, 0.34), 8)
 	main.sfx("hurt")
@@ -680,11 +724,64 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 
 
 ## Warden's Turning Ward.
-func raise_ward(duration: float, blocks: int, perfect: bool, col: Color) -> void:
-	ward_t = duration
-	ward_blocks = blocks
-	ward_perfect = perfect
-	ward_color = col
+## Warden's Barrier.
+func raise_barrier(shield: float, duration: float, burst: bool, col: Color) -> void:
+	barrier_hp = maxf(barrier_hp, shield)
+	barrier_t = maxf(barrier_t, duration)
+	barrier_burst = burst or barrier_burst
+	barrier_color = col
+
+
+## The barrier is spent or expires: from step 3 it releases what it absorbed.
+func _break_barrier() -> void:
+	if barrier_burst and barrier_stored > 0.0:
+		var power := maxf(10.0, barrier_stored)
+		main.fx_ring(global_position, barrier_color, 110.0, 0.4, 6.0)
+		main.fx_burst(global_position, Vector2.ZERO, barrier_color, 22, 320.0)
+		main.light_flash(global_position, barrier_color, 1.6, 1.6, 0.4)
+		main.sfx("crit", 0.8)
+		main.shake(6.0)
+		for e in main.enemies():
+			var to: Vector2 = e.global_position - global_position
+			if to.length() < 110.0 + e.radius:
+				e.take_hit(power, to.normalized(), 260.0, true)
+	elif barrier_stored > 0.0 or barrier_hp <= 0.0:
+		main.fx_text(global_position + Vector2(0, -36), "Barrier breaks", barrier_color)
+	barrier_hp = 0.0
+	barrier_t = 0.0
+	barrier_stored = 0.0
+	barrier_burst = false
+
+
+## Bond effects that run on a timer: barrier, absorb, anchor, drink.
+func _tick_bond_effects(delta: float) -> void:
+	absorb_t -= delta
+	unbreak_t -= delta
+	if barrier_t > 0.0:
+		barrier_t -= delta
+		if barrier_t <= 0.0:
+			_break_barrier()
+	# Anchor: a tethered foe can't get farther than the tether's length.
+	if anchor_t > 0.0:
+		anchor_t -= delta
+		if anchor_target == null or not is_instance_valid(anchor_target) or anchor_target.dead:
+			anchor_t = 0.0
+		else:
+			var to: Vector2 = anchor_target.global_position - global_position
+			if to.length() > anchor_len:
+				anchor_target.knock = -to.normalized() * minf((to.length() - anchor_len) * 8.0, 400.0)
+	# Drink Deep: a drain that grows stronger every second it holds.
+	if drink_t > 0.0:
+		drink_t -= delta
+		drink_age += delta
+		drink_tick -= delta
+		if drink_target == null or not is_instance_valid(drink_target) or drink_target.dead or drink_target.global_position.distance_to(global_position) > 300.0:
+			drink_t = 0.0
+		elif drink_tick <= 0.0:
+			drink_tick = 0.25
+			var d := drink_dmg * (1.0 + drink_age)
+			drink_target.take_hit(d, Vector2.ZERO)
+			hp = minf(max_health(), hp + d * 0.5)
 
 
 func _on_parry(source, perfect := false) -> void:
@@ -838,16 +935,32 @@ func _draw_overlay() -> void:
 		var pa := aim.angle()
 		c.draw_arc(Vector2.ZERO, radius + 10.0, pa - 1.0, pa + 1.0, 14, Color(1.0, 0.89, 0.63), 4.0)
 		c.draw_arc(Vector2.ZERO, radius + 14.0, pa - 0.8, pa + 0.8, 14, Color(1.0, 0.89, 0.63, 0.4), 2.0)
-	if ward_t > 0.0 and ward_blocks > 0:
-		# The ward: a turning ring of six facets, one pip per blow it can still turn.
-		var tw := Time.get_ticks_msec() * 0.002
-		var fade := clampf(ward_t / 0.5, 0.3, 1.0)
+	if barrier_hp > 0.0:
+		# The barrier: a dome of facets that dims as it's spent.
+		var tw := Time.get_ticks_msec() * 0.0015
 		var pts := PackedVector2Array()
 		for i in 7:
-			pts.append(Vector2.from_angle(tw + TAU * i / 6.0) * (radius + 9.0))
-		c.draw_polyline(pts, Color(ward_color, 0.75 * fade), 2.0, true)
-		for i in ward_blocks:
-			c.draw_circle(Vector2(-6.0 * (ward_blocks - 1) / 2.0 + 6.0 * i, -radius - 14.0), 2.0, Color(ward_color, fade))
+			pts.append(Vector2.from_angle(tw + TAU * i / 6.0) * (radius + 10.0))
+		c.draw_colored_polygon(pts, Color(barrier_color, 0.12))
+		c.draw_polyline(pts, Color(barrier_color, 0.8), 2.0, true)
+	if absorb_t > 0.0:
+		c.draw_arc(Vector2.ZERO, radius + 14.0 + 2.0 * sin(Time.get_ticks_msec() * 0.02), 0.0, TAU, 24, Color(barrier_color, 0.8), 2.0)
+	if unbreak_t > 0.0:
+		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(1.0, 0.85, 0.4, 0.9), 3.0)
+	if has_bond("warden") and parry_t <= 0.0 and Input.is_action_pressed("parry"):
+		var ga := aim.angle()
+		c.draw_arc(Vector2.ZERO, radius + 8.0, ga - 0.9, ga + 0.9, 12, Color(0.85, 0.71, 0.42, 0.9), 4.0)
+	if anchor_t > 0.0 and anchor_target != null and is_instance_valid(anchor_target):
+		var to_a: Vector2 = anchor_target.global_position - global_position
+		var segs := 8
+		for i in segs:
+			var a0 := to_a * (float(i) / segs) + to_a.orthogonal().normalized() * sin(i * 1.3 + Time.get_ticks_msec() * 0.006) * 3.0
+			var a1 := to_a * (float(i + 1) / segs) + to_a.orthogonal().normalized() * sin((i + 1) * 1.3 + Time.get_ticks_msec() * 0.006) * 3.0
+			c.draw_line(a0, a1, Color(0.31, 0.5, 0.84, 0.85), 2.0)
+	if drink_t > 0.0 and drink_target != null and is_instance_valid(drink_target):
+		var to_d: Vector2 = drink_target.global_position - global_position
+		c.draw_line(Vector2.ZERO, to_d, Color(0.31, 0.5, 0.84, 0.35), 6.0)
+		c.draw_line(Vector2.ZERO, to_d, Color(0.6, 0.85, 1.0, 0.9), 2.0)
 	if parry_flash > 0.0:
 		c.draw_circle(Vector2.ZERO, radius + 6.0, Color(1.0, 0.95, 0.8, 0.5 * parry_flash / 0.25))
 	if cast_t > 0.0:

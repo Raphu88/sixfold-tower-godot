@@ -81,9 +81,12 @@ func _regard_tests() -> void:
 	_check(main.leading_part() == "legs", "the HUD's leading part is the most-used one")
 	var predicted: String = main.predicted_bond()
 	_check(predicted == "windwalker", "the HUD predicts the bond: %s" % predicted)
-	# Play style pulls too: mostly Water essence, but legs pull toward Windwalker.
-	_check(main.profile.choose_bond("legs", {"water": 6.0, "air": 4.0}) == "windwalker", "a body part pulls toward its own bond")
-	_check(main.profile.choose_bond("legs", {"water": 10.0}) == "tidecaller", "...unless the essence is overwhelmingly another kind")
+	# Play style pulls too: legs are home to both Windwalker (Air) and
+	# Tidecaller (Water); the essence decides between them, and a bond from
+	# elsewhere wins only when the essence is overwhelmingly its kind.
+	_check(main.profile.choose_bond("legs", {"air": 6.0, "water": 4.0}) == "windwalker", "legs with mostly Air: Windwalker")
+	_check(main.profile.choose_bond("legs", {"water": 6.0, "air": 4.0}) == "tidecaller", "legs with mostly Water: Tidecaller")
+	_check(main.profile.choose_bond("legs", {"iron": 10.0}) == "blade_forger", "...a bond from elsewhere wins when the essence is overwhelmingly its kind")
 	main.floor_num = 3
 	for e in main.enemies():
 		e.take_hit(9999.0, Vector2.RIGHT, 0.0)
@@ -220,6 +223,86 @@ func _gryphon_tests() -> void:
 	_cast("brow", "rain_of_arrows")
 	await _wait(1.5)
 	_check(c.hp < hp_c, "Rain of Arrows hits foes in the marked area")
+
+
+func _kraken_bond_tests() -> void:
+	print("the Kraken's bonds")
+	await _fresh_main()
+	var p = main.player
+	_mark("legs", "tidecaller", 5)
+	_mark("brow", "warden", 5)
+	_mark("heart", "deepcaller", 5)
+	_check(p.bonds["legs"].spells().size() == 4 and p.bonds["brow"].spells().size() == 4 and p.bonds["heart"].spells().size() == 4, "at step 5 each Kraken bond knows four spells")
+	p.aim = Vector2.RIGHT
+	# Warden.
+	var k = await _spawn("knight", p.global_position + Vector2(40, 0))
+	k.hp = 999.0
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	_cast("brow", "barrier")
+	_check(p.barrier_hp > 0.0, "Barrier raises a shell")
+	p.receive_attack(14.0, k)
+	_check(p.hp == p.MAX_HP, "the barrier absorbs the blow")
+	var shell: float = p.barrier_hp
+	_cast("brow", "absorb")
+	p.receive_attack(20.0, k)
+	_check(p.hp == p.MAX_HP and p.barrier_hp > shell, "Absorb stores a hit in the barrier")
+	var hp_k: float = k.hp
+	p.absorb_t = 0.0
+	p._break_barrier()
+	_check(k.hp < hp_k, "at step 3+ a breaking barrier bursts with what it absorbed")
+	_cast("brow", "challenge")
+	_check(k.challenged_t > 0.0, "Challenge marks nearby foes")
+	hp_k = k.hp
+	k.take_hit(10.0, Vector2.ZERO)
+	_check(hp_k - k.hp >= 15.0, "challenged foes take more damage")
+	_cast("brow", "unbreakable")
+	p.hurt_t = 0.0
+	p.receive_attack(50.0, k)
+	_check(p.hp == p.MAX_HP and not p._try_attack() or p.hp == p.MAX_HP, "Unbreakable: no damage")
+	p.unbreak_t = 0.0
+	# Deepcaller.
+	p.hp = 60.0
+	_cast("heart", "undertow")
+	_check(p.hp > 60.0 and k.hp < hp_k, "Undertow drains a foe and heals you")
+	_cast("heart", "anchor")
+	_check(p.anchor_target == k, "Anchor tethers the foe in your aim")
+	for b in p.bonds.values():
+		b.essence = 0.0
+	p.bonds["heart"].select(2)
+	p.bonds["heart"].essence = 99.0
+	p.bonds["heart"].cast(p)
+	_check(p.bonds["legs"].essence > 0.0, "Siphon refills your other marks")
+	_cast("heart", "drink_deep")
+	var hp_k2: float = k.hp
+	await _wait(1.0)
+	_check(p.drink_target == k and k.hp < hp_k2, "Drink Deep drains over time")
+	p.drink_t = 0.0
+	p.anchor_t = 0.0
+	# Tidecaller.
+	k.global_position = p.global_position + Vector2(60, 0)
+	k.set_physics_process(true)
+	k.stun = 0.0
+	k.state = "recover"
+	k.state_t = 9.0
+	_cast("legs", "carry")
+	await _wait(1.6)
+	_check(k.stun > 0.0 or k.global_position.x > p.global_position.x + 200.0, "Carry sweeps a foe away and breaks it against a wall")
+	k.global_position = p.global_position + Vector2(220, 0)
+	_cast("legs", "riptide")
+	await _wait(0.3)
+	_check(k.global_position.distance_to(p.global_position) < 200.0, "Riptide pulls a foe in a line toward you")
+	_cast("legs", "maelstrom")
+	_check(main.maelstroms.size() == 1, "Maelstrom opens a whirlpool")
+	main.maelstroms.clear()
+	_cast("legs", "tidal_surge")
+	_check(main.waves.size() >= 1, "at step 3+ Tidal Surge is an aimed, travelling wave")
+	k.set_physics_process(false)
+	# Bodies and water.
+	main.puddles = [{"pos": p.global_position, "r": 60.0}]
+	_check(main.water_slow(p.global_position, false) < 1.0 and main.water_slow(p.global_position, true) == 1.0, "water slows you, unless you're Waterborn")
+	main.puddles = []
 
 
 func _gryphon_tower_tests() -> void:
@@ -369,19 +452,7 @@ func _spell_tests() -> void:
 	_check(blades == 3, "Conjured Blades fires three blades (%d)" % blades)
 	await _wait(0.5)
 	_check(foe.hp < hp1, "the blades strike")
-	# Warden: a blow that lands on the ward is turned aside like a parry.
-	main.profile.add_bond("brow", "warden", false)
-	main._give_bonds()
-	var knight = await _spawn("knight", p.global_position + Vector2(40, 0))
-	p.hp = p.MAX_HP
-	p.hurt_t = 0.0
-	p.iframes = 0.0
-	p.bonds["brow"].essence = 99.0
-	p.bonds["brow"].cast(p)
-	_check(p.ward_t > 0.0 and p.ward_blocks == 1, "Turning Ward raises a one-blow ward")
-	p.receive_attack(14.0, knight)
-	_check(p.hp == p.MAX_HP and knight.stun > 0.0, "a blow on the ward is turned and staggers the attacker")
-	_check(p.ward_blocks == 0, "the ward is spent")
+	await _kraken_bond_tests()
 
 
 func _spawn(kind: String, pos: Vector2):

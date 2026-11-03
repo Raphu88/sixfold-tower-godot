@@ -59,6 +59,8 @@ var lunge_hit := false
 var knock := Vector2.ZERO
 var squash := 0.0
 var squash_dir := Vector2.RIGHT
+var tide_t := 0.0  # just shoved by a Tidecaller: a wall stuns it (Undercurrent)
+var challenged_t := 0.0  # Warden's Challenge: comes at you and takes more damage
 var overcharge_t := 0.0  # Stormcaller's Overcharge: lightning bursts from it when it dies
 var overcharge_dmg := 0.0
 var overcharge_r := 0.0
@@ -114,6 +116,8 @@ func _physics_process(delta: float) -> void:
 	flash -= delta
 	charged -= delta
 	overcharge_t -= delta
+	tide_t -= delta
+	challenged_t -= delta
 	glint -= delta
 	squash = move_toward(squash, 0.0, 6.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
@@ -153,14 +157,34 @@ func _physics_process(delta: float) -> void:
 			_thunderling(delta, dir, dist, p)
 		"gryphon":
 			_gryphon(delta, dir, dist, p)
+	# Water slows monsters too; a Deepcaller's Pressure slows the badly hurt.
+	velocity *= main.water_slow(global_position)
+	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
+		velocity *= 0.6
 	velocity += knock
 	move_and_slide()
+	_undercurrent()
 	queue_redraw()
+
+
+## A Tidecaller's shove: if it drives the foe into a wall, it's stunned.
+func tide_push(v: Vector2) -> void:
+	knock = v
+	tide_t = 0.45
+
+
+func _undercurrent() -> void:
+	if tide_t > 0.0 and get_slide_collision_count() > 0 and main.player.has_bond("tidecaller"):
+		tide_t = 0.0
+		stagger(1.2)
+		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Dashed against the wall", Color(0.37, 0.72, 0.79))
+		main.sfx("hit_heavy", 0.9, -4.0)
 
 
 func _drift() -> void:
 	velocity = knock
 	move_and_slide()
+	_undercurrent()
 	queue_redraw()
 
 
@@ -474,6 +498,8 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
+	if challenged_t > 0.0:
+		amount *= 1.5  # Challenged foes take more damage
 	hp -= amount
 	flash = 0.12
 	squash = 1.0
