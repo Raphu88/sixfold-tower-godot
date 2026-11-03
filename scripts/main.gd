@@ -63,7 +63,17 @@ var choosing_tower := false  # the tower choice is showing
 var floor_total := 0  # monsters this floor started with
 var dim: CanvasModulate
 var hud
-var new_climber_t := 0.0  # a first press asks; a second within this time confirms
+var new_climber_t := 0.0
+
+# Lingering spell effects in the room
+var rod := {}  # Lightning Rod: {pos, t, reach}
+var walls: Array = []  # Crosswind: {a, b, t, color}
+var cyclones: Array = []  # Eye of the Storm: {pos, r, t, color}
+var rains: Array = []  # Rain of Arrows: {pos, r, t, tick, damage, color}
+var track_t := 0.0  # Track: foes revealed
+var slowmo := false  # time slows while a spell ring is open
+var player_glow: PointLight2D
+var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
 
 # Attack turns: only this many monsters may be attacking at once.
 const MAX_ATTACKERS := 2
@@ -105,6 +115,7 @@ func _ready() -> void:
 	glow.color = Color(1.0, 0.85, 0.7)
 	glow.energy = 0.55
 	player.add_child(glow)
+	player_glow = glow
 
 	profile = ProfileScript.new()
 	if Engine.has_meta("sixfold_test"):
@@ -127,6 +138,7 @@ func _ready() -> void:
 			e.set_physics_process(false)
 
 	fx = FxScript.new()
+	fx.main = self
 	fx.z_index = 10
 	var unlit := CanvasItemMaterial.new()
 	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
@@ -181,7 +193,7 @@ func _build_walls() -> void:
 func _process(delta: float) -> void:
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
-		Engine.time_scale = 1.0
+		Engine.time_scale = 0.35 if slowmo else 1.0
 	if choosing_tower:
 		for i in Towers.ORDER.size():
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
@@ -236,8 +248,46 @@ func _process(delta: float) -> void:
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_separate_bodies()
+	_update_spell_fields(delta)
+
+
+## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
+func _update_spell_fields(delta: float) -> void:
+	track_t -= delta
+	if not rod.is_empty():
+		rod["t"] -= delta
+		if rod["t"] <= 0.0:
+			rod = {}
+	for w in walls:
+		w["t"] -= delta
+	walls = walls.filter(func(w): return w["t"] > 0.0)
+	for c in cyclones:
+		c["t"] -= delta
+		for e in enemies():
+			var to: Vector2 = c["pos"] - e.global_position
+			if to.length() < c["r"] + e.radius:
+				e.airborne = maxf(e.airborne, 0.3)
+				e.knock = to.normalized() * minf(to.length() * 3.0, 120.0)
+	cyclones = cyclones.filter(func(c): return c["t"] > 0.0)
+	for r in rains:
+		r["t"] -= delta
+		r["tick"] -= delta
+		if r["tick"] <= 0.0:
+			r["tick"] = 0.12
+			# Each volley: one arrow at random, one at a foe caught in the area.
+			var spots: Array = [r["pos"] + Vector2.from_angle(randf() * TAU) * sqrt(randf()) * r["r"]]
+			var inside: Array = enemies().filter(func(e): return e.global_position.distance_to(r["pos"]) < r["r"] + e.radius)
+			if not inside.is_empty():
+				spots.append(inside[randi() % inside.size()].global_position + Vector2(randf_range(-8, 8), randf_range(-8, 8)))
+			for at in spots:
+				if fx != null:
+					fx.falling_arrow(at, r["color"])
+				for e in enemies():
+					if e.global_position.distance_to(at) < e.radius + 16.0:
+						e.take_hit(r["damage"], Vector2.ZERO, 0.0)
+	rains = rains.filter(func(r): return r["t"] > 0.0)
 
 
 ## Bodies can't share space: overlapping ones are pushed apart, and the
@@ -277,6 +327,11 @@ func _start_floor(n: int) -> void:
 		if "reflected" in c:
 			c.queue_free()
 	attackers.clear()
+	rod = {}
+	walls.clear()
+	cyclones.clear()
+	rains.clear()
+	track_t = 0.0
 	for b in pillar_bodies:
 		b.queue_free()
 	pillar_bodies.clear()
@@ -435,7 +490,11 @@ func _give_bonds() -> void:
 		if old.has(part) and old[part].id == b.id:
 			b.essence = minf(old[part].essence, b.capacity())
 			b.burned = old[part].burned
+			b.selected = old[part].selected
 		player.bonds[part] = b
+	# Hunter's Keen Eyes: you see farther in the dark.
+	if player_glow != null:
+		player_glow.texture_scale = 2.2 if player.has_bond("hunter") else 1.4
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -622,6 +681,17 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 
 func on_enemy_killed(e) -> void:
+	# Overcharge: a charged foe's death throws lightning to everything near it.
+	if e.overcharge_t > 0.0:
+		var pts: Array = []
+		for o in enemies():
+			if o != e and o.global_position.distance_to(e.global_position) < e.overcharge_r:
+				fx_bolt([e.global_position, o.global_position], Color(0.95, 0.89, 0.42))
+				pts.append(o)
+		for o in pts:
+			o.take_hit(e.overcharge_dmg, Vector2.ZERO)
+		light_flash(e.global_position, Color(0.95, 0.89, 0.42), 1.6, 1.8, 0.35)
+		sfx("zap", 0.9)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.
@@ -644,6 +714,13 @@ func hitstop(seconds: float) -> void:
 	if until > hitstop_until:
 		hitstop_until = until
 	Engine.time_scale = 0.02
+
+
+## Time slows while you pick a spell from a mark's ring.
+func set_slowmo(on: bool) -> void:
+	slowmo = on
+	if hitstop_until == 0:
+		Engine.time_scale = 0.35 if on else 1.0
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
