@@ -67,11 +67,11 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	# During the Regard, a tap (once it has played) begins the next climb.
-	if not main.regard.is_empty():
+	if main.overlay_showing():
 		if event is InputEventScreenTouch:
 			if not active:
 				_set_active(true)
-			if event.pressed and main.regard_done():
+			if event.pressed and main.overlay_done():
 				main.end_regard()
 			get_viewport().set_input_as_handled()
 		return
@@ -189,7 +189,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	if not active or main.choosing_tower or not main.regard.is_empty():
+	if not active or main.choosing_tower or main.overlay_showing():
 		return  # nothing to press while choosing a tower or during the Regard
 	_layout()
 	var font := ThemeDB.fallback_font

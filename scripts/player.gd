@@ -629,12 +629,16 @@ func _release_cast() -> void:
 
 
 ## Called by monsters and projectiles when an attack reaches you.
-func receive_attack(dmg: float, source) -> void:
+## `unblockable` attacks (a ring of lightning, a diving landing) can't be
+## parried or warded: roll through them or get out of the way.
+func receive_attack(dmg: float, source, unblockable := false) -> void:
 	if dead:
 		return
 	if iframes > 0.0:
 		on_dodge()
 		return
+	if unblockable:
+		source = null  # nothing to parry or turn
 	if ward_t > 0.0 and ward_blocks > 0 and source != null:
 		ward_blocks -= 1
 		if ward_blocks <= 0:

@@ -78,6 +78,16 @@ func on_parried(_perfect := false) -> void:
 func _draw() -> void:
 	var dir := vel.normalized()
 	var side := dir.orthogonal()
+	if style == "feather":
+		# The Gryphon's feathers: a quill with a vane.
+		draw_line(-dir * 12.0, dir * 8.0, Color(0.06, 0.05, 0.07), 3.0)
+		draw_line(-dir * 12.0, dir * 8.0, Color(0.95, 0.9, 0.8), 1.5)
+		for k in 3:
+			var at := -dir * (2.0 + 4.0 * k)
+			draw_line(at, at - dir * 3.0 + side * 4.0, Color(tint, 0.9), 1.5)
+			draw_line(at, at - dir * 3.0 - side * 4.0, Color(tint, 0.9), 1.5)
+		draw_circle(Vector2.ZERO, 6.0, Color(1.0, 0.35, 0.3, 0.2))
+		return
 	if style == "essence":
 		# A streak of essence: a bright head and a long fading tail.
 		draw_line(-dir * 40.0, Vector2.ZERO, Color(tint, 0.3), 5.0)

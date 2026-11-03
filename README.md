@@ -39,9 +39,13 @@ Every climb starts by choosing a tower (keys 1 to 3, click, or tap a card). Each
 
 | Tower | Essence | Monsters | Look |
 | --- | --- | --- | --- |
-| The Gryphon's Tower | Air | mostly archers | cold, blue stone and pale torches |
+| The Gryphon's Tower | Air | archers, bats and thunderlings; the Gryphon on floor 5 | cold, blue stone and pale torches |
 | The Kraken's Tower | Water | mostly slimes | damp, teal stone and green-white torches |
 | The Wyvern's Tower | Iron | mostly knights (the hardest) | hot forge-red stone and orange torches |
+
+**The Gryphon's tower has a summit.** On floor 5 the Gryphon itself waits, alone. It rakes with its talons up close (a red wedge, parryable), dives on you from range (it locks onto where you stood when it glints; the landing can't be parried, so roll out of the red circle), and throws a fan of feathers (parryable, and a Crosswind turns them back). It can't be lifted or interrupted, only staggered, and at half health it calls two bats. Beat it, take the stair, and the climb is complete. (The Kraken's and Wyvern's beasts come with their towers; until then those climbs go on floor after floor.)
+
+**The Gryphon's monsters:** the **bat** circles you, then glints and swoops straight through where you stood (parryable). The **thunderling** walks up, stops and sparks, then bursts into a ring of lightning: it can't be parried, so step out of the ring or roll through it.
 
 Every kill also yields 1.5 essence of the tower's own kind, so the tower you choose is how you steer which bonds you'll form. The tower's beast is the one who regards you at the top of your first climb.
 

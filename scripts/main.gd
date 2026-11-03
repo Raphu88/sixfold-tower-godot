@@ -58,6 +58,7 @@ var climb_essence := {}  # everything gathered this climb
 var climb_soak := {}  # everything soaked this climb
 var regard := {}  # the Regard, while it plays: {fell, part, id, t}
 var regard_pending := false
+var victory := {}  # the climb complete screen, after the beast falls: {t, beast, lines}
 var tower := "kraken"  # which tower this climb is in (towers.gd)
 var choosing_tower := false  # the tower choice is showing
 var floor_total := 0  # monsters this floor started with
@@ -199,6 +200,11 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_tower(Towers.ORDER[i])
 		return
+	if not victory.is_empty():
+		victory["t"] += delta / maxf(Engine.time_scale, 0.01)
+		if overlay_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
+			end_regard()
+		return
 	if not regard.is_empty():
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
 		if regard_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
@@ -339,6 +345,9 @@ func _start_floor(n: int) -> void:
 	var start: Vector2 = player.position if n == 1 else player_start
 	var plan: Dictionary = Floors.build(n, room, start, Towers.TOWERS[tower])
 	floor_total = plan["monsters"].size()
+	if plan.get("summit", false):
+		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": ["Watch for the glint. A landing can't be parried."], "t": 3.0}
+		sfx("warn_knight", 0.5, 0.0, 0.0)
 	pillars = plan["pillars"]
 	for p in pillars:
 		var body := StaticBody2D.new()
@@ -420,12 +429,23 @@ func _arrive() -> void:
 	if first_climb and floor_num >= ProfileScript.FIRST_CLIMB_FLOORS:
 		_begin_regard(false)
 		return
+	# The summit: the beast has fallen and the climb is complete.
+	if floor_num == int(tower_data().get("summit", 0)):
+		profile.climbs += 1
+		profile.save()
+		victory = {"t": 0.0, "beast": beast_name(), "lines": lines}
+		player.set_physics_process(false)
+		sfx("clear", 0.7, 0.0, 0.0)
+		return
 	_start_floor(floor_num + 1)
 	if floor_num > best_floor:
 		best_floor = floor_num
 		profile.best_floor = best_floor
 		profile.save()
-	banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
+	if banner.get("title", "").ends_with("AWAITS"):
+		banner["lines"] = lines + banner["lines"]
+	else:
+		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 
@@ -593,6 +613,15 @@ func _begin_regard(fell: bool) -> void:
 
 
 ## True once the Regard has played long enough to be dismissed.
+## True once the Regard or the victory screen can be dismissed.
+func overlay_done() -> bool:
+	return regard_done() or (not victory.is_empty() and victory["t"] > 2.5)
+
+
+func overlay_showing() -> bool:
+	return not regard.is_empty() or not victory.is_empty()
+
+
 func regard_done() -> bool:
 	return not regard.is_empty() and regard["t"] > 3.0
 
@@ -659,6 +688,20 @@ func _change_step(by: int) -> void:
 func enemies() -> Array:
 	return get_tree().get_nodes_in_group("enemies").filter(
 		func(e): return is_instance_valid(e) and not e.dead)
+
+
+## Adds a monster to the room (bosses calling help, tests).
+func spawn_enemy(kind: String, pos: Vector2):
+	var e = EnemyScript.new()
+	e.setup(kind, self)
+	var tough := Floors.toughness(floor_num)
+	e.max_hp *= tough.x
+	e.hp = e.max_hp
+	e.dmg *= tough.y
+	e.position = pos
+	e.state_t = 0.4
+	add_child(e)
+	return e
 
 
 func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
