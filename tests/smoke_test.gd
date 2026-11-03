@@ -361,6 +361,19 @@ func _run() -> void:
 		await _wait(0.6)
 		_check(p.bonds[part].burned, "%s overdraw burns" % part)
 		await _settle()
+	# Overdrawing an already-burned mark tears it: it costs health.
+	var hp_before: float = p.hp
+	p.bonds["hand"].essence = 0.0
+	var paid: String = p.bonds["hand"].pay()
+	_check(paid == "torn" and p.bonds["hand"].overdraw_mult < 1.0, "overdrawing a burned mark tears it, and the cast is weaker")
+	p.bonds["hand"].essence = 0.0
+	p.attack_cd = 0.0
+	p._try_cast("hand")
+	await _wait(0.6)
+	_check(p.hp < hp_before, "a torn mark costs health (%.0f -> %.0f)" % [hp_before, p.hp])
+	_check(p.bonds["hand"].overdraw_mult == 1.0, "only the overdrawn cast is weakened")
+	p.hp = p.MAX_HP
+	await _settle()
 
 	print("bodies don't overlap")
 	slime.airborne = 0.0  # left lifted by the Gale Lift test (its timers are frozen)
