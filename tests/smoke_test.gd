@@ -101,6 +101,20 @@ func _regard_tests() -> void:
 
 
 func _spell_tests() -> void:
+	print("new climber")
+	main.regard = {}  # (still showing from the test above; it ignores other keys)
+	_check(not main.profile.bonds.is_empty(), "(the climber has marks)")
+	Input.action_press("new_climber")
+	await _frames(2)
+	Input.action_release("new_climber")
+	_check(main.new_climber_t > 0.0 and main.banner.get("title", "") == "NEW CLIMBER?", "a first press asks to confirm")
+	_check(not main.profile.bonds.is_empty(), "one press changes nothing yet")
+	await _frames(2)
+	Input.action_press("new_climber")
+	await _frames(2)
+	Input.action_release("new_climber")
+	_check(main.profile.bonds.is_empty() and not main.profile.regarded, "a second press starts a new climber: no marks")
+
 	print("new spells")
 	await _fresh_main()
 	var p = main.player

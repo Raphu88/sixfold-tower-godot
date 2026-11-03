@@ -29,6 +29,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Cast your marks (hand, legs, heart, brow) | Q, E, F, C |
 | Change both bonds' step (testing only) | [ and ] |
 | Restart | R |
+| New climber (forget all marks and start the first climb again; press twice to confirm) | N, or the New button on a phone |
 | Music on/off | M |
 | Show/hide controls | H |
 

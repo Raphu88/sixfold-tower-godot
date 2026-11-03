@@ -17,6 +17,7 @@ static func setup() -> void:
 	_bind("restart", [_key(KEY_R)])
 	_bind("toggle_music", [_key(KEY_M)])
 	_bind("toggle_help", [_key(KEY_H)])
+	_bind("new_climber", [_key(KEY_N)])
 	_bind("weapon_1", [_key(KEY_1)])
 	_bind("weapon_2", [_key(KEY_2)])
 	_bind("weapon_3", [_key(KEY_3)])
