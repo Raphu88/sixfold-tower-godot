@@ -78,6 +78,12 @@ func _regard_tests() -> void:
 	for i in 5:
 		main.add_soak("legs", 3.0)
 	main.gather_essence("air", 10.0, p.global_position)
+	_check(main.leading_part() == "legs", "the HUD's leading part is the most-used one")
+	var predicted: String = main.predicted_bond()
+	_check(predicted == "windwalker", "the HUD predicts the bond: %s" % predicted)
+	# Play style pulls too: mostly Water essence, but legs pull toward Windwalker.
+	_check(main.profile.choose_bond("legs", {"water": 6.0, "air": 4.0}) == "windwalker", "a body part pulls toward its own bond")
+	_check(main.profile.choose_bond("legs", {"water": 10.0}) == "tidecaller", "...unless the essence is overwhelmingly another kind")
 	main.floor_num = 3
 	for e in main.enemies():
 		e.take_hit(9999.0, Vector2.RIGHT, 0.0)
@@ -88,6 +94,7 @@ func _regard_tests() -> void:
 	_check(not main.regard.is_empty() and not main.regard["fell"], "taking the top stair brings the Regard")
 	var legs: Dictionary = main.profile.bonds.get("legs", {})
 	_check(legs.get("id", "") == "windwalker" and not legs.get("faint", true), "a full Windwalker mark on the legs")
+	_check(legs.get("id", "") == predicted, "the Regard grants what the HUD predicted")
 
 	print("a second mark")
 	main.first_climb = false

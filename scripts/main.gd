@@ -383,9 +383,48 @@ func add_soak(part: String, amount: float) -> void:
 ## How close an unmarked body part is to taking a mark, 0..1 (for drawing).
 func soak_fraction(part: String) -> float:
 	if first_climb:
-		return clampf(float(climb_soak.get(part, 0.0)) / 50.0, 0.0, 1.0)
+		# Relative to the leading part: the brightest glow is where it will form.
+		var most := 15.0
+		for pt in climb_soak:
+			most = maxf(most, float(climb_soak[pt]))
+		return clampf(float(climb_soak.get(part, 0.0)) / most, 0.0, 1.0)
 	var need: float = ProfileScript.NEW_MARK_SOAK * float(maxi(1, profile.bonds.size()))
 	return clampf((float(profile.soak.get(part, 0.0)) + float(run_soak.get(part, 0.0))) / need, 0.0, 1.0)
+
+
+## How much each unmarked body part has soaked: this climb on the first
+## climb, else everything banked plus this floor's.
+func part_soak(part: String) -> float:
+	if first_climb:
+		return float(climb_soak.get(part, 0.0))
+	return float(profile.soak.get(part, 0.0)) + float(run_soak.get(part, 0.0))
+
+
+## The unmarked body part that would take the next mark ("" if none has soaked).
+func leading_part() -> String:
+	var best := ""
+	var most := 0.0
+	for pt in BondScript.Bonds.PARTS:
+		if profile.bonds.has(pt):
+			continue
+		var v := part_soak(pt)
+		if v > most:
+			most = v
+			best = pt
+	return best
+
+
+## The bond the next mark would be, if it formed now.
+func predicted_bond() -> String:
+	var part := leading_part()
+	if part == "":
+		return ""
+	var essence: Dictionary = climb_essence
+	if not first_climb:
+		essence = profile.tally.duplicate()
+		for k in run_essence:
+			essence[k] = float(essence.get(k, 0.0)) + float(run_essence[k])
+	return profile.choose_bond(part, essence)
 
 
 func gather_essence(kind: String, amount: float, from: Vector2) -> void:
@@ -407,13 +446,9 @@ func on_player_died() -> void:
 func _begin_regard(fell: bool) -> void:
 	if not regard.is_empty():
 		return
-	var part := "hand"
-	var most := -1.0
-	for pt in BondScript.Bonds.PARTS:
-		var v := float(climb_soak.get(pt, 0.0))
-		if v > most:
-			most = v
-			part = pt
+	var part := leading_part()
+	if part == "":
+		part = "hand"
 	var id: String = profile.choose_bond(part, climb_essence)
 	profile.add_bond(part, id, fell)
 	profile.regarded = true
