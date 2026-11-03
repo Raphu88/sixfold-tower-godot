@@ -57,6 +57,7 @@ var draw_ready := false
 var parry_t := 0.0
 var parry_cd := 0.0
 var parry_flash := 0.0
+var parry_window := PARRY_WINDOW
 var cast_t := 0.0
 var cast_total := 0.0
 var cast_part := ""
@@ -85,13 +86,31 @@ func _ready() -> void:
 	overlay.material = unlit
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
-	bonds["hand"] = BondScript.new("stormcaller", "hand")
-	bonds["legs"] = BondScript.new("windwalker", "legs")
+	# Bonds are given by the room from your saved marks (none on a first climb).
 	swing = wdata()["combo"][0]
 
 
 func wdata() -> Dictionary:
 	return Weapons.WEAPONS[weapon]
+
+
+## A body part did its thing: it soaks up essence toward a mark, and fills
+## the bond on it (if it has one) for casting.
+func _part_action(part: String, soak: float, fill: float) -> void:
+	main.add_soak(part, soak)
+	var b = bonds.get(part)
+	if b != null:
+		b.fill(fill)
+
+
+func _burned(part: String) -> bool:
+	var b = bonds.get(part)
+	return b != null and b.burned
+
+
+## A burned heart caps your health lower until the next stair.
+func max_health() -> float:
+	return max_hp * (0.75 if _burned("heart") else 1.0)
 
 
 func has_bond(bond_id: String) -> bool:
@@ -212,6 +231,10 @@ func _read_buffer() -> void:
 		pressed = "cast_hand"
 	elif Input.is_action_just_pressed("cast_legs"):
 		pressed = "cast_legs"
+	elif Input.is_action_just_pressed("cast_heart"):
+		pressed = "cast_heart"
+	elif Input.is_action_just_pressed("cast_brow"):
+		pressed = "cast_brow"
 	if pressed != "":
 		buffered = pressed
 		buffer_t = BUFFER_TIME
@@ -246,6 +269,10 @@ func _try_action(action: String, input: Vector2) -> bool:
 			return _try_cast("hand")
 		"cast_legs":
 			return _try_cast("legs")
+		"cast_heart":
+			return _try_cast("heart")
+		"cast_brow":
+			return _try_cast("brow")
 	return true
 
 
@@ -264,6 +291,7 @@ func _tick_timers(delta: float) -> void:
 	sta_delay -= delta
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
+	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
 		sta = minf(MAX_STA, sta + 45.0 * delta)
 
@@ -280,8 +308,7 @@ func _try_roll(input: Vector2) -> bool:
 	var wind := has_bond("windwalker")
 	var cost := 16.0 if wind else 24.0
 	var dist_mult := 1.0
-	var legs = bonds.get("legs")
-	if legs != null and legs.burned:
+	if _burned("legs"):
 		cost *= 1.5
 		dist_mult = 0.7
 	if sta < cost:
@@ -354,8 +381,8 @@ func _melee() -> bool:
 		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"])
 		hits += 1
 	# The hand fills when your weapon strikes land.
-	if hits > 0 and hand != null:
-		hand.fill(6.0 * hits)
+	if hits > 0:
+		_part_action("hand", float(hits), 6.0 * hits)
 	return true
 
 
@@ -400,9 +427,7 @@ func release_draw() -> void:
 ## Called by your arrows when they hit a monster.
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
-	var hand = bonds.get("hand")
-	if hand != null:
-		hand.fill(6.0)
+	_part_action("hand", 1.0, 6.0)
 
 
 func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit") -> void:
@@ -455,7 +480,8 @@ func _try_parry() -> bool:
 	attack_cd = 0.0
 	lunge_t = 0.0
 	drawing = false
-	parry_t = PARRY_WINDOW
+	parry_window = PARRY_WINDOW * (0.6 if _burned("brow") else 1.0)
+	parry_t = parry_window
 	parry_cd = 0.45
 	var threat := _nearest_threat()
 	if threat != Vector2.ZERO:
@@ -527,7 +553,7 @@ func receive_attack(dmg: float, source) -> void:
 	if parry_t > 0.0 and source != null:
 		var to_source: Vector2 = (source.global_position - global_position).normalized()
 		if aim.dot(to_source) > -0.1:  # anything in front of you, roughly
-			_on_parry(source, PARRY_WINDOW - parry_t <= PARRY_PERFECT)
+			_on_parry(source, parry_window - parry_t <= PARRY_PERFECT)
 			return
 	if hurt_t > 0.0:
 		return
@@ -551,6 +577,10 @@ func receive_attack(dmg: float, source) -> void:
 		hp = 0.0
 		dead = true
 		main.sfx("death", 1.0, 0.0, 0.0)
+		main.on_player_died()
+	else:
+		# The heart fills when you take a hit and survive.
+		_part_action("heart", 4.0, 8.0)
 
 
 func _on_parry(source, perfect := false) -> void:
@@ -578,6 +608,8 @@ func _on_parry(source, perfect := false) -> void:
 		main.light_flash(at, gold, 1.3, 2.0, 0.3)
 		main.hitstop(0.14)
 		main.shake(6.0)
+	# The brow fills when you parry.
+	_part_action("brow", 8.0 if perfect else 5.0, 18.0 if perfect else 12.0)
 	if source.has_method("on_parried"):
 		source.on_parried(perfect)
 
@@ -587,9 +619,7 @@ func on_dodge() -> void:
 	if dodge_cd > 0.0:
 		return
 	dodge_cd = 0.3
-	var legs = bonds.get("legs")
-	if legs != null:
-		legs.fill(10.0)
+	_part_action("legs", 3.0, 10.0)
 	main.fx_text(global_position + Vector2(0, -30), "Dodged", Color(0.75, 0.9, 1.0))
 	main.fx_ring(global_position, Color(0.75, 0.9, 1.0), 34.0, 0.25, 2.0)
 	main.sfx("dodge")
@@ -632,12 +662,24 @@ func _draw() -> void:
 	if weapon != "bow":
 		_draw_weapon(Transform2D.IDENTITY)
 
+	# Essence soaking into unmarked body parts: faint glows that grow
+	# until one of them takes a mark.
+	for part in BondScript.Bonds.PARTS:
+		if bonds.has(part):
+			continue
+		var k: float = main.soak_fraction(part)
+		if k <= 0.02:
+			continue
+		var at := _mark_anchor(part, side)
+		var pulse := 0.6 + 0.4 * sin(t * 3.0 + at.x)
+		draw_circle(at, 1.5 + 3.0 * k, Color(1.0, 0.95, 0.8, 0.25 * k * pulse + 0.1 * k))
+
 	# Marks and motes: power is shown on the body, not only on the HUD.
 	for b in bonds.values():
-		var anchor := Vector2(0, radius * 0.55)
-		if b.part == "hand":
-			anchor = side * radius * 0.95 + aim * 3.0
+		var anchor := _mark_anchor(b.part, side)
 		var col: Color = b.color()
+		if b.faint:
+			col.a = 0.45 + 0.25 * sin(t * 4.0)
 		if b.burned:
 			col = Color(1.0, 0.35, 0.25) if fmod(t, 0.4) < 0.2 else col
 		draw_circle(anchor, 3.2, Palette.OUTLINE)
@@ -652,6 +694,18 @@ func _draw() -> void:
 			draw_circle(anchor + Vector2.from_angle(ma) * 10.0, 1.5, col)
 	if overlay != null:
 		overlay.queue_redraw()
+
+
+## Where each body part's mark sits on the climber.
+func _mark_anchor(part: String, side: Vector2) -> Vector2:
+	match part:
+		"hand":
+			return side * radius * 0.95 + aim * 3.0
+		"brow":
+			return aim * (radius * 0.55)
+		"heart":
+			return -side * radius * 0.3 - aim * 3.0
+	return Vector2(0, radius * 0.55)  # legs
 
 
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.

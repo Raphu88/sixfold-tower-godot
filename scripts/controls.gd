@@ -12,6 +12,8 @@ static func setup() -> void:
 	_bind("parry", [_mouse(MOUSE_BUTTON_RIGHT), _key(KEY_K)])
 	_bind("cast_hand", [_key(KEY_Q)])
 	_bind("cast_legs", [_key(KEY_E)])
+	_bind("cast_heart", [_key(KEY_F)])
+	_bind("cast_brow", [_key(KEY_C)])
 	_bind("restart", [_key(KEY_R)])
 	_bind("toggle_music", [_key(KEY_M)])
 	_bind("toggle_help", [_key(KEY_H)])

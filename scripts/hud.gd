@@ -4,6 +4,7 @@ extends Node2D
 
 const BondScript := preload("res://scripts/bond.gd")
 const Palette := preload("res://scripts/palette.gd")
+const Essence := preload("res://scripts/essence.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -72,6 +73,10 @@ func _draw() -> void:
 	# Health and stamina.
 	draw_style_box(panel, Rect2(16, 14, 286, 56))
 	_bar(Vector2(28, 24), 262.0, 14.0, p.hp / p.max_hp, hp_trail, Color(0.78, 0.22, 0.2))
+	if p.max_health() < p.max_hp:
+		# A burned heart caps your health: show the lost part as scorched.
+		var cap_x: float = 28.0 + 262.0 * p.max_health() / p.max_hp
+		draw_rect(Rect2(Vector2(cap_x, 24), Vector2(290.0 - cap_x, 14)), Color(1.0, 0.35, 0.2, 0.35))
 	_bar(Vector2(28, 46), 262.0 * p.max_sta / 100.0, 10.0, p.sta / p.max_sta, sta_trail, Color(0.45, 0.72, 0.38))
 
 	# Weapons.
@@ -84,14 +89,28 @@ func _draw() -> void:
 		draw_string(font, r.position + Vector2(4, 13), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD if on else DIM_TEXT)
 	draw_string(font, Vector2(170, 105), p.Weapons.WEAPONS[p.weapon]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, TEXT)
 
-	# Bonds, bottom left.
-	var y := size.y - 112.0
-	if main.touch_active:
-		y = 132.0  # out from under your thumbs
-	for part in ["hand", "legs"]:
-		var b = p.bonds.get(part)
-		if b == null:
+	# Essence gathered since the last stair (lost if you fall before it).
+	var ex := 16.0
+	var any_essence := false
+	for kind in Essence.KINDS:
+		var amt: float = main.run_essence.get(kind, 0.0)
+		if amt <= 0.0:
 			continue
+		any_essence = true
+		var ec := Essence.color(kind)
+		draw_circle(Vector2(ex + 6, 140), 5.0, ec)
+		draw_string(font, Vector2(ex + 15, 145), str(int(amt)), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
+		ex += 52.0
+	if any_essence:
+		draw_string(font, Vector2(ex + 2, 145), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+
+	# Bonds (marks), bottom left; on phones, up top out from under your thumbs.
+	var parts: Array = BondScript.Bonds.PARTS.filter(func(pt): return p.bonds.has(pt))
+	var y := size.y - 12.0 - 50.0 * parts.size()
+	if main.touch_active:
+		y = 156.0
+	for part in parts:
+		var b = p.bonds[part]
 		if main.touch_active:
 			_bond_compact(b, part, Vector2(12, y), font)
 			y += 40.0
@@ -106,7 +125,7 @@ func _draw() -> void:
 		var help := [
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
-			["1 2 3 / wheel", "weapon"], ["Q  E", "cast bonds"],
+			["1 2 3 / wheel", "weapon"], ["Q E F C", "cast marks"],
 			["[  ]", "bond step (testing)"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
 		]
 		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
@@ -119,7 +138,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(size.x - 120, 26), "H  controls", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
 
 	# Floor counter, top centre.
-	var floor_text := "FLOOR %d" % main.floor_num
+	var floor_text: String = main._floor_title()
 	draw_string_outline(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 5, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, GOLD)
 	draw_string(font, Vector2(0, 48), "best %d" % main.best_floor, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, DIM_TEXT)
@@ -144,7 +163,7 @@ func _draw() -> void:
 	# Messages: a banner across the middle.
 	var msg := ""
 	var sub := ""
-	if p.dead:
+	if p.dead and not main.first_climb:
 		msg = "YOU FELL ON FLOOR %d" % main.floor_num
 		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, "Tap R" if main.touch_active else "Press R"]
 	if msg != "":
@@ -160,6 +179,9 @@ func _draw() -> void:
 	# Between floors the screen fades to black.
 	if main.fade > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, main.fade))
+
+	if not main.regard.is_empty():
+		_draw_regard(size, font)
 
 
 func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float, color: Color) -> void:
@@ -198,7 +220,7 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	var r := Rect2(pos, Vector2(420, 44))
 	draw_style_box(panel, r)
 	var col: Color = b.color()
-	var key := "Q" if part == "hand" else "E"
+	var key: String = BondScript.Bonds.PART_KEYS[part]
 	var c := pos + Vector2(22, 22)
 	# The sigil: a ring that fills with essence, the cast key in the middle.
 	draw_circle(c, 15.0, Color(0, 0, 0, 0.6))
@@ -207,7 +229,7 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	draw_arc(c, 15.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, col, 3.0)
 	var can_cast: bool = b.essence >= b.cost()
 	draw_string(font, c + Vector2(-5, 5), key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col if can_cast else DIM_TEXT)
-	var title := "%s  ·  %s  ·  step %d" % [b.display_name(), BondScript.PART_NAMES[part], b.step]
+	var title := "%s  ·  %s  ·  %s" % [b.display_name(), BondScript.PART_NAMES[part], "faint" if b.faint else "step %d" % b.step]
 	draw_string(font, pos + Vector2(46, 17), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
 	# Essence bar with a tick at the spell's cost.
 	var bar := Rect2(pos + Vector2(46, 24), Vector2(140, 6))
@@ -235,3 +257,73 @@ func _weapon_icon(id: String, c: Vector2, col: Color) -> void:
 			draw_arc(c + Vector2(-4, 0), 11.0, -1.1, 1.1, 12, col, 2.5)
 			draw_line(c + Vector2(-4, 0) + Vector2.from_angle(-1.1) * 11.0, c + Vector2(-4, 0) + Vector2.from_angle(1.1) * 11.0, col, 1.0)
 			draw_line(c + Vector2(-6, 0), c + Vector2(10, 0), col, 1.5)
+
+
+## The Regard: the beast's eye opens on you, and your first mark takes hold.
+func _draw_regard(size: Vector2, font: Font) -> void:
+	var rg: Dictionary = main.regard
+	var t: float = rg["t"]
+	var info: Dictionary = BondScript.Bonds.BONDS[rg["id"]]
+	var col: Color = info["color"]
+	var fell: bool = rg["fell"]
+	var part_name: String = BondScript.PART_NAMES[rg["part"]]
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, clampf(t / 0.8, 0.0, 0.96)))
+	var c := Vector2(size.x / 2.0, size.y * 0.3)
+	# The eye opens.
+	var open := clampf((t - 0.4) / 1.2, 0.0, 1.0)
+	open = open * open * (3.0 - 2.0 * open)
+	var w := minf(size.x * 0.36, 300.0)
+	var h := 70.0 * open
+	var lid := PackedVector2Array()
+	for i in 33:
+		var k := float(i) / 32.0
+		lid.append(c + Vector2(lerpf(-w, w, k), -sin(PI * k) * h))
+	for i in 33:
+		var k := float(i) / 32.0
+		lid.append(c + Vector2(lerpf(w, -w, k), sin(PI * k) * h))
+	draw_colored_polygon(lid, Color(0.95, 0.85, 0.55, 0.12 + 0.1 * open))
+	draw_polyline(lid + PackedVector2Array([lid[0]]), Color(1.0, 0.85, 0.5, 0.8 * open + 0.1), 2.5, true)
+	if open > 0.2:
+		var iris := 52.0 * minf(1.0, open * 1.2)
+		draw_circle(c, iris, Color(col, 0.55))
+		draw_circle(c, iris * 0.62, Color(col.lightened(0.3), 0.8))
+		draw_circle(c, iris * 0.28, Color(0.02, 0.02, 0.03, 0.95))
+		draw_arc(c, iris, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0)
+	# The mark grows beneath it.
+	var mk := clampf((t - 1.6) / 1.0, 0.0, 1.0)
+	if mk > 0.0:
+		var mc := c + Vector2(0, 130)
+		var mcol := Color(col, (0.55 if fell else 1.0) * mk)
+		draw_circle(mc, 10.0, mcol)
+		var lines := 3 if fell else 6
+		for i in lines:
+			var a := -PI / 2.0 + TAU * float(i) / float(lines)
+			draw_line(mc + Vector2.from_angle(a) * 14.0, mc + Vector2.from_angle(a) * (14.0 + 26.0 * mk), mcol, 3.0)
+	var texts: Array = []
+	if fell:
+		texts = [
+			"You fell, but %s was watching." % main.BEAST,
+			"Essence takes hold in your %s, faintly." % part_name,
+			"You bear a faint %s mark." % info["name"],
+			"It will grow once it has soaked up more essence.",
+		]
+	else:
+		texts = [
+			"You reached the top. %s has watched you climb." % main.BEAST.capitalize(),
+			"Essence takes hold in your %s." % part_name,
+			"You bear the %s mark." % info["name"],
+			"%s: %s." % [info["spell"], BondScript.PART_FILLS[rg["part"]]],
+		]
+	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
+	draw_string_outline(font, Vector2(0, size.y * 0.3 - 110), "THE REGARD", HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 7, Color(0, 0, 0, 0.8 * title_a))
+	draw_string(font, Vector2(0, size.y * 0.3 - 110), "THE REGARD", HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, Color(GOLD, title_a))
+	var ty := size.y * 0.3 + 190.0
+	for i in texts.size():
+		var a := clampf((t - 1.4 - i * 0.45) / 0.5, 0.0, 1.0)
+		var tc := col.lightened(0.2) if i == 2 else TEXT
+		draw_string(font, Vector2(0, ty), texts[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a))
+		ty += 26.0
+	if main.regard_done():
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
+		var prompt := "Tap to begin your next climb" if main.touch_active else "Press Space or click to begin your next climb"
+		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))

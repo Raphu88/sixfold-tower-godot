@@ -1,0 +1,31 @@
+extends RefCounted
+## Essence: what monsters leave behind when they fall. It flies into you,
+## soaks into your body, and is banked at the next stair (dying first loses
+## whatever you hadn't banked). Banked essence strengthens your bonds, and
+## the kind you gather decides which bond forms when a body part takes a mark.
+
+const KINDS := {
+	"air": {"name": "Air", "color": Color(0.78, 0.9, 1.0)},
+	"water": {"name": "Water", "color": Color(0.37, 0.72, 0.85)},
+	"iron": {"name": "Iron", "color": Color(0.8, 0.82, 0.88)},
+}
+
+## What each monster drops: kind and amount (more on higher floors).
+const DROPS := {
+	"slime": ["water", 3.0],
+	"archer": ["air", 4.0],
+	"knight": ["iron", 7.0],
+}
+
+
+static func drop_for(kind: String, floor_num: int) -> Array:
+	var d: Array = DROPS.get(kind, ["air", 2.0])
+	return [d[0], d[1] * (1.0 + 0.1 * float(maxi(floor_num - 1, 0)))]
+
+
+static func color(kind: String) -> Color:
+	return KINDS.get(kind, KINDS["air"])["color"]
+
+
+static func display(kind: String) -> String:
+	return KINDS.get(kind, KINDS["air"])["name"]

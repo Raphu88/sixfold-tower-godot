@@ -9,6 +9,7 @@ var rings: Array = []
 var sparks: Array = []
 var ghosts: Array = []
 var chunks: Array = []
+var motes_list: Array = []  # essence flying into the climber
 
 
 func text(pos: Vector2, s: String, color: Color) -> void:
@@ -54,6 +55,13 @@ func burst(pos: Vector2, dir: Vector2, color: Color, count: int, speed := 260.0)
 		sparks.append({"pos": pos, "vel": d * speed * randf_range(0.5, 1.2), "color": color, "t": life, "dur": life})
 
 
+## Essence motes: burst out of a slain monster, then home in on `target`.
+func motes(pos: Vector2, color: Color, count: int, target: Node2D) -> void:
+	for i in clampi(count, 1, 14):
+		var d := Vector2.from_angle(randf() * TAU)
+		motes_list.append({"pos": pos, "vel": d * randf_range(80.0, 180.0), "color": color, "target": target, "age": 0.0, "delay": randf_range(0.15, 0.4)})
+
+
 ## Bits of a slain monster that scatter, tumble and fade.
 func debris(pos: Vector2, color: Color, count: int) -> void:
 	for i in count:
@@ -89,6 +97,20 @@ func _process(delta: float) -> void:
 		c["vel"] *= 0.9
 		c["rot"] += c["spin"] * delta
 	chunks = chunks.filter(func(i): return i["t"] > 0.0)
+	for m in motes_list:
+		m["age"] += delta
+		var tgt = m["target"]
+		if m["age"] > m["delay"] and is_instance_valid(tgt):
+			var to: Vector2 = tgt.global_position - m["pos"]
+			if to.length() < 10.0:
+				m["done"] = true
+			m["vel"] = m["vel"].lerp(to.normalized() * 520.0, minf(1.0, 6.0 * delta))
+		else:
+			m["vel"] *= 0.9
+		m["pos"] += m["vel"] * delta
+		if m["age"] > 2.5:
+			m["done"] = true
+	motes_list = motes_list.filter(func(i): return not i.get("done", false))
 	rings = rings.filter(func(i): return i["t"] > 0.0)
 	ghosts = ghosts.filter(func(i): return i["t"] > 0.0)
 	sparks = sparks.filter(func(i): return i["t"] > 0.0)
@@ -104,6 +126,10 @@ func _draw() -> void:
 		var col: Color = c["color"]
 		col.a = 0.35 * c["t"] / 0.3
 		draw_colored_polygon(c["poly"], col)
+	for m in motes_list:
+		var mc: Color = m["color"]
+		draw_circle(m["pos"], 4.5, Color(mc, 0.2))
+		draw_circle(m["pos"], 2.0, Color(mc.lightened(0.3), 0.95))
 	for c in chunks:
 		var a := clampf(c["t"] / 0.4, 0.0, 1.0)
 		var s: float = c["size"]

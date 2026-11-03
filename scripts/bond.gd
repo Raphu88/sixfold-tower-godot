@@ -14,6 +14,7 @@ var part: String
 var step := 1
 var essence := 0.0
 var burned := false
+var faint := false  # a mark taken in defeat: weaker until it catches up
 
 
 func _init(bond_id: String, body_part: String) -> void:
@@ -53,7 +54,16 @@ func capacity() -> float:
 
 
 func cost() -> float:
-	return stat("cost")
+	return stat("cost") * (1.25 if faint else 1.0)
+
+
+## A faint mark's spells hit softer.
+func power() -> float:
+	return 0.75 if faint else 1.0
+
+
+func damage() -> float:
+	return float(stat("damage")) * power()
 
 
 func windup() -> float:
@@ -85,6 +95,10 @@ func cast(p) -> void:
 			_chain(p)
 		"lift":
 			_lift(p)
+		"surge":
+			_surge(p)
+		"blades":
+			_blades(p)
 
 
 # Lightning leaps from you to the nearest foe, then foe to foe.
@@ -127,7 +141,7 @@ func _chain(p) -> void:
 		e.charged = 4.0
 		if stun > 0.0:
 			e.stagger(stun)
-		e.take_hit(stat("damage"), Vector2.ZERO)
+		e.take_hit(damage(), Vector2.ZERO)
 
 
 # A gust in front of you throws foes into the air, helpless.
@@ -141,7 +155,7 @@ func _lift(p) -> void:
 	main.light_flash(origin + aim * reach * 0.5, color(), 1.4, 0.8, 0.35)
 	main.sfx("gust", 0.9)
 	var lifted := 0
-	var dmg: float = stat("damage")
+	var dmg: float = damage()
 	for e in main.enemies():
 		var to: Vector2 = e.global_position - origin
 		if to.length() > reach + e.radius:
@@ -155,3 +169,44 @@ func _lift(p) -> void:
 		lifted += 1
 	if lifted == 0:
 		main.fx_text(origin + Vector2(0, -34), "nothing to lift", color())
+
+
+# A wave bursts out around you, hurling every foe in reach away.
+func _surge(p) -> void:
+	var main = p.main
+	var origin: Vector2 = p.global_position
+	var radius: float = stat("radius")
+	main.fx_ring(origin, color(), radius, 0.45, 6.0)
+	main.fx_ring(origin, Color(1, 1, 1, 0.8), radius * 0.6, 0.3, 2.0)
+	main.fx_burst(origin, Vector2.ZERO, color(), 24, 320.0)
+	main.light_flash(origin, color(), 1.6, 1.2, 0.4)
+	main.sfx("hit_slime", 0.6)
+	main.sfx("gust", 0.7, -4.0)
+	main.shake(5.0)
+	var hit := 0
+	for e in main.enemies():
+		var to: Vector2 = e.global_position - origin
+		if to.length() > radius + e.radius:
+			continue
+		var dir := to.normalized() if to.length() > 0.1 else Vector2.RIGHT
+		e.take_hit(damage(), dir, stat("push"))
+		hit += 1
+	if hit == 0:
+		main.fx_text(origin + Vector2(0, -34), "nothing in reach", color())
+
+
+# A fan of conjured blades that pierce through every foe in their path.
+func _blades(p) -> void:
+	var main = p.main
+	var count: int = stat("count")
+	var spread := deg_to_rad(stat("spread"))
+	var aim: Vector2 = p.aim
+	for i in count:
+		var off := (float(i) - (float(count) - 1.0) / 2.0) * spread
+		var dir := aim.rotated(off)
+		var b = main.spawn_player_arrow(p.global_position + dir * (p.radius + 6.0), dir * 560.0, damage(), 120.0, true)
+		b.style = "blade"
+		b.tint = color()
+	main.sfx("swing", 1.4)
+	main.sfx("equip_sword", 1.3, -4.0)
+	main.light_flash(p.global_position + aim * 30.0, color(), 1.0, 0.9, 0.25)

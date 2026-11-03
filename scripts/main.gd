@@ -13,8 +13,11 @@ const RoomScript := preload("res://scripts/room.gd")
 const Palette := preload("res://scripts/palette.gd")
 const TouchScript := preload("res://scripts/touch.gd")
 const Floors := preload("res://scripts/floors.gd")
+const ProfileScript := preload("res://scripts/profile.gd")
+const Essence := preload("res://scripts/essence.gd")
+const BondScript := preload("res://scripts/bond.gd")
+const BEAST := "the Gryphon"  # the tower's beast (story to come)
 
-const SAVE_PATH := "user://sixfold.cfg"
 const STAIR_REACH := 26.0
 
 const WALL := 24.0
@@ -43,6 +46,16 @@ var fade := 0.0  # black screen between floors, 0..1
 var banner := {}  # {title, lines, t}: shown when a floor starts
 var room_view
 var player_start := Vector2.ZERO
+
+# Marks and essence
+var profile  # what carries over between climbs (profile.gd)
+var first_climb := false  # bondless, ending in the Regard
+var run_essence := {}  # gathered since the last stair (lost if you fall)
+var run_soak := {}  # body-part soak since the last stair
+var climb_essence := {}  # everything gathered this climb
+var climb_soak := {}  # everything soaked this climb
+var regard := {}  # the Regard, while it plays: {fell, part, id, t}
+var regard_pending := false
 
 # Attack turns: only this many monsters may be attacking at once.
 const MAX_ATTACKERS := 2
@@ -85,8 +98,17 @@ func _ready() -> void:
 	glow.energy = 0.55
 	player.add_child(glow)
 
-	_load_best()
+	profile = ProfileScript.new()
+	if Engine.has_meta("sixfold_test"):
+		profile.saving = false  # tests never touch the real save
+	else:
+		profile.load_save()
+	best_floor = profile.best_floor
+	first_climb = not profile.regarded
+	_give_bonds()
 	_start_floor(1)
+	if first_climb:
+		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. The tower is watching." % ProfileScript.FIRST_CLIMB_FLOORS], "t": 4.0}
 
 	fx = FxScript.new()
 	fx.z_index = 10
@@ -144,6 +166,11 @@ func _process(delta: float) -> void:
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
 		Engine.time_scale = 1.0
+	if not regard.is_empty():
+		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
+		if regard_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
+			end_regard()
+		return
 	if Input.is_action_just_pressed("restart"):
 		get_tree().reload_current_scene()
 		return
@@ -267,45 +294,151 @@ func _climb() -> void:
 func _arrive() -> void:
 	var lines: Array = []
 	# Rest at the stair: burns heal, some health and all stamina return.
-	var healed := minf(player.max_hp - player.hp, player.max_hp * 0.35)
-	player.hp += healed
-	player.sta = player.max_sta
 	var burned := false
 	for b in player.bonds.values():
 		burned = burned or b.burned
 		b.burned = false
+	var healed := minf(player.max_hp - player.hp, player.max_hp * 0.35)
+	player.hp += healed
+	player.sta = player.max_sta
 	if burned:
 		lines.append("Your burns heal")
 	if healed >= 1.0:
 		lines.append("Rested: +%d health" % int(healed))
-	# Bonds grow a step every two floors.
-	var next := floor_num + 1
-	var step := clampi(1 + (next - 1) / 2, 1, 5)
-	for b in player.bonds.values():
-		if step > b.step:
-			b.step = step
-			var note: String = b.step_note(step)
-			lines.append("%s grows to step %d%s" % [b.display_name(), step, (": " + note) if note != "" else ""])
-	_start_floor(next)
+	# Bank the essence gathered on this floor: it strengthens your marks.
+	var banked := 0.0
+	for k in run_essence:
+		banked += float(run_essence[k])
+	if banked > 0.0:
+		lines.append("Banked %d essence" % int(banked))
+	lines.append_array(profile.bank(run_essence, run_soak))
+	run_essence = {}
+	run_soak = {}
+	# An unmarked body part that has soaked up enough takes a new mark.
+	if not first_climb:
+		var part: String = profile.ready_for_mark()
+		if part != "":
+			var id: String = profile.choose_bond(part, profile.tally)
+			if id != "":
+				profile.add_bond(part, id, false)
+				lines.append("Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]])
+				sfx("crit", 0.7, -4.0)
+	_give_bonds()
+	profile.save()
+	# The top of the first climb: the Regard.
+	if first_climb and floor_num >= ProfileScript.FIRST_CLIMB_FLOORS:
+		_begin_regard(false)
+		return
+	_start_floor(floor_num + 1)
 	if floor_num > best_floor:
 		best_floor = floor_num
-		_save_best()
-	banner = {"title": "FLOOR %d" % floor_num, "lines": lines, "t": 3.0}
+		profile.best_floor = best_floor
+		profile.save()
+	banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 
 
-func _load_best() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) == OK:
-		best_floor = int(cfg.get_value("climb", "best_floor", 1))
+func _floor_title() -> String:
+	if first_climb:
+		return "FLOOR %d OF %d" % [floor_num, ProfileScript.FIRST_CLIMB_FLOORS]
+	return "FLOOR %d" % floor_num
 
 
-func _save_best() -> void:
-	var cfg := ConfigFile.new()
-	cfg.load(SAVE_PATH)
-	cfg.set_value("climb", "best_floor", best_floor)
-	cfg.save(SAVE_PATH)
+## Rebuilds the climber's bonds from the saved marks, keeping charge and burns.
+func _give_bonds() -> void:
+	if player == null:
+		return
+	var old: Dictionary = player.bonds.duplicate()
+	player.bonds.clear()
+	for part in profile.bonds:
+		var info: Dictionary = profile.bonds[part]
+		var b = BondScript.new(info["id"], part)
+		b.step = ProfileScript.step_for_xp(float(info["xp"]))
+		b.faint = bool(info["faint"])
+		if old.has(part) and old[part].id == b.id:
+			b.essence = minf(old[part].essence, b.capacity())
+			b.burned = old[part].burned
+		player.bonds[part] = b
+
+
+# --- essence and the Regard ----------------------------------------------------
+
+## A body part did its thing (called by the climber).
+func add_soak(part: String, amount: float) -> void:
+	run_soak[part] = float(run_soak.get(part, 0.0)) + amount
+	climb_soak[part] = float(climb_soak.get(part, 0.0)) + amount
+
+
+## How close an unmarked body part is to taking a mark, 0..1 (for drawing).
+func soak_fraction(part: String) -> float:
+	if first_climb:
+		return clampf(float(climb_soak.get(part, 0.0)) / 50.0, 0.0, 1.0)
+	var need: float = ProfileScript.NEW_MARK_SOAK * float(maxi(1, profile.bonds.size()))
+	return clampf((float(profile.soak.get(part, 0.0)) + float(run_soak.get(part, 0.0))) / need, 0.0, 1.0)
+
+
+func gather_essence(kind: String, amount: float, from: Vector2) -> void:
+	run_essence[kind] = float(run_essence.get(kind, 0.0)) + amount
+	climb_essence[kind] = float(climb_essence.get(kind, 0.0)) + amount
+	if fx != null:
+		fx.motes(from, Essence.color(kind), int(ceil(amount)), player)
+
+
+func on_player_died() -> void:
+	if first_climb and regard.is_empty() and not regard_pending:
+		# Even fallen, you are regarded: a faint mark after a moment.
+		regard_pending = true
+		get_tree().create_timer(1.6, true, false, true).timeout.connect(func(): _begin_regard(true))
+
+
+## The beast takes notice and your most-used body part takes its first mark.
+## Reaching the top earns a full mark; falling earns a faint one.
+func _begin_regard(fell: bool) -> void:
+	if not regard.is_empty():
+		return
+	var part := "hand"
+	var most := -1.0
+	for pt in BondScript.Bonds.PARTS:
+		var v := float(climb_soak.get(pt, 0.0))
+		if v > most:
+			most = v
+			part = pt
+	var id: String = profile.choose_bond(part, climb_essence)
+	profile.add_bond(part, id, fell)
+	profile.regarded = true
+	profile.climbs += 1
+	profile.save()
+	regard = {"fell": fell, "part": part, "id": id, "t": 0.0}
+	banner = {}
+	regard_pending = false
+	player.set_physics_process(false)
+	for e in enemies():
+		e.set_physics_process(false)
+	for c in get_children():
+		if "reflected" in c:
+			c.queue_free()
+	sfx("clear", 0.55, 0.0, 0.0)
+	sfx("glint", 0.6, -2.0, 0.0)
+
+
+## True once the Regard has played long enough to be dismissed.
+func regard_done() -> bool:
+	return not regard.is_empty() and regard["t"] > 3.0
+
+
+func end_regard() -> void:
+	Engine.time_scale = 1.0
+	get_tree().reload_current_scene()
+
+
+## Tests: start with two marks instead of a bondless first climb.
+func grant_test_bonds() -> void:
+	profile.add_bond("hand", "stormcaller", false)
+	profile.add_bond("legs", "windwalker", false)
+	profile.regarded = true
+	first_climb = false
+	_give_bonds()
 
 
 # --- attack turns ------------------------------------------------------------
@@ -341,7 +474,8 @@ func _change_step(by: int) -> void:
 	for b in player.bonds.values():
 		b.step = clampi(b.step + by, 1, 5)
 		b.essence = minf(b.essence, b.capacity())
-	fx_text(player.global_position + Vector2(0, -44), "Bond step %d" % player.bonds["hand"].step, Color(1, 1, 1))
+	if not player.bonds.is_empty():
+		fx_text(player.global_position + Vector2(0, -44), "Bond step %d" % player.bonds.values()[0].step, Color(1, 1, 1))
 
 
 func enemies() -> Array:
@@ -369,6 +503,8 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 
 func on_enemy_killed(e) -> void:
+	var drop: Array = Essence.drop_for(e.kind, floor_num)
+	gather_essence(drop[0], drop[1], e.global_position)
 	fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)

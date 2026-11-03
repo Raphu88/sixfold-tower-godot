@@ -28,6 +28,12 @@ Screenshots can be rendered with `xvfb-run -a -s "-screen 0 1280x720x24" godot -
 - The owner tests on an Android phone through that link, so keep the touch controls (`scripts/touch.gd`) working when adding actions.
 - To export locally, the web templates (`web_nothreads_release.zip`, `web_nothreads_debug.zip`) must be in `~/.local/share/godot/export_templates/4.3.stable/`.
 
+## Design decisions (from the owner)
+- This game ports the owner's earlier web game "Sixfold Tower" while removing anything tied to Andrew Rowe's books (Arcane Ascension). Never use his terms: no "attunement", "spire", "trial", "judgment", "mana". Use **bond** (formally Essence Bond) for the power, **mark** for its sign on the body, **essence** for the resource, **tower** for the place, and **the Regard** for the first-climb moment.
+- The first climb is bondless and ends in the Regard: the tower's beast takes notice and the most-used body part takes its first mark. Dying on the first climb still grants a mark, but a faint one that needs extra essence before it grows.
+- Bonds grow across climbs from essence banked at stairs, not within a run. Marks spreading on the body replace the old game's "shroud".
+- Story and the purpose of the towers are still to be written by the owner; keep names and text in data so they're easy to change.
+
 ## Project
 - Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd`.
 - Sounds are built from CC0 packs by `tools/build_audio.py`; see `CREDITS.md` and the README. Only use CC0 assets.

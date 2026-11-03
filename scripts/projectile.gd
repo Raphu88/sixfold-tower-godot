@@ -12,6 +12,8 @@ var friendly := false
 var pierce := false  # a fully drawn arrow passes through foes
 var force := 140.0
 var hit: Array = []
+var style := "arrow"  # or "blade": a conjured blade
+var tint := Color.WHITE
 
 
 func _physics_process(delta: float) -> void:
@@ -67,6 +69,14 @@ func on_parried(_perfect := false) -> void:
 func _draw() -> void:
 	var dir := vel.normalized()
 	var side := dir.orthogonal()
+	if style == "blade":
+		# A glowing conjured blade with a faint trail.
+		draw_line(-dir * 26.0, -dir * 6.0, Color(tint, 0.25), 5.0)
+		var blade := PackedVector2Array([dir * 11.0, side * 3.0, -dir * 7.0, -side * 3.0])
+		draw_colored_polygon(blade, Color(tint, 0.9))
+		draw_line(-dir * 5.0, dir * 9.0, Color(1, 1, 1, 0.9), 1.0)
+		draw_circle(Vector2.ZERO, 6.0, Color(tint, 0.2))
+		return
 	var glow := Color(1.0, 0.35, 0.3)  # monsters' arrows glow red so you can see them
 	if reflected or pierce:
 		glow = Color(1.0, 0.85, 0.4)
