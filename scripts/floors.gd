@@ -1,7 +1,8 @@
 extends RefCounted
 ## Builds each floor of the climb: where the pillars stand and which
-## monsters wait there. Floor 1 is always the same introductory fight;
-## above that every floor is rolled fresh and gets harder.
+## monsters wait there. Floor 1 is a fixed introductory fight (its monsters
+## depend on the tower); above that every floor is rolled fresh, weighted by
+## the tower's monster mix, and gets harder.
 
 ## Monster price per floor budget, how often each is picked, and the floor
 ## it first appears on.
@@ -23,22 +24,19 @@ const LAYOUTS := [
 ]
 
 
-## Floor 1: the fight you already know.
-static func first_floor(room: Rect2) -> Dictionary:
-	return {
-		"pillars": [],
-		"monsters": [
-			["knight", room.position + Vector2(680, 265)],
-			["slime", room.position + Vector2(740, 145)],
-			["slime", room.position + Vector2(780, 385)],
-			["archer", room.position + Vector2(1000, 265)],
-		],
-	}
+## Floor 1: four monsters in the familiar spots; `kinds` comes from the tower.
+static func first_floor(room: Rect2, kinds: Array) -> Dictionary:
+	var spots := [Vector2(680, 265), Vector2(740, 145), Vector2(780, 385), Vector2(1000, 265)]
+	var monsters: Array = []
+	for i in spots.size():
+		monsters.append([kinds[i] if i < kinds.size() else "slime", room.position + spots[i]])
+	return {"pillars": [], "monsters": monsters}
 
 
-static func build(floor_num: int, room: Rect2, player_start: Vector2) -> Dictionary:
+## `tower` is a tower's data (towers.gd): its monster mix and floor 1.
+static func build(floor_num: int, room: Rect2, player_start: Vector2, tower: Dictionary = {}) -> Dictionary:
 	if floor_num <= 1:
-		return first_floor(room)
+		return first_floor(room, tower.get("first", ["knight", "slime", "slime", "archer"]))
 	var pillars: Array = []
 	for p in LAYOUTS[randi() % LAYOUTS.size()]:
 		pillars.append({"pos": room.position + room.size * Vector2(p[0], p[1]), "r": p[2]})
@@ -53,7 +51,7 @@ static func build(floor_num: int, room: Rect2, player_start: Vector2) -> Diction
 	var kinds: Array = []
 	var knights := 0
 	while budget >= 1.0 and kinds.size() < MAX_MONSTERS:
-		var pick := _pick(floor_num, budget, knights)
+		var pick := _pick(floor_num, budget, knights, tower.get("weights", {}))
 		if pick == "":
 			break
 		kinds.append(pick)
@@ -81,22 +79,24 @@ static func toughness(floor_num: int) -> Vector2:
 	return Vector2(1.0 + 0.08 * f, 1.0 + 0.05 * f)
 
 
-static func _pick(floor_num: int, budget: float, knights: int) -> String:
+static func _pick(floor_num: int, budget: float, knights: int, mix: Dictionary = {}) -> String:
 	var options: Array = []
 	var total := 0.0
 	for kind in MONSTERS:
 		var m: Dictionary = MONSTERS[kind]
 		if floor_num < m["from"] or m["cost"] > budget:
 			continue
-		if kind == "knight" and knights >= maxi(1, floor_num / 2):
+		# Knights are capped per floor (a knight-heavy tower allows one more).
+		var knight_cap := maxi(1, floor_num / 2) + (1 if float(mix.get("knight", 1.0)) > 1.0 else 0)
+		if kind == "knight" and knights >= knight_cap:
 			continue
 		options.append(kind)
-		total += m["weight"]
+		total += float(m["weight"]) * float(mix.get(kind, 1.0))
 	if options.is_empty():
 		return ""
 	var roll := randf() * total
 	for kind in options:
-		roll -= MONSTERS[kind]["weight"]
+		roll -= float(MONSTERS[kind]["weight"]) * float(mix.get(kind, 1.0))
 		if roll <= 0.0:
 			return kind
 	return options[-1]

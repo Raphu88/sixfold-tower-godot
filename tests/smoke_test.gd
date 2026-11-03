@@ -61,7 +61,7 @@ func _regard_tests() -> void:
 	_check(not main.regard.is_empty() and main.regard["fell"], "...still brings the Regard")
 	var brow: Dictionary = main.profile.bonds.get("brow", {})
 	_check(not brow.is_empty(), "the most-used body part (brow) takes the mark")
-	_check(brow.get("id", "") == "tidecaller", "the dominant essence (Water) picks the bond: %s" % brow.get("id", ""))
+	_check(brow.get("id", "") == "warden", "Water essence on the brow makes the brow's own bond, Warden: %s" % brow.get("id", ""))
 	_check(brow.get("faint", false), "a mark taken in defeat is faint")
 	# A faint mark owes essence before it grows.
 	var lines: Array = main.profile.bank({"water": 30.0}, {})
@@ -107,9 +107,46 @@ func _regard_tests() -> void:
 	_check(main.player.bonds.has("heart"), "the climber carries it")
 
 
+func _tower_tests() -> void:
+	print("towers and the early stair")
+	await _fresh_main()
+	var p = main.player
+	_check(main.tower == "kraken" and main.beast_name() == "the Kraken", "tests climb the Kraken's tower")
+	# The stair opens once three of the four are down; the gong waits for the last.
+	var foes: Array = main.enemies()
+	for i in 3:
+		foes[i].take_hit(9999.0, Vector2.RIGHT, 0.0)
+	await _frames(3)
+	_check(main.stair_open and not main.cleared, "the stair opens with one foe left")
+	_check(main.run_essence.get("water", 0.0) >= 3.0 * main.Towers.ESSENCE_BONUS, "every kill gives a little of the tower's essence")
+	foes[3].take_hit(9999.0, Vector2.RIGHT, 0.0)
+	await _frames(3)
+	_check(main.cleared, "the last kill clears the floor")
+	# Towers change the monster mix on higher floors.
+	var counts := {}
+	for id in ["gryphon", "kraken", "wyvern"]:
+		var c := {"slime": 0, "archer": 0, "knight": 0}
+		for n in 30:
+			var plan: Dictionary = main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS[id])
+			for m in plan["monsters"]:
+				c[m[0]] += 1
+		counts[id] = c
+	_check(counts["gryphon"]["archer"] > counts["kraken"]["archer"], "the Gryphon's tower has more archers (%d vs %d)" % [counts["gryphon"]["archer"], counts["kraken"]["archer"]])
+	_check(counts["kraken"]["slime"] > counts["wyvern"]["slime"], "the Kraken's tower has more slimes (%d vs %d)" % [counts["kraken"]["slime"], counts["wyvern"]["slime"]])
+	_check(counts["wyvern"]["knight"] > counts["gryphon"]["knight"], "the Wyvern's tower has more knights (%d vs %d)" % [counts["wyvern"]["knight"], counts["gryphon"]["knight"]])
+	# Choosing a tower restyles the room and restarts floor 1 there.
+	main.choosing_tower = true
+	main.choose_tower("wyvern")
+	await _frames(2)
+	_check(main.tower == "wyvern" and not main.choosing_tower and main.floor_num == 1, "choosing the Wyvern's tower starts its floor 1")
+	_check(main.enemies().filter(func(e): return e.kind == "knight").size() == 2, "the Wyvern's floor 1 has two knights")
+	_check(main.profile.last_tower == "wyvern", "the choice is remembered")
+
+
 func _spell_tests() -> void:
 	print("new climber")
 	main.regard = {}  # (still showing from the test above; it ignores other keys)
+	main.grant_test_bonds()
 	_check(not main.profile.bonds.is_empty(), "(the climber has marks)")
 	Input.action_press("new_climber")
 	await _frames(2)
@@ -146,6 +183,19 @@ func _spell_tests() -> void:
 	_check(blades == 3, "Conjured Blades fires three blades (%d)" % blades)
 	await _wait(0.5)
 	_check(foe.hp < hp1, "the blades strike")
+	# Warden: a blow that lands on the ward is turned aside like a parry.
+	main.profile.add_bond("brow", "warden", false)
+	main._give_bonds()
+	var knight = await _spawn("knight", p.global_position + Vector2(40, 0))
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.bonds["brow"].essence = 99.0
+	p.bonds["brow"].cast(p)
+	_check(p.ward_t > 0.0 and p.ward_blocks == 1, "Turning Ward raises a one-blow ward")
+	p.receive_attack(14.0, knight)
+	_check(p.hp == p.MAX_HP and knight.stun > 0.0, "a blow on the ward is turned and staggers the attacker")
+	_check(p.ward_blocks == 0, "the ward is spent")
 
 
 func _spawn(kind: String, pos: Vector2):
@@ -522,6 +572,7 @@ func _run() -> void:
 	_check(inside, "monsters spawn inside the room")
 
 	await _regard_tests()
+	await _tower_tests()
 	await _spell_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

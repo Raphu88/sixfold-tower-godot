@@ -14,6 +14,7 @@ extends RefCounted
 ##   lift    - a gust in a cone throws foes into the air
 ##   surge   - a wave bursts out around you, hurling foes away
 ##   blades  - a fan of conjured blades that pierce through foes
+##   ward    - a short ward that turns blows aside like a parry
 
 const PARTS := ["hand", "legs", "heart", "brow"]
 const PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow"}
@@ -78,6 +79,21 @@ const BONDS := {
 			5: {"radius": 175.0, "damage": 16.0, "push": 440.0},
 		},
 	},
+	"warden": {
+		"name": "Warden",
+		"color": Color(0.85, 0.71, 0.42),
+		"spell": "Turning Ward",
+		"type": "ward",
+		"affinity": "water",
+		"home": "brow",
+		"steps": {
+			1: {"cost": 10.0, "windup": 0.2, "duration": 3.0, "blocks": 1, "perfect": false},
+			2: {"duration": 4.0},
+			3: {"blocks": 2},  # the big step: it turns two blows
+			4: {"cost": 8.0, "perfect": true},  # turned blows become perfect parries
+			5: {"blocks": 3, "duration": 5.0},
+		},
+	},
 	"blade_forger": {
 		"name": "Blade Forger",
 		"color": Color(0.65, 0.89, 0.71),
@@ -100,5 +116,6 @@ const STEP_NOTES := {
 	"stormcaller": {2: "harder strikes", 3: "more leaps, and it stuns", 4: "cheaper, harder", 5: "eight leaps"},
 	"windwalker": {2: "a stronger gust", 3: "a much wider gust", 4: "the gust now hurts", 5: "a vast, cheap gust"},
 	"tidecaller": {2: "a harder wave", 3: "a far wider wave", 4: "cheaper, harder", 5: "a crushing tide"},
+	"warden": {2: "a longer ward", 3: "it turns two blows", 4: "turned blows become perfect parries", 5: "three blows, a longer ward"},
 	"blade_forger": {2: "sharper blades", 3: "five blades", 4: "cheaper, sharper", 5: "seven blades"},
 }

@@ -93,6 +93,11 @@ static func make_light_texture() -> Texture2D:
 	return tex
 
 
+func set_torch_color(c: Color) -> void:
+	for t in torches:
+		t["light"].color = c
+
+
 func set_pillars(list: Array) -> void:
 	pillars = list
 	queue_redraw()

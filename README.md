@@ -33,21 +33,33 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Music on/off | M |
 | Show/hide controls | H |
 
+## Towers
+
+Every climb starts by choosing a tower (keys 1 to 3, click, or tap a card). Each tower has its own beast, essence, monster mix and look (`scripts/towers.gd`):
+
+| Tower | Essence | Monsters | Look |
+| --- | --- | --- | --- |
+| The Gryphon's Tower | Air | mostly archers | cold, blue stone and pale torches |
+| The Kraken's Tower | Water | mostly slimes | damp, teal stone and green-white torches |
+| The Wyvern's Tower | Iron | mostly knights (the hardest) | hot forge-red stone and orange torches |
+
+Every kill also yields 1.5 essence of the tower's own kind, so the tower you choose is how you steer which bonds you'll form. The tower's beast is the one who regards you at the top of your first climb.
+
 ## Marks, essence and the Regard
 
 - **Your first climb is bondless.** You start clumsy, with weapons only. Climb 3 floors.
 - **Essence:** monsters leave essence when they fall (slimes Water, archers Air, knights Iron). It flies into you and is **banked at the next stair**. Fall before the stair and the unbanked essence is lost.
 - **Your body soaks it up** through what each part does: the **hand** from weapon strikes (+0.5 per hit), the **legs** from rolling through attacks (+4), the **heart** from taking hits and surviving (+4), the **brow** from parries (+6, perfect +9). Unmarked parts glow faintly as they soak, and the **"Your mark is forming"** panel shows each part's soak, the leader, and which bond it would be right now.
-- **Which bond:** each bond scores its essence's share of what you gathered, plus a pull toward its own body part (Stormcaller and Blade Forger: hand, Windwalker: legs, Tidecaller: heart). So play style and essence both shape the mark; the brow has no bond of its own yet.
+- **Which bond:** each bond scores its essence's share of what you gathered, plus a pull toward its own body part (Stormcaller and Blade Forger: hand, Windwalker: legs, Tidecaller: heart, Warden: brow). So play style and essence both shape the mark.
 - **The Regard:** at the top of your first climb the tower's beast takes notice. Your most-used body part takes its first **mark**, and the essence you gathered most decides which bond it is. If you fall on the first climb you're still regarded, but the mark is **faint**: weaker (75% power, 25% dearer) until it has soaked up 80 more essence.
 - **Growth across climbs:** banked essence strengthens every mark you carry (essence of a mark's own kind counts double), up to step 5. Your marks and their growth are saved.
 - **Later marks:** an unmarked body part that soaks up enough over your climbs takes a new mark at a stair, shaped by the essence you've banked since your last one.
-- **Bonds so far:** Stormcaller (Air, Chain Lightning), Windwalker (Air, Gale Lift), Tidecaller (Water, Tidal Surge: a wave that hurls foes away), Blade Forger (Iron, Conjured Blades: a fan of piercing blades). Cast with Q (hand), E (legs), F (heart) and C (brow); on a phone, each mark gets its own button.
+- **Bonds so far:** Stormcaller (Air, Chain Lightning), Windwalker (Air, Gale Lift), Tidecaller (Water, Tidal Surge: a wave that hurls foes away), Warden (Water, Turning Ward: a short ward that turns blows aside like a parry, staggering the attacker; more blows and perfect parries as it grows), Blade Forger (Iron, Conjured Blades: a fan of piercing blades). Cast with Q (hand), E (legs), F (heart) and C (brow); on a phone, each mark gets its own button.
 - **Burns** (from overdrawing a mark) last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window.
 
 ## The climb
 
-Each floor is one room. Clear it and the **stair** at the top of the room opens: walk onto it to climb. Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Floors above the first get a random layout of stone pillars, which block movement and arrows, and a group of monsters bought from a budget that grows each floor; monsters also get tougher (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
+Each floor is one room. Once three quarters of its monsters are down, the **stair** at the top of the room opens: walk onto it to climb, or finish the rest first for their essence (the HUD shows how many are left). Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Floors above the first get a random layout of stone pillars, which block movement and arrows, and a group of monsters bought from a budget that grows each floor; monsters also get tougher (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
 
 ## What's in this build
 
@@ -83,6 +95,7 @@ Each floor is one room. Clear it and the **stair** at the top of the room opens:
 | `scripts/essence.gd` | Essence kinds and what each monster drops |
 | `scripts/profile.gd` | What carries over between climbs: marks, growth, soak, the save |
 | `scripts/floors.gd` | Builds each floor: pillar layouts, monster groups, toughness |
+| `scripts/towers.gd` | The towers: beast, essence, monster mix, look |
 | `scripts/enemy.gd` | Slime, archer and knight |
 | `scripts/projectile.gd` | Enemy arrows |
 | `scripts/fx.gd` | Floating text, lightning and wind cones |

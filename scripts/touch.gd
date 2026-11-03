@@ -55,6 +55,17 @@ func _layout() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Choosing a tower: a tap on a card picks it.
+	if main.choosing_tower:
+		if event is InputEventScreenTouch:
+			if not active:
+				_set_active(true)
+			if event.pressed and main.hud != null:
+				var i: int = main.hud.tower_card_at(event.position)
+				if i >= 0:
+					main.choose_tower(main.Towers.ORDER[i])
+			get_viewport().set_input_as_handled()
+		return
 	# During the Regard, a tap (once it has played) begins the next climb.
 	if not main.regard.is_empty():
 		if event is InputEventScreenTouch:
@@ -170,8 +181,8 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	if not active:
-		return
+	if not active or main.choosing_tower or not main.regard.is_empty():
+		return  # nothing to press while choosing a tower or during the Regard
 	_layout()
 	var font := ThemeDB.fallback_font
 	var size := get_viewport_rect().size

@@ -148,11 +148,15 @@ func _draw() -> void:
 	var floor_text: String = main._floor_title()
 	draw_string_outline(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 5, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, GOLD)
-	draw_string(font, Vector2(0, 48), "best %d" % main.best_floor, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, DIM_TEXT)
+	draw_string(font, Vector2(0, 48), "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor], HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, DIM_TEXT)
 	if main.stair_open and not main.climbing:
 		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.005)
-		draw_string_outline(font, Vector2(0, 68), "The stair is open", HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.7))
-		draw_string(font, Vector2(0, 68), "The stair is open", HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(1.0, 0.88, 0.6, pulse))
+		var left: int = main.enemies().size()
+		var stair_text := "The stair is open"
+		if left > 0:
+			stair_text += "  ·  %d %s left" % [left, "foe" if left == 1 else "foes"]
+		draw_string_outline(font, Vector2(0, 68), stair_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, 68), stair_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(1.0, 0.88, 0.6, pulse))
 
 	# A new floor: its number and what changed, fading out.
 	if not main.banner.is_empty():
@@ -189,6 +193,8 @@ func _draw() -> void:
 
 	if not main.regard.is_empty():
 		_draw_regard(size, font)
+	if main.choosing_tower:
+		_draw_tower_choice(size, font)
 
 
 func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float, color: Color) -> void:
@@ -309,14 +315,14 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 	var texts: Array = []
 	if fell:
 		texts = [
-			"You fell, but %s was watching." % main.BEAST,
+			"You fell, but %s was watching." % main.beast_name(),
 			"Essence takes hold in your %s, faintly." % part_name,
 			"You bear a faint %s mark." % info["name"],
 			"It will grow once it has soaked up more essence.",
 		]
 	else:
 		texts = [
-			"You reached the top. %s has watched you climb." % main.BEAST.capitalize(),
+			"You reached the top. %s has watched you climb." % main.beast_name().capitalize(),
 			"Essence takes hold in your %s." % part_name,
 			"You bear the %s mark." % info["name"],
 			"%s: %s." % [info["spell"], BondScript.PART_FILLS[rg["part"]]],
@@ -368,3 +374,60 @@ func _draw_forming(p, pos: Vector2, font: Font) -> void:
 		var info: Dictionary = BondScript.Bonds.BONDS[bid]
 		draw_string(font, Vector2(pos.x + 10, y + 13), "Would be:", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 		draw_string(font, Vector2(pos.x + 68, y + 13), "%s (%s)" % [info["name"], BondScript.PART_NAMES[leader]], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, info["color"])
+
+
+# --- choosing a tower --------------------------------------------------------------
+
+const TowersData := preload("res://scripts/towers.gd")
+
+
+func tower_card_rect(i: int, size: Vector2) -> Rect2:
+	var n := TowersData.ORDER.size()
+	var w := minf(240.0, (size.x - 40.0 - 16.0 * (n - 1)) / n)
+	var h := 210.0
+	var x0 := (size.x - (w * n + 16.0 * (n - 1))) / 2.0
+	return Rect2(Vector2(x0 + i * (w + 16.0), size.y * 0.5 - h * 0.5 + 20.0), Vector2(w, h))
+
+
+## Which tower card is under a point on screen (-1 for none).
+func tower_card_at(pos: Vector2) -> int:
+	var size := get_viewport_rect().size
+	for i in TowersData.ORDER.size():
+		if tower_card_rect(i, size).has_point(pos):
+			return i
+	return -1
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if main != null and main.choosing_tower and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var i := tower_card_at(get_local_mouse_position())
+		if i >= 0:
+			main.choose_tower(TowersData.ORDER[i])
+
+
+func _draw_tower_choice(size: Vector2, font: Font) -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.88))
+	var title := "CHOOSE A TOWER"
+	draw_string_outline(font, Vector2(0, size.y * 0.5 - 130.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, 6, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, size.y * 0.5 - 130.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, GOLD)
+	var sub := "Each tower's monsters and essence shape the marks you'll form."
+	draw_string(font, Vector2(0, size.y * 0.5 - 104.0), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, DIM_TEXT)
+	for i in TowersData.ORDER.size():
+		var id: String = TowersData.ORDER[i]
+		var t: Dictionary = TowersData.TOWERS[id]
+		var r := tower_card_rect(i, size)
+		var ec := Essence.color(t["essence"])
+		var last: bool = id == main.profile.last_tower
+		var box := slot_on if last else panel
+		draw_style_box(box, r)
+		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(t["torch"], 0.7))
+		var x := r.position.x + 14.0
+		var y := r.position.y + 34.0
+		draw_string(font, Vector2(x, y), t["name"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 17, TEXT)
+		y += 24.0
+		draw_circle(Vector2(x + 6, y - 5), 6.0, ec)
+		draw_string(font, Vector2(x + 18, y), "%s essence" % Essence.display(t["essence"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ec)
+		y += 18.0
+		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 13, 4, DIM_TEXT)
+		var hint := "Tap" if main.touch_active else "Press %d" % (i + 1)
+		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD if last else DIM_TEXT)
