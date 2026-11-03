@@ -27,6 +27,55 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+func _spawn(kind: String, pos: Vector2):
+	var e = main.EnemyScript.new()
+	e.setup(kind, main)
+	e.position = pos
+	main.add_child(e)
+	await _frames(1)
+	e.set_physics_process(false)
+	return e
+
+
+## Lets the knight attack the climber and presses parry `delay` seconds
+## after its glint. Reports what happened.
+func _parry_test(knight, delay: float, wind_state := "wind_slash", gap := 50.0) -> Dictionary:
+	var p = main.player
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_cd = 0.0
+	p.parry_t = 0.0
+	p.attack_cd = 0.0
+	knight.stun = 0.0
+	knight.flinch = 0.0
+	knight.state = "chase" if knight.kind == "knight" else "approach"
+	knight.state_t = 0.0
+	knight.glinted = false
+	main.attackers.clear()
+	p.global_position = knight.global_position + Vector2(gap, 0)
+	knight.set_physics_process(true)
+	var glinted := false
+	for i in 200:
+		await process_frame
+		if knight.glinted and knight.state == wind_state:
+			glinted = true
+			break
+	if delay > 0.0:
+		await _wait(delay)
+	p._try_parry()
+	var stun := 0.0
+	var until := Time.get_ticks_msec() + 700
+	while Time.get_ticks_msec() < until:
+		await process_frame
+		stun = maxf(stun, knight.stun)
+	var result := {"glinted": glinted, "parried": stun > 0.0, "stun": stun, "hurt": p.hp < p.MAX_HP}
+	knight.set_physics_process(false)
+	knight.stun = 0.0
+	return result
+
+
 ## Touch events arrive in window pixels; convert from game-view pixels.
 func _to_window(pos: Vector2) -> Vector2:
 	return root.get_final_transform() * pos
@@ -220,6 +269,73 @@ func _run() -> void:
 	Input.parse_input_event(key)
 	_check(not main.touch_active, "keyboard turns touch controls off")
 	p.touch_aim = false
+	await _settle()
+
+	print("combat rhythm")
+	# Fresh monsters for this part (earlier parts may have slain the first ones).
+	# (in the empty left part of the room, away from the frozen floor-1 monsters)
+	knight = await _spawn("knight", main.room.position + Vector2(160, 150))
+	slime = await _spawn("slime", main.room.position + Vector2(160, 420))
+	knight.hp = 999.0
+	knight.max_hp = 999.0
+	knight.stun = 0.0
+	knight.flinch = 0.0
+	slime.hp = 999.0
+	slime.airborne = 0.0
+	# Parry on the glint: always works.
+	var r1: Dictionary = await _parry_test(knight, 0.0)
+	_check(r1["glinted"], "the knight glints before striking")
+	_check(r1["parried"] and not r1["hurt"], "parrying on the glint parries (stun %.2f)" % r1["stun"])
+	# A beat after the glint: perfect.
+	var r2: Dictionary = await _parry_test(knight, 0.14)
+	_check(r2["parried"] and r2["stun"] > 1.2, "parrying just after the glint is perfect (stun %.2f)" % r2["stun"])
+	# Too late: you get hit.
+	var r3: Dictionary = await _parry_test(knight, 0.4)
+	_check(r3["hurt"], "parrying too late gets you hit")
+	knight.set_physics_process(false)
+	knight.stun = 0.0
+	# The slime's pounce from a distance: the glint still gives the same timing.
+	var r4: Dictionary = await _parry_test(slime, 0.0, "wind", 100.0)
+	_check(r4["glinted"] and r4["parried"] and not r4["hurt"], "parrying a slime's pounce on the glint works")
+	slime.set_physics_process(false)
+	slime.stun = 0.0
+	# Touching a slime is harmless now; only its pounce hurts.
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	slime.state = "rest"
+	slime.state_t = 5.0
+	slime.set_physics_process(true)
+	p.global_position = slime.global_position + Vector2(slime.radius + p.radius, 0)
+	await _wait(0.5)
+	_check(p.hp == p.MAX_HP, "touching a resting slime doesn't hurt")
+	# A hit during its wind-up makes it flinch and cancels the pounce.
+	slime.state = "wind"
+	slime.state_t = 0.5
+	slime.glinted = false
+	main.request_attack(slime)
+	slime.take_hit(1.0, Vector2.RIGHT, 50.0)
+	_check(slime.state != "wind" and slime.flinch > 0.0, "hitting a winding slime cancels its pounce")
+	slime.set_physics_process(false)
+	# Turns: never more than two attacking at once.
+	for e in main.enemies():
+		e.set_physics_process(true)
+		e.state_t = 0.0
+		e.stun = 0.0
+		e.flinch = 0.0
+		e.hp = 999.0
+	p.global_position = main.room.get_center()
+	p.hp = 9999.0
+	var most := 0
+	for i in 90:
+		await _frames(2)
+		most = maxi(most, main.attackers.size())
+		var attacking: int = main.enemies().filter(func(e): return e.is_attacking()).size()
+		most = maxi(most, attacking)
+	_check(most <= 2, "at most two monsters attack at once (saw %d)" % most)
+	for e in main.enemies():
+		e.set_physics_process(false)
+	p.hp = p.MAX_HP
 	await _settle()
 
 	print("hurt and death")

@@ -93,6 +93,8 @@ SOUNDS = {
     "gust": {"variants": [v(("synth:wind", 0, 0, 1.0), (W + "swish-7.wav", -4, 0, 0.6))], "level": -4},
     "burn": {"variants": [v((R + "spell_fire_06.ogg", 0, 0, 0.9), (S + "slam_04.ogg", -8, 0, 0.7))], "level": -3},
     # --- monsters ----------------------------------------------------------
+    # The glint before a monster's blow: a bright, short metallic ting.
+    "glint": {"variants": [v((S + "metal_11.ogg", 0, 0, 1.25), (A + "inventory/metal-ringing.wav", -14, 0, 1.6))], "level": -7, "verb": -14},
     "warn_knight": {"variants": [v((A + "inventory/chainmail1.wav", 0, 0, 0.9), (A + "battle/sword-unsheathe2.wav", -6, 120, 0.85))], "level": -5},
     "warn_archer": {"variants": [v((K + "creak3.ogg", 0, 0, 1.15)), v((K + "creak1.ogg", 0, 0, 1.3))], "level": -6},
     "slime_hop": {"variants": [v((R + "creature_slime_0%d.ogg" % n, 0, 0, 1.1)) for n in (1, 2, 3)], "level": -14},

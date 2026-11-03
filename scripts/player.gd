@@ -14,6 +14,12 @@ const SPRINT := 200.0
 const STRIKE_DAMAGE := 8.0
 const BUFFER_TIME := 0.2  # presses this early still count when you recover
 const COMBO_WINDOW := 0.35  # time after recovering to continue the chain
+## Parry: active this long after pressing; a hit that lands within
+## PARRY_PERFECT of the press is a perfect parry. Monsters glint 0.25 s
+## before their blow, so pressing on the glint always parries, and pressing
+## a beat after it is perfect.
+const PARRY_WINDOW := 0.32
+const PARRY_PERFECT := 0.14
 
 var main  # the room (main.gd), set before the player is added
 var radius := 14.0
@@ -104,7 +110,9 @@ func _physics_process(delta: float) -> void:
 		return
 	_tick_timers(delta)
 	var mouse := get_global_mouse_position()
-	if touch_aim:
+	if parry_t > 0.0:
+		pass  # a parry keeps facing the threat it turned toward
+	elif touch_aim:
 		if attack_cd <= 0.0:
 			_auto_aim()
 	elif mouse_aim and mouse.distance_to(global_position) > 4.0 and attack_cd <= 0.0:
@@ -435,16 +443,53 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
-	e.take_hit(dmg, dir, force)
+	e.take_hit(dmg, dir, force, heavy or crit)
 
 
 func _try_parry() -> bool:
-	if parry_cd > 0.0 or attack_cd > 0.0:
+	if parry_cd > 0.0:
 		return false
+	# The tail of a swing can be cancelled into a parry, but not its start.
+	if attack_cd > 0.0 and swing.get("recover", 0.0) - attack_cd < 0.12:
+		return false
+	attack_cd = 0.0
+	lunge_t = 0.0
 	drawing = false
-	parry_t = 0.22  # a little more forgiving, especially on touch
-	parry_cd = 0.6
+	parry_t = PARRY_WINDOW
+	parry_cd = 0.45
+	var threat := _nearest_threat()
+	if threat != Vector2.ZERO:
+		aim = threat
 	return true
+
+
+## The direction of the most pressing danger: a monster mid-attack or an
+## incoming arrow (whichever is closest), else the nearest monster.
+func _nearest_threat() -> Vector2:
+	var best := Vector2.ZERO
+	var best_d := 230.0
+	for e in main.enemies():
+		if e.is_attacking():
+			var d: float = global_position.distance_to(e.global_position)
+			if d < best_d:
+				best_d = d
+				best = e.global_position
+	for c in main.get_children():
+		if "friendly" in c and not c.friendly:
+			var d2: float = global_position.distance_to(c.global_position)
+			if d2 < minf(best_d, 170.0):
+				best_d = d2
+				best = c.global_position
+	if best == Vector2.ZERO:
+		best_d = 130.0
+		for e in main.enemies():
+			var d3: float = global_position.distance_to(e.global_position)
+			if d3 < best_d:
+				best_d = d3
+				best = e.global_position
+	if best == Vector2.ZERO:
+		return Vector2.ZERO
+	return (best - global_position).normalized()
 
 
 func _try_cast(part: String) -> bool:
@@ -481,8 +526,8 @@ func receive_attack(dmg: float, source) -> void:
 		return
 	if parry_t > 0.0 and source != null:
 		var to_source: Vector2 = (source.global_position - global_position).normalized()
-		if aim.dot(to_source) > 0.3:
-			_on_parry(source)
+		if aim.dot(to_source) > -0.1:  # anything in front of you, roughly
+			_on_parry(source, PARRY_WINDOW - parry_t <= PARRY_PERFECT)
 			return
 	if hurt_t > 0.0:
 		return
@@ -508,21 +553,33 @@ func receive_attack(dmg: float, source) -> void:
 		main.sfx("death", 1.0, 0.0, 0.0)
 
 
-func _on_parry(source) -> void:
+func _on_parry(source, perfect := false) -> void:
 	parry_t = 0.0
 	parry_cd = 0.0  # a clean parry lets you act again at once
-	parry_flash = 0.25
-	sta = minf(MAX_STA, sta + 15.0)
+	parry_flash = 0.35 if perfect else 0.25
+	sta = minf(MAX_STA, sta + (30.0 if perfect else 12.0))
 	var at: Vector2 = global_position + aim * (radius + 8.0)
-	main.fx_text(global_position + Vector2(0, -34), "Parried!", Color(1.0, 0.89, 0.63))
-	main.fx_ring(at, Color(1.0, 0.92, 0.7), 70.0, 0.35, 5.0)
-	main.fx_burst(at, aim, Color(1.0, 0.92, 0.7), 14, 340.0)
-	main.sfx("parry")
-	main.light_flash(at, Color(1.0, 0.92, 0.7), 1.3, 2.0, 0.3)
-	main.hitstop(0.16)
-	main.shake(6.0)
+	var gold := Color(1.0, 0.92, 0.7)
+	if perfect:
+		main.fx_text(global_position + Vector2(0, -38), "PERFECT PARRY", Color(1.0, 0.85, 0.35))
+		main.fx_ring(at, gold, 95.0, 0.45, 6.0)
+		main.fx_ring(at, Color(1, 1, 1), 50.0, 0.3, 3.0)
+		main.fx_burst(at, aim, gold, 22, 420.0)
+		main.sfx("parry", 1.1)
+		main.sfx("crit", 1.3, -6.0)
+		main.light_flash(at, gold, 1.8, 2.4, 0.4)
+		main.hitstop(0.24)
+		main.shake(8.0)
+	else:
+		main.fx_text(global_position + Vector2(0, -34), "Parried", gold)
+		main.fx_ring(at, gold, 70.0, 0.35, 5.0)
+		main.fx_burst(at, aim, gold, 14, 340.0)
+		main.sfx("parry")
+		main.light_flash(at, gold, 1.3, 2.0, 0.3)
+		main.hitstop(0.14)
+		main.shake(6.0)
 	if source.has_method("on_parried"):
-		source.on_parried()
+		source.on_parried(perfect)
 
 
 ## The legs fill when you roll through an attack.
