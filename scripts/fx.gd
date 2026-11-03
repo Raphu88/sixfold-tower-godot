@@ -209,6 +209,21 @@ func _draw_fields() -> void:
 			var rr: float = cy["r"] * (0.35 + 0.2 * k)
 			var start := t * (3.0 - k * 0.4) + k
 			draw_arc(cy["pos"], rr, start, start + 2.2, 20, Color(cc, 0.45 * ca), 2.0)
+	for w in main.waves:
+		var side: Vector2 = w["dir"].orthogonal()
+		var half: float = w["width"] * 0.5
+		var wp: Vector2 = w["pos"]
+		draw_line(wp - side * half, wp + side * half, Color(w["color"], 0.85), 5.0)
+		draw_line(wp - side * half - w["dir"] * 10.0, wp + side * half - w["dir"] * 10.0, Color(w["color"], 0.3), 9.0)
+		for k in 4:
+			var foam := wp + side * randf_range(-half, half)
+			draw_circle(foam, 2.0, Color(1, 1, 1, 0.6))
+	for m in main.maelstroms:
+		var mc: Color = m["color"]
+		for k in 5:
+			var rr: float = m["r"] * (0.2 + 0.18 * k)
+			var st := -t * (2.0 + k * 0.5) + k
+			draw_arc(m["pos"], rr, st, st + 2.6, 22, Color(mc, 0.5), 2.0)
 	for r in main.rains:
 		draw_arc(r["pos"], r["r"], 0.0, TAU, 40, Color(r["color"], 0.35), 1.5)
 	for a in arrows_falling:

@@ -79,6 +79,22 @@ static func build(floor_num: int, room: Rect2, player_start: Vector2, tower: Dic
 	return {"pillars": pillars, "monsters": monsters}
 
 
+## Standing water for wet towers: a few pools, clear of pillars and the start.
+static func puddles(room: Rect2, pillars: Array, start: Vector2) -> Array:
+	var list: Array = []
+	for i in 3 + randi() % 3:
+		for attempt in 20:
+			var pos := room.position + room.size * Vector2(randf_range(0.1, 0.9), randf_range(0.15, 0.85))
+			var r := randf_range(45.0, 85.0)
+			var ok := pos.distance_to(start) > r + 60.0
+			for p in pillars:
+				ok = ok and pos.distance_to(p["pos"]) > p["r"] + r * 0.6
+			if ok:
+				list.append({"pos": pos, "r": r})
+				break
+	return list
+
+
 ## How much tougher monsters are on a floor (health, damage).
 static func toughness(floor_num: int) -> Vector2:
 	var f := float(maxi(floor_num - 1, 0))

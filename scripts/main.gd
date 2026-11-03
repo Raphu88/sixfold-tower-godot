@@ -72,6 +72,9 @@ var walls: Array = []  # Crosswind: {a, b, t, color}
 var cyclones: Array = []  # Eye of the Storm: {pos, r, t, color}
 var rains: Array = []  # Rain of Arrows: {pos, r, t, tick, damage, color}
 var track_t := 0.0  # Track: foes revealed
+var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, dmg, push, carry, hit, color}
+var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
+var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var slowmo := false  # time slows while a spell ring is open
 var player_glow: PointLight2D
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
@@ -277,6 +280,20 @@ func _update_spell_fields(delta: float) -> void:
 				e.airborne = maxf(e.airborne, 0.3)
 				e.knock = to.normalized() * minf(to.length() * 3.0, 120.0)
 	cyclones = cyclones.filter(func(c): return c["t"] > 0.0)
+	_update_waves(delta)
+	for m in maelstroms:
+		m["t"] -= delta
+		m["tick"] -= delta
+		var hurt: bool = m["tick"] <= 0.0
+		if hurt:
+			m["tick"] = 0.5
+		for e in enemies():
+			var to: Vector2 = m["pos"] - e.global_position
+			if to.length() < m["r"] + e.radius:
+				e.knock = to.normalized() * minf(to.length() * 4.0, 260.0)
+				if hurt:
+					e.take_hit(m["damage"], Vector2.ZERO, 0.0)
+	maelstroms = maelstroms.filter(func(m): return m["t"] > 0.0)
 	for r in rains:
 		r["t"] -= delta
 		r["tick"] -= delta
@@ -336,6 +353,8 @@ func _start_floor(n: int) -> void:
 	rod = {}
 	walls.clear()
 	cyclones.clear()
+	waves.clear()
+	maelstroms.clear()
 	rains.clear()
 	track_t = 0.0
 	for b in pillar_bodies:
@@ -362,6 +381,8 @@ func _start_floor(n: int) -> void:
 		add_child(body)
 		pillar_bodies.append(body)
 	room_view.set_pillars(pillars)
+	puddles = Floors.puddles(room, pillars, start) if tower_data().get("puddles", false) else []
+	room_view.set_puddles(puddles)
 
 	var tough := Floors.toughness(n)
 	for m in plan["monsters"]:
@@ -665,7 +686,7 @@ func holds_attack(e) -> bool:
 
 ## A monster asks for a turn to attack. True if it may go ahead.
 func request_attack(e) -> bool:
-	if e in attackers:
+	if e in attackers or e.challenged_t > 0.0:  # Challenged foes come at you regardless
 		return true
 	if not can_attack():
 		return false
@@ -702,6 +723,72 @@ func spawn_enemy(kind: String, pos: Vector2):
 	e.state_t = 0.4
 	add_child(e)
 	return e
+
+
+# --- Tidecaller's waves and standing water ----------------------------------------
+
+func add_wave(origin: Vector2, dir: Vector2, width: float, travel: float, dmg: float, push: float, carry: bool, color: Color) -> void:
+	waves.append({"pos": origin + dir * 16.0, "dir": dir, "width": width, "left": travel, "dmg": dmg, "push": push, "carry": carry, "hit": [], "color": color})
+
+
+## Waves roll forward. An aimed surge shoves each foe it meets once; Carry
+## sweeps foes along with it until they break against a wall or pillar.
+func _update_waves(delta: float) -> void:
+	for w in waves:
+		var step := 520.0 * delta
+		w["left"] -= step
+		var dir: Vector2 = w["dir"]
+		var side := dir.orthogonal()
+		w["pos"] += dir * step
+		for e in enemies():
+			var rel: Vector2 = e.global_position - w["pos"]
+			if absf(rel.dot(side)) > w["width"] * 0.5 + e.radius:
+				continue
+			var along := rel.dot(dir)
+			if along < -e.radius - step or along > e.radius + 10.0:
+				continue
+			if w["carry"]:
+				if not (e in w["hit"]):
+					w["hit"].append(e)
+				var col = e.move_and_collide(dir * step)
+				if col != null:
+					_break_against_wall(e, w)
+			elif not (e in w["hit"]):
+				w["hit"].append(e)
+				e.tide_push(dir * w["push"])
+				e.take_hit(w["dmg"], dir, w["push"])
+		if not room.grow(-10.0).has_point(w["pos"]) or w["left"] <= 0.0:
+			if w["carry"]:
+				for e in w["hit"]:
+					if is_instance_valid(e) and not e.dead and e.global_position.distance_to(w["pos"]) < w["width"]:
+						_break_against_wall(e, w)
+			w["left"] = -1.0
+	waves = waves.filter(func(w): return w["left"] > 0.0)
+
+
+func _break_against_wall(e, w: Dictionary) -> void:
+	if e in w.get("broken", []):
+		return
+	if not w.has("broken"):
+		w["broken"] = []
+	w["broken"].append(e)
+	fx_burst(e.global_position, -w["dir"], w["color"], 10, 220.0)
+	sfx("hit_heavy", 0.8, -2.0)
+	e.take_hit(w["dmg"], Vector2.ZERO, 0.0, true)
+	if player.has_bond("tidecaller"):
+		e.stagger(1.2)  # Undercurrent: driven into a wall, stunned
+
+
+func in_water(pos: Vector2) -> bool:
+	for pd in puddles:
+		if pos.distance_to(pd["pos"]) < pd["r"]:
+			return true
+	return false
+
+
+## Water slows you (unless you're Waterborn).
+func water_slow(pos: Vector2, waterborn := false) -> float:
+	return 1.0 if waterborn or not in_water(pos) else 0.6
 
 
 func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
