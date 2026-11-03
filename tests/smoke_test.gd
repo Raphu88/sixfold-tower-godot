@@ -27,6 +27,106 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+## A brand-new room with a fresh profile: a bondless first climb.
+func _fresh_main() -> void:
+	main.queue_free()
+	await _frames(2)
+	Engine.time_scale = 1.0
+	main = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	await _frames(2)
+	main.player.mouse_aim = false
+	for e in main.enemies():
+		e.set_physics_process(false)
+
+
+func _regard_tests() -> void:
+	print("the Regard")
+	await _fresh_main()
+	var p = main.player
+	_check(main.first_climb and p.bonds.is_empty(), "the first climb starts bondless")
+	# Parry a lot (the brow soaks most), gather Water essence, then fall.
+	for i in 6:
+		main.add_soak("brow", 5.0)
+	main.add_soak("hand", 3.0)
+	main.gather_essence("water", 12.0, p.global_position)
+	main.gather_essence("air", 4.0, p.global_position)
+	_check(main.soak_fraction("brow") > main.soak_fraction("hand"), "the most-used body part soaks the most")
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(9999.0, null)
+	_check(p.dead and main.regard.is_empty(), "falling on the first climb...")
+	await _wait(1.9)
+	_check(not main.regard.is_empty() and main.regard["fell"], "...still brings the Regard")
+	var brow: Dictionary = main.profile.bonds.get("brow", {})
+	_check(not brow.is_empty(), "the most-used body part (brow) takes the mark")
+	_check(brow.get("id", "") == "tidecaller", "the dominant essence (Water) picks the bond: %s" % brow.get("id", ""))
+	_check(brow.get("faint", false), "a mark taken in defeat is faint")
+	# A faint mark owes essence before it grows.
+	var lines: Array = main.profile.bank({"water": 30.0}, {})
+	_check(main.profile.bonds["brow"]["faint"] and main.profile.bonds["brow"]["xp"] == 0.0, "a faint mark doesn't grow until it catches up")
+	lines = main.profile.bank({"water": 40.0}, {})
+	_check(not main.profile.bonds["brow"]["faint"], "enough essence and the mark is no longer faint")
+	_check(main.profile.bonds["brow"]["xp"] > 0.0, "the overflow starts it growing")
+	await _wait(3.2)
+	_check(main.regard_done(), "the Regard can be dismissed after it plays")
+
+	print("reaching the top")
+	await _fresh_main()
+	p = main.player
+	for i in 5:
+		main.add_soak("legs", 3.0)
+	main.gather_essence("air", 10.0, p.global_position)
+	main.floor_num = 3
+	for e in main.enemies():
+		e.take_hit(9999.0, Vector2.RIGHT, 0.0)
+	await _frames(3)
+	_check(main.stair_open, "floor 3's stair opens")
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.regard.is_empty() and not main.regard["fell"], "taking the top stair brings the Regard")
+	var legs: Dictionary = main.profile.bonds.get("legs", {})
+	_check(legs.get("id", "") == "windwalker" and not legs.get("faint", true), "a full Windwalker mark on the legs")
+
+	print("a second mark")
+	main.first_climb = false
+	main.profile.soak["heart"] = 200.0
+	main.run_essence = {"iron": 20.0}
+	main.floor_num = 4
+	main._arrive()
+	await _frames(2)
+	_check(main.profile.bonds.has("heart"), "a soaked body part takes a new mark at the stair")
+	_check(main.player.bonds.has("heart"), "the climber carries it")
+
+
+func _spell_tests() -> void:
+	print("new spells")
+	await _fresh_main()
+	var p = main.player
+	main.profile.add_bond("heart", "tidecaller", false)
+	main.profile.add_bond("hand", "blade_forger", false)
+	main.profile.regarded = true
+	main.first_climb = false
+	main._give_bonds()
+	var foe = await _spawn("slime", p.global_position + Vector2(60, 0))
+	foe.hp = 999.0
+	foe.set_physics_process(true)  # so the push can move it
+	var before: Vector2 = foe.global_position
+	p.bonds["heart"].essence = 99.0
+	p.bonds["heart"].cast(p)
+	await _wait(0.3)
+	_check(foe.hp < 999.0 and foe.global_position.distance_to(p.global_position) > before.distance_to(p.global_position), "Tidal Surge hurts and hurls foes away")
+	foe.global_position = p.global_position + Vector2(120, 0)
+	p.aim = Vector2.RIGHT
+	var hp1: float = foe.hp
+	p.bonds["hand"].cast(p)
+	var blades: int = main.get_children().filter(func(c): return "style" in c and c.style == "blade").size()
+	_check(blades == 3, "Conjured Blades fires three blades (%d)" % blades)
+	await _wait(0.5)
+	_check(foe.hp < hp1, "the blades strike")
+
+
 func _spawn(kind: String, pos: Vector2):
 	var e = main.EnemyScript.new()
 	e.setup(kind, main)
@@ -108,8 +208,11 @@ func _settle() -> void:
 
 
 func _run() -> void:
+	Engine.set_meta("sixfold_test", true)  # a fresh profile; never touches the real save
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
+	await _frames(1)
+	main.grant_test_bonds()  # most checks below need two marks to work with
 	await _frames(5)
 	var p = main.player
 	p.mouse_aim = false
@@ -360,6 +463,11 @@ func _run() -> void:
 	_check(main.stair_open, "clearing opens the stair")
 
 	print("the climb")
+	var unbanked := 0.0
+	for k in main.run_essence:
+		unbanked += main.run_essence[k]
+	_check(unbanked > 0.0, "slain monsters leave essence (%d unbanked)" % int(unbanked))
+	var xp0: float = main.profile.bonds["hand"]["xp"]
 	p.dead = false
 	p.hp = 20.0
 	p.set_physics_process(true)
@@ -373,12 +481,16 @@ func _run() -> void:
 	_check(not main.stair_open, "the new floor's stair starts sealed")
 	_check(main.enemies().size() >= 3, "floor 2 has monsters (%d)" % main.enemies().size())
 	_check(main.best_floor >= 2, "best floor recorded")
+	_check(main.run_essence.is_empty(), "the stair banks your essence")
+	_check(main.profile.bonds["hand"]["xp"] > xp0, "banked essence strengthens your marks")
 	# Skip ahead a few floors.
 	for i in 3:
 		main._arrive()
 	await _frames(3)
 	_check(main.floor_num == 5, "climbed to floor 5")
-	_check(p.bonds["hand"].step == 3 and p.bonds["legs"].step == 3, "bonds reach step 3 by floor 5")
+	main.profile.bonds["hand"]["xp"] = 170.0
+	main._give_bonds()
+	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
 	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
 	var foes5: Array = main.enemies()
 	_check(foes5.size() >= 4, "floor 5 has more monsters (%d)" % foes5.size())
@@ -387,6 +499,9 @@ func _run() -> void:
 	for e in foes5:
 		inside = inside and main.room.has_point(e.global_position)
 	_check(inside, "monsters spawn inside the room")
+
+	await _regard_tests()
+	await _spell_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.

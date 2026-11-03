@@ -26,16 +26,26 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Strike / hold to draw the bow | Left click or J |
 | Switch weapon | 1 Fists, 2 Sword, 3 Bow, or the mouse wheel |
 | Parry | Right click or K |
-| Cast the hand bond (Stormcaller) | Q |
-| Cast the legs bond (Windwalker) | E |
+| Cast your marks (hand, legs, heart, brow) | Q, E, F, C |
 | Change both bonds' step (testing only) | [ and ] |
 | Restart | R |
 | Music on/off | M |
 | Show/hide controls | H |
 
+## Marks, essence and the Regard
+
+- **Your first climb is bondless.** You start clumsy, with weapons only. Climb 3 floors.
+- **Essence:** monsters leave essence when they fall (slimes Water, archers Air, knights Iron). It flies into you and is **banked at the next stair**. Fall before the stair and the unbanked essence is lost.
+- **Your body soaks it up** through what each part does: the **hand** from weapon strikes, the **legs** from rolling through attacks, the **heart** from taking hits and surviving, the **brow** from parries. Unmarked parts glow faintly as they soak.
+- **The Regard:** at the top of your first climb the tower's beast takes notice. Your most-used body part takes its first **mark**, and the essence you gathered most decides which bond it is. If you fall on the first climb you're still regarded, but the mark is **faint**: weaker (75% power, 25% dearer) until it has soaked up 80 more essence.
+- **Growth across climbs:** banked essence strengthens every mark you carry (essence of a mark's own kind counts double), up to step 5. Your marks and their growth are saved.
+- **Later marks:** an unmarked body part that soaks up enough over your climbs takes a new mark at a stair, shaped by the essence you've banked since your last one.
+- **Bonds so far:** Stormcaller (Air, Chain Lightning), Windwalker (Air, Gale Lift), Tidecaller (Water, Tidal Surge: a wave that hurls foes away), Blade Forger (Iron, Conjured Blades: a fan of piercing blades). Cast with Q (hand), E (legs), F (heart) and C (brow); on a phone, each mark gets its own button.
+- **Burns** (from overdrawing a mark) last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window.
+
 ## The climb
 
-Each floor is one room. Clear it and the **stair** at the top of the room opens: walk onto it to climb. Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Every two floors both bonds grow a step (up to step 5), and each step makes their spells stronger (see `scripts/bonds.gd`). Floors above the first get a random layout of stone pillars, which block movement and arrows, and a group of monsters bought from a budget that grows each floor; monsters also get tougher (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
+Each floor is one room. Clear it and the **stair** at the top of the room opens: walk onto it to climb. Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Floors above the first get a random layout of stone pillars, which block movement and arrows, and a group of monsters bought from a budget that grows each floor; monsters also get tougher (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
 
 ## What's in this build
 
@@ -68,6 +78,8 @@ Each floor is one room. Clear it and the **stair** at the top of the room opens:
 | `scripts/player.gd` | The climber: movement, roll, strike, parry, casting, overdraw |
 | `scripts/bond.gd` | A bond: essence, steps, burning, and the spell code |
 | `scripts/bonds.gd` | Bond definitions: spells and what each step changes |
+| `scripts/essence.gd` | Essence kinds and what each monster drops |
+| `scripts/profile.gd` | What carries over between climbs: marks, growth, soak, the save |
 | `scripts/floors.gd` | Builds each floor: pillar layouts, monster groups, toughness |
 | `scripts/enemy.gd` | Slime, archer and knight |
 | `scripts/projectile.gd` | Enemy arrows |

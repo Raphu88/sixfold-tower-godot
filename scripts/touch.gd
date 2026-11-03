@@ -38,16 +38,31 @@ func _layout() -> void:
 		{"id": "attack", "action": "attack", "c": br + Vector2(-130, -130) * k, "r": 62.0 * k},
 		{"id": "roll", "action": "roll", "c": br + Vector2(-268, -86) * k, "r": 44.0 * k},
 		{"id": "parry", "action": "parry", "c": br + Vector2(-150, -278) * k, "r": 42.0 * k},
-		{"id": "cast_hand", "action": "cast_hand", "c": br + Vector2(-282, -222) * k, "r": 34.0 * k},
-		{"id": "cast_legs", "action": "cast_legs", "c": br + Vector2(-52, -262) * k, "r": 34.0 * k},
 		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
 		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
 		{"id": "music", "action": "toggle_music", "c": tr + Vector2(-100, 40) * k, "r": 24.0 * k},
 		{"id": "restart", "action": "restart", "c": tr + Vector2(-160, 40) * k, "r": 24.0 * k},
 	]
+	# One cast button per mark you carry, in these spots around attack.
+	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150)]
+	var i := 0
+	var p = main.player
+	for part in ["hand", "legs", "heart", "brow"]:
+		if p != null and p.bonds.has(part):
+			buttons.append({"id": "cast_" + part, "action": "cast_" + part, "c": br + spots[i] * k, "r": 34.0 * k, "part": part})
+			i += 1
 
 
 func _input(event: InputEvent) -> void:
+	# During the Regard, a tap (once it has played) begins the next climb.
+	if not main.regard.is_empty():
+		if event is InputEventScreenTouch:
+			if not active:
+				_set_active(true)
+			if event.pressed and main.regard_done():
+				main.end_regard()
+			get_viewport().set_input_as_handled()
+		return
 	if event is InputEventScreenTouch:
 		if not active:
 			_set_active(true)
@@ -190,8 +205,8 @@ func _draw() -> void:
 				label = "Roll"
 			"parry":
 				label = "Parry"
-			"cast_hand", "cast_legs":
-				var bond = p.bonds.get("hand" if b["id"] == "cast_hand" else "legs") if p != null else null
+			"cast_hand", "cast_legs", "cast_heart", "cast_brow":
+				var bond = p.bonds.get(b["part"]) if p != null else null
 				if bond != null:
 					col = bond.color()
 					fill = bond.essence / bond.capacity()
