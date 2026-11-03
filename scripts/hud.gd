@@ -253,7 +253,7 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	var note: String = "%s · %s" % [b.spell_name(), BondScript.PART_FILLS[part]]
 	var note_col := DIM_TEXT
 	if b.burned:
-		note = BondScript.PART_BURN[part]
+		note = BondScript.PART_BURN[part] + " · overdraw again and it tears (costs health)"
 		note_col = Color(1.0, 0.45, 0.35)
 	draw_string(font, pos + Vector2(46, 40), note, HORIZONTAL_ALIGNMENT_LEFT, 365, 11, note_col)
 

@@ -15,6 +15,12 @@ var step := 1
 var essence := 0.0
 var burned := false
 var faint := false  # a mark taken in defeat: weaker until it catches up
+var overdraw_mult := 1.0  # set for an overdrawn cast: desperate casts are weaker
+
+## How strong an overdrawn cast is, and how much health per missing essence
+## overdrawing an already-burned mark tears out of you.
+const OVERDRAW_POWER := 0.7
+const TEAR_HEALTH := 1.0
 
 
 func _init(bond_id: String, body_part: String) -> void:
@@ -59,7 +65,7 @@ func cost() -> float:
 
 ## A faint mark's spells hit softer.
 func power() -> float:
-	return 0.75 if faint else 1.0
+	return (0.75 if faint else 1.0) * overdraw_mult
 
 
 func damage() -> float:
@@ -79,14 +85,25 @@ func fill(amount: float) -> void:
 	essence = minf(capacity(), essence + amount)
 
 
-## Pays for a cast. Returns true if the body part was burned by overdrawing.
-func pay() -> bool:
+## Pays for a cast. Returns "paid", "burned" (overdrawn: the body part burns)
+## or "torn" (overdrawn again while burned: it costs health instead), and
+## sets overdraw_mult for the cast. `missing` is how much essence was short.
+var missing := 0.0
+
+
+func pay() -> String:
 	if essence >= cost():
 		essence -= cost()
-		return false
+		overdraw_mult = 1.0
+		missing = 0.0
+		return "paid"
+	missing = cost() - essence
 	essence = 0.0
+	overdraw_mult = OVERDRAW_POWER
+	if burned:
+		return "torn"
 	burned = true
-	return true
+	return "burned"
 
 
 func cast(p) -> void:

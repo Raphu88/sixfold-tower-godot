@@ -538,14 +538,34 @@ func _try_cast(part: String) -> bool:
 
 func _release_cast() -> void:
 	var b = bonds[cast_part]
-	if b.pay():
-		# Overdraw: the spell still fires, but the body part burns.
-		main.fx_text(global_position + Vector2(0, -40), "%s burned!" % BondScript.PART_NAMES[cast_part], Color(1.0, 0.4, 0.3))
+	var paid: String = b.pay()
+	var part_name: String = BondScript.PART_NAMES[cast_part]
+	if paid == "burned":
+		# Overdraw: a weaker, desperate cast, and the body part burns.
+		main.fx_text(global_position + Vector2(0, -40), "%s burned!" % part_name, Color(1.0, 0.4, 0.3))
 		main.fx_burst(global_position, Vector2.ZERO, Color(1.0, 0.4, 0.25), 12, 200.0)
 		main.sfx("burn")
 		main.light_flash(global_position, Color(1.0, 0.4, 0.2), 1.2, 1.6, 0.4)
 		main.shake(5.0)
+	elif paid == "torn":
+		# Overdrawing a burned mark tears it: the missing essence comes out of you.
+		var cost_hp: float = maxf(4.0, b.missing * b.TEAR_HEALTH)
+		main.fx_text(global_position + Vector2(0, -40), "%s mark tears! -%d" % [part_name, int(cost_hp)], Color(1.0, 0.25, 0.2))
+		main.fx_burst(global_position, Vector2.ZERO, Color(0.9, 0.15, 0.12), 18, 260.0)
+		main.sfx("burn", 0.8)
+		main.sfx("hurt", 0.9, -4.0)
+		main.light_flash(global_position, Color(1.0, 0.2, 0.15), 1.3, 1.8, 0.4)
+		main.shake(7.0)
+		main.hurt_flash = 0.35
+		hp -= cost_hp
+		if hp <= 0.0:
+			hp = 0.0
+			dead = true
+			main.sfx("death", 1.0, 0.0, 0.0)
+			main.on_player_died()
+			return
 	b.cast(self)
+	b.overdraw_mult = 1.0
 
 
 ## Called by monsters and projectiles when an attack reaches you.

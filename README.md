@@ -55,7 +55,8 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 - **Growth across climbs:** banked essence strengthens every mark you carry (essence of a mark's own kind counts double), up to step 5. Your marks and their growth are saved.
 - **Later marks:** an unmarked body part that soaks up enough over your climbs takes a new mark at a stair, shaped by the essence you've banked since your last one.
 - **Bonds so far:** Stormcaller (Air, Chain Lightning), Windwalker (Air, Gale Lift), Tidecaller (Water, Tidal Surge: a wave that hurls foes away), Warden (Water, Turning Ward: a short ward that turns blows aside like a parry, staggering the attacker; more blows and perfect parries as it grows), Blade Forger (Iron, Conjured Blades: a fan of piercing blades). Cast with Q (hand), E (legs), F (heart) and C (brow); on a phone, each mark gets its own button.
-- **Burns** (from overdrawing a mark) last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window.
+- **Overdraw:** casting without enough essence still works, but the cast is weaker (70%) and the body part **burns**. Overdraw a burned mark again and it **tears**: the missing essence comes out of your health, so spamming spells can kill you.
+- **Burns** last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window.
 
 ## The climb
 
