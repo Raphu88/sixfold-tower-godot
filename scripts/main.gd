@@ -16,7 +16,9 @@ const Floors := preload("res://scripts/floors.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Essence := preload("res://scripts/essence.gd")
 const BondScript := preload("res://scripts/bond.gd")
-const BEAST := "the Gryphon"  # the tower's beast (story to come)
+const Towers := preload("res://scripts/towers.gd")
+## The stair opens once this share of a floor's monsters are down.
+const STAIR_OPENS_AT := 0.75
 
 const STAIR_REACH := 26.0
 
@@ -56,6 +58,11 @@ var climb_essence := {}  # everything gathered this climb
 var climb_soak := {}  # everything soaked this climb
 var regard := {}  # the Regard, while it plays: {fell, part, id, t}
 var regard_pending := false
+var tower := "kraken"  # which tower this climb is in (towers.gd)
+var choosing_tower := false  # the tower choice is showing
+var floor_total := 0  # monsters this floor started with
+var dim: CanvasModulate
+var hud
 var new_climber_t := 0.0  # a first press asks; a second within this time confirms
 
 # Attack turns: only this many monsters may be attacking at once.
@@ -77,7 +84,7 @@ func _ready() -> void:
 	# light it back up. Effects ignore the dimming so spells always read.
 	RenderingServer.set_default_clear_color(Palette.VOID)
 	y_sort_enabled = true  # lower things draw in front of higher things
-	var dim := CanvasModulate.new()
+	dim = CanvasModulate.new()
 	dim.color = Palette.AMBIENT
 	add_child(dim)
 	room_view = RoomScript.new()
@@ -107,9 +114,17 @@ func _ready() -> void:
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
 	_give_bonds()
+	tower = profile.last_tower if Towers.TOWERS.has(profile.last_tower) else "kraken"
+	_apply_tower_look()
 	_start_floor(1)
-	if first_climb:
-		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. The tower is watching." % ProfileScript.FIRST_CLIMB_FLOORS], "t": 4.0}
+	if Engine.has_meta("sixfold_test"):
+		_greet()
+	else:
+		# Each climb begins by choosing a tower.
+		choosing_tower = true
+		player.set_physics_process(false)
+		for e in enemies():
+			e.set_physics_process(false)
 
 	fx = FxScript.new()
 	fx.z_index = 10
@@ -133,7 +148,7 @@ func _ready() -> void:
 
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	var hud = HudScript.new()
+	hud = HudScript.new()
 	hud.main = self
 	layer.add_child(hud)
 	var touch = TouchScript.new()
@@ -167,6 +182,11 @@ func _process(delta: float) -> void:
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
 		Engine.time_scale = 1.0
+	if choosing_tower:
+		for i in Towers.ORDER.size():
+			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
+				choose_tower(Towers.ORDER[i])
+		return
 	if not regard.is_empty():
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
 		if regard_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
@@ -190,10 +210,15 @@ func _process(delta: float) -> void:
 		_change_step(-1)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
-	if not cleared and not climbing and enemies().is_empty():
-		cleared = true
+	# The stair opens once most of the floor is down; clearing it all rings the gong.
+	var alive := enemies().size()
+	if not stair_open and not climbing and float(floor_total - alive) >= ceilf(STAIR_OPENS_AT * floor_total):
 		stair_open = true
 		room_view.stair_open = true
+		if alive > 0:
+			sfx("glint", 0.7, -2.0, 0.0)
+	if not cleared and not climbing and alive == 0:
+		cleared = true
 		sfx("clear", 1.0, 0.0, 0.0)
 	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
 		_climb()
@@ -257,7 +282,8 @@ func _start_floor(n: int) -> void:
 	pillar_bodies.clear()
 
 	var start: Vector2 = player.position if n == 1 else player_start
-	var plan: Dictionary = Floors.build(n, room, start)
+	var plan: Dictionary = Floors.build(n, room, start, Towers.TOWERS[tower])
+	floor_total = plan["monsters"].size()
 	pillars = plan["pillars"]
 	for p in pillars:
 		var body := StaticBody2D.new()
@@ -347,6 +373,46 @@ func _arrive() -> void:
 	banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
+
+
+# --- towers ---------------------------------------------------------------------
+
+func tower_data() -> Dictionary:
+	return Towers.TOWERS[tower]
+
+
+func beast_name() -> String:
+	return tower_data()["beast"]
+
+
+## Picks this climb's tower and starts on its first floor.
+func choose_tower(id: String) -> void:
+	if not choosing_tower or not Towers.TOWERS.has(id):
+		return
+	choosing_tower = false
+	tower = id
+	profile.last_tower = id
+	profile.save()
+	_apply_tower_look()
+	_start_floor(1)
+	player.set_physics_process(true)
+	sfx("equip_sword", 0.8, -2.0, 0.0)
+	_greet()
+
+
+func _greet() -> void:
+	if first_climb:
+		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0}
+	else:
+		banner = {"title": tower_data()["name"].to_upper(), "lines": [], "t": 2.5}
+
+
+## Each tower's stone, light and torches.
+func _apply_tower_look() -> void:
+	var t := tower_data()
+	dim.color = t["ambient"]
+	room_view.self_modulate = t["stone"]
+	room_view.set_torch_color(t["torch"])
 
 
 func _floor_title() -> String:
@@ -558,6 +624,8 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 func on_enemy_killed(e) -> void:
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
+	# Every kill also yields a little of the tower's own essence.
+	gather_essence(tower_data()["essence"], Towers.ESSENCE_BONUS, e.global_position)
 	fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)

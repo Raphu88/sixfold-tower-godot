@@ -25,6 +25,7 @@ var soak := {}  # part -> banked soak in unmarked parts
 var tally := {}  # essence kind -> banked since the last mark
 var climbs := 0
 var best_floor := 1
+var last_tower := "kraken"
 var saving := true
 
 
@@ -57,6 +58,7 @@ func load_save() -> void:
 	soak = cfg.get_value("profile", "soak", {})
 	tally = cfg.get_value("profile", "tally", {})
 	climbs = int(cfg.get_value("profile", "climbs", 0))
+	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 
 
 func save() -> void:
@@ -70,6 +72,7 @@ func save() -> void:
 	cfg.set_value("profile", "soak", soak)
 	cfg.set_value("profile", "tally", tally)
 	cfg.set_value("profile", "climbs", climbs)
+	cfg.set_value("profile", "last_tower", last_tower)
 	cfg.save(SAVE_PATH)
 
 

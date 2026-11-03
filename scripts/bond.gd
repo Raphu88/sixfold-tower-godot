@@ -99,6 +99,8 @@ func cast(p) -> void:
 			_surge(p)
 		"blades":
 			_blades(p)
+		"ward":
+			_ward(p)
 
 
 # Lightning leaps from you to the nearest foe, then foe to foe.
@@ -210,3 +212,13 @@ func _blades(p) -> void:
 	main.sfx("swing", 1.4)
 	main.sfx("equip_sword", 1.3, -4.0)
 	main.light_flash(p.global_position + aim * 30.0, color(), 1.0, 0.9, 0.25)
+
+
+# A short ward around you: blows that land on it are turned aside like a
+# parry (the attacker staggered, arrows sent back).
+func _ward(p) -> void:
+	var main = p.main
+	p.raise_ward(stat("duration") * power(), int(stat("blocks")), bool(stat("perfect")), color())
+	main.fx_ring(p.global_position, color(), 36.0, 0.35, 3.0)
+	main.light_flash(p.global_position, color(), 1.0, 1.0, 0.3)
+	main.sfx("parry", 0.75, -6.0)

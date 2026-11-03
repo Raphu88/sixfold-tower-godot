@@ -58,6 +58,10 @@ var parry_t := 0.0
 var parry_cd := 0.0
 var parry_flash := 0.0
 var parry_window := PARRY_WINDOW
+var ward_t := 0.0  # Warden's ward: blows that land on it are turned aside
+var ward_blocks := 0
+var ward_perfect := false
+var ward_color := Color.WHITE
 var cast_t := 0.0
 var cast_total := 0.0
 var cast_part := ""
@@ -285,6 +289,7 @@ func _tick_timers(delta: float) -> void:
 	parry_t -= delta
 	parry_cd -= delta
 	parry_flash -= delta
+	ward_t -= delta
 	hurt_t -= delta
 	dodge_cd -= delta
 	buffer_t -= delta
@@ -550,6 +555,13 @@ func receive_attack(dmg: float, source) -> void:
 	if iframes > 0.0:
 		on_dodge()
 		return
+	if ward_t > 0.0 and ward_blocks > 0 and source != null:
+		ward_blocks -= 1
+		if ward_blocks <= 0:
+			ward_t = 0.0
+		main.fx_text(global_position + Vector2(0, -46), "Turned", ward_color)
+		_on_parry(source, ward_perfect)
+		return
 	if parry_t > 0.0 and source != null:
 		var to_source: Vector2 = (source.global_position - global_position).normalized()
 		if aim.dot(to_source) > -0.1:  # anything in front of you, roughly
@@ -581,6 +593,14 @@ func receive_attack(dmg: float, source) -> void:
 	else:
 		# The heart fills when you take a hit and survive.
 		_part_action("heart", 4.0, 8.0)
+
+
+## Warden's Turning Ward.
+func raise_ward(duration: float, blocks: int, perfect: bool, col: Color) -> void:
+	ward_t = duration
+	ward_blocks = blocks
+	ward_perfect = perfect
+	ward_color = col
 
 
 func _on_parry(source, perfect := false) -> void:
@@ -734,6 +754,16 @@ func _draw_overlay() -> void:
 		var pa := aim.angle()
 		c.draw_arc(Vector2.ZERO, radius + 10.0, pa - 1.0, pa + 1.0, 14, Color(1.0, 0.89, 0.63), 4.0)
 		c.draw_arc(Vector2.ZERO, radius + 14.0, pa - 0.8, pa + 0.8, 14, Color(1.0, 0.89, 0.63, 0.4), 2.0)
+	if ward_t > 0.0 and ward_blocks > 0:
+		# The ward: a turning ring of six facets, one pip per blow it can still turn.
+		var tw := Time.get_ticks_msec() * 0.002
+		var fade := clampf(ward_t / 0.5, 0.3, 1.0)
+		var pts := PackedVector2Array()
+		for i in 7:
+			pts.append(Vector2.from_angle(tw + TAU * i / 6.0) * (radius + 9.0))
+		c.draw_polyline(pts, Color(ward_color, 0.75 * fade), 2.0, true)
+		for i in ward_blocks:
+			c.draw_circle(Vector2(-6.0 * (ward_blocks - 1) / 2.0 + 6.0 * i, -radius - 14.0), 2.0, Color(ward_color, fade))
 	if parry_flash > 0.0:
 		c.draw_circle(Vector2.ZERO, radius + 6.0, Color(1.0, 0.95, 0.8, 0.5 * parry_flash / 0.25))
 	if cast_t > 0.0:
