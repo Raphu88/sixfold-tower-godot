@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": ""}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -23,7 +23,17 @@ const TYPES := {
 	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.5, 0.88, 0.4), "dmg": 8.0, "weight": 0.7},
 	"archer": {"hp": 18.0, "speed": 75.0, "radius": 11.0, "color": Color(0.62, 0.5, 0.3), "dmg": 8.0, "weight": 0.8},
 	"knight": {"hp": 48.0, "speed": 60.0, "radius": 15.0, "color": Color(0.66, 0.7, 0.8), "dmg": 14.0, "weight": 3.0},
+	# The Gryphon's tower
+	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
+	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
+	"gryphon": {"hp": 380.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
 }
+const BOSSES := ["gryphon"]
+const SWOOP_SPEED := 430.0
+const SPARK_RADIUS := 95.0
+const RAKE_REACH := 85.0
+const RAKE_ARC := 70.0
+const DIVE_RADIUS := 78.0
 
 var kind := "slime"
 var main
@@ -74,8 +84,12 @@ func setup(k: String, room) -> void:
 	weight = t["weight"]
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
-	if kind == "knight":
+	if kind in ["knight", "thunderling", "gryphon"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
+	if kind == "bat":
+		state = "rest"
+	if kind == "gryphon":
+		state_t = 1.6
 
 
 func _ready() -> void:
@@ -133,6 +147,12 @@ func _physics_process(delta: float) -> void:
 			_archer(delta, dir, dist)
 		"knight":
 			_knight(delta, dir, dist, p)
+		"bat":
+			_bat(delta, dir, dist, p)
+		"thunderling":
+			_thunderling(delta, dir, dist, p)
+		"gryphon":
+			_gryphon(delta, dir, dist, p)
 	velocity += knock
 	move_and_slide()
 	queue_redraw()
@@ -146,7 +166,7 @@ func _drift() -> void:
 
 ## True while winding up or striking: the climber's parry looks for these.
 func is_attacking() -> bool:
-	return state.begins_with("wind") or state in ["pounce", "lunge", "aim"]
+	return state.begins_with("wind") or state in ["pounce", "lunge", "aim", "swoop", "dive"]
 
 
 ## Counts down a wind-up and flashes the glint GLINT_LEAD seconds before the
@@ -303,6 +323,154 @@ func _slash(p) -> void:
 		p.receive_attack(dmg, self)
 
 
+# --- the Gryphon's tower --------------------------------------------------------
+
+# Bats circle you, then swoop straight through where you stood.
+func _bat(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind":
+			velocity = Vector2.ZERO  # hangs in the air, then swoops
+			if not glinted:
+				aim_dir = dir
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius)) / SWOOP_SPEED):
+				state = "swoop"
+				state_t = 0.4
+				lunge_hit = false
+		"swoop":
+			state_t -= delta
+			velocity = aim_dir * SWOOP_SPEED
+			if not lunge_hit and dist < radius + p.radius + 6.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("rest", 1.0)
+		"rest":
+			state_t -= delta
+			_circle(dir, dist, 130.0, speed * 0.8)
+			if state_t <= 0.0:
+				state = "hover"
+		_:  # hover: circle, swoop when it's our turn
+			if dist < 170.0 and main.request_attack(self):
+				_begin_wind("wind", 0.45)
+				aim_dir = dir
+			else:
+				_circle(dir, dist, 110.0, speed)
+
+
+# Thunderlings walk up, stop and spark, then burst into a ring of lightning.
+# The ring can't be parried: step out of it or roll through.
+func _thunderling(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_spark":
+			velocity = Vector2.ZERO
+			if _wind(delta):
+				main.fx_ring(global_position, color, SPARK_RADIUS, 0.3, 4.0)
+				var pts: Array = []
+				for i in 6:
+					var a := TAU * i / 6.0 + randf()
+					main.fx_bolt([global_position, global_position + Vector2.from_angle(a) * SPARK_RADIUS], color)
+				main.sfx("zap", 0.9)
+				main.light_flash(global_position, color, 1.4, 1.6, 0.3)
+				if dist < SPARK_RADIUS + p.radius:
+					p.receive_attack(dmg, self, true)
+				_end_attack("recover", 1.1)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 75.0 and main.request_attack(self):
+				_begin_wind("wind_spark", 0.9)
+				main.sfx("charge", 1.3, -4.0)
+			elif main.holds_attack(self) or main.can_attack():
+				velocity = dir * speed
+			else:
+				_circle(dir, dist, 120.0, speed * 0.7)
+
+
+var dive_from := Vector2.ZERO
+var dive_to := Vector2.ZERO
+var called_flock := false
+
+
+# The Gryphon: rakes with its talons up close, dives on you from range, and
+# throws a fan of feathers. Every attack glints. Halfway down, it calls bats.
+func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
+	if not called_flock and hp < max_hp * 0.5:
+		called_flock = true
+		main.fx_text(global_position + Vector2(0, -radius - 30.0), "The Gryphon calls its flock", color)
+		main.sfx("warn_knight", 0.6)
+		for i in 2:
+			main.spawn_enemy("bat", global_position + Vector2.from_angle(randf() * TAU) * 60.0)
+	match state:
+		"wind_rake":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, RAKE_REACH + 10.0, deg_to_rad(RAKE_ARC), Color(1.0, 0.45, 0.3))
+				main.sfx("swing_heavy", 0.7)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= RAKE_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(RAKE_ARC):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 0.8)
+		"wind_dive":
+			velocity = Vector2.ZERO
+			if not glinted:
+				dive_to = p.global_position  # it locks on when it glints
+			if _wind(delta, 0.28):
+				state = "dive"
+				state_t = 0.28
+				dive_from = global_position
+		"dive":
+			state_t -= delta
+			var k := clampf(1.0 - state_t / 0.28, 0.0, 1.0)
+			global_position = dive_from.lerp(dive_to, k)
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				main.fx_ring(global_position, Color(1.0, 0.85, 0.6), DIVE_RADIUS, 0.4, 6.0)
+				main.fx_burst(global_position, Vector2.ZERO, Color(0.85, 0.8, 0.7), 18, 280.0)
+				main.sfx("hit_heavy", 0.6)
+				main.shake(9.0)
+				if global_position.distance_to(p.global_position) < DIVE_RADIUS + p.radius:
+					p.receive_attack(dmg * 1.2, self, true)  # a landing can't be parried: roll
+				_end_attack("recover", 1.3)  # a long opening after landing
+		"wind_gale":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				for i in 5:
+					var a := (float(i) - 2.0) * deg_to_rad(14.0)
+					var v := lunge_dir.rotated(a) * 300.0
+					var f = main.spawn_projectile(global_position + lunge_dir * radius, v, dmg * 0.5)
+					f.style = "feather"
+					f.tint = color
+				main.sfx("gust", 0.8)
+				_end_attack("recover", 0.7)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:  # chase, choosing an attack
+			if not main.request_attack(self):
+				velocity = dir * speed
+			elif dist < 95.0:
+				_begin_wind("wind_rake", 0.55)
+				main.sfx("warn_knight", 0.7)
+			elif dist > 140.0 and randf() < delta * 0.9:
+				_begin_wind("wind_dive", 0.75)
+				main.sfx("warn_archer", 0.6)
+			elif randf() < delta * 0.6:
+				_begin_wind("wind_gale", 0.6)
+				main.sfx("warn_archer", 0.9)
+			else:
+				velocity = dir * speed
+				main.release_attack(self)
+
+
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
@@ -311,8 +479,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	squash = 1.0
 	if dir != Vector2.ZERO:
 		squash_dir = dir
-		# The knight is heavy: it barely budges.
-		knock = dir * force * (0.4 if kind == "knight" else 1.0)
+		# The knight is heavy and the beast is heavier: they barely budge.
+		knock = dir * force * (0.4 if kind == "knight" else (0.12 if is_boss() else 1.0))
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.95, 0.85))
 	if hp <= 0.0:
 		dead = true
@@ -323,21 +491,39 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	# Flinching: slimes and archers are knocked out of what they were doing.
 	# Knights shrug off hits while winding up; only heavy blows rock them
 	# when they aren't attacking.
-	var poise := kind == "knight" and (is_attacking() or not heavy)
+	var poise := (kind == "knight" and (is_attacking() or not heavy)) or is_boss()
 	if not poise and dir != Vector2.ZERO and stun <= 0.0:
 		flinch = FLINCH_TIME
 		if is_attacking():
 			aim_dir = Vector2.ZERO
-			_end_attack("rest" if kind == "slime" else ("reload" if kind == "archer" else "recover"), 0.6)
+			_end_attack(_idle_state(), 0.6)
 
 
 ## Windwalker's Gale Lift: helpless in the air.
 func lift(duration: float) -> void:
+	if is_boss():
+		stagger(0.4)  # too heavy to lift: only staggered
+		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Staggered", Color(0.75, 0.9, 1.0))
+		return
 	airborne = maxf(airborne, duration)
 	aim_dir = Vector2.ZERO
 	if is_attacking():
-		_end_attack("recover" if kind == "knight" else ("rest" if kind == "slime" else "reload"), 0.3)
+		_end_attack(_idle_state(), 0.3)
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), "Lifted", Color(0.75, 0.9, 1.0))
+
+
+func is_boss() -> bool:
+	return kind in BOSSES
+
+
+## Where each kind goes when an attack ends or is interrupted.
+func _idle_state() -> String:
+	match kind:
+		"slime", "bat":
+			return "rest"
+		"archer":
+			return "reload"
+	return "recover"
 
 
 func stagger(duration: float) -> void:
@@ -348,7 +534,7 @@ func stagger(duration: float) -> void:
 func on_parried(perfect := false) -> void:
 	stun = 1.6 if perfect else 0.9
 	aim_dir = Vector2.ZERO
-	_end_attack("recover" if kind == "knight" else ("rest" if kind == "slime" else "reload"), 0.0)
+	_end_attack(_idle_state(), 0.0)
 	knock = (global_position - main.player.global_position).normalized() * (220.0 if perfect else 140.0)
 	main.fx_text(global_position + Vector2(0, -radius - 22.0), "Staggered", Color(1.0, 0.89, 0.63))
 
@@ -370,6 +556,12 @@ func _draw() -> void:
 			_draw_archer(f)
 		"knight":
 			_draw_knight(f)
+		"bat":
+			_draw_bat(t, f)
+		"thunderling":
+			_draw_thunderling(t)
+		"gryphon":
+			_draw_gryphon(t, f)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -464,6 +656,71 @@ func _draw_knight(f: Vector2) -> void:
 	draw_circle(sc + f * 1.5, 1.6, Palette.STEEL)
 
 
+func _draw_bat(t: float, f: Vector2) -> void:
+	var flap := sin(t * 22.0) * 5.0
+	var bob := Vector2(0, sin(t * 6.0) * 2.0 - 10.0)  # flies above the floor
+	for s in [-1.0, 1.0]:
+		var wing := PackedVector2Array([
+			bob + Vector2(s * 3.0, -1.0),
+			bob + Vector2(s * 12.0, -8.0 + flap),
+			bob + Vector2(s * 18.0, -2.0 + flap),
+			bob + Vector2(s * 13.0, 2.0 + flap * 0.5),
+			bob + Vector2(s * 9.0, 0.0 + flap * 0.6),
+			bob + Vector2(s * 5.0, 4.0),
+		])
+		Draw.poly(self, wing, color.darkened(0.25))
+	Draw.ball(self, bob, 6.0, color)
+	draw_circle(bob + f * 2.5 + f.orthogonal() * 2.0, 1.2, Color(1.0, 0.35, 0.3))
+	draw_circle(bob + f * 2.5 - f.orthogonal() * 2.0, 1.2, Color(1.0, 0.35, 0.3))
+
+
+func _draw_thunderling(t: float) -> void:
+	var sparking := state == "wind_spark"
+	var r := radius * (1.15 if sparking else 1.0)
+	var pts := PackedVector2Array()
+	for i in 10:
+		var a := TAU * i / 10.0 + t * (6.0 if sparking else 2.0)
+		pts.append(Vector2.from_angle(a) * (r if i % 2 == 0 else r * 0.55))
+	Draw.poly(self, pts, color.lightened(0.25) if sparking else color)
+	draw_circle(Vector2.ZERO, r * 0.35, Color(1, 1, 1, 0.9 if sparking else 0.5))
+	if sparking and fmod(t, 0.15) < 0.08:
+		var a2 := randf() * TAU
+		draw_line(Vector2.from_angle(a2) * r, Vector2.from_angle(a2) * (r + 8.0), Color(1, 1, 0.8), 1.5)
+
+
+func _draw_gryphon(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	var lift_y := 0.0
+	if state == "wind_dive":
+		lift_y = -40.0 * clampf(1.0 - state_t / 0.75, 0.0, 1.0)
+	elif state == "dive":
+		lift_y = -40.0 * clampf(state_t / 0.28, 0.0, 1.0)
+	var o := Vector2(0, lift_y)
+	var flap := sin(t * (9.0 if state.begins_with("wind") else 3.5)) * 6.0
+	# Tail, then wings, then body and head.
+	Draw.stroke(self, o - f * radius * 0.8, o - f * radius * 1.7 + side * 6.0, color.darkened(0.2), 4.0)
+	draw_circle(o - f * radius * 1.75 + side * 6.0, 4.0, color.darkened(0.45))
+	for s in [-1.0, 1.0]:
+		var base: Vector2 = o + side * s * radius * 0.5
+		var wing := PackedVector2Array([
+			base,
+			base + side * s * radius * 1.2 + f * (10.0 + flap),
+			base + side * s * radius * 1.9 - f * (4.0 - flap),
+			base + side * s * radius * 1.3 - f * radius * 0.7,
+			base - f * radius * 0.6,
+		])
+		Draw.poly(self, wing, Color(0.75, 0.62, 0.42))
+		for k in 3:
+			var feather: Vector2 = base + side * s * radius * (1.0 + 0.3 * k) - f * (2.0 + 6.0 * k)
+			draw_line(feather, feather - f * 10.0, Color(0.55, 0.44, 0.3), 1.5)
+	Draw.ball(self, o, radius * 0.75, color)
+	Draw.ball(self, o + f * radius * 0.7, radius * 0.42, Color(0.95, 0.92, 0.85))
+	var beak := o + f * radius * 1.1
+	draw_colored_polygon(PackedVector2Array([beak + f * 9.0, beak + side * 4.0, beak - side * 4.0]), Color(0.95, 0.75, 0.3))
+	draw_circle(o + f * radius * 0.8 + side * 4.0, 1.8, Palette.OUTLINE)
+	draw_circle(o + f * radius * 0.8 - side * 4.0, 1.8, Palette.OUTLINE)
+
+
 ## Telegraphs, status and the health bar: unlit, so they always read.
 func _draw_overlay() -> void:
 	var c := overlay
@@ -505,6 +762,32 @@ func _draw_overlay() -> void:
 		c.draw_line(gp - Vector2(arm, arm) * 0.45, gp + Vector2(arm, arm) * 0.45, Color(gc, gk * 0.7), 1.5)
 		c.draw_line(gp - Vector2(arm, -arm) * 0.45, gp + Vector2(arm, -arm) * 0.45, Color(gc, gk * 0.7), 1.5)
 		c.draw_circle(gp, 3.0 * gk + 1.0, gc)
+	if kind == "thunderling" and state == "wind_spark":
+		var ks := clampf(1.0 - state_t / 0.9, 0.0, 1.0)
+		c.draw_circle(Vector2.ZERO, SPARK_RADIUS, Color(danger, 0.08 + 0.1 * ks))
+		c.draw_arc(Vector2.ZERO, SPARK_RADIUS, 0.0, TAU, 40, Color(danger, 0.5), 2.0)
+		c.draw_arc(Vector2.ZERO, SPARK_RADIUS * ks, 0.0, TAU, 40, Color(danger, 0.7), 1.5)
+	if kind == "bat" and state == "wind":
+		c.draw_line(Vector2.ZERO, aim_dir * 150.0, Color(danger, 0.35), 2.0)
+	if kind == "gryphon":
+		if state == "wind_rake":
+			var kr := clampf(1.0 - state_t / 0.55, 0.0, 1.0)
+			var half := deg_to_rad(RAKE_ARC)
+			var wedge := PackedVector2Array([Vector2.ZERO])
+			for i in 15:
+				wedge.append(Vector2.from_angle(lunge_dir.angle() - half + 2.0 * half * i / 14.0) * RAKE_REACH)
+			c.draw_colored_polygon(wedge, Color(danger, 0.1 + 0.15 * kr))
+			c.draw_arc(Vector2.ZERO, RAKE_REACH * kr, lunge_dir.angle() - half, lunge_dir.angle() + half, 20, Color(danger, 0.7), 2.0)
+		if state == "wind_dive" or state == "dive":
+			var target: Vector2 = dive_to - global_position
+			var kd := clampf(1.0 - state_t / (0.75 if state == "wind_dive" else 0.28), 0.0, 1.0)
+			c.draw_circle(target, DIVE_RADIUS, Color(danger, 0.12 + 0.12 * kd))
+			c.draw_arc(target, DIVE_RADIUS, 0.0, TAU, 40, Color(danger, 0.7), 2.5)
+			c.draw_arc(target, DIVE_RADIUS * kd, 0.0, TAU, 40, Color(danger, 0.8), 1.5)
+		if state == "wind_gale":
+			for i in 5:
+				var a := (float(i) - 2.0) * deg_to_rad(14.0)
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated(a) * 120.0, Color(danger, 0.3), 1.5)
 	if kind == "slime" and state == "wind":
 		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(danger, 0.6), 2.0)
 	if charged > 0.0:
@@ -516,7 +799,7 @@ func _draw_overlay() -> void:
 		var ts := Time.get_ticks_msec() * 0.004
 		for i in 3:
 			c.draw_circle(Vector2(0, lift_y - radius - 8.0) + Vector2.from_angle(ts + i * TAU / 3.0) * 7.0, 2.0, Color(1.0, 0.89, 0.63))
-	if hp < max_hp:
+	if hp < max_hp and not is_boss():
 		var w2 := radius * 2.2
 		var top := Vector2(-w2 / 2.0, lift_y - radius - 11.0)
 		c.draw_rect(Rect2(top - Vector2(1, 1), Vector2(w2 + 2, 5)), Color(0, 0, 0, 0.7))

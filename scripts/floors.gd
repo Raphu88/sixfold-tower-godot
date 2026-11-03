@@ -10,6 +10,9 @@ const MONSTERS := {
 	"slime": {"cost": 1.0, "weight": 1.0, "from": 1},
 	"archer": {"cost": 1.5, "weight": 0.8, "from": 2},
 	"knight": {"cost": 2.5, "weight": 0.6, "from": 2},
+	# Tower monsters: only appear where the tower's mix lists them.
+	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
+	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
 
@@ -37,6 +40,9 @@ static func first_floor(room: Rect2, kinds: Array) -> Dictionary:
 static func build(floor_num: int, room: Rect2, player_start: Vector2, tower: Dictionary = {}) -> Dictionary:
 	if floor_num <= 1:
 		return first_floor(room, tower.get("first", ["knight", "slime", "slime", "archer"]))
+	# The summit: the tower's beast, alone in an open hall.
+	if tower.has("beast_kind") and floor_num == int(tower.get("summit", 0)):
+		return {"pillars": [], "monsters": [[tower["beast_kind"], room.get_center() + Vector2(0, -70)]], "summit": true}
 	var pillars: Array = []
 	for p in LAYOUTS[randi() % LAYOUTS.size()]:
 		pillars.append({"pos": room.position + room.size * Vector2(p[0], p[1]), "r": p[2]})
@@ -84,6 +90,8 @@ static func _pick(floor_num: int, budget: float, knights: int, mix: Dictionary =
 	var total := 0.0
 	for kind in MONSTERS:
 		var m: Dictionary = MONSTERS[kind]
+		if m.get("only", false) and not mix.has(kind):
+			continue
 		if floor_num < m["from"] or m["cost"] > budget:
 			continue
 		# Knights are capped per floor (a knight-heavy tower allows one more).

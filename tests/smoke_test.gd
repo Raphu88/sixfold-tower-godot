@@ -222,6 +222,76 @@ func _gryphon_tests() -> void:
 	_check(c.hp < hp_c, "Rain of Arrows hits foes in the marked area")
 
 
+func _gryphon_tower_tests() -> void:
+	print("the Gryphon's tower")
+	await _fresh_main()
+	var p = main.player
+	main.tower = "gryphon"
+	var seen := {}
+	for n in 30:
+		var plan: Dictionary = main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["gryphon"])
+		for m in plan["monsters"]:
+			seen[m[0]] = true
+	_check(seen.has("bat") and seen.has("thunderling"), "the Gryphon's tower has bats and thunderlings")
+	var kplan_kinds := {}
+	for n in 30:
+		for m in main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["kraken"])["monsters"]:
+			kplan_kinds[m[0]] = true
+	_check(not kplan_kinds.has("bat"), "...and other towers don't")
+	# Thunderling: its ring of lightning can't be parried.
+	var th = await _spawn("thunderling", p.global_position + Vector2(60, 0))
+	th.hp = 999.0
+	var r1: Dictionary = await _parry_test(th, 0.0, "wind_spark", 60.0)
+	_check(r1["glinted"] and r1["hurt"] and not r1["parried"], "a thunderling's ring of lightning can't be parried")
+	th.queue_free()
+	await _frames(2)
+	# Bat: its swoop glints and can be parried.
+	var bat = await _spawn("bat", p.global_position + Vector2(120, 0))
+	bat.hp = 999.0
+	bat.state = "hover"
+	var r2: Dictionary = await _parry_test(bat, 0.0, "wind", 120.0)
+	_check(r2["glinted"] and r2["parried"] and not r2["hurt"], "a bat's swoop can be parried on the glint")
+	bat.queue_free()
+	await _settle()
+
+	print("the Gryphon")
+	main.profile.regarded = true
+	main.first_climb = false
+	main._start_floor(5)
+	await _frames(3)
+	var foes: Array = main.enemies()
+	_check(foes.size() == 1 and foes[0].kind == "gryphon", "floor 5 of the Gryphon's tower is the Gryphon")
+	var g = foes[0]
+	g.set_physics_process(false)
+	g.lift(2.0)
+	_check(g.airborne <= 0.0 and g.stun > 0.0, "the Gryphon is too heavy to lift: only staggered")
+	g.stun = 0.0
+	g.state = "wind_rake"
+	g.state_t = 0.3
+	g.take_hit(5.0, Vector2.RIGHT, 200.0, true)
+	_check(g.state == "wind_rake" and g.flinch <= 0.0, "hits don't interrupt the Gryphon")
+	var hp_before: float = g.hp
+	g.take_hit(g.hp - g.max_hp * 0.45, Vector2.ZERO)
+	g.set_physics_process(true)
+	g.state = "recover"
+	g.state_t = 5.0
+	await _wait(0.2)
+	_check(main.enemies().filter(func(e): return e.kind == "bat").size() == 2, "below half health it calls two bats")
+	for e in main.enemies():
+		e.take_hit(99999.0, Vector2.ZERO)
+	await _frames(3)
+	_check(main.stair_open, "the beast's fall opens the stair")
+	p.hp = p.MAX_HP
+	p.dead = false
+	p.set_physics_process(true)
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.victory.is_empty(), "taking the summit stair completes the climb")
+	await _wait(2.8)
+	_check(main.overlay_done(), "the victory screen can be dismissed")
+	main.victory = {}
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -244,7 +314,7 @@ func _tower_tests() -> void:
 		for n in 30:
 			var plan: Dictionary = main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS[id])
 			for m in plan["monsters"]:
-				c[m[0]] += 1
+				c[m[0]] = c.get(m[0], 0) + 1
 		counts[id] = c
 	_check(counts["gryphon"]["archer"] > counts["kraken"]["archer"], "the Gryphon's tower has more archers (%d vs %d)" % [counts["gryphon"]["archer"], counts["kraken"]["archer"]])
 	_check(counts["kraken"]["slime"] > counts["wyvern"]["slime"], "the Kraken's tower has more slimes (%d vs %d)" % [counts["kraken"]["slime"], counts["wyvern"]["slime"]])
@@ -344,7 +414,8 @@ func _parry_test(knight, delay: float, wind_state := "wind_slash", gap := 50.0) 
 	p.global_position = knight.global_position + Vector2(gap, 0)
 	knight.set_physics_process(true)
 	var glinted := false
-	for i in 200:
+	var give_up := Time.get_ticks_msec() + 3000  # watch for the glint for up to 3 real seconds
+	while Time.get_ticks_msec() < give_up:
 		await process_frame
 		if knight.glinted and knight.state == wind_state:
 			glinted = true
@@ -703,6 +774,7 @@ func _run() -> void:
 	await _regard_tests()
 	await _tower_tests()
 	await _gryphon_tests()
+	await _gryphon_tower_tests()
 	await _spell_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

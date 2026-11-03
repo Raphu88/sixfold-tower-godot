@@ -191,8 +191,11 @@ func _draw() -> void:
 	if main.fade > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, main.fade))
 
+	_draw_boss_bar(size, font)
 	if not main.regard.is_empty():
 		_draw_regard(size, font)
+	if not main.victory.is_empty():
+		_draw_victory(size, font)
 	if main.choosing_tower:
 		_draw_tower_choice(size, font)
 	_draw_quarry(p, size, font)
@@ -484,3 +487,42 @@ func _draw_quarry(p, size: Vector2, font: Font) -> void:
 		var edge := Vector2(clampf(at.x, inner.position.x, inner.end.x), clampf(at.y, inner.position.y, inner.end.y))
 		var side := dir.orthogonal()
 		draw_colored_polygon(PackedVector2Array([edge + dir * 10.0, edge - dir * 6.0 + side * 8.0, edge - dir * 6.0 - side * 8.0]), Color(col, 0.9))
+
+
+# --- bosses ------------------------------------------------------------------------
+
+## A beast's health, as a long bar under the floor counter.
+func _draw_boss_bar(size: Vector2, font: Font) -> void:
+	for e in main.enemies():
+		if not e.is_boss():
+			continue
+		var w := minf(460.0, size.x - 120.0)
+		var r := Rect2(Vector2((size.x - w) / 2.0, 84), Vector2(w, 12))
+		var name: String = main.beast_name().to_upper()
+		draw_string_outline(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, GOLD)
+		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
+		draw_rect(r, Color(0.3, 0.1, 0.08, 0.9))
+		draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(e.hp / e.max_hp, 0.0, 1.0), r.size.y)), Color(0.85, 0.3, 0.22))
+		draw_line(Vector2(r.position.x + r.size.x * 0.5, r.position.y), Vector2(r.position.x + r.size.x * 0.5, r.end.y), Color(1, 1, 1, 0.35), 1.0)
+		return
+
+
+## The climb is complete: the beast has fallen.
+func _draw_victory(size: Vector2, font: Font) -> void:
+	var v: Dictionary = main.victory
+	var t: float = v["t"]
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, clampf(t / 0.8, 0.0, 0.94)))
+	var a := clampf((t - 0.3) / 0.6, 0.0, 1.0)
+	var top := size.y * 0.32
+	draw_string_outline(font, Vector2(0, top), "CLIMB COMPLETE", HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
+	draw_string(font, Vector2(0, top), "CLIMB COMPLETE", HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(GOLD, a))
+	draw_string(font, Vector2(0, top + 34), "%s yields." % String(v["beast"]).capitalize(), HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(TEXT, a))
+	var ly := top + 70.0
+	for line in v["lines"]:
+		draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, a))
+		ly += 22.0
+	if main.overlay_done():
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
+		var prompt := "Tap to climb again" if main.touch_active else "Press Space or click to climb again"
+		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))

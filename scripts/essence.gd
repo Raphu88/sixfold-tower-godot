@@ -15,6 +15,9 @@ const DROPS := {
 	"slime": ["water", 3.0],
 	"archer": ["air", 4.0],
 	"knight": ["iron", 7.0],
+	"bat": ["air", 2.0],
+	"thunderling": ["air", 5.0],
+	"gryphon": ["air", 30.0],
 }
 
 
