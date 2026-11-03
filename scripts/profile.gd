@@ -73,27 +73,34 @@ func save() -> void:
 	cfg.save(SAVE_PATH)
 
 
-## Which bond a body part takes, given the essence gathered: the dominant
-## kind picks the bond's affinity, and a bond whose home is this part wins
-## ties. Bonds already carried are skipped.
+## How much a bond is drawn to its own home body part, against its share of
+## the essence gathered (0..1). Play style and essence both shape the mark.
+const HOME_PULL := 0.4
+
+
+## Which bond a body part takes: each bond scores its essence's share of what
+## you gathered, plus HOME_PULL if this body part is its home. Bonds already
+## carried are skipped.
 func choose_bond(part: String, essence: Dictionary) -> String:
-	var kinds: Array = essence.keys()
-	kinds.sort_custom(func(a, b): return float(essence[a]) > float(essence[b]))
-	if kinds.is_empty():
-		kinds = ["air"]
+	var total := 0.0
+	for k in essence:
+		total += float(essence[k])
 	var held := bonds.values().map(func(b): return b["id"])
-	for kind in kinds + ["air", "water", "iron"]:
-		var options: Array = []
-		for id in Bonds.BONDS:
-			if Bonds.BONDS[id]["affinity"] == kind and not (id in held):
-				options.append(id)
-		if options.is_empty():
+	var best := ""
+	var best_score := -1.0
+	for id in Bonds.BONDS:
+		if id in held:
 			continue
-		for id in options:
-			if Bonds.BONDS[id]["home"] == part:
-				return id
-		return options[0]
-	return ""
+		var info: Dictionary = Bonds.BONDS[id]
+		var score := 0.0
+		if total > 0.0:
+			score += float(essence.get(info["affinity"], 0.0)) / total
+		if info["home"] == part:
+			score += HOME_PULL
+		if score > best_score:
+			best_score = score
+			best = id
+	return best
 
 
 ## Marks a body part with a bond. Faint marks owe FAINT_DEBT essence first.

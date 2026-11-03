@@ -117,6 +117,13 @@ func _draw() -> void:
 		else:
 			_bond_panel(b, part, Vector2(16, y), font)
 			y += 50.0
+	# Where the next mark is forming (while any body part is still unmarked).
+	if parts.size() < BondScript.Bonds.PARTS.size():
+		var fh := _forming_height(p)
+		if main.touch_active:
+			_draw_forming(p, Vector2(12, y + 2), font)
+		else:
+			_draw_forming(p, Vector2(16, size.y - 12.0 - 50.0 * parts.size() - fh - 8.0), font)
 
 	# Controls, top right.
 	if main.touch_active:
@@ -327,3 +334,37 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := "Tap to begin your next climb" if main.touch_active else "Press Space or click to begin your next climb"
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+
+
+func _forming_height(p) -> float:
+	var unmarked: int = BondScript.Bonds.PARTS.size() - p.bonds.size()
+	return 44.0 + 15.0 * unmarked
+
+
+## A small panel: how much each unmarked body part has soaked (the leader is
+## where the next mark will form) and which bond it would be right now.
+func _draw_forming(p, pos: Vector2, font: Font) -> void:
+	var unmarked: Array = BondScript.Bonds.PARTS.filter(func(pt): return not p.bonds.has(pt))
+	var r := Rect2(pos, Vector2(214, _forming_height(p)))
+	draw_style_box(panel, r)
+	var title := "Your mark is forming" if main.first_climb else "Your next mark"
+	draw_string(font, pos + Vector2(10, 16), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+	var leader: String = main.leading_part()
+	var lead_soak := maxf(main.part_soak(leader) if leader != "" else 0.0, 1.0)
+	var y := pos.y + 24.0
+	for part in unmarked:
+		var v: float = main.part_soak(part) / lead_soak if main.first_climb else main.soak_fraction(part)
+		var on: bool = part == leader
+		var name_col := GOLD if on else DIM_TEXT
+		draw_string(font, Vector2(pos.x + 10, y + 9), BondScript.PART_NAMES[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, name_col)
+		var bar := Rect2(Vector2(pos.x + 56, y + 2), Vector2(148, 7))
+		draw_rect(bar, Color(1, 1, 1, 0.07))
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(v, 0.0, 1.0), bar.size.y)), Color(GOLD, 0.9) if on else Color(TEXT, 0.35))
+		y += 15.0
+	var bid: String = main.predicted_bond()
+	if bid == "":
+		draw_string(font, Vector2(pos.x + 10, y + 13), "Strike, dodge, parry or endure", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+	else:
+		var info: Dictionary = BondScript.Bonds.BONDS[bid]
+		draw_string(font, Vector2(pos.x + 10, y + 13), "Would be:", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+		draw_string(font, Vector2(pos.x + 68, y + 13), "%s (%s)" % [info["name"], BondScript.PART_NAMES[leader]], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, info["color"])

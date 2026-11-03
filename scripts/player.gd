@@ -382,7 +382,7 @@ func _melee() -> bool:
 		hits += 1
 	# The hand fills when your weapon strikes land.
 	if hits > 0:
-		_part_action("hand", float(hits), 6.0 * hits)
+		_part_action("hand", 0.5 * hits, 6.0 * hits)
 	return true
 
 
@@ -427,7 +427,7 @@ func release_draw() -> void:
 ## Called by your arrows when they hit a monster.
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
-	_part_action("hand", 1.0, 6.0)
+	_part_action("hand", 0.5, 6.0)
 
 
 func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit") -> void:
@@ -609,7 +609,7 @@ func _on_parry(source, perfect := false) -> void:
 		main.hitstop(0.14)
 		main.shake(6.0)
 	# The brow fills when you parry.
-	_part_action("brow", 8.0 if perfect else 5.0, 18.0 if perfect else 12.0)
+	_part_action("brow", 9.0 if perfect else 6.0, 18.0 if perfect else 12.0)
 	if source.has_method("on_parried"):
 		source.on_parried(perfect)
 
@@ -619,7 +619,7 @@ func on_dodge() -> void:
 	if dodge_cd > 0.0:
 		return
 	dodge_cd = 0.3
-	_part_action("legs", 3.0, 10.0)
+	_part_action("legs", 4.0, 10.0)
 	main.fx_text(global_position + Vector2(0, -30), "Dodged", Color(0.75, 0.9, 1.0))
 	main.fx_ring(global_position, Color(0.75, 0.9, 1.0), 34.0, 0.25, 2.0)
 	main.sfx("dodge")
