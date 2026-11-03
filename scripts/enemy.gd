@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -27,8 +27,17 @@ const TYPES := {
 	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
 	"gryphon": {"hp": 380.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
+	# The Kraken's tower
+	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
+	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
+	"kraken": {"hp": 450.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 }
-const BOSSES := ["gryphon"]
+const BOSSES := ["gryphon", "kraken"]
+## What each beast calls when it's half dead.
+const FLOCK := {"gryphon": "bat", "kraken": "lurker"}
+const SWEEP_REACH := 230.0
+const SWEEP_ARC := 60.0
+const SLAM_RADIUS := 55.0
 const SWOOP_SPEED := 430.0
 const SPARK_RADIUS := 95.0
 const RAKE_REACH := 85.0
@@ -59,6 +68,7 @@ var lunge_hit := false
 var knock := Vector2.ZERO
 var squash := 0.0
 var squash_dir := Vector2.RIGHT
+var submerged := false  # a lurker under the surface: can't be struck or targeted
 var tide_t := 0.0  # just shoved by a Tidecaller: a wall stuns it (Undercurrent)
 var challenged_t := 0.0  # Warden's Challenge: comes at you and takes more damage
 var overcharge_t := 0.0  # Stormcaller's Overcharge: lightning bursts from it when it dies
@@ -86,12 +96,15 @@ func setup(k: String, room) -> void:
 	weight = t["weight"]
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
-	if kind in ["knight", "thunderling", "gryphon"]:
+	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
 	if kind == "bat":
 		state = "rest"
-	if kind == "gryphon":
+	if kind == "gryphon" or kind == "kraken":
 		state_t = 1.6
+	if kind == "lurker":
+		state = "sub"
+		submerged = true
 
 
 func _ready() -> void:
@@ -157,8 +170,17 @@ func _physics_process(delta: float) -> void:
 			_thunderling(delta, dir, dist, p)
 		"gryphon":
 			_gryphon(delta, dir, dist, p)
-	# Water slows monsters too; a Deepcaller's Pressure slows the badly hurt.
-	velocity *= main.water_slow(global_position)
+		"lurker":
+			_lurker(delta, dir, dist, p)
+		"shellback":
+			_shellback(delta, dir, dist, p)
+		"kraken":
+			_kraken(delta, dir, dist, p)
+	# Water slows walking monsters too (not fliers or the ones that live in it),
+	# but never an attack already on its way: the glint promised its timing.
+	# A Deepcaller's Pressure slows the badly hurt.
+	if not state in ["lunge", "pounce", "swoop", "dive"]:
+		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken", "bat", "gryphon"])
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
 	velocity += knock
@@ -198,7 +220,9 @@ func is_attacking() -> bool:
 ## climber after the wind-up, so the glint comes earlier to make up for it.
 func _wind(delta: float, travel := 0.0) -> bool:
 	state_t -= delta
-	if not glinted and state_t + minf(travel, GLINT_LEAD) <= GLINT_LEAD:
+	# Glint GLINT_LEAD before the blow lands, counting the time the attack
+	# takes to travel to you (a far swoop glints earlier in its wind-up).
+	if not glinted and (state_t + travel <= GLINT_LEAD or state_t <= 0.0):
 		glinted = true
 		glint = 0.22
 		main.sfx("glint", 1.0, 0.0, 0.03)
@@ -356,13 +380,16 @@ func _bat(delta: float, dir: Vector2, dist: float, p) -> void:
 			velocity = Vector2.ZERO  # hangs in the air, then swoops
 			if not glinted:
 				aim_dir = dir
-			if _wind(delta, maxf(0.0, dist - (radius + p.radius)) / SWOOP_SPEED):
+			# A swoop from far away flies faster, so it always lands within
+			# the parry window of its glint.
+			swoop_speed = maxf(SWOOP_SPEED, maxf(0.0, dist - (radius + p.radius)) / (GLINT_LEAD * 0.85))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius)) / swoop_speed):
 				state = "swoop"
 				state_t = 0.4
 				lunge_hit = false
 		"swoop":
 			state_t -= delta
-			velocity = aim_dir * SWOOP_SPEED
+			velocity = aim_dir * swoop_speed
 			if not lunge_hit and dist < radius + p.radius + 6.0:
 				lunge_hit = true
 				p.receive_attack(dmg, self)
@@ -421,12 +448,7 @@ var called_flock := false
 # The Gryphon: rakes with its talons up close, dives on you from range, and
 # throws a fan of feathers. Every attack glints. Halfway down, it calls bats.
 func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
-	if not called_flock and hp < max_hp * 0.5:
-		called_flock = true
-		main.fx_text(global_position + Vector2(0, -radius - 30.0), "The Gryphon calls its flock", color)
-		main.sfx("warn_knight", 0.6)
-		for i in 2:
-			main.spawn_enemy("bat", global_position + Vector2.from_angle(randf() * TAU) * 60.0)
+	_call_flock()
 	match state:
 		"wind_rake":
 			velocity = Vector2.ZERO
@@ -495,9 +517,176 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.release_attack(self)
 
 
+## Halfway down, a beast calls for help.
+func _call_flock() -> void:
+	if called_flock or hp >= max_hp * 0.5:
+		return
+	called_flock = true
+	main.fx_text(global_position + Vector2(0, -radius - 30.0), "%s calls for help" % main.beast_name().capitalize(), color)
+	main.sfx("warn_knight", 0.6)
+	for i in 2:
+		main.spawn_enemy(FLOCK.get(kind, "slime"), global_position + Vector2.from_angle(randf() * TAU) * (radius + 40.0))
+
+
+# --- the Kraken's tower ------------------------------------------------------------
+
+# Lurkers swim under the surface (only ripples show), rise near you, lunge,
+# then stay up a moment before sinking. Strike while it is up.
+func _lurker(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"sub":
+			submerged = true
+			if dist > 70.0:
+				velocity = dir * speed
+			else:
+				velocity = Vector2.ZERO
+				if main.request_attack(self):
+					state = "rise"
+					state_t = 0.35
+		"rise":
+			submerged = false
+			velocity = Vector2.ZERO
+			state_t -= delta
+			if state_t <= 0.0:
+				_begin_wind("wind", 0.45)
+				lunge_dir = dir
+		"wind":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 8.0)) / 520.0):
+				state = "lunge"
+				state_t = 0.18
+				lunge_hit = false
+		"lunge":
+			state_t -= delta
+			velocity = lunge_dir * 520.0
+			if not lunge_hit and dist < radius + p.radius + 8.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("up", 1.6)  # stays up: your chance
+		"up", "recover":
+			submerged = false
+			velocity = Vector2.ZERO
+			state_t -= delta
+			if state_t <= 0.0:
+				state = "sink"
+				state_t = 0.35
+		"sink":
+			velocity = Vector2.ZERO
+			state_t -= delta
+			if state_t <= 0.0:
+				state = "sub"
+				state_t = 0.8
+		_:
+			state = "sub"
+
+
+# Shellbacks plod toward you, turning slowly; the shell blocks from the front.
+# A slow shell-bash up close.
+func _shellback(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_bash":
+			velocity = Vector2.ZERO
+			if _wind(delta):
+				main.fx_cone(global_position, face, 70.0, deg_to_rad(55.0), Color(1.0, 0.45, 0.3))
+				main.sfx("hit_heavy", 0.6)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() < 66.0 + p.radius and absf(face.angle_to(to)) < deg_to_rad(55.0):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 1.0)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 60.0 and main.request_attack(self):
+				_begin_wind("wind_bash", 0.7)
+				main.sfx("warn_knight", 0.9)
+			else:
+				velocity = dir * speed
+
+
+var slam_spots: Array = []
+var swoop_speed := SWOOP_SPEED
+
+
+# The Kraken: sweeps a tentacle across a wide arc (parryable), slams three
+# spots, one where you stand (unparryable: roll), and spits ink (parryable).
+func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
+	_call_flock()
+	match state:
+		"wind_sweep":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, SWEEP_REACH, deg_to_rad(SWEEP_ARC), Color(0.9, 0.4, 0.5))
+				main.sfx("swing_heavy", 0.5)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= SWEEP_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(SWEEP_ARC):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 0.9)
+		"wind_slam":
+			velocity = Vector2.ZERO
+			if not glinted:
+				slam_spots[0] = p.global_position  # the first spot follows you until the glint
+			if _wind(delta):
+				for spot in slam_spots:
+					main.fx_ring(spot, color, SLAM_RADIUS, 0.4, 5.0)
+					main.fx_burst(spot, Vector2.ZERO, Color(0.5, 0.75, 0.85), 10, 200.0)
+					if p.global_position.distance_to(spot) < SLAM_RADIUS + p.radius:
+						p.receive_attack(dmg * 1.1, self, true)
+				main.sfx("hit_heavy", 0.5)
+				main.shake(8.0)
+				_end_attack("recover", 1.2)
+		"wind_ink":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				for i in 3:
+					var a := (float(i) - 1.0) * deg_to_rad(16.0)
+					var ink = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated(a) * 240.0, dmg * 0.6)
+					ink.style = "ink"
+					ink.tint = Color(0.12, 0.08, 0.16)
+				main.sfx("hit_slime", 0.5)
+				_end_attack("recover", 0.7)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if not main.request_attack(self):
+				velocity = dir * speed if dist > 180.0 else Vector2.ZERO
+			elif dist < SWEEP_REACH - 30.0 and randf() < 0.5:
+				_begin_wind("wind_sweep", 0.7)
+				main.sfx("warn_knight", 0.5)
+			elif randf() < 0.5:
+				slam_spots = [p.global_position]
+				for i in 2:
+					slam_spots.append(p.global_position + Vector2.from_angle(randf() * TAU) * randf_range(80.0, 130.0))
+				_begin_wind("wind_slam", 0.9)
+				main.sfx("warn_archer", 0.5)
+			else:
+				_begin_wind("wind_ink", 0.55)
+				main.sfx("warn_archer", 0.8)
+
+
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
+	if submerged:
+		main.fx_text(global_position + Vector2(0, -radius - 10.0), "under the water", Color(0.5, 0.75, 0.85))
+		return
+	# A shellback's shell turns blows from the front (heavy blows crack it).
+	if kind == "shellback" and dir != Vector2.ZERO and face.dot(-dir) > 0.4:
+		amount *= 0.6 if heavy else 0.15
+		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Blocked" if not heavy else "Cracked", Color(0.8, 0.84, 0.9))
+		main.sfx("hit_armor", 1.2, -2.0)
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
 	hp -= amount
@@ -588,6 +777,12 @@ func _draw() -> void:
 			_draw_thunderling(t)
 		"gryphon":
 			_draw_gryphon(t, f)
+		"lurker":
+			_draw_lurker(t, f)
+		"shellback":
+			_draw_shellback(f)
+		"kraken":
+			_draw_kraken(t, f)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -747,6 +942,71 @@ func _draw_gryphon(t: float, f: Vector2) -> void:
 	draw_circle(o + f * radius * 0.8 - side * 4.0, 1.8, Palette.OUTLINE)
 
 
+func _draw_lurker(t: float, f: Vector2) -> void:
+	if state == "sub":
+		# Only ripples and two eyes show above the water.
+		for k in 2:
+			var rr := 8.0 + fmod(t * 14.0 + k * 9.0, 18.0)
+			draw_arc(Vector2.ZERO, rr, 0.0, TAU, 20, Color(0.6, 0.85, 0.95, 0.5 * (1.0 - rr / 26.0)), 1.5)
+		draw_circle(f * 4.0 + f.orthogonal() * 3.0, 1.4, Color(0.9, 1.0, 0.7, 0.8))
+		draw_circle(f * 4.0 - f.orthogonal() * 3.0, 1.4, Color(0.9, 1.0, 0.7, 0.8))
+		return
+	var rise := 1.0
+	if state == "rise":
+		rise = clampf(1.0 - state_t / 0.35, 0.2, 1.0)
+	elif state == "sink":
+		rise = clampf(state_t / 0.35, 0.2, 1.0)
+	draw_arc(Vector2.ZERO, radius + 4.0, 0.0, TAU, 24, Color(0.6, 0.85, 0.95, 0.4), 2.0)
+	var side := f.orthogonal()
+	var body := PackedVector2Array([f * radius * 1.3 * rise, side * radius * 0.8 * rise, -f * radius * 1.1 * rise, -side * radius * 0.8 * rise])
+	Draw.poly(self, body, color)
+	# Jaws, open while it lunges.
+	var open := 5.0 if state in ["wind", "lunge"] else 2.0
+	draw_line(f * radius * 1.2 * rise + side * open, f * radius * 0.5 * rise, Palette.OUTLINE, 2.0)
+	draw_line(f * radius * 1.2 * rise - side * open, f * radius * 0.5 * rise, Palette.OUTLINE, 2.0)
+	draw_circle(f * radius * 0.6 * rise + side * 3.0, 1.8, Color(0.9, 1.0, 0.7))
+	draw_circle(f * radius * 0.6 * rise - side * 3.0, 1.8, Color(0.9, 1.0, 0.7))
+
+
+func _draw_shellback(f: Vector2) -> void:
+	var side := f.orthogonal()
+	for s in [-1.0, 1.0]:
+		for k in 2:
+			Draw.stroke(self, side * s * radius * 0.7 + f * (k * 8.0 - 4.0), side * s * radius * 1.15 + f * (k * 10.0 - 6.0), color.darkened(0.3), 3.0)
+	Draw.ball(self, f * radius * 0.85, 5.5, color.lightened(0.15))  # head
+	# The shell: a domed oval, its plates facing forward.
+	draw_set_transform(Vector2.ZERO, f.angle(), Vector2(1.0, 0.85))
+	draw_circle(Vector2.ZERO, radius + 1.6, Palette.OUTLINE)
+	draw_circle(Vector2.ZERO, radius, color.darkened(0.2))
+	draw_circle(Vector2(-2, -2), radius * 0.82, color)
+	draw_arc(Vector2.ZERO, radius * 0.55, -1.0, 1.0, 10, color.lightened(0.25), 2.0)
+	draw_line(Vector2(-radius * 0.6, 0), Vector2(radius * 0.6, 0), color.darkened(0.35), 1.5)
+	draw_set_transform(Vector2(0, 0), 0.0, Vector2.ONE)
+	# The armoured front glints faintly: hit it from behind.
+	draw_arc(Vector2.ZERO, radius + 3.0, f.angle() - 1.0, f.angle() + 1.0, 12, Color(0.85, 0.9, 1.0, 0.6), 2.0)
+
+
+func _draw_kraken(t: float, f: Vector2) -> void:
+	# Tentacles, then the great head with two eyes.
+	for i in 6:
+		var base_a := f.angle() + PI + (float(i) - 2.5) * 0.45
+		var pts := PackedVector2Array()
+		for k in 7:
+			var u := float(k) / 6.0
+			var a := base_a + sin(t * 2.0 + i + u * 3.0) * 0.35 * u
+			pts.append(Vector2.from_angle(a) * (radius * 0.6 + u * radius * 1.4))
+		draw_polyline(pts, Palette.OUTLINE, 9.0 - 4.0 * 0.5, true)
+		draw_polyline(pts, color.darkened(0.15), 5.0, true)
+	if state == "wind_sweep":
+		var reach := Vector2.from_angle(lunge_dir.angle()) * SWEEP_REACH * 0.6
+		Draw.stroke(self, lunge_dir * radius * 0.6, reach, color.darkened(0.1), 7.0)
+	Draw.ball(self, Vector2.ZERO, radius, color)
+	draw_circle(f * radius * 0.35 + f.orthogonal() * 11.0, 6.0, Color(0.98, 0.9, 0.55))
+	draw_circle(f * radius * 0.35 - f.orthogonal() * 11.0, 6.0, Color(0.98, 0.9, 0.55))
+	draw_circle(f * radius * 0.4 + f.orthogonal() * 11.0, 3.0, Palette.OUTLINE)
+	draw_circle(f * radius * 0.4 - f.orthogonal() * 11.0, 3.0, Palette.OUTLINE)
+
+
 ## Telegraphs, status and the health bar: unlit, so they always read.
 func _draw_overlay() -> void:
 	var c := overlay
@@ -788,6 +1048,33 @@ func _draw_overlay() -> void:
 		c.draw_line(gp - Vector2(arm, arm) * 0.45, gp + Vector2(arm, arm) * 0.45, Color(gc, gk * 0.7), 1.5)
 		c.draw_line(gp - Vector2(arm, -arm) * 0.45, gp + Vector2(arm, -arm) * 0.45, Color(gc, gk * 0.7), 1.5)
 		c.draw_circle(gp, 3.0 * gk + 1.0, gc)
+	if kind == "lurker" and state == "wind":
+		c.draw_line(Vector2.ZERO, lunge_dir * 110.0, Color(danger, 0.4), radius * 1.5)
+	if kind == "shellback" and state == "wind_bash":
+		var kb := clampf(1.0 - state_t / 0.7, 0.0, 1.0)
+		var wedge := PackedVector2Array([Vector2.ZERO])
+		for i in 11:
+			wedge.append(Vector2.from_angle(face.angle() - deg_to_rad(55.0) + deg_to_rad(110.0) * i / 10.0) * 66.0)
+		c.draw_colored_polygon(wedge, Color(danger, 0.1 + 0.15 * kb))
+	if kind == "kraken":
+		if state == "wind_sweep":
+			var ks := clampf(1.0 - state_t / 0.7, 0.0, 1.0)
+			var half := deg_to_rad(SWEEP_ARC)
+			var wedge2 := PackedVector2Array([Vector2.ZERO])
+			for i in 17:
+				wedge2.append(Vector2.from_angle(lunge_dir.angle() - half + 2.0 * half * i / 16.0) * SWEEP_REACH)
+			c.draw_colored_polygon(wedge2, Color(danger, 0.08 + 0.12 * ks))
+			c.draw_arc(Vector2.ZERO, SWEEP_REACH * ks, lunge_dir.angle() - half, lunge_dir.angle() + half, 24, Color(danger, 0.7), 2.0)
+		if state == "wind_slam":
+			var kl := clampf(1.0 - state_t / 0.9, 0.0, 1.0)
+			for spot in slam_spots:
+				var at: Vector2 = spot - global_position
+				c.draw_circle(at, SLAM_RADIUS, Color(danger, 0.1 + 0.12 * kl))
+				c.draw_arc(at, SLAM_RADIUS, 0.0, TAU, 32, Color(danger, 0.7), 2.0)
+				c.draw_arc(at, SLAM_RADIUS * kl, 0.0, TAU, 32, Color(danger, 0.8), 1.5)
+		if state == "wind_ink":
+			for i in 3:
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(16.0)) * 140.0, Color(danger, 0.3), 1.5)
 	if kind == "thunderling" and state == "wind_spark":
 		var ks := clampf(1.0 - state_t / 0.9, 0.0, 1.0)
 		c.draw_circle(Vector2.ZERO, SPARK_RADIUS, Color(danger, 0.08 + 0.1 * ks))

@@ -214,7 +214,7 @@ func _auto_aim() -> void:
 	var reach := 380.0 if weapon == "bow" else 150.0
 	var best = null
 	var best_d := reach
-	for e in main.enemies():
+	for e in main.targets():
 		var d: float = global_position.distance_to(e.global_position)
 		if d < best_d:
 			best_d = d
@@ -447,7 +447,7 @@ func _melee() -> bool:
 	if hand != null and hand.burned:
 		dmg *= 0.6
 	var hits := 0
-	for e in main.enemies():
+	for e in main.targets():
 		var to: Vector2 = e.global_position - global_position
 		if to.length() > swing["range"] + e.radius:
 			continue
@@ -522,7 +522,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		dmg *= 1.5
 	# Stormcaller passive, Static: striking a charged foe arcs to another.
 	if has_bond("stormcaller") and e.charged > 0.0:
-		for other in main.enemies():
+		for other in main.targets():
 			if other == e:
 				continue
 			if e.global_position.distance_to(other.global_position) < 150.0:
@@ -574,7 +574,7 @@ func _try_parry() -> bool:
 func _nearest_threat() -> Vector2:
 	var best := Vector2.ZERO
 	var best_d := 230.0
-	for e in main.enemies():
+	for e in main.targets():
 		if e.is_attacking():
 			var d: float = global_position.distance_to(e.global_position)
 			if d < best_d:
@@ -588,7 +588,7 @@ func _nearest_threat() -> Vector2:
 				best = c.global_position
 	if best == Vector2.ZERO:
 		best_d = 130.0
-		for e in main.enemies():
+		for e in main.targets():
 			var d3: float = global_position.distance_to(e.global_position)
 			if d3 < best_d:
 				best_d = d3
@@ -741,7 +741,7 @@ func _break_barrier() -> void:
 		main.light_flash(global_position, barrier_color, 1.6, 1.6, 0.4)
 		main.sfx("crit", 0.8)
 		main.shake(6.0)
-		for e in main.enemies():
+		for e in main.targets():
 			var to: Vector2 = e.global_position - global_position
 			if to.length() < 110.0 + e.radius:
 				e.take_hit(power, to.normalized(), 260.0, true)

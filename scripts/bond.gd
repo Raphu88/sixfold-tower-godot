@@ -216,7 +216,7 @@ func _chain(p) -> void:
 	for i in leaps:
 		var best = null
 		var best_d := reach
-		for e in main.enemies():
+		for e in main.targets():
 			if e in hit:
 				continue
 			var d: float = from.distance_to(e.global_position)
@@ -292,7 +292,7 @@ func _thunderhead(p) -> void:
 func _target_in_aim(p, reach: float):
 	var best = null
 	var best_score := INF
-	for e in p.main.enemies():
+	for e in p.main.targets():
 		var to: Vector2 = e.global_position - p.global_position
 		if to.length() > reach:
 			continue
@@ -315,7 +315,7 @@ func _lift(p) -> void:
 	main.sfx("gust", 0.9)
 	var lifted := 0
 	var dmg: float = damage()
-	for e in main.enemies():
+	for e in main.targets():
 		var to: Vector2 = e.global_position - origin
 		if to.length() > reach + e.radius:
 			continue
@@ -349,7 +349,7 @@ func _surge(p) -> void:
 	main.fx_burst(origin, Vector2.ZERO, color(), 24, 320.0)
 	main.light_flash(origin, color(), 1.6, 1.2, 0.4)
 	var hit := 0
-	for e in main.enemies():
+	for e in main.targets():
 		var to: Vector2 = e.global_position - origin
 		if to.length() > radius + e.radius:
 			continue
@@ -368,7 +368,7 @@ func _riptide(p) -> void:
 	var aim: Vector2 = p.aim
 	var length: float = stat("length")
 	var pulled := 0
-	for e in main.enemies():
+	for e in main.targets():
 		var to: Vector2 = e.global_position - origin
 		var along := to.dot(aim)
 		if along < 0.0 or along > length or absf(to.dot(aim.orthogonal())) > stat("width") * 0.5 + e.radius:
@@ -428,7 +428,7 @@ func _burst_known() -> bool:
 func _challenge(p) -> void:
 	var main = p.main
 	var n := 0
-	for e in main.enemies():
+	for e in main.targets():
 		if e.global_position.distance_to(p.global_position) < stat("radius"):
 			e.challenged_t = stat("duration")
 			n += 1
@@ -449,7 +449,7 @@ func _unbreakable(p) -> void:
 
 ## The foes nearest you, up to `count`, within `reach`.
 func _nearest(p, count: int, reach: float) -> Array:
-	var list: Array = p.main.enemies().filter(func(e): return e.global_position.distance_to(p.global_position) < reach)
+	var list: Array = p.main.targets().filter(func(e): return e.global_position.distance_to(p.global_position) < reach)
 	list.sort_custom(func(a, b): return a.global_position.distance_to(p.global_position) < b.global_position.distance_to(p.global_position))
 	return list.slice(0, count)
 
@@ -546,13 +546,13 @@ func _crosswind(p) -> void:
 func _downdraft(p) -> void:
 	var main = p.main
 	var slammed := 0
-	for e in main.enemies():
+	for e in main.targets():
 		if e.airborne <= 0.0 or e.global_position.distance_to(p.global_position) > 420.0:
 			continue
 		e.airborne = 0.0
 		main.fx_ring(e.global_position, color(), stat("radius"), 0.35, 4.0)
 		main.fx_burst(e.global_position, Vector2.ZERO, Color(0.8, 0.75, 0.7), 12, 220.0)
-		for o in main.enemies():
+		for o in main.targets():
 			if o != e and o.global_position.distance_to(e.global_position) < stat("radius"):
 				o.take_hit(float(stat("splash")) * power(), (o.global_position - e.global_position).normalized(), 120.0)
 		e.take_hit(damage(), Vector2.ZERO, 0.0, true)

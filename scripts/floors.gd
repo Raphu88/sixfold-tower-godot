@@ -13,6 +13,8 @@ const MONSTERS := {
 	# Tower monsters: only appear where the tower's mix lists them.
 	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
 	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
+	"shellback": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
 
