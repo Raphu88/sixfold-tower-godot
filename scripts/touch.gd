@@ -87,6 +87,12 @@ func _input(event: InputEvent) -> void:
 		if event.index == stick_touch:
 			stick_pos = event.position
 			_update_stick()
+		elif held.has(event.index) and String(held[event.index]).begins_with("cast_"):
+			# Holding a mark's button: slide to pick a spell from its ring.
+			for bt in buttons:
+				if bt["id"] == held[event.index]:
+					main.pick_anchor = bt["c"]
+					main.player.pick_dir_override = event.position - bt["c"]
 		get_viewport().set_input_as_handled()
 	elif active and (event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion):
 		# Someone picked up a keyboard or mouse: hand control back to them.
@@ -114,6 +120,8 @@ func _touch_down(index: int, pos: Vector2) -> void:
 				var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 			elif b["action"] != "":
+				if String(b["id"]).begins_with("cast_"):
+					main.pick_anchor = b["c"]
 				Input.action_press(b["action"])
 				if b["id"] in ONE_SHOT:
 					# Taps: release on the next frame so the next tap registers too.

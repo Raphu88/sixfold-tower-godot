@@ -107,6 +107,121 @@ func _regard_tests() -> void:
 	_check(main.player.bonds.has("heart"), "the climber carries it")
 
 
+## Gives the test climber a mark at a given step.
+func _mark(part: String, id: String, step: int) -> void:
+	main.profile.add_bond(part, id, false)
+	main.profile.bonds[part]["xp"] = main.ProfileScript.STEP_XP[step - 1]
+	main.profile.regarded = true
+	main.first_climb = false
+	main._give_bonds()
+	main.player.bonds[part].essence = 999.0
+
+
+func _cast(part: String, spell_id: String) -> void:
+	var b = main.player.bonds[part]
+	for i in b.spells().size():
+		if b.spells()[i]["id"] == spell_id:
+			b.select(i)
+	b.essence = 999.0
+	b.cast(main.player)
+
+
+func _gryphon_tests() -> void:
+	print("the Gryphon's bonds")
+	await _fresh_main()
+	var p = main.player
+	_mark("hand", "stormcaller", 1)
+	_check(p.bonds["hand"].spells().size() == 1, "a step 1 Stormcaller knows one spell")
+	_mark("hand", "stormcaller", 5)
+	_mark("legs", "windwalker", 5)
+	_mark("brow", "hunter", 5)
+	_check(p.bonds["hand"].spells().size() == 4 and p.bonds["legs"].spells().size() == 4 and p.bonds["brow"].spells().size() == 4, "at step 5 each Gryphon bond knows four spells")
+	_check(main.ProfileScript.Bonds.step_note("windwalker", 2) == "learns Crosswind", "growing a step names the spell learned")
+	# Hold to pick: holding the key opens the ring (time slows); pointing picks.
+	Input.action_press("cast_legs")
+	await _wait(0.4)
+	_check(p.pick_open and main.slowmo, "holding a mark's key opens its spell ring and slows time")
+	p.pick_dir_override = Vector2(1, 0) * 60.0  # points at the second spell (of four, from the top, clockwise)
+	await _wait(0.1)
+	Input.action_release("cast_legs")
+	await _frames(3)
+	_check(p.bonds["legs"].selected == 1 and p.bonds["legs"].spell_name() == "Crosswind", "pointing right picks Crosswind: %s" % p.bonds["legs"].spell_name())
+	_check(not main.slowmo, "letting go closes the ring")
+	main.set_slowmo(false)
+	Engine.time_scale = 1.0
+	await _settle()
+	# Bodies and passives.
+	_check(main.player_glow.texture_scale > 2.0, "Keen Eyes: the Hunter sees farther")
+	p.attack_cd = 0.0
+	p.combo_t = 0.0
+	p._try_attack()
+	_check(p.attack_cd < 0.4, "Quick Nerves: strikes recover faster (%.2f)" % p.attack_cd)
+	await _settle()
+
+	# Stormcaller.
+	var a = await _spawn("slime", p.global_position + Vector2(90, 0))
+	var b2 = await _spawn("slime", p.global_position + Vector2(180, 20))
+	a.hp = 5.0
+	b2.hp = 999.0
+	_cast("hand", "overcharge")
+	_check(a.overcharge_t > 0.0, "Overcharge charges the foe in your aim")
+	a.take_hit(99.0, Vector2.ZERO)
+	_check(b2.hp < 999.0, "when it dies, lightning leaps to the foes nearby")
+	b2.hp = 999.0
+	_cast("hand", "thunderhead")
+	_check(p.thunderhead_t > 0.0, "Thunderhead starts")
+	_cast("hand", "lightning_rod")
+	_check(not main.rod.is_empty(), "Lightning Rod plants a rod")
+	_cast("hand", "chain_lightning")
+	_check(b2.hp < 999.0, "Chain Lightning strikes (bending through the rod)")
+	await _settle()
+	# Windwalker.
+	b2.hp = 999.0
+	b2.global_position = p.global_position + Vector2(80, 0)
+	p.aim = Vector2.RIGHT
+	_cast("legs", "gale_lift")
+	_check(b2.airborne > 0.0, "Gale Lift lifts")
+	var hp_b: float = b2.hp
+	_cast("legs", "downdraft")
+	_check(b2.airborne <= 0.0 and b2.hp < hp_b, "Downdraft slams the airborne foe down")
+	main.walls.clear()
+	b2.global_position = p.global_position + Vector2(0, 200)  # out of the arrow's path
+	_cast("legs", "crosswind")
+	_check(main.walls.size() == 1, "Crosswind raises a wall of wind")
+	var arrow = main.spawn_projectile(p.global_position + Vector2(140, 0), Vector2(-260, 0), 8.0)
+	await _wait(0.5)
+	_check(is_instance_valid(arrow) and arrow.reflected, "the wall turns an enemy arrow back")
+	_cast("legs", "eye_of_the_storm")
+	await _wait(0.3)
+	_check(main.cyclones.size() == 1, "Eye of the Storm raises a cyclone")
+	await _settle()
+	# Hunter.
+	main.cyclones.clear()
+	main.walls.clear()
+	var c = await _spawn("slime", p.global_position + Vector2(300, 0))
+	c.hp = 999.0
+	b2.global_position = p.global_position + Vector2(200, 0)
+	b2.airborne = 0.0
+	b2.hp = 999.0
+	p.aim = Vector2.RIGHT
+	_cast("brow", "piercing_shot")
+	await _wait(0.6)
+	_check(b2.hp < 999.0 and c.hp < 999.0, "Piercing Shot pierces a line of foes")
+	_check(999.0 - b2.hp >= 30.0, "at step 3+ the charged shot deals triple damage (%d)" % int(999.0 - b2.hp))
+	_check(p.quarry == b2 or p.quarry == c, "Quarry remembers the last foe struck")
+	_cast("brow", "track")
+	_check(main.track_t > 0.0, "Track reveals the foes")
+	_cast("brow", "hawks_eye")
+	var hp_c: float = c.hp
+	p.ranged_hit(c, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(hp_c - c.hp >= 20.0, "Hawk's Eye doubles arrow damage")
+	c.global_position = p.global_position + Vector2(190, 0)
+	hp_c = c.hp
+	_cast("brow", "rain_of_arrows")
+	await _wait(1.5)
+	_check(c.hp < hp_c, "Rain of Arrows hits foes in the marked area")
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -148,6 +263,7 @@ func _spell_tests() -> void:
 	main.regard = {}  # (still showing from the test above; it ignores other keys)
 	main.grant_test_bonds()
 	_check(not main.profile.bonds.is_empty(), "(the climber has marks)")
+	await _frames(1)  # press at the start of a frame, before the room reads input
 	Input.action_press("new_climber")
 	await _frames(2)
 	Input.action_release("new_climber")
@@ -586,6 +702,7 @@ func _run() -> void:
 
 	await _regard_tests()
 	await _tower_tests()
+	await _gryphon_tests()
 	await _spell_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

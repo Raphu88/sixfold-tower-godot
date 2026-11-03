@@ -195,6 +195,9 @@ func _draw() -> void:
 		_draw_regard(size, font)
 	if main.choosing_tower:
 		_draw_tower_choice(size, font)
+	_draw_quarry(p, size, font)
+	if p.pick_open:
+		_draw_spell_ring(p, font)
 
 
 func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float, color: Color) -> void:
@@ -250,7 +253,8 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * ratio, bar.size.y)), col)
 	var cost_x: float = bar.position.x + bar.size.x * b.cost() / b.capacity()
 	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 2), Color(1, 1, 1, 0.8), 1.0)
-	var note: String = "%s · %s" % [b.spell_name(), BondScript.PART_FILLS[part]]
+	var known: int = b.spells().size()
+	var note: String = "%s%s: %s" % [b.spell_name(), "  (%d/%d, hold %s to pick)" % [b.selected + 1, known, key] if known > 1 else "", b.spell_desc()]
 	var note_col := DIM_TEXT
 	if b.burned:
 		note = BondScript.PART_BURN[part] + " · overdraw again and it tears (costs health)"
@@ -325,7 +329,7 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 			"You reached the top. %s has watched you climb." % main.beast_name().capitalize(),
 			"Essence takes hold in your %s." % part_name,
 			"You bear the %s mark." % info["name"],
-			"%s: %s." % [info["spell"], BondScript.PART_FILLS[rg["part"]]],
+			"%s: %s." % [info["spells"][0]["name"], BondScript.PART_FILLS[rg["part"]]],
 		]
 	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
 	draw_string_outline(font, Vector2(0, size.y * 0.3 - 110), "THE REGARD", HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 7, Color(0, 0, 0, 0.8 * title_a))
@@ -431,3 +435,52 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 13, 4, DIM_TEXT)
 		var hint := "Tap" if main.touch_active else "Press %d" % (i + 1)
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD if last else DIM_TEXT)
+
+
+# --- hold to pick ----------------------------------------------------------------
+
+## The ring of a mark's spells, around the climber (or the held button on a
+## phone). The highlighted one is cast when you let go.
+func _draw_spell_ring(p, font: Font) -> void:
+	var b = p.bonds.get(p.pick_part)
+	if b == null:
+		return
+	var known: Array = b.spells()
+	var c: Vector2 = main.pick_anchor if main.touch_active else p.get_global_transform_with_canvas().origin
+	var ring_r := 78.0
+	draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.45))
+	var col: Color = b.color()
+	for i in known.size():
+		var a := -PI / 2.0 + TAU * float(i) / float(known.size())
+		var at := c + Vector2.from_angle(a) * ring_r
+		var on: bool = i == p.pick_index
+		draw_circle(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
+		draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5)
+		var words: PackedStringArray = known[i]["name"].split(" ")
+		for w in words.size():
+			draw_string(font, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 11.0), words[w], HORIZONTAL_ALIGNMENT_CENTER, 60, 10, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT)
+	if p.pick_index >= 0 and p.pick_index < known.size():
+		var sp: Dictionary = known[p.pick_index]
+		draw_string_outline(font, c + Vector2(-160, ring_r + 54.0), sp["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 15, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, c + Vector2(-160, ring_r + 54.0), sp["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 15, col.lightened(0.2))
+		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 12, 2, 4, Color(0, 0, 0, 0.8))
+		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 12, 2, TEXT)
+
+
+## Hunter's Quarry: the last foe you struck is always marked, and an arrow at
+## the screen edge points to it when it's out of sight.
+func _draw_quarry(p, size: Vector2, font: Font) -> void:
+	if not p.has_bond("hunter") or p.quarry == null or not is_instance_valid(p.quarry) or p.quarry.dead:
+		return
+	var at: Vector2 = p.quarry.get_global_transform_with_canvas().origin
+	var col := Color(0.85, 0.63, 0.42)
+	var inner := Rect2(Vector2(24, 24), size - Vector2(48, 48))
+	if inner.has_point(at):
+		var top := at + Vector2(0, -p.quarry.radius * 1.6 - 14.0)
+		draw_colored_polygon(PackedVector2Array([top + Vector2(-6, -8), top + Vector2(6, -8), top]), Color(col, 0.9))
+	else:
+		var center := size / 2.0
+		var dir := (at - center).normalized()
+		var edge := Vector2(clampf(at.x, inner.position.x, inner.end.x), clampf(at.y, inner.position.y, inner.end.y))
+		var side := dir.orthogonal()
+		draw_colored_polygon(PackedVector2Array([edge + dir * 10.0, edge - dir * 6.0 + side * 8.0, edge - dir * 6.0 - side * 8.0]), Color(col, 0.9))

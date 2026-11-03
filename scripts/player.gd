@@ -72,6 +72,17 @@ var squash := 0.0
 var buffered := ""
 var buffer_t := 0.0
 var step_t := 0.0
+# Hold to pick: holding a mark's key opens a ring of its spells.
+const PICK_HOLD := 0.25
+var pick_part := ""
+var pick_t := 0.0
+var pick_open := false
+var pick_index := -1
+var pick_dir_override := Vector2.ZERO  # touch: finger offset from the button
+# Bond effects on the climber
+var thunderhead_t := 0.0  # Stormcaller's Thunderhead
+var hawk_t := 0.0  # Hunter's Hawk's Eye
+var quarry  # Hunter's Quarry: the last foe you struck
 var overlay: Node2D  # unlit layer for swing trails and rings
 
 
@@ -141,6 +152,7 @@ func _physics_process(delta: float) -> void:
 	elif mouse_aim and mouse.distance_to(global_position) > 4.0 and attack_cd <= 0.0:
 		aim = (mouse - global_position).normalized()
 	_read_buffer()
+	_update_pick(delta)
 
 	if cast_t > 0.0:
 		# A wind-up can't be cancelled: no moving, no rolling.
@@ -204,6 +216,48 @@ func _auto_aim() -> void:
 	aim = aim.slerp(target, 0.35).normalized()
 
 
+## Hold to pick: while a mark's key is held past PICK_HOLD, a ring of its
+## spells opens (time slows) and the direction you point picks one; letting
+## go casts it. A quick tap just casts the selected spell.
+func _update_pick(delta: float) -> void:
+	if pick_part == "":
+		return
+	var b = bonds.get(pick_part)
+	if b == null:
+		pick_part = ""
+		return
+	if Input.is_action_pressed("cast_" + pick_part):
+		pick_t += delta / maxf(Engine.time_scale, 0.01)
+		if not pick_open and pick_t >= PICK_HOLD and b.spells().size() > 1:
+			pick_open = true
+			pick_index = b.selected
+			main.set_slowmo(true)
+		if pick_open:
+			_aim_pick(b)
+		return
+	# Released: pick (if the ring was open) and cast.
+	if pick_open:
+		_aim_pick(b)  # read the direction one last time (a quick slide-and-release)
+		b.select(pick_index)
+		main.set_slowmo(false)
+	pick_open = false
+	pick_dir_override = Vector2.ZERO
+	buffered = "cast_" + pick_part
+	buffer_t = BUFFER_TIME
+	pick_part = ""
+
+
+## Points into the open ring: the spell in that direction is highlighted.
+func _aim_pick(b) -> void:
+	var dir := pick_dir_override
+	if dir == Vector2.ZERO and not touch_aim:
+		dir = get_global_mouse_position() - global_position
+	if dir.length() > 18.0:
+		var n: int = b.spells().size()
+		var step_a := TAU / float(n)
+		pick_index = posmod(int(round((dir.angle() + PI / 2.0) / step_a)), n)
+
+
 func _footsteps(delta: float, speed: float) -> void:
 	if speed <= 1.0:
 		step_t = 0.0
@@ -231,14 +285,13 @@ func _read_buffer() -> void:
 		pressed = "attack"
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
-	elif Input.is_action_just_pressed("cast_hand"):
-		pressed = "cast_hand"
-	elif Input.is_action_just_pressed("cast_legs"):
-		pressed = "cast_legs"
-	elif Input.is_action_just_pressed("cast_heart"):
-		pressed = "cast_heart"
-	elif Input.is_action_just_pressed("cast_brow"):
-		pressed = "cast_brow"
+	# A mark's key: tap to cast its selected spell, hold to pick another
+	# (see _update_pick). The cast is buffered when the key is released.
+	for part in BondScript.Bonds.PARTS:
+		if Input.is_action_just_pressed("cast_" + part) and bonds.has(part):
+			pick_part = part
+			pick_t = 0.0
+			pick_open = false
 	if pressed != "":
 		buffered = pressed
 		buffer_t = BUFFER_TIME
@@ -290,6 +343,8 @@ func _tick_timers(delta: float) -> void:
 	parry_cd -= delta
 	parry_flash -= delta
 	ward_t -= delta
+	thunderhead_t -= delta
+	hawk_t -= delta
 	hurt_t -= delta
 	dodge_cd -= delta
 	buffer_t -= delta
@@ -326,7 +381,7 @@ func _try_roll(input: Vector2) -> bool:
 	roll_speed = (500.0 if wind else 320.0) * dist_mult
 	roll_t = duration
 	iframes = duration * 0.85
-	roll_cd = duration + 0.25
+	roll_cd = (duration + 0.25) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	attack_cd = 0.0
 	combo = 0
 	ghost_t = 0.0
@@ -364,7 +419,7 @@ func _melee() -> bool:
 	combo = (combo + 1) % chain.size()
 	sta = maxf(0.0, sta - swing["sta"])
 	sta_delay = 0.6
-	attack_cd = swing["recover"]
+	attack_cd = swing["recover"] * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
 	lunge_t = 0.08
@@ -431,11 +486,16 @@ func release_draw() -> void:
 
 ## Called by your arrows when they hit a monster.
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
+	# Hunter's Hawk's Eye: every arrow strikes a weak point.
+	if hawk_t > 0.0:
+		dmg *= 2.0
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Color(0.85, 0.63, 0.42))
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	_part_action("hand", 0.5, 6.0)
 
 
 func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit") -> void:
+	quarry = e  # Hunter's Quarry remembers it
 	var crit := false
 	# A staggered foe is open: a riposte deals critical damage.
 	if e.stun > 0.0:

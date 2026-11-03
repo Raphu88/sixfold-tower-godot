@@ -32,10 +32,34 @@ func data() -> Dictionary:
 	return Bonds.BONDS[id]
 
 
-## A spell value at the current step: the latest step at or below this one
-## that sets it wins.
+# --- spells ----------------------------------------------------------------------
+
+var selected := 0  # which learned spell the mark's key casts
+
+
+## The spells this bond knows at its current step, in the order learned.
+func spells() -> Array:
+	return data()["spells"].filter(func(sp): return int(sp["learn"]) <= step)
+
+
+## The spell the mark's key casts.
+func spell() -> Dictionary:
+	var known := spells()
+	return known[clampi(selected, 0, known.size() - 1)]
+
+
+func select(i: int) -> void:
+	selected = clampi(i, 0, spells().size() - 1)
+
+
+## A value for the selected spell at the current step: the latest step at or
+## below this one that sets it wins.
 func stat(key: String):
-	var steps: Dictionary = data()["steps"]
+	return spell_stat(spell(), key)
+
+
+func spell_stat(sp: Dictionary, key: String):
+	var steps: Dictionary = sp["steps"]
 	var value = null
 	for s in range(1, step + 1):
 		if steps.has(s) and steps[s].has(key):
@@ -48,7 +72,19 @@ func display_name() -> String:
 
 
 func spell_name() -> String:
-	return data()["spell"]
+	return spell()["name"]
+
+
+func spell_desc() -> String:
+	return spell()["desc"]
+
+
+func body_name() -> String:
+	return data()["body"]["name"]
+
+
+func passive_name() -> String:
+	return data()["passive"]["name"]
 
 
 func color() -> Color:
@@ -60,10 +96,10 @@ func capacity() -> float:
 
 
 func cost() -> float:
-	return stat("cost") * (1.25 if faint else 1.0)
+	return float(stat("cost")) * (1.25 if faint else 1.0)
 
 
-## A faint mark's spells hit softer.
+## A faint mark's spells hit softer, and so do desperate (overdrawn) casts.
 func power() -> float:
 	return (0.75 if faint else 1.0) * overdraw_mult
 
@@ -73,12 +109,12 @@ func damage() -> float:
 
 
 func windup() -> float:
-	return stat("windup")
+	return float(stat("windup"))
 
 
-## What reaching `new_step` adds, in a few words (empty if nothing to say).
+## What reaching `new_step` brings, in a few words (empty if nothing).
 func step_note(new_step: int) -> String:
-	return Bonds.STEP_NOTES.get(id, {}).get(new_step, "")
+	return Bonds.step_note(id, new_step)
 
 
 func fill(amount: float) -> void:
@@ -107,11 +143,31 @@ func pay() -> String:
 
 
 func cast(p) -> void:
-	match data()["type"]:
+	match spell()["type"]:
 		"chain":
 			_chain(p)
+		"overcharge":
+			_overcharge(p)
+		"rod":
+			_rod(p)
+		"thunderhead":
+			_thunderhead(p)
 		"lift":
 			_lift(p)
+		"crosswind":
+			_crosswind(p)
+		"downdraft":
+			_downdraft(p)
+		"cyclone":
+			_cyclone(p)
+		"shot":
+			_shot(p)
+		"track":
+			_track(p)
+		"hawkeye":
+			_hawkeye(p)
+		"rain":
+			_rain(p)
 		"surge":
 			_surge(p)
 		"blades":
@@ -120,14 +176,22 @@ func cast(p) -> void:
 			_ward(p)
 
 
-# Lightning leaps from you to the nearest foe, then foe to foe.
+func _overdrawn() -> bool:
+	return overdraw_mult < 1.0
+
+
 func _chain(p) -> void:
 	var main = p.main
-	var leaps: int = stat("leaps")
+	var leaps: int = int(stat("leaps")) * (2 if p.thunderhead_t > 0.0 else 1)
 	var from: Vector2 = p.global_position
 	var reach: float = stat("reach")
 	var hit: Array = []
 	var points: Array = [from]
+	# Lightning Rod: the chain bends through a planted rod first.
+	if not main.rod.is_empty() and from.distance_to(main.rod["pos"]) < 420.0:
+		from = main.rod["pos"]
+		points.append(from)
+		reach = maxf(reach, float(main.rod["reach"]))
 	for i in leaps:
 		var best = null
 		var best_d := reach
@@ -161,6 +225,61 @@ func _chain(p) -> void:
 		if stun > 0.0:
 			e.stagger(stun)
 		e.take_hit(damage(), Vector2.ZERO)
+	# Overdrawn, the last leap may jump back to you.
+	if _overdrawn() and randf() < 0.5:
+		main.fx_bolt([points[-1], p.global_position], color())
+		p.hp = maxf(1.0, p.hp - 6.0)
+		main.fx_text(p.global_position + Vector2(0, -50), "the chain jumps back! -6", Color(1.0, 0.4, 0.3))
+
+
+# Charge one foe; when it dies, lightning leaps from it to every foe nearby.
+func _overcharge(p) -> void:
+	var main = p.main
+	var target = _target_in_aim(p, 320.0)
+	if target == null:
+		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
+		return
+	target.overcharge_t = stat("duration")
+	target.overcharge_dmg = damage()
+	target.overcharge_r = stat("radius")
+	main.fx_bolt([p.global_position, target.global_position], color())
+	main.fx_ring(target.global_position, color(), 30.0, 0.3, 2.0)
+	main.sfx("zap", 0.8, -4.0)
+
+
+# Plant a rod: your chains bend through it.
+func _rod(p) -> void:
+	var main = p.main
+	var at: Vector2 = p.global_position + p.aim * 90.0
+	main.rod = {"pos": at, "t": stat("duration"), "reach": stat("reach")}
+	main.fx_ring(at, color(), 26.0, 0.3, 2.0)
+	main.light_flash(at, color(), 0.9, 1.0, 0.3)
+	main.sfx("equip_sword", 0.7, -2.0)
+
+
+# For a while, every chain leaps twice as many times.
+func _thunderhead(p) -> void:
+	var main = p.main
+	p.thunderhead_t = stat("duration")
+	main.fx_ring(p.global_position, color(), 80.0, 0.5, 4.0)
+	main.light_flash(p.global_position, color(), 2.0, 1.6, 0.6)
+	main.sfx("zap", 0.6)
+	main.shake(4.0)
+
+
+## The foe nearest to where you're aiming, within reach (or null).
+func _target_in_aim(p, reach: float):
+	var best = null
+	var best_score := INF
+	for e in p.main.enemies():
+		var to: Vector2 = e.global_position - p.global_position
+		if to.length() > reach:
+			continue
+		var score: float = to.length() * (1.0 + 2.0 * absf(p.aim.angle_to(to)))
+		if score < best_score:
+			best_score = score
+			best = e
+	return best
 
 
 # A gust in front of you throws foes into the air, helpless.
@@ -239,3 +358,84 @@ func _ward(p) -> void:
 	main.fx_ring(p.global_position, color(), 36.0, 0.35, 3.0)
 	main.light_flash(p.global_position, color(), 1.0, 1.0, 0.3)
 	main.sfx("parry", 0.75, -6.0)
+
+
+# A wall of wind across your path that turns enemy arrows back.
+func _crosswind(p) -> void:
+	var main = p.main
+	var center: Vector2 = p.global_position + p.aim * 50.0
+	var half: Vector2 = p.aim.orthogonal() * stat("length") * 0.5
+	main.walls.append({"a": center - half, "b": center + half, "t": stat("duration"), "color": color()})
+	main.sfx("gust", 1.1, -2.0)
+	main.light_flash(center, color(), 1.0, 0.8, 0.3)
+
+
+# Slam every foe in the air into the ground.
+func _downdraft(p) -> void:
+	var main = p.main
+	var slammed := 0
+	for e in main.enemies():
+		if e.airborne <= 0.0 or e.global_position.distance_to(p.global_position) > 420.0:
+			continue
+		e.airborne = 0.0
+		main.fx_ring(e.global_position, color(), stat("radius"), 0.35, 4.0)
+		main.fx_burst(e.global_position, Vector2.ZERO, Color(0.8, 0.75, 0.7), 12, 220.0)
+		for o in main.enemies():
+			if o != e and o.global_position.distance_to(e.global_position) < stat("radius"):
+				o.take_hit(float(stat("splash")) * power(), (o.global_position - e.global_position).normalized(), 120.0)
+		e.take_hit(damage(), Vector2.ZERO, 0.0, true)
+		slammed += 1
+	if slammed == 0:
+		main.fx_text(p.global_position + Vector2(0, -34), "nothing in the air", color())
+	else:
+		main.sfx("hit_heavy", 0.8)
+		main.shake(7.0)
+		main.hitstop(0.08)
+
+
+# A cyclone that holds every foe inside it aloft.
+func _cyclone(p) -> void:
+	var main = p.main
+	var at: Vector2 = p.global_position + p.aim * stat("range")
+	main.cyclones.append({"pos": at, "r": stat("radius"), "t": stat("duration") * power(), "color": color()})
+	main.sfx("gust", 0.6)
+	main.light_flash(at, color(), 1.8, 1.2, 0.5)
+
+
+# A long-range arrow of essence that pierces a whole line of foes.
+func _shot(p) -> void:
+	var main = p.main
+	var dir: Vector2 = p.aim
+	if _overdrawn():
+		dir = dir.rotated(randf_range(-0.4, 0.4))  # an overdrawn shot flies wide
+	var dmg := damage() * (3.0 if stat("charged") else 1.0)
+	var b = main.spawn_player_arrow(p.global_position + dir * (p.radius + 8.0), dir * float(stat("speed")), dmg, 160.0, true)
+	b.style = "essence"
+	b.tint = color()
+	b.life = 1.5
+	main.sfx("bow", 1.3)
+	main.light_flash(p.global_position + dir * 30.0, color(), 0.9, 1.0, 0.2)
+	if stat("charged"):
+		main.shake(4.0)
+
+
+# Reveal every foe and where it is heading.
+func _track(p) -> void:
+	p.main.track_t = stat("duration")
+	p.main.sfx("glint", 0.8, -4.0)
+	p.main.fx_ring(p.global_position, color(), 160.0, 0.6, 2.0)
+
+
+# For a few seconds, every arrow strikes a weak point.
+func _hawkeye(p) -> void:
+	p.hawk_t = stat("duration")
+	p.main.sfx("ready", 0.8)
+	p.main.fx_ring(p.global_position, color(), 50.0, 0.4, 3.0)
+
+
+# Arrows fall on a marked area.
+func _rain(p) -> void:
+	var main = p.main
+	var at: Vector2 = p.global_position + p.aim * stat("range")
+	main.rains.append({"pos": at, "r": stat("radius"), "t": stat("duration"), "tick": 0.0, "damage": damage(), "color": color()})
+	main.sfx("bow", 0.8)

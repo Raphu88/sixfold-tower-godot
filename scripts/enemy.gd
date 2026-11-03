@@ -49,6 +49,9 @@ var lunge_hit := false
 var knock := Vector2.ZERO
 var squash := 0.0
 var squash_dir := Vector2.RIGHT
+var overcharge_t := 0.0  # Stormcaller's Overcharge: lightning bursts from it when it dies
+var overcharge_dmg := 0.0
+var overcharge_r := 0.0
 var flinch := 0.0  # knocked off balance by a hit (not open to ripostes)
 var glint := 0.0  # the white flash before a hit, for drawing
 var glinted := false
@@ -96,6 +99,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	flash -= delta
 	charged -= delta
+	overcharge_t -= delta
 	glint -= delta
 	squash = move_toward(squash, 0.0, 6.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)

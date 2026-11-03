@@ -22,6 +22,15 @@ func _physics_process(delta: float) -> void:
 	if life <= 0.0 or not main.room.has_point(position):
 		queue_free()
 		return
+	# Crosswind: a wall of wind turns enemy arrows back at their shooter.
+	if not friendly:
+		for w in main.walls:
+			if Geometry2D.segment_intersects_segment(position - vel * delta, position, w["a"], w["b"]) != null:
+				reflected = true
+				friendly = true
+				vel = -vel
+				main.fx_burst(position, vel.normalized(), w["color"], 6, 180.0)
+				break
 	for pl in main.pillars:
 		if position.distance_to(pl["pos"]) < pl["r"]:
 			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
@@ -69,6 +78,12 @@ func on_parried(_perfect := false) -> void:
 func _draw() -> void:
 	var dir := vel.normalized()
 	var side := dir.orthogonal()
+	if style == "essence":
+		# A streak of essence: a bright head and a long fading tail.
+		draw_line(-dir * 40.0, Vector2.ZERO, Color(tint, 0.3), 5.0)
+		draw_line(-dir * 22.0, dir * 4.0, Color(tint.lightened(0.3), 0.95), 2.5)
+		draw_circle(Vector2.ZERO, 7.0, Color(tint, 0.25))
+		return
 	if style == "blade":
 		# A glowing conjured blade with a faint trail.
 		draw_line(-dir * 26.0, -dir * 6.0, Color(tint, 0.25), 5.0)

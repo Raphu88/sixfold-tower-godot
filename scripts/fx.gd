@@ -10,6 +10,8 @@ var sparks: Array = []
 var ghosts: Array = []
 var chunks: Array = []
 var motes_list: Array = []  # essence flying into the climber
+var arrows_falling: Array = []  # Rain of Arrows
+var main  # the room, for drawing lingering spells (rods, walls, cyclones...)
 
 
 func text(pos: Vector2, s: String, color: Color) -> void:
@@ -62,6 +64,10 @@ func motes(pos: Vector2, color: Color, count: int, target: Node2D) -> void:
 		motes_list.append({"pos": pos, "vel": d * randf_range(80.0, 180.0), "color": color, "target": target, "age": 0.0, "delay": randf_range(0.15, 0.4)})
 
 
+func falling_arrow(at: Vector2, color: Color) -> void:
+	arrows_falling.append({"pos": at, "color": color, "t": 0.18})
+
+
 ## Bits of a slain monster that scatter, tumble and fade.
 func debris(pos: Vector2, color: Color, count: int) -> void:
 	for i in count:
@@ -111,6 +117,9 @@ func _process(delta: float) -> void:
 		if m["age"] > 2.5:
 			m["done"] = true
 	motes_list = motes_list.filter(func(i): return not i.get("done", false))
+	for a in arrows_falling:
+		a["t"] -= delta
+	arrows_falling = arrows_falling.filter(func(a): return a["t"] > 0.0)
 	rings = rings.filter(func(i): return i["t"] > 0.0)
 	ghosts = ghosts.filter(func(i): return i["t"] > 0.0)
 	sparks = sparks.filter(func(i): return i["t"] > 0.0)
@@ -121,6 +130,7 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	_draw_fields()
 	var font := ThemeDB.fallback_font
 	for c in cones:
 		var col: Color = c["color"]
@@ -169,3 +179,48 @@ func _draw() -> void:
 		var fsize := int(14.0 + 8.0 * maxf(0.0, 1.0 - age / 0.12))
 		draw_string_outline(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, 4, Color(0, 0, 0, 0.75 * a))
 		draw_string(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, col)
+
+
+## Spells that linger in the room, drawn unlit so they always read.
+func _draw_fields() -> void:
+	if main == null:
+		return
+	var t := Time.get_ticks_msec() * 0.001
+	if not main.rod.is_empty():
+		var rp: Vector2 = main.rod["pos"]
+		var gold := Color(0.95, 0.89, 0.42)
+		draw_line(rp + Vector2(0, 6), rp + Vector2(0, -26), Color(0.06, 0.05, 0.07), 5.0)
+		draw_line(rp + Vector2(0, 6), rp + Vector2(0, -26), Color(0.75, 0.75, 0.8), 2.5)
+		draw_circle(rp + Vector2(0, -28), 4.0 + sin(t * 9.0), Color(gold, 0.9))
+		draw_arc(rp, main.rod["reach"] * 0.15 + 6.0 * sin(t * 4.0), 0.0, TAU, 20, Color(gold, 0.25), 1.5)
+	for w in main.walls:
+		var c: Color = w["color"]
+		var a: float = clampf(w["t"] / 0.5, 0.0, 1.0)
+		draw_line(w["a"], w["b"], Color(c, 0.25 * a), 10.0)
+		var dir: Vector2 = (w["b"] - w["a"]).normalized()
+		for k in 6:
+			var u := fmod(t * 1.5 + k / 6.0, 1.0)
+			var p: Vector2 = w["a"].lerp(w["b"], u)
+			draw_line(p - dir * 8.0, p + dir * 8.0, Color(1, 1, 1, 0.6 * a), 1.5)
+	for cy in main.cyclones:
+		var cc: Color = cy["color"]
+		var ca: float = clampf(cy["t"] / 0.5, 0.0, 1.0)
+		for k in 4:
+			var rr: float = cy["r"] * (0.35 + 0.2 * k)
+			var start := t * (3.0 - k * 0.4) + k
+			draw_arc(cy["pos"], rr, start, start + 2.2, 20, Color(cc, 0.45 * ca), 2.0)
+	for r in main.rains:
+		draw_arc(r["pos"], r["r"], 0.0, TAU, 40, Color(r["color"], 0.35), 1.5)
+	for a in arrows_falling:
+		var k: float = a["t"] / 0.18
+		var top: Vector2 = a["pos"] + Vector2(-6, -60) * k
+		draw_line(top, top + Vector2(3, 18), Color(a["color"], 0.9), 2.0)
+		if k < 0.3:
+			draw_circle(a["pos"], 3.0, Color(a["color"], 0.6))
+	if main.track_t > 0.0:
+		var ta: float = clampf(main.track_t / 0.6, 0.0, 1.0)
+		for e in main.enemies():
+			draw_arc(e.global_position, e.radius + 5.0, 0.0, TAU, 20, Color(0.85, 0.63, 0.42, 0.8 * ta), 1.5)
+			var v: Vector2 = e.velocity
+			if v.length() > 5.0:
+				draw_line(e.global_position, e.global_position + v.normalized() * 34.0, Color(0.85, 0.63, 0.42, 0.7 * ta), 1.5)

@@ -144,7 +144,7 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 		b["xp"] = float(b["xp"]) + gain
 		var after := step_for_xp(float(b["xp"]))
 		if after > before:
-			var note: String = Bonds.STEP_NOTES.get(b["id"], {}).get(after, "")
+			var note: String = Bonds.step_note(b["id"], after)
 			lines.append("%s grows to step %d%s" % [info["name"], after, (": " + note) if note != "" else ""])
 	return lines
 
