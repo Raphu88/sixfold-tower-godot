@@ -81,6 +81,7 @@ var track_t := 0.0  # Track: foes revealed
 var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, dmg, push, carry, hit, color}
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
+var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var slowmo := false  # time slows while a spell ring is open
 var player_glow: PointLight2D
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
@@ -275,6 +276,7 @@ func _physics_process(delta: float) -> void:
 
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
 func _update_spell_fields(delta: float) -> void:
+	_update_flames(delta)
 	track_t -= delta
 	if not rod.is_empty():
 		rod["t"] -= delta
@@ -367,6 +369,7 @@ func _start_floor(n: int) -> void:
 	waves.clear()
 	maelstroms.clear()
 	rains.clear()
+	flames.clear()
 	track_t = 0.0
 	for b in pillar_bodies:
 		b.queue_free()
@@ -450,7 +453,7 @@ func _arrive() -> void:
 	if not first_climb:
 		var part: String = profile.ready_for_mark()
 		if part != "":
-			var id: String = profile.choose_bond(part, profile.tally)
+			var id: String = profile.choose_bond(profile.tally, climb_soak)
 			if id != "":
 				profile.add_bond(part, id, false)
 				lines.append("Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]])
@@ -601,7 +604,7 @@ func predicted_bond() -> String:
 		essence = profile.tally.duplicate()
 		for k in run_essence:
 			essence[k] = float(essence.get(k, 0.0)) + float(run_essence[k])
-	return profile.choose_bond(part, essence)
+	return profile.choose_bond(essence, climb_soak)
 
 
 func gather_essence(kind: String, amount: float, from: Vector2) -> void:
@@ -626,7 +629,7 @@ func _begin_regard(fell: bool) -> void:
 	var part := leading_part()
 	if part == "":
 		part = "hand"
-	var id: String = profile.choose_bond(part, climb_essence)
+	var id: String = profile.choose_bond(climb_essence, climb_soak)
 	profile.add_bond(part, id, fell)
 	profile.regarded = true
 	profile.climbs += 1
@@ -832,6 +835,23 @@ func _break_against_wall(e, w: Dictionary) -> void:
 	e.take_hit(w["dmg"], Vector2.ZERO, 0.0, true)
 	if player.has_bond("tidecaller"):
 		e.stagger(1.2)  # Undercurrent: driven into a wall, stunned
+
+
+## Burning floor: hurts the climber standing in it, a little at a time.
+func add_flame(pos: Vector2, r: float, t: float) -> void:
+	flames.append({"pos": pos, "r": r, "t": t, "max": t})
+
+
+func _update_flames(delta: float) -> void:
+	for f in flames:
+		f["t"] -= delta
+	flames = flames.filter(func(f): return f["t"] > 0.0)
+	if player == null or player.dead:
+		return
+	for f in flames:
+		if player.global_position.distance_to(f["pos"]) < f["r"] + player.radius * 0.5:
+			player.stand_in_fire(delta)
+			break
 
 
 func in_water(pos: Vector2) -> bool:

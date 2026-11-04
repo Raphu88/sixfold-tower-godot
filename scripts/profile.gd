@@ -76,18 +76,23 @@ func save() -> void:
 	cfg.save(SAVE_PATH)
 
 
-## How much a bond is drawn to its own home body part, against its share of
-## the essence gathered (0..1). Play style and essence both shape the mark.
-const HOME_PULL := 0.4
+## How much the way you fought tips the choice between bonds, against the
+## essence (0..1). Small: the essence decides, play style breaks ties
+## between bonds of the same essence.
+const STYLE_PULL := 0.15
 
 
-## Which bond a body part takes: each bond scores its essence's share of what
-## you gathered, plus HOME_PULL if this body part is its home. Bonds already
-## carried are skipped.
-func choose_bond(part: String, essence: Dictionary) -> String:
+## Which bond a new mark becomes. Play style already chose the body part
+## (the one you used most); the essence you gathered chooses the bond: each
+## bond scores its essence's share, plus STYLE_PULL times the share of your
+## fighting (soak, by body part) that suits it. Bonds already carried are skipped.
+func choose_bond(essence: Dictionary, style: Dictionary = {}) -> String:
 	var total := 0.0
 	for k in essence:
 		total += float(essence[k])
+	var style_total := 0.0
+	for k in style:
+		style_total += float(style[k])
 	var held := bonds.values().map(func(b): return b["id"])
 	var best := ""
 	var best_score := -1.0
@@ -98,8 +103,11 @@ func choose_bond(part: String, essence: Dictionary) -> String:
 		var score := 0.0
 		if total > 0.0:
 			score += float(essence.get(info["affinity"], 0.0)) / total
-		if info["home"] == part:
-			score += HOME_PULL
+		if style_total > 0.0:
+			var suits := 0.0
+			for pt in info.get("style", []):
+				suits += float(style.get(pt, 0.0))
+			score += STYLE_PULL * suits / style_total
 		if score > best_score:
 			best_score = score
 			best = id

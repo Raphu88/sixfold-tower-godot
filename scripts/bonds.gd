@@ -3,7 +3,9 @@ extends RefCounted
 ##
 ## A bond has:
 ##   affinity  the essence that forms it (and grows it fastest)
-##   home      the body part it is drawn to when its essence takes hold
+##   style     the body parts whose actions suit it: when two bonds share
+##             an essence, the way you fought this climb decides between them.
+##             A bond has no home part: it settles on whichever part you used most.
 ##   body      how it enhances a basic action (handled in player.gd)
 ##   passive   an always-on rule (handled where it applies)
 ##   spells    learned as the bond grows: each spell lists the step it is
@@ -52,7 +54,7 @@ const BONDS := {
 		"name": "Stormcaller",
 		"color": Color(0.95, 0.89, 0.42),
 		"affinity": "air",
-		"home": "hand",
+		"style": ["hand", "throat"],
 		"tower": "gryphon",
 		"body": {"name": "Quick Nerves", "desc": "your strikes and rolls recover faster"},
 		"passive": {"name": "Static", "desc": "foes your lightning hits stay charged; striking a charged foe arcs to another"},
@@ -82,7 +84,7 @@ const BONDS := {
 		"name": "Windwalker",
 		"color": Color(0.75, 0.9, 1.0),
 		"affinity": "air",
-		"home": "legs",
+		"style": ["legs", "throat"],
 		"tower": "gryphon",
 		"body": {"name": "Wind Dash", "desc": "your roll becomes a long wind dash that carries you through foes"},
 		"passive": {"name": "Featherweight", "desc": "airborne foes take extra damage from you"},
@@ -111,7 +113,7 @@ const BONDS := {
 		"name": "Hunter",
 		"color": Color(0.85, 0.63, 0.42),
 		"affinity": "air",
-		"home": "brow",
+		"style": ["brow", "back"],
 		"tower": "gryphon",
 		"body": {"name": "Keen Eyes", "desc": "you see farther in the dark"},
 		"passive": {"name": "Quarry", "desc": "you always know where the last foe you struck is"},
@@ -141,7 +143,7 @@ const BONDS := {
 		"name": "Tidecaller",
 		"color": Color(0.37, 0.72, 0.79),
 		"affinity": "water",
-		"home": "legs",
+		"style": ["legs", "throat"],
 		"tower": "kraken",
 		"body": {"name": "Waterborn", "desc": "you move at full speed through water"},
 		"passive": {"name": "Undercurrent", "desc": "foes you drive into a wall are stunned"},
@@ -171,7 +173,7 @@ const BONDS := {
 		"name": "Warden",
 		"color": Color(0.85, 0.71, 0.42),
 		"affinity": "water",
-		"home": "brow",
+		"style": ["heart", "brow"],
 		"tower": "kraken",
 		"body": {"name": "Heavy Frame", "desc": "keep holding parry to block: blocked hits deal far less and cost stamina"},
 		"passive": {"name": "Steadfast", "desc": "while your barrier holds, you cannot be knocked back or interrupted"},
@@ -201,7 +203,7 @@ const BONDS := {
 		"name": "Deepcaller",
 		"color": Color(0.31, 0.5, 0.84),
 		"affinity": "water",
-		"home": "heart",
+		"style": ["heart"],
 		"tower": "kraken",
 		"body": {"name": "Deep Lungs", "desc": "your stamina refills faster"},
 		"passive": {"name": "Pressure", "desc": "foes below half health move slower near you"},
@@ -232,7 +234,7 @@ const BONDS := {
 		"name": "Blade Forger",
 		"color": Color(0.65, 0.89, 0.71),
 		"affinity": "iron",
-		"home": "hand",
+		"style": ["hand", "back"],
 		"tower": "wyvern",
 		"body": {"name": "", "desc": ""},
 		"passive": {"name": "", "desc": ""},

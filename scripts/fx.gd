@@ -186,6 +186,17 @@ func _draw_fields() -> void:
 	if main == null:
 		return
 	var t := Time.get_ticks_msec() * 0.001
+	for fl in main.flames:
+		var fade: float = clampf(fl["t"] / 0.5, 0.0, 1.0)
+		var fp: Vector2 = fl["pos"]
+		var fr: float = fl["r"]
+		draw_circle(fp, fr, Color(1.0, 0.35, 0.1, 0.22 * fade))
+		for i in 6:
+			var a := TAU * i / 6.0 + t * 0.7
+			var at := fp + Vector2.from_angle(a) * fr * 0.55
+			var h := 6.0 + 4.0 * sin(t * 12.0 + i * 2.1)
+			draw_line(at, at + Vector2(0, -h), Color(1.0, 0.6, 0.2, 0.7 * fade), 3.0)
+		draw_arc(fp, fr, 0.0, TAU, 24, Color(1.0, 0.5, 0.2, 0.45 * fade), 1.5)
 	if not main.rod.is_empty():
 		var rp: Vector2 = main.rod["pos"]
 		var gold := Color(0.95, 0.89, 0.42)
