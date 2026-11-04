@@ -23,6 +23,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Move | WASD or arrow keys |
 | Sprint | Shift |
 | Roll | Space |
+| Jump (over chasms and burning floor) | Z, or the Jump button on a phone |
 | Strike / hold to draw the bow | Left click or J |
 | Switch weapon | 1 Fists, 2 Sword, 3 Bow, or the mouse wheel |
 | Parry | Right click or K |
@@ -45,7 +46,7 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 
 ## Towers
 
-Every climb starts by choosing a tower (keys 1 to 4, click, or tap a card). Each tower has its own beast, essence, monster mix and look (`scripts/towers.gd`):
+Every climb starts by choosing a tower (keys 1 to 5, click, or tap a card). Each tower has its own beast, essence, monster mix and look (`scripts/towers.gd`):
 
 | Tower | Essence | Monsters | Look |
 | --- | --- | --- | --- |
@@ -53,12 +54,19 @@ Every climb starts by choosing a tower (keys 1 to 4, click, or tap a card). Each
 | The Kraken's Tower | Water | slimes, lurkers and shellbacks; the Kraken on floor 5 | damp, teal stone and green-white torches |
 | The Wyvern's Tower | Iron | knights, cinders and smiths; the Wyvern on floor 5 (the hardest) | hot forge-red stone and orange torches |
 | The Manticore's Tower | Stone | scorplings and rams; the Manticore on floor 5 | sun-baked sandstone and warm torches |
+| The Firebird's Tower | Fire | wisps and bloomcaps, and chasms to jump; the Firebird on floor 5 | pale, sunlit stone and gold torches |
 
 **The Gryphon's tower has a summit.** On floor 5 the Gryphon itself waits, alone. It rakes with its talons up close (a red wedge, parryable), dives on you from range (it locks onto where you stood when it glints; the landing can't be parried, so roll out of the red circle), and throws a fan of feathers (parryable, and a Crosswind turns them back). It can't be lifted or interrupted, only staggered, and at half health it calls two bats. Beat it, take the stair, and the climb is complete.
 
 **The Kraken's tower has a summit too.** On floor 5 the Kraken waits. It sweeps a tentacle across a wide wedge in front of it (parryable), slams three spots at once with one landing where you stand (can't be parried: roll out of the red circles), and spits a fan of ink (parryable). At half health it calls two lurkers.
 
 **The Wyvern waits atop its tower.** On floor 5 it sweeps its tail across a wedge in front of it (parryable), breathes fire down a narrow cone (can't be parried: roll or step aside) that leaves the floor burning, and sprays a fan of embers (parryable). At half health it calls two cinders.
+
+**Jumping and chasms.** Everyone can jump (Z): a short hop that costs a little stamina and carries you over chasms and burning floor (it isn't a dodge: attacks still hit you in the air). In the Firebird's tower, floors above the first have **chasms**: walk or get knocked into one and you fall, losing some health and climbing back out where you last stood. Walking monsters can't enter chasms; flying ones (bats, cinders, wisps and the beasts that fly) cross them.
+
+**The Firebird waits atop its tower.** On floor 5, in an open hall, it swoops straight through you (parryable), leaving fire in its wake; calls down a firestorm on four spots, one where you stand (can't be parried: get out of the circles, or jump); and throws a fan of embers (parryable). The first time it falls it burns to ashes, can't be hurt for two seconds, and rises again at 40% health. At half health it calls two wisps.
+
+**The Firebird's monsters:** the **wisp** flickers around you, glints and darts straight through where you stood (parryable), leaving a little fire. The **bloomcap** is a rooted fire-fungus: it glints, locks onto where you stand and lobs burning spores that land a moment later (can't be parried: step out of the circle or jump); the ground keeps burning.
 
 **The Manticore waits atop its tower.** On floor 5 it swipes with its claws (a red wedge, parryable), fires a volley of three poisoned tail spikes (parryable), and roars, bursting out around itself (can't be parried: roll through it). At half health it calls two scorplings.
 

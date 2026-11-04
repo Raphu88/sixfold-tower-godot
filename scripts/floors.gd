@@ -19,6 +19,8 @@ const MONSTERS := {
 	"smith": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
 	"ram": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
+	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
+	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
 
@@ -58,6 +60,9 @@ static func build(floor_num: int, room: Rect2, player_start: Vector2, tower: Dic
 		if _clear_of(pos, 70.0, pillars, []) and pos.distance_to(player_start) > 140.0:
 			pillars.append({"pos": pos, "r": randf_range(16.0, 24.0)})
 
+	# Chasms (towers that have them): gaps in the floor to jump across.
+	var chasms: Array = chasm_layout(room, pillars, player_start) if tower.get("chasms", false) else []
+
 	# Spend the floor's budget on monsters.
 	var budget := 4.5 + 1.0 * floor_num
 	var kinds: Array = []
@@ -78,11 +83,40 @@ static func build(floor_num: int, room: Rect2, player_start: Vector2, tower: Dic
 		var pos := Vector2.ZERO
 		for attempt in 40:
 			pos = room.position + room.size * Vector2(randf_range(0.1, 0.9), randf_range(0.12, 0.62))
-			if _clear_of(pos, 60.0, pillars, placed) and pos.distance_to(player_start) > 260.0:
+			if _clear_of(pos, 60.0, pillars, placed) and pos.distance_to(player_start) > 260.0 and not _in_any(pos, chasms, 30.0):
 				break
 		placed.append(pos)
 		monsters.append([kind, pos])
-	return {"pillars": pillars, "monsters": monsters}
+	return {"pillars": pillars, "monsters": monsters, "chasms": chasms}
+
+
+## Gaps in the floor: two to four, each narrow enough to jump across one way
+## (about 40-50 px), clear of the start, the stair and the pillars.
+static func chasm_layout(room: Rect2, pillars: Array, start: Vector2) -> Array:
+	var list: Array = []
+	var stair := Vector2(room.get_center().x, room.position.y + 34.0)
+	for i in 2 + randi() % 3:
+		for attempt in 30:
+			var horizontal := randf() < 0.5
+			var size := Vector2(randf_range(130.0, 260.0), randf_range(38.0, 50.0)) if horizontal else Vector2(randf_range(38.0, 50.0), randf_range(110.0, 200.0))
+			var pos := room.position + Vector2(randf_range(40.0, room.size.x - 40.0 - size.x), randf_range(90.0, room.size.y - 60.0 - size.y))
+			var r := Rect2(pos, size)
+			var ok := not r.grow(70.0).has_point(start) and not r.grow(60.0).has_point(stair)
+			for p in pillars:
+				ok = ok and not r.grow(p["r"] + 10.0).has_point(p["pos"])
+			for other in list:
+				ok = ok and not r.grow(40.0).intersects(other)
+			if ok:
+				list.append(r)
+				break
+	return list
+
+
+static func _in_any(pos: Vector2, rects: Array, margin: float) -> bool:
+	for r in rects:
+		if r.grow(margin).has_point(pos):
+			return true
+	return false
 
 
 ## Standing water for wet towers: a few pools, clear of pillars and the start.

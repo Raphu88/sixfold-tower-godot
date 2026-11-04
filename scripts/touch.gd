@@ -37,6 +37,7 @@ func _layout() -> void:
 	buttons = [
 		{"id": "attack", "action": "attack", "c": br + Vector2(-130, -130) * k, "r": 62.0 * k},
 		{"id": "roll", "action": "roll", "c": br + Vector2(-268, -86) * k, "r": 44.0 * k},
+		{"id": "jump", "action": "jump", "c": br + Vector2(-36, -36) * k, "r": 30.0 * k},
 		{"id": "parry", "action": "parry", "c": br + Vector2(-150, -278) * k, "r": 42.0 * k},
 		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
 		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
@@ -230,6 +231,8 @@ func _draw() -> void:
 					fill = clampf(p.draw_t / p.wdata()["draw_time"], 0.0, 1.0)
 			"roll":
 				label = "Roll"
+			"jump":
+				label = "Jump"
 			"parry":
 				label = "Parry"
 			"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back":

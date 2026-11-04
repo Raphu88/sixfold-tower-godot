@@ -4,7 +4,7 @@ extends RefCounted
 ## own look. Every kill in a tower also yields a little of its essence, so
 ## the tower you choose steers which bonds you'll form. (Story to come.)
 
-const ORDER := ["gryphon", "kraken", "wyvern", "manticore"]
+const ORDER := ["gryphon", "kraken", "wyvern", "manticore", "firebird"]
 const ESSENCE_BONUS := 1.5  # extra essence of the tower's kind per kill
 
 const TOWERS := {
@@ -68,5 +68,21 @@ const TOWERS := {
 		"stone": Color(1.0, 0.93, 0.76),
 		"ambient": Color(0.56, 0.5, 0.4),
 		"torch": Color(1.0, 0.8, 0.48),
+	},
+	"firebird": {
+		"name": "The Firebird's Tower",
+		"short": "Firebird",
+		"beast": "the Firebird",
+		"essence": "fire",
+		"blurb": "Open heights broken by chasms: jump the gaps. Wisps and bloomcaps. The Firebird waits at the top.",
+		"chasms": true,
+		"weights": {"wisp": 1.4, "bloomcap": 1.0, "archer": 0.6, "knight": 0.3, "slime": 0.2},
+		"first": ["wisp", "archer", "wisp", "archer"],
+		"summit": 5,
+		"beast_kind": "firebird",
+		"beast_hint": "Watch for the glint. Its firestorm can't be parried: get out of the circles. It rises once from its ashes.",
+		"stone": Color(1.0, 0.9, 0.82),
+		"ambient": Color(0.6, 0.47, 0.42),
+		"torch": Color(1.0, 0.66, 0.3),
 	},
 }

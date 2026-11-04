@@ -13,6 +13,10 @@ const MAX_HP := 140.0  # tougher than the first, very clumsy climber
 const MAX_STA := 100.0
 const WALK := 135.0
 const SPRINT := 200.0
+## A jump: a short hop that clears chasms and burning floor (not attacks).
+const JUMP_TIME := 0.42
+const JUMP_COST := 10.0
+const JUMP_HEIGHT := 16.0
 const STRIKE_DAMAGE := 8.0
 const BUFFER_TIME := 0.2  # presses this early still count when you recover
 const COMBO_WINDOW := 0.35  # time after recovering to continue the chain
@@ -178,7 +182,12 @@ func _physics_process(delta: float) -> void:
 	_read_buffer()
 	_update_pick(delta)
 
-	if cast_t > 0.0:
+	if jump_t > 0.0:
+		_tick_jump(delta)
+		if buffered != "" and buffer_t > 0.0 and buffered == "parry":
+			if _try_action(buffered, Vector2.ZERO):
+				buffered = ""
+	elif cast_t > 0.0:
 		# A wind-up can't be cancelled: no moving, no rolling.
 		cast_t -= delta
 		velocity = Vector2.ZERO
@@ -218,6 +227,7 @@ func _physics_process(delta: float) -> void:
 			buffered = ""
 	velocity += knock
 	move_and_slide()
+	_check_fall()
 	queue_redraw()
 
 
@@ -307,6 +317,8 @@ func _read_buffer() -> void:
 	var pressed := ""
 	if Input.is_action_just_pressed("roll"):
 		pressed = "roll"
+	elif Input.is_action_just_pressed("jump"):
+		pressed = "jump"
 	elif Input.is_action_just_pressed("attack"):
 		pressed = "attack"
 	elif Input.is_action_just_pressed("parry"):
@@ -341,7 +353,11 @@ func _equip(id: String) -> void:
 ## Returns true once the action is spent (done, or refused for a reason
 ## that waiting won't fix), false if it should stay buffered.
 func _try_action(action: String, input: Vector2) -> bool:
+	if jump_t > 0.0 and action != "parry":
+		return false  # wait for the landing
 	match action:
+		"jump":
+			return _try_jump(input)
 		"roll":
 			return _try_roll(input)
 		"attack":
@@ -379,6 +395,81 @@ func _tick_timers(delta: float) -> void:
 func _winded() -> void:
 	main.fx_text(global_position + Vector2(0, -28), "too winded", Color(0.6, 0.6, 0.65))
 	main.sfx("winded")
+
+
+func _try_jump(input: Vector2) -> bool:
+	if roll_t > 0.0 or attack_cd > 0.15 or cast_t > 0.0:
+		return false
+	if sta < JUMP_COST:
+		_winded()
+		return true
+	sta -= JUMP_COST
+	sta_delay = 0.5
+	var spd := SPRINT if Input.is_action_pressed("sprint") else WALK
+	jump_vel = input * spd
+	jump_t = JUMP_TIME
+	jump_total = JUMP_TIME
+	glide_left = 0.8 if has_bond("flamewing") else 0.0
+	drawing = false
+	main.sfx("roll", 1.35, -6.0)
+	return true
+
+
+func _tick_jump(delta: float) -> void:
+	# Flamewing's Phoenix Glide: hold jump to hang in the air a while longer.
+	if glide_left > 0.0 and Input.is_action_pressed("jump") and jump_t < jump_total * 0.5:
+		glide_left -= delta
+		if fmod(glide_left, 0.1) < delta:
+			main.fx_burst(global_position + Vector2(0, -jump_height()), Vector2.DOWN, Color(1.0, 0.55, 0.25), 2, 60.0)
+	else:
+		jump_t -= delta
+	velocity = jump_vel
+	if jump_t <= 0.0:
+		jump_t = 0.0
+		squash = 0.5
+		main.sfx("step", 0.8, -4.0)
+
+
+## How high off the ground you are, for drawing.
+func jump_height() -> float:
+	if jump_t <= 0.0 or jump_total <= 0.0:
+		return 0.0
+	var k := clampf(1.0 - jump_t / jump_total, 0.0, 1.0)
+	return sin(PI * k) * JUMP_HEIGHT + (6.0 if glide_left > 0.0 and Input.is_action_pressed("jump") and jump_t < jump_total * 0.5 else 0.0)
+
+
+## Off the ground: chasms and burning floor can't touch you.
+func in_air() -> bool:
+	return jump_t > 0.0
+
+
+## Walking (or being knocked) into a chasm: you fall, lose some health,
+## and climb back out where you last stood.
+func _check_fall() -> void:
+	if dead or in_air():
+		return
+	if not main.in_chasm(global_position):
+		last_safe = global_position
+		return
+	var back := last_safe
+	if back == Vector2.ZERO or main.in_chasm(back):
+		back = main.player_start
+	global_position = back
+	knock = Vector2.ZERO
+	roll_t = 0.0
+	iframes = maxf(iframes, 0.6)
+	var dmg := maxf(6.0, max_hp * 0.08)
+	hp -= dmg
+	main.fx_text(global_position + Vector2(0, -40), "Fell! -%d" % int(dmg), Color(0.85, 0.7, 0.6))
+	main.sfx("hurt", 0.8)
+	main.shake(5.0)
+	if hp <= 0.0 and main.dev_no_death:
+		hp = 1.0
+	if hp <= 0.0:
+		hp = 0.0
+		dead = true
+		main.sfx("death", 1.0, 0.0, 0.0)
+		main.on_player_died()
 
 
 func _try_roll(input: Vector2) -> bool:
@@ -733,6 +824,13 @@ var neuro_t := 0.0  # Neurotoxin: the next hit on a poisoned foe paralyzes it
 var neuro_paralyze := 2.0
 var vanish_t := 0.0  # Vanish: unseen until you strike
 
+# Jumping.
+var jump_t := 0.0  # time left in the air
+var jump_total := 0.0
+var jump_vel := Vector2.ZERO
+var glide_left := 0.0  # Flamewing's Phoenix Glide: extra air time while jump is held
+var last_safe := Vector2.ZERO  # the last solid ground you stood on
+
 
 var poison_t := 0.0  # poisoned: a little damage every half second
 var poison_tick := 0.0
@@ -773,7 +871,7 @@ func _tick_poison(delta: float) -> void:
 
 ## Standing on burning floor: a small burn every half second (rolling through is free).
 func stand_in_fire(delta: float) -> void:
-	if iframes > 0.0 or dead:
+	if iframes > 0.0 or dead or in_air():
 		return
 	fire_t += delta
 	if fire_t < 0.5:
@@ -1020,11 +1118,12 @@ func _draw() -> void:
 	var alpha := 0.5 if iframes > 0.0 else 1.0
 	modulate.a = alpha
 
-	Draw.shadow(self, Vector2(0, radius * 0.75), radius)
+	Draw.shadow(self, Vector2(0, radius * 0.75), radius * (1.0 - jump_height() / 40.0))
+	var lift := jump_height()
 	var side := aim.orthogonal()
 	# Squash along the facing: stretched when rolling, flattened when hit.
 	var sq_dir := roll_dir if roll_t > 0.0 else aim
-	draw_set_transform(Vector2.ZERO, sq_dir.angle(), Vector2(1.0 + squash * 0.25, 1.0 - squash * 0.2))
+	draw_set_transform(Vector2(0, -lift), sq_dir.angle(), Vector2(1.0 + squash * 0.25, 1.0 - squash * 0.2))
 	var body := Transform2D(sq_dir.angle(), Vector2.ZERO).affine_inverse()
 
 	# Weapon held on the far side is drawn before the body.
@@ -1040,7 +1139,7 @@ func _draw() -> void:
 	draw_circle(f * 6.0, 3.8, skin)  # face peeking out of the hood
 	draw_circle(f * 7.2 + sd * 1.5, 0.9, Palette.OUTLINE)
 	draw_circle(f * 7.2 - sd * 1.5, 0.9, Palette.OUTLINE)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	draw_set_transform(Vector2(0, -lift), 0.0, Vector2.ONE)
 	if weapon != "bow":
 		_draw_weapon(Transform2D.IDENTITY)
 
