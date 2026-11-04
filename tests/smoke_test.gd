@@ -858,6 +858,51 @@ func _manticore_bond_tests() -> void:
 	a.queue_free()
 
 
+func _jump_tests() -> void:
+	print("jumping and chasms")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.sta = p.MAX_STA
+	await _frames(1)
+	Input.action_press("jump")
+	await _frames(2)
+	Input.action_release("jump")
+	_check(p.in_air() and p.sta < p.MAX_STA, "Z jumps, for a little stamina")
+	# In the air, a chasm and burning floor can't touch you.
+	main.set_chasms([Rect2(p.global_position + Vector2(-20, -20), Vector2(40, 40))])
+	var hp0: float = p.hp
+	main.flames = [{"pos": p.global_position, "r": 40.0, "t": 2.0, "max": 2.0}]
+	await _wait(0.2)
+	_check(p.hp == hp0, "...and while you're in the air, chasms and fire can't touch you")
+	main.flames = []
+	await _wait(0.5)
+	_check(not p.in_air(), "you land again")
+	_check(p.hp < hp0, "landing in a chasm: you fall and lose some health")
+	_check(not main.in_chasm(p.global_position), "...and climb back out where you last stood")
+	main.set_chasms([])
+	# Walking monsters can't enter chasms; fliers can.
+	var k = await _spawn("knight", p.global_position + Vector2(200, 0))
+	var b = await _spawn("bat", p.global_position + Vector2(200, 60))
+	_check(k.collision_mask & 16 and not (b.collision_mask & 16), "walking monsters can't step into chasms; bats fly over")
+	k.queue_free()
+	b.queue_free()
+	# Towers with chasms lay them out clear of the start.
+	var ok := true
+	for n in 20:
+		var plan: Dictionary = main.Floors.build(3, main.room, main.player_start, {"chasms": true})
+		ok = ok and plan["chasms"].size() >= 1
+		for r in plan["chasms"]:
+			ok = ok and not r.grow(60.0).has_point(main.player_start)
+		for m in plan["monsters"]:
+			for r in plan["chasms"]:
+				ok = ok and not r.has_point(m[1])
+	_check(ok, "chasms are laid out clear of the start and the monsters")
+
+
 func _menu_tests() -> void:
 	print("menus and the dev tool")
 	await _fresh_main()
@@ -1101,6 +1146,115 @@ func _manticore_tower_tests() -> void:
 	p.global_position = main.stair_pos
 	await _wait(1.0)
 	_check(not main.victory.is_empty(), "beating the Manticore completes the climb")
+	await _wait(2.8)
+	main.victory = {}
+
+
+func _firebird_tower_tests() -> void:
+	print("the Firebird's tower")
+	await _fresh_main()
+	var p = main.player
+	main.dev_tower("firebird")
+	await _frames(2)
+	main.dev_floor(3)
+	await _frames(2)
+	_check(main.tower == "firebird" and main.chasms.size() >= 1, "the Firebird's tower has chasms (%d)" % main.chasms.size())
+	main.set_chasms([])
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var seen := {}
+	for n in 30:
+		for m in main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["firebird"])["monsters"]:
+			seen[m[0]] = true
+	_check(seen.has("wisp") and seen.has("bloomcap"), "the Firebird's tower has wisps and bloomcaps")
+	p.global_position = Vector2(500, 400)
+	var w = await _spawn("wisp", p.global_position + Vector2(140, 0))
+	w.hp = 999.0
+	var r1: Dictionary = await _parry_test(w, 0.0, "wind", 140.0)
+	_check(r1["glinted"] and r1["parried"] and not r1["hurt"], "a wisp's dart can be parried on the glint %s" % str(r1))
+	w.queue_free()
+	main.flames = []
+	await _settle()
+	# Bloomcap: its spores can't be parried, but you can step out (or jump).
+	var bc = await _spawn("bloomcap", p.global_position + Vector2(220, 0))
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	main.attackers.clear()
+	main.request_attack(bc)
+	bc._begin_wind("wind_lob", 0.3)
+	bc.set_physics_process(true)
+	await _wait(0.15)
+	p._try_parry()
+	await _wait(0.3)
+	_check(p.hp < p.MAX_HP and main.flames.size() >= 1, "a bloomcap's spores can't be parried, and leave the floor burning")
+	main.flames = []
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	main.attackers.clear()
+	main.request_attack(bc)
+	bc._begin_wind("wind_lob", 0.6)
+	await _wait(0.45)
+	p.global_position += Vector2(0, 120)  # step out of the circle after it locks on
+	await _wait(0.4)
+	_check(p.hp == p.MAX_HP, "...but stepping out of the circle in time avoids them")
+	bc.set_physics_process(false)
+	bc.queue_free()
+	main.flames = []
+	await _frames(1)
+
+	print("the Firebird")
+	main.profile.regarded = true
+	main.first_climb = false
+	main._start_floor(5)
+	await _frames(3)
+	var foes: Array = main.enemies()
+	_check(foes.size() == 1 and foes[0].kind == "firebird" and main.chasms.is_empty(), "floor 5 of the Firebird's tower is the Firebird, in an open hall")
+	var fb = foes[0]
+	fb.set_physics_process(false)
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.knock = Vector2.ZERO
+	p.global_position = fb.global_position + Vector2(150, 0)
+	main.attackers.clear()
+	main.request_attack(fb)
+	fb.storm_spots = [p.global_position]
+	fb._begin_wind("wind_storm", 0.2)
+	fb.set_physics_process(true)
+	await _wait(0.12)
+	p._try_parry()
+	await _wait(0.3)
+	fb.set_physics_process(false)
+	_check(p.hp < p.MAX_HP and fb.stun <= 0.0, "its firestorm can't be parried")
+	main.flames = []
+	# It rises once from its ashes.
+	fb.take_hit(fb.hp + 10.0, Vector2.ZERO)
+	_check(not fb.dead and fb.state == "ashes", "the first time it falls, it burns to ashes")
+	var hp_ash: float = fb.hp
+	fb.take_hit(50.0, Vector2.ZERO)
+	_check(fb.hp == hp_ash, "...where it can't be hurt")
+	fb.set_physics_process(true)
+	await _wait(2.5)
+	fb.set_physics_process(false)
+	_check(fb.state != "ashes" and fb.hp >= fb.max_hp * 0.39, "...then it rises again at 40% health")
+	_check(main.enemies().filter(func(e): return e.kind == "wisp").size() == 2, "below half health it calls two wisps")
+	for e in main.enemies():
+		if e != fb:
+			_slay(e)
+	fb.take_hit(fb.hp + 10.0, Vector2.ZERO)
+	await _frames(3)
+	_check(not is_instance_valid(fb) or fb.dead, "the second time, it stays down")
+	p.hp = p.MAX_HP
+	p.dead = false
+	p.set_physics_process(true)
+	main.flames = []
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.victory.is_empty(), "beating the Firebird completes the climb")
 	await _wait(2.8)
 	main.victory = {}
 
@@ -1586,8 +1740,10 @@ func _run() -> void:
 	await _kraken_tower_tests()
 	await _wyvern_tower_tests()
 	await _manticore_tower_tests()
+	await _firebird_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
+	await _jump_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _body_part_tests()

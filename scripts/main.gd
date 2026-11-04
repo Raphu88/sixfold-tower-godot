@@ -82,6 +82,8 @@ var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, 
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
+var chasms: Array = []  # gaps in the floor (Rect2): jump across or fall
+var chasm_bodies: Array = []
 var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
 var wards: Array = []  # Ward Circles foes can't enter: {pos, r, t, color}
 var sigils: Array = []  # Grand Sigils, free casting inside: {pos, r, t, color}
@@ -424,6 +426,7 @@ func _start_floor(n: int) -> void:
 	room_view.set_pillars(pillars)
 	puddles = Floors.puddles(room, pillars, start) if tower_data().get("puddles", false) else []
 	room_view.set_puddles(puddles)
+	set_chasms(plan.get("chasms", []))
 
 	var tough := Floors.toughness(n)
 	for m in plan["monsters"]:
@@ -1009,6 +1012,36 @@ func _update_flames(delta: float) -> void:
 		if player.global_position.distance_to(f["pos"]) < f["r"] + player.radius * 0.5:
 			player.stand_in_fire(delta)
 			break
+
+
+## Gaps in the floor. Walking monsters can't enter them (they collide with
+## them on layer 16); fliers cross; the climber falls in unless jumping.
+func set_chasms(list: Array) -> void:
+	for b in chasm_bodies:
+		b.queue_free()
+	chasm_bodies.clear()
+	chasms = list
+	for r in chasms:
+		var rect: Rect2 = r
+		var body := StaticBody2D.new()
+		body.collision_layer = 16
+		body.collision_mask = 0
+		body.position = rect.get_center()
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = rect.size
+		shape.shape = box
+		body.add_child(shape)
+		add_child(body)
+		chasm_bodies.append(body)
+	room_view.set_chasms(chasms)
+
+
+func in_chasm(pos: Vector2) -> bool:
+	for r in chasms:
+		if r.has_point(pos):
+			return true
+	return false
 
 
 func in_water(pos: Vector2) -> bool:

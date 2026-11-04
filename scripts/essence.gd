@@ -29,6 +29,9 @@ const DROPS := {
 	"scorpling": ["stone", 3.0],
 	"ram": ["stone", 6.0],
 	"manticore": ["stone", 30.0],
+	"wisp": ["fire", 3.0],
+	"bloomcap": ["fire", 5.0],
+	"firebird": ["fire", 30.0],
 }
 
 

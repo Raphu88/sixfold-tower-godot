@@ -17,6 +17,7 @@ var light_tex: Texture2D
 var ambient: Node2D  # redrawn every frame: flames, embers, dust
 var pillars: Array = []  # {pos, r}
 var puddles: Array = []  # {pos, r}
+var chasms: Array = []  # Rect2 gaps in the floor
 var stair_pos := Vector2.ZERO
 var stair_open := false:
 	set(v):
@@ -97,6 +98,11 @@ static func make_light_texture() -> Texture2D:
 func set_torch_color(c: Color) -> void:
 	for t in torches:
 		t["light"].color = c
+
+
+func set_chasms(list: Array) -> void:
+	chasms = list
+	queue_redraw()
 
 
 func set_puddles(list: Array) -> void:
@@ -209,6 +215,15 @@ func _draw() -> void:
 		draw_circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
 		draw_arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
 		draw_arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
+	for ch in chasms:
+		# A gap in the floor: a cracked lip, then darkness falling away.
+		var r: Rect2 = ch
+		draw_rect(r.grow(3.0), Color(0.12, 0.1, 0.1))
+		draw_rect(r, Color(0.02, 0.015, 0.03))
+		for i in 4:
+			draw_rect(r.grow(-2.0 - i * 3.0), Color(0.0, 0.0, 0.0, 0.25), false, 3.0)
+		draw_line(r.position, Vector2(r.end.x, r.position.y), Color(0.55, 0.5, 0.45, 0.6), 2.0)
+		draw_line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
 	for p in pillars:
 		_draw_pillar(p["pos"], p["r"])
 

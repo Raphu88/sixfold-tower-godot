@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": ""}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -39,10 +39,18 @@ const TYPES := {
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
 	"manticore": {"hp": 460.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
+	# The Firebird's tower
+	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
+	"bloomcap": {"hp": 34.0, "speed": 0.0, "radius": 14.0, "color": Color(0.88, 0.42, 0.32), "dmg": 13.0, "weight": 60.0},
+	"firebird": {"hp": 440.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
 }
-const BOSSES := ["gryphon", "kraken", "wyvern", "manticore"]
+const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird"]
+## Monsters that fly over chasms.
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird"]
 ## What each beast calls when it's half dead.
-const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling"}
+const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp"}
+const LOB_RADIUS := 46.0  # a bloomcap's burning spores land in this circle
+const STORM_RADIUS := 52.0  # each spot of the Firebird's firestorm
 const STING_REACH := 55.0
 const CHARGE_SPEED := 480.0
 const CLAW_REACH := 95.0
@@ -104,6 +112,9 @@ var venom_tick := 0.0
 var lost_t := 0.0  # Ashwalker: it has lost track of you
 var lure = null  # ...and goes after this decoy instead (a dictionary with "pos")
 var notice_t := 0.0  # still noticing you at the start of a floor
+var lob_spot := Vector2.ZERO  # where a bloomcap's spores will land
+var storm_spots: Array = []  # the Firebird's firestorm
+var reborn := false  # the Firebird rises once from its ashes
 var overlay: Node2D  # unlit layer: telegraphs and the health bar
 
 
@@ -122,7 +133,7 @@ func setup(k: String, room) -> void:
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
 	notice_t = state_t
-	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern", "ram", "manticore"]:
+	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern", "ram", "manticore", "bloomcap", "firebird"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
 	if kind == "bat":
 		state = "rest"
@@ -137,6 +148,8 @@ func _ready() -> void:
 	add_to_group("enemies")
 	collision_layer = 4
 	collision_mask = 1 | 8  # walls, pillars, and Sandshaper's stone walls
+	if not kind in FLIERS:
+		collision_mask |= 16  # walking monsters can't step into chasms
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -223,11 +236,17 @@ func _physics_process(delta: float) -> void:
 			_ram(delta, dir, dist, p)
 		"manticore":
 			_manticore(delta, dir, dist, p)
+		"wisp":
+			_wisp(delta, dir, dist, p)
+		"bloomcap":
+			_bloomcap(delta, dir, dist, p)
+		"firebird":
+			_firebird(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
-		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken", "bat", "gryphon", "cinder", "wyvern"])
+		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken"] or kind in FLIERS)
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
 	# Sandshaper: rubble slows; Shifting Sands slows foes walking up to you
@@ -1001,6 +1020,173 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.sfx("warn_archer", 0.7)
 
 
+# --- the Firebird's tower ---------------------------------------------------------------
+
+# Wisps: flickering spirits that drift around you, glint, and dart straight
+# through where you stood (parryable), leaving a little fire behind.
+func _wisp(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind":
+			velocity = Vector2.ZERO
+			if not glinted:
+				aim_dir = dir
+				swoop_speed = maxf(SWOOP_SPEED, maxf(0.0, dist - (radius + p.radius)) / (GLINT_LEAD * 0.85))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius)) / swoop_speed):
+				state = "swoop"
+				state_t = 0.35
+				lunge_hit = false
+		"swoop":
+			state_t -= delta
+			velocity = aim_dir * swoop_speed
+			if not lunge_hit and dist < radius + p.radius + 6.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				main.add_flame(global_position, 20.0, 1.5)
+				_end_attack("rest", 1.0)
+		"rest", "recover", "idle":
+			state_t -= delta
+			_circle(dir, dist, 120.0, speed * 0.8)
+			if state_t <= 0.0:
+				state = "hover"
+		_:
+			if dist < 170.0 and main.request_attack(self):
+				_begin_wind("wind", 0.45)
+				aim_dir = dir
+			else:
+				# Flickers about rather than circling smoothly.
+				var jitter := Vector2(sin(Time.get_ticks_msec() * 0.007 + get_instance_id()), cos(Time.get_ticks_msec() * 0.009)) * 40.0
+				_circle(dir, dist, 120.0, speed)
+				velocity += jitter
+
+
+# Bloomcaps: rooted fire-fungi. They glint, lock onto where you stand, and
+# lob burning spores that land a moment later (can't be parried: step out of
+# the circle). The ground they hit keeps burning.
+func _bloomcap(delta: float, dir: Vector2, dist: float, p) -> void:
+	velocity = Vector2.ZERO
+	match state:
+		"wind_lob":
+			if not glinted:
+				lob_spot = p.global_position  # it locks on when it glints
+			if _wind(delta):
+				main.fx_ring(lob_spot, Color(1.0, 0.5, 0.25), LOB_RADIUS, 0.35, 5.0)
+				main.fx_burst(lob_spot, Vector2.ZERO, Color(1.0, 0.55, 0.25), 12, 220.0)
+				main.sfx("burn", 1.1, -4.0)
+				if p.global_position.distance_to(lob_spot) < LOB_RADIUS + p.radius and not p.in_air():
+					p.receive_attack(dmg, self, true)
+				main.add_flame(lob_spot, 30.0, 2.5)
+				_end_attack("recover", 1.6)
+		"recover", "idle":
+			state_t -= delta
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 340.0 and main.request_attack(self):
+				_begin_wind("wind_lob", 0.9)
+				main.sfx("charge", 1.2, -6.0)
+
+
+# The Firebird: a burning swoop straight through you (parryable) that leaves
+# fire in its wake, a firestorm of four spots, one where you stand (can't be
+# parried: get out of the circles), and a fan of embers (parryable). The
+# first time it falls it burns to ashes and rises again. Calls wisps at half.
+func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
+	if state == "ashes":
+		velocity = Vector2.ZERO
+		state_t -= delta
+		if state_t <= 0.0:
+			hp = max_hp * 0.4
+			state = "recover"
+			state_t = 0.6
+			main.fx_ring(global_position, color, 120.0, 0.5, 8.0)
+			main.fx_burst(global_position, Vector2.ZERO, color, 30, 360.0)
+			main.light_flash(global_position, color, 2.5, 2.5, 0.6)
+			main.fx_text(global_position + Vector2(0, -radius - 30.0), "The Firebird rises again", color)
+			main.sfx("crit", 0.5)
+			main.shake(10.0)
+		return
+	_call_flock()
+	match state:
+		"wind_swoop":
+			velocity = Vector2.ZERO
+			if not glinted:
+				aim_dir = dir
+				swoop_speed = maxf(SWOOP_SPEED, maxf(0.0, dist - (radius + p.radius)) / (GLINT_LEAD * 0.85))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius)) / swoop_speed):
+				state = "swoop"
+				state_t = 0.45
+				lunge_hit = false
+				main.sfx("gust", 0.8)
+		"swoop":
+			state_t -= delta
+			velocity = aim_dir * swoop_speed
+			if fmod(state_t, 0.09) < delta:
+				main.add_flame(global_position, 22.0, 2.0)
+			if not lunge_hit and dist < radius + p.radius + 6.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("recover", 1.0)
+		"wind_storm":
+			velocity = Vector2.ZERO
+			if not glinted:
+				storm_spots[0] = p.global_position
+			if _wind(delta):
+				for spot in storm_spots:
+					main.fx_ring(spot, color, STORM_RADIUS, 0.4, 5.0)
+					main.fx_burst(spot, Vector2.UP, Color(1.0, 0.6, 0.25), 12, 260.0)
+					main.add_flame(spot, 32.0, 2.5)
+					if p.global_position.distance_to(spot) < STORM_RADIUS + p.radius and not p.in_air():
+						p.receive_attack(dmg, self, true)
+				main.sfx("burn", 0.6)
+				main.light_flash(p.global_position, color, 2.0, 1.6, 0.4)
+				main.shake(7.0)
+				_end_attack("recover", 1.2)
+		"wind_embers":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				for i in 7:
+					var a := (float(i) - 3.0) * deg_to_rad(11.0)
+					var e = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated(a) * 280.0, dmg * 0.45)
+					e.style = "ember"
+					e.tint = color
+				main.sfx("gust", 1.1)
+				_end_attack("recover", 0.8)
+		"recover", "idle":
+			state_t -= delta
+			_circle(dir, dist, 170.0, speed * 0.5)
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if not main.request_attack(self):
+				_circle(dir, dist, 170.0, speed)
+			elif dist < 230.0 and randf() < 0.45:
+				_begin_wind("wind_swoop", 0.6)
+				main.sfx("warn_knight", 0.8)
+			elif randf() < 0.5:
+				storm_spots = [p.global_position]
+				for i in 3:
+					storm_spots.append(p.global_position + Vector2.from_angle(TAU * i / 3.0 + randf()) * randf_range(90.0, 140.0))
+				_begin_wind("wind_storm", 0.9)
+				main.sfx("charge", 0.6)
+			else:
+				_begin_wind("wind_embers", 0.6)
+				main.sfx("warn_archer", 0.7)
+
+
+## The Firebird's first death: it burns down to ashes, then rises.
+func _fall_to_ashes() -> void:
+	reborn = true
+	hp = 1.0
+	_end_attack("ashes", 2.2)
+	main.fx_text(global_position + Vector2(0, -radius - 20.0), "The Firebird falls to ashes...", color)
+	main.fx_burst(global_position, Vector2.ZERO, Color(0.5, 0.45, 0.42), 24, 220.0)
+	main.sfx("burn", 0.5)
+
+
 # --- Venomist's poison and Ashwalker's stealth ---------------------------------------------
 
 ## Poison stacks. Each new stack also makes it last longer (Toxin Build).
@@ -1092,6 +1278,9 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
 	notice_t = 0.0  # it certainly knows you're here now
+	if kind == "firebird" and state == "ashes":
+		main.fx_text(global_position + Vector2(0, -radius - 10.0), "ashes", Color(0.7, 0.6, 0.55))
+		return
 	hp -= amount
 	flash = 0.12
 	squash = 1.0
@@ -1100,6 +1289,9 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 		# The knight is heavy and the beast is heavier: they barely budge.
 		knock = dir * force * (0.4 if kind == "knight" else (0.12 if is_boss() else 1.0))
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.95, 0.85))
+	if hp <= 0.0 and kind == "firebird" and not reborn:
+		_fall_to_ashes()
+		return
 	if hp <= 0.0:
 		dead = true
 		main.release_attack(self)
@@ -1198,6 +1390,12 @@ func _draw() -> void:
 			_draw_ram(f)
 		"manticore":
 			_draw_manticore(t, f)
+		"wisp":
+			_draw_wisp(t)
+		"bloomcap":
+			_draw_bloomcap(t, f)
+		"firebird":
+			_draw_firebird(t, f)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -1551,6 +1749,59 @@ func _draw_manticore(t: float, f: Vector2) -> void:
 	draw_circle(mane_at + f * 2.0 - side * 5.0, 2.2, Color(1.0, 0.85, 0.35))
 
 
+func _draw_wisp(t: float) -> void:
+	var k := 0.8 + 0.2 * sin(t * 16.0)
+	draw_circle(Vector2.ZERO, radius * 1.6, Color(color, 0.18))
+	draw_circle(Vector2.ZERO, radius * k, color)
+	draw_circle(Vector2(0, -1), radius * 0.55 * k, Color(1.0, 0.95, 0.7))
+	for i in 3:
+		var a := t * 5.0 + TAU * i / 3.0
+		draw_circle(Vector2.from_angle(a) * radius * 1.2, 1.6, Color(color, 0.8))
+
+
+func _draw_bloomcap(t: float, f: Vector2) -> void:
+	# A squat stalk under a broad, spotted cap that swells as it winds up.
+	var swell := 1.0
+	if state == "wind_lob":
+		swell = 1.0 + 0.2 * clampf(1.0 - state_t / 0.9, 0.0, 1.0)
+	draw_rect(Rect2(Vector2(-5, -2), Vector2(10, radius * 0.9)), Color(0.85, 0.78, 0.65))
+	Draw.ball(self, Vector2(0, -4), radius * swell, color)
+	for i in 5:
+		var a := TAU * i / 5.0 + 0.4
+		draw_circle(Vector2(0, -4) + Vector2.from_angle(a) * radius * 0.55 * swell, 2.2, Color(1.0, 0.85, 0.55))
+	if state == "wind_lob":
+		for i in 3:
+			draw_circle(Vector2(sin(t * 9.0 + i) * 6.0, -radius - 6.0 - fmod(t * 30.0 + i * 7.0, 14.0)), 1.6, Color(1.0, 0.6, 0.25, 0.8))
+
+
+func _draw_firebird(t: float, f: Vector2) -> void:
+	if state == "ashes":
+		# A smouldering heap, glowing brighter as it's about to rise.
+		var glow := clampf(1.0 - state_t / 2.2, 0.0, 1.0)
+		draw_circle(Vector2.ZERO, radius * 0.9, Color(0.25, 0.22, 0.22))
+		for i in 8:
+			var a := TAU * i / 8.0
+			draw_circle(Vector2.from_angle(a) * radius * 0.5, 4.0, Color(1.0, 0.45 + 0.3 * glow, 0.2, 0.3 + 0.6 * glow))
+		return
+	var side := f.orthogonal()
+	var flap := sin(t * (7.0 if state == "swoop" else 4.0))
+	for sgn in [-1.0, 1.0]:
+		var root: Vector2 = side * sgn * radius * 0.35
+		var tip: Vector2 = side * sgn * radius * (2.3 + 0.35 * flap) - f * radius * 0.5
+		var back: Vector2 = -f * radius * 0.9 + side * sgn * radius * 0.6
+		draw_colored_polygon(PackedVector2Array([root + f * 6.0, tip, back]), Color(1.0, 0.45, 0.15, 0.85))
+		draw_colored_polygon(PackedVector2Array([root + f * 3.0, root.lerp(tip, 0.7), back.lerp(root, 0.3)]), Color(1.0, 0.8, 0.35, 0.8))
+	# A tail of trailing flame.
+	for i in 5:
+		var u := float(i) / 4.0
+		draw_circle(-f * radius * (0.8 + u * 1.2) + side * sin(t * 6.0 + u * 4.0) * 5.0, radius * 0.35 * (1.0 - u * 0.6), Color(1.0, 0.5 + 0.3 * u, 0.2, 0.7 - u * 0.4))
+	Draw.ball(self, Vector2.ZERO, radius * 0.7, color)
+	Draw.ball(self, f * radius * 0.75, radius * 0.35, Color(1.0, 0.7, 0.3))
+	draw_circle(f * radius * 0.85 + side * 4.0, 2.0, Palette.OUTLINE)
+	draw_circle(f * radius * 0.85 - side * 4.0, 2.0, Palette.OUTLINE)
+	draw_circle(Vector2.ZERO, radius * 1.4, Color(1.0, 0.5, 0.2, 0.12))
+
+
 ## Telegraphs, status and the health bar: unlit, so they always read.
 func _draw_overlay() -> void:
 	var c := overlay
@@ -1647,6 +1898,29 @@ func _draw_overlay() -> void:
 				c.draw_line(Vector2.ZERO, lunge_dir.rotated(a) * 120.0, Color(danger, 0.3), 1.5)
 	if kind == "slime" and state == "wind":
 		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(danger, 0.6), 2.0)
+	if kind == "wisp" and state == "wind":
+		c.draw_line(Vector2.ZERO, aim_dir * 120.0, Color(danger, 0.4), radius * 1.6)
+	if kind == "bloomcap" and state == "wind_lob":
+		var kl := clampf(1.0 - state_t / 0.9, 0.0, 1.0)
+		var at := lob_spot - global_position
+		if not glinted:
+			at = main.player.global_position - global_position
+		c.draw_circle(at, LOB_RADIUS, Color(danger, 0.1 + 0.14 * kl))
+		c.draw_arc(at, LOB_RADIUS, 0.0, TAU, 32, Color(danger, 0.7), 2.0)
+		c.draw_arc(at, LOB_RADIUS * kl, 0.0, TAU, 32, Color(danger, 0.8), 1.5)
+	if kind == "firebird":
+		if state == "wind_swoop":
+			c.draw_line(Vector2.ZERO, aim_dir * 260.0, Color(danger, 0.3), radius * 1.4)
+		if state == "wind_storm":
+			var ks := clampf(1.0 - state_t / 0.9, 0.0, 1.0)
+			for spot in storm_spots:
+				var sp: Vector2 = spot - global_position
+				c.draw_circle(sp, STORM_RADIUS, Color(danger, 0.1 + 0.12 * ks))
+				c.draw_arc(sp, STORM_RADIUS, 0.0, TAU, 32, Color(danger, 0.7), 2.0)
+				c.draw_arc(sp, STORM_RADIUS * ks, 0.0, TAU, 32, Color(danger, 0.8), 1.5)
+		if state == "wind_embers":
+			for i in 7:
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated((float(i) - 3.0) * deg_to_rad(11.0)) * 120.0, Color(danger, 0.3), 1.5)
 	if kind == "scorpling" and state == "wind_sting":
 		var half := deg_to_rad(50.0)
 		var wedge := PackedVector2Array([Vector2.ZERO])
