@@ -30,6 +30,9 @@ extends RefCounted
 ##   quake, sandwall, sinkhole, fault          (Sandshaper)
 ##   spit, cloud, neuro, virulence             (Venomist)
 ##   veil, decoy, vanish, ashfall              (Ashwalker)
+##   fireball, firewall, cluster, meteor       (Flame Contractor)
+##   aura, wingburst, warmth, firebirdform     (Flamewing)
+##   rekindle, desperation, pyre, phoenix      (Rekindler)
 
 ## Six body parts, one for each of the six towers; each holds one bond.
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
@@ -413,6 +416,96 @@ const BONDS := {
 			{"id": "ashfall", "name": "Ashfall", "type": "ashfall", "learn": 5,
 				"desc": "ash blankets the room for 10 seconds; foes lose track of you once you're out of reach",
 				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0}}},
+		],
+	},
+	# --- the Firebird's tower (Fire) ---------------------------------------------
+	"flame_contractor": {
+		"name": "Flame Contractor",
+		"color": Color(1.0, 0.42, 0.18),
+		"affinity": "fire",
+		"style": ["throat", "back"],
+		"tower": "firebird",
+		"body": {"name": "Casting Stride", "desc": "you can walk while a spell winds up"},
+		"passive": {"name": "Kindled", "desc": "foes your fire kills leave burning ground behind (it burns foes, not you)"},
+		"spells": [
+			{"id": "fireball", "name": "Fireball", "type": "fireball", "learn": 1,
+				"desc": "a fireball that explodes on impact",
+				"changes": {3: "a charged fireball: a longer wind-up and a much larger explosion"},
+				"steps": {
+					1: {"cost": 10.0, "windup": 0.35, "damage": 14.0, "radius": 55.0},
+					2: {"damage": 16.0},
+					3: {"windup": 0.6, "radius": 85.0, "damage": 20.0},
+					4: {"damage": 23.0},
+					5: {"damage": 26.0},
+				}},
+			{"id": "fire_wall", "name": "Fire Wall", "type": "firewall", "learn": 2,
+				"desc": "a line of burning ground across your aim that burns foes crossing it",
+				"steps": {2: {"cost": 10.0, "windup": 0.3, "duration": 5.0, "length": 170.0}}},
+			{"id": "cluster_blast", "name": "Cluster Blast", "type": "cluster", "learn": 4,
+				"desc": "a fireball that splits into three explosions on impact",
+				"steps": {4: {"cost": 14.0, "windup": 0.4, "damage": 14.0, "radius": 50.0}, 5: {"damage": 17.0}}},
+			{"id": "meteor", "name": "Meteor", "type": "meteor", "learn": 5,
+				"desc": "a very long wind-up, then a great explosion over an area at your aim",
+				"steps": {5: {"cost": 20.0, "windup": 1.0, "damage": 45.0, "radius": 130.0}}},
+		],
+	},
+	"flamewing": {
+		"name": "Flamewing",
+		"color": Color(1.0, 0.68, 0.28),
+		"affinity": "fire",
+		"style": ["heart", "throat"],
+		"tower": "firebird",
+		"body": {"name": "Phoenix Glide", "desc": "hold jump to glide over gaps"},
+		"passive": {"name": "Fireproof", "desc": "burning ground and fire hazards don't harm you"},
+		"spells": [
+			{"id": "heat_aura", "name": "Heat Aura", "type": "aura", "learn": 1,
+				"desc": "turn on an aura that burns foes near you; it drains this mark's essence while on (cast again to turn it off)",
+				"changes": {3: "the aura grows hotter the longer it stays on in a fight"},
+				"steps": {
+					1: {"cost": 6.0, "windup": 0.2, "damage": 3.0, "radius": 62.0, "drain": 2.5, "grows": false},
+					2: {"damage": 3.5},
+					3: {"grows": true},
+					4: {"damage": 4.0},
+					5: {"damage": 5.0},
+				}},
+			{"id": "wingburst", "name": "Wingburst", "type": "wingburst", "learn": 2,
+				"desc": "release the aura's built-up heat as burning wings around you",
+				"steps": {2: {"cost": 10.0, "windup": 0.25, "damage": 12.0, "radius": 115.0}, 4: {"damage": 15.0}, 5: {"damage": 18.0}}},
+			{"id": "warmth", "name": "Warmth", "type": "warmth", "learn": 4,
+				"desc": "for 10 seconds your aura warms you too, restoring health (it will strengthen your creatures and allies once those exist)",
+				"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 10.0, "heal": 2.5}}},
+			{"id": "firebird_form", "name": "Firebird Form", "type": "firebirdform", "learn": 5,
+				"desc": "for 8 seconds your aura doubles in size and Wingburst costs nothing",
+				"steps": {5: {"cost": 16.0, "windup": 0.4, "duration": 8.0}}},
+		],
+	},
+	"rekindler": {
+		"name": "Rekindler",
+		"color": Color(1.0, 0.36, 0.3),
+		"affinity": "fire",
+		"style": ["heart", "back"],
+		"tower": "firebird",
+		"body": {"name": "Stubborn Heart", "desc": "below a third of your health, you move and recover faster"},
+		"passive": {"name": "Last Ember", "desc": "once per floor, a killing blow leaves you burning at 1 health for 3 seconds; land a hit in that time to stay standing"},
+		"spells": [
+			{"id": "rekindle", "name": "Rekindle", "type": "rekindle", "learn": 1,
+				"desc": "set yourself alight: lose health over 5 seconds, then regain twice that if you kept fighting",
+				"changes": {3: "while you burn, foes near you burn too"},
+				"steps": {
+					1: {"cost": 8.0, "windup": 0.2, "duration": 5.0, "loss": 0.15, "spread": false},
+					3: {"spread": true},
+					4: {"loss": 0.18},
+					5: {"loss": 0.2},
+				}},
+			{"id": "desperation", "name": "Desperation", "type": "desperation", "learn": 2,
+				"desc": "for 6 seconds, the lower your health, the harder and faster you strike",
+				"steps": {2: {"cost": 9.0, "windup": 0.15, "duration": 6.0}}},
+			{"id": "pyre_oath", "name": "Pyre Oath", "type": "pyre", "learn": 4,
+				"desc": "for 10 seconds, a killing blow makes you explode instead, leaving you standing at 1 health",
+				"steps": {4: {"cost": 12.0, "windup": 0.2, "duration": 10.0, "damage": 30.0}}},
+			{"id": "phoenix_heart", "name": "Phoenix Heart", "type": "phoenix", "learn": 5,
+				"desc": "for 10 seconds you cannot drop below 1 health",
+				"steps": {5: {"cost": 16.0, "windup": 0.2, "duration": 10.0}}},
 		],
 	},
 }

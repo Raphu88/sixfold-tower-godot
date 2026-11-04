@@ -256,11 +256,17 @@ func _draw_fields() -> void:
 		for i in 6:
 			var ga := TAU * i / 6.0 + t * 0.3
 			draw_circle(sg["pos"] + Vector2.from_angle(ga) * sg["r"] * 0.85, 3.0, Color(sc, 0.7 * sa))
+	for m in main.meteors:
+		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
+		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))
+		draw_arc(m["pos"], m["r"], 0.0, TAU, 48, Color(m["color"], 0.7), 2.5)
+		draw_circle(m["pos"] + Vector2(0, -260.0 * (1.0 - mk)), 10.0 + 6.0 * mk, Color(1.0, 0.6, 0.25, 0.9))
 	for fl in main.flames:
 		var fade: float = clampf(fl["t"] / 0.5, 0.0, 1.0)
 		var fp: Vector2 = fl["pos"]
 		var fr: float = fl["r"]
-		draw_circle(fp, fr, Color(1.0, 0.35, 0.1, 0.22 * fade))
+		var fcol := Color(1.0, 0.35, 0.1) if not fl.get("friendly", false) else Color(1.0, 0.6, 0.15)
+		draw_circle(fp, fr, Color(fcol, 0.22 * fade))
 		for i in 6:
 			var a := TAU * i / 6.0 + t * 0.7
 			var at := fp + Vector2.from_angle(a) * fr * 0.55

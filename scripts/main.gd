@@ -82,6 +82,7 @@ var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, 
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
+var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
 var chasms: Array = []  # gaps in the floor (Rect2): jump across or fall
 var chasm_bodies: Array = []
 var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
@@ -384,6 +385,7 @@ func _start_floor(n: int) -> void:
 	maelstroms.clear()
 	rains.clear()
 	flames.clear()
+	meteors.clear()
 	runes.clear()
 	wards.clear()
 	sigils.clear()
@@ -399,6 +401,7 @@ func _start_floor(n: int) -> void:
 	ashfall_t = 0.0
 	if player != null:
 		player.rune_gear = ""  # runes on gear last one floor
+		player.ember_used = false  # Last Ember: once per floor
 	track_t = 0.0
 	for b in pillar_bodies:
 		b.queue_free()
@@ -998,17 +1001,35 @@ func in_sigil(pos: Vector2) -> bool:
 
 
 ## Burning floor: hurts the climber standing in it, a little at a time.
-func add_flame(pos: Vector2, r: float, t: float) -> void:
-	flames.append({"pos": pos, "r": r, "t": t, "max": t})
+## `friendly` fire (the climber's own) burns monsters instead.
+func add_flame(pos: Vector2, r: float, t: float, friendly := false) -> void:
+	flames.append({"pos": pos, "r": r, "t": t, "max": t, "friendly": friendly, "tick": 0.0})
 
 
 func _update_flames(delta: float) -> void:
 	for f in flames:
 		f["t"] -= delta
+		if f.get("friendly", false):
+			f["tick"] -= delta
+			if f["tick"] <= 0.0:
+				f["tick"] = 0.5
+				for e in targets():
+					if e.global_position.distance_to(f["pos"]) < f["r"] + e.radius:
+						e.take_hit(3.0, Vector2.ZERO, 0.0)
+						_kindled(e)
 	flames = flames.filter(func(f): return f["t"] > 0.0)
+	# Meteors land.
+	for m in meteors:
+		m["t"] -= delta
+		if m["t"] <= 0.0:
+			explode(m["pos"], m["r"], m["dmg"], m["color"])
+			shake(10.0)
+	meteors = meteors.filter(func(m): return m["t"] > 0.0)
 	if player == null or player.dead:
 		return
 	for f in flames:
+		if f.get("friendly", false):
+			continue
 		if player.global_position.distance_to(f["pos"]) < f["r"] + player.radius * 0.5:
 			player.stand_in_fire(delta)
 			break
@@ -1042,6 +1063,26 @@ func in_chasm(pos: Vector2) -> bool:
 		if r.has_point(pos):
 			return true
 	return false
+
+
+## The climber's fire explodes: hurts every foe in the circle.
+func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
+	for e in targets():
+		var to: Vector2 = e.global_position - pos
+		if to.length() < r + e.radius:
+			e.take_hit(dmg, to.normalized() if to.length() > 0.1 else Vector2.ZERO, 200.0, true)
+			_kindled(e)
+	fx_ring(pos, color, r, 0.35, 6.0)
+	fx_burst(pos, Vector2.ZERO, color, 18, 300.0)
+	light_flash(pos, color, 1.0 + r / 60.0, 2.0, 0.35)
+	sfx("hit_heavy", 0.7)
+	shake(4.0)
+
+
+## Flame Contractor's Kindled: a foe your fire kills leaves burning ground.
+func _kindled(e) -> void:
+	if e.dead and player != null and player.has_bond("flame_contractor"):
+		add_flame(e.global_position, 26.0, 3.0, true)
 
 
 func in_water(pos: Vector2) -> bool:

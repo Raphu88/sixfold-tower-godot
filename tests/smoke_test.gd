@@ -98,7 +98,7 @@ func _regard_tests() -> void:
 	_check(main.profile.choose_bond({"iron": 10.0}, {"hand": 10.0}) == "blade_forger", "Iron and lots of striking: Blade Forger")
 	_check(main.profile.choose_bond({"fire": 10.0}, {"hand": 10.0}) == "flameblade", "Fire and lots of striking: Flameblade")
 	_check(main.profile.choose_bond({"fire": 10.0}, dodgy) == "ashwalker", "Fire and lots of dodging: Ashwalker")
-	_check(main.profile.choose_bond({"stone": 10.0}, {"heart": 10.0}) == "sandshaper", "Stone and lots of enduring: Sandshaper")
+	_check(main.profile.choose_bond({"stone": 10.0}, {"heart": 10.0, "throat": 4.0}) == "sandshaper", "Stone and lots of enduring: Sandshaper")
 	main.floor_num = 3
 	for e in main.enemies():
 		_slay(e)
@@ -901,6 +901,169 @@ func _jump_tests() -> void:
 			for r in plan["chasms"]:
 				ok = ok and not r.has_point(m[1])
 	_check(ok, "chasms are laid out clear of the start and the monsters")
+
+
+func _firebird_bond_tests() -> void:
+	print("the Firebird's bonds")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	_mark("throat", "flame_contractor", 5)
+	_mark("heart", "flamewing", 5)
+	_mark("back", "rekindler", 5)
+	var ok := true
+	for part in ["throat", "heart", "back"]:
+		ok = ok and p.bonds[part].spells().size() == 4
+	_check(ok, "at step 5 each Firebird bond knows four spells")
+
+	# Flame Contractor.
+	var k = await _spawn("knight", p.global_position + Vector2(150, 0))
+	k.hp = 9999.0
+	k.max_hp = 9999.0
+	var hp0: float = k.hp
+	_cast("throat", "fireball")
+	await _wait(0.5)
+	_check(k.hp < hp0, "Fireball explodes on impact")
+	main.flames = []
+	_cast("throat", "fire_wall")
+	_check(main.flames.size() >= 5 and main.flames[0]["friendly"], "Fire Wall lays a line of your own fire")
+	p.hp = p.MAX_HP
+	main.flames = [{"pos": p.global_position, "r": 40.0, "t": 2.0, "max": 2.0, "friendly": true, "tick": 0.0}]
+	await _wait(0.7)
+	_check(p.hp == p.MAX_HP, "...which burns foes, not you")
+	main.flames = []
+	hp0 = k.hp
+	_cast("throat", "cluster_blast")
+	await _wait(0.5)
+	_check(hp0 - k.hp > 20.0, "Cluster Blast splits into three explosions (%.0f)" % (hp0 - k.hp))
+	hp0 = k.hp
+	_cast("throat", "meteor")
+	await _wait(0.8)
+	_check(k.hp < hp0 - 30.0, "Meteor: a great explosion at your aim")
+	var weak = await _spawn("slime", p.global_position + Vector2(100, 60))
+	main.flames = []
+	main.explode(weak.global_position, 40.0, 999.0, Color(1, 0.5, 0.2))
+	_check(main.flames.size() == 1, "Kindled: a foe your fire kills leaves burning ground")
+	main.flames = []
+	var cb = p.bonds["throat"]
+	cb.select(0)
+	cb.essence = 999.0
+	p.cast_part = ""
+	p._try_cast("throat")
+	Input.action_press("move_down")
+	await _frames(3)
+	Input.action_release("move_down")
+	_check(p.velocity.length() > 10.0, "Casting Stride: you can walk while a spell winds up")
+	await _wait(0.8)
+	k.queue_free()
+	await _frames(1)
+
+	# Flamewing.
+	var near = await _spawn("knight", p.global_position + Vector2(40, 0))
+	near.hp = 9999.0
+	near.max_hp = 9999.0
+	hp0 = near.hp
+	_cast("heart", "heat_aura")
+	var es0: float = p.bonds["heart"].essence
+	await _wait(1.1)
+	_check(p.aura_part == "heart" and near.hp < hp0 and p.bonds["heart"].essence < es0, "Heat Aura burns foes near you and drains its mark")
+	_check(p.aura_heat > 0.0, "...and builds heat")
+	hp0 = near.hp
+	_cast("heart", "wingburst")
+	_check(near.hp < hp0 and p.aura_heat == 0.0, "Wingburst releases the heat as burning wings")
+	p.hp = 50.0
+	_cast("heart", "warmth")
+	p.bonds["heart"].essence = 999.0
+	await _wait(1.0)
+	_check(p.hp > 50.0, "Warmth: your aura restores your health")
+	_cast("heart", "firebird_form")
+	var hb = p.bonds["heart"]
+	for i in hb.spells().size():
+		if hb.spells()[i]["type"] == "wingburst":
+			hb.select(i)
+	hb.essence = 0.0
+	hb.burned = false
+	p.cast_part = "heart"
+	p._release_cast()
+	_check(p.firebird_t > 0.0 and not hb.burned, "Firebird Form: Wingburst costs nothing")
+	_cast("heart", "heat_aura")
+	_check(p.aura_part == "", "casting Heat Aura again turns it off")
+	near.queue_free()
+	p.hp = p.MAX_HP
+	main.flames = [{"pos": p.global_position, "r": 40.0, "t": 2.0, "max": 2.0}]
+	await _wait(0.7)
+	_check(p.hp == p.MAX_HP, "Fireproof: burning floor doesn't hurt you")
+	main.flames = []
+	p.sta = p.MAX_STA
+	await _frames(1)
+	Input.action_press("jump")
+	await _wait(0.6)
+	var gliding: bool = p.in_air()
+	Input.action_release("jump")
+	_check(gliding, "Phoenix Glide: holding jump keeps you in the air longer")
+	await _wait(0.5)
+
+	# Rekindler.
+	p.hp = p.MAX_HP * 0.3
+	_check(p._stubborn(), "Stubborn Heart: below a third of your health")
+	p.hp = p.MAX_HP
+	var dummy = await _spawn("knight", p.global_position + Vector2(30, 0))
+	dummy.hp = 9999.0
+	dummy.max_hp = 9999.0
+	_cast("back", "rekindle")
+	await _wait(1.2)
+	_check(p.hp < p.MAX_HP, "Rekindle: you burn")
+	var low: float = p.hp
+	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
+	p.rekindle_t = 0.01
+	await _wait(0.4)
+	_check(p.hp > low, "...then regain more than you lost if you kept fighting")
+	p.hp = 5.0
+	_cast("back", "desperation")
+	var hp_d: float = dummy.hp
+	p.attack_cd = 0.0
+	p.combo = 0
+	p.combo_t = 0.0
+	p._melee()
+	var low_hit: float = hp_d - dummy.hp
+	p.hp = p.MAX_HP
+	hp_d = dummy.hp
+	p.attack_cd = 0.0
+	p.combo = 0
+	p.combo_t = 0.0
+	p._melee()
+	_check(low_hit > (hp_d - dummy.hp) * 1.5, "Desperation: the lower your health, the harder you strike")
+	p.desperate_t = 0.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.ember_used = true
+	_cast("back", "pyre_oath")
+	hp_d = dummy.hp
+	p.receive_attack(9999.0, null)
+	_check(not p.dead and p.hp == 1.0 and dummy.hp < hp_d, "Pyre Oath: a killing blow makes you explode instead")
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	_cast("back", "phoenix_heart")
+	p.receive_attack(9999.0, null)
+	_check(not p.dead and p.hp >= 1.0, "Phoenix Heart: you can't drop below 1 health")
+	p.phoenix_t = 0.0
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.ember_used = false
+	p.receive_attack(9999.0, null)
+	_check(not p.dead and p.ember_t > 0.0, "Last Ember: a killing blow leaves you burning at 1 health")
+	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
+	await _wait(3.2)
+	_check(not p.dead, "...and landing a hit keeps you standing")
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.receive_attack(9999.0, null)
+	_check(p.dead, "...but only once per floor")
+	dummy.queue_free()
 
 
 func _menu_tests() -> void:
@@ -1746,6 +1909,7 @@ func _run() -> void:
 	await _jump_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
+	await _firebird_bond_tests()
 	await _body_part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
