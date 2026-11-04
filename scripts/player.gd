@@ -713,6 +713,8 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	main.hitstop(0.1)
 	main.shake(8.0)
 	main.hurt_flash = 0.35
+	if hp <= 0.0 and main.dev_no_death:
+		hp = 1.0  # dev tool: no dying
 	if hp <= 0.0:
 		hp = 0.0
 		dead = true

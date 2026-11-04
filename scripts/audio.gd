@@ -57,11 +57,27 @@ func _loop_player(path: String, db: float) -> AudioStreamPlayer:
 	return p
 
 
+var music_level := 1.0  # settings, 0..1
+var sound_level := 1.0
+
+
 func toggle_music() -> bool:
 	music_on = not music_on
-	music.volume_db = MUSIC_DB if music_on else -80.0
-	ambience.volume_db = AMBIENCE_DB if music_on else -80.0
+	_apply_music()
 	return music_on
+
+
+## Volume settings from the menu (0 is silent, 1 is full).
+func set_levels(music_frac: float, sound_frac: float) -> void:
+	music_level = music_frac
+	sound_level = sound_frac
+	_apply_music()
+
+
+func _apply_music() -> void:
+	var off := not music_on or music_level <= 0.01
+	music.volume_db = -80.0 if off else MUSIC_DB + linear_to_db(music_level)
+	ambience.volume_db = -80.0 if off else AMBIENCE_DB + linear_to_db(music_level)
 
 
 func has_sound(sound: String) -> bool:
@@ -70,7 +86,7 @@ func has_sound(sound: String) -> bool:
 
 ## pitch: base playback speed; variance adds a little randomness.
 func play(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.05) -> void:
-	if not has_sound(sound):
+	if not has_sound(sound) or sound_level <= 0.01:
 		return
 	var now := Time.get_ticks_msec()
 	if now - int(last_played.get(sound, -1000)) < NO_STACK_MS:
@@ -86,5 +102,5 @@ func play(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.05) -> vo
 	next_player = (next_player + 1) % players.size()
 	p.stream = list[idx]
 	p.pitch_scale = maxf(0.1, pitch * (1.0 + randf_range(-variance, variance)))
-	p.volume_db = volume_db + MASTER_DB + float(TRIM.get(sound, 0.0))
+	p.volume_db = volume_db + MASTER_DB + float(TRIM.get(sound, 0.0)) + linear_to_db(sound_level)
 	p.play()
