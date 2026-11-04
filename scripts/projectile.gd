@@ -85,6 +85,13 @@ func _draw() -> void:
 		draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
 		draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
 		return
+	if style == "ember":
+		# A burning ember with a short flame trail.
+		draw_line(-dir * 14.0, Vector2.ZERO, Color(1.0, 0.45, 0.15, 0.5), 6.0)
+		draw_circle(Vector2.ZERO, 5.0, Color(1.0, 0.6, 0.2))
+		draw_circle(Vector2.ZERO, 2.5, Color(1.0, 0.92, 0.6))
+		draw_circle(Vector2.ZERO, 9.0, Color(1.0, 0.4, 0.2, 0.2))
+		return
 	if style == "feather":
 		# The Gryphon's feathers: a quill with a vane.
 		draw_line(-dir * 12.0, dir * 8.0, Color(0.06, 0.05, 0.07), 3.0)

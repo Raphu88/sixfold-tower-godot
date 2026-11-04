@@ -87,12 +87,14 @@ func _regard_tests() -> void:
 	_check(main.leading_part() == "legs", "the HUD's leading part is the most-used one")
 	var predicted: String = main.predicted_bond()
 	_check(predicted == "windwalker", "the HUD predicts the bond: %s" % predicted)
-	# Play style pulls too: legs are home to both Windwalker (Air) and
-	# Tidecaller (Water); the essence decides between them, and a bond from
-	# elsewhere wins only when the essence is overwhelmingly its kind.
-	_check(main.profile.choose_bond("legs", {"air": 6.0, "water": 4.0}) == "windwalker", "legs with mostly Air: Windwalker")
-	_check(main.profile.choose_bond("legs", {"water": 6.0, "air": 4.0}) == "tidecaller", "legs with mostly Water: Tidecaller")
-	_check(main.profile.choose_bond("legs", {"iron": 10.0}) == "blade_forger", "...a bond from elsewhere wins when the essence is overwhelmingly its kind")
+	# The essence decides the bond; play style only breaks ties between
+	# bonds of the same essence. No bond has a home body part.
+	var dodgy := {"legs": 10.0}
+	_check(main.profile.choose_bond({"air": 6.0, "water": 4.0}, dodgy) == "windwalker", "mostly Air and lots of dodging: Windwalker")
+	_check(main.profile.choose_bond({"water": 6.0, "air": 4.0}, dodgy) == "tidecaller", "mostly Water and lots of dodging: Tidecaller")
+	_check(main.profile.choose_bond({"air": 10.0}, {"brow": 10.0}) == "hunter", "Air and lots of parrying: Hunter")
+	_check(main.profile.choose_bond({"air": 10.0}, {"hand": 10.0}) == "stormcaller", "Air and lots of striking: Stormcaller")
+	_check(main.profile.choose_bond({"iron": 10.0}, dodgy) == "blade_forger", "...the essence wins over play style")
 	main.floor_num = 3
 	for e in main.enemies():
 		_slay(e)
@@ -606,6 +608,89 @@ func _menu_tests() -> void:
 	_check(not paused and not main.menu_open(), "closing the menu resumes")
 
 
+func _wyvern_tower_tests() -> void:
+	print("the Wyvern's tower")
+	await _fresh_main()
+	var p = main.player
+	main.dev_tower("wyvern")
+	await _frames(2)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var seen := {}
+	for n in 30:
+		for m in main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["wyvern"])["monsters"]:
+			seen[m[0]] = true
+	_check(seen.has("cinder") and seen.has("smith"), "the Wyvern's tower has cinders and smiths")
+	# Fire essence: cinders drop it.
+	var c = await _spawn("cinder", p.global_position + Vector2(200, 0))
+	var fire0: float = main.run_essence.get("fire", 0.0)
+	_slay(c)
+	await _frames(2)
+	_check(main.run_essence.get("fire", 0.0) > fire0, "cinders drop Fire essence")
+	# Smith: its hammer can be parried, and it leaves the floor burning.
+	var sm = await _spawn("smith", p.global_position + Vector2(200, 0))
+	sm.hp = 999.0
+	var r1: Dictionary = await _parry_test(sm, 0.0, "wind_hammer", 58.0)
+	_check(r1["glinted"] and r1["parried"] and not r1["hurt"], "a smith's hammer can be parried on the glint %s" % str(r1))
+	_check(main.flames.size() >= 1, "...and leaves the floor burning")
+	# Standing in fire burns.
+	p.hp = p.MAX_HP
+	main.flames = [{"pos": p.global_position, "r": 40.0, "t": 2.0, "max": 2.0}]
+	await _wait(0.8)
+	_check(p.hp < p.MAX_HP, "standing in fire burns")
+	main.flames = []
+	sm.queue_free()
+	await _frames(2)
+
+	print("the Wyvern")
+	main.profile.regarded = true
+	main.first_climb = false
+	main._start_floor(5)
+	await _frames(3)
+	var foes: Array = main.enemies()
+	_check(foes.size() == 1 and foes[0].kind == "wyvern", "floor 5 of the Wyvern's tower is the Wyvern")
+	var w = foes[0]
+	w.set_physics_process(false)
+	# Its breath can't be parried.
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.knock = Vector2.ZERO
+	p.global_position = w.global_position + Vector2(140, 0)
+	w.stun = 0.0
+	main.attackers.clear()
+	main.request_attack(w)
+	w._begin_wind("wind_breath", 0.2)
+	w.set_physics_process(true)
+	await _wait(0.12)
+	p._try_parry()
+	await _wait(0.3)
+	w.set_physics_process(false)
+	_check(p.hp < p.MAX_HP and w.stun <= 0.0, "its fire breath can't be parried")
+	_check(main.flames.size() >= 3, "...and sets the floor alight")
+	main.flames = []
+	# Halfway down it calls cinders.
+	w.take_hit(w.hp - w.max_hp * 0.45, Vector2.ZERO)
+	w.state = "recover"
+	w.state_t = 5.0
+	w.set_physics_process(true)
+	await _wait(0.2)
+	_check(main.enemies().filter(func(e): return e.kind == "cinder").size() == 2, "below half health it calls two cinders")
+	for e in main.enemies():
+		_slay(e)
+	await _frames(3)
+	p.hp = p.MAX_HP
+	p.dead = false
+	p.set_physics_process(true)
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.victory.is_empty(), "beating the Wyvern completes the climb")
+	await _wait(2.8)
+	main.victory = {}
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -1085,6 +1170,7 @@ func _run() -> void:
 	await _gryphon_tests()
 	await _gryphon_tower_tests()
 	await _kraken_tower_tests()
+	await _wyvern_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
 	await _body_part_tests()

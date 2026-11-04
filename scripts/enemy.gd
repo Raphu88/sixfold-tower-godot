@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -31,10 +31,20 @@ const TYPES := {
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
 	"kraken": {"hp": 450.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
+	# The Wyvern's tower
+	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
+	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
+	"wyvern": {"hp": 420.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 }
-const BOSSES := ["gryphon", "kraken"]
+const BOSSES := ["gryphon", "kraken", "wyvern"]
 ## What each beast calls when it's half dead.
-const FLOCK := {"gryphon": "bat", "kraken": "lurker"}
+const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder"}
+const HAMMER_REACH := 48.0  # a smith's slam lands this far in front of it
+const HAMMER_RADIUS := 46.0
+const TAIL_REACH := 110.0
+const TAIL_ARC := 75.0
+const BREATH_REACH := 210.0
+const BREATH_ARC := 22.0
 const SWEEP_REACH := 230.0
 const SWEEP_ARC := 60.0
 const SLAM_RADIUS := 55.0
@@ -96,11 +106,11 @@ func setup(k: String, room) -> void:
 	weight = t["weight"]
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
-	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken"]:
+	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
 	if kind == "bat":
 		state = "rest"
-	if kind == "gryphon" or kind == "kraken":
+	if kind in BOSSES:
 		state_t = 1.6
 	if kind == "lurker":
 		state = "sub"
@@ -176,11 +186,17 @@ func _physics_process(delta: float) -> void:
 			_shellback(delta, dir, dist, p)
 		"kraken":
 			_kraken(delta, dir, dist, p)
+		"cinder":
+			_cinder(delta, dir, dist, p)
+		"smith":
+			_smith(delta, dir, dist, p)
+		"wyvern":
+			_wyvern(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive"]:
-		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken", "bat", "gryphon"])
+		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken", "bat", "gryphon", "cinder", "wyvern"])
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
 	velocity += knock
@@ -676,6 +692,129 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.sfx("warn_archer", 0.8)
 
 
+# --- the Wyvern's tower --------------------------------------------------------------
+
+# Cinders: living embers that flit at range, glint and spit a burning ember
+# (parryable; a parry turns it back).
+func _cinder(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_spit":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta, maxf(0.0, dist - p.radius) / 280.0):
+				var e = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir * 280.0, dmg)
+				e.style = "ember"
+				e.tint = color
+				main.sfx("zap", 1.6, -6.0)
+				_end_attack("recover", 1.0)
+		"recover", "idle":
+			state_t -= delta
+			_circle(dir, dist, 150.0, speed * 0.6)
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 210.0 and main.request_attack(self):
+				_begin_wind("wind_spit", 0.6)
+				main.sfx("warn_archer", 1.4, -4.0)
+			elif dist < 140.0:
+				velocity = -dir * speed  # keeps its distance
+			else:
+				_circle(dir, dist, 160.0, speed)
+
+
+# Smiths: slow, heavy forge-workers. The hammer comes down in front of them
+# (parryable, but it hits hard) and leaves the floor burning.
+func _smith(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_hammer":
+			velocity = Vector2.ZERO
+			if _wind(delta):
+				var spot: Vector2 = global_position + face * HAMMER_REACH
+				main.fx_ring(spot, Color(1.0, 0.6, 0.3), HAMMER_RADIUS, 0.35, 5.0)
+				main.fx_burst(spot, Vector2.ZERO, Color(1.0, 0.6, 0.3), 12, 240.0)
+				main.sfx("hit_heavy", 0.55)
+				main.shake(6.0)
+				if p.global_position.distance_to(spot) < HAMMER_RADIUS + p.radius:
+					p.receive_attack(dmg, self)
+				main.add_flame(spot, 34.0, 2.5)
+				_end_attack("recover", 1.2)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 75.0 and main.request_attack(self):
+				_begin_wind("wind_hammer", 0.85)
+				main.sfx("warn_knight", 0.75)
+			else:
+				velocity = dir * speed
+
+
+# The Wyvern: a tail sweep up close (parryable), fire breath down a narrow
+# cone that sets the floor alight (can't be parried: roll or step aside),
+# and a spray of embers (parryable). At half health it calls cinders.
+func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
+	_call_flock()
+	match state:
+		"wind_tail":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, TAIL_REACH + 10.0, deg_to_rad(TAIL_ARC), Color(1.0, 0.45, 0.3))
+				main.sfx("swing_heavy", 0.6)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= TAIL_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(TAIL_ARC):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 0.9)
+		"wind_breath":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, BREATH_REACH, deg_to_rad(BREATH_ARC), Color(1.0, 0.5, 0.15))
+				main.light_flash(global_position + lunge_dir * 100.0, Color(1.0, 0.5, 0.2), 1.6, 2.2, 0.4)
+				main.sfx("burn", 0.6)
+				main.shake(5.0)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= BREATH_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(BREATH_ARC) + 0.1:
+					p.receive_attack(dmg * 1.1, self, true)  # fire can't be parried: roll
+				for i in 3:
+					main.add_flame(global_position + lunge_dir * (70.0 + 60.0 * i), 30.0 + 6.0 * i, 3.0)
+				_end_attack("recover", 1.2)
+		"wind_embers":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				for i in 5:
+					var a := (float(i) - 2.0) * deg_to_rad(12.0)
+					var e = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated(a) * 270.0, dmg * 0.5)
+					e.style = "ember"
+					e.tint = Color(1.0, 0.55, 0.22)
+				main.sfx("zap", 1.2, -4.0)
+				_end_attack("recover", 0.8)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if not main.request_attack(self):
+				velocity = dir * speed if dist > 120.0 else Vector2.ZERO
+			elif dist < 105.0:
+				_begin_wind("wind_tail", 0.6)
+				main.sfx("warn_knight", 0.6)
+			elif dist < BREATH_REACH and randf() < 0.55:
+				_begin_wind("wind_breath", 0.8)
+				main.sfx("charge", 0.6)
+			else:
+				_begin_wind("wind_embers", 0.6)
+				main.sfx("warn_archer", 0.8)
+
+
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
@@ -785,6 +924,12 @@ func _draw() -> void:
 			_draw_shellback(f)
 		"kraken":
 			_draw_kraken(t, f)
+		"cinder":
+			_draw_cinder(t, f)
+		"smith":
+			_draw_smith(f)
+		"wyvern":
+			_draw_wyvern(t, f)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -1009,6 +1154,67 @@ func _draw_kraken(t: float, f: Vector2) -> void:
 	draw_circle(f * radius * 0.4 - f.orthogonal() * 11.0, 3.0, Palette.OUTLINE)
 
 
+func _draw_cinder(t: float, f: Vector2) -> void:
+	# A flickering flame with two dark eyes.
+	var pts := PackedVector2Array()
+	for i in 12:
+		var a := TAU * i / 12.0
+		var r := radius * (1.0 + 0.18 * sin(t * 14.0 + i * 1.7))
+		if a > PI * 1.25 and a < PI * 1.75:
+			r *= 1.5  # the tip licks upward
+		pts.append(Vector2.from_angle(a) * r)
+	Draw.poly(self, pts, color)
+	draw_circle(Vector2(0, 1), radius * 0.55, Color(1.0, 0.85, 0.4))
+	draw_circle(f * 3.0 + f.orthogonal() * 3.0, 1.6, Palette.OUTLINE)
+	draw_circle(f * 3.0 - f.orthogonal() * 3.0, 1.6, Palette.OUTLINE)
+
+
+func _draw_smith(f: Vector2) -> void:
+	var side := f.orthogonal()
+	# The hammer: raised during the wind-up, down after.
+	var raise := 0.0
+	if state == "wind_hammer":
+		raise = clampf(1.0 - state_t / 0.85, 0.0, 1.0)
+	var head := side * radius * 0.9 + f * (radius * 1.2) * (1.0 - raise) - f * radius * 0.6 * raise
+	Draw.stroke(self, side * radius * 0.7, head, Color(0.4, 0.28, 0.18), 3.5)
+	Draw.ball(self, head, 7.0, Color(0.32, 0.3, 0.33))
+	Draw.ball(self, Vector2.ZERO, radius, color)
+	draw_circle(Vector2(-2, -3), radius * 0.7, color.lightened(0.12))
+	# A leather apron and a glowing forge-mark.
+	draw_line(f * 2.0 - side * 7.0, f * 2.0 + side * 7.0, Color(0.4, 0.28, 0.18), 4.0)
+	draw_circle(f * radius * 0.45, 3.0, Color(1.0, 0.55, 0.22))
+
+
+func _draw_wyvern(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	var flap := sin(t * (6.0 if state.begins_with("wind") else 3.0))
+	# Tail, then wings, then the body and head.
+	var tail := PackedVector2Array()
+	var swing := 0.0
+	if state == "wind_tail":
+		swing = clampf(1.0 - state_t / 0.6, 0.0, 1.0) * 1.2
+	for k in 7:
+		var u := float(k) / 6.0
+		tail.append(-f * (radius * 0.6 + u * radius * 1.8) + side * sin(t * 2.5 + u * 3.0) * 8.0 * u + side * swing * u * radius)
+	draw_polyline(tail, Palette.OUTLINE, 8.0, true)
+	draw_polyline(tail, color.darkened(0.2), 5.0, true)
+	for s in [-1.0, 1.0]:
+		var root: Vector2 = side * s * radius * 0.5
+		var tip: Vector2 = side * s * radius * (2.2 + 0.3 * flap) - f * radius * 0.4
+		var back: Vector2 = -f * radius * 0.9 + side * s * radius * 0.9
+		var wing := PackedVector2Array([root + f * 6.0, tip, back])
+		draw_colored_polygon(wing, color.darkened(0.35))
+		draw_polyline(PackedVector2Array([root + f * 6.0, tip, back]), Palette.OUTLINE, 1.5)
+	Draw.ball(self, Vector2.ZERO, radius * 0.8, color)
+	var head_at := f * radius * 0.95
+	Draw.ball(self, head_at, radius * 0.42, color.lightened(0.08))
+	draw_circle(head_at + f * 4.0 + side * 5.0, 2.6, Color(1.0, 0.8, 0.3))
+	draw_circle(head_at + f * 4.0 - side * 5.0, 2.6, Color(1.0, 0.8, 0.3))
+	if state == "wind_breath":
+		var k := clampf(1.0 - state_t / 0.8, 0.0, 1.0)
+		draw_circle(head_at + f * radius * 0.45, 3.0 + 5.0 * k, Color(1.0, 0.6, 0.2, 0.6 + 0.4 * k))
+
+
 ## Telegraphs, status and the health bar: unlit, so they always read.
 func _draw_overlay() -> void:
 	var c := overlay
@@ -1105,6 +1311,27 @@ func _draw_overlay() -> void:
 				c.draw_line(Vector2.ZERO, lunge_dir.rotated(a) * 120.0, Color(danger, 0.3), 1.5)
 	if kind == "slime" and state == "wind":
 		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(danger, 0.6), 2.0)
+	if kind == "cinder" and state == "wind_spit":
+		c.draw_line(Vector2.ZERO, lunge_dir * 140.0, Color(danger, 0.35), 1.5)
+	if kind == "smith" and state == "wind_hammer":
+		var kh := clampf(1.0 - state_t / 0.85, 0.0, 1.0)
+		var spot := face * HAMMER_REACH
+		c.draw_circle(spot, HAMMER_RADIUS, Color(danger, 0.1 + 0.14 * kh))
+		c.draw_arc(spot, HAMMER_RADIUS, 0.0, TAU, 32, Color(danger, 0.7), 2.0)
+		c.draw_arc(spot, HAMMER_RADIUS * kh, 0.0, TAU, 32, Color(danger, 0.8), 1.5)
+	if kind == "wyvern":
+		for pair in [["wind_tail", TAIL_REACH, TAIL_ARC, 0.6], ["wind_breath", BREATH_REACH, BREATH_ARC, 0.8]]:
+			if state == pair[0]:
+				var kw := clampf(1.0 - state_t / pair[3], 0.0, 1.0)
+				var half := deg_to_rad(pair[2])
+				var wedge := PackedVector2Array([Vector2.ZERO])
+				for i in 15:
+					wedge.append(Vector2.from_angle(lunge_dir.angle() - half + 2.0 * half * i / 14.0) * pair[1])
+				c.draw_colored_polygon(wedge, Color(danger, 0.1 + 0.15 * kw))
+				c.draw_arc(Vector2.ZERO, pair[1] * kw, lunge_dir.angle() - half, lunge_dir.angle() + half, 20, Color(danger, 0.75), 2.0)
+		if state == "wind_embers":
+			for i in 5:
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated((float(i) - 2.0) * deg_to_rad(12.0)) * 120.0, Color(danger, 0.3), 1.5)
 	if charged > 0.0:
 		var t := Time.get_ticks_msec() * 0.001
 		for i in 3:

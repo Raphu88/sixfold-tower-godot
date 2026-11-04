@@ -8,6 +8,7 @@ const KINDS := {
 	"air": {"name": "Air", "color": Color(0.78, 0.9, 1.0)},
 	"water": {"name": "Water", "color": Color(0.37, 0.72, 0.85)},
 	"iron": {"name": "Iron", "color": Color(0.8, 0.82, 0.88)},
+	"fire": {"name": "Fire", "color": Color(1.0, 0.55, 0.25)},
 }
 
 ## What each monster drops: kind and amount (more on higher floors).
@@ -21,6 +22,9 @@ const DROPS := {
 	"lurker": ["water", 4.0],
 	"shellback": ["iron", 5.0],
 	"kraken": ["water", 30.0],
+	"cinder": ["fire", 4.0],
+	"smith": ["iron", 6.0],
+	"wyvern": ["fire", 30.0],
 }
 
 

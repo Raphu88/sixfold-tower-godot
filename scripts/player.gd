@@ -659,6 +659,29 @@ func _release_cast() -> void:
 		_part_action("throat", 2.0 * (main.cast_hits - 1), 8.0 * (main.cast_hits - 1))
 
 
+var fire_t := 0.0  # time spent standing in fire, ticking toward the next burn
+
+
+## Standing on burning floor: a small burn every half second (rolling through is free).
+func stand_in_fire(delta: float) -> void:
+	if iframes > 0.0 or dead:
+		return
+	fire_t += delta
+	if fire_t < 0.5:
+		return
+	fire_t = 0.0
+	hp -= 4.0
+	main.fx_text(global_position + Vector2(0, -24), "-4", Color(1.0, 0.55, 0.25))
+	main.sfx("burn", 1.3, -10.0)
+	if hp <= 0.0 and main.dev_no_death:
+		hp = 1.0
+	if hp <= 0.0:
+		hp = 0.0
+		dead = true
+		main.sfx("death", 1.0, 0.0, 0.0)
+		main.on_player_died()
+
+
 ## Called by monsters and projectiles when an attack reaches you.
 ## `unblockable` attacks (a ring of lightning, a diving landing) can't be
 ## parried or warded: roll through them or get out of the way.
