@@ -716,6 +716,36 @@ var bladeward_color := Color(0.65, 0.89, 0.71)
 var rune_gear := ""  # Inscribe: "sharpness", "warding" or "swiftness" for this floor
 
 
+var poison_t := 0.0  # poisoned: a little damage every half second
+var poison_tick := 0.0
+
+
+## A sting that landed: poisoned for a few seconds (a new sting refreshes it).
+func poison(seconds: float) -> void:
+	if poison_t <= 0.0:
+		main.fx_text(global_position + Vector2(0, -40), "Poisoned", Color(0.55, 0.85, 0.35))
+	poison_t = maxf(poison_t, seconds)
+
+
+func _tick_poison(delta: float) -> void:
+	if poison_t <= 0.0 or dead:
+		return
+	poison_t -= delta
+	poison_tick -= delta
+	if poison_tick > 0.0:
+		return
+	poison_tick = 0.5
+	hp -= 2.0
+	main.fx_text(global_position + Vector2(0, -24), "-2", Color(0.55, 0.85, 0.35))
+	if hp <= 0.0 and main.dev_no_death:
+		hp = 1.0
+	if hp <= 0.0:
+		hp = 0.0
+		dead = true
+		main.sfx("death", 1.0, 0.0, 0.0)
+		main.on_player_died()
+
+
 ## Standing on burning floor: a small burn every half second (rolling through is free).
 func stand_in_fire(delta: float) -> void:
 	if iframes > 0.0 or dead:
@@ -852,6 +882,7 @@ func _break_barrier() -> void:
 
 ## Bond effects that run on a timer: barrier, absorb, anchor, drink.
 func _tick_bond_effects(delta: float) -> void:
+	_tick_poison(delta)
 	absorb_t -= delta
 	unbreak_t -= delta
 	kindle_t -= delta

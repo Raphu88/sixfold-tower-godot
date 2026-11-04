@@ -850,6 +850,110 @@ func _wyvern_tower_tests() -> void:
 	main.victory = {}
 
 
+func _manticore_tower_tests() -> void:
+	print("the Manticore's tower")
+	await _fresh_main()
+	var p = main.player
+	main.dev_tower("manticore")
+	await _frames(2)
+	_check(main.tower == "manticore" and main.tower_data()["essence"] == "stone", "the Manticore's tower: Stone essence")
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var seen := {}
+	for n in 30:
+		for m in main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["manticore"])["monsters"]:
+			seen[m[0]] = true
+	_check(seen.has("scorpling") and seen.has("ram"), "the Manticore's tower has scorplings and rams")
+	# Scorpling: its sting can be parried; a sting that lands poisons.
+	var sc = await _spawn("scorpling", p.global_position + Vector2(200, 0))
+	sc.hp = 999.0
+	var r1: Dictionary = await _parry_test(sc, 0.0, "wind_sting", 45.0)
+	_check(r1["glinted"] and r1["parried"] and not r1["hurt"], "a scorpling's sting can be parried on the glint %s" % str(r1))
+	_check(p.poison_t <= 0.0, "...and a parried sting doesn't poison")
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	sc._sting(p, 5.0)
+	_check(p.poison_t > 0.0, "a sting that lands poisons you")
+	var hp1: float = p.hp
+	await _wait(1.2)
+	_check(p.hp < hp1, "...and poison hurts over time")
+	p.poison_t = 0.0
+	sc.queue_free()
+	await _frames(1)
+	# Ram: the charge can be parried; charging into a wall stuns it.
+	var ram = await _spawn("ram", p.global_position + Vector2(200, 0))
+	ram.hp = 999.0
+	var r2: Dictionary = await _parry_test(ram, 0.0, "wind_charge", 150.0)
+	_check(r2["glinted"] and r2["parried"] and not r2["hurt"], "a ram's charge can be parried on the glint %s" % str(r2))
+	ram.stun = 0.0
+	ram.global_position = Vector2(main.room.position.x + 60.0, 400.0)
+	ram.lunge_dir = Vector2.LEFT
+	ram.state = "charge"
+	ram.state_t = 0.6
+	p.global_position = Vector2(main.room.position.x + 400.0, 200.0)
+	ram.set_physics_process(true)
+	await _wait(0.3)
+	ram.set_physics_process(false)
+	_check(ram.stun > 0.0, "a ram that charges into a wall is stunned")
+	ram.queue_free()
+	await _frames(1)
+
+	print("the Manticore")
+	main.profile.regarded = true
+	main.first_climb = false
+	main._start_floor(5)
+	await _frames(3)
+	var foes: Array = main.enemies()
+	_check(foes.size() == 1 and foes[0].kind == "manticore", "floor 5 of the Manticore's tower is the Manticore")
+	var m = foes[0]
+	m.set_physics_process(false)
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.knock = Vector2.ZERO
+	p.global_position = m.global_position + Vector2(90, 0)
+	main.attackers.clear()
+	main.request_attack(m)
+	m._begin_wind("wind_roar", 0.2)
+	m.set_physics_process(true)
+	await _wait(0.12)
+	p._try_parry()
+	await _wait(0.3)
+	m.set_physics_process(false)
+	_check(p.hp < p.MAX_HP and m.stun <= 0.0, "its roar can't be parried")
+	# Its tail spikes poison.
+	m._begin_wind("wind_spikes", 0.01)
+	m.lunge_dir = Vector2.RIGHT
+	m.glinted = true
+	m._manticore(0.02, Vector2.RIGHT, 90.0, p)
+	var spikes: Array = main.get_children().filter(func(c): return "return_to" in c and c.style == "spike")
+	_check(spikes.size() == 3 and spikes[0].poison > 0.0, "its tail spikes carry poison")
+	for s in spikes:
+		s.queue_free()
+	m.take_hit(m.hp - m.max_hp * 0.45, Vector2.ZERO)
+	m.state = "recover"
+	m.state_t = 5.0
+	m.set_physics_process(true)
+	await _wait(0.2)
+	_check(main.enemies().filter(func(e): return e.kind == "scorpling").size() == 2, "below half health it calls two scorplings")
+	for e in main.enemies():
+		_slay(e)
+	await _frames(3)
+	p.hp = p.MAX_HP
+	p.dead = false
+	p.poison_t = 0.0
+	p.set_physics_process(true)
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.victory.is_empty(), "beating the Manticore completes the climb")
+	await _wait(2.8)
+	main.victory = {}
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -1330,6 +1434,7 @@ func _run() -> void:
 	await _gryphon_tower_tests()
 	await _kraken_tower_tests()
 	await _wyvern_tower_tests()
+	await _manticore_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
 	await _wyvern_bond_tests()

@@ -17,6 +17,8 @@ const MONSTERS := {
 	"shellback": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
 	"smith": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
+	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
+	"ram": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
 

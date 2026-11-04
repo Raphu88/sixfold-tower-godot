@@ -442,6 +442,7 @@ func _arrive() -> void:
 	for b in player.bonds.values():
 		burned = burned or b.burned
 		b.burned = false
+	player.poison_t = 0.0  # the rest at the stair cures poison too
 	var healed := minf(player.max_hp - player.hp, player.max_hp * 0.35)
 	player.hp += healed
 	player.sta = player.max_sta

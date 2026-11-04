@@ -14,6 +14,7 @@ var force := 140.0
 var hit: Array = []
 var style := "arrow"  # or "blade": a conjured blade
 var tint := Color.WHITE
+var poison := 0.0  # seconds of poison a landed hit gives the climber
 var return_to = null  # Recall: blades that come back to this node
 var out_t := 0.0  # how long before a recalled blade turns back
 var returning := false
@@ -76,7 +77,10 @@ func _physics_process(delta: float) -> void:
 			dodged = true
 			p.on_dodge()
 	elif d < p.radius + 4.0:
+		var before: float = p.hp
 		p.receive_attack(dmg, self)
+		if poison > 0.0 and p.hp < before:
+			p.poison(poison)
 		queue_free()
 		return
 	queue_redraw()
@@ -100,6 +104,13 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, 5.5, Color(0.08, 0.05, 0.1))
 		draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
 		draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
+		return
+	if style == "spike":
+		# A barbed tail spike, its tip green with venom.
+		draw_line(-dir * 12.0, dir * 6.0, Color(0.06, 0.05, 0.07), 4.0)
+		draw_line(-dir * 12.0, dir * 6.0, Color(0.85, 0.72, 0.5), 2.0)
+		draw_circle(dir * 6.0, 2.2, Color(0.55, 0.85, 0.35))
+		draw_circle(Vector2.ZERO, 7.0, Color(1.0, 0.35, 0.3, 0.18))
 		return
 	if style == "ember":
 		# A burning ember with a short flame trail.

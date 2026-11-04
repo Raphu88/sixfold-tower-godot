@@ -23,6 +23,7 @@ static func setup() -> void:
 	_bind("weapon_1", [_key(KEY_1)])
 	_bind("weapon_2", [_key(KEY_2)])
 	_bind("weapon_3", [_key(KEY_3)])
+	_bind("weapon_4", [_key(KEY_4)])  # (the fourth tower card)
 	_bind("weapon_next", [_mouse(MOUSE_BUTTON_WHEEL_DOWN)])
 	_bind("weapon_prev", [_mouse(MOUSE_BUTTON_WHEEL_UP)])
 	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P)])

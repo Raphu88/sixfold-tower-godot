@@ -9,6 +9,7 @@ const KINDS := {
 	"water": {"name": "Water", "color": Color(0.37, 0.72, 0.85)},
 	"iron": {"name": "Iron", "color": Color(0.8, 0.82, 0.88)},
 	"fire": {"name": "Fire", "color": Color(1.0, 0.55, 0.25)},
+	"stone": {"name": "Stone", "color": Color(0.82, 0.68, 0.45)},
 }
 
 ## What each monster drops: kind and amount (more on higher floors).
@@ -25,6 +26,9 @@ const DROPS := {
 	"cinder": ["fire", 4.0],
 	"smith": ["iron", 6.0],
 	"wyvern": ["fire", 30.0],
+	"scorpling": ["stone", 3.0],
+	"ram": ["stone", 6.0],
+	"manticore": ["stone", 30.0],
 }
 
 
