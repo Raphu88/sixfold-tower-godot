@@ -96,7 +96,9 @@ func _regard_tests() -> void:
 	_check(main.profile.choose_bond({"air": 10.0}, {"hand": 10.0}) == "stormcaller", "Air and lots of striking: Stormcaller")
 	_check(main.profile.choose_bond({"iron": 10.0}, dodgy) == "rune_artist", "Iron and lots of dodging: Rune Artist (the essence wins over play style)")
 	_check(main.profile.choose_bond({"iron": 10.0}, {"hand": 10.0}) == "blade_forger", "Iron and lots of striking: Blade Forger")
-	_check(main.profile.choose_bond({"fire": 10.0}, dodgy) == "flameblade", "Fire: Flameblade")
+	_check(main.profile.choose_bond({"fire": 10.0}, {"hand": 10.0}) == "flameblade", "Fire and lots of striking: Flameblade")
+	_check(main.profile.choose_bond({"fire": 10.0}, dodgy) == "ashwalker", "Fire and lots of dodging: Ashwalker")
+	_check(main.profile.choose_bond({"stone": 10.0}, {"heart": 10.0}) == "sandshaper", "Stone and lots of enduring: Sandshaper")
 	main.floor_num = 3
 	for e in main.enemies():
 		_slay(e)
@@ -705,6 +707,155 @@ func _wyvern_bond_tests() -> void:
 	p._release_cast()
 	_check(not hb.burned, "Grand Sigil: spells cast inside it cost nothing")
 	main.sigils.clear()
+
+
+func _manticore_bond_tests() -> void:
+	print("the Manticore's bonds")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	_mark("heart", "sandshaper", 5)
+	_mark("hand", "venomist", 5)
+	_mark("back", "ashwalker", 5)
+	var ok := true
+	for part in ["heart", "hand", "back"]:
+		ok = ok and p.bonds[part].spells().size() == 4
+	_check(ok, "at step 5 each Manticore bond knows four spells")
+
+	# Sandshaper.
+	var k = await _spawn("knight", p.global_position + Vector2(40, 0))
+	k.hp = 9999.0
+	k.max_hp = 9999.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.knock = Vector2.ZERO
+	p.receive_attack(5.0, k)
+	_check(p.knock == Vector2.ZERO, "Rooted Stance: you aren't knocked back")
+	main.puddles = [{"pos": p.global_position, "r": 60.0}]
+	_check(main.water_slow(p.global_position, p.has_bond("tidecaller") or p.has_bond("sandshaper")) == 1.0, "...or slowed by water")
+	main.puddles = []
+	var hp0: float = k.hp
+	_cast("heart", "quake")
+	_check(k.hp < hp0 and main.rubble.size() == 1 and main.stone_walls.size() >= 8, "Quake hurts nearby foes, leaves rubble, and at step 3+ throws up a ring of walls")
+	_check(main.rubble_slow(p.global_position) < 1.0, "rubble slows foes")
+	main._start_floor(main.floor_num)
+	await _frames(2)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	_cast("heart", "sand_wall")
+	_check(main.stone_walls.size() >= 6, "Sand Wall raises a wall")
+	var arrow = main.spawn_projectile(p.global_position + Vector2(140, 0), Vector2(-300, 0), 8.0)
+	p.hp = p.MAX_HP
+	await _wait(0.5)
+	_check(not is_instance_valid(arrow) and p.hp == p.MAX_HP, "...that stops a monster's shot")
+	var small = await _spawn("slime", p.global_position + Vector2(150, 0))
+	_cast("heart", "sinkhole")
+	await _frames(2)
+	_check(not is_instance_valid(small) or small.dead, "Sinkhole swallows a small foe")
+	var big = await _spawn("knight", p.global_position + Vector2(150, 0))
+	big.hp = 9999.0
+	_cast("heart", "sinkhole")
+	_check(big.stun > 0.0, "...and traps a large one")
+	big.queue_free()
+	var before: int = main.stone_walls.size()
+	_cast("heart", "fault_line")
+	_check(main.stone_walls.size() > before + 10, "Fault Line splits the floor")
+	main._start_floor(main.floor_num)
+	await _frames(2)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+
+	# Venomist.
+	var v = await _spawn("knight", p.global_position + Vector2(30, 0))
+	v.hp = 9999.0
+	v.max_hp = 9999.0
+	p._strike(v, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(v.venom >= 1, "Venom Glands: weapon strikes poison")
+	var t1: float = v.venom_t
+	v.add_venom(2)
+	_check(v.venom >= 3 and v.venom_t > t1, "Toxin Build: poison stacks, and lasts longer with each stack")
+	hp0 = v.hp
+	v.set_physics_process(true)
+	await _wait(1.1)
+	v.set_physics_process(false)
+	_check(v.hp < hp0, "poison hurts over time")
+	v.venom = 0
+	var line: Array = []
+	for i in 2:
+		var s = await _spawn("knight", p.global_position + Vector2(90 + 40 * i, 0))
+		s.hp = 9999.0
+		line.append(s)
+	_cast("hand", "venom_spit")
+	await _wait(0.4)
+	_check(line[0].venom >= 5 and line[1].venom >= 5, "Venom Spit poisons, and at step 3+ pierces through")
+	_cast("hand", "toxic_cloud")
+	_check(main.clouds.size() == 1, "Toxic Cloud lingers")
+	main.clouds.clear()
+	_cast("hand", "neurotoxin")
+	p._strike(line[0], 1.0, Vector2.RIGHT, 0.0, false)
+	_check(line[0].stun >= 1.5, "Neurotoxin: the next hit on a poisoned foe paralyzes it")
+	hp0 = line[1].hp
+	var left: float = line[1].venom_left()
+	_cast("hand", "virulence")
+	_check(line[1].venom == 0 and hp0 - line[1].hp >= left * 0.99, "Virulence: all the poison at once (%.0f)" % (hp0 - line[1].hp))
+	for s in line:
+		s.queue_free()
+	v.queue_free()
+	await _frames(2)
+
+	# Ashwalker.
+	var a = await _spawn("knight", p.global_position + Vector2(30, 0))
+	a.hp = 9999.0
+	a.max_hp = 9999.0
+	a.notice_t = 0.0
+	a.face = Vector2.LEFT
+	hp0 = a.hp
+	p._strike(a, 10.0, Vector2.RIGHT, 0.0, false)
+	var seen_dmg: float = hp0 - a.hp
+	a.notice_t = 1.0
+	hp0 = a.hp
+	p._strike(a, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(hp0 - a.hp > seen_dmg * 2.5, "Unseen Strike: a foe that hasn't noticed you takes triple damage")
+	_check(a.notice_t <= 0.0, "...and notices you")
+	_cast("back", "smoke_veil")
+	main._update_ground(0.016)
+	_check(a.is_lost(30.0), "Smoke Veil: foes inside lose track of you")
+	hp0 = a.hp
+	_cast("back", "smoke_veil")
+	_check(a.hp < hp0 and main.smokes.is_empty(), "...and at step 3+ casting again ignites it")
+	a.lost_t = 0.0
+	p.global_position = Vector2(700, 400)
+	_cast("back", "afterimage")
+	p.global_position = Vector2(500, 400)
+	main._update_ground(0.016)
+	_check(a.is_lost(200.0) and a.lure != null, "Afterimage: nearby foes go after the ash copy")
+	main.decoys.clear()
+	a.lost_t = 0.0
+	a.lure = null
+	_cast("back", "vanish")
+	_check(a.is_lost(30.0), "Vanish: every foe loses you")
+	p._strike(a, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(p.vanish_t <= 0.0, "...until you strike")
+	a.lost_t = 0.0
+	_cast("back", "ashfall")
+	_check(a.is_lost(300.0) and not a.is_lost(60.0), "Ashfall: foes lose you once you're out of reach")
+	main.ashfall_t = 0.0
+	var g = await _spawn("gryphon", p.global_position + Vector2(200, 0))
+	g.lose_track(5.0, null)
+	_check(not g.is_lost(200.0), "beasts never lose track of you")
+	g.queue_free()
+	a.queue_free()
 
 
 func _menu_tests() -> void:
@@ -1438,6 +1589,7 @@ func _run() -> void:
 	await _spell_tests()
 	await _menu_tests()
 	await _wyvern_bond_tests()
+	await _manticore_bond_tests()
 	await _body_part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

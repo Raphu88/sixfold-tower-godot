@@ -212,7 +212,7 @@ func _physics_process(delta: float) -> void:
 			sta_delay = 0.6
 		if rune_gear == "swiftness":
 			spd *= 1.15
-		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller"))
+		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper"))
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
@@ -558,6 +558,19 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	# Windwalker passive, Featherweight: airborne foes take extra damage.
 	if has_bond("windwalker") and e.airborne > 0.0:
 		dmg *= 1.5
+	# Ashwalker's Unseen Strike: a foe that hasn't noticed you, or lost you.
+	if has_bond("ashwalker") and e.unaware():
+		dmg *= 3.0
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 52.0), "Unseen", Color(0.85, 0.6, 0.5))
+	vanish_t = 0.0  # striking ends Vanish
+	# Venomist's Neurotoxin: a hit on a poisoned foe paralyzes it.
+	if neuro_t > 0.0 and e.venom > 0:
+		neuro_t = 0.0
+		e.stagger(neuro_paralyze)
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 40.0), "Paralyzed", Color(0.55, 0.85, 0.35))
+	# Venomist's Venom Glands: weapon strikes add a weak poison.
+	if has_bond("venomist"):
+		e.add_venom(1)
 	# A backstab: striking a foe that faces away (it committed to an attack,
 	# or you rolled behind it). The back fills; a burned back loses the bonus.
 	var backstab: bool = dir != Vector2.ZERO and e.face.dot(dir) > 0.5
@@ -715,9 +728,21 @@ var bladeward_tick := 0.0
 var bladeward_color := Color(0.65, 0.89, 0.71)
 var rune_gear := ""  # Inscribe: "sharpness", "warding" or "swiftness" for this floor
 
+# The Manticore's bonds.
+var neuro_t := 0.0  # Neurotoxin: the next hit on a poisoned foe paralyzes it
+var neuro_paralyze := 2.0
+var vanish_t := 0.0  # Vanish: unseen until you strike
+
 
 var poison_t := 0.0  # poisoned: a little damage every half second
 var poison_tick := 0.0
+
+
+## An overdrawn quake knocks you down: a short stagger of your own.
+func stagger_self(seconds: float) -> void:
+	attack_cd = maxf(attack_cd, seconds)
+	cast_t = 0.0
+	main.fx_text(global_position + Vector2(0, -40), "Knocked down", Color(0.85, 0.7, 0.42))
 
 
 ## A sting that landed: poisoned for a few seconds (a new sting refreshes it).
@@ -823,7 +848,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
 	if source != null and not steadfast:
-		knock = (global_position - source.global_position).normalized() * 240.0
+		knock = Vector2.ZERO if has_bond("sandshaper") else (global_position - source.global_position).normalized() * 240.0  # Rooted Stance
 	# Getting hit interrupts swings, draws and cast wind-ups (not while
 	# the Warden's barrier holds: Steadfast).
 	if not steadfast:
@@ -883,6 +908,8 @@ func _break_barrier() -> void:
 ## Bond effects that run on a timer: barrier, absorb, anchor, drink.
 func _tick_bond_effects(delta: float) -> void:
 	_tick_poison(delta)
+	neuro_t -= delta
+	vanish_t -= delta
 	absorb_t -= delta
 	unbreak_t -= delta
 	kindle_t -= delta
@@ -1070,6 +1097,7 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
 func _draw_overlay() -> void:
 	var c := overlay
+	modulate.a = 0.35 if vanish_t > 0.0 else 1.0
 	var tt := Time.get_ticks_msec() * 0.001
 	if bladeward_t > 0.0:
 		for i in 4:

@@ -15,6 +15,7 @@ var hit: Array = []
 var style := "arrow"  # or "blade": a conjured blade
 var tint := Color.WHITE
 var poison := 0.0  # seconds of poison a landed hit gives the climber
+var venom := 0  # Venomist's spit: poison stacks it puts on a foe
 var return_to = null  # Recall: blades that come back to this node
 var out_t := 0.0  # how long before a recalled blade turns back
 var returning := false
@@ -48,6 +49,11 @@ func _physics_process(delta: float) -> void:
 				vel = -vel
 				main.fx_burst(position, vel.normalized(), w["color"], 6, 180.0)
 				break
+	# Sandshaper's walls stop monsters' shots.
+	if not friendly and main.blocks_shot(position):
+		main.fx_burst(position, -vel.normalized(), Color(0.85, 0.7, 0.42), 5, 160.0)
+		queue_free()
+		return
 	for pl in main.pillars:
 		if return_to == null and position.distance_to(pl["pos"]) < pl["r"]:
 			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
@@ -60,6 +66,8 @@ func _physics_process(delta: float) -> void:
 				continue
 			if position.distance_to(e.global_position) < e.radius + 4.0:
 				hit.append(e)
+				if venom > 0:
+					e.add_venom(venom)
 				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected)
 				if not pierce:
 					queue_free()
@@ -104,6 +112,12 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, 5.5, Color(0.08, 0.05, 0.1))
 		draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
 		draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
+		return
+	if style == "venom":
+		# A glob of venom with a dripping trail.
+		draw_line(-dir * 16.0, Vector2.ZERO, Color(tint, 0.4), 5.0)
+		draw_circle(Vector2.ZERO, 4.5, Color(tint, 0.95))
+		draw_circle(Vector2(-1.2, -1.2), 1.6, Color(1, 1, 1, 0.7))
 		return
 	if style == "spike":
 		# A barbed tail spike, its tip green with venom.

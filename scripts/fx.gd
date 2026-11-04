@@ -186,6 +186,47 @@ func _draw_fields() -> void:
 	if main == null:
 		return
 	var t := Time.get_ticks_msec() * 0.001
+	for w in main.stone_walls:
+		var wp: Vector2 = w["pos"]
+		var wr: float = w["r"]
+		var wa: float = clampf(w["t"] / 0.4, 0.0, 1.0)
+		var stone := Color(0.7, 0.6, 0.42) if not w["fault"] else Color(0.35, 0.28, 0.22)
+		draw_circle(wp + Vector2(0, 2), wr, Color(0, 0, 0, 0.35 * wa))
+		draw_circle(wp, wr, Color(stone, wa))
+		draw_circle(wp - Vector2(2, 2), wr * 0.6, Color(stone.lightened(0.15), wa))
+	for r in main.rubble:
+		var ra: float = clampf(r["t"] / 0.5, 0.0, 1.0)
+		for i in 10:
+			var ang := TAU * i / 10.0 + float(i) * 0.7
+			var at: Vector2 = r["pos"] + Vector2.from_angle(ang) * r["r"] * (0.3 + 0.6 * fmod(i * 0.37, 1.0))
+			draw_circle(at, 3.0 + fmod(i * 1.3, 3.0), Color(0.6, 0.5, 0.36, 0.7 * ra))
+	for pt in main.pits:
+		var pa: float = clampf(pt["t"] / 0.5, 0.0, 1.0)
+		draw_circle(pt["pos"], pt["r"], Color(0.06, 0.04, 0.03, 0.85 * pa))
+		draw_arc(pt["pos"], pt["r"], 0.0, TAU, 28, Color(0.7, 0.58, 0.4, 0.8 * pa), 3.0)
+	for cl in main.clouds:
+		var ca: float = clampf(cl["t"] / 0.6, 0.0, 1.0)
+		var cc: Color = cl["color"]
+		for i in 7:
+			var ang := TAU * i / 7.0 + t * 0.4
+			draw_circle(cl["pos"] + Vector2.from_angle(ang) * cl["r"] * 0.5, cl["r"] * 0.45, Color(cc, 0.12 * ca))
+		draw_arc(cl["pos"], cl["r"], 0.0, TAU, 32, Color(cc, 0.3 * ca), 1.5)
+	for sm in main.smokes:
+		var sa: float = clampf(sm["t"] / 0.8, 0.0, 1.0)
+		for i in 9:
+			var ang := TAU * i / 9.0 - t * 0.25
+			draw_circle(sm["pos"] + Vector2.from_angle(ang) * sm["r"] * 0.5, sm["r"] * 0.5, Color(0.42, 0.4, 0.42, 0.22 * sa))
+	for d in main.decoys:
+		var da: float = clampf(d["t"] / 0.8, 0.0, 1.0)
+		draw_circle(d["pos"], 12.0, Color(0.55, 0.5, 0.5, 0.75 * da))
+		draw_circle(d["pos"] + d["aim"] * 4.0, 7.0, Color(0.45, 0.4, 0.4, 0.85 * da))
+		draw_circle(d["pos"] + Vector2(sin(t * 3.0) * 4.0, -16.0 - fmod(t * 20.0, 10.0)), 1.5, Color(1.0, 0.55, 0.25, 0.8 * da))
+	if main.ashfall_t > 0.0 and main.player != null:
+		var aa := clampf(main.ashfall_t / 1.0, 0.0, 1.0)
+		for i in 60:
+			var ax: float = fmod(i * 97.3 + t * (12.0 + i % 7), 1200.0) - 600.0
+			var ay: float = fmod(i * 53.1 + t * (30.0 + i % 5 * 6.0), 700.0) - 350.0
+			draw_circle(main.player.global_position + Vector2(ax, ay), 1.4, Color(0.65, 0.62, 0.6, 0.55 * aa))
 	for rn in main.runes:
 		var rc: Color = rn["color"]
 		var rp: Vector2 = rn["pos"]

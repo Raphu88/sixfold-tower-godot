@@ -220,6 +220,30 @@ func cast(p) -> void:
 			_ward(p)
 		"sigil":
 			_sigil(p)
+		"quake":
+			_quake(p)
+		"sandwall":
+			_sandwall(p)
+		"sinkhole":
+			_sinkhole(p)
+		"fault":
+			_fault(p)
+		"spit":
+			_spit(p)
+		"cloud":
+			_cloud(p)
+		"neuro":
+			_neuro(p)
+		"virulence":
+			_virulence(p)
+		"veil":
+			_veil(p)
+		"decoy":
+			_decoy(p)
+		"vanish":
+			_vanish(p)
+		"ashfall":
+			_ashfall(p)
 
 
 
@@ -782,3 +806,155 @@ func _sigil(p) -> void:
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.5, 5.0)
 	p.main.light_flash(p.global_position, color(), 1.6, 2.0, 0.5)
 	p.main.sfx("crit", 0.6, -4.0)
+
+
+# --- Sandshaper ----------------------------------------------------------------------
+
+## Points along a line across `dir`, centred on `center`, `spacing` apart.
+static func _line_points(center: Vector2, dir: Vector2, length: float, spacing: float) -> Array:
+	var pts: Array = []
+	var n := int(length / spacing)
+	var side := dir.orthogonal()
+	for i in n + 1:
+		pts.append(center + side * (float(i) - float(n) / 2.0) * spacing)
+	return pts
+
+
+func _quake(p) -> void:
+	var main = p.main
+	var r: float = stat("radius")
+	for e in main.targets():
+		var to: Vector2 = e.global_position - p.global_position
+		if to.length() < r + e.radius:
+			e.take_hit(damage(), to.normalized(), 160.0, true)
+			if not e.dead and not e.is_boss():
+				e.stagger(0.4)
+	main.rubble.append({"pos": p.global_position, "r": r, "t": 4.0})
+	if bool(stat("ring")):
+		var ring: Array = []
+		for i in 10:
+			ring.append(p.global_position + Vector2.from_angle(TAU * i / 10.0) * (r + 6.0))
+		main.add_stone_wall(ring, 9.0, 4.0)
+	main.fx_ring(p.global_position, color(), r, 0.4, 6.0)
+	main.fx_burst(p.global_position, Vector2.ZERO, color(), 20, 260.0)
+	main.sfx("hit_heavy", 0.5)
+	main.shake(7.0)
+	if _overdrawn():
+		p.stagger_self(0.4)  # an overdrawn quake knocks you down too
+
+
+func _sandwall(p) -> void:
+	var center: Vector2 = p.global_position + p.aim * 60.0
+	p.main.add_stone_wall(_line_points(center, p.aim, stat("length"), 18.0), 11.0, stat("duration"))
+	p.main.fx_burst(center, p.aim, color(), 14, 200.0)
+	p.main.sfx("hit_heavy", 0.7, -4.0)
+	p.main.shake(3.0)
+
+
+func _sinkhole(p) -> void:
+	var main = p.main
+	var target = _target_in_aim(p, 280.0)
+	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 140.0
+	main.pits.append({"pos": at, "r": 30.0, "t": 2.5})
+	main.fx_ring(at, color(), 36.0, 0.4, 4.0)
+	main.sfx("hit_heavy", 0.45)
+	if target == null:
+		return
+	if target.radius <= 13.0 and not target.is_boss():
+		main.fx_text(at + Vector2(0, -24), "Swallowed", color())
+		target.submerged = false
+		target.take_hit(99999.0, Vector2.ZERO, 0.0)
+	else:
+		main.fx_text(at + Vector2(0, -target.radius - 24), "Trapped", color())
+		target.stagger(float(stat("trap")) * (0.5 if target.is_boss() else 1.0))
+
+
+func _fault(p) -> void:
+	var center: Vector2 = p.global_position + p.aim * 90.0
+	p.main.add_stone_wall(_line_points(center, p.aim, stat("length"), 16.0), 9.0, stat("duration"), true)
+	p.main.fx_burst(center, p.aim, color(), 20, 240.0)
+	p.main.sfx("hit_heavy", 0.4)
+	p.main.shake(6.0)
+
+
+# --- Venomist ------------------------------------------------------------------------
+
+func _spit(p) -> void:
+	var main = p.main
+	var b = main.spawn_player_arrow(p.global_position + p.aim * (p.radius + 6.0), p.aim * 520.0, damage(), 60.0, bool(stat("pierce")))
+	b.style = "venom"
+	b.tint = color()
+	b.venom = int(stat("stacks"))
+	main.sfx("hit_slime", 1.4, -4.0)
+	if _overdrawn():
+		p.poison(1.5)  # an overdrawn spit poisons you briefly
+
+
+func _cloud(p) -> void:
+	var at: Vector2 = p.global_position + p.aim * 110.0
+	p.main.clouds.append({"pos": at, "r": stat("radius"), "t": stat("duration"), "tick": 0.0, "color": color()})
+	p.main.sfx("gust", 0.6, -4.0)
+
+
+func _neuro(p) -> void:
+	p.neuro_t = stat("duration")
+	p.neuro_paralyze = stat("paralyze")
+	p.main.fx_ring(p.global_position, color(), 26.0, 0.3, 2.0)
+	p.main.sfx("ready", 1.3, -4.0)
+
+
+func _virulence(p) -> void:
+	var main = p.main
+	var n := 0
+	for e in main.targets():
+		if e.venom > 0:
+			var dmg: float = e.venom_left()
+			e.venom = 0
+			e.venom_t = 0.0
+			main.fx_text(e.global_position + Vector2(0, -e.radius - 30.0), "Virulence %d" % int(dmg), color())
+			main.fx_burst(e.global_position, Vector2.ZERO, color(), 12, 220.0)
+			e.take_hit(dmg, Vector2.ZERO, 0.0)
+			n += 1
+	main.sfx("burn", 0.7)
+	main.light_flash(p.global_position, color(), 1.6, 1.4, 0.3)
+	if n == 0:
+		main.fx_text(p.global_position + Vector2(0, -34), "nothing poisoned", color())
+
+
+# --- Ashwalker ------------------------------------------------------------------------
+
+func _veil(p) -> void:
+	var main = p.main
+	if bool(stat("ignite")) and not main.smokes.is_empty():
+		var sm: Dictionary = main.smokes.pop_back()
+		for e in main.targets():
+			if e.global_position.distance_to(sm["pos"]) < sm["r"] + e.radius:
+				e.take_hit(damage(), (e.global_position - sm["pos"]).normalized(), 120.0, true)
+		main.fx_ring(sm["pos"], Color(1.0, 0.5, 0.2), sm["r"], 0.4, 6.0)
+		main.fx_burst(sm["pos"], Vector2.ZERO, Color(1.0, 0.55, 0.2), 24, 260.0)
+		main.light_flash(sm["pos"], Color(1.0, 0.5, 0.2), 2.0, 2.0, 0.4)
+		main.sfx("burn", 0.6)
+		main.shake(5.0)
+		return
+	main.smokes.append({"pos": p.global_position, "r": stat("radius"), "t": stat("duration")})
+	main.sfx("gust", 0.5, -2.0)
+	if _overdrawn():
+		p.poison(1.0)  # an overdrawn veil chokes you as well
+
+
+func _decoy(p) -> void:
+	p.main.decoys.append({"pos": p.global_position, "t": stat("duration"), "aim": p.aim})
+	p.main.fx_burst(p.global_position, Vector2.ZERO, Color(0.6, 0.55, 0.55), 12, 160.0)
+	p.main.sfx("gust", 1.2, -4.0)
+
+
+func _vanish(p) -> void:
+	p.vanish_t = stat("duration")
+	p.main.fx_burst(p.global_position, Vector2.ZERO, Color(0.5, 0.45, 0.45), 16, 180.0)
+	p.main.sfx("gust", 1.4, -4.0)
+
+
+func _ashfall(p) -> void:
+	p.main.ashfall_t = stat("duration")
+	p.main.sfx("gust", 0.4)
+	p.main.light_flash(p.global_position, Color(0.6, 0.5, 0.45), 2.0, 1.0, 0.6)

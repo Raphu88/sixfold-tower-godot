@@ -27,6 +27,9 @@ extends RefCounted
 ##   blades, recall, bladeward, edges          (Blade Forger)
 ##   kindle, lash, searing, overheat           (Flameblade)
 ##   trap, inscribe, ward, sigil               (Rune Artist)
+##   quake, sandwall, sinkhole, fault          (Sandshaper)
+##   spit, cloud, neuro, virulence             (Venomist)
+##   veil, decoy, vanish, ashfall              (Ashwalker)
 
 ## Six body parts, one for each of the six towers; each holds one bond.
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
@@ -320,6 +323,96 @@ const BONDS := {
 			{"id": "grand_sigil", "name": "Grand Sigil", "type": "sigil", "learn": 5,
 				"desc": "a great rune circle; inside it your spells cost nothing for 6 seconds",
 				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 6.0, "radius": 120.0}}},
+		],
+	},
+	# --- the Manticore's tower (Stone) -----------------------------------------
+	"sandshaper": {
+		"name": "Sandshaper",
+		"color": Color(0.85, 0.7, 0.42),
+		"affinity": "stone",
+		"style": ["heart", "throat"],
+		"tower": "manticore",
+		"body": {"name": "Rooted Stance", "desc": "you cannot be knocked back or slowed"},
+		"passive": {"name": "Shifting Sands", "desc": "foes walking up to you slow in their last few steps"},
+		"spells": [
+			{"id": "quake", "name": "Quake", "type": "quake", "learn": 1,
+				"desc": "shatter the ground around you, leaving rubble that slows foes",
+				"changes": {3: "it also throws up a ring of low walls around you"},
+				"steps": {
+					1: {"cost": 11.0, "windup": 0.35, "damage": 10.0, "radius": 95.0, "ring": false},
+					2: {"damage": 12.0},
+					3: {"ring": true},
+					4: {"damage": 15.0},
+					5: {"damage": 18.0},
+				}},
+			{"id": "sand_wall", "name": "Sand Wall", "type": "sandwall", "learn": 2,
+				"desc": "raise a wall across your aim that blocks foes and their shots for 5 seconds",
+				"steps": {2: {"cost": 9.0, "windup": 0.3, "duration": 5.0, "length": 150.0}}},
+			{"id": "sinkhole", "name": "Sinkhole", "type": "sinkhole", "learn": 4,
+				"desc": "a pit at your aim swallows a small foe, or traps a large one",
+				"steps": {4: {"cost": 14.0, "windup": 0.4, "trap": 2.5}}},
+			{"id": "fault_line", "name": "Fault Line", "type": "fault", "learn": 5,
+				"desc": "split the floor in a line across your aim; foes cannot cross it for 8 seconds",
+				"steps": {5: {"cost": 16.0, "windup": 0.45, "duration": 8.0, "length": 320.0}}},
+		],
+	},
+	"venomist": {
+		"name": "Venomist",
+		"color": Color(0.55, 0.85, 0.35),
+		"affinity": "stone",
+		"style": ["hand", "back"],
+		"tower": "manticore",
+		"body": {"name": "Venom Glands", "desc": "your weapon strikes add a weak poison"},
+		"passive": {"name": "Toxin Build", "desc": "poison stacks, and each new stack makes it last longer"},
+		"spells": [
+			{"id": "venom_spit", "name": "Venom Spit", "type": "spit", "learn": 1,
+				"desc": "spit venom that poisons a foe (3 stacks)",
+				"changes": {3: "the spit pierces through foes"},
+				"steps": {
+					1: {"cost": 7.0, "windup": 0.25, "damage": 4.0, "stacks": 3, "pierce": false},
+					2: {"stacks": 4},
+					3: {"pierce": true},
+					4: {"stacks": 5},
+					5: {"stacks": 6},
+				}},
+			{"id": "toxic_cloud", "name": "Toxic Cloud", "type": "cloud", "learn": 2,
+				"desc": "a lingering cloud at your aim that poisons foes inside it",
+				"steps": {2: {"cost": 10.0, "windup": 0.35, "duration": 6.0, "radius": 75.0}}},
+			{"id": "neurotoxin", "name": "Neurotoxin", "type": "neuro", "learn": 4,
+				"desc": "your next hit on a poisoned foe paralyzes it for 2 seconds",
+				"steps": {4: {"cost": 8.0, "windup": 0.15, "duration": 8.0, "paralyze": 2.0}}},
+			{"id": "virulence", "name": "Virulence", "type": "virulence", "learn": 5,
+				"desc": "every poisoned foe in the room takes all its remaining poison at once",
+				"steps": {5: {"cost": 14.0, "windup": 0.4}}},
+		],
+	},
+	"ashwalker": {
+		"name": "Ashwalker",
+		"color": Color(0.78, 0.5, 0.42),
+		"affinity": "fire",
+		"style": ["back", "legs"],
+		"tower": "manticore",
+		"body": {"name": "Smokeborn", "desc": "you see through smoke and darkness: your light reaches farther"},
+		"passive": {"name": "Unseen Strike", "desc": "striking a foe that hasn't noticed you, or has lost you, deals triple damage"},
+		"spells": [
+			{"id": "smoke_veil", "name": "Smoke Veil", "type": "veil", "learn": 1,
+				"desc": "a cloud of smoke around you; foes inside it lose track of you",
+				"changes": {3: "cast again while a cloud stands to ignite it, burning every foe inside"},
+				"steps": {
+					1: {"cost": 9.0, "windup": 0.25, "duration": 6.0, "radius": 85.0, "ignite": false, "damage": 0.0},
+					3: {"ignite": true, "damage": 20.0},
+					4: {"damage": 24.0},
+					5: {"damage": 28.0},
+				}},
+			{"id": "afterimage", "name": "Afterimage", "type": "decoy", "learn": 2,
+				"desc": "leave an ash copy of yourself; nearby foes go after it instead",
+				"steps": {2: {"cost": 9.0, "windup": 0.2, "duration": 5.0}}},
+			{"id": "vanish", "name": "Vanish", "type": "vanish", "learn": 4,
+				"desc": "become unseen until you strike or 4 seconds pass",
+				"steps": {4: {"cost": 12.0, "windup": 0.2, "duration": 4.0}}},
+			{"id": "ashfall", "name": "Ashfall", "type": "ashfall", "learn": 5,
+				"desc": "ash blankets the room for 10 seconds; foes lose track of you once you're out of reach",
+				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0}}},
 		],
 	},
 }
