@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -35,10 +35,19 @@ const TYPES := {
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
 	"wyvern": {"hp": 420.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
+	# The Manticore's tower
+	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
+	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
+	"manticore": {"hp": 460.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 }
-const BOSSES := ["gryphon", "kraken", "wyvern"]
+const BOSSES := ["gryphon", "kraken", "wyvern", "manticore"]
 ## What each beast calls when it's half dead.
-const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder"}
+const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling"}
+const STING_REACH := 55.0
+const CHARGE_SPEED := 480.0
+const CLAW_REACH := 95.0
+const CLAW_ARC := 70.0
+const ROAR_RADIUS := 130.0
 const HAMMER_REACH := 48.0  # a smith's slam lands this far in front of it
 const HAMMER_RADIUS := 46.0
 const TAIL_REACH := 110.0
@@ -106,7 +115,7 @@ func setup(k: String, room) -> void:
 	weight = t["weight"]
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
-	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern"]:
+	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern", "ram", "manticore"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
 	if kind == "bat":
 		state = "rest"
@@ -192,16 +201,23 @@ func _physics_process(delta: float) -> void:
 			_smith(delta, dir, dist, p)
 		"wyvern":
 			_wyvern(delta, dir, dist, p)
+		"scorpling":
+			_scorpling(delta, dir, dist, p)
+		"ram":
+			_ram(delta, dir, dist, p)
+		"manticore":
+			_manticore(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
-	if not state in ["lunge", "pounce", "swoop", "dive"]:
+	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
 		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken", "bat", "gryphon", "cinder", "wyvern"])
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
 	velocity += knock
 	move_and_slide()
 	_undercurrent()
+	_ram_crash()
 	queue_redraw()
 
 
@@ -228,7 +244,7 @@ func _drift() -> void:
 
 ## True while winding up or striking: the climber's parry looks for these.
 func is_attacking() -> bool:
-	return state.begins_with("wind") or state in ["pounce", "lunge", "aim", "swoop", "dive"]
+	return state.begins_with("wind") or state in ["pounce", "lunge", "aim", "swoop", "dive", "charge"]
 
 
 ## Counts down a wind-up and flashes the glint GLINT_LEAD seconds before the
@@ -815,6 +831,154 @@ func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.sfx("warn_archer", 0.8)
 
 
+# --- the Manticore's tower ----------------------------------------------------------------
+
+## A hit that landed (not parried, dodged or blocked away) also poisons.
+func _sting(p, amount: float, unblockable := false, poison := 4.0) -> void:
+	var before: float = p.hp
+	p.receive_attack(amount, self, unblockable)
+	if p.hp < before:
+		p.poison(poison)
+
+
+# Scorplings: small scorpions that scuttle up, glint and sting (parryable).
+# A sting that lands poisons you for a few seconds.
+func _scorpling(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_sting":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.sfx("swing", 1.5, -4.0)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= STING_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(50.0):
+					_sting(p, dmg)
+				_end_attack("recover", 1.0)
+		"recover", "idle":
+			state_t -= delta
+			_circle(dir, dist, 90.0, speed * 0.6)
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 60.0 and main.request_attack(self):
+				_begin_wind("wind_sting", 0.5)
+				main.sfx("warn_archer", 1.6, -6.0)
+			elif dist < 60.0:
+				_circle(dir, dist, 85.0, speed * 0.7)
+			else:
+				velocity = dir * speed
+
+
+# Rams: stone-hided brutes that lower their horns, glint, and charge in a
+# straight line (parryable). A ram that charges into a wall or pillar is
+# stunned: let it miss.
+func _ram(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_charge":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+				# A charge from far away runs faster, so it lands within the
+				# parry window of its glint.
+				swoop_speed = maxf(CHARGE_SPEED, maxf(0.0, dist - (radius + p.radius + 4.0)) / (GLINT_LEAD * 0.85))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 4.0)) / swoop_speed):
+				state = "charge"
+				state_t = 0.75
+				lunge_hit = false
+				main.sfx("roll", 0.6)
+		"charge":
+			state_t -= delta
+			velocity = lunge_dir * swoop_speed
+			if not lunge_hit and dist < radius + p.radius + 4.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("recover", 1.0)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 210.0 and dist > 70.0 and main.request_attack(self):
+				_begin_wind("wind_charge", 0.8)
+				main.sfx("warn_knight", 0.65)
+			else:
+				velocity = dir * speed
+
+
+## A charging ram that hits a wall or pillar is stunned (called after it moves).
+func _ram_crash() -> void:
+	if kind == "ram" and state == "charge" and get_slide_collision_count() > 0:
+		_end_attack("recover", 0.2)
+		stagger(1.6)
+		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Crashed", Color(0.9, 0.8, 0.6))
+		main.fx_burst(global_position + lunge_dir * radius, -lunge_dir, Color(0.85, 0.75, 0.55), 12, 220.0)
+		main.sfx("hit_heavy", 0.6)
+		main.shake(5.0)
+
+
+# The Manticore: a claw swipe up close (parryable), a volley of poisoned tail
+# spikes (parryable), and a roar that bursts out around it (can't be
+# parried: roll through it). At half health it calls scorplings.
+func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
+	_call_flock()
+	match state:
+		"wind_claw":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, CLAW_REACH + 10.0, deg_to_rad(CLAW_ARC), Color(1.0, 0.45, 0.3))
+				main.sfx("swing_heavy", 0.8)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= CLAW_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(CLAW_ARC):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 0.8)
+		"wind_spikes":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta, maxf(0.0, dist - p.radius) / 330.0):
+				for i in 3:
+					var a := (float(i) - 1.0) * deg_to_rad(10.0)
+					var sp = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated(a) * 330.0, dmg * 0.45)
+					sp.style = "spike"
+					sp.tint = color
+					sp.poison = 3.0
+				main.sfx("bow", 0.7)
+				_end_attack("recover", 0.8)
+		"wind_roar":
+			velocity = Vector2.ZERO
+			if _wind(delta):
+				main.fx_ring(global_position, Color(1.0, 0.75, 0.45), ROAR_RADIUS, 0.45, 8.0)
+				main.fx_burst(global_position, Vector2.ZERO, Color(0.85, 0.7, 0.5), 20, 300.0)
+				main.sfx("warn_knight", 0.4)
+				main.sfx("hit_heavy", 0.5)
+				main.shake(9.0)
+				if dist < ROAR_RADIUS + p.radius:
+					p.receive_attack(dmg, self, true)  # a roar can't be parried: roll
+				_end_attack("recover", 1.2)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if not main.request_attack(self):
+				velocity = dir * speed if dist > 110.0 else Vector2.ZERO
+			elif dist < 100.0 and randf() < 0.6:
+				_begin_wind("wind_claw", 0.55)
+				main.sfx("warn_knight", 0.75)
+			elif dist < ROAR_RADIUS:
+				_begin_wind("wind_roar", 0.9)
+				main.sfx("charge", 0.5)
+			else:
+				_begin_wind("wind_spikes", 0.6)
+				main.sfx("warn_archer", 0.7)
+
+
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
@@ -930,6 +1094,12 @@ func _draw() -> void:
 			_draw_smith(f)
 		"wyvern":
 			_draw_wyvern(t, f)
+		"scorpling":
+			_draw_scorpling(t, f)
+		"ram":
+			_draw_ram(f)
+		"manticore":
+			_draw_manticore(t, f)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -1215,6 +1385,74 @@ func _draw_wyvern(t: float, f: Vector2) -> void:
 		draw_circle(head_at + f * radius * 0.45, 3.0 + 5.0 * k, Color(1.0, 0.6, 0.2, 0.6 + 0.4 * k))
 
 
+func _draw_scorpling(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	# Legs, pincers, then the body and the curled tail over it.
+	for k in 3:
+		for sgn in [-1.0, 1.0]:
+			var root: Vector2 = side * sgn * radius * 0.6 + f * (4.0 - k * 4.0)
+			Draw.stroke(self, root, root + side * sgn * 6.0 + f * sin(t * 18.0 + k) * 2.0, color.darkened(0.35), 1.6)
+	for sgn in [-1.0, 1.0]:
+		var claw: Vector2 = f * radius * 1.2 + side * sgn * radius * 0.6
+		Draw.stroke(self, f * radius * 0.5 + side * sgn * 4.0, claw, color.darkened(0.2), 2.4)
+		draw_circle(claw, 3.0, color.darkened(0.1))
+	Draw.ball(self, Vector2.ZERO, radius, color)
+	var strike := 0.0
+	if state == "wind_sting":
+		strike = clampf(1.0 - state_t / 0.5, 0.0, 1.0)
+	var tail := PackedVector2Array()
+	for k in 6:
+		var u := float(k) / 5.0
+		tail.append(-f * radius * (1.0 - u * 1.6) + side * sin(u * 3.0) * 3.0 - f * radius * 0.6 * (1.0 - strike) * u + f * radius * 1.4 * strike * u * u)
+	draw_polyline(tail, Palette.OUTLINE, 4.0, true)
+	draw_polyline(tail, color.lightened(0.1), 2.2, true)
+	draw_circle(tail[tail.size() - 1], 2.5, Color(0.6, 0.85, 0.35))
+
+
+func _draw_ram(f: Vector2) -> void:
+	var side := f.orthogonal()
+	Draw.ball(self, Vector2.ZERO, radius, color)
+	draw_circle(Vector2(-2, -3), radius * 0.72, color.lightened(0.1))
+	# Cracked stone hide and two curled horns.
+	draw_line(-side * 6.0 - f * 4.0, side * 2.0 + f * 2.0, color.darkened(0.3), 1.5)
+	for sgn in [-1.0, 1.0]:
+		var base: Vector2 = f * radius * 0.6 + side * sgn * radius * 0.45
+		draw_arc(base + side * sgn * 4.0, 6.0, 0.0, TAU * 0.8, 12, Palette.OUTLINE, 4.0)
+		draw_arc(base + side * sgn * 4.0, 6.0, 0.0, TAU * 0.8, 12, Color(0.85, 0.8, 0.68), 2.0)
+	draw_circle(f * radius * 0.85 + side * 3.5, 1.6, Palette.OUTLINE)
+	draw_circle(f * radius * 0.85 - side * 3.5, 1.6, Palette.OUTLINE)
+
+
+func _draw_manticore(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	var flap := sin(t * 3.0)
+	# Bat wings, the scorpion tail, the lion's body, mane and face.
+	for sgn in [-1.0, 1.0]:
+		var root: Vector2 = side * sgn * radius * 0.4
+		var tip: Vector2 = side * sgn * radius * (1.9 + 0.25 * flap) - f * radius * 0.2
+		var back: Vector2 = -f * radius * 0.8 + side * sgn * radius * 0.8
+		draw_colored_polygon(PackedVector2Array([root + f * 4.0, tip, back]), Color(0.45, 0.28, 0.25))
+		draw_polyline(PackedVector2Array([root + f * 4.0, tip, back]), Palette.OUTLINE, 1.5)
+	var curl := 1.0 if state == "wind_spikes" else 0.0
+	var tail := PackedVector2Array()
+	for k in 8:
+		var u := float(k) / 7.0
+		tail.append(-f * radius * (0.7 + u * 1.3) + side * sin(t * 2.0 + u * 2.5) * 6.0 * u - f * radius * u * u * (0.6 - curl * 1.8))
+	draw_polyline(tail, Palette.OUTLINE, 7.0, true)
+	draw_polyline(tail, color.darkened(0.25), 4.5, true)
+	draw_circle(tail[tail.size() - 1], 5.0, Color(0.55, 0.8, 0.35))
+	Draw.ball(self, Vector2.ZERO, radius * 0.85, color)
+	var mane_at := f * radius * 0.7
+	for i in 12:
+		var a := TAU * i / 12.0
+		draw_circle(mane_at + Vector2.from_angle(a) * radius * 0.42, radius * 0.18, Color(0.6, 0.32, 0.18))
+	Draw.ball(self, mane_at, radius * 0.38, color.lightened(0.1))
+	var open := 4.0 if state == "wind_roar" else 1.5
+	draw_line(mane_at + f * 6.0 - side * 4.0, mane_at + f * 6.0 + side * 4.0, Palette.OUTLINE, open)
+	draw_circle(mane_at + f * 2.0 + side * 5.0, 2.2, Color(1.0, 0.85, 0.35))
+	draw_circle(mane_at + f * 2.0 - side * 5.0, 2.2, Color(1.0, 0.85, 0.35))
+
+
 ## Telegraphs, status and the health bar: unlit, so they always read.
 func _draw_overlay() -> void:
 	var c := overlay
@@ -1311,6 +1549,33 @@ func _draw_overlay() -> void:
 				c.draw_line(Vector2.ZERO, lunge_dir.rotated(a) * 120.0, Color(danger, 0.3), 1.5)
 	if kind == "slime" and state == "wind":
 		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(danger, 0.6), 2.0)
+	if kind == "scorpling" and state == "wind_sting":
+		var half := deg_to_rad(50.0)
+		var wedge := PackedVector2Array([Vector2.ZERO])
+		for i in 9:
+			wedge.append(Vector2.from_angle(lunge_dir.angle() - half + 2.0 * half * i / 8.0) * STING_REACH)
+		c.draw_colored_polygon(wedge, Color(danger, 0.12 + 0.15 * clampf(1.0 - state_t / 0.5, 0.0, 1.0)))
+	if kind == "ram" and (state == "wind_charge" or state == "charge"):
+		var kc := clampf(1.0 - state_t / 0.8, 0.0, 1.0) if state == "wind_charge" else 1.0
+		c.draw_line(Vector2.ZERO, lunge_dir * 260.0, Color(danger, 0.14), radius * 2.0)
+		c.draw_line(Vector2.ZERO, lunge_dir * 260.0 * kc, Color(danger, 0.35), radius * 2.0)
+	if kind == "manticore":
+		if state == "wind_claw":
+			var kw := clampf(1.0 - state_t / 0.55, 0.0, 1.0)
+			var half2 := deg_to_rad(CLAW_ARC)
+			var wedge2 := PackedVector2Array([Vector2.ZERO])
+			for i in 15:
+				wedge2.append(Vector2.from_angle(lunge_dir.angle() - half2 + 2.0 * half2 * i / 14.0) * CLAW_REACH)
+			c.draw_colored_polygon(wedge2, Color(danger, 0.1 + 0.15 * kw))
+			c.draw_arc(Vector2.ZERO, CLAW_REACH * kw, lunge_dir.angle() - half2, lunge_dir.angle() + half2, 20, Color(danger, 0.75), 2.0)
+		if state == "wind_roar":
+			var kr := clampf(1.0 - state_t / 0.9, 0.0, 1.0)
+			c.draw_circle(Vector2.ZERO, ROAR_RADIUS, Color(danger, 0.08 + 0.12 * kr))
+			c.draw_arc(Vector2.ZERO, ROAR_RADIUS, 0.0, TAU, 48, Color(danger, 0.7), 2.5)
+			c.draw_arc(Vector2.ZERO, ROAR_RADIUS * kr, 0.0, TAU, 48, Color(danger, 0.8), 1.5)
+		if state == "wind_spikes":
+			for i in 3:
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(10.0)) * 150.0, Color(danger, 0.3), 1.5)
 	if kind == "cinder" and state == "wind_spit":
 		c.draw_line(Vector2.ZERO, lunge_dir * 140.0, Color(danger, 0.35), 1.5)
 	if kind == "smith" and state == "wind_hammer":

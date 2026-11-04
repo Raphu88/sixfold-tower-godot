@@ -45,19 +45,24 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 
 ## Towers
 
-Every climb starts by choosing a tower (keys 1 to 3, click, or tap a card). Each tower has its own beast, essence, monster mix and look (`scripts/towers.gd`):
+Every climb starts by choosing a tower (keys 1 to 4, click, or tap a card). Each tower has its own beast, essence, monster mix and look (`scripts/towers.gd`):
 
 | Tower | Essence | Monsters | Look |
 | --- | --- | --- | --- |
 | The Gryphon's Tower | Air | archers, bats and thunderlings; the Gryphon on floor 5 | cold, blue stone and pale torches |
 | The Kraken's Tower | Water | slimes, lurkers and shellbacks; the Kraken on floor 5 | damp, teal stone and green-white torches |
 | The Wyvern's Tower | Iron | knights, cinders and smiths; the Wyvern on floor 5 (the hardest) | hot forge-red stone and orange torches |
+| The Manticore's Tower | Stone | scorplings and rams; the Manticore on floor 5 | sun-baked sandstone and warm torches |
 
 **The Gryphon's tower has a summit.** On floor 5 the Gryphon itself waits, alone. It rakes with its talons up close (a red wedge, parryable), dives on you from range (it locks onto where you stood when it glints; the landing can't be parried, so roll out of the red circle), and throws a fan of feathers (parryable, and a Crosswind turns them back). It can't be lifted or interrupted, only staggered, and at half health it calls two bats. Beat it, take the stair, and the climb is complete.
 
 **The Kraken's tower has a summit too.** On floor 5 the Kraken waits. It sweeps a tentacle across a wide wedge in front of it (parryable), slams three spots at once with one landing where you stand (can't be parried: roll out of the red circles), and spits a fan of ink (parryable). At half health it calls two lurkers.
 
 **The Wyvern waits atop its tower.** On floor 5 it sweeps its tail across a wedge in front of it (parryable), breathes fire down a narrow cone (can't be parried: roll or step aside) that leaves the floor burning, and sprays a fan of embers (parryable). At half health it calls two cinders.
+
+**The Manticore waits atop its tower.** On floor 5 it swipes with its claws (a red wedge, parryable), fires a volley of three poisoned tail spikes (parryable), and roars, bursting out around itself (can't be parried: roll through it). At half health it calls two scorplings.
+
+**The Manticore's monsters:** the **scorpling** scuttles up, glints and stings (parryable); a sting that lands **poisons** you: 2 health every half second for a few seconds (the stair's rest cures it). The **ram** lowers its horns, glints and charges in a straight line (parryable). A ram that charges into a wall or pillar is stunned, so letting it miss is an opening.
 
 **The Wyvern's monsters:** the **cinder** is a living ember that flits at range, glints and spits a burning ember (parryable). The **smith** plods up and brings its hammer down in front of it (parryable, but it hits hard), leaving the floor there burning for a few seconds. **Burning floor** costs 4 health every half second you stand in it; rolling through is free.
 
@@ -72,7 +77,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 - **Six body parts**, one for each of the six towers: hand, legs, heart, brow, throat and back. Each holds one mark. A **backstab** (striking a foe that faces away from you, because it has committed to an attack or you rolled behind it) deals 50% more damage.
 
 - **Your first climb is bondless.** You start clumsy, with weapons only. Climb 3 floors.
-- **Essence:** monsters leave essence when they fall: Air, Water, Iron or Fire (slimes Water, archers Air, knights Iron, cinders and the Wyvern Fire). It flies into you and is **banked at the next stair**. Fall before the stair and the unbanked essence is lost.
+- **Essence:** monsters leave essence when they fall: Air, Water, Iron, Fire or Stone (slimes Water, archers Air, knights Iron, cinders and the Wyvern Fire). It flies into you and is **banked at the next stair**. Fall before the stair and the unbanked essence is lost.
 - **Your body soaks it up** through what each part does: the **hand** from weapon strikes (+0.5 per hit), the **legs** from rolling through attacks (+4), the **heart** from taking hits and surviving (+4), the **brow** from parries (+6, perfect +9), the **throat** when one swing or spell hits several foes (+2 for each foe past the first), the **back** from backstabs (+3) and finishing blows (+2). Unmarked parts glow faintly as they soak, and the **"Your mark is forming"** panel shows each part's soak, the leader, and which bond it would be right now.
 - **Where and which:** your play style decides the body part (the one you used most), and the essence you gathered decides the bond. No bond has a home body part. When two bonds share an essence (say, the three Air bonds), the way you fought this climb breaks the tie: lots of parrying leans Hunter, lots of striking Stormcaller, lots of dodging Windwalker.
 - **The Regard:** at the top of your first climb the tower's beast takes notice. Your most-used body part takes its first **mark**, and the essence you gathered most decides which bond it is. If you fall on the first climb you're still regarded, but the mark is **faint**: weaker (75% power, 25% dearer) until it has soaked up 80 more essence.

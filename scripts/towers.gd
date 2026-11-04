@@ -4,7 +4,7 @@ extends RefCounted
 ## own look. Every kill in a tower also yields a little of its essence, so
 ## the tower you choose steers which bonds you'll form. (Story to come.)
 
-const ORDER := ["gryphon", "kraken", "wyvern"]
+const ORDER := ["gryphon", "kraken", "wyvern", "manticore"]
 const ESSENCE_BONUS := 1.5  # extra essence of the tower's kind per kill
 
 const TOWERS := {
@@ -53,5 +53,20 @@ const TOWERS := {
 		"stone": Color(1.0, 0.86, 0.8),
 		"ambient": Color(0.52, 0.42, 0.42),
 		"torch": Color(1.0, 0.58, 0.32),
+	},
+	"manticore": {
+		"name": "The Manticore's Tower",
+		"short": "Manticore",
+		"beast": "the Manticore",
+		"essence": "stone",
+		"blurb": "Sun-baked sandstone halls of scorplings and charging rams. Stings poison. The Manticore waits at the top.",
+		"weights": {"scorpling": 1.4, "ram": 0.9, "archer": 0.6, "knight": 0.3, "slime": 0.2},
+		"first": ["scorpling", "archer", "ram", "scorpling"],
+		"summit": 5,
+		"beast_kind": "manticore",
+		"beast_hint": "Watch for the glint. Its roar can't be parried: roll through it.",
+		"stone": Color(1.0, 0.93, 0.76),
+		"ambient": Color(0.56, 0.5, 0.4),
+		"torch": Color(1.0, 0.8, 0.48),
 	},
 }
