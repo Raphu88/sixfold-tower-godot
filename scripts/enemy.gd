@@ -98,6 +98,12 @@ var glint := 0.0  # the white flash before a hit, for drawing
 var glinted := false
 var attack_from := Vector2.ZERO  # where a pounce or lunge started
 var face := Vector2.LEFT  # where it's looking, eased toward the climber
+var venom := 0  # Venomist's poison stacks
+var venom_t := 0.0
+var venom_tick := 0.0
+var lost_t := 0.0  # Ashwalker: it has lost track of you
+var lure = null  # ...and goes after this decoy instead (a dictionary with "pos")
+var notice_t := 0.0  # still noticing you at the start of a floor
 var overlay: Node2D  # unlit layer: telegraphs and the health bar
 
 
@@ -115,6 +121,7 @@ func setup(k: String, room) -> void:
 	weight = t["weight"]
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
+	notice_t = state_t
 	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern", "ram", "manticore"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
 	if kind == "bat":
@@ -129,7 +136,7 @@ func setup(k: String, room) -> void:
 func _ready() -> void:
 	add_to_group("enemies")
 	collision_layer = 4
-	collision_mask = 1
+	collision_mask = 1 | 8  # walls, pillars, and Sandshaper's stone walls
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -166,6 +173,11 @@ func _physics_process(delta: float) -> void:
 		flinch -= delta
 		_drift()
 		return
+	notice_t -= delta
+	lost_t -= delta
+	_tick_venom(delta)
+	if dead:
+		return
 	if p == null or p.dead:
 		_end_attack("idle", 1.0)
 		_drift()
@@ -173,6 +185,10 @@ func _physics_process(delta: float) -> void:
 	var to: Vector2 = p.global_position - global_position
 	var dist := to.length()
 	var dir := to / maxf(dist, 0.001)
+	# Ashwalker: a foe that has lost you wanders, or goes after a decoy.
+	if is_lost(dist) and not (is_attacking() and glinted):
+		_wander(delta)
+		return
 	# Look at the climber, except once an attack is committed (after the glint).
 	if not (is_attacking() and glinted):
 		face = face.slerp(dir, minf(1.0, 8.0 * delta)).normalized()
@@ -214,6 +230,12 @@ func _physics_process(delta: float) -> void:
 		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken", "bat", "gryphon", "cinder", "wyvern"])
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
+	# Sandshaper: rubble slows; Shifting Sands slows foes walking up to you
+	# (never an attack already under way, which keeps its glint's timing).
+	if not is_attacking():
+		velocity *= main.rubble_slow(global_position)
+		if p.has_bond("sandshaper") and dist < 110.0:
+			velocity *= 0.65
 	velocity += knock
 	move_and_slide()
 	_undercurrent()
@@ -979,6 +1001,81 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.sfx("warn_archer", 0.7)
 
 
+# --- Venomist's poison and Ashwalker's stealth ---------------------------------------------
+
+## Poison stacks. Each new stack also makes it last longer (Toxin Build).
+func add_venom(stacks: int) -> void:
+	if dead:
+		return
+	venom = mini(venom + stacks, 12)
+	venom_t = maxf(venom_t, 3.0 + 0.5 * venom)
+
+
+## All the poison still to come, at once (Virulence).
+func venom_left() -> float:
+	return float(venom) * ceilf(venom_t / 0.5)
+
+
+func _tick_venom(delta: float) -> void:
+	if venom <= 0:
+		return
+	venom_t -= delta
+	venom_tick -= delta
+	if venom_tick <= 0.0:
+		venom_tick = 0.5
+		hp -= float(venom)
+		flash = 0.05
+		if hp <= 0.0:
+			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
+			return
+	if venom_t <= 0.0:
+		venom = 0
+
+
+## Loses track of the climber for a while (smoke, a decoy). Beasts never do.
+func lose_track(seconds: float, decoy) -> void:
+	if is_boss():
+		return
+	lost_t = maxf(lost_t, seconds)
+	if decoy != null:
+		lure = decoy
+
+
+func is_lost(dist := 0.0) -> bool:
+	if is_boss():
+		return false
+	var p = main.player
+	return lost_t > 0.0 or p.vanish_t > 0.0 or (main.ashfall_t > 0.0 and dist > 170.0)
+
+
+## Unseen Strike: true if it hasn't noticed the climber yet, or has lost them.
+func unaware() -> bool:
+	if is_boss():
+		return false
+	return notice_t > 0.0 or is_lost(global_position.distance_to(main.player.global_position))
+
+
+func _wander(delta: float) -> void:
+	if state.begins_with("wind") or main.holds_attack(self):
+		_end_attack("idle", 0.4)
+	var go := Vector2.ZERO
+	if lure != null and lure["t"] > 0.0:
+		go = (lure["pos"] - global_position)
+		if go.length() < radius + 10.0:
+			go = Vector2.ZERO
+		else:
+			go = go.normalized() * speed * 0.8
+	else:
+		lure = null
+		var a := Time.get_ticks_msec() * 0.0007 + float(get_instance_id() % 17)
+		go = Vector2(cos(a), sin(a * 1.3)) * speed * 0.35
+	velocity = go + knock
+	if go != Vector2.ZERO:
+		face = face.slerp(go.normalized(), minf(1.0, 4.0 * delta)).normalized()
+	move_and_slide()
+	queue_redraw()
+
+
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
 	if dead:
 		return
@@ -994,6 +1091,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 		main.sfx("hit_armor", 1.2, -2.0)
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
+	notice_t = 0.0  # it certainly knows you're here now
 	hp -= amount
 	flash = 0.12
 	squash = 1.0
@@ -1606,6 +1704,13 @@ func _draw_overlay() -> void:
 		var ts := Time.get_ticks_msec() * 0.004
 		for i in 3:
 			c.draw_circle(Vector2(0, lift_y - radius - 8.0) + Vector2.from_angle(ts + i * TAU / 3.0) * 7.0, 2.0, Color(1.0, 0.89, 0.63))
+	if venom > 0:
+		var tv := Time.get_ticks_msec() * 0.003
+		for i in mini(venom, 6):
+			var dp := Vector2(-radius + i * radius * 0.4, -radius - 4.0 + fmod(tv + i * 0.37, 1.0) * 8.0)
+			c.draw_circle(dp, 1.6, Color(0.55, 0.85, 0.35, 0.85))
+	if is_lost(global_position.distance_to(main.player.global_position)) and main.player != null:
+		c.draw_string(ThemeDB.fallback_font, Vector2(-4, lift_y - radius - 16.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.78, 0.75, 0.9))
 	if hp < max_hp and not is_boss():
 		var w2 := radius * 2.2
 		var top := Vector2(-w2 / 2.0, lift_y - radius - 11.0)

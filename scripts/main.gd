@@ -85,6 +85,13 @@ var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
 var wards: Array = []  # Ward Circles foes can't enter: {pos, r, t, color}
 var sigils: Array = []  # Grand Sigils, free casting inside: {pos, r, t, color}
+var stone_walls: Array = []  # Sandshaper's walls: {pos, r, t, body, fault}
+var rubble: Array = []  # Quake rubble that slows foes: {pos, r, t}
+var pits: Array = []  # Sinkholes (drawn only): {pos, r, t}
+var clouds: Array = []  # Venomist's Toxic Clouds: {pos, r, t, tick, color}
+var smokes: Array = []  # Ashwalker's Smoke Veils: {pos, r, t}
+var decoys: Array = []  # Ashwalker's Afterimages: {pos, t, aim}
+var ashfall_t := 0.0  # Ashfall: foes lose track of you once out of reach
 var slowmo := false  # time slows while a spell ring is open
 var player_glow: PointLight2D
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
@@ -279,6 +286,7 @@ func _physics_process(delta: float) -> void:
 
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
 func _update_spell_fields(delta: float) -> void:
+	_update_ground(delta)
 	_update_runes(delta)
 	_update_flames(delta)
 	track_t -= delta
@@ -377,6 +385,16 @@ func _start_floor(n: int) -> void:
 	runes.clear()
 	wards.clear()
 	sigils.clear()
+	for w in stone_walls:
+		if is_instance_valid(w["body"]):
+			w["body"].queue_free()
+	stone_walls.clear()
+	rubble.clear()
+	pits.clear()
+	clouds.clear()
+	smokes.clear()
+	decoys.clear()
+	ashfall_t = 0.0
 	if player != null:
 		player.rune_gear = ""  # runes on gear last one floor
 	track_t = 0.0
@@ -559,7 +577,7 @@ func _give_bonds() -> void:
 		player.bonds[part] = b
 	# Hunter's Keen Eyes: you see farther in the dark.
 	if player_glow != null:
-		player_glow.texture_scale = 2.2 if player.has_bond("hunter") else 1.4
+		player_glow.texture_scale = 2.2 if player.has_bond("hunter") or player.has_bond("ashwalker") else 1.4  # Keen Eyes, Smokeborn
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -894,6 +912,79 @@ func _detonate_rune(r: Dictionary) -> void:
 	light_flash(r["pos"], r["color"], 1.3, 1.4, 0.3)
 	sfx("zap", 0.8)
 	shake(4.0)
+
+
+## Sandshaper's walls: a row of stones that blocks foes (not you) and their shots.
+func add_stone_wall(points: Array, r: float, t: float, fault := false) -> void:
+	for pt in points:
+		var pos: Vector2 = pt
+		if not room.has_point(pos):
+			continue
+		var body := StaticBody2D.new()
+		body.collision_layer = 8  # only monsters collide with these
+		body.collision_mask = 0
+		body.position = pos
+		var shape := CollisionShape2D.new()
+		var circle := CircleShape2D.new()
+		circle.radius = r
+		shape.shape = circle
+		body.add_child(shape)
+		add_child(body)
+		stone_walls.append({"pos": pos, "r": r, "t": t, "body": body, "fault": fault})
+
+
+func blocks_shot(pos: Vector2) -> bool:
+	for w in stone_walls:
+		if pos.distance_to(w["pos"]) < w["r"] + 3.0:
+			return true
+	return false
+
+
+func _update_ground(delta: float) -> void:
+	for w in stone_walls:
+		w["t"] -= delta
+		if w["t"] <= 0.0 and is_instance_valid(w["body"]):
+			w["body"].queue_free()
+	stone_walls = stone_walls.filter(func(w): return w["t"] > 0.0)
+	for list in [rubble, pits, smokes, decoys]:
+		for x in list:
+			x["t"] -= delta
+	rubble = rubble.filter(func(x): return x["t"] > 0.0)
+	pits = pits.filter(func(x): return x["t"] > 0.0)
+	smokes = smokes.filter(func(x): return x["t"] > 0.0)
+	decoys = decoys.filter(func(x): return x["t"] > 0.0)
+	ashfall_t -= delta
+	# Toxic Clouds poison foes inside them, a stack every half second.
+	for c in clouds:
+		c["t"] -= delta
+		c["tick"] -= delta
+		if c["tick"] <= 0.0:
+			c["tick"] = 0.5
+			for e in targets():
+				if e.global_position.distance_to(c["pos"]) < c["r"] + e.radius:
+					e.add_venom(1)
+	clouds = clouds.filter(func(c): return c["t"] > 0.0)
+	# Smoke and decoys: foes lose track of you.
+	for e in enemies():
+		if e.is_boss():
+			continue
+		for sm in smokes:
+			if e.global_position.distance_to(sm["pos"]) < sm["r"] + e.radius:
+				e.lose_track(0.6, null)
+		for d in decoys:
+			if e.global_position.distance_to(d["pos"]) < 320.0:
+				e.lose_track(0.4, d)
+				if e.global_position.distance_to(d["pos"]) < e.radius + 14.0 and d["t"] > 0.8:
+					d["t"] = 0.8  # struck: the ash copy crumbles
+					fx_burst(d["pos"], Vector2.ZERO, Color(0.6, 0.55, 0.55), 12, 180.0)
+
+
+## How much rubble slows a foe here (1 is not at all).
+func rubble_slow(pos: Vector2) -> float:
+	for r in rubble:
+		if pos.distance_to(r["pos"]) < r["r"]:
+			return 0.5
+	return 1.0
 
 
 func in_sigil(pos: Vector2) -> bool:
