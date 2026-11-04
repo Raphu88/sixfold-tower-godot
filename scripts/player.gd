@@ -133,6 +133,15 @@ func _part_action(part: String, soak: float, fill: float) -> void:
 		b.fill(fill)
 
 
+## True if any of your marks has learned a spell of this type.
+func _knows(spell_type: String) -> bool:
+	for b in bonds.values():
+		for sp in b.spells():
+			if sp["type"] == spell_type:
+				return true
+	return false
+
+
 func _burned(part: String) -> bool:
 	var b = bonds.get(part)
 	return b != null and b.burned
@@ -201,6 +210,8 @@ func _physics_process(delta: float) -> void:
 			spd = SPRINT
 			sta -= 22.0 * delta
 			sta_delay = 0.6
+		if rune_gear == "swiftness":
+			spd *= 1.15
 		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller"))
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
@@ -430,7 +441,10 @@ func _melee() -> bool:
 	combo = (combo + 1) % chain.size()
 	sta = maxf(0.0, sta - swing["sta"])
 	sta_delay = 0.6
-	attack_cd = swing["recover"] * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
+	var recover: float = swing["recover"]
+	if has_bond("flameblade"):
+		recover = minf(recover, chain[0]["recover"])  # Hot Blood: chains never slow down
+	attack_cd = recover * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
 	lunge_t = 0.08
@@ -442,10 +456,17 @@ func _melee() -> bool:
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
 		dmg *= 0.6
+	if rune_gear == "sharpness":
+		dmg *= 1.3
+	if has_bond("flameblade"):
+		dmg *= 1.0 + heat / 200.0  # Heat: up to half again as hard
+	if kindle_t > 0.0:
+		dmg += kindle_dmg
+	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
 	var hits := 0
 	for e in main.targets():
 		var to: Vector2 = e.global_position - global_position
-		if to.length() > swing["range"] + e.radius:
+		if to.length() > reach + e.radius:
 			continue
 		if absf(aim.angle_to(to)) > deg_to_rad(swing["arc"]):
 			continue
@@ -457,7 +478,25 @@ func _melee() -> bool:
 		_part_action("hand", 0.5 * hits, 6.0 * hits)
 	if hits > 1:
 		_part_action("throat", 2.0 * (hits - 1), 8.0 * (hits - 1))
+	if hits > 0:
+		_strikes_landed(hits)
 	return true
+
+
+## Flameblade: landed strikes heat the weapon; kindling keeps burning.
+func _strikes_landed(hits: int) -> void:
+	if kindle_t > 0.0:
+		main.fx_burst(global_position + aim * 24.0, aim, kindle_color, 5, 200.0)
+		if kindle_sustain:
+			kindle_t = maxf(kindle_t, 2.5)
+	if not has_bond("flameblade"):
+		return
+	heat_idle = 0.0
+	var before := heat
+	heat = minf(100.0, heat + 12.0 * hits * (2.0 if kindle_t > 0.0 else 1.0))
+	if heat >= 100.0 and before < 100.0:
+		main.fx_text(global_position + Vector2(0, -44), "White hot", Color(1.0, 0.85, 0.5))
+		main.sfx("burn", 1.4, -6.0)
 
 
 func _tick_draw(delta: float) -> void:
@@ -615,7 +654,7 @@ func _try_cast(part: String) -> bool:
 	if attack_cd > 0.0 or drawing:
 		return false
 	cast_part = part
-	cast_total = b.windup()
+	cast_total = b.windup() * (0.7 if has_bond("rune_artist") else 1.0)  # Steady Mind
 	cast_t = cast_total
 	main.sfx("charge", 1.0, 0.0, 0.03)
 	return true
@@ -623,7 +662,7 @@ func _try_cast(part: String) -> bool:
 
 func _release_cast() -> void:
 	var b = bonds[cast_part]
-	var paid: String = b.pay()
+	var paid: String = b.pay(main.in_sigil(global_position))
 	var part_name: String = BondScript.PART_NAMES[cast_part]
 	if paid == "burned":
 		# Overdraw: a weaker, desperate cast, and the body part burns.
@@ -660,6 +699,21 @@ func _release_cast() -> void:
 
 
 var fire_t := 0.0  # time spent standing in fire, ticking toward the next burn
+
+# The Wyvern's bonds.
+var heat := 0.0  # Flameblade's Heat: 0..100, built by strikes in a row
+var heat_idle := 0.0  # time since the last strike landed
+var kindle_t := 0.0  # Kindle Blade: the weapon burns
+var kindle_dmg := 0.0
+var kindle_sustain := false
+var kindle_color := Color(1.0, 0.5, 0.24)
+var searing_dmg := 0.0  # Searing Parry: a kindled parry explodes for this much
+var bladeward_t := 0.0  # Bladeward: blades orbit you
+var bladeward_dmg := 0.0
+var bladeward_r := 48.0
+var bladeward_tick := 0.0
+var bladeward_color := Color(0.65, 0.89, 0.71)
+var rune_gear := ""  # Inscribe: "sharpness", "warding" or "swiftness" for this floor
 
 
 ## Standing on burning floor: a small burn every half second (rolling through is free).
@@ -733,6 +787,8 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		if dmg <= 0.0:
 			main.sfx("hit_armor", 1.3, -4.0)
 			return
+	if rune_gear == "warding":
+		dmg *= 0.75
 	hp -= dmg
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
@@ -798,6 +854,23 @@ func _break_barrier() -> void:
 func _tick_bond_effects(delta: float) -> void:
 	absorb_t -= delta
 	unbreak_t -= delta
+	kindle_t -= delta
+	# Heat fades once you stop landing strikes.
+	heat_idle += delta
+	if heat_idle > 1.5:
+		heat = move_toward(heat, 0.0, 40.0 * delta)
+	# Bladeward: orbiting blades cut whatever comes close.
+	if bladeward_t > 0.0:
+		bladeward_t -= delta
+		bladeward_tick -= delta
+		if bladeward_tick <= 0.0:
+			bladeward_tick = 0.35
+			for e in main.targets():
+				var to: Vector2 = e.global_position - global_position
+				if to.length() < bladeward_r + e.radius:
+					e.take_hit(bladeward_dmg, to.normalized(), 90.0)
+					main.fx_burst(e.global_position - to.normalized() * e.radius, to.normalized(), bladeward_color, 4, 180.0)
+					main.sfx("hit", 1.4, -8.0)
 	if barrier_t > 0.0:
 		barrier_t -= delta
 		if barrier_t <= 0.0:
@@ -850,6 +923,15 @@ func _on_parry(source, perfect := false) -> void:
 		main.light_flash(at, gold, 1.3, 2.0, 0.3)
 		main.hitstop(0.14)
 		main.shake(6.0)
+	# Searing Parry: a parry while your weapon is kindled explodes.
+	if kindle_t > 0.0 and searing_dmg > 0.0 and _knows("searing"):
+		main.fx_ring(at, kindle_color, 70.0, 0.35, 5.0)
+		main.fx_burst(at, aim, kindle_color, 18, 320.0)
+		main.light_flash(at, kindle_color, 1.6, 1.8, 0.3)
+		main.sfx("burn", 0.8)
+		for e in main.targets():
+			if e.global_position.distance_to(at) < 70.0 + e.radius:
+				e.take_hit(searing_dmg, (e.global_position - global_position).normalized(), 200.0, true)
 	# The brow fills when you parry.
 	_part_action("brow", 9.0 if perfect else 6.0, 18.0 if perfect else 12.0)
 	if source.has_method("on_parried"):
@@ -957,6 +1039,22 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
 func _draw_overlay() -> void:
 	var c := overlay
+	var tt := Time.get_ticks_msec() * 0.001
+	if bladeward_t > 0.0:
+		for i in 4:
+			var ba := tt * 5.0 + TAU * i / 4.0
+			var bp := Vector2.from_angle(ba) * bladeward_r
+			var bd := Vector2.from_angle(ba + PI / 2.0)
+			c.draw_colored_polygon(PackedVector2Array([bp + bd * 10.0, bp + bd.orthogonal() * 3.0, bp - bd * 6.0, bp - bd.orthogonal() * 3.0]), Color(bladeward_color, 0.9))
+		c.draw_arc(Vector2.ZERO, bladeward_r, 0.0, TAU, 32, Color(bladeward_color, 0.2), 1.5)
+	if kindle_t > 0.0:
+		var tip := aim * (radius + 18.0)
+		for i in 4:
+			var fp := tip - aim * (i * 5.0) + Vector2(sin(tt * 13.0 + i) * 2.0, -3.0 - 3.0 * sin(tt * 9.0 + i * 1.7))
+			c.draw_circle(fp, 2.6 - i * 0.4, Color(kindle_color, 0.85))
+	if heat > 1.0:
+		var hc := Color(1.0, 0.45 + 0.4 * heat / 100.0, 0.2, 0.8)
+		c.draw_arc(Vector2.ZERO, radius + 9.0, PI * 0.6, PI * 0.6 + PI * 0.8 * heat / 100.0, 16, hc, 2.5)
 	if swing_t > 0.0 and weapon == "sword":
 		var a := aim.angle()
 		var half := deg_to_rad(swing["arc"])

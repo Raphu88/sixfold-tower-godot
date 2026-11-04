@@ -24,7 +24,9 @@ extends RefCounted
 ##   surge, riptide, carry, maelstrom          (Tidecaller)
 ##   barrier, absorb, challenge, unbreakable   (Warden)
 ##   drain, anchor, siphon, drink              (Deepcaller)
-##   blades                                    (Blade Forger)
+##   blades, recall, bladeward, edges          (Blade Forger)
+##   kindle, lash, searing, overheat           (Flameblade)
+##   trap, inscribe, ward, sigil               (Rune Artist)
 
 ## Six body parts, one for each of the six towers; each holds one bond.
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
@@ -236,19 +238,88 @@ const BONDS := {
 		"affinity": "iron",
 		"style": ["hand", "back"],
 		"tower": "wyvern",
-		"body": {"name": "", "desc": ""},
-		"passive": {"name": "", "desc": ""},
+		"body": {"name": "Long Edge", "desc": "your melee strikes reach farther"},
+		"passive": {"name": "Weapon Memory", "desc": "your conjured blades copy the weapon you hold: quick little knives with fists, swift piercing darts with the bow"},
 		"spells": [
 			{"id": "conjured_blades", "name": "Conjured Blades", "type": "blades", "learn": 1,
 				"desc": "a fan of conjured blades that pierce through foes",
-				"changes": {3: "five blades", 5: "seven blades"},
+				"changes": {3: "five blades"},
 				"steps": {
 					1: {"cost": 10.0, "windup": 0.35, "count": 3, "damage": 7.0, "spread": 18.0},
 					2: {"damage": 9.0},
 					3: {"count": 5, "spread": 14.0},
 					4: {"damage": 11.0, "cost": 8.0},
-					5: {"count": 7, "damage": 13.0},
+					5: {"damage": 13.0},
 				}},
+			{"id": "recall", "name": "Recall", "type": "recall", "learn": 2,
+				"desc": "blades that fly out, then return to you, striking again on the way back",
+				"steps": {2: {"cost": 10.0, "windup": 0.3, "count": 3, "damage": 8.0, "spread": 22.0}, 4: {"damage": 10.0}, 5: {"damage": 12.0}}},
+			{"id": "bladeward", "name": "Bladeward", "type": "bladeward", "learn": 4,
+				"desc": "blades orbit you for 6 seconds, cutting foes that come close",
+				"steps": {4: {"cost": 14.0, "windup": 0.3, "duration": 6.0, "damage": 6.0, "radius": 48.0}, 5: {"damage": 8.0}}},
+			{"id": "thousand_edges", "name": "Thousand Edges", "type": "edges", "learn": 5,
+				"desc": "a storm of conjured blades fans out toward your aim",
+				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0}}},
+		],
+	},
+	"flameblade": {
+		"name": "Flameblade",
+		"color": Color(1.0, 0.5, 0.24),
+		"affinity": "fire",
+		"style": ["hand", "heart"],
+		"tower": "wyvern",
+		"body": {"name": "Hot Blood", "desc": "your strike chains never slow down: even the finisher recovers fast"},
+		"passive": {"name": "Heat", "desc": "each strike in a row heats your weapon and hits harder; heat fades if you stop striking"},
+		"spells": [
+			{"id": "kindle_blade", "name": "Kindle Blade", "type": "kindle", "learn": 1,
+				"desc": "your weapon is wreathed in fire for 6 seconds: strikes burn and build heat much faster",
+				"changes": {3: "it lasts as long as you keep landing strikes"},
+				"steps": {
+					1: {"cost": 10.0, "windup": 0.25, "duration": 6.0, "damage": 3.0, "sustain": false},
+					2: {"damage": 4.0},
+					3: {"sustain": true},
+					4: {"damage": 5.0},
+					5: {"damage": 6.0},
+				}},
+			{"id": "flame_lash", "name": "Flame Lash", "type": "lash", "learn": 2,
+				"desc": "a swing that throws a wave of fire forward",
+				"steps": {2: {"cost": 9.0, "windup": 0.3, "damage": 12.0, "travel": 230.0, "width": 70.0}, 4: {"damage": 15.0}, 5: {"damage": 18.0}}},
+			{"id": "searing_parry", "name": "Searing Parry", "type": "searing", "learn": 4,
+				"desc": "kindles your weapon; while it burns, a parry explodes against the attacker",
+				"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 6.0, "damage": 18.0}, 5: {"damage": 22.0}}},
+			{"id": "overheat", "name": "Overheat", "type": "overheat", "learn": 5,
+				"desc": "release all your heat in one strike: the more heat, the bigger the blow",
+				"steps": {5: {"cost": 12.0, "windup": 0.3, "damage": 10.0, "reach": 90.0}}},
+		],
+	},
+	"rune_artist": {
+		"name": "Rune Artist",
+		"color": Color(0.62, 0.66, 1.0),
+		"affinity": "iron",
+		"style": ["brow", "legs"],
+		"tower": "wyvern",
+		"body": {"name": "Steady Mind", "desc": "every spell you cast, from any bond, has a shorter wind-up"},
+		"passive": {"name": "Runesmith", "desc": "enchant gear and craft from cores at camps (waits for camps and items, not in the game yet)"},
+		"spells": [
+			{"id": "rune_trap", "name": "Rune Trap", "type": "trap", "learn": 1,
+				"desc": "inscribe a rune on the floor that detonates when a foe steps on it (up to 3)",
+				"changes": {3: "Linked Runes: setting off one of your runes sets off every rune you have laid"},
+				"steps": {
+					1: {"cost": 8.0, "windup": 0.35, "damage": 16.0, "blast": 60.0, "linked": false},
+					2: {"damage": 18.0},
+					3: {"linked": true},
+					4: {"damage": 22.0},
+					5: {"damage": 26.0},
+				}},
+			{"id": "inscribe", "name": "Inscribe", "type": "inscribe", "learn": 2,
+				"desc": "write a rune on your gear for the rest of the floor; each cast changes it: sharpness, warding, swiftness",
+				"steps": {2: {"cost": 8.0, "windup": 0.4}}},
+			{"id": "ward_circle", "name": "Ward Circle", "type": "ward", "learn": 4,
+				"desc": "a rune circle around you that foes cannot enter for 5 seconds",
+				"steps": {4: {"cost": 14.0, "windup": 0.35, "duration": 5.0, "radius": 75.0}}},
+			{"id": "grand_sigil", "name": "Grand Sigil", "type": "sigil", "learn": 5,
+				"desc": "a great rune circle; inside it your spells cost nothing for 6 seconds",
+				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 6.0, "radius": 120.0}}},
 		],
 	},
 }
