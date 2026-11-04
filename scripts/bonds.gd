@@ -33,6 +33,9 @@ extends RefCounted
 ##   fireball, firewall, cluster, meteor       (Flame Contractor)
 ##   aura, wingburst, warmth, firebirdform     (Flamewing)
 ##   rekindle, desperation, pyre, phoenix      (Rekindler)
+##   call, command, exchange, grandcall        (Covenant)
+##   graftburst, mimic, shed, chimeraform      (Grafter)
+##   sever, mend, transfer, amputate           (Surgeon)
 
 ## Six body parts, one for each of the six towers; each holds one bond.
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
@@ -506,6 +509,94 @@ const BONDS := {
 			{"id": "phoenix_heart", "name": "Phoenix Heart", "type": "phoenix", "learn": 5,
 				"desc": "for 10 seconds you cannot drop below 1 health",
 				"steps": {5: {"cost": 16.0, "windup": 0.2, "duration": 10.0}}},
+		],
+	},
+	# --- the Chimera's tower (Blade) -------------------------------------------------
+	"covenant": {
+		"name": "Covenant",
+		"color": Color(0.9, 0.5, 0.55),
+		"affinity": "blade",
+		"style": ["hand", "throat"],
+		"tower": "chimera",
+		"body": {"name": "Pack Stride", "desc": "you move faster with one of your creatures nearby"},
+		"passive": {"name": "Kinship", "desc": "monsters of a kind in your pact book are slower to notice you"},
+		"spells": [
+			{"id": "bind_and_call", "name": "Bind and Call", "type": "call", "learn": 1,
+				"desc": "aimed at a monster below a quarter of its health: binds its kind into your pact book. Otherwise: calls the next creature of your retinue to fight beside you for 30 seconds",
+				"changes": {3: "each Call brings two creatures (never more than three out at once)"},
+				"steps": {
+					1: {"cost": 14.0, "windup": 0.6, "duration": 30.0, "count": 1},
+					3: {"count": 2},
+				}},
+			{"id": "command", "name": "Command", "type": "command", "learn": 2,
+				"desc": "aimed at a foe: every creature attacks it. Aimed at no one: they fall back and guard you",
+				"steps": {2: {"cost": 3.0, "windup": 0.05}}},
+			{"id": "exchange", "name": "Exchange", "type": "exchange", "learn": 4,
+				"desc": "swap places with your nearest creature",
+				"steps": {4: {"cost": 8.0, "windup": 0.05}}},
+			{"id": "grand_call", "name": "Grand Call", "type": "grandcall", "learn": 5,
+				"desc": "every creature in your pact book appears at once for 12 seconds; drains the whole mark",
+				"steps": {5: {"cost": 30.0, "windup": 1.0, "duration": 12.0}}},
+		],
+	},
+	"grafter": {
+		"name": "Grafter",
+		"color": Color(0.75, 0.55, 0.7),
+		"affinity": "blade",
+		"style": ["hand", "heart"],
+		"tower": "chimera",
+		"body": {"name": "Adaptive Flesh", "desc": "each graft strengthens its body part's basic action: hand strikes, legs rolls, heart toughness, brow parries, throat stamina, back backstabs"},
+		"passive": {"name": "Grafting", "desc": "slain monsters sometimes leave a graft; walk over it to bind it to its body part (one per part) for the rest of the climb"},
+		"spells": [
+			{"id": "graft_burst", "name": "Graft Burst", "type": "graftburst", "learn": 1,
+				"desc": "strike every foe around you, harder for every graft you carry",
+				"changes": {3: "each graft adds its own effect to the burst"},
+				"steps": {
+					1: {"cost": 10.0, "windup": 0.3, "damage": 9.0, "radius": 90.0, "effects": false},
+					2: {"damage": 10.0},
+					3: {"effects": true},
+					4: {"damage": 12.0},
+					5: {"damage": 14.0},
+				}},
+			{"id": "mimic", "name": "Mimic", "type": "mimic", "learn": 2,
+				"desc": "use the power of your newest graft once",
+				"steps": {2: {"cost": 9.0, "windup": 0.2, "damage": 16.0}, 4: {"damage": 20.0}}},
+			{"id": "shed", "name": "Shed", "type": "shed", "learn": 4,
+				"desc": "cast off your newest graft to heal its body part's burn and release a burst",
+				"steps": {4: {"cost": 6.0, "windup": 0.2, "damage": 18.0}}},
+			{"id": "chimera_form", "name": "Chimera Form", "type": "chimeraform", "learn": 5,
+				"desc": "for 10 seconds every graft's power is doubled",
+				"steps": {5: {"cost": 16.0, "windup": 0.4, "duration": 10.0}}},
+		],
+	},
+	"surgeon": {
+		"name": "Surgeon",
+		"color": Color(0.85, 0.9, 0.95),
+		"affinity": "blade",
+		"style": ["brow", "back"],
+		"tower": "chimera",
+		"body": {"name": "Steady Hands", "desc": "healing works faster and heals more (potions and healing items will too, once they exist)"},
+		"passive": {"name": "Diagnosis", "desc": "you see every foe's health, and what it is weak to"},
+		"spells": [
+			{"id": "sever", "name": "Sever", "type": "sever", "learn": 1,
+				"desc": "a precise cut that cripples a foe: it can't run or charge for 6 seconds",
+				"changes": {3: "a foe already crippled is disarmed instead: it can't attack for 6 seconds"},
+				"steps": {
+					1: {"cost": 8.0, "windup": 0.2, "damage": 8.0, "duration": 6.0, "disarm": false},
+					2: {"damage": 10.0},
+					3: {"disarm": true},
+					4: {"damage": 12.0},
+					5: {"damage": 14.0},
+				}},
+			{"id": "mend", "name": "Mend", "type": "mend", "learn": 2,
+				"desc": "heal yourself and your creatures nearby, and cure poison",
+				"steps": {2: {"cost": 12.0, "windup": 0.35, "heal": 25.0}, 4: {"heal": 32.0}, 5: {"heal": 40.0}}},
+			{"id": "transfer", "name": "Transfer", "type": "transfer", "learn": 4,
+				"desc": "move your poison and your burned body parts onto the foe you aim at",
+				"steps": {4: {"cost": 10.0, "windup": 0.25}}},
+			{"id": "amputate", "name": "Amputate", "type": "amputate", "learn": 5,
+				"desc": "cripple and disarm a foe below half health for the rest of the fight",
+				"steps": {5: {"cost": 16.0, "windup": 0.3}}},
 		],
 	},
 }

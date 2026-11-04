@@ -83,6 +83,9 @@ var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, co
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
+var grafts := {}  # Grafter: body part -> monster kind, for the rest of the climb
+var graft_order: Array = []  # parts, oldest graft first
+var graft_drops: Array = []  # grafts lying on the floor: {pos, kind, t}
 var chasms: Array = []  # gaps in the floor (Rect2): jump across or fall
 var chasm_bodies: Array = []
 var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
@@ -289,6 +292,7 @@ func _physics_process(delta: float) -> void:
 
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
 func _update_spell_fields(delta: float) -> void:
+	_update_grafts(delta)
 	_update_ground(delta)
 	_update_runes(delta)
 	_update_flames(delta)
@@ -374,6 +378,9 @@ func _start_floor(n: int) -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
 		e.remove_from_group("enemies")
+	for a in get_tree().get_nodes_in_group("allies"):  # calls end on every new floor
+		a.queue_free()
+		a.remove_from_group("allies")
 	for c in get_children():
 		if "reflected" in c:
 			c.queue_free()
@@ -467,7 +474,7 @@ func _arrive() -> void:
 		burned = burned or b.burned
 		b.burned = false
 	player.poison_t = 0.0  # the rest at the stair cures poison too
-	var healed := minf(player.max_hp - player.hp, player.max_hp * 0.35)
+	var healed := minf(player.max_hp - player.hp, player.max_hp * (0.45 if player.has_bond("surgeon") else 0.35))  # Steady Hands
 	player.hp += healed
 	player.sta = player.max_sta
 	if burned:
@@ -734,6 +741,8 @@ func holds_attack(e) -> bool:
 
 ## A monster asks for a turn to attack. True if it may go ahead.
 func request_attack(e) -> bool:
+	if e.disarm_t > 0.0:
+		return false  # Surgeon: a disarmed foe can't start an attack
 	if e in attackers or e.challenged_t > 0.0:  # Challenged foes come at you regardless
 		return true
 	if not can_attack():
@@ -796,6 +805,21 @@ func dev_spawn(kind: String):
 func enemies() -> Array:
 	return get_tree().get_nodes_in_group("enemies").filter(
 		func(e): return is_instance_valid(e) and not e.dead)
+
+
+## Covenant's called creatures.
+func allies() -> Array:
+	return get_tree().get_nodes_in_group("allies").filter(
+		func(e): return is_instance_valid(e) and not e.dead)
+
+
+func spawn_ally(kind: String, pos: Vector2, step: int, seconds: float):
+	var e = EnemyScript.new()
+	e.setup_ally(kind, self, step, seconds)
+	e.position = pos.clamp(room.position + Vector2(30, 30), room.end - Vector2(30, 30))
+	add_child(e)
+	fx_ring(e.position, Color(0.6, 1.0, 0.75), 30.0, 0.35, 3.0)
+	return e
 
 
 ## Adds a monster to the room (bosses calling help, tests).
@@ -993,6 +1017,38 @@ func rubble_slow(pos: Vector2) -> float:
 	return 1.0
 
 
+## Which body part a monster's graft binds to.
+const GRAFT_PART := {
+	"slime": "heart", "archer": "brow", "knight": "hand", "bat": "legs", "thunderling": "throat",
+	"lurker": "back", "shellback": "heart", "cinder": "throat", "smith": "hand", "scorpling": "back",
+	"ram": "legs", "wisp": "legs", "bloomcap": "throat", "thornhound": "legs", "mongrel": "hand",
+}
+
+
+static func graft_part(kind: String) -> String:
+	return GRAFT_PART.get(kind, "hand")
+
+
+## Binds a graft to its body part, if that part is still free.
+func add_graft(kind: String) -> bool:
+	var part := graft_part(kind)
+	if grafts.has(part):
+		return false
+	grafts[part] = kind
+	graft_order.append(part)
+	fx_text(player.global_position + Vector2(0, -44), "Grafted: %s to your %s" % [kind, part], Color(0.75, 0.55, 0.7))
+	sfx("hit_slime", 0.8)
+	return true
+
+
+func _update_grafts(delta: float) -> void:
+	for g in graft_drops:
+		g["t"] -= delta
+		if player != null and player.global_position.distance_to(g["pos"]) < 24.0 and add_graft(g["kind"]):
+			g["t"] = 0.0
+	graft_drops = graft_drops.filter(func(g): return g["t"] > 0.0)
+
+
 func in_sigil(pos: Vector2) -> bool:
 	for s in sigils:
 		if pos.distance_to(s["pos"]) < s["r"]:
@@ -1128,6 +1184,9 @@ func on_enemy_killed(e) -> void:
 			o.take_hit(e.overcharge_dmg, Vector2.ZERO)
 		light_flash(e.global_position, Color(0.95, 0.89, 0.42), 1.6, 1.8, 0.35)
 		sfx("zap", 0.9)
+	# Grafter's Grafting: slain monsters sometimes leave a graft.
+	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < 0.3:
+		graft_drops.append({"pos": e.global_position, "kind": e.kind, "t": 20.0})
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.
