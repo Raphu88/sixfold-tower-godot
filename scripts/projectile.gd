@@ -14,12 +14,28 @@ var force := 140.0
 var hit: Array = []
 var style := "arrow"  # or "blade": a conjured blade
 var tint := Color.WHITE
+var return_to = null  # Recall: blades that come back to this node
+var out_t := 0.0  # how long before a recalled blade turns back
+var returning := false
 
 
 func _physics_process(delta: float) -> void:
 	position += vel * delta
 	life -= delta
-	if life <= 0.0 or not main.room.has_point(position):
+	if return_to != null and is_instance_valid(return_to):
+		# Recall: fly out, turn back (after a while, a hit, or a wall), and
+		# cut again on the way home.
+		out_t -= delta
+		if not returning and (out_t <= 0.0 or not hit.is_empty() or not main.room.has_point(position)):
+			returning = true
+			hit.clear()
+		if returning:
+			var home: Vector2 = return_to.global_position - position
+			vel = home.normalized() * maxf(vel.length(), 520.0)
+			if home.length() < 18.0 or life <= -1.5:
+				queue_free()
+				return
+	elif life <= 0.0 or not main.room.has_point(position):
 		queue_free()
 		return
 	# Crosswind: a wall of wind turns enemy arrows back at their shooter.
@@ -32,7 +48,7 @@ func _physics_process(delta: float) -> void:
 				main.fx_burst(position, vel.normalized(), w["color"], 6, 180.0)
 				break
 	for pl in main.pillars:
-		if position.distance_to(pl["pos"]) < pl["r"]:
+		if return_to == null and position.distance_to(pl["pos"]) < pl["r"]:
 			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
 			main.sfx("arrow_hit", 1.2, -8.0)
 			queue_free()

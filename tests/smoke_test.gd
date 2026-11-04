@@ -94,7 +94,9 @@ func _regard_tests() -> void:
 	_check(main.profile.choose_bond({"water": 6.0, "air": 4.0}, dodgy) == "tidecaller", "mostly Water and lots of dodging: Tidecaller")
 	_check(main.profile.choose_bond({"air": 10.0}, {"brow": 10.0}) == "hunter", "Air and lots of parrying: Hunter")
 	_check(main.profile.choose_bond({"air": 10.0}, {"hand": 10.0}) == "stormcaller", "Air and lots of striking: Stormcaller")
-	_check(main.profile.choose_bond({"iron": 10.0}, dodgy) == "blade_forger", "...the essence wins over play style")
+	_check(main.profile.choose_bond({"iron": 10.0}, dodgy) == "rune_artist", "Iron and lots of dodging: Rune Artist (the essence wins over play style)")
+	_check(main.profile.choose_bond({"iron": 10.0}, {"hand": 10.0}) == "blade_forger", "Iron and lots of striking: Blade Forger")
+	_check(main.profile.choose_bond({"fire": 10.0}, dodgy) == "flameblade", "Fire: Flameblade")
 	main.floor_num = 3
 	for e in main.enemies():
 		_slay(e)
@@ -546,6 +548,163 @@ func _body_part_tests() -> void:
 	main.dev_set_mark("throat", "warden", 2)
 	main.dev_set_mark("back", "hunter", 1)
 	_check(p.bonds.has("throat") and p.bonds.has("back"), "the throat and back can hold marks")
+
+
+func _wyvern_bond_tests() -> void:
+	print("the Wyvern's bonds")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	_mark("hand", "blade_forger", 5)
+	_mark("heart", "flameblade", 5)
+	_mark("brow", "rune_artist", 5)
+	var ok := true
+	for part in ["hand", "heart", "brow"]:
+		ok = ok and p.bonds[part].spells().size() == 4
+	_check(ok, "at step 5 each Wyvern bond knows four spells")
+	var proj := func(): return main.get_children().filter(func(c): return "return_to" in c and c.friendly)
+
+	# Blade Forger.
+	p._equip("sword")
+	var reach: float = p.wdata()["combo"][0]["range"]
+	var far = await _spawn("slime", p.global_position + Vector2(reach * 1.15 + 13.0, 0))
+	far.hp = 999.0
+	p.attack_cd = 0.0
+	p.combo_t = 0.0
+	p._melee()
+	_check(far.hp < 999.0, "Long Edge: strikes reach farther")
+	far.queue_free()
+	await _frames(1)
+	p._equip("fists")
+	var before: int = proj.call().size()
+	_cast("hand", "conjured_blades")
+	_check(proj.call().size() - before == 7, "Weapon Memory: with fists, Conjured Blades throws more, smaller blades (%d)" % (proj.call().size() - before))
+	p._equip("sword")
+	for c in proj.call():
+		c.queue_free()
+	await _frames(1)
+	_cast("hand", "recall")
+	var thrown: Array = proj.call()
+	await _wait(0.6)
+	_check(thrown.size() == 3 and thrown.any(func(c): return is_instance_valid(c) and c.returning), "Recall: the blades turn back toward you")
+	for c in proj.call():
+		c.queue_free()
+	var near = await _spawn("slime", p.global_position + Vector2(40, 0))
+	near.hp = 999.0
+	_cast("hand", "bladeward")
+	await _wait(0.5)
+	_check(p.bladeward_t > 0.0 and near.hp < 999.0, "Bladeward: orbiting blades cut a foe that comes close")
+	near.queue_free()
+	p.bladeward_t = 0.0
+	await _frames(1)
+	before = proj.call().size()
+	_cast("hand", "thousand_edges")
+	_check(proj.call().size() - before >= 14, "Thousand Edges: a storm of blades")
+	for c in proj.call():
+		c.queue_free()
+
+	# Flameblade.
+	var chain: Array = p.wdata()["combo"]
+	p.combo = chain.size() - 1
+	p.combo_t = 1.0
+	p.attack_cd = 0.0
+	p._melee()
+	_check(is_equal_approx(p.attack_cd, chain[0]["recover"] * 1.0), "Hot Blood: even the finisher recovers fast")
+	var dummy = await _spawn("knight", p.global_position + Vector2(30, 0))
+	dummy.hp = 9999.0
+	dummy.max_hp = 9999.0
+	p.heat = 0.0
+	for i in 4:
+		p.attack_cd = 0.0
+		p._melee()
+	_check(p.heat >= 40.0, "Heat builds with each strike in a row (%d)" % int(p.heat))
+	var hp0: float = dummy.hp
+	p.heat = 0.0
+	p.combo = 0
+	p.combo_t = 0.0
+	p.attack_cd = 0.0
+	p._melee()
+	var cold: float = hp0 - dummy.hp
+	hp0 = dummy.hp
+	p.heat = 100.0
+	p.combo = 0
+	p.combo_t = 0.0
+	p.attack_cd = 0.0
+	p._melee()
+	var hot: float = hp0 - dummy.hp
+	_check(hot > cold * 1.3, "...and a hot weapon hits harder (%.0f vs %.0f)" % [hot, cold])
+	_cast("heart", "kindle_blade")
+	_check(p.kindle_t > 0.0, "Kindle Blade sets the weapon burning")
+	p.kindle_t = 0.5
+	p.attack_cd = 0.0
+	p._melee()
+	_check(p.kindle_t >= 2.0, "...and at step 3+ landing strikes keeps it burning")
+	var waves0: int = main.waves.size()
+	_cast("heart", "flame_lash")
+	_check(main.waves.size() == waves0 + 1, "Flame Lash throws a wave of fire")
+	main.waves.clear()
+	_cast("heart", "searing_parry")
+	hp0 = dummy.hp
+	p.parry_t = 0.3
+	p.aim = Vector2.RIGHT
+	p.receive_attack(10.0, dummy)
+	_check(dummy.hp < hp0, "Searing Parry: a parry while kindled explodes against the attacker")
+	p.heat = 100.0
+	hp0 = dummy.hp
+	_cast("heart", "overheat")
+	_check(hp0 - dummy.hp >= 50.0 and p.heat == 0.0, "Overheat releases all the heat in one blow (%.0f)" % (hp0 - dummy.hp))
+	dummy.queue_free()
+	p.kindle_t = 0.0
+	await _frames(1)
+
+	# Rune Artist.
+	var b = p.bonds["hand"]
+	b.select(0)
+	p.cast_part = ""
+	p._try_cast("hand")
+	_check(p.cast_total < b.windup(), "Steady Mind: every spell winds up faster")
+	p.cast_t = 0.0
+	_cast("brow", "rune_trap")
+	p.aim = Vector2.UP
+	_cast("brow", "rune_trap")
+	_check(main.runes.size() == 2, "Rune Trap lays runes")
+	var walker = await _spawn("slime", p.global_position + Vector2(0, 200))
+	walker.hp = 999.0
+	walker.global_position = main.runes[0]["pos"]
+	main._update_runes(0.016)
+	_check(walker.hp < 999.0 and main.runes.is_empty(), "a foe on a rune sets it off, and Linked Runes sets off the rest")
+	walker.queue_free()
+	p.aim = Vector2.RIGHT
+	_cast("brow", "inscribe")
+	_check(p.rune_gear == "sharpness", "Inscribe writes Sharpness on your gear")
+	_cast("brow", "inscribe")
+	_check(p.rune_gear == "warding", "...and casting again changes it to Warding")
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(20.0, null)
+	_check(is_equal_approx(p.MAX_HP - p.hp, 15.0), "Warding: you take less damage")
+	p.rune_gear = ""
+	var intruder = await _spawn("slime", p.global_position + Vector2(20, 0))
+	_cast("brow", "ward_circle")
+	main._update_runes(0.016)
+	_check(intruder.global_position.distance_to(p.global_position) >= 75.0, "Ward Circle: foes can't stand inside it")
+	intruder.queue_free()
+	main.wards.clear()
+	_cast("brow", "grand_sigil")
+	var hb = p.bonds["hand"]
+	hb.select(0)
+	hb.essence = 0.0
+	hb.burned = false
+	p.cast_part = "hand"
+	p._release_cast()
+	_check(not hb.burned, "Grand Sigil: spells cast inside it cost nothing")
+	main.sigils.clear()
 
 
 func _menu_tests() -> void:
@@ -1173,6 +1332,7 @@ func _run() -> void:
 	await _wyvern_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
+	await _wyvern_bond_tests()
 	await _body_part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

@@ -186,6 +186,35 @@ func _draw_fields() -> void:
 	if main == null:
 		return
 	var t := Time.get_ticks_msec() * 0.001
+	for rn in main.runes:
+		var rc: Color = rn["color"]
+		var rp: Vector2 = rn["pos"]
+		draw_circle(rp, rn["r"], Color(rc, 0.12))
+		draw_arc(rp, rn["r"], 0.0, TAU, 24, Color(rc, 0.75), 1.5)
+		for i in 3:
+			var ra := t * 0.8 + TAU * i / 3.0
+			draw_line(rp + Vector2.from_angle(ra) * 6.0, rp + Vector2.from_angle(ra + 2.0) * rn["r"] * 0.8, Color(rc, 0.6), 1.5)
+		if rn["linked"]:
+			for other in main.runes:
+				if other != rn:
+					draw_line(rp, other["pos"], Color(rc, 0.15), 1.0)
+	for wd in main.wards:
+		var wc: Color = wd["color"]
+		var wa: float = clampf(wd["t"] / 0.5, 0.0, 1.0)
+		draw_arc(wd["pos"], wd["r"], 0.0, TAU, 48, Color(wc, 0.8 * wa), 3.0)
+		for i in 12:
+			var ta := TAU * i / 12.0 - t * 0.5
+			var tp: Vector2 = wd["pos"] + Vector2.from_angle(ta) * wd["r"]
+			draw_line(tp, tp + Vector2.from_angle(ta) * 7.0, Color(wc, 0.7 * wa), 2.0)
+	for sg in main.sigils:
+		var sc: Color = sg["color"]
+		var sa: float = clampf(sg["t"] / 0.5, 0.0, 1.0)
+		draw_circle(sg["pos"], sg["r"], Color(sc, 0.06 * sa))
+		draw_arc(sg["pos"], sg["r"], 0.0, TAU, 64, Color(sc, 0.7 * sa), 2.5)
+		draw_arc(sg["pos"], sg["r"] * 0.7, t * 0.3, t * 0.3 + TAU, 48, Color(sc, 0.4 * sa), 1.5)
+		for i in 6:
+			var ga := TAU * i / 6.0 + t * 0.3
+			draw_circle(sg["pos"] + Vector2.from_angle(ga) * sg["r"] * 0.85, 3.0, Color(sc, 0.7 * sa))
 	for fl in main.flames:
 		var fade: float = clampf(fl["t"] / 0.5, 0.0, 1.0)
 		var fp: Vector2 = fl["pos"]

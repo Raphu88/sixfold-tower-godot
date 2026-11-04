@@ -82,6 +82,9 @@ var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, 
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
+var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
+var wards: Array = []  # Ward Circles foes can't enter: {pos, r, t, color}
+var sigils: Array = []  # Grand Sigils, free casting inside: {pos, r, t, color}
 var slowmo := false  # time slows while a spell ring is open
 var player_glow: PointLight2D
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
@@ -276,6 +279,7 @@ func _physics_process(delta: float) -> void:
 
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
 func _update_spell_fields(delta: float) -> void:
+	_update_runes(delta)
 	_update_flames(delta)
 	track_t -= delta
 	if not rod.is_empty():
@@ -370,6 +374,11 @@ func _start_floor(n: int) -> void:
 	maelstroms.clear()
 	rains.clear()
 	flames.clear()
+	runes.clear()
+	wards.clear()
+	sigils.clear()
+	if player != null:
+		player.rune_gear = ""  # runes on gear last one floor
 	track_t = 0.0
 	for b in pillar_bodies:
 		b.queue_free()
@@ -835,6 +844,62 @@ func _break_against_wall(e, w: Dictionary) -> void:
 	e.take_hit(w["dmg"], Vector2.ZERO, 0.0, true)
 	if player.has_bond("tidecaller"):
 		e.stagger(1.2)  # Undercurrent: driven into a wall, stunned
+
+
+## Rune Artist's fields: traps that go off under foes, circles foes can't enter.
+func _update_runes(delta: float) -> void:
+	for w in wards:
+		w["t"] -= delta
+	wards = wards.filter(func(w): return w["t"] > 0.0)
+	for s in sigils:
+		s["t"] -= delta
+	sigils = sigils.filter(func(s): return s["t"] > 0.0)
+	for w in wards:
+		for e in enemies():
+			var to: Vector2 = e.global_position - w["pos"]
+			var edge: float = w["r"] + e.radius
+			if to.length() < edge:
+				var out := to.normalized() if to.length() > 0.1 else Vector2.RIGHT
+				e.global_position = w["pos"] + out * edge
+				e.knock = out * 140.0
+	for r in runes:
+		r["t"] -= delta
+	runes = runes.filter(func(r): return r["t"] > 0.0)
+	var fired := false
+	for r in runes:
+		for e in targets():
+			if e.global_position.distance_to(r["pos"]) < r["r"] + e.radius:
+				fired = true
+				r["fire"] = true
+				if r["linked"]:
+					for other in runes:
+						other["fire"] = true
+				break
+	if fired:
+		for r in runes.filter(func(x): return x.get("fire", false)):
+			_detonate_rune(r)
+		runes = runes.filter(func(x): return not x.get("fire", false))
+
+
+func _detonate_rune(r: Dictionary) -> void:
+	for e in targets():
+		var to: Vector2 = e.global_position - r["pos"]
+		if to.length() < r["blast"] + e.radius:
+			e.take_hit(r["damage"], to.normalized(), 180.0, true)
+			if not e.dead:
+				e.stagger(0.6)
+	fx_ring(r["pos"], r["color"], r["blast"], 0.35, 5.0)
+	fx_burst(r["pos"], Vector2.ZERO, r["color"], 14, 260.0)
+	light_flash(r["pos"], r["color"], 1.3, 1.4, 0.3)
+	sfx("zap", 0.8)
+	shake(4.0)
+
+
+func in_sigil(pos: Vector2) -> bool:
+	for s in sigils:
+		if pos.distance_to(s["pos"]) < s["r"]:
+			return true
+	return false
 
 
 ## Burning floor: hurts the climber standing in it, a little at a time.
