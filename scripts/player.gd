@@ -191,6 +191,8 @@ func _physics_process(delta: float) -> void:
 		# A wind-up can't be cancelled: no moving, no rolling.
 		cast_t -= delta
 		velocity = Vector2.ZERO
+		if has_bond("flame_contractor"):  # Casting Stride: walk while winding up
+			velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * WALK * 0.75
 		if cast_t <= 0.0:
 			_release_cast()
 	elif roll_t > 0.0:
@@ -221,6 +223,8 @@ func _physics_process(delta: float) -> void:
 			sta_delay = 0.6
 		if rune_gear == "swiftness":
 			spd *= 1.15
+		if _stubborn():
+			spd *= 1.2
 		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper"))
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
@@ -389,7 +393,7 @@ func _tick_timers(delta: float) -> void:
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0))  # Deep Lungs; a burned throat
+		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0))  # Deep Lungs; a burned throat; Stubborn Heart
 
 
 func _winded() -> void:
@@ -463,8 +467,8 @@ func _check_fall() -> void:
 	main.fx_text(global_position + Vector2(0, -40), "Fell! -%d" % int(dmg), Color(0.85, 0.7, 0.6))
 	main.sfx("hurt", 0.8)
 	main.shake(5.0)
-	if hp <= 0.0 and main.dev_no_death:
-		hp = 1.0
+	if hp <= 0.0 and _defy_death():
+		hp = maxf(hp, 1.0)
 	if hp <= 0.0:
 		hp = 0.0
 		dead = true
@@ -536,6 +540,10 @@ func _melee() -> bool:
 	if has_bond("flameblade"):
 		recover = minf(recover, chain[0]["recover"])  # Hot Blood: chains never slow down
 	attack_cd = recover * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
+	if _stubborn():
+		attack_cd *= 0.8
+	if desperate_t > 0.0:
+		attack_cd *= 1.0 - 0.4 * (1.0 - hp / max_hp)
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
 	lunge_t = 0.08
@@ -553,6 +561,8 @@ func _melee() -> bool:
 		dmg *= 1.0 + heat / 200.0  # Heat: up to half again as hard
 	if kindle_t > 0.0:
 		dmg += kindle_dmg
+	if desperate_t > 0.0:
+		dmg *= 1.0 + 1.5 * (1.0 - hp / max_hp)  # Desperation
 	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
 	var hits := 0
 	for e in main.targets():
@@ -654,6 +664,12 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		dmg *= 3.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 52.0), "Unseen", Color(0.85, 0.6, 0.5))
 	vanish_t = 0.0  # striking ends Vanish
+	rekindle_fought = true
+	if ember_t > 0.0:
+		ember_t = 0.0
+		main.fx_text(global_position + Vector2(0, -44), "Rekindled", Color(1.0, 0.6, 0.3))
+		main.light_flash(global_position, Color(1.0, 0.5, 0.25), 1.6, 1.8, 0.4)
+		main.sfx("crit", 0.8)
 	# Venomist's Neurotoxin: a hit on a poisoned foe paralyzes it.
 	if neuro_t > 0.0 and e.venom > 0:
 		neuro_t = 0.0
@@ -766,7 +782,8 @@ func _try_cast(part: String) -> bool:
 
 func _release_cast() -> void:
 	var b = bonds[cast_part]
-	var paid: String = b.pay(main.in_sigil(global_position))
+	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and b.spell()["type"] == "wingburst")
+	var paid: String = b.pay(free)
 	var part_name: String = BondScript.PART_NAMES[cast_part]
 	if paid == "burned":
 		# Overdraw: a weaker, desperate cast, and the body part burns.
@@ -786,6 +803,8 @@ func _release_cast() -> void:
 		main.shake(7.0)
 		main.hurt_flash = 0.35
 		hp -= cost_hp
+		if hp <= 0.0 and _defy_death():
+			hp = maxf(hp, 1.0)
 		if hp <= 0.0:
 			hp = 0.0
 			dead = true
@@ -831,9 +850,121 @@ var jump_vel := Vector2.ZERO
 var glide_left := 0.0  # Flamewing's Phoenix Glide: extra air time while jump is held
 var last_safe := Vector2.ZERO  # the last solid ground you stood on
 
+# The Firebird's bonds.
+var aura_part := ""  # Heat Aura: the mark it burns from ("" when off)
+var aura_time := 0.0
+var aura_dmg := 3.0
+var aura_r := 62.0
+var aura_drain := 2.5
+var aura_grows := false
+var aura_heat := 0.0  # built up while the aura burns foes; Wingburst releases it
+var aura_tick := 0.0
+var aura_color := Color(1.0, 0.68, 0.28)
+var warmth_t := 0.0
+var warmth_heal := 2.5
+var firebird_t := 0.0  # Firebird Form
+var rekindle_t := 0.0  # Rekindle: burning now, paid back later
+var rekindle_total := 5.0
+var rekindle_loss := 0.0
+var rekindle_lost := 0.0
+var rekindle_fought := false
+var rekindle_spread := false
+var rekindle_tick := 0.0
+var desperate_t := 0.0
+var pyre_t := 0.0
+var pyre_dmg := 30.0
+var phoenix_t := 0.0
+var ember_t := 0.0  # Last Ember: burning at 1 health; strike to stay standing
+var ember_used := false
+
 
 var poison_t := 0.0  # poisoned: a little damage every half second
 var poison_tick := 0.0
+
+
+## Stubborn Heart: below a third of your health you move and recover faster.
+func _stubborn() -> bool:
+	return has_bond("rekindler") and hp < max_hp / 3.0
+
+
+## Something would kill you. True if you stay standing instead (the caller
+## keeps you at 1 health): the dev tool, Phoenix Heart, Pyre Oath, Last Ember.
+func _defy_death() -> bool:
+	if main.dev_no_death:
+		return true
+	if phoenix_t > 0.0:
+		main.fx_text(global_position + Vector2(0, -44), "Phoenix Heart", Color(1.0, 0.6, 0.3))
+		return true
+	if pyre_t > 0.0:
+		pyre_t = 0.0
+		main.explode(global_position, 100.0, pyre_dmg, Color(1.0, 0.4, 0.2))
+		main.fx_text(global_position + Vector2(0, -44), "Pyre Oath", Color(1.0, 0.5, 0.25))
+		return true
+	if has_bond("rekindler") and not ember_used and ember_t <= 0.0:
+		ember_used = true
+		ember_t = 3.0
+		main.fx_text(global_position + Vector2(0, -44), "Last Ember: strike to stay standing!", Color(1.0, 0.5, 0.25))
+		main.sfx("burn", 0.7)
+		return true
+	return ember_t > 0.0  # still burning on your last ember
+
+
+func _tick_fire_bonds(delta: float) -> void:
+	warmth_t -= delta
+	firebird_t -= delta
+	desperate_t -= delta
+	pyre_t -= delta
+	phoenix_t -= delta
+	# Last Ember: burn out unless you land a hit in time.
+	if ember_t > 0.0:
+		ember_t -= delta
+		hp = 1.0
+		if ember_t <= 0.0 and not dead:
+			hp = 0.0
+			dead = true
+			main.sfx("death", 1.0, 0.0, 0.0)
+			main.on_player_died()
+			return
+	# Heat Aura: burns foes near you, drains its mark, builds heat.
+	if aura_part != "":
+		var b = bonds.get(aura_part)
+		if b == null or b.essence <= 0.0:
+			aura_part = ""
+		else:
+			b.essence = maxf(0.0, b.essence - aura_drain * delta)
+			aura_time += delta
+			aura_tick -= delta
+			if warmth_t > 0.0:
+				hp = minf(max_health(), hp + warmth_heal * delta)
+			if aura_tick <= 0.0:
+				aura_tick = 0.5
+				var r := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
+				var dmg := aura_dmg * (1.0 + minf(aura_time / 10.0, 1.0) if aura_grows else 1.0)
+				for e in main.targets():
+					if e.global_position.distance_to(global_position) < r + e.radius:
+						e.take_hit(dmg, Vector2.ZERO, 0.0)
+						aura_heat = minf(60.0, aura_heat + dmg)
+	# Rekindle: lose health now, regain twice that later if you kept fighting.
+	if rekindle_t > 0.0:
+		rekindle_t -= delta
+		rekindle_tick -= delta
+		if rekindle_tick <= 0.0:
+			rekindle_tick = 0.5
+			var loss := rekindle_loss * 0.5 / rekindle_total
+			if hp - loss > 1.0:
+				hp -= loss
+				rekindle_lost += loss
+			if rekindle_spread:
+				for e in main.targets():
+					if e.global_position.distance_to(global_position) < 60.0 + e.radius:
+						e.take_hit(3.0, Vector2.ZERO, 0.0)
+		if rekindle_t <= 0.0:
+			if rekindle_fought:
+				hp = minf(max_health(), hp + rekindle_lost * 2.0)
+				main.fx_text(global_position + Vector2(0, -44), "Rekindled +%d" % int(rekindle_lost * 2.0), Color(1.0, 0.6, 0.3))
+				main.sfx("ready", 0.8)
+			else:
+				main.fx_text(global_position + Vector2(0, -44), "the fire goes out", Color(0.7, 0.6, 0.55))
 
 
 ## An overdrawn quake knocks you down: a short stagger of your own.
@@ -860,8 +991,8 @@ func _tick_poison(delta: float) -> void:
 	poison_tick = 0.5
 	hp -= 2.0
 	main.fx_text(global_position + Vector2(0, -24), "-2", Color(0.55, 0.85, 0.35))
-	if hp <= 0.0 and main.dev_no_death:
-		hp = 1.0
+	if hp <= 0.0 and _defy_death():
+		hp = maxf(hp, 1.0)
 	if hp <= 0.0:
 		hp = 0.0
 		dead = true
@@ -871,7 +1002,7 @@ func _tick_poison(delta: float) -> void:
 
 ## Standing on burning floor: a small burn every half second (rolling through is free).
 func stand_in_fire(delta: float) -> void:
-	if iframes > 0.0 or dead or in_air():
+	if iframes > 0.0 or dead or in_air() or has_bond("flamewing"):  # Fireproof
 		return
 	fire_t += delta
 	if fire_t < 0.5:
@@ -880,8 +1011,8 @@ func stand_in_fire(delta: float) -> void:
 	hp -= 4.0
 	main.fx_text(global_position + Vector2(0, -24), "-4", Color(1.0, 0.55, 0.25))
 	main.sfx("burn", 1.3, -10.0)
-	if hp <= 0.0 and main.dev_no_death:
-		hp = 1.0
+	if hp <= 0.0 and _defy_death():
+		hp = maxf(hp, 1.0)
 	if hp <= 0.0:
 		hp = 0.0
 		dead = true
@@ -961,8 +1092,8 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	main.hitstop(0.1)
 	main.shake(8.0)
 	main.hurt_flash = 0.35
-	if hp <= 0.0 and main.dev_no_death:
-		hp = 1.0  # dev tool: no dying
+	if hp <= 0.0 and _defy_death():
+		hp = maxf(hp, 1.0)
 	if hp <= 0.0:
 		hp = 0.0
 		dead = true
@@ -1006,6 +1137,7 @@ func _break_barrier() -> void:
 ## Bond effects that run on a timer: barrier, absorb, anchor, drink.
 func _tick_bond_effects(delta: float) -> void:
 	_tick_poison(delta)
+	_tick_fire_bonds(delta)
 	neuro_t -= delta
 	vanish_t -= delta
 	absorb_t -= delta
@@ -1197,6 +1329,19 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 func _draw_overlay() -> void:
 	var c := overlay
 	modulate.a = 0.35 if vanish_t > 0.0 else 1.0
+	if aura_part != "":
+		var ar := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
+		var tt2 := Time.get_ticks_msec() * 0.001
+		c.draw_circle(Vector2.ZERO, ar, Color(aura_color, 0.07 + 0.05 * sin(tt2 * 6.0)))
+		c.draw_arc(Vector2.ZERO, ar, 0.0, TAU, 40, Color(aura_color, 0.35), 2.0)
+		if firebird_t > 0.0:
+			for sgn in [-1.0, 1.0]:
+				var wing := PackedVector2Array([Vector2(0, -4), Vector2(sgn * 34.0, -18.0 + 4.0 * sin(tt2 * 8.0)), Vector2(sgn * 20.0, 6.0)])
+				c.draw_colored_polygon(wing, Color(1.0, 0.6, 0.25, 0.55))
+	if rekindle_t > 0.0 or ember_t > 0.0:
+		var tt3 := Time.get_ticks_msec() * 0.001
+		for i in 4:
+			c.draw_circle(Vector2(sin(tt3 * 7.0 + i) * 8.0, -10.0 - fmod(tt3 * 30.0 + i * 6.0, 18.0)), 2.0, Color(1.0, 0.45, 0.25, 0.8))
 	var tt := Time.get_ticks_msec() * 0.001
 	if bladeward_t > 0.0:
 		for i in 4:

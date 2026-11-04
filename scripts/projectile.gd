@@ -16,6 +16,9 @@ var style := "arrow"  # or "blade": a conjured blade
 var tint := Color.WHITE
 var poison := 0.0  # seconds of poison a landed hit gives the climber
 var venom := 0  # Venomist's spit: poison stacks it puts on a foe
+var explode_r := 0.0  # a fireball: explodes on impact (or at the end of its flight)
+var explode_dmg := 0.0
+var cluster := 0  # Cluster Blast: splits into this many explosions
 var return_to = null  # Recall: blades that come back to this node
 var out_t := 0.0  # how long before a recalled blade turns back
 var returning := false
@@ -38,6 +41,7 @@ func _physics_process(delta: float) -> void:
 				queue_free()
 				return
 	elif life <= 0.0 or not main.room.has_point(position):
+		_burst()
 		queue_free()
 		return
 	# Crosswind: a wall of wind turns enemy arrows back at their shooter.
@@ -56,6 +60,7 @@ func _physics_process(delta: float) -> void:
 		return
 	for pl in main.pillars:
 		if return_to == null and position.distance_to(pl["pos"]) < pl["r"]:
+			_burst()
 			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
 			main.sfx("arrow_hit", 1.2, -8.0)
 			queue_free()
@@ -68,6 +73,10 @@ func _physics_process(delta: float) -> void:
 				hit.append(e)
 				if venom > 0:
 					e.add_venom(venom)
+				if explode_r > 0.0:
+					_burst()
+					queue_free()
+					return
 				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected)
 				if not pierce:
 					queue_free()
@@ -94,6 +103,19 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+## A fireball goes off: one explosion, or a cluster of three around the impact.
+func _burst() -> void:
+	if explode_r <= 0.0:
+		return
+	var r := explode_r
+	explode_r = 0.0
+	if cluster > 0:
+		for i in cluster:
+			main.explode(position + Vector2.from_angle(TAU * i / cluster + vel.angle()) * r * 0.8, r, explode_dmg, tint)
+	else:
+		main.explode(position, r, explode_dmg, tint)
+
+
 func on_parried(_perfect := false) -> void:
 	reflected = true
 	friendly = true
@@ -112,6 +134,12 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, 5.5, Color(0.08, 0.05, 0.1))
 		draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
 		draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
+		return
+	if style == "fireball":
+		draw_line(-dir * 22.0, Vector2.ZERO, Color(tint, 0.35), 9.0)
+		draw_circle(Vector2.ZERO, 8.0, Color(tint, 0.95))
+		draw_circle(Vector2.ZERO, 4.0, Color(1.0, 0.92, 0.6))
+		draw_circle(Vector2.ZERO, 14.0, Color(tint, 0.18))
 		return
 	if style == "venom":
 		# A glob of venom with a dripping trail.

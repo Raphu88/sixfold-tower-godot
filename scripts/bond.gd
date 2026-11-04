@@ -244,6 +244,30 @@ func cast(p) -> void:
 			_vanish(p)
 		"ashfall":
 			_ashfall(p)
+		"fireball":
+			_fireball(p, 0)
+		"cluster":
+			_fireball(p, 3)
+		"firewall":
+			_firewall(p)
+		"meteor":
+			_meteor(p)
+		"aura":
+			_aura(p)
+		"wingburst":
+			_wingburst(p)
+		"warmth":
+			_warmth(p)
+		"firebirdform":
+			_firebird_form(p)
+		"rekindle":
+			_rekindle(p)
+		"desperation":
+			_desperation(p)
+		"pyre":
+			_pyre(p)
+		"phoenix":
+			_phoenix(p)
 
 
 
@@ -958,3 +982,130 @@ func _ashfall(p) -> void:
 	p.main.ashfall_t = stat("duration")
 	p.main.sfx("gust", 0.4)
 	p.main.light_flash(p.global_position, Color(0.6, 0.5, 0.45), 2.0, 1.0, 0.6)
+
+
+# --- Flame Contractor -----------------------------------------------------------------
+
+func _fireball(p, split: int) -> void:
+	var main = p.main
+	var b = main.spawn_player_arrow(p.global_position + p.aim * (p.radius + 6.0), p.aim * 420.0, damage(), 80.0, false)
+	b.style = "fireball"
+	b.tint = color()
+	b.explode_r = stat("radius")
+	b.explode_dmg = damage()
+	b.cluster = split
+	b.life = 0.15 if _overdrawn() else 1.0  # an overdrawn fireball bursts early, close to you
+	main.sfx("burn", 1.2, -4.0)
+
+
+func _firewall(p) -> void:
+	var center: Vector2 = p.global_position + p.aim * 70.0
+	for pt in _line_points(center, p.aim, stat("length"), 26.0):
+		p.main.add_flame(pt, 18.0, stat("duration"), true)
+	p.main.sfx("burn", 0.9)
+	p.main.light_flash(center, color(), 1.4, 1.2, 0.3)
+
+
+func _meteor(p) -> void:
+	var target = _target_in_aim(p, 300.0)
+	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 180.0
+	p.main.meteors.append({"pos": at, "r": stat("radius"), "dmg": damage(), "t": 0.6, "color": color()})
+	p.main.sfx("charge", 0.4)
+
+
+# --- Flamewing -----------------------------------------------------------------------
+
+# Toggles the aura: on (it drains this mark's essence while it burns) or off.
+func _aura(p) -> void:
+	if p.aura_part != "":
+		p.aura_part = ""
+		p.main.fx_text(p.global_position + Vector2(0, -40), "Aura off", color())
+		return
+	p.aura_part = part
+	p.aura_time = 0.0
+	p.aura_dmg = damage()
+	p.aura_r = stat("radius")
+	p.aura_drain = stat("drain")
+	p.aura_grows = bool(stat("grows"))
+	p.aura_color = color()
+	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.35, 3.0)
+	p.main.sfx("burn", 1.0, -4.0)
+
+
+func _wingburst(p) -> void:
+	var main = p.main
+	var r: float = stat("radius") * (1.5 if p.firebird_t > 0.0 else 1.0)
+	var dmg: float = damage() + p.aura_heat * 0.5
+	for e in main.targets():
+		var to: Vector2 = e.global_position - p.global_position
+		if to.length() < r + e.radius:
+			e.take_hit(dmg, to.normalized(), 220.0, true)
+	p.aura_heat = 0.0
+	main.fx_ring(p.global_position, color(), r, 0.4, 6.0)
+	main.fx_burst(p.global_position, Vector2.ZERO, color(), 26, 340.0)
+	main.light_flash(p.global_position, color(), 2.0, 2.0, 0.4)
+	main.sfx("gust", 0.7)
+	main.sfx("burn", 0.8)
+	main.shake(6.0)
+	if _overdrawn():
+		p.hp = maxf(1.0, p.hp - 5.0)  # an overdrawn Wingburst sears you too
+		main.fx_text(p.global_position + Vector2(0, -30), "-5", color())
+
+
+func _warmth(p) -> void:
+	p.warmth_t = stat("duration")
+	p.warmth_heal = stat("heal")
+	p.main.fx_ring(p.global_position, color(), 40.0, 0.35, 3.0)
+	p.main.sfx("ready", 0.9, -4.0)
+
+
+func _firebird_form(p) -> void:
+	p.firebird_t = stat("duration")
+	if p.aura_part == "":
+		# Turn the aura on too, from whichever mark knows it.
+		for b in p.bonds.values():
+			if b.id == "flamewing":
+				var keep: int = b.selected
+				for i in b.spells().size():
+					if b.spells()[i]["type"] == "aura":
+						b.select(i)
+						b._aura(p)
+				b.select(keep)
+	p.main.fx_ring(p.global_position, color(), 120.0, 0.5, 6.0)
+	p.main.light_flash(p.global_position, color(), 2.4, 2.2, 0.6)
+	p.main.sfx("crit", 0.6)
+
+
+# --- Rekindler ----------------------------------------------------------------------
+
+func _rekindle(p) -> void:
+	var dur: float = stat("duration") * (1.4 if _overdrawn() else 1.0)  # overdrawn: burns longer
+	p.rekindle_t = dur
+	p.rekindle_total = dur
+	p.rekindle_loss = p.max_hp * float(stat("loss"))
+	p.rekindle_lost = 0.0
+	p.rekindle_fought = false
+	p.rekindle_spread = bool(stat("spread"))
+	p.rekindle_tick = 0.0
+	p.main.fx_ring(p.global_position, color(), 30.0, 0.3, 3.0)
+	p.main.sfx("burn", 1.0)
+
+
+func _desperation(p) -> void:
+	p.desperate_t = stat("duration")
+	p.main.fx_ring(p.global_position, color(), 34.0, 0.3, 3.0)
+	p.main.sfx("warn_knight", 1.3, -4.0)
+
+
+func _pyre(p) -> void:
+	p.pyre_t = stat("duration")
+	p.pyre_dmg = damage()
+	p.main.fx_ring(p.global_position, color(), 40.0, 0.35, 3.0)
+	p.main.sfx("charge", 0.8)
+
+
+func _phoenix(p) -> void:
+	p.phoenix_t = stat("duration")
+	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 4.0)
+	p.main.light_flash(p.global_position, color(), 1.8, 1.8, 0.4)
+	p.main.sfx("crit", 0.7)
