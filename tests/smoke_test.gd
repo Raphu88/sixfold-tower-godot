@@ -489,6 +489,66 @@ func _kraken_tower_tests() -> void:
 	main.victory = {}
 
 
+func _menu_tests() -> void:
+	print("menus and the dev tool")
+	await _fresh_main()
+	var p = main.player
+	var menu = main.menu
+	_check(menu != null and not main.menu_open(), "tests skip the title screen")
+	Input.action_press("pause")
+	await _frames(2)
+	Input.action_release("pause")
+	_check(main.menu_open() and menu.page == "pause" and paused, "Esc opens the pause menu and pauses the game")
+	await _frames(3)
+	Input.action_press("pause")
+	await _frames(2)
+	Input.action_release("pause")
+	_check(not main.menu_open() and not paused, "Esc again resumes")
+	# Every page builds without errors.
+	for pg in ["title", "pause", "settings", "controls", "confirm_new", "dev"]:
+		menu.open(pg)
+		await _frames(1)
+	_check(menu.page == "dev" and paused, "every menu page opens")
+	# Dev tool: marks at any step, on any part.
+	main.dev_set_mark("heart", "deepcaller", 4)
+	_check(p.bonds.has("heart") and p.bonds["heart"].id == "deepcaller" and p.bonds["heart"].step == 4, "the dev tool puts a bond on a part at a step")
+	_check(not main.first_climb and main.profile.regarded, "...which ends the bondless first climb")
+	menu._cycle_bond("hand", 1)
+	_check(p.bonds.has("hand"), "cycling a part's bond gives it one")
+	main.dev_set_mark("hand", "", 1)
+	_check(not p.bonds.has("hand"), "...and a mark can be removed")
+	var n0: int = main.enemies().size()
+	main.dev_spawn("shellback")
+	_check(main.enemies().size() == n0 + 1, "the dev tool spawns monsters")
+	main.dev_floor(5)
+	await _frames(2)
+	_check(main.floor_num == 5 and main.enemies().size() == 1 and main.enemies()[0].kind == "kraken", "...jumps to the beast")
+	main.dev_tower("gryphon")
+	await _frames(2)
+	_check(main.tower == "gryphon" and main.floor_num == 1, "...and moves to another tower")
+	# Buttons on the dev page work.
+	var heal: Button = null
+	for b in menu.find_children("*", "Button", true, false):
+		if b.text == "Heal":
+			heal = b
+	p.hp = 10.0
+	if heal != null:
+		heal.pressed.emit()
+	_check(p.hp == p.max_hp, "the Heal button heals")
+	main.dev_no_death = true
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.receive_attack(9999.0, null)
+	_check(not p.dead and p.hp >= 1.0, "no dying: a killing blow leaves you at 1")
+	main.dev_no_death = false
+	# Settings.
+	menu._set_setting("sounds", 0.0)
+	_check(main.audio.sound_level == 0.0, "the sounds slider sets the volume")
+	menu._set_setting("sounds", 1.0)
+	menu.close()
+	_check(not paused and not main.menu_open(), "closing the menu resumes")
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -969,6 +1029,7 @@ func _run() -> void:
 	await _gryphon_tower_tests()
 	await _kraken_tower_tests()
 	await _spell_tests()
+	await _menu_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.

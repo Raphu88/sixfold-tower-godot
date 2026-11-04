@@ -13,7 +13,7 @@ const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
 ## text are readable on a small screen.
 const PHONE_SCALE := 1.5
-const ONE_SHOT := ["weapon", "music", "restart", "new"]
+const ONE_SHOT := ["weapon", "menu"]
 
 var main
 var active := false
@@ -40,9 +40,7 @@ func _layout() -> void:
 		{"id": "parry", "action": "parry", "c": br + Vector2(-150, -278) * k, "r": 42.0 * k},
 		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
 		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
-		{"id": "music", "action": "toggle_music", "c": tr + Vector2(-100, 40) * k, "r": 24.0 * k},
-		{"id": "restart", "action": "restart", "c": tr + Vector2(-160, 40) * k, "r": 24.0 * k},
-		{"id": "new", "action": "new_climber", "c": tr + Vector2(-220, 40) * k, "r": 24.0 * k},
+		{"id": "menu", "action": "pause", "c": tr + Vector2(-104, 40) * k, "r": 28.0 * k},
 	]
 	# One cast button per mark you carry, in these spots around attack.
 	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150)]
@@ -55,6 +53,11 @@ func _layout() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# A menu is open: its own buttons take the touches.
+	if main.menu_open():
+		if event is InputEventScreenTouch and not active:
+			_set_active(true)
+		return
 	# Choosing a tower: a tap on a card picks it.
 	if main.choosing_tower:
 		if event is InputEventScreenTouch:
@@ -174,6 +177,10 @@ func _axis(pos_action: String, neg_action: String, value: float) -> void:
 		Input.action_release(neg_action)
 
 
+func release_all() -> void:
+	_release_all()
+
+
 func _release_all() -> void:
 	stick_touch = -1
 	_set_move(Vector2.ZERO)
@@ -189,7 +196,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	if not active or main.choosing_tower or main.overlay_showing():
+	if not active or main.choosing_tower or main.overlay_showing() or main.menu_open():
 		return  # nothing to press while choosing a tower or during the Regard
 	_layout()
 	var font := ThemeDB.fallback_font
@@ -235,12 +242,8 @@ func _draw() -> void:
 				label = "Swap"
 			"fullscreen":
 				label = "[ ]"
-			"music":
-				label = "Music"
-			"new":
-				label = "New"
-			"restart":
-				label = "R"
+			"menu":
+				label = "Menu"
 		draw_circle(c, r, Color(0, 0, 0, 0.45 if not pressed else 0.6))
 		draw_arc(c, r, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5)
 		if fill > 0.0:

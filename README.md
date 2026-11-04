@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb, and buttons on the right for attack (hold to draw the bow), roll, parry, both spells and weapon swap. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb, and buttons on the right for attack (hold to draw the bow), roll, parry, your marks' spells and weapon swap, and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
@@ -27,11 +27,21 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Switch weapon | 1 Fists, 2 Sword, 3 Bow, or the mouse wheel |
 | Parry | Right click or K |
 | Cast your marks (hand, legs, heart, brow) | Q, E, F, C |
-| Change both bonds' step (testing only) | [ and ] |
+| Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone |
 | Restart | R |
-| New climber (forget all marks and start the first climb again; press twice to confirm) | N, or the New button on a phone |
+| New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
 | Music on/off | M |
 | Show/hide controls | H |
+
+## Menus and the dev tool
+
+The game opens on a **title screen** (Climb, Settings, Dev tools, New climber). During a climb, **Esc** or **P** (or **Menu** on a phone) pauses and opens the **pause menu**: Resume, Restart this climb, Settings, Controls, Dev tools, New climber, Quit to title. **Settings** has music and sound volume, screen shake, and the keyboard controls panel; they're saved.
+
+The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `main.gd`):
+- **Marks:** give any bond to any body part with the arrows, and set its step from 1 to 5. Changes are saved, and giving a mark ends the bondless first climb. Fill essence, or clear every mark.
+- **Climb:** move to another tower, change floor, or go straight to the tower's beast.
+- **Spawn a monster:** any monster or beast, near you.
+- **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room.
 
 ## Towers
 
@@ -118,6 +128,7 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/projectile.gd` | Enemy arrows |
 | `scripts/fx.gd` | Floating text, lightning and wind cones |
 | `scripts/hud.gd` | Health, stamina, bond bars and help text |
+| `scripts/menu.gd` | Title screen, pause menu, settings, controls list and dev tools |
 | `scripts/controls.gd` | Input actions, set up in code |
 | `scripts/touch.gd` | On-screen touch controls |
 | `export_presets.cfg` | Web export settings |

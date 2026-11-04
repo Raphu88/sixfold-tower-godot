@@ -17,6 +17,7 @@ const ProfileScript := preload("res://scripts/profile.gd")
 const Essence := preload("res://scripts/essence.gd")
 const BondScript := preload("res://scripts/bond.gd")
 const Towers := preload("res://scripts/towers.gd")
+const MenuScript := preload("res://scripts/menu.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -64,6 +65,9 @@ var choosing_tower := false  # the tower choice is showing
 var floor_total := 0  # monsters this floor started with
 var dim: CanvasModulate
 var hud
+var touch
+var menu  # title, pause, settings and dev tool (menu.gd)
+var dev_no_death := false  # dev tool: you can't fall
 var new_climber_t := 0.0
 
 # Lingering spell effects in the room
@@ -167,9 +171,18 @@ func _ready() -> void:
 	hud = HudScript.new()
 	hud.main = self
 	layer.add_child(hud)
-	var touch = TouchScript.new()
+	touch = TouchScript.new()
 	touch.main = self
 	layer.add_child(touch)
+	var menu_layer := CanvasLayer.new()
+	menu_layer.layer = 10
+	add_child(menu_layer)
+	menu = MenuScript.new()
+	menu.main = self
+	menu_layer.add_child(menu)
+	# A fresh start (not a restart or a new floor) opens on the title screen.
+	if not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
+		menu.open.call_deferred("title")
 
 
 func _build_walls() -> void:
@@ -225,10 +238,6 @@ func _process(delta: float) -> void:
 		var again := "Tap New again" if touch_active else "Press N again"
 		banner = {"title": "NEW CLIMBER?", "lines": ["%s within 3 seconds to start over." % again, "Your marks and all their growth will be lost."], "t": 3.0}
 		sfx("warn_knight", 1.2, -6.0, 0.0)
-	if Input.is_action_just_pressed("step_up"):
-		_change_step(1)
-	if Input.is_action_just_pressed("step_down"):
-		_change_step(-1)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
 	# The stair opens once most of the floor is down; clearing it all rings the gong.
@@ -698,12 +707,51 @@ func release_attack(e) -> void:
 	attackers.erase(e)
 
 
-func _change_step(by: int) -> void:
-	for b in player.bonds.values():
-		b.step = clampi(b.step + by, 1, 5)
-		b.essence = minf(b.essence, b.capacity())
-	if not player.bonds.is_empty():
-		fx_text(player.global_position + Vector2(0, -44), "Bond step %d" % player.bonds.values()[0].step, Color(1, 1, 1))
+func menu_open() -> bool:
+	return menu != null and menu.is_open()
+
+
+# --- dev tool ----------------------------------------------------------------
+
+## Puts a bond on a body part at a step ("" removes the mark). Saved.
+func dev_set_mark(part: String, id: String, step: int) -> void:
+	if id == "":
+		profile.bonds.erase(part)
+	else:
+		profile.bonds[part] = {"id": id, "xp": ProfileScript.STEP_XP[clampi(step, 1, 5) - 1], "faint": false, "debt": 0.0}
+		profile.soak.erase(part)
+		profile.regarded = true
+		first_climb = false
+	profile.save()
+	_give_bonds()
+	if player.bonds.has(part):
+		player.bonds[part].essence = player.bonds[part].capacity()
+
+
+## Moves the climb to another tower's floor 1.
+func dev_tower(id: String) -> void:
+	if choosing_tower:
+		choose_tower(id)
+		return
+	tower = id
+	profile.last_tower = id
+	profile.save()
+	_apply_tower_look()
+	_start_floor(1)
+	_greet()
+
+
+func dev_floor(n: int) -> void:
+	if choosing_tower:
+		choose_tower(tower)
+	_start_floor(n)
+
+
+## A monster near the climber, inside the room.
+func dev_spawn(kind: String):
+	var pos: Vector2 = player.global_position + Vector2.from_angle(randf() * TAU) * 200.0
+	pos = pos.clamp(room.position + Vector2(50, 50), room.end - Vector2(50, 50))
+	return spawn_enemy(kind, pos)
 
 
 func enemies() -> Array:
@@ -894,6 +942,8 @@ func fx_cone(origin: Vector2, dir: Vector2, reach: float, half: float, color: Co
 
 
 func shake(amount: float) -> void:
+	if not MenuScript.settings["shake"]:
+		return
 	shake_amount = maxf(shake_amount, amount)
 
 

@@ -17,7 +17,7 @@ var slot: StyleBoxFlat
 var slot_on: StyleBoxFlat
 var hp_trail := 1.0  # the lagging "damage taken" chunk
 var sta_trail := 1.0
-var show_help := true
+var show_help := false  # the keyboard controls panel (a setting)
 
 
 func _ready() -> void:
@@ -137,7 +137,7 @@ func _draw() -> void:
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
 			["1 2 3 / wheel", "weapon"], ["Q E F C", "cast marks"],
-			["[  ]", "bond step (testing)"], ["M", "music"], ["R", "restart"], ["N", "new climber"], ["H", "hide controls"],
+			["Esc", "menu"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
 		]
 		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
 		draw_style_box(panel, box)
@@ -146,7 +146,7 @@ func _draw() -> void:
 			draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
 			draw_string(font, Vector2(box.position.x + 106, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
 	else:
-		draw_string(font, Vector2(size.x - 120, 26), "H  controls", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		draw_string(font, Vector2(size.x - 120, 26), "Esc  menu", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
 
 	# Floor counter, top centre.
 	var floor_text: String = main._floor_title()

@@ -23,8 +23,7 @@ static func setup() -> void:
 	_bind("weapon_3", [_key(KEY_3)])
 	_bind("weapon_next", [_mouse(MOUSE_BUTTON_WHEEL_DOWN)])
 	_bind("weapon_prev", [_mouse(MOUSE_BUTTON_WHEEL_UP)])
-	_bind("step_up", [_key(KEY_BRACKETRIGHT)])
-	_bind("step_down", [_key(KEY_BRACKETLEFT)])
+	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P)])
 
 
 static func _bind(action: String, events: Array) -> void:
