@@ -393,11 +393,16 @@ const TowersData := preload("res://scripts/towers.gd")
 
 
 func tower_card_rect(i: int, size: Vector2) -> Rect2:
-	var n := TowersData.ORDER.size()
-	var w := minf(240.0, (size.x - 40.0 - 16.0 * (n - 1)) / n)
-	var h := 230.0
+	var total := TowersData.ORDER.size()
+	var rows := 2 if total > 4 else 1
+	var n := int(ceil(float(total) / rows))  # cards per row
+	var w := minf(260.0, (size.x - 40.0 - 16.0 * (n - 1)) / n)
+	var h := 230.0 if rows == 1 else minf(160.0, (size.y - 170.0) / 2.0)
 	var x0 := (size.x - (w * n + 16.0 * (n - 1))) / 2.0
-	return Rect2(Vector2(x0 + i * (w + 16.0), size.y * 0.5 - h * 0.5 + 20.0), Vector2(w, h))
+	var row := i / n
+	var col := i % n
+	var top := size.y * 0.5 - (h * rows + 12.0 * (rows - 1)) * 0.5 + 30.0
+	return Rect2(Vector2(x0 + col * (w + 16.0), top + row * (h + 12.0)), Vector2(w, h))
 
 
 ## Which tower card is under a point on screen (-1 for none).
@@ -419,10 +424,11 @@ func _unhandled_input(event: InputEvent) -> void:
 func _draw_tower_choice(size: Vector2, font: Font) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.88))
 	var title := "CHOOSE A TOWER"
-	draw_string_outline(font, Vector2(0, size.y * 0.5 - 130.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, 6, Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(0, size.y * 0.5 - 130.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, GOLD)
+	var top_y := tower_card_rect(0, size).position.y
+	draw_string_outline(font, Vector2(0, top_y - 46.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, 6, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, top_y - 46.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, GOLD)
 	var sub := "Each tower's monsters and essence shape the marks you'll form."
-	draw_string(font, Vector2(0, size.y * 0.5 - 104.0), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, DIM_TEXT)
+	draw_string(font, Vector2(0, top_y - 20.0), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, DIM_TEXT)
 	for i in TowersData.ORDER.size():
 		var id: String = TowersData.ORDER[i]
 		var t: Dictionary = TowersData.TOWERS[id]
@@ -434,13 +440,13 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(t["torch"], 0.7))
 		var x := r.position.x + 14.0
 		var y := r.position.y + 34.0
-		var narrow := r.size.x < 200.0  # five cards on a phone
+		var narrow := r.size.x < 200.0 or r.size.y < 200.0  # many cards, or a phone
 		draw_string(font, Vector2(x, y), t["short"] if narrow else t["name"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 17, TEXT)
 		y += 24.0
 		draw_circle(Vector2(x + 6, y - 5), 6.0, ec)
 		draw_string(font, Vector2(x + 18, y), "%s essence" % Essence.display(t["essence"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ec)
 		y += 18.0
-		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 11 if narrow else 13, 7 if narrow else 4, DIM_TEXT)
+		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 11 if narrow else 13, 4 if r.size.y < 200.0 else 7, DIM_TEXT)
 		var hint := "Tap" if main.touch_active else "Press %d" % (i + 1)
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD if last else DIM_TEXT)
 

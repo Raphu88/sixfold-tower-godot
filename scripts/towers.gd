@@ -4,7 +4,7 @@ extends RefCounted
 ## own look. Every kill in a tower also yields a little of its essence, so
 ## the tower you choose steers which bonds you'll form. (Story to come.)
 
-const ORDER := ["gryphon", "kraken", "wyvern", "manticore", "firebird"]
+const ORDER := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 const ESSENCE_BONUS := 1.5  # extra essence of the tower's kind per kill
 
 const TOWERS := {
@@ -84,5 +84,20 @@ const TOWERS := {
 		"stone": Color(1.0, 0.9, 0.82),
 		"ambient": Color(0.6, 0.47, 0.42),
 		"torch": Color(1.0, 0.66, 0.3),
+	},
+	"chimera": {
+		"name": "The Chimera's Tower",
+		"short": "Chimera",
+		"beast": "the Chimera",
+		"essence": "blade",
+		"blurb": "The Thornwild, where beasts are bred: packs of thornhounds and patchwork mongrels. The Chimera waits at the top.",
+		"weights": {"thornhound": 1.4, "mongrel": 1.0, "archer": 0.5, "knight": 0.4},
+		"first": ["thornhound", "archer", "thornhound", "slime"],
+		"summit": 5,
+		"beast_kind": "chimera",
+		"beast_hint": "Watch for the glint. Its lion's breath can't be parried: roll or step aside.",
+		"stone": Color(0.86, 0.95, 0.82),
+		"ambient": Color(0.46, 0.53, 0.43),
+		"torch": Color(0.88, 1.0, 0.6),
 	},
 }

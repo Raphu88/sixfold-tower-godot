@@ -21,6 +21,8 @@ const MONSTERS := {
 	"ram": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
 	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
+	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
 

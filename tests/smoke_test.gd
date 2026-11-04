@@ -869,7 +869,9 @@ func _jump_tests() -> void:
 	p.sta = p.MAX_STA
 	await _frames(1)
 	Input.action_press("jump")
-	await _frames(2)
+	var until := Time.get_ticks_msec() + 500
+	while not p.in_air() and Time.get_ticks_msec() < until:
+		await physics_frame
 	Input.action_release("jump")
 	_check(p.in_air() and p.sta < p.MAX_STA, "Z jumps, for a little stamina")
 	# In the air, a chasm and burning floor can't touch you.
@@ -1422,6 +1424,96 @@ func _firebird_tower_tests() -> void:
 	main.victory = {}
 
 
+func _chimera_tower_tests() -> void:
+	print("the Chimera's tower")
+	await _fresh_main()
+	var p = main.player
+	main.dev_tower("chimera")
+	await _frames(2)
+	_check(main.tower_data()["essence"] == "blade" and main.Towers.ORDER.size() == 6, "the Chimera's tower: Blade essence, the sixth tower")
+	var r0: Rect2 = main.hud.tower_card_rect(0, Vector2(1280, 720))
+	var r5: Rect2 = main.hud.tower_card_rect(5, Vector2(1280, 720))
+	_check(r5.position.y > r0.end.y, "six tower cards sit in two rows")
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var seen := {}
+	for n in 30:
+		for m in main.Floors.build(4, main.room, main.player_start, main.Towers.TOWERS["chimera"])["monsters"]:
+			seen[m[0]] = true
+	_check(seen.has("thornhound") and seen.has("mongrel"), "the Chimera's tower has thornhounds and mongrels")
+	p.global_position = Vector2(500, 400)
+	var h = await _spawn("thornhound", p.global_position + Vector2(100, 0))
+	h.hp = 999.0
+	var r1: Dictionary = await _parry_test(h, 0.0, "wind", 100.0)
+	_check(r1["glinted"] and r1["parried"] and not r1["hurt"], "a thornhound's leap can be parried on the glint %s" % str(r1))
+	h.queue_free()
+	await _frames(1)
+	var m = await _spawn("mongrel", p.global_position + Vector2(100, 0))
+	m.hp = 999.0
+	var r2: Dictionary = await _parry_test(m, 0.0, "wind_bite", 55.0)
+	_check(r2["glinted"] and r2["parried"] and not r2["hurt"], "a mongrel's bite can be parried on the glint %s" % str(r2))
+	m.queue_free()
+	await _frames(1)
+
+	print("the Chimera")
+	main.profile.regarded = true
+	main.first_climb = false
+	main._start_floor(5)
+	await _frames(3)
+	var foes: Array = main.enemies()
+	_check(foes.size() == 1 and foes[0].kind == "chimera", "floor 5 of the Chimera's tower is the Chimera")
+	var c = foes[0]
+	c.set_physics_process(false)
+	await _settle()
+	p.hp = p.MAX_HP
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.knock = Vector2.ZERO
+	p.global_position = c.global_position + Vector2(140, 0)
+	main.attackers.clear()
+	main.request_attack(c)
+	c._begin_wind("wind_breath", 0.2)
+	c.set_physics_process(true)
+	await _wait(0.12)
+	p._try_parry()
+	await _wait(0.3)
+	c.set_physics_process(false)
+	_check(p.hp < p.MAX_HP and c.stun <= 0.0, "its lion's breath can't be parried")
+	main.flames = []
+	# The goat's charge stuns it against a wall.
+	c.global_position = Vector2(main.room.position.x + 80.0, 400.0)
+	c.lunge_dir = Vector2.LEFT
+	c.swoop_speed = 480.0
+	c.state = "charge"
+	c.state_t = 0.6
+	p.global_position = Vector2(main.room.position.x + 400.0, 250.0)
+	c.set_physics_process(true)
+	await _wait(0.3)
+	c.set_physics_process(false)
+	_check(c.stun > 0.0, "its goat's charge into a wall stuns it")
+	c.stun = 0.0
+	c.take_hit(c.hp - c.max_hp * 0.45, Vector2.ZERO)
+	c.state = "recover"
+	c.state_t = 5.0
+	c.set_physics_process(true)
+	await _wait(0.2)
+	_check(main.enemies().filter(func(e): return e.kind == "thornhound").size() == 2, "below half health it calls two thornhounds")
+	for e in main.enemies():
+		_slay(e)
+	await _frames(3)
+	p.hp = p.MAX_HP
+	p.dead = false
+	p.poison_t = 0.0
+	p.set_physics_process(true)
+	main.flames = []
+	p.global_position = main.stair_pos
+	await _wait(1.0)
+	_check(not main.victory.is_empty(), "beating the Chimera completes the climb")
+	await _wait(2.8)
+	main.victory = {}
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -1904,6 +1996,7 @@ func _run() -> void:
 	await _wyvern_tower_tests()
 	await _manticore_tower_tests()
 	await _firebird_tower_tests()
+	await _chimera_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
 	await _jump_tests()
