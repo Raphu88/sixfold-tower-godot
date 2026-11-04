@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": ""}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -43,12 +43,17 @@ const TYPES := {
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
 	"bloomcap": {"hp": 34.0, "speed": 0.0, "radius": 14.0, "color": Color(0.88, 0.42, 0.32), "dmg": 13.0, "weight": 60.0},
 	"firebird": {"hp": 440.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
+	# The Chimera's tower
+	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
+	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
+	"chimera": {"hp": 500.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
 }
-const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird"]
+const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
 const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird"]
 ## What each beast calls when it's half dead.
-const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp"}
+const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp", "chimera": "thornhound"}
+const BITE_REACH := 70.0  # a thornhound's leap
 const LOB_RADIUS := 46.0  # a bloomcap's burning spores land in this circle
 const STORM_RADIUS := 52.0  # each spot of the Firebird's firestorm
 const STING_REACH := 55.0
@@ -115,6 +120,7 @@ var notice_t := 0.0  # still noticing you at the start of a floor
 var lob_spot := Vector2.ZERO  # where a bloomcap's spores will land
 var storm_spots: Array = []  # the Firebird's firestorm
 var reborn := false  # the Firebird rises once from its ashes
+var turn := 0  # a mongrel alternates its two attacks
 var overlay: Node2D  # unlit layer: telegraphs and the health bar
 
 
@@ -133,7 +139,7 @@ func setup(k: String, room) -> void:
 	# Monsters take a moment to notice you, and not all at once.
 	state_t = randf_range(1.2, 2.4)
 	notice_t = state_t
-	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern", "ram", "manticore", "bloomcap", "firebird"]:
+	if kind in ["knight", "thunderling", "gryphon", "shellback", "kraken", "smith", "wyvern", "ram", "manticore", "bloomcap", "firebird", "mongrel", "chimera"]:
 		state = "recover"  # stands still until state_t runs out, then gives chase
 	if kind == "bat":
 		state = "rest"
@@ -242,6 +248,12 @@ func _physics_process(delta: float) -> void:
 			_bloomcap(delta, dir, dist, p)
 		"firebird":
 			_firebird(delta, dir, dist, p)
+		"thornhound":
+			_thornhound(delta, dir, dist, p)
+		"mongrel":
+			_mongrel(delta, dir, dist, p)
+		"chimera":
+			_chimera(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
@@ -951,7 +963,7 @@ func _ram(delta: float, dir: Vector2, dist: float, p) -> void:
 
 ## A charging ram that hits a wall or pillar is stunned (called after it moves).
 func _ram_crash() -> void:
-	if kind == "ram" and state == "charge" and get_slide_collision_count() > 0:
+	if kind in ["ram", "chimera"] and state == "charge" and get_slide_collision_count() > 0:
 		_end_attack("recover", 0.2)
 		stagger(1.6)
 		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Crashed", Color(0.9, 0.8, 0.6))
@@ -1187,6 +1199,177 @@ func _fall_to_ashes() -> void:
 	main.sfx("burn", 0.5)
 
 
+# --- the Chimera's tower -------------------------------------------------------------------
+
+# Thornhounds: fast pack hounds. They circle, glint and leap at you with a
+# bite (parryable).
+func _thornhound(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+				swoop_speed = maxf(LUNGE_SPEED * 0.7, maxf(0.0, dist - (radius + p.radius + 4.0)) / (GLINT_LEAD * 0.85))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 4.0)) / swoop_speed):
+				state = "lunge"
+				state_t = 0.2
+				lunge_hit = false
+		"lunge":
+			state_t -= delta
+			velocity = lunge_dir * swoop_speed
+			if not lunge_hit and dist < radius + p.radius + 6.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("recover", 0.9)
+		"recover", "idle":
+			state_t -= delta
+			_circle(dir, dist, 110.0, speed * 0.6)
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if dist < 120.0 and main.request_attack(self):
+				_begin_wind("wind", 0.45)
+				main.sfx("warn_archer", 1.5, -6.0)
+			elif dist < 120.0:
+				_circle(dir, dist, 110.0, speed * 0.8)
+			else:
+				velocity = dir * speed
+
+
+# Mongrels: patchwork beasts that alternate a bite up close (parryable) with
+# a fan of thrown quills (parryable).
+func _mongrel(delta: float, dir: Vector2, dist: float, p) -> void:
+	match state:
+		"wind_bite":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, BITE_REACH, deg_to_rad(50.0), Color(1.0, 0.45, 0.3))
+				main.sfx("swing_heavy", 1.1)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= BITE_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(50.0):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 0.9)
+		"wind_quills":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta, maxf(0.0, dist - p.radius) / 300.0):
+				for i in 3:
+					var q = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(12.0)) * 300.0, dmg * 0.6)
+					q.style = "spike"
+					q.tint = color
+				main.sfx("bow", 1.1)
+				_end_attack("recover", 0.9)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			# Bite when close; every other turn, throw quills from range.
+			if dist < 75.0 and main.request_attack(self):
+				turn += 1
+				_begin_wind("wind_bite", 0.6)
+				main.sfx("warn_knight", 1.0)
+			elif dist < 260.0 and turn % 2 == 1 and main.request_attack(self):
+				turn += 1
+				_begin_wind("wind_quills", 0.6)
+				main.sfx("warn_archer", 1.0)
+			else:
+				velocity = dir * speed
+				if randf() < delta * 0.5:
+					turn += 1
+
+
+# The Chimera: three beasts in one. The lion mauls up close (parryable) and
+# breathes fire down a narrow cone (can't be parried: roll or step aside); the
+# goat charges in a straight line (parryable; it's stunned if it hits a
+# wall); the serpent tail spits poisoned spikes (parryable). Calls thornhounds.
+func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
+	_call_flock()
+	match state:
+		"wind_maul":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, CLAW_REACH + 10.0, deg_to_rad(CLAW_ARC), Color(1.0, 0.45, 0.3))
+				main.sfx("swing_heavy", 0.7)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= CLAW_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(CLAW_ARC):
+					p.receive_attack(dmg, self)
+				_end_attack("recover", 0.8)
+		"wind_breath":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta):
+				main.fx_cone(global_position, lunge_dir, BREATH_REACH, deg_to_rad(BREATH_ARC), Color(1.0, 0.5, 0.15))
+				main.light_flash(global_position + lunge_dir * 100.0, Color(1.0, 0.5, 0.2), 1.6, 2.2, 0.4)
+				main.sfx("burn", 0.6)
+				var to: Vector2 = p.global_position - global_position
+				if to.length() <= BREATH_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(BREATH_ARC) + 0.1:
+					p.receive_attack(dmg * 1.1, self, true)
+				for i in 3:
+					main.add_flame(global_position + lunge_dir * (70.0 + 60.0 * i), 28.0, 2.5)
+				_end_attack("recover", 1.1)
+		"wind_charge":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+				swoop_speed = maxf(CHARGE_SPEED, maxf(0.0, dist - (radius + p.radius + 4.0)) / (GLINT_LEAD * 0.85))
+			if _wind(delta, maxf(0.0, dist - (radius + p.radius + 4.0)) / swoop_speed):
+				state = "charge"
+				state_t = 0.7
+				lunge_hit = false
+				main.sfx("roll", 0.5)
+		"charge":
+			state_t -= delta
+			velocity = lunge_dir * swoop_speed
+			if not lunge_hit and dist < radius + p.radius + 4.0:
+				lunge_hit = true
+				p.receive_attack(dmg, self)
+			if state_t <= 0.0:
+				_end_attack("recover", 1.0)
+		"wind_spikes":
+			velocity = Vector2.ZERO
+			if not glinted:
+				lunge_dir = dir
+			if _wind(delta, maxf(0.0, dist - p.radius) / 330.0):
+				for i in 3:
+					var sp = main.spawn_projectile(global_position + lunge_dir * radius, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(10.0)) * 330.0, dmg * 0.45)
+					sp.style = "spike"
+					sp.tint = Color(0.55, 0.8, 0.35)
+					sp.poison = 3.0
+				main.sfx("bow", 0.7)
+				_end_attack("recover", 0.8)
+		"recover", "idle":
+			state_t -= delta
+			velocity = Vector2.ZERO
+			if state_t <= 0.0:
+				state = "chase"
+		_:
+			if not main.request_attack(self):
+				velocity = dir * speed if dist > 110.0 else Vector2.ZERO
+			elif dist < 100.0:
+				_begin_wind("wind_maul", 0.55)
+				main.sfx("warn_knight", 0.7)
+			else:
+				var roll := randf()
+				if dist < 210.0 and roll < 0.35:
+					_begin_wind("wind_charge", 0.8)
+					main.sfx("warn_knight", 0.55)
+				elif dist < BREATH_REACH and roll < 0.7:
+					_begin_wind("wind_breath", 0.8)
+					main.sfx("charge", 0.6)
+				else:
+					_begin_wind("wind_spikes", 0.6)
+					main.sfx("warn_archer", 0.7)
+
+
 # --- Venomist's poison and Ashwalker's stealth ---------------------------------------------
 
 ## Poison stacks. Each new stack also makes it last longer (Toxin Build).
@@ -1396,6 +1579,12 @@ func _draw() -> void:
 			_draw_bloomcap(t, f)
 		"firebird":
 			_draw_firebird(t, f)
+		"thornhound":
+			_draw_thornhound(t, f)
+		"mongrel":
+			_draw_mongrel(t, f)
+		"chimera":
+			_draw_chimera(t, f)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -1802,6 +1991,68 @@ func _draw_firebird(t: float, f: Vector2) -> void:
 	draw_circle(Vector2.ZERO, radius * 1.4, Color(1.0, 0.5, 0.2, 0.12))
 
 
+func _draw_thornhound(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	var run := sin(t * 16.0) * 2.0
+	# A lean hound with thorny ridges down its back.
+	for sgn in [-1.0, 1.0]:
+		Draw.stroke(self, side * sgn * 5.0 + f * 5.0, side * sgn * 8.0 + f * (8.0 + run * sgn), color.darkened(0.3), 2.0)
+		Draw.stroke(self, side * sgn * 5.0 - f * 6.0, side * sgn * 8.0 - f * (8.0 - run * sgn), color.darkened(0.3), 2.0)
+	draw_set_transform(Vector2.ZERO, f.angle(), Vector2(1.4, 0.8))
+	draw_circle(Vector2.ZERO, radius + 1.5, Palette.OUTLINE)
+	draw_circle(Vector2.ZERO, radius, color)
+	draw_set_transform(Vector2(0, 0), 0.0, Vector2.ONE)
+	for i in 4:
+		var at := -f * (radius * 0.9 - i * 6.0)
+		draw_line(at, at - f * 3.0 + Vector2(0, -6.0), Color(0.35, 0.55, 0.3), 2.0)
+	Draw.ball(self, f * radius * 1.2, 6.0, color.lightened(0.1))
+	draw_circle(f * radius * 1.4 + side * 2.5, 1.4, Color(1.0, 0.75, 0.3))
+	draw_circle(f * radius * 1.4 - side * 2.5, 1.4, Color(1.0, 0.75, 0.3))
+
+
+func _draw_mongrel(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	# Patches of different hides, stitched together, with quills on its back.
+	Draw.ball(self, Vector2.ZERO, radius, color)
+	draw_circle(side * 5.0 - f * 3.0, radius * 0.5, Color(0.45, 0.35, 0.3))
+	draw_circle(-side * 4.0 + f * 2.0, radius * 0.45, Color(0.72, 0.62, 0.52))
+	draw_line(f * radius * 0.8 - side * 2.0, -f * radius * 0.8 + side * 2.0, Color(0.2, 0.15, 0.12), 1.2)
+	for i in 5:
+		var a := f.angle() + PI + (float(i) - 2.0) * 0.35
+		var root := Vector2.from_angle(a) * radius * 0.7
+		draw_line(root, root + Vector2.from_angle(a) * (8.0 if state != "wind_quills" else 12.0), Color(0.85, 0.75, 0.55), 2.0)
+	Draw.ball(self, f * radius * 0.9, 6.5, color.lightened(0.05))
+	draw_circle(f * radius * 1.1 + side * 3.0, 1.6, Palette.OUTLINE)
+	draw_circle(f * radius * 1.1 - side * 3.0, 1.6, Color(0.9, 0.3, 0.25))
+
+
+func _draw_chimera(t: float, f: Vector2) -> void:
+	var side := f.orthogonal()
+	# The serpent tail behind, the lion's body, the goat's head on one side.
+	var tail := PackedVector2Array()
+	for k in 8:
+		var u := float(k) / 7.0
+		tail.append(-f * radius * (0.7 + u * 1.4) + side * sin(t * 3.0 + u * 4.0) * 9.0 * u)
+	draw_polyline(tail, Palette.OUTLINE, 7.0, true)
+	draw_polyline(tail, Color(0.4, 0.62, 0.32), 4.5, true)
+	Draw.ball(self, tail[tail.size() - 1], 5.0, Color(0.45, 0.68, 0.36))
+	Draw.ball(self, Vector2.ZERO, radius * 0.85, color)
+	# Goat head with curled horns.
+	var goat := side * radius * 0.55 + f * radius * 0.45
+	Draw.ball(self, goat, radius * 0.3, Color(0.82, 0.8, 0.74))
+	draw_arc(goat - f * 3.0 + side * 5.0, 6.0, 0.0, TAU * 0.75, 12, Color(0.55, 0.5, 0.45), 3.0)
+	# Lion head with a mane.
+	var lion := -side * radius * 0.2 + f * radius * 0.75
+	for i in 10:
+		draw_circle(lion + Vector2.from_angle(TAU * i / 10.0) * radius * 0.38, radius * 0.16, Color(0.6, 0.38, 0.2))
+	Draw.ball(self, lion, radius * 0.34, color.lightened(0.12))
+	draw_circle(lion + f * 3.0 + side * 4.0, 2.2, Color(1.0, 0.85, 0.35))
+	draw_circle(lion + f * 3.0 - side * 4.0, 2.2, Color(1.0, 0.85, 0.35))
+	if state == "wind_breath":
+		var k := clampf(1.0 - state_t / 0.8, 0.0, 1.0)
+		draw_circle(lion + f * radius * 0.45, 3.0 + 5.0 * k, Color(1.0, 0.6, 0.2, 0.6 + 0.4 * k))
+
+
 ## Telegraphs, status and the health bar: unlit, so they always read.
 func _draw_overlay() -> void:
 	var c := overlay
@@ -1898,6 +2149,33 @@ func _draw_overlay() -> void:
 				c.draw_line(Vector2.ZERO, lunge_dir.rotated(a) * 120.0, Color(danger, 0.3), 1.5)
 	if kind == "slime" and state == "wind":
 		c.draw_arc(Vector2.ZERO, radius + 6.0, 0.0, TAU, 24, Color(danger, 0.6), 2.0)
+	if kind == "thornhound" and state == "wind":
+		c.draw_line(Vector2.ZERO, lunge_dir * 110.0, Color(danger, 0.4), radius * 1.4)
+	if kind == "mongrel":
+		if state == "wind_bite":
+			var half := deg_to_rad(50.0)
+			var wedge := PackedVector2Array([Vector2.ZERO])
+			for i in 9:
+				wedge.append(Vector2.from_angle(lunge_dir.angle() - half + 2.0 * half * i / 8.0) * BITE_REACH)
+			c.draw_colored_polygon(wedge, Color(danger, 0.12 + 0.15 * clampf(1.0 - state_t / 0.6, 0.0, 1.0)))
+		if state == "wind_quills":
+			for i in 3:
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(12.0)) * 130.0, Color(danger, 0.3), 1.5)
+	if kind == "chimera":
+		for pair in [["wind_maul", CLAW_REACH, CLAW_ARC, 0.55], ["wind_breath", BREATH_REACH, BREATH_ARC, 0.8]]:
+			if state == pair[0]:
+				var kw := clampf(1.0 - state_t / pair[3], 0.0, 1.0)
+				var half2 := deg_to_rad(pair[2])
+				var wedge2 := PackedVector2Array([Vector2.ZERO])
+				for i in 15:
+					wedge2.append(Vector2.from_angle(lunge_dir.angle() - half2 + 2.0 * half2 * i / 14.0) * pair[1])
+				c.draw_colored_polygon(wedge2, Color(danger, 0.1 + 0.15 * kw))
+				c.draw_arc(Vector2.ZERO, pair[1] * kw, lunge_dir.angle() - half2, lunge_dir.angle() + half2, 20, Color(danger, 0.75), 2.0)
+		if state == "wind_charge" or state == "charge":
+			c.draw_line(Vector2.ZERO, lunge_dir * 230.0, Color(danger, 0.2), radius * 1.6)
+		if state == "wind_spikes":
+			for i in 3:
+				c.draw_line(Vector2.ZERO, lunge_dir.rotated((float(i) - 1.0) * deg_to_rad(10.0)) * 150.0, Color(danger, 0.3), 1.5)
 	if kind == "wisp" and state == "wind":
 		c.draw_line(Vector2.ZERO, aim_dir * 120.0, Color(danger, 0.4), radius * 1.6)
 	if kind == "bloomcap" and state == "wind_lob":

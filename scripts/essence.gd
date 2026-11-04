@@ -10,6 +10,7 @@ const KINDS := {
 	"iron": {"name": "Iron", "color": Color(0.8, 0.82, 0.88)},
 	"fire": {"name": "Fire", "color": Color(1.0, 0.55, 0.25)},
 	"stone": {"name": "Stone", "color": Color(0.82, 0.68, 0.45)},
+	"blade": {"name": "Blade", "color": Color(0.88, 0.36, 0.4)},
 }
 
 ## What each monster drops: kind and amount (more on higher floors).
@@ -32,6 +33,9 @@ const DROPS := {
 	"wisp": ["fire", 3.0],
 	"bloomcap": ["fire", 5.0],
 	"firebird": ["fire", 30.0],
+	"thornhound": ["blade", 3.0],
+	"mongrel": ["blade", 6.0],
+	"chimera": ["blade", 30.0],
 }
 
 
