@@ -14,6 +14,8 @@ static func setup() -> void:
 	_bind("cast_legs", [_key(KEY_E)])
 	_bind("cast_heart", [_key(KEY_F)])
 	_bind("cast_brow", [_key(KEY_C)])
+	_bind("cast_throat", [_key(KEY_X)])
+	_bind("cast_back", [_key(KEY_V)])
 	_bind("restart", [_key(KEY_R)])
 	_bind("toggle_music", [_key(KEY_M)])
 	_bind("toggle_help", [_key(KEY_H)])

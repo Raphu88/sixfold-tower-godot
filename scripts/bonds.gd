@@ -24,22 +24,27 @@ extends RefCounted
 ##   drain, anchor, siphon, drink              (Deepcaller)
 ##   blades                                    (Blade Forger)
 
-const PARTS := ["hand", "legs", "heart", "brow"]
-const PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow"}
+## Six body parts, one for each of the six towers; each holds one bond.
+const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
+const PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow", "throat": "Throat", "back": "Back"}
 const PART_FILLS := {
 	"hand": "fills when you land weapon strikes",
 	"legs": "fills when you roll through an attack",
 	"heart": "fills when you take a hit and survive",
 	"brow": "fills when you parry",
+	"throat": "fills when one action hits several foes",
+	"back": "fills when you land backstabs and finishing blows",
 }
 const PART_BURN := {
 	"hand": "burned: your strikes deal less damage",
 	"legs": "burned: rolls cost more and travel less",
 	"heart": "burned: your health is capped lower",
 	"brow": "burned: your parry window is shorter",
+	"throat": "burned: your stamina recovers more slowly",
+	"back": "burned: backstabs lose their bonus damage",
 }
 ## The cast key for each body part.
-const PART_KEYS := {"hand": "Q", "legs": "E", "heart": "F", "brow": "C"}
+const PART_KEYS := {"hand": "Q", "legs": "E", "heart": "F", "brow": "C", "throat": "X", "back": "V"}
 
 const BONDS := {
 	# --- the Gryphon's tower (Air) -------------------------------------------

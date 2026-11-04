@@ -7,6 +7,8 @@ const Weapons := preload("res://scripts/weapons.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
+## Damage multiplier for striking a foe from behind.
+const BACKSTAB_MULT := 1.5
 const MAX_HP := 140.0  # tougher than the first, very clumsy climber
 const MAX_STA := 100.0
 const WALK := 135.0
@@ -335,14 +337,8 @@ func _try_action(action: String, input: Vector2) -> bool:
 			return _try_attack()
 		"parry":
 			return _try_parry()
-		"cast_hand":
-			return _try_cast("hand")
-		"cast_legs":
-			return _try_cast("legs")
-		"cast_heart":
-			return _try_cast("heart")
-		"cast_brow":
-			return _try_cast("brow")
+	if action.begins_with("cast_"):
+		return _try_cast(action.substr(5))
 	return true
 
 
@@ -366,7 +362,7 @@ func _tick_timers(delta: float) -> void:
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0))  # Deep Lungs
+		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0))  # Deep Lungs; a burned throat
 
 
 func _winded() -> void:
@@ -455,9 +451,12 @@ func _melee() -> bool:
 			continue
 		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"])
 		hits += 1
-	# The hand fills when your weapon strikes land.
+	# The hand fills when your weapon strikes land; the throat when one
+	# swing catches several foes.
 	if hits > 0:
 		_part_action("hand", 0.5 * hits, 6.0 * hits)
+	if hits > 1:
+		_part_action("throat", 2.0 * (hits - 1), 8.0 * (hits - 1))
 	return true
 
 
@@ -520,6 +519,14 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	# Windwalker passive, Featherweight: airborne foes take extra damage.
 	if has_bond("windwalker") and e.airborne > 0.0:
 		dmg *= 1.5
+	# A backstab: striking a foe that faces away (it committed to an attack,
+	# or you rolled behind it). The back fills; a burned back loses the bonus.
+	var backstab: bool = dir != Vector2.ZERO and e.face.dot(dir) > 0.5
+	if backstab:
+		if not _burned("back"):
+			dmg *= BACKSTAB_MULT
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 40.0), "Backstab", Color(0.95, 0.6, 0.45))
+		_part_action("back", 3.0, 10.0)
 	# Stormcaller passive, Static: striking a charged foe arcs to another.
 	if has_bond("stormcaller") and e.charged > 0.0:
 		for other in main.targets():
@@ -549,6 +556,9 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
 	e.take_hit(dmg, dir, force, heavy or crit)
+	# A finishing blow fills the back too.
+	if e.dead:
+		_part_action("back", 2.0, 6.0)
 
 
 func _try_parry() -> bool:
@@ -639,8 +649,14 @@ func _release_cast() -> void:
 			main.sfx("death", 1.0, 0.0, 0.0)
 			main.on_player_died()
 			return
+	# Count the foes the spell hits at once: several fill the throat.
+	main.cast_hits = 0
+	main.counting_hits = true
 	b.cast(self)
+	main.counting_hits = false
 	b.overdraw_mult = 1.0
+	if main.cast_hits > 1:
+		_part_action("throat", 2.0 * (main.cast_hits - 1), 8.0 * (main.cast_hits - 1))
 
 
 ## Called by monsters and projectiles when an attack reaches you.
@@ -902,6 +918,10 @@ func _draw() -> void:
 ## Where each body part's mark sits on the climber.
 func _mark_anchor(part: String, side: Vector2) -> Vector2:
 	match part:
+		"throat":
+			return aim * (radius * 0.25) + side * 2.0
+		"back":
+			return -aim * (radius * 0.7) + side * 2.0
 		"hand":
 			return side * radius * 0.95 + aim * 3.0
 		"brow":

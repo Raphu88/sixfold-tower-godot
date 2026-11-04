@@ -26,7 +26,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Strike / hold to draw the bow | Left click or J |
 | Switch weapon | 1 Fists, 2 Sword, 3 Bow, or the mouse wheel |
 | Parry | Right click or K |
-| Cast your marks (hand, legs, heart, brow) | Q, E, F, C |
+| Cast your marks (hand, legs, heart, brow, throat, back) | Q, E, F, C, X, V |
 | Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone |
 | Restart | R |
 | New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
@@ -65,9 +65,11 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 
 ## Marks, essence and the Regard
 
+- **Six body parts**, one for each of the six towers: hand, legs, heart, brow, throat and back. Each holds one mark. A **backstab** (striking a foe that faces away from you, because it has committed to an attack or you rolled behind it) deals 50% more damage.
+
 - **Your first climb is bondless.** You start clumsy, with weapons only. Climb 3 floors.
 - **Essence:** monsters leave essence when they fall (slimes Water, archers Air, knights Iron). It flies into you and is **banked at the next stair**. Fall before the stair and the unbanked essence is lost.
-- **Your body soaks it up** through what each part does: the **hand** from weapon strikes (+0.5 per hit), the **legs** from rolling through attacks (+4), the **heart** from taking hits and surviving (+4), the **brow** from parries (+6, perfect +9). Unmarked parts glow faintly as they soak, and the **"Your mark is forming"** panel shows each part's soak, the leader, and which bond it would be right now.
+- **Your body soaks it up** through what each part does: the **hand** from weapon strikes (+0.5 per hit), the **legs** from rolling through attacks (+4), the **heart** from taking hits and surviving (+4), the **brow** from parries (+6, perfect +9), the **throat** when one swing or spell hits several foes (+2 for each foe past the first), the **back** from backstabs (+3) and finishing blows (+2). Unmarked parts glow faintly as they soak, and the **"Your mark is forming"** panel shows each part's soak, the leader, and which bond it would be right now.
 - **Which bond:** each bond scores its essence's share of what you gathered, plus a pull toward its own body part (Stormcaller and Blade Forger: hand, Windwalker: legs, Tidecaller: heart, Warden: brow). So play style and essence both shape the mark.
 - **The Regard:** at the top of your first climb the tower's beast takes notice. Your most-used body part takes its first **mark**, and the essence you gathered most decides which bond it is. If you fall on the first climb you're still regarded, but the mark is **faint**: weaker (75% power, 25% dearer) until it has soaked up 80 more essence.
 - **Growth across climbs:** banked essence strengthens every mark you carry (essence of a mark's own kind counts double), up to step 5. Your marks and their growth are saved.
@@ -83,7 +85,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
   - **Deepcaller** (Water, heart). Body: Deep Lungs (stamina refills faster). Passive: Pressure (badly hurt foes near you slow down). Spells: Undertow (drain up to 3 foes and heal), Anchor (tether a foe to you), Undertow changed (5 foes), Siphon (drain essence to refill your marks), Drink Deep (a drain that grows stronger the longer it holds).
 - **Blade Forger** (Iron) has its first spell only, for now; its full kit comes with the Wyvern's tower.
 - **Overdraw:** casting without enough essence still works, but the cast is weaker (70%) and the body part **burns**. Overdraw a burned mark again and it **tears**: the missing essence comes out of your health, so spamming spells can kill you.
-- **Burns** last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window.
+- **Burns** last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window, throat slows stamina recovery, back loses the backstab bonus.
 
 ## The climb
 

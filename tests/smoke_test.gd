@@ -489,6 +489,63 @@ func _kraken_tower_tests() -> void:
 	main.victory = {}
 
 
+func _body_part_tests() -> void:
+	print("six body parts")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	_check(main.BondScript.Bonds.PARTS.size() == 6 and InputMap.has_action("cast_throat") and InputMap.has_action("cast_back"), "six body parts, each with a cast key")
+	# The throat: one swing that catches two foes.
+	p.global_position = Vector2(600, 400)
+	p.aim = Vector2.RIGHT
+	var a = await _spawn("slime", p.global_position + Vector2(30, -8))
+	var b = await _spawn("slime", p.global_position + Vector2(30, 8))
+	a.hp = 999.0
+	b.hp = 999.0
+	var t0: float = main.part_soak("throat")
+	p.attack_cd = 0.0
+	p.combo_t = 0.0
+	p._melee()
+	_check(main.part_soak("throat") > t0, "a swing that hits two foes soaks into the throat")
+	a.queue_free()
+	b.queue_free()
+	# The back: a backstab hits harder and soaks into the back.
+	var k = await _spawn("knight", p.global_position + Vector2(30, 0))
+	k.hp = 9999.0
+	k.max_hp = 9999.0
+	k.face = Vector2.LEFT  # looking at you
+	var hp0: float = k.hp
+	p._strike(k, 10.0, Vector2.RIGHT, 0.0, false)
+	var front: float = hp0 - k.hp
+	var b0: float = main.part_soak("back")
+	k.face = Vector2.RIGHT  # looking away
+	hp0 = k.hp
+	p._strike(k, 10.0, Vector2.RIGHT, 0.0, false)
+	var behind: float = hp0 - k.hp
+	_check(behind > front * 1.4, "a backstab hits harder (%.0f vs %.0f)" % [behind, front])
+	_check(main.part_soak("back") > b0, "...and soaks into the back")
+	b0 = main.part_soak("back")
+	k.face = Vector2.LEFT
+	k.hp = 5.0
+	p._strike(k, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(k.dead and main.part_soak("back") > b0, "a finishing blow soaks into the back")
+	# A spell that hits several foes soaks into the throat too.
+	_mark("hand", "stormcaller", 1)
+	for i in 3:
+		var s = await _spawn("slime", p.global_position + Vector2(60 + 30 * i, 0))
+		s.hp = 999.0
+	t0 = main.part_soak("throat")
+	p.cast_part = "hand"
+	p._release_cast()
+	_check(main.part_soak("throat") > t0, "a spell that hits several foes soaks into the throat")
+	# Marks can sit on the new parts.
+	main.dev_set_mark("throat", "warden", 2)
+	main.dev_set_mark("back", "hunter", 1)
+	_check(p.bonds.has("throat") and p.bonds.has("back"), "the throat and back can hold marks")
+
+
 func _menu_tests() -> void:
 	print("menus and the dev tool")
 	await _fresh_main()
@@ -1030,6 +1087,7 @@ func _run() -> void:
 	await _kraken_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
+	await _body_part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
