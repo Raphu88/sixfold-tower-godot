@@ -43,10 +43,10 @@ func _layout() -> void:
 		{"id": "menu", "action": "pause", "c": tr + Vector2(-104, 40) * k, "r": 28.0 * k},
 	]
 	# One cast button per mark you carry, in these spots around attack.
-	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150)]
+	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150), Vector2(-160, -400), Vector2(-395, -265)]
 	var i := 0
 	var p = main.player
-	for part in ["hand", "legs", "heart", "brow"]:
+	for part in main.BondScript.Bonds.PARTS:
 		if p != null and p.bonds.has(part):
 			buttons.append({"id": "cast_" + part, "action": "cast_" + part, "c": br + spots[i] * k, "r": 34.0 * k, "part": part})
 			i += 1
@@ -232,7 +232,7 @@ func _draw() -> void:
 				label = "Roll"
 			"parry":
 				label = "Parry"
-			"cast_hand", "cast_legs", "cast_heart", "cast_brow":
+			"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back":
 				var bond = p.bonds.get(b["part"]) if p != null else null
 				if bond != null:
 					col = bond.color()

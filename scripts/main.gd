@@ -68,6 +68,8 @@ var hud
 var touch
 var menu  # title, pause, settings and dev tool (menu.gd)
 var dev_no_death := false  # dev tool: you can't fall
+var counting_hits := false  # while a spell is cast: count the foes it hits
+var cast_hits := 0
 var new_climber_t := 0.0
 
 # Lingering spell effects in the room

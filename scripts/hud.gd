@@ -117,7 +117,7 @@ func _draw() -> void:
 		var b = p.bonds[part]
 		if main.touch_active:
 			_bond_compact(b, part, Vector2(12, y), font)
-			y += 40.0
+			y += 37.0
 		else:
 			_bond_panel(b, part, Vector2(16, y), font)
 			y += 50.0
@@ -136,7 +136,7 @@ func _draw() -> void:
 		var help := [
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
-			["1 2 3 / wheel", "weapon"], ["Q E F C", "cast marks"],
+			["1 2 3 / wheel", "weapon"], ["Q E F C X V", "cast marks"],
 			["Esc", "menu"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
 		]
 		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
@@ -380,7 +380,7 @@ func _draw_forming(p, pos: Vector2, font: Font) -> void:
 		y += 15.0
 	var bid: String = main.predicted_bond()
 	if bid == "":
-		draw_string(font, Vector2(pos.x + 10, y + 13), "Strike, dodge, parry or endure", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+		draw_string(font, Vector2(pos.x + 10, y + 13), "Every way you fight soaks in", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 	else:
 		var info: Dictionary = BondScript.Bonds.BONDS[bid]
 		draw_string(font, Vector2(pos.x + 10, y + 13), "Would be:", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)

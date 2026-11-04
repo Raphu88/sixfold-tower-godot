@@ -181,7 +181,7 @@ func _page_controls() -> void:
 	var rows := [
 		["Move", "WASD or arrows"], ["Sprint", "Shift"], ["Roll", "Space"],
 		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
-		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C  (hold to pick a spell)"],
+		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
 		["Menu", "Esc or P"], ["Restart", "R"], ["Music", "M"],
 	]
 	var grid := GridContainer.new()

@@ -682,6 +682,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	if submerged:
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "under the water", Color(0.5, 0.75, 0.85))
 		return
+	if main.counting_hits:
+		main.cast_hits += 1
 	# A shellback's shell turns blows from the front (heavy blows crack it).
 	if kind == "shellback" and dir != Vector2.ZERO and face.dot(-dir) > 0.4:
 		amount *= 0.6 if heavy else 0.15
