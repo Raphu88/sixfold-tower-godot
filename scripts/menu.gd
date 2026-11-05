@@ -61,6 +61,75 @@ func is_open() -> bool:
 	return page != ""
 
 
+# --- touch -----------------------------------------------------------------------
+# The project doesn't turn touches into mouse clicks (the on-screen controls
+# read touches directly), so Godot's buttons never see a tap. The menu reads
+# touches itself: a tap presses the button under it, a drag scrolls the page,
+# and touching a slider sets it.
+
+var touch_from := Vector2.ZERO
+var touch_moved := 0.0
+var touch_slider: HSlider = null
+
+
+func _input(event: InputEvent) -> void:
+	if page == "":
+		return
+	if event is InputEventScreenTouch:
+		if event.index != 0:
+			return
+		if event.pressed:
+			touch_from = event.position
+			touch_moved = 0.0
+			touch_slider = _control_at(event.position, "HSlider")
+			if touch_slider != null:
+				_slide_to(touch_slider, event.position)
+		else:
+			if touch_slider == null and touch_moved < 14.0:
+				_tap(event.position)
+			touch_slider = null
+			# A phone: switch to the bigger phone layout (after the tap, so the
+			# button doesn't move under the finger).
+			if main != null and main.touch != null and not main.touch.active:
+				main.touch._set_active(true)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag:
+		if event.index != 0:
+			return
+		touch_moved += event.relative.length()
+		if touch_slider != null:
+			_slide_to(touch_slider, event.position)
+		elif touch_moved >= 14.0:
+			scroll.scroll_vertical -= int(event.relative.y)
+		get_viewport().set_input_as_handled()
+
+
+## The topmost visible control of a class under a point, or null.
+func _control_at(pos: Vector2, cls: String) -> Control:
+	var found: Control = null
+	for c in box.find_children("*", cls, true, false):
+		var ctl: Control = c
+		if ctl.is_visible_in_tree() and ctl.get_global_rect().has_point(pos) and scroll.get_global_rect().has_point(pos):
+			found = ctl
+	return found
+
+
+func _tap(pos: Vector2) -> void:
+	var b = _control_at(pos, "BaseButton")
+	if b == null or b.disabled:
+		return
+	if b.toggle_mode:
+		b.button_pressed = not b.button_pressed  # (emits toggled)
+	else:
+		b.pressed.emit()
+
+
+func _slide_to(sl: HSlider, pos: Vector2) -> void:
+	var r := sl.get_global_rect()
+	var k := clampf((pos.x - r.position.x) / maxf(r.size.x, 1.0), 0.0, 1.0)
+	sl.value = sl.min_value + k * (sl.max_value - sl.min_value)
+
+
 func _process(delta: float) -> void:
 	toast_t -= delta
 	if toast_t <= 0.0 and toast != "":
