@@ -21,10 +21,10 @@ const WEAPONS := {
 		"sound": "punch",
 		"hit_sound": "hit_light",
 		"combo": [
-			{"dmg": 0.55, "range": 30.0, "arc": 40.0, "sta": 6.0, "recover": 0.2, "lunge": 140.0, "knock": 70.0, "heavy": false, "side": 1.0},
-			{"dmg": 0.6, "range": 30.0, "arc": 40.0, "sta": 6.0, "recover": 0.22, "lunge": 140.0, "knock": 80.0, "heavy": false, "side": -1.0},
-			{"dmg": 0.6, "range": 30.0, "arc": 40.0, "sta": 6.0, "recover": 0.22, "lunge": 140.0, "knock": 80.0, "heavy": false, "side": 1.0},
-			{"dmg": 1.3, "range": 36.0, "arc": 55.0, "sta": 14.0, "recover": 0.48, "lunge": 260.0, "knock": 240.0, "heavy": true, "side": -1.0},
+			{"dmg": 0.55, "range": 30.0, "arc": 40.0, "sta": 8.0, "recover": 0.2, "lunge": 140.0, "knock": 70.0, "heavy": false, "side": 1.0},
+			{"dmg": 0.6, "range": 30.0, "arc": 40.0, "sta": 8.0, "recover": 0.22, "lunge": 140.0, "knock": 80.0, "heavy": false, "side": -1.0},
+			{"dmg": 0.6, "range": 30.0, "arc": 40.0, "sta": 8.0, "recover": 0.22, "lunge": 140.0, "knock": 80.0, "heavy": false, "side": 1.0},
+			{"dmg": 1.3, "range": 36.0, "arc": 55.0, "sta": 18.0, "recover": 0.48, "lunge": 260.0, "knock": 240.0, "heavy": true, "side": -1.0},
 		],
 	},
 	"sword": {
@@ -35,9 +35,9 @@ const WEAPONS := {
 		"sound": "swing",
 		"hit_sound": "hit",
 		"combo": [
-			{"dmg": 1.0, "range": 46.0, "arc": 55.0, "sta": 12.0, "recover": 0.4, "lunge": 190.0, "knock": 150.0, "heavy": false, "side": 1.0},
-			{"dmg": 1.1, "range": 46.0, "arc": 55.0, "sta": 12.0, "recover": 0.42, "lunge": 190.0, "knock": 160.0, "heavy": false, "side": -1.0},
-			{"dmg": 1.8, "range": 56.0, "arc": 75.0, "sta": 20.0, "recover": 0.66, "lunge": 300.0, "knock": 300.0, "heavy": true, "side": 1.0},
+			{"dmg": 1.0, "range": 46.0, "arc": 55.0, "sta": 16.0, "recover": 0.4, "lunge": 190.0, "knock": 150.0, "heavy": false, "side": 1.0},
+			{"dmg": 1.1, "range": 46.0, "arc": 55.0, "sta": 16.0, "recover": 0.42, "lunge": 190.0, "knock": 160.0, "heavy": false, "side": -1.0},
+			{"dmg": 1.8, "range": 56.0, "arc": 75.0, "sta": 26.0, "recover": 0.66, "lunge": 300.0, "knock": 300.0, "heavy": true, "side": 1.0},
 		],
 	},
 	"bow": {
@@ -52,7 +52,7 @@ const WEAPONS := {
 		"speed_max": 760.0,
 		"knock_min": 50.0,
 		"knock_max": 220.0,
-		"sta": 10.0,
+		"sta": 14.0,
 		"recover": 0.3,
 		"move_mult": 0.45,  # you walk slowly while drawing
 	},

@@ -11,6 +11,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const BACKSTAB_MULT := 1.5
 const MAX_HP := 140.0  # tougher than the first, very clumsy climber
 const MAX_STA := 100.0
+const STA_REGEN := 34.0  # per second, once the short wait after acting is over
 const WALK := 135.0
 const SPRINT := 200.0
 ## A jump: a short hop that clears chasms and burning floor (not attacks).
@@ -398,7 +399,7 @@ func _tick_timers(delta: float) -> void:
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+		sta = minf(MAX_STA, sta + STA_REGEN * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 func _winded() -> void:
@@ -540,7 +541,7 @@ func _melee() -> bool:
 	var heavy: bool = swing["heavy"]
 	combo = (combo + 1) % chain.size()
 	sta = maxf(0.0, sta - swing["sta"])
-	sta_delay = 0.6
+	sta_delay = 0.9  # stamina waits a moment after you attack: mashing runs you dry
 	var recover: float = swing["recover"]
 	if has_bond("flameblade"):
 		recover = minf(recover, chain[0]["recover"])  # Hot Blood: chains never slow down
@@ -630,7 +631,7 @@ func release_draw() -> void:
 	drawing = false
 	attack_cd = w["recover"]
 	sta = maxf(0.0, sta - w["sta"])
-	sta_delay = 0.6
+	sta_delay = 0.9
 	var dmg: float = lerpf(w["dmg_min"], w["dmg_max"], k * k)
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:

@@ -321,6 +321,16 @@ func _page_dev() -> void:
 	if summit > 0:
 		_button("Go to %s" % main.beast_name(), _dev_floor.bind(summit), frow)
 
+	_section("Practice a beast (full health)")
+	var brow := GridContainer.new()
+	brow.columns = 3
+	brow.add_theme_constant_override("h_separation", 6)
+	brow.add_theme_constant_override("v_separation", 6)
+	for id in Towers.ORDER:
+		if Towers.TOWERS[id].has("beast_kind"):
+			_button(Towers.TOWERS[id]["short"], _dev_beast.bind(id), brow)
+	box.add_child(brow)
+
 	_section("Spawn a monster")
 	var grid := GridContainer.new()
 	grid.columns = 4
@@ -406,6 +416,11 @@ func _dev_tower(id: String) -> void:
 func _dev_floor(n: int) -> void:
 	main.dev_floor(maxi(n, 1))
 	_say("Floor %d" % main.floor_num)
+
+
+func _dev_beast(id: String) -> void:
+	main.dev_beast(id)
+	close()  # straight into the fight
 
 
 func _dev_spawn(kind: String) -> void:

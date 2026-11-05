@@ -789,6 +789,22 @@ func dev_tower(id: String) -> void:
 	_greet()
 
 
+## Straight to a tower's beast, at full health with full marks.
+func dev_beast(id: String) -> void:
+	dev_tower(id)
+	profile.regarded = true
+	first_climb = false
+	_start_floor(int(tower_data().get("summit", 5)))
+	player.dead = false
+	player.set_physics_process(true)
+	player.hp = player.max_hp
+	player.sta = player.max_sta
+	player.poison_t = 0.0
+	for b in player.bonds.values():
+		b.essence = b.capacity()
+		b.burned = false
+
+
 func dev_floor(n: int) -> void:
 	if choosing_tower:
 		choose_tower(tower)
