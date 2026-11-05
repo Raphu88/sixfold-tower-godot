@@ -25,6 +25,11 @@ var stair_open := false:
 		if stair_light != null:
 			stair_light.enabled = v
 var stair_light: PointLight2D
+var torch_color := Palette.TORCH
+# A floor of rooms: which tiles are solid (walls between rooms).
+var grid := Vector2i.ZERO
+var solid := PackedByteArray()
+var layout_rooms: Array = []
 
 
 ## Call before adding to the tree.
@@ -47,28 +52,59 @@ func _ready() -> void:
 	stair_light.enabled = false
 	stair_light.position = stair_pos
 	add_child(stair_light)
+	_make_torches()
+	_make_dust()
+
+
+## Switches to another area (the open room, or the bigger area of a rooms floor).
+func reconfigure(r: Rect2) -> void:
+	room = r
+	_make_torches()
+	_make_dust()
+	queue_redraw()
+
+
+## A rooms floor's solid tiles (an empty grid means an open room).
+func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array) -> void:
+	grid = size
+	solid = tiles
+	layout_rooms = rooms
+	_make_torches()
+	queue_redraw()
+
+
+func _add_torch(pos: Vector2, scale: float, below: float) -> void:
+	var light := PointLight2D.new()
+	light.texture = light_tex
+	light.texture_scale = scale
+	light.color = torch_color
+	light.energy = 1.25
+	light.position = pos + Vector2(0, below)
+	add_child(light)
+	torches.append({"pos": pos, "light": light, "phase": randf() * 10.0})
+
+
+func _make_torches() -> void:
+	for t in torches:
+		t["light"].queue_free()
+	torches.clear()
+	if not layout_rooms.is_empty():
+		# A torch on the north wall of every room (two in wide ones).
+		for r in layout_rooms:
+			var rr: Rect2 = r
+			var n := 2 if rr.size.x > 480.0 else 1
+			for i in n:
+				_add_torch(Vector2(rr.position.x + rr.size.x * (float(i) + 0.5) / n, rr.position.y - 8.0), 2.8, 30.0)
+		return
 	var y := room.position.y - WALL_FACE * 0.45
 	for i in 4:
-		var x := room.position.x + room.size.x * (0.125 + 0.25 * i)
-		var light := PointLight2D.new()
-		light.texture = light_tex
-		light.texture_scale = 2.6
-		light.color = Palette.TORCH
-		light.energy = 1.25
-		light.position = Vector2(x, y + 30.0)
-		add_child(light)
-		torches.append({"pos": Vector2(x, y), "light": light, "phase": randf() * 10.0})
+		_add_torch(Vector2(room.position.x + room.size.x * (0.125 + 0.25 * i), y), 2.6, 30.0)
 	for i in 3:
-		var x := room.position.x + room.size.x * (0.25 + 0.25 * i)
-		var by := room.end.y + wall * 0.5
-		var light := PointLight2D.new()
-		light.texture = light_tex
-		light.texture_scale = 2.4
-		light.color = Palette.TORCH
-		light.energy = 1.1
-		light.position = Vector2(x, by - 24.0)
-		add_child(light)
-		torches.append({"pos": Vector2(x, by), "light": light, "phase": randf() * 10.0})
+		_add_torch(Vector2(room.position.x + room.size.x * (0.25 + 0.25 * i), room.end.y + wall * 0.5), 2.4, -24.0)
+
+
+func _make_dust() -> void:
+	dust.clear()
 	for i in 70:
 		dust.append({
 			"pos": Vector2(randf_range(room.position.x, room.end.x), randf_range(room.position.y, room.end.y)),
@@ -96,6 +132,7 @@ static func make_light_texture() -> Texture2D:
 
 
 func set_torch_color(c: Color) -> void:
+	torch_color = c
 	for t in torches:
 		t["light"].color = c
 
@@ -209,6 +246,7 @@ func _draw() -> void:
 		draw_rect(room.grow(-i * 7.0), Color(0, 0, 0, 0.07 * (1.0 - k)), false, 7.0)
 
 	_draw_walls()
+	_draw_layout()
 	for pd in puddles:
 		# Standing water: dark, with a lighter rim and a glint.
 		draw_circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
@@ -226,6 +264,42 @@ func _draw() -> void:
 		draw_line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
 	for p in pillars:
 		_draw_pillar(p["pos"], p["r"])
+
+
+## The walls between rooms: solid tiles drawn as stone, with a brick front
+## face where a wall looks down onto the floor (like the north wall).
+func _draw_layout() -> void:
+	if grid == Vector2i.ZERO:
+		return
+	for y in grid.y:
+		for x in grid.x:
+			if solid[y * grid.x + x] == 0:
+				continue
+			var tile := Rect2(room.position + Vector2(x, y) * TILE, Vector2(TILE, TILE))
+			var open_s := y + 1 < grid.y and solid[(y + 1) * grid.x + x] == 0
+			var open_n := y > 0 and solid[(y - 1) * grid.x + x] == 0
+			var open_w := x > 0 and solid[y * grid.x + x - 1] == 0
+			var open_e := x + 1 < grid.x and solid[y * grid.x + x + 1] == 0
+			draw_rect(tile, Palette.VOID.lerp(Palette.WALL_TOP, 0.55 if (open_s or open_n or open_w or open_e) else 0.25))
+			if open_s:
+				# The wall's brick face, seen from the floor below it.
+				var face := Rect2(tile.position + Vector2(0, TILE * 0.35), Vector2(TILE, TILE * 0.65))
+				draw_rect(face, Palette.WALL_FACE)
+				for row in 3:
+					var by := face.position.y + row * face.size.y / 3.0
+					var off := 9.0 if row % 2 == 1 else 0.0
+					for bx in [0.0, 18.0, 36.0]:
+						var b := Rect2(Vector2(face.position.x + bx - off, by), Vector2(18.0, face.size.y / 3.0)).intersection(face)
+						if b.size.x > 1.0:
+							draw_rect(b.grow(-1.0), Palette.WALL_FACE.lightened(_hash(x * 3 + int(bx), y * 3 + row, 5) * 0.12))
+				# Its shadow on the floor.
+				draw_rect(Rect2(tile.position + Vector2(0, TILE), Vector2(TILE, 8.0)), Color(0, 0, 0, 0.22))
+			if open_n:
+				draw_line(tile.position, Vector2(tile.end.x, tile.position.y), Palette.WALL_EDGE, 2.0)
+			if open_w:
+				draw_line(tile.position, Vector2(tile.position.x, tile.end.y), Palette.WALL_EDGE, 2.0)
+			if open_e:
+				draw_line(Vector2(tile.end.x, tile.position.y), tile.end, Palette.WALL_EDGE, 2.0)
 
 
 func _draw_pillar(pos: Vector2, r: float) -> void:

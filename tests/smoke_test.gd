@@ -858,6 +858,56 @@ func _manticore_bond_tests() -> void:
 	a.queue_free()
 
 
+func _rooms_tests() -> void:
+	print("rooms and corridors")
+	await _fresh_main()
+	var p = main.player
+	main.profile.regarded = true
+	main.first_climb = false
+	var ok_reach := true
+	var ok_monsters := true
+	var ok_rooms := true
+	for n in 8:
+		main._start_floor(2 + n % 3)
+		await _frames(1)
+		ok_rooms = ok_rooms and main.layout_on and main.layout_rooms.size() >= 3
+		var path: PackedVector2Array = main.astar.get_point_path(main._tile_of(main.player_start), main._tile_of(main.stair_pos))
+		ok_reach = ok_reach and path.size() > 1 and not main.is_solid(main.player_start) and not main.is_solid(main.stair_pos)
+		for e in main.enemies():
+			ok_monsters = ok_monsters and not main.is_solid(e.global_position)
+	_check(ok_rooms, "floors above the first are 3 or more rooms joined by corridors")
+	_check(ok_reach, "the stair can always be reached from the start")
+	_check(ok_monsters, "monsters stand in rooms, never inside walls")
+	_check(main.enemies().all(func(e): return not e.aware or e.global_position.distance_to(p.global_position) < 460.0), "monsters wait in their rooms until they see you")
+	# Walls block sight and shots.
+	var a: Vector2 = main.layout_rooms[0].get_center()
+	var far: Vector2 = main.layout_rooms[-1].get_center()
+	var blocked := false
+	for x in main.grid_size.x:
+		for y in main.grid_size.y:
+			if main._is_solid_tile(x, y) and main._near_walkable(x, y):
+				blocked = true
+	_check(blocked and main.is_solid(main.room.position + Vector2(5, 5)) == main._is_solid_tile(0, 0), "the area between rooms is solid")
+	var wall_at := Vector2.ZERO
+	for x in main.grid_size.x:
+		var pos: Vector2 = main.room.position + Vector2(x * 40 + 20, 20)
+		if main.is_solid(pos):
+			wall_at = pos
+			break
+	var shot = main.spawn_projectile(wall_at, Vector2(10, 0), 5.0)
+	await _frames(3)
+	_check(not is_instance_valid(shot), "walls stop shots")
+	var dir: Vector2 = main.path_dir(a, far)
+	_check(dir.length() > 0.9, "monsters can find a way around walls")
+	# Floor 1 and the beast's floor stay single open rooms.
+	main._start_floor(1)
+	await _frames(1)
+	_check(not main.layout_on and main.room == main.OPEN_ROOM, "floor 1 is a single open room")
+	main.dev_beast("gryphon")
+	await _frames(1)
+	_check(not main.layout_on, "...and so is the beast's floor")
+
+
 func _jump_tests() -> void:
 	print("jumping and chasms")
 	await _fresh_main()
@@ -897,8 +947,9 @@ func _jump_tests() -> void:
 	for n in 20:
 		var plan: Dictionary = main.Floors.build(3, main.room, main.player_start, {"chasms": true})
 		ok = ok and plan["chasms"].size() >= 1
+		var st: Vector2 = plan.get("start", main.player_start)
 		for r in plan["chasms"]:
-			ok = ok and not r.grow(60.0).has_point(main.player_start)
+			ok = ok and not r.grow(60.0).has_point(st)
 		for m in plan["monsters"]:
 			for r in plan["chasms"]:
 				ok = ok and not r.has_point(m[1])
@@ -1478,6 +1529,8 @@ func _firebird_tower_tests() -> void:
 	main.dev_floor(3)
 	await _frames(2)
 	_check(main.tower == "firebird" and main.chasms.size() >= 1, "the Firebird's tower has chasms (%d)" % main.chasms.size())
+	main.dev_floor(1)  # back to the open first floor for the tests below
+	await _frames(2)
 	main.set_chasms([])
 	for e in main.enemies():
 		e.queue_free()
@@ -2200,6 +2253,7 @@ func _run() -> void:
 	await _menu_tests()
 	await _combat_feel_tests()
 	await _jump_tests()
+	await _rooms_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()

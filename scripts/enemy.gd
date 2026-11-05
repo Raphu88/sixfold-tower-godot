@@ -135,6 +135,11 @@ var venom_tick := 0.0
 var lost_t := 0.0  # Ashwalker: it has lost track of you
 var lure = null  # ...and goes after this decoy instead (a dictionary with "pos")
 var notice_t := 0.0  # still noticing you at the start of a floor
+var aware := true  # on a floor of rooms, a monster waits until it sees you
+var path_t := 0.0  # when to look for a way around the walls again
+var path_d := Vector2.ZERO
+var sight_t := 0.0  # line of sight is re-checked a few times a second (phones)
+var sees := true
 var lob_spot := Vector2.ZERO  # where a bloomcap's spores will land
 var storm_spots: Array = []  # the Firebird's firestorm
 var reborn := false  # the Firebird rises once from its ashes
@@ -260,6 +265,28 @@ func _physics_process(delta: float) -> void:
 	var to: Vector2 = p.global_position - global_position
 	var dist := to.length()
 	var dir := to / maxf(dist, 0.001)
+	# Rooms and corridors: wait until it sees you, then find a way around walls.
+	if main.layout_on:
+		sight_t -= delta
+		if sight_t <= 0.0:
+			sight_t = 0.2
+			sees = main.clear_line(global_position, p.global_position)
+		var seen := sees
+		if not aware:
+			if (seen and dist < 460.0) or dist < 110.0:
+				wake()
+			else:
+				velocity = knock
+				move_and_slide()
+				queue_redraw()
+				return
+		if not seen and not is_attacking():
+			path_t -= delta
+			if path_t <= 0.0:
+				path_t = 0.2
+				path_d = main.path_dir(global_position, p.global_position)
+			dir = path_d
+			dist = 9999.0  # can't attack what it can't see: it closes in instead
 	# Ashwalker: a foe that has lost you wanders, or goes after a decoy.
 	if is_lost(dist) and not (is_attacking() and glinted):
 		_wander(delta)
@@ -1474,6 +1501,8 @@ func _ally_ai(delta: float) -> void:
 		face = face.slerp(to.normalized(), minf(1.0, 8.0 * delta)).normalized()
 		if to.length() > reach:
 			go = to.normalized() * speed
+			if not main.clear_line(global_position, target.global_position):
+				go = main.path_dir(global_position, target.global_position) * speed
 		elif ally_cd <= 0.0:
 			ally_cd = 0.9
 			target.take_hit(dmg, to.normalized(), 120.0)
@@ -1550,6 +1579,16 @@ func _tick_venom(delta: float) -> void:
 		venom = 0
 
 
+## Notices the climber, and rouses the monsters near it.
+func wake() -> void:
+	if aware:
+		return
+	aware = true
+	for e in main.enemies():
+		if not e.aware and e.global_position.distance_to(global_position) < 240.0:
+			e.wake()
+
+
 ## Loses track of the climber for a while (smoke, a decoy). Beasts never do.
 func lose_track(seconds: float, decoy) -> void:
 	if is_boss():
@@ -1613,6 +1652,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 		amount *= OPEN_MULT  # caught recovering from its attack
 		main.fx_text(global_position + Vector2(0, -radius - 34.0), "Opening!", Color(1.0, 0.85, 0.45))
 	notice_t = 0.0  # it certainly knows you're here now
+	if not aware:
+		wake()
 	if kind == "firebird" and state == "ashes":
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "ashes", Color(0.7, 0.6, 0.55))
 		return
