@@ -268,6 +268,30 @@ func cast(p) -> void:
 			_pyre(p)
 		"phoenix":
 			_phoenix(p)
+		"call":
+			_call(p)
+		"command":
+			_command(p)
+		"exchange":
+			_exchange(p)
+		"grandcall":
+			_grand_call(p)
+		"graftburst":
+			_graft_burst(p, damage(), true)
+		"mimic":
+			_mimic(p)
+		"shed":
+			_shed(p)
+		"chimeraform":
+			_chimera_form(p)
+		"sever":
+			_sever(p)
+		"mend":
+			_mend(p)
+		"transfer":
+			_transfer(p)
+		"amputate":
+			_amputate(p)
 
 
 
@@ -1109,3 +1133,246 @@ func _phoenix(p) -> void:
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 4.0)
 	p.main.light_flash(p.global_position, color(), 1.8, 1.8, 0.4)
 	p.main.sfx("crit", 0.7)
+
+
+# --- Covenant ------------------------------------------------------------------------
+
+const MAX_OUT := 3  # never more than three creatures out at once
+
+
+## Aimed at a monster below a quarter of its health: binds its kind into the
+## pact book (kept between climbs). Otherwise calls the next creature of
+## your retinue (the first three kinds in the book; a spirit familiar until
+## you've bound one).
+func _call(p) -> void:
+	var main = p.main
+	var target = _target_in_aim(p, 240.0)
+	if target != null and target.hp < target.max_hp * 0.25 and not target.is_boss():
+		if not target.kind in main.profile.pacts:
+			main.profile.pacts.append(target.kind)
+			main.profile.save()
+		main.fx_text(target.global_position + Vector2(0, -target.radius - 30.0), "Bound: %s" % target.kind, color())
+		main.fx_ring(target.global_position, color(), 40.0, 0.4, 4.0)
+		main.sfx("crit", 1.1, -4.0)
+		target.submerged = false
+		target.take_hit(99999.0, Vector2.ZERO, 0.0)
+		return
+	var retinue: Array = main.profile.pacts.slice(0, 3)
+	if retinue.is_empty():
+		retinue = ["familiar"]
+	var seconds: float = stat("duration") * (0.5 if _overdrawn() else 1.0)  # half-bound
+	for i in int(stat("count")):
+		if main.allies().size() >= MAX_OUT:
+			break
+		var kind: String = retinue[p.call_index % retinue.size()]
+		p.call_index += 1
+		main.spawn_ally(kind, p.global_position + p.aim.rotated(0.8 * (i - 0.5)) * 40.0, step, seconds)
+	main.sfx("ready", 0.7)
+
+
+func _command(p) -> void:
+	var main = p.main
+	var target = _target_in_aim(p, 320.0)
+	for a in main.allies():
+		a.ally_target = target
+		a.ally_guard = target == null
+	if target != null:
+		main.fx_ring(target.global_position, color(), target.radius + 10.0, 0.3, 3.0)
+		main.fx_text(target.global_position + Vector2(0, -target.radius - 30.0), "Attack!", color())
+	else:
+		main.fx_text(p.global_position + Vector2(0, -40), "Guard me", color())
+
+
+func _exchange(p) -> void:
+	var main = p.main
+	var best = null
+	var best_d := INF
+	for a in main.allies():
+		var d: float = a.global_position.distance_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best = a
+	if best == null:
+		main.fx_text(p.global_position + Vector2(0, -40), "no creature to swap with", color())
+		return
+	var here: Vector2 = p.global_position
+	p.global_position = best.global_position
+	best.global_position = here
+	main.fx_ring(here, color(), 24.0, 0.3, 3.0)
+	main.fx_ring(p.global_position, color(), 24.0, 0.3, 3.0)
+	main.sfx("gust", 1.3, -4.0)
+
+
+func _grand_call(p) -> void:
+	var main = p.main
+	var kinds: Array = main.profile.pacts.slice(0, 6)
+	if kinds.is_empty():
+		kinds = ["familiar", "familiar"]
+	for i in kinds.size():
+		main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, step, stat("duration"))
+	essence = 0.0  # drains the whole mark
+	main.light_flash(p.global_position, color(), 2.4, 2.0, 0.5)
+	main.sfx("crit", 0.6)
+
+
+# --- Grafter -----------------------------------------------------------------------
+
+func _graft_burst(p, dmg: float, with_effects: bool) -> void:
+	var main = p.main
+	var n: int = main.grafts.size()
+	var effects: bool = with_effects and bool(stat("effects"))
+	var r: float = 90.0 + (40.0 if effects and main.grafts.has("throat") else 0.0)
+	var total: float = dmg + 5.0 * n + (5.0 if effects and main.grafts.has("hand") else 0.0)
+	for e in main.targets():
+		var to: Vector2 = e.global_position - p.global_position
+		if to.length() < r + e.radius:
+			e.take_hit(total, to.normalized(), 360.0 if effects and main.grafts.has("legs") else 160.0, true)
+			if effects and not e.dead:
+				if main.grafts.has("brow"):
+					e.stagger(0.6)
+				if main.grafts.has("back"):
+					e.add_venom(2)
+	if effects and main.grafts.has("heart"):
+		p.hp = minf(p.max_health(), p.hp + 4.0 * n)
+	main.fx_ring(p.global_position, color(), r, 0.4, 5.0)
+	main.fx_burst(p.global_position, Vector2.ZERO, color(), 18, 280.0)
+	main.sfx("hit_heavy", 0.8)
+	main.shake(4.0)
+	# An overdrawn burst may make a graft reject.
+	if _overdrawn() and not main.graft_order.is_empty() and randf() < 0.5:
+		var lost: String = main.graft_order.pop_back()
+		main.grafts.erase(lost)
+		main.fx_text(p.global_position + Vector2(0, -44), "Your %s graft rejects" % lost, Color(0.9, 0.5, 0.5))
+
+
+## Mimic: the newest graft's monster trick, once.
+func _mimic(p) -> void:
+	var main = p.main
+	if main.graft_order.is_empty():
+		main.fx_text(p.global_position + Vector2(0, -40), "no graft to mimic", color())
+		return
+	var part: String = main.graft_order[-1]
+	var dmg := damage()
+	match part:
+		"hand":  # a heavy blow in front
+			for e in main.targets():
+				var to: Vector2 = e.global_position - p.global_position
+				if to.length() < 80.0 + e.radius and absf(p.aim.angle_to(to)) < deg_to_rad(60.0):
+					e.take_hit(dmg * 1.5, to.normalized(), 300.0, true)
+			main.fx_cone(p.global_position, p.aim, 90.0, deg_to_rad(60.0), color())
+		"legs":  # a swoop straight ahead, cutting through
+			var start: Vector2 = p.global_position
+			var end: Vector2 = (start + p.aim * 130.0).clamp(main.room.position + Vector2(20, 20), main.room.end - Vector2(20, 20))
+			for e in main.targets():
+				if Geometry2D.get_closest_point_to_segment(e.global_position, start, end).distance_to(e.global_position) < e.radius + 16.0:
+					e.take_hit(dmg, p.aim, 160.0)
+			p.global_position = end
+			p.iframes = maxf(p.iframes, 0.2)
+		"heart":  # mends flesh
+			p.hp = minf(p.max_health(), p.hp + dmg)
+		"brow":  # a stunning shriek
+			for e in main.targets():
+				if e.global_position.distance_to(p.global_position) < 90.0 + e.radius:
+					e.stagger(1.2)
+		"throat":  # a burst of sparks
+			for e in main.targets():
+				var to2: Vector2 = e.global_position - p.global_position
+				if to2.length() < 120.0 + e.radius:
+					e.take_hit(dmg * 0.8, to2.normalized(), 180.0)
+		"back":  # slip behind the foe you aim at
+			var t = _target_in_aim(p, 220.0)
+			if t != null:
+				p.global_position = t.global_position - t.face * (t.radius + p.radius + 6.0)
+				p.aim = t.face
+	main.fx_text(p.global_position + Vector2(0, -40), "Mimic: %s" % main.grafts[part], color())
+	main.fx_ring(p.global_position, color(), 34.0, 0.3, 3.0)
+	main.sfx("gust", 1.0, -4.0)
+
+
+func _shed(p) -> void:
+	var main = p.main
+	if main.graft_order.is_empty():
+		main.fx_text(p.global_position + Vector2(0, -40), "no graft to shed", color())
+		return
+	var part: String = main.graft_order.pop_back()
+	main.grafts.erase(part)
+	if p.bonds.has(part):
+		p.bonds[part].burned = false
+	main.fx_text(p.global_position + Vector2(0, -44), "Shed your %s graft" % part, color())
+	_graft_burst(p, damage(), false)
+
+
+func _chimera_form(p) -> void:
+	p.chimera_t = stat("duration")
+	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 5.0)
+	p.main.sfx("crit", 0.7)
+
+
+# --- Surgeon -----------------------------------------------------------------------
+
+func _sever(p) -> void:
+	var main = p.main
+	var t = _target_in_aim(p, 130.0)
+	if t == null:
+		main.fx_text(p.global_position + Vector2(0, -40), "no one in reach", color())
+		return
+	t.take_hit(damage(), (t.global_position - p.global_position).normalized(), 60.0)
+	if bool(stat("disarm")) and t.cripple_t > 0.0:
+		t.disarm_t = stat("duration")
+		main.release_attack(t)
+		main.fx_text(t.global_position + Vector2(0, -t.radius - 30.0), "Disarmed", color())
+	else:
+		t.cripple_t = stat("duration")
+		main.fx_text(t.global_position + Vector2(0, -t.radius - 30.0), "Crippled", color())
+	main.sfx("swing", 1.6)
+
+
+func _mend(p) -> void:
+	var main = p.main
+	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0)  # Steady Hands
+	p.hp = minf(p.max_health(), p.hp + amount)
+	p.poison_t = 0.0
+	p.fire_t = 0.0
+	for a in main.allies():
+		if a.global_position.distance_to(p.global_position) < 140.0:
+			a.hp = minf(a.max_hp, a.hp + amount)
+	main.fx_text(p.global_position + Vector2(0, -44), "+%d" % int(amount), Color(0.6, 1.0, 0.7))
+	main.fx_ring(p.global_position, color(), 40.0, 0.35, 3.0)
+	main.sfx("ready", 0.9)
+	if _overdrawn():
+		p.poison(3.0)  # an overdrawn Mend opens a wound that bleeds before it closes
+
+
+func _transfer(p) -> void:
+	var main = p.main
+	var t = _target_in_aim(p, 260.0)
+	if t == null:
+		main.fx_text(p.global_position + Vector2(0, -40), "no one to take it", color())
+		return
+	var moved := 0
+	for b in p.bonds.values():
+		if b.burned:
+			b.burned = false
+			t.take_hit(10.0, Vector2.ZERO, 0.0)
+			t.add_venom(2)
+			moved += 1
+	if p.poison_t > 0.0:
+		p.poison_t = 0.0
+		t.add_venom(3)
+		moved += 1
+	main.fx_bolt([p.global_position, t.global_position], color())
+	main.fx_text(t.global_position + Vector2(0, -t.radius - 30.0), "Transferred" if moved > 0 else "nothing to pass on", color())
+	main.sfx("zap", 1.3, -4.0)
+
+
+func _amputate(p) -> void:
+	var main = p.main
+	var t = _target_in_aim(p, 130.0)
+	if t == null or t.hp > t.max_hp * 0.5:
+		main.fx_text(p.global_position + Vector2(0, -40), "not wounded enough", color())
+		return
+	t.cripple_t = 9999.0
+	t.disarm_t = 9999.0
+	main.release_attack(t)
+	main.fx_text(t.global_position + Vector2(0, -t.radius - 30.0), "Amputated", color())
+	main.sfx("crit", 1.2)

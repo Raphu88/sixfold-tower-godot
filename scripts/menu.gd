@@ -257,7 +257,7 @@ func _page_dev() -> void:
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
-	for kind in EnemyScript.TYPES:
+	for kind in EnemyScript.TYPES.keys().filter(func(k): return k != "familiar"):
 		_button(kind.capitalize(), _dev_spawn.bind(kind), grid)
 	box.add_child(grid)
 

@@ -225,6 +225,11 @@ func _physics_process(delta: float) -> void:
 			spd *= 1.15
 		if _stubborn():
 			spd *= 1.2
+		if has_bond("covenant"):  # Pack Stride
+			for a in main.allies():
+				if a.global_position.distance_to(global_position) < 130.0:
+					spd *= 1.15
+					break
 		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper"))
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
@@ -393,7 +398,7 @@ func _tick_timers(delta: float) -> void:
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0))  # Deep Lungs; a burned throat; Stubborn Heart
+		sta = minf(MAX_STA, sta + 45.0 * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 func _winded() -> void:
@@ -481,7 +486,7 @@ func _try_roll(input: Vector2) -> bool:
 		return false
 	# Windwalker's Body: the roll becomes a long wind dash.
 	var wind := has_bond("windwalker")
-	var cost := 16.0 if wind else 24.0
+	var cost := (16.0 if wind else 24.0) * (1.0 - 0.25 * minf(graft("legs"), 1.6))
 	var dist_mult := 1.0
 	if _burned("legs"):
 		cost *= 1.5
@@ -493,7 +498,7 @@ func _try_roll(input: Vector2) -> bool:
 	sta_delay = 0.7
 	roll_dir = input.normalized() if input != Vector2.ZERO else aim
 	var duration := 0.26 if wind else 0.22
-	roll_speed = (500.0 if wind else 320.0) * dist_mult
+	roll_speed = (500.0 if wind else 320.0) * dist_mult * (1.0 + 0.15 * graft("legs"))
 	roll_t = duration
 	iframes = duration * 0.85
 	roll_cd = (duration + 0.25) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
@@ -563,6 +568,7 @@ func _melee() -> bool:
 		dmg += kindle_dmg
 	if desperate_t > 0.0:
 		dmg *= 1.0 + 1.5 * (1.0 - hp / max_hp)  # Desperation
+	dmg *= 1.0 + 0.2 * graft("hand")
 	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
 	var hits := 0
 	for e in main.targets():
@@ -683,7 +689,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	var backstab: bool = dir != Vector2.ZERO and e.face.dot(dir) > 0.5
 	if backstab:
 		if not _burned("back"):
-			dmg *= BACKSTAB_MULT
+			dmg *= BACKSTAB_MULT + 0.5 * graft("back")
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 40.0), "Backstab", Color(0.95, 0.6, 0.45))
 		_part_action("back", 3.0, 10.0)
 	# Stormcaller passive, Static: striking a charged foe arcs to another.
@@ -729,7 +735,7 @@ func _try_parry() -> bool:
 	attack_cd = 0.0
 	lunge_t = 0.0
 	drawing = false
-	parry_window = PARRY_WINDOW * (0.6 if _burned("brow") else 1.0)
+	parry_window = PARRY_WINDOW * (0.6 if _burned("brow") else 1.0) * (1.0 + 0.25 * graft("brow"))
 	parry_t = parry_window
 	parry_cd = 0.45
 	var threat := _nearest_threat()
@@ -877,9 +883,21 @@ var phoenix_t := 0.0
 var ember_t := 0.0  # Last Ember: burning at 1 health; strike to stay standing
 var ember_used := false
 
+# The Chimera's bonds.
+var call_index := 0  # Covenant: the next creature of the retinue
+var chimera_t := 0.0  # Grafter's Chimera Form
+
 
 var poison_t := 0.0  # poisoned: a little damage every half second
 var poison_tick := 0.0
+
+
+## Grafter's Adaptive Flesh: how strongly a graft on this body part works
+## (0 without one; doubled in Chimera Form).
+func graft(part: String) -> float:
+	if not has_bond("grafter") or not main.grafts.has(part):
+		return 0.0
+	return 2.0 if chimera_t > 0.0 else 1.0
 
 
 ## Stubborn Heart: below a third of your health you move and recover faster.
@@ -910,6 +928,7 @@ func _defy_death() -> bool:
 
 
 func _tick_fire_bonds(delta: float) -> void:
+	chimera_t -= delta
 	warmth_t -= delta
 	firebird_t -= delta
 	desperate_t -= delta
@@ -1073,6 +1092,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 			return
 	if rune_gear == "warding":
 		dmg *= 0.75
+	dmg *= 1.0 - 0.15 * graft("heart")
 	hp -= dmg
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0

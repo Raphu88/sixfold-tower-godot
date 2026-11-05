@@ -47,6 +47,18 @@ const TYPES := {
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
 	"chimera": {"hp": 500.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
+	# Covenant's spirit familiar (only ever on your side)
+	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
+}
+## Surgeon's Diagnosis: what each monster is weak to.
+const WEAKNESS := {
+	"slime": "flinches when hit", "archer": "close range", "knight": "parry, then riposte",
+	"bat": "parry the swoop", "thunderling": "step out of the ring", "lurker": "strike while it's up",
+	"shellback": "strike from behind", "cinder": "parry the ember back", "smith": "the opening after the hammer",
+	"scorpling": "parry the sting", "ram": "let it charge into a wall", "wisp": "parry the dart",
+	"bloomcap": "it can't move: get close", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
+	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
+	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
@@ -121,6 +133,16 @@ var lob_spot := Vector2.ZERO  # where a bloomcap's spores will land
 var storm_spots: Array = []  # the Firebird's firestorm
 var reborn := false  # the Firebird rises once from its ashes
 var turn := 0  # a mongrel alternates its two attacks
+var cripple_t := 0.0  # Surgeon's Sever: can't run or charge
+var disarm_t := 0.0  # ...and disarmed: can't start an attack
+# Covenant: a called creature fights for you.
+var ally := false
+var ally_t := 0.0
+var ally_life := 30.0
+var ally_target = null
+var ally_guard := false
+var ally_cd := 0.0
+var vanish_t := 0.0  # (for monsters targeting a creature, which can't vanish)
 var overlay: Node2D  # unlit layer: telegraphs and the health bar
 
 
@@ -145,13 +167,31 @@ func setup(k: String, room) -> void:
 		state = "rest"
 	if kind in BOSSES:
 		state_t = 1.6
+	# Covenant's Kinship: a kind in your pact book is slower to notice you.
+	if main != null and main.profile != null and kind in main.profile.pacts and main.player != null and main.player.has_bond("covenant"):
+		state_t *= 2.0
+		notice_t = state_t
 	if kind == "lurker":
 		state = "sub"
 		submerged = true
 
 
+## A called creature (Covenant): fights on your side, scaled to your bond's step.
+func setup_ally(k: String, room, step: int, seconds: float) -> void:
+	setup(k, room)
+	ally = true
+	ally_t = seconds
+	ally_life = seconds
+	max_hp = 30.0 + 15.0 * step
+	hp = max_hp
+	dmg = 4.0 + 3.0 * step
+	speed = maxf(speed, 70.0) * 1.1
+	state = "ally"
+	notice_t = 0.0
+
+
 func _ready() -> void:
-	add_to_group("enemies")
+	add_to_group("allies" if ally else "enemies")
 	collision_layer = 4
 	collision_mask = 1 | 8  # walls, pillars, and Sandshaper's stone walls
 	if not kind in FLIERS:
@@ -192,11 +232,17 @@ func _physics_process(delta: float) -> void:
 		flinch -= delta
 		_drift()
 		return
+	if ally:
+		_ally_ai(delta)
+		return
 	notice_t -= delta
 	lost_t -= delta
+	cripple_t -= delta
+	disarm_t -= delta
 	_tick_venom(delta)
 	if dead:
 		return
+	p = _foe(p)
 	if p == null or p.dead:
 		_end_attack("idle", 1.0)
 		_drift()
@@ -263,6 +309,9 @@ func _physics_process(delta: float) -> void:
 		velocity *= 0.6
 	# Sandshaper: rubble slows; Shifting Sands slows foes walking up to you
 	# (never an attack already under way, which keeps its glint's timing).
+	# Surgeon's Sever: a crippled foe can't run or charge.
+	if cripple_t > 0.0:
+		velocity *= 0.35
 	if not is_attacking():
 		velocity *= main.rubble_slow(global_position)
 		if p.has_bond("sandshaper") and dist < 110.0:
@@ -1370,6 +1419,93 @@ func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
 					main.sfx("warn_archer", 0.7)
 
 
+# --- Covenant's creatures ---------------------------------------------------------------
+
+## Who this monster goes after: the climber, or one of their creatures that
+## is closer (creatures split the monsters' attention).
+func _foe(p):
+	var best = p
+	var best_d: float = global_position.distance_to(p.global_position) if p != null else INF
+	for a in main.allies():
+		var d: float = global_position.distance_to(a.global_position)
+		if d < 140.0 and d < best_d - 20.0:
+			best = a
+			best_d = d
+	return best
+
+
+func _ally_ai(delta: float) -> void:
+	ally_t -= delta
+	ally_cd -= delta
+	if ally_t <= 0.0:
+		_fade_ally()
+		return
+	var p = main.player
+	var target = ally_target
+	if target != null and (not is_instance_valid(target) or target.dead):
+		target = null
+		ally_target = null
+	if target == null:
+		# The nearest foe: near you if guarding, near itself otherwise.
+		var from: Vector2 = p.global_position if ally_guard else global_position
+		var best_d := 120.0 if ally_guard else 420.0
+		for e in main.targets():
+			var d := from.distance_to(e.global_position)
+			if d < best_d:
+				best_d = d
+				target = e
+	var go := Vector2.ZERO
+	if target != null:
+		var to: Vector2 = target.global_position - global_position
+		var reach: float = radius + target.radius + 10.0
+		face = face.slerp(to.normalized(), minf(1.0, 8.0 * delta)).normalized()
+		if to.length() > reach:
+			go = to.normalized() * speed
+		elif ally_cd <= 0.0:
+			ally_cd = 0.9
+			target.take_hit(dmg, to.normalized(), 120.0)
+			main.fx_burst(target.global_position - to.normalized() * target.radius, to.normalized(), Color(0.7, 1.0, 0.8), 5, 200.0)
+			main.sfx("hit", 1.2, -6.0)
+	elif p != null and global_position.distance_to(p.global_position) > 60.0:
+		go = (p.global_position - global_position).normalized() * speed
+	velocity = go + knock
+	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
+	move_and_slide()
+	queue_redraw()
+
+
+func _fade_ally() -> void:
+	dead = true
+	main.fx_burst(global_position, Vector2.ZERO, Color(0.7, 1.0, 0.85), 12, 160.0)
+	queue_free()
+
+
+## A monster's attack reaching a creature (the same call the climber takes).
+func receive_attack(amount: float, _source, _unblockable := false) -> void:
+	if dead:
+		return
+	hp -= amount
+	flash = 0.12
+	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.6, 0.55))
+	if hp <= 0.0:
+		main.fx_text(global_position + Vector2(0, -radius - 22.0), "your %s falls" % kind, Color(0.8, 0.8, 0.8))
+		_fade_ally()
+
+
+# Things monsters check on whoever they're fighting (a creature can't jump,
+# isn't poisoned and has no bonds).
+func in_air() -> bool:
+	return false
+
+
+func poison(_seconds: float) -> void:
+	pass
+
+
+func has_bond(_bond_id: String) -> bool:
+	return false
+
+
 # --- Venomist's poison and Ashwalker's stealth ---------------------------------------------
 
 ## Poison stacks. Each new stack also makes it last longer (Toxin Build).
@@ -1585,6 +1721,8 @@ func _draw() -> void:
 			_draw_mongrel(t, f)
 		"chimera":
 			_draw_chimera(t, f)
+		"familiar":
+			_draw_wisp(t)
 	if flash > 0.0:
 		draw_circle(Vector2.ZERO, radius + 2.0, Color(1, 1, 1, 0.75 * flash / 0.12))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -2263,7 +2401,16 @@ func _draw_overlay() -> void:
 			c.draw_circle(dp, 1.6, Color(0.55, 0.85, 0.35, 0.85))
 	if is_lost(global_position.distance_to(main.player.global_position)) and main.player != null:
 		c.draw_string(ThemeDB.fallback_font, Vector2(-4, lift_y - radius - 16.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.78, 0.75, 0.9))
-	if hp < max_hp and not is_boss():
+	if ally:
+		c.draw_arc(Vector2(0, radius * 0.7), radius + 4.0, 0.0, TAU, 24, Color(0.6, 1.0, 0.75, 0.8), 2.0)
+		var lw := radius * 2.2
+		c.draw_rect(Rect2(Vector2(-lw / 2.0, radius + 8.0), Vector2(lw * clampf(ally_t / ally_life, 0.0, 1.0), 2.0)), Color(0.6, 1.0, 0.75, 0.8))
+	var diagnosis: bool = main.player != null and main.player.has_bond("surgeon") and not ally
+	if diagnosis and not is_boss():
+		c.draw_string(ThemeDB.fallback_font, Vector2(-60, lift_y - radius - 18.0), WEAKNESS.get(kind, ""), HORIZONTAL_ALIGNMENT_CENTER, 120, 9, Color(0.85, 0.9, 0.95, 0.75))
+	if cripple_t > 0.0 or disarm_t > 0.0:
+		c.draw_string(ThemeDB.fallback_font, Vector2(-40, radius + 18.0), "disarmed" if disarm_t > 0.0 else "crippled", HORIZONTAL_ALIGNMENT_CENTER, 80, 9, Color(0.9, 0.95, 1.0, 0.85))
+	if (hp < max_hp or diagnosis) and not is_boss():
 		var w2 := radius * 2.2
 		var top := Vector2(-w2 / 2.0, lift_y - radius - 11.0)
 		c.draw_rect(Rect2(top - Vector2(1, 1), Vector2(w2 + 2, 5)), Color(0, 0, 0, 0.7))

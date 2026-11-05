@@ -26,6 +26,7 @@ var tally := {}  # essence kind -> banked since the last mark
 var climbs := 0
 var best_floor := 1
 var last_tower := "kraken"
+var pacts: Array = []  # Covenant's pact book: monster kinds bound, kept between climbs
 var saving := true
 
 
@@ -45,6 +46,7 @@ func reset() -> void:
 	tally = {}
 	climbs = 0
 	best_floor = 1
+	pacts = []
 	save()
 
 
@@ -58,6 +60,7 @@ func load_save() -> void:
 	soak = cfg.get_value("profile", "soak", {})
 	tally = cfg.get_value("profile", "tally", {})
 	climbs = int(cfg.get_value("profile", "climbs", 0))
+	pacts = cfg.get_value("profile", "pacts", [])
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 
 
@@ -73,6 +76,7 @@ func save() -> void:
 	cfg.set_value("profile", "tally", tally)
 	cfg.set_value("profile", "climbs", climbs)
 	cfg.set_value("profile", "last_tower", last_tower)
+	cfg.set_value("profile", "pacts", pacts)
 	cfg.save(SAVE_PATH)
 
 

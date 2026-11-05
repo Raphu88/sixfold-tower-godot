@@ -1068,6 +1068,143 @@ func _firebird_bond_tests() -> void:
 	dummy.queue_free()
 
 
+func _chimera_bond_tests() -> void:
+	print("the Chimera's bonds")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	_mark("hand", "covenant", 5)
+	_mark("heart", "grafter", 5)
+	_mark("brow", "surgeon", 5)
+	var ok := true
+	for part in ["hand", "heart", "brow"]:
+		ok = ok and p.bonds[part].spells().size() == 4
+	_check(ok, "at step 5 each Chimera bond knows four spells")
+
+	# Covenant.
+	_cast("hand", "bind_and_call")
+	_check(main.allies().size() == 2 and main.allies()[0].kind == "familiar", "Call with an empty pact book brings spirit familiars (two at step 3+)")
+	for a in main.allies():
+		a.queue_free()
+	await _frames(2)
+	var weak = await _spawn("knight", p.global_position + Vector2(100, 0))
+	weak.hp = weak.max_hp * 0.2
+	_cast("hand", "bind_and_call")
+	await _frames(2)
+	_check("knight" in main.profile.pacts and (not is_instance_valid(weak) or weak.dead), "Bind: a monster below a quarter of its health joins your pact book")
+	_cast("hand", "bind_and_call")
+	await _frames(1)
+	_check(main.allies().size() == 2 and main.allies()[0].kind == "knight", "...and Call brings your bound creatures")
+	_cast("hand", "bind_and_call")
+	_check(main.allies().size() == 3, "never more than three creatures out at once")
+	var foe = await _spawn("slime", p.global_position + Vector2(90, 0))
+	foe.hp = 999.0
+	foe.max_hp = 999.0
+	_cast("hand", "command")
+	_check(main.allies().all(func(a): return a.ally_target == foe), "Command sends every creature at the foe you aim at")
+	await _wait(1.2)
+	_check(foe.hp < 999.0, "...and they attack it")
+	var near: Vector2 = main.allies()[0].global_position
+	_cast("hand", "exchange")
+	_check(p.global_position.distance_to(near) < 30.0, "Exchange swaps you with a creature")
+	# Monsters fight your creatures too.
+	var a0 = main.allies()[0]
+	a0.global_position = foe.global_position + Vector2(30, 0)
+	p.global_position = foe.global_position + Vector2(-300, 0)
+	_check(foe._foe(p) == a0, "monsters turn on a creature that's closer than you")
+	var hp_a: float = a0.hp
+	a0.receive_attack(5.0, foe)
+	_check(a0.hp < hp_a, "...and can hurt it")
+	foe.queue_free()
+	for a in main.allies():
+		a.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	main.profile.pacts = ["knight", "slime", "archer"]
+	_cast("hand", "grand_call")
+	_check(main.allies().size() == 3 and p.bonds["hand"].essence == 0.0, "Grand Call: every creature in your book at once, draining the mark")
+	_check(p.has_bond("covenant"), "(Pack Stride and Kinship come with the mark)")
+	main._start_floor(main.floor_num)
+	await _frames(2)
+	_check(main.allies().is_empty(), "calls end on a new floor")
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	main.profile.pacts = []
+
+	# Grafter.
+	_check(main.add_graft("knight") and main.grafts.get("hand", "") == "knight", "a knight's graft binds to your hand")
+	_check(not main.add_graft("smith"), "...and only one graft per body part")
+	main.add_graft("bat")
+	var dummy = await _spawn("knight", p.global_position + Vector2(30, 0))
+	dummy.hp = 9999.0
+	dummy.max_hp = 9999.0
+	var hp0: float = dummy.hp
+	p.combo = 0
+	p.combo_t = 0.0
+	p.attack_cd = 0.0
+	p._melee()
+	var with_graft: float = hp0 - dummy.hp
+	main.grafts.erase("hand")
+	hp0 = dummy.hp
+	p.combo = 0
+	p.combo_t = 0.0
+	p.attack_cd = 0.0
+	p._melee()
+	var without: float = hp0 - dummy.hp
+	main.grafts["hand"] = "knight"
+	_check(with_graft > without * 1.15, "Adaptive Flesh: a hand graft strengthens your strikes (%.1f vs %.1f)" % [with_graft, without])
+	main.graft_drops = [{"pos": p.global_position, "kind": "slime", "t": 5.0}]
+	main._update_grafts(0.016)
+	_check(main.grafts.has("heart") and main.graft_drops.is_empty(), "walking over a graft binds it")
+	hp0 = dummy.hp
+	_cast("heart", "graft_burst")
+	_check(hp0 - dummy.hp >= 14.0 + 15.0, "Graft Burst hits harder for every graft (%.0f)" % (hp0 - dummy.hp))
+	p.hp = 50.0
+	_cast("heart", "mimic")  # newest graft: the slime's heart, which mends
+	_check(p.hp > 50.0, "Mimic uses your newest graft's power")
+	p.bonds["heart"].burned = true
+	_cast("heart", "shed")
+	_check(not main.grafts.has("heart") and not p.bonds["heart"].burned, "Shed casts off a graft and heals its body part's burn")
+	_cast("heart", "chimera_form")
+	_check(p.chimera_t > 0.0 and p.graft("hand") == 2.0, "Chimera Form doubles every graft's power")
+	p.chimera_t = 0.0
+	dummy.queue_free()
+	await _frames(1)
+
+	# Surgeon.
+	var t = await _spawn("knight", p.global_position + Vector2(60, 0))
+	t.hp = 9999.0
+	t.max_hp = 9999.0
+	_check(t.WEAKNESS.has("knight"), "Diagnosis knows what each foe is weak to")
+	_cast("brow", "sever")
+	_check(t.cripple_t > 0.0, "Sever cripples a foe")
+	_cast("brow", "sever")
+	_check(t.disarm_t > 0.0 and not main.request_attack(t), "...and at step 3+ a crippled foe is disarmed: it can't attack")
+	t.cripple_t = 0.0
+	t.disarm_t = 0.0
+	p.hp = 40.0
+	p.poison_t = 3.0
+	_cast("brow", "mend")
+	_check(p.hp > 40.0 + 40.0 and p.poison_t <= 0.0, "Mend heals (more with Steady Hands) and cures poison")
+	p.bonds["heart"].burned = true
+	p.poison_t = 3.0
+	_cast("brow", "transfer")
+	_check(not p.bonds["heart"].burned and p.poison_t <= 0.0 and t.venom > 0, "Transfer moves your burns and poison onto a foe")
+	t.hp = t.max_hp * 0.6
+	_cast("brow", "amputate")
+	_check(t.disarm_t <= 0.0, "Amputate needs a foe below half health")
+	t.hp = t.max_hp * 0.4
+	_cast("brow", "amputate")
+	_check(t.cripple_t > 1000.0 and t.disarm_t > 1000.0, "...then cripples and disarms it for the rest of the fight")
+	t.queue_free()
+
+
 func _menu_tests() -> void:
 	print("menus and the dev tool")
 	await _fresh_main()
@@ -2003,6 +2140,7 @@ func _run() -> void:
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()
+	await _chimera_bond_tests()
 	await _body_part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])

@@ -256,6 +256,12 @@ func _draw_fields() -> void:
 		for i in 6:
 			var ga := TAU * i / 6.0 + t * 0.3
 			draw_circle(sg["pos"] + Vector2.from_angle(ga) * sg["r"] * 0.85, 3.0, Color(sc, 0.7 * sa))
+	for g in main.graft_drops:
+		var gp: Vector2 = g["pos"] + Vector2(0, sin(t * 4.0) * 2.0)
+		draw_circle(gp, 7.0, Color(0.55, 0.35, 0.5, 0.9))
+		draw_line(gp + Vector2(-5, -2), gp + Vector2(5, 2), Color(0.95, 0.85, 0.9), 1.5)
+		draw_line(gp + Vector2(-3, 3), gp + Vector2(3, -3), Color(0.95, 0.85, 0.9), 1.0)
+		draw_arc(gp, 10.0, 0.0, TAU, 16, Color(0.75, 0.55, 0.7, 0.5), 1.5)
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))
