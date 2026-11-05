@@ -16,6 +16,12 @@ const Draw := preload("res://scripts/draw_util.gd")
 
 const GLINT_LEAD := 0.25  # seconds from the glint to the hit
 const FLINCH_TIME := 0.3
+## A monster flinches from a light hit at most this often (no stun-locking
+## by mashing); heavy hits (finishers) always rock it.
+const FLINCH_COOLDOWN := 1.2
+## After an attack, a monster is open: hits deal this much more. That's
+## where your damage should come from.
+const OPEN_MULT := 1.6
 const POUNCE_SPEED := 420.0
 const LUNGE_SPEED := 760.0
 
@@ -26,27 +32,27 @@ const TYPES := {
 	# The Gryphon's tower
 	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
-	"gryphon": {"hp": 380.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
+	"gryphon": {"hp": 300.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
 	# The Kraken's tower
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
-	"kraken": {"hp": 450.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
+	"kraken": {"hp": 340.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
-	"wyvern": {"hp": 420.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
+	"wyvern": {"hp": 320.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
-	"manticore": {"hp": 460.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
+	"manticore": {"hp": 350.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
 	"bloomcap": {"hp": 34.0, "speed": 0.0, "radius": 14.0, "color": Color(0.88, 0.42, 0.32), "dmg": 13.0, "weight": 60.0},
-	"firebird": {"hp": 440.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
+	"firebird": {"hp": 330.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
 	# The Chimera's tower
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
-	"chimera": {"hp": 500.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
+	"chimera": {"hp": 380.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# Covenant's spirit familiar (only ever on your side)
 	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
 }
@@ -134,6 +140,8 @@ var storm_spots: Array = []  # the Firebird's firestorm
 var reborn := false  # the Firebird rises once from its ashes
 var turn := 0  # a mongrel alternates its two attacks
 var cripple_t := 0.0  # Surgeon's Sever: can't run or charge
+var flinch_cd := 0.0  # light hits can't flinch it again until this runs out
+var open_t := 0.0  # recovering from an attack: open to heavy punishment
 var disarm_t := 0.0  # ...and disarmed: can't start an attack
 # Covenant: a called creature fights for you.
 var ally := false
@@ -237,6 +245,8 @@ func _physics_process(delta: float) -> void:
 		return
 	notice_t -= delta
 	lost_t -= delta
+	flinch_cd -= delta
+	open_t -= delta
 	cripple_t -= delta
 	disarm_t -= delta
 	_tick_venom(delta)
@@ -370,6 +380,9 @@ func _begin_wind(new_state: String, duration: float) -> void:
 
 
 func _end_attack(next_state: String, duration: float) -> void:
+	# Finishing a committed attack leaves it open for most of its recovery.
+	if glinted and next_state != "ashes":
+		open_t = minf(duration, 1.6) * (1.0 if is_boss() else 0.8)
 	state = next_state
 	state_t = duration
 	glinted = false
@@ -594,7 +607,7 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= RAKE_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(RAKE_ARC):
 					p.receive_attack(dmg, self)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"wind_dive":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -615,7 +628,7 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.shake(9.0)
 				if global_position.distance_to(p.global_position) < DIVE_RADIUS + p.radius:
 					p.receive_attack(dmg * 1.2, self, true)  # a landing can't be parried: roll
-				_end_attack("recover", 1.3)  # a long opening after landing
+				_end_attack("recover", 1.6)  # a long opening after landing
 		"wind_gale":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -628,7 +641,7 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 					f.style = "feather"
 					f.tint = color
 				main.sfx("gust", 0.8)
-				_end_attack("recover", 0.7)
+				_end_attack("recover", 1.0)
 		"recover", "idle":
 			state_t -= delta
 			velocity = Vector2.ZERO
@@ -762,7 +775,7 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= SWEEP_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(SWEEP_ARC):
 					p.receive_attack(dmg, self)
-				_end_attack("recover", 0.9)
+				_end_attack("recover", 1.2)
 		"wind_slam":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -775,7 +788,7 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 						p.receive_attack(dmg * 1.1, self, true)
 				main.sfx("hit_heavy", 0.5)
 				main.shake(8.0)
-				_end_attack("recover", 1.2)
+				_end_attack("recover", 1.5)
 		"wind_ink":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -787,7 +800,7 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 					ink.style = "ink"
 					ink.tint = Color(0.12, 0.08, 0.16)
 				main.sfx("hit_slime", 0.5)
-				_end_attack("recover", 0.7)
+				_end_attack("recover", 1.0)
 		"recover", "idle":
 			state_t -= delta
 			velocity = Vector2.ZERO
@@ -886,7 +899,7 @@ func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= TAIL_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(TAIL_ARC):
 					p.receive_attack(dmg, self)
-				_end_attack("recover", 0.9)
+				_end_attack("recover", 1.2)
 		"wind_breath":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -900,8 +913,8 @@ func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
 				if to.length() <= BREATH_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(BREATH_ARC) + 0.1:
 					p.receive_attack(dmg * 1.1, self, true)  # fire can't be parried: roll
 				for i in 3:
-					main.add_flame(global_position + lunge_dir * (70.0 + 60.0 * i), 30.0 + 6.0 * i, 3.0)
-				_end_attack("recover", 1.2)
+					main.add_flame(global_position + lunge_dir * (70.0 + 60.0 * i), 26.0 + 4.0 * i, 1.6)
+				_end_attack("recover", 1.6)
 		"wind_embers":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -913,7 +926,7 @@ func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
 					e.style = "ember"
 					e.tint = Color(1.0, 0.55, 0.22)
 				main.sfx("zap", 1.2, -4.0)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"recover", "idle":
 			state_t -= delta
 			velocity = Vector2.ZERO
@@ -1037,7 +1050,7 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= CLAW_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(CLAW_ARC):
 					p.receive_attack(dmg, self)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"wind_spikes":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -1050,7 +1063,7 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 					sp.tint = color
 					sp.poison = 3.0
 				main.sfx("bow", 0.7)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"wind_roar":
 			velocity = Vector2.ZERO
 			if _wind(delta):
@@ -1061,7 +1074,7 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.shake(9.0)
 				if dist < ROAR_RADIUS + p.radius:
 					p.receive_attack(dmg, self, true)  # a roar can't be parried: roll
-				_end_attack("recover", 1.2)
+				_end_attack("recover", 1.5)
 		"recover", "idle":
 			state_t -= delta
 			velocity = Vector2.ZERO
@@ -1183,12 +1196,12 @@ func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
 			state_t -= delta
 			velocity = aim_dir * swoop_speed
 			if fmod(state_t, 0.09) < delta:
-				main.add_flame(global_position, 22.0, 2.0)
+				main.add_flame(global_position, 20.0, 1.2)
 			if not lunge_hit and dist < radius + p.radius + 6.0:
 				lunge_hit = true
 				p.receive_attack(dmg, self)
 			if state_t <= 0.0:
-				_end_attack("recover", 1.0)
+				_end_attack("recover", 1.3)
 		"wind_storm":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -1197,13 +1210,13 @@ func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
 				for spot in storm_spots:
 					main.fx_ring(spot, color, STORM_RADIUS, 0.4, 5.0)
 					main.fx_burst(spot, Vector2.UP, Color(1.0, 0.6, 0.25), 12, 260.0)
-					main.add_flame(spot, 32.0, 2.5)
+					main.add_flame(spot, 28.0, 1.6)
 					if p.global_position.distance_to(spot) < STORM_RADIUS + p.radius and not p.in_air():
 						p.receive_attack(dmg, self, true)
 				main.sfx("burn", 0.6)
 				main.light_flash(p.global_position, color, 2.0, 1.6, 0.4)
 				main.shake(7.0)
-				_end_attack("recover", 1.2)
+				_end_attack("recover", 1.5)
 		"wind_embers":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -1215,7 +1228,7 @@ func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
 					e.style = "ember"
 					e.tint = color
 				main.sfx("gust", 1.1)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"recover", "idle":
 			state_t -= delta
 			_circle(dir, dist, 170.0, speed * 0.5)
@@ -1350,7 +1363,7 @@ func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
 				var to: Vector2 = p.global_position - global_position
 				if to.length() <= CLAW_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(CLAW_ARC):
 					p.receive_attack(dmg, self)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"wind_breath":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -1363,8 +1376,8 @@ func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
 				if to.length() <= BREATH_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(BREATH_ARC) + 0.1:
 					p.receive_attack(dmg * 1.1, self, true)
 				for i in 3:
-					main.add_flame(global_position + lunge_dir * (70.0 + 60.0 * i), 28.0, 2.5)
-				_end_attack("recover", 1.1)
+					main.add_flame(global_position + lunge_dir * (70.0 + 60.0 * i), 26.0, 1.6)
+				_end_attack("recover", 1.5)
 		"wind_charge":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -1382,7 +1395,7 @@ func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
 				lunge_hit = true
 				p.receive_attack(dmg, self)
 			if state_t <= 0.0:
-				_end_attack("recover", 1.0)
+				_end_attack("recover", 1.3)
 		"wind_spikes":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -1394,7 +1407,7 @@ func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
 					sp.tint = Color(0.55, 0.8, 0.35)
 					sp.poison = 3.0
 				main.sfx("bow", 0.7)
-				_end_attack("recover", 0.8)
+				_end_attack("recover", 1.1)
 		"recover", "idle":
 			state_t -= delta
 			velocity = Vector2.ZERO
@@ -1596,6 +1609,9 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 		main.sfx("hit_armor", 1.2, -2.0)
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
+	if open_t > 0.0 and stun <= 0.0:
+		amount *= OPEN_MULT  # caught recovering from its attack
+		main.fx_text(global_position + Vector2(0, -radius - 34.0), "Opening!", Color(1.0, 0.85, 0.45))
 	notice_t = 0.0  # it certainly knows you're here now
 	if kind == "firebird" and state == "ashes":
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "ashes", Color(0.7, 0.6, 0.55))
@@ -1620,9 +1636,13 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	# Flinching: slimes and archers are knocked out of what they were doing.
 	# Knights shrug off hits while winding up; only heavy blows rock them
 	# when they aren't attacking.
-	var poise := (kind == "knight" and (is_attacking() or not heavy)) or is_boss()
+	# Poise: a committed attack carries on through light hits (read the glint:
+	# parry or roll), and light hits flinch a monster only now and then.
+	# Heavy hits (finishers) still rock most monsters. Beasts never flinch.
+	var poise := is_boss() or (not heavy and (is_attacking() or flinch_cd > 0.0)) or (kind == "knight" and not heavy)
 	if not poise and dir != Vector2.ZERO and stun <= 0.0:
 		flinch = FLINCH_TIME
+		flinch_cd = FLINCH_COOLDOWN
 		if is_attacking():
 			aim_dir = Vector2.ZERO
 			_end_attack(_idle_state(), 0.6)
@@ -2401,6 +2421,9 @@ func _draw_overlay() -> void:
 			c.draw_circle(dp, 1.6, Color(0.55, 0.85, 0.35, 0.85))
 	if is_lost(global_position.distance_to(main.player.global_position)) and main.player != null:
 		c.draw_string(ThemeDB.fallback_font, Vector2(-4, lift_y - radius - 16.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.78, 0.75, 0.9))
+	if open_t > 0.0 and not ally:
+		var po := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.02)
+		c.draw_arc(Vector2(0, lift_y), radius + 7.0, 0.0, TAU, 32, Color(1.0, 0.85, 0.45, 0.75 * po), 2.5)
 	if ally:
 		c.draw_arc(Vector2(0, radius * 0.7), radius + 4.0, 0.0, TAU, 24, Color(0.6, 1.0, 0.75, 0.8), 2.0)
 		var lw := radius * 2.2

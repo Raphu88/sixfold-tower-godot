@@ -1668,6 +1668,38 @@ func _chimera_tower_tests() -> void:
 	main.victory = {}
 
 
+func _combat_feel_tests() -> void:
+	print("combat feel")
+	await _fresh_main()
+	var p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	# Mashing runs you out of stamina.
+	p._equip("sword")
+	p.sta = p.MAX_STA
+	for i in 6:
+		p.attack_cd = 0.0
+		p._melee()
+	_check(p.sta < 15.0, "six sword swings in a row leave you winded (%d stamina)" % int(p.sta))
+	# After an attack, a monster is open: hits deal more.
+	var k = await _spawn("knight", p.global_position + Vector2(40, 0))
+	k.hp = 9999.0
+	k.max_hp = 9999.0
+	var hp0: float = k.hp
+	k.take_hit(10.0, Vector2.ZERO)
+	var plain: float = hp0 - k.hp
+	k.glinted = true
+	k._end_attack("recover", 1.0)
+	_check(k.open_t > 0.0, "finishing an attack leaves a monster open")
+	hp0 = k.hp
+	k.take_hit(10.0, Vector2.ZERO)
+	_check(hp0 - k.hp > plain * 1.5, "hits on an open monster deal more (%.0f vs %.0f)" % [hp0 - k.hp, plain])
+	k.queue_free()
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -2054,13 +2086,26 @@ func _run() -> void:
 	p.global_position = slime.global_position + Vector2(slime.radius + p.radius, 0)
 	await _wait(0.5)
 	_check(p.hp == p.MAX_HP, "touching a resting slime doesn't hurt")
-	# A hit during its wind-up makes it flinch and cancels the pounce.
+	# Poise: a light hit doesn't stop a wind-up (read the glint instead);
+	# a heavy hit (a finisher) does.
 	slime.state = "wind"
 	slime.state_t = 0.5
 	slime.glinted = false
+	slime.flinch_cd = 0.0
 	main.request_attack(slime)
 	slime.take_hit(1.0, Vector2.RIGHT, 50.0)
-	_check(slime.state != "wind" and slime.flinch > 0.0, "hitting a winding slime cancels its pounce")
+	_check(slime.state == "wind" and slime.flinch <= 0.0, "a light hit doesn't stop a monster's wind-up")
+	slime.take_hit(1.0, Vector2.RIGHT, 50.0, true)
+	_check(slime.state != "wind" and slime.flinch > 0.0, "...but a heavy hit cancels it")
+	slime.hp = slime.max_hp
+	slime.flinch = 0.0
+	slime.flinch_cd = 0.0
+	slime.take_hit(1.0, Vector2.RIGHT, 50.0)
+	var first_flinch: bool = slime.flinch > 0.0
+	slime.flinch = 0.0
+	slime.take_hit(1.0, Vector2.RIGHT, 50.0)
+	_check(first_flinch and slime.flinch <= 0.0, "light hits flinch a monster only now and then (no stun-locking)")
+	slime.hp = slime.max_hp
 	slime.set_physics_process(false)
 	# Turns: never more than two attacking at once.
 	for e in main.enemies():
@@ -2153,6 +2198,7 @@ func _run() -> void:
 	await _chimera_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
+	await _combat_feel_tests()
 	await _jump_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
