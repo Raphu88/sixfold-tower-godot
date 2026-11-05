@@ -203,6 +203,7 @@ func _draw() -> void:
 	if main.choosing_tower:
 		_draw_tower_choice(size, font)
 	_draw_quarry(p, size, font)
+	_draw_stair_arrow(size, font)
 	if p.pick_open:
 		_draw_spell_ring(p, font)
 
@@ -503,6 +504,25 @@ func _draw_quarry(p, size: Vector2, font: Font) -> void:
 # --- bosses ------------------------------------------------------------------------
 
 ## A beast's health, as a long bar under the floor counter.
+## Rooms floors are bigger than the screen: once the stair opens, an arrow at
+## the screen edge points the way to it.
+func _draw_stair_arrow(size: Vector2, font: Font) -> void:
+	if not main.stair_open or main.climbing or main.player == null:
+		return
+	var sp: Vector2 = main.get_viewport().get_canvas_transform() * main.stair_pos
+	var margin := 40.0
+	if Rect2(Vector2.ZERO, size).grow(-margin).has_point(sp):
+		return
+	var center := size * 0.5
+	var d := (sp - center).normalized()
+	var at := center + d * minf((size.x * 0.5 - margin) / maxf(absf(d.x), 0.001), (size.y * 0.5 - margin) / maxf(absf(d.y), 0.001))
+	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.006)
+	var tip := at + d * 14.0
+	draw_colored_polygon(PackedVector2Array([tip, at - d * 8.0 + d.orthogonal() * 10.0, at - d * 8.0 - d.orthogonal() * 10.0]), Color(1.0, 0.85, 0.5, pulse))
+	draw_string_outline(font, at - d * 26.0 + Vector2(-20, 4), "stair", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.7))
+	draw_string(font, at - d * 26.0 + Vector2(-20, 4), "stair", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1.0, 0.85, 0.5, pulse))
+
+
 func _draw_boss_bar(size: Vector2, font: Font) -> void:
 	for e in main.enemies():
 		if not e.is_boss():

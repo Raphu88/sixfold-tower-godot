@@ -53,6 +53,12 @@ func _physics_process(delta: float) -> void:
 				vel = -vel
 				main.fx_burst(position, vel.normalized(), w["color"], 6, 180.0)
 				break
+	# The walls between rooms stop every shot.
+	if return_to == null and main.is_solid(position):
+		_burst()
+		main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 4, 140.0)
+		queue_free()
+		return
 	# Sandshaper's walls stop monsters' shots.
 	if not friendly and main.blocks_shot(position):
 		main.fx_burst(position, -vel.normalized(), Color(0.85, 0.7, 0.42), 5, 160.0)

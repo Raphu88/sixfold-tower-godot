@@ -25,7 +25,18 @@ const STAIR_REACH := 26.0
 
 const WALL := 24.0
 
-var room := Rect2(80, 100, 1120, 530)
+## The single open room of floor 1 and the beast's floor. Floors of rooms
+## and corridors use the bigger Floors.ARENA instead.
+const OPEN_ROOM := Rect2(80, 100, 1120, 530)
+var room := OPEN_ROOM
+var outer_walls: Array = []
+# Rooms and corridors: a tile grid of what's solid, and paths around it.
+var layout_on := false
+var grid_size := Vector2i.ZERO
+var solid := PackedByteArray()
+var astar: AStarGrid2D
+var layout_bodies: Array = []
+var layout_rooms: Array = []
 var player
 var fx
 var camera: Camera2D
@@ -205,6 +216,9 @@ func _ready() -> void:
 
 
 func _build_walls() -> void:
+	for b in outer_walls:
+		b.queue_free()
+	outer_walls.clear()
 	var r := room
 	var sides := [
 		Rect2(r.position.x - WALL, r.position.y - WALL, r.size.x + WALL * 2.0, WALL),
@@ -224,6 +238,143 @@ func _build_walls() -> void:
 		shape.shape = box
 		body.add_child(shape)
 		add_child(body)
+		outer_walls.append(body)
+
+
+## Switches between the open room and the bigger area of a rooms floor.
+func _set_arena(r: Rect2) -> void:
+	if r == room:
+		return
+	room = r
+	_build_walls()
+	room_view.reconfigure(room)
+	if camera != null:
+		camera.limit_left = int(room.position.x - WALL - 20.0)
+		camera.limit_right = int(room.end.x + WALL + 20.0)
+		camera.limit_top = int(room.position.y - RoomScript.WALL_FACE - WALL - 20.0)
+		camera.limit_bottom = int(room.end.y + WALL + 70.0)
+
+
+## Builds the tile grid of a rooms floor: walkable inside the rooms and
+## corridors, solid everywhere else; walls where solid meets walkable; and
+## a path grid so monsters can find their way around the walls.
+func _build_layout(walk: Array) -> void:
+	for b in layout_bodies:
+		b.queue_free()
+	layout_bodies.clear()
+	layout_on = not walk.is_empty()
+	if not layout_on:
+		solid = PackedByteArray()
+		room_view.set_layout(Vector2i.ZERO, solid, [])
+		return
+	var c := Floors.CELL
+	grid_size = Vector2i(int(room.size.x / c), int(room.size.y / c))
+	solid = PackedByteArray()
+	solid.resize(grid_size.x * grid_size.y)
+	solid.fill(1)
+	for r in walk:
+		var rect: Rect2 = r
+		for y in range(int((rect.position.y - room.position.y) / c), int(ceil((rect.end.y - room.position.y) / c))):
+			for x in range(int((rect.position.x - room.position.x) / c), int(ceil((rect.end.x - room.position.x) / c))):
+				if x >= 0 and y >= 0 and x < grid_size.x and y < grid_size.y:
+					solid[y * grid_size.x + x] = 0
+	# Collision: solid tiles next to walkable ones, merged into runs per row.
+	for y in grid_size.y:
+		var run_start := -1
+		for x in grid_size.x + 1:
+			var edge := x < grid_size.x and _is_solid_tile(x, y) and _near_walkable(x, y)
+			if edge and run_start < 0:
+				run_start = x
+			elif not edge and run_start >= 0:
+				var rect := Rect2(room.position + Vector2(run_start, y) * c, Vector2(x - run_start, 1) * c)
+				var body := StaticBody2D.new()
+				body.collision_layer = 1
+				body.collision_mask = 0
+				body.position = rect.get_center()
+				var shape := CollisionShape2D.new()
+				var box := RectangleShape2D.new()
+				box.size = rect.size
+				shape.shape = box
+				body.add_child(shape)
+				add_child(body)
+				layout_bodies.append(body)
+				run_start = -1
+	astar = AStarGrid2D.new()
+	astar.region = Rect2i(Vector2i.ZERO, grid_size)
+	astar.cell_size = Vector2(c, c)
+	astar.offset = room.position + Vector2(c, c) * 0.5
+	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	astar.update()
+	for y in grid_size.y:
+		for x in grid_size.x:
+			if solid[y * grid_size.x + x] == 1:
+				astar.set_point_solid(Vector2i(x, y), true)
+	room_view.set_layout(grid_size, solid, layout_rooms)
+
+
+func _is_solid_tile(x: int, y: int) -> bool:
+	if x < 0 or y < 0 or x >= grid_size.x or y >= grid_size.y:
+		return true
+	return solid[y * grid_size.x + x] == 1
+
+
+func _near_walkable(x: int, y: int) -> bool:
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		if not _is_solid_tile(x + d.x, y + d.y):
+			return true
+	return false
+
+
+func _tile_of(pos: Vector2) -> Vector2i:
+	return Vector2i(int(floor((pos.x - room.position.x) / Floors.CELL)), int(floor((pos.y - room.position.y) / Floors.CELL)))
+
+
+## A rooms floor's walls (always false on an open floor).
+func is_solid(pos: Vector2) -> bool:
+	if not layout_on:
+		return false
+	var t := _tile_of(pos)
+	return _is_solid_tile(t.x, t.y)
+
+
+## Nothing solid between two points.
+func clear_line(a: Vector2, b: Vector2) -> bool:
+	if not layout_on:
+		return true
+	var steps := int(a.distance_to(b) / 16.0) + 1
+	for i in steps + 1:
+		if is_solid(a.lerp(b, float(i) / steps)):
+			return false
+	return true
+
+
+## Which way to walk from `from` to reach `to` around the walls.
+func path_dir(from: Vector2, to: Vector2) -> Vector2:
+	var straight := (to - from).normalized()
+	if not layout_on or astar == null:
+		return straight
+	var a := _tile_of(from)
+	var b := _tile_of(to)
+	if _is_solid_tile(a.x, a.y) or _is_solid_tile(b.x, b.y):
+		return straight
+	var pts: PackedVector2Array = astar.get_point_path(a, b)
+	if pts.size() < 2:
+		return straight
+	# Head for the farthest point along the path that can be reached in a
+	# straight line with room for a body on either side, so monsters round
+	# corners cleanly instead of snagging on them.
+	var next: Vector2 = pts[1]
+	for i in range(mini(pts.size() - 1, 8), 0, -1):
+		if _wide_clear(from, pts[i], 14.0):
+			next = pts[i]
+			break
+	return (next - from).normalized()
+
+
+## A clear line with room on either side (a body's width).
+func _wide_clear(a: Vector2, b: Vector2, half: float) -> bool:
+	var side := (b - a).normalized().orthogonal() * half
+	return clear_line(a, b) and clear_line(a + side, b + side) and clear_line(a - side, b - side)
 
 
 func _process(delta: float) -> void:
@@ -414,8 +565,18 @@ func _start_floor(n: int) -> void:
 		b.queue_free()
 	pillar_bodies.clear()
 
-	var start: Vector2 = player.position if n == 1 else player_start
-	var plan: Dictionary = Floors.build(n, room, start, Towers.TOWERS[tower])
+	var open_start := Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.end.y - 60.0)
+	var start: Vector2 = open_start
+	if n == 1:
+		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
+	var plan: Dictionary = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+	_set_arena(plan.get("arena", OPEN_ROOM))
+	layout_rooms = plan.get("rooms", [])
+	start = plan.get("start", start)
+	player_start = start if plan.has("start") else open_start
+	stair_pos = plan.get("stair", Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.position.y + 34.0))
+	room_view.stair_pos = stair_pos
+	_build_layout(plan.get("walk", []))
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
@@ -434,7 +595,13 @@ func _start_floor(n: int) -> void:
 		add_child(body)
 		pillar_bodies.append(body)
 	room_view.set_pillars(pillars)
-	puddles = Floors.puddles(room, pillars, start) if tower_data().get("puddles", false) else []
+	puddles = []
+	if tower_data().get("puddles", false):
+		if layout_rooms.is_empty():
+			puddles = Floors.puddles(room, pillars, start)
+		else:
+			for i in range(1, layout_rooms.size()):
+				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), pillars, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
 
@@ -446,8 +613,10 @@ func _start_floor(n: int) -> void:
 		e.hp = e.max_hp
 		e.dmg *= tough.y
 		e.position = m[1]
+		e.aware = not layout_on  # in rooms, monsters wait until they see you
 		add_child(e)
 	player.position = start
+	player.last_safe = start
 	if camera != null:
 		camera.position = start
 		camera.reset_smoothing()
