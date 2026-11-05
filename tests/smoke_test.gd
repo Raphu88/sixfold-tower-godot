@@ -1257,6 +1257,23 @@ func _menu_tests() -> void:
 	p.receive_attack(9999.0, null)
 	_check(not p.dead and p.hp >= 1.0, "no dying: a killing blow leaves you at 1")
 	main.dev_no_death = false
+	# Phones: menu buttons answer taps (touches aren't turned into clicks).
+	menu.open("pause")
+	await _frames(2)
+	var resume: Button = null
+	for b in menu.find_children("*", "Button", true, false):
+		if b.text == "Resume":
+			resume = b
+	var at: Vector2 = resume.get_global_rect().get_center()
+	_touch(0, at, true)
+	await _frames(2)
+	_touch(0, at, false)
+	await _frames(2)
+	_check(not main.menu_open() and not paused, "tapping Resume on a phone closes the menu")
+	main.touch._set_active(false)
+	p.touch_aim = false
+	menu.open("dev")
+	await _frames(1)
 	# Settings.
 	menu._set_setting("sounds", 0.0)
 	_check(main.audio.sound_level == 0.0, "the sounds slider sets the volume")
