@@ -24,8 +24,15 @@ var held := {}  # touch index -> button id
 var buttons: Array = []  # {id, action, center, radius, label}
 
 
+## Every action a touch can hold down (released when screens change, since
+## input state outlives a scene reload).
+const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "sprint", "attack", "roll", "parry", "jump",
+	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause"]
+
+
 func _ready() -> void:
 	set_process_input(true)
+	_release_all()
 
 
 func _layout() -> void:
@@ -64,6 +71,8 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventScreenTouch:
 			if not active:
 				_set_active(true)
+			if not event.pressed:
+				_release_all()  # a thumb lifted while this screen took the touch
 			if event.pressed and main.hud != null:
 				var i: int = main.hud.tower_card_at(event.position)
 				if i >= 0:
@@ -75,6 +84,8 @@ func _input(event: InputEvent) -> void:
 		if event is InputEventScreenTouch:
 			if not active:
 				_set_active(true)
+			if not event.pressed:
+				_release_all()
 			if event.pressed and main.overlay_done():
 				main.end_regard()
 			get_viewport().set_input_as_handled()
@@ -202,6 +213,8 @@ func release_all() -> void:
 
 
 func _release_all() -> void:
+	for a in HELD_ACTIONS:
+		Input.action_release(a)
 	stick_touch = -1
 	_set_move(Vector2.ZERO)
 	Input.action_release("sprint")

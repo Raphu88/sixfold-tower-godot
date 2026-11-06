@@ -1723,6 +1723,58 @@ func _chimera_tower_tests() -> void:
 	main.victory = {}
 
 
+func _bugfix_tests() -> void:
+	print("fixes from the bug hunt")
+	await _fresh_main()
+	var p = main.player
+	# A fall on the first climb grants the faint mark at once (a restart keeps it).
+	p.hp = 1.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	main.add_soak("hand", 5.0)
+	p.receive_attack(999.0, null)
+	_check(p.dead and main.profile.regarded and main.profile.bonds.size() == 1, "falling on the first climb saves the faint mark right away")
+	await _fresh_main()
+	p = main.player
+	main.profile.regarded = true
+	main.first_climb = false
+	# Teleports and spawns never land inside the solid ground between rooms.
+	main._start_floor(3)
+	await _frames(1)
+	var r0: Rect2 = main.layout_rooms[0]
+	var from: Vector2 = r0.get_center()
+	var into_rock: Vector2 = Vector2(main.room.position.x + 10.0, main.room.position.y + 10.0)
+	if not main.is_solid(into_rock):
+		into_rock = from + Vector2(r0.size.x, 0)
+	var safe: Vector2 = main.walkable_point(from, into_rock)
+	_check(not main.is_solid(safe), "a teleport toward solid ground stops on open floor")
+	p.global_position = from
+	var a = main.spawn_ally("familiar", into_rock, 1, 5.0)
+	_check(not main.is_solid(a.global_position), "a called creature never appears inside a wall")
+	# Last Ember doesn't follow you up the stair; nor do grafts on the floor.
+	p.ember_t = 2.0
+	main.graft_drops = [{"pos": from, "kind": "slime", "t": 10.0}]
+	main._start_floor(2)
+	await _frames(1)
+	_check(p.ember_t == 0.0 and main.graft_drops.is_empty(), "a new floor clears Last Ember and grafts left behind")
+	# Nothing can hit you while you take the stair.
+	main._climb()
+	_check(p.iframes >= 1.5, "taking the stair makes you untouchable for the fade")
+	await _wait(1.5)
+	# Phones: lifting a thumb during a big screen releases everything.
+	Input.action_press("move_right")
+	main.choosing_tower = true
+	main.touch._set_active(true)
+	_touch(0, Vector2(100, 100), true)
+	await _frames(1)
+	_touch(0, Vector2(100, 100), false)
+	await _frames(1)
+	_check(not Input.is_action_pressed("move_right"), "a held direction is released when a big screen takes the touch")
+	main.choosing_tower = false
+	main.touch._set_active(false)
+	p.touch_aim = false
+
+
 func _density_tests() -> void:
 	print("essence density")
 	await _fresh_main()
@@ -2295,6 +2347,7 @@ func _run() -> void:
 	await _menu_tests()
 	await _combat_feel_tests()
 	await _density_tests()
+	await _bugfix_tests()
 	await _jump_tests()
 	await _rooms_tests()
 	await _wyvern_bond_tests()

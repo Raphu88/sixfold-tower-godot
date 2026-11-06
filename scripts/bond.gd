@@ -1198,7 +1198,7 @@ func _exchange(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -40), "no creature to swap with", color())
 		return
 	var here: Vector2 = p.global_position
-	p.global_position = best.global_position
+	p.global_position = main.walkable_point(here, best.global_position, 14.0)
 	best.global_position = here
 	main.fx_ring(here, color(), 24.0, 0.3, 3.0)
 	main.fx_ring(p.global_position, color(), 24.0, 0.3, 3.0)
@@ -1264,7 +1264,7 @@ func _mimic(p) -> void:
 			main.fx_cone(p.global_position, p.aim, 90.0, deg_to_rad(60.0), color())
 		"legs":  # a swoop straight ahead, cutting through
 			var start: Vector2 = p.global_position
-			var end: Vector2 = (start + p.aim * 130.0).clamp(main.room.position + Vector2(20, 20), main.room.end - Vector2(20, 20))
+			var end: Vector2 = main.walkable_point(start, start + p.aim * 130.0, 14.0)
 			for e in main.targets():
 				if Geometry2D.get_closest_point_to_segment(e.global_position, start, end).distance_to(e.global_position) < e.radius + 16.0:
 					e.take_hit(dmg, p.aim, 160.0)
@@ -1284,7 +1284,7 @@ func _mimic(p) -> void:
 		"back":  # slip behind the foe you aim at
 			var t = _target_in_aim(p, 220.0)
 			if t != null:
-				p.global_position = t.global_position - t.face * (t.radius + p.radius + 6.0)
+				p.global_position = main.walkable_point(t.global_position, t.global_position - t.face * (t.radius + p.radius + 6.0), 14.0)
 				p.aim = t.face
 	main.fx_text(p.global_position + Vector2(0, -40), "Mimic: %s" % main.grafts[part], color())
 	main.fx_ring(p.global_position, color(), 34.0, 0.3, 3.0)
