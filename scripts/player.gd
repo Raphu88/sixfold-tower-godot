@@ -7,6 +7,7 @@ const Weapons := preload("res://scripts/weapons.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Items := preload("res://scripts/items.gd")
+const Gear := preload("res://scripts/gear.gd")
 
 ## Damage multiplier for striking a foe from behind.
 const BACKSTAB_MULT := 1.5
@@ -47,8 +48,13 @@ var dead := false
 var mouse_aim := true  # tests turn this off to aim by hand
 var touch_aim := false  # on phones: face the nearest foe, or where you move
 
-var weapon := "sword"
+var weapon := Weapons.START_MELEE
 var pending_weapon := ""
+## What you carry this climb (gear.gd): fists are always in slot 1; slot 2
+## holds a melee weapon, slot 3 a ranged one, and one suit of armor ("" is none).
+## Kept on the player, so a new climb (a scene reload) starts afresh.
+var gear := {"melee": Weapons.START_MELEE, "ranged": Weapons.START_RANGED, "armor": ""}
+var reload_t := 0.0  # a crossbow reloading after a shot (can't be skipped)
 var roll_t := 0.0
 var roll_cd := 0.0
 var roll_dir := Vector2.ZERO
@@ -140,6 +146,43 @@ func wdata() -> Dictionary:
 	return Weapons.WEAPONS[weapon]
 
 
+## "melee", "bow" or "crossbow": what the weapon in hand does.
+func wkind() -> String:
+	return wdata()["kind"]
+
+
+## The armor you wear (gear.gd ARMOR; "no armor" when none).
+func armor() -> Dictionary:
+	return Gear.armor(gear["armor"])
+
+
+## The weapon in each of the three slots: fists, melee, ranged ("" if empty).
+func slots() -> Array:
+	return ["fists", gear["melee"], gear["ranged"]]
+
+
+## Every piece of gear you carry (not fists), for leaving out of drops.
+func carried_gear() -> Array:
+	return [gear["melee"], gear["ranged"], gear["armor"]].filter(func(g): return g != "")
+
+
+## Takes a piece of gear into its slot. Returns what was there before ("" if
+## the slot was empty), for the caller to drop on the floor.
+func take_gear(id: String) -> String:
+	if not Gear.is_gear(id):
+		return ""
+	var slot := Gear.slot_of(id)
+	var old: String = gear[slot]
+	gear[slot] = id
+	if slot == "armor":
+		main.fx_text(global_position + Vector2(0, -30), Gear.display(id), Gear.color(id))
+		main.sfx("hit_armor", 0.8, -4.0)
+	else:
+		drawing = false
+		_equip(id)
+	return old
+
+
 ## A body part did its thing: it soaks up essence toward a mark, and fills
 ## the bond on it (if it has one) for casting.
 func _part_action(part: String, soak: float, fill: float) -> void:
@@ -229,11 +272,13 @@ func _physics_process(delta: float) -> void:
 			_tick_draw(delta)
 		elif attack_cd > 0.0:
 			spd *= 0.35  # committed to the swing
+		elif reload_t > 0.0 and wkind() == "crossbow":
+			spd *= wdata()["reload_move"]  # you can walk while you reload
 		elif Input.is_action_pressed("sprint") and input != Vector2.ZERO and sta > 0.0:
 			spd = SPRINT
 			sta -= 22.0 * delta
 			sta_delay = 0.6
-		spd *= attr_speed
+		spd *= attr_speed * armor()["walk"]  # heavy armor slows you a little
 		if rune_gear == "swiftness":
 			spd *= 1.15
 		if _stubborn():
@@ -256,7 +301,7 @@ func _physics_process(delta: float) -> void:
 ## Touch aiming: lock onto the nearest monster in reach (the bow reaches
 ## further), otherwise face the way you're moving.
 func _auto_aim() -> void:
-	var reach := 380.0 if weapon == "bow" else 150.0
+	var reach := 380.0 if wkind() != "melee" else 150.0
 	var best = null
 	var best_d := reach
 	for e in main.targets():
@@ -327,14 +372,22 @@ func _footsteps(delta: float, speed: float) -> void:
 
 
 func _read_buffer() -> void:
-	for i in Weapons.ORDER.size():
-		if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
-			pending_weapon = Weapons.ORDER[i]
+	var have := slots()
+	for i in have.size():
+		if Input.is_action_just_pressed("weapon_%d" % (i + 1)) and have[i] != "":
+			pending_weapon = have[i]
 	if Input.is_action_just_pressed("weapon_next") or Input.is_action_just_pressed("weapon_prev"):
 		var step := 1 if Input.is_action_just_pressed("weapon_next") else -1
 		var from := pending_weapon if pending_weapon != "" else weapon
-		var idx := (Weapons.ORDER.find(from) + step + Weapons.ORDER.size()) % Weapons.ORDER.size()
-		pending_weapon = Weapons.ORDER[idx]
+		var idx := have.find(from)
+		for n in have.size():
+			idx = (idx + step + have.size()) % have.size()
+			if have[idx] != "":
+				break
+		pending_weapon = have[idx]
+	# Y (or the phone's Take button): take the gear you stand on.
+	if Input.is_action_just_pressed("interact"):
+		main.take_gear_here()
 
 	var pressed := ""
 	if Input.is_action_just_pressed("roll"):
@@ -370,10 +423,11 @@ func _equip(id: String) -> void:
 	weapon = id
 	combo = 0
 	combo_t = 0.0
-	if wdata()["kind"] == "melee":
+	drawing = false
+	if wkind() == "melee":
 		swing = wdata()["combo"][0]
 	main.fx_text(global_position + Vector2(0, -30), wdata()["name"], Color(0.85, 0.82, 0.9))
-	main.sfx("equip_" + weapon)
+	main.sfx(wdata().get("equip", "equip_sword"))
 
 
 ## Returns true once the action is spent (done, or refused for a reason
@@ -414,12 +468,17 @@ func _tick_timers(delta: float) -> void:
 	dodge_cd -= delta
 	buffer_t -= delta
 	sta_delay -= delta
+	if reload_t > 0.0:
+		reload_t -= delta
+		if reload_t <= 0.0 and weapon in Weapons.WEAPONS and wkind() == "crossbow":
+			main.sfx("equip_bow", 1.2, -4.0)
+			main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 14.0, 0.2, 2.0)
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	_tick_healing(delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + STA_REGEN * attr_will * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+		sta = minf(MAX_STA, sta + STA_REGEN * attr_will * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"])  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 func _winded() -> void:
@@ -509,6 +568,9 @@ func _try_roll(input: Vector2) -> bool:
 	var wind := has_bond("windwalker")
 	var cost := (16.0 if wind else 24.0) * (1.0 - 0.25 * minf(graft("legs"), 1.6))
 	var dist_mult := 1.0
+	# Armor weighs on a roll: heavier suits cost more and carry you less far.
+	cost *= armor()["roll_cost"]
+	dist_mult *= armor()["roll_dist"]
 	if _burned("legs"):
 		cost *= 1.5
 		dist_mult = 0.7
@@ -542,7 +604,12 @@ func _try_attack() -> bool:
 	if sta <= 0.0:
 		_winded()
 		return true
-	if wdata()["kind"] == "bow":
+	if wkind() == "crossbow":
+		if reload_t > 0.0:
+			return false  # still reloading: it can't be skipped
+		_fire_bolt()
+		return true
+	if wkind() == "bow":
 		drawing = true
 		draw_t = 0.0
 		draw_release = false
@@ -575,7 +642,9 @@ func _melee() -> bool:
 	lunge_t = 0.08
 	lunge_speed = swing["lunge"]
 	var snd: String = w["sound"]
-	main.sfx(snd + "_heavy" if heavy else snd, 1.0 + 0.06 * combo)
+	if heavy and not snd.ends_with("_heavy"):
+		snd += "_heavy"
+	main.sfx(snd, float(w.get("pitch", 1.0)) * (1.0 + 0.06 * combo))
 
 	var dmg: float = STRIKE_DAMAGE * swing["dmg"] * attr_strength
 	var hand = bonds.get("hand")
@@ -598,7 +667,7 @@ func _melee() -> bool:
 			continue
 		if absf(aim.angle_to(to)) > deg_to_rad(swing["arc"]):
 			continue
-		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"])
+		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
 		hits += 1
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
@@ -658,11 +727,33 @@ func release_draw() -> void:
 		dmg *= 0.6
 	var speed: float = lerpf(w["speed_min"], w["speed_max"], k)
 	var force: float = lerpf(w["knock_min"], w["knock_max"], k)
-	main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
+	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
+	arrow.life = float(w.get("life", 1.6))
 	main.sfx("bow", 0.9 + 0.2 * k, -6.0 + 6.0 * k)
 	knock = -aim * (60.0 if full else 20.0)
 	if full:
 		main.shake(3.0)
+
+
+## A crossbow: press to fire a fast, strong bolt, then a reload you can't
+## skip (you can walk while it reloads).
+func _fire_bolt() -> void:
+	var w := wdata()
+	attack_cd = w["recover"]
+	reload_t = w["reload"]
+	sta = maxf(0.0, sta - w["sta"])
+	sta_delay = 0.9
+	var dmg: float = w["dmg"]
+	var hand = bonds.get("hand")
+	if hand != null and hand.burned:
+		dmg *= 0.6
+	var bolt = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * float(w["speed"]), dmg, float(w["knock"]), bool(w["pierce"]))
+	bolt.life = float(w["life"])
+	bolt.heavy = bool(w.get("heavy", false))
+	bolt.style = "bolt"
+	main.sfx("bow", 0.7, -2.0)
+	knock = -aim * 50.0
+	main.shake(2.5)
 
 
 ## Called by your arrows when they hit a monster.
@@ -675,7 +766,10 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
 	_part_action("hand", 0.5, 6.0)
 
 
-func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit") -> void:
+## `rock`: the blow breaks poise like a heavy one (maces, hammers);
+## `backstab_bonus` adds to the backstab multiplier (daggers); `stagger`
+## staggers the foe for that long (the war hammer's finisher).
+func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit", rock := false, backstab_bonus := 0.0, stagger := 0.0) -> void:
 	quarry = e  # Hunter's Quarry remembers it
 	var crit := false
 	# A staggered foe is open: a riposte deals critical damage.
@@ -710,7 +804,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	var backstab: bool = dir != Vector2.ZERO and e.face.dot(dir) > 0.5
 	if backstab:
 		if not _burned("back"):
-			dmg *= BACKSTAB_MULT + 0.5 * graft("back")
+			dmg *= BACKSTAB_MULT + 0.5 * graft("back") + backstab_bonus
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 40.0), "Backstab", Color(0.95, 0.6, 0.45))
 		_part_action("back", 3.0, 10.0)
 	# Stormcaller passive, Static: striking a charged foe arcs to another.
@@ -741,10 +835,13 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
-	e.take_hit(dmg, dir, force, heavy or crit)
+	e.take_hit(dmg, dir, force, heavy or crit or rock)
 	# A finishing blow fills the back too.
 	if e.dead:
 		_part_action("back", 2.0, 6.0)
+	elif stagger > 0.0:
+		e.stagger(stagger * (0.5 if e.is_boss() else 1.0))
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), "Staggered", Color(1.0, 0.89, 0.63))
 
 
 func _try_parry() -> bool:
@@ -1115,6 +1212,8 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	if rune_gear == "warding":
 		dmg *= 0.75
 	dmg *= 1.0 - 0.15 * graft("heart")
+	# Armor takes the edge off attacks that land (poison and fire tick past it).
+	dmg *= 1.0 - float(armor()["reduce"])
 	hp -= dmg
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
@@ -1301,20 +1400,24 @@ func _draw() -> void:
 	var body := Transform2D(sq_dir.angle(), Vector2.ZERO).affine_inverse()
 
 	# Weapon held on the far side is drawn before the body.
-	if weapon == "bow":
+	if wkind() == "bow":
 		_draw_weapon(body)
 	# Cloak, shoulders and hood, all in the facing frame.
 	var f := body.basis_xform(aim)  # facing, in the transformed frame
 	var sd := body.basis_xform(side)
 	Draw.ball(self, -f * 2.0, radius, cloak)
-	Draw.ball(self, sd * radius * 0.72 + f * 1.5, 5.0, cloak.darkened(0.12))
-	Draw.ball(self, -sd * radius * 0.72 + f * 1.5, 5.0, cloak.darkened(0.12))
-	Draw.ball(self, f * 2.5, 7.5, cloak.darkened(0.25))  # hood
+	var hood := cloak.darkened(0.25)
+	if gear["armor"] == "":
+		Draw.ball(self, sd * radius * 0.72 + f * 1.5, 5.0, cloak.darkened(0.12))
+		Draw.ball(self, -sd * radius * 0.72 + f * 1.5, 5.0, cloak.darkened(0.12))
+	else:
+		hood = _draw_armor(f, sd, hood)
+	Draw.ball(self, f * 2.5, 7.5, hood)  # hood (or helm)
 	draw_circle(f * 6.0, 3.8, skin)  # face peeking out of the hood
 	draw_circle(f * 7.2 + sd * 1.5, 0.9, Palette.OUTLINE)
 	draw_circle(f * 7.2 - sd * 1.5, 0.9, Palette.OUTLINE)
 	draw_set_transform(Vector2(0, -lift), 0.0, Vector2.ONE)
-	if weapon != "bow":
+	if wkind() != "bow":
 		_draw_weapon(Transform2D.IDENTITY)
 
 	# Essence soaking into unmarked body parts: faint glows that grow
@@ -1349,6 +1452,49 @@ func _draw() -> void:
 			draw_circle(anchor + Vector2.from_angle(ma) * 10.0, 1.5, col)
 	if overlay != null:
 		overlay.queue_redraw()
+
+
+## Armor over the cloak, in the facing frame (f forward, sd to the side):
+## a vest on the torso and shoulder pieces, heavier for heavier suits.
+## Returns the colour for the hood (plate gives a steel helm).
+func _draw_armor(f: Vector2, sd: Vector2, hood: Color) -> Color:
+	var id: String = gear["armor"]
+	var col: Color = armor()["color"]
+	if hurt_t > 0.25:
+		col = col.lerp(Color(1.0, 0.35, 0.3), 0.5)
+	if dead:
+		col = Color(0.35, 0.34, 0.37)
+	var line := Color(0, 0, 0, 0.3)
+	match id:
+		"padded":
+			draw_circle(-f * 2.5, radius * 0.78, col)
+			for i in 3:
+				var o := -f * (6.0 - i * 4.0)
+				draw_line(o + sd * radius * 0.6, o - sd * radius * 0.6, line, 1.0)
+			Draw.ball(self, sd * radius * 0.72 + f * 1.5, 5.2, col.darkened(0.1))
+			Draw.ball(self, -sd * radius * 0.72 + f * 1.5, 5.2, col.darkened(0.1))
+		"leather":
+			draw_circle(-f * 2.5, radius * 0.8, col)
+			draw_line(-f * 10.0, f * 1.0, Color(0.85, 0.7, 0.45, 0.6), 1.2)  # laces
+			Draw.ball(self, sd * radius * 0.74 + f * 1.0, 5.6, col.darkened(0.15))
+			Draw.ball(self, -sd * radius * 0.74 + f * 1.0, 5.6, col.darkened(0.15))
+		"chain":
+			draw_circle(-f * 2.0, radius * 0.86, col.darkened(0.15))
+			for i in 9:
+				var at := -f * 2.0 + Vector2.from_angle(TAU * i / 9.0) * radius * 0.5
+				draw_arc(at, 1.6, 0.0, TAU, 6, Color(1, 1, 1, 0.25), 1.0)
+			Draw.ball(self, sd * radius * 0.75 + f * 1.0, 5.8, col)
+			Draw.ball(self, -sd * radius * 0.75 + f * 1.0, 5.8, col)
+			hood = col.darkened(0.35)  # a mail coif
+		"plate":
+			draw_circle(-f * 1.5, radius * 0.9, col.darkened(0.2))
+			draw_line(-f * 1.5 + sd * radius * 0.7, -f * 1.5 - sd * radius * 0.7, line, 1.4)
+			draw_circle(-f * 1.5 + sd * 3.0 - f * 3.0, 2.2, Color(1, 1, 1, 0.35))
+			# Big pauldrons: the climber looks broader and heavier.
+			Draw.ball(self, sd * radius * 0.82 + f * 0.5, 7.0, col)
+			Draw.ball(self, -sd * radius * 0.82 + f * 0.5, 7.0, col)
+			hood = col.darkened(0.25)  # a steel helm
+	return hood
 
 
 ## Where each body part's mark sits on the climber.
@@ -1400,25 +1546,8 @@ func _draw_overlay() -> void:
 	if heat > 1.0:
 		var hc := Color(1.0, 0.45 + 0.4 * heat / 100.0, 0.2, 0.8)
 		c.draw_arc(Vector2.ZERO, radius + 9.0, PI * 0.6, PI * 0.6 + PI * 0.8 * heat / 100.0, 16, hc, 2.5)
-	if swing_t > 0.0 and weapon == "sword":
-		var a := aim.angle()
-		var half := deg_to_rad(swing["arc"])
-		var reach: float = swing["range"]
-		var heavy: bool = swing["heavy"]
-		var k: float = 1.0 - swing_t / wdata()["swing_time"]
-		var sweep: float = swing["side"]
-		var from := a - half * sweep
-		var to := lerpf(from, a + half * sweep, minf(1.0, k * 1.6))
-		var col := Color(1.0, 0.88, 0.55) if heavy else Color(0.95, 0.97, 1.0)
-		# A crescent trail: several arcs fading toward the inside.
-		for i in 5:
-			var rr := reach - i * 3.0
-			c.draw_arc(Vector2.ZERO, rr, minf(from, to), maxf(from, to), 20, Color(col, (0.75 - i * 0.14) * (1.0 - k * 0.5)), 3.5 if heavy else 2.5)
-	if swing_t > 0.0 and weapon == "fists":
-		var k2: float = 1.0 - swing_t / wdata()["swing_time"]
-		if k2 > 0.3:
-			var hand: Vector2 = aim * swing["range"]
-			c.draw_arc(hand, 7.0 + 6.0 * k2, 0.0, TAU, 14, Color(1, 0.95, 0.85, 0.6 * (1.0 - k2)), 2.0)
+	if swing_t > 0.0:
+		_draw_swing_trail(c)
 	if parry_t > 0.0:
 		var pa := aim.angle()
 		c.draw_arc(Vector2.ZERO, radius + 10.0, pa - 1.0, pa + 1.0, 14, Color(1.0, 0.89, 0.63), 4.0)
@@ -1464,54 +1593,163 @@ func _draw_overlay() -> void:
 		c.draw_line(grip + aim * 18.0, grip + aim * (60.0 + 160.0 * kd), col2, 1.0 + kd)
 
 
+## A swing's trail: a crescent for swung weapons, a streak for thrusts and
+## stabs, a ring where a fist lands.
+func _draw_swing_trail(c: Node2D) -> void:
+	var w := wdata()
+	if w["kind"] != "melee":
+		return
+	var k: float = 1.0 - swing_t / w["swing_time"]
+	var heavy: bool = swing["heavy"]
+	var reach: float = swing["range"]
+	var col := Color(1.0, 0.88, 0.55) if heavy else Color(0.95, 0.97, 1.0)
+	match String(w["style"]):
+		"arc":
+			var a := aim.angle()
+			var half := deg_to_rad(swing["arc"])
+			var sweep: float = swing["side"]
+			var from := a - half * sweep
+			var to := lerpf(from, a + half * sweep, minf(1.0, k * 1.6))
+			var thick: float = (3.5 if heavy else 2.5) * (1.4 if w["class"] == "heavy" else 1.0)
+			# A crescent trail: several arcs fading toward the inside.
+			for i in 5:
+				var rr := reach - i * 3.0
+				c.draw_arc(Vector2.ZERO, rr, minf(from, to), maxf(from, to), 20, Color(col, (0.75 - i * 0.14) * (1.0 - k * 0.5)), thick)
+		"stab", "thrust":
+			var ext := sin(PI * minf(1.0, k * 1.3))
+			var tip := aim * reach * (0.6 + 0.4 * ext)
+			c.draw_line(aim * radius, tip, Color(col, 0.5 * (1.0 - k * 0.6)), 3.0 if heavy else 2.0)
+			c.draw_circle(tip, 3.0 if heavy else 2.0, Color(col, 0.7 * (1.0 - k)))
+		"jab":
+			if k > 0.3:
+				c.draw_arc(aim * reach, 7.0 + 6.0 * k, 0.0, TAU, 14, Color(1, 0.95, 0.85, 0.6 * (1.0 - k)), 2.0)
+
+
 func _draw_weapon(xf: Transform2D) -> void:
 	var dir := xf.basis_xform(aim)
 	var side := dir.orthogonal()
-	match weapon:
-		"sword":
-			var grip := side * (radius * 0.95) + dir * 4.0
-			var blade_dir := dir.rotated(0.5)  # resting: angled forward
+	var w := wdata()
+	match String(w.get("style", w["kind"])):
+		"arc":
+			# Swung weapons: rest angled forward, follow the swing across its arc.
+			var two_hands: bool = w["class"] == "heavy"
+			var grip := side * (radius * (0.5 if two_hands else 0.95)) + dir * (7.0 if two_hands else 4.0)
+			var along := dir.rotated(0.8 if two_hands else 0.5)
 			if swing_t > 0.0:
-				# The blade follows the swing across the arc.
-				var k: float = 1.0 - swing_t / wdata()["swing_time"]
+				var k: float = 1.0 - swing_t / w["swing_time"]
 				var half := deg_to_rad(swing["arc"])
 				var sweep: float = swing["side"]
-				blade_dir = dir.rotated(lerpf(-half * sweep, half * sweep, minf(1.0, k * 1.6)))
-				grip = blade_dir * 8.0
+				along = dir.rotated(lerpf(-half * sweep, half * sweep, minf(1.0, k * 1.6)))
+				grip = along * 8.0
 			elif attack_cd > 0.0:
-				var half2 := deg_to_rad(swing["arc"])
-				blade_dir = dir.rotated(half2 * swing["side"])
-				grip = blade_dir * 8.0
-			Draw.sword(self, grip, blade_dir, 26.0 if swing.get("heavy", false) else 24.0, 1.0 if swing_t > 0.0 else 0.0)
-		"fists":
+				along = dir.rotated(deg_to_rad(swing["arc"]) * swing["side"])
+				grip = along * 8.0
+			var length: float = float(w.get("length", 24.0)) + (2.0 if swing.get("heavy", false) else 0.0)
+			_draw_swung(weapon, grip, along, length, 1.0 if swing_t > 0.0 else 0.0)
+			if two_hands:
+				Draw.ball(self, grip + along * 1.5, 3.0, Palette.CLIMBER_SKIN)
+			Draw.ball(self, grip - along * 3.0, 3.2, Palette.CLIMBER_SKIN)
+		"stab", "thrust":
+			# Daggers and spears: held point-first, driven straight out on a thrust.
+			var length2: float = float(w.get("length", 14.0))
+			var rest := side * (radius * 0.85) + dir * 2.0
+			var ext := 0.0
+			if swing_t > 0.0:
+				var k2: float = 1.0 - swing_t / w["swing_time"]
+				ext = sin(PI * minf(1.0, k2 * 1.3))
+			elif attack_cd > 0.0:
+				ext = 0.25
+			var reach: float = float(swing.get("range", 40.0)) - length2 - radius * 0.3
+			var grip2 := rest.lerp(dir * maxf(reach, 6.0) + side * 2.0, ext)
+			if weapon == "spear":
+				grip2 -= dir * 10.0  # held back along the shaft
+				Draw.stroke(self, grip2 - dir * 16.0, grip2 + dir * (length2 - 9.0), Palette.WOOD, 2.6)
+				var tip := grip2 + dir * length2
+				Draw.poly(self, PackedVector2Array([tip, tip - dir * 10.0 + side * 3.6, tip - dir * 10.0 - side * 3.6]), Palette.STEEL, 1.0)
+				Draw.ball(self, grip2, 3.2, Palette.CLIMBER_SKIN)
+				Draw.ball(self, grip2 - dir * 12.0 - side * 1.5, 3.0, Palette.CLIMBER_SKIN)
+			else:
+				Draw.sword(self, grip2, dir, length2, 1.0 if swing_t > 0.0 else 0.0)
+				Draw.ball(self, grip2 - dir * 2.0, 3.2, Palette.CLIMBER_SKIN)
+		"jab":
 			var skin := Palette.CLIMBER_SKIN
 			for s in [-1.0, 1.0]:
-				var rest: Vector2 = dir * (radius * 0.7) + side * s * radius * 0.75
-				var pos: Vector2 = rest
+				var rest2: Vector2 = dir * (radius * 0.7) + side * s * radius * 0.75
+				var pos: Vector2 = rest2
 				var r := 3.8
 				if swing_t > 0.0 and s == swing["side"]:
-					var k: float = 1.0 - swing_t / wdata()["swing_time"]
-					var ext: float = sin(PI * minf(1.0, k * 1.2))
-					pos = rest.lerp(dir * swing["range"], ext)
+					var k3: float = 1.0 - swing_t / w["swing_time"]
+					var ext2: float = sin(PI * minf(1.0, k3 * 1.2))
+					pos = rest2.lerp(dir * swing["range"], ext2)
 					r = 5.2 if swing["heavy"] else 4.4
 				Draw.ball(self, pos, r, skin)
 		"bow":
-			var k := 0.0
+			var kd := 0.0
 			if drawing:
-				k = clampf(draw_t / wdata()["draw_time"], 0.0, 1.0)
-			var grip := dir * (radius + 5.0)
-			var tip_a := grip - dir * 5.0 + side * 14.0
-			var tip_b := grip - dir * 5.0 - side * 14.0
-			var limb := PackedVector2Array([tip_a, grip + side * 7.0, grip, grip - side * 7.0, tip_b])
-			draw_polyline(limb, Palette.OUTLINE, 5.5, true)
-			draw_polyline(limb, Palette.WOOD, 3.0, true)
+				kd = clampf(draw_t / w["draw_time"], 0.0, 1.0)
+			var limb: float = float(w.get("limb", 14.0))
+			var bgrip := dir * (radius + 5.0)
+			var tip_a := bgrip - dir * 5.0 + side * limb
+			var tip_b := bgrip - dir * 5.0 - side * limb
+			var bow := PackedVector2Array([tip_a, bgrip + side * limb * 0.5, bgrip, bgrip - side * limb * 0.5, tip_b])
+			draw_polyline(bow, Palette.OUTLINE, 5.5, true)
+			draw_polyline(bow, Palette.WOOD.darkened(0.15) if limb > 16.0 else Palette.WOOD, 3.0, true)
 			# The string pulls back as you draw.
-			var nock := grip - dir * (5.0 + 12.0 * k)
+			var nock := bgrip - dir * (5.0 + 12.0 * kd)
 			draw_polyline(PackedVector2Array([tip_a, nock, tip_b]), Color(0.92, 0.9, 0.82), 1.0, true)
 			if drawing:
-				Draw.stroke(self, nock, nock + dir * (18.0 + 14.0 * k), Palette.WOOD.lightened(0.2), 1.6)
-				draw_circle(nock + dir * (19.0 + 14.0 * k), 2.0, Palette.STEEL)
-			Draw.ball(self, grip + side * 0.5, 3.2, Palette.CLIMBER_SKIN)
+				Draw.stroke(self, nock, nock + dir * (18.0 + 14.0 * kd), Palette.WOOD.lightened(0.2), 1.6)
+				draw_circle(nock + dir * (19.0 + 14.0 * kd), 2.0, Palette.STEEL)
+			Draw.ball(self, bgrip + side * 0.5, 3.2, Palette.CLIMBER_SKIN)
+		"crossbow":
+			# A stock along your aim, limbs across its front; a bolt when loaded.
+			var back := dir * 4.0 + side * 3.0
+			var front := back + dir * 22.0
+			var loaded := 1.0 if reload_t <= 0.0 else 1.0 - clampf(reload_t / float(w["reload"]), 0.0, 1.0)
+			Draw.stroke(self, back, front, Palette.WOOD, 3.4)
+			var la := front - dir * 3.0 + side * 11.0
+			var lb := front - dir * 3.0 - side * 11.0
+			var limbs := PackedVector2Array([la, front + side * 4.0, front, front - side * 4.0, lb])
+			draw_polyline(limbs, Palette.OUTLINE, 5.0, true)
+			draw_polyline(limbs, Palette.STEEL.darkened(0.25), 2.6, true)
+			var catch_at := front - dir * lerpf(4.0, 14.0, loaded)
+			draw_polyline(PackedVector2Array([la, catch_at, lb]), Color(0.92, 0.9, 0.82), 1.0, true)
+			if reload_t <= 0.0:
+				Draw.stroke(self, catch_at, front + dir * 5.0, Color(0.6, 0.45, 0.3), 1.6)
+			Draw.ball(self, back + dir * 3.0, 3.2, Palette.CLIMBER_SKIN)
+			Draw.ball(self, back + dir * 12.0 - side * 4.0, 3.0, Palette.CLIMBER_SKIN)
+
+
+## A swung weapon lying along `along` from the grip: sword, axe, mace,
+## greatsword or war hammer.
+func _draw_swung(id: String, grip: Vector2, along: Vector2, length: float, glint: float) -> void:
+	var side := along.orthogonal()
+	match id:
+		"axe":
+			var head := grip + along * (length - 4.0)
+			Draw.stroke(self, grip - along * 4.0, head + along * 3.0, Palette.WOOD, 2.6)
+			Draw.poly(self, PackedVector2Array([head - along * 4.0 + side * 1.5, head + along * 5.0 + side * 1.5, head + along * 7.0 + side * 9.0, head - along * 6.0 + side * 9.0]), Palette.STEEL, 1.2)
+			draw_line(head - along * 6.0 + side * 9.0, head + along * 7.0 + side * 9.0, Color(1, 1, 1, 0.5 + 0.5 * glint), 1.0)
+		"mace":
+			var ball := grip + along * length
+			Draw.stroke(self, grip - along * 4.0, ball, Palette.WOOD.darkened(0.2), 2.6)
+			for i in 6:
+				var a := TAU * i / 6.0 + along.angle()
+				Draw.stroke(self, ball, ball + Vector2.from_angle(a) * 7.5, Palette.STEEL.darkened(0.3), 1.4)
+			Draw.ball(self, ball, 5.2, Palette.STEEL.darkened(0.15))
+		"war_hammer":
+			var head2 := grip + along * length
+			Draw.stroke(self, grip - along * 6.0, head2, Palette.WOOD.darkened(0.1), 3.0)
+			var pts := PackedVector2Array([head2 - along * 5.0 + side * 9.0, head2 + along * 5.0 + side * 9.0, head2 + along * 5.0 - side * 6.0, head2 - along * 5.0 - side * 6.0])
+			Draw.poly(self, pts, Palette.STEEL.darkened(0.1), 1.4)
+			draw_line(pts[0], pts[1], Color(1, 1, 1, 0.45 + 0.4 * glint), 1.2)
+		"greatsword":
+			Draw.sword(self, grip, along, length, glint)
+			# A broader blade: a second edge alongside the first, and a wide guard.
+			Draw.stroke(self, grip + along * 3.0 + side * 1.6, grip + along * (length - 3.0) + side * 1.6, Palette.STEEL.darkened(0.08), 2.2)
+			Draw.stroke(self, grip + side * 7.0, grip - side * 7.0, Palette.STEEL.darkened(0.35), 2.5)
+		_:
+			Draw.sword(self, grip, along, length, glint)
 
 
 # --- items -------------------------------------------------------------------------

@@ -2,8 +2,9 @@ extends Node2D
 ## On-screen controls for phones and tablets. They appear the first time
 ## the screen is touched and hide again if a keyboard or mouse is used.
 ##
-## Left side: a floating joystick (appears under your thumb). Right side: attack (hold to draw the bow), roll,
-## parry, both bond casts and weapon switch. Top right: fullscreen, music,
+## Left side: a floating joystick (appears under your thumb). Right side: attack (hold to draw a bow), roll,
+## parry, both bond casts and weapon switch, and Take while you stand on
+## gear. Top right: fullscreen, music,
 ## restart. The controls press the same input actions as the keyboard, so
 ## the rest of the game doesn't need to know about touch at all.
 
@@ -13,7 +14,7 @@ const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
 ## text are readable on a small screen.
 const PHONE_SCALE := 1.5
-const ONE_SHOT := ["weapon", "menu", "item", "item_next"]
+const ONE_SHOT := ["weapon", "menu", "item", "item_next", "take"]
 const Items := preload("res://scripts/items.gd")
 
 var main
@@ -28,7 +29,7 @@ var buttons: Array = []  # {id, action, center, radius, label}
 ## Every action a touch can hold down (released when screens change, since
 ## input state outlives a scene reload).
 const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "sprint", "attack", "roll", "parry", "jump",
-	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause"]
+	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact"]
 
 
 func _ready() -> void:
@@ -54,6 +55,9 @@ func _layout() -> void:
 		{"id": "item", "action": "use_item", "c": br + Vector2(-395, -48) * k, "r": 34.0 * k},
 		{"id": "item_next", "action": "item_next", "c": br + Vector2(-478, -48) * k, "r": 22.0 * k},
 	]
+	# Take: only while you stand on gear you'd swap for (Y on a keyboard).
+	if not main.gear_here.is_empty():
+		buttons.append({"id": "take", "action": "interact", "c": br + Vector2(-400, -372) * k, "r": 34.0 * k})
 	# One cast button per mark you carry, in these spots around attack.
 	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150), Vector2(-160, -400), Vector2(-395, -265)]
 	var i := 0
@@ -281,6 +285,10 @@ func _draw() -> void:
 				label = p.Weapons.WEAPONS[p.weapon]["name"] if p != null else "Attack"
 				if p != null and p.drawing:
 					fill = clampf(p.draw_t / p.wdata()["draw_time"], 0.0, 1.0)
+				elif p != null and p.reload_t > 0.0 and p.wkind() == "crossbow":
+					# Reloading: the ring fills as the crossbow is wound.
+					fill = 1.0 - clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
+					col = Color(0.7, 0.7, 0.75)
 			"roll":
 				label = "Roll"
 			"jump":
@@ -295,6 +303,9 @@ func _draw() -> void:
 					label = bond.spell_name().split(" ")[0]
 			"weapon":
 				label = "Swap"
+			"take":
+				label = "Take"
+				col = Color(1.0, 0.85, 0.5)
 			"item":
 				var id: String = p.selected_item() if p != null else ""
 				if id != "":

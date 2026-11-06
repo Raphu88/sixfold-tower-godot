@@ -10,6 +10,7 @@ var dodged := false
 var reflected := false  # parried arrows fly back and hurt monsters
 var friendly := false
 var pierce := false  # a fully drawn arrow passes through foes
+var heavy := false  # a crossbow bolt: its hit breaks poise like a heavy blow
 var force := 140.0
 var hit: Array = []
 var style := "arrow"  # or "blade": a conjured blade
@@ -83,7 +84,7 @@ func _physics_process(delta: float) -> void:
 					_burst()
 					queue_free()
 					return
-				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected)
+				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy)
 				if not pierce:
 					queue_free()
 					return
@@ -190,6 +191,15 @@ func _draw() -> void:
 		draw_colored_polygon(blade, Color(tint, 0.9))
 		draw_line(-dir * 5.0, dir * 9.0, Color(1, 1, 1, 0.9), 1.0)
 		draw_circle(Vector2.ZERO, 6.0, Color(tint, 0.2))
+		return
+	if style == "bolt":
+		# A crossbow bolt: short, thick and fast, with a long streak.
+		draw_line(-dir * 40.0, -dir * 6.0, Color(1.0, 0.9, 0.6, 0.22), 5.0)
+		draw_line(-dir * 10.0, dir * 4.0, Color(0.06, 0.05, 0.07), 4.5)
+		draw_line(-dir * 10.0, dir * 4.0, Color(0.6, 0.45, 0.3), 2.6)
+		draw_colored_polygon(PackedVector2Array([dir * 10.0, dir * 3.0 + side * 3.5, dir * 3.0 - side * 3.5]), Color(0.85, 0.87, 0.92))
+		draw_line(-dir * 10.0 + side * 3.0, -dir * 6.0, Color(0.85, 0.3, 0.25), 1.5)
+		draw_line(-dir * 10.0 - side * 3.0, -dir * 6.0, Color(0.85, 0.3, 0.25), 1.5)
 		return
 	var glow := Color(1.0, 0.35, 0.3)  # monsters' arrows glow red so you can see them
 	if reflected or pierce:

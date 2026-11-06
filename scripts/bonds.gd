@@ -248,7 +248,7 @@ const BONDS := {
 		"style": ["hand", "back"],
 		"tower": "wyvern",
 		"body": {"name": "Long Edge", "desc": "your melee strikes reach farther"},
-		"passive": {"name": "Weapon Memory", "desc": "your conjured blades copy the weapon you hold: quick little knives with fists, swift piercing darts with the bow"},
+		"passive": {"name": "Weapon Memory", "desc": "your conjured blades copy the weapon you hold: more, quicker little knives with fists or a dagger, fewer and harder blades with a greatsword or hammer, swift piercing darts with a bow or crossbow"},
 		"spells": [
 			{"id": "conjured_blades", "name": "Conjured Blades", "type": "blades", "learn": 1,
 				"desc": "a fan of conjured blades that pierce through foes",

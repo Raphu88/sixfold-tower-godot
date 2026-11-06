@@ -6,6 +6,7 @@ const BondScript := preload("res://scripts/bond.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Items := preload("res://scripts/items.gd")
+const Gear := preload("res://scripts/gear.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -84,15 +85,26 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(cap_x, 24), Vector2(290.0 - cap_x, 14)), Color(1.0, 0.35, 0.2, 0.35))
 	_bar(Vector2(28, 46), 262.0 * p.max_sta / 100.0, 10.0, p.sta / p.max_sta, sta_trail, Color(0.45, 0.72, 0.38))
 
-	# Weapons.
-	for i in p.Weapons.ORDER.size():
-		var id: String = p.Weapons.ORDER[i]
+	# Weapons (slots 1 to 3: fists, melee, ranged) and armor, each with its name.
+	var have: Array = p.slots()
+	for i in have.size():
+		var id: String = have[i]
 		var r := Rect2(16 + i * 50, 78, 44, 44)
-		var on: bool = id == p.weapon
+		var on: bool = id == p.weapon and id != ""
 		draw_style_box(slot_on if on else slot, r)
-		_weapon_icon(id, r.get_center() + Vector2(0, -2), GOLD if on else DIM_TEXT)
+		if id != "":
+			_weapon_icon(id, r.get_center() + Vector2(0, -1), GOLD if on else DIM_TEXT)
+			if id == p.weapon and p.reload_t > 0.0 and p.wkind() == "crossbow":
+				# Reloading: the slot fills back up.
+				var k: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
+				draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(r.size.x - 4, (r.size.y - 4) * k)), Color(0, 0, 0, 0.45))
 		draw_string(font, r.position + Vector2(4, 13), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD if on else DIM_TEXT)
-	draw_string(font, Vector2(170, 105), p.Weapons.WEAPONS[p.weapon]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, TEXT)
+		draw_string(font, Vector2(r.position.x - 3, 134), Gear.short(id) if id != "" else "-", HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 6, 10, TEXT if on else DIM_TEXT)
+	var ar := Rect2(16 + 3 * 50 + 4, 82, 36, 36)
+	var armor_id: String = p.gear["armor"]
+	draw_style_box(slot, ar)
+	Gear.draw_icon(self, armor_id, ar.get_center(), 10.0, Gear.color(armor_id) if armor_id != "" else DIM_TEXT)
+	draw_string(font, Vector2(ar.position.x - 7, 134), Gear.short(armor_id), HORIZONTAL_ALIGNMENT_CENTER, ar.size.x + 14, 10, TEXT if armor_id != "" else DIM_TEXT)
 	_draw_items(p, font)
 
 	# Essence gathered since the last stair (lost if you fall before it).
@@ -104,17 +116,17 @@ func _draw() -> void:
 			continue
 		any_essence = true
 		var ec := Essence.color(kind)
-		draw_circle(Vector2(ex + 6, 140), 5.0, ec)
-		draw_string(font, Vector2(ex + 15, 145), str(int(amt)), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
+		draw_circle(Vector2(ex + 6, 154), 5.0, ec)
+		draw_string(font, Vector2(ex + 15, 159), str(int(amt)), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
 		ex += 52.0
 	if any_essence:
-		draw_string(font, Vector2(ex + 2, 145), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+		draw_string(font, Vector2(ex + 2, 159), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 
 	# Bonds (marks), bottom left; on phones, up top out from under your thumbs.
 	var parts: Array = BondScript.Bonds.PARTS.filter(func(pt): return p.bonds.has(pt))
 	var y := size.y - 12.0 - 50.0 * parts.size()
 	if main.touch_active:
-		y = 156.0
+		y = 170.0
 	for part in parts:
 		var b = p.bonds[part]
 		if main.touch_active:
@@ -139,6 +151,7 @@ func _draw() -> void:
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"], ["Z", "jump"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
 			["1 2 3 / wheel", "weapon"], ["Q E F C X V", "cast marks"], ["G / T", "use item / next item"],
+			["Y", "take gear"],
 			["Esc", "menu"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
 		]
 		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
@@ -208,6 +221,8 @@ func _draw() -> void:
 		_draw_camp_choice(size, font)
 	_draw_quarry(p, size, font)
 	_draw_stair_arrow(size, font)
+	if not main.gear_here.is_empty() and not main.camp_choosing and main.fade <= 0.0:
+		_draw_gear_prompt(p, main.gear_here["id"], size, font)
 	if p.pick_open:
 		_draw_spell_ring(p, font)
 
@@ -275,17 +290,51 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 
 
 func _weapon_icon(id: String, c: Vector2, col: Color) -> void:
-	match id:
-		"fists":
-			draw_circle(c + Vector2(-4, 2), 5.0, col)
-			draw_circle(c + Vector2(5, -2), 5.0, col)
-		"sword":
-			draw_line(c + Vector2(-9, 9), c + Vector2(9, -9), col, 3.0)
-			draw_line(c + Vector2(-9, 2), c + Vector2(-2, 9), col, 2.5)
-		"bow":
-			draw_arc(c + Vector2(-4, 0), 11.0, -1.1, 1.1, 12, col, 2.5)
-			draw_line(c + Vector2(-4, 0) + Vector2.from_angle(-1.1) * 11.0, c + Vector2(-4, 0) + Vector2.from_angle(1.1) * 11.0, col, 1.0)
-			draw_line(c + Vector2(-6, 0), c + Vector2(10, 0), col, 1.5)
+	Gear.draw_icon(self, id, c, 10.0, col)
+
+
+## Standing on gear you'd have to swap for: a card comparing it with what
+## you carry in that slot, and how to take it.
+func _draw_gear_prompt(p, id: String, size: Vector2, font: Font) -> void:
+	var slot_id := Gear.slot_of(id)
+	var held: String = p.gear.get(slot_id, "")
+	var new_stats: Array = Gear.stats(id)
+	var old_stats: Array = Gear.stats(held) if held != "" or slot_id == "armor" else []
+	var w := 330.0
+	var h := 86.0 + 17.0 * new_stats.size()
+	# Bottom centre; on a phone, bottom left of centre, clear of the buttons.
+	var r := Rect2(Vector2((size.x - w) / 2.0, size.y - h - 24.0), Vector2(w, h))
+	if main.touch_active:
+		r.position = Vector2(clampf(size.x * 0.5 - w - 10.0, 110.0, size.x), size.y - h - 12.0)
+	draw_style_box(panel, r)
+	var col: Color = Gear.color(id)
+	draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 4)), Color(col, 0.8))
+	draw_string(font, r.position + Vector2(12, 20), Gear.TEXT["on_floor"], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, DIM_TEXT)
+	Gear.draw_icon(self, id, r.position + Vector2(w - 26, 24), 11.0, col)
+	draw_string(font, r.position + Vector2(12, 38), Gear.display(id), HORIZONTAL_ALIGNMENT_LEFT, w - 50, 15, col.lightened(0.2))
+	var held_name: String = Gear.display(held) if held != "" else Gear.TEXT["none"]
+	var x1 := r.position.x + 12.0
+	var x2 := r.position.x + 128.0
+	var x3 := r.position.x + 232.0
+	var y := r.position.y + 58.0
+	draw_string(font, Vector2(x2, y), "this", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+	draw_string(font, Vector2(x3, y), held_name.to_lower(), HORIZONTAL_ALIGNMENT_LEFT, w - (x3 - r.position.x) - 6.0, 11, DIM_TEXT)
+	for i in new_stats.size():
+		y += 17.0
+		var row: Array = new_stats[i]
+		draw_string(font, Vector2(x1, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+		var better := 0
+		if i < old_stats.size() and old_stats[i][0] == row[0]:
+			var diff: float = float(row[2]) - float(old_stats[i][2])
+			if absf(diff) > 0.0001:
+				better = 1 if (diff > 0.0) == bool(row[3]) else -1
+			draw_string(font, Vector2(x3, y), old_stats[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		var vcol := Color(0.55, 0.9, 0.55) if better > 0 else (Color(1.0, 0.5, 0.42) if better < 0 else TEXT)
+		draw_string(font, Vector2(x2, y), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, vcol)
+	var how: String = Gear.TEXT["take_tap"] if main.touch_active else Gear.TEXT["take_key"]
+	if held != "":
+		how += "  " + Gear.TEXT["drops"] % Gear.display(held)
+	draw_string(font, Vector2(r.position.x, r.end.y - 8.0), how, HORIZONTAL_ALIGNMENT_CENTER, w, 12, GOLD)
 
 
 ## The Regard: the beast's eye opens on you, and your first mark takes hold.
@@ -635,13 +684,17 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(col, 0.75))
 		var ic := Vector2(r.get_center().x, r.position.y + 48.0)
 		draw_circle(ic, 28.0, Color(col, 0.1))
-		if card["item"] != "":
+		if card.has("gear"):
+			Gear.draw_icon(self, card["gear"], ic, 22.0, col)
+		elif card["item"] != "":
 			Items.draw_icon(self, card["item"], ic, 22.0)
 		else:
 			Items.draw_rune_icon(self, col, ic, 22.0)
 		var y := r.position.y + 100.0
 		draw_string(font, Vector2(r.position.x + 8, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 15 if r.size.x > 180 else 13, col.lightened(0.2))
 		draw_multiline_string(font, Vector2(r.position.x + 12, y + 20.0), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 24.0, 12, 4, TEXT)
+		if card.has("note"):
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, DIM_TEXT)
 		if card["item"] != "" and p != null:
 			var n: int = p.item_count(card["item"])
 			var have := "carrying %d of %d" % [n, Items.MAX_STACK]

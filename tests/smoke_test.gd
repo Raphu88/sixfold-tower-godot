@@ -2327,11 +2327,13 @@ func _camp_tests() -> void:
 	_check(main.enemies().is_empty(), "the camp is safe: no monsters")
 	_check(main.campfire != null and is_instance_valid(main.campfire), "the camp has a campfire")
 	_check(p.hp == p.max_health() and not p.bonds["hand"].burned, "a full rest by the fire")
-	_check(main.camp["choices"].size() == Items.CAMP_CHOICES, "three items to choose from")
+	var item_cards: Array = main.camp["choices"].filter(func(c): return not String(c).begins_with("gear:"))
+	_check(item_cards.size() == Items.CAMP_CHOICES, "three items to choose from")
+	_check(main.camp["choices"].size() == Items.CAMP_CHOICES + 1, "...and a piece of gear")
 	var distinct := {}
 	for c in main.camp["choices"]:
 		distinct[c] = true
-	_check(distinct.size() == Items.CAMP_CHOICES, "...all different")
+	_check(distinct.size() == Items.CAMP_CHOICES + 1, "...all different")
 	var pick: String = main.camp["choices"][1]
 	var had: int = p.item_count(pick)
 	Input.action_press("weapon_2")
@@ -2395,6 +2397,469 @@ func _camp_tests() -> void:
 	main._arrive()
 	main.choose_camp(2)
 	_check(not main.camp_choosing, "without Runesmith a camp offers just the one pick")
+
+
+## A practice dummy: a slime that faces the climber, with plenty of health.
+func _dummy(pos: Vector2):
+	var d = await _spawn("slime", pos)
+	d.hp = 999.0
+	d.max_hp = 999.0
+	d.face = (main.player.global_position - pos).normalized()
+	return d
+
+
+## One fresh swing (or the next in the chain if `chain` is set); hit-pause
+## is cleared so the next swing is measured cleanly.
+func _swing(chain := false) -> void:
+	var p = main.player
+	p.attack_cd = 0.0
+	p.lunge_t = 0.0
+	if not chain:
+		p.combo_t = 0.0
+	p._melee()
+	Engine.time_scale = 1.0
+	main.hitstop_until = 0
+
+
+func _gear_tests() -> void:
+	print("weapons")
+	await _fresh_main()
+	var p = main.player
+	var W = p.Weapons
+	var G = main.Gear
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var spot := Vector2(500, 400)
+	p.global_position = spot
+	p.aim = Vector2.RIGHT
+	_check(p.weapon == "sword" and p.gear["melee"] == "sword" and p.gear["ranged"] == "shortbow" and p.gear["armor"] == "", "every climb starts with a sword, a shortbow and no armor")
+	_check(p.slots() == ["fists", "sword", "shortbow"], "slots: 1 fists, 2 melee, 3 ranged")
+	_check(InputMap.has_action("interact"), "taking gear (Y) is bound")
+	var y_bound := false
+	for ev in InputMap.action_get_events("interact"):
+		y_bound = y_bound or (ev is InputEventKey and ev.physical_keycode == KEY_Y)
+	_check(y_bound, "...to the Y key")
+	# Every melee weapon swings, lands and deals sensible damage.
+	var dealt := {}
+	var cost := {}
+	var recover := {}
+	var all_ok := true
+	for id in W.ORDER:
+		if W.WEAPONS[id]["kind"] != "melee":
+			continue
+		p._equip(id)
+		p.global_position = spot
+		var d = await _dummy(spot + Vector2(30, 0))
+		p.sta = p.MAX_STA
+		_swing()
+		dealt[id] = 999.0 - d.hp
+		cost[id] = p.MAX_STA - p.sta
+		recover[id] = p.attack_cd
+		var want: float = p.STRIKE_DAMAGE * float(W.WEAPONS[id]["combo"][0]["dmg"]) * p.attr_strength
+		if not (absf(dealt[id] - want) < 0.6 and dealt[id] >= 3.0 and dealt[id] <= 30.0):
+			all_ok = false
+			print("    %s dealt %.1f (wanted %.1f)" % [id, dealt[id], want])
+		d.queue_free()
+		await _frames(1)
+	_check(all_ok, "every melee weapon swings and lands sensible damage (%s)" % str(dealt))
+	_check(dealt["greatsword"] > dealt["axe"] and dealt["axe"] > dealt["sword"] and dealt["sword"] > dealt["dagger"], "heavier weapons hit harder: greatsword > axe > sword > dagger")
+	_check(dealt["war_hammer"] > dealt["greatsword"], "the war hammer hits hardest of all (%.0f)" % dealt["war_hammer"])
+	_check(cost["war_hammer"] > cost["greatsword"] and cost["greatsword"] > cost["axe"] and cost["axe"] > cost["sword"] and cost["sword"] > cost["dagger"], "...and costs more stamina: %s" % str(cost))
+	_check(recover["dagger"] < recover["sword"] and recover["sword"] < recover["greatsword"] and recover["greatsword"] < recover["war_hammer"], "the dagger recovers fastest, the hammer slowest: %s" % str(recover))
+	# Each chain ends in a heavy finisher.
+	var finishers := true
+	for id in W.ORDER:
+		if W.WEAPONS[id]["kind"] == "melee":
+			finishers = finishers and bool(W.WEAPONS[id]["combo"][-1]["heavy"])
+	_check(finishers, "every melee chain ends in a heavy finisher")
+	# The spear reaches farther than the sword.
+	var far = await _dummy(spot + Vector2(78, 0))
+	p.global_position = spot
+	p._equip("sword")
+	_swing()
+	var sword_far: float = 999.0 - far.hp
+	p.global_position = spot
+	p._equip("spear")
+	_swing()
+	var spear_far: float = 999.0 - far.hp - sword_far
+	_check(sword_far == 0.0 and spear_far > 0.0, "the spear reaches a foe the sword can't (%.0f vs %.0f)" % [spear_far, sword_far])
+	_check(W.WEAPONS["spear"]["combo"][0]["arc"] < W.WEAPONS["sword"]["combo"][0]["arc"] and W.WEAPONS["greatsword"]["combo"][0]["arc"] > W.WEAPONS["axe"]["combo"][0]["arc"], "the spear is narrow, the greatsword sweeps widest")
+	far.queue_free()
+	# The axe's and greatsword's wide arcs catch a foe off to the side.
+	var wide = await _dummy(spot + Vector2(10, 40))  # about 76 degrees off your aim
+	p.global_position = spot
+	p._equip("sword")
+	_swing()
+	var sword_side: float = 999.0 - wide.hp
+	p.global_position = spot
+	p._equip("greatsword")
+	_swing()
+	_check(sword_side == 0.0 and 999.0 - wide.hp > 0.0, "the greatsword's sweep catches a foe beside you that the sword misses")
+	wide.queue_free()
+	await _frames(1)
+	# The dagger: a bigger backstab.
+	var back = await _dummy(spot + Vector2(30, 0))
+	back.face = Vector2.RIGHT  # facing away
+	p.global_position = spot
+	p._equip("dagger")
+	_swing()
+	var dagger_back: float = 999.0 - back.hp
+	back.hp = 999.0
+	p.global_position = spot
+	p._equip("sword")
+	_swing()
+	var sword_back: float = 999.0 - back.hp
+	var dagger_ratio: float = dagger_back / dealt["dagger"]
+	var sword_ratio: float = sword_back / dealt["sword"]
+	_check(dagger_ratio > sword_ratio + 0.3, "dagger backstabs bite deeper (x%.1f vs the sword's x%.1f)" % [dagger_ratio, sword_ratio])
+	back.queue_free()
+	await _frames(1)
+	# Maces and hammers rock a monster out of its wind-up; a sword's light hit doesn't.
+	for id in ["sword", "mace"]:
+		var foe = await _dummy(spot + Vector2(30, 0))
+		foe.state = "wind"
+		foe.state_t = 0.5
+		foe.glinted = false
+		foe.flinch_cd = 0.0
+		main.attackers.clear()
+		main.request_attack(foe)
+		p.global_position = spot
+		p._equip(id)
+		_swing()
+		if id == "sword":
+			_check(foe.state == "wind", "a sword's light hit doesn't stop a wind-up")
+		else:
+			_check(foe.state != "wind", "...but even a mace's first blow rocks the monster out of it")
+		foe.queue_free()
+		await _frames(1)
+	# The war hammer's finisher staggers.
+	var anvil = await _dummy(spot + Vector2(30, 0))
+	p.global_position = spot
+	p._equip("war_hammer")
+	_swing()
+	_check(anvil.stun <= 0.0, "the hammer's first blow doesn't stagger")
+	p.global_position = spot
+	_swing(true)
+	_check(p.swing["heavy"] and anvil.stun > 0.0, "the war hammer's finisher staggers (%.2f s)" % anvil.stun)
+	anvil.queue_free()
+	await _frames(1)
+
+	print("bows and the crossbow")
+	_check(W.WEAPONS["longbow"]["draw_time"] > W.WEAPONS["shortbow"]["draw_time"] and W.WEAPONS["longbow"]["dmg_max"] > W.WEAPONS["shortbow"]["dmg_max"], "the longbow draws slower and hits harder")
+	_check(W.WEAPONS["longbow"]["move_mult"] < W.WEAPONS["shortbow"]["move_mult"], "...and you walk slower while drawing it")
+	var ranges: Array = []
+	for id in ["shortbow", "longbow"]:
+		ranges.append(float(W.WEAPONS[id]["speed_max"]) * float(W.WEAPONS[id]["life"]))
+	_check(ranges[1] > ranges[0], "...and its arrows fly farther (%d vs %d)" % [int(ranges[1]), int(ranges[0])])
+	var shot_dmg := {}
+	for id in ["shortbow", "longbow"]:
+		p.take_gear(id)
+		var target = await _dummy(spot + Vector2(150, 0))
+		p.global_position = spot
+		p.aim = Vector2.RIGHT
+		p.attack_cd = 0.0
+		p.sta = p.MAX_STA
+		_check(p._try_attack() and p.drawing, "the %s draws" % id)
+		p.draw_t = 2.0
+		p.release_draw()
+		await _wait(0.4)
+		shot_dmg[id] = 999.0 - target.hp
+		target.queue_free()
+		await _frames(1)
+	_check(shot_dmg["shortbow"] > 0.0 and shot_dmg["longbow"] > shot_dmg["shortbow"], "both bows hit; a full longbow shot hits harder (%s)" % str(shot_dmg))
+	# The crossbow: press to fire, then a reload you can't skip.
+	var old: String = p.take_gear("crossbow")
+	_check(old == "longbow" and p.weapon == "crossbow" and p.gear["ranged"] == "crossbow", "taking a crossbow puts it in the ranged slot and in hand")
+	var mark = await _dummy(spot + Vector2(160, 0))
+	p.global_position = spot
+	p.aim = Vector2.RIGHT
+	p.attack_cd = 0.0
+	p.reload_t = 0.0
+	p.sta = p.MAX_STA
+	var bolts := func(): return main.get_children().filter(func(c): return "style" in c and c.friendly and c.style == "bolt")
+	_check(p._try_attack() and not p.drawing, "the crossbow fires at once (no drawing)")
+	_check(bolts.call().size() == 1 and bolts.call()[0].heavy, "...a heavy bolt")
+	_check(p.reload_t > 1.0, "...then it must reload (%.2f s)" % p.reload_t)
+	await _wait(0.35)
+	_check(999.0 - mark.hp >= 20.0, "the bolt hits hard (%.0f)" % (999.0 - mark.hp))
+	p.attack_cd = 0.0
+	_check(not p._try_attack() and bolts.call().is_empty(), "no second bolt while reloading")
+	# You can walk while it reloads.
+	var x0: float = p.global_position.x
+	Input.action_press("move_down")
+	await _wait(0.2)
+	Input.action_release("move_down")
+	_check(p.reload_t > 0.0 and p.global_position.y > spot.y + 10.0, "you can walk while reloading (%.0f px)" % (p.global_position.y - spot.y))
+	await _wait(0.8)
+	_check(p.reload_t <= 0.0, "the reload finishes after about 1.1 s")
+	p.global_position = spot
+	p.aim = Vector2.RIGHT
+	p.attack_cd = 0.0
+	_check(p._try_attack() and bolts.call().size() == 1, "then it fires again")
+	await _wait(0.3)
+	# Hunter: Hawk's Eye and Quarry work with bolts too.
+	_mark("brow", "hunter", 5)
+	p = main.player
+	p.reload_t = 0.0
+	p.attack_cd = 0.0
+	mark.hp = 999.0
+	p.quarry = null
+	p.global_position = spot
+	p.aim = Vector2.RIGHT
+	_cast("brow", "hawks_eye")
+	p._try_attack()
+	await _wait(0.35)
+	_check(999.0 - mark.hp >= float(W.WEAPONS["crossbow"]["dmg"]) * 1.9, "Hawk's Eye doubles a crossbow bolt (%.0f)" % (999.0 - mark.hp))
+	_check(p.quarry == mark, "Quarry remembers the foe a bolt struck")
+	p.hawk_t = 0.0
+	var proj := func(): return main.get_children().filter(func(c): return "return_to" in c and c.friendly)
+	mark.queue_free()
+	await _wait(0.3)
+	for c in proj.call():
+		c.queue_free()
+	await _frames(1)
+	# Blade Forger's Weapon Memory takes after any weapon's class.
+	_mark("hand", "blade_forger", 5)
+	var counts := {}
+	var speeds := {}
+	for id in ["dagger", "sword", "greatsword", "crossbow"]:
+		p._equip(id)
+		var before: Array = proj.call()
+		_cast("hand", "conjured_blades")
+		var thrown: Array = proj.call().filter(func(c): return not (c in before))
+		counts[id] = thrown.size()
+		speeds[id] = thrown[0].vel.length() if not thrown.is_empty() else 0.0
+		for c in proj.call():
+			c.queue_free()
+		await _frames(1)
+	_check(counts["dagger"] == counts["sword"] + 2 and counts["greatsword"] == counts["sword"] - 1, "Weapon Memory: a dagger throws more blades, a greatsword fewer (%s)" % str(counts))
+	_check(speeds["crossbow"] > speeds["sword"] + 100.0, "...and a crossbow throws fast darts (%.0f vs %.0f)" % [speeds["crossbow"], speeds["sword"]])
+
+	print("armor")
+	await _fresh_main()
+	p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	var taken := {}
+	var roll_cost := {}
+	var roll_speed := {}
+	for id in G.ARMOR_ORDER:
+		p.gear["armor"] = id
+		p.hp = p.MAX_HP
+		p.hurt_t = 0.0
+		p.iframes = 0.0
+		p.parry_t = 0.0
+		p.receive_attack(20.0, null)
+		taken[id] = p.MAX_HP - p.hp
+		p.sta = p.MAX_STA
+		p.roll_cd = 0.0
+		p.attack_cd = 0.0
+		p._try_roll(Vector2.RIGHT)
+		roll_cost[id] = p.MAX_STA - p.sta
+		roll_speed[id] = p.roll_speed
+		p.roll_t = 0.0
+		p.iframes = 0.0
+	_check(absf(taken[""] - 20.0) < 0.01 and absf(taken["plate"] - 13.0) < 0.01, "armor cuts a landed hit: 20 without, 13 in plate (%s)" % str(taken))
+	_check(taken["padded"] > taken["leather"] and taken["leather"] > taken["chain"] and taken["chain"] > taken["plate"], "heavier armor protects more")
+	_check(roll_cost["plate"] > roll_cost["chain"] and roll_cost["chain"] > roll_cost["leather"] and roll_cost["leather"] > roll_cost[""], "heavier armor makes rolls cost more (%s)" % str(roll_cost))
+	_check(roll_speed["plate"] < roll_speed[""], "...and carry you less far")
+	_check(G.ARMOR["plate"]["regen"] < 1.0 and G.ARMOR["plate"]["walk"] < 1.0, "plate slows your stamina and your walk a little")
+	# Poison ticks past armor.
+	p.gear["armor"] = "plate"
+	p.hp = 100.0
+	p.poison(0.6)
+	await _wait(0.75)
+	_check(p.hp <= 98.0, "poison isn't reduced by armor (%.1f)" % p.hp)
+	p.poison_t = 0.0
+	p.gear["armor"] = ""
+
+	print("finding gear")
+	p.hp = p.MAX_HP
+	p.global_position = spot
+	# Walking over gear with an empty slot takes it.
+	main.drop_gear(spot, "chain")
+	await physics_frame
+	await physics_frame
+	_check(p.gear["armor"] == "chain" and main.gear_drops.is_empty(), "walking over armor with none on puts it on")
+	# Otherwise a prompt compares it, and Y swaps (dropping your old piece).
+	main.drop_gear(spot + Vector2(4, 0), "axe")
+	await physics_frame
+	await physics_frame
+	_check(p.gear["melee"] == "sword" and not main.gear_here.is_empty() and main.gear_here["id"] == "axe", "with the slot full, gear waits for you to take it")
+	Input.action_press("interact")
+	await physics_frame
+	await physics_frame
+	Input.action_release("interact")
+	await _frames(2)
+	_check(p.gear["melee"] == "axe" and p.weapon == "axe", "pressing Y takes the axe into your hand")
+	var dropped: Array = main.gear_drops.filter(func(d): return d["id"] == "sword")
+	_check(main.gear_drops.size() == 1 and dropped.size() == 1 and dropped[0]["pos"].distance_to(p.global_position) < 6.0, "...and your sword is dropped where you stand")
+	_check(main.take_gear_here() and p.gear["melee"] == "sword", "you can swap straight back")
+	main.gear_drops.clear()
+	await physics_frame
+	_check(main.gear_here.is_empty() and not main.take_gear_here(), "with no gear underfoot, Y does nothing")
+	# 1, 2 and 3 pick the weapons in your slots.
+	p.take_gear("longbow")
+	p._equip("fists")
+	await _wait(0.1)
+	Input.action_press("weapon_3")
+	await physics_frame
+	await physics_frame
+	Input.action_release("weapon_3")
+	await _wait(0.1)
+	_check(p.weapon == "longbow", "key 3 switches to the ranged weapon you carry (%s)" % p.weapon)
+	Input.action_press("weapon_2")
+	await physics_frame
+	await physics_frame
+	Input.action_release("weapon_2")
+	await _wait(0.1)
+	_check(p.weapon == "sword", "key 2 to the melee one (%s)" % p.weapon)
+	# Drops.
+	main.gear_drop_chance = 1.0
+	main.item_drop_chance = 0.0
+	var knight = await _spawn("knight", spot + Vector2(200, 0))
+	_slay(knight)
+	main.gear_drop_chance = G.DROP_CHANCE
+	main.item_drop_chance = main.Items.DROP_CHANCE
+	_check(main.gear_drops.size() == 1 and G.is_gear(main.gear_drops[0]["id"]), "a slain monster can drop gear (%s)" % (main.gear_drops[0]["id"] if not main.gear_drops.is_empty() else "none"))
+	_check(G.DROP_CHANCE <= 0.05, "gear drops are rare (%d%%)" % int(G.DROP_CHANCE * 100.0))
+	var favoured := 0
+	for i in 400:
+		if G.random_gear("archer") in G.FAVOUR["archer"]:
+			favoured += 1
+	_check(favoured > 180, "archers favour bows, crossbows and leather (%d of 400)" % favoured)
+	var never := true
+	for i in 200:
+		never = never and not (G.random_gear("", ["sword", "shortbow"]) in ["sword", "shortbow", "fists", ""])
+	_check(never, "drops leave out what you carry")
+	main.gear_drops.clear()
+	# A side room's cache can hold gear.
+	main.gear_cache_chance = 1.0
+	for n in 30:
+		main._start_floor(3)
+		await _frames(1)
+		if not main.cache.is_empty():
+			break
+	main.gear_cache_chance = G.CACHE_CHANCE
+	for e in main.enemies():
+		e.set_physics_process(false)
+	_check(not main.cache.is_empty() and main.cache.has("gear"), "a side room's cache can hold a piece of gear")
+	if not main.cache.is_empty():
+		p.global_position = main.cache["pos"]
+		await _frames(3)
+		var cg: String = main.cache.get("gear", "")
+		var left: bool = main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == cg
+		_check(main.cache["taken"] and (left or cg in p.carried_gear()), "opening it leaves the gear on the floor (%s)" % cg)
+
+	print("gear at a camp")
+	await _fresh_main()
+	p = main.player
+	_mark("hand", "stormcaller", 1)
+	main.floor_num = 3
+	main._arrive()
+	await _frames(2)
+	var gear_cards: Array = main.camp["choices"].filter(func(c): return String(c).begins_with("gear:"))
+	_check(main.camp_choosing and gear_cards.size() == 1, "the camp also offers a piece of gear (%s)" % str(gear_cards))
+	var gi: int = main.camp["choices"].find(gear_cards[0])
+	var card: Dictionary = main.camp_card(gi)
+	var gid: String = String(gear_cards[0]).substr(5)
+	_check(card.get("gear", "") == gid and card["name"] == G.display(gid), "its card shows the gear")
+	var slot: String = G.slot_of(gid)
+	var had: String = p.gear[slot]
+	main.choose_camp(gi)
+	_check(p.gear[slot] == gid and not main.camp_choosing, "taking the gear card carries it (%s)" % gid)
+	if had != "":
+		_check(main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == had, "...and leaves your old %s by the fire" % had)
+
+	print("the Take button on a phone")
+	await _fresh_main()
+	p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	_mark("hand", "stormcaller", 1)
+	_mark("legs", "windwalker", 1)
+	_mark("heart", "deepcaller", 1)
+	_mark("brow", "warden", 1)
+	_mark("throat", "flameblade", 1)
+	_mark("back", "ashwalker", 1)
+	p = main.player
+	p.global_position = spot
+	main.touch._set_active(true)
+	await _frames(2)
+	main.touch._layout()
+	var ids: Array = main.touch.buttons.map(func(b): return b["id"])
+	_check(not ("take" in ids), "no Take button away from gear")
+	main.drop_gear(spot, "mace")
+	await physics_frame
+	await physics_frame
+	main.touch._layout()
+	var buttons: Array = main.touch.buttons
+	ids = buttons.map(func(b): return b["id"])
+	_check("take" in ids, "standing on gear shows the Take button")
+	var take: Dictionary = buttons[ids.find("take")] if "take" in ids else {}
+	var clear := not take.is_empty()
+	var view: Vector2 = main.touch.get_viewport_rect().size
+	if clear:
+		clear = Rect2(Vector2.ZERO, view).has_point(take["c"]) and take["c"].x > view.x * 0.5
+		for o in buttons:
+			if o != take and take["c"].distance_to(o["c"]) < take["r"] + o["r"] + 2.0:
+				clear = false
+				print("    overlaps: take and ", o["id"])
+	_check(clear, "the Take button is on the right, on screen, clear of every other button (six marks)")
+	if not take.is_empty():
+		_touch(7, take["c"], true)
+		await _wait(0.15)
+		_touch(7, take["c"], false)
+		await _frames(2)
+	_check(p.gear["melee"] == "mace" and main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == "sword", "tapping Take swaps for the mace and drops the sword")
+	main.gear_drops.clear()
+	await physics_frame
+	await physics_frame
+	main.touch._layout()
+	_check(not ("take" in main.touch.buttons.map(func(b): return b["id"])), "the Take button goes away once there's no gear underfoot")
+	main.touch._set_active(false)
+	await _frames(2)
+
+	print("gear in the menus")
+	main.menu.open("body")
+	await _frames(2)
+	var labels: Array = _all_labels(main.menu).map(func(l): return l.text)
+	_check("GEAR" in labels and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the Body page lists your gear")
+	main.menu.open("dev")
+	await _frames(2)
+	var dev_buttons: Array = _all_buttons(main.menu)
+	var plate_btn: Array = dev_buttons.filter(func(b): return b.text == "Plate Armor")
+	var hammer_btn: Array = dev_buttons.filter(func(b): return b.text == "War Hammer")
+	_check(plate_btn.size() == 1 and hammer_btn.size() == 1, "the dev tools can give any weapon or armor")
+	if plate_btn.size() == 1 and hammer_btn.size() == 1:
+		plate_btn[0].pressed.emit()
+		await _frames(1)
+		_all_buttons(main.menu).filter(func(b): return b.text == "War Hammer")[0].pressed.emit()
+		await _frames(1)
+		_check(p.gear["armor"] == "plate" and p.gear["melee"] == "war_hammer" and p.weapon == "war_hammer", "...and pressing them does")
+	main.menu.close()
+	await _frames(2)
+
+
+func _all_labels(n: Node) -> Array:
+	var out: Array = []
+	if n is Label:
+		out.append(n)
+	for c in n.get_children():
+		out.append_array(_all_labels(c))
+	return out
+
+
+func _all_buttons(n: Node) -> Array:
+	var out: Array = []
+	if n is Button:
+		out.append(n)
+	for c in n.get_children():
+		out.append_array(_all_buttons(c))
+	return out
 
 
 func _spawn(kind: String, pos: Vector2):
@@ -2610,7 +3075,7 @@ func _run() -> void:
 	await _settle()
 
 	print("bow")
-	p._equip("bow")
+	p._equip("shortbow")
 	p.attack_cd = 0.0
 	p.sta = p.MAX_STA
 	p.global_position = slime.global_position - Vector2(150, 0)
@@ -2844,6 +3309,7 @@ func _run() -> void:
 	await _body_part_tests()
 	await _item_tests()
 	await _camp_tests()
+	await _gear_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
