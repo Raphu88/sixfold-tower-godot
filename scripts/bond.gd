@@ -16,6 +16,8 @@ var essence := 0.0
 var burned := false
 var faint := false  # a mark taken in defeat: weaker until it catches up
 var overdraw_mult := 1.0  # set for an overdrawn cast: desperate casts are weaker
+var attr_power := 1.0  # Fire density (Intellect): spells hit a little harder
+var attr_fill := 1.0  # Water density (Spirit): marks fill a little faster
 
 ## How strong an overdrawn cast is, and how much health per missing essence
 ## overdrawing an already-burned mark tears out of you.
@@ -101,7 +103,7 @@ func cost() -> float:
 
 ## A faint mark's spells hit softer, and so do desperate (overdrawn) casts.
 func power() -> float:
-	return (0.75 if faint else 1.0) * overdraw_mult
+	return (0.75 if faint else 1.0) * overdraw_mult * attr_power
 
 
 func damage() -> float:
@@ -118,7 +120,7 @@ func step_note(new_step: int) -> String:
 
 
 func fill(amount: float) -> void:
-	essence = minf(capacity(), essence + amount)
+	essence = minf(capacity(), essence + amount * attr_fill)
 
 
 ## Pays for a cast. Returns "paid", "burned" (overdrawn: the body part burns)

@@ -152,22 +152,23 @@ func _touch_up(index: int) -> void:
 
 
 func _update_stick() -> void:
-	var v := (stick_pos - stick_origin) / STICK_RADIUS
-	if v.length() > 1.0:
-		# Drag past the edge and the stick follows your thumb.
-		stick_origin = stick_pos - v.normalized() * STICK_RADIUS
-		v = v.normalized()
-	_set_move(v)
+	var off := stick_pos - stick_origin
+	# Past the outer (sprint) ring the stick follows your thumb.
+	if off.length() > SPRINT_RADIUS * 1.15:
+		stick_origin = stick_pos - off.normalized() * SPRINT_RADIUS * 1.15
+		off = stick_pos - stick_origin
+	var sprint := off.length() >= SPRINT_RADIUS
+	_set_move((off / STICK_RADIUS).limit_length(1.0), sprint)
 
 
-## The joystick: past a light tilt you walk at full speed; push it all the
-## way to the edge and you sprint.
+## The joystick: past a light tilt you walk at full speed. Sprinting takes a
+## real push: drag your thumb out past the larger outer ring.
 const STICK_DEAD := 0.15
 const STICK_FULL := 0.45
-const STICK_SPRINT := 0.95
+const SPRINT_RADIUS := 105.0
 
 
-func _set_move(v: Vector2) -> void:
+func _set_move(v: Vector2, sprint := false) -> void:
 	var m := v.length()
 	if m < STICK_DEAD:
 		_axis("move_right", "move_left", 0.0)
@@ -178,7 +179,7 @@ func _set_move(v: Vector2) -> void:
 	var d := v / m * strength
 	_axis("move_right", "move_left", d.x)
 	_axis("move_down", "move_up", d.y)
-	if m >= STICK_SPRINT:
+	if sprint:
 		Input.action_press("sprint")
 	else:
 		Input.action_release("sprint")
@@ -229,13 +230,14 @@ func _draw() -> void:
 	if stick_touch != -1:
 		draw_circle(stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.3))
 		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0)
-		var knob := stick_origin + (stick_pos - stick_origin).limit_length(STICK_RADIUS)
-		var sprinting := (stick_pos - stick_origin).length() >= STICK_RADIUS * STICK_SPRINT
+		var knob := stick_origin + (stick_pos - stick_origin).limit_length(SPRINT_RADIUS * 1.15)
+		var sprinting := (stick_pos - stick_origin).length() >= SPRINT_RADIUS
+		draw_arc(stick_origin, SPRINT_RADIUS, 0.0, TAU, 48, Color(1.0, 0.85, 0.5, 0.18), 1.5)
 		draw_circle(knob, 28.0, Color(1.0, 0.85, 0.5, 0.5) if sprinting else Color(1, 1, 1, 0.35))
 		if sprinting:
-			draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1.0, 0.85, 0.5, 0.6), 3.0)
+			draw_arc(stick_origin, SPRINT_RADIUS, 0.0, TAU, 48, Color(1.0, 0.85, 0.5, 0.6), 3.0)
 	else:
-		draw_string(font, Vector2(30, size.y - 30), "touch here to move  ·  push to the edge to sprint", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
+		draw_string(font, Vector2(30, size.y - 30), "touch here to move  ·  drag past the outer ring to sprint", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()

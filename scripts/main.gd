@@ -756,10 +756,20 @@ func _give_bonds() -> void:
 			b.essence = minf(old[part].essence, b.capacity())
 			b.burned = old[part].burned
 			b.selected = old[part].selected
+		b.attr_power = 1.0 + profile.attribute("fire")
+		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b
 	# Hunter's Keen Eyes: you see farther in the dark.
 	if player_glow != null:
 		player_glow.texture_scale = 2.2 if player.has_bond("hunter") or player.has_bond("ashwalker") else 1.4  # Keen Eyes, Smokeborn
+	# Essence density: small passive bonuses, one per attribute.
+	player.attr_speed = 1.0 + profile.attribute("air")
+	player.attr_strength = 1.0 + profile.attribute("blade")
+	player.attr_will = 1.0 + profile.attribute("iron")
+	var was: float = player.max_hp
+	player.max_hp = player.MAX_HP * (1.0 + profile.attribute("stone"))
+	if player.max_hp > was:
+		player.hp += player.max_hp - was
 
 
 # --- essence and the Regard ----------------------------------------------------

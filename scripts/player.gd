@@ -32,6 +32,10 @@ var main  # the room (main.gd), set before the player is added
 var radius := 14.0
 var weight := 1.0  # how hard it is to shove when bodies collide
 var max_hp := MAX_HP
+# Essence density (attributes): small passive bonuses, set from the profile.
+var attr_speed := 1.0  # Air: Agility
+var attr_strength := 1.0  # Blade: Strength
+var attr_will := 1.0  # Iron: Will
 var max_sta := MAX_STA
 var hp := MAX_HP
 var sta := MAX_STA
@@ -222,6 +226,7 @@ func _physics_process(delta: float) -> void:
 			spd = SPRINT
 			sta -= 22.0 * delta
 			sta_delay = 0.6
+		spd *= attr_speed
 		if rune_gear == "swiftness":
 			spd *= 1.15
 		if _stubborn():
@@ -399,7 +404,7 @@ func _tick_timers(delta: float) -> void:
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(MAX_STA, sta + STA_REGEN * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+		sta = minf(MAX_STA, sta + STA_REGEN * attr_will * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 func _winded() -> void:
@@ -557,7 +562,7 @@ func _melee() -> bool:
 	var snd: String = w["sound"]
 	main.sfx(snd + "_heavy" if heavy else snd, 1.0 + 0.06 * combo)
 
-	var dmg: float = STRIKE_DAMAGE * swing["dmg"]
+	var dmg: float = STRIKE_DAMAGE * swing["dmg"] * attr_strength
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
 		dmg *= 0.6
