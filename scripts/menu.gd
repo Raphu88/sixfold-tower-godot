@@ -253,6 +253,7 @@ func _page_controls() -> void:
 		["Move", "WASD or arrows"], ["Sprint", "Shift"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
 		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
 		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
+		["Use item / next item", "G / T"],
 		["Menu", "Esc or P"], ["Restart", "R"], ["Music", "M"],
 	]
 	var grid := GridContainer.new()
@@ -268,7 +269,7 @@ func _page_controls() -> void:
 		b.add_theme_color_override("font_color", GOLD)
 		grid.add_child(b)
 	box.add_child(grid)
-	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast. Hold a mark's button and slide to pick a spell.", DIM)
+	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next. Hold a mark's button and slide to pick a spell.", DIM)
 	_gap()
 	_back()
 
@@ -371,6 +372,8 @@ func _page_dev() -> void:
 	_button("No dying: %s" % ("on" if main.dev_no_death else "off"), _toggle_no_death, crow)
 	_button("Heal", _heal, crow)
 	_button("Clear the room", _clear_room, crow)
+	if main.trap_view != null:
+		_button("Show traps: %s" % ("on" if main.trap_view.show_all else "off"), _toggle_traps, crow)
 	if toast != "":
 		_text(toast, GOLD, true)
 	_gap()
@@ -456,6 +459,11 @@ func _dev_spawn(kind: String) -> void:
 
 func _toggle_no_death() -> void:
 	main.dev_no_death = not main.dev_no_death
+	open("dev")
+
+
+func _toggle_traps() -> void:
+	main.trap_view.show_all = not main.trap_view.show_all
 	open("dev")
 
 

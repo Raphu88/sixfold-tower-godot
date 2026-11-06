@@ -126,7 +126,7 @@ const BONDS := {
 		"affinity": "air",
 		"style": ["brow", "back"],
 		"tower": "gryphon",
-		"body": {"name": "Keen Eyes", "desc": "you see farther in the dark"},
+		"body": {"name": "Keen Eyes", "desc": "you see farther in the dark and spot hidden traps"},
 		"passive": {"name": "Quarry", "desc": "you always know where the last foe you struck is"},
 		"spells": [
 			{"id": "piercing_shot", "name": "Piercing Shot", "type": "shot", "learn": 1,
@@ -308,7 +308,7 @@ const BONDS := {
 		"style": ["brow", "legs"],
 		"tower": "wyvern",
 		"body": {"name": "Steady Mind", "desc": "every spell you cast, from any bond, has a shorter wind-up"},
-		"passive": {"name": "Runesmith", "desc": "enchant gear and craft from cores at camps (waits for camps and items, not in the game yet)"},
+		"passive": {"name": "Runesmith", "desc": "at a camp, also inscribe a rune on your gear that lasts the rest of the climb (sharpness, warding or swiftness), or craft one more item"},
 		"spells": [
 			{"id": "rune_trap", "name": "Rune Trap", "type": "trap", "learn": 1,
 				"desc": "inscribe a rune on the floor that detonates when a foe steps on it (up to 3)",
@@ -575,7 +575,7 @@ const BONDS := {
 		"affinity": "blade",
 		"style": ["brow", "back"],
 		"tower": "chimera",
-		"body": {"name": "Steady Hands", "desc": "healing works faster and heals more (potions and healing items will too, once they exist)"},
+		"body": {"name": "Steady Hands", "desc": "healing works faster and heals more: Mend, the stair's rest, and healing items (30% more, in less time)"},
 		"passive": {"name": "Diagnosis", "desc": "you see every foe's health, and what it is weak to"},
 		"spells": [
 			{"id": "sever", "name": "Sever", "type": "sever", "learn": 1,

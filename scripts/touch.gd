@@ -13,7 +13,8 @@ const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
 ## text are readable on a small screen.
 const PHONE_SCALE := 1.5
-const ONE_SHOT := ["weapon", "menu"]
+const ONE_SHOT := ["weapon", "menu", "item", "item_next"]
+const Items := preload("res://scripts/items.gd")
 
 var main
 var active := false
@@ -49,6 +50,9 @@ func _layout() -> void:
 		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
 		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
 		{"id": "menu", "action": "pause", "c": tr + Vector2(-104, 40) * k, "r": 28.0 * k},
+		# Items: bottom middle-right, clear of roll and the cast buttons.
+		{"id": "item", "action": "use_item", "c": br + Vector2(-395, -48) * k, "r": 34.0 * k},
+		{"id": "item_next", "action": "item_next", "c": br + Vector2(-478, -48) * k, "r": 22.0 * k},
 	]
 	# One cast button per mark you carry, in these spots around attack.
 	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150), Vector2(-160, -400), Vector2(-395, -265)]
@@ -65,6 +69,17 @@ func _input(event: InputEvent) -> void:
 	if main.menu_open():
 		if event is InputEventScreenTouch and not active:
 			_set_active(true)
+		return
+	# At a camp: a tap on a card takes it.
+	if main.camp_choosing:
+		if event is InputEventScreenTouch:
+			if not active:
+				_set_active(true)
+			if event.pressed and main.hud != null:
+				var c: int = main.hud.camp_card_at(event.position)
+				if c >= 0:
+					main.choose_camp(c)
+			get_viewport().set_input_as_handled()
 		return
 	# Choosing a tower: a tap on a card picks it.
 	if main.choosing_tower:
@@ -230,7 +245,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	if not active or main.choosing_tower or main.overlay_showing() or main.menu_open():
+	if not active or main.choosing_tower or main.camp_choosing or main.overlay_showing() or main.menu_open():
 		return  # nothing to press while choosing a tower or during the Regard
 	_layout()
 	var font := ThemeDB.fallback_font
@@ -280,6 +295,17 @@ func _draw() -> void:
 					label = bond.spell_name().split(" ")[0]
 			"weapon":
 				label = "Swap"
+			"item":
+				var id: String = p.selected_item() if p != null else ""
+				if id != "":
+					col = Items.color(id)
+					Items.draw_icon(self, id, c + Vector2(0, -5), r * 0.42)
+					label = "%d" % p.item_count(id)
+				else:
+					label = "Item"
+					col = Color(1, 1, 1, 0.5)
+			"item_next":
+				label = ">"
 			"fullscreen":
 				label = "[ ]"
 			"menu":
@@ -291,4 +317,7 @@ func _draw() -> void:
 		if pressed:
 			draw_circle(c, r - 3.0, Color(col, 0.18))
 		var fsize := 13 if r > 30.0 else 10
+		if b["id"] == "item" and label != "Item":
+			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.95))
+			continue
 		draw_string(font, c + Vector2(-r, fsize * 0.35), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fsize, Color(col, 0.9))

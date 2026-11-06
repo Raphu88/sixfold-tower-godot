@@ -18,6 +18,9 @@ const Essence := preload("res://scripts/essence.gd")
 const BondScript := preload("res://scripts/bond.gd")
 const Towers := preload("res://scripts/towers.gd")
 const MenuScript := preload("res://scripts/menu.gd")
+const Items := preload("res://scripts/items.gd")
+const CampfireScript := preload("res://scripts/campfire.gd")
+const Traps := preload("res://scripts/traps.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -37,6 +40,9 @@ var solid := PackedByteArray()
 var astar: AStarGrid2D
 var layout_bodies: Array = []
 var layout_rooms: Array = []
+var layout_blocks: Array = []  # cover inside rooms (Rect2, solid tiles)
+var side_room := Rect2()  # a small dead-end room, if the floor has one
+var cache := {}  # its essence cache: {pos, amount, kind, taken}
 var player
 var fx
 var camera: Camera2D
@@ -83,6 +89,15 @@ var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
 
+# Items and camps (items.gd)
+var item_drops: Array = []  # items lying on the floor: {pos, id, t}
+var item_drop_chance := Items.DROP_CHANCE
+var in_camp := false  # resting at a camp between floors (floor_num stays the floor below)
+var camp_done := false  # each climb has one camp
+var camp_choosing := false  # the camp's cards are showing
+var camp := {}  # {stage: "item" or "rune", choices: [...], lines: [...]}
+var campfire: Node2D
+
 # Lingering spell effects in the room
 var rod := {}  # Lightning Rod: {pos, t, reach}
 var walls: Array = []  # Crosswind: {a, b, t, color}
@@ -99,6 +114,8 @@ var graft_order: Array = []  # parts, oldest graft first
 var graft_drops: Array = []  # grafts lying on the floor: {pos, kind, t}
 var chasms: Array = []  # gaps in the floor (Rect2): jump across or fall
 var chasm_bodies: Array = []
+var traps: Array = []  # this floor's traps (traps.gd): {pos, kind, state, timer, hidden, hit}
+var trap_view  # runs and draws them (traps.gd)
 var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
 var wards: Array = []  # Ward Circles foes can't enter: {pos, r, t, color}
 var sigils: Array = []  # Grand Sigils, free casting inside: {pos, r, t, color}
@@ -138,6 +155,9 @@ func _ready() -> void:
 	room_view = RoomScript.new()
 	room_view.setup(room, WALL)
 	add_child(room_view)
+	trap_view = Traps.new()
+	trap_view.main = self
+	add_child(trap_view)
 	light_tex = RoomScript.make_light_texture()
 
 	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
@@ -258,14 +278,17 @@ func _set_arena(r: Rect2) -> void:
 ## Builds the tile grid of a rooms floor: walkable inside the rooms and
 ## corridors, solid everywhere else; walls where solid meets walkable; and
 ## a path grid so monsters can find their way around the walls.
-func _build_layout(walk: Array) -> void:
+## `blocks` (cover inside rooms) are made solid too, one by one, and any that
+## would cut `start` off from one of the `targets` is left out.
+func _build_layout(walk: Array, blocks: Array = [], start := Vector2.ZERO, targets: Array = []) -> void:
 	for b in layout_bodies:
 		b.queue_free()
 	layout_bodies.clear()
+	layout_blocks = []
 	layout_on = not walk.is_empty()
 	if not layout_on:
 		solid = PackedByteArray()
-		room_view.set_layout(Vector2i.ZERO, solid, [])
+		room_view.set_layout(Vector2i.ZERO, solid, [], [])
 		return
 	var c := Floors.CELL
 	grid_size = Vector2i(int(room.size.x / c), int(room.size.y / c))
@@ -273,11 +296,42 @@ func _build_layout(walk: Array) -> void:
 	solid.resize(grid_size.x * grid_size.y)
 	solid.fill(1)
 	for r in walk:
-		var rect: Rect2 = r
-		for y in range(int((rect.position.y - room.position.y) / c), int(ceil((rect.end.y - room.position.y) / c))):
-			for x in range(int((rect.position.x - room.position.x) / c), int(ceil((rect.end.x - room.position.x) / c))):
-				if x >= 0 and y >= 0 and x < grid_size.x and y < grid_size.y:
-					solid[y * grid_size.x + x] = 0
+		for t in _tiles_in(r):
+			solid[t.y * grid_size.x + t.x] = 0
+	astar = AStarGrid2D.new()
+	astar.region = Rect2i(Vector2i.ZERO, grid_size)
+	astar.cell_size = Vector2(c, c)
+	astar.offset = room.position + Vector2(c, c) * 0.5
+	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	astar.update()
+	for y in grid_size.y:
+		for x in grid_size.x:
+			if solid[y * grid_size.x + x] == 1:
+				astar.set_point_solid(Vector2i(x, y), true)
+	# Cover: keep each block only if everything that matters stays reachable.
+	var from := _tile_of(start)
+	var goals: Array = []
+	if not _is_solid_tile(from.x, from.y):
+		for g in targets:
+			var t := _tile_of(g)
+			if not _is_solid_tile(t.x, t.y):
+				goals.append(t)
+	for b in blocks:
+		var tiles: Array = _tiles_in(b).filter(func(t): return not _is_solid_tile(t.x, t.y))
+		for t in tiles:
+			solid[t.y * grid_size.x + t.x] = 1
+			astar.set_point_solid(t, true)
+		var reachable := true
+		for g in goals:
+			if astar.get_id_path(from, g).is_empty():
+				reachable = false
+				break
+		if reachable:
+			layout_blocks.append(b)
+		else:
+			for t in tiles:
+				solid[t.y * grid_size.x + t.x] = 0
+				astar.set_point_solid(t, false)
 	# Collision: solid tiles next to walkable ones, merged into runs per row.
 	for y in grid_size.y:
 		var run_start := -1
@@ -299,17 +353,21 @@ func _build_layout(walk: Array) -> void:
 				add_child(body)
 				layout_bodies.append(body)
 				run_start = -1
-	astar = AStarGrid2D.new()
-	astar.region = Rect2i(Vector2i.ZERO, grid_size)
-	astar.cell_size = Vector2(c, c)
-	astar.offset = room.position + Vector2(c, c) * 0.5
-	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
-	astar.update()
-	for y in grid_size.y:
-		for x in grid_size.x:
-			if solid[y * grid_size.x + x] == 1:
-				astar.set_point_solid(Vector2i(x, y), true)
-	room_view.set_layout(grid_size, solid, layout_rooms)
+	var lit: Array = layout_rooms.duplicate()
+	if side_room.has_area():
+		lit.append(side_room)
+	room_view.set_layout(grid_size, solid, lit, layout_blocks)
+
+
+## The grid tiles a rect covers (inside the grid).
+func _tiles_in(r: Rect2) -> Array:
+	var c := Floors.CELL
+	var list: Array = []
+	for y in range(int((r.position.y - room.position.y) / c), int(ceil((r.end.y - room.position.y) / c))):
+		for x in range(int((r.position.x - room.position.x) / c), int(ceil((r.end.x - room.position.x) / c))):
+			if x >= 0 and y >= 0 and x < grid_size.x and y < grid_size.y:
+				list.append(Vector2i(x, y))
+	return list
 
 
 func _is_solid_tile(x: int, y: int) -> bool:
@@ -403,6 +461,12 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_tower(Towers.ORDER[i])
 		return
+	if camp_choosing:
+		for i in camp["choices"].size():
+			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
+				choose_camp(i)
+				break
+		return
 	if not victory.is_empty():
 		victory["t"] += delta / maxf(Engine.time_scale, 0.01)
 		if overlay_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
@@ -439,6 +503,9 @@ func _process(delta: float) -> void:
 		sfx("clear", 1.0, 0.0, 0.0)
 	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
 		_climb()
+	if not cache.is_empty() and not cache["taken"] and not climbing and not player.dead \
+			and player.global_position.distance_to(cache["pos"]) < float(Floors.CACHE["reach"]) + player.radius:
+		_open_cache()
 	if not banner.is_empty():
 		banner["t"] -= delta
 		if banner["t"] <= 0.0:
@@ -461,9 +528,12 @@ func _physics_process(delta: float) -> void:
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
 func _update_spell_fields(delta: float) -> void:
 	_update_grafts(delta)
+	_update_item_drops(delta)
 	_update_ground(delta)
 	_update_runes(delta)
 	_update_flames(delta)
+	if trap_view != null:
+		trap_view.tick(delta)
 	track_t -= delta
 	if not rod.is_empty():
 		rod["t"] -= delta
@@ -576,26 +646,47 @@ func _start_floor(n: int) -> void:
 	decoys.clear()
 	ashfall_t = 0.0
 	if player != null:
-		player.rune_gear = ""  # runes on gear last one floor
+		player.rune_gear = player.camp_rune  # runes on gear last one floor (a camp's, the rest of the climb)
 		player.ember_used = false  # Last Ember: once per floor
 		player.ember_t = 0.0  # (and a Last Ember never follows you up the stair)
 	track_t = 0.0
 	for b in pillar_bodies:
 		b.queue_free()
 	pillar_bodies.clear()
+	item_drops.clear()
+	if not in_camp:
+		camp_choosing = false
+	if campfire != null:
+		campfire.queue_free()
+		campfire = null
 
 	var open_start := Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.end.y - 60.0)
 	var start: Vector2 = open_start
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
-	var plan: Dictionary = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+	var plan: Dictionary = _camp_plan() if in_camp else Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
 	start = plan.get("start", start)
 	player_start = start if plan.has("start") else open_start
 	stair_pos = plan.get("stair", Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.position.y + 34.0))
 	room_view.stair_pos = stair_pos
-	_build_layout(plan.get("walk", []))
+	# A side room's essence cache, if this floor has one.
+	side_room = plan.get("side_room", Rect2())
+	cache = {}
+	if plan.has("cache"):
+		cache = plan["cache"].duplicate()
+		cache["kind"] = tower_data()["essence"]
+		cache["taken"] = false
+	room_view.cache = cache
+	var targets: Array = [stair_pos]
+	for m in plan["monsters"]:
+		targets.append(m[1])
+	if not cache.is_empty():
+		targets.append(cache["pos"])
+	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
+	# Door frames, only where the wall beside an opening is really there.
+	room_view.set_doors(plan.get("doors", []).filter(func(r): return is_solid(r.get_center())))
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
@@ -615,14 +706,20 @@ func _start_floor(n: int) -> void:
 		pillar_bodies.append(body)
 	room_view.set_pillars(pillars)
 	puddles = []
-	if tower_data().get("puddles", false):
+	if tower_data().get("puddles", false) and not in_camp:
 		if layout_rooms.is_empty():
 			puddles = Floors.puddles(room, pillars, start)
 		else:
+			# Keep pools off the cover too (each block counted as a round pillar).
+			var avoid: Array = pillars.duplicate()
+			for b in layout_blocks:
+				avoid.append({"pos": b.get_center(), "r": b.size.length() * 0.5})
 			for i in range(1, layout_rooms.size()):
-				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), pillars, start).slice(0, 2))
+				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
+	traps = Traps.place(plan, tower_data(), n, self)
+	trap_view.reset()
 
 	var tough := Floors.toughness(n)
 	for m in plan["monsters"]:
@@ -639,6 +736,21 @@ func _start_floor(n: int) -> void:
 	if camera != null:
 		camera.position = start
 		camera.reset_smoothing()
+
+
+## Walking onto a side room's essence cache: a burst of the tower's essence.
+func _open_cache() -> void:
+	cache["taken"] = true
+	var pos: Vector2 = cache["pos"]
+	var amount: float = cache["amount"]
+	gather_essence(cache["kind"], amount, pos)
+	var col: Color = Essence.color(cache["kind"])
+	fx_text(pos + Vector2(0, -36), "%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col)
+	fx_ring(pos, col, 70.0, 0.5, 4.0)
+	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
+	light_flash(pos, col, 1.8, 1.8, 0.4)
+	sfx("glint", 1.3, -2.0, 0.0)
+	room_view.queue_redraw()
 
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
@@ -692,6 +804,8 @@ func _arrive() -> void:
 				sfx("crit", 0.7, -4.0)
 	_give_bonds()
 	profile.save()
+	var leaving_camp := in_camp
+	in_camp = false
 	# The top of the first climb: the Regard.
 	if first_climb and floor_num >= ProfileScript.FIRST_CLIMB_FLOORS:
 		_begin_regard(false)
@@ -704,6 +818,10 @@ func _arrive() -> void:
 		player.set_physics_process(false)
 		sfx("clear", 0.7, 0.0, 0.0)
 		return
+	# Halfway up a long climb, the stair leads to a camp first.
+	if not leaving_camp and _camp_due():
+		_enter_camp(lines)
+		return
 	_start_floor(floor_num + 1)
 	if floor_num > best_floor:
 		best_floor = floor_num
@@ -715,6 +833,120 @@ func _arrive() -> void:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
+
+
+# --- camps and items ---------------------------------------------------------------
+
+## One camp per climb, after Items.CAMP_AFTER, on climbs long enough to have one.
+func _camp_due() -> bool:
+	return not first_climb and not camp_done and floor_num == Items.CAMP_AFTER \
+		and int(tower_data().get("summit", 0)) >= Items.CAMP_MIN_FLOORS
+
+
+## The camp's room: the open room with a campfire, no monsters.
+func _camp_plan() -> Dictionary:
+	var fire := OPEN_ROOM.get_center() + Vector2(0, 30)
+	campfire = CampfireScript.new()
+	campfire.position = fire
+	campfire.light_tex = light_tex
+	add_child(campfire)
+	return {"monsters": [], "pillars": [], "start": fire + Vector2(0, 80)}
+
+
+## Arrives at a camp: a full rest by the fire, then an item to choose.
+func _enter_camp(lines: Array) -> void:
+	camp_done = true
+	in_camp = true
+	_start_floor(floor_num)
+	cleared = true  # (no gong: there was nothing to fight)
+	player.hp = player.max_health()
+	player.sta = player.max_sta
+	player.poison_t = 0.0
+	for b in player.bonds.values():
+		b.burned = false
+	var said: Array = [Items.CAMP["sub"]]
+	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
+	camp = {"stage": "item", "choices": Items.camp_choices(not player.bonds.is_empty()), "lines": said}
+	camp_choosing = true
+	banner = {}
+	player.set_physics_process(false)
+	sfx("ready", 0.7, -4.0, 0.0)
+
+
+## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
+func camp_card(i: int) -> Dictionary:
+	var pick: String = camp["choices"][i]
+	if pick.begins_with("rune:"):
+		var r: Dictionary = Items.CAMP_RUNES[pick.substr(5)]
+		return {"name": r["name"], "desc": r["desc"], "color": r["color"], "item": ""}
+	var crafted := pick.begins_with("craft:")
+	var id := pick.substr(6) if crafted else pick
+	var d := Items.info(id)
+	if crafted:
+		return {"name": Items.CRAFT["name"] % d["short"], "desc": Items.CRAFT["desc"] % String(d["name"]).to_lower(), "color": d["color"], "item": id}
+	return {"name": d["name"], "desc": d["desc"], "color": d["color"], "item": id}
+
+
+## Takes a camp card (keys 1 to 4, a click or a tap). A Rune Artist then
+## also gets Runesmith's cards: a rune on gear, or a crafted item.
+func choose_camp(i: int) -> void:
+	if not camp_choosing or i < 0 or i >= camp["choices"].size():
+		return
+	var pick: String = camp["choices"][i]
+	var taken: Array = camp.get("taken", [])
+	if camp["stage"] == "item":
+		taken.append(_take_item(pick, "Took"))
+		if player.has_bond("rune_artist"):
+			var choices: Array = Items.CAMP_RUNES.keys().map(func(r): return "rune:" + r)
+			choices.append("craft:" + Items.random_item(true))
+			camp = {"stage": "rune", "choices": choices, "lines": [Items.CAMP["rune_sub"]], "taken": taken}
+			sfx("equip_sword", 1.1, -4.0, 0.0)
+			return
+	elif pick.begins_with("rune:"):
+		var r := pick.substr(5)
+		player.camp_rune = r
+		player.rune_gear = r
+		taken.append("%s inscribed on your gear" % Items.CAMP_RUNES[r]["name"])
+		fx_ring(player.global_position, Items.CAMP_RUNES[r]["color"], 30.0, 0.35, 3.0)
+	else:
+		taken.append(_take_item(pick.substr(6), "Crafted"))
+	camp_choosing = false
+	player.set_physics_process(true)
+	taken.append(Items.CAMP["leave"])
+	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0}
+	sfx("equip_sword", 0.9, -2.0, 0.0)
+
+
+func _take_item(id: String, verb: String) -> String:
+	var name: String = Items.ITEMS[id]["name"]
+	if player.add_item(id):
+		return "%s: %s" % [verb, name]
+	return "No room for another %s" % name
+
+
+## Dev tools: jumping to another floor from a camp leaves it.
+func _leave_camp_now() -> void:
+	if camp_choosing:
+		player.set_physics_process(true)
+	in_camp = false
+	camp_choosing = false
+
+
+## Items on the floor: walk over one to pick it up.
+func _update_item_drops(delta: float) -> void:
+	for d in item_drops:
+		d["t"] -= delta
+		if player == null or player.dead or player.global_position.distance_to(d["pos"]) > 26.0:
+			continue
+		var name: String = Items.ITEMS[d["id"]]["name"]
+		if player.add_item(d["id"]):
+			d["t"] = 0.0
+			fx_text(player.global_position + Vector2(0, -44), "+ " + name, Items.color(d["id"]))
+			sfx("equip_sword", 1.3, -4.0)
+		elif not d.get("told", false):
+			d["told"] = true
+			fx_text(player.global_position + Vector2(0, -44), "No room for another " + name, Color(0.8, 0.78, 0.85))
+	item_drops = item_drops.filter(func(d): return d["t"] > 0.0)
 
 
 # --- towers ---------------------------------------------------------------------
@@ -758,6 +990,8 @@ func _apply_tower_look() -> void:
 
 
 func _floor_title() -> String:
+	if in_camp:
+		return Items.CAMP["title"]
 	if first_climb:
 		return "FLOOR %d OF %d" % [floor_num, ProfileScript.FIRST_CLIMB_FLOORS]
 	return "FLOOR %d" % floor_num
@@ -995,6 +1229,7 @@ func dev_tower(id: String) -> void:
 	if choosing_tower:
 		choose_tower(id)
 		return
+	_leave_camp_now()
 	tower = id
 	profile.last_tower = id
 	profile.save()
@@ -1022,6 +1257,7 @@ func dev_beast(id: String) -> void:
 func dev_floor(n: int) -> void:
 	if choosing_tower:
 		choose_tower(tower)
+	_leave_camp_now()
 	_start_floor(n)
 
 
@@ -1419,6 +1655,9 @@ func on_enemy_killed(e) -> void:
 	# Grafter's Grafting: slain monsters sometimes leave a graft.
 	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < 0.3:
 		graft_drops.append({"pos": e.global_position, "kind": e.kind, "t": 20.0})
+	# Now and then a slain monster leaves an item.
+	if not e.is_boss() and randf() < item_drop_chance:
+		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": Items.DROP_LIFE})
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.

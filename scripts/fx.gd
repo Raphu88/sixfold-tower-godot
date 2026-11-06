@@ -262,6 +262,13 @@ func _draw_fields() -> void:
 		draw_line(gp + Vector2(-5, -2), gp + Vector2(5, 2), Color(0.95, 0.85, 0.9), 1.5)
 		draw_line(gp + Vector2(-3, 3), gp + Vector2(3, -3), Color(0.95, 0.85, 0.9), 1.0)
 		draw_arc(gp, 10.0, 0.0, TAU, 16, Color(0.75, 0.55, 0.7, 0.5), 1.5)
+	for it in main.item_drops:
+		var ip: Vector2 = it["pos"] + Vector2(0, sin(t * 3.5) * 2.5 - 4.0)
+		var ic: Color = main.Items.color(it["id"])
+		var ia: float = clampf(it["t"] / 3.0, 0.0, 1.0)
+		draw_circle(it["pos"] + Vector2(0, 6), 9.0, Color(0, 0, 0, 0.3 * ia))
+		draw_arc(ip, 13.0 + sin(t * 5.0), 0.0, TAU, 20, Color(ic, 0.45 * ia), 1.5)
+		main.Items.draw_icon(self, it["id"], ip, 9.0, ia)
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))

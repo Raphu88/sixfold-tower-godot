@@ -5,6 +5,7 @@ extends Node2D
 const BondScript := preload("res://scripts/bond.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Items := preload("res://scripts/items.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -92,6 +93,7 @@ func _draw() -> void:
 		_weapon_icon(id, r.get_center() + Vector2(0, -2), GOLD if on else DIM_TEXT)
 		draw_string(font, r.position + Vector2(4, 13), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD if on else DIM_TEXT)
 	draw_string(font, Vector2(170, 105), p.Weapons.WEAPONS[p.weapon]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, TEXT)
+	_draw_items(p, font)
 
 	# Essence gathered since the last stair (lost if you fall before it).
 	var ex := 16.0
@@ -136,7 +138,7 @@ func _draw() -> void:
 		var help := [
 			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"], ["Z", "jump"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
-			["1 2 3 / wheel", "weapon"], ["Q E F C X V", "cast marks"],
+			["1 2 3 / wheel", "weapon"], ["Q E F C X V", "cast marks"], ["G / T", "use item / next item"],
 			["Esc", "menu"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
 		]
 		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
@@ -202,6 +204,8 @@ func _draw() -> void:
 		_draw_victory(size, font)
 	if main.choosing_tower:
 		_draw_tower_choice(size, font)
+	if main.camp_choosing:
+		_draw_camp_choice(size, font)
 	_draw_quarry(p, size, font)
 	_draw_stair_arrow(size, font)
 	if p.pick_open:
@@ -420,6 +424,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		var i := tower_card_at(get_local_mouse_position())
 		if i >= 0:
 			main.choose_tower(TowersData.ORDER[i])
+	elif main != null and main.camp_choosing and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var i := camp_card_at(get_local_mouse_position())
+		if i >= 0:
+			main.choose_camp(i)
 
 
 func _draw_tower_choice(size: Vector2, font: Font) -> void:
@@ -557,3 +565,86 @@ func _draw_victory(size: Vector2, font: Font) -> void:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := "Tap to climb again" if main.touch_active else "Press Space or click to climb again"
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+
+
+# --- items and camps ---------------------------------------------------------------
+
+## The items you carry, next to the weapons: an icon and a count each; the
+## one G uses is outlined in gold.
+func _draw_items(p, font: Font) -> void:
+	var have: Array = p.carried()
+	if have.is_empty():
+		return
+	var sel: String = p.selected_item()
+	var x := 244.0
+	for id in have:
+		var r := Rect2(x, 82, 36, 36)
+		var on: bool = id == sel
+		draw_style_box(slot_on if on else slot, r)
+		Items.draw_icon(self, id, r.get_center() + Vector2(0, -1), 11.0, 1.0 if on else 0.7)
+		var n: int = p.item_count(id)
+		draw_string_outline(font, r.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.9))
+		draw_string(font, r.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD if on else TEXT)
+		x += 40.0
+	if sel != "":
+		var hint: String = Items.ITEMS[sel]["short"]
+		if not main.touch_active:
+			hint = "G  " + hint + ("  ·  T next" if have.size() > 1 else "")
+		draw_string(font, Vector2(244, 132), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+
+
+func camp_card_rect(i: int, size: Vector2) -> Rect2:
+	var n: int = main.camp["choices"].size()
+	var w := minf(230.0, (size.x - 40.0 - 16.0 * (n - 1)) / n)
+	var h := minf(230.0, size.y * 0.5)
+	var x0 := (size.x - (w * n + 16.0 * (n - 1))) / 2.0
+	var top := size.y * 0.5 - h * 0.5 + 40.0
+	return Rect2(Vector2(x0 + i * (w + 16.0), top), Vector2(w, h))
+
+
+## Which camp card is under a point on screen (-1 for none).
+func camp_card_at(pos: Vector2) -> int:
+	if not main.camp_choosing:
+		return -1
+	var size := get_viewport_rect().size
+	for i in main.camp["choices"].size():
+		if camp_card_rect(i, size).has_point(pos):
+			return i
+	return -1
+
+
+## A camp: pick one of the cards (like choosing a tower).
+func _draw_camp_choice(size: Vector2, font: Font) -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.72))
+	var rune: bool = main.camp["stage"] == "rune"
+	var top_y := camp_card_rect(0, size).position.y
+	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
+	draw_string_outline(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, 6, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, GOLD)
+	var sub: Array = main.camp.get("lines", [])
+	var sy := top_y - 38.0
+	for line in sub.slice(0, 2):
+		draw_string(font, Vector2(0, sy), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, DIM_TEXT)
+		sy += 17.0
+	var p = main.player
+	for i in main.camp["choices"].size():
+		var card: Dictionary = main.camp_card(i)
+		var r := camp_card_rect(i, size)
+		var col: Color = card["color"]
+		draw_style_box(panel, r)
+		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(col, 0.75))
+		var ic := Vector2(r.get_center().x, r.position.y + 48.0)
+		draw_circle(ic, 28.0, Color(col, 0.1))
+		if card["item"] != "":
+			Items.draw_icon(self, card["item"], ic, 22.0)
+		else:
+			Items.draw_rune_icon(self, col, ic, 22.0)
+		var y := r.position.y + 100.0
+		draw_string(font, Vector2(r.position.x + 8, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 15 if r.size.x > 180 else 13, col.lightened(0.2))
+		draw_multiline_string(font, Vector2(r.position.x + 12, y + 20.0), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 24.0, 12, 4, TEXT)
+		if card["item"] != "" and p != null:
+			var n: int = p.item_count(card["item"])
+			var have := "carrying %d of %d" % [n, Items.MAX_STACK]
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if n >= Items.MAX_STACK else DIM_TEXT)
+		var hint := "Tap" if main.touch_active else "Press %d" % (i + 1)
+		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD)
