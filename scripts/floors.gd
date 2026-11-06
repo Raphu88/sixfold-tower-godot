@@ -44,6 +44,28 @@ const ARENA := Rect2(80, 100, 2160, 1320)
 const CELL := 40.0
 const GRID := Vector2i(3, 2)  # the area is split into 3x2 cells, one room each at most
 
+## Cover: short low walls inside the bigger rooms (solid tiles, so they
+## block movement, sight and shots like any wall).
+const COVER := {
+	"min_area": 150000.0,  # rooms smaller than this (px²) get none
+	"per_room": [1, 2],  # how many to try in each big room (min, max)
+	"length": [2, 4],  # tiles long (one tile thick)
+}
+
+## Side rooms: a small dead-end room off one of the rooms, holding an
+## essence cache, sometimes guarded. Text and amounts live here.
+const SIDE_ROOM := {
+	"chance": 0.7,  # how often a floor tries for one (about 3 in 4 fit: half the floors)
+	"guard_chance": 0.5,  # how often one of the floor's monsters waits there
+	"tiles": [5, 6],  # side length in tiles (min, max)
+}
+const CACHE := {
+	"name": "Essence cache",
+	"base": 8.0,  # essence on floor 2...
+	"per_floor": 3.0,  # ...and this much more each floor up
+	"reach": 34.0,  # how close you walk to open it
+}
+
 
 ## A floor of 3-5 rooms joined by corridors. You start in the first room; the
 ## stair is in the last. Monsters wait in the rooms beyond the first.
@@ -84,6 +106,8 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var start: Vector2 = rooms[0].get_center() + Vector2(0, rooms[0].size.y * 0.25)
 	var last: Rect2 = rooms[-1]
 	var stair := Vector2(last.get_center().x, last.position.y + 34.0)
+	# Sometimes a small dead-end room with an essence cache.
+	var side: Dictionary = side_room(rooms, corridors, start, stair) if randf() < float(SIDE_ROOM["chance"]) else {}
 	# Pillars in the bigger rooms, clear of the middle (where corridors meet).
 	var pillars: Array = []
 	for r in rooms:
@@ -118,6 +142,11 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 				if not in_room:
 					chasms.append(band)
 					break
+	# Cover: low walls in the bigger rooms, clear of every corridor's route.
+	var halls: Array = corridors.duplicate()
+	if not side.is_empty():
+		halls.append(side["hall"])
+	var blocks: Array = cover_blocks(rooms, halls, start, stair, pillars, chasms)
 	# Monsters, spread over the rooms beyond the first.
 	var budget := 4.5 + 1.0 * floor_num + 1.0
 	var kinds: Array = []
@@ -137,14 +166,164 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 		var pos := r.get_center()
 		for attempt in 40:
 			pos = r.position + Vector2(randf_range(40.0, r.size.x - 40.0), randf_range(40.0, r.size.y - 40.0))
-			if _clear_of(pos, 50.0, pillars, placed) and not _in_any(pos, chasms, 30.0):
+			if _clear_of(pos, 50.0, pillars, placed) and not _in_any(pos, chasms, 30.0) and not _in_any(pos, blocks, 34.0):
 				break
 		placed.append(pos)
 		monsters.append([kinds[i], pos])
 	var walk: Array = rooms.duplicate()
 	walk.append_array(corridors)
-	return {"arena": ARENA, "rooms": rooms, "walk": walk, "start": start, "stair": stair,
-		"pillars": pillars, "monsters": monsters, "chasms": chasms}
+	var plan := {"arena": ARENA, "rooms": rooms, "walk": walk, "start": start, "stair": stair,
+		"pillars": pillars, "monsters": monsters, "chasms": chasms, "blocks": blocks}
+	var all_rooms: Array = rooms.duplicate()
+	if not side.is_empty():
+		walk.append(side["room"])
+		walk.append(side["hall"])
+		all_rooms.append(side["room"])
+		plan["side_room"] = side["room"]
+		plan["cache"] = {"pos": side["room"].get_center(), "amount": cache_amount(floor_num)}
+		# One of the floor's monsters may guard it, between the door and the cache.
+		if monsters.size() >= 2 and randf() < float(SIDE_ROOM["guard_chance"]):
+			monsters[-1][1] = side["room"].get_center().lerp(side["hall"].get_center(), 0.35)
+	plan["doors"] = doorways(all_rooms, halls)
+	return plan
+
+
+## How much essence a cache holds on a floor.
+static func cache_amount(floor_num: int) -> float:
+	return float(CACHE["base"]) + float(CACHE["per_floor"]) * float(maxi(floor_num - 2, 0))
+
+
+## Which tiles of the floor's grid a rect covers (the same way main.gd
+## builds the grid, whose tiles start at ARENA's corner).
+static func tile_rect(r: Rect2) -> Rect2i:
+	var p := Vector2i(int((r.position.x - ARENA.position.x) / CELL), int((r.position.y - ARENA.position.y) / CELL))
+	var e := Vector2i(int(ceil((r.end.x - ARENA.position.x) / CELL)), int(ceil((r.end.y - ARENA.position.y) / CELL)))
+	return Rect2i(p, e - p)
+
+
+## A small dead-end room off one of the rooms: {"room", "hall"}, or {} if
+## none fits. It keeps a wall at least a tile and a half thick from
+## everything else.
+static func side_room(rooms: Array, corridors: Array, start: Vector2, stair: Vector2) -> Dictionary:
+	var w := CELL * 3.0
+	var lo: int = SIDE_ROOM["tiles"][0]
+	var hi: int = SIDE_ROOM["tiles"][1]
+	for attempt in 60:
+		var host: Rect2 = rooms[randi() % rooms.size()]
+		var size := Vector2(lo + randi() % (hi - lo + 1), lo + randi() % (hi - lo + 1)) * CELL
+		var gap := CELL * float(3 + randi() % 2)
+		var dir: Vector2 = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN][randi() % 4]
+		var side_r: Rect2
+		var hall: Rect2
+		var outer: Rect2  # the part of the hall between the two rooms
+		if dir.x != 0.0:
+			if host.size.y < w + 80.0:
+				continue
+			var y := randf_range(host.position.y + w * 0.5 + 40.0, host.end.y - w * 0.5 - 40.0)
+			var shift := randf_range(-1.0, 1.0) * (size.y * 0.5 - w * 0.5 - CELL)
+			var x := host.position.x - gap - size.x if dir.x < 0.0 else host.end.x + gap
+			side_r = _snap(Rect2(Vector2(x, y - size.y * 0.5 + shift), size))
+			var hx := side_r.end.x - CELL if dir.x < 0.0 else host.end.x - CELL
+			hall = _snap(Rect2(Vector2(hx, y - w * 0.5), Vector2(gap + CELL * 2.0, w)))
+			outer = Rect2(Vector2(side_r.end.x if dir.x < 0.0 else host.end.x, hall.position.y), Vector2(gap, hall.size.y))
+		else:
+			if host.size.x < w + 80.0:
+				continue
+			var x := randf_range(host.position.x + w * 0.5 + 40.0, host.end.x - w * 0.5 - 40.0)
+			var shift := randf_range(-1.0, 1.0) * (size.x * 0.5 - w * 0.5 - CELL)
+			var y := host.position.y - gap - size.y if dir.y < 0.0 else host.end.y + gap
+			side_r = _snap(Rect2(Vector2(x - size.x * 0.5 + shift, y), size))
+			var hy := side_r.end.y - CELL if dir.y < 0.0 else host.end.y - CELL
+			hall = _snap(Rect2(Vector2(x - w * 0.5, hy), Vector2(w, gap + CELL * 2.0)))
+			outer = Rect2(Vector2(hall.position.x, side_r.end.y if dir.y < 0.0 else host.end.y), Vector2(hall.size.x, gap))
+		if not ARENA.grow(-CELL).encloses(side_r) or not host.intersects(hall) or not side_r.intersects(hall):
+			continue
+		var ok := not hall.grow(CELL * 2.0).has_point(stair) and not hall.grow(CELL * 2.0).has_point(start)
+		ok = ok and not side_r.grow(CELL * 1.5).intersects(host)
+		for other in rooms:
+			if other != host:
+				ok = ok and not side_r.grow(CELL * 1.5).intersects(other) and not outer.grow(CELL).intersects(other)
+		for c in corridors:
+			ok = ok and not side_r.grow(CELL * 1.5).intersects(c) and not outer.grow(CELL).intersects(c)
+		if ok:
+			return {"room": side_r, "hall": hall}
+	return {}
+
+
+## Low walls in the bigger rooms: one tile thick and a few long, kept two
+## tiles from the room's walls and a tile from every corridor's route through
+## the room (corridors run to each room's centre), so the way between
+## doorways stays open. Not near the start, the stair, pillars or chasms.
+static func cover_blocks(rooms: Array, halls: Array, start: Vector2, stair: Vector2, pillars: Array, chasms: Array) -> Array:
+	var list: Array = []
+	var lo: int = COVER["length"][0]
+	var hi: int = COVER["length"][1]
+	for r in rooms:
+		var rr: Rect2 = r
+		if rr.size.x * rr.size.y < float(COVER["min_area"]):
+			continue
+		var t := tile_rect(rr).grow(-2)  # the tiles a block may use
+		var count: int = COVER["per_room"][0] + randi() % (COVER["per_room"][1] - COVER["per_room"][0] + 1)
+		for k in count:
+			for attempt in 20:
+				var n := lo + randi() % (hi - lo + 1)
+				var size := Vector2i(n, 1) if randf() < 0.5 else Vector2i(1, n)
+				if t.size.x < size.x or t.size.y < size.y:
+					continue
+				var tp := t.position + Vector2i(randi() % (t.size.x - size.x + 1), randi() % (t.size.y - size.y + 1))
+				var b := Rect2(ARENA.position + Vector2(tp) * CELL, Vector2(size) * CELL)
+				if _cover_ok(b, halls, start, stair, pillars, chasms, list):
+					list.append(b)
+					break
+	return list
+
+
+static func _cover_ok(b: Rect2, halls: Array, start: Vector2, stair: Vector2, pillars: Array, chasms: Array, others: Array) -> bool:
+	if b.grow(CELL * 3.0).has_point(start) or b.grow(CELL * 3.0).has_point(stair):
+		return false
+	for c in halls:
+		if b.intersects(c.grow(CELL)):
+			return false
+	for p in pillars:
+		var near := Vector2(clampf(p["pos"].x, b.position.x, b.end.x), clampf(p["pos"].y, b.position.y, b.end.y))
+		if near.distance_to(p["pos"]) < p["r"] + 50.0:
+			return false
+	for ch in chasms:
+		if b.grow(CELL * 1.5).intersects(ch):
+			return false
+	for o in others:
+		if b.grow(CELL * 2.0).intersects(o):
+			return false
+	return true
+
+
+## Door frames: where a corridor opens into a room, the wall tiles on either
+## side of the opening (world-space tile rects). Purely for the look;
+## main.gd keeps only the ones that land on solid tiles.
+static func doorways(rooms: Array, halls: Array) -> Array:
+	var posts := {}
+	for r in rooms:
+		var rt := tile_rect(r)
+		for c in halls:
+			var ct := tile_rect(c)
+			var y0 := maxi(ct.position.y, rt.position.y)
+			var y1 := mini(ct.end.y, rt.end.y)
+			if y1 > y0:
+				for x in [rt.position.x - 1, rt.end.x]:  # the west and east walls
+					if ct.position.x <= x and ct.end.x > x:
+						posts[Vector2i(x, y0 - 1)] = true
+						posts[Vector2i(x, y1)] = true
+			var x0 := maxi(ct.position.x, rt.position.x)
+			var x1 := mini(ct.end.x, rt.end.x)
+			if x1 > x0:
+				for y in [rt.position.y - 1, rt.end.y]:  # the north and south walls
+					if ct.position.y <= y and ct.end.y > y:
+						posts[Vector2i(x0 - 1, y)] = true
+						posts[Vector2i(x1, y)] = true
+	var list: Array = []
+	for t in posts:
+		list.append(Rect2(ARENA.position + Vector2(t) * CELL, Vector2(CELL, CELL)))
+	return list
 
 
 static func _snap(r: Rect2) -> Rect2:

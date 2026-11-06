@@ -4,6 +4,7 @@ extends Node2D
 ## walls are built in main.gd.
 
 const Palette := preload("res://scripts/palette.gd")
+const Essence := preload("res://scripts/essence.gd")
 
 const TILE := 40.0
 const WALL_FACE := 46.0  # height of the north wall's visible front
@@ -30,6 +31,11 @@ var torch_color := Palette.TORCH
 var grid := Vector2i.ZERO
 var solid := PackedByteArray()
 var layout_rooms: Array = []
+var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
+var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
+var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
+var cache := {}  # a side room's essence cache: {pos, kind, taken}
+var cache_light: PointLight2D
 
 
 ## Call before adding to the tree.
@@ -52,6 +58,12 @@ func _ready() -> void:
 	stair_light.enabled = false
 	stair_light.position = stair_pos
 	add_child(stair_light)
+	cache_light = PointLight2D.new()
+	cache_light.texture = light_tex
+	cache_light.texture_scale = 1.1
+	cache_light.energy = 1.2
+	cache_light.enabled = false
+	add_child(cache_light)
 	_make_torches()
 	_make_dust()
 
@@ -65,11 +77,24 @@ func reconfigure(r: Rect2) -> void:
 
 
 ## A rooms floor's solid tiles (an empty grid means an open room).
-func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array) -> void:
+func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Array = []) -> void:
 	grid = size
 	solid = tiles
 	layout_rooms = rooms
+	blocks = cover
+	block_tiles.clear()
+	for b in blocks:
+		var r: Rect2 = b
+		for y in range(roundi((r.position.y - room.position.y) / TILE), roundi((r.end.y - room.position.y) / TILE)):
+			for x in range(roundi((r.position.x - room.position.x) / TILE), roundi((r.end.x - room.position.x) / TILE)):
+				block_tiles[Vector2i(x, y)] = true
 	_make_torches()
+	queue_redraw()
+
+
+## Door-frame posts beside the openings where corridors meet rooms.
+func set_doors(list: Array) -> void:
+	doors = list
 	queue_redraw()
 
 
@@ -157,6 +182,12 @@ func _process(delta: float) -> void:
 	if stair_light != null:
 		stair_light.position = stair_pos
 		stair_light.energy = 1.2 + 0.3 * sin(t * 3.0)
+	if cache_light != null:
+		cache_light.enabled = not cache.is_empty() and not cache.get("taken", true)
+		if cache_light.enabled:
+			cache_light.position = cache["pos"]
+			cache_light.color = Essence.color(cache["kind"])
+			cache_light.energy = 1.1 + 0.3 * sin(t * 2.4)
 	for torch in torches:
 		var ph: float = torch["phase"]
 		var flick := 0.85 + 0.1 * sin(t * 9.0 + ph) + 0.06 * sin(t * 23.0 + ph * 2.0)
@@ -247,6 +278,10 @@ func _draw() -> void:
 
 	_draw_walls()
 	_draw_layout()
+	for b in blocks:
+		_draw_cover(b)
+	for d in doors:
+		_draw_door_post(d)
 	for pd in puddles:
 		# Standing water: dark, with a lighter rim and a glint.
 		draw_circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
@@ -273,9 +308,9 @@ func _draw_layout() -> void:
 		return
 	for y in grid.y:
 		for x in grid.x:
-			if solid[y * grid.x + x] == 0:
+			if solid[y * grid.x + x] == 0 or block_tiles.has(Vector2i(x, y)):
 				continue
-			var tile := Rect2(room.position + Vector2(x, y) * TILE, Vector2(TILE, TILE))
+			var tile :=Rect2(room.position + Vector2(x, y) * TILE, Vector2(TILE, TILE))
 			var open_s := y + 1 < grid.y and solid[(y + 1) * grid.x + x] == 0
 			var open_n := y > 0 and solid[(y - 1) * grid.x + x] == 0
 			var open_w := x > 0 and solid[y * grid.x + x - 1] == 0
@@ -300,6 +335,84 @@ func _draw_layout() -> void:
 				draw_line(tile.position, Vector2(tile.position.x, tile.end.y), Palette.WALL_EDGE, 2.0)
 			if open_e:
 				draw_line(Vector2(tile.end.x, tile.position.y), tile.end, Palette.WALL_EDGE, 2.0)
+
+
+## A low wall inside a room, seen from above: a shadow, a stone top and a
+## short brick face toward the viewer.
+func _draw_cover(b: Rect2) -> void:
+	var face_h := 14.0
+	draw_rect(Rect2(b.position + Vector2(4, b.size.y), Vector2(b.size.x, 8.0)), Color(0, 0, 0, 0.28))
+	draw_rect(b.grow(1.5), Palette.OUTLINE)
+	var top := Rect2(b.position, Vector2(b.size.x, b.size.y - face_h))
+	var face := Rect2(Vector2(b.position.x, b.end.y - face_h), Vector2(b.size.x, face_h))
+	draw_rect(top, Palette.WALL_TOP.lightened(0.04))
+	# Capstones along the top.
+	var horizontal := b.size.x >= b.size.y
+	var n := int(round((b.size.x if horizontal else b.size.y) / TILE))
+	for i in n:
+		var cap := Rect2(top.position + (Vector2(i * TILE, 0) if horizontal else Vector2(0, i * TILE)), Vector2(TILE, TILE)).intersection(top).grow(-2.0)
+		if cap.size.x > 2.0 and cap.size.y > 2.0:
+			var shade := _hash(int(b.position.x) + i, int(b.position.y), 11) * 0.1
+			draw_rect(cap, Palette.WALL_TOP.lightened(0.1 + shade))
+			draw_line(cap.position, Vector2(cap.end.x, cap.position.y), Palette.WALL_EDGE, 1.5)
+	draw_rect(face, Palette.WALL_FACE)
+	var off := 0.0
+	for row in 2:
+		var by := face.position.y + row * face_h * 0.5
+		var bx := face.position.x - off
+		while bx < face.end.x:
+			var brick := Rect2(Vector2(bx, by), Vector2(18.0, face_h * 0.5)).intersection(face)
+			if brick.size.x > 1.0:
+				draw_rect(brick.grow(-0.8), Palette.WALL_FACE.lightened(_hash(int(bx), int(by), 12) * 0.12))
+			bx += 18.0
+		off = 9.0
+
+
+## A door-frame post: a squared stone column on the wall tile beside an
+## opening, so rooms read as rooms.
+func _draw_door_post(t: Rect2) -> void:
+	var post := t.grow(3.0)
+	draw_rect(Rect2(post.position + Vector2(4, 6), post.size), Color(0, 0, 0, 0.3))
+	draw_rect(post, Palette.OUTLINE)
+	draw_rect(post.grow(-2.0), Palette.WALL_FACE.darkened(0.1))
+	var cap := Rect2(post.position + Vector2(2, 2), Vector2(post.size.x - 4.0, post.size.y * 0.55))
+	draw_rect(cap, Palette.WALL_TOP.lightened(0.22))
+	draw_rect(cap.grow(-5.0), Palette.WALL_TOP.lightened(0.1))
+	draw_line(cap.position, Vector2(cap.end.x, cap.position.y), Palette.WALL_EDGE.lightened(0.2), 2.0)
+	draw_line(Vector2(post.position.x + 2.0, cap.end.y), Vector2(post.end.x - 2.0, cap.end.y), Palette.WALL_FACE.darkened(0.35), 1.5)
+
+
+## A side room's essence cache: a squat urn glowing with the tower's essence
+## (dark and cracked open once taken).
+func _draw_cache(c: CanvasItem, t: float) -> void:
+	if cache.is_empty():
+		return
+	var pos: Vector2 = cache["pos"]
+	var col: Color = Essence.color(cache["kind"])
+	var taken: bool = cache["taken"]
+	var pulse := 0.5 + 0.5 * sin(t * 2.4)
+	c.draw_set_transform(pos + Vector2(3, 16), 0.0, Vector2(1.0, 0.45))
+	c.draw_circle(Vector2.ZERO, 20.0, Color(0, 0, 0, 0.35))
+	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if not taken:
+		c.draw_circle(pos, 30.0 + pulse * 5.0, Color(col, 0.10 + 0.08 * pulse))
+	var clay := Color(0.42, 0.33, 0.27) if not taken else Color(0.25, 0.21, 0.19)
+	# Body, neck and rim.
+	c.draw_circle(pos + Vector2(0, 4), 15.0, Palette.OUTLINE)
+	c.draw_circle(pos + Vector2(0, 4), 13.5, clay)
+	c.draw_circle(pos + Vector2(-4, 0), 6.0, clay.lightened(0.15))
+	c.draw_rect(Rect2(pos + Vector2(-7, -16), Vector2(14, 10)), Palette.OUTLINE)
+	c.draw_rect(Rect2(pos + Vector2(-5.5, -15), Vector2(11, 9)), clay.darkened(0.1))
+	c.draw_line(pos + Vector2(-10, -16), pos + Vector2(10, -16), clay.lightened(0.2), 3.0)
+	# A glowing band around the belly.
+	c.draw_arc(pos + Vector2(0, 4), 10.0, PI * 0.15, PI * 0.85, 10, Color(col, 0.9 if not taken else 0.15), 2.0)
+	if taken:
+		c.draw_polyline(PackedVector2Array([pos + Vector2(-3, -14), pos + Vector2(1, -4), pos + Vector2(-2, 6)]), Palette.OUTLINE, 1.5)
+	else:
+		# Essence welling out of the mouth.
+		for i in 3:
+			var k := fmod(t * 0.8 + i / 3.0, 1.0)
+			c.draw_circle(pos + Vector2(sin(t * 3.0 + i * 2.0) * 4.0, -18.0 - k * 22.0), 2.5 * (1.0 - k) + 0.5, Color(col, 0.9 * (1.0 - k)))
 
 
 func _draw_pillar(pos: Vector2, r: float) -> void:
@@ -351,6 +464,7 @@ func _draw_ambient() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var c := ambient
 	_draw_stair(c, t)
+	_draw_cache(c, t)
 	for torch in torches:
 		_draw_torch(c, torch["pos"], t + torch["phase"])
 	for e in embers:

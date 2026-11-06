@@ -908,6 +908,91 @@ func _rooms_tests() -> void:
 	_check(not main.layout_on, "...and so is the beast's floor")
 
 
+## Cover walls, side rooms with essence caches, and door frames.
+func _terrain_tests() -> void:
+	print("terrain inside rooms")
+	await _fresh_main()
+	var p = main.player
+	main.profile.regarded = true
+	main.first_climb = false
+	var blocks := 0
+	var blocks_solid := true
+	var reach := true
+	var doors := 0
+	var doors_solid := true
+	var sides := 0
+	var floors := 0
+	var block: Rect2
+	for n in 30:
+		main._start_floor(2 + n % 3)
+		await _frames(1)
+		floors += 1
+		for b in main.layout_blocks:
+			blocks += 1
+			block = b
+			for t in main._tiles_in(b):
+				blocks_solid = blocks_solid and main._is_solid_tile(t.x, t.y)
+		var from: Vector2i = main._tile_of(main.player_start)
+		var goals: Array = [main.stair_pos]
+		for e in main.enemies():
+			goals.append(e.global_position)
+		if not main.cache.is_empty():
+			goals.append(main.cache["pos"])
+		for g in goals:
+			reach = reach and not main.astar.get_id_path(from, main._tile_of(g)).is_empty()
+		doors += main.room_view.doors.size()
+		for d in main.room_view.doors:
+			doors_solid = doors_solid and main.is_solid(d.get_center())
+		if main.side_room.has_area():
+			sides += 1
+			if n >= 20:  # stop on a floor with a cache once enough are counted
+				break
+	_check(blocks > 0 and blocks_solid, "low cover walls stand inside rooms and are solid tiles (%d)" % blocks)
+	_check(reach, "the stair, every monster and every cache stay reachable from the start")
+	_check(doors > 0 and doors_solid, "door frames stand on the walls beside corridor openings")
+	_check(sides > 0 and sides < floors, "side rooms appear on some floors but not all (%d of %d)" % [sides, floors])
+	# Cover blocks sight and shots.
+	for n in 20:
+		if not main.layout_blocks.is_empty():
+			break
+		main._start_floor(3)
+		await _frames(1)
+	for e in main.enemies():
+		e.set_physics_process(false)
+	block = main.layout_blocks[0]
+	var across := Vector2(0, 70) if block.size.x > block.size.y else Vector2(70, 0)
+	var c := block.get_center()
+	_check(not main.clear_line(c - across, c + across), "cover blocks line of sight")
+	var shot = main.spawn_projectile(c - across, across.normalized() * 400.0, 5.0)
+	await _wait(0.5)
+	_check(not is_instance_valid(shot), "cover stops shots")
+	if not main.side_room.has_area():
+		for n in 30:
+			main._start_floor(3)
+			await _frames(1)
+			if main.side_room.has_area():
+				break
+	for e in main.enemies():
+		e.set_physics_process(false)
+	_check(not main.cache.is_empty() and main.side_room.has_point(main.cache["pos"]), "a side room holds an essence cache")
+	var kind: String = main.cache["kind"]
+	var before := float(main.run_essence.get(kind, 0.0))
+	p.global_position = main.cache["pos"] + Vector2(0, 70)
+	await _frames(2)
+	_check(not main.cache["taken"], "the cache stays shut until you walk onto it")
+	p.global_position = main.cache["pos"]
+	await _frames(2)
+	var got := float(main.run_essence.get(kind, 0.0)) - before
+	_check(main.cache["taken"] and is_equal_approx(got, main.cache["amount"]) and got > 0.0, "walking onto the cache gives a burst of the tower's essence (+%d)" % int(got))
+	await _frames(2)
+	_check(is_equal_approx(float(main.run_essence.get(kind, 0.0)) - before, got), "...only once")
+	_check(main.Floors.cache_amount(4) > main.Floors.cache_amount(2), "caches hold more essence on higher floors")
+	# Floor 1 stays a plain open room.
+	main._start_floor(1)
+	await _frames(1)
+	_check(main.layout_blocks.is_empty() and main.cache.is_empty() and main.room_view.doors.is_empty(), "floor 1 has no cover, side room or doors")
+
+
 func _jump_tests() -> void:
 	print("jumping and chasms")
 	await _fresh_main()
@@ -2350,6 +2435,7 @@ func _run() -> void:
 	await _bugfix_tests()
 	await _jump_tests()
 	await _rooms_tests()
+	await _terrain_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()
