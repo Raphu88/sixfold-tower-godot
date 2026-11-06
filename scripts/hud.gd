@@ -180,7 +180,7 @@ func _draw() -> void:
 	var sub := ""
 	if p.dead and not main.first_climb:
 		msg = "YOU FELL ON FLOOR %d" % main.floor_num
-		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, "Tap R" if main.touch_active else "Press R"]
+		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, "Tap Menu, then Restart," if main.touch_active else "Press R"]
 	if msg != "":
 		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0)
 		draw_rect(band, Color(0, 0, 0, 0.55))

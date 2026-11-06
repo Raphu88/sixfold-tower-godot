@@ -371,6 +371,23 @@ func path_dir(from: Vector2, to: Vector2) -> Vector2:
 	return (next - from).normalized()
 
 
+## The farthest open floor on the way from `from` to `to` (rooms floors have
+## solid ground between rooms with no collision past the wall's first tile,
+## so teleports, swaps and spawns must never land there).
+func walkable_point(from: Vector2, to: Vector2, margin := 12.0) -> Vector2:
+	var inset := room.grow(-margin)
+	var steps := int(from.distance_to(to) / 8.0) + 1
+	for i in range(steps, -1, -1):
+		var p: Vector2 = from.lerp(to, float(i) / steps)
+		if not inset.has_point(p):
+			continue
+		if not layout_on:
+			return p
+		if not is_solid(p) and not is_solid(p + Vector2(margin, 0)) and not is_solid(p - Vector2(margin, 0)) and not is_solid(p + Vector2(0, margin)) and not is_solid(p - Vector2(0, margin)):
+			return p
+	return from
+
+
 ## A clear line with room on either side (a body's width).
 func _wide_clear(a: Vector2, b: Vector2, half: float) -> bool:
 	var side := (b - a).normalized().orthogonal() * half
@@ -544,6 +561,7 @@ func _start_floor(n: int) -> void:
 	rains.clear()
 	flames.clear()
 	meteors.clear()
+	graft_drops.clear()
 	runes.clear()
 	wards.clear()
 	sigils.clear()
@@ -560,6 +578,7 @@ func _start_floor(n: int) -> void:
 	if player != null:
 		player.rune_gear = ""  # runes on gear last one floor
 		player.ember_used = false  # Last Ember: once per floor
+		player.ember_t = 0.0  # (and a Last Ember never follows you up the stair)
 	track_t = 0.0
 	for b in pillar_bodies:
 		b.queue_free()
@@ -626,6 +645,7 @@ func _start_floor(n: int) -> void:
 func _climb() -> void:
 	climbing = true
 	player.set_physics_process(false)
+	player.iframes = maxf(player.iframes, 2.0)  # nothing can hit you on the stair
 	sfx("step", 0.8, 0.0, 0.0)
 	var tw := create_tween()
 	tw.tween_property(self, "fade", 1.0, 0.45)
@@ -636,6 +656,8 @@ func _climb() -> void:
 
 
 func _arrive() -> void:
+	if player.dead:
+		return  # (can't happen with the stair's grace, but never wake up dead)
 	var lines: Array = []
 	# Rest at the stair: burns heal, some health and all stamina return.
 	var burned := false
@@ -836,15 +858,21 @@ func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 
 func on_player_died() -> void:
 	if first_climb and regard.is_empty() and not regard_pending:
-		# Even fallen, you are regarded: a faint mark after a moment.
+		# Even fallen, you are regarded: the faint mark is granted (and saved)
+		# now, and shown after a moment (a restart before then keeps it).
 		regard_pending = true
-		get_tree().create_timer(1.6, true, false, true).timeout.connect(func(): _begin_regard(true))
+		_grant_regard(true)
+		get_tree().create_timer(1.6, true, false, true).timeout.connect(_begin_regard.bind(true))
 
 
 ## The beast takes notice and your most-used body part takes its first mark.
 ## Reaching the top earns a full mark; falling earns a faint one.
-func _begin_regard(fell: bool) -> void:
-	if not regard.is_empty():
+var regard_mark := {}  # the Regard's mark once granted: {fell, part, id}
+
+
+## Grants (and saves) the Regard's mark, once.
+func _grant_regard(fell: bool) -> void:
+	if not regard_mark.is_empty():
 		return
 	var part := leading_part()
 	if part == "":
@@ -854,7 +882,14 @@ func _begin_regard(fell: bool) -> void:
 	profile.regarded = true
 	profile.climbs += 1
 	profile.save()
-	regard = {"fell": fell, "part": part, "id": id, "t": 0.0}
+	regard_mark = {"fell": fell, "part": part, "id": id}
+
+
+func _begin_regard(fell: bool) -> void:
+	if not regard.is_empty():
+		return
+	_grant_regard(fell)
+	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0}
 	banner = {}
 	regard_pending = false
 	player.set_physics_process(false)
@@ -993,7 +1028,7 @@ func dev_floor(n: int) -> void:
 ## A monster near the climber, inside the room.
 func dev_spawn(kind: String):
 	var pos: Vector2 = player.global_position + Vector2.from_angle(randf() * TAU) * 200.0
-	pos = pos.clamp(room.position + Vector2(50, 50), room.end - Vector2(50, 50))
+	pos = walkable_point(player.global_position, pos, 20.0)
 	return spawn_enemy(kind, pos)
 
 
@@ -1011,7 +1046,7 @@ func allies() -> Array:
 func spawn_ally(kind: String, pos: Vector2, step: int, seconds: float):
 	var e = EnemyScript.new()
 	e.setup_ally(kind, self, step, seconds)
-	e.position = pos.clamp(room.position + Vector2(30, 30), room.end - Vector2(30, 30))
+	e.position = walkable_point(player.global_position, pos, 14.0)
 	add_child(e)
 	fx_ring(e.position, Color(0.6, 1.0, 0.75), 30.0, 0.35, 3.0)
 	return e
@@ -1104,7 +1139,9 @@ func _update_runes(delta: float) -> void:
 			var edge: float = w["r"] + e.radius
 			if to.length() < edge:
 				var out := to.normalized() if to.length() > 0.1 else Vector2.RIGHT
-				e.global_position = w["pos"] + out * edge
+				var dest: Vector2 = w["pos"] + out * edge
+				if not is_solid(dest):  # never through a wall
+					e.global_position = dest
 				e.knock = out * 140.0
 	for r in runes:
 		r["t"] -= delta
