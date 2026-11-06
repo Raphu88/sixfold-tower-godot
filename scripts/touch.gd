@@ -160,10 +160,28 @@ func _update_stick() -> void:
 	_set_move(v)
 
 
+## The joystick: past a light tilt you walk at full speed; push it all the
+## way to the edge and you sprint.
+const STICK_DEAD := 0.15
+const STICK_FULL := 0.45
+const STICK_SPRINT := 0.95
+
+
 func _set_move(v: Vector2) -> void:
-	var dead := 0.15
-	_axis("move_right", "move_left", v.x if absf(v.x) > dead else 0.0)
-	_axis("move_down", "move_up", v.y if absf(v.y) > dead else 0.0)
+	var m := v.length()
+	if m < STICK_DEAD:
+		_axis("move_right", "move_left", 0.0)
+		_axis("move_down", "move_up", 0.0)
+		Input.action_release("sprint")
+		return
+	var strength := clampf((m - STICK_DEAD) / (STICK_FULL - STICK_DEAD), 0.25, 1.0)
+	var d := v / m * strength
+	_axis("move_right", "move_left", d.x)
+	_axis("move_down", "move_up", d.y)
+	if m >= STICK_SPRINT:
+		Input.action_press("sprint")
+	else:
+		Input.action_release("sprint")
 
 
 func _axis(pos_action: String, neg_action: String, value: float) -> void:
@@ -185,6 +203,7 @@ func release_all() -> void:
 func _release_all() -> void:
 	stick_touch = -1
 	_set_move(Vector2.ZERO)
+	Input.action_release("sprint")
 	for b in buttons:
 		if b["action"] != "":
 			Input.action_release(b["action"])
@@ -211,9 +230,12 @@ func _draw() -> void:
 		draw_circle(stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.3))
 		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0)
 		var knob := stick_origin + (stick_pos - stick_origin).limit_length(STICK_RADIUS)
-		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
+		var sprinting := (stick_pos - stick_origin).length() >= STICK_RADIUS * STICK_SPRINT
+		draw_circle(knob, 28.0, Color(1.0, 0.85, 0.5, 0.5) if sprinting else Color(1, 1, 1, 0.35))
+		if sprinting:
+			draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1.0, 0.85, 0.5, 0.6), 3.0)
 	else:
-		draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
+		draw_string(font, Vector2(30, size.y - 30), "touch here to move  ·  push to the edge to sprint", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()

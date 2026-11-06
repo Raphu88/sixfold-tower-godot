@@ -12,8 +12,8 @@ const BACKSTAB_MULT := 1.5
 const MAX_HP := 140.0  # tougher than the first, very clumsy climber
 const MAX_STA := 100.0
 const STA_REGEN := 34.0  # per second, once the short wait after acting is over
-const WALK := 135.0
-const SPRINT := 200.0
+const WALK := 150.0
+const SPRINT := 225.0
 ## A jump: a short hop that clears chasms and burning floor (not attacks).
 const JUMP_TIME := 0.42
 const JUMP_COST := 10.0
