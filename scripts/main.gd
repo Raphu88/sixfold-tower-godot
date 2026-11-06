@@ -20,6 +20,7 @@ const Towers := preload("res://scripts/towers.gd")
 const MenuScript := preload("res://scripts/menu.gd")
 const Items := preload("res://scripts/items.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
+const Traps := preload("res://scripts/traps.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -113,6 +114,8 @@ var graft_order: Array = []  # parts, oldest graft first
 var graft_drops: Array = []  # grafts lying on the floor: {pos, kind, t}
 var chasms: Array = []  # gaps in the floor (Rect2): jump across or fall
 var chasm_bodies: Array = []
+var traps: Array = []  # this floor's traps (traps.gd): {pos, kind, state, timer, hidden, hit}
+var trap_view  # runs and draws them (traps.gd)
 var runes: Array = []  # Rune Artist's Rune Traps: {pos, r, blast, damage, linked, color, t}
 var wards: Array = []  # Ward Circles foes can't enter: {pos, r, t, color}
 var sigils: Array = []  # Grand Sigils, free casting inside: {pos, r, t, color}
@@ -152,6 +155,9 @@ func _ready() -> void:
 	room_view = RoomScript.new()
 	room_view.setup(room, WALL)
 	add_child(room_view)
+	trap_view = Traps.new()
+	trap_view.main = self
+	add_child(trap_view)
 	light_tex = RoomScript.make_light_texture()
 
 	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
@@ -526,6 +532,8 @@ func _update_spell_fields(delta: float) -> void:
 	_update_ground(delta)
 	_update_runes(delta)
 	_update_flames(delta)
+	if trap_view != null:
+		trap_view.tick(delta)
 	track_t -= delta
 	if not rod.is_empty():
 		rod["t"] -= delta
@@ -710,6 +718,8 @@ func _start_floor(n: int) -> void:
 				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
+	traps = Traps.place(plan, tower_data(), n, self)
+	trap_view.reset()
 
 	var tough := Floors.toughness(n)
 	for m in plan["monsters"]:

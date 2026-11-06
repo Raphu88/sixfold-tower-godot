@@ -93,6 +93,7 @@ var cast_part := ""
 var hurt_t := 0.0
 var dodge_cd := 0.0
 var knock := Vector2.ZERO
+var trap_slow := 1.0  # a thorn snare holds you, a sluice's water slows you (traps.gd)
 var squash := 0.0
 var buffered := ""
 var buffer_t := 0.0
@@ -242,7 +243,7 @@ func _physics_process(delta: float) -> void:
 				if a.global_position.distance_to(global_position) < 130.0:
 					spd *= 1.15
 					break
-		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper"))
+		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper")) * trap_slow
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""

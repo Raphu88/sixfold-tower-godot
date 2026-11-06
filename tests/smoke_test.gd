@@ -993,6 +993,168 @@ func _terrain_tests() -> void:
 	_check(main.layout_blocks.is_empty() and main.cache.is_empty() and main.room_view.doors.is_empty(), "floor 1 has no cover, side room or doors")
 
 
+func _trap_tests() -> void:
+	print("traps")
+	await _fresh_main()
+	var p = main.player
+	var Traps = main.Traps
+	main.profile.regarded = true
+	main.first_climb = false
+	# Each tower's floors of rooms get its own kind of trap, placed fairly.
+	var ok_kind := true
+	var ok_count := true
+	var ok_spot := true
+	var total := 0
+	var each_tower := true
+	for id in main.Towers.ORDER:
+		main.tower = id
+		var of_tower := 0
+		for n in 4:
+			main._start_floor(2 + n % 3)
+			for e in main.enemies():
+				e.set_physics_process(false)
+			var list: Array = main.traps
+			total += list.size()
+			of_tower += list.size()
+			ok_count = ok_count and list.size() >= 1 and list.size() <= 3
+			for tr in list:
+				ok_kind = ok_kind and tr["kind"] == Traps.BY_TOWER[id]
+				var pos: Vector2 = tr["pos"]
+				ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
+				ok_spot = ok_spot and pos.distance_to(main.player_start) > 100.0 and pos.distance_to(main.stair_pos) > 80.0
+				ok_spot = ok_spot and not main.layout_rooms[0].has_point(pos)
+				for pl in main.pillars:
+					ok_spot = ok_spot and pos.distance_to(pl["pos"]) > pl["r"] + 20.0
+		each_tower = each_tower and of_tower > 0
+	_check(ok_kind and each_tower, "each tower's floors get its own trap kind")
+	_check(ok_count and total >= 24, "1 to 3 traps on every floor of rooms (%d over 24 floors)" % total)
+	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar or a wall")
+	main.tower = "kraken"
+	main._start_floor(1)
+	await _frames(1)
+	_check(main.traps.is_empty(), "floor 1 has no traps")
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	# Every kind warns before it hurts, hurts whoever stands in it, and can be avoided.
+	var spot: Vector2 = main.room.get_center() + Vector2(0, 80)
+	for kind in Traps.KINDS:
+		var k: Dictionary = Traps.KINDS[kind]
+		var tr: Dictionary = Traps.make(spot, kind, false, 2)
+		main.traps = [tr]
+		main.flames.clear()
+		main.trap_view.reset()
+		p.global_position = spot
+		p.velocity = Vector2.ZERO
+		p.knock = Vector2.ZERO
+		p.hp = p.max_health()
+		p.hurt_t = 0.0
+		p.iframes = 0.0
+		var hp0: float = p.hp
+		if k["trigger"] == "timed":
+			tr["timer"] = 0.05
+		await _wait(0.12)
+		_check(tr["state"] == "warn" and p.hp == hp0, "%s: warns first (%s) and hasn't hurt yet" % [kind, k["trigger"]])
+		await _wait(float(k["warn"]) + 0.12)
+		_check(p.hp < hp0, "%s: standing in it when it fires hurts (%d)" % [kind, int(hp0 - p.hp)])
+		if kind in ["gust", "sluice"]:
+			_check(p.global_position.distance_to(spot) > 10.0 or p.knock.length() > 0.0, "%s: shoves you off it" % kind)
+		if kind == "sluice":
+			_check(p.trap_slow < 1.0, "sluice: the water slows you")
+		if kind == "thorns":
+			_check(p.trap_slow == 0.0, "thorns: the snare holds you")
+			p.roll_t = 0.1
+			await physics_frame
+			await physics_frame
+			_check(p.trap_slow == 1.0, "thorns: a roll breaks free")
+		if kind == "ember":
+			_check(not main.flames.is_empty(), "ember: leaves the floor burning")
+		# Step away before it fires: safe.
+		await _wait(float(k.get("rest", 0.0)) + 0.6)
+		tr["state"] = "warn"
+		tr["timer"] = 0.15
+		tr["hit"] = []
+		main.flames.clear()
+		p.global_position = spot + Vector2(130, 0)
+		p.hurt_t = 0.0
+		p.hp = p.max_health()
+		hp0 = p.hp
+		await _wait(float(k["fire"]) + 0.3)
+		_check(p.hp == hp0, "%s: stepping away avoids it" % kind)
+		# Rolling through it when it fires: safe.
+		tr["state"] = "warn"
+		tr["timer"] = 0.05
+		tr["hit"] = []
+		p.global_position = spot
+		p.hurt_t = 0.0
+		p.dodge_cd = 0.0
+		p.iframes = 2.0
+		await _wait(0.2)
+		_check(p.hp == hp0 and tr["state"] == "fire", "%s: rolling through it avoids it" % kind)
+		p.iframes = 0.0
+		await _wait(float(k["fire"]) + 0.1)
+		# Jumping: over plates and the ember burst, but not into a jet of fire or water.
+		tr["state"] = "warn"
+		tr["timer"] = 0.05
+		tr["hit"] = []
+		main.flames.clear()
+		p.global_position = spot
+		p.knock = Vector2.ZERO
+		p.hurt_t = 0.0
+		p.hp = p.max_health()
+		hp0 = p.hp
+		p.jump_vel = Vector2.ZERO
+		p.jump_total = 3.0
+		p.jump_t = 3.0
+		await _wait(0.2)
+		if "jump" in k["avoid"]:
+			_check(p.hp == hp0, "%s: jumping over it avoids it" % kind)
+		else:
+			_check(p.hp < hp0, "%s: jumping doesn't help" % kind)
+		p.jump_t = 0.0
+		main.trap_view.reset()
+		await _wait(float(k["fire"]) + 0.1)
+	# A plate isn't set off from the air.
+	var plate: Dictionary = Traps.make(spot, "spikes", false, 2)
+	main.traps = [plate]
+	p.global_position = spot
+	p.jump_total = 1.0
+	p.jump_t = 1.0
+	for i in 4:
+		await physics_frame
+	_check(plate["state"] == "idle", "jumping over a spike plate doesn't set it off")
+	p.jump_t = 0.0
+	p.global_position = spot + Vector2(200, 0)
+	# Monsters that wander onto a plate set it off and get caught.
+	var sl = await _spawn("slime", spot)
+	var shp: float = sl.hp
+	for i in 3:
+		await physics_frame
+	_check(plate["state"] == "warn", "a monster stepping on a spike plate sets it off")
+	await _wait(0.6)
+	_check(not is_instance_valid(sl) or sl.hp < shp, "...and the spikes catch it")
+	if is_instance_valid(sl):
+		sl.queue_free()
+	var snare: Dictionary = Traps.make(spot, "thorns", false, 2)
+	main.traps = [snare]
+	var th = await _spawn("knight", spot)
+	await _wait(0.5)
+	_check(th.stun > 0.0, "a thorn snare holds a monster too")
+	th.queue_free()
+	# Hidden traps are faint; the Hunter's Keen Eyes sees them.
+	var hidden: Dictionary = Traps.make(spot, "spikes", true, 2)
+	main.traps = [hidden]
+	p.global_position = spot + Vector2(200, 0)
+	await _frames(1)
+	_check(main.trap_view.visibility(hidden) < 0.5 and not main.trap_view.seen(hidden), "hidden traps are hard to see (%s, %.2f)" % [hidden["state"], main.trap_view.visibility(hidden)])
+	_check(main.trap_view.visibility(Traps.make(spot, "spikes", false, 2)) == 1.0, "...other traps are plain to see")
+	_mark("brow", "hunter", 1)
+	_check(main.trap_view.seen(hidden), "Keen Eyes (the Hunter's Body) spots hidden traps")
+	_check("trap" in main.BondScript.Bonds.BONDS["hunter"]["body"]["desc"], "...and its description says so")
+	main.traps = []
+	main.trap_view.reset()
+
+
 func _jump_tests() -> void:
 	print("jumping and chasms")
 	await _fresh_main()
@@ -2674,6 +2836,7 @@ func _run() -> void:
 	await _jump_tests()
 	await _rooms_tests()
 	await _terrain_tests()
+	await _trap_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()

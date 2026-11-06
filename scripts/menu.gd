@@ -372,6 +372,8 @@ func _page_dev() -> void:
 	_button("No dying: %s" % ("on" if main.dev_no_death else "off"), _toggle_no_death, crow)
 	_button("Heal", _heal, crow)
 	_button("Clear the room", _clear_room, crow)
+	if main.trap_view != null:
+		_button("Show traps: %s" % ("on" if main.trap_view.show_all else "off"), _toggle_traps, crow)
 	if toast != "":
 		_text(toast, GOLD, true)
 	_gap()
@@ -457,6 +459,11 @@ func _dev_spawn(kind: String) -> void:
 
 func _toggle_no_death() -> void:
 	main.dev_no_death = not main.dev_no_death
+	open("dev")
+
+
+func _toggle_traps() -> void:
+	main.trap_view.show_all = not main.trap_view.show_all
 	open("dev")
 
 
