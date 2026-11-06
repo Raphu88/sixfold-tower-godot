@@ -2110,6 +2110,9 @@ func _run() -> void:
 	_check(Input.is_action_pressed("sprint"), "dragging past the larger outer ring sprints")
 	touch._set_move(Vector2.ZERO)
 	_check(not Input.is_action_pressed("sprint") and Input.get_action_strength("move_right") == 0.0, "letting go stops")
+	# (put the stick back where the thumb went down)
+	touch.stick_origin = Vector2(200, screen.y - 200)
+	touch.stick_pos = touch.stick_origin
 	var before: Vector2 = p.global_position
 	_drag(0, Vector2(280, screen.y - 200))
 	await _frames(1)
