@@ -617,19 +617,16 @@ func _drink(p) -> void:
 
 # A fan of conjured blades that pierce through every foe in their path.
 ## Weapon Memory: conjured blades take after the weapon in your hand.
+## Light weapons (fists, daggers): more, smaller knives; heavy ones: fewer,
+## harder blades; bows and crossbows: fast, harder darts (weapons.gd MEMORY).
 func _blade_shape(p) -> Dictionary:
-	match p.weapon:
-		"fists":
-			return {"extra": 2, "speed": 640.0, "mult": 0.7, "life": 1.2}
-		"bow":
-			return {"extra": 0, "speed": 840.0, "mult": 1.3, "life": 2.0}
-	return {"extra": 0, "speed": 560.0, "mult": 1.0, "life": 1.5}
+	return p.Weapons.memory(p.weapon)
 
 
 func _throw_blades(p, count: int, spread: float, back := false, jitter := 0.0) -> void:
 	var main = p.main
 	var shape := _blade_shape(p)
-	count += int(shape["extra"])
+	count = maxi(1, count + int(shape["extra"]))
 	var aim: Vector2 = p.aim
 	for i in count:
 		var off := (float(i) - (float(count) - 1.0) / 2.0) * spread / maxf(1.0, float(count - 1)) * 2.0 if count > 1 else 0.0

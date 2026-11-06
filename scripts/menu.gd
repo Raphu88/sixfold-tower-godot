@@ -9,6 +9,9 @@ const Bonds := preload("res://scripts/bonds.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Towers := preload("res://scripts/towers.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
+const TitleScript := preload("res://scripts/title.gd")
+const Gear := preload("res://scripts/gear.gd")
+const Weapons := preload("res://scripts/weapons.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -27,6 +30,9 @@ var scroll: ScrollContainer
 var toast := ""
 var toast_t := 0.0
 var confirm_back := ""  # the page "Cancel" returns to
+var backdrop: Control  # the title screen's drawing (title.gd), behind the title and its pages
+var shade: ColorRect
+var center: CenterContainer
 
 
 func _ready() -> void:
@@ -34,13 +40,16 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	theme = _make_theme()
-	var shade := ColorRect.new()
+	backdrop = TitleScript.new()
+	backdrop.hide()
+	add_child(backdrop)
+	shade = ColorRect.new()
 	shade.color = Color(0.03, 0.03, 0.05, 0.78)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 	panel = PanelContainer.new()
@@ -144,9 +153,28 @@ func _process(delta: float) -> void:
 			close()
 		else:
 			open("title" if _from_title() else "pause")
-	# Keep the panel inside the screen (phones draw everything bigger).
+	_layout()
+
+
+## Keeps the panel inside the screen (phones draw everything bigger). On the
+## title the buttons sit in the column under the name, left of the tower.
+func _layout() -> void:
 	var s := get_viewport_rect().size
-	scroll.custom_minimum_size = Vector2(minf(560.0, s.x - 40.0), minf(_wanted_height(), s.y - 40.0))
+	if page == "title":
+		backdrop.menu_h = _wanted_height()
+		var r: Rect2 = backdrop.menu_rect(s)
+		center.position = r.position
+		center.size = r.size
+		scroll.custom_minimum_size = Vector2(minf(300.0, r.size.x - 40.0), minf(_wanted_height(), r.size.y))
+	else:
+		center.position = Vector2.ZERO
+		center.size = s
+		scroll.custom_minimum_size = Vector2(minf(560.0, s.x - 40.0), minf(_wanted_height(), s.y - 40.0))
+
+
+## True while the title screen (or a page opened from it) covers the game.
+func backdrop_showing() -> bool:
+	return is_open() and backdrop.visible
 
 
 var opened_from_title := false
@@ -168,6 +196,15 @@ func open(which: String) -> void:
 		opened_from_title = false
 	page = which
 	show()
+	# The title's drawing stays behind the pages opened from it.
+	backdrop.visible = which == "title" or (opened_from_title and which != "pause")
+	backdrop.show_name = which == "title"
+	shade.visible = which != "title"
+	shade.color.a = 0.6 if backdrop.visible else 0.78
+	if which == "title":
+		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	else:
+		panel.remove_theme_stylebox_override("panel")
 	get_tree().paused = true
 	if main != null and main.touch != null:
 		main.touch.release_all()
@@ -176,6 +213,7 @@ func open(which: String) -> void:
 		c.queue_free()
 	scroll.scroll_vertical = 0
 	call("_page_" + which)
+	_layout()
 	# Keyboard players: start on the first button.
 	for c in box.get_children():
 		var b := _first_button(c)
@@ -203,24 +241,58 @@ func _first_button(n: Node) -> Button:
 
 # --- pages -------------------------------------------------------------------
 
+## The title screen: the drawing (title.gd) shows the name; these are its
+## buttons and a line about the climber.
 func _page_title() -> void:
-	_heading("SIXFOLD TOWER", 40)
 	var prof = main.profile
-	var sub := "A new climber. You bear no mark yet."
+	var primary := _button("Begin your first climb" if not prof.regarded else "Continue", _leave_title)
+	_title_button(primary, true)
+	_title_button(_button("Body", open.bind("body")))
+	_title_button(_button("Settings", open.bind("settings")))
+	_title_button(_button("Dev tools", open.bind("dev")))
 	if prof.regarded:
-		var names: Array = []
-		for part in Bonds.PARTS:
-			if prof.bonds.has(part):
-				names.append(Bonds.BONDS[prof.bonds[part]["id"]]["name"])
-		sub = "Marks: %s  ·  best floor %d" % [", ".join(names) if not names.is_empty() else "none", prof.best_floor]
-	_text(sub, DIM, true)
-	_gap()
-	_button("Begin your first climb" if not prof.regarded else "Climb", _leave_title)
-	_button("Body", open.bind("body"))
-	_button("Settings", open.bind("settings"))
-	_button("Dev tools", open.bind("dev"))
-	if prof.regarded:
-		_button("New climber", _ask_new.bind("title"))
+		_title_button(_button("New climber", _ask_new.bind("title")))
+	_gap(2)
+	_text(_title_status(), DIM, true)
+	var l: Label = box.get_child(box.get_child_count() - 1)
+	l.add_theme_font_size_override("font_size", 13)
+	l.custom_minimum_size.x = 0.0
+
+
+## Marks carried and best floor (or a word for a new climber).
+func _title_status() -> String:
+	var prof = main.profile
+	if not prof.regarded:
+		return "A new climber. You bear no mark yet."
+	var names: Array = []
+	for part in Bonds.PARTS:
+		if prof.bonds.has(part):
+			names.append(Bonds.BONDS[prof.bonds[part]["id"]]["name"])
+	return "Marks: %s\nBest floor %d" % [", ".join(names) if not names.is_empty() else "none", prof.best_floor]
+
+
+## The title's buttons: see-through over the sky, the first one gilded.
+func _title_button(b: Button, primary := false) -> void:
+	b.custom_minimum_size.y = 40.0 if primary else 36.0
+	b.add_theme_font_size_override("font_size", 18 if primary else 16)
+	for state in ["normal", "hover", "pressed"]:
+		var st := StyleBoxFlat.new()
+		st.set_corner_radius_all(6)
+		st.content_margin_left = 12
+		st.content_margin_right = 12
+		st.content_margin_top = 6
+		st.content_margin_bottom = 6
+		st.set_border_width_all(1)
+		var bg := Color(0.24, 0.17, 0.09, 0.88) if primary else Color(0.08, 0.075, 0.11, 0.72)
+		if state == "hover":
+			bg = bg.lightened(0.12)
+		elif state == "pressed":
+			bg = Color(0.3, 0.25, 0.18, 0.95)
+		st.bg_color = bg
+		st.border_color = Color(GOLD, 0.75 if primary else 0.22)
+		b.add_theme_stylebox_override(state, st)
+	if primary:
+		b.add_theme_color_override("font_color", GOLD)
 
 
 func _page_pause() -> void:
@@ -253,7 +325,7 @@ func _page_controls() -> void:
 		["Move", "WASD or arrows"], ["Sprint", "Shift"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
 		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
 		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
-		["Use item / next item", "G / T"],
+		["Use item / next item", "G / T"], ["Take gear you stand on", "Y"],
 		["Menu", "Esc or P"], ["Restart", "R"], ["Music", "M"],
 	]
 	var grid := GridContainer.new()
@@ -269,7 +341,7 @@ func _page_controls() -> void:
 		b.add_theme_color_override("font_color", GOLD)
 		grid.add_child(b)
 	box.add_child(grid)
-	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next. Hold a mark's button and slide to pick a spell.", DIM)
+	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next; Take appears while you stand on gear. Hold a mark's button and slide to pick a spell.", DIM)
 	_gap()
 	_back()
 
@@ -294,8 +366,31 @@ func _page_body() -> void:
 		grid.add_child(_label("+%.1f%% %s" % [prof.attribute(kind) * 100.0, attr["bonus"]], 200.0, GOLD if prof.attribute(kind) > 0.001 else DIM))
 	box.add_child(grid)
 	_text("Every bit of essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus (up to 12%).", DIM)
+	_page_body_gear()
 	_gap()
 	_back()
+
+
+## The Body page's Gear section: what you carry this climb, with key stats.
+func _page_body_gear() -> void:
+	_section("Gear")
+	var p = main.player
+	if p == null:
+		return
+	var rows: Array = [["1  Fists", "fists"], ["2  Melee", p.gear["melee"]], ["3  Ranged", p.gear["ranged"]], ["Armor", p.gear["armor"]]]
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 14)
+	for r in rows:
+		var id: String = r[1]
+		var empty: bool = id == "" and r[0] != "Armor"
+		grid.add_child(_label(r[0], 80.0, DIM))
+		grid.add_child(_label(Gear.display(id) if not empty else "empty", 120.0, GOLD if id == p.weapon or (r[0] == "Armor" and id != "") else TEXT))
+		var stats := _label(Gear.summary(id) if not empty else "", 300.0, TEXT)
+		stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		grid.add_child(stats)
+	box.add_child(grid)
+	_text("Gear lasts one climb: every climb starts with a sword, a shortbow and no armor. Monsters sometimes drop gear, caches can hold it, and the camp offers a piece. Walk over it to see how it compares; press Y (or tap Take) to swap.", DIM)
 
 
 func _ask_new(back: String) -> void:
@@ -366,6 +461,20 @@ func _page_dev() -> void:
 	for kind in EnemyScript.TYPES.keys().filter(func(k): return k != "familiar"):
 		_button(kind.capitalize(), _dev_spawn.bind(kind), grid)
 	box.add_child(grid)
+
+	_section("Gear (give yourself any weapon or armor)")
+	var ggrid := GridContainer.new()
+	ggrid.columns = 4
+	ggrid.add_theme_constant_override("h_separation", 6)
+	ggrid.add_theme_constant_override("v_separation", 6)
+	for id in Weapons.ORDER:
+		if id != "fists":
+			var gb := _button(Weapons.WEAPONS[id]["name"], _dev_gear.bind(id), ggrid)
+			gb.disabled = id == p.gear["melee"] or id == p.gear["ranged"]
+	for id in Gear.ARMOR_ORDER:
+		var ab := _button(Gear.ARMOR[id]["name"], _dev_gear.bind(id), ggrid)
+		ab.disabled = id == p.gear["armor"]
+	box.add_child(ggrid)
 
 	_section("Cheats")
 	var crow := _row()
@@ -455,6 +564,11 @@ func _dev_beast(id: String) -> void:
 func _dev_spawn(kind: String) -> void:
 	main.dev_spawn(kind)
 	_say("Spawned: %s" % kind.capitalize())
+
+
+func _dev_gear(id: String) -> void:
+	main.dev_give_gear(id)
+	_say("Now carrying: %s" % Gear.display(id))
 
 
 func _toggle_no_death() -> void:
