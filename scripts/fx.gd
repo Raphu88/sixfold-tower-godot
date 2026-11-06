@@ -269,6 +269,20 @@ func _draw_fields() -> void:
 		draw_circle(it["pos"] + Vector2(0, 6), 9.0, Color(0, 0, 0, 0.3 * ia))
 		draw_arc(ip, 13.0 + sin(t * 5.0), 0.0, TAU, 20, Color(ic, 0.45 * ia), 1.5)
 		main.Items.draw_icon(self, it["id"], ip, 9.0, ia)
+	# Gear on the floor: its icon on a little glowing plinth, with its name.
+	var gfont := ThemeDB.fallback_font
+	for g in main.gear_drops:
+		var gp: Vector2 = g["pos"]
+		var gc: Color = main.Gear.color(g["id"])
+		var here: bool = main.gear_here == g
+		draw_circle(gp + Vector2(0, 7), 11.0, Color(0, 0, 0, 0.3))
+		draw_arc(gp, 15.0 + sin(t * 3.0) * 1.5, 0.0, TAU, 24, Color(1.0, 0.85, 0.5, 0.75 if here else 0.35), 2.0 if here else 1.5)
+		var ip2 := gp + Vector2(0, sin(t * 2.5) * 1.5 - 3.0)
+		main.Gear.draw_icon(self, g["id"], ip2 + Vector2(1, 1), 10.0, Color(0, 0, 0, 0.6))
+		main.Gear.draw_icon(self, g["id"], ip2, 10.0, gc)
+		var label: String = main.Gear.display(g["id"])
+		draw_string_outline(gfont, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, 3, Color(0, 0, 0, 0.8))
+		draw_string(gfont, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85))
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))

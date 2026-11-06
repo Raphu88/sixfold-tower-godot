@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; drag past the larger outer ring to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, your marks' spells and weapon swap, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; drag past the larger outer ring to sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
@@ -24,8 +24,9 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Sprint | Shift |
 | Roll | Space |
 | Jump (over chasms and burning floor) | Z, or the Jump button on a phone |
-| Strike / hold to draw the bow | Left click or J |
-| Switch weapon | 1 Fists, 2 Sword, 3 Bow, or the mouse wheel |
+| Strike / hold to draw a bow / fire the crossbow | Left click or J |
+| Switch weapon | 1 Fists, 2 your melee weapon, 3 your ranged weapon, or the mouse wheel |
+| Take the gear you stand on (your old piece is dropped) | Y, or the Take button on a phone |
 | Parry | Right click or K |
 | Cast your marks (hand, legs, heart, brow, throat, back) | Q, E, F, C, X, V |
 | Use your item | G, or the Item button on a phone |
@@ -36,6 +37,49 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
 | Music on/off | M |
 | Show/hide controls | H |
+
+## Weapons and armor
+
+Every weapon and suit of armor here is plain, common gear (enchanted weapons, armor and trinkets will come later). Their names, text and numbers live in `scripts/weapons.gd` (weapons) and `scripts/gear.gd` (armor, drops and carrying), so they're easy to change. Each is drawn in code on the climber and has its own HUD icon.
+
+**Carrying.** Gear lasts one climb. You carry four things: **1 fists** (always), **2 a melee weapon**, **3 a ranged weapon**, and **one suit of armor**. Every climb starts with a **sword**, a **shortbow** and **no armor**. The HUD shows the three weapon slots and the armor slot with their names; the **Body** page in the menu lists your gear with its key numbers.
+
+**Finding gear.** Slain monsters (not beasts) rarely drop a piece (4%), likelier one that suits them: knights favour chain mail, plate, swords, maces and greatswords; archers bows, crossbows and leather; smiths hammers, maces and armor; and so on (`FAVOUR` in `gear.gd`). A side room's essence cache sometimes holds a piece too (35%), and the camp offers a piece of gear as a fourth card beside its three items. Gear lies on the floor with its name. Walk over it with an empty slot (only armor starts empty) and you take it; otherwise a card compares it with what you carry (better numbers in green, worse in red), and **Y** (or **Take** on a phone) swaps: your old piece is dropped where you stand, so you can change your mind.
+
+**Melee weapons** are combo chains; every chain ends in a heavy finisher. Damage is a multiple of the base strike (8), as with the sword.
+
+| Weapon | Class | What it's like | Hits | Stamina per chain | Reach |
+| --- | --- | --- | --- | --- | --- |
+| Fists | light | quick jabs on a cheap 4-hit chain ending in a heavy hook | 4 to 10 | 42 | 30 to 36 |
+| Dagger | light | fast, short and cheap; a backstab deals 2x instead of 1.5x | 6 to 11 | 43 | 36 to 40 |
+| Sword | medium | the all-rounder: 3 hits, a slow heavy finisher | 8 to 14 | 58 | 46 to 56 |
+| Axe | medium | slower and harder than the sword, with a wider hacking arc | 10 to 18 | 70 | 48 to 56 |
+| Mace | medium | every blow counts as heavy against poise: it rocks monsters out of their wind-ups and cracks shells | 9 to 16 | 70 | 44 to 50 |
+| Spear | medium | long, narrow thrusts: strike from beyond a monster's reach, but miss what's beside you | 8 to 13 | 54 | 74 to 86 |
+| Greatsword | heavy | two-handed: slow, huge sweeping arcs that catch a crowd; hungry for stamina | 13 to 21 | 94 | 60 to 66 |
+| War Hammer | heavy | the slowest and heaviest, 2 hits: every blow rocks, and the finisher staggers (half as long on a beast) | 16 to 24 | 74 | 52 to 56 |
+
+**Ranged weapons:**
+
+| Weapon | What it's like |
+| --- | --- |
+| Shortbow | hold to draw (0.75 s), release to loose: 5 to 20 damage; a full draw pierces. You walk at 45% while drawing. |
+| Longbow | a slower draw (1.1 s) for harder, farther arrows (6 to 30 damage), but you barely walk while drawing (28%) |
+| Crossbow | press to fire a fast, strong bolt at once (24 damage; it rocks what it hits), then a 1.1 s reload you can't skip. You can walk (a little slower) while it reloads; the slot and the phone's attack button fill back up. |
+
+Weapon classes matter elsewhere too: Blade Forger's **Weapon Memory** throws more, smaller knives with a light weapon, fewer and harder blades with a heavy one, and fast darts with any bow or crossbow. Hunter's spells and Hawk's Eye work with every bow and the crossbow.
+
+**Armor** cuts the damage of attacks that land (after parries, the Warden's barrier and the like); poison and burning floor tick past it. Heavier suits weigh on you: rolls cost more stamina and carry you less far, stamina refills slower, and you walk a little slower. Each suit shows on the climber, from a quilted vest to steel pauldrons and a helm.
+
+| Armor | Damage taken off | Roll cost | Roll reach | Stamina refill | Walk |
+| --- | --- | --- | --- | --- | --- |
+| None | 0% | normal | normal | normal | normal |
+| Padded Armor | 8% | +5% | -2% | -2% | normal |
+| Leather Armor | 15% | +12% | -5% | -5% | -2% |
+| Chain Mail | 25% | +30% | -12% | -13% | -5% |
+| Plate Armor | 35% | +55% | -24% | -25% | -10% |
+
+The dev tools have a **Gear** row: a button for every weapon and armor, to try them at once.
 
 ## Items and camps
 
@@ -50,7 +94,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 
 Every climb starts with one Healing Draught. Slain monsters (not beasts) sometimes leave an item (8%); walk over it to pick it up.
 
-**Camps.** On a five-floor climb, floor 3's stair leads first to a **camp**: the open room with a campfire and no monsters. You rest fully (all health and stamina, burns and poison healed), then choose one of three items from cards (keys 1 to 3, click, or tap). Then take the stair on to floor 4. Each climb has one camp; the bondless first climb has none.
+**Camps.** On a five-floor climb, floor 3's stair leads first to a **camp**: the open room with a campfire and no monsters. You rest fully (all health and stamina, burns and poison healed), then choose one of four cards (keys 1 to 4, click, or tap): three items, or a piece of gear (taking it leaves your old piece by the fire). Then take the stair on to floor 4. Each climb has one camp; the bondless first climb has none.
 
 - **Surgeon's Steady Hands:** healing items heal 30% more and work faster.
 - **Rune Artist's Runesmith:** after taking an item at a camp, a Rune Artist also chooses a rune for their gear (Sharpness, Warding or Swiftness, as with Inscribe) that lasts the rest of the climb, the beast included, or crafts one more item. Casting Inscribe still changes the rune for one floor.
@@ -68,6 +112,7 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 - **Climb:** move to another tower, change floor, or go straight to the tower's beast.
 - **Practice a beast:** fight any of the six beasts at once, at full health with full marks.
 - **Spawn a monster:** any monster or beast, near you.
+- **Gear:** give yourself any weapon or armor (it replaces what's in that slot).
 - **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room, and show traps (outlines every trap and its reach, hidden ones too).
 
 ## Towers
@@ -132,7 +177,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
   - **Warden** (Water, brow). Body: Heavy Frame (keep holding parry to block). Passive: Steadfast (no knockback or interruption while your barrier holds). Spells: Barrier (a shell that absorbs damage), Absorb (store the hits you take in the barrier), Barrier changed (it bursts with what it absorbed when it breaks), Challenge (nearby foes must come at you and take 50% more damage), Unbreakable (4 seconds of no damage, but no attacking).
   - **Deepcaller** (Water, heart). Body: Deep Lungs (stamina refills faster). Passive: Pressure (badly hurt foes near you slow down). Spells: Undertow (drain up to 3 foes and heal), Anchor (tether a foe to you), Undertow changed (5 foes), Siphon (drain essence to refill your marks), Drink Deep (a drain that grows stronger the longer it holds).
 - **The Wyvern's bonds (complete):**
-  - **Blade Forger** (Iron). Body: Long Edge (melee strikes reach farther). Passive: Weapon Memory (conjured blades copy the weapon you hold: more, smaller knives with fists; fast, harder darts with the bow). Spells: Conjured Blades, Recall (blades fly out and come back, cutting again on the way), Conjured Blades changed (five blades), Bladeward (blades orbit you for 6 seconds, cutting anything close), Thousand Edges (a storm of blades toward your aim).
+  - **Blade Forger** (Iron). Body: Long Edge (melee strikes reach farther). Passive: Weapon Memory (conjured blades copy the weapon you hold: more, smaller knives with fists or a dagger; fewer, harder blades with a greatsword or war hammer; fast, harder darts with a bow or crossbow). Spells: Conjured Blades, Recall (blades fly out and come back, cutting again on the way), Conjured Blades changed (five blades), Bladeward (blades orbit you for 6 seconds, cutting anything close), Thousand Edges (a storm of blades toward your aim).
   - **Flameblade** (Fire). Body: Hot Blood (strike chains never slow down; even the finisher recovers fast). Passive: Heat (each strike in a row heats your weapon, up to half again as much damage; it fades if you stop striking; shown as an arc around you). Spells: Kindle Blade (your weapon burns for 6 seconds: extra damage and heat builds twice as fast), Flame Lash (a wave of fire), Kindle Blade changed (lasts as long as you keep landing strikes), Searing Parry (kindles your weapon; while it burns, a parry explodes against the attacker), Overheat (release all your heat in one huge blow).
   - **Rune Artist** (Iron). Body: Steady Mind (every spell from every bond winds up 30% faster). Passive: Runesmith (at a camp, also inscribe a rune on your gear for the rest of the climb, or craft one more item). Spells: Rune Trap (a rune on the floor that detonates under a foe; up to 3), Inscribe (a rune on your gear for the floor: sharpness, warding or swiftness, changing each cast), Linked Runes (step 3: setting off one rune sets off them all), Ward Circle (foes can't enter it for 5 seconds), Grand Sigil (inside it, your spells cost nothing for 6 seconds).
 - **The Manticore's bonds (complete):**
@@ -176,7 +221,7 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 - **Windwalker on the legs.** Fills when you roll through an attack. *Gale Lift* throws foes in front of you into the air, helpless for 1.5 seconds (a wider cone from step 3). Body: your roll becomes a long, cheap wind dash. Passive *Featherweight*: airborne foes take 50% more damage from your strikes.
 - **Overdraw.** Cast without enough essence and the spell still fires, but the body part burns: a burned hand weakens your strikes, burned legs make rolls cost more and travel less. Burns heal at the next stair.
 - **Marks and motes on the body.** Each bond shows as a sigil that grows lines with its step, circled by motes as its essence fills.
-- **Three weapons.** *Fists*: quick, short-reaching jabs on a cheap 4-hit chain ending in a heavy hook. *Sword*: a 3-hit chain ending in a slow, heavy finisher. *Bow*: hold to draw (you walk slowly while drawing and stamina stops recovering), release to loose. Damage and speed grow with the draw, and a full draw (a soft tick and ring tell you) pierces through foes. A quick tap fires a weak shot; rolling or getting hit drops the arrow. Weapons are plain data in `scripts/weapons.gd`.
+- **Weapons and armor.** Eight melee weapons, two bows and a crossbow, and four suits of armor (see **Weapons and armor** above). *Bows*: hold to draw (you walk slowly while drawing and stamina stops recovering), release to loose. Damage and speed grow with the draw, and a full draw (a soft tick and ring tell you) pierces through foes. A quick tap fires a weak shot; rolling or getting hit drops the arrow. Weapons are plain data in `scripts/weapons.gd`, armor in `scripts/gear.gd`.
 - **Solid bodies.** The climber and monsters can't share space; overlapping bodies are pushed apart, and heavier ones (the knight) give way less. Foes lifted by Gale Lift pass over everyone.
 - **Timing over mashing.** Swings cost real stamina (a sword chain is 58), and stamina waits almost a second after you attack before it refills, so mashing leaves you winded. Monsters have **poise**: once they commit to an attack, light hits don't stop it (read the glint, then parry or roll); only heavy hits (finishers) rock them, and light hits make a monster flinch at most once every 1.2 seconds, so you can't stun-lock it. After every attack a monster is **open** for most of its recovery: a gold ring pulses around it and your hits deal 60% more ("Opening!"). Beasts have less health than before, longer openings after their attacks, and their fire burns out faster.
 - **Readable fights.** Every monster attack follows one rhythm: a wind-up, then a **glint** (a white star and a "ting") exactly 0.25 s before the blow lands, then a recovery where the monster is open. Parry on the glint and it always works; parry a beat after the glint for a **perfect parry** (longer stagger, more stamina back, bigger flash). The parry window is about a third of a second, turns you toward the attacker (or an incoming arrow) so aiming can't make it miss, and can cancel the tail of a swing. Only two monsters attack at a time; the rest circle and wait their turn. Slimes and archers flinch when hit (so aggressive play works on them); knights keep winding up through your hits, so parry, riposte or roll against them. The knight slashes up close and lunges from further out; the slime creeps up and pounces (touching it is harmless).
@@ -225,7 +270,8 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `assets/audio/` | Built sound effects and music |
 | `tools/fetch_audio_sources.sh` | Downloads the CC0 source sound packs |
 | `tools/build_audio.py` | Builds `assets/audio` from the source packs |
-| `scripts/weapons.gd` | Weapon definitions: fists, sword, bow |
+| `scripts/weapons.gd` | Weapon definitions: every melee weapon, bow and crossbow, as data |
+| `scripts/gear.gd` | Armor, gear drops, carrying, comparing and gear icons |
 | `tests/smoke_test.gd` | Headless test that drives every action |
 
 ## Testing

@@ -19,6 +19,7 @@ const BondScript := preload("res://scripts/bond.gd")
 const Towers := preload("res://scripts/towers.gd")
 const MenuScript := preload("res://scripts/menu.gd")
 const Items := preload("res://scripts/items.gd")
+const Gear := preload("res://scripts/gear.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 ## The stair opens once this share of a floor's monsters are down.
@@ -92,6 +93,11 @@ var new_climber_t := 0.0
 # Items and camps (items.gd)
 var item_drops: Array = []  # items lying on the floor: {pos, id, t}
 var item_drop_chance := Items.DROP_CHANCE
+# Gear (gear.gd): weapons and armor lying on the floor, and the one you stand on.
+var gear_drops: Array = []  # {pos, id}
+var gear_drop_chance := Gear.DROP_CHANCE
+var gear_cache_chance := Gear.CACHE_CHANCE
+var gear_here := {}  # the drop under you that needs Y (or Take) to swap for
 var in_camp := false  # resting at a camp between floors (floor_num stays the floor below)
 var camp_done := false  # each climb has one camp
 var camp_choosing := false  # the camp's cards are showing
@@ -529,6 +535,7 @@ func _physics_process(delta: float) -> void:
 func _update_spell_fields(delta: float) -> void:
 	_update_grafts(delta)
 	_update_item_drops(delta)
+	_update_gear_drops()
 	_update_ground(delta)
 	_update_runes(delta)
 	_update_flames(delta)
@@ -654,6 +661,8 @@ func _start_floor(n: int) -> void:
 		b.queue_free()
 	pillar_bodies.clear()
 	item_drops.clear()
+	gear_drops.clear()
+	gear_here = {}
 	if not in_camp:
 		camp_choosing = false
 	if campfire != null:
@@ -678,6 +687,9 @@ func _start_floor(n: int) -> void:
 		cache = plan["cache"].duplicate()
 		cache["kind"] = tower_data()["essence"]
 		cache["taken"] = false
+		# Sometimes the cache also holds a piece of gear.
+		if randf() < gear_cache_chance:
+			cache["gear"] = Gear.random_gear("", player.carried_gear() if player != null else [])
 	room_view.cache = cache
 	var targets: Array = [stair_pos]
 	for m in plan["monsters"]:
@@ -746,6 +758,9 @@ func _open_cache() -> void:
 	gather_essence(cache["kind"], amount, pos)
 	var col: Color = Essence.color(cache["kind"])
 	fx_text(pos + Vector2(0, -36), "%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col)
+	if cache.has("gear"):
+		drop_gear(pos, cache["gear"])
+		fx_text(pos + Vector2(0, -54), Gear.TEXT["cache"] % Gear.display(cache["gear"]), Gear.color(cache["gear"]))
 	fx_ring(pos, col, 70.0, 0.5, 4.0)
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
@@ -866,7 +881,9 @@ func _enter_camp(lines: Array) -> void:
 		b.burned = false
 	var said: Array = [Items.CAMP["sub"]]
 	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
-	camp = {"stage": "item", "choices": Items.camp_choices(not player.bonds.is_empty()), "lines": said}
+	var choices: Array = Items.camp_choices(not player.bonds.is_empty())
+	choices.append("gear:" + Gear.random_gear("", player.carried_gear()))  # and a piece of gear
+	camp = {"stage": "item", "choices": choices, "lines": said}
 	camp_choosing = true
 	banner = {}
 	player.set_physics_process(false)
@@ -876,6 +893,12 @@ func _enter_camp(lines: Array) -> void:
 ## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
 func camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
+	if pick.begins_with("gear:"):
+		var g := pick.substr(5)
+		var held: String = player.gear[Gear.slot_of(g)]
+		var desc: String = Gear.info(g)["desc"]
+		return {"name": Gear.display(g), "desc": desc, "color": Gear.color(g), "item": "", "gear": g,
+			"note": Gear.TEXT["carrying"] % (Gear.display(held) if held != "" else Gear.TEXT["none"])}
 	if pick.begins_with("rune:"):
 		var r: Dictionary = Items.CAMP_RUNES[pick.substr(5)]
 		return {"name": r["name"], "desc": r["desc"], "color": r["color"], "item": ""}
@@ -895,7 +918,10 @@ func choose_camp(i: int) -> void:
 	var pick: String = camp["choices"][i]
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
-		taken.append(_take_item(pick, "Took"))
+		if pick.begins_with("gear:"):
+			taken.append(_take_gear(pick.substr(5)))
+		else:
+			taken.append(_take_item(pick, "Took"))
 		if player.has_bond("rune_artist"):
 			var choices: Array = Items.CAMP_RUNES.keys().map(func(r): return "rune:" + r)
 			choices.append("craft:" + Items.random_item(true))
@@ -922,6 +948,67 @@ func _take_item(id: String, verb: String) -> String:
 	if player.add_item(id):
 		return "%s: %s" % [verb, name]
 	return "No room for another %s" % name
+
+
+## Takes a piece of gear into its slot; what you carried there is dropped
+## where you stand.
+func _take_gear(id: String) -> String:
+	var old: String = player.take_gear(id)
+	if old != "":
+		drop_gear(player.global_position, old)
+	sfx("equip_sword", 1.1, -3.0)
+	return Gear.TEXT["took"] % Gear.display(id)
+
+
+## Leaves a piece of gear on the floor.
+func drop_gear(pos: Vector2, id: String) -> void:
+	if Gear.is_gear(id):
+		gear_drops.append({"pos": pos, "id": id})
+
+
+## Gear on the floor: walk over it with an empty slot and you take it;
+## otherwise it waits for Y (or the phone's Take button), comparing it with
+## what you carry.
+func _update_gear_drops() -> void:
+	gear_here = {}
+	if player == null or player.dead or climbing:
+		return
+	var best_d := Gear.REACH
+	for d in gear_drops:
+		var dist: float = player.global_position.distance_to(d["pos"])
+		if dist <= best_d:
+			best_d = dist
+			gear_here = d
+	if gear_here.is_empty():
+		return
+	if player.gear[Gear.slot_of(gear_here["id"])] == "":
+		var id: String = gear_here["id"]
+		gear_drops.erase(gear_here)
+		gear_here = {}
+		player.take_gear(id)
+		fx_text(player.global_position + Vector2(0, -44), "+ " + Gear.display(id), Gear.color(id))
+		sfx("equip_sword", 1.2, -3.0)
+
+
+## Y or the Take button: swap what you carry for the gear you stand on (your
+## old piece is dropped where you stand).
+func take_gear_here() -> bool:
+	if gear_here.is_empty() or player == null or player.dead:
+		return false
+	var d: Dictionary = gear_here
+	gear_drops.erase(d)
+	gear_here = {}
+	var msg := _take_gear(d["id"])
+	fx_text(player.global_position + Vector2(0, -44), msg, Gear.color(d["id"]))
+	return true
+
+
+## Dev tools: give yourself a weapon or armor ("" takes armor off).
+func dev_give_gear(id: String) -> void:
+	if id == "":
+		player.gear["armor"] = ""
+		return
+	player.take_gear(id)
 
 
 ## Dev tools: jumping to another floor from a camp leaves it.
@@ -1660,6 +1747,9 @@ func on_enemy_killed(e) -> void:
 	# Grafter's Grafting: slain monsters sometimes leave a graft.
 	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < 0.3:
 		graft_drops.append({"pos": e.global_position, "kind": e.kind, "t": 20.0})
+	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
+	if not e.is_boss() and randf() < gear_drop_chance:
+		drop_gear(e.global_position + Vector2(0, 10), Gear.random_gear(e.kind, player.carried_gear() if player != null else []))
 	# Now and then a slain monster leaves an item.
 	if not e.is_boss() and randf() < item_drop_chance:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": Items.DROP_LIFE})

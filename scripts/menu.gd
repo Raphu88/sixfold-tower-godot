@@ -10,6 +10,8 @@ const ProfileScript := preload("res://scripts/profile.gd")
 const Towers := preload("res://scripts/towers.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const TitleScript := preload("res://scripts/title.gd")
+const Gear := preload("res://scripts/gear.gd")
+const Weapons := preload("res://scripts/weapons.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -323,7 +325,7 @@ func _page_controls() -> void:
 		["Move", "WASD or arrows"], ["Sprint", "Shift"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
 		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
 		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
-		["Use item / next item", "G / T"],
+		["Use item / next item", "G / T"], ["Take gear you stand on", "Y"],
 		["Menu", "Esc or P"], ["Restart", "R"], ["Music", "M"],
 	]
 	var grid := GridContainer.new()
@@ -339,7 +341,7 @@ func _page_controls() -> void:
 		b.add_theme_color_override("font_color", GOLD)
 		grid.add_child(b)
 	box.add_child(grid)
-	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next. Hold a mark's button and slide to pick a spell.", DIM)
+	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next; Take appears while you stand on gear. Hold a mark's button and slide to pick a spell.", DIM)
 	_gap()
 	_back()
 
@@ -364,8 +366,31 @@ func _page_body() -> void:
 		grid.add_child(_label("+%.1f%% %s" % [prof.attribute(kind) * 100.0, attr["bonus"]], 200.0, GOLD if prof.attribute(kind) > 0.001 else DIM))
 	box.add_child(grid)
 	_text("Every bit of essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus (up to 12%).", DIM)
+	_page_body_gear()
 	_gap()
 	_back()
+
+
+## The Body page's Gear section: what you carry this climb, with key stats.
+func _page_body_gear() -> void:
+	_section("Gear")
+	var p = main.player
+	if p == null:
+		return
+	var rows: Array = [["1  Fists", "fists"], ["2  Melee", p.gear["melee"]], ["3  Ranged", p.gear["ranged"]], ["Armor", p.gear["armor"]]]
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 14)
+	for r in rows:
+		var id: String = r[1]
+		var empty: bool = id == "" and r[0] != "Armor"
+		grid.add_child(_label(r[0], 80.0, DIM))
+		grid.add_child(_label(Gear.display(id) if not empty else "empty", 120.0, GOLD if id == p.weapon or (r[0] == "Armor" and id != "") else TEXT))
+		var stats := _label(Gear.summary(id) if not empty else "", 300.0, TEXT)
+		stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		grid.add_child(stats)
+	box.add_child(grid)
+	_text("Gear lasts one climb: every climb starts with a sword, a shortbow and no armor. Monsters sometimes drop gear, caches can hold it, and the camp offers a piece. Walk over it to see how it compares; press Y (or tap Take) to swap.", DIM)
 
 
 func _ask_new(back: String) -> void:
@@ -436,6 +461,20 @@ func _page_dev() -> void:
 	for kind in EnemyScript.TYPES.keys().filter(func(k): return k != "familiar"):
 		_button(kind.capitalize(), _dev_spawn.bind(kind), grid)
 	box.add_child(grid)
+
+	_section("Gear (give yourself any weapon or armor)")
+	var ggrid := GridContainer.new()
+	ggrid.columns = 4
+	ggrid.add_theme_constant_override("h_separation", 6)
+	ggrid.add_theme_constant_override("v_separation", 6)
+	for id in Weapons.ORDER:
+		if id != "fists":
+			var gb := _button(Weapons.WEAPONS[id]["name"], _dev_gear.bind(id), ggrid)
+			gb.disabled = id == p.gear["melee"] or id == p.gear["ranged"]
+	for id in Gear.ARMOR_ORDER:
+		var ab := _button(Gear.ARMOR[id]["name"], _dev_gear.bind(id), ggrid)
+		ab.disabled = id == p.gear["armor"]
+	box.add_child(ggrid)
 
 	_section("Cheats")
 	var crow := _row()
@@ -525,6 +564,11 @@ func _dev_beast(id: String) -> void:
 func _dev_spawn(kind: String) -> void:
 	main.dev_spawn(kind)
 	_say("Spawned: %s" % kind.capitalize())
+
+
+func _dev_gear(id: String) -> void:
+	main.dev_give_gear(id)
+	_say("Now carrying: %s" % Gear.display(id))
 
 
 func _toggle_no_death() -> void:
