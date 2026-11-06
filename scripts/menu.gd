@@ -216,6 +216,7 @@ func _page_title() -> void:
 	_text(sub, DIM, true)
 	_gap()
 	_button("Begin your first climb" if not prof.regarded else "Climb", _leave_title)
+	_button("Body", open.bind("body"))
 	_button("Settings", open.bind("settings"))
 	_button("Dev tools", open.bind("dev"))
 	if prof.regarded:
@@ -228,6 +229,7 @@ func _page_pause() -> void:
 	_gap()
 	_button("Resume", close)
 	_button("Restart this climb", _restart)
+	_button("Body", open.bind("body"))
 	_button("Settings", open.bind("settings"))
 	_button("Controls", open.bind("controls"))
 	_button("Dev tools", open.bind("dev"))
@@ -267,6 +269,30 @@ func _page_controls() -> void:
 		grid.add_child(b)
 	box.add_child(grid)
 	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast. Hold a mark's button and slide to pick a spell.", DIM)
+	_gap()
+	_back()
+
+
+## Your body: the six parts with their marks, and the essence density that
+## has settled in you (each essence type is an attribute with a small bonus).
+func _page_body() -> void:
+	_heading("BODY", 28)
+	var view := BodyView.new()
+	view.main = main
+	view.custom_minimum_size = Vector2(500, 230)
+	box.add_child(view)
+	_section("Essence density")
+	var prof = main.profile
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 14)
+	for kind in ["air", "blade", "stone", "iron", "fire", "water"]:
+		var attr: Dictionary = prof.ATTRIBUTES[kind]
+		grid.add_child(_label("%s  (%s)" % [main.Essence.display(kind), attr["name"]], 150.0, main.Essence.color(kind)))
+		grid.add_child(_label("%d" % int(prof.density.get(kind, 0.0)), 50.0, TEXT))
+		grid.add_child(_label("+%.1f%% %s" % [prof.attribute(kind) * 100.0, attr["bonus"]], 200.0, GOLD if prof.attribute(kind) > 0.001 else DIM))
+	box.add_child(grid)
+	_text("Every bit of essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus (up to 12%).", DIM)
 	_gap()
 	_back()
 
@@ -627,3 +653,59 @@ func _make_theme() -> Theme:
 	t.set_color("font_color", "CheckButton", TEXT)
 	t.set_color("font_color", "Label", TEXT)
 	return t
+
+
+
+## A drawing of the climber's body: the six parts, each marked or not, and
+## how much essence has settled in each.
+class BodyView extends Control:
+	var main
+
+	const SPOTS := {
+		"brow": Vector2(0, -88), "throat": Vector2(0, -58), "heart": Vector2(-10, -30),
+		"hand": Vector2(-52, 0), "back": Vector2(26, -24), "legs": Vector2(-14, 60),
+	}
+
+	func _draw() -> void:
+		var font := ThemeDB.fallback_font
+		var c := Vector2(110, size.y * 0.5 + 6)
+		var skin := Color(0.32, 0.3, 0.36)
+		# A simple figure: head, body, arms and legs.
+		draw_circle(c + Vector2(0, -92), 18.0, skin)
+		draw_rect(Rect2(c + Vector2(-22, -70), Vector2(44, 74)), skin)
+		draw_line(c + Vector2(-22, -62), c + Vector2(-52, 0), skin, 10.0)
+		draw_line(c + Vector2(22, -62), c + Vector2(52, 0), skin, 10.0)
+		draw_line(c + Vector2(-12, 4), c + Vector2(-16, 80), skin, 12.0)
+		draw_line(c + Vector2(12, 4), c + Vector2(16, 80), skin, 12.0)
+		var prof = main.profile
+		var parts: Array = ["brow", "throat", "heart", "back", "hand", "legs"]  # top to bottom, as on the body
+		var y := 18.0
+		for part in parts:
+			var at: Vector2 = c + SPOTS[part]
+			var info: Dictionary = prof.bonds.get(part, {})
+			var col := Color(0.55, 0.55, 0.6)
+			var label := "unmarked"
+			if not info.is_empty():
+				var data: Dictionary = main.BondScript.Bonds.BONDS[info["id"]]
+				col = data["color"]
+				label = "%s, step %d%s" % [data["name"], prof.step_for_xp(float(info["xp"])), " (faint)" if info["faint"] else ""]
+			# Settled essence: a ring per type, sized by its share.
+			var pd: Dictionary = prof.part_density.get(part, {})
+			var total := 0.0
+			for k in pd:
+				total += float(pd[k])
+			var r := 6.0 + minf(total / 60.0, 10.0)
+			if total > 0.0:
+				var a0 := -PI / 2.0
+				for k in pd:
+					var sweep := TAU * float(pd[k]) / total
+					draw_arc(at, r + 3.0, a0, a0 + sweep, 16, main.Essence.color(k), 3.0)
+					a0 += sweep
+			draw_circle(at, 6.0, col if not info.is_empty() else Color(col, 0.5))
+			# The list on the right.
+			var lx := 240.0
+			draw_string(font, Vector2(lx, y + 14), main.BondScript.Bonds.PART_NAMES[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.95, 0.8, 0.5))
+			draw_string(font, Vector2(lx + 70, y + 14), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - lx - 70, 14, col if not info.is_empty() else Color(0.62, 0.59, 0.67))
+			draw_string(font, Vector2(lx + 70, y + 30), "%d essence settled" % int(total), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.62, 0.59, 0.67))
+			draw_line(c + SPOTS[part], Vector2(lx - 8, y + 10), Color(col, 0.25), 1.0)
+			y += 36.0

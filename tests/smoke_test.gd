@@ -1272,10 +1272,12 @@ func _menu_tests() -> void:
 	Input.action_release("pause")
 	_check(not main.menu_open() and not paused, "Esc again resumes")
 	# Every page builds without errors.
-	for pg in ["title", "pause", "settings", "controls", "confirm_new", "dev"]:
+	for pg in ["title", "pause", "settings", "controls", "confirm_new", "dev", "body"]:
 		menu.open(pg)
 		await _frames(1)
-	_check(menu.page == "dev" and paused, "every menu page opens")
+	_check(menu.page == "body" and paused, "every menu page opens")
+	menu.open("dev")
+	await _frames(1)
 	# Dev tool: marks at any step, on any part.
 	main.dev_set_mark("heart", "deepcaller", 4)
 	_check(p.bonds.has("heart") and p.bonds["heart"].id == "deepcaller" and p.bonds["heart"].step == 4, "the dev tool puts a bond on a part at a step")
@@ -1721,6 +1723,30 @@ func _chimera_tower_tests() -> void:
 	main.victory = {}
 
 
+func _density_tests() -> void:
+	print("essence density")
+	await _fresh_main()
+	var p = main.player
+	var prof = main.profile
+	_check(prof.attribute("air") == 0.0, "a new climber has no density")
+	prof.bank({"air": 300.0, "stone": 100.0}, {"legs": 3.0, "hand": 1.0})
+	_check(prof.density.get("air", 0.0) == 300.0, "banked essence becomes density, by type")
+	_check(prof.part_density["legs"]["air"] > prof.part_density["hand"]["air"] * 2.5, "...settling in the body parts that earned it")
+	var b: float = prof.attribute("air")
+	_check(b > 0.0 and b < prof.ATTRIBUTE_CAP, "each type gives a small bonus (%.1f%%)" % (b * 100.0))
+	prof.density["air"] = 1000000.0
+	_check(prof.attribute("air") <= prof.ATTRIBUTE_CAP, "...that never passes the cap")
+	prof.density["air"] = 600.0
+	prof.density["blade"] = 600.0
+	prof.density["stone"] = 600.0
+	main._give_bonds()
+	_check(p.attr_speed > 1.05 and p.attr_strength > 1.05 and p.max_hp > p.MAX_HP, "Air speeds you up, Blade strengthens strikes, Stone adds health")
+	prof.density = {}
+	prof.part_density = {}
+	main._give_bonds()
+	_check(p.max_hp == p.MAX_HP and p.attr_speed == 1.0, "(no density, no bonus)")
+
+
 func _combat_feel_tests() -> void:
 	print("combat feel")
 	await _fresh_main()
@@ -2072,12 +2098,21 @@ func _run() -> void:
 	await _frames(1)
 	_check(main.touch_active and p.touch_aim, "first touch turns on touch controls")
 	# The joystick: a light tilt is full walking speed; the edge sprints.
-	touch._set_move(Vector2(0.5, 0.0))
+	touch.stick_origin = Vector2(200, 300)
+	touch.stick_pos = Vector2(230, 300)
+	touch._update_stick()
 	_check(is_equal_approx(Input.get_action_strength("move_right"), 1.0) and not Input.is_action_pressed("sprint"), "half a tilt on the joystick walks at full speed")
-	touch._set_move(Vector2(1.0, 0.0))
-	_check(Input.is_action_pressed("sprint"), "pushing the joystick to its edge sprints")
+	touch.stick_pos = Vector2(260, 300)
+	touch._update_stick()
+	_check(not Input.is_action_pressed("sprint"), "the inner ring's edge still only walks")
+	touch.stick_pos = Vector2(320, 300)
+	touch._update_stick()
+	_check(Input.is_action_pressed("sprint"), "dragging past the larger outer ring sprints")
 	touch._set_move(Vector2.ZERO)
 	_check(not Input.is_action_pressed("sprint") and Input.get_action_strength("move_right") == 0.0, "letting go stops")
+	# (put the stick back where the thumb went down)
+	touch.stick_origin = Vector2(200, screen.y - 200)
+	touch.stick_pos = touch.stick_origin
 	var before: Vector2 = p.global_position
 	_drag(0, Vector2(280, screen.y - 200))
 	await _frames(1)
@@ -2259,6 +2294,7 @@ func _run() -> void:
 	await _spell_tests()
 	await _menu_tests()
 	await _combat_feel_tests()
+	await _density_tests()
 	await _jump_tests()
 	await _rooms_tests()
 	await _wyvern_bond_tests()

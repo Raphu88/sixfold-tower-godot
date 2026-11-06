@@ -27,6 +27,23 @@ var climbs := 0
 var best_floor := 1
 var last_tower := "kraken"
 var pacts: Array = []  # Covenant's pact book: monster kinds bound, kept between climbs
+## Essence density: everything you've banked, by essence type, and how it
+## settled in your body parts (by what each part did). Each type is an
+## attribute and gives a small passive bonus (see attribute()).
+var density := {}  # kind -> amount
+var part_density := {}  # part -> {kind -> amount}
+
+const ATTRIBUTES := {
+	"air": {"name": "Agility", "bonus": "move speed"},
+	"blade": {"name": "Strength", "bonus": "strike damage"},
+	"stone": {"name": "Vitality", "bonus": "health"},
+	"iron": {"name": "Will", "bonus": "stamina recovery"},
+	"fire": {"name": "Intellect", "bonus": "spell power"},
+	"water": {"name": "Spirit", "bonus": "marks fill faster"},
+}
+## The bonuses are small: they grow with diminishing returns toward the cap.
+const ATTRIBUTE_CAP := 0.12
+const ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
 var saving := true
 
 
@@ -47,6 +64,8 @@ func reset() -> void:
 	climbs = 0
 	best_floor = 1
 	pacts = []
+	density = {}
+	part_density = {}
 	save()
 
 
@@ -61,6 +80,8 @@ func load_save() -> void:
 	tally = cfg.get_value("profile", "tally", {})
 	climbs = int(cfg.get_value("profile", "climbs", 0))
 	pacts = cfg.get_value("profile", "pacts", [])
+	density = cfg.get_value("profile", "density", {})
+	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 
 
@@ -77,6 +98,8 @@ func save() -> void:
 	cfg.set_value("profile", "climbs", climbs)
 	cfg.set_value("profile", "last_tower", last_tower)
 	cfg.set_value("profile", "pacts", pacts)
+	cfg.set_value("profile", "density", density)
+	cfg.set_value("profile", "part_density", part_density)
 	cfg.save(SAVE_PATH)
 
 
@@ -130,9 +153,19 @@ func add_bond(part: String, id: String, faint: bool) -> void:
 func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 	var lines: Array = []
 	var total := 0.0
+	var soaked := 0.0
+	for part in run_soak:
+		soaked += float(run_soak[part])
 	for kind in essence:
 		total += float(essence[kind])
 		tally[kind] = float(tally.get(kind, 0.0)) + float(essence[kind])
+		# Density: the essence settles in your body, by type and by part.
+		density[kind] = float(density.get(kind, 0.0)) + float(essence[kind])
+		if soaked > 0.0:
+			for part in run_soak:
+				var pd: Dictionary = part_density.get(part, {})
+				pd[kind] = float(pd.get(kind, 0.0)) + float(essence[kind]) * float(run_soak[part]) / soaked
+				part_density[part] = pd
 	for part in run_soak:
 		if not bonds.has(part):
 			soak[part] = float(soak.get(part, 0.0)) + float(run_soak[part])
@@ -159,6 +192,12 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 			var note: String = Bonds.step_note(b["id"], after)
 			lines.append("%s grows to step %d%s" % [info["name"], after, (": " + note) if note != "" else ""])
 	return lines
+
+
+## An attribute's small passive bonus (0 to ATTRIBUTE_CAP) from its density.
+func attribute(kind: String) -> float:
+	var d := float(density.get(kind, 0.0))
+	return ATTRIBUTE_CAP * d / (d + ATTRIBUTE_HALF)
 
 
 ## An unmarked body part that has soaked up enough takes a new mark.

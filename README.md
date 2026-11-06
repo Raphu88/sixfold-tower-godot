@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; push it to the edge to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, your marks' spells and weapon swap, and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; drag past the larger outer ring to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, your marks' spells and weapon swap, and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
@@ -33,6 +33,10 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
 | Music on/off | M |
 | Show/hide controls | H |
+
+## Essence density (attributes)
+
+Each essence type is an attribute: Air is Agility, Blade Strength, Stone Vitality, Iron Will, Fire Intellect and Water Spirit. Every bit of essence you bank at a stair settles in you as **density**, by type and in the body parts that earned it (split by what each part did that floor), and it's kept between climbs. Each type gives a small passive bonus that grows with diminishing returns up to 12%: Air move speed, Blade strike damage, Stone health, Iron stamina recovery, Fire spell power, Water how fast your marks fill. The **Body** page in the menu shows your six body parts with their marks and the essence settled in each, and your density and bonus for every type.
 
 ## Menus and the dev tool
 
