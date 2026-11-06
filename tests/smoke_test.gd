@@ -1860,6 +1860,244 @@ func _spell_tests() -> void:
 	await _kraken_bond_tests()
 
 
+
+func _item_tests() -> void:
+	print("items")
+	await _fresh_main()
+	var p = main.player
+	var Items = main.Items
+	_check(p.item_count("draught") == 1 and p.carried() == ["draught"], "every climb starts with one healing draught")
+	_check(InputMap.has_action("use_item") and InputMap.has_action("item_next"), "use item (G) and next item (T) are bound")
+	# The healing draught heals over a moment, not all at once.
+	p.hp = 50.0
+	_check(p.use_item(), "the draught can be drunk")
+	_check(p.item_count("draught") == 0 and p.carried().is_empty(), "...and is used up")
+	_check(p.hp < 55.0, "...it doesn't heal all at once")
+	await _wait(0.7)
+	var mid: float = p.hp
+	_check(mid > 52.0 and mid < 89.0, "...it heals over a moment (%.0f after 0.7 s)" % mid)
+	await _wait(1.3)
+	_check(absf(p.hp - 90.0) < 1.0, "a draught heals 40 health in about 1.5 s (%.0f)" % p.hp)
+	_check(not p.use_item(), "with nothing left, nothing happens")
+	# Stacks are capped.
+	for i in 5:
+		p.add_item("draught")
+	_check(p.item_count("draught") == Items.MAX_STACK, "you carry at most %d of an item" % Items.MAX_STACK)
+	p.hp = p.max_health()
+	_check(not p.use_item() and p.item_count("draught") == Items.MAX_STACK, "a draught isn't wasted at full health")
+	# The cleansing tonic: poison and burns.
+	_mark("hand", "stormcaller", 2)
+	p.add_item("tonic")
+	p.item_sel = "tonic"
+	p.bonds["hand"].burned = true
+	p.poison(5.0)
+	_check(p.use_item(), "the tonic can be drunk")
+	_check(not p.bonds["hand"].burned and p.poison_t <= 0.0, "the cleansing tonic cures poison and heals burned body parts")
+	# The essence vial fills every mark.
+	_mark("legs", "windwalker", 2)
+	p.bonds["hand"].essence = 0.0
+	p.bonds["legs"].essence = 1.0
+	p.add_item("vial")
+	p.item_sel = "vial"
+	_check(p.use_item(), "the essence vial can be used")
+	_check(p.bonds["hand"].essence >= p.bonds["hand"].capacity() - 0.01 and p.bonds["legs"].essence >= p.bonds["legs"].capacity() - 0.01, "the essence vial fills every mark")
+	p.add_item("vial")
+	p.item_sel = "vial"
+	_check(not p.use_item() and p.item_count("vial") == 1, "...and isn't wasted while they're full")
+	# The smoke bomb hides you.
+	p.add_item("smoke")
+	p.item_sel = "smoke"
+	var clouds: int = main.smokes.size()
+	_check(p.use_item() and main.smokes.size() == clouds + 1, "the smoke bomb leaves a cloud monsters lose you in")
+	# Cycling: T picks the next item you carry.
+	p.item_sel = "draught"
+	p.cycle_item()
+	_check(p.selected_item() == "vial", "the next-item key moves on to the next item you carry (%s)" % p.selected_item())
+	p.cycle_item()
+	_check(p.selected_item() == "draught", "...and wraps around")
+	# G uses the selected item through the input action.
+	p.hp = 60.0
+	var have: int = p.item_count("draught")
+	Input.action_press("use_item")
+	await physics_frame
+	await physics_frame
+	Input.action_release("use_item")
+	await _frames(2)
+	_check(p.item_count("draught") == have - 1, "pressing G uses the selected item")
+	await _wait(1.7)
+	# Drops: slain monsters sometimes leave an item.
+	main.item_drop_chance = 1.0
+	p.items = {}
+	var slime = await _spawn("slime", p.global_position + Vector2(140, 0))
+	_slay(slime)
+	main.item_drop_chance = Items.DROP_CHANCE
+	_check(main.item_drops.size() == 1, "a slain monster can leave an item")
+	if main.item_drops.size() == 1:
+		var id: String = main.item_drops[0]["id"]
+		p.global_position = main.item_drops[0]["pos"]
+		await _wait(0.3)
+		_check(p.item_count(id) == 1 and main.item_drops.is_empty(), "walking over it picks it up (%s)" % id)
+	main.item_drop_chance = 0.0
+	var other = await _spawn("slime", p.global_position + Vector2(140, 0))
+	_slay(other)
+	_check(main.item_drops.is_empty(), "(no drop when the dice say no)")
+	main.item_drop_chance = Items.DROP_CHANCE
+	await _wait(0.3)
+
+	print("Steady Hands and items")
+	await _fresh_main()
+	p = main.player
+	p.hp = 20.0
+	p.use_item()
+	var plain_amount: float = p.heal_left
+	var plain_time: float = p.heal_left / p.heal_rate
+	p.heal_left = 0.0
+	_mark("brow", "surgeon", 2)
+	p.hp = 20.0
+	p.add_item("draught")
+	p.use_item()
+	var steady_amount: float = p.heal_left
+	var steady_time: float = p.heal_left / p.heal_rate
+	_check(steady_amount >= plain_amount * 1.29, "Steady Hands: healing items heal 30%% more (%.0f vs %.0f)" % [steady_amount, plain_amount])
+	_check(steady_time < plain_time - 0.3, "...and work faster (%.2f s vs %.2f s)" % [steady_time, plain_time])
+	p.heal_left = 0.0
+
+	print("the item button on a phone")
+	await _fresh_main()
+	p = main.player
+	_mark("hand", "stormcaller", 1)
+	_mark("legs", "windwalker", 1)
+	_mark("heart", "deepcaller", 1)
+	_mark("brow", "warden", 1)
+	_mark("throat", "flameblade", 1)
+	_mark("back", "ashwalker", 1)
+	main.touch._set_active(true)
+	await _frames(2)
+	main.touch._layout()
+	var buttons: Array = main.touch.buttons
+	var ids: Array = buttons.map(func(b): return b["id"])
+	_check("item" in ids and "item_next" in ids, "the phone layout has an item button and a next-item button")
+	var clear := true
+	var view: Vector2 = main.touch.get_viewport_rect().size
+	for b in buttons:
+		if not (b["id"] in ["item", "item_next"]):
+			continue
+		clear = clear and Rect2(Vector2.ZERO, view).has_point(b["c"])
+		for o in buttons:
+			if o != b and b["c"].distance_to(o["c"]) < b["r"] + o["r"] + 2.0:
+				clear = false
+				print("    overlaps: ", b["id"], " and ", o["id"])
+	_check(clear, "the item buttons are on screen and don't overlap any other button, even with six marks")
+	p.hp = 60.0
+	var item_btn: Dictionary = buttons[ids.find("item")]
+	_touch(4, item_btn["c"], true)
+	await _wait(0.15)
+	_touch(4, item_btn["c"], false)
+	await _frames(2)
+	_check(p.item_count("draught") == 0, "tapping the item button uses the item")
+	p.add_item("draught")
+	p.add_item("tonic")
+	p.item_sel = "draught"
+	var next_btn: Dictionary = buttons[ids.find("item_next")]
+	_touch(5, next_btn["c"], true)
+	await _wait(0.15)
+	_touch(5, next_btn["c"], false)
+	await _frames(2)
+	_check(p.selected_item() == "tonic", "tapping the small arrow picks the next item")
+	main.touch._set_active(false)
+	await _frames(2)
+
+
+func _camp_tests() -> void:
+	print("camps")
+	await _fresh_main()
+	var p = main.player
+	var Items = main.Items
+	main.floor_num = 3
+	_check(not main._camp_due(), "no camp on the bondless first climb")
+	_mark("hand", "stormcaller", 1)
+	main.floor_num = 2
+	main._arrive()
+	_check(main.floor_num == 3 and not main.in_camp, "floor 2's stair leads on to floor 3")
+	p.hp = 30.0
+	p.bonds["hand"].burned = true
+	main._arrive()
+	await _frames(2)
+	_check(main.in_camp and main.camp_choosing, "floor 3's stair leads to a camp")
+	_check(main._floor_title() == "CAMP", "the HUD says CAMP")
+	_check(main.enemies().is_empty(), "the camp is safe: no monsters")
+	_check(main.campfire != null and is_instance_valid(main.campfire), "the camp has a campfire")
+	_check(p.hp == p.max_health() and not p.bonds["hand"].burned, "a full rest by the fire")
+	_check(main.camp["choices"].size() == Items.CAMP_CHOICES, "three items to choose from")
+	var distinct := {}
+	for c in main.camp["choices"]:
+		distinct[c] = true
+	_check(distinct.size() == Items.CAMP_CHOICES, "...all different")
+	var pick: String = main.camp["choices"][1]
+	var had: int = p.item_count(pick)
+	Input.action_press("weapon_2")
+	await _frames(2)
+	Input.action_release("weapon_2")
+	await _frames(2)
+	_check(p.item_count(pick) == had + 1 and not main.camp_choosing, "pressing 2 takes the second item (%s)" % pick)
+	_check(p.is_physics_processing(), "then you're free to walk")
+	await _frames(3)
+	_check(main.stair_open, "the camp's stair is open")
+	p.global_position = main.stair_pos
+	await _wait(1.6)
+	_check(main.floor_num == 4 and not main.in_camp and main.campfire == null, "the camp's stair leads on to floor 4")
+	_check(main.enemies().size() > 0, "floor 4 has monsters again")
+	main._arrive()
+	_check(main.floor_num == 5 and not main.in_camp, "one camp a climb: floor 4 leads straight to the beast")
+
+	print("Runesmith at a camp")
+	await _fresh_main()
+	p = main.player
+	_mark("hand", "rune_artist", 2)
+	main.floor_num = 3
+	main._arrive()
+	await _frames(2)
+	_check(main.camp_choosing and main.camp["stage"] == "item", "a Rune Artist picks an item first")
+	main.choose_camp(0)
+	_check(main.camp_choosing and main.camp["stage"] == "rune" and main.camp["choices"].size() == 4, "then Runesmith offers three gear runes or a crafted item")
+	# Tap the Warding card on the phone.
+	main.touch._set_active(true)
+	await _frames(2)
+	var view: Vector2 = main.hud.get_viewport_rect().size
+	var at: Vector2 = main.hud.camp_card_rect(1, view).get_center()
+	_check(main.hud.camp_card_at(at) == 1, "the cards can be found under a tap")
+	_touch(6, at, true)
+	await _frames(2)
+	_touch(6, at, false)
+	await _frames(2)
+	_check(not main.camp_choosing and p.rune_gear == "warding", "tapping the Warding card inscribes it on your gear (%s)" % p.rune_gear)
+	main.touch._set_active(false)
+	await _frames(2)
+	main._arrive()
+	_check(main.floor_num == 4 and p.rune_gear == "warding", "a camp's rune lasts past the next stair")
+	main._arrive()
+	_check(main.floor_num == 5 and p.rune_gear == "warding", "...all the way to the beast")
+	# Or craft an item instead.
+	await _fresh_main()
+	p = main.player
+	_mark("hand", "rune_artist", 2)
+	main.floor_num = 3
+	main._arrive()
+	main.choose_camp(0)
+	var craft: String = String(main.camp["choices"][3]).substr(6)
+	var before: int = p.item_count(craft)
+	main.choose_camp(3)
+	_check(p.item_count(craft) == mini(before + 1, Items.MAX_STACK) and p.rune_gear == "", "Runesmith can craft one more item instead (%s)" % craft)
+	# Without Runesmith, one pick and you're done.
+	await _fresh_main()
+	p = main.player
+	_mark("hand", "stormcaller", 2)
+	main.floor_num = 3
+	main._arrive()
+	main.choose_camp(2)
+	_check(not main.camp_choosing, "without Runesmith a camp offers just the one pick")
+
+
 func _spawn(kind: String, pos: Vector2):
 	var e = main.EnemyScript.new()
 	e.setup(kind, main)
@@ -2265,8 +2503,8 @@ func _run() -> void:
 	_check(main.best_floor >= 2, "best floor recorded")
 	_check(main.run_essence.is_empty(), "the stair banks your essence")
 	_check(main.profile.bonds["hand"]["xp"] > xp0, "banked essence strengthens your marks")
-	# Skip ahead a few floors.
-	for i in 2:
+	# Skip ahead a few floors (floor 3's stair leads to the camp first).
+	for i in 3:
 		main._arrive()
 	await _frames(3)
 	_check(main.floor_num == 4, "climbed to floor 4")
@@ -2302,6 +2540,8 @@ func _run() -> void:
 	await _firebird_bond_tests()
 	await _chimera_bond_tests()
 	await _body_part_tests()
+	await _item_tests()
+	await _camp_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.

@@ -6,6 +6,7 @@ const BondScript := preload("res://scripts/bond.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const Items := preload("res://scripts/items.gd")
 
 ## Damage multiplier for striking a foe from behind.
 const BACKSTAB_MULT := 1.5
@@ -108,6 +109,11 @@ var thunderhead_t := 0.0  # Stormcaller's Thunderhead
 var hawk_t := 0.0  # Hunter's Hawk's Eye
 var quarry  # Hunter's Quarry: the last foe you struck
 var overlay: Node2D  # unlit layer for swing trails and rings
+# Items (items.gd): what you carry, and healing that is still working.
+var items := Items.START.duplicate()  # item id -> count
+var item_sel := ""  # the item G uses
+var heal_left := 0.0
+var heal_rate := 0.0
 
 
 func _ready() -> void:
@@ -338,6 +344,10 @@ func _read_buffer() -> void:
 		pressed = "attack"
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
+	elif Input.is_action_just_pressed("use_item"):
+		pressed = "item"
+	if Input.is_action_just_pressed("item_next"):
+		cycle_item()
 	# A mark's key: tap to cast its selected spell, hold to pick another
 	# (see _update_pick). The cast is buffered when the key is released.
 	for part in BondScript.Bonds.PARTS:
@@ -379,6 +389,9 @@ func _try_action(action: String, input: Vector2) -> bool:
 			return _try_attack()
 		"parry":
 			return _try_parry()
+		"item":
+			use_item()
+			return true
 	if action.begins_with("cast_"):
 		return _try_cast(action.substr(5))
 	return true
@@ -402,6 +415,7 @@ func _tick_timers(delta: float) -> void:
 	sta_delay -= delta
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
+	_tick_healing(delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
 		sta = minf(MAX_STA, sta + STA_REGEN * attr_will * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
@@ -849,6 +863,7 @@ var bladeward_r := 48.0
 var bladeward_tick := 0.0
 var bladeward_color := Color(0.65, 0.89, 0.71)
 var rune_gear := ""  # Inscribe: "sharpness", "warding" or "swiftness" for this floor
+var camp_rune := ""  # Runesmith: a rune inscribed at a camp, for the rest of the climb
 
 # The Manticore's bonds.
 var neuro_t := 0.0  # Neurotoxin: the next hit on a poisoned foe paralyzes it
@@ -1496,3 +1511,70 @@ func _draw_weapon(xf: Transform2D) -> void:
 				Draw.stroke(self, nock, nock + dir * (18.0 + 14.0 * k), Palette.WOOD.lightened(0.2), 1.6)
 				draw_circle(nock + dir * (19.0 + 14.0 * k), 2.0, Palette.STEEL)
 			Draw.ball(self, grip + side * 0.5, 3.2, Palette.CLIMBER_SKIN)
+
+
+# --- items -------------------------------------------------------------------------
+
+## The items you carry, in their usual order.
+func carried() -> Array:
+	return Items.ORDER.filter(func(id): return int(items.get(id, 0)) > 0)
+
+
+func item_count(id: String) -> int:
+	return int(items.get(id, 0))
+
+
+## The item G uses (the first you carry if none is picked).
+func selected_item() -> String:
+	if item_count(item_sel) > 0:
+		return item_sel
+	var have := carried()
+	return have[0] if not have.is_empty() else ""
+
+
+## Picks up an item. False if you already carry as many as you can.
+func add_item(id: String) -> bool:
+	if not Items.ITEMS.has(id) or item_count(id) >= Items.MAX_STACK:
+		return false
+	items[id] = item_count(id) + 1
+	if item_count(item_sel) <= 0:
+		item_sel = id
+	return true
+
+
+## Switches G to the next item you carry.
+func cycle_item() -> void:
+	var have := carried()
+	if have.is_empty():
+		return
+	var i := have.find(selected_item())
+	item_sel = have[(i + 1) % have.size()]
+	main.fx_text(global_position + Vector2(0, -40), Items.ITEMS[item_sel]["name"], Items.color(item_sel))
+	main.sfx("step", 1.4, -6.0)
+
+
+## Uses the selected item. True if it was used up.
+func use_item() -> bool:
+	if dead:
+		return false
+	var id := selected_item()
+	if id == "":
+		main.fx_text(global_position + Vector2(0, -40), "No items", Color(0.7, 0.68, 0.75))
+		return false
+	if not Items.use(id, self):
+		return false
+	items[id] = item_count(id) - 1
+	if item_count(id) <= 0:
+		items.erase(id)
+		item_sel = selected_item()
+	return true
+
+
+## Healing items heal over a moment, not all at once.
+func _tick_healing(delta: float) -> void:
+	if heal_left <= 0.0 or dead:
+		heal_left = 0.0
+		return
+	var h := minf(heal_left, heal_rate * delta)
+	hp = minf(max_health(), hp + h)
+	heal_left -= h

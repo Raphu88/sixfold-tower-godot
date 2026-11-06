@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; drag past the larger outer ring to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, your marks' spells and weapon swap, and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; drag past the larger outer ring to sprint), and buttons on the right for attack (hold to draw the bow), roll, parry, your marks' spells and weapon swap, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
@@ -28,11 +28,32 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Switch weapon | 1 Fists, 2 Sword, 3 Bow, or the mouse wheel |
 | Parry | Right click or K |
 | Cast your marks (hand, legs, heart, brow, throat, back) | Q, E, F, C, X, V |
+| Use your item | G, or the Item button on a phone |
+| Next item | T, or the small arrow button beside Item on a phone |
+| Choose a camp card | 1 to 4, click, or tap the card |
 | Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone |
 | Restart | R |
 | New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
 | Music on/off | M |
 | Show/hide controls | H |
+
+## Items and camps
+
+**Items** (`scripts/items.gd`, where their names, text and numbers live) are carried through the climb and lost when it ends. You can carry up to 3 of each kind. **G** (or the Item button) uses the selected item and **T** (or the small arrow) picks the next; the HUD shows what you carry beside the weapons, with counts, and the selected one outlined in gold. An item that would do nothing (a draught at full health, a vial with full marks) isn't used up.
+
+| Item | What it does |
+| --- | --- |
+| Healing Draught | heals 40 health over 1.5 seconds |
+| Cleansing Tonic | cures poison, heals every burned body part, and a little health |
+| Essence Vial | fills every mark with essence |
+| Smoke Bomb | a cloud of smoke around you: monsters inside lose track of you (beasts don't) |
+
+Every climb starts with one Healing Draught. Slain monsters (not beasts) sometimes leave an item (8%); walk over it to pick it up.
+
+**Camps.** On a five-floor climb, floor 3's stair leads first to a **camp**: the open room with a campfire and no monsters. You rest fully (all health and stamina, burns and poison healed), then choose one of three items from cards (keys 1 to 3, click, or tap). Then take the stair on to floor 4. Each climb has one camp; the bondless first climb has none.
+
+- **Surgeon's Steady Hands:** healing items heal 30% more and work faster.
+- **Rune Artist's Runesmith:** after taking an item at a camp, a Rune Artist also chooses a rune for their gear (Sharpness, Warding or Swiftness, as with Inscribe) that lasts the rest of the climb, the beast included, or crafts one more item. Casting Inscribe still changes the rune for one floor.
 
 ## Essence density (attributes)
 
@@ -113,7 +134,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 - **The Wyvern's bonds (complete):**
   - **Blade Forger** (Iron). Body: Long Edge (melee strikes reach farther). Passive: Weapon Memory (conjured blades copy the weapon you hold: more, smaller knives with fists; fast, harder darts with the bow). Spells: Conjured Blades, Recall (blades fly out and come back, cutting again on the way), Conjured Blades changed (five blades), Bladeward (blades orbit you for 6 seconds, cutting anything close), Thousand Edges (a storm of blades toward your aim).
   - **Flameblade** (Fire). Body: Hot Blood (strike chains never slow down; even the finisher recovers fast). Passive: Heat (each strike in a row heats your weapon, up to half again as much damage; it fades if you stop striking; shown as an arc around you). Spells: Kindle Blade (your weapon burns for 6 seconds: extra damage and heat builds twice as fast), Flame Lash (a wave of fire), Kindle Blade changed (lasts as long as you keep landing strikes), Searing Parry (kindles your weapon; while it burns, a parry explodes against the attacker), Overheat (release all your heat in one huge blow).
-  - **Rune Artist** (Iron). Body: Steady Mind (every spell from every bond winds up 30% faster). Passive: Runesmith (enchant gear and craft at camps: waits for camps and items, which aren't in the game yet). Spells: Rune Trap (a rune on the floor that detonates under a foe; up to 3), Inscribe (a rune on your gear for the floor: sharpness, warding or swiftness, changing each cast), Linked Runes (step 3: setting off one rune sets off them all), Ward Circle (foes can't enter it for 5 seconds), Grand Sigil (inside it, your spells cost nothing for 6 seconds).
+  - **Rune Artist** (Iron). Body: Steady Mind (every spell from every bond winds up 30% faster). Passive: Runesmith (at a camp, also inscribe a rune on your gear for the rest of the climb, or craft one more item). Spells: Rune Trap (a rune on the floor that detonates under a foe; up to 3), Inscribe (a rune on your gear for the floor: sharpness, warding or swiftness, changing each cast), Linked Runes (step 3: setting off one rune sets off them all), Ward Circle (foes can't enter it for 5 seconds), Grand Sigil (inside it, your spells cost nothing for 6 seconds).
 - **The Manticore's bonds (complete):**
   - **Sandshaper** (Stone). Body: Rooted Stance (you can't be knocked back or slowed by water). Passive: Shifting Sands (foes walking up to you slow in their last few steps; never an attack already under way). Spells: Quake (hurts foes around you and leaves rubble that slows them), Sand Wall (a wall across your aim that blocks foes and their shots for 5 seconds; you can walk through your own walls), Quake changed (also throws up a ring of low walls), Sinkhole (a pit at your aim swallows a small foe, or traps a large one), Fault Line (a long split in the floor foes can't cross for 8 seconds).
   - **Venomist** (Stone). Body: Venom Glands (weapon strikes add a stack of poison). Passive: Toxin Build (poison stacks up to 12, and each stack makes it last longer; green drops show the stacks). Spells: Venom Spit, Toxic Cloud (poisons foes standing in it), Venom Spit changed (pierces), Neurotoxin (your next hit on a poisoned foe paralyzes it for 2 seconds), Virulence (every poisoned foe takes all its remaining poison at once).
@@ -125,7 +146,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 - **The Chimera's bonds (complete):**
   - **Covenant** (Blade). Body: Pack Stride (faster with one of your creatures nearby). Passive: Kinship (monsters of a kind in your pact book are slower to notice you). Spells: Bind and Call (aimed at a monster below a quarter of its health it binds that kind into your **pact book**, kept between climbs; otherwise it calls the next creature of your retinue, the first three kinds in the book, to fight beside you for 30 seconds; a spirit familiar until you've bound one), Command (aimed at a foe, every creature attacks it; aimed at no one, they guard you), Bind and Call changed (each Call brings two), Exchange (swap places with your nearest creature), Grand Call (every creature in your book at once for 12 seconds; drains the mark). Never more than three creatures out at once (Grand Call aside); creatures are as strong as your mark's step, can be killed, and leave when you take the stair. Monsters fight a creature that's closer than you.
   - **Grafter** (Blade). Body: Adaptive Flesh (each graft strengthens its body part's basic action: hand strikes +20%, legs rolls cheaper and longer, heart takes 15% less damage, brow parry window +25%, throat stamina +25%, back backstabs hit harder). Passive: Grafting (slain monsters sometimes leave a graft; walk over it to bind it to its body part, one per part, for the rest of the climb). Spells: Graft Burst (hit everything around you, harder for each graft), Mimic (your newest graft's monster trick, once), Graft Burst changed (each graft adds its own effect), Shed (cast off a graft to heal its part's burn in a burst), Chimera Form (every graft's power doubled for 10 seconds).
-  - **Surgeon** (Blade). Body: Steady Hands (healing heals more, including the stair's rest; potions and items will too once they exist). Passive: Diagnosis (you see every foe's health and a note on what it's weak to). Spells: Sever (cripples a foe: it can't run or charge), Mend (heals you and nearby creatures, cures poison), Sever changed (a crippled foe is disarmed instead: it can't attack), Transfer (move your burns and poison onto a foe), Amputate (a foe below half health is crippled and disarmed for the rest of the fight).
+  - **Surgeon** (Blade). Body: Steady Hands (healing heals more, including the stair's rest and healing items, which also work faster). Passive: Diagnosis (you see every foe's health and a note on what it's weak to). Spells: Sever (cripples a foe: it can't run or charge), Mend (heals you and nearby creatures, cures poison), Sever changed (a crippled foe is disarmed instead: it can't attack), Transfer (move your burns and poison onto a foe), Amputate (a foe below half health is crippled and disarmed for the rest of the fight).
 - **Overdraw:** casting without enough essence still works, but the cast is weaker (70%) and the body part **burns**. Overdraw a burned mark again and it **tears**: the missing essence comes out of your health, so spamming spells can kill you.
 - **Burns** last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window, throat slows stamina recovery, back loses the backstab bonus.
 
@@ -171,6 +192,8 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/profile.gd` | What carries over between climbs: marks, growth, soak, the save |
 | `scripts/floors.gd` | Builds each floor: pillar layouts, monster groups, toughness |
 | `scripts/towers.gd` | The towers: beast, essence, monster mix, look |
+| `scripts/items.gd` | Items (names, effects, drop chances, icons) and what a camp offers |
+| `scripts/campfire.gd` | A camp's campfire, drawn in code with its light |
 | `scripts/enemy.gd` | Slime, archer and knight |
 | `scripts/projectile.gd` | Enemy arrows |
 | `scripts/fx.gd` | Floating text, lightning and wind cones |
