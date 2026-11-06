@@ -2071,6 +2071,13 @@ func _run() -> void:
 	_touch(0, Vector2(200, screen.y - 200), true)
 	await _frames(1)
 	_check(main.touch_active and p.touch_aim, "first touch turns on touch controls")
+	# The joystick: a light tilt is full walking speed; the edge sprints.
+	touch._set_move(Vector2(0.5, 0.0))
+	_check(is_equal_approx(Input.get_action_strength("move_right"), 1.0) and not Input.is_action_pressed("sprint"), "half a tilt on the joystick walks at full speed")
+	touch._set_move(Vector2(1.0, 0.0))
+	_check(Input.is_action_pressed("sprint"), "pushing the joystick to its edge sprints")
+	touch._set_move(Vector2.ZERO)
+	_check(not Input.is_action_pressed("sprint") and Input.get_action_strength("move_right") == 0.0, "letting go stops")
 	var before: Vector2 = p.global_position
 	_drag(0, Vector2(280, screen.y - 200))
 	await _frames(1)
