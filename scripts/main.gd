@@ -1207,6 +1207,11 @@ func menu_open() -> bool:
 	return menu != null and menu.is_open()
 
 
+## True while the title screen (or a page opened from it) covers the game.
+func title_showing() -> bool:
+	return menu != null and menu.backdrop_showing()
+
+
 # --- dev tool ----------------------------------------------------------------
 
 ## Puts a bond on a body part at a step ("" removes the mark). Saved.

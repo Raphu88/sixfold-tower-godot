@@ -61,7 +61,7 @@ Each essence type is an attribute: Air is Agility, Blade Strength, Stone Vitalit
 
 ## Menus and the dev tool
 
-The game opens on a **title screen** (Climb, Settings, Dev tools, New climber). During a climb, **Esc** or **P** (or **Menu** on a phone) pauses and opens the **pause menu**: Resume, Restart this climb, Settings, Controls, Dev tools, New climber, Quit to title. **Settings** has music and sound volume, screen shake, and the keyboard controls panel; they're saved.
+The game opens on a **title screen** that covers the whole game: a tower drawn in code against a night sky, with lit windows, a moon, mist and drifting motes in the six essence colours (`scripts/title.gd`; the name, tagline and footer text are in its `TEXT` list). Its buttons are **Continue** (or **Begin your first climb** for a new climber), **Body**, **Settings**, **Dev tools** and **New climber** (only once you have marks to lose), with a line showing your marks and best floor. Arrow keys and Enter, the mouse, or a tap all work; Esc does nothing there. Pages opened from the title show over its backdrop and **Back** returns to it. Leaving the title takes you to the tower choice. During a climb, **Esc** or **P** (or **Menu** on a phone) pauses and opens the **pause menu**: Resume, Restart this climb, Settings, Controls, Dev tools, New climber, Quit to title. **Settings** has music and sound volume, screen shake, and the keyboard controls panel; they're saved.
 
 The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `main.gd`):
 - **Marks:** give any bond to any body part with the arrows, and set its step from 1 to 5. Changes are saved, and giving a mark ends the bondless first climb. Fill essence, or clear every mark.
@@ -212,6 +212,7 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/fx.gd` | Floating text, lightning and wind cones |
 | `scripts/hud.gd` | Health, stamina, bond bars and help text |
 | `scripts/menu.gd` | Title screen, pause menu, settings, controls list and dev tools |
+| `scripts/title.gd` | The title screen's drawing: sky, tower, motes, the name and tagline |
 | `scripts/controls.gd` | Input actions, set up in code |
 | `scripts/touch.gd` | On-screen touch controls |
 | `export_presets.cfg` | Web export settings |

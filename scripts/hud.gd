@@ -61,8 +61,8 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var p = main.player
-	if p == null:
-		return
+	if p == null or main.title_showing():
+		return  # (the title screen covers everything)
 	var font := ThemeDB.fallback_font
 	var size := get_viewport_rect().size
 

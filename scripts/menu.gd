@@ -9,6 +9,7 @@ const Bonds := preload("res://scripts/bonds.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Towers := preload("res://scripts/towers.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
+const TitleScript := preload("res://scripts/title.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -27,6 +28,9 @@ var scroll: ScrollContainer
 var toast := ""
 var toast_t := 0.0
 var confirm_back := ""  # the page "Cancel" returns to
+var backdrop: Control  # the title screen's drawing (title.gd), behind the title and its pages
+var shade: ColorRect
+var center: CenterContainer
 
 
 func _ready() -> void:
@@ -34,13 +38,16 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	theme = _make_theme()
-	var shade := ColorRect.new()
+	backdrop = TitleScript.new()
+	backdrop.hide()
+	add_child(backdrop)
+	shade = ColorRect.new()
 	shade.color = Color(0.03, 0.03, 0.05, 0.78)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 	panel = PanelContainer.new()
@@ -144,9 +151,28 @@ func _process(delta: float) -> void:
 			close()
 		else:
 			open("title" if _from_title() else "pause")
-	# Keep the panel inside the screen (phones draw everything bigger).
+	_layout()
+
+
+## Keeps the panel inside the screen (phones draw everything bigger). On the
+## title the buttons sit in the column under the name, left of the tower.
+func _layout() -> void:
 	var s := get_viewport_rect().size
-	scroll.custom_minimum_size = Vector2(minf(560.0, s.x - 40.0), minf(_wanted_height(), s.y - 40.0))
+	if page == "title":
+		backdrop.menu_h = _wanted_height()
+		var r: Rect2 = backdrop.menu_rect(s)
+		center.position = r.position
+		center.size = r.size
+		scroll.custom_minimum_size = Vector2(minf(300.0, r.size.x - 40.0), minf(_wanted_height(), r.size.y))
+	else:
+		center.position = Vector2.ZERO
+		center.size = s
+		scroll.custom_minimum_size = Vector2(minf(560.0, s.x - 40.0), minf(_wanted_height(), s.y - 40.0))
+
+
+## True while the title screen (or a page opened from it) covers the game.
+func backdrop_showing() -> bool:
+	return is_open() and backdrop.visible
 
 
 var opened_from_title := false
@@ -168,6 +194,15 @@ func open(which: String) -> void:
 		opened_from_title = false
 	page = which
 	show()
+	# The title's drawing stays behind the pages opened from it.
+	backdrop.visible = which == "title" or (opened_from_title and which != "pause")
+	backdrop.show_name = which == "title"
+	shade.visible = which != "title"
+	shade.color.a = 0.6 if backdrop.visible else 0.78
+	if which == "title":
+		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	else:
+		panel.remove_theme_stylebox_override("panel")
 	get_tree().paused = true
 	if main != null and main.touch != null:
 		main.touch.release_all()
@@ -176,6 +211,7 @@ func open(which: String) -> void:
 		c.queue_free()
 	scroll.scroll_vertical = 0
 	call("_page_" + which)
+	_layout()
 	# Keyboard players: start on the first button.
 	for c in box.get_children():
 		var b := _first_button(c)
@@ -203,24 +239,58 @@ func _first_button(n: Node) -> Button:
 
 # --- pages -------------------------------------------------------------------
 
+## The title screen: the drawing (title.gd) shows the name; these are its
+## buttons and a line about the climber.
 func _page_title() -> void:
-	_heading("SIXFOLD TOWER", 40)
 	var prof = main.profile
-	var sub := "A new climber. You bear no mark yet."
+	var primary := _button("Begin your first climb" if not prof.regarded else "Continue", _leave_title)
+	_title_button(primary, true)
+	_title_button(_button("Body", open.bind("body")))
+	_title_button(_button("Settings", open.bind("settings")))
+	_title_button(_button("Dev tools", open.bind("dev")))
 	if prof.regarded:
-		var names: Array = []
-		for part in Bonds.PARTS:
-			if prof.bonds.has(part):
-				names.append(Bonds.BONDS[prof.bonds[part]["id"]]["name"])
-		sub = "Marks: %s  ·  best floor %d" % [", ".join(names) if not names.is_empty() else "none", prof.best_floor]
-	_text(sub, DIM, true)
-	_gap()
-	_button("Begin your first climb" if not prof.regarded else "Climb", _leave_title)
-	_button("Body", open.bind("body"))
-	_button("Settings", open.bind("settings"))
-	_button("Dev tools", open.bind("dev"))
-	if prof.regarded:
-		_button("New climber", _ask_new.bind("title"))
+		_title_button(_button("New climber", _ask_new.bind("title")))
+	_gap(2)
+	_text(_title_status(), DIM, true)
+	var l: Label = box.get_child(box.get_child_count() - 1)
+	l.add_theme_font_size_override("font_size", 13)
+	l.custom_minimum_size.x = 0.0
+
+
+## Marks carried and best floor (or a word for a new climber).
+func _title_status() -> String:
+	var prof = main.profile
+	if not prof.regarded:
+		return "A new climber. You bear no mark yet."
+	var names: Array = []
+	for part in Bonds.PARTS:
+		if prof.bonds.has(part):
+			names.append(Bonds.BONDS[prof.bonds[part]["id"]]["name"])
+	return "Marks: %s\nBest floor %d" % [", ".join(names) if not names.is_empty() else "none", prof.best_floor]
+
+
+## The title's buttons: see-through over the sky, the first one gilded.
+func _title_button(b: Button, primary := false) -> void:
+	b.custom_minimum_size.y = 40.0 if primary else 36.0
+	b.add_theme_font_size_override("font_size", 18 if primary else 16)
+	for state in ["normal", "hover", "pressed"]:
+		var st := StyleBoxFlat.new()
+		st.set_corner_radius_all(6)
+		st.content_margin_left = 12
+		st.content_margin_right = 12
+		st.content_margin_top = 6
+		st.content_margin_bottom = 6
+		st.set_border_width_all(1)
+		var bg := Color(0.24, 0.17, 0.09, 0.88) if primary else Color(0.08, 0.075, 0.11, 0.72)
+		if state == "hover":
+			bg = bg.lightened(0.12)
+		elif state == "pressed":
+			bg = Color(0.3, 0.25, 0.18, 0.95)
+		st.bg_color = bg
+		st.border_color = Color(GOLD, 0.75 if primary else 0.22)
+		b.add_theme_stylebox_override(state, st)
+	if primary:
+		b.add_theme_color_override("font_color", GOLD)
 
 
 func _page_pause() -> void:

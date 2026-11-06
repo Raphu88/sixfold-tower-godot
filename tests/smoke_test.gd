@@ -1582,6 +1582,104 @@ func _menu_tests() -> void:
 	_check(not paused and not main.menu_open(), "closing the menu resumes")
 
 
+## A button on the menu with this text, or null.
+func _menu_button(text: String) -> Button:
+	for b in main.menu.find_children("*", "Button", true, false):
+		if b.text == text and b.is_visible_in_tree():
+			return b
+	return null
+
+
+func _tap_at(pos: Vector2) -> void:
+	_touch(0, pos, true)
+	await _frames(2)
+	_touch(0, pos, false)
+	await _frames(2)
+
+
+func _title_tests() -> void:
+	print("the title screen")
+	await _fresh_main()
+	var menu = main.menu
+	# A fresh start: the title shows over a climb waiting for its tower.
+	main.choosing_tower = true
+	menu.open("title")
+	await _frames(3)
+	_check(menu.page == "title" and menu.backdrop != null and menu.backdrop.visible and menu.backdrop.get_script() == load("res://scripts/title.gd"), "the title page builds its drawn backdrop")
+	_check(menu.backdrop.get_child_count() == 3 and menu.backdrop.motes.size() <= 40, "...in three layers with a few dozen motes")
+	_check(main.title_showing() and main.menu_open(), "the HUD and touch controls hide while the title shows")
+	var first := _menu_button("Begin your first climb")
+	_check(first != null and _menu_button("New climber") == null, "a new climber is offered the first climb (and nothing to lose)")
+	_check(_menu_button("Body") != null and _menu_button("Settings") != null and _menu_button("Dev tools") != null, "the title has Body, Settings and Dev tools")
+	_check(first != null and first.has_focus(), "keyboard: the first button has focus")
+	var vis := root.get_visible_rect()
+	var inside := true
+	for b in menu.find_children("*", "Button", true, false):
+		inside = inside and vis.encloses(b.get_global_rect())
+	_check(inside, "every title button is on screen")
+	# Esc does nothing on the title.
+	Input.action_press("pause")
+	await _frames(2)
+	Input.action_release("pause")
+	await _frames(2)
+	_check(menu.page == "title" and paused, "Esc does nothing on the title")
+	# Body and Settings open over the title's backdrop; Back returns.
+	_menu_button("Body").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "body" and menu.backdrop.visible and not menu.backdrop.show_name, "Body opens over the title backdrop")
+	_menu_button("Back").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "title" and menu.backdrop.show_name, "...and Back returns to the title")
+	# Phones: a tap on a title button works (and switches to the phone layout).
+	await _tap_at(_menu_button("Settings").get_global_rect().get_center())
+	_check(menu.page == "settings" and menu.backdrop.visible, "tapping Settings on a phone opens it over the title")
+	_check(main.touch.active and is_equal_approx(root.content_scale_factor, 1.5), "...and the phone layout is on")
+	await _tap_at(_menu_button("Back").get_global_rect().get_center())
+	_check(menu.page == "title", "tapping Back returns to the title")
+	await _frames(2)
+	vis = root.get_visible_rect()
+	inside = true
+	for b in menu.find_children("*", "Button", true, false):
+		inside = inside and vis.encloses(b.get_global_rect())
+	_check(inside, "every title button fits the phone layout")
+	# The pause menu doesn't show the title's backdrop.
+	menu.open("pause")
+	await _frames(1)
+	_check(not menu.backdrop.visible and not main.title_showing(), "the pause menu has no title backdrop")
+	menu.open("title")
+	await _frames(2)
+	# Tapping Begin leaves the title for the tower choice.
+	await _tap_at(_menu_button("Begin your first climb").get_global_rect().get_center())
+	_check(not main.menu_open() and not paused and not main.title_showing(), "tapping Begin leaves the title")
+	_check(main.choosing_tower and Engine.has_meta("sixfold_title_seen"), "...and shows the tower choice")
+	Engine.remove_meta("sixfold_title_seen")
+	main.touch._set_active(false)
+	main.player.touch_aim = false
+	# A climber with marks: Continue, a status line and New climber.
+	main.grant_test_bonds()
+	menu.open("title")
+	await _frames(2)
+	var cont := _menu_button("Continue")
+	_check(cont != null and _menu_button("New climber") != null, "a marked climber sees Continue and New climber")
+	var status := false
+	for l in menu.find_children("*", "Label", true, false):
+		if l.text.begins_with("Marks: ") and "Best floor" in l.text:
+			status = true
+	_check(status, "the title shows marks carried and best floor")
+	_menu_button("New climber").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "confirm_new" and menu.backdrop.visible, "New climber asks over the title backdrop")
+	_menu_button("Cancel").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "title", "...and Cancel returns to the title")
+	_menu_button("Continue").pressed.emit()
+	await _frames(2)
+	_check(not main.menu_open() and main.choosing_tower, "Continue leaves the title for the tower choice")
+	Engine.remove_meta("sixfold_title_seen")
+	main.choose_tower("kraken")
+	await _frames(2)
+
+
 func _wyvern_tower_tests() -> void:
 	print("the Wyvern's tower")
 	await _fresh_main()
@@ -2830,6 +2928,7 @@ func _run() -> void:
 	await _chimera_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
+	await _title_tests()
 	await _combat_feel_tests()
 	await _density_tests()
 	await _bugfix_tests()
