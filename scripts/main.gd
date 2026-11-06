@@ -37,6 +37,9 @@ var solid := PackedByteArray()
 var astar: AStarGrid2D
 var layout_bodies: Array = []
 var layout_rooms: Array = []
+var layout_blocks: Array = []  # cover inside rooms (Rect2, solid tiles)
+var side_room := Rect2()  # a small dead-end room, if the floor has one
+var cache := {}  # its essence cache: {pos, amount, kind, taken}
 var player
 var fx
 var camera: Camera2D
@@ -258,14 +261,17 @@ func _set_arena(r: Rect2) -> void:
 ## Builds the tile grid of a rooms floor: walkable inside the rooms and
 ## corridors, solid everywhere else; walls where solid meets walkable; and
 ## a path grid so monsters can find their way around the walls.
-func _build_layout(walk: Array) -> void:
+## `blocks` (cover inside rooms) are made solid too, one by one, and any that
+## would cut `start` off from one of the `targets` is left out.
+func _build_layout(walk: Array, blocks: Array = [], start := Vector2.ZERO, targets: Array = []) -> void:
 	for b in layout_bodies:
 		b.queue_free()
 	layout_bodies.clear()
+	layout_blocks = []
 	layout_on = not walk.is_empty()
 	if not layout_on:
 		solid = PackedByteArray()
-		room_view.set_layout(Vector2i.ZERO, solid, [])
+		room_view.set_layout(Vector2i.ZERO, solid, [], [])
 		return
 	var c := Floors.CELL
 	grid_size = Vector2i(int(room.size.x / c), int(room.size.y / c))
@@ -273,11 +279,42 @@ func _build_layout(walk: Array) -> void:
 	solid.resize(grid_size.x * grid_size.y)
 	solid.fill(1)
 	for r in walk:
-		var rect: Rect2 = r
-		for y in range(int((rect.position.y - room.position.y) / c), int(ceil((rect.end.y - room.position.y) / c))):
-			for x in range(int((rect.position.x - room.position.x) / c), int(ceil((rect.end.x - room.position.x) / c))):
-				if x >= 0 and y >= 0 and x < grid_size.x and y < grid_size.y:
-					solid[y * grid_size.x + x] = 0
+		for t in _tiles_in(r):
+			solid[t.y * grid_size.x + t.x] = 0
+	astar = AStarGrid2D.new()
+	astar.region = Rect2i(Vector2i.ZERO, grid_size)
+	astar.cell_size = Vector2(c, c)
+	astar.offset = room.position + Vector2(c, c) * 0.5
+	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	astar.update()
+	for y in grid_size.y:
+		for x in grid_size.x:
+			if solid[y * grid_size.x + x] == 1:
+				astar.set_point_solid(Vector2i(x, y), true)
+	# Cover: keep each block only if everything that matters stays reachable.
+	var from := _tile_of(start)
+	var goals: Array = []
+	if not _is_solid_tile(from.x, from.y):
+		for g in targets:
+			var t := _tile_of(g)
+			if not _is_solid_tile(t.x, t.y):
+				goals.append(t)
+	for b in blocks:
+		var tiles: Array = _tiles_in(b).filter(func(t): return not _is_solid_tile(t.x, t.y))
+		for t in tiles:
+			solid[t.y * grid_size.x + t.x] = 1
+			astar.set_point_solid(t, true)
+		var reachable := true
+		for g in goals:
+			if astar.get_id_path(from, g).is_empty():
+				reachable = false
+				break
+		if reachable:
+			layout_blocks.append(b)
+		else:
+			for t in tiles:
+				solid[t.y * grid_size.x + t.x] = 0
+				astar.set_point_solid(t, false)
 	# Collision: solid tiles next to walkable ones, merged into runs per row.
 	for y in grid_size.y:
 		var run_start := -1
@@ -299,17 +336,21 @@ func _build_layout(walk: Array) -> void:
 				add_child(body)
 				layout_bodies.append(body)
 				run_start = -1
-	astar = AStarGrid2D.new()
-	astar.region = Rect2i(Vector2i.ZERO, grid_size)
-	astar.cell_size = Vector2(c, c)
-	astar.offset = room.position + Vector2(c, c) * 0.5
-	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
-	astar.update()
-	for y in grid_size.y:
-		for x in grid_size.x:
-			if solid[y * grid_size.x + x] == 1:
-				astar.set_point_solid(Vector2i(x, y), true)
-	room_view.set_layout(grid_size, solid, layout_rooms)
+	var lit: Array = layout_rooms.duplicate()
+	if side_room.has_area():
+		lit.append(side_room)
+	room_view.set_layout(grid_size, solid, lit, layout_blocks)
+
+
+## The grid tiles a rect covers (inside the grid).
+func _tiles_in(r: Rect2) -> Array:
+	var c := Floors.CELL
+	var list: Array = []
+	for y in range(int((r.position.y - room.position.y) / c), int(ceil((r.end.y - room.position.y) / c))):
+		for x in range(int((r.position.x - room.position.x) / c), int(ceil((r.end.x - room.position.x) / c))):
+			if x >= 0 and y >= 0 and x < grid_size.x and y < grid_size.y:
+				list.append(Vector2i(x, y))
+	return list
 
 
 func _is_solid_tile(x: int, y: int) -> bool:
@@ -422,6 +463,9 @@ func _process(delta: float) -> void:
 		sfx("clear", 1.0, 0.0, 0.0)
 	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
 		_climb()
+	if not cache.is_empty() and not cache["taken"] and not climbing and not player.dead \
+			and player.global_position.distance_to(cache["pos"]) < float(Floors.CACHE["reach"]) + player.radius:
+		_open_cache()
 	if not banner.is_empty():
 		banner["t"] -= delta
 		if banner["t"] <= 0.0:
@@ -576,7 +620,22 @@ func _start_floor(n: int) -> void:
 	player_start = start if plan.has("start") else open_start
 	stair_pos = plan.get("stair", Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.position.y + 34.0))
 	room_view.stair_pos = stair_pos
-	_build_layout(plan.get("walk", []))
+	# A side room's essence cache, if this floor has one.
+	side_room = plan.get("side_room", Rect2())
+	cache = {}
+	if plan.has("cache"):
+		cache = plan["cache"].duplicate()
+		cache["kind"] = tower_data()["essence"]
+		cache["taken"] = false
+	room_view.cache = cache
+	var targets: Array = [stair_pos]
+	for m in plan["monsters"]:
+		targets.append(m[1])
+	if not cache.is_empty():
+		targets.append(cache["pos"])
+	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
+	# Door frames, only where the wall beside an opening is really there.
+	room_view.set_doors(plan.get("doors", []).filter(func(r): return is_solid(r.get_center())))
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
@@ -600,8 +659,12 @@ func _start_floor(n: int) -> void:
 		if layout_rooms.is_empty():
 			puddles = Floors.puddles(room, pillars, start)
 		else:
+			# Keep pools off the cover too (each block counted as a round pillar).
+			var avoid: Array = pillars.duplicate()
+			for b in layout_blocks:
+				avoid.append({"pos": b.get_center(), "r": b.size.length() * 0.5})
 			for i in range(1, layout_rooms.size()):
-				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), pillars, start).slice(0, 2))
+				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
 
@@ -620,6 +683,21 @@ func _start_floor(n: int) -> void:
 	if camera != null:
 		camera.position = start
 		camera.reset_smoothing()
+
+
+## Walking onto a side room's essence cache: a burst of the tower's essence.
+func _open_cache() -> void:
+	cache["taken"] = true
+	var pos: Vector2 = cache["pos"]
+	var amount: float = cache["amount"]
+	gather_essence(cache["kind"], amount, pos)
+	var col: Color = Essence.color(cache["kind"])
+	fx_text(pos + Vector2(0, -36), "%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col)
+	fx_ring(pos, col, 70.0, 0.5, 4.0)
+	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
+	light_flash(pos, col, 1.8, 1.8, 0.4)
+	sfx("glint", 1.3, -2.0, 0.0)
+	room_view.queue_redraw()
 
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
