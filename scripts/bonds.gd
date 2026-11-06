@@ -126,7 +126,7 @@ const BONDS := {
 		"affinity": "air",
 		"style": ["brow", "back"],
 		"tower": "gryphon",
-		"body": {"name": "Keen Eyes", "desc": "you see farther in the dark"},
+		"body": {"name": "Keen Eyes", "desc": "you see farther in the dark and spot hidden traps"},
 		"passive": {"name": "Quarry", "desc": "you always know where the last foe you struck is"},
 		"spells": [
 			{"id": "piercing_shot", "name": "Piercing Shot", "type": "shot", "learn": 1,

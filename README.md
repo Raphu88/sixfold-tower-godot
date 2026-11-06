@@ -47,7 +47,7 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 - **Climb:** move to another tower, change floor, or go straight to the tower's beast.
 - **Practice a beast:** fight any of the six beasts at once, at full health with full marks.
 - **Spawn a monster:** any monster or beast, near you.
-- **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room.
+- **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room, and show traps (outlines every trap and its reach, hidden ones too).
 
 ## Towers
 
@@ -105,7 +105,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 - **The Gryphon's bonds (complete):**
   - **Stormcaller** (Air, hand). Body: Quick Nerves (strikes and rolls recover faster). Passive: Static. Spells: Chain Lightning, Overcharge (a charged foe's death throws lightning at everything near it), Chain Lightning changed (more leaps, stuns), Lightning Rod (chains bend through a planted rod), Thunderhead (chains leap twice as often for 8 seconds).
   - **Windwalker** (Air, legs). Body: Wind Dash. Passive: Featherweight. Spells: Gale Lift, Crosswind (a wind wall that turns arrows back), Gale Lift changed (wide cone), Downdraft (slams airborne foes into the ground), Eye of the Storm (a cyclone that holds foes aloft).
-  - **Hunter** (Air, brow). Body: Keen Eyes (see farther in the dark). Passive: Quarry (the last foe you struck is always marked, with an arrow at the screen edge when it's out of sight). Spells: Piercing Shot, Track (reveals foes and where they're heading), Piercing Shot changed (a charged, triple-damage shot), Hawk's Eye (arrows deal double damage for 5 seconds), Rain of Arrows.
+  - **Hunter** (Air, brow). Body: Keen Eyes (see farther in the dark and spot hidden traps). Passive: Quarry (the last foe you struck is always marked, with an arrow at the screen edge when it's out of sight). Spells: Piercing Shot, Track (reveals foes and where they're heading), Piercing Shot changed (a charged, triple-damage shot), Hawk's Eye (arrows deal double damage for 5 seconds), Rain of Arrows.
 - **The Kraken's bonds (complete):**
   - **Tidecaller** (Water, legs). Body: Waterborn (full speed through the Kraken's standing water, which slows everyone else). Passive: Undercurrent (foes you drive into a wall are stunned). Spells: Tidal Surge, Riptide (pull a line of foes to you), Tidal Surge changed (an aimed wave that travels forward), Carry (a wave sweeps foes along until they break against a wall), Maelstrom (a whirlpool drags foes to its centre).
   - **Warden** (Water, brow). Body: Heavy Frame (keep holding parry to block). Passive: Steadfast (no knockback or interruption while your barrier holds). Spells: Barrier (a shell that absorbs damage), Absorb (store the hits you take in the barrier), Barrier changed (it bursts with what it absorbed when it breaks), Challenge (nearby foes must come at you and take 50% more damage), Unbreakable (4 seconds of no damage, but no attacking).
@@ -132,6 +132,19 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 ## The climb
 
 **Rooms and corridors.** Floor 1 and the beast's floor are single open rooms. Every floor in between is a larger area of 3 to 5 rooms joined by three-tile-wide corridors (`Floors.rooms_floor`). You start in the first room and the stair is in the last; the monsters wait in the rooms beyond the first. A monster stays put until it sees you (or you come close, or it's hit), then rouses its neighbours and finds its way to you around the walls (a path grid, `AStarGrid2D`). Monsters can't attack what they can't see, and walls stop every shot. Each room has its own torch. In the Firebird's tower some rooms have a chasm and one corridor is cut by a chasm you must jump; in the Kraken's tower the pools sit in the rooms. Once the stair opens, an arrow at the edge of the screen points the way.
+
+**Traps.** Every floor of rooms has 1 to 3 traps, one kind per tower, set into a floor tile in the rooms beyond the first and in the corridors (never on the start, the stair, a chasm or a pillar). Every trap warns before it hurts, and monsters that wander into one are caught too (`scripts/traps.gd`, where the names, timings and damage live):
+
+| Tower | Trap | How it works | How to avoid it |
+| --- | --- | --- | --- |
+| Gryphon | gust vent | on a cycle: the grate glows and swirls, then a burst of wind shoves everything near it away (hurts a little; can blow you into trouble) | step away or roll |
+| Kraken | sluice grate | on a cycle: the grate glows, then a burst of water knocks you back and slows you for a moment (Sandshaper and Tidecaller aren't slowed) | step away or roll |
+| Wyvern | flame vent | on a cycle: the grate glows brighter and brighter, then a jet of fire burns for about a second | step away or roll (jumping into the jet doesn't help) |
+| Manticore | spike plate | step on it: a click, then spikes rise 0.4 s later | step off, roll, or jump over it (a plate isn't set off from the air) |
+| Firebird | ember vent | on a cycle: the grate glows, then bursts and leaves the floor around it burning | step away, roll or jump |
+| Chimera | thorn snare | step on it: a rustle, then thorns hold you in place for a moment | step off, roll or jump; once held, a roll breaks free |
+
+Some traps are **hidden**: their tile is very faint until it warns (spike plates and thorn snares most often). The Hunter's **Keen Eyes** spots them, outlining hidden traps in gold. The dev tools' **Show traps** outlines every trap and its reach.
 
 Each floor is one room. Once three quarters of its monsters are down, the **stair** at the top of the room opens: walk onto it to climb, or finish the rest first for their essence (the HUD shows how many are left). Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Floors above the first get a random layout of stone pillars, which block movement and arrows, and a group of monsters bought from a budget that grows each floor; monsters also get tougher (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
 
