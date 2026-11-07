@@ -19,6 +19,7 @@ var main
 var active := false
 var cast_held := false  # LB down
 var down := {}  # button (or PAD_LT / PAD_RT) -> the action it pressed
+var back_since := -1  # when View (Share) went down (msec), for the short press
 
 
 func _ready() -> void:
@@ -84,17 +85,33 @@ func _button(id: int, pressed: bool) -> void:
 		if action == "":
 			return
 		down[id] = action
-		# While a menu pauses the game, its own focus keys answer instead.
+		if id == JOY_BUTTON_BACK:
+			back_since = Time.get_ticks_msec()
+		# While a menu pauses the game, its own focus keys answer instead
+		# (Start still closes it, and View's short press is read on release).
 		if not get_tree().paused or action == "pause":
 			Input.action_press(action)
 	else:
 		# Let go of whatever this button pressed (after a restart this node
 		# doesn't remember, so let go of both of its actions).
 		var actions: Array = [down[id]] if down.has(id) else [Controls.PAD.get(id, ""), Controls.PAD_CAST.get(id, "")]
+		var was_down := down.has(id)
 		down.erase(id)
 		for a in actions:
 			if a != "":
 				Input.action_release(a)
+		# View (Share): a short press opens (or closes) the climber screen;
+		# holding it restarts instead (main.gd).
+		if id == JOY_BUTTON_BACK and was_down and back_since >= 0:
+			if Time.get_ticks_msec() - back_since < int(Controls.PAD_CLIMBER_TAP * 1000.0):
+				tap(Controls.PAD_BACK_TAP)
+			back_since = -1
+
+
+## A one-frame press of an action (the next frame lets go), like a key tap.
+func tap(action: String) -> void:
+	Input.action_press(action)
+	get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(action))
 
 
 ## Lets go of everything the controller holds (a menu opened).

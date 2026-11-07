@@ -9,9 +9,11 @@ const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Controls := preload("res://scripts/controls.gd")
 
-const GOLD := Color(0.95, 0.8, 0.5)
-const TEXT := Color(0.86, 0.83, 0.9)
-const DIM_TEXT := Color(0.62, 0.59, 0.67)
+const UI := preload("res://scripts/ui.gd")
+
+const GOLD := UI.GOLD
+const TEXT := UI.TEXT
+const DIM_TEXT := UI.DIM
 
 var main
 var vignette: GradientTexture2D
@@ -35,9 +37,9 @@ func _ready() -> void:
 	vignette.fill_to = Vector2(1.0, 1.0)
 	vignette.width = 256
 	vignette.height = 256
-	panel = _box(Color(0.06, 0.05, 0.08, 0.82), Color(0.32, 0.28, 0.36, 0.9), 6)
-	slot = _box(Color(0.06, 0.05, 0.08, 0.75), Color(0.3, 0.27, 0.34, 0.8), 5)
-	slot_on = _box(Color(0.14, 0.11, 0.08, 0.9), GOLD, 5)
+	panel = UI.panel()
+	slot = UI.slot()
+	slot_on = UI.slot(true)
 
 
 func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
@@ -75,7 +77,7 @@ func _draw() -> void:
 
 	# Health and stamina.
 	draw_style_box(panel, Rect2(16, 14, 286, 56))
-	_bar(Vector2(28, 24), 262.0, 14.0, p.hp / p.max_hp, hp_trail, Color(0.78, 0.22, 0.2))
+	_bar(Vector2(28, 24), 262.0, 14.0, p.hp / p.max_hp, hp_trail, UI.HEALTH)
 	if p.barrier_hp > 0.0:
 		# The Warden's barrier: a gold band over the health bar.
 		var bw: float = 262.0 * clampf(p.barrier_hp / p.max_hp, 0.0, 1.0)
@@ -84,7 +86,7 @@ func _draw() -> void:
 		# A burned heart caps your health: show the lost part as scorched.
 		var cap_x: float = 28.0 + 262.0 * p.max_health() / p.max_hp
 		draw_rect(Rect2(Vector2(cap_x, 24), Vector2(290.0 - cap_x, 14)), Color(1.0, 0.35, 0.2, 0.35))
-	_bar(Vector2(28, 46), 262.0 * p.max_sta / 100.0, 10.0, p.sta / p.max_sta, sta_trail, Color(0.45, 0.72, 0.38))
+	_bar(Vector2(28, 46), 262.0 * p.max_sta / 100.0, 10.0, p.sta / p.max_sta, sta_trail, UI.STAMINA)
 
 	# Weapons (slots 1 to 3: fists, melee, ranged) and armor, each with its name.
 	var have: Array = p.slots()
@@ -100,28 +102,25 @@ func _draw() -> void:
 				var k: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
 				draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(r.size.x - 4, (r.size.y - 4) * k)), Color(0, 0, 0, 0.45))
 		draw_string(font, r.position + Vector2(4, 13), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD if on else DIM_TEXT)
-		draw_string(font, Vector2(r.position.x - 3, 134), Gear.short(id) if id != "" else "-", HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 6, 10, TEXT if on else DIM_TEXT)
-	var ar := Rect2(16 + 3 * 50 + 4, 82, 36, 36)
+		draw_string(font, Vector2(r.position.x - 3, 136), Gear.short(id) if id != "" else "-", HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 6, 11, TEXT if on else DIM_TEXT)
+	var ar := Rect2(16 + 3 * 50, 78, 44, 44)
 	var armor_id: String = p.gear["armor"]
 	draw_style_box(slot, ar)
-	Gear.draw_icon(self, armor_id, ar.get_center(), 10.0, Gear.color(armor_id) if armor_id != "" else DIM_TEXT)
-	draw_string(font, Vector2(ar.position.x - 7, 134), Gear.short(armor_id), HORIZONTAL_ALIGNMENT_CENTER, ar.size.x + 14, 10, TEXT if armor_id != "" else DIM_TEXT)
+	Gear.draw_icon(self, armor_id, ar.get_center(), 11.0, Gear.color(armor_id) if armor_id != "" else UI.FAINT)
+	draw_string(font, Vector2(ar.position.x - 7, 136), Gear.short(armor_id), HORIZONTAL_ALIGNMENT_CENTER, ar.size.x + 14, 11, TEXT if armor_id != "" else DIM_TEXT)
 	_draw_items(p, font)
 
 	# Essence gathered since the last stair (lost if you fall before it).
-	var ex := 16.0
-	var any_essence := false
-	for kind in Essence.KINDS:
-		var amt: float = main.run_essence.get(kind, 0.0)
-		if amt <= 0.0:
-			continue
-		any_essence = true
-		var ec := Essence.color(kind)
-		draw_circle(Vector2(ex + 6, 154), 5.0, ec)
-		draw_string(font, Vector2(ex + 15, 159), str(int(amt)), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
-		ex += 52.0
-	if any_essence:
-		draw_string(font, Vector2(ex + 2, 159), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+	var held: Array = Essence.KINDS.keys().filter(func(k): return main.run_essence.get(k, 0.0) > 0.0)
+	if not held.is_empty():
+		var pill := Rect2(16, 146, 24.0 + 50.0 * held.size() + 50.0, 22)
+		draw_style_box(panel, pill)
+		var ex := pill.position.x + 10.0
+		for kind in held:
+			draw_circle(Vector2(ex + 5, 157), 4.5, Essence.color(kind))
+			draw_string(font, Vector2(ex + 14, 162), str(int(main.run_essence[kind])), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
+			ex += 50.0
+		draw_string(font, Vector2(ex + 2, 161), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 
 	# Bonds (marks), bottom left; on phones, up top out from under your thumbs.
 	var parts: Array = BondScript.Bonds.PARTS.filter(func(pt): return p.bonds.has(pt))
@@ -166,8 +165,7 @@ func _draw() -> void:
 			draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
 			draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
 	else:
-		var menu_hint := _say("Esc  menu", "{start}  menu", "")
-		draw_string(font, Vector2(size.x - 16.0 - font.get_string_size(menu_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x, 26), menu_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		_draw_screen_hints(size, font)
 
 	# Floor counter, top centre.
 	var floor_text: String = main._floor_title()
@@ -233,6 +231,25 @@ func _draw() -> void:
 		_draw_gear_prompt(p, main.gear_here["id"], size, font)
 	if p.pick_open:
 		_draw_spell_ring(p, font)
+
+
+## Top right: the keys (or buttons) for the menu, climber screen and inventory.
+func _draw_screen_hints(size: Vector2, font: Font) -> void:
+	var hints: Array = [["Esc", "{start}", "menu"], ["Tab", "{back}", "climber"], ["I", "D-pad up", "inventory"]]
+	var parts: Array = []
+	var w := 0.0
+	for h in hints:
+		var k: String = Controls.pad_text(h[1], main.pad_ps) if main.pad_active else h[0]
+		parts.append([k, h[2]])
+		w += font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + font.get_string_size(h[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 22.0
+	var r := Rect2(size.x - 16.0 - w - 8.0, 14, w + 8.0, 22)
+	draw_style_box(panel, r)
+	var x := r.position.x + 10.0
+	for pt in parts:
+		draw_string(font, Vector2(x, 29), pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
+		x += font.get_string_size(pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 5.0
+		draw_string(font, Vector2(x, 29), pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 17.0
 
 
 func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float, color: Color) -> void:
@@ -342,7 +359,7 @@ func _draw_gear_prompt(p, id: String, size: Vector2, font: Font) -> void:
 			if absf(diff) > 0.0001:
 				better = 1 if (diff > 0.0) == bool(row[3]) else -1
 			draw_string(font, Vector2(x3, y), old_stats[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
-		var vcol := Color(0.55, 0.9, 0.55) if better > 0 else (Color(1.0, 0.5, 0.42) if better < 0 else TEXT)
+		var vcol := UI.GOOD if better > 0 else (UI.BAD if better < 0 else TEXT)
 		draw_string(font, Vector2(x2, y), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, vcol)
 	var how: String = _say(Gear.TEXT["take_key"], Gear.TEXT["take_pad"], Gear.TEXT["take_tap"])
 	if held != "":
@@ -658,16 +675,16 @@ func _draw_items(p, font: Font) -> void:
 	if have.is_empty():
 		return
 	var sel: String = p.selected_item()
-	var x := 244.0
+	var x := 224.0
 	for id in have:
-		var r := Rect2(x, 82, 36, 36)
+		var r := Rect2(x, 78, 44, 44)
 		var on: bool = id == sel
 		draw_style_box(slot_on if on else slot, r)
 		Items.draw_icon(self, id, r.get_center() + Vector2(0, -1), 11.0, 1.0 if on else 0.7)
 		var n: int = p.item_count(id)
 		draw_string_outline(font, r.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.9))
 		draw_string(font, r.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD if on else TEXT)
-		x += 40.0
+		x += 50.0
 	if sel != "":
 		var hint: String = Items.ITEMS[sel]["short"]
 		if not main.touch_active:
@@ -675,7 +692,7 @@ func _draw_items(p, font: Font) -> void:
 				hint = Controls.pad_text("{x}  ", main.pad_ps) + hint + ("  ·  D-pad down next" if have.size() > 1 else "")
 			else:
 				hint = "G  " + hint + ("  ·  T next" if have.size() > 1 else "")
-		draw_string(font, Vector2(244, 132), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+		draw_string(font, Vector2(224, 136), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 
 
 func camp_card_rect(i: int, size: Vector2) -> Rect2:

@@ -14,7 +14,9 @@ const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
 ## text are readable on a small screen.
 const PHONE_SCALE := 1.5
-const ONE_SHOT := ["weapon", "menu", "item", "item_next", "take"]
+const ONE_SHOT := ["weapon", "menu", "item", "item_next", "take", "climber", "inventory"]
+## The top bar: always there, also while fallen.
+const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
 const Items := preload("res://scripts/items.gd")
 
 var main
@@ -29,7 +31,8 @@ var buttons: Array = []  # {id, action, center, radius, label}
 ## Every action a touch can hold down (released when screens change, since
 ## input state outlives a scene reload).
 const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "attack", "roll", "parry", "jump",
-	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact"]
+	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact",
+	"climber", "inventory"]
 
 
 func _ready() -> void:
@@ -51,6 +54,9 @@ func _layout() -> void:
 		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
 		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
 		{"id": "menu", "action": "pause", "c": tr + Vector2(-104, 40) * k, "r": 28.0 * k},
+		# The climber screen and the inventory, beside Menu.
+		{"id": "climber", "action": "climber", "c": tr + Vector2(-172, 40) * k, "r": 26.0 * k},
+		{"id": "inventory", "action": "inventory", "c": tr + Vector2(-236, 40) * k, "r": 26.0 * k},
 		# Items: bottom middle-right, clear of roll and the cast buttons.
 		{"id": "item", "action": "use_item", "c": br + Vector2(-395, -48) * k, "r": 34.0 * k},
 		{"id": "item_next", "action": "item_next", "c": br + Vector2(-478, -48) * k, "r": 22.0 * k},
@@ -265,7 +271,7 @@ func _draw() -> void:
 	var p = main.player
 	var down := held.values()
 	for b in buttons:
-		if p != null and p.dead and b["id"] != "menu" and b["id"] != "fullscreen":
+		if p != null and p.dead and not (b["id"] in TOP_BAR):
 			continue  # fallen: only Menu (to restart) matters, and the message stays clear
 		var c: Vector2 = b["c"]
 		var r: float = b["r"]
@@ -314,6 +320,10 @@ func _draw() -> void:
 				label = "[ ]"
 			"menu":
 				label = "Menu"
+			"climber":
+				label = "Climber"
+			"inventory":
+				label = "Bag"
 		draw_circle(c, r, Color(0, 0, 0, 0.45 if not pressed else 0.6))
 		draw_arc(c, r, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5, true)
 		if fill > 0.0:
@@ -321,7 +331,22 @@ func _draw() -> void:
 		if pressed:
 			draw_circle(c, r - 3.0, Color(col, 0.18))
 		var fsize := 13 if r > 30.0 else 10
+		if b["id"] == "climber" or b["id"] == "inventory":
+			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
+			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 8, Color(col, 0.9))
+			continue
 		if b["id"] == "item" and label != "Item":
 			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.95))
 			continue
 		draw_string(font, c + Vector2(-r, fsize * 0.35), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fsize, Color(col, 0.9))
+
+
+## The little pictures on the Climber (a figure) and Bag (a satchel) buttons.
+func _draw_top_icon(id: String, c: Vector2, r: float, col: Color) -> void:
+	var u := r / 20.0
+	if id == "climber":
+		draw_circle(c + Vector2(0, -5) * u, 3.2 * u, col)
+		draw_colored_polygon(PackedVector2Array([c + Vector2(-5, 6) * u, c + Vector2(-3, -1) * u, c + Vector2(3, -1) * u, c + Vector2(5, 6) * u]), col)
+	else:
+		draw_rect(Rect2(c + Vector2(-6, -2) * u, Vector2(12, 9) * u), col)
+		draw_arc(c + Vector2(0, -2) * u, 3.5 * u, PI, TAU, 8, col, maxf(1.0, 1.4 * u), true)

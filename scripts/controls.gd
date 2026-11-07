@@ -31,10 +31,17 @@ const PAD := {
 	JOY_BUTTON_DPAD_RIGHT: "weapon_next",
 	JOY_BUTTON_DPAD_LEFT: "weapon_prev",
 	JOY_BUTTON_DPAD_DOWN: "item_next",
-	JOY_BUTTON_DPAD_UP: "toggle_help",
+	JOY_BUTTON_DPAD_UP: "inventory",
 	JOY_BUTTON_START: "pause",  # Start (Options)
-	JOY_BUTTON_BACK: "restart",  # View (Share): hold to restart
+	JOY_BUTTON_BACK: "restart",  # View (Share): hold to restart; a short press opens the climber screen (pad.gd)
 }
+
+## View (Share): a press shorter than this (seconds) opens the climber
+## screen; holding it restarts (main.gd RESTART_HOLD), so a stray press can't
+## end a climb.
+const PAD_CLIMBER_TAP := 0.35
+## The action a short press of View gives.
+const PAD_BACK_TAP := "climber"
 
 ## While LB (L1) is held, these cast your marks instead.
 const PAD_CAST := {
@@ -57,7 +64,7 @@ const PAD_NAMES := {
 ## The cast button for each body part (with LB held), as PAD_NAMES ids.
 const PART_PAD := {"hand": "x", "legs": "a", "heart": "b", "brow": "y", "throat": "rb", "back": "rt"}
 
-## The controls list, shown by the HUD panel (H / D-pad up) and the menu's
+## The controls list, shown by the HUD panel (H, or the setting) and the menu's
 ## Controls page: [what it does, keys, controller]. {names} in the
 ## controller column become Xbox or PlayStation button names.
 const HELP := [
@@ -71,10 +78,12 @@ const HELP := [
 	["cast marks (hold to pick)", "Q E F C X V", "hold {lb} + {x} {a} {b} {y} {rb} {rt}"],
 	["use item / next item", "G / T", "{x} / D-pad down"],
 	["take gear", "Y", "{y}"],
-	["menu", "Esc / P", "{start}"],
-	["restart (hold)", "R", "{back}"],
+	["pause menu", "Esc / P", "{start}"],
+	["climber screen", "Tab", "{back} (press)"],
+	["inventory", "I", "D-pad up"],
+	["restart (hold)", "R", "hold {back}"],
 	["music", "M", "-"],
-	["controls panel", "H", "D-pad up"],
+	["controls panel", "H", "-"],
 ]
 
 
@@ -122,6 +131,8 @@ static func setup() -> void:
 	_bind("weapon_next", [_mouse(MOUSE_BUTTON_WHEEL_DOWN)])
 	_bind("weapon_prev", [_mouse(MOUSE_BUTTON_WHEEL_UP)])
 	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P)])
+	_bind("climber", [_key(KEY_TAB)])  # the climber screen (marks, essence, record)
+	_bind("inventory", [_key(KEY_I)])
 	# The sticks: the left one moves, the right one aims.
 	_bind("move_left", [_axis(JOY_AXIS_LEFT_X, -1.0)])
 	_bind("move_right", [_axis(JOY_AXIS_LEFT_X, 1.0)])
