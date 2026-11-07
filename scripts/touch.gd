@@ -28,7 +28,7 @@ var buttons: Array = []  # {id, action, center, radius, label}
 
 ## Every action a touch can hold down (released when screens change, since
 ## input state outlives a scene reload).
-const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "sprint", "attack", "roll", "parry", "jump",
+const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "attack", "roll", "parry", "jump",
 	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact"]
 
 
@@ -183,36 +183,29 @@ func _touch_up(index: int) -> void:
 
 func _update_stick() -> void:
 	var off := stick_pos - stick_origin
-	# Past the outer (sprint) ring the stick follows your thumb.
-	if off.length() > SPRINT_RADIUS * 1.15:
-		stick_origin = stick_pos - off.normalized() * SPRINT_RADIUS * 1.15
+	# Past the ring's edge the stick follows your thumb.
+	if off.length() > FOLLOW_RADIUS:
+		stick_origin = stick_pos - off.normalized() * FOLLOW_RADIUS
 		off = stick_pos - stick_origin
-	var sprint := off.length() >= SPRINT_RADIUS
-	_set_move((off / STICK_RADIUS).limit_length(1.0), sprint)
+	_set_move((off / STICK_RADIUS).limit_length(1.0))
 
 
-## The joystick: past a light tilt you walk at full speed. Sprinting takes a
-## real push: drag your thumb out past the larger outer ring.
+## The joystick: past a light tilt you walk at full speed (there is no sprint).
 const STICK_DEAD := 0.15
 const STICK_FULL := 0.45
-const SPRINT_RADIUS := 105.0
+const FOLLOW_RADIUS := STICK_RADIUS * 1.4
 
 
-func _set_move(v: Vector2, sprint := false) -> void:
+func _set_move(v: Vector2) -> void:
 	var m := v.length()
 	if m < STICK_DEAD:
 		_axis("move_right", "move_left", 0.0)
 		_axis("move_down", "move_up", 0.0)
-		Input.action_release("sprint")
 		return
 	var strength := clampf((m - STICK_DEAD) / (STICK_FULL - STICK_DEAD), 0.25, 1.0)
 	var d := v / m * strength
 	_axis("move_right", "move_left", d.x)
 	_axis("move_down", "move_up", d.y)
-	if sprint:
-		Input.action_press("sprint")
-	else:
-		Input.action_release("sprint")
 
 
 func _axis(pos_action: String, neg_action: String, value: float) -> void:
@@ -236,7 +229,6 @@ func _release_all() -> void:
 		Input.action_release(a)
 	stick_touch = -1
 	_set_move(Vector2.ZERO)
-	Input.action_release("sprint")
 	for b in buttons:
 		if b["action"] != "":
 			Input.action_release(b["action"])
@@ -262,15 +254,11 @@ func _draw() -> void:
 	if stick_touch != -1:
 		draw_circle(stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.3))
 		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0)
-		var knob := stick_origin + (stick_pos - stick_origin).limit_length(SPRINT_RADIUS * 1.15)
-		var sprinting := (stick_pos - stick_origin).length() >= SPRINT_RADIUS
-		draw_arc(stick_origin, SPRINT_RADIUS, 0.0, TAU, 48, Color(1.0, 0.85, 0.5, 0.18), 1.5)
-		draw_circle(knob, 28.0, Color(1.0, 0.85, 0.5, 0.5) if sprinting else Color(1, 1, 1, 0.35))
-		if sprinting:
-			draw_arc(stick_origin, SPRINT_RADIUS, 0.0, TAU, 48, Color(1.0, 0.85, 0.5, 0.6), 3.0)
+		var knob := stick_origin + (stick_pos - stick_origin).limit_length(STICK_RADIUS)
+		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
 	else:
 		if main.gear_here.is_empty():  # (the gear card sits here while you stand on gear)
-			draw_string(font, Vector2(30, size.y - 30), "touch here to move  ·  drag past the outer ring to sprint", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
+			draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()

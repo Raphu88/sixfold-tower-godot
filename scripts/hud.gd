@@ -148,7 +148,7 @@ func _draw() -> void:
 		pass  # the touch buttons are labelled; no keyboard help needed
 	elif show_help:
 		var help := [
-			["WASD", "move"], ["Shift", "sprint"], ["Space", "roll"], ["Z", "jump"],
+			["WASD", "move"], ["Space", "roll"], ["Z", "jump"],
 			["Left click", "strike / hold to draw"], ["Right click", "parry"],
 			["1 2 3 / wheel", "weapon"], ["Q E F C X V", "cast marks"], ["G / T", "use item / next item"],
 			["Y", "take gear"],

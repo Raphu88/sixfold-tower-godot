@@ -69,7 +69,7 @@ const TEXT := {
 ##   roll_cost  multiplier on a roll's stamina cost
 ##   roll_dist  multiplier on how far a roll carries you
 ##   regen      multiplier on how fast stamina refills
-##   walk       multiplier on walking (and sprinting) speed
+##   walk       multiplier on walking speed
 const ARMOR_ORDER := ["", "padded", "leather", "chain", "plate"]
 const ARMOR := {
 	"": {

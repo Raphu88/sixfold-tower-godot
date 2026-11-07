@@ -322,7 +322,7 @@ func _page_settings() -> void:
 func _page_controls() -> void:
 	_heading("CONTROLS", 28)
 	var rows := [
-		["Move", "WASD or arrows"], ["Sprint", "Shift"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
+		["Move", "WASD or arrows"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
 		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
 		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
 		["Use item / next item", "G / T"], ["Take gear you stand on", "Y"],

@@ -6,7 +6,6 @@ static func setup() -> void:
 	_bind("move_down", [_key(KEY_S), _key(KEY_DOWN)])
 	_bind("move_left", [_key(KEY_A), _key(KEY_LEFT)])
 	_bind("move_right", [_key(KEY_D), _key(KEY_RIGHT)])
-	_bind("sprint", [_key(KEY_SHIFT)])
 	_bind("roll", [_key(KEY_SPACE)])
 	_bind("jump", [_key(KEY_Z)])
 	_bind("attack", [_mouse(MOUSE_BUTTON_LEFT), _key(KEY_J)])
