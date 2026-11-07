@@ -2,6 +2,8 @@ extends Node2D
 ## Short-lived visual effects: floating numbers, lightning, wind cones,
 ## impact rings, sparks and roll afterimages.
 
+const Draw := preload("res://scripts/draw_util.gd")
+
 var texts: Array = []
 var bolts: Array = []
 var cones: Array = []
@@ -136,10 +138,12 @@ func _draw() -> void:
 		var col: Color = c["color"]
 		col.a = 0.35 * c["t"] / 0.3
 		draw_colored_polygon(c["poly"], col)
+	var motes := Draw.Batch.new()  # all motes in one draw
 	for m in motes_list:
 		var mc: Color = m["color"]
-		draw_circle(m["pos"], 4.5, Color(mc, 0.2))
-		draw_circle(m["pos"], 2.0, Color(mc.lightened(0.3), 0.95))
+		motes.circle(m["pos"], 4.5, Color(mc, 0.2))
+		motes.circle(m["pos"], 2.0, Color(mc.lightened(0.3), 0.95))
+	motes.flush(self)
 	for c in chunks:
 		var a := clampf(c["t"] / 0.4, 0.0, 1.0)
 		var s: float = c["size"]
@@ -147,10 +151,12 @@ func _draw() -> void:
 		draw_rect(Rect2(-s, -s * 0.6, s * 2.0, s * 1.2), Color(0.06, 0.05, 0.07, a))
 		draw_rect(Rect2(-s + 0.8, -s * 0.6 + 0.8, s * 2.0 - 1.6, s * 1.2 - 1.6), Color(c["color"], a))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var afterimages := Draw.Batch.new()
 	for g in ghosts:
 		var col: Color = g["color"]
 		col.a = 0.4 * g["t"] / 0.2
-		draw_circle(g["pos"], g["radius"], col)
+		afterimages.circle(g["pos"], g["radius"], col)
+	afterimages.flush(self)
 	for r in rings:
 		var k: float = 1.0 - r["t"] / r["dur"]
 		var col: Color = r["color"]

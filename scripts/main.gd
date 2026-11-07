@@ -765,7 +765,6 @@ func _open_cache() -> void:
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
 	sfx("glint", 1.3, -2.0, 0.0)
-	room_view.queue_redraw()
 
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.

@@ -2176,6 +2176,33 @@ func _combat_feel_tests() -> void:
 	k.queue_free()
 
 
+## The room is drawn in squares that are rebuilt (not piled up) on every
+## floor, and climbing floor after floor leaves nothing behind.
+func _performance_tests() -> void:
+	print("performance")
+	await _fresh_main()
+	var rv = main.room_view
+	await _frames(2)
+	var squares: int = rv.chunk_items.size()
+	_check(squares > 10, "the room is drawn in squares (%d)" % squares)
+	rv.queue_redraw()
+	await _frames(2)
+	_check(rv.chunk_items.size() == squares, "redrawing the room replaces its squares")
+	_check(rv.tint == rv.self_modulate, "the squares wear the tower's stone colour")
+	main.dev_floor(1)
+	await _frames(5)
+	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	for rep in 2:
+		for f in [2, 3, 4]:
+			main.dev_floor(f)
+			await _frames(3)
+	main.dev_floor(1)
+	await _frames(5)
+	var after := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	_check(after <= nodes + 4, "six floors later nothing is left behind (%d nodes, was %d)" % [after, nodes])
+	_check(rv.chunk_items.size() == squares, "floor 1's room has the same squares again")
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -3409,6 +3436,7 @@ func _run() -> void:
 	await _item_tests()
 	await _camp_tests()
 	await _gear_tests()
+	await _performance_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
