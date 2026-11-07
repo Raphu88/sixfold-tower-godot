@@ -190,7 +190,9 @@ func _process(delta: float) -> void:
 			cache_light.energy = 1.1 + 0.3 * sin(t * 2.4)
 	for torch in torches:
 		var ph: float = torch["phase"]
-		var flick := 0.85 + 0.1 * sin(t * 9.0 + ph) + 0.06 * sin(t * 23.0 + ph * 2.0)
+		# A slow, soft flicker: a fast one (above ~15 Hz) lights the whole floor
+		# like a failing screen rather than a flame.
+		var flick := 0.85 + 0.09 * sin(t * 7.0 + ph) + 0.04 * sin(t * 12.0 + ph * 2.0)
 		torch["light"].energy = 1.25 * flick
 		torch["light"].texture_scale = 2.6 + 0.1 * sin(t * 5.0 + ph)
 		if randf() < 6.0 * delta:

@@ -1388,8 +1388,9 @@ func _draw() -> void:
 	if dead:
 		cloak = Color(0.3, 0.29, 0.32)
 		skin = Color(0.45, 0.42, 0.42)
-	var alpha := 0.5 if iframes > 0.0 else 1.0
-	modulate.a = alpha
+	# Vanish fades the climber. Set only here: two writers (this and the
+	# overlay) used to fight over it within a frame.
+	modulate.a = 0.35 if vanish_t > 0.0 else 1.0
 
 	Draw.shadow(self, Vector2(0, radius * 0.75), radius * (1.0 - jump_height() / 40.0))
 	var lift := jump_height()
@@ -1516,7 +1517,6 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
 func _draw_overlay() -> void:
 	var c := overlay
-	modulate.a = 0.35 if vanish_t > 0.0 else 1.0
 	if aura_part != "":
 		var ar := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
 		var tt2 := Time.get_ticks_msec() * 0.001

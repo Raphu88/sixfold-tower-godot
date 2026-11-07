@@ -47,12 +47,20 @@ var cache := {}  # its essence cache: {pos, amount, kind, taken}
 var player
 var fx
 var camera: Camera2D
+# The climber's position at the last two physics ticks: the camera follows
+# the point between them, as the drawing does (physics interpolation), so it
+# glides at any screen refresh rate instead of jittering on 90/120 Hz screens.
+var cam_prev := Vector2.ZERO
+var cam_curr := Vector2.ZERO
 var cleared := false
 var shake_amount := 0.0
+var shake_ms := 0  # when the shake offset last changed
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
 var light_tex: Texture2D
+const MAX_FLASHES := 6  # light_flash bursts alive at once (with ~9 torches and glows, stays under 15)
+var flashes_live := 0
 var touch_active := false  # on-screen controls in use
 
 # The climb
@@ -219,7 +227,10 @@ func _ready() -> void:
 	camera.limit_right = int(room.end.x + WALL + 20.0)
 	camera.limit_top = int(room.position.y - RoomScript.WALL_FACE - WALL - 20.0)
 	camera.limit_bottom = int(room.end.y + WALL + 70.0)  # room for the bond HUD
+	cam_prev = player.position
+	cam_curr = player.position
 	add_child(camera)
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # moved every frame, in _process
 	camera.make_current()
 
 	var layer := CanvasLayer.new()
@@ -517,11 +528,16 @@ func _process(delta: float) -> void:
 		if banner["t"] <= 0.0:
 			banner = {}
 	if player != null:
-		camera.position = player.position
+		camera.position = cam_prev.lerp(cam_curr, Engine.get_physics_interpolation_fraction())
 	# On phones the whole game is already drawn bigger, so pull the camera back.
 	var want := 1.1 if touch_active else 1.35
 	camera.zoom = Vector2(want, want)
-	camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
+	# A new shake offset at most 60 times a second, so a 120 Hz screen shakes
+	# like a 60 Hz one instead of buzzing.
+	var now_ms := Time.get_ticks_msec()
+	if now_ms - shake_ms >= 16 or shake_amount <= 0.0:
+		shake_ms = now_ms
+		camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
 
@@ -529,6 +545,21 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	_separate_bodies()
 	_update_spell_fields(delta)
+	_track_player()
+
+
+## Notes where the climber stands this tick, for the camera. A jump too big to
+## be a step (a blink, a swap, a fall back out of a chasm) snaps instead of
+## sliding across the room for a frame.
+func _track_player() -> void:
+	if player == null:
+		return
+	var now: Vector2 = player.global_position
+	if now.distance_to(cam_curr) > 64.0:
+		player.reset_physics_interpolation()
+		cam_curr = now
+	cam_prev = cam_curr
+	cam_curr = now
 
 
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
@@ -745,6 +776,9 @@ func _start_floor(n: int) -> void:
 		add_child(e)
 	player.position = start
 	player.last_safe = start
+	player.reset_physics_interpolation()
+	cam_prev = start
+	cam_curr = start
 	if camera != null:
 		camera.position = start
 		camera.reset_smoothing()
@@ -829,7 +863,7 @@ func _arrive() -> void:
 	if floor_num == int(tower_data().get("summit", 0)):
 		profile.climbs += 1
 		profile.save()
-		victory = {"t": 0.0, "beast": beast_name(), "lines": lines}
+		victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
 		player.set_physics_process(false)
 		sfx("clear", 0.7, 0.0, 0.0)
 		return
@@ -1210,7 +1244,7 @@ func _begin_regard(fell: bool) -> void:
 	if not regard.is_empty():
 		return
 	_grant_regard(fell)
-	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0}
+	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0, "dark": fade > 0.5}
 	banner = {}
 	regard_pending = false
 	player.set_physics_process(false)
@@ -1827,6 +1861,11 @@ func shake(amount: float) -> void:
 
 ## A brief burst of real light: lightning, parries, crits, burns.
 func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 0.25) -> void:
+	# The web renderer lights each drawn thing with at most 15 lights; past
+	# that, some lights (torches too) are skipped and the lighting pops.
+	if flashes_live >= MAX_FLASHES:
+		return
+	flashes_live += 1
 	var l := PointLight2D.new()
 	l.texture = light_tex
 	l.texture_scale = size
@@ -1836,4 +1875,6 @@ func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 
 	add_child(l)
 	var tw := l.create_tween()
 	tw.tween_property(l, "energy", 0.0, dur).set_ease(Tween.EASE_OUT)
-	tw.tween_callback(l.queue_free)
+	tw.tween_callback(func():
+		flashes_live -= 1
+		l.queue_free())
