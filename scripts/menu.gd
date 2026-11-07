@@ -1580,12 +1580,23 @@ class MarkCard extends Control:
 				break
 			draw_string(font, Vector2(sx, 60), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.TEXT if known else UI.FAINT)
 			sx += w + 14.0
-		draw_string(font, Vector2(x, 80), "Body", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+		# Body and passive wrap onto more lines (the card grows to fit them).
+		var tw := size.x - x - 52.0
+		var by := 80.0
 		var body_t := "%s: %s" % [data["body"]["name"], data["body"]["desc"]]
-		draw_string(font, Vector2(x + 44, 80), body_t, HORIZONTAL_ALIGNMENT_LEFT, size.x - x - 52, 12, UI.DIM)
-		draw_string(font, Vector2(x, 95), "Passive", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+		draw_string(font, Vector2(x, by), "Body", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+		draw_multiline_string(font, Vector2(x + 44, by), body_t, HORIZONTAL_ALIGNMENT_LEFT, tw, 12, -1, UI.DIM)
+		by += _text_h(font, body_t, tw) + 3.0
 		var pas_t := "%s: %s" % [data["passive"]["name"], data["passive"]["desc"]]
-		draw_string(font, Vector2(x + 44, 95), pas_t, HORIZONTAL_ALIGNMENT_LEFT, size.x - x - 52, 12, UI.DIM)
+		draw_string(font, Vector2(x, by), "Passive", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+		draw_multiline_string(font, Vector2(x + 44, by), pas_t, HORIZONTAL_ALIGNMENT_LEFT, tw, 12, -1, UI.DIM)
+		by += _text_h(font, pas_t, tw)
+		var want := ceilf(by + 8.0)
+		if absf(custom_minimum_size.y - want) > 1.0:
+			custom_minimum_size.y = want
+
+	static func _text_h(font: Font, t: String, w: float) -> float:
+		return font.get_multiline_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, w, 12).y
 
 
 ## The climber screen's Essence tab: each type's density and bonus, where

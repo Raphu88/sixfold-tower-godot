@@ -35,6 +35,6 @@ Screenshots can be rendered with `xvfb-run -a -s "-screen 0 1280x720x24" godot -
 - Story and the purpose of the towers are still to be written by the owner; keep names and text in data so they're easy to change.
 
 ## Project
-- Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd`.
+- Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd` (world) and `scripts/ui.gd` (menus and HUD).
 - Sounds are built from CC0 packs by `tools/build_audio.py`; see `CREDITS.md` and the README. Only use CC0 assets.
 - See README.md for the design, controls and file layout.
