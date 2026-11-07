@@ -2963,13 +2963,14 @@ func _heirloom_tests() -> void:
 	_check(picks.size() == 4 and "heir:axe" in picks and "heir:shortbow" in picks and "heir:chain" in picks and "heir:" in picks, "one card per carried piece, and one to keep nothing (%s)" % [picks])
 	var ci: int = picks.find("heir:axe")
 	_check(main.camp_card(ci)["gear"] == "axe" and "melee" in main.camp_card(ci)["note"], "a card names the slot it fills")
+	main.touch._set_active(true)
+	await _frames(2)
 	var size: Vector2 = main.hud.get_viewport_rect().size
-	main.hud.queue_redraw()
-	await _frames(1)
-	var tap := InputEventScreenTouch.new()
-	tap.pressed = true
-	tap.position = main.hud.camp_card_rect(ci, size).get_center()
-	main.touch._input(tap)
+	var at: Vector2 = main.hud.camp_card_rect(ci, size).get_center()
+	_touch(7, at, true)
+	await _frames(2)
+	_touch(7, at, false)
+	await _frames(2)
 	_check(not main.camp_choosing and main.profile.heirlooms.get("melee", "") == "axe", "tapping the axe keeps it as the melee heirloom")
 	# A new climb starts with it.
 	var q = load("res://scripts/player.gd").new()
