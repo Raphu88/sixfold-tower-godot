@@ -61,6 +61,7 @@ var roll_cd := 0.0
 var roll_dir := Vector2.ZERO
 var roll_speed := 0.0
 var iframes := 0.0
+const ROLL_ALPHA := 0.5  # how see-through a roll makes you
 var ghost_t := 0.0
 var attack_cd := 0.0
 var combo := 0
@@ -1409,9 +1410,10 @@ func _draw() -> void:
 	if dead:
 		cloak = Color(0.3, 0.29, 0.32)
 		skin = Color(0.45, 0.42, 0.42)
-	# Vanish fades the climber. Set only here: two writers (this and the
-	# overlay) used to fight over it within a frame.
-	modulate.a = 0.35 if vanish_t > 0.0 else 1.0
+	# Vanish fades the climber most; a roll fades it to half (eased, so it
+	# doesn't blink). Set only here: two writers used to fight over it.
+	var want := 0.35 if vanish_t > 0.0 else (ROLL_ALPHA if roll_t > 0.0 else 1.0)
+	modulate.a = move_toward(modulate.a, want, get_process_delta_time() * 6.0)
 
 	Draw.shadow(self, Vector2(0, radius * 0.75), radius * (1.0 - jump_height() / 40.0))
 	var lift := jump_height()

@@ -3472,6 +3472,8 @@ func _run() -> void:
 	p.receive_attack(10.0, slime)
 	_check(p.bonds["legs"].essence > legs0, "legs fill on dodge")
 	await _wait(0.1)
+	_check(p.modulate.a < 0.9, "rolling turns the climber see-through (%.2f)" % p.modulate.a)
+	await _wait(0.1)
 	_check(main.fx.ghosts.size() > 0, "afterimages while invulnerable")
 	await _settle()
 

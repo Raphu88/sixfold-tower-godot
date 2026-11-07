@@ -62,6 +62,10 @@ var hurt_flash := 0.0
 var light_tex: Texture2D
 const MAX_FLASHES := 6  # light_flash bursts alive at once (with ~9 torches and glows, stays under 15)
 var flashes_live := 0
+## Light flashes from hits, parries and spells, toned down (owner's request):
+## every flash is this much as strong and this much as wide as asked.
+const FLASH_ENERGY := 0.5
+const FLASH_SIZE := 0.75
 var touch_active := false  # on-screen controls in use
 var pad_active := false  # the last input came from a game controller (pad.gd)
 var pad_ps := false  # ...and it's a PlayStation one (for button names)
@@ -2005,9 +2009,9 @@ func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 
 	flashes_live += 1
 	var l := PointLight2D.new()
 	l.texture = light_tex
-	l.texture_scale = size
+	l.texture_scale = size * FLASH_SIZE
 	l.color = color
-	l.energy = energy
+	l.energy = energy * FLASH_ENERGY
 	l.position = pos
 	add_child(l)
 	var tw := l.create_tween()
