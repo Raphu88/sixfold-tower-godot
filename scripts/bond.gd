@@ -1197,6 +1197,7 @@ func _exchange(p) -> void:
 	var here: Vector2 = p.global_position
 	p.global_position = main.walkable_point(here, best.global_position, 14.0)
 	best.global_position = here
+	best.reset_physics_interpolation()  # (a swap, not a slide)
 	main.fx_ring(here, color(), 24.0, 0.3, 3.0)
 	main.fx_ring(p.global_position, color(), 24.0, 0.3, 3.0)
 	main.sfx("gust", 1.3, -4.0)

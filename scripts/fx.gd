@@ -155,7 +155,7 @@ func _draw() -> void:
 		var k: float = 1.0 - r["t"] / r["dur"]
 		var col: Color = r["color"]
 		col.a = 1.0 - k
-		draw_arc(r["pos"], 6.0 + r["reach"] * (1.0 - pow(1.0 - k, 3.0)), 0.0, TAU, 40, col, r["width"] * (1.0 - k * 0.6))
+		draw_arc(r["pos"], 6.0 + r["reach"] * (1.0 - pow(1.0 - k, 3.0)), 0.0, TAU, 40, col, r["width"] * (1.0 - k * 0.6), true)
 	for sp in sparks:
 		var col: Color = sp["color"]
 		var k: float = sp["t"] / sp["dur"]
@@ -242,7 +242,7 @@ func _draw_fields() -> void:
 	for wd in main.wards:
 		var wc: Color = wd["color"]
 		var wa: float = clampf(wd["t"] / 0.5, 0.0, 1.0)
-		draw_arc(wd["pos"], wd["r"], 0.0, TAU, 48, Color(wc, 0.8 * wa), 3.0)
+		draw_arc(wd["pos"], wd["r"], 0.0, TAU, 48, Color(wc, 0.8 * wa), 3.0, true)
 		for i in 12:
 			var ta := TAU * i / 12.0 - t * 0.5
 			var tp: Vector2 = wd["pos"] + Vector2.from_angle(ta) * wd["r"]
@@ -251,7 +251,7 @@ func _draw_fields() -> void:
 		var sc: Color = sg["color"]
 		var sa: float = clampf(sg["t"] / 0.5, 0.0, 1.0)
 		draw_circle(sg["pos"], sg["r"], Color(sc, 0.06 * sa))
-		draw_arc(sg["pos"], sg["r"], 0.0, TAU, 64, Color(sc, 0.7 * sa), 2.5)
+		draw_arc(sg["pos"], sg["r"], 0.0, TAU, 64, Color(sc, 0.7 * sa), 2.5, true)
 		draw_arc(sg["pos"], sg["r"] * 0.7, t * 0.3, t * 0.3 + TAU, 48, Color(sc, 0.4 * sa), 1.5)
 		for i in 6:
 			var ga := TAU * i / 6.0 + t * 0.3
@@ -286,7 +286,7 @@ func _draw_fields() -> void:
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))
-		draw_arc(m["pos"], m["r"], 0.0, TAU, 48, Color(m["color"], 0.7), 2.5)
+		draw_arc(m["pos"], m["r"], 0.0, TAU, 48, Color(m["color"], 0.7), 2.5, true)
 		draw_circle(m["pos"] + Vector2(0, -260.0 * (1.0 - mk)), 10.0 + 6.0 * mk, Color(1.0, 0.6, 0.25, 0.9))
 	for fl in main.flames:
 		var fade: float = clampf(fl["t"] / 0.5, 0.0, 1.0)
@@ -339,7 +339,7 @@ func _draw_fields() -> void:
 			var st := -t * (2.0 + k * 0.5) + k
 			draw_arc(m["pos"], rr, st, st + 2.6, 22, Color(mc, 0.5), 2.0)
 	for r in main.rains:
-		draw_arc(r["pos"], r["r"], 0.0, TAU, 40, Color(r["color"], 0.35), 1.5)
+		draw_arc(r["pos"], r["r"], 0.0, TAU, 40, Color(r["color"], 0.35), 1.5, true)
 	for a in arrows_falling:
 		var k: float = a["t"] / 0.18
 		var top: Vector2 = a["pos"] + Vector2(-6, -60) * k
