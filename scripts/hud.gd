@@ -7,6 +7,7 @@ const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Controls := preload("res://scripts/controls.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -147,21 +148,25 @@ func _draw() -> void:
 	if main.touch_active:
 		pass  # the touch buttons are labelled; no keyboard help needed
 	elif show_help:
-		var help := [
-			["WASD", "move"], ["Space", "roll"], ["Z", "jump"],
-			["Left click", "strike / hold to draw"], ["Right click", "parry"],
-			["1 2 3 / wheel", "weapon"], ["Q E F C X V", "cast marks"], ["G / T", "use item / next item"],
-			["Y", "take gear"],
-			["Esc", "menu"], ["M", "music"], ["R", "restart"], ["H", "hide controls"],
-		]
-		var box := Rect2(size.x - 262, 14, 246, 20 + help.size() * 17)
+		# The keys, or the controller's buttons if that was used last (controls.gd).
+		var help: Array = []
+		var key_w := 0.0
+		for row in Controls.HELP:
+			var k: String = Controls.pad_text(row[2], main.pad_ps) if main.pad_active else row[1]
+			if k == "-":
+				continue
+			help.append([k, row[0]])
+			key_w = maxf(key_w, font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x)
+		var box_w := key_w + 176.0
+		var box := Rect2(size.x - box_w - 16.0, 14, box_w, 20 + help.size() * 17)
 		draw_style_box(panel, box)
 		for i in help.size():
 			var row_y := box.position.y + 24 + i * 17
 			draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
-			draw_string(font, Vector2(box.position.x + 106, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+			draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
 	else:
-		draw_string(font, Vector2(size.x - 120, 26), "Esc  menu", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		var menu_hint := _say("Esc  menu", "{start}  menu", "")
+		draw_string(font, Vector2(size.x - 16.0 - font.get_string_size(menu_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x, 26), menu_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
 
 	# Floor counter, top centre.
 	var floor_text: String = main._floor_title()
@@ -195,7 +200,7 @@ func _draw() -> void:
 	var sub := ""
 	if p.dead and not main.first_climb:
 		msg = "YOU FELL ON FLOOR %d" % main.floor_num
-		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, "Tap Menu, then Restart," if main.touch_active else "Press R"]
+		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, _say("Press R", "Press {back}", "Tap Menu, then Restart,")]
 	if msg != "":
 		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0)
 		draw_rect(band, Color(0, 0, 0, 0.55))
@@ -264,6 +269,11 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	draw_style_box(panel, r)
 	var col: Color = b.color()
 	var key: String = BondScript.Bonds.PART_KEYS[part]
+	var hold_key := key
+	if main.pad_active:
+		# A controller: the button pressed with LB held.
+		key = Controls.pad_name(Controls.PART_PAD[part], main.pad_ps, true)
+		hold_key = "%s+%s" % [Controls.pad_name("lb", main.pad_ps), key]
 	var c := pos + Vector2(22, 22)
 	# The sigil: a ring that fills with essence, the cast key in the middle.
 	draw_circle(c, 15.0, Color(0, 0, 0, 0.6))
@@ -271,7 +281,7 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	var ratio: float = b.essence / b.capacity()
 	draw_arc(c, 15.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, col, 3.0)
 	var can_cast: bool = b.essence >= b.cost()
-	draw_string(font, c + Vector2(-5, 5), key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col if can_cast else DIM_TEXT)
+	draw_string(font, c + Vector2(-15, 5), key, HORIZONTAL_ALIGNMENT_CENTER, 30, 14 if key.length() < 2 else 11, col if can_cast else DIM_TEXT)
 	var title := "%s  ·  %s  ·  %s" % [b.display_name(), BondScript.PART_NAMES[part], "faint" if b.faint else "step %d" % b.step]
 	draw_string(font, pos + Vector2(46, 17), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
 	# Essence bar with a tick at the spell's cost.
@@ -281,7 +291,7 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	var cost_x: float = bar.position.x + bar.size.x * b.cost() / b.capacity()
 	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 2), Color(1, 1, 1, 0.8), 1.0)
 	var known: int = b.spells().size()
-	var note: String = "%s%s: %s" % [b.spell_name(), "  (%d/%d, hold %s to pick)" % [b.selected + 1, known, key] if known > 1 else "", b.spell_desc()]
+	var note: String = "%s%s: %s" % [b.spell_name(), "  (%d/%d, hold %s to pick)" % [b.selected + 1, known, hold_key] if known > 1 else "", b.spell_desc()]
 	var note_col := DIM_TEXT
 	if b.burned:
 		note = BondScript.PART_BURN[part] + " · overdraw again and it tears (costs health)"
@@ -331,7 +341,7 @@ func _draw_gear_prompt(p, id: String, size: Vector2, font: Font) -> void:
 			draw_string(font, Vector2(x3, y), old_stats[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
 		var vcol := Color(0.55, 0.9, 0.55) if better > 0 else (Color(1.0, 0.5, 0.42) if better < 0 else TEXT)
 		draw_string(font, Vector2(x2, y), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, vcol)
-	var how: String = Gear.TEXT["take_tap"] if main.touch_active else Gear.TEXT["take_key"]
+	var how: String = _say(Gear.TEXT["take_key"], Gear.TEXT["take_pad"], Gear.TEXT["take_tap"])
 	if held != "":
 		how += "  " + Gear.TEXT["drops"] % Gear.display(held)
 	draw_string(font, Vector2(r.position.x, r.end.y - 8.0), how, HORIZONTAL_ALIGNMENT_CENTER, w, 12, GOLD)
@@ -403,7 +413,7 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		ty += 26.0
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
-		var prompt := "Tap to begin your next climb" if main.touch_active else "Press Space or click to begin your next climb"
+		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
@@ -469,6 +479,12 @@ func tower_card_at(pos: Vector2) -> int:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# The mouse over a card highlights it, like the arrow keys do.
+	if main != null and event is InputEventMouseMotion and (main.choosing_tower or main.camp_choosing):
+		var at := get_local_mouse_position()
+		var over := tower_card_at(at) if main.choosing_tower else camp_card_at(at)
+		if over >= 0:
+			main.card_focus = over
 	if main != null and main.choosing_tower and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var i := tower_card_at(get_local_mouse_position())
 		if i >= 0:
@@ -495,6 +511,9 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		var last: bool = id == main.profile.last_tower
 		var box := slot_on if last else panel
 		draw_style_box(box, r)
+		var focused := _card_focused(i)
+		if focused:
+			_draw_card_focus(r)
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(t["torch"], 0.7))
 		var x := r.position.x + 14.0
 		var y := r.position.y + 34.0
@@ -505,8 +524,8 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		draw_string(font, Vector2(x + 18, y), "%s essence" % Essence.display(t["essence"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ec)
 		y += 18.0
 		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 11 if narrow else 13, 4 if r.size.y < 200.0 else 7, DIM_TEXT)
-		var hint := "Tap" if main.touch_active else "Press %d" % (i + 1)
-		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD if last else DIM_TEXT)
+		var hint := _card_hint(i)
+		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD if last or focused else DIM_TEXT)
 
 
 # --- hold to pick ----------------------------------------------------------------
@@ -612,7 +631,7 @@ func _draw_victory(size: Vector2, font: Font) -> void:
 		ly += 22.0
 	if main.overlay_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
-		var prompt := "Tap to climb again" if main.touch_active else "Press Space or click to climb again"
+		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to climb again"
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
@@ -638,7 +657,10 @@ func _draw_items(p, font: Font) -> void:
 	if sel != "":
 		var hint: String = Items.ITEMS[sel]["short"]
 		if not main.touch_active:
-			hint = "G  " + hint + ("  ·  T next" if have.size() > 1 else "")
+			if main.pad_active:
+				hint = Controls.pad_text("{x}  ", main.pad_ps) + hint + ("  ·  D-pad down next" if have.size() > 1 else "")
+			else:
+				hint = "G  " + hint + ("  ·  T next" if have.size() > 1 else "")
 		draw_string(font, Vector2(244, 132), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 
 
@@ -683,6 +705,8 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		var r := camp_card_rect(i, size)
 		var col: Color = card["color"]
 		draw_style_box(panel, r)
+		if _card_focused(i):
+			_draw_card_focus(r)
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(col, 0.75))
 		var ic := Vector2(r.get_center().x, r.position.y + 48.0)
 		draw_circle(ic, 28.0, Color(col, 0.1))
@@ -701,5 +725,34 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 			var n: int = p.item_count(card["item"])
 			var have := "carrying %d of %d" % [n, Items.MAX_STACK]
 			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if n >= Items.MAX_STACK else DIM_TEXT)
-		var hint := "Tap" if main.touch_active else "Press %d" % (i + 1)
-		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD)
+		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), _card_hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD)
+
+
+# --- prompts for the device in use ---------------------------------------------------
+
+## The words for a prompt: keys, a controller ({a}, {start}... become button
+## names) or touch, whichever was used last.
+func _say(keys: String, pad: String, tap: String) -> String:
+	if main.touch_active:
+		return tap
+	if main.pad_active:
+		return Controls.pad_text(pad, main.pad_ps)
+	return keys
+
+
+## The highlighted card (keys and controller choose with left/right).
+func _card_focused(i: int) -> bool:
+	return not main.touch_active and i == main.card_focus
+
+
+func _draw_card_focus(r: Rect2) -> void:
+	draw_rect(r.grow(3.0), Color(GOLD, 0.95), false, 2.0)
+
+
+## Under a card: how to take it.
+func _card_hint(i: int) -> String:
+	if main.touch_active:
+		return "Tap"
+	if main.pad_active:
+		return Controls.pad_text("Press {a}", main.pad_ps) if _card_focused(i) else ""
+	return "Press %d%s" % [i + 1, " or Enter" if _card_focused(i) else ""]

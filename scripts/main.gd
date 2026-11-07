@@ -12,6 +12,7 @@ const AudioScript := preload("res://scripts/audio.gd")
 const RoomScript := preload("res://scripts/room.gd")
 const Palette := preload("res://scripts/palette.gd")
 const TouchScript := preload("res://scripts/touch.gd")
+const PadScript := preload("res://scripts/pad.gd")
 const Floors := preload("res://scripts/floors.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -54,6 +55,8 @@ var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
 var light_tex: Texture2D
 var touch_active := false  # on-screen controls in use
+var pad_active := false  # the last input came from a game controller (pad.gd)
+var pad_ps := false  # ...and it's a PlayStation one (for button names)
 
 # The climb
 var floor_num := 1
@@ -84,11 +87,20 @@ var floor_total := 0  # monsters this floor started with
 var dim: CanvasModulate
 var hud
 var touch
+var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
 var dev_no_death := false  # dev tool: you can't fall
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
+## Restart is held (R, or View on a controller) so a stray press doesn't end
+## the climb; once fallen, a press is enough.
+const RESTART_HOLD := 0.8
+var restart_t := 0.0
+var restart_armed := false  # the press began on this floor (not before a reload)
+## Keyboard and controller: the highlighted tower or camp card.
+var card_focus := 0
+var overlay_closed_frame := -1  # (so the Start that closed it doesn't also open the menu)
 
 # Items and camps (items.gd)
 var item_drops: Array = []  # items lying on the floor: {pos, id, t}
@@ -199,6 +211,7 @@ func _ready() -> void:
 	else:
 		# Each climb begins by choosing a tower.
 		choosing_tower = true
+		card_focus = maxi(Towers.ORDER.find(tower), 0)
 		player.set_physics_process(false)
 		for e in enemies():
 			e.set_physics_process(false)
@@ -232,6 +245,9 @@ func _ready() -> void:
 	touch = TouchScript.new()
 	touch.main = self
 	layer.add_child(touch)
+	pad = PadScript.new()
+	pad.main = self
+	add_child(pad)
 	var menu_layer := CanvasLayer.new()
 	menu_layer.layer = 10
 	add_child(menu_layer)
@@ -468,25 +484,34 @@ func _process(delta: float) -> void:
 		for i in Towers.ORDER.size():
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_tower(Towers.ORDER[i])
+				return
+		# (two rows of cards when there are more than four, as hud.gd lays them out)
+		var per_row := int(ceil(Towers.ORDER.size() / (2.0 if Towers.ORDER.size() > 4 else 1.0)))
+		if _card_keys(Towers.ORDER.size(), per_row):
+			choose_tower(Towers.ORDER[card_focus])
 		return
 	if camp_choosing:
 		for i in camp["choices"].size():
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_camp(i)
-				break
+				return
+		if _card_keys(camp["choices"].size(), camp["choices"].size()):
+			choose_camp(card_focus)
 		return
 	if not victory.is_empty():
 		victory["t"] += delta / maxf(Engine.time_scale, 0.01)
-		if overlay_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
+		if overlay_done() and _dismiss_pressed():
 			end_regard()
 		return
 	if not regard.is_empty():
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
-		if regard_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
+		if regard_done() and _dismiss_pressed():
 			end_regard()
 		return
-	if Input.is_action_just_pressed("restart"):
-		get_tree().reload_current_scene()
+	if _restart_held(delta):
+		Engine.time_scale = 1.0
+		if get_tree().current_scene == self:  # (tests run the room outside a scene)
+			get_tree().reload_current_scene()
 		return
 	new_climber_t -= delta / maxf(Engine.time_scale, 0.01)
 	if Input.is_action_just_pressed("new_climber"):
@@ -870,6 +895,53 @@ func _camp_plan() -> Dictionary:
 	return {"monsters": [], "pillars": [], "start": fire + Vector2(0, 80)}
 
 
+## Keyboard and controller on the card screens: left and right (arrows,
+## d-pad or stick; up and down between rows) move the highlight, Enter,
+## Space or A takes the card. True when a card is taken.
+func _card_keys(count: int, per_row: int) -> bool:
+	if count <= 0:
+		return false
+	card_focus = clampi(card_focus, 0, count - 1)
+	if Input.is_action_just_pressed("ui_left"):
+		card_focus = posmod(card_focus - 1, count)
+	elif Input.is_action_just_pressed("ui_right"):
+		card_focus = posmod(card_focus + 1, count)
+	elif Input.is_action_just_pressed("ui_up") and card_focus - per_row >= 0:
+		card_focus -= per_row
+	elif Input.is_action_just_pressed("ui_down") and card_focus / per_row < (count - 1) / per_row:
+		card_focus = mini(card_focus + per_row, count - 1)
+	return Input.is_action_just_pressed("ui_accept")
+
+
+## The Regard and the victory screen: any of these moves on once they've played.
+func _dismiss_pressed() -> bool:
+	for a in ["attack", "roll", "restart", "jump", "ui_accept", "pause"]:
+		if Input.is_action_just_pressed(a):
+			overlay_closed_frame = Engine.get_process_frames()
+			return true
+	return false
+
+
+## True once restart has been held long enough (or pressed, once fallen).
+## While it's held, a banner says to keep holding.
+func _restart_held(delta: float) -> bool:
+	if Input.is_action_just_pressed("restart"):
+		restart_armed = true
+		restart_t = 0.0
+		if player.dead:
+			return true
+	if not restart_armed or not Input.is_action_pressed("restart"):
+		restart_armed = false
+		return false
+	restart_t += delta / maxf(Engine.time_scale, 0.01)
+	if restart_t >= RESTART_HOLD:
+		restart_armed = false
+		return true
+	var key := "Keep holding %s" % (Controls.pad_name("back", pad_ps) if pad_active else "R")
+	banner = {"title": "RESTART?", "lines": ["%s to start this climb again." % key], "t": 0.6}
+	return false
+
+
 ## Arrives at a camp: a full rest by the fire, then an item to choose.
 func _enter_camp(lines: Array) -> void:
 	camp_done = true
@@ -887,6 +959,7 @@ func _enter_camp(lines: Array) -> void:
 	choices.append("gear:" + Gear.random_gear("", player.carried_gear()))  # and a piece of gear
 	camp = {"stage": "item", "choices": choices, "lines": said}
 	camp_choosing = true
+	card_focus = 0
 	banner = {}
 	player.set_physics_process(false)
 	sfx("ready", 0.7, -4.0, 0.0)
@@ -940,6 +1013,7 @@ func choose_camp(i: int) -> void:
 			var choices: Array = Items.CAMP_RUNES.keys().map(func(r): return "rune:" + r)
 			choices.append("craft:" + Items.random_item(true))
 			camp = {"stage": "rune", "choices": choices, "lines": [Items.CAMP["rune_sub"]], "taken": taken}
+			card_focus = 0
 			sfx("equip_sword", 1.1, -4.0, 0.0)
 			return
 	elif pick.begins_with("rune:"):
@@ -1289,6 +1363,7 @@ func _offer_heirloom() -> bool:
 	Engine.time_scale = 1.0
 	camp = {"stage": "heirloom", "choices": choices, "lines": [Gear.HEIRLOOM_TEXT["sub"]]}
 	camp_choosing = true
+	card_focus = 0
 	player.set_physics_process(false)
 	sfx("ready", 0.7, -4.0, 0.0)
 	return true

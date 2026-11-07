@@ -3,7 +3,9 @@ extends Control
 ## the dev tool. Built from Godot's own buttons, so mouse, keyboard and touch
 ## all work. While a menu is open the game is paused.
 ##
-## Esc or P (or the phone's Menu button) opens and closes the pause menu.
+## Esc or P (or the phone's Menu button, or Start on a controller) opens and
+## closes the pause menu. Arrow keys, the d-pad or the left stick move between
+## buttons; Enter, Space or A presses one; Esc or B goes back.
 
 const Bonds := preload("res://scripts/bonds.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
@@ -12,6 +14,7 @@ const EnemyScript := preload("res://scripts/enemy.gd")
 const TitleScript := preload("res://scripts/title.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Weapons := preload("res://scripts/weapons.gd")
+const Controls := preload("res://scripts/controls.gd")
 
 const GOLD := Color(0.95, 0.8, 0.5)
 const TEXT := Color(0.86, 0.83, 0.9)
@@ -56,6 +59,7 @@ func _ready() -> void:
 	center.add_child(panel)
 	scroll = ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true  # keys and controller: long pages scroll to the focused button
 	panel.add_child(scroll)
 	box = VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -146,12 +150,22 @@ func _process(delta: float) -> void:
 		queue_redraw()
 	if Input.is_action_just_pressed("pause"):
 		if page == "":
-			open("pause")
+			# (once the Regard or the victory screen has played, Start moves on instead)
+			if main == null or not (main.overlay_done() or main.overlay_closed_frame == Engine.get_process_frames()):
+				open("pause")
 		elif page == "title":
 			pass
 		elif page == "pause":
 			close()
 		else:
+			open("title" if _from_title() else "pause")
+	elif page != "" and Input.is_action_just_pressed("ui_cancel"):
+		# Esc or B: back a page (Esc is also "pause", handled above).
+		if page == "pause":
+			close()
+		elif page == "confirm_new":
+			open(confirm_back)
+		elif page != "title":
 			open("title" if _from_title() else "pause")
 	_layout()
 
@@ -190,6 +204,10 @@ func _wanted_height() -> float:
 
 ## Opens a page (pausing the game) or switches to another page.
 func open(which: String) -> void:
+	# Rebuilding the same page (a dev button, a toast): keep the focus where it was.
+	var keep := -1
+	if which == page and is_inside_tree():
+		keep = focusables().find(get_viewport().gui_get_focus_owner())
 	if which == "title":
 		opened_from_title = true
 	elif which == "pause":
@@ -208,18 +226,18 @@ func open(which: String) -> void:
 	get_tree().paused = true
 	if main != null and main.touch != null:
 		main.touch.release_all()
+	if main != null and main.pad != null:
+		main.pad.release_all()
 	for c in box.get_children():
 		box.remove_child(c)
 		c.queue_free()
 	scroll.scroll_vertical = 0
 	call("_page_" + which)
 	_layout()
-	# Keyboard players: start on the first button.
-	for c in box.get_children():
-		var b := _first_button(c)
-		if b != null:
-			b.grab_focus.call_deferred()
-			break
+	# Keyboard and controller: start on the first button (or slider).
+	var list := focusables()
+	if not list.is_empty():
+		list[keep if keep >= 0 and keep < list.size() else 0].grab_focus.call_deferred()
 
 
 func close() -> void:
@@ -229,14 +247,21 @@ func close() -> void:
 	Engine.time_scale = 1.0
 
 
-func _first_button(n: Node) -> Button:
-	if n is Button:
-		return n
+## The page's buttons and sliders, top to bottom.
+func focusables() -> Array:
+	var list: Array = []
+	_collect_focus(box, list)
+	return list
+
+
+func _collect_focus(n: Node, list: Array) -> void:
 	for c in n.get_children():
-		var b := _first_button(c)
-		if b != null:
-			return b
-	return null
+		if c.is_queued_for_deletion():
+			continue
+		if c is BaseButton or c is HSlider:
+			list.append(c)
+		else:
+			_collect_focus(c, list)
 
 
 # --- pages -------------------------------------------------------------------
@@ -314,33 +339,31 @@ func _page_settings() -> void:
 	_slider("Music", "music")
 	_slider("Sounds", "sounds")
 	_toggle("Screen shake", "shake")
-	_toggle("Keyboard controls panel", "help")
+	_toggle("Controls panel (H, or D-pad up)", "help")
 	_gap()
 	_back()
 
 
 func _page_controls() -> void:
 	_heading("CONTROLS", 28)
-	var rows := [
-		["Move", "WASD or arrows"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
-		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
-		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
-		["Use item / next item", "G / T"], ["Take gear you stand on", "Y"],
-		["Menu", "Esc or P"], ["Restart", "R"], ["Music", "M"],
-	]
+	var ps: bool = main != null and main.pad_ps
 	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 18)
-	for r in rows:
-		var a := Label.new()
-		a.text = r[0]
-		a.add_theme_color_override("font_color", TEXT)
-		grid.add_child(a)
-		var b := Label.new()
-		b.text = r[1]
-		b.add_theme_color_override("font_color", GOLD)
-		grid.add_child(b)
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 16)
+	var rows: Array = [["", "Keyboard and mouse", "Controller"]]
+	rows.append_array(Controls.HELP)
+	for i in rows.size():
+		var r: Array = rows[i]
+		for c in 3:
+			var l := Label.new()
+			l.text = Controls.pad_text(r[c], ps) if c == 2 else r[c]
+			if c == 0 and i > 0:
+				l.text = l.text.left(1).to_upper() + l.text.substr(1)
+			l.add_theme_font_size_override("font_size", 14)
+			l.add_theme_color_override("font_color", DIM if i == 0 else (TEXT if c == 0 else GOLD))
+			grid.add_child(l)
 	box.add_child(grid)
+	_text(Controls.pad_text("Controller casts: hold {lb} and press {x} hand, {a} legs, {b} heart, {y} brow, {rb} throat or {rt} back. Aim with the right stick; let go of it and you aim at the nearest monster, or the way you move. Hold {back} to restart. In menus and on the cards: d-pad or stick to choose, {a} to take, {b} to go back.", ps), DIM)
 	_text("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next; Take appears while you stand on gear. Hold a mark's button and slide to pick a spell.", DIM)
 	_gap()
 	_back()
@@ -734,8 +757,16 @@ func _small(text: String, action: Callable) -> Button:
 
 func _slider(text: String, key: String) -> void:
 	var row := _row()
-	row.add_child(_label(text, 120.0))
+	var name_label := _label(text, 120.0)
+	row.add_child(name_label)
 	var s := HSlider.new()
+	# Keys and controller: a focused slider lights up gold (left and right move it).
+	s.focus_entered.connect(func():
+		name_label.add_theme_color_override("font_color", GOLD)
+		s.modulate = Color(1.0, 0.85, 0.55))
+	s.focus_exited.connect(func():
+		name_label.add_theme_color_override("font_color", TEXT)
+		s.modulate = Color.WHITE)
 	s.min_value = 0.0
 	s.max_value = 1.0
 	s.step = 0.05
@@ -786,6 +817,10 @@ func _make_theme() -> Theme:
 			"disabled":
 				s.bg_color = Color(0.3, 0.25, 0.18)
 		t.set_stylebox(state, "Button", s)
+		if state == "focus":
+			# Keys and controller: the focused toggle or slider is outlined in gold too.
+			t.set_stylebox("focus", "CheckButton", s)
+			t.set_stylebox("focus", "HSlider", s)
 	t.set_color("font_color", "Button", TEXT)
 	t.set_color("font_hover_color", "Button", Color(1, 1, 1))
 	t.set_color("font_pressed_color", "Button", GOLD)

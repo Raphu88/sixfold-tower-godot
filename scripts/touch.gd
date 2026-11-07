@@ -142,6 +142,8 @@ func _set_active(on: bool) -> void:
 		main.player.touch_aim = on
 	if not on:
 		_release_all()
+	elif main.pad != null and main.pad.active:
+		main.pad._set_active(false)  # a touch: touch prompts, not controller ones
 	queue_redraw()
 
 
