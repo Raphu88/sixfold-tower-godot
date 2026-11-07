@@ -2942,6 +2942,75 @@ func _gear_tests() -> void:
 	await _frames(2)
 
 
+func _heirloom_tests() -> void:
+	print("heirlooms")
+	await _fresh_main()
+	var p = main.player
+	var G = main.Gear
+	var slots: Array = G.HEIRLOOM_SLOTS.map(func(s): return s["id"])
+	for want in ["melee", "ranged", "chest", "boots", "gloves", "helm", "legs", "rings", "amulet", "cloak", "backpack"]:
+		_check(want in slots, "heirloom slot: %s" % want)
+	_check(G.heirloom_slot("plate") == "chest" and G.heirloom_slot("axe") == "melee" and G.heirloom_slot("crossbow") == "ranged", "armor is a chest heirloom, weapons melee or ranged")
+	_check(G.gear_slot_for("boots") == "", "the planned slots hold nothing yet")
+	# Surviving a climb offers the carried gear as heirlooms.
+	p.take_gear("axe")
+	p.take_gear("chain")
+	main.victory = {"t": 3.0, "beast": "test", "lines": []}
+	main.end_regard()
+	_check(main.camp_choosing and main.camp["stage"] == "heirloom", "dismissing the victory screen offers an heirloom")
+	_check(main.victory.is_empty(), "...in place of the victory screen")
+	var picks: Array = main.camp["choices"]
+	_check(picks.size() == 4 and "heir:axe" in picks and "heir:shortbow" in picks and "heir:chain" in picks and "heir:" in picks, "one card per carried piece, and one to keep nothing (%s)" % [picks])
+	var ci: int = picks.find("heir:axe")
+	_check(main.camp_card(ci)["gear"] == "axe" and "melee" in main.camp_card(ci)["note"], "a card names the slot it fills")
+	var size: Vector2 = main.hud.get_viewport_rect().size
+	main.hud.queue_redraw()
+	await _frames(1)
+	var tap := InputEventScreenTouch.new()
+	tap.pressed = true
+	tap.position = main.hud.camp_card_rect(ci, size).get_center()
+	main.touch._input(tap)
+	_check(not main.camp_choosing and main.profile.heirlooms.get("melee", "") == "axe", "tapping the axe keeps it as the melee heirloom")
+	# A new climb starts with it.
+	var q = load("res://scripts/player.gd").new()
+	q.main = main
+	q.use_heirlooms(main.profile.heirlooms)
+	_check(q.gear["melee"] == "axe" and q.weapon == "axe" and q.gear["ranged"] == "shortbow" and q.gear["armor"] == "", "the next climb begins with the heirloom, the rest as usual")
+	q.free()
+	# The next survived climb: the axe is already an heirloom, so it isn't offered again.
+	main.heirloom_offered = false
+	main.victory = {"t": 3.0, "beast": "test", "lines": []}
+	main.end_regard()
+	_check(not ("heir:axe" in main.camp["choices"]), "an heirloom already kept isn't offered again")
+	ci = main.camp["choices"].find("heir:chain")
+	_check("new chest" in main.camp_card(ci)["note"], "...and an empty slot says so")
+	main.choose_camp(ci)
+	_check(main.profile.heirlooms.get("chest", "") == "chain" and main.profile.heirlooms.get("melee", "") == "axe", "a second heirloom in another slot keeps the first")
+	# Keep nothing new.
+	main.heirloom_offered = false
+	main.victory = {"t": 3.0, "beast": "test", "lines": []}
+	main.end_regard()
+	main.choose_camp(main.camp["choices"].find("heir:"))
+	_check(main.profile.heirlooms.size() == 2 and not main.camp_choosing, "keeping nothing new leaves the heirlooms as they are")
+	# Falling isn't surviving: a fallen Regard offers nothing.
+	main.heirloom_offered = false
+	main.regard = {"fell": true, "part": "hand", "id": "", "t": 4.0}
+	main.end_regard()
+	_check(not main.camp_choosing, "a fall on the first climb offers no heirloom")
+	main.regard = {}
+	# The Body page lists the heirlooms and the planned slots.
+	main.menu.open("body")
+	await _frames(2)
+	var texts: Array = _all_labels(main.menu).map(func(l): return l.text)
+	_check("Heirlooms" in texts or texts.any(func(t): return "HEIRLOOMS" in t.to_upper()), "the Body page has an Heirlooms section")
+	_check("Chain Mail" in texts and "Backpack" in texts and "planned" in texts, "...with the kept chest and the planned slots")
+	main.menu.close()
+	await _frames(2)
+	# A new climber forgets them.
+	main.profile.reset()
+	_check(main.profile.heirlooms.is_empty(), "a new climber has no heirlooms")
+
+
 func _all_labels(n: Node) -> Array:
 	var out: Array = []
 	if n is Label:
@@ -3409,6 +3478,7 @@ func _run() -> void:
 	await _item_tests()
 	await _camp_tests()
 	await _gear_tests()
+	await _heirloom_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.

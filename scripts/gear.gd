@@ -6,7 +6,7 @@ extends RefCounted
 ##
 ## You carry: fists (always), one melee weapon, one ranged weapon and one
 ## suit of armor. Gear is per climb: every climb starts with a sword, a
-## shortbow and no armor.
+## shortbow and no armor, except for slots holding an heirloom (below).
 
 const Weapons := preload("res://scripts/weapons.gd")
 
@@ -19,6 +19,35 @@ const REACH := 26.0
 ## The slots, in the order the HUD and the Body page list them.
 const SLOTS := ["melee", "ranged", "armor"]
 const SLOT_NAMES := {"fists": "Fists", "melee": "Melee", "ranged": "Ranged", "armor": "Armor"}
+
+## Heirlooms: survive a climb and you may keep one piece you carried. It
+## waits for you at the start of every later climb, in its slot, until you
+## keep a different piece for that slot (or start a new climber). Each slot
+## holds one heirloom. "gear" is the carried slot it fills; slots marked
+## "planned" are for gear that doesn't exist yet, and show as such.
+const HEIRLOOM_SLOTS := [
+	{"id": "melee", "name": "Melee", "gear": "melee"},
+	{"id": "ranged", "name": "Ranged", "gear": "ranged"},
+	{"id": "chest", "name": "Chest", "gear": "armor"},
+	{"id": "helm", "name": "Helm", "planned": true},
+	{"id": "gloves", "name": "Gloves", "planned": true},
+	{"id": "legs", "name": "Legs", "planned": true},
+	{"id": "boots", "name": "Boots", "planned": true},
+	{"id": "cloak", "name": "Cloak", "planned": true},
+	{"id": "amulet", "name": "Amulet", "planned": true},
+	{"id": "rings", "name": "Rings", "planned": true},
+	{"id": "backpack", "name": "Backpack", "planned": true},
+]
+const HEIRLOOM_TEXT := {
+	"title": "CHOOSE AN HEIRLOOM",
+	"sub": "You survived. Keep one piece you carried: every climb will begin with it.",
+	"replaces": "replaces your %s",
+	"empty_slot": "new %s heirloom",
+	"none_name": "Keep nothing new",
+	"none_desc": "your heirlooms stay as they are",
+	"kept": "Heirloom kept: %s",
+	"planned": "planned",
+}
 
 ## The words the gear prompt and camp cards use.
 const TEXT := {
@@ -201,6 +230,30 @@ static func random_gear(kind := "", exclude: Array = []) -> String:
 		if roll < 0:
 			return id
 	return "dagger"
+
+
+## The heirloom slot a piece of gear fills ("chest" for armor).
+static func heirloom_slot(id: String) -> String:
+	var gs := slot_of(id)
+	for s in HEIRLOOM_SLOTS:
+		if s.get("gear", "") == gs:
+			return s["id"]
+	return ""
+
+
+## The carried slot an heirloom slot fills ("" for a planned slot).
+static func gear_slot_for(heirloom_slot_id: String) -> String:
+	for s in HEIRLOOM_SLOTS:
+		if s["id"] == heirloom_slot_id:
+			return s.get("gear", "")
+	return ""
+
+
+static func heirloom_slot_name(heirloom_slot_id: String) -> String:
+	for s in HEIRLOOM_SLOTS:
+		if s["id"] == heirloom_slot_id:
+			return s["name"]
+	return heirloom_slot_id
 
 
 # --- drawing -----------------------------------------------------------------------

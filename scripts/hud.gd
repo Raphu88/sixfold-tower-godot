@@ -668,6 +668,8 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	var rune: bool = main.camp["stage"] == "rune"
 	var top_y := camp_card_rect(0, size).position.y
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
+	if main.camp["stage"] == "heirloom":
+		title = Gear.HEIRLOOM_TEXT["title"]
 	draw_string_outline(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, 6, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, GOLD)
 	var sub: Array = main.camp.get("lines", [])

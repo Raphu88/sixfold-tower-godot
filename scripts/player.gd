@@ -161,6 +161,18 @@ func slots() -> Array:
 	return ["fists", gear["melee"], gear["ranged"]]
 
 
+## Starts the climb with your heirlooms in their slots (from the profile).
+func use_heirlooms(heirlooms: Dictionary) -> void:
+	for hs in heirlooms:
+		var id: String = heirlooms[hs]
+		var gs := Gear.gear_slot_for(hs)
+		if gs != "" and Gear.is_gear(id) and Gear.slot_of(id) == gs:
+			gear[gs] = id
+	weapon = gear["melee"]
+	if wkind() == "melee":
+		swing = wdata()["combo"][0]
+
+
 ## Every piece of gear you carry (not fists), for leaving out of drops.
 func carried_gear() -> Array:
 	return [gear["melee"], gear["ranged"], gear["armor"]].filter(func(g): return g != "")
