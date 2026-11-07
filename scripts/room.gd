@@ -481,7 +481,7 @@ func _draw_cache(c: CanvasItem, t: float) -> void:
 	c.draw_circle(pos + Vector2(-4, 0), 6.0, clay.lightened(0.15))
 	c.draw_rect(Rect2(pos + Vector2(-7, -16), Vector2(14, 10)), Palette.OUTLINE)
 	c.draw_rect(Rect2(pos + Vector2(-5.5, -15), Vector2(11, 9)), clay.darkened(0.1))
-	c.draw_line(pos + Vector2(-10, -16), pos + Vector2(10, -16), clay.lightened(0.2), 3.0)
+	Draw.line(c, pos + Vector2(-10, -16), pos + Vector2(10, -16), clay.lightened(0.2), 3.0)
 	# A glowing band around the belly.
 	c.draw_arc(pos + Vector2(0, 4), 10.0, PI * 0.15, PI * 0.85, 10, Color(col, 0.9 if not taken else 0.15), 2.0)
 	if taken:

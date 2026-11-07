@@ -2,6 +2,8 @@ extends Node2D
 ## An arrow. Monsters' arrows: roll through to fill your legs, or parry to send
 ## them back. Friendly arrows (yours, or reflected ones) hit monsters instead.
 
+const Draw := preload("res://scripts/draw_util.gd")
+
 var main
 var vel := Vector2.ZERO
 var dmg := 8.0
@@ -132,74 +134,82 @@ func on_parried(_perfect := false) -> void:
 	vel = main.player.aim * vel.length() * 1.5
 
 
+## Drawn as one batch of quads and circles: torchlight falls on arrows, and
+## Godot lights a wide draw_line only half (see draw_util.gd).
 func _draw() -> void:
+	var b := Draw.Batch.new()
+	_draw_into(b)
+	b.flush(self)
+
+
+func _draw_into(c) -> void:
 	var dir := vel.normalized()
 	var side := dir.orthogonal()
 	if style == "ink":
 		# A glob of ink with a dark smear behind it.
-		draw_line(-dir * 18.0, Vector2.ZERO, Color(0.1, 0.06, 0.14, 0.5), 7.0)
-		draw_circle(Vector2.ZERO, 5.5, Color(0.08, 0.05, 0.1))
-		draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
-		draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
+		c.draw_line(-dir * 18.0, Vector2.ZERO, Color(0.1, 0.06, 0.14, 0.5), 7.0)
+		c.draw_circle(Vector2.ZERO, 5.5, Color(0.08, 0.05, 0.1))
+		c.draw_circle(Vector2(-1.5, -1.5), 2.0, Color(0.5, 0.35, 0.6, 0.8))
+		c.draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.35, 0.3, 0.18))
 		return
 	if style == "fireball":
-		draw_line(-dir * 22.0, Vector2.ZERO, Color(tint, 0.35), 9.0)
-		draw_circle(Vector2.ZERO, 8.0, Color(tint, 0.95))
-		draw_circle(Vector2.ZERO, 4.0, Color(1.0, 0.92, 0.6))
-		draw_circle(Vector2.ZERO, 14.0, Color(tint, 0.18))
+		c.draw_line(-dir * 22.0, Vector2.ZERO, Color(tint, 0.35), 9.0)
+		c.draw_circle(Vector2.ZERO, 8.0, Color(tint, 0.95))
+		c.draw_circle(Vector2.ZERO, 4.0, Color(1.0, 0.92, 0.6))
+		c.draw_circle(Vector2.ZERO, 14.0, Color(tint, 0.18))
 		return
 	if style == "venom":
 		# A glob of venom with a dripping trail.
-		draw_line(-dir * 16.0, Vector2.ZERO, Color(tint, 0.4), 5.0)
-		draw_circle(Vector2.ZERO, 4.5, Color(tint, 0.95))
-		draw_circle(Vector2(-1.2, -1.2), 1.6, Color(1, 1, 1, 0.7))
+		c.draw_line(-dir * 16.0, Vector2.ZERO, Color(tint, 0.4), 5.0)
+		c.draw_circle(Vector2.ZERO, 4.5, Color(tint, 0.95))
+		c.draw_circle(Vector2(-1.2, -1.2), 1.6, Color(1, 1, 1, 0.7))
 		return
 	if style == "spike":
 		# A barbed tail spike, its tip green with venom.
-		draw_line(-dir * 12.0, dir * 6.0, Color(0.06, 0.05, 0.07), 4.0)
-		draw_line(-dir * 12.0, dir * 6.0, Color(0.85, 0.72, 0.5), 2.0)
-		draw_circle(dir * 6.0, 2.2, Color(0.55, 0.85, 0.35))
-		draw_circle(Vector2.ZERO, 7.0, Color(1.0, 0.35, 0.3, 0.18))
+		c.draw_line(-dir * 12.0, dir * 6.0, Color(0.06, 0.05, 0.07), 4.0)
+		c.draw_line(-dir * 12.0, dir * 6.0, Color(0.85, 0.72, 0.5), 2.0)
+		c.draw_circle(dir * 6.0, 2.2, Color(0.55, 0.85, 0.35))
+		c.draw_circle(Vector2.ZERO, 7.0, Color(1.0, 0.35, 0.3, 0.18))
 		return
 	if style == "ember":
 		# A burning ember with a short flame trail.
-		draw_line(-dir * 14.0, Vector2.ZERO, Color(1.0, 0.45, 0.15, 0.5), 6.0)
-		draw_circle(Vector2.ZERO, 5.0, Color(1.0, 0.6, 0.2))
-		draw_circle(Vector2.ZERO, 2.5, Color(1.0, 0.92, 0.6))
-		draw_circle(Vector2.ZERO, 9.0, Color(1.0, 0.4, 0.2, 0.2))
+		c.draw_line(-dir * 14.0, Vector2.ZERO, Color(1.0, 0.45, 0.15, 0.5), 6.0)
+		c.draw_circle(Vector2.ZERO, 5.0, Color(1.0, 0.6, 0.2))
+		c.draw_circle(Vector2.ZERO, 2.5, Color(1.0, 0.92, 0.6))
+		c.draw_circle(Vector2.ZERO, 9.0, Color(1.0, 0.4, 0.2, 0.2))
 		return
 	if style == "feather":
 		# The Gryphon's feathers: a quill with a vane.
-		draw_line(-dir * 12.0, dir * 8.0, Color(0.06, 0.05, 0.07), 3.0)
-		draw_line(-dir * 12.0, dir * 8.0, Color(0.95, 0.9, 0.8), 1.5)
+		c.draw_line(-dir * 12.0, dir * 8.0, Color(0.06, 0.05, 0.07), 3.0)
+		c.draw_line(-dir * 12.0, dir * 8.0, Color(0.95, 0.9, 0.8), 1.5)
 		for k in 3:
 			var at := -dir * (2.0 + 4.0 * k)
-			draw_line(at, at - dir * 3.0 + side * 4.0, Color(tint, 0.9), 1.5)
-			draw_line(at, at - dir * 3.0 - side * 4.0, Color(tint, 0.9), 1.5)
-		draw_circle(Vector2.ZERO, 6.0, Color(1.0, 0.35, 0.3, 0.2))
+			c.draw_line(at, at - dir * 3.0 + side * 4.0, Color(tint, 0.9), 1.5)
+			c.draw_line(at, at - dir * 3.0 - side * 4.0, Color(tint, 0.9), 1.5)
+		c.draw_circle(Vector2.ZERO, 6.0, Color(1.0, 0.35, 0.3, 0.2))
 		return
 	if style == "essence":
 		# A streak of essence: a bright head and a long fading tail.
-		draw_line(-dir * 40.0, Vector2.ZERO, Color(tint, 0.3), 5.0)
-		draw_line(-dir * 22.0, dir * 4.0, Color(tint.lightened(0.3), 0.95), 2.5)
-		draw_circle(Vector2.ZERO, 7.0, Color(tint, 0.25))
+		c.draw_line(-dir * 40.0, Vector2.ZERO, Color(tint, 0.3), 5.0)
+		c.draw_line(-dir * 22.0, dir * 4.0, Color(tint.lightened(0.3), 0.95), 2.5)
+		c.draw_circle(Vector2.ZERO, 7.0, Color(tint, 0.25))
 		return
 	if style == "blade":
 		# A glowing conjured blade with a faint trail.
-		draw_line(-dir * 26.0, -dir * 6.0, Color(tint, 0.25), 5.0)
+		c.draw_line(-dir * 26.0, -dir * 6.0, Color(tint, 0.25), 5.0)
 		var blade := PackedVector2Array([dir * 11.0, side * 3.0, -dir * 7.0, -side * 3.0])
-		draw_colored_polygon(blade, Color(tint, 0.9))
-		draw_line(-dir * 5.0, dir * 9.0, Color(1, 1, 1, 0.9), 1.0)
-		draw_circle(Vector2.ZERO, 6.0, Color(tint, 0.2))
+		c.draw_colored_polygon(blade, Color(tint, 0.9))
+		c.draw_line(-dir * 5.0, dir * 9.0, Color(1, 1, 1, 0.9), 1.0)
+		c.draw_circle(Vector2.ZERO, 6.0, Color(tint, 0.2))
 		return
 	if style == "bolt":
 		# A crossbow bolt: short, thick and fast, with a long streak.
-		draw_line(-dir * 40.0, -dir * 6.0, Color(1.0, 0.9, 0.6, 0.22), 5.0)
-		draw_line(-dir * 10.0, dir * 4.0, Color(0.06, 0.05, 0.07), 4.5)
-		draw_line(-dir * 10.0, dir * 4.0, Color(0.6, 0.45, 0.3), 2.6)
-		draw_colored_polygon(PackedVector2Array([dir * 10.0, dir * 3.0 + side * 3.5, dir * 3.0 - side * 3.5]), Color(0.85, 0.87, 0.92))
-		draw_line(-dir * 10.0 + side * 3.0, -dir * 6.0, Color(0.85, 0.3, 0.25), 1.5)
-		draw_line(-dir * 10.0 - side * 3.0, -dir * 6.0, Color(0.85, 0.3, 0.25), 1.5)
+		c.draw_line(-dir * 40.0, -dir * 6.0, Color(1.0, 0.9, 0.6, 0.22), 5.0)
+		c.draw_line(-dir * 10.0, dir * 4.0, Color(0.06, 0.05, 0.07), 4.5)
+		c.draw_line(-dir * 10.0, dir * 4.0, Color(0.6, 0.45, 0.3), 2.6)
+		c.draw_colored_polygon(PackedVector2Array([dir * 10.0, dir * 3.0 + side * 3.5, dir * 3.0 - side * 3.5]), Color(0.85, 0.87, 0.92))
+		c.draw_line(-dir * 10.0 + side * 3.0, -dir * 6.0, Color(0.85, 0.3, 0.25), 1.5)
+		c.draw_line(-dir * 10.0 - side * 3.0, -dir * 6.0, Color(0.85, 0.3, 0.25), 1.5)
 		return
 	var glow := Color(1.0, 0.35, 0.3)  # monsters' arrows glow red so you can see them
 	if reflected or pierce:
@@ -207,10 +217,10 @@ func _draw() -> void:
 	elif friendly:
 		glow = Color(0.75, 0.95, 0.8)
 	# Motion streak, shaft, head and fletching.
-	draw_line(-dir * 30.0, -dir * 8.0, Color(glow, 0.18), 4.0)
-	draw_line(-dir * 14.0, dir * 4.0, Color(0.06, 0.05, 0.07), 3.5)
-	draw_line(-dir * 14.0, dir * 4.0, Color(0.72, 0.55, 0.35), 1.8)
-	draw_colored_polygon(PackedVector2Array([dir * 9.0, dir * 3.0 + side * 3.0, dir * 3.0 - side * 3.0]), Color(0.85, 0.87, 0.92))
-	draw_line(-dir * 14.0, -dir * 18.0 + side * 3.5, Color(0.9, 0.88, 0.85), 1.5)
-	draw_line(-dir * 14.0, -dir * 18.0 - side * 3.5, Color(0.9, 0.88, 0.85), 1.5)
-	draw_circle(dir * 5.0, 5.0, Color(glow, 0.22))
+	c.draw_line(-dir * 30.0, -dir * 8.0, Color(glow, 0.18), 4.0)
+	c.draw_line(-dir * 14.0, dir * 4.0, Color(0.06, 0.05, 0.07), 3.5)
+	c.draw_line(-dir * 14.0, dir * 4.0, Color(0.72, 0.55, 0.35), 1.8)
+	c.draw_colored_polygon(PackedVector2Array([dir * 9.0, dir * 3.0 + side * 3.0, dir * 3.0 - side * 3.0]), Color(0.85, 0.87, 0.92))
+	c.draw_line(-dir * 14.0, -dir * 18.0 + side * 3.5, Color(0.9, 0.88, 0.85), 1.5)
+	c.draw_line(-dir * 14.0, -dir * 18.0 - side * 3.5, Color(0.9, 0.88, 0.85), 1.5)
+	c.draw_circle(dir * 5.0, 5.0, Color(glow, 0.22))
