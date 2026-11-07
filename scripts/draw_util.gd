@@ -35,6 +35,31 @@ static func poly(c: CanvasItem, pts: PackedVector2Array, col: Color, outline := 
 	c.draw_colored_polygon(pts, col)
 
 
+## A line with a width, drawn as a filled quad. Use this (not draw_line with
+## a width) on anything torchlight falls on: in Godot 4.3's Compatibility
+## renderer a wide draw_line is lit on only one of its two triangles, so it
+## shimmers half-lit as it moves under a light. Thin 1 px lines are fine.
+static func line(c: CanvasItem, a: Vector2, b: Vector2, col: Color, width := 1.0) -> void:
+	var d := b - a
+	if d.length_squared() < 0.0001:
+		return
+	var o := d.normalized().orthogonal() * (width * 0.5)
+	c.draw_colored_polygon(PackedVector2Array([a + o, b + o, b - o, a - o]), col)
+
+
+## A polyline with a width, as quads with round joints (see line()).
+static func polyline(c: CanvasItem, pts: PackedVector2Array, col: Color, width := 1.0, closed := false) -> void:
+	var n := pts.size()
+	if n < 2:
+		return
+	var last := n if closed else n - 1
+	for i in last:
+		line(c, pts[i], pts[(i + 1) % n], col, width)
+	if width > 2.0:
+		for i in n:
+			c.draw_circle(pts[i], width * 0.5, col)
+
+
 ## A thick outlined line, for blades, bows and limbs.
 static func stroke(c: CanvasItem, a: Vector2, b: Vector2, col: Color, width: float) -> void:
 	c.draw_line(a, b, Palette.OUTLINE, width + 2.4, true)
