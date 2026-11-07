@@ -17,6 +17,7 @@ static func shadow(c: CanvasItem, pos: Vector2, r: float, alpha := 0.35) -> void
 static func ball(c: CanvasItem, pos: Vector2, r: float, col: Color, outline := true) -> void:
 	if outline:
 		c.draw_circle(pos, r + 1.6, Palette.OUTLINE)
+		c.draw_arc(pos, r + 1.3, 0.0, TAU, 24, Palette.OUTLINE, 0.6, true)  # a soft rim: smooth edges
 	c.draw_circle(pos, r, col.darkened(0.35))
 	c.draw_circle(pos + Vector2(-r * 0.12, -r * 0.14), r * 0.86, col)
 	c.draw_circle(pos + Vector2(-r * 0.32, -r * 0.36), r * 0.34, Color(col.lightened(0.45), 0.55))

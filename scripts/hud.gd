@@ -139,7 +139,8 @@ func _draw() -> void:
 	if parts.size() < BondScript.Bonds.PARTS.size():
 		var fh := _forming_height(p)
 		if main.touch_active:
-			_draw_forming(p, Vector2(12, y + 2), font)
+			if main.gear_here.is_empty():  # (the gear card covers this spot on small phones)
+				_draw_forming(p, Vector2(12, y + 2), font)
 		else:
 			_draw_forming(p, Vector2(16, size.y - 12.0 - 50.0 * parts.size() - fh - 8.0), font)
 
@@ -167,7 +168,9 @@ func _draw() -> void:
 	var floor_text: String = main._floor_title()
 	draw_string_outline(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 5, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, GOLD)
-	draw_string(font, Vector2(0, 48), "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor], HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, DIM_TEXT)
+	var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
+	draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, 3, Color(0, 0, 0, 0.6))
+	draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, DIM_TEXT)
 	if main.stair_open and not main.climbing:
 		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.005)
 		var left: int = main.enemies().size()
@@ -246,8 +249,8 @@ func _bond_compact(b, part: String, pos: Vector2, font: Font) -> void:
 	var c := pos + Vector2(17, 17)
 	var ratio: float = b.essence / b.capacity()
 	draw_circle(c, 11.0, Color(0, 0, 0, 0.6))
-	draw_arc(c, 11.0, 0.0, TAU, 28, Color(col, 0.25), 2.5)
-	draw_arc(c, 11.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 28, col, 2.5)
+	draw_arc(c, 11.0, 0.0, TAU, 28, Color(col, 0.25), 2.5, true)
+	draw_arc(c, 11.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 28, col, 2.5, true)
 	var label: String = b.display_name()
 	if b.burned:
 		label = "%s burned!" % BondScript.PART_NAMES[part]
@@ -267,9 +270,9 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	var c := pos + Vector2(22, 22)
 	# The sigil: a ring that fills with essence, the cast key in the middle.
 	draw_circle(c, 15.0, Color(0, 0, 0, 0.6))
-	draw_arc(c, 15.0, 0.0, TAU, 32, Color(col, 0.25), 3.0)
+	draw_arc(c, 15.0, 0.0, TAU, 32, Color(col, 0.25), 3.0, true)
 	var ratio: float = b.essence / b.capacity()
-	draw_arc(c, 15.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, col, 3.0)
+	draw_arc(c, 15.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, col, 3.0, true)
 	var can_cast: bool = b.essence >= b.cost()
 	draw_string(font, c + Vector2(-5, 5), key, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col if can_cast else DIM_TEXT)
 	var title := "%s  ·  %s  ·  %s" % [b.display_name(), BondScript.PART_NAMES[part], "faint" if b.faint else "step %d" % b.step]
@@ -279,7 +282,7 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 	draw_rect(bar, Color(1, 1, 1, 0.08))
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * ratio, bar.size.y)), col)
 	var cost_x: float = bar.position.x + bar.size.x * b.cost() / b.capacity()
-	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 2), Color(1, 1, 1, 0.8), 1.0)
+	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 1), Color(1, 1, 1, 0.8), 1.0)  # (clear of the note below)
 	var known: int = b.spells().size()
 	var note: String = "%s%s: %s" % [b.spell_name(), "  (%d/%d, hold %s to pick)" % [b.selected + 1, known, key] if known > 1 else "", b.spell_desc()]
 	var note_col := DIM_TEXT
@@ -345,7 +348,7 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 	var col: Color = info["color"]
 	var fell: bool = rg["fell"]
 	var part_name: String = BondScript.PART_NAMES[rg["part"]]
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, clampf(t / 0.8, 0.0, 0.96)))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, _overlay_shade(rg, 0.96)))
 	var c := Vector2(size.x / 2.0, size.y * 0.3)
 	# The eye opens.
 	var open := clampf((t - 0.4) / 1.2, 0.0, 1.0)
@@ -366,7 +369,7 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		draw_circle(c, iris, Color(col, 0.55))
 		draw_circle(c, iris * 0.62, Color(col.lightened(0.3), 0.8))
 		draw_circle(c, iris * 0.28, Color(0.02, 0.02, 0.03, 0.95))
-		draw_arc(c, iris, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0)
+		draw_arc(c, iris, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0, true)
 	# The mark grows beneath it.
 	var mk := clampf((t - 1.6) / 1.0, 0.0, 1.0)
 	if mk > 0.0:
@@ -527,7 +530,7 @@ func _draw_spell_ring(p, font: Font) -> void:
 		var at := c + Vector2.from_angle(a) * ring_r
 		var on: bool = i == p.pick_index
 		draw_circle(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
-		draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5)
+		draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5, true)
 		var words: PackedStringArray = known[i]["name"].split(" ")
 		for w in words.size():
 			draw_string(font, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 11.0), words[w], HORIZONTAL_ALIGNMENT_CENTER, 60, 10, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT)
@@ -572,7 +575,9 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 		return
 	var center := size * 0.5
 	var d := (sp - center).normalized()
-	var at := center + d * minf((size.x * 0.5 - margin) / maxf(absf(d.x), 0.001), (size.y * 0.5 - margin) / maxf(absf(d.y), 0.001))
+	# Keep it below the floor counter and stair line at the top.
+	var top := 104.0
+	var at := center + d * minf((size.x * 0.5 - margin) / maxf(absf(d.x), 0.001), ((size.y * 0.5 - margin) if d.y > 0.0 else (size.y * 0.5 - top)) / maxf(absf(d.y), 0.001))
 	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.006)
 	var tip := at + d * 14.0
 	draw_colored_polygon(PackedVector2Array([tip, at - d * 8.0 + d.orthogonal() * 10.0, at - d * 8.0 - d.orthogonal() * 10.0]), Color(1.0, 0.85, 0.5, pulse))
@@ -596,11 +601,20 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 		return
 
 
+## How dark the Regard's or the victory's backdrop is. One that begins while
+## the screen is black between floors starts fully dark, so the room doesn't
+## flash into view as the black fades out and the backdrop fades in.
+func _overlay_shade(o: Dictionary, most: float) -> float:
+	if o.get("dark", false):
+		return most
+	return clampf(float(o["t"]) / 0.8, 0.0, most)
+
+
 ## The climb is complete: the beast has fallen.
 func _draw_victory(size: Vector2, font: Font) -> void:
 	var v: Dictionary = main.victory
 	var t: float = v["t"]
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, clampf(t / 0.8, 0.0, 0.94)))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, _overlay_shade(v, 0.94)))
 	var a := clampf((t - 0.3) / 0.6, 0.0, 1.0)
 	var top := size.y * 0.32
 	draw_string_outline(font, Vector2(0, top), "CLIMB COMPLETE", HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
