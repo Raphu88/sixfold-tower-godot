@@ -1413,7 +1413,7 @@ func _draw() -> void:
 	# Vanish fades the climber most; a roll fades it to half (eased, so it
 	# doesn't blink). Set only here: two writers used to fight over it.
 	var want := 0.35 if vanish_t > 0.0 else (ROLL_ALPHA if roll_t > 0.0 else 1.0)
-	modulate.a = move_toward(modulate.a, want, get_process_delta_time() * 6.0)
+	modulate.a = move_toward(modulate.a, want, get_process_delta_time() * 10.0)
 
 	Draw.shadow(self, Vector2(0, radius * 0.75), radius * (1.0 - jump_height() / 40.0))
 	var lift := jump_height()
