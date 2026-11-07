@@ -32,6 +32,9 @@ var pacts: Array = []  # Covenant's pact book: monster kinds bound, kept between
 ## attribute and gives a small passive bonus (see attribute()).
 var density := {}  # kind -> amount
 var part_density := {}  # part -> {kind -> amount}
+## Heirlooms: gear kept from survived climbs, by heirloom slot (gear.gd
+## HEIRLOOM_SLOTS) -> gear id. Every climb starts with them.
+var heirlooms := {}
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -66,6 +69,7 @@ func reset() -> void:
 	pacts = []
 	density = {}
 	part_density = {}
+	heirlooms = {}
 	save()
 
 
@@ -83,6 +87,7 @@ func load_save() -> void:
 	density = cfg.get_value("profile", "density", {})
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
+	heirlooms = cfg.get_value("profile", "heirlooms", {})
 
 
 func save() -> void:
@@ -100,6 +105,7 @@ func save() -> void:
 	cfg.set_value("profile", "pacts", pacts)
 	cfg.set_value("profile", "density", density)
 	cfg.set_value("profile", "part_density", part_density)
+	cfg.set_value("profile", "heirlooms", heirlooms)
 	cfg.save(SAVE_PATH)
 
 

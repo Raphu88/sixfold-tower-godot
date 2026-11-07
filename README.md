@@ -14,14 +14,13 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; drag past the larger outer ring to sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; there is no sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
 | Action | Keys |
 | --- | --- |
 | Move | WASD or arrow keys |
-| Sprint | Shift |
 | Roll | Space |
 | Jump (over chasms and burning floor) | Z, or the Jump button on a phone |
 | Strike / hold to draw a bow / fire the crossbow | Left click or J |
@@ -31,7 +30,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Cast your marks (hand, legs, heart, brow, throat, back) | Q, E, F, C, X, V |
 | Use your item | G, or the Item button on a phone |
 | Next item | T, or the small arrow button beside Item on a phone |
-| Choose a camp card | 1 to 4, click, or tap the card |
+| Choose a camp card or an heirloom | 1 to 4, click, or tap the card |
 | Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone |
 | Restart | R |
 | New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
@@ -42,7 +41,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 
 Every weapon and suit of armor here is plain, common gear (enchanted weapons, armor and trinkets will come later). Their names, text and numbers live in `scripts/weapons.gd` (weapons) and `scripts/gear.gd` (armor, drops and carrying), so they're easy to change. Each is drawn in code on the climber and has its own HUD icon.
 
-**Carrying.** Gear lasts one climb. You carry four things: **1 fists** (always), **2 a melee weapon**, **3 a ranged weapon**, and **one suit of armor**. Every climb starts with a **sword**, a **shortbow** and **no armor**. The HUD shows the three weapon slots and the armor slot with their names; the **Body** page in the menu lists your gear with its key numbers.
+**Carrying.** Gear lasts one climb. You carry four things: **1 fists** (always), **2 a melee weapon**, **3 a ranged weapon**, and **one suit of armor**. Every climb starts with a **sword**, a **shortbow** and **no armor**, except where you hold an heirloom (below). The HUD shows the three weapon slots and the armor slot with their names; the **Body** page in the menu lists your gear with its key numbers.
 
 **Finding gear.** Slain monsters (not beasts) rarely drop a piece (4%), likelier one that suits them: knights favour chain mail, plate, swords, maces and greatswords; archers bows, crossbows and leather; smiths hammers, maces and armor; and so on (`FAVOUR` in `gear.gd`). A side room's essence cache sometimes holds a piece too (35%), and the camp offers a piece of gear as a fourth card beside its three items. Gear lies on the floor with its name. Walk over it with an empty slot (only armor starts empty) and you take it; otherwise a card compares it with what you carry (better numbers in green, worse in red), and **Y** (or **Take** on a phone) swaps: your old piece is dropped where you stand, so you can change your mind.
 
@@ -78,6 +77,8 @@ Weapon classes matter elsewhere too: Blade Forger's **Weapon Memory** throws mor
 | Leather Armor | 15% | +12% | -5% | -5% | -2% |
 | Chain Mail | 25% | +30% | -12% | -13% | -5% |
 | Plate Armor | 35% | +55% | -24% | -25% | -10% |
+
+**Heirlooms.** Survive a climb (beat its beast, or reach the Regard on the first climb without falling) and, after the victory screen, you choose **one** piece you carried to keep as an **heirloom**: a card for your melee weapon, your ranged weapon and your armor (any already kept are left out), and one to keep nothing new. Every later climb starts with your heirlooms in their slots instead of the sword, shortbow or no armor. Each slot holds one heirloom; keeping another piece for the same slot replaces it. The slots are **melee**, **ranged** and **chest** (armor); **helm, gloves, legs, boots, cloak, amulet, rings and backpack** are planned for gear that doesn't exist yet. The **Body** page lists your heirlooms and the planned slots. Starting a new climber forgets them. Slots and text live in `HEIRLOOM_SLOTS` and `HEIRLOOM_TEXT` in `scripts/gear.gd`; heirlooms are saved with your profile.
 
 The dev tools have a **Gear** row: a button for every weapon and armor, to try them at once.
 
@@ -271,7 +272,7 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `tools/fetch_audio_sources.sh` | Downloads the CC0 source sound packs |
 | `tools/build_audio.py` | Builds `assets/audio` from the source packs |
 | `scripts/weapons.gd` | Weapon definitions: every melee weapon, bow and crossbow, as data |
-| `scripts/gear.gd` | Armor, gear drops, carrying, comparing and gear icons |
+| `scripts/gear.gd` | Armor, gear drops, carrying, heirloom slots, comparing and gear icons |
 | `tests/smoke_test.gd` | Headless test that drives every action |
 
 ## Testing

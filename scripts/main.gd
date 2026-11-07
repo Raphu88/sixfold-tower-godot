@@ -101,7 +101,8 @@ var gear_here := {}  # the drop under you that needs Y (or Take) to swap for
 var in_camp := false  # resting at a camp between floors (floor_num stays the floor below)
 var camp_done := false  # each climb has one camp
 var camp_choosing := false  # the camp's cards are showing
-var camp := {}  # {stage: "item" or "rune", choices: [...], lines: [...]}
+var camp := {}  # {stage: "item", "rune" or "heirloom", choices: [...], lines: [...]}
+var heirloom_offered := false  # the heirloom choice has been shown this climb
 var campfire: Node2D
 
 # Lingering spell effects in the room
@@ -189,6 +190,7 @@ func _ready() -> void:
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
 	_give_bonds()
+	player.use_heirlooms(profile.heirlooms)
 	tower = profile.last_tower if Towers.TOWERS.has(profile.last_tower) else "kraken"
 	_apply_tower_look()
 	_start_floor(1)
@@ -893,6 +895,15 @@ func _enter_camp(lines: Array) -> void:
 ## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
 func camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
+	if pick.begins_with("heir:"):
+		var h := pick.substr(5)
+		if h == "":
+			return {"name": Gear.HEIRLOOM_TEXT["none_name"], "desc": Gear.HEIRLOOM_TEXT["none_desc"], "color": Color(0.6, 0.58, 0.66), "item": ""}
+		var hs := Gear.heirloom_slot(h)
+		var old: String = profile.heirlooms.get(hs, "")
+		var slot_name := Gear.heirloom_slot_name(hs).to_lower()
+		var note: String = Gear.HEIRLOOM_TEXT["replaces"] % Gear.display(old) if old != "" else Gear.HEIRLOOM_TEXT["empty_slot"] % slot_name
+		return {"name": Gear.display(h), "desc": Gear.info(h)["desc"], "color": Gear.color(h), "item": "", "gear": h, "note": note}
 	if pick.begins_with("gear:"):
 		var g := pick.substr(5)
 		var held: String = player.gear[Gear.slot_of(g)]
@@ -916,6 +927,9 @@ func choose_camp(i: int) -> void:
 	if not camp_choosing or i < 0 or i >= camp["choices"].size():
 		return
 	var pick: String = camp["choices"][i]
+	if camp["stage"] == "heirloom":
+		keep_heirloom(pick.substr(5))
+		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
 		if pick.begins_with("gear:"):
@@ -1238,8 +1252,56 @@ func regard_done() -> bool:
 
 
 func end_regard() -> void:
+	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
+	var survived: bool = not victory.is_empty() or (not regard.is_empty() and not regard.get("fell", false))
+	if survived and not heirloom_offered and _offer_heirloom():
+		return
 	Engine.time_scale = 1.0
-	get_tree().reload_current_scene()
+	if get_tree().current_scene == self:  # (tests run the room outside a scene)
+		get_tree().reload_current_scene()
+
+
+## The heirloom choice: a card for each piece you carry that isn't already
+## the heirloom in its slot, and one to keep nothing new. Returns false if
+## there's nothing to offer.
+func heirloom_choices() -> Array:
+	var choices: Array = []
+	for gs in ["melee", "ranged", "armor"]:
+		var id: String = player.gear[gs]
+		if id == "" or not Gear.is_gear(id):
+			continue
+		if profile.heirlooms.get(Gear.heirloom_slot(id), "") == id:
+			continue
+		choices.append("heir:" + id)
+	if not choices.is_empty():
+		choices.append("heir:")
+	return choices
+
+
+func _offer_heirloom() -> bool:
+	heirloom_offered = true
+	var choices := heirloom_choices()
+	if choices.is_empty():
+		return false
+	victory = {}
+	regard = {}
+	banner = {}
+	Engine.time_scale = 1.0
+	camp = {"stage": "heirloom", "choices": choices, "lines": [Gear.HEIRLOOM_TEXT["sub"]]}
+	camp_choosing = true
+	player.set_physics_process(false)
+	sfx("ready", 0.7, -4.0, 0.0)
+	return true
+
+
+## Keeps a piece as an heirloom ("" keeps nothing new), then the next climb.
+func keep_heirloom(id: String) -> void:
+	if id != "" and Gear.is_gear(id):
+		profile.heirlooms[Gear.heirloom_slot(id)] = id
+		profile.save()
+		sfx("equip_sword", 0.8, -2.0, 0.0)
+	camp_choosing = false
+	end_regard()
 
 
 ## Starts over as a new climber: no marks, back to the bondless first climb.

@@ -322,7 +322,7 @@ func _page_settings() -> void:
 func _page_controls() -> void:
 	_heading("CONTROLS", 28)
 	var rows := [
-		["Move", "WASD or arrows"], ["Sprint", "Shift"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
+		["Move", "WASD or arrows"], ["Roll", "Space"], ["Jump (over gaps)", "Z"],
 		["Strike / draw the bow", "Left click or J"], ["Parry", "Right click or K"],
 		["Weapon", "1 2 3 or the wheel"], ["Cast marks", "Q E F C X V  (hold to pick)"],
 		["Use item / next item", "G / T"], ["Take gear you stand on", "Y"],
@@ -390,7 +390,26 @@ func _page_body_gear() -> void:
 		stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		grid.add_child(stats)
 	box.add_child(grid)
-	_text("Gear lasts one climb: every climb starts with a sword, a shortbow and no armor. Monsters sometimes drop gear, caches can hold it, and the camp offers a piece. Walk over it to see how it compares; press Y (or tap Take) to swap.", DIM)
+	_text("Gear lasts one climb: every climb starts with a sword, a shortbow and no armor, unless you hold an heirloom for that slot. Monsters sometimes drop gear, caches can hold it, and the camp offers a piece. Walk over it to see how it compares; press Y (or tap Take) to swap.", DIM)
+	_page_body_heirlooms()
+
+
+## The Body page's Heirlooms: gear kept from survived climbs, one per slot,
+## and the slots still to come.
+func _page_body_heirlooms() -> void:
+	_section("Heirlooms")
+	var kept: Dictionary = main.profile.heirlooms if main.profile != null else {}
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	for s in Gear.HEIRLOOM_SLOTS:
+		var planned: bool = s.get("planned", false)
+		grid.add_child(_label(s["name"], 80.0, DIM))
+		var id: String = kept.get(s["id"], "")
+		var shown := Gear.HEIRLOOM_TEXT["planned"] if planned else (Gear.display(id) if id != "" else "none")
+		grid.add_child(_label(shown, 200.0, GOLD if id != "" else DIM))
+	box.add_child(grid)
+	_text("Survive a climb and you keep one piece you carried as an heirloom. Every climb begins with your heirlooms, one per slot.", DIM)
 
 
 func _ask_new(back: String) -> void:

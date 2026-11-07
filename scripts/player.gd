@@ -14,8 +14,8 @@ const BACKSTAB_MULT := 1.5
 const MAX_HP := 140.0  # tougher than the first, very clumsy climber
 const MAX_STA := 100.0
 const STA_REGEN := 34.0  # per second, once the short wait after acting is over
-const WALK := 150.0
-const SPRINT := 225.0
+## There is no sprint: one steady pace, so stamina is for fighting.
+const WALK := 165.0
 ## A jump: a short hop that clears chasms and burning floor (not attacks).
 const JUMP_TIME := 0.42
 const JUMP_COST := 10.0
@@ -161,6 +161,18 @@ func slots() -> Array:
 	return ["fists", gear["melee"], gear["ranged"]]
 
 
+## Starts the climb with your heirlooms in their slots (from the profile).
+func use_heirlooms(heirlooms: Dictionary) -> void:
+	for hs in heirlooms:
+		var id: String = heirlooms[hs]
+		var gs := Gear.gear_slot_for(hs)
+		if gs != "" and Gear.is_gear(id) and Gear.slot_of(id) == gs:
+			gear[gs] = id
+	weapon = gear["melee"]
+	if wkind() == "melee":
+		swing = wdata()["combo"][0]
+
+
 ## Every piece of gear you carry (not fists), for leaving out of drops.
 func carried_gear() -> Array:
 	return [gear["melee"], gear["ranged"], gear["armor"]].filter(func(g): return g != "")
@@ -274,10 +286,6 @@ func _physics_process(delta: float) -> void:
 			spd *= 0.35  # committed to the swing
 		elif reload_t > 0.0 and wkind() == "crossbow":
 			spd *= wdata()["reload_move"]  # you can walk while you reload
-		elif Input.is_action_pressed("sprint") and input != Vector2.ZERO and sta > 0.0:
-			spd = SPRINT
-			sta -= 22.0 * delta
-			sta_delay = 0.6
 		spd *= attr_speed * armor()["walk"]  # heavy armor slows you a little
 		if rune_gear == "swiftness":
 			spd *= 1.15
@@ -368,7 +376,7 @@ func _footsteps(delta: float, speed: float) -> void:
 	step_t -= delta
 	if step_t <= 0.0:
 		step_t = 36.0 / speed  # one step every ~36 px travelled
-		main.sfx("step", 1.0, -2.0 if speed > WALK else -5.0, 0.08)
+		main.sfx("step", 1.0, -2.0 if speed > WALK * 1.1 else -5.0, 0.08)
 
 
 func _read_buffer() -> void:
@@ -494,8 +502,7 @@ func _try_jump(input: Vector2) -> bool:
 		return true
 	sta -= JUMP_COST
 	sta_delay = 0.5
-	var spd := SPRINT if Input.is_action_pressed("sprint") else WALK
-	jump_vel = input * spd
+	jump_vel = input * WALK
 	jump_t = JUMP_TIME
 	jump_total = JUMP_TIME
 	glide_left = 0.8 if has_bond("flamewing") else 0.0
