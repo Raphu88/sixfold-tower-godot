@@ -888,12 +888,12 @@ func _rooms_tests() -> void:
 			if main._is_solid_tile(x, y) and main._near_walkable(x, y):
 				blocked = true
 	_check(blocked and main.is_solid(main.room.position + Vector2(5, 5)) == main._is_solid_tile(0, 0), "the area between rooms is solid")
+	# (a tile deep inside a wall, so the shot can't slip out before it's stopped)
 	var wall_at := Vector2.ZERO
 	for x in main.grid_size.x:
-		var pos: Vector2 = main.room.position + Vector2(x * 40 + 20, 20)
-		if main.is_solid(pos):
-			wall_at = pos
-			break
+		for y in main.grid_size.y:
+			if wall_at == Vector2.ZERO and main._is_solid_tile(x, y) and not main._near_walkable(x, y):
+				wall_at = main.room.position + Vector2(x * 40 + 20, y * 40 + 20)
 	var shot = main.spawn_projectile(wall_at, Vector2(10, 0), 5.0)
 	await _frames(3)
 	_check(not is_instance_valid(shot), "walls stop shots")

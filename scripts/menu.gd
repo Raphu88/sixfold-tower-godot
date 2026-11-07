@@ -34,6 +34,8 @@ const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_
 	"dev": 660.0, "climber": 780.0, "inventory": 780.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+## The mark cards' width on the climber page (page less the body view), for their first height.
+const CARD_W_GUESS := 548.0
 
 ## Settings, kept between sessions (in the same file as the profile).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false}
@@ -527,7 +529,7 @@ func _climber_marks(prof) -> void:
 		var card := MarkCard.new()
 		card.main = main
 		card.part = part
-		card.custom_minimum_size = Vector2(0, 104 if prof.bonds.has(part) else 30)
+		card.custom_minimum_size = Vector2(0, card.height_for(CARD_W_GUESS) if prof.bonds.has(part) else 30.0)
 		cards.add_child(card)
 	if prof.bonds.is_empty():
 		_note("Your first climb is bondless. Reach the top and the tower's beast takes notice: the body part you used most takes your first mark.")
@@ -1590,10 +1592,24 @@ class MarkCard extends Control:
 		var pas_t := "%s: %s" % [data["passive"]["name"], data["passive"]["desc"]]
 		draw_string(font, Vector2(x, by), "Passive", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
 		draw_multiline_string(font, Vector2(x + 44, by), pas_t, HORIZONTAL_ALIGNMENT_LEFT, tw, 12, -1, UI.DIM)
-		by += _text_h(font, pas_t, tw)
-		var want := ceilf(by + 8.0)
-		if absf(custom_minimum_size.y - want) > 1.0:
-			custom_minimum_size.y = want
+
+	## How tall the card must be at a width, for its wrapped text.
+	func height_for(w: float) -> float:
+		var info: Dictionary = main.profile.bonds.get(part, {})
+		if info.is_empty():
+			return 30.0
+		var data: Dictionary = Bonds.BONDS[info["id"]]
+		var font := ThemeDB.fallback_font
+		var tw := w - 54.0 - 52.0
+		var body_t := "%s: %s" % [data["body"]["name"], data["body"]["desc"]]
+		var pas_t := "%s: %s" % [data["passive"]["name"], data["passive"]["desc"]]
+		return ceilf(80.0 + _text_h(font, body_t, tw) + 3.0 + _text_h(font, pas_t, tw) + 8.0)
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_RESIZED and main != null:
+			var want := height_for(size.x)
+			if absf(custom_minimum_size.y - want) > 1.0:
+				custom_minimum_size.y = want
 
 	static func _text_h(font: Font, t: String, w: float) -> float:
 		return font.get_multiline_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, w, 12).y
