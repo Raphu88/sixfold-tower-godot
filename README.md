@@ -18,24 +18,27 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 
 ## Controls
 
-| Action | Keys |
-| --- | --- |
-| Move | WASD or arrow keys |
-| Roll | Space |
-| Jump (over chasms and burning floor) | Z, or the Jump button on a phone |
-| Strike / hold to draw a bow / fire the crossbow | Left click or J |
-| Switch weapon | 1 Fists, 2 your melee weapon, 3 your ranged weapon, or the mouse wheel |
-| Take the gear you stand on (your old piece is dropped) | Y, or the Take button on a phone |
-| Parry | Right click or K |
-| Cast your marks (hand, legs, heart, brow, throat, back) | Q, E, F, C, X, V |
-| Use your item | G, or the Item button on a phone |
-| Next item | T, or the small arrow button beside Item on a phone |
-| Choose a camp card or an heirloom | 1 to 4, click, or tap the card |
-| Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone |
-| Restart | R |
-| New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu |
-| Music on/off | M |
-| Show/hide controls | H |
+| Action | Keys | Controller (Xbox / PlayStation) |
+| --- | --- | --- |
+| Move | WASD or arrow keys | Left stick |
+| Aim | The mouse | Right stick; let go and you aim at the nearest monster, or the way you move |
+| Roll | Space | B / Circle |
+| Jump (over chasms and burning floor) | Z, or the Jump button on a phone | A / Cross |
+| Strike / hold to draw a bow / fire the crossbow | Left click or J | RT / R2 |
+| Parry | Right click or K | LT / L2 |
+| Switch weapon | 1 Fists, 2 your melee weapon, 3 your ranged weapon, or the mouse wheel | RB / R1 or d-pad right (next), d-pad left (previous) |
+| Take the gear you stand on (your old piece is dropped) | Y, or the Take button on a phone | Y / Triangle |
+| Cast your marks (hand, legs, heart, brow, throat, back); hold to pick a spell | Q, E, F, C, X, V | Hold LB / L1, then X, A, B, Y, RB, RT (Square, Cross, Circle, Triangle, R1, R2) |
+| Use your item | G, or the Item button on a phone | X / Square |
+| Next item | T, or the small arrow button beside Item on a phone | D-pad down |
+| Choose a tower, camp card or heirloom | 1 to 6, or arrows and Enter, click, or tap the card | D-pad or left stick, then A / Cross |
+| Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone | Start / Options |
+| Restart (hold, so a stray press can't end a climb; once fallen a press is enough) | Hold R | Hold View / Share |
+| New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu | New climber in the menu |
+| Music on/off | M | Music slider in Settings |
+| Show/hide controls | H | D-pad up |
+
+**Controllers.** Plug in (or pair) an Xbox, PlayStation or similar controller and just press a button. The prompts on screen (the controls panel, the gear card's "take it", the card screens, "press ... to begin your next climb") switch to controller buttons as soon as you use it, with PlayStation names on a PlayStation pad, and back to keys the moment you touch the keyboard or mouse (or to touch wording on a phone). Holding LB (L1) turns the face buttons, RB and RT into your six marks' casts; hold the cast button to open the spell ring and point with the right stick. The button layout lives in `scripts/controls.gd` (`PAD` and `PAD_CAST`), read by `scripts/pad.gd`.
 
 ## Weapons and armor
 
@@ -95,7 +98,7 @@ The dev tools have a **Gear** row: a button for every weapon and armor, to try t
 
 Every climb starts with one Healing Draught. Slain monsters (not beasts) sometimes leave an item (8%); walk over it to pick it up.
 
-**Camps.** On a five-floor climb, floor 3's stair leads first to a **camp**: the open room with a campfire and no monsters. You rest fully (all health and stamina, burns and poison healed), then choose one of four cards (keys 1 to 4, click, or tap): three items, or a piece of gear (taking it leaves your old piece by the fire). Then take the stair on to floor 4. Each climb has one camp; the bondless first climb has none.
+**Camps.** On a five-floor climb, floor 3's stair leads first to a **camp**: the open room with a campfire and no monsters. You rest fully (all health and stamina, burns and poison healed), then choose one of four cards (keys 1 to 4, the arrows and Enter, the d-pad and A, click, or tap): three items, or a piece of gear (taking it leaves your old piece by the fire). Then take the stair on to floor 4. Each climb has one camp; the bondless first climb has none.
 
 - **Surgeon's Steady Hands:** healing items heal 30% more and work faster.
 - **Rune Artist's Runesmith:** after taking an item at a camp, a Rune Artist also chooses a rune for their gear (Sharpness, Warding or Swiftness, as with Inscribe) that lasts the rest of the climb, the beast included, or crafts one more item. Casting Inscribe still changes the rune for one floor.
@@ -106,7 +109,7 @@ Each essence type is an attribute: Air is Agility, Blade Strength, Stone Vitalit
 
 ## Menus and the dev tool
 
-The game opens on a **title screen** that covers the whole game: a tower drawn in code against a night sky, with lit windows, a moon, mist and drifting motes in the six essence colours (`scripts/title.gd`; the name, tagline and footer text are in its `TEXT` list). Its buttons are **Continue** (or **Begin your first climb** for a new climber), **Body**, **Settings**, **Dev tools** and **New climber** (only once you have marks to lose), with a line showing your marks and best floor. Arrow keys and Enter, the mouse, or a tap all work; Esc does nothing there. Pages opened from the title show over its backdrop and **Back** returns to it. Leaving the title takes you to the tower choice. During a climb, **Esc** or **P** (or **Menu** on a phone) pauses and opens the **pause menu**: Resume, Restart this climb, Settings, Controls, Dev tools, New climber, Quit to title. **Settings** has music and sound volume, screen shake, and the keyboard controls panel; they're saved.
+The game opens on a **title screen** that covers the whole game: a tower drawn in code against a night sky, with lit windows, a moon, mist and drifting motes in the six essence colours (`scripts/title.gd`; the name, tagline and footer text are in its `TEXT` list). Its buttons are **Continue** (or **Begin your first climb** for a new climber), **Body**, **Settings**, **Dev tools** and **New climber** (only once you have marks to lose), with a line showing your marks and best floor. Arrow keys and Enter, a controller (d-pad or left stick to move, A to press), the mouse, or a tap all work; Esc does nothing there. The focused button has a gold outline, and the first one is focused when a page opens. Pages opened from the title show over its backdrop and **Back** returns to it. Leaving the title takes you to the tower choice. During a climb, **Esc** or **P** (or **Start** on a controller, or **Menu** on a phone) pauses and opens the **pause menu**: Resume, Restart this climb, Settings, Controls, Dev tools, New climber, Quit to title. **Settings** has music and sound volume, screen shake, and the controls panel; they're saved. On any page **Esc** or **B** (Circle) goes back a page, and from the pause menu back to the game. The **Controls** page lists every key and controller button side by side.
 
 The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `main.gd`):
 - **Marks:** give any bond to any body part with the arrows, and set its step from 1 to 5. Changes are saved, and giving a mark ends the bondless first climb. Fill essence, or clear every mark.
@@ -259,7 +262,8 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/hud.gd` | Health, stamina, bond bars and help text |
 | `scripts/menu.gd` | Title screen, pause menu, settings, controls list and dev tools |
 | `scripts/title.gd` | The title screen's drawing: sky, tower, motes, the name and tagline |
-| `scripts/controls.gd` | Input actions, set up in code |
+| `scripts/controls.gd` | Input actions, set up in code; the controller layout and the controls list |
+| `scripts/pad.gd` | Game controller: turns its buttons into actions, LB for casts, notices which device was used last |
 | `scripts/touch.gd` | On-screen touch controls |
 | `export_presets.cfg` | Web export settings |
 | `.github/workflows/web.yml` | Builds and publishes the web version |

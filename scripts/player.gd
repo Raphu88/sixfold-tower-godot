@@ -47,6 +47,7 @@ var bonds := {}  # body part -> bond
 var dead := false
 var mouse_aim := true  # tests turn this off to aim by hand
 var touch_aim := false  # on phones: face the nearest foe, or where you move
+var stick_aim := false  # a controller: the right stick aims; let go and it aims like touch
 
 var weapon := Weapons.START_MELEE
 var pending_weapon := ""
@@ -60,6 +61,7 @@ var roll_cd := 0.0
 var roll_dir := Vector2.ZERO
 var roll_speed := 0.0
 var iframes := 0.0
+const ROLL_ALPHA := 0.5  # how see-through a roll makes you
 var ghost_t := 0.0
 var attack_cd := 0.0
 var combo := 0
@@ -244,6 +246,13 @@ func _physics_process(delta: float) -> void:
 	elif touch_aim:
 		if attack_cd <= 0.0:
 			_auto_aim()
+	elif stick_aim:
+		if attack_cd <= 0.0:
+			var stick := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
+			if stick != Vector2.ZERO:
+				aim = stick.normalized()
+			else:
+				_auto_aim()
 	elif mouse_aim and mouse.distance_to(global_position) > 4.0 and attack_cd <= 0.0:
 		aim = (mouse - global_position).normalized()
 	_read_buffer()
@@ -361,7 +370,13 @@ func _update_pick(delta: float) -> void:
 ## Points into the open ring: the spell in that direction is highlighted.
 func _aim_pick(b) -> void:
 	var dir := pick_dir_override
-	if dir == Vector2.ZERO and not touch_aim:
+	if dir == Vector2.ZERO and stick_aim:
+		# A controller points with the right stick (or the left one).
+		dir = Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
+		if dir == Vector2.ZERO:
+			dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		dir *= 100.0
+	elif dir == Vector2.ZERO and not touch_aim:
 		dir = get_global_mouse_position() - global_position
 	if dir.length() > 18.0:
 		var n: int = b.spells().size()
@@ -710,7 +725,7 @@ func _tick_draw(delta: float) -> void:
 		draw_ready = true
 		main.sfx("ready", 1.0, 0.0, 0.0)
 		main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 18.0, 0.2, 2.0)
-	if (mouse_aim or touch_aim) and not Input.is_action_pressed("attack"):
+	if (mouse_aim or touch_aim or stick_aim) and not Input.is_action_pressed("attack"):
 		draw_release = true
 	# A quick tap still looses a weak shot once the arrow is nocked.
 	if draw_release and draw_t >= w["min_draw"]:
@@ -1395,8 +1410,10 @@ func _draw() -> void:
 	if dead:
 		cloak = Color(0.3, 0.29, 0.32)
 		skin = Color(0.45, 0.42, 0.42)
-	var alpha := 0.5 if iframes > 0.0 else 1.0
-	modulate.a = alpha
+	# Vanish fades the climber most; a roll fades it to half (eased, so it
+	# doesn't blink). Set only here: two writers used to fight over it.
+	var want := 0.35 if vanish_t > 0.0 else (ROLL_ALPHA if roll_t > 0.0 else 1.0)
+	modulate.a = move_toward(modulate.a, want, get_process_delta_time() * 10.0)
 
 	Draw.shadow(self, Vector2(0, radius * 0.75), radius * (1.0 - jump_height() / 40.0))
 	var lift := jump_height()
@@ -1523,7 +1540,6 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
 func _draw_overlay() -> void:
 	var c := overlay
-	modulate.a = 0.35 if vanish_t > 0.0 else 1.0
 	if aura_part != "":
 		var ar := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
 		var tt2 := Time.get_ticks_msec() * 0.001

@@ -53,6 +53,7 @@ const HEIRLOOM_TEXT := {
 const TEXT := {
 	"on_floor": "ON THE FLOOR",
 	"take_key": "Y  take it",
+	"take_pad": "{y}  take it",  # a controller ({y} becomes Y or Triangle)
 	"take_tap": "Tap Take",
 	"drops": "(drops your %s here)",
 	"took": "Took the %s",

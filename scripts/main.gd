@@ -12,6 +12,7 @@ const AudioScript := preload("res://scripts/audio.gd")
 const RoomScript := preload("res://scripts/room.gd")
 const Palette := preload("res://scripts/palette.gd")
 const TouchScript := preload("res://scripts/touch.gd")
+const PadScript := preload("res://scripts/pad.gd")
 const Floors := preload("res://scripts/floors.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -47,13 +48,27 @@ var cache := {}  # its essence cache: {pos, amount, kind, taken}
 var player
 var fx
 var camera: Camera2D
+# The climber's position at the last two physics ticks: the camera follows
+# the point between them, as the drawing does (physics interpolation), so it
+# glides at any screen refresh rate instead of jittering on 90/120 Hz screens.
+var cam_prev := Vector2.ZERO
+var cam_curr := Vector2.ZERO
 var cleared := false
 var shake_amount := 0.0
+var shake_ms := 0  # when the shake offset last changed
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
 var light_tex: Texture2D
+const MAX_FLASHES := 6  # light_flash bursts alive at once (with ~9 torches and glows, stays under 15)
+var flashes_live := 0
+## Light flashes from hits, parries and spells, toned down (owner's request):
+## every flash is this much as strong and this much as wide as asked.
+const FLASH_ENERGY := 0.5
+const FLASH_SIZE := 0.75
 var touch_active := false  # on-screen controls in use
+var pad_active := false  # the last input came from a game controller (pad.gd)
+var pad_ps := false  # ...and it's a PlayStation one (for button names)
 
 # The climb
 var floor_num := 1
@@ -84,11 +99,20 @@ var floor_total := 0  # monsters this floor started with
 var dim: CanvasModulate
 var hud
 var touch
+var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
 var dev_no_death := false  # dev tool: you can't fall
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
+## Restart is held (R, or View on a controller) so a stray press doesn't end
+## the climb; once fallen, a press is enough.
+const RESTART_HOLD := 0.8
+var restart_t := 0.0
+var restart_armed := false  # the press began on this floor (not before a reload)
+## Keyboard and controller: the highlighted tower or camp card.
+var card_focus := 0
+var overlay_closed_frame := -1  # (so the Start that closed it doesn't also open the menu)
 
 # Items and camps (items.gd)
 var item_drops: Array = []  # items lying on the floor: {pos, id, t}
@@ -199,6 +223,7 @@ func _ready() -> void:
 	else:
 		# Each climb begins by choosing a tower.
 		choosing_tower = true
+		card_focus = maxi(Towers.ORDER.find(tower), 0)
 		player.set_physics_process(false)
 		for e in enemies():
 			e.set_physics_process(false)
@@ -221,7 +246,10 @@ func _ready() -> void:
 	camera.limit_right = int(room.end.x + WALL + 20.0)
 	camera.limit_top = int(room.position.y - RoomScript.WALL_FACE - WALL - 20.0)
 	camera.limit_bottom = int(room.end.y + WALL + 70.0)  # room for the bond HUD
+	cam_prev = player.position
+	cam_curr = player.position
 	add_child(camera)
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # moved every frame, in _process
 	camera.make_current()
 
 	var layer := CanvasLayer.new()
@@ -232,6 +260,9 @@ func _ready() -> void:
 	touch = TouchScript.new()
 	touch.main = self
 	layer.add_child(touch)
+	pad = PadScript.new()
+	pad.main = self
+	add_child(pad)
 	var menu_layer := CanvasLayer.new()
 	menu_layer.layer = 10
 	add_child(menu_layer)
@@ -468,25 +499,34 @@ func _process(delta: float) -> void:
 		for i in Towers.ORDER.size():
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_tower(Towers.ORDER[i])
+				return
+		# (two rows of cards when there are more than four, as hud.gd lays them out)
+		var per_row := int(ceil(Towers.ORDER.size() / (2.0 if Towers.ORDER.size() > 4 else 1.0)))
+		if _card_keys(Towers.ORDER.size(), per_row):
+			choose_tower(Towers.ORDER[card_focus])
 		return
 	if camp_choosing:
 		for i in camp["choices"].size():
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_camp(i)
-				break
+				return
+		if _card_keys(camp["choices"].size(), camp["choices"].size()):
+			choose_camp(card_focus)
 		return
 	if not victory.is_empty():
 		victory["t"] += delta / maxf(Engine.time_scale, 0.01)
-		if overlay_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
+		if overlay_done() and _dismiss_pressed():
 			end_regard()
 		return
 	if not regard.is_empty():
 		regard["t"] += delta / maxf(Engine.time_scale, 0.01)
-		if regard_done() and (Input.is_action_just_pressed("attack") or Input.is_action_just_pressed("roll") or Input.is_action_just_pressed("restart")):
+		if regard_done() and _dismiss_pressed():
 			end_regard()
 		return
-	if Input.is_action_just_pressed("restart"):
-		get_tree().reload_current_scene()
+	if _restart_held(delta):
+		Engine.time_scale = 1.0
+		if get_tree().current_scene == self:  # (tests run the room outside a scene)
+			get_tree().reload_current_scene()
 		return
 	new_climber_t -= delta / maxf(Engine.time_scale, 0.01)
 	if Input.is_action_just_pressed("new_climber"):
@@ -519,11 +559,16 @@ func _process(delta: float) -> void:
 		if banner["t"] <= 0.0:
 			banner = {}
 	if player != null:
-		camera.position = player.position
+		camera.position = cam_prev.lerp(cam_curr, Engine.get_physics_interpolation_fraction())
 	# On phones the whole game is already drawn bigger, so pull the camera back.
 	var want := 1.1 if touch_active else 1.35
 	camera.zoom = Vector2(want, want)
-	camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
+	# A new shake offset at most 60 times a second, so a 120 Hz screen shakes
+	# like a 60 Hz one instead of buzzing.
+	var now_ms := Time.get_ticks_msec()
+	if now_ms - shake_ms >= 16 or shake_amount <= 0.0:
+		shake_ms = now_ms
+		camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
 
@@ -531,6 +576,21 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	_separate_bodies()
 	_update_spell_fields(delta)
+	_track_player()
+
+
+## Notes where the climber stands this tick, for the camera. A jump too big to
+## be a step (a blink, a swap, a fall back out of a chasm) snaps instead of
+## sliding across the room for a frame.
+func _track_player() -> void:
+	if player == null:
+		return
+	var now: Vector2 = player.global_position
+	if now.distance_to(cam_curr) > 64.0:
+		player.reset_physics_interpolation()
+		cam_curr = now
+	cam_prev = cam_curr
+	cam_curr = now
 
 
 ## Ticks the spells that linger in the room: rods, wind walls, cyclones, rain.
@@ -747,6 +807,9 @@ func _start_floor(n: int) -> void:
 		add_child(e)
 	player.position = start
 	player.last_safe = start
+	player.reset_physics_interpolation()
+	cam_prev = start
+	cam_curr = start
 	if camera != null:
 		camera.position = start
 		camera.reset_smoothing()
@@ -767,7 +830,6 @@ func _open_cache() -> void:
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
 	sfx("glint", 1.3, -2.0, 0.0)
-	room_view.queue_redraw()
 
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
@@ -831,7 +893,7 @@ func _arrive() -> void:
 	if floor_num == int(tower_data().get("summit", 0)):
 		profile.climbs += 1
 		profile.save()
-		victory = {"t": 0.0, "beast": beast_name(), "lines": lines}
+		victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
 		player.set_physics_process(false)
 		sfx("clear", 0.7, 0.0, 0.0)
 		return
@@ -870,6 +932,53 @@ func _camp_plan() -> Dictionary:
 	return {"monsters": [], "pillars": [], "start": fire + Vector2(0, 80)}
 
 
+## Keyboard and controller on the card screens: left and right (arrows,
+## d-pad or stick; up and down between rows) move the highlight, Enter,
+## Space or A takes the card. True when a card is taken.
+func _card_keys(count: int, per_row: int) -> bool:
+	if count <= 0:
+		return false
+	card_focus = clampi(card_focus, 0, count - 1)
+	if Input.is_action_just_pressed("ui_left"):
+		card_focus = posmod(card_focus - 1, count)
+	elif Input.is_action_just_pressed("ui_right"):
+		card_focus = posmod(card_focus + 1, count)
+	elif Input.is_action_just_pressed("ui_up") and card_focus - per_row >= 0:
+		card_focus -= per_row
+	elif Input.is_action_just_pressed("ui_down") and card_focus / per_row < (count - 1) / per_row:
+		card_focus = mini(card_focus + per_row, count - 1)
+	return Input.is_action_just_pressed("ui_accept")
+
+
+## The Regard and the victory screen: any of these moves on once they've played.
+func _dismiss_pressed() -> bool:
+	for a in ["attack", "roll", "restart", "jump", "ui_accept", "pause"]:
+		if Input.is_action_just_pressed(a):
+			overlay_closed_frame = Engine.get_process_frames()
+			return true
+	return false
+
+
+## True once restart has been held long enough (or pressed, once fallen).
+## While it's held, a banner says to keep holding.
+func _restart_held(delta: float) -> bool:
+	if Input.is_action_just_pressed("restart"):
+		restart_armed = true
+		restart_t = 0.0
+		if player.dead:
+			return true
+	if not restart_armed or not Input.is_action_pressed("restart"):
+		restart_armed = false
+		return false
+	restart_t += delta / maxf(Engine.time_scale, 0.01)
+	if restart_t >= RESTART_HOLD:
+		restart_armed = false
+		return true
+	var key := "Keep holding %s" % (Controls.pad_name("back", pad_ps) if pad_active else "R")
+	banner = {"title": "RESTART?", "lines": ["%s to start this climb again." % key], "t": 0.6}
+	return false
+
+
 ## Arrives at a camp: a full rest by the fire, then an item to choose.
 func _enter_camp(lines: Array) -> void:
 	camp_done = true
@@ -887,6 +996,7 @@ func _enter_camp(lines: Array) -> void:
 	choices.append("gear:" + Gear.random_gear("", player.carried_gear()))  # and a piece of gear
 	camp = {"stage": "item", "choices": choices, "lines": said}
 	camp_choosing = true
+	card_focus = 0
 	banner = {}
 	player.set_physics_process(false)
 	sfx("ready", 0.7, -4.0, 0.0)
@@ -940,6 +1050,7 @@ func choose_camp(i: int) -> void:
 			var choices: Array = Items.CAMP_RUNES.keys().map(func(r): return "rune:" + r)
 			choices.append("craft:" + Items.random_item(true))
 			camp = {"stage": "rune", "choices": choices, "lines": [Items.CAMP["rune_sub"]], "taken": taken}
+			card_focus = 0
 			sfx("equip_sword", 1.1, -4.0, 0.0)
 			return
 	elif pick.begins_with("rune:"):
@@ -1224,7 +1335,7 @@ func _begin_regard(fell: bool) -> void:
 	if not regard.is_empty():
 		return
 	_grant_regard(fell)
-	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0}
+	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0, "dark": fade > 0.5}
 	banner = {}
 	regard_pending = false
 	player.set_physics_process(false)
@@ -1289,6 +1400,7 @@ func _offer_heirloom() -> bool:
 	Engine.time_scale = 1.0
 	camp = {"stage": "heirloom", "choices": choices, "lines": [Gear.HEIRLOOM_TEXT["sub"]]}
 	camp_choosing = true
+	card_focus = 0
 	player.set_physics_process(false)
 	sfx("ready", 0.7, -4.0, 0.0)
 	return true
@@ -1889,13 +2001,20 @@ func shake(amount: float) -> void:
 
 ## A brief burst of real light: lightning, parries, crits, burns.
 func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 0.25) -> void:
+	# The web renderer lights each drawn thing with at most 15 lights; past
+	# that, some lights (torches too) are skipped and the lighting pops.
+	if flashes_live >= MAX_FLASHES:
+		return
+	flashes_live += 1
 	var l := PointLight2D.new()
 	l.texture = light_tex
-	l.texture_scale = size
+	l.texture_scale = size * FLASH_SIZE
 	l.color = color
-	l.energy = energy
+	l.energy = energy * FLASH_ENERGY
 	l.position = pos
 	add_child(l)
 	var tw := l.create_tween()
 	tw.tween_property(l, "energy", 0.0, dur).set_ease(Tween.EASE_OUT)
-	tw.tween_callback(l.queue_free)
+	tw.tween_callback(func():
+		flashes_live -= 1
+		l.queue_free())

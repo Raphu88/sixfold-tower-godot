@@ -142,6 +142,8 @@ func _set_active(on: bool) -> void:
 		main.player.touch_aim = on
 	if not on:
 		_release_all()
+	elif main.pad != null and main.pad.active:
+		main.pad._set_active(false)  # a touch: touch prompts, not controller ones
 	queue_redraw()
 
 
@@ -253,16 +255,18 @@ func _draw() -> void:
 
 	if stick_touch != -1:
 		draw_circle(stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.3))
-		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0)
+		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0, true)
 		var knob := stick_origin + (stick_pos - stick_origin).limit_length(STICK_RADIUS)
 		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
 	else:
-		if main.gear_here.is_empty():  # (the gear card sits here while you stand on gear)
+		if main.gear_here.is_empty() and not (main.player != null and main.player.dead):  # (the gear card sits here while you stand on gear)
 			draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()
 	for b in buttons:
+		if p != null and p.dead and b["id"] != "menu" and b["id"] != "fullscreen":
+			continue  # fallen: only Menu (to restart) matters, and the message stays clear
 		var c: Vector2 = b["c"]
 		var r: float = b["r"]
 		var pressed: bool = b["id"] in down
@@ -311,9 +315,9 @@ func _draw() -> void:
 			"menu":
 				label = "Menu"
 		draw_circle(c, r, Color(0, 0, 0, 0.45 if not pressed else 0.6))
-		draw_arc(c, r, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5)
+		draw_arc(c, r, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5, true)
 		if fill > 0.0:
-			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0)
+			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0, true)
 		if pressed:
 			draw_circle(c, r - 3.0, Color(col, 0.18))
 		var fsize := 13 if r > 30.0 else 10

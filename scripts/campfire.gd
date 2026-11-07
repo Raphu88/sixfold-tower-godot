@@ -33,7 +33,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var t := Time.get_ticks_msec() * 0.001
-	light.energy = 1.4 + 0.15 * sin(t * 8.0) + 0.08 * sin(t * 21.0)
+	light.energy = 1.4 + 0.13 * sin(t * 6.0) + 0.06 * sin(t * 11.0)  # soft: no fast flicker
 	light.texture_scale = 4.1 + 0.15 * sin(t * 4.0)
 	if randf() < 10.0 * delta:
 		sparks.append({"pos": Vector2(randf_range(-8, 8), -14), "vel": Vector2(randf_range(-12, 12), randf_range(-60, -35)), "t": randf_range(0.6, 1.3)})

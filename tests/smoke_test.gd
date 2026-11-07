@@ -2176,6 +2176,33 @@ func _combat_feel_tests() -> void:
 	k.queue_free()
 
 
+## The room is drawn in squares that are rebuilt (not piled up) on every
+## floor, and climbing floor after floor leaves nothing behind.
+func _performance_tests() -> void:
+	print("performance")
+	await _fresh_main()
+	var rv = main.room_view
+	await _frames(2)
+	var squares: int = rv.chunk_items.size()
+	_check(squares > 10, "the room is drawn in squares (%d)" % squares)
+	rv.queue_redraw()
+	await _frames(2)
+	_check(rv.chunk_items.size() == squares, "redrawing the room replaces its squares")
+	_check(rv.tint == rv.self_modulate, "the squares wear the tower's stone colour")
+	main.dev_floor(1)
+	await _frames(5)
+	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	for rep in 2:
+		for f in [2, 3, 4]:
+			main.dev_floor(f)
+			await _frames(3)
+	main.dev_floor(1)
+	await _frames(5)
+	var after := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	_check(after <= nodes + 4, "six floors later nothing is left behind (%d nodes, was %d)" % [after, nodes])
+	_check(rv.chunk_items.size() == squares, "floor 1's room has the same squares again")
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -3012,6 +3039,291 @@ func _heirloom_tests() -> void:
 	_check(main.profile.heirlooms.is_empty(), "a new climber has no heirlooms")
 
 
+## A controller button, as the game would get it from a real pad.
+func _pad_button(button: int, down: bool) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.device = 0
+	ev.button_index = button
+	ev.pressed = down
+	ev.pressure = 1.0 if down else 0.0
+	Input.parse_input_event(ev)
+
+
+func _pad_axis(axis: int, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.device = 0
+	ev.axis = axis
+	ev.axis_value = value
+	Input.parse_input_event(ev)
+
+
+func _key_tap(code: Key) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = code
+	ev.keycode = code
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await _frames(2)
+	ev = ev.duplicate()
+	ev.pressed = false
+	Input.parse_input_event(ev)
+	await _frames(2)
+
+
+func _pad_tap(button: int) -> void:
+	_pad_button(button, true)
+	await _frames(2)
+	_pad_button(button, false)
+	await _frames(2)
+
+
+func _controls_tests() -> void:
+	print("keyboard and controller")
+	await _fresh_main()
+	main.touch._set_active(false)
+	var p = main.player
+	var C = main.Controls
+	# Every action has a key (or a mouse button), and no key does two things.
+	var gameplay := ["move_up", "move_down", "move_left", "move_right", "roll", "jump", "attack", "parry",
+		"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "use_item", "item_next",
+		"interact", "restart", "toggle_music", "toggle_help", "new_climber", "weapon_1", "weapon_2", "weapon_3",
+		"weapon_next", "weapon_prev", "pause"]
+	var keys := {}
+	var all_keyed := true
+	var clash := ""
+	for a in gameplay:
+		var has_key := false
+		for ev in InputMap.action_get_events(a):
+			if ev is InputEventKey or ev is InputEventMouseButton:
+				has_key = true
+			if ev is InputEventKey:
+				if keys.has(ev.physical_keycode) and keys[ev.physical_keycode] != a:
+					clash = "%s and %s" % [keys[ev.physical_keycode], a]
+				keys[ev.physical_keycode] = a
+		all_keyed = all_keyed and has_key
+	_check(all_keyed, "every action has a key or mouse button")
+	_check(clash == "", "no key is bound to two actions %s" % clash)
+	# ...and every action but music, new climber and the number keys has a controller button.
+	var on_pad: Array = C.PAD.values() + C.PAD_CAST.values()
+	var missing: Array = gameplay.filter(func(a): return not (a in on_pad) and not a.begins_with("move_") \
+		and not a.begins_with("weapon_") and a != "toggle_music" and a != "new_climber")
+	_check(missing.is_empty(), "every action is on the controller (missing: %s)" % [missing])
+	_check("weapon_next" in on_pad and "weapon_prev" in on_pad, "...weapons cycle with the d-pad and RB")
+	_check(InputMap.action_has_event("move_left", C._axis(JOY_AXIS_LEFT_X, -1.0)) and InputMap.action_has_event("aim_up", C._axis(JOY_AXIS_RIGHT_Y, -1.0)), "the left stick moves, the right stick aims")
+	_check(InputMap.action_has_event("ui_accept", C._button(JOY_BUTTON_A)) and InputMap.action_has_event("ui_cancel", C._button(JOY_BUTTON_B)), "A confirms and B goes back in menus")
+	_check(C.PAD_CAST.size() == 6 and C.PART_PAD.size() == 6, "six casts with LB held, one per body part")
+
+	print("controller buttons")
+	_check(not main.pad_active and not p.stick_aim, "the keyboard is in charge to begin with")
+	_pad_button(JOY_BUTTON_B, true)
+	await _frames(2)
+	_check(Input.is_action_pressed("roll"), "B rolls")
+	_check(main.pad_active and p.stick_aim, "a controller press switches to controller prompts and stick aim")
+	_pad_button(JOY_BUTTON_B, false)
+	await _frames(2)
+	_check(not Input.is_action_pressed("roll"), "letting go of B lets go of roll")
+	_pad_button(JOY_BUTTON_X, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item") and not Input.is_action_pressed("cast_hand"), "X uses your item")
+	_pad_button(JOY_BUTTON_X, false)
+	# Hold LB: the face buttons cast.
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
+	_pad_button(JOY_BUTTON_X, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("cast_hand") and not Input.is_action_pressed("use_item"), "LB + X casts the hand's mark (not the item)")
+	_pad_button(JOY_BUTTON_X, false)
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	await _frames(1)
+	_check(Input.is_action_pressed("cast_back") and not Input.is_action_pressed("attack"), "LB + RT casts the back's mark")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
+	await _frames(1)
+	_check(not Input.is_action_pressed("cast_back") and not Input.is_action_pressed("cast_hand"), "letting go ends the casts' holds")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.2)
+	await _frames(1)
+	_check(not Input.is_action_pressed("attack"), "a light touch on RT does nothing")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.9)
+	await _frames(1)
+	_check(Input.is_action_pressed("attack"), "RT strikes (and holds to draw a bow)")
+	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)
+	await _frames(1)
+	_check(Input.is_action_pressed("parry"), "LT parries")
+	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 0.0)
+	# A menu opening lets go of what the controller held.
+	main.menu.open("pause")
+	await _frames(2)
+	_check(not Input.is_action_pressed("attack"), "opening the menu lets go of a held RT")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	await _frames(1)
+	main.menu.close()
+	await _frames(2)
+	# Weapons on the d-pad.
+	p.pending_weapon = ""
+	var w0: String = p.weapon
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(p.pending_weapon != "" and p.pending_weapon != w0 or p.weapon != w0, "d-pad right picks the next weapon")
+	await _settle()
+
+	print("stick aim")
+	for e in main.enemies():
+		e.global_position = p.global_position + Vector2(2000, 2000)  # out of auto-aim's reach
+	p.attack_cd = 0.0
+	p.parry_t = 0.0
+	_pad_axis(JOY_AXIS_RIGHT_X, -1.0)
+	await _frames(3)
+	_check(p.aim.x < -0.95, "the right stick aims (%s)" % p.aim)
+	_pad_axis(JOY_AXIS_RIGHT_X, 0.1)
+	await _frames(1)
+	_check(Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down") == Vector2.ZERO, "a stick resting near the middle doesn't aim (deadzone)")
+	_pad_axis(JOY_AXIS_RIGHT_X, 0.0)
+	_pad_axis(JOY_AXIS_LEFT_X, 1.0)
+	await _frames(1)
+	_check(Input.get_action_strength("move_right") > 0.9, "the left stick moves")
+	await _frames(12)
+	_check(p.aim.x > 0.5, "let go of the right stick and you aim the way you move (%s)" % p.aim)
+	_pad_axis(JOY_AXIS_LEFT_X, 0.1)
+	await _frames(1)
+	_check(Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "...and a resting left stick doesn't drift")
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	var dummy = await _dummy(p.global_position + Vector2(0, -90))
+	await _frames(12)
+	_check(p.aim.y < -0.8, "with no stick, you aim at the nearest monster (%s)" % p.aim)
+	_slay(dummy)
+
+	print("prompts follow the device")
+	var hud = main.hud
+	_check(hud._say("keys", "pad {a}", "tap") == "pad A", "controller prompts after a controller press")
+	_check(hud._say(main.Gear.TEXT["take_key"], main.Gear.TEXT["take_pad"], main.Gear.TEXT["take_tap"]) == "Y  take it", "the gear prompt names Y")
+	_check(C.pad_text("{a} {start}", true) == "Cross Options", "PlayStation pads get PlayStation names")
+	_check(hud._card_hint(main.card_focus) == "Press A", "the highlighted card says Press A")
+	await _key_tap(KEY_W)
+	_check(not main.pad_active and not p.stick_aim, "a key press hands back to the keyboard (and the mouse aims)")
+	_check(hud._say("keys", "pad {a}", "tap") == "keys", "keyboard prompts again")
+	_check(hud._card_hint(0).begins_with("Press 1"), "cards say Press 1 for the keyboard")
+	await _pad_tap(JOY_BUTTON_DPAD_UP)
+	var help_on: bool = hud.show_help
+	_check(main.pad_active, "the controller again")
+	_touch(3, Vector2(300, 300), true)
+	await _frames(2)
+	_touch(3, Vector2(300, 300), false)
+	await _frames(2)
+	_check(main.touch_active and not main.pad_active and hud._say("keys", "pad", "tap") == "tap", "a touch switches to touch wording")
+	_pad_button(JOY_BUTTON_Y, true)
+	await _frames(2)
+	_check(not main.touch_active and main.pad_active, "a controller press turns the touch controls off")
+	_check(Input.is_action_pressed("interact"), "...and still does its job (Y takes gear)")
+	_pad_button(JOY_BUTTON_Y, false)
+	await _pad_tap(JOY_BUTTON_DPAD_UP)
+	_check(hud.show_help != help_on, "d-pad up shows or hides the controls panel")
+	hud.show_help = false
+	await _frames(2)
+
+	print("card screens with keys and controller")
+	main._enter_camp([])
+	await _frames(2)
+	_check(main.camp_choosing and main.card_focus == 0, "a camp starts on the first card")
+	var picks: Array = main.camp["choices"].duplicate()
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(main.card_focus == 1, "d-pad right moves to the next card")
+	await _key_tap(KEY_LEFT)
+	_check(main.card_focus == 0, "the left arrow moves back")
+	await _key_tap(KEY_LEFT)
+	_check(main.card_focus == picks.size() - 1, "...and wraps around")
+	Input.action_press("ui_right")
+	await _frames(2)
+	Input.action_release("ui_right")
+	await _frames(1)
+	_check(main.card_focus == 0, "ui_right wraps to the first")
+	await _pad_tap(JOY_BUTTON_A)
+	_check(not main.camp_choosing, "A takes the highlighted camp card")
+	var first: String = picks[0]
+	_check(p.item_count(first) > 0 if not first.begins_with("gear:") else p.gear.values().has(first.substr(5)), "...the one that was highlighted (%s)" % first)
+	await _frames(2)
+	# Choosing a tower: two rows of three.
+	main.choosing_tower = true
+	main.card_focus = 0
+	await _key_tap(KEY_RIGHT)
+	await _key_tap(KEY_DOWN)
+	_check(main.card_focus == 4, "right then down moves along the tower cards (%d)" % main.card_focus)
+	await _key_tap(KEY_ENTER)
+	_check(not main.choosing_tower and main.tower == main.Towers.ORDER[4], "Enter takes the highlighted tower")
+	await _frames(2)
+	# The victory screen: A moves on, to the heirloom cards.
+	main.heirloom_offered = false
+	p.take_gear("axe")
+	main.victory = {"t": 3.0, "beast": "test", "lines": []}
+	await _frames(2)
+	await _pad_tap(JOY_BUTTON_A)
+	_check(main.victory.is_empty() and main.camp_choosing and main.camp["stage"] == "heirloom", "A dismisses the victory screen")
+	var none_i: int = main.camp["choices"].find("heir:")
+	for i in 8:
+		if main.card_focus == none_i:
+			break
+		await _key_tap(KEY_RIGHT)
+	Input.action_press("ui_accept")
+	await _frames(2)
+	Input.action_release("ui_accept")
+	_check(not main.camp_choosing and main.profile.heirlooms.is_empty(), "the heirloom cards take arrows and Enter too")
+	main.heirloom_offered = false
+	main.regard = {"fell": false, "part": "hand", "id": "stormcaller", "t": 4.0}
+	await _frames(2)
+	await _pad_tap(JOY_BUTTON_START)
+	_check(main.regard.is_empty() and main.camp_choosing, "Start dismisses the Regard once it has played")
+	_check(not main.menu_open(), "...instead of opening the menu")
+	main.choose_camp(main.camp["choices"].find("heir:"))
+	await _frames(2)
+
+	print("menus with keys and controller")
+	await _pad_tap(JOY_BUTTON_START)
+	_check(main.menu_open() and main.menu.page == "pause", "Start opens the pause menu")
+	await _frames(2)
+	var focus: Control = main.menu.get_viewport().gui_get_focus_owner()
+	_check(focus is Button and focus.text == "Resume", "the first button has the focus")
+	await _pad_tap(JOY_BUTTON_DPAD_DOWN)
+	focus = main.menu.get_viewport().gui_get_focus_owner()
+	_check(focus is Button and focus.text == "Restart this climb", "d-pad down moves the focus")
+	await _key_tap(KEY_UP)
+	focus = main.menu.get_viewport().gui_get_focus_owner()
+	_check(focus is Button and focus.text == "Resume", "the up arrow moves it back")
+	_check(not Input.is_action_pressed("item_next"), "the d-pad in a menu doesn't reach the game")
+	main.menu.open("settings")
+	await _frames(2)
+	focus = main.menu.get_viewport().gui_get_focus_owner()
+	_check(focus is HSlider, "the settings page starts on the music slider")
+	var music: float = main.menu.settings["music"]
+	await _key_tap(KEY_LEFT)
+	_check(main.menu.settings["music"] < music, "left turns the music down")
+	main.menu._set_setting("music", music)
+	await _pad_tap(JOY_BUTTON_B)
+	_check(main.menu.page == "pause", "B goes back a page")
+	await _pad_tap(JOY_BUTTON_A)
+	_check(not main.menu_open() and not paused, "A presses the focused button (Resume)")
+	await _frames(2)
+	main.menu.open("controls")
+	await _frames(2)
+	var texts: Array = _all_labels(main.menu).map(func(l): return l.text)
+	_check("Controller" in texts and texts.any(func(t): return "hold LB" in t), "the Controls page lists the controller")
+	await _key_tap(KEY_ESCAPE)
+	_check(main.menu.page == "pause", "Esc goes back from a page to the pause menu")
+	await _key_tap(KEY_ESCAPE)
+	_check(not main.menu_open(), "...and closes it")
+	await _frames(2)
+
+	print("restart is held")
+	Input.action_press("restart")
+	await _frames(3)
+	_check(main.restart_armed and main.banner.get("title", "") == "RESTART?", "pressing restart asks you to keep holding")
+	Input.action_release("restart")
+	await _frames(2)
+	_check(not main.restart_armed and main.restart_t < main.RESTART_HOLD, "a quick press doesn't restart")
+	_pad_button(JOY_BUTTON_BACK, true)
+	await _wait(1.0)
+	_check(main.restart_t >= main.RESTART_HOLD and not main.restart_armed, "holding View restarts")
+	_pad_button(JOY_BUTTON_BACK, false)
+	await _frames(2)
+	await _key_tap(KEY_W)  # (back to the keyboard)
+
+
 func _all_labels(n: Node) -> Array:
 	var out: Array = []
 	if n is Label:
@@ -3186,6 +3498,8 @@ func _run() -> void:
 	_check(p.iframes > 0.0, "roll grants i-frames")
 	p.receive_attack(10.0, slime)
 	_check(p.bonds["legs"].essence > legs0, "legs fill on dodge")
+	await _wait(0.1)
+	_check(p.modulate.a < 0.9, "rolling turns the climber see-through (%.2f)" % p.modulate.a)
 	await _wait(0.1)
 	_check(main.fx.ghosts.size() > 0, "afterimages while invulnerable")
 	await _settle()
@@ -3478,6 +3792,8 @@ func _run() -> void:
 	await _camp_tests()
 	await _gear_tests()
 	await _heirloom_tests()
+	await _controls_tests()
+	await _performance_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
