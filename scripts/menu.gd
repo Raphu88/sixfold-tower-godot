@@ -46,6 +46,10 @@ var page := ""  # "" when closed
 var box: VBoxContainer  # the current page's contents
 var panel: PanelContainer
 var scroll: ScrollContainer
+## Below the scroll area: Close/Back on the tall pages, so it's always on screen.
+var foot: VBoxContainer
+const PINNED_FOOTER := ["climber", "inventory"]
+const FOOT_H := 54.0
 var toast := ""
 var toast_t := 0.0
 var confirm_back := ""  # the page "Cancel" returns to
@@ -82,7 +86,12 @@ func _ready() -> void:
 	scroll = ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.follow_focus = true  # keys and controller: long pages scroll to the focused button
-	panel.add_child(scroll)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	panel.add_child(col)
+	col.add_child(scroll)
+	foot = VBoxContainer.new()
+	col.add_child(foot)
 	box = VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 8)
@@ -145,6 +154,10 @@ func _control_at(pos: Vector2, cls: String) -> Control:
 	for c in box.find_children("*", cls, true, false):
 		var ctl: Control = c
 		if ctl.is_visible_in_tree() and ctl.get_global_rect().has_point(pos) and scroll.get_global_rect().has_point(pos):
+			found = ctl
+	for c in foot.find_children("*", cls, true, false):
+		var ctl: Control = c
+		if ctl.is_visible_in_tree() and ctl.get_global_rect().has_point(pos):
 			found = ctl
 	return found
 
@@ -244,7 +257,7 @@ func _layout() -> void:
 		center.size = s
 		var h := minf(_wanted_height(), s.y - 32.0)
 		if page == "climber" or page == "inventory":
-			h = minf(maxf(_wanted_height(), 560.0), s.y - 32.0)  # (the same size on every tab)
+			h = minf(maxf(_wanted_height(), 560.0), s.y - 32.0) - FOOT_H  # (the same size on every tab; Close sits below)
 		scroll.custom_minimum_size = Vector2(minf(float(WIDTHS.get(page, 560.0)), s.x - 32.0), h)
 
 
@@ -302,8 +315,8 @@ func open(which: String, direct := false) -> void:
 		main.touch.release_all()
 	if main != null and main.pad != null:
 		main.pad.release_all()
-	for c in box.get_children():
-		box.remove_child(c)
+	for c in box.get_children() + foot.get_children():
+		c.get_parent().remove_child(c)
 		c.queue_free()
 	details = null
 	if keep < 0:
@@ -347,6 +360,7 @@ func close() -> void:
 func focusables() -> Array:
 	var list: Array = []
 	_collect_focus(box, list)
+	_collect_focus(foot, list)
 	return list
 
 
@@ -1167,11 +1181,13 @@ func _primary(b: Button) -> void:
 ## The bottom of a page: Back (or Close, for a screen opened by its key) and
 ## which key does the same.
 func _footer() -> void:
-	_gap(4)
+	var pinned: bool = page in PINNED_FOOTER
+	if not pinned:
+		_gap(4)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 14)
-	box.add_child(row)
+	(foot if pinned else box).add_child(row)
 	var closing := _back_page() == ""
 	var b := _button("Close" if closing else "Back", go_back, row)
 	b.custom_minimum_size.x = 180.0
