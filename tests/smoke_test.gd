@@ -2001,20 +2001,37 @@ func _puzzle_tests() -> void:
 	# A test puzzle of each hand-made kind, laid out in the start room. (Some
 	# start rooms have a wall there: lay the floor out again until it's open.)
 	var c: Vector2 = main.player_start + Vector2(0, -120)
-	for attempt in 30:
-		var open := true
+	var is_open := func(at: Vector2) -> bool:
 		for dx in range(-160, 161, 40):
 			for dy in range(-200, 161, 40):
-				open = open and not main.is_solid(c + Vector2(dx, dy))
+				if main.is_solid(at + Vector2(dx, dy)):
+					return false
 		for tr in main.traps:
-			open = open and tr["pos"].distance_to(c) > 260.0
-		if open:
+			if tr["pos"].distance_to(at) <= 260.0:
+				return false
+		return true
+	var found := false
+	for attempt in 40:
+		# (The start, or the middle of any room on this floor.)
+		var spots: Array = [main.player_start + Vector2(0, -120)]
+		for info in main.room_info:
+			spots.append(info["rect"].get_center())
+		for at in spots:
+			if is_open.call(at):
+				c = at
+				found = true
+				break
+		if found:
 			break
 		main._start_floor(3)
 		for e in main.enemies():
 			e.queue_free()
 		await _frames(1)
-		c = main.player_start + Vector2(0, -120)
+	_check(found, "(found an open patch of floor for the test puzzles)")
+	for e in main.enemies():
+		if e.global_position.distance_to(c) < 420.0:
+			e.queue_free()
+	await _frames(1)
 	var tile := func(v: Vector2) -> Vector2: return main.room.position + (Vector2(main._tile_of(v)) + Vector2(0.5, 0.5)) * F.CELL
 	# Eyes: arrows and strikes light them; all lit solves it.
 	var e1: Vector2 = tile.call(c + Vector2(-80, 0))
