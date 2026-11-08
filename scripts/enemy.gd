@@ -443,6 +443,7 @@ func _wind(delta: float, travel := 0.0) -> bool:
 		glinted = true
 		glint = 0.22
 		main.sfx("glint", 1.0, 0.0, 0.03)
+		main.tip("glint")
 	return state_t <= 0.0
 
 

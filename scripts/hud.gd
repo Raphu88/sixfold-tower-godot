@@ -24,6 +24,7 @@ const Controls := preload("res://scripts/controls.gd")
 
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const Entity := preload("res://scripts/entity.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -586,11 +587,13 @@ func _draw_tip(font: Font) -> void:
 		for l in lines:
 			w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x)
 		var size := get_viewport_rect().size / hud_scale
-		var box := Rect2(m + Vector2(16, 14), Vector2(w + 22.0, 26.0 + 16.0 * lines.size()))
+		var box := Rect2(m + Vector2(16, 14), Vector2(w + 40.0, 26.0 + 16.0 * lines.size()))
 		box.position.x = minf(box.position.x, size.x - box.size.x - 6.0)
 		if box.end.y > size.y - 6.0:
 			box.position.y = m.y - box.size.y - 10.0
 		draw_style_box(tip_box, box)
+		# The Entity tells you what it is (its small face in the corner).
+		Entity.draw_face(self, box.position + Vector2(box.size.x - 13.0, 14.0), 7.0, 0.0)
 		draw_string(font, box.position + Vector2(11, 19), t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, GOLD)
 		for i in lines.size():
 			draw_string(font, box.position + Vector2(11, 37 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)

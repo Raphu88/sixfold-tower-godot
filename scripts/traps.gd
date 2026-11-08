@@ -493,6 +493,7 @@ func _walks(e) -> bool:
 func _warn_sound(tr: Dictionary) -> void:
 	if not _heard(tr):
 		return
+	main.tip("hidden_trap" if tr["hidden"] else ("gas" if tr["kind"] == "gas" else "traps"))  # the Entity, the first time
 	match tr["kind"]:
 		"spikes":
 			main.sfx("trap_click", 1.0, -2.0)  # the plate clicks

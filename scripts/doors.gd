@@ -192,6 +192,7 @@ func open_door(d: Dictionary, quiet := false) -> void:
 	main.fx_burst(d["rect"].get_center(), -d["out"], dust, 8, 70.0)
 	main.sfx("slam", 1.7, -10.0, 0.08)
 	main.sfx("step_plate", 0.6, -6.0, 0.05)
+	main.tip("doors")  # the Entity, the first time
 	_redraw()
 
 

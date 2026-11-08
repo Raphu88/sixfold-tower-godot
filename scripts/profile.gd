@@ -35,6 +35,13 @@ var part_density := {}  # part -> {kind -> amount}
 ## Heirlooms: gear kept from survived climbs, by heirloom slot (gear.gd
 ## HEIRLOOM_SLOTS) -> gear id. Every climb starts with them.
 var heirlooms := {}
+## The Entity's record of you (menu.gd shows it): counters that only go up,
+## kept with the climber. "deaths", "slain", "beasts", "floors", "puzzles",
+## "falls", "heirlooms", "essence", plus "best" (tower -> best floor) and
+## "beasts_by" (tower -> beasts slain there). See note() and note_floor().
+var record := {}
+## Climbers before this one (New climber): the Entity remembers them.
+var former := 0
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -50,6 +57,32 @@ const ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
 var saving := true
 
 
+## Adds to one of the record's counters (saved with the next save).
+func note(key: String, amount := 1.0) -> void:
+	record[key] = float(record.get(key, 0.0)) + amount
+
+
+## A record counter, as a whole number.
+func count(key: String) -> int:
+	return int(record.get(key, 0.0))
+
+
+## Reached a floor of a tower: one more floor climbed, and its best floor.
+func note_floor(tower: String, floor_num: int) -> void:
+	note("floors")
+	var best: Dictionary = record.get("best", {})
+	best[tower] = maxi(int(best.get(tower, 0)), floor_num)
+	record["best"] = best
+
+
+## A tower's beast fell.
+func note_beast(tower: String) -> void:
+	note("beasts")
+	var by: Dictionary = record.get("beasts_by", {})
+	by[tower] = int(by.get(tower, 0)) + 1
+	record["beasts_by"] = by
+
+
 static func step_for_xp(xp: float) -> int:
 	var step := 1
 	for i in STEP_XP.size():
@@ -60,6 +93,8 @@ static func step_for_xp(xp: float) -> int:
 
 ## A new climber: forget every mark, all growth and soak, and the best floor.
 func reset() -> void:
+	if regarded or climbs > 0:
+		former += 1
 	regarded = false
 	bonds = {}
 	soak = {}
@@ -70,6 +105,7 @@ func reset() -> void:
 	density = {}
 	part_density = {}
 	heirlooms = {}
+	record = {}
 	save()
 
 
@@ -88,6 +124,8 @@ func load_save() -> void:
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 	heirlooms = cfg.get_value("profile", "heirlooms", {})
+	record = cfg.get_value("profile", "record", {})
+	former = int(cfg.get_value("profile", "former", 0))
 
 
 func save() -> void:
@@ -106,6 +144,8 @@ func save() -> void:
 	cfg.set_value("profile", "density", density)
 	cfg.set_value("profile", "part_density", part_density)
 	cfg.set_value("profile", "heirlooms", heirlooms)
+	cfg.set_value("profile", "record", record)
+	cfg.set_value("profile", "former", former)
 	cfg.save(SAVE_PATH)
 
 
