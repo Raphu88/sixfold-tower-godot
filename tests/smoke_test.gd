@@ -7,6 +7,7 @@ extends SceneTree
 
 var main
 var failures := 0
+var failed: Array = []  # what failed, listed again at the end (a long log may lose its start)
 const EnemyHP := {"slime": 24.0, "archer": 18.0, "knight": 48.0}
 
 
@@ -19,6 +20,7 @@ func _check(cond: bool, what: String) -> void:
 		print("  ok   ", what)
 	else:
 		failures += 1
+		failed.append(what)
 		print("  FAIL ", what)
 
 
@@ -6556,6 +6558,8 @@ func _run() -> void:
 	await _slim_hud_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
+	for f in failed:
+		print("  FAILED: ", f)
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
 	main.queue_free()
 	await _frames(2)
