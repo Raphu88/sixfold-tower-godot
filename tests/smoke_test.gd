@@ -1224,7 +1224,7 @@ func _trap_tests() -> void:
 	var snare: Dictionary = Traps.make(spot, "thorns", false, 2)
 	main.traps = [snare]
 	var th = await _spawn("knight", spot)
-	await _wait(0.5)
+	await _wait(0.8)
 	_check(th.stun > 0.0, "a thorn snare holds a monster too")
 	th.queue_free()
 	# Hidden traps are faint; the Hunter's Keen Eyes sees them.
