@@ -327,8 +327,11 @@ func _auto_aim() -> void:
 			best_d = d
 			best = e
 	var target := aim
+	var eye: Vector2 = main.puzzle.aim_point(global_position, reach) if main.puzzle != null else Vector2.INF
 	if best != null:
 		target = (best.global_position - global_position).normalized()
+	elif eye != Vector2.INF:
+		target = (eye - global_position).normalized()  # no foe near: aim at the puzzle's eye
 	else:
 		var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		if move.length() > 0.2:
@@ -687,6 +690,9 @@ func _melee() -> bool:
 			continue
 		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
 		hits += 1
+	# The floor's puzzle: strikes light eyes and pull levers.
+	if main.puzzle != null:
+		main.puzzle.strike(global_position, aim, reach, swing["arc"])
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:

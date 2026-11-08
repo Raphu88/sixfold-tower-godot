@@ -14,9 +14,18 @@ extends RefCounted
 ##   ~  standing water in towers that have it (the Kraken's); floor elsewhere
 ##   M  a monster's spot (monsters prefer these)
 ##   ?  random: usually floor, sometimes a wall or a pillar
+## Puzzle rooms (puzzle.gd) also use:
+##   =  low rail: blocks walking, not sight or shots (arrows fly over it)
+##   E  a stone eye to hit (with a strike or an arrow)
+##   P  a pressure plate that needs a weight (a block or a monster)
+##   B  a stone block to push
+##   G  a gate, open once the puzzle is solved
+##   L  a lever that puts the blocks back
+##   $  the reward behind the gate
 ##
-## Each room: id, role ("start", "combat" or "stair"), the first floor it can
-## appear on, whether it may be flipped, and its grid.
+## Each room: id, role ("start", "combat", "puzzle" or "stair"), the first
+## floor it can appear on, whether it may be flipped, and its grid. Puzzle
+## rooms also say which puzzle they hold and how hard it is (tier 1 or 2).
 
 const ROOMS := [
 	# --- start rooms: calm, open, a pillar or two -----------------------------
@@ -203,6 +212,63 @@ const ROOMS := [
 		".?..?.....?..?.",
 		"...............",
 	]},
+	# --- puzzle rooms: solving one lifts the ward on the stair ------------------
+	{"id": "eye_corner", "role": "puzzle", "puzzle": "eyes", "tier": 1, "from": 2, "flip": true, "grid": [
+		"#####..........",
+		"#.E.#..........",
+		"=...=..........",
+		"=====..........",
+		"...............",
+		"...............",
+		"...............",
+		"..........###..",
+		"..........#$#..",
+		"..........#G#..",
+		"...............",
+	]},
+	{"id": "eye_pair", "role": "puzzle", "puzzle": "eyes", "tier": 2, "from": 4, "flip": true, "grid": [
+		"#####.....#####",
+		"#.E.#.....#.E.#",
+		"=...=.....=...=",
+		"=====.....=====",
+		"...............",
+		"...............",
+		"...............",
+		"...............",
+		"...............",
+		".###...........",
+		".#$G...........",
+		".###...........",
+		"...............",
+	]},
+	{"id": "plate_block", "role": "puzzle", "puzzle": "plates", "tier": 1, "from": 2, "flip": true, "grid": [
+		"...............",
+		"..L............",
+		"...............",
+		"..B............",
+		"...............",
+		"...............",
+		"...............",
+		"..P.......###..",
+		"..........#$#..",
+		"..........#G#..",
+		"...............",
+	]},
+	{"id": "plate_pair", "role": "puzzle", "puzzle": "plates", "tier": 2, "from": 4, "flip": true, "grid": [
+		"...............",
+		"..B.........M..",
+		"...............",
+		"...............",
+		"..P.........P..",
+		"...............",
+		"...............",
+		"...............",
+		"..L............",
+		"...........###.",
+		"...........#$#.",
+		"...........#G#.",
+		"...............",
+	]},
 	{"id": "crossroads", "role": "combat", "from": 3, "flip": false, "grid": [
 		"####.......####",
 		"####.......####",
@@ -218,7 +284,7 @@ const ROOMS := [
 	]},
 ]
 
-const CHARS := ".#oC~M?"
+const CHARS := ".#oC~M?=EPBGL$"
 
 
 ## The rooms for a role that can appear on a floor.
@@ -250,7 +316,8 @@ static func flipped(room: Dictionary, flip_x: bool, flip_y: bool) -> Array:
 ## px), into floor features: wall blocks, pillars, chasms, pools and monster
 ## spots. `tower` decides what C and ~ become.
 static func features(rows: Array, origin: Vector2, cell: float, tower: Dictionary) -> Dictionary:
-	var out := {"blocks": [], "pillars": [], "chasms": [], "pools": [], "spots": []}
+	var out := {"blocks": [], "pillars": [], "chasms": [], "pools": [], "spots": [],
+		"rails": [], "eyes": [], "plates": [], "pushers": [], "gates": [], "levers": [], "rewards": []}
 	var chasms_here: bool = tower.get("chasms", false)
 	var water_here: bool = tower.get("puddles", false)
 	for y in rows.size():
@@ -276,7 +343,22 @@ static func features(rows: Array, origin: Vector2, cell: float, tower: Dictionar
 						out["pools"].append(tile)
 				"M":
 					out["spots"].append(tile.get_center())
+				"=":
+					out["rails"].append(tile)
+				"E":
+					out["eyes"].append(tile.get_center())
+				"P":
+					out["plates"].append(tile.get_center())
+				"B":
+					out["pushers"].append(tile.get_center())
+				"G":
+					out["gates"].append(tile)
+				"L":
+					out["levers"].append(tile.get_center())
+				"$":
+					out["rewards"].append(tile.get_center())
 	out["blocks"] = merge_rows(out["blocks"])
+	out["rails"] = merge_rows(out["rails"])
 	out["chasms"] = merge_rows(out["chasms"])
 	return out
 

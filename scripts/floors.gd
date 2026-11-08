@@ -71,6 +71,17 @@ const CACHE := {
 ## A floor of 3-5 rooms joined by corridors. You start in the first room; the
 ## stair is in the last. Monsters wait in the rooms beyond the first.
 static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
+	# Lay the floor out again (a few times at most) if a corridor ran through
+	# a piece its puzzle needs: every floor of rooms should have its test.
+	var plan := {}
+	for attempt in 8:
+		plan = _rooms_floor_once(floor_num, tower)
+		if not plan.get("puzzle", {}).is_empty():
+			break
+	return plan
+
+
+static func _rooms_floor_once(floor_num: int, tower: Dictionary) -> Dictionary:
 	var cell_size := ARENA.size / Vector2(GRID)
 	# A path through the cells: from a bottom cell to a top one.
 	var path: Array = []
@@ -98,10 +109,18 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var rooms: Array = []
 	var room_rows: Array = []
 	var used: Array = []
+	# One room between the start and the stair holds the floor's puzzle.
+	var puzzle_at := 1 + randi() % maxi(path.size() - 2, 1) if path.size() >= 3 else -1
+	var tier_cap := 1 if floor_num <= 3 else (2 if randf() < 0.5 else 1)
+	var puzzle_room := {}
 	for i in path.size():
 		var c: Vector2i = path[i]
 		var role := "start" if i == 0 else ("stair" if i == path.size() - 1 else "combat")
-		var pick := _pick_room(role, floor_num, used, cell_size)
+		if i == puzzle_at:
+			role = "puzzle"
+		var pick := _pick_room(role, floor_num, used, cell_size, tier_cap)
+		if role == "puzzle":
+			puzzle_room = pick
 		used.append(pick["id"])
 		var tiles := Rooms.size_of(pick)
 		var size := Vector2(tiles) * CELL
@@ -132,8 +151,11 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 		keep_clear.append(cr)
 	keep_clear.append(Rect2(start - Vector2(CELL, CELL) * 1.5, Vector2(CELL, CELL) * 3.0))
 	keep_clear.append(Rect2(stair - Vector2(CELL, CELL) * 1.5, Vector2(CELL, CELL) * 3.0))
+	var puzzle := {}
 	for i in rooms.size():
 		var f: Dictionary = Rooms.features(room_rows[i], rooms[i].position, CELL, tower)
+		if i == puzzle_at and not puzzle_room.is_empty():
+			puzzle = _puzzle_spec(puzzle_room, f, keep_clear, rooms[i])
 		for b in f["blocks"]:
 			if not _in_any_rect(b, keep_clear):
 				room_blocks.append(b)
@@ -187,8 +209,13 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var monsters: Array = []
 	var placed: Array = []
 	spots.shuffle()
+	# Monsters go to the combat and stair rooms (the puzzle room only gets its marked spots).
+	var fight_rooms: Array = []
+	for ri in range(1, rooms.size()):
+		if ri != puzzle_at or puzzle.is_empty():
+			fight_rooms.append(rooms[ri])
 	for i in kinds.size():
-		var r: Rect2 = rooms[1 + i % (rooms.size() - 1)]
+		var r: Rect2 = fight_rooms[i % fight_rooms.size()]
 		var pos := r.get_center()
 		# The rooms' marked spots first (an archer on a balcony, a guard by a door).
 		if not spots.is_empty():
@@ -207,7 +234,7 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	walk.append_array(corridors)
 	var plan := {"arena": ARENA, "rooms": rooms, "walk": walk, "start": start, "stair": stair,
 		"pillars": pillars, "monsters": monsters, "chasms": chasms, "blocks": blocks,
-		"pools": pools, "room_ids": used}
+		"pools": pools, "room_ids": used, "puzzle": puzzle}
 	var all_rooms: Array = rooms.duplicate()
 	if not side.is_empty():
 		walk.append(side["room"])
@@ -223,13 +250,34 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 
 
 ## A room for a role that fits a cell, not used yet this floor.
-static func _pick_room(role: String, floor_num: int, used: Array, cell_size: Vector2) -> Dictionary:
+static func _pick_room(role: String, floor_num: int, used: Array, cell_size: Vector2, tier_cap := 2) -> Dictionary:
 	var fits: Array = Rooms.for_role(role, floor_num).filter(func(r):
 		var sz := Vector2(Rooms.size_of(r)) * CELL
-		return sz.x <= cell_size.x - 80.0 and sz.y <= cell_size.y - 90.0)
+		return sz.x <= cell_size.x - 80.0 and sz.y <= cell_size.y - 90.0 and int(r.get("tier", 1)) <= tier_cap)
 	var fresh: Array = fits.filter(func(r): return not (r["id"] in used))
 	var pool: Array = fresh if not fresh.is_empty() else fits
 	return pool[randi() % pool.size()]
+
+
+## The puzzle in a room, from its features, or {} if a corridor ran through
+## a piece it needs (then the floor has no puzzle and no ward).
+static func _puzzle_spec(room_def: Dictionary, f: Dictionary, keep_clear: Array, rect: Rect2) -> Dictionary:
+	for key in ["eyes", "plates", "pushers", "levers", "rewards"]:
+		for p in f[key]:
+			if _in_any(p, keep_clear, CELL * 0.6):
+				return {}
+	for key in ["rails", "gates"]:
+		for r in f[key]:
+			if _in_any_rect(r, keep_clear):
+				return {}
+	var kind: String = room_def["puzzle"]
+	if kind == "eyes" and f["eyes"].is_empty():
+		return {}
+	if kind == "plates" and f["plates"].is_empty():
+		return {}
+	return {"type": kind, "tier": int(room_def.get("tier", 1)), "room": rect, "id": room_def["id"],
+		"eyes": f["eyes"], "plates": f["plates"], "pushers": f["pushers"], "rails": f["rails"],
+		"gates": f["gates"], "levers": f["levers"], "rewards": f["rewards"]}
 
 
 static func _in_any_rect(r: Rect2, rects: Array) -> bool:
