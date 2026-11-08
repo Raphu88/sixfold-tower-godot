@@ -4,14 +4,15 @@ extends RefCounted
 ## next tower, but only once the Regard has found you: the first climb is
 ## bondless, and the train appears with the Regard.
 ##
-## For now it's a menu (menu.gd's "train" page, built by train_page.gd over
-## the drawing in train_view.gd); a walkable train can come later. Its cars:
-##   personal  your own car: your heirlooms, and a small storage chest
+## You walk along it from the inside (menu.gd's "train" page: train_view.gd
+## draws the cars, train_page.gd puts their things in them). Its cars, front
+## to back:
+##   engine    the cab: choose the next tower on its board, pull the lever
+##   personal  your own car: your heirlooms, your pack and a storage chest
 ##   store     the store car, kept by the outfitter: supplies, an outfit,
 ##             today's piece, and selling what you brought down
 ##   workshop  the workshop car: the bench (bench.gd): brewing for anyone,
 ##             enchanting for a Rune Artist, and breaking things down
-##   depart    choose the next tower
 ##
 ## Essence crystals are the only currency (profile.gd keeps them as
 ## {kind, amount}). Every price is in one kind of essence. Names, words,
@@ -21,10 +22,9 @@ const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 
-## The cars, in the order of the tabs: [id, tab name].
-const CARS := [["personal", "Your car"], ["store", "Store car"], ["workshop", "Workshop"], ["depart", "Depart"]]
-## The store car's counters: [id, tab name].
-const STORE_TABS := [["supplies", "Supplies"], ["outfit", "Outfit"], ["today", "Today's piece"], ["sell", "Sell"]]
+## The cars, front to back: [id, name]. The train opens on HOME.
+const CARS := [["engine", "Engine"], ["personal", "Your car"], ["store", "Store car"], ["workshop", "Workshop"]]
+const HOME := "personal"
 
 ## Your storage chest (in your car): pieces kept safe between climbs.
 const CHEST_SIZE := 8
@@ -106,9 +106,24 @@ const TEXT := {
 	"sell_note": "What you brought down in your pack, and what's in your chest. Each sells for a crystal of its kind, at %d%% of its price.",
 	"nothing_to_sell": "Nothing to sell. Bring finds home in your pack: survive a climb, or read a recall scroll.",
 	"against": "Against what you'd start with",
-	# Depart
+	"shelves": "Supplies",
+	"rail": "Outfit",
+	"case": "Today's piece",
+	"sell_sign": "Sell to the outfitter",
+	"sell_short": "Sell",
+	"sell_title": "What you brought down",
+	"back_to_shelves": "Back to the shelves",
+	"back_short": "The shelves",
+	# The engine: where you choose the next tower
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",
+	"lever": "DEPART",
+	"lever_for": "for the %s",
+	"next_climb": "Your next climb",
+	"best": "Your best: floor %d",
+	"never": "Not climbed yet",
+	"essence": "%s essence",
+	"pull": "Pull the lever to depart.",
 	"depart_pack": "Going with you: %s.",
 	"depart_none": "nothing in your pack",
 	"depart_risk": "Fall, and your pack and belt are lost; your chest, heirlooms and crystals are safe.",

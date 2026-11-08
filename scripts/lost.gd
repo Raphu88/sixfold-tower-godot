@@ -54,6 +54,10 @@ const TEXT := {
 	"name": "Your lost things",
 	"found": "Found again: %s",
 	"at_feet": "No room in your pack: %s left at your feet",
+	# The fall screen, after the Regard: [keys, controller, touch] for going now.
+	"fell": "YOU FELL ON FLOOR %d",
+	"back": "Best: floor %d.  Back to the train in %d",
+	"now": ["Press Enter or R to go now", "Press {a} or {back} to go now", "Tap to go now"],
 }
 
 

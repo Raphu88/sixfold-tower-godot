@@ -167,7 +167,12 @@ func _set_active(on: bool) -> void:
 
 func _touch_down(index: int, pos: Vector2) -> void:
 	_layout()
+	# Fallen (after the Regard): only the top bar answers; a tap anywhere
+	# else goes back to the train.
+	var fallen: bool = main.fallen()
 	for b in buttons:
+		if fallen and not (b["id"] in TOP_BAR):
+			continue
 		if pos.distance_to(b["c"]) <= b["r"] + 12.0:
 			held[index] = b["id"]
 			held_since[index] = Time.get_ticks_msec()
@@ -182,6 +187,9 @@ func _touch_down(index: int, pos: Vector2) -> void:
 					# Taps: release on the next frame so the next tap registers too.
 					get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(b["action"]))
 			return
+	if fallen:
+		main.fall_tapped()
+		return
 	# Anywhere on the left side starts the joystick under the thumb.
 	if stick_touch == -1 and pos.x < get_viewport_rect().size.x * 0.5:
 		stick_touch = index

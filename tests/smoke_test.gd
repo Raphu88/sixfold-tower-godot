@@ -7642,10 +7642,42 @@ func _entity_tests() -> void:
 	main.entity.current = {}
 
 
-## The train between climbs (train.gd, train_page.gd): the pack of spare
-## pieces, the train opening after a climb, the store (buying with change,
-## a price you can't pay, putting back, today's piece, selling), the chest
-## and its save, and departing for a tower.
+## The buttons and slots in the train's car you're in (the other cars are
+## built too, so the next one shows while scrolling), with a meta.
+func _car_buttons(meta: String, val) -> Array:
+	var root = main.menu.train_page.roots.get(main.menu.train_car)
+	if root == null:
+		return []
+	return _all_buttons(root).filter(func(b): return b.has_meta(meta) and b.get_meta(meta) == val)
+
+
+## Waits until the train has settled on the car you're in.
+func _train_settled() -> void:
+	var v = main.menu.train_view
+	await _until(func(): return v.pos == float(v.target), 3.0)
+
+
+## A finger drawn across the screen, from `a` to `b`, in a few moves
+## (`slow`: seconds between them, for a slow drag rather than a flick).
+func _swipe(a: Vector2, b: Vector2, slow := 0.0) -> void:
+	_touch(0, a, true)
+	await _frames(1)
+	for i in 6:
+		_drag(0, a.lerp(b, (i + 1) / 6.0))
+		if slow > 0.0:
+			await _wait(slow)
+		else:
+			await _frames(1)
+	_touch(0, b, false)
+	await _frames(2)
+
+
+## The train between climbs (train.gd, train_page.gd, train_view.gd): the
+## pack of spare pieces, the train opening after a climb on your own car,
+## moving along it (keys, a swipe, the wheel, the arrows), the store (buying
+## with change, a price you can't pay, putting back, today's piece,
+## selling), the chest and its save, the engine where you choose the tower
+## and depart, and a fall after the Regard bringing you back to the train.
 func _train_tests() -> void:
 	print("the train")
 	await _fresh_main()
@@ -7695,15 +7727,44 @@ func _train_tests() -> void:
 	_check(main.on_train and main.choosing_tower, "after the Regard, a new climb waits on the train")
 	main.open_train()
 	await _frames(3)
-	_check(menu.page == "train" and menu.train_view.visible and paused, "the train's page opens over its drawing")
-	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("tab", "") != "")
-	_check(tabs.map(func(b): return b.get_meta("tab")) == ["personal", "store", "workshop", "depart"], "its cars: your car, the store car, the workshop and Depart")
+	var view = menu.train_view
+	_check(menu.page == "train" and view.visible and paused and not menu.center.visible, "the train fills the screen: its cars are the menu")
+	_check(menu.train_car == "personal" and view.pos == 1.0, "it opens on your own car")
+	var names: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car"))
+	_check(names.map(func(b): return b.get_meta("car")) == ["engine", "personal", "store", "workshop"], "its cars, front to back: the engine, your car, the store car, the workshop")
+	_check(_car_buttons("slot", "heir:melee").size() == 1 and _car_buttons("slot", "chest:0").size() == 1, "your car holds the heirloom wardrobe and the chest")
 	_check(not prof.store.get("outfit", []).is_empty() and prof.store.get("today", "") != "", "the store has an outfit rack and today's piece")
 	var today: Dictionary = T.today(prof)
 	_check(G.rarity(today) in ["fine", "rare"], "today's piece is Fine or Rare (%s)" % G.display(today))
-	# Keys: E the next car; Esc the menu, and Resume back to the train; I your car.
+	# Keys: E the next car (the train slides there), Q back; Esc the menu,
+	# and Resume back to the train; I your car.
 	await _key_tap(KEY_E)
 	_check(menu.train_car == "store", "E moves to the next car")
+	await _train_settled()
+	_check(view.pos == 2.0 and view.strip.position.x == -2.0 * view.size.x, "...and the train slides along to it")
+	await _key_tap(KEY_Q)
+	_check(menu.train_car == "personal", "Q moves back")
+	menu.get_viewport().gui_release_focus()
+	await _key_tap(KEY_LEFT)
+	_check(menu.train_car == "engine", "Left with nothing further that way goes to the car before")
+	await _key_tap(KEY_LEFT)
+	_check(menu.train_car == "engine", "...and the engine is the front of the train")
+	var wheel := InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	wheel.position = _to_window(Vector2(view.size.x * 0.5, view.size.y - 20.0))
+	Input.parse_input_event(wheel)
+	await _frames(2)
+	_check(menu.train_car == "personal", "the mouse wheel moves along too")
+	await _train_settled()
+	var arrow: Array = _all_buttons(view.chrome).filter(func(b): return b.get_meta("arrow", 0) == 1)
+	_check(arrow.size() == 1, "an arrow at the edge leads to the next car")
+	if arrow.size() == 1:
+		arrow[0].pressed.emit()
+		await _frames(2)
+	_check(menu.train_car == "store", "...and takes you there")
+	await _key_tap(KEY_Q)
+	await _train_settled()
 	await _key_tap(KEY_ESCAPE)
 	_check(menu.page == "pause", "Esc on the train opens the menu")
 	_menu_button("Resume").pressed.emit()
@@ -7719,11 +7780,12 @@ func _train_tests() -> void:
 	prof.add_crystal("stone", 10.0)
 	prof.add_crystal("stone", 40.0)
 	menu.train_car = "store"
-	menu.train_store = "supplies"
+	menu.train_store = "shop"
 	menu.inv_sel = "supply:draught"
 	menu.open("train")
 	await _frames(2)
-	var buy: Array = _all_buttons(menu).filter(func(b): return b.get_meta("buy", "") == "draught")
+	_check(_car_buttons("slot", "outfit:0").size() == 1 and _car_buttons("slot", "today").size() == 1, "the store car: the outfitter's shelves, the outfit rail and today's piece")
+	var buy: Array = _car_buttons("buy", "draught")
 	_check(buy.size() == 1 and not buy[0].disabled, "a Healing Draught can be bought")
 	if buy.size() == 1:
 		buy[0].pressed.emit()
@@ -7737,7 +7799,7 @@ func _train_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	labels = _all_labels(menu).map(func(l): return l.text)
-	buy = _all_buttons(menu).filter(func(b): return b.get_meta("buy", "") == "vial")
+	buy = _car_buttons("buy", "vial")
 	_check(buy.size() == 1 and buy[0].disabled and labels.any(func(t): return t.contains("needs 20 more Water")), "a price you can't pay says why: needs 20 more Water")
 	_check(T.buy_supply(prof, p, "vial") == "needs 20 more Water" and not prof.supplies.has("vial"), "...and buying it does nothing")
 	# The belt's room: the starting draught plus what's packed, up to 3.
@@ -7755,21 +7817,27 @@ func _train_tests() -> void:
 	prof.pack = [G.make("leather_cap"), G.make("iron_helm", "rare", ["vigor", "calm"])]
 	_check(T.gear_kind(prof.pack[0]) == "stone" and T.gear_sell(prof.pack[0]) == 4, "a Leather Cap sells for 4 Stone")
 	_check(T.gear_kind(prof.pack[1]) == "stone" and T.gear_price(prof.pack[1]) == 56 and T.gear_sell(prof.pack[1]) == 22, "a Rare Iron Helm of Vigor: 56 Stone, sells for 22")
-	menu.train_store = "sell"
+	var sign: Array = _car_buttons("store_tab", "sell")
+	_check(sign.size() == 1, "the outfitter's sign: sell to him")
+	if sign.size() == 1:
+		sign[0].pressed.emit()
+		await _frames(2)
+	_check(menu.train_store == "sell", "...shows what you brought down")
 	menu.inv_sel = "pack:0"
 	menu.open("train")
 	await _frames(2)
 	var stone: float = prof.crystal_total("stone")
-	var sell: Array = _all_buttons(menu).filter(func(b): return b.get_meta("sell", "") == "pack:0")
+	var sell: Array = _car_buttons("sell", "pack:0")
 	if sell.size() == 1:
 		sell[0].pressed.emit()
 		await _frames(2)
 	_check(prof.pack.size() == 2, "the first press on Sell only asks")
-	sell = _all_buttons(menu).filter(func(b): return b.get_meta("sell", "") == "pack:0")
+	sell = _car_buttons("sell", "pack:0")
 	if sell.size() == 1:
 		sell[0].pressed.emit()
 		await _frames(2)
 	_check(prof.pack.size() == 1 and prof.crystal_total("stone") == stone + 4.0, "the second sells it: a 4 Stone crystal")
+	menu.train_store = "shop"
 	# The chest: keep a piece; it's saved with the profile (old saves load without one).
 	_check(T.move(prof, p, "pack", 0) == "" and prof.chest.size() == 1 and prof.pack.is_empty(), "a piece moves from your pack to the chest")
 	prof.supplies = {"tonic": 2}
@@ -7792,30 +7860,79 @@ func _train_tests() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	prof.save_path = prof.SAVE_PATH
 	_check(T.move(prof, p, "chest", 0) == "" and prof.pack.size() == 1, "...and back into your pack")
-	# A phone: big enough to touch; tap Depart, then a tower.
+	# A phone: big enough to touch; swipe along; tap the engine, a tower, the lever.
 	main.touch._set_active(true)
 	await _frames(2)
+	menu.train_car = "personal"
 	menu.open("train")
 	await _frames(3)
-	var small: Array = _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.size.y < 36.0)
-	_check(small.is_empty(), "on a phone every train button is at least 36 tall (54 px): %s" % [small.map(func(b): return b.text)])
-	var dep: Array = _all_buttons(menu).filter(func(b): return b.get_meta("tab", "") == "depart")
+	var small: Array = _all_buttons(view).filter(func(b): return b.is_visible_in_tree() and b.get_global_rect().size.y < 35.9)
+	_check(small.is_empty(), "on a phone every button on the train is at least 36 tall (54 px): %s" % [small.map(func(b): return b.text)])
+	var sel0: String = menu.inv_sel
+	var mid: float = view.size.y * 0.5
+	await _swipe(Vector2(view.size.x * 0.62, mid), Vector2(view.size.x * 0.3, mid))
+	_check(menu.train_car == "store" and view.target == 2, "a swipe to the left goes to the next car")
+	_check(menu.train_sel.get("personal", "") == sel0, "...and doesn't press what it began on")
+	await _train_settled()
+	await _swipe(Vector2(view.size.x * 0.4, mid), Vector2(view.size.x * 0.52, mid), 0.05)
+	await _train_settled()
+	_check(menu.train_car == "store" and view.pos == 2.0, "a short one settles back on the same car")
+	await _swipe(Vector2(view.size.x * 0.3, mid), Vector2(view.size.x * 0.62, mid))
+	_check(menu.train_car == "personal", "a swipe to the right goes back")
+	var dep: Array = _all_buttons(view.chrome).filter(func(b): return b.get_meta("car", "") == "engine")
 	await _tap_at(dep[0].get_global_rect().get_center())
-	_check(menu.train_car == "depart", "tapping Depart shows the towers")
+	_check(menu.train_car == "engine", "tapping the engine's name goes there")
+	await _train_settled()
 	prof.supplies = {"tonic": 1}
 	p.gear = G.start_gear()
 	p.refresh_gear()
 	prof.pack = [G.make("leather_cap"), G.make("dagger"), G.make("chain")]
 	menu.open("train")
 	await _frames(2)
-	var cards: Array = _all_buttons(menu).filter(func(b): return b.get_meta("tower", "") == "wyvern")
-	_check(cards.size() == 1, "a card for each tower")
+	var cards: Array = _car_buttons("tower", "wyvern")
+	_check(cards.size() == 1 and _all_buttons(menu.train_page.roots["engine"]).filter(func(b): return b.has_meta("tower")).size() == 6, "the engine's board: a plaque for each tower")
 	if cards.size() == 1:
 		await _tap_at(cards[0].get_global_rect().get_center())
-	_check(not main.on_train and not main.choosing_tower and main.tower == "wyvern" and not menu.is_open(), "tapping a tower departs for it")
+	_check(menu.train_tower == "wyvern" and main.on_train, "tapping a plaque chooses that tower (still on the train)")
+	var lever: Array = _car_buttons("depart", "wyvern")
+	_check(lever.size() == 1, "...and the lever departs for it")
+	if lever.size() == 1:
+		await _tap_at(lever[0].get_global_rect().get_center())
+	_check(not main.on_train and not main.choosing_tower and main.tower == "wyvern" and not menu.is_open(), "pulling the lever departs for the chosen tower")
 	_check(p.gear_id("helm") == "leather_cap" and p.gear_id("melee") == "dagger" and p.gear_id("armor") == "chain", "pieces in your pack go on as you enter (the dagger in place of the starting sword)")
 	_check(p.item_count("tonic") == 1 and prof.pack.is_empty() and prof.supplies.is_empty() and prof.store.is_empty(), "supplies go on your belt; the store restocks next visit")
 	main.touch._set_active(false)
+	# A fall after the Regard: the fall screen for a moment, then back on the
+	# train, on your own car (a confirm key goes at once; alone, it waits).
+	menu.train_car = "engine"
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(99999.0, null)
+	await _frames(2)
+	_check(p.dead and main.fallen() and not main.on_train, "after the Regard a fall shows the fall screen first")
+	await _key_tap(KEY_ENTER)
+	_check(not main.on_train, "...a press in its first moment doesn't skip it (%.2f s)" % main.fall_t)
+	await _until(func(): return main.fall_t >= main.FALL_GRACE, 3.0)
+	await _key_tap(KEY_ENTER)
+	await _until(func(): return main.on_train, 2.0)
+	_check(main.on_train and menu.page == "train" and menu.train_car == "personal", "...then Enter goes back to the train, on your own car")
+	main.depart("kraken")
+	await _frames(2)
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.receive_attack(99999.0, null)
+	await _frames(2)
+	main.fall_t = main.FALL_WAIT - 0.1
+	await _until(func(): return main.on_train, 3.0)
+	_check(main.on_train and menu.page == "train", "...and on its own after %d seconds" % int(main.FALL_WAIT))
+	main.depart("kraken")
+	await _frames(2)
+	# The first climb's fall leads to the Regard, never the train.
+	await _fresh_main()
+	main.player.receive_attack(99999.0, null)
+	await _frames(5)
+	_check(main.player.dead and not main.fallen() and not main.on_train and main.regard_pending, "a fall on the bondless first climb goes to the Regard, not the train")
 
 
 ## Falling (lost.gd): the pack and belt are lost and remembered, the weapon
