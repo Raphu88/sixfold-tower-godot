@@ -131,6 +131,24 @@ var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
 var heal_left := 0.0
 var heal_rate := 0.0
+# Hold to pick an item: holding the item button (or the d-pad down) opens a
+# ring of your belt items; a short press uses the quick item (or picks the next).
+var item_hold_src := ""  # the action being held: "use_item" or "item_next"
+var item_hold_t := 0.0
+var ring_open := false
+var ring_index := -1
+var item_dir_override := Vector2.ZERO  # touch: finger offset from the Item button
+# What the newer items are doing (items.gd), in seconds left.
+var edge_t := 0.0  # Edge Oil: strikes hit harder
+var ward_oil_t := 0.0  # Warding Oil: traps can't hurt you while its barrier holds
+var haste_t := 0.0  # Haste Draught: a quicker walk, cheaper rolls
+var stone_t := 0.0  # Stoneskin Draught: less damage, no knockback
+var salts_t := 0.0  # Second Wind Salts: stamina refills faster
+# Rules of named gear (gear.gd NAMED) and traits.
+var dodge_haste_t := 0.0  # Phantom Treads: a dodge quickens your walk
+var still_t := 0.0  # Heartstone: toward the next health while unnoticed
+var spells_cast := 0  # Spellweave Ring: every third spell is free
+var guard_floor := {}  # once-a-floor rules used: rule -> the floor
 
 
 func _ready() -> void:
@@ -162,7 +180,7 @@ func wkind() -> String:
 
 ## The armor you wear (gear.gd ARMOR; "no armor" when none).
 func armor() -> Dictionary:
-	return Gear.armor(gear_id("armor"))
+	return Gear.armor(gear.get("armor", {}))
 
 
 ## The id of what you wear in a carried slot ("" if it's empty).
@@ -274,7 +292,39 @@ func gfx(key: String) -> float:
 
 ## Protection from all you wear (the chest plus helm and legs), capped.
 func protection() -> float:
-	return Gear.protection(gear, gear_fx)
+	return Gear.protection(gear, gear_fx, float(Items.ITEMS["stoneskin"]["reduce"]) if stone_t > 0.0 else 0.0)
+
+
+## A rule of the weapon in hand (a named weapon's, gear.gd weapon_rules), 0 if none.
+func rule(key: String) -> float:
+	if weapon == "fists":
+		return 0.0
+	return float(Gear.weapon_rules(weapon_rec()).get(key, 0.0))
+
+
+## Once a floor: true (and spent) the first time a rule asks on this floor.
+func once_a_floor(key: String) -> bool:
+	if int(guard_floor.get(key, -1)) == main.floor_num:
+		return false
+	guard_floor[key] = main.floor_num
+	return true
+
+
+## How many kinds of item the belt holds (a Belt Pouch or a Climber's Pack adds one).
+func belt_kinds() -> int:
+	return Items.BELT_KINDS + int(gfx("belt"))
+
+
+## Why an item can't be taken: "" if it can, "stack" if you carry as many
+## as you can, "belt" if it's a new kind and the belt is full.
+func item_room(id: String) -> String:
+	if not Items.ITEMS.has(id):
+		return "stack"
+	if item_count(id) >= max_stack(id):
+		return "stack"
+	if item_count(id) <= 0 and carried().size() >= belt_kinds():
+		return "belt"
+	return ""
 
 
 ## How many of an item you can carry (a satchel holds one more of each;
@@ -320,7 +370,7 @@ func _part_action(part: String, soak: float, fill: float) -> void:
 	main.add_soak(part, soak)
 	var b = bonds.get(part)
 	if b != null:
-		b.fill(fill)
+		b.fill(fill * (1.0 + gfx("fill")))  # of the Well, a Tide Locket
 
 
 ## True if any of your marks has learned a spell of this type.
@@ -374,6 +424,7 @@ func _physics_process(delta: float) -> void:
 		aim = (mouse - global_position).normalized()
 	_read_buffer()
 	_update_pick(delta)
+	_update_item_hold(delta)
 
 	if jump_t > 0.0:
 		_tick_jump(delta)
@@ -415,6 +466,10 @@ func _physics_process(delta: float) -> void:
 		spd *= attr_speed * armor()["walk"] * (1.0 + gfx("walk"))  # heavy armor slows you a little; boots
 		if rune_gear == "swiftness":
 			spd *= 1.15
+		if haste_t > 0.0:
+			spd *= 1.0 + float(Items.ITEMS["haste"]["walk"])  # Haste Draught
+		if dodge_haste_t > 0.0:
+			spd *= 1.0 + gfx("dodge_haste")  # Phantom Treads
 		if _stubborn():
 			spd *= 1.2
 		if has_bond("covenant"):  # Pack Stride
@@ -487,6 +542,66 @@ func _update_pick(delta: float) -> void:
 	pick_part = ""
 
 
+## Hold to pick an item: past Items.RING_HOLD the ring of belt items opens
+## (time slows) and the direction you point picks one; letting go uses it.
+## A short press uses the quick item (or, from the d-pad down or T, picks
+## the next one).
+func _update_item_hold(delta: float) -> void:
+	if item_hold_src == "":
+		return
+	if dead:
+		_close_ring()
+		return
+	if Input.is_action_pressed(item_hold_src):
+		item_hold_t += delta / maxf(Engine.time_scale, 0.01)
+		if not ring_open and item_hold_t >= Items.RING_HOLD and carried().size() >= 2:
+			ring_open = true
+			ring_index = carried().find(selected_item())
+			main.set_slowmo(true)
+			main.tip("item_ring")
+		if ring_open:
+			_aim_ring()
+		return
+	# Let go: use what the ring points at, or the quick item for a tap.
+	if ring_open:
+		_aim_ring()
+		var have := carried()
+		if ring_index >= 0 and ring_index < have.size():
+			item_sel = have[ring_index]
+		buffered = "item"
+		buffer_t = BUFFER_TIME
+	elif item_hold_src == "use_item":
+		buffered = "item"
+		buffer_t = BUFFER_TIME
+	else:
+		cycle_item()
+	_close_ring()
+
+
+func _close_ring() -> void:
+	if ring_open:
+		main.set_slowmo(false)
+	ring_open = false
+	item_hold_src = ""
+	item_hold_t = 0.0
+	item_dir_override = Vector2.ZERO
+
+
+## Points into the open item ring: the item in that direction is highlighted.
+func _aim_ring() -> void:
+	var dir := item_dir_override
+	if dir == Vector2.ZERO and stick_aim:
+		dir = Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
+		if dir == Vector2.ZERO:
+			dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		dir *= 100.0
+	elif dir == Vector2.ZERO and not touch_aim:
+		dir = get_global_mouse_position() - global_position
+	var n := carried().size()
+	if dir.length() > 18.0 and n > 0:
+		ring_index = posmod(int(round((dir.angle() + PI / 2.0) / (TAU / float(n)))), n)
+
+
 ## Points into the open ring: the spell in that direction is highlighted.
 func _aim_pick(b) -> void:
 	var dir := pick_dir_override
@@ -545,10 +660,13 @@ func _read_buffer() -> void:
 		pressed = "attack"  # (not a click that dismissed the Entity's bubble)
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
-	elif Input.is_action_just_pressed("use_item"):
-		pressed = "item"
-	if Input.is_action_just_pressed("item_next"):
-		cycle_item()
+	# The item button and the d-pad down: tap to use (or pick the next),
+	# hold to open the ring of belt items (see _update_item_hold).
+	for src in ["use_item", "item_next"]:
+		if Input.is_action_just_pressed(src) and item_hold_src == "":
+			item_hold_src = src
+			item_hold_t = 0.0
+			ring_open = false
 	# A mark's key: tap to cast its selected spell, hold to pick another
 	# (see _update_pick). The cast is buffered when the key is released.
 	for part in BondScript.Bonds.PARTS:
@@ -615,6 +733,20 @@ func _tick_timers(delta: float) -> void:
 	dodge_cd -= delta
 	buffer_t -= delta
 	sta_delay -= delta
+	edge_t -= delta
+	ward_oil_t -= delta
+	haste_t -= delta
+	stone_t -= delta
+	salts_t -= delta
+	dodge_haste_t -= delta
+	# Heartstone: a little health back while no monster has noticed you.
+	var still := gfx("still_mend")
+	if still > 0.0 and hp < max_health() and not dead:
+		still_t += delta
+		if still_t >= 3.0:
+			still_t = 0.0
+			if main.enemies().all(func(e): return e.unaware()):
+				hp = minf(max_health(), hp + still)
 	if reload_t > 0.0:
 		var was := reload_t
 		reload_t -= delta
@@ -631,7 +763,7 @@ func _tick_timers(delta: float) -> void:
 	_tick_healing(delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"])  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 func _winded() -> void:
@@ -710,6 +842,9 @@ func _try_roll(input: Vector2) -> bool:
 	var dist_mult := 1.0
 	# Armor weighs on a roll: heavier suits cost more and carry you less far.
 	cost *= armor()["roll_cost"] * (1.0 + Gear.HEAVY_ROLL * gfx("heavy"))  # heavy pieces add a little
+	cost *= 1.0 - gfx("roll_cost")  # of Rolling
+	if haste_t > 0.0:
+		cost *= 1.0 - float(Items.ITEMS["haste"]["roll"])  # Haste Draught
 	dist_mult *= armor()["roll_dist"] * (1.0 + gfx("roll_dist"))
 	if _burned("legs"):
 		cost *= 1.5
@@ -723,7 +858,7 @@ func _try_roll(input: Vector2) -> bool:
 	var duration := 0.26 if wind else 0.22
 	roll_speed = (500.0 if wind else 320.0) * dist_mult * (1.0 + 0.15 * graft("legs"))
 	roll_t = duration
-	iframes = duration * 0.85
+	iframes = duration * 0.85 + gfx("iframe")  # Phantom Treads
 	roll_cd = (duration + 0.25) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	attack_cd = 0.0
 	combo = 0
@@ -789,7 +924,9 @@ func _melee() -> bool:
 
 	var dmg: float = STRIKE_DAMAGE * swing["dmg"] * attr_strength * (1.0 + gfx("strike"))  # gloves and rings
 	if weapon != "fists" and weapon == gear_id("melee"):
-		dmg *= Gear.weapon_factor(gear["melee"])  # a badly worn weapon hits softer
+		dmg *= Gear.weapon_power(gear["melee"])  # its rarity; a badly worn weapon hits softer
+	if edge_t > 0.0:
+		dmg *= float(Items.ITEMS["edge_oil"]["mult"])  # Edge Oil
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
 		dmg *= 0.6
@@ -811,6 +948,7 @@ func _melee() -> bool:
 		if absf(aim.angle_to(to)) > deg_to_rad(swing["arc"]):
 			continue
 		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
+		_melee_rules(e, heavy)
 		hits += 1
 	# The floor's puzzle: strikes light eyes and pull levers.
 	if main.puzzle != null:
@@ -833,6 +971,16 @@ func _melee() -> bool:
 	return true
 
 
+## What a landed melee strike does besides its damage: of Embers may set
+## the foe burning; a Cinder Axe's finisher leaves burning floor.
+func _melee_rules(e, heavy: bool) -> void:
+	var ember := gfx("embers")
+	if ember > 0.0 and not e.dead and randf() < ember:
+		e.ignite(Gear.EMBER_BURN["dmg"], Gear.EMBER_BURN["time"])
+	if heavy and rule("cinder") > 0.0:
+		main.add_flame(e.global_position, 30.0, rule("cinder"), true)
+
+
 ## Flameblade: landed strikes heat the weapon; kindling keeps burning.
 func _strikes_landed(hits: int) -> void:
 	if kindle_t > 0.0:
@@ -843,7 +991,7 @@ func _strikes_landed(hits: int) -> void:
 		return
 	heat_idle = 0.0
 	var before := heat
-	heat = minf(100.0, heat + 12.0 * hits * (2.0 if kindle_t > 0.0 else 1.0))
+	heat = minf(100.0, heat + 12.0 * hits * (2.0 if kindle_t > 0.0 else 1.0) * (Items.FLAMEBLADE_OIL if edge_t > 0.0 else 1.0))  # Edge Oil builds heat faster
 	if heat >= 100.0 and before < 100.0:
 		main.fx_text(global_position + Vector2(0, -44), "White hot", Color(1.0, 0.85, 0.5))
 		main.sfx("burn", 1.4, -6.0)
@@ -879,7 +1027,7 @@ func release_draw() -> void:
 	attack_cd = w["recover"]
 	sta = maxf(0.0, sta - w["sta"])
 	sta_delay = 0.9
-	var dmg: float = lerpf(w["dmg_min"], w["dmg_max"], k * k) * Gear.weapon_factor(gear["ranged"])
+	var dmg: float = lerpf(w["dmg_min"], w["dmg_max"], k * k) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	wear_gear("shot")
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
@@ -904,7 +1052,7 @@ func _fire_bolt() -> void:
 	reload_t = w["reload"]
 	sta = maxf(0.0, sta - w["sta"])
 	sta_delay = 0.9
-	var dmg: float = float(w["dmg"]) * Gear.weapon_factor(gear["ranged"])
+	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	wear_gear("shot")
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
@@ -926,6 +1074,15 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Color(0.85, 0.63, 0.42))
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	_part_action("hand", 0.5, 6.0)
+	# Stormstring: a full draw arcs on to one more foe.
+	var arc := rule("arc")
+	if heavy and arc > 0.0 and wkind() == "bow":
+		for o in main.targets():
+			if o != e and not o.dead and o.global_position.distance_to(e.global_position) < 170.0:
+				main.fx_bolt([e.global_position, o.global_position], Color(0.78, 0.9, 1.0))
+				main.sfx("zap", 1.2, -6.0)
+				o.take_hit(dmg * arc, Vector2.ZERO)
+				break
 
 
 ## `rock`: the blow breaks poise like a heavy one (maces, hammers);
@@ -979,6 +1136,12 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 				main.sfx("zap", 1.25, -6.0)
 				other.take_hit(5.0, Vector2.ZERO)
 				break
+	# of the Riposte: ripostes and backstabs hit harder.
+	if crit or backstab:
+		dmg *= 1.0 + gfx("riposte")
+	# Watcher's Helm: a foe you parried takes more from you for a while.
+	if gfx("watch") > 0.0 and e.has_meta("watched") and float(e.get_meta("watched")) > Time.get_ticks_msec() * 0.001:
+		dmg *= 1.0 + gfx("watch")
 	var contact: Vector2 = e.global_position - dir * e.radius
 	if crit:
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), "Riposte!", Color(1.0, 0.85, 0.4))
@@ -998,12 +1161,47 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
 	e.take_hit(dmg, dir, force, heavy or crit or rock)
+	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
+	if hit_sound != "arrow_hit" and not e.dead:
+		if rule("chill") > 0.0:
+			e.chill_t = maxf(e.chill_t, rule("chill"))
+		if rule("venom") > 0.0:
+			e.add_venom(int(rule("venom")))
 	# A finishing blow fills the back too.
 	if e.dead:
 		_part_action("back", 2.0, 6.0)
+		_on_kill()
 	elif stagger > 0.0:
 		e.stagger(stagger * (0.5 if e.is_boss() else 1.0))
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), "Staggered", Color(1.0, 0.89, 0.63))
+		# Thornmaul: a staggering finisher throws thorns at the foes nearby.
+		var thorn := rule("thorn_burst")
+		if thorn > 0.0:
+			for o in main.targets():
+				if o != e and o.global_position.distance_to(e.global_position) < 110.0:
+					main.fx_burst(o.global_position, (o.global_position - e.global_position).normalized(), Color(0.65, 0.85, 0.4), 6, 260.0)
+					o.take_hit(thorn, (o.global_position - e.global_position).normalized(), 120.0)
+
+
+## A foe fell to your weapon: what your gear does then (a Sunsteel Blade's
+## and a Reaver's healing, Quickhand Gloves' and a Pearl Ring's essence).
+func _on_kill() -> void:
+	var heal := rule("kill_heal")
+	if heal > 0.0 and hp < max_health():
+		hp = minf(max_health(), hp + heal)
+		main.fx_text(global_position + Vector2(0, -44), "+%d" % int(heal), Color(0.6, 1.0, 0.7))
+	var hand = bonds.get("hand")
+	if hand != null:
+		var more: float = rule("kill_mark") + gfx("kill_fill") * hand.capacity()
+		if more > 0.0:
+			hand.essence = minf(hand.capacity(), hand.essence + more)
+	var pearl := gfx("kill_essence")
+	if pearl > 0.0 and not bonds.is_empty():
+		var emptiest = null
+		for b in bonds.values():
+			if emptiest == null or b.essence / b.capacity() < emptiest.essence / emptiest.capacity():
+				emptiest = b
+		emptiest.essence = minf(emptiest.capacity(), emptiest.essence + pearl)
 
 
 func _try_parry() -> bool:
@@ -1069,8 +1267,19 @@ func _try_cast(part: String) -> bool:
 func _release_cast() -> void:
 	var b = bonds[cast_part]
 	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and b.spell()["type"] == "wingburst")
+	# Spellweave Ring: every third spell costs nothing.
+	spells_cast += 1
+	var weave := int(gfx("spellweave"))
+	if weave > 0 and spells_cast % weave == 0 and not free:
+		free = true
+		main.fx_text(global_position + Vector2(0, -52), "Spellweave", Color(0.85, 0.55, 0.95))
 	var paid: String = b.pay(free)
 	var part_name: String = BondScript.PART_NAMES[cast_part]
+	# Ring of the Overdrawn: the first overdraw each floor doesn't burn.
+	if paid == "burned" and gfx("overdraw_guard") > 0.0 and once_a_floor("overdraw"):
+		b.burned = false
+		paid = "guarded"
+		main.fx_text(global_position + Vector2(0, -40), "The ring takes the burn", Color(0.95, 0.5, 0.3))
 	if paid == "burned":
 		# Overdraw: a weaker, desperate cast, and the body part burns.
 		main.fx_text(global_position + Vector2(0, -40), "%s burned!" % part_name, Color(1.0, 0.4, 0.3))
@@ -1308,7 +1517,7 @@ func stand_in_fire(delta: float) -> void:
 	if fire_t < 0.5:
 		return
 	fire_t = 0.0
-	var burn := 4.0 * (1.0 - gfx("ailment"))  # Travel Cloak
+	var burn := 4.0 * (1.0 - gfx("ailment")) * (1.0 - gfx("footing"))  # Travel Cloak; of Footing
 	hp -= burn
 	main.fx_text(global_position + Vector2(0, -24), "-%d" % int(round(burn)), Color(1.0, 0.55, 0.25))
 	main.sfx("burn", 1.3, -10.0)
@@ -1380,12 +1589,13 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	var raw := dmg
 	dmg *= 1.0 - protection()
 	hp -= dmg
+	_thorns(source)
 	wear_gear("hit")
 	hits_taken += 1  # (a sealed wing's "take no hit" counts these)
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
 	if source != null and not steadfast:
-		var planted: bool = has_bond("sandshaper") or (gear_fx.get("steady", false) and raw < Gear.LIGHT_BLOW)  # Rooted Stance; Hobnail Boots
+		var planted: bool = has_bond("sandshaper") or (gear_fx.get("steady", false) and raw < Gear.LIGHT_BLOW) or stone_t > 0.0  # Rooted Stance; Hobnail Boots; Stoneskin
 		knock = Vector2.ZERO if planted else (global_position - source.global_position).normalized() * 240.0
 	# Getting hit interrupts swings, draws and cast wind-ups (not while
 	# the Warden's barrier holds: Steadfast).
@@ -1411,6 +1621,33 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	else:
 		# The heart fills when you take a hit and survive.
 		_part_action("heart", 4.0, 8.0)
+		_low_health_rules()
+
+
+## Thorns (a trait, Barnacle Mail): a foe that strikes you up close takes some back.
+func _thorns(source) -> void:
+	var t := gfx("thorns")
+	if t <= 0.0 or source == null or not is_instance_valid(source) or not source.has_method("take_hit") or not ("dead" in source):
+		return
+	if source.dead or source.global_position.distance_to(global_position) > Gear.THORNS_REACH + float(source.get("radius") if "radius" in source else 0.0):
+		return
+	source.take_hit(t, (source.global_position - global_position).normalized(), 60.0)
+	main.fx_burst(source.global_position, (source.global_position - global_position).normalized(), Color(0.75, 0.8, 0.6), 5, 200.0)
+
+
+## Once a floor, low on health: an Emberkin Mantle heals, Bastion Plate
+## raises a barrier.
+func _low_health_rules() -> void:
+	var mend := gfx("ember_mend")
+	if mend > 0.0 and hp < max_health() * 0.2 and once_a_floor("ember_mend"):
+		heal_left += mend
+		heal_rate = maxf(heal_rate, mend / 2.0)
+		main.fx_text(global_position + Vector2(0, -48), "The mantle smoulders: +%d" % int(mend), Color(1.0, 0.6, 0.3))
+		main.light_flash(global_position, Color(1.0, 0.55, 0.25), 1.2, 1.6, 0.4)
+	var bastion := gfx("bastion")
+	if bastion > 0.0 and hp < max_health() * 0.3 and once_a_floor("bastion"):
+		raise_barrier(bastion, 6.0, false, Color(0.9, 0.85, 0.6))
+		main.fx_text(global_position + Vector2(0, -48), "Bastion", Color(0.9, 0.85, 0.6))
 
 
 ## Warden's Turning Ward.
@@ -1529,6 +1766,9 @@ func _on_parry(source, perfect := false) -> void:
 		for e in main.targets():
 			if e.global_position.distance_to(at) < 70.0 + e.radius:
 				e.take_hit(searing_dmg, (e.global_position - global_position).normalized(), 200.0, true)
+	# Watcher's Helm: the foe you parried takes more from you for a while.
+	if gfx("watch") > 0.0 and source is Node and is_instance_valid(source):
+		source.set_meta("watched", Time.get_ticks_msec() * 0.001 + 3.0)
 	# The brow fills when you parry.
 	_part_action("brow", 9.0 if perfect else 6.0, 18.0 if perfect else 12.0)
 	if source.has_method("on_parried"):
@@ -1541,6 +1781,8 @@ func on_dodge() -> void:
 		return
 	dodge_cd = 0.3
 	_part_action("legs", 4.0, 10.0)
+	if gfx("dodge_haste") > 0.0:
+		dodge_haste_t = 2.0  # Phantom Treads
 	main.fx_text(global_position + Vector2(0, -30), "Dodged", Color(0.75, 0.9, 1.0))
 	main.fx_ring(global_position, Color(0.75, 0.9, 1.0), 34.0, 0.25, 2.0)
 	main.sfx("dodge")
@@ -2220,7 +2462,7 @@ func selected_item() -> String:
 
 ## Picks up an item. False if you already carry as many as you can.
 func add_item(id: String) -> bool:
-	if not Items.ITEMS.has(id) or item_count(id) >= max_stack(id):
+	if item_room(id) != "":
 		return false
 	items[id] = item_count(id) + 1
 	if item_count(item_sel) <= 0:

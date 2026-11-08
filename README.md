@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; there is no sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and small **Bag** (inventory), **Climber** and **Menu** buttons at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; there is no sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; tap it to use that item, or hold it to open a ring of your belt items, slide your finger toward one and let go to use it; the small arrow beside it picks the next item), and small **Bag** (inventory), **Climber** and **Menu** buttons at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
@@ -29,8 +29,8 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Switch weapon | 1 Fists, 2 your melee weapon, 3 your ranged weapon, or the mouse wheel | RB / R1 or d-pad right (next), d-pad left (previous) |
 | Take the gear you stand on (your old piece is dropped) | Y, or the Take button on a phone | Y / Triangle |
 | Cast your marks (hand, legs, heart, brow, throat, back); hold to pick a spell | Q, E, F, C, X, V | Hold LB / L1, then X, A, B, Y, RB, RT (Square, Cross, Circle, Triangle, R1, R2) |
-| Use your item | G, or the Item button on a phone | X / Square |
-| Next item | T, or the small arrow button beside Item on a phone | D-pad down |
+| Use your item (tap); hold to open the ring of belt items, point at one and let go | G, or the Item button on a phone | X / Square |
+| Next item (tap); hold for the item ring | T, or the small arrow button beside Item on a phone | D-pad down |
 | Choose a tower, camp card or heirloom | 1 to 6, or arrows and Enter, click, or tap the card | D-pad or left stick, then A / Cross |
 | Pause menu (resume, settings, controls, dev tools, exit) | Esc or P, or the Menu button on a phone | Start / Options |
 | Climber screen (marks, essence, record) | Tab, or the Climber button on a phone | Press View / Share |
@@ -49,9 +49,9 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 
 **Slots.** Gear lasts one climb. You carry **1 fists** (always), **2 a melee weapon** and **3 a ranged weapon**, and you wear a **chest** piece (armor), a **helm**, **gloves**, **legs**, **boots**, a **cloak**, an **amulet**, **two rings** and a **backpack**. An **off-hand** slot is kept for later (it shows locked). Every climb starts with a **sword**, a **shortbow** and nothing else, except where you hold an heirloom (below). The HUD shows only the weapon in your hand (swapping with 1-3, the controller or the phone's Swap button pops up all three weapon slots for a moment); the **inventory** (I) shows everything you wear.
 
-**Gear records.** Each piece is a small record, not just a name: its **base** (which piece it is), its **rarity**, its **traits**, its **rank** and, for Common pieces, its **wear**. Today everything is **Common**, except rings and amulets, which are **Fine**. Rarities, traits and ranks are kept in the record so later updates (better finds, the bench, the beasts' Regarded weapons) can fill them in. Helpers in `gear.gd` make (`make`), convert (`rec`), describe (`describe`, `stats`), compare (`compare`, `plays_like`) and add up (`total_effects`, `protection`) records. Old saves, which kept heirlooms as plain names, are converted automatically when they load.
+**Gear records.** Each piece is a small record, not just a name: its **base** (which piece it is), its **rarity**, its **traits**, its **rank** (kept for the bench, later), for a named piece its **name** (`named`), and, for plain Common pieces, its **wear**. Helpers in `gear.gd` make (`make`, `make_named`, `roll_gear`), convert (`rec`, `code`), describe (`display`, `describe`, `trait_lines`, `stats`), compare (`compare`, `plays_like`) and add up (`total_effects`, `capped_keys`, `protection`) records. Old saves, which kept heirlooms as plain names, are converted automatically when they load.
 
-**Finding gear.** Slain monsters (not beasts) rarely drop a piece (4%), likelier one that suits them: knights favour chain mail, plate, swords, maces, greatswords, iron helms and gauntlets; archers bows, crossbows, leather and leather caps; smiths hammers, maces, armor, gauntlets and hobnail boots; bats dusk cloaks; and so on (`FAVOUR` in `gear.gd`). A drop can be for any slot. Rings and amulets don't appear on the bondless first climb. A Forgotten Cache's urn of essence sometimes holds a piece too (35%), a camp offers a piece of gear as a fourth card beside its three items, and a vault may hold one. Gear lies on the floor with its name. Walk over it with an empty slot and you take it (a second ring goes on your other hand); otherwise a card names its **slot** and compares it with what you wear there (better numbers in green with an up arrow, worse in red with a down arrow), and **Y** (or **Take** on a phone) swaps: your old piece is dropped where you stand, so you can change your mind. The first time you find a worn piece, the Entity explains the slots.
+**Finding gear.** Slain monsters (not beasts) rarely drop a piece (4%), with a rarity by floor (see **Rarities and traits** below), likelier one that suits them: knights favour chain mail, plate, swords, maces, greatswords, iron helms and gauntlets; archers bows, crossbows, leather and leather caps; smiths hammers, maces, armor, gauntlets and hobnail boots; bats dusk cloaks; and so on (`FAVOUR` in `gear.gd`). A drop can be for any slot. Rings and amulets don't appear on the bondless first climb. A Forgotten Cache's urn of essence sometimes holds a piece too (35%), a camp offers a piece of gear as a fourth card beside its three items, and a vault may hold one (Fine at the least); caches, camps and vaults roll one rarity row higher than monsters, and the floor 9 camp's piece is Rare. Gear lies on the floor with its name in its rarity's colour (Fine and better pieces also glint). Walk over it with an empty slot and you take it (a second ring goes on your other hand); otherwise a card names its **slot** and compares it with what you wear there (better numbers in green with an up arrow, worse in red with a down arrow), and **Y** (or **Take** on a phone) swaps: your old piece is dropped where you stand, so you can change your mind. The first time you find a worn piece, the Entity explains the slots.
 
 **Worn pieces** (the Common ones; each does one small thing). *Heavy* pieces make every roll cost 3% more stamina, on top of your chest piece's weight.
 
@@ -72,7 +72,7 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 | Travel Cloak | Cloak | poison wears off 25% sooner and burning floor hurts 25% less |
 | Dusk Cloak | Cloak | monsters notice you 20% later |
 | Satchel | Backpack | carry 4 of each item instead of 3 (the recall scroll stays one) |
-| Belt Pouch | Backpack | one more kind of item on the belt (not found yet: the belt comes later) |
+| Belt Pouch | Backpack | one more kind of item on the belt (5) |
 
 **Rings and amulets** (Fine, so they never wear; you wear two rings and both count):
 
@@ -83,9 +83,77 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 | Iron Band | Ring | stamina refills 5% faster |
 | Garnet Ring | Ring | strikes hit 4% harder |
 
+**Rare by nature** (found only as Rare finds; never wear):
+
+| Piece | Slot | What it does |
+| --- | --- | --- |
+| Tide Locket | Amulet | marks fill 8% faster; +6 health |
+| Pearl Ring | Ring | each kill puts 2 essence into your emptiest mark |
+| Ring of the Overdrawn | Ring | your first overdraw each floor doesn't burn the body part |
+| Climber's Pack | Backpack | one more kind of item on the belt, and 4 of each |
+
 The climber shows what's visible: the helm (a cloth hood, a leather cap or an iron helm), the cloak's colour, gloves on the hands, and boots (hobnails glint on their studs).
 
 **Protection** from everything you wear adds up (plate 35%, an iron helm 6% and chain leggings 5% make 46%) but never goes past **50%** (`PROTECTION_CAP`).
+
+### Rarities and traits
+
+Gear comes in five **rarities** (`RARITIES` in `gear.gd`), each with its colour on the floor label, the drop's glint, the inventory slot's edge and the card: **Common** (parchment), **Fine** (green, 1 trait, weapons +5% damage), **Rare** (blue, 2 traits, weapons +10%), **Storied** (amber, its own named rule and 1 trait, weapons +12%) and **Regarded** (gold, kept for the beasts' own weapons, later). Rings and amulets are Fine by nature, so they carry one trait fewer. Backpacks take no traits. Only plain **Common** pieces wear; anything with a trait, and anything finer, never does.
+
+**Rarity by floor** (slain monsters; caches, camps and vaults roll one row higher; `RARITY_ODDS`):
+
+| Floors | Common | Fine | Rare | Storied |
+| --- | --- | --- | --- | --- |
+| 1 to 3 | 80% | 20% | 0% | 0% |
+| 4 to 6 | 60% | 32% | 8% | 0% |
+| 7 to 9 | 45% | 38% | 15% | 2% |
+| 10 to 12 | 35% | 40% | 20% | 5% |
+
+Storied pieces are only found from floor 7 up. A **Rare** or better find fades in a short notice under the floor title ("RARE: Axe of the Riposte").
+
+**Traits** (`TRAITS`): each belongs to an essence (shown in its colour on the card) and rolls only on the slots it suits. Names read like *Fine Leather Gloves of Edges* or *Rare Iron Helm of Vigor* (the first trait names the piece).
+
+| Trait | Essence | Fine | Rare | Slots |
+| --- | --- | --- | --- | --- |
+| of Vigor | Stone | +6 health | +10 | helm, chest, legs, cloak, amulet |
+| of Footing | Stone | traps and burning floor hurt 15% less | 25% | boots, legs |
+| of Edges | Blade | strikes +3% | +5% | melee, gloves, rings |
+| of the Riposte | Blade | ripostes and backstabs +8% | +12% | melee, gloves |
+| of Breath | Iron | +8 max stamina | +12 | legs, chest, cloak |
+| of Second Wind | Iron | stamina refills 4% faster | 6% | rings, amulet, chest |
+| of Thorns | Iron | foes that strike you up close take 3 | 5 | chest, gloves |
+| of the Wind | Air | walk +2% | +3% | boots, cloak, legs |
+| of Rolling | Air | rolls cost 5% less stamina | 8% | boots, legs |
+| of the Hunt | Air | bows and crossbows +5% | +8% | ranged, gloves, helm |
+| of Kindling | Fire | spells +4% | +6% | amulet, rings, helm |
+| of Embers | Fire | strikes have a 10% chance to set the foe burning (2 every half second for 2 s) | 15% | melee, gloves |
+| of the Well | Water | marks fill 4% faster | 6% | amulet, rings, helm |
+| of Calm | Water | parry window +5% | +8% | gloves, helm, rings |
+
+**Caps** (`CAPS`): whatever you wear adds at most +25% strikes, +40 health, +30 stamina, +12% walk and +20% spells; the inventory says "(capped)" beside a number that has hit its cap. The gear card's comparison counts traits (green up arrows, red down arrows), and for weapons its "plays like" line names the traits it adds or loses ("hits harder, adds Embers").
+
+**Named pieces** (`NAMED`) keep their own names. **Tower pieces** (Rare) are only found in their own tower; **Storied** pieces anywhere from floor 7:
+
+| Piece | Base | Found | What it does |
+| --- | --- | --- | --- |
+| Stormstring | shortbow | Gryphon's tower | a full draw also arcs to one more foe for half damage |
+| Coral Trident | spear | Kraken's tower | hits slow foes by 25% for 1.5 s |
+| Barnacle Mail | chain mail | Kraken's tower | foes that strike you up close take 5 |
+| Cinder Axe | axe | Wyvern's tower | the finisher leaves the floor burning for 2 s (it burns foes, not you) |
+| Wyvern Scaleplate | plate | Wyvern's tower | 32% off a blow with chain mail's weight |
+| Stinger Dagger | dagger | Manticore's tower | every hit poisons the foe a little more |
+| Sunsteel Blade | sword | Firebird's tower | kills heal you 4 |
+| Thornmaul | war hammer | Chimera's tower | a staggering finisher throws thorns at foes nearby for 6 |
+| Watcher's Helm | helm | Storied | foes you parry take 20% more from you for 3 s; +6 health |
+| Quickhand Gloves | gloves | Storied | each kill fills your hand's mark by 5%; strikes +3% |
+| Phantom Treads | boots | Storied | a dodge quickens your walk by 20% for 2 s; rolls keep you untouchable a moment longer |
+| Emberkin Mantle | cloak | Storied | once a floor, falling below a fifth of your health heals 25 over 2 s |
+| Heartstone | amulet | Storied | +16 health; 1 health back every 3 s while no monster has noticed you |
+| Spellweave Ring | ring | Storied | every third spell you cast costs nothing |
+| Reaver's Greatsword | greatsword | Storied | kills restore 4 health and 4 essence to your hand's mark |
+| Bastion Plate | plate | Storied | once a floor, falling below 30% health raises a 30-point barrier for 6 s |
+
+**Hunter's Keen Eyes** outline gear on the floor in its rarity's colour, even through the dark.
 
 **Wear.** Only **Common** pieces wear, and pieces with traits never will. Each use takes a little condition off the pieces it uses: a landed swing wears your melee weapon and gloves, a shot your bow or crossbow, a blow that lands on you your chest, helm, legs and cloak, a roll or jump your boots (`WEAR` and `WEAR_BY` in `gear.gd`; a piece used all climb long gets badly worn near the end of it). At **25%** a piece is **badly worn**: its bonus is halved (a chest piece protects half as much; a weapon hits 25% softer), it shows cracks on its icon and its card says so. At **0** it **breaks** and its slot is empty: a broken weapon leaves you your fists until you find another. Each piece's condition shows as a thin bar under it in the inventory. Heirlooms start every climb in full repair.
 
@@ -124,21 +192,37 @@ Weapon classes matter elsewhere too: Blade Forger's **Weapon Memory** throws mor
 
 **Heirlooms.** Survive a climb (beat its beast, or reach the Regard on the first climb without falling) and, after the victory screen, you choose **one** piece you wore to keep as an **heirloom**: a card for each slot you fill (any piece already kept is left out), and one to keep nothing new. Your **rings** share one card and are kept **together**. With many cards they sit in two rows. Every later climb starts with your heirlooms in their slots, in full repair. Each slot holds one heirloom (Rings holds both rings); keeping another piece for the same slot replaces it. The heirloom slots are **melee**, **ranged**, **chest**, **helm**, **gloves**, **legs**, **boots**, **cloak**, **amulet**, **rings** and **backpack**, with **off-hand** kept for later. There's one free heirloom per survived climb. The **inventory**'s Heirlooms view shows them on the same body layout, and the climber screen's Record tab lists them. Starting a new climber forgets them. Slots and text live in `HEIRLOOM_SLOTS` and `HEIRLOOM_TEXT` in `scripts/gear.gd`; heirlooms are saved with your profile as records.
 
-The dev tools have a **Gear** row: a button for every weapon, armor and worn piece, and one to take off every piece, to try them at once.
+The dev tools have a **Gear** row: a button for every weapon, armor and worn piece, and one to take off every piece, to try them at once; a **Finds** row drops a Fine, Rare or Storied find (or any named piece) at your feet, and an **Items** row puts any item on your belt.
 
 ## Items and camps
 
-**Items** (`scripts/items.gd`, where their names, text and numbers live) are carried through the climb and lost when it ends. You can carry up to 3 of each kind (4 with a Satchel). **G** (or the Item button) uses the selected item and **T** (or the small arrow) picks the next; the HUD shows the selected item beside the weapon, with its count; the inventory (I) shows every item you carry. An item that would do nothing (a draught at full health, a vial with full marks) isn't used up.
+**Items** (`scripts/items.gd`, where their names, text and numbers live) are carried on your **belt** through the climb. The belt holds **4 kinds** of item, up to **3 of each** (a Satchel or Climber's Pack: 4 of each; a Belt Pouch or Climber's Pack: a fifth kind; the recall scroll is always one). Walk onto a new kind with a full belt and the **take card** opens (the monsters wait): swap one stack out (it's left where you stand) or leave the new item on the floor; either way it waits until you step off and back on. A camp's or vault's item with a full belt is left at your feet. **G** (or the Item button) uses the selected item and **T** (or the small arrow) picks the next; **hold** G, the Item button, X or the d-pad down to open the **item ring**: time slows, point at an item (the mouse, a stick, or slide your finger from the button) and let go to use it. A quick tap never opens it. The HUD shows the selected item beside the weapon, with its count; the inventory (I) shows the belt, with an empty cell for each kind it has room for. An item that would do nothing (a draught at full health, a vial with full marks) isn't used up.
 
-| Item | What it does |
-| --- | --- |
-| Healing Draught | heals 40 health over 1.5 seconds |
-| Cleansing Tonic | cures poison, heals every burned body part, and a little health |
-| Essence Vial | fills every mark with essence |
-| Smoke Bomb | a cloud of smoke around you: monsters inside lose track of you (beasts don't) |
-| Recall Scroll | only from vaults, one at most: read it to leave the tower safely, keeping everything (see **Sealed wings, vaults and secrets**) |
+| Item | Essence | What it does |
+| --- | --- | --- |
+| Healing Draught | Stone | heals 40 health over 1.5 seconds |
+| Cleansing Tonic | Water | cures poison, heals every burned body part, and a little health |
+| Essence Vial | Water | fills every mark with essence |
+| Smoke Bomb | Fire | a cloud of smoke around you: monsters inside lose track of you (beasts don't) |
+| Fire Flask | Fire | thrown where you aim (it stops short of walls): bursts for 30 (+10% a floor) and leaves the floor burning for 3 s (it burns foes, not you) |
+| Edge Oil | Blade | strikes hit 25% harder for 20 s |
+| Warding Oil | Iron | a 25-point barrier for 15 s; traps can't hurt you while it holds |
+| Haste Draught | Air | walk 25% faster and rolls cost 30% less for 10 s |
+| Stoneskin Draught | Stone | 20% damage taken off (it counts toward the 50% cap) and no knockback for 12 s |
+| Second Wind Salts | Iron | stamina full at once, refilling 50% faster for 8 s |
+| Flare Powder | Air | lights the room for 20 s; hidden traps and secret walls nearby glint |
+| Recall Scroll | Air and Water | only from vaults, one at most: read it to leave the tower safely, keeping everything (see **Sealed wings, vaults and secrets**) |
 
-Every climb starts with one Healing Draught. Slain monsters (not beasts) sometimes leave an item (8%); walk over it to pick it up.
+Every climb starts with one Healing Draught. Slain monsters (not beasts) sometimes leave an item (8%); walk over it to pick it up. Warding Oil and Stoneskin Draughts are never dropped by monsters; camps and vaults offer them.
+
+**The belt at the end of a climb.** Survive a climb (beat its beast, reach the Regard without falling, or read a recall scroll) and whatever is left on your belt breaks into **essence crystals** at half its worth, one crystal per essence (`value` and `BREAK_SHARE` in `items.gd`); the victory screen says what it became. Fall and it's lost.
+
+**Bonds and items:**
+
+- **Ashwalker:** Smoke Bombs last twice as long.
+- **Flameblade:** Edge Oil builds heat twice as fast.
+- **Flame Contractor:** Fire Flasks burst 50% wider (and a foe they kill leaves Kindled ground, as with your other fire).
+- **Hunter:** Keen Eyes outline dropped gear in its rarity's colour; Flare Powder lasts twice as long.
 
 **Camps.** On a full climb, the stairs of floors 3 and 9 lead first to a **camp** (`CAMP_AFTER` in `items.gd`): the open room with a campfire and no monsters. You rest fully (all health and stamina, burns and poison healed), then choose one of four cards (keys 1 to 4, the arrows and Enter, the d-pad and A, click, or tap): three items, or a piece of gear (taking it leaves your old piece by the fire). Then take the stair on to the next floor (a camp isn't a floor: after floor 3's camp comes floor 4). Each camp comes once a climb; the bondless first climb has none.
 
@@ -158,7 +242,7 @@ During a climb there are three screens, and each pauses the game while it's open
 - **Pause menu:** **Esc** or **P** (**Start** on a controller, **Menu** on a phone). Resume; Climber and Inventory; Settings and Controls; the Entity's **Archive** and Dev tools; Restart this climb and New climber (it asks first); and **Exit to title**. On a computer there is also **Quit game**; in a browser or on a phone Exit takes you to the title instead.
 - **Climber screen:** **Tab** (a short press of **View / Share**, the **Climber** button on a phone). Your character sheet, in four tabs (switch with the buttons, or **Q** / **E**, **LB** / **RB** on a controller; the screen reopens on the tab you used last): **Marks** (the climber drawn in full, hooded and cloaked, with each mark glowing on its body part in its bond's colour and a thin ring of the essence settled there, beside a card for each body part with its mark's medallion, step and growth), **Essence** (density and attribute bonus for each type, the essence settled in each body part, and what you carry unbanked), **Record** (the Entity's record of you: this climb's tower and floor, your counters, each tower's best floor and your heirlooms) and **Archive** (everything the Entity has told you; see below).
 - **A mark's page:** choose a card on the Marks tab (click or tap it, or focus it and press **Enter** or **A**). It shows the mark's emblem, its body part and essence, its step and growth (and the banked essence each step needs, or the essence a faint mark still owes), its **Body** and **Passive** effects, and **every spell**: the step that teaches it, how to cast it, its cost, wind-up and other numbers, what it does and what each later step changes. Spells not learned yet are dimmed with a lock and "learned at step N". The steps are listed at the bottom with what each brings. An unmarked part's page says what soaks into it and, where your next mark is forming, which bond it would be. **Q** / **E** (**LB** / **RB**, or the buttons either side of Back) show the next mark; **Back** (**Esc**, **B**) returns to the cards, and **Tab** closes the screen. **Up** / **down** scroll the page.
-- **Inventory:** **I** (**d-pad up**, the **Bag** button on a phone). A **paper doll**: what you wear, laid out like a body (helm, amulet, cloak / melee weapon, chest, ranged weapon / ring, gloves, ring / backpack, legs, boots), with fists, the off-hand (locked, for later), gear lying at your feet (marked "new") and a camp's rune beside it, and your items with their counts below (the quick item gilded). The weapon in hand is gilded, empty slots show their name, Common pieces show their condition as a thin bar, and a piece that is also your heirloom has a small gold mark. **Worn / Heirlooms** at the top switches the doll to your heirlooms. Focus or tap a slot to see its card on the right: what it does, its rarity and condition, and its numbers set against the gear at your feet or what every climb starts with (green up arrows where it's better, red down arrows where it's worse), with a "plays like" line for weapons ("Compared with yours: hits harder, slower"); the gear at your feet against what you wear, with **Take it** (or, with two rings on, a button to swap either ring); or an item's text with **Use** (or press the item's slot again) and **Make it your quick item**.
+- **Inventory:** **I** (**d-pad up**, the **Bag** button on a phone). A **paper doll**: what you wear, laid out like a body (helm, amulet, cloak / melee weapon, chest, ranged weapon / ring, gloves, ring / backpack, legs, boots), with fists, the off-hand (locked, for later), gear lying at your feet (marked "new") and a camp's rune beside it, and your belt below: its items with their counts (the quick item gilded) and an empty cell for each kind it still has room for. The weapon in hand is gilded, empty slots show their name, Common pieces show their condition as a thin bar, finer pieces are edged in their rarity's colour, and a piece that is also your heirloom has a small gold mark. **Worn / Heirlooms** at the top switches the doll to your heirlooms. Focus or tap a slot to see its card on the right: what it does, its traits (each in its essence's colour), its rarity and condition, and its numbers set against the gear at your feet or what every climb starts with (green up arrows where it's better, red down arrows where it's worse), with a "plays like" line for weapons ("Compared with yours: hits harder, slower"); the gear at your feet against what you wear, with **Take it** (or, with two rings on, a button to swap either ring); or an item's text with **Use** (or press the item's slot again) and **Make it your quick item**.
 
 The same key closes its screen (Tab closes the climber screen, I the inventory), and **Esc** or **B** (Circle) goes back a page, or out of the menu from the pause menu or a screen opened by its key; every page shows its Back or Close button with the keys that do the same. **Settings** has music and sound volume, screen shake, the on-screen controls list (off at first), the **HUD size** (small, normal or large), and the Entity's **guide tips** (on or off, and **Replay tips**); they're saved. The Entity presents Settings and the Record: its face and a line sit at the top of both. The **Controls** page lists every key and controller button side by side. On a phone the climber screen and inventory tighten up to fit the screen without scrolling.
 
@@ -177,7 +261,7 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 
 **The Entity** is a small, mysterious presence: a softly glowing orb with two dark eyes and a wry little mouth, drifting sparks and a gentle bob, drawn in code. It watches the climber, as the beast does, but it isn't the beast, and it never explains the story (that's still to be written). Its name and everything it says live in `scripts/entity.gd`, in plain data, so it's easy to rename or rewrite: `TEXT` (its name and the words around it), `LINES` (short lines for moments and pages) and `TIPS` (each tip's line and a fuller account for the Archive, in the groups of `GROUPS`). In the text, `{move}`, `{attack}`, `{roll}` and the like become the keys, controller buttons or touch buttons for whatever the climber is using (`KEYS`).
 
-**Tips.** The first time the climber meets something new, the Entity says a line or two about it in a bubble at the top right (on a phone, under the Bag, Climber and Menu buttons, clear of the joystick and the action buttons; on a short screen it slides left of any cast button). One bubble at a time: the rest wait their turn. A tip never stops the game; it fades after 6 to 12 seconds, and a tap or click on it, **Enter**, or a press of the right stick dismisses it at once. Bubbles wait while a menu is open or the screen is black between floors. Each tip is said once per save (the "guide" section of the save file). The tips: the Entity itself and the first steps (at the start of a climb), the glint (a monster's first glint), falling, essence (the first essence gathered), banking at the stair, the Regard, casting and the climber screen (a climb with marks), overdraw (a burned mark), a new mark, the open stair, rooms and fog, room names, good rooms, monster dens, restless crypts, doors (the first door opened), locked and sealed doors (for doors to come), chasms (near one) and falling through one, camps, the Proving, the beast, the ward, puzzles (each kind, the first time you walk into its room), traps (the first warning), trap rooms, hidden traps, gas vents, poison, gear on the floor, worn pieces (the first helm, ring or other worn piece found), heirlooms, items and the inventory.
+**Tips.** The first time the climber meets something new, the Entity says a line or two about it in a bubble at the top right (on a phone, under the Bag, Climber and Menu buttons, clear of the joystick and the action buttons; on a short screen it slides left of any cast button). One bubble at a time: the rest wait their turn. A tip never stops the game; it fades after 6 to 12 seconds, and a tap or click on it, **Enter**, or a press of the right stick dismisses it at once. Bubbles wait while a menu is open or the screen is black between floors. Each tip is said once per save (the "guide" section of the save file). The tips: the Entity itself and the first steps (at the start of a climb), the glint (a monster's first glint), falling, essence (the first essence gathered), banking at the stair, the Regard, casting and the climber screen (a climb with marks), overdraw (a burned mark), a new mark, the open stair, rooms and fog, room names, good rooms, monster dens, restless crypts, doors (the first door opened), locked and sealed doors (for doors to come), chasms (near one) and falling through one, camps, the Proving, the beast, the ward, puzzles (each kind, the first time you walk into its room), traps (the first warning), trap rooms, hidden traps, gas vents, poison, gear on the floor, worn pieces (the first helm, ring or other worn piece found), rarities and traits (the first find better than Common), heirlooms, items, the belt (once it's full), the item ring (once you carry two kinds) and the inventory.
 
 **Moments.** The Entity also has a short word, in the same bubble, when you fall, when a beast is slain, at a new mark and on reaching the Proving (the first time it's the tip; after that one of a few lines).
 
@@ -371,7 +455,7 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 - **Windwalker on the legs.** Fills when you roll through an attack. *Gale Lift* throws foes in front of you into the air, helpless for 1.5 seconds (a wider cone from step 3). Body: your roll becomes a long, cheap wind dash. Passive *Featherweight*: airborne foes take 50% more damage from your strikes.
 - **Overdraw.** Cast without enough essence and the spell still fires, but the body part burns: a burned hand weakens your strikes, burned legs make rolls cost more and travel less. Burns heal at the next stair.
 - **Marks and motes on the body.** Each bond shows as a sigil that grows lines with its step, circled by motes as its essence fills.
-- **Gear.** Eight melee weapons, two bows and a crossbow, four suits of armor, and sixteen Common worn pieces plus four Fine rings and amulets for the helm, gloves, legs, boots, cloak, amulet, ring and backpack slots, with wear on Common pieces and a 50% protection cap (see **Gear: weapons, armor and worn pieces** above). *Bows*: hold to draw (you walk slowly while drawing and stamina stops recovering), release to loose. Damage and speed grow with the draw, and a full draw (a soft tick and ring tell you) pierces through foes. A quick tap fires a weak shot; rolling or getting hit drops the arrow. Weapons are plain data in `scripts/weapons.gd`, armor and worn pieces in `scripts/gear.gd`.
+- **Gear.** Eight melee weapons, two bows and a crossbow, four suits of armor, and sixteen Common worn pieces plus Fine and Rare rings, amulets and a pack for the helm, gloves, legs, boots, cloak, amulet, ring and backpack slots; Fine, Rare and Storied finds with fourteen essence traits, sixteen named pieces (eight only in their own tower), caps on what gear adds, wear on Common pieces and a 50% protection cap (see **Gear: weapons, armor and worn pieces** above). *Bows*: hold to draw (you walk slowly while drawing and stamina stops recovering), release to loose. Damage and speed grow with the draw, and a full draw (a soft tick and ring tell you) pierces through foes. A quick tap fires a weak shot; rolling or getting hit drops the arrow. Weapons are plain data in `scripts/weapons.gd`, armor and worn pieces in `scripts/gear.gd`.
 - **Solid bodies.** The climber and monsters can't share space; overlapping bodies are pushed apart, and heavier ones (the knight) give way less. Foes lifted by Gale Lift pass over everyone.
 - **Timing over mashing.** Swings cost real stamina (a sword chain is 58), and stamina waits almost a second after you attack before it refills, so mashing leaves you winded. Monsters have **poise**: once they commit to an attack, light hits don't stop it (read the glint, then parry or roll); only heavy hits (finishers) rock them, and light hits make a monster flinch at most once every 1.2 seconds, so you can't stun-lock it. After every attack a monster is **open** for most of its recovery: a gold ring pulses around it and your hits deal 60% more ("Opening!"). Beasts have less health than before, longer openings after their attacks, and their fire burns out faster.
 - **Readable fights.** Every monster attack follows one rhythm: a wind-up, then a **glint** (a white star and a "ting") exactly 0.25 s before the blow lands, then a recovery where the monster is open. Parry on the glint and it always works; parry a beat after the glint for a **perfect parry** (longer stagger, more stamina back, bigger flash). The parry window is about a third of a second, turns you toward the attacker (or an incoming arrow) so aiming can't make it miss, and can cancel the tail of a swing. Only two monsters attack at a time; the rest circle and wait their turn. Slimes and archers flinch when hit (so aggressive play works on them); knights keep winding up through your hits, so parry, riposte or roll against them. The knight slashes up close and lunges from further out; the slime creeps up and pounces (touching it is harmless).
@@ -386,6 +470,8 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 - Does rolling through attacks to fill the legs feel rewarding or tedious?
 - Is overdrawing tempting in a tight spot, and does the burn feel like a real cost?
 - Can you read every enemy attack before it lands?
+- Do Fine and Rare finds feel worth hunting, without the HUD filling up? Are the trait lines and "(capped)" clear on a phone?
+- Is the item ring (hold the Item button, slide, let go) quick enough to use mid-fight, and does a tap still just use the quick item?
 
 ## Project layout
 
@@ -408,7 +494,7 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 | `scripts/puzzle.gd` | The puzzle host: the stair's ward, the reward, the seal, quiet and pressure modes, failure and its ambush, auto-aim, rule panels, rails and gates |
 | `scripts/puzzles/` | One script per puzzle (statues, mirrors, crumble, eyes, plates) with its generator, solver and text; `catalog.gd` picks which floor gets which, and how hard |
 | `scripts/towers.gd` | The towers: height (12 floors, the Proving on 6), beast, essence, monster mix, room shapes, look |
-| `scripts/items.gd` | Items (names, effects, drop chances, icons) and what a camp offers |
+| `scripts/items.gd` | Items (names, effects, drop chances, worth, icons), the belt and its take card words, the item ring hold, bond notes on items, and what a camp offers |
 | `scripts/campfire.gd` | A camp's campfire, drawn in code (its light comes from `lighting.gd`) |
 | `scripts/enemy.gd` | Slime, archer and knight |
 | `scripts/projectile.gd` | Enemy arrows |
@@ -433,12 +519,12 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 | `tools/fetch_audio_sources.sh` | Downloads the CC0 source sound packs |
 | `tools/build_audio.py` | Builds `assets/audio` from the source packs |
 | `scripts/weapons.gd` | Weapon definitions: every melee weapon, bow and crossbow, as data |
-| `scripts/gear.gd` | Gear records, armor and the worn pieces, slots and the paper doll, drops, wear, protection, heirloom slots (and old-save conversion), comparing and gear icons |
+| `scripts/gear.gd` | Gear records, rarities and their odds by floor, traits, caps, named pieces (Storied and tower pieces), armor and the worn pieces, slots and the paper doll, drops, wear, protection, heirloom slots (and old-save conversion), comparing and gear icons |
 | `tests/smoke_test.gd` | Headless test that drives every action |
 
 ## Testing
 
-`tests/smoke_test.gd` loads the room and drives the climber through every action (combo, riposte, parry, arrow reflect, roll, both casts, overdraw, getting hurt, death, clearing the room) and checks the results:
+`tests/smoke_test.gd` loads the room and drives the climber through every action (combo, riposte, parry, arrow reflect, roll, both casts, overdraw, getting hurt, death, clearing the room), and checks gear and items too (rarity odds by floor, traits and caps, the belt and its take card, each consumable, the item ring, the belt breaking into crystals), then reports the results:
 
 ```bash
 godot --headless -s tests/smoke_test.gd

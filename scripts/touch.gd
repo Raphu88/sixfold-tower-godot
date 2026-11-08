@@ -14,7 +14,10 @@ const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
 ## text are readable on a small screen.
 const PHONE_SCALE := 1.5
-const ONE_SHOT := ["weapon", "menu", "item", "item_next", "take", "climber", "inventory"]
+const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory"]
+## Held buttons a quick tap still has to reach the game with: let go a
+## moment later (Item: a tap uses the quick item, a hold opens the ring).
+const HOLD_TAP := ["item"]
 ## The top bar: always there, also while fallen.
 const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
 const Items := preload("res://scripts/items.gd")
@@ -27,6 +30,7 @@ var stick_touch := -1
 var stick_origin := Vector2.ZERO
 var stick_pos := Vector2.ZERO
 var held := {}  # touch index -> button id
+var held_since := {}  # touch index -> when it went down (ms)
 var buttons: Array = []  # {id, action, center, radius, label}
 
 
@@ -34,7 +38,7 @@ var buttons: Array = []  # {id, action, center, radius, label}
 ## input state outlives a scene reload).
 const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "attack", "roll", "parry", "jump",
 	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact",
-	"climber", "inventory"]
+	"climber", "inventory", "use_item", "item_next"]
 
 
 func _ready() -> void:
@@ -135,6 +139,12 @@ func _input(event: InputEvent) -> void:
 				if bt["id"] == held[event.index]:
 					main.pick_anchor = bt["c"]
 					main.player.pick_dir_override = event.position - bt["c"]
+		elif held.has(event.index) and held[event.index] == "item":
+			# Holding Item: slide to pick from the ring of belt items.
+			for bt in buttons:
+				if bt["id"] == "item":
+					main.pick_anchor = bt["c"]
+					main.player.item_dir_override = event.position - bt["c"]
 		get_viewport().set_input_as_handled()
 	elif active and (event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion):
 		# Someone picked up a keyboard or mouse: hand control back to them.
@@ -160,11 +170,12 @@ func _touch_down(index: int, pos: Vector2) -> void:
 	for b in buttons:
 		if pos.distance_to(b["c"]) <= b["r"] + 12.0:
 			held[index] = b["id"]
+			held_since[index] = Time.get_ticks_msec()
 			if b["id"] == "fullscreen":
 				var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 			elif b["action"] != "":
-				if String(b["id"]).begins_with("cast_"):
+				if String(b["id"]).begins_with("cast_") or b["id"] == "item":
 					main.pick_anchor = b["c"]
 				Input.action_press(b["action"])
 				if b["id"] in ONE_SHOT:
@@ -186,9 +197,15 @@ func _touch_up(index: int) -> void:
 	elif held.has(index):
 		var id: String = held[index]
 		held.erase(index)
+		var quick: bool = Time.get_ticks_msec() - int(held_since.get(index, 0)) < 60
+		held_since.erase(index)
 		for b in buttons:
 			if b["id"] == id and b["action"] != "" and not (id in ONE_SHOT):
-				Input.action_release(b["action"])
+				if id in HOLD_TAP and quick:
+					# (a tap shorter than a frame: let go a moment later, so it counts)
+					get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(b["action"]))
+				else:
+					Input.action_release(b["action"])
 
 
 func _update_stick() -> void:
@@ -243,6 +260,7 @@ func _release_all() -> void:
 		if b["action"] != "":
 			Input.action_release(b["action"])
 	held.clear()
+	held_since.clear()
 
 
 ## The buttons are drawn again only when something on them changes (a

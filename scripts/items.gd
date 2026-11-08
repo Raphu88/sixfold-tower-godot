@@ -5,6 +5,16 @@ extends RefCounted
 
 ## Each kind of item stacks up to this many.
 const MAX_STACK := 3
+## The belt holds this many kinds of item (a Belt Pouch or Climber's Pack
+## adds one). Picking up another kind with a full belt asks which stack to
+## swap out (main.gd offer_belt_swap).
+const BELT_KINDS := 4
+## Holding the item button this long opens the ring of belt items (time
+## slows); a shorter press uses the quick item.
+const RING_HOLD := 0.25
+## Unused belt items at the end of a survived climb break into essence
+## crystals at this share of their worth ("value").
+const BREAK_SHARE := 0.5
 ## What every climb starts with.
 const START := {"draught": 1}
 ## The chance that a slain monster (not a beast) leaves an item.
@@ -17,7 +27,13 @@ const STEADY_HEAL := 1.3
 ## ...and take this much less time.
 const STEADY_TIME := 0.6
 
-const ORDER := ["draught", "tonic", "vial", "smoke", "scroll"]
+const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare", "scroll"]
+
+## Each item: name, short name, what it does, colour and its numbers; also
+##   kind         its essence (the belt breaks it into this kind of crystal)
+##   value        what it's worth in essence, by kind
+##   drop_weight  how common it is (0: never found this way)
+##   drop         false: never left by slain monsters (camps and vaults only)
 
 const ITEMS := {
 	"draught": {
@@ -28,6 +44,7 @@ const ITEMS := {
 		"heal": 40.0,
 		"time": 1.5,
 		"drop_weight": 5,
+		"kind": "stone", "value": {"stone": 12},
 	},
 	"tonic": {
 		"name": "Cleansing Tonic",
@@ -37,6 +54,7 @@ const ITEMS := {
 		"heal": 10.0,
 		"time": 0.5,
 		"drop_weight": 2,
+		"kind": "water", "value": {"water": 10},
 	},
 	"vial": {
 		"name": "Essence Vial",
@@ -45,6 +63,7 @@ const ITEMS := {
 		"color": Color(0.55, 0.75, 1.0),
 		"drop_weight": 2,
 		"needs_mark": true,
+		"kind": "water", "value": {"water": 20},
 	},
 	"smoke": {
 		"name": "Smoke Bomb",
@@ -54,6 +73,70 @@ const ITEMS := {
 		"radius": 95.0,
 		"duration": 5.0,
 		"drop_weight": 1,
+		"kind": "fire", "value": {"fire": 10},
+	},
+	"fire_flask": {
+		"name": "Fire Flask",
+		"short": "Flask",
+		"desc": "thrown where you aim: it bursts in flame and leaves the floor burning for 3 seconds (it burns foes, not you)",
+		"color": Color(1.0, 0.5, 0.18),
+		"dmg": 30.0, "per_floor": 0.1, "radius": 46.0, "range": 160.0, "burn": 3.0, "flight": 0.35,
+		"drop_weight": 2,
+		"kind": "fire", "value": {"fire": 12},
+	},
+	"edge_oil": {
+		"name": "Edge Oil",
+		"short": "Edge Oil",
+		"desc": "rubbed on your weapon: strikes hit 25% harder for 20 seconds",
+		"color": Color(0.88, 0.42, 0.45),
+		"mult": 1.25, "duration": 20.0,
+		"drop_weight": 1,
+		"kind": "blade", "value": {"blade": 15},
+	},
+	"warding_oil": {
+		"name": "Warding Oil",
+		"short": "Ward Oil",
+		"desc": "a 25-point barrier for 15 seconds; traps can't hurt you while it holds",
+		"color": Color(0.72, 0.78, 0.95),
+		"shield": 25.0, "duration": 15.0,
+		"drop_weight": 1, "drop": false,
+		"kind": "iron", "value": {"iron": 15},
+	},
+	"haste": {
+		"name": "Haste Draught",
+		"short": "Haste",
+		"desc": "for 10 seconds you walk 25% faster and rolls cost 30% less stamina",
+		"color": Color(0.75, 0.95, 0.55),
+		"walk": 0.25, "roll": 0.3, "duration": 10.0,
+		"drop_weight": 1,
+		"kind": "air", "value": {"air": 12},
+	},
+	"stoneskin": {
+		"name": "Stoneskin Draught",
+		"short": "Stoneskin",
+		"desc": "for 12 seconds blows hurt 20% less and can't knock you back (protection still stops at half a blow)",
+		"color": Color(0.7, 0.62, 0.5),
+		"reduce": 0.2, "duration": 12.0,
+		"drop_weight": 1, "drop": false,
+		"kind": "stone", "value": {"stone": 12},
+	},
+	"salts": {
+		"name": "Second Wind Salts",
+		"short": "Salts",
+		"desc": "a sharp breath: your stamina is full at once, and refills 50% faster for 8 seconds",
+		"color": Color(0.92, 0.95, 0.98),
+		"regen": 0.5, "duration": 8.0,
+		"drop_weight": 1,
+		"kind": "iron", "value": {"iron": 10},
+	},
+	"flare": {
+		"name": "Flare Powder",
+		"short": "Flare",
+		"desc": "lights the room for 20 seconds; hidden traps and secret walls nearby glint",
+		"color": Color(1.0, 0.85, 0.45),
+		"duration": 20.0, "radius": 420.0, "reveal": 360.0,
+		"drop_weight": 1,
+		"kind": "air", "value": {"air": 8},
 	},
 	# Only from vaults (wings.gd): never dropped or offered at a camp.
 	"scroll": {
@@ -63,6 +146,7 @@ const ITEMS := {
 		"color": Color(0.95, 0.82, 0.5),
 		"drop_weight": 0,
 		"max": 1,
+		"kind": "air", "value": {"air": 30, "water": 30},
 	},
 }
 
@@ -90,9 +174,38 @@ const CRYSTAL := {
 }
 
 
+## The belt's words (the swap card, the break at the end of a climb).
+const BELT := {
+	"full_title": "YOUR BELT IS FULL",
+	"full_sub": "Swap a stack out for the %s (it stays at your feet), or leave it.",
+	"drop_name": "Swap out: %s",
+	"drop_desc": "drop your %s here and take the %s",
+	"leave_name": "Leave it",
+	"leave_desc": "your belt stays as it is; the %s waits on the floor",
+	"left": "Belt full: the %s is at your feet",
+	"broke": "Your belt breaks into crystals: %s",
+}
+
+## Bond notes on items (cheap ones; more with the bench later).
+const ASHWALKER_SMOKE := 2.0  # Smoke Bombs last twice as long
+const CONTRACTOR_FLASK := 1.5  # Flame Contractor: Fire Flasks burst 50% wider
+const FLAMEBLADE_OIL := 2.0  # Flameblade: Edge Oil builds heat twice as fast
+const HUNTER_FLARE := 2.0  # Hunter: Flare Powder lasts twice as long
+
+
 ## How many of an item you can carry.
 static func max_stack(id: String) -> int:
 	return int(ITEMS.get(id, {}).get("max", MAX_STACK))
+
+
+## What a belt of items breaks into: {kind: essence} at BREAK_SHARE of
+## their worth. `items` is {id: count}.
+static func break_value(items: Dictionary) -> Dictionary:
+	var out := {}
+	for id in items:
+		for k in ITEMS.get(id, {}).get("value", {}):
+			out[k] = float(out.get(k, 0.0)) + float(ITEMS[id]["value"][k]) * BREAK_SHARE * int(items[id])
+	return out
 
 # --- camps ---------------------------------------------------------------------
 
@@ -133,23 +246,29 @@ static func color(id: String) -> Color:
 
 
 ## A random item, weighted by how common each one is. Without a mark, an
-## essence vial would do nothing, so `marked` false leaves those out.
-static func random_item(marked := true, exclude: Array = []) -> String:
+## essence vial would do nothing, so `marked` false leaves those out;
+## `dropped` (a slain monster's) leaves out the items never dropped.
+static func random_item(marked := true, exclude: Array = [], dropped := false) -> String:
 	var total := 0
 	for id in ORDER:
-		if id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)):
+		if _skip(id, marked, exclude, dropped):
 			continue
 		total += int(ITEMS[id]["drop_weight"])
 	if total <= 0:
 		return "draught"
 	var roll := randi() % total
 	for id in ORDER:
-		if id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)):
+		if _skip(id, marked, exclude, dropped):
 			continue
 		roll -= int(ITEMS[id]["drop_weight"])
 		if roll < 0:
 			return id
 	return "draught"
+
+
+static func _skip(id: String, marked: bool, exclude: Array, dropped: bool) -> bool:
+	return id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)) \
+		or (dropped and not ITEMS[id].get("drop", true))
 
 
 ## Three different items for a camp's cards.
@@ -204,8 +323,38 @@ static func use(id: String, p) -> bool:
 			main.fx_text(above, "Marks filled", col)
 			main.light_flash(p.global_position, col, 1.4, 1.4, 0.35)
 		"smoke":
-			main.smokes.append({"pos": p.global_position, "r": float(data["radius"]), "t": float(data["duration"])})
+			var last: float = float(data["duration"]) * (ASHWALKER_SMOKE if p.has_bond("ashwalker") else 1.0)
+			main.smokes.append({"pos": p.global_position, "r": float(data["radius"]), "t": last})
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 18, 160.0)
+		"fire_flask":
+			main.throw_flask(p)
+		"edge_oil":
+			p.edge_t = float(data["duration"])
+			main.fx_text(above, "Edge oiled", col)
+			main.sfx("equip_sword", 1.3, -6.0)
+		"warding_oil":
+			p.raise_barrier(float(data["shield"]), float(data["duration"]), false, col)
+			p.ward_oil_t = float(data["duration"])
+			main.fx_text(above, "Warded", col)
+		"haste":
+			p.haste_t = float(data["duration"])
+			main.fx_text(above, "Haste", col)
+			main.sfx("gust", 1.4, -6.0)
+		"stoneskin":
+			p.stone_t = float(data["duration"])
+			main.fx_text(above, "Stoneskin", col)
+			main.sfx("hit_armor", 0.8, -6.0)
+		"salts":
+			if p.sta >= p.max_sta - 0.5 and p.salts_t > 0.0:
+				main.fx_text(above, "You're already breathing easy", Color(0.8, 0.78, 0.85))
+				return false
+			p.sta = p.max_sta
+			p.salts_t = float(data["duration"])
+			main.fx_text(above, "Second wind", col)
+		"flare":
+			var lasts: float = float(data["duration"]) * (HUNTER_FLARE if p.has_bond("hunter") else 1.0)
+			main.light_flare(p.global_position, lasts)
+			main.fx_burst(p.global_position, Vector2.ZERO, col, 22, 260.0)
 	main.fx_ring(p.global_position, col, 34.0, 0.3, 3.0)
 	main.sfx("ready", 1.0, -3.0)
 	return true
@@ -323,8 +472,110 @@ static func icon_into(b, id: String, c: Vector2, s: float) -> void:
 				b.rect(Rect2(roll.position, Vector2(1.1 * u, roll.size.y)), paper.lightened(0.15))
 			b.rect(Rect2(c + Vector2(1.6, -5.6) * u, Vector2(1.6, 11.2) * u), Color(0.75, 0.2, 0.18))
 			b.dot(c + Vector2(2.4, 5.8) * u, 1.6 * u, Color(0.75, 0.2, 0.18))
+		"fire_flask":
+			# A round flask of fire with a burning rag for a stopper.
+			_round_flask(b, c, u, ol, col, false)
+			var rag := c + Vector2(0, -7.4) * u
+			b.rect(Rect2(rag + Vector2(-2.2, -1.4) * u, Vector2(4.4, 3.4) * u).grow(ol), Palette.OUTLINE)
+			b.rect(Rect2(rag + Vector2(-2.2, -1.4) * u, Vector2(4.4, 3.4) * u), Color(0.86, 0.8, 0.66))
+			_spark(b, rag + Vector2(0.6, -3.4) * u, 3.4 * u, Color(1.0, 0.6, 0.2))
+			_spark(b, rag + Vector2(0.6, -3.4) * u, 1.7 * u, Color(1.0, 0.95, 0.75))
+		"edge_oil":
+			# A slim vial of red oil, a little blade beside it.
+			_tall_vial(b, c + Vector2(-2.0, 0), u, ol, col)
+			var t0 := c + Vector2(2.8, 8.0) * u
+			var t1 := c + Vector2(8.6, -6.0) * u
+			b.stroke(t0, t1, Palette.OUTLINE, 2.6 * u)
+			b.stroke(t0, t1, Palette.STEEL, 1.4 * u)
+			b.line(t0.lerp(t1, 0.2), t1, Color(1, 1, 1, 0.7), maxf(0.6, 0.4 * u))
+		"warding_oil":
+			# A squat bottle with a shield on its label.
+			_square_bottle(b, c, u, ol, col)
+			var lc := c + Vector2(0, 2.4) * u
+			var shield := PackedVector2Array([lc + Vector2(-2.6, -2.6) * u, lc + Vector2(2.6, -2.6) * u, lc + Vector2(2.4, 0.6) * u, lc + Vector2(0, 3.0) * u, lc + Vector2(-2.4, 0.6) * u])
+			b.poly(shield, Color(0.95, 0.93, 0.85), maxf(0.6, ol * 0.7))
+			b.rect(Rect2(lc + Vector2(-0.5, -2.0) * u, Vector2(1.0, 4.2) * u), col.darkened(0.35))
+		"haste":
+			# A round flask of bright green with speed lines behind it.
+			for k in 3:
+				var y := (-1.0 + k * 3.0) * u
+				b.rect(Rect2(c + Vector2(-10.0, y), Vector2((4.0 - k) * u, 0.9 * u)), Color(col, 0.75))
+			_round_flask(b, c + Vector2(1.5, 0), u, ol, col, true)
+		"stoneskin":
+			# A squat bottle of grey-brown with a cut stone on its label.
+			_square_bottle(b, c, u, ol, col)
+			var gc := c + Vector2(0, 2.4) * u
+			var gem := PackedVector2Array([gc + Vector2(0, -3.0) * u, gc + Vector2(2.8, -0.6) * u, gc + Vector2(1.6, 2.6) * u, gc + Vector2(-1.6, 2.6) * u, gc + Vector2(-2.8, -0.6) * u])
+			b.poly(gem, col.darkened(0.25), maxf(0.6, ol * 0.7))
+			b.polygon(PackedVector2Array([gem[0], gem[4], gc]), col.lightened(0.3))
+		"salts":
+			# A small round tin, open, heaped with white crystals.
+			var tc := c + Vector2(0, 3.0) * u
+			b.poly(UIShape.oval(tc, Vector2(8.0, 4.6) * u), Color(0.5, 0.52, 0.56), ol)
+			b.polygon(UIShape.oval(tc + Vector2(0, -0.8) * u, Vector2(6.6, 3.4) * u), Color(0.3, 0.3, 0.34))
+			for v in [Vector2(-3.0, -1.6), Vector2(0, -3.0), Vector2(2.8, -1.4), Vector2(-1.2, -0.2), Vector2(1.6, 0.2)]:
+				b.ball(tc + v * u, 1.7 * u, col, true)
+			_spark(b, c + Vector2(4.0, -6.0) * u, 2.4 * u, Color(1, 1, 1, 0.9))
+		"flare":
+			# A paper cartridge of powder, its twist end spitting sparks.
+			var body := Rect2(c + Vector2(-3.4, -4.0) * u, Vector2(6.8, 13.0) * u)
+			b.rect(body.grow(ol), Palette.OUTLINE)
+			b.rect(body, Color(0.82, 0.3, 0.22))
+			b.rect(Rect2(body.position, Vector2(2.0 * u, body.size.y)), Color(0.95, 0.5, 0.4))
+			b.rect(Rect2(body.position + Vector2(0, 4.0 * u), Vector2(body.size.x, 2.4 * u)), Color(0.95, 0.88, 0.7))
+			b.polygon(PackedVector2Array([body.position, body.position + Vector2(body.size.x, 0), c + Vector2(0, -7.0) * u]), Color(0.9, 0.84, 0.66))
+			_spark(b, c + Vector2(0, -8.6) * u, 3.6 * u, col)
+			_spark(b, c + Vector2(0, -8.6) * u, 1.8 * u, Color(1, 1, 0.9))
+			b.dot(c + Vector2(4.6, -9.6) * u, 0.9 * u, col)
+			b.dot(c + Vector2(-4.2, -10.4) * u, 0.8 * u, col)
 		_:
 			b.ball(c, s * 0.5, col, true)
+
+
+## A round glass flask of `col` liquid (the draught's shape), with a cork
+## unless `cork` is false (the Fire Flask's rag goes there instead).
+static func _round_flask(b, c: Vector2, u: float, ol: float, col: Color, cork := true) -> void:
+	if cork:
+		_neck(b, c + Vector2(0, -6.2) * u, u, ol)
+	else:
+		var neck := Rect2(c + Vector2(-2.0, -7.8) * u, Vector2(4.0, 4.6) * u)
+		b.rect(neck.grow(ol), Palette.OUTLINE)
+		b.rect(neck, _GLASS.darkened(0.35))
+	var bc := c + Vector2(0, 2.6) * u
+	var r := 6.6 * u
+	b.dot(bc, r + ol, Palette.OUTLINE)
+	b.dot(bc, r, _GLASS.darkened(0.55))
+	var liquid := PackedVector2Array()
+	var a0 := asin(-0.2)
+	for i in 17:
+		liquid.append(bc + Vector2.from_angle(lerpf(a0, PI - a0, i / 16.0)) * (r - 0.6 * u))
+	b.polygon(liquid, col.darkened(0.2))
+	b.line(liquid[0], liquid[16], col.lightened(0.45), maxf(0.8, 0.8 * u))
+	b.dot(bc + Vector2(-0.8, 1.6) * u, r * 0.55, col)
+	b.polygon(UIShape.oval(bc + Vector2(-2.9, -2.6) * u, Vector2(1.1, 2.2) * u, -0.6), Color(1, 1, 1, 0.6))
+
+
+## A squat square bottle of `col` (the tonic's shape) with a blank pale label.
+static func _square_bottle(b, c: Vector2, u: float, ol: float, col: Color) -> void:
+	_neck(b, c + Vector2(0, -6.4) * u, u, ol)
+	var body := Rect2(c + Vector2(-5.6, -3.6) * u, Vector2(11.2, 12.6) * u)
+	b.poly(_round_rect(body, 2.2 * u), _GLASS.darkened(0.55), ol)
+	b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, body.size - Vector2(1.4, 3.9) * u), 1.6 * u), col.darkened(0.2))
+	b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, Vector2(body.size.x * 0.55, body.size.y - 3.9 * u)), 1.6 * u), col)
+	b.dot(body.get_center() + Vector2(0, 1.4) * u, 3.6 * u, Color(0.25, 0.22, 0.26, 0.55))
+	b.rect(Rect2(body.position + Vector2(1.2, 1.0) * u, Vector2(1.2, 6.0) * u), Color(1, 1, 1, 0.5))
+
+
+## A slim tall vial of `col` (the essence vial's shape, without its glow).
+static func _tall_vial(b, c: Vector2, u: float, ol: float, col: Color) -> void:
+	var r := Rect2(c + Vector2(-3.0, -5.8) * u, Vector2(6.0, 15.0) * u)
+	b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u).grow(ol), Palette.OUTLINE)
+	b.poly(_round_rect(r, 2.8 * u), _GLASS.darkened(0.55), ol)
+	b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 4.0 * u), Vector2(r.size.x - 1.4 * u, r.size.y - 4.7 * u)), 2.2 * u), col.darkened(0.15))
+	b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 4.0 * u), Vector2(r.size.x * 0.5, r.size.y - 4.7 * u)), 2.0 * u), col.lightened(0.15))
+	b.rect(Rect2(r.position + Vector2(0.9, 0.9) * u, Vector2(1.0, 4.0) * u), Color(1, 1, 1, 0.45))
+	b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u), _CORK)
+	b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 1.2) * u), _CORK.lightened(0.25))
 
 
 ## An essence crystal's icon in the essence's colour, centred on `c` (about

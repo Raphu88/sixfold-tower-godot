@@ -1766,7 +1766,12 @@ func _push_dir(tr: Dictionary, at: Vector2) -> Vector2:
 func _catch_player(tr: Dictionary, k: Dictionary) -> void:
 	var p = main.player
 	var away := _push_dir(tr, p.global_position)
-	p.receive_attack(tr["dmg"], null, true)
+	# Warding Oil: while its barrier holds, traps can't hurt you.
+	if p.ward_oil_t > 0.0 and p.barrier_hp > 0.0:
+		main.fx_text(p.global_position + Vector2(0, -44), "Warded", Color(0.72, 0.78, 0.95))
+		main.fx_ring(p.global_position, Color(0.72, 0.78, 0.95), p.radius + 12.0, 0.25, 2.0)
+		return
+	p.receive_attack(tr["dmg"] * (1.0 - p.gfx("footing")), null, true)  # of Footing
 	main.fx_text(p.global_position + Vector2(0, -44), k["text"], k["color"])
 	if float(k["push"]) > 0.0 and not p.has_bond("sandshaper"):  # Rooted Stance
 		p.knock = away * float(k["push"])
@@ -1963,7 +1968,7 @@ func _draw() -> void:
 	var pp: Vector2 = main.player.global_position if main.player != null else Vector2(-1e6, -1e6)
 	for tr in main.traps:
 		var state: String = tr["state"]
-		var hint: bool = tr["hidden"] and (keen or show_all) and state == "idle"
+		var hint: bool = tr["hidden"] and (keen or show_all or main.flare_reveals(tr["pos"])) and state == "idle"
 		# A hidden trap at rest shows its tell only right under your nose.
 		var near: float = 0.0
 		if tr["hidden"] and not keen and not show_all and (state == "idle" or state == "rest"):

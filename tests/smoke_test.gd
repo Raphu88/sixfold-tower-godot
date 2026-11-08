@@ -4328,7 +4328,7 @@ func _gear_tests() -> void:
 	if not main.cache.is_empty():
 		p.global_position = main.cache["pos"]
 		await _frames(3)
-		var cg: String = main.cache.get("gear", "")
+		var cg: String = G.base_id(main.cache.get("gear", ""))
 		var left: bool = main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == cg
 		_check(main.cache["taken"] and (left or cg in p.carried_gear()), "opening it leaves the gear on the floor (%s)" % cg)
 
@@ -4343,8 +4343,9 @@ func _gear_tests() -> void:
 	_check(main.camp_choosing and gear_cards.size() == 1, "the camp also offers a piece of gear (%s)" % str(gear_cards))
 	var gi: int = main.camp["choices"].find(gear_cards[0])
 	var card: Dictionary = main.camp_card(gi)
-	var gid: String = String(gear_cards[0]).substr(5)
-	_check(G.base_id(card.get("gear", {})) == gid and card["name"] == G.display(gid), "its card shows the gear")
+	var gcode: String = String(gear_cards[0]).substr(5)
+	var gid: String = G.base_id(gcode)
+	_check(G.base_id(card.get("gear", {})) == gid and card["name"] == G.display(gcode), "its card shows the gear")
 	_check(String(G.SLOT_NAMES.get(G.slot_of(gid), "")) in card["note"], "...and names its slot (%s)" % card["note"])
 	var slot: String = p.slot_for(gid)
 	var had: String = p.gear_id(slot)
@@ -4407,7 +4408,7 @@ func _gear_tests() -> void:
 	main.menu.open("inventory")
 	await _frames(2)
 	var labels: Array = _all_labels(main.menu).map(func(l): return l.text)
-	_check("ITEMS" in labels and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
+	_check(labels.any(func(t): return String(t).begins_with("BELT")) and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
 	main.menu.open("dev")
 	await _frames(2)
 	var dev_buttons: Array = _all_buttons(main.menu)
@@ -4737,17 +4738,20 @@ func _gear_slot_tests() -> void:
 	_check(absf(p.bonds["hand"].power() / pw0 - 1.06) < 0.001, "an Ember Charm: spells hit 6% harder")
 	p.take_gear("iron_band")
 	_check(absf(p.gfx("regen") - 0.05) < 0.001 and p.gear_id("ring1") == "iron_band", "an Iron Band: stamina refills 5% faster")
-	# Drops: any slot, modest chances; no rings or amulets on the first climb; no pouch yet.
+	# Drops: any slot, modest chances; no rings or amulets on the first climb;
+	# the Belt Pouch now that the belt exists; pieces Rare by nature only with a Rare roll.
 	var slots_seen := {}
 	var trinket_first := false
 	var pouch := false
+	var rare_natural := false
 	for i in 1500:
 		var id: String = G.random_gear("")
 		slots_seen[G.slot_of(id)] = true
 		pouch = pouch or id == "belt_pouch"
+		rare_natural = rare_natural or G.natural_rarity(id) == "rare"
 		trinket_first = trinket_first or G.slot_of(G.random_gear("", [], false)) in ["ring", "amulet"]
 	_check(["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack"].all(func(sl): return slots_seen.has(sl)), "drops can be any slot (%s)" % [slots_seen.keys()])
-	_check(not trinket_first and not pouch, "no rings or amulets on the first climb, and no Belt Pouch until the belt exists")
+	_check(not trinket_first and pouch and not rare_natural, "no rings or amulets on the first climb; the Belt Pouch is found; Rare pieces need a Rare roll")
 	_check(G.DROP_CHANCE <= 0.05 and G.CACHE_CHANCE <= 0.4, "drop chances stay modest")
 
 	print("wear")
@@ -4948,6 +4952,548 @@ func _gear_slot_tests() -> void:
 	main.gear_drops.clear()
 
 
+func _rarity_tests() -> void:
+	print("rarities and traits")
+	await _fresh_main()
+	var p = main.player
+	var G = main.Gear
+	var Essence = main.Essence
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	# Rarity by floor: the odds table, checked by rolling (tolerance 3.5 points).
+	var n := 4000
+	for setup in [[2, 0], [5, 0], [8, 0], [11, 0], [2, 1], [11, 1]]:
+		var fl: int = setup[0]
+		var counts := {"common": 0, "fine": 0, "rare": 0, "storied": 0}
+		for i in n:
+			var r: String = G.roll_rarity(fl, setup[1])
+			counts[r] = counts.get(r, 0) + 1
+		var want: Dictionary = G.rarity_odds(fl, setup[1])
+		var close := true
+		for r in want:
+			var expect := float(want[r]) / 100.0
+			if r == "storied" and fl < G.STORIED_FROM:
+				expect = 0.0
+			if r == "rare" and fl < G.STORIED_FROM:
+				expect += float(want.get("storied", 0)) / 100.0
+			if absf(float(counts.get(r, 0)) / n - expect) > 0.035:
+				close = false
+		_check(close, "floor %d%s: rarities follow the odds (%s)" % [fl, " (a row higher)" if setup[1] > 0 else "", counts])
+	_check(G.rarity_odds(2, 1) == G.rarity_odds(5, 0) and G.rarity_odds(11, 1)["storied"] > G.rarity_odds(11, 0)["storied"], "vaults, caches and camps roll one row higher")
+	var storied_low := false
+	var at_least_ok := true
+	for i in 600:
+		storied_low = storied_low or G.roll_rarity(5, 1) == "storied"
+		at_least_ok = at_least_ok and G.rarity_rank(G.roll_rarity(1, 0, "rare")) >= G.rarity_rank("rare")
+	_check(not storied_low and at_least_ok, "Storied finds only from floor 7; a floor on rarity holds (the floor-9 camp's Rare)")
+	# Traits: each has an essence kind and fits only its slots; finds roll the right number of fitting traits.
+	var trait_ok := true
+	for t in G.TRAITS:
+		var d: Dictionary = G.TRAITS[t]
+		trait_ok = trait_ok and Essence.KINDS.has(d["kind"]) and not d["slots"].is_empty() and float(d["rare"]) > float(d["fine"])
+		for sl in d["slots"]:
+			trait_ok = trait_ok and sl in ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring"]
+	_check(trait_ok and G.TRAITS.size() == 14, "fourteen traits, each tied to an essence and to the slots it suits")
+	var kinds_seen := {}
+	for t in G.TRAITS:
+		kinds_seen[G.TRAITS[t]["kind"]] = true
+	_check(kinds_seen.size() == 6, "every essence has its traits (%s)" % [kinds_seen.keys()])
+	var fits := true
+	var right_count := true
+	var by_rarity := {}
+	for i in 900:
+		var g: Dictionary = G.roll_gear("", [], true, 11, "kraken", 1)
+		by_rarity[g["rarity"]] = by_rarity.get(g["rarity"], 0) + 1
+		var tr: Array = g["traits"]
+		var uniq := {}
+		for t in tr:
+			uniq[t] = true
+			fits = fits and G.TRAITS.has(t) and G.trait_slot(g) in G.TRAITS[t]["slots"]
+		fits = fits and uniq.size() == tr.size()
+		var want_n: int = G.trait_count(g["base"], g["rarity"], String(g.get("named", "")))
+		right_count = right_count and tr.size() == mini(want_n, G.traits_for(G.trait_slot(g)).size())
+	_check(fits, "rolled traits always fit their slot, never twice on one piece")
+	_check(right_count, "Fine pieces carry one trait, Rare two (rings and amulets one fewer), named pieces one (%s)" % [by_rarity])
+	_check(G.trait_count("leather_gloves", "fine") == 1 and G.trait_count("leather_gloves", "rare") == 2 and G.trait_count("garnet_ring", "fine") == 0 and G.trait_count("garnet_ring", "rare") == 1, "...counted by natural rarity")
+	# Names.
+	var fg: Dictionary = G.make("leather_gloves", "fine", ["edges"])
+	_check(G.display(fg) == "Fine Leather Gloves of Edges", "names: %s" % G.display(fg))
+	_check(G.display(G.make("iron_helm", "rare", ["vigor", "calm"])) == "Rare Iron Helm of Vigor", "...and %s" % G.display(G.make("iron_helm", "rare", ["vigor", "calm"])))
+	_check(G.display(G.make("garnet_ring")) == "Garnet Ring" and G.display(G.make("garnet_ring", "rare", ["calm"])) == "Rare Garnet Ring of Calm" and G.display("axe") == "Axe", "a ring is Fine by nature (no prefix); Common pieces keep their plain names")
+	var trident: Dictionary = G.make_named("coral_trident")
+	_check(G.display(trident) == "Coral Trident" and trident["base"] == "spear" and trident["rarity"] == "rare" and trident["traits"].size() == 1, "a named piece keeps its own name (and one trait)")
+	_check(G.same(G.rec(G.code(trident)), trident) and G.display(G.code(trident)) == "Coral Trident", "...and its card code round-trips")
+	# Never wear: anything with a trait, anything better than Common.
+	_check(not G.make("leather_gloves", "common", ["edges"]).has("wear") and not fg.has("wear") and not trident.has("wear") and G.make("leather_gloves").has("wear"), "only plain Common pieces wear: trait pieces never do")
+	p.take_gear(fg)
+	p.wear_gear("strike", 5000.0)
+	_check(p.gear_id("gloves") == "leather_gloves" and G.condition(p.gear["gloves"]) == 1.0, "...however hard they're used")
+	# Tower pieces only in their own tower; Storied only from floor 7.
+	_check(G.named_pool("rare", "kraken") == ["coral_trident", "barnacle_mail"] and G.named_pool("rare", "gryphon") == ["stormstring"], "tower pieces only come from their own tower")
+	var wrong_tower := false
+	var storied_early := false
+	var named_seen := {}
+	for i in 1500:
+		var g: Dictionary = G.roll_gear("", [], true, 11, "gryphon", 1)
+		if g.has("named"):
+			named_seen[g["named"]] = true
+			wrong_tower = wrong_tower or (G.NAMED[g["named"]].has("tower") and G.NAMED[g["named"]]["tower"] != "gryphon")
+		storied_early = storied_early or G.rarity(G.roll_gear("", [], true, 5, "gryphon", 1)) == "storied"
+	_check(not wrong_tower and named_seen.has("stormstring"), "in the Gryphon's tower only the Gryphon's piece turns up (%s)" % [named_seen.keys()])
+	_check(not storied_early and named_seen.keys().any(func(k): return G.NAMED[k]["rarity"] == "storied"), "Storied pieces turn up high in the tower, never below floor 7")
+	# Caps: strikes stop at +25%, health at +40.
+	main.dev_give_gear("-gloves")
+	p.take_gear(G.make("gauntlets", "rare", ["edges", "riposte"]))
+	p.take_gear(G.make("garnet_ring", "rare", ["edges"]))
+	p.take_gear(G.make("garnet_ring", "rare", ["edges"]))
+	var raw: float = G.total_effects(p.gear, true)["strike"]
+	_check(raw > G.CAPS["strike"] + 0.05 and absf(p.gfx("strike") - G.CAPS["strike"]) < 0.0001 and "strike" in G.capped_keys(p.gear), "gear's strike bonus stops at +25%% (%.2f raw)" % raw)
+	var hp0: float = p.base_hp
+	for id in ["iron_helm", "chain_leggings", "travel_cloak"]:
+		p.take_gear(G.make(id, "rare", ["vigor"]))
+	p.take_gear(G.make_named("heartstone"))
+	p.take_gear(G.make("chain", "rare", ["vigor"]))
+	_check(absf(p.max_hp - (hp0 + G.CAPS["health"])) < 0.01 and "health" in G.capped_keys(p.gear), "...health at +40 (%.0f)" % p.max_hp)
+	var menu = main.menu
+	menu.open("inventory", true)
+	await _frames(2)
+	_slot("gear:gloves").focus_entered.emit()
+	await _frames(1)
+	var texts: Array = _all_labels(menu).map(func(l): return l.text)
+	_check(texts.any(func(t): return t.contains("(capped)")), "the inventory shows \"(capped)\" beside a capped number")
+	_check(texts.any(func(t): return t.begins_with("of Edges:")) and texts.any(func(t): return t.begins_with("of the Riposte:")), "a Rare piece's card lists both its traits")
+	_check(_slot("gear:gloves") != null and _slot("gear:gloves").rec != null and G.rarity(_slot("gear:gloves").rec) == "rare", "...and its slot knows its rarity (edged in its colour)")
+	menu.close()
+	await _frames(2)
+	# A weapon's rarity: a Fine sword hits 5% harder, a Rare one 10%.
+	for id in G.PIECE_SLOTS:
+		main.dev_give_gear("-" + id)
+	var dealt := {}
+	for r in ["common", "fine", "rare"]:
+		p.take_gear(G.make("sword", r))
+		p._equip("sword")
+		p.global_position = Vector2(500, 400)
+		p.aim = Vector2.RIGHT
+		var d = await _dummy(Vector2(530, 400))
+		_swing()
+		dealt[r] = 999.0 - d.hp
+		d.queue_free()
+		await _frames(1)
+	_check(absf(dealt["fine"] / dealt["common"] - 1.05) < 0.01 and absf(dealt["rare"] / dealt["common"] - 1.10) < 0.01, "Fine weapons hit 5%% harder, Rare 10%% (%s)" % [dealt])
+	# Traits do what they say: of Edges, of Calm, of Rolling, of the Hunt, of the Riposte.
+	p.take_gear(G.make("leather_gloves", "fine", ["edges"]))
+	_check(absf(p.gfx("strike") - 0.07) < 0.0001, "of Edges on Leather Gloves: 4% + 3% strikes")
+	p.take_gear(G.make("iron_helm", "rare", ["calm"]))
+	p.parry_cd = 0.0
+	p.attack_cd = 0.0
+	p._try_parry()
+	_check(absf(p.parry_window - p.PARRY_WINDOW * 1.08) < 0.001, "of Calm (Rare): the parry window 8% longer")
+	p.parry_t = 0.0
+	var cost := {}
+	for setup in [["none", ""], ["rolling", "rolling"]]:
+		main.dev_give_gear("-boots")
+		if setup[1] != "":
+			p.take_gear(G.make("soft_boots", "rare", [setup[1]]))
+		p.sta = p.max_sta
+		p.roll_cd = 0.0
+		p.attack_cd = 0.0
+		p._try_roll(Vector2.RIGHT)
+		cost[setup[0]] = p.max_sta - p.sta
+		p.roll_t = 0.0
+		p.iframes = 0.0
+	_check(absf(cost["rolling"] / cost["none"] - 0.92) < 0.005, "of Rolling (Rare): rolls cost 8%% less (%s)" % [cost])
+	# of Thorns: a foe striking you up close takes some back.
+	p.take_gear(G.make("leather", "rare", ["thorns"]))
+	var brute = await _spawn("knight", p.global_position + Vector2(40, 0))
+	var bhp: float = brute.hp
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(5.0, brute)
+	_check(absf((bhp - brute.hp) - 5.0) < 0.01, "of Thorns (Rare): a foe that strikes you up close takes 5 (%.1f)" % (bhp - brute.hp))
+	brute.queue_free()
+	# of Footing: burning floor hurts less.
+	p.take_gear(G.make("leather_leggings", "rare", ["footing"]))
+	main.dev_give_gear("-cloak")
+	p.hp = 100.0
+	p.fire_t = 0.5
+	p.iframes = 0.0
+	p.stand_in_fire(0.01)
+	_check(absf((100.0 - p.hp) - 3.0) < 0.01, "of Footing (Rare): burning floor hurts 25%% less (%.1f)" % (100.0 - p.hp))
+	# of Embers: a strike can set the foe burning.
+	var burner = await _dummy(Vector2(530, 400))
+	burner.ignite(2.0, 2.0)
+	var bhp2: float = burner.hp
+	burner.set_physics_process(true)
+	await _wait(0.6)
+	_check(burner.hp < bhp2 and burner.burn_t > 0.0, "a burning foe takes damage every half second")
+	burner.queue_free()
+	# Named weapons: a Coral Trident slows; a Sunsteel Blade heals on a kill.
+	p.take_gear(G.make_named("coral_trident"))
+	p._equip("spear")
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	var cold = await _dummy(Vector2(540, 400))
+	_swing()
+	_check(cold.chill_t > 1.0, "a Coral Trident's hit slows the foe")
+	cold.queue_free()
+	p.take_gear(G.make_named("sunsteel_blade"))
+	p._equip("sword")
+	p.hp = 50.0
+	var weak = await _dummy(Vector2(530, 400))
+	weak.hp = 1.0
+	_swing()
+	_check(weak.dead and p.hp >= 53.9, "a Sunsteel Blade's kill heals you 4 (%.0f)" % p.hp)
+	await _frames(1)
+	# Comparing: traits count; "plays like" names the traits a weapon adds.
+	var rows: Array = G.compare(G.make("leather_gloves", "fine", ["edges"]), G.make("leather_gloves"))
+	_check(rows.any(func(r): return r[0] == "Strikes" and r[3] > 0), "comparing: a trait shows as a better number")
+	var pl: String = G.plays_like(G.make("sword", "rare", ["embers", "edges"]), G.make("sword"))
+	_check(pl.contains("adds Embers") and pl.contains("hits harder"), "\"plays like\" names traits and the rarity's harder hits: %s" % pl)
+	_check(G.plays_like(G.make("sword"), G.make("sword", "fine", ["riposte"])).contains("loses Riposte"), "...and what yours had that this one lacks")
+	# Drops: a Rare find fades in a notice; the floor label is in its colour.
+	main.loot_notice = {}
+	main.drop_gear(p.global_position + Vector2(200, 0), G.make("axe", "rare", ["edges", "riposte"]), true)
+	_check(not main.loot_notice.is_empty() and String(main.loot_notice["text"]).begins_with("RARE:") and main.loot_notice["color"] == G.RARITIES["rare"]["color"], "a Rare find fades in a notice: %s" % main.loot_notice.get("text", ""))
+	main.loot_notice = {}
+	main.drop_gear(p.global_position + Vector2(200, 30), G.make("axe", "fine", ["edges"]), true)
+	main.drop_gear(p.global_position + Vector2(200, 60), G.make("dagger", "rare", ["edges"]))
+	_check(main.loot_notice.is_empty(), "...not a Fine one, nor your own old piece left on the floor")
+	_check(G.rarity_color(G.make("axe", "fine", ["edges"])) == G.RARITIES["fine"]["color"] and G.NOTICE_FROM == "rare", "floor labels, slots, cards and glints use the rarity's colour")
+	main.gear_drops.clear()
+	# A camp's gear rolls a row higher; the floor-9 camp's is Rare.
+	var camp_rare := true
+	for i in 40:
+		camp_rare = camp_rare and G.rarity_rank(G.rarity(main.find_gear("", 1, "rare"))) >= G.rarity_rank("rare")
+	_check(camp_rare, "the floor-9 camp's gear is Rare (or better)")
+	# Words: none of the borrowed ones.
+	var words := ""
+	for t in G.TRAITS:
+		words += " " + G.TRAITS[t]["name"] + " " + G.TRAITS[t]["desc"]
+	for k in G.NAMED:
+		words += " " + G.NAMED[k]["name"] + " " + G.NAMED[k]["desc"]
+	words = words.to_lower()
+	_check(not ["attunement", "spire", "trial", "judgment", "mana"].any(func(w): return words.contains(w)), "no borrowed words in traits and named pieces")
+
+
+func _belt_tests() -> void:
+	print("the belt")
+	await _fresh_main()
+	var p = main.player
+	var Items = main.Items
+	var G = main.Gear
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	_check(p.belt_kinds() == 4 and Items.BELT_KINDS == 4 and p.max_stack("fire_flask") == 3, "the belt holds 4 kinds, 3 of each")
+	p.items = {}
+	for id in ["draught", "tonic", "smoke", "fire_flask"]:
+		p.add_item(id)
+	_check(p.carried().size() == 4 and not p.add_item("edge_oil") and p.item_room("edge_oil") == "belt", "a fifth kind doesn't fit a full belt")
+	for i in 5:
+		p.add_item("tonic")
+	_check(p.item_count("tonic") == 3 and p.item_room("tonic") == "stack", "...and a stack stops at 3")
+	p.take_gear("satchel")
+	_check(p.max_stack("tonic") == 4 and p.max_stack("scroll") == 1 and p.belt_kinds() == 4, "a Satchel: 4 of each (the recall scroll stays one)")
+	p.take_gear("belt_pouch")
+	_check(p.belt_kinds() == 5 and p.max_stack("tonic") == 3 and p.add_item("edge_oil"), "a Belt Pouch: a fifth kind")
+	p.take_gear(G.make("climbers_pack"))
+	_check(p.belt_kinds() == 5 and p.max_stack("tonic") == 4 and p.max_stack("scroll") == 1 and G.rarity(p.gear["backpack"]) == "rare", "a Climber's Pack (Rare): a fifth kind and 4 of each")
+	main.dev_give_gear("-backpack")
+	p.items.erase("edge_oil")
+	p.items["tonic"] = 3
+	# The take card: stepping on a fifth kind with a full belt.
+	main.item_drops.append({"pos": p.global_position, "id": "haste", "t": 40.0})
+	await physics_frame
+	await physics_frame
+	_check(main.camp_choosing and main.camp.get("stage", "") == "belt" and main.camp["choices"].size() == 5, "stepping on a fifth kind shows the take card: a stack to swap out for each kind, or leave it")
+	var leave: Dictionary = main.camp_card(4)
+	var swap: Dictionary = main.camp_card(main.camp["choices"].find("belt:tonic"))
+	_check(leave["name"] == Items.BELT["leave_name"] and swap["name"].contains("Tonic") and swap["item"] == "tonic", "...its cards name the stack and the choice to leave it")
+	main.choose_camp(main.camp["choices"].find("belt:"))
+	await physics_frame
+	await physics_frame
+	_check(not main.camp_choosing and p.item_count("haste") == 0 and main.item_drops.size() == 1, "leaving it: the belt is unchanged and it waits on the floor")
+	await _frames(3)
+	_check(not main.camp_choosing, "...and standing there doesn't ask again")
+	p.global_position += Vector2(80, 0)
+	await physics_frame
+	await physics_frame
+	p.global_position -= Vector2(80, 0)
+	await physics_frame
+	await physics_frame
+	_check(main.camp_choosing and main.camp.get("stage", "") == "belt", "stepping off and back on asks again")
+	main.choose_camp(main.camp["choices"].find("belt:tonic"))
+	await physics_frame
+	await physics_frame
+	_check(p.item_count("haste") == 1 and p.item_count("tonic") == 0 and main.item_drops.filter(func(d): return d["id"] == "tonic").size() == 3, "swapping a stack out: the new item is on your belt, the old stack at your feet")
+	await _frames(3)
+	_check(not main.camp_choosing and p.item_count("tonic") == 0, "...and the dropped stack waits until you step away")
+	main.item_drops.clear()
+	# A camp's item with a full belt is left at your feet.
+	var said: String = main._take_item("salts", "Took")
+	_check(said.begins_with("Belt full") and main.item_drops.size() == 1 and main.item_drops[0]["id"] == "salts", "a card's item with a full belt waits at your feet: %s" % said)
+	main.item_drops.clear()
+
+	print("the new consumables")
+	p.items = {}
+	_check(Items.ORDER.size() == 12 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
+	# Fire Flask: thrown at your aim, it bursts and leaves burning floor.
+	main.floor_num = 3
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	var foe = await _dummy(Vector2(640, 400))
+	p.add_item("fire_flask")
+	p.item_sel = "fire_flask"
+	var fl0: int = main.flames.size()
+	_check(p.use_item() and main.flasks.size() == 1, "a Fire Flask is thrown")
+	_check(main.flasks[0]["to"].distance_to(Vector2(660, 400)) < 10.0, "...where you aim (%s)" % main.flasks[0]["to"])
+	# (the burning floor it leaves bites at once too: 3 a tick)
+	while not main.flasks.is_empty():
+		await physics_frame
+	var burst: float = 999.0 - foe.hp
+	var want_dmg: float = 30.0 * 1.2
+	_check(burst >= want_dmg - 0.5 and burst <= want_dmg + 3.5, "...it bursts for 30 (+10%% a floor): %.1f on floor 3" % burst)
+	_check(main.flames.size() > fl0 and main.flames.back()["friendly"], "...and leaves burning floor that burns foes, not you")
+	foe.queue_free()
+	_mark("hand", "flame_contractor", 1)
+	p = main.player
+	p.add_item("fire_flask")
+	p.item_sel = "fire_flask"
+	p.use_item()
+	_check(absf(main.flasks[0]["r"] - Items.ITEMS["fire_flask"]["radius"] * 1.5) < 0.01, "Flame Contractor: Fire Flasks burst 50% wider")
+	await _wait(0.6)
+	# Edge Oil: strikes 25% harder.
+	var dealt := {}
+	for oil in [false, true]:
+		p.edge_t = 0.0
+		if oil:
+			p.add_item("edge_oil")
+			p.item_sel = "edge_oil"
+			p.use_item()
+		p._equip("sword")
+		p.global_position = Vector2(500, 400)
+		var d = await _dummy(Vector2(530, 400))
+		_swing()
+		dealt[oil] = 999.0 - d.hp
+		d.queue_free()
+		await _frames(1)
+	_check(absf(dealt[true] / dealt[false] - 1.25) < 0.01 and p.edge_t > 15.0, "Edge Oil: strikes hit 25%% harder for 20 s (%s)" % [dealt])
+	# Flameblade: Edge Oil builds heat twice as fast.
+	_mark("throat", "flameblade", 1)
+	p = main.player
+	var heats := {}
+	for oil in [false, true]:
+		p.edge_t = 20.0 if oil else 0.0
+		p.heat = 0.0
+		p.kindle_t = 0.0
+		p._strikes_landed(1)
+		heats[oil] = p.heat
+	_check(absf(heats[true] - 2.0 * heats[false]) < 0.01, "Flameblade: Edge Oil builds heat twice as fast (%s)" % [heats])
+	# Warding Oil: a barrier, and traps can't hurt you while it holds.
+	p.add_item("warding_oil")
+	p.item_sel = "warding_oil"
+	_check(p.use_item() and absf(p.barrier_hp - 25.0) < 0.01 and p.ward_oil_t > 14.0, "Warding Oil: a 25-point barrier for 15 s")
+	var tr := {"kind": "spikes", "dmg": 26.0, "pos": p.global_position, "dir": Vector2.RIGHT}
+	p.hp = 100.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	main.trap_view._catch_player(tr, main.trap_view.KINDS["spikes"])
+	_check(p.hp == 100.0 and absf(p.barrier_hp - 25.0) < 0.01, "...traps can't hurt you while it holds")
+	p.barrier_hp = 0.0
+	p.ward_oil_t = 0.0
+	p.hurt_t = 0.0
+	main.trap_view._catch_player(tr, main.trap_view.KINDS["spikes"])
+	_check(p.hp < 100.0, "(without it, they do)")
+	p.hp = p.max_health()
+	# Haste Draught: rolls 30% cheaper, a quicker walk.
+	var rc := {}
+	for haste in [false, true]:
+		p.haste_t = 10.0 if haste else 0.0
+		p.sta = p.max_sta
+		p.roll_cd = 0.0
+		p.attack_cd = 0.0
+		p._try_roll(Vector2.RIGHT)
+		rc[haste] = p.max_sta - p.sta
+		p.roll_t = 0.0
+		p.iframes = 0.0
+	_check(absf(rc[true] / rc[false] - 0.7) < 0.005, "Haste Draught: rolls cost 30%% less (%s)" % [rc])
+	var walked := {}
+	for haste in [false, true]:
+		p.haste_t = 10.0 if haste else 0.0
+		p.velocity = Vector2.ZERO
+		p.knock = Vector2.ZERO
+		p.global_position = Vector2(500, 400)
+		Input.action_press("move_right")
+		await physics_frame
+		await physics_frame
+		walked[haste] = p.velocity.x
+		Input.action_release("move_right")
+		await physics_frame
+	_check(absf(walked[true] / walked[false] - 1.25) < 0.02, "...and you walk 25%% faster (%s)" % [walked])
+	p.haste_t = 0.0
+	p.add_item("haste")
+	p.item_sel = "haste"
+	_check(p.use_item() and p.haste_t > 9.0, "...for 10 s")
+	p.haste_t = 0.0
+	# Stoneskin: 20% off, within the 50% cap; no knockback.
+	for id in G.PIECE_SLOTS:
+		main.dev_give_gear("-" + id)
+	main.dev_give_gear("")
+	p.add_item("stoneskin")
+	p.item_sel = "stoneskin"
+	_check(p.use_item() and absf(p.protection() - 0.2) < 0.001, "Stoneskin Draught: 20% damage taken off")
+	p.take_gear("plate")
+	_check(absf(p.protection() - 0.5) < 0.001, "...and it counts toward the 50% cap (plate 35% + 20% = 50%)")
+	var knocker = await _spawn("knight", p.global_position + Vector2(40, 0))
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.knock = Vector2.ZERO
+	p.receive_attack(30.0, knocker)
+	_check(p.knock == Vector2.ZERO, "...and blows can't knock you back")
+	knocker.queue_free()
+	p.stone_t = 0.0
+	main.dev_give_gear("")
+	p.hp = p.max_health()
+	# Second Wind Salts: stamina full at once, refilling 50% faster.
+	p.sta = 10.0
+	p.add_item("salts")
+	p.item_sel = "salts"
+	_check(p.use_item() and p.sta == p.max_sta, "Second Wind Salts: stamina full at once")
+	var gain := {}
+	for salts in [false, true]:
+		p.salts_t = 8.0 if salts else 0.0
+		p.sta = 0.0
+		p.sta_delay = 0.0
+		p._tick_timers(0.1)
+		gain[salts] = p.sta
+	_check(absf(gain[true] / gain[false] - 1.5) < 0.01, "...and it refills 50%% faster for 8 s (%s)" % [gain])
+	p.salts_t = 0.0
+	# Flare Powder: lights the room; hidden things nearby glint.
+	p.add_item("flare")
+	p.item_sel = "flare"
+	_check(p.use_item() and absf(main.flare_t - 20.0) < 0.1 and main.flare_light >= 0, "Flare Powder lights the room for 20 s")
+	_check(main.flare_reveals(p.global_position + Vector2(200, 0)) and not main.flare_reveals(p.global_position + Vector2(900, 0)), "...hidden traps and secret walls nearby glint (not far off)")
+	_mark("brow", "hunter", 1)
+	p = main.player
+	p.add_item("flare")
+	p.item_sel = "flare"
+	p.use_item()
+	_check(absf(main.flare_t - 40.0) < 0.1, "Hunter: a Flare lasts twice as long")
+	# Smoke Bomb: an Ashwalker's lasts twice as long.
+	_mark("back", "ashwalker", 1)
+	p = main.player
+	p.add_item("smoke")
+	p.item_sel = "smoke"
+	p.use_item()
+	_check(absf(main.smokes.back()["t"] - Items.ITEMS["smoke"]["duration"] * 2.0) < 0.1, "Ashwalker: Smoke Bombs last twice as long")
+
+	print("the item ring")
+	await _fresh_main()
+	p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.items = {}
+	for id in ["draught", "tonic", "haste"]:
+		p.add_item(id)
+	p.item_sel = "draught"
+	p.hp = 60.0
+	# A tap uses the quick item and never opens the ring.
+	Input.action_press("use_item")
+	await physics_frame
+	await physics_frame
+	Input.action_release("use_item")
+	await physics_frame
+	await physics_frame
+	_check(p.item_count("draught") == 0 and not p.ring_open and Engine.time_scale == 1.0, "a tap of G uses the quick item; the ring stays shut")
+	p.add_item("draught")
+	p.heal_left = 0.0
+	# A hold opens the ring (time slows); pointing picks; letting go uses it.
+	p.mouse_aim = false
+	Input.action_press("use_item")
+	await _wait(0.4)
+	_check(p.ring_open and main.slowmo, "holding G opens the ring of belt items, and time slows")
+	var have: Array = p.carried()
+	var target := have.find("haste")
+	p.item_dir_override = Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 60.0
+	await physics_frame
+	await physics_frame
+	_check(p.ring_index == target, "pointing picks an item in the ring (%d)" % p.ring_index)
+	Input.action_release("use_item")
+	await physics_frame
+	await physics_frame
+	_check(p.item_count("haste") == 0 and p.haste_t > 0.0 and not p.ring_open and not main.slowmo and p.item_count("draught") == 1, "letting go uses that item, the ring closes and time runs again")
+	# The d-pad down (T): a tap picks the next item; a hold opens the ring.
+	p.add_item("haste")
+	p.item_sel = "draught"
+	Input.action_press("item_next")
+	await physics_frame
+	await physics_frame
+	Input.action_release("item_next")
+	await physics_frame
+	await physics_frame
+	_check(p.selected_item() != "draught" and p.item_count("draught") == 1 and not p.ring_open, "a tap of the d-pad down picks the next item (%s)" % p.selected_item())
+	Input.action_press("item_next")
+	await _wait(0.4)
+	_check(p.ring_open, "holding the d-pad down opens the ring too")
+	Input.action_release("item_next")
+	await physics_frame
+	await physics_frame
+	p.heal_left = 0.0
+	# On a phone: hold the Item button, slide, let go.
+	p.items = {"draught": 1, "tonic": 1, "haste": 1}
+	p.item_sel = "draught"
+	p.haste_t = 0.0
+	main.touch._set_active(true)
+	await _frames(2)
+	main.touch._layout()
+	var btn: Dictionary = main.touch.buttons.filter(func(b): return b["id"] == "item")[0]
+	_touch(6, btn["c"], true)
+	await _wait(0.4)
+	_check(p.ring_open, "holding the phone's Item button opens the ring")
+	have = p.carried()
+	target = have.find("haste")
+	_drag(6, btn["c"] + Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 50.0)
+	await physics_frame
+	await physics_frame
+	_touch(6, btn["c"] + Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 50.0, false)
+	await physics_frame
+	await physics_frame
+	_check(p.item_count("haste") == 0 and p.item_count("draught") == 1 and not p.ring_open, "sliding to an item and letting go uses it")
+	main.touch._set_active(false)
+	await _frames(2)
+	# The Entity explains the belt and the ring.
+	var Entity = load("res://scripts/entity.gd")
+	_check(Entity.TIPS.has("rarity") and Entity.TIPS.has("belt") and Entity.TIPS.has("item_ring"), "the Entity has tips for rarities, the belt and the item ring")
+
+	print("the belt at the end of a climb")
+	await _fresh_main()
+	p = main.player
+	p.items = {"draught": 2, "fire_flask": 1}
+	var stone0: float = main.profile.crystal_total("stone")
+	var fire0: float = main.profile.crystal_total("fire")
+	var line: String = main.break_belt()
+	_check(absf(main.profile.crystal_total("stone") - stone0 - 12.0) < 0.01 and absf(main.profile.crystal_total("fire") - fire0 - 6.0) < 0.01, "unused belt items break into crystals at half their worth: %s" % line)
+	_check(p.items.is_empty() and main.break_belt() == "", "...once (the belt is empty after)")
+	# Surviving the first climb's Regard breaks it too; falling doesn't.
+	await _fresh_main()
+	p = main.player
+	p.items = {"tonic": 2}
+	var water0: float = main.profile.crystal_total("water")
+	main._begin_regard(false)
+	_check(absf(main.profile.crystal_total("water") - water0 - 10.0) < 0.01, "reaching the Regard alive breaks the belt into crystals")
+	await _fresh_main()
+	p = main.player
+	p.items = {"tonic": 2}
+	water0 = main.profile.crystal_total("water")
+	main._begin_regard(true)
+	_check(main.profile.crystal_total("water") == water0, "falling loses it")
+	Engine.time_scale = 1.0
+
+
 ## A controller button, as the game would get it from a real pad.
 func _pad_button(button: int, down: bool) -> void:
 	var ev := InputEventJoypadButton.new()
@@ -5142,7 +5688,7 @@ func _controls_tests() -> void:
 	await _pad_tap(JOY_BUTTON_A)
 	_check(not main.camp_choosing, "A takes the highlighted camp card")
 	var first: String = picks[0]
-	_check(p.item_count(first) > 0 if not first.begins_with("gear:") else p.carried_gear().has(first.substr(5)), "...the one that was highlighted (%s)" % first)
+	_check(p.item_count(first) > 0 if not first.begins_with("gear:") else p.carried_gear().has(main.Gear.base_id(first.substr(5))), "...the one that was highlighted (%s)" % first)
 	await _frames(2)
 	# Choosing a tower: two rows of three.
 	main.choosing_tower = true
@@ -5711,6 +6257,8 @@ func _run() -> void:
 	await _gear_tests()
 	await _heirloom_tests()
 	await _gear_slot_tests()
+	await _rarity_tests()
+	await _belt_tests()
 	await _controls_tests()
 	await _performance_tests()
 	await _lighting_tests()
@@ -6143,7 +6691,7 @@ func _lock_tests() -> void:
 			var at: Vector2 = carrier[0].global_position
 			_slay(carrier[0])
 			await _frames(2)
-			_check(main.door_view.keys.any(func(x): return x["lock_id"] == d["lock_id"] and x["pos"] == at), "slain, it drops the key")
+			_check(main.door_view.keys.any(func(x): return x["lock_id"] == d["lock_id"] and x["pos"].distance_to(at) < 48.0), "slain, it drops the key where it fell")
 	main.door_view.open_all()
 	_check(main.door_view.locked_count() == 0, "(the dev tool's Open all opens locked doors too)")
 
@@ -6186,11 +6734,11 @@ func _lock_tests() -> void:
 	for n in 40:
 		main._start_floor(3 + n % 6)
 		await _frames(1)
-		# (Not a crypt: its dead rise when you walk in, so it rightly shuts.)
-		var quiet_rooms: Array = main.door_view.lock_rooms.keys().filter(func(k): return main.room_themes[k] != "crypt")
-		if quiet_rooms.is_empty():
+		# (a restless crypt raises its own foes as you walk in: not an empty room)
+		var calm: Array = main.door_view.lock_rooms.keys().filter(func(k): return k >= main.room_themes.size() or main.room_themes[k] != "crypt")
+		if calm.is_empty():
 			continue
-		var i: int = quiet_rooms[0]
+		var i: int = calm[0]
 		for e in main.enemies():
 			e.queue_free()
 		await _frames(2)
@@ -6274,7 +6822,8 @@ func _screen_tests() -> void:
 	var melee = _slot("gear:melee")
 	_check(_slot("gear:fists") != null and melee != null and melee.id == "axe" and melee.on and _slot("gear:ranged").id == "shortbow" and _slot("gear:armor") != null, "...carried gear in slots: fists, the axe in hand, the bow, armor")
 	var draught = _slot("item:draught")
-	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial").count == 0, "...items with their counts")
+	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial") == null, "...the belt's items with their counts")
+	_check(_slot("belt:2") != null and _slot("belt:3") != null and _slot("belt:4") == null, "...and its two empty cells (a belt of 4 kinds)")
 	_check(_slot("gear:offhand") != null and _slot("gear:offhand").locked, "...the off-hand kept for later, locked")
 	menu._inv_view("heirlooms")
 	await _frames(2)
