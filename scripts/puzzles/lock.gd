@@ -71,6 +71,7 @@ var spawned := false
 var glowing: Array = []  # {e, kind, pos}
 var sparks: Array = []  # {pos, kind}
 var carried := ""
+var pick_cd := 0.0  # after picking a spark up, a moment before the next
 var note_t := 0.0
 
 
@@ -122,10 +123,11 @@ func _build() -> void:
 	host.add_round_body(lock, 15.0)
 
 
-func tick(_delta: float) -> void:
+func tick(delta: float) -> void:
 	var p = player()
 	if p == null or p.dead:
 		return
+	pick_cd = maxf(0.0, pick_cd - delta)
 	if not spawned and room.grow(-CELL * 0.6).has_point(p.global_position):
 		_spawn_glowing()
 	# A glowing foe that falls leaves a spark of its essence where it fell.
@@ -143,7 +145,8 @@ func tick(_delta: float) -> void:
 		return
 	# Walk over a spark to carry it (setting down the one you held).
 	for s in sparks:
-		if p.global_position.distance_to(s["pos"]) < PICK:
+		if pick_cd <= 0.0 and p.global_position.distance_to(s["pos"]) < PICK:
+			pick_cd = 0.8
 			var held := carried
 			carried = s["kind"]
 			sparks.erase(s)
@@ -260,6 +263,7 @@ func reset() -> void:
 	glowing.clear()
 	sparks.clear()
 	carried = ""
+	pick_cd = 0.0
 	step = 0
 	spawned = false
 	var r := riddle(tier)
