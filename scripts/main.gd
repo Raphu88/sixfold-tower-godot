@@ -26,6 +26,8 @@ const PuzzleScript := preload("res://scripts/puzzle.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 const LightingScript := preload("res://scripts/lighting.gd")
+const DoorsScript := preload("res://scripts/doors.gd")
+const Themes := preload("res://scripts/themes.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -34,7 +36,7 @@ const STAIR_REACH := 26.0
 const WALL := 24.0
 
 ## The single open room of floor 1 and the beast's floor. Floors of rooms
-## and corridors use the bigger Floors.ARENA instead.
+## and corridors use a bigger area that grows with height (Floors.arena_for).
 const OPEN_ROOM := Rect2(80, 100, 1120, 530)
 var room := OPEN_ROOM
 var outer_walls: Array = []
@@ -46,8 +48,19 @@ var astar: AStarGrid2D
 var layout_bodies: Array = []
 var layout_rooms: Array = []
 var layout_blocks: Array = []  # cover inside rooms (Rect2, solid tiles)
-var side_room := Rect2()  # a small dead-end room, if the floor has one
+var side_room := Rect2()  # the room holding the floor's essence cache, if it has one
 var cache := {}  # its essence cache: {pos, amount, kind, taken}
+var layout_torches: Array = []  # where each room's torch hangs (narrow rects, floors.gd)
+# What each room of a floor of rooms is (floors.gd, themes.gd).
+var room_info: Array = []  # {rect, role, theme, walk, ambush, ...}
+var room_themes: Array = []  # each room's theme id, in step with room_info
+var room_entered := {}  # rooms walked into this floor (index -> true)
+var room_at := -1  # the room the climber stands in (-1 in a corridor)
+var room_tile := Vector2i(-999, -999)  # the tile room_at was worked out on
+var room_pending := -1  # a room whose name waits for the banner to clear
+var springs: Array = []  # healing springs: {pos, r, left}
+var door_view  # the floor's doors (doors.gd)
+var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
 var fx
 var camera: Camera2D
@@ -120,7 +133,7 @@ var gear_drop_chance := Gear.DROP_CHANCE
 var gear_cache_chance := Gear.CACHE_CHANCE
 var gear_here := {}  # the drop under you that needs Y (or Take) to swap for
 var in_camp := false  # resting at a camp between floors (floor_num stays the floor below)
-var camp_done := false  # each climb has one camp
+var camps_done: Array = []  # the floors whose camp has been visited this climb
 var camp_choosing := false  # the camp's cards are showing
 var camp := {}  # {stage: "item", "rune" or "heirloom", choices: [...], lines: [...]}
 var heirloom_offered := false  # the heirloom choice has been shown this climb
@@ -191,6 +204,9 @@ func _ready() -> void:
 	trap_view = Traps.new()
 	trap_view.main = self
 	add_child(trap_view)
+	door_view = DoorsScript.new()
+	door_view.main = self
+	add_child(door_view)
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
@@ -393,9 +409,8 @@ func _build_layout(walk: Array, blocks: Array = [], start := Vector2.ZERO, targe
 				add_child(body)
 				layout_bodies.append(body)
 				run_start = -1
-	var lit: Array = layout_rooms.duplicate()
-	if side_room.has_area():
-		lit.append(side_room)
+	# One torch per room, over the middle of its north wall (floors.gd picks the spot).
+	var lit: Array = layout_torches if not layout_torches.is_empty() else layout_rooms.duplicate()
 	room_view.set_layout(grid_size, solid, lit, layout_blocks)
 
 
@@ -581,6 +596,9 @@ func _process(delta: float) -> void:
 		banner["t"] -= delta
 		if banner["t"] <= 0.0:
 			banner = {}
+	if layout_on and not climbing:
+		_check_rooms()
+		_update_springs(delta)
 	if player != null:
 		camera.position = cam_prev.lerp(cam_curr, Engine.get_physics_interpolation_fraction())
 	# On phones the whole game is already drawn bigger, so pull the camera back.
@@ -778,14 +796,16 @@ func _start_floor(n: int) -> void:
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
 	var plan: Dictionary = _camp_plan() if in_camp else Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+	floor_plan = plan
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
+	layout_torches = plan.get("torches", [])
 	start = plan.get("start", start)
 	player_start = start if plan.has("start") else open_start
 	stair_pos = plan.get("stair", Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.position.y + 34.0))
 	room_view.stair_pos = stair_pos
-	# A side room's essence cache, if this floor has one.
-	side_room = plan.get("side_room", Rect2())
+	# A good room's essence cache, if this floor has one.
+	side_room = plan.get("cache_room", Rect2())
 	cache = {}
 	if plan.has("cache"):
 		cache = plan["cache"].duplicate()
@@ -802,7 +822,20 @@ func _start_floor(n: int) -> void:
 		targets.append(cache["pos"])
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
 	# Door frames, only where the wall beside an opening is really there.
-	room_view.set_doors(plan.get("doors", []).filter(func(r): return is_solid(r.get_center())))
+	room_view.set_doors(plan.get("posts", []).filter(func(r): return is_solid(r.get_center())))
+	# The rooms' themes, and the doors (closed doors are solid: hung before
+	# the traps, so no trap lands in a doorway).
+	room_info = plan.get("room_info", [])
+	room_themes = plan.get("themes", []).duplicate()
+	room_entered = {}
+	room_at = -1
+	room_tile = Vector2i(-999, -999)
+	room_pending = -1
+	door_view.build(plan.get("doors", []), room_themes)
+	springs = plan.get("springs", [])
+	# A fallen climber's camp: what they left behind.
+	for cp in plan.get("camps", []):
+		item_drops.append({"pos": cp["item"], "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": 1e9})
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
@@ -830,15 +863,22 @@ func _start_floor(n: int) -> void:
 			var avoid: Array = pillars.duplicate()
 			for b in layout_blocks:
 				avoid.append({"pos": b.get_center(), "r": b.size.length() * 0.5})
-			# Rooms with pools drawn in (rooms.gd) bring their own; others get a few.
+			# Rooms with pools drawn in (rooms.gd) bring their own; others get a
+			# few in the rooms where danger waits (not the good rooms or the puzzle).
 			puddles.append_array(plan.get("pools", []))
 			if puddles.is_empty():
-				for i in range(1, layout_rooms.size()):
-					puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
+				for r in plan.get("wet_rooms", []):
+					puddles.append_array(Floors.puddles(r.grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
 	traps = Traps.place(plan, tower_data(), n, self)
 	trap_view.reset()
+	# A trap room whose traps wouldn't fit is just a quiet hall.
+	for i in plan.get("hazard_rooms", []):
+		if not traps.any(func(tr): return room_info[i]["rect"].has_point(tr["pos"])):
+			room_themes[i] = "quiet"
+	door_view.restyle(room_themes)
+	_update_room_looks(plan.get("camps", []))
 	if puzzle != null:
 		puzzle.setup(plan.get("puzzle", {}) if not in_camp else {})
 		ward = puzzle.active()
@@ -865,7 +905,102 @@ func _start_floor(n: int) -> void:
 		camera.reset_smoothing()
 
 
-## Walking onto a side room's essence cache: a burst of the tower's essence.
+## The rooms' tints and marks on the floor (themes.gd), springs and camps.
+func _update_room_looks(camps: Array) -> void:
+	var looks: Array = []
+	for i in room_info.size():
+		var th: Dictionary = Themes.get_theme(room_themes[i])
+		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", "")})
+	room_view.set_looks(looks, springs, camps)
+
+
+## The room the climber stands in, worked out when they reach a new tile.
+## The first time they walk into a themed room, its name and rule show.
+func _check_rooms() -> void:
+	if room_info.is_empty() or player == null:
+		return
+	var t := _tile_of(player.global_position)
+	if t != room_tile:
+		room_tile = t
+		room_at = -1
+		for i in room_info.size():
+			if room_info[i]["rect"].has_point(player.global_position):
+				room_at = i
+				break
+		if room_at >= 0 and not room_entered.has(room_at):
+			room_entered[room_at] = true
+			_enter_room(room_at)
+	# A name that waited for another banner to clear shows once it has, if
+	# the climber is still in that room.
+	if room_pending >= 0 and banner.is_empty():
+		if room_pending == room_at:
+			_room_banner(room_pending)
+		room_pending = -1
+
+
+func _enter_room(i: int) -> void:
+	var id: String = room_themes[i]
+	var th: Dictionary = Themes.get_theme(id)
+	if th["feature"] == "ambush":
+		_ambush(i)
+	if th["sub"] == "" or id == "quiet":
+		return  # (the arrival hall and quiet halls say nothing)
+	if banner.is_empty() or banner.get("room", false):
+		_room_banner(i)
+	else:
+		room_pending = i
+
+
+func _room_banner(i: int) -> void:
+	var th: Dictionary = Themes.get_theme(room_themes[i])
+	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true}
+	sfx("glint", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)
+
+
+## A restless crypt: its dead rise as you walk in.
+func _ambush(i: int) -> void:
+	var spots: Array = room_info[i].get("ambush", [])
+	var n := mini(spots.size(), 2 if floor_num < 6 else 3)
+	for k in n:
+		var kind := Floors._pick(floor_num, 3.0, 99, tower_data().get("weights", {}))
+		if kind == "":
+			kind = "slime"
+		var e = spawn_enemy(kind, spots[k])
+		e.wake()
+		floor_total += 1
+		fx_burst(spots[k], Vector2.UP, Color(0.6, 0.5, 0.85), 14, 140.0)
+		fx_ring(spots[k], Color(0.6, 0.5, 0.85), 50.0, 0.4, 3.0)
+	if n > 0:
+		shake(6.0)
+		sfx("slam", 0.6, -4.0, 0.0)
+
+
+## Standing in a healing spring heals you until it runs dry.
+func _update_springs(delta: float) -> void:
+	if springs.is_empty() or player == null or player.dead:
+		return
+	for sp in springs:
+		if sp["left"] <= 0.0 or player.global_position.distance_to(sp["pos"]) > sp["r"]:
+			continue
+		var heal := minf(minf(float(Floors.SPRING["rate"]) * delta, sp["left"]), player.max_health() - player.hp)
+		if heal <= 0.0:
+			continue
+		player.hp += heal
+		sp["left"] -= heal
+		if sp["left"] <= 0.01:
+			sp["left"] = 0.0
+			room_view.refresh_features()
+			fx_text(sp["pos"] + Vector2(0, -40), "The spring runs dry", Color(0.6, 0.85, 0.8))
+		elif randf() < 4.0 * delta:
+			fx_burst(player.global_position, Vector2.UP, Color(0.5, 0.95, 0.85), 2, 60.0)
+
+
+## Opens every door on the floor (the dev tool, and tests).
+func open_all_doors() -> void:
+	door_view.open_all()
+
+
+## Walking onto a good room's essence cache: a burst of the tower's essence.
 func _open_cache() -> void:
 	cache["taken"] = true
 	var pos: Vector2 = cache["pos"]
@@ -997,6 +1132,9 @@ func _arrive() -> void:
 		profile.save()
 	if banner.get("title", "").ends_with("AWAITS"):
 		banner["lines"] = lines + banner["lines"]
+	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb:
+		# Halfway up: the Proving (its own test comes later).
+		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5}
 	else:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	if ward:
@@ -1008,9 +1146,10 @@ func _arrive() -> void:
 
 # --- camps and items ---------------------------------------------------------------
 
-## One camp per climb, after Items.CAMP_AFTER, on climbs long enough to have one.
+## A camp after each floor in Items.CAMP_AFTER (once each), on climbs long
+## enough to have one. Camps aren't floors: the floor count goes on after.
 func _camp_due() -> bool:
-	return not first_climb and not camp_done and floor_num == Items.CAMP_AFTER \
+	return not first_climb and floor_num in Items.CAMP_AFTER and not (floor_num in camps_done) \
 		and int(tower_data().get("summit", 0)) >= Items.CAMP_MIN_FLOORS
 
 
@@ -1077,7 +1216,7 @@ func _restart_held(delta: float) -> bool:
 
 ## Arrives at a camp: a full rest by the fire, then an item to choose.
 func _enter_camp(lines: Array) -> void:
-	camp_done = true
+	camps_done.append(floor_num)
 	in_camp = true
 	_start_floor(floor_num)
 	cleared = true  # (no gong: there was nothing to fight)
@@ -1601,7 +1740,7 @@ func dev_beast(id: String) -> void:
 	dev_tower(id)
 	profile.regarded = true
 	first_climb = false
-	_start_floor(int(tower_data().get("summit", 5)))
+	_start_floor(int(tower_data().get("summit", Towers.SUMMIT)))
 	player.dead = false
 	player.set_physics_process(true)
 	player.hp = player.max_hp

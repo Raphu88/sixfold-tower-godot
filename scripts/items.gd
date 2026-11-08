@@ -59,9 +59,10 @@ const ITEMS := {
 
 # --- camps ---------------------------------------------------------------------
 
-## On climbs of at least CAMP_MIN_FLOORS, taking this floor's stair leads to
-## a camp first: a safe room with a fire, a full rest and an item to take.
-const CAMP_AFTER := 3
+## On climbs of at least CAMP_MIN_FLOORS, taking the stair of each of these
+## floors leads to a camp first: a safe room with a fire, a full rest and an
+## item to take. (Camps aren't floors: the next floor is still the next one.)
+const CAMP_AFTER := [3, 9]
 const CAMP_MIN_FLOORS := 5
 ## How many item cards a camp offers.
 const CAMP_CHOICES := 3

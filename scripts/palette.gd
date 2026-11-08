@@ -11,6 +11,10 @@ const WALL_TOP := Color(0.17, 0.155, 0.19)
 const WALL_EDGE := Color(0.3, 0.28, 0.32)
 const WALL_FACE := Color(0.24, 0.21, 0.24)
 const TORCH := Color(1.0, 0.68, 0.38)
+# Doors (doors.gd)
+const DOOR_WOOD := Color(0.36, 0.24, 0.15)
+const DOOR_IRON := Color(0.32, 0.31, 0.35)
+const DOOR_STONE := Color(0.33, 0.31, 0.35)
 
 # Light and darkness (lighting.gd): each tower's darkness has its own colour;
 # alpha is how dark its unlit places are (1 = black, 0 = no darkness).

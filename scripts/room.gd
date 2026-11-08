@@ -30,7 +30,12 @@ var layout_rooms: Array = []
 var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
 var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
-var cache := {}  # a side room's essence cache: {pos, kind, taken}
+var cache := {}  # a good room's essence cache: {pos, kind, taken}
+# Room themes (themes.gd): each room's floor tint and marks, drawn into the
+# floor squares (static: no cost per frame). {walk: [Rect2], rect, rows, tint, decor}
+var looks: Array = []
+var springs: Array = []  # healing springs: {pos, r, left} (shared with main.gd)
+var camps: Array = []  # fallen climbers' cold camps: {pos}
 # The floor and walls are drawn in squares (see Draw.Chunked): fewer draw
 # calls, and only the squares on screen are drawn.
 const CHUNK := 400.0
@@ -88,6 +93,20 @@ func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Arr
 func set_doors(list: Array) -> void:
 	doors = list
 	queue_redraw()
+
+
+## The rooms' themed looks, springs and camps (empty on open floors).
+func set_looks(list: Array, spring_list: Array = [], camp_list: Array = []) -> void:
+	looks = list
+	springs = spring_list
+	camps = camp_list
+	queue_redraw()
+
+
+## Redraws the pillars, pools and springs (a spring ran dry).
+func refresh_features() -> void:
+	if features != null:
+		features.queue_redraw()
 
 
 ## A torch on the wall at `pos`; its light falls `below` it, onto the floor.
@@ -308,6 +327,7 @@ func _draw() -> void:
 				var p2 := inner.position + inner.size * Vector2(_hash(gx, gy, 9), 0.92)
 				batch.polyline(PackedVector2Array([p0, p1, p2]), base.darkened(0.4), 1.0)
 
+	_draw_looks()
 	# A soft darkening toward the walls, so the floor feels enclosed.
 	for i in 6:
 		var k := float(i) / 6.0
@@ -353,6 +373,129 @@ func _draw_features() -> void:
 	for p in pillars:
 		_draw_pillar(c, p["pos"], p["r"])
 	c.flush(features)
+	for sp in springs:
+		_draw_spring(features, sp)
+	for cp in camps:
+		_draw_camp(features, cp["pos"])
+
+
+## Each themed room's floor: a wash of its colour, and marks for some
+## (bones in a den or a crypt, scorch in a hazard room).
+func _draw_looks() -> void:
+	for lk in looks:
+		var tint: Color = lk.get("tint", Color(0, 0, 0, 0))
+		var walk: Array = lk.get("walk", [])
+		if tint.a > 0.0:
+			for r in walk:
+				batch.rect(r, tint)
+			# A brighter line just inside the room's edge, so the colour reads.
+			var rows: Array = lk.get("rows", [])
+			var at: Vector2 = lk.get("rect", Rect2()).position
+			var line := Color(tint, minf(tint.a * 1.6, 0.25))
+			for y in rows.size():
+				var row: String = rows[y]
+				for x in row.length():
+					if row[x] == "X":
+						continue
+					var tl := at + Vector2(x, y) * TILE
+					if y == 0 or String(rows[y - 1])[x] == "X":
+						batch.rect(Rect2(tl + Vector2(0, 2), Vector2(TILE, 2)), line)
+					if y == rows.size() - 1 or String(rows[y + 1])[x] == "X":
+						batch.rect(Rect2(tl + Vector2(0, TILE - 4), Vector2(TILE, 2)), line)
+					if x == 0 or row[x - 1] == "X":
+						batch.rect(Rect2(tl + Vector2(2, 0), Vector2(2, TILE)), line)
+					if x == row.length() - 1 or row[x + 1] == "X":
+						batch.rect(Rect2(tl + Vector2(TILE - 4, 0), Vector2(2, TILE)), line)
+		if walk.is_empty():
+			continue
+		var box: Rect2 = lk.get("rect", walk[0])
+		var seed := int(box.position.x) * 7 + int(box.position.y) * 13
+		match String(lk.get("decor", "")):
+			"bones":
+				for k in 7:
+					var p := box.position + box.size * Vector2(0.1 + 0.8 * _hash(seed, k, 41), 0.12 + 0.76 * _hash(seed, k, 42))
+					if _in_walk(p, walk):
+						_draw_bone(p, _hash(seed, k, 43) * TAU, 7.0 + 5.0 * _hash(seed, k, 44))
+			"scorch":
+				for k in 4:
+					var p := box.position + box.size * Vector2(0.15 + 0.7 * _hash(seed, k, 45), 0.15 + 0.7 * _hash(seed, k, 46))
+					if _in_walk(p, walk):
+						batch.circle(p, 14.0 + 10.0 * _hash(seed, k, 47), Color(0, 0, 0, 0.16))
+						batch.circle(p, 7.0 + 5.0 * _hash(seed, k, 48), Color(0, 0, 0, 0.14))
+			"ripples":
+				for k in 4:
+					var p := box.position + box.size * Vector2(0.15 + 0.7 * _hash(seed, k, 49), 0.15 + 0.7 * _hash(seed, k, 50))
+					if _in_walk(p, walk):
+						var rr := 10.0 + 8.0 * _hash(seed, k, 51)
+						for q in 2:
+							var pts := PackedVector2Array()
+							for i in 13:
+								pts.append(p + Vector2.from_angle(TAU * i / 12.0) * (rr + q * 7.0))
+							batch.polyline(pts, Color(0.6, 0.85, 0.9, 0.12), 1.5)
+
+
+func _in_walk(p: Vector2, walk: Array) -> bool:
+	for r in walk:
+		if r.size.x > 60.0 and r.size.y > 60.0 and r.grow(-24.0).has_point(p):
+			return true
+	return false
+
+
+func _draw_bone(c: Vector2, a: float, len: float) -> void:
+	var col := Color(0.78, 0.74, 0.64, 0.75)
+	var d := Vector2.from_angle(a)
+	var n := d.orthogonal() * 1.8
+	var p0 := c - d * len * 0.5
+	var p1 := c + d * len * 0.5
+	batch.line(p0, p1, col, 2.6)
+	for p in [p0, p1]:
+		batch.circle(p + n, 1.9, col)
+		batch.circle(p - n, 1.9, col)
+
+
+## A healing spring: a pool of clear water ringed with stones (dull and
+## dry once used up).
+func _draw_spring(c: CanvasItem, sp: Dictionary) -> void:
+	var pos: Vector2 = sp["pos"]
+	var r: float = sp["r"]
+	var full: bool = sp.get("left", 0.0) > 0.0
+	var b := Draw.Batch.new()
+	for i in 12:
+		var a := TAU * i / 12.0
+		var sr := 6.0 + 2.0 * _hash(int(pos.x) + i, int(pos.y), 61)
+		b.circle(pos + Vector2.from_angle(a) * (r + 4.0), sr + 1.5, Palette.OUTLINE)
+		b.circle(pos + Vector2.from_angle(a) * (r + 4.0), sr, Palette.WALL_FACE.lightened(0.1 + 0.1 * _hash(i, int(pos.x), 62)))
+	if full:
+		b.circle(pos, r, Color(0.1, 0.3, 0.32))
+		b.circle(pos + Vector2(-2, -2), r * 0.82, Color(0.16, 0.48, 0.48))
+		b.circle(pos + Vector2(-4, -5), r * 0.5, Color(0.25, 0.62, 0.6))
+		b.arc(pos + Vector2(-r * 0.25, -r * 0.3), r * 0.42, PI * 1.1, PI * 1.6, 10, Color(0.85, 1.0, 0.95, 0.55), 2.0)
+		b.arc(pos + Vector2(r * 0.2, r * 0.2), r * 0.3, PI * 0.1, PI * 0.6, 8, Color(0.85, 1.0, 0.95, 0.3), 1.5)
+	else:
+		b.circle(pos, r, Color(0.13, 0.12, 0.13))
+		b.circle(pos + Vector2(3, 3), r * 0.6, Color(0.1, 0.09, 0.1))
+	b.flush(c)
+
+
+## A fallen climber's cold camp: a ring of stones round charred logs, and a bedroll.
+func _draw_camp(c: CanvasItem, pos: Vector2) -> void:
+	var b := Draw.Batch.new()
+	b.circle(pos, 17.0, Color(0.08, 0.07, 0.07, 0.8))  # ash
+	for i in 9:
+		var a := TAU * i / 9.0
+		b.circle(pos + Vector2.from_angle(a) * 19.0, 5.5, Palette.OUTLINE)
+		b.circle(pos + Vector2.from_angle(a) * 19.0, 4.2, Palette.WALL_FACE.lightened(0.15 * _hash(i, int(pos.x), 63)))
+	for a in [0.5, -0.6, 1.9]:
+		var d := Vector2.from_angle(a)
+		b.line(pos - d * 12.0, pos + d * 12.0, Palette.OUTLINE, 6.0)
+		b.line(pos - d * 11.0, pos + d * 11.0, Color(0.16, 0.11, 0.08), 4.0)
+	b.circle(pos + Vector2(2, -1), 2.0, Color(0.9, 0.45, 0.2, 0.6))  # the last ember
+	# The bedroll, unrolled to one side.
+	var roll := Rect2(pos + Vector2(-58, -14), Vector2(26, 44))
+	b.rect(roll.grow(1.5), Palette.OUTLINE)
+	b.rect(roll, Color(0.36, 0.3, 0.22))
+	b.rect(Rect2(roll.position, Vector2(roll.size.x, 10)), Color(0.45, 0.38, 0.28))
+	b.flush(c)
 
 
 ## The walls between rooms: solid tiles drawn as stone, with a brick front
