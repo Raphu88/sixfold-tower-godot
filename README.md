@@ -14,7 +14,7 @@ Everything visual is drawn in code, so there are no art assets. Sounds and music
 
 A web version is built automatically every time `main` changes: **https://raphu88.github.io/sixfold-tower-godot/**. Open it in your phone's browser, turn the phone sideways, and tap the **[ ]** button for fullscreen. It also works in a desktop browser.
 
-On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; there is no sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and a Menu button at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
+On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small screen, and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; there is no sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, an **Item** button at the bottom (it shows the item it will use and how many you have; the small arrow beside it picks the next item), and small **Bag** (inventory), **Climber** and **Menu** buttons at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
 ## Controls
 
@@ -32,11 +32,13 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Use your item | G, or the Item button on a phone | X / Square |
 | Next item | T, or the small arrow button beside Item on a phone | D-pad down |
 | Choose a tower, camp card or heirloom | 1 to 6, or arrows and Enter, click, or tap the card | D-pad or left stick, then A / Cross |
-| Menu (pause, settings, controls, dev tools) | Esc or P, or the Menu button on a phone | Start / Options |
+| Pause menu (resume, settings, controls, dev tools, exit) | Esc or P, or the Menu button on a phone | Start / Options |
+| Climber screen (marks, essence, record) | Tab, or the Climber button on a phone | Press View / Share |
+| Inventory (gear, items, heirlooms) | I, or the Bag button on a phone | D-pad up |
 | Restart (hold, so a stray press can't end a climb; once fallen a press is enough) | Hold R | Hold View / Share |
 | New climber (forget all marks and start the first climb again; press twice to confirm) | N, or New climber in the menu | New climber in the menu |
 | Music on/off | M | Music slider in Settings |
-| Show/hide controls | H | D-pad up |
+| Show/hide the controls list on screen (off at first; also in Settings) | H | Settings |
 
 **Controllers.** Plug in (or pair) an Xbox, PlayStation or similar controller and just press a button. The prompts on screen (the controls panel, the gear card's "take it", the card screens, "press ... to begin your next climb") switch to controller buttons as soon as you use it, with PlayStation names on a PlayStation pad, and back to keys the moment you touch the keyboard or mouse (or to touch wording on a phone). Holding LB (L1) turns the face buttons, RB and RT into your six marks' casts; hold the cast button to open the spell ring and point with the right stick. The button layout lives in `scripts/controls.gd` (`PAD` and `PAD_CAST`), read by `scripts/pad.gd`.
 
@@ -44,7 +46,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 
 Every weapon and suit of armor here is plain, common gear (enchanted weapons, armor and trinkets will come later). Their names, text and numbers live in `scripts/weapons.gd` (weapons) and `scripts/gear.gd` (armor, drops and carrying), so they're easy to change. Each is drawn in code on the climber and has its own HUD icon.
 
-**Carrying.** Gear lasts one climb. You carry four things: **1 fists** (always), **2 a melee weapon**, **3 a ranged weapon**, and **one suit of armor**. Every climb starts with a **sword**, a **shortbow** and **no armor**, except where you hold an heirloom (below). The HUD shows the three weapon slots and the armor slot with their names; the **Body** page in the menu lists your gear with its key numbers.
+**Carrying.** Gear lasts one climb. You carry four things: **1 fists** (always), **2 a melee weapon**, **3 a ranged weapon**, and **one suit of armor**. Every climb starts with a **sword**, a **shortbow** and **no armor**, except where you hold an heirloom (below). The HUD shows the three weapon slots and the armor slot with their names; the **inventory** (I) shows your gear with its key numbers.
 
 **Finding gear.** Slain monsters (not beasts) rarely drop a piece (4%), likelier one that suits them: knights favour chain mail, plate, swords, maces and greatswords; archers bows, crossbows and leather; smiths hammers, maces and armor; and so on (`FAVOUR` in `gear.gd`). A side room's essence cache sometimes holds a piece too (35%), and the camp offers a piece of gear as a fourth card beside its three items. Gear lies on the floor with its name. Walk over it with an empty slot (only armor starts empty) and you take it; otherwise a card compares it with what you carry (better numbers in green, worse in red), and **Y** (or **Take** on a phone) swaps: your old piece is dropped where you stand, so you can change your mind.
 
@@ -81,7 +83,7 @@ Weapon classes matter elsewhere too: Blade Forger's **Weapon Memory** throws mor
 | Chain Mail | 25% | +30% | -12% | -13% | -5% |
 | Plate Armor | 35% | +55% | -24% | -25% | -10% |
 
-**Heirlooms.** Survive a climb (beat its beast, or reach the Regard on the first climb without falling) and, after the victory screen, you choose **one** piece you carried to keep as an **heirloom**: a card for your melee weapon, your ranged weapon and your armor (any already kept are left out), and one to keep nothing new. Every later climb starts with your heirlooms in their slots instead of the sword, shortbow or no armor. Each slot holds one heirloom; keeping another piece for the same slot replaces it. The slots are **melee**, **ranged** and **chest** (armor); **helm, gloves, legs, boots, cloak, amulet, rings and backpack** are planned for gear that doesn't exist yet. The **Body** page lists your heirlooms and the planned slots. Starting a new climber forgets them. Slots and text live in `HEIRLOOM_SLOTS` and `HEIRLOOM_TEXT` in `scripts/gear.gd`; heirlooms are saved with your profile.
+**Heirlooms.** Survive a climb (beat its beast, or reach the Regard on the first climb without falling) and, after the victory screen, you choose **one** piece you carried to keep as an **heirloom**: a card for your melee weapon, your ranged weapon and your armor (any already kept are left out), and one to keep nothing new. Every later climb starts with your heirlooms in their slots instead of the sword, shortbow or no armor. Each slot holds one heirloom; keeping another piece for the same slot replaces it. The slots are **melee**, **ranged** and **chest** (armor); **helm, gloves, legs, boots, cloak, amulet, rings and backpack** are planned for gear that doesn't exist yet. The **inventory** shows your heirloom slots, the planned ones locked, and the climber screen's Record tab lists your heirlooms. Starting a new climber forgets them. Slots and text live in `HEIRLOOM_SLOTS` and `HEIRLOOM_TEXT` in `scripts/gear.gd`; heirlooms are saved with your profile.
 
 The dev tools have a **Gear** row: a button for every weapon and armor, to try them at once.
 
@@ -105,11 +107,21 @@ Every climb starts with one Healing Draught. Slain monsters (not beasts) sometim
 
 ## Essence density (attributes)
 
-Each essence type is an attribute: Air is Agility, Blade Strength, Stone Vitality, Iron Will, Fire Intellect and Water Spirit. Every bit of essence you bank at a stair settles in you as **density**, by type and in the body parts that earned it (split by what each part did that floor), and it's kept between climbs. Each type gives a small passive bonus that grows with diminishing returns up to 12%: Air move speed, Blade strike damage, Stone health, Iron stamina recovery, Fire spell power, Water how fast your marks fill. The **Body** page in the menu shows your six body parts with their marks and the essence settled in each, and your density and bonus for every type.
+Each essence type is an attribute: Air is Agility, Blade Strength, Stone Vitality, Iron Will, Fire Intellect and Water Spirit. Every bit of essence you bank at a stair settles in you as **density**, by type and in the body parts that earned it (split by what each part did that floor), and it's kept between climbs. Each type gives a small passive bonus that grows with diminishing returns up to 12%: Air move speed, Blade strike damage, Stone health, Iron stamina recovery, Fire spell power, Water how fast your marks fill. The **climber screen** (Tab) shows your six body parts with their marks, and its Essence tab your density and bonus for every type and the essence settled in each part.
 
 ## Menus and the dev tool
 
-The game opens on a **title screen** that covers the whole game: a tower drawn in code against a night sky, with lit windows, a moon, mist and drifting motes in the six essence colours (`scripts/title.gd`; the name, tagline and footer text are in its `TEXT` list). Its buttons are **Continue** (or **Begin your first climb** for a new climber), **Body**, **Settings**, **Dev tools** and **New climber** (only once you have marks to lose), with a line showing your marks and best floor. Arrow keys and Enter, a controller (d-pad or left stick to move, A to press), the mouse, or a tap all work; Esc does nothing there. The focused button has a gold outline, and the first one is focused when a page opens. Pages opened from the title show over its backdrop and **Back** returns to it. Leaving the title takes you to the tower choice. During a climb, **Esc** or **P** (or **Start** on a controller, or **Menu** on a phone) pauses and opens the **pause menu**: Resume, Restart this climb, Settings, Controls, Dev tools, New climber, Quit to title. **Settings** has music and sound volume, screen shake, and the controls panel; they're saved. On any page **Esc** or **B** (Circle) goes back a page, and from the pause menu back to the game. The **Controls** page lists every key and controller button side by side.
+The game opens on a **title screen** that covers the whole game: a tower drawn in code against a night sky, with lit windows, a moon, mist and drifting motes in the six essence colours (`scripts/title.gd`; the name, tagline and footer text are in its `TEXT` list). Its buttons are **Continue** (or **Begin your first climb** for a new climber), **Climber**, **Settings**, **Dev tools** and **New climber** (only once you have marks to lose), with a line showing your marks and best floor. Arrow keys and Enter, a controller (d-pad or left stick to move, A to press), the mouse, or a tap all work; Esc does nothing there. The focused button has a gold outline, and the first one is focused when a page opens. Pages opened from the title show over its backdrop and **Back** returns to it. Leaving the title takes you to the tower choice.
+
+During a climb there are three screens, and each pauses the game while it's open (menus fade in and out quickly):
+
+- **Pause menu:** **Esc** or **P** (**Start** on a controller, **Menu** on a phone). Resume; Climber and Inventory; Settings and Controls; Restart this climb and Dev tools; New climber (it asks first); and **Exit to title**. On a computer there is also **Quit game**; in a browser or on a phone Exit takes you to the title instead.
+- **Climber screen:** **Tab** (a short press of **View / Share**, the **Climber** button on a phone). Your character sheet, in three tabs: **Marks** (the body with its marks, and a card per body part with its bond, step, growth toward the next step, spells learned and still to learn, and its body and passive effects), **Essence** (density and attribute bonus for each type, the essence settled in each body part, and what you carry unbanked), and **Record** (this climb's tower and floor, climbs, best floor and your heirlooms).
+- **Inventory:** **I** (**d-pad up**, the **Bag** button on a phone). A grid of slots with their icons: your carried gear (fists, melee, ranged, armor; the one in hand gilded), your items with their counts, every heirloom slot (the eight planned ones shown locked), and a camp's rune if you hold one. Focus or tap a slot to see its details on the right: a weapon's or armor's numbers set against the gear at your feet or what every climb starts with (better in green, worse in red), or an item's text with **Use** (or press the item's slot again) and **Make it your quick item**.
+
+The same key closes its screen (Tab closes the climber screen, I the inventory), and **Esc** or **B** (Circle) goes back a page, or out of the menu from the pause menu or a screen opened by its key. **Settings** has music and sound volume, screen shake, and the on-screen controls list (off at first); they're saved. The **Controls** page lists every key and controller button side by side.
+
+The menus and HUD share one look: the interface colours, panel and slot styles and text sizes live in `scripts/ui.gd`. The HUD shows health and stamina, the weapon, armor and item slots, unbanked essence, your marks, and at the top right the keys for the menu, climber screen and inventory.
 
 The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `main.gd`):
 - **Marks:** give any bond to any body part with the arrows, and set its step from 1 to 5. Changes are saved, and giving a mark ends the bondless first climb. Fill essence, or clear every mark.
@@ -260,7 +272,8 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/projectile.gd` | Enemy arrows |
 | `scripts/fx.gd` | Floating text, lightning and wind cones |
 | `scripts/hud.gd` | Health, stamina, bond bars and help text |
-| `scripts/menu.gd` | Title screen, pause menu, settings, controls list and dev tools |
+| `scripts/menu.gd` | Title screen, pause menu, climber screen, inventory, settings, controls list and dev tools |
+| `scripts/ui.gd` | The interface's colours, panel and slot styles and text sizes (menus and HUD) |
 | `scripts/title.gd` | The title screen's drawing: sky, tower, motes, the name and tagline |
 | `scripts/controls.gd` | Input actions, set up in code; the controller layout and the controls list |
 | `scripts/pad.gd` | Game controller: turns its buttons into actions, LB for casts, notices which device was used last |
@@ -270,7 +283,7 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/audio.gd` | Plays sound effects (random variants) and music |
 | `scripts/sound_bank.gd` | Generated list of sound files |
 | `scripts/room.gd` | The room's look: floor, walls, torches, dust |
-| `scripts/palette.gd` | All the game's colours |
+| `scripts/palette.gd` | The world's colours (the interface's are in `ui.gd`) |
 | `scripts/draw_util.gd` | Helpers for drawing outlined, shaded shapes |
 | `assets/audio/` | Built sound effects and music |
 | `tools/fetch_audio_sources.sh` | Downloads the CC0 source sound packs |

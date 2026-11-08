@@ -888,12 +888,12 @@ func _rooms_tests() -> void:
 			if main._is_solid_tile(x, y) and main._near_walkable(x, y):
 				blocked = true
 	_check(blocked and main.is_solid(main.room.position + Vector2(5, 5)) == main._is_solid_tile(0, 0), "the area between rooms is solid")
+	# (a tile deep inside a wall, so the shot can't slip out before it's stopped)
 	var wall_at := Vector2.ZERO
 	for x in main.grid_size.x:
-		var pos: Vector2 = main.room.position + Vector2(x * 40 + 20, 20)
-		if main.is_solid(pos):
-			wall_at = pos
-			break
+		for y in main.grid_size.y:
+			if wall_at == Vector2.ZERO and main._is_solid_tile(x, y) and not main._near_walkable(x, y):
+				wall_at = main.room.position + Vector2(x * 40 + 20, y * 40 + 20)
 	var shot = main.spawn_projectile(wall_at, Vector2(10, 0), 5.0)
 	await _frames(3)
 	_check(not is_instance_valid(shot), "walls stop shots")
@@ -1519,10 +1519,16 @@ func _menu_tests() -> void:
 	Input.action_release("pause")
 	_check(not main.menu_open() and not paused, "Esc again resumes")
 	# Every page builds without errors.
-	for pg in ["title", "pause", "settings", "controls", "confirm_new", "dev", "body"]:
+	for pg in ["title", "pause", "settings", "controls", "confirm_new", "dev", "climber", "inventory"]:
 		menu.open(pg)
 		await _frames(1)
-	_check(menu.page == "body" and paused, "every menu page opens")
+	_check(menu.page == "inventory" and paused, "every menu page opens")
+	for t in menu.CLIMBER_TABS:
+		menu.climber_tab = t[0]
+		menu.open("climber")
+		await _frames(1)
+	menu.climber_tab = "marks"
+	_check(menu.page == "climber", "every climber tab opens")
 	menu.open("dev")
 	await _frames(1)
 	# Dev tool: marks at any step, on any part.
@@ -1610,7 +1616,7 @@ func _title_tests() -> void:
 	_check(main.title_showing() and main.menu_open(), "the HUD and touch controls hide while the title shows")
 	var first := _menu_button("Begin your first climb")
 	_check(first != null and _menu_button("New climber") == null, "a new climber is offered the first climb (and nothing to lose)")
-	_check(_menu_button("Body") != null and _menu_button("Settings") != null and _menu_button("Dev tools") != null, "the title has Body, Settings and Dev tools")
+	_check(_menu_button("Climber") != null and _menu_button("Settings") != null and _menu_button("Dev tools") != null, "the title has Climber, Settings and Dev tools")
 	_check(first != null and first.has_focus(), "keyboard: the first button has focus")
 	var vis := root.get_visible_rect()
 	var inside := true
@@ -1624,9 +1630,9 @@ func _title_tests() -> void:
 	await _frames(2)
 	_check(menu.page == "title" and paused, "Esc does nothing on the title")
 	# Body and Settings open over the title's backdrop; Back returns.
-	_menu_button("Body").pressed.emit()
+	_menu_button("Climber").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "body" and menu.backdrop.visible and not menu.backdrop.show_name, "Body opens over the title backdrop")
+	_check(menu.page == "climber" and menu.backdrop.visible and not menu.backdrop.show_name, "Climber opens over the title backdrop")
 	_menu_button("Back").pressed.emit()
 	await _frames(2)
 	_check(menu.page == "title" and menu.backdrop.show_name, "...and Back returns to the title")
@@ -2949,10 +2955,10 @@ func _gear_tests() -> void:
 	await _frames(2)
 
 	print("gear in the menus")
-	main.menu.open("body")
+	main.menu.open("inventory")
 	await _frames(2)
 	var labels: Array = _all_labels(main.menu).map(func(l): return l.text)
-	_check("GEAR" in labels and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the Body page lists your gear")
+	_check("CARRIED" in labels and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
 	main.menu.open("dev")
 	await _frames(2)
 	var dev_buttons: Array = _all_buttons(main.menu)
@@ -3026,12 +3032,24 @@ func _heirloom_tests() -> void:
 	main.end_regard()
 	_check(not main.camp_choosing, "a fall on the first climb offers no heirloom")
 	main.regard = {}
-	# The Body page lists the heirlooms and the planned slots.
-	main.menu.open("body")
+	# The inventory shows the heirlooms and the planned slots; so does the climber screen's Record.
+	main.menu.open("inventory")
 	await _frames(2)
 	var texts: Array = _all_labels(main.menu).map(func(l): return l.text)
-	_check("Heirlooms" in texts or texts.any(func(t): return "HEIRLOOMS" in t.to_upper()), "the Body page has an Heirlooms section")
-	_check("Chain Mail" in texts and "Backpack" in texts and "planned" in texts, "...with the kept chest and the planned slots")
+	_check("HEIRLOOMS" in texts, "the inventory has an Heirlooms section")
+	var chest = _slot("heir:chest")
+	var pack = _slot("heir:backpack")
+	_check(chest != null and chest.id == "chain" and not chest.locked and "Backpack" in texts and pack != null and pack.locked, "...with the kept chest and the planned slots, locked")
+	pack.focus_entered.emit()
+	await _frames(1)
+	texts = _all_labels(main.menu).map(func(l): return l.text)
+	_check(texts.any(func(t): return t.begins_with("Planned")), "...and a planned slot says it's planned")
+	main.menu.climber_tab = "record"
+	main.menu.open("climber")
+	await _frames(2)
+	texts = _all_labels(main.menu).map(func(l): return l.text)
+	_check("Chain Mail" in texts and "Axe" in texts, "the climber screen's Record lists the heirlooms")
+	main.menu.climber_tab = "marks"
 	main.menu.close()
 	await _frames(2)
 	# A new climber forgets them.
@@ -3087,7 +3105,7 @@ func _controls_tests() -> void:
 	var gameplay := ["move_up", "move_down", "move_left", "move_right", "roll", "jump", "attack", "parry",
 		"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "use_item", "item_next",
 		"interact", "restart", "toggle_music", "toggle_help", "new_climber", "weapon_1", "weapon_2", "weapon_3",
-		"weapon_next", "weapon_prev", "pause"]
+		"weapon_next", "weapon_prev", "pause", "climber", "inventory"]
 	var keys := {}
 	var all_keyed := true
 	var clash := ""
@@ -3103,10 +3121,10 @@ func _controls_tests() -> void:
 		all_keyed = all_keyed and has_key
 	_check(all_keyed, "every action has a key or mouse button")
 	_check(clash == "", "no key is bound to two actions %s" % clash)
-	# ...and every action but music, new climber and the number keys has a controller button.
-	var on_pad: Array = C.PAD.values() + C.PAD_CAST.values()
+	# ...and every action but music, new climber, the controls panel and the number keys has a controller button.
+	var on_pad: Array = C.PAD.values() + C.PAD_CAST.values() + [C.PAD_BACK_TAP]
 	var missing: Array = gameplay.filter(func(a): return not (a in on_pad) and not a.begins_with("move_") \
-		and not a.begins_with("weapon_") and a != "toggle_music" and a != "new_climber")
+		and not a.begins_with("weapon_") and a != "toggle_music" and a != "new_climber" and a != "toggle_help")
 	_check(missing.is_empty(), "every action is on the controller (missing: %s)" % [missing])
 	_check("weapon_next" in on_pad and "weapon_prev" in on_pad, "...weapons cycle with the d-pad and RB")
 	_check(InputMap.action_has_event("move_left", C._axis(JOY_AXIS_LEFT_X, -1.0)) and InputMap.action_has_event("aim_up", C._axis(JOY_AXIS_RIGHT_Y, -1.0)), "the left stick moves, the right stick aims")
@@ -3200,8 +3218,7 @@ func _controls_tests() -> void:
 	_check(not main.pad_active and not p.stick_aim, "a key press hands back to the keyboard (and the mouse aims)")
 	_check(hud._say("keys", "pad {a}", "tap") == "keys", "keyboard prompts again")
 	_check(hud._card_hint(0).begins_with("Press 1"), "cards say Press 1 for the keyboard")
-	await _pad_tap(JOY_BUTTON_DPAD_UP)
-	var help_on: bool = hud.show_help
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
 	_check(main.pad_active, "the controller again")
 	_touch(3, Vector2(300, 300), true)
 	await _frames(2)
@@ -3213,10 +3230,7 @@ func _controls_tests() -> void:
 	_check(not main.touch_active and main.pad_active, "a controller press turns the touch controls off")
 	_check(Input.is_action_pressed("interact"), "...and still does its job (Y takes gear)")
 	_pad_button(JOY_BUTTON_Y, false)
-	await _pad_tap(JOY_BUTTON_DPAD_UP)
-	_check(hud.show_help != help_on, "d-pad up shows or hides the controls panel")
-	hud.show_help = false
-	await _frames(2)
+	await _settle()
 
 	print("card screens with keys and controller")
 	main._enter_camp([])
@@ -3281,7 +3295,7 @@ func _controls_tests() -> void:
 	_check(focus is Button and focus.text == "Resume", "the first button has the focus")
 	await _pad_tap(JOY_BUTTON_DPAD_DOWN)
 	focus = main.menu.get_viewport().gui_get_focus_owner()
-	_check(focus is Button and focus.text == "Restart this climb", "d-pad down moves the focus")
+	_check(focus is Button and (focus.text.begins_with("Climber") or focus.text.begins_with("Inventory")), "d-pad down moves the focus")
 	await _key_tap(KEY_UP)
 	focus = main.menu.get_viewport().gui_get_focus_owner()
 	_check(focus is Button and focus.text == "Resume", "the up arrow moves it back")
@@ -3311,7 +3325,7 @@ func _controls_tests() -> void:
 
 	print("restart is held")
 	Input.action_press("restart")
-	await _frames(3)
+	await _wait(0.35)
 	_check(main.restart_armed and main.banner.get("title", "") == "RESTART?", "pressing restart asks you to keep holding")
 	Input.action_release("restart")
 	await _frames(2)
@@ -3775,6 +3789,7 @@ func _run() -> void:
 	await _chimera_tower_tests()
 	await _spell_tests()
 	await _menu_tests()
+	await _screen_tests()
 	await _title_tests()
 	await _combat_feel_tests()
 	await _density_tests()
@@ -3800,3 +3815,162 @@ func _run() -> void:
 	main.queue_free()
 	await _frames(2)
 	quit(1 if failures > 0 else 0)
+
+
+## The inventory slot with this key ("gear:melee", "item:draught", "heir:helm"...), or null.
+func _slot(key: String):
+	for b in main.menu.find_children("*", "Button", true, false):
+		if b.get_meta("slot", "") == key and b.is_visible_in_tree():
+			return b
+	return null
+
+
+## Esc's pause menu, Tab's climber screen and I's inventory, by keys,
+## controller and touch.
+func _screen_tests() -> void:
+	print("pause, climber and inventory screens")
+	await _fresh_main()
+	var M = load("res://scripts/menu.gd")
+	main.touch._set_active(false)
+	var p = main.player
+	var menu = main.menu
+	main.grant_test_bonds()
+	p.take_gear("axe")
+	p.add_item("tonic")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "pause" and paused, "Esc opens the pause menu")
+	var want := ["Resume", "Settings", "Controls", "Dev tools", "Restart this climb", "New climber", "Exit to title"]
+	var have: Array = _all_buttons(menu).map(func(b): return b.text)
+	var missing := want.filter(func(t): return not (t in have))
+	_check(missing.is_empty(), "...with Resume, Settings, Controls, Dev tools, Restart, New climber and Exit (missing %s)" % [missing])
+	_check(have.any(func(t): return t.begins_with("Climber")) and have.any(func(t): return t.begins_with("Inventory")), "...and Climber and Inventory")
+	_check(("Quit game" in have) == menu.can_quit() and menu.can_quit() != OS.has_feature("web"), "Quit game only where the game can be quit (not on the web)")
+	_menu_button("New climber").pressed.emit()
+	await _frames(1)
+	_check(menu.page == "confirm_new", "New climber asks first")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "pause", "...and Esc cancels back to the pause menu")
+	for b in _all_buttons(menu):
+		if b.text.begins_with("Inventory"):
+			b.pressed.emit()
+	await _frames(1)
+	_check(menu.page == "inventory" and _menu_button("Back") != null, "the pause menu opens the inventory, with Back")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "pause", "...and Esc goes back to the pause menu")
+	await _key_tap(KEY_ESCAPE)
+	_check(not main.menu_open() and not paused, "Esc on the pause menu resumes")
+
+	# Tab: the climber screen.
+	await _key_tap(KEY_TAB)
+	_check(menu.page == "climber" and paused, "Tab opens the climber screen and pauses")
+	_check(_menu_button("Close") != null, "...with Close (not Back)")
+	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
+	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "...the body and a card for each of the six parts")
+	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
+	_check(tabs.size() == 3, "...and three tabs")
+	tabs[1].pressed.emit()
+	await _frames(1)
+	_check(menu.climber_tab == "essence" and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.EssenceView), "the Essence tab shows density and attributes")
+	menu.climber_tab = "marks"
+	await _key_tap(KEY_I)
+	_check(menu.page == "inventory", "I from the climber screen switches to the inventory")
+	await _key_tap(KEY_TAB)
+	_check(menu.page == "climber", "...and Tab back")
+	await _key_tap(KEY_TAB)
+	_check(not main.menu_open() and not paused, "Tab again closes it")
+	await _key_tap(KEY_TAB)
+	await _key_tap(KEY_ESCAPE)
+	_check(not main.menu_open() and not paused, "Esc closes a screen opened with Tab")
+
+	# I: the inventory.
+	await _key_tap(KEY_I)
+	_check(menu.page == "inventory" and paused, "I opens the inventory and pauses")
+	var melee = _slot("gear:melee")
+	_check(_slot("gear:fists") != null and melee != null and melee.id == "axe" and melee.on and _slot("gear:ranged").id == "shortbow" and _slot("gear:armor") != null, "...carried gear in slots: fists, the axe in hand, the bow, armor")
+	var draught = _slot("item:draught")
+	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial").count == 0, "...items with their counts")
+	var planned := 0
+	for hs in main.Gear.HEIRLOOM_SLOTS:
+		var s = _slot("heir:" + hs["id"])
+		if s != null and s.locked:
+			planned += 1
+	_check(planned == 8 and not _slot("heir:melee").locked, "...and every heirloom slot, the eight planned ones locked")
+	_check(_slot("rune") == null, "no rune slot without a camp rune")
+	_slot("item:draught").focus_entered.emit()
+	await _frames(1)
+	var use: Button = _menu_button("Use")
+	_check(use != null and not use.disabled, "an item's details offer Use")
+	p.hp = p.max_hp * 0.5
+	use.pressed.emit()
+	await _frames(1)
+	_check(p.item_count("draught") == 0 and menu.page == "inventory", "Use drinks the draught from the inventory")
+	await _key_tap(KEY_I)
+	_check(not main.menu_open() and not paused, "I again closes it")
+	p.camp_rune = "warding"
+	await _key_tap(KEY_I)
+	_check(_slot("rune") != null and _slot("rune").id == "warding", "a camp rune shows in its own slot")
+	await _key_tap(KEY_ESCAPE)
+	_check(not main.menu_open(), "Esc closes the inventory")
+	p.camp_rune = ""
+
+	# Controller: a short press of View is the climber screen, d-pad up the inventory.
+	await _pad_tap(JOY_BUTTON_BACK)
+	await _frames(2)
+	_check(menu.page == "climber" and not main.restart_armed, "a short press of View opens the climber screen (no restart)")
+	await _pad_tap(JOY_BUTTON_BACK)
+	await _frames(2)
+	_check(not main.menu_open(), "...and again closes it")
+	await _pad_tap(JOY_BUTTON_DPAD_UP)
+	_check(menu.page == "inventory" and paused, "d-pad up opens the inventory")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(not main.menu_open() and not paused, "...and B closes it")
+	await _pad_tap(JOY_BUTTON_START)
+	_check(menu.page == "pause", "Start opens the pause menu")
+	await _pad_tap(JOY_BUTTON_START)
+	_check(not main.menu_open(), "...and closes it")
+	await _key_tap(KEY_W)
+
+	# Touch: Climber and Bag buttons at the top, beside Menu.
+	main.touch._set_active(true)
+	await _frames(2)
+	main.touch._layout()
+	var ids: Array = main.touch.buttons.map(func(b): return b["id"])
+	_check("climber" in ids and "inventory" in ids and "menu" in ids, "phones get Climber and Bag buttons beside Menu")
+	var view: Vector2 = main.touch.get_viewport_rect().size
+	var clear := true
+	for id in ["climber", "inventory"]:
+		var b: Dictionary = main.touch.buttons[ids.find(id)]
+		if not Rect2(Vector2.ZERO, view).has_point(b["c"]) or b["c"].y > view.y * 0.2 or b["c"].x < view.x * 0.5:
+			clear = false
+		for o in main.touch.buttons:
+			if o != b and b["c"].distance_to(o["c"]) < b["r"] + o["r"] + 2.0:
+				clear = false
+				print("    overlaps: ", id, " and ", o["id"])
+	_check(clear, "...at the top right, clear of every other button")
+	var cb: Dictionary = main.touch.buttons[ids.find("climber")]
+	await _tap_at(cb["c"])
+	_check(menu.page == "climber" and paused, "tapping Climber opens the climber screen")
+	await _tap_at(_menu_button("Close").get_global_rect().get_center())
+	await _frames(2)
+	_check(not main.menu_open() and not paused, "...and tapping Close shuts it")
+	main.touch._layout()
+	var ib: Dictionary = main.touch.buttons[ids.find("inventory")]
+	await _tap_at(ib["c"])
+	_check(menu.page == "inventory", "tapping Bag opens the inventory")
+	await _tap_at(_slot("item:tonic").get_global_rect().get_center())
+	_check(menu.inv_sel == "item:tonic", "tapping a slot shows its details")
+	await _tap_at(_menu_button("Close").get_global_rect().get_center())
+	await _frames(2)
+	_check(not main.menu_open(), "...and Close shuts the inventory")
+	main.touch._set_active(false)
+	p.touch_aim = false
+
+	# Exit goes back to the title.
+	menu.open("pause")
+	await _frames(1)
+	Engine.set_meta("sixfold_title_seen", true)
+	_menu_button("Exit to title").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "title" and not Engine.has_meta("sixfold_title_seen"), "Exit goes back to the title screen")
+	menu.close()
+	await _frames(2)

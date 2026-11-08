@@ -108,6 +108,7 @@ var new_climber_t := 0.0
 ## Restart is held (R, or View on a controller) so a stray press doesn't end
 ## the climb; once fallen, a press is enough.
 const RESTART_HOLD := 0.8
+const RESTART_ASK := 0.25  # held this long, a banner asks you to keep holding
 var restart_t := 0.0
 var restart_armed := false  # the press began on this floor (not before a reload)
 ## Keyboard and controller: the highlighted tower or camp card.
@@ -974,8 +975,10 @@ func _restart_held(delta: float) -> bool:
 	if restart_t >= RESTART_HOLD:
 		restart_armed = false
 		return true
-	var key := "Keep holding %s" % (Controls.pad_name("back", pad_ps) if pad_active else "R")
-	banner = {"title": "RESTART?", "lines": ["%s to start this climb again." % key], "t": 0.6}
+	# (Only once it's clearly held: a short press of View opens the climber screen.)
+	if restart_t >= RESTART_ASK:
+		var key := "Keep holding %s" % (Controls.pad_name("back", pad_ps) if pad_active else "R")
+		banner = {"title": "RESTART?", "lines": ["%s to start this climb again." % key], "t": 0.6}
 	return false
 
 

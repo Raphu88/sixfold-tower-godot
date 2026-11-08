@@ -16,7 +16,7 @@ const DROP_CHANCE := 0.04
 const CACHE_CHANCE := 0.35
 ## How close you must stand to gear on the floor to take it.
 const REACH := 26.0
-## The slots, in the order the HUD and the Body page list them.
+## The slots, in the order the HUD and the inventory list them.
 const SLOTS := ["melee", "ranged", "armor"]
 const SLOT_NAMES := {"fists": "Fists", "melee": "Melee", "ranged": "Ranged", "armor": "Armor"}
 
@@ -197,7 +197,7 @@ static func stats(id: String) -> Array:
 	]
 
 
-## One line of key stats, for the Body page and the dev tools.
+## One line of key stats, for the menus and the dev tools.
 static func summary(id: String) -> String:
 	var parts: Array = []
 	for s in stats(id):

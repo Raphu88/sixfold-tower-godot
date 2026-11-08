@@ -1,8 +1,43 @@
 extends RefCounted
 ## Shared drawing helpers for the code-drawn characters: outlined, shaded
 ## shapes and soft shadows. Every function draws onto the CanvasItem passed in.
+##
+## --- STYLE GUIDE (climber, monsters, weapons, projectiles) ---------------------
+## Follow this so everything in the tower looks like one game.
+##
+## Outline: every solid shape gets a dark rim in Palette.OUTLINE, 1.6 px for
+##   balls (Draw.ball) and 1.2 px each side for limbs, blades and shafts
+##   (Draw.stroke adds 2.4 to the width). Thin details inside a shape (stitches,
+##   rivets, eyes) get no outline.
+## Soft edges: no antialiased lines. Every outline sits on a feather, a ring
+##   1 px wider in OUTLINE at low alpha (FEATHER_ALPHA), which smooths the
+##   edge on a phone. ball(), stroke() and poly() do it for you.
+## Shading: lit from the top-left of the SCREEN. A ball is a darker base, the
+##   colour slightly offset to the top-left, then a small pale highlight
+##   (Draw.ball). In a rotated frame, turn the screen's top-left into your
+##   frame (light = frame.basis_xform(LIGHT_DIR)) before placing highlights.
+## Limbs and weapons: Draw.stroke from joint to joint (arms ~3.6 px, shafts
+##   2.6-3.4 px, blades 3.2 px), hands and feet as small Draw.balls on the
+##   ends. Blades get a 1 px pale glint line along one edge.
+## Colours: from scripts/palette.gd; darken or lighten them rather than
+##   inventing new hues. Hurt = lerp toward red; dead = desaturated grey.
+## Motion: animate from time or a phase that changes smoothly (sin, lerp).
+##   Never pick random numbers per frame, hard-switch colours on a timer, or
+##   swap draw order mid-animation: those read as flicker.
+## Lighting bug: on anything torchlight falls on (any canvas item without an
+##   unshaded material), NEVER use draw_line, draw_multiline or a wide
+##   draw_polyline/draw_arc: Godot 4.3's Compatibility renderer lights only
+##   one of their two triangles, so they look half-lit and shimmer as they
+##   move. Use Draw.line / Draw.polyline / Draw.stroke / Draw.arc (quads)
+##   instead. Unshaded layers (HUD, effects overlays) may use the built-ins.
+## Cost: every draw_* call is a draw call. Build a whole character into one
+##   Batch (b.ball, b.stroke, b.poly, b.line, b.circle ...) and flush it once.
+## ------------------------------------------------------------------------------
 
 const Palette := preload("res://scripts/palette.gd")
+
+const FEATHER_ALPHA := 0.35  # the soft ring under an outline
+const LIGHT_DIR := Vector2(-0.6, -0.8)  # where the light comes from (screen)
 
 
 ## A soft oval shadow on the floor.
@@ -12,45 +47,58 @@ static func shadow(c: CanvasItem, pos: Vector2, r: float, alpha := 0.35) -> void
 	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## A ball lit from the top-left: dark outline, shaded side, highlight.
+## A ball lit from the top-left: soft dark rim, shaded side, highlight.
 static func ball(c: CanvasItem, pos: Vector2, r: float, col: Color, outline := true) -> void:
-	var at := PackedVector2Array([pos, pos + Vector2(-r * 0.12, -r * 0.14), pos + Vector2(-r * 0.32, -r * 0.36)])
-	var radii := PackedFloat32Array([r, r * 0.86, r * 0.34])
-	var cols := PackedColorArray([col.darkened(0.35), col, Color(col.lightened(0.45), 0.55)])
-	if outline:
-		at.insert(0, pos)
-		radii.insert(0, r + 1.6)
-		cols.insert(0, Palette.OUTLINE)
-	circles(c, at, radii, cols)
-	if outline:
-		c.draw_arc(pos, r + 1.3, 0.0, TAU, 24, Palette.OUTLINE, 0.6, true)  # a soft rim: smooth edges
+	var b := Batch.new()
+	b.ball(pos, r, col, outline)
+	b.flush(c)
 
 
 ## An outlined polygon with a flat fill.
 static func poly(c: CanvasItem, pts: PackedVector2Array, col: Color, outline := 1.6) -> void:
-	if outline > 0.0:
-		var closed := pts.duplicate()
-		closed.append(pts[0])
-		c.draw_polyline(closed, Palette.OUTLINE, outline * 2.0, true)
-	c.draw_colored_polygon(pts, col)
+	var b := Batch.new()
+	b.poly(pts, col, outline)
+	b.flush(c)
 
 
-## A thick outlined line, for blades, bows and limbs.
+## A line with a width, drawn as a filled quad. Use this (not draw_line with
+## a width) on anything torchlight falls on: in Godot 4.3's Compatibility
+## renderer a wide draw_line is lit on only one of its two triangles, so it
+## shimmers half-lit as it moves under a light. Thin 1 px lines are fine.
+static func line(c: CanvasItem, a: Vector2, b: Vector2, col: Color, width := 1.0) -> void:
+	var d := b - a
+	if d.length_squared() < 0.0001:
+		return
+	var o := d.normalized().orthogonal() * (width * 0.5)
+	c.draw_colored_polygon(PackedVector2Array([a + o, b + o, b - o, a - o]), col)
+
+
+## A polyline with a width, as quads with round joints (see line()), in one draw.
+static func polyline(c: CanvasItem, pts: PackedVector2Array, col: Color, width := 1.0, closed := false) -> void:
+	var b := Batch.new()
+	b.path(pts, col, width, closed)
+	b.flush(c)
+
+
+## An arc with a width, as quads (see line()), in one draw.
+static func arc(c: CanvasItem, center: Vector2, r: float, from: float, to: float, points: int, col: Color, width := 1.0) -> void:
+	var b := Batch.new()
+	b.arc(center, r, from, to, points, col, width)
+	b.flush(c)
+
+
+## A thick outlined line with round ends, for blades, bows and limbs.
 static func stroke(c: CanvasItem, a: Vector2, b: Vector2, col: Color, width: float) -> void:
-	c.draw_line(a, b, Palette.OUTLINE, width + 2.4, true)
-	circles(c, [a, b], [(width + 2.4) * 0.5, (width + 2.4) * 0.5], [Palette.OUTLINE, Palette.OUTLINE])
-	c.draw_line(a, b, col, width, true)
+	var bt := Batch.new()
+	bt.stroke(a, b, col, width)
+	bt.flush(c)
 
 
 ## A sword lying along dir from the grip, with crossguard and pommel.
 static func sword(c: CanvasItem, grip: Vector2, dir: Vector2, length: float, glint := 0.0) -> void:
-	var side := dir.orthogonal()
-	var tip := grip + dir * length
-	stroke(c, grip - dir * 5.0, grip, Palette.WOOD.darkened(0.3), 3.0)  # hilt
-	stroke(c, grip + side * 5.0, grip - side * 5.0, Palette.STEEL.darkened(0.35), 2.5)  # crossguard
-	stroke(c, grip + dir * 2.0, tip, Palette.STEEL, 3.2)  # blade
-	c.draw_line(grip + dir * 3.0 + side * 0.6, tip - dir * 2.0 + side * 0.6, Color(1, 1, 1, 0.55 + glint * 0.45), 1.0)
-	c.draw_circle(grip - dir * 6.0, 2.2, Palette.STEEL.darkened(0.2))  # pommel
+	var b := Batch.new()
+	b.sword(grip, dir, length, glint)
+	b.flush(c)
 
 
 ## A wobbly blob outline (slimes), as polygon points.
@@ -173,6 +221,72 @@ class Batch:
 			var k := i * 2
 			pts.append_array([side[k], side[k + 1], side[k + 2], side[k + 1], side[k + 3], side[k + 2]])
 		_color(col, (points.size() - 1) * 6)
+
+	# --- the character style (see the style guide at the top) ---
+
+	## A circle with as many points as its size needs (cheap for small ones).
+	func dot(pos: Vector2, r: float, col: Color) -> void:
+		circle(pos, r, col, clampi(int(r * 3.0) + 10, 12, 48))
+
+	## A ball lit from the top-left: feather, outline, shaded side, highlight.
+	## `light` is the light's direction in the current frame (LIGHT_DIR on
+	## an unrotated canvas item).
+	func ball(pos: Vector2, r: float, col: Color, outline := true, light := LIGHT_DIR) -> void:
+		if outline:
+			dot(pos, r + 2.4, Color(Palette.OUTLINE, FEATHER_ALPHA))
+			dot(pos, r + 1.6, Palette.OUTLINE)
+		var l := light.normalized()
+		dot(pos, r, col.darkened(0.35))
+		dot(pos + l * r * 0.18, r * 0.86, col)
+		dot(pos + l * r * 0.48, r * 0.34, Color(col.lightened(0.45), 0.55))
+
+	## A thick outlined line with round ends, for blades, shafts and limbs.
+	func stroke(a: Vector2, b: Vector2, col: Color, width: float) -> void:
+		var o := width + 2.4
+		line(a, b, Color(Palette.OUTLINE, FEATHER_ALPHA), o + 1.6)
+		dot(a, (o + 1.6) * 0.5, Color(Palette.OUTLINE, FEATHER_ALPHA))
+		dot(b, (o + 1.6) * 0.5, Color(Palette.OUTLINE, FEATHER_ALPHA))
+		line(a, b, Palette.OUTLINE, o)
+		dot(a, o * 0.5, Palette.OUTLINE)
+		dot(b, o * 0.5, Palette.OUTLINE)
+		line(a, b, col, width)
+
+	## A polyline with a width, as quads with round joints.
+	func path(points: PackedVector2Array, col: Color, width: float, closed := false) -> void:
+		var n := points.size()
+		if n < 2:
+			return
+		var last := n if closed else n - 1
+		for i in last:
+			line(points[i], points[(i + 1) % n], col, width)
+		if width > 2.0:
+			for p in points:
+				dot(p, width * 0.5, col)
+
+	## An arc with a width, as quads (from and to in radians).
+	func arc(center: Vector2, r: float, from: float, to: float, points: int, col: Color, width: float) -> void:
+		var pts := PackedVector2Array()
+		for i in points + 1:
+			pts.append(center + Vector2.from_angle(lerpf(from, to, float(i) / points)) * r)
+		path(pts, col, width)
+
+	## An outlined polygon with a flat fill (outline 0 for none).
+	func poly(points: PackedVector2Array, col: Color, outline := 1.6) -> void:
+		if outline > 0.0:
+			path(points, Color(Palette.OUTLINE, FEATHER_ALPHA), outline * 2.0 + 1.6, true)
+			path(points, Palette.OUTLINE, outline * 2.0, true)
+		polygon(points, col)
+
+	## A sword lying along dir from the grip, with crossguard and pommel.
+	func sword(grip: Vector2, dir: Vector2, length: float, glint := 0.0) -> void:
+		var side := dir.orthogonal()
+		var tip := grip + dir * length
+		stroke(grip - dir * 5.0, grip, Palette.WOOD.darkened(0.3), 3.0)  # hilt
+		stroke(grip + side * 5.0, grip - side * 5.0, Palette.STEEL.darkened(0.35), 2.5)  # crossguard
+		stroke(grip + dir * 2.0, tip, Palette.STEEL.darkened(0.12), 3.2)  # blade
+		line(grip + dir * 3.0 - side * 0.8, tip - dir * 1.0 - side * 0.8, Palette.STEEL.darkened(0.45), 1.0)  # its shaded edge
+		line(grip + dir * 3.0 + side * 0.7, tip - dir * 2.0 + side * 0.7, Color(1, 1, 1, 0.55 + glint * 0.45), 1.0)
+		dot(grip - dir * 6.0, 2.2, Palette.STEEL.darkened(0.2))  # pommel
 
 	# The CanvasItem names, so drawing code can be handed a Batch instead.
 	func draw_rect(r: Rect2, col: Color) -> void:

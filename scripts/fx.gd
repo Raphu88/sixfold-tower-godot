@@ -336,7 +336,8 @@ func _draw_fields() -> void:
 		draw_line(wp - side * half, wp + side * half, Color(w["color"], 0.85), 5.0)
 		draw_line(wp - side * half - w["dir"] * 10.0, wp + side * half - w["dir"] * 10.0, Color(w["color"], 0.3), 9.0)
 		for k in 4:
-			var foam := wp + side * randf_range(-half, half)
+			# Foam drifts along the crest (no new random spot every frame: that flickers).
+			var foam := wp + side * half * sin(t * (1.3 + k * 0.4) + k * 2.1)
 			draw_circle(foam, 2.0, Color(1, 1, 1, 0.6))
 	for m in main.maelstroms:
 		var mc: Color = m["color"]
