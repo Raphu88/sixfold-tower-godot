@@ -57,6 +57,9 @@ var pending_weapon := ""
 ## cloak, amulet, two rings and a backpack. Kept on the player, so a new
 ## climb (a scene reload) starts afresh.
 var gear := Gear.start_gear()
+## Spare pieces carried besides what you wear (gear records), up to
+## pack_size(). They come home to the train if you survive.
+var pack: Array = []
 ## What the worn pieces add up to (Gear.total_effects), kept up to date by
 ## refresh_gear() whenever gear changes.
 var gear_fx := {}
@@ -315,6 +318,16 @@ func belt_kinds() -> int:
 	return Items.BELT_KINDS + int(gfx("belt"))
 
 
+## How many spare pieces your pack holds (a Climber's Pack holds more).
+func pack_size() -> int:
+	return Gear.PACK_SIZE + int(gfx("pack"))
+
+
+## True if your pack has room for another piece.
+func pack_room() -> bool:
+	return pack.size() < pack_size()
+
+
 ## Why an item can't be taken: "" if it can, "stack" if you carry as many
 ## as you can, "belt" if it's a new kind and the belt is full.
 func item_room(id: String) -> String:
@@ -481,6 +494,10 @@ func _physics_process(delta: float) -> void:
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
+	# The Ice Hall's ice (puzzles/ice.gd): on it you slide along the tile
+	# grid, whatever you were doing; it sets the velocity and uses up knockback.
+	if main.puzzle != null and main.puzzle.steer(self, delta):
+		knock = Vector2.ZERO
 	velocity += knock
 	move_and_slide()
 	_check_fall()
@@ -774,6 +791,8 @@ func _winded() -> void:
 func _try_jump(input: Vector2) -> bool:
 	if roll_t > 0.0 or attack_cd > 0.15 or cast_t > 0.0:
 		return false
+	if main.puzzle != null and main.puzzle.no_footing(global_position, true):
+		return true  # (no leaping over the Ice Hall's rocks)
 	var cost := 0.0 if gear_fx.get("free_jump", false) else JUMP_COST  # Climbing Boots
 	if sta < cost:
 		_winded()
@@ -836,6 +855,8 @@ func _check_fall() -> void:
 func _try_roll(input: Vector2) -> bool:
 	if roll_cd > 0.0 or attack_cd > 0.15:
 		return false
+	if main.puzzle != null and main.puzzle.no_footing(global_position, false):
+		return true  # (on the Ice Hall's ice you can only slide)
 	# Windwalker's Body: the roll becomes a long wind dash.
 	var wind := has_bond("windwalker")
 	var cost := (16.0 if wind else 24.0) * (1.0 - 0.25 * minf(graft("legs"), 1.6))
@@ -1311,6 +1332,8 @@ func _release_cast() -> void:
 	main.counting_hits = true
 	b.cast(self)
 	main.counting_hits = false
+	if main.puzzle != null:  # (an Essence Lock answers to a spell of its essence)
+		main.puzzle.offer(String(b.data().get("affinity", "")), global_position, "bond")
 	b.overdraw_mult = 1.0
 	if main.cast_hits > 1:
 		_part_action("throat", 2.0 * (main.cast_hits - 1), 8.0 * (main.cast_hits - 1))
@@ -2492,6 +2515,8 @@ func use_item() -> bool:
 		return false
 	if not Items.use(id, self):
 		return false
+	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
+		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
 	items[id] = item_count(id) - 1
 	if item_count(id) <= 0:
 		items.erase(id)

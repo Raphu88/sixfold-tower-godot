@@ -10,6 +10,7 @@ extends RefCounted
 ##       Returns {} if it can't make one that its solver accepts.
 ##   setup(spec)        builds the objects (bodies etc.) from that spec
 ##   tick(delta)        runs while the puzzle is awake (see puzzle.gd: modes)
+##   watch(delta)       runs every frame until solved, awake or not
 ##   draw(ci)           the stone parts, redrawn only when state() changes
 ##   draw_glow(ci, t)   what pulses, redrawn 30 times a second while unsolved
 ##   draw_over(ci, t)   glow drawn over the darkness (only near the climber)
@@ -20,6 +21,12 @@ extends RefCounted
 ##   panels()           the rule text drawn in the world: [{pos, lines, ...}]
 ##   lights()           [[pos, reach, colour, strength, glow], ...] each frame
 ##   spot_ok(pos)       whether a monster may appear here (ambush, pressure)
+##   steer(p, delta) -> bool   takes over the climber's movement this frame
+##                      (the Ice Hall's slide); false to leave it alone
+##   no_footing(pos, leap) -> bool   no roll (or, with leap, no jump) here
+##   footing_note(pos)  says why, when the climber tries anyway
+##   offer(kind, pos, how) -> bool   an essence offered near the puzzle: a
+##                      bond's spell ("bond") or an item ("item") of that kind
 ##
 ## And these constants (names and text are data: edit freely):
 ##   NAME      the puzzle's name; NAMES (optional) per tower
@@ -50,6 +57,10 @@ func _build() -> void:
 
 
 func tick(_delta: float) -> void:
+	pass
+
+
+func watch(_delta: float) -> void:
 	pass
 
 
@@ -95,6 +106,22 @@ func lights() -> Array:
 
 func spot_ok(_pos: Vector2) -> bool:
 	return true
+
+
+func steer(_p, _delta: float) -> bool:
+	return false
+
+
+func no_footing(_pos: Vector2, _leap: bool) -> bool:
+	return false
+
+
+func footing_note(_pos: Vector2) -> void:
+	pass
+
+
+func offer(_kind: String, _pos: Vector2, _how: String) -> bool:
+	return false
 
 
 # --- helpers ---------------------------------------------------------------------

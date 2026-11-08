@@ -78,6 +78,13 @@ const LINES := {
 		"What you've met, I've written down. The rest waits.",
 	],
 	"replay": ["Very well. I'll tell you again."],
+	# The train, between climbs.
+	"train": [
+		"The train waits. It always does.",
+		"Rest. The towers aren't going anywhere.",
+		"Your car is as you left it. I checked.",
+		"Steam and brass. You'd think it was going somewhere.",
+	],
 	"tips_off": ["As you wish. I'll still be watching."],
 	"tips_on": ["Then I'll speak up."],
 }
@@ -89,6 +96,7 @@ const GROUPS := [
 	["tower", "The tower"],
 	["tests", "Puzzles and traps"],
 	["gear", "Gear and items"],
+	["train", "The train"],
 	["screens", "Screens"],
 ]
 
@@ -190,6 +198,15 @@ const TIPS := {
 	"puzzle_plates": {"group": "tests", "name": "Pressure plates",
 		"tip": "These want weight, and you're too light. Push a block onto each, or lend them a monster.",
 		"more": "Pressure plates need a weight: the climber is too light. Push a stone block onto a plate (walk into it for a moment and it slides a tile), or lure a monster onto it and keep it alive. Every plate held at once solves it; strike the lever to put the blocks back if one gets stuck."},
+	"puzzle_ice": {"group": "tests", "name": "The Ice Hall",
+		"tip": "Ice. Once you're on it, it decides where you stop. Find the line of slides that ends on the dais.",
+		"more": "In an Ice Hall you can't walk on the ice: step on and you slide in a straight line until a rock stops you, or off the far side back onto the floor. While on the ice, any push of {move} picks one of the four directions and sends you sliding; you can't roll or jump there. Come to rest on the dais to solve it (sliding over it does nothing). Getting it wrong costs nothing: slide off and walk back round. A blow can send you sliding, and a monster in your lane stops you short."},
+	"puzzle_lock": {"group": "tests", "name": "The Essence Lock",
+		"tip": "A lock that wants an essence. Read the riddle, then find a foe glowing with the answer.",
+		"more": "An Essence Lock's riddle names one of the six essences (Air, Water, Iron, Fire, Stone, Blade). Once you're inside, foes glowing in different essences appear, each with its essence's sign over it. Slay one and it leaves a spark of its essence: walk over it to carry it (one at a time) and bring it to the lock. The wrong spark brings hunters, and then a new riddle. A spell from a mark of the right essence cast beside the lock, an item of it used there, or a strike from a weapon of it, answers at once. On the highest floors the lock wants two or three essences, in order."},
+	"puzzle_memory": {"group": "tests", "name": "The Hall of Pedestals",
+		"tip": "Pedestals with signs, and no order given. Look for murals in the other rooms: they number the signs.",
+		"more": "The Hall of Pedestals holds a pedestal for each sign. Murals in other rooms of the same floor each show a numeral and a sign; together they give the order. Strike or shoot the pedestals in that order to light them. The first wrong one brings hunters, and then the pedestals go dark to be tried again. The panel in the hall counts the murals you've found. On higher floors there are four signs, and later one pedestal that no mural shows."},
 	"traps": {"group": "tests", "name": "Traps",
 		"tip": "Traps warn before they bite: a glow, then the glint. They hurt badly, so the warning is all you get.",
 		"more": "Traps are the beast's tests, one kind per tower. Visible traps show their reach engraved on the floor. Every trap glows, then glints a moment before it fires, and then it hurts badly. Rolling through a firing trap counts as a dodge. Monsters that wander into one are caught too."},
@@ -227,6 +244,16 @@ const TIPS := {
 	"item_ring": {"group": "gear", "name": "The item ring",
 		"tip": "Hold {item} to see your whole belt. Point, let go, and it's used.",
 		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens while time slows: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
+	# --- the train ---
+	"train": {"group": "train", "name": "The train",
+		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. Depart when you're ready.",
+		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Its cars are tabs ({tabs} switch them): your car (your heirlooms and a storage chest), the store car (the outfitter's supplies, an outfit, today's piece, and selling), the workshop car (its bench comes later) and Depart, where you choose the next tower. Your crystals sit along the bottom."},
+	"store": {"group": "train", "name": "The store",
+		"tip": "The outfitter buys what climbers bring down and sells to the next ones up. He takes crystals. Nothing else.",
+		"more": "Essence crystals are the only money. Every price is in one kind of essence; the outfitter takes your smallest crystals of that kind first, and gives the rest back as one new crystal. Supplies are packed onto your belt for your next climb (put one back for its full price before you go). Outfit is a rack of Common pieces, new every visit, and Today's piece is one finer piece. Sell turns a piece from your pack or chest into a crystal of its kind, at 40% of its price. A price you can't pay says how much more you need."},
+	"chest": {"group": "train", "name": "Your pack and chest",
+		"tip": "Your chest keeps things safe between climbs. Your pack goes up with you, and falls with you.",
+		"more": "Besides what you wear you carry a pack of four spare pieces (a Climber's Pack holds two more). Swap gear in the tower and your old piece goes in your pack while there's room. Survive a climb, or read a recall scroll, and your pack comes down to the train: sell what you don't want, or keep it in the storage chest in your car (eight spaces), safe between climbs. When you depart, your pack comes with you, and any piece whose slot is free you wear at once. Fall, and your pack is lost."},
 	# --- screens ---
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",
@@ -259,6 +286,7 @@ const KEYS := {
 	"menu": ["Esc", "{start}", "Menu"],
 	"restart": ["hold R", "hold {back}", "Menu, then Restart"],
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
+	"tabs": ["Q and E", "{lb} and {rb}", "a tap on a tab"],
 }
 
 ## The Entity's colours (the interface's other colours are in ui.gd).

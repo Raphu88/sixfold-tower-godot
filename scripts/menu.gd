@@ -24,6 +24,9 @@ const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Guide := preload("res://scripts/guide.gd")
+const Train := preload("res://scripts/train.gd")
+const TrainPage := preload("res://scripts/train_page.gd")
+const TrainView := preload("res://scripts/train_view.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -33,7 +36,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
-	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0}
+	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
@@ -50,7 +53,7 @@ var panel: PanelContainer
 var scroll: ScrollContainer
 ## Below the scroll area: Close/Back on the tall pages, so it's always on screen.
 var foot: VBoxContainer
-const PINNED_FOOTER := ["climber", "inventory", "mark"]
+const PINNED_FOOTER := ["climber", "inventory", "mark", "train"]
 const FOOT_H := 54.0
 var toast := ""
 var toast_t := 0.0
@@ -68,6 +71,14 @@ var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:
 var inv_view := "worn"  # the inventory's doll: what you wear ("worn") or your "heirlooms"
 var details: VBoxContainer  # the inventory's details pane
 var archive_open := ""  # the Archive entry shown open (a tip id)
+# The train (train_page.gd builds its page; train_view.gd draws it behind).
+var train_view: Control
+var train_page  # builds the train's page (train_page.gd)
+var train_car := "personal"  # the car (tab) showing
+var train_store := "supplies"  # the store car's counter
+var train_side := "chest"  # your car on a phone: the chest or the heirlooms
+var sell_ask := ""  # a piece asked to be sold: a second press sells it
+var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
 
 
 func _ready() -> void:
@@ -78,6 +89,10 @@ func _ready() -> void:
 	backdrop = TitleScript.new()
 	backdrop.hide()
 	add_child(backdrop)
+	train_view = TrainView.new()
+	train_view.hide()
+	add_child(train_view)
+	train_page = TrainPage.new(self)
 	shade = ColorRect.new()
 	shade.color = UI.SHADE
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -232,6 +247,8 @@ func _process(delta: float) -> void:
 ## Q/E or LB/RB: the next climber tab, or the next mark on the detail page.
 ## True if it did something.
 func _cycle(by: int) -> bool:
+	if page == "train":
+		return train_page.cycle(by)
 	if page == "climber":
 		var ids: Array = CLIMBER_TABS.map(func(t): return t[0])
 		_set_climber_tab(ids[(ids.find(climber_tab) + by + ids.size()) % ids.size()])
@@ -245,6 +262,14 @@ func _cycle(by: int) -> bool:
 
 ## Tab and I: open the climber screen or the inventory, or close it again.
 func toggle(which: String) -> void:
+	if which == "inventory" and _on_train():
+		# On the train, I (the Bag) opens your car: your heirlooms and chest.
+		if page == "train" and train_car == "personal":
+			return
+		if page == "" or page == "train" or page == "climber" or page == "inventory":
+			train_car = "personal"
+			open("train")
+		return
 	if page == which or (page == "mark" and which == "climber"):
 		if opened_from_title:
 			open("title")
@@ -264,7 +289,9 @@ func _can_open() -> bool:
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
 	if main != null and page != "": main.sfx("ui_back")
-	if page == "confirm_new":
+	if page == "train":
+		open("pause")  # (the train has no Back: Esc opens the menu)
+	elif page == "confirm_new":
 		open(confirm_back)
 	elif page == "mark":
 		focus_part = mark_part
@@ -283,6 +310,8 @@ func go_back() -> void:
 func _back_page() -> String:
 	if opened_from_title:
 		return "title"
+	if _on_train():
+		return "train"
 	if opened_direct:
 		return ""
 	return "pause"
@@ -309,6 +338,11 @@ func _layout() -> void:
 			h = minf(maxf(_wanted_height(), 520.0), s.y - edge - pad - FOOT_H)
 		scroll.custom_minimum_size = Vector2(minf(float(WIDTHS.get(page, 560.0)), s.x - edge - pad), h)
 		panel.pivot_offset = panel.size * 0.5
+
+
+## Between climbs, on the train (main.gd on_train).
+func _on_train() -> bool:
+	return main != null and main.on_train
 
 
 ## True while the title screen (or a page opened from it) covers the game.
@@ -339,7 +373,7 @@ func open(which: String, direct := false) -> void:
 	elif which == "title":
 		opened_from_title = true
 		opened_direct = false
-	elif which == "pause":
+	elif which == "pause" or which == "train":
 		opened_from_title = false
 		opened_direct = false
 	page = which
@@ -368,8 +402,10 @@ func open(which: String, direct := false) -> void:
 	# The title's drawing stays behind the pages opened from it.
 	backdrop.visible = which == "title" or (opened_from_title and which != "pause")
 	backdrop.show_name = which == "title"
+	# The train stands behind its pages (and the pages opened from it).
+	train_view.visible = _on_train() and not backdrop.visible
 	shade.visible = which != "title"
-	shade.color.a = 0.6 if backdrop.visible else UI.SHADE.a
+	shade.color.a = 0.6 if backdrop.visible else (0.3 if which == "train" else (0.62 if train_view.visible else UI.SHADE.a))
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	elif compact():
@@ -407,6 +443,8 @@ func open(which: String, direct := false) -> void:
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
 		elif which == "inventory":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
+		elif which == "train":
+			first = maxi(0, list.map(func(b): return b.get_meta("tab", "")).find(train_car))
 		_focus_later.call_deferred(list[keep if keep >= 0 and keep < list.size() else first])
 
 
@@ -418,6 +456,12 @@ func _focus_later(c: Control) -> void:
 
 func close() -> void:
 	if page == "":
+		return
+	if _on_train():
+		# Between climbs, closing a page returns to the train; only departing
+		# for a tower (main.gd depart) leaves it.
+		if page != "train":
+			open("train")
 		return
 	if main != null: main.sfx("ui_close")
 	page = ""
@@ -507,7 +551,7 @@ func _title_button(b: Button, primary := false) -> void:
 
 
 func _page_pause() -> void:
-	_header("PAUSED", "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
+	_header("PAUSED", Train.TEXT["title"].capitalize() if _on_train() else "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
 	_primary(_button("Resume", close))
 	var grid := _grid(2)
 	_button(_with_key("Climber", "Tab", "{back}"), open.bind("climber"), grid)
@@ -516,7 +560,8 @@ func _page_pause() -> void:
 	_button("Controls", open.bind("controls"), grid)
 	_button(Entity.TEXT["archive"], open_archive, grid)
 	_button("Dev tools", open.bind("dev"), grid)
-	_button("Restart this climb", _restart, grid)
+	if not _on_train():
+		_button("Restart this climb", _restart, grid)
 	_button("New climber", _ask_new.bind("pause"), grid)
 	if can_quit():
 		var row := _grid(2)
@@ -1177,14 +1222,17 @@ func _page_inventory() -> void:
 	var keys: Array = []
 	var cell := 52.0 if compact() else 58.0  # slot sizes (smaller on a phone)
 	var heirs := inv_view == "heirlooms"
+	var packed := inv_view == "pack" and p != null
 
-	# The paper doll: what you wear (or your heirlooms), laid out like a body.
+	# The paper doll: what you wear (or your heirlooms), laid out like a body;
+	# or your pack's spare pieces.
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	left.add_child(head)
-	for v in [["worn", "Worn"], ["heirlooms", "Heirlooms"]]:
+	var pack_name := "Pack" + (" %d" % p.pack.size() if p != null and not p.pack.is_empty() else "")
+	for v in [["worn", "Worn"], ["pack", pack_name], ["heirlooms", "Heirlooms"]]:
 		var t := _button(v[1], _inv_view.bind(v[0]), head)
-		t.custom_minimum_size = Vector2(96.0, 30.0 if compact() else 32.0)
+		t.custom_minimum_size = Vector2(80.0 if v[0] != "pack" else 70.0, 30.0 if compact() else 32.0)
 		t.add_theme_font_size_override("font_size", 13)
 		t.set_meta("view", v[0])
 		if v[0] == inv_view:
@@ -1200,16 +1248,31 @@ func _page_inventory() -> void:
 	grid.add_theme_constant_override("v_separation", 4)
 	doll.add_child(grid)
 	var caption := not compact()
-	for r in Gear.DOLL:
-		for slot in r:
-			var s := _heir_cell(grid, slot, cell, caption) if heirs else _worn_cell(grid, p, slot, cell, caption)
-			keys.append(s.get_meta("slot"))
+	if packed:
+		# The pack: spare pieces (they come down to the train if you survive).
+		for i in maxi(p.pack_size(), p.pack.size()):
+			var g = p.pack[i] if i < p.pack.size() else null
+			var ps := _slot(grid, "pack:%d" % i, cell, (Gear.short(g) if g != null else "Empty") if caption else "")
+			ps.kind = "gear"
+			ps.id = Gear.base_id(g) if g != null else ""
+			ps.rec = g
+			ps.empty = g == null
+			ps.tint = Gear.color(g) if g != null else FAINT
+			ps.wear = Gear.condition(g) if g != null and Gear.wears(g) else -1.0
+			keys.append(ps.get_meta("slot"))
+		var pl := _small_label("%d of %d spaces" % [p.pack.size(), p.pack_size()], DIM)
+		left.add_child(pl)
+	else:
+		for r in Gear.DOLL:
+			for slot in r:
+				var s := _heir_cell(grid, slot, cell, caption) if heirs else _worn_cell(grid, p, slot, cell, caption)
+				keys.append(s.get_meta("slot"))
 	# Beside the doll: fists (weapon slot 1), the off-hand (kept for later),
 	# gear at your feet and a camp's rune.
 	var side := VBoxContainer.new()
 	side.add_theme_constant_override("separation", 4)
 	doll.add_child(side)
-	if not heirs:
+	if not heirs and not packed:
 		var fs := _slot(side, "gear:fists", cell, "Fists" if caption else "")
 		fs.kind = "gear"
 		fs.id = "fists"
@@ -1217,11 +1280,12 @@ func _page_inventory() -> void:
 		fs.tint = Gear.color("fists")
 		fs.corner = "1"
 		keys.append("gear:fists")
-	var off := _slot(side, "heir:offhand" if heirs else "gear:offhand", cell, Gear.SLOT_NAMES["offhand"] if caption else "")
-	off.kind = "heir" if heirs else "gear"
-	off.locked = true
-	off.slot_name = Gear.SLOT_NAMES["offhand"]
-	keys.append(off.get_meta("slot"))
+	if not packed:
+		var off := _slot(side, "heir:offhand" if heirs else "gear:offhand", cell, Gear.SLOT_NAMES["offhand"] if caption else "")
+		off.kind = "heir" if heirs else "gear"
+		off.locked = true
+		off.slot_name = Gear.SLOT_NAMES["offhand"]
+		keys.append(off.get_meta("slot"))
 	if not heirs and not main.gear_here.is_empty():
 		# Gear at your feet: set against what you wear in its slot.
 		var fl := _slot(side, "floor", cell, "At your feet" if caption else "")
@@ -1231,7 +1295,7 @@ func _page_inventory() -> void:
 		fl.tint = Gear.color(fl.id)
 		keys.append("floor")
 	var rune: String = p.camp_rune if p != null else ""
-	if not heirs and rune != "":
+	if not heirs and not packed and rune != "":
 		var rs := _slot(side, "rune", cell, Items.CAMP_RUNES[rune]["name"].replace("Rune of ", "") if caption else "")
 		rs.kind = "rune"
 		rs.id = rune
@@ -1290,7 +1354,7 @@ func _page_inventory() -> void:
 	details.add_theme_constant_override("separation", 4 if compact() else 6)
 	dpanel.add_child(details)
 	if not (inv_sel in keys):
-		inv_sel = "heir:melee" if heirs else "gear:" + _hand_slot(p)
+		inv_sel = "heir:melee" if heirs else ("pack:0" if packed else "gear:" + _hand_slot(p))
 	_show_details(inv_sel)
 	_footer()
 
@@ -1425,6 +1489,9 @@ func _show_details(key: String) -> void:
 	var p = main.player
 	var kind := key.get_slice(":", 0)
 	var arg := key.get_slice(":", 1)
+	if page == "train" and kind != "heir":
+		train_page.details(key)
+		return
 	match kind:
 		"gear":
 			if arg == "offhand":
@@ -1512,8 +1579,40 @@ func _show_details(key: String) -> void:
 					var b := _button("Swap for your %s" % Gear.display(p.gear[s]), _take_floor.bind(s), details)
 					b.disabled = p.dead
 			else:
-				var take := _button("Take it" + ("  (drops your %s)" % Gear.display(held) if has_held else ""), _take_floor.bind(""), details)
+				var old_goes := ("  (your %s goes in your pack)" if p.pack_room() else "  (drops your %s)") % Gear.display(held) if has_held else ""
+				var take := _button("Take it" + old_goes, _take_floor.bind(""), details)
 				take.disabled = p.dead
+			var into_pack := _button("Into your pack" + ("" if p.pack_room() else "  (it's full)"), _pack_floor, details)
+			into_pack.disabled = p.dead or not p.pack_room()
+		"pack":
+			var i := int(arg)
+			if i >= p.pack.size():
+				_detail_head("empty", "", "Empty pack space", DIM)
+				_detail_text("Your pack carries %d spare pieces (a Climber's Pack holds more). Swap gear and your old piece goes in here while there's room. Survive the climb, or read a recall scroll, and your pack comes down to the train with you; fall, and it's lost." % p.pack_size(), DIM)
+				return
+			var pg = p.pack[i]
+			var pslot := Gear.slot_of(pg)
+			var pinto: String = p.slot_for(pg)
+			var pheld = p.gear.get(pinto, {})
+			var pworn: bool = Gear.is_gear(pheld)
+			_detail_head("gear", pg, Gear.display(pg), Gear.color(pg))
+			_detail_text("In your pack, for your %s slot. It comes down to the train with you if you survive." % Gear.SLOT_NAMES.get(pslot, pslot).to_lower(), DIM)
+			var prings: Array = Gear.carry_slots(pslot)
+			if prings.size() > 1 and prings.all(func(sl): return p.gear_id(sl) != ""):
+				for sl in prings:
+					var sb := _button("Wear it for your %s" % Gear.display(p.gear[sl]), _wear_pack.bind(i, sl), details)
+					sb.disabled = p.dead
+			else:
+				var wb := _button("Wear it" + ("  (your %s goes in your pack)" % Gear.display(pheld) if pworn else ""), _wear_pack.bind(i, ""), details)
+				wb.disabled = p.dead
+			var db := _button("Drop it here", _drop_pack.bind(i), details)
+			db.disabled = p.dead
+			_detail_lines(pg)
+			_detail_stats(pg, pheld if pworn else ("" if pslot == "armor" else null))
+			if pworn:
+				var ppl := Gear.plays_like(pg, pheld)
+				if ppl != "":
+					_detail_text(ppl, DIM)
 		"crystal":
 			var n: int = main.profile.crystal_count(arg)
 			var col: Color = Essence.color(arg)
@@ -1687,9 +1786,34 @@ func _take_floor(into := "") -> void:
 	open("inventory", opened_direct)
 
 
+func _pack_floor() -> void:
+	if main.pack_gear_here():
+		inv_view = "pack"
+		inv_sel = "pack:%d" % (main.player.pack.size() - 1)
+	open("inventory", opened_direct)
+
+
+func _wear_pack(i: int, into: String) -> void:
+	if main.wear_from_pack(i, into):
+		inv_sel = "pack:%d" % i
+	open("inventory", opened_direct)
+
+
+func _drop_pack(i: int) -> void:
+	main.drop_from_pack(i)
+	open("inventory", opened_direct)
+
+
 func _pick_item(id: String) -> void:
 	main.player.item_sel = id
 	open("inventory", opened_direct)
+
+
+# --- the train ---------------------------------------------------------------------
+
+## Between climbs: the train's cars (train_page.gd builds them).
+func _page_train() -> void:
+	train_page.build()
 
 
 # --- the dev tool ------------------------------------------------------------------
@@ -2097,6 +2221,9 @@ func _primary(b: Button) -> void:
 ## The bottom of a page: Back (or Close, for a screen opened by its key) and
 ## which key does the same.
 func _footer() -> void:
+	if page == "train":
+		train_page.footer()
+		return
 	var pinned: bool = page in PINNED_FOOTER
 	if not pinned:
 		_gap(4)
@@ -2319,6 +2446,7 @@ func _make_theme() -> Theme:
 ## are locked.
 class Slot extends Button:
 	const Gear := preload("res://scripts/gear.gd")
+	const Essence := preload("res://scripts/essence.gd")
 	const Items := preload("res://scripts/items.gd")
 	const UI := preload("res://scripts/ui.gd")
 
@@ -2336,6 +2464,9 @@ class Slot extends Button:
 	var slot_name := ""  # gear and heirlooms: shown faintly in an empty slot
 	var wear := -1.0  # a Common piece's condition, 0 to 1 (-1: doesn't wear)
 	var kept := false  # gear you wear that is also your heirloom
+	var price := 0  # the train's store: a price, drawn as a gem and a number
+	var price_kind := ""
+	var price_ok := true  # false: you can't pay it (the number is red)
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -2421,6 +2552,13 @@ class Slot extends Button:
 			draw_string(font, Vector2(5, size.y - 5.0), "quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, UI.GOLD)
 		if kind == "floor":
 			draw_string(font, Vector2(5, 13), "new", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.GOLD)
+		if price > 0:
+			var gb := UI.Draw.Batch.new()
+			UI.gem_into(gb, Vector2(9, 9), 4.5, Essence.color(price_kind))
+			gb.flush(self)
+			var pt := str(price)
+			draw_string_outline(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.9))
+			draw_string(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.TEXT if price_ok else UI.BAD)
 
 
 ## The big icon at the top of the inventory's details (and the record's heirlooms).

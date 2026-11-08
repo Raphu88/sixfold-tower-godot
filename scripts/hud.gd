@@ -454,7 +454,7 @@ func _draw() -> void:
 		_draw_regard(size, font)
 	if not main.victory.is_empty():
 		_draw_victory(size, font)
-	if main.choosing_tower:
+	if main.choosing_tower and not main.on_train:
 		_draw_tower_choice(size, font)
 	if main.camp_choosing:
 		_draw_camp_choice(size, font)
@@ -655,7 +655,7 @@ func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 	arrows.flush(self)
 	var how: String = _say(Gear.TEXT["take_key"], Gear.TEXT["take_pad"], Gear.TEXT["take_tap"])
 	if has_held:
-		how += "  " + Gear.TEXT["drops"] % Gear.display(held)
+		how += "  " + (Gear.TEXT["to_pack"] if p.pack_room() else Gear.TEXT["drops"]) % Gear.display(held)
 	draw_string(font, Vector2(r.position.x, r.end.y - 8.0), how, HORIZONTAL_ALIGNMENT_CENTER, w, 12, GOLD)
 
 
@@ -763,7 +763,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var over := tower_card_at(at) if main.choosing_tower else camp_card_at(at)
 		if over >= 0:
 			main.card_focus = over
-	if main != null and main.choosing_tower and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if main != null and main.choosing_tower and not main.on_train and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var i := tower_card_at(get_local_mouse_position())
 		if i >= 0:
 			main.choose_tower(TowersData.ORDER[i])

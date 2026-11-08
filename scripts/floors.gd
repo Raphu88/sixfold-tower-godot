@@ -393,13 +393,16 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	for l in locks:
 		if l.has("pos"):
 			doorways.append(Rect2(l["pos"] - Vector2(CELL, CELL) * 0.5, Vector2(CELL, CELL)))  # (traps keep clear of keys and levers)
+	var torches := _torches(infos)
+	if not puzzle.is_empty():
+		puzzle = Catalog.finish(puzzle, infos, _index_of_role(infos, "gallery"), torches, doors)
 	var used := _used_grid(infos, wings, secrets)
 	var arena := Rect2(ORIGIN, Vector2(used.x * CELL_TILES.x, used.y * CELL_TILES.y) * CELL)
 	var plan := {"arena": arena, "grid": used, "rooms": rooms, "walk": walk,
 		"corridors": corridors, "start": start, "stair": stair, "pillars": pillars, "monsters": monsters,
 		"chasms": chasms, "blocks": blocks, "pools": pools, "room_ids": ids, "puzzle": puzzle,
 		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors) + kept_posts,
-		"torches": _torches(infos) + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
+		"torches": torches + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
 		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks}
 	if not cache.is_empty():
 		plan["cache"] = cache
@@ -540,11 +543,14 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 
 
 ## A plain carved hall for a puzzle that lays itself out (statues, mirrors,
-## the crumbling path): open floor, so the puzzle has room to work.
+## the crumbling path, the ice, the lock, the pedestals): open floor, so the
+## puzzle has room to work, in the kind's own size and shapes if it has them.
 static func _puzzle_hall(kind: String) -> Dictionary:
-	var lim: Array = Catalog.ROOM_SIZE
+	var hall := Catalog.room_for(kind)
+	var lim: Array = hall[0]
+	var shapes: Array = hall[1]
 	var size := Vector2i(mini(randi_range(int(lim[0]), int(lim[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(lim[2]), int(lim[3])), Rooms.MAX_SIZE.y))
-	var shape: String = Catalog.ROOM_SHAPES[randi() % Catalog.ROOM_SHAPES.size()]
+	var shape: String = shapes[randi() % shapes.size()]
 	return {"id": "hall_" + kind, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape, "puzzle": kind}
 
 
@@ -807,6 +813,9 @@ static func _monster_spot(info: Dictionary, free_spots: Array, placed: Array, pi
 		if not info["reserved"].has(t) and _clear_of(sp, 40.0, pillars, placed):
 			return sp
 	var tiles: Array = Rooms.open_tiles(info["rows"], 1).filter(func(t): return not info["reserved"].has(t))
+	if tiles.is_empty():
+		# (A room whose middle is all kept clear, like the Ice Hall's: its edge.)
+		tiles = Rooms.open_tiles(info["rows"], 0).filter(func(t): return not info["reserved"].has(t))
 	tiles.shuffle()
 	for t in tiles:
 		var pos: Vector2 = origin + (Vector2(t) + Vector2(0.5, 0.5)) * CELL

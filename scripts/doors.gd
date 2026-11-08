@@ -812,6 +812,27 @@ func _draw_closed(b, d: Dictionary) -> void:
 				b.line(c + Vector2(-s, s), c + Vector2(s, -s), Color(EMBLEM, 0.85), 2.2)
 				b.line(c + Vector2(-s * 1.4, 0), c, Color(EMBLEM, 0.6), 1.4)
 				b.line(c, c + Vector2(0, -s * 1.4), Color(EMBLEM, 0.6), 1.4)
+			"ice":
+				# A snowflake: three crossed strokes with barbs.
+				for k in 3:
+					var a := PI * k / 3.0 + PI / 2.0
+					var v := Vector2.from_angle(a) * s * 1.1
+					b.line(c - v, c + v, Color(EMBLEM, 0.85), 1.8)
+					for e in [-1.0, 1.0]:
+						var tip: Vector2 = c + v * e * 0.7
+						b.line(tip, tip + (v * e).rotated(0.7).normalized() * s * 0.35, Color(EMBLEM, 0.7), 1.3)
+						b.line(tip, tip + (v * e).rotated(-0.7).normalized() * s * 0.35, Color(EMBLEM, 0.7), 1.3)
+			"lock":
+				# A keyhole in a ring.
+				b.arc(c, s * 1.05, 0.0, TAU, 20, Color(EMBLEM, 0.8), 1.8)
+				b.circle(c + Vector2(0, -s * 0.25), s * 0.32, Color(EMBLEM, 0.85))
+				b.polygon(PackedVector2Array([c + Vector2(-s * 0.18, -s * 0.2), c + Vector2(s * 0.18, -s * 0.2), c + Vector2(s * 0.3, s * 0.6), c + Vector2(-s * 0.3, s * 0.6)]), Color(EMBLEM, 0.85))
+			"glyph":
+				# A tablet with a numeral and a sign: something to remember.
+				b.rect(Rect2(c - Vector2(s * 0.9, s * 1.0), Vector2(s * 1.8, s * 2.0)), Color(EMBLEM, 0.3))
+				for k in 3:
+					b.line(c + Vector2(-s * 0.5 + k * s * 0.3, -s * 0.8), c + Vector2(-s * 0.5 + k * s * 0.3, -s * 0.3), Color(EMBLEM, 0.85), 1.4)
+				b.arc(c + Vector2(0, s * 0.35), s * 0.4, 0.0, TAU, 14, Color(EMBLEM, 0.85), 1.6)
 			"stones":
 				# A grid of stepping stones.
 				for gy in 2:
