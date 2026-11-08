@@ -153,6 +153,10 @@ var storm_spots: Array = []  # the Firebird's firestorm
 var reborn := false  # the Firebird rises once from its ashes
 var turn := 0  # a mongrel alternates its two attacks
 var cripple_t := 0.0  # Surgeon's Sever: can't run or charge
+var chill_t := 0.0  # a Coral Trident's hit: walks 25% slower
+var burn_t := 0.0  # of Embers: burning, a little damage every half second
+var burn_dmg := 0.0
+var burn_tick := 0.0
 var flinch_cd := 0.0  # light hits can't flinch it again until this runs out
 var open_t := 0.0  # recovering from an attack: open to heavy punishment
 var disarm_t := 0.0  # ...and disarmed: can't start an attack
@@ -199,6 +203,10 @@ func setup(k: String, room) -> void:
 	# Covenant's Kinship: a kind in your pact book is slower to notice you.
 	if main != null and main.profile != null and kind in main.profile.pacts and main.player != null and main.player.has_bond("covenant"):
 		state_t *= 2.0
+		notice_t = state_t
+	# A Dusk Cloak: monsters are slower to notice you.
+	if main != null and main.player != null and main.player.gfx("notice") > 0.0 and not (kind in BOSSES):
+		state_t *= 1.0 + main.player.gfx("notice")
 		notice_t = state_t
 	if kind == "lurker":
 		state = "sub"
@@ -328,6 +336,8 @@ func _physics_process(delta: float) -> void:
 	flinch_cd -= delta
 	open_t -= delta
 	cripple_t -= delta
+	chill_t -= delta
+	_tick_burn(delta)
 	disarm_t -= delta
 	_tick_venom(delta)
 	if dead:
@@ -429,6 +439,8 @@ func _physics_process(delta: float) -> void:
 	# Surgeon's Sever: a crippled foe can't run or charge.
 	if cripple_t > 0.0:
 		velocity *= 0.35
+	if chill_t > 0.0 and not is_attacking():
+		velocity *= 0.75
 	if not is_attacking():
 		velocity *= main.rubble_slow(global_position)
 		if p.has_bond("sandshaper") and dist < 110.0:
@@ -1651,6 +1663,32 @@ func add_venom(stacks: int) -> void:
 		return
 	venom = mini(venom + stacks, 12)
 	venom_t = maxf(venom_t, 3.0 + 0.5 * venom)
+
+
+## Sets it burning (of Embers): `dmg` every half second for `seconds`.
+func ignite(dmg: float, seconds: float) -> void:
+	if dead:
+		return
+	burn_dmg = maxf(burn_dmg if burn_t > 0.0 else 0.0, dmg)
+	burn_t = maxf(burn_t, seconds)
+	main.fx_burst(global_position, Vector2.ZERO, Color(1.0, 0.5, 0.2), 6, 120.0)
+
+
+func _tick_burn(delta: float) -> void:
+	if burn_t <= 0.0:
+		return
+	burn_t -= delta
+	burn_tick -= delta
+	if burn_tick <= 0.0:
+		burn_tick = 0.5
+		if submerged:
+			return
+		hp -= burn_dmg
+		flash = 0.05
+		if hp <= 0.0:
+			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
+			return
+		main.fx_text(global_position + Vector2(0, -radius - 14.0), "-%d" % int(burn_dmg), Color(1.0, 0.55, 0.25))
 
 
 ## All the poison still to come, at once (Virulence).

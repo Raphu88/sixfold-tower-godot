@@ -173,15 +173,36 @@ func _draw_labels() -> void:
 		labels.draw_string(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, col)
 	if main == null:
 		return
-	# Gear on the floor: its name over it.
+	# Gear on the floor: its name over it, in its rarity's colour; a glint
+	# over anything better than Common. Hunter's Keen Eyes outline it in
+	# that colour even through the dark.
+	var t := Time.get_ticks_msec() * 0.001
+	var keen: bool = main.player != null and main.player.has_bond("hunter")
 	for g in main.gear_drops:
 		var gp: Vector2 = g["pos"]
+		var r = g.get("rec", g["id"])
+		var rc: Color = main.Gear.rarity_color(r)
+		var fancy: bool = main.Gear.rarity(r) != "common"
+		if keen:
+			labels.draw_arc(gp, 17.0 + sin(t * 3.0) * 1.5, 0.0, TAU, 28, Color(rc, 0.85), 2.0, true)
 		if not _in_sight(gp):
 			continue
 		var here: bool = main.gear_here == g
-		var label: String = main.Gear.display(g["id"])
-		labels.draw_string_outline(font, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, 3, Color(0, 0, 0, 0.8))
-		labels.draw_string(font, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85))
+		var label: String = main.Gear.display(r)
+		var lc: Color = (Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85)) if not fancy else Color(rc.lightened(0.25 if here else 0.1), 1.0 if here else 0.9)
+		labels.draw_string_outline(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 10, 3, Color(0, 0, 0, 0.8))
+		labels.draw_string(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 10, lc)
+		if fancy:
+			# A glint that turns and pulses over it: brighter for rarer finds.
+			var rank: int = main.Gear.rarity_rank(main.Gear.rarity(r))
+			var pulse := 0.55 + 0.45 * sin(t * 4.0 + gp.x * 0.01)
+			var sc := gp + Vector2(-11, -9)
+			var rr := (4.5 + 1.5 * rank) * (0.7 + 0.3 * pulse)
+			var ang := t * 1.5
+			for k in 4:
+				var dir := Vector2.from_angle(ang + k * PI / 2.0)
+				labels.draw_line(sc - dir * rr * 0.2, sc + dir * rr, Color(rc.lightened(0.4), 0.85 * pulse), 1.5, true)
+			labels.draw_circle(sc, 1.6, Color(1, 1, 1, 0.9 * pulse))
 
 
 func _draw() -> void:
@@ -317,16 +338,29 @@ func _draw_fields() -> void:
 		draw_circle(it["pos"] + Vector2(0, 6), 9.0, Color(0, 0, 0, 0.3 * ia))
 		draw_arc(ip, 13.0 + sin(t * 5.0), 0.0, TAU, 20, Color(ic, 0.45 * ia), 1.5)
 		main.Items.draw_icon(self, it["id"], ip, 9.0, ia)
-	# Gear on the floor: its icon on a little glowing plinth (its name is in _draw_labels).
+	# Gear on the floor: its icon on a little glowing plinth in its rarity's
+	# colour (its name and glint are in _draw_labels).
 	for g in main.gear_drops:
 		var gp: Vector2 = g["pos"]
-		var gc: Color = main.Gear.color(g["id"])
+		var grec = g.get("rec", g["id"])
+		var gc: Color = main.Gear.color(grec)
 		var here: bool = main.gear_here == g
+		var fancy: bool = main.Gear.rarity(grec) != "common"
+		var ring_c: Color = main.Gear.rarity_color(grec) if fancy else Color(1.0, 0.85, 0.5)
 		draw_circle(gp + Vector2(0, 7), 11.0, Color(0, 0, 0, 0.3))
-		draw_arc(gp, 15.0 + sin(t * 3.0) * 1.5, 0.0, TAU, 24, Color(1.0, 0.85, 0.5, 0.75 if here else 0.35), 2.0 if here else 1.5)
+		if fancy:
+			draw_circle(gp, 16.0, Color(ring_c, 0.12))
+		draw_arc(gp, 15.0 + sin(t * 3.0) * 1.5, 0.0, TAU, 24, Color(ring_c, 0.85 if here else (0.6 if fancy else 0.35)), 2.0 if here or fancy else 1.5)
 		var ip2 := gp + Vector2(0, sin(t * 2.5) * 1.5 - 3.0)
-		main.Gear.draw_icon(self, g["id"], ip2 + Vector2(1, 1), 10.0, Color(0, 0, 0, 0.6))
-		main.Gear.draw_icon(self, g["id"], ip2, 10.0, gc)
+		main.Gear.draw_icon(self, g.get("rec", g["id"]), ip2 + Vector2(1, 1), 10.0, Color(0, 0, 0, 0.6))
+		main.Gear.draw_icon(self, g.get("rec", g["id"]), ip2, 10.0, gc)
+	# Fire Flasks in flight: an arc from your hand to where they'll burst.
+	for f in main.flasks:
+		var k: float = clampf(f["t"] / maxf(f["total"], 0.01), 0.0, 1.0)
+		var fp: Vector2 = f["from"].lerp(f["to"], k) + Vector2(0, -sin(k * PI) * 34.0)
+		draw_circle(f["from"].lerp(f["to"], k) + Vector2(0, 6), 5.0, Color(0, 0, 0, 0.25))
+		draw_arc(f["to"], f["r"], 0.0, TAU, 32, Color(1.0, 0.5, 0.2, 0.25 + 0.3 * k), 1.5, true)
+		main.Items.draw_icon(self, "fire_flask", fp, 7.0)
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))

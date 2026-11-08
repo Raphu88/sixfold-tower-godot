@@ -18,6 +18,7 @@ var faint := false  # a mark taken in defeat: weaker until it catches up
 var overdraw_mult := 1.0  # set for an overdrawn cast: desperate casts are weaker
 var attr_power := 1.0  # Fire density (Intellect): spells hit a little harder
 var attr_fill := 1.0  # Water density (Spirit): marks fill a little faster
+var gear_power := 1.0  # an Ember Charm and the like: spells hit a little harder (player.refresh_gear)
 
 ## How strong an overdrawn cast is, and how much health per missing essence
 ## overdrawing an already-burned mark tears out of you.
@@ -103,7 +104,7 @@ func cost() -> float:
 
 ## A faint mark's spells hit softer, and so do desperate (overdrawn) casts.
 func power() -> float:
-	return (0.75 if faint else 1.0) * overdraw_mult * attr_power
+	return (0.75 if faint else 1.0) * overdraw_mult * attr_power * gear_power
 
 
 func damage() -> float:
