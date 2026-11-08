@@ -136,6 +136,31 @@ static func tip(id: String) -> bool:
 	return true
 
 
+## The first time the climber meets something inside a menu (the train's
+## pages, where no bubble can show): the tip's line, said there and then
+## (marked said, kept in the Archive). "" if it was said before, with tips
+## off (the Archive entry still unlocks), or in tests that keep it quiet.
+static func tell(id: String) -> String:
+	if not live():
+		return ""
+	var r := Entity.resolve(id)
+	if r == "":
+		return ""
+	load_state()
+	if not bool(state["on"]):
+		if not state["known"].has(r):
+			state["known"][r] = true
+			save_state()
+		return ""
+	if state["told"].has(r):
+		return ""
+	queue = queue.filter(func(q): return q.get("id", "") != r)
+	state["told"][r] = true
+	state["known"][r] = true
+	save_state()
+	return String(Entity.entry(r)["tip"])
+
+
 ## A short line for a moment (entity.gd LINES), ahead of any tips waiting.
 static func say(key: String, fill := {}) -> void:
 	if not live() or not tips_on():

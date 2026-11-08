@@ -30,6 +30,7 @@ const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
+const Train := preload("res://scripts/train.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -109,6 +110,7 @@ var regard_pending := false
 var victory := {}  # the climb complete screen, after the beast falls: {t, beast, lines}
 var tower := "kraken"  # which tower this climb is in (towers.gd)
 var choosing_tower := false  # the tower choice is showing
+var on_train := false  # between climbs, after the Regard: the train (train.gd) stands in for the tower choice
 var floor_total := 0  # monsters this floor started with
 var hud
 var touch
@@ -255,12 +257,7 @@ func _ready() -> void:
 	if Engine.has_meta("sixfold_test"):
 		_greet()
 	else:
-		# Each climb begins by choosing a tower.
-		choosing_tower = true
-		card_focus = maxi(Towers.ORDER.find(tower), 0)
-		player.set_physics_process(false)
-		for e in enemies():
-			e.set_physics_process(false)
+		await_tower()
 
 	fx = FxScript.new()
 	fx.main = self
@@ -308,6 +305,8 @@ func _ready() -> void:
 	# A fresh start (not a restart or a new floor) opens on the title screen.
 	if not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
 		menu.open.call_deferred("title")
+	elif on_train:
+		menu.open.call_deferred("train")
 
 
 ## A wall body of the last floor: it stops colliding at once (a freed body
@@ -588,6 +587,8 @@ func _process(delta: float) -> void:
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
 		Engine.time_scale = 0.35 if slowmo else 1.0
+	if on_train:
+		return  # (the train's menu takes the keys)
 	if choosing_tower:
 		for i in Towers.ORDER.size():
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
@@ -1216,6 +1217,9 @@ func _arrive() -> void:
 		var broke := break_belt()
 		if broke != "":
 			lines.append(broke)
+		var home := bring_pack_home()
+		if home != "":
+			lines.append(home)
 		profile.save()
 		victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
 		player.set_physics_process(false)
@@ -1540,6 +1544,9 @@ func read_recall() -> void:
 	var broke := break_belt(["scroll"])  # (the scroll itself is being read)
 	if broke != "":
 		lines.append(broke)
+	var home := bring_pack_home()
+	if home != "":
+		lines.append(home)
 	if menu != null and menu.is_open():
 		menu.close()
 	banner = {}
@@ -1580,8 +1587,62 @@ func _note_belt() -> void:
 func _take_gear(g, into := "") -> String:
 	var old: Dictionary = player.take_gear(g, into)
 	if not old.is_empty():
+		# Your old piece goes in your pack if there's room, else at your feet.
+		if player.pack_room():
+			player.pack.append(old)
+			return (Gear.TEXT["took"] % Gear.display(g)) + "  ·  " + Gear.TEXT["packed"] % Gear.display(old)
 		drop_gear(player.global_position, old)
 	return Gear.TEXT["took"] % Gear.display(g)
+
+
+## The gear you stand on goes straight into your pack (the inventory's
+## "Into your pack"). False if there's no room or nothing there.
+func pack_gear_here() -> bool:
+	if gear_here.is_empty() or player == null or player.dead or not player.pack_room():
+		return false
+	var d: Dictionary = gear_here
+	gear_drops.erase(d)
+	gear_here = {}
+	player.pack.append(d["rec"])
+	fx_text(player.global_position + Vector2(0, -44), Gear.TEXT["packed"] % Gear.display(d["rec"]), Gear.color(d["rec"]))
+	sfx("pickup", 1.1, -6.0)
+	return true
+
+
+## Wears the piece in pack space `i`; what you wore there takes its place in
+## the pack (a ring swaps with ring slot `into`, or the first free one).
+func wear_from_pack(i: int, into := "") -> bool:
+	if player == null or player.dead or i < 0 or i >= player.pack.size():
+		return false
+	var g: Dictionary = player.pack[i]
+	player.pack.remove_at(i)
+	var old: Dictionary = player.take_gear(g, into)
+	if not old.is_empty():
+		player.pack.insert(i, old)
+	return true
+
+
+## Leaves the piece in pack space `i` on the floor where you stand.
+func drop_from_pack(i: int) -> bool:
+	if player == null or player.dead or i < 0 or i >= player.pack.size():
+		return false
+	var g: Dictionary = player.pack[i]
+	player.pack.remove_at(i)
+	drop_gear(player.global_position, g)
+	return true
+
+
+## The end of a survived climb (or a recall scroll): your pack comes down
+## to the train, to sell or keep in your chest. Returns the line to show.
+func bring_pack_home() -> String:
+	if player == null or player.pack.is_empty():
+		return ""
+	var n: int = player.pack.size()
+	for g in player.pack:
+		profile.pack.append(Gear.rec(g))
+	player.pack = []
+	profile.save()
+	return Train.TEXT["home"] % [n, "piece" if n == 1 else "pieces"]
 
 
 ## Leaves a piece of gear (a record or an id) on the floor. A `fresh` find
@@ -1866,10 +1927,51 @@ func beast_name() -> String:
 	return tower_data()["beast"]
 
 
+## Each climb begins by choosing a tower; after the Regard, on the train
+## (its menu opens once the title has gone: _ready, menu.gd close).
+func await_tower() -> void:
+	choosing_tower = true
+	on_train = profile.regarded
+	if on_train:
+		Train.stock(profile)
+		profile.save()
+	card_focus = maxi(Towers.ORDER.find(tower), 0)
+	player.set_physics_process(false)
+	for e in enemies():
+		e.set_physics_process(false)
+
+
+## Opens the train (between climbs, after the Regard): its menu stands in
+## for the tower choice. (A new climb's _ready does this; tests call it.)
+func open_train() -> void:
+	on_train = true
+	choosing_tower = true
+	player.set_physics_process(false)
+	for e in enemies():
+		e.set_physics_process(false)
+	Train.stock(profile)
+	profile.save()
+	menu.open("train")
+
+
+## Leaves the train for a tower: your pack and packed supplies come with
+## you (train.gd pack_up), then the climb starts.
+func depart(id: String) -> void:
+	if not on_train or not Towers.TOWERS.has(id):
+		return
+	choose_tower(id)  # (packs up and leaves the train)
+	if menu != null and menu.is_open():
+		menu.close()
+
+
 ## Picks this climb's tower and starts on its first floor.
 func choose_tower(id: String) -> void:
 	if not choosing_tower or not Towers.TOWERS.has(id):
 		return
+	if on_train:
+		# Leaving the train (Depart, or the dev tools): your pack and supplies come too.
+		Train.pack_up(profile, player)
+		on_train = false
 	choosing_tower = false
 	tower = id
 	profile.last_tower = id
@@ -2038,6 +2140,7 @@ func _begin_regard(fell: bool) -> void:
 	_grant_regard(fell)
 	if not fell:
 		break_belt()  # (survived: what's left on the belt becomes crystals)
+		bring_pack_home()  # (and the pack comes down to the train, which appears now)
 	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0, "dark": fade > 0.5}
 	GuideScript.moment("regard", "regard")
 	banner = {}
@@ -2210,6 +2313,12 @@ func release_attack(e) -> void:
 ## per save; the words are in entity.gd's TIPS). Safe to call every frame.
 func tip(id: String) -> bool:
 	return GuideScript.tip(id)
+
+
+## The same, inside a menu (the train): the tip's line to show there and
+## then the first time, else "" (guide.gd tell).
+func tip_now(id: String) -> String:
+	return GuideScript.tell(id)
 
 
 func menu_open() -> bool:

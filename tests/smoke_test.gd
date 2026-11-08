@@ -4264,9 +4264,16 @@ func _gear_tests() -> void:
 	Input.action_release("interact")
 	await _frames(2)
 	_check(p.gear_id("melee") == "axe" and p.weapon == "axe", "pressing Y takes the axe into your hand")
-	var dropped: Array = main.gear_drops.filter(func(d): return d["id"] == "sword")
-	_check(main.gear_drops.size() == 1 and dropped.size() == 1 and dropped[0]["pos"].distance_to(p.global_position) < 6.0, "...and your sword is dropped where you stand")
+	_check(main.gear_drops.is_empty() and p.pack.size() == 1 and G.base_id(p.pack[0]) == "sword", "...and your sword goes in your pack")
+	# With a full pack, your old piece is dropped where you stand instead.
+	p.pack = [G.make("dagger"), G.make("mace"), G.make("spear"), G.make("padded")]
+	main.drop_gear(spot + Vector2(4, 0), "sword")
+	await physics_frame
+	await physics_frame
 	_check(main.take_gear_here() and p.gear_id("melee") == "sword", "you can swap straight back")
+	var dropped: Array = main.gear_drops.filter(func(d): return d["id"] == "axe")
+	_check(main.gear_drops.size() == 1 and dropped.size() == 1 and dropped[0]["pos"].distance_to(p.global_position) < 6.0, "...and with your pack full, the axe is dropped where you stand")
+	p.pack = []
 	main.gear_drops.clear()
 	await physics_frame
 	_check(main.gear_here.is_empty() and not main.take_gear_here(), "with no gear underfoot, Y does nothing")
@@ -4387,7 +4394,8 @@ func _gear_tests() -> void:
 		await _wait(0.15)
 		_touch(7, take["c"], false)
 		await _frames(2)
-	_check(p.gear_id("melee") == "mace" and main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == "sword", "tapping Take swaps for the mace and drops the sword")
+	_check(p.gear_id("melee") == "mace" and main.gear_drops.is_empty() and not p.pack.is_empty() and G.base_id(p.pack.back()) == "sword", "tapping Take swaps for the mace (the sword goes in your pack)")
+	p.pack = []
 	main.gear_drops.clear()
 	await physics_frame
 	await physics_frame
@@ -4921,7 +4929,8 @@ func _gear_slot_tests() -> void:
 	if swaps.size() == 2:
 		swaps[1].pressed.emit()
 		await _frames(2)
-	_check(p.gear_id("ring1") == "garnet_ring" and p.gear_id("ring2") == "garnet_ring" and main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == "iron_band", "...and swapping the second leaves the first on")
+	_check(p.gear_id("ring1") == "garnet_ring" and p.gear_id("ring2") == "garnet_ring" and main.gear_drops.is_empty() and p.pack.size() == 1 and G.base_id(p.pack[0]) == "iron_band", "...and swapping the second leaves the first on (the iron band goes in your pack)")
+	p.pack = []
 	menu.close()
 	main.gear_drops.clear()
 	await _frames(2)
@@ -6251,6 +6260,7 @@ func _run() -> void:
 	await _gear_slot_tests()
 	await _rarity_tests()
 	await _belt_tests()
+	await _train_tests()
 	await _controls_tests()
 	await _performance_tests()
 	await _lighting_tests()
@@ -7018,7 +7028,7 @@ func _mark_page_tests() -> void:
 	_check(menu.page == "climber", "...and tapping Back returns to the cards")
 	menu.open("inventory", true)
 	await _frames(3)
-	_check(menu.scroll.get_v_scroll_bar().max_value <= menu.scroll.size.y + 2.0, "on a phone the inventory fits without scrolling")
+	_check(menu.scroll.get_v_scroll_bar().max_value <= menu.scroll.size.y + 2.0, "on a phone the inventory fits without scrolling (%d in %d)" % [menu.scroll.get_v_scroll_bar().max_value, menu.scroll.size.y])
 	menu.close()
 	await _frames(2)
 	main.touch._set_active(false)
@@ -7327,3 +7337,179 @@ func _entity_tests() -> void:
 	Guide.forget()
 	Engine.remove_meta("sixfold_tips")
 	main.entity.current = {}
+
+
+## The train between climbs (train.gd, train_page.gd): the pack of spare
+## pieces, the train opening after a climb, the store (buying with change,
+## a price you can't pay, putting back, today's piece, selling), the chest
+## and its save, and departing for a tower.
+func _train_tests() -> void:
+	print("the train")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	var T = main.Train
+	var G = main.Gear
+	var prof = main.profile
+	var p = main.player
+	var menu = main.menu
+	# Before the Regard, a new climb starts at the tower choice; no train.
+	main.await_tower()
+	_check(main.choosing_tower and not main.on_train, "before the Regard a climb starts at the tower choice, not the train")
+	main.choosing_tower = false
+	main.grant_test_bonds()
+	p.set_physics_process(true)
+	# The pack: 4 spare pieces; a swap puts your old piece in it.
+	_check(p.pack_size() == 4 and p.pack.is_empty(), "the climber carries a pack of 4 spare pieces")
+	main.drop_gear(p.global_position, G.make("axe"))
+	main._update_gear_drops()
+	_check(not main.gear_here.is_empty(), "standing on an axe with a sword in hand...")
+	main.take_gear_here()
+	_check(p.gear_id("melee") == "axe" and p.pack.size() == 1 and G.base_id(p.pack[0]) == "sword", "...taking it puts the old sword in your pack")
+	p.take_gear(G.make("climbers_pack"))
+	_check(p.pack_size() == 6, "a Climber's Pack holds two more")
+	# The inventory's Pack view shows it; a pack piece can be worn again.
+	menu.inv_view = "pack"
+	menu.open("inventory")
+	await _frames(2)
+	_check(_slot("pack:0") != null and _slot("pack:0").id == "sword" and _slot("pack:5") != null, "the inventory shows the pack's spaces")
+	menu._wear_pack(0, "")
+	_check(p.gear_id("melee") == "sword" and G.base_id(p.pack[0]) == "axe", "wearing a pack piece swaps it with what you wore")
+	menu.inv_view = "worn"
+	menu.close()
+	await _frames(2)
+	# Reading a recall scroll brings the pack down to the train.
+	main.read_recall()
+	_check(prof.pack.size() == 1 and G.base_id(prof.pack[0]) == "axe" and p.pack.is_empty(), "leaving the tower brings the pack home")
+	_check(main.victory.get("lines", []).any(func(l): return String(l).begins_with("Your pack comes down")), "...and the screen says so")
+	main.victory = {}
+	# (A new climb is a fresh scene: start gear and the starting draught.)
+	p.gear = G.start_gear()
+	p.refresh_gear()
+	p.items = main.Items.START.duplicate()
+	# After the Regard, the next climb waits on the train.
+	main.await_tower()
+	_check(main.on_train and main.choosing_tower, "after the Regard, a new climb waits on the train")
+	main.open_train()
+	await _frames(3)
+	_check(menu.page == "train" and menu.train_view.visible and paused, "the train's page opens over its drawing")
+	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("tab", "") != "")
+	_check(tabs.map(func(b): return b.get_meta("tab")) == ["personal", "store", "workshop", "depart"], "its cars: your car, the store car, the workshop and Depart")
+	_check(not prof.store.get("outfit", []).is_empty() and prof.store.get("today", "") != "", "the store has an outfit rack and today's piece")
+	var today: Dictionary = T.today(prof)
+	_check(G.rarity(today) in ["fine", "rare"], "today's piece is Fine or Rare (%s)" % G.display(today))
+	# Keys: E the next car; Esc the menu, and Resume back to the train; I your car.
+	await _key_tap(KEY_E)
+	_check(menu.train_car == "store", "E moves to the next car")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "pause", "Esc on the train opens the menu")
+	_menu_button("Resume").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "train" and main.menu_open(), "...and Resume returns to the train")
+	menu.toggle("inventory")
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "personal", "I on the train opens your car")
+
+	# Buying with change: the smallest crystals first, the rest back as one crystal.
+	prof.crystals = []
+	prof.add_crystal("stone", 5.0)
+	prof.add_crystal("stone", 10.0)
+	prof.add_crystal("stone", 40.0)
+	menu.train_car = "store"
+	menu.train_store = "supplies"
+	menu.inv_sel = "supply:draught"
+	menu.open("train")
+	await _frames(2)
+	var buy: Array = _all_buttons(menu).filter(func(b): return b.get_meta("buy", "") == "draught")
+	_check(buy.size() == 1 and not buy[0].disabled, "a Healing Draught can be bought")
+	if buy.size() == 1:
+		buy[0].pressed.emit()
+		await _frames(2)
+	_check(int(prof.supplies.get("draught", 0)) == 1, "buying packs it for the next climb")
+	_check(prof.crystal_total("stone") == 43.0 and prof.crystal_count("stone") == 2, "12 Stone paid from the 5 and the 10; 3 back as change (%s)" % [prof.crystals])
+	var labels: Array = _all_labels(menu).map(func(l): return l.text)
+	_check(labels.any(func(t): return t.begins_with("Bought: Healing Draught")), "...and the card says so")
+	# A price you can't pay says why.
+	menu.inv_sel = "supply:vial"
+	menu.open("train")
+	await _frames(2)
+	labels = _all_labels(menu).map(func(l): return l.text)
+	buy = _all_buttons(menu).filter(func(b): return b.get_meta("buy", "") == "vial")
+	_check(buy.size() == 1 and buy[0].disabled and labels.any(func(t): return t.contains("needs 20 more Water")), "a price you can't pay says why: needs 20 more Water")
+	_check(T.buy_supply(prof, p, "vial") == "needs 20 more Water" and not prof.supplies.has("vial"), "...and buying it does nothing")
+	# The belt's room: the starting draught plus what's packed, up to 3.
+	_check(T.supply_room(prof, p, "draught") == 1, "the belt holds 3 draughts: 1 to start, 1 packed, room for 1")
+	_check(T.put_back(prof, "draught") and prof.crystal_total("stone") == 55.0 and not prof.supplies.has("draught"), "putting it back returns the full price")
+	# Today's piece goes in your pack.
+	var kind: String = T.gear_kind(today)
+	var cost: int = T.gear_price(today)
+	prof.add_crystal(kind, float(cost))
+	var before: float = prof.crystal_total(kind)
+	prof.pack = []
+	_check(T.buy_gear(prof, p, -1) == "", "today's piece can be bought")
+	_check(prof.pack.size() == 1 and G.same(prof.pack[0], today) and prof.crystal_total(kind) == before - cost and T.today(prof).is_empty(), "...into your pack, for its price (%d %s)" % [cost, kind])
+	# Selling: a crystal of its kind at 40% of its price (asks once first).
+	prof.pack = [G.make("leather_cap"), G.make("iron_helm", "rare", ["vigor", "calm"])]
+	_check(T.gear_kind(prof.pack[0]) == "stone" and T.gear_sell(prof.pack[0]) == 4, "a Leather Cap sells for 4 Stone")
+	_check(T.gear_kind(prof.pack[1]) == "stone" and T.gear_price(prof.pack[1]) == 56 and T.gear_sell(prof.pack[1]) == 22, "a Rare Iron Helm of Vigor: 56 Stone, sells for 22")
+	menu.train_store = "sell"
+	menu.inv_sel = "pack:0"
+	menu.open("train")
+	await _frames(2)
+	var stone: float = prof.crystal_total("stone")
+	var sell: Array = _all_buttons(menu).filter(func(b): return b.get_meta("sell", "") == "pack:0")
+	if sell.size() == 1:
+		sell[0].pressed.emit()
+		await _frames(2)
+	_check(prof.pack.size() == 2, "the first press on Sell only asks")
+	sell = _all_buttons(menu).filter(func(b): return b.get_meta("sell", "") == "pack:0")
+	if sell.size() == 1:
+		sell[0].pressed.emit()
+		await _frames(2)
+	_check(prof.pack.size() == 1 and prof.crystal_total("stone") == stone + 4.0, "the second sells it: a 4 Stone crystal")
+	# The chest: keep a piece; it's saved with the profile (old saves load without one).
+	_check(T.move(prof, p, "pack", 0) == "" and prof.chest.size() == 1 and prof.pack.is_empty(), "a piece moves from your pack to the chest")
+	prof.supplies = {"tonic": 2}
+	var path := "user://smoke_train_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.chest.size() == 1 and G.same(again.chest[0], prof.chest[0]) and int(again.supplies.get("tonic", 0)) == 2 and again.store.has("outfit"), "the chest, supplies and stock are saved and load again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.regarded and again.chest.is_empty() and again.pack.is_empty() and again.supplies.is_empty() and again.store.is_empty(), "an old save loads with an empty chest")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	_check(T.move(prof, p, "chest", 0) == "" and prof.pack.size() == 1, "...and back into your pack")
+	# A phone: big enough to touch; tap Depart, then a tower.
+	main.touch._set_active(true)
+	await _frames(2)
+	menu.open("train")
+	await _frames(3)
+	var small: Array = _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.size.y < 36.0)
+	_check(small.is_empty(), "on a phone every train button is at least 36 tall (54 px): %s" % [small.map(func(b): return b.text)])
+	var dep: Array = _all_buttons(menu).filter(func(b): return b.get_meta("tab", "") == "depart")
+	await _tap_at(dep[0].get_global_rect().get_center())
+	_check(menu.train_car == "depart", "tapping Depart shows the towers")
+	prof.supplies = {"tonic": 1}
+	p.gear = G.start_gear()
+	p.refresh_gear()
+	prof.pack = [G.make("leather_cap"), G.make("dagger"), G.make("chain")]
+	menu.open("train")
+	await _frames(2)
+	var cards: Array = _all_buttons(menu).filter(func(b): return b.get_meta("tower", "") == "wyvern")
+	_check(cards.size() == 1, "a card for each tower")
+	if cards.size() == 1:
+		await _tap_at(cards[0].get_global_rect().get_center())
+	_check(not main.on_train and not main.choosing_tower and main.tower == "wyvern" and not menu.is_open(), "tapping a tower departs for it")
+	_check(p.gear_id("helm") == "leather_cap" and p.gear_id("melee") == "dagger" and p.gear_id("armor") == "chain", "pieces in your pack go on as you enter (the dagger in place of the starting sword)")
+	_check(p.item_count("tonic") == 1 and prof.pack.is_empty() and prof.supplies.is_empty() and prof.store.is_empty(), "supplies go on your belt; the store restocks next visit")
+	main.touch._set_active(false)
