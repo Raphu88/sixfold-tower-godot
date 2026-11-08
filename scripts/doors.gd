@@ -127,6 +127,7 @@ func clear() -> void:
 				b.queue_free()
 	lock_rooms.clear()
 	animating = false
+	holding = 0
 	_redraw()
 
 
@@ -547,6 +548,8 @@ func _process(delta: float) -> void:
 	if list.is_empty():
 		return
 	bump_t -= delta
+	if holding > 0:
+		_tick_held(delta)
 	var pp: Vector2 = main.player.global_position
 	for k in keys:
 		if not k["taken"] and not main.player.dead and pp.distance_to(k["pos"]) < 24.0 + main.player.radius:
@@ -562,7 +565,7 @@ func _process(delta: float) -> void:
 	var p = main.player
 	if not p.dead:
 		for d in list:
-			if not d["open"] and _touches(d, p.global_position, p.radius):
+			if not d["open"] and _touches(d, p.global_position, p.radius) and float(d.get("held", 0.0)) <= 0.0:
 				if d["lock"] != "":
 					_bump(d)
 				else:
@@ -570,7 +573,7 @@ func _process(delta: float) -> void:
 	monster_t -= delta
 	if monster_t <= 0.0:
 		monster_t = MONSTER_CHECK
-		var shut: Array = list.filter(func(d): return not d["open"] and d["lock"] == "")
+		var shut: Array = list.filter(func(d): return not d["open"] and d["lock"] == "" and float(d.get("held", 0.0)) <= 0.0)
 		if shut.is_empty():
 			return
 		for e in main.enemies():
@@ -579,6 +582,60 @@ func _process(delta: float) -> void:
 			for d in shut:
 				if not d["open"] and _touches(d, e.global_position, e.radius):
 					open_door(d)
+
+
+## The Designer's Switch (secret_tools.gd) shuts an open door again and holds
+## it for `hold` seconds: nobody opens it until then (or until it's switched
+## open). False if a body stands in the doorway.
+var holding := 0  # doors held shut right now
+
+
+func close_door(d: Dictionary, hold := 0.0) -> bool:
+	if not d["open"]:
+		d["held"] = maxf(float(d.get("held", 0.0)), hold)
+		holding = list.filter(func(x): return float(x.get("held", 0.0)) > 0.0).size()
+		return true
+	var rect: Rect2 = d["rect"]
+	var p = main.player
+	if p != null and rect.grow(p.radius).has_point(p.global_position):
+		return false
+	for e in main.enemies():
+		if rect.grow(e.radius).has_point(e.global_position):
+			return false
+	d["open"] = false
+	d["t"] = 0.0
+	d["held"] = hold
+	for t in d["tiles"]:
+		_set_tile(t, true)
+	var body := StaticBody2D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.position = rect.get_center()
+	var shape := CollisionShape2D.new()
+	var box := RectangleShape2D.new()
+	box.size = rect.size
+	shape.shape = box
+	body.add_child(shape)
+	main.add_child(body)
+	d["body"] = body
+	_add_light(d)
+	if main.fog != null:
+		main.fog.set("last_tile", Vector2i(-999, -999))
+	holding = list.filter(func(x): return float(x.get("held", 0.0)) > 0.0).size()
+	main.sfx("slam", 1.4, -8.0, 0.08)
+	_redraw()
+	return true
+
+
+func _tick_held(delta: float) -> void:
+	var n := 0
+	for d in list:
+		var h := float(d.get("held", 0.0))
+		if h > 0.0:
+			d["held"] = h - delta
+			if h - delta > 0.0:
+				n += 1
+	holding = n
 
 
 func _touches(d: Dictionary, pos: Vector2, r: float) -> bool:

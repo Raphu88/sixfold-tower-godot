@@ -1101,9 +1101,13 @@ func _plan_tests() -> void:
 		await _frames(1)
 		if main.door_view.list.any(func(d): return d["lock"] == ""):
 			break
-	door = main.door_view.list.filter(func(d): return d["lock"] == "")[0]
+	# (A door no one has opened yet; every other monster asleep and still, so
+	# only the test's own monster can open it.)
+	var unlocked: Array = main.door_view.list.filter(func(d): return d["lock"] == "" and not d["open"])
+	door = unlocked[0] if not unlocked.is_empty() else main.door_view.list.filter(func(d): return d["lock"] == "")[0]
 	for e in main.enemies():
 		e.set_physics_process(false)
+		e.aware = false
 	p.global_position = main.player_start
 	main.door_view.monster_t = 99.0  # (a new monster starts awake: hold the check a moment)
 	var foe = await _spawn("slime", door["rect"].get_center() + door["out"] * 50.0)
@@ -1117,7 +1121,7 @@ func _plan_tests() -> void:
 		if door["open"]:
 			break
 		await _wait(0.1)
-	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it")
+	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it (shut while asleep: %s, open once awake: %s)" % [shut, door["open"]])
 	foe.queue_free()
 	# Entering a themed room shows its name and rule, once.
 	for e in main.enemies():
@@ -1997,20 +2001,37 @@ func _puzzle_tests() -> void:
 	# A test puzzle of each hand-made kind, laid out in the start room. (Some
 	# start rooms have a wall there: lay the floor out again until it's open.)
 	var c: Vector2 = main.player_start + Vector2(0, -120)
-	for attempt in 30:
-		var open := true
+	var is_open := func(at: Vector2) -> bool:
 		for dx in range(-160, 161, 40):
 			for dy in range(-200, 161, 40):
-				open = open and not main.is_solid(c + Vector2(dx, dy))
+				if main.is_solid(at + Vector2(dx, dy)):
+					return false
 		for tr in main.traps:
-			open = open and tr["pos"].distance_to(c) > 260.0
-		if open:
+			if tr["pos"].distance_to(at) <= 260.0:
+				return false
+		return true
+	var found := false
+	for attempt in 40:
+		# (The start, or the middle of any room on this floor.)
+		var spots: Array = [main.player_start + Vector2(0, -120)]
+		for info in main.room_info:
+			spots.append(info["rect"].get_center())
+		for at in spots:
+			if is_open.call(at):
+				c = at
+				found = true
+				break
+		if found:
 			break
 		main._start_floor(3)
 		for e in main.enemies():
 			e.queue_free()
 		await _frames(1)
-		c = main.player_start + Vector2(0, -120)
+	_check(found, "(found an open patch of floor for the test puzzles)")
+	for e in main.enemies():
+		if e.global_position.distance_to(c) < 420.0:
+			e.queue_free()
+	await _frames(1)
 	var tile := func(v: Vector2) -> Vector2: return main.room.position + (Vector2(main._tile_of(v)) + Vector2(0.5, 0.5)) * F.CELL
 	# Eyes: arrows and strikes light them; all lit solves it.
 	var e1: Vector2 = tile.call(c + Vector2(-80, 0))
@@ -6972,6 +6993,7 @@ func _run() -> void:
 	await _firebird_bond_tests()
 	await _proving_tests()
 	await _secret_tests()
+	await _secret_bond_tests()
 	await _chimera_bond_tests()
 	await _body_part_tests()
 	await _item_tests()
@@ -9594,3 +9616,309 @@ func _mirror_image_tests() -> void:
 	main.secret_on = false
 	M.force = false
 	M.climb_ok = true
+## The three secret bonds (secret_bonds.gd, secret_tools.gd, secret_page.gd):
+## the tool ring, every depth 1 and 2 tool, costs, growth, the Core tab, save.
+func _secret_bond_tests() -> void:
+	print("the secret bonds")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var SB = load("res://scripts/secret_bonds.gd")
+	var T = main.secret_tools
+	var p = main.player
+	var prof = main.profile
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	p.mouse_aim = false
+	p.iframes = 9999.0
+	# No secret bond: no ring, no Tools button, no Core tab.
+	_check(T != null and not T.ring_ready() and SB.ring_tools(prof).is_empty(), "no secret bond: no tools")
+	Input.action_press("tool_ring")
+	await _until(func(): return T.ring_open, 0.45)
+	_check(not T.ring_open, "...holding the tool button opens nothing")
+	Input.action_release("tool_ring")
+	await _frames(2)
+	main.touch._layout()
+	_check(not main.touch.buttons.any(func(b): return b["id"] == "tools"), "...and no Tools button on a phone")
+	_check(not main.menu.climber_tabs().any(func(t): return t[0] == "core"), "...and no Core tab")
+	# The ring's tools at depths 1 and 2.
+	var want := {"developer": [["dev_inspect"], ["dev_inspect", "dev_tune"]], "designer": [["des_inspect"], ["des_inspect", "des_switch"]],
+		"manipulator": [["man_inspect"], ["man_inspect", "man_calm", "man_feud"]]}
+	var right := true
+	for bond in want:
+		for d in [1, 2]:
+			SB.grant(prof, bond, d)
+			right = right and SB.ring_tools(prof) == want[bond][d - 1]
+	_check(right, "each bond's ring shows its depth 1 tool, then its depth 2 tools too")
+	_check(SB.CAP == 2 and SB.TOOLS.values().all(func(t): return int(t["depth"]) <= SB.CAP), "only depths 1 and 2 are built for now")
+	SB.grant(prof, "manipulator", 2)
+	_check(T.ring_ready() and main.menu.climber_tabs().any(func(t): return t[0] == "core"), "with a secret bond: the tools and a Core tab")
+	main.touch._layout()
+	_check(main.touch.buttons.any(func(b): return b["id"] == "tools" and b["action"] == "tool_ring"), "...and a Tools button on a phone")
+	# Hold to open the ring (time slows), point, let go to use.
+	Input.action_press("tool_ring")
+	await _until(func(): return T.ring_open, 1.0)
+	_check(T.ring_open and main.slowmo, "holding the tool button opens the ring; time slows")
+	await _frames(3)
+	T.ring_index = 0
+	T.dir_override = Vector2(0, -60)  # (pointing up: the first tool)
+	Input.action_release("tool_ring")
+	await _until(func(): return not T.ring_open, 1.0)
+	_check(not T.ring_open and not main.slowmo and T.message != "", "letting go uses the pointed tool (here: nothing to aim at: %s)" % T.message)
+	# A controller: LB + LT holds the ring (not parry).
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
+	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)
+	await _frames(2)
+	_check(Input.is_action_pressed("tool_ring") and not Input.is_action_pressed("parry"), "LB + LT holds the tool ring on a controller")
+	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 0.0)
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
+	await _frames(2)
+	main.pad._set_active(false)
+	T.holding = false
+
+	print("the Manipulator")
+	var slime = await _spawn("slime", p.global_position + Vector2(150, 0))
+	slime.aware = true
+	# Costs: blocked when short, paid from what you carry.
+	main.run_essence = {}
+	main.run_flow = 0.0
+	_check(not T.use("man_inspect", slime) and T.message.begins_with("Needs") and T.inspected.is_empty(), "a tool you can't pay for says what's missing (%s)" % T.message)
+	main.run_essence = {"water": 10.0}
+	_check(T.use("man_inspect", slime) and slime in T.inspected, "Inspect reads a monster")
+	_check(is_equal_approx(float(main.run_essence.get("water", 0.0)), 10.0 - 1.0 - 1.0 * SB.SUBSTITUTE), "...paid in essence: its essence, and 3 for each Life you don't carry (%.1f left)" % float(main.run_essence.get("water", 0.0)))
+	var nx: Dictionary = SB.predict(slime, slime.global_position.distance_to(p.global_position))
+	_check(not slime.is_attacking() and nx.get("name", "") == "Pounce" and not nx["now"], "its next attack shows before it starts: %s" % nx.get("name", ""))
+	slime.state_t = 0.0
+	slime.set_physics_process(true)
+	await _until(func(): return slime.state == "wind", 6.0)
+	var lines: Array = SB.monster_lines(slime, slime.global_position.distance_to(p.global_position), main.floor_num, main.tower)
+	_check(slime.state == "wind" and String(lines[-1]).begins_with("Now: Pounce"), "...and it is the attack it winds up: %s" % lines[-1])
+	_check(String(lines[0]).begins_with("Slime") and lines.any(func(l): return String(l).begins_with("carries")), "the readout: its numbers and the essence it carries")
+	slime.queue_free()
+	# Calm: it ignores you until struck.
+	prof.path = "life"
+	main.run_flow = 5.0
+	main.run_essence = {"water": 30.0}
+	var kn = await _spawn("knight", p.global_position + Vector2(55, 0))
+	kn.aware = true
+	_check(T.use("man_calm", kn) and kn.calm, "Calm sets a monster calm")
+	_check(is_equal_approx(main.run_flow, 2.0) and is_equal_approx(float(main.run_essence["water"]), 28.0), "...paid with Life you carry, then essence")
+	kn.set_physics_process(true)
+	var hp0: float = p.hp
+	await _until(func(): return kn.is_attacking(), 1.2)
+	_check(not kn.is_attacking() and p.hp == hp0, "a calm monster beside you doesn't attack")
+	p._strike(kn, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(not kn.calm, "...until it's struck")
+	await _until(func(): return kn.is_attacking(), 4.0)
+	_check(kn.is_attacking(), "...then it comes for you")
+	kn.queue_free()
+	var champ = await _spawn("knight", p.global_position + Vector2(80, 0))
+	champ.make_champion()
+	_check(not T.use("man_calm", champ) and T.message == SB.TEXT["resists"] and is_equal_approx(float(main.run_essence["water"]), 28.0), "a great foe won't answer (and nothing is paid)")
+	champ.queue_free()
+	# Set against each other: they fight.
+	var k1 = await _spawn("knight", p.global_position + Vector2(300, 0))
+	var k2 = await _spawn("knight", p.global_position + Vector2(350, 0))
+	main.run_essence = {"water": 40.0}
+	_check(T.use("man_feud", k1) and k1.feud == k2 and k2.feud == k1 and T.feuds == 2, "Set against pairs a monster with the one nearest it")
+	k1.set_physics_process(true)
+	k2.set_physics_process(true)
+	await _until(func(): return k1.hp < k1.max_hp or k2.hp < k2.max_hp, 6.0)
+	_check(k1.hp < k1.max_hp or k2.hp < k2.max_hp, "...and they fight each other (%d, %d)" % [int(k1.hp), int(k2.hp)])
+	k1.queue_free()
+	k2.queue_free()
+	await _frames(2)
+
+	print("the Developer")
+	SB.grant(prof, "developer", 2)
+	main._give_bonds()
+	main.run_essence = {"water": 40.0}
+	main.run_flow = 3.0
+	var b = p.bonds["hand"]
+	var sp: Dictionary = b.spell()
+	var rows: Array = SB.spell_numbers(b, sp)
+	var row_of := func(rs: Array, name: String) -> String:
+		for r in rs:
+			if r[0] == name:
+				return r[1]
+		return ""
+	_check(row_of.call(rows, "Damage") == SB._num(b.damage()) and row_of.call(rows, "Cost") == "%s essence" % SB._num(b.cost())
+		and row_of.call(rows, "Wind-up") == "%s s" % SB._num(b.windup()) and row_of.call(rows, "Reach") == SB._num(float(b.stat("reach"))), "Inspect's numbers are the spell's real numbers (%s)" % [rows])
+	b.flow_power = 1.3
+	_check(row_of.call(SB.spell_numbers(b, sp), "Damage") == SB._num(b.damage()) and b.damage() > float(b.stat("damage")), "...with what changes them counted (%s)" % SB._num(b.damage()))
+	b.flow_power = 1.0
+	_check(SB.step_adds(sp).size() == sp["steps"].size() and String(SB.step_adds(sp)[1]).begins_with("Step 2"), "...and what each step adds")
+	_check(T.use("dev_inspect") and T.panel == "spells" and T.paid.has("dev_inspect"), "Inspect opens the spells' panel, for the floor")
+	var left: float = float(main.run_essence["water"])
+	_check(T.use("dev_inspect") and T.panel == "" and float(main.run_essence["water"]) == left, "...again: closes it, free")
+	_check(not T.use("dev_tune") and T.message.contains("between climbs"), "Tune waits for the train")
+	await _frames(2)
+	# Tune: power, cost or a quicker wind-up, paid in crystals, kept.
+	var base_dmg: float = b.damage()
+	var base_cost: float = b.cost()
+	var base_wind: float = b.windup()
+	_check(SB.set_tune(prof, sp["id"], "power") != "", "Tune needs crystal essence")
+	prof.add_crystal("water", 30.0)
+	_check(SB.set_tune(prof, sp["id"], "power") == "" and is_equal_approx(SB.crystals_held(prof), 30.0 - SB.TUNE_COST), "a change costs crystal essence")
+	main._give_bonds()
+	b = p.bonds["hand"]
+	_check(is_equal_approx(b.damage(), base_dmg * SB.TUNE["power"]["power"]) and is_equal_approx(b.cost(), base_cost), "Power: more damage, the same cost")
+	SB.set_tune(prof, sp["id"], "cost")
+	main._give_bonds()
+	b = p.bonds["hand"]
+	_check(is_equal_approx(b.cost(), base_cost * SB.TUNE["cost"]["cost"]) and is_equal_approx(b.damage(), base_dmg), "Thrift: less cost")
+	SB.set_tune(prof, sp["id"], "quick")
+	main._give_bonds()
+	b = p.bonds["hand"]
+	_check(is_equal_approx(b.windup(), base_wind * SB.TUNE["quick"]["windup"]), "Quick: a quicker wind-up")
+	# On the train: the Core tab's Tune buttons, and a change of path.
+	prof.add_crystal("water", 40.0)
+	main.on_train = true
+	prof.path = "unmaking"
+	prof.flow = 80.0
+	main._give_bonds()
+	main.menu.climber_tab = "core"
+	main.menu.open("climber")
+	await _frames(2)
+	var tb: Button = null
+	for c in main.menu.find_children("*", "Button", true, false):
+		if c.has_meta("tune") and c.get_meta("tune") == [sp["id"], "power"]:
+			tb = c
+	_check(tb != null and not tb.disabled, "the Core tab shows Tune for each spell on the train")
+	if tb != null:
+		tb.pressed.emit()
+		await _frames(1)
+	_check(String(prof.core_tune.get(sp["id"], "")) == "power", "...a press sets it")
+	var pb: Button = null
+	for c in main.menu.find_children("*", "Button", true, false):
+		if c.has_meta("path_change"):
+			pb = c
+	_check(pb != null and not pb.disabled, "the Developer can let your path go on the train")
+	if pb != null:
+		pb.pressed.emit()
+		await _frames(1)
+	_check(prof.path == "unmaking", "...a first press only asks")
+	for c in main.menu.find_children("*", "Button", true, false):
+		if c.has_meta("path_change"):
+			c.pressed.emit()
+	await _frames(1)
+	_check(prof.path == "" and prof.flow == 0.0 and main.run_flow == 0.0, "...a second: all of the path's flow is gone, and a new path starts from nothing")
+	_check(main.menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == load("res://scripts/secret_page.gd").Drain), "...shown flowing out of the shadow")
+	main.on_train = false
+	main.menu.close()
+	main.menu.remove_meta("path_drain")
+
+	print("the Designer")
+	var ok: bool = await _wing_floor(true)
+	_check(ok, "a floor of rooms with a secret wall")
+	SB.grant(prof, "designer", 2)
+	prof.path = "unmaking"
+	main.run_flow = 20.0
+	main.run_essence = {"water": 40.0}
+	main.player.iframes = 9999.0
+	_check(T.use("des_inspect") and T.panel == "plan" and T.plan_tex != null, "Inspect opens the floor's plan")
+	_check(is_equal_approx(main.run_flow, 18.0), "...paid with Unmaking you carry")
+	var entries: Array = SB.plan_entries(main)
+	var count := func(t: String) -> int: return entries.filter(func(e): return e["type"] == t).size()
+	_check(count.call("trap") == main.traps.size() and count.call("door") == main.door_view.list.size() and count.call("secret") == main.wings.secrets.size()
+		and count.call("room") == main.room_info.size() and count.call("secret") > 0, "the plan lists every trap, door, secret wall and room (%d, %d, %d, %d)" % [count.call("trap"), count.call("door"), count.call("secret"), count.call("room")])
+	_check(entries.filter(func(e): return e["type"] == "trap").all(func(e): return String(e["text"]).contains("warns")), "...every trap with its timing")
+	var rewards: Array = ["cache", "crystal", "tithe", "gear", "spring", "camp", "forge", "oasis", "pyre", "nest", "aerie", "tidepool"]
+	var told: Array = entries.map(func(e): return String(e["text"]).to_lower() + " " + String(e.get("room_text", "")).to_lower())
+	_check(not told.any(func(t): return rewards.any(func(w): return t.contains(w))), "...and never a reward")
+	await _frames(3)  # (the plan and the readouts draw)
+	# Switch a trap off and on.
+	var tr: Dictionary = main.traps.filter(func(x): return String(x.get("trigger", "")) == "timed")[0] if main.traps.any(func(x): return String(x.get("trigger", "")) == "timed") else main.traps[0]
+	main.player.global_position = tr["pos"] + Vector2(160, 0)
+	_check(T.use("des_switch", {"trap": tr}) and tr.get("off", false) and tr["state"] == "idle", "Switch turns a trap off")
+	var tt: float = float(tr["timer"])
+	await _frames(4)
+	_check(float(tr["timer"]) == tt and tr["state"] == "idle", "...it rests")
+	_check(T.use("des_switch", {"trap": tr}) and not tr.get("off", false), "...and on again")
+	# Open and shut a door at a distance.
+	var doors: Array = main.door_view.list.filter(func(d): return String(d["lock"]) == "" and String(d.get("fixed", "")) == "")
+	_check(not doors.is_empty(), "the floor has an unlocked door")
+	if not doors.is_empty():
+		var d: Dictionary = doors[0]
+		main.player.global_position = d["rect"].get_center() + Vector2(0, 200) if not main.is_solid(d["rect"].get_center() + Vector2(0, 200)) else main.player_start
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(1)
+		if not d["open"]:
+			_check(T.use("des_switch", {"door": d}) and d["open"], "Switch opens a door from afar")
+		_check(T.use("des_switch", {"door": d}) and not d["open"] and float(d["held"]) > 0.0 and main.is_solid(d["rect"].get_center()), "...and shuts it again; it holds")
+		main.player.global_position = d["rect"].get_center() + Vector2(d["out"]) * 30.0
+		await _frames(3)
+		_check(not d["open"], "...nobody opens a held door")
+	main.run_essence = {}
+	main.run_flow = 0.0
+	_check(not T.use("des_switch", {"trap": tr}) and not tr.get("off", false), "with nothing to pay, nothing switches")
+	T.panel = ""
+
+	print("secret bond growth")
+	SB.grant(prof, "designer", 1)
+	prof.core_xp = {}
+	_check(SB.on_bank(prof, {"water": 100.0}, 30.0, "unmaking").is_empty() and SB.depth_of(prof) == 1, "the Designer grows from banked Unmaking only")
+	var grew: Array = SB.on_bank(prof, {}, 30.0, "unmaking")
+	_check(SB.depth_of(prof) == 2 and grew.size() == 1 and String(grew[0]).contains("Switch"), "...60 banked: depth 2 (%s)" % [grew])
+	SB.on_bank(prof, {}, 900.0, "unmaking")
+	_check(SB.depth_of(prof) == 2 and SB.next_lines(prof).has(SB.TEXT["capped"]), "...no deeper than 2 for now")
+	SB.grant(prof, "manipulator", 1)
+	SB.on_bank(prof, {}, 70.0, "unmaking")
+	_check(SB.depth_of(prof) == 1, "the Manipulator doesn't grow from Unmaking")
+	SB.on_bank(prof, {}, 70.0, "life")
+	_check(SB.depth_of(prof) == 2, "...it grows from Life")
+	SB.grant(prof, "developer", 1)
+	SB.on_bank(prof, {"water": 300.0, "air": 200.0}, 10.0, "life")
+	_check(SB.depth_of(prof) == 1 and SB.next_lines(prof).any(func(l): return String(l).contains("Mastery")), "the Developer needs essence of every kind and one thing more")
+	for part in ["hand", "legs", "heart"]:
+		prof.bonds[part] = {"id": ["stormcaller", "windwalker", "warden"][["hand", "legs", "heart"].find(part)], "xp": 600.0, "faint": false, "debt": 0.0}
+	SB.grow(prof)
+	_check(SB.depth_of(prof) == 2, "...three bonds at step 5 are enough")
+	prof.bonds.erase("heart")
+	prof.bonds["hand"]["xp"] = 0.0
+	prof.bonds["legs"]["xp"] = 0.0
+	# The Core tab and the dev tools.
+	main.menu.climber_tab = "core"
+	main.menu.open("climber")
+	await _frames(2)
+	var text := ""
+	for c in main.menu.find_children("*", "Label", true, false):
+		text += c.text + "\n"
+	for c in main.menu.find_children("*", "RichTextLabel", true, false):
+		text += c.get_parsed_text() + "\n"
+	_check(text.contains("DEVELOPER") and text.contains("Inspect") and text.contains("Tune") and text.contains("Growth".to_upper()), "the Core tab: the bond, its depth, its tools and growth")
+	_check(not ["attunement", "spire", "trial", "judgment", "mana"].any(func(w): return text.to_lower().contains(w)), "...in the game's own words")
+	main.menu.close()
+	main.menu.open("dev")
+	await _frames(1)
+	_check(_menu_button("Designer 2") != null and _menu_button("Clear the secret bond") != null, "the dev tools grant each secret bond at depth 1 or 2, or clear it")
+	_menu_button("Manipulator 1").pressed.emit()
+	await _frames(1)
+	_check(SB.bond_of(prof) == "manipulator" and SB.depth_of(prof) == 1, "...and they work")
+	main.menu.close()
+	# Saved, and old saves load without one.
+	SB.grant(prof, "developer", 2)
+	prof.core_tune = {"chain_lightning": "quick"}
+	prof.core_xp = {"essence": 12.0}
+	var path := "user://smoke_sbond_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.core_mark == "developer" and again.core_depth == 2 and again.core_tune.get("chain_lightning", "") == "quick" and float(again.core_xp.get("essence", 0.0)) == 12.0, "the secret bond, its depth, growth and Tune are saved")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.core_mark == "" and again.core_depth == 0 and SB.bond_of(again) == "", "an old save loads with no secret bond")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	SB.clear(prof)
+	main._give_bonds()
+	p.iframes = 0.0

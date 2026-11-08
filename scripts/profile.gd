@@ -88,6 +88,11 @@ var makers := {}
 ## and its depth (0 without one, 1 to 5). One per climber.
 var core_mark := ""
 var core_depth := 0
+## The secret bond's own: what's been banked toward its next depth since the
+## mark (kind -> amount: "essence", "life", "unmaking") and the Developer's Tune
+## (spell id -> setting). secret_bonds.gd reads and writes them.
+var core_xp := {}
+var core_tune := {}
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -180,6 +185,8 @@ func reset() -> void:
 	makers = {}
 	core_mark = ""
 	core_depth = 0
+	core_xp = {}
+	core_tune = {}
 	save()
 
 
@@ -238,6 +245,13 @@ func load_save() -> void:
 	makers = mk if mk is Dictionary else {}
 	core_mark = str(cfg.get_value("profile", "core_mark", ""))
 	core_depth = int(cfg.get_value("profile", "core_depth", 0))
+	if not core_mark in ["developer", "designer", "manipulator"]:
+		core_mark = ""
+		core_depth = 0
+	var cx = cfg.get_value("profile", "core_xp", {})
+	core_xp = cx if cx is Dictionary else {}
+	var ct = cfg.get_value("profile", "core_tune", {})
+	core_tune = ct if ct is Dictionary else {}
 
 
 func save() -> void:
@@ -273,6 +287,8 @@ func save() -> void:
 	cfg.set_value("makers", "state", makers)
 	cfg.set_value("profile", "core_mark", core_mark)
 	cfg.set_value("profile", "core_depth", core_depth)
+	cfg.set_value("profile", "core_xp", core_xp)
+	cfg.set_value("profile", "core_tune", core_tune)
 	cfg.save(save_path)
 
 

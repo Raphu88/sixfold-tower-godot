@@ -178,7 +178,7 @@ func _button(id: int, pressed: bool) -> void:
 	if pressed:
 		if down.has(id):
 			return
-		var action: String = Controls.PAD_CAST.get(id, "") if cast_held else ""
+		var action: String = Controls.PAD_CAST.get(id, Controls.PAD_LB_EXTRA.get(id, "")) if cast_held else ""
 		if action == "":
 			action = Controls.PAD.get(id, "")
 		if action == "":
@@ -193,7 +193,7 @@ func _button(id: int, pressed: bool) -> void:
 	else:
 		# Let go of whatever this button pressed (after a restart this node
 		# doesn't remember, so let go of both of its actions).
-		var actions: Array = [down[id]] if down.has(id) else [Controls.PAD.get(id, ""), Controls.PAD_CAST.get(id, "")]
+		var actions: Array = [down[id]] if down.has(id) else [Controls.PAD.get(id, ""), Controls.PAD_CAST.get(id, ""), Controls.PAD_LB_EXTRA.get(id, "")]
 		var was_down := down.has(id)
 		down.erase(id)
 		for a in actions:

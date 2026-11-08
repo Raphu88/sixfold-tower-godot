@@ -4,6 +4,7 @@ extends RefCounted
 ## its spell and how that spell grows with each step.
 
 const Bonds := preload("res://scripts/bonds.gd")
+const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const PART_NAMES := Bonds.PART_NAMES
 const PART_FILLS := Bonds.PART_FILLS
 const PART_BURN := Bonds.PART_BURN
@@ -100,20 +101,43 @@ func capacity() -> float:
 
 
 func cost() -> float:
-	return float(stat("cost")) * (1.25 if faint else 1.0)
+	return spell_cost(spell())
 
 
 ## A faint mark's spells hit softer, and so do desperate (overdrawn) casts.
 func power() -> float:
-	return (0.75 if faint else 1.0) * overdraw_mult * attr_power * gear_power
+	return spell_power(spell())
 
 
 func damage() -> float:
-	return float(stat("damage")) * power() * flow_power
+	return spell_damage(spell())
 
 
 func windup() -> float:
-	return float(stat("windup"))
+	return spell_windup(spell())
+
+
+## The same numbers for any of its spells (the Developer's Inspect reads
+## these), with the Developer's Tune (`tunes`: spell id -> setting, set by
+## main.gd from secret_bonds.gd) applied.
+var tunes := {}
+
+
+func spell_cost(sp: Dictionary) -> float:
+	return float(spell_stat(sp, "cost")) * (1.25 if faint else 1.0) * SecretBonds.tune_mult(tunes, sp["id"], "cost")
+
+
+func spell_power(sp: Dictionary) -> float:
+	return (0.75 if faint else 1.0) * overdraw_mult * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power")
+
+
+func spell_damage(sp: Dictionary) -> float:
+	var d = spell_stat(sp, "damage")
+	return float(d if d != null else 0.0) * spell_power(sp) * flow_power
+
+
+func spell_windup(sp: Dictionary) -> float:
+	return float(spell_stat(sp, "windup")) * SecretBonds.tune_mult(tunes, sp["id"], "windup")
 
 
 ## What reaching `new_step` brings, in a few words (empty if nothing).
