@@ -16,6 +16,7 @@ extends RefCounted
 ##               "puzzle"  a stone door bearing the puzzle's emblem
 ##               "warm"    warm light under the door: a good room
 ##               "chained" chains and a red glow: danger
+##               "mirror"  an oval of silvered glass with a figure in it: a mirror image
 ##   min_size  the smallest room (tiles) it fits; a room too small takes another theme
 ##   towers    [] for every tower, else only these towers
 ##   home      (optional) towers where it's twice as likely, like a tower's own
@@ -29,10 +30,11 @@ extends RefCounted
 ##               "trap"    a set piece of traps is laid here (traps.gd);
 ##                         every floor from 2 up has at least one trap room
 ##               "chasm"   a band of chasm across the room
+##               "mirror"  a mirror image of the climber (mirror.gd)
 ##               "stair", "puzzle", "start", or "" for nothing
 ##   sigil     (hazard doors) the hazard's sign: wind, wave, flame, spike, dart,
 ##             ember, thorn, gas, chasm
-##   decor     marks drawn on its floor: "bones", "scorch", "ripples" (optional)
+##   decor     marks drawn on its floor: "bones", "scorch", "ripples", "glass" (optional)
 ##   from      the first floor it can appear on (optional, default 1)
 ##   weight    how likely it is next to the others of its kind (optional, default 1)
 
@@ -75,6 +77,12 @@ const THEMES := {
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "proving"},
 	"proving_stair": {"name": "The Way Up", "kind": "proving", "sub": "", "tint": Color(0.75, 0.55, 1.0, 0.05),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "stair"},
+
+	# A mirror room (mirror.gd picks one now and then, from a branch room):
+	# a mirror image of the climber steps out of the glass. Kind "mirror":
+	# never handed out by the rules below.
+	"mirror": {"name": "Hall of Glass", "kind": "mirror", "sub": "Silvered glass on every wall. What steps out of it fights the way you do.",
+		"tint": Color(0.7, 0.8, 1.0, 0.07), "door": "mirror", "min_size": Vector2i(0, 0), "towers": [], "feature": "mirror", "decor": "glass"},
 
 	# --- good rooms ---------------------------------------------------------------
 	"spring": {"name": "Healing Spring", "kind": "good", "sub": "Clear water wells up from the stone. Stand in it to heal.",
@@ -137,7 +145,8 @@ const RULES := {
 	"trap_from": 2,  # from this floor every floor has a trap room (see `assign`)
 }
 ## How often a room's doorway gets a door: likelier where danger waits.
-const DOOR_CHANCE := {"likely": 0.75, "else": 0.35}
+const DOOR_CHANCE := {"likely": 0.75, "else": 0.35, "always": 1.0}
+const DOOR_ALWAYS := ["mirror"]
 const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "crypt", "pillars"]
 
 
@@ -178,7 +187,8 @@ static func fits(id: String, info: Dictionary, tid: String, tower: Dictionary) -
 
 ## Gives every room of a floor a theme, the way the web version did:
 ##   the start room is the Arrival Hall, the stair room the Stair Landing,
-##   and the puzzle room takes its puzzle's theme;
+##   the puzzle room takes its puzzle's theme, and a room with a "fixed"
+##   theme keeps it (a mirror room, mirror.gd);
 ##   of the rest (in a random order), the first is always a good room and
 ##   the second a den; after that a mix, with a cap on bad rooms that grows
 ##   with height, no bad theme twice a floor, the tower's own themes weighted
@@ -198,8 +208,9 @@ static func assign(infos: Array, floor_num: int, tid: String, tower: Dictionary)
 			"gallery":
 				info["theme"] = puzzle_theme(String(info.get("puzzle", "")))
 			_:
-				info["theme"] = ""
-				free.append(i)
+				info["theme"] = String(info.get("fixed", ""))  # (fixed beforehand: a mirror room, mirror.gd)
+				if info["theme"] == "":
+					free.append(i)
 	free.shuffle()
 	var max_bad := 4
 	for step in RULES["max_bad"]:
@@ -298,4 +309,6 @@ static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dicti
 
 ## How likely a doorway into a room with this theme is to have a door.
 static func door_chance(id: String) -> float:
+	if id in DOOR_ALWAYS:
+		return float(DOOR_CHANCE["always"])
 	return float(DOOR_CHANCE["likely"]) if id in DOOR_LIKELY else float(DOOR_CHANCE["else"])

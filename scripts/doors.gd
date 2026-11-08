@@ -15,6 +15,8 @@ extends Node2D
 ##   chained  chains across it and a red glow under it: danger
 ##   sealed   a stone slab carved with a watching eye, red light under it: a
 ##            sealed wing (wings.gd), where the Regard tests you
+##   mirror   an oval of silvered glass with a hooded figure in it, cold light
+##            under it: a mirror room (mirror.gd draws it)
 ## The Proving's doors (floor 6, proving.gd):
 ##   proving  a stone slab bearing a gold six-pointed star, gold light under it
 ##   lethal   the same slab, blackened, its star red and cracked, red light under it
@@ -27,6 +29,7 @@ extends Node2D
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Themes := preload("res://scripts/themes.gd")
+const Mirror := preload("res://scripts/mirror.gd")
 
 ## A door opens when a body's edge comes this close to it (px).
 const REACH := 24.0
@@ -76,7 +79,7 @@ const LOCK_TEXT := {
 }
 ## Which rooms lock you in (by theme, or by role), and how often; the stair
 ## landing only from a higher floor. Checked a few times a second.
-const LOCK_IN := {"den": 0.75, "crypt": 0.9, "guard": 0.3, "landing": 0.6, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
+const LOCK_IN := {"den": 0.75, "crypt": 0.9, "mirror": 1.0, "guard": 0.3, "landing": 0.6, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
 const KEY_GOLD := Color(1.0, 0.82, 0.38)
 const WARD := Color(0.75, 0.55, 1.0)
 
@@ -230,6 +233,8 @@ func _glow_color(style: String) -> Color:
 			return SHADE_GLOW
 		"proving":
 			return PROVING_GOLD
+		"mirror":
+			return Mirror.LOOK["glow"]
 	return Color(0, 0, 0, 0)
 
 
@@ -767,6 +772,8 @@ func _wood(d: Dictionary) -> Color:
 			return Palette.DOOR_STONE.darkened(0.35)
 		"crown":
 			return Palette.DOOR_WOOD.darkened(0.2)
+		"mirror":
+			return Palette.DOOR_STONE.darkened(0.3)
 	return Palette.DOOR_WOOD
 
 
@@ -844,6 +851,9 @@ func _draw_closed(b, d: Dictionary) -> void:
 	var o := inner.position
 	if style in ["proving", "lethal", "crown", "shade"]:
 		_draw_proving_door(b, d, inner, wood, along, side, long, across)
+		return
+	if style == "mirror":
+		Mirror.draw_door(b, inner, along, side, long, across)
 		return
 	if style == "sealed":
 		# A dark stone slab with iron studs at its ends and a watching eye

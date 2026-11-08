@@ -35,8 +35,7 @@ const KINDS := {
 ## floor like other essence (GROWTH a floor, as essence.gd drop_for).
 ##   beast     a tower's beast (the summit)
 ##   shadow    the Proving's shadow of the beast (less)
-##   mirror    a mirror image of the climber (not in the game yet: enemy.gd
-##             `mirror` marks one, and it drops this)
+##   mirror    a mirror image of the climber (mirror.gd, in a mirror room)
 ##   champion  a champion (a sealed wing's, the Proving's sentinel): a small
 ##             amount of one kind, by tower (CHAMPION_KIND)
 const SOURCES := {

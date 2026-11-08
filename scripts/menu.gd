@@ -1943,6 +1943,12 @@ func _page_dev() -> void:
 	for kind in EnemyScript.TYPES.keys().filter(func(k): return k != "familiar"):
 		_button(kind.capitalize(), _dev_spawn.bind(kind), grid)
 
+	_section("Mirror images (mirror.gd)")
+	var irow := _row()
+	_button("Spawn a mirror image", _dev_spawn.bind(main.MirrorScript.THEME), irow)
+	var mb := _button("Mirror room on the next floor", _dev_mirror_room, irow)
+	mb.disabled = main.MirrorScript.force
+
 	_section("Gear (give yourself any weapon, armor or piece)")
 	var ggrid := _grid(4, 6)
 	var worn: Array = p.carried_gear()
@@ -2083,6 +2089,11 @@ func _dev_puzzle(kind: String) -> void:
 func _dev_spawn(kind: String) -> void:
 	main.dev_spawn(kind)
 	_say("Spawned: %s" % kind.capitalize())
+
+
+func _dev_mirror_room() -> void:
+	main.MirrorScript.force = true
+	_say(main.MirrorScript.TEXT["forced"])
 
 
 func _dev_gear(id: String) -> void:

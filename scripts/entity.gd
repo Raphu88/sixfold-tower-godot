@@ -143,7 +143,7 @@ const TIPS := {
 	# --- secret essences (secret.gd) ---
 	"secret": {"group": "secret", "name": "Secret essences",
 		"tip": "Life and Unmaking: the secret essences. Only great foes leave them, never an ordinary monster.",
-		"more": "Life and Unmaking are the two secret essences. Ordinary monsters never leave them: only great foes do. A tower's beast leaves mostly Life and some Unmaking; the Proving's shadow of the beast the same, but less; a champion (a sealed wing's, or the Proving's sentinel) a little of one or the other, depending on the tower. Like other essence there's more of it higher up. They aren't currency and never settle in a body part."},
+		"more": "Life and Unmaking are the two secret essences. Ordinary monsters never leave them: only great foes do. A tower's beast leaves mostly Life and some Unmaking; the Proving's shadow of the beast the same, but less; a mirror image of you mostly Unmaking and some Life; a champion (a sealed wing's, or the Proving's sentinel) a little of one or the other, depending on the tower. Like other essence there's more of it higher up. They aren't currency and never settle in a body part."},
 	"secret_path": {"group": "secret", "name": "Your path",
 		"tip": "Chosen, for good. Only that essence soaks into you now. It gathers in your shadow, and you bank it at the stair.",
 		"more": "The first time a great foe falls and its secret essence rises, you choose your path: Life or Unmaking. The choice is for good. From then on only your path's essence soaks in. It doesn't settle in a body part: it gathers in your shadow as one measure, the flow. It never takes a mark and never pushes out a bond. You carry it unbanked like other essence (a fall loses it) and bank it at the stair. Banked flow reaches steps at 25, 75, 150 and 300, each a real change in how you play, and your shadow shows each one."},
@@ -181,6 +181,9 @@ const TIPS := {
 	"crypt": {"group": "tower", "name": "Restless crypts",
 		"tip": "The dead here don't stay down when disturbed. Keep your back to a wall.",
 		"more": "From floor 3, a Restless Crypt's dead rise around you as you walk in, two or three of the tower's monsters at once."},
+	"mirror": {"group": "tower", "name": "Mirror images",
+		"tip": "Your weapon, your armor, your marks' spells, turned on you. It rolls and guards the way you do.",
+		"more": "Now and then, from floor 4, a Hall of Glass lies off the way to the stair, behind a door bearing a figure in a mirror. Walk in and a mirror image of you steps out of the glass, and the doors shut until it falls. It carries the weapon in your hand (its reach, its chain, its finisher; or your bow), wears your armor (your blows land a little softer) and casts a simpler form of up to two of your marks' spells: a volley of bolts, a circle where you stand, a cone or a ring. Every attack is telegraphed and glints like any monster's. It sometimes rolls clear of a blow, and after attacking it may raise its guard (a silver arc): light blows from the front are turned aside and it answers at once, but a finisher or a blow from behind breaks through. It is a great foe: it leaves mostly Unmaking and some Life, an essence crystal of the tower's kind, and sometimes a piece of gear."},
 	"doors": {"group": "tower", "name": "Doors",
 		"tip": "A door's face hints at what waits behind it. Never at the reward.",
 		"more": "Walk up to a closed door and it swings open; awake monsters open doors too. A closed door blocks the way, shots and sight, so a room behind one stays dark until you open it. Plain planks mean an ordinary room; iron bands and claw marks a den; an engraved sigil a trap room; a stone door with an emblem the puzzle room; warm light under the door a good room; chains and a red glow danger."},
@@ -307,7 +310,7 @@ const TIPS := {
 ## Room features (themes.gd) -> the tip for walking into one.
 const ROOM_TIPS := {
 	"trap": "trap_room", "den": "den", "ambush": "crypt", "spring": "good_room", "cache": "good_room",
-	"camp": "good_room", "chasm": "jump",
+	"camp": "good_room", "chasm": "jump", "mirror": "mirror",
 }
 
 ## Words for {move}, {attack}... in tips: [keys, controller, touch]. The
