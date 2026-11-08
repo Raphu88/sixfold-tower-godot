@@ -562,25 +562,11 @@ func _check_fall() -> void:
 	if not main.in_chasm(global_position):
 		last_safe = global_position
 		return
-	var back := last_safe
-	if back == Vector2.ZERO or main.in_chasm(back):
-		back = main.player_start
-	global_position = back
+	# A chasm doesn't hurt: you fall through it to a lower floor (main.gd).
 	knock = Vector2.ZERO
 	roll_t = 0.0
-	iframes = maxf(iframes, 0.6)
-	var dmg := maxf(6.0, max_hp * 0.08)
-	hp -= dmg
-	main.fx_text(global_position + Vector2(0, -40), "Fell! -%d" % int(dmg), Color(0.85, 0.7, 0.6))
-	main.sfx("hurt", 0.8)
-	main.shake(5.0)
-	if hp <= 0.0 and _defy_death():
-		hp = maxf(hp, 1.0)
-	if hp <= 0.0:
-		hp = 0.0
-		dead = true
-		main.sfx("death", 1.0, 0.0, 0.0)
-		main.on_player_died()
+	velocity = Vector2.ZERO
+	main.fall_through()
 
 
 func _try_roll(input: Vector2) -> bool:

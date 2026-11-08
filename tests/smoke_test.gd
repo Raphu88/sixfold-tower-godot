@@ -1016,9 +1016,9 @@ func _trap_tests() -> void:
 			var list: Array = main.traps
 			total += list.size()
 			of_tower += list.size()
-			ok_count = ok_count and list.size() >= 1 and list.size() <= 3
+			ok_count = ok_count and list.size() >= 2
 			for tr in list:
-				ok_kind = ok_kind and tr["kind"] == Traps.BY_TOWER[id]
+				ok_kind = ok_kind and (tr["kind"] == Traps.BY_TOWER[id] or (tr["kind"] == "gas" and id in Traps.GAS_TOWERS))
 				var pos: Vector2 = tr["pos"]
 				ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
 				ok_spot = ok_spot and pos.distance_to(main.player_start) > 100.0 and pos.distance_to(main.stair_pos) > 80.0
@@ -1027,8 +1027,28 @@ func _trap_tests() -> void:
 					ok_spot = ok_spot and pos.distance_to(pl["pos"]) > pl["r"] + 20.0
 		each_tower = each_tower and of_tower > 0
 	_check(ok_kind and each_tower, "each tower's floors get its own trap kind")
-	_check(ok_count and total >= 24, "1 to 3 traps on every floor of rooms (%d over 24 floors)" % total)
+	_check(ok_count and total >= 60, "every floor of rooms gets trap set pieces and hidden plates (%d over 24 floors)" % total)
 	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar or a wall")
+	# Set pieces: timed traps in a group keep one beat (a wave or a checkerboard).
+	var grouped := false
+	var lanes_ok := true
+	for id in ["wyvern", "gryphon", "manticore"]:
+		main.tower = id
+		for n in 3:
+			main._start_floor(3)
+			for e in main.enemies():
+				e.set_physics_process(false)
+			var timed: Array = main.traps.filter(func(t): return t.get("trigger", "") == "timed")
+			var timers := {}
+			for tr in timed:
+				timers[snappedf(tr["timer"], 0.01)] = true
+			grouped = grouped or (timed.size() >= 2 and timers.size() >= 2)
+			for tr in main.traps:
+				if Traps.KINDS[tr["kind"]]["shape"] == "lane":
+					for i in int(tr["len"]):
+						lanes_ok = lanes_ok and not main.is_solid(tr["pos"] + tr["dir"] * main.Floors.CELL * i)
+	_check(grouped, "set pieces fire in a pattern (staggered on one beat), not at random")
+	_check(lanes_ok, "lanes never run into a wall")
 	main.tower = "kraken"
 	main._start_floor(1)
 	await _frames(1)
@@ -1070,6 +1090,7 @@ func _trap_tests() -> void:
 		if kind == "ember":
 			_check(not main.flames.is_empty(), "ember: leaves the floor burning")
 		# Step away before it fires: safe.
+		p.global_position = spot + Vector2(130, 0)  # (out of a lingering gas cloud)
 		await _wait(float(k.get("rest", 0.0)) + 0.6)
 		tr["state"] = "warn"
 		tr["timer"] = 0.15
@@ -1114,6 +1135,71 @@ func _trap_tests() -> void:
 		p.jump_t = 0.0
 		main.trap_view.reset()
 		await _wait(float(k["fire"]) + 0.1)
+	# Traps hurt badly: at least a sixth of your health for most kinds.
+	_check(Traps.make(spot, "flame", false, 2)["dmg"] >= 24.0 and Traps.make(spot, "spikes", false, 2)["dmg"] >= 24.0, "traps hurt badly (they're telegraphed, so a hit is your fault)")
+	# Every trap glints just before it fires.
+	var gl: Dictionary = Traps.make(spot, "flame", false, 2)
+	gl["dir"] = Vector2.RIGHT
+	main.traps = [gl]
+	p.global_position = spot + Vector2(0, 200)
+	gl["timer"] = 0.02
+	await _wait(float(Traps.KINDS["flame"]["warn"]) - Traps.GLINT_LEAD + 0.08)
+	_check(gl["state"] == "warn" and gl["glint"], "a trap glints a moment before it fires")
+	# A lane reaches along its tiles, not around its nozzle.
+	gl["len"] = 3
+	_check(main.trap_view.touches(gl, spot + Vector2(80, 0), 10.0) and not main.trap_view.touches(gl, spot + Vector2(-60, 0), 10.0), "a flame jet burns the whole lane it points along, and nothing behind it")
+	# Dodging a trap feeds the legs only once per trap.
+	var farm: Dictionary = Traps.make(spot, "flame", false, 2)
+	main.traps = [farm]
+	p.global_position = spot
+	p.iframes = 5.0
+	p.dodge_cd = 0.0
+	var legs0: float = main.run_soak.get("legs", 0.0)
+	for i in 2:
+		farm["state"] = "warn"
+		farm["timer"] = 0.02
+		farm["hit"] = []
+		p.dodge_cd = 0.0
+		await _wait(0.12)
+	var legs1: float = main.run_soak.get("legs", 0.0)
+	_check(farm["dodged"] and legs1 - legs0 <= 4.5, "rolling through a trap counts as a dodge once per trap, so it can't be farmed (%.1f)" % (legs1 - legs0))
+	p.iframes = 0.0
+	await _wait(1.2)
+	# Gas: keeps hurting while you stay in the cloud; hidden, but it hisses and glows when set off.
+	var gas: Dictionary = Traps.make(spot, "gas", true, 2)
+	main.traps = [gas]
+	p.global_position = spot
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	await _wait(0.1)
+	_check(gas["state"] == "warn" and main.trap_view.visibility(gas) == 1.0, "a hidden gas vent shows itself the moment it's set off")
+	await _wait(0.6)
+	var g1: float = p.hp
+	await _wait(1.1)
+	_check(p.hp < g1 - 8.0, "staying in a gas cloud keeps hurting (%d)" % int(g1 - p.hp))
+	p.global_position = spot + Vector2(200, 0)
+	var g2: float = p.hp
+	await _wait(0.8)
+	_check(p.hp == g2, "...and getting out of it stops the harm")
+	main.traps = []
+	await _wait(0.2)
+	# A snare's rustle wakes sleeping monsters nearby.
+	var sleeper = await _spawn("slime", spot + Vector2(150, 0))
+	sleeper.set_physics_process(false)
+	sleeper.aware = false
+	var sn2: Dictionary = Traps.make(spot, "thorns", false, 2)
+	main.traps = [sn2]
+	p.global_position = spot
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.hp = p.max_health()
+	await _wait(float(Traps.KINDS["thorns"]["warn"]) + 0.2)
+	_check(sleeper.aware, "a bramble snare's rustle wakes the pack nearby")
+	sleeper.queue_free()
+	main.traps = []
+	main.trap_view.reset()
+	await _wait(1.6)
 	# A plate isn't set off from the air.
 	var plate: Dictionary = Traps.make(spot, "spikes", false, 2)
 	main.traps = [plate]
@@ -1178,11 +1264,16 @@ func _jump_tests() -> void:
 	await _wait(0.2)
 	_check(p.hp == hp0, "...and while you're in the air, chasms and fire can't touch you")
 	main.flames = []
+	main.floor_num = 3
 	await _wait(0.5)
-	_check(not p.in_air(), "you land again")
-	_check(p.hp < hp0, "landing in a chasm: you fall and lose some health")
-	_check(not main.in_chasm(p.global_position), "...and climb back out where you last stood")
+	_check(p.hp == hp0, "landing in a chasm doesn't hurt...")
+	await _wait(1.4)
+	_check(main.floor_num == 2 and not main.in_chasm(p.global_position) and not main.climbing, "...it drops you to the floor below (floor %d)" % main.floor_num)
+	_check(main.banner.get("title", "") == main.FALL_TEXT["title"], "...and says so")
 	main.set_chasms([])
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
 	# Walking monsters can't enter chasms; fliers can.
 	var k = await _spawn("knight", p.global_position + Vector2(200, 0))
 	var b = await _spawn("bat", p.global_position + Vector2(200, 60))
