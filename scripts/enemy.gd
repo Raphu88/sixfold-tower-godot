@@ -200,6 +200,10 @@ func setup(k: String, room) -> void:
 	if main != null and main.profile != null and kind in main.profile.pacts and main.player != null and main.player.has_bond("covenant"):
 		state_t *= 2.0
 		notice_t = state_t
+	# A Dusk Cloak: monsters are slower to notice you.
+	if main != null and main.player != null and main.player.gfx("notice") > 0.0 and not (kind in BOSSES):
+		state_t *= 1.0 + main.player.gfx("notice")
+		notice_t = state_t
 	if kind == "lurker":
 		state = "sub"
 		submerged = true

@@ -655,18 +655,13 @@ func can_take_scroll() -> bool:
 	return not main.first_climb and main.player.item_count("scroll") < Items.max_stack("scroll")
 
 
-## Gear from a vault: the rarer of two pieces.
+## Gear from a vault: the rarer of two pieces (as a card code, gear.gd code()).
 func better_gear() -> String:
 	var carried: Array = main.player.carried_gear()
-	var a := Gear.random_gear("", carried)
-	var b := Gear.random_gear("", carried + [a])
-	return a if _gear_weight(a) <= _gear_weight(b) else b
-
-
-func _gear_weight(id: String) -> int:
-	if Gear.ARMOR.has(id):
-		return int(Gear.ARMOR[id].get("drop_weight", 99))
-	return int(Gear.WEAPON_DROP_WEIGHT.get(id, 99))
+	var trinkets: bool = not main.first_climb
+	var a := Gear.random_gear("", carried, trinkets)
+	var b := Gear.random_gear("", carried + [a], trinkets)
+	return Gear.code(a if Gear.drop_weight(a) <= Gear.drop_weight(b) else b)
 
 
 ## Walking up to a vault's pedestal: its cards.
@@ -811,7 +806,7 @@ func _take_cache(s: Dictionary) -> void:
 	main.gather_essence(kind, amount, pos)
 	main.fx_text(pos + Vector2(0, -36), TEXT["cache"] % int(amount), Essence.color(kind))
 	if randf() < float(SECRET["gear_chance"]):
-		var g := Gear.random_gear("", main.player.carried_gear())
+		var g := Gear.random_gear("", main.player.carried_gear(), not main.first_climb)
 		main.drop_gear(pos + Vector2(0, 18), g)
 	main.fx_ring(pos, Essence.color(kind), 70.0, 0.5, 4.0)
 	main.light_flash(pos, Essence.color(kind), 1.8, 1.8, 0.4)

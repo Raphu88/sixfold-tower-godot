@@ -208,20 +208,23 @@ const TIPS := {
 	# --- gear and items ---
 	"gear": {"group": "gear", "name": "Gear on the floor",
 		"tip": "Gear. Stand on it to compare; {take} swaps, and your old piece stays behind.",
-		"more": "Gear lasts one climb. You carry fists, a melee weapon, a ranged weapon and a suit of armor. Slain monsters rarely drop a piece, likelier one that suits them; caches and camps offer some too. Walk over gear with an empty slot and you take it; otherwise a card compares it with what you carry (better numbers in green, worse in red) and {take} swaps, dropping your old piece where you stand so you can change your mind."},
+		"more": "Gear lasts one climb. You carry fists, a melee weapon and a ranged weapon, and wear a chest piece, a helm, gloves, legs, boots, a cloak, an amulet, two rings and a backpack. Slain monsters rarely drop a piece, likelier one that suits them; caches, camps and vaults offer some too. Walk over gear with an empty slot and you take it; otherwise a card names its slot and compares it with what you wear (better numbers in green, worse in red) and {take} swaps, dropping your old piece where you stand so you can change your mind."},
+	"gear_slots": {"group": "gear", "name": "Worn pieces",
+		"tip": "Not a weapon: something to wear. Helm, gloves, legs, boots, cloak, rings... each slot takes one.",
+		"more": "Besides your weapons and chest piece you can wear a helm, gloves, legs, boots, a cloak, an amulet, two rings and a backpack. Each piece does one small thing: a little health, harder strikes, a quicker step. Protection from every piece adds up, but never past half a blow. Heavy pieces make rolls cost a little more. Plain (Common) pieces wear down as you use them: badly worn, their bonus halves; worn out, they break. Rings and amulets never wear. The inventory ({inventory}) lays out what you wear like a body."},
 	"heirloom": {"group": "gear", "name": "Heirlooms",
 		"tip": "You survived. Keep one thing you carried; every climb after begins with it.",
-		"more": "Survive a climb (beat its beast, or reach the Regard without falling) and you choose one piece you carried to keep as an heirloom. Every later climb starts with your heirlooms in their slots. Each slot (melee, ranged, chest) holds one; keeping another piece for the same slot replaces it. The inventory shows your heirloom slots."},
+		"more": "Survive a climb (beat its beast, or reach the Regard without falling) and you choose one piece you wore to keep as an heirloom; your rings are kept as a pair. Every later climb starts with your heirlooms in their slots, in full repair. Each slot (melee, ranged, chest, helm, gloves, legs, boots, cloak, amulet, rings, backpack) holds one; keeping another piece for the same slot replaces it. The inventory's Heirlooms view shows them."},
 	"items": {"group": "gear", "name": "Items",
 		"tip": "An item. {item} uses the one you've chosen; {item_next} chooses another.",
-		"more": "Items last one climb; you can carry up to 3 of each kind. The quick item, shown beside your weapon, is the one {item} uses, and {item_next} picks the next. An item that would do nothing (a draught at full health) isn't used up. Every climb starts with a Healing Draught; monsters sometimes leave items, and camps offer them."},
+		"more": "Items last one climb; you can carry up to 3 of each kind (4 with a Satchel). The quick item, shown beside your weapon, is the one {item} uses, and {item_next} picks the next. An item that would do nothing (a draught at full health) isn't used up. Every climb starts with a Healing Draught; monsters sometimes leave items, and camps offer them."},
 	# --- screens ---
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",
 		"more": "The climber screen has your marks drawn on your body with a card for each (choose one for every spell and step), the essence settled in you and its bonuses, your record and heirlooms, and this Archive. {climber} opens and closes it; Q and E switch tabs."},
 	"inventory": {"group": "screens", "name": "The inventory",
 		"tip": "{inventory} shows everything you carry, and lets you use it.",
-		"more": "The inventory is a grid of slots: your gear (the one in hand gilded), gear lying at your feet, your items with their counts (the quick item gilded), your heirloom slots and a camp's rune. Choose a slot for its details, to use an item or make it your quick item, or to take the gear at your feet."},
+		"more": "The inventory lays out what you wear like a body: helm, amulet and cloak; melee weapon, chest and ranged weapon; a ring, gloves and a ring; backpack, legs and boots. Beside it are your fists, gear lying at your feet and a camp's rune; below, your items with their counts (the quick item gilded). Worn pieces show their condition. Switch to Heirlooms to see what every climb begins with. Choose a slot for its details (compared with what you wear), to use an item, or to take the gear at your feet."},
 }
 
 ## Room features (themes.gd) -> the tip for walking into one.

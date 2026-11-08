@@ -65,6 +65,7 @@ var climber_tab := "marks"  # the climber screen's tab (remembered between sessi
 var mark_part := ""  # the body part the mark detail page shows
 var focus_part := ""  # back on the Marks tab: the card to focus
 var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:draught", ...)
+var inv_view := "worn"  # the inventory's doll: what you wear ("worn") or your "heirlooms"
 var details: VBoxContainer  # the inventory's details pane
 var archive_open := ""  # the Archive entry shown open (a tip id)
 
@@ -715,29 +716,37 @@ func _climber_record(prof) -> void:
 		_pair(r, "Pacts", "%d bound" % prof.pacts.size())
 	_record_counts(prof, r, left)
 	_section("Heirlooms", right)
-	for s in Gear.HEIRLOOM_SLOTS:
-		if s.get("planned", false):
-			continue
-		var id: String = prof.heirlooms.get(s["id"], "")
-		var hr := HBoxContainer.new()
-		hr.add_theme_constant_override("separation", 10)
-		right.add_child(hr)
-		var icon := SlotIcon.new()
-		icon.kind = "gear" if id != "" else "empty"
-		icon.id = id
-		icon.tint = Gear.color(id) if id != "" else FAINT
-		icon.custom_minimum_size = Vector2(38, 38)
-		hr.add_child(icon)
-		var names := VBoxContainer.new()
-		names.add_theme_constant_override("separation", -2)
-		names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		hr.add_child(names)
-		names.add_child(_small_label(s["name"], DIM))
-		var nl := _label(Gear.display(id) if id != "" else "none", 0.0, Gear.color(id).lightened(0.1) if id != "" else FAINT)
-		names.add_child(nl)
+	# Only the slots holding one (there are eleven), two to a row.
+	var hg := GridContainer.new()
+	hg.columns = 2
+	hg.add_theme_constant_override("h_separation", 16)
+	hg.add_theme_constant_override("v_separation", 4)
+	right.add_child(hg)
+	var kept_n := 0
+	for hs in Gear.HEIRLOOM_SLOTS:
+		for hg_rec in Gear.heirloom_pieces(prof.heirlooms, hs["id"]):
+			kept_n += 1
+			var hr := HBoxContainer.new()
+			hr.add_theme_constant_override("separation", 8)
+			hg.add_child(hr)
+			var icon := SlotIcon.new()
+			icon.kind = "gear"
+			icon.id = Gear.base_id(hg_rec)
+			icon.rec = hg_rec
+			icon.tint = Gear.color(hg_rec)
+			icon.custom_minimum_size = Vector2(32, 32)
+			hr.add_child(icon)
+			var names := VBoxContainer.new()
+			names.add_theme_constant_override("separation", -2)
+			names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			hr.add_child(names)
+			names.add_child(_small_label(hs["name"], DIM))
+			names.add_child(_label(Gear.display(hg_rec), 0.0, Gear.color(hg_rec).lightened(0.1)))
+	if kept_n == 0:
+		right.add_child(_label("none yet", 0.0, FAINT))
 	_record_towers(prof, right)
 	var note := Label.new()
-	note.text = "Survive a climb and you keep one piece you carried as an heirloom; every climb begins with them. The Inventory shows every slot."
+	note.text = "Survive a climb and you keep one piece you wore as an heirloom (or both your rings); every climb begins with them. The Inventory's Heirlooms view shows every slot."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x = 200.0
 	note.add_theme_font_size_override("font_size", 12)
@@ -1163,41 +1172,78 @@ func _page_inventory() -> void:
 	row.add_theme_constant_override("separation", 18)
 	box.add_child(row)
 	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 6)
+	left.add_theme_constant_override("separation", 4 if compact() else 6)
 	row.add_child(left)
 	var keys: Array = []
-	var big := 52.0 if compact() else 64.0  # slot sizes (smaller on a phone)
-	var little := 40.0 if compact() else 50.0
+	var cell := 52.0 if compact() else 58.0  # slot sizes (smaller on a phone)
+	var heirs := inv_view == "heirlooms"
 
-	_section("Carried", left)
-	var gear_row := _slot_row(left)
-	var hand: String = p.weapon if p != null else ""
-	var carried := [["fists", "fists", "1  Fists"], ["melee", p.gear["melee"], "2  Melee"], ["ranged", p.gear["ranged"], "3  Ranged"], ["armor", p.gear["armor"], "Armor"]]
-	for c in carried:
-		var id: String = c[1]
-		var s := _slot(gear_row, "gear:" + c[0], big, Gear.display(id) if id != "" or c[0] == "armor" else "empty")
-		s.kind = "gear"
-		s.id = id
-		s.on = id == hand and id != ""
-		s.empty = id == "" and c[0] != "armor"
-		s.tint = Gear.color(id) if id != "" else FAINT
-		s.corner = c[2] if c[0] != "armor" else ""
-		keys.append(s.get_meta("slot"))
-	if not main.gear_here.is_empty():
-		# Gear at your feet: set against what you carry in its slot.
-		var fid: String = main.gear_here["id"]
-		var fs := _slot(gear_row, "floor", big, "At your feet")
-		fs.kind = "floor"
-		fs.id = fid
-		fs.tint = Gear.color(fid)
+	# The paper doll: what you wear (or your heirlooms), laid out like a body.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	left.add_child(head)
+	for v in [["worn", "Worn"], ["heirlooms", "Heirlooms"]]:
+		var t := _button(v[1], _inv_view.bind(v[0]), head)
+		t.custom_minimum_size = Vector2(96.0, 30.0 if compact() else 32.0)
+		t.add_theme_font_size_override("font_size", 13)
+		t.set_meta("view", v[0])
+		if v[0] == inv_view:
+			t.add_theme_color_override("font_color", GOLD)
+			t.add_theme_color_override("font_hover_color", GOLD)
+			t.add_theme_color_override("font_focus_color", GOLD)
+	var doll := HBoxContainer.new()
+	doll.add_theme_constant_override("separation", 14)
+	left.add_child(doll)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 4)
+	doll.add_child(grid)
+	var caption := not compact()
+	for r in Gear.DOLL:
+		for slot in r:
+			var s := _heir_cell(grid, slot, cell, caption) if heirs else _worn_cell(grid, p, slot, cell, caption)
+			keys.append(s.get_meta("slot"))
+	# Beside the doll: fists (weapon slot 1), the off-hand (kept for later),
+	# gear at your feet and a camp's rune.
+	var side := VBoxContainer.new()
+	side.add_theme_constant_override("separation", 4)
+	doll.add_child(side)
+	if not heirs:
+		var fs := _slot(side, "gear:fists", cell, "Fists" if caption else "")
+		fs.kind = "gear"
+		fs.id = "fists"
+		fs.on = p.weapon == "fists"
+		fs.tint = Gear.color("fists")
+		fs.corner = "1"
+		keys.append("gear:fists")
+	var off := _slot(side, "heir:offhand" if heirs else "gear:offhand", cell, Gear.SLOT_NAMES["offhand"] if caption else "")
+	off.kind = "heir" if heirs else "gear"
+	off.locked = true
+	off.slot_name = Gear.SLOT_NAMES["offhand"]
+	keys.append(off.get_meta("slot"))
+	if not heirs and not main.gear_here.is_empty():
+		# Gear at your feet: set against what you wear in its slot.
+		var fl := _slot(side, "floor", cell, "At your feet" if caption else "")
+		fl.kind = "floor"
+		fl.id = main.gear_here["id"]
+		fl.rec = main.gear_here.get("rec", null)
+		fl.tint = Gear.color(fl.id)
 		keys.append("floor")
+	var rune: String = p.camp_rune if p != null else ""
+	if not heirs and rune != "":
+		var rs := _slot(side, "rune", cell, Items.CAMP_RUNES[rune]["name"].replace("Rune of ", "") if caption else "")
+		rs.kind = "rune"
+		rs.id = rune
+		rs.tint = Items.CAMP_RUNES[rune]["color"]
+		keys.append("rune")
 
 	_section("Items", left)
 	var item_row := _slot_row(left)
 	var sel: String = p.selected_item() if p != null else ""
 	for id in Items.ORDER:
 		var n: int = p.item_count(id) if p != null else 0
-		var s := _slot(item_row, "item:" + id, big, Items.ITEMS[id]["short"])
+		var s := _slot(item_row, "item:" + id, cell, Items.ITEMS[id]["short"] if caption else "")
 		s.kind = "item"
 		s.id = id
 		s.count = n
@@ -1223,56 +1269,84 @@ func _page_inventory() -> void:
 		s.tint = Essence.color(kind)
 		keys.append(s.get_meta("slot"))
 
-	_section("Heirlooms", left)
-	var grid := GridContainer.new()
-	grid.columns = 6
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 4)
-	left.add_child(grid)
-	var kept: Dictionary = main.profile.heirlooms
-	for hs in Gear.HEIRLOOM_SLOTS:
-		var id: String = kept.get(hs["id"], "")
-		var s := _slot(grid, "heir:" + hs["id"], little, "" if compact() else hs["name"])
-		s.kind = "heir"
-		s.id = id
-		s.slot_id = hs["id"]
-		s.locked = hs.get("planned", false)
-		s.empty = id == ""
-		s.tint = Gear.color(id) if id != "" else FAINT
-		keys.append(s.get_meta("slot"))
-
-	var rune: String = p.camp_rune if p != null else ""
-	if rune != "":
-		_section("Camp rune", left)
-		var rr := _slot_row(left)
-		var s := _slot(rr, "rune", little, Items.CAMP_RUNES[rune]["name"].replace("Rune of ", ""))
-		s.kind = "rune"
-		s.id = rune
-		s.tint = Items.CAMP_RUNES[rune]["color"]
-		keys.append("rune")
-
 	# The details of the focused slot.
-	var side := PanelContainer.new()
-	side.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.025), UI.SLOT_EDGE, 8, 1, 14.0))
-	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side.custom_minimum_size.x = 260.0
+	var dpanel := PanelContainer.new()
+	dpanel.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.025), UI.SLOT_EDGE, 8, 1, 12.0 if compact() else 14.0))
+	dpanel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dpanel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dpanel.custom_minimum_size.x = 260.0
 	row.add_child(right)
-	right.add_child(side)
+	right.add_child(dpanel)
 	details = VBoxContainer.new()
-	details.add_theme_constant_override("separation", 6)
-	side.add_child(details)
+	details.add_theme_constant_override("separation", 4 if compact() else 6)
+	dpanel.add_child(details)
 	if not (inv_sel in keys):
-		inv_sel = "gear:" + _hand_slot(p)
+		inv_sel = "heir:melee" if heirs else "gear:" + _hand_slot(p)
 	_show_details(inv_sel)
 	_footer()
+
+
+## A cell of the doll showing what you wear in a carried slot.
+func _worn_cell(parent: Node, p, slot: String, side: float, caption: bool) -> Slot:
+	var g = p.gear.get(slot, {})
+	var has: bool = Gear.is_gear(g)
+	var name: String = Gear.SLOT_NAMES.get(slot, slot)
+	var cap := ""
+	if caption:
+		cap = (Gear.display(g) if slot in ["melee", "ranged"] else Gear.short(g)) if has else ("No armor" if slot == "armor" else name)
+	var s := _slot(parent, "gear:" + slot, side, cap)
+	s.kind = "gear"
+	s.id = Gear.base_id(g)
+	s.rec = g if has else null
+	s.slot_name = name
+	s.on = has and s.id == p.weapon
+	s.empty = not has and slot != "armor"
+	s.tint = Gear.color(g) if has else FAINT
+	s.corner = {"melee": "2", "ranged": "3"}.get(slot, "")
+	s.wear = Gear.condition(g) if Gear.wears(g) else -1.0
+	s.kept = has and _is_heirloom(g)
+	return s
+
+
+## A cell of the doll showing your heirloom for a slot (Rings: one of two).
+func _heir_cell(parent: Node, slot: String, side: float, caption: bool) -> Slot:
+	var hs := Gear.heirloom_slot_for_carry(slot)
+	var idx := 1 if slot == "ring2" else 0
+	var pieces: Array = Gear.heirloom_pieces(main.profile.heirlooms, hs)
+	var g = pieces[idx] if idx < pieces.size() else null
+	var key := "heir:" + hs + (":%d" % idx if hs == "rings" else "")
+	var name: String = Gear.SLOT_NAMES.get(slot, slot)
+	var s := _slot(parent, key, side, (Gear.short(g) if g != null else name) if caption else "")
+	s.kind = "heir"
+	s.id = Gear.base_id(g) if g != null else ""
+	s.rec = g
+	s.slot_id = hs
+	s.slot_name = name
+	s.locked = Gear.heirloom_planned(hs)
+	s.empty = g == null
+	s.tint = Gear.color(g) if g != null else FAINT
+	return s
+
+
+## Is this worn piece one of your heirlooms (the same piece, any wear)?
+func _is_heirloom(g) -> bool:
+	for k in Gear.heirloom_pieces(main.profile.heirlooms, Gear.heirloom_slot(g)):
+		if Gear.same(k, g):
+			return true
+	return false
+
+
+func _inv_view(view: String) -> void:
+	inv_view = view
+	inv_sel = ""
+	open("inventory", opened_direct)
 
 
 func _hand_slot(p) -> String:
 	if p == null:
 		return "melee"
 	for k in ["melee", "ranged"]:
-		if p.gear[k] == p.weapon:
+		if p.gear_id(k) == p.weapon:
 			return k
 	return "fists"
 
@@ -1303,7 +1377,7 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	l.text = caption
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.clip_text = true
-	l.custom_minimum_size.x = side + 14.0
+	l.custom_minimum_size.x = side + 10.0
 	l.add_theme_font_size_override("font_size", 11)
 	l.add_theme_color_override("font_color", DIM)
 	cell.add_child(l)
@@ -1316,6 +1390,13 @@ func _slot_pressed(key: String) -> void:
 		_use_item(key.substr(5))
 		return
 	_show_details(key)
+
+
+## Where each carried slot is, in words.
+const WHERE := {
+	"fists": "Slot 1: always with you", "melee": "Slot 2: your melee weapon", "ranged": "Slot 3: your ranged weapon",
+	"armor": "Chest", "ring1": "Ring (left hand)", "ring2": "Ring (right hand)",
+}
 
 
 func _show_details(key: String) -> void:
@@ -1337,52 +1418,87 @@ func _show_details(key: String) -> void:
 	var arg := key.get_slice(":", 1)
 	match kind:
 		"gear":
-			var id: String = "fists" if arg == "fists" else p.gear[arg]
-			_detail_head("gear", id, Gear.display(id) if id != "" else "empty", Gear.color(id) if id != "" else DIM)
-			var where: String = {"fists": "Slot 1: always with you", "melee": "Slot 2: your melee weapon", "ranged": "Slot 3: your ranged weapon", "armor": "Armor"}[arg]
-			if id == p.weapon:
-				where += "  ·  in hand"
-			_detail_text(where, DIM)
-			if id != "" or arg == "armor":
-				_detail_stats(id, _compare_with(p, arg, id))
+			if arg == "offhand":
+				_detail_head("lock", null, Gear.SLOT_NAMES["offhand"], DIM)
+				_detail_text("Kept for later: off-hand pieces will change how you parry.", DIM)
+				return
+			var g = "fists" if arg == "fists" else p.gear.get(arg, {})
+			var has: bool = arg == "fists" or Gear.is_gear(g)
+			var none := "No armor" if arg == "armor" else "Empty"
+			_detail_head("gear" if has or arg == "armor" else "empty", g if has else "", Gear.display(g) if has else none, Gear.color(g) if has else DIM)
+			var weaponish: bool = arg in ["fists", "melee", "ranged"]
+			if weaponish:
+				var where: String = WHERE[arg]
+				if has and Gear.base_id(g) == p.weapon:
+					where += "  ·  in hand"
+				_detail_text(where, DIM)
+			elif not has:
+				_detail_text(WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)), DIM)
+			if not has:
+				if arg != "armor":
+					_detail_text("Nothing here yet. Slain monsters, caches, camps and vaults may give you a piece for it.", DIM)
+					return
+			elif arg != "fists":
+				_detail_lines(g, "" if weaponish else WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)))
+			var other = _compare_with(p, arg, g)
+			_detail_stats(g if has else "", other)
+			if arg in ["armor", "helm", "legs"] and p.protection() > 0.0:
+				_detail_text("All you wear takes %d%% off a blow (at most %d%%)." % [int(round(p.protection() * 100.0)), int(round(Gear.PROTECTION_CAP * 100.0))], DIM)
+			if arg != "fists" and Gear.is_gear(other):
+				var pl := Gear.plays_like(g, other)
+				if pl != "":
+					_detail_text(pl.replace("Compared with yours", "Against %s" % Gear.display(other).to_lower()), DIM)
 		"item":
 			var n: int = p.item_count(arg)
 			var data: Dictionary = Items.ITEMS[arg]
 			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
-			_detail_text("Carrying %d of %d%s" % [n, Items.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
+			_detail_text("Carrying %d of %d%s" % [n, p.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
 			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
 				_button("Make it your quick item", _pick_item.bind(arg), details)
 		"heir":
-			var id: String = main.profile.heirlooms.get(arg, "")
-			var planned := false
-			for hs in Gear.HEIRLOOM_SLOTS:
-				if hs["id"] == arg:
-					planned = hs.get("planned", false)
+			var pieces: Array = Gear.heirloom_pieces(main.profile.heirlooms, arg)
+			var idx := int(key.get_slice(":", 2)) if key.get_slice_count(":") > 2 else 0
+			var g = pieces[idx] if idx < pieces.size() else null
 			var title := Gear.heirloom_slot_name(arg) + " heirloom"
-			if planned:
-				_detail_head("lock", "", title, DIM)
-				_detail_text("Planned: for gear that doesn't exist yet.", DIM)
-			elif id == "":
-				_detail_head("heir", "", title, DIM)
-				_detail_text("Empty. Survive a climb and you may keep the piece you carry here.", DIM)
+			if Gear.heirloom_planned(arg):
+				_detail_head("lock", null, title, DIM)
+				_detail_text("Kept for later: off-hand pieces aren't in the tower yet.", DIM)
+			elif g == null:
+				_detail_head("heir", null, title, DIM)
+				_detail_text("Empty. Survive a climb and you may keep the piece you wear here." if arg != "rings" else "Empty. Survive a climb and you may keep the rings you wear: both together.", DIM)
 			else:
-				_detail_head("gear", id, Gear.display(id), Gear.color(id))
-				_detail_text("%s heirloom: every climb begins with it." % Gear.heirloom_slot_name(arg), DIM)
-				_detail_stats(id, "")
+				_detail_head("gear", g, Gear.display(g), Gear.color(g))
+				_detail_text("%s heirloom: every climb begins with it%s." % [Gear.heirloom_slot_name(arg), " (both rings are kept together)" if arg == "rings" else ""], DIM)
+				_detail_lines(g)
+				_detail_stats(g, null)
 		"floor":
-			var fid: String = main.gear_here.get("id", "")
-			if fid == "":
+			if main.gear_here.is_empty():
 				return
-			var gslot := Gear.slot_of(fid)
-			var held: String = p.gear.get(gslot, "")
-			_detail_head("gear", fid, Gear.display(fid), Gear.color(fid))
+			var fg = main.gear_here.get("rec", main.gear_here["id"])
+			var gslot := Gear.slot_of(fg)
+			var into: String = p.slot_for(fg)
+			var held = p.gear.get(into, {})
+			var has_held: bool = Gear.is_gear(held)
+			_detail_head("gear", fg, Gear.display(fg), Gear.color(fg))
 			_detail_text("On the floor at your feet, for your %s slot." % Gear.SLOT_NAMES.get(gslot, gslot).to_lower(), DIM)
-			_detail_stats(fid, held if held != "" else "-")
-			var take := _button("Take it" + ("  (drops your %s)" % Gear.display(held) if held != "" else ""), _take_floor, details)
-			take.disabled = p.dead
+			_detail_lines(fg)
+			_detail_stats(fg, held if has_held else ("" if gslot == "armor" else null))
+			if has_held:
+				var pl := Gear.plays_like(fg, held)
+				if pl != "":
+					_detail_text(pl, DIM)
+			var rings: Array = Gear.carry_slots(gslot)
+			if rings.size() > 1 and rings.all(func(s): return p.gear_id(s) != ""):
+				# Two rings on: choose which one to take off.
+				for s in rings:
+					var b := _button("Swap for your %s" % Gear.display(p.gear[s]), _take_floor.bind(s), details)
+					b.disabled = p.dead
+			else:
+				var take := _button("Take it" + ("  (drops your %s)" % Gear.display(held) if has_held else ""), _take_floor.bind(""), details)
+				take.disabled = p.dead
 		"crystal":
 			var n: int = main.profile.crystal_count(arg)
 			var col: Color = Essence.color(arg)
@@ -1404,33 +1520,34 @@ func _show_details(key: String) -> void:
 		_detail_text(toast, GOLD)
 
 
-## What to set a carried piece against: gear lying at your feet for the same
-## slot, else what every climb starts with.
-func _compare_with(p, slot: String, id: String) -> String:
-	if not main.gear_here.is_empty() and Gear.slot_of(main.gear_here["id"]) == slot:
-		return main.gear_here["id"]
+## What to set a worn piece against: gear lying at your feet for the same
+## slot, else what every climb starts with (null for nothing).
+func _compare_with(p, slot: String, g):
+	if not main.gear_here.is_empty() and p.slot_for(main.gear_here["id"]) == slot and Gear.slot_of(main.gear_here["id"]) != "fists":
+		return main.gear_here.get("rec", main.gear_here["id"])
 	var start := {"melee": Weapons.START_MELEE, "ranged": Weapons.START_RANGED, "armor": ""}
-	if start.has(slot) and start[slot] != id:
-		return start[slot]
-	return "-"
+	if start.has(slot) and start[slot] != Gear.base_id(g):
+		return Gear.make(start[slot]) if start[slot] != "" else ""
+	return null
 
 
-func _detail_head(kind: String, id: String, title: String, col: Color) -> void:
+func _detail_head(kind: String, id, title: String, col: Color) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	details.add_child(row)
 	var icon := SlotIcon.new()
 	icon.kind = kind
-	icon.id = id
+	icon.id = Gear.base_id(id) if kind == "gear" else (String(id) if id != null else "")
+	icon.rec = id if kind == "gear" else null
 	icon.tint = col
-	icon.custom_minimum_size = Vector2(48, 48)
+	icon.custom_minimum_size = Vector2(44, 44) if compact() else Vector2(48, 48)
 	row.add_child(icon)
 	var l := Label.new()
 	l.text = title
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_font_size_override("font_size", 17 if compact() else 18)
 	l.add_theme_color_override("font_color", col.lightened(0.15))
 	row.add_child(l)
 
@@ -1440,35 +1557,61 @@ func _detail_text(text: String, col: Color) -> void:
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = 220.0
-	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_font_size_override("font_size", 12 if compact() else 13)
 	l.add_theme_color_override("font_color", col)
 	details.add_child(l)
 
 
-## A piece's numbers; against `other` (if not "-"), better in green, worse in red.
-func _detail_stats(id: String, other: String) -> void:
-	var g := GridContainer.new()
-	g.columns = 3 if other != "-" and other != "" else 2
-	g.add_theme_constant_override("h_separation", 14)
-	g.add_theme_constant_override("v_separation", 2)
-	details.add_child(g)
-	var mine: Array = Gear.stats(id)
-	var theirs: Array = Gear.stats(other) if g.columns == 3 else []
-	if g.columns == 3:
-		g.add_child(_label("", 0.0, DIM))
-		g.add_child(_small_label("this", DIM))
-		g.add_child(_small_label(Gear.display(other).to_lower(), DIM))
-	for i in mine.size():
-		var row: Array = mine[i]
-		g.add_child(_small_label(row[0], TEXT))
-		var col := TEXT
-		if i < theirs.size() and theirs[i][0] == row[0]:
-			var diff: float = float(row[2]) - float(theirs[i][2])
-			if absf(diff) > 0.0001:
-				col = UI.GOOD if (diff > 0.0) == bool(row[3]) else UI.BAD
-		g.add_child(_small_label(row[1], col))
-		if g.columns == 3:
-			g.add_child(_small_label(theirs[i][1] if i < theirs.size() else "", DIM))
+## A piece's plain lines: what it does, then its rarity, slot and condition
+## (and a warning when it's badly worn).
+func _detail_lines(g, slot_label := "") -> void:
+	var lines: Array = Gear.describe(g)
+	if slot_label != "" and lines.size() > 1:
+		lines[1] = slot_label + "  ·  " + String(lines[1])
+	for i in lines.size():
+		var col := TEXT if i == 0 else (UI.BAD if i >= 2 else DIM)
+		if i == 1 and not Gear.wears(Gear.rec(g)):
+			col = Color(Gear.RARITIES[Gear.rarity(g)]["color"], 0.9)
+		_detail_text(lines[i], col)
+
+
+## A piece's numbers; against `other` (null for nothing to set it against),
+## with arrows: up and green where it's better, down and red where worse.
+func _detail_stats(g, other) -> void:
+	var against: bool = other != null
+	var rows: Array = Gear.compare(g, other, 6) if against else []
+	if not against:
+		for st in Gear.stats(g):
+			rows.append([st[0], st[1], "", 0])
+	if rows.is_empty():
+		return
+	var grid := GridContainer.new()
+	grid.columns = 3 if against else 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 1 if compact() else 2)
+	details.add_child(grid)
+	if against:
+		grid.add_child(_label("", 0.0, DIM))
+		grid.add_child(_small_label("this", DIM))
+		var oname := "no armor" if Gear.base_id(other) == "" and Gear.slot_of(g) == "armor" else Gear.display(other).to_lower()
+		grid.add_child(_small_label(oname, DIM))
+	for r in rows:
+		grid.add_child(_small_label(r[0], TEXT))
+		var sign: int = r[3]
+		var col := UI.GOOD if sign > 0 else (UI.BAD if sign < 0 else TEXT)
+		var cellbox := HBoxContainer.new()
+		cellbox.add_theme_constant_override("separation", 3)
+		cellbox.add_child(_small_label(r[1], col))
+		if sign != 0:
+			var ar := CompareArrow.new()
+			ar.up = sign > 0
+			ar.tint = col
+			ar.custom_minimum_size = Vector2(9, 9)
+			ar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			cellbox.add_child(ar)
+		grid.add_child(cellbox)
+		if against:
+			grid.add_child(_small_label(r[2], DIM))
 
 
 func _small_label(text: String, col: Color) -> Label:
@@ -1505,8 +1648,8 @@ func _consume_crystal(kind: String) -> void:
 	open("inventory", opened_direct)
 
 
-func _take_floor() -> void:
-	if main.take_gear_here():
+func _take_floor(into := "") -> void:
+	if main.take_gear_here(into):
 		inv_sel = "gear:" + _hand_slot(main.player)
 	open("inventory", opened_direct)
 
@@ -1588,15 +1731,20 @@ func _page_dev() -> void:
 	for kind in EnemyScript.TYPES.keys().filter(func(k): return k != "familiar"):
 		_button(kind.capitalize(), _dev_spawn.bind(kind), grid)
 
-	_section("Gear (give yourself any weapon or armor)")
+	_section("Gear (give yourself any weapon, armor or piece)")
 	var ggrid := _grid(4, 6)
+	var worn: Array = p.carried_gear()
 	for id in Weapons.ORDER:
 		if id != "fists":
 			var gb := _button(Weapons.WEAPONS[id]["name"], _dev_gear.bind(id), ggrid)
-			gb.disabled = id == p.gear["melee"] or id == p.gear["ranged"]
+			gb.disabled = id in worn
 	for id in Gear.ARMOR_ORDER:
 		var ab := _button(Gear.ARMOR[id]["name"], _dev_gear.bind(id), ggrid)
-		ab.disabled = id == p.gear["armor"]
+		ab.disabled = id == p.gear_id("armor")
+	for id in Gear.PIECE_ORDER:
+		var pb := _button(Gear.PIECES[id]["name"], _dev_gear.bind(id), ggrid)
+		pb.disabled = id in worn and Gear.slot_of(id) != "ring"
+	_button("Take off the pieces", _dev_strip, ggrid)
 
 	_section("Cheats")
 	var crow := _row()
@@ -1702,6 +1850,12 @@ func _dev_spawn(kind: String) -> void:
 func _dev_gear(id: String) -> void:
 	main.dev_give_gear(id)
 	_say("Now carrying: %s" % Gear.display(id))
+
+
+func _dev_strip() -> void:
+	for slot in Gear.PIECE_SLOTS:
+		main.dev_give_gear("-" + slot)
+	_say("Took off every piece but the weapons and the chest")
 
 
 func _toggle_no_death() -> void:
@@ -2108,6 +2262,10 @@ class Slot extends Button:
 	var count := -1
 	var tint := Color.WHITE
 	var corner := ""  # a small label in the top left (the weapon key)
+	var rec = null  # gear: the record, so wear shows (cracks and a condition bar)
+	var slot_name := ""  # gear and heirlooms: shown faintly in an empty slot
+	var wear := -1.0  # a Common piece's condition, 0 to 1 (-1: doesn't wear)
+	var kept := false  # gear you wear that is also your heirloom
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -2143,14 +2301,26 @@ class Slot extends Button:
 		if picked:
 			draw_rect(Rect2(Vector2(4, size.y - 4), Vector2(size.x - 8, 2)), Color(UI.GOLD, 0.85))
 		if locked:
-			UI.draw_lock(self, c, s * 0.7, Color(UI.FAINT, 0.8))
+			UI.draw_lock(self, c + (Vector2(0, -5) if slot_name != "" else Vector2.ZERO), s * 0.7, Color(UI.FAINT, 0.8))
+			if slot_name != "":
+				draw_string(font, Vector2(0, size.y - 7.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 9, Color(UI.FAINT, 0.9))
 			return
 		match kind:
 			"gear", "heir", "floor":
 				if id != "" or (kind == "gear" and not empty):
-					Gear.draw_icon(self, id, c, s, tint if not empty else Color(tint, 0.3))
+					Gear.draw_icon(self, rec if rec != null else id, c, s, tint if not empty else Color(tint, 0.3))
+				elif slot_name != "":
+					draw_string(font, Vector2(0, c.y + 4.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, Color(UI.FAINT, 0.9))
 				else:
 					draw_arc(c, s * 0.55, 0.0, TAU, 24, Color(UI.FAINT, 0.45), 1.5, true)
+				if wear >= 0.0:
+					var wb := UI.Draw.Batch.new()
+					UI.wear_into(wb, Rect2(Vector2(6, size.y - 8), Vector2(size.x - 12, 3)), wear)
+					wb.flush(self)
+				if kept:
+					var kb := UI.Draw.Batch.new()
+					UI.gem_into(kb, Vector2(size.x - 8, 8), 3.5, UI.GOLD)
+					kb.flush(self)
 			"item":
 				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0 if count > 0 else 0.22)
 				if count >= 0:
@@ -2183,6 +2353,7 @@ class SlotIcon extends Control:
 	const UI := preload("res://scripts/ui.gd")
 	var kind := ""
 	var id := ""
+	var rec = null  # gear: the record (wear shows as cracks)
 	var tint := Color.WHITE
 
 	func _draw() -> void:
@@ -2198,7 +2369,7 @@ class SlotIcon extends Control:
 		var s := size.x * 0.33
 		match kind:
 			"gear":
-				Gear.draw_icon(self, id, c, s, tint)
+				Gear.draw_icon(self, rec if rec != null else id, c, s, tint)
 			"item":
 				Items.draw_icon(self, id, c, s)
 			"rune":
@@ -2209,6 +2380,18 @@ class SlotIcon extends Control:
 				UI.draw_lock(self, c, s * 0.7, UI.FAINT)
 			_:
 				draw_arc(c, s * 0.55, 0.0, TAU, 24, Color(UI.FAINT, 0.5), 1.5, true)
+
+
+## A small arrow beside a compared number: up (better) or down (worse).
+class CompareArrow extends Control:
+	const UI := preload("res://scripts/ui.gd")
+	var up := true
+	var tint := Color.WHITE
+
+	func _draw() -> void:
+		var b := UI.Draw.Batch.new()
+		UI.arrow_into(b, size / 2.0, minf(size.x, size.y) * 0.45, up, tint)
+		b.flush(self)
 
 
 ## The climber, drawn like the one in the tower (hooded, cloaked, outlined

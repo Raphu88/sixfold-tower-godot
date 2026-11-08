@@ -9,6 +9,7 @@ extends RefCounted
 ## it must soak up FAINT_DEBT essence before it can grow.
 
 const Bonds := preload("res://scripts/bonds.gd")
+const Gear := preload("res://scripts/gear.gd")
 const SAVE_PATH := "user://sixfold.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
@@ -33,7 +34,8 @@ var pacts: Array = []  # Covenant's pact book: monster kinds bound, kept between
 var density := {}  # kind -> amount
 var part_density := {}  # part -> {kind -> amount}
 ## Heirlooms: gear kept from survived climbs, by heirloom slot (gear.gd
-## HEIRLOOM_SLOTS) -> gear id. Every climb starts with them.
+## HEIRLOOM_SLOTS) -> a gear record (Rings: a list of up to two). Every
+## climb starts with them. Old saves held plain ids; load_save converts them.
 var heirlooms := {}
 ## Essence crystals: essence held outside you, kept between climbs. A vault
 ## or a secret room may hold some; reading a recall scroll turns unbanked
@@ -129,7 +131,7 @@ func load_save() -> void:
 	density = cfg.get_value("profile", "density", {})
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
-	heirlooms = cfg.get_value("profile", "heirlooms", {})
+	heirlooms = Gear.load_heirlooms(cfg.get_value("profile", "heirlooms", {}))
 	crystals = cfg.get_value("profile", "crystals", [])
 	record = cfg.get_value("profile", "record", {})
 	former = int(cfg.get_value("profile", "former", 0))

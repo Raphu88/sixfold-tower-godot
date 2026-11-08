@@ -168,6 +168,19 @@ static func glow_into(b, c: Vector2, r: float, col: Color, strength := 1.0) -> v
 		b.dot(c, r * (0.45 + 0.55 * k), Color(col, 0.07 * strength))
 
 
+## A small filled arrow for comparisons: pointing up (better) or down (worse).
+static func arrow_into(b, c: Vector2, r: float, up: bool, col: Color) -> void:
+	var k := -1.0 if up else 1.0
+	b.polygon(PackedVector2Array([c + Vector2(0, k * r), c + Vector2(r, -k * r * 0.6), c + Vector2(-r, -k * r * 0.6)]), col)
+
+
+## A piece's condition (wear, 0 to 1) as a thin bar: green, amber, then red.
+static func wear_into(b, r: Rect2, k: float) -> void:
+	var col := GOOD if k > 0.5 else (Color(0.95, 0.75, 0.35) if k > 0.25 else BAD)
+	b.rect(r, Color(0, 0, 0, 0.55))
+	b.rect(Rect2(r.position, Vector2(r.size.x * clampf(k, 0.0, 1.0), r.size.y)), col)
+
+
 ## A faceted essence gem in the essence's colour.
 static func gem_into(b, c: Vector2, r: float, col: Color) -> void:
 	var pts := PackedVector2Array()

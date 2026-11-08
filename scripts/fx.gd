@@ -325,8 +325,8 @@ func _draw_fields() -> void:
 		draw_circle(gp + Vector2(0, 7), 11.0, Color(0, 0, 0, 0.3))
 		draw_arc(gp, 15.0 + sin(t * 3.0) * 1.5, 0.0, TAU, 24, Color(1.0, 0.85, 0.5, 0.75 if here else 0.35), 2.0 if here else 1.5)
 		var ip2 := gp + Vector2(0, sin(t * 2.5) * 1.5 - 3.0)
-		main.Gear.draw_icon(self, g["id"], ip2 + Vector2(1, 1), 10.0, Color(0, 0, 0, 0.6))
-		main.Gear.draw_icon(self, g["id"], ip2, 10.0, gc)
+		main.Gear.draw_icon(self, g.get("rec", g["id"]), ip2 + Vector2(1, 1), 10.0, Color(0, 0, 0, 0.6))
+		main.Gear.draw_icon(self, g.get("rec", g["id"]), ip2, 10.0, gc)
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))
