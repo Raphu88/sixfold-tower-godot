@@ -1111,7 +1111,10 @@ func _plan_tests() -> void:
 	await _wait(0.3)
 	var shut: bool = not door["open"]
 	foe.aware = true
-	await _wait(0.3)
+	for i in 20:  # (doors look for monsters a few times a second)
+		if door["open"]:
+			break
+		await _wait(0.1)
 	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it")
 	foe.queue_free()
 	# Entering a themed room shows its name and rule, once.
@@ -5795,7 +5798,7 @@ func _wing_tests() -> void:
 	p.global_position = inside
 	await _frames(3)
 	main.camera.reset_smoothing()
-	await _frames(2)
+	await _wait(0.25)  # (the fog looks again up to 12 times a second)
 	var fi: int = vd.y * main.grid_size.x + vd.x
 	_check(main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w), "stepping into the doorway, the seal is in sight, and drawn pulsing")
 	_check(w["state"] == "idle", "...and the wing stays open until you're really inside")
