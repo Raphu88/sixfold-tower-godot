@@ -4122,7 +4122,7 @@ func _item_tests() -> void:
 	p.hp = 60.0
 	var item_btn: Dictionary = buttons[ids.find("item")]
 	_touch(4, item_btn["c"], true)
-	await _wait(0.15)
+	await _wait(0.06)  # (a tap: a long one, on a slow machine, opens the item ring)
 	_touch(4, item_btn["c"], false)
 	await _frames(2)
 	_check(p.item_count("draught") == 0, "tapping the item button uses the item")
@@ -4131,7 +4131,7 @@ func _item_tests() -> void:
 	p.item_sel = "draught"
 	var next_btn: Dictionary = buttons[ids.find("item_next")]
 	_touch(5, next_btn["c"], true)
-	await _wait(0.15)
+	await _wait(0.06)
 	_touch(5, next_btn["c"], false)
 	await _frames(2)
 	_check(p.selected_item() == "tonic", "tapping the small arrow picks the next item")
@@ -6621,8 +6621,11 @@ func _wing_tests() -> void:
 	p.global_position = inside
 	await _frames(3)
 	main.camera.reset_smoothing()
-	await _wait(0.25)  # (the fog looks again up to 12 times a second)
 	var fi: int = vd.y * main.grid_size.x + vd.x
+	for k in 20:  # (the fog looks again up to 12 times a second; slower on a busy machine)
+		await _wait(0.1)
+		if main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w):
+			break
 	_check(main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w), "stepping into the doorway, the seal is in sight, and drawn pulsing")
 	_check(w["state"] == "idle", "...and the wing stays open until you're really inside")
 	# Walk in: the way shuts behind you.
@@ -6817,6 +6820,7 @@ func _wing_tests() -> void:
 	main.profile.crystals = []
 	main.run_essence = {"fire": 23.4, "air": 5.0}
 	main.run_soak = {"back": 4.0}
+	p.items = {"scroll": 1}  # (other belt items would break into crystals too)
 	p.item_sel = "scroll"
 	_check(not p.use_item() and main.victory.is_empty() and main.banner.get("title", "") == main.Items.RECALL["ask_title"], "using the scroll asks first")
 	_check(p.use_item(), "...and a second use reads it")
