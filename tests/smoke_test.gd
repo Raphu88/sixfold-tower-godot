@@ -1214,15 +1214,7 @@ func _terrain_tests() -> void:
 		if not main.cache.is_empty():
 			goals.append(main.cache["pos"])
 		for g in goals:
-			# (A monster nudged against a wall may stand on a wall tile's edge:
-			# reaching any tile beside it counts.)
-			var gt: Vector2i = main._tile_of(g)
-			var ok_g := false
-			for d in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var t: Vector2i = gt + d
-				if not main._is_solid_tile(t.x, t.y) and not main.astar.get_id_path(from, t).is_empty():
-					ok_g = true
-			reach = reach and ok_g
+			reach = reach and not main.astar.get_id_path(from, main._tile_of(g)).is_empty()
 		doors += main.room_view.doors.size()
 		for d in main.room_view.doors:
 			doors_solid = doors_solid and main.is_solid(d.get_center())
