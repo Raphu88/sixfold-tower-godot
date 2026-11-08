@@ -1356,6 +1356,107 @@ func _room_fog_tests() -> void:
 	_check(not fog.visible, "single-room floors have no fog")
 
 
+func _puzzle_tests() -> void:
+	print("puzzles and the stair's ward")
+	var F = main.Floors
+	var ok_all := true
+	var kinds := {}
+	for n in 12:
+		var plan: Dictionary = F.rooms_floor(2 + n % 4, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
+		var pz: Dictionary = plan.get("puzzle", {})
+		ok_all = ok_all and not pz.is_empty()
+		if not pz.is_empty():
+			kinds[pz["type"]] = true
+	_check(ok_all, "every floor of rooms has a puzzle room")
+	_check(kinds.has("eyes") and kinds.has("plates"), "both kinds of puzzle turn up (%s)" % [kinds.keys()])
+	await _fresh_main()
+	main.profile.regarded = true
+	main.first_climb = false
+	var p = main.player
+	var pz = main.puzzle
+	main._start_floor(3)
+	for e in main.enemies():
+		e.set_physics_process(false)
+	await _frames(2)
+	_check(main.ward and pz.active(), "a floor of rooms starts with its stair warded")
+	# The stair stays shut however many monsters fall.
+	for e in main.enemies():
+		_slay(e)
+	await _frames(4)
+	_check(not main.stair_open, "killing every monster doesn't open a warded stair")
+	# The puzzle can always be reached: no rail or gate cuts off the stair.
+	var from: Vector2i = main._tile_of(main.player_start)
+	_check(not main.astar.get_id_path(from, main._tile_of(main.stair_pos)).is_empty(), "the stair can still be reached past the puzzle's rails and gates")
+	# A test puzzle of each kind, laid out in the start room.
+	var c: Vector2 = main.player_start + Vector2(0, -120)
+	var tile := func(v: Vector2) -> Vector2: return main.room.position + (Vector2(main._tile_of(v)) + Vector2(0.5, 0.5)) * F.CELL
+	# Eyes: arrows and strikes light them; all lit solves it.
+	var e1: Vector2 = tile.call(c + Vector2(-80, 0))
+	var e2: Vector2 = tile.call(c + Vector2(80, 0))
+	var gate_r := Rect2(tile.call(c + Vector2(0, 80)) - Vector2(20, 20), Vector2(40, 40))
+	pz.setup({"type": "eyes", "tier": 1, "eyes": [e1, e2], "gates": [gate_r], "rewards": [gate_r.get_center() + Vector2(0, 40)], "room": main.room})
+	main.ward = true
+	main.stair_open = false
+	_check(pz.gates.size() == 1 and not pz.gates[0]["open"], "the gate starts shut")
+	p.global_position = e1 + Vector2(0, 50)
+	p.aim = Vector2.UP
+	_check(pz.aim_point(p.global_position, 380.0) != Vector2.INF, "with no foe near, auto-aim finds the puzzle's eye")
+	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) == 1 and pz.eyes[0]["lit"] > 0.0, "a strike lights an eye")
+	var arrow = main.spawn_projectile(e2 + Vector2(-120, 0), Vector2(400, 0), 5.0)
+	arrow.friendly = true
+	await _wait(0.5)
+	_check(pz.eyes[1]["lit"] > 0.0 and not is_instance_valid(arrow), "an arrow lights an eye (and stops there)")
+	await _frames(2)
+	_check(pz.solved and not main.ward and main.stair_open, "lighting every eye lifts the ward and opens the stair")
+	_check(pz.gates[0]["open"], "...and opens the gate to the reward")
+	# Harder eyes go dark again unless they're all lit together.
+	pz.setup({"type": "eyes", "tier": 2, "eyes": [e1, e2], "room": main.room})
+	main.ward = true
+	main.stair_open = false
+	pz.shot(e1)
+	_check(pz.eyes[0]["lit"] > 0.0, "a harder eye lights...")
+	await _wait(pz.EYE_WINDOW + 0.3)
+	_check(pz.eyes[0]["lit"] <= 0.0 and not pz.solved, "...but goes dark again if the others aren't lit in time")
+	pz.shot(e1)
+	pz.shot(e2)
+	await _frames(2)
+	_check(pz.solved, "lit together, they solve it")
+	# Plates: need a weight (a block or a monster), not the climber.
+	var pl: Vector2 = tile.call(c + Vector2(0, 0))
+	var blk: Vector2 = pl + Vector2(-80, 0)
+	var lev: Vector2 = pl + Vector2(0, 80)
+	pz.setup({"type": "plates", "tier": 1, "plates": [pl], "pushers": [blk], "levers": [lev], "room": main.room})
+	main.ward = true
+	main.stair_open = false
+	p.global_position = pl
+	await _frames(3)
+	_check(not pz.plates[0]["down"], "the climber is too light to hold a plate down")
+	p.global_position = pl + Vector2(0, 120)
+	var b: Dictionary = pz.blocks[0]
+	_check(pz.slide(b, Vector2.RIGHT) and b["pos"].distance_to(pl + Vector2(-40, 0)) < 1.0, "a block slides a tile")
+	pz.strike(lev + Vector2(0, 40), Vector2.UP, 50.0, 60.0)
+	_check(b["pos"] == b["home"], "the lever puts the blocks back")
+	# Leaning on it pushes it.
+	p.global_position = blk + Vector2(-34, 0)
+	Input.action_press("move_right")
+	await _wait(0.75)
+	Input.action_release("move_right")
+	_check(b["pos"].x > blk.x + 30.0, "walking into a block pushes it (%s)" % [b["pos"] - blk])
+	pz.slide(b, Vector2.RIGHT)
+	await _frames(3)
+	_check(pz.plates[0]["down"] and pz.solved and main.stair_open, "a block on the plate solves it and lifts the ward")
+	# A monster can hold a plate down too.
+	pz.setup({"type": "plates", "tier": 2, "plates": [pl], "room": main.room})
+	main.ward = true
+	var holder = await _spawn("knight", pl)
+	holder.set_physics_process(false)
+	await _frames(3)
+	_check(pz.solved, "a monster standing on a plate holds it down")
+	holder.queue_free()
+	pz.clear()
+	main.ward = false
+
+
 func _jump_tests() -> void:
 	print("jumping and chasms")
 	await _fresh_main()
@@ -4012,6 +4113,7 @@ func _run() -> void:
 	await _terrain_tests()
 	await _trap_tests()
 	await _room_fog_tests()
+	await _puzzle_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()

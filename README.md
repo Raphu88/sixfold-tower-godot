@@ -218,6 +218,12 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 
 **Fog.** On floors of rooms you see only what your climber can see: walls block sight (chasms, water and pillars don't), places you've seen stay dimly mapped, and places you haven't are dark. Monsters out of sight are hidden until you see them (`scripts/fog.gd`). On about half the floors a small **side room** branches off one of the rooms: a dead end holding a glowing **essence cache**. Walk onto it for a burst of the tower's essence (more on higher floors); sometimes one of the floor's monsters guards it. The numbers live in `SIDE_ROOM` and `CACHE` in `scripts/floors.gd`. In the Firebird's tower the rooms' chasm tiles are real chasms and one corridor is cut by a chasm you must jump (elsewhere they're walls); in the Kraken's tower the rooms' pools fill with water. Once the stair opens, an arrow at the edge of the screen points the way.
 
+**Puzzles and the ward.** Every floor of rooms has a **puzzle room** (drawn in `scripts/rooms.gd`), and its stair is **warded**: it won't open, however many monsters fall, until the puzzle is solved. A main puzzle never needs a bond, an item or a piece of gear, only what every climber has (`scripts/puzzle.gd`, where the text and numbers live):
+- **Stone eyes** sit behind low **rails** (rails stop walking but not sight or arrows). Hit every eye, with a strike if you can reach it or an arrow over the rail, to solve it. On harder floors an eye stays lit only a couple of seconds, so you must light them all together. With no monster near, auto-aim (phones and controllers) turns to the nearest unlit eye.
+- **Pressure plates** need a **weight**: the climber is too light. Push a **stone block** onto a plate (walk into it for a moment and it slides a tile), or lure a monster onto it and keep it alive. Every plate held at once solves it; strike the **lever** to put the blocks back if one gets stuck.
+
+Solving lifts the ward ("THE WARD LIFTS"), opens the stair, and opens the room's **gate**, behind which waits a burst of the tower's essence. Floor 1 and the beast's floor have no ward: there the stair still opens once three quarters of the monsters are down.
+
 **Traps.** Traps are the beast's tests, one kind per tower, laid out as **set pieces** at chokepoints (mostly corridors, sometimes rooms beyond the first), plus one or two **hidden plates** anywhere past the first room (`scripts/traps.gd`, where the names, timings, damage and shapes live). Traps in a set piece keep **one shared beat**, so they fire in a readable pattern (a wave, or a checkerboard) you can learn and walk through. Visible traps show their reach engraved on the floor (lanes with arrows for the way they fire). Every trap warns before it hurts: a glow, then a **glint** (a white star and a "ting", like a monster's) a moment before it fires. Because of that, traps **hurt badly** (about 10 to 28, more higher up), and getting hit is your own fault. Rolling through a firing trap counts as a dodge (feeding your legs), but only once per trap. Monsters that wander into one are caught too.
 
 | Tower | Set piece | How it works | How to avoid it |
@@ -270,6 +276,7 @@ Each floor is one room. Once three quarters of its monsters are down, the **stai
 | `scripts/floors.gd` | Builds each floor: pillar layouts, monster groups, toughness |
 | `scripts/rooms.gd` | The hand-made rooms, drawn as text grids, and how they turn into walls, pillars, chasms and pools |
 | `scripts/fog.gd` | Line-of-sight fog on floors of rooms |
+| `scripts/puzzle.gd` | The floor's puzzle (eyes, plates, blocks, rails, gates, levers) and the stair's ward |
 | `scripts/towers.gd` | The towers: beast, essence, monster mix, look |
 | `scripts/items.gd` | Items (names, effects, drop chances, icons) and what a camp offers |
 | `scripts/campfire.gd` | A camp's campfire, drawn in code with its light |
