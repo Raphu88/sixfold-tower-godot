@@ -833,6 +833,35 @@ func _open_cache() -> void:
 	sfx("glint", 1.3, -2.0, 0.0)
 
 
+## Falling into a chasm: no harm done, but you drop to the floor below (never
+## below floor 1) and keep climbing from there. Unbanked essence stays with you.
+const FALL_TEXT := {"title": "YOU FELL", "line": "Down to floor %d. The beast watches you climb again."}
+
+func fall_through() -> void:
+	if climbing or player.dead:
+		return
+	climbing = true
+	player.set_physics_process(false)
+	player.iframes = maxf(player.iframes, 2.0)
+	var to := maxi(1, floor_num - 1)
+	fx_text(player.global_position + Vector2(0, -40), "Falling!", Color(0.85, 0.7, 0.6))
+	sfx("roll", 0.5, -2.0, 0.0)
+	shake(5.0)
+	var tw := create_tween()
+	tw.tween_property(self, "fade", 1.0, 0.4)
+	tw.tween_callback(_land_below.bind(to))
+	tw.tween_interval(0.2)
+	tw.tween_property(self, "fade", 0.0, 0.5)
+	tw.tween_callback(func(): climbing = false)
+
+
+func _land_below(to: int) -> void:
+	_start_floor(to)
+	banner = {"title": FALL_TEXT["title"], "lines": [FALL_TEXT["line"] % to], "t": 3.0}
+	player.set_physics_process(true)
+	sfx("hurt", 0.7, -6.0, 0.0)
+
+
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
 func _climb() -> void:
 	climbing = true
