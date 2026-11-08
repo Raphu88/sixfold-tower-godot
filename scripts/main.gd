@@ -35,6 +35,7 @@ const Lost := preload("res://scripts/lost.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
+const MakersScript := preload("res://scripts/makers.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -69,6 +70,7 @@ var springs: Array = []  # healing springs: {pos, r, left}
 var door_view  # the floor's doors (doors.gd)
 var wings  # the floor's sealed wings, vaults and secret rooms (wings.gd)
 var proving  # floor 6's Proving, and its lingering wound (proving.gd)
+var makers  # the Makers: their fragments, glimpses and meetings (makers.gd)
 var recall_ask_t := 0.0  # a recall scroll asked to be read: use it again before this runs out
 var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
@@ -254,6 +256,9 @@ func _ready() -> void:
 	proving = ProvingScript.new()
 	proving.main = self
 	add_child(proving)
+	makers = MakersScript.new()
+	makers.main = self
+	add_child(makers)
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
@@ -956,6 +961,7 @@ func _start_floor(n: int) -> void:
 	# Sealed wings, their vaults, and secret rooms (wings.gd): after the doors,
 	# before the fog and the first drawing (their closed tiles are solid).
 	wings.setup(plan)
+	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
 	# The traps (traps.gd): laid before the pillars and chasms are made, since
 	# placing them may add shelter pillars, move monsters off trap tiles and
 	# clear chasms from under what matters.
@@ -1239,6 +1245,7 @@ func lift_ward() -> void:
 	stair_open = true
 	room_view.stair_open = true
 	profile.note("puzzles")
+	MakersScript.feed(self, "puzzle")
 	tip("stair")
 	banner = {"title": PuzzleScript.TEXT["lifted_title"], "lines": [PuzzleScript.TEXT["lifted"]], "t": 2.5}
 	if door_view.unlock_puzzle():  # (warded doors open with it)
@@ -1352,6 +1359,7 @@ func _arrive() -> void:
 		tip("fog")
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
+	makers.on_arrive()  # (in the quiet after the stair, a Maker may show itself)
 
 
 # --- camps and items ---------------------------------------------------------------
@@ -3170,6 +3178,7 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 func on_enemy_killed(e) -> void:
 	profile.note("slain")
+	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
 		GuideScript.say("beast_slain", {"beast": beast_name()})

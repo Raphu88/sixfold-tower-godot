@@ -10,6 +10,7 @@ const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
+const Makers := preload("res://scripts/makers.gd")
 
 ## Damage multiplier for striking a foe from behind.
 const BACKSTAB_MULT := 1.5
@@ -1358,6 +1359,7 @@ func _release_cast() -> void:
 	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and b.spell()["type"] == "wingburst")
 	# Spellweave Ring: every third spell costs nothing.
 	spells_cast += 1
+	Makers.feed(main, "cast", 1.0, b.id + ":" + String(b.spell()["name"]))
 	var weave := int(gfx("spellweave"))
 	if weave > 0 and spells_cast % weave == 0 and not free:
 		free = true
@@ -1747,6 +1749,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	_thorns(source)
 	wear_gear("hit")
 	hits_taken += 1  # (a sealed wing's "take no hit" counts these)
+	Makers.feed(main, "wound", dmg / maxf(max_health(), 1.0))
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
 	if source != null and not steadfast:
@@ -2023,6 +2026,7 @@ func _draw() -> void:
 	b.flush(self)
 	draw_set_transform(Vector2(0, -lift), 0.0, Vector2.ONE)
 	if main != null:  # (a doll has no marks)
+		Makers.draw_core_world(self, main.profile, side, t)  # (a core mark, beneath the marks)
 		_draw_marks(side, t)
 	if overlay != null:
 		overlay.queue_redraw()

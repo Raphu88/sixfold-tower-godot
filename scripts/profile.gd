@@ -81,6 +81,13 @@ var appearance := Appearance.DEFAULTS.duplicate()
 ## False until a new climber has chosen their look on the creation page
 ## (the very first launch, and after New climber): it opens before the first climb.
 var created := true
+## The Makers (makers.gd): fragments found, each Maker's interest, meetings,
+## the core mark. makers.gd state() fills in its keys.
+var makers := {}
+## The secret bond (makers.gd): "", "developer", "designer" or "manipulator",
+## and its depth (0 without one, 1 to 5). One per climber.
+var core_mark := ""
+var core_depth := 0
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -170,6 +177,9 @@ func reset() -> void:
 	flow = 0.0
 	appearance = Appearance.DEFAULTS.duplicate()
 	created = false
+	makers = {}
+	core_mark = ""
+	core_depth = 0
 	save()
 
 
@@ -224,6 +234,10 @@ func load_save() -> void:
 	if not Secret.is_kind(path):
 		path = ""
 	flow = maxf(0.0, float(cfg.get_value("profile", "flow", 0.0))) if path != "" else 0.0
+	var mk = cfg.get_value("makers", "state", {})
+	makers = mk if mk is Dictionary else {}
+	core_mark = str(cfg.get_value("profile", "core_mark", ""))
+	core_depth = int(cfg.get_value("profile", "core_depth", 0))
 
 
 func save() -> void:
@@ -256,6 +270,9 @@ func save() -> void:
 	cfg.set_value("profile", "flow", flow)
 	cfg.set_value("look", "appearance", appearance)
 	cfg.set_value("look", "created", created)
+	cfg.set_value("makers", "state", makers)
+	cfg.set_value("profile", "core_mark", core_mark)
+	cfg.set_value("profile", "core_depth", core_depth)
 	cfg.save(save_path)
 
 

@@ -40,6 +40,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Makers := preload("res://scripts/makers.gd")
 
 ## Every line the wings say, in one place.
 const TEXT := {
@@ -584,6 +585,7 @@ func _finish(w: Dictionary, vault: String, why: String) -> void:
 			line = TEXT["lesser"]
 		_open([w["vault_door"]], w.get("vault_body"))
 		w["vault_body"] = null
+		Makers.feed(main, "vault")
 		w["prize_light"] = main.lighting.add_light(w["pedestal"], 120.0, GOLD, 0.75, 0.25)
 		main.fx_burst(w["seal_pos"], w["vault_dir"], GOLD, 24, 220.0)
 		main.light_flash(w["seal_pos"], GOLD, 1.8, 1.8, 0.5)
@@ -775,6 +777,7 @@ func _leaning(t: Vector2i, into: Vector2, p, st: Dictionary, delta: float) -> bo
 
 func _open_secret(s: Dictionary) -> void:
 	s["open"] = true
+	Makers.feed(main, "secret_room")
 	var tiles := _secret_tiles(s)
 	if s["content"] == "tithe":
 		tiles.erase(s["vault_door"])

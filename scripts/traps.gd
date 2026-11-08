@@ -54,6 +54,7 @@ const Rooms := preload("res://scripts/rooms.gd")
 const Themes := preload("res://scripts/themes.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const Makers := preload("res://scripts/makers.gd")
 
 ## Hidden plates by tower (the first kind is the commonest).
 const PLATES := {
@@ -1739,6 +1740,7 @@ func _hurt_inside(tr: Dictionary) -> void:
 				if p.iframes > 0.0 and not tr.get("dodged", false):
 					tr["dodged"] = true
 					p.on_dodge()
+					Makers.feed(main, "trap_dodged")
 			else:
 				_catch_player(tr, k)
 	for e in _foes():

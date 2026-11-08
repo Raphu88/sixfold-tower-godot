@@ -27,6 +27,7 @@ extends Node2D
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Themes := preload("res://scripts/themes.gd")
+const Makers := preload("res://scripts/makers.gd")
 
 ## A door opens when a body's edge comes this close to it (px).
 const REACH := 24.0
@@ -293,6 +294,7 @@ func open_all() -> void:
 
 ## Undoes a lock (its key turned, its lever struck, its puzzle solved).
 func unlock(lock_id: int) -> void:
+	Makers.feed(main, "door")
 	for d in list:
 		if d["lock"] != "" and int(d["lock_id"]) == lock_id:
 			d["lock"] = ""
