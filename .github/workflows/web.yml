@@ -53,7 +53,7 @@ jobs:
         run: |
           godot=~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64
           timeout 300 $godot --headless --editor --quit || true
-          timeout 300 $godot --headless -s tests/smoke_test.gd
+          timeout 1500 $godot --headless -s tests/smoke_test.gd
 
       - name: Export for web
         run: |

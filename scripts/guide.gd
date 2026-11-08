@@ -272,6 +272,14 @@ func dismiss() -> bool:
 	return true
 
 
+var ate_at := -100000  # when a click or tap on the bubble was taken (msec)
+
+
+## True just after a click on the bubble, so it doesn't also swing the weapon.
+func ate_click() -> bool:
+	return Time.get_ticks_msec() - ate_at < 150
+
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch and not event.pressed and event.index == eaten_touch:
 		eaten_touch = -1
@@ -287,6 +295,7 @@ func _input(event: InputEvent) -> void:
 	if at.x >= 0.0 and rect.grow(6.0).has_point(at):
 		if event is InputEventScreenTouch:
 			eaten_touch = event.index
+		ate_at = Time.get_ticks_msec()
 		dismiss()
 		get_viewport().set_input_as_handled()
 

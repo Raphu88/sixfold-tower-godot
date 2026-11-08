@@ -424,8 +424,8 @@ func _read_buffer() -> void:
 		pressed = "roll"
 	elif Input.is_action_just_pressed("jump"):
 		pressed = "jump"
-	elif Input.is_action_just_pressed("attack"):
-		pressed = "attack"
+	elif Input.is_action_just_pressed("attack") and not (main.entity != null and main.entity.ate_click()):
+		pressed = "attack"  # (not a click that dismissed the Entity's bubble)
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
 	elif Input.is_action_just_pressed("use_item"):

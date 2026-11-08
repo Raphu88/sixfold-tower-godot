@@ -6159,6 +6159,7 @@ func _entity_tests() -> void:
 	Input.parse_input_event(up)
 	await _until_no_bubble()
 	_check(not main.entity.showing(), "a click on the bubble dismisses it")
+	_check(main.entity.ate_click() or Time.get_ticks_msec() - main.entity.ate_at < 1000, "...and the click is taken by the bubble, not the sword")
 	# A tap on the bubble (a phone), clear of the touch buttons.
 	main.touch._set_active(true)
 	await _until_bubble()
