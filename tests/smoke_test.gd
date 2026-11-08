@@ -6979,8 +6979,8 @@ func _lock_tests() -> void:
 	# A monster carries the key.
 	d = await _locked_floor("carried")
 	if not d.is_empty():
-		var carrier = main.enemies().filter(func(e): return e.has_meta("key"))
-		_check(carrier.size() == 1, "one monster carries the key")
+		var carrier = main.enemies().filter(func(e): return e.has_meta("key") and int(e.get_meta("key")) == int(d["lock_id"]))
+		_check(carrier.size() == 1, "one monster carries the key (%d)" % carrier.size())
 		if carrier.size() == 1:
 			var at: Vector2 = carrier[0].global_position
 			_slay(carrier[0])
