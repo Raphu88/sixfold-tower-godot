@@ -59,6 +59,7 @@ const LAYOUTS := [
 ## Each room then gets a THEME (themes.gd): what it is and what it holds.
 
 const Themes := preload("res://scripts/themes.gd")
+const Catalog := preload("res://scripts/puzzles/catalog.gd")
 
 ## The grid's tiles start here (world px), CELL px each.
 const ORIGIN := Vector2(80, 100)
@@ -131,7 +132,10 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var spine := _spine(grid, _roll(cfg["spine"]))
 	var infos: Array = []
 	var used_ids: Array = []
-	var tier_cap := 1 if floor_num <= 3 else (2 if randf() < 0.5 else 1)
+	# The gallery's puzzle (puzzles/catalog.gd): hand-made rooms hold the
+	# eyes and plates (tier 2 at most); the others lay themselves out.
+	var pz_kind := Catalog.pick(floor_num, tid)
+	var tier_cap := mini(Catalog.tier_for(floor_num), 2)
 	var gallery_at: int = spine.size() / 2
 	for i in spine.size():
 		var role := "guard"
@@ -141,7 +145,7 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			role = "stair"
 		elif i == gallery_at:
 			role = "gallery"
-		var info := _place(role, spine[i], i - 1, infos, floor_num, tower, used_ids, tier_cap)
+		var info := _place(role, spine[i], i - 1, infos, floor_num, tower, used_ids, tier_cap, pz_kind)
 		if info.is_empty():
 			return {}
 		infos.append(info)
@@ -294,7 +298,9 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		var info: Dictionary = infos[i]
 		var f: Dictionary = Rooms.features(info["rows"], info["rect"].position, CELL, tower)
 		if info["role"] == "gallery":
-			puzzle = _puzzle_spec(info, f)
+			puzzle = _puzzle_spec(info, f, floor_num, tower, _entrances(infos, i))
+			for t in puzzle.get("reserve", []):
+				info["reserved"][t] = true
 		blocks.append_array(f["blocks"])
 		chasms.append_array(f["chasms"])
 		pillars.append_array(f["pillars"])
@@ -450,9 +456,9 @@ static func _index_of_role(infos: Array, role: String) -> int:
 
 ## A room for `role` placed in `cell`, joined to room `parent` (an index into
 ## `infos`, or -1) by a corridor; {} if no room would join up.
-static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int) -> Dictionary:
+static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "") -> Dictionary:
 	for design_try in 8:
-		var d := _design(role, floor_num, tower, used_ids, tier_cap)
+		var d := _design(role, floor_num, tower, used_ids, tier_cap, pz_kind)
 		var size: Vector2i = d["size"]
 		var x0 := cell.x * CELL_TILES.x + 1
 		var y0 := cell.y * CELL_TILES.y + 1
@@ -479,10 +485,16 @@ static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floo
 
 ## What a room looks like: a hand-made room (rooms.gd) or a shape carved in
 ## the tower's style. {id, prefab, rows, size, shape (, puzzle, tier)}
-static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int) -> Dictionary:
+static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "") -> Dictionary:
 	var prefab_role: String = {"entrance": "start", "guard": "combat", "branch": "combat", "stair": "stair", "gallery": "puzzle"}[role]
+	if role == "gallery" and pz_kind != "" and not (pz_kind in Catalog.PREFAB):
+		return _puzzle_hall(pz_kind)
 	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)):
 		var fits: Array = Rooms.for_role(prefab_role, floor_num).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
+		if role == "gallery" and pz_kind != "":
+			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
+			var top: Array = kind_fits.filter(func(r): return int(r.get("tier", 1)) == tier_cap)
+			fits = top if not top.is_empty() else (kind_fits if not kind_fits.is_empty() else fits)
 		var fresh: Array = fits.filter(func(r): return not (r["id"] in used_ids))
 		var pool: Array = fresh if not fresh.is_empty() or role == "gallery" else []
 		if pool.is_empty() and role == "gallery":
@@ -511,6 +523,15 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 	h = mini(h, Rooms.MAX_SIZE.y)
 	var size := Vector2i(w, h)
 	return {"id": "carved_" + shape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape}
+
+
+## A plain carved hall for a puzzle that lays itself out (statues, mirrors,
+## the crumbling path): open floor, so the puzzle has room to work.
+static func _puzzle_hall(kind: String) -> Dictionary:
+	var lim: Array = Catalog.ROOM_SIZE
+	var size := Vector2i(mini(randi_range(int(lim[0]), int(lim[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(lim[2]), int(lim[3])), Rooms.MAX_SIZE.y))
+	var shape: String = Catalog.ROOM_SHAPES[randi() % Catalog.ROOM_SHAPES.size()]
+	return {"id": "hall_" + kind, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape, "puzzle": kind}
 
 
 ## Where a room's side can take a doorway (see Rooms.door_slots); a stair
@@ -753,7 +774,8 @@ static func _room_weight(info: Dictionary, spots: Array, floor_num: int) -> int:
 	if info["role"] == "entrance" or th["kind"] == "good" or th["feature"] == "ambush":
 		return 0
 	if info["role"] == "gallery":
-		return mini(spots.size(), 2)
+		# Guards for the puzzle (a carved hall has no marked spots).
+		return mini(spots.size(), 2) if info.get("prefab", false) else (1 if floor_num < 4 else 2)
 	if th["feature"] == "den":
 		return 3
 	if info["role"] == "stair":
@@ -811,18 +833,36 @@ static func _torches(infos: Array) -> Array:
 	return out
 
 
-## The puzzle in the gallery, from its features, or {} if it has none.
-static func _puzzle_spec(info: Dictionary, f: Dictionary) -> Dictionary:
+## The puzzle in the gallery (puzzles/catalog.gd), checked by its solver,
+## or {} if it has none (then the floor is planned again).
+static func _puzzle_spec(info: Dictionary, f: Dictionary, floor_num: int, tower: Dictionary, entrances: Array) -> Dictionary:
 	var kind: String = info.get("puzzle", "")
-	if kind == "eyes" and f["eyes"].is_empty():
-		return {}
-	if kind == "plates" and f["plates"].is_empty():
-		return {}
 	if kind == "":
 		return {}
-	return {"type": kind, "tier": int(info.get("tier", 1)), "room": info["rect"], "id": info["id"],
-		"eyes": f["eyes"], "plates": f["plates"], "pushers": f["pushers"], "rails": f["rails"],
-		"gates": f["gates"], "levers": f["levers"], "rewards": f["rewards"]}
+	return Catalog.make(kind, info, f, floor_num, tower.get("beast_kind", ""), entrances)
+
+
+## The corridor tiles right outside a room's doorways (world rects): a
+## sealed puzzle room closes these.
+static func _entrances(infos: Array, gi: int) -> Array:
+	var g: Dictionary = infos[gi]
+	var lo: Vector2i = g["pos"]
+	var hi: Vector2i = lo + Vector2i(g["size"])
+	var out: Array = []
+	for j in infos.size():
+		var other: Dictionary = infos[j]
+		if not other.has("link") or (j != gi and int(other["parent"]) != gi):
+			continue
+		var cr: Rect2i = other["link"]["corridor"]
+		for y in range(cr.position.y, cr.end.y):
+			for x in range(cr.position.x, cr.end.x):
+				var t := Vector2i(x, y)
+				for d in DIRS:
+					var n: Vector2i = t + d
+					if n.x >= lo.x and n.y >= lo.y and n.x < hi.x and n.y < hi.y:
+						out.append(Rect2(ORIGIN + Vector2(t) * CELL, Vector2(CELL, CELL)))
+						break
+	return out
 
 
 ## How much essence a cache holds on a floor.
