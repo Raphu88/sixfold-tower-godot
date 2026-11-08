@@ -122,9 +122,9 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 	# The floor's trap rooms (themes.gd) get the first set pieces.
 	var hazard: Array = plan.get("hazard_rooms", [])
 	for s in sets:
-		for attempt in 40:
+		for attempt in 80:
 			var pool: Array = corridors if (not corridors.is_empty() and randf() < 0.7) else inner_rooms
-			if s < hazard.size() and attempt < 30:
+			if s < hazard.size() and attempt < 50:
 				pool = [rooms[hazard[s]]]
 			if pool.is_empty():
 				pool = inner_rooms
@@ -142,25 +142,30 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 			list.append_array(group)
 			break
 	# A hidden plate or two, anywhere past the first room.
-	var singles := 1 + randi() % 2
-	var areas: Array = inner_rooms.duplicate()
+	var singles := maxi(1 + randi() % 2, 2 - list.size())  # (two traps a floor at least)
+	# (Only rooms that may hold one: not the puzzle room or a good room.)
+	var areas: Array = inner_rooms.filter(func(r): return spot_ok(r.get_center(), {"safe_rooms": plan.get("safe_rooms", []), "puzzle": plan.get("puzzle", {})}, []))
 	areas.append_array(corridors)
-	for i in singles:
+	if areas.is_empty():
+		areas = inner_rooms.duplicate()
+	var placed := 0
+	for attempt in 240:
+		if placed >= singles:
+			break
 		var single_kind := kind
 		if KINDS[kind]["trigger"] != "plate":
 			single_kind = "gas" if tid in GAS_TOWERS else kind
 		elif tid in GAS_TOWERS and randf() < 0.4:
 			single_kind = "gas"
-		for attempt in 60:
-			var area: Rect2 = areas[randi() % areas.size()]
-			var pos := _tile_in(area.grow(-Floors.CELL * 0.5))
-			if pos == Vector2.INF or not spot_ok(pos, plan, list, main):
-				continue
-			var tr := make(pos, single_kind, single_kind != kind or randf() < float(KINDS[single_kind]["hidden_chance"]) + 0.3, floor_num)
-			if KINDS[single_kind]["shape"] == "lane":
-				tr["dir"] = _open_dir(pos, int(KINDS[single_kind]["len"]), plan, main)
-			list.append(tr)
-			break
+		var area: Rect2 = areas[randi() % areas.size()]
+		var pos := _tile_in(area.grow(-Floors.CELL * 0.5))
+		if pos == Vector2.INF or not spot_ok(pos, plan, list, main):
+			continue
+		var tr := make(pos, single_kind, single_kind != kind or randf() < float(KINDS[single_kind]["hidden_chance"]) + 0.3, floor_num)
+		if KINDS[single_kind]["shape"] == "lane":
+			tr["dir"] = _open_dir(pos, int(KINDS[single_kind]["len"]), plan, main)
+		list.append(tr)
+		placed += 1
 	return list
 
 
