@@ -82,23 +82,23 @@ const THEMES := {
 	"chasm": {"name": "The Chasm", "kind": "bad", "sub": "The floor falls away into the dark. Jump it, or fall to the floor below.",
 		"tint": Color(0.1, 0.05, 0.15, 0.10), "door": "hazard", "sigil": "chasm", "min_size": Vector2i(6, 5), "towers": [], "feature": "chasm"},
 	# Trap rooms: each lays its set piece of traps (traps.gd), built out of the
-	# room's own shape. The rule says truthfully how the pattern works.
-	"spikes": {"name": "Spike Gallery", "kind": "bad", "sub": "Rows of spikes rise in a rolling wave, each row a beat behind the last. Follow the wave across.",
+	# room's own shape. The rule hints at the pattern without spelling it out.
+	"spikes": {"name": "Spike Gallery", "kind": "bad", "sub": "The floor is pocked with rows of small holes. Listen for the click, and mind the rhythm.",
 		"tint": Color(0.85, 0.82, 0.75, 0.06), "door": "hazard", "sigil": "spike", "min_size": Vector2i(6, 5), "towers": [], "home": ["manticore"], "feature": "trap", "weight": 0.75},
-	"darts": {"name": "Dart Hall", "kind": "bad", "sub": "Slots in both walls fire darts across the hall, one wall then the other. An eye glows red before each shot.",
+	"darts": {"name": "Dart Hall", "kind": "bad", "sub": "Thin slits line both walls. Whatever waits behind them takes turns.",
 		"tint": Color(0.75, 0.6, 0.55, 0.05), "door": "hazard", "sigil": "dart", "min_size": Vector2i(6, 5), "towers": [], "feature": "trap", "weight": 0.75},
-	"furnace": {"name": "The Furnace", "kind": "bad", "sub": "Vents breathe fire from both ends in turns, one half of the room, then the other. One side is always safe.",
+	"furnace": {"name": "The Furnace", "kind": "bad", "sub": "Scorched grates at both ends, and the air shimmers. The fire takes turns: one side is always safe.",
 		"tint": Color(1.0, 0.35, 0.15, 0.09), "door": "hazard", "sigil": "flame", "min_size": Vector2i(7, 5), "towers": [], "home": ["wyvern"], "feature": "trap", "decor": "scorch", "from": 3, "weight": 0.75},
-	"miasma": {"name": "Miasma Hall", "kind": "bad", "sub": "Vents breathe choking gas one after another. Keep to the clean stones: linger in the cloud and it will kill you.",
+	"miasma": {"name": "Miasma Hall", "kind": "bad", "sub": "The air tastes foul and the stone is cracked. Some stones are clean. Don't breathe it long.",
 		"tint": Color(0.55, 0.65, 0.25, 0.08), "door": "hazard", "sigil": "gas", "min_size": Vector2i(7, 6), "towers": [], "home": ["manticore", "chimera"], "feature": "trap", "from": 4, "weight": 0.75},
 	# Each tower's own trap room (twice as likely there).
-	"windhall": {"name": "Windhall", "kind": "bad", "sub": "Gusts blow toward the spiked wall, lane after lane. Cross between them, or roll.",
+	"windhall": {"name": "Windhall", "kind": "bad", "sub": "The wind howls toward a wall of spikes.",
 		"tint": Color(0.75, 0.88, 1.0, 0.07), "door": "hazard", "sigil": "wind", "min_size": Vector2i(6, 5), "towers": ["gryphon"], "feature": "trap"},
-	"sluice": {"name": "Sluice Hall", "kind": "bad", "sub": "Water sweeps down the hall, the rows taking turns. Step into a dry row, or shelter behind a pillar.",
+	"sluice": {"name": "Sluice Hall", "kind": "bad", "sub": "Water stains run the length of the hall. The pillars stand dry.",
 		"tint": Color(0.3, 0.7, 0.9, 0.09), "door": "hazard", "sigil": "wave", "min_size": Vector2i(7, 4), "towers": ["kraken"], "feature": "trap", "decor": "ripples"},
-	"emberfall": {"name": "Emberfall", "kind": "bad", "sub": "Embers fall on the glowing marks in waves, and the floor burns after. Watch the marks and keep moving.",
+	"emberfall": {"name": "Emberfall", "kind": "bad", "sub": "Scorch rings dot the floor. Something falls here, and keeps falling.",
 		"tint": Color(1.0, 0.5, 0.2, 0.08), "door": "hazard", "sigil": "ember", "min_size": Vector2i(6, 5), "towers": ["firebird"], "feature": "trap", "decor": "scorch"},
-	"bramble": {"name": "Bramble Hall", "kind": "bad", "sub": "Snares hide in the brambles, and their snap wakes the pack. A trodden path winds through.",
+	"bramble": {"name": "Bramble Hall", "kind": "bad", "sub": "Brambles choke the room, and something in them snaps. Someone has trodden a path.",
 		"tint": Color(0.4, 0.65, 0.25, 0.10), "door": "hazard", "sigil": "thorn", "min_size": Vector2i(6, 5), "towers": ["chimera"], "feature": "trap"},
 }
 

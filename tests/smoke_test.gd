@@ -1286,6 +1286,8 @@ func _trap_tests() -> void:
 	var total := 0
 	var themes_seen := {}
 	var floors_with_room := 0
+	var blocked := 0
+	var guarded := 0
 	for n in 24:
 		main.tower = main.Towers.ORDER[n % 6]
 		main._start_floor([2, 3, 4, 6, 8, 11][(n / 6 + n) % 6])
@@ -1314,11 +1316,9 @@ func _trap_tests() -> void:
 				for r in plan.get("safe_rooms", []):
 					ok_good = ok_good and not r.has_point(pos)
 		ok_patch = ok_patch and list.filter(func(t): return t.get("patch", false)).size() <= 12
-		# Nothing reaches the start, the stair, a doorway or the puzzle room.
+		# Nothing reaches the start, the stair, a door or the puzzle room.
 		for t in haz:
 			var c: Vector2 = Traps.centre(t)
-			for r in plan.get("doorways", []):
-				ok_clear = ok_clear and not r.has_point(c)
 			for d in main.door_view.list:
 				ok_clear = ok_clear and not d["rect"].has_point(c)
 			if not plan.get("puzzle", {}).is_empty():
@@ -1333,7 +1333,16 @@ func _trap_tests() -> void:
 				for x in int(pr.size.x / main.Floors.CELL):
 					pts.append(pr.position + (Vector2(x, y) + Vector2(0.5, 0.5)) * main.Floors.CELL)
 			goals.append(pts)
-		ok_route = ok_route and _trap_free_route(haz, goals)
+		# Traps may block the way, but never for good: a route exists over
+		# tiles that each have a safe moment (time it, roll or jump).
+		ok_route = ok_route and _trap_free_route(Traps.hard_tiles(list), goals)
+		blocked += 0 if _trap_free_route(haz, goals) else 1
+		# From floor 4, monsters wait among the traps.
+		if main.floor_num >= 4:
+			for i in main.room_themes.size():
+				if Traps.THEME_KINDS.has(main.room_themes[i]):
+					var rr: Rect2 = main.room_info[i]["rect"]
+					guarded += 1 if plan["monsters"].any(func(m): return rr.has_point(m[1])) else 0
 		# Each trap room holds its own pattern, on one shared beat.
 		var has_room := false
 		for i in main.room_themes.size():
@@ -1363,10 +1372,12 @@ func _trap_tests() -> void:
 	_check(floors_with_room >= 20 and themes_seen.size() >= 6, "nearly every floor has a trap room (%d of 24), in many themes (%s)" % [floors_with_room, themes_seen.keys()])
 	_check(ok_rooms and ok_beat, "each trap room holds its own theme's pattern, all on one shared beat")
 	_check(ok_spot, "traps never sit on a wall or a chasm, and lanes never run into a wall")
-	_check(ok_clear, "nothing reaches the start, the stair, a doorway, a door or the puzzle room")
+	_check(ok_clear, "nothing reaches the start, the stair, a door or the puzzle room")
 	_check(ok_good, "good rooms stay clear (but for the spikes guarding a cache)")
 	_check(ok_ring and rings > 0, "spikes ring the cache's urn two tiles out (%d)" % rings)
-	_check(ok_route, "a route with no trap on it always runs from the start to the stair and the puzzle room")
+	_check(ok_route, "the stair and the puzzle room can always be reached by timing it: no tile on the way is never safe")
+	_check(blocked > 0, "but traps may block the way: on %d of 24 floors the stair can't be reached without crossing one" % blocked)
+	_check(guarded > 0, "monsters wait among the traps from floor 4 (%d rooms)" % guarded)
 	_check(ok_patch, "at most two spike patches in the corridors a floor")
 	_check(plates > 0, "loose plates still turn up (%d)" % plates)
 	_check(ok_foes, "no monster waits on a trap")
@@ -1577,9 +1588,13 @@ func _trap_tests() -> void:
 	p.iframes = 0.0
 	var dhp: float = p.hp
 	await _wait(0.15)
-	var eye: bool = main.trap_view.glow_list().any(func(l): return l[0].distance_to(Traps.slot_of(dart)) < 2.0 and l[2].r > l[2].g * 2.0)
-	_check(dart["state"] == "warn" and p.hp == dhp and eye and is_equal_approx(float(Traps.KINDS["dart"]["warn"]), 0.4), "a dart slot's eye glows red 0.4 s before it fires (and lights the dark); nothing hurts yet")
-	await _wait(0.5)
+	var tell: float = main.trap_view.tell(dart)
+	var faint: bool = tell > 0.0 and tell < 0.5 and main.trap_view.glow_list().is_empty()
+	_check(dart["state"] == "warn" and p.hp == dhp and faint and is_equal_approx(float(Traps.KINDS["dart"]["warn"]), 0.4), "a dart slot gives only a faint tell 0.4 s before it fires (its eye dimly reddening, no flash); nothing hurts yet")
+	await _wait(0.17)
+	var eye: bool = main.trap_view.glow_list().any(func(l): return l[0].distance_to(Traps.slot_of(dart)) < 2.0)
+	_check(dart["state"] == "warn" and eye, "...and its eye catches the light just before the shot")
+	await _wait(0.33)
 	_check(p.hp < dhp, "...then its dart flies down the lane and hurts (%d)" % int(dhp - p.hp))
 	# A dart only hurts where it is: once it has passed, the lane is safe.
 	dart["state"] = "warn"
@@ -1591,6 +1606,15 @@ func _trap_tests() -> void:
 	_check(dart["state"] == "fire" and not main.trap_view.touches(dart, spot, 10.0) and main.trap_view.touches(dart, mid, 10.0), "a dart hurts only where it is in its flight, not all along its lane")
 	main.traps = []
 	await _wait(0.4)
+	# Subtle tells: a warning spike row gives no light and only a faint tell;
+	# a hidden plate gives less time than a visible one.
+	var quiet: Dictionary = Traps.make(spot + Vector2(0, 200), "spikes", false, 2)
+	quiet["state"] = "warn"
+	quiet["timer"] = 0.4
+	main.traps = [quiet]
+	_check(main.trap_view.glow_list().is_empty() and main.trap_view.tell(quiet) < 0.5 and not Traps.KINDS["spikes"].get("glint", true), "spikes warn with only a click and the tips peeking: no glow, no glint")
+	_check(Traps.val(Traps.make(spot, "spikes", true, 2), "warn") < Traps.val(Traps.make(spot, "spikes", false, 2), "warn"), "a hidden plate gives you less time to react")
+	main.traps = []
 	# The Furnace: its two halves take turns, so one side is always safe.
 	var furnace: Array = _built_theme("furnace")
 	var fg: Array = furnace[2]
@@ -1615,7 +1639,7 @@ func _trap_tests() -> void:
 		fired[1] = fired[1] or fire_b
 	main.traps = []
 	_check(not fg.is_empty() and not both and fired[0] and fired[1], "the Furnace's two halves fire in turns, never together: one side is always safe")
-	_check(main.Themes.THEMES["furnace"]["sub"].contains("One side is always safe"), "...and its rule says so")
+	_check(String(main.Themes.THEMES["furnace"]["sub"]).to_lower().contains("one side is always safe"), "...and its rule says so")
 	await _wait(0.2)
 	# Gas kills a climber who lingers in it.
 	var cloud: Dictionary = Traps.make(spot, "miasma", false, 2)

@@ -7,17 +7,23 @@ extends Node2D
 ##     ends, and so on (see "set pieces" below and the README's table);
 ##   * spikes GUARD things that matter: a ring around the cache's urn;
 ##   * one or two spike patches sit in corridors (no more);
-##   * a few hidden plates can be anywhere, but never in a doorway.
-## A PROTECTION PASS then keeps the start, the stair, every doorway, the
-## puzzle room and the good rooms clear, and makes sure a route with no
-## trap on it always runs from the start to the stair, the puzzle room and
-## the good rooms (it opens one trap tile at a time until one does).
+##   * a few hidden plates can be anywhere but on a door itself.
+## Traps MAY block the way: a set piece can span a corridor or a doorway so
+## you must cross it, and from floor 4 monsters wait among them. The
+## PROTECTION PASS keeps the start, the stair, the doors themselves, the
+## puzzle room and the good rooms clear, and makes sure the stair, the
+## puzzle room and the springs can always be reached by a climber who times
+## it, rolls or jumps: never truly shut (see `ensure_passable`).
 ##
-## Every trap warns before it hurts: a glow over everything it will hit,
-## then a GLINT (the same star and "ting" as a monster's hit) a moment before
-## it fires. Getting hit is the climber's own fault, so traps hurt. All the
-## traps of a set piece keep one shared beat, so the pattern can be read
-## and learned: a set piece is a small test of timing, not a gotcha.
+## Traps are hard to spot, and their warnings are subtle (the owner's call):
+## at rest a trap shows only a faint tell on its tile (small holes, a grate,
+## cracks, a slit in the wall), drawn under the darkness so it's only seen
+## where light falls; hidden ones show nothing until you're right on top of
+## them (Keen Eyes shows them all). Just before it fires a trap gives a short
+## tell (a click or a hiss, spikes peeking, a slot's eye reddening) and some
+## kinds a small glint at the last moment; a hidden plate gives you even less
+## time. They hurt. All the traps of a set piece keep one shared beat, so the
+## pattern can still be learned, and beats overlap higher up.
 ##
 ## The trap data (names, timings, damage, shapes) lives in KINDS, and the
 ## placement rules in RULES, so they're easy to tune or rename. main.gd keeps
@@ -29,7 +35,7 @@ extends Node2D
 ##   pos:   its tile's centre (for a lane, the nozzle end; a dart's slot is
 ##          in the wall just behind it)
 ##   dir:   which way a lane points; len: how many tiles it covers
-##   state: "idle", "warn" (glowing: get off!), "fire" (hurting), "rest"
+##   state: "idle", "warn" (its tell: get off!), "fire" (hurting), "rest"
 ##   and optionally its own "cycle", "warn", "fire", "reach" (else KINDS'),
 ##   "room" (the room it belongs to), "guard" (rings the cache), "patch"
 ##   (a corridor patch)
@@ -71,6 +77,9 @@ const RULES := {
 	"plate_hidden": 0.8,  # how often a loose plate is hidden
 	"ring_from": 3,  # the cache's urn is ringed by spikes from this floor
 	"min_traps": 2,  # every floor of rooms has at least this many traps
+	"hidden_warn": 0.3,  # how long a hidden plate warns once stepped on (a visible one: its kind's)
+	"room_guards": [[3, 0], [7, 1], [99, 2]],
+	"notice": 64.0,  # how close you must be to make out a hidden trap's tell (px)  # monsters added to each trap room: [up to floor, how many]
 }
 
 ## The trap kinds. Times are in seconds, damage in health (the climber has 140).
@@ -107,7 +116,7 @@ const KINDS := {
 		"avoid": ["roll"], "hidden_chance": 0.0, "color": Color(0.95, 0.3, 0.25), "text": "Dart!",
 	},
 	"spikes": {
-		"name": "spike plate", "trigger": "plate", "cycle": 2.8, "warn": 0.5, "fire": 0.6, "rest": 1.4,
+		"name": "spike plate", "glint": false, "trigger": "plate", "cycle": 2.8, "warn": 0.5, "fire": 0.6, "rest": 1.4,
 		"shape": "circle", "r": 20.0, "reach": 26.0, "damage": 26.0, "push": 0.0,
 		"avoid": ["roll", "jump"], "hidden_chance": 0.6, "color": Color(0.9, 0.82, 0.62), "text": "Spikes!",
 	},
@@ -118,18 +127,18 @@ const KINDS := {
 		"color": Color(1.0, 0.7, 0.3), "text": "Embers",
 	},
 	"thorns": {
-		"name": "bramble snare", "trigger": "plate", "warn": 0.5, "fire": 0.5, "rest": 2.0,
+		"name": "bramble snare", "glint": false, "trigger": "plate", "warn": 0.5, "fire": 0.5, "rest": 2.0,
 		"shape": "circle", "r": 20.0, "reach": 26.0, "damage": 18.0, "push": 0.0, "root": 1.3,
 		"wake": 300.0, "avoid": ["roll", "jump"], "hidden_chance": 0.5,
 		"color": Color(0.6, 0.85, 0.4), "text": "Snared",
 	},
 	"gas": {
-		"name": "gas vent", "trigger": "plate", "warn": 0.5, "fire": 6.0, "rest": 4.0,
+		"name": "gas vent", "glint": false, "trigger": "plate", "warn": 0.5, "fire": 6.0, "rest": 4.0,
 		"shape": "circle", "r": 20.0, "reach": 84.0, "damage": 10.0, "tick": 0.5, "push": 0.0,
 		"avoid": ["roll"], "hidden_chance": 0.75, "color": Color(0.62, 0.8, 0.3), "text": "Choking!",
 	},
 	"miasma": {
-		"name": "miasma vent", "trigger": "timed", "cycle": 6.4, "warn": 0.8, "fire": 3.0,
+		"name": "miasma vent", "glint": false, "trigger": "timed", "cycle": 6.4, "warn": 0.8, "fire": 3.0,
 		"shape": "circle", "r": 20.0, "reach": 64.0, "damage": 10.0, "tick": 0.5, "push": 0.0,
 		"avoid": ["roll"], "hidden_chance": 0.0, "color": Color(0.66, 0.78, 0.32), "text": "Choking!",
 	},
@@ -191,6 +200,8 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 		if THEME_KINDS.has(theme):
 			list.append_array(build_theme(ctx, i, theme, floor_num))
 			_rehaz(ctx, list)
+	# Monsters wait among the traps (from floor 4): fight them in the pattern.
+	_room_guards(ctx, list, tower, floor_num)
 	# Spikes ring the cache's urn.
 	if floor_num >= int(RULES["ring_from"]) and plan.has("cache"):
 		list.append_array(_guard_ring(ctx, plan["cache"]["pos"], floor_num))
@@ -200,8 +211,8 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 	_rehaz(ctx, list)
 	# Hidden plates.
 	list.append_array(_plates(ctx, tid, floor_num, list.size()))
-	# The protection pass: a trap-free way to everything that matters.
-	ensure_safe_paths(ctx, list)
+	# The protection pass: a way to everything that matters, never shut for good.
+	ensure_passable(ctx, list)
 	_move_monsters(ctx)
 	plan["trap_floor"] = {"paths": ctx["paths"], "decor": ctx["decor"]}
 	return list
@@ -255,6 +266,8 @@ static func make(pos: Vector2, kind: String, hidden := false, floor_num := 2) ->
 		"dodged": false, "glint": false, "tick_t": 0.0}
 	if k["trigger"] == "timed":
 		tr["timer"] = 1.0
+	elif hidden:
+		tr["warn"] = float(RULES["hidden_warn"])  # a hidden plate gives you less time
 	if k.has("speed"):
 		fit(tr)
 	return tr
@@ -284,6 +297,7 @@ static func _beat(tr: Dictionary, cycle: float, warn: float, fire: float, off: f
 	if not KINDS[tr["kind"]].has("speed"):
 		tr["fire"] = fire
 	tr["timer"] = float(RULES["lead"]) + fposmod(off, cycle)
+	tr["start"] = tr["timer"]
 
 
 # --- the floor's grid ----------------------------------------------------------
@@ -291,8 +305,8 @@ static func _beat(tr: Dictionary, cycle: float, warn: float, fire: float, off: f
 ## The floor's tile grid as the traps see it:
 ##   solid  1 for walls (closed doors count as open: they open), pillars too
 ##   chasm  1 for chasm tiles
-##   prot   kept clear: 2 = never a trap (start, stair, doorways, the puzzle
-##          room, the cache's urn, springs, camps, chasm edges, paths);
+##   prot   kept clear: 2 = never a trap (start, stair, door tiles, the
+##          puzzle room, the cache's urn, springs, camps, chasm edges, paths);
 ##          1 = good rooms (only the guard ring around the urn goes there)
 ##   haz    how many traps reach each tile (see `cover`)
 static func context(plan: Dictionary, main = null) -> Dictionary:
@@ -339,16 +353,16 @@ static func _protect(ctx: Dictionary) -> void:
 	var plan: Dictionary = ctx["plan"]
 	_mark_box(ctx, tile_of(plan.get("start", Vector2(-1e6, -1e6))), 3, 2)
 	_mark_box(ctx, tile_of(plan.get("stair", Vector2(-1e6, -1e6))), 2, 2)
-	for r in plan.get("doorways", []):
-		_mark_rect(ctx, r.grow(C), 2)
+	# A door itself stays clear (it swings open); the ground in front of it
+	# and the corridor behind it may hold traps: a set piece can span the way.
 	for d in plan.get("doors", []):
 		for t in d["tiles"]:
-			_mark_box(ctx, t, 1, 2)
+			_mark_box(ctx, t, 0, 2)
 	var pz: Dictionary = plan.get("puzzle", {})
 	if not pz.is_empty():
-		_mark_rect(ctx, pz["room"].grow(C), 2)
+		_mark_rect(ctx, pz["room"], 2)
 	for r in plan.get("safe_rooms", []):
-		_mark_rect(ctx, r.grow(C), 1)
+		_mark_rect(ctx, r, 1)
 	if plan.has("cache"):
 		_mark_box(ctx, tile_of(plan["cache"]["pos"]), 1, 2)
 	for sp in plan.get("springs", []):
@@ -538,14 +552,15 @@ static func _in(ctx: Dictionary, R: Dictionary, a: int, b: int) -> bool:
 
 
 ## The lines along a room that hold a row of the set piece, sparser low in
-## the tower: every other line, then two lines in three, then every line.
+## the tower: every other line (floors 2-3), then two lines in three (4-6),
+## then every line.
 static func _lines(from: int, to: int, floor_num: int) -> Array:
 	var out: Array = []
 	for a in range(from, to):
 		var use := true
-		if floor_num <= 5:
+		if floor_num <= 3:
 			use = (a - from) % 2 == 0
-		elif floor_num <= 8:
+		elif floor_num <= 6:
 			use = (a - from) % 3 != 2
 		if use:
 			out.append(a)
@@ -600,8 +615,9 @@ static func _b_spikes(ctx: Dictionary, R: Dictionary, f: int) -> Array:
 		for b in R["S"]:
 			if not _in(ctx, R, a, b) or not _free(ctx, _at(R, a, b)):
 				continue
-			var tr := make(centre(_at(R, a, b)), "spikes", false, f)
-			_beat(tr, cycle, warn, fire, k * step)
+			var tr := make(centre(_at(R, a, b)), "spikes", randf() < lerpf(0.15, 0.45, difficulty(f)), f)
+			# (from floor 7 a second wave rolls between the rows of the first)
+			_beat(tr, cycle, warn, fire, k * step + (cycle * 0.5 if f >= 7 and k % 2 == 1 else 0.0))
 			made = _add(ctx, out, tr) or made
 		if made:
 			rows += 1
@@ -612,11 +628,11 @@ static func _b_spikes(ctx: Dictionary, R: Dictionary, f: int) -> Array:
 ## lines from one wall and the other half a cycle apart. A slot's eye glows
 ## red 0.4 s before it fires. Higher up every line has a slot.
 static func _b_darts(ctx: Dictionary, R: Dictionary, f: int) -> Array:
-	var cycle := maxf(2.6 * pace(f), 1.9)
+	var cycle := maxf(2.6 * pace(f), 1.7)
 	var S: int = R["S"]
 	var lines: Array = []
 	for a in R["L"]:
-		if f >= 5 or a % 2 == 1:
+		if f >= 3 or a % 2 == 1:
 			lines.append(a)
 	var out: Array = []
 	var sides := [0, 0]
@@ -737,9 +753,10 @@ static func _windhall_side(ctx: Dictionary, R: Dictionary, f: int, spike_high: b
 		var tr := make(centre(_at(R, a, b)), "gust", false, f)
 		tr["dir"] = Vector2(R["B"] * db)
 		tr["len"] = n
-		_beat(tr, cycle, gwarn, 0.3, k * step)
+		var off := k * step + (cycle * 0.5 if f >= 7 and k % 2 == 1 else 0.0)
+		_beat(tr, cycle, gwarn, 0.3, off)
 		if _add(ctx, out, tr):
-			gust_off[a] = k * step
+			gust_off[a] = off
 			k += 1
 	if gust_off.size() < 2:
 		_drop(ctx, out)
@@ -859,6 +876,16 @@ static func _b_emberfall(ctx: Dictionary, R: Dictionary, f: int) -> Array:
 			_beat(tr, cycle, 1.0, 0.3, i * step)
 			if _add(ctx, out, tr):
 				used[a] = true
+	# From floor 9 more marks fall between the columns, half a beat apart.
+	if f >= 9:
+		for i in cols.size():
+			var a: int = cols[i] + 2
+			for b in range(1, R["S"] - 1, 2):
+				if _in(ctx, R, a, b):
+					var tr := make(centre(_at(R, a, b)), "ember", false, f)
+					tr["burn_t"] = 2.2 + 0.8 * d
+					_beat(tr, cycle, 1.0, 0.3, i * step + cycle * 0.5)
+					_add(ctx, out, tr)
 	return out if out.size() >= 3 and used.size() >= 2 else []
 
 
@@ -881,8 +908,8 @@ static func _b_bramble(ctx: Dictionary, R: Dictionary, f: int) -> Array:
 			if not _free(ctx, g):
 				continue
 			decor.append(g)
-			if randf() < lerpf(0.45, 0.7, d):
-				_add(ctx, out, make(centre(g), "thorns", randf() < lerpf(0.15, 0.45, d), f))
+			if randf() < lerpf(0.5, 0.8, d):
+				_add(ctx, out, make(centre(g), "thorns", randf() < lerpf(0.3, 0.6, d), f))
 	if out.size() < 6:
 		_unpath(ctx, path)
 		return []
@@ -899,7 +926,7 @@ static func _b_miasma(ctx: Dictionary, R: Dictionary, f: int) -> Array:
 	var p := pace(f)
 	var d := difficulty(f)
 	var cycle := 6.4 * p
-	var step := 0.6 * p
+	var step := lerpf(0.6, 0.4, d) * p
 	var path := _winding_path(ctx, R)
 	if path.is_empty():
 		return []
@@ -928,7 +955,7 @@ static func _b_miasma(ctx: Dictionary, R: Dictionary, f: int) -> Array:
 	var order: Array = range(out.size())
 	order.sort_custom(func(x, y): return vents[x].x < vents[y].x)
 	for k in order.size():
-		_beat(out[order[k]], cycle, 0.8, 3.0 + 0.6 * d, k * step)
+		_beat(out[order[k]], cycle, 0.8, 3.0 + 1.4 * d, k * step)
 	_keep_path(ctx, path, "clean")
 	for a in R["L"]:
 		for b in R["S"]:
@@ -1057,6 +1084,35 @@ static func _unpath(ctx: Dictionary, path: Array) -> void:
 
 # --- guards, patches, plates ---------------------------------------------------------
 
+## Monsters added to each trap room, on its clear tiles: from floor 4 the
+## set piece is fought through, not just walked through.
+static func _room_guards(ctx: Dictionary, list: Array, tower: Dictionary, f: int) -> void:
+	var want := 0
+	for s in RULES["room_guards"]:
+		if f <= int(s[0]):
+			want = int(s[1])
+			break
+	if want <= 0:
+		return
+	var plan: Dictionary = ctx["plan"]
+	var gs: Vector2i = ctx["gs"]
+	var rooms := {}
+	for tr in list:
+		if tr.has("room"):
+			rooms[int(tr["room"])] = true
+	for i in rooms:
+		var R := _room(ctx, i)
+		var spots: Array = []
+		for a in R["L"]:
+			for b in R["S"]:
+				var g := _at(R, a, b)
+				if _in(ctx, R, a, b) and ctx["haz"][g.y * gs.x + g.x] == 0 and ctx["prot"][g.y * gs.x + g.x] == 0:
+					spots.append(g)
+		spots.shuffle()
+		for k in mini(want, spots.size()):
+			var kind := Floors._pick(f, 3.0, 99, tower.get("weights", {}))
+			plan["monsters"].append([kind if kind != "" else "slime", centre(spots[k])])
+
 ## Spikes around the cache's urn, two tiles out, rising one after another
 ## around the ring: step through where they're down.
 static func _guard_ring(ctx: Dictionary, at: Vector2, f: int) -> Array:
@@ -1077,8 +1133,9 @@ static func _guard_ring(ctx: Dictionary, at: Vector2, f: int) -> Array:
 	return out if out.size() >= 6 else []
 
 
-## A spike patch or two in the corridors (a corridor's middle three tiles,
-## all on one beat), in corridors off the way to the stair when there are any.
+## A spike patch or two in the corridors (three tiles across the whole
+## corridor, all on one beat, some hidden), on the way to the stair first:
+## you must cross it.
 static func _patches(ctx: Dictionary, f: int) -> Array:
 	var plan: Dictionary = ctx["plan"]
 	var want := 1
@@ -1089,7 +1146,7 @@ static func _patches(ctx: Dictionary, f: int) -> Array:
 	var route := _route(ctx, tile_of(plan["start"]), tile_of(plan["stair"]))
 	var corridors: Array = plan.get("corridors", []).duplicate()
 	corridors.shuffle()
-	corridors.sort_custom(func(x, y): return int(_crosses(x, route)) < int(_crosses(y, route)))
+	corridors.sort_custom(func(x, y): return int(_crosses(x, route)) > int(_crosses(y, route)))
 	var p := pace(f)
 	var out: Array = []
 	var made := 0
@@ -1109,7 +1166,7 @@ static func _patches(ctx: Dictionary, f: int) -> Array:
 		for l in range(mid - 1, mid + 2):
 			for w in mini(tr.size.y if horiz else tr.size.x, 3):
 				var g := tr.position + (Vector2i(l, w) if horiz else Vector2i(w, l))
-				var sp := make(centre(g), "spikes", false, f)
+				var sp := make(centre(g), "spikes", randf() < 0.4, f)
 				_beat(sp, cycle, 0.5, 0.6 + 0.2 * difficulty(f), off)
 				sp["patch"] = true
 				ok = ok and _add(ctx, group, sp)
@@ -1175,13 +1232,16 @@ static func _plates(ctx: Dictionary, tid: String, f: int, have: int) -> Array:
 
 # --- the protection pass -----------------------------------------------------------
 
-## ensureSafePaths: searches the grid from the start, treating trap tiles as
-## walls; while the stair, the puzzle room or a good room's spring or camp
-## can't be reached that way, opens one trap tile on the way to it (the
-## first trap tile on the route that crosses the fewest), and searches again.
-## Opening a tile cuts a lane short there (or takes away a trap that only
-## covers its own patch). Chasms are jumped, so they don't count as traps.
-static func ensure_safe_paths(ctx: Dictionary, list: Array) -> void:
+## The passable-route rule (the owner's: traps MAY block the way, but never
+## for good). Searches the grid from the start, treating as walls only the
+## tiles that are NEVER safe (traps whose beats overlap so that something
+## always fires there, see `hard_tiles`); every other trap tile can be crossed
+## by a climber who times it, rolls or jumps. While the stair, the puzzle
+## room or a good room's spring or camp can't be reached that way, opens one
+## never-safe tile on the way to it (the first on the route crossing the
+## fewest), and searches again. Opening a tile cuts a lane short there (or
+## takes away a trap that only covers its own patch). Chasms are jumped.
+static func ensure_passable(ctx: Dictionary, list: Array) -> void:
 	var plan: Dictionary = ctx["plan"]
 	var gs: Vector2i = ctx["gs"]
 	var start := tile_of(plan["start"])
@@ -1196,9 +1256,15 @@ static func ensure_safe_paths(ctx: Dictionary, list: Array) -> void:
 		goals.append([tile_of(sp["pos"])])
 	for cp in plan.get("camps", []):
 		goals.append([tile_of(cp["pos"])])
+	var walls := ctx.duplicate()
 	for it in 240:
-		_rehaz(ctx, list)
-		var res := _search(ctx, start)
+		var hard := PackedByteArray()
+		hard.resize(gs.x * gs.y)
+		for t in hard_tiles(list):
+			if _inside(t, gs):
+				hard[t.y * gs.x + t.x] = 1
+		walls["haz"] = hard
+		var res := _search(walls, start)
 		var dist: PackedInt32Array = res[0]
 		var prev: PackedInt32Array = res[1]
 		var cut := -1
@@ -1212,16 +1278,53 @@ static func ensure_safe_paths(ctx: Dictionary, list: Array) -> void:
 					best = k
 			if best < 0 or dist[best] == 0:
 				continue
-			# Walk back to the start; the trap tile nearest the start is opened.
+			# Walk back to the start; the never-safe tile nearest the start is opened.
 			var k := best
 			while k >= 0:
-				if ctx["haz"][k] > 0:
+				if hard[k] > 0:
 					cut = k
 				k = prev[k]
 			break
 		if cut < 0:
-			return
+			break
 		_open_tile(list, Vector2i(cut % gs.x, cut / gs.x))
+	_rehaz(ctx, list)
+
+
+## The tiles where something is always firing: timed traps whose beats
+## overlap so there's never a safe moment to cross (plates never count: a
+## plate only fires when stepped on, and can be jumped).
+static func hard_tiles(list: Array) -> Dictionary:
+	var by_tile := {}
+	for tr in list:
+		if tr["trigger"] != "timed":
+			continue
+		for t in cover(tr):
+			if not by_tile.has(t):
+				by_tile[t] = []
+			by_tile[t].append(tr)
+	var out := {}
+	for t in by_tile:
+		var trs: Array = by_tile[t]
+		if trs.size() == 1 and val(trs[0], "fire") < val(trs[0], "cycle") - 0.05:
+			continue
+		var span := 0.0
+		for tr in trs:
+			span = maxf(span, val(tr, "cycle"))
+		var safe := false
+		var tt := 0.0
+		while tt < span * 2.0 and not safe:
+			safe = not trs.any(func(tr): return firing_at(tr, tt))
+			tt += 0.04
+		if not safe:
+			out[t] = true
+	return out
+
+
+## Whether a timed trap is firing `t` seconds after the floor began.
+static func firing_at(tr: Dictionary, t: float) -> bool:
+	var ph := fposmod(t - float(tr.get("start", 1.0)) - val(tr, "warn"), val(tr, "cycle"))
+	return ph < val(tr, "fire")
 
 
 ## Takes the traps off one tile: a lane is cut short there, anything else goes.
@@ -1490,16 +1593,15 @@ func _tick_trap(tr: Dictionary, delta: float) -> void:
 			if trigger == "timed":
 				if tr["timer"] <= 0.0:
 					_set_state(tr, "warn", val(tr, "warn") + tr["timer"])
+					_warn_sound(tr)
 			elif _stepped_on(tr):
 				_set_state(tr, "warn", val(tr, "warn"))
 				_warn_sound(tr)
 		"warn":
-			if trigger == "timed" and fmod(tr["timer"], 0.3) < delta:
-				_warn_sound(tr)
 			# The glint: a star and a ting just before it fires.
 			if not tr.get("glint", false) and tr["timer"] <= GLINT_LEAD:
 				tr["glint"] = true
-				if _heard(tr) and visibility(tr) >= 1.0:
+				if _heard(tr) and bool(k.get("glint", true)):
 					_trap_sfx("glint", 1.25, -10.0, 0.05)
 			if tr["timer"] <= 0.0:
 				_set_state(tr, "fire", val(tr, "fire") + tr["timer"])
@@ -1701,10 +1803,23 @@ func visibility(tr: Dictionary) -> float:
 	return _rest_look(tr)
 
 
+## How plainly a resting trap's tell shows (drawn under the darkness, so
+## even a plain one is only seen where light falls): hidden traps show
+## nothing at all until you're close (see `_draw`), unless Keen Eyes.
 func _rest_look(tr: Dictionary) -> float:
 	if not tr["hidden"] or show_all or _keen():
 		return 1.0
-	return 0.14
+	return 0.0
+
+
+## How strongly a trap shows its warning right now (0 to 1): a faint tell
+## while it warns (spikes peeking, a slot's eye reddening, a wisp), never a
+## flash.
+func tell(tr: Dictionary) -> float:
+	if tr["state"] != "warn":
+		return 0.0
+	var prog := clampf(1.0 - float(tr["timer"]) / maxf(val(tr, "warn"), 0.01), 0.0, 1.0)
+	return 0.25 + 0.2 * prog
 
 
 func _keen() -> bool:
@@ -1716,9 +1831,11 @@ func seen(tr: Dictionary) -> bool:
 	return visibility(tr) >= 1.0
 
 
-## The lights of the traps warning or firing on screen, for the darkness
-## layer (lighting.gd): [pos, reach, colour, strength, glow] each, one per
-## patch of the floor so a whole row warning doesn't use every light.
+## The lights of the traps for the darkness layer (lighting.gd): [pos,
+## reach, colour, strength, glow] each. Only what really gives off light
+## does: fire jets, falling embers, and a dart slot's eye in the moment
+## before it fires; the rest stay in the dark, so a trap is only seen where
+## the climber's light or a torch falls (one light per patch of floor).
 func glow_list() -> Array:
 	var out: Array = []
 	if main == null:
@@ -1726,26 +1843,27 @@ func glow_list() -> Array:
 	var used := {}
 	for tr in main.traps:
 		var st: String = tr["state"]
-		if st != "warn" and st != "fire":
-			continue
-		var k: Dictionary = KINDS[tr["kind"]]
-		var col: Color = k["color"]
+		var kind: String = tr["kind"]
 		var pos: Vector2
 		var reach: float
-		if tr["kind"] == "dart":
-			pos = slot_of(tr) if st == "warn" else front_of(tr)
-			reach = 80.0
-		elif k["shape"] == "lane":
+		var k := 0.6
+		if st == "fire" and kind == "flame":
 			pos = (tr["pos"] + lane_end(tr)) * 0.5
 			reach = float(tr["len"]) * C * 0.5 + 40.0
-		else:
+		elif st == "fire" and kind == "ember":
 			pos = tr["pos"]
 			reach = reach_of(tr) + 50.0
-		var key := Vector2i(int(floor(pos.x / 110.0)), int(floor(pos.y / 110.0)) * 2 + (1 if st == "fire" else 0))
+		elif st == "warn" and kind == "dart" and float(tr["timer"]) <= GLINT_LEAD:
+			pos = slot_of(tr)
+			reach = 46.0
+			k = 0.35
+		else:
+			continue
+		var key := Vector2i(int(floor(pos.x / 110.0)), int(floor(pos.y / 110.0)))
 		if used.has(key):
 			continue
 		used[key] = true
-		out.append([pos, reach, col, 0.45 if st == "warn" else 0.7, 0.1 if st == "warn" else 0.18])
+		out.append([pos, reach, KINDS[kind]["color"], k, 0.12])
 		if out.size() >= 16:
 			break
 	return out
@@ -1841,10 +1959,15 @@ func _draw() -> void:
 	var keen := _keen()
 	var view := _view_rect()
 	var b := Draw.Batch.new()
+	var pp: Vector2 = main.player.global_position if main.player != null else Vector2(-1e6, -1e6)
 	for tr in main.traps:
 		var state: String = tr["state"]
 		var hint: bool = tr["hidden"] and (keen or show_all) and state == "idle"
-		if state != "warn" and state != "fire" and not hint and not show_all:
+		# A hidden trap at rest shows its tell only right under your nose.
+		var near: float = 0.0
+		if tr["hidden"] and not keen and not show_all and (state == "idle" or state == "rest"):
+			near = clampf(1.0 - tr["pos"].distance_to(pp) / float(RULES["notice"]), 0.0, 1.0)
+		if state != "warn" and state != "fire" and not hint and not show_all and near <= 0.0:
 			continue
 		var k: Dictionary = KINDS[tr["kind"]]
 		var lane: bool = k["shape"] == "lane"
@@ -1853,6 +1976,8 @@ func _draw() -> void:
 		var pos: Vector2 = tr["pos"]
 		var col: Color = k["color"]
 		var half := C * 0.5 - 3.0
+		if near > 0.0:
+			_draw_rest(b, tr, near * 0.8)
 		if hint:
 			var pulse := 0.5 + 0.3 * sin(t * 3.0)
 			_outline(b, Rect2(pos - Vector2(half + 3.0, half + 3.0), Vector2(half + 3.0, half + 3.0) * 2.0), Color(0.95, 0.8, 0.5, pulse), 1.5)
@@ -1864,75 +1989,50 @@ func _draw() -> void:
 			_draw_firing(b, tr, t)
 	# A climber caught in a snare: vines around the feet.
 	if root_t > 0.0 and main.player != null:
-		var pp: Vector2 = main.player.global_position
-		b.arc(pp + Vector2(0, 6), 14.0, 0.0, TAU, 16, Color(0.45, 0.7, 0.3, 0.9), 3.0)
+		var feet: Vector2 = main.player.global_position
+		b.arc(feet + Vector2(0, 6), 14.0, 0.0, TAU, 16, Color(0.45, 0.7, 0.3, 0.9), 3.0)
 	b.flush(self)
 
 
-## A trap at rest: its plate or nozzle, its markings, and (visible traps)
-## its reach on the floor.
+## A trap at rest: only a faint tell on its tile (`a` = how plainly), never
+## its reach: a few small holes, a grate, a scorch ring, cracks, a slit in
+## the wall. Drawn under the darkness, so it's only seen in the light.
 func _draw_rest(b: Draw.Batch, tr: Dictionary, a: float) -> void:
-	var k: Dictionary = KINDS[tr["kind"]]
+	if a <= 0.0:
+		return
 	var pos: Vector2 = tr["pos"]
-	var col: Color = k["color"]
-	var lane: bool = k["shape"] == "lane"
 	var half := C * 0.5 - 3.0
 	var kind: String = tr["kind"]
-	if a >= 1.0:
-		if lane:
-			var lr := lane_rect(tr).grow(-4.0)
-			b.rect(lr, Color(col, 0.07))
-			_outline(b, lr, Color(col, 0.28), 1.0)
-			# Chevrons pointing the way it fires.
-			var d: Vector2 = tr["dir"]
-			for i in range(1, int(tr["len"])):
-				var c: Vector2 = pos + d * C * i
-				var side: Vector2 = d.orthogonal() * 7.0
-				var tip: Vector2 = c + d * 5.0
-				b.line(c - d * 3.0 + side, tip, Color(col, 0.35), 1.5)
-				b.line(c - d * 3.0 - side, tip, Color(col, 0.35), 1.5)
-		elif kind in ["ember", "gas", "miasma"]:
-			b.arc(pos, val(tr, "reach"), 0.0, TAU, 28, Color(col, 0.22), 1.0)
-	var line := Color(col.darkened(0.25), 0.75 * a)
-	if kind == "dart":
-		# A slot in the wall with a dark eye.
-		var d: Vector2 = tr["dir"]
-		var s := slot_of(tr)
-		var side := d.orthogonal()
-		b.polygon(PackedVector2Array([s + side * 9.0 - d * 4.0, s + side * 9.0 + d * 4.0, s - side * 9.0 + d * 4.0, s - side * 9.0 - d * 4.0]), Color(0.06, 0.04, 0.05, 0.9))
-		b.circle(s, 3.0, Color(0.45, 0.12, 0.1, 0.9), 12)
-		return
-	var tile := Rect2(pos - Vector2(half, half), Vector2(half, half) * 2.0)
-	if kind != "thorns":
-		b.rect(tile, Color(0.05, 0.045, 0.06, 0.55 * a))
-		_outline(b, tile, Color(col.darkened(0.45), 0.7 * a), 1.5)
+	var dark := Color(0.04, 0.035, 0.045, 0.5 * a)
 	match kind:
+		"dart":
+			# A slit in the wall; its eye is dark until it's about to fire.
+			var d: Vector2 = tr["dir"]
+			var s := slot_of(tr)
+			var side := d.orthogonal()
+			b.polygon(PackedVector2Array([s + side * 8.0 - d * 3.0, s + side * 8.0 + d * 3.0, s - side * 8.0 + d * 3.0, s - side * 8.0 - d * 3.0]), Color(0.04, 0.03, 0.04, 0.75 * a))
 		"gust", "sluice", "flame":
-			# A nozzle: slats across it, facing the way it fires.
+			# A grate in the floor, slats across the way it fires.
 			var d: Vector2 = tr["dir"]
 			var side := d.orthogonal()
 			for i in 3:
-				var off := (i - 1) * (half - 6.0) * 0.8
-				b.line(pos + side * (half - 5.0) + d * off, pos - side * (half - 5.0) + d * off, line, 2.0)
-			b.circle(pos + d * (half - 4.0), 3.0, Color(col, 0.6 * a), 12)
-			if kind == "gust":
-				b.arc(pos, 8.0, 0.6, 4.6, 8, Color(col, 0.5 * a), 1.5)
+				var off := (i - 1) * (half - 6.0) * 0.7
+				b.line(pos + side * (half - 7.0) + d * off, pos - side * (half - 7.0) + d * off, dark, 2.0)
+			if kind == "flame":
+				b.circle(pos, half - 4.0, Color(0.1, 0.05, 0.03, 0.18 * a), 16)  # scorched
 		"ember":
-			# A mark: a ring and a cross.
-			b.arc(pos, half - 4.0, 0.0, TAU, 16, line, 2.0)
-			b.line(pos + Vector2(-6, 0), pos + Vector2(6, 0), line, 2.0)
-			b.line(pos + Vector2(0, -6), pos + Vector2(0, 6), line, 2.0)
+			b.arc(pos, half - 5.0, 0.0, TAU, 14, Color(0.12, 0.06, 0.03, 0.4 * a), 2.0)  # a scorch ring
 		"spikes":
 			for x in 3:
 				for y in 3:
-					b.circle(pos + Vector2(x - 1, y - 1) * 11.0, 2.0, line, 8)
+					b.circle(pos + Vector2(x - 1, y - 1) * 11.0, 1.6, dark, 6)
 		"thorns":
-			# A loop of vine laid as a snare.
-			b.arc(pos, 9.0, 0.0, TAU, 12, Color(0.5, 0.75, 0.3, 0.85 * a), 1.6)
-			b.line(pos + Vector2(9, 0), pos + Vector2(15, -5), Color(0.5, 0.75, 0.3, 0.85 * a), 1.4)
+			b.arc(pos, 9.0, 0.0, TAU, 10, Color(0.35, 0.5, 0.22, 0.5 * a), 1.4)  # a loop of vine
 		"gas", "miasma":
-			for i in 3:
-				b.circle(pos + Vector2.from_angle(TAU * i / 3.0 + 0.5) * 7.0, 3.0, line, 10)
+			# Cracks in the stone.
+			b.line(pos + Vector2(-9, -3), pos + Vector2(0, 1), dark, 1.4)
+			b.line(pos + Vector2(0, 1), pos + Vector2(7, -6), dark, 1.4)
+			b.line(pos + Vector2(0, 1), pos + Vector2(3, 9), dark, 1.4)
 
 
 ## A set piece's path, laid into the floor: trodden earth through brambles,
@@ -1958,51 +2058,46 @@ func _draw_decor(b: Draw.Batch, look: String, r: Rect2) -> void:
 		b.rect(r, Color(0.45, 0.55, 0.2, 0.08 + 0.03 * (h % 3)))
 
 
-## A trap about to go off: a glow that brightens over all it will hit, and
-## the glint in the last moment.
-func _draw_warn(b: Draw.Batch, tr: Dictionary, _t: float) -> void:
+## A trap about to go off: a faint tell only (see `tell`): spikes peek out
+## of their holes, a grate shimmers, a slot's eye reddens, a wisp curls up,
+## a vine twitches, a mark warms. Some kinds glint in the last moment (the
+## ones with a nozzle, a slot or a mark); spikes, snares and gas don't.
+func _draw_warn(b: Draw.Batch, tr: Dictionary, t: float) -> void:
 	var k: Dictionary = KINDS[tr["kind"]]
 	var pos: Vector2 = tr["pos"]
 	var col: Color = k["color"]
-	var dur := maxf(val(tr, "warn"), 0.01)
-	var prog := clampf(1.0 - float(tr["timer"]) / dur, 0.0, 1.0)
+	var a := tell(tr)
+	var prog := clampf(1.0 - float(tr["timer"]) / maxf(val(tr, "warn"), 0.01), 0.0, 1.0)
 	var star_at := pos
-	if tr["kind"] == "dart":
-		# The slot's eye glows red, and its line on the floor.
-		var s := slot_of(tr)
-		var lr := lane_rect(tr).grow(-12.0)
-		b.rect(lr, Color(col, 0.06 + 0.12 * prog))
-		b.circle(s, 9.0 + 4.0 * prog, Color(col, 0.25 + 0.3 * prog), 16)
-		b.circle(s, 3.5 + 1.5 * prog, Color(1.0, 0.45, 0.35, 0.8 + 0.2 * prog), 12)
-		star_at = s
-	elif k["shape"] == "lane":
-		var lr := lane_rect(tr).grow(-2.0)
-		b.rect(lr, Color(col, 0.10 + 0.25 * prog))
-		_outline(b, lr, Color(col, 0.5 + 0.5 * prog), 2.0)
-	elif tr["kind"] == "spikes":
-		# Half raised, with a red rim: get off.
-		var half := C * 0.5 - 3.0
-		var tile := Rect2(pos - Vector2(half, half), Vector2(half, half) * 2.0)
-		b.rect(tile, Color(1.0, 0.25, 0.15, 0.10 + 0.18 * prog))
-		_outline(b, tile, Color(1.0, 0.3, 0.2, 0.55 + 0.45 * prog), 2.0)
-		var lift := 3.0 + 4.0 * prog
-		for x in 3:
-			for y in 3:
-				var c: Vector2 = pos + Vector2(x - 1, y - 1) * 11.0
-				b.polygon(PackedVector2Array([c + Vector2(-3, 2), c + Vector2(3, 2), c + Vector2(0, -lift)]), Color(0.8, 0.8, 0.84, 0.9))
-	else:
-		var reach := reach_of(tr)
-		b.circle(pos, reach, Color(col, 0.10 + 0.22 * prog), 32)
-		b.arc(pos, reach, 0.0, TAU, 28, Color(col, 0.5 + 0.5 * prog), 2.0)
-		b.arc(pos, reach * (1.0 - prog) + 4.0, 0.0, TAU, 20, Color(1, 1, 1, 0.6), 1.5)
-	# The glint: a white star in the last moment.
-	if float(tr["timer"]) <= GLINT_LEAD:
+	match tr["kind"]:
+		"dart":
+			var s := slot_of(tr)
+			b.circle(s, 2.0 + 1.5 * prog, Color(0.9, 0.25, 0.2, a + 0.3 * prog), 10)
+			star_at = s
+		"gust", "sluice", "flame":
+			var d: Vector2 = tr["dir"]
+			b.circle(pos + d * 6.0, 7.0 + 3.0 * sin(t * 20.0), Color(col, a * 0.5), 12)
+		"spikes":
+			var lift := 1.0 + 3.0 * prog
+			for x in 3:
+				for y in 3:
+					var c: Vector2 = pos + Vector2(x - 1, y - 1) * 11.0
+					b.polygon(PackedVector2Array([c + Vector2(-2, 1.5), c + Vector2(2, 1.5), c + Vector2(0, -lift)]), Color(0.75, 0.75, 0.8, a + 0.2))
+		"ember":
+			b.circle(pos, reach_of(tr) * (0.4 + 0.6 * prog), Color(col, 0.05 + 0.07 * prog), 24)
+		"thorns":
+			b.arc(pos, 9.0 + 2.0 * sin(t * 30.0), 0.0, TAU, 10, Color(0.5, 0.75, 0.3, a + 0.2), 1.6)
+		"gas", "miasma":
+			for i in 2:
+				var w := pos + Vector2(sin(t * 3.0 + i * 2.0) * 5.0, -6.0 - 10.0 * fmod(prog + i * 0.5, 1.0))
+				b.circle(w, 4.0 + 3.0 * prog, Color(col, a * 0.6), 10)
+	# The glint: a small star in the last moment, for the kinds that have one.
+	if bool(k.get("glint", true)) and float(tr["timer"]) <= GLINT_LEAD:
 		var g := 1.0 - clampf(float(tr["timer"]) / GLINT_LEAD, 0.0, 1.0)
-		var s := 6.0 + 10.0 * g
-		var star := Color(1, 1, 1, 0.95)
-		b.line(star_at + Vector2(-s, 0), star_at + Vector2(s, 0), star, 2.0)
-		b.line(star_at + Vector2(0, -s), star_at + Vector2(0, s), star, 2.0)
-		b.circle(star_at, 3.0, star, 10)
+		var s := 4.0 + 5.0 * g
+		var star := Color(1, 1, 1, 0.85)
+		b.line(star_at + Vector2(-s, 0), star_at + Vector2(s, 0), star, 1.5)
+		b.line(star_at + Vector2(0, -s), star_at + Vector2(0, s), star, 1.5)
 
 
 func _draw_firing(b: Draw.Batch, tr: Dictionary, t: float) -> void:
@@ -2041,7 +2136,7 @@ func _draw_firing(b: Draw.Batch, tr: Dictionary, t: float) -> void:
 			b.polygon(PackedVector2Array([head + d * 5.0, head + d.orthogonal() * 3.0, head - d.orthogonal() * 3.0]), Color(0.95, 0.95, 1.0))
 			b.line(head - d * 16.0 + d.orthogonal() * 3.0, head - d * 12.0, Color(col, 0.9), 1.5)
 			b.line(head - d * 16.0 - d.orthogonal() * 3.0, head - d * 12.0, Color(col, 0.9), 1.5)
-			b.circle(slot_of(tr), 4.0, Color(1.0, 0.5, 0.4, 0.9), 12)
+			b.circle(slot_of(tr), 2.5, Color(0.9, 0.3, 0.25, 0.6), 10)
 		"spikes":
 			for x in 3:
 				for y in 3:
