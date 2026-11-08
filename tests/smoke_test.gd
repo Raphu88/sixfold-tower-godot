@@ -6722,6 +6722,7 @@ func _run() -> void:
 	await _item_tests()
 	await _camp_tests()
 	await _wing_tests()
+	await _maker_tests()
 	await _lock_tests()
 	await _gear_tests()
 	await _heirloom_tests()
@@ -7608,7 +7609,7 @@ func _entity_tests() -> void:
 	Guide.forget()
 	_check(main.entity != null and main.entity.get_parent() == main.touch.get_parent(), "the Entity's bubble sits in the HUD layer, over the touch buttons")
 	# Every tip has a name, a short line and a fuller account; groups exist; no stray words.
-	var groups: Array = Entity.GROUPS.map(func(g): return g[0])
+	var groups: Array = Entity.GROUPS.map(func(g): return g[0]) + ["forbidden"]  # (the Makers' tips: shown on their shelf once met)
 	var bad: Array = []
 	for id in Entity.TIPS:
 		var e: Dictionary = Entity.TIPS[id]
@@ -7780,7 +7781,8 @@ func _entity_tests() -> void:
 	_check(menu.page == "climber" and menu.climber_tab == "archive", "...which opens the climber screen's Archive tab")
 	var entries: Array = menu.focusables().filter(func(b): return b.has_meta("archive"))
 	var locked: Array = menu.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
-	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	var hidden: int = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] == "forbidden").size()
+	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - hidden - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
 	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "the Entity presents the Archive")
 	entries[2].grab_focus()
 	await _frames(1)
@@ -8396,3 +8398,322 @@ func _bench_tests() -> void:
 	main.depart("kraken")
 	await _frames(2)
 	_check(not paused and not menu.is_open(), "departing leaves the train")
+
+
+## The Makers (makers.gd, maker_view.gd): fragments in secret rooms and
+## vaults, the forbidden shelf, interest, glimpses, the reveal, meetings,
+## the core mark, the plea, redaction and saving.
+func _maker_tests() -> void:
+	print("the Makers")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var M = load("res://scripts/makers.gd")
+	var mk = main.makers
+	var prof = main.profile
+	var p = main.player
+	var W = main.wings
+	# The story isn't written: every line is redacted, drawn as bars.
+	var said: Array = []
+	for m in M.ORDER:
+		for k in ["speech", "good_reply", "bad_reply", "already", "plea_yes", "plea_no", "interrupt", "entity", "fragments"]:
+			said.append_array(M.MAKERS[m][k])
+	_check(said.size() > 40 and said.all(func(l): return M.is_redacted(l) and M.word_lengths(l).size() >= 2), "every Maker's line, fragment and the Entity's lines about them are redacted (%d lines)" % said.size())
+	_check(not M.is_redacted("To understand") and M.ANSWERS.all(func(a): return a["placeholder"] and not M.is_redacted(a["text"])), "the answers are plain placeholders")
+	var bars = load("res://scripts/draw_util.gd").Batch.new()
+	var h: float = M.redact_into(bars, Vector2.ZERO, 60.0, "▇▇▇▇ ▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇", Color.WHITE, 13.0)
+	_check(bars.size() > 0 and h > 13.0 * 1.45, "redacted words draw as bars, wrapping (%.0f tall)" % h)
+	# Nothing shows before anything is found.
+	main.menu.climber_tab = "archive"
+	main.menu.open("climber")
+	await _frames(2)
+	_check(main.menu.find_children("*", "", true, false).all(func(n): return not n.has_meta("shelf")), "before a fragment is found the Archive shows no shelf")
+	main.menu.close()
+	paused = false
+	await _frames(1)
+
+	# Fragments: only in a secret room or a vault, one a floor at most.
+	mk.chance_override = 0.0
+	main._start_floor(4)
+	_check(mk.fragment.is_empty(), "most floors have no fragment")
+	mk.chance_override = 1.0
+	var placed := 0
+	var ok := true
+	for n in 8:
+		main._start_floor(3 + n)
+		var f: Dictionary = mk.fragment
+		if f.is_empty():
+			ok = ok and W.secrets.is_empty() and W.wings.all(func(w): return not w.has("alcove"))
+			continue
+		placed += 1
+		var ref: Dictionary = f["ref"]
+		var home: Rect2 = ref["rect"] if f["src"] == "secret" else ref["alcove"]
+		ok = ok and f["src"] in ["secret", "vault"] and f["room"] == home and home.has_point(f["read_at"]) and not home.has_point(f["wall"])
+		# Not on the main path: none of the floor's own rooms holds it.
+		ok = ok and main.layout_rooms.all(func(r): return not r.has_point(f["read_at"]))
+	_check(placed >= 4 and ok, "a fragment sits on the north wall of a secret room or a vault, never in the floor's rooms (%d of 8 floors)" % placed)
+	var first_was: bool = main.first_climb
+	main.first_climb = true
+	main._start_floor(5)
+	_check(mk.fragment.is_empty(), "never on the first climb")
+	main.first_climb = first_was
+	_check(await _wing_floor(true), "a floor with a secret room")
+	if mk.fragment.is_empty() or mk.fragment["src"] != "secret":
+		var spots: Array = mk.candidates().filter(func(c): return c["src"] == "secret")
+		if not spots.is_empty():
+			mk.clear_floor()
+			mk.fragment = spots[0]
+			mk.fragment["maker"] = "towers"
+			mk.fragment["read"] = false
+			mk.fragment["light"] = -1
+	var fr: Dictionary = mk.fragment
+	_check(not fr.is_empty() and fr["src"] == "secret" and not mk.fragment_open(), "a fragment in a secret room, hidden until it opens")
+	if fr.is_empty():
+		mk.chance_override = -1.0
+		return
+	var maker: String = fr["maker"]
+	var col: Color = M.color(maker)
+	p.global_position = fr["read_at"]
+	await _frames(2)
+	_check(not fr["read"], "...it can't be read through the rock")
+	var tw0: float = mk.interest("towers")
+	W._open_secret(fr["ref"])
+	_check(mk.interest("towers") > tw0, "leaning a secret wall open draws the Maker of Towers' interest")
+	var i0: float = mk.interest(maker)
+	await _until(func(): return fr["read"], 2.0)
+	_check(int(fr["light"]) >= 0 and main.lighting.lights.has(fr["light"]) and main.lighting.lights[fr["light"]]["color"] == col, "open, it glows faintly in its Maker's colour")
+	_check(fr["read"] and M.fragment_count(prof) == 1 and M.fragment_count(prof, maker) == 1, "walking up to it reads it, and it's kept")
+	_check(mk.interest(maker) >= i0 + M.WEIGHTS["fragment"][maker] + M.WEIGHTS["fragment_own"][maker] - 0.01, "knowledge feeds its Maker most (%.0f -> %.0f)" % [i0, mk.interest(maker)])
+	await _frames(3)
+	var sl: int = mk.shift_light
+	_check(mk.shift_t > 0.0 and main.lighting.lights.has(sl) and main.lighting.lights[sl]["color"] == col and main.lighting.lights[sl]["k"] > 0.0, "the room's light shifts in its Maker's colour")
+	_check(main.lighting.mat.get_shader_parameter("dark_color") != main.lighting.dark_color, "...the darkness tints toward it")
+	_check(mk.quiet() and not main.entity.can_show(), "the Entity goes quiet (no tip bubble)")
+	_check(main.banner.get("title", "") == M.TEXT["fragment_title"], "a short moment: the fragment's banner")
+	# The forbidden shelf.
+	main.menu.climber_tab = "archive"
+	main.menu.open("climber")
+	await _frames(2)
+	var shelves: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("shelf"))
+	var texts: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("fragment_text"))
+	_check(shelves.size() == 1 and shelves[0].get_meta("shelf") == maker and texts.size() == 1 and M.is_redacted(texts[0].get_meta("fragment_text")), "the Archive gains its Maker's shelf: one fragment, redacted")
+	_check(main.menu.find_children("*", "", true, false).all(func(n): return not n.has_meta("entity_sibling")), "...the Entity says nothing of its siblings before you've met one")
+	main.menu.close()
+	paused = false
+	mk.quiet_t = 0.0
+	mk._end_shift()
+	await _frames(1)
+
+	# Interest, from the right events.
+	var before := {}
+	for m in M.ORDER:
+		before[m] = mk.interest(m)
+	var slime = await _spawn("slime", p.global_position + Vector2(160, 0))
+	_slay(slime)
+	await _frames(1)
+	_check(mk.interest("creatures") > before["creatures"] and mk.interest("marks") == before["marks"], "a kill feeds the Maker of Creatures only")
+	before["creatures"] = mk.interest("creatures")
+	p.cast_part = "hand"
+	p.bonds["hand"].burned = false
+	p.bonds["hand"].essence = 100.0
+	p._release_cast()
+	_check(mk.interest("marks") >= before["marks"] + M.WEIGHTS["cast"]["marks"] + M.WEIGHTS["new_spell"]["marks"] - 0.01, "a spell cast (a new one this climb) feeds the Maker of Marks")
+	before["marks"] = mk.interest("marks")
+	p.bonds["hand"].burned = false
+	p.bonds["hand"].essence = 100.0
+	p._release_cast()
+	_check(absf(mk.interest("marks") - before["marks"] - M.WEIGHTS["cast"]["marks"]) < 0.01, "...the same spell again, less (variety counts)")
+	before["marks"] = mk.interest("marks")
+	before["towers"] = mk.interest("towers")
+	main.lift_ward()
+	_check(mk.interest("towers") > before["towers"] and mk.interest("marks") == before["marks"], "a puzzle solved feeds the Maker of Towers")
+	for m in M.ORDER:
+		before[m] = mk.interest(m)
+	await _settle()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.hp = p.max_health()
+	p.receive_attack(10.0, null)
+	_check(M.ORDER.all(func(m): return mk.interest(m) > before[m]), "a wound feeds all three (the body)")
+	for m in M.ORDER:
+		before[m] = mk.interest(m)
+	mk.sync_body()
+	prof.add_bond("brow", "hunter", false)
+	mk.sync_body()
+	_check(mk.interest("marks") >= before["marks"] + M.WEIGHTS["mark"]["marks"] - 0.01, "a new mark taken feeds them, most the Maker of Marks")
+	# No reveal under six fragments, however interested.
+	while M.fragment_count(prof) < 5:
+		mk.dev_fragment()
+	for m in M.ORDER:
+		M.state(prof)["interest"][m] = 0.0
+	M.state(prof)["interest"]["marks"] = 99999.0
+	_check(mk.ready_maker() == "", "no Maker reveals itself under six fragments, however interested (5 found)")
+	mk.on_arrive()
+	_check(mk.pending == "", "...a stair brings no meeting")
+	mk.dev_fragment()
+	_check(mk.ready_maker() == "marks", "six fragments, and the most interested Maker past its threshold would show itself")
+	M.state(prof)["interest"]["marks"] = 10.0
+	_check(mk.ready_maker() == "", "...but not without the interest")
+	# A glimpse.
+	var g0 := int(M.state(prof)["glimpses"])
+	mk.start_glimpse("towers", "shadow")
+	_check(not mk.glimpse.is_empty() and mk.quiet() and int(M.state(prof)["glimpses"]) == g0 + 1, "a glimpse: a second shadow at the stair, and the Entity quiet")
+	mk.glimpse = {}
+	mk.quiet_t = 0.0
+
+	# The meeting, with a stand-in for the secret essences' hooks.
+	var fake_src := GDScript.new()
+	fake_src.source_code = "extends RefCounted\nvar path := \"life\"\nvar resets := 0\nvar gained := {}\nfunc reset_path():\n\tresets += 1\nfunc gain_secret(kind, amount):\n\tgained[kind] = gained.get(kind, 0.0) + amount\n"
+	fake_src.reload()
+	var fake = fake_src.new()
+	mk.hooks = fake
+	M.state(prof)["interest"]["marks"] = 99999.0
+	mk.start_meeting("marks")
+	var v = mk.view
+	_check(mk.meeting_live() and paused and not main.entity.can_show(), "a Maker shows itself: the game pauses, the Entity is quiet")
+	v.t = 9.0
+	await _until(func(): return v.stage == "speech", 2.0)
+	v.t = 9.0
+	v.advance()
+	var ids: Array = v.options.map(func(o): return o["id"])
+	_check(v.stage == "answer" and ids.size() == M.ANSWERS.size() + 1 and "plea" in ids, "...its speech, then the answers (and a plea, once you have a path)")
+	await _frames(2)
+	_check(v.card_at(v.card_rect(0).get_center()) == 0 and v.card_at(v.card_rect(ids.size() - 1).get_center()) == ids.size() - 1, "the cards are where taps and clicks find them")
+	v.t = 9.0
+	v.choose(ids.find("understand"))
+	_check(v.stage == "verdict" and v.result.get("granted", "") == "developer", "a good answer grants its secret bond")
+	var c: Dictionary = M.core(prof)
+	_check(c.get("bond", "") == "developer" and c.get("maker", "") == "marks" and int(c.get("depth", 0)) == 1, "core mark = developer, depth 1")
+	_check(prof.core_mark == "developer" and prof.core_depth == 1, "...kept as the profile's core_mark and core_depth")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	_check(not mk.meeting_live() and not paused, "the meeting ends and the game goes on")
+	_check(fake.gained.get("life", 0.0) > 0.0 and fake.gained.get("unmaking", 0.0) > 0.0, "the Maker of Marks gives both secret essences through the hook")
+	_check(M.core_text(prof) != "", "the core mark shows: %s" % M.core_text(prof))
+	# A second Maker can't grant another.
+	mk.interrupt_chance = 0.0
+	mk.start_meeting("towers")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("understand"))
+	_check(v.result.get("granted", "") == "" and M.TEXT["one_only"] in v.result["lines"] and M.core(prof)["bond"] == "developer", "a second Maker can't grant another (one per climber)")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	# A bad answer turns it away.
+	var th0: float = mk.threshold("creatures")
+	mk.start_meeting("creatures")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("take"))
+	_check(not v.result["good"] and int(M.state(prof)["turned"].get("creatures", 0)) == 1 and mk.interest("creatures") < mk.threshold("creatures") and mk.threshold("creatures") > th0, "a bad answer turns it away: its interest drops, and it remembers")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	# Interrupted by the Maker whose core mark you carry.
+	mk.interrupt_chance = 1.0
+	mk.interrupt_way = "listen"
+	mk.start_meeting("towers")
+	v = mk.view
+	v.t = 9.0
+	await _until(func(): return v.stage == "speech", 2.0)
+	v.t = 9.0
+	v.advance()
+	_check(v.stage == "interrupt" and v.interrupter == "marks", "with a core mark, its Maker may interrupt another's meeting")
+	v.t = 9.0
+	v.advance()
+	_check(v.stage == "answer" and v.listening, "...it stays and listens")
+	v.t = 9.0
+	v.choose(0)
+	_check(v.result.get("granted", "") == "" and M.core(prof)["bond"] == "developer", "...and no bond comes of it")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	mk.interrupt_way = "cut_short"
+	var met0 := int(M.state(prof)["met"].get("towers", 0))
+	mk.start_meeting("towers")
+	v = mk.view
+	v.stage = "speech"
+	v.t = 9.0
+	v.advance()
+	v.t = 9.0
+	v.advance()
+	_check(v.stage == "verdict" and String(v.result["lines"][0]).contains("cuts the meeting short") and int(M.state(prof)["met"]["towers"]) == met0 + 1, "...or cuts it short")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	# The plea calls the reset hook.
+	mk.interrupt_chance = 0.0
+	mk.plea_force = 1
+	mk.start_meeting("creatures")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("plea"))
+	_check(fake.resets == 1 and M.TEXT["plea_yes"] in v.result["lines"], "a plea for a change of path: if it agrees, the reset hook is called")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	mk.plea_force = 0
+	mk.start_meeting("creatures")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("plea"))
+	_check(fake.resets == 1 and M.TEXT["plea_no"] in v.result["lines"], "...it can refuse")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	mk.plea_force = -1
+	mk.hooks = main
+	_check(mk.current_path() != "" or mk.answers().all(func(o): return o["id"] != "plea"), "no plea without a path")
+	# After the stair: the reveal comes in the quiet.
+	M.state(prof)["interest"]["towers"] = 99999.0
+	mk.meetings_climb = 0
+	mk.on_arrive()
+	_check(mk.pending == "towers", "past six fragments and its threshold, a Maker comes after the stair")
+	await _until(func(): return mk.meeting_live(), 3.0)
+	_check(mk.meeting_live() and paused, "...and shows itself")
+	mk.end_meeting({})
+	await _frames(1)
+	# The core mark on the climber and on the climber screen.
+	p.queue_redraw()
+	main.menu.climber_tab = "marks"
+	main.menu.open("climber")
+	await _frames(2)
+	var labels: Array = main.menu.find_children("*", "Label", true, false).filter(func(l): return l.text == M.core_text(prof))
+	_check(labels.size() == 1, "the climber screen names the core mark")
+	main.menu.climber_tab = "archive"
+	main.menu.open("climber")
+	await _frames(2)
+	_check(main.menu.find_children("*", "", true, false).any(func(n): return n.has_meta("entity_sibling") and M.is_redacted(n.get_meta("entity_sibling"))), "once you've met one, the Entity speaks of its siblings (redacted)")
+	main.menu.close()
+	paused = false
+	await _frames(1)
+	# Saved with the profile; old saves load.
+	var path := "user://makers_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	var P = load("res://scripts/profile.gd")
+	var back = P.new()
+	back.save_path = path
+	back.load_save()
+	var bs: Dictionary = M.state(back)
+	_check(bs["fragments"].size() == M.fragment_count(prof) and back.core_mark == "developer" and back.core_depth == 1 and M.core(back).get("bond", "") == "developer" and int(bs["turned"].get("creatures", 0)) == 1 and is_equal_approx(float(bs["interest"]["towers"]), mk.interest("towers")), "fragments, interest, meetings and the core mark are saved")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	var older = P.new()
+	older.save_path = path
+	older.load_save()
+	var os: Dictionary = M.state(older)
+	_check(os["fragments"].is_empty() and M.core(older).is_empty() and older.core_mark == "" and older.core_depth == 0 and float(os["interest"]["marks"]) == 0.0, "an old save loads with the Makers empty")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.saving = false
+	prof.save_path = P.SAVE_PATH
+	mk.chance_override = -1.0
+	mk.interrupt_chance = M.INTERRUPT["chance"]
+	mk.interrupt_way = ""

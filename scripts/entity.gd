@@ -191,6 +191,21 @@ const TIPS := {
 	"beast": {"group": "tower", "name": "The beast",
 		"tip": "There it is. It has watched you climb. Every blow it throws, it tells you first.",
 		"more": "Every tower's beast waits alone on floor 12, the summit. Beasts can't be interrupted, only staggered; they glint before every attack like any monster, their red shapes can't be parried, and at half health they call for help. Beat it, take the stair, and the climb is complete: you keep one piece of gear as an heirloom."},
+	# --- the Makers (makers.gd): not in GROUPS, so the Archive hides them
+	# until met; they show on the forbidden shelf. Plain mechanics only: the
+	# Entity says nothing of its siblings here.
+	"fragment": {"group": "forbidden", "name": "Fragments",
+		"tip": "A fragment. Walk up to one to read it. I keep what you find on a shelf in the Archive.",
+		"more": "Fragments are rare: at most one on a floor, on about one floor in eight, and only in a secret room or a sealed wing's vault, never on the way to the stair. Walk up to one to read it. Each is kept on its own shelf in the Archive (the climber screen's Archive tab), with how many you have found. Their words are not written yet."},
+	"glimpse": {"group": "forbidden", "name": "A glimpse",
+		"tip": "A second shadow, a bend in the light, or my silence. Something is paying closer attention.",
+		"more": "Glimpses come now and then after a stair, as something's interest in you grows: a second shadow beside you, the light bending for a moment, or the Entity going quiet for a while. They change nothing by themselves."},
+	"maker": {"group": "forbidden", "name": "A meeting",
+		"tip": "When one of them shows itself, the game waits for your answer. Choose a card.",
+		"more": "One can show itself only once you have found at least six fragments, and only when how you climb has held its attention: how you use your bonds, how you treat the tower and its monsters, and your body. It comes in the quiet after a stair, and the game waits. Choose an answer with left and right and confirm it (Enter, or the controller's confirm button), press its number, or tap it. A good answer grants its secret bond and a core mark; a bad one turns it away for a while, and it remembers. Once you have a path, you can also ask it for a change of path; it may refuse."},
+	"core_mark": {"group": "forbidden", "name": "The core mark",
+		"tip": "A core mark: a fine pattern over your whole body, beneath your other marks. It takes no body part.",
+		"more": "A core mark holds a secret bond. It covers all six body parts at once and never pushes out a mark. Only one secret bond per climber: the others can still show themselves, but the one whose mark you carry may interrupt them. Its tools are not built yet."},
 	# --- puzzles and traps ---
 	"ward": {"group": "tests", "name": "The ward",
 		"tip": "The stair is warded. Somewhere on this floor is the beast's test. Solve it and the ward lifts.",

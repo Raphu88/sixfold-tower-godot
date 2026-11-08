@@ -27,6 +27,7 @@ const Guide := preload("res://scripts/guide.gd")
 const Train := preload("res://scripts/train.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
 const TrainView := preload("res://scripts/train_view.gd")
+const Makers := preload("res://scripts/makers.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -735,6 +736,9 @@ func _climber_marks(prof) -> void:
 		card.pressed.connect(open_mark.bind(part))
 		grid.add_child(card)
 	view.custom_minimum_size.y = (76.0 if small else 104.0) * 3.0 + 16.0
+	var core_line: String = Makers.core_text(prof)
+	if core_line != "":
+		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
 	if small:
 		return
 	if prof.bonds.is_empty():
@@ -848,8 +852,10 @@ func open_archive() -> void:
 ## is a button; choose it to read the Entity's line and a fuller account.
 ## Subjects not met yet show as ???.
 func _climber_archive() -> void:
-	var total := Entity.TIPS.size()
-	var heard: int = Entity.TIPS.keys().filter(func(k): return Guide.known(k)).size()
+	# (the Makers' tips count only once heard: before then nothing hints at them)
+	var listed: Array = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] != "forbidden" or Guide.known(k))
+	var total := listed.size()
+	var heard: int = listed.filter(func(k): return Guide.known(k)).size()
 	_entity_says("archive", "%s  ·  %s" % [Entity.TEXT["tag"], (Entity.TEXT["heard"] % [heard, total]).to_upper()])
 	var mode := "keys"
 	if main != null and main.touch_active:
@@ -888,6 +894,7 @@ func _climber_archive() -> void:
 			said.set_meta("archive_open", archive_open)
 			box.add_child(said)
 			_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
+	_maker_shelves(mode, ps)
 	_gap(4)
 	var row := _grid(2)
 	_button(Entity.TEXT["replay"], _replay_tips, row)
@@ -898,6 +905,109 @@ func _climber_archive() -> void:
 	tog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tog.toggled.connect(_set_tips)
 	row.add_child(tog)
+
+
+## The forbidden shelf (makers.gd): a shelf for each Maker whose first
+## fragment you've found (or that you've met), with its fragments (their
+## words redacted) and how many; then the Entity's tips about them. Nothing
+## shows before then. The Entity speaks of its siblings (redacted) only once
+## you've met one.
+func _maker_shelves(mode: String, ps: bool) -> void:
+	var prof = main.profile
+	var shown: Array = Makers.ORDER.filter(func(m): return Makers.shelf_shown(prof, m))
+	if shown.is_empty():
+		return
+	_section(Makers.TEXT["shelf"])
+	var st: Dictionary = Makers.state(prof)
+	var met_any: bool = Makers.has_met(prof)
+	var c: Dictionary = Makers.core(prof)
+	for m in shown:
+		var d: Dictionary = Makers.MAKERS[m]
+		var col: Color = d["color"]
+		var pc := PanelContainer.new()
+		pc.add_theme_stylebox_override("panel", UI.box(Color(col.darkened(0.88), 0.7), Color(col, 0.35), 6, 1, 10.0))
+		pc.set_meta("shelf", m)
+		box.add_child(pc)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 4)
+		pc.add_child(v)
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 10)
+		v.add_child(head)
+		var icon := Makers.SignIcon.new()
+		icon.maker = m
+		icon.custom_minimum_size = Vector2(30, 30)
+		head.add_child(icon)
+		var frags: Array = st["fragments"].filter(func(f): return f.get("maker", "") == m)
+		var title := _label(d["Name"], 0.0, col.lightened(0.2))
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(title)
+		head.add_child(_label(Makers.TEXT["shelf_count"] % [frags.size(), "fragment" if frags.size() == 1 else "fragments"], 0.0, DIM))
+		if met_any:
+			v.add_child(_entity_redacted(d["entity"][0]))
+		var words: Array = d["fragments"]
+		for i in frags.size():
+			var f: Dictionary = frags[i]
+			var tw: String = Towers.TOWERS.get(f.get("tower", ""), {}).get("short", String(f.get("tower", "")).capitalize())
+			v.add_child(_small_label(Makers.TEXT["fragment_where"] % [i + 1, tw, int(f.get("floor", 0))], FAINT))
+			var r := Makers.Redacted.new()
+			r.text = words[int(f.get("n", i)) % words.size()]
+			r.color = Color(col.lightened(0.1), 0.7)
+			r.font_size = 12.0
+			r.set_meta("fragment_text", r.text)
+			v.add_child(r)
+		var bits: Array = []
+		var met := int(st["met"].get(m, 0))
+		var turned := int(st["turned"].get(m, 0))
+		if met > 0:
+			bits.append(Makers.TEXT["met"] % [met, "time" if met == 1 else "times"])
+		if turned > 0:
+			bits.append(Makers.TEXT["turned"] % [turned, "time" if turned == 1 else "times"])
+		if c.get("maker", "") == m:
+			bits.append(Makers.TEXT["core"] % [Makers.SECRET_BONDS[c["bond"]]["name"], int(c.get("depth", 1))])
+		if not bits.is_empty():
+			v.add_child(_small_label("  ·  ".join(bits), DIM))
+	# The Entity's tips about them (fragments, glimpses, meetings, the core mark).
+	var known: Array = Entity.ordered("forbidden").filter(func(k): return Guide.known(k))
+	if known.is_empty():
+		return
+	var grid := _grid(2, 6, 4)
+	for id in known:
+		var b := _button(("v  " if archive_open == id else ">  ") + Entity.TIPS[id]["name"], _archive_toggle.bind(id), grid)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size.y = 32.0
+		b.set_meta("archive", id)
+		if archive_open == id:
+			_primary(b)
+	if archive_open in known:
+		var e: Dictionary = Entity.TIPS[archive_open]
+		var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper())
+		said.set_meta("archive_open", archive_open)
+		box.add_child(said)
+		_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
+
+
+## The Entity speaking of a sibling: its face and a bubble of redacted words.
+func _entity_redacted(text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var f := Entity.Face.new()
+	f.custom_minimum_size = Vector2(40, 30)
+	f.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(f)
+	var bubble := PanelContainer.new()
+	bubble.add_theme_stylebox_override("panel", UI.entity_bubble(8.0))
+	bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(bubble)
+	var r := Makers.Redacted.new()
+	r.text = text
+	r.color = Color(Entity.GLOW, 0.75)
+	r.font_size = 12.0
+	bubble.add_child(r)
+	row.set_meta("entity_sibling", text)
+	return row
 
 
 func _archive_toggle(id: String) -> void:
@@ -1943,6 +2053,8 @@ func _page_dev() -> void:
 		ib.disabled = p.item_room(id) != ""
 	_button("Empty the belt", _dev_empty_belt, igrid)
 
+	_dev_makers()
+
 	_section("Cheats")
 	var crow := _row()
 	_button("No dying: %s" % ("on" if main.dev_no_death else "off"), _toggle_no_death, crow)
@@ -1958,6 +2070,66 @@ func _page_dev() -> void:
 
 
 # --- actions -----------------------------------------------------------------
+
+## Dev tools for the Makers (makers.gd), to try them on the phone.
+func _dev_makers() -> void:
+	var mk = main.makers
+	if mk == null:
+		return
+	_section("The Makers (fragments, interest, meetings)")
+	var prof = main.profile
+	var bits: Array = ["Fragments %d (%d needed)" % [Makers.fragment_count(prof), int(Makers.REVEAL["fragments"])]]
+	for m in Makers.ORDER:
+		bits.append("%s %d / %d" % [Makers.MAKERS[m]["short"], int(mk.interest(m)), int(mk.threshold(m))])
+	var c: Dictionary = Makers.core(prof)
+	if not c.is_empty():
+		bits.append("core: " + Makers.SECRET_BONDS[c["bond"]]["Name"])
+	_text("  ·  ".join(bits), DIM)
+	var row := _grid(4, 6)
+	_button("Add a fragment", _dev_fragment, row)
+	for m in Makers.ORDER:
+		_button("+100 %s" % Makers.MAKERS[m]["short"], _dev_interest.bind(m), row)
+	var row2 := _grid(4, 6)
+	_button("Meet a Maker now", _dev_meet, row2)
+	_button("A glimpse now", _dev_glimpse, row2)
+	_button("A fragment on this floor", _dev_place_fragment, row2)
+	_button("Clear the Makers", _dev_clear_makers, row2)
+
+
+func _dev_fragment() -> void:
+	var m: String = main.makers.dev_fragment()
+	_say("A fragment of %s (%d found)" % [Makers.MAKERS[m]["name"], Makers.fragment_count(main.profile)])
+
+
+func _dev_interest(m: String) -> void:
+	main.makers.dev_interest(m, 100.0)
+	_say("%s: interest %d" % [Makers.MAKERS[m]["Name"], int(main.makers.interest(m))])
+
+
+func _dev_meet() -> void:
+	if main.makers.dev_meet() == "":
+		_say("No Maker to meet")
+		return
+	close()  # (it shows itself once the menu has closed)
+
+
+func _dev_glimpse() -> void:
+	main.makers.start_glimpse(main.makers.dev_choice(), Makers.GLIMPSE["kinds"][randi() % Makers.GLIMPSE["kinds"].size()])
+	close()
+
+
+func _dev_place_fragment() -> void:
+	var mk = main.makers
+	mk.setup_floor(true)
+	if mk.fragment.is_empty():
+		_say("No secret room or vault on this floor")
+	else:
+		_say("A fragment waits in this floor's %s" % ("secret room" if mk.fragment["src"] == "secret" else "vault"))
+
+
+func _dev_clear_makers() -> void:
+	main.makers.dev_clear()
+	_say("The Makers forget you")
 
 func _leave_title() -> void:
 	Engine.set_meta("sixfold_title_seen", true)
@@ -2638,6 +2810,7 @@ class CompareArrow extends Control:
 ## parts are dark sockets; where the next mark is forming, a gold one.
 class BodyView extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
+	const MakersRef := preload("res://scripts/makers.gd")
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
 	const Palette := preload("res://scripts/palette.gd")
@@ -2664,6 +2837,7 @@ class BodyView extends Control:
 		var b := UI.Draw.Batch.new()
 		_backdrop(b)
 		_figure(b)
+		MakersRef.core_figure_into(b, main.profile, SPOTS, t)  # (a core mark, beneath the marks)
 		for part in ORDER:
 			_mark(b, part, t)
 		b.flush(self)

@@ -68,6 +68,13 @@ var provings := {}
 var record := {}
 ## Climbers before this one (New climber): the Entity remembers them.
 var former := 0
+## The Makers (makers.gd): fragments found, each Maker's interest, meetings,
+## the core mark. makers.gd state() fills in its keys.
+var makers := {}
+## The secret bond (makers.gd): "", "developer", "designer" or "manipulator",
+## and its depth (0 without one, 1 to 5). One per climber.
+var core_mark := ""
+var core_depth := 0
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -153,6 +160,9 @@ func reset() -> void:
 	lost = []
 	provings = {}
 	record = {}
+	makers = {}
+	core_mark = ""
+	core_depth = 0
 	save()
 
 
@@ -198,6 +208,10 @@ func load_save() -> void:
 				provings[String(t)] = int(won[t])
 	record = cfg.get_value("profile", "record", {})
 	former = int(cfg.get_value("profile", "former", 0))
+	var mk = cfg.get_value("makers", "state", {})
+	makers = mk if mk is Dictionary else {}
+	core_mark = str(cfg.get_value("profile", "core_mark", ""))
+	core_depth = int(cfg.get_value("profile", "core_depth", 0))
 
 
 func save() -> void:
@@ -226,6 +240,9 @@ func save() -> void:
 	cfg.set_value("train", "store", store)
 	cfg.set_value("profile", "lost", lost)
 	cfg.set_value("profile", "provings", provings)
+	cfg.set_value("makers", "state", makers)
+	cfg.set_value("profile", "core_mark", core_mark)
+	cfg.set_value("profile", "core_depth", core_depth)
 	cfg.save(save_path)
 
 
