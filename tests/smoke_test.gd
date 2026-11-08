@@ -2886,6 +2886,185 @@ func _firebird_bond_tests() -> void:
 	dummy.queue_free()
 
 
+## A killing blow to the climber (no dodge, no parry).
+func _kill_blow(p) -> void:
+	p.iframes = 0.0
+	p.hurt_t = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(9999.0, null)
+
+
+## The Proving: floor 6 of every tower (proving.gd).
+func _proving_tests() -> void:
+	print("the Proving")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var pv = main.proving
+	var p = main.player
+	var prof = main.profile
+	var G = main.Gear
+	var TW: Dictionary = main.Towers.TOWERS
+	for e in main.enemies():
+		e.queue_free()
+	_check(not pv.enabled, "tests keep floor 6 a planned floor unless they ask for the Proving")
+	pv.enabled = true
+	_check(prof.FIRST_CLIMB_FLOORS < main.Towers.PROVING["floor"], "the bondless first climb ends below the Proving")
+	main.first_climb = true
+	main._start_floor(6)
+	_check(not pv.on and not main.floor_plan.get("proving", false), "floor 6 on the first climb is never the Proving")
+	main.first_climb = false
+	# Every tower: the fixed layout, its gauntlet, and a way through it by timing.
+	var ok_layout := true
+	var ok_cross := true
+	var bad: Array = []
+	for tid in main.Towers.ORDER:
+		main.tower = tid
+		main._start_floor(6)
+		await _frames(1)
+		var styles: Array = main.door_view.list.map(func(d): return d["style"])
+		var ok: bool = pv.on and main.room_info.size() == pv.LAYOUT.size() and main.enemies().is_empty() and main.ward and not main.stair_open \
+			and main.room_themes[pv.rooms["gauntlet"]] == TW[tid]["gauntlet"] and main.traps.is_empty() \
+			and ["proving", "lethal", "crown", "shade"].all(func(s): return s in styles)
+		pv.choose("ordinary")
+		var gi: int = pv.rooms["gauntlet"]
+		ok = ok and main.traps.size() >= 2 and main.traps.all(func(tr): return int(tr.get("room", -1)) == gi)
+		if not ok:
+			bad.append(tid)
+		ok_layout = ok_layout and ok
+		ok_cross = ok_cross and _trap_free_route(main.Traps.hard_tiles(main.traps), [[main.stair_pos], [pv.prize["pos"]]])
+	_check(ok_layout, "floor 6 is the Proving's own layout in every tower: a sealed stair, two doors and the tower's own gauntlet (bad: %s)" % [bad])
+	_check(ok_cross, "every gauntlet can be crossed by timing: no tile on the way is never safe")
+	main.dev_floor(6)
+	_check(pv.on, "the dev tools' floor 6 is the Proving")
+
+	print("losing the Proving")
+	main.tower = "kraken"
+	main._start_floor(6)
+	await _frames(1)
+	pv.choose("ordinary")
+	main.run_essence = {"water": 30.0, "air": 10.0}
+	p.hp = 20.0
+	_kill_blow(p)
+	_check(not p.dead and pv.casting and p.hp >= 1.0, "a killing blow in the Proving doesn't kill: the tower takes your measure")
+	pv.cast_down()
+	_check(main.floor_num == 5 and not pv.on and not main.floor_plan.get("proving", false) and not p.dead, "...and casts you down to a fresh floor 5")
+	_check(is_equal_approx(float(main.run_essence.get("water", 0.0)), 15.0) and is_equal_approx(float(main.run_essence.get("air", 0.0)), 5.0), "...keeping half your unbanked essence")
+	_check(p.wound > 0.0 and is_equal_approx(p.max_health(), p.max_hp * (1.0 - pv.CAST_DOWN["wound"])) and p.hp <= p.max_health(), "...with a lingering wound: less max health")
+	_check(main.menu._climber_line().contains(pv.TEXT["wound_tag"]), "the climber screen shows the wound")
+	main._arrive()
+	_check(main.floor_num == 6 and pv.on and p.wound > 0.0, "the wound lingers back up on floor 6")
+	main._arrive()
+	_check(main.floor_num == 7 and p.wound == 0.0 and pv.wound_text() == "" and is_equal_approx(p.max_health(), p.max_hp), "...and closes on reaching floor 7")
+	await _until(func(): return not main.climbing and main.fade <= 0.0, 5.0)
+
+	print("winning the Proving")
+	var tid := "gryphon"
+	var tw: Dictionary = TW[tid]
+	main.tower = tid
+	prof.provings = {}
+	main._start_floor(6)
+	await _frames(1)
+	var ld: Dictionary = main.door_view.list.filter(func(d): return d["lock"] in ["lethal", "lethal_sealed"])[0]
+	_check(ld["lock"] == "lethal_sealed" and not pv.lethal_open(), "the Lethal door stays sealed until the Proving is won in this tower")
+	main.door_view._bump(ld)
+	_check(pv.mode == "" and ld["lock"] == "lethal_sealed", "...bumping it only says so")
+	var od: Dictionary = main.door_view.list.filter(func(d): return d["lock"] == "proving")[0]
+	p.global_position = od["rect"].get_center() + Vector2(0, 40)
+	await _until(func(): return pv.mode != "", 3.0)
+	_check(pv.mode == "ordinary" and pv.tier == 0 and od["open"] and ld["lock"] == "proving_shut", "walking up to the Proving's door takes it; the other door bars")
+	main.traps = []
+	var rect := func(st: String) -> Rect2: return main.room_info[pv.rooms[st]]["rect"]
+	p.global_position = rect.call("gauntlet").get_center()
+	await _until(func(): return pv.sealed.has("gauntlet"), 3.0)
+	var gate: Array = main.floor_plan["gauntlet_gates"][0]
+	_check(pv.sealed.has("gauntlet") and main.is_solid(main.Traps.centre(gate[0])), "the gauntlet shuts behind you")
+	for d in main.door_view.list:
+		if d["style"] in ["crown", "shade"]:
+			main.door_view.open_door(d, true)
+	p.global_position = rect.call("sentinel").get_center()
+	await _until(func(): return pv.sentinel != null, 3.0)
+	var s = pv.sentinel
+	var adds: Array = pv.mobs.slice(1)
+	_check(s != null and s.champion and s.kind == tw["sentinel"] and tw["weights"].has(s.kind), "the sentinel is a champion of the tower's own (%s)" % (s.kind if s != null else "none"))
+	_check(adds.size() == int(pv.TIERS[0]["adds"]) and adds.all(func(e): return e.kind == tw["sentinel_adds"]) and not main.door_view.lock_status().is_empty(), "...with its adds, behind shut doors")
+	for e in main.enemies():
+		e.set_physics_process(false)
+	var crystals0: int = prof.crystal_count(tw["essence"])
+	for e in pv.mobs:
+		_slay(e)
+	await _until(func(): return pv.sealed.has("sentinel_done"), 3.0)
+	_check(main.door_view.lock_status().is_empty() and prof.crystal_count(tw["essence"]) > crystals0, "its fall opens the doors and leaves an essence crystal")
+	p.global_position = rect.call("shadow").get_center()
+	await _until(func(): return pv.shadow != null, 3.0)
+	var sh = pv.shadow
+	var full: float = main.EnemyScript.TYPES[tw["beast_kind"]]["hp"] * main.Floors.toughness(main.Towers.SUMMIT).x
+	_check(sh != null and sh.kind == tw["beast_kind"] and sh.shade and sh.is_boss() and absf(sh.max_hp - full * float(pv.TIERS[0]["shadow_hp"])) < 1.0 and sh.max_hp < full * 0.5,
+		"the shadow is the tower's beast at reduced health (%d of %d)" % [int(sh.max_hp) if sh != null else 0, int(full)])
+	sh.set_physics_process(false)
+	var beasts0: int = prof.count("beasts")
+	_slay(sh)
+	await _until(func(): return pv.stage == "won", 3.0)
+	var prize_door: Dictionary = main.door_view.list.filter(func(d): return d["room"] == pv.rooms["prize"])[0]
+	_check(prof.proving_wins(tid) == 1 and prof.count("beasts") == beasts0, "the shadow's fall wins the Proving (not a beast slain), and the win is recorded")
+	_check(main.stair_open and not main.ward and prize_door["lock"] == "" and prize_door["open"], "...the reliquary and the stair open")
+	p.global_position = pv.prize["pos"]
+	await _until(func(): return main.camp_choosing, 3.0)
+	var choices: Array = main.camp.get("choices", [])
+	_check(choices.size() == 3 and choices.all(func(c): return String(c).begins_with("gear:") and G.slot_of(String(c).substr(5)) in ["ring", "amulet"] \
+		and G.rarity_rank(G.rarity(G.rec(String(c).substr(5)))) >= G.rarity_rank("rare")), "the prize: a choice of three Rare relics, rings and amulets")
+	var pick: Dictionary = G.rec(String(choices[0]).substr(5))
+	main.choose_camp(0)
+	_check(not main.camp_choosing and (p.gear.values() + p.pack).any(func(g): return G.same(g, pick)), "taking one gives it to you")
+	# A recall scroll still works in the Proving.
+	main.read_recall()
+	_check(main.victory.get("recall", false), "a recall scroll can be read in the Proving")
+	main.victory = {}
+	p.set_physics_process(true)
+
+	main._start_floor(6)
+	_check(not pv.on, "once won, a fall back to floor 6 finds an ordinary floor (one Proving a climb)")
+	print("a later climb: harder, and the Lethal Proving")
+	pv.won_climb = false  # (a new climb)
+	main._start_floor(6)
+	await _frames(1)
+	ld = main.door_view.list.filter(func(d): return d["lock"] in ["lethal", "lethal_sealed"])[0]
+	_check(ld["lock"] == "lethal" and pv.ordinary_tier() == 1, "after a win, the Lethal door opens and the Proving rises a tier")
+	var t0: Dictionary = pv.TIERS[0]
+	var t1: Dictionary = pv.TIERS[1]
+	_check(t1["trap_floor"] > t0["trap_floor"] and t1["sentinel_hp"] > t0["sentinel_hp"] and t1["shadow_hp"] > t0["shadow_hp"] and t1["rank"] > t0["rank"], "a higher tier: a faster gauntlet, a tougher sentinel, a stronger shadow, a better prize")
+	main.door_view._bump(ld)
+	_check(pv.mode == "", "one bump of the Lethal door only asks")
+	var lean := func() -> bool:
+		main.door_view._bump(ld)
+		return pv.mode != ""
+	await _until(lean, 4.0)
+	_check(pv.mode == "lethal" and pv.tier == 1 + pv.LETHAL_STEP, "leaning on it takes the Lethal Proving, a tier above")
+	p.hp = 20.0
+	_kill_blow(p)
+	_check(p.dead and not pv.casting and main.floor_num == 6, "a death in the Lethal Proving is a real death")
+
+	print("saving Provings won")
+	var path := "user://smoke_proving_test.cfg"
+	prof.provings = {"kraken": 2, "gryphon": 1}
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.proving_wins("kraken") == 2 and again.proving_wins("gryphon") == 1 and again.proving_wins("wyvern") == 0, "Provings won are saved and load again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.provings.is_empty(), "an old save loads with no Provings won")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+
+
 func _chimera_bond_tests() -> void:
 	print("the Chimera's bonds")
 	await _fresh_main()
@@ -6537,6 +6716,7 @@ func _run() -> void:
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()
+	await _proving_tests()
 	await _chimera_bond_tests()
 	await _body_part_tests()
 	await _item_tests()

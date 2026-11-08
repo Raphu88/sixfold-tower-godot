@@ -671,7 +671,9 @@ func _set_climber_tab(id: String) -> void:
 func _climber_line() -> String:
 	var prof = main.profile
 	var marks: int = prof.bonds.size()
-	return "%d of 6 marks  ·  %d %s  ·  best floor %d" % [marks, prof.climbs, "climb" if prof.climbs == 1 else "climbs", prof.best_floor]
+	var line := "%d of 6 marks  ·  %d %s  ·  best floor %d" % [marks, prof.climbs, "climb" if prof.climbs == 1 else "climbs", prof.best_floor]
+	var wound: String = main.proving.wound_text() if main.proving != null else ""  # (the Proving's lingering wound)
+	return line + ("  ·  " + wound if wound != "" else "")
 
 
 ## The body parts in the order the cards show them: marked ones first (top

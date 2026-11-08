@@ -62,6 +62,19 @@ const THEMES := {
 		"tint": Color(1.0, 0.8, 0.5, 0.07), "door": "puzzle", "emblem": "glyph", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"quiet": {"name": "Quiet Hall", "kind": "calm", "sub": "Dust and silence. Nothing stirs here.", "tint": Color(0, 0, 0, 0),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": ""},
+	# The Proving's rooms (floor 6, proving.gd lays them out and says what each
+	# is as you walk in; its gauntlet is the tower's own trap room). Kind
+	# "proving": never handed out to other floors' rooms.
+	"proving_ante": {"name": "The Antechamber", "kind": "proving", "sub": "", "tint": Color(0.95, 0.8, 0.45, 0.05),
+		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "start"},
+	"proving_sentinel": {"name": "The Sentinel's Hall", "kind": "proving", "sub": "", "tint": Color(1.0, 0.82, 0.4, 0.06),
+		"door": "crown", "min_size": Vector2i(0, 0), "towers": [], "feature": "proving", "decor": "bones"},
+	"proving_shadow": {"name": "The Beast's Shadow", "kind": "proving", "sub": "", "tint": Color(0.55, 0.45, 0.9, 0.09),
+		"door": "shade", "min_size": Vector2i(0, 0), "towers": [], "feature": "proving"},
+	"proving_prize": {"name": "The Reliquary", "kind": "proving", "sub": "", "tint": Color(1.0, 0.8, 0.45, 0.07),
+		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "proving"},
+	"proving_stair": {"name": "The Way Up", "kind": "proving", "sub": "", "tint": Color(0.75, 0.55, 1.0, 0.05),
+		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "stair"},
 
 	# --- good rooms ---------------------------------------------------------------
 	"spring": {"name": "Healing Spring", "kind": "good", "sub": "Clear water wells up from the stone. Stand in it to heal.",

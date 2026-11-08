@@ -34,6 +34,7 @@ var main  # the room (main.gd), set before the player is added
 var radius := 14.0
 var weight := 1.0  # how hard it is to shove when bodies collide
 var max_hp := MAX_HP
+var wound := 0.0  # the Proving's lingering wound: max health is cut by this share (proving.gd)
 # Essence density (attributes): small passive bonuses, set from the profile.
 var attr_speed := 1.0  # Air: Agility
 var attr_strength := 1.0  # Blade: Strength
@@ -400,9 +401,10 @@ func _burned(part: String) -> bool:
 	return b != null and b.burned
 
 
-## A burned heart caps your health lower until the next stair.
+## A burned heart caps your health lower until the next stair; the
+## Proving's wound, for a few floors.
 func max_health() -> float:
-	return max_hp * (0.75 if _burned("heart") else 1.0)
+	return max_hp * (0.75 if _burned("heart") else 1.0) * (1.0 - wound)
 
 
 func has_bond(bond_id: String) -> bool:
@@ -1437,7 +1439,9 @@ func _defy_death() -> bool:
 		main.fx_text(global_position + Vector2(0, -44), "Last Ember: strike to stay standing!", Color(1.0, 0.5, 0.25))
 		main.sfx("burn", 0.7)
 		return true
-	return ember_t > 0.0  # still burning on your last ember
+	if ember_t > 0.0:
+		return true  # still burning on your last ember
+	return main.proving_spare()  # the ordinary Proving casts you down instead
 
 
 func _tick_fire_bonds(delta: float) -> void:
@@ -1451,7 +1455,7 @@ func _tick_fire_bonds(delta: float) -> void:
 	if ember_t > 0.0:
 		ember_t -= delta
 		hp = 1.0
-		if ember_t <= 0.0 and not dead:
+		if ember_t <= 0.0 and not dead and not main.proving_spare():
 			hp = 0.0
 			dead = true
 			main.sfx("death", 1.0, 0.0, 0.0)

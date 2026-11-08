@@ -373,7 +373,7 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 
 ## The climb
 
-**How tall a tower is.** Every tower is 12 floors to the summit, where its beast waits (`SUMMIT` in `towers.gd`). Floor 6 is **the Proving**, where the tower takes your measure: for now it's an ordinary floor with its own banner (its name and line are in `PROVING` in `towers.gd`); its special test comes later. Your bondless first climb is 3 floors and ends in the Regard. Camps after floors 3 and 9 aren't floors.
+**How tall a tower is.** Every tower is 12 floors to the summit, where its beast waits (`SUMMIT` in `towers.gd`). Floor 6 is **the Proving**, where the tower takes your measure (see **The Proving** below). Your bondless first climb is 3 floors and ends in the Regard. Camps after floors 3 and 9 aren't floors.
 
 **Floors are planned.** Floor 1 and the beast's floor are single open rooms. Every floor in between is planned on a grid of cells, one room each at most, and the grid grows with height: 4 by 3 cells on floors 2 to 5, 5 by 3 on floors 6 to 9, 5 by 4 on floors 10 and 11 (`PLAN` in `scripts/floors.gd`). Each floor has 6 to 11 rooms:
 - **The spine** is the main route, a walk from cell to neighbouring cell. Each of its rooms has a job: the **entrance** (you start here), **guard rooms**, the **gallery** in the middle (it holds the floor's puzzle) and the **stair hall** (the stair stands at the top of it).
@@ -441,6 +441,20 @@ Solving lifts the ward ("THE WARD LIFTS"), opens the stair (and a seal), and giv
 **Cheap to draw.** A trap at rest never changes, so every resting trap (and a set piece's path and brambles) is drawn once into a few squares of the floor; each frame only the traps warning or firing on screen (and hidden ones right beside you) are drawn, all in one batch, 30 times a second.
 
 **The stair.** On floor 1 and the beast's floor the **stair** at the top of the room opens once three quarters of the monsters are down; on floors of rooms it opens when the puzzle lifts its ward. Walk onto it to climb, or finish the rest first for their essence (the HUD shows how many are left). Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Each floor's monsters are bought from a budget that grows with height, and they get tougher too (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
+
+## The Proving (floor 6)
+
+Halfway up every tower (never on the bondless first climb), floor 6 is a special test that shows what the tower is about. It has its own fixed layout instead of planned rooms (`scripts/proving.gd`, where all its words and numbers live; each tower's picks are `gauntlet`, `sentinel` and `sentinel_adds` in `towers.gd`; "the Proving" is a placeholder name):
+
+1. **The antechamber**, where you arrive, with two doors in its north wall and their words under them. **The Proving** (a gold six-pointed star) opens when you walk up to it. **The Lethal Proving** (the star in red, cracked, red light under it) stays sealed until you have won the Proving in that tower once; then bumping it explains it, and you **lean on it** for a moment to go in. Choosing one bars the other.
+2. **The gauntlet**: the tower's own trap room (the Gryphon's Windhall, the Kraken's Sluice Hall, the Wyvern's Furnace, the Manticore's Spike Gallery, the Firebird's Emberfall, the Chimera's Bramble Hall). The way behind you shuts. Like every trap room it can always be crossed by timing: no tile on the way is never safe.
+3. **The sentinel** (a door bearing a crown): a champion of the tower's sentinel (thunderling, shellback, smith, ram, wisp, mongrel) with two to four of its adds. The doors shut until they fall; the champion leaves an essence crystal.
+4. **The beast's shadow** (a dark door with a pale eye, violet light under it): an echo of the tower's beast, drawn in faded violet with wisps rising off it, with about a third of its summit health; it calls no help and the Firebird's doesn't rise again. Its bar says "Shadow of the ...". The doors shut until it falls; its fall doesn't count as slaying the beast.
+5. **The reliquary**, sealed until the shadow falls: a pedestal offers **one of three relics** (rings and amulets, Rare on the first win), never shown before you win. Then the stair.
+
+**Losing isn't death.** In the ordinary Proving, when your health would reach 0 the tower "has taken your measure": you are **cast down to a fresh floor 5**, keeping half your unbanked essence, at half health, with a **lingering wound** (a quarter less max health, shown violet on the health bar with a small "wounded", and on the climber screen) that closes after two stairs, when you reach floor 7. Climb back and face floor 6 again. Only the **Lethal Proving**, chosen knowingly, ends the climb if you die there.
+
+**Harder on later climbs.** Every win is saved per tower (`provings` in the save) and raises that tower's Proving a tier, up to 3: the gauntlet is laid as a higher floor's (faster, denser), the sentinel is tougher with more adds, the shadow stronger, and the relics are tempered, some of them Storied. The Lethal Proving is a tier above that. (Everywhere else difficulty rises only with the floor.) The tiers are `TIERS` in `proving.gd`.
 
 ## Locked doors and lock-in rooms
 
@@ -512,6 +526,7 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 | `scripts/themes.gd` | Room themes: names, one-line rules, tints, door looks, and the rules that hand them out |
 | `scripts/doors.gd` | Doors: solid until you walk up, styled to hint at the room behind; locked doors with their keys and levers; lock-in rooms |
 | `scripts/wings.gd` | Sealed wings (the seal, the shut doorway, the challenge waves, the champion), vault pedestals and their cards, secret rooms (dust, knock, lean, caches, Tithe Doors) |
+| `scripts/proving.gd` | The Proving (floor 6): its fixed layout, the two doors, the gauntlet, the sentinel, the beast's shadow, the prize, being cast down and the lingering wound, and its tiers |
 | `scripts/fog.gd` | Line-of-sight fog on floors of rooms (worked out up to 12 times a second; drawn by `lighting.gd`) |
 | `scripts/lighting.gd` | The darkness layer: one shader over the world, the light registry (`add_light`, flashes), the fog and the vignette |
 | `scripts/puzzle.gd` | The puzzle host: the stair's ward, the reward, the seal, quiet and pressure modes, failure and its ambush, auto-aim, rule panels, rails and gates |
