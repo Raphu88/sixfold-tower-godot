@@ -10,6 +10,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Controls := preload("res://scripts/controls.gd")
 
 const UI := preload("res://scripts/ui.gd")
+const Draw := preload("res://scripts/draw_util.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -23,6 +24,9 @@ var slot_on: StyleBoxFlat
 var hp_trail := 1.0  # the lagging "damage taken" chunk
 var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
+var hud_scale := 1.0  # the HUD size setting (ui.gd HUD_SCALES)
+var tips: Array = []  # [rect, title, lines] of what the mouse can hover for a tooltip
+var tip_box: StyleBoxFlat
 
 
 func _ready() -> void:
@@ -40,6 +44,9 @@ func _ready() -> void:
 	panel = UI.panel()
 	slot = UI.slot()
 	slot_on = UI.slot(true)
+	tip_box = UI.box(Color(0.06, 0.055, 0.08, 0.96), Color(UI.GOLD, 0.45), 6)
+	tip_box.shadow_color = Color(0, 0, 0, 0.5)
+	tip_box.shadow_size = 6
 
 
 func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
@@ -75,63 +82,86 @@ func _draw() -> void:
 	if main.hurt_flash > 0.0:
 		draw_texture_rect(vignette, Rect2(Vector2.ZERO, size), false, Color(0.9, 0.08, 0.05, main.hurt_flash / 0.35))
 
-	# Health and stamina.
-	draw_style_box(panel, Rect2(16, 14, 286, 56))
-	_bar(Vector2(28, 24), 262.0, 14.0, p.hp / p.max_hp, hp_trail, UI.HEALTH)
+	# The play HUD (bars, slots, marks, hints) is drawn at the HUD size
+	# setting; the floor title and the overlays below are not.
+	var real_size := size
+	var hs := hud_scale
+	size = real_size / hs
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(hs, hs))
+	tips.clear()
+
+	# Health and stamina: rich bars, with the numbers on the health bar.
+	draw_style_box(panel, Rect2(16, 14, 286, 60))
+	var bars := Draw.Batch.new()
+	UI.bar_into(bars, Rect2(28, 24, 262, 17), p.hp / p.max_hp, UI.HEALTH, hp_trail)
+	UI.bar_into(bars, Rect2(28, 51, 262.0 * p.max_sta / 100.0, 10), p.sta / p.max_sta, UI.STAMINA, sta_trail, Color(0.95, 0.95, 0.7, 0.7))
 	if p.barrier_hp > 0.0:
 		# The Warden's barrier: a gold band over the health bar.
 		var bw: float = 262.0 * clampf(p.barrier_hp / p.max_hp, 0.0, 1.0)
-		draw_rect(Rect2(Vector2(28, 24), Vector2(bw, 6)), Color(1.0, 0.85, 0.45, 0.85))
+		UI.capsule(bars, 28.0, 28.0 + bw, 27.5, 3.5, Color(1.0, 0.85, 0.45, 0.9))
 	if p.max_health() < p.max_hp:
 		# A burned heart caps your health: show the lost part as scorched.
 		var cap_x: float = 28.0 + 262.0 * p.max_health() / p.max_hp
-		draw_rect(Rect2(Vector2(cap_x, 24), Vector2(290.0 - cap_x, 14)), Color(1.0, 0.35, 0.2, 0.35))
-	_bar(Vector2(28, 46), 262.0 * p.max_sta / 100.0, 10.0, p.sta / p.max_sta, sta_trail, UI.STAMINA)
+		bars.rect(Rect2(Vector2(cap_x, 24), Vector2(290.0 - cap_x, 17)), Color(1.0, 0.35, 0.2, 0.35))
+	bars.flush(self)
+	var hp_text := "%d / %d" % [int(ceil(p.hp)), int(round(p.max_health()))]
+	draw_string_outline(font, Vector2(28, 37), hp_text, HORIZONTAL_ALIGNMENT_CENTER, 262, 12, 4, Color(0, 0, 0, 0.85))
+	draw_string(font, Vector2(28, 37), hp_text, HORIZONTAL_ALIGNMENT_CENTER, 262, 12, Color(1, 0.95, 0.92))
+	tips.append([Rect2(16, 14, 286, 60), "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]]])
 
 	# Weapons (slots 1 to 3: fists, melee, ranged) and armor, each with its name.
 	var have: Array = p.slots()
 	for i in have.size():
 		var id: String = have[i]
-		var r := Rect2(16 + i * 50, 78, 44, 44)
+		var r := Rect2(16 + i * 50, 82, 44, 44)
 		var on: bool = id == p.weapon and id != ""
 		draw_style_box(slot_on if on else slot, r)
 		if id != "":
-			_weapon_icon(id, r.get_center() + Vector2(0, -1), GOLD if on else DIM_TEXT)
+			_slot_glow(r, Gear.color(id), on)
+			Gear.draw_icon(self, id, r.get_center(), 13.0, Color(Gear.color(id), 1.0 if on else 0.7))
 			if id == p.weapon and p.reload_t > 0.0 and p.wkind() == "crossbow":
 				# Reloading: the slot fills back up.
 				var k: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
 				draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(r.size.x - 4, (r.size.y - 4) * k)), Color(0, 0, 0, 0.45))
+			tips.append([r, Gear.display(id), _gear_tip(id, i)])
 		draw_string(font, r.position + Vector2(4, 13), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD if on else DIM_TEXT)
-		draw_string(font, Vector2(r.position.x - 3, 136), Gear.short(id) if id != "" else "-", HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 6, 11, TEXT if on else DIM_TEXT)
-	var ar := Rect2(16 + 3 * 50, 78, 44, 44)
+		draw_string(font, Vector2(r.position.x - 3, 140), Gear.short(id) if id != "" else "-", HORIZONTAL_ALIGNMENT_CENTER, r.size.x + 6, 11, TEXT if on else DIM_TEXT)
+	var ar := Rect2(16 + 3 * 50, 82, 44, 44)
 	var armor_id: String = p.gear["armor"]
 	draw_style_box(slot, ar)
-	Gear.draw_icon(self, armor_id, ar.get_center(), 11.0, Gear.color(armor_id) if armor_id != "" else UI.FAINT)
-	draw_string(font, Vector2(ar.position.x - 7, 136), Gear.short(armor_id), HORIZONTAL_ALIGNMENT_CENTER, ar.size.x + 14, 11, TEXT if armor_id != "" else DIM_TEXT)
+	if armor_id != "":
+		_slot_glow(ar, Gear.color(armor_id), false)
+	Gear.draw_icon(self, armor_id, ar.get_center(), 13.0, Gear.color(armor_id) if armor_id != "" else UI.FAINT)
+	draw_string(font, Vector2(ar.position.x - 7, 140), Gear.short(armor_id), HORIZONTAL_ALIGNMENT_CENTER, ar.size.x + 14, 11, TEXT if armor_id != "" else DIM_TEXT)
+	tips.append([ar, Gear.display(armor_id) if armor_id != "" else "No armor", _gear_tip(armor_id, 3)])
 	_draw_items(p, font)
 
 	# Essence gathered since the last stair (lost if you fall before it).
 	var held: Array = Essence.KINDS.keys().filter(func(k): return main.run_essence.get(k, 0.0) > 0.0)
 	if not held.is_empty():
-		var pill := Rect2(16, 146, 24.0 + 50.0 * held.size() + 50.0, 22)
+		var pill := Rect2(16, 152, 24.0 + 50.0 * held.size() + 50.0, 22)
 		draw_style_box(panel, pill)
 		var ex := pill.position.x + 10.0
+		var gems := Draw.Batch.new()
+		for gi in held.size():
+			UI.gem_into(gems, Vector2(ex + 5 + 50.0 * gi, 163), 5.5, Essence.color(held[gi]))
+		gems.flush(self)
 		for kind in held:
-			draw_circle(Vector2(ex + 5, 157), 4.5, Essence.color(kind))
-			draw_string(font, Vector2(ex + 14, 162), str(int(main.run_essence[kind])), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
+			draw_string(font, Vector2(ex + 15, 168), str(int(main.run_essence[kind])), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
 			ex += 50.0
-		draw_string(font, Vector2(ex + 2, 161), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+		draw_string(font, Vector2(ex + 2, 167), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+		tips.append([pill, "Unbanked essence", ["Bank it at the stair; it's lost if you fall first."]])
 
 	# Bonds (marks), bottom left; on phones, up top out from under your thumbs.
 	var parts: Array = BondScript.Bonds.PARTS.filter(func(pt): return p.bonds.has(pt))
 	var y := size.y - 12.0 - 50.0 * parts.size()
 	if main.touch_active:
-		y = 170.0
+		y = 178.0
 	for part in parts:
 		var b = p.bonds[part]
 		if main.touch_active:
 			_bond_compact(b, part, Vector2(12, y), font)
-			y += 37.0
+			y += 39.0
 		else:
 			_bond_panel(b, part, Vector2(16, y), font)
 			y += 50.0
@@ -166,6 +196,11 @@ func _draw() -> void:
 			draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
 	else:
 		_draw_screen_hints(size, font)
+	if not main.gear_here.is_empty() and not main.camp_choosing and main.fade <= 0.0 and not main.overlay_showing():
+		_draw_gear_prompt(p, main.gear_here["id"], size, font)
+	_draw_tip(font)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	size = real_size
 
 	# Floor counter, top centre.
 	var floor_text: String = main._floor_title()
@@ -227,8 +262,6 @@ func _draw() -> void:
 		_draw_camp_choice(size, font)
 	_draw_quarry(p, size, font)
 	_draw_stair_arrow(size, font)
-	if not main.gear_here.is_empty() and not main.camp_choosing and main.fade <= 0.0:
-		_draw_gear_prompt(p, main.gear_here["id"], size, font)
 	if p.pick_open:
 		_draw_spell_ring(p, font)
 
@@ -252,36 +285,74 @@ func _draw_screen_hints(size: Vector2, font: Font) -> void:
 		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 17.0
 
 
-func _bar(pos: Vector2, width: float, height: float, ratio: float, trail: float, color: Color) -> void:
-	ratio = clampf(ratio, 0.0, 1.0)
-	trail = clampf(trail, 0.0, 1.0)
-	draw_rect(Rect2(pos - Vector2(1, 1), Vector2(width + 2, height + 2)), Color(0, 0, 0, 0.8))
-	draw_rect(Rect2(pos, Vector2(width, height)), Color(color.darkened(0.75), 0.9))
-	if trail > ratio:
-		draw_rect(Rect2(pos + Vector2(width * ratio, 0), Vector2(width * (trail - ratio), height)), Color(1.0, 0.85, 0.6, 0.8))
-	draw_rect(Rect2(pos, Vector2(width * ratio, height)), color)
-	draw_rect(Rect2(pos, Vector2(width * ratio, height * 0.4)), Color(1, 1, 1, 0.15))
+## A soft light in a slot behind its icon.
+func _slot_glow(r: Rect2, col: Color, on: bool) -> void:
+	var b := Draw.Batch.new()
+	UI.glow_into(b, r.get_center(), r.size.x * 0.46, col, 0.7 if on else 0.4)
+	b.flush(self)
 
 
-## The phone version: sigil, name and essence bar only.
+## A weapon's or armor's key numbers, for its tooltip.
+func _gear_tip(id: String, slot_i: int) -> Array:
+	var lines: Array = []
+	if slot_i < 3:
+		var key := str(slot_i + 1)
+		lines.append("Slot %s%s" % [key, "  ·  in hand" if id == main.player.weapon else "  ·  press %s to hold it" % key])
+	for row in Gear.stats(id):
+		lines.append("%s  %s" % [row[0], row[1]])
+	return lines
+
+
+## Hovering the mouse over a HUD slot or mark: a small card with what it is.
+func _draw_tip(font: Font) -> void:
+	if main.touch_active or main.pad_active or main.menu_open():
+		return
+	var m := get_local_mouse_position() / hud_scale
+	for t in tips:
+		var r: Rect2 = t[0]
+		if not r.has_point(m):
+			continue
+		var lines: Array = t[2]
+		var w := font.get_string_size(t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		for l in lines:
+			w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x)
+		var size := get_viewport_rect().size / hud_scale
+		var box := Rect2(m + Vector2(16, 14), Vector2(w + 22.0, 26.0 + 16.0 * lines.size()))
+		box.position.x = minf(box.position.x, size.x - box.size.x - 6.0)
+		if box.end.y > size.y - 6.0:
+			box.position.y = m.y - box.size.y - 10.0
+		draw_style_box(tip_box, box)
+		draw_string(font, box.position + Vector2(11, 19), t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, GOLD)
+		for i in lines.size():
+			draw_string(font, box.position + Vector2(11, 37 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+		return
+
+
+## The phone version: medallion, name and essence bar only.
 func _bond_compact(b, part: String, pos: Vector2, font: Font) -> void:
-	var r := Rect2(pos, Vector2(196, 34))
+	var r := Rect2(pos, Vector2(204, 36))
 	draw_style_box(panel, r)
 	var col: Color = b.color()
-	var c := pos + Vector2(17, 17)
+	var c := pos + Vector2(18, 18)
 	var ratio: float = b.essence / b.capacity()
-	draw_circle(c, 11.0, Color(0, 0, 0, 0.6))
-	draw_arc(c, 11.0, 0.0, TAU, 28, Color(col, 0.25), 2.5, true)
-	draw_arc(c, 11.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 28, col, 2.5, true)
+	var ready: bool = b.essence >= b.cost()
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.006)
+	UI.draw_medallion(self, c, 13.0, col, b.data()["affinity"], ratio, 0, (0.4 + 0.4 * pulse) if ready else 0.0, b.faint)
 	var label: String = b.display_name()
 	if b.burned:
 		label = "%s burned!" % BondScript.PART_NAMES[part]
-	draw_string(font, pos + Vector2(34, 14), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.45, 0.35) if b.burned else col)
-	var bar := Rect2(pos + Vector2(34, 21), Vector2(150, 5))
-	draw_rect(bar, Color(1, 1, 1, 0.08))
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * ratio, bar.size.y)), col)
-	var cost_x: float = bar.position.x + bar.size.x * b.cost() / b.capacity()
-	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 2), Color(1, 1, 1, 0.8), 1.0)
+	draw_string(font, pos + Vector2(38, 15), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.45, 0.35) if b.burned else col.lightened(0.1))
+	_essence_bar(b, Rect2(pos + Vector2(38, 22), Vector2(154, 6)), col)
+
+
+## An essence bar with a tick at the spell's cost.
+func _essence_bar(b, bar: Rect2, col: Color) -> void:
+	var bt := Draw.Batch.new()
+	UI.bar_into(bt, bar, b.essence / b.capacity(), col)
+	var cost_x: float = bar.position.x + bar.size.x * minf(b.cost() / b.capacity(), 1.0)
+	bt.rect(Rect2(cost_x - 1.5, bar.position.y - 3.0, 3.0, bar.size.y + 6.0), UI.OUTLINE)
+	bt.rect(Rect2(cost_x - 0.5, bar.position.y - 2.0, 1.0, bar.size.y + 4.0), Color(1, 1, 1, 0.9))
+	bt.flush(self)
 
 
 func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
@@ -295,32 +366,27 @@ func _bond_panel(b, part: String, pos: Vector2, font: Font) -> void:
 		key = Controls.pad_name(Controls.PART_PAD[part], main.pad_ps, true)
 		hold_key = "%s+%s" % [Controls.pad_name("lb", main.pad_ps), key]
 	var c := pos + Vector2(22, 22)
-	# The sigil: a ring that fills with essence, the cast key in the middle.
-	draw_circle(c, 15.0, Color(0, 0, 0, 0.6))
-	draw_arc(c, 15.0, 0.0, TAU, 32, Color(col, 0.25), 3.0, true)
+	# The medallion: a ring that fills with essence round the mark's emblem,
+	# glowing once there's enough to cast; the cast key on a badge.
 	var ratio: float = b.essence / b.capacity()
-	draw_arc(c, 15.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 32, col, 3.0, true)
 	var can_cast: bool = b.essence >= b.cost()
-	draw_string(font, c + Vector2(-15, 5), key, HORIZONTAL_ALIGNMENT_CENTER, 30, 14 if key.length() < 2 else 11, col if can_cast else DIM_TEXT)
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.006)
+	UI.draw_medallion(self, c, 17.0, col, b.data()["affinity"], ratio, 0, (0.45 + 0.4 * pulse) if can_cast else 0.0, b.faint)
+	UI.draw_key(self, c + Vector2(6, 4), key, 10, col.lightened(0.2) if can_cast else DIM_TEXT)
 	var title := "%s  ·  %s  ·  %s" % [b.display_name(), BondScript.PART_NAMES[part], "faint" if b.faint else "step %d" % b.step]
-	draw_string(font, pos + Vector2(46, 17), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
-	# Essence bar with a tick at the spell's cost.
-	var bar := Rect2(pos + Vector2(46, 24), Vector2(140, 6))
-	draw_rect(bar, Color(1, 1, 1, 0.08))
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * ratio, bar.size.y)), col)
-	var cost_x: float = bar.position.x + bar.size.x * b.cost() / b.capacity()
-	draw_line(Vector2(cost_x, bar.position.y - 2), Vector2(cost_x, bar.end.y + 1), Color(1, 1, 1, 0.8), 1.0)  # (clear of the note below)
+	draw_string(font, pos + Vector2(48, 17), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col.lightened(0.1))
+	_essence_bar(b, Rect2(pos + Vector2(48, 23), Vector2(140, 6)), col)
+	draw_string(font, pos + Vector2(196, 30), "%d / %d" % [int(b.essence), int(b.capacity())], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, DIM_TEXT)
 	var known: int = b.spells().size()
 	var note: String = "%s%s: %s" % [b.spell_name(), "  (%d/%d, hold %s to pick)" % [b.selected + 1, known, hold_key] if known > 1 else "", b.spell_desc()]
 	var note_col := DIM_TEXT
 	if b.burned:
 		note = BondScript.PART_BURN[part] + " · overdraw again and it tears (costs health)"
 		note_col = Color(1.0, 0.45, 0.35)
-	draw_string(font, pos + Vector2(46, 40), note, HORIZONTAL_ALIGNMENT_LEFT, 365, 11, note_col)
-
-
-func _weapon_icon(id: String, c: Vector2, col: Color) -> void:
-	Gear.draw_icon(self, id, c, 10.0, col)
+	draw_string(font, pos + Vector2(48, 40), note, HORIZONTAL_ALIGNMENT_LEFT, 365, 11, note_col)
+	tips.append([Rect2(pos, Vector2(44, 44)), "%s  (%s)" % [b.display_name(), BondScript.PART_NAMES[part]],
+		["Essence %d / %d  ·  %s costs %d" % [int(b.essence), int(b.capacity()), b.spell_name(), int(round(b.cost()))],
+		"Press %s to cast%s" % [key, ", hold it to pick a spell" if known > 1 else ""], "Tab: the climber screen has every spell"]])
 
 
 ## Standing on gear you'd have to swap for: a card comparing it with what
@@ -459,8 +525,7 @@ func _draw_forming(p, pos: Vector2, font: Font) -> void:
 		var name_col := GOLD if on else DIM_TEXT
 		draw_string(font, Vector2(pos.x + 10, y + 9), BondScript.PART_NAMES[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, name_col)
 		var bar := Rect2(Vector2(pos.x + 56, y + 2), Vector2(148, 7))
-		draw_rect(bar, Color(1, 1, 1, 0.07))
-		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(v, 0.0, 1.0), bar.size.y)), Color(GOLD, 0.9) if on else Color(TEXT, 0.35))
+		UI.draw_bar(self, Rect2(bar.position + Vector2(0, 1), Vector2(bar.size.x, 6)), v, GOLD if on else Color(0.6, 0.57, 0.66))
 		y += 15.0
 	var bid: String = main.predicted_bond()
 	if bid == "":
@@ -670,29 +735,47 @@ func _draw_victory(size: Vector2, font: Font) -> void:
 
 ## The items you carry, next to the weapons: an icon and a count each; the
 ## one G uses is outlined in gold.
+## Items: the quick item in a gilded slot with its use key, the others
+## smaller beside it (the next-item key picks among them).
 func _draw_items(p, font: Font) -> void:
 	var have: Array = p.carried()
 	if have.is_empty():
 		return
 	var sel: String = p.selected_item()
-	var x := 224.0
-	for id in have:
-		var r := Rect2(x, 78, 44, 44)
-		var on: bool = id == sel
-		draw_style_box(slot_on if on else slot, r)
-		Items.draw_icon(self, id, r.get_center() + Vector2(0, -1), 11.0, 1.0 if on else 0.7)
-		var n: int = p.item_count(id)
-		draw_string_outline(font, r.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.9))
-		draw_string(font, r.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD if on else TEXT)
-		x += 50.0
+	var use_key := "G"
+	var next_key := "T"
+	if main.pad_active:
+		use_key = Controls.pad_name("x", main.pad_ps, true)
+		next_key = "D-pad down"
+	var q := Rect2(224, 82, 44, 44)
 	if sel != "":
-		var hint: String = Items.ITEMS[sel]["short"]
+		draw_style_box(slot_on, q)
+		_slot_glow(q, Items.color(sel), true)
+		Items.draw_icon(self, sel, q.get_center() + Vector2(0, -1), 13.0)
+		var n: int = p.item_count(sel)
+		draw_string_outline(font, q.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.9))
+		draw_string(font, q.end + Vector2(-11, -3), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, GOLD)
 		if not main.touch_active:
-			if main.pad_active:
-				hint = Controls.pad_text("{x}  ", main.pad_ps) + hint + ("  ·  D-pad down next" if have.size() > 1 else "")
-			else:
-				hint = "G  " + hint + ("  ·  T next" if have.size() > 1 else "")
-		draw_string(font, Vector2(224, 136), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+			UI.draw_key(self, q.position + Vector2(-4, -6), use_key, 10)
+		draw_string(font, Vector2(q.position.x - 6, 140), Items.ITEMS[sel]["short"], HORIZONTAL_ALIGNMENT_CENTER, q.size.x + 12, 11, TEXT)
+		tips.append([q, Items.ITEMS[sel]["name"], [_sentence(Items.ITEMS[sel]["desc"]), "Carrying %d  ·  %s to use it" % [n, use_key if not main.touch_active else "Item"]]])
+	var x := 274.0
+	var others: Array = have.filter(func(id): return id != sel)
+	for id in others:
+		var r := Rect2(x, 88, 32, 32)
+		draw_style_box(slot, r)
+		Items.draw_icon(self, id, r.get_center(), 9.0, 0.8)
+		var n: int = p.item_count(id)
+		draw_string_outline(font, r.end + Vector2(-9, -2), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 3, Color(0, 0, 0, 0.9))
+		draw_string(font, r.end + Vector2(-9, -2), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, TEXT)
+		tips.append([r, Items.ITEMS[id]["name"], [_sentence(Items.ITEMS[id]["desc"]), "%s picks the next item" % next_key]])
+		x += 36.0
+	if not others.is_empty() and not main.touch_active:
+		draw_string(font, Vector2(274, 140), "%s next" % next_key, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
+
+
+static func _sentence(t: String) -> String:
+	return t.left(1).to_upper() + t.substr(1) + "."
 
 
 func camp_card_rect(i: int, size: Vector2) -> Rect2:

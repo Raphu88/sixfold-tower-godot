@@ -261,77 +261,233 @@ static func heirloom_slot_name(heirloom_slot_id: String) -> String:
 
 
 # --- drawing -----------------------------------------------------------------------
+# Icons follow draw_util.gd's style guide: filled shapes with a dark outline,
+# lit from the top-left, a pale glint on blades. Each icon is one Batch
+# (one draw call) and uses only filled shapes, so it is safe under torchlight
+# too (gear lying on the floor, fx.gd).
+
+const Draw := preload("res://scripts/draw_util.gd")
+const Palette := preload("res://scripts/palette.gd")
+const _LEATHER := Color(0.36, 0.24, 0.16)
+const _GOLD := Color(0.9, 0.72, 0.36)
+
 
 ## A piece of gear's icon, drawn in code, centred on `c` (about 2*s across).
-## `col` tints it (the HUD dims slots that aren't in hand).
+## Weapons are drawn in their own steel and wood; armor in `col`. `col`'s
+## alpha fades the whole icon, and a near-black `col` draws a flat silhouette
+## (a drop shadow).
 static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color) -> void:
-	var w := maxf(1.0, s * 0.22)
-	var u := s / 10.0  # the HUD's icons were drawn at s = 10
+	var b := Draw.Batch.new()
+	icon_into(b, id, c, s, col)
+	if col.v < 0.08:
+		for i in b.cols.size():
+			b.cols[i] = col
+	elif col.a < 0.999:
+		for i in b.cols.size():
+			b.cols[i].a *= col.a
+	b.flush(ci)
+
+
+static func icon_into(b, id: String, c: Vector2, s: float, col: Color) -> void:
+	var u := s / 10.0  # drawn on a grid of about -10..10
+	var ol := clampf(u * 1.1, 0.8, 1.6)  # outline width
+	var steel := Palette.STEEL
+	var wood := Palette.WOOD
+	var d := Vector2(1, -1).normalized()  # weapons lie from bottom-left to top-right
+	var p := func(x: float, y: float) -> Vector2: return c + Vector2(x, y) * u
 	match id:
 		"fists":
-			ci.draw_circle(c + Vector2(-4, 2) * u, 5.0 * u, col)
-			ci.draw_circle(c + Vector2(5, -2) * u, 5.0 * u, col)
-		"dagger":
-			ci.draw_line(c + Vector2(-6, 6) * u, c + Vector2(6, -6) * u, col, w * 1.2)
-			ci.draw_line(c + Vector2(-7, 1) * u, c + Vector2(-1, 7) * u, col, w)
-		"sword":
-			ci.draw_line(c + Vector2(-9, 9) * u, c + Vector2(9, -9) * u, col, w * 1.4)
-			ci.draw_line(c + Vector2(-9, 2) * u, c + Vector2(-2, 9) * u, col, w * 1.1)
-		"greatsword":
-			ci.draw_line(c + Vector2(-10, 10) * u, c + Vector2(10, -10) * u, col, w * 2.0)
-			ci.draw_line(c + Vector2(-11, 3) * u, c + Vector2(-3, 11) * u, col, w * 1.2)
+			for f in [[Vector2(-4.6, 2.2), 1.0], [Vector2(4.2, -1.8), -1.0]]:
+				var fc: Vector2 = c + f[0] * u
+				var body := _rrect(fc, Vector2(4.4, 3.8) * u, 2.0 * u)
+				b.poly(body, Palette.CLIMBER_SKIN.darkened(0.25), ol)
+				b.polygon(_rrect(fc + Vector2(-0.5, -0.6) * u, Vector2(3.6, 3.0) * u, 1.6 * u), Palette.CLIMBER_SKIN)
+				for k in 3:
+					var kx := (-2.2 + k * 2.2) * u
+					b.line(fc + Vector2(kx, -3.6 * u), fc + Vector2(kx, -1.0 * u), Palette.CLIMBER_SKIN.darkened(0.35), maxf(0.8, 0.6 * u))
+				b.ball(fc + Vector2(f[1] * 4.0, 1.2) * u, 1.6 * u, Palette.CLIMBER_SKIN.darkened(0.08), true)
+				# a wrap of cloth round the wrist
+				b.rect(Rect2(fc + Vector2(-4.4, 3.0) * u, Vector2(8.8, 1.8) * u), Palette.CLIMBER_TUNIC)
+		"dagger", "sword", "greatsword":
+			var sz: Array = {"dagger": [-1.5, 7.5, 1.7, 3.4, 3.8], "sword": [-3.0, 9.5, 1.9, 4.6, 4.2], "greatsword": [-4.0, 10.5, 2.7, 6.0, 4.8]}[id]
+			var base: Vector2 = c - d * absf(sz[0]) * u * 1.414
+			var tip: Vector2 = c + d * sz[1] * u * 1.414
+			var grip_end: Vector2 = base - d * sz[4] * u * 1.414
+			b.stroke(base, grip_end, _LEATHER, 2.0 * u)
+			for k in 3:
+				var at := base.lerp(grip_end, 0.25 + k * 0.25)
+				b.line(at + d.orthogonal() * 1.0 * u, at - d.orthogonal() * 1.0 * u, _LEATHER.darkened(0.4), maxf(0.7, 0.5 * u))
+			_blade(b, base, tip, sz[2] * u, steel, ol)
+			var side := d.orthogonal()
+			b.stroke(base + side * sz[3] * u, base - side * sz[3] * u, _GOLD.darkened(0.15), (2.2 if id == "greatsword" else 1.7) * u)
+			b.ball(grip_end - d * 1.4 * u, (1.6 if id == "dagger" else 2.0) * u, _GOLD, true)
 		"axe":
-			ci.draw_line(c + Vector2(-8, 9) * u, c + Vector2(6, -7) * u, col, w)
-			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(2, -9) * u, c + Vector2(10, -6) * u, c + Vector2(7, 2) * u, c + Vector2(3, -3) * u]), col)
+			var h0: Vector2 = p.call(-8.0, 8.0)
+			var h1: Vector2 = p.call(6.5, -6.5)
+			b.stroke(h0, h1, wood, 2.2 * u)
+			b.line(h0.lerp(h1, 0.06), h0.lerp(h1, 0.62), wood.lightened(0.25), maxf(0.7, 0.6 * u))
+			# A bearded head: narrow at the haft, flaring to a curved edge.
+			var side := Vector2(-1, -1).normalized()
+			var m := h0.lerp(h1, 0.78)
+			var head := PackedVector2Array([m + d * 1.8 * u, m + d * 1.9 * u + side * 2.6 * u])
+			var edge := PackedVector2Array()
+			for i in 9:
+				var t := float(i) / 8.0
+				edge.append(m + side * (6.4 + 1.3 * sin(t * PI)) * u + d * lerpf(4.6, -4.8, t) * u)
+			head.append_array(edge)
+			head.append_array([m - d * 2.1 * u + side * 2.6 * u, m - d * 1.8 * u])
+			b.poly(PackedVector2Array([m + d * 1.6 * u, m - d * 1.6 * u, m - d * 1.4 * u - side * 2.2 * u, m + d * 1.4 * u - side * 2.2 * u]), steel.darkened(0.35), ol)
+			b.poly(head, steel.darkened(0.3), ol)
+			var lit := PackedVector2Array([m + d * 1.9 * u + side * 2.6 * u])
+			for i in 5:
+				lit.append(edge[i])
+			lit.append(m + side * 4.0 * u)
+			b.polygon(lit, steel.darkened(0.04))
+			var glint := PackedVector2Array()
+			for i in 8:
+				glint.append(edge[i] - side * 0.8 * u)
+			b.path(glint, Color(1, 1, 1, 0.6), maxf(0.8, 0.7 * u))
 		"mace":
-			ci.draw_line(c + Vector2(-8, 8) * u, c + Vector2(3, -3) * u, col, w)
-			ci.draw_circle(c + Vector2(5, -5) * u, 4.5 * u, col)
+			var h0: Vector2 = p.call(-8.0, 8.0)
+			var hc: Vector2 = p.call(4.4, -4.4)
+			b.stroke(h0, hc, wood, 2.0 * u)
+			b.ball(h0, 1.6 * u, _LEATHER, true)
 			for i in 6:
-				var a := TAU * i / 6.0
-				ci.draw_line(c + Vector2(5, -5) * u, c + Vector2(5, -5) * u + Vector2.from_angle(a) * 6.5 * u, col, w * 0.7)
+				var a := TAU * i / 6.0 + 0.3
+				b.poly(PackedVector2Array([hc + Vector2.from_angle(a - 0.42) * 3.2 * u, hc + Vector2.from_angle(a) * 6.6 * u, hc + Vector2.from_angle(a + 0.42) * 3.2 * u]), steel.darkened(0.25), ol)
+			b.ball(hc, 4.0 * u, steel, true)
 		"spear":
-			ci.draw_line(c + Vector2(-10, 10) * u, c + Vector2(6, -6) * u, col, w * 0.9)
-			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(11, -11) * u, c + Vector2(4, -6) * u, c + Vector2(6, -4) * u]), col)
+			var h0: Vector2 = p.call(-10.0, 10.0)
+			var base: Vector2 = p.call(4.0, -4.0)
+			b.stroke(h0, base, wood, 1.6 * u)
+			_leaf(b, base, p.call(11.0, -11.0), 2.4 * u, steel, ol)
+			b.stroke(base - d * 0.6 * u, base + d * 0.6 * u, _LEATHER, 2.6 * u)
 		"war_hammer":
-			ci.draw_line(c + Vector2(-8, 9) * u, c + Vector2(4, -5) * u, col, w * 1.1)
-			var hd := PackedVector2Array([c + Vector2(-1, -9) * u, c + Vector2(4, -12) * u, c + Vector2(11, -2) * u, c + Vector2(6, 1) * u])
-			ci.draw_colored_polygon(hd, col)
+			var h0: Vector2 = p.call(-8.0, 8.0)
+			var hc: Vector2 = p.call(4.6, -4.6)
+			b.stroke(h0, hc + d * 2.2 * u, wood, 2.0 * u)
+			var side := Vector2(1, 1).normalized()
+			var blk := PackedVector2Array([hc - side * 1.5 * u - d * 2.8 * u, hc + side * 6.0 * u - d * 2.8 * u,
+				hc + side * 6.0 * u + d * 2.8 * u, hc - side * 1.5 * u + d * 2.8 * u])
+			var spike := PackedVector2Array([hc - side * 1.5 * u - d * 1.6 * u, hc - side * 6.8 * u, hc - side * 1.5 * u + d * 1.6 * u])
+			b.poly(spike, steel.darkened(0.3), ol)
+			b.poly(blk, steel.darkened(0.3), ol)
+			b.polygon(PackedVector2Array([blk[0], blk[1], (blk[1] + blk[2]) * 0.5, (blk[0] + blk[3]) * 0.5]), steel.darkened(0.05))
+			b.line(blk[1].lerp(blk[2], 0.1), blk[1].lerp(blk[2], 0.9), Color(1, 1, 1, 0.5), maxf(0.8, 0.8 * u))
 		"shortbow", "longbow":
-			var r := 11.0 if id == "shortbow" else 13.0
-			var o := c + Vector2(-4, 0) * u
-			ci.draw_arc(o, r * u, -1.1, 1.1, 12, col, w * 1.1)
-			ci.draw_line(o + Vector2.from_angle(-1.1) * r * u, o + Vector2.from_angle(1.1) * r * u, col, maxf(1.0, w * 0.4))
-			ci.draw_line(c + Vector2(-6, 0) * u, c + Vector2(10, 0) * u, col, w * 0.6)
+			var r := (10.5 if id == "shortbow" else 12.5) * u
+			var o: Vector2 = p.call(-4.5, 0.0)
+			var t0 := o + Vector2.from_angle(-1.15) * r
+			var t1 := o + Vector2.from_angle(1.15) * r
+			b.line(t0, t1, Color(0.92, 0.88, 0.8), maxf(0.8, 0.5 * u))  # the string
+			_arrow(b, p.call(-6.5, 0.0), p.call(10.5, 0.0), u, ol)
+			b.arc(o, r, -1.15, 1.15, 14, Palette.OUTLINE, 2.2 * u + ol * 2.0)
+			b.arc(o, r, -1.15, 1.15, 14, wood, 2.2 * u)
+			b.arc(o, r - 0.5 * u, -1.0, -0.15, 8, wood.lightened(0.3), maxf(0.7, 0.6 * u))
+			b.stroke(o + Vector2(r, -1.8 * u), o + Vector2(r, 1.8 * u), _LEATHER, 2.6 * u)  # the grip
 		"crossbow":
-			ci.draw_line(c + Vector2(-9, 0) * u, c + Vector2(9, 0) * u, col, w * 1.1)
-			ci.draw_arc(c + Vector2(1, 0) * u, 8.0 * u, -1.25, 1.25, 10, col, w)
-			ci.draw_line(c + Vector2(1, 0) * u + Vector2.from_angle(-1.25) * 8.0 * u, c + Vector2(-2, 0) * u, col, maxf(1.0, w * 0.4))
-			ci.draw_line(c + Vector2(1, 0) * u + Vector2.from_angle(1.25) * 8.0 * u, c + Vector2(-2, 0) * u, col, maxf(1.0, w * 0.4))
+			var stock := PackedVector2Array([p.call(-10.0, 1.0), p.call(-10.0, -1.6), p.call(-4.0, -1.6), p.call(9.0, -0.8),
+				p.call(9.0, 1.2), p.call(-3.0, 1.2), p.call(-6.0, 3.6), p.call(-9.0, 3.6)])
+			var pc: Vector2 = p.call(1.5, 0.0)
+			b.arc(pc, 8.0 * u, -1.25, 1.25, 12, Palette.OUTLINE, 2.0 * u + ol * 2.0)
+			b.arc(pc, 8.0 * u, -1.25, 1.25, 12, steel.darkened(0.15), 2.0 * u)
+			b.line(pc + Vector2.from_angle(-1.25) * 8.0 * u, p.call(-2.0, -0.2), Color(0.92, 0.88, 0.8), maxf(0.8, 0.5 * u))
+			b.line(pc + Vector2.from_angle(1.25) * 8.0 * u, p.call(-2.0, 0.2), Color(0.92, 0.88, 0.8), maxf(0.8, 0.5 * u))
+			b.poly(stock, wood.darkened(0.15), ol)
+			b.polygon(PackedVector2Array([p.call(-10.0, -1.6), p.call(-4.0, -1.6), p.call(9.0, -0.8), p.call(9.0, 0.0), p.call(-10.0, 0.0)]), wood.lightened(0.1))
+			_arrow(b, p.call(-2.0, -1.8), p.call(9.5, -1.8), u * 0.85, ol)
 		"", "padded", "leather", "chain", "plate":
-			# A breastplate: a torso shape, with the armor's look on it.
-			var body := PackedVector2Array([
-				c + Vector2(-8, -8) * u, c + Vector2(-3, -10) * u, c + Vector2(0, -7) * u, c + Vector2(3, -10) * u,
-				c + Vector2(8, -8) * u, c + Vector2(7, 1) * u, c + Vector2(4, 9) * u, c + Vector2(-4, 9) * u, c + Vector2(-7, 1) * u])
+			var shape := [Vector2(-8, -7.5), Vector2(-3.4, -10), Vector2(0, -7), Vector2(3.4, -10), Vector2(8, -7.5),
+				Vector2(7.2, 1), Vector2(4.4, 9.5), Vector2(-4.4, 9.5), Vector2(-7.2, 1)]
+			var body := PackedVector2Array()
+			for v in shape:
+				body.append(c + v * u)
 			if id == "":
-				var closed := body.duplicate()
-				closed.append(body[0])
-				ci.draw_polyline(closed, Color(col, col.a * 0.6), maxf(1.0, w * 0.5), true)
+				# No armor: a faint dashed outline where it would be.
+				for i in body.size():
+					var a := body[i]
+					var bb := body[(i + 1) % body.size()]
+					b.line(a.lerp(bb, 0.15), a.lerp(bb, 0.6), Color(col, 0.6), maxf(1.0, 0.8 * u))
 				return
-			ci.draw_colored_polygon(body, col)
-			var mark := Color(0, 0, 0, 0.35 * col.a)
+			b.poly(body, col.darkened(0.3), ol)
+			b.polygon(PackedVector2Array([body[0], body[1], body[2], c + Vector2(0, 9.5) * u, body[7], body[8]]), col)
+			b.polygon(PackedVector2Array([body[2], body[3], body[4], body[5], body[6], c + Vector2(0, 9.5) * u]), col.darkened(0.12))
+			b.polygon(PackedVector2Array([body[1], body[2], c + Vector2(-1.0, -5.0) * u, c + Vector2(-5.5, -5.6) * u]), Color(col.lightened(0.35), 0.6))
+			var dark := col.darkened(0.45)
 			match id:
 				"padded":
-					for y in [-3.0, 1.0, 5.0]:
-						ci.draw_line(c + Vector2(-6, y) * u, c + Vector2(6, y) * u, mark, maxf(1.0, w * 0.4))
+					for y in [-3.4, 0.6, 4.6]:
+						b.line(c + Vector2(-6.6, y) * u, c + Vector2(6.6, y) * u, dark, maxf(0.8, 0.6 * u))
+					for x in [-3.2, 3.2]:
+						b.line(c + Vector2(x, -6.0) * u, c + Vector2(x, 8.6) * u, Color(dark, 0.6), maxf(0.7, 0.45 * u))
 				"leather":
-					ci.draw_line(c + Vector2(0, -6) * u, c + Vector2(0, 8) * u, mark, maxf(1.0, w * 0.5))
+					b.line(c + Vector2(0, -6.4) * u, c + Vector2(0, 9.0) * u, dark, maxf(0.8, 0.6 * u))
+					for y in [-1.0, 4.4]:
+						b.rect(Rect2(c + Vector2(-6.8, y) * u, Vector2(13.6, 1.8) * u), Color(0.2, 0.13, 0.08))
+						b.rect(Rect2(c + Vector2(-1.2, y - 0.3) * u, Vector2(2.4, 2.4) * u), _GOLD)
 				"chain":
-					for y in [-4.0, 0.0, 4.0]:
-						for x in [-4.0, 0.0, 4.0]:
-							ci.draw_arc(c + Vector2(x, y) * u, 1.6 * u, 0.0, TAU, 6, mark, maxf(1.0, w * 0.3))
+					for row in 5:
+						for k in 5:
+							var x := -5.2 + k * 2.6 + (1.3 if row % 2 == 1 else 0.0)
+							var y := -5.2 + row * 2.9
+							if absf(x) > 6.4 - maxf(0.0, y - 2.0) * 0.4:
+								continue
+							b.dot(c + Vector2(x, y) * u, 1.15 * u, dark)
+							b.dot(c + Vector2(x - 0.3, y - 0.3) * u, 0.55 * u, col.lightened(0.35))
 				"plate":
-					ci.draw_line(c + Vector2(-7, -1) * u, c + Vector2(7, -1) * u, mark, maxf(1.0, w * 0.5))
-					ci.draw_line(c + Vector2(-5, 4) * u, c + Vector2(5, 4) * u, mark, maxf(1.0, w * 0.5))
-					ci.draw_circle(c + Vector2(-3, -5) * u, 1.6 * u, Color(1, 1, 1, 0.4 * col.a))
+					for y in [-1.0, 3.8]:
+						b.line(c + Vector2(-7.0, y) * u, c + Vector2(7.0, y) * u, dark, maxf(0.9, 0.8 * u))
+						b.line(c + Vector2(-6.6, y + 0.9) * u, c + Vector2(6.6, y + 0.9) * u, Color(col.lightened(0.4), 0.6), maxf(0.6, 0.4 * u))
+					for x in [-7.2, 7.2]:
+						b.ball(c + Vector2(x, -7.4) * u, 2.8 * u, col.lightened(0.05), true)
+					for x in [-4.6, 4.6]:
+						b.dot(c + Vector2(x, 6.8) * u, 0.8 * u, dark)
 		_:
-			ci.draw_circle(c, s * 0.5, col)
+			b.ball(c, s * 0.5, col, true)
+
+
+## A blade from `base` to `tip`, ridged down the middle: the lit half paler,
+## a glint along it.
+static func _blade(b, base: Vector2, tip: Vector2, hw: float, metal: Color, ol: float) -> void:
+	var dir := (tip - base).normalized()
+	var side := dir.orthogonal()
+	var len := base.distance_to(tip)
+	var shoulder := base + dir * len * 0.8
+	var pts := PackedVector2Array([base + side * hw, shoulder + side * hw * 0.92, tip, shoulder - side * hw * 0.92, base - side * hw])
+	b.poly(pts, metal.darkened(0.28), ol)
+	var lit := side if side.dot(Draw.LIGHT_DIR) > 0.0 else -side
+	b.polygon(PackedVector2Array([base, base + lit * hw, shoulder + lit * hw * 0.92, tip]), metal.lightened(0.05))
+	b.line(base + dir * len * 0.08 + lit * hw * 0.45, tip - dir * len * 0.12 + lit * hw * 0.2, Color(1, 1, 1, 0.6), maxf(0.7, hw * 0.3))
+
+
+## A leaf-shaped spearhead.
+static func _leaf(b, base: Vector2, tip: Vector2, hw: float, metal: Color, ol: float) -> void:
+	var dir := (tip - base).normalized()
+	var side := dir.orthogonal()
+	var len := base.distance_to(tip)
+	var wide := base + dir * len * 0.38
+	var pts := PackedVector2Array([base + side * hw * 0.45, wide + side * hw, tip, wide - side * hw, base - side * hw * 0.45])
+	b.poly(pts, metal.darkened(0.28), ol)
+	var lit := side if side.dot(Draw.LIGHT_DIR) > 0.0 else -side
+	b.polygon(PackedVector2Array([base, base + lit * hw * 0.45, wide + lit * hw, tip]), metal.lightened(0.05))
+
+
+## An arrow lying from `tail` to `head`: fletching, shaft and a steel head.
+static func _arrow(b, tail: Vector2, head: Vector2, u: float, ol: float) -> void:
+	var dir := (head - tail).normalized()
+	var side := dir.orthogonal()
+	b.stroke(tail, head - dir * 2.0 * u, Palette.WOOD.lightened(0.15), 0.9 * u)
+	b.poly(PackedVector2Array([head + dir * 1.0 * u, head - dir * 2.6 * u + side * 1.8 * u, head - dir * 2.6 * u - side * 1.8 * u]), Palette.STEEL, ol * 0.8)
+	for sg in [1.0, -1.0]:
+		b.polygon(PackedVector2Array([tail + dir * 3.2 * u, tail + side * sg * 1.9 * u + dir * 0.2 * u, tail - dir * 0.4 * u + side * sg * 1.6 * u, tail + dir * 0.6 * u]), Color(0.85, 0.3, 0.26) if sg > 0.0 else Color(0.92, 0.9, 0.85))
+
+
+## A rounded rectangle's points (for fists and badges).
+static func _rrect(c: Vector2, half: Vector2, r: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var corners := [Vector2(half.x - r, -half.y + r), Vector2(half.x - r, half.y - r), Vector2(-half.x + r, half.y - r), Vector2(-half.x + r, -half.y + r)]
+	for k in 4:
+		for i in 5:
+			var a := -PI / 2.0 + (k + i / 4.0) * PI / 2.0
+			pts.append(c + corners[k] + Vector2.from_angle(a) * r)
+	return pts

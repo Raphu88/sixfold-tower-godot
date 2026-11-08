@@ -180,47 +180,153 @@ static func _heal_over_time(p, data: Dictionary, steady: bool) -> void:
 
 
 # --- drawing -----------------------------------------------------------------------
+# Icons follow draw_util.gd's style guide (filled, outlined, lit from the
+# top-left, one Batch each, no wide lines), so they also work lying on the
+# floor under torchlight (fx.gd).
+
+const Draw := preload("res://scripts/draw_util.gd")
+const Palette := preload("res://scripts/palette.gd")
+const _CORK := Color(0.6, 0.43, 0.27)
+const _GLASS := Color(0.62, 0.66, 0.74)
+
 
 ## An item's icon, drawn in code, centred on `c` (about 2*s across).
+## `alpha` fades it (empty slots, items fading on the floor).
 static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, alpha := 1.0) -> void:
-	var col := Color(color(id), alpha)
-	var dark := Color(0.04, 0.03, 0.05, 0.9 * alpha)
-	var glass := Color(0.85, 0.85, 0.9, 0.8 * alpha)
+	var b := Draw.Batch.new()
+	icon_into(b, id, c, s)
+	if alpha < 0.999:
+		for i in b.cols.size():
+			b.cols[i].a *= alpha
+	b.flush(ci)
+
+
+static func icon_into(b, id: String, c: Vector2, s: float) -> void:
+	var col := color(id)
+	var u := s / 10.0
+	var ol := clampf(u * 1.1, 0.8, 1.6)
 	match id:
-		"draught", "tonic":
-			# A round flask with a neck and cork.
-			var body := c + Vector2(0, s * 0.25)
-			ci.draw_circle(body, s * 0.62, dark)
-			ci.draw_circle(body, s * 0.55, col)
-			ci.draw_circle(body + Vector2(-s * 0.2, -s * 0.2), s * 0.14, Color(1, 1, 1, 0.5 * alpha))
-			ci.draw_rect(Rect2(c + Vector2(-s * 0.16, -s * 0.75), Vector2(s * 0.32, s * 0.5)), glass)
-			ci.draw_rect(Rect2(c + Vector2(-s * 0.2, -s * 0.92), Vector2(s * 0.4, s * 0.2)), Color(0.6, 0.45, 0.3, alpha))
-			if id == "tonic":
-				ci.draw_line(body + Vector2(-s * 0.25, 0), body + Vector2(s * 0.25, 0), Color(1, 1, 1, 0.7 * alpha), maxf(1.0, s * 0.1))
-				ci.draw_line(body + Vector2(0, -s * 0.25), body + Vector2(0, s * 0.25), Color(1, 1, 1, 0.7 * alpha), maxf(1.0, s * 0.1))
+		"draught":
+			# A round flask: glass, the liquid inside with its surface, a cork.
+			_neck(b, c + Vector2(0, -6.2) * u, u, ol)
+			var bc := c + Vector2(0, 2.6) * u
+			var r := 6.6 * u
+			b.dot(bc, r + ol + 0.8, Color(Palette.OUTLINE, Draw.FEATHER_ALPHA))
+			b.dot(bc, r + ol, Palette.OUTLINE)
+			b.dot(bc, r, _GLASS.darkened(0.55))
+			var liquid := PackedVector2Array()
+			var a0 := asin(-0.2)
+			for i in 17:
+				liquid.append(bc + Vector2.from_angle(lerpf(a0, PI - a0, i / 16.0)) * (r - 0.6 * u))
+			b.polygon(liquid, col.darkened(0.2))
+			var inner := PackedVector2Array()
+			for i in 17:
+				inner.append(bc + Vector2(-0.8, -0.4) * u + Vector2.from_angle(lerpf(a0 + 0.25, PI - a0 - 0.4, i / 16.0)) * (r - 2.2 * u))
+			b.polygon(inner, col)
+			b.line(liquid[0], liquid[16], col.lightened(0.45), maxf(0.8, 0.8 * u))  # the surface
+			b.polygon(UIShape.oval(bc + Vector2(-2.9, -2.6) * u, Vector2(1.1, 2.2) * u, -0.6), Color(1, 1, 1, 0.6))
+			b.dot(bc + Vector2(2.6, 3.2) * u, 0.8 * u, Color(1, 1, 1, 0.35))
+		"tonic":
+			# A squat square bottle with a green cure and a white cross label.
+			_neck(b, c + Vector2(0, -6.4) * u, u, ol)
+			var body := Rect2(c + Vector2(-5.6, -3.6) * u, Vector2(11.2, 12.6) * u)
+			var pts := _round_rect(body, 2.2 * u)
+			b.poly(pts, _GLASS.darkened(0.55), ol)
+			b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, body.size - Vector2(1.4, 3.9) * u), 1.6 * u), col.darkened(0.2))
+			b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, Vector2(body.size.x * 0.55, body.size.y - 3.9 * u)), 1.6 * u), col)
+			b.line(body.position + Vector2(0.9, 3.2) * u, body.position + Vector2(body.size.x - 0.9 * u, 3.2 * u), col.lightened(0.45), maxf(0.8, 0.8 * u))
+			var lc := body.get_center() + Vector2(0, 1.4) * u
+			b.dot(lc, 3.0 * u, Color(0.95, 0.93, 0.85))
+			b.rect(Rect2(lc - Vector2(0.6, 2.0) * u, Vector2(1.2, 4.0) * u), col.darkened(0.3))
+			b.rect(Rect2(lc - Vector2(2.0, 0.6) * u, Vector2(4.0, 1.2) * u), col.darkened(0.3))
+			b.rect(Rect2(body.position + Vector2(1.2, 1.0) * u, Vector2(1.2, 6.0) * u), Color(1, 1, 1, 0.5))
 		"vial":
-			# A tall thin vial with a glowing core.
-			var r := Rect2(c + Vector2(-s * 0.28, -s * 0.6), Vector2(s * 0.56, s * 1.4))
-			ci.draw_rect(r.grow(s * 0.08), dark)
-			ci.draw_rect(r, glass)
-			ci.draw_rect(Rect2(r.position + Vector2(0, r.size.y * 0.35), Vector2(r.size.x, r.size.y * 0.65)), col)
-			ci.draw_circle(c + Vector2(0, s * 0.35), s * 0.18, Color(1, 1, 1, 0.75 * alpha))
-			ci.draw_rect(Rect2(c + Vector2(-s * 0.34, -s * 0.85), Vector2(s * 0.68, s * 0.22)), Color(0.6, 0.45, 0.3, alpha))
+			# A tall vial with glowing essence and a spark in it.
+			var r := Rect2(c + Vector2(-3.0, -5.8) * u, Vector2(6.0, 15.0) * u)
+			b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u).grow(ol), Palette.OUTLINE)
+			var pts := _round_rect(r, 2.8 * u)
+			b.poly(pts, _GLASS.darkened(0.55), ol)
+			b.dot(c + Vector2(0, 3.6) * u, 6.0 * u, Color(col, 0.18))
+			b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 5.0 * u), Vector2(r.size.x - 1.4 * u, r.size.y - 5.7 * u)), 2.2 * u), col.darkened(0.15))
+			b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 5.0 * u), Vector2(r.size.x * 0.5, r.size.y - 5.7 * u)), 2.0 * u), col.lightened(0.15))
+			b.line(r.position + Vector2(0.8 * u, 5.0 * u), Vector2(r.end.x - 0.8 * u, r.position.y + 5.0 * u), col.lightened(0.6), maxf(0.8, 0.8 * u))
+			_spark(b, c + Vector2(0.3, 3.8) * u, 2.6 * u, Color(1, 1, 1, 0.9))
+			b.rect(Rect2(r.position + Vector2(0.9, 0.9) * u, Vector2(1.0, 4.0) * u), Color(1, 1, 1, 0.45))
+			b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u), _CORK)
+			b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 1.2) * u), _CORK.lightened(0.25))
 		"smoke":
 			# A round bomb with a lit fuse.
-			ci.draw_circle(c + Vector2(0, s * 0.15), s * 0.68, dark)
-			ci.draw_circle(c + Vector2(0, s * 0.15), s * 0.6, col.darkened(0.35))
-			ci.draw_circle(c + Vector2(-s * 0.2, -s * 0.05), s * 0.15, Color(1, 1, 1, 0.35 * alpha))
-			ci.draw_line(c + Vector2(s * 0.25, -s * 0.4), c + Vector2(s * 0.5, -s * 0.8), Color(0.75, 0.6, 0.4, alpha), maxf(1.0, s * 0.12))
-			ci.draw_circle(c + Vector2(s * 0.52, -s * 0.85), s * 0.14, Color(1.0, 0.7, 0.3, alpha))
+			var bc := c + Vector2(-0.8, 1.6) * u
+			b.stroke(bc + Vector2(3.0, -5.0) * u, c + Vector2(5.4, -7.6) * u, Color(0.78, 0.66, 0.46), 1.1 * u)
+			b.rect(Rect2(bc + Vector2(1.0, -7.4) * u, Vector2(3.6, 2.6) * u).grow(ol), Palette.OUTLINE)
+			b.rect(Rect2(bc + Vector2(1.0, -7.4) * u, Vector2(3.6, 2.6) * u), Color(0.45, 0.43, 0.48))
+			b.ball(bc, 7.0 * u, col.darkened(0.42), true)
+			b.dot(bc + Vector2(-2.8, -2.8) * u, 1.6 * u, Color(1, 1, 1, 0.5))
+			_spark(b, c + Vector2(6.0, -8.2) * u, 3.0 * u, Color(1.0, 0.75, 0.3))
+			_spark(b, c + Vector2(6.0, -8.2) * u, 1.5 * u, Color(1.0, 0.97, 0.8))
 		_:
-			ci.draw_circle(c, s * 0.5, col)
+			b.ball(c, s * 0.5, col, true)
 
 
-## A rune card's mark: a small glowing sigil.
+## A flask's neck and cork, with its bottom at `at`.
+static func _neck(b, at: Vector2, u: float, ol: float) -> void:
+	var neck := Rect2(at + Vector2(-2.0, -1.6) * u, Vector2(4.0, 4.6) * u)
+	var cork := Rect2(at + Vector2(-2.6, -4.6) * u, Vector2(5.2, 3.2) * u)
+	b.rect(neck.grow(ol), Palette.OUTLINE)
+	b.rect(cork.grow(ol), Palette.OUTLINE)
+	b.rect(neck, _GLASS.darkened(0.35))
+	b.rect(Rect2(neck.position, Vector2(1.2 * u, neck.size.y)), Color(1, 1, 1, 0.4))
+	b.rect(cork, _CORK)
+	b.rect(Rect2(cork.position, Vector2(cork.size.x, 1.1 * u)), _CORK.lightened(0.25))
+
+
+## A four-pointed sparkle.
+static func _spark(b, c: Vector2, r: float, col: Color) -> void:
+	b.polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, -r * 0.25), c + Vector2(r, 0), c + Vector2(r * 0.25, r * 0.25),
+		c + Vector2(0, r), c + Vector2(-r * 0.25, r * 0.25), c + Vector2(-r, 0), c + Vector2(-r * 0.25, -r * 0.25)]), col)
+
+
+static func _round_rect(r: Rect2, rad: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	rad = minf(rad, minf(r.size.x, r.size.y) * 0.5)
+	var cs := [Vector2(r.end.x - rad, r.position.y + rad), Vector2(r.end.x - rad, r.end.y - rad),
+		Vector2(r.position.x + rad, r.end.y - rad), Vector2(r.position.x + rad, r.position.y + rad)]
+	for k in 4:
+		for i in 4:
+			pts.append(cs[k] + Vector2.from_angle(-PI / 2.0 + (k + i / 3.0) * PI / 2.0) * rad)
+	return pts
+
+
+## A rune card's mark: a carved stone with a glowing three-stroke sigil.
 static func draw_rune_icon(ci: CanvasItem, col: Color, c: Vector2, s: float) -> void:
-	ci.draw_arc(c, s * 0.7, 0.0, TAU, 28, col, maxf(1.5, s * 0.1))
+	var b := Draw.Batch.new()
+	var u := s / 10.0
+	var stone := PackedVector2Array()
+	for i in 7:
+		var a := -PI / 2.0 + TAU * i / 7.0
+		stone.append(c + Vector2.from_angle(a) * (8.6 + (0.8 if i % 2 == 0 else -0.4)) * u)
+	b.poly(stone, Color(0.3, 0.28, 0.34), clampf(u * 1.1, 0.8, 1.6))
+	var lit := PackedVector2Array()
+	for p in stone:
+		lit.append(c + (p - c) * 0.82 + Draw.LIGHT_DIR * 0.9 * u)
+	b.polygon(lit, Color(0.4, 0.38, 0.45))
+	for i in 5:
+		b.dot(c, (7.0 - i) * u, Color(col, 0.08))
 	for i in 3:
 		var a := -PI / 2.0 + TAU * i / 3.0
-		ci.draw_line(c + Vector2.from_angle(a) * s * 0.15, c + Vector2.from_angle(a + 2.2) * s * 0.6, col, maxf(1.5, s * 0.1))
-	ci.draw_circle(c, s * 0.12, col)
+		var p0 := c + Vector2.from_angle(a) * 1.4 * u
+		var p1 := c + Vector2.from_angle(a + 2.2) * 5.8 * u
+		b.line(p0, p1, Color(col.darkened(0.5), 0.9), 2.2 * u)
+		b.line(p0, p1, col.lightened(0.2), 1.2 * u)
+	b.dot(c, 1.4 * u, col.lightened(0.5))
+	b.flush(ci)
+
+
+class UIShape:
+	## An oval's points, turned by `rot`.
+	static func oval(c: Vector2, rad: Vector2, rot := 0.0, n := 12) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for i in n:
+			var a := TAU * i / n
+			pts.append(c + Vector2(cos(a) * rad.x, sin(a) * rad.y).rotated(rot))
+		return pts
