@@ -314,6 +314,7 @@ func _bump(d: Dictionary) -> void:
 	bumps += 1
 	main.fx_text(d["rect"].get_center() + Vector2(0, -30), LOCK_TEXT["locked"], Color(0.9, 0.75, 0.55))
 	main.banner = {"title": String(LOCK_TEXT["locked"]).to_upper(), "lines": [LOCK_TEXT["hint_" + String(d["lock"])]], "t": 2.2}
+	main.tip("door_locked")
 	main.sfx("hit_armor", 0.55, -4.0, 0.0)
 	main.sfx("step_chain", 0.7, -8.0, 0.0)
 
@@ -509,6 +510,7 @@ func open_door(d: Dictionary, quiet := false) -> void:
 	main.fx_burst(d["rect"].get_center(), -d["out"], dust, 8, 70.0)
 	main.sfx("slam", 1.7, -10.0, 0.08)
 	main.sfx("step_plate", 0.6, -6.0, 0.05)
+	main.tip("doors")  # the Entity, the first time
 	_redraw()
 
 

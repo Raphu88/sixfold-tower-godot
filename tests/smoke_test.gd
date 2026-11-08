@@ -5232,6 +5232,7 @@ func _run() -> void:
 	await _menu_tests()
 	await _screen_tests()
 	await _mark_page_tests()
+	await _entity_tests()
 	await _title_tests()
 	await _combat_feel_tests()
 	await _density_tests()
@@ -5793,7 +5794,7 @@ func _screen_tests() -> void:
 	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
 	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "...the body and a card for each of the six parts")
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(tabs.size() == 3, "...and three tabs")
+	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 4, "...and its tabs (Marks, Essence, Record, Archive)")
 	tabs[1].pressed.emit()
 	await _frames(1)
 	_check(menu.climber_tab == "essence" and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.EssenceView), "the Essence tab shows density and attributes")
@@ -6072,3 +6073,249 @@ func _mark_page_tests() -> void:
 	menu.close()
 	main.gear_drops.clear()
 	await _frames(2)
+
+
+## Waits until the Entity's bubble shows (or a second passes).
+func _until_bubble() -> void:
+	for i in 120:
+		if main.entity.showing() and main.entity.leaving <= 0.0:
+			return
+		await process_frame
+
+
+## Waits until the Entity's bubble has gone.
+func _until_no_bubble() -> void:
+	for i in 120:
+		if not main.entity.showing():
+			return
+		await process_frame
+
+
+## The Entity: tips the first time each system is met (queued, once per
+## save, off in Settings, replayed), dismissed by key, tap, click or the
+## right stick; the Archive and the Record it presents; its pages.
+func _entity_tests() -> void:
+	print("the Entity: tips, the Archive and the Record")
+	var Guide = load("res://scripts/guide.gd")
+	var Entity = load("res://scripts/entity.gd")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	var p = main.player
+	var menu = main.menu
+	_check(not main.tip("glint") and Guide.queue.is_empty(), "tests keep the Entity quiet unless they ask")
+	Engine.set_meta("sixfold_tips", true)
+	Guide.forget()
+	_check(main.entity != null and main.entity.get_parent() == main.touch.get_parent(), "the Entity's bubble sits in the HUD layer, over the touch buttons")
+	# Every tip has a name, a short line and a fuller account; groups exist; no stray words.
+	var groups: Array = Entity.GROUPS.map(func(g): return g[0])
+	var bad: Array = []
+	for id in Entity.TIPS:
+		var e: Dictionary = Entity.TIPS[id]
+		if not (e["group"] in groups) or String(e["tip"]).length() > 170 or String(e["more"]).length() < 60 or String(e["name"]) == "":
+			bad.append(id)
+		for w in ["attunement", "spire", "trial", "judgment", "mana"]:
+			if (String(e["tip"]) + " " + String(e["more"])).to_lower().contains(w):
+				bad.append(id + ":" + w)
+	_check(bad.is_empty(), "every tip has a group, a short line and a fuller account (bad: %s)" % [bad])
+	var need := ["move", "glint", "essence", "bank", "regard", "ward", "puzzle_eyes", "puzzle_plates", "traps", "trap_room", "hidden_trap",
+		"doors", "door_locked", "fog", "camp", "gear", "heirloom", "items", "climber", "inventory", "chasm_fall", "beast", "death", "proving", "new_mark"]
+	_check(need.all(func(id): return Entity.TIPS.has(id)), "tips cover every system the climber meets")
+	_check(Entity.resolve("puzzle_mirrors") == "puzzle" and Entity.resolve("door_iron") == "door" and Entity.resolve("nonsense") == "", "a new kind falls back to its general tip")
+	_check(Entity.fill_keys("{roll} or {parry}", "keys") == "Space or right click or K" and Entity.fill_keys("{roll}", "touch") == "Roll", "tips name the keys or buttons in use")
+	var said: String = Entity.line("death", 0, {"floor": 4, "beast": "the Wyvern"})
+	_check(not said.contains("{"), "a moment's line is filled in: %s" % said)
+
+	# Registry: queued, one at a time, shown once.
+	_check(main.tip("glint"), "a new system queues its tip")
+	_check(not main.tip("glint"), "...only once while it waits")
+	await _until_bubble()
+	_check(main.entity.showing() and main.entity.current["id"] == "glint", "the Entity shows it in a bubble")
+	_check(Guide.told("glint") and Guide.known("glint"), "...and the Archive entry unlocks")
+	_check(main.entity.current["text"].contains("glint"), "the bubble says the tip")
+	_check(main.entity.rect.position.x > main.get_viewport().get_visible_rect().size.x * 0.5 and main.entity.rect.position.y < 120.0, "the bubble sits top right")
+	_check(not main.tip("glint"), "a tip already said isn't said again")
+	_check(not Guide.known("essence"), "unmet systems stay locked in the Archive")
+	main.tip("essence")
+	main.tip("bank")
+	await _frames(5)
+	_check(main.entity.current["id"] == "glint" and Guide.queue.size() == 2, "other tips wait their turn (at most one bubble)")
+	_check(not paused and p.is_physics_processing(), "a bubble never stops the game")
+	# Dismiss with Enter (the dismiss_tip action).
+	await _key_tap(KEY_ENTER)
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "Enter dismisses the tip")
+	await _until_bubble()
+	_check(main.entity.current.get("id", "") == "essence", "...and the next one follows")
+	# A click on the bubble.
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = _to_window(main.entity.rect.get_center())
+	Input.parse_input_event(click)
+	await _frames(2)
+	var up: InputEventMouseButton = click.duplicate()
+	up.pressed = false
+	Input.parse_input_event(up)
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "a click on the bubble dismisses it")
+	# A tap on the bubble (a phone), clear of the touch buttons.
+	main.touch._set_active(true)
+	await _until_bubble()
+	_check(main.entity.current.get("id", "") == "bank", "the third tip shows")
+	await _wait(0.4)  # (once it has slid in)
+	var r: Rect2 = main.entity.rect
+	main.touch._layout()
+	var covers := false
+	for b in main.touch.buttons:
+		if not (b["id"] in main.touch.TOP_BAR) and r.grow(4.0).intersects(Rect2(b["c"] - Vector2(b["r"], b["r"]), Vector2(b["r"], b["r"]) * 2.0)):
+			covers = true
+	_check(not covers and r.position.y > 50.0, "on a phone the bubble sits under the menu buttons, clear of the action buttons")
+	var vs: Vector2 = main.entity.get_viewport_rect().size
+	_check(r.end.x <= vs.x and r.position.x >= vs.x * 0.3, "...on the right, away from the joystick (%s in %s)" % [r, vs])
+	await _tap_at(r.get_center())
+	await _until_no_bubble()
+	_check(not main.entity.showing() and main.touch.held.is_empty() and main.touch.stick_touch < 0, "a tap dismisses it (and the touch controls don't take it)")
+	main.touch._set_active(false)
+	# The right stick (RS / R3) on a controller.
+	main.tip("items")
+	await _until_bubble()
+	await _pad_tap(JOY_BUTTON_RIGHT_STICK)
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "pressing the right stick dismisses it")
+	main.pad._set_active(false)
+	# Left alone, it fades by itself.
+	main.tip("inventory")
+	await _until_bubble()
+	main.entity.shown_t = main.entity.life
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "a tip fades by itself after a few seconds")
+	# Under a menu it waits.
+	main.tip("camp")
+	menu.open("pause")
+	await _frames(10)
+	_check(not main.entity.showing() and Guide.queue.size() == 1, "no bubble while a menu is open; the tip waits")
+	menu.close()
+	await _until_bubble()
+	_check(main.entity.current.get("id", "") == "camp", "...and shows once the menu closes")
+	main.entity.dismiss()
+	await _until_no_bubble()
+
+	# Off in Settings: quiet, but the Archive still fills in. Replay.
+	Guide.set_on(false)
+	_check(not main.tip("gas") and Guide.queue.is_empty(), "tips off: the Entity stays quiet")
+	_check(Guide.known("gas") and not Guide.told("gas"), "...but the Archive entry still unlocks")
+	Guide.say("death", {"floor": 3})
+	await _frames(10)
+	_check(not main.entity.showing(), "...and says nothing at moments either")
+	Guide.set_on(true)
+	Guide.replay()
+	_check(not Guide.told("glint") and Guide.known("glint"), "replay: the tips are said again, the Archive keeps them")
+	_check(main.tip("glint"), "...so a tip already met queues again")
+	Guide.queue.clear()
+	# Moments: the tip first, a short line after.
+	Guide.moment("proving", "proving")
+	_check(Guide.queue.size() == 1 and Guide.queue[0]["id"] == "proving", "a moment's first time is its tip")
+	await _until_bubble()
+	main.entity.dismiss()
+	await _until_no_bubble()
+	Guide.moment("proving", "proving")
+	_check(Guide.queue.size() == 1 and Guide.queue[0]["kind"] == "say", "...and a short line after that")
+	Guide.queue.clear()
+
+	# Hooks in the game: greeting, essence, rooms, a fall.
+	Guide.forget()
+	main._greet()
+	_check(Guide.queue.size() >= 2 and Guide.queue[0]["id"] == "entity" and Guide.queue[1]["id"] == "move", "a climb begins: the Entity introduces itself, then the first steps")
+	main.gather_essence("water", 2.0, p.global_position)
+	_check(Guide.queue.any(func(q): return q["id"] == "essence"), "gathering essence brings the essence tip")
+	main.tip("puzzle_mirrors")
+	_check(Guide.queue.any(func(q): return q["id"] == "puzzle"), "a puzzle kind without its own tip gets the general one")
+	Guide.queue.clear()
+	main.entity.current = {}
+
+	# The record: counters the Entity keeps.
+	var prof = main.profile
+	var slain0: int = prof.count("slain")
+	var foe = main.enemies()[0]
+	_slay(foe)
+	await _frames(2)
+	_check(prof.count("slain") == slain0 + 1, "the record counts monsters slain")
+	var floors0: int = prof.count("floors")
+	main.grant_test_bonds()
+	main._arrive()
+	await _frames(2)
+	_check(prof.count("floors") == floors0 + 1 and int(prof.record["best"].get(main.tower, 0)) == main.floor_num, "...floors climbed and the best floor of each tower")
+	main.lift_ward()
+	_check(prof.count("puzzles") >= 1, "...puzzles solved")
+	main.dev_beast("gryphon")
+	await _frames(2)
+	Guide.queue.clear()
+	_slay(main.enemies()[0])
+	await _frames(2)
+	_check(prof.count("beasts") == 1 and int(prof.record["beasts_by"].get("gryphon", 0)) == 1, "...beasts slain, by tower")
+	_check(Guide.queue.any(func(q): return q["kind"] == "say" and q["key"] == "beast_slain"), "a beast slain: the Entity has a word")
+	Guide.queue.clear()
+	p.dead = false
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	var deaths0: int = prof.count("deaths")
+	p.receive_attack(99999.0, null)
+	_check(p.dead and prof.count("deaths") == deaths0 + 1, "...and falls")
+	_check(Guide.queue.any(func(q): return q["id"] == "death"), "the first fall: the Entity's tip")
+	Guide.queue.clear()
+	main.entity.current = {}
+
+	# The pages: the Archive, the Record and Settings, presented by the Entity.
+	Guide.forget()
+	for id in ["entity", "move", "glint", "ward"]:
+		Guide.state["known"][id] = true
+	menu.open("pause")
+	await _frames(2)
+	_check(_menu_button(Entity.TEXT["archive"]) != null, "the pause menu has the Archive")
+	_menu_button(Entity.TEXT["archive"]).pressed.emit()
+	await _frames(2)
+	_check(menu.page == "climber" and menu.climber_tab == "archive", "...which opens the climber screen's Archive tab")
+	var entries: Array = menu.focusables().filter(func(b): return b.has_meta("archive"))
+	var locked: Array = menu.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
+	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "the Entity presents the Archive")
+	entries[2].grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ENTER)
+	await _frames(2)
+	_check(menu.archive_open == "glint", "keys open an entry")
+	var open_says: Array = menu.find_children("*", "", true, false).filter(func(c): return c.get_meta("archive_open", "") == "glint")
+	_check(not open_says.is_empty() and open_says[0].get_meta("entity_line", "").contains("glint"), "...showing the Entity's tip and a fuller account")
+	_check(menu.focusables().any(func(b): return b.has_meta("archive") and b.has_focus()), "...and the focus stays on the entries")
+	var before = get_root().gui_get_focus_owner()
+	await _key_tap(KEY_DOWN)
+	var after = get_root().gui_get_focus_owner()
+	_check(after != null and after != before and after in menu.focusables(), "the arrows move through the entries")
+	menu.climber_tab = "record"
+	menu.open("climber")
+	await _frames(2)
+	var texts: Array = _all_labels(menu).map(func(l): return l.text)
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "record"), "the Entity presents the Record")
+	_check("Monsters slain" in texts and "Beasts slain" in texts and "Falls" in texts and "BY TOWER" in texts and "Kraken" in texts, "...with its counters and each tower's best floor")
+	menu.open("settings")
+	await _frames(2)
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "settings"), "the Entity presents Settings")
+	var tog: Array = menu.focusables().filter(func(b): return b.get_meta("setting", "") == "tips")
+	var sliders: Array = menu.focusables().filter(func(b): return b is HSlider)
+	_check(tog.size() == 1 and _menu_button(Entity.TEXT["replay"]) != null and sliders.size() == 2 and _menu_button("Normal") != null, "Settings has the guide tips toggle and Replay (and keeps the rest)")
+	tog[0].button_pressed = false
+	await _frames(2)
+	_check(not Guide.tips_on(), "...the toggle turns tips off")
+	var tog2: Array = menu.focusables().filter(func(b): return b.get_meta("setting", "") == "tips")
+	_check(tog2.size() == 1 and not tog2[0].button_pressed, "...and shows it")
+	_menu_button(Entity.TEXT["replay"]).pressed.emit()
+	await _frames(2)
+	_check(Guide.tips_on() and Guide.state["told"].is_empty(), "Replay turns them back on and forgets what was said")
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity_line", "") == Entity.line("replay")), "...and the Entity answers")
+	menu.close()
+	await _frames(2)
+	Guide.forget()
+	Engine.remove_meta("sixfold_tips")
+	main.entity.current = {}

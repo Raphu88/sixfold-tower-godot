@@ -23,6 +23,9 @@ const GOOD := Color(0.55, 0.9, 0.55)
 const BAD := Color(1.0, 0.5, 0.42)
 const HEALTH := Color(0.78, 0.22, 0.2)
 const STAMINA := Color(0.45, 0.72, 0.38)
+## The Entity's speech bubbles (its own colours are in entity.gd).
+const ENTITY_BG := Color(0.11, 0.09, 0.19)
+const ENTITY_EDGE := Color(0.79, 0.75, 1.0, 0.42)
 
 ## Text sizes (at the desktop scale; phones draw everything 1.5x bigger).
 const SIZE_SMALL := 11
@@ -62,6 +65,14 @@ static func menu_panel() -> StyleBoxFlat:
 	var b := box(MENU_PANEL, PANEL_EDGE, 10, 1, 20.0)
 	b.shadow_color = Color(0, 0, 0, 0.45)
 	b.shadow_size = 12
+	return b
+
+
+## The Entity's speech bubble: deep violet, a soft lavender edge.
+static func entity_bubble(margin := 10.0) -> StyleBoxFlat:
+	var b := box(Color(ENTITY_BG, 0.94), ENTITY_EDGE, 10, 1, margin)
+	b.content_margin_top = margin * 0.6
+	b.content_margin_bottom = margin * 0.7
 	return b
 
 

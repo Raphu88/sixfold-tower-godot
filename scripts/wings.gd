@@ -390,6 +390,7 @@ func _try_seal(w: Dictionary) -> void:
 	main.sfx("slam", 0.55, 0.0, 0.0)
 	main.sfx("step_plate", 0.45, -4.0, 0.0)
 	main.banner = {"title": TEXT["sealed_title"], "lines": [TEXT["sealed"]], "t": 3.5}
+	main.tip("door_sealed")
 	dirty = true
 
 
