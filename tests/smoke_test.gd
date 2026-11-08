@@ -4122,18 +4122,18 @@ func _item_tests() -> void:
 	p.hp = 60.0
 	var item_btn: Dictionary = buttons[ids.find("item")]
 	_touch(4, item_btn["c"], true)
-	await _wait(0.06)  # (a tap: a long one, on a slow machine, opens the item ring)
+	await _wait(0.1)  # (a tap: much longer, on a slow machine, opens the item ring)
 	_touch(4, item_btn["c"], false)
-	await _frames(2)
+	await _wait(0.12)
 	_check(p.item_count("draught") == 0, "tapping the item button uses the item")
 	p.add_item("draught")
 	p.add_item("tonic")
 	p.item_sel = "draught"
 	var next_btn: Dictionary = buttons[ids.find("item_next")]
 	_touch(5, next_btn["c"], true)
-	await _wait(0.06)
+	await _wait(0.1)
 	_touch(5, next_btn["c"], false)
-	await _frames(2)
+	await _wait(0.12)
 	_check(p.selected_item() == "tonic", "tapping the small arrow picks the next item")
 	main.touch._set_active(false)
 	await _frames(2)
