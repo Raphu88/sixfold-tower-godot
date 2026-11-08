@@ -6175,9 +6175,11 @@ func _lock_tests() -> void:
 	for n in 40:
 		main._start_floor(3 + n % 6)
 		await _frames(1)
-		if main.door_view.lock_rooms.is_empty():
+		# (Not a crypt: its dead rise when you walk in, so it rightly shuts.)
+		var quiet_rooms: Array = main.door_view.lock_rooms.keys().filter(func(k): return main.room_themes[k] != "crypt")
+		if quiet_rooms.is_empty():
 			continue
-		var i: int = main.door_view.lock_rooms.keys()[0]
+		var i: int = quiet_rooms[0]
 		for e in main.enemies():
 			e.queue_free()
 		await _frames(2)

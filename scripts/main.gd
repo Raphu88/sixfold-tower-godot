@@ -2035,7 +2035,7 @@ func enemies() -> Array:
 		foes_dirty = false
 		foes_key = key
 		foes_cache = get_tree().get_nodes_in_group("enemies").filter(
-			func(e): return is_instance_valid(e) and not e.dead)
+			func(e): return is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion())
 		targets_cache = foes_cache.filter(func(e): return not e.submerged)
 	return foes_cache
 
