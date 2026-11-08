@@ -27,6 +27,7 @@ const Guide := preload("res://scripts/guide.gd")
 const Train := preload("res://scripts/train.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
 const TrainView := preload("res://scripts/train_view.gd")
+const Secret := preload("res://scripts/secret.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -771,6 +772,13 @@ func _climber_essence(prof) -> void:
 	view.main = main
 	view.custom_minimum_size = Vector2(0, EssenceView.height(compact()))
 	box.add_child(view)
+	# Your path's flow (secret.gd), in your shadow: only a faint sign before
+	# its first step.
+	if prof.path != "":
+		var fv := FlowView.new()
+		fv.main = main
+		fv.custom_minimum_size = Vector2(0, FlowView.height(prof.flow_step(), compact()))
+		box.add_child(fv)
 	if not compact():
 		_note("Every bit of essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus that grows ever slower, up to %d%%." % int(round(prof.ATTRIBUTE_CAP * 100.0)))
 
@@ -1964,6 +1972,18 @@ func _page_dev() -> void:
 		ib.disabled = p.item_room(id) != ""
 	_button("Empty the belt", _dev_empty_belt, igrid)
 
+	_section("Secret essences (your path and its flow)")
+	var srow := _row()
+	var prof = main.profile
+	srow.add_child(_label("%s  ·  %d banked  ·  step %d" % [Secret.display(prof.path) if prof.path != "" else "no path", int(prof.flow), prof.flow_step()], 230.0, GOLD if prof.path != "" else DIM))
+	for k in Secret.ORDER:
+		var pb := _button(Secret.display(k), _dev_path.bind(k), srow)
+		pb.disabled = prof.path == k
+	var frow2 := _row()
+	for fb in [_button("+25 flow", _dev_flow.bind(25.0), frow2), _button("+100 flow", _dev_flow.bind(100.0), frow2), _button("Reset path", _dev_reset_path, frow2)]:
+		fb.disabled = prof.path == ""
+	_button("Show the choice", _dev_offer_path, frow2)
+
 	_section("Cheats")
 	var crow := _row()
 	_button("No dying: %s" % ("on" if main.dev_no_death else "off"), _toggle_no_death, crow)
@@ -2114,6 +2134,27 @@ func _toggle_perf() -> void:
 func _toggle_traps() -> void:
 	main.trap_view.show_all = not main.trap_view.show_all
 	open("dev")
+
+
+func _dev_path(kind: String) -> void:
+	main.dev_set_path(kind)
+	_say("Path: %s" % Secret.display(kind))
+
+
+func _dev_flow(amount: float) -> void:
+	main.dev_add_flow(amount)
+	_say("Flow %d (step %d)" % [int(main.profile.flow), main.profile.flow_step()])
+
+
+func _dev_reset_path() -> void:
+	main.reset_path()
+	_say("Path reset")
+
+
+func _dev_offer_path() -> void:
+	main.reset_path()
+	close()
+	main.offer_path()
 
 
 func _heal() -> void:
@@ -2722,6 +2763,11 @@ class BodyView extends Control:
 	func _backdrop(b) -> void:
 		for i in 6:
 			b.dot(Vector2(0, -12), 150.0 - i * 20.0, Color(0.55, 0.5, 0.7, 0.022))
+		var prof = main.profile
+		if prof.path != "":
+			# Your shadow holds your path's flow (secret.gd): faint before its first step.
+			Secret.draw_shadow(b, Vector2(0, 124), 38.0, prof.path, prof.flow_step(), Time.get_ticks_msec() * 0.001, 1.0, 0.24)
+			return
 		b.polygon(UI._oval(Vector2(0, 126), Vector2(74, 12), 24), Color(0, 0, 0, 0.3))
 		b.polygon(UI._oval(Vector2(0, 126), Vector2(48, 7), 24), Color(0, 0, 0, 0.3))
 
@@ -3038,6 +3084,66 @@ class SpellIcon extends Control:
 
 ## The climber screen's Essence tab: each type's density and bonus (left),
 ## where it has settled in the body and what you carry unbanked (right).
+## The Essence tab's flow (secret.gd): your shadow holding your path's
+## essence, its step, what each step does and how much to the next. Before
+## the first step, only a faint sign.
+class FlowView extends Control:
+	const Secret := preload("res://scripts/secret.gd")
+	const UI := preload("res://scripts/ui.gd")
+	var main
+
+	static func height(step: int, small: bool) -> float:
+		if step <= 0:
+			return 60.0
+		return 132.0 if small else 150.0
+
+	func _process(_delta: float) -> void:
+		queue_redraw()  # the shadow lives
+
+	func _draw() -> void:
+		var font := ThemeDB.fallback_font
+		var prof = main.profile
+		var path: String = prof.path
+		var st: int = prof.flow_step()
+		var col := Secret.color(path)
+		var light: Color = Secret.KINDS[path]["light"]
+		var t := Time.get_ticks_msec() * 0.001
+		var b := UI.Draw.Batch.new()
+		b.rect(Rect2(Vector2.ZERO, size), Color(1, 1, 1, 0.025))
+		b.rect(Rect2(Vector2.ZERO, Vector2(2.0, size.y)), Color(col, 0.6))
+		var sw := minf(150.0, size.x * 0.28)
+		var sc := Vector2(sw * 0.5 + 10.0, size.y * 0.55)
+		var rr := minf(sw * 0.17, 24.0)
+		Secret.draw_shadow(b, sc + Vector2(0, 18), rr, path, st, t, 1.0 if st > 0 else 0.7)
+		if st > 0:
+			Secret.draw_figure(b, sc + Vector2(0, 18), rr * 2.6, col, t)
+		b.flush(self)
+		var x := sw + 24.0
+		var w := size.x - x - 8.0
+		if st <= 0:
+			draw_string(font, Vector2(x, size.y * 0.5 + 5.0), Secret.TEXT["faint_sign"] % [Secret.display(path), int(Secret.STEPS[0])], HORIZONTAL_ALIGNMENT_LEFT, w, 13, Color(col, 0.75))
+			return
+		var head := "%s  ·  STEP %d OF %d" % [Secret.display(path).to_upper(), st, Secret.STEPS.size()]
+		draw_string(font, Vector2(x, 18), head, HORIZONTAL_ALIGNMENT_LEFT, w, 13, light)
+		var hw := font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 18.0
+		draw_string(font, Vector2(x + hw, 18), Secret.KINDS[path]["motto"], HORIZONTAL_ALIGNMENT_LEFT, maxf(w - hw, 10.0), 12, Color(col, 0.8))
+		var small := size.y < 140.0
+		var y := 38.0
+		var lh := 17.0 if small else 20.0
+		for i in Secret.STEPS.size():
+			var on := i < st
+			var pc := Vector2(x + 7.0, y - 4.0)
+			draw_circle(pc, 6.5, Color(col, 0.55 if on else 0.12))
+			draw_string(font, pc + Vector2(-7, 4), str(i + 1), HORIZONTAL_ALIGNMENT_CENTER, 14, 10, light if on else UI.FAINT)
+			draw_string(font, Vector2(x + 20.0, y), "%s  (%d)" % [Secret.STEP_TEXT[path][i], int(Secret.STEPS[i])], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0, 12 if not small else 11, UI.TEXT if on else UI.FAINT)
+			y += lh
+		var need: float = Secret.next_need(prof.flow)
+		var line: String = Secret.TEXT["next"] % [int(prof.flow), int(ceil(need - prof.flow)), st + 1] if need > 0.0 else Secret.TEXT["full"] % int(prof.flow)
+		if main.run_flow >= 0.5:
+			line += "  ·  " + Secret.TEXT["unbanked"] % int(main.run_flow)
+		draw_string(font, Vector2(x, y + 4.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 11, UI.DIM)
+
+
 class EssenceView extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
 	const Essence := preload("res://scripts/essence.gd")

@@ -26,6 +26,7 @@ const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Lost := preload("res://scripts/lost.gd")
+const Secret := preload("res://scripts/secret.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -169,6 +170,8 @@ func _notice_changes(p) -> void:
 	var held := 0.0
 	for k in main.run_essence:
 		held += float(main.run_essence[k])
+	if main.flow_shown():
+		held += main.run_flow
 	if held > _last_essence + 0.01:
 		essence_t = ESSENCE_SHOW
 	_last_essence = held
@@ -192,7 +195,8 @@ func _core_signature() -> Array:
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() == "crossbow" else 0.0,
-		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0]
+		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
+		main.profile.path, main.profile.flow_step(), int(main.profile.flow)]
 	for part in BondScript.Bonds.PARTS:
 		var b = p.bonds.get(part)
 		if b != null:
@@ -272,6 +276,10 @@ func _draw_core() -> void:
 		var cap_x: float = BAR_X + BAR_W * p.max_health() / p.max_hp
 		b.rect(Rect2(Vector2(cap_x, BAR_Y), Vector2(BAR_X + BAR_W - cap_x, 12)), Color(0.6, 0.45, 0.95, 0.4) if p.wound > 0.0 else Color(1.0, 0.35, 0.2, 0.35))
 	var bars_rect := Rect2(BAR_X - 4, BAR_Y - 4, BAR_W + 8, 32)
+	# Your path's gem (secret.gd), once its banked flow reaches the first step.
+	var flow_rect := Rect2()
+	if main.flow_shown():
+		flow_rect = _flow_gem_into(b, Vector2(BAR_X + BAR_W + 16.0, BAR_Y + 9.0))
 	# The weapon in hand and the quick item: two small slots.
 	var wr := Rect2(BAR_X, ROW_Y, SLOT, SLOT)
 	var slot_i: int = p.slots().find(p.weapon)
@@ -325,6 +333,8 @@ func _draw_core() -> void:
 		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 8, 3, Color(0, 0, 0, 0.85))
 		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 8, Color(0.82, 0.74, 1.0))
 	tips.append([bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]] + ([wound_text] if wound_text != "" else [])])
+	if flow_rect.size.x > 0.0:
+		tips.append([flow_rect, Secret.TEXT["hud_tip"] % [Secret.display(main.profile.path), main.profile.flow_step()], _flow_tip_lines()])
 	if slot_i >= 0 and not main.touch_active:
 		c.draw_string_outline(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 3, Color(0, 0, 0, 0.8))
 		c.draw_string(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, GOLD)
@@ -342,6 +352,32 @@ func _draw_core() -> void:
 			UI.draw_key(c, Vector2(mx + 3.0, my + 3.0), _cast_key(part), 8, bd.color().lightened(0.2) if ready else DIM_TEXT)
 			mx += MARK_R * 2.0 + 8.0
 	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Your path's gem by the health bar: a glowing gem in its colour, four pips
+## under it for the flow's steps. Returns the rect it covers (for its tooltip).
+func _flow_gem_into(b, c: Vector2) -> Rect2:
+	var path: String = main.profile.path
+	var st: int = main.profile.flow_step()
+	var col := Secret.color(path)
+	UI.glow_into(b, c, 15.0, col, 1.1 + 0.15 * st)
+	UI.gem_into(b, c, 7.0, col)
+	for i in Secret.STEPS.size():
+		var at := c + Vector2(-8.25 + 5.5 * i, 12.5)
+		b.dot(at, 2.2, UI.OUTLINE)
+		b.dot(at, 1.5, Secret.KINDS[path]["light"] if i < st else Color(col, 0.25))
+	return Rect2(c - Vector2(12, 12), Vector2(24, 30))
+
+
+func _flow_tip_lines() -> Array:
+	var prof = main.profile
+	var st: int = prof.flow_step()
+	var out: Array = []
+	for i in st:
+		out.append("%d  %s" % [i + 1, Secret.STEP_TEXT[prof.path][i]])
+	var need: float = Secret.next_need(prof.flow)
+	out.append(Secret.TEXT["next"] % [int(prof.flow), int(ceil(need - prof.flow)), st + 1] if need > 0.0 else Secret.TEXT["full"] % int(prof.flow))
+	return out
 
 
 ## The key (or controller button) that casts a part's mark.
@@ -518,17 +554,25 @@ func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
 ## Essence gathered since the last stair (lost if you fall before it): gems and counts.
 func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
 	var held: Array = Essence.KINDS.keys().filter(func(k): return main.run_essence.get(k, 0.0) > 0.0)
+	# Your path's unbanked flow leads, once its gem shows (secret.gd).
+	var flow: bool = main.flow_shown() and main.run_flow >= 0.5
+	if flow:
+		held.push_front(main.profile.path)
 	if held.is_empty():
 		return
 	var pill := Rect2(pos, Vector2(16.0 + 44.0 * held.size() + 62.0, 22))
 	draw_style_box(panel, pill)
 	var gems := Draw.Batch.new()
 	for gi in held.size():
-		UI.gem_into(gems, pos + Vector2(14 + 44.0 * gi, 11), 5.0, Color(Essence.color(held[gi]), a))
+		var col := Secret.color(held[gi]) if Secret.is_kind(held[gi]) else Essence.color(held[gi])
+		if Secret.is_kind(held[gi]):
+			UI.glow_into(gems, pos + Vector2(14 + 44.0 * gi, 11), 10.0, col, a)
+		UI.gem_into(gems, pos + Vector2(14 + 44.0 * gi, 11), 5.0, Color(col, a))
 	gems.flush(self)
 	var ex := pos.x + 8.0
 	for kind in held:
-		draw_string(font, Vector2(ex + 14, pos.y + 16), str(int(main.run_essence[kind])), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(TEXT, a))
+		var amount: float = main.run_flow if Secret.is_kind(kind) else main.run_essence[kind]
+		draw_string(font, Vector2(ex + 14, pos.y + 16), str(int(amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Secret.KINDS[kind]["light"] if Secret.is_kind(kind) else TEXT, a))
 		ex += 44.0
 	draw_string(font, Vector2(ex + 4, pos.y + 15), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(DIM_TEXT, a))
 
@@ -939,7 +983,7 @@ func _draw_quarry(p, size: Vector2, font: Font) -> void:
 ## Rooms floors are bigger than the screen: once the stair opens, an arrow at
 ## the screen edge points the way to it.
 func _draw_stair_arrow(size: Vector2, font: Font) -> void:
-	if not main.stair_open or main.climbing or main.player == null:
+	if not main.stair_open or main.climbing or main.player == null or main.camp_choosing:
 		return
 	var sp: Vector2 = main.get_viewport().get_canvas_transform() * main.stair_pos
 	var margin := 40.0
@@ -1062,6 +1106,8 @@ func camp_per_row() -> int:
 
 
 func camp_card_rect(i: int, size: Vector2) -> Rect2:
+	if main.camp.get("stage", "") == "path":
+		return path_card_rect(i, size)
 	var n: int = main.camp["choices"].size()
 	var per := maxi(camp_per_row(), 1)
 	var rows := int(ceil(float(n) / per))
@@ -1086,8 +1132,122 @@ func camp_card_at(pos: Vector2) -> int:
 	return -1
 
 
+## The path choice's two cards (Life, Unmaking): bigger than a camp's, side
+## by side, under the Entity's words.
+func path_card_rect(i: int, size: Vector2) -> Rect2:
+	var gap := 26.0 if size.x > 700.0 else 12.0
+	var w := minf(330.0, (size.x - 32.0 - gap) / 2.0)
+	var head := 110.0 if size.y > 560.0 else 92.0  # the title and the Entity's words above
+	var h := minf(380.0, size.y - head - 24.0)
+	var top := maxf(head, (size.y - h) * 0.5 + head * 0.45)
+	h = minf(h, size.y - top - 12.0)
+	var x0 := (size.x - (w * 2.0 + gap)) / 2.0
+	return Rect2(Vector2(x0 + i * (w + gap), top), Vector2(w, h))
+
+
+## The path choice: the Entity says what's at stake, each card shows its
+## shadow alive at the last step, what it does and what each step brings.
+## A card is taken with a second press (main.gd _take_path_pick).
+func _draw_path_choice(size: Vector2, font: Font) -> void:
+	var t := Time.get_ticks_msec() * 0.001
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.01, 0.008, 0.02, 0.86))
+	var r0 := path_card_rect(0, size)
+	var narrow := r0.size.x < 260.0
+	# The two colours, faint behind their cards.
+	var bg := Draw.Batch.new()
+	for i in 2:
+		var kind := String(main.camp["choices"][i]).substr(5)
+		var r := path_card_rect(i, size)
+		UI.glow_into(bg, r.get_center(), r.size.x * 0.75, Secret.color(kind), 0.5)
+	bg.flush(self)
+	# The title, and the Entity's words beside its face.
+	var title: String = main.camp.get("title", "")
+	var ty := maxf(28.0, r0.position.y - (92.0 if size.y > 560.0 else 74.0))
+	draw_string_outline(font, Vector2(0, ty), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 28 if not narrow else 22, 6, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, ty), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 28 if not narrow else 22, GOLD)
+	var lines: Array = main.camp.get("lines", [])
+	var tw := minf(size.x - 80.0, 640.0)
+	var tx := (size.x - tw) / 2.0 + 24.0
+	var face_r := 13.0 if not narrow else 10.0
+	Entity.draw_face(self, Vector2(tx - face_r - 10.0, ty + 14.0 + face_r), face_r, t)
+	var ly := ty + 22.0
+	for line in lines:
+		var fs := 13 if not narrow else 11
+		draw_multiline_string(font, Vector2(tx, ly), line, HORIZONTAL_ALIGNMENT_LEFT, tw - 24.0, fs, 2, Color(TEXT, 0.92))
+		ly += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, tw - 24.0, fs).y + 2.0
+	var armed: int = int(main.camp.get("armed", -1))
+	var ready: bool = float(main.camp.get("t", 0.0)) >= main.PATH_GRACE
+	for i in 2:
+		var card: Dictionary = main.camp_card(i)
+		var kind: String = card["secret"]
+		var r := path_card_rect(i, size)
+		var col: Color = card["color"]
+		var light: Color = Secret.KINDS[kind]["light"]
+		draw_style_box(panel, r)
+		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(col, 0.9))
+		if armed == i:
+			var pulse := 0.6 + 0.4 * sin(t * 6.0)
+			draw_rect(r.grow(4.0), Color(col.lightened(0.3), 0.95 * pulse), false, 3.0)
+		elif _card_focused(i):
+			_draw_card_focus(r)
+		# A climber's silhouette, its shadow alive as at the last step.
+		var tall := r.size.y >= 340.0
+		var sh_h := clampf(r.size.y * (0.3 if tall else 0.24), 56.0, 112.0)
+		var sc := Vector2(r.get_center().x, r.position.y + 14.0 + sh_h * 0.85)
+		var sb := Draw.Batch.new()
+		# Its essence drifting up through the card: spores of Life, shards of Unmaking.
+		for m in 14:
+			var ph := fposmod(t * (0.07 + 0.012 * float(m % 5)) + float(m) * 0.618, 1.0)
+			var mx: float = r.position.x + 14.0 + fposmod(float(m) * 0.383 + 0.05 * sin(t * 0.7 + float(m)), 1.0) * (r.size.x - 28.0)
+			var my: float = r.end.y - 30.0 - ph * (r.size.y - 50.0)
+			var ma := sin(PI * ph) * 0.5
+			if kind == "life":
+				sb.dot(Vector2(mx, my), 1.6, Color(light, ma))
+				sb.dot(Vector2(mx, my), 3.6, Color(col, ma * 0.25))
+			else:
+				var q := 1.4 + 0.6 * float(m % 3)
+				sb.rect(Rect2(Vector2(mx, my) - Vector2(q, q) * 0.5, Vector2(q, q)), Color(light, ma))
+		Secret.draw_shadow(sb, sc, sh_h * 0.3, kind, 4, t + i * 0.37, 1.0)
+		Secret.draw_figure(sb, sc, sh_h * 0.66, col, t + i * 1.3)
+		sb.flush(self)
+		var y := sc.y + sh_h * 0.3 + (26.0 if tall else 18.0)
+		draw_string_outline(font, Vector2(r.position.x, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22 if not narrow else 18, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(r.position.x, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22 if not narrow else 18, light)
+		y += 16.0 if not narrow else 13.0
+		draw_string(font, Vector2(r.position.x, y), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12 if not narrow else 10, Color(col, 0.9))
+		y += 18.0 if not narrow else 14.0
+		var steps: Array = card["steps"]
+		var fs := 12 if not narrow else 10
+		var lw := r.size.x - 40.0
+		var hint_y := r.end.y - 12.0
+		for si in steps.size():
+			if y > hint_y - 14.0:
+				break
+			var pc := Vector2(r.position.x + 18.0, y - 4.0)
+			draw_circle(pc, 7.0 if not narrow else 6.0, Color(col, 0.25))
+			draw_string(font, pc + Vector2(-8, 4), str(si + 1), HORIZONTAL_ALIGNMENT_CENTER, 16, fs - 1, light)
+			draw_multiline_string(font, Vector2(r.position.x + 30.0, y), steps[si], HORIZONTAL_ALIGNMENT_LEFT, lw, fs, 2, TEXT)
+			y += font.get_multiline_string_size(steps[si], HORIZONTAL_ALIGNMENT_LEFT, lw, fs).y + (5.0 if not narrow else 2.0)
+		if y < hint_y - 22.0:
+			draw_string(font, Vector2(r.position.x, hint_y - 18.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 10, DIM_TEXT)
+		var hint := _path_hint(i, armed == i)
+		draw_string(font, Vector2(r.position.x, hint_y), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color(light if armed == i else GOLD, 1.0 if ready else 0.35))
+
+
+## Under a path card: how to take it (twice: it's for good).
+func _path_hint(i: int, armed: bool) -> String:
+	if main.touch_active:
+		return Secret.TEXT["tap_again"] if armed else Secret.TEXT["tap_choose"]
+	if main.pad_active:
+		return Controls.pad_text(Secret.TEXT["pad_again"] if armed else Secret.TEXT["pad_choose"], main.pad_ps) if armed or _card_focused(i) else ""
+	return Secret.TEXT["press_again"] if armed else Secret.TEXT["press_choose"] % (i + 1)
+
+
 ## A camp: pick one of the cards (like choosing a tower).
 func _draw_camp_choice(size: Vector2, font: Font) -> void:
+	if main.camp.get("stage", "") == "path":
+		_draw_path_choice(size, font)
+		return
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.72))
 	var rune: bool = main.camp["stage"] == "rune"
 	var top_y := camp_card_rect(0, size).position.y

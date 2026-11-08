@@ -8,6 +8,7 @@ const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Secret := preload("res://scripts/secret.gd")
 
 ## Damage multiplier for striking a foe from behind.
 const BACKSTAB_MULT := 1.5
@@ -153,6 +154,29 @@ var dodge_haste_t := 0.0  # Phantom Treads: a dodge quickens your walk
 var still_t := 0.0  # Heartstone: toward the next health while unnoticed
 var spells_cast := 0  # Spellweave Ring: every third spell is free
 var guard_floor := {}  # once-a-floor rules used: rule -> the floor
+## The flow (secret.gd): the path's essence banked, which lives in your
+## shadow. main.gd set_flow gives the path and its step; the numbers below
+## follow from them (secret.gd EFFECTS).
+var flow_path := ""
+var flow_step := 0
+var flow_regen := 0.0  # Life: health regrown a second
+var flow_mend := 0.0  # Life: health back for a kill
+var flow_heal := 1.0  # Life: healing times this
+var flow_refuse := false  # Life: once a floor, a killing blow leaves you standing
+var flow_damage := 1.0  # Unmaking: strikes (and spells: bond.gd flow_power) times this
+var flow_hp := 1.0  # Unmaking: max health times this (refresh_gear)
+var flow_erode := 0.0  # Unmaking: damage a second to awake monsters beside you
+var flow_pierce := false  # Unmaking: strikes ignore armour
+var flow_undo := 0.0  # Unmaking: a slain foe comes apart
+var _erode_t := 0.0
+var _undoing := false
+## Life's leaves trailing behind you (a few, reused): world spots and ages.
+var _leaf_at := PackedVector2Array()
+var _leaf_age := PackedFloat32Array()
+var _leaf_ang := PackedFloat32Array()
+var _leaf_next := 0
+var _leaf_from := Vector2.ZERO
+const LEAVES := 8
 
 
 func _ready() -> void:
@@ -171,6 +195,10 @@ func _ready() -> void:
 	add_child(overlay)
 	# Bonds are given by the room from your saved marks (none on a first climb).
 	swing = wdata()["combo"][0]
+	_leaf_at.resize(LEAVES)
+	_leaf_age.resize(LEAVES)
+	_leaf_ang.resize(LEAVES)
+	_leaf_age.fill(99.0)
 
 
 func wdata() -> Dictionary:
@@ -263,6 +291,8 @@ func refresh_gear() -> void:
 	sta = minf(sta, max_sta)
 	var was := max_hp
 	max_hp = base_hp + float(gear_fx.get("health", 0.0))
+	if flow_hp < 1.0:
+		max_hp = roundf(max_hp * flow_hp)  # (Unmaking's flow costs health)
 	if max_hp > was:
 		hp += max_hp - was
 	hp = minf(hp, max_health())
@@ -405,6 +435,36 @@ func _burned(part: String) -> bool:
 ## Proving's wound, for a few floors.
 func max_health() -> float:
 	return max_hp * (0.75 if _burned("heart") else 1.0) * (1.0 - wound)
+
+
+## The path and its flow step (main.gd, from the save): what the flow does.
+func set_flow(path: String, step: int) -> void:
+	flow_path = path
+	flow_step = step if path != "" else 0
+	flow_regen = Secret.effect(path, "regen", flow_step)
+	flow_mend = Secret.effect(path, "mend", flow_step)
+	flow_heal = Secret.effect(path, "heal", flow_step)
+	flow_refuse = Secret.effect(path, "refuse", flow_step)
+	flow_damage = Secret.effect(path, "damage", flow_step)
+	flow_hp = Secret.effect(path, "health", flow_step)
+	flow_erode = Secret.effect(path, "erode", flow_step)
+	flow_pierce = Secret.effect(path, "pierce", flow_step)
+	flow_undo = Secret.effect(path, "undo", flow_step)
+	for b in bonds.values():
+		b.flow_power = flow_damage
+
+
+## Healing you receive (draughts, springs, bond heals): Life's flow makes it stronger.
+func heal_mult() -> float:
+	return flow_heal
+
+
+## Heals you (for anything that heals but isn't tracked elsewhere). Returns what it healed.
+func mend_by(amount: float) -> float:
+	var h := minf(maxf(0.0, amount), max_health() - hp)
+	if h > 0.0:
+		hp += h
+	return maxf(h, 0.0)
 
 
 func has_bond(bond_id: String) -> bool:
@@ -780,6 +840,10 @@ func _tick_timers(delta: float) -> void:
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	_tick_healing(delta)
+	# Life's flow: health slowly regrows.
+	if flow_regen > 0.0 and not dead and hp < max_health():
+		hp = minf(max_health(), hp + flow_regen * delta)
+	_tick_erode(delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
 		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
@@ -1165,6 +1229,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	# Watcher's Helm: a foe you parried takes more from you for a while.
 	if gfx("watch") > 0.0 and e.has_meta("watched") and float(e.get_meta("watched")) > Time.get_ticks_msec() * 0.001:
 		dmg *= 1.0 + gfx("watch")
+	dmg *= flow_damage  # Unmaking's flow
 	var contact: Vector2 = e.global_position - dir * e.radius
 	if crit:
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), "Riposte!", Color(1.0, 0.85, 0.4))
@@ -1183,7 +1248,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
 		main.hitstop(0.085 if heavy else 0.05)
 		main.shake(5.0 if heavy else 2.5)
-	e.take_hit(dmg, dir, force, heavy or crit or rock)
+	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce)
 	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
 	if hit_sound != "arrow_hit" and not e.dead:
 		if rule("chill") > 0.0:
@@ -1209,7 +1274,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 ## A foe fell to your weapon: what your gear does then (a Sunsteel Blade's
 ## and a Reaver's healing, Quickhand Gloves' and a Pearl Ring's essence).
 func _on_kill() -> void:
-	var heal := rule("kill_heal")
+	var heal := rule("kill_heal") * heal_mult()
 	if heal > 0.0 and hp < max_health():
 		hp = minf(max_health(), hp + heal)
 		main.fx_text(global_position + Vector2(0, -44), "+%d" % int(heal), Color(0.6, 1.0, 0.7))
@@ -1441,7 +1506,69 @@ func _defy_death() -> bool:
 		return true
 	if ember_t > 0.0:
 		return true  # still burning on your last ember
+	if flow_refuse and once_a_floor("life_refuse"):
+		_refuse_fall()
+		return true
 	return main.proving_spare()  # the ordinary Proving casts you down instead
+
+
+## Life's flow at step 4: once a floor, a killing blow leaves you at low
+## health instead, in a green burst that throws back the monsters near you.
+func _refuse_fall() -> void:
+	var col := Secret.color("life")
+	hp = maxf(hp, max_health() * Secret.REFUSE_HEALTH)
+	iframes = maxf(iframes, 1.2)
+	for e in main.targets():
+		var to: Vector2 = e.global_position - global_position
+		if to.length() < Secret.REFUSE_PUSH + e.radius and not e.is_boss():
+			e.knock = to.normalized() * 380.0
+			e.stagger(0.6)
+	main.fx_text(global_position + Vector2(0, -52), Secret.TEXT["refuse"], col)
+	main.fx_ring(global_position, col, Secret.REFUSE_PUSH, 0.55, 5.0)
+	main.fx_burst(global_position, Vector2.UP, Secret.KINDS["life"]["light"], 26, 260.0)
+	main.light_flash(global_position, col, 2.2, 2.0, 0.7)
+	main.sfx("ready", 0.6, 0.0, 0.0)
+	main.shake(6.0)
+
+
+## A foe fell (main.on_enemy_killed): Life mends you; Unmaking's slain foe
+## comes apart and hurts the monsters beside it.
+func on_flow_kill(e) -> void:
+	if dead or e == null or e.ally:
+		return
+	if flow_mend > 0.0 and hp < max_health():
+		var got := mend_by(flow_mend)
+		if got >= 1.0:
+			main.fx_text(global_position + Vector2(0, -40), "+%d" % int(round(got)), Secret.KINDS["life"]["light"])
+	if flow_undo > 0.0 and not _undoing:
+		_undoing = true  # (a foe undone by the undoing doesn't undo again)
+		var col := Secret.color("unmaking")
+		var at: Vector2 = e.global_position
+		var dmg := minf(float(e.max_hp) * flow_undo, Secret.UNDO_CAP)
+		main.fx_ring(at, col, Secret.UNDO_REACH, 0.4, 4.0)
+		main.fx_burst(at, Vector2.ZERO, Secret.KINDS["unmaking"]["light"], 18, 320.0)
+		for o in main.targets():
+			if o != e and not o.dead and not o.ally and o.global_position.distance_to(at) < Secret.UNDO_REACH + o.radius:
+				main.fx_bolt([at, o.global_position], col)
+				o.take_hit(dmg, (o.global_position - at).normalized(), 120.0)
+		_undoing = false
+
+
+## Unmaking's aura (step 2 on): awake monsters beside you erode.
+func _tick_erode(delta: float) -> void:
+	if flow_erode <= 0.0 or dead:
+		return
+	_erode_t -= delta
+	if _erode_t > 0.0:
+		return
+	_erode_t = Secret.ERODE_TICK
+	var col: Color = Secret.KINDS["unmaking"]["light"]
+	for e in main.targets():
+		if e.dead or e.ally or not e.aware:
+			continue
+		if e.global_position.distance_to(global_position) < Secret.ERODE_REACH + e.radius:
+			main.fx_burst(e.global_position, (global_position - e.global_position).normalized(), col, 4, 90.0)
+			e.take_hit(flow_erode * Secret.ERODE_TICK, Vector2.ZERO, 0.0)
 
 
 func _tick_fire_bonds(delta: float) -> void:
@@ -1471,7 +1598,7 @@ func _tick_fire_bonds(delta: float) -> void:
 			aura_time += delta
 			aura_tick -= delta
 			if warmth_t > 0.0:
-				hp = minf(max_health(), hp + warmth_heal * delta)
+				hp = minf(max_health(), hp + warmth_heal * heal_mult() * delta)
 			if aura_tick <= 0.0:
 				aura_tick = 0.5
 				var r := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
@@ -1756,7 +1883,7 @@ func _tick_bond_effects(delta: float) -> void:
 			drink_tick = 0.25
 			var d := drink_dmg * (1.0 + drink_age)
 			drink_target.take_hit(d, Vector2.ZERO)
-			hp = minf(max_health(), hp + d * 0.5)
+			hp = minf(max_health(), hp + d * 0.5 * heal_mult())
 
 
 func _on_parry(source, perfect := false) -> void:
@@ -1864,7 +1991,7 @@ func _draw() -> void:
 	var lv := Vector2(velocity.dot(aim), velocity.dot(aim.orthogonal())) / WALK
 	_cloak_drift = _cloak_drift.lerp(-lv * 4.0 if not dead else Vector2.ZERO, 1.0 - exp(-dt * 8.0))
 
-	Draw.shadow(self, Vector2(0, radius * 0.75), radius * (1.0 - jump_height() / 40.0))
+	_draw_shadow(t, dt)
 	var lift := jump_height()
 	var side := aim.orthogonal()
 	# Squash along the facing: stretched when rolling, flattened when hit.
@@ -1886,6 +2013,41 @@ func _draw() -> void:
 	_draw_marks(side, t)
 	if overlay != null:
 		overlay.queue_redraw()
+
+
+## The shadow under you. With a path it holds the flow (secret.gd): Life's
+## living green, beating, with roots, leaves trailing behind you and
+## grass-light; Unmaking's cracked violet, flaking into motes, drinking the
+## light. One draw call either way (the leaves go into the same batch).
+var _shadow_b := Draw.Batch.new()
+func _draw_shadow(t: float, dt: float) -> void:
+	var feet := Vector2(0, radius * 0.75)
+	var r := radius * (1.0 - jump_height() / 40.0)
+	if flow_path == "" or dead:
+		Draw.shadow(self, feet, r)
+		return
+	var b := _shadow_b
+	if flow_path == "life" and flow_step >= 3:
+		# Leaves left behind as you move: one every so often, fading as they settle.
+		var here := global_position + feet
+		if here.distance_to(_leaf_from) > 22.0:
+			_leaf_from = here
+			_leaf_at[_leaf_next] = here + Vector2(randf_range(-6.0, 6.0), randf_range(-3.0, 3.0))
+			_leaf_age[_leaf_next] = 0.0
+			_leaf_ang[_leaf_next] = randf() * TAU
+			_leaf_next = (_leaf_next + 1) % LEAVES
+		var lc: Color = Secret.KINDS["life"]["light"]
+		for i in LEAVES:
+			_leaf_age[i] += dt
+			var age := _leaf_age[i]
+			if age >= Secret.LEAF_LIFE:
+				continue
+			var k := 1.0 - age / Secret.LEAF_LIFE
+			var at := _leaf_at[i] - global_position
+			b.line(at + Vector2(-3, 1), at + Vector2(3, -1), Color(Secret.KINDS["life"]["deep"].lightened(0.2), 0.7 * k), 1.2)
+			Secret.draw_leaf(b, at, _leaf_ang[i] + 0.4 * age, 4.0 + 1.5 * k, Color(lc.darkened(0.2 * (1.0 - k)), 0.85 * k))
+	Secret.draw_shadow(b, feet, r, flow_path, flow_step, t)
+	b.flush(self)
 
 
 ## Worn pieces that show (gear.gd PIECES "look"): a cloak's colour (before

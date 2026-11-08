@@ -10,6 +10,7 @@ extends RefCounted
 
 const Bonds := preload("res://scripts/bonds.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Secret := preload("res://scripts/secret.gd")
 const SAVE_PATH := "user://sixfold.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
@@ -68,6 +69,11 @@ var provings := {}
 var record := {}
 ## Climbers before this one (New climber): the Entity remembers them.
 var former := 0
+## The secret essences (secret.gd): the path chosen at the first great foe
+## ("" until then, else "life" or "unmaking"; for good) and the flow banked
+## (the path's essence, which lives in the climber's shadow).
+var path := ""
+var flow := 0.0
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -153,6 +159,8 @@ func reset() -> void:
 	lost = []
 	provings = {}
 	record = {}
+	path = ""
+	flow = 0.0
 	save()
 
 
@@ -198,6 +206,10 @@ func load_save() -> void:
 				provings[String(t)] = int(won[t])
 	record = cfg.get_value("profile", "record", {})
 	former = int(cfg.get_value("profile", "former", 0))
+	path = str(cfg.get_value("profile", "path", ""))
+	if not Secret.is_kind(path):
+		path = ""
+	flow = maxf(0.0, float(cfg.get_value("profile", "flow", 0.0))) if path != "" else 0.0
 
 
 func save() -> void:
@@ -226,6 +238,8 @@ func save() -> void:
 	cfg.set_value("train", "store", store)
 	cfg.set_value("profile", "lost", lost)
 	cfg.set_value("profile", "provings", provings)
+	cfg.set_value("profile", "path", path)
+	cfg.set_value("profile", "flow", flow)
 	cfg.save(save_path)
 
 
@@ -391,6 +405,25 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 			var note: String = Bonds.step_note(b["id"], after)
 			lines.append("%s grows to step %d%s" % [info["name"], after, (": " + note) if note != "" else ""])
 	return lines
+
+
+## Banks the path's essence carried up a stair into the flow. Returns lines
+## for the stair's banner (what was banked, a step reached).
+func bank_flow(amount: float) -> Array:
+	if path == "" or amount <= 0.0:
+		return []
+	var before := Secret.step_for(flow)
+	flow += amount
+	var after := Secret.step_for(flow)
+	var lines: Array = [Secret.TEXT["banked"] % [int(round(amount)), Secret.display(path)]]
+	for st in range(before + 1, after + 1):
+		lines.append(Secret.TEXT["step_up"] % [Secret.display(path), st, Secret.STEP_TEXT[path][st - 1]])
+	return lines
+
+
+## The flow's step (0 before the first, or with no path).
+func flow_step() -> int:
+	return Secret.step_for(flow) if path != "" else 0
 
 
 ## An attribute's small passive bonus (0 to ATTRIBUTE_CAP) from its density.

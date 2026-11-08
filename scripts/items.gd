@@ -362,7 +362,7 @@ static func use(id: String, p) -> bool:
 
 ## Healing items heal over a short time. Steady Hands heals more, faster.
 static func _heal_over_time(p, data: Dictionary, steady: bool) -> void:
-	var amount: float = float(data["heal"]) * (STEADY_HEAL if steady else 1.0)
+	var amount: float = float(data["heal"]) * (STEADY_HEAL if steady else 1.0) * p.heal_mult()  # Life's flow
 	var t: float = float(data["time"]) * (STEADY_TIME if steady else 1.0)
 	p.heal_left += amount
 	p.heal_rate = maxf(p.heal_rate if p.heal_left > amount else 0.0, amount / t)

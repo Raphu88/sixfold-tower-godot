@@ -15,9 +15,14 @@ extends Node2D
 ##
 ## Each light also adds a little coloured glow (additive) where it matters,
 ## so the eye goes to the open stair, lit eyes, the cache and the ward.
+##
+## A light with a negative strength DRINKS light instead (Unmaking's shadow,
+## secret.gd): darkness gathers in a ring around it, leaving its middle (the
+## climber) alone.
 
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Secret := preload("res://scripts/secret.gd")
 
 ## Most lights sent to the shader in a frame (it loops over them per pixel).
 const MAX_LIGHTS := 48
@@ -55,6 +60,7 @@ void vertex() {
 
 void fragment() {
 	float keep = 1.0;  // how much of the darkness is left here
+	float drink = 0.0;  // darkness a drinking light gathers here
 	vec3 glow = vec3(0.0);
 	for (int i = 0; i < 48; i++) {
 		if (i >= light_count) {
@@ -63,7 +69,9 @@ void fragment() {
 		vec4 lp = light_pos[i];
 		vec2 d = world - lp.xy;
 		float q = dot(d, d) / (lp.z * lp.z);
-		if (q < 1.0) {
+		if (q < 1.0 && light_col[i].a < 0.0) {
+			drink = max(drink, -light_col[i].a * smoothstep(0.0, 0.3, q) * (1.0 - smoothstep(0.45, 1.0, q)));
+		} else if (q < 1.0) {
 			// A wide bright middle with a soft edge (1 at the centre, ~0.9
 			// halfway, ~0.45 at four fifths, 0 at the rim).
 			float f = 1.0 - smoothstep(0.12, 1.0, q);
@@ -81,7 +89,7 @@ void fragment() {
 			fog = texture(fog_tex, uv).r;
 		}
 	}
-	float dark = dark_color.a * keep;
+	float dark = mix(dark_color.a * keep, 0.96, drink);
 	vec2 v = (SCREEN_UV - 0.5) * 2.0;
 	float vig = vignette * smoothstep(0.55, 1.45, length(v));
 	float a = 1.0 - (1.0 - dark) * (1.0 - fog) * (1.0 - vig);
@@ -215,6 +223,7 @@ func _gather(view: Rect2) -> void:
 		var pp: Vector2 = main.cam_prev.lerp(main.cam_curr, Engine.get_physics_interpolation_fraction())
 		var k := 0.5 if main.player.dead else 0.94
 		n = _put(n, view, pp, player_reach(), Palette.PLAYER_LIGHT, k, 0.03)
+		n = _flow_lights(n, view, pp, t)
 	for f in flashes:
 		var e: float = f["t"] / f["dur"]
 		n = _put(n, view, f["pos"], f["r"], f["color"], f["k"] * e, 0.35 * f["k"] * e * e)
@@ -268,6 +277,26 @@ func _gather(view: Rect2) -> void:
 	mat.set_shader_parameter("light_count", n)
 	mat.set_shader_parameter("light_pos", _pos)
 	mat.set_shader_parameter("light_col", _col)
+
+
+## The climber's shadow holding the flow (secret.gd, player.gd): Life's
+## grass-light flickers green at the feet; Unmaking's, from step 3, drinks
+## the light around it.
+func _flow_lights(n: int, view: Rect2, pp: Vector2, t: float) -> int:
+	var p = main.player
+	if p.flow_path == "" or p.flow_step < 1 or p.dead:
+		return n
+	var feet: Vector2 = pp + Vector2(0, p.radius * 0.75)
+	var st := float(p.flow_step)
+	if p.flow_path == "life":
+		var fl := 0.8 + 0.2 * sin(t * 6.3) * sin(t * 2.3 + 1.0)
+		var beat := Secret.heartbeat(t)
+		return _put(n, view, feet, 44.0 + 10.0 * st, Secret.color("life"), (0.12 + 0.03 * st) * fl, (0.05 + 0.03 * st) * fl * (0.8 + 0.4 * beat))
+	if p.flow_step >= 3 and n < MAX_LIGHTS:
+		_pos[n] = Color(feet.x, feet.y, 92.0 + 28.0 * (st - 3.0), 0.0)
+		_col[n] = Color(0, 0, 0, -(0.42 + 0.14 * (st - 3.0)))
+		return n + 1
+	return n
 
 
 ## Adds one light to this frame's list if it reaches the screen and there's room.
