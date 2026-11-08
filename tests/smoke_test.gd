@@ -1327,11 +1327,20 @@ func _trap_tests() -> void:
 		# Nothing reaches the start, the stair, a door or the puzzle room.
 		for t in haz:
 			var c: Vector2 = Traps.centre(t)
+			var why := ""
 			for d in main.door_view.list:
-				ok_clear = ok_clear and not d["rect"].has_point(c)
-			if not plan.get("puzzle", {}).is_empty():
-				ok_clear = ok_clear and not plan["puzzle"]["room"].has_point(c)
-			ok_clear = ok_clear and c.distance_to(main.player_start) > 80.0 and c.distance_to(main.stair_pos) > 60.0
+				if d["rect"].has_point(c):
+					why = "a door"
+			if not plan.get("puzzle", {}).is_empty() and plan["puzzle"]["room"].has_point(c):
+				why = "the puzzle room"
+			if c.distance_to(main.player_start) <= 80.0:
+				why = "the start"
+			if c.distance_to(main.stair_pos) <= 60.0:
+				why = "the stair"
+			if why != "":
+				ok_clear = false
+				var tr_at: Array = list.filter(func(x): return t in Traps.cover(x))
+				print("    a trap reaches %s: %s floor %d, %s" % [why, main.tower, main.floor_num, str(tr_at.map(func(x): return [x["kind"], x.get("room", -1), x.get("patch", false), x.get("trigger", "")]))])
 		# A route with no trap on it from the start to the stair and the puzzle room.
 		var goals: Array = [[main.stair_pos]]
 		if not plan.get("puzzle", {}).is_empty():
