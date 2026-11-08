@@ -472,7 +472,7 @@ func _warn_sound(tr: Dictionary) -> void:
 		return
 	match tr["kind"]:
 		"spikes":
-			main.sfx("glint", 0.6, -4.0, 0.0)  # the click
+			main.sfx("trap_click", 1.0, -2.0)  # the plate clicks
 		"thorns":
 			main.sfx("roll", 0.7, -8.0)  # a rustle
 		"flame", "ember":
@@ -482,7 +482,7 @@ func _warn_sound(tr: Dictionary) -> void:
 		"gust":
 			main.sfx("gust", 0.7, -14.0)
 		"gas":
-			main.sfx("gust", 0.45, -8.0)  # a hiss
+			main.sfx("hiss", 1.0, -6.0)  # a hiss
 
 
 ## Only traps near the climber make noise.
@@ -511,7 +511,7 @@ func _fire_effects(tr: Dictionary) -> void:
 			main.sfx("burn", 1.0, -6.0)
 		"spikes":
 			main.fx_burst(pos, Vector2.ZERO, col, 6, 120.0)
-			main.sfx("hit_armor", 1.3, -8.0)
+			main.sfx("trap_spikes", 1.0, -8.0)  # (quieter: a field fires many at once)
 		"ember":
 			main.fx_burst(pos, Vector2.ZERO, col, 16, 260.0)
 			main.light_flash(pos, col, 1.0, 1.6, 0.3)
@@ -521,7 +521,7 @@ func _fire_effects(tr: Dictionary) -> void:
 			main.sfx("hit", 0.7, -6.0)
 		"gas":
 			main.fx_burst(pos, Vector2.ZERO, col, 14, 90.0)
-			main.sfx("gust", 0.5, -4.0)
+			main.sfx("hiss", 0.8, -2.0)
 
 
 ## While a trap fires: everyone in it is caught, once per firing (or per tick, for gas).

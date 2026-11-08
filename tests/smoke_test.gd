@@ -22,6 +22,42 @@ func _check(cond: bool, what: String) -> void:
 		print("  FAIL ", what)
 
 
+## Sound names the code plays that the sound bank lacks (each would be a
+## silent call): every sfx("name") in the scripts, and the sounds named in
+## weapon, armor and monster data (with each weapon's "_heavy" finisher).
+func _silent_sounds() -> Array:
+	var names := {}
+	var re := RegEx.new()
+	re.compile("sfx\\(\"([a-z_]+)\"")
+	for f in DirAccess.get_files_at("res://scripts"):
+		if not f.ends_with(".gd"):
+			continue
+		var text := FileAccess.get_file_as_string("res://scripts/" + f)
+		for m in re.search_all(text):
+			names[m.get_string(1)] = true
+	var W := preload("res://scripts/weapons.gd")
+	for id in W.WEAPONS:
+		var w: Dictionary = W.WEAPONS[id]
+		for k in ["sound", "hit_sound", "equip"]:
+			if w.has(k):
+				names[w[k]] = true
+		if w.has("sound") and not String(w["sound"]).ends_with("_heavy"):
+			names[w["sound"] + "_heavy"] = true
+	var G := preload("res://scripts/gear.gd")
+	for id in G.ARMOR:
+		if G.ARMOR[id].has("step"):
+			names[G.ARMOR[id]["step"]] = true
+	var E := preload("res://scripts/enemy.gd")
+	for kind in E.MATERIAL:
+		if E.MATERIAL[kind] != "":
+			names[E.MATERIAL[kind]] = true
+	var missing: Array = []
+	for n in names:
+		if not main.audio.has_sound(n):
+			missing.append(n)
+	return missing
+
+
 func _frames(n: int) -> void:
 	for i in n:
 		await process_frame
@@ -3625,6 +3661,12 @@ func _run() -> void:
 	var foes: Array = main.enemies()
 	_check(foes.size() == 4, "room spawns 4 monsters")
 	_check(main.audio.streams.size() >= 30 and main.audio.has_sound("hit"), "sounds loaded (%d)" % main.audio.streams.size())
+	var silent := _silent_sounds()
+	_check(silent.is_empty(), "every sound the code plays is in the sound bank (missing: %s)" % ", ".join(silent))
+	for i in 12:  # a busy frame: the same hit a dozen times
+		main.audio.last_played.erase("hit")
+		main.audio.play("hit")
+	_check(main.audio.playing_count("hit") <= main.audio.MAX_SAME, "one sound never stacks more than %d copies (%d)" % [main.audio.MAX_SAME, main.audio.playing_count("hit")])
 
 	# Freeze the monsters so the test controls the fight.
 	for e in foes:
