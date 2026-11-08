@@ -7913,6 +7913,24 @@ func _train_tests() -> void:
 	var names: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car"))
 	_check(names.map(func(b): return b.get_meta("car")) == ["engine", "personal", "store", "workshop"], "its cars, front to back: the engine, your car, the store car, the workshop")
 	_check(_car_buttons("slot", "heir:melee").size() == 1 and _car_buttons("slot", "chest:0").size() == 1, "your car holds the heirloom wardrobe and the chest")
+	# ...and the climber screen and the inventory, which come back to your car.
+	var car_pages: Array = _car_buttons("car_page", "climber") + _car_buttons("car_page", "inventory")
+	_check(car_pages.size() == 2, "your car has buttons for the climber screen and the inventory")
+	if car_pages.size() == 2:
+		car_pages[1].pressed.emit()
+		await _frames(2)
+		var inv_ok: bool = menu.page == "inventory"
+		menu.close()
+		await _frames(2)
+		var back_ok: bool = menu.page == "train" and menu.train_car == "personal"
+		car_pages = _car_buttons("car_page", "climber")
+		if not car_pages.is_empty():
+			car_pages[0].pressed.emit()
+			await _frames(2)
+		var cl_ok: bool = menu.page == "climber"
+		menu.close()
+		await _frames(2)
+		_check(inv_ok and cl_ok and back_ok and menu.page == "train" and menu.train_car == "personal", "...each opens its page, and closing it goes back to your car")
 	_check(not prof.store.get("outfit", []).is_empty() and prof.store.get("today", "") != "", "the store has an outfit rack and today's piece")
 	var today: Dictionary = T.today(prof)
 	_check(G.rarity(today) in ["fine", "rare"], "today's piece is Fine or Rare (%s)" % G.display(today))

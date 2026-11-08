@@ -555,6 +555,19 @@ func _personal(root: Node) -> void:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(col)
 	keys.append_array(_pack_and_chest(col))
+	# The mirror (the climber screen) and the trunk (the inventory).
+	var furniture := HBoxContainer.new()
+	furniture.add_theme_constant_override("separation", 8)
+	furniture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(furniture)
+	for f in [["mirror", "climber"], ["trunk", "inventory"]]:
+		var label: String = T[f[0] + "_short"] if _small() else T[f[0]]
+		var b: Button = m._button(label, m.open.bind(f[1], true), furniture)
+		b.custom_minimum_size.y = 40
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.set_meta("car_page", f[1])
+		b.clip_text = true
+		_brass(b)
 	_card(row, keys, "pack:0" if not prof.pack.is_empty() else "chest:0")
 
 

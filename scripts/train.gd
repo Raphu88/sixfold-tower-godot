@@ -114,6 +114,11 @@ const TEXT := {
 	"sell_title": "What you brought down",
 	"back_to_shelves": "Back to the shelves",
 	"back_short": "The shelves",
+	# Your car: the mirror (the climber screen) and the travelling trunk (the inventory)
+	"mirror": "Climber",
+	"mirror_short": "Climber",
+	"trunk": "Inventory",
+	"trunk_short": "Inventory",
 	# The engine: where you choose the next tower
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",
