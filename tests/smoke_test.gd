@@ -1980,8 +1980,23 @@ func _puzzle_tests() -> void:
 	main.open_all_doors()
 	var from: Vector2i = main._tile_of(main.player_start)
 	_check(not main.astar.get_id_path(from, main._tile_of(main.stair_pos)).is_empty(), "the stair can still be reached past the puzzle's rails and gates")
-	# A test puzzle of each hand-made kind, laid out in the start room.
+	# A test puzzle of each hand-made kind, laid out in the start room. (Some
+	# start rooms have a wall there: lay the floor out again until it's open.)
 	var c: Vector2 = main.player_start + Vector2(0, -120)
+	for attempt in 30:
+		var open := true
+		for dx in range(-160, 161, 40):
+			for dy in range(-200, 161, 40):
+				open = open and not main.is_solid(c + Vector2(dx, dy))
+		for tr in main.traps:
+			open = open and tr["pos"].distance_to(c) > 260.0
+		if open:
+			break
+		main._start_floor(3)
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(1)
+		c = main.player_start + Vector2(0, -120)
 	var tile := func(v: Vector2) -> Vector2: return main.room.position + (Vector2(main._tile_of(v)) + Vector2(0.5, 0.5)) * F.CELL
 	# Eyes: arrows and strikes light them; all lit solves it.
 	var e1: Vector2 = tile.call(c + Vector2(-80, 0))
