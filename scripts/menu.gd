@@ -1238,18 +1238,27 @@ func _page_inventory() -> void:
 		rs.tint = Items.CAMP_RUNES[rune]["color"]
 		keys.append("rune")
 
-	_section("Items", left)
+	# The belt: a cell for each kind it holds (4, or 5 with a Belt Pouch or
+	# Climber's Pack), the items you carry first.
+	var have: Array = p.carried() if p != null else []
+	var kinds: int = p.belt_kinds() if p != null else Items.BELT_KINDS
+	_section("Belt  ·  %d of %d kinds" % [have.size(), kinds], left)
 	var item_row := _slot_row(left)
 	var sel: String = p.selected_item() if p != null else ""
-	for id in Items.ORDER:
-		var n: int = p.item_count(id) if p != null else 0
-		var s := _slot(item_row, "item:" + id, cell, Items.ITEMS[id]["short"] if caption else "")
-		s.kind = "item"
-		s.id = id
-		s.count = n
-		s.empty = n <= 0
-		s.on = id == sel and n > 0
-		keys.append(s.get_meta("slot"))
+	for i in maxi(kinds, have.size()):
+		if i < have.size():
+			var id: String = have[i]
+			var s := _slot(item_row, "item:" + id, cell, Items.ITEMS[id]["short"] if caption else "")
+			s.kind = "item"
+			s.id = id
+			s.count = p.item_count(id)
+			s.on = id == sel
+			keys.append(s.get_meta("slot"))
+		else:
+			var e := _slot(item_row, "belt:%d" % i, cell, "Empty" if caption else "")
+			e.kind = "belt"
+			e.empty = true
+			keys.append(e.get_meta("slot"))
 
 	# Essence crystals: kept between climbs (the profile), consumed to bank.
 	# (On the right, over the details, so the screen fits a phone.)
@@ -1293,7 +1302,7 @@ func _worn_cell(parent: Node, p, slot: String, side: float, caption: bool) -> Sl
 	var name: String = Gear.SLOT_NAMES.get(slot, slot)
 	var cap := ""
 	if caption:
-		cap = (Gear.display(g) if slot in ["melee", "ranged"] else Gear.short(g)) if has else ("No armor" if slot == "armor" else name)
+		cap = (String(Gear.info(g).get("name", "")) if slot in ["melee", "ranged"] else Gear.short(g)) if has else ("No armor" if slot == "armor" else name)
 	var s := _slot(parent, "gear:" + slot, side, cap)
 	s.kind = "gear"
 	s.id = Gear.base_id(g)
@@ -1448,12 +1457,18 @@ func _show_details(key: String) -> void:
 				var pl := Gear.plays_like(g, other)
 				if pl != "":
 					_detail_text(pl.replace("Compared with yours", "Against %s" % Gear.display(other).to_lower()), DIM)
+		"belt":
+			_detail_head("empty", "", "Empty belt slot", DIM)
+			_detail_text("Your belt holds %d kinds of item, up to %d of each (the recall scroll is one). A Belt Pouch or a Climber's Pack holds one more kind; a Satchel one more of each." % [p.belt_kinds(), p.max_stack("draught")], DIM)
+			_detail_text("Hold %s to open a ring of your belt items: time slows; point at one and let go to use it." % _item_key(), DIM)
 		"item":
 			var n: int = p.item_count(arg)
 			var data: Dictionary = Items.ITEMS[arg]
 			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
 			_detail_text("Carrying %d of %d%s" % [n, p.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
+			if data.has("kind"):
+				_detail_text("%s essence  ·  unused at the end of a survived climb, it breaks into a crystal" % Essence.display(data["kind"]), Color(Essence.color(data["kind"]), 0.9))
 			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
@@ -1573,6 +1588,10 @@ func _detail_lines(g, slot_label := "") -> void:
 		if i == 1 and not Gear.wears(Gear.rec(g)):
 			col = Color(Gear.RARITIES[Gear.rarity(g)]["color"], 0.9)
 		_detail_text(lines[i], col)
+		if i == 0:
+			# Its traits, each in its essence's colour.
+			for t in Gear.trait_lines(g):
+				_detail_text(t[0], Color(t[1], 0.95))
 
 
 ## A piece's numbers; against `other` (null for nothing to set it against),
@@ -1582,9 +1601,14 @@ func _detail_stats(g, other) -> void:
 	var rows: Array = Gear.compare(g, other, 6) if against else []
 	if not against:
 		for st in Gear.stats(g):
-			rows.append([st[0], st[1], "", 0])
+			rows.append([st[0], st[1], "", 0, st[4] if st.size() > 4 else ""])
 	if rows.is_empty():
 		return
+	# Numbers your gear has pushed to their caps say so.
+	var capped: Array = Gear.capped_keys(main.player.gear) if main.player != null else []
+	for r in rows:
+		if r.size() > 4 and String(r[4]) in capped:
+			r[0] = Gear.TEXT["capped"] % r[0]
 	var grid := GridContainer.new()
 	grid.columns = 3 if against else 2
 	grid.add_theme_constant_override("h_separation", 14)
@@ -1620,6 +1644,15 @@ func _small_label(text: String, col: Color) -> Label:
 	l.add_theme_font_size_override("font_size", 13)
 	l.add_theme_color_override("font_color", col)
 	return l
+
+
+## The item button for the device in use, in words.
+func _item_key() -> String:
+	if main.touch_active:
+		return "the Item button"
+	if main.pad_active:
+		return "%s or the d-pad down" % Controls.pad_name("x", main.pad_ps)
+	return "G"
 
 
 func _use_item(id: String) -> void:
@@ -1746,6 +1779,20 @@ func _page_dev() -> void:
 		pb.disabled = id in worn and Gear.slot_of(id) != "ring"
 	_button("Take off the pieces", _dev_strip, ggrid)
 
+	_section("Finds (dropped at your feet) and named pieces")
+	var fgrid := _grid(4, 6)
+	for r in ["fine", "rare", "storied"]:
+		_button("A %s find" % Gear.RARITIES[r]["name"], _dev_find.bind(r), fgrid)
+	for n in Gear.NAMED_ORDER:
+		_button(Gear.NAMED[n]["name"], _dev_named.bind(n), fgrid)
+
+	_section("Items (onto your belt)")
+	var igrid := _grid(4, 6)
+	for id in Items.ORDER:
+		var ib := _button(Items.ITEMS[id]["name"], _dev_item.bind(id), igrid)
+		ib.disabled = p.item_room(id) != ""
+	_button("Empty the belt", _dev_empty_belt, igrid)
+
 	_section("Cheats")
 	var crow := _row()
 	_button("No dying: %s" % ("on" if main.dev_no_death else "off"), _toggle_no_death, crow)
@@ -1850,6 +1897,29 @@ func _dev_spawn(kind: String) -> void:
 func _dev_gear(id: String) -> void:
 	main.dev_give_gear(id)
 	_say("Now carrying: %s" % Gear.display(id))
+
+
+func _dev_find(r: String) -> void:
+	var g: Dictionary = main.find_gear("", 0, r)
+	main.drop_gear(main.player.global_position + Vector2(0, 30), g, true)
+	_say("At your feet: %s" % Gear.display(g))
+
+
+func _dev_named(n: String) -> void:
+	var g: Dictionary = Gear.make_named(n)
+	main.drop_gear(main.player.global_position + Vector2(0, 30), g, true)
+	_say("At your feet: %s" % Gear.display(g))
+
+
+func _dev_item(id: String) -> void:
+	main.player.add_item(id)
+	_say("On your belt: %s (%d)" % [Items.ITEMS[id]["name"], main.player.item_count(id)])
+
+
+func _dev_empty_belt() -> void:
+	main.player.items = {}
+	main.player.item_sel = ""
+	_say("Your belt is empty")
 
 
 func _dev_strip() -> void:
@@ -2300,6 +2370,9 @@ class Slot extends Button:
 			b.flush(self)
 		if picked:
 			draw_rect(Rect2(Vector2(4, size.y - 4), Vector2(size.x - 8, 2)), Color(UI.GOLD, 0.85))
+		# Gear better than Common: edged in its rarity's colour.
+		if rec != null and kind in ["gear", "heir", "floor"] and Gear.rarity(rec) != "common":
+			draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(Gear.rarity_color(rec), 0.8), false, 1.5)
 		if locked:
 			UI.draw_lock(self, c + (Vector2(0, -5) if slot_name != "" else Vector2.ZERO), s * 0.7, Color(UI.FAINT, 0.8))
 			if slot_name != "":
@@ -2329,6 +2402,10 @@ class Slot extends Button:
 					var at := Vector2(size.x - 6.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x, size.y - 6.0)
 					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.9))
 					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GOLD if on else (UI.TEXT if count > 0 else UI.FAINT))
+			"belt":
+				for k in 8:
+					var a0 := TAU * k / 8.0
+					draw_arc(c, s * 0.55, a0, a0 + TAU / 16.0, 4, Color(UI.FAINT, 0.5), 1.5, true)
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
 			"crystal":

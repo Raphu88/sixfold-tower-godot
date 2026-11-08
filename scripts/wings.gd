@@ -338,10 +338,13 @@ func _anim_on_screen() -> bool:
 
 
 ## Hunter's Keen Eyes see a secret wall's outline when close.
+## A Flare (main.flare_reveals) shows it too, near where it burst.
 func keen_outlined(s: Dictionary) -> bool:
 	var p = main.player
-	return not s["open"] and p != null and p.has_bond("hunter") \
-		and p.global_position.distance_to(_tile_center(s["mouth"][0])) < float(SECRET["keen_near"])
+	if s["open"] or p == null:
+		return false
+	var at := _tile_center(s["mouth"][0])
+	return (p.has_bond("hunter") and p.global_position.distance_to(at) < float(SECRET["keen_near"])) or main.flare_reveals(at)
 
 
 func _anim_points(w: Dictionary) -> Array:
@@ -655,13 +658,10 @@ func can_take_scroll() -> bool:
 	return not main.first_climb and main.player.item_count("scroll") < Items.max_stack("scroll")
 
 
-## Gear from a vault: the rarer of two pieces (as a card code, gear.gd code()).
+## Gear from a vault (as a card code, gear.gd code()): Fine at the least,
+## rolled one rarity row higher than the floor's.
 func better_gear() -> String:
-	var carried: Array = main.player.carried_gear()
-	var trinkets: bool = not main.first_climb
-	var a := Gear.random_gear("", carried, trinkets)
-	var b := Gear.random_gear("", carried + [a], trinkets)
-	return Gear.code(a if Gear.drop_weight(a) <= Gear.drop_weight(b) else b)
+	return Gear.code(main.find_gear("", 1, "fine"))
 
 
 ## Walking up to a vault's pedestal: its cards.
@@ -806,8 +806,7 @@ func _take_cache(s: Dictionary) -> void:
 	main.gather_essence(kind, amount, pos)
 	main.fx_text(pos + Vector2(0, -36), TEXT["cache"] % int(amount), Essence.color(kind))
 	if randf() < float(SECRET["gear_chance"]):
-		var g := Gear.random_gear("", main.player.carried_gear(), not main.first_climb)
-		main.drop_gear(pos + Vector2(0, 18), g)
+		main.drop_gear(pos + Vector2(0, 18), main.find_gear("", 1), true)
 	main.fx_ring(pos, Essence.color(kind), 70.0, 0.5, 4.0)
 	main.light_flash(pos, Essence.color(kind), 1.8, 1.8, 0.4)
 	main.sfx("glint", 1.3, -2.0, 0.0)

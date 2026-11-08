@@ -76,7 +76,7 @@ const HELP := [
 	["parry", "Right click / K", "{lt}"],
 	["weapon", "1 2 3 / wheel", "{rb} / D-pad left right"],
 	["cast marks (hold to pick)", "Q E F C X V", "hold {lb} + {x} {a} {b} {y} {rb} {rt}"],
-	["use item / next item", "G / T", "{x} / D-pad down"],
+	["use item / next item (hold: item ring)", "G / T", "{x} / D-pad down"],
 	["take gear", "Y", "{y}"],
 	["pause menu", "Esc / P", "{start}"],
 	["climber screen", "Tab", "{back} (press)"],
