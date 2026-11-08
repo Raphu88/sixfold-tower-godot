@@ -842,6 +842,12 @@ func _start_floor(n: int) -> void:
 	# Sealed wings, their vaults, and secret rooms (wings.gd): after the doors,
 	# before the fog and the first drawing (their closed tiles are solid).
 	wings.setup(plan)
+	# The traps (traps.gd): laid before the pillars and chasms are made, since
+	# placing them may add shelter pillars, move monsters off trap tiles and
+	# clear chasms from under what matters.
+	traps = Traps.place(plan, tower_data(), n, self)
+	trap_view.floor_marks = plan.get("trap_floor", {})
+	trap_view.reset()
 	springs = plan.get("springs", [])
 	# A fallen climber's camp: what they left behind.
 	for cp in plan.get("camps", []):
@@ -881,11 +887,9 @@ func _start_floor(n: int) -> void:
 					puddles.append_array(Floors.puddles(r.grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
-	traps = Traps.place(plan, tower_data(), n, self)
-	trap_view.reset()
 	# A trap room whose traps wouldn't fit is just a quiet hall.
 	for i in plan.get("hazard_rooms", []):
-		if not traps.any(func(tr): return room_info[i]["rect"].has_point(tr["pos"])):
+		if not traps.any(func(tr): return int(tr.get("room", -1)) == i):
 			room_themes[i] = "quiet"
 	door_view.restyle(room_themes)
 	_update_room_looks(plan.get("camps", []))

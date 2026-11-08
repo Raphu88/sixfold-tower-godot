@@ -243,14 +243,12 @@ func _gather(view: Rect2) -> void:
 	for fl in main.flames:
 		n = _put(n, view, fl["pos"], fl["r"] * 2.4, Palette.FIRE_LIGHT, 0.6 * clampf(fl["t"] / 0.5, 0.0, 1.0), 0.12)
 	# Traps warning or firing glow in their colour, so the warning reads in the dark.
+	# (traps.gd says where each kind glows: a dart slot's red eye, a lane's
+	# middle, a cloud's centre; one light per patch of floor.)
 	var tv = main.trap_view
 	if tv != null:
-		for tr in main.traps:
-			var st: String = tr["state"]
-			if st != "warn" and st != "fire":
-				continue
-			var tc: Color = main.Traps.KINDS[tr["kind"]]["color"]
-			n = _put(n, view, tr["pos"], tv.reach_of(tr) + 50.0, tc, 0.45 if st == "warn" else 0.7, 0.1 if st == "warn" else 0.18)
+		for l in tv.glow_list():
+			n = _put(n, view, l[0], l[1], l[2], l[3], l[4])
 	# Anything else that registered a light.
 	for id in lights.keys():
 		var l: Dictionary = lights[id]

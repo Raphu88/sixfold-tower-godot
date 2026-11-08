@@ -18,6 +18,7 @@ extends RefCounted
 ##               "chained" chains and a red glow: danger
 ##   min_size  the smallest room (tiles) it fits; a room too small takes another theme
 ##   towers    [] for every tower, else only these towers
+##   home      (optional) towers where it's twice as likely, like a tower's own
 ##   feature   what the floor builds for it (see floors.gd and main.gd):
 ##               "spring"  a pool that heals you while you stand in it
 ##               "cache"   an urn of the tower's essence (one per floor)
@@ -25,10 +26,12 @@ extends RefCounted
 ##               "den"     more of the floor's monsters wait here
 ##               "ambush"  monsters rise when you first walk in
 ##               "pillars" needs a room with pillars; archers prefer it
-##               "trap"    the floor's trap set piece is laid here
+##               "trap"    a set piece of traps is laid here (traps.gd);
+##                         every floor from 2 up has at least one trap room
 ##               "chasm"   a band of chasm across the room
 ##               "stair", "puzzle", "start", or "" for nothing
-##   sigil     (hazard doors) the hazard's sign: wind, wave, flame, spike, ember, thorn, chasm
+##   sigil     (hazard doors) the hazard's sign: wind, wave, flame, spike, dart,
+##             ember, thorn, gas, chasm
 ##   decor     marks drawn on its floor: "bones", "scorch", "ripples" (optional)
 ##   from      the first floor it can appear on (optional, default 1)
 ##   weight    how likely it is next to the others of its kind (optional, default 1)
@@ -57,12 +60,12 @@ const THEMES := {
 	# --- good rooms ---------------------------------------------------------------
 	"spring": {"name": "Healing Spring", "kind": "good", "sub": "Clear water wells up from the stone. Stand in it to heal.",
 		"tint": Color(0.35, 0.8, 0.7, 0.10), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "spring"},
-	"cache": {"name": "Forgotten Cache", "kind": "good", "sub": "Someone hid essence here long ago. Walk up to the urn to take it.",
+	"cache": {"name": "Forgotten Cache", "kind": "good", "sub": "Someone hid essence here long ago, and may have set spikes to guard it. Walk up to the urn to take it.",
 		"tint": Color(0.9, 0.75, 0.4, 0.08), "door": "warm", "min_size": Vector2i(5, 5), "towers": [], "feature": "cache"},
 	"camp": {"name": "Fallen Climber's Camp", "kind": "good", "sub": "A cold fire and a scattered pack. Their loss, your gain.",
 		"tint": Color(1.0, 0.65, 0.35, 0.07), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "camp"},
 	# Each tower's own good room (twice as likely there).
-	"aerie": {"name": "Windswept Aerie", "kind": "good", "sub": "An old nest, lined with whatever the wind brought in. Some of it hums with essence.",
+	"aerie": {"name": "Windswept Aerie", "kind": "good", "sub": "An old nest, lined with whatever the wind brought in. Some of it hums with essence, and spikes may guard it.",
 		"tint": Color(0.75, 0.85, 1.0, 0.08), "door": "warm", "min_size": Vector2i(5, 5), "towers": ["gryphon"], "feature": "cache"},
 	"tidepool": {"name": "Tidepool", "kind": "good", "sub": "Still, cold water, clearer than the rest. Stand in it to heal.",
 		"tint": Color(0.3, 0.75, 0.85, 0.10), "door": "warm", "min_size": Vector2i(6, 5), "towers": ["kraken"], "feature": "spring"},
@@ -72,7 +75,7 @@ const THEMES := {
 		"tint": Color(0.5, 0.85, 0.55, 0.09), "door": "warm", "min_size": Vector2i(6, 5), "towers": ["manticore"], "feature": "spring"},
 	"pyre": {"name": "Ember Pyre", "kind": "good", "sub": "Embers that never quite die, and a pack someone left beside them.",
 		"tint": Color(1.0, 0.6, 0.3, 0.09), "door": "warm", "min_size": Vector2i(6, 5), "towers": ["firebird"], "feature": "camp"},
-	"nest": {"name": "Thornwild Nest", "kind": "good", "sub": "A nest of woven thorns, lined with a hunter's hoard of essence.",
+	"nest": {"name": "Thornwild Nest", "kind": "good", "sub": "A nest of woven thorns, lined with a hunter's hoard of essence, and spikes may guard it.",
 		"tint": Color(0.55, 0.8, 0.4, 0.09), "door": "warm", "min_size": Vector2i(5, 5), "towers": ["chimera"], "feature": "cache"},
 
 	# --- bad rooms ----------------------------------------------------------------
@@ -84,19 +87,25 @@ const THEMES := {
 		"tint": Color(0.8, 0.8, 0.9, 0.04), "door": "den", "min_size": Vector2i(7, 6), "towers": [], "feature": "pillars"},
 	"chasm": {"name": "The Chasm", "kind": "bad", "sub": "The floor falls away into the dark. Jump it, or fall to the floor below.",
 		"tint": Color(0.1, 0.05, 0.15, 0.10), "door": "hazard", "sigil": "chasm", "min_size": Vector2i(6, 5), "towers": [], "feature": "chasm"},
-	# Each tower's trap room: its set piece of traps (traps.gd) is laid here.
-	"windhall": {"name": "Windhall", "kind": "bad", "sub": "Gusts sweep across the hall in a wave. Cross between them, or roll.",
-		"tint": Color(0.75, 0.88, 1.0, 0.07), "door": "hazard", "sigil": "wind", "min_size": Vector2i(5, 4), "towers": ["gryphon"], "feature": "trap"},
-	"sluice": {"name": "Sluice Hall", "kind": "bad", "sub": "Water rolls down the floor in turns. Wait for the gap, or keep to the dry row.",
-		"tint": Color(0.3, 0.7, 0.9, 0.09), "door": "hazard", "sigil": "wave", "min_size": Vector2i(5, 4), "towers": ["kraken"], "feature": "trap", "decor": "ripples"},
-	"furnace": {"name": "The Furnace", "kind": "bad", "sub": "Vents breathe fire in turns. Step in behind the flames.",
-		"tint": Color(1.0, 0.35, 0.15, 0.09), "door": "hazard", "sigil": "flame", "min_size": Vector2i(5, 4), "towers": ["wyvern"], "feature": "trap", "decor": "scorch"},
-	"spikes": {"name": "Spike Gallery", "kind": "bad", "sub": "Spikes rise on the beat, square by square. Time your crossing.",
-		"tint": Color(0.85, 0.82, 0.75, 0.06), "door": "hazard", "sigil": "spike", "min_size": Vector2i(5, 4), "towers": ["manticore"], "feature": "trap"},
-	"emberfall": {"name": "Emberfall", "kind": "bad", "sub": "Embers rain where the floor glows. Keep moving.",
-		"tint": Color(1.0, 0.5, 0.2, 0.08), "door": "hazard", "sigil": "ember", "min_size": Vector2i(5, 4), "towers": ["firebird"], "feature": "trap", "decor": "scorch"},
-	"bramble": {"name": "Bramble Hall", "kind": "bad", "sub": "Snares hide in the brambles, and their snap wakes the pack.",
-		"tint": Color(0.4, 0.65, 0.25, 0.10), "door": "hazard", "sigil": "thorn", "min_size": Vector2i(5, 4), "towers": ["chimera"], "feature": "trap"},
+	# Trap rooms: each lays its set piece of traps (traps.gd), built out of the
+	# room's own shape. The rule hints at the pattern without spelling it out.
+	"spikes": {"name": "Spike Gallery", "kind": "bad", "sub": "The floor is pocked with rows of small holes. Listen for the click, and mind the rhythm.",
+		"tint": Color(0.85, 0.82, 0.75, 0.06), "door": "hazard", "sigil": "spike", "min_size": Vector2i(6, 5), "towers": [], "home": ["manticore"], "feature": "trap", "weight": 0.75},
+	"darts": {"name": "Dart Hall", "kind": "bad", "sub": "Thin slits line both walls. Whatever waits behind them takes turns.",
+		"tint": Color(0.75, 0.6, 0.55, 0.05), "door": "hazard", "sigil": "dart", "min_size": Vector2i(6, 5), "towers": [], "feature": "trap", "weight": 0.75},
+	"furnace": {"name": "The Furnace", "kind": "bad", "sub": "Scorched grates at both ends, and the air shimmers. The fire takes turns: one side is always safe.",
+		"tint": Color(1.0, 0.35, 0.15, 0.09), "door": "hazard", "sigil": "flame", "min_size": Vector2i(7, 5), "towers": [], "home": ["wyvern"], "feature": "trap", "decor": "scorch", "from": 3, "weight": 0.75},
+	"miasma": {"name": "Miasma Hall", "kind": "bad", "sub": "The air tastes foul and the stone is cracked. Some stones are clean. Don't breathe it long.",
+		"tint": Color(0.55, 0.65, 0.25, 0.08), "door": "hazard", "sigil": "gas", "min_size": Vector2i(7, 6), "towers": [], "home": ["manticore", "chimera"], "feature": "trap", "from": 4, "weight": 0.75},
+	# Each tower's own trap room (twice as likely there).
+	"windhall": {"name": "Windhall", "kind": "bad", "sub": "The wind howls toward a wall of spikes.",
+		"tint": Color(0.75, 0.88, 1.0, 0.07), "door": "hazard", "sigil": "wind", "min_size": Vector2i(6, 5), "towers": ["gryphon"], "feature": "trap"},
+	"sluice": {"name": "Sluice Hall", "kind": "bad", "sub": "Water stains run the length of the hall. The pillars stand dry.",
+		"tint": Color(0.3, 0.7, 0.9, 0.09), "door": "hazard", "sigil": "wave", "min_size": Vector2i(7, 4), "towers": ["kraken"], "feature": "trap", "decor": "ripples"},
+	"emberfall": {"name": "Emberfall", "kind": "bad", "sub": "Scorch rings dot the floor. Something falls here, and keeps falling.",
+		"tint": Color(1.0, 0.5, 0.2, 0.08), "door": "hazard", "sigil": "ember", "min_size": Vector2i(6, 5), "towers": ["firebird"], "feature": "trap", "decor": "scorch"},
+	"bramble": {"name": "Bramble Hall", "kind": "bad", "sub": "Brambles choke the room, and something in them snaps. Someone has trodden a path.",
+		"tint": Color(0.4, 0.65, 0.25, 0.10), "door": "hazard", "sigil": "thorn", "min_size": Vector2i(6, 5), "towers": ["chimera"], "feature": "trap"},
 }
 
 ## Rules for the rooms with no fixed job (see `assign`).
@@ -106,6 +115,7 @@ const RULES := {
 	"max_good": 2,  # good rooms on a floor at most
 	"max_bad": [[1, 2], [3, 3], [99, 4]],  # [up to floor, bad rooms at most], den included
 	"tower_weight": 2.0,  # a tower's own themes are this much likelier there
+	"trap_from": 2,  # from this floor every floor has a trap room (see `assign`)
 }
 ## How often a room's doorway gets a door: likelier where danger waits.
 const DOOR_CHANCE := {"likely": 0.75, "else": 0.35}
@@ -218,6 +228,16 @@ static func assign(infos: Array, floor_num: int, tid: String, tower: Dictionary)
 		if id != "quiet":
 			used[id] = true
 		info["theme"] = id
+	# Every floor (from floor 2) has a trap room: a quiet room becomes one if
+	# the cap allows, else a bad room that isn't a den or another trap room.
+	if floor_num >= int(RULES["trap_from"]) and not free.any(func(i): return THEMES[infos[i]["theme"]]["feature"] == "trap"):
+		var order: Array = free.filter(func(i): return infos[i]["theme"] == "quiet" and n_bad < max_bad)
+		order.append_array(free.filter(func(i): return THEMES[infos[i]["theme"]]["kind"] == "bad" and not (THEMES[infos[i]["theme"]]["feature"] in ["den", "trap"])))
+		for i in order:
+			var id := _pick_kind("bad", infos[i], tid, tower, used, caches, floor_num, "trap")
+			if id != "":
+				infos[i]["theme"] = id
+				break
 	var out: Array = []
 	for info in infos:
 		out.append(info["theme"])
@@ -226,7 +246,7 @@ static func assign(infos: Array, floor_num: int, tid: String, tower: Dictionary)
 
 ## A theme of `kind` that fits the room and isn't used yet, the tower's own
 ## themes weighted double; "" if none fits.
-static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dictionary, used: Dictionary, caches: int, floor_num: int) -> String:
+static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dictionary, used: Dictionary, caches: int, floor_num: int, feature := "") -> String:
 	var opts: Array = []
 	var weights: Array = []
 	var total := 0.0
@@ -236,11 +256,14 @@ static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dicti
 			continue
 		if th["feature"] == "cache" and caches > 0:
 			continue
+		if feature != "" and th["feature"] != feature:
+			continue
 		if floor_num < int(th.get("from", 1)):
 			continue
 		if not fits(id, info, tid, tower):
 			continue
-		var w := (float(RULES["tower_weight"]) if not th["towers"].is_empty() else 1.0) * float(th.get("weight", 1.0))
+		var own: bool = not th["towers"].is_empty() or tid in th.get("home", [])
+		var w := (float(RULES["tower_weight"]) if own else 1.0) * float(th.get("weight", 1.0))
 		opts.append(id)
 		weights.append(w)
 		total += w

@@ -32,7 +32,7 @@ const MONSTER_CHECK := 0.1
 const SIGIL_COLORS := {
 	"wind": Color(0.78, 0.9, 1.0), "wave": Color(0.45, 0.85, 0.95), "flame": Color(1.0, 0.55, 0.22),
 	"spike": Color(0.9, 0.82, 0.62), "ember": Color(1.0, 0.7, 0.3), "thorn": Color(0.6, 0.85, 0.4),
-	"chasm": Color(0.62, 0.5, 0.85),
+	"chasm": Color(0.62, 0.5, 0.85), "dart": Color(0.95, 0.3, 0.25), "gas": Color(0.66, 0.78, 0.32),
 }
 const WARM := Color(1.0, 0.74, 0.4)
 const RED := Color(0.95, 0.22, 0.15)
@@ -931,6 +931,20 @@ func _sigil(b, c: Vector2, s: float, sigil: String) -> void:
 			for i in range(1, 5):
 				var p: Vector2 = pts[i]
 				b.line(p, p + Vector2(0, -s * 0.3 if i % 2 == 0 else s * 0.3), col, 1.4)
+		"dart":
+			# A dart, point down, between two slots.
+			b.line(c + Vector2(0, -s * 0.8), c + Vector2(0, s * 0.4), col, 1.8)
+			b.polygon(PackedVector2Array([c + Vector2(-s * 0.25, s * 0.35), c + Vector2(s * 0.25, s * 0.35), c + Vector2(0, s * 0.85)]), col)
+			b.line(c + Vector2(-s * 0.3, -s * 0.85), c + Vector2(0, -s * 0.5), col, 1.4)
+			b.line(c + Vector2(s * 0.3, -s * 0.85), c + Vector2(0, -s * 0.5), col, 1.4)
+			for k in [-1.0, 1.0]:
+				b.line(c + Vector2(k * s * 0.8, -s * 0.5), c + Vector2(k * s * 0.8, s * 0.5), col.darkened(0.3), 2.0)
+		"gas":
+			# Three puffs of cloud.
+			b.circle(c + Vector2(-s * 0.4, s * 0.15), s * 0.32, col)
+			b.circle(c + Vector2(s * 0.4, s * 0.15), s * 0.32, col)
+			b.circle(c + Vector2(0, -s * 0.2), s * 0.4, col)
+			b.circle(c + Vector2(0, s * 0.55), s * 0.12, col.darkened(0.3))
 		"chasm":
 			b.polygon(PackedVector2Array([c + Vector2(0, -s), c + Vector2(s * 0.7, 0), c + Vector2(0, s), c + Vector2(-s * 0.7, 0)]), Color(0.05, 0.03, 0.08))
 			b.polyline(PackedVector2Array([c + Vector2(0, -s), c + Vector2(s * 0.7, 0), c + Vector2(0, s), c + Vector2(-s * 0.7, 0), c + Vector2(0, -s)]), col, 1.6)
