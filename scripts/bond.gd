@@ -1148,7 +1148,7 @@ const MAX_OUT := 3  # never more than three creatures out at once
 func _call(p) -> void:
 	var main = p.main
 	var target = _target_in_aim(p, 240.0)
-	if target != null and target.hp < target.max_hp * 0.25 and not target.is_boss():
+	if target != null and target.hp < target.max_hp * 0.25 and not target.is_boss() and not target.mirror:  # (a mirror image can't be bound)
 		if not target.kind in main.profile.pacts:
 			main.profile.pacts.append(target.kind)
 			main.profile.save()

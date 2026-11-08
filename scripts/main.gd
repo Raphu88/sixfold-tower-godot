@@ -36,6 +36,7 @@ const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const MakersScript := preload("res://scripts/makers.gd")
+const MirrorScript := preload("res://scripts/mirror.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -918,7 +919,10 @@ func _start_floor(n: int) -> void:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
 	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
 	if plan.is_empty():
+		MirrorScript.climb_ok = not first_climb  # (no mirror rooms on the bondless first climb)
 		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+		if MirrorScript.THEME in plan.get("themes", []):
+			MirrorScript.force = false  # (the dev tool's forced mirror room is here)
 	floor_plan = plan
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
@@ -1087,6 +1091,8 @@ func _enter_room(i: int) -> void:
 		tip("puzzle_" + pk)  # (a kind with no tip of its own gets the general one)
 	if th["feature"] == "ambush":
 		_ambush(i)
+	if th["feature"] == "mirror":
+		MirrorScript.enter_room(self, i)  # its image steps out of the glass
 	door_view.room_entered(i)  # (a lock-in room shuts once you're well inside)
 	if th["sub"] == "" or id == "quiet":
 		return  # (the arrival hall and quiet halls say nothing)
@@ -2785,6 +2791,8 @@ func dev_puzzle(kind: String) -> void:
 func dev_spawn(kind: String):
 	var pos: Vector2 = player.global_position + Vector2.from_angle(randf() * TAU) * 200.0
 	pos = walkable_point(player.global_position, pos, 20.0)
+	if kind == MirrorScript.THEME:
+		return MirrorScript.spawn(self, pos)  # a mirror image of you (mirror.gd)
 	return spawn_enemy(kind, pos)
 
 

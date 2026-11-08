@@ -59,6 +59,7 @@ const LAYOUTS := [
 ## Each room then gets a THEME (themes.gd): what it is and what it holds.
 
 const Themes := preload("res://scripts/themes.gd")
+const Mirror := preload("res://scripts/mirror.gd")
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 
 ## The grid's tiles start here (world px), CELL px each.
@@ -179,6 +180,11 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 		elif secrets.is_empty() and randf() < float(cfg["secret"]):
 			secrets.append(keep)
 	_crop(infos, wings, secrets)
+	# Now and then a branch room is a mirror room (mirror.gd): its theme is
+	# fixed before the others are handed out.
+	var mi := Mirror.pick_room(infos, floor_num)
+	if mi >= 0:
+		infos[mi]["fixed"] = Mirror.THEME
 	# What each room is.
 	var themes := Themes.assign(infos, floor_num, tid, tower)
 	if tower.get("chasms", false) and not ("chasm" in themes):
@@ -189,7 +195,7 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 				order.append(i)
 		order.sort_custom(func(a, b): return _chasm_rank(infos[a]["theme"]) < _chasm_rank(infos[b]["theme"]))
 		for i in order:
-			if Themes.fits("chasm", infos[i], tid, tower) and infos[i]["theme"] != "den":
+			if Themes.fits("chasm", infos[i], tid, tower) and not infos[i]["theme"] in ["den", Mirror.THEME]:
 				infos[i]["theme"] = "chasm"
 				themes[i] = "chasm"
 				break
@@ -377,8 +383,8 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		var info: Dictionary = infos[i]
 		ids.append(info["id"])
 		var th: Dictionary = Themes.get_theme(info["theme"])
-		if th["kind"] == "good" or info["theme"] == "arrival":
-			safe_rooms.append(info["rect"])
+		if th["kind"] == "good" or info["theme"] == "arrival" or th["feature"] == "mirror":
+			safe_rooms.append(info["rect"])  # (a mirror room holds its own test)
 		elif info["role"] != "gallery":
 			wet_rooms.append(info["rect"])
 		if th["feature"] == "trap":
@@ -791,7 +797,7 @@ static func _monsters(infos: Array, spots: Array, floor_num: int, tower: Diction
 
 static func _room_weight(info: Dictionary, spots: Array, floor_num: int) -> int:
 	var th: Dictionary = Themes.get_theme(info["theme"])
-	if info["role"] == "entrance" or th["kind"] == "good" or th["feature"] == "ambush":
+	if info["role"] == "entrance" or th["kind"] == "good" or th["feature"] in ["ambush", "mirror"]:
 		return 0
 	if info["role"] == "gallery":
 		# Guards for the puzzle (a carved hall has no marked spots).

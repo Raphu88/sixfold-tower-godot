@@ -65,6 +65,7 @@ const WEAKNESS := {
 	"bloomcap": "it can't move: get close", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
 	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
+	"mirror": "a finisher or a blow from behind breaks its guard",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
@@ -182,9 +183,8 @@ const CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_eve
 ## rising off it over the darkness.
 var shade := false
 const SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wisp": Color(0.72, 0.64, 1.0)}
-## A mirror image of the climber (not in the game yet): a great foe that
-## leaves mostly Unmaking (secret.gd SOURCES "mirror"). Whatever makes one
-## sets this.
+## A mirror image of the climber (mirror.gd, which extends this script): a
+## great foe that leaves mostly Unmaking (secret.gd SOURCES "mirror").
 var mirror := false
 
 
@@ -436,6 +436,8 @@ func _physics_process(delta: float) -> void:
 			_mongrel(delta, dir, dist, p)
 		"chimera":
 			_chimera(delta, dir, dist, p)
+		_:
+			_act(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
@@ -1851,6 +1853,16 @@ func is_boss() -> bool:
 	return kind in BOSSES
 
 
+## A kind this script doesn't know fights here (mirror.gd's mirror image).
+func _act(_delta: float, _dir: Vector2, _dist: float, _p) -> void:
+	velocity = Vector2.ZERO
+
+
+## More telegraphs over the darkness, for a kind drawn elsewhere (mirror.gd).
+func _overlay_extra(_o) -> void:
+	pass
+
+
 ## Where each kind goes when an attack ends or is interrupted.
 func _idle_state() -> String:
 	match kind:
@@ -3114,6 +3126,7 @@ func _draw_overlay() -> void:
 			_cone(o, BREATH_REACH, BREATH_ARC, _wk(0.8), 0.1, 0.75)
 		if state == "wind_embers":
 			_fan(o, 5, 12.0, 120.0)
+	_overlay_extra(o)
 	# The body's glowing bits (eyes, fire, sparks).
 	o.pts.append_array(_glow.pts)
 	o.cols.append_array(_glow.cols)
@@ -3179,7 +3192,7 @@ func _draw_overlay() -> void:
 			var ph := fmod(now * 0.6 + i * 0.143, 1.0)
 			var x := sin(i * 2.4 + now * 0.9) * radius * 0.8
 			o.circle(Vector2(x, lift_y + radius * 0.4 - ph * (radius * 2.2 + 18.0)), 2.6 - ph * 1.6, Color(wc, 0.7 * sin(ph * PI)), 10)
-	if (hp < max_hp or diagnosis or champion) and not is_boss():
+	if (hp < max_hp or diagnosis or champion or mirror) and not is_boss():
 		var w2 := radius * 2.2 * big
 		var top := Vector2(-w2 / 2.0, lift_y - radius * big - 11.0)
 		o.rect(Rect2(top - Vector2(1, 1), Vector2(w2 + 2, 5)), Color(0, 0, 0, 0.7))

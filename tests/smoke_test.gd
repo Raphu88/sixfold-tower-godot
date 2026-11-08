@@ -6978,6 +6978,7 @@ func _run() -> void:
 	await _camp_tests()
 	await _wing_tests()
 	await _maker_tests()
+	await _mirror_image_tests()
 	await _lock_tests()
 	await _gear_tests()
 	await _heirloom_tests()
@@ -9398,3 +9399,198 @@ func _maker_tests() -> void:
 	mk.chance_override = -1.0
 	mk.interrupt_chance = M.INTERRUPT["chance"]
 	mk.interrupt_way = ""
+## A mirror image of the climber (mirror.gd): what it copies, its
+## telegraphed attacks, its guard and roll, the mirror room that seals
+## until it falls, its secret essence, and where mirror rooms may appear.
+func _mirror_image_tests() -> void:
+	print("mirror images")
+	var M = load("res://scripts/mirror.gd")
+	var S = load("res://scripts/secret.gd")
+	var Tw = load("res://scripts/towers.gd")
+	await _fresh_main()
+	_check(M.climb_ok == false, "the bondless first climb plans no mirror rooms (climb_ok %s)" % M.climb_ok)
+	# Where they may appear, and how often.
+	var never := true
+	for fl in [1, 2, 3, int(Tw.PROVING["floor"]), int(Tw.SUMMIT)]:
+		for i in 400:
+			never = never and not M.wants_room(fl, false)
+	for i in 400:
+		never = never and not M.wants_room(8, true)
+	_check(never, "never on floors 1-3, the Proving's floor, the summit or the first climb")
+	var hits := 0
+	for i in 3000:
+		if M.wants_room(7, false):
+			hits += 1
+	var share := float(hits) / 3000.0
+	_check(absf(share - float(M.ROOM["chance"])) < 0.04, "about %d%% of floors from %d up hold one (%.1f%%)" % [roundi(100.0 * M.ROOM["chance"]), M.ROOM["from"], 100.0 * share])
+	_check(M.wants_room(2, true, true) and not M.wants_room(6, false, true), "the dev tool forces one on any planned floor, never the Proving's")
+	var F = load("res://scripts/floors.gd")
+	var T = load("res://scripts/themes.gd")
+	var none := true
+	for i in 10:
+		none = none and not (M.THEME in F.rooms_floor(7, Tw.TOWERS[Tw.ORDER[i % 6]]).get("themes", []))
+	_check(none, "a floor planned on the first climb has none")
+	M.climb_ok = true
+	M.force = true
+	var kept := true
+	for i in 12:
+		var plan: Dictionary = F.rooms_floor(5, Tw.TOWERS[Tw.ORDER[i % 6]])
+		var th: Array = plan.get("themes", [])
+		var at := th.find(M.THEME)
+		kept = kept and at >= 0 and plan["room_info"][at]["role"] == "branch" and "den" in th and th.any(func(t): return T.get_theme(t)["kind"] == "good") \
+			and not plan["monsters"].any(func(m): return plan["room_info"][at]["rect"].has_point(m[1]))
+	M.force = false
+	M.climb_ok = false
+	_check(kept, "a mirror room takes a branch room, empty of monsters, and the floor keeps its good room and den")
+	main.grant_test_bonds()
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	main.floor_num = 5
+	var p = main.player
+	p.set_physics_process(false)
+	main.dev_give_gear("plate")
+	_check(p.protection() > 0.0, "(the climber wears plate)")
+	# Built from the climber.
+	var e = M.spawn(main, p.global_position + Vector2(70, 0))
+	await _frames(1)
+	e.set_physics_process(false)
+	_check(e.mirror and S.great_foe(e) == "mirror", "a mirror image is a great foe (mirror)")
+	_check(e.w_id == p.weapon and e.chain.size() == mini(3, p.wdata()["combo"].size()) and not e.ranged, "it carries the weapon in your hand (%s) and its chain" % e.w_id)
+	_check(is_equal_approx(e.armor, p.protection()), "it wears your armor (%.2f)" % e.armor)
+	var names: Array = e.spells.map(func(s): return s["name"])
+	_check(e.spells.size() == 2 and "Chain Lightning" in names and "Gale Lift" in names, "it casts your marks' spells: %s" % ", ".join(names))
+	_check(e.marks.size() == p.bonds.size(), "your marks show on it")
+	_check(e.max_hp > 100.0 and e.max_hp < 3.5 * 48.0 * main.Floors.toughness(5).x, "a mini-boss's health, below a champion's (%d)" % int(e.max_hp))
+	var hp0: float = e.hp
+	e.state = "chase"
+	e.take_hit(20.0, Vector2.ZERO)
+	_check(absf((hp0 - e.hp) - 20.0 * (1.0 - e.armor)) < 0.5, "your armor takes the edge off blows on it")
+	# Its guard turns a light blow from the front and answers; a finisher breaks through.
+	e.face = Vector2.LEFT
+	e.state = "guard"
+	e.state_t = 1.0
+	hp0 = e.hp
+	e.take_hit(10.0, Vector2.RIGHT)
+	_check(e.hp == hp0 and e.state == "wind_swing", "its guard turns a light blow aside, and it answers with a telegraphed swing")
+	e._end_attack("guard", 1.0)
+	e.take_hit(10.0, Vector2.RIGHT, 140.0, true)
+	_check(e.hp < hp0, "a finisher breaks its guard")
+	e.state = "roll"
+	hp0 = e.hp
+	e.take_hit(10.0, Vector2.RIGHT)
+	_check(e.hp == hp0, "a rolling mirror image can't be hit")
+	main.release_attack(e)
+	# Telegraphed: a wind-up and a glint before any blow lands.
+	e.state = "chase"
+	e.flinch = 0.0
+	e.stun = 0.0
+	e.global_position = p.global_position + Vector2(36, 0)
+	e.spell_t = 99.0
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	var php: float = p.hp
+	e.set_physics_process(true)
+	await _until(func(): return e.state == "wind_swing" or p.hp < php, 3.0)
+	_check(e.state == "wind_swing" and p.hp == php, "its swing starts with a wind-up, before any damage")
+	await _until(func(): return e.glinted or p.hp < php, 2.0)
+	var glint_at := Time.get_ticks_msec()
+	_check(e.glinted and p.hp == php, "...then the glint, still before the blow")
+	await _until(func(): return p.hp < php, 2.0)
+	var lead := (Time.get_ticks_msec() - glint_at) / 1000.0
+	_check(p.hp < php and lead > 0.15, "...and the blow lands after it (%.2f s)" % lead)
+	e.set_physics_process(false)
+	main.release_attack(e)
+	# A spell: its telegraph first.
+	var bi: int = e.spells.map(func(s): return s["shape"]).find("blast")
+	e.spell_i = maxi(bi, 0)
+	e.spell_t = 0.0
+	e._end_attack("chase", 0.0)
+	e.global_position = p.global_position + Vector2(170, 0)
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	php = p.hp
+	e.set_physics_process(true)
+	await _until(func(): return e.state == "wind_spell" or p.hp < php, 3.0)
+	_check(e.state == "wind_spell" and p.hp == php, "its spell (%s) is telegraphed before it lands" % e.spells[e.spell_i]["name"])
+	await _until(func(): return e.state != "wind_spell", 2.0)
+	_check(p.hp < php, "...and the blast hurts if you stay in it")
+	e.set_physics_process(false)
+	e.queue_free()
+	main.release_attack(e)
+	# A bow.
+	p.weapon = "shortbow"
+	var b = M.spawn(main, p.global_position + Vector2(200, 0))
+	await _frames(1)
+	_check(b.ranged and b.chain.is_empty() and b.shot_damage() > 0.0, "with a bow in your hand, it shoots")
+	b.state = "chase"
+	b.state_t = 0.0
+	b.spell_t = 99.0
+	await _until(func(): return b.state == "wind_shot", 3.0)
+	_check(b.state == "wind_shot", "...drawing first, its aim line showing")
+	b.queue_free()
+	p.weapon = "sword"
+	await _frames(1)
+	main.release_attack(b)
+	_check(main.dev_spawn("mirror").mirror, "the dev tool spawns a mirror image")
+	for o in main.enemies():
+		o.queue_free()
+	await _frames(1)
+
+	print("the mirror room")
+	main.secret_on = true
+	main.tower = "kraken"
+	M.force = true
+	var mi := -1
+	for n in 20:
+		main._start_floor(5)
+		await _frames(1)
+		mi = main.room_themes.find(M.THEME)
+		if mi >= 0:
+			break
+	_check(mi >= 0 and not M.force, "the dev tool's mirror room is planned on the next floor (and the force spent)")
+	if mi < 0:
+		return
+	var info: Dictionary = main.room_info[mi]
+	var rect: Rect2 = info["rect"]
+	_check(info["role"] == "branch", "a mirror room is a branch room, off the way to the stair")
+	_check(not main.floor_plan["monsters"].any(func(m): return rect.has_point(m[1])), "no ordinary monsters wait in it")
+	var door: Array = main.door_view.list.filter(func(d): return d["room"] == mi)
+	_check(not door.is_empty() and door[0]["style"] == "mirror", "its door bears the mirror")
+	_check(main.door_view.lock_rooms.has(mi), "it is a lock-in room")
+	for o in main.enemies():
+		o.queue_free()
+	await _frames(1)
+	main.open_all_doors()
+	main.banner = {}
+	p.global_position = rect.get_center() + Vector2(0, rect.size.y * 0.3)
+	await _until(func(): return main.enemies().any(func(o): return o.mirror), 2.0)
+	var img: Array = main.enemies().filter(func(o): return o.mirror)
+	_check(img.size() == 1, "walking in, its mirror image steps out of the glass")
+	if img.is_empty():
+		return
+	var m = img[0]
+	m.set_physics_process(false)
+	await _until(func(): return main.door_view.lock_rooms[mi]["state"] == "shut", 2.0)
+	_check(main.door_view.lock_rooms[mi]["state"] == "shut", "...and the doors shut behind you")
+	var crystals: int = main.profile.crystal_count(main.tower_data()["essence"])
+	_check(main.profile.path == "", "(no path yet)")
+	_slay(m)
+	await _frames(1)
+	var pend := {}
+	for s in main.secret_pending:
+		pend[s["kind"]] = float(pend.get(s["kind"], 0.0)) + float(s["amount"])
+	_check(main.camp_choosing and main.camp.get("stage", "") == "path", "its fall opens the path choice (a great foe)")
+	_check(pend.get("unmaking", 0.0) > pend.get("life", 0.0) and pend.get("life", 0.0) > 0.0, "it leaves mostly Unmaking, some Life")
+	_check(main.profile.crystal_count(main.tower_data()["essence"]) > crystals, "...and an essence crystal")
+	main.camp["t"] = 5.0
+	main.choose_camp(1)
+	main.choose_camp(1)
+	await _until(func(): return main.door_view.lock_rooms[mi]["state"] == "done", 2.0)
+	_check(main.door_view.lock_rooms[mi]["state"] == "done", "the doors open once it falls")
+	_check(main.GuideScript.Entity.TIPS.has("mirror") and main.GuideScript.Entity.ROOM_TIPS.get("mirror", "") == "mirror", "the Entity has a tip for it")
+	main.secret_on = false
+	M.force = false
+	M.climb_ok = true
