@@ -143,7 +143,7 @@ const TIPS := {
 	# --- secret essences (secret.gd) ---
 	"secret": {"group": "secret", "name": "Secret essences",
 		"tip": "Life and Unmaking: the secret essences. Only great foes leave them, never an ordinary monster.",
-		"more": "Life and Unmaking are the two secret essences. Ordinary monsters never leave them: only great foes do. A tower's beast leaves mostly Life and some Unmaking; the Proving's shadow of the beast the same, but less; a champion (a sealed wing's, or the Proving's sentinel) a little of one or the other, depending on the tower. Like other essence there's more of it higher up. They aren't currency and never settle in a body part."},
+		"more": "Life and Unmaking are the two secret essences. Ordinary monsters never leave them: only great foes do. A tower's beast leaves mostly Life and some Unmaking; the Proving's shadow of the beast the same, but less; a mirror image of you mostly Unmaking and some Life; a champion (a sealed wing's, or the Proving's sentinel) a little of one or the other, depending on the tower. Like other essence there's more of it higher up. They aren't currency and never settle in a body part."},
 	"secret_path": {"group": "secret", "name": "Your path",
 		"tip": "Chosen, for good. Only that essence soaks into you now. It gathers in your shadow, and you bank it at the stair.",
 		"more": "The first time a great foe falls and its secret essence rises, you choose your path: Life or Unmaking. The choice is for good. From then on only your path's essence soaks in. It doesn't settle in a body part: it gathers in your shadow as one measure, the flow. It never takes a mark and never pushes out a bond. You carry it unbanked like other essence (a fall loses it) and bank it at the stair. Banked flow reaches steps at 25, 75, 150 and 300, each a real change in how you play, and your shadow shows each one."},
@@ -181,6 +181,9 @@ const TIPS := {
 	"crypt": {"group": "tower", "name": "Restless crypts",
 		"tip": "The dead here don't stay down when disturbed. Keep your back to a wall.",
 		"more": "From floor 3, a Restless Crypt's dead rise around you as you walk in, two or three of the tower's monsters at once."},
+	"mirror": {"group": "tower", "name": "Mirror images",
+		"tip": "Your weapon, your armor, your marks' spells, turned on you. It rolls and guards the way you do.",
+		"more": "Now and then, from floor 4, a Hall of Glass lies off the way to the stair, behind a door bearing a figure in a mirror. Walk in and a mirror image of you steps out of the glass, and the doors shut until it falls. It carries the weapon in your hand (its reach, its chain, its finisher; or your bow), wears your armor (your blows land a little softer) and casts a simpler form of up to two of your marks' spells: a volley of bolts, a circle where you stand, a cone or a ring. Every attack is telegraphed and glints like any monster's. It sometimes rolls clear of a blow, and after attacking it may raise its guard (a silver arc): light blows from the front are turned aside and it answers at once, but a finisher or a blow from behind breaks through. It is a great foe: it leaves mostly Unmaking and some Life, an essence crystal of the tower's kind, and sometimes a piece of gear."},
 	"doors": {"group": "tower", "name": "Doors",
 		"tip": "A door's face hints at what waits behind it. Never at the reward.",
 		"more": "Walk up to a closed door and it swings open; awake monsters open doors too. A closed door blocks the way, shots and sight, so a room behind one stays dark until you open it. Plain planks mean an ordinary room; iron bands and claw marks a den; an engraved sigil a trap room; a stone door with an emblem the puzzle room; warm light under the door a good room; chains and a red glow danger."},
@@ -214,6 +217,21 @@ const TIPS := {
 	"beast": {"group": "tower", "name": "The beast",
 		"tip": "There it is. It has watched you climb. Every blow it throws, it tells you first.",
 		"more": "Every tower's beast waits alone on floor 12, the summit. Beasts can't be interrupted, only staggered; they glint before every attack like any monster, their red shapes can't be parried, and at half health they call for help. Beat it, take the stair, and the climb is complete: you keep one piece of gear as an heirloom."},
+	# --- the Makers (makers.gd): not in GROUPS, so the Archive hides them
+	# until met; they show on the forbidden shelf. Plain mechanics only: the
+	# Entity says nothing of its siblings here.
+	"fragment": {"group": "forbidden", "name": "Fragments",
+		"tip": "A fragment. Walk up to one to read it. I keep what you find on a shelf in the Archive.",
+		"more": "Fragments are rare: at most one on a floor, on about one floor in eight, and only in a secret room or a sealed wing's vault, never on the way to the stair. Walk up to one to read it. Each is kept on its own shelf in the Archive (the climber screen's Archive tab), with how many you have found. Their words are not written yet."},
+	"glimpse": {"group": "forbidden", "name": "A glimpse",
+		"tip": "A second shadow, a bend in the light, or my silence. Something is paying closer attention.",
+		"more": "Glimpses come now and then after a stair, as something's interest in you grows: a second shadow beside you, the light bending for a moment, or the Entity going quiet for a while. They change nothing by themselves."},
+	"maker": {"group": "forbidden", "name": "A meeting",
+		"tip": "When one of them shows itself, the game waits for your answer. Choose a card.",
+		"more": "One can show itself only once you have found at least six fragments, and only when how you climb has held its attention: how you use your bonds, how you treat the tower and its monsters, and your body. It comes in the quiet after a stair, and the game waits. Choose an answer with left and right and confirm it (Enter, or the controller's confirm button), press its number, or tap it. A good answer grants its secret bond and a core mark; a bad one turns it away for a while, and it remembers. Once you have a path, you can also ask it for a change of path; it may refuse."},
+	"core_mark": {"group": "forbidden", "name": "The core mark",
+		"tip": "A core mark: a fine pattern over your whole body, beneath your other marks. It takes no body part.",
+		"more": "A core mark holds a secret bond. It covers all six body parts at once and never pushes out a mark. Only one secret bond per climber: the others can still show themselves, but the one whose mark you carry may interrupt them. Its tools are not built yet."},
 	# --- puzzles and traps ---
 	"ward": {"group": "tests", "name": "The ward",
 		"tip": "The stair is warded. Somewhere on this floor is the beast's test. Solve it and the ward lifts.",
@@ -299,6 +317,9 @@ const TIPS := {
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",
 		"more": "The climber screen has your marks drawn on your body with a card for each (choose one for every spell and step), the essence settled in you and its bonuses, your record and heirlooms, and this Archive. {climber} opens and closes it; Q and E switch tabs."},
+	"appearance": {"group": "screens", "name": "Appearance",
+		"tip": "How you look is yours to choose. Change each part with {choose}; it changes nothing but your looks.",
+		"more": "The appearance page sets how the climber looks in the towers and on the climber screen: an optional name, skin, hair and its colour, eyes, cloak, tunic, and the hood up or down. Up and down move between the rows; Left and Right (or the arrows, or a swatch) change one. Randomise rolls a whole new look and keeps the name. Turn spins the preview (Q and E, or LB and RB). A new climber chooses a look before the first climb; change it any time with Appearance on the climber screen's Marks tab, or in your car on the train. Looks never change how you play."},
 	"inventory": {"group": "screens", "name": "The inventory",
 		"tip": "{inventory} shows everything you carry, and lets you use it.",
 		"more": "The inventory lays out what you wear like a body: helm, amulet and cloak; melee weapon, chest and ranged weapon; a ring, gloves and a ring; backpack, legs and boots. Beside it are your fists, gear lying at your feet and a camp's rune; below, your items with their counts (the quick item gilded). Worn pieces show their condition. Switch to Heirlooms to see what every climb begins with. Choose a slot for its details (compared with what you wear), to use an item, or to take the gear at your feet."},
@@ -307,7 +328,7 @@ const TIPS := {
 ## Room features (themes.gd) -> the tip for walking into one.
 const ROOM_TIPS := {
 	"trap": "trap_room", "den": "den", "ambush": "crypt", "spring": "good_room", "cache": "good_room",
-	"camp": "good_room", "chasm": "jump",
+	"camp": "good_room", "chasm": "jump", "mirror": "mirror",
 }
 
 ## Words for {move}, {attack}... in tips: [keys, controller, touch]. The
@@ -327,6 +348,7 @@ const KEYS := {
 	"menu": ["Esc", "{start}", "Menu"],
 	"restart": ["hold R", "hold {back}", "Menu, then Restart"],
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
+	"choose": ["the arrows (or a click on a swatch)", "the d-pad or stick", "the arrows or a swatch"],
 	"cars": ["Q and E, the mouse wheel, or the arrows at the screen's edges", "{lb} and {rb}, or the d-pad", "swipe, or tap the arrows at the screen's edges"],
 }
 

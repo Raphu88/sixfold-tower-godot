@@ -555,19 +555,28 @@ func _personal(root: Node) -> void:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(col)
 	keys.append_array(_pack_and_chest(col))
-	# The mirror (the climber screen) and the trunk (the inventory).
+	# The mirror (the climber screen), the trunk (the inventory) and how you look.
 	var furniture := HBoxContainer.new()
 	furniture.add_theme_constant_override("separation", 8)
 	furniture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(furniture)
-	for f in [["mirror", "climber"], ["trunk", "inventory"]]:
+	for f in [["mirror", "climber"], ["trunk", "inventory"], ["looks", "appearance"]]:
 		var label: String = T[f[0] + "_short"] if _small() else T[f[0]]
-		var b: Button = m._button(label, m.open.bind(f[1], true), furniture)
+		var go: Callable = m.open_appearance.bind("") if f[1] == "appearance" else m.open.bind(f[1], true)
+		var b: Button = m._button(label, go, furniture)
 		b.custom_minimum_size.y = 40
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.set_meta("car_page", f[1])
 		b.clip_text = true
 		_brass(b)
+		# (three side by side: tighter margins so each name fits)
+		b.add_theme_font_size_override("font_size", 13 if _small() else 14)
+		var ratios: Dictionary = {"climber": 1.0, "inventory": 1.25, "appearance": 0.9} if _small() else {"climber": 1.0, "inventory": 1.12, "appearance": 1.3}
+		b.size_flags_stretch_ratio = ratios[f[1]]
+		for state in ["normal", "hover", "pressed"]:
+			var st: StyleBoxFlat = b.get_theme_stylebox(state)
+			st.content_margin_left = 5
+			st.content_margin_right = 5
 	_card(row, keys, "pack:0" if not prof.pack.is_empty() else "chest:0")
 
 

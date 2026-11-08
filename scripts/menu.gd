@@ -28,6 +28,9 @@ const Train := preload("res://scripts/train.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
 const TrainView := preload("res://scripts/train_view.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Appearance := preload("res://scripts/appearance.gd")
+const AppearancePage := preload("res://scripts/appearance_page.gd")
+const Makers := preload("res://scripts/makers.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -37,7 +40,8 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
-	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0}
+	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
+	"create": 960.0, "appearance": 960.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
@@ -83,6 +87,10 @@ var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
 var sell_ask := ""  # a piece asked to be sold: a second press sells it
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
+# The appearance editor (appearance_page.gd): "create" for a new climber,
+# "appearance" later; where Back from "appearance" goes ("climber", else the usual).
+var look_page
+var look_from := ""
 
 
 func _ready() -> void:
@@ -97,6 +105,7 @@ func _ready() -> void:
 	train_view.hide()
 	add_child(train_view)
 	train_page = TrainPage.new(self)
+	look_page = AppearancePage.new(self, func(b, lk): BodyView._figure(b, lk))
 	shade = ColorRect.new()
 	shade.color = UI.SHADE
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -150,7 +159,7 @@ var touch_slider: HSlider = null
 
 
 func _input(event: InputEvent) -> void:
-	if page == "":
+	if page == "" or _typing():
 		return
 	# Q and E (LB and RB): the climber screen's tabs, or the next mark.
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_Q or event.keycode == KEY_E):
@@ -211,9 +220,14 @@ func _control_at(pos: Vector2, cls: String) -> Control:
 
 func _tap(pos: Vector2) -> void:
 	var b = _control_at(pos, "BaseButton")
+	if b == null and _control_at(pos, "LineEdit") != null and page in ["create", "appearance"]:
+		look_page.edit_name()  # (the appearance page's name)
+		return
 	if b == null or b.disabled:
 		return
-	if b.toggle_mode:
+	if b.has_method("tap_at"):
+		b.tap_at(pos)  # (an option row: its arrows and swatches)
+	elif b.toggle_mode:
 		b.button_pressed = not b.button_pressed  # (emits toggled)
 	else:
 		b.pressed.emit()
@@ -231,7 +245,15 @@ func _process(delta: float) -> void:
 	toast_t -= delta
 	if toast_t <= 0.0 and toast != "":
 		toast = ""
-	if Input.is_action_just_pressed("pause"):
+	if _typing():
+		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field).
+		if Input.is_action_just_pressed("ui_cancel"):
+			look_page._focus_rows()
+		_layout()
+		return
+	if page == "create":
+		pass  # a new climber's look: only Begin leaves it (like the title)
+	elif Input.is_action_just_pressed("pause"):
 		if page == "":
 			# (once the Regard or the victory screen has played, Start moves on instead)
 			if _can_open():
@@ -253,11 +275,19 @@ func _process(delta: float) -> void:
 	_layout()
 
 
+## A name is being typed (the appearance page's name field has the keys).
+func _typing() -> bool:
+	return page != "" and is_inside_tree() and get_viewport().gui_get_focus_owner() is LineEdit
+
+
 ## Q/E or LB/RB: the next climber tab, or the next mark on the detail page.
 ## True if it did something.
 func _cycle(by: int) -> bool:
 	if page == "train":
 		return train_page.cycle(by)
+	if page == "create" or page == "appearance":
+		look_page.turn(by)  # the preview turns
+		return true
 	if page == "climber":
 		var ids: Array = CLIMBER_TABS.map(func(t): return t[0])
 		_set_climber_tab(ids[(ids.find(climber_tab) + by + ids.size()) % ids.size()])
@@ -280,6 +310,8 @@ func toggle(which: String) -> void:
 		elif page == "" or page == "climber" or page == "inventory":
 			train_car = Train.HOME
 			open("train")
+		return
+	if page == "create":
 		return
 	if page == which or (page == "mark" and which == "climber"):
 		if opened_from_title:
@@ -308,6 +340,10 @@ func go_back() -> void:
 		open("settings")
 	elif page == "mark":
 		focus_part = mark_part
+		open("climber", opened_direct)
+	elif page == "create":
+		return  # (Begin is the way on)
+	elif page == "appearance" and look_from == "climber":
 		open("climber", opened_direct)
 	elif page == "pause" or page == "":
 		close()
@@ -414,7 +450,7 @@ func open(which: String, direct := false) -> void:
 		panel.scale = Vector2.ONE
 		panel.modulate.a = 1.0
 	# The title's drawing stays behind the pages opened from it.
-	backdrop.visible = which == "title" or (opened_from_title and which != "pause")
+	backdrop.visible = which == "title" or which == "create" or (opened_from_title and which != "pause")
 	backdrop.show_name = which == "title"
 	# The train is its own page (its cars fill the screen), and stands behind
 	# the pages opened from it.
@@ -461,6 +497,8 @@ func open(which: String, direct := false) -> void:
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
 		elif which == "train":
 			first = train_page.first_focus(list)
+		elif which == "create" or which == "appearance":
+			first = maxi(0, list.find(look_page.first_focus))
 		var at: int = keep if keep >= 0 and keep < list.size() else first
 		if which == "train":
 			# (never onto another slot than the one whose card shows; on a
@@ -690,7 +728,8 @@ func _page_controls() -> void:
 ## settled in you (your attributes), and your record and heirlooms.
 func _page_climber() -> void:
 	var prof = main.profile
-	_header("CLIMBER", _climber_line())
+	var who: String = prof.appearance.get("name", "")
+	_header(who.to_upper() if who != "" else "CLIMBER", _climber_line())
 	_tabs(CLIMBER_TABS, climber_tab, _set_climber_tab)
 	match climber_tab:
 		"essence":
@@ -736,10 +775,17 @@ func _climber_marks(prof) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	box.add_child(row)
+	# The figure, and Appearance under it (appearance_page.gd).
+	var fig := VBoxContainer.new()
+	fig.add_theme_constant_override("separation", 4)
+	row.add_child(fig)
 	var view := BodyView.new()
 	view.main = main
 	view.custom_minimum_size = Vector2(292, 0) if small else Vector2(310, 0)
-	row.add_child(view)
+	fig.add_child(view)
+	var look_b := _button(Appearance.TEXT["button"], open_appearance.bind("climber"), fig)
+	look_b.custom_minimum_size.y = 40.0
+	look_b.set_meta("appearance", true)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -756,7 +802,10 @@ func _climber_marks(prof) -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.pressed.connect(open_mark.bind(part))
 		grid.add_child(card)
-	view.custom_minimum_size.y = (76.0 if small else 104.0) * 3.0 + 16.0
+	view.custom_minimum_size.y = (76.0 if small else 104.0) * 3.0 + 16.0 - 44.0
+	var core_line: String = Makers.core_text(prof)
+	if core_line != "":
+		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
 	if small:
 		return
 	if prof.bonds.is_empty():
@@ -877,8 +926,10 @@ func open_archive() -> void:
 ## is a button; choose it to read the Entity's line and a fuller account.
 ## Subjects not met yet show as ???.
 func _climber_archive() -> void:
-	var total := Entity.TIPS.size()
-	var heard: int = Entity.TIPS.keys().filter(func(k): return Guide.known(k)).size()
+	# (the Makers' tips count only once heard: before then nothing hints at them)
+	var listed: Array = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] != "forbidden" or Guide.known(k))
+	var total := listed.size()
+	var heard: int = listed.filter(func(k): return Guide.known(k)).size()
 	_entity_says("archive", "%s  ·  %s" % [Entity.TEXT["tag"], (Entity.TEXT["heard"] % [heard, total]).to_upper()])
 	var mode := "keys"
 	if main != null and main.touch_active:
@@ -917,6 +968,7 @@ func _climber_archive() -> void:
 			said.set_meta("archive_open", archive_open)
 			box.add_child(said)
 			_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
+	_maker_shelves(mode, ps)
 	_gap(4)
 	var row := _grid(2)
 	_button(Entity.TEXT["replay"], _replay_tips, row)
@@ -927,6 +979,109 @@ func _climber_archive() -> void:
 	tog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tog.toggled.connect(_set_tips)
 	row.add_child(tog)
+
+
+## The forbidden shelf (makers.gd): a shelf for each Maker whose first
+## fragment you've found (or that you've met), with its fragments (their
+## words redacted) and how many; then the Entity's tips about them. Nothing
+## shows before then. The Entity speaks of its siblings (redacted) only once
+## you've met one.
+func _maker_shelves(mode: String, ps: bool) -> void:
+	var prof = main.profile
+	var shown: Array = Makers.ORDER.filter(func(m): return Makers.shelf_shown(prof, m))
+	if shown.is_empty():
+		return
+	_section(Makers.TEXT["shelf"])
+	var st: Dictionary = Makers.state(prof)
+	var met_any: bool = Makers.has_met(prof)
+	var c: Dictionary = Makers.core(prof)
+	for m in shown:
+		var d: Dictionary = Makers.MAKERS[m]
+		var col: Color = d["color"]
+		var pc := PanelContainer.new()
+		pc.add_theme_stylebox_override("panel", UI.box(Color(col.darkened(0.88), 0.7), Color(col, 0.35), 6, 1, 10.0))
+		pc.set_meta("shelf", m)
+		box.add_child(pc)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 4)
+		pc.add_child(v)
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 10)
+		v.add_child(head)
+		var icon := Makers.SignIcon.new()
+		icon.maker = m
+		icon.custom_minimum_size = Vector2(30, 30)
+		head.add_child(icon)
+		var frags: Array = st["fragments"].filter(func(f): return f.get("maker", "") == m)
+		var title := _label(d["Name"], 0.0, col.lightened(0.2))
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(title)
+		head.add_child(_label(Makers.TEXT["shelf_count"] % [frags.size(), "fragment" if frags.size() == 1 else "fragments"], 0.0, DIM))
+		if met_any:
+			v.add_child(_entity_redacted(d["entity"][0]))
+		var words: Array = d["fragments"]
+		for i in frags.size():
+			var f: Dictionary = frags[i]
+			var tw: String = Towers.TOWERS.get(f.get("tower", ""), {}).get("short", String(f.get("tower", "")).capitalize())
+			v.add_child(_small_label(Makers.TEXT["fragment_where"] % [i + 1, tw, int(f.get("floor", 0))], FAINT))
+			var r := Makers.Redacted.new()
+			r.text = words[int(f.get("n", i)) % words.size()]
+			r.color = Color(col.lightened(0.1), 0.7)
+			r.font_size = 12.0
+			r.set_meta("fragment_text", r.text)
+			v.add_child(r)
+		var bits: Array = []
+		var met := int(st["met"].get(m, 0))
+		var turned := int(st["turned"].get(m, 0))
+		if met > 0:
+			bits.append(Makers.TEXT["met"] % [met, "time" if met == 1 else "times"])
+		if turned > 0:
+			bits.append(Makers.TEXT["turned"] % [turned, "time" if turned == 1 else "times"])
+		if c.get("maker", "") == m:
+			bits.append(Makers.TEXT["core"] % [Makers.SECRET_BONDS[c["bond"]]["name"], int(c.get("depth", 1))])
+		if not bits.is_empty():
+			v.add_child(_small_label("  ·  ".join(bits), DIM))
+	# The Entity's tips about them (fragments, glimpses, meetings, the core mark).
+	var known: Array = Entity.ordered("forbidden").filter(func(k): return Guide.known(k))
+	if known.is_empty():
+		return
+	var grid := _grid(2, 6, 4)
+	for id in known:
+		var b := _button(("v  " if archive_open == id else ">  ") + Entity.TIPS[id]["name"], _archive_toggle.bind(id), grid)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size.y = 32.0
+		b.set_meta("archive", id)
+		if archive_open == id:
+			_primary(b)
+	if archive_open in known:
+		var e: Dictionary = Entity.TIPS[archive_open]
+		var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper())
+		said.set_meta("archive_open", archive_open)
+		box.add_child(said)
+		_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
+
+
+## The Entity speaking of a sibling: its face and a bubble of redacted words.
+func _entity_redacted(text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var f := Entity.Face.new()
+	f.custom_minimum_size = Vector2(40, 30)
+	f.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(f)
+	var bubble := PanelContainer.new()
+	bubble.add_theme_stylebox_override("panel", UI.entity_bubble(8.0))
+	bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(bubble)
+	var r := Makers.Redacted.new()
+	r.text = text
+	r.color = Color(Entity.GLOW, 0.75)
+	r.font_size = 12.0
+	bubble.add_child(r)
+	row.set_meta("entity_sibling", text)
+	return row
 
 
 func _archive_toggle(id: String) -> void:
@@ -1943,6 +2098,12 @@ func _page_dev() -> void:
 	for kind in EnemyScript.TYPES.keys().filter(func(k): return k != "familiar"):
 		_button(kind.capitalize(), _dev_spawn.bind(kind), grid)
 
+	_section("Mirror images (mirror.gd)")
+	var irow := _row()
+	_button("Spawn a mirror image", _dev_spawn.bind(main.MirrorScript.THEME), irow)
+	var mb := _button("Mirror room on the next floor", _dev_mirror_room, irow)
+	mb.disabled = main.MirrorScript.force
+
 	_section("Gear (give yourself any weapon, armor or piece)")
 	var ggrid := _grid(4, 6)
 	var worn: Array = p.carried_gear()
@@ -1983,6 +2144,7 @@ func _page_dev() -> void:
 	for fb in [_button("+25 flow", _dev_flow.bind(25.0), frow2), _button("+100 flow", _dev_flow.bind(100.0), frow2), _button("Reset path", _dev_reset_path, frow2)]:
 		fb.disabled = prof.path == ""
 	_button("Show the choice", _dev_offer_path, frow2)
+	_dev_makers()
 
 	_section("Cheats")
 	var crow := _row()
@@ -2000,9 +2162,90 @@ func _page_dev() -> void:
 
 # --- actions -----------------------------------------------------------------
 
+## Dev tools for the Makers (makers.gd), to try them on the phone.
+func _dev_makers() -> void:
+	var mk = main.makers
+	if mk == null:
+		return
+	_section("The Makers (fragments, interest, meetings)")
+	var prof = main.profile
+	var bits: Array = ["Fragments %d (%d needed)" % [Makers.fragment_count(prof), int(Makers.REVEAL["fragments"])]]
+	for m in Makers.ORDER:
+		bits.append("%s %d / %d" % [Makers.MAKERS[m]["short"], int(mk.interest(m)), int(mk.threshold(m))])
+	var c: Dictionary = Makers.core(prof)
+	if not c.is_empty():
+		bits.append("core: " + Makers.SECRET_BONDS[c["bond"]]["Name"])
+	_text("  ·  ".join(bits), DIM)
+	var row := _grid(4, 6)
+	_button("Add a fragment", _dev_fragment, row)
+	for m in Makers.ORDER:
+		_button("+100 %s" % Makers.MAKERS[m]["short"], _dev_interest.bind(m), row)
+	var row2 := _grid(4, 6)
+	_button("Meet a Maker now", _dev_meet, row2)
+	_button("A glimpse now", _dev_glimpse, row2)
+	_button("A fragment on this floor", _dev_place_fragment, row2)
+	_button("Clear the Makers", _dev_clear_makers, row2)
+
+
+func _dev_fragment() -> void:
+	var m: String = main.makers.dev_fragment()
+	_say("A fragment of %s (%d found)" % [Makers.MAKERS[m]["name"], Makers.fragment_count(main.profile)])
+
+
+func _dev_interest(m: String) -> void:
+	main.makers.dev_interest(m, 100.0)
+	_say("%s: interest %d" % [Makers.MAKERS[m]["Name"], int(main.makers.interest(m))])
+
+
+func _dev_meet() -> void:
+	if main.makers.dev_meet() == "":
+		_say("No Maker to meet")
+		return
+	close()  # (it shows itself once the menu has closed)
+
+
+func _dev_glimpse() -> void:
+	main.makers.start_glimpse(main.makers.dev_choice(), Makers.GLIMPSE["kinds"][randi() % Makers.GLIMPSE["kinds"].size()])
+	close()
+
+
+func _dev_place_fragment() -> void:
+	var mk = main.makers
+	mk.setup_floor(true)
+	if mk.fragment.is_empty():
+		_say("No secret room or vault on this floor")
+	else:
+		_say("A fragment waits in this floor's %s" % ("secret room" if mk.fragment["src"] == "secret" else "vault"))
+
+
+func _dev_clear_makers() -> void:
+	main.makers.dev_clear()
+	_say("The Makers forget you")
+
 func _leave_title() -> void:
+	if not main.profile.created:
+		open("create")  # a new climber chooses a look first
+		return
 	Engine.set_meta("sixfold_title_seen", true)
 	close()
+
+
+## The appearance editor (appearance_page.gd): a new climber's, ending in Begin...
+func _page_create() -> void:
+	look_from = ""
+	look_page.build("create")
+
+
+## ...or later, from the climber screen or your car on the train.
+func _page_appearance() -> void:
+	look_page.build("edit")
+
+
+## Opens the appearance editor; Back returns to `from` ("climber", or the
+## usual place: the train, the pause menu or the title).
+func open_appearance(from := "") -> void:
+	look_from = from
+	open("appearance", opened_direct if from == "climber" else true)
 
 
 func _restart() -> void:
@@ -2083,6 +2326,11 @@ func _dev_puzzle(kind: String) -> void:
 func _dev_spawn(kind: String) -> void:
 	main.dev_spawn(kind)
 	_say("Spawned: %s" % kind.capitalize())
+
+
+func _dev_mirror_room() -> void:
+	main.MirrorScript.force = true
+	_say(main.MirrorScript.TEXT["forced"])
 
 
 func _dev_gear(id: String) -> void:
@@ -2700,6 +2948,7 @@ class CompareArrow extends Control:
 ## parts are dark sockets; where the next mark is forming, a gold one.
 class BodyView extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
+	const MakersRef := preload("res://scripts/makers.gd")
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
 	const Palette := preload("res://scripts/palette.gd")
@@ -2725,7 +2974,8 @@ class BodyView extends Control:
 		draw_set_transform(c, 0.0, Vector2(k, k))
 		var b := UI.Draw.Batch.new()
 		_backdrop(b)
-		_figure(b)
+		_figure(b, main.climber_look)
+		MakersRef.core_figure_into(b, main.profile, SPOTS, t)  # (a core mark, beneath the marks)
 		for part in ORDER:
 			_mark(b, part, t)
 		b.flush(self)
@@ -2779,11 +3029,13 @@ class BodyView extends Control:
 
 	## The figure, in a frame about 290 tall centred on the waist. Lit from
 	## the top-left: the left side of each piece is paler, the right darker.
-	func _figure(b) -> void:
-		var cloak := Palette.CLIMBER_CLOAK
-		var tunic := Palette.CLIMBER_TUNIC
-		var skin := Palette.CLIMBER_SKIN
-		var boot := Palette.CLIMBER_BOOT
+	## Its colours, hair and hood come from `look` (appearance.gd look(); the
+	## appearance page's preview draws it too).
+	static func _figure(b, look: Dictionary) -> void:
+		var cloak: Color = look["cloak"]
+		var tunic: Color = look["tunic"]
+		var skin: Color = look["skin"]
+		var boot: Color = look["boot"]
 		var leather := Color(0.3, 0.2, 0.13)
 		# The cloak hangs behind, from the shoulders to below the knees.
 		b.poly(_p([-30, -68, 30, -68, 46, -20, 56, 40, 64, 100, 48, 108, 30, 104, 14, 110, 0, 104, -14, 110, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20]), cloak.darkened(0.22), 1.6)
@@ -2827,17 +3079,8 @@ class BodyView extends Control:
 		b.poly(_p([-42, -50, -34, -68, -14, -80, 14, -80, 34, -68, 42, -50, 30, -42, 14, -50, 0, -46, -14, -50, -30, -42]), cloak.darkened(0.14), 1.6)
 		b.polygon(_p([-42, -50, -34, -68, -14, -80, 0, -80, 0, -46, -14, -50, -30, -42]), cloak.lightened(0.06))
 		b.polygon(_p([-37, -60, -28, -71, -14, -77, -24, -66]), Color(cloak.lightened(0.45), 0.5))
-		# The hood, the face in its shadow.
-		b.poly(_p([0, -147, 13, -141, 23, -127, 27, -106, 23, -88, 12, -79, 0, -77, -12, -79, -23, -88, -27, -106, -23, -127, -13, -141]), cloak.darkened(0.18), 1.6)
-		b.polygon(_p([0, -147, -13, -141, -23, -127, -27, -106, -23, -88, -12, -79, 0, -77, -5, -112]), cloak.darkened(0.0))
-		b.polygon(_p([-19, -131, -9, -141, -3, -140, -13, -127]), Color(cloak.lightened(0.45), 0.5))
-		b.polygon(UI._oval(Vector2(0, -103), Vector2(14.5, 18.0), 24), Color(0.04, 0.03, 0.05))
-		b.polygon(UI._oval(Vector2(0, -99), Vector2(10.5, 13.0), 24), skin.darkened(0.52))
-		b.polygon(UI._oval(Vector2(-0.6, -94.5), Vector2(8.6, 8.0), 20), skin.darkened(0.3))
-		b.polygon(_p([-12, -108, -6, -116, 4, -117, 12, -108, 5, -112, -3, -110]), Palette.CLIMBER_HAIR.darkened(0.3))
-		b.dot(Vector2(-4.2, -100), 1.5, UI.OUTLINE)
-		b.dot(Vector2(4.2, -100), 1.5, UI.OUTLINE)
-		b.ball(Vector2(0, -77), 3.4, UI.GOLD.darkened(0.15))
+		# The head: the hood up (the face in its shadow) or down (appearance.gd).
+		Appearance.draw_front_head(b, look)
 
 	func _mark(b, part: String, t: float) -> void:
 		var prof = main.profile

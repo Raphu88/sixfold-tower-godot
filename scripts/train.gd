@@ -119,6 +119,8 @@ const TEXT := {
 	"mirror_short": "Climber",
 	"trunk": "Inventory",
 	"trunk_short": "Inventory",
+	"looks": "Appearance",  # how you look (appearance_page.gd)
+	"looks_short": "Looks",
 	# The engine: where you choose the next tower
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",

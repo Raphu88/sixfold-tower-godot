@@ -4153,6 +4153,10 @@ func _spell_tests() -> void:
 	await _frames(2)
 	Input.action_release("new_climber")
 	_check(main.profile.bonds.is_empty() and not main.profile.regarded, "a second press starts a new climber: no marks")
+	_check(main.menu.page == "create", "...who chooses a look first (the creation page)")
+	main.menu.look_page.begin()  # (Begin: the game runs on)
+	Engine.remove_meta("sixfold_title_seen")
+	await _frames(1)
 
 	print("new spells")
 	await _fresh_main()
@@ -6973,6 +6977,8 @@ func _run() -> void:
 	await _item_tests()
 	await _camp_tests()
 	await _wing_tests()
+	await _maker_tests()
+	await _mirror_image_tests()
 	await _lock_tests()
 	await _gear_tests()
 	await _heirloom_tests()
@@ -6988,6 +6994,7 @@ func _run() -> void:
 	await _lighting_tests()
 	await _foe_list_tests()
 	await _slim_hud_tests()
+	await _appearance_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -7860,7 +7867,7 @@ func _entity_tests() -> void:
 	Guide.forget()
 	_check(main.entity != null and main.entity.get_parent() == main.touch.get_parent(), "the Entity's bubble sits in the HUD layer, over the touch buttons")
 	# Every tip has a name, a short line and a fuller account; groups exist; no stray words.
-	var groups: Array = Entity.GROUPS.map(func(g): return g[0])
+	var groups: Array = Entity.GROUPS.map(func(g): return g[0]) + ["forbidden"]  # (the Makers' tips: shown on their shelf once met)
 	var bad: Array = []
 	for id in Entity.TIPS:
 		var e: Dictionary = Entity.TIPS[id]
@@ -8032,7 +8039,8 @@ func _entity_tests() -> void:
 	_check(menu.page == "climber" and menu.climber_tab == "archive", "...which opens the climber screen's Archive tab")
 	var entries: Array = menu.focusables().filter(func(b): return b.has_meta("archive"))
 	var locked: Array = menu.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
-	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	var hidden: int = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] == "forbidden").size()
+	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - hidden - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
 	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "the Entity presents the Archive")
 	entries[2].grab_focus()
 	await _frames(1)
@@ -8897,3 +8905,692 @@ func _secret_tests() -> void:
 	main.victory = {}
 
 
+
+
+## The climber's looks (appearance.gd, appearance_page.gd): today's look by
+## default, the creation page for a new climber and the first launch, the
+## rows by keys, controller and taps, the name, Begin; the Appearance buttons
+## on the climber screen and in your car; what the tower and the climber
+## screen draw from; the save, old saves and odd ones.
+func _appearance_tests() -> void:
+	print("appearance: the new climber's looks")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	var A = load("res://scripts/appearance.gd")
+	var P = load("res://scripts/palette.gd")
+	var menu = main.menu
+	var prof = main.profile
+	var p = main.player
+	var d: Dictionary = A.look(A.DEFAULTS)
+	_check(d["cloak"] == P.CLIMBER_CLOAK and d["skin"] == P.CLIMBER_SKIN and d["tunic"] == P.CLIMBER_TUNIC and d["hair"] == P.CLIMBER_HAIR and d["boot"] == P.CLIMBER_BOOT and d["eyes"] == P.OUTLINE and d["hood_up"] and d["hair_style"] == "short", "the default look is the climber's look from before (teal hood up, brown hair and tunic)")
+	_check(prof.appearance == A.DEFAULTS and p.appearance_look == d and main.climber_look == d, "a climber with no choice yet wears it, in the tower and on the climber screen")
+	var sizes_ok: bool = A.OPTIONS["skin"].size() >= 6 and A.OPTIONS["skin"].size() <= 8 and A.OPTIONS["cloak"].size() >= 8 and A.OPTIONS["cloak"].size() <= 10 and A.OPTIONS["hair"].size() >= 5
+	for key in A.OPTIONS:
+		sizes_ok = sizes_ok and A.index_of(key, A.DEFAULTS[key]) >= 0
+	_check(sizes_ok, "the options are data: 6-8 skins, 8-10 cloaks, five hair styles, each default among them")
+	# New climber: the creation page opens before the first climb.
+	main.new_climber()
+	await _until(func(): return menu.page == "create", 2.0)
+	_check(menu.page == "create" and not prof.created and menu.backdrop.visible, "New climber opens the creation page (over the title's sky) before the first climb")
+	var page = menu.look_page
+	_check(page.view != null and page.view.doll != null and page.view.doll.get_script() == p.get_script() and page.view.doll.appearance_look == main.climber_look, "...its preview is the tower's own drawing of the climber (a doll)")
+	_check(page.view.doll.collision_layer == 0 and not page.view.doll.is_physics_processing(), "...which only draws (no body, no physics)")
+	var vis := root.get_visible_rect()
+	var inside := true
+	for b in menu.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree():
+			inside = inside and vis.encloses(b.get_global_rect())
+	_check(inside, "every button on the creation page is on screen")
+	Input.action_press("pause")
+	await _frames(2)
+	Input.action_release("pause")
+	await _frames(2)
+	_check(menu.page == "create", "Esc doesn't skip it (Begin is the way on)")
+	# Keys and controller: start on the first row; Right / Left change it.
+	var skin = page.rows["skin"]
+	await _until(func(): return skin.has_focus(), 1.0)
+	_check(skin.has_focus(), "keys and controller start on the first option (Skin)")
+	await _key_tap(KEY_RIGHT)
+	var want_skin: String = A.step(A.DEFAULTS, "skin", 1)
+	_check(prof.appearance["skin"] == want_skin and main.climber_look["skin"] == A.color_of("skin", want_skin) and p.appearance_look["skin"] == A.color_of("skin", want_skin), "Right changes the focused option, kept and worn at once (tower and climber screen)")
+	await _key_tap(KEY_LEFT)
+	_check(prof.appearance["skin"] == A.DEFAULTS["skin"], "...and Left changes it back")
+	await _key_tap(KEY_DOWN)
+	_check(page.rows["hair"].has_focus(), "Down moves to the next option")
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(prof.appearance["hair"] == "long" and p.appearance_look["hair_style"] == "long", "the controller's d-pad changes it too (short to long hair)")
+	main.pad._set_active(false)
+	# Taps (a phone): a swatch picks itself, an arrow steps.
+	main.touch._set_active(true)
+	await _frames(3)
+	var cl = page.rows["cloak"]
+	var mid: Rect2 = cl._middle()
+	var n: int = A.OPTIONS["cloak"].size()
+	var ci: int = A.index_of("cloak", "crimson")
+	await _tap_at(cl.get_global_transform() * Vector2(mid.position.x + mid.size.x / n * (ci + 0.5), cl.size.y * 0.5))
+	_check(prof.appearance["cloak"] == "crimson" and main.climber_look["cloak"] == A.color_of("cloak", "crimson") and p.appearance_look["cloak"] == A.color_of("cloak", "crimson"), "a tap on a swatch picks it (a crimson cloak)")
+	var hood = page.rows["hood"]
+	await _frames(2)
+	await _tap_at(hood.get_global_transform() * Vector2(hood.size.x - 20.0, hood.size.y * 0.5))
+	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood down)")
+	main.touch._set_active(false)
+	var lk: Dictionary = p.appearance_look.duplicate()
+	p._piece_look(lk, true)
+	p._armor_look(lk)
+	_check(lk["head"] == "bare" and A.crown(lk) == lk["hair"], "with the hood down the tower draws the head bare, the hair on show")
+	lk = A.look(A.DEFAULTS)
+	p._piece_look(lk, true)
+	_check(lk["head"] == "hood", "...and with it up, the hood")
+	# The name: the dice, and a typed name kept short; typing isn't shortcuts.
+	page.roll_name()
+	_check(prof.appearance["name"] in A.NAMES, "the dice picks a name")
+	page.set_name("  A very long name for one climber  ")
+	_check(prof.appearance["name"].length() <= A.NAME_MAX and prof.appearance["name"].begins_with("A very"), "a typed name is trimmed and kept short")
+	page.name_edit.grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_I)
+	await _key_tap(KEY_E)
+	_check(menu.page == "create" and page.name_edit.has_focus(), "typing in the name doesn't set off shortcuts (I, E)")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "create" and not page.name_edit.has_focus(), "Esc leaves the name field, not the page")
+	var turned: float = page.view.want
+	await _key_tap(KEY_E)
+	_check(page.view.want > turned, "E (RB) turns the preview")
+	var keep_name: String = prof.appearance["name"]
+	page.randomise()
+	_check(prof.appearance["name"] == keep_name and page.rows["cloak"].value == prof.appearance["cloak"], "Randomise rolls a look and keeps the name")
+	_check(page.finish.text == A.TEXT["begin"], "the page ends in Begin")
+	page.finish.pressed.emit()
+	await _frames(2)
+	_check(menu.page == "" and prof.created and main.climber_look == A.look(prof.appearance), "Begin makes the climber and goes on to the first climb")
+	Engine.remove_meta("sixfold_title_seen")
+	# The very first launch: no save, so Begin on the title opens it.
+	var Prof = load("res://scripts/profile.gd")
+	var none = Prof.new()
+	none.save_path = "user://smoke_no_save_here.cfg"
+	none.load_save()
+	_check(not none.created and none.appearance == A.DEFAULTS, "with no save at all, a climber is still to be made, in today's look")
+	prof.created = false
+	menu.open("title")
+	await _frames(2)
+	_menu_button("Begin your first climb").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "create" and menu.backdrop.visible, "the very first launch: Begin on the title opens the creation page")
+	page.begin()
+	await _frames(2)
+	_check(menu.page == "" and prof.created, "...and Begin there starts the climb")
+	Engine.remove_meta("sixfold_title_seen")
+	# Later: Appearance on the climber screen, and back.
+	main.choosing_tower = false
+	menu.climber_tab = "marks"
+	menu.open("climber")
+	await _frames(2)
+	var ab: Array = _all_buttons(menu).filter(func(b): return b.has_meta("appearance") and b.is_visible_in_tree())
+	_check(ab.size() == 1, "the climber screen has an Appearance button")
+	if ab.size() == 1:
+		ab[0].pressed.emit()
+		await _frames(2)
+	_check(menu.page == "appearance" and page.finish.text.begins_with(A.TEXT["done"]), "...which opens the same editor, ending in Done")
+	var tunic0: String = prof.appearance["tunic"]
+	page.rows["tunic"].change(1)
+	_check(prof.appearance["tunic"] != tunic0 and main.climber_look["tunic"] == A.color_of("tunic", prof.appearance["tunic"]), "a change there is kept, and the climber screen's figure draws from it")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "climber", "Back returns to the climber screen")
+	menu.close()
+	await _frames(2)
+	# Save, load, old saves and odd ones.
+	var path := "user://smoke_look_test.cfg"
+	prof.appearance = A.normalized({"name": "Wren", "skin": "deep", "hair": "braid", "hair_color": "copper", "eyes": "green", "cloak": "plum", "tunic": "navy", "hood": "down"})
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = Prof.new()
+	again.save_path = path
+	again.load_save()
+	_check(again.appearance == prof.appearance and again.created, "the look and the name are saved and load again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = Prof.new()
+	again.save_path = path
+	again.load_save()
+	_check(again.appearance == A.DEFAULTS and again.created, "a save from before looks loads as today's look, already made")
+	old = ConfigFile.new()
+	old.set_value("settings", "music", 0.5)
+	old.set_value("look", "appearance", {"cloak": "nope", "skin": 42, "hair": "braid"})
+	old.save(path)
+	again = Prof.new()
+	again.save_path = path
+	again.load_save()
+	_check(not again.created and again.appearance["cloak"] == "teal" and again.appearance["skin"] == "fair" and again.appearance["hair"] == "braid", "a file of settings only is a climber still to be made; unknown options fall back")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	# The train: Your car's Appearance button, and closing returns to it.
+	main.grant_test_bonds()
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	var tb: Array = _car_buttons("car_page", "appearance")
+	_check(tb.size() == 1, "your car on the train has an Appearance button")
+	if tb.size() == 1:
+		tb[0].pressed.emit()
+		await _frames(2)
+	_check(menu.page == "appearance", "...which opens the editor")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "personal", "...and Back returns to your car")
+## The Makers (makers.gd, maker_view.gd): fragments in secret rooms and
+## vaults, the forbidden shelf, interest, glimpses, the reveal, meetings,
+## the core mark, the plea, redaction and saving.
+func _maker_tests() -> void:
+	print("the Makers")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var M = load("res://scripts/makers.gd")
+	var mk = main.makers
+	var prof = main.profile
+	var p = main.player
+	var W = main.wings
+	# The story isn't written: every line is redacted, drawn as bars.
+	var said: Array = []
+	for m in M.ORDER:
+		for k in ["speech", "good_reply", "bad_reply", "already", "plea_yes", "plea_no", "interrupt", "entity", "fragments"]:
+			said.append_array(M.MAKERS[m][k])
+	_check(said.size() > 40 and said.all(func(l): return M.is_redacted(l) and M.word_lengths(l).size() >= 2), "every Maker's line, fragment and the Entity's lines about them are redacted (%d lines)" % said.size())
+	_check(not M.is_redacted("To understand") and M.ANSWERS.all(func(a): return a["placeholder"] and not M.is_redacted(a["text"])), "the answers are plain placeholders")
+	var bars = load("res://scripts/draw_util.gd").Batch.new()
+	var h: float = M.redact_into(bars, Vector2.ZERO, 60.0, "▇▇▇▇ ▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇", Color.WHITE, 13.0)
+	_check(bars.size() > 0 and h > 13.0 * 1.45, "redacted words draw as bars, wrapping (%.0f tall)" % h)
+	# Nothing shows before anything is found.
+	main.menu.climber_tab = "archive"
+	main.menu.open("climber")
+	await _frames(2)
+	_check(main.menu.find_children("*", "", true, false).all(func(n): return not n.has_meta("shelf")), "before a fragment is found the Archive shows no shelf")
+	main.menu.close()
+	paused = false
+	await _frames(1)
+
+	# Fragments: only in a secret room or a vault, one a floor at most.
+	mk.chance_override = 0.0
+	main._start_floor(4)
+	_check(mk.fragment.is_empty(), "most floors have no fragment")
+	mk.chance_override = 1.0
+	var placed := 0
+	var ok := true
+	for n in 8:
+		main._start_floor(3 + n)
+		var f: Dictionary = mk.fragment
+		if f.is_empty():
+			ok = ok and W.secrets.is_empty() and W.wings.all(func(w): return not w.has("alcove"))
+			continue
+		placed += 1
+		var ref: Dictionary = f["ref"]
+		var home: Rect2 = ref["rect"] if f["src"] == "secret" else ref["alcove"]
+		ok = ok and f["src"] in ["secret", "vault"] and f["room"] == home and home.has_point(f["read_at"]) and not home.has_point(f["wall"])
+		# Not on the main path: none of the floor's own rooms holds it.
+		ok = ok and main.layout_rooms.all(func(r): return not r.has_point(f["read_at"]))
+	_check(placed >= 4 and ok, "a fragment sits on the north wall of a secret room or a vault, never in the floor's rooms (%d of 8 floors)" % placed)
+	var first_was: bool = main.first_climb
+	main.first_climb = true
+	main._start_floor(5)
+	_check(mk.fragment.is_empty(), "never on the first climb")
+	main.first_climb = first_was
+	_check(await _wing_floor(true), "a floor with a secret room")
+	if mk.fragment.is_empty() or mk.fragment["src"] != "secret":
+		var spots: Array = mk.candidates().filter(func(c): return c["src"] == "secret")
+		if not spots.is_empty():
+			mk.clear_floor()
+			mk.fragment = spots[0]
+			mk.fragment["maker"] = "towers"
+			mk.fragment["read"] = false
+			mk.fragment["light"] = -1
+	var fr: Dictionary = mk.fragment
+	_check(not fr.is_empty() and fr["src"] == "secret" and not mk.fragment_open(), "a fragment in a secret room, hidden until it opens")
+	if fr.is_empty():
+		mk.chance_override = -1.0
+		return
+	var maker: String = fr["maker"]
+	var col: Color = M.color(maker)
+	p.global_position = fr["read_at"]
+	await _frames(2)
+	_check(not fr["read"], "...it can't be read through the rock")
+	var tw0: float = mk.interest("towers")
+	W._open_secret(fr["ref"])
+	_check(mk.interest("towers") > tw0, "leaning a secret wall open draws the Maker of Towers' interest")
+	var i0: float = mk.interest(maker)
+	await _until(func(): return fr["read"], 2.0)
+	_check(int(fr["light"]) >= 0 and main.lighting.lights.has(fr["light"]) and main.lighting.lights[fr["light"]]["color"] == col, "open, it glows faintly in its Maker's colour")
+	_check(fr["read"] and M.fragment_count(prof) == 1 and M.fragment_count(prof, maker) == 1, "walking up to it reads it, and it's kept")
+	_check(mk.interest(maker) >= i0 + M.WEIGHTS["fragment"][maker] + M.WEIGHTS["fragment_own"][maker] - 0.01, "knowledge feeds its Maker most (%.0f -> %.0f)" % [i0, mk.interest(maker)])
+	await _frames(3)
+	var sl: int = mk.shift_light
+	_check(mk.shift_t > 0.0 and main.lighting.lights.has(sl) and main.lighting.lights[sl]["color"] == col and main.lighting.lights[sl]["k"] > 0.0, "the room's light shifts in its Maker's colour")
+	_check(main.lighting.mat.get_shader_parameter("dark_color") != main.lighting.dark_color, "...the darkness tints toward it")
+	_check(mk.quiet() and not main.entity.can_show(), "the Entity goes quiet (no tip bubble)")
+	_check(main.banner.get("title", "") == M.TEXT["fragment_title"], "a short moment: the fragment's banner")
+	# The forbidden shelf.
+	main.menu.climber_tab = "archive"
+	main.menu.open("climber")
+	await _frames(2)
+	var shelves: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("shelf"))
+	var texts: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("fragment_text"))
+	_check(shelves.size() == 1 and shelves[0].get_meta("shelf") == maker and texts.size() == 1 and M.is_redacted(texts[0].get_meta("fragment_text")), "the Archive gains its Maker's shelf: one fragment, redacted")
+	_check(main.menu.find_children("*", "", true, false).all(func(n): return not n.has_meta("entity_sibling")), "...the Entity says nothing of its siblings before you've met one")
+	main.menu.close()
+	paused = false
+	mk.quiet_t = 0.0
+	mk._end_shift()
+	await _frames(1)
+
+	# Interest, from the right events.
+	var before := {}
+	for m in M.ORDER:
+		before[m] = mk.interest(m)
+	var slime = await _spawn("slime", p.global_position + Vector2(160, 0))
+	_slay(slime)
+	await _frames(1)
+	_check(mk.interest("creatures") > before["creatures"] and mk.interest("marks") == before["marks"], "a kill feeds the Maker of Creatures only")
+	before["creatures"] = mk.interest("creatures")
+	p.cast_part = "hand"
+	p.bonds["hand"].burned = false
+	p.bonds["hand"].essence = 100.0
+	p._release_cast()
+	_check(mk.interest("marks") >= before["marks"] + M.WEIGHTS["cast"]["marks"] + M.WEIGHTS["new_spell"]["marks"] - 0.01, "a spell cast (a new one this climb) feeds the Maker of Marks")
+	before["marks"] = mk.interest("marks")
+	p.bonds["hand"].burned = false
+	p.bonds["hand"].essence = 100.0
+	p._release_cast()
+	_check(absf(mk.interest("marks") - before["marks"] - M.WEIGHTS["cast"]["marks"]) < 0.01, "...the same spell again, less (variety counts)")
+	before["marks"] = mk.interest("marks")
+	before["towers"] = mk.interest("towers")
+	main.lift_ward()
+	_check(mk.interest("towers") > before["towers"] and mk.interest("marks") == before["marks"], "a puzzle solved feeds the Maker of Towers")
+	for m in M.ORDER:
+		before[m] = mk.interest(m)
+	await _settle()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.hp = p.max_health()
+	p.receive_attack(10.0, null)
+	_check(M.ORDER.all(func(m): return mk.interest(m) > before[m]), "a wound feeds all three (the body)")
+	for m in M.ORDER:
+		before[m] = mk.interest(m)
+	mk.sync_body()
+	prof.add_bond("brow", "hunter", false)
+	mk.sync_body()
+	_check(mk.interest("marks") >= before["marks"] + M.WEIGHTS["mark"]["marks"] - 0.01, "a new mark taken feeds them, most the Maker of Marks")
+	# No reveal under six fragments, however interested.
+	while M.fragment_count(prof) < 5:
+		mk.dev_fragment()
+	for m in M.ORDER:
+		M.state(prof)["interest"][m] = 0.0
+	M.state(prof)["interest"]["marks"] = 99999.0
+	_check(mk.ready_maker() == "", "no Maker reveals itself under six fragments, however interested (5 found)")
+	mk.on_arrive()
+	_check(mk.pending == "", "...a stair brings no meeting")
+	mk.dev_fragment()
+	_check(mk.ready_maker() == "marks", "six fragments, and the most interested Maker past its threshold would show itself")
+	M.state(prof)["interest"]["marks"] = 10.0
+	_check(mk.ready_maker() == "", "...but not without the interest")
+	# A glimpse.
+	var g0 := int(M.state(prof)["glimpses"])
+	mk.start_glimpse("towers", "shadow")
+	_check(not mk.glimpse.is_empty() and mk.quiet() and int(M.state(prof)["glimpses"]) == g0 + 1, "a glimpse: a second shadow at the stair, and the Entity quiet")
+	mk.glimpse = {}
+	mk.quiet_t = 0.0
+
+	# The meeting, with a stand-in for the secret essences' hooks.
+	var fake_src := GDScript.new()
+	fake_src.source_code = "extends RefCounted\nvar path := \"life\"\nvar resets := 0\nvar gained := {}\nfunc reset_path():\n\tresets += 1\nfunc gain_secret(kind, amount):\n\tgained[kind] = gained.get(kind, 0.0) + amount\n"
+	fake_src.reload()
+	var fake = fake_src.new()
+	mk.hooks = fake
+	M.state(prof)["interest"]["marks"] = 99999.0
+	mk.start_meeting("marks")
+	var v = mk.view
+	_check(mk.meeting_live() and paused and not main.entity.can_show(), "a Maker shows itself: the game pauses, the Entity is quiet")
+	v.t = 9.0
+	await _until(func(): return v.stage == "speech", 2.0)
+	v.t = 9.0
+	v.advance()
+	var ids: Array = v.options.map(func(o): return o["id"])
+	_check(v.stage == "answer" and ids.size() == M.ANSWERS.size() + 1 and "plea" in ids, "...its speech, then the answers (and a plea, once you have a path)")
+	await _frames(2)
+	_check(v.card_at(v.card_rect(0).get_center()) == 0 and v.card_at(v.card_rect(ids.size() - 1).get_center()) == ids.size() - 1, "the cards are where taps and clicks find them")
+	v.t = 9.0
+	v.choose(ids.find("understand"))
+	_check(v.stage == "verdict" and v.result.get("granted", "") == "developer", "a good answer grants its secret bond")
+	var c: Dictionary = M.core(prof)
+	_check(c.get("bond", "") == "developer" and c.get("maker", "") == "marks" and int(c.get("depth", 0)) == 1, "core mark = developer, depth 1")
+	_check(prof.core_mark == "developer" and prof.core_depth == 1, "...kept as the profile's core_mark and core_depth")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	_check(not mk.meeting_live() and not paused, "the meeting ends and the game goes on")
+	_check(fake.gained.get("life", 0.0) > 0.0 and fake.gained.get("unmaking", 0.0) > 0.0, "the Maker of Marks gives both secret essences through the hook")
+	_check(M.core_text(prof) != "", "the core mark shows: %s" % M.core_text(prof))
+	# A second Maker can't grant another.
+	mk.interrupt_chance = 0.0
+	mk.start_meeting("towers")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("understand"))
+	_check(v.result.get("granted", "") == "" and M.TEXT["one_only"] in v.result["lines"] and M.core(prof)["bond"] == "developer", "a second Maker can't grant another (one per climber)")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	# A bad answer turns it away.
+	var th0: float = mk.threshold("creatures")
+	mk.start_meeting("creatures")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("take"))
+	_check(not v.result["good"] and int(M.state(prof)["turned"].get("creatures", 0)) == 1 and mk.interest("creatures") < mk.threshold("creatures") and mk.threshold("creatures") > th0, "a bad answer turns it away: its interest drops, and it remembers")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	# Interrupted by the Maker whose core mark you carry.
+	mk.interrupt_chance = 1.0
+	mk.interrupt_way = "listen"
+	mk.start_meeting("towers")
+	v = mk.view
+	v.t = 9.0
+	await _until(func(): return v.stage == "speech", 2.0)
+	v.t = 9.0
+	v.advance()
+	_check(v.stage == "interrupt" and v.interrupter == "marks", "with a core mark, its Maker may interrupt another's meeting")
+	v.t = 9.0
+	v.advance()
+	_check(v.stage == "answer" and v.listening, "...it stays and listens")
+	v.t = 9.0
+	v.choose(0)
+	_check(v.result.get("granted", "") == "" and M.core(prof)["bond"] == "developer", "...and no bond comes of it")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	mk.interrupt_way = "cut_short"
+	var met0 := int(M.state(prof)["met"].get("towers", 0))
+	mk.start_meeting("towers")
+	v = mk.view
+	v.stage = "speech"
+	v.t = 9.0
+	v.advance()
+	v.t = 9.0
+	v.advance()
+	_check(v.stage == "verdict" and String(v.result["lines"][0]).contains("cuts the meeting short") and int(M.state(prof)["met"]["towers"]) == met0 + 1, "...or cuts it short")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	# The plea calls the reset hook.
+	mk.interrupt_chance = 0.0
+	mk.plea_force = 1
+	mk.start_meeting("creatures")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("plea"))
+	_check(fake.resets == 1 and M.TEXT["plea_yes"] in v.result["lines"], "a plea for a change of path: if it agrees, the reset hook is called")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	mk.plea_force = 0
+	mk.start_meeting("creatures")
+	v = mk.view
+	v.stage = "answer"
+	v.t = 9.0
+	v.choose(v.options.map(func(o): return o["id"]).find("plea"))
+	_check(fake.resets == 1 and M.TEXT["plea_no"] in v.result["lines"], "...it can refuse")
+	v.t = 9.0
+	v.advance()
+	await _frames(1)
+	mk.plea_force = -1
+	mk.hooks = main
+	_check(mk.current_path() != "" or mk.answers().all(func(o): return o["id"] != "plea"), "no plea without a path")
+	# After the stair: the reveal comes in the quiet.
+	M.state(prof)["interest"]["towers"] = 99999.0
+	mk.meetings_climb = 0
+	mk.on_arrive()
+	_check(mk.pending == "towers", "past six fragments and its threshold, a Maker comes after the stair")
+	await _until(func(): return mk.meeting_live(), 3.0)
+	_check(mk.meeting_live() and paused, "...and shows itself")
+	mk.end_meeting({})
+	await _frames(1)
+	# The core mark on the climber and on the climber screen.
+	p.queue_redraw()
+	main.menu.climber_tab = "marks"
+	main.menu.open("climber")
+	await _frames(2)
+	var labels: Array = main.menu.find_children("*", "Label", true, false).filter(func(l): return l.text == M.core_text(prof))
+	_check(labels.size() == 1, "the climber screen names the core mark")
+	main.menu.climber_tab = "archive"
+	main.menu.open("climber")
+	await _frames(2)
+	_check(main.menu.find_children("*", "", true, false).any(func(n): return n.has_meta("entity_sibling") and M.is_redacted(n.get_meta("entity_sibling"))), "once you've met one, the Entity speaks of its siblings (redacted)")
+	main.menu.close()
+	paused = false
+	await _frames(1)
+	# Saved with the profile; old saves load.
+	var path := "user://makers_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	var P = load("res://scripts/profile.gd")
+	var back = P.new()
+	back.save_path = path
+	back.load_save()
+	var bs: Dictionary = M.state(back)
+	_check(bs["fragments"].size() == M.fragment_count(prof) and back.core_mark == "developer" and back.core_depth == 1 and M.core(back).get("bond", "") == "developer" and int(bs["turned"].get("creatures", 0)) == 1 and is_equal_approx(float(bs["interest"]["towers"]), mk.interest("towers")), "fragments, interest, meetings and the core mark are saved")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	var older = P.new()
+	older.save_path = path
+	older.load_save()
+	var os: Dictionary = M.state(older)
+	_check(os["fragments"].is_empty() and M.core(older).is_empty() and older.core_mark == "" and older.core_depth == 0 and float(os["interest"]["marks"]) == 0.0, "an old save loads with the Makers empty")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.saving = false
+	prof.save_path = P.SAVE_PATH
+	mk.chance_override = -1.0
+	mk.interrupt_chance = M.INTERRUPT["chance"]
+	mk.interrupt_way = ""
+## A mirror image of the climber (mirror.gd): what it copies, its
+## telegraphed attacks, its guard and roll, the mirror room that seals
+## until it falls, its secret essence, and where mirror rooms may appear.
+func _mirror_image_tests() -> void:
+	print("mirror images")
+	var M = load("res://scripts/mirror.gd")
+	var S = load("res://scripts/secret.gd")
+	var Tw = load("res://scripts/towers.gd")
+	await _fresh_main()
+	_check(M.climb_ok == false, "the bondless first climb plans no mirror rooms (climb_ok %s)" % M.climb_ok)
+	# Where they may appear, and how often.
+	var never := true
+	for fl in [1, 2, 3, int(Tw.PROVING["floor"]), int(Tw.SUMMIT)]:
+		for i in 400:
+			never = never and not M.wants_room(fl, false)
+	for i in 400:
+		never = never and not M.wants_room(8, true)
+	_check(never, "never on floors 1-3, the Proving's floor, the summit or the first climb")
+	var hits := 0
+	for i in 3000:
+		if M.wants_room(7, false):
+			hits += 1
+	var share := float(hits) / 3000.0
+	_check(absf(share - float(M.ROOM["chance"])) < 0.04, "about %d%% of floors from %d up hold one (%.1f%%)" % [roundi(100.0 * M.ROOM["chance"]), M.ROOM["from"], 100.0 * share])
+	_check(M.wants_room(2, true, true) and not M.wants_room(6, false, true), "the dev tool forces one on any planned floor, never the Proving's")
+	var F = load("res://scripts/floors.gd")
+	var T = load("res://scripts/themes.gd")
+	var none := true
+	for i in 10:
+		none = none and not (M.THEME in F.rooms_floor(7, Tw.TOWERS[Tw.ORDER[i % 6]]).get("themes", []))
+	_check(none, "a floor planned on the first climb has none")
+	M.climb_ok = true
+	M.force = true
+	var kept := true
+	for i in 12:
+		var plan: Dictionary = F.rooms_floor(5, Tw.TOWERS[Tw.ORDER[i % 6]])
+		var th: Array = plan.get("themes", [])
+		var at := th.find(M.THEME)
+		kept = kept and at >= 0 and plan["room_info"][at]["role"] == "branch" and "den" in th and th.any(func(t): return T.get_theme(t)["kind"] == "good") \
+			and not plan["monsters"].any(func(m): return plan["room_info"][at]["rect"].has_point(m[1]))
+	M.force = false
+	M.climb_ok = false
+	_check(kept, "a mirror room takes a branch room, empty of monsters, and the floor keeps its good room and den")
+	main.grant_test_bonds()
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	main.floor_num = 5
+	var p = main.player
+	p.set_physics_process(false)
+	main.dev_give_gear("plate")
+	_check(p.protection() > 0.0, "(the climber wears plate)")
+	# Built from the climber.
+	var e = M.spawn(main, p.global_position + Vector2(70, 0))
+	await _frames(1)
+	e.set_physics_process(false)
+	_check(e.mirror and S.great_foe(e) == "mirror", "a mirror image is a great foe (mirror)")
+	_check(e.w_id == p.weapon and e.chain.size() == mini(3, p.wdata()["combo"].size()) and not e.ranged, "it carries the weapon in your hand (%s) and its chain" % e.w_id)
+	_check(is_equal_approx(e.armor, p.protection()), "it wears your armor (%.2f)" % e.armor)
+	var names: Array = e.spells.map(func(s): return s["name"])
+	_check(e.spells.size() == 2 and "Chain Lightning" in names and "Gale Lift" in names, "it casts your marks' spells: %s" % ", ".join(names))
+	_check(e.marks.size() == p.bonds.size(), "your marks show on it")
+	_check(e.max_hp > 100.0 and e.max_hp < 3.5 * 48.0 * main.Floors.toughness(5).x, "a mini-boss's health, below a champion's (%d)" % int(e.max_hp))
+	var hp0: float = e.hp
+	e.state = "chase"
+	e.take_hit(20.0, Vector2.ZERO)
+	_check(absf((hp0 - e.hp) - 20.0 * (1.0 - e.armor)) < 0.5, "your armor takes the edge off blows on it")
+	# Its guard turns a light blow from the front and answers; a finisher breaks through.
+	e.face = Vector2.LEFT
+	e.state = "guard"
+	e.state_t = 1.0
+	hp0 = e.hp
+	e.take_hit(10.0, Vector2.RIGHT)
+	_check(e.hp == hp0 and e.state == "wind_swing", "its guard turns a light blow aside, and it answers with a telegraphed swing")
+	e._end_attack("guard", 1.0)
+	e.take_hit(10.0, Vector2.RIGHT, 140.0, true)
+	_check(e.hp < hp0, "a finisher breaks its guard")
+	e.state = "roll"
+	hp0 = e.hp
+	e.take_hit(10.0, Vector2.RIGHT)
+	_check(e.hp == hp0, "a rolling mirror image can't be hit")
+	main.release_attack(e)
+	# Telegraphed: a wind-up and a glint before any blow lands.
+	e.state = "chase"
+	e.flinch = 0.0
+	e.stun = 0.0
+	e.global_position = p.global_position + Vector2(36, 0)
+	e.spell_t = 99.0
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	var php: float = p.hp
+	e.set_physics_process(true)
+	await _until(func(): return e.state == "wind_swing" or p.hp < php, 3.0)
+	_check(e.state == "wind_swing" and p.hp == php, "its swing starts with a wind-up, before any damage")
+	await _until(func(): return e.glinted or p.hp < php, 2.0)
+	var glint_at := Time.get_ticks_msec()
+	_check(e.glinted and p.hp == php, "...then the glint, still before the blow")
+	await _until(func(): return p.hp < php, 2.0)
+	var lead := (Time.get_ticks_msec() - glint_at) / 1000.0
+	_check(p.hp < php and lead > 0.15, "...and the blow lands after it (%.2f s)" % lead)
+	e.set_physics_process(false)
+	main.release_attack(e)
+	# A spell: its telegraph first.
+	var bi: int = e.spells.map(func(s): return s["shape"]).find("blast")
+	e.spell_i = maxi(bi, 0)
+	e.spell_t = 0.0
+	e._end_attack("chase", 0.0)
+	e.global_position = p.global_position + Vector2(170, 0)
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	php = p.hp
+	e.set_physics_process(true)
+	await _until(func(): return e.state == "wind_spell" or p.hp < php, 3.0)
+	_check(e.state == "wind_spell" and p.hp == php, "its spell (%s) is telegraphed before it lands" % e.spells[e.spell_i]["name"])
+	await _until(func(): return e.state != "wind_spell", 2.0)
+	_check(p.hp < php, "...and the blast hurts if you stay in it")
+	e.set_physics_process(false)
+	e.queue_free()
+	main.release_attack(e)
+	# A bow.
+	p.weapon = "shortbow"
+	var b = M.spawn(main, p.global_position + Vector2(200, 0))
+	await _frames(1)
+	_check(b.ranged and b.chain.is_empty() and b.shot_damage() > 0.0, "with a bow in your hand, it shoots")
+	b.state = "chase"
+	b.state_t = 0.0
+	b.spell_t = 99.0
+	await _until(func(): return b.state == "wind_shot", 3.0)
+	_check(b.state == "wind_shot", "...drawing first, its aim line showing")
+	b.queue_free()
+	p.weapon = "sword"
+	await _frames(1)
+	main.release_attack(b)
+	_check(main.dev_spawn("mirror").mirror, "the dev tool spawns a mirror image")
+	for o in main.enemies():
+		o.queue_free()
+	await _frames(1)
+
+	print("the mirror room")
+	main.secret_on = true
+	main.tower = "kraken"
+	M.force = true
+	var mi := -1
+	for n in 20:
+		main._start_floor(5)
+		await _frames(1)
+		mi = main.room_themes.find(M.THEME)
+		if mi >= 0:
+			break
+	_check(mi >= 0 and not M.force, "the dev tool's mirror room is planned on the next floor (and the force spent)")
+	if mi < 0:
+		return
+	var info: Dictionary = main.room_info[mi]
+	var rect: Rect2 = info["rect"]
+	_check(info["role"] == "branch", "a mirror room is a branch room, off the way to the stair")
+	_check(not main.floor_plan["monsters"].any(func(m): return rect.has_point(m[1])), "no ordinary monsters wait in it")
+	var door: Array = main.door_view.list.filter(func(d): return d["room"] == mi)
+	_check(not door.is_empty() and door[0]["style"] == "mirror", "its door bears the mirror")
+	_check(main.door_view.lock_rooms.has(mi), "it is a lock-in room")
+	for o in main.enemies():
+		o.queue_free()
+	await _frames(1)
+	main.open_all_doors()
+	main.banner = {}
+	p.global_position = rect.get_center() + Vector2(0, rect.size.y * 0.3)
+	await _until(func(): return main.enemies().any(func(o): return o.mirror), 2.0)
+	var img: Array = main.enemies().filter(func(o): return o.mirror)
+	_check(img.size() == 1, "walking in, its mirror image steps out of the glass")
+	if img.is_empty():
+		return
+	var m = img[0]
+	m.set_physics_process(false)
+	await _until(func(): return main.door_view.lock_rooms[mi]["state"] == "shut", 2.0)
+	_check(main.door_view.lock_rooms[mi]["state"] == "shut", "...and the doors shut behind you")
+	var crystals: int = main.profile.crystal_count(main.tower_data()["essence"])
+	_check(main.profile.path == "", "(no path yet)")
+	_slay(m)
+	await _frames(1)
+	var pend := {}
+	for s in main.secret_pending:
+		pend[s["kind"]] = float(pend.get(s["kind"], 0.0)) + float(s["amount"])
+	_check(main.camp_choosing and main.camp.get("stage", "") == "path", "its fall opens the path choice (a great foe)")
+	_check(pend.get("unmaking", 0.0) > pend.get("life", 0.0) and pend.get("life", 0.0) > 0.0, "it leaves mostly Unmaking, some Life")
+	_check(main.profile.crystal_count(main.tower_data()["essence"]) > crystals, "...and an essence crystal")
+	main.camp["t"] = 5.0
+	main.choose_camp(1)
+	main.choose_camp(1)
+	await _until(func(): return main.door_view.lock_rooms[mi]["state"] == "done", 2.0)
+	_check(main.door_view.lock_rooms[mi]["state"] == "done", "the doors open once it falls")
+	_check(main.GuideScript.Entity.TIPS.has("mirror") and main.GuideScript.Entity.ROOM_TIPS.get("mirror", "") == "mirror", "the Entity has a tip for it")
+	main.secret_on = false
+	M.force = false
+	M.climb_ok = true

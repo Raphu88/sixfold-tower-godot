@@ -8,6 +8,7 @@ const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Lost := preload("res://scripts/lost.gd")
+const Mirror := preload("res://scripts/mirror.gd")
 
 const TILE := 40.0
 const WALL_FACE := 46.0  # height of the north wall's visible front
@@ -424,6 +425,8 @@ func _draw_looks() -> void:
 					if _in_walk(p, walk):
 						batch.circle(p, 14.0 + 10.0 * _hash(seed, k, 47), Color(0, 0, 0, 0.16))
 						batch.circle(p, 7.0 + 5.0 * _hash(seed, k, 48), Color(0, 0, 0, 0.14))
+			"glass":  # a mirror room (mirror.gd)
+				Mirror.draw_glass(batch, lk.get("rows", []), box.position, TILE, seed)
 			"ripples":
 				for k in 4:
 					var p := box.position + box.size * Vector2(0.15 + 0.7 * _hash(seed, k, 49), 0.15 + 0.7 * _hash(seed, k, 50))

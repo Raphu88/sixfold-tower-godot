@@ -200,10 +200,12 @@ func _ready() -> void:
 
 
 ## A bubble can show now: in play (or over a camp's cards or the Regard),
-## not under a menu, the title or the tower choice, nor between floors.
+## not under a menu, the title or the tower choice, nor between floors, nor
+## while a Maker is near (makers.gd quiet).
 func can_show() -> bool:
 	return main != null and main.player != null and not main.menu_open() and not main.title_showing() \
-		and not main.choosing_tower and main.fade < 0.05
+		and not main.choosing_tower and main.fade < 0.05 \
+		and not (main.get("makers") != null and main.makers.quiet())  # (a Maker near: the Entity goes quiet)
 
 
 ## Enter and the right stick dismiss only while no cards or overlay want them.
