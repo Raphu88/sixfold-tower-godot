@@ -1,59 +1,92 @@
 extends Node2D
-## The beast's tests: each floor of rooms has one puzzle room, and solving
-## its puzzle lifts the WARD on the stair (the stair won't open until then).
-## Puzzles only use what every climber has (strikes, arrows, walking), so a
-## main puzzle never needs a bond, an item or a piece of gear.
+## The beast's tests: each floor of rooms has one puzzle, in its GALLERY,
+## and solving it lifts the WARD on the stair (the stair won't open until
+## then). It's all part of the Regard: the beast watches, and tests.
 ##
-## Two kinds so far (rooms.gd draws the rooms):
-##   "eyes":   stone eyes behind low rails. Hit every eye (arrows fly over the
-##             rails) to solve it. On harder floors each eye only stays lit
-##             for EYE_WINDOW seconds, so all of them must be lit together.
-##   "plates": pressure plates that need a WEIGHT: a stone block pushed onto
-##             it, or a monster standing on it (the climber is too light).
-##             Every plate held down at once solves it. Strike the lever to
-##             put the blocks back if one gets stuck.
-## Solving also opens the room's gate, behind which waits a reward.
+## This is the HOST. Each kind of puzzle is its own script in
+## scripts/puzzles/ (base.gd says what they share; catalog.gd which floor
+## gets which, and how hard). The host keeps what every kind needs:
+##   the WARD     lifted when the puzzle is solved (main.lift_ward)
+##   the REWARD   essence where the puzzle says (and a gate, in hand-made rooms)
+##   MODES        quiet: the puzzle sleeps until the guards in its room are
+##                dead; pressure (higher floors): monsters keep coming while
+##                you think
+##   the SEAL     some puzzles close the room's doorways behind you until solved
+##   FAILURE      a wrong answer brings an AMBUSH; once it's beaten (or after
+##                LOCK_MAX seconds) the puzzle resets. A main puzzle never locks
+##                you out: it only uses what every climber has (strikes, a bow,
+##                rolls, jumps, parries, walking), and it's always solvable.
+##   AUTO-AIM     aim_point: what a phone's auto-aim turns to when no foe is near
+##   RULE TEXT    framed panels in the world, drawn over the darkness
 ##
-## The objects:
+## The host also draws rails and gates (hand-made rooms):
 ##   rails  low walls: block walking, but not sight or shots
 ##   gates  closed until the puzzle is solved
-##   blocks stone blocks: walk into one for PUSH_TIME to slide it a tile
 
 const Floors := preload("res://scripts/floors.gd")
 const Draw := preload("res://scripts/draw_util.gd")
-const Essence := preload("res://scripts/essence.gd")
+const Catalog := preload("res://scripts/puzzles/catalog.gd")
+const UI := preload("res://scripts/ui.gd")
 
 const TEXT := {
 	"warded": "The stair is warded. Solve the beast's test to lift it.",
 	"lifted_title": "THE WARD LIFTS",
 	"lifted": "The beast takes note.",
-	"reward": "The gate opens",
-	"reset": "The blocks return",
+	"solved": "%s: solved",
+	"sealed": "The way behind you grinds shut. This room will not let you go until its question is answered.",
+	"quiet": "The test sleeps while its guards still stand.",
+	"wakes": "The test wakes",
+	"pressure": "The beast sends more while you think.",
+	"ambush": "The beast sends its hunters. Survive, and the test begins again.",
+	"locked": "Survive the hunters, and the test begins again.",
+	"again": "The test begins again",
+	"watch": "The beast is watching.",
+	"shortcut": "Your bond: %s",
 }
-## Harder eye puzzles: an eye stays lit this long after it's hit.
-const EYE_WINDOW := 2.5
-## How long you lean on a block before it slides.
-const PUSH_TIME := 0.3
-## How close an eye or lever must be to a strike, beyond the swing's reach.
-const STRIKE_SLACK := 18.0
-## Essence in the reward behind the gate: this, plus this much per floor.
+## Essence in the reward: this, plus this much per floor.
 const REWARD := Vector2(10.0, 4.0)
+## A failure's ambush: this many monsters, plus one per this many floors.
+const AMBUSH := Vector2i(2, 4)
+## After a failure the puzzle resets once its ambush is dead, or after this long.
+const LOCK_MAX := 40.0
+## Pressure mode: a monster every this many seconds while you're in the room,
+## at most this many at once, and this many a floor in all.
+const PRESSURE_EVERY := 9.0
+const PRESSURE_ALIVE := 2
+const PRESSURE_CAP := 8
+## How often the quiet mode looks for living guards.
+const GUARD_CHECK := 0.25
 
 var main
-var kind := ""  # "eyes", "plates" or "" (no puzzle on this floor)
+var kind := ""  # the puzzle's kind ("" for none on this floor)
+var cur  # the running puzzle (a script from scripts/puzzles/)
+var spec := {}
 var tier := 1
+var mode := "quiet"  # "quiet", "pressure" or "" (neither)
+var room := Rect2()
 var solved := false
-var eyes: Array = []  # {pos, lit}  lit: seconds left lit (INF once lit, on easy floors)
-var plates: Array = []  # {pos, down}
-var blocks: Array = []  # {pos, home, body, push_t}
+var awake := true  # quiet mode: false while guards stand in the room
+var locked := false  # failed: the ambush is on
+var lock_t := 0.0
+var ambushers: Array = []
+var sealed := false
+var seal_bodies: Array = []
+var press_t := 0.0
+var press_spawned := 0
+var pressers: Array = []
+var guard_t := 0.0
 var rails: Array = []  # Rect2 (world)
 var gates: Array = []  # {rect, open, body}
-var levers: Array = []  # {pos, t}
 var rewards: Array = []  # world positions
 var bodies: Array = []
+var light_ids: Array = []
 var ward_glow := 0.0  # fades out when the ward lifts
 var redraw_t := 0.0
-var glow: Node2D  # the eyes and the ward, drawn unlit so they show in dark corners
+var glow: Node2D  # what pulses (redrawn 30 times a second while unsolved)
+var over: Node2D  # glow drawn over the darkness (the beam's core, lit stones)
+var labels: Node2D  # the rule text, over the darkness
+var _drawn_state := []
+var _labels_on := false
 
 
 func _ready() -> void:
@@ -61,58 +94,85 @@ func _ready() -> void:
 	glow = Node2D.new()
 	glow.draw.connect(_draw_glow)
 	add_child(glow)
+	over = Node2D.new()
+	over.z_as_relative = false
+	over.z_index = 45  # just over the darkness (40)
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	over.material = add
+	over.draw.connect(_draw_over)
+	add_child(over)
+	labels = Node2D.new()
+	labels.z_as_relative = false
+	labels.z_index = 58  # over the darkness, under the floating numbers (60)
+	labels.draw.connect(_draw_labels)
+	add_child(labels)
 
 
 func queue_redraw_all() -> void:
 	queue_redraw()
 	if glow != null:
 		glow.queue_redraw()
+		over.queue_redraw()
+		labels.queue_redraw()
 
 
 ## A new floor: build the puzzle from the floor plan's spec (or none).
-func setup(spec: Dictionary) -> void:
+func setup(s: Dictionary) -> void:
 	clear()
-	if spec.is_empty():
+	if s.is_empty() or not Catalog.TYPES.has(String(s.get("type", ""))):
 		return
-	kind = spec["type"]
-	tier = int(spec.get("tier", 1))
-	for p in spec.get("eyes", []):
-		eyes.append({"pos": p, "lit": 0.0})
-	for p in spec.get("plates", []):
-		plates.append({"pos": p, "down": false})
-	for r in spec.get("rails", []):
+	spec = s
+	kind = s["type"]
+	tier = int(s.get("tier", 1))
+	room = s.get("room", main.room)
+	var script = Catalog.TYPES[kind]
+	mode = String(s.get("mode", "quiet"))
+	if not (mode in script.MODES):
+		mode = ""
+	cur = script.new()
+	cur.host = self
+	cur.main = main
+	for r in s.get("rails", []):
 		rails.append(r)
-		_add_body(r)
-		_set_solid(r, true)
-	for r in spec.get("gates", []):
-		gates.append({"rect": r, "open": false, "body": _add_body(r)})
-		_set_solid(r, true)
-	for p in spec.get("pushers", []):
-		var r := Rect2(p - Vector2(19, 19), Vector2(38, 38))
-		blocks.append({"pos": p, "home": p, "body": _add_body(r), "push_t": 0.0})
-		_set_solid(r, true)
-	for p in spec.get("levers", []):
-		levers.append({"pos": p, "t": 0.0})
-	rewards = spec.get("rewards", []).duplicate()
+		add_body(r)
+	for r in s.get("gates", []):
+		gates.append({"rect": r, "open": false, "body": add_body(r)})
+	rewards = s.get("rewards", []).duplicate()
+	cur.setup(s)
+	awake = mode != "quiet"
+	guard_t = 0.0
+	press_t = PRESSURE_EVERY * 0.5
 	ward_glow = 1.0
+	_drawn_state = []
 	queue_redraw_all()
 
 
 func clear() -> void:
-	for b in bodies:
+	for b in bodies + seal_bodies:
 		if is_instance_valid(b):
 			b.queue_free()
 	bodies.clear()
+	seal_bodies.clear()
+	if main != null and main.lighting != null:
+		for id in light_ids:
+			main.lighting.remove_light(id)
+	light_ids.clear()
 	kind = ""
+	cur = null
+	spec = {}
 	solved = false
-	eyes.clear()
-	plates.clear()
-	blocks.clear()
+	awake = true
+	locked = false
+	sealed = false
+	ambushers.clear()
+	pressers.clear()
+	press_spawned = 0
 	rails.clear()
 	gates.clear()
-	levers.clear()
 	rewards.clear()
 	ward_glow = 0.0
+	_labels_on = false
 	queue_redraw_all()
 
 
@@ -121,36 +181,148 @@ func active() -> bool:
 	return kind != "" and not solved
 
 
-func _add_body(r: Rect2) -> StaticBody2D:
-	var body := StaticBody2D.new()
-	body.collision_layer = 1
-	body.collision_mask = 0
-	body.position = r.get_center()
-	var shape := CollisionShape2D.new()
+## The puzzle's name here (towers name some of theirs differently).
+func display_name() -> String:
+	return String(spec.get("name", Catalog.display_name(kind, String(spec.get("tower", "")))))
+
+
+# --- what the puzzles use --------------------------------------------------------
+
+func add_body(r: Rect2) -> StaticBody2D:
+	var body := _static_body(r.get_center())
 	var box := RectangleShape2D.new()
 	box.size = r.size
-	shape.shape = box
-	body.add_child(shape)
-	main.add_child(body)
+	body.get_child(0).shape = box
+	bodies.append(body)
+	set_solid(r, true)
+	return body
+
+
+func add_round_body(pos: Vector2, r: float) -> StaticBody2D:
+	var body := _static_body(pos)
+	var circle := CircleShape2D.new()
+	circle.radius = r
+	body.get_child(0).shape = circle
 	bodies.append(body)
 	return body
 
 
+func _static_body(pos: Vector2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.position = pos
+	body.add_child(CollisionShape2D.new())
+	main.add_child(body)
+	return body
+
+
 ## Marks tiles as blocked for monsters' paths (not for sight or shots).
-func _set_solid(r: Rect2, on: bool) -> void:
+func set_solid(r: Rect2, on: bool) -> void:
 	if main.astar == null:
 		return
 	for t in main._tiles_in(r.grow(-2.0)):
 		main.astar.set_point_solid(t, on or main._is_solid_tile(t.x, t.y))
 
 
+## A lasting light (lighting.gd's registry), taken away with the puzzle.
+func add_light(pos: Vector2, reach: float, color: Color, strength := 0.8, glow_k := 0.0) -> int:
+	if main.lighting == null:
+		return -1
+	var id: int = main.lighting.add_light(pos, reach, color, strength, glow_k)
+	light_ids.append(id)
+	return id
+
+
+func remove_light(id: int) -> void:
+	if main.lighting != null:
+		main.lighting.remove_light(id)
+	light_ids.erase(id)
+
+
+## The puzzle is solved: the ward lifts, the seal opens, the reward appears.
+func solve() -> void:
+	if solved or kind == "":
+		return
+	solved = true
+	locked = false
+	_unseal()
+	for g in gates:
+		g["open"] = true
+		if is_instance_valid(g["body"]):
+			g["body"].queue_free()
+		set_solid(g["rect"], false)
+	var amount := REWARD.x + REWARD.y * float(maxi(main.floor_num - 2, 0))
+	for r in rewards:
+		main.gather_essence(main.tower_data().get("essence", "air"), amount, r)
+		main.fx_ring(r, Color(1.0, 0.85, 0.5), 60.0, 0.5, 3.0)
+	main.lift_ward()
+	main.fx_text(room.get_center() + Vector2(0, -50), TEXT["solved"] % display_name(), Color(1.0, 0.89, 0.63))
+	main.shake(4.0)
+	queue_redraw_all()
+
+
+## A wrong answer: the beast sends hunters. Once they're dead (or after
+## LOCK_MAX seconds) the puzzle resets. Never a lock-out.
+func fail(msg: String) -> void:
+	if solved or locked or kind == "":
+		return
+	locked = true
+	lock_t = 0.0
+	_unseal()  # (you may run, or fight)
+	main.banner = {"title": display_name().to_upper(), "lines": [msg, TEXT["ambush"]], "t": 3.0}
+	main.shake(6.0)
+	main.sfx("warn_knight", 0.7, -2.0, 0.0)
+	var n: int = AMBUSH.x + main.floor_num / AMBUSH.y
+	for k in n:
+		var e = _spawn_here(2.0)
+		if e != null:
+			ambushers.append(e)
+	queue_redraw_all()
+
+
+func _spawn_here(budget: float):
+	var pos := _spot()
+	if pos == Vector2.INF:
+		return null
+	var kind_e: String = Floors._pick(main.floor_num, budget, 99, main.tower_data().get("weights", {}))
+	if kind_e == "":
+		kind_e = "slime"
+	var e = main.spawn_enemy(kind_e, pos)
+	e.wake()
+	main.floor_total += 1
+	main.foes_changed()
+	main.fx_burst(pos, Vector2.UP, Color(0.6, 0.5, 0.85), 14, 140.0)
+	main.fx_ring(pos, Color(0.6, 0.5, 0.85), 50.0, 0.4, 3.0)
+	return e
+
+
+## Open floor in the room, away from the climber and the puzzle's pieces.
+func _spot() -> Vector2:
+	var p = main.player
+	var c := Floors.CELL
+	var cols := int(room.size.x / c)
+	var rws := int(room.size.y / c)
+	for tries in 60:
+		var t := Vector2i(randi_range(1, cols - 2), randi_range(1, rws - 2))
+		var pos := room.position + (Vector2(t) + Vector2(0.5, 0.5)) * c
+		if main.is_solid(pos) or not cur.spot_ok(pos):
+			continue
+		if p != null and pos.distance_to(p.global_position) < (160.0 if tries < 40 else 90.0):
+			continue
+		return pos
+	return Vector2.INF
+
+
+func _alive(list: Array) -> Array:
+	return list.filter(func(e): return is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion())
+
+
 # --- running -------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
-	if kind == "" or main == null or main.player == null:
+	if kind == "" or main == null or main.player == null or cur == null:
 		return
-	for l in levers:
-		l["t"] = maxf(0.0, l["t"] - delta)
 	if solved:
 		# Solved: only the ward's fading glow still moves, then nothing.
 		if ward_glow > 0.0:
@@ -158,37 +330,106 @@ func _physics_process(delta: float) -> void:
 			_glow_tick(delta)
 			if ward_glow <= 0.0 and glow != null:
 				glow.queue_redraw()  # (gone: one last redraw)
+		_labels_tick()
 		_redraw_if_changed()
 		return
-	if tier >= 2:
-		for e in eyes:
-			if e["lit"] > 0.0 and e["lit"] < INF:
-				e["lit"] = maxf(0.0, e["lit"] - delta)
-	for pl in plates:
-		pl["down"] = _weighed(pl["pos"])
-	_push(delta)
-	_check()
+	var inside: bool = room.has_point(main.player.global_position)
+	if locked:
+		lock_t += delta
+		ambushers = _alive(ambushers)
+		if ambushers.is_empty() or lock_t >= LOCK_MAX:
+			locked = false
+			cur.reset()
+			main.fx_text(room.get_center() + Vector2(0, -10), TEXT["again"], Color(0.85, 0.82, 0.9))
+			main.sfx("glint", 0.7, -6.0, 0.0)
+	else:
+		_update_mode(delta, inside)
+		_update_seal()
+		if awake:
+			cur.tick(delta)
 	_redraw_if_changed()
 	_glow_tick(delta)
+	_labels_tick()
 
 
-## The stone parts (plates, gates, blocks, levers) are drawn again only when
-## something about them changes; the eyes and the ward pulse, so their layer
-## is redrawn 30 times a second while the puzzle is unsolved.
-var _drawn_state := []
+## Quiet: asleep while any monster stands in the room. Pressure: while
+## you're in the room, more keep coming.
+func _update_mode(delta: float, inside: bool) -> void:
+	if mode == "quiet" and not awake:
+		guard_t -= delta
+		if guard_t <= 0.0:
+			guard_t = GUARD_CHECK
+			var guarded := false
+			for e in main.enemies():
+				if room.grow(-4.0).has_point(e.global_position):
+					guarded = true
+					break
+			if not guarded:
+				awake = true
+				if inside:
+					main.fx_text(room.get_center() + Vector2(0, -30), TEXT["wakes"], Color(1.0, 0.89, 0.63))
+					main.sfx("glint", 0.6, -4.0, 0.0)
+	elif mode == "pressure" and inside:
+		press_t -= delta
+		if press_t <= 0.0:
+			press_t = PRESSURE_EVERY
+			pressers = _alive(pressers)
+			if pressers.size() < PRESSURE_ALIVE and press_spawned < PRESSURE_CAP:
+				var e = _spawn_here(2.5)
+				if e != null:
+					pressers.append(e)
+					press_spawned += 1
 
 
+## Puzzles that close the room do so once you're well inside (never on a
+## doorway, never with a monster in one), and open again when it's solved
+## or failed.
+func _update_seal() -> void:
+	if sealed or int(cur.SEAL_FROM) > tier or spec.get("entrances", []).is_empty() or main.player.dead:
+		return
+	var inner := room.grow(-Floors.CELL * 0.6)
+	if not inner.has_point(main.player.global_position):
+		return
+	for r in spec["entrances"]:
+		for e in main.enemies():
+			if r.grow(16.0).has_point(e.global_position):
+				return
+	sealed = true
+	for r in spec["entrances"]:
+		var body := _static_body(r.get_center())
+		var box := RectangleShape2D.new()
+		box.size = r.size
+		body.get_child(0).shape = box
+		seal_bodies.append(body)
+		set_solid(r, true)
+		main.fx_burst(r.get_center(), Vector2.ZERO, Color(0.55, 0.51, 0.6), 10, 120.0)
+	main.shake(6.0)
+	main.sfx("slam", 0.6, -2.0, 0.0)
+	main.banner = {"title": display_name().to_upper(), "lines": [TEXT["sealed"]], "t": 3.5}
+	queue_redraw()
+
+
+func _unseal() -> void:
+	if not sealed:
+		return
+	sealed = false
+	for b in seal_bodies:
+		if is_instance_valid(b):
+			b.queue_free()
+	seal_bodies.clear()
+	for r in spec.get("entrances", []):
+		set_solid(r, false)
+		main.fx_burst(r.get_center(), Vector2.ZERO, Color(1.0, 0.89, 0.63), 10, 140.0)
+	queue_redraw()
+
+
+## The stone parts are drawn again only when something about them changes;
+## what pulses is redrawn 30 times a second while the puzzle is unsolved.
 func _redraw_if_changed() -> void:
-	var st := [solved]
-	for pl in plates:
-		st.append(pl["down"])
+	var st := [solved, awake, locked, sealed]
 	for g in gates:
 		st.append(g["open"])
-	for b in blocks:
-		st.append(b["body"].position if is_instance_valid(b["body"]) else b["pos"])
-		st.append(snappedf(b["push_t"], 0.05))
-	for l in levers:
-		st.append(l["t"] > 0.0)
+	st.append_array(cur.state())
 	if st != _drawn_state:
 		_drawn_state = st
 		queue_redraw()
@@ -200,202 +441,71 @@ func _glow_tick(delta: float) -> void:
 		redraw_t = 1.0 / 30.0
 		if glow != null:
 			glow.queue_redraw()
+			if _near():
+				over.queue_redraw()
+			if _labels_on:
+				labels.queue_redraw()
 
 
-## A plate is held down by a block, or by a monster standing on it.
-func _weighed(pos: Vector2) -> bool:
-	for b in blocks:
-		if b["pos"].distance_to(pos) < 8.0:
-			return true
-	for e in main.enemies():
-		if e.is_queued_for_deletion() or e.kind in main.EnemyScript.FLIERS:
-			continue
-		if e.global_position.distance_to(pos) < 22.0:
-			return true
-	return false
+## The climber is in (or at the edge of) the puzzle's room.
+func _near() -> bool:
+	return main.player != null and room.grow(Floors.CELL).has_point(main.player.global_position)
 
 
-## Leaning on a block slides it a tile.
-func _push(delta: float) -> void:
-	var p = main.player
-	var want: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	for b in blocks:
-		var to: Vector2 = b["pos"] - p.global_position
-		var axis := Vector2(signf(to.x), 0.0) if absf(to.x) > absf(to.y) else Vector2(0.0, signf(to.y))
-		var leaning: bool = to.length() < p.radius + 30.0 and want.length() > 0.3 and want.normalized().dot(axis) > 0.7
-		if not leaning:
-			b["push_t"] = 0.0
-			continue
-		b["push_t"] += delta
-		if b["push_t"] >= PUSH_TIME:
-			b["push_t"] = 0.0
-			slide(b, axis)
-
-
-## Slides a block one tile, if the tile is free. Returns whether it moved.
-func slide(b: Dictionary, dir: Vector2) -> bool:
-	var to: Vector2 = b["pos"] + dir * Floors.CELL
-	if not _free(to, b):
-		main.sfx("hit_armor", 0.6, -12.0)
-		return false
-	var old := Rect2(b["pos"] - Vector2(19, 19), Vector2(38, 38))
-	_set_solid(old, false)
-	b["pos"] = to
-	_set_solid(Rect2(to - Vector2(19, 19), Vector2(38, 38)), true)
-	var body: StaticBody2D = b["body"]
-	if b.get("tween") != null and b["tween"].is_valid():
-		b["tween"].kill()
-	var tw := body.create_tween()
-	tw.tween_property(body, "position", to, 0.14)
-	b["tween"] = tw
-	main.sfx("slam", 0.9, -10.0)
-	main.shake(1.5)
-	return true
-
-
-func _free(pos: Vector2, me: Dictionary) -> bool:
-	if main.is_solid(pos) or main.in_chasm(pos):
-		return false
-	for r in rails:
-		if r.has_point(pos):
-			return false
-	for g in gates:
-		if not g["open"] and g["rect"].has_point(pos):
-			return false
-	for b in blocks:
-		if b != me and b["pos"].distance_to(pos) < 20.0:
-			return false
-	for pl in main.pillars:
-		if pos.distance_to(pl["pos"]) < pl["r"] + 18.0:
-			return false
-	return true
-
-
-func _check() -> void:
-	if solved:
-		return
-	match kind:
-		"eyes":
-			for e in eyes:
-				if e["lit"] <= 0.0:
-					return
-			_solve()
-		"plates":
-			for pl in plates:
-				if not pl["down"]:
-					return
-			_solve()
-
-
-func _solve() -> void:
-	solved = true
-	for g in gates:
-		g["open"] = true
-		if is_instance_valid(g["body"]):
-			g["body"].queue_free()
-		_set_solid(g["rect"], false)
-	var amount := REWARD.x + REWARD.y * float(maxi(main.floor_num - 2, 0))
-	for r in rewards:
-		main.gather_essence(main.tower_data().get("essence", "air"), amount, r)
-		main.fx_ring(r, Color(1.0, 0.85, 0.5), 60.0, 0.5, 3.0)
-	main.lift_ward()
-	queue_redraw_all()
+## Rule panels show while the climber is in the room (redrawn at 30 Hz so
+## they stay on screen as the camera moves), then one redraw to clear them.
+func _labels_tick() -> void:
+	var on := _near() and not solved
+	if on != _labels_on:
+		labels.queue_redraw()
+		over.queue_redraw()
+	_labels_on = on
 
 
 # --- what strikes and arrows hit ------------------------------------------------
 
-## A strike from `from` toward `dir`: lights eyes and pulls levers in reach.
-## Returns how many it hit.
+## A strike from `from` toward `dir`. Returns how many puzzle pieces it hit.
 func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> int:
-	if kind == "":
+	if cur == null or locked:
 		return 0
-	var hits := 0
-	for e in eyes:
-		if _in_swing(from, dir, e["pos"], reach, arc_deg):
-			_light(e)
-			hits += 1
-	for l in levers:
-		if _in_swing(from, dir, l["pos"], reach, arc_deg):
-			_pull(l)
-			hits += 1
-	return hits
+	return cur.strike(from, dir, reach, arc_deg)
 
 
-func _in_swing(from: Vector2, dir: Vector2, at: Vector2, reach: float, arc_deg: float) -> bool:
-	var to := at - from
-	return to.length() <= reach + STRIKE_SLACK and absf(dir.angle_to(to)) <= deg_to_rad(arc_deg) and main.clear_line(from, at)
-
-
-## An arrow (or bolt) at `pos`: true if it struck an eye or a lever (it stops there).
+## An arrow (or bolt) at `pos`: true if it struck a piece of the puzzle (it stops there).
 func shot(pos: Vector2) -> bool:
-	if kind == "":
+	if cur == null:
 		return false
-	for e in eyes:
-		if pos.distance_to(e["pos"]) < 17.0:
-			_light(e)
-			return true
-	for l in levers:
-		if pos.distance_to(l["pos"]) < 14.0:
-			_pull(l)
-			return true
-	return false
+	return cur.shot(pos)
 
 
-func _light(e: Dictionary) -> void:
-	if solved:
-		return
-	var was: float = e["lit"]
-	e["lit"] = EYE_WINDOW if tier >= 2 else INF
-	_check()  # (at once, not on the next tick)
-	if was <= 0.0:
-		main.sfx("glint", 1.1, -2.0, 0.0)
-		main.fx_ring(e["pos"], Color(1.0, 0.85, 0.45), 30.0, 0.3, 2.5)
-		main.light_flash(e["pos"], Color(1.0, 0.8, 0.4), 0.8, 1.2, 0.3)
-
-
-## The lever puts every block back where it started.
-func _pull(l: Dictionary) -> void:
-	if l["t"] > 0.0:
-		return
-	l["t"] = 0.6
-	main.sfx("trap_click", 0.8, -4.0)
-	if solved:
-		return
-	for b in blocks:
-		if b["pos"] == b["home"]:
-			continue
-		_set_solid(Rect2(b["pos"] - Vector2(19, 19), Vector2(38, 38)), false)
-		if b.get("tween") != null and b["tween"].is_valid():
-			b["tween"].kill()  # (a slide still under way)
-		b["pos"] = b["home"]
-		b["body"].position = b["home"]
-		_set_solid(Rect2(b["home"] - Vector2(19, 19), Vector2(38, 38)), true)
-	main.fx_text(l["pos"] + Vector2(0, -30), TEXT["reset"], Color(0.85, 0.82, 0.9))
-
-
-## Where auto-aim should point when no monster is near: the nearest unlit eye
-## in sight and in reach (or Vector2.INF for none).
+## Where auto-aim should point when no monster is near: the nearest piece
+## of the puzzle to hit (an unlit eye, a mirror) in sight and in reach, or
+## Vector2.INF for none.
 func aim_point(from: Vector2, reach: float) -> Vector2:
-	if not active():
+	if not active() or locked or not awake:
 		return Vector2.INF
 	var best := Vector2.INF
 	var best_d := reach
-	for e in eyes:
-		if e["lit"] > 0.0:
-			continue
-		var d: float = from.distance_to(e["pos"])
-		if d < best_d and main.clear_line(from, e["pos"]):
+	for at in cur.aim_points():
+		var d: float = from.distance_to(at)
+		if d < best_d and main.clear_line(from, at):
 			best_d = d
-			best = e["pos"]
+			best = at
 	return best
+
+
+## The puzzle's lights for this frame (lighting.gd): [[pos, reach, colour, strength, glow]].
+func light_list() -> Array:
+	if cur == null:
+		return []
+	return cur.lights()
 
 
 # --- drawing -------------------------------------------------------------------
 
 func _draw() -> void:
-	if kind == "" and ward_glow <= 0.0:
+	if kind == "" or cur == null:
 		return
-	var t := Time.get_ticks_msec() * 0.001
 	var stone := Color(0.42, 0.4, 0.44)
 	var dark := Color(0.16, 0.15, 0.18)
 	# Rails: a low stone balustrade with posts.
@@ -410,14 +520,6 @@ func _draw() -> void:
 			var c := rr.position + (Vector2(Floors.CELL * (i + 0.5), rr.size.y * 0.5) if rr.size.x >= rr.size.y else Vector2(rr.size.x * 0.5, Floors.CELL * (i + 0.5)))
 			draw_rect(Rect2(c - Vector2(6, 6), Vector2(12, 12)), dark)
 			draw_rect(Rect2(c - Vector2(5, 5), Vector2(10, 10)), stone.lightened(0.15))
-	# Plates: a square that sinks and glows when weighed down.
-	for pl in plates:
-		var c: Vector2 = pl["pos"]
-		var down: bool = pl["down"] or solved
-		var plate := Rect2(c - Vector2(16, 16), Vector2(32, 32))
-		draw_rect(plate.grow(2.0), dark)
-		draw_rect(plate, stone.darkened(0.25 if down else 0.0))
-		draw_rect(plate.grow(-6.0), Color(1.0, 0.82, 0.45, 0.85) if down else Color(0.3, 0.28, 0.34))
 	# Gates: iron bars until solved.
 	for g in gates:
 		var gr: Rect2 = g["rect"]
@@ -434,55 +536,24 @@ func _draw() -> void:
 			else:
 				var y := gr.position.y + gr.size.y * f
 				Draw.line(self, Vector2(gr.position.x + 2, y), Vector2(gr.end.x - 2, y), Color(0.55, 0.55, 0.6), 3.0)
-	# Blocks: carved stone cubes, lit from the top-left.
-	for b in blocks:
-		var c: Vector2 = b["body"].position
-		var box := Rect2(c - Vector2(18, 18), Vector2(36, 36))
-		draw_rect(box.grow(2.0), Color(0, 0, 0, 0.35))
-		draw_rect(box, Color(0.5, 0.47, 0.44))
-		draw_rect(Rect2(box.position, Vector2(box.size.x, 7)), Color(0.62, 0.59, 0.55))
-		draw_rect(Rect2(box.position + Vector2(0, box.size.y - 6), Vector2(box.size.x, 6)), Color(0.34, 0.31, 0.3))
-		draw_rect(box.grow(-9.0), Color(0.44, 0.41, 0.39))
-		if b["push_t"] > 0.0:
-			draw_rect(box.grow(3.0), Color(1, 1, 1, 0.25 + b["push_t"] / PUSH_TIME * 0.4), false, 2.0)
-	# Levers: a post with a handle.
-	for l in levers:
-		var c: Vector2 = l["pos"]
-		draw_circle(c, 10.0, dark)
-		draw_circle(c, 8.0, stone)
-		var ang := -0.9 if l["t"] <= 0.0 else 0.9
-		Draw.line(self, c, c + Vector2.from_angle(ang - PI / 2.0) * 16.0, Color(0.6, 0.5, 0.35), 4.0)
-		draw_circle(c + Vector2.from_angle(ang - PI / 2.0) * 16.0, 4.0, Color(0.75, 0.3, 0.25))
+	cur.draw(self)
+	# The seal: a slab of dressed stone across each doorway.
+	if sealed:
+		for r in spec.get("entrances", []):
+			var sr: Rect2 = r
+			draw_rect(sr, Color(0.07, 0.06, 0.08))
+			draw_rect(sr.grow(-2.0), Color(0.36, 0.33, 0.4))
+			draw_rect(sr.grow(-7.0), Color(0.3, 0.27, 0.34))
+			draw_circle(sr.get_center(), 5.0, Color(0.95, 0.8, 0.5, 0.8))
 
 
-
-## The eyes and the ward (unlit: they glow even in an unlit corner).
+## What pulses: the puzzle's glow and the ward on the stair.
 func _draw_glow() -> void:
 	if kind == "" and ward_glow <= 0.0:
 		return
 	var t := Time.get_ticks_msec() * 0.001
-	var stone := Color(0.5, 0.47, 0.52)
-	var dark := Color(0.12, 0.11, 0.14)
-	# Eyes: a stone socket; dull while shut, gold while lit.
-	for e in eyes:
-		var c: Vector2 = e["pos"]
-		var lit: bool = e["lit"] > 0.0 or solved
-		glow.draw_circle(c, 15.0, dark)
-		glow.draw_circle(c, 13.0, stone)
-		var pts := PackedVector2Array()
-		for i in 16:
-			var a := TAU * i / 16.0
-			pts.append(c + Vector2(cos(a) * 11.0, sin(a) * (7.0 if lit else 2.5)))
-		glow.draw_colored_polygon(pts, Color(1.0, 0.85, 0.45) if lit else Color(0.25, 0.2, 0.3))
-		if lit:
-			glow.draw_circle(c, 3.5, Color(0.25, 0.1, 0.05))
-		elif not solved:
-			# A faint pulse so it reads as something to hit.
-			var pulse := 0.45 + 0.3 * sin(t * 3.0)
-			glow.draw_arc(c, 18.0, 0.0, TAU, 24, Color(1.0, 0.85, 0.5, pulse), 1.5)
-		# Harder floors: a ring that runs down while the eye stays lit.
-		if tier >= 2 and not solved and e["lit"] > 0.0 and e["lit"] < INF:
-			glow.draw_arc(c, 19.0, -PI / 2.0, -PI / 2.0 + TAU * e["lit"] / EYE_WINDOW, 24, Color(1.0, 0.85, 0.45, 0.9), 2.0)
+	if cur != null:
+		cur.draw_glow(glow, t)
 	# The ward on the stair: a ring of runes until it lifts.
 	if ward_glow > 0.0 and main.layout_on:
 		var c: Vector2 = main.stair_pos
@@ -493,3 +564,92 @@ func _draw_glow() -> void:
 			var a := TAU * i / 6.0 - t * 0.4
 			var p := c + Vector2.from_angle(a) * 34.0
 			glow.draw_rect(Rect2(p - Vector2(3, 3), Vector2(6, 6)), col)
+
+
+func _draw_over() -> void:
+	if cur == null or not _near():
+		return
+	cur.draw_over(over, Time.get_ticks_msec() * 0.001)
+
+
+## The rule text: the puzzle's own panels, and the host's word on its state.
+func _draw_labels() -> void:
+	if cur == null or solved or not _near():
+		return
+	var list: Array = []
+	if locked:
+		list.append({"pos": room.get_center(), "lines": [TEXT["locked"]], "tone": "bad"})
+	else:
+		list = cur.panels()
+		var foot: Array = []
+		if not awake:
+			foot.append(String(cur.TEXT.get("quiet", TEXT["quiet"])))
+		elif mode == "pressure":
+			foot.append(TEXT["pressure"])
+		for id in cur.BREAKS:
+			if main.player.has_bond(id):
+				foot.append(TEXT["shortcut"] % cur.BREAKS[id])
+		if not list.is_empty():
+			var first: Dictionary = list[0].duplicate()
+			first["lines"] = first["lines"] + foot
+			first["foot"] = TEXT["watch"]
+			list[0] = first
+		elif not foot.is_empty():
+			list.append({"pos": room.get_center(), "lines": foot})
+	for p in list:
+		_panel(p)
+
+
+## A framed panel of words in the world (the web version's puzSay): `pos` is
+## its bottom middle (top middle with "below"), kept on screen.
+func _panel(p: Dictionary) -> void:
+	var font := ThemeDB.fallback_font
+	var size := 11
+	var max_w: float = p.get("width", 250.0)
+	var rows: Array = []  # [text, colour, size]
+	if p.get("title", "") != "":
+		rows.append([p["title"], UI.GOLD, 10])
+	var body_col: Color = UI.BAD if p.get("tone", "") == "bad" else Color(0.93, 0.89, 0.81)
+	for line in p.get("lines", []):
+		for w in _wrap(font, String(line), size, max_w):
+			rows.append([w, body_col, size])
+	if p.get("foot", "") != "":
+		rows.append([p["foot"], UI.DIM, 10])
+	var wide := 0.0
+	for r in rows:
+		wide = maxf(wide, font.get_string_size(r[0], HORIZONTAL_ALIGNMENT_LEFT, -1, r[2]).x)
+	var pad := Vector2(8, 5)
+	var line_h := 14.0
+	var box_size := Vector2(wide + pad.x * 2.0, rows.size() * line_h + pad.y * 2.0)
+	var at: Vector2 = p["pos"]
+	var top_left := Vector2(at.x - box_size.x * 0.5, at.y if p.get("below", false) else at.y - box_size.y)
+	# Kept on screen.
+	var cam = main.camera
+	if cam != null:
+		var view: Vector2 = get_viewport_rect().size / cam.zoom
+		var c: Vector2 = cam.get_screen_center_position()
+		var lo: Vector2 = c - view * 0.5 + Vector2(8, 70)
+		var hi: Vector2 = c + view * 0.5 - Vector2(8, 90) - box_size
+		top_left = top_left.clamp(lo, hi.max(lo))
+	var box := Rect2(top_left, box_size)
+	labels.draw_rect(box, Color(0.055, 0.043, 0.075, 0.88))
+	labels.draw_rect(box, Color(UI.GOLD, 0.5), false, 1.0)
+	for i in rows.size():
+		var r: Array = rows[i]
+		var y := box.position.y + pad.y + line_h * (i + 1) - 3.0
+		labels.draw_string(font, Vector2(box.position.x, y), r[0], HORIZONTAL_ALIGNMENT_CENTER, box.size.x, r[2], r[1])
+
+
+static func _wrap(font: Font, text: String, size: int, max_w: float) -> Array:
+	var out: Array = []
+	var line := ""
+	for word in text.split(" "):
+		var test := word if line == "" else line + " " + word
+		if line != "" and font.get_string_size(test, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > max_w:
+			out.append(line)
+			line = word
+		else:
+			line = test
+	if line != "":
+		out.append(line)
+	return out

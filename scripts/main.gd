@@ -1758,6 +1758,17 @@ func dev_floor(n: int) -> void:
 	_start_floor(n)
 
 
+## Every floor of rooms gets this kind of puzzle ("" for the usual mix);
+## goes to a floor of rooms at once to try it.
+func dev_puzzle(kind: String) -> void:
+	PuzzleScript.Catalog.forced = kind
+	var n := floor_num
+	if n < 2 or n >= int(tower_data().get("summit", Towers.SUMMIT)):
+		n = 2
+	if kind != "":
+		dev_floor(n)
+
+
 ## A monster near the climber, inside the room.
 func dev_spawn(kind: String):
 	var pos: Vector2 = player.global_position + Vector2.from_angle(randf() * TAU) * 200.0

@@ -1379,6 +1379,15 @@ func _page_dev() -> void:
 	if summit > 0:
 		_button("Go to %s" % main.beast_name(), _dev_floor.bind(summit), frow)
 
+	_section("Puzzles (every floor of rooms gets this kind)")
+	var zrow := _grid(3, 6)
+	var Catalog = load("res://scripts/puzzles/catalog.gd")
+	var zb := _button("Usual mix", _dev_puzzle.bind(""), zrow)
+	zb.disabled = Catalog.forced == ""
+	for kind in Catalog.TYPES:
+		var kb := _button(Catalog.display_name(kind, main.tower), _dev_puzzle.bind(kind), zrow)
+		kb.disabled = Catalog.forced == kind
+
 	_section("Practice a beast (full health)")
 	var brow := _grid(3, 6)
 	for id in Towers.ORDER:
@@ -1489,6 +1498,11 @@ func _dev_floor(n: int) -> void:
 func _dev_beast(id: String) -> void:
 	main.dev_beast(id)
 	close()  # straight into the fight
+
+
+func _dev_puzzle(kind: String) -> void:
+	main.dev_puzzle(kind)
+	_say("Puzzles: %s (floor %d)" % [kind.capitalize() if kind != "" else "the usual mix", main.floor_num])
 
 
 func _dev_spawn(kind: String) -> void:

@@ -45,6 +45,12 @@ const THEMES := {
 		"tint": Color(0.6, 0.5, 1.0, 0.08), "door": "puzzle", "emblem": "eye", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"puzzle_plates": {"name": "Weighing Room", "kind": "mixed", "sub": "The plates want a weight heavier than you. Hold them all down to lift the stair's ward.",
 		"tint": Color(0.6, 0.5, 1.0, 0.08), "door": "puzzle", "emblem": "plate", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_statues": {"name": "Hall of Statues", "kind": "mixed", "sub": "Three statues wait to be asked. Only one tells the truth about the way.",
+		"tint": Color(0.6, 0.5, 1.0, 0.08), "door": "puzzle", "emblem": "statue", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_mirrors": {"name": "Hall of Mirrors", "kind": "mixed", "sub": "A lamp, a sigil, and mirrors between them. Carry the light home.",
+		"tint": Color(0.6, 0.75, 1.0, 0.08), "door": "puzzle", "emblem": "mirror", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_crumble": {"name": "Hall of Stones", "kind": "mixed", "sub": "Old stones that remember every step. Cross each one once.",
+		"tint": Color(1.0, 0.7, 0.45, 0.07), "door": "puzzle", "emblem": "stones", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"quiet": {"name": "Quiet Hall", "kind": "calm", "sub": "Dust and silence. Nothing stirs here.", "tint": Color(0, 0, 0, 0),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": ""},
 
@@ -103,7 +109,7 @@ const RULES := {
 }
 ## How often a room's doorway gets a door: likelier where danger waits.
 const DOOR_CHANCE := {"likely": 0.75, "else": 0.35}
-const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "crypt", "pillars"]
+const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "crypt", "pillars"]
 
 
 static func get_theme(id: String) -> Dictionary:

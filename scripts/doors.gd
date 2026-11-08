@@ -365,6 +365,22 @@ func _draw_closed(b, d: Dictionary) -> void:
 				b.polyline(pts + PackedVector2Array([pts[0]]), Color(EMBLEM, 0.8), 1.8)
 				b.circle(c, s * 0.42, Color(EMBLEM, 0.85))
 				b.circle(c, s * 0.18, wood.darkened(0.4))
+			"statue":
+				# Three standing figures.
+				for k in 3:
+					var fc := c + along * (k - 1) * s * 0.9
+					b.rect(Rect2(fc + Vector2(-s * 0.2, -s * 0.2), Vector2(s * 0.4, s * 0.9)), Color(EMBLEM, 0.8))
+					b.circle(fc + Vector2(0, -s * 0.45), s * 0.22, Color(EMBLEM, 0.85))
+			"mirror":
+				# A pane turning a ray.
+				b.line(c + Vector2(-s, s), c + Vector2(s, -s), Color(EMBLEM, 0.85), 2.2)
+				b.line(c + Vector2(-s * 1.4, 0), c, Color(EMBLEM, 0.6), 1.4)
+				b.line(c, c + Vector2(0, -s * 1.4), Color(EMBLEM, 0.6), 1.4)
+			"stones":
+				# A grid of stepping stones.
+				for gy in 2:
+					for gx in 3:
+						b.rect(Rect2(c + Vector2((gx - 1.5) * s * 0.75, (gy - 1.0) * s * 0.75), Vector2(s * 0.6, s * 0.6)), Color(EMBLEM, 0.75))
 			_:
 				b.rect(Rect2(c - Vector2(s, s), Vector2(s, s) * 2.0), Color(EMBLEM, 0.75))
 				b.rect(Rect2(c - Vector2(s, s) * 0.7, Vector2(s, s) * 1.4), wood.lightened(0.08))

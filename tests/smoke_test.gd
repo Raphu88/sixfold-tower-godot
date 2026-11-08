@@ -1616,19 +1616,47 @@ func _room_fog_tests() -> void:
 func _puzzle_tests() -> void:
 	print("puzzles and the stair's ward")
 	var F = main.Floors
+	var C = load("res://scripts/puzzles/catalog.gd")
 	var ok_all := true
-	var kinds := {}
 	for n in 12:
 		var plan: Dictionary = F.rooms_floor(2 + n % 4, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
-		var pz: Dictionary = plan.get("puzzle", {})
-		ok_all = ok_all and not pz.is_empty()
-		if not pz.is_empty():
-			kinds[pz["type"]] = true
+		ok_all = ok_all and not plan.get("puzzle", {}).is_empty()
 	_check(ok_all, "every floor of rooms has a puzzle room")
-	_check(kinds.has("eyes") and kinds.has("plates"), "both kinds of puzzle turn up (%s)" % [kinds.keys()])
+	# Which kind: every kind turns up; each tower leans to its own.
+	var picks := {}
+	var sig := {}
+	for n in 600:
+		var tid: String = main.Towers.ORDER[n % 6]
+		var k: String = C.pick(2 + n % 10, tid)
+		picks[k] = true
+		if C.SIGNATURE.get(tid, "") == k:
+			sig[tid] = int(sig.get(tid, 0)) + 1
+	_check(picks.size() == C.TYPES.size(), "every kind of puzzle turns up (%s)" % [picks.keys()])
+	_check(int(sig.get("gryphon", 0)) > 35 and int(sig.get("wyvern", 0)) > 35 and int(sig.get("manticore", 0)) > 35,
+		"the Gryphon favours mirrors, the Wyvern the crumbling path, the Manticore the statues (%s of 100 each)" % [sig])
+	_check(C.tier_for(2) == 1 and C.tier_for(3) == 1 and C.tier_for(4) == 2 and C.tier_for(8) == 2 and C.tier_for(9) == 3 and C.tier_for(11) == 3,
+		"tiers: 1 on floors 2-3, 2 on 4-8, 3 on 9-11")
+	_check(C.mode_for(3) == "quiet" and C.mode_for(C.PRESSURE_FROM) == "pressure", "quiet mode low down, pressure mode higher up")
+	# Every kind can be forced onto a floor, at the floor's tier, in its own themed hall.
+	var ok_forced := true
+	for kind in C.TYPES:
+		C.forced = kind
+		for fl in [2, 5, 9]:
+			var plan: Dictionary = F.rooms_floor(fl, main.Towers.TOWERS[main.Towers.ORDER[fl % 6]])
+			var pz: Dictionary = plan.get("puzzle", {})
+			ok_forced = ok_forced and pz.get("type", "") == kind and int(pz.get("tier", 0)) == C.tier_for(fl) and pz.get("mode", "") == C.mode_for(fl)
+			var gi: int = plan["room_info"].map(func(ri): return ri["role"]).find("gallery")
+			ok_forced = ok_forced and plan["themes"][gi] == "puzzle_" + kind
+			if not (kind in C.PREFAB):
+				ok_forced = ok_forced and not pz.get("entrances", []).is_empty()
+	C.forced = ""
+	_check(ok_forced, "each kind can be laid out on floors 2, 5 and 9, at the floor's tier, in a hall themed for it, with its doorways known")
+	_puzzle_generator_tests()
+
 	await _fresh_main()
 	main.profile.regarded = true
 	main.first_climb = false
+	main.dev_no_death = true
 	var p = main.player
 	var pz = main.puzzle
 	main._start_floor(3)
@@ -1645,40 +1673,51 @@ func _puzzle_tests() -> void:
 	main.open_all_doors()
 	var from: Vector2i = main._tile_of(main.player_start)
 	_check(not main.astar.get_id_path(from, main._tile_of(main.stair_pos)).is_empty(), "the stair can still be reached past the puzzle's rails and gates")
-	# A test puzzle of each kind, laid out in the start room.
+	# A test puzzle of each hand-made kind, laid out in the start room.
 	var c: Vector2 = main.player_start + Vector2(0, -120)
 	var tile := func(v: Vector2) -> Vector2: return main.room.position + (Vector2(main._tile_of(v)) + Vector2(0.5, 0.5)) * F.CELL
 	# Eyes: arrows and strikes light them; all lit solves it.
 	var e1: Vector2 = tile.call(c + Vector2(-80, 0))
 	var e2: Vector2 = tile.call(c + Vector2(80, 0))
 	var gate_r := Rect2(tile.call(c + Vector2(0, 80)) - Vector2(20, 20), Vector2(40, 40))
-	pz.setup({"type": "eyes", "tier": 1, "eyes": [e1, e2], "gates": [gate_r], "rewards": [gate_r.get_center() + Vector2(0, 40)], "room": main.room})
+	pz.setup({"type": "eyes", "tier": 1, "mode": "", "eyes": [e1, e2], "gates": [gate_r], "rewards": [gate_r.get_center() + Vector2(0, 40)], "room": main.room})
 	main.ward = true
 	main.stair_open = false
 	_check(pz.gates.size() == 1 and not pz.gates[0]["open"], "the gate starts shut")
 	p.global_position = e1 + Vector2(0, 50)
 	p.aim = Vector2.UP
 	_check(pz.aim_point(p.global_position, 380.0) != Vector2.INF, "with no foe near, auto-aim finds the puzzle's eye")
-	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) == 1 and pz.eyes[0]["lit"] > 0.0, "a strike lights an eye")
+	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) == 1 and pz.cur.eyes[0]["lit"] > 0.0, "a strike lights an eye")
 	var arrow = main.spawn_projectile(e2 + Vector2(-120, 0), Vector2(400, 0), 5.0)
 	arrow.friendly = true
 	await _wait(0.5)
-	_check(pz.eyes[1]["lit"] > 0.0 and not is_instance_valid(arrow), "an arrow lights an eye (and stops there)")
+	_check(pz.cur.eyes[1]["lit"] > 0.0 and not is_instance_valid(arrow), "an arrow lights an eye (and stops there)")
 	await _frames(2)
 	_check(pz.solved and not main.ward and main.stair_open, "lighting every eye lifts the ward and opens the stair")
 	_check(pz.gates[0]["open"], "...and opens the gate to the reward")
 	# Harder eyes go dark again unless they're all lit together.
-	pz.setup({"type": "eyes", "tier": 2, "eyes": [e1, e2], "room": main.room})
+	pz.setup({"type": "eyes", "tier": 2, "mode": "", "eyes": [e1, e2], "room": main.room})
 	main.ward = true
 	main.stair_open = false
 	pz.shot(e1)
-	_check(pz.eyes[0]["lit"] > 0.0, "a harder eye lights...")
-	await _wait(pz.EYE_WINDOW + 0.3)
-	_check(pz.eyes[0]["lit"] <= 0.0 and not pz.solved, "...but goes dark again if the others aren't lit in time")
+	_check(pz.cur.eyes[0]["lit"] > 0.0, "a harder eye lights...")
+	await _wait(pz.cur.EYE_WINDOW + 0.3)
+	_check(pz.cur.eyes[0]["lit"] <= 0.0 and not pz.solved, "...but goes dark again if the others aren't lit in time")
 	pz.shot(e1)
 	pz.shot(e2)
 	await _frames(2)
 	_check(pz.solved, "lit together, they solve it")
+	pz.setup({"type": "eyes", "tier": 3, "mode": "", "eyes": [e1, e2], "room": main.room})
+	_check(pz.cur.window() < pz.cur.EYE_WINDOW, "tier 3 eyes stay lit for less time")
+	# Stormcaller's Static (a shortcut): waking one eye sparks the next.
+	main.grant_test_bonds()
+	pz.setup({"type": "eyes", "tier": 2, "mode": "", "eyes": [e1, e2], "room": main.room})
+	main.ward = true
+	pz.shot(e1)
+	await _frames(2)
+	_check(pz.solved, "Stormcaller's Static: one eye's spark wakes the other")
+	for part in ["hand", "legs"]:
+		main.dev_set_mark(part, "", 1)
 	# Plates: need a weight (a block or a monster), not the climber.
 	var pl: Vector2 = tile.call(c + Vector2(0, 0))
 	var blk: Vector2 = pl + Vector2(-80, 0)
@@ -1688,10 +1727,10 @@ func _puzzle_tests() -> void:
 	main.stair_open = false
 	p.global_position = pl
 	await _frames(3)
-	_check(not pz.plates[0]["down"], "the climber is too light to hold a plate down")
+	_check(not pz.cur.plates[0]["down"], "the climber is too light to hold a plate down")
 	p.global_position = pl + Vector2(0, 120)
-	var b: Dictionary = pz.blocks[0]
-	_check(pz.slide(b, Vector2.RIGHT) and b["pos"].distance_to(pl + Vector2(-40, 0)) < 1.0, "a block slides a tile")
+	var b: Dictionary = pz.cur.blocks[0]
+	_check(pz.cur.slide(b, Vector2.RIGHT) and b["pos"].distance_to(pl + Vector2(-40, 0)) < 1.0, "a block slides a tile")
 	pz.strike(lev + Vector2(0, 40), Vector2.UP, 50.0, 60.0)
 	_check(b["pos"] == b["home"], "the lever puts the blocks back")
 	# Leaning on it pushes it.
@@ -1700,9 +1739,9 @@ func _puzzle_tests() -> void:
 	await _wait(0.75)
 	Input.action_release("move_right")
 	_check(b["pos"].x > blk.x + 30.0, "walking into a block pushes it (%s)" % [b["pos"] - blk])
-	pz.slide(b, Vector2.RIGHT)
+	pz.cur.slide(b, Vector2.RIGHT)
 	await _frames(3)
-	_check(pz.plates[0]["down"] and pz.solved and main.stair_open, "a block on the plate solves it and lifts the ward")
+	_check(pz.cur.plates[0]["down"] and pz.solved and main.stair_open, "a block on the plate solves it and lifts the ward")
 	# A monster can hold a plate down too.
 	pz.setup({"type": "plates", "tier": 2, "plates": [pl], "room": main.room})
 	main.ward = true
@@ -1711,6 +1750,311 @@ func _puzzle_tests() -> void:
 	await _frames(3)
 	_check(pz.solved, "a monster standing on a plate holds it down")
 	holder.queue_free()
+	await _frames(1)
+	# Sandshaper's Rooted Stance (a shortcut): heavy enough yourself.
+	_mark("legs", "sandshaper", 1)
+	pz.setup({"type": "plates", "tier": 2, "plates": [pl], "room": main.room})
+	main.ward = true
+	p.global_position = pl
+	await _frames(3)
+	_check(pz.solved, "Sandshaper's Rooted Stance: you hold a plate down yourself")
+	main.dev_set_mark("legs", "", 1)
+	pz.clear()
+	main.ward = false
+	await _statue_tests()
+	await _mirror_tests()
+	await _crumble_tests()
+	main.dev_no_death = false
+
+
+## The generators, on a plain room, over many seeds: always solvable (by
+## each kind's own solver) and harder by tier.
+func _puzzle_generator_tests() -> void:
+	var S = load("res://scripts/puzzles/statues.gd")
+	var M = load("res://scripts/puzzles/mirrors.gd")
+	var K = load("res://scripts/puzzles/crumble.gd")
+	var rows: Array = []
+	for y in 10:
+		rows.append("............")
+	var ctx := {"rows": rows, "reserved": {}, "features": {}}
+	var rect := Rect2(0, 0, 480, 400)
+	var to_tile := func(v: Vector2) -> Vector2i: return Vector2i(((v - rect.position) / 40.0).floor())
+	var blocked := func(t: Vector2i) -> bool: return t.x < 0 or t.y < 0 or t.x >= 12 or t.y >= 10
+	for tier in [1, 2, 3]:
+		# Three Statues: exactly one plate fits; tier 3 says two things each.
+		var ok_s := true
+		var ok_meta := true
+		for n in 40:
+			var s: Dictionary = S.make(rect, 2, tier, ctx)
+			ok_s = ok_s and not s.is_empty()
+			if s.is_empty():
+				continue
+			var doors: Array = S.solve_doors(s["statements"], tier)
+			ok_s = ok_s and doors.size() == 1 and doors[0] == s["answer"] and s["statues"].size() == 3 and s["plates"].size() == 3
+			for st in s["statements"]:
+				ok_s = ok_s and st.size() == (2 if tier >= 3 else 1)
+			if tier == 2:
+				var meta := false
+				for st in s["statements"]:
+					for one in st:
+						meta = meta or String(one[0]) in ["other_liar", "other_true"]
+				ok_meta = ok_meta and meta
+		_check(ok_s and ok_meta, "Three Statues, tier %d: 40 riddles, each with exactly one right plate%s" % [tier, " (two statements each, one statue alternating)" if tier == 3 else (" (one about another's honesty)" if tier == 2 else "")])
+		# Beam and Mirrors: scrambled, and the solver brings the beam home.
+		var ok_m := true
+		for n in 40:
+			var m: Dictionary = M.make(rect, 2, tier, ctx)
+			ok_m = ok_m and not m.is_empty()
+			if m.is_empty():
+				continue
+			var mir: Array = m["mirrors"].map(func(q): return {"tile": to_tile.call(q["pos"]), "o": q["o"], "fixed": q["fixed"]})
+			var e: Vector2i = to_tile.call(m["emitter"])
+			var tg: Vector2i = to_tile.call(m["receiver"])
+			ok_m = ok_m and not M.trace(e, m["dir"], tg, mir, blocked)["hit"]
+			ok_m = ok_m and not M.solve(e, m["dir"], tg, mir, blocked).is_empty()
+			var fixed: int = mir.filter(func(q): return q["fixed"]).size()
+			ok_m = ok_m and mir.size() == int(M.MIRRORS[tier]) + int(M.DECOYS[tier]) and fixed == (1 if tier >= 3 else 0)
+			var answer: Array = m["mirrors"].map(func(q): return q["answer"])
+			for i in mir.size():
+				mir[i]["o"] = answer[i]
+			ok_m = ok_m and M.trace(e, m["dir"], tg, mir, blocked)["hit"]
+		_check(ok_m, "Beam and Mirrors, tier %d: 40 layouts, %d mirrors (+%d decoys), scrambled, always solvable" % [tier, M.MIRRORS[tier], M.DECOYS[tier]])
+		# The Crumbling Path: a route over every stone, from the edge.
+		var ok_k := true
+		for n in 40:
+			var k: Dictionary = K.make(rect, 2, tier, ctx)
+			ok_k = ok_k and not k.is_empty()
+			if k.is_empty():
+				continue
+			var g: Array = K.GRID[tier]
+			ok_k = ok_k and k["cols"] == g[0] and k["rows"] == g[1] and k["holes"].size() == g[2] and k["cells"].size() == g[0] * g[1] - g[2]
+			var path: Array = K.hamilton_path(k["cells"], k["cols"], k["rows"])
+			ok_k = ok_k and path.size() == k["cells"].size()
+			for i in range(1, path.size()):
+				ok_k = ok_k and absi(path[i].x - path[i - 1].x) + absi(path[i].y - path[i - 1].y) == 1
+		_check(ok_k, "The Crumbling Path, tier %d: 40 grids of %dx%d with %d holes, each crossable stone by stone" % [tier, K.GRID[tier][0], K.GRID[tier][1], K.GRID[tier][2]])
+	# A grid with no route at all is turned down.
+	var cells: Array = []
+	for y in 3:
+		for x in 3:
+			if Vector2i(x, y) != Vector2i(1, 0):
+				cells.append(Vector2i(x, y))
+	_check(K.hamilton_path(cells, 3, 3).is_empty(), "the path's search turns down a grid no route can cross")
+
+
+## A floor of rooms with this kind of puzzle, its monsters gone, doors open.
+func _puzzle_floor(kind: String, fl: int) -> void:
+	var C = load("res://scripts/puzzles/catalog.gd")
+	C.forced = kind
+	main._start_floor(fl)
+	C.forced = ""
+	for e in main.enemies():
+		e.queue_free()
+		e.remove_from_group("enemies")
+	main.foes_changed()
+	main.open_all_doors()
+	await _frames(3)
+
+
+func _clear_foes() -> void:
+	for e in main.enemies():
+		e.queue_free()
+		e.remove_from_group("enemies")
+	main.foes_changed()
+	await _frames(2)
+
+
+func _statue_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("statues", 3)
+	var S = pz.cur
+	_check(pz.kind == "statues" and pz.tier == 1 and pz.mode == "quiet" and S.statements.size() == 3, "a statue hall on floor 3: tier 1, quiet")
+	# Quiet: a monster in the room keeps the statues asleep (as when the floor begins).
+	pz.awake = false
+	var guard = await _spawn("slime", pz._spot())
+	await _wait(0.4)
+	var wrong: int = (S.answer + 1) % 3
+	p.global_position = S.plates[wrong]["pos"]
+	await _wait(1.3)
+	_check(not pz.awake and not pz.locked and not pz.solved, "quiet: the statues sleep (and the plates do nothing) while a monster stands in their room")
+	guard.queue_free()
+	guard.remove_from_group("enemies")
+	main.foes_changed()
+	p.global_position = S.plaque
+	await _wait(0.4)
+	_check(pz.awake, "...and wake once the guards are dead")
+	# A wrong plate fails: an ambush, then the riddle starts again.
+	var before: int = main.enemies().size()
+	p.global_position = S.plates[wrong]["pos"]
+	await _wait(1.3)
+	_check(pz.locked and not pz.solved and main.ward and main.enemies().size() > before, "a wrong plate fails the test: an ambush, and the ward holds")
+	_check(pz.aim_point(p.global_position, 380.0) == Vector2.INF and pz.strike(p.global_position, Vector2.UP, 60.0, 60.0) == 0, "...and nothing in the test answers while the ambush is on")
+	p.global_position = S.plaque
+	for e in pz.ambushers:
+		_slay(e)
+	await _wait(0.3)
+	_check(not pz.locked and not pz.solved, "once the ambush is beaten, the test begins again")
+	_check(S.solve_doors(S.statements, 1) == [S.answer], "...with a new riddle that still has exactly one answer")
+	# It never locks: even an ambush left alive gives way to a reset in time.
+	pz.fail("test")
+	pz.lock_t = pz.LOCK_MAX
+	await _frames(3)
+	_check(not pz.locked, "an ambush never keeps the test shut for good (reset after %d s)" % int(pz.LOCK_MAX))
+	await _clear_foes()
+	await _wait(0.4)
+	p.global_position = S.plates[S.answer]["pos"]
+	await _wait(1.3)
+	_check(pz.solved and not main.ward and main.stair_open, "the right plate solves it: the ward lifts and the stair opens")
+	# Tier 2: the room seals behind you.
+	await _puzzle_floor("statues", 5)
+	S = pz.cur
+	var entr: Array = pz.spec.get("entrances", [])
+	_check(pz.tier == 2 and not entr.is_empty(), "a statue hall on floor 5 knows its doorways")
+	p.global_position = S.plaque
+	await _wait(0.3)
+	_check(pz.sealed and pz.seal_bodies.size() == entr.size() and main.astar.is_point_solid(main._tile_of(entr[0].get_center())), "stepping in seals the doorways")
+	pz.fail("test")
+	_check(not pz.sealed, "a failure opens the seal (fight or run)")
+	pz.lock_t = pz.LOCK_MAX
+	await _frames(3)
+	await _clear_foes()
+	await _wait(0.4)
+	_check(pz.sealed and pz.awake, "after the reset, the room closes again")
+	p.global_position = S.plates[S.answer]["pos"]
+	await _wait(1.3)
+	_check(pz.solved and not pz.sealed and not main.astar.is_point_solid(main._tile_of(entr[0].get_center())), "solving it opens the seal for good")
+	# Hunter's Keen Eyes (a shortcut): the liars show after a few moments.
+	await _puzzle_floor("statues", 4)
+	S = pz.cur
+	_mark("brow", "hunter", 1)
+	p.global_position = S.plaque
+	await _wait(S.KEEN_TIME + 0.5)
+	_check(S.keen and not S.liars.is_empty(), "Hunter's Keen Eyes: the lying statues show themselves")
+	main.dev_set_mark("brow", "", 1)
+	# Tier 3, pressure: two statements each, and monsters keep coming.
+	await _puzzle_floor("statues", 9)
+	S = pz.cur
+	_check(pz.tier == 3 and pz.mode == "pressure" and S.statements[0].size() == 2, "floor 9: two statements each, in pressure mode")
+	p.global_position = S.plaque
+	await _wait(0.3)
+	pz.press_t = 0.0
+	await _frames(3)
+	_check(pz.pressers.size() == 1 and pz.awake, "pressure: a monster arrives while you think, and the statues still speak")
+	await _clear_foes()
+
+
+func _mirror_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("mirrors", 5)
+	var M = pz.cur
+	_check(pz.kind == "mirrors" and M.mirrors.size() == 5 and not M.hit, "a mirror hall on floor 5: 4 mirrors and a decoy, the beam not yet home")
+	var m: Dictionary = M.mirrors.filter(func(q): return not q["fixed"])[0]
+	p.global_position = m["pos"] + Vector2(0, 50)
+	await _wait(0.4)
+	var aim: Vector2 = pz.aim_point(p.global_position, 150.0)
+	_check(M.mirrors.any(func(q): return q["pos"] == aim), "with no foe near, auto-aim finds a mirror")
+	var o0: String = m["o"]
+	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) >= 1 and m["o"] != o0, "a strike turns a mirror")
+	await _wait(0.4)
+	var arrow = main.spawn_projectile(m["pos"] + Vector2(-26, 0), Vector2(400, 0), 5.0)
+	arrow.friendly = true
+	await _wait(0.5)
+	_check(m["o"] == o0 and not is_instance_valid(arrow), "an arrow turns a mirror (and stops there)")
+	await _wait(0.4)
+	# Windwalker's Crosswind (a shortcut): its wall of wind turns the mirrors it passes.
+	main.walls.append({"a": m["pos"] + Vector2(-60, 0), "b": m["pos"] + Vector2(60, 0), "t": 1.0, "color": Color.WHITE})
+	await _frames(3)
+	_check(m["o"] != o0, "Crosswind turns a mirror it passes")
+	main.walls.clear()
+	# The answer: the beam reaches the sigil, holds, and the ward lifts.
+	for i in M.mirrors.size():
+		M.mirrors[i]["o"] = pz.spec["mirrors"][i]["answer"]
+	M._retrace()
+	_check(M.hit, "facing the mirrors right carries the beam to the sigil")
+	await _wait(M.HOLD + 0.3)
+	_check(pz.solved and main.stair_open and not main.ward, "the beam held on the sigil solves it and lifts the ward")
+	_check(M.light_id >= 0 and main.lighting.lights.has(M.light_id), "the lit sigil adds its light to the darkness")
+	# Tier 3: one grey mirror won't turn.
+	await _puzzle_floor("mirrors", 9)
+	M = pz.cur
+	var fixed: Array = M.mirrors.filter(func(q): return q["fixed"])
+	_check(M.mirrors.size() == 7 and fixed.size() == 1, "floor 9: 5 mirrors, 2 decoys, one fixed")
+	var fo: String = fixed[0]["o"]
+	pz.strike(fixed[0]["pos"] + Vector2(0, 40), Vector2.UP, 50.0, 60.0)
+	pz.shot(fixed[0]["pos"])
+	_check(fixed[0]["o"] == fo and not pz.aim_point(fixed[0]["pos"] + Vector2(0, 30), 60.0) == fixed[0]["pos"], "the fixed mirror can't be turned (nor is it aimed at)")
+	pz.clear()
+	main.ward = false
+
+
+func _crumble_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("crumble", 5)
+	var K = pz.cur
+	_check(pz.kind == "crumble" and K.stones.size() == 19 and K.holes.size() == 1, "a crumbling path on floor 5: 5x4 stones, one hole")
+	var path: Array = K.hamilton_path(K.stones.keys(), K.cols, K.rows_n)
+	_check(path.size() == K.stones.size(), "a route over every stone exists")
+	var step := func(t: Vector2i) -> void:
+		p.global_position = K.stone_center(t)
+	# Back onto a lit stone: it crumbles, hurts, and the path goes dark.
+	step.call(path[0])
+	await _wait(0.06)
+	step.call(path[1])
+	await _wait(0.06)
+	_check(K.lit_count() == 2, "each stone lights as you step on it")
+	var hp: float = p.hp
+	p.iframes = 0.0
+	step.call(path[0])
+	await _wait(0.06)
+	_check(K.lit_count() == 0 and p.hp < hp, "stepping back on a lit stone hurts and puts the path out")
+	# A break in the path (a jump to a stone not beside the last) puts it out too.
+	p.global_position = K.origin + Vector2(-60, -60)
+	await _wait(0.1)
+	K.reset()
+	step.call(path[0])
+	await _wait(0.06)
+	step.call(path[2])
+	await _wait(0.06)
+	_check(K.lit_count() == 0, "a break in the path puts it out")
+	# Wandering off the grid does too.
+	p.global_position = K.origin + Vector2(-60, -60)
+	await _wait(0.1)
+	K.reset()
+	step.call(path[0])
+	await _wait(0.06)
+	p.global_position = K.origin + Vector2(-60, -60)
+	await _wait(K.OFF_GRACE + 0.2)
+	_check(K.lit_count() == 0, "wandering off the stones puts them out")
+	# Flamewing's Phoenix Glide (a shortcut): a glide passes over a lit stone unfelt.
+	_mark("back", "flamewing", 1)
+	K.reset()
+	step.call(path[0])
+	await _wait(0.06)
+	step.call(path[1])
+	await _wait(0.06)
+	p.jump_t = 0.3
+	p.jump_total = 0.42
+	step.call(path[0])
+	await _wait(0.06)
+	_check(K.lit_count() == 2, "Phoenix Glide: gliding over a lit stone doesn't break it")
+	p.global_position = K.origin + Vector2(-60, -60)
+	main.dev_set_mark("back", "", 1)
+	await _wait(0.4)
+	await _wait(K.OFF_GRACE + 0.2)
+	K.reset()
+	# Every stone once: solved.
+	for t in path:
+		step.call(t)
+		await _wait(0.04)
+	_check(pz.solved and main.stair_open and not main.ward, "stepping on every stone once solves it and lifts the ward")
+	# Higher up: a bigger grid with more holes.
+	await _puzzle_floor("crumble", 9)
+	_check(pz.cur.stones.size() == 28 and pz.cur.holes.size() == 2, "floor 9: 6x5 stones, two holes")
+	await _puzzle_floor("crumble", 2)
+	_check(pz.cur.stones.size() == 15 and pz.cur.holes.is_empty(), "floor 2: 5x3 stones, no holes")
 	pz.clear()
 	main.ward = false
 
