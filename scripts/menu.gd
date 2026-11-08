@@ -77,6 +77,8 @@ var train_page  # builds the train's page (train_page.gd)
 var train_car := "personal"  # the car (tab) showing
 var train_store := "supplies"  # the store car's counter
 var train_side := "chest"  # your car on a phone: the chest or the heirlooms
+var train_bench := "brew"  # the workshop car's counter (bench.gd)
+var bench_pick := 0  # Retrait: which of a piece's traits to replace
 var sell_ask := ""  # a piece asked to be sold: a second press sells it
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
 

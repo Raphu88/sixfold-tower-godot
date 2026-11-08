@@ -6538,6 +6538,7 @@ func _run() -> void:
 	await _rarity_tests()
 	await _belt_tests()
 	await _train_tests()
+	await _bench_tests()
 	await _controls_tests()
 	await _performance_tests()
 	await _lighting_tests()
@@ -7794,3 +7795,145 @@ func _train_tests() -> void:
 	_check(p.gear_id("helm") == "leather_cap" and p.gear_id("melee") == "dagger" and p.gear_id("armor") == "chain", "pieces in your pack go on as you enter (the dagger in place of the starting sword)")
 	_check(p.item_count("tonic") == 1 and prof.pack.is_empty() and prof.supplies.is_empty() and prof.store.is_empty(), "supplies go on your belt; the store restocks next visit")
 	main.touch._set_active(false)
+
+
+## The bench in the workshop car (bench.gd): anyone brews (packed for the
+## next climb, deducted as the store pays); only a Rune Artist tempers,
+## retraits, joins, inscribes and binds a recall scroll (carry 1); breaking
+## down gives a crystal; the new fields save and load.
+func _bench_tests() -> void:
+	print("the bench")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var B = load("res://scripts/bench.gd")
+	var T = main.Train
+	var G = main.Gear
+	var prof = main.profile
+	var p = main.player
+	var menu = main.menu
+	prof.crystals = []
+	prof.pack = []
+	prof.chest = []
+	prof.heirlooms = {}
+	prof.supplies = {}
+	prof.supply_paid = {}
+	main.await_tower()
+	main.open_train()
+	menu.train_car = "workshop"
+	var bench_buttons := func(meta: String, val) -> Array:
+		return _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.has_meta(meta) and b.get_meta(meta) == val)
+	# Brewing: anyone can. It costs a little less than the store, is paid in
+	# crystals (change back as one) and is packed for the next climb.
+	prof.add_crystal("stone", 25.0)
+	menu.train_bench = "brew"
+	menu.inv_sel = "bench:item:draught"
+	menu.open("train")
+	await _frames(2)
+	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
+	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll")
+	var brew: Array = bench_buttons.call("brew", "draught")
+	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Draught")
+	if brew.size() == 1:
+		brew[0].pressed.emit()
+		await _frames(2)
+	_check(int(prof.supplies.get("draught", 0)) == 1 and prof.crystal_total("stone") == 15.0 and prof.crystal_count("stone") == 1, "brewing it costs 10 Stone (change back) and packs it (%s)" % [prof.crystals])
+	_check(T.put_back(prof, "draught") and prof.crystal_total("stone") == 25.0 and not prof.supplies.has("draught"), "putting it back returns what was paid")
+	# Not a Rune Artist: tempering is greyed, and says why.
+	prof.heirlooms["melee"] = G.make("spear", "fine", ["edges"])
+	prof.add_crystal("blade", 200.0)
+	menu.train_bench = "temper"
+	menu.inv_sel = "bench:heir:melee"
+	menu.open("train")
+	await _frames(2)
+	var tab: Array = bench_buttons.call("bench_tab", "temper")
+	var labels: Array = _all_labels(menu).map(func(l): return l.text)
+	var temper: Array = bench_buttons.call("bench_do", "temper")
+	_check(tab.size() == 1 and tab[0].has_meta("greyed") and temper.size() == 1 and temper[0].disabled, "without the Rune Artist's mark, Temper is greyed and its button off")
+	_check(labels.any(func(t): return t.begins_with("Only a Rune Artist can temper")), "...and the card says a Rune Artist could do it")
+	_check(B.temper(prof, "heir:melee").contains("Rune Artist") and int(B.piece(prof, "heir:melee")["rank"]) == 0 and prof.crystal_total("blade") == 200.0, "...and tempering does nothing")
+	# A Rune Artist tempers: asks once, then the rank and its numbers go up.
+	prof.add_bond("brow", "rune_artist", false)
+	var strike0: float = G.effects(prof.heirlooms["melee"])["strike"]
+	var power0: float = G.weapon_power(prof.heirlooms["melee"])
+	menu.open("train")
+	await _frames(2)
+	temper = bench_buttons.call("bench_do", "temper")
+	_check(temper.size() == 1 and not temper[0].disabled and not bench_buttons.call("bench_tab", "temper")[0].has_meta("greyed"), "a Rune Artist can temper")
+	if temper.size() == 1:
+		temper[0].pressed.emit()
+		await _frames(2)
+	_check(int(B.piece(prof, "heir:melee")["rank"]) == 0, "the first press only asks")
+	temper = bench_buttons.call("bench_do", "temper")
+	if temper.size() == 1:
+		temper[0].pressed.emit()
+		await _frames(2)
+	var spear: Dictionary = prof.heirlooms["melee"]
+	_check(int(spear["rank"]) == 1 and prof.crystal_total("blade") == 180.0 and G.display(spear).ends_with("+1"), "the second tempers it to +1 for 20 Blade (%s)" % G.display(spear))
+	_check(is_equal_approx(G.effects(spear)["strike"], strike0 * 1.25) and is_equal_approx(G.weapon_power(spear), power0 * 1.04), "+1: its trait 25% stronger, the spear 4% harder")
+	_check(B.temper(prof, "heir:melee").contains("density"), "+2 needs Blade density settled in you")
+	prof.density["blade"] = 100.0
+	_check(B.temper(prof, "heir:melee") == "" and int(prof.heirlooms["melee"]["rank"]) == 2 and prof.crystal_total("blade") == 135.0, "with 100 density, +2 costs 45 Blade")
+	# Retrait: the crystal paid chooses the new trait's essence.
+	prof.chest = [G.make("iron_helm", "rare", ["vigor", "calm"])]
+	prof.add_crystal("fire", 30.0)
+	_check(B.retrait(prof, "chest:0", 0, "blade") != "", "no Blade trait fits a helm: nothing to swap to")
+	_check(B.retrait(prof, "chest:0", 0, "fire") == "", "a Rune Artist retraits the helm's first trait with Fire")
+	var helm: Dictionary = B.piece(prof, "chest:0")
+	_check(G.TRAITS[helm["traits"][0]]["kind"] == "fire" and helm["traits"][1] == "calm" and prof.crystal_total("fire") == 0.0, "...a Fire trait in place of Vigor, Calm kept, 30 Fire paid on a Rare (%s)" % [helm["traits"]])
+	# Join: two Fine gloves become one Rare with a trait from each.
+	prof.pack = [G.make("leather_gloves", "fine", ["edges"]), G.make("grip_wraps", "fine", ["riposte"])]
+	_check(B.partners(prof, "pack:0") == ["pack:1"], "Fine gloves can be joined with other Fine gloves")
+	_check(B.join(prof, "pack:0", "pack:1") == "" and prof.pack.size() == 1, "joining them leaves one piece")
+	var j: Dictionary = prof.pack[0]
+	_check(j["rarity"] == "rare" and j["traits"] == ["edges", "riposte"] and G.base_id(j) == "leather_gloves" and prof.crystal_total("blade") == 105.0, "...a Rare pair with Edges and Riposte, for 30 Blade (%s)" % G.display(j))
+	_check(not G.wears(j) and not G.wears(spear), "pieces with traits never wear")
+	# Break down: a crystal of its kind, as the store's Sell gives.
+	prof.pack.append(G.make("axe"))
+	_check(B.break_down(prof, "pack:1") == "5 Blade" and prof.crystal_total("blade") == 110.0 and prof.pack.size() == 1, "breaking down an axe gives a 5 Blade crystal")
+	T.pack_supply(prof, "tonic", {"water": 8})
+	_check(B.break_down(prof, "supply:tonic") == "4 Water" and prof.crystal_total("water") == 4.0 and not prof.supplies.has("tonic"), "a packed tonic breaks into 4 Water")
+	# Inscribe: a lasting rune, its effect in the gear's numbers and drawn on its icon.
+	prof.add_crystal("iron", 25.0)
+	var strike2: float = G.effects(prof.heirlooms["melee"])["strike"]
+	_check(B.inscribe(prof, "heir:melee", "sharpness") == "" and prof.crystal_total("iron") == 0.0, "a Rune Artist inscribes a lasting Rune of Sharpness for 25 Iron")
+	_check(is_equal_approx(G.effects(prof.heirlooms["melee"])["strike"], strike2 + 0.1), "...strikes 10% harder from that piece")
+	_check(G.rune_strokes("sharpness") == G.rune_strokes("sharpness") and G.rune_strokes("sharpness").size() >= 3 and G.rune_strokes("sharpness") != G.rune_strokes("warding"), "a rune's strokes are hashed from its id")
+	# The recall scroll: only a Rune Artist binds one, and you carry one.
+	prof.add_crystal("air", 60.0)
+	prof.add_crystal("water", 56.0)
+	var ra: Dictionary = prof.bonds["brow"]
+	prof.bonds.erase("brow")
+	_check(B.brew(prof, p, "scroll").contains("Rune Artist") and not prof.supplies.has("scroll"), "only a Rune Artist can bind a recall scroll")
+	prof.bonds["brow"] = ra
+	_check(B.brew(prof, p, "scroll") == "" and int(prof.supplies["scroll"]) == 1 and prof.crystal_total("air") == 30.0 and prof.crystal_total("water") == 30.0, "a Rune Artist binds one for 30 Air and 30 Water")
+	_check(B.brew(prof, p, "scroll") != "" and int(prof.supplies["scroll"]) == 1, "...and carries only one")
+	# A phone: every counter and card button big enough to touch.
+	main.touch._set_active(true)
+	menu.train_bench = "retrait"
+	menu.inv_sel = "bench:chest:0"
+	menu.open("train")
+	await _frames(3)
+	var small: Array = _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.size.y < 36.0)
+	_check(small.is_empty() and bench_buttons.call("retrait", "water").size() == 1, "on a phone every bench button is at least 36 tall: %s" % [small.map(func(b): return b.text)])
+	main.touch._set_active(false)
+	# Saved and loaded: ranks, runes and what packed supplies cost.
+	var path := "user://smoke_bench_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	var m2: Array = G.heirloom_pieces(again.heirlooms, "melee")
+	_check(m2.size() == 1 and int(m2[0]["rank"]) == 2 and m2[0].get("rune", "") == "sharpness" and G.same(again.pack[0], prof.pack[0]), "tempering, runes and joined pieces are saved and load again")
+	_check(int(again.supplies.get("scroll", 0)) == 1 and again.supply_paid.get("scroll", []) == [{"air": 30, "water": 30}], "...and what a packed supply cost")
+	_check(G.rec(G.code(m2[0])).get("rune", "") == "sharpness" and G.rec("spear;fine;0;edges").get("rune", "") == "", "a rune survives a piece's short code; old codes have none")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	# Leave the train (it pauses the game) for the tests after.
+	main.depart("kraken")
+	await _frames(2)
+	_check(not paused and not menu.is_open(), "departing leaves the train")

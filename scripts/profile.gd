@@ -47,9 +47,13 @@ var crystals: Array = []
 ## take up; it joins the climber when you depart), supplies packed for the
 ## next climb ({item id: count}) and the store's stock for this visit
 ## ({outfit: [codes], today: code}; empty until the train is opened).
+## What each packed supply cost ({item id: [{kind: amount}, ...]}, the last
+## one packed at the end), so putting one back returns what was paid for it
+## (the store's price, or the bench's cheaper brewing price).
 var chest: Array = []
 var pack: Array = []
 var supplies := {}
+var supply_paid := {}
 var store := {}
 ## The Entity's record of you (menu.gd shows it): counters that only go up,
 ## kept with the climber. "deaths", "slain", "beasts", "floors", "puzzles",
@@ -127,6 +131,7 @@ func reset() -> void:
 	chest = []
 	pack = []
 	supplies = {}
+	supply_paid = {}
 	store = {}
 	record = {}
 	save()
@@ -156,6 +161,12 @@ func load_save() -> void:
 		for id in sup:
 			if int(sup[id]) > 0:
 				supplies[String(id)] = int(sup[id])
+	supply_paid = {}
+	var paid = cfg.get_value("train", "supply_paid", {})
+	if paid is Dictionary:
+		for id in paid:
+			if supplies.has(String(id)) and paid[id] is Array:
+				supply_paid[String(id)] = paid[id].filter(func(c): return c is Dictionary).slice(0, int(supplies[String(id)]))
 	store = cfg.get_value("train", "store", {})
 	if not (store is Dictionary):
 		store = {}
@@ -185,6 +196,7 @@ func save() -> void:
 	cfg.set_value("train", "chest", chest)
 	cfg.set_value("train", "pack", pack)
 	cfg.set_value("train", "supplies", supplies)
+	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
 	cfg.save(save_path)
 
