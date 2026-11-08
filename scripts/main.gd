@@ -127,13 +127,14 @@ var restart_t := 0.0
 var restart_armed := false  # the press began on this floor (not before a reload)
 ## Keyboard and controller: the highlighted tower or camp card.
 var card_focus := 0
+const CARD_KEYS := 6  # number keys 1 to 6 take a card directly (the rest: arrows and Enter)
 var overlay_closed_frame := -1  # (so the Start that closed it doesn't also open the menu)
 
 # Items and camps (items.gd)
 var item_drops: Array = []  # items lying on the floor: {pos, id, t}
 var item_drop_chance := Items.DROP_CHANCE
-# Gear (gear.gd): weapons and armor lying on the floor, and the one you stand on.
-var gear_drops: Array = []  # {pos, id}
+# Gear (gear.gd): pieces lying on the floor, and the one you stand on.
+var gear_drops: Array = []  # {pos, id (its base id), rec (the gear record)}
 var gear_drop_chance := Gear.DROP_CHANCE
 var gear_cache_chance := Gear.CACHE_CHANCE
 var gear_here := {}  # the drop under you that needs Y (or Take) to swap for
@@ -555,11 +556,12 @@ func _process(delta: float) -> void:
 			choose_tower(Towers.ORDER[card_focus])
 		return
 	if camp_choosing:
-		for i in camp["choices"].size():
+		for i in mini(camp["choices"].size(), CARD_KEYS):
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_camp(i)
 				return
-		if _card_keys(camp["choices"].size(), camp["choices"].size()):
+		# (two rows of cards when there are many, as hud.gd lays them out)
+		if _card_keys(camp["choices"].size(), hud.camp_per_row() if hud != null else camp["choices"].size()):
 			choose_camp(card_focus)
 		return
 	if not victory.is_empty():
@@ -827,7 +829,7 @@ func _start_floor(n: int) -> void:
 		cache["taken"] = false
 		# Sometimes the cache also holds a piece of gear.
 		if randf() < gear_cache_chance:
-			cache["gear"] = Gear.random_gear("", player.carried_gear() if player != null else [])
+			cache["gear"] = Gear.random_gear("", player.carried_gear() if player != null else [], not first_climb)
 	room_view.cache = cache
 	var targets: Array = [stair_pos]
 	for m in plan["monsters"]:
@@ -1274,8 +1276,9 @@ func _enter_camp(lines: Array) -> void:
 	var said: Array = [Items.CAMP["sub"]]
 	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
 	var choices: Array = Items.camp_choices(not player.bonds.is_empty())
-	choices.append("gear:" + Gear.random_gear("", player.carried_gear()))  # and a piece of gear
+	choices.append("gear:" + Gear.code(Gear.random_gear("", player.carried_gear(), not first_climb)))  # and a piece of gear
 	camp = {"stage": "item", "choices": choices, "lines": said}
+	_note_new_slots(choices)
 	camp_choosing = true
 	tip("camp")
 	card_focus = 0
@@ -1291,17 +1294,25 @@ func camp_card(i: int) -> Dictionary:
 		var h := pick.substr(5)
 		if h == "":
 			return {"name": Gear.HEIRLOOM_TEXT["none_name"], "desc": Gear.HEIRLOOM_TEXT["none_desc"], "color": Color(0.6, 0.58, 0.66), "item": ""}
-		var hs := Gear.heirloom_slot(h)
-		var old: String = profile.heirlooms.get(hs, "")
+		var hs := "rings" if h == "rings" else Gear.heirloom_slot(h)
+		var kept: Array = Gear.heirloom_pieces(profile.heirlooms, hs)
 		var slot_name := Gear.heirloom_slot_name(hs).to_lower()
-		var note: String = Gear.HEIRLOOM_TEXT["replaces"] % Gear.display(old) if old != "" else Gear.HEIRLOOM_TEXT["empty_slot"] % slot_name
-		return {"name": Gear.display(h), "desc": Gear.info(h)["desc"], "color": Gear.color(h), "item": "", "gear": h, "note": note}
+		var note: String = Gear.HEIRLOOM_TEXT["replaces"] % " and ".join(kept.map(func(k): return Gear.display(k))) if not kept.is_empty() else Gear.HEIRLOOM_TEXT["empty_slot"] % slot_name
+		if h == "rings":
+			var rings := worn_rings()
+			var names: String = " and ".join(rings.map(func(r): return Gear.display(r)))
+			return {"name": Gear.HEIRLOOM_TEXT["rings_name"], "desc": Gear.HEIRLOOM_TEXT["rings_desc"] % names, "color": Gear.color(rings[0]),
+				"item": "", "gear": rings[0], "note": note}
+		var g := Gear.rec(h)
+		return {"name": Gear.display(g), "desc": Gear.info(g)["desc"], "color": Gear.color(g), "item": "", "gear": g, "note": note}
 	if pick.begins_with("gear:"):
-		var g := pick.substr(5)
-		var held: String = player.gear[Gear.slot_of(g)]
+		var g := Gear.rec(pick.substr(5))
+		var gs := Gear.slot_of(g)
+		var held = player.gear.get(player.slot_for(g), {})
 		var desc: String = Gear.info(g)["desc"]
+		var none: String = Gear.TEXT["none"] if gs == "armor" else Gear.TEXT["empty"]
 		return {"name": Gear.display(g), "desc": desc, "color": Gear.color(g), "item": "", "gear": g,
-			"note": Gear.TEXT["carrying"] % (Gear.display(held) if held != "" else Gear.TEXT["none"])}
+			"note": "%s  ·  %s" % [Gear.SLOT_NAMES.get(gs, gs), Gear.TEXT["carrying"] % (Gear.display(held) if Gear.is_gear(held) else none)]}
 	if pick.begins_with("rune:"):
 		var r: Dictionary = Items.CAMP_RUNES[pick.substr(5)]
 		return {"name": r["name"], "desc": r["desc"], "color": r["color"], "item": ""}
@@ -1365,6 +1376,7 @@ func choose_camp(i: int) -> void:
 ## monsters wait while you choose.
 func offer_vault(choices: Array, title: String, lines: Array) -> void:
 	camp = {"stage": "vault", "choices": choices, "lines": lines, "title": title}
+	_note_new_slots(choices)
 	camp_choosing = true
 	card_focus = 0
 	player.set_physics_process(false)
@@ -1383,7 +1395,7 @@ func _take_vault_pick(pick: String) -> void:
 		said = "+ " + Items.CRYSTAL["name"] % Essence.display(kind)
 		col = Essence.color(kind)
 	elif pick.begins_with("gear:"):
-		said = _take_gear(pick.substr(5))
+		said = _take_gear(Gear.rec(pick.substr(5)))
 		col = Gear.color(pick.substr(5))
 	else:
 		said = _take_item(pick, "Took")
@@ -1465,19 +1477,41 @@ func _take_item(id: String, verb: String) -> String:
 	return "No room for another %s" % name
 
 
-## Takes a piece of gear into its slot; what you carried there is dropped
-## where you stand.
-func _take_gear(id: String) -> String:
-	var old: String = player.take_gear(id)
-	if old != "":
+## Takes a piece of gear (a record or an id) into its slot (`into` picks a
+## ring slot); what you carried there is dropped where you stand.
+func _take_gear(g, into := "") -> String:
+	var old: Dictionary = player.take_gear(g, into)
+	if not old.is_empty():
 		drop_gear(player.global_position, old)
-	return Gear.TEXT["took"] % Gear.display(id)
+	return Gear.TEXT["took"] % Gear.display(g)
 
 
-## Leaves a piece of gear on the floor.
-func drop_gear(pos: Vector2, id: String) -> void:
-	if Gear.is_gear(id):
-		gear_drops.append({"pos": pos, "id": id})
+## Leaves a piece of gear (a record or an id) on the floor.
+func drop_gear(pos: Vector2, g) -> void:
+	var r := Gear.rec(g)
+	if r.is_empty():
+		return
+	gear_drops.append({"pos": pos, "id": r["base"], "rec": r})
+	if Gear.is_new_slot(r):
+		tip("gear_slots")
+
+
+## A card screen offering gear for one of the newer slots (helm, gloves, a
+## ring...): the Entity explains them, the first time.
+func _note_new_slots(choices: Array) -> void:
+	for c in choices:
+		if String(c).begins_with("gear:") and Gear.is_new_slot(String(c).substr(5)):
+			tip("gear_slots")
+			return
+
+
+## The rings you wear (0 to 2 records).
+func worn_rings() -> Array:
+	var out: Array = []
+	for s in ["ring1", "ring2"]:
+		if Gear.is_gear(player.gear.get(s, {})):
+			out.append(player.gear[s])
+	return out
 
 
 ## Gear on the floor: walk over it with an empty slot and you take it;
@@ -1496,31 +1530,35 @@ func _update_gear_drops() -> void:
 	if gear_here.is_empty():
 		return
 	tip("gear")
-	if player.gear[Gear.slot_of(gear_here["id"])] == "":
-		var id: String = gear_here["id"]
+	var g: Dictionary = gear_here["rec"]
+	if player.gear_id(player.slot_for(g)) == "":
 		gear_drops.erase(gear_here)
 		gear_here = {}
-		player.take_gear(id)
-		fx_text(player.global_position + Vector2(0, -44), "+ " + Gear.display(id), Gear.color(id))
+		player.take_gear(g)
+		fx_text(player.global_position + Vector2(0, -44), "+ " + Gear.display(g), Gear.color(g))
 
 
 ## Y or the Take button: swap what you carry for the gear you stand on (your
 ## old piece is dropped where you stand).
-func take_gear_here() -> bool:
+func take_gear_here(into := "") -> bool:
 	if gear_here.is_empty() or player == null or player.dead:
 		return false
 	var d: Dictionary = gear_here
 	gear_drops.erase(d)
 	gear_here = {}
-	var msg := _take_gear(d["id"])
-	fx_text(player.global_position + Vector2(0, -44), msg, Gear.color(d["id"]))
+	var msg := _take_gear(d["rec"], into)
+	fx_text(player.global_position + Vector2(0, -44), msg, Gear.color(d["rec"]))
 	return true
 
 
-## Dev tools: give yourself a weapon or armor ("" takes armor off).
+## Dev tools: give yourself a piece of gear ("" takes armor off, "-helm"
+## and the like empties a slot).
 func dev_give_gear(id: String) -> void:
-	if id == "":
-		player.gear["armor"] = ""
+	if id == "" or id.begins_with("-"):
+		var slot := "armor" if id == "" else id.substr(1)
+		for s in Gear.carry_slots(slot):
+			player.gear[s] = {}
+		player.refresh_gear()
 		return
 	player.take_gear(id)
 
@@ -1628,10 +1666,9 @@ func _give_bonds() -> void:
 	player.attr_speed = 1.0 + profile.attribute("air")
 	player.attr_strength = 1.0 + profile.attribute("blade")
 	player.attr_will = 1.0 + profile.attribute("iron")
-	var was: float = player.max_hp
-	player.max_hp = player.MAX_HP * (1.0 + profile.attribute("stone"))
-	if player.max_hp > was:
-		player.hp += player.max_hp - was
+	# Health: Vitality, then whatever your gear adds (refresh_gear).
+	player.base_hp = player.MAX_HP * (1.0 + profile.attribute("stone"))
+	player.refresh_gear()
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -1776,16 +1813,43 @@ func end_regard() -> void:
 ## there's nothing to offer.
 func heirloom_choices() -> Array:
 	var choices: Array = []
-	for gs in ["melee", "ranged", "armor"]:
-		var id: String = player.gear[gs]
-		if id == "" or not Gear.is_gear(id):
+	for hs in Gear.HEIRLOOM_SLOTS:
+		var gs: String = hs.get("gear", "")
+		if gs == "":
+			continue  # (a slot for later)
+		var kept: Array = Gear.heirloom_pieces(profile.heirlooms, hs["id"])
+		if gs == "ring":
+			# Rings: one card keeps both rings you wear.
+			var rings := worn_rings()
+			if not rings.is_empty() and not _same_set(rings, kept):
+				choices.append("heir:rings")
 			continue
-		if profile.heirlooms.get(Gear.heirloom_slot(id), "") == id:
+		var g = player.gear.get(gs, {})
+		if not Gear.is_gear(g):
 			continue
-		choices.append("heir:" + id)
+		if kept.size() == 1 and Gear.same(kept[0], g):
+			continue
+		choices.append("heir:" + Gear.code(g))
 	if not choices.is_empty():
 		choices.append("heir:")
 	return choices
+
+
+## Two lists of pieces hold the same pieces (in any order).
+func _same_set(a: Array, b: Array) -> bool:
+	if a.size() != b.size():
+		return false
+	var left := b.duplicate()
+	for g in a:
+		var hit := -1
+		for i in left.size():
+			if Gear.same(left[i], g):
+				hit = i
+				break
+		if hit < 0:
+			return false
+		left.remove_at(hit)
+	return true
 
 
 func _offer_heirloom() -> bool:
@@ -1806,10 +1870,19 @@ func _offer_heirloom() -> bool:
 	return true
 
 
-## Keeps a piece as an heirloom ("" keeps nothing new), then the next climb.
+## Keeps a piece as an heirloom ("" keeps nothing new, "rings" keeps both
+## rings you wear), in full repair, then the next climb.
 func keep_heirloom(id: String) -> void:
-	if id != "" and Gear.is_gear(id):
-		profile.heirlooms[Gear.heirloom_slot(id)] = id
+	var kept := false
+	if id == "rings":
+		var rings := worn_rings()
+		if not rings.is_empty():
+			profile.heirlooms["rings"] = rings.map(func(r): return Gear.heirloom_copy(r))
+			kept = true
+	elif id != "" and Gear.is_gear(id):
+		profile.heirlooms[Gear.heirloom_slot(id)] = Gear.heirloom_copy(id)
+		kept = true
+	if kept:
 		profile.note("heirlooms")
 		profile.save()
 		sfx("heirloom", 1.0, 0.0, 0.0)
@@ -2361,7 +2434,7 @@ func on_enemy_killed(e) -> void:
 		graft_drops.append({"pos": e.global_position, "kind": e.kind, "t": 20.0})
 	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
 	if not e.is_boss() and randf() < gear_drop_chance:
-		drop_gear(e.global_position + Vector2(0, 10), Gear.random_gear(e.kind, player.carried_gear() if player != null else []))
+		drop_gear(e.global_position + Vector2(0, 10), Gear.random_gear(e.kind, player.carried_gear() if player != null else [], not first_climb))
 	# Now and then a slain monster leaves an item.
 	if not e.is_boss() and randf() < item_drop_chance:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": Items.DROP_LIFE})

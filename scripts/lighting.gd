@@ -160,12 +160,14 @@ func flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 0.25) 
 		"k": clampf(energy * FLASH_ENERGY, 0.0, 1.0), "t": dur, "dur": maxf(dur, 0.01)})
 
 
-## How far the climber's own light reaches (Keen Eyes and Smokeborn see farther).
+## How far the climber's own light reaches (Keen Eyes and Smokeborn see
+## farther; a Cloth Hood a little farther too).
 func player_reach() -> float:
 	var p = main.player if main != null else null
-	if p != null and (p.has_bond("hunter") or p.has_bond("ashwalker")):
-		return PLAYER_REACH_KEEN
-	return PLAYER_REACH
+	if p == null:
+		return PLAYER_REACH
+	var r := PLAYER_REACH_KEEN if p.has_bond("hunter") or p.has_bond("ashwalker") else PLAYER_REACH
+	return r * (1.0 + p.gfx("light"))
 
 
 # --- each frame ----------------------------------------------------------------

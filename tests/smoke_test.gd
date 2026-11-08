@@ -3999,7 +3999,8 @@ func _gear_tests() -> void:
 	var spot := Vector2(500, 400)
 	p.global_position = spot
 	p.aim = Vector2.RIGHT
-	_check(p.weapon == "sword" and p.gear["melee"] == "sword" and p.gear["ranged"] == "shortbow" and p.gear["armor"] == "", "every climb starts with a sword, a shortbow and no armor")
+	_check(p.weapon == "sword" and p.gear_id("melee") == "sword" and p.gear_id("ranged") == "shortbow" and p.gear_id("armor") == "", "every climb starts with a sword, a shortbow and no armor")
+	_check(G.SLOTS.all(func(sl): return sl in ["melee", "ranged"] or p.gear_id(sl) == ""), "...and nothing in the other slots")
 	_check(p.slots() == ["fists", "sword", "shortbow"], "slots: 1 fists, 2 melee, 3 ranged")
 	_check(InputMap.has_action("interact"), "taking gear (Y) is bound")
 	var y_bound := false
@@ -4135,8 +4136,8 @@ func _gear_tests() -> void:
 		await _frames(1)
 	_check(shot_dmg["shortbow"] > 0.0 and shot_dmg["longbow"] > shot_dmg["shortbow"], "both bows hit; a full longbow shot hits harder (%s)" % str(shot_dmg))
 	# The crossbow: press to fire, then a reload you can't skip.
-	var old: String = p.take_gear("crossbow")
-	_check(old == "longbow" and p.weapon == "crossbow" and p.gear["ranged"] == "crossbow", "taking a crossbow puts it in the ranged slot and in hand")
+	var old: Dictionary = p.take_gear("crossbow")
+	_check(G.base_id(old) == "longbow" and p.weapon == "crossbow" and p.gear_id("ranged") == "crossbow", "taking a crossbow puts it in the ranged slot and in hand (and hands back the longbow's record)")
 	var mark = await _dummy(spot + Vector2(160, 0))
 	p.global_position = spot
 	p.aim = Vector2.RIGHT
@@ -4212,7 +4213,7 @@ func _gear_tests() -> void:
 	var roll_cost := {}
 	var roll_speed := {}
 	for id in G.ARMOR_ORDER:
-		p.gear["armor"] = id
+		p.gear["armor"] = G.make(id)
 		p.hp = p.MAX_HP
 		p.hurt_t = 0.0
 		p.iframes = 0.0
@@ -4233,13 +4234,13 @@ func _gear_tests() -> void:
 	_check(roll_speed["plate"] < roll_speed[""], "...and carry you less far")
 	_check(G.ARMOR["plate"]["regen"] < 1.0 and G.ARMOR["plate"]["walk"] < 1.0, "plate slows your stamina and your walk a little")
 	# Poison ticks past armor.
-	p.gear["armor"] = "plate"
+	p.gear["armor"] = G.make("plate")
 	p.hp = 100.0
 	p.poison(0.6)
 	await _wait(0.75)
 	_check(p.hp <= 98.0, "poison isn't reduced by armor (%.1f)" % p.hp)
 	p.poison_t = 0.0
-	p.gear["armor"] = ""
+	p.gear["armor"] = {}
 
 	print("finding gear")
 	p.hp = p.MAX_HP
@@ -4248,21 +4249,21 @@ func _gear_tests() -> void:
 	main.drop_gear(spot, "chain")
 	await physics_frame
 	await physics_frame
-	_check(p.gear["armor"] == "chain" and main.gear_drops.is_empty(), "walking over armor with none on puts it on")
+	_check(p.gear_id("armor") == "chain" and main.gear_drops.is_empty(), "walking over armor with none on puts it on")
 	# Otherwise a prompt compares it, and Y swaps (dropping your old piece).
 	main.drop_gear(spot + Vector2(4, 0), "axe")
 	await physics_frame
 	await physics_frame
-	_check(p.gear["melee"] == "sword" and not main.gear_here.is_empty() and main.gear_here["id"] == "axe", "with the slot full, gear waits for you to take it")
+	_check(p.gear_id("melee") == "sword" and not main.gear_here.is_empty() and main.gear_here["id"] == "axe" and G.base_id(main.gear_here["rec"]) == "axe", "with the slot full, gear waits for you to take it")
 	Input.action_press("interact")
 	await physics_frame
 	await physics_frame
 	Input.action_release("interact")
 	await _frames(2)
-	_check(p.gear["melee"] == "axe" and p.weapon == "axe", "pressing Y takes the axe into your hand")
+	_check(p.gear_id("melee") == "axe" and p.weapon == "axe", "pressing Y takes the axe into your hand")
 	var dropped: Array = main.gear_drops.filter(func(d): return d["id"] == "sword")
 	_check(main.gear_drops.size() == 1 and dropped.size() == 1 and dropped[0]["pos"].distance_to(p.global_position) < 6.0, "...and your sword is dropped where you stand")
-	_check(main.take_gear_here() and p.gear["melee"] == "sword", "you can swap straight back")
+	_check(main.take_gear_here() and p.gear_id("melee") == "sword", "you can swap straight back")
 	main.gear_drops.clear()
 	await physics_frame
 	_check(main.gear_here.is_empty() and not main.take_gear_here(), "with no gear underfoot, Y does nothing")
@@ -4295,7 +4296,8 @@ func _gear_tests() -> void:
 	for i in 400:
 		if G.random_gear("archer") in G.FAVOUR["archer"]:
 			favoured += 1
-	_check(favoured > 180, "archers favour bows, crossbows and leather (%d of 400)" % favoured)
+	# (Unfavoured, these would be about one drop in six; there are many more kinds of gear now.)
+	_check(favoured > 140, "archers favour bows, crossbows, leather and caps (%d of 400)" % favoured)
 	var never := true
 	for i in 200:
 		never = never and not (G.random_gear("", ["sword", "shortbow"]) in ["sword", "shortbow", "fists", ""])
@@ -4331,11 +4333,12 @@ func _gear_tests() -> void:
 	var gi: int = main.camp["choices"].find(gear_cards[0])
 	var card: Dictionary = main.camp_card(gi)
 	var gid: String = String(gear_cards[0]).substr(5)
-	_check(card.get("gear", "") == gid and card["name"] == G.display(gid), "its card shows the gear")
-	var slot: String = G.slot_of(gid)
-	var had: String = p.gear[slot]
+	_check(G.base_id(card.get("gear", {})) == gid and card["name"] == G.display(gid), "its card shows the gear")
+	_check(String(G.SLOT_NAMES.get(G.slot_of(gid), "")) in card["note"], "...and names its slot (%s)" % card["note"])
+	var slot: String = p.slot_for(gid)
+	var had: String = p.gear_id(slot)
 	main.choose_camp(gi)
-	_check(p.gear[slot] == gid and not main.camp_choosing, "taking the gear card carries it (%s)" % gid)
+	_check(p.gear_id(slot) == gid and not main.camp_choosing, "taking the gear card carries it (%s)" % gid)
 	if had != "":
 		_check(main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == had, "...and leaves your old %s by the fire" % had)
 
@@ -4380,7 +4383,7 @@ func _gear_tests() -> void:
 		await _wait(0.15)
 		_touch(7, take["c"], false)
 		await _frames(2)
-	_check(p.gear["melee"] == "mace" and main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == "sword", "tapping Take swaps for the mace and drops the sword")
+	_check(p.gear_id("melee") == "mace" and main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == "sword", "tapping Take swaps for the mace and drops the sword")
 	main.gear_drops.clear()
 	await physics_frame
 	await physics_frame
@@ -4393,7 +4396,7 @@ func _gear_tests() -> void:
 	main.menu.open("inventory")
 	await _frames(2)
 	var labels: Array = _all_labels(main.menu).map(func(l): return l.text)
-	_check("CARRIED" in labels and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
+	_check("ITEMS" in labels and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
 	main.menu.open("dev")
 	await _frames(2)
 	var dev_buttons: Array = _all_buttons(main.menu)
@@ -4405,7 +4408,13 @@ func _gear_tests() -> void:
 		await _frames(1)
 		_all_buttons(main.menu).filter(func(b): return b.text == "War Hammer")[0].pressed.emit()
 		await _frames(1)
-		_check(p.gear["armor"] == "plate" and p.gear["melee"] == "war_hammer" and p.weapon == "war_hammer", "...and pressing them does")
+		_check(p.gear_id("armor") == "plate" and p.gear_id("melee") == "war_hammer" and p.weapon == "war_hammer", "...and pressing them does")
+	var cap_btn: Array = _all_buttons(main.menu).filter(func(b): return b.text == "Leather Cap")
+	_check(cap_btn.size() == 1, "...and any worn piece")
+	if cap_btn.size() == 1:
+		cap_btn[0].pressed.emit()
+		await _frames(1)
+		_check(p.gear_id("helm") == "leather_cap", "...which it puts on")
 	main.menu.close()
 	await _frames(2)
 
@@ -4416,10 +4425,11 @@ func _heirloom_tests() -> void:
 	var p = main.player
 	var G = main.Gear
 	var slots: Array = G.HEIRLOOM_SLOTS.map(func(s): return s["id"])
-	for want in ["melee", "ranged", "chest", "boots", "gloves", "helm", "legs", "rings", "amulet", "cloak", "backpack"]:
+	for want in ["melee", "ranged", "chest", "boots", "gloves", "helm", "legs", "rings", "amulet", "cloak", "backpack", "offhand"]:
 		_check(want in slots, "heirloom slot: %s" % want)
 	_check(G.heirloom_slot("plate") == "chest" and G.heirloom_slot("axe") == "melee" and G.heirloom_slot("crossbow") == "ranged", "armor is a chest heirloom, weapons melee or ranged")
-	_check(G.gear_slot_for("boots") == "", "the planned slots hold nothing yet")
+	_check(G.heirloom_slot("iron_helm") == "helm" and G.heirloom_slot("garnet_ring") == "rings" and G.heirloom_slot("satchel") == "backpack", "a helm is a helm heirloom, a ring a Rings heirloom")
+	_check(G.gear_slot_for("boots") == "boots" and G.gear_slot_for("offhand") == "" and G.heirloom_planned("offhand"), "the worn slots are real; the off-hand is kept for later")
 	# Surviving a climb offers the carried gear as heirlooms.
 	p.take_gear("axe")
 	p.take_gear("chain")
@@ -4430,7 +4440,7 @@ func _heirloom_tests() -> void:
 	var picks: Array = main.camp["choices"]
 	_check(picks.size() == 4 and "heir:axe" in picks and "heir:shortbow" in picks and "heir:chain" in picks and "heir:" in picks, "one card per carried piece, and one to keep nothing (%s)" % [picks])
 	var ci: int = picks.find("heir:axe")
-	_check(main.camp_card(ci)["gear"] == "axe" and "melee" in main.camp_card(ci)["note"], "a card names the slot it fills")
+	_check(G.base_id(main.camp_card(ci)["gear"]) == "axe" and "melee" in main.camp_card(ci)["note"], "a card names the slot it fills")
 	main.touch._set_active(true)
 	await _frames(2)
 	var size: Vector2 = main.hud.get_viewport_rect().size
@@ -4439,12 +4449,13 @@ func _heirloom_tests() -> void:
 	await _frames(2)
 	_touch(7, at, false)
 	await _frames(2)
-	_check(not main.camp_choosing and main.profile.heirlooms.get("melee", "") == "axe", "tapping the axe keeps it as the melee heirloom")
+	_check(not main.camp_choosing and G.base_id(main.profile.heirlooms.get("melee", {})) == "axe", "tapping the axe keeps it as the melee heirloom")
+	_check(main.profile.heirlooms["melee"] is Dictionary and main.profile.heirlooms["melee"].get("wear", 0.0) == 1.0, "...as a record, in full repair")
 	# A new climb starts with it.
 	var q = load("res://scripts/player.gd").new()
 	q.main = main
 	q.use_heirlooms(main.profile.heirlooms)
-	_check(q.gear["melee"] == "axe" and q.weapon == "axe" and q.gear["ranged"] == "shortbow" and q.gear["armor"] == "", "the next climb begins with the heirloom, the rest as usual")
+	_check(q.gear_id("melee") == "axe" and q.weapon == "axe" and q.gear_id("ranged") == "shortbow" and q.gear_id("armor") == "", "the next climb begins with the heirloom, the rest as usual")
 	q.free()
 	# The next survived climb: the axe is already an heirloom, so it isn't offered again.
 	main.heirloom_offered = false
@@ -4454,7 +4465,7 @@ func _heirloom_tests() -> void:
 	ci = main.camp["choices"].find("heir:chain")
 	_check("new chest" in main.camp_card(ci)["note"], "...and an empty slot says so")
 	main.choose_camp(ci)
-	_check(main.profile.heirlooms.get("chest", "") == "chain" and main.profile.heirlooms.get("melee", "") == "axe", "a second heirloom in another slot keeps the first")
+	_check(G.base_id(main.profile.heirlooms.get("chest", {})) == "chain" and G.base_id(main.profile.heirlooms.get("melee", {})) == "axe", "a second heirloom in another slot keeps the first")
 	# Keep nothing new.
 	main.heirloom_offered = false
 	main.victory = {"t": 3.0, "beast": "test", "lines": []}
@@ -4467,18 +4478,26 @@ func _heirloom_tests() -> void:
 	main.end_regard()
 	_check(not main.camp_choosing, "a fall on the first climb offers no heirloom")
 	main.regard = {}
-	# The inventory shows the heirlooms and the planned slots; so does the climber screen's Record.
+	# The inventory's Heirlooms view shows them on the doll, the off-hand kept for later;
+	# so does the climber screen's Record.
 	main.menu.open("inventory")
 	await _frames(2)
+	var view_btn: Array = _all_buttons(main.menu).filter(func(b): return b.get_meta("view", "") == "heirlooms")
+	_check(view_btn.size() == 1, "the inventory can show your heirlooms")
+	if view_btn.size() == 1:
+		view_btn[0].pressed.emit()
+		await _frames(2)
 	var texts: Array = _all_labels(main.menu).map(func(l): return l.text)
-	_check("HEIRLOOMS" in texts, "the inventory has an Heirlooms section")
 	var chest = _slot("heir:chest")
 	var pack = _slot("heir:backpack")
-	_check(chest != null and chest.id == "chain" and not chest.locked and "Backpack" in texts and pack != null and pack.locked, "...with the kept chest and the planned slots, locked")
-	pack.focus_entered.emit()
+	var off = _slot("heir:offhand")
+	_check(chest != null and chest.id == "chain" and not chest.locked and "Backpack" in texts and pack != null and not pack.locked and pack.empty, "...with the kept chest and the empty slots")
+	_check(off != null and off.locked, "...and the off-hand, locked")
+	off.focus_entered.emit()
 	await _frames(1)
 	texts = _all_labels(main.menu).map(func(l): return l.text)
-	_check(texts.any(func(t): return t.begins_with("Planned")), "...and a planned slot says it's planned")
+	_check(texts.any(func(t): return t.begins_with("Kept for later")), "...which says it's kept for later")
+	main.menu.inv_view = "worn"
 	main.menu.climber_tab = "record"
 	main.menu.open("climber")
 	await _frames(2)
@@ -4490,6 +4509,432 @@ func _heirloom_tests() -> void:
 	# A new climber forgets them.
 	main.profile.reset()
 	_check(main.profile.heirlooms.is_empty(), "a new climber has no heirlooms")
+
+
+## Gear records, the worn slots (helm to backpack), the protection cap,
+## wear on Common pieces, the heirloom choice with the new slots and two
+## rings, and the inventory's paper doll.
+func _gear_slot_tests() -> void:
+	print("gear records")
+	await _fresh_main()
+	var p = main.player
+	var G = main.Gear
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	# Records: an old plain id becomes a fresh record; codes round-trip.
+	var r: Dictionary = G.rec("axe")
+	_check(r.get("base", "") == "axe" and r.get("rarity", "") == "common" and r.get("traits", null) == [] and r.get("rank", -1) == 0 and r.get("wear", 0.0) == 1.0, "an old id becomes a record: base, rarity, traits, rank, wear (%s)" % [r])
+	_check(not G.make("garnet_ring").has("wear") and G.make("garnet_ring")["rarity"] == "fine", "rings and amulets are Fine and carry no wear")
+	_check(G.rec("") == {} and G.rec("nonsense") == {} and G.rec({}) == {}, "nothing (or something unknown) is an empty record")
+	var fancy: Dictionary = G.rec("axe;fine;2;edges")
+	_check(fancy["rarity"] == "fine" and fancy["rank"] == 2 and fancy["traits"] == ["edges"] and not fancy.has("wear"), "a card code keeps rarity, rank and traits (for later steps)")
+	_check(G.code(fancy) == "axe;fine;2;edges" and G.code(G.make("axe")) == "axe" and G.same(G.rec(G.code(fancy)), fancy), "...and codes round-trip")
+	_check(G.base_id(G.make("chain")) == "chain" and G.base_id("chain") == "chain" and G.display(G.make("chain")) == "Chain Mail", "every helper takes a record or a plain id")
+	# Old saves: heirlooms kept as plain ids convert on load (and bad ones are dropped).
+	var old_save := {"melee": "axe", "chest": "chain", "helm": "nonsense", "boots": "axe", "rings": "garnet_ring", "offhand": "dagger"}
+	var conv: Dictionary = G.load_heirlooms(old_save)
+	_check(conv.has("melee") and conv["melee"] is Dictionary and conv["melee"]["base"] == "axe" and conv["chest"]["base"] == "chain", "old saved heirlooms (plain ids) become records")
+	_check(not conv.has("helm") and not conv.has("boots") and not conv.has("offhand"), "...unknown pieces, pieces in the wrong slot and the off-hand are dropped (%s)" % [conv.keys()])
+	_check(conv.get("rings", []) is Array and conv["rings"].size() == 1 and conv["rings"][0]["base"] == "garnet_ring", "...and a lone ring becomes the Rings list")
+	# Records survive the save file (ConfigFile) and load back the same.
+	var cfg := ConfigFile.new()
+	var kept := {"melee": G.make("axe"), "helm": G.make("iron_helm"), "rings": [G.make("garnet_ring"), G.make("iron_band")]}
+	cfg.set_value("profile", "heirlooms", kept)
+	cfg.save("user://items_test.cfg")
+	var cfg2 := ConfigFile.new()
+	cfg2.load("user://items_test.cfg")
+	var back: Dictionary = G.load_heirlooms(cfg2.get_value("profile", "heirlooms", {}))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://items_test.cfg"))
+	_check(G.same(back["melee"], kept["melee"]) and G.same(back["helm"], kept["helm"]) and back["rings"].size() == 2, "heirloom records save and load back the same")
+	# A climb starts from plain-id heirlooms too.
+	var q = load("res://scripts/player.gd").new()
+	q.main = main
+	q.use_heirlooms({"melee": "spear", "rings": ["garnet_ring", "iron_band"], "helm": G.make("leather_cap")})
+	_check(q.gear_id("melee") == "spear" and q.gear_id("ring1") == "garnet_ring" and q.gear_id("ring2") == "iron_band" and q.gear_id("helm") == "leather_cap", "a climb starts with old or new heirlooms in their slots, both rings on")
+	q.free()
+
+	print("the worn slots")
+	_check(G.DOLL.size() == 4 and G.DOLL[0] == ["helm", "amulet", "cloak"] and G.DOLL[1] == ["melee", "armor", "ranged"] and G.DOLL[2] == ["ring1", "gloves", "ring2"] and G.DOLL[3] == ["backpack", "legs", "boots"], "the doll: helm amulet cloak / melee chest ranged / ring gloves ring / backpack legs boots")
+	var pieces_by_slot := {}
+	for id in G.PIECES:
+		var sl: String = G.PIECES[id]["slot"]
+		pieces_by_slot[sl] = pieces_by_slot.get(sl, 0) + 1
+	_check(G.PIECE_SLOTS.all(func(sl): return pieces_by_slot.get(sl, 0) >= 2), "every worn slot has pieces (%s)" % [pieces_by_slot])
+	var common := 0
+	for id in G.PIECES:
+		if G.PIECES[id].get("rarity", "common") == "common":
+			common += 1
+	_check(common == 16, "the sixteen Common pieces (%d)" % common)
+	var words := ""
+	for id in G.PIECES:
+		words += " " + String(G.PIECES[id]["name"]) + " " + String(G.PIECES[id]["desc"])
+	words = words.to_lower()
+	_check(not ["attunement", "spire", "trial", "judgment", "mana"].any(func(w): return words.contains(w)), "no borrowed words in the pieces' text")
+	# Health: Leather Cap +8, Bone Charm +10.
+	var hp0: float = p.max_hp
+	p.take_gear("leather_cap")
+	_check(is_equal_approx(p.max_hp, hp0 + 8.0) and is_equal_approx(p.hp, hp0 + 8.0), "a Leather Cap: +8 max health (%.0f)" % p.max_hp)
+	p.take_gear("bone_charm")
+	_check(is_equal_approx(p.max_hp, hp0 + 18.0) and p.gear_id("amulet") == "bone_charm", "...a Bone Charm on top: +10 more (%.0f)" % p.max_hp)
+	main.dev_give_gear("-amulet")
+	_check(is_equal_approx(p.max_hp, hp0 + 8.0) and p.hp <= p.max_hp, "taking it off takes the health away again")
+	# Stamina: Padded Trousers +10.
+	p.take_gear("padded_trousers")
+	_check(is_equal_approx(p.max_sta, p.MAX_STA + 10.0), "Padded Trousers: +10 max stamina (%.0f)" % p.max_sta)
+	p.sta = 0.0
+	p.sta_delay = 0.0
+	for i in 60:
+		p._tick_timers(0.1)
+	_check(p.sta > p.MAX_STA + 5.0, "...and stamina refills past the old 100 (%.0f)" % p.sta)
+	# Protection: an Iron Helm (heavy) and Chain Leggings (heavy).
+	p.take_gear("iron_helm")
+	_check(absf(p.protection() - 0.06) < 0.001, "an Iron Helm: 6%% damage taken off (%.2f)" % p.protection())
+	var cost := {}
+	for setup in [["none", []], ["heavy2", ["iron_helm", "chain_leggings"]]]:
+		main.dev_give_gear("-helm")
+		main.dev_give_gear("-legs")
+		for id in setup[1]:
+			p.take_gear(id)
+		p.sta = p.max_sta
+		p.roll_cd = 0.0
+		p.attack_cd = 0.0
+		p._try_roll(Vector2.RIGHT)
+		cost[setup[0]] = p.max_sta - p.sta
+		p.roll_t = 0.0
+		p.iframes = 0.0
+	_check(absf(cost["heavy2"] / cost["none"] - 1.06) < 0.005, "two heavy pieces make a roll cost 6%% more (%s)" % [cost])
+	_check(absf(p.protection() - 0.11) < 0.001, "the helm's and leggings' protection add up (%.2f)" % p.protection())
+	# The 50% cap: plate, helm and chain leggings make 46%; anything past 50% is capped.
+	p.take_gear("plate")
+	_check(absf(p.protection() - 0.46) < 0.001, "plate, an iron helm and chain leggings: 46%% (%.2f)" % p.protection())
+	p.hp = p.max_hp
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	var before: float = p.hp
+	p.receive_attack(20.0, null)
+	_check(absf((before - p.hp) - 10.8) < 0.05, "...a 20-damage blow lands for 10.8 (%.1f)" % (before - p.hp))
+	_check(absf(G.protection(p.gear, {"reduce": 0.4}) - G.PROTECTION_CAP) < 0.001 and G.PROTECTION_CAP == 0.5, "protection is capped at 50%")
+	main.dev_give_gear("")
+	main.dev_give_gear("-helm")
+	main.dev_give_gear("-legs")
+	# Strikes: Leather Gloves +4%, Garnet Rings +4% each (both rings count).
+	var dealt := {}
+	var stam := {}
+	for setup in [["none", []], ["gloves", ["leather_gloves"]], ["rings", ["garnet_ring", "garnet_ring"]], ["wraps", ["grip_wraps"]]]:
+		main.dev_give_gear("-gloves")
+		main.dev_give_gear("-ring")
+		for id in setup[1]:
+			p.take_gear(id)
+		p._equip("sword")
+		p.global_position = Vector2(500, 400)
+		p.aim = Vector2.RIGHT
+		var d = await _dummy(Vector2(530, 400))
+		p.sta = p.max_sta
+		_swing()
+		dealt[setup[0]] = 999.0 - d.hp
+		stam[setup[0]] = p.max_sta - p.sta
+		d.queue_free()
+		await _frames(1)
+	_check(p.gear_id("gloves") == "grip_wraps" and absf(dealt["gloves"] / dealt["none"] - 1.04) < 0.01, "Leather Gloves: strikes hit 4%% harder (%s)" % [dealt])
+	_check(absf(dealt["rings"] / dealt["none"] - 1.08) < 0.01, "two Garnet Rings: both count, 8% harder")
+	_check(absf(stam["wraps"] / stam["none"] - 0.94) < 0.01, "Grip Wraps: strike chains cost 6%% less stamina (%s)" % [stam])
+	main.dev_give_gear("-ring")
+	# Gauntlets: harder strikes, a shorter parry window.
+	p.take_gear("gauntlets")
+	p.parry_cd = 0.0
+	p.attack_cd = 0.0
+	p._try_parry()
+	_check(absf(p.parry_window - p.PARRY_WINDOW * 0.95) < 0.001 and absf(p.gfx("strike") - 0.07) < 0.001, "Gauntlets: +7% strikes, a 5% shorter parry window")
+	p.parry_t = 0.0
+	main.dev_give_gear("-gloves")
+	# Leather Leggings: rolls carry 5% farther.
+	var reach := {}
+	for setup in [["none", ""], ["leggings", "leather_leggings"]]:
+		main.dev_give_gear("-legs")
+		if setup[1] != "":
+			p.take_gear(setup[1])
+		p.sta = p.max_sta
+		p.roll_cd = 0.0
+		p.attack_cd = 0.0
+		p._try_roll(Vector2.RIGHT)
+		reach[setup[0]] = p.roll_speed
+		p.roll_t = 0.0
+		p.iframes = 0.0
+	_check(absf(reach["leggings"] / reach["none"] - 1.05) < 0.005, "Leather Leggings: rolls carry 5% farther")
+	main.dev_give_gear("-legs")
+	# Boots: Soft Boots walk faster; Climbing Boots jump free and farther; Hobnail Boots stand firm.
+	p.take_gear("soft_boots")
+	_check(absf(p.gfx("walk") - 0.04) < 0.001, "Soft Boots: you walk 4% faster")
+	p.take_gear("climbing_boots")
+	p.sta = 50.0
+	p.roll_t = 0.0
+	p.attack_cd = 0.0
+	p.cast_t = 0.0
+	p._try_jump(Vector2.RIGHT)
+	_check(p.sta == 50.0 and absf(p.jump_vel.length() - p.WALK * 1.1) < 0.5, "Climbing Boots: a jump costs no stamina and carries 10% farther")
+	p.jump_t = 0.0
+	p.take_gear("hobnail_boots")
+	var brute = await _spawn("knight", p.global_position + Vector2(40, 0))
+	for dmg in [10.0, 20.0]:
+		p.hurt_t = 0.0
+		p.iframes = 0.0
+		p.parry_t = 0.0
+		p.knock = Vector2.ZERO
+		p.receive_attack(dmg, brute)
+		if dmg < G.LIGHT_BLOW:
+			_check(p.knock == Vector2.ZERO, "Hobnail Boots: a light blow can't knock you back")
+		else:
+			_check(p.knock != Vector2.ZERO, "...a heavy one still does")
+	_check(absf(p.gfx("walk") + 0.03) < 0.001 and p.gfx("heavy") == 1.0, "...and they slow you 3% and are heavy")
+	brute.queue_free()
+	main.dev_give_gear("-boots")
+	p.hp = p.max_hp
+	# Cloaks: the Travel Cloak shortens poison; the Dusk Cloak keeps monsters slower to notice you.
+	p.take_gear("travel_cloak")
+	p.poison_t = 0.0
+	p.poison(4.0)
+	_check(absf(p.poison_t - 3.0) < 0.01, "a Travel Cloak: poison wears off 25%% sooner (%.2f s)" % p.poison_t)
+	p.poison_t = 0.0
+	p.take_gear("dusk_cloak")
+	var slowest := 99.0
+	for i in 8:
+		var k = await _spawn("knight", Vector2(900, 400))
+		slowest = minf(slowest, k.notice_t)
+		k.queue_free()
+	_check(slowest >= 1.2 * 1.2 - 0.01, "a Dusk Cloak: monsters notice you 20%% later (at least %.2f s)" % slowest)
+	main.dev_give_gear("-cloak")
+	# The Cloth Hood: your light reaches farther.
+	var reach0: float = main.lighting.player_reach()
+	p.take_gear("cloth_hood")
+	_check(absf(main.lighting.player_reach() / reach0 - 1.1) < 0.001, "a Cloth Hood: your light reaches 10% farther")
+	main.dev_give_gear("-helm")
+	# The Satchel: one more of each item (the recall scroll stays one).
+	p.take_gear("satchel")
+	_check(p.max_stack("draught") == 4 and p.max_stack("scroll") == 1, "a Satchel: carry 4 of each item (the scroll stays one)")
+	for i in 5:
+		p.add_item("tonic")
+	_check(p.item_count("tonic") == 4, "...and you can (%d tonics)" % p.item_count("tonic"))
+	main.dev_give_gear("-backpack")
+	_check(p.max_stack("draught") == 3, "without it, back to 3")
+	# The Ember Charm: spells hit harder; the Iron Band: stamina refills faster.
+	_mark("hand", "stormcaller", 1)
+	p = main.player
+	var pw0: float = p.bonds["hand"].power()
+	p.take_gear("ember_charm")
+	_check(absf(p.bonds["hand"].power() / pw0 - 1.06) < 0.001, "an Ember Charm: spells hit 6% harder")
+	p.take_gear("iron_band")
+	_check(absf(p.gfx("regen") - 0.05) < 0.001 and p.gear_id("ring1") == "iron_band", "an Iron Band: stamina refills 5% faster")
+	# Drops: any slot, modest chances; no rings or amulets on the first climb; no pouch yet.
+	var slots_seen := {}
+	var trinket_first := false
+	var pouch := false
+	for i in 1500:
+		var id: String = G.random_gear("")
+		slots_seen[G.slot_of(id)] = true
+		pouch = pouch or id == "belt_pouch"
+		trinket_first = trinket_first or G.slot_of(G.random_gear("", [], false)) in ["ring", "amulet"]
+	_check(["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack"].all(func(sl): return slots_seen.has(sl)), "drops can be any slot (%s)" % [slots_seen.keys()])
+	_check(not trinket_first and not pouch, "no rings or amulets on the first climb, and no Belt Pouch until the belt exists")
+	_check(G.DROP_CHANCE <= 0.05 and G.CACHE_CHANCE <= 0.4, "drop chances stay modest")
+
+	print("wear")
+	await _fresh_main()
+	p = main.player
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+	p.take_gear("leather_gloves")
+	p.take_gear("garnet_ring")
+	_check(G.wears(p.gear["gloves"]) and not G.wears(p.gear["ring1"]) and G.wears(p.gear["melee"]), "Common pieces wear (gloves, the sword); a Fine ring doesn't")
+	var d = await _dummy(Vector2(530, 400))
+	p.global_position = Vector2(500, 400)
+	p.aim = Vector2.RIGHT
+	_swing()
+	_check(p.gear["melee"]["wear"] < 1.0 and p.gear["gloves"]["wear"] < 1.0, "a landed strike wears the weapon and gloves a little")
+	d.queue_free()
+	await _frames(1)
+	p.gear["gloves"]["wear"] = 0.26
+	p.refresh_gear()
+	var full: float = p.gfx("strike")
+	p.wear_gear("strike", 20.0)
+	_check(G.is_worn(p.gear["gloves"]) and absf(p.gfx("strike") - (full - 0.02)) < 0.001, "badly worn (25%%), a piece's bonus halves (%.3f -> %.3f)" % [full, p.gfx("strike")])
+	_check(G.describe(p.gear["gloves"]).any(func(l): return String(l).begins_with("Badly worn")), "...and its card says so")
+	p.wear_gear("strike", 1000.0)
+	_check(p.gear_id("gloves") == "" and p.gear_id("ring1") == "garnet_ring", "worn out, it breaks; the ring is untouched")
+	var fine_gloves: Dictionary = G.make("leather_gloves", "fine")
+	p.take_gear(fine_gloves)
+	p.wear_gear("strike", 1000.0)
+	_check(p.gear_id("gloves") == "leather_gloves" and not fine_gloves.has("wear"), "a piece better than Common never wears")
+	_check(p.gear_id("melee") == "" and p.weapon == "fists", "(the sword wore out with them: you fight with your fists)")
+	# A badly worn weapon hits softer; a broken one leaves you your fists.
+	p.take_gear("sword")
+	p.gear["melee"]["wear"] = 0.2
+	main.dev_give_gear("-gloves")
+	main.dev_give_gear("-ring")
+	var d2 = await _dummy(Vector2(530, 400))
+	p.global_position = Vector2(500, 400)
+	_swing()
+	var worn_hit: float = 999.0 - d2.hp
+	_check(absf(worn_hit - p.STRIKE_DAMAGE * p.attr_strength * G.WORN_WEAPON) < 0.6, "a badly worn sword hits 25%% softer (%.1f)" % worn_hit)
+	d2.queue_free()
+	p.gear["melee"]["wear"] = 0.0005
+	p.wear_gear("strike")
+	_check(p.gear_id("melee") == "" and p.weapon == "fists", "a sword worn out breaks, and you fight with your fists")
+	p.take_gear("sword")
+	_check(G.heirloom_copy(G.rec({"base": "axe", "wear": 0.1})).get("wear", 0.0) == 1.0, "an heirloom is kept in full repair")
+	# Hits wear the chest, helm, legs and cloak; rolls wear boots.
+	p.take_gear("leather")
+	p.take_gear("iron_helm")
+	p.take_gear("soft_boots")
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(5.0, null)
+	_check(p.gear["armor"]["wear"] < 1.0 and p.gear["helm"]["wear"] < 1.0 and p.gear["boots"]["wear"] == 1.0, "a blow that lands wears the chest and helm, not the boots")
+	p.sta = p.max_sta
+	p.roll_cd = 0.0
+	p.attack_cd = 0.0
+	p._try_roll(Vector2.RIGHT)
+	_check(p.gear["boots"]["wear"] < 1.0, "a roll wears the boots")
+
+	print("heirlooms in every slot")
+	await _fresh_main()
+	p = main.player
+	for id in ["axe", "chain", "leather_cap", "leather_gloves", "padded_trousers", "soft_boots", "travel_cloak", "bone_charm", "garnet_ring", "iron_band", "satchel"]:
+		p.take_gear(id)
+	_check(p.gear_id("ring1") == "garnet_ring" and p.gear_id("ring2") == "iron_band", "a second ring goes on the other hand")
+	main.victory = {"t": 3.0, "beast": "test", "lines": []}
+	main.end_regard()
+	var picks: Array = main.camp["choices"]
+	_check(main.camp_choosing and picks.size() == 12, "survived: a card for every slot you fill, and keep nothing (%d)" % picks.size())
+	_check("heir:rings" in picks and not ("heir:garnet_ring" in picks) and not ("heir:iron_band" in picks), "...the rings on one card, kept together")
+	var ri: int = picks.find("heir:rings")
+	var rcard: Dictionary = main.camp_card(ri)
+	_check("Garnet Ring" in rcard["desc"] and "Iron Band" in rcard["desc"] and "rings" in rcard["note"], "...which names both rings")
+	# Twelve cards fit the screen in two rows, on a computer and a phone.
+	for touch in [false, true]:
+		main.touch._set_active(touch)
+		await _frames(2)
+		var size: Vector2 = main.hud.get_viewport_rect().size
+		var fit := true
+		for i in picks.size():
+			var cr: Rect2 = main.hud.camp_card_rect(i, size)
+			fit = fit and Rect2(Vector2.ZERO, size).encloses(cr)
+			for j in picks.size():
+				if j != i and cr.intersects(main.hud.camp_card_rect(j, size)):
+					fit = false
+		_check(fit and main.hud.camp_per_row() == 6, "...twelve cards in two rows, all on screen, none overlapping (%s)" % ("phone" if touch else "computer"))
+	main.touch._set_active(false)
+	await _frames(1)
+	# Keys: down moves to the second row.
+	main.card_focus = 0
+	await _key_tap(KEY_DOWN)
+	_check(main.card_focus == 6, "down moves to the second row of cards (%d)" % main.card_focus)
+	main.choose_camp(ri)
+	var kept_rings: Array = G.heirloom_pieces(main.profile.heirlooms, "rings")
+	_check(kept_rings.size() == 2 and kept_rings.map(func(k): return k["base"]) == ["garnet_ring", "iron_band"], "taking it keeps both rings as the Rings heirloom")
+	var q2 = load("res://scripts/player.gd").new()
+	q2.main = main
+	q2.use_heirlooms(main.profile.heirlooms)
+	_check(q2.gear_id("ring1") == "garnet_ring" and q2.gear_id("ring2") == "iron_band" and q2.gear_id("helm") == "", "the next climb begins with both rings on")
+	q2.free()
+	main.heirloom_offered = false
+	main.victory = {"t": 3.0, "beast": "test", "lines": []}
+	main.end_regard()
+	picks = main.camp["choices"]
+	_check(not ("heir:rings" in picks) and "heir:leather_cap" in picks, "rings already kept aren't offered again; the helm still is")
+	main.choose_camp(picks.find("heir:leather_cap"))
+	_check(G.base_id(main.profile.heirlooms.get("helm", {})) == "leather_cap" and G.heirloom_pieces(main.profile.heirlooms, "rings").size() == 2, "a helm heirloom joins them")
+	main.heirloom_offered = false
+	main.camp_choosing = false
+
+	print("the paper doll")
+	await _fresh_main()
+	p = main.player
+	for id in ["axe", "iron_helm", "garnet_ring", "leather_gloves", "hobnail_boots"]:
+		p.take_gear(id)
+	p.gear["gloves"]["wear"] = 0.4
+	main.profile.heirlooms = {"melee": G.make("axe")}
+	main.drop_gear(p.global_position, "dagger")
+	await physics_frame
+	await physics_frame
+	var menu = main.menu
+	for touch in [false, true]:
+		main.touch._set_active(touch)
+		await _frames(2)
+		menu.open("inventory", true)
+		await _frames(3)
+		var cells := {}
+		var all_there := true
+		for row in G.DOLL:
+			for sl in row:
+				var c = _slot("gear:" + sl)
+				all_there = all_there and c != null
+				if c != null:
+					cells[sl] = c.get_global_rect()
+		_check(all_there and _slot("gear:fists") != null and _slot("gear:offhand") != null and _slot("floor") != null, "the doll has every slot, fists, the off-hand and the gear at your feet (%s)" % ("phone" if touch else "computer"))
+		if all_there:
+			var rows_ok: bool = cells["helm"].position.y < cells["melee"].position.y and cells["melee"].position.y < cells["ring1"].position.y and cells["ring1"].position.y < cells["backpack"].position.y
+			var cols_ok: bool = cells["helm"].position.x < cells["amulet"].position.x and cells["amulet"].position.x < cells["cloak"].position.x and absf(cells["armor"].position.x - cells["amulet"].position.x) < 1.0 and absf(cells["gloves"].position.x - cells["legs"].position.x) < 1.0
+			var view: Rect2 = main.get_viewport().get_visible_rect()
+			var on_screen := true
+			for sl in cells:
+				on_screen = on_screen and view.encloses(cells[sl])
+			_check(rows_ok and cols_ok and on_screen, "...laid out like a body, all on screen")
+		var gl = _slot("gear:gloves")
+		_check(gl != null and gl.id == "leather_gloves" and absf(gl.wear - 0.4) < 0.001 and _slot("gear:ring1").wear < 0.0, "worn Commons show their condition; rings don't")
+		_check(_slot("gear:melee").kept and not _slot("gear:helm").kept, "a worn heirloom is marked")
+		_slot("floor").focus_entered.emit()
+		await _frames(1)
+		var texts: Array = _all_labels(menu).map(func(l): return l.text)
+		_check(texts.any(func(t): return t.begins_with("Compared with yours")), "a weapon at your feet says how it plays against yours")
+		var arrows: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == load("res://scripts/menu.gd").CompareArrow)
+		_check(arrows.size() >= 2 and arrows.any(func(a): return a.up) and arrows.any(func(a): return not a.up), "...with up and down arrows (%d)" % arrows.size())
+		_slot("gear:gloves").focus_entered.emit()
+		await _frames(1)
+		texts = _all_labels(menu).map(func(l): return l.text)
+		_check(texts.any(func(t): return t.contains("Condition 40%")), "a worn piece's card shows its condition")
+		menu.close()
+		await _frames(2)
+	main.touch._set_active(false)
+	# Two rings on: taking a ring from the floor asks which one to swap.
+	main.gear_drops.clear()
+	p.take_gear("iron_band")
+	main.drop_gear(p.global_position, "garnet_ring")
+	await physics_frame
+	await physics_frame
+	menu.open("inventory", true)
+	await _frames(2)
+	_slot("floor").focus_entered.emit()
+	await _frames(1)
+	var swaps: Array = _all_buttons(menu).filter(func(b): return b.text.begins_with("Swap for your"))
+	_check(swaps.size() == 2, "with two rings on, a ring at your feet offers to swap either")
+	if swaps.size() == 2:
+		swaps[1].pressed.emit()
+		await _frames(2)
+	_check(p.gear_id("ring1") == "garnet_ring" and p.gear_id("ring2") == "garnet_ring" and main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == "iron_band", "...and swapping the second leaves the first on")
+	menu.close()
+	main.gear_drops.clear()
+	await _frames(2)
+	# The floor prompt names the slot.
+	p.take_gear("dusk_cloak")
+	main.drop_gear(p.global_position, "travel_cloak")
+	await physics_frame
+	await physics_frame
+	_check(not main.gear_here.is_empty() and G.SLOT_NAMES[G.slot_of(main.gear_here["id"])] == "Cloak", "a cloak on the floor waits for you, for the cloak slot")
+	main.gear_drops.clear()
+	# The Entity explains the worn slots the first time one is found.
+	_check(load("res://scripts/entity.gd").TIPS.has("gear_slots") and load("res://scripts/entity.gd").TIPS["gear_slots"]["group"] == "gear", "the Entity has a tip for the worn slots")
+	Engine.set_meta("sixfold_tips", true)
+	main.GuideScript.forget()
+	main.drop_gear(p.global_position + Vector2(200, 0), "gauntlets")
+	_check(main.GuideScript.queue.any(func(t): return t.get("id", "") == "gear_slots"), "finding a worn piece queues it")
+	Engine.remove_meta("sixfold_tips")
+	main.GuideScript.forget()
+	main.GuideScript.queue.clear()
+	main.gear_drops.clear()
 
 
 ## A controller button, as the game would get it from a real pad.
@@ -4686,7 +5131,7 @@ func _controls_tests() -> void:
 	await _pad_tap(JOY_BUTTON_A)
 	_check(not main.camp_choosing, "A takes the highlighted camp card")
 	var first: String = picks[0]
-	_check(p.item_count(first) > 0 if not first.begins_with("gear:") else p.gear.values().has(first.substr(5)), "...the one that was highlighted (%s)" % first)
+	_check(p.item_count(first) > 0 if not first.begins_with("gear:") else p.carried_gear().has(first.substr(5)), "...the one that was highlighted (%s)" % first)
 	await _frames(2)
 	# Choosing a tower: two rows of three.
 	main.choosing_tower = true
@@ -5254,6 +5699,7 @@ func _run() -> void:
 	await _lock_tests()
 	await _gear_tests()
 	await _heirloom_tests()
+	await _gear_slot_tests()
 	await _controls_tests()
 	await _performance_tests()
 	await _lighting_tests()
@@ -5464,7 +5910,7 @@ func _wing_tests() -> void:
 			kinds[String(c).get_slice(":", 0)] = true
 	_check(kinds.has("crystal") and kinds.has("gear") and kinds.has("scroll"), "vault cards: crystals, gear, a recall scroll or an item (%s)" % [kinds.keys()])
 	main._take_vault_pick("gear:axe")
-	_check(p.gear["melee"] == "axe", "a gear card is taken into its slot")
+	_check(p.gear_id("melee") == "axe", "a gear card is taken into its slot")
 	_check(p.add_item("scroll") and not p.add_item("scroll") and p.item_count("scroll") == 1, "you carry only one recall scroll")
 	var offered := false
 	for i in 80:
@@ -5816,12 +6262,19 @@ func _screen_tests() -> void:
 	_check(_slot("gear:fists") != null and melee != null and melee.id == "axe" and melee.on and _slot("gear:ranged").id == "shortbow" and _slot("gear:armor") != null, "...carried gear in slots: fists, the axe in hand, the bow, armor")
 	var draught = _slot("item:draught")
 	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial").count == 0, "...items with their counts")
+	_check(_slot("gear:offhand") != null and _slot("gear:offhand").locked, "...the off-hand kept for later, locked")
+	menu._inv_view("heirlooms")
+	await _frames(2)
 	var planned := 0
-	for hs in main.Gear.HEIRLOOM_SLOTS:
-		var s = _slot("heir:" + hs["id"])
-		if s != null and s.locked:
-			planned += 1
-	_check(planned == 8 and not _slot("heir:melee").locked, "...and every heirloom slot, the eight planned ones locked")
+	var heir_cells := 0
+	for b in menu.find_children("*", "Button", true, false):
+		if String(b.get_meta("slot", "")).begins_with("heir:") and b.is_visible_in_tree():
+			heir_cells += 1
+			if b.locked:
+				planned += 1
+	_check(heir_cells == 13 and planned == 1 and not _slot("heir:melee").locked, "...and the Heirlooms view: every slot on the doll, only the off-hand locked (%d cells)" % heir_cells)
+	menu._inv_view("worn")
+	await _frames(2)
 	_check(_slot("rune") == null, "no rune slot without a camp rune")
 	_slot("item:draught").focus_entered.emit()
 	await _frames(1)
@@ -6069,7 +6522,7 @@ func _mark_page_tests() -> void:
 	if take != null:
 		take.pressed.emit()
 	await _frames(2)
-	_check(p.gear["melee"] == "axe" and menu.page == "inventory", "...which swaps it for your weapon")
+	_check(p.gear_id("melee") == "axe" and menu.page == "inventory", "...which swaps it for your weapon")
 	menu.close()
 	main.gear_drops.clear()
 	await _frames(2)

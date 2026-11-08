@@ -212,7 +212,7 @@ func _top_live() -> bool:
 func _top_signature() -> Array:
 	var p = main.player
 	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size,
-		main.gear_here.get("id", ""), p.gear.duplicate() if p != null else {}, p != null and p.dead,
+		main.gear_here.get("id", ""), p.gear_signature() if p != null else [], p != null and p.dead,
 		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf]
 
 
@@ -271,7 +271,7 @@ func _draw_core() -> void:
 	var slot_i: int = p.slots().find(p.weapon)
 	c.draw_style_box(slot_on, wr)
 	UI.glow_into(b, wr.get_center(), SLOT * 0.42, Gear.color(p.weapon), 0.6)
-	Gear.icon_into(b, p.weapon, wr.get_center(), 10.5, Gear.color(p.weapon))
+	Gear.icon_into(b, p.weapon_rec(), wr.get_center(), 10.5, Gear.color(p.weapon))  # (cracked when badly worn)
 	if p.reload_t > 0.0 and p.wkind() == "crossbow":
 		var rk: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
 		b.rect(Rect2(wr.position + Vector2(2, 2), Vector2(SLOT - 4, (SLOT - 4) * rk)), Color(0, 0, 0, 0.45))
@@ -384,8 +384,8 @@ func _draw() -> void:
 		_draw_help(size, font)
 	elif hints_t > 0.0:
 		_draw_screen_hints(size, font, _fade(hints_t, HINTS_SHOW))
-	if not main.gear_here.is_empty() and not main.camp_choosing and main.fade <= 0.0 and not main.overlay_showing():
-		_draw_gear_prompt(p, main.gear_here["id"], size, font)
+	if not main.gear_here.is_empty() and not main.camp_choosing and main.fade <= 0.0 and not main.overlay_showing() and not main.menu_open():
+		_draw_gear_prompt(p, main.gear_here["rec"], size, font)
 	if show_perf:
 		_draw_perf(size, font)
 	_draw_tip(font)
@@ -563,15 +563,15 @@ func _draw_screen_hints(size: Vector2, font: Font, a := 1.0) -> void:
 		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 17.0
 
 
-## A weapon's or armor's key numbers, for its tooltip.
+## A weapon's key numbers, for its tooltip.
 func _gear_tip(id: String, slot_i: int) -> Array:
 	var lines: Array = []
 	if slot_i < 3:
 		var key := str(slot_i + 1)
 		lines.append("Slot %s%s" % [key, "  ·  in hand" if id == main.player.weapon else "  ·  press %s to hold it" % key])
-	for row in Gear.stats(id):
+	for row in Gear.stats(main.player.weapon_rec() if id == main.player.weapon else id):
 		lines.append("%s  %s" % [row[0], row[1]])
-	lines.append("I: the inventory has every slot and your armor")
+	lines.append("I: the inventory has everything you wear")
 	return lines
 
 
@@ -602,15 +602,15 @@ func _draw_tip(font: Font) -> void:
 		return
 
 
-## Standing on gear you'd have to swap for: a card comparing it with what
-## you carry in that slot, and how to take it.
-func _draw_gear_prompt(p, id: String, size: Vector2, font: Font) -> void:
+## Standing on gear you'd have to swap for: a card naming its slot and
+## comparing it with what you wear there, and how to take it.
+func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 	var slot_id := Gear.slot_of(id)
-	var held: String = p.gear.get(slot_id, "")
-	var new_stats: Array = Gear.stats(id)
-	var old_stats: Array = Gear.stats(held) if held != "" or slot_id == "armor" else []
+	var held = p.gear.get(p.slot_for(id), {})
+	var has_held: bool = Gear.is_gear(held)
+	var rows: Array = Gear.compare(id, held if has_held else ({} if slot_id != "armor" else ""), 6)
 	var w := 330.0
-	var h := 86.0 + 17.0 * new_stats.size()
+	var h := 86.0 + 17.0 * rows.size()
 	# Bottom centre; on a phone, bottom left of centre, clear of the buttons.
 	var r := Rect2(Vector2((size.x - w) / 2.0, size.y - h - 24.0), Vector2(w, h))
 	if main.touch_active:
@@ -618,30 +618,30 @@ func _draw_gear_prompt(p, id: String, size: Vector2, font: Font) -> void:
 	draw_style_box(panel, r)
 	var col: Color = Gear.color(id)
 	draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 4)), Color(col, 0.8))
-	draw_string(font, r.position + Vector2(12, 20), Gear.TEXT["on_floor"], HORIZONTAL_ALIGNMENT_LEFT, -1, 10, DIM_TEXT)
+	var head: String = "%s  ·  %s" % [Gear.TEXT["on_floor"], String(Gear.SLOT_NAMES.get(slot_id, slot_id)).to_upper()]
+	draw_string(font, r.position + Vector2(12, 20), head, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, DIM_TEXT)
 	Gear.draw_icon(self, id, r.position + Vector2(w - 26, 24), 11.0, col)
 	draw_string(font, r.position + Vector2(12, 38), Gear.display(id), HORIZONTAL_ALIGNMENT_LEFT, w - 50, 15, col.lightened(0.2))
-	var held_name: String = Gear.display(held) if held != "" else Gear.TEXT["none"]
+	var held_name: String = Gear.display(held) if has_held else (Gear.TEXT["none"] if slot_id == "armor" else Gear.TEXT["empty"])
 	var x1 := r.position.x + 12.0
 	var x2 := r.position.x + 128.0
 	var x3 := r.position.x + 232.0
 	var y := r.position.y + 58.0
 	draw_string(font, Vector2(x2, y), "this", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
 	draw_string(font, Vector2(x3, y), held_name.to_lower(), HORIZONTAL_ALIGNMENT_LEFT, w - (x3 - r.position.x) - 6.0, 11, DIM_TEXT)
-	for i in new_stats.size():
+	var arrows := Draw.Batch.new()
+	for row in rows:
 		y += 17.0
-		var row: Array = new_stats[i]
 		draw_string(font, Vector2(x1, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
-		var better := 0
-		if i < old_stats.size() and old_stats[i][0] == row[0]:
-			var diff: float = float(row[2]) - float(old_stats[i][2])
-			if absf(diff) > 0.0001:
-				better = 1 if (diff > 0.0) == bool(row[3]) else -1
-			draw_string(font, Vector2(x3, y), old_stats[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		var better: int = row[3]
 		var vcol := UI.GOOD if better > 0 else (UI.BAD if better < 0 else TEXT)
 		draw_string(font, Vector2(x2, y), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, vcol)
+		draw_string(font, Vector2(x3, y), row[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		if better != 0:
+			UI.arrow_into(arrows, Vector2(x2 - 8.0, y - 4.0), 3.5, better > 0, vcol)
+	arrows.flush(self)
 	var how: String = _say(Gear.TEXT["take_key"], Gear.TEXT["take_pad"], Gear.TEXT["take_tap"])
-	if held != "":
+	if has_held:
 		how += "  " + Gear.TEXT["drops"] % Gear.display(held)
 	draw_string(font, Vector2(r.position.x, r.end.y - 8.0), how, HORIZONTAL_ALIGNMENT_CENTER, w, 12, GOLD)
 
@@ -961,13 +961,25 @@ static func _sentence(t: String) -> String:
 	return t.left(1).to_upper() + t.substr(1) + "."
 
 
+## Cards to a row on the card screens: one row of up to five, else two rows
+## (the heirloom choice can offer a card for every slot).
+func camp_per_row() -> int:
+	var n: int = main.camp.get("choices", []).size()
+	return n if n <= 5 else int(ceil(n / 2.0))
+
+
 func camp_card_rect(i: int, size: Vector2) -> Rect2:
 	var n: int = main.camp["choices"].size()
-	var w := minf(230.0, (size.x - 40.0 - 16.0 * (n - 1)) / n)
-	var h := minf(230.0, size.y * 0.5)
-	var x0 := (size.x - (w * n + 16.0 * (n - 1))) / 2.0
-	var top := size.y * 0.5 - h * 0.5 + 40.0
-	return Rect2(Vector2(x0 + i * (w + 16.0), top), Vector2(w, h))
+	var per := maxi(camp_per_row(), 1)
+	var rows := int(ceil(float(n) / per))
+	var gap := 16.0 if rows == 1 else 10.0
+	var w := minf(230.0, (size.x - 40.0 - gap * (per - 1)) / per)
+	var h := minf(230.0, size.y * 0.5) if rows == 1 else minf(180.0, (size.y - 170.0 - gap) / 2.0)
+	var row := i / per
+	var in_row := mini(per, n - row * per)
+	var x0 := (size.x - (w * in_row + gap * (in_row - 1))) / 2.0
+	var top := size.y * 0.5 - (h * rows + gap * (rows - 1)) * 0.5 + 40.0
+	return Rect2(Vector2(x0 + (i % per) * (w + gap), top + row * (h + gap)), Vector2(w, h))
 
 
 ## Which camp card is under a point on screen (-1 for none).
@@ -1007,25 +1019,30 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		if _card_focused(i):
 			_draw_card_focus(r)
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(col, 0.75))
-		var ic := Vector2(r.get_center().x, r.position.y + 48.0)
-		draw_circle(ic, 28.0, Color(col, 0.1))
+		var small := r.size.y < 200.0  # two rows of smaller cards
+		var ir := 15.0 if small else 22.0
+		var ic := Vector2(r.get_center().x, r.position.y + (28.0 if small else 48.0))
+		draw_circle(ic, ir * 1.27, Color(col, 0.1))
 		if card.has("gear"):
-			Gear.draw_icon(self, card["gear"], ic, 22.0, col)
+			Gear.draw_icon(self, card["gear"], ic, ir, col)
 		elif card.has("crystal"):
-			Items.draw_crystal_icon(self, col, ic, 22.0)
+			Items.draw_crystal_icon(self, col, ic, ir)
 		elif card["item"] != "":
-			Items.draw_icon(self, card["item"], ic, 22.0)
+			Items.draw_icon(self, card["item"], ic, ir)
 		else:
-			Items.draw_rune_icon(self, col, ic, 22.0)
-		var y := r.position.y + 100.0
-		draw_string(font, Vector2(r.position.x + 8, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 15 if r.size.x > 180 else 13, col.lightened(0.2))
-		draw_multiline_string(font, Vector2(r.position.x + 12, y + 20.0), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 24.0, 12, 4, TEXT)
+			Items.draw_rune_icon(self, col, ic, ir)
+		var y := r.position.y + (58.0 if small else 100.0)
+		draw_string(font, Vector2(r.position.x + 6, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 15 if r.size.x > 180 else 13, col.lightened(0.2))
+		# As many lines of its text as fit above the note.
+		var dy := y + (15.0 if small else 20.0)
+		var lines := 4 if not small else clampi(int((r.end.y - 46.0 - dy) / 16.0) + 1, 1, 4)
+		draw_multiline_string(font, Vector2(r.position.x + 8, dy), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 11 if small else 12, lines, TEXT)
 		if card.has("note"):
 			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, DIM_TEXT)
 		if card["item"] != "" and p != null:
 			var n: int = p.item_count(card["item"])
-			var have := "carrying %d of %d" % [n, Items.max_stack(card["item"])]
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if n >= Items.max_stack(card["item"]) else DIM_TEXT)
+			var have := "carrying %d of %d" % [n, p.max_stack(card["item"])]
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if n >= p.max_stack(card["item"]) else DIM_TEXT)
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), _card_hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD)
 
 
@@ -1056,4 +1073,6 @@ func _card_hint(i: int) -> String:
 		return "Tap"
 	if main.pad_active:
 		return Controls.pad_text("Press {a}", main.pad_ps) if _card_focused(i) else ""
+	if i >= main.CARD_KEYS:
+		return "Press Enter" if _card_focused(i) else ""
 	return "Press %d%s" % [i + 1, " or Enter" if _card_focused(i) else ""]
