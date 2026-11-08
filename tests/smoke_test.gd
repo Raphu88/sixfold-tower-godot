@@ -6243,6 +6243,256 @@ func _controls_tests() -> void:
 	await _key_tap(KEY_W)  # (back to the keyboard)
 
 
+## A raw controller button or axis, from a pretend controller (pad.gd
+## test_joys), as a browser that doesn't report the standard layout sends it.
+func _raw_button(device: int, button: int, down: bool) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.device = device
+	ev.button_index = button
+	ev.pressed = down
+	ev.pressure = 1.0 if down else 0.0
+	Input.parse_input_event(ev)
+
+
+func _raw_axis(device: int, axis: int, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.device = device
+	ev.axis = axis
+	ev.axis_value = value
+	Input.parse_input_event(ev)
+
+
+## One step of the controller setup: press (or push) something, let go, and
+## wait until the screen has moved on (or shown why not).
+func _setup_step(setup, press: Callable, release: Callable) -> void:
+	var at: int = setup.step
+	var st: String = setup.state
+	var said: String = setup.note
+	press.call()
+	await _frames(1)
+	release.call()
+	await _until(func(): return not is_instance_valid(setup) or setup.step != at or setup.state != st or (setup.note != said and setup.held == ""), 2.0)
+
+
+func _pad_layout_tests() -> void:
+	print("controllers the browser scrambles")
+	await _fresh_main()
+	main.touch._set_active(false)
+	var pad = main.pad
+	var P = pad.get_script()
+	var C = main.Controls
+	P.layouts.clear()
+	P.offered.clear()
+	_check(C.WEB_STANDARD_FIX.contains("lefttrigger:+a6") and C.WEB_STANDARD_FIX.contains("righttrigger:+a7"), "on the web, standard pads' triggers are read from axes 6 and 7 (Godot 4.3's own layout lost them)")
+	var stray := false
+	for a in ["ui_up", "ui_left", "ui_accept", "ui_cancel", "move_left", "aim_up", "dismiss_tip"]:
+		for ev in InputMap.action_get_events(a):
+			if (ev is InputEventJoypadButton or ev is InputEventJoypadMotion) and ev.device != C.PAD_DEVICE:
+				stray = true
+	_check(not stray, "the input map (Godot's menu actions too) listens only to the game's controller, never to raw numbers")
+	_check(P.parse_source("a2+@-1") == {"t": "a", "i": 2, "s": 1.0, "r": -1.0} and is_equal_approx(P.parse_source("h9=-0.43")["v"], -0.43) and P.parse_source("b12")["i"] == 12 and P.parse_source("q1").is_empty(), "layouts read back from text")
+	_check(P.hat_on(-0.71, -1.0) and P.hat_on(1.0, -1.0) and not P.hat_on(0.14, -1.0) and not P.hat_on(1.28, -1.0), "a hat d-pad: up counts its diagonals, not down or rest")
+
+	# An Xbox pad Firefox reports raw on Linux: the guessed layout.
+	P.test_joys[5] = {"name": "045e-0b13-Xbox Wireless Controller", "guid": "Linux045e0b13", "known": false}
+	_raw_axis(5, 2, -1.0)  # (the triggers rest at -1)
+	_raw_axis(5, 5, -1.0)
+	_raw_button(5, 2, true)
+	await _frames(1)
+	_check(pad._dev(5)["kind"] == "guessed" and Input.is_action_pressed("use_item"), "an unknown Xbox pad gets the raw Xbox layout: X uses your item")
+	_check(main.pad_active, "...and counts as the controller in use")
+	_check(pad.offers == 1, "the first press offers the controller setup (the Entity)")
+	_raw_button(5, 2, false)
+	_raw_button(5, 3, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("interact") and not Input.is_action_pressed("use_item"), "Y takes gear")
+	_raw_button(5, 3, false)
+	_raw_button(5, 0, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("jump") and pad.offers == 1, "A jumps (and the offer isn't made twice)")
+	_raw_button(5, 0, false)
+	_raw_button(5, 4, true)
+	await _frames(1)
+	_check(not Input.is_action_pressed("restart") and pad.cast_held, "LB (raw 4) is the cast button, not View (Godot's 4)")
+	_raw_button(5, 0, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("cast_legs"), "LB + A casts the legs' mark")
+	_raw_button(5, 0, false)
+	_raw_button(5, 4, false)
+	_raw_button(5, 5, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("weapon_next"), "RB (raw 5) picks the next weapon")
+	_raw_button(5, 5, false)
+	await _frames(1)
+	_check(not Input.is_action_pressed("parry") and not Input.is_action_pressed("attack"), "triggers resting at -1 are let go")
+	_raw_axis(5, 2, 1.0)
+	_raw_axis(5, 5, 0.9)
+	await _frames(1)
+	_check(Input.is_action_pressed("parry") and Input.is_action_pressed("attack"), "LT (axis 2) parries, RT (axis 5) strikes")
+	_raw_axis(5, 2, -1.0)
+	_raw_axis(5, 5, -1.0)
+	_raw_axis(5, 7, 1.0)
+	await _frames(1)
+	_check(not Input.is_action_pressed("parry") and not Input.is_action_pressed("attack") and Input.is_action_pressed("item_next"), "...back at -1 they let go; d-pad down (axis 7) picks the next item")
+	_raw_axis(5, 7, 0.0)
+	_raw_axis(5, 1, -1.0)
+	_raw_axis(5, 4, 1.0)
+	await _frames(1)
+	_check(Input.get_action_strength("move_up") > 0.9 and Input.get_action_strength("aim_down") > 0.9 and Input.get_action_strength("aim_right") == 0.0, "the left stick moves; the right stick is axes 3 and 4 (not the left trigger)")
+	_raw_axis(5, 1, 0.0)
+	_raw_axis(5, 4, 0.0)
+	await _frames(1)
+	_check(Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "...and both let go")
+	# On Windows or a Mac: the Bluetooth order, with its gaps.
+	P.test_joys[6] = {"name": "045e-02fd-Xbox Wireless Controller", "guid": "Windows045e02fd", "known": false}
+	_raw_button(6, 3, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item"), "on Windows, X is raw 3 (the Bluetooth order)")
+	_raw_button(6, 3, false)
+	_check(pad.offers == 2, "...a second unknown pad is offered it too")
+	# A pad the browser calls standard (or Godot knows): straight through.
+	P.test_joys[8] = {"name": "Xbox 360 Controller (XInput STANDARD GAMEPAD)", "guid": "standard", "known": true}
+	_raw_button(8, JOY_BUTTON_X, true)
+	_raw_axis(8, JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	await _frames(1)
+	_check(pad._dev(8)["kind"] == "known" and Input.is_action_pressed("use_item") and Input.is_action_pressed("attack"), "a standard pad passes straight through")
+	_raw_button(8, JOY_BUTTON_X, false)
+	_raw_axis(8, JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	await _frames(1)
+	_check(not Input.is_action_pressed("use_item") and not Input.is_action_pressed("attack"), "...and lets go")
+	_check(pad.offers == 2, "a known pad isn't offered the setup")
+	await _settle()
+
+	# The setup screen, with a scrambled pad that isn't an Xbox one.
+	P.test_joys[7] = {"name": "Generic USB Joystick", "guid": "Windows00790006", "known": false}
+	_raw_axis(7, 5, -1.0)  # a trigger at rest
+	_raw_axis(7, 9, 1.28)  # a hat d-pad at rest
+	main.menu.open("settings")
+	await _frames(2)
+	var open_btn = _all_buttons(main.menu).filter(func(b): return b.get_meta("setting", "") == "padsetup")
+	_check(open_btn.size() == 1, "Settings has Controller setup")
+	if open_btn.is_empty():
+		return
+	open_btn[0].pressed.emit()
+	await _frames(2)
+	var found: Array = main.menu.box.get_children().filter(func(c): return c.get_script() == load("res://scripts/pad_setup.gd"))
+	_check(main.menu.page == "padsetup" and found.size() == 1, "...which opens its page")
+	if found.is_empty():
+		return
+	var setup = found[0]
+	_check(setup.state == "pick" and pad.capture.is_valid(), "it starts by asking for any button (and the controller's presses go to it)")
+	_raw_button(7, 9, true)
+	await _frames(1)
+	_raw_button(7, 9, false)
+	_check(setup.state == "step" and setup.device == 7 and setup.step == 0, "any button begins, for that controller")
+	var prompt: Array = _all_labels(setup).filter(func(l): return l.get_meta("prompt", false))
+	_check(not prompt.is_empty() and prompt[0].text == "Press the button you want for Jump", "the first prompt: Jump")
+	var tap := func(b: int): return [func(): _raw_button(7, b, true), func(): _raw_button(7, b, false)]
+	var push := func(a: int, v: float, back: float): return [func(): _raw_axis(7, a, v), func(): _raw_axis(7, a, back)]
+	var t: Array = tap.call(5)
+	await _setup_step(setup, t[0], t[1])  # Jump: 5
+	t = tap.call(6)
+	await _setup_step(setup, t[0], t[1])  # Roll: 6
+	t = push.call(1, -1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # move up: axis 1 -
+	t = push.call(1, 1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])
+	_check(setup.step == 3 and setup.note.contains("already"), "the moving stick's other way can't be 'right' too")
+	t = push.call(0, 1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # move right: axis 0 +
+	t = push.call(3, -1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # aim up: axis 3 -
+	t = push.call(2, 1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # aim right: axis 2 +
+	t = tap.call(2)
+	await _setup_step(setup, t[0], t[1])  # X: 2 (then redo it)
+	t = tap.call(6)
+	await _setup_step(setup, t[0], t[1])  # Roll's button: back a step
+	_check(setup.step == 6 and not setup.got.has("x"), "the Roll button goes back a step")
+	t = tap.call(4)
+	await _setup_step(setup, t[0], t[1])  # X: 4
+	t = tap.call(4)
+	await _setup_step(setup, t[0], t[1])
+	_check(setup.step == 7 and setup.note.contains("already"), "a button already given can't be given again")
+	t = tap.call(7)
+	await _setup_step(setup, t[0], t[1])  # Y: 7
+	t = push.call(5, 1.0, -1.0)
+	await _setup_step(setup, t[0], t[1])  # RT: axis 5 from -1
+	t = tap.call(8)
+	await _setup_step(setup, t[0], t[1])  # LT: a button
+	t = tap.call(1)
+	await _setup_step(setup, t[0], t[1])  # RB
+	t = tap.call(0)
+	await _setup_step(setup, t[0], t[1])  # LB
+	for v in [-1.0, 0.14, 0.71, -0.43]:  # the d-pad on one hat axis
+		t = push.call(9, v, 1.28)
+		await _setup_step(setup, t[0], t[1])
+	t = tap.call(11)
+	await _setup_step(setup, t[0], t[1])  # Start
+	t = tap.call(10)
+	await _setup_step(setup, t[0], t[1])  # View
+	_check(setup.step == setup.STEPS.size() - 1, "one step left (%d)" % setup.step)
+	t = tap.call(5)
+	await _setup_step(setup, t[0], t[1])  # the Jump button skips the last
+	_check(setup.state == "done" and not pad.capture.is_valid(), "the setup finishes and lets the controller go")
+	var L: Dictionary = P.layouts.get("Windows00790006|Generic USB Joystick", {})
+	_check(L.get("a") == "b5" and L.get("ly") == "a1-" and L.get("lx") == "a0+" and L.get("rt") == "a5+@-1" and L.get("lt") == "b8" and L.get("up") == "h9=-1.00" and L.get("right") == "h9=-0.43", "it saved what was pressed, per controller (%s)" % [L])
+	_check(L.get("rs", "") != "b8", "a skipped step keeps its default only if that input is free")
+	_check(_all_labels(setup).any(func(l): return l.text == "axis 5 +"), "the page lists what was recorded")
+	_check(setup.readout_lines().contains("Generic USB Joystick") and setup.readout_lines().contains("9: +1.28"), "the readout shows the raw axes arriving")
+	_raw_button(7, 5, true)
+	await _frames(1)
+	_raw_button(7, 5, false)
+	await _until(func(): return main.menu.page == "settings", 1.0)
+	_check(main.menu.page == "settings", "the new layout works at once: its A presses Done (%s)" % main.menu.page)
+	main.menu.close()
+	await _frames(2)
+	_raw_button(7, 4, true)
+	_raw_axis(7, 5, 1.0)
+	_raw_axis(7, 9, 0.14)
+	_raw_axis(7, 1, -1.0)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item") and Input.is_action_pressed("attack") and Input.is_action_pressed("item_next") and Input.get_action_strength("move_up") > 0.9, "in play, the recorded layout is used (X, RT, hat d-pad, stick)")
+	_raw_button(7, 4, false)
+	_raw_axis(7, 5, -1.0)
+	_raw_axis(7, 9, 1.28)
+	_raw_axis(7, 1, 0.0)
+	_raw_button(7, 0, true)
+	_raw_button(7, 5, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("cast_legs") and not Input.is_action_pressed("item_next"), "its LB + A casts")
+	_raw_button(7, 5, false)
+	_raw_button(7, 0, false)
+	await _frames(1)
+	_check(not Input.is_action_pressed("use_item") and not Input.is_action_pressed("attack") and Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "...and everything lets go")
+	await _settle()
+	# Reset to default: back to the raw numbers.
+	pad.reset_layout(7)
+	_check(not P.layouts.has("Windows00790006|Generic USB Joystick") and pad._dev(7)["kind"] == "raw", "Reset to default forgets the setup")
+	_raw_button(7, 2, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item"), "...and the raw numbers pass straight through again")
+	_raw_button(7, 2, false)
+	await _frames(1)
+	# Saved and loaded.
+	var path := "user://pad_test.cfg"
+	P.layouts = {"standard|Pad": {"a": "b1", "lt": "a2+@-1"}}
+	P.offered = {"standard|Pad": true}
+	P.save_layouts(path)
+	P.layouts = {}
+	P.offered = {}
+	P.load_layouts(path)
+	_check(P.layouts.get("standard|Pad", {}).get("lt") == "a2+@-1" and P.offered.has("standard|Pad"), "layouts save and load")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	P.layouts = {}
+	P.offered = {}
+	P.load_layouts(path)
+	_check(P.layouts.is_empty(), "no save: no layouts (the defaults)")
+	P.test_joys.clear()
+	pad.devs.clear()
+	await _frames(2)
+
+
 func _all_labels(n: Node) -> Array:
 	var out: Array = []
 	if n is Label:
@@ -6732,6 +6982,7 @@ func _run() -> void:
 	await _lost_tests()
 	await _bench_tests()
 	await _controls_tests()
+	await _pad_layout_tests()
 	await _performance_tests()
 	await _lighting_tests()
 	await _foe_list_tests()

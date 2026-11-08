@@ -156,7 +156,7 @@ func _input(event: InputEvent) -> void:
 		if _cycle(1 if event.keycode == KEY_E else -1):
 			get_viewport().set_input_as_handled()
 		return
-	if event is InputEventJoypadButton and event.pressed and (event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER):
+	if event is InputEventJoypadButton and event.pressed and event.device == Controls.PAD_DEVICE and (event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER):
 		if _cycle(1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else -1):
 			get_viewport().set_input_as_handled()
 		return
@@ -303,6 +303,8 @@ func go_back() -> void:
 		open("pause")  # (the train has no Back: Esc opens the menu)
 	elif page == "confirm_new":
 		open(confirm_back)
+	elif page == "padsetup":
+		open("settings")
 	elif page == "mark":
 		focus_part = mark_part
 		open("climber", opened_direct)
@@ -619,6 +621,25 @@ func _page_settings() -> void:
 	_toggle("Controls list on screen (H)", "help")
 	_choice("HUD size", "hud_scale", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]])
 	_guide_settings()
+	_pad_settings()
+	_footer()
+
+
+# --- controller setup (pad_setup.gd) ---
+
+func _pad_settings() -> void:
+	var PadSetup = load("res://scripts/pad_setup.gd")
+	_button(PadSetup.TEXT["settings_button"], open.bind("padsetup")).set_meta("setting", "padsetup")
+
+
+## Settings -> Controller setup: records a controller's layout (pad_setup.gd).
+func _page_padsetup() -> void:
+	var PadSetup = load("res://scripts/pad_setup.gd")
+	_header(PadSetup.TEXT["title"], "")
+	var setup = PadSetup.new()
+	setup.main = main
+	setup.menu = self
+	box.add_child(setup)
 	_footer()
 
 
