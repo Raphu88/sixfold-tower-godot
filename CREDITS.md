@@ -4,13 +4,17 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 
 | Pack | Author | Used for |
 | --- | --- | --- |
-| [50 RPG Sound Effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney | chops, footsteps, cloth, creaks, bow draw |
+| [50 RPG Sound Effects](https://opengameart.org/content/50-rpg-sound-effects) | Kenney | chops, footsteps, cloth, creaks, knife slices, book pages (menus) |
 | [RPG Sound Pack](https://opengameart.org/content/rpg-sound-pack) | artisticdude | sword swings, armour, cloth, metal ring |
 | [Swishes Sound Pack](https://opengameart.org/content/swishes-sound-pack) | artisticdude | punches, heavy swings, dodges |
-| [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | spells, slime, creature sounds |
+| [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | spells, slime, creature sounds, arrow thunks, rubble |
 | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong |
 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | Independent.nu | punch and hit bodies |
 | [Evil temple Ambiance loop](https://opengameart.org/content/evil-temple-ambiance-loop) | HaelDB | background music |
 | [Dark Cavern Ambient](https://opengameart.org/content/dark-cavern-ambient) | Paul Wortmann | tower ambience |
+| [Medieval Sound Effects: Weapon Textures](https://opengameart.org/content/medieval-sound-effects-weapon-textures) | Still North Media (posted by MedicineStorm) | bow draw, nock and release, crossbow shot, reload and bolt, dagger and spear swings, blade draws |
+| [Fantasy Sound Effects (Tinysized SFX)](https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx) | Vehicle (Jan Schupke) | dagger draw, pouch (pick-ups, inventory), spike trap scrape, gas hiss |
+| [Interface Sounds](https://opengameart.org/content/interface-sounds) | Kenney | menu clicks |
+| [10 Impact/Shield Blocks](https://opengameart.org/content/10-impactshield-blocks) | StarNinjas | mace and war hammer hits |
 
 The game's sounds are built from these with `tools/build_audio.py`: layered, levelled, given a shared room reverb, and in a few cases mixed with a synthesised thump or string. `tools/fetch_audio_sources.sh` downloads the original packs.

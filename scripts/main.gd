@@ -979,6 +979,7 @@ func _card_keys(count: int, per_row: int) -> bool:
 	if count <= 0:
 		return false
 	card_focus = clampi(card_focus, 0, count - 1)
+	var was := card_focus
 	if Input.is_action_just_pressed("ui_left"):
 		card_focus = posmod(card_focus - 1, count)
 	elif Input.is_action_just_pressed("ui_right"):
@@ -987,6 +988,8 @@ func _card_keys(count: int, per_row: int) -> bool:
 		card_focus -= per_row
 	elif Input.is_action_just_pressed("ui_down") and card_focus / per_row < (count - 1) / per_row:
 		card_focus = mini(card_focus + per_row, count - 1)
+	if card_focus != was:
+		sfx("ui_move")
 	return Input.is_action_just_pressed("ui_accept")
 
 
@@ -1107,7 +1110,7 @@ func choose_camp(i: int) -> void:
 	player.set_physics_process(true)
 	taken.append(Items.CAMP["leave"])
 	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0}
-	sfx("equip_sword", 0.9, -2.0, 0.0)
+	sfx("pickup", 0.95, -2.0, 0.0)
 
 
 func _take_item(id: String, verb: String) -> String:
@@ -1123,7 +1126,6 @@ func _take_gear(id: String) -> String:
 	var old: String = player.take_gear(id)
 	if old != "":
 		drop_gear(player.global_position, old)
-	sfx("equip_sword", 1.1, -3.0)
 	return Gear.TEXT["took"] % Gear.display(id)
 
 
@@ -1154,7 +1156,6 @@ func _update_gear_drops() -> void:
 		gear_here = {}
 		player.take_gear(id)
 		fx_text(player.global_position + Vector2(0, -44), "+ " + Gear.display(id), Gear.color(id))
-		sfx("equip_sword", 1.2, -3.0)
 
 
 ## Y or the Take button: swap what you carry for the gear you stand on (your
@@ -1196,7 +1197,7 @@ func _update_item_drops(delta: float) -> void:
 		if player.add_item(d["id"]):
 			d["t"] = 0.0
 			fx_text(player.global_position + Vector2(0, -44), "+ " + name, Items.color(d["id"]))
-			sfx("equip_sword", 1.3, -4.0)
+			sfx("pickup")
 		elif not d.get("told", false):
 			d["told"] = true
 			fx_text(player.global_position + Vector2(0, -44), "No room for another " + name, Color(0.8, 0.78, 0.85))
@@ -1453,7 +1454,7 @@ func keep_heirloom(id: String) -> void:
 	if id != "" and Gear.is_gear(id):
 		profile.heirlooms[Gear.heirloom_slot(id)] = id
 		profile.save()
-		sfx("equip_sword", 0.8, -2.0, 0.0)
+		sfx("heirloom", 1.0, 0.0, 0.0)
 	camp_choosing = false
 	end_regard()
 
@@ -2003,6 +2004,12 @@ func set_slowmo(on: bool) -> void:
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
 	if audio != null:
 		audio.play(sound, pitch, volume_db, variance)
+
+
+## Fades out a sound that's still playing.
+func sfx_fade(sound: String) -> void:
+	if audio != null:
+		audio.fade(sound)
 
 
 func fx_ring(pos: Vector2, color: Color, reach: float, dur := 0.3, width := 3.0) -> void:

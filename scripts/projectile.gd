@@ -60,6 +60,8 @@ func _physics_process(delta: float) -> void:
 	if return_to == null and main.is_solid(position):
 		_burst()
 		main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 4, 140.0)
+		if friendly and style in ["arrow", "bolt"]:
+			main.sfx("arrow_hit", 1.25, -12.0)  # your arrow thunks into the wall
 		queue_free()
 		return
 	# Sandshaper's walls stop monsters' shots.
