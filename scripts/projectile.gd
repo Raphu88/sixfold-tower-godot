@@ -76,6 +76,12 @@ func _physics_process(delta: float) -> void:
 			main.sfx("arrow_hit", 1.2, -8.0)
 			queue_free()
 			return
+	# The climber's arrows light the puzzle's eyes (and stop there).
+	if friendly and return_to == null and main.puzzle != null and main.puzzle.shot(position):
+		_burst()
+		main.sfx("arrow_hit", 1.1, -6.0)
+		queue_free()
+		return
 	if friendly:
 		for e in main.targets():
 			if e in hit:

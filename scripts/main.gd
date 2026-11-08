@@ -22,6 +22,7 @@ const MenuScript := preload("res://scripts/menu.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const FogScript := preload("res://scripts/fog.gd")
+const PuzzleScript := preload("res://scripts/puzzle.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 ## The stair opens once this share of a floor's monsters are down.
@@ -140,6 +141,8 @@ var track_t := 0.0  # Track: foes revealed
 var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, dmg, push, carry, hit, color}
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
 var fog  # line-of-sight fog on floors of rooms (fog.gd)
+var puzzle  # the floor's puzzle, whose solving lifts the stair's ward (puzzle.gd)
+var ward := false  # the stair is warded until the floor's puzzle is solved
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
@@ -192,6 +195,9 @@ func _ready() -> void:
 	trap_view = Traps.new()
 	trap_view.main = self
 	add_child(trap_view)
+	puzzle = PuzzleScript.new()
+	puzzle.main = self
+	add_child(puzzle)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
@@ -547,7 +553,8 @@ func _process(delta: float) -> void:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
 	# The stair opens once most of the floor is down; clearing it all rings the gong.
 	var alive := enemies().size()
-	if not stair_open and not climbing and float(floor_total - alive) >= ceilf(STAIR_OPENS_AT * floor_total):
+	# (On floors with a puzzle, only solving it opens the stair: see lift_ward.)
+	if not ward and not stair_open and not climbing and float(floor_total - alive) >= ceilf(STAIR_OPENS_AT * floor_total):
 		stair_open = true
 		room_view.stair_open = true
 		if alive > 0:
@@ -803,6 +810,9 @@ func _start_floor(n: int) -> void:
 	set_chasms(plan.get("chasms", []))
 	traps = Traps.place(plan, tower_data(), n, self)
 	trap_view.reset()
+	if puzzle != null:
+		puzzle.setup(plan.get("puzzle", {}) if not in_camp else {})
+		ward = puzzle.active()
 
 	var tough := Floors.toughness(n)
 	for m in plan["monsters"]:
@@ -870,6 +880,16 @@ func _land_below(to: int) -> void:
 	banner = {"title": FALL_TEXT["title"], "lines": [FALL_TEXT["line"] % to], "t": 3.0}
 	player.set_physics_process(true)
 	sfx("hurt", 0.7, -6.0, 0.0)
+
+
+## The floor's puzzle is solved: the ward lifts and the stair opens.
+func lift_ward() -> void:
+	ward = false
+	stair_open = true
+	room_view.stair_open = true
+	banner = {"title": PuzzleScript.TEXT["lifted_title"], "lines": [PuzzleScript.TEXT["lifted"]], "t": 2.5}
+	sfx("clear", 0.9, -2.0, 0.0)
+	fx_ring(stair_pos, Color(0.75, 0.55, 1.0), 80.0, 0.6, 4.0)
 
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
@@ -950,6 +970,9 @@ func _arrive() -> void:
 		banner["lines"] = lines + banner["lines"]
 	else:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
+	if ward:
+		banner["lines"] = banner.get("lines", []) + [PuzzleScript.TEXT["warded"]]
+		banner["t"] = maxf(float(banner.get("t", 0.0)), 3.5)
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 

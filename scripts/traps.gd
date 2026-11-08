@@ -282,6 +282,9 @@ static func spot_ok(pos: Vector2, plan: Dictionary, others: Array, main = null) 
 	var rooms: Array = plan.get("rooms", [])
 	if not rooms.is_empty() and rooms[0].grow(30.0).has_point(pos):
 		return false  # never in the first room (or the corridor's mouth into it)
+	var pz: Dictionary = plan.get("puzzle", {})
+	if not pz.is_empty() and pz["room"].grow(20.0).has_point(pos):
+		return false  # nor in the puzzle room (it has its own test)
 	if pos.distance_to(plan.get("start", Vector2(-9999, -9999))) < 120.0:
 		return false
 	if pos.distance_to(plan.get("stair", Vector2(-9999, -9999))) < 90.0:
