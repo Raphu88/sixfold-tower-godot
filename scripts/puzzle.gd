@@ -52,6 +52,7 @@ var levers: Array = []  # {pos, t}
 var rewards: Array = []  # world positions
 var bodies: Array = []
 var ward_glow := 0.0  # fades out when the ward lifts
+var redraw_t := 0.0
 var glow: Node2D  # the eyes and the ward, drawn unlit so they show in dark corners
 
 
@@ -165,7 +166,10 @@ func _physics_process(delta: float) -> void:
 		pl["down"] = _weighed(pl["pos"])
 	_push(delta)
 	_check()
-	queue_redraw_all()
+	redraw_t -= delta
+	if redraw_t <= 0.0:
+		redraw_t = 1.0 / 30.0
+		queue_redraw_all()
 
 
 ## A plate is held down by a block, or by a monster standing on it.

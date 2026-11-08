@@ -59,6 +59,9 @@ func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 	return b
 
 
+var redraw_t := 0.0
+
+
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_help"):
 		show_help = not show_help
@@ -67,7 +70,11 @@ func _process(delta: float) -> void:
 		# The trail holds for a moment, then drains down to the real value.
 		hp_trail = move_toward(hp_trail, p.hp / p.max_hp, delta * (0.6 if hp_trail > p.hp / p.max_hp else 10.0))
 		sta_trail = move_toward(sta_trail, p.sta / p.max_sta, delta * (0.8 if sta_trail > p.sta / p.max_sta else 10.0))
-	queue_redraw()
+	# Redrawing the whole HUD is costly on phones: 30 times a second is plenty.
+	redraw_t -= delta
+	if redraw_t <= 0.0:
+		redraw_t = 1.0 / 30.0
+		queue_redraw()
 
 
 func _draw() -> void:

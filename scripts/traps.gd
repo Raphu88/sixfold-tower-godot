@@ -96,6 +96,7 @@ var show_all := false  # dev tool: draw every trap's outline
 var root_t := 0.0  # the climber is held by a thorn snare (roll to break free)
 var slow_t := 0.0  # the climber is slowed by a sluice's water
 var slow_mult := 1.0
+var redraw_t := 0.0
 
 
 # --- placement ---------------------------------------------------------------
@@ -386,7 +387,11 @@ func tick(delta: float) -> void:
 		if root_t > 0.0:
 			mult = 0.0
 		p.trap_slow = mult
-	queue_redraw()
+	# Redraw 30 times a second (plenty for the glows), not every tick.
+	redraw_t -= delta
+	if redraw_t <= 0.0:
+		redraw_t = 1.0 / 30.0
+		queue_redraw()
 
 
 ## Clears the climber's snare and slow (a new floor).
@@ -510,14 +515,12 @@ func _fire_effects(tr: Dictionary) -> void:
 			main.fx_burst(lane_end(tr), tr["dir"] * 120.0, col, 10, 160.0)
 			main.sfx("hit_slime", 0.8, -6.0)
 		"flame":
-			main.light_flash(mid, col, 0.9, 1.4, k["fire"])
 			main.sfx("burn", 1.0, -6.0)
 		"spikes":
 			main.fx_burst(pos, Vector2.ZERO, col, 6, 120.0)
 			main.sfx("trap_spikes", 1.0, -8.0)  # (quieter: a field fires many at once)
 		"ember":
 			main.fx_burst(pos, Vector2.ZERO, col, 16, 260.0)
-			main.light_flash(pos, col, 1.0, 1.6, 0.3)
 			main.sfx("burn", 0.9, -4.0)
 		"thorns":
 			main.fx_burst(pos, Vector2.ZERO, col, 10, 160.0)
@@ -624,6 +627,15 @@ func _ready() -> void:
 	material = unlit
 
 
+## The world on screen, with room for a lane's length.
+func _view_rect() -> Rect2:
+	var cam := get_viewport().get_camera_2d()
+	if cam == null:
+		return Rect2(-1e6, -1e6, 2e6, 2e6)
+	var size := get_viewport_rect().size / cam.zoom
+	return Rect2(cam.get_screen_center_position() - size * 0.5, size).grow(240.0)
+
+
 ## The strip of floor a lane covers.
 func _lane_rect(tr: Dictionary) -> Rect2:
 	var a: Vector2 = tr["pos"]
@@ -637,7 +649,10 @@ func _draw() -> void:
 		return
 	var t := Time.get_ticks_msec() * 0.001
 	var keen: bool = main.player != null and main.player.has_bond("hunter")
+	var view := _view_rect()
 	for tr in main.traps:
+		if not view.has_point(tr["pos"]):
+			continue  # (off screen: not drawn)
 		var k: Dictionary = KINDS[tr["kind"]]
 		var pos: Vector2 = tr["pos"]
 		var col: Color = k["color"]

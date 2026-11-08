@@ -203,10 +203,12 @@ SOUNDS = {
     "glint": {"variants": [v((S + "metal_11.ogg", 0, 0, 1.25), (A + "inventory/metal-ringing.wav", -14, 0, 1.6))], "level": -7, "verb": -14, "lp": 7000},
     "warn_knight": {"variants": [v((A + "inventory/chainmail1.wav", 0, 0, 0.9), (A + "battle/sword-unsheathe2.wav", -6, 120, 0.85))], "level": -5, "lp": 8000},
     # An archer drawing: the same bow creak as yours, shorter.
+    # Enemy archers drawing: the real bow stave only, a little low and soft
+    # (the old creak layer and the sped-up draw read as a squeaky spring).
     "warn_archer": {"variants": [
-        v((LB_DRAW + "11.70+0.55", 0, 0, 1.05), (K + "creak3.ogg", -8, 0, 1.15)),
-        v((LB_DRAW + "14.10+0.60", 0, 0, 1.1), (K + "creak1.ogg", -8, 0, 1.3)),
-    ], "level": -6, "lp": 7000, "hp": 200},
+        v((LB_DRAW + "11.70+0.55", 0, 0, 0.9)),
+        v((LB_DRAW + "14.10+0.60", 0, 0, 0.88)),
+    ], "level": -8, "lp": 3800, "hp": 120},
     "slime_hop": {"variants": [v((R + "creature_slime_0%d.ogg" % n, 0, 0, 1.1)) for n in (1, 2, 3)], "level": -14, "lp": 6000},
     "hit_slime": {"variants": [v((R + "creature_slime_03.ogg", 0, 0, 1.2), (S + "plop_01.ogg", -6, 0, 0.9)), v((R + "creature_slime_04.ogg", 0, 0, 1.2), (S + "plop_02.ogg", -6, 0, 0.9))], "level": -8, "lp": 5000},
     "hit_armor": {"variants": [v((S + "metal_03.ogg", 0, 0, 1.0)), v((S + "metal_01.ogg", 0, 0, 1.1)), v((S + "metal_06.ogg", 0, 0, 0.9))], "level": -7, "lp": 8000},
