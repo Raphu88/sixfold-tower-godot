@@ -52,6 +52,8 @@ jobs:
       - name: Import assets and run the smoke test
         run: |
           godot=~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64
+          # (--import waits until every sound and file is imported, then quits)
+          timeout 300 $godot --headless --import || true
           timeout 300 $godot --headless --editor --quit || true
           timeout 1500 $godot --headless -s tests/smoke_test.gd
 
