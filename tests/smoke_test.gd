@@ -6243,6 +6243,256 @@ func _controls_tests() -> void:
 	await _key_tap(KEY_W)  # (back to the keyboard)
 
 
+## A raw controller button or axis, from a pretend controller (pad.gd
+## test_joys), as a browser that doesn't report the standard layout sends it.
+func _raw_button(device: int, button: int, down: bool) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.device = device
+	ev.button_index = button
+	ev.pressed = down
+	ev.pressure = 1.0 if down else 0.0
+	Input.parse_input_event(ev)
+
+
+func _raw_axis(device: int, axis: int, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.device = device
+	ev.axis = axis
+	ev.axis_value = value
+	Input.parse_input_event(ev)
+
+
+## One step of the controller setup: press (or push) something, let go, and
+## wait until the screen has moved on (or shown why not).
+func _setup_step(setup, press: Callable, release: Callable) -> void:
+	var at: int = setup.step
+	var st: String = setup.state
+	var said: String = setup.note
+	press.call()
+	await _frames(1)
+	release.call()
+	await _until(func(): return not is_instance_valid(setup) or setup.step != at or setup.state != st or (setup.note != said and setup.held == ""), 2.0)
+
+
+func _pad_layout_tests() -> void:
+	print("controllers the browser scrambles")
+	await _fresh_main()
+	main.touch._set_active(false)
+	var pad = main.pad
+	var P = pad.get_script()
+	var C = main.Controls
+	P.layouts.clear()
+	P.offered.clear()
+	_check(C.WEB_STANDARD_FIX.contains("lefttrigger:+a6") and C.WEB_STANDARD_FIX.contains("righttrigger:+a7"), "on the web, standard pads' triggers are read from axes 6 and 7 (Godot 4.3's own layout lost them)")
+	var stray := false
+	for a in ["ui_up", "ui_left", "ui_accept", "ui_cancel", "move_left", "aim_up", "dismiss_tip"]:
+		for ev in InputMap.action_get_events(a):
+			if (ev is InputEventJoypadButton or ev is InputEventJoypadMotion) and ev.device != C.PAD_DEVICE:
+				stray = true
+	_check(not stray, "the input map (Godot's menu actions too) listens only to the game's controller, never to raw numbers")
+	_check(P.parse_source("a2+@-1") == {"t": "a", "i": 2, "s": 1.0, "r": -1.0} and is_equal_approx(P.parse_source("h9=-0.43")["v"], -0.43) and P.parse_source("b12")["i"] == 12 and P.parse_source("q1").is_empty(), "layouts read back from text")
+	_check(P.hat_on(-0.71, -1.0) and P.hat_on(1.0, -1.0) and not P.hat_on(0.14, -1.0) and not P.hat_on(1.28, -1.0), "a hat d-pad: up counts its diagonals, not down or rest")
+
+	# An Xbox pad Firefox reports raw on Linux: the guessed layout.
+	P.test_joys[5] = {"name": "045e-0b13-Xbox Wireless Controller", "guid": "Linux045e0b13", "known": false}
+	_raw_axis(5, 2, -1.0)  # (the triggers rest at -1)
+	_raw_axis(5, 5, -1.0)
+	_raw_button(5, 2, true)
+	await _frames(1)
+	_check(pad._dev(5)["kind"] == "guessed" and Input.is_action_pressed("use_item"), "an unknown Xbox pad gets the raw Xbox layout: X uses your item")
+	_check(main.pad_active, "...and counts as the controller in use")
+	_check(pad.offers == 1, "the first press offers the controller setup (the Entity)")
+	_raw_button(5, 2, false)
+	_raw_button(5, 3, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("interact") and not Input.is_action_pressed("use_item"), "Y takes gear")
+	_raw_button(5, 3, false)
+	_raw_button(5, 0, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("jump") and pad.offers == 1, "A jumps (and the offer isn't made twice)")
+	_raw_button(5, 0, false)
+	_raw_button(5, 4, true)
+	await _frames(1)
+	_check(not Input.is_action_pressed("restart") and pad.cast_held, "LB (raw 4) is the cast button, not View (Godot's 4)")
+	_raw_button(5, 0, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("cast_legs"), "LB + A casts the legs' mark")
+	_raw_button(5, 0, false)
+	_raw_button(5, 4, false)
+	_raw_button(5, 5, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("weapon_next"), "RB (raw 5) picks the next weapon")
+	_raw_button(5, 5, false)
+	await _frames(1)
+	_check(not Input.is_action_pressed("parry") and not Input.is_action_pressed("attack"), "triggers resting at -1 are let go")
+	_raw_axis(5, 2, 1.0)
+	_raw_axis(5, 5, 0.9)
+	await _frames(1)
+	_check(Input.is_action_pressed("parry") and Input.is_action_pressed("attack"), "LT (axis 2) parries, RT (axis 5) strikes")
+	_raw_axis(5, 2, -1.0)
+	_raw_axis(5, 5, -1.0)
+	_raw_axis(5, 7, 1.0)
+	await _frames(1)
+	_check(not Input.is_action_pressed("parry") and not Input.is_action_pressed("attack") and Input.is_action_pressed("item_next"), "...back at -1 they let go; d-pad down (axis 7) picks the next item")
+	_raw_axis(5, 7, 0.0)
+	_raw_axis(5, 1, -1.0)
+	_raw_axis(5, 4, 1.0)
+	await _frames(1)
+	_check(Input.get_action_strength("move_up") > 0.9 and Input.get_action_strength("aim_down") > 0.9 and Input.get_action_strength("aim_right") == 0.0, "the left stick moves; the right stick is axes 3 and 4 (not the left trigger)")
+	_raw_axis(5, 1, 0.0)
+	_raw_axis(5, 4, 0.0)
+	await _frames(1)
+	_check(Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "...and both let go")
+	# On Windows or a Mac: the Bluetooth order, with its gaps.
+	P.test_joys[6] = {"name": "045e-02fd-Xbox Wireless Controller", "guid": "Windows045e02fd", "known": false}
+	_raw_button(6, 3, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item"), "on Windows, X is raw 3 (the Bluetooth order)")
+	_raw_button(6, 3, false)
+	_check(pad.offers == 2, "...a second unknown pad is offered it too")
+	# A pad the browser calls standard (or Godot knows): straight through.
+	P.test_joys[8] = {"name": "Xbox 360 Controller (XInput STANDARD GAMEPAD)", "guid": "standard", "known": true}
+	_raw_button(8, JOY_BUTTON_X, true)
+	_raw_axis(8, JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	await _frames(1)
+	_check(pad._dev(8)["kind"] == "known" and Input.is_action_pressed("use_item") and Input.is_action_pressed("attack"), "a standard pad passes straight through")
+	_raw_button(8, JOY_BUTTON_X, false)
+	_raw_axis(8, JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	await _frames(1)
+	_check(not Input.is_action_pressed("use_item") and not Input.is_action_pressed("attack"), "...and lets go")
+	_check(pad.offers == 2, "a known pad isn't offered the setup")
+	await _settle()
+
+	# The setup screen, with a scrambled pad that isn't an Xbox one.
+	P.test_joys[7] = {"name": "Generic USB Joystick", "guid": "Windows00790006", "known": false}
+	_raw_axis(7, 5, -1.0)  # a trigger at rest
+	_raw_axis(7, 9, 1.28)  # a hat d-pad at rest
+	main.menu.open("settings")
+	await _frames(2)
+	var open_btn = _all_buttons(main.menu).filter(func(b): return b.get_meta("setting", "") == "padsetup")
+	_check(open_btn.size() == 1, "Settings has Controller setup")
+	if open_btn.is_empty():
+		return
+	open_btn[0].pressed.emit()
+	await _frames(2)
+	var found: Array = main.menu.box.get_children().filter(func(c): return c.get_script() == load("res://scripts/pad_setup.gd"))
+	_check(main.menu.page == "padsetup" and found.size() == 1, "...which opens its page")
+	if found.is_empty():
+		return
+	var setup = found[0]
+	_check(setup.state == "pick" and pad.capture.is_valid(), "it starts by asking for any button (and the controller's presses go to it)")
+	_raw_button(7, 9, true)
+	await _frames(1)
+	_raw_button(7, 9, false)
+	_check(setup.state == "step" and setup.device == 7 and setup.step == 0, "any button begins, for that controller")
+	var prompt: Array = _all_labels(setup).filter(func(l): return l.get_meta("prompt", false))
+	_check(not prompt.is_empty() and prompt[0].text == "Press the button you want for Jump", "the first prompt: Jump")
+	var tap := func(b: int): return [func(): _raw_button(7, b, true), func(): _raw_button(7, b, false)]
+	var push := func(a: int, v: float, back: float): return [func(): _raw_axis(7, a, v), func(): _raw_axis(7, a, back)]
+	var t: Array = tap.call(5)
+	await _setup_step(setup, t[0], t[1])  # Jump: 5
+	t = tap.call(6)
+	await _setup_step(setup, t[0], t[1])  # Roll: 6
+	t = push.call(1, -1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # move up: axis 1 -
+	t = push.call(1, 1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])
+	_check(setup.step == 3 and setup.note.contains("already"), "the moving stick's other way can't be 'right' too")
+	t = push.call(0, 1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # move right: axis 0 +
+	t = push.call(3, -1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # aim up: axis 3 -
+	t = push.call(2, 1.0, 0.0)
+	await _setup_step(setup, t[0], t[1])  # aim right: axis 2 +
+	t = tap.call(2)
+	await _setup_step(setup, t[0], t[1])  # X: 2 (then redo it)
+	t = tap.call(6)
+	await _setup_step(setup, t[0], t[1])  # Roll's button: back a step
+	_check(setup.step == 6 and not setup.got.has("x"), "the Roll button goes back a step")
+	t = tap.call(4)
+	await _setup_step(setup, t[0], t[1])  # X: 4
+	t = tap.call(4)
+	await _setup_step(setup, t[0], t[1])
+	_check(setup.step == 7 and setup.note.contains("already"), "a button already given can't be given again")
+	t = tap.call(7)
+	await _setup_step(setup, t[0], t[1])  # Y: 7
+	t = push.call(5, 1.0, -1.0)
+	await _setup_step(setup, t[0], t[1])  # RT: axis 5 from -1
+	t = tap.call(8)
+	await _setup_step(setup, t[0], t[1])  # LT: a button
+	t = tap.call(1)
+	await _setup_step(setup, t[0], t[1])  # RB
+	t = tap.call(0)
+	await _setup_step(setup, t[0], t[1])  # LB
+	for v in [-1.0, 0.14, 0.71, -0.43]:  # the d-pad on one hat axis
+		t = push.call(9, v, 1.28)
+		await _setup_step(setup, t[0], t[1])
+	t = tap.call(11)
+	await _setup_step(setup, t[0], t[1])  # Start
+	t = tap.call(10)
+	await _setup_step(setup, t[0], t[1])  # View
+	_check(setup.step == setup.STEPS.size() - 1, "one step left (%d)" % setup.step)
+	t = tap.call(5)
+	await _setup_step(setup, t[0], t[1])  # the Jump button skips the last
+	_check(setup.state == "done" and not pad.capture.is_valid(), "the setup finishes and lets the controller go")
+	var L: Dictionary = P.layouts.get("Windows00790006|Generic USB Joystick", {})
+	_check(L.get("a") == "b5" and L.get("ly") == "a1-" and L.get("lx") == "a0+" and L.get("rt") == "a5+@-1" and L.get("lt") == "b8" and L.get("up") == "h9=-1.00" and L.get("right") == "h9=-0.43", "it saved what was pressed, per controller (%s)" % [L])
+	_check(L.get("rs", "") != "b8", "a skipped step keeps its default only if that input is free")
+	_check(_all_labels(setup).any(func(l): return l.text == "axis 5 +"), "the page lists what was recorded")
+	_check(setup.readout_lines().contains("Generic USB Joystick") and setup.readout_lines().contains("9: +1.28"), "the readout shows the raw axes arriving")
+	_raw_button(7, 5, true)
+	await _frames(1)
+	_raw_button(7, 5, false)
+	await _until(func(): return main.menu.page == "settings", 1.0)
+	_check(main.menu.page == "settings", "the new layout works at once: its A presses Done (%s)" % main.menu.page)
+	main.menu.close()
+	await _frames(2)
+	_raw_button(7, 4, true)
+	_raw_axis(7, 5, 1.0)
+	_raw_axis(7, 9, 0.14)
+	_raw_axis(7, 1, -1.0)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item") and Input.is_action_pressed("attack") and Input.is_action_pressed("item_next") and Input.get_action_strength("move_up") > 0.9, "in play, the recorded layout is used (X, RT, hat d-pad, stick)")
+	_raw_button(7, 4, false)
+	_raw_axis(7, 5, -1.0)
+	_raw_axis(7, 9, 1.28)
+	_raw_axis(7, 1, 0.0)
+	_raw_button(7, 0, true)
+	_raw_button(7, 5, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("cast_legs") and not Input.is_action_pressed("item_next"), "its LB + A casts")
+	_raw_button(7, 5, false)
+	_raw_button(7, 0, false)
+	await _frames(1)
+	_check(not Input.is_action_pressed("use_item") and not Input.is_action_pressed("attack") and Input.get_vector("move_left", "move_right", "move_up", "move_down") == Vector2.ZERO, "...and everything lets go")
+	await _settle()
+	# Reset to default: back to the raw numbers.
+	pad.reset_layout(7)
+	_check(not P.layouts.has("Windows00790006|Generic USB Joystick") and pad._dev(7)["kind"] == "raw", "Reset to default forgets the setup")
+	_raw_button(7, 2, true)
+	await _frames(1)
+	_check(Input.is_action_pressed("use_item"), "...and the raw numbers pass straight through again")
+	_raw_button(7, 2, false)
+	await _frames(1)
+	# Saved and loaded.
+	var path := "user://pad_test.cfg"
+	P.layouts = {"standard|Pad": {"a": "b1", "lt": "a2+@-1"}}
+	P.offered = {"standard|Pad": true}
+	P.save_layouts(path)
+	P.layouts = {}
+	P.offered = {}
+	P.load_layouts(path)
+	_check(P.layouts.get("standard|Pad", {}).get("lt") == "a2+@-1" and P.offered.has("standard|Pad"), "layouts save and load")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	P.layouts = {}
+	P.offered = {}
+	P.load_layouts(path)
+	_check(P.layouts.is_empty(), "no save: no layouts (the defaults)")
+	P.test_joys.clear()
+	pad.devs.clear()
+	await _frames(2)
+
+
 func _all_labels(n: Node) -> Array:
 	var out: Array = []
 	if n is Label:
@@ -6717,6 +6967,7 @@ func _run() -> void:
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()
 	await _proving_tests()
+	await _secret_tests()
 	await _chimera_bond_tests()
 	await _body_part_tests()
 	await _item_tests()
@@ -6732,6 +6983,7 @@ func _run() -> void:
 	await _lost_tests()
 	await _bench_tests()
 	await _controls_tests()
+	await _pad_layout_tests()
 	await _performance_tests()
 	await _lighting_tests()
 	await _foe_list_tests()
@@ -8396,3 +8648,252 @@ func _bench_tests() -> void:
 	main.depart("kraken")
 	await _frames(2)
 	_check(not paused and not menu.is_open(), "departing leaves the train")
+
+
+## A monster beside the climber that waits (no physics), at full health.
+func _still(kind: String, at: Vector2):
+	var e = await _spawn(kind, at)
+	e.state_t = 99.0
+	e.aware = true
+	return e
+
+
+## The secret essences, Life and Unmaking (secret.gd): who leaves them, the
+## path choice, the flow (gathered, passing through, banked, lost) and what
+## each step does.
+func _secret_tests() -> void:
+	print("the secret essences")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var S = load("res://scripts/secret.gd")
+	var E = load("res://scripts/essence.gd")
+	var p = main.player
+	var prof = main.profile
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	main.tower = "kraken"
+	main.floor_num = 4
+	_check(not main.secret_on, "tests keep the secret essences off unless they ask")
+	main.secret_on = true
+	_check(S.ORDER.all(func(k): return not E.KINDS.has(k)), "Life and Unmaking are not among the six kinds (crystals, the bench, prices and density never list them)")
+	# Who leaves what.
+	var beast: Dictionary = S.drop("beast", "kraken", 12)
+	var shadow: Dictionary = S.drop("shadow", "kraken", 6)
+	var shadow12: Dictionary = S.drop("shadow", "kraken", 12)
+	var mirror: Dictionary = S.drop("mirror", "kraken", 6)
+	_check(beast["life"] > beast["unmaking"] and beast["unmaking"] > 0.0, "a tower beast leaves mostly Life, some Unmaking")
+	_check(shadow12["life"] < beast["life"] and shadow12["unmaking"] < beast["unmaking"] and shadow["life"] > shadow["unmaking"], "the Proving's shadow: the same split, less")
+	_check(mirror["unmaking"] > mirror["life"], "a mirror image (for later) leaves mostly Unmaking")
+	_check(S.drop("champion", "kraken", 8).keys() == ["life"] and S.drop("champion", "gryphon", 8).keys() == ["unmaking"], "a champion leaves a little of one kind, by tower")
+	_check(S.drop("champion", "kraken", 10)["life"] > S.drop("champion", "kraken", 2)["life"] and S.drop("champion", "kraken", 2)["life"] < shadow["life"], "...more higher up, and less than a shadow")
+	_check(S.drop("", "kraken", 8).is_empty(), "an ordinary monster leaves none")
+	# An ordinary monster: nothing.
+	var slime = await _still("slime", p.global_position + Vector2(90, 0))
+	_check(S.great_foe(slime) == "", "a slime isn't a great foe")
+	_slay(slime)
+	await _frames(1)
+	_check(not main.camp_choosing and main.secret_pending.is_empty() and main.run_flow == 0.0, "an ordinary monster's fall: no secret essence")
+	# The first great foe opens the choice; its essence waits.
+	var champ = await _still("knight", p.global_position + Vector2(90, 0))
+	champ.make_champion()
+	_check(S.great_foe(champ) == "champion", "a champion is a great foe")
+	_slay(champ)
+	await _frames(1)
+	_check(main.camp_choosing and main.camp.get("stage", "") == "path" and main.secret_pending.size() == 1 and main.secret_pending[0]["kind"] == "life",
+		"the first great foe's fall stops on the path choice; its Life waits")
+	_check(not p.is_physics_processing() and main.camp["choices"] == ["path:life", "path:unmaking"], "...the game waits on two cards: Life and Unmaking")
+	await _frames(2)
+	var hud = main.hud
+	var vs: Vector2 = hud.get_viewport_rect().size
+	_check(hud.camp_card_at(hud.path_card_rect(1, vs).get_center()) == 1 and hud.camp_card_rect(0, vs) == hud.path_card_rect(0, vs), "the cards are where taps and clicks find them")
+	main.choose_camp(1)
+	_check(prof.path == "" and int(main.camp.get("armed", -1)) == -1, "a press in its first moment can't choose (a tap meant for the fight)")
+	main.camp["t"] = 5.0
+	main.choose_camp(1)
+	_check(prof.path == "" and main.camp_choosing and int(main.camp["armed"]) == 1, "the first press only picks a card (it's for good)")
+	main.choose_camp(0)
+	_check(prof.path == "" and int(main.camp["armed"]) == 0, "...pressing the other picks that one instead")
+	main.choose_camp(0)
+	_check(prof.path == "life" and not main.camp_choosing and p.is_physics_processing(), "a second press on it lets Life in; the game goes on")
+	_check(main.run_flow > 0.0 and main.secret_pending.is_empty(), "what waited soaks in at once (%.1f)" % main.run_flow)
+	_check(p.flow_path == "life" and p.flow_step == 0, "the climber carries the path (no step yet)")
+	# Afterwards: only the path's essence soaks in; the other passes through.
+	var f0: float = main.run_flow
+	var motes0: int = main.fx.motes_list.size()
+	main.rise_secret("unmaking", 9.0, p.global_position + Vector2(120, 0))
+	_check(is_equal_approx(main.run_flow, f0), "Unmaking isn't gathered once Life is your path")
+	_check(main.fx.motes_list.size() > motes0 and main.fx.motes_list.slice(motes0).all(func(m): return m.get("through", false)), "...it rises and passes through you")
+	await _until(func(): return main.fx.motes_list.any(func(m): return m.has("out")), 4.0)
+	_check(main.fx.motes_list.any(func(m): return m.has("out")), "...and streaks out the far side")
+	main.rise_secret("life", 9.0, p.global_position + Vector2(120, 0))
+	_check(is_equal_approx(main.run_flow, f0 + 9.0), "Life still soaks in")
+	# A tower beast: both rise, Life soaks in, Unmaking passes through.
+	var bst = await _still("kraken", p.global_position + Vector2(200, 0))
+	_check(S.great_foe(bst) == "beast", "a tower's beast is a great foe")
+	var f1: float = main.run_flow
+	_slay(bst)
+	await _frames(1)
+	_check(is_equal_approx(main.run_flow, f1 + S.drop("beast", "kraken", 4)["life"]), "a beast's Life soaks in, its Unmaking passes")
+	var sh = main.proving.make_shadow("kraken", main.proving.TIERS[0])
+	sh.position = p.global_position + Vector2(200, 0)
+	main.add_child(sh)
+	await _frames(1)
+	sh.set_physics_process(false)
+	var f2: float = main.run_flow
+	var sh_is: String = S.great_foe(sh)
+	_slay(sh)
+	await _frames(1)
+	_check(sh_is == "shadow" and is_equal_approx(main.run_flow, f2 + S.drop("shadow", "kraken", 4)["life"]), "the Proving's shadow leaves its own, smaller share")
+	await _until(func(): return main.enemies().is_empty(), 2.0)
+	# Banked at the stair.
+	var carried: float = main.run_flow
+	main._arrive()
+	_check(is_equal_approx(prof.flow, carried) and main.run_flow == 0.0, "the stair banks the flow (%.1f)" % prof.flow)
+	_check(main.banner.get("lines", []).any(func(l): return String(l).begins_with("Banked %d Life" % int(round(carried)))), "...and says so")
+	await _until(func(): return not main.climbing and main.fade <= 0.0, 5.0)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	# Lost on a fall (what's banked stays).
+	var banked: float = prof.flow
+	main.run_flow = 7.0
+	_kill_blow(p)
+	_check(p.dead and main.run_flow == 0.0 and is_equal_approx(prof.flow, banked), "a fall loses the flow you carried; the banked flow stays")
+	p.dead = false
+	p.hp = p.max_hp
+	p.set_physics_process(true)
+	main.fall_t = -1.0
+	# The HUD gem only from the first step.
+	prof.flow = 10.0
+	main._give_bonds()
+	await _frames(3)
+	_check(not main.flow_shown() and not hud.tips.any(func(t): return String(t[1]).begins_with("Life")), "no gem on the HUD before the first step")
+	main.dev_add_flow(15.0)
+	await _frames(3)
+	_check(main.flow_shown() and p.flow_step == 1 and hud.tips.any(func(t): return String(t[1]).begins_with("Life")), "at 25 banked, Life's gem joins the HUD")
+	# Life, step by step.
+	_check(is_equal_approx(p.flow_regen, S.EFFECTS["life"]["regen"][0]) and p.flow_mend == 0.0 and p.heal_mult() == 1.0 and not p.flow_refuse, "Life step 1: health regrows, nothing more yet")
+	p.hp = 50.0
+	await _until(func(): return p.hp > 50.5, 3.0)
+	_check(p.hp > 50.5, "...and it does regrow")
+	main.dev_add_flow(50.0)
+	_check(p.flow_step == 2 and p.flow_mend > 0.0, "Life step 2 at 75")
+	p.hp = 40.0
+	var hp_kill: float = p.hp
+	var s2 = await _still("slime", p.global_position + Vector2(120, 0))
+	_slay(s2)
+	_check(p.hp >= hp_kill + p.flow_mend - 0.01, "a kill mends you (+%d)" % int(p.flow_mend))
+	main.dev_add_flow(75.0)
+	_check(p.flow_step == 3 and p.heal_mult() > 1.3, "Life step 3 at 150: healing much stronger")
+	p.heal_left = 0.0
+	main.Items._heal_over_time(p, main.Items.ITEMS["draught"], false)
+	_check(is_equal_approx(p.heal_left, float(main.Items.ITEMS["draught"]["heal"]) * p.heal_mult()), "...a draught heals %d, not %d" % [int(p.heal_left), int(main.Items.ITEMS["draught"]["heal"])])
+	p.heal_left = 0.0
+	main.dev_add_flow(150.0)
+	_check(p.flow_step == 4 and p.flow_refuse, "Life step 4 at 300")
+	p.hp = 10.0
+	var near = await _still("slime", p.global_position + Vector2(40, 0))
+	_kill_blow(p)
+	_check(not p.dead and absf(p.hp - p.max_health() * S.REFUSE_HEALTH) < 1.0, "a killing blow leaves you standing at low health (%d)" % int(p.hp))
+	_check(near.knock.length() > 100.0 and near.stun > 0.0, "...in a burst that throws back the monsters near you")
+	p.hp = 10.0
+	_kill_blow(p)
+	_check(p.dead, "...once a floor")
+	p.dead = false
+	p.hp = p.max_hp
+	p.set_physics_process(true)
+	main.fall_t = -1.0
+	near.queue_free()
+	# Unmaking (reset first: the dev tools' hook for the Developer mark later).
+	var plain_hp: float = p.max_hp
+	main.reset_path()
+	_check(prof.path == "" and prof.flow == 0.0 and p.flow_path == "" and is_equal_approx(p.max_hp, plain_hp), "reset_path clears the path and all its flow")
+	main.dev_set_path("unmaking")
+	main.dev_add_flow(25.0)
+	_check(p.flow_step == 1 and is_equal_approx(p.max_hp, roundf(plain_hp * S.EFFECTS["unmaking"]["health"][0])) and p.hp <= p.max_health(), "Unmaking step 1: less max health (%d of %d)" % [int(p.max_hp), int(plain_hp)])
+	var dummy = await _still("knight", p.global_position + Vector2(200, 0))
+	dummy.face = Vector2.LEFT  # (facing the climber: no backstab)
+	var dh: float = dummy.hp
+	p._strike(dummy, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(absf((dh - dummy.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][0]) < 0.05, "...and more damage (%.1f from a 10 blow)" % (dh - dummy.hp))
+	_check(p.bonds["hand"].flow_power == S.EFFECTS["unmaking"]["damage"][0], "...spells too")
+	main.dev_add_flow(50.0)
+	_check(p.flow_step == 2 and p.flow_erode > 0.0 and p.max_hp < plain_hp * S.EFFECTS["unmaking"]["health"][0], "Unmaking step 2: the trade grows, and the aura")
+	dummy.global_position = p.global_position + Vector2(30, 0)
+	dummy.aware = true
+	var asleep = await _still("knight", p.global_position + Vector2(-30, 0))
+	asleep.aware = false
+	dh = dummy.hp
+	var sh0: float = asleep.hp
+	p._erode_t = 0.0
+	await _until(func(): return dummy.hp < dh, 3.0)
+	_check(dummy.hp < dh and asleep.hp == sh0, "the aura erodes an awake monster beside you, not a sleeping one")
+	asleep.queue_free()
+	main.dev_add_flow(75.0)
+	_check(p.flow_step == 3 and p.flow_pierce, "Unmaking step 3: strikes ignore armour")
+	var shell = await _still("shellback", p.global_position + Vector2(60, 0))
+	shell.face = Vector2.LEFT  # facing the climber: its shell in front
+	var shp: float = shell.hp
+	p._strike(shell, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(absf((shp - shell.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][2]) < 0.05, "a shellback's shell doesn't turn the blow (%.1f)" % (shp - shell.hp))
+	dummy.flinch = 0.0
+	dummy.flinch_cd = 0.0
+	dummy.state = "recover"
+	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(dummy.flinch > 0.0, "...and a knight's guard doesn't shrug off a light one")
+	shell.queue_free()
+	main.dev_add_flow(150.0)
+	_check(p.flow_step == 4 and p.flow_undo > 0.0, "Unmaking step 4 at 300")
+	var a = await _still("slime", p.global_position + Vector2(150, 0))
+	var b = await _still("knight", p.global_position + Vector2(185, 0))
+	var bh: float = b.hp
+	_slay(a)
+	_check(b.hp < bh, "a slain foe comes apart and hurts the monster beside it (%d)" % int(bh - b.hp))
+	await _frames(2)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	# Its shadow, drawn every frame, and the climber screen.
+	p.queue_redraw()
+	await _frames(3)
+	main.menu.climber_tab = "essence"
+	main.menu.open("climber")
+	await _frames(2)
+	var flows: Array = main.menu.box.get_children().filter(func(c): return c.get_script() == main.MenuScript.FlowView)
+	_check(flows.size() == 1, "the climber screen shows the flow")
+	main.menu.close()
+	main.menu.open("dev")
+	await _frames(1)
+	_check(_menu_button("Reset path") != null and _menu_button("+25 flow") != null, "the dev tools can set the path, add flow and reset it")
+	main.menu.close()
+	# Saved, and old saves load.
+	var path := "user://smoke_secret_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.path == "unmaking" and is_equal_approx(again.flow, prof.flow), "the path and the flow are saved and load again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.path == "" and again.flow == 0.0, "an old save loads with no path")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	main.reset_path()
+	main.secret_on = false
+
+	# A recall scroll keeps crystals, but the flow you carried is lost.
+	var banked_before: float = main.profile.flow
+	main.run_flow = 7.0
+	main.read_recall()
+	_check(main.run_flow == 0.0 and is_equal_approx(main.profile.flow, banked_before), "a recall scroll loses the flow you carried (what's banked stays)")
+	main.victory = {}
+
+

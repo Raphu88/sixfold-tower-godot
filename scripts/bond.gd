@@ -19,6 +19,7 @@ var overdraw_mult := 1.0  # set for an overdrawn cast: desperate casts are weake
 var attr_power := 1.0  # Fire density (Intellect): spells hit a little harder
 var attr_fill := 1.0  # Water density (Spirit): marks fill a little faster
 var gear_power := 1.0  # an Ember Charm and the like: spells hit a little harder (player.refresh_gear)
+var flow_power := 1.0  # Unmaking's flow: spells deal more damage (player.set_flow)
 
 ## How strong an overdrawn cast is, and how much health per missing essence
 ## overdrawing an already-burned mark tears out of you.
@@ -108,7 +109,7 @@ func power() -> float:
 
 
 func damage() -> float:
-	return float(stat("damage")) * power()
+	return float(stat("damage")) * power() * flow_power
 
 
 func windup() -> float:
@@ -567,7 +568,7 @@ func _drain(p) -> void:
 		main.fx_bolt([e.global_position, p.global_position], color())
 		e.take_hit(damage(), Vector2.ZERO)
 		total += damage()
-	var heal: float = total * float(stat("heal")) * (1.5 if p.main.tower_data()["essence"] == "water" else 1.0)
+	var heal: float = total * float(stat("heal")) * (1.5 if p.main.tower_data()["essence"] == "water" else 1.0) * p.heal_mult()
 	p.hp = minf(p.max_health(), p.hp + heal)
 	main.fx_text(p.global_position + Vector2(0, -40), "+%d" % int(heal), Color(0.5, 1.0, 0.6))
 	main.sfx("zap", 0.5, -4.0)
@@ -1234,7 +1235,7 @@ func _graft_burst(p, dmg: float, with_effects: bool) -> void:
 				if main.grafts.has("back"):
 					e.add_venom(2)
 	if effects and main.grafts.has("heart"):
-		p.hp = minf(p.max_health(), p.hp + 4.0 * n)
+		p.hp = minf(p.max_health(), p.hp + 4.0 * n * p.heal_mult())
 	main.fx_ring(p.global_position, color(), r, 0.4, 5.0)
 	main.fx_burst(p.global_position, Vector2.ZERO, color(), 18, 280.0)
 	main.sfx("hit_heavy", 0.8)
@@ -1270,7 +1271,7 @@ func _mimic(p) -> void:
 			p.global_position = end
 			p.iframes = maxf(p.iframes, 0.2)
 		"heart":  # mends flesh
-			p.hp = minf(p.max_health(), p.hp + dmg)
+			p.hp = minf(p.max_health(), p.hp + dmg * p.heal_mult())
 		"brow":  # a stunning shriek
 			for e in main.targets():
 				if e.global_position.distance_to(p.global_position) < 90.0 + e.radius:
@@ -1330,7 +1331,7 @@ func _sever(p) -> void:
 
 func _mend(p) -> void:
 	var main = p.main
-	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0)  # Steady Hands
+	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult()  # Steady Hands; Life's flow
 	p.hp = minf(p.max_health(), p.hp + amount)
 	p.poison_t = 0.0
 	p.fire_t = 0.0

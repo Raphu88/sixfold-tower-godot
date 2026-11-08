@@ -2,7 +2,8 @@ extends RefCounted
 ## Sets up the input actions in code, so the project needs no editor setup.
 ##
 ## Keyboard and mouse are bound straight into Godot's input map, and so are
-## the sticks (the left one moves, the right one aims). The controller's
+## the sticks (the left one moves, the right one aims; they come from pad.gd's
+## PAD_DEVICE, the controller put into the standard layout). The controller's
 ## buttons and triggers are listed in PAD and PAD_CAST below and pressed by
 ## pad.gd, because holding LB turns the face buttons, RB and RT into the six
 ## mark casts (Godot's input map can't do button combinations by itself).
@@ -18,6 +19,21 @@ const PAD_LT := 100
 const PAD_RT := 101
 ## The button that turns the others into casts while held: LB (L1).
 const PAD_CAST_MODIFIER := JOY_BUTTON_LEFT_SHOULDER
+## The game's own controller. Browsers don't all report a controller's
+## buttons the same way, so pad.gd reads every real controller, puts its
+## buttons and sticks into the standard layout (its own guess, or what you
+## set up in Settings -> Controller setup) and sends them on as if from this
+## device. The input map below listens to this device only, so a scrambled
+## controller's raw button numbers never reach the game.
+const PAD_DEVICE := 32
+
+## Godot 4.3's web export has a slip for controllers the browser calls
+## "standard" (Chrome, Edge, most Firefox setups): it sends the triggers on
+## axes 6 and 7, but its built-in layout for those pads looks for them on
+## buttons 6 and 7, so trigger presses were lost. This is that layout with
+## the triggers read from axes 6 and 7 (0 at rest, 1 pulled).
+const WEB_STANDARD_FIX := "standard,Standard Gamepad Mapping,a:b0,b:b1,x:b2,y:b3,leftshoulder:b4,rightshoulder:b5,lefttrigger:+a6,righttrigger:+a7,back:b8,start:b9,leftstick:b10,rightstick:b11,dpup:b12,dpdown:b13,dpleft:b14,dpright:b15,guide:b16,leftx:a0,lefty:a1,rightx:a2,righty:a3,platform:Web"
+static var web_fixed := false
 
 ## Controller buttons -> actions (Xbox names; PlayStation in brackets).
 const PAD := {
@@ -152,6 +168,19 @@ static func setup() -> void:
 	# (Godot's own ui_ actions already have the arrows, d-pad and left stick.)
 	_bind("ui_accept", [_button(JOY_BUTTON_A)])
 	_bind("ui_cancel", [_button(JOY_BUTTON_B)])
+	# Godot's own menu actions (ui_up, ui_left...) listen to the game's
+	# controller too, not to the raw one (see PAD_DEVICE).
+	for action in InputMap.get_actions():
+		for ev in InputMap.action_get_events(action):
+			if (ev is InputEventJoypadButton or ev is InputEventJoypadMotion) and ev.device != PAD_DEVICE:
+				var moved: InputEvent = ev.duplicate()
+				moved.device = PAD_DEVICE
+				InputMap.action_erase_event(action, ev)
+				if not InputMap.action_has_event(action, moved):
+					InputMap.action_add_event(action, moved)
+	if not web_fixed:
+		web_fixed = true
+		Input.add_joy_mapping(WEB_STANDARD_FIX, true)
 
 
 static func _bind(action: String, events: Array) -> void:
@@ -177,7 +206,7 @@ static func _mouse(button: MouseButton) -> InputEventMouseButton:
 
 static func _axis(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
 	var ev := InputEventJoypadMotion.new()
-	ev.device = -1  # any controller
+	ev.device = PAD_DEVICE  # the game's controller (pad.gd)
 	ev.axis = axis
 	ev.axis_value = value
 	return ev
@@ -185,6 +214,6 @@ static func _axis(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
 
 static func _button(button: JoyButton) -> InputEventJoypadButton:
 	var ev := InputEventJoypadButton.new()
-	ev.device = -1
+	ev.device = PAD_DEVICE
 	ev.button_index = button
 	return ev

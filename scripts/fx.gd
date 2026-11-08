@@ -77,6 +77,16 @@ func motes(pos: Vector2, color: Color, count: int, target: Node2D) -> void:
 		motes_list.append({"pos": pos, "vel": d * randf_range(80.0, 180.0), "color": color, "target": target, "age": 0.0, "delay": randf_range(0.15, 0.4)})
 
 
+## Secret essence (secret.gd) rising from a great foe: bigger, brighter motes
+## that rise first, then fly to the climber. `through`: the essence that isn't
+## the climber's path streaks through them and out the far side, fading.
+func secret_motes(pos: Vector2, color: Color, count: int, target: Node2D, through: bool) -> void:
+	for i in clampi(count, 5, 16):
+		var d := Vector2.from_angle(randf() * TAU) * 0.6 + Vector2.UP
+		motes_list.append({"pos": pos + Vector2(randf_range(-10.0, 10.0), randf_range(-6.0, 6.0)), "vel": d.normalized() * randf_range(90.0, 170.0),
+			"color": color, "target": target, "age": 0.0, "delay": randf_range(0.45, 0.85), "secret": true, "through": through})
+
+
 func falling_arrow(at: Vector2, color: Color) -> void:
 	arrows_falling.append({"pos": at, "color": color, "t": 0.18})
 
@@ -119,6 +129,25 @@ func _process(delta: float) -> void:
 	for m in motes_list:
 		m["age"] += delta
 		var tgt = m["target"]
+		if m.has("out"):
+			# Passed through the climber: on out the far side, fading.
+			m["out"] -= delta
+			m["pos"] += m["vel"] * delta
+			m["vel"] *= 0.97
+			if m["out"] <= 0.0:
+				m["done"] = true
+			continue
+		if m["age"] > m["delay"] and is_instance_valid(tgt) and m.get("through", false):
+			var to_t: Vector2 = tgt.global_position - m["pos"]
+			if to_t.length() < 12.0:
+				m["out"] = 0.5
+				m["vel"] = m["vel"].normalized() * 560.0
+				continue
+			m["vel"] = m["vel"].lerp(to_t.normalized() * 600.0, minf(1.0, 7.0 * delta))
+			m["pos"] += m["vel"] * delta
+			if m["age"] > 3.0:
+				m["done"] = true
+			continue
 		if m["age"] > m["delay"] and is_instance_valid(tgt):
 			var to: Vector2 = tgt.global_position - m["pos"]
 			if to.length() < 10.0:
@@ -214,6 +243,17 @@ func _draw() -> void:
 	var motes := Draw.Batch.new()  # all motes in one draw
 	for m in motes_list:
 		var mc: Color = m["color"]
+		if m.get("secret", false):
+			# Secret essence: a glowing mote with a streak behind it (longer
+			# while it passes through and out, fading as it goes).
+			var k: float = clampf(m["out"] / 0.5, 0.0, 1.0) if m.has("out") else 1.0
+			var v: Vector2 = m["vel"]
+			var tail: float = 0.07 if m.has("out") else 0.035
+			motes.line(m["pos"], m["pos"] - v * tail, Color(mc, 0.35 * k), 4.0)
+			motes.line(m["pos"], m["pos"] - v * tail * 0.6, Color(mc.lightened(0.4), 0.8 * k), 1.6)
+			motes.circle(m["pos"], 7.0, Color(mc, 0.18 * k), 16)
+			motes.circle(m["pos"], 3.0, Color(mc.lightened(0.5), k), 12)
+			continue
 		motes.circle(m["pos"], 4.5, Color(mc, 0.2))
 		motes.circle(m["pos"], 2.0, Color(mc.lightened(0.3), 0.95))
 	motes.flush(self)
