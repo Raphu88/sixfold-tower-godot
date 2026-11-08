@@ -400,7 +400,13 @@ func open(which: String, direct := false) -> void:
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
 		elif which == "inventory":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
-		list[keep if keep >= 0 and keep < list.size() else first].grab_focus.call_deferred()
+		_focus_later.call_deferred(list[keep if keep >= 0 and keep < list.size() else first])
+
+
+## Focus a control next frame, if the page it's on is still showing.
+func _focus_later(c: Control) -> void:
+	if is_instance_valid(c) and c.is_inside_tree() and not c.is_queued_for_deletion():
+		c.grab_focus()
 
 
 func close() -> void:
@@ -754,6 +760,7 @@ func _page_mark() -> void:
 		_mark_unmarked()
 	else:
 		_mark_bond(info)
+	_footer()
 
 
 func _mark_bond(info: Dictionary) -> void:
@@ -1009,6 +1016,8 @@ func _page_inventory() -> void:
 	left.add_theme_constant_override("separation", 6)
 	row.add_child(left)
 	var keys: Array = []
+	var big := 52.0 if compact() else 64.0  # slot sizes (smaller on a phone)
+	var little := 40.0 if compact() else 50.0
 
 	_section("Carried", left)
 	var gear_row := _slot_row(left)
@@ -1016,7 +1025,7 @@ func _page_inventory() -> void:
 	var carried := [["fists", "fists", "1  Fists"], ["melee", p.gear["melee"], "2  Melee"], ["ranged", p.gear["ranged"], "3  Ranged"], ["armor", p.gear["armor"], "Armor"]]
 	for c in carried:
 		var id: String = c[1]
-		var s := _slot(gear_row, "gear:" + c[0], 64.0, Gear.display(id) if id != "" or c[0] == "armor" else "empty")
+		var s := _slot(gear_row, "gear:" + c[0], big, Gear.display(id) if id != "" or c[0] == "armor" else "empty")
 		s.kind = "gear"
 		s.id = id
 		s.on = id == hand and id != ""
@@ -1024,13 +1033,21 @@ func _page_inventory() -> void:
 		s.tint = Gear.color(id) if id != "" else FAINT
 		s.corner = c[2] if c[0] != "armor" else ""
 		keys.append(s.get_meta("slot"))
+	if not main.gear_here.is_empty():
+		# Gear at your feet: set against what you carry in its slot.
+		var fid: String = main.gear_here["id"]
+		var fs := _slot(gear_row, "floor", big, "At your feet")
+		fs.kind = "floor"
+		fs.id = fid
+		fs.tint = Gear.color(fid)
+		keys.append("floor")
 
 	_section("Items", left)
 	var item_row := _slot_row(left)
 	var sel: String = p.selected_item() if p != null else ""
 	for id in Items.ORDER:
 		var n: int = p.item_count(id) if p != null else 0
-		var s := _slot(item_row, "item:" + id, 64.0, Items.ITEMS[id]["short"])
+		var s := _slot(item_row, "item:" + id, big, Items.ITEMS[id]["short"])
 		s.kind = "item"
 		s.id = id
 		s.count = n
@@ -1047,7 +1064,7 @@ func _page_inventory() -> void:
 	var kept: Dictionary = main.profile.heirlooms
 	for hs in Gear.HEIRLOOM_SLOTS:
 		var id: String = kept.get(hs["id"], "")
-		var s := _slot(grid, "heir:" + hs["id"], 50.0, hs["name"])
+		var s := _slot(grid, "heir:" + hs["id"], little, "" if compact() else hs["name"])
 		s.kind = "heir"
 		s.id = id
 		s.slot_id = hs["id"]
@@ -1060,7 +1077,7 @@ func _page_inventory() -> void:
 	if rune != "":
 		_section("Camp rune", left)
 		var rr := _slot_row(left)
-		var s := _slot(rr, "rune", 50.0, Items.CAMP_RUNES[rune]["name"].replace("Rune of ", ""))
+		var s := _slot(rr, "rune", little, Items.CAMP_RUNES[rune]["name"].replace("Rune of ", ""))
 		s.kind = "rune"
 		s.id = rune
 		s.tint = Items.CAMP_RUNES[rune]["color"]
@@ -1110,6 +1127,8 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	s.mouse_entered.connect(_show_details.bind(key))
 	s.pressed.connect(_slot_pressed.bind(key))
 	cell.add_child(s)
+	if caption == "":
+		return s
 	var l := Label.new()
 	l.text = caption
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1183,6 +1202,17 @@ func _show_details(key: String) -> void:
 				_detail_head("gear", id, Gear.display(id), Gear.color(id))
 				_detail_text("%s heirloom: every climb begins with it." % Gear.heirloom_slot_name(arg), DIM)
 				_detail_stats(id, "")
+		"floor":
+			var fid: String = main.gear_here.get("id", "")
+			if fid == "":
+				return
+			var gslot := Gear.slot_of(fid)
+			var held: String = p.gear.get(gslot, "")
+			_detail_head("gear", fid, Gear.display(fid), Gear.color(fid))
+			_detail_text("On the floor at your feet, for your %s slot." % Gear.SLOT_NAMES.get(gslot, gslot).to_lower(), DIM)
+			_detail_stats(fid, held if held != "" else "-")
+			var take := _button("Take it" + ("  (drops your %s)" % Gear.display(held) if held != "" else ""), _take_floor, details)
+			take.disabled = p.dead
 		"rune":
 			var r: Dictionary = Items.CAMP_RUNES.get(p.camp_rune, {})
 			_detail_head("rune", p.camp_rune, r.get("name", "Rune"), r.get("color", GOLD))
@@ -1279,6 +1309,12 @@ func _use_item(id: String) -> void:
 		toast = "It would do nothing now."
 		p.item_sel = before
 	toast_t = 2.0
+	open("inventory", opened_direct)
+
+
+func _take_floor() -> void:
+	if main.take_gear_here():
+		inv_sel = "gear:" + _hand_slot(main.player)
 	open("inventory", opened_direct)
 
 
@@ -1554,8 +1590,6 @@ func _header(text: String, sub: String) -> void:
 			var s := _label(sub, 0.0, DIM)
 			s.add_theme_font_size_override("font_size", 12)
 			s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			s.clip_text = true
-			s.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 			row.add_child(s)
 		_rule()
 		return
@@ -1914,7 +1948,9 @@ class Slot extends Button:
 		if corner != "":
 			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GOLD if on else UI.DIM)
 		if on and kind == "item":
-			draw_string(font, Vector2(5, 13), "quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, UI.GOLD)
+			draw_string(font, Vector2(5, size.y - 5.0), "quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, UI.GOLD)
+		if kind == "floor":
+			draw_string(font, Vector2(5, 13), "new", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.GOLD)
 
 
 ## The big icon at the top of the inventory's details (and the record's heirlooms).
@@ -1975,7 +2011,7 @@ class BodyView extends Control:
 
 	func _draw() -> void:
 		var font := ThemeDB.fallback_font
-		var k := minf(size.y / 292.0, size.x / 300.0)
+		var k := minf(size.y / 292.0, size.x / 316.0)
 		var c := Vector2(size.x * 0.5, size.y * 0.5 + 4.0 * k)
 		var t := Time.get_ticks_msec() / 1000.0
 		draw_set_transform(c, 0.0, Vector2(k, k))
@@ -2001,8 +2037,8 @@ class BodyView extends Control:
 			var sub_col := UI.FAINT
 			if not info.is_empty():
 				var data: Dictionary = Bonds.BONDS[info["id"]]
-				sub = data["name"] + (" (faint)" if info.get("faint", false) else "")
-				sub_col = data["color"]
+				sub = data["name"]
+				sub_col = data["color"] if not info.get("faint", false) else Color(data["color"], 0.6)
 			elif main.player != null and prof.bonds.size() < 6 and main.leading_part() == part:
 				sub = "forming"
 				sub_col = Color(UI.GOLD, 0.8)
@@ -2183,12 +2219,13 @@ class MarkCard extends Button:
 		var grow := "highest step"
 		if faint:
 			k = 1.0 - clampf(float(info.get("debt", 0.0)) / ProfileScript.FAINT_DEBT, 0.0, 1.0)
-			grow = "faint: %d essence before it grows" % int(ceil(float(info.get("debt", 0.0))))
+			grow = "faint: %d more to grow" % int(ceil(float(info.get("debt", 0.0))))
 		elif step < ProfileScript.STEP_XP.size():
 			var lo: float = ProfileScript.STEP_XP[step - 1]
 			var hi: float = ProfileScript.STEP_XP[step]
 			k = clampf((xp - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
 			grow = "%d / %d to step %d" % [int(xp - lo), int(hi - lo), step + 1]
+		grow = _fit(font, grow, w, 11)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
 		draw_string(font, Vector2(x, y + 16.0), data["name"], HORIZONTAL_ALIGNMENT_LEFT, w, 16, col.lightened(0.12))
 		var sub := "%s  ·  %s" % [name, "faint" if faint else "step %d" % step]
@@ -2228,8 +2265,8 @@ class MarkHero extends Control:
 		var info: Dictionary = prof.bonds.get(part, {})
 		var t := Time.get_ticks_msec() / 1000.0
 		var h := size.y
-		var r := minf(h * 0.36, 52.0)
-		var mc := Vector2(r + 26.0, h * 0.5 - 4.0)
+		var r := minf(h * 0.34, 50.0)
+		var mc := Vector2(r + 28.0, h * 0.5)
 		var x := mc.x + r + 30.0
 		var w := minf(size.x - x - 10.0, 420.0)
 		if info.is_empty():
@@ -2239,7 +2276,7 @@ class MarkHero extends Control:
 			var soak: float = main.soak_fraction(part)
 			var b := UI.Draw.Batch.new()
 			if lead == part:
-				UI.glow_into(b, mc, r * 1.8, UI.GOLD, 0.6 + 0.3 * sin(t * 2.5))
+				UI.glow_into(b, mc, r * 1.3, UI.GOLD, 0.6 + 0.3 * sin(t * 2.5))
 			UI.socket_into(b, mc, r * 0.8, soak if lead == part else 0.0)
 			b.flush(self)
 			draw_string(font, Vector2(x, 40), Bonds.PART_NAMES[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 28, UI.DIM)
@@ -2262,7 +2299,10 @@ class MarkHero extends Control:
 			var hi: float = ProfileScript.STEP_XP[step]
 			k = clampf((xp - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
 			grow = "%d / %d essence to step %d  (%d banked in all)" % [int(xp - lo), int(hi - lo), step + 1, int(xp)]
-		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.75 + 0.3 * sin(t * 2.0), faint)
+		var gb := UI.Draw.Batch.new()
+		UI.glow_into(gb, mc, r * 1.3, col, (0.9 if faint else 1.6) * (0.8 + 0.2 * sin(t * 2.0)))
+		gb.flush(self)
+		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
 		draw_string_outline(font, Vector2(x, 40), data["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 28, 4, Color(0, 0, 0, 0.5))
 		draw_string(font, Vector2(x, 40), data["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 28, col.lightened(0.15))
 		var sub := "%s mark  ·  %s essence  ·  %s" % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), "faint" if faint else "step %d of 5" % step]

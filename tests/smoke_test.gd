@@ -3790,6 +3790,7 @@ func _run() -> void:
 	await _spell_tests()
 	await _menu_tests()
 	await _screen_tests()
+	await _mark_page_tests()
 	await _title_tests()
 	await _combat_feel_tests()
 	await _density_tests()
@@ -3973,4 +3974,164 @@ func _screen_tests() -> void:
 	await _frames(2)
 	_check(menu.page == "title" and not Engine.has_meta("sixfold_title_seen"), "Exit goes back to the title screen")
 	menu.close()
+	await _frames(2)
+
+
+## The spell cards on a mark's page (each carries its spell id and learn step).
+func _spell_cards() -> Array:
+	return main.menu.find_children("*", "PanelContainer", true, false).filter(func(c): return c.has_meta("spell") and c.is_visible_in_tree())
+
+
+## A mark's detail page (by mouse, keys, controller and touch), the HUD size
+## setting, the remembered climber tab, the HUD's tooltips and quick item,
+## and gear at your feet in the inventory.
+func _mark_page_tests() -> void:
+	print("mark pages, HUD size and menu comforts")
+	await _fresh_main()
+	var M = load("res://scripts/menu.gd")
+	main.touch._set_active(false)
+	var p = main.player
+	var menu = main.menu
+	main.grant_test_bonds()  # Stormcaller on the hand and Windwalker on the legs, both at step 1
+	await _key_tap(KEY_TAB)
+	menu._set_climber_tab("marks")
+	await _frames(1)
+	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
+	_check(cards.size() == 6 and cards.all(func(c): return c is Button and c.focus_mode == Control.FOCUS_ALL), "the mark cards are buttons you can focus")
+	var hand = cards.filter(func(c): return c.part == "hand")[0]
+	hand.pressed.emit()
+	await _frames(2)
+	_check(menu.page == "mark" and menu.mark_part == "hand" and paused, "pressing a mark's card opens its page")
+	var data: Dictionary = main.BondScript.Bonds.BONDS["stormcaller"]
+	var spells := _spell_cards()
+	_check(spells.size() == data["spells"].size(), "...listing every spell, learned or not (%d of %d)" % [spells.size(), data["spells"].size()])
+	var right := true
+	for i in spells.size():
+		var sp: Dictionary = data["spells"][i]
+		if spells[i].get_meta("spell") != sp["id"] or spells[i].get_meta("learn") != int(sp["learn"]) or spells[i].get_meta("locked") != (int(sp["learn"]) > 1):
+			right = false
+	_check(right, "...each with the step that teaches it, the ones past step 1 locked")
+	var texts: Array = _all_labels(menu).map(func(l): return l.text)
+	_check("learned at step 4" in texts and "learned at step 5" in texts and "Quick Nerves" in texts and "Static" in texts, "...saying 'learned at step N', with the body and passive effects")
+	var rich: Array = menu.find_children("*", "RichTextLabel", true, false).map(func(r): return r.text)
+	_check(rich.any(func(t): return t.contains("Cost 12 essence") and t.contains("Wind-up 0.45 s")), "...the cost and wind-up of each spell")
+	_check(rich.any(func(t): return t.contains("Step 3:") and t.contains("leaps 2 more times")), "...and what later steps change")
+	_check(_menu_button("Back") != null, "...with Back")
+	await _key_tap(KEY_E)
+	_check(menu.page == "mark" and menu.mark_part != "hand", "E shows the next mark")
+	await _key_tap(KEY_Q)
+	_check(menu.mark_part == "hand", "...and Q the one before")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "climber" and menu.climber_tab == "marks", "Esc goes back to the Marks tab")
+	await _frames(2)
+	var focus: Control = menu.get_viewport().gui_get_focus_owner()
+	_check(focus != null and focus.get_meta("part", "") == "hand", "...with the hand's card focused again")
+	# Keyboard: Enter on the focused card.
+	await _key_tap(KEY_ENTER)
+	_check(menu.page == "mark" and menu.mark_part == "hand", "Enter on a focused card opens its page")
+	await _key_tap(KEY_TAB)
+	_check(not main.menu_open() and not paused, "Tab on a mark's page closes the climber screen")
+	# An unmarked part shows what's forming there, and has no spells to list.
+	main.add_soak("throat", 5.0)
+	menu.open("climber", true)
+	menu.open_mark("throat")
+	await _frames(2)
+	texts = _all_labels(menu).map(func(l): return l.text)
+	_check(menu.page == "mark" and _spell_cards().is_empty() and texts.any(func(t): return t.contains("soaks up essence")), "an unmarked part's page says what soaks into it")
+	rich = menu.find_children("*", "RichTextLabel", true, false).map(func(r): return r.text)
+	_check(rich.any(func(t): return t.contains("forming here")), "...and that the next mark is forming there")
+	menu.close()
+	await _frames(2)
+	# Controller: A on a focused card opens it, B goes back.
+	await _pad_tap(JOY_BUTTON_BACK)
+	await _frames(2)
+	_check(menu.page == "climber", "View opens the climber screen")
+	var pcard = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard and c.part == "legs")[0]
+	pcard.grab_focus()
+	await _frames(1)
+	await _pad_tap(JOY_BUTTON_A)
+	_check(menu.page == "mark" and menu.mark_part == "legs", "A on a focused card opens its page")
+	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
+	_check(menu.mark_part != "legs", "RB shows the next mark")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(menu.page == "climber", "B goes back to the cards")
+	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
+	_check(menu.climber_tab == "essence", "RB switches the climber screen's tab")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(not main.menu_open(), "...and B closes it")
+	await _key_tap(KEY_W)
+	# The tab is remembered, even by a fresh room.
+	_check(menu.settings["climber_tab"] == "essence", "the last climber tab is remembered")
+	await _fresh_main()
+	main.touch._set_active(false)
+	_check(main.menu.climber_tab == "essence", "...and a new room opens the climber screen on it")
+	main.menu._set_climber_tab("marks")
+	main.menu.close()
+	menu = main.menu
+	p = main.player
+	main.grant_test_bonds()
+	# Touch: tap a card, then Back.
+	main.touch._set_active(true)
+	await _frames(2)
+	menu.open("climber", true)
+	await _frames(3)
+	var tcard = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard and c.part == "hand")[0]
+	var box_rect: Rect2 = menu.scroll.get_global_rect()
+	_check(box_rect.has_point(tcard.get_global_rect().get_center()) and menu.scroll.get_v_scroll_bar().max_value <= menu.scroll.size.y + 2.0, "on a phone the Marks tab fits without scrolling")
+	await _tap_at(tcard.get_global_rect().get_center())
+	_check(menu.page == "mark" and menu.mark_part == "hand", "tapping a mark's card opens its page")
+	await _tap_at(_menu_button("Back").get_global_rect().get_center())
+	_check(menu.page == "climber", "...and tapping Back returns to the cards")
+	menu.open("inventory", true)
+	await _frames(3)
+	_check(menu.scroll.get_v_scroll_bar().max_value <= menu.scroll.size.y + 2.0, "on a phone the inventory fits without scrolling")
+	menu.close()
+	await _frames(2)
+	main.touch._set_active(false)
+	p.touch_aim = false
+
+	# The HUD size setting.
+	menu.open("settings")
+	await _frames(1)
+	var sizes: Array = _all_buttons(menu).filter(func(b): return b.has_meta("choice"))
+	_check(sizes.size() == 3, "Settings offers three HUD sizes")
+	sizes[2].pressed.emit()
+	await _frames(2)
+	_check(menu.settings["hud_scale"] == "large" and is_equal_approx(main.hud.hud_scale, 1.2), "Large draws the HUD bigger")
+	menu.close()
+	await _frames(3)
+	menu._set_setting("hud_scale", "small")
+	_check(is_equal_approx(main.hud.hud_scale, 0.85), "...Small smaller")
+	await _frames(2)
+	menu._set_setting("hud_scale", "normal")
+	_check(is_equal_approx(main.hud.hud_scale, 1.0), "...and Normal as it was")
+
+	# The HUD: tooltips for its slots, and the quick item.
+	p.add_item("tonic")
+	main.hud.queue_redraw()
+	await _frames(2)
+	var titles: Array = main.hud.tips.map(func(t): return t[1])
+	_check("Sword" in titles and "Healing Draught" in titles and "Cleansing Tonic" in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "the HUD's slots and marks have tooltips")
+
+	# Gear at your feet shows in the inventory, set against yours, and can be taken.
+	main.drop_gear(p.global_position, "axe")
+	await physics_frame
+	await physics_frame
+	menu.open("inventory", true)
+	await _frames(2)
+	var fl = _slot("floor")
+	_check(fl != null and fl.id == "axe", "gear at your feet has a slot in the inventory")
+	fl.focus_entered.emit()
+	await _frames(1)
+	var take: Button = null
+	for b in _all_buttons(menu):
+		if b.text.begins_with("Take it"):
+			take = b
+	_check(take != null and texts.size() > 0, "...with Take it")
+	if take != null:
+		take.pressed.emit()
+	await _frames(2)
+	_check(p.gear["melee"] == "axe" and menu.page == "inventory", "...which swaps it for your weapon")
+	menu.close()
+	main.gear_drops.clear()
 	await _frames(2)

@@ -18,6 +18,8 @@ const ONE_SHOT := ["weapon", "menu", "item", "item_next", "take", "climber", "in
 ## The top bar: always there, also while fallen.
 const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
 const Items := preload("res://scripts/items.gd")
+const UI := preload("res://scripts/ui.gd")
+const Draw := preload("res://scripts/draw_util.gd")
 
 var main
 var active := false
@@ -324,8 +326,18 @@ func _draw() -> void:
 				label = "Climber"
 			"inventory":
 				label = "Bag"
-		draw_circle(c, r, Color(0, 0, 0, 0.45 if not pressed else 0.6))
-		draw_arc(c, r, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5, true)
+		# A dark glassy disc with a coloured rim and a glint; a mark's button
+		# carries its emblem.
+		var bt := Draw.Batch.new()
+		bt.dot(c, r + 1.6, Color(0, 0, 0, 0.3))
+		bt.dot(c, r, Color(0.035, 0.03, 0.05, 0.5 if not pressed else 0.68))
+		bt.arc(c, r - 1.2, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5)
+		bt.arc(c, r - 5.0, PI * 1.08, PI * 1.5, 10, Color(1, 1, 1, 0.13), 2.0)
+		var bond_aff := ""
+		if b.has("part") and p != null and p.bonds.has(b["part"]):
+			bond_aff = p.bonds[b["part"]].data()["affinity"]
+			UI.emblem_into(bt, c + Vector2(0, -r * 0.2), r * 0.34, bond_aff, Color(col, 0.85), 0.0)
+		bt.flush(self)
 		if fill > 0.0:
 			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0, true)
 		if pressed:
@@ -334,6 +346,9 @@ func _draw() -> void:
 		if b["id"] == "climber" or b["id"] == "inventory":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
 			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 8, Color(col, 0.9))
+			continue
+		if bond_aff != "":
+			draw_string(font, c + Vector2(-r, r * 0.55), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 10, Color(col, 0.95))
 			continue
 		if b["id"] == "item" and label != "Item":
 			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.95))
