@@ -336,3 +336,110 @@ func _draw_front(ci: Control) -> void:
 		b.dot(p["p"], r, Color(col, a))
 		b.dot(p["p"] + Vector2(-r * 0.25, -r * 0.25), r * 0.6, Color(col.lightened(0.25), a * 0.6))
 	b.flush(ci)
+
+
+# --- the workshop's bench ----------------------------------------------------------
+
+## The workshop car's corner, drawn in code for its page: the car's panelled
+## wall and a lamp, a pegboard of tools, a shelf of bottles in the six
+## essences' colours, the workbench with a vice, and the Rune Artist's
+## slate, its runes glowing when you carry the Rune Artist's mark (`lit`).
+class Bench extends Control:
+	const UI := preload("res://scripts/ui.gd")
+	const Gear := preload("res://scripts/gear.gd")
+	const Essence := preload("res://scripts/essence.gd")
+	const WOOD := Color(0.42, 0.27, 0.16)
+	const SLATE := Color(0.16, 0.16, 0.2)
+	const RUNE := Color(0.62, 0.66, 1.0)  # the Rune Artist's colour (bonds.gd)
+	var lit := false
+	var t := 0.0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(delta: float) -> void:
+		if not is_visible_in_tree():
+			return
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var u := h / 84.0
+		var b := UI.Draw.Batch.new()
+		# The wall: oxblood panels with a brass rail, and a dark frame.
+		b.rect(Rect2(Vector2.ZERO, size), UI.OUTLINE)
+		b.rect(Rect2(Vector2(1.5, 1.5), size - Vector2(3, 3)), UI.TRAIN_CAR.darkened(0.35))
+		for i in 4:
+			var px := 6.0 * u + i * (w - 12.0 * u) / 4.0
+			b.rect(Rect2(px + 2.0 * u, 6.0 * u, (w - 12.0 * u) / 4.0 - 4.0 * u, h * 0.5), UI.TRAIN_CAR.darkened(0.2))
+		b.rect(Rect2(1.5, h * 0.58, w - 3.0, 2.5 * u), UI.TRAIN_BRASS.darkened(0.25))
+		# The lamp's warm light from the top left.
+		var lamp := Vector2(w * 0.16, 9.0 * u)
+		UI.glow_into(b, lamp + Vector2(0, 6.0 * u), 40.0 * u, UI.TRAIN_WINDOW, 1.2)
+		b.line(Vector2(lamp.x, 1.5), lamp, UI.TRAIN_IRON.lightened(0.2), 1.2 * u)
+		b.polygon(PackedVector2Array([lamp + Vector2(-6, 2) * u, lamp + Vector2(0, -3) * u, lamp + Vector2(6, 2) * u]), UI.TRAIN_BRASS)
+		b.dot(lamp + Vector2(0, 5.0 * u), 3.6 * u, UI.TRAIN_WINDOW.lightened(0.2))
+		# A pegboard of tools: a hammer, tongs and a file.
+		var peg := Rect2(w * 0.3, 7.0 * u, w * 0.26, h * 0.36)
+		b.rect(peg.grow(1.2 * u), UI.OUTLINE)
+		b.rect(peg, WOOD.darkened(0.35))
+		var hx := peg.position.x + peg.size.x * 0.22
+		b.line(Vector2(hx, peg.position.y + 4.0 * u), Vector2(hx, peg.end.y - 3.0 * u), WOOD.lightened(0.15), 2.0 * u)
+		b.rect(Rect2(hx - 4.5 * u, peg.position.y + 3.0 * u, 9.0 * u, 4.5 * u), UI.TRAIN_IRON.lightened(0.35))
+		var tx := peg.position.x + peg.size.x * 0.55
+		b.line(Vector2(tx - 2.0 * u, peg.position.y + 4.0 * u), Vector2(tx + 1.5 * u, peg.end.y - 3.0 * u), UI.TRAIN_IRON.lightened(0.4), 1.4 * u)
+		b.line(Vector2(tx + 2.0 * u, peg.position.y + 4.0 * u), Vector2(tx - 1.5 * u, peg.end.y - 3.0 * u), UI.TRAIN_IRON.lightened(0.4), 1.4 * u)
+		var fx := peg.position.x + peg.size.x * 0.82
+		b.line(Vector2(fx, peg.position.y + 4.0 * u), Vector2(fx, peg.end.y - 4.0 * u), UI.TRAIN_COPPER, 1.8 * u)
+		# A shelf of bottles, one for each essence.
+		var shelf_y := h * 0.5
+		b.rect(Rect2(w * 0.3, shelf_y, w * 0.3, 2.0 * u), WOOD)
+		var kinds: Array = Essence.KINDS.keys()
+		for i in kinds.size():
+			var bx := w * 0.31 + i * (w * 0.28 / kinds.size()) + 2.0 * u
+			var bh := (7.0 + 2.0 * (i % 2)) * u
+			b.rect(Rect2(bx - 1.0 * u, shelf_y - bh - 0.8 * u, 4.6 * u, bh + 0.8 * u), UI.OUTLINE)
+			b.rect(Rect2(bx - 0.4 * u, shelf_y - bh, 3.4 * u, bh), Essence.color(kinds[i]).darkened(0.1))
+			b.rect(Rect2(bx + 0.2 * u, shelf_y - bh - 2.2 * u, 2.2 * u, 2.2 * u), WOOD.lightened(0.2))
+		# The workbench: a thick top with a brass edge, legs, a vice at the left.
+		var top := Rect2(5.0 * u, h * 0.62, w * 0.6, 7.0 * u)
+		b.rect(top.grow(1.2 * u), UI.OUTLINE)
+		b.rect(top, WOOD)
+		b.rect(Rect2(top.position, Vector2(top.size.x, 2.0 * u)), WOOD.lightened(0.2))
+		b.rect(Rect2(top.position.x, top.end.y - 1.6 * u, top.size.x, 1.6 * u), UI.TRAIN_BRASS.darkened(0.2))
+		for lx in [top.position.x + 4.0 * u, top.end.x - 9.0 * u]:
+			b.rect(Rect2(lx, top.end.y, 5.0 * u, h - top.end.y - 3.0 * u), WOOD.darkened(0.3))
+		b.rect(Rect2(top.position.x + 6.0 * u, top.end.y + (h - top.end.y) * 0.55, top.size.x - 12.0 * u, 2.5 * u), WOOD.darkened(0.4))
+		var vice := Vector2(top.position.x + 14.0 * u, top.position.y)
+		b.rect(Rect2(vice + Vector2(-6, -8) * u, Vector2(5, 8) * u), UI.TRAIN_IRON.lightened(0.3))
+		b.rect(Rect2(vice + Vector2(1, -8) * u, Vector2(5, 8) * u), UI.TRAIN_IRON.lightened(0.3))
+		b.line(vice + Vector2(-9, -4) * u, vice + Vector2(9, -4) * u, UI.TRAIN_BRASS, 1.2 * u)
+		# Something on the bench: a flask over a small burner, steaming.
+		var fl := Vector2(top.position.x + top.size.x * 0.62, top.position.y - 7.0 * u)
+		b.dot(fl, 5.2 * u, UI.OUTLINE)
+		b.dot(fl, 4.2 * u, Essence.color("water").darkened(0.1))
+		b.rect(Rect2(fl + Vector2(-1.4, -9.0) * u, Vector2(2.8, 5.0) * u), Color(0.8, 0.85, 0.9, 0.7))
+		b.rect(Rect2(fl + Vector2(-3.0, 4.2) * u, Vector2(6.0, 2.6) * u), UI.TRAIN_COPPER)
+		var k := 0.5 + 0.5 * sin(t * 1.7)
+		b.dot(fl + Vector2(2.0 * u, -12.0 * u - 3.0 * k * u), (1.6 + k) * u, Color(UI.TRAIN_SMOKE, 0.35 * (1.0 - k)))
+		# The Rune Artist's corner: a slate on the wall with three runes,
+		# glowing (and breathing) when the mark is yours; dark otherwise.
+		var slate := Rect2(w * 0.66, 6.0 * u, w * 0.31, h * 0.74)
+		b.rect(slate.grow(2.0 * u), UI.TRAIN_BRASS.darkened(0.3))
+		b.rect(slate, SLATE)
+		var glow := (0.75 + 0.25 * sin(t * 2.1)) if lit else 0.0
+		if lit:
+			UI.glow_into(b, slate.get_center(), slate.size.x * 0.7, RUNE, 0.8 * glow)
+		var rr := minf(slate.size.x * 0.22, slate.size.y * 0.13)
+		var ids := ["sharpness", "warding", "swiftness"]
+		for i in 3:
+			var c := Vector2(slate.get_center().x + (i - 1) * slate.size.x * 0.0, slate.position.y + slate.size.y * (0.2 + 0.3 * i))
+			c.x += (-1.0 if i == 1 else 1.0) * slate.size.x * 0.12
+			var col: Color = Color(Gear.LASTING_RUNES[ids[i]]["color"], 0.35 + 0.65 * glow) if lit else Color(0.5, 0.5, 0.58, 0.45)
+			Gear.rune_into(b, ids[i], c, rr, col, false)
+		# Chalk on the ledge below the slate.
+		b.rect(Rect2(slate.position.x, slate.end.y + 2.0 * u, slate.size.x, 2.0 * u), UI.TRAIN_BRASS.darkened(0.3))
+		b.rect(Rect2(slate.position.x + slate.size.x * 0.6, slate.end.y - 0.2 * u, 5.0 * u, 2.0 * u), Color(0.9, 0.9, 0.86))
+		b.flush(self)

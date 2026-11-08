@@ -247,7 +247,7 @@ const TIPS := {
 	# --- the train ---
 	"train": {"group": "train", "name": "The train",
 		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. Depart when you're ready.",
-		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Its cars are tabs ({tabs} switch them): your car (your heirlooms and a storage chest), the store car (the outfitter's supplies, an outfit, today's piece, and selling), the workshop car (its bench comes later) and Depart, where you choose the next tower. Your crystals sit along the bottom."},
+		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Its cars are tabs ({tabs} switch them): your car (your heirlooms and a storage chest), the store car (the outfitter's supplies, an outfit, today's piece, and selling), the workshop car (its bench: brewing, and enchanting for a Rune Artist) and Depart, where you choose the next tower. Your crystals sit along the bottom."},
 	"store": {"group": "train", "name": "The store",
 		"tip": "The outfitter buys what climbers bring down and sells to the next ones up. He takes crystals. Nothing else.",
 		"more": "Essence crystals are the only money. Every price is in one kind of essence; the outfitter takes your smallest crystals of that kind first, and gives the rest back as one new crystal. Supplies are packed onto your belt for your next climb (put one back for its full price before you go). Outfit is a rack of Common pieces, new every visit, and Today's piece is one finer piece. Sell turns a piece from your pack or chest into a crystal of its kind, at 40% of its price. A price you can't pay says how much more you need."},
@@ -260,6 +260,12 @@ const TIPS := {
 	"lost_cache": {"group": "train", "name": "A lost cache",
 		"tip": "Your own pack, where you fell. The tower gives back, now and then.",
 		"more": "A lost cache is the pack you lost in a fall, lying in an ordinary room of the same tower, near the floor where you fell, with a faint pale light over it. Walk onto it and up to three of your lost pieces come back: into your pack while there's room, else at your feet. Each climb of that tower, a floor near where things fell has a chance to hold one. Items from your belt don't come back."},
+	"bench": {"group": "train", "name": "The bench",
+		"tip": "The workshop's bench. Anyone can brew here: what you make is packed onto your belt for your next climb.",
+		"more": "The bench in the workshop car has a counter for each kind of work, and a card with what it costs in essence (a price you can't pay says how much more you need). Brew makes a consumable for your next climb, a little cheaper than the store sells it; put one back before you go and what you paid comes back. Break down turns a piece from your pack or chest, or a packed item, into a crystal of its kind, as the store's Sell does. A choice that can't be undone asks first: tap the same button again to do it."},
+	"enchant": {"group": "train", "name": "Enchanting",
+		"tip": "Enchanting takes a Rune Artist: tempering, swapping traits, joining pieces, lasting runes.",
+		"more": "Only a Rune Artist can enchant at the bench; anyone else sees those counters greyed. Temper raises a piece's rank from +1 to +3: each rank makes its traits a quarter stronger (of their base) and a weapon hit 4% harder; +2 and +3 also need that essence's density settled in you (100, then 300). Retrait swaps one trait for a new one: the crystal you pay chooses its essence. Join makes one Rare piece of two Fine pieces for the same slot, keeping a trait from each. Inscribe puts a lasting rune on a piece (Sharpness, Warding or Swiftness, at half the Inscribe spell's strength), drawn on its icon. A Rune Artist also brews for 20% less, and can bind a recall scroll (you carry one). The bench works on your heirlooms and the pieces in your pack and chest. Only Common pieces wear; anything with a trait never does."},
 	# --- screens ---
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",

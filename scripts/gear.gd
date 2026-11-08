@@ -8,7 +8,11 @@ extends RefCounted
 ##           or a piece id (PIECES)
 ##   rarity  "common" or better (RARITIES); Commons wear down, the rest don't
 ##   traits  trait ids (none yet: rarities and traits come later)
-##   rank    tempering rank 0 to 3 (later: the bench)
+##   rank    tempering rank 0 to 3 (the bench, bench.gd): each rank raises
+##           its traits by RANK_TRAIT of their base, a weapon's damage by
+##           RANK_WEAPON
+##   rune    a lasting rune inscribed at the bench by a Rune Artist
+##           (LASTING_RUNES), or none
 ##   wear    condition from 1.0 (new) to 0.0 (broken); Commons only
 ## make() builds one, rec() turns an old plain id (or a record) into one,
 ## and every function here takes either a record or a plain id.
@@ -127,6 +131,25 @@ const TRAITS := {
 	"calm": {"name": "of Calm", "short": "Calm", "kind": "water", "key": "parry", "fine": 0.05, "rare": 0.08,
 		"slots": ["gloves", "helm", "ring"], "desc": "the parry window is %s longer"},
 }
+## Tempering (the bench): each rank adds this share of a trait's base
+## strength, and makes a weapon hit this much harder.
+const RANK_TRAIT := 0.25
+const RANK_WEAPON := 0.04
+const MAX_RANK := 3
+
+## Lasting runes: a Rune Artist inscribes one on a piece at the bench, and
+## it stays on it. Half the strength of the Inscribe spell's runes (bond.gd
+## GEAR_RUNES): "key" is the number it adds to (as a trait does), "value"
+## how much. Drawn on the piece's icon as a rune hashed from its id.
+const LASTING_RUNES := {
+	"sharpness": {"name": "Rune of Sharpness", "short": "Sharpness", "key": "strike", "value": 0.10,
+		"desc": "strikes hit %s harder", "color": Color(1.0, 0.7, 0.45)},
+	"warding": {"name": "Rune of Warding", "short": "Warding", "key": "reduce", "value": 0.08,
+		"desc": "%s protection from blows", "color": Color(0.6, 0.8, 1.0)},
+	"swiftness": {"name": "Rune of Swiftness", "short": "Swiftness", "key": "walk", "value": 0.05,
+		"desc": "you walk %s faster", "color": Color(0.7, 1.0, 0.7)},
+}
+
 ## Of Embers: a burning foe takes this much every half second, this long.
 const EMBER_BURN := {"dmg": 2.0, "time": 2.0}
 ## Thorns only answer blows from this close.
@@ -455,14 +478,16 @@ const FAVOUR := {
 ## pieces are Rare by nature: natural_rarity); the rest Common unless
 ## `rarity` says otherwise. `named` makes it a named piece (NAMED). Commons
 ## without traits start in full repair; nothing else ever wears.
-static func make(base: String, rarity := "", traits: Array = [], rank := 0, named := "") -> Dictionary:
+static func make(base: String, rarity := "", traits: Array = [], rank := 0, named := "", rune := "") -> Dictionary:
 	if not is_gear(base):
 		return {}
 	var r := rarity if RARITIES.has(rarity) else natural_rarity(base)
 	var keep: Array = traits.filter(func(t): return TRAITS.has(String(t))).map(func(t): return String(t))
-	var g := {"base": base, "rarity": r, "traits": keep, "rank": clampi(rank, 0, 3)}
+	var g := {"base": base, "rarity": r, "traits": keep, "rank": clampi(rank, 0, MAX_RANK)}
 	if NAMED.has(named) and String(NAMED[named]["base"]) == base:
 		g["named"] = named
+	if LASTING_RUNES.has(rune):
+		g["rune"] = rune
 	if bool(RARITIES[r]["wears"]) and keep.is_empty() and not g.has("named"):
 		g["wear"] = 1.0
 	return g
@@ -475,7 +500,7 @@ static func rec(g) -> Dictionary:
 	if g is Dictionary:
 		if g.is_empty() or not is_gear(String(g.get("base", ""))):
 			return {}
-		var out := make(String(g["base"]), String(g.get("rarity", "")), g.get("traits", []), int(g.get("rank", 0)), String(g.get("named", "")))
+		var out := make(String(g["base"]), String(g.get("rarity", "")), g.get("traits", []), int(g.get("rank", 0)), String(g.get("named", "")), String(g.get("rune", "")))
 		if out.has("wear"):
 			out["wear"] = clampf(float(g.get("wear", 1.0)), 0.0, 1.0)
 		return out
@@ -486,7 +511,7 @@ static func rec(g) -> Dictionary:
 			var traits: Array = []
 			if p.size() > 3 and p[3] != "":
 				traits = Array(p[3].split(","))
-			return make(p[0], p[1] if p.size() > 1 else "", traits, int(p[2]) if p.size() > 2 else 0, p[4] if p.size() > 4 else "")
+			return make(p[0], p[1] if p.size() > 1 else "", traits, int(p[2]) if p.size() > 2 else 0, p[4] if p.size() > 4 else "", p[5] if p.size() > 5 else "")
 		return make(s)
 	return {}
 
@@ -522,14 +547,16 @@ static func rarity_rank(r: String) -> int:
 
 ## A short text for a fresh piece, for card choices ("gear:" + code): a plain
 ## Common is just its id ("axe"); anything more is
-## "base;rarity;rank;traits;named".
+## "base;rarity;rank;traits;named;rune".
 static func code(g) -> String:
 	var r := rec(g)
 	if r.is_empty():
 		return ""
-	if r["rarity"] == natural_rarity(r) and r["rank"] == 0 and r["traits"].is_empty() and not r.has("named"):
+	if r["rarity"] == natural_rarity(r) and r["rank"] == 0 and r["traits"].is_empty() and not r.has("named") and not r.has("rune"):
 		return r["base"]
 	var c := "%s;%s;%d;%s" % [r["base"], r["rarity"], r["rank"], ",".join(r["traits"])]
+	if r.has("rune"):
+		return c + ";" + String(r.get("named", "")) + ";" + String(r["rune"])
 	return c + (";" + String(r["named"]) if r.has("named") else "")
 
 
@@ -540,7 +567,7 @@ static func same(a, b) -> bool:
 	if ra.is_empty() or rb.is_empty():
 		return ra.is_empty() and rb.is_empty()
 	return ra["base"] == rb["base"] and ra["rarity"] == rb["rarity"] and ra["rank"] == rb["rank"] and ra["traits"] == rb["traits"] \
-		and String(ra.get("named", "")) == String(rb.get("named", ""))
+		and String(ra.get("named", "")) == String(rb.get("named", "")) and String(ra.get("rune", "")) == String(rb.get("rune", ""))
 
 
 # --- rarities and traits ---------------------------------------------------------------
@@ -616,12 +643,32 @@ static func trait_value(t: String, r: String) -> float:
 	return float(d["fine"] if rarity_rank(r) <= 1 else d["rare"])
 
 
+## A trait's strength on a piece tempered to `rank` (each rank adds
+## RANK_TRAIT of its base).
+static func trait_amount(t: String, r: String, rank := 0) -> float:
+	return trait_value(t, r) * (1.0 + RANK_TRAIT * clampi(rank, 0, MAX_RANK))
+
+
+## A number as a card shows it: "5%" for a share, "6" for a count.
+static func amount_text(v: float) -> String:
+	if v < 1.0:
+		var pct := v * 100.0
+		return ("%d%%" % int(round(pct))) if absf(pct - round(pct)) < 0.05 or pct >= 10.0 else ("%.1f%%" % pct)
+	return "%d" % int(round(v)) if absf(v - round(v)) < 0.05 else "%.1f" % v
+
+
 ## A trait's line for a card: "of Edges: strikes hit 5% harder".
-static func trait_text(t: String, r: String) -> String:
+static func trait_text(t: String, r: String, rank := 0) -> String:
 	var d: Dictionary = TRAITS[t]
-	var v := trait_value(t, r)
-	var shown := ("%d%%" % int(round(v * 100.0))) if v < 1.0 else ("%d" % int(round(v)))
-	return "%s: %s" % [d["name"], String(d["desc"]) % shown]
+	return "%s: %s" % [d["name"], String(d["desc"]) % amount_text(trait_amount(t, r, rank))]
+
+
+## A lasting rune's line for a card: "Rune of Sharpness: strikes hit 10% harder".
+static func rune_text(rune: String) -> String:
+	var d: Dictionary = LASTING_RUNES.get(rune, {})
+	if d.is_empty():
+		return ""
+	return "%s: %s" % [d["name"], String(d["desc"]) % amount_text(float(d["value"]))]
 
 
 ## The named pieces that can be found: Storied ones anywhere (from floor
@@ -733,7 +780,7 @@ static func display(id) -> String:
 		return String(d.get("name", "nothing"))
 	var n := named_id(g)
 	if NAMED.has(n):
-		return String(NAMED[n]["name"])
+		return String(NAMED[n]["name"]) + rank_tag(g)
 	var r := String(g.get("rarity", "common"))
 	var name := String(d.get("name", "nothing"))
 	if r != "common" and r != natural_rarity(g) and RARITIES.has(r):
@@ -741,7 +788,13 @@ static func display(id) -> String:
 	var tr: Array = g.get("traits", [])
 	if not tr.is_empty() and TRAITS.has(String(tr[0])):
 		name += " " + String(TRAITS[tr[0]]["name"])
-	return name
+	return name + rank_tag(g)
+
+
+## " +2" for a tempered piece, "" otherwise.
+static func rank_tag(g) -> String:
+	var k := int(g.get("rank", 0)) if g is Dictionary else 0
+	return " +%d" % k if k > 0 else ""
 
 
 ## What a piece does, in words (a named piece's own line, else its base's).
@@ -828,9 +881,15 @@ static func weapon_factor(g) -> float:
 	return WORN_WEAPON if is_worn(g) else 1.0
 
 
-## A weapon's damage multiplier: its rarity's boost, less any wear.
+## A weapon's damage multiplier: its rarity's boost and its tempering, less any wear.
 static func weapon_power(g) -> float:
-	return weapon_factor(g) * (1.0 + float(RARITIES.get(rarity(g), RARITIES["common"])["boost"]))
+	return weapon_factor(g) * weapon_boost(g)
+
+
+## How much harder a weapon hits for its rarity and its rank (1.0: no harder).
+static func weapon_boost(g) -> float:
+	var k := int(g.get("rank", 0)) if g is Dictionary else 0
+	return (1.0 + float(RARITIES.get(rarity(g), RARITIES["common"])["boost"])) * (1.0 + RANK_WEAPON * clampi(k, 0, MAX_RANK))
 
 
 # --- what a piece does --------------------------------------------------------------
@@ -857,10 +916,16 @@ static func effects(g) -> Dictionary:
 			out[k] = v
 	if g is Dictionary:
 		var r := String(g.get("rarity", "common"))
+		var k := int(g.get("rank", 0))
 		for t in g.get("traits", []):
 			if TRAITS.has(String(t)):
 				var key := String(TRAITS[t]["key"])
-				out[key] = float(out.get(key, 0.0)) + trait_value(t, r)
+				out[key] = float(out.get(key, 0.0)) + trait_amount(t, r, k)
+		# A lasting rune (the bench) adds to its number like a trait.
+		var rn: Dictionary = LASTING_RUNES.get(String(g.get("rune", "")), {})
+		if not rn.is_empty():
+			var key := String(rn["key"])
+			out[key] = float(out.get(key, 0.0)) + float(rn["value"])
 	return out
 
 
@@ -944,7 +1009,7 @@ static func stats(id) -> Array:
 	if Weapons.WEAPONS.has(b):
 		for row in Weapons.stats(b):
 			rows.append(row + [""])
-		var boost := float(RARITIES.get(rarity(id), RARITIES["common"])["boost"])
+		var boost := weapon_boost(id) - 1.0
 		if not rows.is_empty() and (boost > 0.0 or (id is Dictionary and is_worn(id))):
 			var d: Array = rows[0].duplicate()
 			if boost > 0.0:
@@ -1097,7 +1162,9 @@ static func trait_lines(g) -> Array:
 	var out: Array = []
 	for t in r.get("traits", []):
 		if TRAITS.has(t):
-			out.append([trait_text(t, r["rarity"]), Essence.color(TRAITS[t]["kind"])])
+			out.append([trait_text(t, r["rarity"], int(r.get("rank", 0))), Essence.color(TRAITS[t]["kind"])])
+	if r.has("rune"):
+		out.append([rune_text(r["rune"]), LASTING_RUNES[r["rune"]]["color"]])
 	return out
 
 
@@ -1267,7 +1334,67 @@ static func draw_icon(ci: CanvasItem, id, c: Vector2, s: float, col: Color) -> v
 	b.flush(ci)
 
 
+## A piece's icon into a Batch, with a tempered piece's rank (small gold
+## pips down its left side) and a lasting rune (its glyph, bottom right) drawn over it.
 static func icon_into(b, g, c: Vector2, s: float, col: Color) -> void:
+	_icon_body(b, g, c, s, col)
+	if not (g is Dictionary) or col.v < 0.08:
+		return
+	var k := int(g.get("rank", 0))
+	for i in k:
+		var p := c + Vector2(-s * 0.98, -s * 0.05 + s * 0.34 * i)
+		b.dot(p, maxf(1.6, s * 0.13), Palette.OUTLINE)
+		b.dot(p, maxf(1.0, s * 0.09), _GOLD)
+	if LASTING_RUNES.has(String(g.get("rune", ""))):
+		rune_into(b, String(g["rune"]), c + Vector2(s * 0.72, s * 0.72), s * 0.36, LASTING_RUNES[g["rune"]]["color"])
+
+
+## A rune drawn in code: a few strokes joining dots of a 3 by 3 grid, picked
+## by hashing `id` (the same id always draws the same rune), on a dark stone.
+static func rune_into(b, id: String, c: Vector2, r: float, col: Color, stone := true) -> void:
+	if stone:
+		b.dot(c, r * 1.25, Palette.OUTLINE)
+		b.dot(c, r * 1.1, Color(0.13, 0.12, 0.16))
+		b.dot(c, r * 1.05, Color(col, 0.18))
+	var w := maxf(1.0, r * 0.26)
+	for st in rune_strokes(id):
+		var a := c + _rune_dot(st[0]) * r * 0.7
+		var e := c + _rune_dot(st[1]) * r * 0.7
+		b.line(a, e, col, w)
+		b.dot(a, w * 0.5, col)
+		b.dot(e, w * 0.5, col)
+
+
+## A rune's strokes: pairs of dots (0 to 8, row by row on a 3 by 3 grid),
+## one connected path of 3 or 4 strokes between neighbouring dots, hashed
+## from `id`.
+static func rune_strokes(id: String) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id)
+	var at := rng.randi() % 9
+	var out: Array = []
+	var seen := {}
+	for i in 3 + rng.randi() % 2:
+		var opts: Array = []
+		for j in 9:
+			var key := Vector2i(mini(at, j), maxi(at, j))
+			if j != at and _rune_dot(j).distance_to(_rune_dot(at)) < 1.5 and not seen.has(key):
+				opts.append(j)
+		if opts.is_empty():
+			break
+		var nx: int = opts[rng.randi() % opts.size()]
+		seen[Vector2i(mini(at, nx), maxi(at, nx))] = true
+		out.append([at, nx])
+		at = nx
+	return out
+
+
+## A rune grid dot's place, -1 to 1 each way.
+static func _rune_dot(i: int) -> Vector2:
+	return Vector2(posmod(i, 3) - 1, floori(i / 3.0) - 1)
+
+
+static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 	var id := base_id(g)
 	if PIECES.has(id):
 		_piece_icon(b, id, c, s, col, NAMED.get(named_id(g), {}).get("color", Color(0, 0, 0, 0)))
