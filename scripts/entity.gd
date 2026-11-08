@@ -252,8 +252,8 @@ const TIPS := {
 		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens while time slows: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
 	# --- the train ---
 	"train": {"group": "train", "name": "The train",
-		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. Depart when you're ready.",
-		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Its cars are tabs ({tabs} switch them): your car (your heirlooms and a storage chest), the store car (the outfitter's supplies, an outfit, today's piece, and selling), the workshop car (its bench: brewing, and enchanting for a Rune Artist) and Depart, where you choose the next tower. Your crystals sit along the bottom."},
+		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. The engine takes you on when you're ready.",
+		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Walk along it from car to car ({cars}): the engine at the front, where you choose the next tower on its board and pull the lever to depart; your car (your heirlooms, your pack and a storage chest); the store car (the outfitter's supplies, an outfit, today's piece, and selling); and the workshop car (its bench: brewing, and enchanting for a Rune Artist). Your crystals sit along the bottom. Fall in a tower and you're back on the train in a moment."},
 	"store": {"group": "train", "name": "The store",
 		"tip": "The outfitter buys what climbers bring down and sells to the next ones up. He takes crystals. Nothing else.",
 		"more": "Essence crystals are the only money. Every price is in one kind of essence; the outfitter takes your smallest crystals of that kind first, and gives the rest back as one new crystal. Supplies are packed onto your belt for your next climb (put one back for its full price before you go). Outfit is a rack of Common pieces, new every visit, and Today's piece is one finer piece. Sell turns a piece from your pack or chest into a crystal of its kind, at 40% of its price. A price you can't pay says how much more you need."},
@@ -304,7 +304,7 @@ const KEYS := {
 	"menu": ["Esc", "{start}", "Menu"],
 	"restart": ["hold R", "hold {back}", "Menu, then Restart"],
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
-	"tabs": ["Q and E", "{lb} and {rb}", "a tap on a tab"],
+	"cars": ["Q and E, the mouse wheel, or the arrows at the screen's edges", "{lb} and {rb}, or the d-pad", "swipe, or tap the arrows at the screen's edges"],
 }
 
 ## The Entity's colours (the interface's other colours are in ui.gd).

@@ -159,6 +159,14 @@ var weapon_loss_chance := Lost.WEAPON_CHANCE  # a fall also takes the weapon in 
 var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_CHANCE  # (tests set it when they want one)
 var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
 var fall_note: Array = []  # what the fall took, for the fall screen
+## After the Regard, a fall shows what it took for a moment, then you're back
+## on the train: on your own after FALL_WAIT seconds, or at once on a tap, a
+## confirm key, R or the controller's View (not in the first FALL_GRACE
+## seconds, so a press meant for the fight doesn't skip it).
+const FALL_WAIT := 3.0
+const FALL_GRACE := 0.6
+var fall_t := -1.0  # seconds since falling (after the Regard); -1 while standing
+var _fall_us := 0  # (real time: a hit-pause slows the game's own clock at the moment of a fall)
 var campfire: Node2D
 
 # Lingering spell effects in the room
@@ -629,7 +637,14 @@ func _process(delta: float) -> void:
 		if regard_done() and _dismiss_pressed():
 			end_regard()
 		return
-	if _restart_held(delta):
+	if fallen():
+		var now := Time.get_ticks_usec()
+		fall_t += minf((now - _fall_us) / 1000000.0, 0.1)  # (not the time a menu was open)
+		_fall_us = now
+		if fall_t >= FALL_WAIT or _fall_skip_pressed():
+			back_to_train()
+			return
+	elif _restart_held(delta):
 		Engine.time_scale = 1.0
 		if get_tree().current_scene == self:  # (tests run the room outside a scene)
 			get_tree().reload_current_scene()
@@ -1369,6 +1384,50 @@ func _dismiss_pressed() -> bool:
 	return false
 
 
+## Fallen after the Regard (the first climb's fall goes to the Regard instead).
+func fallen() -> bool:
+	if player == null or not player.dead or first_climb or not regard.is_empty() or not victory.is_empty():
+		fall_t = -1.0
+		return false
+	if fall_t < 0.0:
+		fall_t = 0.0
+		_fall_us = Time.get_ticks_usec()
+	return true
+
+
+## A tap, a confirm key, R or View: back to the train now (once the fall
+## screen has shown for a moment).
+func _fall_skip_pressed() -> bool:
+	if fall_t < FALL_GRACE:
+		return false
+	for a in ["ui_accept", "restart", "attack", "roll", "jump"]:
+		if Input.is_action_just_pressed(a):
+			return true
+	return false
+
+
+## A tap on the fall screen (touch.gd).
+func fall_tapped() -> void:
+	if fallen() and fall_t >= FALL_GRACE:
+		back_to_train()
+
+
+## After a fall: a new climb's scene, which opens on the train (on your
+## own car), as a restart does. The fall has already taken the pack and
+## the belt (on_player_died).
+func back_to_train() -> void:
+	fall_t = -1.0
+	Engine.time_scale = 1.0
+	if get_tree().current_scene == self:
+		get_tree().reload_current_scene()
+		return
+	# (Tests run the room outside a scene: stand up, and open the train here.)
+	player.dead = false
+	player.hp = player.max_hp
+	await_tower()
+	open_train()
+
+
 ## True once restart has been held long enough (or pressed, once fallen).
 ## While it's held, a banner says to keep holding.
 func _restart_held(delta: float) -> bool:
@@ -2019,6 +2078,7 @@ func open_train() -> void:
 		e.set_physics_process(false)
 	Train.stock(profile)
 	profile.save()
+	menu.train_car = Train.HOME  # (it opens on your own car)
 	menu.open("train")
 
 

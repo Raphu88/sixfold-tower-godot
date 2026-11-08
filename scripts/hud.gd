@@ -25,6 +25,7 @@ const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Entity := preload("res://scripts/entity.gd")
+const Lost := preload("res://scripts/lost.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -206,7 +207,7 @@ func _top_live() -> bool:
 		return false
 	return main.fade > 0.0 or main.hurt_flash > 0.0 or not main.banner.is_empty() \
 		or essence_t > 0.0 or swap_t > 0.0 or floor_t > 0.0 or stair_t > 0.0 or (hints_t > 0.0 and not main.touch_active) \
-		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing \
+		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing or (p.dead and not main.first_climb) \
 		or p.pick_open or p.ring_open or not main.loot_notice.is_empty() or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
 		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
 		or (main.door_view != null and not main.door_view.lock_status().is_empty())
@@ -438,8 +439,11 @@ func _draw() -> void:
 	var msg := ""
 	var sub := ""
 	if p.dead and not main.first_climb:
-		msg = "YOU FELL ON FLOOR %d" % main.floor_num
-		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, _say("Press R", "Press {back}", "Tap Menu, then Restart,")]
+		# Back to the train in a moment, or at once (main.gd FALL_WAIT).
+		msg = Lost.TEXT["fell"] % main.floor_num
+		var left := maxi(1, ceili(main.FALL_WAIT - maxf(main.fall_t, 0.0)))
+		var now: Array = Lost.TEXT["now"]
+		sub = (Lost.TEXT["back"] % [main.best_floor, left]) + "  ·  " + _say(now[0], now[1], now[2])
 	# What the fall took (main.fall_note, lost.gd), under the banner's words.
 	var note: Array = main.fall_note if p.dead and not main.first_climb else []
 	var note_w := minf(size.x - 32.0, 760.0)
