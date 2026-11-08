@@ -33,6 +33,7 @@ const GuideScript := preload("res://scripts/guide.gd")
 const Train := preload("res://scripts/train.gd")
 const Lost := preload("res://scripts/lost.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
+const Secret := preload("res://scripts/secret.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -108,6 +109,12 @@ var run_essence := {}  # gathered since the last stair (lost if you fall)
 var run_soak := {}  # body-part soak since the last stair
 var climb_essence := {}  # everything gathered this climb
 var climb_soak := {}  # everything soaked this climb
+## The secret essences (secret.gd): the path's essence gathered since the
+## last stair (the flow, unbanked: lost if you fall), and what rose before
+## the path was chosen, waiting on the choice ({kind, amount, pos}).
+var run_flow := 0.0
+var secret_pending: Array = []
+var secret_on := not Engine.has_meta("sixfold_test")  # (tests switch it on when they want great foes to leave it)
 var regard := {}  # the Regard, while it plays: {fell, part, id, t}
 var regard_pending := false
 var victory := {}  # the climb complete screen, after the beast falls: {t, beast, lines}
@@ -619,6 +626,7 @@ func _process(delta: float) -> void:
 			choose_tower(Towers.ORDER[card_focus])
 		return
 	if camp_choosing:
+		camp["t"] = float(camp.get("t", 0.0)) + delta / maxf(Engine.time_scale, 0.01)
 		for i in mini(camp["choices"].size(), CARD_KEYS):
 			if Input.is_action_just_pressed("weapon_%d" % (i + 1)):
 				choose_camp(i)
@@ -1106,11 +1114,12 @@ func _update_springs(delta: float) -> void:
 	for sp in springs:
 		if sp["left"] <= 0.0 or player.global_position.distance_to(sp["pos"]) > sp["r"]:
 			continue
-		var heal := minf(minf(float(Floors.SPRING["rate"]) * delta, sp["left"]), player.max_health() - player.hp)
+		# (Life's flow heals you more from the same water.)
+		var heal := minf(minf(float(Floors.SPRING["rate"]) * delta, sp["left"]) * player.heal_mult(), player.max_health() - player.hp)
 		if heal <= 0.0:
 			continue
 		player.hp += heal
-		sp["left"] -= heal
+		sp["left"] -= heal / player.heal_mult()
 		if sp["left"] <= 0.01:
 			sp["left"] = 0.0
 			room_view.refresh_features()
@@ -1273,6 +1282,7 @@ func _arrive() -> void:
 	lines.append_array(profile.bank(run_essence, run_soak))
 	run_essence = {}
 	run_soak = {}
+	lines.append_array(_bank_flow())
 	# An unmarked body part that has soaked up enough takes a new mark.
 	if not first_climb:
 		var part: String = profile.ready_for_mark()
@@ -1479,6 +1489,10 @@ func _enter_camp(lines: Array) -> void:
 ## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
 func camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
+	if pick.begins_with("path:"):
+		var k := pick.substr(5)
+		return {"name": Secret.display(k), "desc": Secret.KINDS[k]["motto"], "color": Secret.color(k), "item": "", "secret": k,
+			"steps": Secret.STEP_TEXT[k], "note": Secret.TEXT["card_sub"]}
 	if pick.begins_with("heir:"):
 		var h := pick.substr(5)
 		if h == "":
@@ -1542,6 +1556,9 @@ func choose_camp(i: int) -> void:
 	if not camp_choosing or i < 0 or i >= camp["choices"].size():
 		return
 	var pick: String = camp["choices"][i]
+	if camp["stage"] == "path":
+		_take_path_pick(i)
+		return
 	if camp["stage"] == "heirloom":
 		keep_heirloom(pick.substr(5))
 		return
@@ -1666,8 +1683,10 @@ func read_recall() -> void:
 	profile.bank({}, run_soak)
 	run_essence = {}
 	run_soak = {}
+	var flow_lines := _bank_flow()  # (the flow can't be a crystal: it's banked)
 	profile.save()
 	var lines: Array = [Items.RECALL["crystals"] % ", ".join(made) if not made.is_empty() else Items.RECALL["none"]]
+	lines.append_array(flow_lines)
 	var broke := break_belt(["scroll"])  # (the scroll itself is being read)
 	if broke != "":
 		lines.append(broke)
@@ -2162,7 +2181,9 @@ func _give_bonds() -> void:
 	player.attr_speed = 1.0 + profile.attribute("air")
 	player.attr_strength = 1.0 + profile.attribute("blade")
 	player.attr_will = 1.0 + profile.attribute("iron")
-	# Health: Vitality, then whatever your gear adds (refresh_gear).
+	# The flow (secret.gd): what your path's banked essence does.
+	player.set_flow(profile.path, profile.flow_step())
+	# Health: Vitality, then whatever your gear adds (refresh_gear), then Unmaking's cost.
 	player.base_hp = player.MAX_HP * (1.0 + profile.attribute("stone"))
 	player.refresh_gear()
 
@@ -2232,6 +2253,8 @@ func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 
 func on_player_died() -> void:
 	profile.note("deaths")
+	if run_flow > 0.0 and profile.path != "":
+		run_flow = 0.0  # the flow you carried is lost (what's banked stays)
 	if not first_climb:
 		# Your pack and belt are lost, maybe your weapon too (lost.gd); the
 		# pieces are remembered, and may turn up again on a later climb.
@@ -2463,6 +2486,185 @@ func menu_open() -> bool:
 ## True while the title screen (or a page opened from it) covers the game.
 func title_showing() -> bool:
 	return menu != null and menu.backdrop_showing()
+
+
+# --- the secret essences (secret.gd) -------------------------------------------
+
+## A great foe fell (on_enemy_killed): its secret essence rises. The first
+## time, with no path chosen, the game stops on the choice (offer_path); the
+## essence waits for it. Ordinary monsters leave none.
+func secret_drop(e) -> void:
+	if not secret_on or first_climb:
+		return
+	var drop: Dictionary = Secret.drop(Secret.great_foe(e), tower, floor_num)
+	if drop.is_empty():
+		return
+	tip("secret")
+	var at: Vector2 = e.global_position
+	if profile.path == "":
+		if player == null or player.dead:
+			return  # (no choice over a fall)
+		for k in drop:
+			secret_pending.append({"kind": k, "amount": float(drop[k]), "pos": at})
+		if not (camp_choosing and camp.get("stage", "") == "path"):
+			offer_path()
+		return
+	for k in drop:
+		rise_secret(k, float(drop[k]), at)
+
+
+## Secret essence of `kind` rising at `from`: your path's soaks in (the
+## flow, unbanked until the stair); the other passes through you.
+func rise_secret(kind: String, amount: float, from: Vector2) -> void:
+	if amount <= 0.0 or profile.path == "":
+		return
+	if kind == profile.path:
+		run_flow += amount
+		if fx != null:
+			fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, false)
+		fx_text(from + Vector2(0, -64), Secret.TEXT["gather"] % [int(round(amount)), Secret.display(kind)], Secret.KINDS[kind]["light"])
+		light_flash(from, Secret.color(kind), 1.6, 1.6, 0.6)
+		sfx("glint", 0.8, -4.0, 0.0)
+	else:
+		pass_through(kind, amount, from)
+
+
+## The other secret essence: it rises, streaks through you and out, unbanked.
+func pass_through(kind: String, amount: float, from: Vector2) -> void:
+	if vessel_takes(kind, amount):
+		return
+	if fx != null:
+		fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, true)
+	if player != null:
+		fx_text(player.global_position + Vector2(0, -58), Secret.TEXT["passes"] % Secret.display(kind), Color(Secret.color(kind), 0.9))
+	tip("secret_pass")
+
+
+## Hook for later: a vessel on the belt that captures the essence that isn't
+## yours instead of letting it pass. True if it took it. (None yet.)
+func vessel_takes(_kind: String, _amount: float) -> bool:
+	return false
+
+
+## The path's essence carried up a stair settles in the flow (profile.gd
+## bank_flow); a step reached is said and the climber feels it at once.
+## Returns lines for the stair's banner.
+func _bank_flow() -> Array:
+	if run_flow <= 0.0 or profile.path == "":
+		run_flow = 0.0
+		return []
+	var before: int = profile.flow_step()
+	var lines: Array = profile.bank_flow(run_flow)
+	run_flow = 0.0
+	var after: int = profile.flow_step()
+	for st in range(before + 1, after + 1):
+		tip("flow_%d" % st)
+	if after > before and player != null:
+		var col := Secret.color(profile.path)
+		fx_ring(player.global_position, col, 70.0, 0.6, 4.0)
+		light_flash(player.global_position, col, 2.0, 1.8, 0.6)
+	return lines
+
+
+## True once your path's gem shows on the HUD: banked flow at its first step.
+func flow_shown() -> bool:
+	return profile != null and profile.flow_step() >= 1
+
+
+## The path choice, on the card screen: Life or Unmaking. The monsters wait.
+## It's for good, so a card is taken with a second press (and not in the
+## first moment, so a press meant for the fight can't take it).
+func offer_path() -> void:
+	camp = {"stage": "path", "choices": Secret.ORDER.map(func(k): return "path:" + k), "lines": Secret.TEXT["choose_lines"],
+		"title": Secret.TEXT["choose_title"], "t": 0.0, "armed": -1}
+	camp_choosing = true
+	card_focus = 0
+	if player != null:
+		player.set_physics_process(false)
+		player.iframes = maxf(player.iframes, 9999.0)  # (nothing still in flight can hurt you while you choose)
+	if wings != null:
+		wings.freeze()
+	sfx("ready", 0.6, -2.0, 0.0)
+
+
+## Seconds the path choice ignores presses after it opens.
+const PATH_GRACE := 0.8
+
+
+func _take_path_pick(i: int) -> void:
+	if float(camp.get("t", 0.0)) < PATH_GRACE:
+		return
+	if int(camp.get("armed", -1)) != i:
+		camp["armed"] = i
+		card_focus = i
+		sfx("ui_move")
+		return
+	choose_path(String(camp["choices"][i]).substr(5))
+
+
+## The path is chosen (saved, for good): what waited rises at once.
+func choose_path(kind: String) -> void:
+	if not Secret.is_kind(kind):
+		return
+	profile.path = kind
+	profile.flow = 0.0
+	profile.save()
+	if camp.get("stage", "") == "path":
+		camp_choosing = false
+		camp = {}
+		if player != null and not player.dead:
+			player.set_physics_process(true)
+			player.iframes = 1.0
+		if wings != null:
+			wings.unfreeze()
+	_give_bonds()
+	if banner.is_empty():
+		banner = {"title": Secret.TEXT["chosen_title"] % Secret.display(kind).to_upper(), "lines": [Secret.TEXT["chosen"]], "t": 3.5}
+	else:  # (a banner waiting, like the Proving's "PROVEN": the choice joins it)
+		banner["lines"] = [Secret.TEXT["chosen_line"] % [Secret.display(kind), Secret.TEXT["chosen"]]] + banner.get("lines", [])
+		banner["t"] = maxf(float(banner.get("t", 0.0)), 4.0)
+	tip("secret_path")
+	sfx("crit", 0.6, -2.0, 0.0)
+	if player != null:
+		light_flash(player.global_position, Secret.color(kind), 2.4, 2.0, 0.8)
+		fx_ring(player.global_position, Secret.color(kind), 90.0, 0.7, 5.0)
+	var waiting := secret_pending
+	secret_pending = []
+	for w in waiting:
+		rise_secret(w["kind"], w["amount"], w["pos"])
+
+
+## Clears the path and all its flow: the shadow is an ordinary shadow again
+## and a path can be chosen anew. Hook for later (the Developer mark, or a
+## Maker who grants a change of path); the dev tools use it now.
+func reset_path() -> void:
+	var was: String = profile.path
+	profile.path = ""
+	profile.flow = 0.0
+	run_flow = 0.0
+	secret_pending = []
+	profile.save()
+	_give_bonds()
+	if was != "" and player != null:
+		fx_burst(player.global_position + Vector2(0, 10), Vector2.UP, Secret.color(was), 22, 120.0)
+		fx_text(player.global_position + Vector2(0, -50), Secret.TEXT["reset"], Secret.color(was))
+
+
+## Dev tools: take a path at once (keeping the flow), or bank flow.
+func dev_set_path(kind: String) -> void:
+	if not Secret.is_kind(kind):
+		return
+	profile.path = kind
+	profile.save()
+	_give_bonds()
+
+
+func dev_add_flow(amount: float) -> void:
+	if profile.path == "":
+		return
+	profile.bank_flow(amount)
+	profile.save()
+	_give_bonds()
 
 
 # --- dev tool ----------------------------------------------------------------
@@ -2969,6 +3171,9 @@ func on_enemy_killed(e) -> void:
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.
 	gather_essence(tower_data()["essence"], Towers.ESSENCE_BONUS, e.global_position)
+	if player != null:
+		player.on_flow_kill(e)  # Life mends; Unmaking's slain foe comes apart
+	secret_drop(e)  # a great foe: its secret essence rises
 	fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)

@@ -696,6 +696,7 @@ func cast_down() -> void:
 	for k in main.run_essence.keys():
 		main.run_essence[k] = float(main.run_essence[k]) * float(CAST_DOWN["keep"])
 		kept += float(main.run_essence[k])
+	main.run_flow *= float(CAST_DOWN["keep"])  # (the secret essence carried, likewise)
 	wound = float(CAST_DOWN["wound"])
 	wound_stairs = int(CAST_DOWN["wound_stairs"])
 	var p = main.player

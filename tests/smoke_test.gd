@@ -6717,6 +6717,7 @@ func _run() -> void:
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()
 	await _proving_tests()
+	await _secret_tests()
 	await _chimera_bond_tests()
 	await _body_part_tests()
 	await _item_tests()
@@ -8378,3 +8379,243 @@ func _bench_tests() -> void:
 	main.depart("kraken")
 	await _frames(2)
 	_check(not paused and not menu.is_open(), "departing leaves the train")
+
+
+## A monster beside the climber that waits (no physics), at full health.
+func _still(kind: String, at: Vector2):
+	var e = await _spawn(kind, at)
+	e.state_t = 99.0
+	e.aware = true
+	return e
+
+
+## The secret essences, Life and Unmaking (secret.gd): who leaves them, the
+## path choice, the flow (gathered, passing through, banked, lost) and what
+## each step does.
+func _secret_tests() -> void:
+	print("the secret essences")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var S = load("res://scripts/secret.gd")
+	var E = load("res://scripts/essence.gd")
+	var p = main.player
+	var prof = main.profile
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	main.tower = "kraken"
+	main.floor_num = 4
+	_check(not main.secret_on, "tests keep the secret essences off unless they ask")
+	main.secret_on = true
+	_check(S.ORDER.all(func(k): return not E.KINDS.has(k)), "Life and Unmaking are not among the six kinds (crystals, the bench, prices and density never list them)")
+	# Who leaves what.
+	var beast: Dictionary = S.drop("beast", "kraken", 12)
+	var shadow: Dictionary = S.drop("shadow", "kraken", 6)
+	var shadow12: Dictionary = S.drop("shadow", "kraken", 12)
+	var mirror: Dictionary = S.drop("mirror", "kraken", 6)
+	_check(beast["life"] > beast["unmaking"] and beast["unmaking"] > 0.0, "a tower beast leaves mostly Life, some Unmaking")
+	_check(shadow12["life"] < beast["life"] and shadow12["unmaking"] < beast["unmaking"] and shadow["life"] > shadow["unmaking"], "the Proving's shadow: the same split, less")
+	_check(mirror["unmaking"] > mirror["life"], "a mirror image (for later) leaves mostly Unmaking")
+	_check(S.drop("champion", "kraken", 8).keys() == ["life"] and S.drop("champion", "gryphon", 8).keys() == ["unmaking"], "a champion leaves a little of one kind, by tower")
+	_check(S.drop("champion", "kraken", 10)["life"] > S.drop("champion", "kraken", 2)["life"] and S.drop("champion", "kraken", 2)["life"] < shadow["life"], "...more higher up, and less than a shadow")
+	_check(S.drop("", "kraken", 8).is_empty(), "an ordinary monster leaves none")
+	# An ordinary monster: nothing.
+	var slime = await _still("slime", p.global_position + Vector2(90, 0))
+	_check(S.great_foe(slime) == "", "a slime isn't a great foe")
+	_slay(slime)
+	await _frames(1)
+	_check(not main.camp_choosing and main.secret_pending.is_empty() and main.run_flow == 0.0, "an ordinary monster's fall: no secret essence")
+	# The first great foe opens the choice; its essence waits.
+	var champ = await _still("knight", p.global_position + Vector2(90, 0))
+	champ.make_champion()
+	_check(S.great_foe(champ) == "champion", "a champion is a great foe")
+	_slay(champ)
+	await _frames(1)
+	_check(main.camp_choosing and main.camp.get("stage", "") == "path" and main.secret_pending.size() == 1 and main.secret_pending[0]["kind"] == "life",
+		"the first great foe's fall stops on the path choice; its Life waits")
+	_check(not p.is_physics_processing() and main.camp["choices"] == ["path:life", "path:unmaking"], "...the game waits on two cards: Life and Unmaking")
+	await _frames(2)
+	var hud = main.hud
+	var vs: Vector2 = hud.get_viewport_rect().size
+	_check(hud.camp_card_at(hud.path_card_rect(1, vs).get_center()) == 1 and hud.camp_card_rect(0, vs) == hud.path_card_rect(0, vs), "the cards are where taps and clicks find them")
+	main.choose_camp(1)
+	_check(prof.path == "" and int(main.camp.get("armed", -1)) == -1, "a press in its first moment can't choose (a tap meant for the fight)")
+	main.camp["t"] = 5.0
+	main.choose_camp(1)
+	_check(prof.path == "" and main.camp_choosing and int(main.camp["armed"]) == 1, "the first press only picks a card (it's for good)")
+	main.choose_camp(0)
+	_check(prof.path == "" and int(main.camp["armed"]) == 0, "...pressing the other picks that one instead")
+	main.choose_camp(0)
+	_check(prof.path == "life" and not main.camp_choosing and p.is_physics_processing(), "a second press on it lets Life in; the game goes on")
+	_check(main.run_flow > 0.0 and main.secret_pending.is_empty(), "what waited soaks in at once (%.1f)" % main.run_flow)
+	_check(p.flow_path == "life" and p.flow_step == 0, "the climber carries the path (no step yet)")
+	# Afterwards: only the path's essence soaks in; the other passes through.
+	var f0: float = main.run_flow
+	var motes0: int = main.fx.motes_list.size()
+	main.rise_secret("unmaking", 9.0, p.global_position + Vector2(120, 0))
+	_check(is_equal_approx(main.run_flow, f0), "Unmaking isn't gathered once Life is your path")
+	_check(main.fx.motes_list.size() > motes0 and main.fx.motes_list.slice(motes0).all(func(m): return m.get("through", false)), "...it rises and passes through you")
+	await _until(func(): return main.fx.motes_list.any(func(m): return m.has("out")), 4.0)
+	_check(main.fx.motes_list.any(func(m): return m.has("out")), "...and streaks out the far side")
+	main.rise_secret("life", 9.0, p.global_position + Vector2(120, 0))
+	_check(is_equal_approx(main.run_flow, f0 + 9.0), "Life still soaks in")
+	# A tower beast: both rise, Life soaks in, Unmaking passes through.
+	var bst = await _still("kraken", p.global_position + Vector2(200, 0))
+	_check(S.great_foe(bst) == "beast", "a tower's beast is a great foe")
+	var f1: float = main.run_flow
+	_slay(bst)
+	await _frames(1)
+	_check(is_equal_approx(main.run_flow, f1 + S.drop("beast", "kraken", 4)["life"]), "a beast's Life soaks in, its Unmaking passes")
+	var sh = main.proving.make_shadow("kraken", main.proving.TIERS[0])
+	sh.position = p.global_position + Vector2(200, 0)
+	main.add_child(sh)
+	await _frames(1)
+	sh.set_physics_process(false)
+	var f2: float = main.run_flow
+	var sh_is: String = S.great_foe(sh)
+	_slay(sh)
+	await _frames(1)
+	_check(sh_is == "shadow" and is_equal_approx(main.run_flow, f2 + S.drop("shadow", "kraken", 4)["life"]), "the Proving's shadow leaves its own, smaller share")
+	await _until(func(): return main.enemies().is_empty(), 2.0)
+	# Banked at the stair.
+	var carried: float = main.run_flow
+	main._arrive()
+	_check(is_equal_approx(prof.flow, carried) and main.run_flow == 0.0, "the stair banks the flow (%.1f)" % prof.flow)
+	_check(main.banner.get("lines", []).any(func(l): return String(l).begins_with("Banked %d Life" % int(round(carried)))), "...and says so")
+	await _until(func(): return not main.climbing and main.fade <= 0.0, 5.0)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	# Lost on a fall (what's banked stays).
+	var banked: float = prof.flow
+	main.run_flow = 7.0
+	_kill_blow(p)
+	_check(p.dead and main.run_flow == 0.0 and is_equal_approx(prof.flow, banked), "a fall loses the flow you carried; the banked flow stays")
+	p.dead = false
+	p.hp = p.max_hp
+	p.set_physics_process(true)
+	main.fall_t = -1.0
+	# The HUD gem only from the first step.
+	prof.flow = 10.0
+	main._give_bonds()
+	await _frames(3)
+	_check(not main.flow_shown() and not hud.tips.any(func(t): return String(t[1]).begins_with("Life")), "no gem on the HUD before the first step")
+	main.dev_add_flow(15.0)
+	await _frames(3)
+	_check(main.flow_shown() and p.flow_step == 1 and hud.tips.any(func(t): return String(t[1]).begins_with("Life")), "at 25 banked, Life's gem joins the HUD")
+	# Life, step by step.
+	_check(is_equal_approx(p.flow_regen, S.EFFECTS["life"]["regen"][0]) and p.flow_mend == 0.0 and p.heal_mult() == 1.0 and not p.flow_refuse, "Life step 1: health regrows, nothing more yet")
+	p.hp = 50.0
+	await _until(func(): return p.hp > 50.5, 3.0)
+	_check(p.hp > 50.5, "...and it does regrow")
+	main.dev_add_flow(50.0)
+	_check(p.flow_step == 2 and p.flow_mend > 0.0, "Life step 2 at 75")
+	p.hp = 40.0
+	var hp_kill: float = p.hp
+	var s2 = await _still("slime", p.global_position + Vector2(120, 0))
+	_slay(s2)
+	_check(p.hp >= hp_kill + p.flow_mend - 0.01, "a kill mends you (+%d)" % int(p.flow_mend))
+	main.dev_add_flow(75.0)
+	_check(p.flow_step == 3 and p.heal_mult() > 1.3, "Life step 3 at 150: healing much stronger")
+	p.heal_left = 0.0
+	main.Items._heal_over_time(p, main.Items.ITEMS["draught"], false)
+	_check(is_equal_approx(p.heal_left, float(main.Items.ITEMS["draught"]["heal"]) * p.heal_mult()), "...a draught heals %d, not %d" % [int(p.heal_left), int(main.Items.ITEMS["draught"]["heal"])])
+	p.heal_left = 0.0
+	main.dev_add_flow(150.0)
+	_check(p.flow_step == 4 and p.flow_refuse, "Life step 4 at 300")
+	p.hp = 10.0
+	var near = await _still("slime", p.global_position + Vector2(40, 0))
+	_kill_blow(p)
+	_check(not p.dead and absf(p.hp - p.max_health() * S.REFUSE_HEALTH) < 1.0, "a killing blow leaves you standing at low health (%d)" % int(p.hp))
+	_check(near.knock.length() > 100.0 and near.stun > 0.0, "...in a burst that throws back the monsters near you")
+	p.hp = 10.0
+	_kill_blow(p)
+	_check(p.dead, "...once a floor")
+	p.dead = false
+	p.hp = p.max_hp
+	p.set_physics_process(true)
+	main.fall_t = -1.0
+	near.queue_free()
+	# Unmaking (reset first: the dev tools' hook for the Developer mark later).
+	var plain_hp: float = p.max_hp
+	main.reset_path()
+	_check(prof.path == "" and prof.flow == 0.0 and p.flow_path == "" and is_equal_approx(p.max_hp, plain_hp), "reset_path clears the path and all its flow")
+	main.dev_set_path("unmaking")
+	main.dev_add_flow(25.0)
+	_check(p.flow_step == 1 and is_equal_approx(p.max_hp, roundf(plain_hp * S.EFFECTS["unmaking"]["health"][0])) and p.hp <= p.max_health(), "Unmaking step 1: less max health (%d of %d)" % [int(p.max_hp), int(plain_hp)])
+	var dummy = await _still("knight", p.global_position + Vector2(200, 0))
+	dummy.face = Vector2.LEFT  # (facing the climber: no backstab)
+	var dh: float = dummy.hp
+	p._strike(dummy, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(absf((dh - dummy.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][0]) < 0.05, "...and more damage (%.1f from a 10 blow)" % (dh - dummy.hp))
+	_check(p.bonds["hand"].flow_power == S.EFFECTS["unmaking"]["damage"][0], "...spells too")
+	main.dev_add_flow(50.0)
+	_check(p.flow_step == 2 and p.flow_erode > 0.0 and p.max_hp < plain_hp * S.EFFECTS["unmaking"]["health"][0], "Unmaking step 2: the trade grows, and the aura")
+	dummy.global_position = p.global_position + Vector2(30, 0)
+	dummy.aware = true
+	var asleep = await _still("knight", p.global_position + Vector2(-30, 0))
+	asleep.aware = false
+	dh = dummy.hp
+	var sh0: float = asleep.hp
+	p._erode_t = 0.0
+	await _until(func(): return dummy.hp < dh, 3.0)
+	_check(dummy.hp < dh and asleep.hp == sh0, "the aura erodes an awake monster beside you, not a sleeping one")
+	asleep.queue_free()
+	main.dev_add_flow(75.0)
+	_check(p.flow_step == 3 and p.flow_pierce, "Unmaking step 3: strikes ignore armour")
+	var shell = await _still("shellback", p.global_position + Vector2(60, 0))
+	shell.face = Vector2.LEFT  # facing the climber: its shell in front
+	var shp: float = shell.hp
+	p._strike(shell, 10.0, Vector2.RIGHT, 0.0, false)
+	_check(absf((shp - shell.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][2]) < 0.05, "a shellback's shell doesn't turn the blow (%.1f)" % (shp - shell.hp))
+	dummy.flinch = 0.0
+	dummy.flinch_cd = 0.0
+	dummy.state = "recover"
+	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(dummy.flinch > 0.0, "...and a knight's guard doesn't shrug off a light one")
+	shell.queue_free()
+	main.dev_add_flow(150.0)
+	_check(p.flow_step == 4 and p.flow_undo > 0.0, "Unmaking step 4 at 300")
+	var a = await _still("slime", p.global_position + Vector2(150, 0))
+	var b = await _still("knight", p.global_position + Vector2(185, 0))
+	var bh: float = b.hp
+	_slay(a)
+	_check(b.hp < bh, "a slain foe comes apart and hurts the monster beside it (%d)" % int(bh - b.hp))
+	await _frames(2)
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	# Its shadow, drawn every frame, and the climber screen.
+	p.queue_redraw()
+	await _frames(3)
+	main.menu.climber_tab = "essence"
+	main.menu.open("climber")
+	await _frames(2)
+	var flows: Array = main.menu.box.get_children().filter(func(c): return c.get_script() == main.MenuScript.FlowView)
+	_check(flows.size() == 1, "the climber screen shows the flow")
+	main.menu.close()
+	main.menu.open("dev")
+	await _frames(1)
+	_check(_menu_button("Reset path") != null and _menu_button("+25 flow") != null, "the dev tools can set the path, add flow and reset it")
+	main.menu.close()
+	# Saved, and old saves load.
+	var path := "user://smoke_secret_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.path == "unmaking" and is_equal_approx(again.flow, prof.flow), "the path and the flow are saved and load again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.path == "" and again.flow == 0.0, "an old save loads with no path")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	main.reset_path()
+	main.secret_on = false

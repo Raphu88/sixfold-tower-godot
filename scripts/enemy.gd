@@ -182,6 +182,10 @@ const CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_eve
 ## rising off it over the darkness.
 var shade := false
 const SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wisp": Color(0.72, 0.64, 1.0)}
+## A mirror image of the climber (not in the game yet): a great foe that
+## leaves mostly Unmaking (secret.gd SOURCES "mirror"). Whatever makes one
+## sets this.
+var mirror := false
 
 
 ## Call before adding to the tree.
@@ -1771,7 +1775,9 @@ func _wander(delta: float) -> void:
 	_redraw()
 
 
-func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:
+## `pierce`: the blow ignores armour (Unmaking's flow, from step 3): a
+## shellback's shell doesn't turn it and a knight's guard doesn't shrug it off.
+func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
 	if dead:
 		return
 	if submerged:
@@ -1780,7 +1786,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	if main.counting_hits:
 		main.cast_hits += 1
 	# A shellback's shell turns blows from the front (heavy blows crack it).
-	if kind == "shellback" and dir != Vector2.ZERO and face.dot(-dir) > 0.4:
+	if kind == "shellback" and dir != Vector2.ZERO and face.dot(-dir) > 0.4 and not pierce:
 		amount *= 0.6 if heavy else 0.15
 		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Blocked" if not heavy else "Cracked", Color(0.8, 0.84, 0.9))
 		main.sfx("hit_armor", 1.2, -2.0)
@@ -1819,7 +1825,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> vo
 	# Poise: a committed attack carries on through light hits (read the glint:
 	# parry or roll), and light hits flinch a monster only now and then.
 	# Heavy hits (finishers) still rock most monsters. Beasts never flinch.
-	var poise := is_boss() or (not heavy and (is_attacking() or flinch_cd > 0.0)) or (kind == "knight" and not heavy)
+	var poise := is_boss() or (not heavy and (is_attacking() or flinch_cd > 0.0)) or (kind == "knight" and not heavy and not pierce)
 	if not poise and dir != Vector2.ZERO and stun <= 0.0:
 		flinch = FLINCH_TIME
 		flinch_cd = FLINCH_COOLDOWN

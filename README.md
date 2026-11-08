@@ -278,6 +278,7 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 - **Spawn a monster:** any monster or beast, near you.
 - **Gear:** give yourself any weapon or armor (it replaces what's in that slot).
 - **Puzzles:** put one kind of puzzle on every floor of rooms (or back to the usual mix), and go to a floor of rooms to try it.
+- **Secret essences:** take the Life or Unmaking path at once, bank +25 or +100 flow (to try each step), reset the path, or show the path choice.
 - **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room, and show traps (outlines every trap and its reach, hidden ones too).
 
 ## The Entity: tips, the Archive and the Record
@@ -373,6 +374,27 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
   - **Surgeon** (Blade). Body: Steady Hands (healing heals more, including the stair's rest and healing items, which also work faster). Passive: Diagnosis (you see every foe's health and a note on what it's weak to). Spells: Sever (cripples a foe: it can't run or charge), Mend (heals you and nearby creatures, cures poison), Sever changed (a crippled foe is disarmed instead: it can't attack), Transfer (move your burns and poison onto a foe), Amputate (a foe below half health is crippled and disarmed for the rest of the fight).
 - **Overdraw:** casting without enough essence still works, but the cast is weaker (70%) and the body part **burns**. Overdraw a burned mark again and it **tears**: the missing essence comes out of your health, so spamming spells can kill you.
 - **Burns** last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window, throat slows stamina recovery, back loses the backstab bonus.
+
+## Secret essences: Life and Unmaking
+
+Two essences aren't like the six (`scripts/secret.gd`, where every word and number lives). **Ordinary monsters never leave them: only great foes do.** A tower's beast leaves mostly Life and some Unmaking; the Proving's shadow of the beast the same split, but less; a champion (a sealed wing's, or the Proving's sentinel) a little of one or the other, by tower (Life from the Kraken's, Manticore's and Firebird's towers, Unmaking from the Gryphon's, Wyvern's and Chimera's). A mirror image of the climber (not in the game yet) is ready to leave mostly Unmaking. Amounts grow with the floor like other essence. None drop on the bondless first climb. They rise from the foe as big glowing motes in their colour (Life green, Unmaking violet) and fly to you. They aren't currency: the crystals, the store, the bench and density never list them.
+
+**Choosing a path.** The first time a great foe falls and its secret essence rises (usually the Proving's shadow on floor 6), the game stops on a choice: let in **Life** ("you endure") or **Unmaking** ("you take apart"). The Entity says what's at stake, and each card shows a climber standing in that essence's shadow and what each step does. The choice is for good, so a card is taken with a **second** press or tap (the first only picks it, and presses in the first moment are ignored, so a tap meant for the fight can't choose). It's saved with the climber; later, only the Developer mark or pleading with a Maker will be able to change it (`main.gd reset_path()` is the hook; the dev tools use it now).
+
+**Only your path's essence soaks in.** The other still rises from great foes and visibly streaks through you and out the far side, unbanked (a vessel that captures it comes later: `main.gd vessel_takes()` is its hook).
+
+**The flow.** Your path's essence never settles in a body part, never takes a mark and never pushes out a bond. It's one measure, the flow: carried unbanked during the climb (half of it stays when the Proving casts you down; a fall loses it; a recall scroll banks it) and banked at the stair. Banked flow reaches **steps at 25, 75, 150 and 300**, each a real change in play:
+
+| Step | Life | Unmaking |
+| --- | --- | --- |
+| 1 | Health regrows: 0.5 a second (0.75, 1, 1.25 at later steps) | 12% more damage (strikes and spells), 8% less max health (20/13%, 28/18%, 36/22% at later steps) |
+| 2 | Every kill mends you: 4 health (5, 6 later) | An aura: awake monsters beside you take 3 damage a second (4, 5 later) |
+| 3 | Healing is 50% stronger (60% at step 4): draughts, springs, your marks' heals, weapons that heal on a kill | Your strikes ignore armour: a shellback's shell doesn't turn them, a knight's guard doesn't shrug off light blows (beasts still don't flinch) |
+| 4 | Once a floor, a killing blow leaves you at a quarter of your health instead, in a green burst that throws back the monsters near you ("Life will not let you fall") | A slain foe comes apart: 30% of its max health (at most 60) to the monsters beside it (an undone foe doesn't undo again) |
+
+**It lives in your shadow.** With a path, the shadow under the climber holds it, drawn in code and growing darker, larger and more alive (or more broken) at every step. Life: the shadow turns living green and pulses with a heartbeat, sending a bright ring out with each beat; from step 2 roots reach past its edge, from step 3 small leaves sway at their tips and trail behind you as you move, and grass-light flickers where it falls (a soft green light at your feet). Unmaking: the shadow goes violet with a splintered edge, cracks like fractured glass, its edges flaking into rising motes; from step 3 it drinks the light (the darkness layer gathers in a ring around you). Before the first step it's only a faint tint.
+
+**On screen.** Your path's gem appears beside the health bar (with four pips for its steps; hover it for what they do) only once banked flow reaches the first step, and then your unbanked flow leads the essence counter. Before that, the HUD shows nothing and the climber screen only a faint sign. The climber screen's **Essence** tab shows the flow (the shadow, the step, what each step does, how much to the next and what you carry unbanked), and on the **Marks** tab the figure stands in its shadow. The Entity explains the secret essences, the choice, the other essence passing through, and each step the first time.
 
 ## The climb
 
@@ -523,6 +545,7 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 | `scripts/bond.gd` | A bond: essence, steps, burning, and the spell code |
 | `scripts/bonds.gd` | Bond definitions: spells and what each step changes |
 | `scripts/essence.gd` | Essence kinds and what each monster drops |
+| `scripts/secret.gd` | The secret essences, Life and Unmaking: which great foes leave them, the path, the flow's steps and what each does, all their words, and the climber's shadow that holds them |
 | `scripts/profile.gd` | What carries over between climbs: marks, growth, soak, the save |
 | `scripts/floors.gd` | Plans each floor: the grid, spine, branches and kept cells, corridors, doors, monster groups, toughness |
 | `scripts/rooms.gd` | The hand-made rooms, drawn as text grids, the carved shapes, and how they turn into walls, pillars, chasms and pools |
