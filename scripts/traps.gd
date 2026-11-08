@@ -622,9 +622,6 @@ func seen(tr: Dictionary) -> bool:
 
 func _ready() -> void:
 	z_index = -5  # on the floor: over the room, under everyone
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	material = unlit
 
 
 ## The world on screen, with room for a lane's length.

@@ -1,18 +1,13 @@
 extends Node2D
 ## A camp's fire, drawn in code: a ring of stones, crossed logs and
-## flickering flames, with warm light and sparks rising. It is solid, so
-## you walk around it.
+## flickering flames and sparks rising. It is solid, so you walk around it.
+## Its warm light is cast by the darkness layer (lighting.gd).
 
-var light_tex: Texture2D  # set by main before adding
-var light: PointLight2D
 var sparks: Array = []  # {pos, vel, t}
 const R := 20.0
 
 
 func _ready() -> void:
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	material = unlit  # fire glows; it isn't dimmed by the dark
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0
@@ -22,19 +17,9 @@ func _ready() -> void:
 	shape.shape = circle
 	body.add_child(shape)
 	add_child(body)
-	light = PointLight2D.new()
-	light.texture = light_tex
-	light.texture_scale = 4.2
-	light.color = Color(1.0, 0.68, 0.38)
-	light.energy = 1.5
-	light.position = Vector2(0, -10)
-	add_child(light)
 
 
 func _process(delta: float) -> void:
-	var t := Time.get_ticks_msec() * 0.001
-	light.energy = 1.4 + 0.13 * sin(t * 6.0) + 0.06 * sin(t * 11.0)  # soft: no fast flicker
-	light.texture_scale = 4.1 + 0.15 * sin(t * 4.0)
 	if randf() < 10.0 * delta:
 		sparks.append({"pos": Vector2(randf_range(-8, 8), -14), "vel": Vector2(randf_range(-12, 12), randf_range(-60, -35)), "t": randf_range(0.6, 1.3)})
 	for s in sparks:

@@ -4,9 +4,12 @@ extends Node2D
 ## Places you've seen stay dimly mapped; places you haven't are dark.
 ## Monsters out of sight are hidden.
 ##
-## Cheap on phones: one tiny texture (a pixel per 40 px tile), redrawn only
-## when the climber moves to a new tile, stretched over the floor with
-## smooth filtering so the edges are soft. One draw call.
+## Cheap on phones: one tiny one-channel texture (a pixel per 40 px tile).
+## Sight is worked out again at most LOOK_RATE times a second, and only when
+## the climber has moved to a new tile; the fog then eases only around the
+## climber, and the texture is written in one go from a byte buffer. It is
+## drawn by the darkness layer (lighting.gd) in the same pass as the light,
+## stretched over the floor with smooth filtering so the edges are soft.
 
 ## How far the climber sees, in tiles.
 const RADIUS := 11
@@ -15,24 +18,28 @@ const DARK := 1.0
 const REMEMBERED := 0.6
 ## How fast the fog clears or closes (alpha per second).
 const FADE := 5.0
+## Most times a second sight is worked out again (the web version: 12).
+const LOOK_RATE := 12.0
 
 var main
 var grid := Vector2i.ZERO
 var seen := PackedByteArray()  # 1 once a tile has been seen this floor
 var vis := PackedByteArray()  # 1 while a tile is in sight
 var shade := PackedFloat32Array()  # the fog's alpha per tile, easing toward its target
+var bytes := PackedByteArray()  # the fog's alpha per tile, 0..255 (the texture's data)
 var img: Image
 var tex: ImageTexture
 var last_tile := Vector2i(-999, -999)
 var easing := false
+var look_t := 0.0  # until sight may be worked out again
+var looks := 0  # times sight was worked out (tests and the dev readout)
+## The tiles whose fog may still be easing: around where sight was last
+## worked out, and around where it was worked out before that.
+var ease_box := Rect2i()
 
 
 func _ready() -> void:
-	z_index = 40  # over the floor, the monsters and the climber; under the HUD
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	material = unlit
+	pass  # (drawn by lighting.gd: this node only keeps the fog's texture)
 
 
 ## A new floor: forget everything (or switch off, on floors without rooms).
@@ -53,8 +60,10 @@ func reset() -> void:
 	shade = PackedFloat32Array()
 	shade.resize(n)
 	shade.fill(DARK)
-	img = Image.create(grid.x, grid.y, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, DARK))
+	bytes = PackedByteArray()
+	bytes.resize(n)
+	bytes.fill(int(DARK * 255.0))
+	img = Image.create_from_data(grid.x, grid.y, false, Image.FORMAT_L8, bytes)
 	tex = ImageTexture.create_from_image(img)
 	_look()
 	_snap()
@@ -63,8 +72,10 @@ func reset() -> void:
 func _process(delta: float) -> void:
 	if not visible or grid == Vector2i.ZERO or main == null or main.player == null:
 		return
+	look_t -= delta
 	var t: Vector2i = main._tile_of(main.player.global_position)
-	if t != last_tile:
+	# (A jump of more than a step, like a blink or a swap, is seen at once.)
+	if t != last_tile and (look_t <= 0.0 or absi(t.x - last_tile.x) + absi(t.y - last_tile.y) > 2):
 		_look()
 	if easing:
 		_ease(delta)
@@ -74,8 +85,21 @@ func _process(delta: float) -> void:
 ## Works out what's in sight from the climber's tile.
 func _look() -> void:
 	var from: Vector2i = main._tile_of(main.player.global_position)
+	look_t = 1.0 / LOOK_RATE
+	looks += 1
+	# Only tiles near the old and the new spot can change.
+	var box := Rect2i(from - Vector2i(RADIUS + 1, RADIUS + 1), Vector2i(RADIUS * 2 + 3, RADIUS * 2 + 3))
+	if last_tile.x > -999:
+		box = box.merge(Rect2i(last_tile - Vector2i(RADIUS + 1, RADIUS + 1), Vector2i(RADIUS * 2 + 3, RADIUS * 2 + 3)))
+	if easing:
+		box = box.merge(ease_box)  # (a fade still under way there)
+	ease_box = box.intersection(Rect2i(Vector2i.ZERO, grid))
 	last_tile = from
-	vis.fill(0)
+	# Clear last time's sight (only near where it was).
+	for y in range(ease_box.position.y, ease_box.end.y):
+		var row := y * grid.x
+		for x in range(ease_box.position.x, ease_box.end.x):
+			vis[row + x] = 0
 	var r2 := RADIUS * RADIUS
 	for y in range(maxi(0, from.y - RADIUS), mini(grid.y, from.y + RADIUS + 1)):
 		for x in range(maxi(0, from.x - RADIUS), mini(grid.x, from.x + RADIUS + 1)):
@@ -121,31 +145,38 @@ func _target(i: int) -> float:
 	return REMEMBERED if seen[i] == 1 else DARK
 
 
-## Eases each tile's fog toward what it should be, and repaints the texture.
+## Eases the fog near the climber toward what it should be, and repaints
+## the texture in one go.
 func _ease(delta: float) -> void:
 	var moving := false
 	var step := FADE * delta
-	for i in shade.size():
-		var want := _target(i)
-		var cur := shade[i]
-		if cur != want:
-			cur = move_toward(cur, want, step)
-			shade[i] = cur
-			img.set_pixel(i % grid.x, i / grid.x, Color(0, 0, 0, cur))
-			moving = true
+	for y in range(ease_box.position.y, ease_box.end.y):
+		var row := y * grid.x
+		for x in range(ease_box.position.x, ease_box.end.x):
+			var i := row + x
+			var want := _target(i)
+			var cur := shade[i]
+			if cur != want:
+				cur = move_toward(cur, want, step)
+				shade[i] = cur
+				bytes[i] = int(cur * 255.0)
+				moving = true
 	easing = moving
-	tex.update(img)
-	queue_redraw()
+	_upload()
 
 
 ## Jumps straight to the right fog (a new floor).
 func _snap() -> void:
 	for i in shade.size():
 		shade[i] = _target(i)
-		img.set_pixel(i % grid.x, i / grid.x, Color(0, 0, 0, shade[i]))
+		bytes[i] = int(shade[i] * 255.0)
 	easing = false
+	_upload()
+
+
+func _upload() -> void:
+	img.set_data(grid.x, grid.y, false, Image.FORMAT_L8, bytes)
 	tex.update(img)
-	queue_redraw()
 
 
 ## Whether a point on the floor is in the climber's sight right now.
@@ -161,7 +192,9 @@ func sees(pos: Vector2) -> bool:
 func _hide_unseen_foes() -> void:
 	var pp: Vector2 = main.player.global_position
 	for e in main.enemies():
-		e.visible = sees(e.global_position) or e.global_position.distance_to(pp) < 70.0
+		var show: bool = sees(e.global_position) or e.global_position.distance_to(pp) < 70.0
+		if e.visible != show:
+			e.visible = show
 
 
 func _show_all_foes() -> void:
@@ -170,9 +203,3 @@ func _show_all_foes() -> void:
 	for e in main.enemies():
 		e.visible = true
 
-
-func _draw() -> void:
-	if tex == null or grid == Vector2i.ZERO:
-		return
-	var c: float = main.Floors.CELL
-	draw_texture_rect(tex, Rect2(main.room.position, Vector2(grid) * c), false)

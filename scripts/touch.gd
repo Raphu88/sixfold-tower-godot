@@ -245,12 +245,40 @@ func _release_all() -> void:
 	held.clear()
 
 
+## The buttons are drawn again only when something on them changes (a
+## press, the stick, a mark filling, the item count...): redrawing them every
+## frame cost a phone more than the rest of the HUD.
+var _drawn := []
+var redraws := 0  # (tests)
+
+
 func _process(_delta: float) -> void:
-	if active:
+	if not active:
+		if not _drawn.is_empty():
+			_drawn = []
+			queue_redraw()
+		return
+	var s := _signature()
+	if s != _drawn:
+		_drawn = s
 		queue_redraw()
 
 
+func _signature() -> Array:
+	var p = main.player
+	var s := [get_viewport_rect().size, held.duplicate(), stick_touch, stick_origin, stick_pos, main.gear_here.is_empty(),
+		main.choosing_tower, main.camp_choosing, main.overlay_showing(), main.menu_open()]
+	if p != null:
+		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05),
+			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0])
+		for part in p.bonds:
+			var b = p.bonds[part]
+			s.append_array([part, b.id, snappedf(b.essence / b.capacity(), 0.01), b.essence >= b.cost(), b.selected])
+	return s
+
+
 func _draw() -> void:
+	redraws += 1
 	if not active or main.choosing_tower or main.camp_choosing or main.overlay_showing() or main.menu_open():
 		return  # nothing to press while choosing a tower or during the Regard
 	_layout()
@@ -281,6 +309,7 @@ func _draw() -> void:
 		var col := Color(1, 1, 1)
 		var fill := 0.0
 		var label := ""
+		var ready := false  # a mark with enough essence to cast: its button lights up
 		match b["id"]:
 			"attack":
 				label = p.Weapons.WEAPONS[p.weapon]["name"] if p != null else "Attack"
@@ -302,6 +331,7 @@ func _draw() -> void:
 					col = bond.color()
 					fill = bond.essence / bond.capacity()
 					label = bond.spell_name().split(" ")[0]
+					ready = bond.essence >= bond.cost()
 			"weapon":
 				label = "Swap"
 			"take":
@@ -329,9 +359,11 @@ func _draw() -> void:
 		# A dark glassy disc with a coloured rim and a glint; a mark's button
 		# carries its emblem.
 		var bt := Draw.Batch.new()
+		if ready:
+			UI.glow_into(bt, c, r * 1.35, col, 0.9)
 		bt.dot(c, r + 1.6, Color(0, 0, 0, 0.3))
 		bt.dot(c, r, Color(0.035, 0.03, 0.05, 0.5 if not pressed else 0.68))
-		bt.arc(c, r - 1.2, 0.0, TAU, 40, Color(col, 0.55 if not pressed else 0.95), 2.5)
+		bt.arc(c, r - 1.2, 0.0, TAU, 40, Color(col, 0.95 if pressed or ready else 0.55), 3.5 if ready else 2.5)
 		bt.arc(c, r - 5.0, PI * 1.08, PI * 1.5, 10, Color(1, 1, 1, 0.13), 2.0)
 		var bond_aff := ""
 		if b.has("part") and p != null and p.bonds.has(b["part"]):

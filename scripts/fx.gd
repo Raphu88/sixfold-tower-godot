@@ -14,6 +14,17 @@ var chunks: Array = []
 var motes_list: Array = []  # essence flying into the climber
 var arrows_falling: Array = []  # Rain of Arrows
 var main  # the room, for drawing lingering spells (rods, walls, cyclones...)
+## Words in the world (floating numbers, gear names), drawn above the
+## darkness layer so the dark never dims them.
+var labels: Node2D
+
+
+func _ready() -> void:
+	labels = Node2D.new()
+	labels.z_as_relative = false
+	labels.z_index = 60  # over the darkness (40)
+	labels.draw.connect(_draw_labels)
+	add_child(labels)
 
 
 func text(pos: Vector2, s: String, color: Color) -> void:
@@ -129,11 +140,52 @@ func _process(delta: float) -> void:
 	bolts = bolts.filter(func(i): return i["t"] > 0.0)
 	cones = cones.filter(func(i): return i["t"] > 0.0)
 	queue_redraw()
+	if labels != null and (not texts.is_empty() or (main != null and not main.gear_drops.is_empty()) or _had_labels):
+		_had_labels = not texts.is_empty() or (main != null and not main.gear_drops.is_empty())
+		labels.queue_redraw()
+
+
+var _had_labels := false
+
+
+## Whether words at `pos` would be in the climber's sight (not hidden in fog).
+func _in_sight(pos: Vector2) -> bool:
+	if main == null or main.fog == null or main.player == null:
+		return true
+	if pos.distance_to(main.player.global_position) < 160.0:
+		return true
+	return main.fog.sees(pos) or main.fog.sees(pos + Vector2(0, 40))
+
+
+func _draw_labels() -> void:
+	var font := ThemeDB.fallback_font
+	for t in texts:
+		var pos: Vector2 = t["pos"]
+		if not _in_sight(pos):
+			continue
+		var col: Color = t["color"]
+		var a := clampf(t["t"] / 0.4, 0.0, 1.0)
+		col.a = a
+		# Numbers pop in big, then settle.
+		var age: float = 0.9 - t["t"]
+		var fsize := int(14.0 + 8.0 * maxf(0.0, 1.0 - age / 0.12))
+		labels.draw_string_outline(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, 4, Color(0, 0, 0, 0.75 * a))
+		labels.draw_string(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, col)
+	if main == null:
+		return
+	# Gear on the floor: its name over it.
+	for g in main.gear_drops:
+		var gp: Vector2 = g["pos"]
+		if not _in_sight(gp):
+			continue
+		var here: bool = main.gear_here == g
+		var label: String = main.Gear.display(g["id"])
+		labels.draw_string_outline(font, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, 3, Color(0, 0, 0, 0.8))
+		labels.draw_string(font, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85))
 
 
 func _draw() -> void:
 	_draw_fields()
-	var font := ThemeDB.fallback_font
 	for c in cones:
 		var col: Color = c["color"]
 		col.a = 0.35 * c["t"] / 0.3
@@ -175,16 +227,6 @@ func _draw() -> void:
 		draw_polyline(b["points"], Color(col, 0.25 * k), 9.0)
 		draw_polyline(b["points"], Color(col, k), 3.0)
 		draw_polyline(b["points"], Color(1, 1, 1, 0.9 * k), 1.2)
-	for t in texts:
-		var col: Color = t["color"]
-		var a := clampf(t["t"] / 0.4, 0.0, 1.0)
-		col.a = a
-		var pos: Vector2 = t["pos"]
-		# Numbers pop in big, then settle.
-		var age: float = 0.9 - t["t"]
-		var fsize := int(14.0 + 8.0 * maxf(0.0, 1.0 - age / 0.12))
-		draw_string_outline(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, 4, Color(0, 0, 0, 0.75 * a))
-		draw_string(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, col)
 
 
 ## Spells that linger in the room, drawn unlit so they always read.
@@ -275,8 +317,7 @@ func _draw_fields() -> void:
 		draw_circle(it["pos"] + Vector2(0, 6), 9.0, Color(0, 0, 0, 0.3 * ia))
 		draw_arc(ip, 13.0 + sin(t * 5.0), 0.0, TAU, 20, Color(ic, 0.45 * ia), 1.5)
 		main.Items.draw_icon(self, it["id"], ip, 9.0, ia)
-	# Gear on the floor: its icon on a little glowing plinth, with its name.
-	var gfont := ThemeDB.fallback_font
+	# Gear on the floor: its icon on a little glowing plinth (its name is in _draw_labels).
 	for g in main.gear_drops:
 		var gp: Vector2 = g["pos"]
 		var gc: Color = main.Gear.color(g["id"])
@@ -286,9 +327,6 @@ func _draw_fields() -> void:
 		var ip2 := gp + Vector2(0, sin(t * 2.5) * 1.5 - 3.0)
 		main.Gear.draw_icon(self, g["id"], ip2 + Vector2(1, 1), 10.0, Color(0, 0, 0, 0.6))
 		main.Gear.draw_icon(self, g["id"], ip2, 10.0, gc)
-		var label: String = main.Gear.display(g["id"])
-		draw_string_outline(gfont, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, 3, Color(0, 0, 0, 0.8))
-		draw_string(gfont, gp + Vector2(-60, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85))
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))

@@ -117,7 +117,7 @@ var pick_dir_override := Vector2.ZERO  # touch: finger offset from the button
 var thunderhead_t := 0.0  # Stormcaller's Thunderhead
 var hawk_t := 0.0  # Hunter's Hawk's Eye
 var quarry  # Hunter's Quarry: the last foe you struck
-var overlay: Node2D  # unlit layer for swing trails and rings
+var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
 var items := Items.START.duplicate()  # item id -> count
 var item_sel := ""  # the item G uses
@@ -135,9 +135,8 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 	overlay = Node2D.new()
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	overlay.material = unlit
+	overlay.z_as_relative = false
+	overlay.z_index = 45  # over the darkness layer (lighting.gd)
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
 	# Bonds are given by the room from your saved marks (none on a first climb).
