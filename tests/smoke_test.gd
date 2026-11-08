@@ -4626,7 +4626,9 @@ func _gear_tests() -> void:
 	main.choose_camp(gi)
 	_check(p.gear_id(slot) == gid and not main.camp_choosing, "taking the gear card carries it (%s)" % gid)
 	if had != "":
-		_check(main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == had, "...and leaves your old %s by the fire" % had)
+		var dropped: bool = main.gear_drops.size() == 1 and main.gear_drops[0]["id"] == had
+		var packed: bool = p.pack.any(func(g): return G.base_id(g) == had)
+		_check(dropped or packed, "...and puts your old %s in your pack, or leaves it by the fire" % had)
 
 	print("the Take button on a phone")
 	await _fresh_main()
