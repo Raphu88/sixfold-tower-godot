@@ -97,8 +97,8 @@ func _input(event: InputEvent) -> void:
 					main.choose_camp(c)
 			get_viewport().set_input_as_handled()
 		return
-	# Choosing a tower: a tap on a card picks it.
-	if main.choosing_tower:
+	# Choosing a tower: a tap on a card picks it (on the train, its menu does).
+	if main.choosing_tower and not main.on_train:
 		if event is InputEventScreenTouch:
 			if not active:
 				_set_active(true)

@@ -42,6 +42,15 @@ var heirlooms := {}
 ## essence into them; consuming one banks its essence into you (main.gd
 ## consume_crystal). Each is {"kind", "amount"}.
 var crystals: Array = []
+## The train (train.gd), between climbs: your storage chest (gear records,
+## kept safe), your pack (records: what came down with you, or what you'll
+## take up; it joins the climber when you depart), supplies packed for the
+## next climb ({item id: count}) and the store's stock for this visit
+## ({outfit: [codes], today: code}; empty until the train is opened).
+var chest: Array = []
+var pack: Array = []
+var supplies := {}
+var store := {}
 ## The Entity's record of you (menu.gd shows it): counters that only go up,
 ## kept with the climber. "deaths", "slain", "beasts", "floors", "puzzles",
 ## "falls", "heirlooms", "essence", plus "best" (tower -> best floor) and
@@ -62,6 +71,8 @@ const ATTRIBUTES := {
 const ATTRIBUTE_CAP := 0.12
 const ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
 var saving := true
+## Where the profile is saved (tests point it elsewhere).
+var save_path := SAVE_PATH
 
 
 ## Adds to one of the record's counters (saved with the next save).
@@ -113,13 +124,17 @@ func reset() -> void:
 	part_density = {}
 	heirlooms = {}
 	crystals = []
+	chest = []
+	pack = []
+	supplies = {}
+	store = {}
 	record = {}
 	save()
 
 
 func load_save() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) != OK:
+	if cfg.load(save_path) != OK:
 		return
 	best_floor = int(cfg.get_value("climb", "best_floor", 1))
 	regarded = bool(cfg.get_value("profile", "regarded", false))
@@ -133,6 +148,17 @@ func load_save() -> void:
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 	heirlooms = Gear.load_heirlooms(cfg.get_value("profile", "heirlooms", {}))
 	crystals = cfg.get_value("profile", "crystals", [])
+	chest = _records(cfg.get_value("train", "chest", []))
+	pack = _records(cfg.get_value("train", "pack", []))
+	supplies = {}
+	var sup = cfg.get_value("train", "supplies", {})
+	if sup is Dictionary:
+		for id in sup:
+			if int(sup[id]) > 0:
+				supplies[String(id)] = int(sup[id])
+	store = cfg.get_value("train", "store", {})
+	if not (store is Dictionary):
+		store = {}
 	record = cfg.get_value("profile", "record", {})
 	former = int(cfg.get_value("profile", "former", 0))
 
@@ -141,7 +167,7 @@ func save() -> void:
 	if not saving:
 		return
 	var cfg := ConfigFile.new()
-	cfg.load(SAVE_PATH)
+	cfg.load(save_path)
 	cfg.set_value("climb", "best_floor", best_floor)
 	cfg.set_value("profile", "regarded", regarded)
 	cfg.set_value("profile", "bonds", bonds)
@@ -156,7 +182,22 @@ func save() -> void:
 	cfg.set_value("profile", "crystals", crystals)
 	cfg.set_value("profile", "record", record)
 	cfg.set_value("profile", "former", former)
-	cfg.save(SAVE_PATH)
+	cfg.set_value("train", "chest", chest)
+	cfg.set_value("train", "pack", pack)
+	cfg.set_value("train", "supplies", supplies)
+	cfg.set_value("train", "store", store)
+	cfg.save(save_path)
+
+
+## Gear records from a save (unknown or broken entries are dropped).
+static func _records(raw) -> Array:
+	var out: Array = []
+	if raw is Array:
+		for g in raw:
+			var r := Gear.rec(g)
+			if not r.is_empty():
+				out.append(r)
+	return out
 
 
 # --- essence crystals ------------------------------------------------------------
@@ -189,6 +230,36 @@ func take_crystal(kind: String) -> float:
 			crystals.remove_at(i)
 			return amount
 	return 0.0
+
+
+## Pays `amount` essence of a kind in crystals: the smallest crystals of
+## that kind first; if they hold more than the price, the rest comes back
+## as one new crystal (change). False (and nothing taken) if you hold too
+## little.
+func spend(kind: String, amount: float) -> bool:
+	amount = ceilf(amount)
+	if amount <= 0.0:
+		return true
+	if crystal_total(kind) < amount:
+		return false
+	var mine: Array = []
+	for i in crystals.size():
+		if crystals[i]["kind"] == kind:
+			mine.append(i)
+	mine.sort_custom(func(a, b): return float(crystals[a]["amount"]) < float(crystals[b]["amount"]))
+	var paid := 0.0
+	var used: Array = []
+	for i in mine:
+		if paid >= amount:
+			break
+		paid += float(crystals[i]["amount"])
+		used.append(i)
+	used.sort()
+	used.reverse()
+	for i in used:
+		crystals.remove_at(i)
+	add_crystal(kind, paid - amount)
+	return true
 
 
 ## How much the way you fought tips the choice between bonds, against the

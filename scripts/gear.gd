@@ -35,6 +35,11 @@ const PROTECTION_CAP := 0.5
 const HEAVY_ROLL := 0.03
 ## A blow this light (before protection) can't knock you back in Hobnail Boots.
 const LIGHT_BLOW := 14.0
+## The pack: spare pieces carried besides what you wear (a Climber's Pack
+## holds more: its "pack" number). Survive a climb (or read a recall
+## scroll) and the pack comes home to the train, to sell or keep in your
+## chest; fall and it's lost.
+const PACK_SIZE := 4
 
 ## The carried slots, in the order the inventory and the save list them.
 ## "offhand" is kept for later (always empty for now).
@@ -242,6 +247,9 @@ const TEXT := {
 	"take_pad": "{y}  take it",  # a controller ({y} becomes Y or Triangle)
 	"take_tap": "Tap Take",
 	"drops": "(drops your %s here)",
+	"to_pack": "(your %s goes in your pack)",
+	"packed": "Into your pack: %s",
+	"pack_full": "Your pack is full",
 	"took": "Took the %s",
 	"camp_desc": "%s",
 	"carrying": "carrying: %s",
@@ -330,7 +338,8 @@ const ARMOR := {
 ##   notice    monsters take this much longer to notice you
 ##   ailment   poison wears off and burning floor hurts this much less
 ##   stack     carry this many more of each item (not the recall scroll)
-##   belt      more kinds of item on the belt (the belt comes later)
+##   belt      more kinds of item on the belt
+##   pack      room for this many more spare pieces in your pack (PACK_SIZE)
 ##   jump      jumps carry this much farther; free_jump: jumps cost no stamina
 ##   steady    light blows (under LIGHT_BLOW) can't knock you back
 ##   heavy     adds HEAVY_ROLL to a roll's cost
@@ -393,8 +402,8 @@ const PIECES := {
 		"kill_essence": 2.0, "rarity": "rare", "color": Color(0.86, 0.86, 0.92), "drop_weight": 1},
 	"overdrawn_ring": {"slot": "ring", "name": "Ring of the Overdrawn", "short": "Overdrawn", "desc": "a scorched ring: your first overdraw each floor doesn't burn the body part",
 		"overdraw_guard": 1.0, "rarity": "rare", "color": Color(0.95, 0.5, 0.3), "drop_weight": 1},
-	"climbers_pack": {"slot": "backpack", "name": "Climber's Pack", "short": "Pack", "desc": "a well-worn pack with many pockets: one more kind of item on the belt, and 4 of each",
-		"belt": 1, "stack": 1, "rarity": "rare", "color": Color(0.4, 0.46, 0.3), "drop_weight": 1},
+	"climbers_pack": {"slot": "backpack", "name": "Climber's Pack", "short": "Pack", "desc": "a well-worn pack with many pockets: one more kind of item on the belt, 4 of each, and room for 2 more spare pieces",
+		"belt": 1, "stack": 1, "pack": 2, "rarity": "rare", "color": Color(0.4, 0.46, 0.3), "drop_weight": 1},
 }
 ## The numbers effects() adds up, and how the inventory names them:
 ## [key, label, as a share (%) or a count, higher is better, (shown as a
@@ -408,6 +417,7 @@ const EFFECT_ROWS := [
 	["jump", "Jump reach", true, true], ["footing", "Trap harm", true, true, true], ["riposte", "Ripostes", true, true],
 	["thorns", "Thorns", false, true], ["roll_cost", "Roll stamina", true, true, true], ["ranged", "Bows", true, true],
 	["embers", "Burn chance", true, true], ["fill", "Marks fill", true, true], ["kill_essence", "Essence a kill", false, true],
+	["pack", "Pack spaces", false, true],
 ]
 ## Only these numbers halve on a badly worn piece (the rest are penalties or switches).
 const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dist", "light", "regen", "spell", "notice", "ailment", "jump"]
