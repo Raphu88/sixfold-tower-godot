@@ -74,7 +74,7 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	# Lay the floor out again (a few times at most) if a corridor ran through
 	# a piece its puzzle needs: every floor of rooms should have its test.
 	var plan := {}
-	for attempt in 8:
+	for attempt in 20:
 		plan = _rooms_floor_once(floor_num, tower)
 		if not plan.get("puzzle", {}).is_empty():
 			break

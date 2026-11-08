@@ -312,6 +312,7 @@ func _light(e: Dictionary) -> void:
 		return
 	var was: float = e["lit"]
 	e["lit"] = EYE_WINDOW if tier >= 2 else INF
+	_check()  # (at once, not on the next tick)
 	if was <= 0.0:
 		main.sfx("glint", 1.1, -2.0, 0.0)
 		main.fx_ring(e["pos"], Color(1.0, 0.85, 0.45), 30.0, 0.3, 2.5)
