@@ -1267,72 +1267,112 @@ func _trap_tests() -> void:
 	var Traps = main.Traps
 	main.profile.regarded = true
 	main.first_climb = false
-	# Each tower's floors of rooms get its own kind of trap, placed fairly.
-	var ok_kind := true
-	var ok_count := true
+	# Each trap theme builds its own pattern out of a room that fits it.
+	await _trap_theme_tests()
+	# Floors of rooms: traps laid on purpose, and fairly.
 	var ok_spot := true
+	var ok_clear := true
+	var ok_good := true
+	var ok_route := true
+	var ok_rooms := true
+	var ok_beat := true
+	var ok_patch := true
+	var ok_count := true
+	var ok_foes := true
+	var ok_pits := true
+	var ok_ring := true
+	var rings := 0
+	var plates := 0
 	var total := 0
-	var each_tower := true
-	for id in main.Towers.ORDER:
-		main.tower = id
-		var of_tower := 0
-		for n in 4:
-			main._start_floor(2 + n % 3)
-			for e in main.enemies():
-				e.set_physics_process(false)
-			var list: Array = main.traps
-			total += list.size()
-			of_tower += list.size()
-			ok_count = ok_count and list.size() >= 2
-			for tr in list:
-				ok_kind = ok_kind and (tr["kind"] == Traps.BY_TOWER[id] or (tr["kind"] == "gas" and id in Traps.GAS_TOWERS))
-				var pos: Vector2 = tr["pos"]
-				ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
-				ok_spot = ok_spot and pos.distance_to(main.player_start) > 100.0 and pos.distance_to(main.stair_pos) > 80.0
-				ok_spot = ok_spot and not main.layout_rooms[0].has_point(pos)
-				for r in main.floor_plan.get("doorways", []):
-					ok_spot = ok_spot and not r.has_point(pos)
-				for r in main.floor_plan.get("safe_rooms", []):
-					ok_spot = ok_spot and not r.has_point(pos)
-				for pl in main.pillars:
-					ok_spot = ok_spot and pos.distance_to(pl["pos"]) > pl["r"] + 20.0
-		each_tower = each_tower and of_tower > 0
-	_check(ok_kind and each_tower, "each tower's floors get its own trap kind")
-	_check(ok_count and total >= 60, "every floor of rooms gets trap set pieces and hidden plates (%d over 24 floors)" % total)
-	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar, a wall, a doorway or in a good room")
-	# The floor's trap room holds its set piece.
-	var ok_hazard := true
-	var hazards := 0
-	for n in 12:
+	var themes_seen := {}
+	var floors_with_room := 0
+	for n in 24:
 		main.tower = main.Towers.ORDER[n % 6]
-		main._start_floor(3 + n % 6)
+		main._start_floor([2, 3, 4, 6, 8, 11][(n / 6 + n) % 6])
 		for e in main.enemies():
 			e.set_physics_process(false)
+		var plan: Dictionary = main.floor_plan
+		var list: Array = main.traps
+		total += list.size()
+		ok_count = ok_count and list.size() >= 2
+		var haz := {}
+		for tr in list:
+			for t in Traps.cover(tr):
+				haz[t] = true
+			var pos: Vector2 = tr["pos"]
+			ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
+			if Traps.KINDS[tr["kind"]]["shape"] == "lane":
+				for i in int(tr["len"]):
+					ok_spot = ok_spot and not main.is_solid(pos + tr["dir"] * main.Floors.CELL * i)
+			if tr.get("guard", false):
+				rings += 1
+				var off: Vector2i = Traps.tile_of(pos) - Traps.tile_of(main.cache["pos"])
+				ok_ring = ok_ring and maxi(absi(off.x), absi(off.y)) == 2
+			elif tr["trigger"] == "plate" and not tr.has("room"):
+				plates += 1
+			if not tr.get("guard", false):
+				for r in plan.get("safe_rooms", []):
+					ok_good = ok_good and not r.has_point(pos)
+		ok_patch = ok_patch and list.filter(func(t): return t.get("patch", false)).size() <= 12
+		# Nothing reaches the start, the stair, a doorway or the puzzle room.
+		for t in haz:
+			var c: Vector2 = Traps.centre(t)
+			for r in plan.get("doorways", []):
+				ok_clear = ok_clear and not r.has_point(c)
+			for d in main.door_view.list:
+				ok_clear = ok_clear and not d["rect"].has_point(c)
+			if not plan.get("puzzle", {}).is_empty():
+				ok_clear = ok_clear and not plan["puzzle"]["room"].has_point(c)
+			ok_clear = ok_clear and c.distance_to(main.player_start) > 80.0 and c.distance_to(main.stair_pos) > 60.0
+		# A route with no trap on it from the start to the stair and the puzzle room.
+		var goals: Array = [[main.stair_pos]]
+		if not plan.get("puzzle", {}).is_empty():
+			var pr: Rect2 = plan["puzzle"]["room"]
+			var pts: Array = []
+			for y in int(pr.size.y / main.Floors.CELL):
+				for x in int(pr.size.x / main.Floors.CELL):
+					pts.append(pr.position + (Vector2(x, y) + Vector2(0.5, 0.5)) * main.Floors.CELL)
+			goals.append(pts)
+		ok_route = ok_route and _trap_free_route(haz, goals)
+		# Each trap room holds its own pattern, on one shared beat.
+		var has_room := false
 		for i in main.room_themes.size():
-			if main.Themes.get_theme(main.room_themes[i])["feature"] == "trap":
-				hazards += 1
-				ok_hazard = ok_hazard and main.traps.any(func(tr): return main.room_info[i]["rect"].has_point(tr["pos"]))
-	_check(ok_hazard and hazards > 0, "each trap room holds traps (%d rooms)" % hazards)
-	# Set pieces: timed traps in a group keep one beat (a wave or a checkerboard).
-	var grouped := false
-	var lanes_ok := true
-	for id in ["wyvern", "gryphon", "manticore"]:
-		main.tower = id
-		for n in 3:
-			main._start_floor(3)
-			for e in main.enemies():
-				e.set_physics_process(false)
-			var timed: Array = main.traps.filter(func(t): return t.get("trigger", "") == "timed")
-			var timers := {}
-			for tr in timed:
-				timers[snappedf(tr["timer"], 0.01)] = true
-			grouped = grouped or (timed.size() >= 2 and timers.size() >= 2)
-			for tr in main.traps:
-				if Traps.KINDS[tr["kind"]]["shape"] == "lane":
-					for i in int(tr["len"]):
-						lanes_ok = lanes_ok and not main.is_solid(tr["pos"] + tr["dir"] * main.Floors.CELL * i)
-	_check(grouped, "set pieces fire in a pattern (staggered on one beat), not at random")
-	_check(lanes_ok, "lanes never run into a wall")
+			var theme: String = main.room_themes[i]
+			if not Traps.THEME_KINDS.has(theme):
+				continue
+			has_room = true
+			themes_seen[theme] = true
+			var group: Array = list.filter(func(t): return int(t.get("room", -1)) == i)
+			ok_rooms = ok_rooms and not group.is_empty()
+			var cycles := {}
+			for tr in group:
+				ok_rooms = ok_rooms and tr["kind"] in Traps.THEME_KINDS[theme]
+				if tr["trigger"] == "timed":
+					cycles[snappedf(Traps.val(tr, "cycle"), 0.001)] = true
+			ok_beat = ok_beat and cycles.size() <= 1
+		floors_with_room += 1 if has_room else 0
+		# No monster waits on a trap tile; nothing that matters sits in a chasm.
+		for m in plan["monsters"]:
+			ok_foes = ok_foes and not haz.has(Traps.tile_of(m[1]))
+		ok_pits = ok_pits and not main.in_chasm(main.player_start) and not main.in_chasm(main.stair_pos)
+		if not main.cache.is_empty():
+			ok_pits = ok_pits and not main.in_chasm(main.cache["pos"])
+		for sp in main.springs:
+			ok_pits = ok_pits and not main.in_chasm(sp["pos"])
+	_check(ok_count and total >= 100, "every floor of rooms gets traps (%d over 24 floors)" % total)
+	_check(floors_with_room >= 20 and themes_seen.size() >= 6, "nearly every floor has a trap room (%d of 24), in many themes (%s)" % [floors_with_room, themes_seen.keys()])
+	_check(ok_rooms and ok_beat, "each trap room holds its own theme's pattern, all on one shared beat")
+	_check(ok_spot, "traps never sit on a wall or a chasm, and lanes never run into a wall")
+	_check(ok_clear, "nothing reaches the start, the stair, a doorway, a door or the puzzle room")
+	_check(ok_good, "good rooms stay clear (but for the spikes guarding a cache)")
+	_check(ok_ring and rings > 0, "spikes ring the cache's urn two tiles out (%d)" % rings)
+	_check(ok_route, "a route with no trap on it always runs from the start to the stair and the puzzle room")
+	_check(ok_patch, "at most two spike patches in the corridors a floor")
+	_check(plates > 0, "loose plates still turn up (%d)" % plates)
+	_check(ok_foes, "no monster waits on a trap")
+	_check(ok_pits, "nothing that matters sits in a chasm")
+	# Higher floors: a quicker beat.
+	_check(Traps.pace(11) < Traps.pace(2) and Traps.difficulty(11) == 1.0, "the beat quickens with height")
 	main.tower = "kraken"
 	main._start_floor(1)
 	await _frames(1)
@@ -1523,6 +1563,244 @@ func _trap_tests() -> void:
 	_check("trap" in main.BondScript.Bonds.BONDS["hunter"]["body"]["desc"], "...and its description says so")
 	main.traps = []
 	main.trap_view.reset()
+	# Darts: the slot's eye glows red 0.4 s before it fires, then the dart flies.
+	var dart: Dictionary = Traps.make(spot, "dart", false, 2)
+	dart["dir"] = Vector2.RIGHT
+	dart["len"] = 5
+	Traps.fit(dart)
+	dart["timer"] = 0.05
+	main.traps = [dart]
+	p.global_position = spot + Vector2(80, 0)
+	p.velocity = Vector2.ZERO
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	var dhp: float = p.hp
+	await _wait(0.15)
+	var eye: bool = main.trap_view.glow_list().any(func(l): return l[0].distance_to(Traps.slot_of(dart)) < 2.0 and l[2].r > l[2].g * 2.0)
+	_check(dart["state"] == "warn" and p.hp == dhp and eye and is_equal_approx(float(Traps.KINDS["dart"]["warn"]), 0.4), "a dart slot's eye glows red 0.4 s before it fires (and lights the dark); nothing hurts yet")
+	await _wait(0.5)
+	_check(p.hp < dhp, "...then its dart flies down the lane and hurts (%d)" % int(dhp - p.hp))
+	# A dart only hurts where it is: once it has passed, the lane is safe.
+	dart["state"] = "warn"
+	dart["timer"] = 0.02
+	dart["hit"] = []
+	p.global_position = spot + Vector2(40, 0)
+	await _wait(0.25)
+	var mid: Vector2 = Traps.front_of(dart)
+	_check(dart["state"] == "fire" and not main.trap_view.touches(dart, spot, 10.0) and main.trap_view.touches(dart, mid, 10.0), "a dart hurts only where it is in its flight, not all along its lane")
+	main.traps = []
+	await _wait(0.4)
+	# The Furnace: its two halves take turns, so one side is always safe.
+	var furnace: Array = _built_theme("furnace")
+	var fg: Array = furnace[2]
+	main.traps = fg
+	p.global_position = Vector2(-9000, -9000)
+	var both := false
+	var fired := [false, false]
+	var side_a: Vector2 = fg[0]["dir"] if not fg.is_empty() else Vector2.ZERO
+	var cycle: float = Traps.val(fg[0], "cycle") if not fg.is_empty() else 1.0
+	for step in int(cycle * 2.5 / 0.02):
+		var fire_a := false
+		var fire_b := false
+		for tr in fg:
+			main.trap_view._tick_trap(tr, 0.02)
+			if tr["state"] == "fire":
+				if tr["dir"] == side_a:
+					fire_a = true
+				else:
+					fire_b = true
+		both = both or (fire_a and fire_b)
+		fired[0] = fired[0] or fire_a
+		fired[1] = fired[1] or fire_b
+	main.traps = []
+	_check(not fg.is_empty() and not both and fired[0] and fired[1], "the Furnace's two halves fire in turns, never together: one side is always safe")
+	_check(main.Themes.THEMES["furnace"]["sub"].contains("One side is always safe"), "...and its rule says so")
+	await _wait(0.2)
+	# Gas kills a climber who lingers in it.
+	var cloud: Dictionary = Traps.make(spot, "miasma", false, 2)
+	cloud["timer"] = 0.02
+	main.traps = [cloud]
+	p.global_position = spot
+	p.velocity = Vector2.ZERO
+	p.hp = 30.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	await _wait(float(Traps.KINDS["miasma"]["warn"]) + float(Traps.KINDS["miasma"]["fire"]))
+	_check(p.dead or p.hp <= 0.0, "a gas cloud kills a climber who lingers in it")
+	main.traps = []
+	await _fresh_main()
+
+
+## A set piece of trap theme `theme` built in a room that fits it, on floor
+## `fl`: [the floor's grid (traps.gd), the room, the traps] ([] traps if no
+## room fit in many tries).
+func _built_theme(theme: String, fl := 6) -> Array:
+	var Traps = main.Traps
+	var F = main.Floors
+	var T = main.Themes
+	var th: Dictionary = T.THEMES[theme]
+	var tid: String = th["towers"][0] if not th["towers"].is_empty() else "wyvern"
+	var tower: Dictionary = main.Towers.TOWERS[tid]
+	for attempt in 40:
+		var plan: Dictionary = F.rooms_floor(fl, tower)
+		for i in plan["room_info"].size():
+			var ri: Dictionary = plan["room_info"][i]
+			if not (ri["role"] in ["guard", "branch"]) or T.get_theme(ri["theme"])["kind"] == "good":
+				continue
+			if not T.fits(theme, {"size": Vector2i(ri["rect"].size / F.CELL), "rows": ri["rows"]}, tid, tower):
+				continue
+			var ctx: Dictionary = Traps.context(plan)
+			var got: Array = Traps.build_theme(ctx, i, theme, fl)
+			if not got.is_empty():
+				return [ctx, Traps._room(ctx, i), got]
+	return [{}, {}, []]
+
+
+## Each trap theme's set piece makes sense for the theme and its room.
+func _trap_theme_tests() -> void:
+	var Traps = main.Traps
+	var T = main.Themes
+	for theme in Traps.THEME_KINDS:
+		var res: Array = _built_theme(theme)
+		var ctx: Dictionary = res[0]
+		var R: Dictionary = res[1]
+		var g: Array = res[2]
+		var ok: bool = not g.is_empty()
+		var what := ""
+		var timers := {}
+		var dirs := {}
+		for tr in g:
+			ok = ok and tr["kind"] in Traps.THEME_KINDS[theme]
+			if tr["trigger"] == "timed":
+				timers[snappedf(fposmod(float(tr["timer"]), Traps.val(tr, "cycle")), 0.01)] = true
+			if Traps.KINDS[tr["kind"]]["shape"] == "lane":
+				dirs[Vector2i(tr["dir"].round())] = true
+		var cycle: float = Traps.val(g[0], "cycle") if ok else 1.0
+		var along := func(tr: Dictionary) -> int:
+			var l: Vector2i = Traps.tile_of(tr["pos"]) - R["t0"]
+			return l.x if R["horiz"] else l.y
+		var path := {}
+		if ok:
+			for pth in ctx["paths"]:
+				path[Traps.tile_of(pth[1].get_center())] = true
+		match theme:
+			"spikes":
+				# Each row lies across the short side and has its own beat.
+				var rows := {}
+				for tr in g:
+					var key := snappedf(float(tr["timer"]), 0.01)
+					if not rows.has(key):
+						rows[key] = {}
+					rows[key][along.call(tr)] = true
+				for key in rows:
+					ok = ok and rows[key].size() == 1
+				ok = ok and rows.size() >= 2
+				what = "rows across the short side, each a beat behind the last (%d rows)" % rows.size()
+			"darts":
+				# Slots in the two facing long walls, half a cycle apart, a wall behind each.
+				ok = ok and dirs.size() == 2 and dirs.has(R["B"]) and dirs.has(-R["B"])
+				var offs: Array = timers.keys()
+				ok = ok and offs.size() == 2 and is_equal_approx(snappedf(absf(offs[0] - offs[1]), 0.01), snappedf(cycle * 0.5, 0.01))
+				for tr in g:
+					var k: Vector2i = Traps.tile_of(Traps.slot_of(tr))
+					ok = ok and ctx["solid"][k.y * ctx["gs"].x + k.x] == 1
+				what = "slots in both long walls, firing across, the two walls half a cycle apart (%d slots)" % g.size()
+			"furnace":
+				# Vents at both ends firing toward the middle, half a cycle apart; a middle line never burns.
+				ok = ok and dirs.size() == 2 and dirs.has(R["A"]) and dirs.has(-R["A"])
+				var offs: Array = timers.keys()
+				ok = ok and offs.size() == 2 and Traps.val(g[0], "fire") <= cycle * 0.5
+				var burned := {}
+				for tr in g:
+					for t in Traps.cover(tr):
+						var l: Vector2i = t - R["t0"]
+						burned[l.x if R["horiz"] else l.y] = true
+				var safe_line := false
+				for a in range(1, R["L"] - 1):
+					safe_line = safe_line or not burned.has(a)
+				ok = ok and safe_line
+				what = "vents at both ends take turns; a line across the middle never burns (%d vents)" % g.size()
+			"windhall":
+				# Gusts all blow one way, toward a line of spikes along the wall.
+				var gusts: Array = g.filter(func(t): return t["kind"] == "gust")
+				var spikes := {}
+				for tr in g:
+					if tr["kind"] == "spikes":
+						spikes[Traps.tile_of(tr["pos"])] = true
+				var gdirs := {}
+				var onto := 0
+				for tr in gusts:
+					gdirs[Vector2i(tr["dir"].round())] = true
+					if spikes.has(Traps.tile_of(Traps.lane_end(tr) + tr["dir"] * main.Floors.CELL)):
+						onto += 1
+				ok = ok and gusts.size() >= 2 and gdirs.size() == 1 and spikes.size() >= 3 and onto * 2 >= gusts.size()
+				what = "gusts blow one way, onto a wall of spikes (%d gusts, %d onto spikes)" % [gusts.size(), onto]
+			"sluice":
+				# Sweeps along the hall, all from one end, the rows half a cycle apart.
+				var offs: Array = timers.keys()
+				ok = ok and dirs.size() == 1 and (dirs.has(R["A"]) or dirs.has(-R["A"])) and offs.size() == 2
+				what = "water sweeps along the hall from one end, rows taking turns (%d rows)" % g.size()
+			"emberfall":
+				ok = ok and g.size() >= 3 and timers.size() >= 2 and g.all(func(t): return t.has("burn_t"))
+				what = "marks land in waves and leave the floor burning (%d marks, %d beats)" % [g.size(), timers.size()]
+			"bramble":
+				ok = ok and path.size() >= 3 and g.size() >= 6
+				for tr in g:
+					ok = ok and not path.has(Traps.tile_of(tr["pos"]))
+				what = "snares fill the brambles; a winding path stays clear (%d snares, path %d)" % [g.size(), path.size()]
+			"miasma":
+				ok = ok and path.size() >= 3 and g.size() >= 2 and timers.size() >= 2
+				for tr in g:
+					for t in Traps.cover(tr):
+						ok = ok and not path.has(t)
+				what = "vents breathe in turn; their clouds never reach the clean path (%d vents)" % g.size()
+		_check(ok, "%s: %s" % [T.THEMES[theme]["name"], what])
+	# Every trap room says what it is: a rule, and a hazard door with its sigil.
+	var ok_text := true
+	for theme in Traps.THEME_KINDS:
+		var t: Dictionary = T.THEMES[theme]
+		ok_text = ok_text and String(t["sub"]).length() > 20 and t["door"] == "hazard" and main.door_view.SIGIL_COLORS.has(t.get("sigil", ""))
+	_check(ok_text, "every trap room has a rule and a hazard door bearing its sigil")
+
+
+## Whether a route from the start reaches each group of `goals` (any point
+## of a group) without stepping on a tile in `haz`. Walls and pillars block,
+## closed doors open; chasms are jumped.
+func _trap_free_route(haz: Dictionary, goals: Array) -> bool:
+	var Traps = main.Traps
+	var gs: Vector2i = main.grid_size
+	var doors := {}
+	for d in main.door_view.list:
+		for t in d["tiles"]:
+			doors[t] = true
+	var pillar := {}
+	for pl in main.pillars:
+		pillar[Traps.tile_of(pl["pos"])] = true
+	var start: Vector2i = Traps.tile_of(main.player_start)
+	var seen := {start: true}
+	var q: Array = [start]
+	var i := 0
+	while i < q.size():
+		var t: Vector2i = q[i]
+		i += 1
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var u: Vector2i = t + d
+			if seen.has(u) or u.x < 0 or u.y < 0 or u.x >= gs.x or u.y >= gs.y:
+				continue
+			if haz.has(u) or pillar.has(u):
+				continue
+			if main.is_solid(Traps.centre(u)) and not doors.has(u):
+				continue
+			seen[u] = true
+			q.append(u)
+	for group in goals:
+		var any := false
+		for pos in group:
+			any = any or seen.has(Traps.tile_of(pos))
+		if not any:
+			return false
+	return true
 
 
 func _room_fog_tests() -> void:
