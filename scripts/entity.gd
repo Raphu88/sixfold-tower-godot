@@ -180,8 +180,14 @@ const TIPS := {
 		"tip": "A fire, and nothing hunting you. Rest, choose one thing, go on.",
 		"more": "On a full climb the stairs of floors 3 and 9 lead to a camp first. You rest fully (health, stamina, burns and poison), then choose one of four cards: three items or a piece of gear (your old piece is left by the fire). Then the stair takes you on. A camp isn't a floor, and each comes once a climb."},
 	"proving": {"group": "tower", "name": "The Proving",
-		"tip": "Floor six. The tower takes your measure here. I'd stand up straight.",
-		"more": "Halfway up every tower, floor 6 is the Proving, where the tower takes the climber's measure. For now it's an ordinary floor with its own banner; what it truly asks of you comes later."},
+		"tip": "Floor six. The tower takes your measure here. Losing won't kill you. It will cost you.",
+		"more": "Halfway up every tower, floor 6 is the Proving: the tower shows what it is about. Cross a gauntlet of its own traps, best its sentinel (a crowned champion with its pack) and face a shadow of its beast; then choose one of three relics, and the stair opens. Lose and you don't die: the tower casts you down to floor 5, keeps half the essence you hadn't banked and leaves a wound (less health until you reach floor 7). Climb back and try again. Each win makes that tower's Proving harder on later climbs, with a better prize. Once you have won it, a second door opens: the Lethal Proving, harder still, with a greater prize. Die there and the climb ends."},
+	"proving_lethal": {"group": "tower", "name": "The Lethal Proving",
+		"tip": "A second door. It asks more and gives more. It doesn't send anyone back down.",
+		"more": "Once you have won a tower's Proving, its antechamber has a second door: the Lethal Proving. It is a tier harder than the ordinary one, and its prize is better. Lean on the door to go in, knowing what it means: die beyond it and the climb ends, as anywhere else in the tower. The ordinary door still forgives."},
+	"proving_wound": {"group": "tower", "name": "The lingering wound",
+		"tip": "Cast down, and wounded. It will close by floor seven. Climb carefully until then.",
+		"more": "Losing the ordinary Proving casts you down to floor 5 with a wound: your health is a quarter lower (the lost part of the bar shows violet, and the climber screen says so) until you have climbed two stairs, which brings you back past floor 6 to floor 7. Half the essence you hadn't banked stays behind."},
 	"beast": {"group": "tower", "name": "The beast",
 		"tip": "There it is. It has watched you climb. Every blow it throws, it tells you first.",
 		"more": "Every tower's beast waits alone on floor 12, the summit. Beasts can't be interrupted, only staggered; they glint before every attack like any monster, their red shapes can't be parried, and at half health they call for help. Beat it, take the stair, and the climb is complete: you keep one piece of gear as an heirloom."},
@@ -246,8 +252,8 @@ const TIPS := {
 		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens while time slows: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
 	# --- the train ---
 	"train": {"group": "train", "name": "The train",
-		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. Depart when you're ready.",
-		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Its cars are tabs ({tabs} switch them): your car (your heirlooms and a storage chest), the store car (the outfitter's supplies, an outfit, today's piece, and selling), the workshop car (its bench: brewing, and enchanting for a Rune Artist) and Depart, where you choose the next tower. Your crystals sit along the bottom."},
+		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. The engine takes you on when you're ready.",
+		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Walk along it from car to car ({cars}): the engine at the front, where you choose the next tower on its board and pull the lever to depart; your car (your heirlooms, your pack and a storage chest); the store car (the outfitter's supplies, an outfit, today's piece, and selling); and the workshop car (its bench: brewing, and enchanting for a Rune Artist). Your crystals sit along the bottom. Fall in a tower and you're back on the train in a moment."},
 	"store": {"group": "train", "name": "The store",
 		"tip": "The outfitter buys what climbers bring down and sells to the next ones up. He takes crystals. Nothing else.",
 		"more": "Essence crystals are the only money. Every price is in one kind of essence; the outfitter takes your smallest crystals of that kind first, and gives the rest back as one new crystal. Supplies are packed onto your belt for your next climb (put one back for its full price before you go). Outfit is a rack of Common pieces, new every visit, and Today's piece is one finer piece. Sell turns a piece from your pack or chest into a crystal of its kind, at 40% of its price. A price you can't pay says how much more you need."},
@@ -298,7 +304,7 @@ const KEYS := {
 	"menu": ["Esc", "{start}", "Menu"],
 	"restart": ["hold R", "hold {back}", "Menu, then Restart"],
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
-	"tabs": ["Q and E", "{lb} and {rb}", "a tap on a tab"],
+	"cars": ["Q and E, the mouse wheel, or the arrows at the screen's edges", "{lb} and {rb}, or the d-pad", "swipe, or tap the arrows at the screen's edges"],
 }
 
 ## The Entity's colours (the interface's other colours are in ui.gd).

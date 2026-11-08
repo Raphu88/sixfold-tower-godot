@@ -10,8 +10,10 @@ const ESSENCE_BONUS := 1.5  # extra essence of the tower's kind per kill
 ## How tall every tower is: the beast waits on the summit floor. (The first,
 ## bondless climb stops sooner: profile.gd's FIRST_CLIMB_FLOORS.)
 const SUMMIT := 12
-## Halfway up, a floor where the tower takes the climber's measure. For now
-## it's a normal floor with its own banner; its special test comes later.
+## Halfway up, a floor where the tower takes the climber's measure: a fixed
+## layout with a gauntlet of the tower's traps, its sentinel and the shadow
+## of its beast. scripts/proving.gd holds its words and numbers; each
+## tower's gauntlet, sentinel and adds are in TOWERS below.
 const PROVING := {
 	"floor": 6,
 	"name": "The Proving",
@@ -29,6 +31,7 @@ const TOWERS := {
 		"first": ["archer", "bat", "bat", "archer"],
 		"summit": SUMMIT,  # the floor where the beast is fought
 		"beast_kind": "gryphon",
+		"gauntlet": "windhall", "sentinel": "thunderling", "sentinel_adds": "bat",  # the Proving (floor 6, proving.gd)
 		"shapes": ["open", "open", "rect", "round"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. A landing can't be parried.",
 		"stone": Color(0.86, 0.92, 1.0),
@@ -46,6 +49,7 @@ const TOWERS := {
 		"first": ["knight", "slime", "lurker", "slime"],
 		"summit": SUMMIT,
 		"beast_kind": "kraken",
+		"gauntlet": "sluice", "sentinel": "shellback", "sentinel_adds": "lurker",  # the Proving (floor 6, proving.gd)
 		"shapes": ["hall", "hall", "rect", "ell"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. A slam can't be parried: roll.",
 		"stone": Color(0.82, 0.96, 0.95),
@@ -62,6 +66,7 @@ const TOWERS := {
 		"first": ["knight", "cinder", "smith", "knight"],
 		"summit": SUMMIT,
 		"beast_kind": "wyvern",
+		"gauntlet": "furnace", "sentinel": "smith", "sentinel_adds": "cinder",  # the Proving (floor 6, proving.gd)
 		"shapes": ["pillars", "rect", "pillars", "ell"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its fire breath can't be parried: roll or step aside.",
 		"stone": Color(1.0, 0.86, 0.8),
@@ -78,6 +83,7 @@ const TOWERS := {
 		"first": ["scorpling", "archer", "ram", "scorpling"],
 		"summit": SUMMIT,
 		"beast_kind": "manticore",
+		"gauntlet": "spikes", "sentinel": "ram", "sentinel_adds": "scorpling",  # the Proving (floor 6, proving.gd)
 		"shapes": ["ell", "rect", "ell", "cross"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its roar can't be parried: roll through it.",
 		"stone": Color(1.0, 0.93, 0.76),
@@ -95,6 +101,7 @@ const TOWERS := {
 		"first": ["wisp", "archer", "wisp", "archer"],
 		"summit": SUMMIT,
 		"beast_kind": "firebird",
+		"gauntlet": "emberfall", "sentinel": "wisp", "sentinel_adds": "bloomcap",  # the Proving (floor 6, proving.gd)
 		"shapes": ["round", "round", "rect", "pillars"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its firestorm can't be parried: get out of the circles. It rises once from its ashes.",
 		"stone": Color(1.0, 0.9, 0.82),
@@ -111,6 +118,7 @@ const TOWERS := {
 		"first": ["thornhound", "archer", "thornhound", "slime"],
 		"summit": SUMMIT,
 		"beast_kind": "chimera",
+		"gauntlet": "bramble", "sentinel": "mongrel", "sentinel_adds": "thornhound",  # the Proving (floor 6, proving.gd)
 		"shapes": ["cross", "ell", "rect", "round"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its lion's breath can't be parried: roll or step aside.",
 		"stone": Color(0.86, 0.95, 0.82),

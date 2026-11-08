@@ -177,6 +177,11 @@ var champ_t := 0.0  # until its next slam
 var champ_wind := 0.0  # the slam's wind-up, counting down
 const CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
 	"slam_reach": 88.0, "slam_dmg": 1.3, "slam_near": 120.0, "color": Color(1.0, 0.82, 0.4)}
+## A shade (the Proving's shadow of a beast, proving.gd): drawn in faded,
+## ghostly colours toward `color`, `keep` of its own colour kept, with wisps
+## rising off it over the darkness.
+var shade := false
+const SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wisp": Color(0.72, 0.64, 1.0)}
 
 
 ## Call before adding to the tree.
@@ -2007,9 +2012,25 @@ func _draw() -> void:
 			_draw_chimera(p, t, f)
 		"familiar":
 			_draw_wisp(p, t, f)
+	if shade:
+		_fade_to_shade(p)
+		_fade_to_shade(_glow)
 	p.flush(self)
 	if overlay != null:
 		overlay.queue_redraw()
+
+
+## A shade's body: every colour faded toward SHADE's and a little see-through
+## (only one body is ever a shade, so this costs nothing to speak of).
+func _fade_to_shade(p) -> void:
+	var tint: Color = SHADE["color"]
+	var keep := float(SHADE["keep"])
+	var a := float(SHADE["alpha"])
+	for i in p.cols.size():
+		var c: Color = p.cols[i]
+		var l := c.get_luminance()
+		var ghost := Color(tint.r * (0.45 + l), tint.g * (0.45 + l), tint.b * (0.45 + l))
+		p.cols[i] = Color(c.lerp(ghost, 1.0 - keep), c.a * a)
 
 
 ## On death the body slumps and fades where it fell (the room's burst and
@@ -3142,6 +3163,16 @@ func _draw_overlay() -> void:
 			o.circle(Vector2.ZERO, reach, Color(danger, 0.08 + 0.12 * kw), 48)
 			o.arc(Vector2.ZERO, reach, 0.0, TAU, 2.5, Color(danger, 0.7), 48)
 			o.arc(Vector2.ZERO, reach * (1.0 - kw) + 6.0, 0.0, TAU, 2.0, Color(cc, 0.85), 40)
+	if shade:
+		# A pale ring at its feet and wisps rising off it, over the darkness,
+		# so the shadow reads as an echo even in the dark.
+		var wc: Color = SHADE["wisp"]
+		var br2 := 0.7 + 0.3 * sin(now * 2.2)
+		o.arc(Vector2(0, radius * 0.6), radius + 8.0, 0.0, TAU, 1.6, Color(wc, 0.45 * br2), 36)
+		for i in 7:
+			var ph := fmod(now * 0.6 + i * 0.143, 1.0)
+			var x := sin(i * 2.4 + now * 0.9) * radius * 0.8
+			o.circle(Vector2(x, lift_y + radius * 0.4 - ph * (radius * 2.2 + 18.0)), 2.6 - ph * 1.6, Color(wc, 0.7 * sin(ph * PI)), 10)
 	if (hp < max_hp or diagnosis or champion) and not is_boss():
 		var w2 := radius * 2.2 * big
 		var top := Vector2(-w2 / 2.0, lift_y - radius * big - 11.0)

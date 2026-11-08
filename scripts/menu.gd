@@ -71,13 +71,14 @@ var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:
 var inv_view := "worn"  # the inventory's doll: what you wear ("worn") or your "heirlooms"
 var details: VBoxContainer  # the inventory's details pane
 var archive_open := ""  # the Archive entry shown open (a tip id)
-# The train (train_page.gd builds its page; train_view.gd draws it behind).
+# The train (train_view.gd draws its cars; train_page.gd puts their things in them).
 var train_view: Control
-var train_page  # builds the train's page (train_page.gd)
-var train_car := "personal"  # the car (tab) showing
-var train_store := "supplies"  # the store car's counter
-var train_side := "chest"  # your car on a phone: the chest or the heirlooms
+var train_page  # builds the train's cars (train_page.gd)
+var train_car := Train.HOME  # the car you're in
+var train_sel := {}  # car -> the slot whose card shows there
+var train_store := "shop"  # the store car: its shelves ("shop") or selling ("sell")
 var train_bench := "brew"  # the workshop car's counter (bench.gd)
+var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
 var sell_ask := ""  # a piece asked to be sold: a second press sells it
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
@@ -157,6 +158,11 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventJoypadButton and event.pressed and (event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER):
 		if _cycle(1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else -1):
+			get_viewport().set_input_as_handled()
+		return
+	# The train: swipes, drags, the wheel and Left / Right move along it (train_page.gd).
+	if page == "train":
+		if train_page.input(event):
 			get_viewport().set_input_as_handled()
 		return
 	if event is InputEventScreenTouch:
@@ -266,10 +272,12 @@ func _cycle(by: int) -> bool:
 func toggle(which: String) -> void:
 	if which == "inventory" and _on_train():
 		# On the train, I (the Bag) opens your car: your heirlooms and chest.
-		if page == "train" and train_car == "personal":
+		if page == "train" and train_car == Train.HOME:
 			return
-		if page == "" or page == "train" or page == "climber" or page == "inventory":
-			train_car = "personal"
+		if page == "train":
+			train_page.go_to(train_page._index(Train.HOME))
+		elif page == "" or page == "climber" or page == "inventory":
+			train_car = Train.HOME
 			open("train")
 		return
 	if page == which or (page == "mark" and which == "climber"):
@@ -365,6 +373,7 @@ func _wanted_height() -> float:
 func open(which: String, direct := false) -> void:
 	var was_closed := page == ""
 	var switching := which != page or which == "climber" or which == "mark"  # (a new tab or mark too)
+	train_page.was_open = page == "train" and which == "train"  # (a new car slides into view)
 	# Rebuilding the same page (a dev button, a toast): keep the focus where it was.
 	var keep := -1
 	if which == page and is_inside_tree():
@@ -404,10 +413,12 @@ func open(which: String, direct := false) -> void:
 	# The title's drawing stays behind the pages opened from it.
 	backdrop.visible = which == "title" or (opened_from_title and which != "pause")
 	backdrop.show_name = which == "title"
-	# The train stands behind its pages (and the pages opened from it).
+	# The train is its own page (its cars fill the screen), and stands behind
+	# the pages opened from it.
 	train_view.visible = _on_train() and not backdrop.visible
-	shade.visible = which != "title"
-	shade.color.a = 0.6 if backdrop.visible else (0.3 if which == "train" else (0.62 if train_view.visible else UI.SHADE.a))
+	center.visible = which != "train"
+	shade.visible = which != "title" and which != "train"
+	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else UI.SHADE.a)
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	elif compact():
@@ -446,8 +457,17 @@ func open(which: String, direct := false) -> void:
 		elif which == "inventory":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
 		elif which == "train":
-			first = maxi(0, list.map(func(b): return b.get_meta("tab", "")).find(train_car))
-		_focus_later.call_deferred(list[keep if keep >= 0 and keep < list.size() else first])
+			first = train_page.first_focus(list)
+		var at: int = keep if keep >= 0 and keep < list.size() else first
+		if which == "train":
+			# (never onto another slot than the one whose card shows; on a
+			# phone, nothing: there's no focus to show)
+			if list[at].get_meta("slot", inv_sel) != inv_sel:
+				at = first
+			if main != null and main.touch_active:
+				at = -1
+		if at >= 0:
+			_focus_later.call_deferred(list[at])
 
 
 ## Focus a control next frame, if the page it's on is still showing.
@@ -485,8 +505,10 @@ func close() -> void:
 			hide())
 
 
-## The page's buttons and sliders, top to bottom.
+## The page's buttons and sliders, top to bottom (on the train: the car you're in).
 func focusables() -> Array:
+	if page == "train":
+		return train_page.focusables()
 	var list: Array = []
 	_collect_focus(box, list)
 	_collect_focus(foot, list)
@@ -671,7 +693,9 @@ func _set_climber_tab(id: String) -> void:
 func _climber_line() -> String:
 	var prof = main.profile
 	var marks: int = prof.bonds.size()
-	return "%d of 6 marks  ·  %d %s  ·  best floor %d" % [marks, prof.climbs, "climb" if prof.climbs == 1 else "climbs", prof.best_floor]
+	var line := "%d of 6 marks  ·  %d %s  ·  best floor %d" % [marks, prof.climbs, "climb" if prof.climbs == 1 else "climbs", prof.best_floor]
+	var wound: String = main.proving.wound_text() if main.proving != null else ""  # (the Proving's lingering wound)
+	return line + ("  ·  " + wound if wound != "" else "")
 
 
 ## The body parts in the order the cards show them: marked ones first (top
@@ -1479,7 +1503,7 @@ func _show_details(key: String) -> void:
 		return
 	var changed := key != inv_sel or details.get_child_count() == 0
 	inv_sel = key
-	for s in box.find_children("*", "Button", true, false):
+	for s in (train_page.slot_root() if page == "train" else box).find_children("*", "Button", true, false):
 		if s is Slot:
 			s.picked = s.get_meta("slot", "") == key
 			s.queue_redraw()
@@ -1813,7 +1837,7 @@ func _pick_item(id: String) -> void:
 
 # --- the train ---------------------------------------------------------------------
 
-## Between climbs: the train's cars (train_page.gd builds them).
+## Between climbs: the train's cars (train_page.gd builds them, in train_view.gd's rooms).
 func _page_train() -> void:
 	train_page.build()
 
@@ -2223,9 +2247,6 @@ func _primary(b: Button) -> void:
 ## The bottom of a page: Back (or Close, for a screen opened by its key) and
 ## which key does the same.
 func _footer() -> void:
-	if page == "train":
-		train_page.footer()
-		return
 	var pinned: bool = page in PINNED_FOOTER
 	if not pinned:
 		_gap(4)

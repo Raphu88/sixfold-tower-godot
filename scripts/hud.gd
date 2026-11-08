@@ -25,6 +25,7 @@ const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Entity := preload("res://scripts/entity.gd")
+const Lost := preload("res://scripts/lost.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -206,7 +207,7 @@ func _top_live() -> bool:
 		return false
 	return main.fade > 0.0 or main.hurt_flash > 0.0 or not main.banner.is_empty() \
 		or essence_t > 0.0 or swap_t > 0.0 or floor_t > 0.0 or stair_t > 0.0 or (hints_t > 0.0 and not main.touch_active) \
-		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing \
+		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing or (p.dead and not main.first_climb) \
 		or p.pick_open or p.ring_open or not main.loot_notice.is_empty() or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
 		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
 		or (main.door_view != null and not main.door_view.lock_status().is_empty())
@@ -266,9 +267,10 @@ func _draw_core() -> void:
 		var bw: float = BAR_W * clampf(p.barrier_hp / p.max_hp, 0.0, 1.0)
 		UI.capsule(b, BAR_X, BAR_X + bw, BAR_Y + 3.0, 2.5, Color(1.0, 0.85, 0.45, 0.9))
 	if p.max_health() < p.max_hp:
-		# A burned heart caps your health: the lost part shows scorched.
+		# A burned heart caps your health: the lost part shows scorched (the
+		# Proving's wound: bruised violet).
 		var cap_x: float = BAR_X + BAR_W * p.max_health() / p.max_hp
-		b.rect(Rect2(Vector2(cap_x, BAR_Y), Vector2(BAR_X + BAR_W - cap_x, 12)), Color(1.0, 0.35, 0.2, 0.35))
+		b.rect(Rect2(Vector2(cap_x, BAR_Y), Vector2(BAR_X + BAR_W - cap_x, 12)), Color(0.6, 0.45, 0.95, 0.4) if p.wound > 0.0 else Color(1.0, 0.35, 0.2, 0.35))
 	var bars_rect := Rect2(BAR_X - 4, BAR_Y - 4, BAR_W + 8, 32)
 	# The weapon in hand and the quick item: two small slots.
 	var wr := Rect2(BAR_X, ROW_Y, SLOT, SLOT)
@@ -317,7 +319,12 @@ func _draw_core() -> void:
 	var hp_text := "%d / %d" % [int(ceil(p.hp)), int(round(p.max_health()))]
 	c.draw_string_outline(font, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.85))
 	c.draw_string(font, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 0.95, 0.92))
-	tips.append([bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]]])
+	var wound_text: String = main.proving.wound_text() if main.proving != null else ""
+	if wound_text != "":  # the Proving's lingering wound, small at the bar's end
+		var tag: String = main.proving.TEXT["wound_tag"]
+		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 8, 3, Color(0, 0, 0, 0.85))
+		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 8, Color(0.82, 0.74, 1.0))
+	tips.append([bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]] + ([wound_text] if wound_text != "" else [])])
 	if slot_i >= 0 and not main.touch_active:
 		c.draw_string_outline(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 3, Color(0, 0, 0, 0.8))
 		c.draw_string(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, GOLD)
@@ -432,8 +439,11 @@ func _draw() -> void:
 	var msg := ""
 	var sub := ""
 	if p.dead and not main.first_climb:
-		msg = "YOU FELL ON FLOOR %d" % main.floor_num
-		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, _say("Press R", "Press {back}", "Tap Menu, then Restart,")]
+		# Back to the train in a moment, or at once (main.gd FALL_WAIT).
+		msg = Lost.TEXT["fell"] % main.floor_num
+		var left := maxi(1, ceili(main.FALL_WAIT - maxf(main.fall_t, 0.0)))
+		var now: Array = Lost.TEXT["now"]
+		sub = (Lost.TEXT["back"] % [main.best_floor, left]) + "  ·  " + _say(now[0], now[1], now[2])
 	# What the fall took (main.fall_note, lost.gd), under the banner's words.
 	var note: Array = main.fall_note if p.dead and not main.first_climb else []
 	var note_w := minf(size.x - 32.0, 760.0)
@@ -954,6 +964,8 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 		var w := minf(460.0, size.x - 120.0)
 		var r := Rect2(Vector2((size.x - w) / 2.0, 84), Vector2(w, 12))
 		var name: String = main.beast_name().to_upper()
+		if e.shade:  # the Proving's shadow of the beast
+			name = (String(main.proving.TEXT["shadow_bar"]) % main.beast_name()).to_upper()
 		draw_string_outline(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.8))
 		draw_string(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, GOLD)
 		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
@@ -970,7 +982,7 @@ func _draw_wing_status(size: Vector2, font: Font) -> void:
 		return
 	# Shut in a lock-in room (doors.gd): say so, and how many foes are left.
 	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
-	if not ls.is_empty():
+	if not ls.is_empty() and not _boss_alive():  # (a beast's shadow has its own bar there)
 		var t1: String = main.door_view.LOCK_TEXT["status"]
 		var t2: String = main.door_view.LOCK_TEXT["left"] % int(ls["left"])
 		draw_string_outline(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8))

@@ -32,6 +32,7 @@ const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
 const Train := preload("res://scripts/train.gd")
 const Lost := preload("res://scripts/lost.gd")
+const ProvingScript := preload("res://scripts/proving.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -65,6 +66,7 @@ var room_pending := -1  # a room whose name waits for the banner to clear
 var springs: Array = []  # healing springs: {pos, r, left}
 var door_view  # the floor's doors (doors.gd)
 var wings  # the floor's sealed wings, vaults and secret rooms (wings.gd)
+var proving  # floor 6's Proving, and its lingering wound (proving.gd)
 var recall_ask_t := 0.0  # a recall scroll asked to be read: use it again before this runs out
 var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
@@ -157,6 +159,14 @@ var weapon_loss_chance := Lost.WEAPON_CHANCE  # a fall also takes the weapon in 
 var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_CHANCE  # (tests set it when they want one)
 var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
 var fall_note: Array = []  # what the fall took, for the fall screen
+## After the Regard, a fall shows what it took for a moment, then you're back
+## on the train: on your own after FALL_WAIT seconds, or at once on a tap, a
+## confirm key, R or the controller's View (not in the first FALL_GRACE
+## seconds, so a press meant for the fight doesn't skip it).
+const FALL_WAIT := 3.0
+const FALL_GRACE := 0.6
+var fall_t := -1.0  # seconds since falling (after the Regard); -1 while standing
+var _fall_us := 0  # (real time: a hit-pause slows the game's own clock at the moment of a fall)
 var campfire: Node2D
 
 # Lingering spell effects in the room
@@ -230,6 +240,9 @@ func _ready() -> void:
 	wings = WingsScript.new()
 	wings.main = self
 	add_child(wings)
+	proving = ProvingScript.new()
+	proving.main = self
+	add_child(proving)
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
@@ -624,7 +637,14 @@ func _process(delta: float) -> void:
 		if regard_done() and _dismiss_pressed():
 			end_regard()
 		return
-	if _restart_held(delta):
+	if fallen():
+		var now := Time.get_ticks_usec()
+		fall_t += minf((now - _fall_us) / 1000000.0, 0.1)  # (not the time a menu was open)
+		_fall_us = now
+		if fall_t >= FALL_WAIT or _fall_skip_pressed():
+			back_to_train()
+			return
+	elif _restart_held(delta):
 		Engine.time_scale = 1.0
 		if get_tree().current_scene == self:  # (tests run the room outside a scene)
 			get_tree().reload_current_scene()
@@ -875,7 +895,9 @@ func _start_floor(n: int) -> void:
 	var start: Vector2 = open_start
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
-	var plan: Dictionary = _camp_plan() if in_camp else Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
+	if plan.is_empty():
+		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
 	floor_plan = plan
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
@@ -921,7 +943,7 @@ func _start_floor(n: int) -> void:
 	# The traps (traps.gd): laid before the pillars and chasms are made, since
 	# placing them may add shelter pillars, move monsters off trap tiles and
 	# clear chasms from under what matters.
-	traps = Traps.place(plan, tower_data(), n, self)
+	traps = [] if plan.get("proving", false) else Traps.place(plan, tower_data(), n, self)  # (the Proving lays its gauntlet when a door is chosen)
 	trap_view.floor_marks = plan.get("trap_floor", {})
 	trap_view.reset()
 	springs = plan.get("springs", [])
@@ -988,6 +1010,7 @@ func _start_floor(n: int) -> void:
 		spawned.append(e)
 	# A locked door's key may be carried by one of them.
 	door_view.tag_carriers(plan.get("doors", []) + plan.get("wings", []), spawned)
+	proving.setup(plan)
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
@@ -1231,7 +1254,8 @@ func _arrive() -> void:
 		burned = burned or b.burned
 		b.burned = false
 	player.poison_t = 0.0  # the rest at the stair cures poison too
-	var healed := minf(player.max_hp - player.hp, player.max_hp * (0.45 if player.has_bond("surgeon") else 0.35))  # Steady Hands
+	lines.append_array(proving.on_stair())  # (the Proving's wound heals a stair at a time)
+	var healed := minf(player.max_health() - player.hp, player.max_hp * (0.45 if player.has_bond("surgeon") else 0.35))  # Steady Hands
 	player.hp += healed
 	player.sta = player.max_sta
 	if burned:
@@ -1293,13 +1317,16 @@ func _arrive() -> void:
 		profile.save()
 	if banner.get("title", "").ends_with("AWAITS"):
 		banner["lines"] = lines + banner["lines"]
+	elif proving.on:
+		banner = proving.arrival_banner(lines)  # halfway up: the Proving
+		GuideScript.moment("proving", "proving")
 	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb:
-		# Halfway up: the Proving (its own test comes later).
+		# (the Proving switched off, as in most tests: a floor with its banner)
 		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5}
 		GuideScript.moment("proving", "proving")
 	else:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
-	if ward:
+	if ward and not proving.on:
 		banner["lines"] = banner.get("lines", []) + [PuzzleScript.TEXT["warded"]]
 		banner["t"] = maxf(float(banner.get("t", 0.0)), 3.5)
 		tip("ward")
@@ -1355,6 +1382,50 @@ func _dismiss_pressed() -> bool:
 			overlay_closed_frame = Engine.get_process_frames()
 			return true
 	return false
+
+
+## Fallen after the Regard (the first climb's fall goes to the Regard instead).
+func fallen() -> bool:
+	if player == null or not player.dead or first_climb or not regard.is_empty() or not victory.is_empty():
+		fall_t = -1.0
+		return false
+	if fall_t < 0.0:
+		fall_t = 0.0
+		_fall_us = Time.get_ticks_usec()
+	return true
+
+
+## A tap, a confirm key, R or View: back to the train now (once the fall
+## screen has shown for a moment).
+func _fall_skip_pressed() -> bool:
+	if fall_t < FALL_GRACE:
+		return false
+	for a in ["ui_accept", "restart", "attack", "roll", "jump"]:
+		if Input.is_action_just_pressed(a):
+			return true
+	return false
+
+
+## A tap on the fall screen (touch.gd).
+func fall_tapped() -> void:
+	if fallen() and fall_t >= FALL_GRACE:
+		back_to_train()
+
+
+## After a fall: a new climb's scene, which opens on the train (on your
+## own car), as a restart does. The fall has already taken the pack and
+## the belt (on_player_died).
+func back_to_train() -> void:
+	fall_t = -1.0
+	Engine.time_scale = 1.0
+	if get_tree().current_scene == self:
+		get_tree().reload_current_scene()
+		return
+	# (Tests run the room outside a scene: stand up, and open the train here.)
+	player.dead = false
+	player.hp = player.max_hp
+	await_tower()
+	open_train()
 
 
 ## True once restart has been held long enough (or pressed, once fallen).
@@ -2007,6 +2078,7 @@ func open_train() -> void:
 		e.set_physics_process(false)
 	Train.stock(profile)
 	profile.save()
+	menu.train_car = Train.HOME  # (it opens on your own car)
 	menu.open("train")
 
 
@@ -2444,7 +2516,16 @@ func dev_floor(n: int) -> void:
 	if choosing_tower:
 		choose_tower(tower)
 	_leave_camp_now()
+	if n == int(Towers.PROVING["floor"]) and first_climb and proving.enabled:
+		profile.regarded = true  # (the Proving is never on the bondless first climb)
+		first_climb = false
 	_start_floor(n)
+
+
+## Something would kill the climber (player.gd): true if the ordinary
+## Proving casts them down instead (proving.gd).
+func proving_spare() -> bool:
+	return proving != null and proving.spare()
 
 
 ## Every floor of rooms gets this kind of puzzle ("" for the usual mix);
@@ -2855,7 +2936,7 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 func on_enemy_killed(e) -> void:
 	profile.note("slain")
-	if e.is_boss():
+	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
 		GuideScript.say("beast_slain", {"beast": beast_name()})
 	# Overcharge: a charged foe's death throws lightning to everything near it.
@@ -2880,6 +2961,8 @@ func on_enemy_killed(e) -> void:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty(), [], true), "t": Items.DROP_LIFE})
 	if wings != null:
 		wings.on_enemy_killed(e)
+	if proving != null:
+		proving.on_enemy_killed(e)
 	if door_view != null:
 		door_view.on_enemy_killed(e)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)

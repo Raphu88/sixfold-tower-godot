@@ -15,6 +15,11 @@ extends Node2D
 ##   chained  chains across it and a red glow under it: danger
 ##   sealed   a stone slab carved with a watching eye, red light under it: a
 ##            sealed wing (wings.gd), where the Regard tests you
+## The Proving's doors (floor 6, proving.gd):
+##   proving  a stone slab bearing a gold six-pointed star, gold light under it
+##   lethal   the same slab, blackened, its star red and cracked, red light under it
+##   crown    an iron-banded door bearing a crown: the sentinel waits
+##   shade    a dark slab with a pale beast's eye, violet light under it: the shadow
 ##
 ## Drawn once and only redrawn while a door swings open, so it costs nothing
 ## per frame. main.gd owns one of these (`main.door_view`).
@@ -37,6 +42,8 @@ const SIGIL_COLORS := {
 const WARM := Color(1.0, 0.74, 0.4)
 const RED := Color(0.95, 0.22, 0.15)
 const EMBLEM := Color(0.75, 0.55, 1.0)
+const PROVING_GOLD := Color(1.0, 0.82, 0.4)  # the Proving's doors (proving.gd)
+const SHADE_GLOW := Color(0.62, 0.52, 0.95)
 
 ## LOCKED DOORS (floors.gd decides which, always off the main route): a
 ## locked door won't open for anyone until its lock is undone; bump it and
@@ -204,17 +211,26 @@ func _add_light(d: Dictionary) -> void:
 	_drop_light(d)
 	if main == null or main.lighting == null:
 		return
-	var col: Color
-	match String(d.get("style", "")):
-		"warm":
-			col = WARM
-		"chained", "sealed":
-			col = RED
-		_:
-			return
+	var col: Color = _glow_color(String(d.get("style", "")))
+	if col.a <= 0.0:
+		return
 	var edge := _edge(d["rect"], d["out"])
 	var at: Vector2 = (edge[0] + edge[1]) * 0.5 + Vector2(d["out"]) * 16.0
 	d["light"] = main.lighting.add_light(at, 80.0, col, 0.55, 0.35)
+
+
+## The light under a door of this style (none: alpha 0).
+func _glow_color(style: String) -> Color:
+	match style:
+		"warm":
+			return WARM
+		"chained", "sealed", "lethal":
+			return RED
+		"shade":
+			return SHADE_GLOW
+		"proving":
+			return PROVING_GOLD
+	return Color(0, 0, 0, 0)
 
 
 func _drop_light(d: Dictionary) -> void:
@@ -301,6 +317,8 @@ func locked_count() -> int:
 ## The climber bumps a locked door: it says it's locked, and how it opens;
 ## with its key in hand, the key turns and it opens.
 func _bump(d: Dictionary) -> void:
+	if main.proving != null and main.proving.bump(d):
+		return  # (one of the Proving's doors: it answers for itself)
 	if d["lock_id"] in held and d["lock"] in ["key", "carried"]:
 		held.erase(d["lock_id"])
 		unlock(int(d["lock_id"]))
@@ -414,7 +432,7 @@ func _tick_lock_rooms(delta: float) -> void:
 					_shut(lr, mobs)
 			"shut":
 				lr["t"] += delta
-				if lock_check <= 0.0:
+				if lock_check <= 0.0 and not lr.get("hold", false):  # (held shut: the Proving's gauntlet)
 					var alive: Array = lr["mobs"].filter(func(e): return is_instance_valid(e) and not e.dead)
 					if alive.is_empty() or lr["t"] > float(LOCK_IN["failsafe"]):
 						_reopen(lr)
@@ -481,7 +499,7 @@ func _reopen(lr: Dictionary) -> void:
 func lock_status() -> Dictionary:
 	for i in lock_rooms:
 		var lr: Dictionary = lock_rooms[i]
-		if lr["state"] == "shut":
+		if lr["state"] == "shut" and not lr.get("hold", false):
 			return {"left": lr["mobs"].filter(func(e): return is_instance_valid(e) and not e.dead).size()}
 	return {}
 
@@ -598,7 +616,9 @@ func _draw_lock(b, d: Dictionary) -> void:
 	var r: Rect2 = d["rect"]
 	var c := r.get_center()
 	match String(d["lock"]):
-		"lever":
+		"proving", "lethal":
+			pass  # (the Proving's doors: they open when chosen)
+		"lever", "proving_shut":
 			_draw_bars(b, r, Palette.DOOR_IRON.lightened(0.15))
 		"puzzle":
 			b.circle(c, 11.0, Palette.OUTLINE)
@@ -669,14 +689,9 @@ func _draw_glow() -> void:
 	for d in list:
 		if d["open"] and d["t"] >= 1.0:
 			continue
-		var col: Color
-		match String(d["style"]):
-			"warm":
-				col = WARM
-			"chained", "sealed":
-				col = RED
-			_:
-				continue
+		var col: Color = _glow_color(String(d["style"]))
+		if col.a <= 0.0:
+			continue
 		var fade := 1.0 - float(d["t"]) if d["open"] else 1.0
 		var r: Rect2 = d["rect"]
 		var out: Vector2 = d["out"]
@@ -744,7 +759,72 @@ func _wood(d: Dictionary) -> Color:
 			return Palette.DOOR_STONE.darkened(0.25)
 		"hazard":
 			return Palette.DOOR_WOOD.darkened(0.15)
+		"proving":
+			return Palette.DOOR_STONE.lightened(0.04)
+		"lethal":
+			return Palette.DOOR_STONE.darkened(0.45)
+		"shade":
+			return Palette.DOOR_STONE.darkened(0.35)
+		"crown":
+			return Palette.DOOR_WOOD.darkened(0.2)
 	return Palette.DOOR_WOOD
+
+
+## The Proving's doors (see the top): a six-pointed star on a slab, a crown
+## for the sentinel, a pale beast's eye for the shadow.
+func _draw_proving_door(b, d: Dictionary, inner: Rect2, wood: Color, along: Vector2, side: Vector2, long: float, across: float) -> void:
+	var style: String = d["style"]
+	var o := inner.position
+	var c := inner.get_center()
+	var s := across * 0.36
+	if style == "crown":
+		# Iron bands with studs, a gold crown on a dark plate.
+		for i in 2:
+			var t := across * (float(i) + 0.75) / 2.5
+			b.rect(Rect2(o + side * (t - 2.0), Vector2.ZERO).expand(o + side * (t + 2.0) + along * long), Palette.DOOR_IRON)
+		b.circle(c, s * 1.15, Palette.OUTLINE)
+		b.circle(c, s * 1.0, Palette.DOOR_IRON.darkened(0.2))
+		var g := PROVING_GOLD
+		var crown := PackedVector2Array([c + Vector2(-s * 0.75, s * 0.45), c + Vector2(-s * 0.85, -s * 0.45), c + Vector2(-s * 0.4, -s * 0.05),
+			c + Vector2(0, -s * 0.7), c + Vector2(s * 0.4, -s * 0.05), c + Vector2(s * 0.85, -s * 0.45), c + Vector2(s * 0.75, s * 0.45)])
+		b.polygon(crown, g)
+		b.circle(c + Vector2(0, s * 0.12), s * 0.14, Color(0.9, 0.25, 0.2))
+		return
+	b.rect(inner.grow(-3.0), wood.lightened(0.06))
+	for k in [0.1, 0.9]:
+		b.circle(o + along * long * k + side * across * 0.5, 2.0, Palette.DOOR_IRON.lightened(0.3))
+	if style == "shade":
+		# A pale, slit-pupilled eye, and wisps rising from it.
+		var col := SHADE_GLOW
+		var lid := PackedVector2Array()
+		for i in 13:
+			var a := PI * float(i) / 12.0
+			lid.append(c + Vector2(cos(a) * s * 1.3, -sin(a) * s * 0.7))
+		for i in range(1, 12):
+			var a := PI * float(i) / 12.0
+			lid.append(c + Vector2(-cos(a) * s * 1.3, sin(a) * s * 0.7))
+		b.polygon(lid, Color(col.darkened(0.55), 0.95))
+		b.polyline(lid + PackedVector2Array([lid[0]]), Color(col, 0.85), 1.4)
+		b.polygon(PackedVector2Array([c + Vector2(0, -s * 0.6), c + Vector2(s * 0.16, 0), c + Vector2(0, s * 0.6), c + Vector2(-s * 0.16, 0)]), col.lightened(0.3))
+		for k in 3:
+			var x := (k - 1) * s * 1.1
+			b.line(c + Vector2(x, -s * 0.9), c + Vector2(x + s * 0.2, -s * 1.3), Color(col, 0.5), 1.2)
+		return
+	# The Proving's star: two triangles; the Lethal one red and cracked.
+	var lethal := style == "lethal"
+	var star_col := Color(RED.lightened(0.15), 0.95) if lethal else Color(PROVING_GOLD, 0.95)
+	for k in 2:
+		var tri := PackedVector2Array()
+		for i in 3:
+			var a := -PI * 0.5 + k * PI + i * TAU / 3.0
+			tri.append(c + Vector2.from_angle(a) * s * 1.05)
+		b.polygon(tri, star_col)
+	b.circle(c, s * 0.38, wood.lightened(0.06))
+	b.circle(c, s * 0.18, star_col.lightened(0.3))
+	if lethal:
+		b.line(c + Vector2(-s * 1.6, -s * 0.8), c + Vector2(-s * 0.4, s * 0.2), Palette.OUTLINE, 1.6)
+		b.line(c + Vector2(-s * 0.4, s * 0.2), c + Vector2(s * 0.3, -s * 0.1), Palette.OUTLINE, 1.6)
+		b.line(c + Vector2(s * 0.3, -s * 0.1), c + Vector2(s * 1.5, s * 0.9), Palette.OUTLINE, 1.6)
 
 
 func _draw_closed(b, d: Dictionary) -> void:
@@ -762,6 +842,9 @@ func _draw_closed(b, d: Dictionary) -> void:
 	var along := Vector2.RIGHT if horiz else Vector2.DOWN
 	var side := Vector2.DOWN if horiz else Vector2.RIGHT
 	var o := inner.position
+	if style in ["proving", "lethal", "crown", "shade"]:
+		_draw_proving_door(b, d, inner, wood, along, side, long, across)
+		return
 	if style == "sealed":
 		# A dark stone slab with iron studs at its ends and a watching eye
 		# carved in the middle, its pupil glowing: the Regard tests whoever enters.

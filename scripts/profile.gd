@@ -58,6 +58,9 @@ var store := {}
 ## Lost things (lost.gd): pieces lost in a fall, the newest last, each
 ## {"rec", "tower", "floor"}. A later climb may find them again.
 var lost: Array = []
+## The Proving (proving.gd): tower -> Provings won there. Each win makes that
+## tower's Proving harder (and its prize better) on later climbs.
+var provings := {}
 ## The Entity's record of you (menu.gd shows it): counters that only go up,
 ## kept with the climber. "deaths", "slain", "beasts", "floors", "puzzles",
 ## "falls", "heirlooms", "essence", plus "best" (tower -> best floor) and
@@ -108,6 +111,17 @@ func note_beast(tower: String) -> void:
 	record["beasts_by"] = by
 
 
+## A tower's Proving was won (saved with the next save).
+func note_proving(tower: String) -> void:
+	provings[tower] = int(provings.get(tower, 0)) + 1
+	note("provings")
+
+
+## Provings won in a tower.
+func proving_wins(tower: String) -> int:
+	return int(provings.get(tower, 0))
+
+
 static func step_for_xp(xp: float) -> int:
 	var step := 1
 	for i in STEP_XP.size():
@@ -137,6 +151,7 @@ func reset() -> void:
 	supply_paid = {}
 	store = {}
 	lost = []
+	provings = {}
 	record = {}
 	save()
 
@@ -175,6 +190,12 @@ func load_save() -> void:
 	if not (store is Dictionary):
 		store = {}
 	lost = load("res://scripts/lost.gd").load_list(cfg.get_value("profile", "lost", []))
+	provings = {}
+	var won = cfg.get_value("profile", "provings", {})
+	if won is Dictionary:
+		for t in won:
+			if int(won[t]) > 0:
+				provings[String(t)] = int(won[t])
 	record = cfg.get_value("profile", "record", {})
 	former = int(cfg.get_value("profile", "former", 0))
 
@@ -204,6 +225,7 @@ func save() -> void:
 	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
 	cfg.set_value("profile", "lost", lost)
+	cfg.set_value("profile", "provings", provings)
 	cfg.save(save_path)
 
 
