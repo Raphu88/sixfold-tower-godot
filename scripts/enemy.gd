@@ -186,6 +186,12 @@ const SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wi
 ## A mirror image of the climber (mirror.gd, which extends this script): a
 ## great foe that leaves mostly Unmaking (secret.gd SOURCES "mirror").
 var mirror := false
+## The Manipulator (secret_tools.gd): a calm monster ignores the climber
+## until it's struck; one set against another (`feud`) fights that one
+## instead of the climber until one falls (or `feud_t` runs out).
+var calm := false
+var feud = null
+var feud_t := 0.0
 
 
 ## Call before adding to the tree.
@@ -351,7 +357,16 @@ func _physics_process(delta: float) -> void:
 	_tick_venom(delta)
 	if dead:
 		return
+	if calm:
+		_wander(delta)
+		return
 	p = _foe(p)
+	if feud != null:
+		feud_t -= delta
+		if is_instance_valid(feud) and not feud.dead and feud_t > 0.0:
+			p = feud
+		else:
+			feud = null
 	if p == null or p.dead:
 		_end_attack("idle", 1.0)
 		_drift()
@@ -1644,6 +1659,14 @@ func _fade_ally() -> void:
 func receive_attack(amount: float, _source, _unblockable := false) -> void:
 	if dead:
 		return
+	if not ally:
+		# A monster set against another (the Manipulator): a blow like any other.
+		var from: Vector2 = _source.global_position if _source is Node2D else global_position
+		if feud == null and _source != null and _source != self and "feud" in _source:
+			feud = _source
+			feud_t = maxf(feud_t, float(_source.feud_t))
+		take_hit(amount, (global_position - from).normalized(), 100.0)
+		return
 	hp -= amount
 	flash = 0.12
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.6, 0.55))
@@ -1798,6 +1821,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		amount *= OPEN_MULT  # caught recovering from its attack
 		main.fx_text(global_position + Vector2(0, -radius - 34.0), "Opening!", Color(1.0, 0.85, 0.45))
 	notice_t = 0.0  # it certainly knows you're here now
+	calm = false  # (struck: a calm monster wakes to you)
 	if not aware:
 		wake()
 	if kind == "firebird" and state == "ashes":

@@ -100,6 +100,13 @@ func _physics_process(delta: float) -> void:
 					return
 		queue_redraw()
 		return
+	# Monsters set against each other (the Manipulator, secret_tools.gd): their shots hit each other.
+	if main.secret_tools != null and main.secret_tools.feuds > 0:
+		for e in main.targets():
+			if e.feud != null and position.distance_to(e.global_position) < e.radius * 0.8:
+				e.take_hit(dmg, vel.normalized(), 80.0)
+				queue_free()
+				return
 	var p = main.player
 	if p == null or p.dead:
 		queue_redraw()

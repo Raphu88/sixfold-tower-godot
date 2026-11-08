@@ -17,7 +17,7 @@ const PHONE_SCALE := 1.5
 const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory"]
 ## Held buttons a quick tap still has to reach the game with: let go a
 ## moment later (Item: a tap uses the quick item, a hold opens the ring).
-const HOLD_TAP := ["item"]
+const HOLD_TAP := ["item", "tools"]
 ## The top bar: always there, also while fallen.
 const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
 const Items := preload("res://scripts/items.gd")
@@ -38,7 +38,7 @@ var buttons: Array = []  # {id, action, center, radius, label}
 ## input state outlives a scene reload).
 const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "attack", "roll", "parry", "jump",
 	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact",
-	"climber", "inventory", "use_item", "item_next"]
+	"climber", "inventory", "use_item", "item_next", "tool_ring"]
 
 
 func _ready() -> void:
@@ -70,6 +70,10 @@ func _layout() -> void:
 	# Take: only while you stand on gear you'd swap for (Y on a keyboard).
 	if not main.gear_here.is_empty():
 		buttons.append({"id": "take", "action": "interact", "c": br + Vector2(-400, -372) * k, "r": 34.0 * k})
+	# Tools: only while you hold a secret bond (secret_tools.gd): tap for the
+	# last tool, hold and slide for the tool ring.
+	if main.secret_tools != null and main.secret_tools.ring_ready():
+		buttons.append({"id": "tools", "action": "tool_ring", "c": br + Vector2(-505, -235) * k, "r": 28.0 * k})
 	# One cast button per mark you carry, in these spots around attack.
 	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150), Vector2(-160, -400), Vector2(-395, -265)]
 	var i := 0
@@ -139,6 +143,12 @@ func _input(event: InputEvent) -> void:
 				if bt["id"] == held[event.index]:
 					main.pick_anchor = bt["c"]
 					main.player.pick_dir_override = event.position - bt["c"]
+		elif held.has(event.index) and held[event.index] == "tools":
+			# Holding Tools: slide to pick from the tool ring.
+			for bt in buttons:
+				if bt["id"] == "tools":
+					main.pick_anchor = bt["c"]
+					main.secret_tools.dir_override = event.position - bt["c"]
 		elif held.has(event.index) and held[event.index] == "item":
 			# Holding Item: slide to pick from the ring of belt items.
 			for bt in buttons:
@@ -180,7 +190,7 @@ func _touch_down(index: int, pos: Vector2) -> void:
 				var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 			elif b["action"] != "":
-				if String(b["id"]).begins_with("cast_") or b["id"] == "item":
+				if String(b["id"]).begins_with("cast_") or b["id"] == "item" or b["id"] == "tools":
 					main.pick_anchor = b["c"]
 				Input.action_press(b["action"])
 				if b["id"] in ONE_SHOT:
@@ -293,7 +303,8 @@ func _process(_delta: float) -> void:
 func _signature() -> Array:
 	var p = main.player
 	var s := [get_viewport_rect().size, held.duplicate(), stick_touch, stick_origin, stick_pos, main.gear_here.is_empty(),
-		main.choosing_tower, main.camp_choosing, main.overlay_showing(), main.menu_open()]
+		main.choosing_tower, main.camp_choosing, main.overlay_showing(), main.menu_open(),
+		main.secret_tools != null and main.secret_tools.ring_ready()]
 	if p != null:
 		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05),
 			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0])
@@ -382,6 +393,9 @@ func _draw() -> void:
 				label = "Climber"
 			"inventory":
 				label = "Bag"
+			"tools":
+				label = "Tools"
+				col = main.secret_tools.SB.color(main.secret_tools.bond())
 		# A dark glassy disc with a coloured rim and a glint; a mark's button
 		# carries its emblem.
 		var bt := Draw.Batch.new()

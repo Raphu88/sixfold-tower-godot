@@ -1586,6 +1586,8 @@ func reset() -> void:
 
 
 func _tick_trap(tr: Dictionary, delta: float) -> void:
+	if tr.get("off", false):
+		return  # switched off (the Designer's Switch, secret_tools.gd): it rests until switched on
 	var k: Dictionary = KINDS[tr["kind"]]
 	var trigger: String = tr.get("trigger", k["trigger"])
 	tr["timer"] -= delta

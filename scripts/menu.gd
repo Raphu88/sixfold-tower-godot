@@ -20,6 +20,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Items := preload("res://scripts/items.gd")
 const Controls := preload("res://scripts/controls.gd")
+const SecretPage := preload("res://scripts/secret_page.gd")
 const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Entity := preload("res://scripts/entity.gd")
@@ -133,7 +134,7 @@ func _ready() -> void:
 	hide()
 	get_viewport().gui_focus_changed.connect(func(_c): if page != "" and main != null: main.sfx("ui_move"))
 	load_settings()
-	if CLIMBER_TABS.any(func(t): return t[0] == settings["climber_tab"]):
+	if CLIMBER_TABS.any(func(t): return t[0] == settings["climber_tab"]) or settings["climber_tab"] == SecretPage.TAB[0]:
 		climber_tab = settings["climber_tab"]
 	apply_settings()
 
@@ -289,7 +290,7 @@ func _cycle(by: int) -> bool:
 		look_page.turn(by)  # the preview turns
 		return true
 	if page == "climber":
-		var ids: Array = CLIMBER_TABS.map(func(t): return t[0])
+		var ids: Array = climber_tabs().map(func(t): return t[0])
 		_set_climber_tab(ids[(ids.find(climber_tab) + by + ids.size()) % ids.size()])
 		return true
 	if page == "mark":
@@ -486,7 +487,7 @@ func open(which: String, direct := false) -> void:
 	if not list.is_empty():
 		var first := 0
 		if which == "climber":
-			first = maxi(0, CLIMBER_TABS.map(func(t): return t[0]).find(climber_tab))
+			first = maxi(0, climber_tabs().map(func(t): return t[0]).find(climber_tab))
 			if focus_part != "":
 				# Back from a mark's page: on its card again.
 				first = maxi(first, list.map(func(b): return b.get_meta("part", "")).find(focus_part))
@@ -730,8 +731,11 @@ func _page_climber() -> void:
 	var prof = main.profile
 	var who: String = prof.appearance.get("name", "")
 	_header(who.to_upper() if who != "" else "CLIMBER", _climber_line())
-	_tabs(CLIMBER_TABS, climber_tab, _set_climber_tab)
-	match climber_tab:
+	var tabs := climber_tabs()
+	_tabs(tabs, climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks", _set_climber_tab)
+	match climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks":
+		"core":
+			SecretPage.build(self)
 		"essence":
 			_climber_essence(prof)
 		"record":
@@ -741,6 +745,14 @@ func _page_climber() -> void:
 		_:
 			_climber_marks(prof)
 	_footer()
+
+
+## The climber screen's tabs: a secret bond adds its Core tab (secret_page.gd).
+func climber_tabs() -> Array:
+	var tabs: Array = CLIMBER_TABS.duplicate()
+	if main != null and main.profile != null and main.SecretBonds.has_bond(main.profile):
+		tabs.append(SecretPage.TAB)
+	return tabs
 
 
 func _set_climber_tab(id: String) -> void:
@@ -2145,6 +2157,8 @@ func _page_dev() -> void:
 		fb.disabled = prof.path == ""
 	_button("Show the choice", _dev_offer_path, frow2)
 	_dev_makers()
+
+	SecretPage.dev_section(self)  # the secret bonds: grant one at depth 1 or 2, or clear it
 
 	_section("Cheats")
 	var crow := _row()
