@@ -21,6 +21,7 @@ const Towers := preload("res://scripts/towers.gd")
 const MenuScript := preload("res://scripts/menu.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
+const FogScript := preload("res://scripts/fog.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 ## The stair opens once this share of a floor's monsters are down.
@@ -138,6 +139,7 @@ var rains: Array = []  # Rain of Arrows: {pos, r, t, tick, damage, color}
 var track_t := 0.0  # Track: foes revealed
 var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, dmg, push, carry, hit, color}
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
+var fog  # line-of-sight fog on floors of rooms (fog.gd)
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
@@ -190,6 +192,9 @@ func _ready() -> void:
 	trap_view = Traps.new()
 	trap_view.main = self
 	add_child(trap_view)
+	fog = FogScript.new()
+	fog.main = self
+	add_child(fog)
 	light_tex = RoomScript.make_light_texture()
 
 	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
@@ -789,8 +794,11 @@ func _start_floor(n: int) -> void:
 			var avoid: Array = pillars.duplicate()
 			for b in layout_blocks:
 				avoid.append({"pos": b.get_center(), "r": b.size.length() * 0.5})
-			for i in range(1, layout_rooms.size()):
-				puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
+			# Rooms with pools drawn in (rooms.gd) bring their own; others get a few.
+			puddles.append_array(plan.get("pools", []))
+			if puddles.is_empty():
+				for i in range(1, layout_rooms.size()):
+					puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
 	traps = Traps.place(plan, tower_data(), n, self)
@@ -809,6 +817,8 @@ func _start_floor(n: int) -> void:
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
+	if fog != null:
+		fog.reset()
 	cam_prev = start
 	cam_curr = start
 	if camera != null:

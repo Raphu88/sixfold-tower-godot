@@ -1241,6 +1241,85 @@ func _trap_tests() -> void:
 	main.trap_view.reset()
 
 
+func _room_fog_tests() -> void:
+	print("hand-made rooms and fog")
+	var Rooms = load("res://scripts/rooms.gd")
+	var F = main.Floors
+	var cell_size: Vector2 = F.ARENA.size / Vector2(F.GRID)
+	var ok_shape := true
+	var ok_fit := true
+	var ok_stair := true
+	for r in Rooms.ROOMS:
+		var g: Array = r["grid"]
+		var w: int = String(g[0]).length()
+		for row in g:
+			ok_shape = ok_shape and String(row).length() == w
+			for ch in String(row):
+				ok_shape = ok_shape and ch in Rooms.CHARS
+		var sz: Vector2 = Vector2(Rooms.size_of(r)) * F.CELL
+		ok_fit = ok_fit and sz.x <= cell_size.x - 80.0 and sz.y <= cell_size.y - 90.0
+		if r["role"] == "stair":
+			var top: String = g[0]
+			var mid: int = w / 2
+			ok_stair = ok_stair and top.substr(mid - 1, 3) == "..."
+	_check(ok_shape, "every hand-made room is a neat grid of known tiles")
+	_check(ok_fit, "every hand-made room fits its cell of the floor")
+	_check(ok_stair, "stair rooms keep the stair's spot clear")
+	_check(Rooms.for_role("combat", 3).size() >= 8 and Rooms.for_role("start", 2).size() >= 2 and Rooms.for_role("stair", 2).size() >= 2, "enough rooms of each kind for variety")
+	var flip: Array = Rooms.flipped({"grid": ["#..", "..."]}, true, true)
+	_check(flip == ["...", "..#"], "rooms can be flipped both ways")
+	# Floors are built from them, with no room twice on a floor.
+	await _fresh_main()
+	main.profile.regarded = true
+	main.first_climb = false
+	var ok_ids := true
+	var ok_reach := true
+	for n in 6:
+		var plan: Dictionary = F.rooms_floor(2 + n % 3, main.Towers.TOWERS["firebird"] if n % 2 == 0 else main.Towers.TOWERS["kraken"])
+		var ids: Array = plan.get("room_ids", [])
+		var uniq := {}
+		for id in ids:
+			uniq[id] = true
+		ok_ids = ok_ids and ids.size() == plan["rooms"].size() and uniq.size() == ids.size()
+	for n in 4:
+		main.tower = main.Towers.ORDER[n]
+		main._start_floor(3)
+		for e in main.enemies():
+			e.set_physics_process(false)
+		var from: Vector2i = main._tile_of(main.player_start)
+		var to: Vector2i = main._tile_of(main.stair_pos)
+		ok_reach = ok_reach and not main.astar.get_id_path(from, to).is_empty()
+	_check(ok_ids, "each floor's rooms are hand-made, none twice on a floor")
+	_check(ok_reach, "the stair can always be reached through the rooms")
+	# Fog: you see what your climber can see.
+	var fog = main.fog
+	var p = main.player
+	await _frames(2)
+	_check(fog.visible and fog.sees(p.global_position), "floors of rooms have line-of-sight fog, and you see where you stand")
+	var far := Vector2.ZERO
+	for x in main.grid_size.x:
+		for y in main.grid_size.y:
+			var pos: Vector2 = main.room.position + Vector2(x, y) * F.CELL + Vector2(20, 20)
+			if far == Vector2.ZERO and not main.is_solid(pos) and pos.distance_to(p.global_position) > 900.0:
+				far = pos
+	_check(far != Vector2.ZERO and not fog.sees(far), "far rooms are hidden in the fog")
+	var i0: int = main._tile_of(p.global_position).y * main.grid_size.x + main._tile_of(p.global_position).x
+	p.global_position = far
+	await _frames(3)
+	_check(fog.sees(far) and fog.seen[i0] == 1 and fog.vis[i0] == 0, "where you've been stays mapped once you leave it")
+	var foe = await _spawn("slime", main.player_start)
+	foe.set_physics_process(false)
+	await _frames(2)
+	_check(not foe.visible, "monsters out of sight are hidden")
+	p.global_position = main.player_start + Vector2(40, 0)
+	await _frames(3)
+	_check(foe.visible, "...and appear when you see them")
+	foe.queue_free()
+	main._start_floor(1)
+	await _frames(2)
+	_check(not fog.visible, "single-room floors have no fog")
+
+
 func _jump_tests() -> void:
 	print("jumping and chasms")
 	await _fresh_main()
@@ -3889,6 +3968,7 @@ func _run() -> void:
 	await _rooms_tests()
 	await _terrain_tests()
 	await _trap_tests()
+	await _room_fog_tests()
 	await _wyvern_bond_tests()
 	await _manticore_bond_tests()
 	await _firebird_bond_tests()
