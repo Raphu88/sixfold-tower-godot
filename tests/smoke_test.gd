@@ -2616,7 +2616,8 @@ func _memory_puzzle_tests() -> void:
 		rooms_used[m["room"]] = true
 		ok_m = ok_m and m["room"] != pz.room and m["n"] == i + 1 and m["sign"] == M.order[i] and main.is_solid(m["pos"]) and not main.is_solid(m["pos"] + Vector2(0, 30))
 	_check(ok_m and rooms_used.size() == 3, "each mural is set in the north wall of a different room (never the hall), numbering a sign")
-	_check(M.found() == 0, "no mural seen yet")
+	_check(M.murals.all(func(m): return m["seen"] == m["room"].has_point(p.global_position) or not m["seen"]) and M.murals.any(func(m): return not m["seen"]),
+		"murals in rooms you haven't been to are not seen yet")
 	await _wait(0.35)  # (quiet: the pedestals wake once no guard stands in the hall)
 	# Walking into a mural's room notices it; the hall's panel counts them.
 	for m in M.murals:
