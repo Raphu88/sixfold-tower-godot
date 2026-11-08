@@ -10,6 +10,8 @@ extends RefCounted
 ## or tap a slot for its card, then press the card's button.
 
 const Train := preload("res://scripts/train.gd")
+const Bench := preload("res://scripts/bench.gd")
+const TrainView := preload("res://scripts/train_view.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -20,8 +22,9 @@ const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
 
 const T := Train.TEXT
-## The first time each car shows, the Entity's tip for it (entity.gd TIPS).
-const CAR_TIPS := {"personal": "chest", "store": "store"}
+## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
+const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["bench", "enchant"]}
+const B := Bench.TEXT
 
 var m  # the menu (menu.gd)
 var tips := {}  # car -> the Entity's tip said there this visit (kept while the page rebuilds)
@@ -102,6 +105,15 @@ func _set_store(id: String) -> void:
 	m.open("train")
 
 
+func _set_bench(id: String) -> void:
+	m.train_bench = id
+	m.inv_sel = ""
+	m.sell_ask = ""
+	m.toast = ""
+	m.bench_pick = 0
+	m.open("train")
+
+
 func _set_side(id: String) -> void:
 	m.train_side = id
 	m.inv_sel = ""
@@ -124,8 +136,8 @@ func _speech() -> void:
 	var car: String = m.train_car
 	if not tips.has(car):
 		var said: String = m.main.tip_now("train")
-		if CAR_TIPS.has(car):
-			var own: String = m.main.tip_now(CAR_TIPS[car])
+		for id in CAR_TIPS.get(car, []):
+			var own: String = m.main.tip_now(id)
 			said = own if said == "" else (said + "\n" + own if own != "" else said)
 		tips[car] = said
 	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
@@ -364,28 +376,475 @@ func _note(parent: Node, text: String) -> void:
 
 # --- the workshop car -----------------------------------------------------------------
 
+## The bench (bench.gd): its counters (a column on the left; on a phone a
+## row along the top), what the chosen counter can work on, and the card.
+## Counters only a Rune Artist can use are greyed for everyone else, but
+## still show what they would do.
 func _workshop() -> void:
+	var prof = _prof()
+	var small: bool = m.compact()
+	var counter: String = m.train_bench
+	if small:
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 5)
+		top.alignment = BoxContainer.ALIGNMENT_CENTER
+		m.box.add_child(top)
+		_counters(top, Vector2(80.0, 36.0), 2)
+	var parts := _split()
+	var row: HBoxContainer = parts[0]
+	var left: VBoxContainer = parts[1]
+	if not small:
+		var side := VBoxContainer.new()
+		side.add_theme_constant_override("separation", 4)
+		row.add_child(side)
+		row.move_child(side, 0)
+		var art := TrainView.Bench.new()
+		art.lit = Bench.rune_artist(prof)
+		art.custom_minimum_size = Vector2(136, 84)
+		side.add_child(art)
+		_counters(side, Vector2(136.0, 32.0), 1)
+	var keys: Array = []
+	match counter:
+		"brew":
+			var grid := _grid(left, 4)
+			for id in Bench.brews():
+				var cost := Bench.brew_cost(prof, id)
+				var s = m._slot(grid, "bench:item:" + id, _cell(), "")
+				s.kind = "item"
+				s.id = id
+				var packed := int(prof.supplies.get(id, 0))
+				s.count = packed if packed > 0 else -1
+				var kind: String = cost.keys()[0]
+				_price_on(s, kind, int(cost[kind]), true)
+				keys.append(s.get_meta("slot"))
+		"recall":
+			var s = m._slot(left, "bench:item:scroll", _cell() * 1.4, "")
+			s.kind = "item"
+			s.id = "scroll"
+			var packed := int(prof.supplies.get("scroll", 0))
+			s.count = packed if packed > 0 else -1
+			keys.append("bench:item:scroll")
+		"break":
+			keys = _bench_pieces(left, func(_g): return true, false)
+			var packed: Array = Items.ORDER.filter(func(id): return int(prof.supplies.get(id, 0)) > 0)
+			if not packed.is_empty():
+				m._section(B["packed_items"], left)
+				var grid := _grid(left, 4)
+				for id in packed:
+					var s = m._slot(grid, "bench:supply:" + id, _cell(), "")
+					s.kind = "item"
+					s.id = id
+					s.count = int(prof.supplies[id])
+					var v := Bench.break_value(prof, "supply:" + id)
+					_price_on(s, v[0], v[1], true)
+					keys.append(s.get_meta("slot"))
+		"temper":
+			keys = _bench_pieces(left, func(g): return Bench.temperable(g))
+		"retrait":
+			keys = _bench_pieces(left, func(g): return not g["traits"].is_empty())
+		"join":
+			keys = _bench_pieces(left, func(g): return Bench.joinable(g))
+		_:
+			keys = _bench_pieces(left, func(_g): return true)
+	if keys.is_empty():
+		var empty: String = B["nothing_join"] if counter == "join" else (B["nothing_break"] if counter == "break" else B["nothing"])
+		_note(left, empty)
+		keys.append("bench:none")
+	elif not small:
+		_note(left, B["notes"][counter])
+	_card(row, keys, "")
+
+
+## The bench's counter buttons; the current one gilded, the ones only a
+## Rune Artist can use greyed for anyone else. `names` 1: full names, 2: short.
+func _counters(parent: Node, size: Vector2, names: int) -> void:
+	var prof = _prof()
+	for c in Bench.COUNTERS:
+		var b: Button = m._button(c[names], _set_bench.bind(c[0]), parent)
+		b.custom_minimum_size = size
+		b.set_meta("bench_tab", c[0])
+		b.add_theme_font_size_override("font_size", 13 if names == 2 else 14)
+		var locked := Bench.locked(prof, c[0]) != ""
+		if c[0] == m.train_bench:
+			m._primary(b)
+			if locked:
+				b.add_theme_color_override("font_color", Color(UI.GOLD, 0.55))
+		elif locked:
+			b.add_theme_color_override("font_color", UI.FAINT)
+			b.add_theme_color_override("font_hover_color", UI.DIM)
+		if locked:
+			b.set_meta("greyed", true)
+
+
+## The pieces a counter can work on, in sections (your heirlooms, pack and
+## chest), filtered by `fits` (a record -> bool). Returns their keys.
+func _bench_pieces(parent: Node, fits: Callable, heirlooms := true) -> Array:
+	var prof = _prof()
+	var keys: Array = []
+	var groups := {"heir": [], "pack": [], "chest": []}
+	for ref in Bench.pieces(prof, heirlooms):
+		var g := Bench.piece(prof, ref)
+		if fits.call(g):
+			groups[ref.get_slice(":", 0)].append(ref)
+	for where in ["heir", "pack", "chest"]:
+		if groups[where].is_empty():
+			continue
+		m._section({"heir": B["heirlooms"], "pack": B["pack"], "chest": B["chest"]}[where], parent)
+		var grid := _grid(parent, 4)
+		for ref in groups[where]:
+			var g := Bench.piece(prof, ref)
+			var s = _gear_slot(grid, "bench:" + ref, g, "")
+			s.kept = where == "heir"
+			match m.train_bench:
+				"temper":
+					var cost := Bench.temper_cost(g)
+					if not cost.is_empty():
+						_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
+				"break":
+					var v := Bench.break_value(prof, ref)
+					_price_on(s, v[0], v[1], true)
+			keys.append(s.get_meta("slot"))
+	return keys
+
+
+# --- the bench's cards -----------------------------------------------------------------
+
+func _bench_card(arg: String) -> void:
+	var counter: String = m.train_bench
+	if arg == "none":
+		_head("empty", "", Bench.COUNTERS.filter(func(c): return c[0] == counter)[0][1], UI.DIM)
+		_lock_line(counter)
+		m._detail_text(B["notes"][counter], UI.DIM)
+		return
+	if arg.begins_with("item:"):
+		_brew_card(arg.substr(5))
+		return
+	if arg.begins_with("supply:"):
+		_break_card(arg)
+		return
+	match counter:
+		"temper":
+			_temper_card(arg)
+		"retrait":
+			_retrait_card(arg)
+		"join":
+			_join_card(arg)
+		"inscribe":
+			_inscribe_card(arg)
+		_:
+			_break_card(arg)
+
+
+## A plain line when only a Rune Artist could use this counter.
+func _lock_line(counter: String) -> bool:
+	var lock := Bench.locked(_prof(), counter)
+	if lock != "":
+		m._detail_text(lock, Color(0.72, 0.74, 1.0))
+	return lock != ""
+
+
+## A piece's heading on a bench card: its icon and name, where it is, and
+## its traits (and rune).
+func _bench_head(ref: String) -> Dictionary:
+	var g := Bench.piece(_prof(), ref)
+	if g.is_empty():
+		_head("empty", "", "Empty space", UI.DIM)
+		return g
+	_head("gear", g, Gear.display(g), Gear.color(g))
+	var where := ref.get_slice(":", 0)
+	var line: String = B["where_heir"] if where == "heir" else (B["where_pack"] if where == "pack" else B["where_chest"])
+	m._detail_text(line + "  ·  " + Gear.rarity_name(g), UI.DIM)
+	return g
+
+
+func _trait_list(g: Dictionary) -> void:
+	for t in Gear.trait_lines(g):
+		m._detail_text(t[0], Color(t[1], 0.95))
+
+
+## Costs on a card, a gem and number for each kind; why you can't pay, in words.
+func _cost_lines(cost: Dictionary, label: String) -> String:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	m.box.add_child(row)
-	var lock := LockArt.new()
-	lock.custom_minimum_size = Vector2(64, 64)
-	row.add_child(lock)
-	var col := VBoxContainer.new()
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(col)
-	var h := Label.new()
-	h.text = T["workshop_title"]
-	h.add_theme_font_size_override("font_size", 18)
-	h.add_theme_color_override("font_color", UI.GOLD)
-	col.add_child(h)
-	var l := Label.new()
-	l.text = T["workshop"]
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size.x = 260.0
-	l.add_theme_color_override("font_color", UI.DIM)
-	col.add_child(l)
+	row.add_theme_constant_override("separation", 6)
+	m.details.add_child(row)
+	row.add_child(m._small_label(label, UI.DIM))
+	for k in cost:
+		var tag := PriceTag.new()
+		tag.kind = k
+		tag.amount = int(cost[k])
+		tag.ok = Train.short_of(_prof(), k, int(cost[k])) == ""
+		tag.custom_minimum_size = Vector2(96, 22)
+		row.add_child(tag)
+	return Bench.short_of(_prof(), cost)
+
+
+## A bench button that asks first: the first press says "Tap again", the
+## second does it. `ask` names this exact choice (m.sell_ask holds it).
+func _ask_button(parent: Node, text: String, again: String, ask: String, why: String, meta: String, meta_val: String) -> Button:
+	var full: String = m.inv_sel + "|" + ask
+	var asking: bool = m.sell_ask == full
+	var b: Button = m._button(again if asking else text, _ask.bind(full), parent)
+	b.custom_minimum_size.y = 40
+	b.disabled = why != ""
+	b.set_meta(meta, meta_val)
+	b.clip_text = true
+	if asking and why == "":
+		m._primary(b)
+	return b
+
+
+func _ask(full: String) -> void:
+	if m.sell_ask != full:
+		m.sell_ask = full
+		m.toast = ""
+		m.open("train")
+		return
+	m.sell_ask = ""
+	_bench_do(full.get_slice("|", 0).substr(6), full.get_slice("|", 1))
+
+
+## Why on a card, in red ("Can't: needs 12 more Fire"), unless it's the
+## Rune Artist's line (shown already).
+func _why_line(why: String) -> void:
+	if why != "" and not why.begins_with(B["needs_rune_artist"].get_slice("%", 0)):
+		m._detail_text(B["cant"] % why, UI.BAD)
+
+
+func _brew_card(id: String) -> void:
+	var prof = _prof()
+	var p = _player()
+	var data: Dictionary = Items.ITEMS[id]
+	_head("item", id, data["name"], Items.color(id))
+	var locked := false
+	if id == "scroll":
+		locked = _lock_line("recall")
+	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
+	var why := _cost_lines(Bench.brew_cost(prof, id), B["cost"])
+	if Bench.rune_artist(prof) and id != "scroll":
+		m._detail_text(B["rune_artist_less"] % int(round((1.0 - Bench.RUNE_ARTIST_BREW) * 100.0)), UI.GOOD)
+	var packed := int(prof.supplies.get(id, 0))
+	m._detail_text(B["packed"] % [packed, p.max_stack(id)] if id != "scroll" else B["scroll_carry"], UI.DIM)
+	if locked:
+		why = Bench.locked(prof, "recall")
+	elif why == "" and Train.supply_room(prof, p, id) <= 0:
+		why = B["belt_full"] if id != "scroll" else B["scroll_carry"].to_lower().trim_suffix(".")
+	var b: Button = m._button(B["brew"] if id != "scroll" else B["bind"], _brew.bind(id), m.details)
+	b.custom_minimum_size.y = 40
+	b.disabled = why != ""
+	b.set_meta("brew", id)
+	_why_line(why)
+	if packed > 0:
+		var back: Button = m._button(B["put_back"], _unbrew.bind(id), m.details)
+		back.custom_minimum_size.y = 40
+		back.set_meta("put_back", id)
+
+
+func _temper_card(ref: String) -> void:
+	var prof = _prof()
+	var g := _bench_head(ref)
+	if g.is_empty():
+		return
+	_lock_line("temper")
+	var k := int(g["rank"])
+	if k >= Gear.MAX_RANK:
+		m._detail_text(B["rank_top"] % k, UI.GOLD)
+		_trait_list(g)
+		return
+	m._detail_text(B["rank"] % [k, Gear.MAX_RANK], UI.GOLD if k > 0 else UI.DIM)
+	# What the next rank does: each trait's number now and after.
+	for t in g["traits"]:
+		var now := Gear.amount_text(Gear.trait_amount(t, g["rarity"], k))
+		m._detail_text("%s  (now %s)" % [Gear.trait_text(t, g["rarity"], k + 1), now], Color(Essence.color(Gear.TRAITS[t]["kind"]), 0.95))
+	if Gear.slot_of(g) in ["melee", "ranged"]:
+		var next := g.duplicate()
+		next["rank"] = k + 1
+		m._detail_text(B["weapon_rank"] % [Gear.amount_text(Gear.weapon_boost(next) - 1.0), k + 1] + "  (now %s)" % Gear.amount_text(Gear.weapon_boost(g) - 1.0), UI.TEXT)
+	if g.has("rune"):
+		m._detail_text(Gear.rune_text(g["rune"]), Color(Gear.LASTING_RUNES[g["rune"]]["color"], 0.95))
+	_cost_lines(Bench.temper_cost(g), B["cost"])
+	var why := Bench.temper_why(prof, ref)
+	_ask_button(m.details, B["temper_to"] % (k + 1), B["temper_ask"] % (k + 1), "temper", why, "bench_do", "temper")
+	_why_line(why)
+
+
+func _retrait_card(ref: String) -> void:
+	var prof = _prof()
+	var g := _bench_head(ref)
+	if g.is_empty():
+		return
+	_lock_line("retrait")
+	var traits: Array = g["traits"]
+	if traits.is_empty():
+		m._detail_text(B["no_retrait"], UI.DIM)
+		return
+	m.bench_pick = clampi(m.bench_pick, 0, traits.size() - 1)
+	_trait_list(g)
+	if traits.size() > 1:
+		var pick := HBoxContainer.new()
+		pick.add_theme_constant_override("separation", 6)
+		m.details.add_child(pick)
+		pick.add_child(m._small_label(B["retrait_which"], UI.DIM))
+		for i in traits.size():
+			var b: Button = m._button(Gear.TRAITS[traits[i]]["short"], _pick_trait.bind(i), pick)
+			b.custom_minimum_size = Vector2(0, 38)
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.set_meta("retrait_pick", i)
+			if i == m.bench_pick:
+				m._primary(b)
+	var opts := Bench.retrait_options(g, m.bench_pick)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 4)
+	m.details.add_child(grid)
+	var gives: Array = []
+	for kind in Essence.KINDS:
+		if not opts.has(kind):
+			continue
+		var cost := Bench.retrait_cost(g, kind)
+		var amount := int(cost[kind])
+		var why := Bench.retrait_why(prof, ref, m.bench_pick, kind)
+		var name := Essence.display(kind)
+		var b := _ask_button(grid, B["retrait_kind"] % [name, amount], B["retrait_ask"] % [name, amount], "retrait:%d:%s" % [m.bench_pick, kind], why, "retrait", kind)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_color_override("font_color", Essence.color(kind).lightened(0.2))
+		var line: String = B["retrait_gives"] % [name, " or ".join(opts[kind].map(func(t): return Gear.TRAITS[t]["short"]))]
+		var short := Train.short_of(prof, kind, amount)
+		gives.append(line + (" (%s)" % short if short != "" else ""))
+	if gives.is_empty():
+		m._detail_text(B["cant"] % B["no_new_trait"], UI.BAD)
+	else:
+		m._detail_text("  ·  ".join(gives), UI.DIM)
+
+
+func _join_card(ref: String) -> void:
+	var prof = _prof()
+	var g := _bench_head(ref)
+	if g.is_empty():
+		return
+	_lock_line("join")
+	_trait_list(g)
+	if not Bench.joinable(g):
+		m._detail_text(B["no_join"], UI.DIM)
+		return
+	_cost_lines(Bench.join_cost(g), B["cost"])
+	var others := Bench.partners(prof, ref)
+	if others.is_empty():
+		m._detail_text(B["no_partner"], UI.DIM)
+		return
+	for o in others:
+		var og := Bench.piece(prof, o)
+		var why := Bench.join_why(prof, ref, o)
+		var name := Gear.display(og)
+		_ask_button(m.details, B["join_with"] % name, B["join_ask"] % name, "join:" + o, why, "join", o)
+		var made := Bench.joined(g, og)
+		var names: Array = made["traits"].map(func(t): return Gear.TRAITS[t]["short"])
+		m._detail_text(B["join_makes"] % [Gear.info(made).get("name", ""), " and ".join(names)], UI.DIM)
+	_why_line(Bench.join_why(prof, ref, others[0]))
+
+
+func _inscribe_card(ref: String) -> void:
+	var prof = _prof()
+	var g := _bench_head(ref)
+	if g.is_empty():
+		return
+	_lock_line("inscribe")
+	_trait_list(g)
+	if g.has("rune"):
+		m._detail_text(B["replaces_rune"], UI.DIM)
+	_cost_lines(Bench.INSCRIBE, B["cost"])
+	var why := ""
+	for rune in Gear.LASTING_RUNES:
+		if g.get("rune", "") == rune:
+			continue
+		why = Bench.inscribe_why(prof, ref, rune)
+		var text := Gear.rune_text(rune)
+		var b := _ask_button(m.details, B["inscribe"] % text, B["inscribe_ask"] % text, "inscribe:" + rune, why, "inscribe", rune)
+		b.add_theme_color_override("font_color", Color(Gear.LASTING_RUNES[rune]["color"]).lightened(0.1))
+	_why_line(why)
+
+
+func _break_card(thing: String) -> void:
+	var prof = _prof()
+	var v := Bench.break_value(prof, thing)
+	if thing.begins_with("supply:"):
+		var id := thing.substr(7)
+		_head("item", id, Items.ITEMS[id]["name"], Items.color(id))
+		m._detail_text(B["packed"] % [int(prof.supplies.get(id, 0)), _player().max_stack(id)], UI.DIM)
+	else:
+		var g := _bench_head(thing)
+		if g.is_empty():
+			return
+		_trait_list(g)
+		if thing.begins_with("heir:"):
+			m._detail_text(B["break_heir"], UI.DIM)
+			return
+	_price_line(v[0], v[1], "Gives")
+	var name := Essence.display(v[0])
+	_ask_button(m.details, B["break_for"] % [v[1], name], B["break_ask"] % [v[1], name], "break", "", "bench_do", "break")
+	if not m.compact():
+		m._detail_text(B["notes"]["break"], UI.FAINT)
+
+
+# --- the bench's actions -------------------------------------------------------------------
+
+func _brew(id: String) -> void:
+	var why := Bench.brew(_prof(), _player(), id)
+	if why == "":
+		_done(B["brewed"] % Items.ITEMS[id]["name"], "", "pickup")
+	else:
+		_done(B["cant"] % why, "", "ui_back")
+
+
+func _unbrew(id: String) -> void:
+	if Train.put_back(_prof(), id):
+		_done(B["put_back_done"] % Items.ITEMS[id]["name"], "", "ui_back")
+
+
+func _pick_trait(i: int) -> void:
+	m.bench_pick = i
+	m.sell_ask = ""
+	m.toast = ""
+	m.open("train")
+
+
+## Does what a bench button asked (pressed twice): `thing` is the card's
+## piece or item, `ask` the choice ("temper", "retrait:0:air", "join:pack:1",
+## "inscribe:warding", "break").
+func _bench_do(thing: String, ask: String) -> void:
+	var prof = _prof()
+	var what := ask.get_slice(":", 0)
+	var before := Gear.display(Bench.piece(prof, thing)) if not thing.begins_with("supply:") else ""
+	var why := ""
+	var said := ""
+	match what:
+		"temper":
+			why = Bench.temper(prof, thing)
+			said = B["tempered"] % Gear.display(Bench.piece(prof, thing))
+		"retrait":
+			why = Bench.retrait(prof, thing, int(ask.get_slice(":", 1)), ask.get_slice(":", 2))
+			said = B["retraited"] % [Gear.display(Bench.piece(prof, thing)), before]
+		"join":
+			var other := ask.substr(5)
+			var keep := Bench.join_place(thing, other)
+			why = Bench.join(prof, thing, other)
+			if why == "":
+				m.inv_sel = "bench:" + keep
+				said = B["joined"] % Gear.display(Bench.piece(prof, keep))
+		"inscribe":
+			var rune := ask.get_slice(":", 1)
+			why = Bench.inscribe(prof, thing, rune)
+			said = B["inscribed"] % [Gear.LASTING_RUNES[rune]["name"], before]
+		"break":
+			var name: String = before if before != "" else Items.ITEMS[thing.substr(7)]["name"]
+			var got := Bench.break_down(prof, thing)
+			if got == "":
+				return
+			said = B["broke"] % [name, got]
+	if why == "":
+		_done(said, "", "pickup" if what == "break" else "armor_on")
+	else:
+		_done(B["cant"] % why, "", "ui_back")
 
 
 # --- depart -----------------------------------------------------------------------------
@@ -446,9 +905,11 @@ func _small_text(text: String, col: Color) -> Label:
 func details(key: String) -> void:
 	var kind := key.get_slice(":", 0)
 	var arg := key.get_slice(":", 1)
-	if key != m.sell_ask:
+	if key != m.sell_ask and not m.sell_ask.begins_with(key + "|"):
 		m.sell_ask = ""
 	match kind:
+		"bench":
+			_bench_card(key.substr(6))
 		"pack", "chest":
 			_piece_card(kind, int(arg))
 		"supply":
@@ -760,16 +1221,6 @@ class TowerCard extends Button:
 		if last and not small:
 			sub += "  ·  last climbed"
 		draw_string(font, Vector2(28, gy + 4.0), sub, HORIZONTAL_ALIGNMENT_LEFT, size.x - 36.0, 11, UI.DIM)
-
-
-## The workshop's padlock.
-class LockArt extends Control:
-	const UI := preload("res://scripts/ui.gd")
-
-	func _draw() -> void:
-		var c := size / 2.0
-		draw_circle(c, size.x * 0.48, Color(0.11, 0.1, 0.14))
-		UI.draw_lock(self, c, size.x * 0.26, Color(0.85, 0.66, 0.36))
 
 
 ## The outfitter's face: an old climber with goggles pushed up on his brow,

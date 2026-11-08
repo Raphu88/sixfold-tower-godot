@@ -15,7 +15,7 @@ extends "res://scripts/puzzles/base.gd"
 ## The floor plan lays the murals once the floor's rooms are known
 ## (floors.gd calls place_murals): never in the gallery, never behind a
 ## locked door, never by a doorway or the torch; each in a different room
-## while there are rooms enough. The gallery's panel counts the murals seen.
+## (a floor without rooms enough is planned again). The gallery's panel counts the murals seen.
 
 const Rooms := preload("res://scripts/rooms.gd")
 
@@ -126,8 +126,8 @@ static func place_murals(spec: Dictionary, infos: Array, gi: int, torches: Array
 		if not cols.is_empty():
 			spots[i] = cols
 	var with_room: Array = rooms.filter(func(i): return spots.has(i))
-	if with_room.is_empty():
-		return {}
+	if with_room.size() < order.size():
+		return {}  # (each mural in a room of its own: else the floor is planned again)
 	var out: Array = []
 	for k in order.size():
 		var i: int = with_room[k % with_room.size()]

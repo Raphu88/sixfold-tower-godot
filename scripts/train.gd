@@ -9,7 +9,8 @@ extends RefCounted
 ##   personal  your own car: your heirlooms, and a small storage chest
 ##   store     the store car, kept by the outfitter: supplies, an outfit,
 ##             today's piece, and selling what you brought down
-##   workshop  the workshop car: the bench (coming later)
+##   workshop  the workshop car: the bench (bench.gd): brewing for anyone,
+##             enchanting for a Rune Artist, and breaking things down
 ##   depart    choose the next tower
 ##
 ## Essence crystals are the only currency (profile.gd keeps them as
@@ -27,7 +28,7 @@ const STORE_TABS := [["supplies", "Supplies"], ["outfit", "Outfit"], ["today", "
 
 ## Your storage chest (in your car): pieces kept safe between climbs.
 const CHEST_SIZE := 8
-## Selling (or, later, breaking down at the bench) gives back this share of
+## Selling (or breaking down at the bench, bench.gd) gives back this share of
 ## a thing's price, as a crystal of its kind. A worn Common piece fetches
 ## less, down to WORN_SELL of that.
 const SELL_SHARE := 0.4
@@ -97,7 +98,7 @@ const TEXT := {
 	"supplies_note": "Supplies are packed onto your belt for your next climb, beside the draught every climb starts with.",
 	"packed": "Packed for your next climb: %d  ·  your belt holds %d",
 	"belt_full": "your belt can't hold more",
-	"put_back": "Put it back (full price back)",
+	"put_back": "Put one back (what you paid comes back)",
 	"put_back_done": "Put back: %s",
 	"outfit_note": "Common pieces for your next climb. What you buy goes in your pack, and you wear it as you enter if its slot is free.",
 	"today_note": "One finer piece, new after every climb.",
@@ -105,9 +106,6 @@ const TEXT := {
 	"sell_note": "What you brought down in your pack, and what's in your chest. Each sells for a crystal of its kind, at %d%% of its price.",
 	"nothing_to_sell": "Nothing to sell. Bring finds home in your pack: survive a climb, or read a recall scroll.",
 	"against": "Against what you'd start with",
-	# Workshop car
-	"workshop_title": "The bench",
-	"workshop": "The workshop car's bench is still being fitted: brewing, tempering and joining pieces come later.",
 	# Depart
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",
@@ -144,7 +142,7 @@ const OUTFITTER := {
 		"Come back with more essence. I'll keep it on the rack. For a while.",
 		"Essence first, then we talk.",
 	],
-	"put_back": ["Changed your mind? Full price back, then."],
+	"put_back": ["Changed your mind? Your essence back, then."],
 }
 
 
@@ -309,20 +307,45 @@ static func buy_supply(profile, player, id: String) -> String:
 	if why != "":
 		return why
 	profile.spend(price[0], price[1])
-	profile.supplies[id] = int(profile.supplies.get(id, 0)) + 1
+	pack_supply(profile, id, {price[0]: price[1]})
 	profile.save()
 	return ""
 
 
-## Puts a packed consumable back on the shelf, for its full price.
-static func put_back(profile, id: String) -> bool:
+## Packs one of a consumable for the next climb, noting what it cost
+## ({kind: amount}) so putting it back returns that.
+static func pack_supply(profile, id: String, paid: Dictionary) -> void:
+	profile.supplies[id] = int(profile.supplies.get(id, 0)) + 1
+	var list: Array = profile.supply_paid.get(id, [])
+	list.append(paid)
+	profile.supply_paid[id] = list
+
+
+## Takes one packed consumable out again; what was paid for it ({kind:
+## amount}: the last one packed; the store's price if nothing was noted),
+## or {} if none is packed.
+static func unpack_supply(profile, id: String) -> Dictionary:
 	if int(profile.supplies.get(id, 0)) <= 0:
-		return false
-	var price := item_price(id)
+		return {}
 	profile.supplies[id] = int(profile.supplies[id]) - 1
+	var list: Array = profile.supply_paid.get(id, [])
+	var paid: Dictionary = list.pop_back() if not list.is_empty() else {}
 	if int(profile.supplies[id]) <= 0:
 		profile.supplies.erase(id)
-	profile.add_crystal(price[0], price[1])
+		profile.supply_paid.erase(id)
+	if paid.is_empty():
+		var price := item_price(id)
+		paid = {price[0]: price[1]}
+	return paid
+
+
+## Puts a packed consumable back: what was paid for it comes back.
+static func put_back(profile, id: String) -> bool:
+	var paid := unpack_supply(profile, id)
+	if paid.is_empty():
+		return false
+	for k in paid:
+		profile.add_crystal(k, float(paid[k]))
 	profile.save()
 	return true
 
@@ -413,11 +436,14 @@ static func pack_up(profile, player) -> void:
 		else:
 			player.pack.append(r)
 	profile.pack = []
-	for id in profile.supplies:
+	for id in profile.supplies.keys():
 		for k in int(profile.supplies[id]):
 			if not player.add_item(id):
-				var price := item_price(id)
-				profile.add_crystal(price[0], price[1])  # (no room after all: its price back)
+				var paid: Array = profile.supply_paid.get(id, [])
+				var back: Dictionary = paid.pop_back() if not paid.is_empty() else {item_price(id)[0]: item_price(id)[1]}
+				for kind in back:
+					profile.add_crystal(kind, float(back[kind]))  # (no room after all: what it cost back)
 	profile.supplies = {}
+	profile.supply_paid = {}
 	profile.store = {}
 	profile.save()

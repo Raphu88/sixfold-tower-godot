@@ -31,6 +31,7 @@ const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
 const Train := preload("res://scripts/train.gd")
+const Lost := preload("res://scripts/lost.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -151,6 +152,11 @@ var camps_done: Array = []  # the floors whose camp has been visited this climb
 var camp_choosing := false  # the camp's cards are showing
 var camp := {}  # {stage: "item", "rune" or "heirloom", choices: [...], lines: [...]}
 var heirloom_offered := false  # the heirloom choice has been shown this climb
+# Falling and lost things (lost.gd).
+var weapon_loss_chance := Lost.WEAPON_CHANCE  # a fall also takes the weapon in hand
+var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_CHANCE  # (tests set it when they want one)
+var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
+var fall_note: Array = []  # what the fall took, for the fall screen
 var campfire: Node2D
 
 # Lingering spell effects in the room
@@ -652,6 +658,9 @@ func _process(delta: float) -> void:
 	if not cache.is_empty() and not cache["taken"] and not climbing and not player.dead \
 			and player.global_position.distance_to(cache["pos"]) < float(Floors.CACHE["reach"]) + player.radius:
 		_open_cache()
+	if not lost_cache.is_empty() and not lost_cache["taken"] and not climbing and not player.dead \
+			and player.global_position.distance_to(lost_cache["pos"]) < Lost.REACH + player.radius:
+		_open_lost_cache()
 	if not banner.is_empty():
 		banner["t"] -= delta
 		if banner["t"] <= 0.0:
@@ -886,11 +895,14 @@ func _start_floor(n: int) -> void:
 		if randf() < gear_cache_chance:
 			cache["gear"] = find_gear("", 1)  # (a cache rolls one rarity row higher)
 	room_view.cache = cache
+	_place_lost_cache(plan, n)
 	var targets: Array = [stair_pos]
 	for m in plan["monsters"]:
 		targets.append(m[1])
 	if not cache.is_empty():
 		targets.append(cache["pos"])
+	if not lost_cache.is_empty():
+		targets.append(lost_cache["pos"])
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
 	# Door frames, only where the wall beside an opening is really there.
 	room_view.set_doors(plan.get("posts", []).filter(func(r): return is_solid(r.get_center())))
@@ -1104,6 +1116,50 @@ func _open_cache() -> void:
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
 	sfx("glint", 1.3, -2.0, 0.0)
+
+
+## A lost cache (lost.gd): on a floor of rooms of a tower where you lost
+## things in a fall, near the floor where they fell, sometimes your fallen
+## pack lies in an ordinary room (traps keep clear of it).
+func _place_lost_cache(plan: Dictionary, n: int) -> void:
+	lost_cache = {}
+	if not in_camp and not first_climb and profile != null and plan.has("room_info"):
+		var here := Lost.for_floor(profile, tower, n)
+		if not here.is_empty() and randf() < lost_cache_chance:
+			var at := Lost.spot(plan)
+			if at != Vector2.INF:
+				lost_cache = {"pos": at, "entries": here, "taken": false}
+				var half := Vector2(Floors.CELL, Floors.CELL) * 1.5
+				plan["safe_rooms"] = plan.get("safe_rooms", []) + [Rect2(at - half, half * 2.0)]
+	room_view.lost_cache = lost_cache
+
+
+## Walking onto a lost cache: your lost pieces come back, into your pack
+## while there's room, else at your feet; they're no longer lost.
+func _open_lost_cache() -> void:
+	lost_cache["taken"] = true
+	var pos: Vector2 = lost_cache["pos"]
+	var names: Array = []
+	var left: Array = []
+	for e in lost_cache["entries"]:
+		var r := Gear.rec(e["rec"])
+		if r.is_empty():
+			continue
+		names.append(Gear.display(r))
+		if player.pack_room():
+			player.pack.append(r)
+		else:
+			drop_gear(pos, r)
+			left.append(Gear.display(r))
+	Lost.forget(profile, lost_cache["entries"])
+	profile.save()
+	tip("lost_cache")
+	fx_text(pos + Vector2(0, -40), Lost.TEXT["found"] % ", ".join(names), Lost.LIGHT_COLOR)
+	if not left.is_empty():
+		fx_text(pos + Vector2(0, -58), Lost.TEXT["at_feet"] % ", ".join(left), Color(0.85, 0.82, 0.9))
+	fx_ring(pos, Lost.LIGHT_COLOR, 60.0, 0.5, 3.0)
+	light_flash(pos, Lost.LIGHT_COLOR, 1.4, 1.2, 0.4)
+	sfx("heirloom", 0.9, -4.0, 0.0)
 
 
 ## Falling into a chasm: no harm done, but you drop to the floor below (never
@@ -2104,6 +2160,13 @@ func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 
 func on_player_died() -> void:
 	profile.note("deaths")
+	if not first_climb:
+		# Your pack and belt are lost, maybe your weapon too (lost.gd); the
+		# pieces are remembered, and may turn up again on a later climb.
+		var loss := Lost.fall(profile, player, tower, floor_num, weapon_loss_chance)
+		fall_note = loss["lines"]
+		if not fall_note.is_empty():
+			tip("fall_loss")
 	profile.save()
 	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
 	if first_climb and regard.is_empty() and not regard_pending:
