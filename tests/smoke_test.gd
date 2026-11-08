@@ -1101,9 +1101,13 @@ func _plan_tests() -> void:
 		await _frames(1)
 		if main.door_view.list.any(func(d): return d["lock"] == ""):
 			break
-	door = main.door_view.list.filter(func(d): return d["lock"] == "")[0]
+	# (A door no one has opened yet; every other monster asleep and still, so
+	# only the test's own monster can open it.)
+	var unlocked: Array = main.door_view.list.filter(func(d): return d["lock"] == "" and not d["open"])
+	door = unlocked[0] if not unlocked.is_empty() else main.door_view.list.filter(func(d): return d["lock"] == "")[0]
 	for e in main.enemies():
 		e.set_physics_process(false)
+		e.aware = false
 	p.global_position = main.player_start
 	main.door_view.monster_t = 99.0  # (a new monster starts awake: hold the check a moment)
 	var foe = await _spawn("slime", door["rect"].get_center() + door["out"] * 50.0)
@@ -1117,7 +1121,7 @@ func _plan_tests() -> void:
 		if door["open"]:
 			break
 		await _wait(0.1)
-	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it")
+	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it (shut while asleep: %s, open once awake: %s)" % [shut, door["open"]])
 	foe.queue_free()
 	# Entering a themed room shows its name and rule, once.
 	for e in main.enemies():
