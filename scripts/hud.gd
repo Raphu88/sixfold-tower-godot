@@ -527,6 +527,8 @@ func _draw_perf(size: Vector2, font: Font) -> void:
 		return
 	var w := 230.0
 	var r := Rect2(size.x - w - 16.0, size.y - 22.0 - 15.0 * perf_text.size(), w, 12.0 + 15.0 * perf_text.size())
+	if main.touch_active:
+		r.position = Vector2(BAR_X, ROW_Y + SLOT + 74.0)  # (the buttons have the bottom right)
 	draw_rect(r, Color(0, 0, 0, 0.6))
 	for i in perf_text.size():
 		draw_string(font, r.position + Vector2(8, 16 + 15 * i), perf_text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.75, 1.0, 0.75))

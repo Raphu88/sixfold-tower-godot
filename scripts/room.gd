@@ -33,7 +33,7 @@ var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
 var cache := {}  # a side room's essence cache: {pos, kind, taken}
 # The floor and walls are drawn in squares (see Draw.Chunked): fewer draw
 # calls, and only the squares on screen are drawn.
-const CHUNK := 120.0
+const CHUNK := 400.0
 var batch  # while drawing
 var chunk_items: Array = []  # the squares' canvas items
 var features: Node2D  # puddles, chasms and pillars, drawn over the floor
@@ -329,26 +329,30 @@ func _draw() -> void:
 
 
 func _draw_features() -> void:
-	var c := features
+	var c := Draw.Batch.new()  # everything in one draw call
 	for pd in puddles:
 		# Standing water: dark, with a lighter rim and a glint.
-		c.draw_circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
-		c.draw_circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
-		c.draw_arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
-		c.draw_arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
+		c.circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
+		c.circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
+		c.arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
+		c.arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
 	for ch in chasms:
 		# A gap in the floor: a cracked lip, then darkness falling away.
 		var r: Rect2 = ch
-		c.draw_rect(r.grow(3.0), Color(0.12, 0.1, 0.1))
-		c.draw_rect(r, Color(0.02, 0.015, 0.03))
+		c.rect(r.grow(3.0), Color(0.12, 0.1, 0.1))
+		c.rect(r, Color(0.02, 0.015, 0.03))
 		for i in 4:
-			c.draw_rect(r.grow(-2.0 - i * 3.0), Color(0.0, 0.0, 0.0, 0.25), false, 3.0)
-		var lips := Draw.Batch.new()  # (Godot lights its own lines unevenly here)
-		lips.line(r.position, Vector2(r.end.x, r.position.y), Color(0.55, 0.5, 0.45, 0.6), 2.0)
-		lips.line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
-		lips.flush(c)
+			var o := r.grow(-2.0 - i * 3.0)
+			var dark := Color(0.0, 0.0, 0.0, 0.25)
+			c.rect(Rect2(o.position.x - 1.5, o.position.y - 1.5, o.size.x + 3.0, 3.0), dark)
+			c.rect(Rect2(o.position.x - 1.5, o.end.y - 1.5, o.size.x + 3.0, 3.0), dark)
+			c.rect(Rect2(o.position.x - 1.5, o.position.y + 1.5, 3.0, o.size.y - 3.0), dark)
+			c.rect(Rect2(o.end.x - 1.5, o.position.y + 1.5, 3.0, o.size.y - 3.0), dark)
+		c.line(r.position, Vector2(r.end.x, r.position.y), Color(0.55, 0.5, 0.45, 0.6), 2.0)
+		c.line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
 	for p in pillars:
 		_draw_pillar(c, p["pos"], p["r"])
+	c.flush(features)
 
 
 ## The walls between rooms: solid tiles drawn as stone, with a brick front
@@ -465,26 +469,26 @@ func _draw_cache(c: CanvasItem, t: float) -> void:
 			c.draw_circle(pos + Vector2(sin(t * 3.0 + i * 2.0) * 4.0, -18.0 - k * 22.0), 2.5 * (1.0 - k) + 0.5, Color(col, 0.9 * (1.0 - k)))
 
 
-func _draw_pillar(c: CanvasItem, pos: Vector2, r: float) -> void:
+func _draw_pillar(c, pos: Vector2, r: float) -> void:
 	# Seen from above: a round stone column with a shadow, rim and cap.
-	c.draw_set_transform(pos + Vector2(r * 0.25, r * 0.55), 0.0, Vector2(1.0, 0.55))
-	c.draw_circle(Vector2.ZERO, r * 1.15, Color(0, 0, 0, 0.35))
-	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	c.draw_circle(pos, r + 2.0, Palette.OUTLINE)
-	c.draw_circle(pos, r, Palette.WALL_FACE.darkened(0.15))
-	c.draw_circle(pos + Vector2(-r * 0.1, -r * 0.12), r * 0.86, Palette.WALL_FACE)
-	c.draw_arc(pos, r * 0.62, 0.0, TAU, 32, Palette.WALL_FACE.darkened(0.25), 1.5)
-	c.draw_circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color(Palette.WALL_EDGE.lightened(0.2), 0.5))
+	var shadow := PackedVector2Array()
+	for i in 24:
+		var a := TAU * i / 24.0
+		shadow.append(pos + Vector2(r * 0.25, r * 0.55) + Vector2(cos(a), sin(a) * 0.55) * r * 1.15)
+	c.polygon(shadow, Color(0, 0, 0, 0.35))
+	c.circle(pos, r + 2.0, Palette.OUTLINE)
+	c.circle(pos, r, Palette.WALL_FACE.darkened(0.15))
+	c.circle(pos + Vector2(-r * 0.1, -r * 0.12), r * 0.86, Palette.WALL_FACE)
+	c.arc(pos, r * 0.62, 0.0, TAU, 32, Palette.WALL_FACE.darkened(0.25), 1.5)
+	c.circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color(Palette.WALL_EDGE.lightened(0.2), 0.5))
 	# A few cracks so pillars aren't identical.
 	var h := _hash(int(pos.x), int(pos.y))
-	var cracks := Draw.Batch.new()
 	for i in 2:
 		var a := (h + i * 0.37) * TAU
-		cracks.line(pos + Vector2.from_angle(a) * r * 0.3, pos + Vector2.from_angle(a + 0.2) * r * 0.85, Palette.WALL_FACE.darkened(0.35), 1.0)
-	cracks.flush(c)
+		c.line(pos + Vector2.from_angle(a) * r * 0.3, pos + Vector2.from_angle(a + 0.2) * r * 0.85, Palette.WALL_FACE.darkened(0.35), 1.0)
 
 
-func _draw_stair(c: CanvasItem, t: float) -> void:
+func _draw_stair(c, t: float) -> void:
 	# Stone steps leading up into the north wall. Sealed until the floor is clear.
 	var w := 68.0
 	var base := stair_pos + Vector2(0, 16)
@@ -515,11 +519,14 @@ func _draw_stair(c: CanvasItem, t: float) -> void:
 func _draw_ambient() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var c := ambient
-	_draw_stair(c, t)
-	_draw_cache(c, t)
-	var b = Draw.Batch.new()  # torches, embers and dust in one draw
+	var b = Draw.Batch.new()  # the stair, torches, embers and dust in one draw
 	# Only what's on screen.
 	var view := _view_rect().grow(-220.0)
+	if view.grow(60.0).has_point(stair_pos):
+		_draw_stair(b, t)
+	if not cache.is_empty() and view.grow(60.0).has_point(cache["pos"]):
+		b.flush(c)
+		_draw_cache(c, t)
 	for torch in torches:
 		if view.has_point(torch["pos"]):
 			_draw_torch(b, torch["pos"], t + torch["phase"])

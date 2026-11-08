@@ -107,6 +107,7 @@ func _ready() -> void:
 	z_index = 40  # over the floor, the monsters and the climber; world text and the HUD go above
 	z_as_relative = false
 	process_priority = 100  # after main has moved the camera this frame
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # moved every frame, with the camera
 	var sh := Shader.new()
 	sh.code = SHADER
 	mat = ShaderMaterial.new()
@@ -242,6 +243,15 @@ func _gather(view: Rect2) -> void:
 	# Burning floor.
 	for fl in main.flames:
 		n = _put(n, view, fl["pos"], fl["r"] * 2.4, Palette.FIRE_LIGHT, 0.6 * clampf(fl["t"] / 0.5, 0.0, 1.0), 0.12)
+	# Traps warning or firing glow in their colour, so the warning reads in the dark.
+	var tv = main.trap_view
+	if tv != null:
+		for tr in main.traps:
+			var st: String = tr["state"]
+			if st != "warn" and st != "fire":
+				continue
+			var tc: Color = main.Traps.KINDS[tr["kind"]]["color"]
+			n = _put(n, view, tr["pos"], tv.reach_of(tr) + 50.0, tc, 0.45 if st == "warn" else 0.7, 0.1 if st == "warn" else 0.18)
 	# Anything else that registered a light.
 	for id in lights.keys():
 		var l: Dictionary = lights[id]

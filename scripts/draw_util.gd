@@ -301,6 +301,12 @@ class Batch:
 	func draw_colored_polygon(points: PackedVector2Array, col: Color) -> void:
 		polygon(points, col)
 
+	func draw_arc(center: Vector2, r: float, from: float, to: float, points: int, col: Color, width: float, _antialiased := false) -> void:
+		arc(center, r, from, to, points, col, width)
+
+	func draw_polyline(points: PackedVector2Array, col: Color, width: float, _antialiased := false) -> void:
+		polyline(points, col, width)
+
 	## Sends everything collected so far to `c` (at the current draw transform).
 	func flush(c: CanvasItem) -> void:
 		if pts.is_empty():
@@ -311,10 +317,8 @@ class Batch:
 
 
 ## A Batch split into squares of the world, each sent as its own canvas item.
-## Godot lights a canvas item with every light that touches any part of it,
-## so one floor-sized drawing pays for every torch on every pixel; split up,
-## each square only pays for the lights near it, and squares off screen are
-## skipped. Rects (and straight lines) are cut exactly at the square edges and
+## Squares off screen are skipped, so a floor-sized drawing only costs what's
+## on screen (a few draw calls with big squares). Rects (and straight lines) are cut exactly at the square edges and
 ## circles that cross an edge are clipped, so nothing is drawn twice or moved.
 class Chunked:
 	var origin: Vector2
