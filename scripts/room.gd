@@ -1,7 +1,8 @@
 extends Node2D
 ## The room's look: stone floor, walls with depth, torches with flickering
-## light and drifting embers, and dust in the air. Purely visual; the solid
-## walls are built in main.gd.
+## flames and drifting embers, and dust in the air. Purely visual; the solid
+## walls are built in main.gd. The light itself (torches, stair, cache) is
+## cast by the darkness layer (lighting.gd), which reads `torches` here.
 
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -12,21 +13,15 @@ const WALL_FACE := 46.0  # height of the north wall's visible front
 
 var room: Rect2
 var wall := 24.0
-var torches: Array = []  # {pos, light, phase}
+var torches: Array = []  # {pos, phase, below}: lighting.gd lights each one
 var embers: Array = []
 var dust: Array = []
-var light_tex: Texture2D
 var ambient: Node2D  # redrawn every frame: flames, embers, dust
 var pillars: Array = []  # {pos, r}
 var puddles: Array = []  # {pos, r}
 var chasms: Array = []  # Rect2 gaps in the floor
 var stair_pos := Vector2.ZERO
-var stair_open := false:
-	set(v):
-		stair_open = v
-		if stair_light != null:
-			stair_light.enabled = v
-var stair_light: PointLight2D
+var stair_open := false
 var torch_color := Palette.TORCH
 # A floor of rooms: which tiles are solid (walls between rooms).
 var grid := Vector2i.ZERO
@@ -36,14 +31,14 @@ var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
 var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
 var cache := {}  # a side room's essence cache: {pos, kind, taken}
-var cache_light: PointLight2D
 # The floor and walls are drawn in squares (see Draw.Chunked): fewer draw
-# calls, and each square is only lit by the torches near it.
+# calls, and only the squares on screen are drawn.
 const CHUNK := 120.0
 var batch  # while drawing
 var chunk_items: Array = []  # the squares' canvas items
 var features: Node2D  # puddles, chasms and pillars, drawn over the floor
 var tint := Color.WHITE  # the tower's stone colour, passed on to the squares
+var ambient_t := 0.0  # until the next redraw of flames, embers and dust
 
 
 ## Call before adding to the tree.
@@ -54,7 +49,6 @@ func setup(r: Rect2, wall_thickness: float) -> void:
 
 func _ready() -> void:
 	z_index = -10
-	light_tex = make_light_texture()
 	ambient = Node2D.new()
 	ambient.draw.connect(_draw_ambient)
 	add_child(ambient)
@@ -62,20 +56,6 @@ func _ready() -> void:
 	features.draw.connect(_draw_features)
 	add_child(features)
 	move_child(features, 0)  # under the torches, embers and dust
-	stair_light = PointLight2D.new()
-	stair_light.texture = light_tex
-	stair_light.texture_scale = 1.6
-	stair_light.color = Color(1.0, 0.85, 0.5)
-	stair_light.energy = 1.4
-	stair_light.enabled = false
-	stair_light.position = stair_pos
-	add_child(stair_light)
-	cache_light = PointLight2D.new()
-	cache_light.texture = light_tex
-	cache_light.texture_scale = 1.1
-	cache_light.energy = 1.2
-	cache_light.enabled = false
-	add_child(cache_light)
 	_make_torches()
 	_make_dust()
 
@@ -110,20 +90,12 @@ func set_doors(list: Array) -> void:
 	queue_redraw()
 
 
-func _add_torch(pos: Vector2, scale: float, below: float) -> void:
-	var light := PointLight2D.new()
-	light.texture = light_tex
-	light.texture_scale = scale
-	light.color = torch_color
-	light.energy = 1.25
-	light.position = pos + Vector2(0, below)
-	add_child(light)
-	torches.append({"pos": pos, "light": light, "phase": randf() * 10.0})
+## A torch on the wall at `pos`; its light falls `below` it, onto the floor.
+func _add_torch(pos: Vector2, _scale: float, below: float) -> void:
+	torches.append({"pos": pos, "phase": randf() * 10.0, "below": below})
 
 
 func _make_torches() -> void:
-	for t in torches:
-		t["light"].queue_free()
 	torches.clear()
 	if not layout_rooms.is_empty():
 		# A torch on the north wall of every room (two in wide ones).
@@ -170,8 +142,6 @@ static func make_light_texture() -> Texture2D:
 
 func set_torch_color(c: Color) -> void:
 	torch_color = c
-	for t in torches:
-		t["light"].color = c
 
 
 func set_chasms(list: Array) -> void:
@@ -200,34 +170,16 @@ func _view_rect() -> Rect2:
 
 
 func _process(delta: float) -> void:
-	var t := Time.get_ticks_msec() * 0.001
 	if tint != self_modulate:
 		tint = self_modulate
 		features.self_modulate = tint
 		for ci in chunk_items:
 			RenderingServer.canvas_item_set_self_modulate(ci, tint)
-	if stair_light != null:
-		stair_light.position = stair_pos
-		stair_light.energy = 1.2 + 0.3 * sin(t * 3.0)
-	if cache_light != null:
-		cache_light.enabled = not cache.is_empty() and not cache.get("taken", true)
-		if cache_light.enabled:
-			cache_light.position = cache["pos"]
-			cache_light.color = Essence.color(cache["kind"])
-			cache_light.energy = 1.1 + 0.3 * sin(t * 2.4)
-	# Lights cost a lot on phones: a torch well off screen is switched off.
+	# Embers rise only from torches on screen (nobody sees the others).
 	var view := _view_rect()
 	for torch in torches:
-		var lit: bool = view.has_point(torch["pos"])
-		if torch["light"].enabled != lit:
-			torch["light"].enabled = lit
-	for torch in torches:
-		var ph: float = torch["phase"]
-		# A slow, soft flicker: a fast one (above ~15 Hz) lights the whole floor
-		# like a failing screen rather than a flame.
-		var flick := 0.85 + 0.09 * sin(t * 7.0 + ph) + 0.04 * sin(t * 12.0 + ph * 2.0)
-		torch["light"].energy = 1.25 * flick
-		torch["light"].texture_scale = 2.6 + 0.1 * sin(t * 5.0 + ph)
+		if not view.has_point(torch["pos"]):
+			continue
 		if randf() < 6.0 * delta:
 			embers.append({
 				"pos": torch["pos"] + Vector2(randf_range(-3.0, 3.0), -10.0),
@@ -243,7 +195,11 @@ func _process(delta: float) -> void:
 		d["pos"] += d["vel"] * delta
 		if not room.grow(10.0).has_point(d["pos"]):
 			d["pos"] = Vector2(randf_range(room.position.x, room.end.x), randf_range(room.position.y, room.end.y))
-	ambient.queue_redraw()
+	# Flames, embers and dust: 30 redraws a second is plenty (phones).
+	ambient_t -= delta
+	if ambient_t <= 0.0:
+		ambient_t = 1.0 / 30.0
+		ambient.queue_redraw()
 
 
 ## Cheap stable per-tile random number in [0, 1).
@@ -562,14 +518,18 @@ func _draw_ambient() -> void:
 	_draw_stair(c, t)
 	_draw_cache(c, t)
 	var b = Draw.Batch.new()  # torches, embers and dust in one draw
+	# Only what's on screen.
+	var view := _view_rect().grow(-220.0)
 	for torch in torches:
-		_draw_torch(b, torch["pos"], t + torch["phase"])
+		if view.has_point(torch["pos"]):
+			_draw_torch(b, torch["pos"], t + torch["phase"])
 	for e in embers:
 		var a: float = clampf(e["t"], 0.0, 1.0)
-		b.circle(e["pos"], 1.3, Color(1.0, 0.65, 0.25, a), 16)
+		b.circle(e["pos"], 1.3, Color(1.0, 0.65, 0.25, a), 8)
 	for d in dust:
-		var a: float = 0.08 + 0.06 * sin(t * 1.3 + d["phase"])
-		b.circle(d["pos"], d["size"], Color(1.0, 0.92, 0.8, a), 16)
+		if view.has_point(d["pos"]):
+			var a: float = 0.08 + 0.06 * sin(t * 1.3 + d["phase"])
+			b.circle(d["pos"], d["size"], Color(1.0, 0.92, 0.8, a), 8)
 	b.flush(c)
 
 

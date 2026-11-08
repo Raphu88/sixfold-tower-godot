@@ -202,7 +202,7 @@ func _gryphon_tests() -> void:
 	Engine.time_scale = 1.0
 	await _settle()
 	# Bodies and passives.
-	_check(main.player_glow.texture_scale > 2.0, "Keen Eyes: the Hunter sees farther")
+	_check(main.lighting.player_reach() > main.lighting.PLAYER_REACH, "Keen Eyes: the Hunter sees farther")
 	p.attack_cd = 0.0
 	p.combo_t = 0.0
 	p._try_attack()
@@ -2516,6 +2516,198 @@ func _performance_tests() -> void:
 	_check(rv.chunk_items.size() == squares, "floor 1's room has the same squares again")
 
 
+func _lighting_tests() -> void:
+	print("lighting: one darkness layer")
+	await _fresh_main()
+	for f in main.enemies():
+		f.set_physics_process(false)
+	var lt = main.lighting
+	await _frames(3)
+	var lights2d: Array = main.find_children("*", "PointLight2D", true, false)
+	var mods: Array = main.find_children("*", "CanvasModulate", true, false)
+	_check(lights2d.is_empty() and mods.is_empty(), "no 2D light nodes and no CanvasModulate: the darkness is one layer")
+	_check(lt.material is ShaderMaterial and lt.z_index == 40, "the darkness layer is a single shader rect over the world")
+	var layers: Array = main.find_children("*", "", true, false).filter(func(n): return n.get_script() == lt.get_script())
+	_check(layers.size() == 1, "...and there's only one")
+	_check(lt.on_screen >= 2 and lt.on_screen <= lt.MAX_LIGHTS, "the climber's glow and the torches light it (%d lights)" % lt.on_screen)
+	# The registry: lights come and go.
+	var before: int = lt.on_screen
+	var id: int = lt.add_light(main.player.global_position + Vector2(40, 0), 120.0, Color(0.5, 0.8, 1.0), 0.8, 0.2)
+	await _frames(2)
+	_check(lt.on_screen == before + 1, "a registered light reaches the shader")
+	lt.remove_light(id)
+	await _frames(2)
+	_check(lt.on_screen == before, "...and leaves when removed")
+	var far_id: int = lt.add_light(main.player.global_position + Vector2(9000, 0), 100.0, Color.WHITE)
+	await _frames(2)
+	_check(lt.on_screen == before, "a light far off screen isn't sent")
+	lt.remove_light(far_id)
+	var holder := Node2D.new()
+	main.add_child(holder)
+	lt.add_light(Vector2.ZERO, 100.0, Color.WHITE, 0.8, 0.0, holder)
+	holder.global_position = main.player.global_position
+	await _frames(2)
+	_check(lt.on_screen == before + 1, "a light can follow a node...")
+	holder.queue_free()
+	await _frames(3)
+	_check(lt.on_screen == before and lt.lights.is_empty(), "...and goes when the node does (%d, was %d, %d left)" % [lt.on_screen, before, lt.lights.size()])
+	# Flashes fade and expire.
+	main.light_flash(main.player.global_position, Color(1, 0.8, 0.4), 1.5, 1.6, 0.2)
+	await _frames(1)
+	_check(lt.flashes.size() == 1 and lt.on_screen == before + 1, "a light flash lights the darkness (%d, %d)" % [lt.flashes.size(), lt.on_screen])
+	await _wait(0.35)
+	await _frames(2)
+	_check(lt.flashes.is_empty() and lt.on_screen == before, "...and expires")
+	for i in 40:
+		main.light_flash(main.player.global_position, Color.WHITE, 1.0, 1.0, 5.0)
+	_check(lt.flashes.size() == lt.MAX_FLASHES, "flashes are capped (%d)" % lt.flashes.size())
+	await _frames(2)
+	_check(lt.on_screen <= lt.MAX_LIGHTS, "never more lights than the shader takes")
+	lt.flashes.clear()
+	# The stair glows once open; each tower has its own darkness colour.
+	main.stair_open = true
+	await _frames(2)
+	var at_stair: Array = lt.live_lights().filter(func(l): return l[0].distance_to(main.stair_pos) < 1.0)
+	_check(at_stair.size() == 1 and at_stair[0][1] > 150.0, "the open stair is lit")
+	main.stair_open = false
+	main.dev_tower("wyvern")
+	await _frames(2)
+	_check(lt.dark_color == main.Palette.TOWER_FOG["wyvern"], "each tower has its own darkness colour")
+	# Fog: drawn by the darkness layer from fog.gd's texture.
+	main.dev_floor(2)
+	await _frames(1)
+	for f in main.enemies():
+		f.set_physics_process(false)
+	await _frames(2)
+	_check(main.fog.visible and main.fog.tex != null and lt.mat.get_shader_parameter("fog_on") == true, "the darkness layer draws the line-of-sight fog")
+	_check(main.fog.tex.get_image().get_format() == Image.FORMAT_L8, "...from a one-byte-per-tile texture")
+	var looks: int = main.fog.looks
+	main.player.global_position += Vector2(40, 0)
+	await _frames(1)
+	main.player.global_position += Vector2(40, 0)
+	await _frames(1)
+	_check(main.fog.looks - looks <= 2, "sight isn't worked out every frame (%d)" % (main.fog.looks - looks))
+	# World words go above the darkness.
+	_check(main.fx.labels.z_index > lt.z_index and not main.fx.labels.z_as_relative, "floating words are drawn above the darkness")
+	main.dev_floor(1)
+	await _frames(2)
+	_check(not lt.mat.get_shader_parameter("fog_on"), "no fog on single-room floors")
+
+
+func _foe_list_tests() -> void:
+	print("the monster list, remembered per frame")
+	await _fresh_main()
+	await _frames(2)
+	var n: int = main.enemies().size()
+	_check(is_same(main.enemies(), main.enemies()), "asking twice in a frame gives the same list")
+	var e = main.spawn_enemy("slime", main.player.global_position + Vector2(120, 0))
+	_check(main.enemies().has(e) and main.enemies().size() == n + 1, "a monster spawned this frame is in the list at once")
+	_check(main.targets().has(e), "...and can be aimed at")
+	e.submerged = true
+	_check(not main.targets().has(e) and main.enemies().has(e), "a lurker under the water drops out of targets()")
+	e.submerged = false
+	_check(main.targets().has(e), "...and comes back when it surfaces")
+	e.take_hit(99999.0, Vector2.ZERO, 0.0)
+	_check(not main.enemies().has(e) and main.enemies().size() == n, "a dead monster leaves the list the same frame")
+	var e2 = main.spawn_enemy("slime", main.player.global_position + Vector2(-120, 0))
+	_check(main.enemies().has(e2), "another spawn...")
+	main.remove_child(e2)
+	_check(not main.enemies().has(e2), "...and a removed one leaves the list")
+	e2.free()
+	await _frames(2)
+	_check(main.enemies().all(func(f): return is_instance_valid(f) and not f.dead), "the list holds only living monsters")
+	# Paths: only a few monsters look for one each tick.
+	var turns := 0
+	for i in 10:
+		if main.take_path_turn():
+			turns += 1
+	_check(turns <= main.PATHS_PER_TICK, "at most %d path searches a tick (%d)" % [main.PATHS_PER_TICK, turns])
+
+
+func _slim_hud_tests() -> void:
+	print("the slim HUD")
+	await _fresh_main()
+	for f in main.enemies():
+		f.set_physics_process(false)
+	main.grant_test_bonds()
+	var p = main.player
+	var hud = main.hud
+	await _frames(3)
+	_check(hud.core != null and hud.core.get_parent() == hud.get_parent() and hud.core.get_index() < hud.get_index(), "the HUD's always-there part is its own layer, under the fading bits")
+	var titles: Array = hud.tips.map(func(t): return t[1])
+	_check(titles.any(func(t): return t.begins_with("Health")) and main.Gear.display(p.weapon) in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "always there: health and stamina, the weapon in hand, the marks")
+	_check(not titles.any(func(t): return t in ["Fists", "Shortbow", "No armor"]), "...but not every weapon slot or the armor")
+	# Drawn once, again only when something changes.
+	await _wait(1.0)
+	var drawn: int = hud.core_redraws
+	await _frames(10)
+	_check(hud.core_redraws == drawn, "the HUD isn't redrawn while nothing changes")
+	p.hp -= 10.0
+	await _frames(2)
+	_check(hud.core_redraws > drawn, "...and is when health changes")
+	await _wait(1.5)
+	hud.floor_t = 0.0
+	hud.hints_t = 0.0
+	hud.stair_t = 0.0
+	hud.essence_t = 0.0
+	main.banner = {}
+	await _frames(3)
+	var top: int = hud.top_redraws
+	await _frames(10)
+	_check(hud.top_redraws <= top + 1, "the fading layer rests when nothing fades (%d redraws)" % (hud.top_redraws - top))
+	# Fading notices.
+	main.gather_essence("water", 5.0, p.global_position)
+	await _frames(2)
+	_check(hud.essence_t > 0.0, "picking up essence shows the gem counter")
+	var ranged: String = p.slots()[2]
+	p._equip(ranged)
+	await _frames(2)
+	_check(p.weapon == ranged and hud.swap_t > 0.0, "swapping weapons pops up the weapon row")
+	p._equip("sword")
+	main.dev_floor(2)
+	await _frames(2)
+	_check(hud.floor_t > 0.0, "a new floor shows its title for a moment")
+	# The moved panels are on the climber screen and in the inventory.
+	var menu = main.menu
+	menu.open("inventory", true)
+	await _frames(2)
+	_check(_slot("gear:fists") != null and _slot("gear:ranged") != null and _slot("gear:armor") != null, "every weapon slot and the armor are in the inventory")
+	menu.close()
+	await _frames(2)
+	menu.climber_tab = "marks"
+	menu.open("climber", true)
+	await _frames(3)
+	var cards: Array = menu.find_children("*", "Button", true, false).filter(func(b): return b.has_meta("part"))
+	_check(cards.size() == 6 and cards.any(func(c): return not main.profile.bonds.has(c.get_meta("part"))), "where the next mark forms is on the climber screen's Marks tab")
+	menu.close()
+	await _frames(2)
+	menu.climber_tab = "essence"
+	menu.open("climber", true)
+	await _frames(2)
+	_check(menu.page == "climber" and menu.climber_tab == "essence", "...and the attributes on its Essence tab")
+	menu.close()
+	await _frames(2)
+	# Phone size: still small and clear, the buttons redrawn only on change.
+	main.touch._set_active(true)
+	await _frames(3)
+	var t0: int = main.touch.redraws
+	await _frames(10)
+	_check(main.touch.redraws <= t0 + 1, "the touch buttons aren't redrawn every frame (%d)" % (main.touch.redraws - t0))
+	await _frames(2)
+	var size: Vector2 = hud.get_viewport_rect().size
+	var right_edge := 0.0
+	for t in hud.tips:
+		right_edge = maxf(right_edge, t[0].end.x * hud.hud_scale)
+	_check(right_edge < size.x * 0.45, "on a phone the HUD keeps to the top left (%.0f of %.0f)" % [right_edge, size.x])
+	main.touch._set_active(false)
+	await _frames(2)
+	# The dev readout.
+	hud.show_perf = true
+	await _wait(0.3)
+	_check(hud.perf_text.size() >= 5 and String(hud.perf_text[0]).contains("fps") and String(hud.perf_text[4]).contains("lights"), "the dev speed readout shows fps, draw calls, nodes, monsters, traps and lights")
+	hud.show_perf = false
+
+
 func _tower_tests() -> void:
 	print("towers and the early stair")
 	await _fresh_main()
@@ -4125,6 +4317,9 @@ func _run() -> void:
 	await _heirloom_tests()
 	await _controls_tests()
 	await _performance_tests()
+	await _lighting_tests()
+	await _foe_list_tests()
+	await _slim_hud_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
@@ -4422,12 +4617,23 @@ func _mark_page_tests() -> void:
 	menu._set_setting("hud_scale", "normal")
 	_check(is_equal_approx(main.hud.hud_scale, 1.0), "...and Normal as it was")
 
-	# The HUD: tooltips for its slots, and the quick item.
+	# The HUD: tooltips for the weapon in hand, the quick item and the marks;
+	# the other items are in the inventory.
 	p.add_item("tonic")
-	main.hud.queue_redraw()
+	p.add_item("draught")
+	main.hud.core.queue_redraw()
 	await _frames(2)
 	var titles: Array = main.hud.tips.map(func(t): return t[1])
-	_check("Sword" in titles and "Healing Draught" in titles and "Cleansing Tonic" in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "the HUD's slots and marks have tooltips")
+	var quick: String = p.selected_item()
+	var other: String = "tonic" if quick != "tonic" else "draught"
+	_check(p.weapon == "sword" and "Sword" in titles and main.Items.ITEMS[quick]["name"] in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "the HUD's weapon, quick item and marks have tooltips")
+	_check(not (main.Items.ITEMS[other]["name"] in titles), "...and only the quick item is on the HUD")
+	menu.open("inventory", true)
+	await _frames(2)
+	var tonic = _slot("item:" + other)
+	_check(tonic != null and tonic.count >= 1, "...the other items are in the inventory")
+	menu.close()
+	await _frames(2)
 
 	# Gear at your feet shows in the inventory, set against yours, and can be taken.
 	main.drop_gear(p.global_position, "axe")

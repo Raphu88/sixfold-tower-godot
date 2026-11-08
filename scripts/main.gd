@@ -25,6 +25,7 @@ const FogScript := preload("res://scripts/fog.gd")
 const PuzzleScript := preload("res://scripts/puzzle.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
+const LightingScript := preload("res://scripts/lighting.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -61,13 +62,7 @@ var shake_ms := 0  # when the shake offset last changed
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
-var light_tex: Texture2D
-const MAX_FLASHES := 6  # light_flash bursts alive at once (with ~9 torches and glows, stays under 15)
-var flashes_live := 0
-## Light flashes from hits, parries and spells, toned down (owner's request):
-## every flash is this much as strong and this much as wide as asked.
-const FLASH_ENERGY := 0.5
-const FLASH_SIZE := 0.75
+var lighting  # the darkness layer and its lights (lighting.gd)
 var touch_active := false  # on-screen controls in use
 var pad_active := false  # the last input came from a game controller (pad.gd)
 var pad_ps := false  # ...and it's a PlayStation one (for button names)
@@ -98,7 +93,6 @@ var victory := {}  # the climb complete screen, after the beast falls: {t, beast
 var tower := "kraken"  # which tower this climb is in (towers.gd)
 var choosing_tower := false  # the tower choice is showing
 var floor_total := 0  # monsters this floor started with
-var dim: CanvasModulate
 var hud
 var touch
 var pad  # the game controller (pad.gd)
@@ -164,8 +158,13 @@ var smokes: Array = []  # Ashwalker's Smoke Veils: {pos, r, t}
 var decoys: Array = []  # Ashwalker's Afterimages: {pos, t, aim}
 var ashfall_t := 0.0  # Ashfall: foes lose track of you once out of reach
 var slowmo := false  # time slows while a spell ring is open
-var player_glow: PointLight2D
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
+
+# The monster lists, remembered for the frame (enemies(), targets()).
+var foes_cache: Array = []
+var targets_cache: Array = []
+var foes_key := Vector2i(-1, -1)
+var foes_dirty := true
 
 # Attack turns: only this many monsters may be attacking at once.
 const MAX_ATTACKERS := 2
@@ -182,13 +181,10 @@ func _ready() -> void:
 	add_child(audio)
 	_build_walls()
 
-	# Lighting: the whole room is dimmed, torches and the climber's own glow
-	# light it back up. Effects ignore the dimming so spells always read.
+	# Lighting: one darkness layer over the world (lighting.gd), with soft
+	# holes of light around the climber, torches, the stair and flashes.
 	RenderingServer.set_default_clear_color(Palette.VOID)
 	y_sort_enabled = true  # lower things draw in front of higher things
-	dim = CanvasModulate.new()
-	dim.color = Palette.AMBIENT
-	add_child(dim)
 	room_view = RoomScript.new()
 	room_view.setup(room, WALL)
 	add_child(room_view)
@@ -201,7 +197,9 @@ func _ready() -> void:
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
-	light_tex = RoomScript.make_light_texture()
+	lighting = LightingScript.new()
+	lighting.main = self
+	add_child(lighting)
 
 	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
 	stair_pos = Vector2(room.get_center().x, room.position.y + 34.0)
@@ -210,13 +208,6 @@ func _ready() -> void:
 	player.main = self
 	player.position = Vector2(300, 365)  # floor 1 starts on the left, facing the fight
 	add_child(player)
-	var glow := PointLight2D.new()
-	glow.texture = light_tex
-	glow.texture_scale = 1.4
-	glow.color = Color(1.0, 0.85, 0.7)
-	glow.energy = 0.55
-	player.add_child(glow)
-	player_glow = glow
 
 	profile = ProfileScript.new()
 	if Engine.has_meta("sixfold_test"):
@@ -243,9 +234,6 @@ func _ready() -> void:
 	fx = FxScript.new()
 	fx.main = self
 	fx.z_index = 10
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	fx.material = unlit
 	add_child(fx)
 
 	# The camera follows the climber, zoomed in, but never past the walls.
@@ -268,6 +256,7 @@ func _ready() -> void:
 	add_child(layer)
 	hud = HudScript.new()
 	hud.main = self
+	hud.show_perf = bool(Engine.get_meta("sixfold_perf", false))
 	layer.add_child(hud)
 	touch = TouchScript.new()
 	touch.main = self
@@ -503,7 +492,28 @@ func _wide_clear(a: Vector2, b: Vector2, half: float) -> bool:
 	return clear_line(a, b) and clear_line(a + side, b + side) and clear_line(a - side, b - side)
 
 
+## The dev readout (menu.gd's dev tools, hud.gd draws it): how fast the game
+## runs and what's in the room. Frame time is real time, smoothed.
+var frame_ms := 16.7
+var _frame_us := 0
+
+
+func perf_lines() -> Array:
+	var fps := Performance.get_monitor(Performance.TIME_FPS)
+	return [
+		"%d fps  ·  frame %.1f ms" % [int(fps), frame_ms],
+		"draw calls %d  ·  objects %d" % [int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))],
+		"nodes %d" % int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		"monsters %d  ·  traps %d" % [enemies().size(), traps.size()],
+		"lights %d  (one darkness layer)" % (lighting.on_screen if lighting != null else 0),
+	]
+
+
 func _process(delta: float) -> void:
+	var now_us := Time.get_ticks_usec()
+	if _frame_us > 0:
+		frame_ms = lerpf(frame_ms, (now_us - _frame_us) / 1000.0, 0.1)
+	_frame_us = now_us
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
 		Engine.time_scale = 0.35 if slowmo else 1.0
@@ -584,6 +594,24 @@ func _process(delta: float) -> void:
 		camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
+
+
+## Monsters looking for a path around the walls: at most this many per tick.
+const PATHS_PER_TICK := 3
+var path_turns := 0
+var path_turns_tick := -1
+
+
+## True if a monster may look for a path this tick (enemy.gd).
+func take_path_turn() -> bool:
+	var tick := Engine.get_physics_frames()
+	if tick != path_turns_tick:
+		path_turns_tick = tick
+		path_turns = 0
+	if path_turns >= PATHS_PER_TICK:
+		return false
+	path_turns += 1
+	return true
 
 
 func _physics_process(delta: float) -> void:
@@ -698,6 +726,7 @@ func _start_floor(n: int) -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
 		e.remove_from_group("enemies")
+	foes_changed()
 	for a in get_tree().get_nodes_in_group("allies"):  # calls end on every new floor
 		a.queue_free()
 		a.remove_from_group("allies")
@@ -990,7 +1019,6 @@ func _camp_plan() -> Dictionary:
 	var fire := OPEN_ROOM.get_center() + Vector2(0, 30)
 	campfire = CampfireScript.new()
 	campfire.position = fire
-	campfire.light_tex = light_tex
 	add_child(campfire)
 	return {"monsters": [], "pillars": [], "start": fire + Vector2(0, 80)}
 
@@ -1262,8 +1290,8 @@ func _greet() -> void:
 ## Each tower's stone, light and torches.
 func _apply_tower_look() -> void:
 	var t := tower_data()
-	dim.color = t["ambient"]
-	room_view.self_modulate = t["stone"]
+	lighting.set_tower_look(tower)
+	room_view.self_modulate = t["stone"] * Palette.TOWER_TINT.get(tower, Color.WHITE)
 	room_view.set_torch_color(t["torch"])
 
 
@@ -1293,9 +1321,7 @@ func _give_bonds() -> void:
 		b.attr_power = 1.0 + profile.attribute("fire")
 		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b
-	# Hunter's Keen Eyes: you see farther in the dark.
-	if player_glow != null:
-		player_glow.texture_scale = 2.2 if player.has_bond("hunter") or player.has_bond("ashwalker") else 1.4  # Keen Eyes, Smokeborn
+	# Hunter's Keen Eyes (and Smokeborn): you see farther in the dark (lighting.player_reach).
 	# Essence density: small passive bonuses, one per attribute.
 	player.attr_speed = 1.0 + profile.attribute("air")
 	player.attr_strength = 1.0 + profile.attribute("blade")
@@ -1600,9 +1626,24 @@ func dev_spawn(kind: String):
 	return spawn_enemy(kind, pos)
 
 
+## The monsters alive in the room. Asked for dozens of times a frame, so the
+## list is built once per frame (physics or drawing) and again only when a
+## monster is spawned, dies, dives or surfaces, or is removed (foes_changed).
+## Don't change the returned array: it's shared until the next rebuild.
 func enemies() -> Array:
-	return get_tree().get_nodes_in_group("enemies").filter(
-		func(e): return is_instance_valid(e) and not e.dead)
+	var key := Vector2i(Engine.get_process_frames(), Engine.get_physics_frames())
+	if foes_dirty or key != foes_key:
+		foes_dirty = false
+		foes_key = key
+		foes_cache = get_tree().get_nodes_in_group("enemies").filter(
+			func(e): return is_instance_valid(e) and not e.dead)
+		targets_cache = foes_cache.filter(func(e): return not e.submerged)
+	return foes_cache
+
+
+## A monster was added, died, dived or surfaced, or left: rebuild the lists.
+func foes_changed() -> void:
+	foes_dirty = true
 
 
 ## Covenant's called creatures.
@@ -1623,7 +1664,8 @@ func spawn_ally(kind: String, pos: Vector2, step: int, seconds: float):
 ## Adds a monster to the room (bosses calling help, tests).
 ## Monsters that can be aimed at (not a lurker under the water).
 func targets() -> Array:
-	return enemies().filter(func(e): return not e.submerged)
+	enemies()  # (rebuilds both lists if needed)
+	return targets_cache
 
 
 func spawn_enemy(kind: String, pos: Vector2):
@@ -2071,22 +2113,8 @@ func shake(amount: float) -> void:
 	shake_amount = maxf(shake_amount, amount)
 
 
-## A brief burst of real light: lightning, parries, crits, burns.
+## A brief burst of light: lightning, parries, crits, burns. It feeds the
+## darkness layer (lighting.gd), so it costs nothing however many there are.
 func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 0.25) -> void:
-	# The web renderer lights each drawn thing with at most 15 lights; past
-	# that, some lights (torches too) are skipped and the lighting pops.
-	if flashes_live >= MAX_FLASHES:
-		return
-	flashes_live += 1
-	var l := PointLight2D.new()
-	l.texture = light_tex
-	l.texture_scale = size * FLASH_SIZE
-	l.color = color
-	l.energy = energy * FLASH_ENERGY
-	l.position = pos
-	add_child(l)
-	var tw := l.create_tween()
-	tw.tween_property(l, "energy", 0.0, dur).set_ease(Tween.EASE_OUT)
-	tw.tween_callback(func():
-		flashes_live -= 1
-		l.queue_free())
+	if lighting != null:
+		lighting.flash(pos, color, size, energy, dur)

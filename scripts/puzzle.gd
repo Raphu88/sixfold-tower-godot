@@ -59,9 +59,6 @@ var glow: Node2D  # the eyes and the ward, drawn unlit so they show in dark corn
 func _ready() -> void:
 	z_index = -3  # on the floor, over the traps, under everyone
 	glow = Node2D.new()
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	glow.material = unlit
 	glow.draw.connect(_draw_glow)
 	add_child(glow)
 
@@ -155,8 +152,13 @@ func _physics_process(delta: float) -> void:
 	for l in levers:
 		l["t"] = maxf(0.0, l["t"] - delta)
 	if solved:
-		ward_glow = maxf(0.0, ward_glow - delta * 0.8)
-		queue_redraw_all()
+		# Solved: only the ward's fading glow still moves, then nothing.
+		if ward_glow > 0.0:
+			ward_glow = maxf(0.0, ward_glow - delta * 0.8)
+			_glow_tick(delta)
+			if ward_glow <= 0.0 and glow != null:
+				glow.queue_redraw()  # (gone: one last redraw)
+		_redraw_if_changed()
 		return
 	if tier >= 2:
 		for e in eyes:
@@ -166,10 +168,38 @@ func _physics_process(delta: float) -> void:
 		pl["down"] = _weighed(pl["pos"])
 	_push(delta)
 	_check()
+	_redraw_if_changed()
+	_glow_tick(delta)
+
+
+## The stone parts (plates, gates, blocks, levers) are drawn again only when
+## something about them changes; the eyes and the ward pulse, so their layer
+## is redrawn 30 times a second while the puzzle is unsolved.
+var _drawn_state := []
+
+
+func _redraw_if_changed() -> void:
+	var st := [solved]
+	for pl in plates:
+		st.append(pl["down"])
+	for g in gates:
+		st.append(g["open"])
+	for b in blocks:
+		st.append(b["body"].position if is_instance_valid(b["body"]) else b["pos"])
+		st.append(snappedf(b["push_t"], 0.05))
+	for l in levers:
+		st.append(l["t"] > 0.0)
+	if st != _drawn_state:
+		_drawn_state = st
+		queue_redraw()
+
+
+func _glow_tick(delta: float) -> void:
 	redraw_t -= delta
 	if redraw_t <= 0.0:
 		redraw_t = 1.0 / 30.0
-		queue_redraw_all()
+		if glow != null:
+			glow.queue_redraw()
 
 
 ## A plate is held down by a block, or by a monster standing on it.
