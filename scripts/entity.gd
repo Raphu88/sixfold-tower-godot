@@ -119,7 +119,7 @@ const TIPS := {
 		"more": "Every monster attack keeps one rhythm: a wind-up, then the glint exactly a quarter of a second before the blow lands, then a recovery. Parry on the glint and it always works; parry a beat after it for a perfect parry (a longer stagger and more stamina back). Red circles and cones that can't be parried are for rolling out of. After an attack a monster is open for most of its recovery: a gold ring pulses around it and your hits deal 60% more. Traps glint too."},
 	"death": {"group": "start", "name": "Falling",
 		"tip": "You fell. What you carried this climb is gone. What you are is not.",
-		"more": "Falling ends the climb. The gear and items you carried and any essence you hadn't banked are lost, and the next climb starts again on floor 1 ({restart}). Your marks and their growth, the essence settled in you, your heirlooms and your record all stay. On the first climb a fall still brings the Regard, but the mark it leaves is faint."},
+		"more": "Falling ends the climb. The gear and items you carried and any essence you hadn't banked are lost (lost pieces may turn up again; see Lost on the way down), and the next climb starts again on floor 1 ({restart}). Your marks and their growth, the essence settled in you, your heirlooms and your record all stay. On the first climb a fall still brings the Regard, but the mark it leaves is faint."},
 	# --- essence and marks ---
 	"essence": {"group": "essence", "name": "Essence",
 		"tip": "That light flying into you is essence. It's only yours once you bank it at a stair.",
@@ -254,6 +254,12 @@ const TIPS := {
 	"chest": {"group": "train", "name": "Your pack and chest",
 		"tip": "Your chest keeps things safe between climbs. Your pack goes up with you, and falls with you.",
 		"more": "Besides what you wear you carry a pack of four spare pieces (a Climber's Pack holds two more). Swap gear in the tower and your old piece goes in your pack while there's room. Survive a climb, or read a recall scroll, and your pack comes down to the train: sell what you don't want, or keep it in the storage chest in your car (eight spaces), safe between climbs. When you depart, your pack comes with you, and any piece whose slot is free you wear at once. Fall, and your pack is lost."},
+	"fall_loss": {"group": "train", "name": "Lost on the way down",
+		"tip": "A fall takes your pack and your belt, sometimes the weapon in your hand. The tower keeps what it takes. For a while.",
+		"more": "Fall in the tower and your pack and everything on your belt are lost, and there's a chance the weapon in your hand goes too (your melee weapon, if your fists were out; never the starting sword or bow). Your heirlooms are never lost, and your chest and crystals are safe on the train. The fall screen says what was taken. The tower remembers the last six pieces you lost, and where: on a later climb of the same tower, near the floor where they fell, your fallen pack may turn up again."},
+	"lost_cache": {"group": "train", "name": "A lost cache",
+		"tip": "Your own pack, where you fell. The tower gives back, now and then.",
+		"more": "A lost cache is the pack you lost in a fall, lying in an ordinary room of the same tower, near the floor where you fell, with a faint pale light over it. Walk onto it and up to three of your lost pieces come back: into your pack while there's room, else at your feet. Each climb of that tower, a floor near where things fell has a chance to hold one. Items from your belt don't come back."},
 	# --- screens ---
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",

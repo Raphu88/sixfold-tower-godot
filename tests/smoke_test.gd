@@ -6538,6 +6538,7 @@ func _run() -> void:
 	await _rarity_tests()
 	await _belt_tests()
 	await _train_tests()
+	await _lost_tests()
 	await _controls_tests()
 	await _performance_tests()
 	await _lighting_tests()
@@ -7794,3 +7795,126 @@ func _train_tests() -> void:
 	_check(p.gear_id("helm") == "leather_cap" and p.gear_id("melee") == "dagger" and p.gear_id("armor") == "chain", "pieces in your pack go on as you enter (the dagger in place of the starting sword)")
 	_check(p.item_count("tonic") == 1 and prof.pack.is_empty() and prof.supplies.is_empty() and prof.store.is_empty(), "supplies go on your belt; the store restocks next visit")
 	main.touch._set_active(false)
+
+
+## Falling (lost.gd): the pack and belt are lost and remembered, the weapon
+## in hand by chance, never an heirloom; a later floor of the tower may hold
+## a lost cache that gives them back; the lost list is saved.
+func _lost_tests() -> void:
+	print("falling and lost things")
+	await _fresh_main()
+	var G = main.Gear
+	var L = main.Lost
+	var Entity = load("res://scripts/entity.gd")
+	var prof = main.profile
+	var p = main.player
+	main.grant_test_bonds()
+	main.tower = "kraken"
+	main.floor_num = 5
+	var crystals0: int = prof.crystals.size()
+	p.pack = [G.make("leather_cap"), G.make("dagger"), G.make("chain")]
+	p.take_gear(G.make_named("coral_trident"))
+	_check(p.weapon == "spear" and not p.carried().is_empty(), "a Coral Trident in hand, three pieces in the pack, items on the belt")
+	main.weapon_loss_chance = 1.0  # (force the weapon's chance)
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(99999.0, null)
+	_check(p.dead and prof.lost.size() == 4, "a fall loses the pack's three pieces and the weapon in hand (%d remembered)" % prof.lost.size())
+	_check(prof.lost.all(func(e): return e["tower"] == "kraken" and int(e["floor"]) == 5), "...remembered with the tower and floor where they fell")
+	_check(G.named_id(prof.lost[3]["rec"]) == "coral_trident", "...the weapon among them")
+	_check(prof.crystals.size() == crystals0, "the belt is lost, not broken into crystals")
+	var note: String = main.fall_note[0] if not main.fall_note.is_empty() else ""
+	_check(note == "Lost on the way down: your pack (3 pieces), your belt, your Coral Trident", "the fall screen says what was lost: %s" % note)
+	_check(Entity.TIPS.has("fall_loss") and Entity.TIPS.has("lost_cache"), "the Entity has tips for a fall's losses and a lost cache")
+	# Without the chance, the weapon stays; an heirloom in hand is never lost.
+	p.dead = false
+	p.hp = p.max_hp
+	p.pack = []
+	p.take_gear(G.make("mace"))
+	main.weapon_loss_chance = 0.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.receive_attack(99999.0, null)
+	_check(p.dead and prof.lost.size() == 4 and main.fall_note[0] == "Lost on the way down: your belt", "without the chance the weapon isn't lost (%s)" % [main.fall_note])
+	p.dead = false
+	p.hp = p.max_hp
+	prof.heirlooms["melee"] = G.make("greatsword")
+	p.use_heirlooms(prof.heirlooms)
+	main.weapon_loss_chance = 1.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.receive_attack(99999.0, null)
+	_check(p.dead and p.weapon == "greatsword" and prof.lost.size() == 4 and G.base_id(prof.heirlooms.get("melee", {})) == "greatsword", "an heirloom in hand is never lost")
+	# Only the last KEEP pieces are remembered.
+	L.remember(prof, [G.make("axe"), G.make("plate"), G.make("longbow")], "gryphon", 9)
+	_check(prof.lost.size() == L.KEEP and prof.lost[0]["rec"]["base"] == "dagger", "only the last %d lost pieces are remembered" % L.KEEP)
+	L.remember(prof, [G.make("leather_cap")], "kraken", 5)
+	# A later climb of the tower: a floor near where they fell holds a lost cache.
+	p.dead = false
+	p.hp = p.max_hp
+	p.set_physics_process(true)
+	p.pack = []
+	main.lost_cache_chance = 1.0
+	main._start_floor(4)
+	await _clear_foes()
+	var lc: Dictionary = main.lost_cache
+	_check(not lc.is_empty() and lc["entries"].size() == 3, "a floor near where things fell holds a lost cache (of up to 3 pieces)")
+	if lc.is_empty():
+		return
+	var room := -1
+	for i in main.room_info.size():
+		if main.room_info[i]["rect"].has_point(lc["pos"]):
+			room = i
+	var feature: String = main.Themes.get_theme(main.floor_plan["themes"][room])["feature"] if room >= 0 else "?"
+	_check(room >= 0 and main.room_info[room]["role"] != "gallery" and feature in L.ROOM_FEATURES + L.FALLBACK_FEATURES, "...in an ordinary room (%s)" % feature)
+	_check(main.traps.all(func(tr): return tr["pos"].distance_to(lc["pos"]) > 50.0), "...with no trap on it")
+	_check(main.room_view.lost_cache == lc, "...drawn in the room")
+	var lost0: int = prof.lost.size()
+	p.global_position = lc["pos"] + Vector2(0, 70)
+	p.reset_physics_interpolation()
+	main.cam_prev = p.global_position
+	main.cam_curr = p.global_position
+	await _until(func(): return main.lighting.live_lights().any(func(l): return l[0].distance_to(lc["pos"]) < 1.0), 2.0)
+	_check(main.lighting.live_lights().any(func(l): return l[0].distance_to(lc["pos"]) < 1.0), "...and faintly lit")
+	p.global_position = lc["pos"]
+	await _until(func(): return lc["taken"], 3.0)
+	_check(lc["taken"] and p.pack.size() == 3, "walking onto it puts the pieces back in your pack (%d)" % p.pack.size())
+	_check(prof.lost.size() == lost0 - 3, "...and they're no longer lost (%d left)" % prof.lost.size())
+	_check(p.pack.any(func(g): return G.named_id(g) == "coral_trident"), "...the Coral Trident among them")
+	# With a full pack, what doesn't fit is left at your feet.
+	p.pack = []
+	for i in p.pack_size():
+		p.pack.append(G.make("padded"))
+	prof.lost = []
+	L.remember(prof, [G.make("war_hammer")], "kraken", 4)
+	main._start_floor(4)
+	await _clear_foes()
+	lc = main.lost_cache
+	if not lc.is_empty():
+		main._open_lost_cache()
+	_check(not lc.is_empty() and main.gear_drops.any(func(d): return d["id"] == "war_hammer") and prof.lost.is_empty(), "with a full pack, a found piece is left at your feet")
+	# Another tower's lost things never turn up here.
+	L.remember(prof, [G.make("axe")], "wyvern", 4)
+	main._start_floor(4)
+	_check(main.lost_cache.is_empty(), "lost things only turn up in the tower where they fell")
+	# Saved with the profile; old saves load with nothing lost.
+	var path := "user://smoke_lost_test.cfg"
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.lost.size() == 1 and G.base_id(again.lost[0]["rec"]) == "axe" and again.lost[0]["tower"] == "wyvern" and int(again.lost[0]["floor"]) == 4, "the lost list is saved and loads again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.regarded and again.lost.is_empty(), "an old save loads with nothing lost")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	main.lost_cache_chance = 0.0

@@ -217,7 +217,7 @@ func _top_signature() -> Array:
 	var p = main.player
 	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size,
 		main.gear_here.get("id", ""), p.gear_signature() if p != null else [], p != null and p.dead,
-		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf]
+		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size()]
 
 
 func _boss_alive() -> bool:
@@ -434,8 +434,14 @@ func _draw() -> void:
 	if p.dead and not main.first_climb:
 		msg = "YOU FELL ON FLOOR %d" % main.floor_num
 		sub = "Best: floor %d.  %s to climb again" % [main.best_floor, _say("Press R", "Press {back}", "Tap Menu, then Restart,")]
+	# What the fall took (main.fall_note, lost.gd), under the banner's words.
+	var note: Array = main.fall_note if p.dead and not main.first_climb else []
+	var note_w := minf(size.x - 32.0, 760.0)
+	var note_h := 0.0
+	for line in note:
+		note_h += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_CENTER, note_w, 15).y + 4.0
 	if msg != "":
-		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0)
+		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0 + (note_h + 8.0 if note_h > 0.0 else 0.0))
 		draw_rect(band, Color(0, 0, 0, 0.55))
 		draw_line(band.position, Vector2(band.end.x, band.position.y), Color(GOLD, 0.4), 1.0)
 		draw_line(Vector2(0, band.end.y), band.end, Color(GOLD, 0.4), 1.0)
@@ -443,6 +449,11 @@ func _draw() -> void:
 		draw_string_outline(font, Vector2(0, band.position.y + 48), msg, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 6, Color(0, 0, 0, 0.8))
 		draw_string(font, Vector2(0, band.position.y + 48), msg, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, col)
 		draw_string(font, Vector2(0, band.position.y + 74), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
+		var ny := band.position.y + 100.0
+		for i in note.size():
+			var col_n := Color(0.95, 0.72, 0.62) if i == 0 else Color(TEXT, 0.75)
+			draw_multiline_string(font, Vector2((size.x - note_w) / 2.0, ny), note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 15, -1, col_n)
+			ny += font.get_multiline_string_size(note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 15).y + 4.0
 
 	# Between floors the screen fades to black.
 	if main.fade > 0.0:

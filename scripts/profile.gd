@@ -51,6 +51,9 @@ var chest: Array = []
 var pack: Array = []
 var supplies := {}
 var store := {}
+## Lost things (lost.gd): pieces lost in a fall, the newest last, each
+## {"rec", "tower", "floor"}. A later climb may find them again.
+var lost: Array = []
 ## The Entity's record of you (menu.gd shows it): counters that only go up,
 ## kept with the climber. "deaths", "slain", "beasts", "floors", "puzzles",
 ## "falls", "heirlooms", "essence", plus "best" (tower -> best floor) and
@@ -128,6 +131,7 @@ func reset() -> void:
 	pack = []
 	supplies = {}
 	store = {}
+	lost = []
 	record = {}
 	save()
 
@@ -159,6 +163,7 @@ func load_save() -> void:
 	store = cfg.get_value("train", "store", {})
 	if not (store is Dictionary):
 		store = {}
+	lost = load("res://scripts/lost.gd").load_list(cfg.get_value("profile", "lost", []))
 	record = cfg.get_value("profile", "record", {})
 	former = int(cfg.get_value("profile", "former", 0))
 
@@ -186,6 +191,7 @@ func save() -> void:
 	cfg.set_value("train", "pack", pack)
 	cfg.set_value("train", "supplies", supplies)
 	cfg.set_value("train", "store", store)
+	cfg.set_value("profile", "lost", lost)
 	cfg.save(save_path)
 
 

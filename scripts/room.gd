@@ -7,6 +7,7 @@ extends Node2D
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const Lost := preload("res://scripts/lost.gd")
 
 const TILE := 40.0
 const WALL_FACE := 46.0  # height of the north wall's visible front
@@ -31,6 +32,7 @@ var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
 var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
 var cache := {}  # a good room's essence cache: {pos, kind, taken}
+var lost_cache := {}  # your lost things (lost.gd): {pos, taken}
 # Room themes (themes.gd): each room's floor tint and marks, drawn into the
 # floor squares (static: no cost per frame). {walk: [Rect2], rect, rows, tint, decor}
 var looks: Array = []
@@ -670,6 +672,9 @@ func _draw_ambient() -> void:
 	if not cache.is_empty() and view.grow(60.0).has_point(cache["pos"]):
 		b.flush(c)
 		_draw_cache(c, t)
+	if not lost_cache.is_empty() and view.grow(60.0).has_point(lost_cache["pos"]):
+		b.flush(c)
+		Lost.draw(c, lost_cache["pos"], t, lost_cache["taken"])
 	for torch in torches:
 		if view.has_point(torch["pos"]):
 			_draw_torch(b, torch["pos"], t + torch["phase"])

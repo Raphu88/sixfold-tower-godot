@@ -228,6 +228,9 @@ func _gather(view: Rect2) -> void:
 		n = _put(n, view, main.stair_pos, 120.0, Palette.STAIR_LIGHT, 0.45, 0.0)
 	if not main.cache.is_empty() and not main.cache.get("taken", true):
 		n = _put(n, view, main.cache["pos"], 150.0, Essence.color(main.cache["kind"]), 0.8, 0.25 + 0.06 * sin(t * 2.4))
+	if not main.lost_cache.is_empty() and not main.lost_cache["taken"]:
+		var lc: Array = main.Lost.LIGHT
+		n = _put(n, view, main.lost_cache["pos"], lc[0], main.Lost.LIGHT_COLOR, lc[1], lc[2] + 0.03 * sin(t * 1.6))
 	if main.campfire != null and is_instance_valid(main.campfire) and main.campfire.is_inside_tree():
 		n = _put(n, view, main.campfire.global_position + Vector2(0, -10), 420.0 + 12.0 * sin(t * 4.0), Palette.TORCH, 1.0, 0.16 + 0.02 * sin(t * 6.0))
 	# The puzzle's own lights: eyes, the mirrors' beam, lit stones (puzzles/).
