@@ -115,13 +115,17 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 	if kind == "":
 		return list
 	var walk: Array = plan.get("walk", [])
-	var corridors: Array = walk.slice(rooms.size())
+	var corridors: Array = plan.get("corridors", walk.slice(rooms.size()))
 	var inner_rooms: Array = rooms.slice(1)
 	var sets := 1 + (1 if floor_num >= 3 else 0) + (randi() % 2 if floor_num >= 4 else 0)
 	var centres: Array = []
+	# The floor's trap rooms (themes.gd) get the first set pieces.
+	var hazard: Array = plan.get("hazard_rooms", [])
 	for s in sets:
 		for attempt in 40:
 			var pool: Array = corridors if (not corridors.is_empty() and randf() < 0.7) else inner_rooms
+			if s < hazard.size() and attempt < 30:
+				pool = [rooms[hazard[s]]]
 			if pool.is_empty():
 				pool = inner_rooms
 			var area: Rect2 = pool[randi() % pool.size()]
@@ -286,6 +290,9 @@ static func spot_ok(pos: Vector2, plan: Dictionary, others: Array, main = null) 
 	var pz: Dictionary = plan.get("puzzle", {})
 	if not pz.is_empty() and pz["room"].grow(20.0).has_point(pos):
 		return false  # nor in the puzzle room (it has its own test)
+	for r in plan.get("safe_rooms", []):
+		if r.grow(20.0).has_point(pos):
+			return false  # nor in a good room
 	if pos.distance_to(plan.get("start", Vector2(-9999, -9999))) < 120.0:
 		return false
 	if pos.distance_to(plan.get("stair", Vector2(-9999, -9999))) < 90.0:

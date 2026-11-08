@@ -12,6 +12,10 @@ const WALL_EDGE := Color(0.3, 0.28, 0.32)
 const WALL_FACE := Color(0.24, 0.21, 0.24)
 const AMBIENT := Color(0.42, 0.43, 0.56)  # how bright unlit areas are
 const TORCH := Color(1.0, 0.68, 0.38)
+# Doors (doors.gd)
+const DOOR_WOOD := Color(0.36, 0.24, 0.15)
+const DOOR_IRON := Color(0.32, 0.31, 0.35)
+const DOOR_STONE := Color(0.33, 0.31, 0.35)
 
 # Characters
 const OUTLINE := Color(0.06, 0.05, 0.07)

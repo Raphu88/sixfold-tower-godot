@@ -7,6 +7,17 @@ extends RefCounted
 const ORDER := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 const ESSENCE_BONUS := 1.5  # extra essence of the tower's kind per kill
 
+## How tall every tower is: the beast waits on the summit floor. (The first,
+## bondless climb stops sooner: profile.gd's FIRST_CLIMB_FLOORS.)
+const SUMMIT := 12
+## Halfway up, a floor where the tower takes the climber's measure. For now
+## it's a normal floor with its own banner; its special test comes later.
+const PROVING := {
+	"floor": 6,
+	"name": "The Proving",
+	"line": "The tower's gaze settles on you. Here it takes your measure.",
+}
+
 const TOWERS := {
 	"gryphon": {
 		"name": "The Gryphon's Tower",
@@ -16,8 +27,9 @@ const TOWERS := {
 		"blurb": "Wind-swept halls of archers, bats and thunderlings. The Gryphon waits at the top.",
 		"weights": {"archer": 1.3, "bat": 1.4, "thunderling": 0.8, "slime": 0.3, "knight": 0.3},
 		"first": ["archer", "bat", "bat", "archer"],
-		"summit": 5,  # the floor where the beast is fought
+		"summit": SUMMIT,  # the floor where the beast is fought
 		"beast_kind": "gryphon",
+		"shapes": ["open", "open", "rect", "round"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. A landing can't be parried.",
 		"stone": Color(0.86, 0.92, 1.0),
 		"ambient": Color(0.44, 0.48, 0.64),
@@ -32,8 +44,9 @@ const TOWERS := {
 		"puddles": true,
 		"weights": {"slime": 1.3, "lurker": 1.1, "shellback": 0.8, "archer": 0.4, "knight": 0.3},
 		"first": ["knight", "slime", "lurker", "slime"],
-		"summit": 5,
+		"summit": SUMMIT,
 		"beast_kind": "kraken",
+		"shapes": ["hall", "hall", "rect", "ell"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. A slam can't be parried: roll.",
 		"stone": Color(0.82, 0.96, 0.95),
 		"ambient": Color(0.36, 0.47, 0.55),
@@ -47,8 +60,9 @@ const TOWERS := {
 		"blurb": "A hot forge-tower of knights, cinders and smiths. The hardest climb. The Wyvern waits at the top.",
 		"weights": {"knight": 1.2, "cinder": 1.2, "smith": 1.0, "archer": 0.3, "slime": 0.2},
 		"first": ["knight", "cinder", "smith", "knight"],
-		"summit": 5,
+		"summit": SUMMIT,
 		"beast_kind": "wyvern",
+		"shapes": ["pillars", "rect", "pillars", "ell"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its fire breath can't be parried: roll or step aside.",
 		"stone": Color(1.0, 0.86, 0.8),
 		"ambient": Color(0.52, 0.42, 0.42),
@@ -62,8 +76,9 @@ const TOWERS := {
 		"blurb": "Sun-baked sandstone halls of scorplings and charging rams. Stings poison. The Manticore waits at the top.",
 		"weights": {"scorpling": 1.4, "ram": 0.9, "archer": 0.6, "knight": 0.3, "slime": 0.2},
 		"first": ["scorpling", "archer", "ram", "scorpling"],
-		"summit": 5,
+		"summit": SUMMIT,
 		"beast_kind": "manticore",
+		"shapes": ["ell", "rect", "ell", "cross"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its roar can't be parried: roll through it.",
 		"stone": Color(1.0, 0.93, 0.76),
 		"ambient": Color(0.56, 0.5, 0.4),
@@ -78,8 +93,9 @@ const TOWERS := {
 		"chasms": true,
 		"weights": {"wisp": 1.4, "bloomcap": 1.0, "archer": 0.6, "knight": 0.3, "slime": 0.2},
 		"first": ["wisp", "archer", "wisp", "archer"],
-		"summit": 5,
+		"summit": SUMMIT,
 		"beast_kind": "firebird",
+		"shapes": ["round", "round", "rect", "pillars"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its firestorm can't be parried: get out of the circles. It rises once from its ashes.",
 		"stone": Color(1.0, 0.9, 0.82),
 		"ambient": Color(0.6, 0.47, 0.42),
@@ -93,8 +109,9 @@ const TOWERS := {
 		"blurb": "The Thornwild, where beasts are bred: packs of thornhounds and patchwork mongrels. The Chimera waits at the top.",
 		"weights": {"thornhound": 1.4, "mongrel": 1.0, "archer": 0.5, "knight": 0.4},
 		"first": ["thornhound", "archer", "thornhound", "slime"],
-		"summit": 5,
+		"summit": SUMMIT,
 		"beast_kind": "chimera",
+		"shapes": ["cross", "ell", "rect", "round"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its lion's breath can't be parried: roll or step aside.",
 		"stone": Color(0.86, 0.95, 0.82),
 		"ambient": Color(0.46, 0.53, 0.43),

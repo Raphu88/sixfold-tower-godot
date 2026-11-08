@@ -12,7 +12,7 @@ const Weapons := preload("res://scripts/weapons.gd")
 
 ## The chance a slain monster (not a beast) leaves a piece of gear.
 const DROP_CHANCE := 0.04
-## The chance a side room's essence cache also holds a piece of gear.
+## The chance a cache room's essence cache also holds a piece of gear.
 const CACHE_CHANCE := 0.35
 ## How close you must stand to gear on the floor to take it.
 const REACH := 26.0
