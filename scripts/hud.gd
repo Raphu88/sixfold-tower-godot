@@ -203,7 +203,8 @@ func _top_live() -> bool:
 		or essence_t > 0.0 or swap_t > 0.0 or floor_t > 0.0 or stair_t > 0.0 or (hints_t > 0.0 and not main.touch_active) \
 		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing \
 		or p.pick_open or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
-		or (p.has_bond("hunter") and p.quarry != null)
+		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
+		or (main.door_view != null and not main.door_view.lock_status().is_empty())
 
 
 ## What this layer shows that doesn't move: it's redrawn when this changes.
@@ -443,6 +444,7 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, main.fade))
 
 	_draw_boss_bar(size, font)
+	_draw_wing_status(size, font)
 	if not main.regard.is_empty():
 		_draw_regard(size, font)
 	if not main.victory.is_empty():
@@ -877,6 +879,46 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 		return
 
 
+## A sealed wing's question (wings.gd): its condition, kept or broken, the
+## wave and the clock; and a champion's health bar.
+func _draw_wing_status(size: Vector2, font: Font) -> void:
+	if main.wings == null or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing:
+		return
+	# Shut in a lock-in room (doors.gd): say so, and how many foes are left.
+	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
+	if not ls.is_empty():
+		var t1: String = main.door_view.LOCK_TEXT["status"]
+		var t2: String = main.door_view.LOCK_TEXT["left"] % int(ls["left"])
+		draw_string_outline(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(0.9, 0.55, 0.45))
+		draw_string_outline(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, 3, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, TEXT)
+	var st: Dictionary = main.wings.status()
+	if st.is_empty():
+		return
+	var y := 84.0
+	var champ = st.get("champ")
+	if champ != null:
+		var w := minf(360.0, size.x - 140.0)
+		var r := Rect2(Vector2((size.x - w) / 2.0, y + 6.0), Vector2(w, 10))
+		var name: String = String(main.wings.TEXT["champion"]).to_upper()
+		draw_string_outline(font, Vector2(0, y), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, y), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, GOLD)
+		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
+		draw_rect(r, Color(0.3, 0.1, 0.08, 0.9))
+		draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(champ.hp / champ.max_hp, 0.0, 1.0), r.size.y)), Color(0.95, 0.72, 0.3))
+		y += 40.0
+	if champ != null and st["line"] == "":
+		return
+	var col := GOLD if st["ok"] else Color(0.9, 0.42, 0.35)
+	var head: String = st["title"] + ("" if st["ok"] else "  ·  broken")
+	draw_string_outline(font, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, col)
+	if st["line"] != "":
+		draw_string_outline(font, Vector2(0, y + 18.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, 3, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, y + 18.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, TEXT)
+
+
 ## How dark the Regard's or the victory's backdrop is. One that begins while
 ## the screen is black between floors starts fully dark, so the room doesn't
 ## flash into view as the black fades out and the backdrop fades in.
@@ -893,9 +935,13 @@ func _draw_victory(size: Vector2, font: Font) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, _overlay_shade(v, 0.94)))
 	var a := clampf((t - 0.3) / 0.6, 0.0, 1.0)
 	var top := size.y * 0.32
-	draw_string_outline(font, Vector2(0, top), "CLIMB COMPLETE", HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
-	draw_string(font, Vector2(0, top), "CLIMB COMPLETE", HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(GOLD, a))
-	draw_string(font, Vector2(0, top + 34), "%s yields." % String(v["beast"]).capitalize(), HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(TEXT, a))
+	# (A recall scroll read: you left the tower, the climb not won.)
+	var recall: bool = v.get("recall", false)
+	var head: String = Items.RECALL["title"] if recall else "CLIMB COMPLETE"
+	var sub: String = Items.RECALL["sub"] % String(v["beast"]).capitalize() if recall else "%s yields." % String(v["beast"]).capitalize()
+	draw_string_outline(font, Vector2(0, top), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
+	draw_string(font, Vector2(0, top), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(GOLD, a))
+	draw_string(font, Vector2(0, top + 34), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(TEXT, a))
 	var ly := top + 70.0
 	for line in v["lines"]:
 		draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, a))
@@ -940,6 +986,8 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
 	if main.camp["stage"] == "heirloom":
 		title = Gear.HEIRLOOM_TEXT["title"]
+	elif main.camp["stage"] == "vault":
+		title = main.camp.get("title", "")
 	draw_string_outline(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, 6, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, GOLD)
 	var sub: Array = main.camp.get("lines", [])
@@ -960,6 +1008,8 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		draw_circle(ic, 28.0, Color(col, 0.1))
 		if card.has("gear"):
 			Gear.draw_icon(self, card["gear"], ic, 22.0, col)
+		elif card.has("crystal"):
+			Items.draw_crystal_icon(self, col, ic, 22.0)
 		elif card["item"] != "":
 			Items.draw_icon(self, card["item"], ic, 22.0)
 		else:
@@ -971,8 +1021,8 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, DIM_TEXT)
 		if card["item"] != "" and p != null:
 			var n: int = p.item_count(card["item"])
-			var have := "carrying %d of %d" % [n, Items.MAX_STACK]
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if n >= Items.MAX_STACK else DIM_TEXT)
+			var have := "carrying %d of %d" % [n, Items.max_stack(card["item"])]
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if n >= Items.max_stack(card["item"]) else DIM_TEXT)
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), _card_hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD)
 
 

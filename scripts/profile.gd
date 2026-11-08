@@ -35,6 +35,11 @@ var part_density := {}  # part -> {kind -> amount}
 ## Heirlooms: gear kept from survived climbs, by heirloom slot (gear.gd
 ## HEIRLOOM_SLOTS) -> gear id. Every climb starts with them.
 var heirlooms := {}
+## Essence crystals: essence held outside you, kept between climbs. A vault
+## or a secret room may hold some; reading a recall scroll turns unbanked
+## essence into them; consuming one banks its essence into you (main.gd
+## consume_crystal). Each is {"kind", "amount"}.
+var crystals: Array = []
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -70,6 +75,7 @@ func reset() -> void:
 	density = {}
 	part_density = {}
 	heirlooms = {}
+	crystals = []
 	save()
 
 
@@ -88,6 +94,7 @@ func load_save() -> void:
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 	heirlooms = cfg.get_value("profile", "heirlooms", {})
+	crystals = cfg.get_value("profile", "crystals", [])
 
 
 func save() -> void:
@@ -106,7 +113,40 @@ func save() -> void:
 	cfg.set_value("profile", "density", density)
 	cfg.set_value("profile", "part_density", part_density)
 	cfg.set_value("profile", "heirlooms", heirlooms)
+	cfg.set_value("profile", "crystals", crystals)
 	cfg.save(SAVE_PATH)
+
+
+# --- essence crystals ------------------------------------------------------------
+
+## Keeps an essence crystal (amounts under 1 make none).
+func add_crystal(kind: String, amount: float) -> void:
+	if amount < 1.0:
+		return
+	crystals.append({"kind": kind, "amount": float(round(amount))})
+
+
+## How many crystals of a kind you hold, and how much essence they hold.
+func crystal_count(kind: String) -> int:
+	return crystals.filter(func(c): return c["kind"] == kind).size()
+
+
+func crystal_total(kind: String) -> float:
+	var total := 0.0
+	for c in crystals:
+		if c["kind"] == kind:
+			total += float(c["amount"])
+	return total
+
+
+## Takes one crystal of a kind (the first kept); its essence, or 0 if none.
+func take_crystal(kind: String) -> float:
+	for i in crystals.size():
+		if crystals[i]["kind"] == kind:
+			var amount := float(crystals[i]["amount"])
+			crystals.remove_at(i)
+			return amount
+	return 0.0
 
 
 ## How much the way you fought tips the choice between bonds, against the

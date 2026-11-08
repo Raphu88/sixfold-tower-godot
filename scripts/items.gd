@@ -17,7 +17,7 @@ const STEADY_HEAL := 1.3
 ## ...and take this much less time.
 const STEADY_TIME := 0.6
 
-const ORDER := ["draught", "tonic", "vial", "smoke"]
+const ORDER := ["draught", "tonic", "vial", "smoke", "scroll"]
 
 const ITEMS := {
 	"draught": {
@@ -55,7 +55,44 @@ const ITEMS := {
 		"duration": 5.0,
 		"drop_weight": 1,
 	},
+	# Only from vaults (wings.gd): never dropped or offered at a camp.
+	"scroll": {
+		"name": "Recall Scroll",
+		"short": "Scroll",
+		"desc": "read it to leave the tower safely, keeping everything: your unbanked essence becomes essence crystals",
+		"color": Color(0.95, 0.82, 0.5),
+		"drop_weight": 0,
+		"max": 1,
+	},
 }
+
+## Reading the recall scroll (main.gd read_recall). It asks first: use it
+## again within CONFIRM seconds to read it.
+const RECALL := {
+	"confirm": 3.0,
+	"ask_title": "READ THE RECALL SCROLL?",
+	"ask": "Use it again within 3 seconds to leave the tower, keeping everything.",
+	"ask_menu": "Press Read again to leave the tower now.",
+	"first_climb": "The scroll's words won't come. The beast has not yet regarded you.",
+	"title": "YOU LEAVE THE TOWER",
+	"sub": "The scroll's words fold the tower away. %s lets you go, for now.",
+	"crystals": "Unbanked essence settles into crystals: %s",
+	"none": "You carried no unbanked essence.",
+}
+
+## Essence crystals (kept in the profile between climbs).
+const CRYSTAL := {
+	"name": "%s Crystal",
+	"desc": "holds %d %s essence outside you; consume it to bank that essence into you",
+	"consume": "Consume one",
+	"consumed": "Consumed: %d %s essence banked into you",
+	"none": "No crystals yet. Vaults and secret rooms may hold them, and a recall scroll turns unbanked essence into them.",
+}
+
+
+## How many of an item you can carry.
+static func max_stack(id: String) -> int:
+	return int(ITEMS.get(id, {}).get("max", MAX_STACK))
 
 # --- camps ---------------------------------------------------------------------
 
@@ -100,14 +137,14 @@ static func color(id: String) -> Color:
 static func random_item(marked := true, exclude: Array = []) -> String:
 	var total := 0
 	for id in ORDER:
-		if id in exclude or (not marked and ITEMS[id].get("needs_mark", false)):
+		if id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)):
 			continue
 		total += int(ITEMS[id]["drop_weight"])
 	if total <= 0:
 		return "draught"
 	var roll := randi() % total
 	for id in ORDER:
-		if id in exclude or (not marked and ITEMS[id].get("needs_mark", false)):
+		if id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)):
 			continue
 		roll -= int(ITEMS[id]["drop_weight"])
 		if roll < 0:
@@ -133,6 +170,9 @@ static func use(id: String, p) -> bool:
 	var col: Color = data["color"]
 	var steady: bool = p.has_bond("surgeon")
 	var above: Vector2 = p.global_position + Vector2(0, -44)
+	if id == "scroll":
+		# (main.gd asks first, then reads it: the climb ends there)
+		return main.recall_pressed()
 	match id:
 		"draught":
 			if p.hp >= p.max_health() - 0.5:
@@ -265,8 +305,58 @@ static func icon_into(b, id: String, c: Vector2, s: float) -> void:
 			b.dot(bc + Vector2(-2.8, -2.8) * u, 1.6 * u, Color(1, 1, 1, 0.5))
 			_spark(b, c + Vector2(6.0, -8.2) * u, 3.0 * u, Color(1.0, 0.75, 0.3))
 			_spark(b, c + Vector2(6.0, -8.2) * u, 1.5 * u, Color(1.0, 0.97, 0.8))
+		"scroll":
+			# A rolled parchment tied with a red cord, gold letters showing.
+			var paper := Color(0.88, 0.8, 0.62)
+			var body := Rect2(c + Vector2(-6.4, -5.2) * u, Vector2(12.8, 10.4) * u)
+			b.rect(body.grow(ol), Palette.OUTLINE)
+			b.rect(body, paper)
+			b.rect(Rect2(body.position, Vector2(body.size.x, 1.6 * u)), paper.lightened(0.2))
+			for k in 3:
+				var y := body.position.y + (2.8 + k * 2.4) * u
+				b.rect(Rect2(Vector2(body.position.x + 2.0 * u, y), Vector2((7.0 - k * 1.5) * u, 0.9 * u)), Color(col.darkened(0.25), 0.9))
+			for sx in [-1.0, 1.0]:
+				var rc: Vector2 = c + Vector2(sx * 7.2, 0) * u
+				var roll := Rect2(rc + Vector2(-1.8, -6.6) * u, Vector2(3.6, 13.2) * u)
+				b.rect(roll.grow(ol), Palette.OUTLINE)
+				b.rect(roll, paper.darkened(0.12))
+				b.rect(Rect2(roll.position, Vector2(1.1 * u, roll.size.y)), paper.lightened(0.15))
+			b.rect(Rect2(c + Vector2(1.6, -5.6) * u, Vector2(1.6, 11.2) * u), Color(0.75, 0.2, 0.18))
+			b.dot(c + Vector2(2.4, 5.8) * u, 1.6 * u, Color(0.75, 0.2, 0.18))
 		_:
 			b.ball(c, s * 0.5, col, true)
+
+
+## An essence crystal's icon in the essence's colour, centred on `c` (about
+## 2*s across): a tall faceted shard with a glow and a spark.
+static func draw_crystal_icon(ci: CanvasItem, col: Color, c: Vector2, s: float, alpha := 1.0) -> void:
+	var b := Draw.Batch.new()
+	crystal_into(b, col, c, s)
+	if alpha < 0.999:
+		for i in b.cols.size():
+			b.cols[i].a *= alpha
+	b.flush(ci)
+
+
+static func crystal_into(b, col: Color, c: Vector2, s: float) -> void:
+	var u := s / 10.0
+	var ol := clampf(u * 1.1, 0.8, 1.6)
+	for i in 4:
+		b.dot(c, (9.0 - i * 1.6) * u, Color(col, 0.07))
+	var top := c + Vector2(0, -9.5) * u
+	var bot := c + Vector2(0, 9.0) * u
+	var l := c + Vector2(-5.2, -1.5) * u
+	var r := c + Vector2(5.2, -1.5) * u
+	var ml := c + Vector2(-4.0, 4.0) * u
+	var mr := c + Vector2(4.0, 4.0) * u
+	var outline := PackedVector2Array([top, r, mr, bot, ml, l])
+	b.poly(outline, col.darkened(0.35), ol)
+	b.polygon(PackedVector2Array([top, l, ml, c + Vector2(-0.6, 1.0) * u]), col.lightened(0.25))
+	b.polygon(PackedVector2Array([top, c + Vector2(-0.6, 1.0) * u, c + Vector2(0.8, 0.5) * u, r]), col)
+	b.polygon(PackedVector2Array([c + Vector2(0.8, 0.5) * u, r, mr, bot]), col.darkened(0.15))
+	b.polygon(PackedVector2Array([c + Vector2(-0.6, 1.0) * u, ml, bot, c + Vector2(0.8, 0.5) * u]), col.darkened(0.05))
+	b.line(top, c + Vector2(-0.6, 1.0) * u, col.lightened(0.55), maxf(0.7, 0.6 * u))
+	_spark(b, c + Vector2(-2.0, -3.6) * u, 2.4 * u, Color(1, 1, 1, 0.85))
 
 
 ## A flask's neck and cork, with its bottom at `at`.
