@@ -881,7 +881,7 @@ func _update_room_looks(camps: Array) -> void:
 	var looks: Array = []
 	for i in room_info.size():
 		var th: Dictionary = Themes.get_theme(room_themes[i])
-		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "tint": th["tint"], "decor": th.get("decor", "")})
+		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", "")})
 	room_view.set_looks(looks, springs, camps)
 
 

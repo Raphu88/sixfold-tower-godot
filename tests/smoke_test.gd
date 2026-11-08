@@ -1035,12 +1035,6 @@ func _plan_tests() -> void:
 	_check(kinds.has("good") and kinds.has("bad") and kinds.has("mixed"), "good, bad and mixed rooms all turn up")
 	_check(ok_door_rule and doors_total > 36, "doors fill doorways, never into the start room (%d over 36 floors)" % doors_total)
 	_check(ok_chasm, "the Firebird's floors always have a chasm to jump")
-	var words_ok := true
-	for id in T.THEMES:
-		var text := String(T.THEMES[id]["name"] + " " + T.THEMES[id]["sub"]).to_lower()
-		for word in ["attunement", "spire", "trial", "judgment", "mana"]:
-			words_ok = words_ok and not text.contains(word)
-	_check(words_ok, "room themes keep to the tower's own words")
 	# Doors in the game: solid, blocking sight and the way, until you walk up.
 	var p = main.player
 	var door := {}

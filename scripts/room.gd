@@ -37,7 +37,7 @@ var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
 var cache := {}  # a good room's essence cache: {pos, kind, taken}
 # Room themes (themes.gd): each room's floor tint and marks, drawn into the
-# floor squares (static: no cost per frame). {walk: [Rect2], tint, decor}
+# floor squares (static: no cost per frame). {walk: [Rect2], rect, rows, tint, decor}
 var looks: Array = []
 var springs: Array = []  # healing springs: {pos, r, left} (shared with main.gd)
 var camps: Array = []  # fallen climbers' cold camps: {pos}
@@ -429,8 +429,23 @@ func _draw_looks() -> void:
 			for r in walk:
 				batch.rect(r, tint)
 			# A brighter line just inside the room's edge, so the colour reads.
-			for r in walk:
-				_outline(r.grow(-3.0), Color(tint, tint.a * 0.9), 2.0)
+			var rows: Array = lk.get("rows", [])
+			var at: Vector2 = lk.get("rect", Rect2()).position
+			var line := Color(tint, minf(tint.a * 1.6, 0.25))
+			for y in rows.size():
+				var row: String = rows[y]
+				for x in row.length():
+					if row[x] == "X":
+						continue
+					var tl := at + Vector2(x, y) * TILE
+					if y == 0 or String(rows[y - 1])[x] == "X":
+						batch.rect(Rect2(tl + Vector2(0, 2), Vector2(TILE, 2)), line)
+					if y == rows.size() - 1 or String(rows[y + 1])[x] == "X":
+						batch.rect(Rect2(tl + Vector2(0, TILE - 4), Vector2(TILE, 2)), line)
+					if x == 0 or row[x - 1] == "X":
+						batch.rect(Rect2(tl + Vector2(2, 0), Vector2(2, TILE)), line)
+					if x == row.length() - 1 or row[x + 1] == "X":
+						batch.rect(Rect2(tl + Vector2(TILE - 4, 0), Vector2(2, TILE)), line)
 		if walk.is_empty():
 			continue
 		var box: Rect2 = lk.get("rect", walk[0])
