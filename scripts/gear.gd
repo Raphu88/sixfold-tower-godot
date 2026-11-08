@@ -71,6 +71,7 @@ const TEXT := {
 ##   roll_dist  multiplier on how far a roll carries you
 ##   regen      multiplier on how fast stamina refills
 ##   walk       multiplier on walking speed
+##   step       a sound layered on each footstep (chain mail and plate jingle)
 const ARMOR_ORDER := ["", "padded", "leather", "chain", "plate"]
 const ARMOR := {
 	"": {
@@ -101,6 +102,7 @@ const ARMOR := {
 		"short": "Chain",
 		"desc": "rings of steel: good protection; rolls cost more and stamina comes back slower",
 		"reduce": 0.25, "roll_cost": 1.3, "roll_dist": 0.88, "regen": 0.87, "walk": 0.95,
+		"step": "step_chain",
 		"color": Color(0.62, 0.65, 0.7),
 		"drop_weight": 3,
 	},
@@ -109,6 +111,7 @@ const ARMOR := {
 		"short": "Plate",
 		"desc": "heavy steel: the best protection, but rolls are short and costly, and you tire fast",
 		"reduce": 0.35, "roll_cost": 1.55, "roll_dist": 0.76, "regen": 0.75, "walk": 0.9,
+		"step": "step_plate",
 		"color": Color(0.8, 0.82, 0.88),
 		"drop_weight": 1,
 	},

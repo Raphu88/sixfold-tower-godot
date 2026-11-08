@@ -97,6 +97,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	scroll.add_child(box)
 	hide()
+	get_viewport().gui_focus_changed.connect(func(_c): if page != "" and main != null: main.sfx("ui_move"))
 	load_settings()
 	apply_settings()
 
@@ -221,6 +222,7 @@ func _can_open() -> bool:
 
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
+	if main != null and page != "": main.sfx("ui_back")
 	if page == "confirm_new":
 		open(confirm_back)
 	elif page == "pause" or page == "":
@@ -321,6 +323,7 @@ func open(which: String, direct := false) -> void:
 	details = null
 	if keep < 0:
 		scroll.scroll_vertical = 0
+	if main != null and which != "title" and keep < 0: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
 	call("_page_" + which)
 	_layout()
 	# Keyboard and controller: start on the first button (or slider), or the
@@ -338,6 +341,7 @@ func open(which: String, direct := false) -> void:
 func close() -> void:
 	if page == "":
 		return
+	if main != null: main.sfx("ui_close")
 	page = ""
 	opened_direct = false
 	get_tree().paused = false

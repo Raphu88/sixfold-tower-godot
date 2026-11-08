@@ -884,7 +884,7 @@ func _quake(p) -> void:
 		main.add_stone_wall(ring, 9.0, 4.0)
 	main.fx_ring(p.global_position, color(), r, 0.4, 6.0)
 	main.fx_burst(p.global_position, Vector2.ZERO, color(), 20, 260.0)
-	main.sfx("hit_heavy", 0.5)
+	main.sfx("slam", 0.85)
 	main.shake(7.0)
 	if _overdrawn():
 		p.stagger_self(0.4)  # an overdrawn quake knocks you down too
@@ -904,7 +904,7 @@ func _sinkhole(p) -> void:
 	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 140.0
 	main.pits.append({"pos": at, "r": 30.0, "t": 2.5})
 	main.fx_ring(at, color(), 36.0, 0.4, 4.0)
-	main.sfx("hit_heavy", 0.45)
+	main.sfx("slam", 0.75)
 	if target == null:
 		return
 	if target.radius <= 13.0 and not target.is_boss():
@@ -920,7 +920,7 @@ func _fault(p) -> void:
 	var center: Vector2 = p.global_position + p.aim * 90.0
 	p.main.add_stone_wall(_line_points(center, p.aim, stat("length"), 16.0), 9.0, stat("duration"), true)
 	p.main.fx_burst(center, p.aim, color(), 20, 240.0)
-	p.main.sfx("hit_heavy", 0.4)
+	p.main.sfx("slam", 0.7)
 	p.main.shake(6.0)
 
 

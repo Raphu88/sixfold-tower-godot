@@ -651,7 +651,7 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 			if state_t <= 0.0:
 				main.fx_ring(global_position, Color(1.0, 0.85, 0.6), DIVE_RADIUS, 0.4, 6.0)
 				main.fx_burst(global_position, Vector2.ZERO, Color(0.85, 0.8, 0.7), 18, 280.0)
-				main.sfx("hit_heavy", 0.6)
+				main.sfx("slam", 1.0)
 				main.shake(9.0)
 				if global_position.distance_to(p.global_position) < DIVE_RADIUS + p.radius:
 					p.receive_attack(dmg * 1.2, self, true)  # a landing can't be parried: roll
@@ -765,7 +765,7 @@ func _shellback(delta: float, dir: Vector2, dist: float, p) -> void:
 			velocity = Vector2.ZERO
 			if _wind(delta):
 				main.fx_cone(global_position, face, 70.0, deg_to_rad(55.0), Color(1.0, 0.45, 0.3))
-				main.sfx("hit_heavy", 0.6)
+				main.sfx("slam", 1.0)
 				var to: Vector2 = p.global_position - global_position
 				if to.length() < 66.0 + p.radius and absf(face.angle_to(to)) < deg_to_rad(55.0):
 					p.receive_attack(dmg, self)
@@ -813,7 +813,7 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 					main.fx_burst(spot, Vector2.ZERO, Color(0.5, 0.75, 0.85), 10, 200.0)
 					if p.global_position.distance_to(spot) < SLAM_RADIUS + p.radius:
 						p.receive_attack(dmg * 1.1, self, true)
-				main.sfx("hit_heavy", 0.5)
+				main.sfx("slam", 0.85)
 				main.shake(8.0)
 				_end_attack("recover", 1.5)
 		"wind_ink":
@@ -891,7 +891,7 @@ func _smith(delta: float, dir: Vector2, dist: float, p) -> void:
 				var spot: Vector2 = global_position + face * HAMMER_REACH
 				main.fx_ring(spot, Color(1.0, 0.6, 0.3), HAMMER_RADIUS, 0.35, 5.0)
 				main.fx_burst(spot, Vector2.ZERO, Color(1.0, 0.6, 0.3), 12, 240.0)
-				main.sfx("hit_heavy", 0.55)
+				main.sfx("slam", 0.92)
 				main.shake(6.0)
 				if p.global_position.distance_to(spot) < HAMMER_RADIUS + p.radius:
 					p.receive_attack(dmg, self)
@@ -1057,7 +1057,7 @@ func _ram_crash() -> void:
 		stagger(1.6)
 		main.fx_text(global_position + Vector2(0, -radius - 22.0), "Crashed", Color(0.9, 0.8, 0.6))
 		main.fx_burst(global_position + lunge_dir * radius, -lunge_dir, Color(0.85, 0.75, 0.55), 12, 220.0)
-		main.sfx("hit_heavy", 0.6)
+		main.sfx("slam", 1.0)
 		main.shake(5.0)
 
 
@@ -1097,7 +1097,7 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.fx_ring(global_position, Color(1.0, 0.75, 0.45), ROAR_RADIUS, 0.45, 8.0)
 				main.fx_burst(global_position, Vector2.ZERO, Color(0.85, 0.7, 0.5), 20, 300.0)
 				main.sfx("warn_knight", 0.4)
-				main.sfx("hit_heavy", 0.5)
+				main.sfx("slam", 0.85)
 				main.shake(9.0)
 				if dist < ROAR_RADIUS + p.radius:
 					p.receive_attack(dmg, self, true)  # a roar can't be parried: roll

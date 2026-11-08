@@ -260,7 +260,7 @@ func _warn_sound(tr: Dictionary) -> void:
 		return
 	match tr["kind"]:
 		"spikes":
-			main.sfx("glint", 0.6, -4.0, 0.0)  # the click
+			main.sfx("trap_click", 1.0, -2.0)  # the plate clicks
 		"thorns":
 			main.sfx("roll", 0.7, -8.0)  # a rustle
 		"flame", "ember":
@@ -295,7 +295,7 @@ func _fire_effects(tr: Dictionary) -> void:
 			main.sfx("burn", 1.0, -6.0)
 		"spikes":
 			main.fx_burst(pos, Vector2.ZERO, col, 8, 140.0)
-			main.sfx("hit_armor", 1.3, -6.0)
+			main.sfx("trap_spikes", 1.0, -4.0)
 		"ember":
 			main.fx_burst(pos, Vector2.ZERO, col, 16, 260.0)
 			main.light_flash(pos, col, 1.0, 1.6, 0.3)

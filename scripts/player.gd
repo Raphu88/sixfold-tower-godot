@@ -190,7 +190,7 @@ func take_gear(id: String) -> String:
 	gear[slot] = id
 	if slot == "armor":
 		main.fx_text(global_position + Vector2(0, -30), Gear.display(id), Gear.color(id))
-		main.sfx("hit_armor", 0.8, -4.0)
+		main.sfx("armor_on", 1.0, -2.0)
 	else:
 		drawing = false
 		_equip(id)
@@ -391,7 +391,11 @@ func _footsteps(delta: float, speed: float) -> void:
 	step_t -= delta
 	if step_t <= 0.0:
 		step_t = 36.0 / speed  # one step every ~36 px travelled
-		main.sfx("step", 1.0, -2.0 if speed > WALK * 1.1 else -5.0, 0.08)
+		var vol := -2.0 if speed > WALK * 1.1 else -5.0
+		main.sfx("step", 1.0, vol, 0.08)
+		var clink: String = armor().get("step", "")  # chain mail and plate jingle
+		if clink != "":
+			main.sfx(clink, 1.0, vol - 2.0, 0.1)
 
 
 func _read_buffer() -> void:
@@ -492,9 +496,15 @@ func _tick_timers(delta: float) -> void:
 	buffer_t -= delta
 	sta_delay -= delta
 	if reload_t > 0.0:
+		var was := reload_t
 		reload_t -= delta
+		if weapon in Weapons.WEAPONS and wkind() == "crossbow":
+			# The windlass ratchets back, then the bolt drops into place.
+			var crank: float = float(wdata()["reload"]) * 0.8
+			if was > crank and reload_t <= crank:
+				main.sfx("crossbow_reload", 1.0, 0.0, 0.03)
 		if reload_t <= 0.0 and weapon in Weapons.WEAPONS and wkind() == "crossbow":
-			main.sfx("equip_bow", 1.2, -4.0)
+			main.sfx("crossbow_load")
 			main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 14.0, 0.2, 2.0)
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
@@ -636,7 +646,7 @@ func _try_attack() -> bool:
 		draw_t = 0.0
 		draw_release = false
 		draw_ready = false
-		main.sfx("draw", 1.0, 0.0, 0.03)
+		main.sfx("draw", _bow_pitch(wdata()), 0.0, 0.03)
 		return true
 	return _melee()
 
@@ -723,13 +733,18 @@ func _tick_draw(delta: float) -> void:
 	draw_t += delta
 	if draw_t >= w["draw_time"] and not draw_ready:
 		draw_ready = true
-		main.sfx("ready", 1.0, 0.0, 0.0)
+		main.sfx("bow_full", 1.0, 0.0, 0.03)
 		main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 18.0, 0.2, 2.0)
 	if (mouse_aim or touch_aim or stick_aim) and not Input.is_action_pressed("attack"):
 		draw_release = true
 	# A quick tap still looses a weak shot once the arrow is nocked.
 	if draw_release and draw_t >= w["min_draw"]:
 		release_draw()
+
+
+## Bigger bows (slower draws) creak and sing lower: 1.0 for the shortbow.
+func _bow_pitch(w: Dictionary) -> float:
+	return clampf(sqrt(0.75 / float(w.get("draw_time", 0.75))), 0.8, 1.15)
 
 
 ## Looses the drawn arrow. Power grows with how long you held the draw.
@@ -751,7 +766,9 @@ func release_draw() -> void:
 	var force: float = lerpf(w["knock_min"], w["knock_max"], k)
 	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
 	arrow.life = float(w.get("life", 1.6))
-	main.sfx("bow", 0.9 + 0.2 * k, -6.0 + 6.0 * k)
+	main.sfx_fade("draw")  # the creak stops when the string goes
+	# A harder draw looses a louder, sharper shot.
+	main.sfx("bow", _bow_pitch(w) * (0.92 + 0.14 * k), -9.0 + 9.0 * k)
 	knock = -aim * (60.0 if full else 20.0)
 	if full:
 		main.shake(3.0)
@@ -773,7 +790,7 @@ func _fire_bolt() -> void:
 	bolt.life = float(w["life"])
 	bolt.heavy = bool(w.get("heavy", false))
 	bolt.style = "bolt"
-	main.sfx("bow", 0.7, -2.0)
+	main.sfx("crossbow")
 	knock = -aim * 50.0
 	main.shake(2.5)
 
