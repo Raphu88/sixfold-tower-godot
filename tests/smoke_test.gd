@@ -1109,8 +1109,11 @@ func _plan_tests() -> void:
 		e.set_physics_process(false)
 		e.aware = false
 	p.global_position = main.player_start
+	main.traps = []  # (no trap may catch the test's monster on its way)
 	main.door_view.monster_t = 99.0  # (a new monster starts awake: hold the check a moment)
 	var foe = await _spawn("slime", door["rect"].get_center() + door["out"] * 50.0)
+	foe.max_hp = 9999.0
+	foe.hp = 9999.0
 	foe.set_physics_process(false)
 	foe.aware = false
 	main.door_view.monster_t = 0.0
@@ -1121,12 +1124,14 @@ func _plan_tests() -> void:
 		if door["open"]:
 			break
 		await _wait(0.1)
-	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it (shut while asleep: %s, open once awake: %s)" % [shut, door["open"]])
-	foe.queue_free()
+	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it (shut while asleep: %s, open once awake: %s, monster still there: %s)" % [shut, door["open"], is_instance_valid(foe)])
+	if is_instance_valid(foe) and not foe.is_queued_for_deletion():
+		foe.queue_free()
 	# Entering a themed room shows its name and rule, once.
 	for e in main.enemies():
-		e.queue_free()
-	await _frames(1)
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			e.queue_free()
+	await _frames(2)
 	var ti := -1
 	for i in main.room_info.size():
 		if main.room_themes[i] in ["den", "landing"] or T.get_theme(main.room_themes[i])["kind"] == "good":
