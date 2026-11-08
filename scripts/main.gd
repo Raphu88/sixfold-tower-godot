@@ -34,6 +34,8 @@ const Train := preload("res://scripts/train.gd")
 const Lost := preload("res://scripts/lost.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
+const SecretBonds := preload("res://scripts/secret_bonds.gd")
+const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -128,6 +130,7 @@ var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
 var entity  # the Entity's bubble in play (guide.gd); main.tip("id") for a new system
 var dev_no_death := false  # dev tool: you can't fall
+var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
@@ -328,6 +331,9 @@ func _ready() -> void:
 	menu = MenuScript.new()
 	menu.main = self
 	menu_layer.add_child(menu)
+	secret_tools = SecretToolsScript.new()
+	secret_tools.main = self
+	add_child(secret_tools)
 	# A fresh start (not a restart or a new floor) opens on the title screen.
 	if not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
 		menu.open.call_deferred("title")
@@ -1279,6 +1285,7 @@ func _arrive() -> void:
 		lines.append("Banked %d essence" % int(banked))
 		profile.note("essence", banked)
 		tip("bank")
+	lines.append_array(SecretBonds.on_bank(profile, run_essence, run_flow, profile.path))  # (a secret bond grows from what's banked)
 	lines.append_array(profile.bank(run_essence, run_soak))
 	run_essence = {}
 	run_soak = {}
@@ -2177,6 +2184,7 @@ func _give_bonds() -> void:
 			b.essence = minf(old[part].essence, b.capacity())
 			b.burned = old[part].burned
 			b.selected = old[part].selected
+		b.tunes = SecretBonds.active_tunes(profile)  # the Developer's Tune (secret_bonds.gd)
 		b.attr_power = 1.0 + profile.attribute("fire")
 		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b
@@ -2459,7 +2467,7 @@ func holds_attack(e) -> bool:
 func request_attack(e) -> bool:
 	if e.disarm_t > 0.0:
 		return false  # Surgeon: a disarmed foe can't start an attack
-	if e in attackers or e.challenged_t > 0.0:  # Challenged foes come at you regardless
+	if e in attackers or e.challenged_t > 0.0 or e.feud != null:  # Challenged foes come at you regardless (and a feud needs no turn)
 		return true
 	if not can_attack():
 		return false

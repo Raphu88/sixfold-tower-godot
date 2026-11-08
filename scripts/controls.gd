@@ -69,6 +69,10 @@ const PAD_CAST := {
 	PAD_RT: "cast_back",
 }
 
+## Also while LB (L1) is held: LT (L2) holds the tool ring of a secret bond
+## (secret_tools.gd), instead of parrying.
+const PAD_LB_EXTRA := {PAD_LT: "tool_ring"}
+
 ## Button names for prompts: [Xbox, PlayStation, short PlayStation].
 const PAD_NAMES := {
 	"a": ["A", "Cross", "X"], "b": ["B", "Circle", "O"], "x": ["X", "Square", "Sq"], "y": ["Y", "Triangle", "Tri"],
@@ -94,6 +98,7 @@ const HELP := [
 	["cast marks (hold to pick)", "Q E F C X V", "hold {lb} + {x} {a} {b} {y} {rb} {rt}"],
 	["use item / next item (hold: item ring)", "G / T", "{x} / D-pad down"],
 	["take gear", "Y", "{y}"],
+	["tool ring (a secret bond's tools; hold)", "B", "hold {lb} + {lt}"],
 	["pause menu", "Esc / P", "{start}"],
 	["climber screen", "Tab", "{back} (press)"],
 	["inventory", "I", "D-pad up"],
@@ -135,6 +140,7 @@ static func setup() -> void:
 	_bind("use_item", [_key(KEY_G)])
 	_bind("item_next", [_key(KEY_T)])
 	_bind("interact", [_key(KEY_Y)])  # take the gear you stand on
+	_bind("tool_ring", [_key(KEY_B)])  # a secret bond's tool ring (secret_tools.gd): tap or hold
 	_bind("restart", [_key(KEY_R)])  # hold (main.gd), so a stray press doesn't end the climb
 	_bind("toggle_music", [_key(KEY_M)])
 	_bind("toggle_help", [_key(KEY_H)])
