@@ -25,6 +25,7 @@ const MONSTERS := {
 	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
+const Rooms := preload("res://scripts/rooms.gd")
 
 ## Pillar layouts, as fractions of the room (x, y, radius in px).
 const LAYOUTS := [
@@ -92,13 +93,24 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			break
 		cur = options[randi() % options.size()]
 		path.append(cur)
-	# A room in each cell of the path, snapped to the tile grid.
+	# A hand-made room (rooms.gd) in each cell of the path: the start room
+	# first, the stair room last, combat rooms between. No room twice a floor.
 	var rooms: Array = []
-	for c in path:
+	var room_rows: Array = []
+	var used: Array = []
+	for i in path.size():
+		var c: Vector2i = path[i]
+		var role := "start" if i == 0 else ("stair" if i == path.size() - 1 else "combat")
+		var pick := _pick_room(role, floor_num, used, cell_size)
+		used.append(pick["id"])
+		var tiles := Rooms.size_of(pick)
+		var size := Vector2(tiles) * CELL
 		var origin: Vector2 = ARENA.position + Vector2(c) * cell_size
-		var size := Vector2(randf_range(380.0, cell_size.x - 80.0), randf_range(320.0, cell_size.y - 90.0))
-		var pos := origin + Vector2(randf_range(40.0, cell_size.x - 40.0 - size.x), randf_range(50.0, cell_size.y - 40.0 - size.y))
-		rooms.append(_snap(Rect2(pos, size)))
+		var pos := origin + Vector2(randf_range(40.0, maxf(40.0, cell_size.x - 40.0 - size.x)), randf_range(50.0, maxf(50.0, cell_size.y - 40.0 - size.y)))
+		pos = ARENA.position + ((pos - ARENA.position) / CELL).floor() * CELL
+		rooms.append(Rect2(pos, size))
+		var can_flip: bool = pick.get("flip", false)
+		room_rows.append(Rooms.flipped(pick, can_flip and randf() < 0.5, can_flip and randf() < 0.5))
 	# Corridors: an L from each room's centre to the next one's.
 	var corridors: Array = []
 	for i in rooms.size() - 1:
@@ -108,25 +120,38 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var stair := Vector2(last.get_center().x, last.position.y + 34.0)
 	# Sometimes a small dead-end room with an essence cache.
 	var side: Dictionary = side_room(rooms, corridors, start, stair) if randf() < float(SIDE_ROOM["chance"]) else {}
-	# Pillars in the bigger rooms, clear of the middle (where corridors meet).
+	# The rooms' own features: walls, pillars, chasms, pools, monster spots.
+	# Whatever stands in a corridor's way (or on the start or stair) is cleared.
 	var pillars: Array = []
-	for r in rooms:
-		if r.size.x * r.size.y < 170000.0:
-			continue
-		for k in randi() % 3:
-			var pp: Vector2 = r.position + Vector2(randf_range(70.0, r.size.x - 70.0), randf_range(70.0, r.size.y - 70.0))
-			if pp.distance_to(r.get_center()) > 110.0 and pp.distance_to(stair) > 90.0 and _clear_of(pp, 70.0, pillars, []):
-				pillars.append({"pos": pp, "r": randf_range(18.0, 28.0)})
-	# Chasms (the Firebird's tower): one in some rooms, and one across a corridor.
 	var chasms: Array = []
+	var room_blocks: Array = []
+	var pools: Array = []
+	var spots: Array = []  # [room index, pos]
+	var keep_clear: Array = []
+	for cr in corridors:
+		keep_clear.append(cr)
+	keep_clear.append(Rect2(start - Vector2(CELL, CELL) * 1.5, Vector2(CELL, CELL) * 3.0))
+	keep_clear.append(Rect2(stair - Vector2(CELL, CELL) * 1.5, Vector2(CELL, CELL) * 3.0))
+	for i in rooms.size():
+		var f: Dictionary = Rooms.features(room_rows[i], rooms[i].position, CELL, tower)
+		for b in f["blocks"]:
+			if not _in_any_rect(b, keep_clear):
+				room_blocks.append(b)
+		for ch in f["chasms"]:
+			if not _in_any_rect(ch.grow(CELL * 0.5), keep_clear):
+				chasms.append(ch)
+		for pl in f["pillars"]:
+			if not _in_any(pl["pos"], keep_clear, pl["r"] + 8.0):
+				pillars.append(pl)
+		for pool in f["pools"]:
+			pools.append({"pos": pool.get_center(), "r": CELL * 0.72})
+		if i > 0:
+			for sp in f["spots"]:
+				spots.append([i, sp])
+	room_blocks = Rooms.merge_rows(room_blocks)
+	chasms = Rooms.merge_rows(chasms)
+	# The Firebird's tower also breaks one corridor with a chasm (jump it, or fall).
 	if tower.get("chasms", false):
-		for i in range(1, rooms.size()):
-			if randf() < 0.7:
-				var inner: Array = chasm_layout(rooms[i].grow(-20.0), pillars, rooms[i].get_center())
-				if not inner.is_empty():
-					var ch: Rect2 = inner[0]
-					if not ch.grow(40.0).has_point(stair):
-						chasms.append(ch)
 		for c in corridors:
 			var r: Rect2 = c
 			var band := Rect2()
@@ -146,7 +171,7 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var halls: Array = corridors.duplicate()
 	if not side.is_empty():
 		halls.append(side["hall"])
-	var blocks: Array = cover_blocks(rooms, halls, start, stair, pillars, chasms)
+	var blocks: Array = room_blocks
 	# Monsters, spread over the rooms beyond the first.
 	var budget := 4.5 + 1.0 * floor_num + 1.0
 	var kinds: Array = []
@@ -161,9 +186,17 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			knights += 1
 	var monsters: Array = []
 	var placed: Array = []
+	spots.shuffle()
 	for i in kinds.size():
 		var r: Rect2 = rooms[1 + i % (rooms.size() - 1)]
 		var pos := r.get_center()
+		# The rooms' marked spots first (an archer on a balcony, a guard by a door).
+		if not spots.is_empty():
+			var sp: Array = spots.pop_back()
+			if _clear_of(sp[1], 40.0, pillars, placed) and not _in_any(sp[1], chasms, 30.0) and not _in_any(sp[1], blocks, 30.0):
+				placed.append(sp[1])
+				monsters.append([kinds[i], sp[1]])
+				continue
 		for attempt in 40:
 			pos = r.position + Vector2(randf_range(40.0, r.size.x - 40.0), randf_range(40.0, r.size.y - 40.0))
 			if _clear_of(pos, 50.0, pillars, placed) and not _in_any(pos, chasms, 30.0) and not _in_any(pos, blocks, 34.0):
@@ -173,7 +206,8 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var walk: Array = rooms.duplicate()
 	walk.append_array(corridors)
 	var plan := {"arena": ARENA, "rooms": rooms, "walk": walk, "start": start, "stair": stair,
-		"pillars": pillars, "monsters": monsters, "chasms": chasms, "blocks": blocks}
+		"pillars": pillars, "monsters": monsters, "chasms": chasms, "blocks": blocks,
+		"pools": pools, "room_ids": used}
 	var all_rooms: Array = rooms.duplicate()
 	if not side.is_empty():
 		walk.append(side["room"])
@@ -186,6 +220,23 @@ static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			monsters[-1][1] = side["room"].get_center().lerp(side["hall"].get_center(), 0.35)
 	plan["doors"] = doorways(all_rooms, halls)
 	return plan
+
+
+## A room for a role that fits a cell, not used yet this floor.
+static func _pick_room(role: String, floor_num: int, used: Array, cell_size: Vector2) -> Dictionary:
+	var fits: Array = Rooms.for_role(role, floor_num).filter(func(r):
+		var sz := Vector2(Rooms.size_of(r)) * CELL
+		return sz.x <= cell_size.x - 80.0 and sz.y <= cell_size.y - 90.0)
+	var fresh: Array = fits.filter(func(r): return not (r["id"] in used))
+	var pool: Array = fresh if not fresh.is_empty() else fits
+	return pool[randi() % pool.size()]
+
+
+static func _in_any_rect(r: Rect2, rects: Array) -> bool:
+	for o in rects:
+		if r.intersects(o):
+			return true
+	return false
 
 
 ## How much essence a cache holds on a floor.
