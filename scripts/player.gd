@@ -120,6 +120,7 @@ var quarry  # Hunter's Quarry: the last foe you struck
 var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
 var items := Items.START.duplicate()  # item id -> count
+var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
 var heal_left := 0.0
 var heal_rate := 0.0
@@ -692,6 +693,12 @@ func _melee() -> bool:
 	# The floor's puzzle: strikes light eyes and pull levers.
 	if main.puzzle != null:
 		main.puzzle.strike(global_position, aim, reach, swing["arc"])
+	# Sealed wings and secret walls: a hollow knock, a seal that holds.
+	if main.wings != null:
+		main.wings.strike(global_position, aim, reach, swing["arc"])
+	# A lever for a barred door.
+	if main.door_view != null:
+		main.door_view.strike(global_position, aim, reach, swing["arc"])
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:
@@ -1245,6 +1252,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	# Armor takes the edge off attacks that land (poison and fire tick past it).
 	dmg *= 1.0 - float(armor()["reduce"])
 	hp -= dmg
+	hits_taken += 1  # (a sealed wing's "take no hit" counts these)
 	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
 	if source != null and not steadfast:
@@ -2023,11 +2031,12 @@ func selected_item() -> String:
 
 ## Picks up an item. False if you already carry as many as you can.
 func add_item(id: String) -> bool:
-	if not Items.ITEMS.has(id) or item_count(id) >= Items.MAX_STACK:
+	if not Items.ITEMS.has(id) or item_count(id) >= Items.max_stack(id):
 		return false
 	items[id] = item_count(id) + 1
 	if item_count(item_sel) <= 0:
-		item_sel = id
+		# (a recall scroll never takes the quick item from another item)
+		item_sel = selected_item() if id == "scroll" else id
 	return true
 
 

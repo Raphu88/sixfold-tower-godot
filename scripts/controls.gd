@@ -84,6 +84,7 @@ const HELP := [
 	["restart (hold)", "R", "hold {back}"],
 	["music", "M", "-"],
 	["controls panel", "H", "-"],
+	["dismiss the Entity's tip", "Enter / click it", "press {rs}"],
 ]
 
 
@@ -133,6 +134,7 @@ static func setup() -> void:
 	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P)])
 	_bind("climber", [_key(KEY_TAB)])  # the climber screen (marks, essence, record)
 	_bind("inventory", [_key(KEY_I)])
+	_bind("dismiss_tip", [_key(KEY_ENTER), _key(KEY_KP_ENTER), _button(JOY_BUTTON_RIGHT_STICK)])  # the Entity's tip (guide.gd)
 	# The sticks: the left one moves, the right one aims.
 	_bind("move_left", [_axis(JOY_AXIS_LEFT_X, -1.0)])
 	_bind("move_right", [_axis(JOY_AXIS_LEFT_X, 1.0)])

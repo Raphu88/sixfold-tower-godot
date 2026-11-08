@@ -228,12 +228,11 @@ func _gather(view: Rect2) -> void:
 		n = _put(n, view, main.cache["pos"], 150.0, Essence.color(main.cache["kind"]), 0.8, 0.25 + 0.06 * sin(t * 2.4))
 	if main.campfire != null and is_instance_valid(main.campfire) and main.campfire.is_inside_tree():
 		n = _put(n, view, main.campfire.global_position + Vector2(0, -10), 420.0 + 12.0 * sin(t * 4.0), Palette.TORCH, 1.0, 0.16 + 0.02 * sin(t * 6.0))
-	# The puzzle's eyes: lit ones glow gold, unlit ones faintly so they read.
+	# The puzzle's own lights: eyes, the mirrors' beam, lit stones (puzzles/).
 	var pz = main.puzzle
-	if pz != null and pz.kind == "eyes":
-		for e in pz.eyes:
-			var lit: bool = e["lit"] > 0.0 or pz.solved
-			n = _put(n, view, e["pos"], 130.0 if lit else 70.0, Palette.EYE_LIGHT, 0.75 if lit else 0.35, 0.35 if lit else 0.08)
+	if pz != null:
+		for l in pz.light_list():
+			n = _put(n, view, l[0], l[1], l[2], l[3], l[4])
 	# Torches: a slow, soft flicker (a fast one lights the floor like a failing screen).
 	if rv != null:
 		for torch in rv.torches:
@@ -244,14 +243,12 @@ func _gather(view: Rect2) -> void:
 	for fl in main.flames:
 		n = _put(n, view, fl["pos"], fl["r"] * 2.4, Palette.FIRE_LIGHT, 0.6 * clampf(fl["t"] / 0.5, 0.0, 1.0), 0.12)
 	# Traps warning or firing glow in their colour, so the warning reads in the dark.
+	# (traps.gd says where each kind glows: a dart slot's red eye, a lane's
+	# middle, a cloud's centre; one light per patch of floor.)
 	var tv = main.trap_view
 	if tv != null:
-		for tr in main.traps:
-			var st: String = tr["state"]
-			if st != "warn" and st != "fire":
-				continue
-			var tc: Color = main.Traps.KINDS[tr["kind"]]["color"]
-			n = _put(n, view, tr["pos"], tv.reach_of(tr) + 50.0, tc, 0.45 if st == "warn" else 0.7, 0.1 if st == "warn" else 0.18)
+		for l in tv.glow_list():
+			n = _put(n, view, l[0], l[1], l[2], l[3], l[4])
 	# Anything else that registered a light.
 	for id in lights.keys():
 		var l: Dictionary = lights[id]

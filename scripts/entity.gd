@@ -1,0 +1,423 @@
+extends RefCounted
+## The Entity: the small glowing presence that guides the climber. It is the
+## voice of the tips (the first time you meet anything new), the keeper of
+## the Archive (everything it has told you), and it presents your Record and
+## the Settings.
+##
+## Everything it says lives here, in plain data, so it's easy to rename or
+## rewrite: its name (TEXT), its lines for moments and pages (LINES) and its
+## tips with their fuller Archive text (TIPS, grouped by GROUPS). The story
+## and what the Entity really is are still to be written: keep it terse and
+## enigmatic. It watches the climber, as the beast does, but it is NOT the
+## beast and never says so.
+##
+## In tips and Archive text, {move}, {attack}, {roll}... become the keys,
+## controller buttons or touch buttons for whatever the climber uses (KEYS).
+## guide.gd shows the tips in play; menu.gd shows the Archive, the Record
+## and Settings with the Entity's face.
+
+const UI := preload("res://scripts/ui.gd")
+const Controls := preload("res://scripts/controls.gd")
+
+## Its name and the words around it.
+const TEXT := {
+	"name": "the Entity",  # in the middle of a sentence
+	"Name": "The Entity",  # at the start of one
+	"tag": "THE ENTITY",  # over its speech bubbles
+	"archive": "Archive",  # the page of everything it has told you
+	"locked": "???",  # an Archive entry not met yet
+	"kept": "kept in the Archive",  # under a tip
+	"heard": "%d of %d heard",  # Archive progress
+	"replay": "Replay the Entity's tips",
+	"tips_setting": "Guide tips from the Entity",
+	"record_title": "The Entity's record",
+}
+
+## Short lines for moments and pages. One is picked (they're said in the
+## Entity's voice). {floor}, {beast}, {Beast}, {tower} and {mark} are filled in.
+const LINES := {
+	# Moments in play (after the first time, which is a tip).
+	"death": [
+		"Floor {floor}. I wrote it down.",
+		"Again, then.",
+		"The tower keeps count. So do I.",
+		"That one taught you something. I hope.",
+		"{Beast} didn't blink. Neither did I.",
+	],
+	"beast_slain": [
+		"{Beast} yields. It will remember you.",
+		"Well struck. I watched the whole thing.",
+		"So that is how it ends. For it.",
+	],
+	"new_mark": [
+		"{mark}. Your body keeps score.",
+		"Another mark. {mark}. It suits you, mostly.",
+	],
+	"proving": [
+		"The Proving again. Stand up straight.",
+		"Floor six. It remembers you. So do I.",
+	],
+	"regard": [
+		"Seen again. It never forgets a face. Nor do I.",
+		"It looked at you. It will keep looking.",
+	],
+	# Pages the Entity presents.
+	"settings": [
+		"Adjust what you must.",
+		"Change what you like. The tower won't.",
+		"Quieter, louder. I'll wait.",
+	],
+	"record": [
+		"I keep count. Someone should.",
+		"Your record, as I have it.",
+		"Every climb, every fall. Nothing is lost here.",
+	],
+	"archive": [
+		"All I have told you, kept.",
+		"Ask again. I don't mind repeating myself.",
+		"What you've met, I've written down. The rest waits.",
+	],
+	"replay": ["Very well. I'll tell you again."],
+	"tips_off": ["As you wish. I'll still be watching."],
+	"tips_on": ["Then I'll speak up."],
+}
+
+## The Archive's groups, in order: [id, name].
+const GROUPS := [
+	["start", "First steps"],
+	["essence", "Essence and marks"],
+	["tower", "The tower"],
+	["tests", "Puzzles and traps"],
+	["gear", "Gear and items"],
+	["screens", "Screens"],
+]
+
+## Every tip, in Archive order within its group: the Entity's line ("tip",
+## 1 or 2 short sentences, shown the first time) and a fuller, plain
+## explanation ("more", in the Archive). Ids are what code passes to
+## main.tip("id"). An id that isn't here falls back to the part before its
+## last "_" ("puzzle_mirrors" -> "puzzle", "door_iron" -> "door"), so a new
+## puzzle or door kind still gets a tip until it has its own.
+const TIPS := {
+	# --- first steps ---
+	"entity": {"group": "start", "name": "The Entity",
+		"tip": "You can see me. Good. When something new finds you, I'll say so, and keep every word in the Archive.",
+		"more": "The Entity is the small glowing presence that speaks in the corner of the screen. The first time you meet anything new, it says a line or two about it. Dismiss a tip with {dismiss}, or let it fade; it never stops the game. Everything it has told you is kept here in the Archive ({menu}, then Archive, or the Archive tab of the climber screen), grouped by subject; subjects you haven't met yet show as ???. Settings can turn the tips off (the Archive still fills in), and Replay tips makes the Entity tell you everything again."},
+	"move": {"group": "start", "name": "First steps",
+		"tip": "Walk with {move}. Strike with {attack}. Roll through what you can't stop; parry what you can with {parry}.",
+		"more": "Strikes chain into a combo that ends in a heavy finisher; each one costs stamina, and stamina waits a moment after you attack before it refills, so mashing leaves you winded. A roll ({roll}) makes you untouchable for a moment and costs stamina. A parry ({parry}) on time takes no damage, staggers the attacker and sends arrows back. A jump ({jump}) carries you over chasms and burning floor, but attacks still hit you in the air. Hitting a staggered foe is a riposte for 2.5 times the damage, and striking a foe from behind (a backstab) deals 50% more."},
+	"glint": {"group": "start", "name": "The glint",
+		"tip": "A white star and a ting: the blow lands a quarter second later. Parry on the glint, or be somewhere else.",
+		"more": "Every monster attack keeps one rhythm: a wind-up, then the glint exactly a quarter of a second before the blow lands, then a recovery. Parry on the glint and it always works; parry a beat after it for a perfect parry (a longer stagger and more stamina back). Red circles and cones that can't be parried are for rolling out of. After an attack a monster is open for most of its recovery: a gold ring pulses around it and your hits deal 60% more. Traps glint too."},
+	"death": {"group": "start", "name": "Falling",
+		"tip": "You fell. What you carried this climb is gone. What you are is not.",
+		"more": "Falling ends the climb. The gear and items you carried and any essence you hadn't banked are lost, and the next climb starts again on floor 1 ({restart}). Your marks and their growth, the essence settled in you, your heirlooms and your record all stay. On the first climb a fall still brings the Regard, but the mark it leaves is faint."},
+	# --- essence and marks ---
+	"essence": {"group": "essence", "name": "Essence",
+		"tip": "That light flying into you is essence. It's only yours once you bank it at a stair.",
+		"more": "Monsters leave essence when they fall, each kind its own type (Air, Water, Iron, Fire, Stone, Blade), and every kill also gives a little of the tower's own essence. It flies into you and is banked at the next stair you take. Fall before the stair and the unbanked essence is lost. Meanwhile your body soaks up what it does: the hand from strikes, the legs from rolling through attacks, the heart from taking hits, the brow from parries, the throat from hitting several foes at once, the back from backstabs and finishing blows."},
+	"bank": {"group": "essence", "name": "Banking at the stair",
+		"tip": "Banked. Your marks drink what you bring up the stair, not what you carry.",
+		"more": "Every stair banks the essence you gathered on the floor below. Banked essence strengthens every mark you carry (essence of a mark's own kind counts double), up to step 5, and settles in you as density: each type is an attribute with a small passive bonus (the climber screen's Essence tab). Bonds grow across climbs, never within one. Taking the stair is also a rest: burns heal, poison is cured, you recover a third of your health and all your stamina."},
+	"regard": {"group": "essence", "name": "The Regard",
+		"tip": "The beast has noticed you. I noticed it noticing. Your most-used part bears a mark now.",
+		"more": "The first climb is bondless and ends in the Regard: at its top the tower's beast takes notice, the body part you used most takes your first mark, and the essence you gathered most decides which bond it is. Fall during the first climb and you are still regarded, but the mark is faint: weaker until it has soaked up 80 more essence."},
+	"casting": {"group": "essence", "name": "Casting",
+		"tip": "Your mark answers to {cast}. Tap to cast; hold to choose a spell while time slows.",
+		"more": "Each mark is a bond with a body (an upgrade to a basic action), a passive, and spells learned as it grows (at steps 1, 2, 4 and 5; step 3 changes the first). A mark fills with essence during a climb as its body part does its work, and glows once a spell can be cast. Tap the mark's key ({cast}) to cast its selected spell, or hold it to open a ring of its spells, point at one and let go. The climber screen ({climber}) has a page for every mark with all its spells."},
+	"overdraw": {"group": "essence", "name": "Overdraw",
+		"tip": "You cast with too little essence and the mark burned. It heals at the stair. Do it again only if it's worth it.",
+		"more": "Casting without enough essence still fires the spell, but the body part burns: a burned hand weakens your strikes, burned legs make rolls cost more and carry you less far, and so on. Burns heal at the next stair (or with a Cleansing Tonic)."},
+	"new_mark": {"group": "essence", "name": "A new mark",
+		"tip": "Another part of you soaked up enough. A new mark takes hold.",
+		"more": "An unmarked body part that soaks up enough over your climbs takes a new mark at a stair, shaped by the essence you've banked since your last one. Each new mark needs more soak than the last. The climber screen shows which part is forming its mark next, and which bond it would be."},
+	# --- the tower ---
+	"stair": {"group": "tower", "name": "The stair",
+		"tip": "The stair is open. Go up, or finish what's left for its essence.",
+		"more": "On the first floor and the beast's floor the stair opens once three quarters of the monsters are down; on floors of rooms it opens when the floor's puzzle lifts the ward. An arrow at the edge of the screen points the way. Walk onto it to climb: the essence you carry is banked and you rest."},
+	"fog": {"group": "tower", "name": "Rooms and fog",
+		"tip": "Rooms now, and walls. You see what you can see; the rest you remember, dimly.",
+		"more": "Above the first floor every floor is a plan of rooms joined by corridors. Walls block sight (chasms, water and pillars don't), places you've seen stay dimly mapped, and monsters out of sight are hidden. A monster waits where it is until it sees you, then rouses its neighbours and finds its way around the walls."},
+	"rooms": {"group": "tower", "name": "Room names",
+		"tip": "Rooms have names, and the names are honest. Mostly.",
+		"more": "Every room has a theme, shown the first time you walk in: good rooms (a healing spring, a forgotten cache of essence, a fallen climber's camp), bad rooms (a monster den, a restless crypt, a pillared hall, the tower's trap room) and quiet halls. The first room after the entrance is always a good one."},
+	"good_room": {"group": "tower", "name": "Good rooms",
+		"tip": "A kind room. They're rare. Take what it offers.",
+		"more": "A Healing Spring heals you while you stand in its pool, until it runs dry. A Forgotten Cache holds an urn of the tower's essence (sometimes a piece of gear too): walk onto it. A Fallen Climber's Camp has an item left behind. No traps or monsters wait in good rooms, and each tower has its own good room as well."},
+	"den": {"group": "tower", "name": "Monster dens",
+		"tip": "Bones and claw marks. More of them live here than anywhere else on this floor.",
+		"more": "A Monster Den holds more of the floor's monsters than any other room. A door's iron bands and claw marks warn you before you go in. Fight near the doorway and let them come to you."},
+	"crypt": {"group": "tower", "name": "Restless crypts",
+		"tip": "The dead here don't stay down when disturbed. Keep your back to a wall.",
+		"more": "From floor 3, a Restless Crypt's dead rise around you as you walk in, two or three of the tower's monsters at once."},
+	"doors": {"group": "tower", "name": "Doors",
+		"tip": "A door's face hints at what waits behind it. Never at the reward.",
+		"more": "Walk up to a closed door and it swings open; awake monsters open doors too. A closed door blocks the way, shots and sight, so a room behind one stays dark until you open it. Plain planks mean an ordinary room; iron bands and claw marks a den; an engraved sigil a trap room; a stone door with an emblem the puzzle room; warm light under the door a good room; chains and a red glow danger."},
+	"door": {"group": "tower", "name": "Strange doors",
+		"tip": "Not every door opens for the asking. Look around.",
+		"more": "Some doors don't open just because you walk up to them. Something on the floor answers for them."},
+	"door_locked": {"group": "tower", "name": "Locked doors",
+		"tip": "Locked. Something on this floor opens it. Find it.",
+		"more": "A locked door won't open when you walk up to it. What opens it is somewhere on the same floor."},
+	"door_sealed": {"group": "tower", "name": "Sealed in",
+		"tip": "The way shut behind you. It opens when the room is done with you.",
+		"more": "Some rooms close their doors once you're inside and open them again only when what's inside is dealt with."},
+	"jump": {"group": "tower", "name": "Chasms",
+		"tip": "The floor gives way here. Jump it with {jump}. A roll only carries you in.",
+		"more": "In the Firebird's tower the floor has chasms. Jumping ({jump}) carries you across; walking or being knocked in drops you through. Walking monsters can't follow you over a chasm, but fliers cross them."},
+	"chasm_fall": {"group": "tower", "name": "Falling through",
+		"tip": "Down a floor. No harm done, except to your pride. Your essence came with you.",
+		"more": "Falling into a chasm doesn't hurt: you land on the floor below (never below floor 1) and climb again from there. Your unbanked essence stays with you."},
+	"camp": {"group": "tower", "name": "Camps",
+		"tip": "A fire, and nothing hunting you. Rest, choose one thing, go on.",
+		"more": "On a full climb the stairs of floors 3 and 9 lead to a camp first. You rest fully (health, stamina, burns and poison), then choose one of four cards: three items or a piece of gear (your old piece is left by the fire). Then the stair takes you on. A camp isn't a floor, and each comes once a climb."},
+	"proving": {"group": "tower", "name": "The Proving",
+		"tip": "Floor six. The tower takes your measure here. I'd stand up straight.",
+		"more": "Halfway up every tower, floor 6 is the Proving, where the tower takes the climber's measure. For now it's an ordinary floor with its own banner; what it truly asks of you comes later."},
+	"beast": {"group": "tower", "name": "The beast",
+		"tip": "There it is. It has watched you climb. Every blow it throws, it tells you first.",
+		"more": "Every tower's beast waits alone on floor 12, the summit. Beasts can't be interrupted, only staggered; they glint before every attack like any monster, their red shapes can't be parried, and at half health they call for help. Beat it, take the stair, and the climb is complete: you keep one piece of gear as an heirloom."},
+	# --- puzzles and traps ---
+	"ward": {"group": "tests", "name": "The ward",
+		"tip": "The stair is warded. Somewhere on this floor is the beast's test. Solve it and the ward lifts.",
+		"more": "Every floor of rooms has a puzzle room, and its stair stays warded, however many monsters fall, until the puzzle is solved. A puzzle never needs a bond, an item or a piece of gear, only what every climber has. Solving it lifts the ward, opens the stair and opens the puzzle room's gate, behind which waits a burst of essence."},
+	"puzzle": {"group": "tests", "name": "Puzzles",
+		"tip": "A test. It needs nothing you don't already carry.",
+		"more": "The beast's tests only ask for what every climber has: strikes, arrows, walking, and patience. Solving the floor's test lifts the stair's ward."},
+	"puzzle_eyes": {"group": "tests", "name": "Stone eyes",
+		"tip": "Stone eyes. Wake every one. An arrow flies over a rail where your feet can't.",
+		"more": "Stone eyes sit behind low rails, which stop walking but not sight or arrows. Hit every eye, with a strike if you can reach it or an arrow over the rail. On harder floors an eye stays lit only a couple of seconds, so you must light them all together."},
+	"puzzle_plates": {"group": "tests", "name": "Pressure plates",
+		"tip": "These want weight, and you're too light. Push a block onto each, or lend them a monster.",
+		"more": "Pressure plates need a weight: the climber is too light. Push a stone block onto a plate (walk into it for a moment and it slides a tile), or lure a monster onto it and keep it alive. Every plate held at once solves it; strike the lever to put the blocks back if one gets stuck."},
+	"traps": {"group": "tests", "name": "Traps",
+		"tip": "Traps warn before they bite: a glow, then the glint. They hurt badly, so the warning is all you get.",
+		"more": "Traps are the beast's tests, one kind per tower. Visible traps show their reach engraved on the floor. Every trap glows, then glints a moment before it fires, and then it hurts badly. Rolling through a firing trap counts as a dodge. Monsters that wander into one are caught too."},
+	"trap_room": {"group": "tests", "name": "Trap rooms",
+		"tip": "Its traps keep one beat. Watch a round before you cross.",
+		"more": "Each tower lays its traps as a set piece in its trap room (and at chokepoints): gust lanes in the Gryphon's tower, sluice sweeps in the Kraken's, flame jets in the Wyvern's, a spike field in the Manticore's, ember mortars in the Firebird's and bramble snares in the Chimera's. The traps of a set piece share one beat, so they fire in a pattern you can learn and walk through. The door of a trap room bears its hazard's sigil."},
+	"hidden_trap": {"group": "tests", "name": "Hidden traps",
+		"tip": "That one was hidden. It shows itself once it's set off. Half a breath; move.",
+		"more": "A hidden trap's tile is very faint, but the moment one is set off it shows itself (a click, a hiss or a rustle, its reach lit up) and gives you about half a second to get clear. The Hunter's Keen Eyes outlines hidden traps in gold."},
+	"gas": {"group": "tests", "name": "Gas vents",
+		"tip": "Gas. It keeps hurting while you stand in it. So don't.",
+		"more": "The Manticore's and Chimera's towers hide gas vents: set one off and a cloud spreads that keeps hurting while you stand in it. It can kill you if you stay, and it hurts monsters too."},
+	"poison": {"group": "tests", "name": "Poison",
+		"tip": "Poisoned. It wears off, or the stair cures it. A Cleansing Tonic is quicker.",
+		"more": "Poison costs a little health every half second for a few seconds. The rest at a stair cures it, and so does a Cleansing Tonic."},
+	# --- gear and items ---
+	"gear": {"group": "gear", "name": "Gear on the floor",
+		"tip": "Gear. Stand on it to compare; {take} swaps, and your old piece stays behind.",
+		"more": "Gear lasts one climb. You carry fists, a melee weapon, a ranged weapon and a suit of armor. Slain monsters rarely drop a piece, likelier one that suits them; caches and camps offer some too. Walk over gear with an empty slot and you take it; otherwise a card compares it with what you carry (better numbers in green, worse in red) and {take} swaps, dropping your old piece where you stand so you can change your mind."},
+	"heirloom": {"group": "gear", "name": "Heirlooms",
+		"tip": "You survived. Keep one thing you carried; every climb after begins with it.",
+		"more": "Survive a climb (beat its beast, or reach the Regard without falling) and you choose one piece you carried to keep as an heirloom. Every later climb starts with your heirlooms in their slots. Each slot (melee, ranged, chest) holds one; keeping another piece for the same slot replaces it. The inventory shows your heirloom slots."},
+	"items": {"group": "gear", "name": "Items",
+		"tip": "An item. {item} uses the one you've chosen; {item_next} chooses another.",
+		"more": "Items last one climb; you can carry up to 3 of each kind. The quick item, shown beside your weapon, is the one {item} uses, and {item_next} picks the next. An item that would do nothing (a draught at full health) isn't used up. Every climb starts with a Healing Draught; monsters sometimes leave items, and camps offer them."},
+	# --- screens ---
+	"climber": {"group": "screens", "name": "The climber screen",
+		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",
+		"more": "The climber screen has your marks drawn on your body with a card for each (choose one for every spell and step), the essence settled in you and its bonuses, your record and heirlooms, and this Archive. {climber} opens and closes it; Q and E switch tabs."},
+	"inventory": {"group": "screens", "name": "The inventory",
+		"tip": "{inventory} shows everything you carry, and lets you use it.",
+		"more": "The inventory is a grid of slots: your gear (the one in hand gilded), gear lying at your feet, your items with their counts (the quick item gilded), your heirloom slots and a camp's rune. Choose a slot for its details, to use an item or make it your quick item, or to take the gear at your feet."},
+}
+
+## Room features (themes.gd) -> the tip for walking into one.
+const ROOM_TIPS := {
+	"trap": "trap_room", "den": "den", "ambush": "crypt", "spring": "good_room", "cache": "good_room",
+	"camp": "good_room", "chasm": "jump",
+}
+
+## Words for {move}, {attack}... in tips: [keys, controller, touch]. The
+## controller column may use {a}, {lb}... (button names, controls.gd).
+const KEYS := {
+	"move": ["WASD or the arrows", "the left stick", "the left of the screen"],
+	"attack": ["left click or J", "{rt}", "the big button"],
+	"roll": ["Space", "{b}", "Roll"],
+	"parry": ["right click or K", "{lt}", "Parry"],
+	"jump": ["Z", "{a}", "Jump"],
+	"take": ["Y", "{y}", "Take"],
+	"item": ["G", "{x}", "Item"],
+	"item_next": ["T", "the d-pad down", "the small arrow"],
+	"cast": ["the mark's key (Q E F C X V)", "{lb} and the mark's button", "the mark's button"],
+	"climber": ["Tab", "{back}", "the Climber button"],
+	"inventory": ["I", "the d-pad up", "the Bag button"],
+	"menu": ["Esc", "{start}", "Menu"],
+	"restart": ["hold R", "hold {back}", "Menu, then Restart"],
+	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
+}
+
+## The Entity's colours (the interface's other colours are in ui.gd).
+const GLOW := Color(0.79, 0.75, 1.0)
+const DEEP := Color(0.42, 0.36, 0.84)
+const EYE := Color(0.11, 0.08, 0.22)
+const SPARK := Color(1.0, 0.89, 0.63)
+
+
+## A tip's entry (resolving fallbacks), or {}.
+static func entry(id: String) -> Dictionary:
+	return TIPS.get(resolve(id), {})
+
+
+## The tip id that answers for `id`: itself, or the part before its last "_".
+static func resolve(id: String) -> String:
+	var at := id
+	while not TIPS.has(at):
+		var cut := at.rfind("_")
+		if cut <= 0:
+			return ""
+		at = at.left(cut)
+	return at
+
+
+## The tip ids in Archive order, group by group.
+static func ordered(group: String) -> Array:
+	return TIPS.keys().filter(func(k): return TIPS[k]["group"] == group)
+
+
+## A line for a moment or page, filled in. `seed` picks which (the same seed,
+## the same line: a page that rebuilds keeps its line).
+static func line(key: String, seed := -1, fill := {}) -> String:
+	var list: Array = LINES.get(key, [""])
+	var i := randi() % list.size() if seed < 0 else posmod(seed, list.size())
+	return fill_words(list[i], fill)
+
+
+## Fills {beast}, {floor}... from `fill` (a "Beast" key is made for each "beast").
+static func fill_words(text: String, fill: Dictionary) -> String:
+	for k in fill:
+		var v := str(fill[k])
+		text = text.replace("{%s}" % k, v)
+		text = text.replace("{%s}" % String(k).capitalize(), v.left(1).to_upper() + v.substr(1))
+	return text
+
+
+## Fills {move}, {attack}... with the words for the device in use:
+## mode "keys", "pad" or "touch"; `ps` for PlayStation button names.
+static func fill_keys(text: String, mode := "keys", ps := false) -> String:
+	var col := 1 if mode == "pad" else (2 if mode == "touch" else 0)
+	for k in KEYS:
+		var tag := "{%s}" % k
+		if text.contains(tag):
+			text = text.replace(tag, Controls.pad_text(KEYS[k][col], ps))
+	return text.left(1).to_upper() + text.substr(1)
+
+
+# --- drawing --------------------------------------------------------------------
+
+## The Entity's face: a soft glowing orb with two dark eyes (they blink),
+## faint rays, a wry little mouth and sparks drifting around it, bobbing
+## gently. `t` is the time in seconds; `a` fades it all.
+static func draw_face(ci: CanvasItem, c: Vector2, r: float, t: float, a := 1.0) -> void:
+	var bob := sin(t * TAU / 3.2)
+	c.y += bob * r * 0.09
+	var tilt := -0.05 * bob  # leans a touch as it bobs
+	# The glow around it, then the orb, lighter toward the top.
+	for i in 6:
+		var k := 1.0 - i / 6.0
+		ci.draw_circle(c, r * (0.82 + 0.5 * k), Color(DEEP, 0.07 * a))
+	ci.draw_circle(c, r * 0.8, Color(DEEP.lerp(GLOW, 0.35), 0.95 * a))
+	ci.draw_circle(c + Vector2(0, -r * 0.06), r * 0.7, Color(GLOW, 0.95 * a))
+	ci.draw_circle(c + Vector2(-r * 0.05, -r * 0.16), r * 0.5, Color(GLOW.lerp(Color.WHITE, 0.55), 0.9 * a))
+	ci.draw_circle(c + Vector2(-r * 0.12, -r * 0.3), r * 0.2, Color(1, 1, 1, 0.55 * a))
+	# Faint rays, pulsing.
+	var ray_a := (0.45 + 0.25 * sin(t * 2.1)) * a
+	for i in 6:
+		var ang := -PI / 2.0 + TAU * i / 6.0 + 0.2 + tilt
+		var d := Vector2.from_angle(ang)
+		ci.draw_line(c + d * r * 0.9, c + d * r * (1.12 + 0.06 * sin(t * 3.0 + i)), Color(GLOW.lerp(Color.WHITE, 0.4), ray_a), maxf(1.0, r * 0.06), true)
+	# The eyes: dark ovals with a glint, blinking now and then.
+	var blink := fmod(t, 4.3)
+	var open := 1.0 if blink > 0.14 else absf(blink - 0.07) / 0.07
+	open = maxf(open, 0.12)
+	for side in [-1.0, 1.0]:
+		var e := c + Vector2(side * r * 0.24, -r * 0.04).rotated(tilt)
+		ci.draw_colored_polygon(_oval(e, Vector2(r * 0.105, r * 0.15 * open)), Color(EYE, a))
+		if open > 0.5:
+			ci.draw_circle(e + Vector2(r * 0.03, -r * 0.05), maxf(0.8, r * 0.035), Color(1, 1, 1, 0.95 * a))
+	# A small wry mouth, a little higher on one side.
+	var m := PackedVector2Array()
+	for i in 7:
+		var k := i / 6.0
+		m.append(c + Vector2(lerpf(-0.12, 0.14, k) * r, r * (0.24 + 0.05 * sin(PI * k) - 0.05 * k)).rotated(0.0))
+	ci.draw_polyline(m, Color(EYE, 0.8 * a), maxf(1.0, r * 0.06), true)
+	# Sparks drifting up and around it.
+	var spots := [Vector2(0.86, 0.62), Vector2(-0.9, 0.5), Vector2(0.62, -0.92), Vector2(-0.55, -0.8)]
+	for i in spots.size():
+		var ph := fmod(t * 0.35 + i * 0.27, 1.0)
+		var p: Vector2 = c + spots[i] * r + Vector2(sin(t * 1.3 + i) * r * 0.06, -ph * r * 0.35)
+		var sa := sin(PI * ph) * (0.6 + 0.4 * sin(t * 4.0 + i * 2.0)) * a
+		var col := SPARK if i % 2 == 0 else Color.WHITE
+		ci.draw_circle(p, maxf(1.0, r * (0.07 if i < 2 else 0.05)), Color(col, sa))
+		ci.draw_circle(p, maxf(2.0, r * 0.15), Color(col, sa * 0.2))
+
+
+static func _oval(c: Vector2, rad: Vector2, n := 16) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in n:
+		var ang := TAU * i / n
+		pts.append(c + Vector2(cos(ang) * rad.x, sin(ang) * rad.y))
+	return pts
+
+
+## The Entity's face as a control (menus): animated, with a speech tail
+## pointing right when `tail` is set.
+class Face extends Control:
+	var tail := true
+	var t := 0.0
+	var outer: GDScript  # entity.gd itself (an inner class can't call its statics directly)
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		t = randf() * 3.0
+		outer = load("res://scripts/entity.gd")
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var s := size
+		var r := minf(s.x - (8.0 if tail else 0.0), s.y) * 0.4
+		var c := Vector2(r * 1.25, s.y * 0.5)
+		if tail:
+			var tip := Vector2(s.x, s.y * 0.5)
+			draw_colored_polygon(PackedVector2Array([tip + Vector2(1, -7), tip + Vector2(-9, 0), tip + Vector2(1, 7)]), Color(UI.ENTITY_BG, 0.95))
+			draw_polyline(PackedVector2Array([tip + Vector2(1, -7), tip + Vector2(-9, 0), tip + Vector2(1, 7)]), Color(GLOW, 0.4), 1.0, true)
+		outer.draw_face(self, c, r, t)
+
+
+## The Entity says something (menus): its face, then a bubble with its tag
+## and the line. `face` is the face's size; `heading` replaces the tag.
+static func says(text: String, face := 46.0, heading := "") -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var f := Face.new()
+	f.custom_minimum_size = Vector2(face + 12.0, face)
+	f.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(f)
+	var bubble := PanelContainer.new()
+	bubble.add_theme_stylebox_override("panel", UI.entity_bubble())
+	bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(bubble)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	bubble.add_child(col)
+	var tag := Label.new()
+	tag.text = heading if heading != "" else TEXT["tag"]
+	tag.add_theme_font_size_override("font_size", 10)
+	tag.add_theme_color_override("font_color", Color(GLOW, 0.85))
+	col.add_child(tag)
+	var l := Label.new()
+	l.text = text
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 160.0
+	l.add_theme_font_size_override("font_size", UI.SIZE_BODY + 1)
+	l.add_theme_color_override("font_color", GLOW.lerp(Color.WHITE, 0.55))
+	col.add_child(l)
+	row.set_meta("entity_line", text)
+	return row

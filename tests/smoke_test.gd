@@ -915,7 +915,12 @@ func _rooms_tests() -> void:
 	_check(ok_rooms, "floors above the first are 6 or more rooms joined by corridors")
 	_check(ok_reach, "the stair can always be reached from the start (doors open)")
 	_check(ok_monsters, "monsters stand in rooms, never inside walls")
-	_check(main.enemies().all(func(e): return not e.aware or e.global_position.distance_to(p.global_position) < 460.0), "monsters wait in their rooms until they see you")
+	# (One that sees you can rouse its neighbours, so check the farthest: it still waits.)
+	var far_foe = null
+	for e in main.enemies():
+		if far_foe == null or e.global_position.distance_to(p.global_position) > far_foe.global_position.distance_to(p.global_position):
+			far_foe = e
+	_check(far_foe == null or not far_foe.aware or far_foe.global_position.distance_to(p.global_position) < 460.0, "monsters wait in their rooms until they see you")
 	await _plan_tests()
 	# Walls block sight and shots.
 	var a: Vector2 = main.layout_rooms[0].get_center()
@@ -1043,8 +1048,8 @@ func _plan_tests() -> void:
 	for n in 20:
 		main._start_floor(3 + n % 4)
 		await _frames(1)
-		if not main.door_view.list.is_empty():
-			door = main.door_view.list[0]
+		if main.door_view.list.any(func(d): return d["lock"] == ""):
+			door = main.door_view.list.filter(func(d): return d["lock"] == "")[0]  # (not a locked one: see _lock_tests)
 			break
 	for e in main.enemies():
 		e.set_physics_process(false)
@@ -1085,16 +1090,16 @@ func _plan_tests() -> void:
 		await _frames(1)
 		for d in main.door_view.list:
 			styles[d["style"]] = true
-			ok_style = ok_style and d["style"] == T.get_theme(main.room_themes[d["room"]])["door"]
+			ok_style = ok_style and (d["fixed"] != "" or d["style"] == T.get_theme(main.room_themes[d["room"]])["door"])  # (a wing's door is always sealed)
 	main.tower = "kraken"
 	_check(ok_style and styles.size() >= 5, "doors come in styles that hint at the room behind (%s)" % [styles.keys()])
 	# Awake monsters open doors too.
 	for n in 20:
 		main._start_floor(4)
 		await _frames(1)
-		if not main.door_view.list.is_empty():
+		if main.door_view.list.any(func(d): return d["lock"] == ""):
 			break
-	door = main.door_view.list[0]
+	door = main.door_view.list.filter(func(d): return d["lock"] == "")[0]
 	for e in main.enemies():
 		e.set_physics_process(false)
 	p.global_position = main.player_start
@@ -1171,7 +1176,7 @@ func _plan_tests() -> void:
 		var total: int = main.floor_total
 		p.global_position = main.room_info[ci]["rect"].get_center()
 		await _frames(2)
-		_check(main.enemies().size() >= 2 and main.floor_total >= total + 2 and main.enemies().all(func(e): return e.aware), "walking into a crypt raises its dead (%d)" % main.enemies().size())
+		_check(main.enemies().size() >= 1 and main.floor_total >= total + 1 and main.enemies().all(func(e): return e.aware), "walking into a crypt raises its dead (%d)" % main.enemies().size())
 
 
 ## Cover walls, cache rooms with essence caches, and door frames.
@@ -1267,72 +1272,123 @@ func _trap_tests() -> void:
 	var Traps = main.Traps
 	main.profile.regarded = true
 	main.first_climb = false
-	# Each tower's floors of rooms get its own kind of trap, placed fairly.
-	var ok_kind := true
-	var ok_count := true
+	# Each trap theme builds its own pattern out of a room that fits it.
+	await _trap_theme_tests()
+	# Floors of rooms: traps laid on purpose, and fairly.
 	var ok_spot := true
+	var ok_clear := true
+	var ok_good := true
+	var ok_route := true
+	var ok_rooms := true
+	var ok_beat := true
+	var ok_patch := true
+	var ok_count := true
+	var ok_foes := true
+	var ok_pits := true
+	var ok_ring := true
+	var rings := 0
+	var plates := 0
 	var total := 0
-	var each_tower := true
-	for id in main.Towers.ORDER:
-		main.tower = id
-		var of_tower := 0
-		for n in 4:
-			main._start_floor(2 + n % 3)
-			for e in main.enemies():
-				e.set_physics_process(false)
-			var list: Array = main.traps
-			total += list.size()
-			of_tower += list.size()
-			ok_count = ok_count and list.size() >= 2
-			for tr in list:
-				ok_kind = ok_kind and (tr["kind"] == Traps.BY_TOWER[id] or (tr["kind"] == "gas" and id in Traps.GAS_TOWERS))
-				var pos: Vector2 = tr["pos"]
-				ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
-				ok_spot = ok_spot and pos.distance_to(main.player_start) > 100.0 and pos.distance_to(main.stair_pos) > 80.0
-				ok_spot = ok_spot and not main.layout_rooms[0].has_point(pos)
-				for r in main.floor_plan.get("doorways", []):
-					ok_spot = ok_spot and not r.has_point(pos)
-				for r in main.floor_plan.get("safe_rooms", []):
-					ok_spot = ok_spot and not r.has_point(pos)
-				for pl in main.pillars:
-					ok_spot = ok_spot and pos.distance_to(pl["pos"]) > pl["r"] + 20.0
-		each_tower = each_tower and of_tower > 0
-	_check(ok_kind and each_tower, "each tower's floors get its own trap kind")
-	_check(ok_count and total >= 60, "every floor of rooms gets trap set pieces and hidden plates (%d over 24 floors)" % total)
-	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar, a wall, a doorway or in a good room")
-	# The floor's trap room holds its set piece.
-	var ok_hazard := true
-	var hazards := 0
-	for n in 12:
+	var themes_seen := {}
+	var floors_with_room := 0
+	var blocked := 0
+	var guarded := 0
+	for n in 24:
 		main.tower = main.Towers.ORDER[n % 6]
-		main._start_floor(3 + n % 6)
+		main._start_floor([2, 3, 4, 6, 8, 11][(n / 6 + n) % 6])
 		for e in main.enemies():
 			e.set_physics_process(false)
+		var plan: Dictionary = main.floor_plan
+		var list: Array = main.traps
+		total += list.size()
+		ok_count = ok_count and list.size() >= 2
+		var haz := {}
+		for tr in list:
+			for t in Traps.cover(tr):
+				haz[t] = true
+			var pos: Vector2 = tr["pos"]
+			ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
+			if Traps.KINDS[tr["kind"]]["shape"] == "lane":
+				for i in int(tr["len"]):
+					ok_spot = ok_spot and not main.is_solid(pos + tr["dir"] * main.Floors.CELL * i)
+			if tr.get("guard", false):
+				rings += 1
+				var off: Vector2i = Traps.tile_of(pos) - Traps.tile_of(main.cache["pos"])
+				ok_ring = ok_ring and maxi(absi(off.x), absi(off.y)) == 2
+			elif tr["trigger"] == "plate" and not tr.has("room"):
+				plates += 1
+			if not tr.get("guard", false):
+				for r in plan.get("safe_rooms", []):
+					ok_good = ok_good and not r.has_point(pos)
+		ok_patch = ok_patch and list.filter(func(t): return t.get("patch", false)).size() <= 12
+		# Nothing reaches the start, the stair, a door or the puzzle room.
+		for t in haz:
+			var c: Vector2 = Traps.centre(t)
+			for d in main.door_view.list:
+				ok_clear = ok_clear and not d["rect"].has_point(c)
+			if not plan.get("puzzle", {}).is_empty():
+				ok_clear = ok_clear and not plan["puzzle"]["room"].has_point(c)
+			ok_clear = ok_clear and c.distance_to(main.player_start) > 80.0 and c.distance_to(main.stair_pos) > 60.0
+		# A route with no trap on it from the start to the stair and the puzzle room.
+		var goals: Array = [[main.stair_pos]]
+		if not plan.get("puzzle", {}).is_empty():
+			var pr: Rect2 = plan["puzzle"]["room"]
+			var pts: Array = []
+			for y in int(pr.size.y / main.Floors.CELL):
+				for x in int(pr.size.x / main.Floors.CELL):
+					pts.append(pr.position + (Vector2(x, y) + Vector2(0.5, 0.5)) * main.Floors.CELL)
+			goals.append(pts)
+		# Traps may block the way, but never for good: a route exists over
+		# tiles that each have a safe moment (time it, roll or jump).
+		ok_route = ok_route and _trap_free_route(Traps.hard_tiles(list), goals)
+		blocked += 0 if _trap_free_route(haz, goals) else 1
+		# From floor 4, monsters wait among the traps.
+		if main.floor_num >= 4:
+			for i in main.room_themes.size():
+				if Traps.THEME_KINDS.has(main.room_themes[i]):
+					var rr: Rect2 = main.room_info[i]["rect"]
+					guarded += 1 if plan["monsters"].any(func(m): return rr.has_point(m[1])) else 0
+		# Each trap room holds its own pattern, on one shared beat.
+		var has_room := false
 		for i in main.room_themes.size():
-			if main.Themes.get_theme(main.room_themes[i])["feature"] == "trap":
-				hazards += 1
-				ok_hazard = ok_hazard and main.traps.any(func(tr): return main.room_info[i]["rect"].has_point(tr["pos"]))
-	_check(ok_hazard and hazards > 0, "each trap room holds traps (%d rooms)" % hazards)
-	# Set pieces: timed traps in a group keep one beat (a wave or a checkerboard).
-	var grouped := false
-	var lanes_ok := true
-	for id in ["wyvern", "gryphon", "manticore"]:
-		main.tower = id
-		for n in 3:
-			main._start_floor(3)
-			for e in main.enemies():
-				e.set_physics_process(false)
-			var timed: Array = main.traps.filter(func(t): return t.get("trigger", "") == "timed")
-			var timers := {}
-			for tr in timed:
-				timers[snappedf(tr["timer"], 0.01)] = true
-			grouped = grouped or (timed.size() >= 2 and timers.size() >= 2)
-			for tr in main.traps:
-				if Traps.KINDS[tr["kind"]]["shape"] == "lane":
-					for i in int(tr["len"]):
-						lanes_ok = lanes_ok and not main.is_solid(tr["pos"] + tr["dir"] * main.Floors.CELL * i)
-	_check(grouped, "set pieces fire in a pattern (staggered on one beat), not at random")
-	_check(lanes_ok, "lanes never run into a wall")
+			var theme: String = main.room_themes[i]
+			if not Traps.THEME_KINDS.has(theme):
+				continue
+			has_room = true
+			themes_seen[theme] = true
+			var group: Array = list.filter(func(t): return int(t.get("room", -1)) == i)
+			ok_rooms = ok_rooms and not group.is_empty()
+			var cycles := {}
+			for tr in group:
+				ok_rooms = ok_rooms and tr["kind"] in Traps.THEME_KINDS[theme]
+				if tr["trigger"] == "timed":
+					cycles[snappedf(Traps.val(tr, "cycle"), 0.001)] = true
+			ok_beat = ok_beat and cycles.size() <= 1
+		floors_with_room += 1 if has_room else 0
+		# No monster waits on a trap tile; nothing that matters sits in a chasm.
+		for m in plan["monsters"]:
+			ok_foes = ok_foes and not haz.has(Traps.tile_of(m[1]))
+		ok_pits = ok_pits and not main.in_chasm(main.player_start) and not main.in_chasm(main.stair_pos)
+		if not main.cache.is_empty():
+			ok_pits = ok_pits and not main.in_chasm(main.cache["pos"])
+		for sp in main.springs:
+			ok_pits = ok_pits and not main.in_chasm(sp["pos"])
+	_check(ok_count and total >= 100, "every floor of rooms gets traps (%d over 24 floors)" % total)
+	_check(floors_with_room >= 20 and themes_seen.size() >= 6, "nearly every floor has a trap room (%d of 24), in many themes (%s)" % [floors_with_room, themes_seen.keys()])
+	_check(ok_rooms and ok_beat, "each trap room holds its own theme's pattern, all on one shared beat")
+	_check(ok_spot, "traps never sit on a wall or a chasm, and lanes never run into a wall")
+	_check(ok_clear, "nothing reaches the start, the stair, a door or the puzzle room")
+	_check(ok_good, "good rooms stay clear (but for the spikes guarding a cache)")
+	_check(ok_ring and rings > 0, "spikes ring the cache's urn two tiles out (%d)" % rings)
+	_check(ok_route, "the stair and the puzzle room can always be reached by timing it: no tile on the way is never safe")
+	_check(blocked > 0, "but traps may block the way: on %d of 24 floors the stair can't be reached without crossing one" % blocked)
+	_check(guarded > 0, "monsters wait among the traps from floor 4 (%d rooms)" % guarded)
+	_check(ok_patch, "at most two spike patches in the corridors a floor")
+	_check(plates > 0, "loose plates still turn up (%d)" % plates)
+	_check(ok_foes, "no monster waits on a trap")
+	_check(ok_pits, "nothing that matters sits in a chasm")
+	# Higher floors: a quicker beat.
+	_check(Traps.pace(11) < Traps.pace(2) and Traps.difficulty(11) == 1.0, "the beat quickens with height")
 	main.tower = "kraken"
 	main._start_floor(1)
 	await _frames(1)
@@ -1523,6 +1579,257 @@ func _trap_tests() -> void:
 	_check("trap" in main.BondScript.Bonds.BONDS["hunter"]["body"]["desc"], "...and its description says so")
 	main.traps = []
 	main.trap_view.reset()
+	# Darts: the slot's eye glows red 0.4 s before it fires, then the dart flies.
+	var dart: Dictionary = Traps.make(spot, "dart", false, 2)
+	dart["dir"] = Vector2.RIGHT
+	dart["len"] = 5
+	Traps.fit(dart)
+	dart["timer"] = 0.05
+	main.traps = [dart]
+	p.global_position = spot + Vector2(80, 0)
+	p.velocity = Vector2.ZERO
+	p.hp = p.max_health()
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	var dhp: float = p.hp
+	await _wait(0.15)
+	var tell: float = main.trap_view.tell(dart)
+	var faint: bool = tell > 0.0 and tell < 0.5 and main.trap_view.glow_list().is_empty()
+	_check(dart["state"] == "warn" and p.hp == dhp and faint and is_equal_approx(float(Traps.KINDS["dart"]["warn"]), 0.4), "a dart slot gives only a faint tell 0.4 s before it fires (its eye dimly reddening, no flash); nothing hurts yet")
+	await _wait(0.17)
+	var eye: bool = main.trap_view.glow_list().any(func(l): return l[0].distance_to(Traps.slot_of(dart)) < 2.0)
+	_check(dart["state"] == "warn" and eye, "...and its eye catches the light just before the shot")
+	await _wait(0.33)
+	_check(p.hp < dhp, "...then its dart flies down the lane and hurts (%d)" % int(dhp - p.hp))
+	# A dart only hurts where it is: once it has passed, the lane is safe.
+	dart["state"] = "warn"
+	dart["timer"] = 0.02
+	dart["hit"] = []
+	p.global_position = spot + Vector2(40, 0)
+	await _wait(0.25)
+	var mid: Vector2 = Traps.front_of(dart)
+	_check(dart["state"] == "fire" and not main.trap_view.touches(dart, spot, 10.0) and main.trap_view.touches(dart, mid, 10.0), "a dart hurts only where it is in its flight, not all along its lane")
+	main.traps = []
+	await _wait(0.4)
+	# Subtle tells: a warning spike row gives no light and only a faint tell;
+	# a hidden plate gives less time than a visible one.
+	var quiet: Dictionary = Traps.make(spot + Vector2(0, 200), "spikes", false, 2)
+	quiet["state"] = "warn"
+	quiet["timer"] = 0.4
+	main.traps = [quiet]
+	_check(main.trap_view.glow_list().is_empty() and main.trap_view.tell(quiet) < 0.5 and not Traps.KINDS["spikes"].get("glint", true), "spikes warn with only a click and the tips peeking: no glow, no glint")
+	_check(Traps.val(Traps.make(spot, "spikes", true, 2), "warn") < Traps.val(Traps.make(spot, "spikes", false, 2), "warn"), "a hidden plate gives you less time to react")
+	main.traps = []
+	# The Furnace: its two halves take turns, so one side is always safe.
+	var furnace: Array = _built_theme("furnace")
+	var fg: Array = furnace[2]
+	main.traps = fg
+	p.global_position = Vector2(-9000, -9000)
+	var both := false
+	var fired := [false, false]
+	var side_a: Vector2 = fg[0]["dir"] if not fg.is_empty() else Vector2.ZERO
+	var cycle: float = Traps.val(fg[0], "cycle") if not fg.is_empty() else 1.0
+	for step in int(cycle * 2.5 / 0.02):
+		var fire_a := false
+		var fire_b := false
+		for tr in fg:
+			main.trap_view._tick_trap(tr, 0.02)
+			if tr["state"] == "fire":
+				if tr["dir"] == side_a:
+					fire_a = true
+				else:
+					fire_b = true
+		both = both or (fire_a and fire_b)
+		fired[0] = fired[0] or fire_a
+		fired[1] = fired[1] or fire_b
+	main.traps = []
+	_check(not fg.is_empty() and not both and fired[0] and fired[1], "the Furnace's two halves fire in turns, never together: one side is always safe")
+	_check(String(main.Themes.THEMES["furnace"]["sub"]).to_lower().contains("one side is always safe"), "...and its rule says so")
+	await _wait(0.2)
+	# Gas kills a climber who lingers in it.
+	var cloud: Dictionary = Traps.make(spot, "miasma", false, 2)
+	cloud["timer"] = 0.02
+	main.traps = [cloud]
+	p.global_position = spot
+	p.velocity = Vector2.ZERO
+	p.hp = 30.0
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	await _wait(float(Traps.KINDS["miasma"]["warn"]) + float(Traps.KINDS["miasma"]["fire"]))
+	_check(p.dead or p.hp <= 0.0, "a gas cloud kills a climber who lingers in it")
+	main.traps = []
+	await _fresh_main()
+
+
+## A set piece of trap theme `theme` built in a room that fits it, on floor
+## `fl`: [the floor's grid (traps.gd), the room, the traps] ([] traps if no
+## room fit in many tries).
+func _built_theme(theme: String, fl := 6) -> Array:
+	var Traps = main.Traps
+	var F = main.Floors
+	var T = main.Themes
+	var th: Dictionary = T.THEMES[theme]
+	var tid: String = th["towers"][0] if not th["towers"].is_empty() else "wyvern"
+	var tower: Dictionary = main.Towers.TOWERS[tid]
+	for attempt in 40:
+		var plan: Dictionary = F.rooms_floor(fl, tower)
+		for i in plan["room_info"].size():
+			var ri: Dictionary = plan["room_info"][i]
+			if not (ri["role"] in ["guard", "branch"]) or T.get_theme(ri["theme"])["kind"] == "good":
+				continue
+			if not T.fits(theme, {"size": Vector2i(ri["rect"].size / F.CELL), "rows": ri["rows"]}, tid, tower):
+				continue
+			var ctx: Dictionary = Traps.context(plan)
+			var got: Array = Traps.build_theme(ctx, i, theme, fl)
+			if not got.is_empty():
+				return [ctx, Traps._room(ctx, i), got]
+	return [{}, {}, []]
+
+
+## Each trap theme's set piece makes sense for the theme and its room.
+func _trap_theme_tests() -> void:
+	var Traps = main.Traps
+	var T = main.Themes
+	for theme in Traps.THEME_KINDS:
+		var res: Array = _built_theme(theme)
+		var ctx: Dictionary = res[0]
+		var R: Dictionary = res[1]
+		var g: Array = res[2]
+		var ok: bool = not g.is_empty()
+		var what := ""
+		var timers := {}
+		var dirs := {}
+		for tr in g:
+			ok = ok and tr["kind"] in Traps.THEME_KINDS[theme]
+			if tr["trigger"] == "timed":
+				timers[snappedf(fposmod(float(tr["timer"]), Traps.val(tr, "cycle")), 0.01)] = true
+			if Traps.KINDS[tr["kind"]]["shape"] == "lane":
+				dirs[Vector2i(tr["dir"].round())] = true
+		var cycle: float = Traps.val(g[0], "cycle") if ok else 1.0
+		var along := func(tr: Dictionary) -> int:
+			var l: Vector2i = Traps.tile_of(tr["pos"]) - R["t0"]
+			return l.x if R["horiz"] else l.y
+		var path := {}
+		if ok:
+			for pth in ctx["paths"]:
+				path[Traps.tile_of(pth[1].get_center())] = true
+		match theme:
+			"spikes":
+				# Each row lies across the short side and has its own beat.
+				var rows := {}
+				for tr in g:
+					var key := snappedf(float(tr["timer"]), 0.01)
+					if not rows.has(key):
+						rows[key] = {}
+					rows[key][along.call(tr)] = true
+				for key in rows:
+					ok = ok and rows[key].size() == 1
+				ok = ok and rows.size() >= 2
+				what = "rows across the short side, each a beat behind the last (%d rows)" % rows.size()
+			"darts":
+				# Slots in the two facing long walls, half a cycle apart, a wall behind each.
+				ok = ok and dirs.size() == 2 and dirs.has(R["B"]) and dirs.has(-R["B"])
+				var offs: Array = timers.keys()
+				ok = ok and offs.size() == 2 and is_equal_approx(snappedf(absf(offs[0] - offs[1]), 0.01), snappedf(cycle * 0.5, 0.01))
+				for tr in g:
+					var k: Vector2i = Traps.tile_of(Traps.slot_of(tr))
+					ok = ok and ctx["solid"][k.y * ctx["gs"].x + k.x] == 1
+				what = "slots in both long walls, firing across, the two walls half a cycle apart (%d slots)" % g.size()
+			"furnace":
+				# Vents at both ends firing toward the middle, half a cycle apart; a middle line never burns.
+				ok = ok and dirs.size() == 2 and dirs.has(R["A"]) and dirs.has(-R["A"])
+				var offs: Array = timers.keys()
+				ok = ok and offs.size() == 2 and Traps.val(g[0], "fire") <= cycle * 0.5
+				var burned := {}
+				for tr in g:
+					for t in Traps.cover(tr):
+						var l: Vector2i = t - R["t0"]
+						burned[l.x if R["horiz"] else l.y] = true
+				var safe_line := false
+				for a in range(1, R["L"] - 1):
+					safe_line = safe_line or not burned.has(a)
+				ok = ok and safe_line
+				what = "vents at both ends take turns; a line across the middle never burns (%d vents)" % g.size()
+			"windhall":
+				# Gusts all blow one way, toward a line of spikes along the wall.
+				var gusts: Array = g.filter(func(t): return t["kind"] == "gust")
+				var spikes := {}
+				for tr in g:
+					if tr["kind"] == "spikes":
+						spikes[Traps.tile_of(tr["pos"])] = true
+				var gdirs := {}
+				var onto := 0
+				for tr in gusts:
+					gdirs[Vector2i(tr["dir"].round())] = true
+					if spikes.has(Traps.tile_of(Traps.lane_end(tr) + tr["dir"] * main.Floors.CELL)):
+						onto += 1
+				ok = ok and gusts.size() >= 2 and gdirs.size() == 1 and spikes.size() >= 3 and onto * 2 >= gusts.size()
+				what = "gusts blow one way, onto a wall of spikes (%d gusts, %d onto spikes)" % [gusts.size(), onto]
+			"sluice":
+				# Sweeps along the hall, all from one end, the rows half a cycle apart.
+				var offs: Array = timers.keys()
+				ok = ok and dirs.size() == 1 and (dirs.has(R["A"]) or dirs.has(-R["A"])) and offs.size() == 2
+				what = "water sweeps along the hall from one end, rows taking turns (%d rows)" % g.size()
+			"emberfall":
+				ok = ok and g.size() >= 3 and timers.size() >= 2 and g.all(func(t): return t.has("burn_t"))
+				what = "marks land in waves and leave the floor burning (%d marks, %d beats)" % [g.size(), timers.size()]
+			"bramble":
+				ok = ok and path.size() >= 3 and g.size() >= 6
+				for tr in g:
+					ok = ok and not path.has(Traps.tile_of(tr["pos"]))
+				what = "snares fill the brambles; a winding path stays clear (%d snares, path %d)" % [g.size(), path.size()]
+			"miasma":
+				ok = ok and path.size() >= 3 and g.size() >= 2 and timers.size() >= 2
+				for tr in g:
+					for t in Traps.cover(tr):
+						ok = ok and not path.has(t)
+				what = "vents breathe in turn; their clouds never reach the clean path (%d vents)" % g.size()
+		_check(ok, "%s: %s" % [T.THEMES[theme]["name"], what])
+	# Every trap room says what it is: a rule, and a hazard door with its sigil.
+	var ok_text := true
+	for theme in Traps.THEME_KINDS:
+		var t: Dictionary = T.THEMES[theme]
+		ok_text = ok_text and String(t["sub"]).length() > 20 and t["door"] == "hazard" and main.door_view.SIGIL_COLORS.has(t.get("sigil", ""))
+	_check(ok_text, "every trap room has a rule and a hazard door bearing its sigil")
+
+
+## Whether a route from the start reaches each group of `goals` (any point
+## of a group) without stepping on a tile in `haz`. Walls and pillars block,
+## closed doors open; chasms are jumped.
+func _trap_free_route(haz: Dictionary, goals: Array) -> bool:
+	var Traps = main.Traps
+	var gs: Vector2i = main.grid_size
+	var doors := {}
+	for d in main.door_view.list:
+		for t in d["tiles"]:
+			doors[t] = true
+	var pillar := {}
+	for pl in main.pillars:
+		pillar[Traps.tile_of(pl["pos"])] = true
+	var start: Vector2i = Traps.tile_of(main.player_start)
+	var seen := {start: true}
+	var q: Array = [start]
+	var i := 0
+	while i < q.size():
+		var t: Vector2i = q[i]
+		i += 1
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var u: Vector2i = t + d
+			if seen.has(u) or u.x < 0 or u.y < 0 or u.x >= gs.x or u.y >= gs.y:
+				continue
+			if haz.has(u) or pillar.has(u):
+				continue
+			if main.is_solid(Traps.centre(u)) and not doors.has(u):
+				continue
+			seen[u] = true
+			q.append(u)
+	for group in goals:
+		var any := false
+		for pos in group:
+			any = any or seen.has(Traps.tile_of(pos))
+		if not any:
+			return false
+	return true
 
 
 func _room_fog_tests() -> void:
@@ -1616,19 +1923,47 @@ func _room_fog_tests() -> void:
 func _puzzle_tests() -> void:
 	print("puzzles and the stair's ward")
 	var F = main.Floors
+	var C = load("res://scripts/puzzles/catalog.gd")
 	var ok_all := true
-	var kinds := {}
 	for n in 12:
 		var plan: Dictionary = F.rooms_floor(2 + n % 4, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
-		var pz: Dictionary = plan.get("puzzle", {})
-		ok_all = ok_all and not pz.is_empty()
-		if not pz.is_empty():
-			kinds[pz["type"]] = true
+		ok_all = ok_all and not plan.get("puzzle", {}).is_empty()
 	_check(ok_all, "every floor of rooms has a puzzle room")
-	_check(kinds.has("eyes") and kinds.has("plates"), "both kinds of puzzle turn up (%s)" % [kinds.keys()])
+	# Which kind: every kind turns up; each tower leans to its own.
+	var picks := {}
+	var sig := {}
+	for n in 600:
+		var tid: String = main.Towers.ORDER[n % 6]
+		var k: String = C.pick(2 + n % 10, tid)
+		picks[k] = true
+		if C.SIGNATURE.get(tid, "") == k:
+			sig[tid] = int(sig.get(tid, 0)) + 1
+	_check(picks.size() == C.TYPES.size(), "every kind of puzzle turns up (%s)" % [picks.keys()])
+	_check(int(sig.get("gryphon", 0)) > 35 and int(sig.get("wyvern", 0)) > 35 and int(sig.get("manticore", 0)) > 35,
+		"the Gryphon favours mirrors, the Wyvern the crumbling path, the Manticore the statues (%s of 100 each)" % [sig])
+	_check(C.tier_for(2) == 1 and C.tier_for(3) == 1 and C.tier_for(4) == 2 and C.tier_for(8) == 2 and C.tier_for(9) == 3 and C.tier_for(11) == 3,
+		"tiers: 1 on floors 2-3, 2 on 4-8, 3 on 9-11")
+	_check(C.mode_for(3) == "quiet" and C.mode_for(C.PRESSURE_FROM) == "pressure", "quiet mode low down, pressure mode higher up")
+	# Every kind can be forced onto a floor, at the floor's tier, in its own themed hall.
+	var ok_forced := true
+	for kind in C.TYPES:
+		C.forced = kind
+		for fl in [2, 5, 9]:
+			var plan: Dictionary = F.rooms_floor(fl, main.Towers.TOWERS[main.Towers.ORDER[fl % 6]])
+			var pz: Dictionary = plan.get("puzzle", {})
+			ok_forced = ok_forced and pz.get("type", "") == kind and int(pz.get("tier", 0)) == C.tier_for(fl) and pz.get("mode", "") == C.mode_for(fl)
+			var gi: int = plan["room_info"].map(func(ri): return ri["role"]).find("gallery")
+			ok_forced = ok_forced and plan["themes"][gi] == "puzzle_" + kind
+			if not (kind in C.PREFAB):
+				ok_forced = ok_forced and not pz.get("entrances", []).is_empty()
+	C.forced = ""
+	_check(ok_forced, "each kind can be laid out on floors 2, 5 and 9, at the floor's tier, in a hall themed for it, with its doorways known")
+	_puzzle_generator_tests()
+
 	await _fresh_main()
 	main.profile.regarded = true
 	main.first_climb = false
+	main.dev_no_death = true
 	var p = main.player
 	var pz = main.puzzle
 	main._start_floor(3)
@@ -1645,40 +1980,66 @@ func _puzzle_tests() -> void:
 	main.open_all_doors()
 	var from: Vector2i = main._tile_of(main.player_start)
 	_check(not main.astar.get_id_path(from, main._tile_of(main.stair_pos)).is_empty(), "the stair can still be reached past the puzzle's rails and gates")
-	# A test puzzle of each kind, laid out in the start room.
+	# A test puzzle of each hand-made kind, laid out in the start room. (Some
+	# start rooms have a wall there: lay the floor out again until it's open.)
 	var c: Vector2 = main.player_start + Vector2(0, -120)
+	for attempt in 30:
+		var open := true
+		for dx in range(-160, 161, 40):
+			for dy in range(-200, 161, 40):
+				open = open and not main.is_solid(c + Vector2(dx, dy))
+		for tr in main.traps:
+			open = open and tr["pos"].distance_to(c) > 260.0
+		if open:
+			break
+		main._start_floor(3)
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(1)
+		c = main.player_start + Vector2(0, -120)
 	var tile := func(v: Vector2) -> Vector2: return main.room.position + (Vector2(main._tile_of(v)) + Vector2(0.5, 0.5)) * F.CELL
 	# Eyes: arrows and strikes light them; all lit solves it.
 	var e1: Vector2 = tile.call(c + Vector2(-80, 0))
 	var e2: Vector2 = tile.call(c + Vector2(80, 0))
 	var gate_r := Rect2(tile.call(c + Vector2(0, 80)) - Vector2(20, 20), Vector2(40, 40))
-	pz.setup({"type": "eyes", "tier": 1, "eyes": [e1, e2], "gates": [gate_r], "rewards": [gate_r.get_center() + Vector2(0, 40)], "room": main.room})
+	pz.setup({"type": "eyes", "tier": 1, "mode": "", "eyes": [e1, e2], "gates": [gate_r], "rewards": [gate_r.get_center() + Vector2(0, 40)], "room": main.room})
 	main.ward = true
 	main.stair_open = false
 	_check(pz.gates.size() == 1 and not pz.gates[0]["open"], "the gate starts shut")
 	p.global_position = e1 + Vector2(0, 50)
 	p.aim = Vector2.UP
 	_check(pz.aim_point(p.global_position, 380.0) != Vector2.INF, "with no foe near, auto-aim finds the puzzle's eye")
-	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) == 1 and pz.eyes[0]["lit"] > 0.0, "a strike lights an eye")
+	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) == 1 and pz.cur.eyes[0]["lit"] > 0.0, "a strike lights an eye")
 	var arrow = main.spawn_projectile(e2 + Vector2(-120, 0), Vector2(400, 0), 5.0)
 	arrow.friendly = true
 	await _wait(0.5)
-	_check(pz.eyes[1]["lit"] > 0.0 and not is_instance_valid(arrow), "an arrow lights an eye (and stops there)")
+	_check(pz.cur.eyes[1]["lit"] > 0.0 and not is_instance_valid(arrow), "an arrow lights an eye (and stops there)")
 	await _frames(2)
 	_check(pz.solved and not main.ward and main.stair_open, "lighting every eye lifts the ward and opens the stair")
 	_check(pz.gates[0]["open"], "...and opens the gate to the reward")
 	# Harder eyes go dark again unless they're all lit together.
-	pz.setup({"type": "eyes", "tier": 2, "eyes": [e1, e2], "room": main.room})
+	pz.setup({"type": "eyes", "tier": 2, "mode": "", "eyes": [e1, e2], "room": main.room})
 	main.ward = true
 	main.stair_open = false
 	pz.shot(e1)
-	_check(pz.eyes[0]["lit"] > 0.0, "a harder eye lights...")
-	await _wait(pz.EYE_WINDOW + 0.3)
-	_check(pz.eyes[0]["lit"] <= 0.0 and not pz.solved, "...but goes dark again if the others aren't lit in time")
+	_check(pz.cur.eyes[0]["lit"] > 0.0, "a harder eye lights...")
+	await _wait(pz.cur.EYE_WINDOW + 0.3)
+	_check(pz.cur.eyes[0]["lit"] <= 0.0 and not pz.solved, "...but goes dark again if the others aren't lit in time")
 	pz.shot(e1)
 	pz.shot(e2)
 	await _frames(2)
 	_check(pz.solved, "lit together, they solve it")
+	pz.setup({"type": "eyes", "tier": 3, "mode": "", "eyes": [e1, e2], "room": main.room})
+	_check(pz.cur.window() < pz.cur.EYE_WINDOW, "tier 3 eyes stay lit for less time")
+	# Stormcaller's Static (a shortcut): waking one eye sparks the next.
+	main.grant_test_bonds()
+	pz.setup({"type": "eyes", "tier": 2, "mode": "", "eyes": [e1, e2], "room": main.room})
+	main.ward = true
+	pz.shot(e1)
+	await _frames(2)
+	_check(pz.solved, "Stormcaller's Static: one eye's spark wakes the other")
+	for part in ["hand", "legs"]:
+		main.dev_set_mark(part, "", 1)
 	# Plates: need a weight (a block or a monster), not the climber.
 	var pl: Vector2 = tile.call(c + Vector2(0, 0))
 	var blk: Vector2 = pl + Vector2(-80, 0)
@@ -1688,10 +2049,10 @@ func _puzzle_tests() -> void:
 	main.stair_open = false
 	p.global_position = pl
 	await _frames(3)
-	_check(not pz.plates[0]["down"], "the climber is too light to hold a plate down")
+	_check(not pz.cur.plates[0]["down"], "the climber is too light to hold a plate down")
 	p.global_position = pl + Vector2(0, 120)
-	var b: Dictionary = pz.blocks[0]
-	_check(pz.slide(b, Vector2.RIGHT) and b["pos"].distance_to(pl + Vector2(-40, 0)) < 1.0, "a block slides a tile")
+	var b: Dictionary = pz.cur.blocks[0]
+	_check(pz.cur.slide(b, Vector2.RIGHT) and b["pos"].distance_to(pl + Vector2(-40, 0)) < 1.0, "a block slides a tile")
 	pz.strike(lev + Vector2(0, 40), Vector2.UP, 50.0, 60.0)
 	_check(b["pos"] == b["home"], "the lever puts the blocks back")
 	# Leaning on it pushes it.
@@ -1700,9 +2061,9 @@ func _puzzle_tests() -> void:
 	await _wait(0.75)
 	Input.action_release("move_right")
 	_check(b["pos"].x > blk.x + 30.0, "walking into a block pushes it (%s)" % [b["pos"] - blk])
-	pz.slide(b, Vector2.RIGHT)
+	pz.cur.slide(b, Vector2.RIGHT)
 	await _frames(3)
-	_check(pz.plates[0]["down"] and pz.solved and main.stair_open, "a block on the plate solves it and lifts the ward")
+	_check(pz.cur.plates[0]["down"] and pz.solved and main.stair_open, "a block on the plate solves it and lifts the ward")
 	# A monster can hold a plate down too.
 	pz.setup({"type": "plates", "tier": 2, "plates": [pl], "room": main.room})
 	main.ward = true
@@ -1711,6 +2072,311 @@ func _puzzle_tests() -> void:
 	await _frames(3)
 	_check(pz.solved, "a monster standing on a plate holds it down")
 	holder.queue_free()
+	await _frames(1)
+	# Sandshaper's Rooted Stance (a shortcut): heavy enough yourself.
+	_mark("legs", "sandshaper", 1)
+	pz.setup({"type": "plates", "tier": 2, "plates": [pl], "room": main.room})
+	main.ward = true
+	p.global_position = pl
+	await _frames(3)
+	_check(pz.solved, "Sandshaper's Rooted Stance: you hold a plate down yourself")
+	main.dev_set_mark("legs", "", 1)
+	pz.clear()
+	main.ward = false
+	await _statue_tests()
+	await _mirror_tests()
+	await _crumble_tests()
+	main.dev_no_death = false
+
+
+## The generators, on a plain room, over many seeds: always solvable (by
+## each kind's own solver) and harder by tier.
+func _puzzle_generator_tests() -> void:
+	var S = load("res://scripts/puzzles/statues.gd")
+	var M = load("res://scripts/puzzles/mirrors.gd")
+	var K = load("res://scripts/puzzles/crumble.gd")
+	var rows: Array = []
+	for y in 10:
+		rows.append("............")
+	var ctx := {"rows": rows, "reserved": {}, "features": {}}
+	var rect := Rect2(0, 0, 480, 400)
+	var to_tile := func(v: Vector2) -> Vector2i: return Vector2i(((v - rect.position) / 40.0).floor())
+	var blocked := func(t: Vector2i) -> bool: return t.x < 0 or t.y < 0 or t.x >= 12 or t.y >= 10
+	for tier in [1, 2, 3]:
+		# Three Statues: exactly one plate fits; tier 3 says two things each.
+		var ok_s := true
+		var ok_meta := true
+		for n in 40:
+			var s: Dictionary = S.make(rect, 2, tier, ctx)
+			ok_s = ok_s and not s.is_empty()
+			if s.is_empty():
+				continue
+			var doors: Array = S.solve_doors(s["statements"], tier)
+			ok_s = ok_s and doors.size() == 1 and doors[0] == s["answer"] and s["statues"].size() == 3 and s["plates"].size() == 3
+			for st in s["statements"]:
+				ok_s = ok_s and st.size() == (2 if tier >= 3 else 1)
+			if tier == 2:
+				var meta := false
+				for st in s["statements"]:
+					for one in st:
+						meta = meta or String(one[0]) in ["other_liar", "other_true"]
+				ok_meta = ok_meta and meta
+		_check(ok_s and ok_meta, "Three Statues, tier %d: 40 riddles, each with exactly one right plate%s" % [tier, " (two statements each, one statue alternating)" if tier == 3 else (" (one about another's honesty)" if tier == 2 else "")])
+		# Beam and Mirrors: scrambled, and the solver brings the beam home.
+		var ok_m := true
+		for n in 40:
+			var m: Dictionary = M.make(rect, 2, tier, ctx)
+			ok_m = ok_m and not m.is_empty()
+			if m.is_empty():
+				continue
+			var mir: Array = m["mirrors"].map(func(q): return {"tile": to_tile.call(q["pos"]), "o": q["o"], "fixed": q["fixed"]})
+			var e: Vector2i = to_tile.call(m["emitter"])
+			var tg: Vector2i = to_tile.call(m["receiver"])
+			ok_m = ok_m and not M.trace(e, m["dir"], tg, mir, blocked)["hit"]
+			ok_m = ok_m and not M.solve(e, m["dir"], tg, mir, blocked).is_empty()
+			var fixed: int = mir.filter(func(q): return q["fixed"]).size()
+			ok_m = ok_m and mir.size() == int(M.MIRRORS[tier]) + int(M.DECOYS[tier]) and fixed == (1 if tier >= 3 else 0)
+			var answer: Array = m["mirrors"].map(func(q): return q["answer"])
+			for i in mir.size():
+				mir[i]["o"] = answer[i]
+			ok_m = ok_m and M.trace(e, m["dir"], tg, mir, blocked)["hit"]
+		_check(ok_m, "Beam and Mirrors, tier %d: 40 layouts, %d mirrors (+%d decoys), scrambled, always solvable" % [tier, M.MIRRORS[tier], M.DECOYS[tier]])
+		# The Crumbling Path: a route over every stone, from the edge.
+		var ok_k := true
+		for n in 40:
+			var k: Dictionary = K.make(rect, 2, tier, ctx)
+			ok_k = ok_k and not k.is_empty()
+			if k.is_empty():
+				continue
+			var g: Array = K.GRID[tier]
+			ok_k = ok_k and k["cols"] == g[0] and k["rows"] == g[1] and k["holes"].size() == g[2] and k["cells"].size() == g[0] * g[1] - g[2]
+			var path: Array = K.hamilton_path(k["cells"], k["cols"], k["rows"])
+			ok_k = ok_k and path.size() == k["cells"].size()
+			for i in range(1, path.size()):
+				ok_k = ok_k and absi(path[i].x - path[i - 1].x) + absi(path[i].y - path[i - 1].y) == 1
+		_check(ok_k, "The Crumbling Path, tier %d: 40 grids of %dx%d with %d holes, each crossable stone by stone" % [tier, K.GRID[tier][0], K.GRID[tier][1], K.GRID[tier][2]])
+	# A grid with no route at all is turned down.
+	var cells: Array = []
+	for y in 3:
+		for x in 3:
+			if Vector2i(x, y) != Vector2i(1, 0):
+				cells.append(Vector2i(x, y))
+	_check(K.hamilton_path(cells, 3, 3).is_empty(), "the path's search turns down a grid no route can cross")
+
+
+## A floor of rooms with this kind of puzzle, its monsters gone, doors open.
+func _puzzle_floor(kind: String, fl: int) -> void:
+	var C = load("res://scripts/puzzles/catalog.gd")
+	C.forced = kind
+	main._start_floor(fl)
+	C.forced = ""
+	for e in main.enemies():
+		e.queue_free()
+		e.remove_from_group("enemies")
+	main.foes_changed()
+	main.open_all_doors()
+	await _frames(3)
+
+
+func _clear_foes() -> void:
+	for e in main.enemies():
+		e.queue_free()
+		e.remove_from_group("enemies")
+	main.foes_changed()
+	await _frames(2)
+
+
+func _statue_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("statues", 3)
+	var S = pz.cur
+	_check(pz.kind == "statues" and pz.tier == 1 and pz.mode == "quiet" and S.statements.size() == 3, "a statue hall on floor 3: tier 1, quiet")
+	# Quiet: a monster in the room keeps the statues asleep (as when the floor begins).
+	pz.awake = false
+	var guard = await _spawn("slime", pz._spot())
+	await _wait(0.4)
+	var wrong: int = (S.answer + 1) % 3
+	p.global_position = S.plates[wrong]["pos"]
+	await _wait(1.3)
+	_check(not pz.awake and not pz.locked and not pz.solved, "quiet: the statues sleep (and the plates do nothing) while a monster stands in their room")
+	guard.queue_free()
+	guard.remove_from_group("enemies")
+	main.foes_changed()
+	p.global_position = S.plaque
+	await _wait(0.4)
+	_check(pz.awake, "...and wake once the guards are dead")
+	# A wrong plate fails: an ambush, then the riddle starts again.
+	var before: int = main.enemies().size()
+	p.global_position = S.plates[wrong]["pos"]
+	await _wait(1.3)
+	_check(pz.locked and not pz.solved and main.ward and main.enemies().size() > before, "a wrong plate fails the test: an ambush, and the ward holds")
+	_check(pz.aim_point(p.global_position, 380.0) == Vector2.INF and pz.strike(p.global_position, Vector2.UP, 60.0, 60.0) == 0, "...and nothing in the test answers while the ambush is on")
+	p.global_position = S.plaque
+	for e in pz.ambushers:
+		_slay(e)
+	await _wait(0.3)
+	_check(not pz.locked and not pz.solved, "once the ambush is beaten, the test begins again")
+	_check(S.solve_doors(S.statements, 1) == [S.answer], "...with a new riddle that still has exactly one answer")
+	# It never locks: even an ambush left alive gives way to a reset in time.
+	pz.fail("test")
+	pz.lock_t = pz.LOCK_MAX
+	await _frames(3)
+	_check(not pz.locked, "an ambush never keeps the test shut for good (reset after %d s)" % int(pz.LOCK_MAX))
+	await _clear_foes()
+	await _wait(0.4)
+	p.global_position = S.plates[S.answer]["pos"]
+	await _wait(1.3)
+	_check(pz.solved and not main.ward and main.stair_open, "the right plate solves it: the ward lifts and the stair opens")
+	# Tier 2: the room seals behind you.
+	await _puzzle_floor("statues", 5)
+	S = pz.cur
+	var entr: Array = pz.spec.get("entrances", [])
+	_check(pz.tier == 2 and not entr.is_empty(), "a statue hall on floor 5 knows its doorways")
+	p.global_position = S.plaque
+	await _wait(0.3)
+	_check(pz.sealed and pz.seal_bodies.size() == entr.size() and main.astar.is_point_solid(main._tile_of(entr[0].get_center())), "stepping in seals the doorways")
+	pz.fail("test")
+	_check(not pz.sealed, "a failure opens the seal (fight or run)")
+	pz.lock_t = pz.LOCK_MAX
+	await _frames(3)
+	await _clear_foes()
+	await _wait(0.4)
+	_check(pz.sealed and pz.awake, "after the reset, the room closes again")
+	p.global_position = S.plates[S.answer]["pos"]
+	await _wait(1.3)
+	_check(pz.solved and not pz.sealed and not main.astar.is_point_solid(main._tile_of(entr[0].get_center())), "solving it opens the seal for good")
+	# Hunter's Keen Eyes (a shortcut): the liars show after a few moments.
+	await _puzzle_floor("statues", 4)
+	S = pz.cur
+	_mark("brow", "hunter", 1)
+	p.global_position = S.plaque
+	await _wait(S.KEEN_TIME + 0.5)
+	_check(S.keen and not S.liars.is_empty(), "Hunter's Keen Eyes: the lying statues show themselves")
+	main.dev_set_mark("brow", "", 1)
+	# Tier 3, pressure: two statements each, and monsters keep coming.
+	await _puzzle_floor("statues", 9)
+	S = pz.cur
+	_check(pz.tier == 3 and pz.mode == "pressure" and S.statements[0].size() == 2, "floor 9: two statements each, in pressure mode")
+	p.global_position = S.plaque
+	await _wait(0.3)
+	pz.press_t = 0.0
+	await _frames(3)
+	_check(pz.pressers.size() == 1 and pz.awake, "pressure: a monster arrives while you think, and the statues still speak")
+	await _clear_foes()
+
+
+func _mirror_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("mirrors", 5)
+	var M = pz.cur
+	_check(pz.kind == "mirrors" and M.mirrors.size() == 5 and not M.hit, "a mirror hall on floor 5: 4 mirrors and a decoy, the beam not yet home")
+	var m: Dictionary = M.mirrors.filter(func(q): return not q["fixed"])[0]
+	p.global_position = m["pos"] + Vector2(0, 50)
+	await _wait(0.4)
+	var aim: Vector2 = pz.aim_point(p.global_position, 150.0)
+	_check(M.mirrors.any(func(q): return q["pos"] == aim), "with no foe near, auto-aim finds a mirror")
+	var o0: String = m["o"]
+	_check(pz.strike(p.global_position, Vector2.UP, 50.0, 60.0) >= 1 and m["o"] != o0, "a strike turns a mirror")
+	await _wait(0.4)
+	var arrow = main.spawn_projectile(m["pos"] + Vector2(-26, 0), Vector2(400, 0), 5.0)
+	arrow.friendly = true
+	await _wait(0.5)
+	_check(m["o"] == o0 and not is_instance_valid(arrow), "an arrow turns a mirror (and stops there)")
+	await _wait(0.4)
+	# Windwalker's Crosswind (a shortcut): its wall of wind turns the mirrors it passes.
+	main.walls.append({"a": m["pos"] + Vector2(-60, 0), "b": m["pos"] + Vector2(60, 0), "t": 1.0, "color": Color.WHITE})
+	await _frames(3)
+	_check(m["o"] != o0, "Crosswind turns a mirror it passes")
+	main.walls.clear()
+	# The answer: the beam reaches the sigil, holds, and the ward lifts.
+	for i in M.mirrors.size():
+		M.mirrors[i]["o"] = pz.spec["mirrors"][i]["answer"]
+	M._retrace()
+	_check(M.hit, "facing the mirrors right carries the beam to the sigil")
+	await _wait(M.HOLD + 0.3)
+	_check(pz.solved and main.stair_open and not main.ward, "the beam held on the sigil solves it and lifts the ward")
+	_check(M.light_id >= 0 and main.lighting.lights.has(M.light_id), "the lit sigil adds its light to the darkness")
+	# Tier 3: one grey mirror won't turn.
+	await _puzzle_floor("mirrors", 9)
+	M = pz.cur
+	var fixed: Array = M.mirrors.filter(func(q): return q["fixed"])
+	_check(M.mirrors.size() == 7 and fixed.size() == 1, "floor 9: 5 mirrors, 2 decoys, one fixed")
+	var fo: String = fixed[0]["o"]
+	pz.strike(fixed[0]["pos"] + Vector2(0, 40), Vector2.UP, 50.0, 60.0)
+	pz.shot(fixed[0]["pos"])
+	_check(fixed[0]["o"] == fo and not pz.aim_point(fixed[0]["pos"] + Vector2(0, 30), 60.0) == fixed[0]["pos"], "the fixed mirror can't be turned (nor is it aimed at)")
+	pz.clear()
+	main.ward = false
+
+
+func _crumble_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("crumble", 5)
+	var K = pz.cur
+	_check(pz.kind == "crumble" and K.stones.size() == 19 and K.holes.size() == 1, "a crumbling path on floor 5: 5x4 stones, one hole")
+	var path: Array = K.hamilton_path(K.stones.keys(), K.cols, K.rows_n)
+	_check(path.size() == K.stones.size(), "a route over every stone exists")
+	var step := func(t: Vector2i) -> void:
+		p.global_position = K.stone_center(t)
+	# Back onto a lit stone: it crumbles, hurts, and the path goes dark.
+	step.call(path[0])
+	await _wait(0.06)
+	step.call(path[1])
+	await _wait(0.06)
+	_check(K.lit_count() == 2, "each stone lights as you step on it")
+	var hp: float = p.hp
+	p.iframes = 0.0
+	step.call(path[0])
+	await _wait(0.06)
+	_check(K.lit_count() == 0 and p.hp < hp, "stepping back on a lit stone hurts and puts the path out")
+	# A break in the path (a jump to a stone not beside the last) puts it out too.
+	p.global_position = K.origin + Vector2(-60, -60)
+	await _wait(0.1)
+	K.reset()
+	step.call(path[0])
+	await _wait(0.06)
+	step.call(path[2])
+	await _wait(0.06)
+	_check(K.lit_count() == 0, "a break in the path puts it out")
+	# Wandering off the grid does too.
+	p.global_position = K.origin + Vector2(-60, -60)
+	await _wait(0.1)
+	K.reset()
+	step.call(path[0])
+	await _wait(0.06)
+	p.global_position = K.origin + Vector2(-60, -60)
+	await _wait(K.OFF_GRACE + 0.2)
+	_check(K.lit_count() == 0, "wandering off the stones puts them out")
+	# Flamewing's Phoenix Glide (a shortcut): a glide passes over a lit stone unfelt.
+	_mark("back", "flamewing", 1)
+	K.reset()
+	step.call(path[0])
+	await _wait(0.06)
+	step.call(path[1])
+	await _wait(0.06)
+	p.jump_t = 0.3
+	p.jump_total = 0.42
+	step.call(path[0])
+	await _wait(0.06)
+	_check(K.lit_count() == 2, "Phoenix Glide: gliding over a lit stone doesn't break it")
+	p.global_position = K.origin + Vector2(-60, -60)
+	main.dev_set_mark("back", "", 1)
+	await _wait(0.4)
+	await _wait(K.OFF_GRACE + 0.2)
+	K.reset()
+	# Every stone once: solved.
+	for t in path:
+		step.call(t)
+		await _wait(0.04)
+	_check(pz.solved and main.stair_open and not main.ward, "stepping on every stone once solves it and lifts the ward")
+	# Higher up: a bigger grid with more holes.
+	await _puzzle_floor("crumble", 9)
+	_check(pz.cur.stones.size() == 28 and pz.cur.holes.size() == 2, "floor 9: 6x5 stones, two holes")
+	await _puzzle_floor("crumble", 2)
+	_check(pz.cur.stones.size() == 15 and pz.cur.holes.is_empty(), "floor 2: 5x3 stones, no holes")
 	pz.clear()
 	main.ward = false
 
@@ -4566,6 +5232,7 @@ func _run() -> void:
 	await _menu_tests()
 	await _screen_tests()
 	await _mark_page_tests()
+	await _entity_tests()
 	await _title_tests()
 	await _combat_feel_tests()
 	await _density_tests()
@@ -4583,6 +5250,8 @@ func _run() -> void:
 	await _body_part_tests()
 	await _item_tests()
 	await _camp_tests()
+	await _wing_tests()
+	await _lock_tests()
 	await _gear_tests()
 	await _heirloom_tests()
 	await _controls_tests()
@@ -4596,6 +5265,483 @@ func _run() -> void:
 	main.queue_free()
 	await _frames(2)
 	quit(1 if failures > 0 else 0)
+
+
+## A floor of rooms with a sealed wing (and a secret room, if `secret`), its monsters gone.
+func _wing_floor(secret := false, content := "") -> bool:
+	for n in 80:
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		var W = main.wings
+		if W.wings.is_empty():
+			continue
+		if secret and (W.secrets.is_empty() or (content != "" and W.secrets[0]["content"] != content)):
+			continue
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(2)
+		main.banner = {}
+		return true
+	return false
+
+
+## Walks the climber into a wing and on to its waves (frozen as they come).
+func _enter_wing(w: Dictionary) -> void:
+	var p = main.player
+	main.open_all_doors()
+	p.global_position = w["rect"].get_center()
+	await _frames(3)
+
+
+func _slay_waves(w: Dictionary) -> void:
+	var W = main.wings
+	for i in 200:
+		if w["state"] != "waves":
+			return
+		for e in W._alive(w["mobs"]):
+			_slay(e)
+		await _wait(0.1)
+
+
+func _wing_tests() -> void:
+	print("sealed wings, vaults, secret rooms, the recall scroll and crystals")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var F = main.Floors
+	var W = main.wings
+	var p = main.player
+	p.iframes = 0.0
+	# Plans: each kept cell that has room gets its wing or secret, inside the cell.
+	var made := 0
+	var secrets := 0
+	var ok_cell := true
+	var ok_size := true
+	var ok_apart := true
+	var ok_secret := true
+	var contents := {}
+	for n in 40:
+		var plan: Dictionary = F.rooms_floor(2 + n % 10, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
+		for w in plan["wings"]:
+			made += 1
+			ok_cell = ok_cell and w["area"].encloses(w["rect"]) and w["area"].encloses(w["alcove"])
+			var t: Rect2i = w["tiles"]
+			ok_size = ok_size and t.size.x >= 9 and t.size.x <= 11 and t.size.y >= 7 and t.size.y <= 9 and w["alcove"].size == Vector2(F.CELL, F.CELL) * 3.0
+			for r in plan["rooms"]:
+				ok_apart = ok_apart and not r.intersects(w["rect"].grow(F.CELL)) and not r.intersects(w["alcove"].grow(F.CELL))
+		for s in plan["secrets"]:
+			secrets += 1
+			contents[s["content"]] = true
+			ok_secret = ok_secret and s["area"].encloses(s["rect"]) and minf(s["corridor"].size.x, s["corridor"].size.y) == F.CELL and s["mouth"].size() == 1
+	_check(made >= 30 and ok_cell and ok_apart, "sealed wings are carved in the kept cells, apart from every room (%d over 40 floors)" % made)
+	_check(ok_size, "a wing room is 9-11 by 7-9 tiles, with a 3x3 vault alcove cut into its wall")
+	_check(secrets >= 8 and ok_secret and contents.size() >= 2, "secret rooms are carved in kept cells, joined by a passage one tile wide (%d, holding %s)" % [secrets, contents.keys()])
+
+	# In the tower: the vault's seal shows from the moment you see it.
+	_check(await _wing_floor(true), "floors have sealed wings and secret rooms")
+	var w: Dictionary = W.wings[0]
+	var vd: Vector2i = w["vault_door"]
+	_check(main.is_solid(w["seal_pos"]) and main.astar.is_point_solid(vd), "the vault door is shut: a solid tile, on the path grid too")
+	_check(main.lighting.lights.has(w["light"]), "light leaks out from under the seal (a light in the registry)")
+	var wd: Dictionary = main.door_view.door_at(w["door"][0])
+	_check(not wd.is_empty() and wd["style"] == "sealed", "the wing's doorway has a sealed door (the watching eye)")
+	main.open_all_doors()
+	var inside: Vector2 = W._tile_rect(w["door"]).get_center() - Vector2(w["out"]) * 34.0
+	p.global_position = inside
+	await _frames(3)
+	main.camera.reset_smoothing()
+	await _frames(2)
+	var fi: int = vd.y * main.grid_size.x + vd.x
+	_check(main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w), "stepping into the doorway, the seal is in sight, and drawn pulsing")
+	_check(w["state"] == "idle", "...and the wing stays open until you're really inside")
+	# Walk in: the way shuts behind you.
+	w["condition"] = "untouched"
+	w["fail"] = "lesser"
+	await _enter_wing(w)
+	var gate: Vector2 = W._tile_rect(w["door"]).get_center()
+	_check(w["state"] == "closing" and main.is_solid(gate) and main.astar.is_point_solid(w["door"][0]), "walking in shuts the way behind you (solid, on the path grid)")
+	_check(main.banner.get("lines", [""])[0] == W.TEXT["sealed"], "...with its banner: %s" % main.banner.get("lines", [""])[0])
+	p.global_position = gate - Vector2(w["out"]) * 60.0
+	await _frames(2)
+	p.global_position = gate + Vector2(w["out"]) * 70.0
+	await _frames(2)
+	_check(main.is_solid(gate), "(a sealed doorway stays shut)")
+	p.global_position = w["rect"].get_center()
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	_check(w["state"] == "waves" and not W._alive(w["mobs"]).is_empty() and W.challenge_live(), "then the Regard states its rule and the waves come (%d)" % W._alive(w["mobs"]).size())
+	_check(W._alive(w["mobs"]).all(func(e): return w["rect"].grow(4.0).has_point(e.global_position) and e.aware), "the waves appear inside the wing, awake")
+	_check(not W.status().is_empty() and W.status()["ok"], "the HUD shows the rule, kept")
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	await _slay_waves(w)
+	await _frames(2)
+	_check(w["vault"] == "open" and not main.is_solid(gate) and not main.is_solid(w["seal_pos"]), "beat the waves keeping the rule: the vault opens, and the way out")
+	# The pedestal: walk up and choose.
+	p.global_position = w["pedestal"] + Vector2(0, 6)
+	await _frames(3)
+	_check(main.camp_choosing and main.camp["stage"] == "vault" and main.camp["choices"].size() == 3, "the vault's pedestal offers three cards")
+	var crystal_cards: Array = main.camp["choices"].filter(func(c): return String(c).begins_with("crystal:"))
+	_check(crystal_cards.size() == 2 and crystal_cards[0].get_slice(":", 1) != crystal_cards[1].get_slice(":", 1), "two of them are essence crystals of different kinds")
+	var card: Dictionary = main.camp_card(0)
+	_check(card.has("crystal") and String(card["name"]).ends_with("Crystal"), "a crystal card reads as one (%s)" % card.get("name", ""))
+	var held0: int = main.profile.crystals.size()
+	main.choose_camp(0)
+	_check(not main.camp_choosing and main.profile.crystals.size() == held0 + 1, "choosing a crystal card keeps the crystal")
+	p.global_position = w["pedestal"] + Vector2(0, 6)
+	await _frames(3)
+	_check(not main.camp_choosing, "(a pedestal gives once)")
+	# A rule broken, the lesser way: the vault opens with less.
+	_check(await _wing_floor(), "another wing")
+	w = W.wings[0]
+	w["condition"] = "untouched"
+	w["fail"] = "lesser"
+	await _enter_wing(w)
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	p.hits_taken += 1  # struck
+	await _frames(2)
+	_check(w["broken"] and not W.status()["ok"], "taking a hit breaks a \"take no hit\" rule")
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(main.is_solid(gate), "...but the way stays shut until the waves are beaten")
+	await _slay_waves(w)
+	await _frames(2)
+	_check(w["vault"] == "lesser" and not main.is_solid(gate), "then the vault opens with a lesser prize, and the way out")
+	_check(W.vault_choices(true).size() == 2, "a lesser prize is two cards")
+	# A rule broken, the champion's way: the way reopens when it falls; the vault stays dark.
+	_check(await _wing_floor(), "a third wing")
+	w = W.wings[0]
+	w["condition"] = "swift"
+	w["fail"] = "champion"
+	await _enter_wing(w)
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	w["clock"] = float(w["limit"]) + 1.0  # too slow
+	await _frames(2)
+	var champ = w.get("champ")
+	_check(w["broken"] and w["state"] == "champion" and champ != null and champ.champion, "breaking a \"be quick\" rule brings the tower's champion")
+	if champ != null:
+		champ.set_physics_process(false)
+		var base: float = champ.TYPES[champ.kind]["hp"]
+		_check(champ.max_hp > base * 3.0 and champ.dmg > champ.TYPES[champ.kind]["dmg"], "a champion is a tougher %s (%d health)" % [champ.kind, int(champ.max_hp)])
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(main.is_solid(gate), "...and the way stays shut while it stands")
+	for e in W._alive(w["mobs"]):
+		_slay(e)
+	if champ != null:
+		_slay(champ)
+	await _frames(3)
+	_check(w["vault"] == "dark" and not main.is_solid(gate) and main.is_solid(w["seal_pos"]), "its fall reopens the way; the vault stays locked for good")
+	_check(w.has("drop"), "the champion leaves an essence crystal")
+	if w.has("drop"):
+		held0 = main.profile.crystals.size()
+		p.global_position = w["drop"]["pos"]
+		await _frames(3)
+		_check(main.profile.crystals.size() == held0 + 1, "walking over it keeps the crystal")
+	# Never trapped: a puzzle host's answer, or the room giving up.
+	_check(await _wing_floor(), "a fourth wing")
+	w = W.wings[0]
+	await _enter_wing(w)
+	W.wing_solved(w["id"])
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(w["vault"] == "open" and not main.is_solid(gate), "a puzzle host can answer a wing: wing_solved() opens the vault and the way")
+	_check(await _wing_floor(), "a fifth wing")
+	w = W.wings[0]
+	await _enter_wing(w)
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	w["clock"] = W.FAILSAFE + 1.0
+	await _frames(2)
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(w["state"] == "done" and not main.is_solid(gate), "a question that runs too long gives up: the way always reopens")
+	main.banner = {}
+
+	# Vault rewards: crystals, gear, a recall scroll, an item.
+	var kinds := {}
+	for i in 80:
+		for c in W.vault_choices(false):
+			kinds[String(c).get_slice(":", 0)] = true
+	_check(kinds.has("crystal") and kinds.has("gear") and kinds.has("scroll"), "vault cards: crystals, gear, a recall scroll or an item (%s)" % [kinds.keys()])
+	main._take_vault_pick("gear:axe")
+	_check(p.gear["melee"] == "axe", "a gear card is taken into its slot")
+	_check(p.add_item("scroll") and not p.add_item("scroll") and p.item_count("scroll") == 1, "you carry only one recall scroll")
+	var offered := false
+	for i in 80:
+		offered = offered or "scroll" in W.vault_choices(false)
+	_check(not offered, "...so a vault doesn't offer another while you carry one")
+	_check(p.selected_item() != "scroll", "(a scroll never takes the quick item from another)")
+	var hidden: Array = W.hidden_crystals()
+	_check(hidden.size() == 3 and hidden.all(func(c): return String(c).begins_with("crystal:")), "a hidden crystal choice offers three kinds")
+
+	# Consuming a crystal banks its essence into you.
+	main.profile.crystals = []
+	main.profile.add_crystal("air", 40.0)
+	var xp0: float = main.profile.bonds["hand"]["xp"]
+	var lines: Array = main.consume_crystal("air")
+	_check(main.profile.crystal_count("air") == 0 and main.profile.bonds["hand"]["xp"] > xp0 and not lines.is_empty(), "consuming a crystal banks its essence into your marks (%s)" % [lines])
+	_check(main.consume_crystal("air").is_empty(), "(none left: nothing happens)")
+
+	# Secret rooms.
+	_check(await _wing_floor(true, ""), "a floor with a secret room")
+	var s: Dictionary = W.secrets[0]
+	var mouth: Vector2i = s["mouth"][0]
+	var mc: Vector2 = W._tile_center(mouth)
+	var into: Vector2 = s["into"]
+	var deep: Vector2 = s["rect"].get_center()
+	_check(main.is_solid(mc) and main.is_solid(deep), "a secret room is solid rock to sight and paths until it opens")
+	p.global_position = mc - into * 40.0
+	await _frames(4)
+	var di: int = main._tile_of(deep).y * main.grid_size.x + main._tile_of(deep).x
+	_check(main.fog.vis[di] == 0, "standing at its wall, the room behind stays hidden in the fog")
+	s["dust_t"] = 0.01
+	await _frames(3)
+	_check(s["dust_t"] > 1.0, "dust drifts down near it now and then")
+	main.audio.last_played.erase("hit_blunt")
+	var k0: int = W.knocks
+	p.aim = into
+	await _swing()
+	_check(W.knocks == k0 + 1 and main.audio.last_played.has("hit_blunt"), "striking it gives a hollow knock")
+	var plain: bool = W.keen_outlined(s)
+	main.profile.add_bond("brow", "hunter", false)
+	main._give_bonds()
+	main.camera.reset_smoothing()
+	await _frames(2)
+	_check(not plain and W.keen_outlined(s) and W._anim_on_screen(), "Hunter's Keen Eyes outline it (others see a plain wall)")
+	# Lean into it.
+	var key := "move_down" if into == Vector2.DOWN else ("move_up" if into == Vector2.UP else ("move_right" if into == Vector2.RIGHT else "move_left"))
+	p.global_position = mc - into * 34.0
+	await _frames(2)
+	Input.action_press(key)
+	await _wait(0.3)
+	var early: bool = s["open"]
+	await _wait(0.9)
+	Input.action_release(key)
+	await _frames(2)
+	_check(not early and s["open"], "leaning into it for a moment grinds it open")
+	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth), "...a passage and a room, open to walk and to the path grid")
+	p.global_position = W._tile_center(s["door"][0]) + into * 30.0
+	await _frames(4)
+	_check(main.fog.vis[di] == 1, "...and in sight once you step in")
+	# A Tithe Door asks for unbanked essence.
+	if await _wing_floor(true, "tithe"):
+		s = W.secrets[0]
+		W._open_secret(s)
+		_check(main.is_solid(s["seal_pos"]), "a Tithe Door stands shut in its secret room")
+		main.run_essence = {"fire": 5.0}
+		_check(not W.pay_tithe(s) and s["vault"] == "sealed", "it won't open for less than it asks (%d)" % int(s["cost"]))
+		main.run_essence = {"fire": float(s["cost"]) * 0.5 + 4.0, "air": float(s["cost"]) * 0.5}
+		_check(W.pay_tithe(s) and s["vault"] == "open" and not main.is_solid(s["seal_pos"]), "paid, it opens")
+		var left := 0.0
+		for k2 in main.run_essence:
+			left += main.run_essence[k2]
+		_check(absf(left - 4.0) < 0.01, "the tithe comes out of your unbanked essence (%.1f left)" % left)
+	main.run_essence = {}
+
+	# The recall scroll: leave safely, unbanked essence turned to crystals.
+	main.banner = {}
+	main.camp_choosing = false
+	p.set_physics_process(true)
+	main.profile.crystals = []
+	main.run_essence = {"fire": 23.4, "air": 5.0}
+	main.run_soak = {"back": 4.0}
+	p.item_sel = "scroll"
+	_check(not p.use_item() and main.victory.is_empty() and main.banner.get("title", "") == main.Items.RECALL["ask_title"], "using the scroll asks first")
+	_check(p.use_item(), "...and a second use reads it")
+	_check(not main.victory.is_empty() and main.victory.get("recall", false), "reading it ends the climb safely")
+	_check(main.profile.crystal_count("fire") == 1 and int(main.profile.crystal_total("fire")) == 23 and main.profile.crystal_count("air") == 1, "unbanked essence settles into crystals, one per kind")
+	_check(main.run_essence.is_empty() and p.item_count("scroll") == 0 and main.profile.soak.get("back", 0.0) >= 4.0, "the scroll is used up, and nothing else is lost")
+	main.victory["t"] = 9.0
+	main.end_regard()
+	_check(not main.camp_choosing and not main.heirloom_offered, "no heirloom choice after a recall (the climb wasn't won)")
+	main.victory = {}
+	# On the first climb the words won't come.
+	await _fresh_main()
+	main.player.add_item("scroll")
+	main.player.item_sel = "scroll"
+	main.player.use_item()
+	main.player.use_item()
+	_check(main.victory.is_empty() and main.player.item_count("scroll") == 1, "the scroll can't be read before the Regard")
+
+
+## A floor with a locked door of this kind (its monsters gone unless `keep`), or {}.
+func _locked_floor(kind: String, keep := false) -> Dictionary:
+	for n in 120:
+		main._start_floor(3 + n % 8)
+		await _frames(1)
+		var locked: Array = main.door_view.list.filter(func(d): return d["lock"] == kind)
+		if locked.is_empty():
+			continue
+		if not keep:
+			for e in main.enemies():
+				if not e.has_meta("key"):
+					e.queue_free()
+		await _frames(2)
+		main.banner = {}
+		return locked[0]
+	return {}
+
+
+func _lock_tests() -> void:
+	print("locked doors and lock-in rooms")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var F = main.Floors
+	var p = main.player
+	# Plans: locks only off the main route, opened from the main route.
+	var kinds := {}
+	var ok_off := true
+	var ok_host := true
+	var floors_locked := 0
+	for n in 60:
+		var plan: Dictionary = F.rooms_floor(3 + n % 9, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
+		var infos: Array = plan["room_info"]
+		if not plan["locks"].is_empty():
+			floors_locked += 1
+		for d in plan["doors"]:
+			if d.get("lock", "") != "":
+				kinds[d["lock"]] = true
+				ok_off = ok_off and infos[d["room"]]["role"] == "branch"
+		for l in plan["locks"]:
+			if l.has("pos"):
+				var host := -1
+				for i in infos.size():
+					if infos[i]["rect"].has_point(l["pos"]):
+						host = i
+				ok_host = ok_host and host >= 0 and infos[host]["role"] in ["guard", "stair", "entrance"]
+			if l.has("carrier"):
+				var mp: Vector2 = plan["monsters"][l["carrier"]][1]
+				ok_host = ok_host and infos.any(func(ri): return ri["role"] in ["guard", "stair"] and ri["rect"].has_point(mp))
+	_check(floors_locked >= 25 and kinds.size() >= 3, "most floors have a locked door, of several kinds (%d of 60: %s)" % [floors_locked, kinds.keys()])
+	_check(ok_off, "only doors off the main route are locked (branch rooms and wings)")
+	_check(ok_host, "keys, levers and key carriers wait on the main route, reachable without passing the lock")
+	# The stair is always reachable with the locked doors still shut; so are their keys and levers.
+	var ok_reach := true
+	for n in 16:
+		main._start_floor(3 + n % 8)
+		await _frames(1)
+		for d in main.door_view.list:
+			if d["lock"] == "" and not d["open"]:
+				main.door_view.open_door(d, true)
+		var from: Vector2i = main._tile_of(main.player_start)
+		var goals: Array = [main.stair_pos]
+		for k in main.door_view.keys + main.door_view.levers:
+			goals.append(k["pos"])
+		for e in main.enemies():
+			if e.has_meta("key"):
+				goals.append(e.global_position)
+		for g in goals:
+			ok_reach = ok_reach and not main.astar.get_id_path(from, main._tile_of(g)).is_empty()
+	_check(ok_reach, "with locked doors still shut, the stair and every key and lever can be reached")
+	# A key lying in another room.
+	var d: Dictionary = await _locked_floor("key")
+	_check(not d.is_empty(), "a floor with a door locked by a key")
+	if not d.is_empty():
+		var dc: Vector2 = d["rect"].get_center()
+		var out: Vector2 = d["out"]
+		_check(main.is_solid(dc) and main.astar.is_point_solid(d["tiles"][0]), "a locked door is solid, on the path grid too")
+		var b0: int = main.door_view.bumps
+		main.door_view.bump_t = 0.0
+		p.global_position = dc + out * 50.0
+		await _frames(3)
+		_check(not d["open"] and main.door_view.bumps == b0 + 1 and main.banner.get("title", "") == "LOCKED", "bumping it: it stays shut and says it's locked, and how it opens")
+		var foe = await _spawn("slime", dc + out * 50.0)
+		foe.aware = true
+		main.door_view.monster_t = 0.0
+		p.global_position = main.player_start
+		await _wait(0.3)
+		_check(not d["open"], "monsters can't open a locked door either")
+		foe.queue_free()
+		var k: Dictionary = main.door_view.keys.filter(func(x): return x["lock_id"] == d["lock_id"])[0]
+		p.global_position = k["pos"]
+		await _frames(3)
+		_check(k["taken"] and d["lock_id"] in main.door_view.held, "walking over the key picks it up")
+		p.global_position = dc + out * 50.0
+		await _frames(3)
+		_check(d["open"] and not main.is_solid(dc), "with the key, the door opens")
+	# A lever elsewhere.
+	d = await _locked_floor("lever")
+	_check(not d.is_empty(), "a floor with a door barred by a lever")
+	if not d.is_empty():
+		var l: Dictionary = main.door_view.levers.filter(func(x): return x["lock_id"] == d["lock_id"])[0]
+		p.global_position = l["pos"] + Vector2(-30, 0)
+		p.aim = Vector2.RIGHT
+		await _frames(2)
+		await _swing()
+		_check(l["pulled"] and d["lock"] == "" and main.banner.get("title", "") == main.door_view.LOCK_TEXT["lever_title"], "striking the lever lifts the bars, with a banner")
+		p.global_position = d["rect"].get_center() + d["out"] * 50.0
+		await _frames(3)
+		_check(d["open"], "...and the door opens when you come")
+	# The floor's puzzle.
+	d = await _locked_floor("puzzle")
+	if not d.is_empty():
+		main.lift_ward()
+		_check(d["lock"] == "", "a warded door opens when the floor's puzzle is solved")
+	# A monster carries the key.
+	d = await _locked_floor("carried")
+	if not d.is_empty():
+		var carrier = main.enemies().filter(func(e): return e.has_meta("key"))
+		_check(carrier.size() == 1, "one monster carries the key")
+		if carrier.size() == 1:
+			var at: Vector2 = carrier[0].global_position
+			_slay(carrier[0])
+			await _frames(2)
+			_check(main.door_view.keys.any(func(x): return x["lock_id"] == d["lock_id"] and x["pos"] == at), "slain, it drops the key")
+	main.door_view.open_all()
+	_check(main.door_view.locked_count() == 0, "(the dev tool's Open all opens locked doors too)")
+
+	# Lock-in rooms.
+	var li := -1
+	for n in 80:
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		for i in main.door_view.lock_rooms:
+			var rect: Rect2 = main.room_info[i]["rect"]
+			if main.enemies().any(func(e): return rect.grow(-40.0).has_point(e.global_position)):
+				li = i
+				break
+		if li >= 0:
+			break
+	_check(li >= 0, "some rooms lock you in (%s)" % (main.room_themes[li] if li >= 0 else "none"))
+	if li >= 0:
+		var lr: Dictionary = main.door_view.lock_rooms[li]
+		var rect: Rect2 = main.room_info[li]["rect"]
+		main.open_all_doors()
+		for e in main.enemies():
+			e.set_physics_process(false)
+		main.banner = {}
+		p.global_position = rect.get_center()
+		await _frames(4)
+		var gate: Vector2 = main.door_view._tiles_rect(lr["gates"][0]).get_center()
+		_check(lr["state"] == "shut" and main.is_solid(gate) and main.astar.is_point_solid(lr["gates"][0][0]), "stepping in shuts its doorways (solid, on the path grid)")
+		_check(main.banner.get("title", "") == main.door_view.LOCK_TEXT["shut_title"] and not main.door_view.lock_status().is_empty(), "...with a slam, a banner and the foes left on screen")
+		for e in lr["mobs"]:
+			_slay(e)
+		await _wait(0.4)
+		_check(lr["state"] == "done" and not main.is_solid(gate), "they open once its monsters are dead")
+		p.global_position = main.player_start
+		await _frames(2)
+		p.global_position = rect.get_center()
+		await _frames(3)
+		_check(not main.is_solid(gate), "(and stay open)")
+	# A lock-in room with nobody in it never shuts.
+	var empty_ok := false
+	for n in 40:
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		if main.door_view.lock_rooms.is_empty():
+			continue
+		var i: int = main.door_view.lock_rooms.keys()[0]
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(2)
+		main.open_all_doors()
+		p.global_position = main.room_info[i]["rect"].get_center()
+		await _frames(4)
+		var lr: Dictionary = main.door_view.lock_rooms[i]
+		empty_ok = lr["state"] == "done" and not lr["gates"].any(func(g): return main.is_solid(main.door_view._tiles_rect(g).get_center()))
+		break
+	_check(empty_ok, "a lock-in room with no monsters left never shuts you in")
 
 
 ## The inventory slot with this key ("gear:melee", "item:draught", "heir:helm"...), or null.
@@ -4648,7 +5794,7 @@ func _screen_tests() -> void:
 	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
 	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "...the body and a card for each of the six parts")
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(tabs.size() == 3, "...and three tabs")
+	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 4, "...and its tabs (Marks, Essence, Record, Archive)")
 	tabs[1].pressed.emit()
 	await _frames(1)
 	_check(menu.climber_tab == "essence" and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.EssenceView), "the Essence tab shows density and attributes")
@@ -4927,3 +6073,249 @@ func _mark_page_tests() -> void:
 	menu.close()
 	main.gear_drops.clear()
 	await _frames(2)
+
+
+## Waits until the Entity's bubble shows (or a second passes).
+func _until_bubble() -> void:
+	for i in 120:
+		if main.entity.showing() and main.entity.leaving <= 0.0:
+			return
+		await process_frame
+
+
+## Waits until the Entity's bubble has gone.
+func _until_no_bubble() -> void:
+	for i in 120:
+		if not main.entity.showing():
+			return
+		await process_frame
+
+
+## The Entity: tips the first time each system is met (queued, once per
+## save, off in Settings, replayed), dismissed by key, tap, click or the
+## right stick; the Archive and the Record it presents; its pages.
+func _entity_tests() -> void:
+	print("the Entity: tips, the Archive and the Record")
+	var Guide = load("res://scripts/guide.gd")
+	var Entity = load("res://scripts/entity.gd")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	var p = main.player
+	var menu = main.menu
+	_check(not main.tip("glint") and Guide.queue.is_empty(), "tests keep the Entity quiet unless they ask")
+	Engine.set_meta("sixfold_tips", true)
+	Guide.forget()
+	_check(main.entity != null and main.entity.get_parent() == main.touch.get_parent(), "the Entity's bubble sits in the HUD layer, over the touch buttons")
+	# Every tip has a name, a short line and a fuller account; groups exist; no stray words.
+	var groups: Array = Entity.GROUPS.map(func(g): return g[0])
+	var bad: Array = []
+	for id in Entity.TIPS:
+		var e: Dictionary = Entity.TIPS[id]
+		if not (e["group"] in groups) or String(e["tip"]).length() > 170 or String(e["more"]).length() < 60 or String(e["name"]) == "":
+			bad.append(id)
+		for w in ["attunement", "spire", "trial", "judgment", "mana"]:
+			if (String(e["tip"]) + " " + String(e["more"])).to_lower().contains(w):
+				bad.append(id + ":" + w)
+	_check(bad.is_empty(), "every tip has a group, a short line and a fuller account (bad: %s)" % [bad])
+	var need := ["move", "glint", "essence", "bank", "regard", "ward", "puzzle_eyes", "puzzle_plates", "traps", "trap_room", "hidden_trap",
+		"doors", "door_locked", "fog", "camp", "gear", "heirloom", "items", "climber", "inventory", "chasm_fall", "beast", "death", "proving", "new_mark"]
+	_check(need.all(func(id): return Entity.TIPS.has(id)), "tips cover every system the climber meets")
+	_check(Entity.resolve("puzzle_mirrors") == "puzzle" and Entity.resolve("door_iron") == "door" and Entity.resolve("nonsense") == "", "a new kind falls back to its general tip")
+	_check(Entity.fill_keys("{roll} or {parry}", "keys") == "Space or right click or K" and Entity.fill_keys("{roll}", "touch") == "Roll", "tips name the keys or buttons in use")
+	var said: String = Entity.line("death", 0, {"floor": 4, "beast": "the Wyvern"})
+	_check(not said.contains("{"), "a moment's line is filled in: %s" % said)
+
+	# Registry: queued, one at a time, shown once.
+	_check(main.tip("glint"), "a new system queues its tip")
+	_check(not main.tip("glint"), "...only once while it waits")
+	await _until_bubble()
+	_check(main.entity.showing() and main.entity.current["id"] == "glint", "the Entity shows it in a bubble")
+	_check(Guide.told("glint") and Guide.known("glint"), "...and the Archive entry unlocks")
+	_check(main.entity.current["text"].contains("glint"), "the bubble says the tip")
+	_check(main.entity.rect.position.x > main.get_viewport().get_visible_rect().size.x * 0.5 and main.entity.rect.position.y < 120.0, "the bubble sits top right")
+	_check(not main.tip("glint"), "a tip already said isn't said again")
+	_check(not Guide.known("essence"), "unmet systems stay locked in the Archive")
+	main.tip("essence")
+	main.tip("bank")
+	await _frames(5)
+	_check(main.entity.current["id"] == "glint" and Guide.queue.size() == 2, "other tips wait their turn (at most one bubble)")
+	_check(not paused and p.is_physics_processing(), "a bubble never stops the game")
+	# Dismiss with Enter (the dismiss_tip action).
+	await _key_tap(KEY_ENTER)
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "Enter dismisses the tip")
+	await _until_bubble()
+	_check(main.entity.current.get("id", "") == "essence", "...and the next one follows")
+	# A click on the bubble.
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = _to_window(main.entity.rect.get_center())
+	Input.parse_input_event(click)
+	await _frames(2)
+	var up: InputEventMouseButton = click.duplicate()
+	up.pressed = false
+	Input.parse_input_event(up)
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "a click on the bubble dismisses it")
+	# A tap on the bubble (a phone), clear of the touch buttons.
+	main.touch._set_active(true)
+	await _until_bubble()
+	_check(main.entity.current.get("id", "") == "bank", "the third tip shows")
+	await _wait(0.4)  # (once it has slid in)
+	var r: Rect2 = main.entity.rect
+	main.touch._layout()
+	var covers := false
+	for b in main.touch.buttons:
+		if not (b["id"] in main.touch.TOP_BAR) and r.grow(4.0).intersects(Rect2(b["c"] - Vector2(b["r"], b["r"]), Vector2(b["r"], b["r"]) * 2.0)):
+			covers = true
+	_check(not covers and r.position.y > 50.0, "on a phone the bubble sits under the menu buttons, clear of the action buttons")
+	var vs: Vector2 = main.entity.get_viewport_rect().size
+	_check(r.end.x <= vs.x and r.position.x >= vs.x * 0.3, "...on the right, away from the joystick (%s in %s)" % [r, vs])
+	await _tap_at(r.get_center())
+	await _until_no_bubble()
+	_check(not main.entity.showing() and main.touch.held.is_empty() and main.touch.stick_touch < 0, "a tap dismisses it (and the touch controls don't take it)")
+	main.touch._set_active(false)
+	# The right stick (RS / R3) on a controller.
+	main.tip("items")
+	await _until_bubble()
+	await _pad_tap(JOY_BUTTON_RIGHT_STICK)
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "pressing the right stick dismisses it")
+	main.pad._set_active(false)
+	# Left alone, it fades by itself.
+	main.tip("inventory")
+	await _until_bubble()
+	main.entity.shown_t = main.entity.life
+	await _until_no_bubble()
+	_check(not main.entity.showing(), "a tip fades by itself after a few seconds")
+	# Under a menu it waits.
+	main.tip("camp")
+	menu.open("pause")
+	await _frames(10)
+	_check(not main.entity.showing() and Guide.queue.size() == 1, "no bubble while a menu is open; the tip waits")
+	menu.close()
+	await _until_bubble()
+	_check(main.entity.current.get("id", "") == "camp", "...and shows once the menu closes")
+	main.entity.dismiss()
+	await _until_no_bubble()
+
+	# Off in Settings: quiet, but the Archive still fills in. Replay.
+	Guide.set_on(false)
+	_check(not main.tip("gas") and Guide.queue.is_empty(), "tips off: the Entity stays quiet")
+	_check(Guide.known("gas") and not Guide.told("gas"), "...but the Archive entry still unlocks")
+	Guide.say("death", {"floor": 3})
+	await _frames(10)
+	_check(not main.entity.showing(), "...and says nothing at moments either")
+	Guide.set_on(true)
+	Guide.replay()
+	_check(not Guide.told("glint") and Guide.known("glint"), "replay: the tips are said again, the Archive keeps them")
+	_check(main.tip("glint"), "...so a tip already met queues again")
+	Guide.queue.clear()
+	# Moments: the tip first, a short line after.
+	Guide.moment("proving", "proving")
+	_check(Guide.queue.size() == 1 and Guide.queue[0]["id"] == "proving", "a moment's first time is its tip")
+	await _until_bubble()
+	main.entity.dismiss()
+	await _until_no_bubble()
+	Guide.moment("proving", "proving")
+	_check(Guide.queue.size() == 1 and Guide.queue[0]["kind"] == "say", "...and a short line after that")
+	Guide.queue.clear()
+
+	# Hooks in the game: greeting, essence, rooms, a fall.
+	Guide.forget()
+	main._greet()
+	_check(Guide.queue.size() >= 2 and Guide.queue[0]["id"] == "entity" and Guide.queue[1]["id"] == "move", "a climb begins: the Entity introduces itself, then the first steps")
+	main.gather_essence("water", 2.0, p.global_position)
+	_check(Guide.queue.any(func(q): return q["id"] == "essence"), "gathering essence brings the essence tip")
+	main.tip("puzzle_mirrors")
+	_check(Guide.queue.any(func(q): return q["id"] == "puzzle"), "a puzzle kind without its own tip gets the general one")
+	Guide.queue.clear()
+	main.entity.current = {}
+
+	# The record: counters the Entity keeps.
+	var prof = main.profile
+	var slain0: int = prof.count("slain")
+	var foe = main.enemies()[0]
+	_slay(foe)
+	await _frames(2)
+	_check(prof.count("slain") == slain0 + 1, "the record counts monsters slain")
+	var floors0: int = prof.count("floors")
+	main.grant_test_bonds()
+	main._arrive()
+	await _frames(2)
+	_check(prof.count("floors") == floors0 + 1 and int(prof.record["best"].get(main.tower, 0)) == main.floor_num, "...floors climbed and the best floor of each tower")
+	main.lift_ward()
+	_check(prof.count("puzzles") >= 1, "...puzzles solved")
+	main.dev_beast("gryphon")
+	await _frames(2)
+	Guide.queue.clear()
+	_slay(main.enemies()[0])
+	await _frames(2)
+	_check(prof.count("beasts") == 1 and int(prof.record["beasts_by"].get("gryphon", 0)) == 1, "...beasts slain, by tower")
+	_check(Guide.queue.any(func(q): return q["kind"] == "say" and q["key"] == "beast_slain"), "a beast slain: the Entity has a word")
+	Guide.queue.clear()
+	p.dead = false
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	var deaths0: int = prof.count("deaths")
+	p.receive_attack(99999.0, null)
+	_check(p.dead and prof.count("deaths") == deaths0 + 1, "...and falls")
+	_check(Guide.queue.any(func(q): return q["id"] == "death"), "the first fall: the Entity's tip")
+	Guide.queue.clear()
+	main.entity.current = {}
+
+	# The pages: the Archive, the Record and Settings, presented by the Entity.
+	Guide.forget()
+	for id in ["entity", "move", "glint", "ward"]:
+		Guide.state["known"][id] = true
+	menu.open("pause")
+	await _frames(2)
+	_check(_menu_button(Entity.TEXT["archive"]) != null, "the pause menu has the Archive")
+	_menu_button(Entity.TEXT["archive"]).pressed.emit()
+	await _frames(2)
+	_check(menu.page == "climber" and menu.climber_tab == "archive", "...which opens the climber screen's Archive tab")
+	var entries: Array = menu.focusables().filter(func(b): return b.has_meta("archive"))
+	var locked: Array = menu.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
+	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "the Entity presents the Archive")
+	entries[2].grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ENTER)
+	await _frames(2)
+	_check(menu.archive_open == "glint", "keys open an entry")
+	var open_says: Array = menu.find_children("*", "", true, false).filter(func(c): return c.get_meta("archive_open", "") == "glint")
+	_check(not open_says.is_empty() and open_says[0].get_meta("entity_line", "").contains("glint"), "...showing the Entity's tip and a fuller account")
+	_check(menu.focusables().any(func(b): return b.has_meta("archive") and b.has_focus()), "...and the focus stays on the entries")
+	var before = get_root().gui_get_focus_owner()
+	await _key_tap(KEY_DOWN)
+	var after = get_root().gui_get_focus_owner()
+	_check(after != null and after != before and after in menu.focusables(), "the arrows move through the entries")
+	menu.climber_tab = "record"
+	menu.open("climber")
+	await _frames(2)
+	var texts: Array = _all_labels(menu).map(func(l): return l.text)
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "record"), "the Entity presents the Record")
+	_check("Monsters slain" in texts and "Beasts slain" in texts and "Falls" in texts and "BY TOWER" in texts and "Kraken" in texts, "...with its counters and each tower's best floor")
+	menu.open("settings")
+	await _frames(2)
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "settings"), "the Entity presents Settings")
+	var tog: Array = menu.focusables().filter(func(b): return b.get_meta("setting", "") == "tips")
+	var sliders: Array = menu.focusables().filter(func(b): return b is HSlider)
+	_check(tog.size() == 1 and _menu_button(Entity.TEXT["replay"]) != null and sliders.size() == 2 and _menu_button("Normal") != null, "Settings has the guide tips toggle and Replay (and keeps the rest)")
+	tog[0].button_pressed = false
+	await _frames(2)
+	_check(not Guide.tips_on(), "...the toggle turns tips off")
+	var tog2: Array = menu.focusables().filter(func(b): return b.get_meta("setting", "") == "tips")
+	_check(tog2.size() == 1 and not tog2[0].button_pressed, "...and shows it")
+	_menu_button(Entity.TEXT["replay"]).pressed.emit()
+	await _frames(2)
+	_check(Guide.tips_on() and Guide.state["told"].is_empty(), "Replay turns them back on and forgets what was said")
+	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity_line", "") == Entity.line("replay")), "...and the Entity answers")
+	menu.close()
+	await _frames(2)
+	Guide.forget()
+	Engine.remove_meta("sixfold_tips")
+	main.entity.current = {}

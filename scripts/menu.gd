@@ -22,6 +22,8 @@ const Items := preload("res://scripts/items.gd")
 const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Entity := preload("res://scripts/entity.gd")
+const Guide := preload("res://scripts/guide.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -33,7 +35,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
 	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0}
 ## The climber screen's tabs: [id, name].
-const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
 const COMPACT_H := 600.0
 
@@ -64,6 +66,7 @@ var mark_part := ""  # the body part the mark detail page shows
 var focus_part := ""  # back on the Marks tab: the card to focus
 var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:draught", ...)
 var details: VBoxContainer  # the inventory's details pane
+var archive_open := ""  # the Archive entry shown open (a tip id)
 
 
 func _ready() -> void:
@@ -510,10 +513,10 @@ func _page_pause() -> void:
 	_button(_with_key("Inventory", "I", "D-pad up"), open.bind("inventory"), grid)
 	_button("Settings", open.bind("settings"), grid)
 	_button("Controls", open.bind("controls"), grid)
-	_button("Restart this climb", _restart, grid)
+	_button(Entity.TEXT["archive"], open_archive, grid)
 	_button("Dev tools", open.bind("dev"), grid)
-	_gap(2)
-	_button("New climber", _ask_new.bind("pause"))
+	_button("Restart this climb", _restart, grid)
+	_button("New climber", _ask_new.bind("pause"), grid)
 	if can_quit():
 		var row := _grid(2)
 		_button("Exit to title", exit_to_title, row)
@@ -539,11 +542,13 @@ static func can_quit() -> bool:
 
 func _page_settings() -> void:
 	_header("SETTINGS", "")
+	_entity_says("settings")
 	_slider("Music", "music")
 	_slider("Sounds", "sounds")
 	_toggle("Screen shake", "shake")
 	_toggle("Controls list on screen (H)", "help")
 	_choice("HUD size", "hud_scale", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]])
+	_guide_settings()
 	_footer()
 
 
@@ -600,6 +605,8 @@ func _page_climber() -> void:
 			_climber_essence(prof)
 		"record":
 			_climber_record(prof)
+		"archive":
+			_climber_archive()
 		_:
 			_climber_marks(prof)
 	_footer()
@@ -678,6 +685,7 @@ func _climber_essence(prof) -> void:
 ## Record: the climb you're on and your record on the left, your heirlooms
 ## on the right.
 func _climber_record(prof) -> void:
+	_entity_says("record", Entity.TEXT["record_title"].to_upper())
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 28)
 	box.add_child(row)
@@ -698,11 +706,14 @@ func _climber_record(prof) -> void:
 	_pair(g, "Kind of climb", "the bondless first climb" if main.first_climb else "a climb with your marks")
 	_section("Your record", left)
 	var r := _grid_in(left)
+	if compact():
+		r.columns = 4  # (a phone: two to a row, so the tab fits)
 	_pair(r, "Climbs", "%d" % prof.climbs)
 	_pair(r, "Best floor", "%d" % prof.best_floor)
 	_pair(r, "Marks", "%d of 6" % prof.bonds.size())
 	if not prof.pacts.is_empty():
 		_pair(r, "Pacts", "%d bound" % prof.pacts.size())
+	_record_counts(prof, r, left)
 	_section("Heirlooms", right)
 	for s in Gear.HEIRLOOM_SLOTS:
 		if s.get("planned", false):
@@ -724,6 +735,7 @@ func _climber_record(prof) -> void:
 		names.add_child(_small_label(s["name"], DIM))
 		var nl := _label(Gear.display(id) if id != "" else "none", 0.0, Gear.color(id).lightened(0.1) if id != "" else FAINT)
 		names.add_child(nl)
+	_record_towers(prof, right)
 	var note := Label.new()
 	note.text = "Survive a climb and you keep one piece you carried as an heirloom; every climb begins with them. The Inventory shows every slot."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -731,6 +743,140 @@ func _climber_record(prof) -> void:
 	note.add_theme_font_size_override("font_size", 12)
 	note.add_theme_color_override("font_color", FAINT)
 	right.add_child(note)
+
+
+# --- the Entity: the Archive, the record, settings -----------------------------------
+
+## The Entity's face and a line (entity.gd LINES) at the top of a page. The
+## line stays the same while you're on this floor of this climb.
+func _entity_says(key: String, heading := "") -> void:
+	var seed: int = 0 if main == null else main.floor_num + main.profile.climbs * 7
+	# (Just after a choice here, it answers that instead.)
+	var said := Entity.says(toast if toast != "" else Entity.line(key, seed), 34.0 if compact() else 44.0, heading)
+	said.set_meta("entity", key)
+	box.add_child(said)
+	_gap(0 if compact() else 2)
+
+
+## The pause menu's Archive: the climber screen on its Archive tab.
+func open_archive() -> void:
+	climber_tab = "archive"
+	open("climber")
+
+
+## The Archive: everything the Entity has told you, by subject. Each entry
+## is a button; choose it to read the Entity's line and a fuller account.
+## Subjects not met yet show as ???.
+func _climber_archive() -> void:
+	var total := Entity.TIPS.size()
+	var heard: int = Entity.TIPS.keys().filter(func(k): return Guide.known(k)).size()
+	_entity_says("archive", "%s  ·  %s" % [Entity.TEXT["tag"], (Entity.TEXT["heard"] % [heard, total]).to_upper()])
+	var mode := "keys"
+	if main != null and main.touch_active:
+		mode = "touch"
+	elif main != null and main.pad_active:
+		mode = "pad"
+	var ps: bool = main != null and main.pad_ps
+	for g in Entity.GROUPS:
+		var ids: Array = Entity.ordered(g[0])
+		# What you've met first, then the rest as ???.
+		ids = ids.filter(func(k): return Guide.known(k)) + ids.filter(func(k): return not Guide.known(k))
+		_section(g[1])
+		var grid := _grid(2, 6, 4)
+		for id in ids:
+			if not Guide.known(id):
+				var l := _label(Entity.TEXT["locked"], 0.0, FAINT)
+				l.custom_minimum_size.y = 32.0
+				l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+				var st := UI.box(Color(UI.BUTTON, 0.35), Color(1, 1, 1, 0.03), 6)
+				st.content_margin_left = 12.0
+				l.add_theme_stylebox_override("normal", st)
+				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				l.set_meta("archive_locked", id)
+				grid.add_child(l)
+				continue
+			var e: Dictionary = Entity.TIPS[id]
+			var b := _button(("v  " if archive_open == id else ">  ") + e["name"], _archive_toggle.bind(id), grid)
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.custom_minimum_size.y = 32.0
+			b.set_meta("archive", id)
+			if archive_open == id:
+				_primary(b)
+		if archive_open != "" and archive_open in ids:
+			var e: Dictionary = Entity.TIPS[archive_open]
+			var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper())
+			said.set_meta("archive_open", archive_open)
+			box.add_child(said)
+			_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
+	_gap(4)
+	var row := _grid(2)
+	_button(Entity.TEXT["replay"], _replay_tips, row)
+	var tog := CheckButton.new()
+	tog.text = "Guide tips"
+	tog.button_pressed = Guide.tips_on()
+	tog.custom_minimum_size.y = 38
+	tog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tog.toggled.connect(_set_tips)
+	row.add_child(tog)
+
+
+func _archive_toggle(id: String) -> void:
+	archive_open = "" if archive_open == id else id
+	open("climber", opened_direct)
+
+
+## Settings: the Entity's tips on or off, and Replay.
+func _guide_settings() -> void:
+	var tog := CheckButton.new()
+	tog.text = Entity.TEXT["tips_setting"]
+	tog.button_pressed = Guide.tips_on()
+	tog.custom_minimum_size.y = 38
+	tog.toggled.connect(_set_tips)
+	tog.set_meta("setting", "tips")
+	box.add_child(tog)
+	_button(Entity.TEXT["replay"], _replay_tips)
+
+
+func _set_tips(on: bool) -> void:
+	Guide.set_on(on)
+	_say(Entity.line("tips_on" if on else "tips_off"))
+
+
+func _replay_tips() -> void:
+	Guide.replay()
+	if not Guide.tips_on():
+		Guide.set_on(true)
+	_say(Entity.line("replay"))
+
+
+## The record's counters (profile.gd record), under "Your record".
+func _record_counts(prof, grid: GridContainer, _parent: Node) -> void:
+	_pair(grid, "Floors climbed", "%d" % prof.count("floors"))
+	_pair(grid, "Monsters slain", "%d" % prof.count("slain"))
+	_pair(grid, "Beasts slain", "%d" % prof.count("beasts"))
+	_pair(grid, "Falls", "%d" % prof.count("deaths"))
+	_pair(grid, "Puzzles solved", "%d" % prof.count("puzzles"))
+	_pair(grid, "Essence banked", "%d" % prof.count("essence"))
+	_pair(grid, "Heirlooms kept", "%d" % prof.count("heirlooms"))
+	if prof.count("falls") > 0:
+		_pair(grid, "Fell through chasms", "%d" % prof.count("falls"))
+	if prof.former > 0:
+		_pair(grid, "Climbers before you", "%d" % prof.former, Entity.GLOW)
+
+
+## Best floor and beasts slain in each tower.
+func _record_towers(prof, parent: Node) -> void:
+	_section("By tower", parent)
+	var g := _grid_in(parent)
+	var best: Dictionary = prof.record.get("best", {})
+	var by: Dictionary = prof.record.get("beasts_by", {})
+	for id in Towers.ORDER:
+		var t: Dictionary = Towers.TOWERS[id]
+		var b := int(best.get(id, 0))
+		var text := "not climbed" if b == 0 else "best floor %d" % b
+		if int(by.get(id, 0)) > 0:
+			text += "  ·  beast slain" + (" x%d" % int(by[id]) if int(by[id]) > 1 else "")
+		_pair(g, t["short"], text, Essence.color(t["essence"]) if b > 0 else FAINT)
 
 
 func _grid_in(parent: Node) -> GridContainer:
@@ -1059,6 +1205,24 @@ func _page_inventory() -> void:
 		s.on = id == sel and n > 0
 		keys.append(s.get_meta("slot"))
 
+	# Essence crystals: kept between climbs (the profile), consumed to bank.
+	# (On the right, over the details, so the screen fits a phone.)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 6)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_section("Essence crystals", right)
+	var crystal_row := _slot_row(right)
+	crystal_row.add_theme_constant_override("separation", 4)
+	for kind in Essence.KINDS:
+		var n: int = main.profile.crystal_count(kind)
+		var s := _slot(crystal_row, "crystal:" + kind, (36.0 if compact() else 40.0), "" if compact() else Essence.display(kind))
+		s.kind = "crystal"
+		s.id = kind
+		s.count = n
+		s.empty = n <= 0
+		s.tint = Essence.color(kind)
+		keys.append(s.get_meta("slot"))
+
 	_section("Heirlooms", left)
 	var grid := GridContainer.new()
 	grid.columns = 6
@@ -1091,8 +1255,10 @@ func _page_inventory() -> void:
 	var side := PanelContainer.new()
 	side.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.025), UI.SLOT_EDGE, 8, 1, 14.0))
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	side.custom_minimum_size.x = 260.0
-	row.add_child(side)
+	row.add_child(right)
+	right.add_child(side)
 	details = VBoxContainer.new()
 	details.add_theme_constant_override("separation", 6)
 	side.add_child(details)
@@ -1184,8 +1350,8 @@ func _show_details(key: String) -> void:
 			var data: Dictionary = Items.ITEMS[arg]
 			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
-			_detail_text("Carrying %d of %d%s" % [n, Items.MAX_STACK, "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
-			var use := _button("Use", _use_item.bind(arg), details)
+			_detail_text("Carrying %d of %d%s" % [n, Items.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
+			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
 				_button("Make it your quick item", _pick_item.bind(arg), details)
@@ -1217,6 +1383,18 @@ func _show_details(key: String) -> void:
 			_detail_stats(fid, held if held != "" else "-")
 			var take := _button("Take it" + ("  (drops your %s)" % Gear.display(held) if held != "" else ""), _take_floor, details)
 			take.disabled = p.dead
+		"crystal":
+			var n: int = main.profile.crystal_count(arg)
+			var col: Color = Essence.color(arg)
+			_detail_head("crystal", arg, Items.CRYSTAL["name"] % Essence.display(arg), col)
+			if n <= 0:
+				_detail_text(Items.CRYSTAL["none"], DIM)
+			else:
+				var each: float = main.profile.crystal_total(arg) / n
+				_detail_text(_sentence(Items.CRYSTAL["desc"] % [int(round(each)), Essence.display(arg).to_lower()]), TEXT)
+				_detail_text("Holding %d  ·  %d essence in all  ·  kept between climbs" % [n, int(main.profile.crystal_total(arg))], DIM)
+			var eat := _button(Items.CRYSTAL["consume"], _consume_crystal.bind(arg), details)
+			eat.disabled = n <= 0
 		"rune":
 			var r: Dictionary = Items.CAMP_RUNES.get(p.camp_rune, {})
 			_detail_head("rune", p.camp_rune, r.get("name", "Rune"), r.get("color", GOLD))
@@ -1310,9 +1488,20 @@ func _use_item(id: String) -> void:
 	if p.use_item():
 		toast = "Used: %s" % Items.ITEMS[id]["name"]
 	else:
-		toast = "It would do nothing now."
+		toast = Items.RECALL["ask_menu"] if id == "scroll" and main.recall_ask_t > 0.0 else "It would do nothing now."
+		if id == "scroll" and main.first_climb:
+			toast = Items.RECALL["first_climb"]
 		p.item_sel = before
 	toast_t = 2.0
+	if not main.victory.is_empty():
+		return  # (the scroll was read: the climb is over and the menu closed)
+	open("inventory", opened_direct)
+
+
+func _consume_crystal(kind: String) -> void:
+	var lines: Array = main.consume_crystal(kind)
+	toast = " ".join(lines) if not lines.is_empty() else ""
+	toast_t = 3.0
 	open("inventory", opened_direct)
 
 
@@ -1378,6 +1567,15 @@ func _page_dev() -> void:
 	var summit := int(main.tower_data().get("summit", 0))
 	if summit > 0:
 		_button("Go to %s" % main.beast_name(), _dev_floor.bind(summit), frow)
+
+	_section("Puzzles (every floor of rooms gets this kind)")
+	var zrow := _grid(3, 6)
+	var Catalog = load("res://scripts/puzzles/catalog.gd")
+	var zb := _button("Usual mix", _dev_puzzle.bind(""), zrow)
+	zb.disabled = Catalog.forced == ""
+	for kind in Catalog.TYPES:
+		var kb := _button(Catalog.display_name(kind, main.tower), _dev_puzzle.bind(kind), zrow)
+		kb.disabled = Catalog.forced == kind
 
 	_section("Practice a beast (full health)")
 	var brow := _grid(3, 6)
@@ -1489,6 +1687,11 @@ func _dev_floor(n: int) -> void:
 func _dev_beast(id: String) -> void:
 	main.dev_beast(id)
 	close()  # straight into the fight
+
+
+func _dev_puzzle(kind: String) -> void:
+	main.dev_puzzle(kind)
+	_say("Puzzles: %s (floor %d)" % [kind.capitalize() if kind != "" else "the usual mix", main.floor_num])
 
 
 func _dev_spawn(kind: String) -> void:
@@ -1958,6 +2161,13 @@ class Slot extends Button:
 					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GOLD if on else (UI.TEXT if count > 0 else UI.FAINT))
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
+			"crystal":
+				Items.draw_crystal_icon(self, tint, c, s, 1.0 if count > 0 else 0.22)
+				if count > 0:
+					var t := str(count)
+					var at := Vector2(size.x - 5.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x, size.y - 5.0)
+					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.9))
+					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.TEXT)
 		if corner != "":
 			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GOLD if on else UI.DIM)
 		if on and kind == "item":
@@ -1993,6 +2203,8 @@ class SlotIcon extends Control:
 				Items.draw_icon(self, id, c, s)
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
+			"crystal":
+				Items.draw_crystal_icon(self, tint, c, s)
 			"lock":
 				UI.draw_lock(self, c, s * 0.7, UI.FAINT)
 			_:

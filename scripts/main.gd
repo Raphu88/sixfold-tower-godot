@@ -28,6 +28,8 @@ const Traps := preload("res://scripts/traps.gd")
 const LightingScript := preload("res://scripts/lighting.gd")
 const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
+const WingsScript := preload("res://scripts/wings.gd")
+const GuideScript := preload("res://scripts/guide.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -60,6 +62,8 @@ var room_tile := Vector2i(-999, -999)  # the tile room_at was worked out on
 var room_pending := -1  # a room whose name waits for the banner to clear
 var springs: Array = []  # healing springs: {pos, r, left}
 var door_view  # the floor's doors (doors.gd)
+var wings  # the floor's sealed wings, vaults and secret rooms (wings.gd)
+var recall_ask_t := 0.0  # a recall scroll asked to be read: use it again before this runs out
 var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
 var fx
@@ -110,6 +114,7 @@ var hud
 var touch
 var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
+var entity  # the Entity's bubble in play (guide.gd); main.tip("id") for a new system
 var dev_no_death := false  # dev tool: you can't fall
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
@@ -207,6 +212,9 @@ func _ready() -> void:
 	door_view = DoorsScript.new()
 	door_view.main = self
 	add_child(door_view)
+	wings = WingsScript.new()
+	wings.main = self
+	add_child(wings)
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
@@ -277,6 +285,10 @@ func _ready() -> void:
 	touch = TouchScript.new()
 	touch.main = self
 	layer.add_child(touch)
+	# The Entity's tips, over the touch buttons (so a tap on a bubble is its own).
+	entity = GuideScript.new()
+	entity.main = self
+	layer.add_child(entity)
 	pad = PadScript.new()
 	pad.main = self
 	add_child(pad)
@@ -565,6 +577,7 @@ func _process(delta: float) -> void:
 		if get_tree().current_scene == self:  # (tests run the room outside a scene)
 			get_tree().reload_current_scene()
 		return
+	recall_ask_t -= delta / maxf(Engine.time_scale, 0.01)
 	new_climber_t -= delta / maxf(Engine.time_scale, 0.01)
 	if Input.is_action_just_pressed("new_climber"):
 		if new_climber_t > 0.0:
@@ -582,6 +595,7 @@ func _process(delta: float) -> void:
 	if not ward and not stair_open and not climbing and float(floor_total - alive) >= ceilf(STAIR_OPENS_AT * floor_total):
 		stair_open = true
 		room_view.stair_open = true
+		tip("stair")
 		if alive > 0:
 			sfx("glint", 0.7, -2.0, 0.0)
 	if not cleared and not climbing and alive == 0:
@@ -832,6 +846,15 @@ func _start_floor(n: int) -> void:
 	room_tile = Vector2i(-999, -999)
 	room_pending = -1
 	door_view.build(plan.get("doors", []), room_themes)
+	# Sealed wings, their vaults, and secret rooms (wings.gd): after the doors,
+	# before the fog and the first drawing (their closed tiles are solid).
+	wings.setup(plan)
+	# The traps (traps.gd): laid before the pillars and chasms are made, since
+	# placing them may add shelter pillars, move monsters off trap tiles and
+	# clear chasms from under what matters.
+	traps = Traps.place(plan, tower_data(), n, self)
+	trap_view.floor_marks = plan.get("trap_floor", {})
+	trap_view.reset()
 	springs = plan.get("springs", [])
 	# A fallen climber's camp: what they left behind.
 	for cp in plan.get("camps", []):
@@ -839,6 +862,7 @@ func _start_floor(n: int) -> void:
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
+		tip("beast")
 		sfx("warn_knight", 0.5, 0.0, 0.0)
 	pillars = plan["pillars"]
 	for p in pillars:
@@ -871,11 +895,9 @@ func _start_floor(n: int) -> void:
 					puddles.append_array(Floors.puddles(r.grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
-	traps = Traps.place(plan, tower_data(), n, self)
-	trap_view.reset()
 	# A trap room whose traps wouldn't fit is just a quiet hall.
 	for i in plan.get("hazard_rooms", []):
-		if not traps.any(func(tr): return room_info[i]["rect"].has_point(tr["pos"])):
+		if not traps.any(func(tr): return int(tr.get("room", -1)) == i):
 			room_themes[i] = "quiet"
 	door_view.restyle(room_themes)
 	_update_room_looks(plan.get("camps", []))
@@ -884,6 +906,7 @@ func _start_floor(n: int) -> void:
 		ward = puzzle.active()
 
 	var tough := Floors.toughness(n)
+	var spawned: Array = []
 	for m in plan["monsters"]:
 		var e = EnemyScript.new()
 		e.setup(m[0], self)
@@ -893,6 +916,9 @@ func _start_floor(n: int) -> void:
 		e.position = m[1]
 		e.aware = not layout_on  # in rooms, monsters wait until they see you
 		add_child(e)
+		spawned.append(e)
+	# A locked door's key may be carried by one of them.
+	door_view.tag_carriers(plan.get("doors", []) + plan.get("wings", []), spawned)
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
@@ -941,8 +967,13 @@ func _check_rooms() -> void:
 func _enter_room(i: int) -> void:
 	var id: String = room_themes[i]
 	var th: Dictionary = Themes.get_theme(id)
+	tip(GuideScript.Entity.ROOM_TIPS.get(th["feature"], ""))
+	var pk = puzzle.get("kind") if puzzle != null else null
+	if room_info[i].get("role", "") == "gallery" and pk is String and pk != "":
+		tip("puzzle_" + pk)  # (a kind with no tip of its own gets the general one)
 	if th["feature"] == "ambush":
 		_ambush(i)
+	door_view.room_entered(i)  # (a lock-in room shuts once you're well inside)
 	if th["sub"] == "" or id == "quiet":
 		return  # (the arrival hall and quiet halls say nothing)
 	if banner.is_empty() or banner.get("room", false):
@@ -953,6 +984,7 @@ func _enter_room(i: int) -> void:
 
 func _room_banner(i: int) -> void:
 	var th: Dictionary = Themes.get_theme(room_themes[i])
+	tip("rooms")
 	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true}
 	sfx("glint", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)
 
@@ -1028,6 +1060,8 @@ func fall_through() -> void:
 	player.set_physics_process(false)
 	player.iframes = maxf(player.iframes, 2.0)
 	var to := maxi(1, floor_num - 1)
+	profile.note("falls")
+	tip("chasm_fall")
 	fx_text(player.global_position + Vector2(0, -40), "Falling!", Color(0.85, 0.7, 0.6))
 	sfx("roll", 0.5, -2.0, 0.0)
 	shake(5.0)
@@ -1051,7 +1085,11 @@ func lift_ward() -> void:
 	ward = false
 	stair_open = true
 	room_view.stair_open = true
+	profile.note("puzzles")
+	tip("stair")
 	banner = {"title": PuzzleScript.TEXT["lifted_title"], "lines": [PuzzleScript.TEXT["lifted"]], "t": 2.5}
+	if door_view.unlock_puzzle():  # (warded doors open with it)
+		banner["lines"].append(door_view.LOCK_TEXT["puzzle_line"])
 	sfx("clear", 0.9, -2.0, 0.0)
 	fx_ring(stair_pos, Color(0.75, 0.55, 1.0), 80.0, 0.6, 4.0)
 
@@ -1093,6 +1131,8 @@ func _arrive() -> void:
 		banked += float(run_essence[k])
 	if banked > 0.0:
 		lines.append("Banked %d essence" % int(banked))
+		profile.note("essence", banked)
+		tip("bank")
 	lines.append_array(profile.bank(run_essence, run_soak))
 	run_essence = {}
 	run_soak = {}
@@ -1104,6 +1144,7 @@ func _arrive() -> void:
 			if id != "":
 				profile.add_bond(part, id, false)
 				lines.append("Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]])
+				GuideScript.moment("new_mark", "new_mark", {"mark": BondScript.Bonds.BONDS[id]["name"]})
 				sfx("crit", 0.7, -4.0)
 	_give_bonds()
 	profile.save()
@@ -1126,6 +1167,7 @@ func _arrive() -> void:
 		_enter_camp(lines)
 		return
 	_start_floor(floor_num + 1)
+	profile.note_floor(tower, floor_num)
 	if floor_num > best_floor:
 		best_floor = floor_num
 		profile.best_floor = best_floor
@@ -1135,11 +1177,15 @@ func _arrive() -> void:
 	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb:
 		# Halfway up: the Proving (its own test comes later).
 		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5}
+		GuideScript.moment("proving", "proving")
 	else:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	if ward:
 		banner["lines"] = banner.get("lines", []) + [PuzzleScript.TEXT["warded"]]
 		banner["t"] = maxf(float(banner.get("t", 0.0)), 3.5)
+		tip("ward")
+	if layout_on:
+		tip("fog")
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 
@@ -1231,6 +1277,7 @@ func _enter_camp(lines: Array) -> void:
 	choices.append("gear:" + Gear.random_gear("", player.carried_gear()))  # and a piece of gear
 	camp = {"stage": "item", "choices": choices, "lines": said}
 	camp_choosing = true
+	tip("camp")
 	card_focus = 0
 	banner = {}
 	player.set_physics_process(false)
@@ -1258,6 +1305,12 @@ func camp_card(i: int) -> Dictionary:
 	if pick.begins_with("rune:"):
 		var r: Dictionary = Items.CAMP_RUNES[pick.substr(5)]
 		return {"name": r["name"], "desc": r["desc"], "color": r["color"], "item": ""}
+	if pick.begins_with("crystal:"):
+		var kind := pick.get_slice(":", 1)
+		var amount := int(pick.get_slice(":", 2))
+		var held: int = profile.crystal_count(kind)
+		return {"name": Items.CRYSTAL["name"] % Essence.display(kind), "desc": Items.CRYSTAL["desc"] % [amount, Essence.display(kind).to_lower()],
+			"color": Essence.color(kind), "item": "", "crystal": kind, "note": "you hold %d like it" % held}
 	var crafted := pick.begins_with("craft:")
 	var id := pick.substr(6) if crafted else pick
 	var d := Items.info(id)
@@ -1274,6 +1327,9 @@ func choose_camp(i: int) -> void:
 	var pick: String = camp["choices"][i]
 	if camp["stage"] == "heirloom":
 		keep_heirloom(pick.substr(5))
+		return
+	if camp["stage"] == "vault":
+		_take_vault_pick(pick)
 		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
@@ -1301,6 +1357,105 @@ func choose_camp(i: int) -> void:
 	taken.append(Items.CAMP["leave"])
 	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0}
 	sfx("pickup", 0.95, -2.0, 0.0)
+
+
+# --- vaults, essence crystals and the recall scroll -------------------------------
+
+## A vault's pedestal (wings.gd): its cards, on the camp's card screen. The
+## monsters wait while you choose.
+func offer_vault(choices: Array, title: String, lines: Array) -> void:
+	camp = {"stage": "vault", "choices": choices, "lines": lines, "title": title}
+	camp_choosing = true
+	card_focus = 0
+	player.set_physics_process(false)
+	if wings != null:
+		wings.freeze()
+	sfx("ready", 0.9, -4.0, 0.0)
+
+
+func _take_vault_pick(pick: String) -> void:
+	var said := ""
+	var col := Color(0.95, 0.8, 0.5)
+	if pick.begins_with("crystal:"):
+		var kind := pick.get_slice(":", 1)
+		profile.add_crystal(kind, float(pick.get_slice(":", 2)))
+		profile.save()
+		said = "+ " + Items.CRYSTAL["name"] % Essence.display(kind)
+		col = Essence.color(kind)
+	elif pick.begins_with("gear:"):
+		said = _take_gear(pick.substr(5))
+		col = Gear.color(pick.substr(5))
+	else:
+		said = _take_item(pick, "Took")
+		col = Items.color(pick)
+	camp_choosing = false
+	camp = {}
+	player.set_physics_process(true)
+	if wings != null:
+		wings.unfreeze()
+	fx_text(player.global_position + Vector2(0, -44), said, col)
+	sfx("pickup", 0.95, -2.0, 0.0)
+
+
+## Consumes an essence crystal of a kind: its essence is banked into you,
+## as at a stair. Returns what changed (empty if you hold none).
+func consume_crystal(kind: String) -> Array:
+	var amount: float = profile.take_crystal(kind)
+	if amount <= 0.0:
+		return []
+	var lines: Array = [Items.CRYSTAL["consumed"] % [int(amount), Essence.display(kind).to_lower()]]
+	lines.append_array(profile.bank({kind: amount}, {}))
+	_give_bonds()
+	profile.save()
+	if player != null:
+		var col: Color = Essence.color(kind)
+		fx_ring(player.global_position, col, 40.0, 0.4, 3.0)
+		light_flash(player.global_position, col, 1.2, 1.4, 0.3)
+	sfx("glint", 1.2, -4.0, 0.0)
+	return lines
+
+
+## The recall scroll's item use (items.gd): the first use asks, a second
+## within a moment reads it. True once it's read (and used up).
+func recall_pressed() -> bool:
+	if first_climb:
+		fx_text(player.global_position + Vector2(0, -44), Items.RECALL["first_climb"], Color(0.8, 0.78, 0.85))
+		return false
+	if recall_ask_t > 0.0:
+		recall_ask_t = 0.0
+		read_recall()
+		return true
+	recall_ask_t = float(Items.RECALL["confirm"])
+	banner = {"title": Items.RECALL["ask_title"], "lines": [Items.RECALL["ask"]], "t": float(Items.RECALL["confirm"])}
+	sfx("warn_knight", 1.3, -8.0, 0.0)
+	return false
+
+
+## Reads a recall scroll: you leave the tower safely, keeping everything.
+## Unbanked essence settles into essence crystals (one per kind) and this
+## floor's soak is banked; there's no heirloom choice (the climb wasn't won).
+## Then on to the next climb's tower choice.
+func read_recall() -> void:
+	var made: Array = []
+	for k in run_essence:
+		var amount := float(run_essence[k])
+		if amount >= 1.0:
+			profile.add_crystal(k, amount)
+			made.append("%d %s" % [int(round(amount)), Essence.display(k).to_lower()])
+	profile.bank({}, run_soak)
+	run_essence = {}
+	run_soak = {}
+	profile.save()
+	var lines: Array = [Items.RECALL["crystals"] % ", ".join(made) if not made.is_empty() else Items.RECALL["none"]]
+	if menu != null and menu.is_open():
+		menu.close()
+	banner = {}
+	victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5, "recall": true}
+	player.set_physics_process(false)
+	for e in enemies():
+		e.set_physics_process(false)
+	sfx("clear", 1.1, -2.0, 0.0)
+	light_flash(player.global_position, Color(0.95, 0.82, 0.5), 2.0, 1.8, 0.6)
 
 
 func _take_item(id: String, verb: String) -> String:
@@ -1340,6 +1495,7 @@ func _update_gear_drops() -> void:
 			gear_here = d
 	if gear_here.is_empty():
 		return
+	tip("gear")
 	if player.gear[Gear.slot_of(gear_here["id"])] == "":
 		var id: String = gear_here["id"]
 		gear_drops.erase(gear_here)
@@ -1388,6 +1544,8 @@ func _update_item_drops(delta: float) -> void:
 			d["t"] = 0.0
 			fx_text(player.global_position + Vector2(0, -44), "+ " + name, Items.color(d["id"]))
 			sfx("pickup")
+			tip("items")
+			tip("inventory")
 		elif not d.get("told", false):
 			d["told"] = true
 			fx_text(player.global_position + Vector2(0, -44), "No room for another " + name, Color(0.8, 0.78, 0.85))
@@ -1420,6 +1578,11 @@ func choose_tower(id: String) -> void:
 
 
 func _greet() -> void:
+	tip("entity")
+	tip("move")
+	if not first_climb:
+		tip("casting")
+		tip("climber")
 	if first_climb:
 		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0}
 	else:
@@ -1529,11 +1692,15 @@ func predicted_bond() -> String:
 func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 	run_essence[kind] = float(run_essence.get(kind, 0.0)) + amount
 	climb_essence[kind] = float(climb_essence.get(kind, 0.0)) + amount
+	tip("essence")
 	if fx != null:
 		fx.motes(from, Essence.color(kind), int(ceil(amount)), player)
 
 
 func on_player_died() -> void:
+	profile.note("deaths")
+	profile.save()
+	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
 	if first_climb and regard.is_empty() and not regard_pending:
 		# Even fallen, you are regarded: the faint mark is granted (and saved)
 		# now, and shown after a moment (a restart before then keeps it).
@@ -1567,6 +1734,7 @@ func _begin_regard(fell: bool) -> void:
 		return
 	_grant_regard(fell)
 	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0, "dark": fade > 0.5}
+	GuideScript.moment("regard", "regard")
 	banner = {}
 	regard_pending = false
 	player.set_physics_process(false)
@@ -1596,7 +1764,7 @@ func regard_done() -> bool:
 func end_regard() -> void:
 	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
 	var survived: bool = not victory.is_empty() or (not regard.is_empty() and not regard.get("fell", false))
-	if survived and not heirloom_offered and _offer_heirloom():
+	if survived and not victory.get("recall", false) and not heirloom_offered and _offer_heirloom():
 		return
 	Engine.time_scale = 1.0
 	if get_tree().current_scene == self:  # (tests run the room outside a scene)
@@ -1630,6 +1798,7 @@ func _offer_heirloom() -> bool:
 	banner = {}
 	Engine.time_scale = 1.0
 	camp = {"stage": "heirloom", "choices": choices, "lines": [Gear.HEIRLOOM_TEXT["sub"]]}
+	tip("heirloom")
 	camp_choosing = true
 	card_focus = 0
 	player.set_physics_process(false)
@@ -1641,6 +1810,7 @@ func _offer_heirloom() -> bool:
 func keep_heirloom(id: String) -> void:
 	if id != "" and Gear.is_gear(id):
 		profile.heirlooms[Gear.heirloom_slot(id)] = id
+		profile.note("heirlooms")
 		profile.save()
 		sfx("heirloom", 1.0, 0.0, 0.0)
 	camp_choosing = false
@@ -1693,6 +1863,12 @@ func request_attack(e) -> bool:
 
 func release_attack(e) -> void:
 	attackers.erase(e)
+
+
+## The first time the climber meets a system: the Entity's tip for it (once
+## per save; the words are in entity.gd's TIPS). Safe to call every frame.
+func tip(id: String) -> bool:
+	return GuideScript.tip(id)
 
 
 func menu_open() -> bool:
@@ -1756,6 +1932,17 @@ func dev_floor(n: int) -> void:
 		choose_tower(tower)
 	_leave_camp_now()
 	_start_floor(n)
+
+
+## Every floor of rooms gets this kind of puzzle ("" for the usual mix);
+## goes to a floor of rooms at once to try it.
+func dev_puzzle(kind: String) -> void:
+	PuzzleScript.Catalog.forced = kind
+	var n := floor_num
+	if n < 2 or n >= int(tower_data().get("summit", Towers.SUMMIT)):
+		n = 2
+	if kind != "":
+		dev_floor(n)
 
 
 ## A monster near the climber, inside the room.
@@ -2154,6 +2341,10 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 
 func on_enemy_killed(e) -> void:
+	profile.note("slain")
+	if e.is_boss():
+		profile.note_beast(tower)
+		GuideScript.say("beast_slain", {"beast": beast_name()})
 	# Overcharge: a charged foe's death throws lightning to everything near it.
 	if e.overcharge_t > 0.0:
 		var pts: Array = []
@@ -2174,6 +2365,10 @@ func on_enemy_killed(e) -> void:
 	# Now and then a slain monster leaves an item.
 	if not e.is_boss() and randf() < item_drop_chance:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": Items.DROP_LIFE})
+	if wings != null:
+		wings.on_enemy_killed(e)
+	if door_view != null:
+		door_view.on_enemy_killed(e)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.

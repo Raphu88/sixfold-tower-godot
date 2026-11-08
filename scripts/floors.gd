@@ -59,6 +59,7 @@ const LAYOUTS := [
 ## Each room then gets a THEME (themes.gd): what it is and what it holds.
 
 const Themes := preload("res://scripts/themes.gd")
+const Catalog := preload("res://scripts/puzzles/catalog.gd")
 
 ## The grid's tiles start here (world px), CELL px each.
 const ORIGIN := Vector2(80, 100)
@@ -131,7 +132,10 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var spine := _spine(grid, _roll(cfg["spine"]))
 	var infos: Array = []
 	var used_ids: Array = []
-	var tier_cap := 1 if floor_num <= 3 else (2 if randf() < 0.5 else 1)
+	# The gallery's puzzle (puzzles/catalog.gd): hand-made rooms hold the
+	# eyes and plates (tier 2 at most); the others lay themselves out.
+	var pz_kind := Catalog.pick(floor_num, tid)
+	var tier_cap := mini(Catalog.tier_for(floor_num), 2)
 	var gallery_at: int = spine.size() / 2
 	for i in spine.size():
 		var role := "guard"
@@ -141,7 +145,7 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			role = "stair"
 		elif i == gallery_at:
 			role = "gallery"
-		var info := _place(role, spine[i], i - 1, infos, floor_num, tower, used_ids, tier_cap)
+		var info := _place(role, spine[i], i - 1, infos, floor_num, tower, used_ids, tier_cap, pz_kind)
 		if info.is_empty():
 			return {}
 		infos.append(info)
@@ -257,8 +261,15 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 			_reserve_door(info, t)
 			_reserve_door(infos[info["parent"]], t)  # (clamped into the parent: the tile inside its end)
 	walk.append_array(corridors)
+	# The kept cells: sealed wings and secret rooms (see "sealed wings" below).
+	var kept_walk: Array = []
+	var kept_doorways: Array = []
+	var kept_posts: Array = []
+	var kept_torches: Array = []
+	_carve_kept(infos, wings, secrets, walk, kept_walk, kept_doorways, kept_posts, kept_torches)
+	walk.append_array(kept_walk)
 	# Both ends of every corridor: doorways, kept clear of traps.
-	var doorways: Array = []
+	var doorways: Array = kept_doorways.duplicate()
 	for info in infos:
 		if not info.has("link"):
 			continue
@@ -294,7 +305,9 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		var info: Dictionary = infos[i]
 		var f: Dictionary = Rooms.features(info["rows"], info["rect"].position, CELL, tower)
 		if info["role"] == "gallery":
-			puzzle = _puzzle_spec(info, f)
+			puzzle = _puzzle_spec(info, f, floor_num, tower, _entrances(infos, i))
+			for t in puzzle.get("reserve", []):
+				info["reserved"][t] = true
 		blocks.append_array(f["blocks"])
 		chasms.append_array(f["chasms"])
 		pillars.append_array(f["pillars"])
@@ -372,15 +385,22 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 			hazard_rooms.append(i)
 		room_info.append({"rect": info["rect"], "role": info["role"], "theme": info["theme"], "shape": info["shape"],
 			"id": info["id"], "cell": info["cell"], "walk": info["walk"], "rows": info["rows"],
-			"parent": info["parent"], "ambush": info.get("ambush", [])})
+			"parent": info["parent"], "ambush": info.get("ambush", []), "gates": _gates(infos, i, wings)})
+	for k in wings + secrets:
+		safe_rooms.append(k["rect"])  # (no traps in a wing or a secret room: they hold their own tests)
+	# Some doors are locked, their key or lever elsewhere (see "locked doors" below).
+	var locks := _locks(infos, doors, monsters, wings, floor_num)
+	for l in locks:
+		if l.has("pos"):
+			doorways.append(Rect2(l["pos"] - Vector2(CELL, CELL) * 0.5, Vector2(CELL, CELL)))  # (traps keep clear of keys and levers)
 	var used := _used_grid(infos, wings, secrets)
 	var arena := Rect2(ORIGIN, Vector2(used.x * CELL_TILES.x, used.y * CELL_TILES.y) * CELL)
 	var plan := {"arena": arena, "grid": used, "rooms": rooms, "walk": walk,
 		"corridors": corridors, "start": start, "stair": stair, "pillars": pillars, "monsters": monsters,
 		"chasms": chasms, "blocks": blocks, "pools": pools, "room_ids": ids, "puzzle": puzzle,
-		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors),
-		"torches": _torches(infos), "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
-		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways}
+		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors) + kept_posts,
+		"torches": _torches(infos) + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
+		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks}
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
@@ -450,9 +470,9 @@ static func _index_of_role(infos: Array, role: String) -> int:
 
 ## A room for `role` placed in `cell`, joined to room `parent` (an index into
 ## `infos`, or -1) by a corridor; {} if no room would join up.
-static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int) -> Dictionary:
+static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "") -> Dictionary:
 	for design_try in 8:
-		var d := _design(role, floor_num, tower, used_ids, tier_cap)
+		var d := _design(role, floor_num, tower, used_ids, tier_cap, pz_kind)
 		var size: Vector2i = d["size"]
 		var x0 := cell.x * CELL_TILES.x + 1
 		var y0 := cell.y * CELL_TILES.y + 1
@@ -479,10 +499,16 @@ static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floo
 
 ## What a room looks like: a hand-made room (rooms.gd) or a shape carved in
 ## the tower's style. {id, prefab, rows, size, shape (, puzzle, tier)}
-static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int) -> Dictionary:
+static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "") -> Dictionary:
 	var prefab_role: String = {"entrance": "start", "guard": "combat", "branch": "combat", "stair": "stair", "gallery": "puzzle"}[role]
+	if role == "gallery" and pz_kind != "" and not (pz_kind in Catalog.PREFAB):
+		return _puzzle_hall(pz_kind)
 	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)):
 		var fits: Array = Rooms.for_role(prefab_role, floor_num).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
+		if role == "gallery" and pz_kind != "":
+			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
+			var top: Array = kind_fits.filter(func(r): return int(r.get("tier", 1)) == tier_cap)
+			fits = top if not top.is_empty() else (kind_fits if not kind_fits.is_empty() else fits)
 		var fresh: Array = fits.filter(func(r): return not (r["id"] in used_ids))
 		var pool: Array = fresh if not fresh.is_empty() or role == "gallery" else []
 		if pool.is_empty() and role == "gallery":
@@ -511,6 +537,15 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 	h = mini(h, Rooms.MAX_SIZE.y)
 	var size := Vector2i(w, h)
 	return {"id": "carved_" + shape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape}
+
+
+## A plain carved hall for a puzzle that lays itself out (statues, mirrors,
+## the crumbling path): open floor, so the puzzle has room to work.
+static func _puzzle_hall(kind: String) -> Dictionary:
+	var lim: Array = Catalog.ROOM_SIZE
+	var size := Vector2i(mini(randi_range(int(lim[0]), int(lim[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(lim[2]), int(lim[3])), Rooms.MAX_SIZE.y))
+	var shape: String = Catalog.ROOM_SHAPES[randi() % Catalog.ROOM_SHAPES.size()]
+	return {"id": "hall_" + kind, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape, "puzzle": kind}
 
 
 ## Where a room's side can take a doorway (see Rooms.door_slots); a stair
@@ -753,7 +788,8 @@ static func _room_weight(info: Dictionary, spots: Array, floor_num: int) -> int:
 	if info["role"] == "entrance" or th["kind"] == "good" or th["feature"] == "ambush":
 		return 0
 	if info["role"] == "gallery":
-		return mini(spots.size(), 2)
+		# Guards for the puzzle (a carved hall has no marked spots).
+		return mini(spots.size(), 2) if info.get("prefab", false) else (1 if floor_num < 4 else 2)
 	if th["feature"] == "den":
 		return 3
 	if info["role"] == "stair":
@@ -811,23 +847,395 @@ static func _torches(infos: Array) -> Array:
 	return out
 
 
-## The puzzle in the gallery, from its features, or {} if it has none.
-static func _puzzle_spec(info: Dictionary, f: Dictionary) -> Dictionary:
+## The puzzle in the gallery (puzzles/catalog.gd), checked by its solver,
+## or {} if it has none (then the floor is planned again).
+static func _puzzle_spec(info: Dictionary, f: Dictionary, floor_num: int, tower: Dictionary, entrances: Array) -> Dictionary:
 	var kind: String = info.get("puzzle", "")
-	if kind == "eyes" and f["eyes"].is_empty():
-		return {}
-	if kind == "plates" and f["plates"].is_empty():
-		return {}
 	if kind == "":
 		return {}
-	return {"type": kind, "tier": int(info.get("tier", 1)), "room": info["rect"], "id": info["id"],
-		"eyes": f["eyes"], "plates": f["plates"], "pushers": f["pushers"], "rails": f["rails"],
-		"gates": f["gates"], "levers": f["levers"], "rewards": f["rewards"]}
+	return Catalog.make(kind, info, f, floor_num, tower.get("beast_kind", ""), entrances)
+
+
+## The corridor tiles right outside a room's doorways (world rects): a
+## sealed puzzle room closes these.
+static func _entrances(infos: Array, gi: int) -> Array:
+	var g: Dictionary = infos[gi]
+	var lo: Vector2i = g["pos"]
+	var hi: Vector2i = lo + Vector2i(g["size"])
+	var out: Array = []
+	for j in infos.size():
+		var other: Dictionary = infos[j]
+		if not other.has("link") or (j != gi and int(other["parent"]) != gi):
+			continue
+		var cr: Rect2i = other["link"]["corridor"]
+		for y in range(cr.position.y, cr.end.y):
+			for x in range(cr.position.x, cr.end.x):
+				var t := Vector2i(x, y)
+				for d in DIRS:
+					var n: Vector2i = t + d
+					if n.x >= lo.x and n.y >= lo.y and n.x < hi.x and n.y < hi.y:
+						out.append(Rect2(ORIGIN + Vector2(t) * CELL, Vector2(CELL, CELL)))
+						break
+	return out
 
 
 ## How much essence a cache holds on a floor.
 static func cache_amount(floor_num: int) -> float:
 	return float(CACHE["base"]) + float(CACHE["per_floor"]) * float(maxi(floor_num - 2, 0))
+
+
+## --- sealed wings and secret rooms ---------------------------------------------
+##
+## The cells plan_floor keeps beside the spine are carved last, into rock
+## nothing else uses (the web version's carveWings and carveAlcove):
+##   a sealed WING is a room joined to its spine room by a corridor with a
+##   door, with a 3x3 VAULT ALCOVE cut into one of its other walls behind a
+##   one-tile vault door (wings.gd draws the seal on it, runs the wing's
+##   challenge and the vault's reward);
+##   a SECRET room is a small room joined by a corridor one tile wide whose
+##   first tile, in the spine room's wall, stays a wall until the climber
+##   leans on it (wings.gd). Some hold a Tithe Door: an alcove like a
+##   vault's, opened by paying unbanked essence.
+## A kept cell whose room won't fit stays solid rock.
+
+## A wing room's size in tiles [min w, max w, min h, max h] (the alcove must
+## also fit in the cell, which can trim the side it's cut into).
+const WING_SIZE := [9, 11, 7, 9]
+const SECRET_SIZE := [5, 7, 4, 6]
+const ALCOVE := 3  # the vault alcove is this many tiles square
+## What a secret room holds (weights; wings.gd fills it).
+const SECRET_CONTENTS := {"cache": 3.0, "crystals": 3.0, "tithe": 2.0}
+
+
+## Carves the kept cells. `walk` is the floor's walkable area so far (to stay
+## clear of it); what's carved goes into the out_ lists (walkable rects,
+## doorway rects to keep clear, door-frame posts, torches). `wings` and
+## `secrets` are replaced by the ones that fit, each filled in with:
+##   rect (the room, world px), tiles (Rect2i), corridor (world px),
+##   door: [tiles] where the corridor meets the room (a wing's door hangs
+##   there; a secret's is its one tile), horiz, out (out of the room);
+##   mouth: [tiles] where the corridor meets the spine room (a secret's
+##   wall tile is mouth[0]), into (Vector2: from the spine room inward);
+##   alcove (world px), vault_door (tile), vault_dir (Vector2: from the room
+##   into the alcove), seal_pos and pedestal (world px) when it has one;
+##   spawns: open spots in the room away from its doorway (world px).
+static func _carve_kept(infos: Array, wings: Array, secrets: Array, walk: Array, out_walk: Array, out_doorways: Array, out_posts: Array, out_torches: Array) -> void:
+	var taken: Array = []  # tile rects already open (rooms, corridors, carved so far)
+	for r in walk:
+		taken.append(tile_rect(r))
+	var made_w: Array = []
+	for k in wings:
+		var w := _carve_one(infos, k, WING_SIZE, true, 2, taken)
+		if w.is_empty():
+			continue
+		w["kind"] = "wing"
+		w["id"] = "wing_%d" % made_w.size()
+		made_w.append(w)
+	var made_s: Array = []
+	for k in secrets:
+		var content := _weighted(SECRET_CONTENTS)
+		var s := _carve_one(infos, k, SECRET_SIZE, content == "tithe", 1, taken)
+		if s.is_empty() and content == "tithe":
+			content = "cache"
+			s = _carve_one(infos, k, SECRET_SIZE, false, 1, taken)
+		if s.is_empty():
+			continue
+		s["kind"] = "secret"
+		s["id"] = "secret_%d" % made_s.size()
+		s["content"] = content
+		made_s.append(s)
+	wings.clear()
+	wings.append_array(made_w)
+	secrets.clear()
+	secrets.append_array(made_s)
+	for k in made_w + made_s:
+		out_walk.append(k["rect"])
+		out_walk.append(k["corridor"])
+		if k.has("alcove"):
+			out_walk.append(k["alcove"])
+			out_walk.append(Rect2(ORIGIN + Vector2(k["vault_door"]) * CELL, Vector2(CELL, CELL)))
+		var p: Dictionary = infos[k["parent"]]
+		for t in k["mouth"]:
+			_reserve_door(p, t)
+		out_doorways.append(_tiles_rect(k["mouth"]))
+		if k["kind"] == "wing":
+			out_doorways.append(_tiles_rect(k["door"]))
+			out_posts.append_array(doorways([k["rect"], p["rect"]], [k["corridor"]]))
+			# A torch on the wing's north wall, away from a vault door there.
+			var tr: Rect2i = k["tiles"]
+			var col := tr.position.x + tr.size.x / 2
+			if k.get("vault_dir", Vector2.ZERO) == Vector2.UP and absi(k["vault_door"].x - col) <= 1:
+				col = tr.position.x + (2 if k["vault_door"].x - tr.position.x > tr.size.x / 2 else tr.size.x - 3)
+			var x: float = ORIGIN.x + (col + 0.5) * CELL
+			out_torches.append(Rect2(x - CELL, k["rect"].position.y, CELL * 2.0, k["rect"].size.y))
+
+
+## One kept cell's room (see _carve_kept), or {} if it won't fit.
+static func _carve_one(infos: Array, keep: Dictionary, lim: Array, alcove: bool, width: int, taken: Array) -> Dictionary:
+	var p: Dictionary = infos[keep["parent"]]
+	var cell: Vector2i = keep["cell"]
+	var d: Vector2i = cell - Vector2i(p["cell"])
+	# The room's wall that faces the spine room (0 north, 1 south, 2 west, 3 east).
+	var side_c := 0
+	if d == Vector2i.RIGHT:
+		side_c = 2
+	elif d == Vector2i.LEFT:
+		side_c = 3
+	elif d == Vector2i.UP:
+		side_c = 1
+	var lo := Vector2i(cell.x * CELL_TILES.x + 1, cell.y * CELL_TILES.y + 1)
+	var hi := Vector2i(cell.x * CELL_TILES.x + CELL_TILES.x - 2, cell.y * CELL_TILES.y + CELL_TILES.y - 2)  # inclusive
+	var opposite := side_c ^ 1
+	for attempt in 40:
+		var a_side := -1
+		if alcove:
+			var sides: Array = [opposite, opposite, opposite]
+			for s in 4:
+				if s != side_c and s != opposite:
+					sides.append(s)
+			a_side = sides[randi() % sides.size()]
+		var w := randi_range(int(lim[0]), int(lim[1]))
+		var h := randi_range(int(lim[2]), int(lim[3]))
+		var deep := ALCOVE + 1  # the vault door's wall tile and the alcove
+		if a_side == 0 or a_side == 1:
+			h = mini(h, hi.y - lo.y + 1 - deep)
+		elif a_side >= 2:
+			w = mini(w, hi.x - lo.x + 1 - deep)
+		var x0 := lo.x + (deep if a_side == 2 else 0)
+		var x1 := hi.x - w + 1 - (deep if a_side == 3 else 0)
+		var y0 := lo.y + (deep if a_side == 0 else 0)
+		var y1 := hi.y - h + 1 - (deep if a_side == 1 else 0)
+		if x1 < x0 or y1 < y0 or w < 4 or h < 4:
+			continue
+		var rows: Array = []
+		for y in h:
+			rows.append(".".repeat(w))
+		var info := {"cell": cell, "pos": Vector2i(randi_range(x0, x1), randi_range(y0, y1)), "size": Vector2i(w, h), "rows": rows, "role": "kept"}
+		var link := _link(p, info)
+		if link.is_empty():
+			continue
+		var corr: Rect2i = link["corridor"]
+		var door: Array = link["door"]
+		if width == 1:
+			# A narrow passage: the first of the two tiles.
+			if link["horiz"]:
+				corr.size = Vector2i(1, corr.size.y)
+			else:
+				corr.size = Vector2i(corr.size.x, 1)
+			door = [door[0]]
+		var tiles := Rect2i(info["pos"], info["size"])
+		var out := {"cell": cell, "parent": keep["parent"], "area": keep["area"], "tiles": tiles,
+			"rect": Rect2(ORIGIN + Vector2(tiles.position) * CELL, Vector2(tiles.size) * CELL),
+			"corridor": Rect2(ORIGIN + Vector2(corr.position) * CELL, Vector2(corr.size) * CELL),
+			"door": door, "horiz": link["horiz"], "out": link["out"], "into": Vector2(d)}
+		# The corridor's tiles at the spine room's end (on its wall line).
+		var mouth: Array = []
+		for t in door:
+			var m: Vector2i = t
+			if link["horiz"]:
+				m.y = corr.position.y if d == Vector2i.DOWN else corr.end.y - 1
+			else:
+				m.x = corr.position.x if d == Vector2i.RIGHT else corr.end.x - 1
+			mouth.append(m)
+		out["mouth"] = mouth
+		var opened: Array = [tiles, corr]
+		if alcove:
+			var vd: Vector2i
+			var dir: Vector2i
+			match a_side:
+				0:
+					vd = Vector2i(tiles.position.x + w / 2 + randi_range(-1, 1), tiles.position.y - 1)
+					dir = Vector2i.UP
+				1:
+					vd = Vector2i(tiles.position.x + w / 2 + randi_range(-1, 1), tiles.end.y)
+					dir = Vector2i.DOWN
+				2:
+					vd = Vector2i(tiles.position.x - 1, tiles.position.y + h / 2 + randi_range(-1, 0))
+					dir = Vector2i.LEFT
+				_:
+					vd = Vector2i(tiles.end.x, tiles.position.y + h / 2 + randi_range(-1, 0))
+					dir = Vector2i.RIGHT
+			vd.x = clampi(vd.x, tiles.position.x + 1, tiles.end.x - 2) if a_side < 2 else vd.x
+			vd.y = clampi(vd.y, tiles.position.y + 1, tiles.end.y - 2) if a_side >= 2 else vd.y
+			var centre: Vector2i = vd + dir * 2
+			var alc := Rect2i(centre - Vector2i.ONE, Vector2i(ALCOVE, ALCOVE))
+			opened.append(alc)
+			opened.append(Rect2i(vd, Vector2i.ONE))
+			out["alcove"] = Rect2(ORIGIN + Vector2(alc.position) * CELL, Vector2(alc.size) * CELL)
+			out["vault_door"] = vd
+			out["vault_dir"] = Vector2(dir)
+			out["seal_pos"] = ORIGIN + (Vector2(vd) + Vector2(0.5, 0.5)) * CELL
+			out["pedestal"] = out["alcove"].get_center()
+		# Only into rock nothing else uses (with a wall around it).
+		var clear := true
+		for r in opened:
+			var grown: Rect2i = r.grow(1) if r != corr else r
+			for t in taken:
+				if grown.intersects(t):
+					clear = false
+		if not clear:
+			continue
+		taken.append_array(opened)
+		# Where its monsters may appear: away from the doorway.
+		var spawns: Array = []
+		for y in range(tiles.position.y + 1, tiles.end.y - 1):
+			for x in range(tiles.position.x + 1, tiles.end.x - 1):
+				var far := true
+				for t in door:
+					far = far and absi(t.x - x) + absi(t.y - y) >= 4
+				if far:
+					spawns.append(ORIGIN + (Vector2(x, y) + Vector2(0.5, 0.5)) * CELL)
+		out["spawns"] = spawns
+		return out
+	return {}
+
+
+## --- locked doors and lock-in rooms ---------------------------------------------
+##
+## LOCKED DOORS: on floors from LOCKS["from"], a door or two is locked. Only
+## doors off the main route are (a branch room's, or a sealed wing's), so
+## the way to the stair never needs a key. What opens one is always found
+## on the main route (a spine room), so it can be reached without passing
+## the locked door:
+##   key      a key lying in a spine room;
+##   carried  a key carried by one of a spine room's monsters (it drops it);
+##   lever    a lever in a spine room: strike it;
+##   puzzle   solving the floor's puzzle.
+## Each lock is written on its door (plan["doors"], or a wing's "lock") as
+## lock (the kind), lock_id, and pos (a key's or lever's spot) or carrier
+## (an index into plan["monsters"]); plan["locks"] lists them all.
+## LOCK-IN ROOMS (doors.gd decides which): every room records its "gates",
+## the doorways in its own walls (two tiles each), so they can be shut
+## behind the climber.
+
+const LOCKS := {
+	"from": 3,  # the first floor with locked doors
+	"chance": 0.75,  # that a floor has one...
+	"second_from": 7,  # ...and from this floor, the chance of a second
+	"second": 0.4,
+	"kinds": {"key": 0.3, "carried": 0.25, "lever": 0.3, "puzzle": 0.15},
+}
+
+
+## The doorways in room `i`'s walls: its own (where its corridor arrives)
+## and those of the rooms and wings that hang off it, each as its tiles.
+static func _gates(infos: Array, i: int, wings: Array) -> Array:
+	var out: Array = []
+	var info: Dictionary = infos[i]
+	if info.has("link"):
+		out.append(info["link"]["door"].duplicate())
+	for j in infos.size():
+		var other: Dictionary = infos[j]
+		if j == i or int(other.get("parent", -1)) != i or not other.has("link"):
+			continue
+		var link: Dictionary = other["link"]
+		var cr: Rect2i = link["corridor"]
+		var tiles: Array = []
+		for t in link["door"]:
+			var m: Vector2i = t
+			match int(link["side_c"]):
+				2:
+					m.x = cr.position.x
+				3:
+					m.x = cr.end.x - 1
+				0:
+					m.y = cr.position.y
+				_:
+					m.y = cr.end.y - 1
+			tiles.append(m)
+		out.append(tiles)
+	for w in wings:
+		if int(w["parent"]) == i:
+			out.append(w["mouth"].duplicate())
+	return out
+
+
+static func _locks(infos: Array, doors: Array, monsters: Array, wings: Array, floor_num: int) -> Array:
+	var out: Array = []
+	if floor_num < int(LOCKS["from"]) or randf() >= float(LOCKS["chance"]):
+		return out
+	var count := 1
+	if floor_num >= int(LOCKS["second_from"]) and randf() < float(LOCKS["second"]):
+		count = 2
+	# What may be locked: branch rooms' doors, and wings' doors.
+	var cands: Array = []
+	for d in doors:
+		if infos[d["room"]]["role"] == "branch":
+			cands.append(d)
+	for w in wings:
+		cands.append(w)
+	cands.shuffle()
+	# Where keys and levers go: the main route (not the gallery, whose puzzle may fence it).
+	var hosts: Array = []
+	for i in infos.size():
+		if infos[i]["role"] in ["guard", "stair", "entrance"]:
+			hosts.append(i)
+	for c in cands.slice(0, count):
+		var kind := _weighted(LOCKS["kinds"])
+		var lock := {"kind": kind, "id": out.size() + 1}
+		if kind == "carried":
+			var carriers: Array = []
+			for m in monsters.size():
+				for h in hosts:
+					if infos[h]["rect"].has_point(monsters[m][1]) and h != 0:
+						carriers.append(m)
+			if carriers.is_empty():
+				kind = "key"
+				lock["kind"] = kind
+			else:
+				lock["carrier"] = carriers[randi() % carriers.size()]
+		if kind == "key" or kind == "lever":
+			var spot := _lock_spot(infos, hosts, monsters)
+			if spot == Vector2.INF:
+				kind = "puzzle"
+				lock["kind"] = kind
+			else:
+				lock["pos"] = spot
+		c["lock"] = kind
+		c["lock_id"] = lock["id"]
+		for k in ["pos", "carrier"]:
+			if lock.has(k):
+				c["lock_" + k] = lock[k]
+		lock["door"] = c.get("id", "room_%d" % int(c.get("room", -1)))
+		out.append(lock)
+	return out
+
+
+## A free spot for a key or lever in one of the host rooms (Vector2.INF if none).
+static func _lock_spot(infos: Array, hosts: Array, monsters: Array) -> Vector2:
+	var order: Array = hosts.duplicate()
+	order.shuffle()
+	order.sort_custom(func(a, b): return (a == 0) == false and b == 0)  # the start room last
+	for h in order:
+		var info: Dictionary = infos[h]
+		var tiles: Array = Rooms.open_tiles(info["rows"], 1).filter(func(t): return not info["reserved"].has(t))
+		tiles.shuffle()
+		for t in tiles:
+			var pos: Vector2 = info["rect"].position + (Vector2(t) + Vector2(0.5, 0.5)) * CELL
+			if monsters.all(func(m): return pos.distance_to(m[1]) > 50.0):
+				_reserve_box(info, t, 1)
+				return pos
+	return Vector2.INF
+
+
+## The world rect around a few tiles.
+static func _tiles_rect(tiles: Array) -> Rect2:
+	var r := Rect2(ORIGIN + Vector2(tiles[0]) * CELL, Vector2(CELL, CELL))
+	for t in tiles:
+		r = r.merge(Rect2(ORIGIN + Vector2(t) * CELL, Vector2(CELL, CELL)))
+	return r
+
+
+static func _weighted(table: Dictionary) -> String:
+	var total := 0.0
+	for k in table:
+		total += float(table[k])
+	var roll := randf() * total
+	for k in table:
+		roll -= float(table[k])
+		if roll <= 0.0:
+			return k
+	return table.keys()[0]
 
 
 ## Which tiles of the floor's grid a rect covers (the same way main.gd
