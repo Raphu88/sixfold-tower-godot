@@ -103,7 +103,11 @@ var color := Color.WHITE
 var speed := 60.0
 var dmg := 8.0
 var weight := 1.0  # how hard it is to shove when bodies collide
-var dead := false
+var dead := false:
+	set(v):
+		if dead != v:
+			dead = v
+			_foes_changed()
 
 var state := "idle"
 var state_t := 0.0
@@ -118,7 +122,11 @@ var lunge_hit := false
 var knock := Vector2.ZERO
 var squash := 0.0
 var squash_dir := Vector2.RIGHT
-var submerged := false  # a lurker under the surface: can't be struck or targeted
+var submerged := false:  # a lurker under the surface: can't be struck or targeted
+	set(v):
+		if submerged != v:
+			submerged = v
+			_foes_changed()
 var tide_t := 0.0  # just shoved by a Tidecaller: a wall stuns it (Undercurrent)
 var challenged_t := 0.0  # Warden's Challenge: comes at you and takes more damage
 var overcharge_t := 0.0  # Stormcaller's Overcharge: lightning bursts from it when it dies
@@ -156,7 +164,7 @@ var ally_target = null
 var ally_guard := false
 var ally_cd := 0.0
 var vanish_t := 0.0  # (for monsters targeting a creature, which can't vanish)
-var overlay: Node2D  # unlit layer: telegraphs and the health bar
+var overlay: Node2D  # over the darkness: telegraphs and the health bar
 
 
 ## Call before adding to the tree.
@@ -203,8 +211,28 @@ func setup_ally(k: String, room, step: int, seconds: float) -> void:
 	notice_t = 0.0
 
 
+## The room remembers its list of monsters for the frame (main.enemies()):
+## a spawn, a death or a removal makes it build the list again.
+func _foes_changed() -> void:
+	if main != null and is_instance_valid(main):
+		main.foes_changed()
+
+
+func _enter_tree() -> void:
+	_foes_changed()
+
+
+func _exit_tree() -> void:
+	_foes_changed()
+
+
 func _ready() -> void:
 	add_to_group("allies" if ally else "enemies")
+	_foes_changed()
+	# Spread out the monsters' sight and path checks over different ticks.
+	sight_t = randf() * 0.2
+	path_t = randf() * 0.2
+	visibility_changed.connect(_on_visibility)
 	collision_layer = 4
 	collision_mask = 1 | 8  # walls, pillars, and Sandshaper's stone walls
 	if not kind in FLIERS:
@@ -216,9 +244,10 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 	overlay = Node2D.new()
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	overlay.material = unlit
+	# Over the darkness layer (lighting.gd), so telegraphs read in the dark;
+	# a monster out of sight is hidden, and its overlay with it.
+	overlay.z_as_relative = false
+	overlay.z_index = 45
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
 
@@ -270,20 +299,25 @@ func _physics_process(delta: float) -> void:
 		sight_t -= delta
 		if sight_t <= 0.0:
 			sight_t = 0.2
-			sees = main.clear_line(global_position, p.global_position)
+			# (Asleep and too far to wake: no need to look.)
+			sees = main.clear_line(global_position, p.global_position) if aware or dist < 460.0 else false
 		var seen := sees
 		if not aware:
 			if (seen and dist < 460.0) or dist < 110.0:
 				wake()
 			else:
-				velocity = knock
-				move_and_slide()
-				queue_redraw()
+				# Asleep: nothing to work out; only a shove moves it.
+				if knock != Vector2.ZERO:
+					velocity = knock
+					move_and_slide()
+				_redraw()
 				return
 		if not seen and not is_attacking():
 			path_t -= delta
-			if path_t <= 0.0:
-				path_t = 0.2
+			# Paths are costly: only a few monsters look for one each tick
+			# (main.take_path_turn), and their turns are spread out.
+			if path_t <= 0.0 and main.take_path_turn():
+				path_t = 0.2 + randf() * 0.06
 				path_d = main.path_dir(global_position, p.global_position)
 			dir = path_d
 			dist = 9999.0  # can't attack what it can't see: it closes in instead
@@ -357,7 +391,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_undercurrent()
 	_ram_crash()
-	queue_redraw()
+	_redraw()
 
 
 ## A Tidecaller's shove: if it drives the foe into a wall, it's stunned.
@@ -378,7 +412,19 @@ func _drift() -> void:
 	velocity = knock
 	move_and_slide()
 	_undercurrent()
-	queue_redraw()
+	_redraw()
+
+
+func _on_visibility() -> void:
+	if visible:
+		queue_redraw()
+
+
+## Asks for a fresh drawing, but only while it can be seen (fog.gd hides
+## monsters out of sight; one coming back into view is redrawn then).
+func _redraw() -> void:
+	if visible:
+		queue_redraw()
 
 
 ## True while winding up or striking: the climber's parry looks for these.
@@ -1630,7 +1676,7 @@ func _wander(delta: float) -> void:
 	if go != Vector2.ZERO:
 		face = face.slerp(go.normalized(), minf(1.0, 4.0 * delta)).normalized()
 	move_and_slide()
-	queue_redraw()
+	_redraw()
 
 
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false) -> void:

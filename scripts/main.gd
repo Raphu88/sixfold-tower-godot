@@ -25,6 +25,9 @@ const FogScript := preload("res://scripts/fog.gd")
 const PuzzleScript := preload("res://scripts/puzzle.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
+const LightingScript := preload("res://scripts/lighting.gd")
+const DoorsScript := preload("res://scripts/doors.gd")
+const Themes := preload("res://scripts/themes.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -33,7 +36,7 @@ const STAIR_REACH := 26.0
 const WALL := 24.0
 
 ## The single open room of floor 1 and the beast's floor. Floors of rooms
-## and corridors use the bigger Floors.ARENA instead.
+## and corridors use a bigger area that grows with height (Floors.arena_for).
 const OPEN_ROOM := Rect2(80, 100, 1120, 530)
 var room := OPEN_ROOM
 var outer_walls: Array = []
@@ -45,8 +48,19 @@ var astar: AStarGrid2D
 var layout_bodies: Array = []
 var layout_rooms: Array = []
 var layout_blocks: Array = []  # cover inside rooms (Rect2, solid tiles)
-var side_room := Rect2()  # a small dead-end room, if the floor has one
+var side_room := Rect2()  # the room holding the floor's essence cache, if it has one
 var cache := {}  # its essence cache: {pos, amount, kind, taken}
+var layout_torches: Array = []  # where each room's torch hangs (narrow rects, floors.gd)
+# What each room of a floor of rooms is (floors.gd, themes.gd).
+var room_info: Array = []  # {rect, role, theme, walk, ambush, ...}
+var room_themes: Array = []  # each room's theme id, in step with room_info
+var room_entered := {}  # rooms walked into this floor (index -> true)
+var room_at := -1  # the room the climber stands in (-1 in a corridor)
+var room_tile := Vector2i(-999, -999)  # the tile room_at was worked out on
+var room_pending := -1  # a room whose name waits for the banner to clear
+var springs: Array = []  # healing springs: {pos, r, left}
+var door_view  # the floor's doors (doors.gd)
+var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
 var fx
 var camera: Camera2D
@@ -61,13 +75,7 @@ var shake_ms := 0  # when the shake offset last changed
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
 var hurt_flash := 0.0
-var light_tex: Texture2D
-const MAX_FLASHES := 6  # light_flash bursts alive at once (with ~9 torches and glows, stays under 15)
-var flashes_live := 0
-## Light flashes from hits, parries and spells, toned down (owner's request):
-## every flash is this much as strong and this much as wide as asked.
-const FLASH_ENERGY := 0.5
-const FLASH_SIZE := 0.75
+var lighting  # the darkness layer and its lights (lighting.gd)
 var touch_active := false  # on-screen controls in use
 var pad_active := false  # the last input came from a game controller (pad.gd)
 var pad_ps := false  # ...and it's a PlayStation one (for button names)
@@ -98,7 +106,6 @@ var victory := {}  # the climb complete screen, after the beast falls: {t, beast
 var tower := "kraken"  # which tower this climb is in (towers.gd)
 var choosing_tower := false  # the tower choice is showing
 var floor_total := 0  # monsters this floor started with
-var dim: CanvasModulate
 var hud
 var touch
 var pad  # the game controller (pad.gd)
@@ -126,7 +133,7 @@ var gear_drop_chance := Gear.DROP_CHANCE
 var gear_cache_chance := Gear.CACHE_CHANCE
 var gear_here := {}  # the drop under you that needs Y (or Take) to swap for
 var in_camp := false  # resting at a camp between floors (floor_num stays the floor below)
-var camp_done := false  # each climb has one camp
+var camps_done: Array = []  # the floors whose camp has been visited this climb
 var camp_choosing := false  # the camp's cards are showing
 var camp := {}  # {stage: "item", "rune" or "heirloom", choices: [...], lines: [...]}
 var heirloom_offered := false  # the heirloom choice has been shown this climb
@@ -164,8 +171,13 @@ var smokes: Array = []  # Ashwalker's Smoke Veils: {pos, r, t}
 var decoys: Array = []  # Ashwalker's Afterimages: {pos, t, aim}
 var ashfall_t := 0.0  # Ashfall: foes lose track of you once out of reach
 var slowmo := false  # time slows while a spell ring is open
-var player_glow: PointLight2D
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
+
+# The monster lists, remembered for the frame (enemies(), targets()).
+var foes_cache: Array = []
+var targets_cache: Array = []
+var foes_key := Vector2i(-1, -1)
+var foes_dirty := true
 
 # Attack turns: only this many monsters may be attacking at once.
 const MAX_ATTACKERS := 2
@@ -182,26 +194,28 @@ func _ready() -> void:
 	add_child(audio)
 	_build_walls()
 
-	# Lighting: the whole room is dimmed, torches and the climber's own glow
-	# light it back up. Effects ignore the dimming so spells always read.
+	# Lighting: one darkness layer over the world (lighting.gd), with soft
+	# holes of light around the climber, torches, the stair and flashes.
 	RenderingServer.set_default_clear_color(Palette.VOID)
 	y_sort_enabled = true  # lower things draw in front of higher things
-	dim = CanvasModulate.new()
-	dim.color = Palette.AMBIENT
-	add_child(dim)
 	room_view = RoomScript.new()
 	room_view.setup(room, WALL)
 	add_child(room_view)
 	trap_view = Traps.new()
 	trap_view.main = self
 	add_child(trap_view)
+	door_view = DoorsScript.new()
+	door_view.main = self
+	add_child(door_view)
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
-	light_tex = RoomScript.make_light_texture()
+	lighting = LightingScript.new()
+	lighting.main = self
+	add_child(lighting)
 
 	player_start = Vector2(room.get_center().x, room.end.y - 60.0)
 	stair_pos = Vector2(room.get_center().x, room.position.y + 34.0)
@@ -210,13 +224,6 @@ func _ready() -> void:
 	player.main = self
 	player.position = Vector2(300, 365)  # floor 1 starts on the left, facing the fight
 	add_child(player)
-	var glow := PointLight2D.new()
-	glow.texture = light_tex
-	glow.texture_scale = 1.4
-	glow.color = Color(1.0, 0.85, 0.7)
-	glow.energy = 0.55
-	player.add_child(glow)
-	player_glow = glow
 
 	profile = ProfileScript.new()
 	if Engine.has_meta("sixfold_test"):
@@ -243,9 +250,6 @@ func _ready() -> void:
 	fx = FxScript.new()
 	fx.main = self
 	fx.z_index = 10
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	fx.material = unlit
 	add_child(fx)
 
 	# The camera follows the climber, zoomed in, but never past the walls.
@@ -268,6 +272,7 @@ func _ready() -> void:
 	add_child(layer)
 	hud = HudScript.new()
 	hud.main = self
+	hud.show_perf = bool(Engine.get_meta("sixfold_perf", false))
 	layer.add_child(hud)
 	touch = TouchScript.new()
 	touch.main = self
@@ -404,9 +409,8 @@ func _build_layout(walk: Array, blocks: Array = [], start := Vector2.ZERO, targe
 				add_child(body)
 				layout_bodies.append(body)
 				run_start = -1
-	var lit: Array = layout_rooms.duplicate()
-	if side_room.has_area():
-		lit.append(side_room)
+	# One torch per room, over the middle of its north wall (floors.gd picks the spot).
+	var lit: Array = layout_torches if not layout_torches.is_empty() else layout_rooms.duplicate()
 	room_view.set_layout(grid_size, solid, lit, layout_blocks)
 
 
@@ -503,7 +507,28 @@ func _wide_clear(a: Vector2, b: Vector2, half: float) -> bool:
 	return clear_line(a, b) and clear_line(a + side, b + side) and clear_line(a - side, b - side)
 
 
+## The dev readout (menu.gd's dev tools, hud.gd draws it): how fast the game
+## runs and what's in the room. Frame time is real time, smoothed.
+var frame_ms := 16.7
+var _frame_us := 0
+
+
+func perf_lines() -> Array:
+	var fps := Performance.get_monitor(Performance.TIME_FPS)
+	return [
+		"%d fps  ·  frame %.1f ms" % [int(fps), frame_ms],
+		"draw calls %d  ·  objects %d" % [int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))],
+		"nodes %d" % int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		"monsters %d  ·  traps %d" % [enemies().size(), traps.size()],
+		"lights %d  (one darkness layer)" % (lighting.on_screen if lighting != null else 0),
+	]
+
+
 func _process(delta: float) -> void:
+	var now_us := Time.get_ticks_usec()
+	if _frame_us > 0:
+		frame_ms = lerpf(frame_ms, (now_us - _frame_us) / 1000.0, 0.1)
+	_frame_us = now_us
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
 		Engine.time_scale = 0.35 if slowmo else 1.0
@@ -571,6 +596,9 @@ func _process(delta: float) -> void:
 		banner["t"] -= delta
 		if banner["t"] <= 0.0:
 			banner = {}
+	if layout_on and not climbing:
+		_check_rooms()
+		_update_springs(delta)
 	if player != null:
 		camera.position = cam_prev.lerp(cam_curr, Engine.get_physics_interpolation_fraction())
 	# On phones the whole game is already drawn bigger, so pull the camera back.
@@ -584,6 +612,24 @@ func _process(delta: float) -> void:
 		camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake_amount
 	shake_amount = move_toward(shake_amount, 0.0, 30.0 * delta)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta)
+
+
+## Monsters looking for a path around the walls: at most this many per tick.
+const PATHS_PER_TICK := 3
+var path_turns := 0
+var path_turns_tick := -1
+
+
+## True if a monster may look for a path this tick (enemy.gd).
+func take_path_turn() -> bool:
+	var tick := Engine.get_physics_frames()
+	if tick != path_turns_tick:
+		path_turns_tick = tick
+		path_turns = 0
+	if path_turns >= PATHS_PER_TICK:
+		return false
+	path_turns += 1
+	return true
 
 
 func _physics_process(delta: float) -> void:
@@ -698,6 +744,7 @@ func _start_floor(n: int) -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
 		e.remove_from_group("enemies")
+	foes_changed()
 	for a in get_tree().get_nodes_in_group("allies"):  # calls end on every new floor
 		a.queue_free()
 		a.remove_from_group("allies")
@@ -749,14 +796,16 @@ func _start_floor(n: int) -> void:
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
 	var plan: Dictionary = _camp_plan() if in_camp else Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+	floor_plan = plan
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
+	layout_torches = plan.get("torches", [])
 	start = plan.get("start", start)
 	player_start = start if plan.has("start") else open_start
 	stair_pos = plan.get("stair", Vector2(OPEN_ROOM.get_center().x, OPEN_ROOM.position.y + 34.0))
 	room_view.stair_pos = stair_pos
-	# A side room's essence cache, if this floor has one.
-	side_room = plan.get("side_room", Rect2())
+	# A good room's essence cache, if this floor has one.
+	side_room = plan.get("cache_room", Rect2())
 	cache = {}
 	if plan.has("cache"):
 		cache = plan["cache"].duplicate()
@@ -773,7 +822,20 @@ func _start_floor(n: int) -> void:
 		targets.append(cache["pos"])
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
 	# Door frames, only where the wall beside an opening is really there.
-	room_view.set_doors(plan.get("doors", []).filter(func(r): return is_solid(r.get_center())))
+	room_view.set_doors(plan.get("posts", []).filter(func(r): return is_solid(r.get_center())))
+	# The rooms' themes, and the doors (closed doors are solid: hung before
+	# the traps, so no trap lands in a doorway).
+	room_info = plan.get("room_info", [])
+	room_themes = plan.get("themes", []).duplicate()
+	room_entered = {}
+	room_at = -1
+	room_tile = Vector2i(-999, -999)
+	room_pending = -1
+	door_view.build(plan.get("doors", []), room_themes)
+	springs = plan.get("springs", [])
+	# A fallen climber's camp: what they left behind.
+	for cp in plan.get("camps", []):
+		item_drops.append({"pos": cp["item"], "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": 1e9})
 	floor_total = plan["monsters"].size()
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
@@ -801,15 +863,22 @@ func _start_floor(n: int) -> void:
 			var avoid: Array = pillars.duplicate()
 			for b in layout_blocks:
 				avoid.append({"pos": b.get_center(), "r": b.size.length() * 0.5})
-			# Rooms with pools drawn in (rooms.gd) bring their own; others get a few.
+			# Rooms with pools drawn in (rooms.gd) bring their own; others get a
+			# few in the rooms where danger waits (not the good rooms or the puzzle).
 			puddles.append_array(plan.get("pools", []))
 			if puddles.is_empty():
-				for i in range(1, layout_rooms.size()):
-					puddles.append_array(Floors.puddles(layout_rooms[i].grow(-40.0), avoid, start).slice(0, 2))
+				for r in plan.get("wet_rooms", []):
+					puddles.append_array(Floors.puddles(r.grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
 	traps = Traps.place(plan, tower_data(), n, self)
 	trap_view.reset()
+	# A trap room whose traps wouldn't fit is just a quiet hall.
+	for i in plan.get("hazard_rooms", []):
+		if not traps.any(func(tr): return room_info[i]["rect"].has_point(tr["pos"])):
+			room_themes[i] = "quiet"
+	door_view.restyle(room_themes)
+	_update_room_looks(plan.get("camps", []))
 	if puzzle != null:
 		puzzle.setup(plan.get("puzzle", {}) if not in_camp else {})
 		ward = puzzle.active()
@@ -836,7 +905,102 @@ func _start_floor(n: int) -> void:
 		camera.reset_smoothing()
 
 
-## Walking onto a side room's essence cache: a burst of the tower's essence.
+## The rooms' tints and marks on the floor (themes.gd), springs and camps.
+func _update_room_looks(camps: Array) -> void:
+	var looks: Array = []
+	for i in room_info.size():
+		var th: Dictionary = Themes.get_theme(room_themes[i])
+		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", "")})
+	room_view.set_looks(looks, springs, camps)
+
+
+## The room the climber stands in, worked out when they reach a new tile.
+## The first time they walk into a themed room, its name and rule show.
+func _check_rooms() -> void:
+	if room_info.is_empty() or player == null:
+		return
+	var t := _tile_of(player.global_position)
+	if t != room_tile:
+		room_tile = t
+		room_at = -1
+		for i in room_info.size():
+			if room_info[i]["rect"].has_point(player.global_position):
+				room_at = i
+				break
+		if room_at >= 0 and not room_entered.has(room_at):
+			room_entered[room_at] = true
+			_enter_room(room_at)
+	# A name that waited for another banner to clear shows once it has, if
+	# the climber is still in that room.
+	if room_pending >= 0 and banner.is_empty():
+		if room_pending == room_at:
+			_room_banner(room_pending)
+		room_pending = -1
+
+
+func _enter_room(i: int) -> void:
+	var id: String = room_themes[i]
+	var th: Dictionary = Themes.get_theme(id)
+	if th["feature"] == "ambush":
+		_ambush(i)
+	if th["sub"] == "" or id == "quiet":
+		return  # (the arrival hall and quiet halls say nothing)
+	if banner.is_empty() or banner.get("room", false):
+		_room_banner(i)
+	else:
+		room_pending = i
+
+
+func _room_banner(i: int) -> void:
+	var th: Dictionary = Themes.get_theme(room_themes[i])
+	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true}
+	sfx("glint", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)
+
+
+## A restless crypt: its dead rise as you walk in.
+func _ambush(i: int) -> void:
+	var spots: Array = room_info[i].get("ambush", [])
+	var n := mini(spots.size(), 2 if floor_num < 6 else 3)
+	for k in n:
+		var kind := Floors._pick(floor_num, 3.0, 99, tower_data().get("weights", {}))
+		if kind == "":
+			kind = "slime"
+		var e = spawn_enemy(kind, spots[k])
+		e.wake()
+		floor_total += 1
+		fx_burst(spots[k], Vector2.UP, Color(0.6, 0.5, 0.85), 14, 140.0)
+		fx_ring(spots[k], Color(0.6, 0.5, 0.85), 50.0, 0.4, 3.0)
+	if n > 0:
+		shake(6.0)
+		sfx("slam", 0.6, -4.0, 0.0)
+
+
+## Standing in a healing spring heals you until it runs dry.
+func _update_springs(delta: float) -> void:
+	if springs.is_empty() or player == null or player.dead:
+		return
+	for sp in springs:
+		if sp["left"] <= 0.0 or player.global_position.distance_to(sp["pos"]) > sp["r"]:
+			continue
+		var heal := minf(minf(float(Floors.SPRING["rate"]) * delta, sp["left"]), player.max_health() - player.hp)
+		if heal <= 0.0:
+			continue
+		player.hp += heal
+		sp["left"] -= heal
+		if sp["left"] <= 0.01:
+			sp["left"] = 0.0
+			room_view.refresh_features()
+			fx_text(sp["pos"] + Vector2(0, -40), "The spring runs dry", Color(0.6, 0.85, 0.8))
+		elif randf() < 4.0 * delta:
+			fx_burst(player.global_position, Vector2.UP, Color(0.5, 0.95, 0.85), 2, 60.0)
+
+
+## Opens every door on the floor (the dev tool, and tests).
+func open_all_doors() -> void:
+	door_view.open_all()
+
+
+## Walking onto a good room's essence cache: a burst of the tower's essence.
 func _open_cache() -> void:
 	cache["taken"] = true
 	var pos: Vector2 = cache["pos"]
@@ -968,6 +1132,9 @@ func _arrive() -> void:
 		profile.save()
 	if banner.get("title", "").ends_with("AWAITS"):
 		banner["lines"] = lines + banner["lines"]
+	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb:
+		# Halfway up: the Proving (its own test comes later).
+		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5}
 	else:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	if ward:
@@ -979,9 +1146,10 @@ func _arrive() -> void:
 
 # --- camps and items ---------------------------------------------------------------
 
-## One camp per climb, after Items.CAMP_AFTER, on climbs long enough to have one.
+## A camp after each floor in Items.CAMP_AFTER (once each), on climbs long
+## enough to have one. Camps aren't floors: the floor count goes on after.
 func _camp_due() -> bool:
-	return not first_climb and not camp_done and floor_num == Items.CAMP_AFTER \
+	return not first_climb and floor_num in Items.CAMP_AFTER and not (floor_num in camps_done) \
 		and int(tower_data().get("summit", 0)) >= Items.CAMP_MIN_FLOORS
 
 
@@ -990,7 +1158,6 @@ func _camp_plan() -> Dictionary:
 	var fire := OPEN_ROOM.get_center() + Vector2(0, 30)
 	campfire = CampfireScript.new()
 	campfire.position = fire
-	campfire.light_tex = light_tex
 	add_child(campfire)
 	return {"monsters": [], "pillars": [], "start": fire + Vector2(0, 80)}
 
@@ -1049,7 +1216,7 @@ func _restart_held(delta: float) -> bool:
 
 ## Arrives at a camp: a full rest by the fire, then an item to choose.
 func _enter_camp(lines: Array) -> void:
-	camp_done = true
+	camps_done.append(floor_num)
 	in_camp = true
 	_start_floor(floor_num)
 	cleared = true  # (no gong: there was nothing to fight)
@@ -1262,8 +1429,8 @@ func _greet() -> void:
 ## Each tower's stone, light and torches.
 func _apply_tower_look() -> void:
 	var t := tower_data()
-	dim.color = t["ambient"]
-	room_view.self_modulate = t["stone"]
+	lighting.set_tower_look(tower)
+	room_view.self_modulate = t["stone"] * Palette.TOWER_TINT.get(tower, Color.WHITE)
 	room_view.set_torch_color(t["torch"])
 
 
@@ -1293,9 +1460,7 @@ func _give_bonds() -> void:
 		b.attr_power = 1.0 + profile.attribute("fire")
 		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b
-	# Hunter's Keen Eyes: you see farther in the dark.
-	if player_glow != null:
-		player_glow.texture_scale = 2.2 if player.has_bond("hunter") or player.has_bond("ashwalker") else 1.4  # Keen Eyes, Smokeborn
+	# Hunter's Keen Eyes (and Smokeborn): you see farther in the dark (lighting.player_reach).
 	# Essence density: small passive bonuses, one per attribute.
 	player.attr_speed = 1.0 + profile.attribute("air")
 	player.attr_strength = 1.0 + profile.attribute("blade")
@@ -1575,7 +1740,7 @@ func dev_beast(id: String) -> void:
 	dev_tower(id)
 	profile.regarded = true
 	first_climb = false
-	_start_floor(int(tower_data().get("summit", 5)))
+	_start_floor(int(tower_data().get("summit", Towers.SUMMIT)))
 	player.dead = false
 	player.set_physics_process(true)
 	player.hp = player.max_hp
@@ -1600,9 +1765,24 @@ func dev_spawn(kind: String):
 	return spawn_enemy(kind, pos)
 
 
+## The monsters alive in the room. Asked for dozens of times a frame, so the
+## list is built once per frame (physics or drawing) and again only when a
+## monster is spawned, dies, dives or surfaces, or is removed (foes_changed).
+## Don't change the returned array: it's shared until the next rebuild.
 func enemies() -> Array:
-	return get_tree().get_nodes_in_group("enemies").filter(
-		func(e): return is_instance_valid(e) and not e.dead)
+	var key := Vector2i(Engine.get_process_frames(), Engine.get_physics_frames())
+	if foes_dirty or key != foes_key:
+		foes_dirty = false
+		foes_key = key
+		foes_cache = get_tree().get_nodes_in_group("enemies").filter(
+			func(e): return is_instance_valid(e) and not e.dead)
+		targets_cache = foes_cache.filter(func(e): return not e.submerged)
+	return foes_cache
+
+
+## A monster was added, died, dived or surfaced, or left: rebuild the lists.
+func foes_changed() -> void:
+	foes_dirty = true
 
 
 ## Covenant's called creatures.
@@ -1623,7 +1803,8 @@ func spawn_ally(kind: String, pos: Vector2, step: int, seconds: float):
 ## Adds a monster to the room (bosses calling help, tests).
 ## Monsters that can be aimed at (not a lurker under the water).
 func targets() -> Array:
-	return enemies().filter(func(e): return not e.submerged)
+	enemies()  # (rebuilds both lists if needed)
+	return targets_cache
 
 
 func spawn_enemy(kind: String, pos: Vector2):
@@ -2071,22 +2252,8 @@ func shake(amount: float) -> void:
 	shake_amount = maxf(shake_amount, amount)
 
 
-## A brief burst of real light: lightning, parries, crits, burns.
+## A brief burst of light: lightning, parries, crits, burns. It feeds the
+## darkness layer (lighting.gd), so it costs nothing however many there are.
 func light_flash(pos: Vector2, color: Color, size := 1.5, energy := 1.6, dur := 0.25) -> void:
-	# The web renderer lights each drawn thing with at most 15 lights; past
-	# that, some lights (torches too) are skipped and the lighting pops.
-	if flashes_live >= MAX_FLASHES:
-		return
-	flashes_live += 1
-	var l := PointLight2D.new()
-	l.texture = light_tex
-	l.texture_scale = size * FLASH_SIZE
-	l.color = color
-	l.energy = energy * FLASH_ENERGY
-	l.position = pos
-	add_child(l)
-	var tw := l.create_tween()
-	tw.tween_property(l, "energy", 0.0, dur).set_ease(Tween.EASE_OUT)
-	tw.tween_callback(func():
-		flashes_live -= 1
-		l.queue_free())
+	if lighting != null:
+		lighting.flash(pos, color, size, energy, dur)

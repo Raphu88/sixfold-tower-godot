@@ -202,7 +202,7 @@ func _gryphon_tests() -> void:
 	Engine.time_scale = 1.0
 	await _settle()
 	# Bodies and passives.
-	_check(main.player_glow.texture_scale > 2.0, "Keen Eyes: the Hunter sees farther")
+	_check(main.lighting.player_reach() > main.lighting.PLAYER_REACH, "Keen Eyes: the Hunter sees farther")
 	p.attack_cd = 0.0
 	p.combo_t = 0.0
 	p._try_attack()
@@ -388,10 +388,10 @@ func _gryphon_tower_tests() -> void:
 	print("the Gryphon")
 	main.profile.regarded = true
 	main.first_climb = false
-	main._start_floor(5)
+	main._start_floor(main.Towers.SUMMIT)
 	await _frames(3)
 	var foes: Array = main.enemies()
-	_check(foes.size() == 1 and foes[0].kind == "gryphon", "floor 5 of the Gryphon's tower is the Gryphon")
+	_check(foes.size() == 1 and foes[0].kind == "gryphon", "floor %d, the summit of the Gryphon's tower, is the Gryphon" % main.Towers.SUMMIT)
 	var g = foes[0]
 	g.set_physics_process(false)
 	g.lift(2.0)
@@ -463,10 +463,10 @@ func _kraken_tower_tests() -> void:
 	print("the Kraken")
 	main.profile.regarded = true
 	main.first_climb = false
-	main._start_floor(5)
+	main._start_floor(main.Towers.SUMMIT)
 	await _frames(3)
 	var foes: Array = main.enemies()
-	_check(foes.size() == 1 and foes[0].kind == "kraken", "floor 5 of the Kraken's tower is the Kraken")
+	_check(foes.size() == 1 and foes[0].kind == "kraken", "floor %d, the summit of the Kraken's tower, is the Kraken" % main.Towers.SUMMIT)
 	var k = foes[0]
 	k.set_physics_process(false)
 	# The sweep is parryable; the slam is not.
@@ -906,15 +906,17 @@ func _rooms_tests() -> void:
 	for n in 8:
 		main._start_floor(2 + n % 3)
 		await _frames(1)
-		ok_rooms = ok_rooms and main.layout_on and main.layout_rooms.size() >= 3
+		ok_rooms = ok_rooms and main.layout_on and main.layout_rooms.size() >= 6
+		main.open_all_doors()
 		var path: PackedVector2Array = main.astar.get_point_path(main._tile_of(main.player_start), main._tile_of(main.stair_pos))
 		ok_reach = ok_reach and path.size() > 1 and not main.is_solid(main.player_start) and not main.is_solid(main.stair_pos)
 		for e in main.enemies():
 			ok_monsters = ok_monsters and not main.is_solid(e.global_position)
-	_check(ok_rooms, "floors above the first are 3 or more rooms joined by corridors")
-	_check(ok_reach, "the stair can always be reached from the start")
+	_check(ok_rooms, "floors above the first are 6 or more rooms joined by corridors")
+	_check(ok_reach, "the stair can always be reached from the start (doors open)")
 	_check(ok_monsters, "monsters stand in rooms, never inside walls")
 	_check(main.enemies().all(func(e): return not e.aware or e.global_position.distance_to(p.global_position) < 460.0), "monsters wait in their rooms until they see you")
+	await _plan_tests()
 	# Walls block sight and shots.
 	var a: Vector2 = main.layout_rooms[0].get_center()
 	var far: Vector2 = main.layout_rooms[-1].get_center()
@@ -931,7 +933,9 @@ func _rooms_tests() -> void:
 			if wall_at == Vector2.ZERO and main._is_solid_tile(x, y) and not main._near_walkable(x, y):
 				wall_at = main.room.position + Vector2(x * 40 + 20, y * 40 + 20)
 	var shot = main.spawn_projectile(wall_at, Vector2(10, 0), 5.0)
-	await _frames(3)
+	for i in 3:
+		await physics_frame  # (shots move on the physics tick)
+	await _frames(1)
 	_check(not is_instance_valid(shot), "walls stop shots")
 	var dir: Vector2 = main.path_dir(a, far)
 	_check(dir.length() > 0.9, "monsters can find a way around walls")
@@ -944,7 +948,233 @@ func _rooms_tests() -> void:
 	_check(not main.layout_on, "...and so is the beast's floor")
 
 
-## Cover walls, side rooms with essence caches, and door frames.
+## The floor plan (floors.gd): a spine of rooms with jobs, branches off it,
+## kept cells, corridors that meet rooms at their walls, a grid that grows
+## with height, room themes (themes.gd) and doors (doors.gd).
+func _plan_tests() -> void:
+	print("floor plans, themes and doors")
+	var F = main.Floors
+	var T = main.Themes
+	var ok_count := true
+	var ok_spine := true
+	var ok_branch := true
+	var ok_kept := true
+	var ok_edges := true
+	var ok_corr := true
+	var ok_theme_fixed := true
+	var ok_first_good := true
+	var ok_den := true
+	var ok_no_repeat := true
+	var ok_cap := true
+	var ok_door_rule := true
+	var ok_chasm := true
+	var doors_total := 0
+	var kinds := {}
+	var sizes := {}
+	for n in 36:
+		var fl: int = [2, 3, 5, 7, 10, 11][n % 6]
+		var tid: String = main.Towers.ORDER[n % 6]
+		var plan: Dictionary = F.rooms_floor(fl, main.Towers.TOWERS[tid])
+		var infos: Array = plan["room_info"]
+		ok_count = ok_count and infos.size() >= 6 and infos.size() <= 12
+		var roles := {}
+		for ri in infos:
+			roles[ri["role"]] = roles.get(ri["role"], 0) + 1
+		ok_spine = ok_spine and roles.get("entrance", 0) == 1 and roles.get("stair", 0) == 1 and roles.get("gallery", 0) == 1 and roles.get("guard", 0) >= 1
+		ok_spine = ok_spine and infos[0]["role"] == "entrance"
+		ok_branch = ok_branch and roles.get("branch", 0) >= 2
+		if fl >= 2:
+			ok_kept = ok_kept and plan["wings"].size() + roles.get("branch", 0) >= 2
+		sizes[fl] = maxf(float(sizes.get(fl, 0.0)), plan["arena"].size.x * plan["arena"].size.y)
+		# The puzzle lives in the gallery.
+		var gal: Dictionary = infos.filter(func(ri): return ri["role"] == "gallery")[0]
+		ok_theme_fixed = ok_theme_fixed and not plan["puzzle"].is_empty() and gal["rect"] == plan["puzzle"]["room"]
+		# Corridors run between rooms, never through one, and meet them only at their walls.
+		for c in plan["corridors"]:
+			ok_corr = ok_corr and (c.size.x == 80.0 or c.size.y == 80.0)
+			for ri in infos:
+				var inner: Rect2 = ri["rect"].grow(-1.0)
+				ok_edges = ok_edges and not inner.intersects(c)
+		# Themes by the rules.
+		var bad := 0
+		var seen := {}
+		var free_i := 0
+		for i in infos.size():
+			var ri: Dictionary = infos[i]
+			var th: String = ri["theme"]
+			match String(ri["role"]):
+				"entrance":
+					ok_theme_fixed = ok_theme_fixed and th == "arrival"
+				"stair":
+					ok_theme_fixed = ok_theme_fixed and th == "landing"
+				"gallery":
+					ok_theme_fixed = ok_theme_fixed and th == "puzzle_" + plan["puzzle"]["type"]
+			var kind: String = T.get_theme(th)["kind"]
+			kinds[kind] = true
+			if kind == "bad":
+				bad += 1
+				ok_no_repeat = ok_no_repeat and not seen.has(th)
+				seen[th] = true
+			var towers: Array = T.get_theme(th)["towers"]
+			ok_no_repeat = ok_no_repeat and (towers.is_empty() or tid in towers)
+		ok_cap = ok_cap and bad <= (2 if fl <= 1 else (3 if fl <= 3 else 4)) + (1 if plan["chasms"].size() > 0 else 0)
+		ok_den = ok_den and "den" in plan["themes"]
+		ok_first_good = ok_first_good and plan["themes"].any(func(t): return T.get_theme(t)["kind"] == "good")
+		# Doors: never into the start room, each in a doorway two tiles wide.
+		for d in plan["doors"]:
+			doors_total += 1
+			ok_door_rule = ok_door_rule and d["room"] != 0 and d["tiles"].size() == 2
+		if tid == "firebird":
+			ok_chasm = ok_chasm and plan["chasms"].size() > 0
+	_check(ok_count, "a floor of rooms has 6 to 12 rooms")
+	_check(ok_spine, "a spine of rooms with jobs: the entrance, guard rooms, the gallery and the stair hall")
+	_check(ok_branch and ok_kept, "branch rooms hang off the spine, and cells are kept for sealed wings")
+	_check(sizes[11] > sizes[3] and F.arena_for(11).size.x > F.arena_for(3).size.x, "floors grow with height (%d vs %d px²)" % [sizes[11], sizes[3]])
+	_check(ok_corr and ok_edges, "corridors are two tiles wide and meet rooms at their walls, never cutting through them")
+	_check(ok_theme_fixed, "the start is the Arrival Hall, the stair room the Landing, and the gallery holds the floor's puzzle")
+	_check(ok_den and ok_first_good, "every floor has a good room and a den")
+	_check(ok_no_repeat and ok_cap, "no bad theme twice a floor, bad rooms capped, other towers' themes kept out")
+	_check(kinds.has("good") and kinds.has("bad") and kinds.has("mixed"), "good, bad and mixed rooms all turn up")
+	_check(ok_door_rule and doors_total > 36, "doors fill doorways, never into the start room (%d over 36 floors)" % doors_total)
+	_check(ok_chasm, "the Firebird's floors always have a chasm to jump")
+	# Doors in the game: solid, blocking sight and the way, until you walk up.
+	var p = main.player
+	var door := {}
+	for n in 20:
+		main._start_floor(3 + n % 4)
+		await _frames(1)
+		if not main.door_view.list.is_empty():
+			door = main.door_view.list[0]
+			break
+	for e in main.enemies():
+		e.set_physics_process(false)
+		e.aware = false
+	_check(not door.is_empty(), "floors of rooms have doors")
+	var t0: Vector2i = door["tiles"][0]
+	var dc: Vector2 = door["rect"].get_center()
+	var out: Vector2 = door["out"]
+	var before: Vector2 = dc + out * 80.0  # in the corridor, outside the room
+	var inside: Vector2 = dc - out * 80.0  # just inside the room
+	_check(main.is_solid(dc) and main.astar.is_point_solid(t0), "a closed door is a solid tile, on the path grid too")
+	_check(not main.clear_line(before, inside), "a closed door blocks sight")
+	p.global_position = before
+	await _frames(3)
+	var vis_i: int = main._tile_of(inside).y * main.grid_size.x + main._tile_of(inside).x
+	_check(main.fog.vis[vis_i] == 0, "...so the room behind it stays dark")
+	# Walk into it: it stops you, then swings open.
+	p.global_position = dc + out * 72.0
+	p.velocity = Vector2.ZERO
+	await _frames(2)
+	var key := "move_up" if out == Vector2.DOWN else ("move_down" if out == Vector2.UP else ("move_left" if out == Vector2.RIGHT else "move_right"))
+	_check(not door["open"], "doors stay shut until someone comes close")
+	Input.action_press(key)
+	await _wait(0.4)
+	Input.action_release(key)
+	await _frames(2)
+	_check(door["open"] and not main.is_solid(dc) and not main.astar.is_point_solid(t0), "walking up to a door opens it")
+	p.global_position = before
+	await _frames(3)
+	_check(main.fog.vis[vis_i] == 1, "opening a door reveals the room behind it")
+	_check(main.door_view.closed_count() < main.door_view.list.size(), "(and it stays open)")
+	# A door's look hints at the room (never the reward).
+	var styles := {}
+	var ok_style := true
+	for n in 30:
+		main.tower = main.Towers.ORDER[n % 6]
+		main._start_floor(3 + n % 8)
+		await _frames(1)
+		for d in main.door_view.list:
+			styles[d["style"]] = true
+			ok_style = ok_style and d["style"] == T.get_theme(main.room_themes[d["room"]])["door"]
+	main.tower = "kraken"
+	_check(ok_style and styles.size() >= 5, "doors come in styles that hint at the room behind (%s)" % [styles.keys()])
+	# Awake monsters open doors too.
+	for n in 20:
+		main._start_floor(4)
+		await _frames(1)
+		if not main.door_view.list.is_empty():
+			break
+	door = main.door_view.list[0]
+	for e in main.enemies():
+		e.set_physics_process(false)
+	p.global_position = main.player_start
+	main.door_view.monster_t = 99.0  # (a new monster starts awake: hold the check a moment)
+	var foe = await _spawn("slime", door["rect"].get_center() + door["out"] * 50.0)
+	foe.set_physics_process(false)
+	foe.aware = false
+	main.door_view.monster_t = 0.0
+	await _wait(0.3)
+	var shut: bool = not door["open"]
+	foe.aware = true
+	await _wait(0.3)
+	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it")
+	foe.queue_free()
+	# Entering a themed room shows its name and rule, once.
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	var ti := -1
+	for i in main.room_info.size():
+		if main.room_themes[i] in ["den", "landing"] or T.get_theme(main.room_themes[i])["kind"] == "good":
+			ti = i
+			break
+	main.banner = {}
+	p.global_position = main.player_start
+	await _frames(2)
+	var name: String = String(T.get_theme(main.room_themes[ti])["name"]).to_upper()
+	p.global_position = main.room_info[ti]["rect"].get_center() + Vector2(0, 30)
+	await _frames(2)
+	_check(main.banner.get("title", "") == name and main.banner["lines"][0] == T.get_theme(main.room_themes[ti])["sub"], "walking into a themed room shows its name and rule (%s)" % name)
+	main.banner = {}
+	p.global_position = main.player_start
+	await _frames(2)
+	p.global_position = main.room_info[ti]["rect"].get_center() + Vector2(0, 30)
+	await _frames(2)
+	_check(main.banner.is_empty(), "...only the first time")
+	# Themed floors: tints drawn into the room's floor squares.
+	_check(main.room_view.looks.size() == main.room_info.size(), "each room's theme is drawn on its floor")
+	# A healing spring heals until it runs dry.
+	var sp := {}
+	for n in 40:
+		main._start_floor(2 + n % 6)
+		await _frames(1)
+		if not main.springs.is_empty():
+			sp = main.springs[0]
+			break
+	for e in main.enemies():
+		e.queue_free()
+	_check(not sp.is_empty(), "some floors have a healing spring")
+	if not sp.is_empty():
+		p.hp = 20.0
+		p.global_position = sp["pos"]
+		await _wait(0.5)
+		_check(p.hp > 25.0 and sp["left"] < F.SPRING["heal"], "standing in a healing spring heals you (%d)" % int(p.hp))
+		p.hp = 1.0
+		await _wait(F.SPRING["heal"] / F.SPRING["rate"] + 1.0)
+		var dry: float = p.hp
+		p.hp = 1.0
+		await _wait(0.4)
+		_check(sp["left"] <= 0.0 and p.hp == 1.0 and dry > 30.0, "...until it runs dry")
+		p.hp = p.max_health()
+	# A restless crypt's dead rise when you walk in.
+	var ci := -1
+	for n in 40:
+		main._start_floor(4 + n % 6)
+		await _frames(1)
+		ci = main.room_themes.find("crypt")
+		if ci >= 0:
+			break
+	if ci >= 0:
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(1)
+		var total: int = main.floor_total
+		p.global_position = main.room_info[ci]["rect"].get_center()
+		await _frames(2)
+		_check(main.enemies().size() >= 2 and main.floor_total >= total + 2 and main.enemies().all(func(e): return e.aware), "walking into a crypt raises its dead (%d)" % main.enemies().size())
+
+
+## Cover walls, cache rooms with essence caches, and door frames.
 func _terrain_tests() -> void:
 	print("terrain inside rooms")
 	await _fresh_main()
@@ -968,6 +1198,7 @@ func _terrain_tests() -> void:
 			block = b
 			for t in main._tiles_in(b):
 				blocks_solid = blocks_solid and main._is_solid_tile(t.x, t.y)
+		main.open_all_doors()
 		var from: Vector2i = main._tile_of(main.player_start)
 		var goals: Array = [main.stair_pos]
 		for e in main.enemies():
@@ -986,7 +1217,7 @@ func _terrain_tests() -> void:
 	_check(blocks > 0 and blocks_solid, "low cover walls stand inside rooms and are solid tiles (%d)" % blocks)
 	_check(reach, "the stair, every monster and every cache stay reachable from the start")
 	_check(doors > 0 and doors_solid, "door frames stand on the walls beside corridor openings")
-	_check(sides > 0 and sides < floors, "side rooms appear on some floors but not all (%d of %d)" % [sides, floors])
+	_check(sides > 0 and sides < floors, "cache rooms appear on some floors but not all (%d of %d)" % [sides, floors])
 	# Cover blocks sight and shots.
 	for n in 20:
 		if not main.layout_blocks.is_empty():
@@ -1010,7 +1241,7 @@ func _terrain_tests() -> void:
 				break
 	for e in main.enemies():
 		e.set_physics_process(false)
-	_check(not main.cache.is_empty() and main.side_room.has_point(main.cache["pos"]), "a side room holds an essence cache")
+	_check(not main.cache.is_empty() and main.side_room.has_point(main.cache["pos"]), "a cache room holds an essence cache")
 	var kind: String = main.cache["kind"]
 	var before := float(main.run_essence.get(kind, 0.0))
 	p.global_position = main.cache["pos"] + Vector2(0, 70)
@@ -1026,7 +1257,7 @@ func _terrain_tests() -> void:
 	# Floor 1 stays a plain open room.
 	main._start_floor(1)
 	await _frames(1)
-	_check(main.layout_blocks.is_empty() and main.cache.is_empty() and main.room_view.doors.is_empty(), "floor 1 has no cover, side room or doors")
+	_check(main.layout_blocks.is_empty() and main.cache.is_empty() and main.room_view.doors.is_empty() and main.door_view.list.is_empty(), "floor 1 has no cover, cache room or doors")
 
 
 func _trap_tests() -> void:
@@ -1059,12 +1290,29 @@ func _trap_tests() -> void:
 				ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
 				ok_spot = ok_spot and pos.distance_to(main.player_start) > 100.0 and pos.distance_to(main.stair_pos) > 80.0
 				ok_spot = ok_spot and not main.layout_rooms[0].has_point(pos)
+				for r in main.floor_plan.get("doorways", []):
+					ok_spot = ok_spot and not r.has_point(pos)
+				for r in main.floor_plan.get("safe_rooms", []):
+					ok_spot = ok_spot and not r.has_point(pos)
 				for pl in main.pillars:
 					ok_spot = ok_spot and pos.distance_to(pl["pos"]) > pl["r"] + 20.0
 		each_tower = each_tower and of_tower > 0
 	_check(ok_kind and each_tower, "each tower's floors get its own trap kind")
 	_check(ok_count and total >= 60, "every floor of rooms gets trap set pieces and hidden plates (%d over 24 floors)" % total)
-	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar or a wall")
+	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar, a wall, a doorway or in a good room")
+	# The floor's trap room holds its set piece.
+	var ok_hazard := true
+	var hazards := 0
+	for n in 12:
+		main.tower = main.Towers.ORDER[n % 6]
+		main._start_floor(3 + n % 6)
+		for e in main.enemies():
+			e.set_physics_process(false)
+		for i in main.room_themes.size():
+			if main.Themes.get_theme(main.room_themes[i])["feature"] == "trap":
+				hazards += 1
+				ok_hazard = ok_hazard and main.traps.any(func(tr): return main.room_info[i]["rect"].has_point(tr["pos"]))
+	_check(ok_hazard and hazards > 0, "each trap room holds traps (%d rooms)" % hazards)
 	# Set pieces: timed traps in a group keep one beat (a wave or a checkerboard).
 	var grouped := false
 	var lanes_ok := true
@@ -1281,7 +1529,6 @@ func _room_fog_tests() -> void:
 	print("hand-made rooms and fog")
 	var Rooms = load("res://scripts/rooms.gd")
 	var F = main.Floors
-	var cell_size: Vector2 = F.ARENA.size / Vector2(F.GRID)
 	var ok_shape := true
 	var ok_fit := true
 	var ok_stair := true
@@ -1292,8 +1539,8 @@ func _room_fog_tests() -> void:
 			ok_shape = ok_shape and String(row).length() == w
 			for ch in String(row):
 				ok_shape = ok_shape and ch in Rooms.CHARS
-		var sz: Vector2 = Vector2(Rooms.size_of(r)) * F.CELL
-		ok_fit = ok_fit and sz.x <= cell_size.x - 80.0 and sz.y <= cell_size.y - 90.0
+		var sz: Vector2i = Rooms.size_of(r)
+		ok_fit = ok_fit and sz.x <= Rooms.MAX_SIZE.x and sz.y <= Rooms.MAX_SIZE.y and sz.x <= F.CELL_TILES.x - 2 and sz.y <= F.CELL_TILES.y - 2
 		if r["role"] == "stair":
 			var top: String = g[0]
 			var mid: int = w / 2
@@ -1304,6 +1551,14 @@ func _room_fog_tests() -> void:
 	_check(Rooms.for_role("combat", 3).size() >= 8 and Rooms.for_role("start", 2).size() >= 2 and Rooms.for_role("stair", 2).size() >= 2, "enough rooms of each kind for variety")
 	var flip: Array = Rooms.flipped({"grid": ["#..", "..."]}, true, true)
 	_check(flip == ["...", "..#"], "rooms can be flipped both ways")
+	_check(Rooms.prepare(["#..", "...", ".#."]) == ["X..", "...", "X#."] or Rooms.prepare(["#..", "...", ".#."]) == ["X..", "...", ".X."], "walls on a room's edge become its outline")
+	var ok_carve := true
+	for shape in Rooms.SHAPES:
+		var rows: Array = Rooms.prepare(Rooms.carve(shape, Vector2i(11, 9)))
+		ok_carve = ok_carve and rows.size() == 9 and String(rows[0]).length() == 11
+		for side in 4:
+			ok_carve = ok_carve and not Rooms.door_slots(rows, side).is_empty()
+	_check(ok_carve, "every carved shape can take a doorway on each side")
 	# Floors are built from them, with no room twice on a floor.
 	await _fresh_main()
 	main.profile.regarded = true
@@ -1313,19 +1568,21 @@ func _room_fog_tests() -> void:
 	for n in 6:
 		var plan: Dictionary = F.rooms_floor(2 + n % 3, main.Towers.TOWERS["firebird"] if n % 2 == 0 else main.Towers.TOWERS["kraken"])
 		var ids: Array = plan.get("room_ids", [])
+		var made: Array = ids.filter(func(id): return not String(id).begins_with("carved_"))
 		var uniq := {}
-		for id in ids:
+		for id in made:
 			uniq[id] = true
-		ok_ids = ok_ids and ids.size() == plan["rooms"].size() and uniq.size() == ids.size()
+		ok_ids = ok_ids and ids.size() == plan["rooms"].size() and uniq.size() == made.size() and made.size() >= 1
 	for n in 4:
 		main.tower = main.Towers.ORDER[n]
 		main._start_floor(3)
 		for e in main.enemies():
 			e.set_physics_process(false)
+		main.open_all_doors()
 		var from: Vector2i = main._tile_of(main.player_start)
 		var to: Vector2i = main._tile_of(main.stair_pos)
 		ok_reach = ok_reach and not main.astar.get_id_path(from, to).is_empty()
-	_check(ok_ids, "each floor's rooms are hand-made, none twice on a floor")
+	_check(ok_ids, "each floor mixes hand-made rooms (none twice on a floor) with carved ones")
 	_check(ok_reach, "the stair can always be reached through the rooms")
 	# Fog: you see what your climber can see.
 	var fog = main.fog
@@ -1385,6 +1642,7 @@ func _puzzle_tests() -> void:
 	await _frames(4)
 	_check(not main.stair_open, "killing every monster doesn't open a warded stair")
 	# The puzzle can always be reached: no rail or gate cuts off the stair.
+	main.open_all_doors()
 	var from: Vector2i = main._tile_of(main.player_start)
 	_check(not main.astar.get_id_path(from, main._tile_of(main.stair_pos)).is_empty(), "the stair can still be reached past the puzzle's rails and gates")
 	# A test puzzle of each kind, laid out in the start room.
@@ -1849,9 +2107,9 @@ func _menu_tests() -> void:
 	var n0: int = main.enemies().size()
 	main.dev_spawn("shellback")
 	_check(main.enemies().size() == n0 + 1, "the dev tool spawns monsters")
-	main.dev_floor(5)
+	main.dev_floor(main.Towers.SUMMIT)
 	await _frames(2)
-	_check(main.floor_num == 5 and main.enemies().size() == 1 and main.enemies()[0].kind == "kraken", "...jumps to the beast")
+	_check(main.floor_num == 12 and main.enemies().size() == 1 and main.enemies()[0].kind == "kraken", "...jumps to the beast")
 	main.dev_tower("gryphon")
 	await _frames(2)
 	_check(main.tower == "gryphon" and main.floor_num == 1, "...and moves to another tower")
@@ -2031,10 +2289,10 @@ func _wyvern_tower_tests() -> void:
 	print("the Wyvern")
 	main.profile.regarded = true
 	main.first_climb = false
-	main._start_floor(5)
+	main._start_floor(main.Towers.SUMMIT)
 	await _frames(3)
 	var foes: Array = main.enemies()
-	_check(foes.size() == 1 and foes[0].kind == "wyvern", "floor 5 of the Wyvern's tower is the Wyvern")
+	_check(foes.size() == 1 and foes[0].kind == "wyvern", "floor %d, the summit of the Wyvern's tower, is the Wyvern" % main.Towers.SUMMIT)
 	var w = foes[0]
 	w.set_physics_process(false)
 	# Its breath can't be parried.
@@ -2130,10 +2388,10 @@ func _manticore_tower_tests() -> void:
 	print("the Manticore")
 	main.profile.regarded = true
 	main.first_climb = false
-	main._start_floor(5)
+	main._start_floor(main.Towers.SUMMIT)
 	await _frames(3)
 	var foes: Array = main.enemies()
-	_check(foes.size() == 1 and foes[0].kind == "manticore", "floor 5 of the Manticore's tower is the Manticore")
+	_check(foes.size() == 1 and foes[0].kind == "manticore", "floor %d, the summit of the Manticore's tower, is the Manticore" % main.Towers.SUMMIT)
 	var m = foes[0]
 	m.set_physics_process(false)
 	await _settle()
@@ -2240,10 +2498,10 @@ func _firebird_tower_tests() -> void:
 	print("the Firebird")
 	main.profile.regarded = true
 	main.first_climb = false
-	main._start_floor(5)
+	main._start_floor(main.Towers.SUMMIT)
 	await _frames(3)
 	var foes: Array = main.enemies()
-	_check(foes.size() == 1 and foes[0].kind == "firebird" and main.chasms.is_empty(), "floor 5 of the Firebird's tower is the Firebird, in an open hall")
+	_check(foes.size() == 1 and foes[0].kind == "firebird" and main.chasms.is_empty(), "the summit of the Firebird's tower is the Firebird, in an open hall")
 	var fb = foes[0]
 	fb.set_physics_process(false)
 	await _settle()
@@ -2326,10 +2584,10 @@ func _chimera_tower_tests() -> void:
 	print("the Chimera")
 	main.profile.regarded = true
 	main.first_climb = false
-	main._start_floor(5)
+	main._start_floor(main.Towers.SUMMIT)
 	await _frames(3)
 	var foes: Array = main.enemies()
-	_check(foes.size() == 1 and foes[0].kind == "chimera", "floor 5 of the Chimera's tower is the Chimera")
+	_check(foes.size() == 1 and foes[0].kind == "chimera", "floor %d, the summit of the Chimera's tower, is the Chimera" % main.Towers.SUMMIT)
 	var c = foes[0]
 	c.set_physics_process(false)
 	await _settle()
@@ -2514,6 +2772,198 @@ func _performance_tests() -> void:
 	var after := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 	_check(after <= nodes + 4, "six floors later nothing is left behind (%d nodes, was %d)" % [after, nodes])
 	_check(rv.chunk_items.size() == squares, "floor 1's room has the same squares again")
+
+
+func _lighting_tests() -> void:
+	print("lighting: one darkness layer")
+	await _fresh_main()
+	for f in main.enemies():
+		f.set_physics_process(false)
+	var lt = main.lighting
+	await _frames(3)
+	var lights2d: Array = main.find_children("*", "PointLight2D", true, false)
+	var mods: Array = main.find_children("*", "CanvasModulate", true, false)
+	_check(lights2d.is_empty() and mods.is_empty(), "no 2D light nodes and no CanvasModulate: the darkness is one layer")
+	_check(lt.material is ShaderMaterial and lt.z_index == 40, "the darkness layer is a single shader rect over the world")
+	var layers: Array = main.find_children("*", "", true, false).filter(func(n): return n.get_script() == lt.get_script())
+	_check(layers.size() == 1, "...and there's only one")
+	_check(lt.on_screen >= 2 and lt.on_screen <= lt.MAX_LIGHTS, "the climber's glow and the torches light it (%d lights)" % lt.on_screen)
+	# The registry: lights come and go.
+	var before: int = lt.on_screen
+	var id: int = lt.add_light(main.player.global_position + Vector2(40, 0), 120.0, Color(0.5, 0.8, 1.0), 0.8, 0.2)
+	await _frames(2)
+	_check(lt.on_screen == before + 1, "a registered light reaches the shader")
+	lt.remove_light(id)
+	await _frames(2)
+	_check(lt.on_screen == before, "...and leaves when removed")
+	var far_id: int = lt.add_light(main.player.global_position + Vector2(9000, 0), 100.0, Color.WHITE)
+	await _frames(2)
+	_check(lt.on_screen == before, "a light far off screen isn't sent")
+	lt.remove_light(far_id)
+	var holder := Node2D.new()
+	main.add_child(holder)
+	lt.add_light(Vector2.ZERO, 100.0, Color.WHITE, 0.8, 0.0, holder)
+	holder.global_position = main.player.global_position
+	await _frames(2)
+	_check(lt.on_screen == before + 1, "a light can follow a node...")
+	holder.queue_free()
+	await _frames(3)
+	_check(lt.on_screen == before and lt.lights.is_empty(), "...and goes when the node does (%d, was %d, %d left)" % [lt.on_screen, before, lt.lights.size()])
+	# Flashes fade and expire.
+	main.light_flash(main.player.global_position, Color(1, 0.8, 0.4), 1.5, 1.6, 0.2)
+	await _frames(1)
+	_check(lt.flashes.size() == 1 and lt.on_screen == before + 1, "a light flash lights the darkness (%d, %d)" % [lt.flashes.size(), lt.on_screen])
+	await _wait(0.35)
+	await _frames(2)
+	_check(lt.flashes.is_empty() and lt.on_screen == before, "...and expires")
+	for i in 40:
+		main.light_flash(main.player.global_position, Color.WHITE, 1.0, 1.0, 5.0)
+	_check(lt.flashes.size() == lt.MAX_FLASHES, "flashes are capped (%d)" % lt.flashes.size())
+	await _frames(2)
+	_check(lt.on_screen <= lt.MAX_LIGHTS, "never more lights than the shader takes")
+	lt.flashes.clear()
+	# The stair glows once open; each tower has its own darkness colour.
+	main.stair_open = true
+	await _frames(2)
+	var at_stair: Array = lt.live_lights().filter(func(l): return l[0].distance_to(main.stair_pos) < 1.0)
+	_check(at_stair.size() == 1 and at_stair[0][1] > 150.0, "the open stair is lit")
+	main.stair_open = false
+	main.dev_tower("wyvern")
+	await _frames(2)
+	_check(lt.dark_color == main.Palette.TOWER_FOG["wyvern"], "each tower has its own darkness colour")
+	# Fog: drawn by the darkness layer from fog.gd's texture.
+	main.dev_floor(2)
+	await _frames(1)
+	for f in main.enemies():
+		f.set_physics_process(false)
+	await _frames(2)
+	_check(main.fog.visible and main.fog.tex != null and lt.mat.get_shader_parameter("fog_on") == true, "the darkness layer draws the line-of-sight fog")
+	_check(main.fog.tex.get_image().get_format() == Image.FORMAT_L8, "...from a one-byte-per-tile texture")
+	var looks: int = main.fog.looks
+	main.player.global_position += Vector2(40, 0)
+	await _frames(1)
+	main.player.global_position += Vector2(40, 0)
+	await _frames(1)
+	_check(main.fog.looks - looks <= 2, "sight isn't worked out every frame (%d)" % (main.fog.looks - looks))
+	# World words go above the darkness.
+	_check(main.fx.labels.z_index > lt.z_index and not main.fx.labels.z_as_relative, "floating words are drawn above the darkness")
+	main.dev_floor(1)
+	await _frames(2)
+	_check(not lt.mat.get_shader_parameter("fog_on"), "no fog on single-room floors")
+
+
+func _foe_list_tests() -> void:
+	print("the monster list, remembered per frame")
+	await _fresh_main()
+	await _frames(2)
+	var n: int = main.enemies().size()
+	_check(is_same(main.enemies(), main.enemies()), "asking twice in a frame gives the same list")
+	var e = main.spawn_enemy("slime", main.player.global_position + Vector2(120, 0))
+	_check(main.enemies().has(e) and main.enemies().size() == n + 1, "a monster spawned this frame is in the list at once")
+	_check(main.targets().has(e), "...and can be aimed at")
+	e.submerged = true
+	_check(not main.targets().has(e) and main.enemies().has(e), "a lurker under the water drops out of targets()")
+	e.submerged = false
+	_check(main.targets().has(e), "...and comes back when it surfaces")
+	e.take_hit(99999.0, Vector2.ZERO, 0.0)
+	_check(not main.enemies().has(e) and main.enemies().size() == n, "a dead monster leaves the list the same frame")
+	var e2 = main.spawn_enemy("slime", main.player.global_position + Vector2(-120, 0))
+	_check(main.enemies().has(e2), "another spawn...")
+	main.remove_child(e2)
+	_check(not main.enemies().has(e2), "...and a removed one leaves the list")
+	e2.free()
+	await _frames(2)
+	_check(main.enemies().all(func(f): return is_instance_valid(f) and not f.dead), "the list holds only living monsters")
+	# Paths: only a few monsters look for one each tick.
+	var turns := 0
+	for i in 10:
+		if main.take_path_turn():
+			turns += 1
+	_check(turns <= main.PATHS_PER_TICK, "at most %d path searches a tick (%d)" % [main.PATHS_PER_TICK, turns])
+
+
+func _slim_hud_tests() -> void:
+	print("the slim HUD")
+	await _fresh_main()
+	for f in main.enemies():
+		f.set_physics_process(false)
+	main.grant_test_bonds()
+	var p = main.player
+	var hud = main.hud
+	await _frames(3)
+	_check(hud.core != null and hud.core.get_parent() == hud.get_parent() and hud.core.get_index() < hud.get_index(), "the HUD's always-there part is its own layer, under the fading bits")
+	var titles: Array = hud.tips.map(func(t): return t[1])
+	_check(titles.any(func(t): return t.begins_with("Health")) and main.Gear.display(p.weapon) in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "always there: health and stamina, the weapon in hand, the marks")
+	_check(not titles.any(func(t): return t in ["Fists", "Shortbow", "No armor"]), "...but not every weapon slot or the armor")
+	# Drawn once, again only when something changes.
+	await _wait(1.0)
+	var drawn: int = hud.core_redraws
+	await _frames(10)
+	_check(hud.core_redraws == drawn, "the HUD isn't redrawn while nothing changes")
+	p.hp -= 10.0
+	await _frames(2)
+	_check(hud.core_redraws > drawn, "...and is when health changes")
+	await _wait(1.5)
+	hud.floor_t = 0.0
+	hud.hints_t = 0.0
+	hud.stair_t = 0.0
+	hud.essence_t = 0.0
+	main.banner = {}
+	await _frames(3)
+	var top: int = hud.top_redraws
+	await _frames(10)
+	_check(hud.top_redraws <= top + 1, "the fading layer rests when nothing fades (%d redraws)" % (hud.top_redraws - top))
+	# Fading notices.
+	main.gather_essence("water", 5.0, p.global_position)
+	await _frames(2)
+	_check(hud.essence_t > 0.0, "picking up essence shows the gem counter")
+	var ranged: String = p.slots()[2]
+	p._equip(ranged)
+	await _frames(2)
+	_check(p.weapon == ranged and hud.swap_t > 0.0, "swapping weapons pops up the weapon row")
+	p._equip("sword")
+	main.dev_floor(2)
+	await _frames(2)
+	_check(hud.floor_t > 0.0, "a new floor shows its title for a moment")
+	# The moved panels are on the climber screen and in the inventory.
+	var menu = main.menu
+	menu.open("inventory", true)
+	await _frames(2)
+	_check(_slot("gear:fists") != null and _slot("gear:ranged") != null and _slot("gear:armor") != null, "every weapon slot and the armor are in the inventory")
+	menu.close()
+	await _frames(2)
+	menu.climber_tab = "marks"
+	menu.open("climber", true)
+	await _frames(3)
+	var cards: Array = menu.find_children("*", "Button", true, false).filter(func(b): return b.has_meta("part"))
+	_check(cards.size() == 6 and cards.any(func(c): return not main.profile.bonds.has(c.get_meta("part"))), "where the next mark forms is on the climber screen's Marks tab")
+	menu.close()
+	await _frames(2)
+	menu.climber_tab = "essence"
+	menu.open("climber", true)
+	await _frames(2)
+	_check(menu.page == "climber" and menu.climber_tab == "essence", "...and the attributes on its Essence tab")
+	menu.close()
+	await _frames(2)
+	# Phone size: still small and clear, the buttons redrawn only on change.
+	main.touch._set_active(true)
+	await _frames(3)
+	var t0: int = main.touch.redraws
+	await _frames(10)
+	_check(main.touch.redraws <= t0 + 1, "the touch buttons aren't redrawn every frame (%d)" % (main.touch.redraws - t0))
+	await _frames(2)
+	var size: Vector2 = hud.get_viewport_rect().size
+	var right_edge := 0.0
+	for t in hud.tips:
+		right_edge = maxf(right_edge, t[0].end.x * hud.hud_scale)
+	_check(right_edge < size.x * 0.45, "on a phone the HUD keeps to the top left (%.0f of %.0f)" % [right_edge, size.x])
+	main.touch._set_active(false)
+	await _frames(2)
+	# The dev readout.
+	hud.show_perf = true
+	await _wait(0.3)
+	_check(hud.perf_text.size() >= 5 and String(hud.perf_text[0]).contains("fps") and String(hud.perf_text[4]).contains("lights"), "the dev speed readout shows fps, draw calls, nodes, monsters, traps and lights")
+	hud.show_perf = false
 
 
 func _tower_tests() -> void:
@@ -2787,7 +3237,19 @@ func _camp_tests() -> void:
 	_check(main.floor_num == 4 and not main.in_camp and main.campfire == null, "the camp's stair leads on to floor 4")
 	_check(main.enemies().size() > 0, "floor 4 has monsters again")
 	main._arrive()
-	_check(main.floor_num == 5 and not main.in_camp, "one camp a climb: floor 4 leads straight to the beast")
+	_check(main.floor_num == 5 and not main.in_camp, "floor 4 leads straight on to floor 5")
+	_check(main.Towers.SUMMIT == 12 and main.Towers.PROVING["floor"] == 6, "towers are 12 floors tall, with the Proving on floor 6")
+	main.floor_num = 9
+	main._arrive()
+	await _frames(2)
+	_check(main.in_camp and main.camp_choosing, "floor 9's stair leads to a second camp")
+	main.choose_camp(0)
+	await _frames(2)
+	main._arrive()
+	_check(main.floor_num == 10 and not main.in_camp, "the second camp's stair leads on to floor 10 (camps aren't floors)")
+	main.floor_num = 9
+	main._arrive()
+	_check(main.floor_num == 10 and not main.in_camp, "each camp comes once a climb")
 
 	print("Runesmith at a camp")
 	await _fresh_main()
@@ -2815,7 +3277,7 @@ func _camp_tests() -> void:
 	main._arrive()
 	_check(main.floor_num == 4 and p.rune_gear == "warding", "a camp's rune lasts past the next stair")
 	main._arrive()
-	_check(main.floor_num == 5 and p.rune_gear == "warding", "...all the way to the beast")
+	_check(main.floor_num == 5 and p.rune_gear == "warding", "...for the rest of the climb")
 	# Or craft an item instead.
 	await _fresh_main()
 	p = main.player
@@ -4125,6 +4587,9 @@ func _run() -> void:
 	await _heirloom_tests()
 	await _controls_tests()
 	await _performance_tests()
+	await _lighting_tests()
+	await _foe_list_tests()
+	await _slim_hud_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
@@ -4422,12 +4887,23 @@ func _mark_page_tests() -> void:
 	menu._set_setting("hud_scale", "normal")
 	_check(is_equal_approx(main.hud.hud_scale, 1.0), "...and Normal as it was")
 
-	# The HUD: tooltips for its slots, and the quick item.
+	# The HUD: tooltips for the weapon in hand, the quick item and the marks;
+	# the other items are in the inventory.
 	p.add_item("tonic")
-	main.hud.queue_redraw()
+	p.add_item("draught")
+	main.hud.core.queue_redraw()
 	await _frames(2)
 	var titles: Array = main.hud.tips.map(func(t): return t[1])
-	_check("Sword" in titles and "Healing Draught" in titles and "Cleansing Tonic" in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "the HUD's slots and marks have tooltips")
+	var quick: String = p.selected_item()
+	var other: String = "tonic" if quick != "tonic" else "draught"
+	_check(p.weapon == "sword" and "Sword" in titles and main.Items.ITEMS[quick]["name"] in titles and titles.any(func(t): return t.begins_with("Stormcaller")), "the HUD's weapon, quick item and marks have tooltips")
+	_check(not (main.Items.ITEMS[other]["name"] in titles), "...and only the quick item is on the HUD")
+	menu.open("inventory", true)
+	await _frames(2)
+	var tonic = _slot("item:" + other)
+	_check(tonic != null and tonic.count >= 1, "...the other items are in the inventory")
+	menu.close()
+	await _frames(2)
 
 	# Gear at your feet shows in the inventory, set against yours, and can be taken.
 	main.drop_gear(p.global_position, "axe")

@@ -10,8 +10,38 @@ const MOSS := Color(0.22, 0.3, 0.17)
 const WALL_TOP := Color(0.17, 0.155, 0.19)
 const WALL_EDGE := Color(0.3, 0.28, 0.32)
 const WALL_FACE := Color(0.24, 0.21, 0.24)
-const AMBIENT := Color(0.42, 0.43, 0.56)  # how bright unlit areas are
 const TORCH := Color(1.0, 0.68, 0.38)
+# Doors (doors.gd)
+const DOOR_WOOD := Color(0.36, 0.24, 0.15)
+const DOOR_IRON := Color(0.32, 0.31, 0.35)
+const DOOR_STONE := Color(0.33, 0.31, 0.35)
+
+# Light and darkness (lighting.gd): each tower's darkness has its own colour;
+# alpha is how dark its unlit places are (1 = black, 0 = no darkness).
+const TOWER_FOG := {
+	"gryphon": Color(0.031, 0.047, 0.094, 0.74),
+	"kraken": Color(0.008, 0.039, 0.071, 0.76),
+	"wyvern": Color(0.063, 0.016, 0.008, 0.74),
+	"manticore": Color(0.071, 0.047, 0.016, 0.7),
+	"firebird": Color(0.071, 0.024, 0.039, 0.72),
+	"chimera": Color(0.016, 0.047, 0.016, 0.74),
+}
+## Each tower's hue on its stone (floor and walls), over the tower's own stone colour.
+const TOWER_TINT := {
+	"gryphon": Color(0.7, 0.75, 0.92),
+	"kraken": Color(0.62, 0.8, 0.9),
+	"wyvern": Color(0.92, 0.72, 0.68),
+	"manticore": Color(0.92, 0.8, 0.62),
+	"firebird": Color(0.92, 0.7, 0.62),
+	"chimera": Color(0.74, 0.88, 0.68),
+}
+const FOG_UNSEEN :=Color(0.016, 0.012, 0.031)  # places out of the climber's sight
+const VIGNETTE := 0.45  # how much the screen's corners darken
+const PLAYER_LIGHT := Color(1.0, 0.88, 0.74)  # the climber's own glow
+const STAIR_LIGHT := Color(1.0, 0.85, 0.5)
+const WARD_LIGHT := Color(0.75, 0.55, 1.0)
+const EYE_LIGHT := Color(1.0, 0.82, 0.42)  # a puzzle's eyes
+const FIRE_LIGHT := Color(1.0, 0.55, 0.22)  # burning floor
 
 # Characters
 const OUTLINE := Color(0.06, 0.05, 0.07)

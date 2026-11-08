@@ -115,13 +115,17 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 	if kind == "":
 		return list
 	var walk: Array = plan.get("walk", [])
-	var corridors: Array = walk.slice(rooms.size())
+	var corridors: Array = plan.get("corridors", walk.slice(rooms.size()))
 	var inner_rooms: Array = rooms.slice(1)
 	var sets := 1 + (1 if floor_num >= 3 else 0) + (randi() % 2 if floor_num >= 4 else 0)
 	var centres: Array = []
+	# The floor's trap rooms (themes.gd) get the first set pieces.
+	var hazard: Array = plan.get("hazard_rooms", [])
 	for s in sets:
-		for attempt in 40:
+		for attempt in 80:
 			var pool: Array = corridors if (not corridors.is_empty() and randf() < 0.7) else inner_rooms
+			if s < hazard.size() and attempt < 50:
+				pool = [rooms[hazard[s]]]
 			if pool.is_empty():
 				pool = inner_rooms
 			var area: Rect2 = pool[randi() % pool.size()]
@@ -138,25 +142,30 @@ static func place(plan: Dictionary, tower: Dictionary, floor_num: int, main = nu
 			list.append_array(group)
 			break
 	# A hidden plate or two, anywhere past the first room.
-	var singles := 1 + randi() % 2
-	var areas: Array = inner_rooms.duplicate()
+	var singles := maxi(1 + randi() % 2, 2 - list.size())  # (two traps a floor at least)
+	# (Only rooms that may hold one: not the puzzle room or a good room.)
+	var areas: Array = inner_rooms.filter(func(r): return spot_ok(r.get_center(), {"safe_rooms": plan.get("safe_rooms", []), "puzzle": plan.get("puzzle", {})}, []))
 	areas.append_array(corridors)
-	for i in singles:
+	if areas.is_empty():
+		areas = inner_rooms.duplicate()
+	var placed := 0
+	for attempt in 240:
+		if placed >= singles:
+			break
 		var single_kind := kind
 		if KINDS[kind]["trigger"] != "plate":
 			single_kind = "gas" if tid in GAS_TOWERS else kind
 		elif tid in GAS_TOWERS and randf() < 0.4:
 			single_kind = "gas"
-		for attempt in 60:
-			var area: Rect2 = areas[randi() % areas.size()]
-			var pos := _tile_in(area.grow(-Floors.CELL * 0.5))
-			if pos == Vector2.INF or not spot_ok(pos, plan, list, main):
-				continue
-			var tr := make(pos, single_kind, single_kind != kind or randf() < float(KINDS[single_kind]["hidden_chance"]) + 0.3, floor_num)
-			if KINDS[single_kind]["shape"] == "lane":
-				tr["dir"] = _open_dir(pos, int(KINDS[single_kind]["len"]), plan, main)
-			list.append(tr)
-			break
+		var area: Rect2 = areas[randi() % areas.size()]
+		var pos := _tile_in(area.grow(-Floors.CELL * 0.5))
+		if pos == Vector2.INF or not spot_ok(pos, plan, list, main):
+			continue
+		var tr := make(pos, single_kind, single_kind != kind or randf() < float(KINDS[single_kind]["hidden_chance"]) + 0.3, floor_num)
+		if KINDS[single_kind]["shape"] == "lane":
+			tr["dir"] = _open_dir(pos, int(KINDS[single_kind]["len"]), plan, main)
+		list.append(tr)
+		placed += 1
 	return list
 
 
@@ -286,6 +295,12 @@ static func spot_ok(pos: Vector2, plan: Dictionary, others: Array, main = null) 
 	var pz: Dictionary = plan.get("puzzle", {})
 	if not pz.is_empty() and pz["room"].grow(20.0).has_point(pos):
 		return false  # nor in the puzzle room (it has its own test)
+	for r in plan.get("safe_rooms", []):
+		if r.grow(20.0).has_point(pos):
+			return false  # nor in a good room
+	for r in plan.get("doorways", []):
+		if r.grow(24.0).has_point(pos):
+			return false  # nor in a doorway, or right beside one
 	if pos.distance_to(plan.get("start", Vector2(-9999, -9999))) < 120.0:
 		return false
 	if pos.distance_to(plan.get("stair", Vector2(-9999, -9999))) < 90.0:
@@ -622,9 +637,6 @@ func seen(tr: Dictionary) -> bool:
 
 func _ready() -> void:
 	z_index = -5  # on the floor: over the room, under everyone
-	var unlit := CanvasItemMaterial.new()
-	unlit.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
-	material = unlit
 
 
 ## The world on screen, with room for a lane's length.

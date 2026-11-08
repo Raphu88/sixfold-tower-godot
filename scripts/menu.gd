@@ -1407,6 +1407,8 @@ func _page_dev() -> void:
 	_button("Clear the room", _clear_room, crow)
 	if main.trap_view != null:
 		_button("Show traps: %s" % ("on" if main.trap_view.show_all else "off"), _toggle_traps, crow)
+	var prow := _row()
+	_button("Speed readout: %s" % ("on" if main.hud.show_perf else "off"), _toggle_perf, prow)
 	if toast != "":
 		_text(toast, GOLD, true)
 	_footer()
@@ -1501,6 +1503,13 @@ func _dev_gear(id: String) -> void:
 
 func _toggle_no_death() -> void:
 	main.dev_no_death = not main.dev_no_death
+	open("dev")
+
+
+## The dev readout: frame rate, frame time, draw calls, nodes, monsters, traps and lights.
+func _toggle_perf() -> void:
+	main.hud.show_perf = not main.hud.show_perf
+	Engine.set_meta("sixfold_perf", main.hud.show_perf)  # (kept across a restart)
 	open("dev")
 
 
@@ -2209,10 +2218,24 @@ class MarkCard extends Button:
 			UI.socket_into(b, mc, r * 0.78, main.soak_fraction(part) if lead == part else 0.0)
 			b.flush(self)
 			draw_string(font, Vector2(x, h * 0.5 - 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UI.DIM)
+			# How much it has soaked up (on the first climb, against the part
+			# you've used most); the leader is where the next mark forms.
+			var soak: float = main.soak_fraction(part)
+			if main.first_climb:
+				soak = main.part_soak(part) / maxf(main.part_soak(lead) if lead != "" else 0.0, 1.0)
+			var bar_y := h * 0.5 + 20.0
 			if lead == part:
-				draw_string(font, Vector2(x, h * 0.5 + 13.0), "your next mark is forming", HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 11, UI.GOLD)
+				var forming := "your mark is forming" if main.first_climb else "your next mark is forming"
+				draw_string(font, Vector2(x, h * 0.5 + 13.0), forming, HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 11, UI.GOLD)
+				var bid: String = main.predicted_bond()
+				if bid != "" and tall:
+					var bi: Dictionary = Bonds.BONDS[bid]
+					draw_string(font, Vector2(x, h * 0.5 + 28.0), "would be %s" % bi["name"], HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 11, bi["color"])
+					bar_y = h * 0.5 + 34.0
 			else:
 				draw_string(font, Vector2(x, h * 0.5 + 13.0), "unmarked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+			if main.player != null:
+				UI.draw_bar(self, Rect2(Vector2(x, bar_y), Vector2(w, 6)), soak, UI.GOLD if lead == part else Color(0.6, 0.57, 0.66))
 			return
 		var data: Dictionary = Bonds.BONDS[info["id"]]
 		var col: Color = data["color"]

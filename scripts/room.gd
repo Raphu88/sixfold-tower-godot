@@ -1,7 +1,8 @@
 extends Node2D
 ## The room's look: stone floor, walls with depth, torches with flickering
-## light and drifting embers, and dust in the air. Purely visual; the solid
-## walls are built in main.gd.
+## flames and drifting embers, and dust in the air. Purely visual; the solid
+## walls are built in main.gd. The light itself (torches, stair, cache) is
+## cast by the darkness layer (lighting.gd), which reads `torches` here.
 
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -12,21 +13,15 @@ const WALL_FACE := 46.0  # height of the north wall's visible front
 
 var room: Rect2
 var wall := 24.0
-var torches: Array = []  # {pos, light, phase}
+var torches: Array = []  # {pos, phase, below}: lighting.gd lights each one
 var embers: Array = []
 var dust: Array = []
-var light_tex: Texture2D
 var ambient: Node2D  # redrawn every frame: flames, embers, dust
 var pillars: Array = []  # {pos, r}
 var puddles: Array = []  # {pos, r}
 var chasms: Array = []  # Rect2 gaps in the floor
 var stair_pos := Vector2.ZERO
-var stair_open := false:
-	set(v):
-		stair_open = v
-		if stair_light != null:
-			stair_light.enabled = v
-var stair_light: PointLight2D
+var stair_open := false
 var torch_color := Palette.TORCH
 # A floor of rooms: which tiles are solid (walls between rooms).
 var grid := Vector2i.ZERO
@@ -35,15 +30,20 @@ var layout_rooms: Array = []
 var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
 var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
-var cache := {}  # a side room's essence cache: {pos, kind, taken}
-var cache_light: PointLight2D
+var cache := {}  # a good room's essence cache: {pos, kind, taken}
+# Room themes (themes.gd): each room's floor tint and marks, drawn into the
+# floor squares (static: no cost per frame). {walk: [Rect2], rect, rows, tint, decor}
+var looks: Array = []
+var springs: Array = []  # healing springs: {pos, r, left} (shared with main.gd)
+var camps: Array = []  # fallen climbers' cold camps: {pos}
 # The floor and walls are drawn in squares (see Draw.Chunked): fewer draw
-# calls, and each square is only lit by the torches near it.
-const CHUNK := 120.0
+# calls, and only the squares on screen are drawn.
+const CHUNK := 400.0
 var batch  # while drawing
 var chunk_items: Array = []  # the squares' canvas items
 var features: Node2D  # puddles, chasms and pillars, drawn over the floor
 var tint := Color.WHITE  # the tower's stone colour, passed on to the squares
+var ambient_t := 0.0  # until the next redraw of flames, embers and dust
 
 
 ## Call before adding to the tree.
@@ -54,7 +54,6 @@ func setup(r: Rect2, wall_thickness: float) -> void:
 
 func _ready() -> void:
 	z_index = -10
-	light_tex = make_light_texture()
 	ambient = Node2D.new()
 	ambient.draw.connect(_draw_ambient)
 	add_child(ambient)
@@ -62,20 +61,6 @@ func _ready() -> void:
 	features.draw.connect(_draw_features)
 	add_child(features)
 	move_child(features, 0)  # under the torches, embers and dust
-	stair_light = PointLight2D.new()
-	stair_light.texture = light_tex
-	stair_light.texture_scale = 1.6
-	stair_light.color = Color(1.0, 0.85, 0.5)
-	stair_light.energy = 1.4
-	stair_light.enabled = false
-	stair_light.position = stair_pos
-	add_child(stair_light)
-	cache_light = PointLight2D.new()
-	cache_light.texture = light_tex
-	cache_light.texture_scale = 1.1
-	cache_light.energy = 1.2
-	cache_light.enabled = false
-	add_child(cache_light)
 	_make_torches()
 	_make_dust()
 
@@ -110,20 +95,26 @@ func set_doors(list: Array) -> void:
 	queue_redraw()
 
 
-func _add_torch(pos: Vector2, scale: float, below: float) -> void:
-	var light := PointLight2D.new()
-	light.texture = light_tex
-	light.texture_scale = scale
-	light.color = torch_color
-	light.energy = 1.25
-	light.position = pos + Vector2(0, below)
-	add_child(light)
-	torches.append({"pos": pos, "light": light, "phase": randf() * 10.0})
+## The rooms' themed looks, springs and camps (empty on open floors).
+func set_looks(list: Array, spring_list: Array = [], camp_list: Array = []) -> void:
+	looks = list
+	springs = spring_list
+	camps = camp_list
+	queue_redraw()
+
+
+## Redraws the pillars, pools and springs (a spring ran dry).
+func refresh_features() -> void:
+	if features != null:
+		features.queue_redraw()
+
+
+## A torch on the wall at `pos`; its light falls `below` it, onto the floor.
+func _add_torch(pos: Vector2, _scale: float, below: float) -> void:
+	torches.append({"pos": pos, "phase": randf() * 10.0, "below": below})
 
 
 func _make_torches() -> void:
-	for t in torches:
-		t["light"].queue_free()
 	torches.clear()
 	if not layout_rooms.is_empty():
 		# A torch on the north wall of every room (two in wide ones).
@@ -170,8 +161,6 @@ static func make_light_texture() -> Texture2D:
 
 func set_torch_color(c: Color) -> void:
 	torch_color = c
-	for t in torches:
-		t["light"].color = c
 
 
 func set_chasms(list: Array) -> void:
@@ -200,34 +189,16 @@ func _view_rect() -> Rect2:
 
 
 func _process(delta: float) -> void:
-	var t := Time.get_ticks_msec() * 0.001
 	if tint != self_modulate:
 		tint = self_modulate
 		features.self_modulate = tint
 		for ci in chunk_items:
 			RenderingServer.canvas_item_set_self_modulate(ci, tint)
-	if stair_light != null:
-		stair_light.position = stair_pos
-		stair_light.energy = 1.2 + 0.3 * sin(t * 3.0)
-	if cache_light != null:
-		cache_light.enabled = not cache.is_empty() and not cache.get("taken", true)
-		if cache_light.enabled:
-			cache_light.position = cache["pos"]
-			cache_light.color = Essence.color(cache["kind"])
-			cache_light.energy = 1.1 + 0.3 * sin(t * 2.4)
-	# Lights cost a lot on phones: a torch well off screen is switched off.
+	# Embers rise only from torches on screen (nobody sees the others).
 	var view := _view_rect()
 	for torch in torches:
-		var lit: bool = view.has_point(torch["pos"])
-		if torch["light"].enabled != lit:
-			torch["light"].enabled = lit
-	for torch in torches:
-		var ph: float = torch["phase"]
-		# A slow, soft flicker: a fast one (above ~15 Hz) lights the whole floor
-		# like a failing screen rather than a flame.
-		var flick := 0.85 + 0.09 * sin(t * 7.0 + ph) + 0.04 * sin(t * 12.0 + ph * 2.0)
-		torch["light"].energy = 1.25 * flick
-		torch["light"].texture_scale = 2.6 + 0.1 * sin(t * 5.0 + ph)
+		if not view.has_point(torch["pos"]):
+			continue
 		if randf() < 6.0 * delta:
 			embers.append({
 				"pos": torch["pos"] + Vector2(randf_range(-3.0, 3.0), -10.0),
@@ -243,7 +214,11 @@ func _process(delta: float) -> void:
 		d["pos"] += d["vel"] * delta
 		if not room.grow(10.0).has_point(d["pos"]):
 			d["pos"] = Vector2(randf_range(room.position.x, room.end.x), randf_range(room.position.y, room.end.y))
-	ambient.queue_redraw()
+	# Flames, embers and dust: 30 redraws a second is plenty (phones).
+	ambient_t -= delta
+	if ambient_t <= 0.0:
+		ambient_t = 1.0 / 30.0
+		ambient.queue_redraw()
 
 
 ## Cheap stable per-tile random number in [0, 1).
@@ -352,6 +327,7 @@ func _draw() -> void:
 				var p2 := inner.position + inner.size * Vector2(_hash(gx, gy, 9), 0.92)
 				batch.polyline(PackedVector2Array([p0, p1, p2]), base.darkened(0.4), 1.0)
 
+	_draw_looks()
 	# A soft darkening toward the walls, so the floor feels enclosed.
 	for i in 6:
 		var k := float(i) / 6.0
@@ -373,26 +349,153 @@ func _draw() -> void:
 
 
 func _draw_features() -> void:
-	var c := features
+	var c := Draw.Batch.new()  # everything in one draw call
 	for pd in puddles:
 		# Standing water: dark, with a lighter rim and a glint.
-		c.draw_circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
-		c.draw_circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
-		c.draw_arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
-		c.draw_arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
+		c.circle(pd["pos"], pd["r"], Color(0.1, 0.22, 0.28, 0.75))
+		c.circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
+		c.arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
+		c.arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
 	for ch in chasms:
 		# A gap in the floor: a cracked lip, then darkness falling away.
 		var r: Rect2 = ch
-		c.draw_rect(r.grow(3.0), Color(0.12, 0.1, 0.1))
-		c.draw_rect(r, Color(0.02, 0.015, 0.03))
+		c.rect(r.grow(3.0), Color(0.12, 0.1, 0.1))
+		c.rect(r, Color(0.02, 0.015, 0.03))
 		for i in 4:
-			c.draw_rect(r.grow(-2.0 - i * 3.0), Color(0.0, 0.0, 0.0, 0.25), false, 3.0)
-		var lips := Draw.Batch.new()  # (Godot lights its own lines unevenly here)
-		lips.line(r.position, Vector2(r.end.x, r.position.y), Color(0.55, 0.5, 0.45, 0.6), 2.0)
-		lips.line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
-		lips.flush(c)
+			var o := r.grow(-2.0 - i * 3.0)
+			var dark := Color(0.0, 0.0, 0.0, 0.25)
+			c.rect(Rect2(o.position.x - 1.5, o.position.y - 1.5, o.size.x + 3.0, 3.0), dark)
+			c.rect(Rect2(o.position.x - 1.5, o.end.y - 1.5, o.size.x + 3.0, 3.0), dark)
+			c.rect(Rect2(o.position.x - 1.5, o.position.y + 1.5, 3.0, o.size.y - 3.0), dark)
+			c.rect(Rect2(o.end.x - 1.5, o.position.y + 1.5, 3.0, o.size.y - 3.0), dark)
+		c.line(r.position, Vector2(r.end.x, r.position.y), Color(0.55, 0.5, 0.45, 0.6), 2.0)
+		c.line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
 	for p in pillars:
 		_draw_pillar(c, p["pos"], p["r"])
+	c.flush(features)
+	for sp in springs:
+		_draw_spring(features, sp)
+	for cp in camps:
+		_draw_camp(features, cp["pos"])
+
+
+## Each themed room's floor: a wash of its colour, and marks for some
+## (bones in a den or a crypt, scorch in a hazard room).
+func _draw_looks() -> void:
+	for lk in looks:
+		var tint: Color = lk.get("tint", Color(0, 0, 0, 0))
+		var walk: Array = lk.get("walk", [])
+		if tint.a > 0.0:
+			for r in walk:
+				batch.rect(r, tint)
+			# A brighter line just inside the room's edge, so the colour reads.
+			var rows: Array = lk.get("rows", [])
+			var at: Vector2 = lk.get("rect", Rect2()).position
+			var line := Color(tint, minf(tint.a * 1.6, 0.25))
+			for y in rows.size():
+				var row: String = rows[y]
+				for x in row.length():
+					if row[x] == "X":
+						continue
+					var tl := at + Vector2(x, y) * TILE
+					if y == 0 or String(rows[y - 1])[x] == "X":
+						batch.rect(Rect2(tl + Vector2(0, 2), Vector2(TILE, 2)), line)
+					if y == rows.size() - 1 or String(rows[y + 1])[x] == "X":
+						batch.rect(Rect2(tl + Vector2(0, TILE - 4), Vector2(TILE, 2)), line)
+					if x == 0 or row[x - 1] == "X":
+						batch.rect(Rect2(tl + Vector2(2, 0), Vector2(2, TILE)), line)
+					if x == row.length() - 1 or row[x + 1] == "X":
+						batch.rect(Rect2(tl + Vector2(TILE - 4, 0), Vector2(2, TILE)), line)
+		if walk.is_empty():
+			continue
+		var box: Rect2 = lk.get("rect", walk[0])
+		var seed := int(box.position.x) * 7 + int(box.position.y) * 13
+		match String(lk.get("decor", "")):
+			"bones":
+				for k in 7:
+					var p := box.position + box.size * Vector2(0.1 + 0.8 * _hash(seed, k, 41), 0.12 + 0.76 * _hash(seed, k, 42))
+					if _in_walk(p, walk):
+						_draw_bone(p, _hash(seed, k, 43) * TAU, 7.0 + 5.0 * _hash(seed, k, 44))
+			"scorch":
+				for k in 4:
+					var p := box.position + box.size * Vector2(0.15 + 0.7 * _hash(seed, k, 45), 0.15 + 0.7 * _hash(seed, k, 46))
+					if _in_walk(p, walk):
+						batch.circle(p, 14.0 + 10.0 * _hash(seed, k, 47), Color(0, 0, 0, 0.16))
+						batch.circle(p, 7.0 + 5.0 * _hash(seed, k, 48), Color(0, 0, 0, 0.14))
+			"ripples":
+				for k in 4:
+					var p := box.position + box.size * Vector2(0.15 + 0.7 * _hash(seed, k, 49), 0.15 + 0.7 * _hash(seed, k, 50))
+					if _in_walk(p, walk):
+						var rr := 10.0 + 8.0 * _hash(seed, k, 51)
+						for q in 2:
+							var pts := PackedVector2Array()
+							for i in 13:
+								pts.append(p + Vector2.from_angle(TAU * i / 12.0) * (rr + q * 7.0))
+							batch.polyline(pts, Color(0.6, 0.85, 0.9, 0.12), 1.5)
+
+
+func _in_walk(p: Vector2, walk: Array) -> bool:
+	for r in walk:
+		if r.size.x > 60.0 and r.size.y > 60.0 and r.grow(-24.0).has_point(p):
+			return true
+	return false
+
+
+func _draw_bone(c: Vector2, a: float, len: float) -> void:
+	var col := Color(0.78, 0.74, 0.64, 0.75)
+	var d := Vector2.from_angle(a)
+	var n := d.orthogonal() * 1.8
+	var p0 := c - d * len * 0.5
+	var p1 := c + d * len * 0.5
+	batch.line(p0, p1, col, 2.6)
+	for p in [p0, p1]:
+		batch.circle(p + n, 1.9, col)
+		batch.circle(p - n, 1.9, col)
+
+
+## A healing spring: a pool of clear water ringed with stones (dull and
+## dry once used up).
+func _draw_spring(c: CanvasItem, sp: Dictionary) -> void:
+	var pos: Vector2 = sp["pos"]
+	var r: float = sp["r"]
+	var full: bool = sp.get("left", 0.0) > 0.0
+	var b := Draw.Batch.new()
+	for i in 12:
+		var a := TAU * i / 12.0
+		var sr := 6.0 + 2.0 * _hash(int(pos.x) + i, int(pos.y), 61)
+		b.circle(pos + Vector2.from_angle(a) * (r + 4.0), sr + 1.5, Palette.OUTLINE)
+		b.circle(pos + Vector2.from_angle(a) * (r + 4.0), sr, Palette.WALL_FACE.lightened(0.1 + 0.1 * _hash(i, int(pos.x), 62)))
+	if full:
+		b.circle(pos, r, Color(0.1, 0.3, 0.32))
+		b.circle(pos + Vector2(-2, -2), r * 0.82, Color(0.16, 0.48, 0.48))
+		b.circle(pos + Vector2(-4, -5), r * 0.5, Color(0.25, 0.62, 0.6))
+		b.arc(pos + Vector2(-r * 0.25, -r * 0.3), r * 0.42, PI * 1.1, PI * 1.6, 10, Color(0.85, 1.0, 0.95, 0.55), 2.0)
+		b.arc(pos + Vector2(r * 0.2, r * 0.2), r * 0.3, PI * 0.1, PI * 0.6, 8, Color(0.85, 1.0, 0.95, 0.3), 1.5)
+	else:
+		b.circle(pos, r, Color(0.13, 0.12, 0.13))
+		b.circle(pos + Vector2(3, 3), r * 0.6, Color(0.1, 0.09, 0.1))
+	b.flush(c)
+
+
+## A fallen climber's cold camp: a ring of stones round charred logs, and a bedroll.
+func _draw_camp(c: CanvasItem, pos: Vector2) -> void:
+	var b := Draw.Batch.new()
+	b.circle(pos, 17.0, Color(0.08, 0.07, 0.07, 0.8))  # ash
+	for i in 9:
+		var a := TAU * i / 9.0
+		b.circle(pos + Vector2.from_angle(a) * 19.0, 5.5, Palette.OUTLINE)
+		b.circle(pos + Vector2.from_angle(a) * 19.0, 4.2, Palette.WALL_FACE.lightened(0.15 * _hash(i, int(pos.x), 63)))
+	for a in [0.5, -0.6, 1.9]:
+		var d := Vector2.from_angle(a)
+		b.line(pos - d * 12.0, pos + d * 12.0, Palette.OUTLINE, 6.0)
+		b.line(pos - d * 11.0, pos + d * 11.0, Color(0.16, 0.11, 0.08), 4.0)
+	b.circle(pos + Vector2(2, -1), 2.0, Color(0.9, 0.45, 0.2, 0.6))  # the last ember
+	# The bedroll, unrolled to one side.
+	var roll := Rect2(pos + Vector2(-58, -14), Vector2(26, 44))
+	b.rect(roll.grow(1.5), Palette.OUTLINE)
+	b.rect(roll, Color(0.36, 0.3, 0.22))
+	b.rect(Rect2(roll.position, Vector2(roll.size.x, 10)), Color(0.45, 0.38, 0.28))
+	b.flush(c)
 
 
 ## The walls between rooms: solid tiles drawn as stone, with a brick front
@@ -509,26 +612,26 @@ func _draw_cache(c: CanvasItem, t: float) -> void:
 			c.draw_circle(pos + Vector2(sin(t * 3.0 + i * 2.0) * 4.0, -18.0 - k * 22.0), 2.5 * (1.0 - k) + 0.5, Color(col, 0.9 * (1.0 - k)))
 
 
-func _draw_pillar(c: CanvasItem, pos: Vector2, r: float) -> void:
+func _draw_pillar(c, pos: Vector2, r: float) -> void:
 	# Seen from above: a round stone column with a shadow, rim and cap.
-	c.draw_set_transform(pos + Vector2(r * 0.25, r * 0.55), 0.0, Vector2(1.0, 0.55))
-	c.draw_circle(Vector2.ZERO, r * 1.15, Color(0, 0, 0, 0.35))
-	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	c.draw_circle(pos, r + 2.0, Palette.OUTLINE)
-	c.draw_circle(pos, r, Palette.WALL_FACE.darkened(0.15))
-	c.draw_circle(pos + Vector2(-r * 0.1, -r * 0.12), r * 0.86, Palette.WALL_FACE)
-	c.draw_arc(pos, r * 0.62, 0.0, TAU, 32, Palette.WALL_FACE.darkened(0.25), 1.5)
-	c.draw_circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color(Palette.WALL_EDGE.lightened(0.2), 0.5))
+	var shadow := PackedVector2Array()
+	for i in 24:
+		var a := TAU * i / 24.0
+		shadow.append(pos + Vector2(r * 0.25, r * 0.55) + Vector2(cos(a), sin(a) * 0.55) * r * 1.15)
+	c.polygon(shadow, Color(0, 0, 0, 0.35))
+	c.circle(pos, r + 2.0, Palette.OUTLINE)
+	c.circle(pos, r, Palette.WALL_FACE.darkened(0.15))
+	c.circle(pos + Vector2(-r * 0.1, -r * 0.12), r * 0.86, Palette.WALL_FACE)
+	c.arc(pos, r * 0.62, 0.0, TAU, 32, Palette.WALL_FACE.darkened(0.25), 1.5)
+	c.circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color(Palette.WALL_EDGE.lightened(0.2), 0.5))
 	# A few cracks so pillars aren't identical.
 	var h := _hash(int(pos.x), int(pos.y))
-	var cracks := Draw.Batch.new()
 	for i in 2:
 		var a := (h + i * 0.37) * TAU
-		cracks.line(pos + Vector2.from_angle(a) * r * 0.3, pos + Vector2.from_angle(a + 0.2) * r * 0.85, Palette.WALL_FACE.darkened(0.35), 1.0)
-	cracks.flush(c)
+		c.line(pos + Vector2.from_angle(a) * r * 0.3, pos + Vector2.from_angle(a + 0.2) * r * 0.85, Palette.WALL_FACE.darkened(0.35), 1.0)
 
 
-func _draw_stair(c: CanvasItem, t: float) -> void:
+func _draw_stair(c, t: float) -> void:
 	# Stone steps leading up into the north wall. Sealed until the floor is clear.
 	var w := 68.0
 	var base := stair_pos + Vector2(0, 16)
@@ -559,17 +662,24 @@ func _draw_stair(c: CanvasItem, t: float) -> void:
 func _draw_ambient() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var c := ambient
-	_draw_stair(c, t)
-	_draw_cache(c, t)
-	var b = Draw.Batch.new()  # torches, embers and dust in one draw
+	var b = Draw.Batch.new()  # the stair, torches, embers and dust in one draw
+	# Only what's on screen.
+	var view := _view_rect().grow(-220.0)
+	if view.grow(60.0).has_point(stair_pos):
+		_draw_stair(b, t)
+	if not cache.is_empty() and view.grow(60.0).has_point(cache["pos"]):
+		b.flush(c)
+		_draw_cache(c, t)
 	for torch in torches:
-		_draw_torch(b, torch["pos"], t + torch["phase"])
+		if view.has_point(torch["pos"]):
+			_draw_torch(b, torch["pos"], t + torch["phase"])
 	for e in embers:
 		var a: float = clampf(e["t"], 0.0, 1.0)
-		b.circle(e["pos"], 1.3, Color(1.0, 0.65, 0.25, a), 16)
+		b.circle(e["pos"], 1.3, Color(1.0, 0.65, 0.25, a), 8)
 	for d in dust:
-		var a: float = 0.08 + 0.06 * sin(t * 1.3 + d["phase"])
-		b.circle(d["pos"], d["size"], Color(1.0, 0.92, 0.8, a), 16)
+		if view.has_point(d["pos"]):
+			var a: float = 0.08 + 0.06 * sin(t * 1.3 + d["phase"])
+			b.circle(d["pos"], d["size"], Color(1.0, 0.92, 0.8, a), 8)
 	b.flush(c)
 
 
