@@ -13,6 +13,8 @@ extends Node2D
 ##   puzzle   a stone door bearing the puzzle's emblem
 ##   warm     warm light spilling out under it: a good room
 ##   chained  chains across it and a red glow under it: danger
+##   sealed   a stone slab carved with a watching eye, red light under it: a
+##            sealed wing (wings.gd), where the Regard tests you
 ##
 ## Drawn once and only redrawn while a door swings open, so it costs nothing
 ## per frame. main.gd owns one of these (`main.door_view`).
@@ -70,33 +72,48 @@ func build(defs: Array, themes: Array) -> void:
 	clear()
 	if main == null or not main.layout_on:
 		return
-	var c: float = main.Floors.CELL
 	for def in defs:
-		var tiles: Array = def["tiles"]
-		var a: Vector2i = tiles[0]
-		var b: Vector2i = tiles[-1]
-		var lo := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
-		var hi := Vector2i(maxi(a.x, b.x), maxi(a.y, b.y))
-		var rect := Rect2(main.room.position + Vector2(lo) * c, Vector2(hi - lo + Vector2i.ONE) * c)
-		var d := {"tiles": tiles, "rect": rect, "horiz": def["horiz"], "out": def["out"], "room": def["room"],
-			"open": false, "t": 0.0, "body": null}
-		_style(d, themes)
-		for t in tiles:
-			_set_tile(t, true)
-		var body := StaticBody2D.new()
-		body.collision_layer = 1
-		body.collision_mask = 0
-		body.position = rect.get_center()
-		var shape := CollisionShape2D.new()
-		var box := RectangleShape2D.new()
-		box.size = rect.size
-		shape.shape = box
-		body.add_child(shape)
-		main.add_child(body)
-		d["body"] = body
-		list.append(d)
-		_add_light(d)
+		_hang(def, themes)
 	_redraw()
+
+
+## Hangs one more door after build(): `def` as in build(), with its look
+## given as "style" whatever room it leads to (a sealed wing's, wings.gd).
+func add_door(def: Dictionary) -> Dictionary:
+	if main == null or not main.layout_on:
+		return {}
+	var d := _hang(def, [])
+	_redraw()
+	return d
+
+
+func _hang(def: Dictionary, themes: Array) -> Dictionary:
+	var c: float = main.Floors.CELL
+	var tiles: Array = def["tiles"]
+	var a: Vector2i = tiles[0]
+	var b: Vector2i = tiles[-1]
+	var lo := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
+	var hi := Vector2i(maxi(a.x, b.x), maxi(a.y, b.y))
+	var rect := Rect2(main.room.position + Vector2(lo) * c, Vector2(hi - lo + Vector2i.ONE) * c)
+	var d := {"tiles": tiles, "rect": rect, "horiz": def["horiz"], "out": def["out"], "room": def["room"],
+		"open": false, "t": 0.0, "body": null, "fixed": def.get("style", "")}
+	_style(d, themes)
+	for t in tiles:
+		_set_tile(t, true)
+	var body := StaticBody2D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.position = rect.get_center()
+	var shape := CollisionShape2D.new()
+	var box := RectangleShape2D.new()
+	box.size = rect.size
+	shape.shape = box
+	body.add_child(shape)
+	main.add_child(body)
+	d["body"] = body
+	list.append(d)
+	_add_light(d)
+	return d
 
 
 ## Warm and chained doors cast a little light from under them (through the
@@ -109,7 +126,7 @@ func _add_light(d: Dictionary) -> void:
 	match String(d.get("style", "")):
 		"warm":
 			col = WARM
-		"chained":
+		"chained", "sealed":
 			col = RED
 		_:
 			return
@@ -133,7 +150,13 @@ func restyle(themes: Array) -> void:
 
 
 func _style(d: Dictionary, themes: Array) -> void:
-	var id: String = themes[d["room"]] if d["room"] < themes.size() else "quiet"
+	if d.get("fixed", "") != "":
+		d["theme"] = ""
+		d["style"] = d["fixed"]
+		d["sigil"] = ""
+		d["emblem"] = ""
+		return
+	var id: String = themes[d["room"]] if d["room"] >= 0 and d["room"] < themes.size() else "quiet"
 	var th: Dictionary = Themes.get_theme(id)
 	d["theme"] = id
 	d["style"] = th.get("door", "plank")
@@ -260,7 +283,7 @@ func _draw_glow() -> void:
 		match String(d["style"]):
 			"warm":
 				col = WARM
-			"chained":
+			"chained", "sealed":
 				col = RED
 			_:
 				continue
@@ -327,6 +350,8 @@ func _wood(d: Dictionary) -> Color:
 			return Palette.DOOR_WOOD.darkened(0.3)
 		"puzzle":
 			return Palette.DOOR_STONE
+		"sealed":
+			return Palette.DOOR_STONE.darkened(0.25)
 		"hazard":
 			return Palette.DOOR_WOOD.darkened(0.15)
 	return Palette.DOOR_WOOD
@@ -347,6 +372,27 @@ func _draw_closed(b, d: Dictionary) -> void:
 	var along := Vector2.RIGHT if horiz else Vector2.DOWN
 	var side := Vector2.DOWN if horiz else Vector2.RIGHT
 	var o := inner.position
+	if style == "sealed":
+		# A dark stone slab with iron studs at its ends and a watching eye
+		# carved in the middle, its pupil glowing: the Regard tests whoever enters.
+		b.rect(inner.grow(-3.0), wood.lightened(0.06))
+		for k in [0.12, 0.88]:
+			for j in [0.3, 0.7]:
+				b.circle(o + along * long * k + side * across * j, 2.2, Palette.DOOR_IRON.lightened(0.3))
+		var c := inner.get_center()
+		var s := across * 0.34
+		var lid := PackedVector2Array()
+		for i in 13:
+			var a := PI * float(i) / 12.0
+			lid.append(c + along * cos(a) * s * 1.7 - side * sin(a) * s * 0.8)
+		for i in range(1, 12):
+			var a := PI * float(i) / 12.0
+			lid.append(c - along * cos(a) * s * 1.7 + side * sin(a) * s * 0.8)
+		b.polygon(lid, wood.darkened(0.45))
+		b.polyline(lid + PackedVector2Array([lid[0]]), Color(RED.lightened(0.2), 0.75), 1.6)
+		b.circle(c, s * 0.5, Color(RED, 0.85))
+		b.circle(c, s * 0.22, Color(1.0, 0.85, 0.6))
+		return
 	if style == "puzzle":
 		# A stone slab: a raised border, joints, and the puzzle's emblem.
 		b.rect(inner.grow(-3.0), wood.lightened(0.08))

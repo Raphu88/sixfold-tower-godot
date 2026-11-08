@@ -165,6 +165,14 @@ var ally_guard := false
 var ally_cd := 0.0
 var vanish_t := 0.0  # (for monsters targeting a creature, which can't vanish)
 var overlay: Node2D  # over the darkness: telegraphs and the health bar
+## A champion (wings.gd sends one when a sealed wing's condition is broken):
+## any tower monster, bigger and tougher, crowned, with a gold aura and one
+## extra attack: a ground slam, telegraphed by a closing ring (roll out).
+var champion := false
+var champ_t := 0.0  # until its next slam
+var champ_wind := 0.0  # the slam's wind-up, counting down
+const CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
+	"slam_reach": 88.0, "slam_dmg": 1.3, "slam_near": 120.0, "color": Color(1.0, 0.82, 0.4)}
 
 
 ## Call before adding to the tree.
@@ -211,6 +219,44 @@ func setup_ally(k: String, room, step: int, seconds: float) -> void:
 	notice_t = 0.0
 
 
+## Makes it a champion (call after setup, before adding it to the room).
+func make_champion() -> void:
+	champion = true
+	max_hp *= float(CHAMPION["hp"])
+	hp = max_hp
+	dmg *= float(CHAMPION["dmg"])
+	weight *= float(CHAMPION["weight"])
+	champ_t = float(CHAMPION["slam_every"]) * 0.6
+	notice_t = 0.0
+
+
+## A champion's slam: every few seconds when the climber is near, a ring
+## closes in around it for a moment (roll out of it), then the ground breaks.
+func _champion_slam(delta: float, _dist: float, p) -> void:
+	var pl = main.player
+	if pl == null:
+		return
+	var near: float = global_position.distance_to(pl.global_position)
+	if champ_wind > 0.0:
+		champ_wind -= delta
+		if champ_wind <= 0.0:
+			var reach := float(CHAMPION["slam_reach"])
+			var col: Color = CHAMPION["color"]
+			main.fx_ring(global_position, col, reach, 0.35, 5.0)
+			main.fx_burst(global_position, Vector2.ZERO, col, 18, 260.0)
+			main.light_flash(global_position, col, 1.4, 1.6, 0.3)
+			main.shake(7.0)
+			main.sfx("slam", 0.7, -2.0)
+			if near < reach + pl.radius and not pl.dead:
+				pl.receive_attack(dmg * float(CHAMPION["slam_dmg"]), self, true)
+			champ_t = float(CHAMPION["slam_every"])
+		return
+	champ_t -= delta
+	if champ_t <= 0.0 and near < float(CHAMPION["slam_near"]) and aware and stun <= 0.0:
+		champ_wind = float(CHAMPION["slam_wind"])
+		main.sfx("charge", 0.6, -4.0)
+
+
 ## The room remembers its list of monsters for the frame (main.enemies()):
 ## a spawn, a death or a removal makes it build the list again.
 func _foes_changed() -> void:
@@ -240,7 +286,7 @@ func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
-	circle.radius = radius
+	circle.radius = radius * (float(CHAMPION["size"]) if champion else 1.0)
 	shape.shape = circle
 	add_child(shape)
 	overlay = Node2D.new()
@@ -391,6 +437,8 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_undercurrent()
 	_ram_crash()
+	if champion:
+		_champion_slam(delta, dist, p)
 	_redraw()
 
 
@@ -1869,6 +1917,9 @@ func _draw() -> void:
 	var a := squash_dir.angle()
 	var sq := Vector2(1.0 - squash * 0.35, 1.0 + squash * 0.25)
 	p.xf = Transform2D(0.0, Vector2(0, lift_y)) * Transform2D(a, sq, 0.0, Vector2.ZERO) * Transform2D(-a, Vector2.ZERO)
+	if champion:
+		var cs := float(CHAMPION["size"])
+		p.xf = Transform2D(0.0, Vector2(cs, cs), 0.0, Vector2.ZERO) * p.xf
 	_glow.xf = p.xf
 	p.tint = clampf(flash / 0.12, 0.0, 1.0) * 0.6
 	var f := face
@@ -3033,9 +3084,28 @@ func _draw_overlay() -> void:
 		var lw := radius * 2.2
 		o.rect(Rect2(Vector2(-lw / 2.0, radius + 8.0), Vector2(lw * clampf(ally_t / ally_life, 0.0, 1.0), 2.0)), Color(0.6, 1.0, 0.75, 0.8))
 	var diagnosis: bool = main.player != null and main.player.has_bond("surgeon") and not ally
-	if (hp < max_hp or diagnosis) and not is_boss():
-		var w2 := radius * 2.2
-		var top := Vector2(-w2 / 2.0, lift_y - radius - 11.0)
+	var big := float(CHAMPION["size"]) if champion else 1.0
+	if champion:
+		# A gold aura that breathes at its feet, a crown over its head, and
+		# its slam's ring closing in while it winds up.
+		var cc: Color = CHAMPION["color"]
+		var br := 0.75 + 0.25 * sin(now * 3.0)
+		o.arc(Vector2(0, radius * 0.6 * big), radius * big + 6.0, 0.0, TAU, 2.0, Color(cc, 0.65 * br), 32)
+		o.arc(Vector2(0, radius * 0.6 * big), radius * big + 11.0, 0.0, TAU, 1.2, Color(cc, 0.3 * br), 32)
+		var ct := Vector2(0, lift_y - radius * big - 18.0)
+		var crown := PackedVector2Array([ct + Vector2(-8, 4), ct + Vector2(-9, -5), ct + Vector2(-4, -1), ct + Vector2(0, -8),
+			ct + Vector2(4, -1), ct + Vector2(9, -5), ct + Vector2(8, 4)])
+		o.poly(crown, cc, 1.4)
+		o.circle(ct + Vector2(0, 1.2), 1.4, Color(0.9, 0.25, 0.2), 8)
+		if champ_wind > 0.0:
+			var reach := float(CHAMPION["slam_reach"])
+			var kw := clampf(1.0 - champ_wind / float(CHAMPION["slam_wind"]), 0.0, 1.0)
+			o.circle(Vector2.ZERO, reach, Color(danger, 0.08 + 0.12 * kw), 48)
+			o.arc(Vector2.ZERO, reach, 0.0, TAU, 2.5, Color(danger, 0.7), 48)
+			o.arc(Vector2.ZERO, reach * (1.0 - kw) + 6.0, 0.0, TAU, 2.0, Color(cc, 0.85), 40)
+	if (hp < max_hp or diagnosis or champion) and not is_boss():
+		var w2 := radius * 2.2 * big
+		var top := Vector2(-w2 / 2.0, lift_y - radius * big - 11.0)
 		o.rect(Rect2(top - Vector2(1, 1), Vector2(w2 + 2, 5)), Color(0, 0, 0, 0.7))
 		o.rect(Rect2(top, Vector2(w2 * clampf(hp / max_hp, 0.0, 1.0), 3.0)), Color(0.85, 0.25, 0.2))
 	o.flush(c)

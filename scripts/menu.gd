@@ -1059,6 +1059,24 @@ func _page_inventory() -> void:
 		s.on = id == sel and n > 0
 		keys.append(s.get_meta("slot"))
 
+	# Essence crystals: kept between climbs (the profile), consumed to bank.
+	# (On the right, over the details, so the screen fits a phone.)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 6)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_section("Essence crystals", right)
+	var crystal_row := _slot_row(right)
+	crystal_row.add_theme_constant_override("separation", 4)
+	for kind in Essence.KINDS:
+		var n: int = main.profile.crystal_count(kind)
+		var s := _slot(crystal_row, "crystal:" + kind, (36.0 if compact() else 40.0), "" if compact() else Essence.display(kind))
+		s.kind = "crystal"
+		s.id = kind
+		s.count = n
+		s.empty = n <= 0
+		s.tint = Essence.color(kind)
+		keys.append(s.get_meta("slot"))
+
 	_section("Heirlooms", left)
 	var grid := GridContainer.new()
 	grid.columns = 6
@@ -1091,8 +1109,10 @@ func _page_inventory() -> void:
 	var side := PanelContainer.new()
 	side.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.025), UI.SLOT_EDGE, 8, 1, 14.0))
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	side.custom_minimum_size.x = 260.0
-	row.add_child(side)
+	row.add_child(right)
+	right.add_child(side)
 	details = VBoxContainer.new()
 	details.add_theme_constant_override("separation", 6)
 	side.add_child(details)
@@ -1184,8 +1204,8 @@ func _show_details(key: String) -> void:
 			var data: Dictionary = Items.ITEMS[arg]
 			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
-			_detail_text("Carrying %d of %d%s" % [n, Items.MAX_STACK, "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
-			var use := _button("Use", _use_item.bind(arg), details)
+			_detail_text("Carrying %d of %d%s" % [n, Items.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
+			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
 				_button("Make it your quick item", _pick_item.bind(arg), details)
@@ -1217,6 +1237,18 @@ func _show_details(key: String) -> void:
 			_detail_stats(fid, held if held != "" else "-")
 			var take := _button("Take it" + ("  (drops your %s)" % Gear.display(held) if held != "" else ""), _take_floor, details)
 			take.disabled = p.dead
+		"crystal":
+			var n: int = main.profile.crystal_count(arg)
+			var col: Color = Essence.color(arg)
+			_detail_head("crystal", arg, Items.CRYSTAL["name"] % Essence.display(arg), col)
+			if n <= 0:
+				_detail_text(Items.CRYSTAL["none"], DIM)
+			else:
+				var each: float = main.profile.crystal_total(arg) / n
+				_detail_text(_sentence(Items.CRYSTAL["desc"] % [int(round(each)), Essence.display(arg).to_lower()]), TEXT)
+				_detail_text("Holding %d  ·  %d essence in all  ·  kept between climbs" % [n, int(main.profile.crystal_total(arg))], DIM)
+			var eat := _button(Items.CRYSTAL["consume"], _consume_crystal.bind(arg), details)
+			eat.disabled = n <= 0
 		"rune":
 			var r: Dictionary = Items.CAMP_RUNES.get(p.camp_rune, {})
 			_detail_head("rune", p.camp_rune, r.get("name", "Rune"), r.get("color", GOLD))
@@ -1310,9 +1342,20 @@ func _use_item(id: String) -> void:
 	if p.use_item():
 		toast = "Used: %s" % Items.ITEMS[id]["name"]
 	else:
-		toast = "It would do nothing now."
+		toast = Items.RECALL["ask_menu"] if id == "scroll" and main.recall_ask_t > 0.0 else "It would do nothing now."
+		if id == "scroll" and main.first_climb:
+			toast = Items.RECALL["first_climb"]
 		p.item_sel = before
 	toast_t = 2.0
+	if not main.victory.is_empty():
+		return  # (the scroll was read: the climb is over and the menu closed)
+	open("inventory", opened_direct)
+
+
+func _consume_crystal(kind: String) -> void:
+	var lines: Array = main.consume_crystal(kind)
+	toast = " ".join(lines) if not lines.is_empty() else ""
+	toast_t = 3.0
 	open("inventory", opened_direct)
 
 
@@ -1958,6 +2001,13 @@ class Slot extends Button:
 					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GOLD if on else (UI.TEXT if count > 0 else UI.FAINT))
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
+			"crystal":
+				Items.draw_crystal_icon(self, tint, c, s, 1.0 if count > 0 else 0.22)
+				if count > 0:
+					var t := str(count)
+					var at := Vector2(size.x - 5.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x, size.y - 5.0)
+					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.9))
+					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.TEXT)
 		if corner != "":
 			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GOLD if on else UI.DIM)
 		if on and kind == "item":
@@ -1993,6 +2043,8 @@ class SlotIcon extends Control:
 				Items.draw_icon(self, id, c, s)
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
+			"crystal":
+				Items.draw_crystal_icon(self, tint, c, s)
 			"lock":
 				UI.draw_lock(self, c, s * 0.7, UI.FAINT)
 			_:

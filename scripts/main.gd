@@ -28,6 +28,7 @@ const Traps := preload("res://scripts/traps.gd")
 const LightingScript := preload("res://scripts/lighting.gd")
 const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
+const WingsScript := preload("res://scripts/wings.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -60,6 +61,8 @@ var room_tile := Vector2i(-999, -999)  # the tile room_at was worked out on
 var room_pending := -1  # a room whose name waits for the banner to clear
 var springs: Array = []  # healing springs: {pos, r, left}
 var door_view  # the floor's doors (doors.gd)
+var wings  # the floor's sealed wings, vaults and secret rooms (wings.gd)
+var recall_ask_t := 0.0  # a recall scroll asked to be read: use it again before this runs out
 var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
 var fx
@@ -207,6 +210,9 @@ func _ready() -> void:
 	door_view = DoorsScript.new()
 	door_view.main = self
 	add_child(door_view)
+	wings = WingsScript.new()
+	wings.main = self
+	add_child(wings)
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
@@ -565,6 +571,7 @@ func _process(delta: float) -> void:
 		if get_tree().current_scene == self:  # (tests run the room outside a scene)
 			get_tree().reload_current_scene()
 		return
+	recall_ask_t -= delta / maxf(Engine.time_scale, 0.01)
 	new_climber_t -= delta / maxf(Engine.time_scale, 0.01)
 	if Input.is_action_just_pressed("new_climber"):
 		if new_climber_t > 0.0:
@@ -832,6 +839,9 @@ func _start_floor(n: int) -> void:
 	room_tile = Vector2i(-999, -999)
 	room_pending = -1
 	door_view.build(plan.get("doors", []), room_themes)
+	# Sealed wings, their vaults, and secret rooms (wings.gd): after the doors,
+	# before the fog and the first drawing (their closed tiles are solid).
+	wings.setup(plan)
 	springs = plan.get("springs", [])
 	# A fallen climber's camp: what they left behind.
 	for cp in plan.get("camps", []):
@@ -1258,6 +1268,12 @@ func camp_card(i: int) -> Dictionary:
 	if pick.begins_with("rune:"):
 		var r: Dictionary = Items.CAMP_RUNES[pick.substr(5)]
 		return {"name": r["name"], "desc": r["desc"], "color": r["color"], "item": ""}
+	if pick.begins_with("crystal:"):
+		var kind := pick.get_slice(":", 1)
+		var amount := int(pick.get_slice(":", 2))
+		var held: int = profile.crystal_count(kind)
+		return {"name": Items.CRYSTAL["name"] % Essence.display(kind), "desc": Items.CRYSTAL["desc"] % [amount, Essence.display(kind).to_lower()],
+			"color": Essence.color(kind), "item": "", "crystal": kind, "note": "you hold %d like it" % held}
 	var crafted := pick.begins_with("craft:")
 	var id := pick.substr(6) if crafted else pick
 	var d := Items.info(id)
@@ -1274,6 +1290,9 @@ func choose_camp(i: int) -> void:
 	var pick: String = camp["choices"][i]
 	if camp["stage"] == "heirloom":
 		keep_heirloom(pick.substr(5))
+		return
+	if camp["stage"] == "vault":
+		_take_vault_pick(pick)
 		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
@@ -1301,6 +1320,105 @@ func choose_camp(i: int) -> void:
 	taken.append(Items.CAMP["leave"])
 	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0}
 	sfx("pickup", 0.95, -2.0, 0.0)
+
+
+# --- vaults, essence crystals and the recall scroll -------------------------------
+
+## A vault's pedestal (wings.gd): its cards, on the camp's card screen. The
+## monsters wait while you choose.
+func offer_vault(choices: Array, title: String, lines: Array) -> void:
+	camp = {"stage": "vault", "choices": choices, "lines": lines, "title": title}
+	camp_choosing = true
+	card_focus = 0
+	player.set_physics_process(false)
+	if wings != null:
+		wings.freeze()
+	sfx("ready", 0.9, -4.0, 0.0)
+
+
+func _take_vault_pick(pick: String) -> void:
+	var said := ""
+	var col := Color(0.95, 0.8, 0.5)
+	if pick.begins_with("crystal:"):
+		var kind := pick.get_slice(":", 1)
+		profile.add_crystal(kind, float(pick.get_slice(":", 2)))
+		profile.save()
+		said = "+ " + Items.CRYSTAL["name"] % Essence.display(kind)
+		col = Essence.color(kind)
+	elif pick.begins_with("gear:"):
+		said = _take_gear(pick.substr(5))
+		col = Gear.color(pick.substr(5))
+	else:
+		said = _take_item(pick, "Took")
+		col = Items.color(pick)
+	camp_choosing = false
+	camp = {}
+	player.set_physics_process(true)
+	if wings != null:
+		wings.unfreeze()
+	fx_text(player.global_position + Vector2(0, -44), said, col)
+	sfx("pickup", 0.95, -2.0, 0.0)
+
+
+## Consumes an essence crystal of a kind: its essence is banked into you,
+## as at a stair. Returns what changed (empty if you hold none).
+func consume_crystal(kind: String) -> Array:
+	var amount: float = profile.take_crystal(kind)
+	if amount <= 0.0:
+		return []
+	var lines: Array = [Items.CRYSTAL["consumed"] % [int(amount), Essence.display(kind).to_lower()]]
+	lines.append_array(profile.bank({kind: amount}, {}))
+	_give_bonds()
+	profile.save()
+	if player != null:
+		var col: Color = Essence.color(kind)
+		fx_ring(player.global_position, col, 40.0, 0.4, 3.0)
+		light_flash(player.global_position, col, 1.2, 1.4, 0.3)
+	sfx("glint", 1.2, -4.0, 0.0)
+	return lines
+
+
+## The recall scroll's item use (items.gd): the first use asks, a second
+## within a moment reads it. True once it's read (and used up).
+func recall_pressed() -> bool:
+	if first_climb:
+		fx_text(player.global_position + Vector2(0, -44), Items.RECALL["first_climb"], Color(0.8, 0.78, 0.85))
+		return false
+	if recall_ask_t > 0.0:
+		recall_ask_t = 0.0
+		read_recall()
+		return true
+	recall_ask_t = float(Items.RECALL["confirm"])
+	banner = {"title": Items.RECALL["ask_title"], "lines": [Items.RECALL["ask"]], "t": float(Items.RECALL["confirm"])}
+	sfx("warn_knight", 1.3, -8.0, 0.0)
+	return false
+
+
+## Reads a recall scroll: you leave the tower safely, keeping everything.
+## Unbanked essence settles into essence crystals (one per kind) and this
+## floor's soak is banked; there's no heirloom choice (the climb wasn't won).
+## Then on to the next climb's tower choice.
+func read_recall() -> void:
+	var made: Array = []
+	for k in run_essence:
+		var amount := float(run_essence[k])
+		if amount >= 1.0:
+			profile.add_crystal(k, amount)
+			made.append("%d %s" % [int(round(amount)), Essence.display(k).to_lower()])
+	profile.bank({}, run_soak)
+	run_essence = {}
+	run_soak = {}
+	profile.save()
+	var lines: Array = [Items.RECALL["crystals"] % ", ".join(made) if not made.is_empty() else Items.RECALL["none"]]
+	if menu != null and menu.is_open():
+		menu.close()
+	banner = {}
+	victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5, "recall": true}
+	player.set_physics_process(false)
+	for e in enemies():
+		e.set_physics_process(false)
+	sfx("clear", 1.1, -2.0, 0.0)
+	light_flash(player.global_position, Color(0.95, 0.82, 0.5), 2.0, 1.8, 0.6)
 
 
 func _take_item(id: String, verb: String) -> String:
@@ -1596,7 +1714,7 @@ func regard_done() -> bool:
 func end_regard() -> void:
 	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
 	var survived: bool = not victory.is_empty() or (not regard.is_empty() and not regard.get("fell", false))
-	if survived and not heirloom_offered and _offer_heirloom():
+	if survived and not victory.get("recall", false) and not heirloom_offered and _offer_heirloom():
 		return
 	Engine.time_scale = 1.0
 	if get_tree().current_scene == self:  # (tests run the room outside a scene)
@@ -2174,6 +2292,8 @@ func on_enemy_killed(e) -> void:
 	# Now and then a slain monster leaves an item.
 	if not e.is_boss() and randf() < item_drop_chance:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": Items.DROP_LIFE})
+	if wings != null:
+		wings.on_enemy_killed(e)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.

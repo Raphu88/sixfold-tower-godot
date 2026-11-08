@@ -1085,7 +1085,7 @@ func _plan_tests() -> void:
 		await _frames(1)
 		for d in main.door_view.list:
 			styles[d["style"]] = true
-			ok_style = ok_style and d["style"] == T.get_theme(main.room_themes[d["room"]])["door"]
+			ok_style = ok_style and (d["fixed"] != "" or d["style"] == T.get_theme(main.room_themes[d["room"]])["door"])  # (a wing's door is always sealed)
 	main.tower = "kraken"
 	_check(ok_style and styles.size() >= 5, "doors come in styles that hint at the room behind (%s)" % [styles.keys()])
 	# Awake monsters open doors too.
@@ -4583,6 +4583,7 @@ func _run() -> void:
 	await _body_part_tests()
 	await _item_tests()
 	await _camp_tests()
+	await _wing_tests()
 	await _gear_tests()
 	await _heirloom_tests()
 	await _controls_tests()
@@ -4596,6 +4597,303 @@ func _run() -> void:
 	main.queue_free()
 	await _frames(2)
 	quit(1 if failures > 0 else 0)
+
+
+## A floor of rooms with a sealed wing (and a secret room, if `secret`), its monsters gone.
+func _wing_floor(secret := false, content := "") -> bool:
+	for n in 80:
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		var W = main.wings
+		if W.wings.is_empty():
+			continue
+		if secret and (W.secrets.is_empty() or (content != "" and W.secrets[0]["content"] != content)):
+			continue
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(2)
+		main.banner = {}
+		return true
+	return false
+
+
+## Walks the climber into a wing and on to its waves (frozen as they come).
+func _enter_wing(w: Dictionary) -> void:
+	var p = main.player
+	main.open_all_doors()
+	p.global_position = w["rect"].get_center()
+	await _frames(3)
+
+
+func _slay_waves(w: Dictionary) -> void:
+	var W = main.wings
+	for i in 200:
+		if w["state"] != "waves":
+			return
+		for e in W._alive(w["mobs"]):
+			_slay(e)
+		await _wait(0.1)
+
+
+func _wing_tests() -> void:
+	print("sealed wings, vaults, secret rooms, the recall scroll and crystals")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var F = main.Floors
+	var W = main.wings
+	var p = main.player
+	p.iframes = 0.0
+	# Plans: each kept cell that has room gets its wing or secret, inside the cell.
+	var made := 0
+	var secrets := 0
+	var ok_cell := true
+	var ok_size := true
+	var ok_apart := true
+	var ok_secret := true
+	var contents := {}
+	for n in 40:
+		var plan: Dictionary = F.rooms_floor(2 + n % 10, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
+		for w in plan["wings"]:
+			made += 1
+			ok_cell = ok_cell and w["area"].encloses(w["rect"]) and w["area"].encloses(w["alcove"])
+			var t: Rect2i = w["tiles"]
+			ok_size = ok_size and t.size.x >= 9 and t.size.x <= 11 and t.size.y >= 7 and t.size.y <= 9 and w["alcove"].size == Vector2(F.CELL, F.CELL) * 3.0
+			for r in plan["rooms"]:
+				ok_apart = ok_apart and not r.intersects(w["rect"].grow(F.CELL)) and not r.intersects(w["alcove"].grow(F.CELL))
+		for s in plan["secrets"]:
+			secrets += 1
+			contents[s["content"]] = true
+			ok_secret = ok_secret and s["area"].encloses(s["rect"]) and minf(s["corridor"].size.x, s["corridor"].size.y) == F.CELL and s["mouth"].size() == 1
+	_check(made >= 30 and ok_cell and ok_apart, "sealed wings are carved in the kept cells, apart from every room (%d over 40 floors)" % made)
+	_check(ok_size, "a wing room is 9-11 by 7-9 tiles, with a 3x3 vault alcove cut into its wall")
+	_check(secrets >= 8 and ok_secret and contents.size() >= 2, "secret rooms are carved in kept cells, joined by a passage one tile wide (%d, holding %s)" % [secrets, contents.keys()])
+
+	# In the tower: the vault's seal shows from the moment you see it.
+	_check(await _wing_floor(true), "floors have sealed wings and secret rooms")
+	var w: Dictionary = W.wings[0]
+	var vd: Vector2i = w["vault_door"]
+	_check(main.is_solid(w["seal_pos"]) and main.astar.is_point_solid(vd), "the vault door is shut: a solid tile, on the path grid too")
+	_check(main.lighting.lights.has(w["light"]), "light leaks out from under the seal (a light in the registry)")
+	var wd: Dictionary = main.door_view.door_at(w["door"][0])
+	_check(not wd.is_empty() and wd["style"] == "sealed", "the wing's doorway has a sealed door (the watching eye)")
+	main.open_all_doors()
+	var inside: Vector2 = W._tile_rect(w["door"]).get_center() - Vector2(w["out"]) * 34.0
+	p.global_position = inside
+	await _frames(3)
+	main.camera.reset_smoothing()
+	await _frames(2)
+	var fi: int = vd.y * main.grid_size.x + vd.x
+	_check(main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w), "stepping into the doorway, the seal is in sight, and drawn pulsing")
+	_check(w["state"] == "idle", "...and the wing stays open until you're really inside")
+	# Walk in: the way shuts behind you.
+	w["condition"] = "untouched"
+	w["fail"] = "lesser"
+	await _enter_wing(w)
+	var gate: Vector2 = W._tile_rect(w["door"]).get_center()
+	_check(w["state"] == "closing" and main.is_solid(gate) and main.astar.is_point_solid(w["door"][0]), "walking in shuts the way behind you (solid, on the path grid)")
+	_check(main.banner.get("lines", [""])[0] == W.TEXT["sealed"], "...with its banner: %s" % main.banner.get("lines", [""])[0])
+	p.global_position = gate - Vector2(w["out"]) * 60.0
+	await _frames(2)
+	p.global_position = gate + Vector2(w["out"]) * 70.0
+	await _frames(2)
+	_check(main.is_solid(gate), "(a sealed doorway stays shut)")
+	p.global_position = w["rect"].get_center()
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	_check(w["state"] == "waves" and not W._alive(w["mobs"]).is_empty() and W.challenge_live(), "then the Regard states its rule and the waves come (%d)" % W._alive(w["mobs"]).size())
+	_check(W._alive(w["mobs"]).all(func(e): return w["rect"].grow(4.0).has_point(e.global_position) and e.aware), "the waves appear inside the wing, awake")
+	_check(not W.status().is_empty() and W.status()["ok"], "the HUD shows the rule, kept")
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	await _slay_waves(w)
+	await _frames(2)
+	_check(w["vault"] == "open" and not main.is_solid(gate) and not main.is_solid(w["seal_pos"]), "beat the waves keeping the rule: the vault opens, and the way out")
+	# The pedestal: walk up and choose.
+	p.global_position = w["pedestal"] + Vector2(0, 6)
+	await _frames(3)
+	_check(main.camp_choosing and main.camp["stage"] == "vault" and main.camp["choices"].size() == 3, "the vault's pedestal offers three cards")
+	var crystal_cards: Array = main.camp["choices"].filter(func(c): return String(c).begins_with("crystal:"))
+	_check(crystal_cards.size() == 2 and crystal_cards[0].get_slice(":", 1) != crystal_cards[1].get_slice(":", 1), "two of them are essence crystals of different kinds")
+	var card: Dictionary = main.camp_card(0)
+	_check(card.has("crystal") and String(card["name"]).ends_with("Crystal"), "a crystal card reads as one (%s)" % card.get("name", ""))
+	var held0: int = main.profile.crystals.size()
+	main.choose_camp(0)
+	_check(not main.camp_choosing and main.profile.crystals.size() == held0 + 1, "choosing a crystal card keeps the crystal")
+	p.global_position = w["pedestal"] + Vector2(0, 6)
+	await _frames(3)
+	_check(not main.camp_choosing, "(a pedestal gives once)")
+	# A rule broken, the lesser way: the vault opens with less.
+	_check(await _wing_floor(), "another wing")
+	w = W.wings[0]
+	w["condition"] = "untouched"
+	w["fail"] = "lesser"
+	await _enter_wing(w)
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	p.hits_taken += 1  # struck
+	await _frames(2)
+	_check(w["broken"] and not W.status()["ok"], "taking a hit breaks a \"take no hit\" rule")
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(main.is_solid(gate), "...but the way stays shut until the waves are beaten")
+	await _slay_waves(w)
+	await _frames(2)
+	_check(w["vault"] == "lesser" and not main.is_solid(gate), "then the vault opens with a lesser prize, and the way out")
+	_check(W.vault_choices(true).size() == 2, "a lesser prize is two cards")
+	# A rule broken, the champion's way: the way reopens when it falls; the vault stays dark.
+	_check(await _wing_floor(), "a third wing")
+	w = W.wings[0]
+	w["condition"] = "swift"
+	w["fail"] = "champion"
+	await _enter_wing(w)
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	w["clock"] = float(w["limit"]) + 1.0  # too slow
+	await _frames(2)
+	var champ = w.get("champ")
+	_check(w["broken"] and w["state"] == "champion" and champ != null and champ.champion, "breaking a \"be quick\" rule brings the tower's champion")
+	if champ != null:
+		champ.set_physics_process(false)
+		var base: float = champ.TYPES[champ.kind]["hp"]
+		_check(champ.max_hp > base * 3.0 and champ.dmg > champ.TYPES[champ.kind]["dmg"], "a champion is a tougher %s (%d health)" % [champ.kind, int(champ.max_hp)])
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(main.is_solid(gate), "...and the way stays shut while it stands")
+	for e in W._alive(w["mobs"]):
+		_slay(e)
+	if champ != null:
+		_slay(champ)
+	await _frames(3)
+	_check(w["vault"] == "dark" and not main.is_solid(gate) and main.is_solid(w["seal_pos"]), "its fall reopens the way; the vault stays locked for good")
+	_check(w.has("drop"), "the champion leaves an essence crystal")
+	if w.has("drop"):
+		held0 = main.profile.crystals.size()
+		p.global_position = w["drop"]["pos"]
+		await _frames(3)
+		_check(main.profile.crystals.size() == held0 + 1, "walking over it keeps the crystal")
+	# Never trapped: a puzzle host's answer, or the room giving up.
+	_check(await _wing_floor(), "a fourth wing")
+	w = W.wings[0]
+	await _enter_wing(w)
+	W.wing_solved(w["id"])
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(w["vault"] == "open" and not main.is_solid(gate), "a puzzle host can answer a wing: wing_solved() opens the vault and the way")
+	_check(await _wing_floor(), "a fifth wing")
+	w = W.wings[0]
+	await _enter_wing(w)
+	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	for e in W._alive(w["mobs"]):
+		e.set_physics_process(false)
+	w["clock"] = W.FAILSAFE + 1.0
+	await _frames(2)
+	gate = W._tile_rect(w["door"]).get_center()
+	_check(w["state"] == "done" and not main.is_solid(gate), "a question that runs too long gives up: the way always reopens")
+	main.banner = {}
+
+	# Vault rewards: crystals, gear, a recall scroll, an item.
+	var kinds := {}
+	for i in 80:
+		for c in W.vault_choices(false):
+			kinds[String(c).get_slice(":", 0)] = true
+	_check(kinds.has("crystal") and kinds.has("gear") and kinds.has("scroll"), "vault cards: crystals, gear, a recall scroll or an item (%s)" % [kinds.keys()])
+	main._take_vault_pick("gear:axe")
+	_check(p.gear["melee"] == "axe", "a gear card is taken into its slot")
+	_check(p.add_item("scroll") and not p.add_item("scroll") and p.item_count("scroll") == 1, "you carry only one recall scroll")
+	var offered := false
+	for i in 80:
+		offered = offered or "scroll" in W.vault_choices(false)
+	_check(not offered, "...so a vault doesn't offer another while you carry one")
+	_check(p.selected_item() != "scroll", "(a scroll never takes the quick item from another)")
+	var hidden: Array = W.hidden_crystals()
+	_check(hidden.size() == 3 and hidden.all(func(c): return String(c).begins_with("crystal:")), "a hidden crystal choice offers three kinds")
+
+	# Consuming a crystal banks its essence into you.
+	main.profile.crystals = []
+	main.profile.add_crystal("air", 40.0)
+	var xp0: float = main.profile.bonds["hand"]["xp"]
+	var lines: Array = main.consume_crystal("air")
+	_check(main.profile.crystal_count("air") == 0 and main.profile.bonds["hand"]["xp"] > xp0 and not lines.is_empty(), "consuming a crystal banks its essence into your marks (%s)" % [lines])
+	_check(main.consume_crystal("air").is_empty(), "(none left: nothing happens)")
+
+	# Secret rooms.
+	_check(await _wing_floor(true, ""), "a floor with a secret room")
+	var s: Dictionary = W.secrets[0]
+	var mouth: Vector2i = s["mouth"][0]
+	var mc: Vector2 = W._tile_center(mouth)
+	var into: Vector2 = s["into"]
+	var deep: Vector2 = s["rect"].get_center()
+	_check(main.is_solid(mc) and main.is_solid(deep), "a secret room is solid rock to sight and paths until it opens")
+	p.global_position = mc - into * 40.0
+	await _frames(4)
+	var di: int = main._tile_of(deep).y * main.grid_size.x + main._tile_of(deep).x
+	_check(main.fog.vis[di] == 0, "standing at its wall, the room behind stays hidden in the fog")
+	s["dust_t"] = 0.01
+	await _frames(3)
+	_check(s["dust_t"] > 1.0, "dust drifts down near it now and then")
+	main.audio.last_played.erase("hit_blunt")
+	var k0: int = W.knocks
+	p.aim = into
+	await _swing()
+	_check(W.knocks == k0 + 1 and main.audio.last_played.has("hit_blunt"), "striking it gives a hollow knock")
+	var plain: bool = W.keen_outlined(s)
+	main.profile.add_bond("brow", "hunter", false)
+	main._give_bonds()
+	main.camera.reset_smoothing()
+	await _frames(2)
+	_check(not plain and W.keen_outlined(s) and W._anim_on_screen(), "Hunter's Keen Eyes outline it (others see a plain wall)")
+	# Lean into it.
+	var key := "move_down" if into == Vector2.DOWN else ("move_up" if into == Vector2.UP else ("move_right" if into == Vector2.RIGHT else "move_left"))
+	p.global_position = mc - into * 34.0
+	await _frames(2)
+	Input.action_press(key)
+	await _wait(0.3)
+	var early: bool = s["open"]
+	await _wait(0.9)
+	Input.action_release(key)
+	await _frames(2)
+	_check(not early and s["open"], "leaning into it for a moment grinds it open")
+	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth), "...a passage and a room, open to walk and to the path grid")
+	p.global_position = W._tile_center(s["door"][0]) + into * 30.0
+	await _frames(4)
+	_check(main.fog.vis[di] == 1, "...and in sight once you step in")
+	# A Tithe Door asks for unbanked essence.
+	if await _wing_floor(true, "tithe"):
+		s = W.secrets[0]
+		W._open_secret(s)
+		_check(main.is_solid(s["seal_pos"]), "a Tithe Door stands shut in its secret room")
+		main.run_essence = {"fire": 5.0}
+		_check(not W.pay_tithe(s) and s["vault"] == "sealed", "it won't open for less than it asks (%d)" % int(s["cost"]))
+		main.run_essence = {"fire": float(s["cost"]) * 0.5 + 4.0, "air": float(s["cost"]) * 0.5}
+		_check(W.pay_tithe(s) and s["vault"] == "open" and not main.is_solid(s["seal_pos"]), "paid, it opens")
+		var left := 0.0
+		for k2 in main.run_essence:
+			left += main.run_essence[k2]
+		_check(absf(left - 4.0) < 0.01, "the tithe comes out of your unbanked essence (%.1f left)" % left)
+	main.run_essence = {}
+
+	# The recall scroll: leave safely, unbanked essence turned to crystals.
+	main.banner = {}
+	main.camp_choosing = false
+	p.set_physics_process(true)
+	main.profile.crystals = []
+	main.run_essence = {"fire": 23.4, "air": 5.0}
+	main.run_soak = {"back": 4.0}
+	p.item_sel = "scroll"
+	_check(not p.use_item() and main.victory.is_empty() and main.banner.get("title", "") == main.Items.RECALL["ask_title"], "using the scroll asks first")
+	_check(p.use_item(), "...and a second use reads it")
+	_check(not main.victory.is_empty() and main.victory.get("recall", false), "reading it ends the climb safely")
+	_check(main.profile.crystal_count("fire") == 1 and int(main.profile.crystal_total("fire")) == 23 and main.profile.crystal_count("air") == 1, "unbanked essence settles into crystals, one per kind")
+	_check(main.run_essence.is_empty() and p.item_count("scroll") == 0 and main.profile.soak.get("back", 0.0) >= 4.0, "the scroll is used up, and nothing else is lost")
+	main.victory["t"] = 9.0
+	main.end_regard()
+	_check(not main.camp_choosing and not main.heirloom_offered, "no heirloom choice after a recall (the climb wasn't won)")
+	main.victory = {}
+	# On the first climb the words won't come.
+	await _fresh_main()
+	main.player.add_item("scroll")
+	main.player.item_sel = "scroll"
+	main.player.use_item()
+	main.player.use_item()
+	_check(main.victory.is_empty() and main.player.item_count("scroll") == 1, "the scroll can't be read before the Regard")
 
 
 ## The inventory slot with this key ("gear:melee", "item:draught", "heir:helm"...), or null.
