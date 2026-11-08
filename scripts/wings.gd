@@ -140,7 +140,11 @@ func setup(plan: Dictionary) -> void:
 		w["clock"] = 0.0
 		w["puzzle_slot"] = ""
 		_choose_challenge(w)
-		main.door_view.add_door({"tiles": w["door"], "horiz": w["horiz"], "out": w["out"], "room": -1, "style": "sealed"})
+		var def := {"tiles": w["door"], "horiz": w["horiz"], "out": w["out"], "room": -1, "style": "sealed"}
+		for key in ["lock", "lock_id", "lock_pos", "lock_carrier"]:
+			if w.has(key):
+				def[key] = w[key]  # (a wing's door may be locked too: floors.gd)
+		main.door_view.add_door(def)
 		w["vault_body"] = _close([w["vault_door"]])
 		var vdir: Vector2 = w["vault_dir"]
 		w["light"] = main.lighting.add_light(w["seal_pos"] - vdir * 26.0, 130.0, GOLD, 0.7, 0.2)

@@ -38,11 +38,53 @@ const WARM := Color(1.0, 0.74, 0.4)
 const RED := Color(0.95, 0.22, 0.15)
 const EMBLEM := Color(0.75, 0.55, 1.0)
 
+## LOCKED DOORS (floors.gd decides which, always off the main route): a
+## locked door won't open for anyone until its lock is undone; bump it and
+## it says so, and how it opens. Drawn over its usual look (so it still
+## hints at the room), never hinting at the reward:
+##   key / carried   a padlock: a key lies in another room, or a monster carries one
+##   lever           iron bars across it: strike a lever elsewhere
+##   puzzle          a violet ward: solve the floor's puzzle
+## LOCK-IN ROOMS: some rooms (LOCK_IN) shut their doorways behind you as
+## you step in (iron bars drop with a slam and a banner), and open again
+## once the monsters that were inside are dead. A room with none never shuts,
+## and LOCK_IN["failsafe"] seconds open it whatever happens.
+const LOCK_TEXT := {
+	"hint_key": "Locked. Its key lies somewhere on this floor.",
+	"hint_carried": "Locked. One of this floor's monsters carries its key.",
+	"hint_lever": "Barred. A lever somewhere on this floor lifts the bars.",
+	"hint_puzzle": "Warded. Solving this floor's puzzle opens it.",
+	"locked": "Locked",
+	"key_found": "+ A key",
+	"key_turns": "The key turns",
+	"lever_pulled": "Somewhere, bars lift",
+	"lever_title": "A LEVER",
+	"lever_line": "Somewhere on this floor, a barred door opens.",
+	"puzzle_line": "A warded door opens somewhere.",
+	"shut_title": "THE DOORS GRIND SHUT",
+	"shut": "Nothing leaves until what's here has fallen.",
+	"open_title": "THE DOORS GRIND OPEN",
+	"status": "THE DOORS ARE SHUT",
+	"left": "%d left",
+}
+## Which rooms lock you in (by theme, or by role), and how often; the stair
+## landing only from a higher floor. Checked a few times a second.
+const LOCK_IN := {"den": 0.75, "crypt": 0.9, "guard": 0.3, "landing": 0.6, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
+const KEY_GOLD := Color(1.0, 0.82, 0.38)
+const WARD := Color(0.75, 0.55, 1.0)
+
 var main
-var list: Array = []  # {tiles, rect, horiz, out, room, style, sigil, emblem, open, t, body}
+var list: Array = []  # {tiles, rect, horiz, out, room, style, sigil, emblem, open, t, body, lock, lock_id}
 var glow: Node2D  # light under warm and chained doors, unshaded so it reads in the dark
 var monster_t := 0.0
 var animating := false
+var keys: Array = []  # keys lying on the floor: {pos, lock_id, taken, light}
+var levers: Array = []  # {pos, lock_id, pulled, light}
+var held: Array = []  # lock ids whose key the climber carries
+var bump_t := 0.0  # until a locked door says so again
+var bumps := 0  # times a locked door was bumped (tests)
+var lock_rooms := {}  # room index -> {state: armed, pending, shut, done; gates, bodies, mobs, t}
+var lock_check := 0.0
 
 
 func _ready() -> void:
@@ -62,19 +104,50 @@ func clear() -> void:
 			d["body"].queue_free()
 		_drop_light(d)
 	list.clear()
+	for k in keys + levers:
+		if k.has("light") and main != null and main.lighting != null:
+			main.lighting.remove_light(k["light"])
+	keys.clear()
+	levers.clear()
+	held.clear()
+	for i in lock_rooms:
+		for b in lock_rooms[i].get("bodies", []):
+			if is_instance_valid(b):
+				b.queue_free()
+	lock_rooms.clear()
 	animating = false
 	_redraw()
 
 
-## Hangs the floor's doors: `defs` from the plan ({tiles, horiz, out, room}),
-## `themes` the theme id of each room. Call once the layout is built.
+## Hangs the floor's doors: `defs` from the plan ({tiles, horiz, out, room,
+## and lock, lock_id, lock_pos, lock_carrier if locked}), `themes` the theme
+## id of each room. Call once the layout is built. Also picks the rooms that
+## will lock you in.
 func build(defs: Array, themes: Array) -> void:
 	clear()
 	if main == null or not main.layout_on:
 		return
 	for def in defs:
 		_hang(def, themes)
+	var info: Array = main.room_info
+	for i in info.size():
+		if _locks_in(info[i], themes[i] if i < themes.size() else "") and not info[i].get("gates", []).is_empty():
+			lock_rooms[i] = {"state": "armed", "gates": info[i]["gates"], "bodies": [], "mobs": [], "t": 0.0}
 	_redraw()
+
+
+func _locks_in(info: Dictionary, theme: String) -> bool:
+	var role: String = info["role"]
+	if role in ["entrance", "gallery"]:
+		return false
+	var chance := 0.0
+	if LOCK_IN.has(theme) and theme != "landing":
+		chance = float(LOCK_IN[theme])
+	elif role == "stair":
+		chance = float(LOCK_IN["landing"]) if main.floor_num >= int(LOCK_IN["landing_from"]) else 0.0
+	elif role == "guard":
+		chance = float(LOCK_IN["guard"])
+	return randf() < chance
 
 
 ## Hangs one more door after build(): `def` as in build(), with its look
@@ -96,8 +169,17 @@ func _hang(def: Dictionary, themes: Array) -> Dictionary:
 	var hi := Vector2i(maxi(a.x, b.x), maxi(a.y, b.y))
 	var rect := Rect2(main.room.position + Vector2(lo) * c, Vector2(hi - lo + Vector2i.ONE) * c)
 	var d := {"tiles": tiles, "rect": rect, "horiz": def["horiz"], "out": def["out"], "room": def["room"],
-		"open": false, "t": 0.0, "body": null, "fixed": def.get("style", "")}
+		"open": false, "t": 0.0, "body": null, "fixed": def.get("style", ""),
+		"lock": String(def.get("lock", "")), "lock_id": int(def.get("lock_id", 0))}
 	_style(d, themes)
+	if d["lock"] in ["key", "lever"] and def.has("lock_pos"):
+		var item := {"pos": def["lock_pos"], "lock_id": d["lock_id"], "taken": false, "pulled": false}
+		if d["lock"] == "key":
+			item["light"] = main.lighting.add_light(item["pos"], 70.0, KEY_GOLD, 0.5, 0.18)
+			keys.append(item)
+		else:
+			item["light"] = main.lighting.add_light(item["pos"], 70.0, Color(0.8, 0.85, 1.0), 0.4, 0.1)
+			levers.append(item)
 	for t in tiles:
 		_set_tile(t, true)
 	var body := StaticBody2D.new()
@@ -185,10 +267,222 @@ func door_at(t: Vector2i) -> Dictionary:
 	return {}
 
 
+## Opens every door, locked ones too (the dev tool, and tests).
 func open_all() -> void:
 	for d in list:
+		d["lock"] = ""
 		if not d["open"]:
 			open_door(d, true)
+
+
+## Undoes a lock (its key turned, its lever struck, its puzzle solved).
+func unlock(lock_id: int) -> void:
+	for d in list:
+		if d["lock"] != "" and int(d["lock_id"]) == lock_id:
+			d["lock"] = ""
+			main.fx_burst(d["rect"].get_center(), d["out"], KEY_GOLD, 10, 90.0)
+	_redraw()
+
+
+## The floor's puzzle is solved: warded doors open their wards (main.lift_ward).
+func unlock_puzzle() -> bool:
+	var any := false
+	for d in list:
+		if d["lock"] == "puzzle":
+			unlock(int(d["lock_id"]))
+			any = true
+	return any
+
+
+func locked_count() -> int:
+	return list.filter(func(d): return d["lock"] != "").size()
+
+
+## The climber bumps a locked door: it says it's locked, and how it opens;
+## with its key in hand, the key turns and it opens.
+func _bump(d: Dictionary) -> void:
+	if d["lock_id"] in held and d["lock"] in ["key", "carried"]:
+		held.erase(d["lock_id"])
+		unlock(int(d["lock_id"]))
+		main.fx_text(d["rect"].get_center() + Vector2(0, -30), LOCK_TEXT["key_turns"], KEY_GOLD)
+		main.sfx("crossbow_load", 0.8, -4.0, 0.0)
+		open_door(d)
+		return
+	if bump_t > 0.0:
+		return
+	bump_t = 1.6
+	bumps += 1
+	main.fx_text(d["rect"].get_center() + Vector2(0, -30), LOCK_TEXT["locked"], Color(0.9, 0.75, 0.55))
+	main.banner = {"title": String(LOCK_TEXT["locked"]).to_upper(), "lines": [LOCK_TEXT["hint_" + String(d["lock"])]], "t": 2.2}
+	main.sfx("hit_armor", 0.55, -4.0, 0.0)
+	main.sfx("step_chain", 0.7, -8.0, 0.0)
+
+
+## A melee swing (player.gd): a lever in reach is pulled.
+func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+	for l in levers:
+		if l["pulled"]:
+			continue
+		var to: Vector2 = l["pos"] - from
+		if to.length() <= reach + 22.0 and absf(dir.angle_to(to)) <= deg_to_rad(arc_deg) + 0.3:
+			pull(l)
+
+
+func pull(l: Dictionary) -> void:
+	l["pulled"] = true
+	if l.has("light"):
+		main.lighting.remove_light(l["light"])
+		l.erase("light")
+	unlock(int(l["lock_id"]))
+	main.fx_text(l["pos"] + Vector2(0, -30), LOCK_TEXT["lever_pulled"], Color(0.8, 0.85, 1.0))
+	main.banner = {"title": LOCK_TEXT["lever_title"], "lines": [LOCK_TEXT["lever_line"]], "t": 2.5}
+	main.sfx("crossbow_reload", 0.6, -2.0, 0.0)
+	main.sfx("slam", 1.4, -10.0, 0.0)
+	main.shake(4.0)
+	_redraw()
+
+
+## Picks up a key lying where the climber walks.
+func _take_key(k: Dictionary) -> void:
+	k["taken"] = true
+	held.append(k["lock_id"])
+	if k.has("light"):
+		main.lighting.remove_light(k["light"])
+		k.erase("light")
+	main.fx_text(main.player.global_position + Vector2(0, -44), LOCK_TEXT["key_found"], KEY_GOLD)
+	main.sfx("pickup", 1.1, -2.0, 0.0)
+	_redraw()
+
+
+## The monsters main.gd spawned, in the plan's order: the key carriers get their key.
+func tag_carriers(defs: Array, spawned: Array) -> void:
+	for def in defs:
+		var c := int(def.get("lock_carrier", -1))
+		if def.get("lock", "") == "carried" and c >= 0 and c < spawned.size():
+			spawned[c].set_meta("key", int(def["lock_id"]))
+
+
+## A monster fell: if it carried a key, it drops it.
+func on_enemy_killed(e) -> void:
+	if e.has_meta("key"):
+		var k := {"pos": e.global_position, "lock_id": int(e.get_meta("key")), "taken": false}
+		k["light"] = main.lighting.add_light(k["pos"], 70.0, KEY_GOLD, 0.5, 0.18)
+		keys.append(k)
+		e.remove_meta("key")
+		main.fx_text(e.global_position + Vector2(0, -48), "It dropped a key", KEY_GOLD)
+		_redraw()
+
+
+# --- lock-in rooms -----------------------------------------------------------------
+
+## The climber walked into room `i` (main.gd, the first time): a lock-in room
+## waits for them to be well inside.
+func room_entered(i: int) -> void:
+	if lock_rooms.has(i) and lock_rooms[i]["state"] == "armed":
+		lock_rooms[i]["state"] = "pending"
+
+
+func _gate_tiles(lr: Dictionary) -> Array:
+	var out: Array = []
+	for g in lr["gates"]:
+		out.append_array(g)
+	return out
+
+
+func _tick_lock_rooms(delta: float) -> void:
+	lock_check -= delta
+	var p = main.player
+	for i in lock_rooms:
+		var lr: Dictionary = lock_rooms[i]
+		match String(lr["state"]):
+			"pending":
+				var rect: Rect2 = main.room_info[i]["rect"]
+				if p.dead or not rect.grow(-30.0).has_point(p.global_position):
+					continue
+				var mobs: Array = main.enemies().filter(func(e): return rect.grow(-2.0).has_point(e.global_position))
+				if mobs.is_empty():
+					lr["state"] = "done"  # (nothing here to fight: it never shuts)
+					continue
+				var blocked := false
+				for g in lr["gates"]:
+					var gr := _tiles_rect(g)
+					for e in main.enemies():
+						blocked = blocked or gr.grow(e.radius).has_point(e.global_position)
+					blocked = blocked or gr.grow(p.radius).has_point(p.global_position)
+				if not blocked:
+					_shut(lr, mobs)
+			"shut":
+				lr["t"] += delta
+				if lock_check <= 0.0:
+					var alive: Array = lr["mobs"].filter(func(e): return is_instance_valid(e) and not e.dead)
+					if alive.is_empty() or lr["t"] > float(LOCK_IN["failsafe"]):
+						_reopen(lr)
+	if lock_check <= 0.0:
+		lock_check = float(LOCK_IN["check"])
+
+
+func _tiles_rect(tiles: Array) -> Rect2:
+	var c: float = main.Floors.CELL
+	var r := Rect2(main.room.position + Vector2(tiles[0]) * c, Vector2(c, c))
+	for t in tiles:
+		r = r.merge(Rect2(main.room.position + Vector2(t) * c, Vector2(c, c)))
+	return r
+
+
+func _shut(lr: Dictionary, mobs: Array) -> void:
+	lr["state"] = "shut"
+	lr["mobs"] = mobs
+	lr["t"] = 0.0
+	for g in lr["gates"]:
+		var dd := door_at(g[0])
+		if not dd.is_empty() and not dd["open"]:
+			open_door(dd, true)
+		for t in g:
+			_set_tile(t, true)
+		var rect := _tiles_rect(g)
+		var body := StaticBody2D.new()
+		body.collision_layer = 1
+		body.collision_mask = 0
+		body.position = rect.get_center()
+		var shape := CollisionShape2D.new()
+		var box := RectangleShape2D.new()
+		box.size = rect.size
+		shape.shape = box
+		body.add_child(shape)
+		main.add_child(body)
+		lr["bodies"].append(body)
+		main.fx_burst(rect.get_center(), Vector2.ZERO, Color(0.54, 0.51, 0.59), 10, 110.0)
+	main.shake(7.0)
+	main.sfx("slam", 0.6, 0.0, 0.0)
+	main.sfx("step_chain", 0.5, -4.0, 0.0)
+	main.banner = {"title": LOCK_TEXT["shut_title"], "lines": [LOCK_TEXT["shut"]], "t": 2.6}
+	_redraw()
+
+
+func _reopen(lr: Dictionary) -> void:
+	lr["state"] = "done"
+	for b in lr["bodies"]:
+		if is_instance_valid(b):
+			b.queue_free()
+	lr["bodies"] = []
+	for g in lr["gates"]:
+		for t in g:
+			_set_tile(t, false)
+		main.fx_burst(_tiles_rect(g).get_center(), Vector2.ZERO, KEY_GOLD, 8, 90.0)
+	if main.fog != null:
+		main.fog.set("last_tile", Vector2i(-999, -999))
+	main.sfx("slam", 0.9, -6.0, 0.0)
+	main.banner = {"title": LOCK_TEXT["open_title"], "lines": [], "t": 1.8}
+	_redraw()
+
+
+## {left} while the climber is shut in a room (the HUD shows it), else {}.
+func lock_status() -> Dictionary:
+	for i in lock_rooms:
+		var lr: Dictionary = lock_rooms[i]
+		if lr["state"] == "shut":
+			return {"left": lr["mobs"].filter(func(e): return is_instance_valid(e) and not e.dead).size()}
+	return {}
 
 
 func open_door(d: Dictionary, quiet := false) -> void:
@@ -219,8 +513,17 @@ func open_door(d: Dictionary, quiet := false) -> void:
 
 
 func _process(delta: float) -> void:
-	if list.is_empty() or main == null or main.player == null:
+	if main == null or main.player == null:
 		return
+	if not lock_rooms.is_empty():
+		_tick_lock_rooms(delta)
+	if list.is_empty():
+		return
+	bump_t -= delta
+	var pp: Vector2 = main.player.global_position
+	for k in keys:
+		if not k["taken"] and not main.player.dead and pp.distance_to(k["pos"]) < 24.0 + main.player.radius:
+			_take_key(k)
 	if animating:
 		var still := false
 		for d in list:
@@ -233,11 +536,14 @@ func _process(delta: float) -> void:
 	if not p.dead:
 		for d in list:
 			if not d["open"] and _touches(d, p.global_position, p.radius):
-				open_door(d)
+				if d["lock"] != "":
+					_bump(d)
+				else:
+					open_door(d)
 	monster_t -= delta
 	if monster_t <= 0.0:
 		monster_t = MONSTER_CHECK
-		var shut: Array = list.filter(func(d): return not d["open"])
+		var shut: Array = list.filter(func(d): return not d["open"] and d["lock"] == "")
 		if shut.is_empty():
 			return
 		for e in main.enemies():
@@ -262,7 +568,7 @@ func _redraw() -> void:
 # --- drawing -----------------------------------------------------------------
 
 func _draw() -> void:
-	if list.is_empty():
+	if list.is_empty() and lock_rooms.is_empty():
 		return
 	var b := Draw.Batch.new()
 	for d in list:
@@ -270,7 +576,89 @@ func _draw() -> void:
 			_draw_open(b, d)
 		else:
 			_draw_closed(b, d)
+			if d["lock"] != "":
+				_draw_lock(b, d)
+	for k in keys:
+		if not k["taken"]:
+			_draw_key(b, k["pos"])
+	for l in levers:
+		_draw_lever(b, l["pos"], l["pulled"])
+	for i in lock_rooms:
+		if lock_rooms[i]["state"] == "shut":
+			for g in lock_rooms[i]["gates"]:
+				_draw_bars(b, _tiles_rect(g), Color(0.42, 0.4, 0.46))
 	b.flush(self)
+
+
+## A locked door's lock, over its usual look: a padlock (a key opens it),
+## iron bars (a lever), or a violet ward (the floor's puzzle).
+func _draw_lock(b, d: Dictionary) -> void:
+	var r: Rect2 = d["rect"]
+	var c := r.get_center()
+	match String(d["lock"]):
+		"lever":
+			_draw_bars(b, r, Palette.DOOR_IRON.lightened(0.15))
+		"puzzle":
+			b.circle(c, 11.0, Palette.OUTLINE)
+			b.circle(c, 9.5, Color(WARD, 0.85))
+			b.circle(c, 6.5, Palette.DOOR_STONE)
+			for k in 4:
+				var a := PI * 0.25 + k * PI * 0.5
+				b.line(c + Vector2.from_angle(a) * 3.0, c + Vector2.from_angle(a) * 8.0, Color(WARD, 0.9), 1.5)
+			b.circle(c, 2.2, WARD.lightened(0.3))
+		_:
+			b.arc(c + Vector2(0, -4), 5.5, PI, TAU, 10, Palette.OUTLINE, 3.6)
+			b.arc(c + Vector2(0, -4), 5.5, PI, TAU, 10, Color(0.62, 0.6, 0.64), 2.0)
+			b.rect(Rect2(c + Vector2(-8, -4), Vector2(16, 13)), Palette.OUTLINE)
+			b.rect(Rect2(c + Vector2(-7, -3), Vector2(14, 11)), KEY_GOLD.darkened(0.3))
+			b.rect(Rect2(c + Vector2(-7, -3), Vector2(14, 2)), KEY_GOLD)
+			b.circle(c + Vector2(0, 1.5), 1.8, Palette.OUTLINE)
+			b.rect(Rect2(c + Vector2(-0.8, 2.0), Vector2(1.6, 4.0)), Palette.OUTLINE)
+
+
+## Iron bars across a doorway (a barred door, or a lock-in room's shut gate).
+func _draw_bars(b, r: Rect2, col: Color) -> void:
+	var horiz := r.size.x >= r.size.y
+	var n := int(maxf(r.size.x, r.size.y) / 10.0)
+	for i in n:
+		var k := (i + 0.5) / n
+		if horiz:
+			var x := r.position.x + r.size.x * k
+			b.rect(Rect2(x - 2.0, r.position.y - 2.0, 4.0, r.size.y + 4.0), Palette.OUTLINE)
+			b.rect(Rect2(x - 1.2, r.position.y - 1.0, 2.4, r.size.y + 2.0), col)
+		else:
+			var y := r.position.y + r.size.y * k
+			b.rect(Rect2(r.position.x - 2.0, y - 2.0, r.size.x + 4.0, 4.0), Palette.OUTLINE)
+			b.rect(Rect2(r.position.x - 1.0, y - 1.2, r.size.x + 2.0, 2.4), col)
+	var across := Rect2(r.position.x, r.get_center().y - 2.5, r.size.x, 5.0) if horiz else Rect2(r.get_center().x - 2.5, r.position.y, 5.0, r.size.y)
+	b.rect(across.grow(1.0), Palette.OUTLINE)
+	b.rect(across, col.darkened(0.2))
+
+
+## A key lying on the floor.
+func _draw_key(b, c: Vector2) -> void:
+	b.circle(c + Vector2(0, 7), 8.0, Color(0, 0, 0, 0.28))
+	for i in 3:
+		b.circle(c, 12.0 - i * 3.0, Color(KEY_GOLD, 0.08))
+	b.circle(c + Vector2(-5, 0), 5.0, Palette.OUTLINE)
+	b.circle(c + Vector2(-5, 0), 3.8, KEY_GOLD)
+	b.circle(c + Vector2(-5, 0), 1.6, Palette.OUTLINE)
+	b.rect(Rect2(c + Vector2(-1, -1.8), Vector2(10, 3.6)), Palette.OUTLINE)
+	b.rect(Rect2(c + Vector2(-1, -1.0), Vector2(9.5, 2.0)), KEY_GOLD)
+	b.rect(Rect2(c + Vector2(5, 1), Vector2(2, 3.5)), KEY_GOLD.darkened(0.2))
+	b.rect(Rect2(c + Vector2(8, 1), Vector2(1.6, 2.5)), KEY_GOLD.darkened(0.2))
+
+
+## A lever on a stone base: up while it waits, down once pulled.
+func _draw_lever(b, c: Vector2, pulled: bool) -> void:
+	b.circle(c + Vector2(0, 8), 9.0, Color(0, 0, 0, 0.28))
+	b.rect(Rect2(c + Vector2(-9, 0), Vector2(18, 8)), Palette.OUTLINE)
+	b.rect(Rect2(c + Vector2(-8, 1), Vector2(16, 6)), Palette.DOOR_STONE.lightened(0.1))
+	var tip := c + (Vector2(9, -6) if pulled else Vector2(-6, -15))
+	b.line(c + Vector2(0, 2), tip, Palette.OUTLINE, 4.0)
+	b.line(c + Vector2(0, 2), tip, Palette.DOOR_IRON.lightened(0.3), 2.2)
+	b.circle(tip, 3.2, Palette.OUTLINE)
+	b.circle(tip, 2.3, Color(0.55, 0.85, 0.55) if pulled else Color(0.85, 0.35, 0.3))
 
 
 ## The light under warm and chained doors, on the side you come from.

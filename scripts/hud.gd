@@ -203,7 +203,8 @@ func _top_live() -> bool:
 		or essence_t > 0.0 or swap_t > 0.0 or floor_t > 0.0 or stair_t > 0.0 or (hints_t > 0.0 and not main.touch_active) \
 		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing \
 		or p.pick_open or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
-		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live())
+		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
+		or (main.door_view != null and not main.door_view.lock_status().is_empty())
 
 
 ## What this layer shows that doesn't move: it's redrawn when this changes.
@@ -883,6 +884,15 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 func _draw_wing_status(size: Vector2, font: Font) -> void:
 	if main.wings == null or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing:
 		return
+	# Shut in a lock-in room (doors.gd): say so, and how many foes are left.
+	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
+	if not ls.is_empty():
+		var t1: String = main.door_view.LOCK_TEXT["status"]
+		var t2: String = main.door_view.LOCK_TEXT["left"] % int(ls["left"])
+		draw_string_outline(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(0.9, 0.55, 0.45))
+		draw_string_outline(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, 3, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, TEXT)
 	var st: Dictionary = main.wings.status()
 	if st.is_empty():
 		return

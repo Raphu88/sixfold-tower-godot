@@ -894,6 +894,7 @@ func _start_floor(n: int) -> void:
 		ward = puzzle.active()
 
 	var tough := Floors.toughness(n)
+	var spawned: Array = []
 	for m in plan["monsters"]:
 		var e = EnemyScript.new()
 		e.setup(m[0], self)
@@ -903,6 +904,9 @@ func _start_floor(n: int) -> void:
 		e.position = m[1]
 		e.aware = not layout_on  # in rooms, monsters wait until they see you
 		add_child(e)
+		spawned.append(e)
+	# A locked door's key may be carried by one of them.
+	door_view.tag_carriers(plan.get("doors", []) + plan.get("wings", []), spawned)
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
@@ -953,6 +957,7 @@ func _enter_room(i: int) -> void:
 	var th: Dictionary = Themes.get_theme(id)
 	if th["feature"] == "ambush":
 		_ambush(i)
+	door_view.room_entered(i)  # (a lock-in room shuts once you're well inside)
 	if th["sub"] == "" or id == "quiet":
 		return  # (the arrival hall and quiet halls say nothing)
 	if banner.is_empty() or banner.get("room", false):
@@ -1062,6 +1067,8 @@ func lift_ward() -> void:
 	stair_open = true
 	room_view.stair_open = true
 	banner = {"title": PuzzleScript.TEXT["lifted_title"], "lines": [PuzzleScript.TEXT["lifted"]], "t": 2.5}
+	if door_view.unlock_puzzle():  # (warded doors open with it)
+		banner["lines"].append(door_view.LOCK_TEXT["puzzle_line"])
 	sfx("clear", 0.9, -2.0, 0.0)
 	fx_ring(stair_pos, Color(0.75, 0.55, 1.0), 80.0, 0.6, 4.0)
 
@@ -2294,6 +2301,8 @@ func on_enemy_killed(e) -> void:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty()), "t": Items.DROP_LIFE})
 	if wings != null:
 		wings.on_enemy_killed(e)
+	if door_view != null:
+		door_view.on_enemy_killed(e)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.

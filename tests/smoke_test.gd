@@ -1043,8 +1043,8 @@ func _plan_tests() -> void:
 	for n in 20:
 		main._start_floor(3 + n % 4)
 		await _frames(1)
-		if not main.door_view.list.is_empty():
-			door = main.door_view.list[0]
+		if main.door_view.list.any(func(d): return d["lock"] == ""):
+			door = main.door_view.list.filter(func(d): return d["lock"] == "")[0]  # (not a locked one: see _lock_tests)
 			break
 	for e in main.enemies():
 		e.set_physics_process(false)
@@ -1092,9 +1092,9 @@ func _plan_tests() -> void:
 	for n in 20:
 		main._start_floor(4)
 		await _frames(1)
-		if not main.door_view.list.is_empty():
+		if main.door_view.list.any(func(d): return d["lock"] == ""):
 			break
-	door = main.door_view.list[0]
+	door = main.door_view.list.filter(func(d): return d["lock"] == "")[0]
 	for e in main.enemies():
 		e.set_physics_process(false)
 	p.global_position = main.player_start
@@ -4584,6 +4584,7 @@ func _run() -> void:
 	await _item_tests()
 	await _camp_tests()
 	await _wing_tests()
+	await _lock_tests()
 	await _gear_tests()
 	await _heirloom_tests()
 	await _controls_tests()
@@ -4894,6 +4895,186 @@ func _wing_tests() -> void:
 	main.player.use_item()
 	main.player.use_item()
 	_check(main.victory.is_empty() and main.player.item_count("scroll") == 1, "the scroll can't be read before the Regard")
+
+
+## A floor with a locked door of this kind (its monsters gone unless `keep`), or {}.
+func _locked_floor(kind: String, keep := false) -> Dictionary:
+	for n in 120:
+		main._start_floor(3 + n % 8)
+		await _frames(1)
+		var locked: Array = main.door_view.list.filter(func(d): return d["lock"] == kind)
+		if locked.is_empty():
+			continue
+		if not keep:
+			for e in main.enemies():
+				if not e.has_meta("key"):
+					e.queue_free()
+		await _frames(2)
+		main.banner = {}
+		return locked[0]
+	return {}
+
+
+func _lock_tests() -> void:
+	print("locked doors and lock-in rooms")
+	await _fresh_main()
+	main.grant_test_bonds()
+	var F = main.Floors
+	var p = main.player
+	# Plans: locks only off the main route, opened from the main route.
+	var kinds := {}
+	var ok_off := true
+	var ok_host := true
+	var floors_locked := 0
+	for n in 60:
+		var plan: Dictionary = F.rooms_floor(3 + n % 9, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
+		var infos: Array = plan["room_info"]
+		if not plan["locks"].is_empty():
+			floors_locked += 1
+		for d in plan["doors"]:
+			if d.get("lock", "") != "":
+				kinds[d["lock"]] = true
+				ok_off = ok_off and infos[d["room"]]["role"] == "branch"
+		for l in plan["locks"]:
+			if l.has("pos"):
+				var host := -1
+				for i in infos.size():
+					if infos[i]["rect"].has_point(l["pos"]):
+						host = i
+				ok_host = ok_host and host >= 0 and infos[host]["role"] in ["guard", "stair", "entrance"]
+			if l.has("carrier"):
+				var mp: Vector2 = plan["monsters"][l["carrier"]][1]
+				ok_host = ok_host and infos.any(func(ri): return ri["role"] in ["guard", "stair"] and ri["rect"].has_point(mp))
+	_check(floors_locked >= 25 and kinds.size() >= 3, "most floors have a locked door, of several kinds (%d of 60: %s)" % [floors_locked, kinds.keys()])
+	_check(ok_off, "only doors off the main route are locked (branch rooms and wings)")
+	_check(ok_host, "keys, levers and key carriers wait on the main route, reachable without passing the lock")
+	# The stair is always reachable with the locked doors still shut; so are their keys and levers.
+	var ok_reach := true
+	for n in 16:
+		main._start_floor(3 + n % 8)
+		await _frames(1)
+		for d in main.door_view.list:
+			if d["lock"] == "" and not d["open"]:
+				main.door_view.open_door(d, true)
+		var from: Vector2i = main._tile_of(main.player_start)
+		var goals: Array = [main.stair_pos]
+		for k in main.door_view.keys + main.door_view.levers:
+			goals.append(k["pos"])
+		for e in main.enemies():
+			if e.has_meta("key"):
+				goals.append(e.global_position)
+		for g in goals:
+			ok_reach = ok_reach and not main.astar.get_id_path(from, main._tile_of(g)).is_empty()
+	_check(ok_reach, "with locked doors still shut, the stair and every key and lever can be reached")
+	# A key lying in another room.
+	var d: Dictionary = await _locked_floor("key")
+	_check(not d.is_empty(), "a floor with a door locked by a key")
+	if not d.is_empty():
+		var dc: Vector2 = d["rect"].get_center()
+		var out: Vector2 = d["out"]
+		_check(main.is_solid(dc) and main.astar.is_point_solid(d["tiles"][0]), "a locked door is solid, on the path grid too")
+		var b0: int = main.door_view.bumps
+		main.door_view.bump_t = 0.0
+		p.global_position = dc + out * 50.0
+		await _frames(3)
+		_check(not d["open"] and main.door_view.bumps == b0 + 1 and main.banner.get("title", "") == "LOCKED", "bumping it: it stays shut and says it's locked, and how it opens")
+		var foe = await _spawn("slime", dc + out * 50.0)
+		foe.aware = true
+		main.door_view.monster_t = 0.0
+		p.global_position = main.player_start
+		await _wait(0.3)
+		_check(not d["open"], "monsters can't open a locked door either")
+		foe.queue_free()
+		var k: Dictionary = main.door_view.keys.filter(func(x): return x["lock_id"] == d["lock_id"])[0]
+		p.global_position = k["pos"]
+		await _frames(3)
+		_check(k["taken"] and d["lock_id"] in main.door_view.held, "walking over the key picks it up")
+		p.global_position = dc + out * 50.0
+		await _frames(3)
+		_check(d["open"] and not main.is_solid(dc), "with the key, the door opens")
+	# A lever elsewhere.
+	d = await _locked_floor("lever")
+	_check(not d.is_empty(), "a floor with a door barred by a lever")
+	if not d.is_empty():
+		var l: Dictionary = main.door_view.levers.filter(func(x): return x["lock_id"] == d["lock_id"])[0]
+		p.global_position = l["pos"] + Vector2(-30, 0)
+		p.aim = Vector2.RIGHT
+		await _frames(2)
+		await _swing()
+		_check(l["pulled"] and d["lock"] == "" and main.banner.get("title", "") == main.door_view.LOCK_TEXT["lever_title"], "striking the lever lifts the bars, with a banner")
+		p.global_position = d["rect"].get_center() + d["out"] * 50.0
+		await _frames(3)
+		_check(d["open"], "...and the door opens when you come")
+	# The floor's puzzle.
+	d = await _locked_floor("puzzle")
+	if not d.is_empty():
+		main.lift_ward()
+		_check(d["lock"] == "", "a warded door opens when the floor's puzzle is solved")
+	# A monster carries the key.
+	d = await _locked_floor("carried")
+	if not d.is_empty():
+		var carrier = main.enemies().filter(func(e): return e.has_meta("key"))
+		_check(carrier.size() == 1, "one monster carries the key")
+		if carrier.size() == 1:
+			var at: Vector2 = carrier[0].global_position
+			_slay(carrier[0])
+			await _frames(2)
+			_check(main.door_view.keys.any(func(x): return x["lock_id"] == d["lock_id"] and x["pos"] == at), "slain, it drops the key")
+	main.door_view.open_all()
+	_check(main.door_view.locked_count() == 0, "(the dev tool's Open all opens locked doors too)")
+
+	# Lock-in rooms.
+	var li := -1
+	for n in 80:
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		for i in main.door_view.lock_rooms:
+			var rect: Rect2 = main.room_info[i]["rect"]
+			if main.enemies().any(func(e): return rect.grow(-40.0).has_point(e.global_position)):
+				li = i
+				break
+		if li >= 0:
+			break
+	_check(li >= 0, "some rooms lock you in (%s)" % (main.room_themes[li] if li >= 0 else "none"))
+	if li >= 0:
+		var lr: Dictionary = main.door_view.lock_rooms[li]
+		var rect: Rect2 = main.room_info[li]["rect"]
+		main.open_all_doors()
+		for e in main.enemies():
+			e.set_physics_process(false)
+		main.banner = {}
+		p.global_position = rect.get_center()
+		await _frames(4)
+		var gate: Vector2 = main.door_view._tiles_rect(lr["gates"][0]).get_center()
+		_check(lr["state"] == "shut" and main.is_solid(gate) and main.astar.is_point_solid(lr["gates"][0][0]), "stepping in shuts its doorways (solid, on the path grid)")
+		_check(main.banner.get("title", "") == main.door_view.LOCK_TEXT["shut_title"] and not main.door_view.lock_status().is_empty(), "...with a slam, a banner and the foes left on screen")
+		for e in lr["mobs"]:
+			_slay(e)
+		await _wait(0.4)
+		_check(lr["state"] == "done" and not main.is_solid(gate), "they open once its monsters are dead")
+		p.global_position = main.player_start
+		await _frames(2)
+		p.global_position = rect.get_center()
+		await _frames(3)
+		_check(not main.is_solid(gate), "(and stay open)")
+	# A lock-in room with nobody in it never shuts.
+	var empty_ok := false
+	for n in 40:
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		if main.door_view.lock_rooms.is_empty():
+			continue
+		var i: int = main.door_view.lock_rooms.keys()[0]
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(2)
+		main.open_all_doors()
+		p.global_position = main.room_info[i]["rect"].get_center()
+		await _frames(4)
+		var lr: Dictionary = main.door_view.lock_rooms[i]
+		empty_ok = lr["state"] == "done" and not lr["gates"].any(func(g): return main.is_solid(main.door_view._tiles_rect(g).get_center()))
+		break
+	_check(empty_ok, "a lock-in room with no monsters left never shuts you in")
 
 
 ## The inventory slot with this key ("gear:melee", "item:draught", "heir:helm"...), or null.

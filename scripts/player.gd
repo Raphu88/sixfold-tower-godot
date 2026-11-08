@@ -696,6 +696,9 @@ func _melee() -> bool:
 	# Sealed wings and secret walls: a hollow knock, a seal that holds.
 	if main.wings != null:
 		main.wings.strike(global_position, aim, reach, swing["arc"])
+	# A lever for a barred door.
+	if main.door_view != null:
+		main.door_view.strike(global_position, aim, reach, swing["arc"])
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:

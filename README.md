@@ -255,6 +255,35 @@ Solving lifts the ward ("THE WARD LIFTS"), opens the stair, and opens the room's
 
 **The stair.** On floor 1 and the beast's floor the **stair** at the top of the room opens once three quarters of the monsters are down; on floors of rooms it opens when the puzzle lifts its ward. Walk onto it to climb, or finish the rest first for their essence (the HUD shows how many are left). Taking the stair is a rest: burns heal, you recover a third of your health and all your stamina. Each floor's monsters are bought from a budget that grows with height, and they get tougher too (`scripts/floors.gd`). Falling ends the run and sends you back to floor 1. Your best floor is saved.
 
+## Locked doors and lock-in rooms
+
+**Locked doors** (from floor 3, most floors have one, some higher floors two; `LOCKS` in `floors.gd`, the words in `LOCK_TEXT` in `doors.gd`). Only doors off the main route are locked (a branch room's or a sealed wing's), so the way to the stair never needs a key, and what opens a locked door is always found on the main route, so you can reach it without passing the lock. A locked door keeps its usual look (so it still hints at the room) with a lock drawn over it, never a hint of the reward; bump it and it stays shut with a clank, "Locked", and a line saying how it opens. Monsters can't open it either.
+- **A padlock:** its key lies in another room (a small gold glint; walk over it), or **one of the floor's monsters carries it** and drops it when it falls. Walk up to the door with the key and it turns.
+- **Iron bars:** a **lever** stands in another room; strike it and the bars lift, with a clank, a nudge of the camera and a banner.
+- **A violet ward:** solving the floor's puzzle opens it.
+
+**Lock-in rooms.** Some rooms shut their doorways behind you once you're well inside: monster dens (3 in 4), restless crypts (9 in 10), some guard rooms (3 in 10), the stair landing from floor 6 (3 in 5), and the sealed wings (`LOCK_IN` in `doors.gd`). Iron bars drop with a slam and a banner ("THE DOORS GRIND SHUT"), and the top of the screen says the doors are shut and how many foes are left (on a phone too). They open again when the monsters that were in the room are dead. A room with no monsters left never shuts, and two and a half minutes open it whatever happens, so you're never stranded.
+
+## Sealed wings, vaults and secrets
+
+Everything here is part of the Regard: the beast watches and tests, using what comes into the tower. Names, lines and numbers live in `scripts/wings.gd` (`TEXT`, `CONDITIONS`, `WAVES`, `REWARD`, `SECRET`) and `scripts/items.gd` (`RECALL`, `CRYSTAL`), so they're easy to change.
+
+**Sealed wings** (from floor 2; one a floor, two from floor 10). A room of 9-11 by 7-9 tiles is carved into each kept cell beside the spine, joined by a corridor to its spine room, behind a **sealed door** (a dark stone slab carved with a watching eye, red light under it). Cut into one of its walls is a 3x3 **vault alcove** behind a one-tile vault door drawn as a **pulsing gold seal with a keyhole**, with warm light leaking out from under it, so you know from the moment you see it that a locked vault waits and that the room's question opens it. The seal's emblem shows the **challenge**, never the reward: a shield (take no hit), an hourglass (be quick), crossed blades (staggered kills), or a puzzle's emblem.
+- **Walk in and the way shuts behind you:** the doorway grinds closed (solid to walking, sight and monsters' paths) with a slam and a banner: "The way behind you grinds shut. This room will not let you go until its question is answered."
+- **The question**, for now, is a **challenge room**: two or three waves of the tower's own monsters and one rule, shown on screen with the wave and the clock: **Untouched** (take no hit), **Swift** (beat every wave within the time given) or, from floor 4, **Staggered** (every foe must fall while staggered: parry it, then strike).
+- **Keep the rule** and beat the waves: the seal breaks, the vault opens, and so does the way out.
+- **Break the rule** and either the waves go on and the vault opens with a **lesser prize** at the end, or the tower sends its **champion**: a bigger, tougher version of one of its monsters (three and a half times the health, crowned, a gold aura, and a ground slam telegraphed by a closing ring: roll out of it). Its fall reopens the way, but the vault's seal goes dark for good; the champion leaves an essence crystal where it fell.
+- **You're never trapped:** every ending reopens the way out, and a question that drags on for four minutes gives up.
+- **For puzzles later:** a puzzle host can claim a wing (its slot is `wing["puzzle_slot"]`): `puzzle.gd` answers `wing_puzzle(wing)` with a puzzle type (and `wing_emblem(type)` with the seal's emblem), gets `start_wing_puzzle(wing)` when the climber walks in, and calls `main.wings.wing_solved(id)` or `main.wings.wing_failed(id)` (a failure sends the champion).
+
+**Vault rewards** are real things to walk up to: a **pedestal** in the alcove with a gold light over it. Walk up and choose one of its cards (like a camp's: keys 1 to 3, arrows and Enter, the d-pad and A, click or tap): two **essence crystals** of different kinds (the tower's own and another: a slight steer toward the next bond), and a piece of **gear** (the rarer of two), a **recall scroll** (only if you don't already carry one, and not on the first climb) or an **item**. A lesser prize is a smaller crystal and an item. The monsters wait while you choose.
+
+**Essence crystals** hold essence outside you and are **kept between climbs** (in your save). Consume one from the **Inventory** (I, or the Bag button on a phone: the Essence crystals row, then **Consume one**) to bank its essence into you at once, as at a stair: your marks grow, and it counts toward which bond your next mark becomes. Selling and crafting with them come later.
+
+**The recall scroll** (you carry one at most) shows with your items: make it your quick item (T, or the small arrow on a phone) and use it, or pick it in the Inventory and press **Read it**. It asks first; use it again within 3 seconds to read it. Reading it **leaves the tower safely, keeping everything**: your unbanked essence settles into essence crystals (one per kind) and this floor's soak is banked; there's no heirloom choice (the climb wasn't won), and you go on to the next climb's tower choice. Its words won't come on the bondless first climb.
+
+**Secret rooms.** Sometimes a kept cell holds a small room joined by a passage one tile wide whose first tile, in a spine room's wall, looks like any other wall. Until it opens, the passage and room are solid rock to sight, fog and paths. Its hints: **dust** drifting down near it now and then when you're close, a **hollow knock** when you strike it, and **Hunter's Keen Eyes** outline it. **Lean into it** (walk into it) for three quarters of a second and it grinds open; on a phone, push the stick into it. Inside: a hidden **essence cache** (more than a good room's, sometimes with gear), a choice of three **essence crystals**, or a **Tithe Door**: a pale door with an open hand carved on it, asking for unbanked essence (it says how much, never what it keeps). Lean on it to pay; the vault behind it holds a full vault's cards.
+
 ## What's in this build
 
 - **The base climber.** Started very clumsy; now a bit tougher: 140 health, quicker on its feet, faster stamina recovery, cheaper rolls, a slightly wider parry window, and a longer grace period after being hit so a crowd can't chain-hit you.
@@ -278,26 +307,6 @@ Solving lifts the ward ("THE WARD LIFTS"), opens the stair, and opens the room's
 - Is overdrawing tempting in a tight spot, and does the burn feel like a real cost?
 - Can you read every enemy attack before it lands?
 
-## Sealed wings, vaults and secrets
-
-Everything here is part of the Regard: the beast watches and tests, using what comes into the tower. Names, lines and numbers live in `scripts/wings.gd` (`TEXT`, `CONDITIONS`, `WAVES`, `REWARD`, `SECRET`) and `scripts/items.gd` (`RECALL`, `CRYSTAL`), so they're easy to change.
-
-**Sealed wings** (from floor 2; one a floor, two from floor 10). A room of 9-11 by 7-9 tiles is carved into each kept cell beside the spine, joined by a corridor to its spine room, behind a **sealed door** (a dark stone slab carved with a watching eye, red light under it). Cut into one of its walls is a 3x3 **vault alcove** behind a one-tile vault door drawn as a **pulsing gold seal with a keyhole**, with warm light leaking out from under it, so you know from the moment you see it that a locked vault waits and that the room's question opens it. The seal's emblem shows the **challenge**, never the reward: a shield (take no hit), an hourglass (be quick), crossed blades (staggered kills), or a puzzle's emblem.
-- **Walk in and the way shuts behind you:** the doorway grinds closed (solid to walking, sight and monsters' paths) with a slam and a banner: "The way behind you grinds shut. This room will not let you go until its question is answered."
-- **The question**, for now, is a **challenge room**: two or three waves of the tower's own monsters and one rule, shown on screen with the wave and the clock: **Untouched** (take no hit), **Swift** (beat every wave within the time given) or, from floor 4, **Staggered** (every foe must fall while staggered: parry it, then strike).
-- **Keep the rule** and beat the waves: the seal breaks, the vault opens, and so does the way out.
-- **Break the rule** and either the waves go on and the vault opens with a **lesser prize** at the end, or the tower sends its **champion**: a bigger, tougher version of one of its monsters (three and a half times the health, crowned, a gold aura, and a ground slam telegraphed by a closing ring: roll out of it). Its fall reopens the way, but the vault's seal goes dark for good; the champion leaves an essence crystal where it fell.
-- **You're never trapped:** every ending reopens the way out, and a question that drags on for four minutes gives up.
-- **For puzzles later:** a puzzle host can claim a wing (its slot is `wing["puzzle_slot"]`): `puzzle.gd` answers `wing_puzzle(wing)` with a puzzle type (and `wing_emblem(type)` with the seal's emblem), gets `start_wing_puzzle(wing)` when the climber walks in, and calls `main.wings.wing_solved(id)` or `main.wings.wing_failed(id)` (a failure sends the champion).
-
-**Vault rewards** are real things to walk up to: a **pedestal** in the alcove with a gold light over it. Walk up and choose one of its cards (like a camp's: keys 1 to 3, arrows and Enter, the d-pad and A, click or tap): two **essence crystals** of different kinds (the tower's own and another: a slight steer toward the next bond), and a piece of **gear** (the rarer of two), a **recall scroll** (only if you don't already carry one, and not on the first climb) or an **item**. A lesser prize is a smaller crystal and an item. The monsters wait while you choose.
-
-**Essence crystals** hold essence outside you and are **kept between climbs** (in your save). Consume one from the **Inventory** (I, or the Bag button on a phone: the Essence crystals row, then **Consume one**) to bank its essence into you at once, as at a stair: your marks grow, and it counts toward which bond your next mark becomes. Selling and crafting with them come later.
-
-**The recall scroll** (you carry one at most) shows with your items: make it your quick item (T, or the small arrow on a phone) and use it, or pick it in the Inventory and press **Read it**. It asks first; use it again within 3 seconds to read it. Reading it **leaves the tower safely, keeping everything**: your unbanked essence settles into essence crystals (one per kind) and this floor's soak is banked; there's no heirloom choice (the climb wasn't won), and you go on to the next climb's tower choice. Its words won't come on the bondless first climb.
-
-**Secret rooms.** Sometimes a kept cell holds a small room joined by a passage one tile wide whose first tile, in a spine room's wall, looks like any other wall. Until it opens, the passage and room are solid rock to sight, fog and paths. Its hints: **dust** drifting down near it now and then when you're close, a **hollow knock** when you strike it, and **Hunter's Keen Eyes** outline it. **Lean into it** (walk into it) for three quarters of a second and it grinds open; on a phone, push the stick into it. Inside: a hidden **essence cache** (more than a good room's, sometimes with gear), a choice of three **essence crystals**, or a **Tithe Door**: a pale door with an open hand carved on it, asking for unbanked essence (it says how much, never what it keeps). Lean on it to pay; the vault behind it holds a full vault's cards.
-
 ## Project layout
 
 | Path | What it is |
@@ -312,7 +321,7 @@ Everything here is part of the Regard: the beast watches and tests, using what c
 | `scripts/floors.gd` | Plans each floor: the grid, spine, branches and kept cells, corridors, doors, monster groups, toughness |
 | `scripts/rooms.gd` | The hand-made rooms, drawn as text grids, the carved shapes, and how they turn into walls, pillars, chasms and pools |
 | `scripts/themes.gd` | Room themes: names, one-line rules, tints, door looks, and the rules that hand them out |
-| `scripts/doors.gd` | Doors: solid until you walk up, styled to hint at the room behind |
+| `scripts/doors.gd` | Doors: solid until you walk up, styled to hint at the room behind; locked doors with their keys and levers; lock-in rooms |
 | `scripts/wings.gd` | Sealed wings (the seal, the shut doorway, the challenge waves, the champion), vault pedestals and their cards, secret rooms (dust, knock, lean, caches, Tithe Doors) |
 | `scripts/fog.gd` | Line-of-sight fog on floors of rooms (worked out up to 12 times a second; drawn by `lighting.gd`) |
 | `scripts/lighting.gd` | The darkness layer: one shader over the world, the light registry (`add_light`, flashes), the fog and the vignette |

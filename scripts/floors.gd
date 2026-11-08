@@ -379,9 +379,14 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 			hazard_rooms.append(i)
 		room_info.append({"rect": info["rect"], "role": info["role"], "theme": info["theme"], "shape": info["shape"],
 			"id": info["id"], "cell": info["cell"], "walk": info["walk"], "rows": info["rows"],
-			"parent": info["parent"], "ambush": info.get("ambush", [])})
+			"parent": info["parent"], "ambush": info.get("ambush", []), "gates": _gates(infos, i, wings)})
 	for k in wings + secrets:
 		safe_rooms.append(k["rect"])  # (no traps in a wing or a secret room: they hold their own tests)
+	# Some doors are locked, their key or lever elsewhere (see "locked doors" below).
+	var locks := _locks(infos, doors, monsters, wings, floor_num)
+	for l in locks:
+		if l.has("pos"):
+			doorways.append(Rect2(l["pos"] - Vector2(CELL, CELL) * 0.5, Vector2(CELL, CELL)))  # (traps keep clear of keys and levers)
 	var used := _used_grid(infos, wings, secrets)
 	var arena := Rect2(ORIGIN, Vector2(used.x * CELL_TILES.x, used.y * CELL_TILES.y) * CELL)
 	var plan := {"arena": arena, "grid": used, "rooms": rooms, "walk": walk,
@@ -389,7 +394,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		"chasms": chasms, "blocks": blocks, "pools": pools, "room_ids": ids, "puzzle": puzzle,
 		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors) + kept_posts,
 		"torches": _torches(infos) + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
-		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways}
+		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks}
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
@@ -1043,6 +1048,134 @@ static func _carve_one(infos: Array, keep: Dictionary, lim: Array, alcove: bool,
 		out["spawns"] = spawns
 		return out
 	return {}
+
+
+## --- locked doors and lock-in rooms ---------------------------------------------
+##
+## LOCKED DOORS: on floors from LOCKS["from"], a door or two is locked. Only
+## doors off the main route are (a branch room's, or a sealed wing's), so
+## the way to the stair never needs a key. What opens one is always found
+## on the main route (a spine room), so it can be reached without passing
+## the locked door:
+##   key      a key lying in a spine room;
+##   carried  a key carried by one of a spine room's monsters (it drops it);
+##   lever    a lever in a spine room: strike it;
+##   puzzle   solving the floor's puzzle.
+## Each lock is written on its door (plan["doors"], or a wing's "lock") as
+## lock (the kind), lock_id, and pos (a key's or lever's spot) or carrier
+## (an index into plan["monsters"]); plan["locks"] lists them all.
+## LOCK-IN ROOMS (doors.gd decides which): every room records its "gates",
+## the doorways in its own walls (two tiles each), so they can be shut
+## behind the climber.
+
+const LOCKS := {
+	"from": 3,  # the first floor with locked doors
+	"chance": 0.75,  # that a floor has one...
+	"second_from": 7,  # ...and from this floor, the chance of a second
+	"second": 0.4,
+	"kinds": {"key": 0.3, "carried": 0.25, "lever": 0.3, "puzzle": 0.15},
+}
+
+
+## The doorways in room `i`'s walls: its own (where its corridor arrives)
+## and those of the rooms and wings that hang off it, each as its tiles.
+static func _gates(infos: Array, i: int, wings: Array) -> Array:
+	var out: Array = []
+	var info: Dictionary = infos[i]
+	if info.has("link"):
+		out.append(info["link"]["door"].duplicate())
+	for j in infos.size():
+		var other: Dictionary = infos[j]
+		if j == i or int(other.get("parent", -1)) != i or not other.has("link"):
+			continue
+		var link: Dictionary = other["link"]
+		var cr: Rect2i = link["corridor"]
+		var tiles: Array = []
+		for t in link["door"]:
+			var m: Vector2i = t
+			match int(link["side_c"]):
+				2:
+					m.x = cr.position.x
+				3:
+					m.x = cr.end.x - 1
+				0:
+					m.y = cr.position.y
+				_:
+					m.y = cr.end.y - 1
+			tiles.append(m)
+		out.append(tiles)
+	for w in wings:
+		if int(w["parent"]) == i:
+			out.append(w["mouth"].duplicate())
+	return out
+
+
+static func _locks(infos: Array, doors: Array, monsters: Array, wings: Array, floor_num: int) -> Array:
+	var out: Array = []
+	if floor_num < int(LOCKS["from"]) or randf() >= float(LOCKS["chance"]):
+		return out
+	var count := 1
+	if floor_num >= int(LOCKS["second_from"]) and randf() < float(LOCKS["second"]):
+		count = 2
+	# What may be locked: branch rooms' doors, and wings' doors.
+	var cands: Array = []
+	for d in doors:
+		if infos[d["room"]]["role"] == "branch":
+			cands.append(d)
+	for w in wings:
+		cands.append(w)
+	cands.shuffle()
+	# Where keys and levers go: the main route (not the gallery, whose puzzle may fence it).
+	var hosts: Array = []
+	for i in infos.size():
+		if infos[i]["role"] in ["guard", "stair", "entrance"]:
+			hosts.append(i)
+	for c in cands.slice(0, count):
+		var kind := _weighted(LOCKS["kinds"])
+		var lock := {"kind": kind, "id": out.size() + 1}
+		if kind == "carried":
+			var carriers: Array = []
+			for m in monsters.size():
+				for h in hosts:
+					if infos[h]["rect"].has_point(monsters[m][1]) and h != 0:
+						carriers.append(m)
+			if carriers.is_empty():
+				kind = "key"
+				lock["kind"] = kind
+			else:
+				lock["carrier"] = carriers[randi() % carriers.size()]
+		if kind == "key" or kind == "lever":
+			var spot := _lock_spot(infos, hosts, monsters)
+			if spot == Vector2.INF:
+				kind = "puzzle"
+				lock["kind"] = kind
+			else:
+				lock["pos"] = spot
+		c["lock"] = kind
+		c["lock_id"] = lock["id"]
+		for k in ["pos", "carrier"]:
+			if lock.has(k):
+				c["lock_" + k] = lock[k]
+		lock["door"] = c.get("id", "room_%d" % int(c.get("room", -1)))
+		out.append(lock)
+	return out
+
+
+## A free spot for a key or lever in one of the host rooms (Vector2.INF if none).
+static func _lock_spot(infos: Array, hosts: Array, monsters: Array) -> Vector2:
+	var order: Array = hosts.duplicate()
+	order.shuffle()
+	order.sort_custom(func(a, b): return (a == 0) == false and b == 0)  # the start room last
+	for h in order:
+		var info: Dictionary = infos[h]
+		var tiles: Array = Rooms.open_tiles(info["rows"], 1).filter(func(t): return not info["reserved"].has(t))
+		tiles.shuffle()
+		for t in tiles:
+			var pos: Vector2 = info["rect"].position + (Vector2(t) + Vector2(0.5, 0.5)) * CELL
+			if monsters.all(func(m): return pos.distance_to(m[1]) > 50.0):
+				_reserve_box(info, t, 1)
+				return pos
+	return Vector2.INF
 
 
 ## The world rect around a few tiles.
