@@ -54,6 +54,12 @@ const THEMES := {
 		"tint": Color(0.6, 0.75, 1.0, 0.08), "door": "puzzle", "emblem": "mirror", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"puzzle_crumble": {"name": "Hall of Stones", "kind": "mixed", "sub": "Old stones that remember every step. Cross each one once.",
 		"tint": Color(1.0, 0.7, 0.45, 0.07), "door": "puzzle", "emblem": "stones", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_ice": {"name": "Ice Hall", "kind": "mixed", "sub": "A floor of ice, and rocks frozen into it. Once you're on it, you go where it takes you.",
+		"tint": Color(0.6, 0.8, 1.0, 0.08), "door": "puzzle", "emblem": "ice", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_lock": {"name": "Essence Lock", "kind": "mixed", "sub": "A lock that wants no key. Read its riddle: it asks for an essence.",
+		"tint": Color(0.85, 0.6, 1.0, 0.08), "door": "puzzle", "emblem": "lock", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_memory": {"name": "Hall of Pedestals", "kind": "mixed", "sub": "Pedestals, each with a sign. The order they want is kept elsewhere on this floor.",
+		"tint": Color(1.0, 0.8, 0.5, 0.07), "door": "puzzle", "emblem": "glyph", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"quiet": {"name": "Quiet Hall", "kind": "calm", "sub": "Dust and silence. Nothing stirs here.", "tint": Color(0, 0, 0, 0),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": ""},
 
@@ -119,7 +125,7 @@ const RULES := {
 }
 ## How often a room's doorway gets a door: likelier where danger waits.
 const DOOR_CHANCE := {"likely": 0.75, "else": 0.35}
-const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "crypt", "pillars"]
+const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "crypt", "pillars"]
 
 
 static func get_theme(id: String) -> Dictionary:

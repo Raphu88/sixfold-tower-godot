@@ -2089,6 +2089,9 @@ func _puzzle_tests() -> void:
 	await _statue_tests()
 	await _mirror_tests()
 	await _crumble_tests()
+	await _ice_tests()
+	await _essence_lock_tests()
+	await _memory_puzzle_tests()
 	main.dev_no_death = false
 
 
@@ -2380,6 +2383,277 @@ func _crumble_tests() -> void:
 	_check(pz.cur.stones.size() == 28 and pz.cur.holes.size() == 2, "floor 9: 6x5 stones, two holes")
 	await _puzzle_floor("crumble", 2)
 	_check(pz.cur.stones.size() == 15 and pz.cur.holes.is_empty(), "floor 2: 5x3 stones, no holes")
+	pz.clear()
+	main.ward = false
+
+
+const MOVE_KEYS := {Vector2i(1, 0): "move_right", Vector2i(-1, 0): "move_left", Vector2i(0, 1): "move_down", Vector2i(0, -1): "move_up"}
+
+
+## Holds a direction until the ice starts a slide, lets go, and waits for it to end.
+func _ice_slide(I, d: Vector2i) -> void:
+	var act: String = MOVE_KEYS[d]
+	Input.action_press(act)
+	var until := Time.get_ticks_msec() + 600
+	while I.slide_dir == Vector2i.ZERO and Time.get_ticks_msec() < until:
+		await physics_frame
+	Input.action_release(act)
+	until = Time.get_ticks_msec() + 3000
+	while I.slide_dir != Vector2i.ZERO and Time.get_ticks_msec() < until:
+		await physics_frame
+	for k in 4:
+		await physics_frame
+
+
+func _ice_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("ice", 2)
+	var I = pz.cur
+	_check(pz.kind == "ice" and pz.tier == 1 and I.need >= 2 and I.need <= 5 and not I.rocks.has(I.dais),
+		"an Ice Hall on floor 2: tier 1, its dais needs 2 to 5 slides (%d)" % I.need)
+	var plan_room: Rect2 = pz.room
+	_check(plan_room.encloses(I.field_rect()) and plan_room.grow(-38.0).encloses(I.field_rect()), "the ice fills the hall but for a ring of floor")
+	var route: Array = I.route(I.cols, I.rows_n, I.rocks, I.dais)
+	_check(route.size() - 1 == I.need, "the solver's shortest line of slides reaches the dais in %d" % I.need)
+	await _wait(0.4)  # (quiet: the dais wakes once no guard stands in the hall)
+	# Off the ice, you walk as ever; step on and you slide to a rock.
+	p.global_position = I.center(route[0])
+	await _frames(2)
+	_check(not I.on_ice(p.global_position) and not pz.steer(p, 0.016), "on the ring of floor you walk as usual")
+	await _ice_slide(I, route[1])
+	var first: Vector2i = I.slide_from(route[0], route[1], I.cols, I.rows_n, I.rocks)
+	_check(I.on_ice(p.global_position) and I.grid(p.global_position) == first and p.global_position.distance_to(I.center(first)) < 3.0,
+		"stepping onto the ice slides you along the grid until a rock stops you")
+	# No rolling or jumping on the ice.
+	p.sta = p.max_sta
+	_check(p._try_roll(Vector2.RIGHT) and p.roll_t <= 0.0 and p._try_jump(Vector2.RIGHT) and not p.in_air(), "no rolling or jumping on the ice")
+	# A blow sends you sliding the way it pushed.
+	var at: Vector2i = first
+	var push := Vector2i.ZERO
+	for d in I.DIRS:
+		var t: Vector2i = I.slide_from(at, d, I.cols, I.rows_n, I.rocks)
+		if t != at and t != I.EXIT and t != I.dais:
+			push = d
+			break
+	if push != Vector2i.ZERO:
+		p.knock = Vector2(push) * 200.0
+		for k in 2:
+			await physics_frame
+		_check(I.slide_dir == push, "a blow on the ice starts a slide the way it pushed")
+		var until := Time.get_ticks_msec() + 3000
+		while I.slide_dir != Vector2i.ZERO and Time.get_ticks_msec() < until:
+			await physics_frame
+		await _frames(2)
+	# Sliding off the edge puts you back on the floor (the way back to the start).
+	at = I.grid(p.global_position)
+	var off: Array = I.way_off(I.cols, I.rows_n, I.rocks, at)
+	_check(not off.is_empty(), "from wherever you stop, some line of slides leads off the ice")
+	off = I.way_off(I.cols, I.rows_n, I.rocks, at, I.dais)  # (one that doesn't stop on the dais)
+	if not off.is_empty() and at != I.dais:
+		for d in off:
+			await _ice_slide(I, d)
+		_check(not I.on_ice(p.global_position) and pz.room.has_point(p.global_position) and not pz.solved, "sliding off the edge leaves you on the floor, to try again")
+	# A monster in your lane stops you short, on a tile.
+	p.global_position = I.center(route[0])
+	await _frames(2)
+	var lane: Array = []
+	var t0: Vector2i = route[0] + route[1]
+	while I.in_field(t0) and not I.rocks.has(t0):
+		lane.append(t0)
+		t0 += route[1]
+	if lane.size() >= 3:
+		var foe = await _spawn("knight", I.center(lane[2]))
+		foe.weight = 1000.0  # (a sliding climber shoves light monsters along)
+		await _ice_slide(I, route[1])
+		await _wait(0.15)
+		var g: Vector2i = I.grid(p.global_position)
+		_check(I.on_ice(p.global_position) and g in [lane[0], lane[1]] and p.global_position.distance_to(I.center(g)) < 4.0,
+			"a monster in your lane stops you short, on the middle of a tile")
+		foe.queue_free()
+		main.foes_changed()
+		await _frames(2)
+	# The solver's line of slides, from the floor: solved.
+	p.global_position = I.center(route[0])
+	await _frames(2)
+	for i in range(1, route.size()):
+		await _ice_slide(I, route[i])
+	await _wait(0.1)
+	_check(pz.solved and main.stair_open and not main.ward, "the solver's slides, keyed in, end on the dais: solved, the ward lifts")
+	# Higher up the dais needs more slides.
+	await _puzzle_floor("ice", 9)
+	_check(pz.cur.need >= 4, "floor 9: the dais needs at least 4 slides (%d)" % pz.cur.need)
+	pz.clear()
+	main.ward = false
+
+
+## Waits (in physics ticks) until `cond` holds, at most `seconds`.
+func _until(cond: Callable, seconds: float) -> void:
+	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while not cond.call() and Time.get_ticks_msec() < until:
+		await physics_frame
+
+
+func _essence_lock_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	var E = load("res://scripts/essence.gd")
+	await _puzzle_floor("lock", 3)
+	var L = pz.cur
+	var a: String = L.answers[0] if not L.answers.is_empty() else ""
+	_check(pz.kind == "lock" and pz.tier == 1 and L.answers.size() == 1 and L.decoys.size() == 2 and not (a in L.decoys)
+		and E.KINDS.has(a) and L.riddles[0] in L.RIDDLES[a], "an Essence Lock on floor 3: a riddle for one essence, two decoys")
+	await _wait(0.35)  # (quiet: it wakes once no guard stands in the room)
+	# Well inside, foes appear glowing in the answer and the decoys.
+	p.global_position = pz.room.get_center() + Vector2(0, 60)
+	await _until(func(): return L.spawned, 1.0)
+	var kinds: Array = L.glowing.map(func(g): return g["kind"])
+	kinds.sort()
+	var want: Array = L.answers + L.decoys
+	want.sort()
+	_check(L.glowing.size() == 3 and kinds == want, "well inside, three foes appear, glowing in the answer and the decoys")
+	# A slain decoy leaves a spark; carried to the lock, it brings the hunters.
+	var decoy: Dictionary = L.glowing.filter(func(g): return g["kind"] != a)[0]
+	decoy["e"].set_physics_process(false)
+	_slay(decoy["e"])
+	await _until(func(): return not L.sparks.is_empty(), 1.0)
+	_check(L.sparks.size() == 1 and L.sparks[0]["kind"] == decoy["kind"], "a slain glowing foe leaves a spark of its essence")
+	p.global_position = L.sparks[0]["pos"]
+	await _until(func(): return L.carried != "", 0.5)
+	_check(L.carried == decoy["kind"] and L.sparks.is_empty(), "walking over a spark carries it")
+	p.global_position = L.lock + Vector2(0, 34)
+	await _until(func(): return pz.locked, 0.5)
+	_check(pz.locked and not pz.ambushers.is_empty() and not pz.solved and L.carried == "", "the wrong spark at the lock: the beast sends hunters")
+	for e in pz.ambushers:
+		_slay(e)
+	await _until(func(): return not pz.locked, 1.0)
+	_check(not pz.locked and L.step == 0 and not L.spawned and L.glowing.is_empty() and L.answers.size() == 1, "the hunters beaten, the lock asks anew (the old glow crumbles)")
+	# The right spark opens it.
+	p.global_position = pz.room.get_center() + Vector2(0, 60)
+	await _until(func(): return L.spawned, 1.0)
+	a = L.answers[0]
+	var right: Array = L.glowing.filter(func(g): return g["kind"] == a)
+	_check(right.size() == 1, "...with new glowing foes")
+	if right.size() == 1:
+		_slay(right[0]["e"])
+		await _until(func(): return not L.sparks.is_empty(), 1.0)
+		p.global_position = L.sparks[0]["pos"]
+		await _until(func(): return L.carried != "", 0.5)
+		p.global_position = L.lock + Vector2(0, 34)
+		await _until(func(): return pz.solved, 0.5)
+	_check(pz.solved and main.stair_open and not main.ward, "the right spark at the lock: solved, the ward lifts")
+	await _clear_foes()
+	# Higher up: two or three essences, in order. A spell from a mark of the
+	# right essence answers at once; a wrong one only doesn't answer.
+	await _puzzle_floor("lock", 9)
+	L = pz.cur
+	_check(L.answers.size() >= 2 and L.answers.size() <= 3 and L.decoys.size() == 2 and L.riddles.size() == L.answers.size(),
+		"floor 9: the lock wants %d essences, in order" % L.answers.size())
+	await _wait(0.35)
+	var B = load("res://scripts/bonds.gd")
+	var bond_of := func(k: String) -> String:
+		for id in B.BONDS:
+			if B.BONDS[id]["affinity"] == k:
+				return id
+		return ""
+	p.global_position = L.lock + Vector2(0, 40)
+	var wrong: String = L.decoys[0]
+	_check(not pz.offer(wrong, p.global_position, "item") and L.step == 0 and not pz.locked, "an item of the wrong essence doesn't answer (and brings no hunters)")
+	var id: String = bond_of.call(L.answers[0])
+	_mark("hand", id, 1)
+	p.bonds["hand"].essence = 999.0
+	p.attack_cd = 0.0
+	p._try_cast("hand")
+	await _until(func(): return L.step >= 1, 2.0)
+	_check(L.step == 1, "a spell from a mark of the first essence (%s), cast beside the lock, answers it" % id)
+	main.dev_set_mark("hand", "", 1)
+	# An item of the next essence, used there, answers the next.
+	var item := ""
+	for it in main.Items.ORDER:
+		if main.Items.ITEMS[it].get("kind", "") == L.answers[1]:
+			item = it
+			break
+	p.items[item] = 1
+	p.hp = p.max_health() * 0.5  # (so a healing item has work to do)
+	p.item_sel = item
+	p.use_item()
+	_check(L.step == 2, "an item of the next essence (%s), used beside it, answers the next" % item)
+	# A strike from a weapon of the essence answers too (the Cinder Axe is Fire).
+	var G = load("res://scripts/gear.gd")
+	var old_melee = p.gear["melee"]
+	var old_weapon: String = p.weapon
+	p.gear["melee"] = G.make_named("cinder_axe")
+	p.weapon = G.base_id(p.gear["melee"])
+	var fire_ok: bool = "fire" in L.weapon_kinds()
+	if L.step < L.answers.size():
+		L.answers[L.step] = "fire"  # (the test's own riddle, for this one)
+		var before: int = L.step
+		pz.strike(p.global_position, (L.lock - p.global_position).normalized(), 80.0, 60.0)
+		fire_ok = fire_ok and L.step == before + 1
+	_check(fire_ok, "a strike on the lock from a weapon of the essence asked for answers it")
+	p.gear["melee"] = old_melee
+	p.weapon = old_weapon
+	while L.step < L.answers.size():
+		pz.offer(L.answers[L.step], L.lock, "bond")
+	_check(pz.solved, "every essence given, in order: solved")
+	await _clear_foes()
+	pz.clear()
+	main.ward = false
+
+
+func _memory_puzzle_tests() -> void:
+	var p = main.player
+	var pz = main.puzzle
+	await _puzzle_floor("memory", 3)
+	var M = pz.cur
+	var signs: Array = M.pedestals.map(func(q): return q["sign"])
+	_check(pz.kind == "memory" and pz.tier == 1 and M.pedestals.size() == 3 and M.order.size() == 3 and M.murals.size() == 3
+		and M.order.all(func(sg): return sg in signs), "a Hall of Pedestals on floor 3: three pedestals, three signs to order, three murals")
+	var rooms_used := {}
+	var ok_m := true
+	for i in M.murals.size():
+		var m: Dictionary = M.murals[i]
+		rooms_used[m["room"]] = true
+		ok_m = ok_m and m["room"] != pz.room and m["n"] == i + 1 and m["sign"] == M.order[i] and main.is_solid(m["pos"]) and not main.is_solid(m["pos"] + Vector2(0, 30))
+	_check(ok_m and rooms_used.size() == 3, "each mural is set in the north wall of a different room (never the hall), numbering a sign")
+	_check(M.found() == 0, "no mural seen yet")
+	await _wait(0.35)  # (quiet: the pedestals wake once no guard stands in the hall)
+	# Walking into a mural's room notices it; the hall's panel counts them.
+	for m in M.murals:
+		p.global_position = m["pos"] + Vector2(0, 60)
+		await _until(func(): return m["seen"], 0.5)
+	_check(M.found() == 3, "walking up to each mural notices it (%d of 3)" % M.found())
+	p.global_position = pz.room.get_center() + Vector2(0, 80)
+	await _frames(2)
+	var panel: Array = M.panels()
+	_check(not panel.is_empty() and (M.TEXT["found"] % [3, 3]) in panel[0]["lines"], "the hall's panel counts the murals found")
+	var ped_of := func(sg: String) -> Dictionary:
+		for q in M.pedestals:
+			if q["sign"] == sg:
+				return q
+		return {}
+	# The wrong pedestal first: dark, and hunters.
+	var wrong: Dictionary = ped_of.call(M.order[1])
+	_check(pz.shot(wrong["pos"]) and pz.locked and not pz.ambushers.is_empty() and M.lit_n == 0, "lighting a pedestal out of order brings hunters (an arrow stops at a pedestal)")
+	for e in pz.ambushers:
+		_slay(e)
+	await _until(func(): return not pz.locked, 1.0)
+	_check(not pz.locked and M.lit_n == 0, "the hunters beaten, the pedestals can be tried again")
+	# A strike lights the one beside you; then the rest in the murals' order.
+	var first: Dictionary = ped_of.call(M.order[0])
+	p.global_position = first["pos"] + Vector2(0, 34)
+	await _frames(2)
+	_check(pz.strike(p.global_position, Vector2.UP, 60.0, 60.0) == 1 and first["lit"] and M.lit_n == 1, "a strike lights the pedestal in front of you")
+	for k in range(1, M.order.size()):
+		pz.shot(ped_of.call(M.order[k])["pos"])
+	_check(pz.solved and main.stair_open and not main.ward, "lit in the murals' order: solved, the ward lifts")
+	# Higher up: four signs, then a fifth pedestal no mural shows.
+	await _puzzle_floor("memory", 5)
+	_check(pz.cur.order.size() == 4 and pz.cur.pedestals.size() == 4 and pz.cur.murals.size() == 4, "floor 5: four signs and four murals")
+	await _puzzle_floor("memory", 9)
+	M = pz.cur
+	var extra: Array = M.pedestals.filter(func(q): return not (q["sign"] in M.order))
+	_check(M.order.size() == 4 and M.pedestals.size() == 5 and extra.size() == 1, "floor 9: four murals and a fifth pedestal whose sign no mural shows")
 	pz.clear()
 	main.ward = false
 

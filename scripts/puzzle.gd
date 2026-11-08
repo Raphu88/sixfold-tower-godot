@@ -334,6 +334,7 @@ func _physics_process(delta: float) -> void:
 		_redraw_if_changed()
 		return
 	var inside: bool = room.has_point(main.player.global_position)
+	cur.watch(delta)
 	if locked:
 		lock_t += delta
 		ambushers = _alive(ambushers)
@@ -492,6 +493,31 @@ func aim_point(from: Vector2, reach: float) -> Vector2:
 			best_d = d
 			best = at
 	return best
+
+
+## The climber's movement, if the puzzle takes it over this frame (the Ice
+## Hall's slide): player.gd asks every frame; true means velocity is set.
+func steer(p, delta: float) -> bool:
+	if cur == null:
+		return false
+	return cur.steer(p, delta)
+
+
+## Whether the climber can't roll (or, with `leap`, jump) here (the Ice
+## Hall); says why when so.
+func no_footing(pos: Vector2, leap: bool) -> bool:
+	if cur == null or not cur.no_footing(pos, leap):
+		return false
+	cur.footing_note(pos)
+	return true
+
+
+## An essence offered near the puzzle: a bond's spell ("bond") or an item
+## ("item") of essence `essence_kind` (the Essence Lock answers to it).
+func offer(essence_kind: String, pos: Vector2, how: String) -> bool:
+	if cur == null or solved or locked or not awake:
+		return false
+	return cur.offer(essence_kind, pos, how)
 
 
 ## The puzzle's lights for this frame (lighting.gd): [[pos, reach, colour, strength, glow]].

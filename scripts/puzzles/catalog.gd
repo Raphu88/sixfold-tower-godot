@@ -9,12 +9,15 @@ const TYPES := {
 	"statues": preload("res://scripts/puzzles/statues.gd"),
 	"mirrors": preload("res://scripts/puzzles/mirrors.gd"),
 	"crumble": preload("res://scripts/puzzles/crumble.gd"),
+	"ice": preload("res://scripts/puzzles/ice.gd"),
+	"lock": preload("res://scripts/puzzles/lock.gd"),
+	"memory": preload("res://scripts/puzzles/memory.gd"),
 }
 ## Kinds built into a hand-made room (rooms.gd); the rest make their own
 ## layout in a plain carved room.
 const PREFAB := ["eyes", "plates"]
 ## Each tower's favourite test, and how often a floor there gets it.
-const SIGNATURE := {"gryphon": "mirrors", "wyvern": "crumble", "manticore": "statues"}
+const SIGNATURE := {"gryphon": "mirrors", "kraken": "ice", "wyvern": "crumble", "manticore": "statues", "firebird": "memory", "chimera": "lock"}
 const SIGNATURE_CHANCE := 0.5
 ## Tiers by floor: [up to floor, tier]. Difficulty rises within a climb.
 const TIERS := [[3, 1], [8, 2], [99, 3]]
@@ -22,7 +25,8 @@ const TIERS := [[3, 1], [8, 2], [99, 3]]
 ## you think); below it, QUIET mode (it wakes once its guards are dead).
 const PRESSURE_FROM := 7
 ## A carved gallery's size for the kinds that lay themselves out, in tiles:
-## [min width, max width, min height, max height].
+## [min width, max width, min height, max height], and its shapes. A kind
+## may have its own (ROOM_SIZE / ROOM_SHAPES in its script: room_for).
 const ROOM_SIZE := [11, 13, 9, 11]
 const ROOM_SHAPES := ["rect", "rect", "round"]
 
@@ -49,6 +53,12 @@ static func pick(floor_num: int, tid: String) -> String:
 		return SIGNATURE[tid]
 	var kinds: Array = TYPES.keys()
 	return kinds[randi() % kinds.size()]
+
+
+## A carved gallery for `kind`: [size limits, shapes] (its own, or the usual).
+static func room_for(kind: String) -> Array:
+	var consts: Dictionary = TYPES[kind].get_script_constant_map() if TYPES.has(kind) else {}
+	return [consts.get("ROOM_SIZE", ROOM_SIZE), consts.get("ROOM_SHAPES", ROOM_SHAPES)]
 
 
 ## A test's name in a tower (some towers call theirs something else).
@@ -81,4 +91,13 @@ static func make(kind: String, info: Dictionary, features: Dictionary, floor_num
 	spec["tower"] = tid
 	spec["name"] = display_name(kind, tid)
 	spec["entrances"] = entrances
+	return spec
+
+
+## What a test still needs once the whole floor is laid out (the Hall of
+## Pedestals' murals go in other rooms): the spec, finished, or {} if it
+## can't be (then the floor is planned again). See floors.gd.
+static func finish(spec: Dictionary, infos: Array, gi: int, torches: Array, doors: Array) -> Dictionary:
+	if String(spec.get("type", "")) == "memory":
+		return TYPES["memory"].place_murals(spec, infos, gi, torches, doors)
 	return spec
