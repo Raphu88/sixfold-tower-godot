@@ -6996,7 +6996,13 @@ func _lock_tests() -> void:
 		await _frames(1)
 		for i in main.door_view.lock_rooms:
 			var rect: Rect2 = main.room_info[i]["rect"]
-			if main.enemies().any(func(e): return rect.grow(-40.0).has_point(e.global_position)):
+			# (A monster standing in a doorway keeps it from shutting, rightly;
+			# and a room you start in was entered long ago.)
+			var gates_clear := true
+			for g in main.door_view.lock_rooms[i]["gates"]:
+				var gr: Rect2 = main.door_view._tiles_rect(g).grow(40.0)
+				gates_clear = gates_clear and not main.enemies().any(func(e): return gr.has_point(e.global_position))
+			if gates_clear and not rect.grow(40.0).has_point(main.player_start) and main.enemies().any(func(e): return rect.grow(-40.0).has_point(e.global_position)):
 				li = i
 				break
 		if li >= 0:
@@ -7010,7 +7016,8 @@ func _lock_tests() -> void:
 			e.set_physics_process(false)
 		main.banner = {}
 		p.global_position = rect.get_center()
-		await _frames(4)
+		await _until(func(): return lr["state"] == "shut", 2.0)
+		await _frames(2)
 		var gate: Vector2 = main.door_view._tiles_rect(lr["gates"][0]).get_center()
 		_check(lr["state"] == "shut" and main.is_solid(gate) and main.astar.is_point_solid(lr["gates"][0][0]), "stepping in shuts its doorways (solid, on the path grid)")
 		_check(main.banner.get("title", "") == main.door_view.LOCK_TEXT["shut_title"] and not main.door_view.lock_status().is_empty(), "...with a slam, a banner and the foes left on screen")
