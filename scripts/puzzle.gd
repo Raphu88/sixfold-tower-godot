@@ -602,6 +602,8 @@ func _draw_over() -> void:
 func _draw_labels() -> void:
 	if cur == null or solved or not _near():
 		return
+	if not main.banner.is_empty():
+		return  # (a banner's big title would sit on top of it: wait till it fades)
 	var list: Array = []
 	if locked:
 		list.append({"pos": room.get_center(), "lines": [TEXT["locked"]], "tone": "bad"})
