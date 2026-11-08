@@ -1683,7 +1683,11 @@ func read_recall() -> void:
 	profile.bank({}, run_soak)
 	run_essence = {}
 	run_soak = {}
-	var flow_lines := _bank_flow()  # (the flow can't be a crystal: it's banked)
+	# The flow you carried is lost (the owner's call): a scroll keeps crystals, not the flow.
+	var flow_lines: Array = []
+	if run_flow >= 1.0 and profile.path != "":
+		flow_lines.append(Secret.TEXT["lost"] % Secret.display(profile.path))
+	run_flow = 0.0
 	profile.save()
 	var lines: Array = [Items.RECALL["crystals"] % ", ".join(made) if not made.is_empty() else Items.RECALL["none"]]
 	lines.append_array(flow_lines)

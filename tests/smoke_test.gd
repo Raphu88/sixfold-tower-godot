@@ -8888,3 +8888,12 @@ func _secret_tests() -> void:
 	prof.save_path = prof.SAVE_PATH
 	main.reset_path()
 	main.secret_on = false
+
+	# A recall scroll keeps crystals, but the flow you carried is lost.
+	var banked_before: float = main.profile.flow
+	main.run_flow = 7.0
+	main.read_recall()
+	_check(main.run_flow == 0.0 and is_equal_approx(main.profile.flow, banked_before), "a recall scroll loses the flow you carried (what's banked stays)")
+	main.victory = {}
+
+

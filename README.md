@@ -385,7 +385,7 @@ Two essences aren't like the six (`scripts/secret.gd`, where every word and numb
 
 **Only your path's essence soaks in.** The other still rises from great foes and visibly streaks through you and out the far side, unbanked (a vessel that captures it comes later: `main.gd vessel_takes()` is its hook).
 
-**The flow.** Your path's essence never settles in a body part, never takes a mark and never pushes out a bond. It's one measure, the flow: carried unbanked during the climb (half of it stays when the Proving casts you down; a fall loses it; a recall scroll banks it) and banked at the stair. Banked flow reaches **steps at 25, 75, 150 and 300**, each a real change in play:
+**The flow.** Your path's essence never settles in a body part, never takes a mark and never pushes out a bond. It's one measure, the flow: carried unbanked during the climb (half of it stays when the Proving casts you down; a fall or a recall scroll loses it) and banked at the stair. Banked flow reaches **steps at 25, 75, 150 and 300**, each a real change in play:
 
 | Step | Life | Unmaking |
 | --- | --- | --- |
