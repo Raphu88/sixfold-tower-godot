@@ -209,8 +209,11 @@ func slide(b: Dictionary, dir: Vector2) -> bool:
 	b["pos"] = to
 	_set_solid(Rect2(to - Vector2(19, 19), Vector2(38, 38)), true)
 	var body: StaticBody2D = b["body"]
+	if b.get("tween") != null and b["tween"].is_valid():
+		b["tween"].kill()
 	var tw := body.create_tween()
 	tw.tween_property(body, "position", to, 0.14)
+	b["tween"] = tw
 	main.sfx("slam", 0.9, -10.0)
 	main.shake(1.5)
 	return true
@@ -327,6 +330,8 @@ func _pull(l: Dictionary) -> void:
 		if b["pos"] == b["home"]:
 			continue
 		_set_solid(Rect2(b["pos"] - Vector2(19, 19), Vector2(38, 38)), false)
+		if b.get("tween") != null and b["tween"].is_valid():
+			b["tween"].kill()  # (a slide still under way)
 		b["pos"] = b["home"]
 		b["body"].position = b["home"]
 		_set_solid(Rect2(b["home"] - Vector2(19, 19), Vector2(38, 38)), true)
