@@ -304,9 +304,18 @@ func _ready() -> void:
 		menu.open.call_deferred("title")
 
 
+## A wall body of the last floor: it stops colliding at once (a freed body
+## lingers until the frame ends, and would shove the new floor's monsters).
+func _drop_body(b) -> void:
+	if is_instance_valid(b):
+		b.collision_layer = 0
+		b.collision_mask = 0
+		b.queue_free()
+
+
 func _build_walls() -> void:
 	for b in outer_walls:
-		b.queue_free()
+		_drop_body(b)
 	outer_walls.clear()
 	var r := room
 	var sides := [
@@ -351,7 +360,7 @@ func _set_arena(r: Rect2) -> void:
 ## would cut `start` off from one of the `targets` is left out.
 func _build_layout(walk: Array, blocks: Array = [], start := Vector2.ZERO, targets: Array = []) -> void:
 	for b in layout_bodies:
-		b.queue_free()
+		_drop_body(b)
 	layout_bodies.clear()
 	layout_blocks = []
 	layout_on = not walk.is_empty()
@@ -512,6 +521,34 @@ func walkable_point(from: Vector2, to: Vector2, margin := 12.0) -> Vector2:
 		if not is_solid(p) and not is_solid(p + Vector2(margin, 0)) and not is_solid(p - Vector2(margin, 0)) and not is_solid(p + Vector2(0, margin)) and not is_solid(p - Vector2(0, margin)):
 			return p
 	return from
+
+
+## A spot near pos where a body of radius r stands clear of walls and of
+## the given spots (bodies placed on a wall's edge, or on top of each other,
+## get shoved apart, sometimes into the wall).
+func clear_spot(pos: Vector2, r: float, others: Array = []) -> Vector2:
+	if not layout_on or _clear_around(pos, r, others):
+		return pos
+	var inside := is_solid(pos)  # (from inside a wall, any clear spot near will do)
+	for ring in range(1, 11):
+		var d := ring * 8.0
+		for k in 12:
+			var q := pos + Vector2.from_angle(k * TAU / 12.0 + ring) * d
+			if _clear_around(q, r, others) and (inside or clear_line(pos, q)):
+				return q
+	return pos
+
+
+func _clear_around(p: Vector2, r: float, others: Array = []) -> bool:
+	if is_solid(p):
+		return false
+	for o in others:
+		if p.distance_to(o) < r * 2.0 + 6.0:
+			return false
+	for k in 8:
+		if is_solid(p + Vector2.from_angle(k * TAU / 8.0) * (r + 2.0)):
+			return false
+	return true
 
 
 ## A clear line with room on either side (a body's width).
@@ -745,8 +782,13 @@ func _separate_bodies() -> void:
 			var n := d / dist if dist > 0.01 else Vector2.from_angle(randf() * TAU)
 			var overlap := min_d - dist
 			var share: float = b.weight / (a.weight + b.weight)  # a's part of the push
-			a.move_and_collide(-n * overlap * share)
-			b.move_and_collide(n * overlap * (1.0 - share))
+			# (Never into a wall: walls built this frame don't stop a body yet.)
+			var da: Vector2 = -n * overlap * share
+			var db: Vector2 = n * overlap * (1.0 - share)
+			if not is_solid(a.global_position + da + da.normalized() * a.radius * 0.5):
+				a.move_and_collide(da)
+			if not is_solid(b.global_position + db + db.normalized() * b.radius * 0.5):
+				b.move_and_collide(db)
 
 
 # --- the climb -------------------------------------------------------------
@@ -796,7 +838,7 @@ func _start_floor(n: int) -> void:
 		player.ember_t = 0.0  # (and a Last Ember never follows you up the stair)
 	track_t = 0.0
 	for b in pillar_bodies:
-		b.queue_free()
+		_drop_body(b)
 	pillar_bodies.clear()
 	item_drops.clear()
 	gear_drops.clear()
@@ -915,7 +957,7 @@ func _start_floor(n: int) -> void:
 		e.max_hp *= tough.x
 		e.hp = e.max_hp
 		e.dmg *= tough.y
-		e.position = m[1]
+		e.position = clear_spot(m[1], e.radius, spawned.map(func(o): return o.position))
 		e.aware = not layout_on  # in rooms, monsters wait until they see you
 		add_child(e)
 		spawned.append(e)
@@ -2074,7 +2116,7 @@ func spawn_enemy(kind: String, pos: Vector2):
 	e.max_hp *= tough.x
 	e.hp = e.max_hp
 	e.dmg *= tough.y
-	e.position = pos
+	e.position = clear_spot(pos, e.radius, enemies().map(func(o): return o.global_position))
 	e.state_t = 0.4
 	add_child(e)
 	return e
@@ -2336,7 +2378,7 @@ func _update_flames(delta: float) -> void:
 ## them on layer 16); fliers cross; the climber falls in unless jumping.
 func set_chasms(list: Array) -> void:
 	for b in chasm_bodies:
-		b.queue_free()
+		_drop_body(b)
 	chasm_bodies.clear()
 	chasms = list
 	for r in chasms:
