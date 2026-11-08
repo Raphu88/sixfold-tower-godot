@@ -57,6 +57,9 @@ var pending_weapon := ""
 ## cloak, amulet, two rings and a backpack. Kept on the player, so a new
 ## climb (a scene reload) starts afresh.
 var gear := Gear.start_gear()
+## Spare pieces carried besides what you wear (gear records), up to
+## pack_size(). They come home to the train if you survive.
+var pack: Array = []
 ## What the worn pieces add up to (Gear.total_effects), kept up to date by
 ## refresh_gear() whenever gear changes.
 var gear_fx := {}
@@ -313,6 +316,16 @@ func once_a_floor(key: String) -> bool:
 ## How many kinds of item the belt holds (a Belt Pouch or a Climber's Pack adds one).
 func belt_kinds() -> int:
 	return Items.BELT_KINDS + int(gfx("belt"))
+
+
+## How many spare pieces your pack holds (a Climber's Pack holds more).
+func pack_size() -> int:
+	return Gear.PACK_SIZE + int(gfx("pack"))
+
+
+## True if your pack has room for another piece.
+func pack_room() -> bool:
+	return pack.size() < pack_size()
 
 
 ## Why an item can't be taken: "" if it can, "stack" if you carry as many

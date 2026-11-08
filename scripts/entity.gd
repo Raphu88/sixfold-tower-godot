@@ -78,6 +78,13 @@ const LINES := {
 		"What you've met, I've written down. The rest waits.",
 	],
 	"replay": ["Very well. I'll tell you again."],
+	# The train, between climbs.
+	"train": [
+		"The train waits. It always does.",
+		"Rest. The towers aren't going anywhere.",
+		"Your car is as you left it. I checked.",
+		"Steam and brass. You'd think it was going somewhere.",
+	],
 	"tips_off": ["As you wish. I'll still be watching."],
 	"tips_on": ["Then I'll speak up."],
 }
@@ -89,6 +96,7 @@ const GROUPS := [
 	["tower", "The tower"],
 	["tests", "Puzzles and traps"],
 	["gear", "Gear and items"],
+	["train", "The train"],
 	["screens", "Screens"],
 ]
 
@@ -236,6 +244,16 @@ const TIPS := {
 	"item_ring": {"group": "gear", "name": "The item ring",
 		"tip": "Hold {item} to see your whole belt. Point, let go, and it's used.",
 		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens while time slows: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
+	# --- the train ---
+	"train": {"group": "train", "name": "The train",
+		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. Depart when you're ready.",
+		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Its cars are tabs ({tabs} switch them): your car (your heirlooms and a storage chest), the store car (the outfitter's supplies, an outfit, today's piece, and selling), the workshop car (its bench comes later) and Depart, where you choose the next tower. Your crystals sit along the bottom."},
+	"store": {"group": "train", "name": "The store",
+		"tip": "The outfitter buys what climbers bring down and sells to the next ones up. He takes crystals. Nothing else.",
+		"more": "Essence crystals are the only money. Every price is in one kind of essence; the outfitter takes your smallest crystals of that kind first, and gives the rest back as one new crystal. Supplies are packed onto your belt for your next climb (put one back for its full price before you go). Outfit is a rack of Common pieces, new every visit, and Today's piece is one finer piece. Sell turns a piece from your pack or chest into a crystal of its kind, at 40% of its price. A price you can't pay says how much more you need."},
+	"chest": {"group": "train", "name": "Your pack and chest",
+		"tip": "Your chest keeps things safe between climbs. Your pack goes up with you, and falls with you.",
+		"more": "Besides what you wear you carry a pack of four spare pieces (a Climber's Pack holds two more). Swap gear in the tower and your old piece goes in your pack while there's room. Survive a climb, or read a recall scroll, and your pack comes down to the train: sell what you don't want, or keep it in the storage chest in your car (eight spaces), safe between climbs. When you depart, your pack comes with you, and any piece whose slot is free you wear at once. Fall, and your pack is lost."},
 	# --- screens ---
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",
@@ -268,6 +286,7 @@ const KEYS := {
 	"menu": ["Esc", "{start}", "Menu"],
 	"restart": ["hold R", "hold {back}", "Menu, then Restart"],
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
+	"tabs": ["Q and E", "{lb} and {rb}", "a tap on a tab"],
 }
 
 ## The Entity's colours (the interface's other colours are in ui.gd).
