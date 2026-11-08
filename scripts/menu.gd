@@ -381,8 +381,8 @@ func open(which: String, direct := false) -> void:
 		c.get_parent().remove_child(c)
 		c.queue_free()
 	details = null
-	if keep < 0:
-		scroll.scroll_vertical = 0
+	if keep < 0 or which == "mark":
+		scroll.scroll_vertical = 0  # (another mark starts at its top)
 	call("_page_" + which)
 	_layout()
 	# Keyboard and controller: start on the first button (or slider), or the

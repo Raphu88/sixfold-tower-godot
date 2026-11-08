@@ -4017,8 +4017,9 @@ func _mark_page_tests() -> void:
 	_check(rich.any(func(t): return t.contains("Cost 12 essence") and t.contains("Wind-up 0.45 s")), "...the cost and wind-up of each spell")
 	_check(rich.any(func(t): return t.contains("Step 3:") and t.contains("leaps 2 more times")), "...and what later steps change")
 	_check(_menu_button("Back") != null, "...with Back")
+	menu.scroll.scroll_vertical = 200
 	await _key_tap(KEY_E)
-	_check(menu.page == "mark" and menu.mark_part != "hand", "E shows the next mark")
+	_check(menu.page == "mark" and menu.mark_part != "hand" and menu.scroll.scroll_vertical == 0, "E shows the next mark, from its top")
 	await _key_tap(KEY_Q)
 	_check(menu.mark_part == "hand", "...and Q the one before")
 	await _key_tap(KEY_ESCAPE)
