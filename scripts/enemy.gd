@@ -874,7 +874,7 @@ func _cinder(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 210.0 and main.request_attack(self):
 				_begin_wind("wind_spit", 0.6)
-				main.sfx("warn_archer", 1.4, -4.0)
+				main.sfx("warn_archer", 1.0, -4.0)
 			elif dist < 140.0:
 				velocity = -dir * speed  # keeps its distance
 			else:
@@ -1005,7 +1005,7 @@ func _scorpling(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 60.0 and main.request_attack(self):
 				_begin_wind("wind_sting", 0.5)
-				main.sfx("warn_archer", 1.6, -6.0)
+				main.sfx("warn_archer", 1.05, -6.0)
 			elif dist < 60.0:
 				_circle(dir, dist, 85.0, speed * 0.7)
 			else:

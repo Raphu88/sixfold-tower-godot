@@ -189,6 +189,16 @@ func set_pillars(list: Array) -> void:
 	queue_redraw()
 
 
+## The part of the world on screen, grown by a torch's reach (all of it
+## when there's no camera yet).
+func _view_rect() -> Rect2:
+	var cam := get_viewport().get_camera_2d()
+	if cam == null:
+		return Rect2(-1e6, -1e6, 2e6, 2e6)
+	var size := get_viewport_rect().size / cam.zoom
+	return Rect2(cam.get_screen_center_position() - size * 0.5, size).grow(260.0)
+
+
 func _process(delta: float) -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	if tint != self_modulate:
@@ -205,6 +215,12 @@ func _process(delta: float) -> void:
 			cache_light.position = cache["pos"]
 			cache_light.color = Essence.color(cache["kind"])
 			cache_light.energy = 1.1 + 0.3 * sin(t * 2.4)
+	# Lights cost a lot on phones: a torch well off screen is switched off.
+	var view := _view_rect()
+	for torch in torches:
+		var lit: bool = view.has_point(torch["pos"])
+		if torch["light"].enabled != lit:
+			torch["light"].enabled = lit
 	for torch in torches:
 		var ph: float = torch["phase"]
 		# A slow, soft flicker: a fast one (above ~15 Hz) lights the whole floor
