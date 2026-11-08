@@ -28,6 +28,8 @@ const Train := preload("res://scripts/train.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
 const TrainView := preload("res://scripts/train_view.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Appearance := preload("res://scripts/appearance.gd")
+const AppearancePage := preload("res://scripts/appearance_page.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -37,7 +39,8 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
-	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0}
+	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
+	"create": 960.0, "appearance": 960.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
@@ -83,6 +86,10 @@ var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
 var sell_ask := ""  # a piece asked to be sold: a second press sells it
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
+# The appearance editor (appearance_page.gd): "create" for a new climber,
+# "appearance" later; where Back from "appearance" goes ("climber", else the usual).
+var look_page
+var look_from := ""
 
 
 func _ready() -> void:
@@ -97,6 +104,7 @@ func _ready() -> void:
 	train_view.hide()
 	add_child(train_view)
 	train_page = TrainPage.new(self)
+	look_page = AppearancePage.new(self, func(b, lk): BodyView._figure(b, lk))
 	shade = ColorRect.new()
 	shade.color = UI.SHADE
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -150,7 +158,7 @@ var touch_slider: HSlider = null
 
 
 func _input(event: InputEvent) -> void:
-	if page == "":
+	if page == "" or _typing():
 		return
 	# Q and E (LB and RB): the climber screen's tabs, or the next mark.
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_Q or event.keycode == KEY_E):
@@ -211,9 +219,14 @@ func _control_at(pos: Vector2, cls: String) -> Control:
 
 func _tap(pos: Vector2) -> void:
 	var b = _control_at(pos, "BaseButton")
+	if b == null and _control_at(pos, "LineEdit") != null and page in ["create", "appearance"]:
+		look_page.edit_name()  # (the appearance page's name)
+		return
 	if b == null or b.disabled:
 		return
-	if b.toggle_mode:
+	if b.has_method("tap_at"):
+		b.tap_at(pos)  # (an option row: its arrows and swatches)
+	elif b.toggle_mode:
 		b.button_pressed = not b.button_pressed  # (emits toggled)
 	else:
 		b.pressed.emit()
@@ -231,7 +244,15 @@ func _process(delta: float) -> void:
 	toast_t -= delta
 	if toast_t <= 0.0 and toast != "":
 		toast = ""
-	if Input.is_action_just_pressed("pause"):
+	if _typing():
+		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field).
+		if Input.is_action_just_pressed("ui_cancel"):
+			look_page._focus_rows()
+		_layout()
+		return
+	if page == "create":
+		pass  # a new climber's look: only Begin leaves it (like the title)
+	elif Input.is_action_just_pressed("pause"):
 		if page == "":
 			# (once the Regard or the victory screen has played, Start moves on instead)
 			if _can_open():
@@ -253,11 +274,19 @@ func _process(delta: float) -> void:
 	_layout()
 
 
+## A name is being typed (the appearance page's name field has the keys).
+func _typing() -> bool:
+	return page != "" and is_inside_tree() and get_viewport().gui_get_focus_owner() is LineEdit
+
+
 ## Q/E or LB/RB: the next climber tab, or the next mark on the detail page.
 ## True if it did something.
 func _cycle(by: int) -> bool:
 	if page == "train":
 		return train_page.cycle(by)
+	if page == "create" or page == "appearance":
+		look_page.turn(by)  # the preview turns
+		return true
 	if page == "climber":
 		var ids: Array = CLIMBER_TABS.map(func(t): return t[0])
 		_set_climber_tab(ids[(ids.find(climber_tab) + by + ids.size()) % ids.size()])
@@ -280,6 +309,8 @@ func toggle(which: String) -> void:
 		elif page == "" or page == "climber" or page == "inventory":
 			train_car = Train.HOME
 			open("train")
+		return
+	if page == "create":
 		return
 	if page == which or (page == "mark" and which == "climber"):
 		if opened_from_title:
@@ -308,6 +339,10 @@ func go_back() -> void:
 		open("settings")
 	elif page == "mark":
 		focus_part = mark_part
+		open("climber", opened_direct)
+	elif page == "create":
+		return  # (Begin is the way on)
+	elif page == "appearance" and look_from == "climber":
 		open("climber", opened_direct)
 	elif page == "pause" or page == "":
 		close()
@@ -414,7 +449,7 @@ func open(which: String, direct := false) -> void:
 		panel.scale = Vector2.ONE
 		panel.modulate.a = 1.0
 	# The title's drawing stays behind the pages opened from it.
-	backdrop.visible = which == "title" or (opened_from_title and which != "pause")
+	backdrop.visible = which == "title" or which == "create" or (opened_from_title and which != "pause")
 	backdrop.show_name = which == "title"
 	# The train is its own page (its cars fill the screen), and stands behind
 	# the pages opened from it.
@@ -461,6 +496,8 @@ func open(which: String, direct := false) -> void:
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
 		elif which == "train":
 			first = train_page.first_focus(list)
+		elif which == "create" or which == "appearance":
+			first = maxi(0, list.find(look_page.first_focus))
 		var at: int = keep if keep >= 0 and keep < list.size() else first
 		if which == "train":
 			# (never onto another slot than the one whose card shows; on a
@@ -690,7 +727,8 @@ func _page_controls() -> void:
 ## settled in you (your attributes), and your record and heirlooms.
 func _page_climber() -> void:
 	var prof = main.profile
-	_header("CLIMBER", _climber_line())
+	var who: String = prof.appearance.get("name", "")
+	_header(who.to_upper() if who != "" else "CLIMBER", _climber_line())
 	_tabs(CLIMBER_TABS, climber_tab, _set_climber_tab)
 	match climber_tab:
 		"essence":
@@ -736,10 +774,17 @@ func _climber_marks(prof) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	box.add_child(row)
+	# The figure, and Appearance under it (appearance_page.gd).
+	var fig := VBoxContainer.new()
+	fig.add_theme_constant_override("separation", 4)
+	row.add_child(fig)
 	var view := BodyView.new()
 	view.main = main
 	view.custom_minimum_size = Vector2(292, 0) if small else Vector2(310, 0)
-	row.add_child(view)
+	fig.add_child(view)
+	var look_b := _button(Appearance.TEXT["button"], open_appearance.bind("climber"), fig)
+	look_b.custom_minimum_size.y = 40.0
+	look_b.set_meta("appearance", true)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -756,7 +801,7 @@ func _climber_marks(prof) -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.pressed.connect(open_mark.bind(part))
 		grid.add_child(card)
-	view.custom_minimum_size.y = (76.0 if small else 104.0) * 3.0 + 16.0
+	view.custom_minimum_size.y = (76.0 if small else 104.0) * 3.0 + 16.0 - 44.0
 	if small:
 		return
 	if prof.bonds.is_empty():
@@ -2001,8 +2046,29 @@ func _page_dev() -> void:
 # --- actions -----------------------------------------------------------------
 
 func _leave_title() -> void:
+	if not main.profile.created:
+		open("create")  # a new climber chooses a look first
+		return
 	Engine.set_meta("sixfold_title_seen", true)
 	close()
+
+
+## The appearance editor (appearance_page.gd): a new climber's, ending in Begin...
+func _page_create() -> void:
+	look_from = ""
+	look_page.build("create")
+
+
+## ...or later, from the climber screen or your car on the train.
+func _page_appearance() -> void:
+	look_page.build("edit")
+
+
+## Opens the appearance editor; Back returns to `from` ("climber", or the
+## usual place: the train, the pause menu or the title).
+func open_appearance(from := "") -> void:
+	look_from = from
+	open("appearance", opened_direct if from == "climber" else true)
 
 
 func _restart() -> void:
@@ -2725,7 +2791,7 @@ class BodyView extends Control:
 		draw_set_transform(c, 0.0, Vector2(k, k))
 		var b := UI.Draw.Batch.new()
 		_backdrop(b)
-		_figure(b)
+		_figure(b, main.climber_look)
 		for part in ORDER:
 			_mark(b, part, t)
 		b.flush(self)
@@ -2779,11 +2845,13 @@ class BodyView extends Control:
 
 	## The figure, in a frame about 290 tall centred on the waist. Lit from
 	## the top-left: the left side of each piece is paler, the right darker.
-	func _figure(b) -> void:
-		var cloak := Palette.CLIMBER_CLOAK
-		var tunic := Palette.CLIMBER_TUNIC
-		var skin := Palette.CLIMBER_SKIN
-		var boot := Palette.CLIMBER_BOOT
+	## Its colours, hair and hood come from `look` (appearance.gd look(); the
+	## appearance page's preview draws it too).
+	static func _figure(b, look: Dictionary) -> void:
+		var cloak: Color = look["cloak"]
+		var tunic: Color = look["tunic"]
+		var skin: Color = look["skin"]
+		var boot: Color = look["boot"]
 		var leather := Color(0.3, 0.2, 0.13)
 		# The cloak hangs behind, from the shoulders to below the knees.
 		b.poly(_p([-30, -68, 30, -68, 46, -20, 56, 40, 64, 100, 48, 108, 30, 104, 14, 110, 0, 104, -14, 110, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20]), cloak.darkened(0.22), 1.6)
@@ -2827,17 +2895,8 @@ class BodyView extends Control:
 		b.poly(_p([-42, -50, -34, -68, -14, -80, 14, -80, 34, -68, 42, -50, 30, -42, 14, -50, 0, -46, -14, -50, -30, -42]), cloak.darkened(0.14), 1.6)
 		b.polygon(_p([-42, -50, -34, -68, -14, -80, 0, -80, 0, -46, -14, -50, -30, -42]), cloak.lightened(0.06))
 		b.polygon(_p([-37, -60, -28, -71, -14, -77, -24, -66]), Color(cloak.lightened(0.45), 0.5))
-		# The hood, the face in its shadow.
-		b.poly(_p([0, -147, 13, -141, 23, -127, 27, -106, 23, -88, 12, -79, 0, -77, -12, -79, -23, -88, -27, -106, -23, -127, -13, -141]), cloak.darkened(0.18), 1.6)
-		b.polygon(_p([0, -147, -13, -141, -23, -127, -27, -106, -23, -88, -12, -79, 0, -77, -5, -112]), cloak.darkened(0.0))
-		b.polygon(_p([-19, -131, -9, -141, -3, -140, -13, -127]), Color(cloak.lightened(0.45), 0.5))
-		b.polygon(UI._oval(Vector2(0, -103), Vector2(14.5, 18.0), 24), Color(0.04, 0.03, 0.05))
-		b.polygon(UI._oval(Vector2(0, -99), Vector2(10.5, 13.0), 24), skin.darkened(0.52))
-		b.polygon(UI._oval(Vector2(-0.6, -94.5), Vector2(8.6, 8.0), 20), skin.darkened(0.3))
-		b.polygon(_p([-12, -108, -6, -116, 4, -117, 12, -108, 5, -112, -3, -110]), Palette.CLIMBER_HAIR.darkened(0.3))
-		b.dot(Vector2(-4.2, -100), 1.5, UI.OUTLINE)
-		b.dot(Vector2(4.2, -100), 1.5, UI.OUTLINE)
-		b.ball(Vector2(0, -77), 3.4, UI.GOLD.darkened(0.15))
+		# The head: the hood up (the face in its shadow) or down (appearance.gd).
+		Appearance.draw_front_head(b, look)
 
 	func _mark(b, part: String, t: float) -> void:
 		var prof = main.profile

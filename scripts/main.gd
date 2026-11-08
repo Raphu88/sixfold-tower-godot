@@ -34,6 +34,7 @@ const Train := preload("res://scripts/train.gd")
 const Lost := preload("res://scripts/lost.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Appearance := preload("res://scripts/appearance.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -131,6 +132,9 @@ var dev_no_death := false  # dev tool: you can't fall
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
+## How the climber looks, worked out from profile.appearance once per change
+## (appearance.gd look()): the climber screen's figure draws from it.
+var climber_look := {}
 ## Restart is held (R, or View on a controller) so a stray press doesn't end
 ## the climb; once fallen, a press is enough.
 const RESTART_HOLD := 0.8
@@ -277,6 +281,7 @@ func _ready() -> void:
 	first_climb = not profile.regarded
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
+	apply_appearance()
 	tower = profile.last_tower if Towers.TOWERS.has(profile.last_tower) else "kraken"
 	_apply_tower_look()
 	_start_floor(1)
@@ -331,6 +336,9 @@ func _ready() -> void:
 	# A fresh start (not a restart or a new floor) opens on the title screen.
 	if not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
 		menu.open.call_deferred("title")
+	elif not profile.created and not Engine.has_meta("sixfold_test"):
+		# A new climber (New climber, or Start over) chooses a look first.
+		menu.open.call_deferred("create")
 	elif on_train:
 		menu.open.call_deferred("train")
 
@@ -2427,8 +2435,28 @@ func keep_heirloom(id: String) -> void:
 func new_climber() -> void:
 	profile.reset()
 	Engine.time_scale = 1.0
+	apply_appearance()
+	# The new climber chooses a look before the first climb (straight away,
+	# not via the title: _ready opens the creation page).
 	if get_tree().current_scene == self:  # (tests run the room outside a scene)
+		Engine.set_meta("sixfold_title_seen", true)
 		get_tree().reload_current_scene()
+	elif menu != null:
+		menu.open("create")
+
+
+## The climber wears profile.appearance: in the tower, and on the climber screen.
+func apply_appearance() -> void:
+	climber_look = Appearance.look(profile.appearance)
+	if player != null:
+		player.set_appearance(profile.appearance)
+
+
+## A new look chosen (the creation page, or Appearance later): kept and shown.
+func set_appearance(app: Dictionary) -> void:
+	profile.appearance = Appearance.normalized(app)
+	profile.save()
+	apply_appearance()
 
 
 ## Tests: start with two marks instead of a bondless first climb.

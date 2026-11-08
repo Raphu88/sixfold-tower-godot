@@ -4153,6 +4153,10 @@ func _spell_tests() -> void:
 	await _frames(2)
 	Input.action_release("new_climber")
 	_check(main.profile.bonds.is_empty() and not main.profile.regarded, "a second press starts a new climber: no marks")
+	_check(main.menu.page == "create", "...who chooses a look first (the creation page)")
+	main.menu.look_page.begin()  # (Begin: the game runs on)
+	Engine.remove_meta("sixfold_title_seen")
+	await _frames(1)
 
 	print("new spells")
 	await _fresh_main()
@@ -6988,6 +6992,7 @@ func _run() -> void:
 	await _lighting_tests()
 	await _foe_list_tests()
 	await _slim_hud_tests()
+	await _appearance_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -8897,3 +8902,180 @@ func _secret_tests() -> void:
 	main.victory = {}
 
 
+
+
+## The climber's looks (appearance.gd, appearance_page.gd): today's look by
+## default, the creation page for a new climber and the first launch, the
+## rows by keys, controller and taps, the name, Begin; the Appearance buttons
+## on the climber screen and in your car; what the tower and the climber
+## screen draw from; the save, old saves and odd ones.
+func _appearance_tests() -> void:
+	print("appearance: the new climber's looks")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	var A = load("res://scripts/appearance.gd")
+	var P = load("res://scripts/palette.gd")
+	var menu = main.menu
+	var prof = main.profile
+	var p = main.player
+	var d: Dictionary = A.look(A.DEFAULTS)
+	_check(d["cloak"] == P.CLIMBER_CLOAK and d["skin"] == P.CLIMBER_SKIN and d["tunic"] == P.CLIMBER_TUNIC and d["hair"] == P.CLIMBER_HAIR and d["boot"] == P.CLIMBER_BOOT and d["eyes"] == P.OUTLINE and d["hood_up"] and d["hair_style"] == "short", "the default look is the climber's look from before (teal hood up, brown hair and tunic)")
+	_check(prof.appearance == A.DEFAULTS and p.appearance_look == d and main.climber_look == d, "a climber with no choice yet wears it, in the tower and on the climber screen")
+	var sizes_ok: bool = A.OPTIONS["skin"].size() >= 6 and A.OPTIONS["skin"].size() <= 8 and A.OPTIONS["cloak"].size() >= 8 and A.OPTIONS["cloak"].size() <= 10 and A.OPTIONS["hair"].size() >= 5
+	for key in A.OPTIONS:
+		sizes_ok = sizes_ok and A.index_of(key, A.DEFAULTS[key]) >= 0
+	_check(sizes_ok, "the options are data: 6-8 skins, 8-10 cloaks, five hair styles, each default among them")
+	# New climber: the creation page opens before the first climb.
+	main.new_climber()
+	await _until(func(): return menu.page == "create", 2.0)
+	_check(menu.page == "create" and not prof.created and menu.backdrop.visible, "New climber opens the creation page (over the title's sky) before the first climb")
+	var page = menu.look_page
+	_check(page.view != null and page.view.doll != null and page.view.doll.get_script() == p.get_script() and page.view.doll.appearance_look == main.climber_look, "...its preview is the tower's own drawing of the climber (a doll)")
+	_check(page.view.doll.collision_layer == 0 and not page.view.doll.is_physics_processing(), "...which only draws (no body, no physics)")
+	var vis := root.get_visible_rect()
+	var inside := true
+	for b in menu.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree():
+			inside = inside and vis.encloses(b.get_global_rect())
+	_check(inside, "every button on the creation page is on screen")
+	Input.action_press("pause")
+	await _frames(2)
+	Input.action_release("pause")
+	await _frames(2)
+	_check(menu.page == "create", "Esc doesn't skip it (Begin is the way on)")
+	# Keys and controller: start on the first row; Right / Left change it.
+	var skin = page.rows["skin"]
+	await _until(func(): return skin.has_focus(), 1.0)
+	_check(skin.has_focus(), "keys and controller start on the first option (Skin)")
+	await _key_tap(KEY_RIGHT)
+	var want_skin: String = A.step(A.DEFAULTS, "skin", 1)
+	_check(prof.appearance["skin"] == want_skin and main.climber_look["skin"] == A.color_of("skin", want_skin) and p.appearance_look["skin"] == A.color_of("skin", want_skin), "Right changes the focused option, kept and worn at once (tower and climber screen)")
+	await _key_tap(KEY_LEFT)
+	_check(prof.appearance["skin"] == A.DEFAULTS["skin"], "...and Left changes it back")
+	await _key_tap(KEY_DOWN)
+	_check(page.rows["hair"].has_focus(), "Down moves to the next option")
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(prof.appearance["hair"] == "long" and p.appearance_look["hair_style"] == "long", "the controller's d-pad changes it too (short to long hair)")
+	main.pad._set_active(false)
+	# Taps (a phone): a swatch picks itself, an arrow steps.
+	main.touch._set_active(true)
+	await _frames(3)
+	var cl = page.rows["cloak"]
+	var mid: Rect2 = cl._middle()
+	var n: int = A.OPTIONS["cloak"].size()
+	var ci: int = A.index_of("cloak", "crimson")
+	await _tap_at(cl.get_global_transform() * Vector2(mid.position.x + mid.size.x / n * (ci + 0.5), cl.size.y * 0.5))
+	_check(prof.appearance["cloak"] == "crimson" and main.climber_look["cloak"] == A.color_of("cloak", "crimson") and p.appearance_look["cloak"] == A.color_of("cloak", "crimson"), "a tap on a swatch picks it (a crimson cloak)")
+	var hood = page.rows["hood"]
+	await _frames(2)
+	await _tap_at(hood.get_global_transform() * Vector2(hood.size.x - 20.0, hood.size.y * 0.5))
+	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood down)")
+	main.touch._set_active(false)
+	var lk: Dictionary = p.appearance_look.duplicate()
+	p._piece_look(lk, true)
+	p._armor_look(lk)
+	_check(lk["head"] == "bare" and A.crown(lk) == lk["hair"], "with the hood down the tower draws the head bare, the hair on show")
+	lk = A.look(A.DEFAULTS)
+	p._piece_look(lk, true)
+	_check(lk["head"] == "hood", "...and with it up, the hood")
+	# The name: the dice, and a typed name kept short; typing isn't shortcuts.
+	page.roll_name()
+	_check(prof.appearance["name"] in A.NAMES, "the dice picks a name")
+	page.set_name("  A very long name for one climber  ")
+	_check(prof.appearance["name"].length() <= A.NAME_MAX and prof.appearance["name"].begins_with("A very"), "a typed name is trimmed and kept short")
+	page.name_edit.grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_I)
+	await _key_tap(KEY_E)
+	_check(menu.page == "create" and page.name_edit.has_focus(), "typing in the name doesn't set off shortcuts (I, E)")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "create" and not page.name_edit.has_focus(), "Esc leaves the name field, not the page")
+	var turned: float = page.view.want
+	await _key_tap(KEY_E)
+	_check(page.view.want > turned, "E (RB) turns the preview")
+	var keep_name: String = prof.appearance["name"]
+	page.randomise()
+	_check(prof.appearance["name"] == keep_name and page.rows["cloak"].value == prof.appearance["cloak"], "Randomise rolls a look and keeps the name")
+	_check(page.finish.text == A.TEXT["begin"], "the page ends in Begin")
+	page.finish.pressed.emit()
+	await _frames(2)
+	_check(menu.page == "" and prof.created and main.climber_look == A.look(prof.appearance), "Begin makes the climber and goes on to the first climb")
+	Engine.remove_meta("sixfold_title_seen")
+	# The very first launch: no save, so Begin on the title opens it.
+	var Prof = load("res://scripts/profile.gd")
+	var none = Prof.new()
+	none.save_path = "user://smoke_no_save_here.cfg"
+	none.load_save()
+	_check(not none.created and none.appearance == A.DEFAULTS, "with no save at all, a climber is still to be made, in today's look")
+	prof.created = false
+	menu.open("title")
+	await _frames(2)
+	_menu_button("Begin your first climb").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "create" and menu.backdrop.visible, "the very first launch: Begin on the title opens the creation page")
+	page.begin()
+	await _frames(2)
+	_check(menu.page == "" and prof.created, "...and Begin there starts the climb")
+	Engine.remove_meta("sixfold_title_seen")
+	# Later: Appearance on the climber screen, and back.
+	main.choosing_tower = false
+	menu.climber_tab = "marks"
+	menu.open("climber")
+	await _frames(2)
+	var ab: Array = _all_buttons(menu).filter(func(b): return b.has_meta("appearance") and b.is_visible_in_tree())
+	_check(ab.size() == 1, "the climber screen has an Appearance button")
+	if ab.size() == 1:
+		ab[0].pressed.emit()
+		await _frames(2)
+	_check(menu.page == "appearance" and page.finish.text.begins_with(A.TEXT["done"]), "...which opens the same editor, ending in Done")
+	var tunic0: String = prof.appearance["tunic"]
+	page.rows["tunic"].change(1)
+	_check(prof.appearance["tunic"] != tunic0 and main.climber_look["tunic"] == A.color_of("tunic", prof.appearance["tunic"]), "a change there is kept, and the climber screen's figure draws from it")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "climber", "Back returns to the climber screen")
+	menu.close()
+	await _frames(2)
+	# Save, load, old saves and odd ones.
+	var path := "user://smoke_look_test.cfg"
+	prof.appearance = A.normalized({"name": "Wren", "skin": "deep", "hair": "braid", "hair_color": "copper", "eyes": "green", "cloak": "plum", "tunic": "navy", "hood": "down"})
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = Prof.new()
+	again.save_path = path
+	again.load_save()
+	_check(again.appearance == prof.appearance and again.created, "the look and the name are saved and load again")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = Prof.new()
+	again.save_path = path
+	again.load_save()
+	_check(again.appearance == A.DEFAULTS and again.created, "a save from before looks loads as today's look, already made")
+	old = ConfigFile.new()
+	old.set_value("settings", "music", 0.5)
+	old.set_value("look", "appearance", {"cloak": "nope", "skin": 42, "hair": "braid"})
+	old.save(path)
+	again = Prof.new()
+	again.save_path = path
+	again.load_save()
+	_check(not again.created and again.appearance["cloak"] == "teal" and again.appearance["skin"] == "fair" and again.appearance["hair"] == "braid", "a file of settings only is a climber still to be made; unknown options fall back")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	# The train: Your car's Appearance button, and closing returns to it.
+	main.grant_test_bonds()
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	var tb: Array = _car_buttons("car_page", "appearance")
+	_check(tb.size() == 1, "your car on the train has an Appearance button")
+	if tb.size() == 1:
+		tb[0].pressed.emit()
+		await _frames(2)
+	_check(menu.page == "appearance", "...which opens the editor")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "personal", "...and Back returns to your car")

@@ -9,6 +9,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Appearance := preload("res://scripts/appearance.gd")
 
 ## Damage multiplier for striking a foe from behind.
 const BACKSTAB_MULT := 1.5
@@ -1958,16 +1959,27 @@ func _at(x: float, y: float) -> Vector2:
 	return _f * x + _sd * y
 
 
+## How the climber looks (appearance.gd): the colours and flags worked out
+## from the saved appearance, once per change (set_appearance), never per frame.
+var appearance_look := Appearance.look(Appearance.DEFAULTS)
+
+
+## Wear a look (a saved appearance dictionary; appearance.gd OPTIONS). Any
+## node running this script can be given one (a doll on the appearance page,
+## or something drawn like the climber, such as its mirror image).
+func set_appearance(app: Dictionary) -> void:
+	appearance_look = Appearance.look(app)
+	queue_redraw()
+
+
 ## The climber, built into one batch (one draw call) in the style of
 ## draw_util.gd: a hooded head, shoulders and arms over a cloak that sways,
-## boots that step, armor and the weapon in hand. Marks glow on top.
+## boots that step, armor and the weapon in hand. Marks glow on top. The
+## colours, hair and hood come from appearance_look (appearance.gd draws the head).
 func _draw() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var dt := get_process_delta_time()
-	var look := {
-		"cloak": Palette.CLIMBER_CLOAK, "skin": Palette.CLIMBER_SKIN, "tunic": Palette.CLIMBER_TUNIC,
-		"hair": Palette.CLIMBER_HAIR, "boot": Palette.CLIMBER_BOOT,
-	}
+	var look := appearance_look.duplicate()
 	_piece_look(look, true)
 	_armor_look(look)
 	_piece_look(look, false)
@@ -2010,7 +2022,8 @@ func _draw() -> void:
 		_draw_standing(b, look, t)
 	b.flush(self)
 	draw_set_transform(Vector2(0, -lift), 0.0, Vector2.ONE)
-	_draw_marks(side, t)
+	if main != null:  # (a doll has no marks)
+		_draw_marks(side, t)
 	if overlay != null:
 		overlay.queue_redraw()
 
@@ -2054,7 +2067,7 @@ func _draw_shadow(t: float, dt: float) -> void:
 ## the armor, so the hood follows it), then the helm, gloves and boots.
 func _piece_look(look: Dictionary, before_armor: bool) -> void:
 	if before_armor:
-		look["head"] = "hood"
+		look["head"] = Appearance.head_kind(look)  # hood up, or bare
 		look["boot_r"] = 3.0
 		look["studs"] = false
 		var cl = gear.get("cloak", {})
@@ -2165,37 +2178,9 @@ func _draw_standing(b, look: Dictionary, t: float) -> void:
 	# Torso, armor on the chest, shoulders.
 	b.ball(lx + _at(2.0, 0.0), 8.5, look["torso"], true, _light)
 	_draw_armor_detail(b, lx, look)
-	# The head: a hood (or helm) with a peak trailing behind.
-	var hood: Color = look["hood"]
-	var hd := lx + _at(-0.5, 0.0)
-	var head: String = look.get("head", "hood")
-	if head == "hood" or head == "coif":
-		b.poly(PackedVector2Array([hd + _at(-2.0, 4.2), hd + _at(-8.5 + d.x * 0.3, sway * 0.3 + d.y * 0.3), hd + _at(-2.0, -4.2)]), hood.darkened(0.15), 1.0)
-	if head == "cap":
-		hood = look["hair"]  # a cap shows the hair round it
-	b.ball(hd, 6.6, hood, true, _light)
-	match head:
-		"helm":
-			b.line(hd + _at(-5.5, 0.0), hd + _at(5.5, 0.0), hood.lightened(0.25), 1.4)  # crest
-			b.line(hd + _at(4.6, -3.8), hd + _at(4.6, 3.8), Palette.OUTLINE, 1.6)  # visor slit
-			b.dot(hd + _at(5.4, 0.0), 1.0, hood.darkened(0.3))
-		"cap":  # Leather Cap: the face, under a crown of leather with a band
-			b.dot(hd + _at(4.5, 0.0), 2.8, look["skin"])
-			b.dot(hd + _at(6.0, 1.3), 0.75, Palette.OUTLINE)
-			b.dot(hd + _at(6.0, -1.3), 0.75, Palette.OUTLINE)
-			var cap: Color = look["cap"]
-			b.ball(hd + _at(-1.6, 0.0), 5.4, cap, true, _light)
-			b.arc(hd + _at(-1.6, 0.0), 5.2, _f.angle() - 1.1, _f.angle() + 1.1, 8, cap.darkened(0.45), 1.5)
-		_:
-			b.dot(hd + _at(3.8, 0.0), 3.9, Color(Palette.OUTLINE, 0.5))  # the hood's shadow
-			b.dot(hd + _at(2.9, 0.0), 3.1, look["hair"])
-			b.dot(hd + _at(4.5, 0.0), 2.8, look["skin"])
-			b.dot(hd + _at(6.0, 1.3), 0.75, Palette.OUTLINE)
-			b.dot(hd + _at(6.0, -1.3), 0.75, Palette.OUTLINE)
-			if head == "coif":
-				for i in 7:
-					var a := TAU * (i + 0.5) / 7.0
-					b.dot(hd + Vector2.from_angle(a) * 4.8, 0.7, Color(1, 1, 1, 0.3))
+	# The head: a hood (or helm) with a peak trailing behind, or bare with
+	# the hood down (appearance.gd, which anything drawn like the climber shares).
+	Appearance.draw_head(b, lx + _at(-0.5, 0.0), _f, _sd, _light, look, sway, d)
 	var sh_w := lx + _at(0.3 + s * 0.8, 9.3)
 	var sh_o := lx + _at(0.3 - s * 0.8, -9.3)
 	# Over the head: arms, the weapon, then the hands that hold it.
@@ -2261,7 +2246,7 @@ func _draw_rolling(b, look: Dictionary) -> void:
 	for sgn in [-1.0, 1.0]:  # hands tucked in
 		b.ball(fwd * 3.0 + across * sgn * 8.0, 2.6, look["hand"], true, _light)
 	var c := cos(spin)
-	b.ball(fwd * (5.0 * c), 5.0 + 1.2 * c, look["hood"], true, _light)
+	b.ball(fwd * (5.0 * c), 5.0 + 1.2 * c, Appearance.crown(look), true, _light)
 
 
 ## Fallen: face down, cloak spread, arms flung out, the weapon dropped.
@@ -2291,7 +2276,7 @@ func _draw_fallen(b, look: Dictionary) -> void:
 		b.stroke(_at(0.5, sgn * 8.5), hand, look["sleeve"], 3.4)
 		b.ball(hand, 2.8, look["hand"], true, _light)
 	b.ball(_at(0.0, 0.0), 8.0, look["torso"], true, _light)
-	b.ball(_at(8.0, 2.5), 6.0, look["hood"], true, _light)
+	b.ball(_at(8.0, 2.5), 6.0, Appearance.crown(look), true, _light)
 
 
 ## Essence soaking into unmarked parts, and the marks themselves, with their

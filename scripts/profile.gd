@@ -11,6 +11,7 @@ extends RefCounted
 const Bonds := preload("res://scripts/bonds.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Appearance := preload("res://scripts/appearance.gd")
 const SAVE_PATH := "user://sixfold.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
@@ -74,6 +75,12 @@ var former := 0
 ## (the path's essence, which lives in the climber's shadow).
 var path := ""
 var flow := 0.0
+## How the climber looks (appearance.gd: option ids, and an optional name).
+## Old saves load with today's look (Appearance.DEFAULTS).
+var appearance := Appearance.DEFAULTS.duplicate()
+## False until a new climber has chosen their look on the creation page
+## (the very first launch, and after New climber): it opens before the first climb.
+var created := true
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -161,13 +168,20 @@ func reset() -> void:
 	record = {}
 	path = ""
 	flow = 0.0
+	appearance = Appearance.DEFAULTS.duplicate()
+	created = false
 	save()
 
 
 func load_save() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(save_path) != OK:
+		created = false  # the very first launch: no save yet
 		return
+	appearance = Appearance.normalized(cfg.get_value("look", "appearance", {}))
+	# (a save from before there was a choice has a profile, and keeps its look;
+	# a file that holds only settings is still a new climber)
+	created = bool(cfg.get_value("look", "created", cfg.has_section("profile")))
 	best_floor = int(cfg.get_value("climb", "best_floor", 1))
 	regarded = bool(cfg.get_value("profile", "regarded", false))
 	bonds = cfg.get_value("profile", "bonds", {})
@@ -240,6 +254,8 @@ func save() -> void:
 	cfg.set_value("profile", "provings", provings)
 	cfg.set_value("profile", "path", path)
 	cfg.set_value("profile", "flow", flow)
+	cfg.set_value("look", "appearance", appearance)
+	cfg.set_value("look", "created", created)
 	cfg.save(save_path)
 
 
