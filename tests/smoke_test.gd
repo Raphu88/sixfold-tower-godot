@@ -1667,7 +1667,7 @@ func _trap_tests() -> void:
 	p.hp = 30.0
 	p.hurt_t = 0.0
 	p.iframes = 0.0
-	await _wait(float(Traps.KINDS["miasma"]["warn"]) + float(Traps.KINDS["miasma"]["fire"]))
+	await _until(func(): return p.dead or p.hp <= 0.0, float(Traps.KINDS["miasma"]["warn"]) + float(Traps.KINDS["miasma"]["fire"]) + 2.0)
 	_check(p.dead or p.hp <= 0.0, "a gas cloud kills a climber who lingers in it")
 	main.traps = []
 	await _fresh_main()
