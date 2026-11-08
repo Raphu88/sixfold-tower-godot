@@ -1294,12 +1294,29 @@ func _trap_tests() -> void:
 				ok_spot = ok_spot and not main.is_solid(pos) and not main.in_chasm(pos)
 				ok_spot = ok_spot and pos.distance_to(main.player_start) > 100.0 and pos.distance_to(main.stair_pos) > 80.0
 				ok_spot = ok_spot and not main.layout_rooms[0].has_point(pos)
+				for r in main.floor_plan.get("doorways", []):
+					ok_spot = ok_spot and not r.has_point(pos)
+				for r in main.floor_plan.get("safe_rooms", []):
+					ok_spot = ok_spot and not r.has_point(pos)
 				for pl in main.pillars:
 					ok_spot = ok_spot and pos.distance_to(pl["pos"]) > pl["r"] + 20.0
 		each_tower = each_tower and of_tower > 0
 	_check(ok_kind and each_tower, "each tower's floors get its own trap kind")
 	_check(ok_count and total >= 60, "every floor of rooms gets trap set pieces and hidden plates (%d over 24 floors)" % total)
-	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar or a wall")
+	_check(ok_spot, "traps are never on the start, the stair, a chasm, a pillar, a wall, a doorway or in a good room")
+	# The floor's trap room holds its set piece.
+	var ok_hazard := true
+	var hazards := 0
+	for n in 12:
+		main.tower = main.Towers.ORDER[n % 6]
+		main._start_floor(3 + n % 6)
+		for e in main.enemies():
+			e.set_physics_process(false)
+		for i in main.room_themes.size():
+			if main.Themes.get_theme(main.room_themes[i])["feature"] == "trap":
+				hazards += 1
+				ok_hazard = ok_hazard and main.traps.any(func(tr): return main.room_info[i]["rect"].has_point(tr["pos"]))
+	_check(ok_hazard and hazards > 0, "each trap room holds traps (%d rooms)" % hazards)
 	# Set pieces: timed traps in a group keep one beat (a wave or a checkerboard).
 	var grouped := false
 	var lanes_ok := true

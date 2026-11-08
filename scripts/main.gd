@@ -59,6 +59,7 @@ var room_tile := Vector2i(-999, -999)  # the tile room_at was worked out on
 var room_pending := -1  # a room whose name waits for the banner to clear
 var springs: Array = []  # healing springs: {pos, r, left}
 var door_view  # the floor's doors (doors.gd)
+var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
 var fx
 var camera: Camera2D
@@ -766,6 +767,7 @@ func _start_floor(n: int) -> void:
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
 	var plan: Dictionary = _camp_plan() if in_camp else Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+	floor_plan = plan
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
 	layout_torches = plan.get("torches", [])

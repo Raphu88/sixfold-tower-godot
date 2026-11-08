@@ -257,6 +257,21 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 			_reserve_door(info, t)
 			_reserve_door(infos[info["parent"]], t)  # (clamped into the parent: the tile inside its end)
 	walk.append_array(corridors)
+	# Both ends of every corridor: doorways, kept clear of traps.
+	var doorways: Array = []
+	for info in infos:
+		if not info.has("link"):
+			continue
+		var link: Dictionary = info["link"]
+		var d0: Vector2i = link["door"][0]
+		var door_r := Rect2(ORIGIN + Vector2(d0) * CELL, (Vector2(1, 2) if not link["horiz"] else Vector2(2, 1)) * CELL)
+		doorways.append(door_r)
+		var cr: Rect2 = link["rect"]
+		var out: Vector2 = link["out"]
+		# The parent's end: the corridor's far end from the door.
+		var far := door_r
+		far.position += out * (((cr.size.x if link["side_c"] >= 2 else cr.size.y) - CELL))
+		doorways.append(far)
 	# The start and the stair.
 	var first: Dictionary = infos[0]
 	var start_tile := _nearest_open(first["rows"], Vector2i(first["size"].x / 2, int(first["size"].y * 0.72)))
@@ -365,7 +380,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		"chasms": chasms, "blocks": blocks, "pools": pools, "room_ids": ids, "puzzle": puzzle,
 		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors),
 		"torches": _torches(infos), "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
-		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms}
+		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways}
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room

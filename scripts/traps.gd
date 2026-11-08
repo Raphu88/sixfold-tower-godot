@@ -293,6 +293,9 @@ static func spot_ok(pos: Vector2, plan: Dictionary, others: Array, main = null) 
 	for r in plan.get("safe_rooms", []):
 		if r.grow(20.0).has_point(pos):
 			return false  # nor in a good room
+	for r in plan.get("doorways", []):
+		if r.grow(24.0).has_point(pos):
+			return false  # nor in a doorway, or right beside one
 	if pos.distance_to(plan.get("start", Vector2(-9999, -9999))) < 120.0:
 		return false
 	if pos.distance_to(plan.get("stair", Vector2(-9999, -9999))) < 90.0:
