@@ -1260,7 +1260,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
 	if main.camp["stage"] == "heirloom":
 		title = Gear.HEIRLOOM_TEXT["title"]
-	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense"]:
+	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret"]:
 		title = main.camp.get("title", "")
 	draw_string_outline(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, 6, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, GOLD)

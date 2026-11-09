@@ -931,7 +931,11 @@ func _start_floor(n: int) -> void:
 	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
 	if plan.is_empty():
 		MirrorScript.climb_ok = not first_climb  # (no mirror rooms on the bondless first climb)
+		if secret_tools != null:
+			secret_tools.before_build(n)  # (the Designer's Reroll: the puzzle and rooms chosen for this floor)
 		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+		if secret_tools != null:
+			secret_tools.after_build(plan)
 		if MirrorScript.THEME in plan.get("themes", []):
 			MirrorScript.force = false  # (the dev tool's forced mirror room is here)
 	floor_plan = plan
@@ -1520,6 +1524,8 @@ func camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
 	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
 		return unbound.card(pick)
+	if pick.begins_with("sb:"):
+		return secret_tools.card(pick)  # a secret bond tool's choice (secret_tools.gd)
 	if pick.begins_with("path:"):
 		var k := pick.substr(5)
 		return {"name": Secret.display(k), "desc": Secret.KINDS[k]["motto"], "color": Secret.color(k), "item": "", "secret": k,
@@ -1601,6 +1607,9 @@ func choose_camp(i: int) -> void:
 		return
 	if camp["stage"] == "belt":
 		_take_belt_pick(pick)
+		return
+	if camp["stage"] == "secret":
+		secret_tools.take_card(i)
 		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
@@ -2212,6 +2221,7 @@ func _give_bonds() -> void:
 			b.burned = old[part].burned
 			b.selected = old[part].selected
 		b.tunes = SecretBonds.active_tunes(profile)  # the Developer's Tune (secret_bonds.gd)
+		b.edits = SecretBonds.active_edits(profile)  # ...and its Edit
 		b.attr_power = 1.0 + profile.attribute("fire")
 		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b
