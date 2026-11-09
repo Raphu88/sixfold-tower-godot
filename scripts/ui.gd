@@ -1,26 +1,54 @@
 extends RefCounted
-## The interface's shared look: one panel style, one slot style and the text
-## sizes, used by the HUD (hud.gd), the menus (menu.gd) and the touch
-## buttons, so they read as one set. (The world's colours are in
+## The interface's shared look: the palette, the fonts, the panel, button,
+## slot and card styles, the ornaments (double rules, corner flourishes,
+## eyebrow labels) and the drawn pieces (bars, gems, medallions, emblems),
+## used by the HUD (hud.gd), the menus (menu.gd, rail.gd and the pages) and
+## the touch buttons, so they read as one set. (The world's colours are in
 ## palette.gd; the interface's are here.)
+##
+## The look: a deep violet-indigo night, gilt edges and lettering, warm
+## parchment ink, thin-bordered cards with a soft inner glow, small
+## letter-spaced eyebrow labels, and essence colours for essence things.
+## Titles are set in Grenze Gotisch, text in Alegreya Sans and small labels
+## and numbers in IBM Plex Mono (all SIL Open Font License, in
+## assets/fonts with their OFL.txt). Everything else is drawn in code.
 
-# Interface colours
-const GOLD := Color(0.95, 0.8, 0.5)
-const TEXT := Color(0.86, 0.83, 0.9)
-const DIM := Color(0.62, 0.59, 0.67)
-const FAINT := Color(0.42, 0.4, 0.47)
-const PANEL := Color(0.07, 0.063, 0.09, 0.88)
-const PANEL_EDGE := Color(0.95, 0.8, 0.5, 0.2)
-const MENU_PANEL := Color(0.08, 0.075, 0.1, 0.97)
-const SLOT := Color(0.12, 0.11, 0.15, 0.92)
-const SLOT_EDGE := Color(0.34, 0.31, 0.39, 0.9)
-const SLOT_ON := Color(0.17, 0.13, 0.09, 0.95)
-const BUTTON := Color(0.15, 0.14, 0.18)
-const BUTTON_HOVER := Color(0.21, 0.19, 0.25)
-const BUTTON_DOWN := Color(0.3, 0.25, 0.18)
-const SHADE := Color(0.025, 0.022, 0.035, 0.8)
-const GOOD := Color(0.55, 0.9, 0.55)
-const BAD := Color(1.0, 0.5, 0.42)
+# --- the palette ------------------------------------------------------------------
+## The night: from the void behind everything up to a raised button's face.
+const VOID := Color(0.051, 0.043, 0.071)  # #0d0b12
+const STONE := Color(0.106, 0.094, 0.137)  # #1b1823
+const STONE_2 := Color(0.141, 0.125, 0.18)  # #24202e
+const STONE_3 := Color(0.176, 0.157, 0.224)  # #2d2839
+## Thin lines: a card's edge, and a brighter one for hover and dividers.
+const LINE := Color(0.227, 0.204, 0.275)  # #3a3446
+const LINE_HI := Color(0.416, 0.376, 0.502)  # #6a6080
+## Gilt: lettering, the chosen thing, ornament. GILT_HI is its lit edge,
+## GILT_DEEP its shadow (a primary button's lower half).
+const GILT := Color(0.886, 0.71, 0.353)  # #e2b55a
+const GILT_HI := Color(0.97, 0.85, 0.58)
+const GILT_DEEP := Color(0.42, 0.29, 0.1)
+## A cool periwinkle for the Entity and secondary highlights, and violet.
+const PERIWINKLE := Color(0.56, 0.69, 1.0)  # #8fb0ff
+const VIOLET := Color(0.79, 0.65, 1.0)  # #c9a6ff
+const BLOOD := Color(0.816, 0.314, 0.247)  # #d0503f
+
+# Interface colours (the names the rest of the game uses)
+const GOLD := Color(0.91, 0.75, 0.42)  # gilt, a touch brighter for small lettering
+const TEXT := Color(0.925, 0.89, 0.81)  # parchment ink, #ece3cf
+const DIM := Color(0.66, 0.62, 0.71)  # muted, #9a92a6 lifted for small text
+const FAINT := Color(0.45, 0.41, 0.53)
+const PANEL := Color(0.075, 0.064, 0.1, 0.9)
+const PANEL_EDGE := Color(0.91, 0.75, 0.42, 0.22)
+const MENU_PANEL := Color(0.09, 0.078, 0.118, 0.97)
+const SLOT := Color(0.07, 0.06, 0.095, 0.94)
+const SLOT_EDGE := Color(0.3, 0.27, 0.36, 0.95)
+const SLOT_ON := Color(0.2, 0.145, 0.07, 0.96)
+const BUTTON := Color(0.176, 0.157, 0.224)  # STONE_3
+const BUTTON_HOVER := Color(0.22, 0.196, 0.28)
+const BUTTON_DOWN := Color(0.3, 0.22, 0.12)
+const SHADE := Color(0.03, 0.024, 0.045, 0.8)
+const GOOD := Color(0.56, 0.88, 0.52)
+const BAD := Color(0.98, 0.5, 0.42)
 const HEALTH := Color(0.78, 0.22, 0.2)
 const STAMINA := Color(0.45, 0.72, 0.38)
 ## The Entity's speech bubbles (its own colours are in entity.gd).
@@ -41,15 +69,122 @@ const TRAIN_SKY := [Color(0.05, 0.04, 0.09), Color(0.17, 0.1, 0.17), Color(0.46,
 const TRAIN_GROUND := Color(0.07, 0.06, 0.07)
 
 ## Text sizes (at the desktop scale; phones draw everything 1.5x bigger).
-const SIZE_SMALL := 11
-const SIZE_BODY := 13
-const SIZE_LABEL := 15
-const SIZE_HEADING := 28
+## Alegreya Sans is small for its size (a low x-height), so these sit about
+## 15% above what a plain sans would use: they read the same, and keep the
+## same line heights.
+const SIZE_SMALL := 12
+const SIZE_BODY := 15
+const SIZE_LABEL := 17
+const SIZE_HEADING := 32
+## Eyebrow labels (small capitals over a title or section) and key badges.
+const SIZE_EYEBROW := 11
 
 ## How long menus take to fade in and out (seconds).
 const FADE_IN := 0.12
 const FADE_OUT := 0.1
 
+
+# --- fonts ------------------------------------------------------------------------
+## The font files (SIL OFL; see assets/fonts and CREDITS.md). "body" is the
+## everyday text (and the game's default font), "display" the titles.
+const FONT_FILES := {
+	"body": "res://assets/fonts/alegreya_sans/AlegreyaSans-Medium.ttf",
+	"regular": "res://assets/fonts/alegreya_sans/AlegreyaSans-Regular.ttf",
+	"bold": "res://assets/fonts/alegreya_sans/AlegreyaSans-Bold.ttf",
+	"italic": "res://assets/fonts/alegreya_sans/AlegreyaSans-Italic.ttf",
+	"display": "res://assets/fonts/grenze_gotisch/GrenzeGotisch-Bold.ttf",
+	"mono": "res://assets/fonts/ibm_plex_mono/IBMPlexMono-Medium.ttf",
+}
+static var _fonts := {}
+
+
+## A font by its role: "body", "regular", "bold", "italic", "display",
+## "mono", or "eyebrow" (bold, letter-spaced, for small
+## capitals). Figures are lining (not old-style), so numbers sit level.
+static func font(kind := "body") -> Font:
+	if _fonts.is_empty():
+		setup_fonts()
+	return _fonts.get(kind, _fonts.get("body", ThemeDB.fallback_font))
+
+
+## Loads the fonts once and makes the body font the game's default (every
+## Control, and every label drawn with ThemeDB.fallback_font). They cover
+## every letter and sign the game's words use.
+static func setup_fonts() -> void:
+	if not _fonts.is_empty():
+		return
+	var files := {}
+	for k in FONT_FILES:
+		var f = load(FONT_FILES[k]) if ResourceLoader.exists(FONT_FILES[k]) else null
+		files[k] = f
+	if files["body"] == null:
+		return  # (no fonts imported: keep Godot's own)
+	for k in files:
+		var base: Font = files[k] if files[k] != null else files["body"]
+		var v := FontVariation.new()
+		v.base_font = base
+		v.opentype_features = {"lnum": 1, "pnum": 1} if k != "mono" else {}
+		# (Only the display face needs a fallback, for an arrow. Godot sizes a
+		# line by the tallest font in the chain, so no more than that.)
+		var fb: Array[Font] = []
+		if k == "display":
+			fb.append(files["body"])
+		v.fallbacks = fb
+		if k in ["body", "regular", "bold", "italic"]:
+			v.spacing_space = 1  # (Alegreya's word spaces are narrow: small text runs together without this)
+		_fonts[k] = v
+	var eb := FontVariation.new()
+	eb.base_font = _fonts["bold"]
+	eb.spacing_glyph = 1
+	eb.opentype_features = {"lnum": 1, "tnum": 1}
+	_fonts["eyebrow"] = eb
+	ThemeDB.fallback_font = _fonts["body"]
+
+
+## A theme for Controls in the new look: the body font, ink text, and the
+## gilt-edged buttons, toggles and sliders (menu.gd builds on it).
+static func theme() -> Theme:
+	var t := Theme.new()
+	t.default_font = font("body")
+	t.default_font_size = 18
+	t.set_stylebox("panel", "PanelContainer", menu_panel())
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		t.set_stylebox(state, "Button", button_box(state))
+	t.set_stylebox("focus", "CheckButton", focus_box())
+	t.set_stylebox("focus", "HSlider", focus_box())
+	for k in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		t.set_stylebox(k, "CheckButton", StyleBoxEmpty.new())
+	t.set_color("font_color", "Button", TEXT)
+	t.set_color("font_hover_color", "Button", Color(1.0, 0.97, 0.9))
+	t.set_color("font_pressed_color", "Button", GOLD)
+	t.set_color("font_disabled_color", "Button", FAINT)
+	t.set_color("font_focus_color", "Button", Color(1.0, 0.97, 0.9))
+	t.set_color("font_hover_pressed_color", "Button", GOLD)
+	t.set_color("font_color", "CheckButton", TEXT)
+	t.set_color("font_hover_color", "CheckButton", Color(1.0, 0.97, 0.9))
+	t.set_color("font_focus_color", "CheckButton", GOLD)
+	t.set_color("font_pressed_color", "CheckButton", TEXT)
+	t.set_color("font_color", "Label", TEXT)
+	# Sliders: a thin dark groove, gilt where it's filled, a gilt knob.
+	var groove := box(Color(VOID, 0.9), LINE, 3)
+	groove.content_margin_top = 3
+	groove.content_margin_bottom = 3
+	t.set_stylebox("slider", "HSlider", groove)
+	var fill := box(Color(GILT, 0.75), Color(GILT_HI, 0.6), 3)
+	fill.content_margin_top = 3
+	fill.content_margin_bottom = 3
+	t.set_stylebox("grabber_area", "HSlider", fill)
+	t.set_stylebox("grabber_area_highlight", "HSlider", fill)
+	# Scroll bars: slim, a violet groove and a gilt-edged grip.
+	for bar in ["VScrollBar", "HScrollBar"]:
+		t.set_stylebox("scroll", bar, box(Color(VOID, 0.6), Color(0, 0, 0, 0), 3))
+		t.set_stylebox("grabber", bar, box(Color(LINE_HI, 0.7), Color(0, 0, 0, 0), 3))
+		t.set_stylebox("grabber_highlight", bar, box(Color(GILT, 0.6), Color(0, 0, 0, 0), 3))
+		t.set_stylebox("grabber_pressed", bar, box(Color(GILT, 0.85), Color(0, 0, 0, 0), 3))
+	return t
+
+
+# --- panels, buttons, slots ---------------------------------------------------------
 
 static func box(bg: Color, border: Color, radius := 6, border_w := 1, margin := 0.0) -> StyleBoxFlat:
 	var b := StyleBoxFlat.new()
@@ -65,25 +200,144 @@ static func box(bg: Color, border: Color, radius := 6, border_w := 1, margin := 
 
 ## The HUD's panels (bars, marks, cards, prompts).
 static func panel() -> StyleBoxFlat:
-	return box(PANEL, PANEL_EDGE, 6)
-
-
-## An item or gear slot; `on` for the one in hand.
-static func slot(on := false) -> StyleBoxFlat:
-	return box(SLOT_ON if on else SLOT, GOLD if on else SLOT_EDGE, 5)
-
-
-## The menus' big panel.
-static func menu_panel() -> StyleBoxFlat:
-	var b := box(MENU_PANEL, PANEL_EDGE, 10, 1, 20.0)
-	b.shadow_color = Color(0, 0, 0, 0.45)
-	b.shadow_size = 12
+	var b := box(PANEL, PANEL_EDGE, 6)
+	b.shadow_color = Color(0, 0, 0, 0.3)
+	b.shadow_size = 3
 	return b
 
 
-## The Entity's speech bubble: deep violet, a soft lavender edge.
-static func entity_bubble(margin := 10.0) -> StyleBoxFlat:
-	var b := box(Color(ENTITY_BG, 0.94), ENTITY_EDGE, 10, 1, margin)
+## An item or gear slot; `on` for the one in hand: a dark inset well with a
+## thin edge (gilt for the one in hand).
+static func slot(on := false) -> StyleBoxFlat:
+	var b := box(SLOT_ON if on else SLOT, GOLD if on else SLOT_EDGE, 5)
+	if on:
+		b.shadow_color = Color(GILT, 0.22)
+		b.shadow_size = 4
+	return b
+
+
+## The menus' big panel: a deep violet slab, lighter at the top, edged with a
+## thin line and a gilt hairline inside it, gilt flourishes at the corners.
+static func menu_panel() -> StyleBox:
+	var b := Ornate.new()
+	b.top = Color(0.13, 0.115, 0.17, 0.98)
+	b.bottom = Color(0.06, 0.052, 0.082, 0.98)
+	b.edge = Color(LINE_HI, 0.7)
+	b.inner = Color(GILT, 0.16)
+	b.corners = Color(GILT, 0.7)
+	b.glow = Color(0.62, 0.5, 0.95, 0.07)
+	b.radius = 8.0
+	b.shadow = 14.0
+	b.grain = true
+	b.set_content_margin_all(22.0)
+	return b
+
+
+## A card inside a page (a mark, a spell, a camp choice): stone, a thin
+## line edge, a faint glow along the top; `accent` tints the edge and glow
+## (an essence's colour), `strip` draws a coloured bar down its left side.
+static func card(accent := Color(0, 0, 0, 0), strip := false, margin := 12.0) -> Ornate:
+	var b := Ornate.new()
+	b.top = Color(0.13, 0.115, 0.165, 0.95)
+	b.bottom = Color(0.085, 0.075, 0.11, 0.95)
+	b.edge = Color(LINE, 1.0) if accent.a <= 0.0 else Color(accent.lerp(LINE, 0.45), 0.9)
+	b.glow = Color(1, 1, 1, 0.035) if accent.a <= 0.0 else Color(accent, 0.1)
+	b.radius = 6.0
+	b.highlight = true
+	if strip and accent.a > 0.0:
+		b.strip = accent
+	b.set_content_margin_all(margin)
+	if strip:
+		b.content_margin_left = margin + 3.0
+	return b
+
+
+## A button's look in one state ("normal", "hover", "pressed", "focus",
+## "disabled"): a raised violet face, lit along its top edge.
+static func button_box(state: String) -> StyleBox:
+	if state == "focus":
+		return focus_box()
+	var b := Ornate.new()
+	b.radius = 6.0
+	b.highlight = true
+	b.drop = true
+	match state:
+		"hover":
+			b.top = Color(0.235, 0.21, 0.3)
+			b.bottom = Color(0.16, 0.14, 0.21)
+			b.edge = Color(GILT, 0.5)
+			b.glow = Color(GILT, 0.06)
+		"pressed":
+			b.top = Color(0.22, 0.16, 0.09)
+			b.bottom = Color(0.3, 0.22, 0.12)
+			b.edge = Color(GILT, 0.6)
+			b.highlight = false
+			b.drop = false
+		"disabled":
+			b.top = Color(0.13, 0.12, 0.16, 0.6)
+			b.bottom = Color(0.1, 0.09, 0.13, 0.6)
+			b.edge = Color(LINE, 0.6)
+			b.highlight = false
+			b.drop = false
+		_:
+			b.top = Color(0.18, 0.16, 0.23)
+			b.bottom = Color(0.12, 0.106, 0.16)
+			b.edge = Color(0.25, 0.22, 0.31)
+	button_margins(b)
+	return b
+
+
+## The gilded look of a page's main button (or the chosen tab): a warm
+## gold-brown face, a gilt edge and lit top.
+static func primary_box(state := "normal") -> StyleBox:
+	var b := Ornate.new()
+	b.radius = 6.0
+	b.highlight = true
+	b.drop = state != "pressed"
+	b.top = Color(0.36, 0.26, 0.12) if state != "hover" else Color(0.44, 0.32, 0.15)
+	b.bottom = Color(0.2, 0.14, 0.06) if state != "hover" else Color(0.26, 0.18, 0.08)
+	b.edge = Color(GILT, 0.85 if state == "hover" else 0.7)
+	b.glow = Color(GILT_HI, 0.12)
+	button_margins(b)
+	return b
+
+
+## Keys and controller: the focused control's gilt outline, with a soft glow.
+static func focus_box() -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.draw_center = false
+	s.set_corner_radius_all(7)
+	s.anti_aliasing = true
+	s.border_color = GILT_HI
+	s.set_border_width_all(2)
+	s.set_expand_margin_all(2)
+	s.shadow_color = Color(GILT, 0.35)
+	s.shadow_size = 6
+	button_margins(s)
+	return s
+
+
+static func button_margins(s: StyleBox) -> void:
+	s.content_margin_left = 14
+	s.content_margin_right = 14
+	s.content_margin_top = 5
+	s.content_margin_bottom = 6
+
+
+## The Entity's speech bubble: deep violet, lighter at the top, a soft
+## lavender edge and a periwinkle bar down its left side.
+static func entity_bubble(margin := 10.0) -> StyleBox:
+	var b := Ornate.new()
+	b.top = Color(0.15, 0.125, 0.22, 0.96)
+	b.bottom = Color(0.085, 0.07, 0.13, 0.96)
+	b.edge = ENTITY_EDGE
+	b.glow = Color(PERIWINKLE, 0.08)
+	b.strip = Color(PERIWINKLE, 0.85)
+	b.radius = 9.0
+	b.shadow = 10.0
+	b.highlight = true
+	b.set_content_margin_all(margin)
+	b.content_margin_left = margin + 3.0
 	b.content_margin_top = margin * 0.6
 	b.content_margin_bottom = margin * 0.7
 	return b
@@ -368,11 +622,11 @@ static func socket_into(b, c: Vector2, r: float, forming := 0.0) -> void:
 
 ## A small rounded key badge ("Q", "LB"), for cast and use keys. Returns its size.
 static func draw_key(ci: CanvasItem, at: Vector2, key: String, size := 11, col := GOLD) -> Vector2:
-	var font := ThemeDB.fallback_font
-	var w := maxf(font.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 8.0, size + 5.0)
+	var mono := font("mono")
+	var w := maxf(mono.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 8.0, size + 5.0)
 	var r := Rect2(at, Vector2(w, size + 5.0))
 	ci.draw_style_box(_key_box(), r)
-	ci.draw_string(font, Vector2(r.position.x, r.end.y - 4.0), key, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
+	ci.draw_string(mono, Vector2(r.position.x, r.end.y - 4.0), key, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
 	return r.size
 
 
@@ -381,6 +635,272 @@ static var _key_style: StyleBoxFlat
 
 static func _key_box() -> StyleBoxFlat:
 	if _key_style == null:
-		_key_style = box(Color(0.05, 0.045, 0.07, 0.92), Color(GOLD, 0.45), 4)
+		_key_style = box(Color(0.05, 0.043, 0.07, 0.94), Color(GOLD, 0.5), 4)
 		_key_style.border_width_bottom = 2
 	return _key_style
+
+
+# --- the ornate box ----------------------------------------------------------------------
+## A StyleBox drawn in code: a rounded slab filled with a vertical gradient
+## (`top` to `bottom`), an optional soft shadow under it, a faint glow along
+## its top, a lit top edge (`highlight`) and a dark lip under it (`drop`),
+## its `edge` line, a hairline just inside it (`inner`), a coloured `strip`
+## down its left side, gilt flourishes at the `corners`, and a faint
+## engraved `grain`. Used for the menus' panel, cards, buttons and bubbles.
+class Ornate extends StyleBox:
+	var top := Color(0.13, 0.115, 0.17)
+	var bottom := Color(0.06, 0.052, 0.082)
+	var edge := Color(0, 0, 0, 0)
+	var inner := Color(0, 0, 0, 0)
+	var corners := Color(0, 0, 0, 0)
+	var glow := Color(0, 0, 0, 0)
+	var strip := Color(0, 0, 0, 0)
+	var radius := 6.0
+	var shadow := 0.0
+	var highlight := false
+	var drop := false
+	var grain := false
+
+	func _get_draw_rect(rect: Rect2) -> Rect2:
+		return rect.grow(shadow) if shadow > 0.0 else rect
+
+	func _draw(ci: RID, rect: Rect2) -> void:
+		var rs := RenderingServer
+		var r := radius
+		if shadow > 0.0:
+			for i in 4:
+				var k := float(i + 1) / 4.0
+				var g := rect.grow(shadow * k * 0.9)
+				g.position.y += shadow * 0.35
+				var pts := rounded(g, r + shadow * k * 0.6)
+				rs.canvas_item_add_polygon(ci, pts, PackedColorArray([Color(0, 0, 0, 0.11 * (1.0 - k * 0.7))]))
+		if drop:
+			var lip := rect
+			lip.position.y += 2.0
+			rs.canvas_item_add_polygon(ci, rounded(lip, r), PackedColorArray([Color(0, 0, 0, 0.4)]))
+		# The fill: colours an affine function of y, so any triangulation is exact.
+		var pts := rounded(rect, r)
+		var cols := PackedColorArray()
+		for p in pts:
+			cols.append(top.lerp(bottom, clampf((p.y - rect.position.y) / maxf(rect.size.y, 1.0), 0.0, 1.0)))
+		rs.canvas_item_add_polygon(ci, pts, cols)
+		if grain and rect.size.y > 40.0:
+			# Faint engraved lines, like a worked metal plate.
+			var lines := PackedVector2Array()
+			var y := rect.position.y + 6.0
+			while y < rect.end.y - 6.0:
+				lines.append(Vector2(rect.position.x + r, y))
+				lines.append(Vector2(rect.end.x - r, y))
+				y += 3.0
+			rs.canvas_item_add_multiline(ci, lines, PackedColorArray([Color(1, 1, 1, 0.012)]), 1.0)
+		if glow.a > 0.0:
+			# A soft light along the top, fading down a third of the way.
+			var gh := minf(rect.size.y * 0.42, 90.0)
+			var band := Rect2(rect.position + Vector2(1, 1), Vector2(rect.size.x - 2, gh))
+			var gp := rounded(band, maxf(r - 1.0, 0.0), true)
+			var gc := PackedColorArray()
+			for p in gp:
+				gc.append(Color(glow, glow.a * clampf(1.0 - (p.y - band.position.y) / gh, 0.0, 1.0)))
+			rs.canvas_item_add_polygon(ci, gp, gc)
+		if strip.a > 0.0:
+			var sr := Rect2(rect.position + Vector2(1, 1), Vector2(3, rect.size.y - 2))
+			rs.canvas_item_add_polygon(ci, rounded(sr, minf(1.5, r)), PackedColorArray([strip]))
+		if highlight:
+			rs.canvas_item_add_line(ci, rect.position + Vector2(r, 1.0), Vector2(rect.end.x - r, rect.position.y + 1.0), Color(1, 1, 1, 0.07), 1.0)
+		if edge.a > 0.0:
+			var loop := rounded(rect.grow(-0.5), r)
+			loop.append(loop[0])
+			rs.canvas_item_add_polyline(ci, loop, PackedColorArray([edge]), 1.0, true)
+		if inner.a > 0.0 and rect.size.x > 24.0 and rect.size.y > 24.0:
+			var il := rounded(rect.grow(-4.0), maxf(r - 3.0, 1.0))
+			il.append(il[0])
+			rs.canvas_item_add_polyline(ci, il, PackedColorArray([inner]), 1.0, true)
+		if corners.a > 0.0 and rect.size.x > 60.0 and rect.size.y > 60.0:
+			for cx in [0, 1]:
+				for cy in [0, 1]:
+					_flourish(ci, rect, cx, cy)
+
+	## A rounded rectangle's outline as points (a few per corner); `top_only`
+	## rounds only the top corners.
+	static func rounded(r: Rect2, rad: float, top_only := false) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		rad = clampf(rad, 0.0, minf(r.size.x, r.size.y) * 0.5)
+		if rad < 0.5:
+			return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+		var n := 4 if rad < 8.0 else 6
+		var centres := [Vector2(r.end.x - rad, r.position.y + rad), Vector2(r.end.x - rad, r.end.y - rad),
+			Vector2(r.position.x + rad, r.end.y - rad), Vector2(r.position.x + rad, r.position.y + rad)]
+		for k in 4:
+			if top_only and (k == 1 or k == 2):
+				pts.append(Vector2(r.end.x, r.end.y) if k == 1 else Vector2(r.position.x, r.end.y))
+				continue
+			var a0 := -PI * 0.5 + PI * 0.5 * k
+			for i in n + 1:
+				var a := a0 + PI * 0.5 * i / n
+				pts.append(centres[k] + Vector2(cos(a), sin(a)) * rad)
+		return pts
+
+	## A gilt flourish at one corner: two short rules meeting in a small
+	## diamond, with a curl inside.
+	func _flourish(ci: RID, rect: Rect2, cx: int, cy: int) -> void:
+		var rs := RenderingServer
+		var sx := 1.0 if cx == 0 else -1.0
+		var sy := 1.0 if cy == 0 else -1.0
+		var o := Vector2(rect.position.x if cx == 0 else rect.end.x, rect.position.y if cy == 0 else rect.end.y)
+		var c := o + Vector2(sx, sy) * 8.0
+		var arm := 18.0
+		var col := corners
+		rs.canvas_item_add_line(ci, c + Vector2(sx * 4.0, 0), c + Vector2(sx * arm, 0), col, 1.0, true)
+		rs.canvas_item_add_line(ci, c + Vector2(0, sy * 4.0), c + Vector2(0, sy * arm), col, 1.0, true)
+		rs.canvas_item_add_polygon(ci, PackedVector2Array([c + Vector2(0, -3), c + Vector2(3, 0), c + Vector2(0, 3), c + Vector2(-3, 0)]), PackedColorArray([col]))
+		rs.canvas_item_add_circle(ci, c + Vector2(sx * arm + sx * 3.0, 0), 1.2, col)
+		rs.canvas_item_add_circle(ci, c + Vector2(0, sy * arm + sy * 3.0), 1.2, col)
+
+
+## A rounded rectangle's outline as points (a few per corner); `top_only`
+## rounds only the top corners.
+static func rounded(r: Rect2, rad: float, top_only := false) -> PackedVector2Array:
+	return Ornate.rounded(r, rad, top_only)
+
+
+# --- ornaments and labels ------------------------------------------------------------------
+
+## A double rule with a gilt diamond in the middle (dividers under titles).
+static func draw_divider(ci: CanvasItem, from: Vector2, to: Vector2, col := GOLD, diamond := true) -> void:
+	var mid := (from + to) * 0.5
+	var gap := 9.0 if diamond else 0.0
+	var fade := Color(col, 0.0)
+	# Each half fades out toward its end.
+	for side in [-1.0, 1.0]:
+		var end := from if side < 0.0 else to
+		var start := mid + (end - mid).normalized() * gap
+		ci.draw_polyline_colors(PackedVector2Array([start, end]), PackedColorArray([Color(col, col.a * 0.55), fade]), 1.0, true)
+		ci.draw_polyline_colors(PackedVector2Array([start + Vector2(0, 3), end + Vector2(0, 3)]), PackedColorArray([Color(col, col.a * 0.22), fade]), 1.0, true)
+	if diamond:
+		var c := mid + Vector2(0, 1.5)
+		ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -4), c + Vector2(4, 0), c + Vector2(0, 4), c + Vector2(-4, 0)]), Color(col, col.a * 0.9))
+		ci.draw_circle(c + Vector2(-8, 0), 1.0, Color(col, col.a * 0.6))
+		ci.draw_circle(c + Vector2(8, 0), 1.0, Color(col, col.a * 0.6))
+
+
+## Small letter-spaced capitals (an eyebrow over a title, a section's name).
+## Returns its width.
+static func draw_eyebrow(ci: CanvasItem, at: Vector2, text: String, col := GOLD, size := SIZE_EYEBROW, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0) -> float:
+	var f := font("eyebrow")
+	var t := text.to_upper()
+	ci.draw_string(f, at, t, align, width, size, col)
+	return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+
+
+## A title in the display face (Grenze Gotisch), with a soft dark halo so
+## it reads over anything.
+static func draw_title(ci: CanvasItem, at: Vector2, text: String, size: int, col := GOLD, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, halo := 0.6) -> void:
+	var f := font("display")
+	if halo > 0.0:
+		ci.draw_string_outline(f, at + Vector2(0, 2), text, align, width, size, maxi(4, size / 5), Color(0, 0, 0, halo * 0.6))
+		ci.draw_string_outline(f, at, text, align, width, size, 3, Color(0.12, 0.07, 0.03, halo))
+	ci.draw_string(f, at, text, align, width, size, col)
+
+
+## Display titles read best in mixed case (blackletter capitals run
+## together): "THE KRAKEN'S TOWER" becomes "The Kraken's Tower". Text that
+## isn't all capitals is left as it is.
+static func title_case(t: String) -> String:
+	if t != t.to_upper() or t == t.to_lower():
+		return t
+	var small := ["of", "the", "a", "an", "to", "and", "in", "on", "at", "for"]
+	var words := t.to_lower().split(" ")
+	for i in words.size():
+		var w: String = words[i]
+		if w == "" or (i > 0 and w in small):
+			continue
+		words[i] = w.left(1).to_upper() + w.substr(1)
+	return " ".join(words)
+
+
+## A Label in a role's font: "display" titles, "eyebrow" small capitals,
+## "mono" numbers, "italic" asides.
+static func style_label(l: Label, kind: String, size: int, col: Color) -> Label:
+	l.add_theme_font_override("font", font(kind))
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	if kind == "eyebrow":
+		l.uppercase = true  # (shown in capitals; its text stays as written)
+	return l
+
+
+# --- the rail's icons ----------------------------------------------------------------------
+## Line icons for the menu's rail (rail.gd), drawn in code like the old
+## game's stroked icons: `id` is the rail item, `c` its centre, `s` its half
+## size. Unknown ids draw a small diamond.
+static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color, w := 1.6) -> void:
+	var u := s / 10.0  # (drawn on a 20 x 20 grid around the centre)
+	var P := func(x: float, y: float) -> Vector2: return c + Vector2(x, y) * u
+	match id:
+		"resume":  # a door ajar with light spilling out
+			ci.draw_polyline(PackedVector2Array([P.call(-6, 9), P.call(-6, -7), P.call(-2, -9), P.call(6, -9), P.call(6, 9)]), col, w, true)
+			ci.draw_colored_polygon(PackedVector2Array([P.call(-2, -6), P.call(4, -8), P.call(4, 9), P.call(-2, 7)]), Color(col, 0.35))
+			ci.draw_line(P.call(-9, 9), P.call(9, 9), col, w, true)
+		"train":  # a small engine
+			ci.draw_polyline(PackedVector2Array([P.call(-9, 5), P.call(-9, -3), P.call(-1, -3), P.call(-1, -8), P.call(5, -8), P.call(5, 5)]), col, w, true)
+			ci.draw_line(P.call(5, -1), P.call(9, 1), col, w, true)
+			ci.draw_line(P.call(9, 1), P.call(9, 5), col, w, true)
+			ci.draw_line(P.call(-10, 5), P.call(10, 5), col, w, true)
+			ci.draw_arc(P.call(-5, 7.5), 2.2 * u, 0, TAU, 12, col, w, true)
+			ci.draw_arc(P.call(3, 7.5), 2.2 * u, 0, TAU, 12, col, w, true)
+			ci.draw_line(P.call(-6, -3), P.call(-6, -8), col, w, true)
+		"climber":  # head and shoulders
+			ci.draw_arc(P.call(0, -4), 4.2 * u, 0, TAU, 20, col, w, true)
+			ci.draw_arc(P.call(0, 10), 8.0 * u, PI * 1.08, PI * 1.92, 16, col, w, true)
+		"inventory":  # a satchel
+			ci.draw_polyline(PackedVector2Array([P.call(-8, -3), P.call(8, -3), P.call(7, 9), P.call(-7, 9), P.call(-8, -3)]), col, w, true)
+			ci.draw_arc(P.call(0, -3), 4.0 * u, PI, TAU, 12, col, w, true)
+			ci.draw_line(P.call(-8, 2), P.call(8, 2), col, w, true)
+			ci.draw_rect(Rect2(P.call(-1.5, 1), Vector2(3, 3) * u), col)
+		"archive":  # an open book
+			ci.draw_polyline(PackedVector2Array([P.call(0, -5), P.call(-4, -8), P.call(-9, -8), P.call(-9, 7), P.call(-4, 7), P.call(0, 9), P.call(4, 7), P.call(9, 7), P.call(9, -8), P.call(4, -8), P.call(0, -5), P.call(0, 9)]), col, w, true)
+			ci.draw_line(P.call(-6.5, -4), P.call(-3, -4), Color(col, 0.6), 1.0, true)
+			ci.draw_line(P.call(-6.5, -1), P.call(-3, -1), Color(col, 0.6), 1.0, true)
+			ci.draw_line(P.call(3, -4), P.call(6.5, -4), Color(col, 0.6), 1.0, true)
+		"settings":  # a cog
+			ci.draw_arc(c, 3.0 * u, 0, TAU, 16, col, w, true)
+			var cog := PackedVector2Array()
+			for i in 17:
+				var a := TAU * i / 16.0
+				var rr := 8.6 if i % 2 == 0 else 6.4
+				cog.append(c + Vector2.from_angle(a) * rr * u)
+			ci.draw_polyline(cog, col, w, true)
+		"controls":  # a controller
+			var pad := PackedVector2Array()
+			for i in 13:
+				var a := PI + PI * i / 12.0
+				pad.append(P.call(0, 0) + Vector2(cos(a) * 9.0, sin(a) * 5.0) * u)
+			pad.append(P.call(8, 6))
+			pad.append(P.call(4, 3))
+			pad.append(P.call(-4, 3))
+			pad.append(P.call(-8, 6))
+			pad.append(pad[0])
+			ci.draw_polyline(pad, col, w, true)
+			ci.draw_line(P.call(-6, -1), P.call(-2, -1), col, w, true)
+			ci.draw_line(P.call(-4, -3), P.call(-4, 1), col, w, true)
+			ci.draw_circle(P.call(4, -2), 1.2 * u, col)
+			ci.draw_circle(P.call(6.5, 0), 1.2 * u, col)
+		"dev":  # a wrench
+			ci.draw_line(P.call(-7, 7), P.call(2, -2), col, w * 1.3, true)
+			ci.draw_arc(P.call(4.5, -4.5), 4.5 * u, PI * 0.95, PI * 2.55, 16, col, w, true)
+		"over":  # a turning arrow (start over)
+			ci.draw_arc(c, 7.5 * u, -PI * 0.35, PI * 1.45, 24, col, w, true)
+			var tip := c + Vector2.from_angle(-PI * 0.35) * 7.5 * u
+			ci.draw_colored_polygon(PackedVector2Array([tip + Vector2(-1, -4) * u, tip + Vector2(4, 1) * u, tip + Vector2(-3, 3) * u]), col)
+		"exit":  # a doorway and an arrow leaving
+			ci.draw_polyline(PackedVector2Array([P.call(1, -9), P.call(-7, -9), P.call(-7, 9), P.call(1, 9)]), col, w, true)
+			ci.draw_line(P.call(-2, 0), P.call(9, 0), col, w, true)
+			ci.draw_polyline(PackedVector2Array([P.call(5, -4), P.call(9, 0), P.call(5, 4)]), col, w, true)
+		"car":  # your car: a window and a lamp
+			ci.draw_polyline(PackedVector2Array([P.call(-9, 8), P.call(-9, -6), P.call(9, -6), P.call(9, 8), P.call(-9, 8)]), col, w, true)
+			ci.draw_arc(P.call(0, 1), 4.0 * u, PI, TAU, 10, col, w, true)
+			ci.draw_line(P.call(-4, 1), P.call(-4, 5), col, w, true)
+			ci.draw_line(P.call(4, 1), P.call(4, 5), col, w, true)
+			ci.draw_line(P.call(-9, -9), P.call(9, -9), col, w, true)
+		_:
+			ci.draw_colored_polygon(PackedVector2Array([P.call(0, -6), P.call(6, 0), P.call(0, 6), P.call(-6, 0)]), col)

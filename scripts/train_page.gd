@@ -274,10 +274,7 @@ static func outfitter_says(text: String, face := 40.0) -> HBoxContainer:
 		f.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(f)
 	var bubble := PanelContainer.new()
-	var st := UI.box(Color(0.13, 0.095, 0.06, 0.95), Color(TrainView.OutfitterFace.BRASS, 0.5), 10, 1, 10.0)
-	st.content_margin_top = 6.0
-	st.content_margin_bottom = 7.0
-	bubble.add_theme_stylebox_override("panel", st)
+	bubble.add_theme_stylebox_override("panel", brass_box(10.0, 9.0))
 	bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(bubble)
@@ -286,8 +283,7 @@ static func outfitter_says(text: String, face := 40.0) -> HBoxContainer:
 	bubble.add_child(col)
 	var tag := Label.new()
 	tag.text = Train.OUTFITTER["tag"]
-	tag.add_theme_font_size_override("font_size", 10)
-	tag.add_theme_color_override("font_color", Color(TrainView.OutfitterFace.BRASS, 0.9))
+	UI.style_label(tag, "eyebrow", 10, Color(TrainView.OutfitterFace.BRASS, 0.95))
 	col.add_child(tag)
 	var l := Label.new()
 	l.text = text
@@ -329,8 +325,7 @@ func _furnish(parent: Node, kind: String) -> VBoxContainer:
 func _tag(parent: Node, text: String) -> Label:
 	var l := Label.new()
 	l.text = text.to_upper()
-	l.add_theme_font_size_override("font_size", 11 if _small() else 12)
-	l.add_theme_color_override("font_color", UI.GOLD)
+	UI.style_label(l, "eyebrow", 11 if _small() else 12, UI.GOLD)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	l.add_theme_constant_override("outline_size", 3)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -421,7 +416,7 @@ func _note(parent: Node, text: String, width := 0.0) -> Label:
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = width if width > 0.0 else 4.0 * _cell() + 18.0
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 14)
 	l.add_theme_color_override("font_color", UI.DIM)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
@@ -449,10 +444,9 @@ func _engine(root: Node) -> void:
 	var row := _main_row(root)
 	var board := _furnish(row, "board")
 	var h := Label.new()
-	h.text = T["depart_title"]
+	h.text = UI.title_case(T["depart_title"])
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	h.add_theme_font_size_override("font_size", 17 if small else 21)
-	h.add_theme_color_override("font_color", UI.GOLD)
+	UI.style_label(h, "display", 24 if small else 28, UI.GOLD)
 	board.add_child(h)
 	if not small:
 		var sub := _note(board, T["depart_sub"], 10.0)
@@ -483,8 +477,7 @@ func _engine(root: Node) -> void:
 	var name := Label.new()
 	name.text = tw["name"]
 	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name.add_theme_font_size_override("font_size", 17 if small else 19)
-	name.add_theme_color_override("font_color", Color(tw["torch"]).lerp(UI.TEXT, 0.35))
+	UI.style_label(name, "display", 23 if small else 25, Color(tw["torch"]).lerp(UI.TEXT, 0.35))
 	col.add_child(name)
 	var ess := HBoxContainer.new()
 	ess.add_theme_constant_override("separation", 10)
@@ -492,12 +485,12 @@ func _engine(root: Node) -> void:
 	var tag := PriceTag.new()
 	tag.kind = tw["essence"]
 	tag.text_override = T["essence"] % Essence.display(tw["essence"])
-	tag.custom_minimum_size = Vector2(ThemeDB.fallback_font.get_string_size(tag.text_override, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 26.0, 20)
+	tag.custom_minimum_size = Vector2(ThemeDB.fallback_font.get_string_size(tag.text_override, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 26.0, 20)
 	ess.add_child(tag)
 	var best := int(prof.record.get("best", {}).get(m.train_tower, 0))
 	var bl := Label.new()
 	bl.text = (T["best"] % best) if best > 0 else T["never"]
-	bl.add_theme_font_size_override("font_size", 12)
+	bl.add_theme_font_size_override("font_size", 14)
 	bl.add_theme_color_override("font_color", UI.DIM)
 	ess.add_child(bl)
 	if not small:
@@ -574,11 +567,11 @@ func _personal(root: Node) -> void:
 		b.clip_text = true
 		_brass(b)
 		# (three side by side: tighter margins so each name fits)
-		b.add_theme_font_size_override("font_size", 13 if _small() else 14)
+		b.add_theme_font_size_override("font_size", 15 if _small() else 16)
 		var ratios: Dictionary = {"climber": 1.0, "inventory": 1.25, "appearance": 0.9} if _small() else {"climber": 1.0, "inventory": 1.12, "appearance": 1.3}
 		b.size_flags_stretch_ratio = ratios[f[1]]
 		for state in ["normal", "hover", "pressed"]:
-			var st: StyleBoxFlat = b.get_theme_stylebox(state)
+			var st: StyleBox = b.get_theme_stylebox(state)
 			st.content_margin_left = 5
 			st.content_margin_right = 5
 	if m.Unbound.is_on(prof):
@@ -718,15 +711,43 @@ func _set_store(id: String) -> void:
 
 
 ## A button in brass (a sign, a drawer's label); `on` lights it (the counter in use).
+## The train's buttons: a dark walnut face, lit along the top, in a brass
+## rim (gilded for the one that's on).
 func _brass(b: Button, on := false) -> void:
 	for state in ["normal", "hover", "pressed"]:
-		var bg := Color(0.2, 0.13, 0.07) if state == "normal" else (Color(0.28, 0.19, 0.1) if state == "hover" else Color(0.34, 0.24, 0.12))
+		var st := UI.Ornate.new()
+		st.radius = 5.0
+		st.highlight = state != "pressed"
+		st.drop = state != "pressed"
+		st.top = Color(0.27, 0.17, 0.09) if state == "normal" else (Color(0.35, 0.23, 0.12) if state == "hover" else Color(0.2, 0.13, 0.07))
+		st.bottom = Color(0.15, 0.09, 0.05) if state == "normal" else (Color(0.21, 0.14, 0.07) if state == "hover" else Color(0.3, 0.2, 0.1))
 		if on:
-			bg = Color(0.5, 0.35, 0.14) if state != "hover" else Color(0.56, 0.4, 0.17)
-		var st := UI.box(bg, UI.GOLD if on else Color(UI.TRAIN_BRASS, 0.8 if state != "normal" else 0.55), 4, 2)
+			st.top = Color(0.56, 0.4, 0.17) if state != "hover" else Color(0.62, 0.45, 0.2)
+			st.bottom = Color(0.36, 0.24, 0.1) if state != "hover" else Color(0.42, 0.29, 0.12)
+		st.edge = UI.GILT_HI if on else Color(UI.TRAIN_BRASS, 0.85 if state != "normal" else 0.6)
+		st.inner = Color(UI.TRAIN_BRASS, 0.18)
 		m._button_margins(st)
 		b.add_theme_stylebox_override(state, st)
-	b.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82) if on else Color(0.96, 0.84, 0.6))
+	b.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82) if on else Color(0.97, 0.86, 0.63))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.82))
+	b.add_theme_color_override("font_focus_color", Color(1.0, 0.95, 0.82))
+
+
+## A brass-edged panel (the outfitter's bubble): walnut, warmer at the top.
+static func brass_box(margin := 10.0, radius := 9.0) -> StyleBox:
+	var st := UI.Ornate.new()
+	st.top = Color(0.2, 0.13, 0.07, 0.96)
+	st.bottom = Color(0.11, 0.07, 0.04, 0.96)
+	st.edge = Color(UI.TRAIN_BRASS, 0.65)
+	st.inner = Color(UI.TRAIN_BRASS, 0.15)
+	st.glow = Color(1.0, 0.8, 0.5, 0.06)
+	st.highlight = true
+	st.radius = radius
+	st.shadow = 6.0
+	st.set_content_margin_all(margin)
+	st.content_margin_top = margin * 0.6
+	st.content_margin_bottom = margin * 0.7
+	return st
 
 
 # --- the workshop car -----------------------------------------------------------------
@@ -823,7 +844,7 @@ func _counters(parent: Node, size: Vector2, names: int) -> void:
 		var b: Button = m._button(c[names], _set_bench.bind(c[0]), parent)
 		b.custom_minimum_size = size
 		b.set_meta("bench_tab", c[0])
-		b.add_theme_font_size_override("font_size", 13 if names == 2 else 14)
+		b.add_theme_font_size_override("font_size", 15 if names == 2 else 16)
 		var locked := Bench.locked(prof, c[0]) != ""
 		_brass(b, c[0] == m.train_bench)
 		if c[0] == m.train_bench:
@@ -916,8 +937,9 @@ func _chrome() -> void:
 		b.flat = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(108.0 if small else 132.0, mg.x - 4.0)
-		b.add_theme_font_size_override("font_size", 14 if small else 16)
-		b.add_theme_color_override("font_color", UI.GOLD if i == cur else Color(UI.TEXT, 0.7))
+		b.add_theme_font_override("font", UI.font("display"))
+		b.add_theme_font_size_override("font_size", 19 if small else 22)
+		b.add_theme_color_override("font_color", UI.GILT_HI if i == cur else Color(UI.TEXT, 0.72))
 		b.add_theme_color_override("font_hover_color", UI.GOLD)
 		b.add_theme_color_override("font_pressed_color", UI.GOLD)
 		b.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
@@ -974,7 +996,7 @@ func _chrome() -> void:
 	_brass(b)
 	if not m.main.touch_active:
 		var l: Label = m._label(Controls.pad_text("{start}", m.main.pad_ps) if m.main.pad_active else "Esc", 0.0, UI.FAINT)
-		l.add_theme_font_size_override("font_size", 12)
+		l.add_theme_font_size_override("font_size", 14)
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		foot.add_child(l)
 
@@ -1795,10 +1817,11 @@ class Purse extends Control:
 			var have: float = profile.crystal_total(kinds[i])
 			var x := w * i + 23.0
 			var col := UI.TEXT if have > 0.0 else UI.FAINT
-			draw_string(font, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 15, col)
+			var mono := UI.font("mono")
+			draw_string(mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 15, col)
 			if size.x > 430.0:
-				var nw := font.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-				draw_string(font, Vector2(x + nw + 4.0, size.y * 0.5 + 4.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, 11, UI.DIM)
+				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+				draw_string(font, Vector2(x + nw + 4.0, size.y * 0.5 + 4.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, 13, UI.DIM)
 
 
 ## A price: a gem of its kind, the amount and the kind's name (red if you
@@ -1822,7 +1845,7 @@ class PriceTag extends Control:
 		else:
 			UI.gem_into(b, Vector2(8, size.y * 0.5), 6.5, Essence.color(kind))
 		b.flush(self)
-		draw_string(font, Vector2(20, size.y * 0.5 + 5.0), t, HORIZONTAL_ALIGNMENT_LEFT, size.x - 20.0, 14, UI.TEXT if ok else UI.BAD)
+		draw_string(font, Vector2(20, size.y * 0.5 + 5.0), t, HORIZONTAL_ALIGNMENT_LEFT, size.x - 20.0, 16, UI.TEXT if ok else UI.BAD)
 
 
 ## A tower's plaque on the engine's destination board: enamel in a brass
@@ -1852,7 +1875,7 @@ class TowerCard extends Button:
 		draw_rect(Rect2(Vector2(4, 4), Vector2(size.x - 8, 4)), Color(t["torch"], 0.8))
 		var small := size.y < 64.0
 		var name: String = t["short"]
-		draw_string(font, Vector2(12, 27 if small else 33), name, HORIZONTAL_ALIGNMENT_LEFT, size.x - 24.0, 16 if small else 19, UI.GOLD if chosen else UI.TEXT)
+		draw_string(UI.font("display"), Vector2(12, 28 if small else 34), name, HORIZONTAL_ALIGNMENT_LEFT, size.x - 24.0, 21 if small else 23, UI.GILT_HI if chosen else UI.TEXT)
 		var b := UI.Draw.Batch.new()
 		var gy := 43.0 if small else 54.0
 		UI.gem_into(b, Vector2(17, gy), 5.0, Essence.color(t["essence"]))
@@ -1862,4 +1885,4 @@ class TowerCard extends Button:
 			sub += "  ·  floor %d" % best
 		if last and not small:
 			sub += "  ·  last climbed"
-		draw_string(font, Vector2(27, gy + 4.0), sub, HORIZONTAL_ALIGNMENT_LEFT, size.x - 34.0, 11, UI.DIM)
+		draw_string(font, Vector2(27, gy + 4.0), sub, HORIZONTAL_ALIGNMENT_LEFT, size.x - 34.0, 13, UI.DIM)

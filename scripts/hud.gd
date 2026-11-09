@@ -57,6 +57,8 @@ var show_help := false  # the keyboard controls panel (a setting)
 var hud_scale := 1.0  # the HUD size setting (ui.gd HUD_SCALES)
 var tips: Array = []  # [rect, title, lines] of what the mouse can hover for a tooltip
 var tip_box: StyleBoxFlat
+var card_box: StyleBox  # the big cards (towers, camps, the gear at your feet): ui.gd card
+var card_box_on: StyleBox
 var core: Node2D  # the always-there part, drawn under this node
 var core_redraws := 0  # times the core was drawn (tests, dev readout)
 var top_redraws := 0  # times this layer was drawn
@@ -95,7 +97,9 @@ func _ready() -> void:
 	panel = UI.panel()
 	slot = UI.slot()
 	slot_on = UI.slot(true)
-	tip_box = UI.box(Color(0.06, 0.055, 0.08, 0.96), Color(UI.GOLD, 0.45), 6)
+	card_box = UI.card()
+	card_box_on = UI.card(UI.GOLD)
+	tip_box = UI.box(Color(0.07, 0.06, 0.1, 0.97), Color(UI.GOLD, 0.45), 6)
 	tip_box.shadow_color = Color(0, 0, 0, 0.5)
 	tip_box.shadow_size = 6
 	# The core goes just under this node, in the same layer.
@@ -334,23 +338,23 @@ func _draw_core() -> void:
 	b.flush(c)
 	# Words last, over the shapes.
 	var hp_text := "%d / %d" % [int(ceil(p.hp)), int(round(p.max_health()))]
-	c.draw_string_outline(font, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.85))
-	c.draw_string(font, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 0.95, 0.92))
+	c.draw_string_outline(font, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.85))
+	c.draw_string(font, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 0.95, 0.92))
 	var wound_text: String = main.proving.wound_text() if main.proving != null else ""
 	if wound_text != "":  # the Proving's lingering wound, small at the bar's end
 		var tag: String = main.proving.TEXT["wound_tag"]
-		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 8, 3, Color(0, 0, 0, 0.85))
-		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 8, Color(0.82, 0.74, 1.0))
+		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 9, 3, Color(0, 0, 0, 0.85))
+		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 9, Color(0.82, 0.74, 1.0))
 	tips.append([bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]] + ([wound_text] if wound_text != "" else [])])
 	if flow_rect.size.x > 0.0:
 		tips.append([flow_rect, Secret.TEXT["hud_tip"] % [Secret.display(main.profile.path), main.profile.flow_step()], _flow_tip_lines()])
 	if slot_i >= 0 and not main.touch_active:
-		c.draw_string_outline(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 3, Color(0, 0, 0, 0.8))
-		c.draw_string(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, GOLD)
+		c.draw_string_outline(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.8))
+		c.draw_string(font, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, GOLD)
 	if sel != "":
 		var n := str(p.item_count(sel))
-		c.draw_string_outline(font, ir.end + Vector2(-9, -3), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 3, Color(0, 0, 0, 0.9))
-		c.draw_string(font, ir.end + Vector2(-9, -3), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD)
+		c.draw_string_outline(font, ir.end + Vector2(-9, -3), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.9))
+		c.draw_string(font, ir.end + Vector2(-9, -3), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, GOLD)
 		if not main.touch_active:
 			UI.draw_key(c, ir.position + Vector2(-3, -5), _use_key(), 8)
 	if not main.touch_active:
@@ -452,11 +456,11 @@ func _draw() -> void:
 	if floor_t > 0.0 or stair_t > 0.0:
 		var fa := _fade(maxf(floor_t, stair_t), FLOOR_SHOW)
 		var floor_text: String = main._floor_title()
-		draw_string_outline(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, 5, Color(0, 0, 0, 0.8 * fa))
-		draw_string(font, Vector2(0, 30), floor_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 20, Color(GOLD, fa))
+		draw_string_outline(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, 5, Color(0, 0, 0, 0.8 * fa))
+		draw_string(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(GOLD, fa))
 		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
-		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, 3, Color(0, 0, 0, 0.6 * fa))
-		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color(DIM_TEXT, fa))
+		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 3, Color(0, 0, 0, 0.6 * fa))
+		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, fa))
 	if stair_t > 0.0 and main.stair_open and not main.climbing:
 		var sa := _fade(stair_t, STAIR_SHOW)
 		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.005)
@@ -464,20 +468,20 @@ func _draw() -> void:
 		var stair_text := "The stair is open"
 		if left > 0:
 			stair_text += "  ·  %d %s left" % [left, "foe" if left == 1 else "foes"]
-		draw_string_outline(font, Vector2(0, 68), stair_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.7 * sa))
-		draw_string(font, Vector2(0, 68), stair_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(1.0, 0.88, 0.6, pulse * sa))
+		draw_string_outline(font, Vector2(0, 68), stair_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, 4, Color(0, 0, 0, 0.7 * sa))
+		draw_string(font, Vector2(0, 68), stair_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(1.0, 0.88, 0.6, pulse * sa))
 
 	# A new floor: its number and what changed, fading out.
 	if not main.banner.is_empty():
 		var bn: Dictionary = main.banner
 		var a: float = clampf(bn["t"] / 0.6, 0.0, 1.0)
 		var top := size.y * 0.3
-		draw_string_outline(font, Vector2(0, top), bn["title"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
-		draw_string(font, Vector2(0, top), bn["title"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(GOLD, a))
+		draw_string_outline(UI.font("display"), Vector2(0, top), UI.title_case(bn["title"]), HORIZONTAL_ALIGNMENT_CENTER, size.x, 46, 7, Color(0, 0, 0, 0.8 * a))
+		draw_string(UI.font("display"), Vector2(0, top), UI.title_case(bn["title"]), HORIZONTAL_ALIGNMENT_CENTER, size.x, 46, Color(GOLD, a))
 		var ly := top + 30.0
 		for line in bn["lines"]:
-			draw_string_outline(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8 * a))
-			draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(TEXT, a))
+			draw_string_outline(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, 4, Color(0, 0, 0, 0.8 * a))
+			draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, Color(TEXT, a))
 			ly += 22.0
 
 	# Messages: a banner across the middle.
@@ -498,21 +502,21 @@ func _draw() -> void:
 	var note_w := minf(size.x - 32.0, 760.0)
 	var note_h := 0.0
 	for line in note:
-		note_h += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_CENTER, note_w, 15).y + 4.0
+		note_h += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_CENTER, note_w, 17).y + 4.0
 	if msg != "":
 		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0 + (note_h + 8.0 if note_h > 0.0 else 0.0))
 		draw_rect(band, Color(0, 0, 0, 0.55))
 		draw_line(band.position, Vector2(band.end.x, band.position.y), Color(GOLD, 0.4), 1.0)
 		draw_line(Vector2(0, band.end.y), band.end, Color(GOLD, 0.4), 1.0)
 		var col := Color(0.9, 0.3, 0.25) if p.dead else GOLD
-		draw_string_outline(font, Vector2(0, band.position.y + 48), msg, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 6, Color(0, 0, 0, 0.8))
-		draw_string(font, Vector2(0, band.position.y + 48), msg, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, col)
-		draw_string(font, Vector2(0, band.position.y + 74), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
+		draw_string_outline(UI.font("display"), Vector2(0, band.position.y + 48), UI.title_case(msg), HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 6, Color(0, 0, 0, 0.8))
+		draw_string(UI.font("display"), Vector2(0, band.position.y + 48), UI.title_case(msg), HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, col)
+		draw_string(font, Vector2(0, band.position.y + 74), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, TEXT)
 		var ny := band.position.y + 100.0
 		for i in note.size():
 			var col_n := GOLD if i == paid_at else (Color(0.95, 0.72, 0.62) if i == 0 else Color(TEXT, 0.75))
-			draw_multiline_string(font, Vector2((size.x - note_w) / 2.0, ny), note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 15, -1, col_n)
-			ny += font.get_multiline_string_size(note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 15).y + 4.0
+			draw_multiline_string(font, Vector2((size.x - note_w) / 2.0, ny), note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 17, -1, col_n)
+			ny += font.get_multiline_string_size(note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 17).y + 4.0
 
 	# Between floors the screen fades to black.
 	if main.fade > 0.0:
@@ -559,8 +563,8 @@ func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
 		var c := r.position + Vector2(28.0 + 40.0 * i, 22)
 		var on: bool = have[i] == p.weapon and have[i] != ""
 		if not main.touch_active:
-			draw_string(font, c + Vector2(-18, -6), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(GOLD if on else DIM_TEXT, a))
-	draw_string(font, Vector2(r.position.x, r.end.y - 9.0), Gear.display(p.weapon), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(TEXT, a))
+			draw_string(font, c + Vector2(-18, -6), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(GOLD if on else DIM_TEXT, a))
+	draw_string(font, Vector2(r.position.x, r.end.y - 9.0), Gear.display(p.weapon), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14, Color(TEXT, a))
 	return r.size.y
 
 
@@ -585,9 +589,9 @@ func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
 	var ex := pos.x + 8.0
 	for kind in held:
 		var amount: float = main.run_flow if Secret.is_kind(kind) else main.run_essence[kind]
-		draw_string(font, Vector2(ex + 14, pos.y + 16), str(int(amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(Secret.KINDS[kind]["light"] if Secret.is_kind(kind) else TEXT, a))
+		draw_string(font, Vector2(ex + 14, pos.y + 16), str(int(amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Secret.KINDS[kind]["light"] if Secret.is_kind(kind) else TEXT, a))
 		ex += 44.0
-	draw_string(font, Vector2(ex + 4, pos.y + 15), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(DIM_TEXT, a))
+	draw_string(font, Vector2(ex + 4, pos.y + 15), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(DIM_TEXT, a))
 
 
 ## The keyboard (or controller) controls, top right (H, or the Controls setting).
@@ -599,14 +603,14 @@ func _draw_help(size: Vector2, font: Font) -> void:
 		if k == "-":
 			continue
 		help.append([k, row[0]])
-		key_w = maxf(key_w, font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x)
+		key_w = maxf(key_w, font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
 	var box_w := key_w + 176.0
 	var box := Rect2(size.x - box_w - 16.0, 14, box_w, 20 + help.size() * 17)
 	draw_style_box(panel, box)
 	for i in help.size():
 		var row_y := box.position.y + 24 + i * 17
-		draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
-		draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+		draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, GOLD)
+		draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
 
 
 ## The dev readout (dev tools): frame rate, draw calls and what's in the room.
@@ -619,7 +623,7 @@ func _draw_perf(size: Vector2, font: Font) -> void:
 		r.position = Vector2(BAR_X, ROW_Y + SLOT + 74.0)  # (the buttons have the bottom right)
 	draw_rect(r, Color(0, 0, 0, 0.6))
 	for i in perf_text.size():
-		draw_string(font, r.position + Vector2(8, 16 + 15 * i), perf_text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.75, 1.0, 0.75))
+		draw_string(font, r.position + Vector2(8, 16 + 15 * i), perf_text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.75, 1.0, 0.75))
 
 
 ## Top right, for the first seconds of a floor: the keys (or buttons) for the
@@ -633,7 +637,7 @@ func _draw_screen_hints(size: Vector2, font: Font, a := 1.0) -> void:
 		if k == "-":
 			continue
 		parts.append([k, h[2]])
-		w += font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + font.get_string_size(h[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 22.0
+		w += font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + font.get_string_size(h[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 22.0
 	var r := Rect2(size.x - 16.0 - w - 8.0, 14, w + 8.0, 22)
 	var pb: StyleBoxFlat = panel.duplicate() if a < 0.999 else panel
 	if a < 0.999:
@@ -642,10 +646,10 @@ func _draw_screen_hints(size: Vector2, font: Font, a := 1.0) -> void:
 	draw_style_box(pb, r)
 	var x := r.position.x + 10.0
 	for pt in parts:
-		draw_string(font, Vector2(x, 29), pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(GOLD, a))
-		x += font.get_string_size(pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 5.0
-		draw_string(font, Vector2(x, 29), pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(DIM_TEXT, a))
-		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 17.0
+		draw_string(font, Vector2(x, 29), pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(GOLD, a))
+		x += font.get_string_size(pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 5.0
+		draw_string(font, Vector2(x, 29), pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(DIM_TEXT, a))
+		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 17.0
 
 
 ## A weapon's key numbers, for its tooltip.
@@ -670,9 +674,9 @@ func _draw_tip(font: Font) -> void:
 		if not r.has_point(m):
 			continue
 		var lines: Array = t[2]
-		var w := font.get_string_size(t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		var w := font.get_string_size(t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 		for l in lines:
-			w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x)
+			w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
 		var size := get_viewport_rect().size / hud_scale
 		var box := Rect2(m + Vector2(16, 14), Vector2(w + 40.0, 26.0 + 16.0 * lines.size()))
 		box.position.x = minf(box.position.x, size.x - box.size.x - 6.0)
@@ -681,9 +685,9 @@ func _draw_tip(font: Font) -> void:
 		draw_style_box(tip_box, box)
 		# The Entity tells you what it is (its small face in the corner).
 		Entity.draw_face(self, box.position + Vector2(box.size.x - 13.0, 14.0), 7.0, 0.0)
-		draw_string(font, box.position + Vector2(11, 19), t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, GOLD)
+		draw_string(font, box.position + Vector2(11, 19), t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, GOLD)
 		for i in lines.size():
-			draw_string(font, box.position + Vector2(11, 37 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+			draw_string(font, box.position + Vector2(11, 37 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
 		return
 
 
@@ -701,40 +705,40 @@ func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 	var r := Rect2(Vector2((size.x - w) / 2.0, size.y - h - 24.0), Vector2(w, h))
 	if main.touch_active:
 		r.position = Vector2(clampf(size.x * 0.5 - w - 10.0, 110.0, size.x), size.y - h - 12.0)
-	draw_style_box(panel, r)
+	draw_style_box(card_box, r)
 	var col: Color = Gear.color(id)
 	var rim: Color = Gear.rarity_color(id) if Gear.rarity(id) != "common" else col
 	draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 4)), Color(rim, 0.85))
 	var head: String = "%s  ·  %s" % [Gear.TEXT["on_floor"], String(Gear.SLOT_NAMES.get(slot_id, slot_id)).to_upper()]
 	if Gear.rarity(id) != "common":
 		head += "  ·  " + Gear.rarity_name(id).to_upper()
-	draw_string(font, r.position + Vector2(12, 20), head, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, DIM_TEXT)
+	draw_string(font, r.position + Vector2(12, 20), head, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
 	Gear.draw_icon(self, id, r.position + Vector2(w - 26, 24), 11.0, col)
-	draw_string(font, r.position + Vector2(12, 38), Gear.display(id), HORIZONTAL_ALIGNMENT_LEFT, w - 50, 15, rim.lightened(0.2))
+	draw_string(font, r.position + Vector2(12, 38), Gear.display(id), HORIZONTAL_ALIGNMENT_LEFT, w - 50, 17, rim.lightened(0.2))
 	for i in traits.size():
-		draw_string(font, r.position + Vector2(12, 53 + 14 * i), traits[i][0], HORIZONTAL_ALIGNMENT_LEFT, w - 24, 11, Color(traits[i][1], 0.95))
+		draw_string(font, r.position + Vector2(12, 53 + 14 * i), traits[i][0], HORIZONTAL_ALIGNMENT_LEFT, w - 24, 13, Color(traits[i][1], 0.95))
 	var held_name: String = Gear.display(held) if has_held else (Gear.TEXT["none"] if slot_id == "armor" else Gear.TEXT["empty"])
 	var x1 := r.position.x + 12.0
 	var x2 := r.position.x + 128.0
 	var x3 := r.position.x + 232.0
 	var y := r.position.y + 58.0 + 14.0 * traits.size()
-	draw_string(font, Vector2(x2, y), "this", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM_TEXT)
-	draw_string(font, Vector2(x3, y), held_name.to_lower(), HORIZONTAL_ALIGNMENT_LEFT, w - (x3 - r.position.x) - 6.0, 11, DIM_TEXT)
+	draw_string(font, Vector2(x2, y), "this", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, DIM_TEXT)
+	draw_string(font, Vector2(x3, y), held_name.to_lower(), HORIZONTAL_ALIGNMENT_LEFT, w - (x3 - r.position.x) - 6.0, 13, DIM_TEXT)
 	var arrows := Draw.Batch.new()
 	for row in rows:
 		y += 17.0
-		draw_string(font, Vector2(x1, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, TEXT)
+		draw_string(font, Vector2(x1, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
 		var better: int = row[3]
 		var vcol := UI.GOOD if better > 0 else (UI.BAD if better < 0 else TEXT)
-		draw_string(font, Vector2(x2, y), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, vcol)
-		draw_string(font, Vector2(x3, y), row[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, DIM_TEXT)
+		draw_string(font, Vector2(x2, y), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, vcol)
+		draw_string(font, Vector2(x3, y), row[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, DIM_TEXT)
 		if better != 0:
 			UI.arrow_into(arrows, Vector2(x2 - 8.0, y - 4.0), 3.5, better > 0, vcol)
 	arrows.flush(self)
 	var how: String = _say(Gear.TEXT["take_key"], Gear.TEXT["take_pad"], Gear.TEXT["take_tap"])
 	if has_held:
 		how += "  " + (Gear.TEXT["to_pack"] if p.pack_room() else Gear.TEXT["drops"]) % Gear.display(held)
-	draw_string(font, Vector2(r.position.x, r.end.y - 8.0), how, HORIZONTAL_ALIGNMENT_CENTER, w, 12, GOLD)
+	draw_string(font, Vector2(r.position.x, r.end.y - 8.0), how, HORIZONTAL_ALIGNMENT_CENTER, w, 14, GOLD)
 
 
 ## The Regard: the beast's eye opens on you, and your first mark takes hold.
@@ -796,19 +800,19 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 			"%s: %s." % [info["spells"][0]["name"], BondScript.PART_FILLS[rg["part"]]],
 		]
 	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
-	draw_string_outline(font, Vector2(0, size.y * 0.3 - 110), "THE REGARD", HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 7, Color(0, 0, 0, 0.8 * title_a))
-	draw_string(font, Vector2(0, size.y * 0.3 - 110), "THE REGARD", HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, Color(GOLD, title_a))
+	draw_string_outline(UI.font("display"), Vector2(0, size.y * 0.3 - 110), "The Regard", HORIZONTAL_ALIGNMENT_CENTER, size.x, 42, 7, Color(0, 0, 0, 0.8 * title_a))
+	draw_string(UI.font("display"), Vector2(0, size.y * 0.3 - 110), "The Regard", HORIZONTAL_ALIGNMENT_CENTER, size.x, 42, Color(GOLD, title_a))
 	var ty := size.y * 0.3 + 190.0
 	for i in texts.size():
 		var a := clampf((t - 1.4 - i * 0.45) / 0.5, 0.0, 1.0)
 		var tc := col.lightened(0.2) if i == 2 else TEXT
-		draw_string(font, Vector2(0, ty), texts[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a))
+		draw_string(font, Vector2(0, ty), texts[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 20 if i == 2 else 17, Color(tc, a))
 		ty += 26.0
 	_draw_regard_pay(size, font, ty, t - 1.4 - texts.size() * 0.45)
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
-		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
 ## Under the Regard's words: what the outfitter paid for the first climb
@@ -817,7 +821,7 @@ func _draw_regard_pay(size: Vector2, font: Font, y: float, since: float) -> void
 	if main.pay_line == "" or y > size.y - 62.0:
 		return
 	var a := clampf(since / 0.5, 0.0, 1.0)
-	draw_string(font, Vector2(0, y + 4.0), main.pay_line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(GOLD, a))
+	draw_string(font, Vector2(0, y + 4.0), main.pay_line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, Color(GOLD, a))
 
 
 const UnboundData := preload("res://scripts/unbound.gd")
@@ -863,19 +867,19 @@ func _draw_refused(size: Vector2, font: Font) -> void:
 	lines[1] = lines[1] % main.beast_name().capitalize()
 	var title: String = UnboundData.TEXT["refused_title"]
 	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
-	draw_string_outline(font, Vector2(0, size.y * 0.3 - 110), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 7, Color(0, 0, 0, 0.8 * title_a))
-	draw_string(font, Vector2(0, size.y * 0.3 - 110), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, Color(RAW_ESSENCE, title_a))
+	draw_string_outline(UI.font("display"), Vector2(0, size.y * 0.3 - 110), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * title_a))
+	draw_string(UI.font("display"), Vector2(0, size.y * 0.3 - 110), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(RAW_ESSENCE, title_a))
 	var ty := size.y * 0.3 + 190.0
 	for i in lines.size():
 		var a2 := clampf((t - 1.4 - i * 0.45) / 0.5, 0.0, 1.0)
 		var tc := RAW_ESSENCE if i == 2 else TEXT
-		draw_string(font, Vector2(0, ty), lines[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a2))
+		draw_string(font, Vector2(0, ty), lines[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 20 if i == 2 else 17, Color(tc, a2))
 		ty += 26.0
 	_draw_regard_pay(size, font, ty, t - 1.4 - lines.size() * 0.45)
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
-		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
 # --- choosing a tower --------------------------------------------------------------
@@ -926,17 +930,17 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.88))
 	var title := "CHOOSE A TOWER"
 	var top_y := tower_card_rect(0, size).position.y
-	draw_string_outline(font, Vector2(0, top_y - 46.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, 6, Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(0, top_y - 46.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 32, GOLD)
+	draw_string_outline(UI.font("display"), Vector2(0, top_y - 46.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 38, 6, Color(0, 0, 0, 0.8))
+	draw_string(UI.font("display"), Vector2(0, top_y - 46.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 38, GOLD)
 	var sub := "Each tower's monsters and essence shape the marks you'll form."
-	draw_string(font, Vector2(0, top_y - 20.0), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, DIM_TEXT)
+	draw_string(font, Vector2(0, top_y - 20.0), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, DIM_TEXT)
 	for i in TowersData.ORDER.size():
 		var id: String = TowersData.ORDER[i]
 		var t: Dictionary = TowersData.TOWERS[id]
 		var r := tower_card_rect(i, size)
 		var ec := Essence.color(t["essence"])
 		var last: bool = id == main.profile.last_tower
-		var box := slot_on if last else panel
+		var box := card_box_on if last else card_box
 		draw_style_box(box, r)
 		var focused := _card_focused(i)
 		if focused:
@@ -945,14 +949,14 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		var x := r.position.x + 14.0
 		var y := r.position.y + 34.0
 		var narrow := r.size.x < 200.0 or r.size.y < 200.0  # many cards, or a phone
-		draw_string(font, Vector2(x, y), t["short"] if narrow else t["name"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 17, TEXT)
+		draw_string(font, Vector2(x, y), t["short"] if narrow else t["name"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 20, TEXT)
 		y += 24.0
 		draw_circle(Vector2(x + 6, y - 5), 6.0, ec)
-		draw_string(font, Vector2(x + 18, y), "%s essence" % Essence.display(t["essence"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, ec)
+		draw_string(font, Vector2(x + 18, y), "%s essence" % Essence.display(t["essence"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, ec)
 		y += 18.0
-		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 11 if narrow else 13, 4 if r.size.y < 200.0 else 7, DIM_TEXT)
+		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 13 if narrow else 15, 4 if r.size.y < 200.0 else 7, DIM_TEXT)
 		var hint := _card_hint(i)
-		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD if last or focused else DIM_TEXT)
+		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, GOLD if last or focused else DIM_TEXT)
 
 
 # --- hold to pick ----------------------------------------------------------------
@@ -976,13 +980,13 @@ func _draw_spell_ring(p, font: Font) -> void:
 		draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5, true)
 		var words: PackedStringArray = known[i]["name"].split(" ")
 		for w in words.size():
-			draw_string(font, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 11.0), words[w], HORIZONTAL_ALIGNMENT_CENTER, 60, 10, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT)
+			draw_string(font, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 11.0), words[w], HORIZONTAL_ALIGNMENT_CENTER, 60, 12, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT)
 	if p.pick_index >= 0 and p.pick_index < known.size():
 		var sp: Dictionary = known[p.pick_index]
-		draw_string_outline(font, c + Vector2(-160, ring_r + 54.0), sp["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 15, 4, Color(0, 0, 0, 0.8))
-		draw_string(font, c + Vector2(-160, ring_r + 54.0), sp["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 15, col.lightened(0.2))
-		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 12, 2, 4, Color(0, 0, 0, 0.8))
-		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 12, 2, TEXT)
+		draw_string_outline(font, c + Vector2(-160, ring_r + 54.0), sp["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 17, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, c + Vector2(-160, ring_r + 54.0), sp["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 17, col.lightened(0.2))
+		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
+		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
 
 
 ## The ring of belt items, around the climber (or the held Item button on
@@ -1014,16 +1018,16 @@ func _draw_item_ring(p, font: Font) -> void:
 		var a := -PI / 2.0 + TAU * float(i) / float(have.size())
 		var at := c + Vector2.from_angle(a) * ring_r
 		var n := "%d" % p.item_count(have[i])
-		draw_string_outline(font, at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 3, Color(0, 0, 0, 0.85))
-		draw_string(font, at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, TEXT)
+		draw_string_outline(font, at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.85))
+		draw_string(font, at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
 	if p.ring_index >= 0 and p.ring_index < have.size():
 		var d: Dictionary = Items.info(have[p.ring_index])
 		var col: Color = d["color"]
-		draw_string_outline(font, c + Vector2(-160, ring_r + 54.0), d["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 15, 4, Color(0, 0, 0, 0.8))
-		draw_string(font, c + Vector2(-160, ring_r + 54.0), d["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 15, col.lightened(0.2))
+		draw_string_outline(font, c + Vector2(-160, ring_r + 54.0), d["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 17, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, c + Vector2(-160, ring_r + 54.0), d["name"], HORIZONTAL_ALIGNMENT_CENTER, 320, 17, col.lightened(0.2))
 		var line := _sentence(String(d["desc"]))
-		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 12, 2, 4, Color(0, 0, 0, 0.8))
-		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 12, 2, TEXT)
+		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
+		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
 
 
 ## A Rare (or better) find: a short notice fades in under the floor title.
@@ -1034,12 +1038,12 @@ func _draw_loot_notice(size: Vector2, font: Font) -> void:
 	var a := _fade(float(n["t"]), 3.5)
 	var col: Color = n["color"]
 	var y := 96.0
-	var w := font.get_string_size(n["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 36.0
+	var w := font.get_string_size(n["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, 17).x + 36.0
 	var r := Rect2(Vector2((size.x - w) / 2.0, y - 18.0), Vector2(w, 26.0))
 	draw_rect(r, Color(0.03, 0.025, 0.05, 0.7 * a))
 	draw_rect(Rect2(r.position, Vector2(r.size.x, 2.0)), Color(col, 0.9 * a))
-	draw_string_outline(font, Vector2(0, y), n["text"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8 * a))
-	draw_string(font, Vector2(0, y), n["text"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(col.lightened(0.2), a))
+	draw_string_outline(font, Vector2(0, y), n["text"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, 4, Color(0, 0, 0, 0.8 * a))
+	draw_string(font, Vector2(0, y), n["text"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, Color(col.lightened(0.2), a))
 
 
 ## Hunter's Quarry: the last foe you struck is always marked, and an arrow at
@@ -1081,8 +1085,8 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.006)
 	var tip := at + d * 14.0
 	draw_colored_polygon(PackedVector2Array([tip, at - d * 8.0 + d.orthogonal() * 10.0, at - d * 8.0 - d.orthogonal() * 10.0]), Color(1.0, 0.85, 0.5, pulse))
-	draw_string_outline(font, at - d * 26.0 + Vector2(-20, 4), "stair", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.7))
-	draw_string(font, at - d * 26.0 + Vector2(-20, 4), "stair", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1.0, 0.85, 0.5, pulse))
+	draw_string_outline(font, at - d * 26.0 + Vector2(-20, 4), "stair", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 3, Color(0, 0, 0, 0.7))
+	draw_string(font, at - d * 26.0 + Vector2(-20, 4), "stair", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1.0, 0.85, 0.5, pulse))
 
 
 func _draw_boss_bar(size: Vector2, font: Font) -> void:
@@ -1094,8 +1098,8 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 		var name: String = main.beast_name().to_upper()
 		if e.shade:  # the Proving's shadow of the beast
 			name = (String(main.proving.TEXT["shadow_bar"]) % main.beast_name()).to_upper()
-		draw_string_outline(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.8))
-		draw_string(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, GOLD)
+		draw_string_outline(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, 78), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, GOLD)
 		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
 		draw_rect(r, Color(0.3, 0.1, 0.08, 0.9))
 		draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(e.hp / e.max_hp, 0.0, 1.0), r.size.y)), Color(0.85, 0.3, 0.22))
@@ -1113,10 +1117,10 @@ func _draw_wing_status(size: Vector2, font: Font) -> void:
 	if not ls.is_empty() and not _boss_alive():  # (a beast's shadow has its own bar there)
 		var t1: String = main.door_view.LOCK_TEXT["status"]
 		var t2: String = main.door_view.LOCK_TEXT["left"] % int(ls["left"])
-		draw_string_outline(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8))
-		draw_string(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(0.9, 0.55, 0.45))
-		draw_string_outline(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, 3, Color(0, 0, 0, 0.7))
-		draw_string(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, TEXT)
+		draw_string_outline(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, 84), t1, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, Color(0.9, 0.55, 0.45))
+		draw_string_outline(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 3, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
 	var st: Dictionary = main.wings.status()
 	if st.is_empty():
 		return
@@ -1126,8 +1130,8 @@ func _draw_wing_status(size: Vector2, font: Font) -> void:
 		var w := minf(360.0, size.x - 140.0)
 		var r := Rect2(Vector2((size.x - w) / 2.0, y + 6.0), Vector2(w, 10))
 		var name: String = String(main.wings.TEXT["champion"]).to_upper()
-		draw_string_outline(font, Vector2(0, y), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.8))
-		draw_string(font, Vector2(0, y), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, GOLD)
+		draw_string_outline(font, Vector2(0, y), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(0, y), name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, GOLD)
 		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
 		draw_rect(r, Color(0.3, 0.1, 0.08, 0.9))
 		draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(champ.hp / champ.max_hp, 0.0, 1.0), r.size.y)), Color(0.95, 0.72, 0.3))
@@ -1136,11 +1140,11 @@ func _draw_wing_status(size: Vector2, font: Font) -> void:
 		return
 	var col := GOLD if st["ok"] else Color(0.9, 0.42, 0.35)
 	var head: String = st["title"] + ("" if st["ok"] else "  ·  broken")
-	draw_string_outline(font, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 4, Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, col)
+	draw_string_outline(font, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, 4, Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, col)
 	if st["line"] != "":
-		draw_string_outline(font, Vector2(0, y + 18.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, 3, Color(0, 0, 0, 0.7))
-		draw_string(font, Vector2(0, y + 18.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, TEXT)
+		draw_string_outline(font, Vector2(0, y + 18.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 3, Color(0, 0, 0, 0.7))
+		draw_string(font, Vector2(0, y + 18.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
 
 
 ## How dark the Regard's or the victory's backdrop is. One that begins while
@@ -1163,17 +1167,17 @@ func _draw_victory(size: Vector2, font: Font) -> void:
 	var recall: bool = v.get("recall", false)
 	var head: String = Items.RECALL["title"] if recall else "CLIMB COMPLETE"
 	var sub: String = Items.RECALL["sub"] % String(v["beast"]).capitalize() if recall else "%s yields." % String(v["beast"]).capitalize()
-	draw_string_outline(font, Vector2(0, top), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 7, Color(0, 0, 0, 0.8 * a))
-	draw_string(font, Vector2(0, top), head, HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, Color(GOLD, a))
-	draw_string(font, Vector2(0, top + 34), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(TEXT, a))
+	draw_string_outline(UI.font("display"), Vector2(0, top), UI.title_case(head), HORIZONTAL_ALIGNMENT_CENTER, size.x, 48, 7, Color(0, 0, 0, 0.8 * a))
+	draw_string(UI.font("display"), Vector2(0, top), UI.title_case(head), HORIZONTAL_ALIGNMENT_CENTER, size.x, 48, Color(GOLD, a))
+	draw_string(font, Vector2(0, top + 34), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 21, Color(TEXT, a))
 	var ly := top + 70.0
 	for line in v["lines"]:
-		draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, a))
+		draw_string(font, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, a))
 		ly += 22.0
 	if main.overlay_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to climb again"
-		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
 # --- items and camps ---------------------------------------------------------------
@@ -1247,8 +1251,8 @@ func _draw_path_choice(size: Vector2, font: Font) -> void:
 	# The title, and the Entity's words beside its face.
 	var title: String = main.camp.get("title", "")
 	var ty := maxf(28.0, r0.position.y - (92.0 if size.y > 560.0 else 74.0))
-	draw_string_outline(font, Vector2(0, ty), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 28 if not narrow else 22, 6, Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(0, ty), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 28 if not narrow else 22, GOLD)
+	draw_string_outline(UI.font("display"), Vector2(0, ty), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 34 if not narrow else 27, 6, Color(0, 0, 0, 0.8))
+	draw_string(UI.font("display"), Vector2(0, ty), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 34 if not narrow else 27, GOLD)
 	var lines: Array = main.camp.get("lines", [])
 	var tw := minf(size.x - 80.0, 640.0)
 	var tx := (size.x - tw) / 2.0 + 24.0
@@ -1256,7 +1260,7 @@ func _draw_path_choice(size: Vector2, font: Font) -> void:
 	Entity.draw_face(self, Vector2(tx - face_r - 10.0, ty + 14.0 + face_r), face_r, t)
 	var ly := ty + 22.0
 	for line in lines:
-		var fs := 13 if not narrow else 11
+		var fs := 15 if not narrow else 13
 		draw_multiline_string(font, Vector2(tx, ly), line, HORIZONTAL_ALIGNMENT_LEFT, tw - 24.0, fs, 2, Color(TEXT, 0.92))
 		ly += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, tw - 24.0, fs).y + 2.0
 	var armed: int = int(main.camp.get("armed", -1))
@@ -1267,7 +1271,7 @@ func _draw_path_choice(size: Vector2, font: Font) -> void:
 		var r := path_card_rect(i, size)
 		var col: Color = card["color"]
 		var light: Color = Secret.KINDS[kind]["light"]
-		draw_style_box(panel, r)
+		draw_style_box(card_box, r)
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(col, 0.9))
 		if armed == i:
 			var pulse := 0.6 + 0.4 * sin(t * 6.0)
@@ -1295,13 +1299,13 @@ func _draw_path_choice(size: Vector2, font: Font) -> void:
 		Secret.draw_figure(sb, sc, sh_h * 0.66, col, t + i * 1.3)
 		sb.flush(self)
 		var y := sc.y + sh_h * 0.3 + (26.0 if tall else 18.0)
-		draw_string_outline(font, Vector2(r.position.x, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22 if not narrow else 18, 4, Color(0, 0, 0, 0.8))
-		draw_string(font, Vector2(r.position.x, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22 if not narrow else 18, light)
+		draw_string_outline(font, Vector2(r.position.x, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22 if not narrow else 19, 4, Color(0, 0, 0, 0.8))
+		draw_string(font, Vector2(r.position.x, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22 if not narrow else 19, light)
 		y += 16.0 if not narrow else 13.0
-		draw_string(font, Vector2(r.position.x, y), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12 if not narrow else 10, Color(col, 0.9))
+		draw_string(font, Vector2(r.position.x, y), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 14 if not narrow else 12, Color(col, 0.9))
 		y += 18.0 if not narrow else 14.0
 		var steps: Array = card["steps"]
-		var fs := 12 if not narrow else 10
+		var fs := 14 if not narrow else 12
 		var lw := r.size.x - 40.0
 		var hint_y := r.end.y - 12.0
 		for si in steps.size():
@@ -1313,9 +1317,9 @@ func _draw_path_choice(size: Vector2, font: Font) -> void:
 			draw_multiline_string(font, Vector2(r.position.x + 30.0, y), steps[si], HORIZONTAL_ALIGNMENT_LEFT, lw, fs, 2, TEXT)
 			y += font.get_multiline_string_size(steps[si], HORIZONTAL_ALIGNMENT_LEFT, lw, fs).y + (5.0 if not narrow else 2.0)
 		if y < hint_y - 22.0:
-			draw_string(font, Vector2(r.position.x, hint_y - 18.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 10, DIM_TEXT)
+			draw_string(font, Vector2(r.position.x, hint_y - 18.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, DIM_TEXT)
 		var hint := _path_hint(i, armed == i)
-		draw_string(font, Vector2(r.position.x, hint_y), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color(light if armed == i else GOLD, 1.0 if ready else 0.35))
+		draw_string(font, Vector2(r.position.x, hint_y), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, Color(light if armed == i else GOLD, 1.0 if ready else 0.35))
 
 
 ## Under a path card: how to take it (twice: it's for good).
@@ -1340,12 +1344,12 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		title = Gear.HEIRLOOM_TEXT["title"]
 	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret"]:
 		title = main.camp.get("title", "")
-	draw_string_outline(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, 6, Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, GOLD)
+	draw_string_outline(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, 6, Color(0, 0, 0, 0.8))
+	draw_string(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, GOLD)
 	var sub: Array = main.camp.get("lines", [])
 	var sy := top_y - 38.0
 	for line in sub.slice(0, 2):
-		draw_string(font, Vector2(0, sy), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, DIM_TEXT)
+		draw_string(font, Vector2(0, sy), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, DIM_TEXT)
 		sy += 17.0
 	var p = main.player
 	for i in main.camp["choices"].size():
@@ -1353,7 +1357,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		var r := camp_card_rect(i, size)
 		var col: Color = card["color"]
 		var rim: Color = card.get("rim", col)  # gear: its rarity's colour
-		draw_style_box(panel, r)
+		draw_style_box(card_box, r)
 		if _card_focused(i):
 			_draw_card_focus(r)
 		draw_rect(Rect2(r.position + Vector2(1, 1), Vector2(r.size.x - 2, 5)), Color(rim, 0.85))
@@ -1372,21 +1376,21 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		else:
 			Items.draw_rune_icon(self, col, ic, ir)
 		var y := r.position.y + (58.0 if small else 100.0)
-		draw_string(font, Vector2(r.position.x + 6, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 15 if r.size.x > 180 else 13, (rim if card.has("rim") else col).lightened(0.2))
+		draw_string(font, Vector2(r.position.x + 6, y), card["name"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 17 if r.size.x > 180 else 15, (rim if card.has("rim") else col).lightened(0.2))
 		# As many lines of its text as fit above the note.
 		var dy := y + (15.0 if small else 20.0)
 		var lines := 4 if not small else clampi(int((r.end.y - 46.0 - dy) / 16.0) + 1, 1, 4)
-		draw_multiline_string(font, Vector2(r.position.x + 8, dy), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 11 if small else 12, lines, TEXT)
+		draw_multiline_string(font, Vector2(r.position.x + 8, dy), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 13 if small else 14, lines, TEXT)
 		if card.has("note"):
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, DIM_TEXT)
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, DIM_TEXT)
 		if card["item"] != "" and p != null and not card.has("belt"):
 			var n: int = p.item_count(card["item"])
 			var have := "carrying %d of %d" % [n, p.max_stack(card["item"])]
 			var full: bool = p.item_room(card["item"]) != ""
 			if p.item_room(card["item"]) == "belt":
 				have = "belt full: left at your feet"
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, Color(1.0, 0.5, 0.4) if full else DIM_TEXT)
-		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), _card_hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, GOLD)
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color(1.0, 0.5, 0.4) if full else DIM_TEXT)
+		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), _card_hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, GOLD)
 
 
 # --- prompts for the device in use ---------------------------------------------------
@@ -1407,7 +1411,11 @@ func _card_focused(i: int) -> bool:
 
 
 func _draw_card_focus(r: Rect2) -> void:
-	draw_rect(r.grow(3.0), Color(GOLD, 0.95), false, 2.0)
+	# A gilt outline with a soft glow round it.
+	var loop := UI.rounded(r.grow(3.0), 8.0)
+	loop.append(loop[0])
+	draw_polyline(loop, Color(UI.GILT, 0.22), 6.0, true)
+	draw_polyline(loop, Color(UI.GILT_HI, 0.95), 2.0, true)
 
 
 ## Under a card: how to take it.

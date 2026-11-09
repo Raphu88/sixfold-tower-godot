@@ -36,6 +36,7 @@ const Unbound := preload("res://scripts/unbound.gd")
 const TechniquePage := preload("res://scripts/technique_page.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
+const RailScript := preload("res://scripts/rail.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -99,6 +100,19 @@ var train_say := ""  # the outfitter's (or the Entity's) answer to the last choi
 # "appearance" later; where Back from "appearance" goes ("climber", else the usual).
 var look_page
 var look_from := ""
+# The left rail (rail.gd) the in-game pages share: who you are, the pages,
+# Start over and Exit. RAIL_PAGES show it; RAIL_ROOTS are the pages it
+# opens (the others are pages within them: a mark, controller setup, the
+# Start over question).
+var rail
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "settings", "padsetup", "controls", "dev", "confirm_new"]
+const RAIL_ROOTS := ["pause", "climber", "inventory", "settings", "controls", "dev"]
+var climber_main := "marks"  # the climber screen's last tab other than the Archive
+var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
+var _rail_focus := false  # after building the page, put the focus back on the rail
+var _focus_now: Control = null  # what has the keys' focus (to tell a step onto the rail from the page)
+var _rail_grab := false  # the menu itself is moving the focus onto the rail
+var _rail_refused := false  # a step from the page onto the rail, other than Left, was turned back
 
 
 func _ready() -> void:
@@ -119,6 +133,10 @@ func _ready() -> void:
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
+	rail = RailScript.new()
+	rail.menu = self
+	rail.hide()
+	add_child(rail)
 	center = CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -140,6 +158,7 @@ func _ready() -> void:
 	scroll.add_child(box)
 	hide()
 	get_viewport().gui_focus_changed.connect(func(_c): if page != "" and main != null: main.sfx("ui_move"))
+	get_viewport().gui_focus_changed.connect(_focus_changed)
 	load_settings()
 	if CLIMBER_TABS.any(func(t): return t[0] == settings["climber_tab"]) or settings["climber_tab"] == SecretPage.TAB[0]:
 		climber_tab = settings["climber_tab"]
@@ -167,6 +186,10 @@ var touch_slider: HSlider = null
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey or event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.5):
+		nav_keys = true
+	elif event is InputEventMouseButton or event is InputEventScreenTouch:
+		nav_keys = false
 	if page == "" or _typing():
 		return
 	# Q and E (LB and RB): the climber screen's tabs, or the next mark.
@@ -223,6 +246,11 @@ func _control_at(pos: Vector2, cls: String) -> Control:
 		var ctl: Control = c
 		if ctl.is_visible_in_tree() and ctl.get_global_rect().has_point(pos):
 			found = ctl
+	if rail.visible:
+		for c in rail.find_children("*", cls, true, false):
+			var ctl: Control = c
+			if ctl.is_visible_in_tree() and ctl.get_global_rect().has_point(pos):
+				found = ctl
 	return found
 
 
@@ -340,6 +368,15 @@ func _can_open() -> bool:
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
 	if main != null and page != "": main.sfx("ui_back")
+	if page in RAIL_ROOTS and rail_showing():
+		# In a page: back to the rail. On the rail (or a page opened by its
+		# own key, or on a phone): close.
+		var f := get_viewport().gui_get_focus_owner()
+		if opened_direct or f == null or rail.has_focus_inside() or (main != null and main.touch_active):
+			close()
+		else:
+			rail.focus_current()
+		return
 	if page == "train":
 		open("pause")  # (the train has no Back: Esc opens the menu)
 	elif page == "confirm_new":
@@ -385,21 +422,149 @@ func _layout() -> void:
 		center.size = r.size
 		scroll.custom_minimum_size = Vector2(minf(300.0, r.size.x - 40.0), minf(_wanted_height(), r.size.y))
 	elif page != "":
-		center.position = Vector2.ZERO
-		center.size = s
+		# The rail down the left (in-game pages); the page sits in the rest.
+		var rw := 0.0
+		if rail.visible:
+			rw = RailScript.width_for(compact())
+			rail.position = Vector2.ZERO
+			rail.size = Vector2(rw, s.y)
+		center.position = Vector2(rw, 0)
+		center.size = Vector2(s.x - rw, s.y)
 		var edge := 12.0 if compact() else 32.0  # space kept around the panel
-		var pad := 24.0 if compact() else 40.0  # the panel's own margins
+		var pad := 24.0 if compact() else 44.0  # the panel's own margins
 		var h := minf(_wanted_height(), s.y - edge - pad)
 		if page in PINNED_FOOTER:
-			# The same size on every tab; Close sits below.
-			h = minf(maxf(_wanted_height(), 520.0), s.y - edge - pad - FOOT_H)
-		scroll.custom_minimum_size = Vector2(minf(float(WIDTHS.get(page, 560.0)), s.x - edge - pad), h)
+			# The same size on every tab (Close or Back below, if there is one).
+			var fh := FOOT_H if foot.get_child_count() > 0 else 0.0
+			h = minf(maxf(_wanted_height(), 520.0 - fh), s.y - edge - pad - fh)
+		scroll.custom_minimum_size = Vector2(minf(float(WIDTHS.get(page, 560.0)), s.x - rw - edge - pad), h)
 		panel.pivot_offset = panel.size * 0.5
 
 
 ## Between climbs, on the train (main.gd on_train).
 func _on_train() -> bool:
 	return main != null and main.on_train
+
+
+## The rail shows on the in-game pages (not on the title or pages opened from it).
+func rail_showing() -> bool:
+	return page in RAIL_PAGES and not opened_from_title and main != null and main.profile != null
+
+
+## The rail's item lit for the page showing.
+func rail_item() -> String:
+	match page:
+		"pause":
+			return "resume"
+		"climber", "mark":
+			return "archive" if climber_tab == "archive" and page == "climber" else "climber"
+		"padsetup":
+			return "settings"
+		"confirm_new":
+			return "over"
+	return page
+
+
+## Keys and controller: from the page, only Left steps onto the rail (up
+## and down stay in the page, even where the rail is the nearest thing).
+func _focus_changed(c: Control) -> void:
+	var before := _focus_now
+	_focus_now = c
+	_rail_refused = false
+	if page == "" or not rail.visible or _rail_grab or not nav_keys or c == null or not rail.buttons.has(c):
+		return
+	if before == null or not is_instance_valid(before) or rail.buttons.has(before) or not before.is_visible_in_tree():
+		return
+	if Input.is_action_pressed("ui_left"):
+		return
+	# Up or down found the rail nearer than the page's next thing: go on
+	# within the page instead (or stay put at its end).
+	_rail_refused = true
+	var dir := 1 if Input.is_action_pressed("ui_down") else (-1 if Input.is_action_pressed("ui_up") else 0)
+	var to: Control = _next_in_page(before, dir) if dir != 0 else null
+	if to == null:
+		to = before
+	(func(): if is_instance_valid(to) and to.is_visible_in_tree(): to.grab_focus()).call_deferred()
+
+
+## The page's nearest focusable control above (dir -1) or below (dir 1) one, or null.
+func _next_in_page(from: Control, dir: int) -> Control:
+	var fr := from.get_global_rect()
+	var best: Control = null
+	var best_d := INF
+	for c in focusables():
+		if c == from or not c.is_visible_in_tree() or c.focus_mode == Control.FOCUS_NONE:
+			continue
+		var r: Rect2 = c.get_global_rect()
+		var dy := (r.get_center().y - fr.get_center().y) * dir
+		if dy <= 4.0:
+			continue
+		var d := dy + absf(r.get_center().x - fr.get_center().x) * 2.0
+		if d < best_d:
+			best_d = d
+			best = c
+	return best
+
+
+## Keys and controller moved onto a rail item: show its page as you pass
+## (the focus stays on the rail). Clicks and taps press instead.
+func rail_focused(id: String) -> void:
+	if _rail_refused:
+		return
+	if not nav_keys or page == "" or id == rail_item() or id in ["over", "exit"]:
+		return
+	if id == "inventory" and _on_train():
+		return  # (your car is on the train itself: only a press goes there)
+	_rail_focus = true
+	_rail_go(id, true)
+
+
+## A rail item pressed (Enter, A, a click or a tap): its page, and into it.
+func rail_pressed(id: String) -> void:
+	if id == rail_item() and id in ["climber", "inventory", "archive", "settings", "controls", "dev"]:
+		_focus_page_start()
+		return
+	_rail_focus = false
+	_rail_go(id, false)
+
+
+func _rail_go(id: String, preview: bool) -> void:
+	opened_direct = false
+	match id:
+		"resume":
+			if preview:
+				open("pause")
+			else:
+				close()
+		"climber":
+			if climber_tab == "archive":
+				climber_tab = climber_main
+			open("climber")
+		"archive":
+			open_archive()
+		"inventory":
+			if _on_train():
+				train_car = Train.HOME  # (your car: your chest and heirlooms)
+				open("train")
+			else:
+				open("inventory")
+		"settings", "controls", "dev":
+			open(id)
+		"over":
+			_ask_new("pause" if page == "confirm_new" else (page if page in RAIL_ROOTS else "pause"))
+		"exit":
+			exit_to_title()
+
+
+## Keys and controller: onto the page's starting point (from the rail).
+func _focus_page_start() -> void:
+	var list := focusables()
+	if list.is_empty():
+		return
+	var i := _first_focus(page, list)
+	if i >= 0 and i < list.size():
+		list[i].grab_focus()
+		if main != null: main.sfx("ui_confirm")
 
 
 ## True while the title screen (or a page opened from it) covers the game.
@@ -423,6 +588,8 @@ func open(which: String, direct := false) -> void:
 	train_page.was_open = page == "train" and which == "train"  # (a new car slides into view)
 	# Rebuilding the same page (a dev button, a toast): keep the focus where it was.
 	var keep := -1
+	var on_rail: bool = _rail_focus or (which == page and rail.visible and rail.has_focus_inside())
+	_rail_focus = false
 	if which == page and is_inside_tree():
 		keep = focusables().find(get_viewport().gui_get_focus_owner())
 	if was_closed:
@@ -466,6 +633,8 @@ func open(which: String, direct := false) -> void:
 	center.visible = which != "train"
 	shade.visible = which != "title" and which != "train"
 	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else UI.SHADE.a)
+	if which == "pause" and was_closed:
+		on_rail = true  # (the pause menu starts on the rail, on Resume)
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	elif compact():
@@ -487,18 +656,48 @@ func open(which: String, direct := false) -> void:
 		scroll.scroll_vertical = 0  # (another mark starts at its top)
 	if main != null and which != "title" and keep < 0: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
 	call("_page_" + which)
+	var list := focusables()
+	var first := _first_focus(which, list) if not list.is_empty() else -1
+	focus_part = ""  # (used once: back from a mark's page, on its card)
+	rail.visible = rail_showing()
+	if rail.visible:
+		rail.refresh(rail_item(), _on_train(), compact(), main.touch_active, main.pad_active, main.pad_ps)
+		_link_rail(list[first] if first >= 0 else null)
 	_layout()
 	# Keyboard and controller: start on the first button (or slider), or the
-	# page's own starting point.
-	var list := focusables()
+	# page's own starting point; or stay on the rail.
+	if rail.visible and (on_rail or list.is_empty()):
+		rail.focus_current.call_deferred()
+		return
 	if not list.is_empty():
-		var first := 0
+		var at: int = keep if keep >= 0 and keep < list.size() else first
+		if which == "train":
+			# (never onto another slot than the one whose card shows; on a
+			# phone, nothing: there's no focus to show)
+			if list[at].get_meta("slot", inv_sel) != inv_sel:
+				at = first
+			if main != null and main.touch_active:
+				at = -1
+		if at >= 0:
+			_focus_later.call_deferred(list[at])
+
+
+## Right from the rail goes into the page (its starting point).
+func _link_rail(target: Control) -> void:
+	for b in rail.buttons:
+		b.focus_neighbor_right = b.get_path_to(target) if target != null else b.get_path_to(b)
+
+
+## Where the keys start on a page: the first button, or the page's own
+## starting point.
+func _first_focus(which: String, list: Array) -> int:
+	var first := 0
+	if true:
 		if which == "climber":
 			first = maxi(0, climber_tabs().map(func(t): return t[0]).find(climber_tab))
 			if focus_part != "":
 				# Back from a mark's page: on its card again.
 				first = maxi(first, list.map(func(b): return b.get_meta("part", "")).find(focus_part))
-				focus_part = ""
 		elif which == "mark":
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
 		elif which == "inventory":
@@ -510,16 +709,7 @@ func open(which: String, direct := false) -> void:
 		elif which == "climbers":
 			# (on the current climber's card)
 			first = maxi(0, list.map(func(b): return b.get_meta("climber_slot", 0)).find(Slots.current()))
-		var at: int = keep if keep >= 0 and keep < list.size() else first
-		if which == "train":
-			# (never onto another slot than the one whose card shows; on a
-			# phone, nothing: there's no focus to show)
-			if list[at].get_meta("slot", inv_sel) != inv_sel:
-				at = first
-			if main != null and main.touch_active:
-				at = -1
-		if at >= 0:
-			_focus_later.call_deferred(list[at])
+	return first
 
 
 ## Focus a control next frame, if the page it's on is still showing.
@@ -572,7 +762,8 @@ func _collect_focus(n: Node, list: Array) -> void:
 		if c.is_queued_for_deletion():
 			continue
 		if c is BaseButton or c is HSlider:
-			list.append(c)
+			if not c.has_meta("close"):  # (a page's Close: Esc does the same, so the keys skip it)
+				list.append(c)
 		else:
 			_collect_focus(c, list)
 
@@ -597,7 +788,7 @@ func _page_title() -> void:
 	_gap(2)
 	_text(_title_status(), DIM, true)
 	var l: Label = box.get_child(box.get_child_count() - 1)
-	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_font_size_override("font_size", 15)
 	l.custom_minimum_size.x = 0.0
 
 
@@ -613,42 +804,72 @@ func _title_status() -> String:
 	return "Marks: %s\nBest floor %d" % [", ".join(names) if not names.is_empty() else "none", prof.best_floor]
 
 
-## The title's buttons: see-through over the sky, the first one gilded.
+## The title's buttons: see-through violet over the sky, edged in gilt;
+## the first one gilded (Grenze Gotisch, like the old title's main button).
 func _title_button(b: Button, primary := false) -> void:
-	b.custom_minimum_size.y = 40.0 if primary else 36.0
-	b.add_theme_font_size_override("font_size", 18 if primary else 16)
+	b.custom_minimum_size.y = 42.0 if primary else 36.0
+	b.add_theme_font_size_override("font_size", 22 if primary else 18)
 	for state in ["normal", "hover", "pressed"]:
-		var bg := Color(0.24, 0.17, 0.09, 0.88) if primary else Color(0.08, 0.075, 0.11, 0.72)
-		if state == "hover":
-			bg = bg.lightened(0.12)
-		elif state == "pressed":
-			bg = Color(UI.BUTTON_DOWN, 0.95)
-		var st := UI.box(bg, Color(GOLD, 0.75 if primary else 0.22), 6)
-		_button_margins(st)
+		var st: StyleBox
+		if primary:
+			st = UI.primary_box("hover" if state == "hover" else "normal")
+		else:
+			var o := UI.Ornate.new()
+			o.radius = 6.0
+			o.highlight = true
+			o.top = Color(0.16, 0.14, 0.21, 0.82 if state == "normal" else 0.92)
+			o.bottom = Color(0.08, 0.07, 0.11, 0.82 if state == "normal" else 0.92)
+			o.edge = Color(GOLD, 0.24 if state == "normal" else 0.55)
+			if state == "pressed":
+				o.top = Color(UI.BUTTON_DOWN, 0.95)
+				o.bottom = Color(UI.BUTTON_DOWN, 0.95)
+			_button_margins(o)
+			st = o
 		b.add_theme_stylebox_override(state, st)
 	if primary:
-		b.add_theme_color_override("font_color", GOLD)
+		b.add_theme_font_override("font", UI.font("display"))
+		b.add_theme_color_override("font_color", UI.GILT_HI)
+		b.add_theme_color_override("font_hover_color", Color(1.0, 0.93, 0.75))
+		b.add_theme_color_override("font_focus_color", Color(1.0, 0.93, 0.75))
 
 
+## The pause menu: the rail's home page. The climb you're on (the tower,
+## the floor, what you've gathered and your marks), and Restart this climb
+## (and Quit game on a computer). Resume, the other pages, Start over and
+## Exit are on the rail.
 func _page_pause() -> void:
-	_header("PAUSED", Train.TEXT["title"].capitalize() if _on_train() else "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
-	_primary(_button("Resume", close))
-	var grid := _grid(2)
-	_button(_with_key("Climber", "Tab", "{back}"), open.bind("climber"), grid)
-	_button(_with_key("Inventory", "I", "D-pad up"), open.bind("inventory"), grid)
-	_button("Settings", open.bind("settings"), grid)
-	_button("Controls", open.bind("controls"), grid)
-	_button(Entity.TEXT["archive"], open_archive, grid)
-	_button("Dev tools", open.bind("dev"), grid)
-	if not _on_train():
-		_button("Restart this climb", _restart, grid)
-	_button(ClimbersPage.TEXT["over"], _ask_new.bind("pause"), grid)
-	if can_quit():
-		var row := _grid(2)
-		_button("Exit to title", exit_to_title, row)
-		_button("Quit game", _quit_game, row)
+	if _on_train():
+		_header(Train.TEXT["title"], "", "Menu")
 	else:
-		_button("Exit to title", exit_to_title)
+		_header("Paused", "", "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
+	var g := _grid(2, 10, 4 if compact() else 6)
+	if _on_train():
+		var nt: Dictionary = Towers.TOWERS.get(train_tower, {})
+		if not nt.is_empty():
+			_pair(g, "Next climb", nt["name"], Essence.color(nt["essence"]).lerp(TEXT, 0.25))
+	else:
+		var t: Dictionary = main.tower_data()
+		_pair(g, "Tower", t["name"], Essence.color(t["essence"]).lerp(TEXT, 0.25))
+		_pair(g, "Floor", "%d   (best %d)" % [main.floor_num, main.profile.best_floor])
+		var gathered: Array = []
+		for k in main.run_essence:
+			if float(main.run_essence[k]) >= 1.0:
+				gathered.append("%d %s" % [int(main.run_essence[k]), Essence.display(k)])
+		_pair(g, "Unbanked", ",  ".join(gathered) if not gathered.is_empty() else "nothing yet", TEXT if not gathered.is_empty() else FAINT)
+	var marks: Array = []
+	for part in mark_order():
+		if main.profile.bonds.has(part):
+			var info: Dictionary = main.profile.bonds[part]
+			marks.append("%s %d" % [Bonds.BONDS[info["id"]]["name"], ProfileScript.step_for_xp(float(info["xp"]))])
+	_pair(g, "Marks", ",  ".join(marks) if not marks.is_empty() else "none yet", TEXT if not marks.is_empty() else FAINT)
+	_gap(4)
+	var row := _grid(2)
+	if not _on_train():
+		_button("Restart this climb", _restart, row)
+	if can_quit():
+		_button("Quit game", _quit_game, row)
+	if row.get_child_count() == 0:
+		row.queue_free()
 
 
 ## A button's name with its key or controller button after it (none on a phone).
@@ -667,7 +888,7 @@ static func can_quit() -> bool:
 
 
 func _page_settings() -> void:
-	_header("SETTINGS", "")
+	_header("Settings", "", "Menu")
 	_entity_says("settings")
 	_slider("Music", "music")
 	_slider("Sounds", "sounds")
@@ -716,7 +937,7 @@ func _choice(text: String, key: String, values: Array) -> void:
 
 
 func _page_controls() -> void:
-	_header("CONTROLS", "")
+	_header("Controls", "", "Menu")
 	var ps: bool = main != null and main.pad_ps
 	var grid := GridContainer.new()
 	grid.columns = 3
@@ -731,8 +952,12 @@ func _page_controls() -> void:
 			l.text = Controls.pad_text(r[c], ps) if c == 2 else r[c]
 			if c == 0 and i > 0:
 				l.text = l.text.left(1).to_upper() + l.text.substr(1)
-			l.add_theme_font_size_override("font_size", 14 if i > 0 else 12)
-			l.add_theme_color_override("font_color", DIM if i == 0 else (TEXT if c == 0 else GOLD))
+			if i == 0:
+				UI.style_label(l, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.75))  # (the columns' heads)
+			elif c == 0:
+				UI.style_label(l, "body", 16, TEXT)
+			else:
+				UI.style_label(l, "mono", 13, GOLD)  # (keys and buttons)
 			grid.add_child(l)
 	box.add_child(grid)
 	_gap(2)
@@ -748,7 +973,7 @@ func _page_controls() -> void:
 func _page_climber() -> void:
 	var prof = main.profile
 	var who: String = prof.appearance.get("name", "")
-	_header(who.to_upper() if who != "" else "CLIMBER", _climber_line())
+	_header(who if who != "" else "Climber", _climber_line(), "Climber")
 	var tabs := climber_tabs()
 	_tabs(tabs, climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks", _set_climber_tab)
 	match climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks":
@@ -775,6 +1000,8 @@ func climber_tabs() -> Array:
 
 func _set_climber_tab(id: String) -> void:
 	climber_tab = id
+	if id != "archive":
+		climber_main = id
 	if settings["climber_tab"] != id:
 		settings["climber_tab"] = id  # remembered for next time
 		save_settings()
@@ -934,7 +1161,7 @@ func _climber_record(prof) -> void:
 	note.text = "Survive a climb and you keep one piece you wore as an heirloom (or both your rings); every climb begins with them. The Inventory's Heirlooms view shows every slot."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.custom_minimum_size.x = 200.0
-	note.add_theme_font_size_override("font_size", 12)
+	note.add_theme_font_size_override("font_size", 14)
 	note.add_theme_color_override("font_color", FAINT)
 	right.add_child(note)
 
@@ -984,8 +1211,8 @@ func _climber_archive() -> void:
 				var l := _label(Entity.TEXT["locked"], 0.0, FAINT)
 				l.custom_minimum_size.y = 32.0
 				l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-				var st := UI.box(Color(UI.BUTTON, 0.35), Color(1, 1, 1, 0.03), 6)
-				st.content_margin_left = 12.0
+				var st := UI.box(Color(UI.VOID, 0.45), Color(UI.LINE, 0.6), 6)
+				st.content_margin_left = 14.0
 				l.add_theme_stylebox_override("normal", st)
 				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				l.set_meta("archive_locked", id)
@@ -1247,7 +1474,7 @@ func _mark_bond(info: Dictionary) -> void:
 ## A panel for the body or passive effect.
 func _effect_panel(parent: Node, title: String, eff: Dictionary, col: Color) -> void:
 	var pc := PanelContainer.new()
-	pc.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.03), Color(col, 0.22), 6, 1, 10.0))
+	pc.add_theme_stylebox_override("panel", UI.card(Color(col, 0.55), false, 10.0))
 	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pc.size_flags_stretch_ratio = 1.0
 	parent.add_child(pc)
@@ -1255,16 +1482,16 @@ func _effect_panel(parent: Node, title: String, eff: Dictionary, col: Color) -> 
 	v.add_theme_constant_override("separation", 1)
 	pc.add_child(v)
 	var t := _small_label(title.to_upper(), Color(GOLD, 0.7))
-	t.add_theme_font_size_override("font_size", 11)
+	UI.style_label(t, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.75))
 	v.add_child(t)
 	var n := _label(eff["name"], 0.0, col.lightened(0.15))
-	n.add_theme_font_size_override("font_size", 15)
+	UI.style_label(n, "display", 21, col.lightened(0.15))
 	v.add_child(n)
 	var d := Label.new()
 	d.text = _sentence(eff["desc"])
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	d.custom_minimum_size.x = 160.0
-	d.add_theme_font_size_override("font_size", 13)
+	d.add_theme_font_size_override("font_size", 15)
 	d.add_theme_color_override("font_color", TEXT)
 	v.add_child(d)
 
@@ -1285,8 +1512,11 @@ func _spell_card(sp: Dictionary, step: int, col: Color, affinity: String, index:
 	var learn := int(sp["learn"])
 	var known := learn <= step
 	var pc := PanelContainer.new()
-	pc.add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.04) if known else Color(1, 1, 1, 0.015),
-		Color(col, 0.3) if known else Color(1, 1, 1, 0.06), 7, 1, 10.0))
+	var st := UI.card(Color(col, 0.7) if known else Color(0, 0, 0, 0), known, 10.0)
+	if not known:
+		st.top = Color(0.085, 0.076, 0.11, 0.85)
+		st.bottom = Color(0.07, 0.062, 0.09, 0.85)
+	pc.add_theme_stylebox_override("panel", st)
 	pc.set_meta("spell", sp["id"])
 	pc.set_meta("learn", learn)
 	pc.set_meta("locked", not known)
@@ -1309,18 +1539,18 @@ func _spell_card(sp: Dictionary, step: int, col: Color, affinity: String, index:
 	var top := HBoxContainer.new()
 	v.add_child(top)
 	var name := _label(sp["name"], 0.0, col.lightened(0.2) if known else DIM)
-	name.add_theme_font_size_override("font_size", 16)
+	name.add_theme_font_size_override("font_size", 18)
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name)
 	var tag := _small_label("learned  ·  step %d" % learn if known else "learned at step %d" % learn, UI.GOOD if known else FAINT)
-	tag.add_theme_font_size_override("font_size", 12)
+	tag.add_theme_font_size_override("font_size", 14)
 	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(tag)
 	var d := Label.new()
 	d.text = _sentence(sp["desc"])
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	d.custom_minimum_size.x = 200.0
-	d.add_theme_font_size_override("font_size", 13)
+	d.add_theme_font_size_override("font_size", 15)
 	d.add_theme_color_override("font_color", TEXT if known else DIM)
 	v.add_child(d)
 	var at := step if known else learn
@@ -1458,7 +1688,7 @@ func _rich(bb: String, size: int, col: Color, parent: Node = null) -> RichTextLa
 ## camp's rune), with the focused slot's details on the right.
 func _page_inventory() -> void:
 	var p = main.player
-	_header("INVENTORY", "Gear and items last one climb; heirlooms stay with you.")
+	_header("Inventory", "Gear and items last one climb; heirlooms stay with you.", "Climber")
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	box.add_child(row)
@@ -1478,13 +1708,10 @@ func _page_inventory() -> void:
 	var pack_name := "Pack" + (" %d" % p.pack.size() if p != null and not p.pack.is_empty() else "")
 	for v in [["worn", "Worn"], ["pack", pack_name], ["heirlooms", "Heirlooms"]]:
 		var t := _button(v[1], _inv_view.bind(v[0]), head)
-		t.custom_minimum_size = Vector2(80.0 if v[0] != "pack" else 70.0, 30.0 if compact() else 32.0)
-		t.add_theme_font_size_override("font_size", 13)
+		t.custom_minimum_size = Vector2(80.0 if v[0] != "pack" else 70.0, 28.0 if compact() else 30.0)
+		t.add_theme_font_size_override("font_size", 15)
 		t.set_meta("view", v[0])
-		if v[0] == inv_view:
-			t.add_theme_color_override("font_color", GOLD)
-			t.add_theme_color_override("font_hover_color", GOLD)
-			t.add_theme_color_override("font_focus_color", GOLD)
+		_tab_look(t, v[0] == inv_view)
 	var doll := HBoxContainer.new()
 	doll.add_theme_constant_override("separation", 14)
 	left.add_child(doll)
@@ -1697,7 +1924,7 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.clip_text = true
 	l.custom_minimum_size.x = side + 10.0
-	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_font_size_override("font_size", 13)
 	l.add_theme_color_override("font_color", DIM)
 	cell.add_child(l)
 	return s
@@ -1914,8 +2141,7 @@ func _detail_head(kind: String, id, title: String, col: Color) -> void:
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	l.add_theme_font_size_override("font_size", 17 if compact() else 18)
-	l.add_theme_color_override("font_color", col.lightened(0.15))
+	UI.style_label(l, "display", 23 if compact() else 25, col.lightened(0.15))
 	row.add_child(l)
 
 
@@ -1924,7 +2150,7 @@ func _detail_text(text: String, col: Color) -> void:
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = 220.0
-	l.add_theme_font_size_override("font_size", 12 if compact() else 13)
+	l.add_theme_font_size_override("font_size", 14 if compact() else 15)
 	l.add_theme_color_override("font_color", col)
 	details.add_child(l)
 
@@ -1993,7 +2219,7 @@ func _detail_stats(g, other) -> void:
 func _small_label(text: String, col: Color) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_font_size_override("font_size", 15)
 	l.add_theme_color_override("font_color", col)
 	return l
 
@@ -2089,7 +2315,7 @@ func _page_confirm_new() -> void:
 
 
 func _page_dev() -> void:
-	_header("DEV TOOLS", "For testing. Changes to marks are saved.")
+	_header("Dev tools", "For testing. Changes to marks are saved.", "Menu")
 
 	_section("Marks")
 	var p = main.player
@@ -2567,47 +2793,94 @@ func _set_setting(key: String, value) -> void:
 
 # --- building blocks -----------------------------------------------------------
 
-## A page's heading, a line under it, and a thin gold rule.
-func _header(text: String, sub: String) -> void:
+## A page's heading: an eyebrow (small capitals: where it belongs), the
+## title in the display face, a line under it, and an ornamental rule. On a
+## rail page, Close sits at its right (a phone: the title and its line share
+## one row, to save height).
+func _header(text: String, sub: String, eyebrow := "") -> void:
+	text = UI.title_case(text)
+	var small := compact() and page != "title"
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	box.add_child(row)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# (Grenze Gotisch's line is tall for its letters: the lines overlap a little)
+	col.add_theme_constant_override("separation", -6 if small else -9)
+	row.add_child(col)
+	if eyebrow != "" and not small:
+		var e := Label.new()
+		e.text = eyebrow
+		UI.style_label(e, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.75))
+		col.add_child(e)
 	var l := Label.new()
 	l.text = text
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", UI.SIZE_HEADING)
-	l.add_theme_color_override("font_color", GOLD)
-	if compact() and page != "title":
-		# A phone: the heading and its line share one row.
-		var row := HBoxContainer.new()
-		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		row.add_theme_constant_override("separation", 14)
-		box.add_child(row)
-		l.add_theme_font_size_override("font_size", 22)
-		row.add_child(l)
+	UI.style_label(l, "display", 26 if small else UI.SIZE_HEADING, GOLD)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
+	l.add_theme_constant_override("shadow_offset_y", 2)
+	if small:
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 14)
+		col.add_child(line)
+		l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		line.add_child(l)
 		if sub != "":
 			var s := _label(sub, 0.0, DIM)
-			s.add_theme_font_size_override("font_size", 12)
+			UI.style_label(s, "italic", 14, DIM)
 			s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			row.add_child(s)
-		_rule()
-		return
-	box.add_child(l)
-	if sub != "":
-		var s := Label.new()
-		s.text = sub
-		s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		s.custom_minimum_size.x = 300.0
-		s.add_theme_font_size_override("font_size", UI.SIZE_BODY)
-		s.add_theme_color_override("font_color", DIM)
-		box.add_child(s)
+			s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			s.clip_text = true
+			s.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			line.add_child(s)
+	else:
+		col.add_child(l)
+		if sub != "":
+			var s := Label.new()
+			s.text = sub
+			s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			s.custom_minimum_size.x = 360.0
+			UI.style_label(s, "italic", UI.SIZE_BODY, DIM)
+			col.add_child(s)
+	if rail_showing() and page in RAIL_ROOTS:
+		# Close, and the key that does the same.
+		var right := HBoxContainer.new()
+		right.add_theme_constant_override("separation", 8)
+		right.size_flags_vertical = Control.SIZE_SHRINK_CENTER if small else Control.SIZE_SHRINK_BEGIN
+		row.add_child(right)
+		var hint := ""
+		if main != null and not main.touch_active:
+			var key := "Esc"
+			if page == "climber" and opened_direct:
+				key = "Tab"
+			elif page == "inventory" and opened_direct:
+				key = "I"
+			hint = Controls.pad_text("{b}", main.pad_ps) if main.pad_active else key
+		if hint != "":
+			var hl := _key_hint(hint)
+			hl.custom_minimum_size.x = 0.0
+			right.add_child(hl)
+		var b := _button("Close", close, right)
+		b.custom_minimum_size = Vector2(88.0 if small else 96.0, 32.0 if small else 34.0)
+		b.add_theme_font_size_override("font_size", 15)
+		b.set_meta("back", true)
+		b.set_meta("close", true)
+		b.focus_mode = Control.FOCUS_NONE
 	_rule()
 
 
 func _rule() -> void:
-	var r := ColorRect.new()
-	r.color = Color(GOLD, 0.18)
-	r.custom_minimum_size.y = 1.0
+	var r := Rule.new()
+	r.custom_minimum_size.y = 8.0 if compact() else 12.0
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(r)
+
+
+## A double rule with a gilt diamond in the middle (ui.gd draw_divider).
+class Rule extends Control:
+	const UI := preload("res://scripts/ui.gd")
+
+	func _draw() -> void:
+		UI.draw_divider(self, Vector2(0, size.y * 0.5 - 1.5), Vector2(size.x, size.y * 0.5 - 1.5), Color(UI.GOLD, 0.7))
 
 
 ## Tabs: a row of buttons, the current one gilded.
@@ -2624,10 +2897,10 @@ func _tabs(list: Array, current: String, choose: Callable) -> void:
 		row.add_child(_key_hint(keys[0]))
 	for t in list:
 		var b := _button(t[1], choose.bind(t[0]), row)
-		b.custom_minimum_size = Vector2(120.0, 34.0) if compact() else Vector2(130.0, 38.0)
+		b.custom_minimum_size = Vector2(112.0, 32.0) if compact() else Vector2(124.0, 34.0)
+		b.add_theme_font_size_override("font_size", 16 if compact() else 17)
 		b.set_meta("tab", t[0])
-		if t[0] == current:
-			_primary(b)
+		_tab_look(b, t[0] == current)
 	if keys[1] != "":
 		row.add_child(_key_hint(keys[1]))
 	_gap(0 if compact() else 2)
@@ -2636,23 +2909,47 @@ func _tabs(list: Array, current: String, choose: Callable) -> void:
 func _key_hint(key: String) -> Label:
 	var l := _label(key, 30.0, FAINT)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 12)
+	UI.style_label(l, "mono", 11, FAINT)
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return l
+
+
+## A tab: a pill, the chosen one washed in gilt with a gilt edge.
+func _tab_look(b: Button, on: bool) -> void:
+	for state in ["normal", "hover", "pressed"]:
+		var bg := Color(1, 1, 1, 0.035)
+		var edge := Color(UI.LINE_HI, 0.55)
+		if on:
+			bg = Color(UI.GILT, 0.2 if state == "normal" else 0.28)
+			edge = Color(UI.GILT, 0.75)
+		elif state != "normal":
+			bg = Color(1, 1, 1, 0.07)
+			edge = Color(UI.GILT, 0.45)
+		var st := UI.box(bg, edge, 16)
+		_button_margins(st)
+		b.add_theme_stylebox_override(state, st)
+	var f := UI.focus_box()
+	(f as StyleBoxFlat).set_corner_radius_all(18)
+	b.add_theme_stylebox_override("focus", f)
+	b.add_theme_color_override("font_color", GOLD if on else DIM)
+	b.add_theme_color_override("font_hover_color", GOLD if on else TEXT)
+	b.add_theme_color_override("font_focus_color", GOLD if on else TEXT)
 
 
 ## The gilded look of the main button on a page (or the current tab).
 func _primary(b: Button) -> void:
 	for state in ["normal", "hover"]:
-		var st := UI.box(Color(0.24, 0.17, 0.09) if state == "normal" else Color(0.3, 0.22, 0.12), Color(GOLD, 0.7), 6)
-		_button_margins(st)
-		b.add_theme_stylebox_override(state, st)
-	b.add_theme_color_override("font_color", GOLD)
+		b.add_theme_stylebox_override(state, UI.primary_box(state))
+	b.add_theme_color_override("font_color", UI.GILT_HI)
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.93, 0.75))
+	b.add_theme_color_override("font_focus_color", Color(1.0, 0.93, 0.75))
 
 
 ## The bottom of a page: Back (or Close, for a screen opened by its key) and
 ## which key does the same.
 func _footer() -> void:
+	if rail_showing() and page in RAIL_ROOTS:
+		return  # (the rail and the header's Close do this)
 	var pinned: bool = page in PINNED_FOOTER
 	if not pinned:
 		_gap(4)
@@ -2691,7 +2988,7 @@ func _footer() -> void:
 		hint = Controls.pad_text("{b}" + ("  ·  {lb} / {rb}" if page == "mark" else ""), main.pad_ps) if main.pad_active else key
 	if hint != "":
 		var l := _label(hint, 0.0, FAINT)
-		l.add_theme_font_size_override("font_size", 12)
+		UI.style_label(l, "mono", 11, FAINT)
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(l)
 
@@ -2709,8 +3006,7 @@ func _section(text: String, parent: Node = null) -> void:
 	to.add_child(gap)
 	var l := Label.new()
 	l.text = text.to_upper()
-	l.add_theme_font_size_override("font_size", 12)
-	l.add_theme_color_override("font_color", Color(GOLD, 0.7))
+	UI.style_label(l, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.78))
 	to.add_child(l)
 
 
@@ -2818,54 +3114,13 @@ func _toggle(text: String, key: String) -> void:
 	box.add_child(b)
 
 
-static func _button_margins(s: StyleBoxFlat) -> void:
-	s.content_margin_left = 12
-	s.content_margin_right = 12
-	s.content_margin_top = 6
-	s.content_margin_bottom = 6
+static func _button_margins(s: StyleBox) -> void:
+	UI.button_margins(s)
 
 
 func _make_theme() -> Theme:
-	var t := Theme.new()
-	t.default_font_size = 16
-	t.set_stylebox("panel", "PanelContainer", UI.menu_panel())
-	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		var s := StyleBoxFlat.new()
-		s.set_corner_radius_all(6)
-		s.anti_aliasing = true
-		_button_margins(s)
-		match state:
-			"normal":
-				s.bg_color = UI.BUTTON
-				s.border_color = Color(1, 1, 1, 0.05)
-				s.set_border_width_all(1)
-			"hover":
-				s.bg_color = UI.BUTTON_HOVER
-				s.border_color = Color(GOLD, 0.25)
-				s.set_border_width_all(1)
-			"pressed":
-				s.bg_color = UI.BUTTON_DOWN
-			"focus":
-				s.draw_center = false
-				s.border_color = GOLD
-				s.set_border_width_all(2)
-				s.set_expand_margin_all(1)
-			"disabled":
-				s.bg_color = Color(UI.BUTTON, 0.5)
-		t.set_stylebox(state, "Button", s)
-		if state == "focus":
-			# Keys and controller: the focused toggle or slider is outlined in gold too.
-			t.set_stylebox("focus", "CheckButton", s)
-			t.set_stylebox("focus", "HSlider", s)
-	t.set_color("font_color", "Button", TEXT)
-	t.set_color("font_hover_color", "Button", Color(1, 1, 1))
-	t.set_color("font_pressed_color", "Button", GOLD)
-	t.set_color("font_disabled_color", "Button", FAINT)
-	t.set_color("font_focus_color", "Button", Color(1, 1, 1))
-	t.set_color("font_hover_pressed_color", "Button", GOLD)
-	t.set_color("font_color", "CheckButton", TEXT)
-	t.set_color("font_color", "Label", TEXT)
-	return t
+	UI.setup_fonts()
+	return UI.theme()  # (ui.gd: the fonts, buttons, toggles, sliders and scroll bars)
 
 
 # --- drawn parts -----------------------------------------------------------------------
@@ -2936,14 +3191,14 @@ class Slot extends Button:
 		if locked:
 			UI.draw_lock(self, c + (Vector2(0, -5) if slot_name != "" else Vector2.ZERO), s * 0.7, Color(UI.FAINT, 0.8))
 			if slot_name != "":
-				draw_string(font, Vector2(0, size.y - 7.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 9, Color(UI.FAINT, 0.9))
+				draw_string(font, Vector2(0, size.y - 7.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, Color(UI.FAINT, 0.9))
 			return
 		match kind:
 			"gear", "heir", "floor":
 				if id != "" or (kind == "gear" and not empty):
 					Gear.draw_icon(self, rec if rec != null else id, c, s, tint if not empty else Color(tint, 0.3))
 				elif slot_name != "":
-					draw_string(font, Vector2(0, c.y + 4.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, Color(UI.FAINT, 0.9))
+					draw_string(font, Vector2(0, c.y + 4.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color(UI.FAINT, 0.9))
 				else:
 					draw_arc(c, s * 0.55, 0.0, TAU, 24, Color(UI.FAINT, 0.45), 1.5, true)
 				if wear >= 0.0:
@@ -2958,7 +3213,7 @@ class Slot extends Button:
 				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0 if count > 0 else 0.22)
 				if count >= 0:
 					var t := str(count)
-					var fs := 14
+					var fs := 16
 					var at := Vector2(size.x - 6.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x, size.y - 6.0)
 					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.9))
 					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GOLD if on else (UI.TEXT if count > 0 else UI.FAINT))
@@ -2975,15 +3230,15 @@ class Slot extends Button:
 				Items.draw_crystal_icon(self, tint, c, s, 1.0 if count > 0 else 0.22)
 				if count > 0:
 					var t := str(count)
-					var at := Vector2(size.x - 5.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x, size.y - 5.0)
-					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.9))
-					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.TEXT)
+					var at := Vector2(size.x - 5.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x, size.y - 5.0)
+					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.9))
+					draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.TEXT)
 		if corner != "":
-			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GOLD if on else UI.DIM)
+			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD if on else UI.DIM)
 		if on and kind == "item":
-			draw_string(font, Vector2(5, size.y - 5.0), "quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, UI.GOLD)
+			draw_string(font, Vector2(5, size.y - 5.0), "quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.GOLD)
 		if kind == "floor":
-			draw_string(font, Vector2(5, 13), "new", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.GOLD)
+			draw_string(font, Vector2(5, 13), "new", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.GOLD)
 		if price > 0:
 			var gb := UI.Draw.Batch.new()
 			if price_kind == "any":  # (train.gd ANY: any kind: a gold gem flanked by two small ones)
@@ -2994,8 +3249,8 @@ class Slot extends Button:
 				UI.gem_into(gb, Vector2(9, 9), 4.5, Essence.color(price_kind))
 			gb.flush(self)
 			var pt := str(price)
-			draw_string_outline(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.9))
-			draw_string(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.TEXT if price_ok else UI.BAD)
+			draw_string_outline(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.9))
+			draw_string(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.TEXT if price_ok else UI.BAD)
 
 
 ## The big icon at the top of the inventory's details (and the record's heirlooms).
@@ -3117,13 +3372,13 @@ class BodyView extends Control:
 				sub_col = Color(UI.GOLD, 0.8)
 			if part == "back":
 				name = "Back (behind)"
-			var w1 := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			var w2 := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			var w1 := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+			var w2 := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 			var x1 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w1
 			var x2 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w2
-			draw_string_outline(font, Vector2(x1, ly + 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.6))
-			draw_string(font, Vector2(x1, ly + 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.TEXT if not info.is_empty() else UI.DIM)
-			draw_string(font, Vector2(x2, ly + 17.0), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, sub_col)
+			draw_string_outline(font, Vector2(x1, ly + 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 3, Color(0, 0, 0, 0.6))
+			draw_string(font, Vector2(x1, ly + 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.TEXT if not info.is_empty() else UI.DIM)
+			draw_string(font, Vector2(x2, ly + 17.0), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, sub_col)
 
 	func _backdrop(b) -> void:
 		for i in 6:
@@ -3273,19 +3528,17 @@ class MarkCard extends Button:
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
 		var info: Dictionary = main.profile.bonds.get(part, {})
-		var edge := Color(Bonds.BONDS[info["id"]]["color"], 0.3) if not info.is_empty() else Color(1, 1, 1, 0.06)
-		var normal := UI.box(Color(0.1, 0.093, 0.125, 0.96) if not info.is_empty() else Color(0.085, 0.08, 0.105, 0.9), edge, 8)
-		var hover := UI.box(Color(0.15, 0.135, 0.18, 0.98), Color(UI.GOLD, 0.55), 8)
+		var col: Color = Bonds.BONDS[info["id"]]["color"] if not info.is_empty() else Color(0, 0, 0, 0)
+		var normal := UI.card(Color(col, 0.8) if not info.is_empty() else Color(0, 0, 0, 0))
+		if info.is_empty():
+			normal.top = Color(0.09, 0.08, 0.115, 0.92)
+			normal.bottom = Color(0.07, 0.062, 0.09, 0.92)
+		var hover := UI.card(UI.GOLD)
+		hover.top = Color(0.16, 0.14, 0.2, 0.98)
 		add_theme_stylebox_override("normal", normal)
 		add_theme_stylebox_override("hover", hover)
 		add_theme_stylebox_override("pressed", hover)
-		var f := StyleBoxFlat.new()
-		f.draw_center = false
-		f.border_color = UI.GOLD
-		f.set_border_width_all(2)
-		f.set_corner_radius_all(9)
-		f.set_expand_margin_all(2)
-		add_theme_stylebox_override("focus", f)
+		add_theme_stylebox_override("focus", UI.focus_box())
 
 	func _draw() -> void:
 		var font := ThemeDB.fallback_font
@@ -3298,7 +3551,7 @@ class MarkCard extends Button:
 		var w := size.x - x - 22.0
 		var tall := h >= 90.0
 		var y := h * 0.5 - (34.0 if tall else 26.0)
-		draw_string(font, Vector2(size.x - 16.0, h * 0.5 + 5.0), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.FAINT)
+		draw_string(font, Vector2(size.x - 16.0, h * 0.5 + 5.0), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, UI.FAINT)
 		var name: String = Bonds.PART_NAMES[part]
 		if info.is_empty():
 			var lead := ""
@@ -3307,7 +3560,7 @@ class MarkCard extends Button:
 			var b := UI.Draw.Batch.new()
 			UI.socket_into(b, mc, r * 0.78, main.soak_fraction(part) if lead == part else 0.0)
 			b.flush(self)
-			draw_string(font, Vector2(x, h * 0.5 - 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UI.DIM)
+			draw_string(font, Vector2(x, h * 0.5 - 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, UI.DIM)
 			# How much it has soaked up (on the first climb, against the part
 			# you've used most); the leader is where the next mark forms.
 			var soak: float = main.soak_fraction(part)
@@ -3316,14 +3569,14 @@ class MarkCard extends Button:
 			var bar_y := h * 0.5 + 20.0
 			if lead == part:
 				var forming := "your mark is forming" if main.first_climb else "your next mark is forming"
-				draw_string(font, Vector2(x, h * 0.5 + 13.0), forming, HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 11, UI.GOLD)
+				draw_string(font, Vector2(x, h * 0.5 + 13.0), forming, HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 13, UI.GOLD)
 				var bid: String = main.predicted_bond()
 				if bid != "" and tall:
 					var bi: Dictionary = Bonds.BONDS[bid]
-					draw_string(font, Vector2(x, h * 0.5 + 28.0), "would be %s" % bi["name"], HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 11, bi["color"])
+					draw_string(font, Vector2(x, h * 0.5 + 28.0), "would be %s" % bi["name"], HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 13, bi["color"])
 					bar_y = h * 0.5 + 34.0
 			else:
-				draw_string(font, Vector2(x, h * 0.5 + 13.0), "unmarked", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+				draw_string(font, Vector2(x, h * 0.5 + 13.0), "unmarked", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.FAINT)
 			if main.player != null:
 				UI.draw_bar(self, Rect2(Vector2(x, bar_y), Vector2(w, 6)), soak, UI.GOLD if lead == part else Color(0.6, 0.57, 0.66))
 			return
@@ -3342,17 +3595,17 @@ class MarkCard extends Button:
 			var hi: float = ProfileScript.STEP_XP[step]
 			k = clampf((xp - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
 			grow = "%d / %d to step %d" % [int(xp - lo), int(hi - lo), step + 1]
-		grow = _fit(font, grow, w, 11)
+		grow = _fit(font, grow, w, 13)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
-		draw_string(font, Vector2(x, y + 16.0), data["name"], HORIZONTAL_ALIGNMENT_LEFT, w, 16, col.lightened(0.12))
+		draw_string(font, Vector2(x, y + 16.0), data["name"], HORIZONTAL_ALIGNMENT_LEFT, w, 18, col.lightened(0.12))
 		var sub := "%s  ·  %s" % [name, "faint" if faint else "step %d" % step]
-		draw_string(font, Vector2(x, y + 31.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 11, UI.DIM)
+		draw_string(font, Vector2(x, y + 31.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 		UI.draw_bar(self, Rect2(Vector2(x, y + 38.0), Vector2(w, 6.0)), k, col)
-		draw_string(font, Vector2(x, y + 57.0), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 11, UI.FAINT if not faint else Color(UI.BAD, 0.85))
+		draw_string(font, Vector2(x, y + 57.0), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.FAINT if not faint else Color(UI.BAD, 0.85))
 		if tall:
 			var known: Array = data["spells"].filter(func(sp): return int(sp["learn"]) <= step).map(func(sp): return sp["name"])
 			var line := "%d of %d spells: %s" % [known.size(), data["spells"].size(), ", ".join(known)]
-			draw_string(font, Vector2(x, y + 75.0), _fit(font, line, w, 11), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.DIM)
+			draw_string(font, Vector2(x, y + 75.0), _fit(font, line, w, 13), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.DIM)
 
 	static func _fit(font: Font, t: String, w: float, fs: int) -> String:
 		if font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:
@@ -3396,10 +3649,10 @@ class MarkHero extends Control:
 				UI.glow_into(b, mc, r * 1.3, UI.GOLD, 0.6 + 0.3 * sin(t * 2.5))
 			UI.socket_into(b, mc, r * 0.8, soak if lead == part else 0.0)
 			b.flush(self)
-			draw_string(font, Vector2(x, 40), Bonds.PART_NAMES[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 28, UI.DIM)
-			draw_string(font, Vector2(x, 62), "Unmarked  ·  cast key %s" % Bonds.PART_KEYS[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.FAINT)
+			UI.draw_title(self, Vector2(x, 42), Bonds.PART_NAMES[part], 34, UI.DIM, HORIZONTAL_ALIGNMENT_LEFT, -1, 0.4)
+			draw_string(font, Vector2(x, 62), "Unmarked  ·  cast key %s" % Bonds.PART_KEYS[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UI.FAINT)
 			UI.draw_bar(self, Rect2(Vector2(x, 76), Vector2(w, 9)), soak, UI.GOLD)
-			draw_string(font, Vector2(x, 104), "Soaked: %d%%%s" % [int(round(soak * 100.0)), "  ·  the next mark forms here" if lead == part else ""], HORIZONTAL_ALIGNMENT_LEFT, w, 12, UI.GOLD if lead == part else UI.DIM)
+			draw_string(font, Vector2(x, 104), "Soaked: %d%%%s" % [int(round(soak * 100.0)), "  ·  the next mark forms here" if lead == part else ""], HORIZONTAL_ALIGNMENT_LEFT, w, 14, UI.GOLD if lead == part else UI.DIM)
 			return
 		var data: Dictionary = Bonds.BONDS[info["id"]]
 		var col: Color = data["color"]
@@ -3420,12 +3673,11 @@ class MarkHero extends Control:
 		UI.glow_into(gb, mc, r * 1.3, col, (0.9 if faint else 1.6) * (0.8 + 0.2 * sin(t * 2.0)))
 		gb.flush(self)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
-		draw_string_outline(font, Vector2(x, 40), data["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 28, 4, Color(0, 0, 0, 0.5))
-		draw_string(font, Vector2(x, 40), data["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 28, col.lightened(0.15))
+		UI.draw_title(self, Vector2(x, 42), data["name"], 34, col.lightened(0.15), HORIZONTAL_ALIGNMENT_LEFT, -1, 0.5)
 		var sub := "%s mark  ·  %s essence  ·  %s" % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), "faint" if faint else "step %d of 5" % step]
-		draw_string(font, Vector2(x, 60), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
+		draw_string(font, Vector2(x, 60), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 15, UI.DIM)
 		UI.draw_bar(self, Rect2(Vector2(x, 70), Vector2(w, 9)), k, col)
-		draw_string(font, Vector2(x, 96), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 12, Color(UI.BAD, 0.9) if faint else UI.TEXT)
+		draw_string(font, Vector2(x, 96), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 14, Color(UI.BAD, 0.9) if faint else UI.TEXT)
 		# The five steps and the banked essence each needs.
 		var ly := h - 24.0
 		var gap := w / 4.0
@@ -3444,9 +3696,9 @@ class MarkHero extends Control:
 		b.flush(self)
 		for s in 5:
 			var p := Vector2(x + gap * s, ly)
-			draw_string(font, p + Vector2(-8, 4), str(s + 1), HORIZONTAL_ALIGNMENT_CENTER, 16, 11, UI.OUTLINE if s + 1 <= step else UI.DIM)
+			draw_string(font, p + Vector2(-8, 4), str(s + 1), HORIZONTAL_ALIGNMENT_CENTER, 16, 13, UI.OUTLINE if s + 1 <= step else UI.DIM)
 			var need := "start" if s == 0 else "%d" % int(ProfileScript.STEP_XP[s])
-			draw_string(font, p + Vector2(-30, 23), need, HORIZONTAL_ALIGNMENT_CENTER, 60, 10, UI.FAINT)
+			draw_string(font, p + Vector2(-30, 23), need, HORIZONTAL_ALIGNMENT_CENTER, 60, 12, UI.FAINT)
 
 
 ## A spell's little badge on a mark's page: the mark's emblem, or a lock
@@ -3511,12 +3763,12 @@ class FlowView extends Control:
 		var x := sw + 24.0
 		var w := size.x - x - 8.0
 		if st <= 0:
-			draw_string(font, Vector2(x, size.y * 0.5 + 5.0), Secret.TEXT["faint_sign"] % [Secret.display(path), int(Secret.STEPS[0])], HORIZONTAL_ALIGNMENT_LEFT, w, 13, Color(col, 0.75))
+			draw_string(font, Vector2(x, size.y * 0.5 + 5.0), Secret.TEXT["faint_sign"] % [Secret.display(path), int(Secret.STEPS[0])], HORIZONTAL_ALIGNMENT_LEFT, w, 15, Color(col, 0.75))
 			return
 		var head := "%s  ·  STEP %d OF %d" % [Secret.display(path).to_upper(), st, Secret.STEPS.size()]
-		draw_string(font, Vector2(x, 18), head, HORIZONTAL_ALIGNMENT_LEFT, w, 13, light)
-		var hw := font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 18.0
-		draw_string(font, Vector2(x + hw, 18), Secret.KINDS[path]["motto"], HORIZONTAL_ALIGNMENT_LEFT, maxf(w - hw, 10.0), 12, Color(col, 0.8))
+		draw_string(font, Vector2(x, 18), head, HORIZONTAL_ALIGNMENT_LEFT, w, 15, light)
+		var hw := font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 18.0
+		draw_string(font, Vector2(x + hw, 18), Secret.KINDS[path]["motto"], HORIZONTAL_ALIGNMENT_LEFT, maxf(w - hw, 10.0), 14, Color(col, 0.8))
 		var small := size.y < 140.0
 		var y := 38.0
 		var lh := 17.0 if small else 20.0
@@ -3524,14 +3776,14 @@ class FlowView extends Control:
 			var on := i < st
 			var pc := Vector2(x + 7.0, y - 4.0)
 			draw_circle(pc, 6.5, Color(col, 0.55 if on else 0.12))
-			draw_string(font, pc + Vector2(-7, 4), str(i + 1), HORIZONTAL_ALIGNMENT_CENTER, 14, 10, light if on else UI.FAINT)
-			draw_string(font, Vector2(x + 20.0, y), "%s  (%d)" % [Secret.STEP_TEXT[path][i], int(Secret.STEPS[i])], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0, 12 if not small else 11, UI.TEXT if on else UI.FAINT)
+			draw_string(font, pc + Vector2(-7, 4), str(i + 1), HORIZONTAL_ALIGNMENT_CENTER, 14, 12, light if on else UI.FAINT)
+			draw_string(font, Vector2(x + 20.0, y), "%s  (%d)" % [Secret.STEP_TEXT[path][i], int(Secret.STEPS[i])], HORIZONTAL_ALIGNMENT_LEFT, w - 20.0, 14 if not small else 13, UI.TEXT if on else UI.FAINT)
 			y += lh
 		var need: float = Secret.next_need(prof.flow)
 		var line: String = Secret.TEXT["next"] % [int(prof.flow), int(ceil(need - prof.flow)), st + 1] if need > 0.0 else Secret.TEXT["full"] % int(prof.flow)
 		if main.run_flow >= 0.5:
 			line += "  ·  " + Secret.TEXT["unbanked"] % int(main.run_flow)
-		draw_string(font, Vector2(x, y + 4.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 11, UI.DIM)
+		draw_string(font, Vector2(x, y + 4.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
 
 class EssenceView extends Control:
@@ -3553,7 +3805,7 @@ class EssenceView extends Control:
 		var b := UI.Draw.Batch.new()
 		var texts: Array = []  # [pos, text, size, colour, align width]
 		var head_col := Color(UI.GOLD, 0.7)
-		texts.append([Vector2(0, 12), "DENSITY AND ATTRIBUTES", 12, head_col, -1.0])
+		texts.append([Vector2(0, 12), "DENSITY AND ATTRIBUTES", 13, head_col, -1.0])
 		var y := 22.0
 		for kind in KINDS:
 			var attr: Dictionary = prof.ATTRIBUTES[kind]
@@ -3564,9 +3816,9 @@ class EssenceView extends Control:
 			b.rect(Rect2(r.position, Vector2(2.0, r.size.y)), Color(col, 0.6))
 			var cy := y + (row_h - 4.0) * 0.5
 			UI.gem_into(b, Vector2(18, cy), 7.5, col)
-			texts.append([Vector2(34, cy + 5), Essence.display(kind), 15, col, -1.0])
-			texts.append([Vector2(88, cy + 5), attr["name"], 13, UI.TEXT, -1.0])
-			texts.append([Vector2(150, cy + 5), "%d" % int(prof.density.get(kind, 0.0)), 13, UI.DIM, 44.0])
+			texts.append([Vector2(34, cy + 5), Essence.display(kind), 17, col, -1.0])
+			texts.append([Vector2(88, cy + 5), attr["name"], 14, UI.TEXT, -1.0])
+			texts.append([Vector2(150, cy + 5), "%d" % int(prof.density.get(kind, 0.0)), 14, UI.DIM, 44.0])
 			var bx := 206.0
 			var bw := maxf(left_w - bx - 150.0, 60.0)
 			UI.bar_into(b, Rect2(Vector2(bx, cy - 3.5), Vector2(bw, 7.0)), clampf(bonus / prof.ATTRIBUTE_CAP, 0.0, 1.0), col)
@@ -3576,14 +3828,14 @@ class EssenceView extends Control:
 		# Right: settled in the body, and unbanked.
 		var rx := left_w + 22.0
 		var rw := size.x - rx
-		texts.append([Vector2(rx, 12), "SETTLED IN YOUR BODY", 12, head_col, -1.0])
+		texts.append([Vector2(rx, 12), "SETTLED IN YOUR BODY", 13, head_col, -1.0])
 		var most := 1.0
 		for part in Bonds.PARTS:
 			most = maxf(most, _total(prof, part))
 		var py := 26.0
 		var step := 20.0 if small else 24.0
 		for part in Bonds.PARTS:
-			texts.append([Vector2(rx, py + 11), Bonds.PART_NAMES[part], 12, UI.TEXT if prof.bonds.has(part) else UI.DIM, -1.0])
+			texts.append([Vector2(rx, py + 11), Bonds.PART_NAMES[part], 13, UI.TEXT if prof.bonds.has(part) else UI.DIM, -1.0])
 			var bar := Rect2(Vector2(rx + 56, py + 3), Vector2(rw - 96.0, 8))
 			UI.capsule(b, bar.position.x - 1.4, bar.end.x + 1.4, bar.get_center().y, 5.4, UI.OUTLINE)
 			UI.capsule(b, bar.position.x, bar.end.x, bar.get_center().y, 4.0, Color(0.14, 0.13, 0.17))
@@ -3595,10 +3847,10 @@ class EssenceView extends Control:
 					b.rect(Rect2(Vector2(bx, bar.position.y), Vector2(ww, bar.size.y)), Essence.color(e))
 					b.rect(Rect2(Vector2(bx, bar.position.y), Vector2(ww, 3.0)), Color(Essence.color(e).lightened(0.4), 0.5))
 					bx += ww
-			texts.append([Vector2(bar.end.x + 4, py + 11), "%d" % int(_total(prof, part)), 12, UI.DIM, 34.0])
+			texts.append([Vector2(bar.end.x + 4, py + 11), "%d" % int(_total(prof, part)), 13, UI.DIM, 34.0])
 			py += step
 		py += 10.0
-		texts.append([Vector2(rx, py + 10), "UNBANKED THIS CLIMB", 12, head_col, -1.0])
+		texts.append([Vector2(rx, py + 10), "UNBANKED THIS CLIMB", 13, head_col, -1.0])
 		py += 30.0
 		var x := rx
 		var any := false
@@ -3608,7 +3860,7 @@ class EssenceView extends Control:
 				continue
 			any = true
 			UI.gem_into(b, Vector2(x + 7, py - 4), 6.5, Essence.color(kind))
-			texts.append([Vector2(x + 18, py + 1), "%d %s" % [int(amt), Essence.display(kind)], 13, UI.TEXT, -1.0])
+			texts.append([Vector2(x + 18, py + 1), "%d %s" % [int(amt), Essence.display(kind)], 14, UI.TEXT, -1.0])
 			x += 92.0
 			if x + 80.0 > size.x:
 				x = rx
@@ -3620,9 +3872,9 @@ class EssenceView extends Control:
 			else:
 				draw_string(font, tx[0], tx[1], HORIZONTAL_ALIGNMENT_LEFT, -1, tx[2], tx[3])
 		if not any:
-			draw_multiline_string(font, Vector2(rx, py + 1), "None yet: slain monsters leave essence; bank it at the stair.", HORIZONTAL_ALIGNMENT_LEFT, rw, 12, -1, UI.FAINT)
+			draw_multiline_string(font, Vector2(rx, py + 1), "None yet: slain monsters leave essence; bank it at the stair.", HORIZONTAL_ALIGNMENT_LEFT, rw, 14, -1, UI.FAINT)
 		else:
-			draw_string(font, Vector2(rx, py + 22), "lost if you fall before the stair", HORIZONTAL_ALIGNMENT_LEFT, rw, 11, UI.FAINT)
+			draw_string(font, Vector2(rx, py + 22), "lost if you fall before the stair", HORIZONTAL_ALIGNMENT_LEFT, rw, 13, UI.FAINT)
 
 	func _total(prof, part: String) -> float:
 		var t := 0.0

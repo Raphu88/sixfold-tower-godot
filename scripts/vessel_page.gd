@@ -142,7 +142,7 @@ static func bench_list(tp, parent: Node) -> Array:
 	var l := Label.new()
 	l.text = V["brew_title"] + "\n" + V["full_count"] % full
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 14)
 	l.add_theme_color_override("font_color", UI.GOLD if full > 0 else UI.DIM)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(l)
