@@ -121,6 +121,7 @@ const TEXT := {
 	"trunk_short": "Inventory",
 	"looks": "Appearance",  # how you look (appearance_page.gd)
 	"looks_short": "Looks",
+	"techniques": "Techniques",  # the Unbound's (technique_page.gd)
 	# The engine: where you choose the next tower
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",

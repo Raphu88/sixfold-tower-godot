@@ -39,6 +39,7 @@ const MakersScript := preload("res://scripts/makers.gd")
 const MirrorScript := preload("res://scripts/mirror.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const SecretToolsScript := preload("res://scripts/secret_tools.gd")
+const UnboundRun := preload("res://scripts/unbound_run.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -135,6 +136,7 @@ var menu  # title, pause, settings and dev tool (menu.gd)
 var entity  # the Entity's bubble in play (guide.gd); main.tip("id") for a new system
 var dev_no_death := false  # dev tool: you can't fall
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
+var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
@@ -288,6 +290,9 @@ func _ready() -> void:
 		profile.load_save()
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
+	unbound = UnboundRun.new()
+	unbound.main = self
+	add_child(unbound)
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
 	apply_appearance()
@@ -1323,7 +1328,9 @@ func _arrive() -> void:
 	# The summit: the beast has fallen and the climb is complete.
 	if floor_num == int(tower_data().get("summit", 0)):
 		profile.climbs += 1
-		lines.append_array(summit_mark())
+		var choice: String = unbound.summit_choice() if unbound != null else ""  # (the Unbound condense; or the refusal offered)
+		if choice == "":
+			lines.append_array(summit_mark())
 		var broke := break_belt()
 		if broke != "":
 			lines.append(broke)
@@ -1331,9 +1338,10 @@ func _arrive() -> void:
 		if home != "":
 			lines.append(home)
 		profile.save()
-		victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
-		player.set_physics_process(false)
-		sfx("clear", 0.7, 0.0, 0.0)
+		if choice != "":
+			unbound.offer_summit(choice, lines)
+			return
+		show_victory(lines)
 		return
 	# Halfway up a long climb, the stair leads to a camp first.
 	if not leaving_camp and _camp_due():
@@ -1510,6 +1518,8 @@ func _enter_camp(lines: Array) -> void:
 ## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
 func camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
+	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
+		return unbound.card(pick)
 	if pick.begins_with("path:"):
 		var k := pick.substr(5)
 		return {"name": Secret.display(k), "desc": Secret.KINDS[k]["motto"], "color": Secret.color(k), "item": "", "secret": k,
@@ -1579,6 +1589,9 @@ func choose_camp(i: int) -> void:
 	var pick: String = camp["choices"][i]
 	if camp["stage"] == "path":
 		_take_path_pick(i)
+		return
+	if camp["stage"] in ["unbind", "condense"]:
+		unbound.choose(i)
 		return
 	if camp["stage"] == "heirloom":
 		keep_heirloom(pick.substr(5))
@@ -2212,6 +2225,8 @@ func _give_bonds() -> void:
 	# Health: Vitality, then whatever your gear adds (refresh_gear), then Unmaking's cost.
 	player.base_hp = player.MAX_HP * (1.0 + profile.attribute("stone"))
 	player.refresh_gear()
+	if unbound != null:
+		unbound.give()  # (the Unbound carry techniques in the marks' places)
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -2243,6 +2258,13 @@ func summit_mark() -> Array:
 	_give_bonds()
 	profile.save()
 	return ["The beast takes notice. Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]]]
+
+
+## The summit's victory screen, with the stair's lines.
+func show_victory(lines: Array) -> void:
+	victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
+	player.set_physics_process(false)
+	sfx("clear", 0.7, 0.0, 0.0)
 
 
 ## Winning the Proving (proving.gd): one of your marks grows a step, the
@@ -2402,6 +2424,8 @@ func regard_done() -> bool:
 
 
 func end_regard() -> void:
+	if unbound != null and unbound.ask_at_regard():
+		return  # (first: accept the mark, or refuse it)
 	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
 	var survived: bool = not victory.is_empty() or (not regard.is_empty() and not regard.get("fell", false))
 	if survived and not victory.get("recall", false) and not heirloom_offered and _offer_heirloom():

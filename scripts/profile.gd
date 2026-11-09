@@ -12,6 +12,7 @@ const Bonds := preload("res://scripts/bonds.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
+const Unbound := preload("res://scripts/unbound.gd")
 const SAVE_PATH := "user://sixfold.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
@@ -107,6 +108,9 @@ var core_depth := 0
 ## (spell id -> setting). secret_bonds.gd reads and writes them.
 var core_xp := {}
 var core_tune := {}
+## The Unbound (unbound.gd): whether you are, the barriers you've broken,
+## routes and techniques. {} for a marked climber; unbound.gd state() fills it.
+var unbound := {}
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -201,6 +205,7 @@ func reset() -> void:
 	core_depth = 0
 	core_xp = {}
 	core_tune = {}
+	unbound = {}
 	save()
 
 
@@ -266,6 +271,8 @@ func load_save() -> void:
 	core_xp = cx if cx is Dictionary else {}
 	var ct = cfg.get_value("profile", "core_tune", {})
 	core_tune = ct if ct is Dictionary else {}
+	var ub = cfg.get_value("unbound", "state", {})
+	unbound = ub if ub is Dictionary else {}
 
 
 func save() -> void:
@@ -303,6 +310,7 @@ func save() -> void:
 	cfg.set_value("profile", "core_depth", core_depth)
 	cfg.set_value("profile", "core_xp", core_xp)
 	cfg.set_value("profile", "core_tune", core_tune)
+	cfg.set_value("unbound", "state", unbound)
 	cfg.save(save_path)
 
 
@@ -437,13 +445,15 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 		tally[kind] = float(tally.get(kind, 0.0)) + float(essence[kind])
 		# Density: the essence settles in your body, by type and by part.
 		density[kind] = float(density.get(kind, 0.0)) + float(essence[kind])
-		if soaked > 0.0:
+		if Unbound.is_on(self):
+			Unbound.settle(self, kind, float(essence[kind]))  # (the Unbound: raw, in its part)
+		elif soaked > 0.0:
 			for part in run_soak:
 				var pd: Dictionary = part_density.get(part, {})
 				pd[kind] = float(pd.get(kind, 0.0)) + float(essence[kind]) * float(run_soak[part]) / soaked
 				part_density[part] = pd
 	for part in run_soak:
-		if not bonds.has(part):
+		if not bonds.has(part) and not Unbound.is_on(self):
 			# A battery: the fuller the part (and the more marks the body carries), the slower it fills.
 			var have := float(soak.get(part, 0.0))
 			var fill := clampf(have / NEW_MARK_SOAK, 0.0, 1.0)

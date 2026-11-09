@@ -7043,6 +7043,7 @@ func _run() -> void:
 	await _foe_list_tests()
 	await _slim_hud_tests()
 	await _appearance_tests()
+	await _unbound_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -9948,3 +9949,350 @@ func _secret_bond_tests() -> void:
 	SB.clear(prof)
 	main._give_bonds()
 	p.iframes = 0.0
+
+
+## Takes a card on the Unbound's choice: a refusal needs a second press after a moment.
+func _ub_take(i: int) -> void:
+	main.camp["t"] = 9.0
+	main.choose_camp(i)
+	if main.camp_choosing and main.camp.get("stage", "") == "unbind":
+		main.choose_camp(i)
+
+
+## An Unbound climber on a fresh floor: no monsters, nothing hurting.
+func _ub_fresh() -> void:
+	await _fresh_main()
+	paused = false  # (a menu left open by an earlier test pauses the tree)
+	var prof = main.profile
+	main.unbound.Unbound.become(prof)
+	prof.regarded = true
+	main.first_climb = false
+	main._give_bonds()
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(2)
+
+
+func _unbound_tests() -> void:
+	var U = load("res://scripts/unbound.gd")
+	var T = load("res://scripts/technique.gd")
+	var TP = load("res://scripts/technique_page.gd")
+	print("the Unbound: refusing at the Regard")
+	await _fresh_main()
+	paused = false
+	var p = main.player
+	var prof = main.profile
+	for i in 5:
+		main.add_soak("legs", 3.0)
+	main.gather_essence("air", 30.0, p.global_position)
+	main.floor_num = 3
+	main._begin_regard(false)
+	_check(prof.bonds.has("legs") and not main.regard.is_empty(), "the Regard marks the most-used part, as before")
+	main.regard["t"] = 9.0
+	main.end_regard()
+	_check(main.camp_choosing and main.camp.get("stage", "") == "unbind" and main.camp["choices"] == ["unbind:accept", "unbind:refuse"], "dismissing it asks first: accept the mark, or refuse it")
+	_check(main.camp_card(1)["name"] == U.TEXT["refuse_name"] and main.camp_card(0)["desc"].contains("Windwalker"), "the cards say what each choice means")
+	main.camp["t"] = 0.1
+	main.choose_camp(1)
+	_check(main.camp_choosing and int(main.camp.get("armed", -1)) == -1, "a press in its first moment can't refuse")
+	main.camp["t"] = 9.0
+	main.choose_camp(1)
+	_check(main.camp_choosing and int(main.camp["armed"]) == 1 and not U.is_on(prof), "the first press only arms the refusal")
+	main.choose_camp(1)
+	_check(U.is_on(prof) and prof.bonds.is_empty() and main.camp.get("stage", "") != "unbind", "refusing makes you Unbound and no mark is taken")
+	_check(p.bonds.size() == 6 and p.bonds.values().all(func(b): return "tech" in b), "an Unbound carries six techniques, one on each mark button")
+	main.camp_choosing = false
+	main.camp = {}
+	# Accepting changes nothing.
+	await _fresh_main()
+	prof = main.profile
+	main.add_soak("hand", 5.0)
+	main.gather_essence("blade", 20.0, main.player.global_position)
+	main._begin_regard(false)
+	main.regard["t"] = 9.0
+	main.end_regard()
+	_ub_take(0)
+	_check(not U.is_on(prof) and prof.bonds.has("hand") and main.camp.get("stage", "") != "unbind", "accepting keeps the mark")
+	main.camp_choosing = false
+	main.camp = {}
+
+	print("the Unbound: bare fists against a barrier")
+	await _fresh_main()
+	paused = false
+	main.grant_test_bonds()
+	p = main.player
+	prof = main.profile
+	var run = main.unbound
+	await _puzzle_floor("plates", 3)
+	_check(main.ward and run.barriers().any(func(b): return b["kind"] == "stair"), "a warded stair is a barrier")
+	var stair: Dictionary = run.barriers().filter(func(b): return b["kind"] == "stair")[0]
+	p.iframes = 9999.0
+	p._equip("fists")
+	p.global_position = main.stair_pos + Vector2(-p.radius - 28.0, 0)
+	p.aim = Vector2.RIGHT
+	await _frames(2)
+	_check(not run.barrier_in_reach(p).is_empty(), "standing at it, facing it, it's in reach")
+	main.run_essence = {"air": 40.0}
+	var puzzles0: int = prof.count("puzzles")
+	Input.action_press("attack")
+	await _until(func(): return U.state(prof)["found"], 2.0)
+	Input.action_release("attack")
+	_check(U.state(prof)["found"] and int(run.hits.get("stair", -1)) == 0 and main.ward, "the first barrier struck (a held strike) only shudders: the route is found")
+	await _frames(2)
+	var hp0: float = p.hp
+	_check(run.punch(stair) == "crack", "then each blow cracks it")
+	_check(is_equal_approx(float(main.run_essence.get("air", 0.0)), 40.0 - run.FISTS["drain"]), "each blow drains unbanked essence (%.1f left)" % float(main.run_essence.get("air", 0.0)))
+	_check(p.hp < hp0, "...and hurts your hands")
+	var res := ""
+	for i in 6:
+		res = run.punch(stair)
+		if res == "broke":
+			break
+	_check(res == "broke" and not main.ward and main.stair_open and main.puzzle.solved, "enough blows break it: the stair opens")
+	_check(prof.count("puzzles") == puzzles0, "a punched stair isn't a solved puzzle")
+	_check(float(main.run_essence.get("air", 0.0)) <= 40.0 - run.FISTS["drain"] * run.BLOWS["stair"] + 0.01, "...and gives no puzzle bonus (%.1f essence)" % float(main.run_essence.get("air", 0.0)))
+	_check(int(U.state(prof)["broken"]) == 1, "the barrier counts toward the hidden route")
+	# A lock-in room's shut doorway.
+	var tile: Vector2i = main._tile_of(p.global_position + Vector2(0, 60))
+	var lr := {"state": "armed", "gates": [[tile]], "bodies": [], "mobs": [], "t": 0.0}
+	main.door_view.lock_rooms[777] = lr
+	var held = await _spawn("slime", p.global_position + Vector2(200, 200))
+	main.door_view._shut(lr, [held])
+	var gate: Array = run.barriers().filter(func(b): return b["kind"] == "gate")
+	_check(not gate.is_empty(), "a lock-in room's shut doorway is a barrier")
+	main.run_essence = {"water": 20.0}
+	for i in run.BLOWS["gate"]:
+		res = run.punch(gate[0])
+	_check(res == "broke" and lr["state"] == "done", "...and punching through opens it")
+	main.door_view.lock_rooms.erase(777)
+
+	print("the Unbound: a punched vault is empty")
+	if await _wing_floor():
+		var W = main.wings
+		var w: Dictionary = W.wings[0]
+		await _enter_wing(w)
+		var vb: Array = run.barriers().filter(func(b): return b["kind"] == "vault")
+		_check(not vb.is_empty(), "a vault's seal is a barrier")
+		main.run_essence = {"fire": 30.0}
+		res = ""
+		for i in run.BLOWS["vault"]:
+			res = run.punch(vb[0])
+		_check(res == "broke" and w["vault"] == "taken" and w["state"] in ["done", "idle"], "punching it skips the room's question")
+		p.global_position = w["pedestal"]
+		await _frames(3)
+		_check(not main.camp_choosing, "...and the vault is empty: nothing to choose")
+		for e in main.enemies():
+			e.queue_free()
+		await _frames(1)
+	else:
+		_check(false, "found a floor with a sealed wing")
+
+	print("the Unbound: the beasts notice")
+	await _fresh_main()
+	main.grant_test_bonds()
+	prof = main.profile
+	run = main.unbound
+	U.state(prof)["found"] = true
+	U.state(prof)["broken"] = U.OFFER_AFTER - 1
+	prof.soak["heart"] = prof.NEW_MARK_SOAK
+	_check(run.summit_choice() == "", "too few barriers broken: a summit's mark comes as usual")
+	U.state(prof)["broken"] = U.OFFER_AFTER
+	main.run_essence = {"iron": 10.0}
+	main.floor_num = int(main.tower_data().get("summit", 12))
+	main._arrive()
+	await _frames(2)
+	_check(main.camp_choosing and main.camp.get("stage", "") == "unbind" and main.camp.get("part", "") == "heart", "after %d barriers, a new mark at a summit offers the refusal" % U.OFFER_AFTER)
+	_check(main.victory.is_empty() and not prof.bonds.has("heart"), "...before the mark is taken")
+	_ub_take(1)
+	_check(U.is_on(prof) and prof.bonds.is_empty() and not main.victory.is_empty(), "refusing gives up the tower bonds: Unbound, then the victory")
+	_check(not main.victory.is_empty() and main.victory["lines"][0] == U.TEXT["became_marked"], "...and the victory says so")
+	main.victory = {}
+
+	print("the Unbound: raw essence in the parts")
+	prof.part_density = {}
+	prof.path = ""
+	prof.bank({"fire": 10.0, "air": 6.0}, {"hand": 5.0})
+	_check(float(prof.part_density.get("brow", {}).get("fire", 0.0)) == 10.0 and float(prof.part_density.get("legs", {}).get("air", 0.0)) == 6.0, "banked essence pools in its natural part (Fire the brow, Air the legs)")
+	_check(not prof.part_density.has("hand"), "...not where you used your body")
+	U.route(prof, "fire", "hand")
+	prof.bank({"fire": 10.0}, {})
+	_check(float(prof.part_density["hand"]["fire"]) == 10.0 and float(prof.part_density["brow"]["fire"]) == 10.0, "routing sends a kind to another part from then on")
+	var raw_heart: float = U.raw(prof, "heart")
+	prof.path = "life"
+	prof.flow = 30.0
+	_check(U.PARTS.all(func(pt): return U.raw(prof, pt) >= 30.0) and U.raw(prof, "heart") == raw_heart + 30.0, "the path's essence flows through every part")
+	_check(U.level_for(0.0) == 1 and U.level_for(U.LEVELS[3]) == 4 and U.level_for(99999.0) == 10, "levels 1 to 10 from raw density")
+	prof.part_density = {"hand": {"blade": 3300.0}}
+	prof.flow = 0.0
+	_check(U.stage_name(prof) == "Unbound" and U.stage(prof) == 10, "the stages, by total raw density: the last is Unbound")
+	prof.part_density = {}
+	_check(U.stage_name(prof) == "Stir", "...the first is Stir")
+	prof.path = ""
+
+	print("the Unbound: building techniques")
+	var t := {"name": "", "part": "throat", "shape": "shout", "kinds": ["fire", "air"]}
+	var desc: String = T.describe(t)
+	_check(desc.begins_with("A shout in a cone") and desc.contains("burns") and desc.contains("a little reaches farther"), "a part and essences: the part gives the shape, the first leads, the others flavour (%s)" % desc)
+	var cost: Dictionary = T.cost(t)
+	_check(is_equal_approx(cost["fire"], T.COST[1] * 2.0 / 3.0) and is_equal_approx(cost["air"], T.COST[1] / 3.0), "its cost is paid in those essences, the lead counting double")
+	_check(T.strain(t) > T.strain({"part": "throat", "shape": "shout", "kinds": ["fire"]}), "every extra kind adds strain")
+	var one := {"name": "", "part": "hand", "shape": "bolt", "kinds": ["fire"]}
+	_check(TP.cycle_gem(prof, one, 1)["kinds"].size() == 1, "at level 1 a part combines one essence")
+	prof.part_density = {"hand": {"blade": U.LEVELS[U.KINDS_AT[1] - 1]}}
+	var two: Dictionary = TP.cycle_gem(prof, one, 1)
+	_check(two["kinds"].size() == 2 and two["kinds"][1] != "fire" and TP.cycle_gem(prof, two, 2)["kinds"].size() == 2, "at level %d two, not yet three" % U.KINDS_AT[1])
+	_check(TP.cycle_gem(prof, one, 0)["kinds"][0] != "fire", "tapping a gem cycles its essence")
+	_check(not ("life" in U.kinds_for(prof)) and not ("unmaking" in U.kinds_for(prof)), "without a path, no secret essence to build with")
+	prof.path = "unmaking"
+	_check("unmaking" in U.kinds_for(prof) and not ("life" in U.kinds_for(prof)), "only your own path's secret essence")
+	prof.path = ""
+	var sh: Dictionary = TP.cycle_shape(prof, one)
+	_check(sh["part"] == "legs" and sh["shape"] == "dash" and sh["kinds"].size() == 1, "tapping the part cycles its shape (and part)")
+
+	print("the Unbound: casting and strain")
+	await _ub_fresh()
+	p = main.player
+	prof = main.profile
+	run = main.unbound
+	p.iframes = 9999.0
+	run.waver_chance = 0.0
+	main.touch._layout()
+	_check(main.touch.buttons.filter(func(b): return String(b["id"]).begins_with("cast_")).size() == 6, "six cast buttons on a phone")
+	var slime = await _spawn("slime", p.global_position + Vector2(36, 0))
+	slime.hp = 999.0
+	slime.max_hp = 999.0
+	U.state(prof)["techs"][0] = T.recipe("rending_strike")
+	main._give_bonds()
+	p.aim = Vector2.RIGHT
+	main.run_essence = {"blade": 10.0}
+	p.attack_cd = 0.0
+	p._try_cast("hand")
+	await _until(func(): return run.strain_of("hand") > 0.0, 2.0)
+	var cold: float = 999.0 - slime.hp
+	_check(run.strain_of("hand") == T.STRAIN[0] and cold > 0.0, "casting strains its part (%d) and hits (%.0f)" % [run.strain_of("hand"), cold])
+	_check(float(main.run_essence.get("blade", 0.0)) < 10.0, "...paid from unbanked essence")
+	_check(p.bonds["hand"].essence == 100.0 - T.STRAIN[0], "its gauge shows the part's headroom")
+	run.dots.clear()
+	slime.hp = 999.0
+	run.strain["hand"] = 75.0
+	run.cast(p.bonds["hand"], p)
+	var hot: float = 999.0 - slime.hp
+	_check(hot > cold * 1.1, "above %d it hits harder (%.0f vs %.0f)" % [run.HOT, hot, cold])
+	run.dots.clear()
+	slime.hp = 999.0
+	run.waver_chance = 1.0
+	run.strain["hand"] = 75.0
+	p.aim = Vector2.RIGHT
+	run.cast(p.bonds["hand"], p)
+	_check(999.0 - slime.hp < hot * 0.75, "...but it may waver")
+	run.waver_chance = 0.0
+	run.dots.clear()
+	# Strain fades while you don't cast from the part.
+	run.strain["hand"] = 50.0
+	run.idle["hand"] = run.STRAIN_REST
+	await _until(func(): return run.strain_of("hand") < 47.0, 2.0)
+	_check(run.strain_of("hand") < 47.0, "strain fades while you don't cast")
+	run.strain["hand"] = 60.0
+	run._sync()
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()  # (as a Vial of Essence fills marks)
+	run._sync()
+	_check(run.strain_of("hand") == 0.0, "what fills a mark eases a technique's strain instead")
+	# 100: it erupts.
+	p.hp = p.max_health()
+	var hp1: float = p.hp
+	run.strain["hand"] = 95.0
+	run.cast(p.bonds["hand"], p)
+	_check(run.is_dark("hand") and p.hp < hp1 - p.max_health() * 0.4 and not p.dead, "at 100 it erupts: badly hurt, the part dark")
+	_check(p.bonds["hand"].blocked() and p.bonds["hand"].essence == 0.0, "...nothing from it can be cast")
+	p.attack_cd = 0.0
+	_check(p._try_cast("hand") and p.cast_t <= 0.0, "...pressing its button does nothing")
+	_check(run.glow.has("hand"), "...and raw essence shows on the part")
+	p.hp = 10.0
+	run.add_strain("legs", 100.0)
+	_check(p.dead, "an eruption can kill")
+	await _frames(2)
+
+	print("the Unbound: the Developer goes back")
+	await _ub_fresh()
+	prof = main.profile
+	prof.part_density = {"heart": {"iron": 200.0}, "hand": {"blade": 40.0}}
+	_check(not U.can_return(prof), "being Unbound is for good")
+	prof.core_mark = "developer"
+	prof.core_depth = 1
+	_check(U.can_return(prof), "...unless you hold the Developer")
+	var got: Dictionary = U.return_to_marks(prof)
+	_check(not U.is_on(prof) and prof.bonds.has("heart") and got["part"] == "heart", "the beasts mark you again: raw essence settles into a bond on the densest part (%s)" % got.get("id", ""))
+	_check(float(prof.soak.get("hand", 0.0)) > 0.0, "...and the rest makes later marks come sooner")
+	prof.core_mark = ""
+	prof.core_depth = 0
+
+	print("the Unbound: condensing at a summit")
+	await _ub_fresh()
+	prof = main.profile
+	# Once Unbound: raw essence, from a step away, costs essence and doesn't hurt.
+	p = main.player
+	run = main.unbound
+	var tile2: Vector2i = main._tile_of(p.global_position + Vector2(0, 80))
+	var lr2 := {"state": "armed", "gates": [[tile2]], "bodies": [], "mobs": [], "t": 0.0}
+	main.door_view.lock_rooms[778] = lr2
+	var held2 = await _spawn("slime", p.global_position + Vector2(200, 200))
+	main.door_view._shut(lr2, [held2])
+	var g2: Dictionary = run.barriers().filter(func(b): return b["kind"] == "gate")[0]
+	p.aim = Vector2.DOWN
+	p._equip("fists")
+	_check(not run.barrier_in_reach(p).is_empty(), "the Unbound reach a barrier from a step away")
+	main.run_essence = {"stone": 20.0}
+	var hp2: float = p.hp
+	_check(run.punch(g2) == "crack" and p.hp == hp2 and is_equal_approx(float(main.run_essence.get("stone", 0.0)), 20.0 - run.FISTS["raw_cost"]) and int(run.hits[g2["id"]]) == run.FISTS["raw_blows"], "raw essence: it costs essence, not health, and cracks faster")
+	main.door_view.lock_rooms.erase(778)
+	held2.queue_free()
+	main.floor_num = int(main.tower_data().get("summit", 12))
+	main._arrive()
+	await _frames(2)
+	_check(main.camp_choosing and main.camp.get("stage", "") == "condense" and main.camp["choices"].size() == 6 and prof.bonds.is_empty(), "at a summit the Unbound take no mark: they choose a part to condense into")
+	var kind: String = main.tower_data().get("essence", "air")
+	main.choose_camp(2)
+	_check(float(prof.part_density.get(U.PARTS[2], {}).get(kind, 0.0)) == U.CONDENSE and not main.victory.is_empty(), "the tower's essence condenses there, then the victory")
+	main.victory = {}
+
+	print("the Unbound: pages")
+	main.on_train = true
+	main.menu.open("techniques")
+	await _frames(2)
+	var gem: Button = null
+	for b in main.menu.focusables():
+		if b.get_meta("tech_gem", -1) == 0:
+			gem = b
+	var before: String = String(U.state(prof)["techs"][0]["kinds"][0])
+	var found_gem := gem != null
+	if found_gem:
+		gem.pressed.emit()
+		await _frames(2)
+	_check(found_gem and String(U.state(prof)["techs"][0]["kinds"][0]) != before, "the technique page: tapping a gem changes it")
+	main.menu.open("climber")
+	await _frames(2)
+	_check(main.menu._climber_line().begins_with("Unbound") and main.menu._climber_line().contains(U.stage_name(prof)), "the climber screen shows the stage")
+	main.menu.close()
+	main.on_train = false
+
+	print("the Unbound: saved")
+	var path := "user://smoke_unbound_test.cfg"
+	U.state(prof)["broken"] = 2
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(U.is_on(again) and int(U.state(again)["broken"]) == 2 and T.valid(U.state(again)["techs"][1]), "the Unbound and their techniques are saved")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": 0.0, "faint": false, "debt": 0.0}})
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(not U.is_on(again) and again.bonds.has("hand") and int(U.state(again)["broken"]) == 0, "an old save loads as a marked climber")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH

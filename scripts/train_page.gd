@@ -577,6 +577,12 @@ func _personal(root: Node) -> void:
 			var st: StyleBoxFlat = b.get_theme_stylebox(state)
 			st.content_margin_left = 5
 			st.content_margin_right = 5
+	if m.Unbound.is_on(prof):
+		# The Unbound's techniques (technique_page.gd): built and named here.
+		var tb: Button = m._button(T["techniques"], m.open.bind("techniques", true), col)
+		tb.custom_minimum_size.y = 40
+		tb.set_meta("car_page", "techniques")
+		_brass(tb)
 	_card(row, keys, "pack:0" if not prof.pack.is_empty() else "chest:0")
 
 
