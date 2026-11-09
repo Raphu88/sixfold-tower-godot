@@ -20,10 +20,10 @@ extends Node2D
 ##   grants its secret bond: the CORE MARK, drawn over the whole body.
 ##   One secret bond per climber.
 ##
-## THE STORY IS NOT WRITTEN YET. Everything a Maker says, every fragment's
-## words and the Entity's lines about its siblings are REDACTED: strings of
-## "▇" and spaces, drawn as blacked-out word-shaped bars (redact_into). Write
-## real words in their place and they show as text. Names, colours, signs,
+## THE MAKERS' WORDS are written (the owner approved the first draft): what
+## each says, its fragments and the Entity's line about it. Any line can
+## still be REDACTED instead: a string of "▇" and spaces draws as
+## blacked-out word-shaped bars (redact_into). Names, colours, signs,
 ## numbers and the answers (placeholders) are all here, in data.
 ##
 ## Saved in the profile (profile.gd `makers`, a dictionary; see state()). The
@@ -56,54 +56,72 @@ const MAKERS := {
 		"made": "the bonds", "sign": "eye", "color": Color(0.56, 0.92, 1.0),
 		"bond": "developer", "secret": {"life": 0.5, "unmaking": 0.5},
 		"good": ["understand", "change"],
-		"speech": ["▇▇▇ ▇▇▇▇▇ ▇▇ ▇▇▇▇▇▇▇ ▇▇▇", "▇▇▇▇ ▇▇ ▇▇▇▇▇▇ ▇▇▇▇ ▇▇", "▇▇▇▇▇ ▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇?"],
-		"good_reply": ["▇▇▇▇. ▇▇▇▇ ▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇▇."],
-		"bad_reply": ["▇▇. ▇▇▇ ▇▇▇▇."],
-		"already": ["▇▇▇ ▇▇▇▇▇ ▇▇▇▇▇ ▇▇ ▇▇▇▇▇▇ ▇▇▇▇."],
-		"plea_yes": ["▇▇▇▇ ▇▇▇ ▇▇▇▇ ▇▇▇▇."],
-		"plea_no": ["▇▇. ▇▇▇▇▇▇ ▇▇▇▇."],
-		"interrupt": ["▇▇▇▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇.", "▇▇ ▇▇▇ ▇▇▇▇▇▇▇ ▇▇▇."],
-		"entity": ["▇▇▇ ▇▇▇▇▇ ▇▇ ▇▇▇▇. ▇▇▇▇▇▇ ▇▇▇▇▇ ▇▇▇."],
+		"speech": ["You carry my work, climber. Every mark on you is a line I wrote.", "I have watched you read it. Some of it you have even understood.", "So tell me plainly: what do you want from the marks?"],
+		"good_reply": ["Good. Then take a pen of your own, and be careful what you write."],
+		"bad_reply": ["No. You want a bigger cage, and you call it a gift."],
+		"already": ["You already answer to another of us. I do not write over a sibling's hand."],
+		"plea_yes": ["Very well. I will pull up the root and let it fall. Begin again, and choose with care."],
+		"plea_no": ["No. What took root in you belongs there. Grow around it."],
+		"interrupt": ["Careful. That one is already written in my hand.", "Say nothing to it you would not say to me."],
+		"entity": ["The first of my siblings counts everything. It counted me once."],
 		"fragments": [
-			"▇▇▇ ▇▇▇▇▇▇ ▇▇ ▇▇▇▇ ▇▇▇▇▇ ▇▇▇▇", "▇▇▇▇ ▇▇▇▇▇▇▇ ▇▇▇ ▇▇ ▇▇▇▇▇", "▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇ ▇▇ ▇▇▇",
-			"▇▇▇▇▇▇ ▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇▇", "▇▇▇ ▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇ ▇▇", "▇▇▇▇▇ ▇▇▇▇▇▇▇▇ ▇▇▇ ▇▇▇▇",
-			"▇▇ ▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇ ▇▇▇▇▇", "▇▇▇▇▇▇▇ ▇▇ ▇▇▇▇▇ ▇▇▇"],
+			"A mark is a door left open. What walks through it is up to you.",
+			"Essence does not choose a body. It chooses a habit.",
+			"Every bond was made to be outgrown. Few climbers try.",
+			"The faint ones are not weak. They are only unfinished.",
+			"Two marks of one kind will argue. Let them.",
+			"Nothing I wrote cannot be rewritten. Only, it costs.",
+			"Those who refuse my marks still carry my ink. It runs looser in them.",
+			"I measure what you spend, not what you hold.",
+		],
 	},
 	"towers": {
 		"name": "the Maker of Towers", "Name": "The Maker of Towers", "short": "Towers",
 		"made": "the towers", "sign": "trowel", "color": Color(1.0, 0.7, 0.32),
 		"bond": "designer", "secret": {"unmaking": 1.0},
 		"good": ["understand", "nothing"],
-		"speech": ["▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇ ▇▇ ▇▇▇▇", "▇▇ ▇▇▇▇ ▇▇▇▇▇▇▇ ▇▇▇▇▇▇", "▇▇▇▇ ▇▇ ▇▇▇ ▇▇▇▇ ▇▇▇▇?"],
-		"good_reply": ["▇▇▇▇▇. ▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇ ▇▇▇▇."],
-		"bad_reply": ["▇▇▇▇. ▇▇▇▇ ▇▇▇▇▇."],
-		"already": ["▇▇▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇▇ ▇▇▇▇▇."],
-		"plea_yes": ["▇▇▇▇▇ ▇▇. ▇▇▇▇ ▇▇▇▇▇."],
-		"plea_no": ["▇▇▇▇ ▇▇▇▇▇ ▇▇▇▇▇."],
-		"interrupt": ["▇▇▇▇. ▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇▇.", "▇▇▇▇ ▇▇▇ ▇▇▇▇▇ ▇▇ ▇▇▇▇."],
-		"entity": ["▇▇▇▇ ▇▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇. ▇▇ ▇▇▇▇ ▇▇▇▇▇."],
+		"speech": ["You have walked my stairs and leaned on my walls. Some of them leaned back.", "Every course I laid, I laid for climbers. Even the traps. Most of all the traps.", "Now tell me: what do you want from what I built?"],
+		"good_reply": ["Then learn the craft. Build with care, and leave each wall better than you found it."],
+		"bad_reply": ["You would pull out the stones to see how they stood. No."],
+		"already": ["You wear another's mark. My towers will still stand for you. That is all I give."],
+		"plea_yes": ["Stone can be recut. Once. Do not ask me twice."],
+		"plea_no": ["A foundation does not change because the house dislikes it."],
+		"interrupt": ["Mind where you stand. That floor is mine.", "Ask it what you like. It will not answer as well as stone."],
+		"entity": ["My builder sibling never stops. It would not stop for me, either."],
 		"fragments": [
-			"▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇ ▇▇ ▇▇▇▇", "▇▇ ▇▇▇▇ ▇▇▇▇▇▇▇ ▇▇▇▇ ▇▇▇", "▇▇▇▇▇▇ ▇▇ ▇▇▇ ▇▇▇▇▇ ▇▇▇▇▇",
-			"▇▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇ ▇▇▇▇▇▇", "▇▇▇▇▇▇▇ ▇▇▇▇ ▇▇ ▇▇▇▇", "▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇▇ ▇▇ ▇▇▇▇▇",
-			"▇▇▇▇▇ ▇▇▇▇▇▇ ▇▇▇▇ ▇▇▇", "▇▇ ▇▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇ ▇▇▇▇"],
+			"The seals are not locks. They are questions the tower asks.",
+			"No floor is the same twice. I am not idle.",
+			"A trap no one can cross is a wall. I do not build walls for climbers.",
+			"Where the mortar is cracked, I am listening.",
+			"The stair is always there. I only ask that you earn it.",
+			"Rooms remember who walked them. So do I.",
+			"I built the towers to be climbed, not conquered.",
+			"Every tower leans a little toward its beast. I let it.",
+		],
 	},
 	"creatures": {
 		"name": "the Maker of Creatures", "Name": "The Maker of Creatures", "short": "Creatures",
 		"made": "the monsters", "sign": "paw", "color": Color(1.0, 0.44, 0.56),
 		"bond": "manipulator", "secret": {"life": 1.0},
 		"good": ["understand", "nothing"],
-		"speech": ["▇▇▇ ▇▇▇▇▇▇▇▇ ▇▇▇▇ ▇▇▇", "▇▇▇▇ ▇▇▇▇ ▇▇ ▇▇▇▇ ▇▇▇▇▇▇", "▇▇▇▇ ▇▇ ▇▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇▇?"],
-		"good_reply": ["▇▇▇. ▇▇▇▇ ▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇▇."],
-		"bad_reply": ["▇▇▇▇▇ ▇▇▇▇▇. ▇▇▇."],
-		"already": ["▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇▇ ▇▇ ▇▇▇▇▇▇."],
-		"plea_yes": ["▇▇▇▇. ▇▇▇▇▇ ▇▇ ▇▇▇▇."],
-		"plea_no": ["▇▇▇▇▇▇▇. ▇▇."],
-		"interrupt": ["▇▇▇▇ ▇▇▇▇▇▇▇ ▇▇ ▇▇▇▇.", "▇▇▇ ▇▇▇▇▇ ▇▇▇▇▇▇ ▇▇▇▇▇."],
-		"entity": ["▇▇▇ ▇▇▇▇▇▇ ▇▇▇▇▇▇. ▇▇▇▇ ▇▇ ▇▇▇▇▇▇▇."],
+		"speech": ["You have killed many of my children. You have spared a few.", "Both were watched. Both are remembered.", "Tell me, little climber: what do you want from them?"],
+		"good_reply": ["Then walk among them, and they will learn your scent."],
+		"bad_reply": ["You want them for a weapon. They are not yours to swing."],
+		"already": ["Another of us has marked you. My children will still know your face."],
+		"plea_yes": ["Very well. Let it bleed out of you, and begin again."],
+		"plea_no": ["No. You chose your blood. Live in it."],
+		"interrupt": ["Gently. That one has hurt my young.", "Speak with care. My children are listening."],
+		"entity": ["My warmest sibling. It loved the monsters before it loved anything else."],
 		"fragments": [
-			"▇▇▇▇ ▇▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇", "▇▇▇ ▇▇ ▇▇▇▇▇▇▇ ▇▇▇▇ ▇▇▇▇", "▇▇▇▇▇▇ ▇▇▇▇▇ ▇▇ ▇▇▇▇ ▇▇",
-			"▇▇ ▇▇▇▇▇▇▇ ▇▇▇▇ ▇▇▇▇▇", "▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇ ▇▇ ▇▇▇▇", "▇▇▇▇ ▇▇▇▇▇▇▇▇ ▇▇▇",
-			"▇▇▇ ▇▇▇▇▇ ▇▇▇▇ ▇▇▇▇▇▇ ▇▇▇", "▇▇▇▇▇▇ ▇▇ ▇▇▇▇ ▇▇▇▇▇"],
+			"Every creature here was made for a reason. Most of them know it.",
+			"The beasts are not cruel. They are hungry, and they are watching.",
+			"A spared thing remembers. So does its brood.",
+			"Essence is a life, given back. Do not waste what you take.",
+			"The slimes came first. Do not laugh; every beginning is small.",
+			"A champion is only a creature that has been afraid for a long time.",
+			"When a beast falls, something of it comes to you. Carry it kindly.",
+			"My children fight the way you taught them. Look closely.",
+		],
 	},
 }
 const ORDER := ["marks", "towers", "creatures"]
@@ -119,10 +137,10 @@ const SECRET_BONDS := {
 ## The answers in a meeting. PLACEHOLDERS for the owner: short, neutral
 ## intents (which ones a Maker takes well is in its "good" list).
 const ANSWERS := [
-	{"id": "understand", "text": "To understand", "placeholder": true},
-	{"id": "take", "text": "To take", "placeholder": true},
-	{"id": "change", "text": "To change it", "placeholder": true},
-	{"id": "nothing", "text": "Nothing", "placeholder": true},
+	{"id": "understand", "text": "To understand it.", "placeholder": false},
+	{"id": "take", "text": "To take more of it.", "placeholder": false},
+	{"id": "change", "text": "To change it.", "placeholder": false},
+	{"id": "nothing", "text": "Nothing. Only to climb.", "placeholder": false},
 ]
 ## The plea for a change of path (Life or Unmaking): offered once you have a path.
 const PLEA := {"id": "plea", "text": "Ask for a change of path", "desc": "It may refuse. If it agrees, your path and all its flow are cleared."}
