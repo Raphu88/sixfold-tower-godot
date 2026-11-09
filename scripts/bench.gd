@@ -21,8 +21,8 @@ extends RefCounted
 ## "pack:2" or "chest:0".
 ##
 ## Essence crystals are the only currency, paid as the store pays
-## (profile.gd spend: the smallest crystals of the kind first, the rest back
-## as one crystal). Every cost here is {kind: amount}. Names, words and
+## (profile.gd spend: from your crystal of that kind). Every cost here is
+## {kind: amount}. Names, words and
 ## numbers live here so they're easy to change.
 
 const Gear := preload("res://scripts/gear.gd")
@@ -43,11 +43,12 @@ const COUNTERS := [
 const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall", "vessel"]
 
 ## Brewing: what each consumable costs at the bench (a little less than the
-## store asks: you do the work). The recall scroll is only for a Rune Artist.
+## store asks: you do the work; the basic supplies follow the store's
+## halved prices, train.gd SUPPLY_PRICE). The recall scroll is only for a Rune Artist.
 const BREW := {
-	"draught": {"stone": 10}, "tonic": {"water": 8}, "vial": {"water": 16}, "smoke": {"fire": 8},
+	"draught": {"stone": 5}, "tonic": {"water": 4}, "vial": {"water": 16}, "smoke": {"fire": 4},
 	"fire_flask": {"fire": 10}, "edge_oil": {"blade": 12}, "warding_oil": {"iron": 12}, "haste": {"air": 10},
-	"stoneskin": {"stone": 10}, "salts": {"iron": 8}, "flare": {"air": 6},
+	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
 	"scroll": {"air": 30, "water": 30},
 }
 ## A Rune Artist brews for this share of the cost.
@@ -502,8 +503,7 @@ static func join_place(ref: String, other: String) -> String:
 ## store's Sell price for a piece; SELL_SHARE of an item's price).
 static func break_value(profile, thing: String) -> Array:
 	if thing.begins_with("supply:"):
-		var price := Train.item_price(thing.substr(7))
-		return [price[0], maxi(1, int(round(float(price[1]) * Train.SELL_SHARE)))] if price[1] > 0 else ["", 0]
+		return Train.item_sell(thing.substr(7))
 	var g := piece(profile, thing)
 	return [Train.gear_kind(g), Train.gear_sell(g)] if not g.is_empty() else ["", 0]
 

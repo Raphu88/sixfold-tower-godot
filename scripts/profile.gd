@@ -54,11 +54,17 @@ var part_density := {}  # part -> {kind -> amount}
 ## HEIRLOOM_SLOTS) -> a gear record (Rings: a list of up to two). Every
 ## climb starts with them. Old saves held plain ids; load_save converts them.
 var heirlooms := {}
-## Essence crystals: essence held outside you, kept between climbs. A vault
-## or a secret room may hold some; reading a recall scroll turns unbanked
-## essence into them; consuming one banks its essence into you (main.gd
-## consume_crystal). Each is {"kind", "amount"}.
+## Essence crystals: essence held outside you, kept between climbs: the
+## train's money. Every stair condenses a share of what you bank into them
+## (train.gd CONDENSE_*), the outfitter pays some for every climb
+## (CLIMB_PAY), a vault or a secret room may hold some, and reading a recall
+## scroll turns unbanked essence into them; consuming one banks its essence
+## into you (main.gd consume_crystal). Each is {"kind", "amount"}; crystals
+## of a kind combine into one (add_crystal).
 var crystals: Array = []
+## What the outfitter paid for the last climb ({kind, amount}; {} once you
+## depart again): his greeting in the store car mentions it.
+var last_pay := {}
 ## The train (train.gd), between climbs: your storage chest (gear records,
 ## kept safe), your pack (records: what came down with you, or what you'll
 ## take up; it joins the climber when you depart), supplies packed for the
@@ -193,6 +199,7 @@ func reset() -> void:
 	part_density = {}
 	heirlooms = {}
 	crystals = []
+	last_pay = {}
 	chest = []
 	pack = []
 	supplies = {}
@@ -236,8 +243,10 @@ func load_save() -> void:
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
 	heirlooms = Gear.load_heirlooms(cfg.get_value("profile", "heirlooms", {}))
-	crystals = cfg.get_value("profile", "crystals", [])
-	chest = _records(cfg.get_value("train", "chest", []))
+	crystals = tidy_crystals(cfg.get_value("profile", "crystals", []))
+	var lp = cfg.get_value("train", "last_pay", {})
+	last_pay = lp if lp is Dictionary and lp.has("kind") and float(lp.get("amount", 0.0)) >= 1.0 else {}
+	chest =_records(cfg.get_value("train", "chest", []))
 	pack = _records(cfg.get_value("train", "pack", []))
 	supplies = {}
 	var sup = cfg.get_value("train", "supplies", {})
@@ -310,6 +319,7 @@ func save() -> void:
 	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
 	cfg.set_value("train", "vessels", vessels)
+	cfg.set_value("train", "last_pay", last_pay)
 	cfg.set_value("profile", "lost", lost)
 	cfg.set_value("profile", "provings", provings)
 	cfg.set_value("profile", "path", path)
@@ -339,14 +349,39 @@ static func _records(raw) -> Array:
 
 # --- essence crystals ------------------------------------------------------------
 
-## Keeps an essence crystal (amounts under 1 make none).
+## Keeps essence in crystals (amounts under 1 make none). Crystals of a kind
+## combine: you hold at most one of each kind, and it grows.
 func add_crystal(kind: String, amount: float) -> void:
 	if amount < 1.0:
 		return
+	for c in crystals:
+		if c["kind"] == kind:
+			c["amount"] = float(c["amount"]) + float(round(amount))
+			return
 	crystals.append({"kind": kind, "amount": float(round(amount))})
 
 
-## How many crystals of a kind you hold, and how much essence they hold.
+## Crystals of the same kind combined into one each (old saves held many).
+static func tidy_crystals(raw) -> Array:
+	var totals := {}
+	var order: Array = []
+	if raw is Array:
+		for c in raw:
+			if not (c is Dictionary) or not c.has("kind"):
+				continue
+			var k := String(c["kind"])
+			if not totals.has(k):
+				order.append(k)
+			totals[k] = float(totals.get(k, 0.0)) + maxf(0.0, float(c.get("amount", 0.0)))
+	var out: Array = []
+	for k in order:
+		if float(totals[k]) >= 1.0:
+			out.append({"kind": k, "amount": float(round(totals[k]))})
+	return out
+
+
+## How many crystals of a kind you hold (0 or 1: they combine), and how much
+## essence they hold.
 func crystal_count(kind: String) -> int:
 	return crystals.filter(func(c): return c["kind"] == kind).size()
 
@@ -359,44 +394,90 @@ func crystal_total(kind: String) -> float:
 	return total
 
 
-## Takes one crystal of a kind (the first kept); its essence, or 0 if none.
-func take_crystal(kind: String) -> float:
+## Takes up to `most` essence from your crystal of a kind (all of it if
+## `most` is 0); what was taken, or 0 if you hold none. An emptied crystal is gone.
+func take_crystal(kind: String, most := 0.0) -> float:
 	for i in crystals.size():
 		if crystals[i]["kind"] == kind:
 			var amount := float(crystals[i]["amount"])
-			crystals.remove_at(i)
-			return amount
+			var take := amount if most <= 0.0 else minf(amount, ceilf(most))
+			if amount - take < 1.0:
+				crystals.remove_at(i)
+			else:
+				crystals[i]["amount"] = amount - take
+			return take
 	return 0.0
 
 
-## Pays `amount` essence of a kind in crystals: the smallest crystals of
-## that kind first; if they hold more than the price, the rest comes back
-## as one new crystal (change). False (and nothing taken) if you hold too
-## little.
+## Pays `amount` essence of a kind from your crystals of that kind. False
+## (and nothing taken) if you hold too little.
 func spend(kind: String, amount: float) -> bool:
 	amount = ceilf(amount)
 	if amount <= 0.0:
 		return true
 	if crystal_total(kind) < amount:
 		return false
-	var mine: Array = []
-	for i in crystals.size():
-		if crystals[i]["kind"] == kind:
-			mine.append(i)
-	mine.sort_custom(func(a, b): return float(crystals[a]["amount"]) < float(crystals[b]["amount"]))
-	var paid := 0.0
-	var used: Array = []
-	for i in mine:
-		if paid >= amount:
+	var need := amount
+	for i in range(crystals.size() - 1, -1, -1):
+		if need <= 0.0:
 			break
-		paid += float(crystals[i]["amount"])
-		used.append(i)
-	used.sort()
-	used.reverse()
-	for i in used:
-		crystals.remove_at(i)
-	add_crystal(kind, paid - amount)
+		if crystals[i]["kind"] != kind:
+			continue
+		var have := float(crystals[i]["amount"])
+		var take := minf(have, need)
+		need -= take
+		if have - take < 1.0:
+			crystals.remove_at(i)
+		else:
+			crystals[i]["amount"] = have - take
 	return true
+
+
+## All the essence you hold in crystals, every kind.
+func crystals_held() -> float:
+	var t := 0.0
+	for c in crystals:
+		t += float(c["amount"])
+	return t
+
+
+## Pays `amount` essence from crystals of any kinds, the biggest crystal
+## first (train.gd ANY_PRICE). Returns what was taken ({kind: amount}), or
+## {} (and nothing taken) if you hold too little.
+func spend_any(amount: float) -> Dictionary:
+	amount = ceilf(amount)
+	if amount <= 0.0 or crystals_held() < amount:
+		return {}
+	var order: Array = crystals.map(func(c): return String(c["kind"]))
+	order.sort_custom(func(a, b): return crystal_total(a) > crystal_total(b))
+	var paid := {}
+	var need := amount
+	for k in order:
+		if need <= 0.0:
+			break
+		var take := minf(need, crystal_total(k))
+		if take >= 1.0 and spend(k, take):
+			paid[k] = take
+			need -= take
+	return paid
+
+
+## Condensing at a stair (train.gd CONDENSE_*): `share` of each kind of
+## essence being banked becomes crystals instead (whole essence, rounded
+## down; a kind with too little to make one stays banked in full). Adds the
+## crystals and returns {"keep": what's left to bank, "made": {kind: amount
+## condensed}}.
+func condense(essence: Dictionary, share: float) -> Dictionary:
+	var keep := {}
+	var made := {}
+	for kind in essence:
+		var amount := float(essence[kind])
+		var c := floorf(amount * clampf(share, 0.0, 1.0))
+		if c >= 1.0:
+			made[kind] = c
+			add_crystal(kind, c)
+		keep[kind] = amount - float(made.get(kind, 0.0))
+	return {"keep": keep, "made": made}
 
 
 ## How much the way you fought tips the choice between bonds, against the

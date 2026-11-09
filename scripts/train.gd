@@ -15,7 +15,9 @@ extends RefCounted
 ##             enchanting for a Rune Artist, and breaking things down
 ##
 ## Essence crystals are the only currency (profile.gd keeps them as
-## {kind, amount}). Every price is in one kind of essence. Names, words,
+## {kind, amount}, one crystal of each kind). Every price is in one kind of
+## essence. Crystals come from condensing at every stair (CONDENSE_*), the
+## outfitter's pay for every climb (CLIMB_PAY), selling, and prizes. Names, words,
 ## prices and numbers live here so they're easy to change.
 
 const Gear := preload("res://scripts/gear.gd")
@@ -39,9 +41,9 @@ const RACK_SIZE := 8
 ## Today's piece: one Fine or Rare piece, new after every climb.
 const TODAY_ODDS := {"fine": 75, "rare": 25}
 
-## What a Common piece costs at the store (its price for selling, too).
-## Finer pieces cost more (RARITY_PRICE). Rings, amulets and the Climber's
-## Pack are never Common: their number here is what a plain one would cost.
+## A piece's base price: what it costs at the store (and sells from) is this
+## times its rarity's RARITY_PRICE. Rings, amulets and the Climber's Pack are
+## never Common: their number here is what a plain one would cost.
 const BASE_PRICE := {
 	"dagger": 10, "sword": 12, "axe": 12, "mace": 12, "spear": 12, "greatsword": 15, "war_hammer": 15,
 	"shortbow": 12, "longbow": 14, "crossbow": 15,
@@ -53,7 +55,34 @@ const BASE_PRICE := {
 	"overdrawn_ring": 12, "climbers_pack": 12,
 }
 const DEFAULT_PRICE := 10
-const RARITY_PRICE := {"common": 1.0, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 10.0}
+## Commons are the everyday buy, at half their base price (the owner's call:
+## "I can never afford anything"); Fine and up kept their prices, so a Fine
+## piece costs 4x its Common and finds still sell well.
+const RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 10.0}
+## Basic supplies cost half their worth (items.gd "value") at the store;
+## everything else costs its worth. (A belt left over at the end of a climb
+## still breaks into crystals at half its worth.)
+const SUPPLY_PRICE := {"draught": 6, "tonic": 5, "smoke": 5, "salts": 5, "flare": 4}
+## Supplies priced in crystal essence of ANY kind (the owner's call: "recall
+## scrolls should take any kind of essence and always be available"). The
+## recall scroll is always on the shelf, and buying one never empties it
+## (you carry one at most). Paid from your biggest crystals first
+## (profile.gd spend_any).
+const ANY := "any"
+const ANY_PRICE := {"scroll": 60}
+
+## Condensing (at every stair, the first climb's too): this share of the
+## essence you bank becomes essence crystals instead of soaking into you,
+## per kind and in proportion (whole essence only: a kind with too little
+## for one whole essence is banked in full). Crystals are the train's money.
+## Settings changes the share (CONDENSE_CHOICES, in percent); it's kept with
+## the settings (menu.gd), so a new climber keeps it.
+const CONDENSE_DEFAULT := "20"
+const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["35", "35%"], ["50", "50%"]]
+## The outfitter's pay for a climb, however it ends (a fall too): crystals of
+## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
+## every floor past your best in that tower before the climb.
+const CLIMB_PAY := {"per_floor": 2, "per_best": 3}
 ## The essence a piece is priced in and sells for, when it has no trait (or
 ## name) to say: by its slot.
 const SLOT_KIND := {
@@ -68,9 +97,13 @@ const TEXT := {
 	"menu": "Menu",
 	"purse": "Your crystals",
 	"home": "Your pack comes down with you: %d %s",
-	"money": "The outfitter prices everything in one kind of essence. He takes your smallest crystals of that kind first; if they hold more than the price, the rest comes back to you as one new crystal.",
+	"money": "The outfitter prices everything in one kind of essence, and takes it from your crystal of that kind.",
 	"needs": "needs %d more %s",
 	"price": "%d %s",
+	"price_any": "%d of any kind",
+	"needs_any": "needs %d more essence, of any kind",
+	"any_note": "Paid from your crystals of any kind, the biggest first.",
+	"paid_with": "paid %s",
 	"buy": "Buy",
 	"bought": "Bought: %s",
 	"cant": "Can't buy: %s",
@@ -137,6 +170,12 @@ const TEXT := {
 	"depart_none": "nothing in your pack",
 	"depart_risk": "Fall, and your pack and belt are lost; your chest, heirlooms and crystals are safe.",
 	"last": "last climbed",
+	# Condensing at the stair (main.gd _arrive), its setting, and the outfitter's pay for a climb
+	"banked": "Banked %d essence",
+	"condensed": "%d condensed into crystals",
+	"condense_setting": "To crystals",
+	"condense_note": "At each stair this share of the essence you bank condenses into crystals (the train's money) instead of growing your marks.",
+	"pay": "The outfitter pays for your climb: +%s",
 }
 
 ## The outfitter who keeps the store car: a retired climber who buys what
@@ -167,6 +206,11 @@ const OUTFITTER := {
 		"Essence first, then we talk.",
 	],
 	"put_back": ["Changed your mind? Your essence back, then."],
+	# His greeting while a climb's pay is fresh (%s is what he paid: "14 Water").
+	"paid": [
+		"Your pay for the climb: %s. A floor's a floor, even on the way down.",
+		"%s for your climb. I pay by the floor, not by how it ended.",
+	],
 }
 
 
@@ -195,7 +239,7 @@ static func gear_price(g) -> int:
 	var r := Gear.rec(g)
 	if r.is_empty():
 		return 0
-	return int(round(float(BASE_PRICE.get(r["base"], DEFAULT_PRICE)) * float(RARITY_PRICE.get(r["rarity"], 1.0))))
+	return maxi(1, int(round(float(BASE_PRICE.get(r["base"], DEFAULT_PRICE)) * float(RARITY_PRICE.get(r["rarity"], 1.0)))))
 
 
 ## What a piece sells for: SELL_SHARE of its price (less for a worn Common
@@ -208,31 +252,88 @@ static func gear_sell(g) -> int:
 	return maxi(1, int(round(float(gear_price(r)) * SELL_SHARE * k)))
 
 
-## A consumable's price: [kind, amount] (its worth in items.gd).
+## A consumable's price: [kind, amount] (its worth in items.gd, or a basic
+## supply's SUPPLY_PRICE).
 static func item_price(id: String) -> Array:
 	var d: Dictionary = Items.ITEMS.get(id, {})
 	var v: Dictionary = d.get("value", {})
 	if v.is_empty():
 		return ["", 0]
+	if ANY_PRICE.has(id):
+		return [ANY, int(ANY_PRICE[id])]
 	var kind := String(d.get("kind", v.keys()[0]))
-	return [kind, int(v.get(kind, 0))]
+	return [kind, int(SUPPLY_PRICE.get(id, v.get(kind, 0)))]
 
 
-## The consumables the store sells (not the recall scroll: vaults only).
+## What a packed consumable gives back when there's no note of what was paid
+## ({kind: amount}): its price, or for one priced in any kind (which can't be
+## a crystal), its worth in its own kind.
+static func item_refund(id: String) -> Dictionary:
+	var price := item_price(id)
+	if price[0] != ANY:
+		return {price[0]: price[1]}
+	var v: Dictionary = Items.ITEMS.get(id, {}).get("value", {})
+	return {String(Items.ITEMS[id].get("kind", v.keys()[0])): price[1]} if not v.is_empty() else {}
+
+
+## What a packed consumable breaks down into at the bench: [kind, amount]
+## (SELL_SHARE of its price, in its own kind).
+static func item_sell(id: String) -> Array:
+	var back := item_refund(id)
+	if back.is_empty():
+		return ["", 0]
+	var kind: String = back.keys()[0]
+	return [kind, maxi(1, int(round(float(back[kind]) * SELL_SHARE)))]
+
+
+# --- condensing and the outfitter's pay ------------------------------------------------
+
+## The share of banked essence that condenses into crystals at a stair (0 to
+## 1), from the settings (menu.gd: "condense", in percent).
+static func condense_share(settings: Dictionary) -> float:
+	var pct := str(settings.get("condense", CONDENSE_DEFAULT))
+	if not CONDENSE_CHOICES.any(func(c): return c[0] == pct):
+		pct = CONDENSE_DEFAULT
+	return clampf(float(pct) / 100.0, 0.0, 1.0)
+
+
+## What the outfitter pays for a climb that reached `reached` in a tower whose
+## best floor before the climb was `best_before` (essence of the tower's kind).
+static func climb_pay(reached: int, best_before: int) -> int:
+	reached = maxi(reached, 0)
+	return int(CLIMB_PAY["per_floor"]) * reached + int(CLIMB_PAY["per_best"]) * maxi(0, reached - maxi(best_before, 0))
+
+
+## The consumables the store sells: always the same shelf, in Items.ORDER
+## (the recall scroll among them, always there; only the outfit rail and
+## today's piece change between visits).
 static func supplies() -> Array:
-	return Items.ORDER.filter(func(id): return id != "scroll" and not Items.ITEMS[id].get("value", {}).is_empty())
+	return Items.ORDER.filter(func(id): return not Items.ITEMS[id].get("value", {}).is_empty())
 
 
-## Why a price can't be paid, in words ("needs 12 more Fire"), or "" if it can.
+## Why a price can't be paid, in words ("needs 12 more Fire"), or "" if it
+## can. A price in ANY counts every crystal you hold.
 static func short_of(profile, kind: String, amount: int) -> String:
-	var have := int(profile.crystal_total(kind))
+	var have := int(profile.crystals_held()) if kind == ANY else int(profile.crystal_total(kind))
 	if have >= amount:
 		return ""
+	if kind == ANY:
+		return TEXT["needs_any"] % (amount - have)
 	return TEXT["needs"] % [amount - have, Essence.display(kind)]
 
 
 static func price_text(kind: String, amount: int) -> String:
+	if kind == ANY:
+		return TEXT["price_any"] % amount
 	return TEXT["price"] % [amount, Essence.display(kind)]
+
+
+## What was paid ({kind: amount}) in words: "40 Water, 20 Fire".
+static func paid_text(paid: Dictionary) -> String:
+	var parts: Array = []
+	for k in paid:
+		parts.append(price_text(k, int(paid[k])))
+	return ", ".join(parts)
 
 
 # --- the store's stock -------------------------------------------------------------
@@ -332,10 +433,20 @@ static func buy_supply(profile, player, id: String) -> String:
 	var why := short_of(profile, price[0], price[1])
 	if why != "":
 		return why
-	profile.spend(price[0], price[1])
-	pack_supply(profile, id, {price[0]: price[1]})
+	var paid := {price[0]: price[1]}
+	if price[0] == ANY:
+		paid = profile.spend_any(price[1])  # (from any kinds, the biggest first: noted, for putting it back)
+	else:
+		profile.spend(price[0], price[1])
+	pack_supply(profile, id, paid)
 	profile.save()
 	return ""
+
+
+## What the last one of a packed consumable cost ({kind: amount}), or {}.
+static func last_paid(profile, id: String) -> Dictionary:
+	var list: Array = profile.supply_paid.get(id, [])
+	return list.back() if not list.is_empty() else {}
 
 
 ## Packs one of a consumable for the next climb, noting what it cost
@@ -360,8 +471,7 @@ static func unpack_supply(profile, id: String) -> Dictionary:
 		profile.supplies.erase(id)
 		profile.supply_paid.erase(id)
 	if paid.is_empty():
-		var price := item_price(id)
-		paid = {price[0]: price[1]}
+		paid = item_refund(id)
 	return paid
 
 
@@ -467,10 +577,11 @@ static func pack_up(profile, player) -> void:
 		for k in int(profile.supplies[id]):
 			if not player.add_item(id):
 				var paid: Array = profile.supply_paid.get(id, [])
-				var back: Dictionary = paid.pop_back() if not paid.is_empty() else {item_price(id)[0]: item_price(id)[1]}
+				var back: Dictionary = paid.pop_back() if not paid.is_empty() else item_refund(id)
 				for kind in back:
 					profile.add_crystal(kind, float(back[kind]))  # (no room after all: what it cost back)
 	profile.supplies = {}
 	profile.supply_paid = {}
 	profile.store = {}
+	profile.last_pay = {}  # (the outfitter's greeting about the last climb's pay is said)
 	profile.save()
