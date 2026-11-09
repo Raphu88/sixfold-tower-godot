@@ -11234,19 +11234,26 @@ func _secret_deep_tests() -> void:
 	print("the Manipulator's Reroll")
 	main._start_floor(4)
 	await _frames(1)
+	# Rooms not yet entered, with monsters asleep, farthest first (so nothing new wakes at the sight of you).
+	var cands: Array = []
+	for i in main.room_info.size():
+		if not main.room_entered.has(i) and D.room_pack(i).size() >= 1:
+			cands.append(i)
+	var pp0: Vector2 = main.player.global_position
+	cands.sort_custom(func(a, b): return main.room_info[a]["rect"].get_center().distance_to(pp0) > main.room_info[b]["rect"].get_center().distance_to(pp0))
+	_check(not cands.is_empty(), "a room not yet entered, with monsters asleep")
 	var ri := -1
-	var ri_far := -1.0
-	for i in main.room_info.size():  # (the farthest such room, so nothing new wakes at the sight of you)
-		var ri_d: float = main.room_info[i]["rect"].get_center().distance_to(main.player.global_position)
-		if not main.room_entered.has(i) and D.room_pack(i).size() >= 1 and ri_d > ri_far:
+	var n_old := 0
+	main.run_flow = 200.0
+	main.run_essence = {"water": 300.0}
+	for i in cands:  # (a pack with no other mix of the tower's monsters about as strong offers nothing; try the next room)
+		n_old = D.room_pack(i).size()
+		if T.use("man_reroll", i) and D.cards_tool == "man_reroll" and D.cards.size() >= 2:
 			ri = i
-			ri_far = ri_d
-	_check(ri >= 0, "a room not yet entered, with monsters asleep")
+			break
+	if not cands.is_empty():
+		_check(ri >= 0, "Reroll shows the packs it could hold (%d cards; %s)" % [D.cards.size(), T.message])
 	if ri >= 0:
-		main.run_flow = 200.0
-		main.run_essence = {"water": 300.0}
-		var n_old: int = D.room_pack(ri).size()
-		_check(T.use("man_reroll", ri) and D.cards_tool == "man_reroll" and D.cards.size() >= 2, "Reroll shows the packs it could hold (%d cards)" % D.cards.size())
 		var want: Array = D.cards[0]["kinds"].duplicate()
 		main.choose_camp(0)
 		await _frames(1)
