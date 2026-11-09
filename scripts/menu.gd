@@ -51,7 +51,7 @@ const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "R
 const COMPACT_H := 600.0
 
 ## Settings, kept between sessions (in the same file as the profile).
-static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks"}
+static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks", "lighting": ""}
 static var settings_loaded := false
 
 var main
@@ -662,6 +662,7 @@ func _page_settings() -> void:
 	_toggle("Screen shake", "shake")
 	_toggle("Controls list on screen (H)", "help")
 	_choice("HUD size", "hud_scale", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]])
+	_choice("Lighting", "lighting", [["low", "Low"], ["medium", "Medium"], ["high", "High"]])
 	_guide_settings()
 	_pad_settings()
 	_footer()
@@ -695,6 +696,7 @@ func _choice(text: String, key: String, values: Array) -> void:
 			open(page), row)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.set_meta("choice", v[0])
+		b.set_meta("choice_key", key)
 		if str(settings[key]) == v[0]:
 			_primary(b)
 
@@ -2464,8 +2466,12 @@ static func load_settings() -> void:
 	settings_loaded = true
 	if Engine.has_meta("sixfold_test"):
 		return
+	load_settings_from(SETTINGS_PATH)
+
+
+static func load_settings_from(path: String) -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(SETTINGS_PATH) != OK:
+	if cfg.load(path) != OK:
 		return
 	for k in settings:
 		settings[k] = cfg.get_value("settings", k, settings[k])
@@ -2474,11 +2480,15 @@ static func load_settings() -> void:
 static func save_settings() -> void:
 	if Engine.has_meta("sixfold_test"):
 		return
+	save_settings_to(SETTINGS_PATH)
+
+
+static func save_settings_to(path: String) -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(SETTINGS_PATH)
+	cfg.load(path)
 	for k in settings:
 		cfg.set_value("settings", k, settings[k])
-	cfg.save(SETTINGS_PATH)
+	cfg.save(path)
 
 
 func apply_settings() -> void:
@@ -2489,6 +2499,11 @@ func apply_settings() -> void:
 	if main.hud != null:
 		main.hud.show_help = bool(settings["help"])
 		main.hud.hud_scale = float(UI.HUD_SCALES.get(str(settings["hud_scale"]), 1.0))
+	if main.lighting != null:
+		# Lighting quality: unset, it starts on what suits the device (lighting.gd).
+		if not main.lighting.QUALITY.has(str(settings["lighting"])):
+			settings["lighting"] = main.lighting.default_quality()
+		main.lighting.set_quality(str(settings["lighting"]))
 
 
 func _set_setting(key: String, value) -> void:
