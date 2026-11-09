@@ -11237,10 +11237,10 @@ func _secret_deep_tests() -> void:
 	var ri := -1
 	var ri_far := -1.0
 	for i in main.room_info.size():  # (the farthest such room, so nothing new wakes at the sight of you)
-		var far: float = main.room_info[i]["rect"].get_center().distance_to(main.player.global_position)
-		if not main.room_entered.has(i) and D.room_pack(i).size() >= 1 and far > ri_far:
+		var ri_d: float = main.room_info[i]["rect"].get_center().distance_to(main.player.global_position)
+		if not main.room_entered.has(i) and D.room_pack(i).size() >= 1 and ri_d > ri_far:
 			ri = i
-			ri_far = far
+			ri_far = ri_d
 	_check(ri >= 0, "a room not yet entered, with monsters asleep")
 	if ri >= 0:
 		main.run_flow = 200.0
