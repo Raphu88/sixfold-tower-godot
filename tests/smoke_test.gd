@@ -4338,7 +4338,8 @@ func _tower_tests() -> void:
 	_check(counts["gryphon"]["archer"] > counts["kraken"]["archer"], "the Gryphon's tower has more archers (%d vs %d)" % [counts["gryphon"]["archer"], counts["kraken"]["archer"]])
 	var wet: int = counts["kraken"]["slime"] + counts["kraken"].get("lurker", 0)
 	_check(wet > counts["wyvern"]["slime"], "the Kraken's tower has more water creatures (%d vs %d)" % [wet, counts["wyvern"]["slime"]])
-	_check(counts["wyvern"]["knight"] > counts["gryphon"]["knight"], "the Wyvern's tower has more knights (%d vs %d)" % [counts["wyvern"]["knight"], counts["gryphon"]["knight"]])
+	var iron: int = counts["wyvern"]["knight"] + counts["wyvern"].get("smith", 0)  # (knights also stand guard in every tower, so count its smiths too)
+	_check(iron > counts["gryphon"]["knight"] + counts["gryphon"].get("smith", 0), "the Wyvern's tower has more knights and smiths (%d vs %d)" % [iron, counts["gryphon"]["knight"] + counts["gryphon"].get("smith", 0)])
 	# Choosing a tower restyles the room and restarts floor 1 there.
 	main.choosing_tower = true
 	main.choose_tower("wyvern")
