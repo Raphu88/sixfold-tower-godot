@@ -62,11 +62,19 @@ var offs := 0  # traps switched off on this floor (drawn crossed out)
 var note_t := 0.0  # a refusal shows over the climber this long
 const NOTE_TIME := 2.2
 var _feud_t := 0.0
+## The depth 3 to 5 tools (edit, reroll, build, splice, write): secret_deep.gd,
+## a child of this node.
+var deep
+var last_paid := {}  # what the last tool took: {flow, essence (kind -> amount)} (a card that can't be done gives it back)
 
 
 func _ready() -> void:
 	z_as_relative = false
 	z_index = 46  # over the darkness layer (lighting.gd, 40)
+	deep = load("res://scripts/secret_deep.gd").new()
+	deep.tools = self
+	deep.main = main
+	add_child(deep)
 	screen = Node2D.new()
 	screen.name = "SecretToolsScreen"
 	screen.draw.connect(_draw_screen)
@@ -139,7 +147,7 @@ func _active() -> bool:
 	if main.player == null or not ring_ready():
 		return false
 	return ring_open or panel != "" or show_t > 0.0 or note_t > 0.0 or not inspected.is_empty() or paid.has("des_inspect") or offs > 0 \
-		or (paid.has("dev_inspect") and main.player.pick_open)
+		or (paid.has("dev_inspect") and main.player.pick_open) or deep.active()
 
 
 func _read_input(real: float) -> void:
@@ -221,11 +229,52 @@ func _new_floor() -> void:
 	shown = null
 	plan_tex = null
 	offs = 0
+	deep.new_floor()
 
 
 ## Counts the monsters set against another (projectile.gd checks it).
 func count_feuds() -> void:
 	feuds = main.enemies().filter(func(e): return e.feud != null).size()
+
+
+# --- hooks other scripts call (one line each there; the work is in secret_deep.gd) ---
+
+## A tool's card on the camp's card screen (main.camp_card), and taking one (main.choose_camp).
+func card(pick: String) -> Dictionary:
+	return deep.card(pick)
+
+
+func take_card(i: int) -> void:
+	deep.take_card(i)
+
+
+## A spell is about to be cast / was cast (player.gd): the Developer's Splice.
+func before_cast(b):
+	return deep.before_cast(b)
+
+
+func after_cast(b, rec) -> void:
+	deep.after_cast(b, rec)
+
+
+## A monster was struck while a spell was cast (enemy.gd take_hit).
+func struck(e) -> void:
+	if deep._rec != null:
+		deep.struck(e)
+
+
+## A spliced spell's shot struck a monster (projectile.gd).
+func splice_hit(e, sp: Dictionary) -> void:
+	deep.splice_hit(e, sp)
+
+
+## A floor is about to be planned / was planned (main.gd): the Designer's Reroll.
+func before_build(n: int) -> void:
+	deep.before_build(n)
+
+
+func after_build(plan: Dictionary) -> void:
+	deep.after_build(plan)
 
 
 # --- using a tool -----------------------------------------------------------------
@@ -245,19 +294,22 @@ func use(id: String, target = null) -> bool:
 	var why := _check(id, target)
 	if why != "":
 		return _refuse(why)
+	# A tool with a choice opens its cards: paid when a card that does something is taken.
+	if info.get("cards", false):
+		var q0: Dictionary = SB.quote(info["cost"], main.run_essence, main.run_flow, main.profile.path)
+		if not q0["ok"]:
+			return _refuse(q0["short"])
+		if not deep.open(id, target):
+			return _refuse(message if message != "" else SB.TEXT["no_target"])
+		last_tool = id
+		shown = target
+		show_t = SHOW_TIME
+		main.tip(String(info.get("tip", "")))
+		main.sfx("glint", 0.7, -6.0, 0.02)
+		return true
 	var free: bool = info.get("lasts", "") == "floor" and paid.has(id)
-	if not free:
-		var q: Dictionary = SB.quote(info["cost"], main.run_essence, main.run_flow, main.profile.path)
-		if not q["ok"]:
-			return _refuse(q["short"])
-		main.run_flow = maxf(0.0, main.run_flow - float(q["flow"]))
-		SB.take_essence(main.run_essence, float(q["essence"]))
-		var at: Vector2 = main.player.global_position + Vector2(0, -58)
-		if float(q["flow"]) > 0.0:
-			main.fx_text(at, SB.TEXT["paid"] % ("%d %s" % [int(round(float(q["flow"]))), Secret.display(main.profile.path)]), Secret.color(main.profile.path))
-			at.y -= 18.0
-		if float(q["essence"]) > 0.0:
-			main.fx_text(at, SB.TEXT["paid"] % ("%d essence" % int(round(float(q["essence"])))), Color(ESSENCE_GEM, 0.95))
+	if not free and not pay(info["cost"]):
+		return false
 	_apply(id, target)
 	last_tool = id
 	used[id] = true
@@ -267,6 +319,23 @@ func use(id: String, target = null) -> bool:
 	main.sfx("glint", 0.7, -6.0, 0.02)
 	queue_redraw()
 	screen.queue_redraw()
+	return true
+
+
+## Pays a cost from what the climber carries (shown over them). False (and
+## nothing taken, `message` says why) if they can't.
+func pay(cost: Dictionary) -> bool:
+	var q: Dictionary = SB.quote(cost, main.run_essence, main.run_flow, main.profile.path)
+	if not q["ok"]:
+		return _refuse(q["short"])
+	main.run_flow = maxf(0.0, main.run_flow - float(q["flow"]))
+	last_paid = {"flow": float(q["flow"]), "essence": SB.take_essence(main.run_essence, float(q["essence"]))}
+	var at: Vector2 = main.player.global_position + Vector2(0, -58)
+	if float(q["flow"]) > 0.0:
+		main.fx_text(at, SB.TEXT["paid"] % ("%d %s" % [int(round(float(q["flow"]))), Secret.display(main.profile.path)]), Secret.color(main.profile.path))
+		at.y -= 18.0
+	if float(q["essence"]) > 0.0:
+		main.fx_text(at, SB.TEXT["paid"] % ("%d essence" % int(round(float(q["essence"])))), Color(ESSENCE_GEM, 0.95))
 	return true
 
 
@@ -280,10 +349,14 @@ func _refuse(why: String) -> bool:
 ## What a tool aims at by itself: a monster, or a trap or door ({kind, ...}).
 func _target_for(id: String):
 	match id:
-		"man_inspect", "man_calm", "man_feud":
+		"man_inspect", "man_calm", "man_feud", "man_edit", "man_build":
 			return monster_target(float(SB.TOOLS[id]["reach"]))
 		"des_switch":
 			return switch_target(float(SB.TOOLS[id]["reach"]))
+		"des_edit":
+			return switch_target(float(SB.TOOLS[id]["reach"]), true)
+		"man_reroll":
+			return deep.room_target(float(SB.TOOLS[id]["reach"]))
 	return null
 
 
@@ -348,7 +421,7 @@ func _apply(id: String, target) -> void:
 # --- the Designer -------------------------------------------------------------------
 
 ## The trap or unlocked door nearest your aim, within reach: {"trap": tr} or {"door": d}.
-func switch_target(reach: float):
+func switch_target(reach: float, traps_only := false):
 	var p = main.player
 	var from: Vector2 = p.global_position
 	var best = null
@@ -357,8 +430,9 @@ func switch_target(reach: float):
 	var near_d := INF
 	var cands: Array = []
 	for tr in main.traps:
-		cands.append([tr["pos"], {"trap": tr}])
-	if main.door_view != null:
+		if not tr.get("own", false):
+			cands.append([tr["pos"], {"trap": tr}])
+	if main.door_view != null and not traps_only:
 		for d in main.door_view.list:
 			if String(d.get("fixed", "")) == "":
 				cands.append([d["rect"].get_center(), {"door": d}])
@@ -524,6 +598,7 @@ func _draw() -> void:
 			_world_manipulator(b, labels, col, wire)
 		"developer":
 			_world_developer(b, labels, col, wire)
+	deep.draw_world(b, labels, col, wire)
 	# What a targeted tool will work on (the ring open) or just worked on.
 	var t = locked.get(tools()[clampi(ring_index, 0, tools().size() - 1)]) if ring_open and not tools().is_empty() else (shown if show_t > 0.0 else null)
 	if t != null:
@@ -547,6 +622,8 @@ func _outline_target(b, t, col: Color) -> void:
 		_trap_shape(b, t["trap"], Color(col, 0.9 * pulse), 2.0)
 	elif t is Dictionary and t.has("door"):
 		Traps._outline(b, t["door"]["rect"].grow(4.0), Color(col, 0.9 * pulse), 2.0)
+	elif t is int and t >= 0 and t < main.room_info.size():  # a room (the Manipulator's Reroll)
+		Traps._outline(b, main.room_info[t]["rect"].grow(-4.0), Color(col, 0.8 * pulse), 2.0)
 
 
 func _trap_shape(b, tr: Dictionary, c: Color, w: float) -> void:
@@ -616,6 +693,8 @@ func _world_designer(b, labels: Array, col: Color, wire: bool) -> void:
 			line += "  ·  every %ss  ·  next %ss" % [SB._num(Traps.val(tr, "cycle")), SB._num(snappedf(_time_to_fire(tr), 0.1))]
 		else:
 			line += "  ·  plate"
+		if tr.get("own", false):
+			line += "  ·  " + SB.TEXT["build_trap_tag"]
 		if tr.get("hidden", false):
 			line += "  ·  " + SB.TEXT["hidden"]
 		labels.append([at + Vector2(-110, -16), line, Color(col.lightened(0.3), 0.95), 10])
@@ -801,7 +880,9 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 			var cost: Dictionary = info["cost"]
 			var free: bool = info.get("lasts", "") == "floor" and paid.has(id)
 			var gx := at + Vector2(0, r + 9.0)
-			if free:
+			if deep.used_up(id) != "":
+				texts.append([gx + Vector2(-34, 4), "used", Color(0.7, 0.7, 0.75, 0.85), 9])
+			elif free:
 				texts.append([gx + Vector2(-34, 4), "open", Color(col, 0.9), 9])
 			else:
 				var gems: Array = []
@@ -836,12 +917,14 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 	var line := String(info2["short"])
 	if SB.usable_in_climb(id2):
 		var free2: bool = info2.get("lasts", "") == "floor" and paid.has(id2)
-		line += "  ·  " + ("open this floor" if free2 else SB.cost_text(info2["cost"], path))
-		if not free2:
+		line += "  ·  " + ("open this floor" if free2 else (("from " if id2 == "des_build" else "") + SB.cost_text(info2["cost"], path)))
+		if deep.used_up(id2) != "":
+			line += "\n" + deep.used_up(id2)
+		elif not free2:
 			var q: Dictionary = SB.quote(info2["cost"], main.run_essence, main.run_flow, path)
 			if not q["ok"]:
 				line += "\n" + String(q["short"])
-		if SB.TOOLS[id2].has("reach") and locked.get(id2) == null:
+		if SB.TOOLS[id2].has("reach") and locked.get(id2) == null and id2 != "des_edit":
 			line += "\n" + SB.TEXT["no_target"]
 	else:
 		line += "  ·  " + SB.TEXT["train_only"]
@@ -883,6 +966,33 @@ func _tool_icon(b, id: String, c: Vector2, s: float, col: Color) -> void:
 		"dev_tune":
 			b.arc(c, s * 0.8, PI * 0.75, PI * 2.25, 16, col, 1.4)
 			b.line(c, c + Vector2.from_angle(-PI * 0.3) * s * 0.8, col, 1.6)
+		"dev_edit", "des_edit", "man_edit":  # a pen over a line
+			b.line(c + Vector2(-s, s * 0.8), c + Vector2(s, s * 0.8), col, 1.2)
+			b.line(c + Vector2(-s * 0.6, s * 0.4), c + Vector2(s * 0.7, -s * 0.9), col, 1.8)
+			b.dot(c + Vector2(-s * 0.6, s * 0.4), s * 0.22, col)
+		"dev_splice":  # two strands twisted
+			for k in 2:
+				var pts3 := PackedVector2Array()
+				for i in 9:
+					var t3 := float(i) / 8.0
+					pts3.append(c + Vector2(lerpf(-s, s, t3), sin(t3 * TAU + PI * k) * s * 0.45))
+				b.polyline(pts3, col, 1.3)
+		"dev_write":  # a quill
+			b.line(c + Vector2(-s * 0.8, s * 0.9), c + Vector2(s * 0.8, -s * 0.9), col, 1.6)
+			b.line(c + Vector2(s * 0.8, -s * 0.9), c + Vector2(s * 0.1, -s * 0.5), col, 1.2)
+			b.line(c + Vector2(s * 0.8, -s * 0.9), c + Vector2(s * 0.4, -s * 0.1), col, 1.2)
+		"des_reroll", "man_reroll":  # two arrows round
+			b.arc(c, s * 0.75, 0.2, PI - 0.2, 12, col, 1.4)
+			b.arc(c, s * 0.75, PI + 0.2, TAU - 0.2, 12, col, 1.4)
+			b.dot(c + Vector2.from_angle(PI - 0.2) * s * 0.75, s * 0.22, col)
+			b.dot(c + Vector2.from_angle(TAU - 0.2) * s * 0.75, s * 0.22, col)
+		"des_build":  # a block
+			Traps._outline(b, Rect2(c - Vector2(s, s) * 0.75, Vector2(s, s) * 1.5), col, 1.4)
+			b.line(c + Vector2(-s * 0.75, 0), c + Vector2(s * 0.75, 0), col, 1.0)
+		"man_build":  # a paw
+			b.dot(c + Vector2(0, s * 0.3), s * 0.42, col)
+			for i in 3:
+				b.dot(c + Vector2((i - 1) * s * 0.5, -s * 0.45), s * 0.2, col)
 		_:
 			b.dot(c, s * 0.4, col)
 
@@ -1011,7 +1121,13 @@ func _draw_spells(font: Font, view: Vector2) -> void:
 			var nums: Array = SB.spell_numbers(bd, sp, steady)
 			var bits: Array = nums.map(func(r): return "%s %s" % [r[0], r[1]])
 			var tune := String(bd.tunes.get(sp["id"], ""))
-			rows.append(["  %s%s:  %s" % [sp["name"], (" [" + SB.TUNE[tune]["name"] + "]") if tune != "" else "", "  ·  ".join(bits)], Color(0.93, 0.91, 0.87), 10])
+			var tags: String = (" [" + SB.TUNE[tune]["name"] + "]") if tune != "" else ""
+			var ed := SB.edit_text(bd.edits.get(sp["id"], {}))
+			if ed != "":
+				tags += " [" + ed + "]"
+			if deep.splice.get("part", "") == part and deep.splice.get("spell", "") == sp["id"]:
+				tags += " [" + SB.TEXT["splice_tag"] % SB.SPLICE_FX[deep.splice["effect"]]["name"] + "]"
+			rows.append(["  %s%s:  %s" % [sp["name"], tags, "  ·  ".join(bits)], Color(0.93, 0.91, 0.87), 10])
 			rows.append(["      " + "   ".join(SB.step_adds(sp)), Color(0.7, 0.68, 0.74), 9])
 	if rows.is_empty():
 		rows.append([SB.TEXT["no_spells"], Color(0.9, 0.88, 0.84), 11])

@@ -25,6 +25,7 @@ var cluster := 0  # Cluster Blast: splits into this many explosions
 var return_to = null  # Recall: blades that come back to this node
 var out_t := 0.0  # how long before a recalled blade turns back
 var returning := false
+var splice := {}  # the Developer's Splice: a spliced spell's shot carries its behaviour (secret_tools.gd)
 
 
 func _physics_process(delta: float) -> void:
@@ -88,6 +89,8 @@ func _physics_process(delta: float) -> void:
 				continue
 			if position.distance_to(e.global_position) < e.radius + 4.0:
 				hit.append(e)
+				if not splice.is_empty() and main.secret_tools != null:
+					main.secret_tools.splice_hit(e, splice)
 				if venom > 0:
 					e.add_venom(venom)
 				if explode_r > 0.0:

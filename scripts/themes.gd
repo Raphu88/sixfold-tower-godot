@@ -147,6 +147,12 @@ const RULES := {
 ## How often a room's doorway gets a door: likelier where danger waits.
 const DOOR_CHANCE := {"likely": 0.75, "else": 0.35, "always": 1.0}
 const DOOR_ALWAYS := ["mirror"]
+## A lean for the next floor's rooms, set only while that floor is planned
+## (the Designer's Reroll, secret_bonds.gd LEANS): "good" / "quiet" add to
+## those chances, "max_good" to the cap, "feature_w" multiplies the weight of
+## themes by feature. Empty: the usual rules.
+static var lean := {}
+
 const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "crypt", "pillars"]
 
 
@@ -230,13 +236,14 @@ static func assign(infos: Array, floor_num: int, tid: String, tower: Dictionary)
 			want = "den"
 		else:
 			var roll := randf()
-			if roll < float(RULES["good_chance"]):
+			var good_c := float(RULES["good_chance"]) + float(lean.get("good", 0.0))
+			if roll < good_c:
 				want = "good"
-			elif roll < float(RULES["good_chance"]) + float(RULES["quiet_chance"]) or n_bad >= max_bad:
+			elif roll < good_c + float(RULES["quiet_chance"]) + float(lean.get("quiet", 0.0)) or n_bad >= max_bad:
 				want = "quiet"
 			else:
 				want = "bad"
-		if want == "good" and n_good >= int(RULES["max_good"]):
+		if want == "good" and n_good >= int(RULES["max_good"]) + int(lean.get("max_good", 0)):
 			want = "bad" if n_bad < max_bad else "quiet"
 		var id := ""
 		if want == "den":
@@ -293,7 +300,7 @@ static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dicti
 		if not fits(id, info, tid, tower):
 			continue
 		var own: bool = not th["towers"].is_empty() or tid in th.get("home", [])
-		var w := (float(RULES["tower_weight"]) if own else 1.0) * float(th.get("weight", 1.0))
+		var w := (float(RULES["tower_weight"]) if own else 1.0) * float(th.get("weight", 1.0)) * float(lean.get("feature_w", {}).get(th["feature"], 1.0))
 		opts.append(id)
 		weights.append(w)
 		total += w

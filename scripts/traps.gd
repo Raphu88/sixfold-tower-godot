@@ -1641,7 +1641,7 @@ func _set_state(tr: Dictionary, state: String, t: float) -> void:
 func _stepped_on(tr: Dictionary) -> bool:
 	var reach: float = KINDS[tr["kind"]]["r"]
 	var p = main.player
-	if p != null and not p.dead and not p.in_air() and p.global_position.distance_to(tr["pos"]) < reach + p.radius * 0.4:
+	if p != null and not p.dead and not p.in_air() and p.global_position.distance_to(tr["pos"]) < reach + p.radius * 0.4 and not tr.get("own", false):
 		return true
 	for e in _foes():
 		if _walks(e) and e.global_position.distance_to(tr["pos"]) < reach + e.radius * 0.4:
@@ -1733,7 +1733,7 @@ func _hurt_inside(tr: Dictionary) -> void:
 	var k: Dictionary = KINDS[tr["kind"]]
 	var avoid: Array = k["avoid"]
 	var p = main.player
-	if p != null and not p.dead and not tr["hit"].has(p.get_instance_id()):
+	if p != null and not p.dead and not tr["hit"].has(p.get_instance_id()) and not tr.get("own", false):  # (the Designer's own trap never catches you)
 		if touches(tr, p.global_position, p.radius):
 			var safe: bool = ("roll" in avoid and p.iframes > 0.0) or ("jump" in avoid and p.in_air())
 			tr["hit"].append(p.get_instance_id())

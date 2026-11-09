@@ -192,6 +192,8 @@ var mirror := false
 var calm := false
 var feud = null
 var feud_t := 0.0
+## The Manipulator's Edit: "half its reach" (it starts attacks only from this share of the distance).
+var reach_k := 1.0
 
 
 ## Call before adding to the tree.
@@ -408,6 +410,8 @@ func _physics_process(delta: float) -> void:
 	# Look at the climber, except once an attack is committed (after the glint).
 	if not (is_attacking() and glinted):
 		face = face.slerp(dir, minf(1.0, 8.0 * delta)).normalized()
+	if reach_k < 1.0:
+		dist /= reach_k  # (the Manipulator's Edit: only attacks from nearer)
 	match kind:
 		"slime":
 			_slime(delta, dir, dist, p)
@@ -1810,6 +1814,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		return
 	if main.counting_hits:
 		main.cast_hits += 1
+		if main.secret_tools != null:
+			main.secret_tools.struck(self)  # (the Developer's Splice: what a spliced spell strikes)
 	# A shellback's shell turns blows from the front (heavy blows crack it).
 	if kind == "shellback" and dir != Vector2.ZERO and face.dot(-dir) > 0.4 and not pierce:
 		amount *= 0.6 if heavy else 0.15
