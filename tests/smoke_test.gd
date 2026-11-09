@@ -4105,11 +4105,15 @@ func _shadow_tests() -> void:
 	_check(not lt.glow_layer.visible and lt.blooms.is_empty(), "Low draws no glow")
 	_check(not lt.mat.shader.code.contains("#define SHADOWS"), "Low uses the plain darkness (no shadows)")
 	# A floor of rooms: a light beside a wall.
-	main.dev_floor(2)
-	await _frames(2)
-	for e in main.enemies():
-		e.set_physics_process(false)
-	var pair := _carve_wall()
+	var pair := []
+	for attempt in 6:  # (a random floor's biggest room can be too cluttered for the wall; plan another)
+		main.dev_floor(2)
+		await _frames(2)
+		for e in main.enemies():
+			e.set_physics_process(false)
+		pair = _carve_wall()
+		if not pair.is_empty():
+			break
 	_check(not pair.is_empty(), "a wall can be built across a room")
 	if pair.is_empty():
 		return
