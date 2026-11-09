@@ -7,8 +7,8 @@ extends RefCounted
 ## The first time a great foe falls and its secret essence rises, the
 ## climber chooses a PATH: Life or Unmaking (main.gd offer_path). It's for
 ## good. From then on only the path's essence soaks in; the other rises
-## and passes straight through the climber, unbanked (a vessel that holds it
-## comes later: main.gd vessel_takes).
+## and passes straight through the climber, unbanked, unless a vessel on the
+## belt captures it (vessel.gd, from main.gd pass_through).
 ##
 ## The path's essence never settles in a body part, never takes a mark and
 ## never pushes out a bond. It's one measure, the FLOW: carried unbanked

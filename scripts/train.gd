@@ -21,6 +21,7 @@ extends RefCounted
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
+const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME.
 const CARS := [["engine", "Engine"], ["personal", "Your car"], ["store", "Store car"], ["workshop", "Workshop"]]
@@ -314,6 +315,8 @@ static func supply_room(profile, player, id: String) -> int:
 		for k in profile.supplies:
 			if int(profile.supplies[k]) > 0:
 				kinds[k] = true
+		if load(VESSEL).packed_index(profile) >= 0:
+			kinds[load(VESSEL).ID] = true  # (a vessel packed for the climb takes a kind too)
 		if kinds.size() >= player.belt_kinds():
 			return 0
 	return maxi(0, room)
@@ -459,6 +462,7 @@ static func pack_up(profile, player) -> void:
 		else:
 			player.pack.append(r)
 	profile.pack = []
+	load(VESSEL).pack_up(profile, player)  # (a vessel packed from the chest goes on the belt)
 	for id in profile.supplies.keys():
 		for k in int(profile.supplies[id]):
 			if not player.add_item(id):

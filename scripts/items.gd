@@ -27,7 +27,7 @@ const STEADY_HEAL := 1.3
 ## ...and take this much less time.
 const STEADY_TIME := 0.6
 
-const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare", "scroll"]
+const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare", "scroll", "vessel"]
 
 ## Each item: name, short name, what it does, colour and its numbers; also
 ##   kind         its essence (the belt breaks it into this kind of crystal)
@@ -147,6 +147,18 @@ const ITEMS := {
 		"drop_weight": 0,
 		"max": 1,
 		"kind": "air", "value": {"air": 30, "water": 30},
+	},
+	# The vessel (vessel.gd, where its rules and words live; the name is a
+	# placeholder): from a Rune Artist's bench or, very rarely, a vault. Not
+	# sold, never stacked, never broken into crystals; using it only says
+	# what it holds.
+	"vessel": {
+		"name": "Vessel",
+		"short": "Vessel",
+		"desc": "a sealed glass vessel bound in brass: it holds the secret essence that isn't your path instead of letting it pass (30 at most)",
+		"color": Color(0.86, 0.64, 0.3),
+		"drop_weight": 0, "drop": false,
+		"max": 1,
 	},
 }
 
@@ -292,6 +304,8 @@ static func use(id: String, p) -> bool:
 	if id == "scroll":
 		# (main.gd asks first, then reads it: the climb ends there)
 		return main.recall_pressed()
+	if id == "vessel":
+		return load("res://scripts/vessel.gd").use(p)  # (it says what it holds; never used up)
 	match id:
 		"draught":
 			if p.hp >= p.max_health() - 0.5:
@@ -396,6 +410,8 @@ static func icon_into(b, id: String, c: Vector2, s: float) -> void:
 	var u := s / 10.0
 	var ol := clampf(u * 1.1, 0.8, 1.6)
 	match id:
+		"vessel":
+			load("res://scripts/vessel.gd").belt_into(b, c, s)  # (filled as the belt's vessel is)
 		"draught":
 			# A round flask: glass, the liquid inside with its surface, a cork.
 			_neck(b, c + Vector2(0, -6.2) * u, u, ol)

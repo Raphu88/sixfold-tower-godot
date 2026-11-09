@@ -30,6 +30,7 @@ const Towers := preload("res://scripts/towers.gd")
 const UI := preload("res://scripts/ui.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
+const VesselPage := preload("res://scripts/vessel_page.gd")
 
 const T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -507,6 +508,9 @@ func _engine(root: Node) -> void:
 		n += int(prof.supplies[id])
 	if n > 0:
 		going.append("%d %s" % [n, "supply" if n == 1 else "supplies"])
+	var vi: int = VesselPage.Vessel.packed_index(prof)
+	if vi >= 0:  # (a vessel packed from the chest)
+		going.append(VesselPage.V["going"] % VesselPage.Vessel.state_text(prof.vessels[vi]))
 	var gl := _note(col, T["depart_pack"] % (", ".join(going) if not going.is_empty() else T["depart_none"]), 10.0)
 	gl.add_theme_color_override("font_color", UI.TEXT)
 	_note(col, T["depart_risk"], 10.0)
@@ -600,7 +604,7 @@ func _pack_and_chest(parent: Node, filled_only := false) -> Array:
 				break
 			var s = _gear_slot(pg, "pack:%d" % i, prof.pack[i] if i < prof.pack.size() else null, "")
 			keys.append(s.get_meta("slot"))
-	if not filled_only or not prof.chest.is_empty():
+	if not filled_only or not prof.chest.is_empty() or not prof.vessels.is_empty():
 		var ch := _furnish(parent, "chest")
 		_tag(ch, T["chest"] % [prof.chest.size(), Train.CHEST_SIZE])
 		var cg := _grid(ch, 4)
@@ -609,6 +613,7 @@ func _pack_and_chest(parent: Node, filled_only := false) -> Array:
 				break
 			var s = _gear_slot(cg, "chest:%d" % i, prof.chest[i] if i < prof.chest.size() else null, "")
 			keys.append(s.get_meta("slot"))
+		keys.append_array(VesselPage.chest_slots(self, cg))  # (vessels, after the pieces)
 	return keys
 
 
@@ -651,7 +656,7 @@ func _store(root: Node) -> void:
 	row.add_child(goods)
 	if selling:
 		_tag(goods, T["sell_title"])
-		if prof.pack.is_empty() and prof.chest.is_empty():
+		if prof.pack.is_empty() and prof.chest.is_empty() and prof.vessels.is_empty():
 			_note(goods, T["nothing_to_sell"])
 		else:
 			keys.append_array(_pack_and_chest(goods, true))
@@ -793,6 +798,8 @@ func _workshop(root: Node) -> void:
 			keys = _bench_pieces(left, func(g): return not g["traits"].is_empty())
 		"join":
 			keys = _bench_pieces(left, func(g): return Bench.joinable(g))
+		"vessel":
+			keys = VesselPage.bench_list(self, left)
 		_:
 			keys = _bench_pieces(left, func(_g): return true)
 	if keys.is_empty():
@@ -1195,6 +1202,8 @@ func _bench_card(arg: String) -> void:
 		_break_card(arg)
 		return
 	match counter:
+		"vessel":
+			VesselPage.bench_card(self, arg)
 		"temper":
 			_temper_card(arg)
 		"retrait":
@@ -1427,8 +1436,8 @@ func _inscribe_card(ref: String) -> void:
 	_cost_lines(Bench.INSCRIBE, B["cost"])
 	var why := ""
 	for rune in Gear.LASTING_RUNES:
-		if g.get("rune", "") == rune:
-			continue
+		if g.get("rune", "") == rune or Gear.LASTING_RUNES[rune].get("deep", false):
+			continue  # (a deep rune takes a full vessel: the Vessel counter)
 		why = Bench.inscribe_why(prof, ref, rune)
 		var text := Gear.rune_text(rune)
 		var b := _ask_button(m.details, B["inscribe"] % text, B["inscribe_ask"] % text, "inscribe:" + rune, why, "inscribe", rune)
@@ -1507,6 +1516,10 @@ func _bench_do(thing: String, ask: String) -> void:
 			var rune := ask.get_slice(":", 1)
 			why = Bench.inscribe(prof, thing, rune)
 			said = B["inscribed"] % [Gear.LASTING_RUNES[rune]["name"], before]
+		"vtemper", "vrune":
+			var r: Array = VesselPage.bench_do(prof, thing, ask, before)  # (a full vessel worked into a piece)
+			why = r[0]
+			said = r[1]
 		"break":
 			var name: String = before if before != "" else Items.ITEMS[thing.substr(7)]["name"]
 			var got := Bench.break_down(prof, thing)
@@ -1540,6 +1553,8 @@ func details(key: String) -> void:
 			_offer_card(int(arg))
 		"today":
 			_offer_card(-1)
+		"vessel":
+			VesselPage.card(self, int(arg))
 
 
 ## A card's heading, then the answer to the last choice (in gold).

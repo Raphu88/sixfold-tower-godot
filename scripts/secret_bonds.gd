@@ -315,12 +315,13 @@ const SECOND_FX := {
 const SECOND_CHOICES := 3
 
 ## The Developer's bribe (one of its extra needs), offered on the train: a
-## Regarded piece of gear (from your chest or pack) or `crystals` crystal
-## essence (a filled vessel too, once the game has one). The Maker of Marks
+## Regarded piece of gear (from your chest or pack), `crystals` crystal
+## essence, or a full vessel from your chest (vessel.gd). The Maker of Marks
 ## may refuse (then nothing is taken): it agrees with `agree`, less `each`
-## for every bribe offered before (it remembers), never below `least`. An
-## accepted bribe counts for the next depth only.
-const BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15}
+## for every bribe offered before (it remembers), never below `least`; a
+## full vessel adds `vessel` to that (at most `vessel_most`). An accepted
+## bribe counts for the next depth only.
+const BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15, "vessel": 0.25, "vessel_most": 0.9}
 ## Tests: 1 it always agrees, 0 always refuses, -1 by chance.
 static var bribe_force := -1
 
@@ -528,7 +529,8 @@ const TEXT := {
 	"bribe_line": "An offering may stand in for the next depth's extra need. It may refuse (nothing is taken), and it remembers every bribe (%d offered).",
 	"bribe_crystals": "Offer %d crystal essence",
 	"bribe_gear": "Offer %s",
-	"bribe_vessel": "A filled vessel (not in the game yet)",
+	"bribe_vessel": "Offer a full vessel (%s)",
+	"bribe_vessel_none": "A full vessel (none in your chest)",
 	"bribe_yes": "It accepts the offering: it counts for depth %d.",
 	"bribe_no": "It refuses.",
 	"bribe_done": "Accepted for depth %d.",
@@ -1075,7 +1077,8 @@ static func bribe_state(prof) -> Dictionary:
 
 
 ## What the climber could offer: [{id, text, ok}] ("crystals", "gear:<i>"
-## for a Regarded piece in the chest, "pack:<i>" in the pack, "vessel").
+## for a Regarded piece in the chest, "pack:<i>" in the pack, "vessel:<i>"
+## a full vessel in the chest; "vessel" greyed when there's none).
 static func bribe_offers(prof, gear_script) -> Array:
 	var out: Array = []
 	var need := float(BRIBE["crystals"])
@@ -1086,14 +1089,20 @@ static func bribe_offers(prof, gear_script) -> Array:
 			var g = list[i]
 			if gear_script.is_gear(g) and gear_script.rarity(g) == "regarded":
 				out.append({"id": "%s:%d" % [where, i], "text": TEXT["bribe_gear"] % gear_script.display(g), "ok": true})
-	out.append({"id": "vessel", "text": TEXT["bribe_vessel"], "ok": false})
+	var V = load("res://scripts/vessel.gd")
+	var full: Array = V.full_list(prof)
+	for i in full:
+		out.append({"id": "vessel:%d" % i, "text": TEXT["bribe_vessel"] % V.state_text(prof.vessels[i]), "ok": true})
+	if full.is_empty():
+		out.append({"id": "vessel", "text": TEXT["bribe_vessel_none"], "ok": false})
 	return out
 
 
-## The chance the Maker of Marks takes a bribe now.
-static func bribe_odds(prof) -> float:
+## The chance the Maker of Marks takes a bribe now (`vessel`: a full vessel offered).
+static func bribe_odds(prof, vessel := false) -> float:
 	var st := bribe_state(prof)
-	return maxf(float(BRIBE["least"]), float(BRIBE["agree"]) - float(BRIBE["each"]) * int(st.get("offered", 0)))
+	var odds := maxf(float(BRIBE["least"]), float(BRIBE["agree"]) - float(BRIBE["each"]) * int(st.get("offered", 0)))
+	return minf(odds + float(BRIBE["vessel"]), maxf(odds, float(BRIBE["vessel_most"]))) if vessel else odds
 
 
 ## Offers a bribe for the next depth: {ok (accepted), said}. Refused: nothing
@@ -1113,7 +1122,7 @@ static func offer_bribe(prof, offer_id: String, gear_script, roll := -1.0) -> Di
 			offer = o
 	if offer.is_empty() or not offer["ok"]:
 		return {"ok": false, "said": "Nothing to offer"}
-	var agree := bribe_odds(prof)
+	var agree := bribe_odds(prof, offer_id.begins_with("vessel:"))
 	if roll < 0.0:
 		roll = randf()
 	var yes := roll < agree
@@ -1123,6 +1132,8 @@ static func offer_bribe(prof, offer_id: String, gear_script, roll := -1.0) -> Di
 	if yes:
 		if offer_id == "crystals":
 			spend_crystals(prof, float(BRIBE["crystals"]))
+		elif offer_id.begins_with("vessel:"):
+			load("res://scripts/vessel.gd").use_full(prof, int(offer_id.get_slice(":", 1)))
 		else:
 			var where := offer_id.get_slice(":", 0)
 			var list: Array = prof.get(where)

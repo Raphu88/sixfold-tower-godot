@@ -196,7 +196,8 @@ func _core_signature() -> Array:
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() == "crossbow" else 0.0,
 		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
-		main.profile.path, main.profile.flow_step(), int(main.profile.flow)]
+		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
+		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
 	for part in BondScript.Bonds.PARTS:
 		var b = p.bonds.get(part)
 		if b != null:
@@ -280,6 +281,8 @@ func _draw_core() -> void:
 	var flow_rect := Rect2()
 	if main.flow_shown():
 		flow_rect = _flow_gem_into(b, Vector2(BAR_X + BAR_W + 16.0, BAR_Y + 9.0))
+	if p.item_count("vessel") > 0:  # the vessel you carry, and how full (vessel.gd)
+		load("res://scripts/vessel.gd").hud_into(b, p, Vector2(BAR_X + BAR_W + (44.0 if flow_rect.size.x > 0.0 else 16.0), BAR_Y + 9.0), tips)
 	# The weapon in hand and the quick item: two small slots.
 	var wr := Rect2(BAR_X, ROW_Y, SLOT, SLOT)
 	var slot_i: int = p.slots().find(p.weapon)

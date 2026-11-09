@@ -136,11 +136,17 @@ const TRAITS := {
 const RANK_TRAIT := 0.25
 const RANK_WEAPON := 0.04
 const MAX_RANK := 3
+## The highest rank any piece can hold: a Rune Artist working a full vessel
+## into a +3 piece tempers it one past MAX_RANK (vessel.gd).
+const RANK_CAP := 4
 
 ## Lasting runes: a Rune Artist inscribes one on a piece at the bench, and
 ## it stays on it. Half the strength of the Inscribe spell's runes (bond.gd
 ## GEAR_RUNES): "key" is the number it adds to (as a trait does), "value"
 ## how much. Drawn on the piece's icon as a rune hashed from its id.
+## The "deep" runes are the same at the spell's full strength: only a Rune
+## Artist working a full vessel inscribes one (vessel.gd), never the
+## bench's own Inscribe.
 const LASTING_RUNES := {
 	"sharpness": {"name": "Rune of Sharpness", "short": "Sharpness", "key": "strike", "value": 0.10,
 		"desc": "strikes hit %s harder", "color": Color(1.0, 0.7, 0.45)},
@@ -148,6 +154,12 @@ const LASTING_RUNES := {
 		"desc": "%s protection from blows", "color": Color(0.6, 0.8, 1.0)},
 	"swiftness": {"name": "Rune of Swiftness", "short": "Swiftness", "key": "walk", "value": 0.05,
 		"desc": "you walk %s faster", "color": Color(0.7, 1.0, 0.7)},
+	"deep_sharpness": {"name": "Deep Rune of Sharpness", "short": "Deep Sharpness", "key": "strike", "value": 0.20, "deep": true,
+		"desc": "strikes hit %s harder", "color": Color(1.0, 0.62, 0.32)},
+	"deep_warding": {"name": "Deep Rune of Warding", "short": "Deep Warding", "key": "reduce", "value": 0.16, "deep": true,
+		"desc": "%s protection from blows", "color": Color(0.5, 0.74, 1.0)},
+	"deep_swiftness": {"name": "Deep Rune of Swiftness", "short": "Deep Swiftness", "key": "walk", "value": 0.10, "deep": true,
+		"desc": "you walk %s faster", "color": Color(0.58, 1.0, 0.58)},
 }
 
 ## Of Embers: a burning foe takes this much every half second, this long.
@@ -483,7 +495,7 @@ static func make(base: String, rarity := "", traits: Array = [], rank := 0, name
 		return {}
 	var r := rarity if RARITIES.has(rarity) else natural_rarity(base)
 	var keep: Array = traits.filter(func(t): return TRAITS.has(String(t))).map(func(t): return String(t))
-	var g := {"base": base, "rarity": r, "traits": keep, "rank": clampi(rank, 0, MAX_RANK)}
+	var g := {"base": base, "rarity": r, "traits": keep, "rank": clampi(rank, 0, RANK_CAP)}
 	if NAMED.has(named) and String(NAMED[named]["base"]) == base:
 		g["named"] = named
 	if LASTING_RUNES.has(rune):
@@ -646,7 +658,7 @@ static func trait_value(t: String, r: String) -> float:
 ## A trait's strength on a piece tempered to `rank` (each rank adds
 ## RANK_TRAIT of its base).
 static func trait_amount(t: String, r: String, rank := 0) -> float:
-	return trait_value(t, r) * (1.0 + RANK_TRAIT * clampi(rank, 0, MAX_RANK))
+	return trait_value(t, r) * (1.0 + RANK_TRAIT * clampi(rank, 0, RANK_CAP))
 
 
 ## A number as a card shows it: "5%" for a share, "6" for a count.
@@ -889,7 +901,7 @@ static func weapon_power(g) -> float:
 ## How much harder a weapon hits for its rarity and its rank (1.0: no harder).
 static func weapon_boost(g) -> float:
 	var k := int(g.get("rank", 0)) if g is Dictionary else 0
-	return (1.0 + float(RARITIES.get(rarity(g), RARITIES["common"])["boost"])) * (1.0 + RANK_WEAPON * clampi(k, 0, MAX_RANK))
+	return (1.0 + float(RARITIES.get(rarity(g), RARITIES["common"])["boost"])) * (1.0 + RANK_WEAPON * clampi(k, 0, RANK_CAP))
 
 
 # --- what a piece does --------------------------------------------------------------
