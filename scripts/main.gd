@@ -1311,16 +1311,7 @@ func _arrive() -> void:
 	run_essence = {}
 	run_soak = {}
 	lines.append_array(_bank_flow())
-	# An unmarked body part that has soaked up enough takes a new mark.
-	if not first_climb:
-		var part: String = profile.ready_for_mark()
-		if part != "":
-			var id: String = profile.choose_bond(profile.tally, climb_soak)
-			if id != "":
-				profile.add_bond(part, id, false)
-				lines.append("Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]])
-				GuideScript.moment("new_mark", "new_mark", {"mark": BondScript.Bonds.BONDS[id]["name"]})
-				sfx("crit", 0.7, -4.0)
+	# (New marks come only at a summit now: summit_mark below.)
 	_give_bonds()
 	profile.save()
 	var leaving_camp := in_camp
@@ -1332,6 +1323,7 @@ func _arrive() -> void:
 	# The summit: the beast has fallen and the climb is complete.
 	if floor_num == int(tower_data().get("summit", 0)):
 		profile.climbs += 1
+		lines.append_array(summit_mark())
 		var broke := break_belt()
 		if broke != "":
 			lines.append(broke)
@@ -2230,6 +2222,51 @@ func add_soak(part: String, amount: float) -> void:
 	climb_soak[part] = float(climb_soak.get(part, 0.0)) + amount
 
 
+## A summit: the tower's beast takes notice, and a full body part takes a
+## new mark (at most one a climb). Returns the lines to show.
+var marked_this_climb := false
+
+
+func summit_mark() -> Array:
+	if first_climb or marked_this_climb:
+		return []
+	var part: String = profile.ready_for_mark()
+	if part == "":
+		return []
+	var id: String = profile.choose_bond(profile.tally, climb_soak)
+	if id == "":
+		return []
+	profile.add_bond(part, id, false)
+	marked_this_climb = true
+	GuideScript.moment("new_mark", "new_mark", {"mark": BondScript.Bonds.BONDS[id]["name"]})
+	sfx("crit", 0.7, -4.0)
+	_give_bonds()
+	profile.save()
+	return ["The beast takes notice. Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]]]
+
+
+## Winning the Proving (proving.gd): one of your marks grows a step, the
+## one whose body part you used most this climb (not past step 5). Returns a line.
+func proving_raise() -> String:
+	var best := ""
+	var most := -1.0
+	for part in profile.bonds:
+		if ProfileScript.step_for_xp(float(profile.bonds[part]["xp"])) >= ProfileScript.STEP_XP.size():
+			continue
+		var used := float(climb_soak.get(part, 0.0))
+		if used > most:
+			most = used
+			best = part
+	if best == "":
+		return ""
+	var step: int = profile.raise_step(best)
+	if step <= 0:
+		return ""
+	_give_bonds()
+	profile.save()
+	return "The tower has taken your measure: %s grows to step %d" % [BondScript.Bonds.BONDS[profile.bonds[best]["id"]]["name"], step]
+
+
 ## How close an unmarked body part is to taking a mark, 0..1 (for drawing).
 func soak_fraction(part: String) -> float:
 	if first_climb:
@@ -2238,8 +2275,11 @@ func soak_fraction(part: String) -> float:
 		for pt in climb_soak:
 			most = maxf(most, float(climb_soak[pt]))
 		return clampf(float(climb_soak.get(part, 0.0)) / most, 0.0, 1.0)
-	var need: float = ProfileScript.NEW_MARK_SOAK * float(maxi(1, profile.bonds.size()))
-	return clampf((float(profile.soak.get(part, 0.0)) + float(run_soak.get(part, 0.0))) / need, 0.0, 1.0)
+	var need: float = ProfileScript.NEW_MARK_SOAK * ProfileScript.MARK_FULL
+	var have := float(profile.soak.get(part, 0.0))
+	var fill := clampf(have / ProfileScript.NEW_MARK_SOAK, 0.0, 1.0)
+	var coming: float = float(run_soak.get(part, 0.0)) * ProfileScript.SOAK_RATE * (1.0 - fill) * profile.body_drag()
+	return clampf((have + coming) / need, 0.0, 1.0)
 
 
 ## How much each unmarked body part has soaked: this climb on the first

@@ -16,11 +16,25 @@ const SAVE_PATH := "user://sixfold.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
 const FAINT_DEBT := 80.0
-## Banked essence needed to reach each step (index = step - 1).
-const STEP_XP := [0.0, 60.0, 160.0, 320.0, 540.0]
-## Soak an unmarked body part needs before a later mark takes there,
-## multiplied by how many marks you already carry.
-const NEW_MARK_SOAK := 140.0
+## Banked essence needed to reach each step (index = step - 1). A bond grows
+## from its own essence (AFFINITY_WEIGHT) and a little from the rest
+## (OTHER_WEIGHT), slowed by STEP_RATE and by how many marks the body already
+## carries (BODY_DRAG). The Proving (floor 6) can raise a mark a step too.
+const STEP_XP := [0.0, 150.0, 450.0, 1000.0, 1800.0]
+const AFFINITY_WEIGHT := 2.0
+const OTHER_WEIGHT := 0.25
+const STEP_RATE := 0.25
+## Marks after the first: an unmarked body part fills like a battery. It
+## soaks up only SOAK_RATE of what it does, and the fuller it is the slower it
+## fills (gain x (1 - fill)); a body that carries more marks fills every part
+## slower still (BODY_DRAG, by marks carried). A part is full (ready for a
+## mark) at MARK_FULL of NEW_MARK_SOAK. New marks come only at a summit, at
+## most one a climb (main.gd). Numbers are first guesses: aim, 20+ climbs
+## for all six marks.
+const NEW_MARK_SOAK := 250.0
+const SOAK_RATE := 0.4
+const MARK_FULL := 0.9
+const BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
 
 var regarded := false
 var bonds := {}  # part -> {"id", "xp", "faint", "debt"}
@@ -430,12 +444,17 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 				part_density[part] = pd
 	for part in run_soak:
 		if not bonds.has(part):
-			soak[part] = float(soak.get(part, 0.0)) + float(run_soak[part])
+			# A battery: the fuller the part (and the more marks the body carries), the slower it fills.
+			var have := float(soak.get(part, 0.0))
+			var fill := clampf(have / NEW_MARK_SOAK, 0.0, 1.0)
+			var gain_soak: float = float(run_soak[part]) * SOAK_RATE * (1.0 - fill) * body_drag()
+			soak[part] = minf(NEW_MARK_SOAK, have + gain_soak)
 	for part in bonds:
 		var b: Dictionary = bonds[part]
 		var info: Dictionary = Bonds.BONDS[b["id"]]
-		# Essence of the bond's own kind counts double.
-		var gain := total + float(essence.get(info["affinity"], 0.0))
+		# Its own kind counts most; the rest a little.
+		var own := float(essence.get(info["affinity"], 0.0))
+		var gain := own * AFFINITY_WEIGHT + (total - own) * OTHER_WEIGHT
 		if gain <= 0.0:
 			continue
 		if b["faint"]:
@@ -448,7 +467,7 @@ func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
 			else:
 				continue
 		var before := step_for_xp(float(b["xp"]))
-		b["xp"] = float(b["xp"]) + gain
+		b["xp"] = minf(float(STEP_XP[STEP_XP.size() - 1]), float(b["xp"]) + gain * STEP_RATE * body_drag())
 		var after := step_for_xp(float(b["xp"]))
 		if after > before:
 			var note: String = Bonds.step_note(b["id"], after)
@@ -481,10 +500,27 @@ func attribute(kind: String) -> float:
 	return ATTRIBUTE_CAP * d / (d + ATTRIBUTE_HALF)
 
 
-## An unmarked body part that has soaked up enough takes a new mark.
-## Returns the part, or "" if none is ready.
+## How much the body's marks slow every part's filling (BODY_DRAG).
+func body_drag() -> float:
+	return float(BODY_DRAG[clampi(bonds.size(), 0, BODY_DRAG.size() - 1)])
+
+
+## A mark goes up one step (the Proving's gift): returns its new step, or 0.
+func raise_step(part: String) -> int:
+	if not bonds.has(part):
+		return 0
+	var b: Dictionary = bonds[part]
+	var st := step_for_xp(float(b["xp"]))
+	if st >= STEP_XP.size():
+		return 0
+	b["xp"] = maxf(float(b["xp"]), float(STEP_XP[st]))
+	return st + 1
+
+
+## An unmarked body part that is full (a battery at MARK_FULL) takes a new
+## mark, at a summit. Returns the part, or "" if none is ready.
 func ready_for_mark() -> String:
-	var need := NEW_MARK_SOAK * float(maxi(1, bonds.size()))
+	var need := NEW_MARK_SOAK * MARK_FULL
 	var best := ""
 	var best_soak := need
 	for part in soak:

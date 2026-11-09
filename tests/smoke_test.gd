@@ -151,13 +151,34 @@ func _regard_tests() -> void:
 
 	print("a second mark")
 	main.first_climb = false
-	main.profile.soak["heart"] = 200.0
+	var PS = main.ProfileScript
+	main.profile.soak["heart"] = PS.NEW_MARK_SOAK
 	main.run_essence = {"iron": 20.0}
 	main.floor_num = 4
 	main._arrive()
 	await _frames(2)
-	_check(main.profile.bonds.has("heart"), "a soaked body part takes a new mark at the stair")
+	_check(not main.profile.bonds.has("heart"), "a full body part waits: no new mark at an ordinary stair")
+	main.floor_num = int(main.tower_data().get("summit", 12))
+	main._arrive()
+	await _frames(2)
+	_check(main.profile.bonds.has("heart"), "at a summit the beast takes notice: the full part takes a new mark")
 	_check(main.player.bonds.has("heart"), "the climber carries it")
+	main.profile.soak["throat"] = PS.NEW_MARK_SOAK
+	_check(main.summit_mark().is_empty() and not main.profile.bonds.has("throat"), "at most one new mark a climb")
+	main.victory = {}
+	main.player.set_physics_process(true)
+	# A battery: the fuller a part, and the more marks you carry, the slower it fills.
+	main.profile.soak = {"back": 0.0, "throat": PS.NEW_MARK_SOAK * 0.5}
+	main.profile.bank({}, {"back": 100.0, "throat": 100.0})
+	var empty_gain: float = main.profile.soak["back"]
+	var half_gain: float = main.profile.soak["throat"] - PS.NEW_MARK_SOAK * 0.5
+	_check(empty_gain > 0.0 and half_gain < empty_gain * 0.6, "a half-full part fills slower than an empty one (%.1f vs %.1f)" % [half_gain, empty_gain])
+	_check(empty_gain <= 100.0 * PS.SOAK_RATE + 0.01, "a part soaks up only part of what it does")
+	# The Proving's gift: one mark grows a step.
+	var before_step: int = PS.step_for_xp(float(main.profile.bonds["legs"]["xp"]))
+	main.climb_soak["legs"] = 999.0
+	var raised: String = main.proving_raise()
+	_check(raised != "" and PS.step_for_xp(float(main.profile.bonds["legs"]["xp"])) == before_step + 1, "winning the Proving raises a mark a step (%s)" % raised)
 
 
 ## Gives the test climber a mark at a given step.
