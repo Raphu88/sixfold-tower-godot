@@ -5909,7 +5909,7 @@ func _belt_tests() -> void:
 
 	print("the new consumables")
 	p.items = {}
-	_check(Items.ORDER.size() == 12 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
+	_check(Items.ORDER.size() == 13 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
 	# Fire Flask: thrown at your aim, it bursts and leaves burning floor.
 	main.floor_num = 3
 	p.global_position = Vector2(500, 400)
@@ -7189,6 +7189,7 @@ func _run() -> void:
 	await _train_tests()
 	await _lost_tests()
 	await _bench_tests()
+	await _vessel_tests()
 	await _controls_tests()
 	await _pad_layout_tests()
 	await _performance_tests()
@@ -8754,7 +8755,7 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
-	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll")
+	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel")
 	var brew: Array = bench_buttons.call("brew", "draught")
 	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Draught")
 	if brew.size() == 1:
@@ -10619,7 +10620,7 @@ func _secret_deep_tests() -> void:
 	_check(SB.depth_of(prof) == 3 and not SB.also_status(prof)["bribe"][0], "...which it grants (and the bribe is spent)")
 	prof.chest.append(main.Gear.make("cloth_hood", "regarded"))
 	var offers: Array = SB.bribe_offers(prof, main.Gear)
-	_check(offers.any(func(o): return String(o["id"]).begins_with("chest:") and o["ok"]) and offers.any(func(o): return o["id"] == "vessel" and not o["ok"]), "a Regarded piece can be offered (a vessel isn't in the game yet)")
+	_check(offers.any(func(o): return String(o["id"]).begins_with("chest:") and o["ok"]) and offers.any(func(o): return o["id"] == "vessel" and not o["ok"]), "a Regarded piece can be offered (a vessel is greyed with none in the chest)")
 	res = SB.offer_bribe(prof, "chest:%d" % (prof.chest.size() - 1), main.Gear)
 	_check(res["ok"] and not prof.chest.any(func(g): return main.Gear.rarity(g) == "regarded"), "...and is taken when accepted")
 	SB.bribe_force = -1
@@ -10891,3 +10892,224 @@ func _secret_deep_tests() -> void:
 	SB.clear(prof)
 	main._give_bonds()
 	p.iframes = 0.0
+
+
+## The vessel (vessel.gd): it catches the secret essence that isn't your
+## path, comes home whole (lost on a fall), is brewed by a Rune Artist or
+## found in a vault, and a full one is traded, worked at the bench, or
+## offered (a plea, the Developer's bribe). Saved with the chest.
+func _vessel_tests() -> void:
+	print("the vessel")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var V = load("res://scripts/vessel.gd")
+	var Items = main.Items
+	var T = main.Train
+	var B = load("res://scripts/bench.gd")
+	var G = main.Gear
+	var SB = main.SecretBonds
+	var prof = main.profile
+	var p = main.player
+	var menu = main.menu
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	_check(Items.ITEMS.has("vessel") and Items.max_stack("vessel") == 1 and not ("vessel" in T.supplies()) and not ("vessel" in B.brews()) and Items.random_item(true, [], false) != "vessel",
+		"the vessel is an item of its own: one at a time, never sold, brewed with the rest or dropped")
+	prof.path = "life"
+	var at: Vector2 = p.global_position + Vector2(120, 0)
+	# Without a vessel the other essence passes through.
+	var m0: int = main.fx.motes_list.size()
+	main.rise_secret("unmaking", 9.0, at)
+	_check(main.fx.motes_list.slice(m0).any(func(m): return m.get("through", false)) and V.carried(p).is_empty(), "without a vessel, Unmaking passes through you")
+	# With one it's caught, up to what it holds; your path's essence isn't touched.
+	_check(V.give(main, {}) and p.item_count("vessel") == 1 and V.carried(p)["amount"] == 0.0, "a vessel goes on the belt, empty")
+	m0 = main.fx.motes_list.size()
+	var f0: float = main.run_flow
+	main.rise_secret("unmaking", 12.0, at)
+	var curls: Array = main.get_children().filter(func(c): return c.has_method("rise") and "motes" in c)
+	_check(is_equal_approx(V.carried(p)["amount"], 12.0) and V.carried(p)["kind"] == "unmaking" and main.fx.motes_list.size() == m0 and is_equal_approx(main.run_flow, f0),
+		"with one, the Unmaking is caught (12), none passes, the flow is untouched")
+	_check(curls.size() == 1, "...its streak rises toward you")
+	if curls.size() == 1:
+		var c = curls[0]
+		await _until(func(): return not is_instance_valid(c) or c.motes.any(func(m): return m["curl"] >= 0.0), 3.0)
+		_check(is_instance_valid(c) and c.motes.any(func(m): return m["curl"] >= 0.0), "...and curls into the vessel at your hip")
+	main.rise_secret("life", 9.0, at)
+	_check(is_equal_approx(main.run_flow, f0 + 9.0) and is_equal_approx(V.carried(p)["amount"], 12.0), "your path's Life still soaks into you, not the vessel")
+	m0 = main.fx.motes_list.size()
+	main.rise_secret("unmaking", 25.0, at)
+	_check(V.full_on_belt(p) and is_equal_approx(V.carried(p)["amount"], V.CAPACITY) and main.fx.motes_list.slice(m0).any(func(m): return m.get("through", false)),
+		"it fills to %d; the rest passes through" % int(V.CAPACITY))
+	_check(Items.use("vessel", p) == false and p.item_count("vessel") == 1, "using it only says what it holds")
+	var full_kind: String = V.carried(p)["kind"]
+	prof.path = ""
+	_check(is_equal_approx(V.capture(main, "life", 5.0, at), 5.0), "before a path is chosen it catches nothing")
+	prof.path = "life"
+	for k in 3:
+		p.add_item(["draught", "tonic", "smoke"][k])
+	main.offer_belt_swap({"id": "flare", "pos": p.global_position, "t": 10.0})
+	var swap_choices: Array = main.camp.get("choices", [])
+	main._take_belt_pick("belt:")
+	_check(not ("belt:vessel" in swap_choices) and swap_choices.size() >= 2, "a full belt's swap card never offers the vessel (what it holds would spill)")
+	# It comes home on a survived climb or a recall, and isn't broken into crystals.
+	prof.crystals = []
+	prof.vessels = []
+	main.belt_broken = false
+	var broke: String = main.break_belt()
+	_check(p.item_count("vessel") == 1 and broke != "" and prof.crystal_total("stone") > 0.0, "the belt breaks into crystals, the vessel aside")
+	var home: String = V.bring_home(main)
+	_check(prof.vessels.size() == 1 and V.is_full(prof.vessels[0]) and prof.vessels[0]["kind"] == full_kind and p.item_count("vessel") == 0 and home.contains("comes home"),
+		"...it comes home to your chest, full (%s)" % home)
+	V.give(main, V.make("unmaking", 7.0))
+	main.belt_broken = false
+	main.read_recall()
+	_check(prof.vessels.size() == 2 and is_equal_approx(prof.vessels[1]["amount"], 7.0) and main.victory.get("lines", []).any(func(l): return String(l).contains("vessel")),
+		"a recall scroll brings it home too, partly filled")
+	main.victory = {}
+	p.set_physics_process(true)
+	# Lost with the belt on a fall.
+	V.give(main, V.make("unmaking", 20.0))
+	main.on_player_died()
+	_check(p.item_count("vessel") == 0 and prof.vessels.size() == 2 and main.fall_note.any(func(l): return String(l).contains("vessel")), "a fall loses it with the belt, and says so")
+	# Packed from the chest, it goes up on the belt.
+	p.items = {}
+	_check(V.pack(prof, p, 1) == "" and V.packed_index(prof) == 1, "a vessel in the chest can be packed for the next climb")
+	_check(T.supply_room(prof, p, "draught") > 0, "(it leaves room for the rest of the belt)")
+	T.pack_up(prof, p)
+	_check(p.item_count("vessel") == 1 and is_equal_approx(V.carried(p)["amount"], 7.0) and prof.vessels.size() == 1, "...and departing puts it on your belt, still holding 7")
+	p.items.erase("vessel")
+	p.vessel = {}
+	# A Rune Artist brews one; nobody else can.
+	prof.vessels = []
+	for k in V.BREW:
+		prof.add_crystal(k, float(V.BREW[k]))
+	_check(V.brew(prof).contains("Rune Artist") and prof.vessels.is_empty(), "only a Rune Artist can brew a vessel")
+	prof.add_bond("brow", "rune_artist", false)
+	_check(V.brew(prof) == "" and prof.vessels.size() == 1 and V.fill(prof.vessels[0]) == 0.0 and prof.crystal_total("iron") == 0.0, "a Rune Artist brews one (%s), empty, into the chest" % B.cost_text(V.BREW))
+	# Very rarely, a vault offers one.
+	V.vault_force = 1.0
+	var cards: Array = main.wings.vault_choices(false)
+	_check(cards.size() == 3 and cards[2] == "vessel", "a vault's third card can be a vessel")
+	main.offer_vault(cards, "THE VAULT", [""])
+	main._take_vault_pick("vessel")
+	_check(p.item_count("vessel") == 1 and V.carried(p)["amount"] == 0.0, "...taken onto the belt, empty")
+	_check(main.wings.vault_choices(false)[2] != "vessel", "...never while you carry one")
+	p.items.erase("vessel")
+	p.vessel = {}
+	V.vault_force = 0.0
+	_check(main.wings.vault_choices(false)[2] != "vessel", "(and only by chance)")
+	V.vault_force = -1.0
+	# The store: a full vessel trades for crystals of your choice.
+	prof.vessels = [V.make("unmaking", V.CAPACITY), V.make("life", 10.0)]
+	prof.crystals = []
+	main.await_tower()
+	main.open_train()
+	menu.train_car = "store"
+	menu.train_store = "sell"
+	menu.inv_sel = "vessel:0"
+	menu.open("train")
+	await _frames(2)
+	var trade := func(choice: String) -> Array:
+		return _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.get_meta("vessel_trade", "") == choice)
+	var fire: Array = trade.call("fire")
+	_check(fire.size() == 1 and trade.call("mixed").size() == 1, "the store's Sell lists the vessel: a crystal of one kind you choose, or some of every kind")
+	if fire.size() == 1:
+		fire[0].pressed.emit()
+		await _frames(2)
+		_check(prof.vessels.size() == 2, "the first press only asks")
+		fire = trade.call("fire")
+		if fire.size() == 1:
+			fire[0].pressed.emit()
+			await _frames(2)
+	_check(prof.vessels.size() == 1 and prof.crystal_total("fire") == float(V.TRADE["one"]), "the second trades it for %d Fire" % int(V.TRADE["one"]))
+	menu.inv_sel = "vessel:0"
+	menu.open("train")
+	await _frames(2)
+	_check(trade.call("fire").is_empty(), "a vessel that isn't full can't be traded")
+	prof.vessels[0] = V.make("life", V.CAPACITY)
+	_check(V.trade(prof, 0, "mixed") != "" and prof.crystal_total("air") == float(V.TRADE["each"]) and prof.vessels.is_empty(), "...or %d of every kind" % int(V.TRADE["each"]))
+	# The bench: a Rune Artist works a full vessel into a piece.
+	prof.heirlooms["melee"] = G.make("spear", "fine", ["edges"], 3)
+	prof.vessels = [V.make("unmaking", V.CAPACITY)]
+	var strike3: float = G.effects(prof.heirlooms["melee"])["strike"]
+	menu.train_car = "workshop"
+	menu.train_bench = "vessel"
+	menu.inv_sel = "bench:heir:melee"
+	menu.open("train")
+	await _frames(2)
+	var deep := func() -> Array:
+		return _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.get_meta("bench_do", "") == "vtemper")
+	var dt: Array = deep.call()
+	_check(dt.size() == 1 and not dt[0].disabled, "the Vessel counter offers to temper a +3 piece past the limit")
+	if dt.size() == 1:
+		dt[0].pressed.emit()
+		await _frames(2)
+		dt = deep.call()
+		if dt.size() == 1:
+			dt[0].pressed.emit()
+			await _frames(2)
+	var spear: Dictionary = prof.heirlooms["melee"]
+	_check(int(spear["rank"]) == G.RANK_CAP and prof.vessels.is_empty() and is_equal_approx(G.effects(spear)["strike"], strike3 * (1.0 + G.RANK_TRAIT * 4) / (1.0 + G.RANK_TRAIT * 3)),
+		"...to +%d, using up the vessel (its trait a quarter more of its base)" % G.RANK_CAP)
+	_check(V.deep_rune(prof, "heir:melee", "sharpness") != "" and not spear.has("rune"), "a deep rune needs a full vessel")
+	prof.vessels = [V.make("life", V.CAPACITY)]
+	var strike4: float = G.effects(prof.heirlooms["melee"])["strike"]
+	_check(V.deep_rune(prof, "heir:melee", "sharpness") == "" and prof.heirlooms["melee"]["rune"] == "deep_sharpness" and prof.vessels.is_empty()
+		and is_equal_approx(G.effects(prof.heirlooms["melee"])["strike"], strike4 + 0.2), "...with one, a deep rune at the spell's full strength (+20% strikes)")
+	_check(B.inscribe(prof, "heir:melee", "deep_warding") != "", "the bench's own Inscribe can't cut a deep rune")
+	main.on_train = false
+	menu.close()
+	paused = false
+	await _frames(1)
+	# An offering: a plea with the vessel is likelier, and the Maker keeps it.
+	var mk = main.makers
+	prof.path = "life"
+	_check(not mk.answers().any(func(o): return o["id"] == "plea_vessel"), "no vessel, no offering card")
+	V.give(main, V.make("unmaking", V.CAPACITY))
+	var ids: Array = mk.answers().map(func(o): return o["id"])
+	_check("plea" in ids and "plea_vessel" in ids, "carrying a full vessel, a meeting offers it with a plea")
+	_check(mk.plea_odds("marks", true) > mk.plea_odds("marks", false), "...likelier to be granted (%.2f against %.2f)" % [mk.plea_odds("marks", true), mk.plea_odds("marks", false)])
+	mk.plea_force = 0
+	var res: Dictionary = mk.answer("marks", "plea_vessel")
+	_check(p.item_count("vessel") == 0 and prof.path == "life" and mk.TEXT["vessel_taken"] in res["lines"], "refused, it still keeps the vessel")
+	V.give(main, V.make("unmaking", V.CAPACITY))
+	mk.plea_force = 1
+	res = mk.answer("marks", "plea_vessel")
+	_check(p.item_count("vessel") == 0 and prof.path == "" and res["good"], "granted: the path is cleared and the vessel is gone")
+	mk.plea_force = -1
+	# The Developer's bribe takes a full vessel from the chest.
+	SB.grant(prof, "developer", 2)
+	prof.vessels = [V.make("life", 12.0), V.make("unmaking", V.CAPACITY)]
+	var offers: Array = SB.bribe_offers(prof, G)
+	_check(offers.any(func(o): return o["id"] == "vessel:1" and o["ok"]) and not offers.any(func(o): return o["id"] == "vessel:0"), "the bribe offers a full vessel from the chest (not a partly filled one)")
+	_check(SB.bribe_odds(prof, true) > SB.bribe_odds(prof), "...likelier taken than crystals")
+	SB.bribe_force = 1
+	res = SB.offer_bribe(prof, "vessel:1", G)
+	_check(res["ok"] and prof.vessels.size() == 1 and not V.is_full(prof.vessels[0]) and int(SB.bribe_state(prof).get("for", 0)) == 3, "...accepted, it counts for the next depth and the vessel is gone")
+	SB.bribe_force = -1
+	SB.clear(prof)
+	# Saved with the chest.
+	var path := "user://smoke_vessel_test.cfg"
+	prof.vessels = [V.make("life", V.CAPACITY), {"kind": "unmaking", "amount": 4.5, "packed": true}, {"kind": "nonsense", "amount": 9}]
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.vessels.size() == 3 and V.is_full(again.vessels[0]) and again.vessels[0]["kind"] == "life" and is_equal_approx(again.vessels[1]["amount"], 4.5)
+		and again.vessels[1].get("packed", false) and again.vessels[2]["kind"] == "" and again.vessels[2]["amount"] == 0.0, "vessels are saved and load again (a broken one reads as empty)")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.vessels.is_empty(), "an old save loads with no vessels")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	prof.path = ""

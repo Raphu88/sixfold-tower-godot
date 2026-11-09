@@ -134,6 +134,7 @@ var quarry  # Hunter's Quarry: the last foe you struck
 var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
 var items := Items.START.duplicate()  # item id -> count
+var vessel := {}  # the vessel on the belt (vessel.gd): {kind, amount}, while items has "vessel"
 var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
 var heal_left := 0.0
@@ -2034,6 +2035,8 @@ func _draw() -> void:
 	if main != null:  # (a doll has no marks)
 		Makers.draw_core_world(self, main.profile, side, t)  # (a core mark, beneath the marks)
 		_draw_marks(side, t)
+		if item_count("vessel") > 0:
+			load("res://scripts/vessel.gd").draw_on_climber(self, t)  # (at the hip, glowing with what it holds)
 	if overlay != null:
 		overlay.queue_redraw()
 
@@ -2655,8 +2658,8 @@ func add_item(id: String) -> bool:
 		return false
 	items[id] = item_count(id) + 1
 	if item_count(item_sel) <= 0:
-		# (a recall scroll never takes the quick item from another item)
-		item_sel = selected_item() if id == "scroll" else id
+		# (a recall scroll or a vessel never takes the quick item from another item)
+		item_sel = selected_item() if id == "scroll" or id == "vessel" else id
 	return true
 
 
