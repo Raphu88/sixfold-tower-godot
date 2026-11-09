@@ -5,7 +5,8 @@ extends RefCounted
 ##     techniques along the top (each on a mark button), the chosen one's
 ##     card below: its part and shape on top (tap to change), up to three
 ##     essence gems (tap one to cycle it; the first leads), what it will do
-##     in plain words, its cost and strain, and an optional name; then the
+##     in plain words, how it fills, its strain and boost, and an optional
+##     name (and whether casts boost from carried essence); then the
 ##     ready-made recipes and where each kind of essence pools (routing);
 ##   the climber screen's part cards and stage (menu.gd calls climber());
 ##   the Developer's way back (secret_page.gd calls core_section());
@@ -26,7 +27,10 @@ const TEXT := {
 	"level_next": "  (%d at level %d)",
 	"gem_empty": "+ essence",
 	"gem_locked": "level %d",
-	"cost": "Costs %s, from what you carry unbanked  ·  strain +%d of 100",
+	"fill": "%s: full at %d, then it casts for nothing  ·  strain +%d of 100",
+	"boost": "Boost: spends %s you carry unbanked for +%d%% power",
+	"boost_on": "Boost casts with carried essence: on",
+	"boost_off": "Boost casts with carried essence: off",
 	"name": "Name (optional)",
 	"recipes": "Ready-made",
 	"clear": "Clear this slot",
@@ -142,7 +146,19 @@ static func build(menu) -> void:
 		desc.custom_minimum_size.x = 280.0
 		desc.add_theme_font_size_override("font_size", 14)
 		col.add_child(desc)
-		col.add_child(menu._small_label(TEXT["cost"] % [Tech.cost_text(t, prof), int(Tech.strain(t))], menu.GOLD))
+		var fills: String = String(main.BondScript.Bonds.PART_FILLS[part])
+		fills = fills.substr(0, 1).to_upper() + fills.substr(1)  # ("Fills when you parry")
+		var fl: Label = menu._small_label(TEXT["fill"] % [fills, int(round(Tech.charge(t, prof))), int(Tech.strain(t))], menu.GOLD)
+		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fl.custom_minimum_size.x = 280.0
+		col.add_child(fl)
+		var on: bool = bool(st.get("boost", true))
+		var bl: Label = menu._small_label(TEXT["boost"] % [Tech.cost_text(t, prof), int(Tech.BOOST * 100.0)], menu.GOLD if on else menu.DIM)
+		bl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		bl.custom_minimum_size.x = 280.0
+		col.add_child(bl)
+		var tb: Button = menu._button(TEXT["boost_on"] if on else TEXT["boost_off"], _toggle_boost.bind(menu), col)
+		tb.set_meta("tech_boost", true)
 		var name := LineEdit.new()
 		name.placeholder_text = "%s: %s" % [TEXT["name"], Tech.auto_name(t)]
 		name.text = String(t.get("name", "")) if String(t.get("name", "")) != Tech.auto_name(t) else ""
@@ -174,6 +190,13 @@ static func build(menu) -> void:
 	if menu.toast != "":
 		menu._text(menu.toast, menu.GOLD, true)
 	menu._footer()
+
+
+## Casts boost from carried essence (on), or never spend it (off).
+static func _toggle_boost(menu) -> void:
+	var st := _st(menu)
+	st["boost"] = not bool(st.get("boost", true))
+	_save_and_redraw(menu)
 
 
 static func _sel_box() -> StyleBoxFlat:
@@ -395,14 +418,15 @@ static func dev_section(menu) -> void:
 	var prof = main.profile
 	var st := Unbound.state(prof)
 	menu._section(TEXT["dev"])
-	var head := "%s  ·  %s  ·  %d barriers broken%s" % ["Unbound" if st["on"] else "marked", Unbound.TEXT["stage"] % [Unbound.stage_name(prof), Unbound.stage(prof)],
-		int(st["broken"]), "" if st["found"] else "  ·  route not found"]
+	var broke: bool = main.unbound != null and main.unbound.broke_rules
+	var head := "%s  ·  %s  ·  %s" % ["Unbound" if st["on"] else "marked", Unbound.TEXT["stage"] % [Unbound.stage_name(prof), Unbound.stage(prof)],
+		("first climb: a barrier broken (refused at the Regard)" if broke else "first climb: no barrier broken") if main.first_climb else "not a first climb"]
 	menu.box.add_child(menu._label(head, 0.0, menu.GOLD if st["on"] else menu.DIM))
 	var r1: HBoxContainer = menu._row()
 	menu._button("Become Unbound" if not st["on"] else "Back to marks", _dev_toggle.bind(menu), r1)
 	menu._button("Show the refusal", _dev_refusal.bind(menu), r1)
-	menu._button("-1 barrier", _dev_barriers.bind(menu, -1), r1)
-	menu._button("+1 barrier", _dev_barriers.bind(menu, 1), r1)
+	var bb: Button = menu._button("Unbreak the barrier" if broke else "Break a barrier", _dev_barriers.bind(menu), r1)
+	bb.disabled = not main.first_climb
 	var g: GridContainer = menu._grid(6, 4)
 	for part in Unbound.PARTS:
 		var b: Button = menu._button("%s +60" % Unbound.PART_NAMES[part], _dev_density.bind(menu, part), g)
@@ -435,12 +459,15 @@ static func _dev_refusal(menu) -> void:
 	main.unbound._offer_refusal(part, id, "dev", [])
 
 
-static func _dev_barriers(menu, by: int) -> void:
-	var st := Unbound.state(menu.main.profile)
-	st["broken"] = maxi(0, int(st["broken"]) + by)
-	st["found"] = true
+## On the first climb: as if a barrier had been broken (or not): the Regard refuses you (or offers).
+static func _dev_barriers(menu) -> void:
+	var run = menu.main.unbound
+	if run == null or not menu.main.first_climb:
+		return
+	run.broke_rules = not run.broke_rules
+	Unbound.state(menu.main.profile)["found"] = true
 	menu.main.profile.save()
-	menu._say("%d barriers broken" % int(st["broken"]))
+	menu._say("A barrier broken: the Regard will refuse you" if run.broke_rules else "No barrier broken: the Regard will offer the mark")
 
 
 static func _dev_density(menu, part: String) -> void:

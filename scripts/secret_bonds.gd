@@ -118,8 +118,8 @@ const TOOLS := {
 		"tip": "tool_reroll_designer"},
 	"des_build": {"bond": "designer", "depth": 5, "name": "Build", "where": "ring", "cards": true,
 		"cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 6.0},
-		"short": "Your own trap, wall or gate; a passage",
-		"desc": "Places a trap, wall or gate of your own in front of you, which monsters must respect (a few a floor; each costs its own), and once a climb opens a passage straight to the stair: a shimmering pair of gates between your spot and the stair's landing.",
+		"short": "Your own trap, wall or gate; a rift",
+		"desc": "Places a trap, wall or gate of your own in front of you, which monsters must respect (a few a floor; each costs its own), and once a climb tears a rift through the floor from where you stand to the stair: through rock, walls, doors, trap rooms and vaults. Anything locked it passes is opened, and what it held is taken, not given.",
 		"tip": "tool_build_designer"},
 	"man_edit": {"bond": "manipulator", "depth": 3, "name": "Edit", "where": "ring", "cards": true, "reach": 360.0,
 		"cost": {"flow": 6.0, "flow_kind": "life", "essence": 3.0},
@@ -254,21 +254,23 @@ const LEANS := {
 const STAIR_NEAR := 240.0
 
 ## The Designer's Build (depth 5): the palette, each with its own cost. At
-## most BUILD_MAX a floor (the passage aside: once a climb). Built
+## most BUILD_MAX a floor (the rift aside: once a climb). Built
 ## BUILD_AHEAD tiles in front of you. A trap is the tower's own plate, set off
 ## only by monsters; a wall lasts the floor; a gate lets you through but no
-## monster (they go around); the passage is a pair of gates, your spot and
-## the stair's landing (it changes no wall, so it can't break a floor).
+## monster (they go around); the rift (rift.gd) is a corridor two tiles wide
+## torn from your spot to the stair, through anything in the way; anything
+## locked it passes is opened and emptied. The dearest tool of all.
 const BUILD := {
 	"trap": {"name": "A trap", "desc": "The tower's own plate, ahead of you: only monsters set it off.", "cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 6.0}},
 	"wall": {"name": "A wall", "desc": "A stretch of wall across your aim, for the floor. It never shuts the stair away.", "cost": {"flow": 10.0, "flow_kind": "unmaking", "essence": 6.0}},
 	"gate": {"name": "A gate", "desc": "A gate across the way ahead: you pass, monsters don't (they go around).", "cost": {"flow": 10.0, "flow_kind": "unmaking", "essence": 8.0}},
-	"passage": {"name": "A passage", "desc": "Once a climb: two shimmering gates, here and at the stair's landing. Step in to cross.", "cost": {"flow": 16.0, "flow_kind": "unmaking", "essence": 10.0}},
+	"rift": {"name": "A rift", "desc": "Once a climb: tear a corridor through the floor from here to the stair. Anything locked it passes opens, and what it held is lost.", "cost": {"flow": 28.0, "flow_kind": "unmaking", "essence": 30.0}},
 }
-const BUILD_ORDER := ["trap", "wall", "gate", "passage"]
+const BUILD_ORDER := ["trap", "wall", "gate", "rift"]
 const BUILD_MAX := 3
 const BUILD_AHEAD := 2
-const PORTAL_R := 20.0
+## The rift's look: a faint light every `light_every` steps along it (reach, strength, glow).
+const RIFT := {"light_every": 4, "light_reach": 80.0, "light": 0.3, "glow": 0.12}
 
 ## The Manipulator's Edit (depth 3): each a change to one monster; a monster
 ## takes at most MEDIT_MAX ("its budget"). Turning it into a weaker kind of
@@ -313,12 +315,13 @@ const SECOND_FX := {
 const SECOND_CHOICES := 3
 
 ## The Developer's bribe (one of its extra needs), offered on the train: a
-## Regarded piece of gear (from your chest or pack) or `crystals` crystal
-## essence (a filled vessel too, once the game has one). The Maker of Marks
+## Regarded piece of gear (from your chest or pack), `crystals` crystal
+## essence, or a full vessel from your chest (vessel.gd). The Maker of Marks
 ## may refuse (then nothing is taken): it agrees with `agree`, less `each`
-## for every bribe offered before (it remembers), never below `least`. An
-## accepted bribe counts for the next depth only.
-const BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15}
+## for every bribe offered before (it remembers), never below `least`; a
+## full vessel adds `vessel` to that (at most `vessel_most`). An accepted
+## bribe counts for the next depth only.
+const BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15, "vessel": 0.25, "vessel_most": 0.9}
 ## Tests: 1 it always agrees, 0 always refuses, -1 by chance.
 static var bribe_force := -1
 
@@ -498,8 +501,14 @@ const TEXT := {
 	"build_here": "No open floor ahead",
 	"built": "Built: %s",
 	"build_trap_tag": "yours",
-	"portal_tag": "passage",
-	"no_portal": "Not on this floor",
+	"rift_title": "THE RIFT",
+	"rift_done": "The floor tears open to the stair.",
+	"rift_vault": "The rift tears through the vault. What it held is gone.",
+	"rift_door": "The rift tears through a locked door. What lay behind it is gone.",
+	"rift_secret": "The rift tears through a hidden room. What it held is gone.",
+	"rift_traps": "Traps destroyed: %d.",
+	"rift_nothing": "Nothing to tear: the way to the stair is open.",
+	"not_here": "Not on this floor",
 	"medit_title": "EDIT: %s",
 	"medit_max": "Its budget is spent",
 	"turn": "Turn into: %s",
@@ -520,7 +529,8 @@ const TEXT := {
 	"bribe_line": "An offering may stand in for the next depth's extra need. It may refuse (nothing is taken), and it remembers every bribe (%d offered).",
 	"bribe_crystals": "Offer %d crystal essence",
 	"bribe_gear": "Offer %s",
-	"bribe_vessel": "A filled vessel (not in the game yet)",
+	"bribe_vessel": "Offer a full vessel (%s)",
+	"bribe_vessel_none": "A full vessel (none in your chest)",
 	"bribe_yes": "It accepts the offering: it counts for depth %d.",
 	"bribe_no": "It refuses.",
 	"bribe_done": "Accepted for depth %d.",
@@ -1067,7 +1077,8 @@ static func bribe_state(prof) -> Dictionary:
 
 
 ## What the climber could offer: [{id, text, ok}] ("crystals", "gear:<i>"
-## for a Regarded piece in the chest, "pack:<i>" in the pack, "vessel").
+## for a Regarded piece in the chest, "pack:<i>" in the pack, "vessel:<i>"
+## a full vessel in the chest; "vessel" greyed when there's none).
 static func bribe_offers(prof, gear_script) -> Array:
 	var out: Array = []
 	var need := float(BRIBE["crystals"])
@@ -1078,14 +1089,20 @@ static func bribe_offers(prof, gear_script) -> Array:
 			var g = list[i]
 			if gear_script.is_gear(g) and gear_script.rarity(g) == "regarded":
 				out.append({"id": "%s:%d" % [where, i], "text": TEXT["bribe_gear"] % gear_script.display(g), "ok": true})
-	out.append({"id": "vessel", "text": TEXT["bribe_vessel"], "ok": false})
+	var V = load("res://scripts/vessel.gd")
+	var full: Array = V.full_list(prof)
+	for i in full:
+		out.append({"id": "vessel:%d" % i, "text": TEXT["bribe_vessel"] % V.state_text(prof.vessels[i]), "ok": true})
+	if full.is_empty():
+		out.append({"id": "vessel", "text": TEXT["bribe_vessel_none"], "ok": false})
 	return out
 
 
-## The chance the Maker of Marks takes a bribe now.
-static func bribe_odds(prof) -> float:
+## The chance the Maker of Marks takes a bribe now (`vessel`: a full vessel offered).
+static func bribe_odds(prof, vessel := false) -> float:
 	var st := bribe_state(prof)
-	return maxf(float(BRIBE["least"]), float(BRIBE["agree"]) - float(BRIBE["each"]) * int(st.get("offered", 0)))
+	var odds := maxf(float(BRIBE["least"]), float(BRIBE["agree"]) - float(BRIBE["each"]) * int(st.get("offered", 0)))
+	return minf(odds + float(BRIBE["vessel"]), maxf(odds, float(BRIBE["vessel_most"]))) if vessel else odds
 
 
 ## Offers a bribe for the next depth: {ok (accepted), said}. Refused: nothing
@@ -1105,7 +1122,7 @@ static func offer_bribe(prof, offer_id: String, gear_script, roll := -1.0) -> Di
 			offer = o
 	if offer.is_empty() or not offer["ok"]:
 		return {"ok": false, "said": "Nothing to offer"}
-	var agree := bribe_odds(prof)
+	var agree := bribe_odds(prof, offer_id.begins_with("vessel:"))
 	if roll < 0.0:
 		roll = randf()
 	var yes := roll < agree
@@ -1115,6 +1132,8 @@ static func offer_bribe(prof, offer_id: String, gear_script, roll := -1.0) -> Di
 	if yes:
 		if offer_id == "crystals":
 			spend_crystals(prof, float(BRIBE["crystals"]))
+		elif offer_id.begins_with("vessel:"):
+			load("res://scripts/vessel.gd").use_full(prof, int(offer_id.get_slice(":", 1)))
 		else:
 			var where := offer_id.get_slice(":", 0)
 			var list: Array = prof.get(where)

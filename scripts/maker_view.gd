@@ -280,7 +280,7 @@ func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:
 	for i in options.size():
 		var o: Dictionary = options[i]
 		var r := card_rect(i, vs)
-		var plea: bool = o["id"] == "plea"
+		var plea: bool = String(o["id"]).begins_with("plea")  # (plea, or plea_vessel: the vessel offered)
 		var cc := Color(0.6, 0.9, 0.62) if plea else col
 		var appear := clampf((t - i * 0.08) / 0.25, 0.0, 1.0)
 		r.position.y += (1.0 - appear) * 16.0
@@ -291,7 +291,10 @@ func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:
 		var mid := r.position.y + r.size.y * (0.4 if not plea else 0.3)
 		draw_multiline_string(font, Vector2(r.position.x + 6, mid), o["text"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 15 if r.size.x > 150 else 13, 2, cc.lightened(0.35))
 		if plea:
-			draw_multiline_string(font, Vector2(r.position.x + 6, mid + 18.0), Makers.PLEA["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 10, 3, UI.DIM)
+			draw_multiline_string(font, Vector2(r.position.x + 6, mid + 18.0), String(o.get("desc", Makers.PLEA["desc"])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 10, 3, UI.DIM)
+			if o["id"] == "plea_vessel" and main.player != null:
+				var V = load("res://scripts/vessel.gd")
+				V.draw_icon(self, Vector2(r.end.x - 15.0, r.position.y + 20.0), 10.0, V.carried(main.player), appear)
 		elif o.get("placeholder", false):
 			draw_string(font, Vector2(r.position.x, mid + 20.0), Makers.TEXT["placeholder"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 10, Color(UI.FAINT, 0.9))
 		draw_string(font, Vector2(r.position.x, r.end.y - 10.0), _hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, UI.GOLD)

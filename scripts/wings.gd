@@ -652,6 +652,7 @@ func vault_choices(lesser: bool) -> Array:
 			out.append("scroll")
 		_:
 			out.append(Items.random_item(marked))
+	load("res://scripts/vessel.gd").vault_card(main, out)  # (very rarely, a vessel instead)
 	return out
 
 

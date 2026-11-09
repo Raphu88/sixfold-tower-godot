@@ -5909,7 +5909,7 @@ func _belt_tests() -> void:
 
 	print("the new consumables")
 	p.items = {}
-	_check(Items.ORDER.size() == 12 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
+	_check(Items.ORDER.size() == 13 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
 	# Fire Flask: thrown at your aim, it bursts and leaves burning floor.
 	main.floor_num = 3
 	p.global_position = Vector2(500, 400)
@@ -7189,6 +7189,7 @@ func _run() -> void:
 	await _train_tests()
 	await _lost_tests()
 	await _bench_tests()
+	await _vessel_tests()
 	await _controls_tests()
 	await _pad_layout_tests()
 	await _performance_tests()
@@ -8754,7 +8755,7 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
-	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll")
+	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel")
 	var brew: Array = bench_buttons.call("brew", "draught")
 	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Draught")
 	if brew.size() == 1:
@@ -10174,13 +10175,13 @@ func _unbound_tests() -> void:
 	main.camp_choosing = false
 	main.camp = {}
 
-	print("the Unbound: bare fists against a barrier")
+	print("the Unbound: a broken barrier on the first climb, and the Regard refuses")
 	await _fresh_main()
 	paused = false
-	main.grant_test_bonds()
 	p = main.player
 	prof = main.profile
 	var run = main.unbound
+	_check(main.first_climb, "(a first climb)")
 	await _puzzle_floor("plates", 3)
 	_check(main.ward and run.barriers().any(func(b): return b["kind"] == "stair"), "a warded stair is a barrier")
 	var stair: Dictionary = run.barriers().filter(func(b): return b["kind"] == "stair")[0]
@@ -10195,7 +10196,7 @@ func _unbound_tests() -> void:
 	Input.action_press("attack")
 	await _until(func(): return U.state(prof)["found"], 2.0)
 	Input.action_release("attack")
-	_check(U.state(prof)["found"] and int(run.hits.get("stair", -1)) == 0 and main.ward, "the first barrier struck (a held strike) only shudders: the route is found")
+	_check(U.state(prof)["found"] and int(run.hits.get("stair", -1)) == 0 and main.ward and not run.broke_rules, "the first barrier struck (a held strike) only shudders: the warning")
 	await _frames(2)
 	var hp0: float = p.hp
 	_check(run.punch(stair) == "crack", "then each blow cracks it")
@@ -10209,7 +10210,7 @@ func _unbound_tests() -> void:
 	_check(res == "broke" and not main.ward and main.stair_open and main.puzzle.solved, "enough blows break it: the stair opens")
 	_check(prof.count("puzzles") == puzzles0, "a punched stair isn't a solved puzzle")
 	_check(float(main.run_essence.get("air", 0.0)) <= 40.0 - run.FISTS["drain"] * run.BLOWS["stair"] + 0.01, "...and gives no puzzle bonus (%.1f essence)" % float(main.run_essence.get("air", 0.0)))
-	_check(int(U.state(prof)["broken"]) == 1, "the barrier counts toward the hidden route")
+	_check(run.broke_rules and not U.state(prof).has("broken"), "one barrier broken on the first climb breaks the tower's rules (no count kept)")
 	# A lock-in room's shut doorway.
 	var tile: Vector2i = main._tile_of(p.global_position + Vector2(0, 60))
 	var lr := {"state": "armed", "gates": [[tile]], "bodies": [], "mobs": [], "t": 0.0}
@@ -10223,8 +10224,35 @@ func _unbound_tests() -> void:
 		res = run.punch(gate[0])
 	_check(res == "broke" and lr["state"] == "done", "...and punching through opens it")
 	main.door_view.lock_rooms.erase(777)
+	held.queue_free()
+	# The Regard: refused, no choice.
+	for i in 5:
+		main.add_soak("hand", 3.0)
+	main.gather_essence("blade", 20.0, p.global_position)
+	main.floor_num = 3
+	main._begin_regard(false)
+	_check(main.regard.get("refused", false) and U.is_on(prof) and prof.bonds.is_empty() and prof.regarded, "at the Regard the beast refuses to mark you: no mark, and you are Unbound")
+	_check(p.bonds.size() == 6 and p.bonds.values().all(func(b): return "tech" in b), "...carrying six techniques")
+	main.regard["t"] = 9.0
+	main.end_regard()
+	_check(not (main.camp_choosing and main.camp.get("stage", "") == "unbind"), "...and no choice is offered")
+	main.camp_choosing = false
+	main.camp = {}
+	main.regard = {}
+
+	print("the Unbound: a fall on the first climb with a barrier broken is refused too")
+	await _fresh_main()
+	main.unbound.broke_rules = true
+	main._grant_regard(true)
+	_check(U.is_on(main.profile) and main.profile.bonds.is_empty() and main.regard_mark.get("refused", false), "fallen, still refused: Unbound, no faint mark")
 
 	print("the Unbound: a punched vault is empty")
+	await _fresh_main()
+	paused = false
+	p = main.player
+	prof = main.profile
+	run = main.unbound
+	p.iframes = 9999.0
 	if await _wing_floor():
 		var W = main.wings
 		var w: Dictionary = W.wings[0]
@@ -10232,10 +10260,11 @@ func _unbound_tests() -> void:
 		var vb: Array = run.barriers().filter(func(b): return b["kind"] == "vault")
 		_check(not vb.is_empty(), "a vault's seal is a barrier")
 		main.run_essence = {"fire": 30.0}
+		U.state(prof)["found"] = true
 		res = ""
 		for i in run.BLOWS["vault"]:
 			res = run.punch(vb[0])
-		_check(res == "broke" and w["vault"] == "taken" and w["state"] in ["done", "idle"], "punching it skips the room's question")
+		_check(res == "broke" and w["vault"] == "taken" and w["state"] in ["done", "idle"] and run.broke_rules, "punching it skips the room's question (and breaks the rules on a first climb)")
 		p.global_position = w["pedestal"]
 		await _frames(3)
 		_check(not main.camp_choosing, "...and the vault is empty: nothing to choose")
@@ -10245,26 +10274,29 @@ func _unbound_tests() -> void:
 	else:
 		_check(false, "found a floor with a sealed wing")
 
-	print("the Unbound: the beasts notice")
+	print("the Unbound: no barrier route after the first climb")
 	await _fresh_main()
 	main.grant_test_bonds()
 	prof = main.profile
+	p = main.player
 	run = main.unbound
 	U.state(prof)["found"] = true
-	U.state(prof)["broken"] = U.OFFER_AFTER - 1
+	await _puzzle_floor("plates", 3)
+	var st2: Array = run.barriers().filter(func(b): return b["kind"] == "stair")
+	res = ""
+	for i in 8:
+		res = run.punch(st2[0]) if not st2.is_empty() else ""
+	_check(res == "holds" and main.ward and not run.broke_rules, "a marked climber's fists only make a barrier shudder: it holds")
 	prof.soak["heart"] = prof.NEW_MARK_SOAK
-	_check(run.summit_choice() == "", "too few barriers broken: a summit's mark comes as usual")
-	U.state(prof)["broken"] = U.OFFER_AFTER
 	main.run_essence = {"iron": 10.0}
 	main.floor_num = int(main.tower_data().get("summit", 12))
 	main._arrive()
 	await _frames(2)
-	_check(main.camp_choosing and main.camp.get("stage", "") == "unbind" and main.camp.get("part", "") == "heart", "after %d barriers, a new mark at a summit offers the refusal" % U.OFFER_AFTER)
-	_check(main.victory.is_empty() and not prof.bonds.has("heart"), "...before the mark is taken")
-	_ub_take(1)
-	_check(U.is_on(prof) and prof.bonds.is_empty() and not main.victory.is_empty(), "refusing gives up the tower bonds: Unbound, then the victory")
-	_check(not main.victory.is_empty() and main.victory["lines"][0] == U.TEXT["became_marked"], "...and the victory says so")
+	_check(main.camp.get("stage", "") != "unbind" and not U.is_on(prof), "a summit never offers the refusal: a marked climber can't become Unbound")
+	main.camp_choosing = false
+	main.camp = {}
 	main.victory = {}
+	U.become(prof)  # (the parts and pages below are an Unbound's)
 
 	print("the Unbound: raw essence in the parts")
 	prof.part_density = {}
@@ -10292,7 +10324,8 @@ func _unbound_tests() -> void:
 	var desc: String = T.describe(t)
 	_check(desc.begins_with("A shout in a cone") and desc.contains("burns") and desc.contains("a little reaches farther"), "a part and essences: the part gives the shape, the first leads, the others flavour (%s)" % desc)
 	var cost: Dictionary = T.cost(t)
-	_check(is_equal_approx(cost["fire"], T.COST[1] * 2.0 / 3.0) and is_equal_approx(cost["air"], T.COST[1] / 3.0), "its cost is paid in those essences, the lead counting double")
+	_check(is_equal_approx(cost["fire"], T.COST[1] * 2.0 / 3.0) and is_equal_approx(cost["air"], T.COST[1] / 3.0), "a boost is paid in those essences, the lead counting double")
+	_check(T.charge(t) > T.charge({"part": "throat", "shape": "shout", "kinds": ["fire"]}), "more kinds take more filling")
 	_check(T.strain(t) > T.strain({"part": "throat", "shape": "shout", "kinds": ["fire"]}), "every extra kind adds strain")
 	var one := {"name": "", "part": "hand", "shape": "bolt", "kinds": ["fire"]}
 	_check(TP.cycle_gem(prof, one, 1)["kinds"].size() == 1, "at level 1 a part combines one essence")
@@ -10307,7 +10340,7 @@ func _unbound_tests() -> void:
 	var sh: Dictionary = TP.cycle_shape(prof, one)
 	_check(sh["part"] == "legs" and sh["shape"] == "dash" and sh["kinds"].size() == 1, "tapping the part cycles its shape (and part)")
 
-	print("the Unbound: casting and strain")
+	print("the Unbound: casting, filling, boosting and strain")
 	await _ub_fresh()
 	p = main.player
 	prof = main.profile
@@ -10321,18 +10354,51 @@ func _unbound_tests() -> void:
 	slime.max_hp = 999.0
 	U.state(prof)["techs"][0] = T.recipe("rending_strike")
 	main._give_bonds()
+	var hb = p.bonds["hand"]
+	_check(hb.essence == 0.0 and hb.essence < hb.cost(), "a technique starts empty, like a mark")
+	var fills := 0
+	while hb.essence < hb.capacity() and fills < 40:
+		p._part_action("hand", 0.5, 6.0)  # (a weapon strike landing)
+		fills += 1
+	_check(hb.essence >= hb.cost() and fills > 1, "the hand's strikes fill a hand technique (%d strikes to %d)" % [fills, int(hb.capacity())])
+	p._part_action("legs", 4.0, 10.0)
+	_check(p.bonds["legs"].essence > 0.0 and p.bonds["heart"].essence == 0.0, "each part's actions fill its own techniques")
 	p.aim = Vector2.RIGHT
-	main.run_essence = {"blade": 10.0}
+	main.run_essence = {}
+	main.run_flow = 0.0
 	p.attack_cd = 0.0
 	p._try_cast("hand")
 	await _until(func(): return run.strain_of("hand") > 0.0, 2.0)
 	var cold: float = 999.0 - slime.hp
-	_check(run.strain_of("hand") == T.STRAIN[0] and cold > 0.0, "casting strains its part (%d) and hits (%.0f)" % [run.strain_of("hand"), cold])
-	_check(float(main.run_essence.get("blade", 0.0)) < 10.0, "...paid from unbanked essence")
-	_check(p.bonds["hand"].essence == 100.0 - T.STRAIN[0], "its gauge shows the part's headroom")
+	_check(is_equal_approx(run.strain_of("hand"), T.STRAIN[0]) and cold > 0.0 and run.boosts == 0, "full, it casts with no essence carried: it strains its part (%d) and hits (%.0f)" % [run.strain_of("hand"), cold])
+	_check(p.bonds["hand"].essence < 0.01, "...and the cast takes its fill")
+	# Carried essence boosts a cast, and is spent.
+	run.dots.clear()
+	slime.hp = 999.0
+	run.strain["hand"] = 0.0
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
+	main.run_essence = {"blade": 10.0}
+	run.cast(p.bonds["hand"], p)
+	var boosted: float = 999.0 - slime.hp
+	_check(run.boosts == 1 and is_equal_approx(float(main.run_essence.get("blade", 0.0)), 10.0 - T.COST[0]) and boosted > cold * 1.3, "carrying its essence, a cast spends it and hits harder (%.0f vs %.0f)" % [boosted, cold])
+	_check(is_equal_approx(run.strain_of("hand"), T.STRAIN[0]), "...a boost adds no strain")
+	U.state(prof)["boost"] = false
+	run.dots.clear()
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
+	run.cast(p.bonds["hand"], p)
+	_check(run.boosts == 1 and is_equal_approx(float(main.run_essence.get("blade", 0.0)), 10.0 - T.COST[0]), "switched off, carried essence is kept")
+	U.state(prof)["boost"] = true
+	# Cast before it's full: more strain.
+	run.dots.clear()
+	run.strain["hand"] = 0.0
+	p.bonds["hand"].essence = 0.0
+	main.run_essence = {}
+	run.cast(p.bonds["hand"], p)
+	_check(is_equal_approx(run.strain_of("hand"), T.STRAIN[0] + T.EMPTY_STRAIN), "cast empty, the missing fill adds strain (%.0f)" % run.strain_of("hand"))
 	run.dots.clear()
 	slime.hp = 999.0
 	run.strain["hand"] = 75.0
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
 	run.cast(p.bonds["hand"], p)
 	var hot: float = 999.0 - slime.hp
 	_check(hot > cold * 1.1, "above %d it hits harder (%.0f vs %.0f)" % [run.HOT, hot, cold])
@@ -10341,6 +10407,7 @@ func _unbound_tests() -> void:
 	run.waver_chance = 1.0
 	run.strain["hand"] = 75.0
 	p.aim = Vector2.RIGHT
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
 	run.cast(p.bonds["hand"], p)
 	_check(999.0 - slime.hp < hot * 0.75, "...but it may waver")
 	run.waver_chance = 0.0
@@ -10350,18 +10417,17 @@ func _unbound_tests() -> void:
 	run.idle["hand"] = run.STRAIN_REST
 	await _until(func(): return run.strain_of("hand") < 47.0, 2.0)
 	_check(run.strain_of("hand") < 47.0, "strain fades while you don't cast")
-	run.strain["hand"] = 60.0
-	run._sync()
-	p.bonds["hand"].essence = p.bonds["hand"].capacity()  # (as a Vial of Essence fills marks)
-	run._sync()
-	_check(run.strain_of("hand") == 0.0, "what fills a mark eases a technique's strain instead")
+	p.bonds["hand"].essence = 3.0
+	main._give_bonds()
+	_check(is_equal_approx(p.bonds["hand"].essence, 3.0), "a technique keeps its fill when the climber's bonds are rebuilt (a stair)")
 	# 100: it erupts.
 	p.hp = p.max_health()
 	var hp1: float = p.hp
 	run.strain["hand"] = 95.0
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
 	run.cast(p.bonds["hand"], p)
 	_check(run.is_dark("hand") and p.hp < hp1 - p.max_health() * 0.4 and not p.dead, "at 100 it erupts: badly hurt, the part dark")
-	_check(p.bonds["hand"].blocked() and p.bonds["hand"].essence == 0.0, "...nothing from it can be cast")
+	_check(p.bonds["hand"].blocked(), "...nothing from it can be cast")
 	p.attack_cd = 0.0
 	_check(p._try_cast("hand") and p.cast_t <= 0.0, "...pressing its button does nothing")
 	_check(run.glow.has("hand"), "...and raw essence shows on the part")
@@ -10435,7 +10501,8 @@ func _unbound_tests() -> void:
 
 	print("the Unbound: saved")
 	var path := "user://smoke_unbound_test.cfg"
-	U.state(prof)["broken"] = 2
+	U.state(prof)["boost"] = false
+	prof.unbound["broken"] = 2  # (an old save's barrier count)
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -10443,7 +10510,9 @@ func _unbound_tests() -> void:
 	var again = load("res://scripts/profile.gd").new()
 	again.save_path = path
 	again.load_save()
-	_check(U.is_on(again) and int(U.state(again)["broken"]) == 2 and T.valid(U.state(again)["techs"][1]), "the Unbound and their techniques are saved")
+	_check(U.is_on(again) and not U.state(again)["boost"] and T.valid(U.state(again)["techs"][1]), "the Unbound, their techniques and the boost switch are saved")
+	_check(not U.state(again).has("broken"), "an old save's barrier count is dropped")
+	U.state(prof)["boost"] = true
 	var old := ConfigFile.new()
 	old.set_value("profile", "regarded", true)
 	old.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": 0.0, "faint": false, "debt": 0.0}})
@@ -10451,9 +10520,55 @@ func _unbound_tests() -> void:
 	again = load("res://scripts/profile.gd").new()
 	again.save_path = path
 	again.load_save()
-	_check(not U.is_on(again) and again.bonds.has("hand") and int(U.state(again)["broken"]) == 0, "an old save loads as a marked climber")
+	_check(not U.is_on(again) and again.bonds.has("hand") and not U.state(again).has("broken") and U.state(again)["boost"], "an old save loads as a marked climber")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	prof.save_path = prof.SAVE_PATH
+
+
+## An open spot to tear a rift from whose plan `pred` likes (outside `avoid`):
+## {pos, plan}, or {} if none of a sample of the floor's open tiles will do.
+func _rift_start(R, pred: Callable, avoid: Rect2) -> Dictionary:
+	var gs: Vector2i = main.grid_size
+	var open: Array = []
+	for y in range(2, gs.y - 2, 2):
+		for x in range(2, gs.x - 2, 2):
+			if not main._is_solid_tile(x, y):
+				open.append(Vector2i(x, y))
+	open.shuffle()
+	for t in open.slice(0, 160):
+		var pos: Vector2 = R._center(t)
+		if avoid.size != Vector2.ZERO and avoid.has_point(pos):
+			continue
+		var pl: Dictionary = R.plan_from(pos)
+		if R.worth(pl) and pred.call(pl):
+			return {"pos": pos, "plan": pl}
+	return {}
+
+
+## The floor a rift tore is whole: solid nowhere on it (and off the path grid),
+## no wall collision over it, and rock it bared has collision of its own.
+func _rift_ok(R) -> bool:
+	var C: float = main.Floors.CELL
+	var rects: Array = []
+	for b in main.layout_bodies:
+		if is_instance_valid(b) and not b.is_queued_for_deletion() and b.get_child_count() > 0 and b.get_child(0).shape is RectangleShape2D:
+			var sh: RectangleShape2D = b.get_child(0).shape
+			rects.append(Rect2(b.position - sh.size * 0.5, sh.size))
+	for t in R.tiles:
+		if main._is_solid_tile(t.x, t.y) or main.astar.is_point_solid(t):
+			return false
+		var c: Vector2 = R._center(t)
+		if rects.any(func(r): return r.has_point(c)):
+			return false
+	for t in R.torn:
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n: Vector2i = t + d
+			if R.tiles.has(n) or not main._is_solid_tile(n.x, n.y) or n.x < 0 or n.y < 0 or n.x >= main.grid_size.x or n.y >= main.grid_size.y or R._owned(n):
+				continue
+			var c2: Vector2 = main.room.position + (Vector2(n) + Vector2(0.5, 0.5)) * C
+			if not rects.any(func(r): return r.has_point(c2)):
+				return false
+	return true
 
 
 ## The index of a card the secret tools show (by its id), or -1.
@@ -10619,7 +10734,7 @@ func _secret_deep_tests() -> void:
 	_check(SB.depth_of(prof) == 3 and not SB.also_status(prof)["bribe"][0], "...which it grants (and the bribe is spent)")
 	prof.chest.append(main.Gear.make("cloth_hood", "regarded"))
 	var offers: Array = SB.bribe_offers(prof, main.Gear)
-	_check(offers.any(func(o): return String(o["id"]).begins_with("chest:") and o["ok"]) and offers.any(func(o): return o["id"] == "vessel" and not o["ok"]), "a Regarded piece can be offered (a vessel isn't in the game yet)")
+	_check(offers.any(func(o): return String(o["id"]).begins_with("chest:") and o["ok"]) and offers.any(func(o): return o["id"] == "vessel" and not o["ok"]), "a Regarded piece can be offered (a vessel is greyed with none in the chest)")
 	res = SB.offer_bribe(prof, "chest:%d" % (prof.chest.size() - 1), main.Gear)
 	_check(res["ok"] and not prof.chest.any(func(g): return main.Gear.rarity(g) == "regarded"), "...and is taken when accepted")
 	SB.bribe_force = -1
@@ -10750,7 +10865,7 @@ func _secret_deep_tests() -> void:
 			break
 	_check(spot2 != Vector2.ZERO, "an open room to build in")
 	var n_traps: int = main.traps.size()
-	_check(T.use("des_build") and _sb_card("trap") >= 0 and _sb_card("passage") >= 0, "Build offers a trap, a wall, a gate and a passage")
+	_check(T.use("des_build") and _sb_card("trap") >= 0 and _sb_card("rift") >= 0, "Build offers a trap, a wall, a gate and a rift")
 	main.choose_camp(_sb_card("trap"))
 	var own: Array = main.traps.filter(func(t): return t.get("own", false))
 	_check(main.traps.size() == n_traps + 1 and own.size() == 1 and D.builds == 1, "...a trap of your own")
@@ -10777,17 +10892,79 @@ func _secret_deep_tests() -> void:
 		if not main.is_solid(p.global_position):
 			D.build("wall")
 	_check(D.builds == SB.BUILD_MAX and D.build("wall") == SB.TEXT["build_max"], "builds are limited to %d a floor (%d built)" % [SB.BUILD_MAX, D.builds])
+	print("the Designer's rift")
+	var R = D.rift
+	var far: Dictionary = _rift_start(R, func(pl): return pl["tiles"].keys().filter(func(t): return main._is_solid_tile(t.x, t.y)).size() >= 8, Rect2())
+	if not far.is_empty():
+		spot2 = far["pos"]  # (somewhere with plenty of rock between it and the stair)
 	p.global_position = spot2
-	_check(D.build("passage") == "" and not D.portal.is_empty() and D.passage_used, "a passage: gates here and at the stair's landing")
-	p.global_position = D.portal["a"] + Vector2(60, 0)
-	await _until(func(): return D.portal["inside"] == "", 0.5)
-	p.global_position = D.portal["a"]
-	await _until(func(): return p.global_position.distance_to(D.portal["b"]) < 30.0, 0.5)
-	_check(p.global_position.distance_to(D.portal["b"]) < 30.0, "...stepping in brings you out by the stair")
+	var a0: Vector2i = main._tile_of(spot2)
+	var s0: Vector2i = main._tile_of(main.stair_pos)
+	var pl0: Dictionary = R.plan_from(spot2)
+	var rock0: int = pl0["tiles"].keys().filter(func(t): return main._is_solid_tile(t.x, t.y)).size()
+	_check(rock0 > 0 or R.worth(pl0), "(the stair lies through rock from here: %d tiles)" % rock0)
+	_check(D.build("rift") == "" and D.rift_used and not R.tiles.is_empty(), "a rift tears through the floor to the stair (%d tiles, %d of them rock)" % [R.tiles.size(), R.torn.size()])
+	_check(_rift_ok(R), "...solid nowhere along it, no wall's collision on it, and rock beside it has its own")
+	var way: Array = main.astar.get_id_path(a0, s0)
+	_check(not way.is_empty(), "...and the path grid walks it to the stair (%d steps)" % way.size())
+	var gsz: Vector2i = main.grid_size
+	_check(R.tiles.keys().all(func(t): return t.x >= 1 and t.y >= 1 and t.x <= gsz.x - 2 and t.y <= gsz.y - 2), "...never the floor's outer wall")
+	_check(D.build("rift") == SB.TEXT["once_climb"], "once a climb")
 	main._start_floor(main.floor_num + 1)
-	await _until(func(): return D.portal.is_empty(), 0.5)
-	_check(D.portal.is_empty() and D.gates.is_empty() and D.build("passage") == SB.TEXT["once_climb"], "...once a climb (and the floor's builds are gone)")
-
+	await _frames(1)
+	_check(R.tiles.is_empty() and D.build("rift") == SB.TEXT["once_climb"], "...a new floor forgets the rift, not that it was torn")
+	main.floor_plan["proving"] = true
+	D.rift_used = false
+	_check(D.build("rift") != "" and R.tiles.is_empty(), "never on the Proving's floor")
+	main.floor_plan["proving"] = false
+	# Through a vault, a locked door and traps: each opened, what it held taken.
+	var need := {"vault": true, "door": true, "trap": true}
+	for n in 40:
+		if need.is_empty():
+			break
+		main._start_floor(3 + n % 6)
+		await _frames(1)
+		await _clear_foes()
+		main.banner = {}
+		D.rift_used = false  # (as a new climb would)
+		var W = main.wings
+		var locked: Array = main.door_view.list.filter(func(d): return String(d["lock"]) != "" and int(d["room"]) >= 0)
+		var got := {}
+		if need.has("vault") and not W.wings.is_empty():
+			var w: Dictionary = W.wings[0]
+			got = _rift_start(R, func(pl): return pl["tiles"].keys().any(func(t): return w["rect"].has_point(R._center(t))), w["rect"].grow(Tr.C * 2.0))
+			if not got.is_empty():
+				p.global_position = got["pos"]
+				_check(D.build("rift") == "" and w["vault"] == "taken" and w["state"] == "done" and not main.is_solid(R._center(w["vault_door"])), "a rift through a sealed wing opens its vault, empty")
+				_check(("vault:%s" % str(w["id"])) in R.taken and SB.TEXT["rift_vault"] in main.banner.get("lines", []), "...and says so: %s" % SB.TEXT["rift_vault"])
+				p.global_position = w["pedestal"]
+				await _frames(3)
+				_check(not main.camp_choosing, "...its pedestal holds nothing to choose")
+				main.camp_choosing = false
+				need.erase("vault")
+				continue
+		if need.has("door") and not locked.is_empty():
+			var d: Dictionary = locked[0]
+			var rr: Rect2 = main.room_info[int(d["room"])]["rect"]
+			got = _rift_start(R, func(pl): return pl["tiles"].keys().any(func(t): return t in d["tiles"] or rr.has_point(R._center(t))), rr.grow(Tr.C))
+			if not got.is_empty():
+				var had_cache: bool = not main.cache.is_empty() and rr.has_point(main.cache["pos"])
+				p.global_position = got["pos"]
+				_check(D.build("rift") == "" and String(d["lock"]) == "" and ("door:%d" % int(d["lock_id"])) in R.taken, "a rift through a locked door (or its room): the lock is gone")
+				_check(not d["tiles"].any(func(t): return main._is_solid_tile(t.x, t.y)) and (not had_cache or main.cache["taken"]), "...the way is open, and what lay behind it is taken (cache: %s)" % had_cache)
+				need.erase("door")
+				continue
+		if need.has("trap") and not main.traps.is_empty():
+			got = _rift_start(R, func(pl): return main.traps.any(func(tr): return pl["tiles"].has(main._tile_of(tr["pos"]))), Rect2())
+			if not got.is_empty():
+				p.global_position = got["pos"]
+				var on_it: int = main.traps.filter(func(tr): return got["plan"]["tiles"].has(main._tile_of(tr["pos"]))).size()
+				_check(D.build("rift") == "" and R.traps_gone == on_it and on_it > 0 and not main.traps.any(func(tr): return R.tiles.has(main._tile_of(tr["pos"]))), "a rift through a trap room destroys the traps on it (%d)" % on_it)
+				_check(_rift_ok(R), "...and the floor it tore is whole: walls, paths and collision")
+				need.erase("trap")
+	_check(need.is_empty(), "found floors for a rift through a vault, a locked door and traps (left: %s)" % [need.keys()])
+	main._start_floor(main.floor_num + 1)
+	await _frames(1)
 	print("the Manipulator")
 	await _clear_foes()
 	SB.grant(prof, "manipulator", 5)
@@ -10891,3 +11068,224 @@ func _secret_deep_tests() -> void:
 	SB.clear(prof)
 	main._give_bonds()
 	p.iframes = 0.0
+
+
+## The vessel (vessel.gd): it catches the secret essence that isn't your
+## path, comes home whole (lost on a fall), is brewed by a Rune Artist or
+## found in a vault, and a full one is traded, worked at the bench, or
+## offered (a plea, the Developer's bribe). Saved with the chest.
+func _vessel_tests() -> void:
+	print("the vessel")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var V = load("res://scripts/vessel.gd")
+	var Items = main.Items
+	var T = main.Train
+	var B = load("res://scripts/bench.gd")
+	var G = main.Gear
+	var SB = main.SecretBonds
+	var prof = main.profile
+	var p = main.player
+	var menu = main.menu
+	for e in main.enemies():
+		e.queue_free()
+	await _frames(1)
+	_check(Items.ITEMS.has("vessel") and Items.max_stack("vessel") == 1 and not ("vessel" in T.supplies()) and not ("vessel" in B.brews()) and Items.random_item(true, [], false) != "vessel",
+		"the vessel is an item of its own: one at a time, never sold, brewed with the rest or dropped")
+	prof.path = "life"
+	var at: Vector2 = p.global_position + Vector2(120, 0)
+	# Without a vessel the other essence passes through.
+	var m0: int = main.fx.motes_list.size()
+	main.rise_secret("unmaking", 9.0, at)
+	_check(main.fx.motes_list.slice(m0).any(func(m): return m.get("through", false)) and V.carried(p).is_empty(), "without a vessel, Unmaking passes through you")
+	# With one it's caught, up to what it holds; your path's essence isn't touched.
+	_check(V.give(main, {}) and p.item_count("vessel") == 1 and V.carried(p)["amount"] == 0.0, "a vessel goes on the belt, empty")
+	m0 = main.fx.motes_list.size()
+	var f0: float = main.run_flow
+	main.rise_secret("unmaking", 12.0, at)
+	var curls: Array = main.get_children().filter(func(c): return c.has_method("rise") and "motes" in c)
+	_check(is_equal_approx(V.carried(p)["amount"], 12.0) and V.carried(p)["kind"] == "unmaking" and main.fx.motes_list.size() == m0 and is_equal_approx(main.run_flow, f0),
+		"with one, the Unmaking is caught (12), none passes, the flow is untouched")
+	_check(curls.size() == 1, "...its streak rises toward you")
+	if curls.size() == 1:
+		var c = curls[0]
+		await _until(func(): return not is_instance_valid(c) or c.motes.any(func(m): return m["curl"] >= 0.0), 3.0)
+		_check(is_instance_valid(c) and c.motes.any(func(m): return m["curl"] >= 0.0), "...and curls into the vessel at your hip")
+	main.rise_secret("life", 9.0, at)
+	_check(is_equal_approx(main.run_flow, f0 + 9.0) and is_equal_approx(V.carried(p)["amount"], 12.0), "your path's Life still soaks into you, not the vessel")
+	m0 = main.fx.motes_list.size()
+	main.rise_secret("unmaking", 25.0, at)
+	_check(V.full_on_belt(p) and is_equal_approx(V.carried(p)["amount"], V.CAPACITY) and main.fx.motes_list.slice(m0).any(func(m): return m.get("through", false)),
+		"it fills to %d; the rest passes through" % int(V.CAPACITY))
+	_check(Items.use("vessel", p) == false and p.item_count("vessel") == 1, "using it only says what it holds")
+	var full_kind: String = V.carried(p)["kind"]
+	prof.path = ""
+	_check(is_equal_approx(V.capture(main, "life", 5.0, at), 5.0), "before a path is chosen it catches nothing")
+	prof.path = "life"
+	for k in 3:
+		p.add_item(["draught", "tonic", "smoke"][k])
+	main.offer_belt_swap({"id": "flare", "pos": p.global_position, "t": 10.0})
+	var swap_choices: Array = main.camp.get("choices", [])
+	main._take_belt_pick("belt:")
+	_check(not ("belt:vessel" in swap_choices) and swap_choices.size() >= 2, "a full belt's swap card never offers the vessel (what it holds would spill)")
+	# It comes home on a survived climb or a recall, and isn't broken into crystals.
+	prof.crystals = []
+	prof.vessels = []
+	main.belt_broken = false
+	var broke: String = main.break_belt()
+	_check(p.item_count("vessel") == 1 and broke != "" and prof.crystal_total("stone") > 0.0, "the belt breaks into crystals, the vessel aside")
+	var home: String = V.bring_home(main)
+	_check(prof.vessels.size() == 1 and V.is_full(prof.vessels[0]) and prof.vessels[0]["kind"] == full_kind and p.item_count("vessel") == 0 and home.contains("comes home"),
+		"...it comes home to your chest, full (%s)" % home)
+	V.give(main, V.make("unmaking", 7.0))
+	main.belt_broken = false
+	main.read_recall()
+	_check(prof.vessels.size() == 2 and is_equal_approx(prof.vessels[1]["amount"], 7.0) and main.victory.get("lines", []).any(func(l): return String(l).contains("vessel")),
+		"a recall scroll brings it home too, partly filled")
+	main.victory = {}
+	p.set_physics_process(true)
+	# Lost with the belt on a fall.
+	V.give(main, V.make("unmaking", 20.0))
+	main.on_player_died()
+	_check(p.item_count("vessel") == 0 and prof.vessels.size() == 2 and main.fall_note.any(func(l): return String(l).contains("vessel")), "a fall loses it with the belt, and says so")
+	# Packed from the chest, it goes up on the belt.
+	p.items = {}
+	_check(V.pack(prof, p, 1) == "" and V.packed_index(prof) == 1, "a vessel in the chest can be packed for the next climb")
+	_check(T.supply_room(prof, p, "draught") > 0, "(it leaves room for the rest of the belt)")
+	T.pack_up(prof, p)
+	_check(p.item_count("vessel") == 1 and is_equal_approx(V.carried(p)["amount"], 7.0) and prof.vessels.size() == 1, "...and departing puts it on your belt, still holding 7")
+	p.items.erase("vessel")
+	p.vessel = {}
+	# A Rune Artist brews one; nobody else can.
+	prof.vessels = []
+	for k in V.BREW:
+		prof.add_crystal(k, float(V.BREW[k]))
+	_check(V.brew(prof).contains("Rune Artist") and prof.vessels.is_empty(), "only a Rune Artist can brew a vessel")
+	prof.add_bond("brow", "rune_artist", false)
+	_check(V.brew(prof) == "" and prof.vessels.size() == 1 and V.fill(prof.vessels[0]) == 0.0 and prof.crystal_total("iron") == 0.0, "a Rune Artist brews one (%s), empty, into the chest" % B.cost_text(V.BREW))
+	# Very rarely, a vault offers one.
+	V.vault_force = 1.0
+	var cards: Array = main.wings.vault_choices(false)
+	_check(cards.size() == 3 and cards[2] == "vessel", "a vault's third card can be a vessel")
+	main.offer_vault(cards, "THE VAULT", [""])
+	main._take_vault_pick("vessel")
+	_check(p.item_count("vessel") == 1 and V.carried(p)["amount"] == 0.0, "...taken onto the belt, empty")
+	_check(main.wings.vault_choices(false)[2] != "vessel", "...never while you carry one")
+	p.items.erase("vessel")
+	p.vessel = {}
+	V.vault_force = 0.0
+	_check(main.wings.vault_choices(false)[2] != "vessel", "(and only by chance)")
+	V.vault_force = -1.0
+	# The store: a full vessel trades for crystals of your choice.
+	prof.vessels = [V.make("unmaking", V.CAPACITY), V.make("life", 10.0)]
+	prof.crystals = []
+	main.await_tower()
+	main.open_train()
+	menu.train_car = "store"
+	menu.train_store = "sell"
+	menu.inv_sel = "vessel:0"
+	menu.open("train")
+	await _frames(2)
+	var trade := func(choice: String) -> Array:
+		return _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.get_meta("vessel_trade", "") == choice)
+	var fire: Array = trade.call("fire")
+	_check(fire.size() == 1 and trade.call("mixed").size() == 1, "the store's Sell lists the vessel: a crystal of one kind you choose, or some of every kind")
+	if fire.size() == 1:
+		fire[0].pressed.emit()
+		await _frames(2)
+		_check(prof.vessels.size() == 2, "the first press only asks")
+		fire = trade.call("fire")
+		if fire.size() == 1:
+			fire[0].pressed.emit()
+			await _frames(2)
+	_check(prof.vessels.size() == 1 and prof.crystal_total("fire") == float(V.TRADE["one"]), "the second trades it for %d Fire" % int(V.TRADE["one"]))
+	menu.inv_sel = "vessel:0"
+	menu.open("train")
+	await _frames(2)
+	_check(trade.call("fire").is_empty(), "a vessel that isn't full can't be traded")
+	prof.vessels[0] = V.make("life", V.CAPACITY)
+	_check(V.trade(prof, 0, "mixed") != "" and prof.crystal_total("air") == float(V.TRADE["each"]) and prof.vessels.is_empty(), "...or %d of every kind" % int(V.TRADE["each"]))
+	# The bench: a Rune Artist works a full vessel into a piece.
+	prof.heirlooms["melee"] = G.make("spear", "fine", ["edges"], 3)
+	prof.vessels = [V.make("unmaking", V.CAPACITY)]
+	var strike3: float = G.effects(prof.heirlooms["melee"])["strike"]
+	menu.train_car = "workshop"
+	menu.train_bench = "vessel"
+	menu.inv_sel = "bench:heir:melee"
+	menu.open("train")
+	await _frames(2)
+	var deep := func() -> Array:
+		return _all_buttons(menu).filter(func(b): return b.is_visible_in_tree() and b.get_meta("bench_do", "") == "vtemper")
+	var dt: Array = deep.call()
+	_check(dt.size() == 1 and not dt[0].disabled, "the Vessel counter offers to temper a +3 piece past the limit")
+	if dt.size() == 1:
+		dt[0].pressed.emit()
+		await _frames(2)
+		dt = deep.call()
+		if dt.size() == 1:
+			dt[0].pressed.emit()
+			await _frames(2)
+	var spear: Dictionary = prof.heirlooms["melee"]
+	_check(int(spear["rank"]) == G.RANK_CAP and prof.vessels.is_empty() and is_equal_approx(G.effects(spear)["strike"], strike3 * (1.0 + G.RANK_TRAIT * 4) / (1.0 + G.RANK_TRAIT * 3)),
+		"...to +%d, using up the vessel (its trait a quarter more of its base)" % G.RANK_CAP)
+	_check(V.deep_rune(prof, "heir:melee", "sharpness") != "" and not spear.has("rune"), "a deep rune needs a full vessel")
+	prof.vessels = [V.make("life", V.CAPACITY)]
+	var strike4: float = G.effects(prof.heirlooms["melee"])["strike"]
+	_check(V.deep_rune(prof, "heir:melee", "sharpness") == "" and prof.heirlooms["melee"]["rune"] == "deep_sharpness" and prof.vessels.is_empty()
+		and is_equal_approx(G.effects(prof.heirlooms["melee"])["strike"], strike4 + 0.2), "...with one, a deep rune at the spell's full strength (+20% strikes)")
+	_check(B.inscribe(prof, "heir:melee", "deep_warding") != "", "the bench's own Inscribe can't cut a deep rune")
+	main.on_train = false
+	menu.close()
+	paused = false
+	await _frames(1)
+	# An offering: a plea with the vessel is likelier, and the Maker keeps it.
+	var mk = main.makers
+	prof.path = "life"
+	_check(not mk.answers().any(func(o): return o["id"] == "plea_vessel"), "no vessel, no offering card")
+	V.give(main, V.make("unmaking", V.CAPACITY))
+	var ids: Array = mk.answers().map(func(o): return o["id"])
+	_check("plea" in ids and "plea_vessel" in ids, "carrying a full vessel, a meeting offers it with a plea")
+	_check(mk.plea_odds("marks", true) > mk.plea_odds("marks", false), "...likelier to be granted (%.2f against %.2f)" % [mk.plea_odds("marks", true), mk.plea_odds("marks", false)])
+	mk.plea_force = 0
+	var res: Dictionary = mk.answer("marks", "plea_vessel")
+	_check(p.item_count("vessel") == 0 and prof.path == "life" and mk.TEXT["vessel_taken"] in res["lines"], "refused, it still keeps the vessel")
+	V.give(main, V.make("unmaking", V.CAPACITY))
+	mk.plea_force = 1
+	res = mk.answer("marks", "plea_vessel")
+	_check(p.item_count("vessel") == 0 and prof.path == "" and res["good"], "granted: the path is cleared and the vessel is gone")
+	mk.plea_force = -1
+	# The Developer's bribe takes a full vessel from the chest.
+	SB.grant(prof, "developer", 2)
+	prof.vessels = [V.make("life", 12.0), V.make("unmaking", V.CAPACITY)]
+	var offers: Array = SB.bribe_offers(prof, G)
+	_check(offers.any(func(o): return o["id"] == "vessel:1" and o["ok"]) and not offers.any(func(o): return o["id"] == "vessel:0"), "the bribe offers a full vessel from the chest (not a partly filled one)")
+	_check(SB.bribe_odds(prof, true) > SB.bribe_odds(prof), "...likelier taken than crystals")
+	SB.bribe_force = 1
+	res = SB.offer_bribe(prof, "vessel:1", G)
+	_check(res["ok"] and prof.vessels.size() == 1 and not V.is_full(prof.vessels[0]) and int(SB.bribe_state(prof).get("for", 0)) == 3, "...accepted, it counts for the next depth and the vessel is gone")
+	SB.bribe_force = -1
+	SB.clear(prof)
+	# Saved with the chest.
+	var path := "user://smoke_vessel_test.cfg"
+	prof.vessels = [V.make("life", V.CAPACITY), {"kind": "unmaking", "amount": 4.5, "packed": true}, {"kind": "nonsense", "amount": 9}]
+	prof.save_path = path
+	prof.saving = true
+	prof.save()
+	prof.saving = false
+	var again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.vessels.size() == 3 and V.is_full(again.vessels[0]) and again.vessels[0]["kind"] == "life" and is_equal_approx(again.vessels[1]["amount"], 4.5)
+		and again.vessels[1].get("packed", false) and again.vessels[2]["kind"] == "" and again.vessels[2]["amount"] == 0.0, "vessels are saved and load again (a broken one reads as empty)")
+	var old := ConfigFile.new()
+	old.set_value("profile", "regarded", true)
+	old.save(path)
+	again = load("res://scripts/profile.gd").new()
+	again.save_path = path
+	again.load_save()
+	_check(again.vessels.is_empty(), "an old save loads with no vessels")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	prof.save_path = prof.SAVE_PATH
+	prof.path = ""

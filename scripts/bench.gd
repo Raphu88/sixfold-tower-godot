@@ -10,6 +10,8 @@ extends RefCounted
 ##   inscribe  a lasting rune on a piece, at half the Inscribe spell's
 ##             strength (Rune Artist; gear.gd LASTING_RUNES)
 ##   recall    bind a recall scroll (Rune Artist; carry 1)
+##   vessel    brew a vessel, or work a full one into a piece (Rune Artist;
+##             vessel.gd, vessel_page.gd)
 ## The Rune Artist is the master crafter: given the essence and the skill,
 ## they can make pretty much anything. Without that bond the enchanting
 ## counters stay greyed, and say a Rune Artist could do it.
@@ -34,9 +36,11 @@ const RUNE_ARTIST := "rune_artist"
 const COUNTERS := [
 	["brew", "Brew", "Brew"], ["temper", "Temper", "Temper"], ["retrait", "Retrait", "Retrait"], ["join", "Join", "Join"],
 	["break", "Break down", "Break"], ["inscribe", "Inscribe", "Inscribe"], ["recall", "Recall scroll", "Recall"],
+	["vessel", "Vessel", "Vessel"],
 ]
-## Counters only a Rune Artist can use.
-const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall"]
+## Counters only a Rune Artist can use. (The vessel's counter: brewing one,
+## and working a full one into a piece; vessel.gd holds its rules.)
+const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall", "vessel"]
 
 ## Brewing: what each consumable costs at the bench (a little less than the
 ## store asks: you do the work). The recall scroll is only for a Rune Artist.
@@ -68,7 +72,7 @@ const TEXT := {
 	"title": "The bench",
 	"rune_artist": "Rune Artist",
 	"needs_rune_artist": "Only a Rune Artist can %s. A Rune Artist could do it here, given the essence.",
-	"verbs": {"temper": "temper a piece", "retrait": "swap a trait", "join": "join two pieces", "inscribe": "inscribe a lasting rune", "recall": "bind a recall scroll"},
+	"verbs": {"temper": "temper a piece", "retrait": "swap a trait", "join": "join two pieces", "inscribe": "inscribe a lasting rune", "recall": "bind a recall scroll", "vessel": "brew a vessel or work a full one into a piece"},
 	"notes": {
 		"brew": "Anyone can brew. What you make is packed onto your belt for your next climb.",
 		"temper": "Raise a piece's rank, +1 to +3. Each rank makes its traits 25% stronger (of their base), and a weapon hit 4% harder.",
@@ -77,6 +81,7 @@ const TEXT := {
 		"break": "A piece from your pack or chest, or a packed item, becomes a crystal of its kind at 40% of its price.",
 		"inscribe": "A lasting rune on one piece: it stays on it, at half the strength of the Inscribe spell.",
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
+		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
 	},
 	"heirlooms": "Heirlooms",
 	"pack": "Your pack",
@@ -528,7 +533,7 @@ static func inscribe_why(profile, ref: String, rune: String) -> String:
 	if lock != "":
 		return lock
 	var g := piece(profile, ref)
-	if g.is_empty() or not Gear.LASTING_RUNES.has(rune):
+	if g.is_empty() or not Gear.LASTING_RUNES.has(rune) or Gear.LASTING_RUNES[rune].get("deep", false):  # (a deep rune takes a vessel)
 		return TEXT["nothing"]
 	return short_of(profile, INSCRIBE)
 

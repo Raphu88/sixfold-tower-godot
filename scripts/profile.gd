@@ -72,6 +72,9 @@ var pack: Array = []
 var supplies := {}
 var supply_paid := {}
 var store := {}
+## Vessels kept in your chest (vessel.gd): each {kind, amount}, one maybe
+## "packed" to go up on your next climb.
+var vessels: Array = []
 ## Lost things (lost.gd): pieces lost in a fall, the newest last, each
 ## {"rec", "tower", "floor"}. A later climb may find them again.
 var lost: Array = []
@@ -195,6 +198,7 @@ func reset() -> void:
 	supplies = {}
 	supply_paid = {}
 	store = {}
+	vessels = []
 	lost = []
 	provings = {}
 	record = {}
@@ -250,6 +254,7 @@ func load_save() -> void:
 	store = cfg.get_value("train", "store", {})
 	if not (store is Dictionary):
 		store = {}
+	vessels = load("res://scripts/vessel.gd").load_list(cfg.get_value("train", "vessels", []))
 	lost = load("res://scripts/lost.gd").load_list(cfg.get_value("profile", "lost", []))
 	provings = {}
 	var won = cfg.get_value("profile", "provings", {})
@@ -304,6 +309,7 @@ func save() -> void:
 	cfg.set_value("train", "supplies", supplies)
 	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
+	cfg.set_value("train", "vessels", vessels)
 	cfg.set_value("profile", "lost", lost)
 	cfg.set_value("profile", "provings", provings)
 	cfg.set_value("profile", "path", path)

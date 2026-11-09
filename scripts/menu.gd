@@ -1765,9 +1765,15 @@ func _show_details(key: String) -> void:
 			var data: Dictionary = Items.ITEMS[arg]
 			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
+			if arg == "vessel":  # (what it holds, and that it comes home whole)
+				var V = load("res://scripts/vessel.gd")
+				_detail_text(V.TEXT["desc_state"] % V.state_text(V.carried(p)), V.color(V.carried(p)).lightened(0.3))
+				_detail_text(V.TEXT["hud_lines"][1], DIM)
 			_detail_text("Carrying %d of %d%s" % [n, p.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
 			if data.has("kind"):
 				_detail_text("%s essence  ·  unused at the end of a survived climb, it breaks into a crystal" % Essence.display(data["kind"]), Color(Essence.color(data["kind"]), 0.9))
+			if arg == "vessel":
+				return  # (nothing to use: it fills as great foes fall)
 			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
@@ -2166,6 +2172,7 @@ func _page_dev() -> void:
 	for fb in [_button("+25 flow", _dev_flow.bind(25.0), frow2), _button("+100 flow", _dev_flow.bind(100.0), frow2), _button("Reset path", _dev_reset_path, frow2)]:
 		fb.disabled = prof.path == ""
 	_button("Show the choice", _dev_offer_path, frow2)
+	load("res://scripts/vessel_page.gd").dev_row(self)  # an empty or a full vessel
 	_dev_makers()
 
 	SecretPage.dev_section(self)  # the secret bonds: grant one at depth 1 or 2, or clear it
@@ -2915,6 +2922,9 @@ class Slot extends Button:
 					draw_arc(c, s * 0.55, a0, a0 + TAU / 16.0, 4, Color(UI.FAINT, 0.5), 1.5, true)
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
+			"vessel":  # (id: the vessel's code, vessel.gd)
+				var V = load("res://scripts/vessel.gd")
+				V.draw_icon(self, c + Vector2(0, -1), s, V.decode(id))
 			"crystal":
 				Items.draw_crystal_icon(self, tint, c, s, 1.0 if count > 0 else 0.22)
 				if count > 0:
@@ -2965,6 +2975,9 @@ class SlotIcon extends Control:
 				Items.draw_icon(self, id, c, s)
 			"rune":
 				Items.draw_rune_icon(self, tint, c, s)
+			"vessel":
+				var V = load("res://scripts/vessel.gd")
+				V.draw_icon(self, c, s, V.decode(id))
 			"crystal":
 				Items.draw_crystal_icon(self, tint, c, s)
 			"lock":

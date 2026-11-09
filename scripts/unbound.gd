@@ -4,13 +4,12 @@ extends RefCounted
 ## running state in unbound_run.gd, the pages in technique_page.gd).
 ##
 ## BECOMING UNBOUND
-##   At the Regard, the first time: accept the mark, or refuse it (refused,
-##   the mark the beast just gave is taken back). Or the hidden route: punch
-##   through the tower's barriers with bare fists (unbound_run.gd). Before
-##   the route is found, the first barrier struck only shudders. After
-##   OFFER_AFTER barriers broken (across climbs), the next time a beast
-##   would mark you (a new mark at a stair) you're offered the refusal; a
-##   marked climber who refuses gives up their tower bonds.
+##   Only on the bondless first climb, at the Regard. Break no barrier and
+##   the beast OFFERS the mark: accept it, or refuse it (refused, the mark
+##   it just gave is taken back) and become Unbound. Break a barrier with
+##   bare fists on that climb (unbound_run.gd) and you have broken the
+##   tower's rules: the beast REFUSES to mark you, and you are Unbound (no
+##   choice). After the first climb a marked climber can't become Unbound.
 ##   It's for good, except through the Developer (a secret bond): its holder
 ##   can let the beasts mark them again (return_to_marks).
 ## HOW THEY WORK
@@ -50,8 +49,6 @@ const GIFTS := {
 ## The stages, from total raw density (index = stage - 1).
 const STAGES := ["Stir", "Pulse", "Flow", "Surge", "Torrent", "Tide", "Tempest", "Maelstrom", "Cataclysm", "Unbound"]
 const STAGE_AT := [0.0, 60.0, 150.0, 300.0, 500.0, 800.0, 1200.0, 1700.0, 2400.0, 3300.0]
-## Barriers broken (across climbs) before a beast offers the refusal.
-const OFFER_AFTER := 3
 ## At a summit the Unbound condense the tower's essence into a part of their choice.
 const CONDENSE := 60.0
 ## Going back (the Developer): the densest part takes a mark, its bond
@@ -65,16 +62,13 @@ const TEXT := {
 	"refuse_lines": ["Take it, and you are marked as every climber is.", "Refuse it, and essence pools raw in your body. There is no road back."],
 	"accept_name": "Accept the mark",
 	"accept_desc": "Take the %s mark on your %s. Your bonds grow as they always have.",
-	"accept_desc_later": "Take the %s mark on your %s, and keep the marks you carry.",
 	"refuse_name": "Refuse it",
 	"refuse_desc": "Become Unbound: no tower bond, now or later. Banked essence pools raw in your six body parts, and you build your own techniques from it.",
-	"refuse_desc_marked": "Become Unbound: give up every tower bond you carry. Banked essence pools raw in your six body parts, and you build your own techniques from it.",
 	"refuse_note": "for good",
 	"refuse_again": "Tap again to refuse, for good",
 	"refuse_again_keys": "Press again to refuse, for good",
-	"became_title": "UNBOUND",
-	"became": "The beast looks away. This road does not lead back.",
-	"became_marked": "Your marks fade. The beast looks away. This road does not lead back.",
+	"refused_title": "REFUSED",
+	"refused_lines": ["You broke a barrier on your first climb.", "%s will not mark you.", "You are Unbound.", "Banked essence pools raw in your six body parts."],
 	"accepted": "Essence takes hold in your %s: the %s mark",
 	"stage": "%s  ·  stage %d of 10",
 	"climber_line": "Unbound  ·  %s  ·  %d %s  ·  best floor %d",
@@ -99,9 +93,10 @@ static func state(prof) -> Dictionary:
 	if not st.has("on"):
 		st["on"] = false
 	if not st.has("found"):
-		st["found"] = false  # the hidden route found (the first barrier struck)
-	if not st.has("broken"):
-		st["broken"] = 0  # barriers broken, across climbs
+		st["found"] = false  # a barrier struck once (it only shuddered: the warning)
+	if not st.has("boost"):
+		st["boost"] = true  # casts boost from carried essence (technique.gd BOOST)
+	st.erase("broken")  # (old saves counted barriers across climbs: no longer used)
 	if not (st.get("routes") is Dictionary):
 		st["routes"] = {}  # kind -> part (only the kinds routed away from their natural part)
 	if not (st.get("techs") is Array) or st["techs"].size() != PARTS.size():
@@ -250,12 +245,6 @@ static func become(prof) -> void:
 		if not (techs[i] is Dictionary) or techs[i].is_empty():
 			techs[i] = Tech.recipe(Tech.STARTERS[i])
 	prof.note("unbound")
-
-
-## True once a marked climber has broken enough barriers to be offered the refusal.
-static func offer_due(prof) -> bool:
-	var st := state(prof)
-	return not st["on"] and bool(st["found"]) and int(st["broken"]) >= OFFER_AFTER
 
 
 ## Only the Developer goes back.

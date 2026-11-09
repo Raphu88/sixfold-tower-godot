@@ -9,11 +9,18 @@ extends RefCounted
 ##   works on yourself);
 ##   each KIND adds what it does (KINDS); the first leads (full strength),
 ##   the others flavour it (FLAVOUR of their strength).
-## Cost: COST essence by how many kinds, paid in those kinds in proportion
-## (the lead counts double), from what you carry unbanked (the path's
-## essence from your unbanked flow); what you can't pay comes out as extra
-## strain. Strain: STRAIN by how many kinds (unbound_run.gd adds it, and
-## erupts at 100). Strength: the part's level (unbound.gd power).
+## Fill: a technique fills from its body part's actions, the way a mark's
+## bond does (player.gd _part_action: strikes fill the hand, rolls the legs,
+## parries the brow...). Full at CHARGE (by how many kinds), it casts without
+## spending anything; cast before it's full and the missing share comes out
+## as up to EMPTY_STRAIN extra strain.
+## Boost: if you carry its essences unbanked (COST by how many kinds, paid in
+## those kinds in proportion, the lead counting double; the path's essence
+## from your unbanked flow), a cast spends them and hits BOOST harder. It's
+## automatic (on unless switched off on the techniques page): nothing to
+## hold on a phone.
+## Strain: STRAIN by how many kinds (unbound_run.gd adds it, and erupts at
+## 100). Strength: the part's level (unbound.gd power).
 ## A few ready-made recipes (RECIPES) fill an Unbound's six slots at first.
 
 const Unbound := preload("res://scripts/unbound.gd")
@@ -69,11 +76,15 @@ const KINDS := {
 }
 ## The others flavour the lead at this share of their strength (2nd, 3rd).
 const FLAVOUR := [1.0, 0.5, 0.35]
-## Total essence a cast costs, and the strain it adds, by how many kinds (1, 2, 3).
+## The fill a technique needs to cast (it's full there), the carried
+## essence a boost spends, and the strain a cast adds, by how many kinds (1, 2, 3).
+const CHARGE := [20.0, 28.0, 36.0]
 const COST := [3.0, 6.0, 8.0]
 const STRAIN := [14.0, 22.0, 32.0]
-## Strain a missing essence adds instead (what you couldn't pay).
-const SHORT_STRAIN := 2.0
+## Cast with an empty gauge: this much more strain (in proportion to what's missing).
+const EMPTY_STRAIN := 24.0
+## A boosted cast hits this much harder.
+const BOOST := 0.5
 ## Wind-up: base, plus this for each kind past the first.
 const WINDUP := [0.18, 0.06]
 ## The ready-made recipes (an Unbound's six slots at first, and on the builder).
@@ -94,13 +105,14 @@ const RECIPES := {
 const STARTERS := ["ember_bolt", "gale_dash", "iron_will", "hunters_mark", "tidal_shout", "stone_shell"]
 const TEXT := {
 	"empty": "Empty",
-	"cost": "Costs %s",
+	"cost": "Boost: %s carried",
 	"strain": "Strain +%d",
 	"needs_level": "level %d to combine %d",
 	"lead": "leads",
 	"wavers": "wavers",
 	"dark": "%s is dark",
-	"short": "short of essence: more strain",
+	"not_full": "not full: more strain",
+	"boosted": "boosted",
 }
 ## Adjectives for a technique's default name, by its lead kind.
 const NAME_WORD := {"fire": "Burning", "water": "Tidal", "air": "Gale", "stone": "Stone", "iron": "Iron", "blade": "Rending", "life": "Living", "unmaking": "Unmaking"}
@@ -150,7 +162,15 @@ static func auto_name(t: Dictionary) -> String:
 	return "%s %s" % [NAME_WORD.get(lead(t), "Raw"), SHAPES[t["shape"]]["name"]]
 
 
-## Its cost: {kind: amount}, the lead counting double (and the Clear Brow gift's cut).
+## The fill it needs to cast (the Clear Brow gift's cut applied).
+static func charge(t: Dictionary, prof = null) -> float:
+	var total: float = float(CHARGE[clampi(t["kinds"].size() - 1, 0, CHARGE.size() - 1)])
+	if prof != null:
+		total *= 1.0 - Unbound.gift(prof, "cost")
+	return total
+
+
+## A boost's cost: {kind: amount}, the lead counting double (and the Clear Brow gift's cut).
 static func cost(t: Dictionary, prof = null) -> Dictionary:
 	var n: int = t["kinds"].size()
 	var total: float = float(COST[clampi(n - 1, 0, COST.size() - 1)])

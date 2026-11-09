@@ -2,10 +2,10 @@ extends "res://scripts/bond.gd"
 ## One of the Unbound's six carried techniques, standing in a mark's place
 ## on the climber (player.bonds, keyed by the button that casts it), so the
 ## same buttons, rings, HUD medallions and touch buttons cast it. Its
-## "essence" is the headroom its body part has before it erupts
-## (100 - strain), so the gauge empties as the part strains and a technique
-## that would erupt shows unready. It never burns or goes faint: strain
-## (unbound_run.gd) takes their place.
+## "essence" is its fill: it fills from its body part's actions as a mark's
+## bond does (unbound_run.gd part_action), and it's ready when full
+## (capacity = technique.gd charge). It never burns or goes faint: casting
+## before it's full adds strain (unbound_run.gd) instead.
 
 const Tech := preload("res://scripts/technique.gd")
 const UnboundData := preload("res://scripts/unbound.gd")
@@ -22,12 +22,12 @@ func _init(t: Dictionary, slot_part: String, slot_index: int, the_run) -> void:
 	slot = slot_index
 	run = the_run
 	var sp := {"id": "tech_%d" % slot_index, "name": Tech.title(t), "desc": Tech.describe(t), "type": "technique", "learn": 1,
-		"steps": {1: {"cost": Tech.strain(t), "windup": Tech.windup(t), "damage": float(Tech.SHAPES[t["shape"]].get("damage", 0.0))}}}
+		"steps": {1: {"cost": Tech.charge(t), "windup": Tech.windup(t), "damage": float(Tech.SHAPES[t["shape"]].get("damage", 0.0))}}}
 	var lead := Tech.lead(t)
 	_data = {"name": Tech.title(t), "color": Tech.color(lead), "affinity": lead if lead in UnboundData.NATURAL else "",
 		"spells": [sp], "body": {"name": UnboundData.TEXT["name"]}, "passive": {"name": UnboundData.TEXT["name"]},
 		"style": [], "technique": true}
-	essence = 100.0
+	essence = 0.0
 
 
 func data() -> Dictionary:
@@ -39,13 +39,14 @@ func tech_part() -> String:
 	return String(tech["part"])
 
 
+## Full at its charge (the Clear Brow gift lowers it).
 func capacity() -> float:
-	return 100.0
+	return Tech.charge(tech, run.main.profile if run != null else null)
 
 
-## What a cast adds to its part's strain.
+## Ready when full: a cast takes the whole fill.
 func cost() -> float:
-	return Tech.strain(tech)
+	return capacity()
 
 
 func spells() -> Array:
@@ -59,10 +60,6 @@ func color() -> Color:
 		if s > run.HOT:
 			col = col.lerp(Color(1.0, 0.3, 0.2), clampf((s - run.HOT) / (100.0 - run.HOT), 0.0, 1.0) * 0.7)
 	return col
-
-
-func fill(_amount: float) -> void:
-	pass  # (strain, not essence, is what a technique answers to)
 
 
 ## True while its part is dark (an eruption): it can't be cast.
@@ -87,10 +84,12 @@ func hud_into(b, c: Vector2, r: float) -> void:
 		run.strain_hud_into(b, c, r, tech_part())
 
 
-## The HUD's tooltip: what it does, its part's strain, its cost.
+## The HUD's tooltip: what it does, its fill, its part's strain, its boost.
 func tip_lines(key: String, touch: bool) -> Array:
 	var part := tech_part()
 	var s: float = run.strain_of(part) if run != null else 0.0
+	var prof = run.main.profile if run != null else null
 	return [Tech.describe(tech),
-		"%s strain %d / 100  ·  +%d a cast  ·  costs %s" % [UnboundData.PART_NAMES[part], int(s), int(Tech.strain(tech)), Tech.cost_text(tech, run.main.profile if run != null else null)],
+		"Fill %d / %d (%s)  ·  %s strain %d / 100, +%d a cast" % [int(essence), int(capacity()), Bonds.PART_FILLS[part], UnboundData.PART_NAMES[part], int(s), int(Tech.strain(tech))],
+		"Boost +%d%%: %s carried" % [int(Tech.BOOST * 100.0), Tech.cost_text(tech, prof)],
 		"Its button is on the right" if touch else "Press %s to cast" % key]

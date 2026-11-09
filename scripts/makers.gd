@@ -144,6 +144,9 @@ const ANSWERS := [
 ]
 ## The plea for a change of path (Life or Unmaking): offered once you have a path.
 const PLEA := {"id": "plea", "text": "Ask for a change of path", "desc": "It may refuse. If it agrees, your path and all its flow are cleared."}
+## The same plea with a full vessel offered (one carried on your belt,
+## vessel.gd): likelier to be granted (PLEA_ODDS "vessel").
+const VESSEL_PLEA := {"id": "plea_vessel", "text": "Offer the vessel", "desc": "A plea for a change of path: likelier granted. It keeps the vessel."}
 
 ## Fragments: on this share of floors (at most one a floor), from this floor
 ## up, never on the first climb; read within `reach` of the wall. The light:
@@ -165,7 +168,10 @@ const GLIMPSE := {"from": 0.35, "chance": 0.2, "most": 0.45, "per_climb": 1, "ti
 const INTERRUPT := {"chance": 0.5, "ways": {"cut_short": 1.0, "contradict": 1.0, "listen": 1.0}}
 ## A plea for a change of path: the chance a Maker agrees (more if its
 ## interest is high: + `per_ratio` for each threshold's worth past one).
-const PLEA_ODDS := {"agree": 0.4, "per_ratio": 0.15, "most": 0.8}
+## A full vessel offered with it adds `vessel` (up to `vessel_most`); the
+## Maker takes the vessel whether it agrees or not (`vessel_back` true: a
+## refusal hands it back).
+const PLEA_ODDS := {"agree": 0.4, "per_ratio": 0.15, "most": 0.8, "vessel": 0.35, "vessel_most": 0.95, "vessel_back": false}
 ## Secret essence a Maker gives when it grants its bond (split by its "secret").
 const SECRET_ESSENCE := 24.0
 
@@ -222,6 +228,7 @@ const TEXT := {
 	"plea_yes": "It agrees: your path is cleared.",
 	"plea_no": "It refuses.",
 	"plea_none": "It agrees, but nothing here can change your path yet.",
+	"vessel_taken": "It takes the vessel.",
 	"cut_short": "%s cuts the meeting short.",
 	"contradict": "%s speaks over it, then falls silent.",
 	"listen": "%s stays, and listens.",
@@ -805,7 +812,18 @@ func answers() -> Array:
 	var out: Array = ANSWERS.duplicate()
 	if current_path() != "":
 		out.append(PLEA)
+		if main != null and main.player != null and load("res://scripts/vessel.gd").full_on_belt(main.player):
+			out.append(VESSEL_PLEA)
 	return out
+
+
+## The chance a Maker grants a plea now (`vessel`: with a full vessel offered).
+func plea_odds(maker: String, vessel := false) -> float:
+	var k := interest(maker) / threshold(maker)
+	var odds := minf(float(PLEA_ODDS["agree"]) + float(PLEA_ODDS["per_ratio"]) * maxf(k - 1.0, 0.0), float(PLEA_ODDS["most"]))
+	if vessel:
+		odds = minf(odds + float(PLEA_ODDS["vessel"]), float(PLEA_ODDS["vessel_most"]))
+	return odds
 
 
 ## The climber answered (maker_view.gd): what happens, as
@@ -815,10 +833,14 @@ func answer(maker: String, id: String) -> Dictionary:
 	var d: Dictionary = MAKERS[maker]
 	s["met"][maker] = int(s["met"].get(maker, 0)) + 1
 	var out := {"good": false, "granted": "", "lines": [], "reply": "", "gains": {}}
-	if id == "plea":
-		var k := interest(maker) / threshold(maker)
-		var odds := minf(float(PLEA_ODDS["agree"]) + float(PLEA_ODDS["per_ratio"]) * maxf(k - 1.0, 0.0), float(PLEA_ODDS["most"]))
-		if (randf() < odds and plea_force != 0) or plea_force == 1:
+	if id == "plea" or id == "plea_vessel":
+		var offered: bool = id == "plea_vessel" and main != null and main.player != null and load("res://scripts/vessel.gd").full_on_belt(main.player)
+		var odds := plea_odds(maker, offered)
+		var yes: bool = (randf() < odds and plea_force != 0) or plea_force == 1
+		if offered and (yes or not bool(PLEA_ODDS["vessel_back"])):
+			load("res://scripts/vessel.gd").take(main.player)  # (an offering: the Maker keeps it)
+			out["lines"].append(TEXT["vessel_taken"])
+		if yes:
 			out["reply"] = _line(d["plea_yes"])
 			if hooks != null and hooks.has_method("reset_path"):
 				hooks.reset_path()

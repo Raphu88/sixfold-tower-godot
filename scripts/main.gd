@@ -32,6 +32,7 @@ const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
 const Train := preload("res://scripts/train.gd")
 const Lost := preload("res://scripts/lost.gd")
+const Vessel := preload("res://scripts/vessel.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
@@ -1341,6 +1342,9 @@ func _arrive() -> void:
 		var home := bring_pack_home()
 		if home != "":
 			lines.append(home)
+		home = Vessel.bring_home(self)  # (into your chest, filled or not)
+		if home != "":
+			lines.append(home)
 		profile.save()
 		if choice != "":
 			unbound.offer_summit(choice, lines)
@@ -1740,6 +1744,9 @@ func read_recall() -> void:
 	var home := bring_pack_home()
 	if home != "":
 		lines.append(home)
+	home = Vessel.bring_home(self)  # (into your chest, filled or not)
+	if home != "":
+		lines.append(home)
 	if menu != null and menu.is_open():
 		menu.close()
 	banner = {}
@@ -1971,7 +1978,7 @@ func _update_item_drops(delta: float) -> void:
 ## The monsters wait while you choose.
 func offer_belt_swap(d: Dictionary) -> void:
 	var name: String = Items.ITEMS[d["id"]]["name"]
-	var choices: Array = player.carried().map(func(id): return "belt:" + id)
+	var choices: Array = player.carried().filter(func(id): return id != Vessel.ID).map(func(id): return "belt:" + id)  # (a vessel isn't swapped out: what it holds would spill)
 	choices.append("belt:")
 	camp = {"stage": "belt", "choices": choices, "lines": [Items.BELT["full_sub"] % name], "title": Items.BELT["full_title"], "drop": d}
 	camp_choosing = true
@@ -2025,7 +2032,7 @@ func break_belt(skip: Array = []) -> String:
 	belt_broken = true
 	var carried := {}
 	for id in player.items:
-		if not (id in skip) and int(player.items[id]) > 0:
+		if not (id in skip) and id != Vessel.ID and int(player.items[id]) > 0:  # (a vessel comes home whole: Vessel.bring_home)
 			carried[id] = int(player.items[id])
 	var worth: Dictionary = Items.break_value(carried)
 	var made: Array = []
@@ -2209,6 +2216,8 @@ func _floor_title() -> String:
 func _give_bonds() -> void:
 	if player == null:
 		return
+	if unbound != null:
+		unbound._sync()  # (an Unbound's techniques keep their fill)
 	var old: Dictionary = player.bonds.duplicate()
 	player.bonds.clear()
 	for part in profile.bonds:
@@ -2366,6 +2375,7 @@ func on_player_died() -> void:
 		# pieces are remembered, and may turn up again on a later climb.
 		var loss := Lost.fall(profile, player, tower, floor_num, weapon_loss_chance)
 		fall_note = loss["lines"]
+		fall_note.append_array(Vessel.on_fall(self))  # (a vessel and what it held go with the belt)
 		if not fall_note.is_empty():
 			tip("fall_loss")
 	profile.save()
@@ -2379,13 +2389,24 @@ func on_player_died() -> void:
 
 
 ## The beast takes notice and your most-used body part takes its first mark.
-## Reaching the top earns a full mark; falling earns a faint one.
+## Reaching the top earns a full mark; falling earns a faint one. A barrier
+## broken on the first climb, and the beast refuses: no mark, Unbound.
 var regard_mark := {}  # the Regard's mark once granted: {fell, part, id}
 
 
 ## Grants (and saves) the Regard's mark, once.
 func _grant_regard(fell: bool) -> void:
 	if not regard_mark.is_empty():
+		return
+	if unbound != null and unbound.broke_rules:
+		# A barrier broken on this climb: the beast refuses to mark you (unbound_run.gd).
+		UnboundRun.Unbound.become(profile)
+		profile.regarded = true
+		profile.climbs += 1
+		profile.save()
+		regard_mark = {"fell": fell, "part": "", "id": "", "refused": true}
+		_give_bonds()
+		tip("unbound")
 		return
 	var part := leading_part()
 	if part == "":
@@ -2405,7 +2426,8 @@ func _begin_regard(fell: bool) -> void:
 	if not fell:
 		break_belt()  # (survived: what's left on the belt becomes crystals)
 		bring_pack_home()  # (and the pack comes down to the train, which appears now)
-	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0, "dark": fade > 0.5}
+		Vessel.bring_home(self)
+	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "refused": regard_mark.get("refused", false), "t": 0.0, "dark": fade > 0.5}
 	GuideScript.moment("regard", "regard")
 	banner = {}
 	regard_pending = false
@@ -2657,21 +2679,17 @@ func rise_secret(kind: String, amount: float, from: Vector2) -> void:
 		pass_through(kind, amount, from)
 
 
-## The other secret essence: it rises, streaks through you and out, unbanked.
+## The other secret essence: it rises, streaks through you and out, unbanked
+## (a vessel on the belt holds what it can: vessel.gd capture).
 func pass_through(kind: String, amount: float, from: Vector2) -> void:
-	if vessel_takes(kind, amount):
+	amount = Vessel.capture(self, kind, amount, from)
+	if amount <= 0.001:
 		return
 	if fx != null:
 		fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, true)
 	if player != null:
 		fx_text(player.global_position + Vector2(0, -58), Secret.TEXT["passes"] % Secret.display(kind), Color(Secret.color(kind), 0.9))
 	tip("secret_pass")
-
-
-## Hook for later: a vessel on the belt that captures the essence that isn't
-## yours instead of letting it pass. True if it took it. (None yet.)
-func vessel_takes(_kind: String, _amount: float) -> bool:
-	return false
 
 
 ## The path's essence carried up a stair settles in the flow (profile.gd
