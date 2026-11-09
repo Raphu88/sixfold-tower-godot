@@ -29,7 +29,7 @@ static func build(menu) -> void:
 	var col := SB.color(bond)
 	var info: Dictionary = SB.BONDS[bond]
 	var head: Label = menu._label(SB.TEXT["depth"] % [String(info["name"]).to_upper(), SB.depth_of(prof)], 0.0, col.lightened(0.15))
-	head.add_theme_font_size_override("font_size", 18)
+	head.add_theme_font_size_override("font_size", 21)
 	menu.box.add_child(head)
 	menu.box.add_child(menu._small_label("The core mark  ·  %s  ·  grows from %s  ·  from %s" % [info["what"], info["grows"], info["maker_name"]], menu.DIM))
 	# The tools.
@@ -422,4 +422,4 @@ class Drain extends Control:
 			b.dot(pos, 2.2 - ph, Color(col.lightened(0.3), a))
 		b.flush(self)
 		if t < 4.0:
-			draw_string(ThemeDB.fallback_font, Vector2(0, 14), SB.TEXT["path_done"] % Secret.display(path), HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color(col, clampf(2.0 - t / 2.0, 0.3, 1.0)))
+			draw_string(ThemeDB.fallback_font, Vector2(0, 14), SB.TEXT["path_done"] % Secret.display(path), HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(col, clampf(2.0 - t / 2.0, 0.3, 1.0)))

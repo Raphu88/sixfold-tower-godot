@@ -18,3 +18,13 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [10 Impact/Shield Blocks](https://opengameart.org/content/10-impactshield-blocks) | StarNinjas | mace and war hammer hits |
 
 The game's sounds are built from these with `tools/build_audio.py`: layered, levelled, given a shared room reverb, and in a few cases mixed with a synthesised thump or string. `tools/fetch_audio_sources.sh` downloads the original packs.
+
+## Fonts
+
+The interface's three typefaces are under the **SIL Open Font License 1.1** (free to use, embed and share with the game; the licence travels with each font in `assets/fonts/<family>/OFL.txt`). They're the unmodified files from Google Fonts.
+
+| Font | Designers | Used for | Files |
+| --- | --- | --- | --- |
+| [Grenze Gotisch](https://fonts.google.com/specimen/Grenze+Gotisch) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | titles: page headings, the game's name, banners, names on cards | `assets/fonts/grenze_gotisch/` (Bold) |
+| [Alegreya Sans](https://fonts.google.com/specimen/Alegreya+Sans) | Huerta Tipográfica (Juan Pablo del Peral) | all other text | `assets/fonts/alegreya_sans/` (Regular, Italic, Medium, Bold) |
+| [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) | Mike Abbink, Bold Monday | key badges, numbers, small hints | `assets/fonts/ibm_plex_mono/` (Medium) |

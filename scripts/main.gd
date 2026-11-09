@@ -246,6 +246,7 @@ func _ready() -> void:
 	randomize()
 	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
+	preload("res://scripts/ui.gd").setup_fonts()  # (the interface's fonts: ui.gd)
 	audio = AudioScript.new()
 	add_child(audio)
 	_build_walls()

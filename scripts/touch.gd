@@ -333,7 +333,7 @@ func _draw() -> void:
 		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
 	else:
 		if main.gear_here.is_empty() and not (main.player != null and main.player.dead):  # (the gear card sits here while you stand on gear)
-			draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.3))
+			draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()
@@ -414,16 +414,16 @@ func _draw() -> void:
 			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0, true)
 		if pressed:
 			draw_circle(c, r - 3.0, Color(col, 0.18))
-		var fsize := 13 if r > 30.0 else 10
+		var fsize := 15 if r > 30.0 else 12
 		if b["id"] == "climber" or b["id"] == "inventory":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
-			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 8, Color(col, 0.9))
+			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 9, Color(col, 0.9))
 			continue
 		if bond_aff != "":
-			draw_string(font, c + Vector2(-r, r * 0.55), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 10, Color(col, 0.95))
+			draw_string(font, c + Vector2(-r, r * 0.55), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 12, Color(col, 0.95))
 			continue
 		if b["id"] == "item" and label != "Item":
-			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.95))
+			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
 			continue
 		draw_string(font, c + Vector2(-r, fsize * 0.35), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fsize, Color(col, 0.9))
 

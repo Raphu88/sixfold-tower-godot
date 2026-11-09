@@ -14,12 +14,14 @@ const Essence := preload("res://scripts/essence.gd")
 const Palette := preload("res://scripts/palette.gd")
 
 const TEXT := {
-	"title": "SIXFOLD TOWER",
+	"title": "Sixfold Tower",
+	"eyebrow": "Six towers  ·  six marks",  # small capitals over the name
 	"tagline": "Climb. Be regarded. Bear the marks.",
 	"footer": "Prototype  ·  Sounds: CC0, see Credits",
 }
 
-const GOLD := Color(0.95, 0.8, 0.5)
+const UI := preload("res://scripts/ui.gd")
+const GOLD := UI.GOLD
 const DIM := Color(0.62, 0.59, 0.67)
 const SKY_TOP := Color(0.015, 0.015, 0.04)
 const SKY_MID := Color(0.05, 0.045, 0.1)
@@ -90,10 +92,10 @@ func _ready() -> void:
 	glow.fill = GradientTexture2D.FILL_RADIAL
 	glow.fill_from = Vector2(0.5, 0.5)
 	glow.fill_to = Vector2(1.0, 0.5)
+	# The name in the display face (Grenze Gotisch), set a little open.
 	title_font = FontVariation.new()
-	title_font.base_font = ThemeDB.fallback_font
-	title_font.spacing_glyph = 3
-	title_font.variation_embolden = 0.35
+	title_font.base_font = UI.font("display")
+	title_font.spacing_glyph = 1
 	for i in STARS:
 		stars.append({"p": Vector2(rng.randf(), pow(rng.randf(), 1.6) * 0.72), "size": rng.randf_range(0.8, 1.9), "phase": rng.randf() * TAU})
 	for i in MOTES:
@@ -108,7 +110,7 @@ func _ready() -> void:
 
 ## Where the menu's buttons go: the column left of the tower, under the title.
 func menu_rect(s: Vector2) -> Rect2:
-	var top := _title_y(s) + _title_size(s) * 0.62 + 24.0
+	var top := _title_y(s) + _title_size(s) * 0.85 + 24.0
 	return Rect2(Vector2(0, top), Vector2(s.x * 0.58, minf(menu_h, s.y * 0.94 - top)))
 
 
@@ -120,7 +122,7 @@ func _title_y(s: Vector2) -> float:
 	# The title's baseline: the name and the menu together, centred (but never
 	# too near the top).
 	var fs := _title_size(s)
-	var block := fs * 1.62 + 24.0 + menu_h
+	var block := fs * 1.95 + 24.0 + menu_h
 	return maxf(s.y * 0.06, (s.y * 0.95 - block) * 0.5) + fs
 
 
@@ -310,26 +312,30 @@ func _draw_front(c: CanvasItem) -> void:
 		_glow(c, mp, Vector2.ONE * r * 11.0, Color(col, 0.4 * a))
 		c.draw_circle(mp, r * 0.75, Color(col.lightened(0.35), a))
 
-	c.draw_string(font, Vector2(16, s.y - 10), TEXT["footer"], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(DIM, 0.7))
+	c.draw_string(font, Vector2(16, s.y - 10), TEXT["footer"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(DIM, 0.7))
 	if not show_name:
 		return
-	# The name, a small ornament and the tagline.
+	# Small capitals, the name, a small ornament and the tagline.
 	var col_w := s.x * 0.58
 	var fs := _title_size(s)
-	var ty := _title_y(s)
-	c.draw_string_outline(title_font, Vector2(0, ty + 3.0), TEXT["title"], HORIZONTAL_ALIGNMENT_CENTER, col_w, fs, 10, Color(0, 0, 0, 0.55))
-	c.draw_string_outline(title_font, Vector2(0, ty), TEXT["title"], HORIZONTAL_ALIGNMENT_CENTER, col_w, fs, 4, Color(0.2, 0.11, 0.04, 0.95))
-	c.draw_string(title_font, Vector2(0, ty), TEXT["title"], HORIZONTAL_ALIGNMENT_CENTER, col_w, fs, GOLD)
-	var ts := int(clampf(fs * 0.28, 14.0, 19.0))
-	var mid := col_w * 0.5
-	var half := minf(col_w * 0.3, 170.0)
-	var d := ty + fs * 0.22
-	c.draw_line(Vector2(mid - half, d), Vector2(mid - 9, d), Color(GOLD, 0.35), 1.0)
-	c.draw_line(Vector2(mid + 9, d), Vector2(mid + half, d), Color(GOLD, 0.35), 1.0)
-	c.draw_colored_polygon(PackedVector2Array([Vector2(mid, d - 4), Vector2(mid + 4, d), Vector2(mid, d + 4), Vector2(mid - 4, d)]), Color(GOLD, 0.75))
-	var tag_y := d + ts + 6.0
-	c.draw_string_outline(font, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, 4, Color(0, 0, 0, 0.6))
-	c.draw_string(font, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, Color(0.86, 0.83, 0.9, 0.85))
+	var ns := int(fs * 1.4)  # (Grenze Gotisch is small for its size, in mixed case)
+	var ty := _title_y(s) + fs * 0.12
+	var name: String = UI.title_case(TEXT["title"])
+	_glow(c, Vector2(col_w * 0.5, ty - ns * 0.3), Vector2(minf(col_w * 0.9, ns * 9.0), ns * 2.2), Color(UI.GILT, 0.1))
+	UI.draw_eyebrow(c, Vector2(0, ty - ns * 0.78), TEXT["eyebrow"], Color(UI.GILT, 0.85), maxi(10, int(fs * 0.2)), HORIZONTAL_ALIGNMENT_CENTER, col_w)
+	c.draw_string_outline(title_font, Vector2(0, ty + 4.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, 12, Color(0, 0, 0, 0.5))
+	c.draw_string_outline(title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, 4, Color(0.22, 0.12, 0.04, 0.95))
+	c.draw_string(title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, UI.GILT)
+	# A lit upper edge: the name again, a shade lighter, a pixel up.
+	c.draw_string(title_font, Vector2(0, ty - 1.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, Color(UI.GILT_HI, 0.35))
+	var ts := int(clampf(fs * 0.32, 16.0, 22.0))
+	var half := minf(col_w * 0.3, 180.0)
+	var d := ty + fs * 0.3
+	UI.draw_divider(c, Vector2(col_w * 0.5 - half, d), Vector2(col_w * 0.5 + half, d), Color(UI.GILT, 0.8))
+	var tag_y := d + ts + 8.0
+	var it := UI.font("italic")
+	c.draw_string_outline(it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, 4, Color(0, 0, 0, 0.6))
+	c.draw_string(it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, Color(UI.TEXT, 0.88))
 
 
 ## A soft blob of light (or shadow) of a size and colour.
