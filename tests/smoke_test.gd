@@ -9297,13 +9297,13 @@ func _maker_tests() -> void:
 	var prof = main.profile
 	var p = main.player
 	var W = main.wings
-	# The story isn't written: every line is redacted, drawn as bars.
+	# The Makers' words are written (any line may still be redacted, drawn as bars).
 	var said: Array = []
 	for m in M.ORDER:
 		for k in ["speech", "good_reply", "bad_reply", "already", "plea_yes", "plea_no", "interrupt", "entity", "fragments"]:
 			said.append_array(M.MAKERS[m][k])
-	_check(said.size() > 40 and said.all(func(l): return M.is_redacted(l) and M.word_lengths(l).size() >= 2), "every Maker's line, fragment and the Entity's lines about them are redacted (%d lines)" % said.size())
-	_check(not M.is_redacted("To understand") and M.ANSWERS.all(func(a): return a["placeholder"] and not M.is_redacted(a["text"])), "the answers are plain placeholders")
+	_check(said.size() > 40 and said.all(func(l): return not M.is_redacted(l) and String(l).length() > 8), "every Maker's line, fragment and the Entity's lines about them are written (%d lines)" % said.size())
+	_check(M.is_redacted("▇▇▇ ▇▇▇▇") and M.ANSWERS.all(func(a): return not a["placeholder"] and not M.is_redacted(a["text"])), "the answers are written, and a line of bars still counts as redacted")
 	var bars = load("res://scripts/draw_util.gd").Batch.new()
 	var h: float = M.redact_into(bars, Vector2.ZERO, 60.0, "▇▇▇▇ ▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇", Color.WHITE, 13.0)
 	_check(bars.size() > 0 and h > 13.0 * 1.45, "redacted words draw as bars, wrapping (%.0f tall)" % h)
@@ -9380,7 +9380,7 @@ func _maker_tests() -> void:
 	await _frames(2)
 	var shelves: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("shelf"))
 	var texts: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("fragment_text"))
-	_check(shelves.size() == 1 and shelves[0].get_meta("shelf") == maker and texts.size() == 1 and M.is_redacted(texts[0].get_meta("fragment_text")), "the Archive gains its Maker's shelf: one fragment, redacted")
+	_check(shelves.size() == 1 and shelves[0].get_meta("shelf") == maker and texts.size() == 1 and String(texts[0].get_meta("fragment_text")) in M.MAKERS[maker]["fragments"], "the Archive gains its Maker's shelf: one fragment, its words written")
 	_check(main.menu.find_children("*", "", true, false).all(func(n): return not n.has_meta("entity_sibling")), "...the Entity says nothing of its siblings before you've met one")
 	main.menu.close()
 	paused = false
@@ -9573,7 +9573,7 @@ func _maker_tests() -> void:
 	main.menu.climber_tab = "archive"
 	main.menu.open("climber")
 	await _frames(2)
-	_check(main.menu.find_children("*", "", true, false).any(func(n): return n.has_meta("entity_sibling") and M.is_redacted(n.get_meta("entity_sibling"))), "once you've met one, the Entity speaks of its siblings (redacted)")
+	_check(main.menu.find_children("*", "", true, false).any(func(n): return n.has_meta("entity_sibling") and not M.is_redacted(n.get_meta("entity_sibling"))), "once you've met one, the Entity speaks of its siblings")
 	main.menu.close()
 	paused = false
 	await _frames(1)
