@@ -590,7 +590,6 @@ func _page_title() -> void:
 		var cb := _button(ClimbersPage.button_text(prof, Slots.current()), open.bind("climbers"))
 		cb.set_meta("climbers", true)
 		_title_button(cb)
-	_title_button(_button("Climber", open.bind("climber")))
 	_title_button(_button("Settings", open.bind("settings")))
 	_title_button(_button("Dev tools", open.bind("dev")))
 	if prof.regarded:
