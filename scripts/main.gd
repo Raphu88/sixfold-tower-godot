@@ -621,7 +621,7 @@ func perf_lines() -> Array:
 		"draw calls %d  ·  objects %d" % [int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))],
 		"nodes %d" % int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		"monsters %d  ·  traps %d" % [enemies().size(), traps.size()],
-		"lights %d  (one darkness layer)" % (lighting.on_screen if lighting != null else 0),
+		"lights %d  (one darkness layer, %s)" % [lighting.on_screen if lighting != null else 0, lighting.quality if lighting != null else ""],
 	]
 
 

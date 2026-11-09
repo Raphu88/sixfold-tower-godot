@@ -3386,6 +3386,8 @@ func _title_tests() -> void:
 	await _tap_at(_menu_button("Settings").get_global_rect().get_center())
 	_check(menu.page == "settings" and menu.backdrop.visible, "tapping Settings on a phone opens it over the title")
 	_check(main.touch.active and is_equal_approx(root.content_scale_factor, 1.5), "...and the phone layout is on")
+	menu.scroll.ensure_control_visible(_menu_button("Back"))  # (a long page scrolls to it, as a finger would)
+	await _frames(2)
 	await _tap_at(_menu_button("Back").get_global_rect().get_center())
 	_check(menu.page == "title", "tapping Back returns to the title")
 	await _frames(2)
@@ -4031,6 +4033,156 @@ func _lighting_tests() -> void:
 	main.dev_floor(1)
 	await _frames(2)
 	_check(not lt.mat.get_shader_parameter("fog_on"), "no fog on single-room floors")
+
+
+## Builds a wall two tiles thick across the biggest room, from wall to wall
+## (by setting main.solid, as a door closing does), with clear floor on a
+## row either side of it. Returns [tile west of it, tile east of it, the
+## wall's grid indices], or [] if no row is clear.
+func _carve_wall() -> Array:
+	var c: float = main.Floors.CELL
+	var best: Rect2 = main.room_info[0]["rect"]
+	for info in main.room_info:
+		if info["rect"].get_area() > best.get_area():
+			best = info["rect"]
+	var t0: Vector2i = main._tile_of(best.position + Vector2(1, 1))
+	var t1: Vector2i = main._tile_of(best.end - Vector2(1, 1))
+	var mx := (t0.x + t1.x) / 2
+	for y in range(t0.y + 1, t1.y):
+		var clear := true
+		for x in range(mx - 4, mx + 6):
+			var mid: Vector2 = main.room.position + (Vector2(x, y) + Vector2(0.5, 0.5)) * c
+			if main._is_solid_tile(x, y) or main.pillars.any(func(pl): return pl["pos"].distance_to(mid) < pl["r"] + 30.0):
+				clear = false
+		if not clear:
+			continue
+		var wall: Array = []
+		for wy in range(t0.y - 1, t1.y + 2):
+			for wx in [mx, mx + 1]:
+				var i: int = wy * main.grid_size.x + wx
+				if main.solid[i] == 0:
+					wall.append(i)
+					main.solid[i] = 1
+		return [Vector2i(mx - 2, y), Vector2i(mx + 3, y), wall]
+	return []
+
+
+func _tile_mid(t: Vector2i) -> Vector2:
+	return main.room.position + (Vector2(t) + Vector2(0.5, 0.5)) * main.Floors.CELL
+
+
+## Shadows, spotlights, glow and the Lighting setting (lighting.gd).
+func _shadow_tests() -> void:
+	print("lighting: shadows, spotlights, glow and quality")
+	await _fresh_main()
+	var lt = main.lighting
+	var menu = main.menu
+	_check(lt.quality == lt.default_quality() and lt.quality == "high", "a computer starts on High lighting (%s)" % lt.quality)
+	_check(lt.default_quality() in ["medium", "high"], "...a phone or a browser on Medium")
+	# Spotlights: lit inside the cone, dark behind it (shadows off, so only the cone counts).
+	lt.set_quality("low")
+	var p: Vector2 = main.player.global_position
+	var spot: int = lt.add_spot(p, Vector2.RIGHT, 60.0, 220.0, Color.WHITE, 0.9)
+	var omni: int = lt.add_light(p, 220.0, Color.WHITE, 0.9)
+	await _frames(2)
+	_check(lt.light_at(spot, p + Vector2(110, 0)) > 0.4 and lt.light_at(spot, p + Vector2(110, 25)) > 0.3, "a spotlight lights inside its cone (%.2f)" % lt.light_at(spot, p + Vector2(110, 0)))
+	_check(lt.light_at(spot, p + Vector2(-110, 0)) < 0.02 and lt.light_at(spot, p + Vector2(0, -110)) < 0.02, "...and not behind it or beside it")
+	_check(lt.light_at(omni, p + Vector2(-110, 0)) > 0.4, "a plain light still shines all round")
+	var sent: int = lt.on_screen
+	lt.remove_light(spot)
+	lt.remove_light(omni)
+	await _frames(2)
+	_check(lt.on_screen == sent - 2, "spotlights go to the shader like any light")
+	# Low: no glow, the plain shader.
+	_check(not lt.glow_layer.visible and lt.blooms.is_empty(), "Low draws no glow")
+	_check(not lt.mat.shader.code.contains("#define SHADOWS"), "Low uses the plain darkness (no shadows)")
+	# A floor of rooms: a light beside a wall.
+	main.dev_floor(2)
+	await _frames(2)
+	for e in main.enemies():
+		e.set_physics_process(false)
+	var pair := _carve_wall()
+	_check(not pair.is_empty(), "a wall can be built across a room")
+	if pair.is_empty():
+		return
+	var pa := _tile_mid(pair[0])
+	var pb := _tile_mid(pair[1])
+	main.player.global_position = pa + Vector2(0, 4)
+	main.cam_prev = main.player.global_position
+	main.cam_curr = main.player.global_position
+	main.camera.reset_smoothing()
+	var id: int = lt.add_light(pa, 300.0, Color.WHITE, 0.9)
+	await _frames(3)
+	_check(lt.light_at(id, pb) > 0.3, "on Low a light shines through the wall (%.2f)" % lt.light_at(id, pb))
+	for q in ["high", "medium"]:
+		lt.set_quality(q)
+		await _until(func(): return lt.lights[id].has("sh_key") and lt.shadow_at(pa, 300.0, pb) >= 0.0, 2.0)
+		_check(lt.mat.shader.code.contains("#define SHADOWS"), "%s draws shadows" % q)
+		_check(lt.light_at(id, pb) < 0.03, "on %s a light behind a wall doesn't light the far side (%.2f)" % [q, lt.light_at(id, pb)])
+		_check(lt.light_at(id, pa + Vector2(-30, 0)) > 0.5, "...but lights its own side (%.2f)" % lt.light_at(id, pa + Vector2(-30, 0)))
+	# A light that stays put isn't worked out again; a wall that opens is.
+	var slot: int = lt.slot_of(id)
+	var cast_at: int = lt.slot_cast_frame(slot)
+	await _frames(8)
+	_check(slot >= 0 and lt.slot_of(id) == slot and lt.slot_cast_frame(slot) == cast_at, "a still light's shadow is worked out once")
+	for i in pair[2]:
+		main.solid[i] = 0
+	await _until(func(): return lt.light_at(id, pb) > 0.3, 2.0)
+	_check(lt.light_at(id, pb) > 0.3, "a wall opening (a door) lets the light through (%.2f)" % lt.light_at(id, pb))
+	for i in pair[2]:
+		main.solid[i] = 1
+	await _until(func(): return lt.light_at(id, pb) < 0.03, 2.0)
+	_check(lt.light_at(id, pb) < 0.03, "...and closing stops it again")
+	lt.set_quality("high")
+	await _until(func(): return lt.climber_light.has("sh_key"), 2.0)
+	_check(lt.climber_light.has("sh_key"), "on High the climber's own light casts shadows")
+	for i in pair[2]:
+		main.solid[i] = 0
+	lt.remove_light(id)
+	# Glow: halos on bright things, one draw for all of them.
+	lt.set_quality("high")
+	var bright: int = lt.add_light(pa, 120.0, Color(0.5, 0.8, 1.0), 0.8, 0.3)
+	main.light_flash(pa + Vector2(-20, 10), Color(1.0, 0.6, 0.3), 1.2, 1.6, 2.0)
+	await _until(func(): return lt.blooms.any(func(b): return b[0].distance_to(pa) < 1.0), 2.0)
+	_check(lt.glow_layer.visible and lt.blooms.any(func(b): return b[0].distance_to(pa) < 1.0), "a bright light glows (%d halos)" % lt.blooms.size())
+	_check(lt.blooms.any(func(b): return b[0].distance_to(pa + Vector2(-20, 10)) < 1.0), "...and so does a spell's flash")
+	main.gather_essence("fire", 120.0, pa + Vector2(30, 0))
+	await _frames(2)
+	_check(lt.blooms.size() <= lt.BLOOM_MAX and lt.blooms.size() > 3, "essence motes glow, within a cap (%d halos)" % lt.blooms.size())
+	_check(lt.get_children() == [lt.glow_layer] and lt.glow_layer.get_child_count() == 0, "the darkness and the glow are two canvas items: two draw calls")
+	lt.remove_light(bright)
+	lt.flashes.clear()
+	# The cap: never more lights than the shader takes, never more shadows than the atlas holds.
+	var many: Array = []
+	for i in 70:
+		many.append(lt.add_light(pa + Vector2(randf_range(-200, 200), randf_range(-150, 150)), 90.0, Color.WHITE, 0.5))
+	await _frames(12)
+	_check(lt.on_screen <= lt.MAX_LIGHTS and lt.on_screen > 20, "70 lights: the shader still gets at most %d (%d)" % [lt.MAX_LIGHTS, lt.on_screen])
+	_check(lt._key_slot.size() <= lt.SLOT_COLS * lt.SLOT_ROWS, "...and the shadow atlas holds at most %d" % (lt.SLOT_COLS * lt.SLOT_ROWS))
+	for m in many:
+		lt.remove_light(m)
+	# Settings -> Lighting: saved, loaded, and it changes the lighting.
+	menu.open("settings")
+	await _frames(1)
+	var rows: Array = _all_buttons(menu).filter(func(b): return b.get_meta("choice_key", "") == "lighting")
+	_check(rows.size() == 3, "Settings offers Low, Medium and High lighting")
+	rows[0].pressed.emit()
+	await _frames(2)
+	_check(menu.settings["lighting"] == "low" and lt.quality == "low", "choosing Low switches the lighting to Low")
+	menu.close()
+	await _frames(2)
+	var path := "user://test_lighting.cfg"
+	menu.save_settings_to(path)
+	menu.settings["lighting"] = "high"
+	menu.load_settings_from(path)
+	_check(menu.settings["lighting"] == "low", "the lighting setting is saved and loaded")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	menu._set_setting("lighting", "medium")
+	_check(lt.quality == "medium" and lt.QUALITY["medium"]["cast_ms"] < lt.QUALITY["high"]["cast_ms"], "Medium works shadows out more slowly than High")
+	_check(lt.QUALITY["high"]["climber"] and not lt.QUALITY["medium"]["climber"], "...and only High gives the climber's own light a shadow")
+	menu._set_setting("lighting", "high")
+	main.dev_floor(1)
+	await _frames(2)
 
 
 func _foe_list_tests() -> void:
@@ -7040,6 +7192,7 @@ func _run() -> void:
 	await _pad_layout_tests()
 	await _performance_tests()
 	await _lighting_tests()
+	await _shadow_tests()
 	await _foe_list_tests()
 	await _slim_hud_tests()
 	await _appearance_tests()
@@ -7827,7 +7980,7 @@ func _mark_page_tests() -> void:
 	# The HUD size setting.
 	menu.open("settings")
 	await _frames(1)
-	var sizes: Array = _all_buttons(menu).filter(func(b): return b.has_meta("choice"))
+	var sizes: Array = _all_buttons(menu).filter(func(b): return b.has_meta("choice") and b.get_meta("choice_key", "") == "hud_scale")
 	_check(sizes.size() == 3, "Settings offers three HUD sizes")
 	sizes[2].pressed.emit()
 	await _frames(2)
