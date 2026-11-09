@@ -148,7 +148,7 @@ func setup(plan: Dictionary) -> void:
 		main.door_view.add_door(def)
 		w["vault_body"] = _close([w["vault_door"]])
 		var vdir: Vector2 = w["vault_dir"]
-		w["light"] = main.lighting.add_light(w["seal_pos"] - vdir * 26.0, 130.0, GOLD, 0.7, 0.2)
+		w["light"] = main.lighting.add_spot(w["seal_pos"] - vdir * 22.0, -vdir, 130.0, 150.0, GOLD, 0.7, 0.2)  # (spilling out from under the seal)
 		wings.append(w)
 	for k in plan.get("secrets", []):
 		var s: Dictionary = k.duplicate()
@@ -796,7 +796,7 @@ func _open_secret(s: Dictionary) -> void:
 		var col: Color = Essence.color(main.tower_data().get("essence", "air")) if s["content"] == "cache" else GOLD
 		s["light"] = main.lighting.add_light(s["rect"].get_center(), 120.0, col, 0.7, 0.2)
 	if s["content"] == "tithe":
-		s["light"] = main.lighting.add_light(s["seal_pos"] - Vector2(s["vault_dir"]) * 24.0, 110.0, Color(0.7, 0.85, 1.0), 0.6, 0.15)
+		s["light"] = main.lighting.add_spot(s["seal_pos"] - Vector2(s["vault_dir"]) * 22.0, -Vector2(s["vault_dir"]), 130.0, 130.0, Color(0.7, 0.85, 1.0), 0.6, 0.15)
 	main.banner = {"title": TEXT["secret_title"], "lines": [], "t": 2.0}
 	dirty = true
 

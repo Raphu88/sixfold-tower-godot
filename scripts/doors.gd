@@ -210,6 +210,11 @@ func _hang(def: Dictionary, themes: Array) -> Dictionary:
 	return d
 
 
+## The light under a lit door: a fan spilling out of the gap under it, its
+## cone's width in degrees, reach, strength and glow (a spotlight, lighting.gd).
+const UNDER_LIGHT := {"cone": 110.0, "reach": 150.0, "strength": 0.55, "glow": 0.3}
+
+
 ## Warm and chained doors cast a little light from under them (through the
 ## darkness layer, so it shows from across the room).
 func _add_light(d: Dictionary) -> void:
@@ -220,8 +225,8 @@ func _add_light(d: Dictionary) -> void:
 	if col.a <= 0.0:
 		return
 	var edge := _edge(d["rect"], d["out"])
-	var at: Vector2 = (edge[0] + edge[1]) * 0.5 + Vector2(d["out"]) * 16.0
-	d["light"] = main.lighting.add_light(at, 80.0, col, 0.55, 0.35)
+	var at: Vector2 = (edge[0] + edge[1]) * 0.5 + Vector2(d["out"]) * 4.0
+	d["light"] = main.lighting.add_spot(at, d["out"], UNDER_LIGHT["cone"], UNDER_LIGHT["reach"], col, UNDER_LIGHT["strength"], UNDER_LIGHT["glow"])
 
 
 ## The light under a door of this style (none: alpha 0).
