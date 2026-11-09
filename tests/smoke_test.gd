@@ -151,13 +151,34 @@ func _regard_tests() -> void:
 
 	print("a second mark")
 	main.first_climb = false
-	main.profile.soak["heart"] = 200.0
+	var PS = main.ProfileScript
+	main.profile.soak["heart"] = PS.NEW_MARK_SOAK
 	main.run_essence = {"iron": 20.0}
 	main.floor_num = 4
 	main._arrive()
 	await _frames(2)
-	_check(main.profile.bonds.has("heart"), "a soaked body part takes a new mark at the stair")
+	_check(not main.profile.bonds.has("heart"), "a full body part waits: no new mark at an ordinary stair")
+	main.floor_num = int(main.tower_data().get("summit", 12))
+	main._arrive()
+	await _frames(2)
+	_check(main.profile.bonds.has("heart"), "at a summit the beast takes notice: the full part takes a new mark")
 	_check(main.player.bonds.has("heart"), "the climber carries it")
+	main.profile.soak["throat"] = PS.NEW_MARK_SOAK
+	_check(main.summit_mark().is_empty() and not main.profile.bonds.has("throat"), "at most one new mark a climb")
+	main.victory = {}
+	main.player.set_physics_process(true)
+	# A battery: the fuller a part, and the more marks you carry, the slower it fills.
+	main.profile.soak = {"back": 0.0, "throat": PS.NEW_MARK_SOAK * 0.5}
+	main.profile.bank({}, {"back": 100.0, "throat": 100.0})
+	var empty_gain: float = main.profile.soak["back"]
+	var half_gain: float = main.profile.soak["throat"] - PS.NEW_MARK_SOAK * 0.5
+	_check(empty_gain > 0.0 and half_gain < empty_gain * 0.6, "a half-full part fills slower than an empty one (%.1f vs %.1f)" % [half_gain, empty_gain])
+	_check(empty_gain <= 100.0 * PS.SOAK_RATE + 0.01, "a part soaks up only part of what it does")
+	# The Proving's gift: one mark grows a step.
+	var before_step: int = PS.step_for_xp(float(main.profile.bonds["legs"]["xp"]))
+	main.climb_soak["legs"] = 999.0
+	var raised: String = main.proving_raise()
+	_check(raised != "" and PS.step_for_xp(float(main.profile.bonds["legs"]["xp"])) == before_step + 1, "winning the Proving raises a mark a step (%s)" % raised)
 
 
 ## Gives the test climber a mark at a given step.
@@ -1109,8 +1130,11 @@ func _plan_tests() -> void:
 		e.set_physics_process(false)
 		e.aware = false
 	p.global_position = main.player_start
+	main.traps = []  # (no trap may catch the test's monster on its way)
 	main.door_view.monster_t = 99.0  # (a new monster starts awake: hold the check a moment)
 	var foe = await _spawn("slime", door["rect"].get_center() + door["out"] * 50.0)
+	foe.max_hp = 9999.0
+	foe.hp = 9999.0
 	foe.set_physics_process(false)
 	foe.aware = false
 	main.door_view.monster_t = 0.0
@@ -1121,12 +1145,14 @@ func _plan_tests() -> void:
 		if door["open"]:
 			break
 		await _wait(0.1)
-	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it (shut while asleep: %s, open once awake: %s)" % [shut, door["open"]])
-	foe.queue_free()
+	_check(shut and door["open"], "a sleeping monster leaves a door shut; an awake one opens it (shut while asleep: %s, open once awake: %s, monster still there: %s)" % [shut, door["open"], is_instance_valid(foe)])
+	if is_instance_valid(foe) and not foe.is_queued_for_deletion():
+		foe.queue_free()
 	# Entering a themed room shows its name and rule, once.
 	for e in main.enemies():
-		e.queue_free()
-	await _frames(1)
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			e.queue_free()
+	await _frames(2)
 	var ti := -1
 	for i in main.room_info.size():
 		if main.room_themes[i] in ["den", "landing"] or T.get_theme(main.room_themes[i])["kind"] == "good":
@@ -6952,7 +6978,7 @@ func _run() -> void:
 		main._arrive()
 	await _frames(3)
 	_check(main.floor_num == 4, "climbed to floor 4")
-	main.profile.bonds["hand"]["xp"] = 170.0
+	main.profile.bonds["hand"]["xp"] = main.ProfileScript.STEP_XP[2] + 10.0
 	main._give_bonds()
 	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
 	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
@@ -7314,7 +7340,7 @@ func _wing_tests() -> void:
 	_check(p.use_item(), "...and a second use reads it")
 	_check(not main.victory.is_empty() and main.victory.get("recall", false), "reading it ends the climb safely")
 	_check(main.profile.crystal_count("fire") == 1 and int(main.profile.crystal_total("fire")) == 23 and main.profile.crystal_count("air") == 1, "unbanked essence settles into crystals, one per kind")
-	_check(main.run_essence.is_empty() and p.item_count("scroll") == 0 and main.profile.soak.get("back", 0.0) >= 4.0, "the scroll is used up, and nothing else is lost")
+	_check(main.run_essence.is_empty() and p.item_count("scroll") == 0 and main.profile.soak.get("back", 0.0) > 0.0, "the scroll is used up, and nothing else is lost")
 	main.victory["t"] = 9.0
 	main.end_regard()
 	_check(not main.camp_choosing and not main.heirloom_offered, "no heirloom choice after a recall (the climb wasn't won)")
@@ -9872,7 +9898,7 @@ func _secret_bond_tests() -> void:
 	SB.on_bank(prof, {"water": 300.0, "air": 200.0}, 10.0, "life")
 	_check(SB.depth_of(prof) == 1 and SB.next_lines(prof).any(func(l): return String(l).contains("Mastery")), "the Developer needs essence of every kind and one thing more")
 	for part in ["hand", "legs", "heart"]:
-		prof.bonds[part] = {"id": ["stormcaller", "windwalker", "warden"][["hand", "legs", "heart"].find(part)], "xp": 600.0, "faint": false, "debt": 0.0}
+		prof.bonds[part] = {"id": ["stormcaller", "windwalker", "warden"][["hand", "legs", "heart"].find(part)], "xp": main.ProfileScript.STEP_XP[4], "faint": false, "debt": 0.0}
 	SB.grow(prof)
 	_check(SB.depth_of(prof) == 2, "...three bonds at step 5 are enough")
 	prof.bonds.erase("heart")

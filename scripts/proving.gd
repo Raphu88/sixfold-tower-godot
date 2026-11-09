@@ -614,7 +614,11 @@ func _win() -> void:
 	main.room_view.stair_open = true
 	prize["state"] = "ready"
 	lights.append(main.lighting.add_light(prize["pos"], 120.0, GOLD, 0.75, 0.25))
-	_reopen("shadow", {"title": TEXT["won_title"], "lines": [TEXT["won"]], "t": 3.5})
+	var won_lines: Array = [TEXT["won"]]
+	var raised: String = main.proving_raise()  # (one of your marks grows a step)
+	if raised != "":
+		won_lines.append(raised)
+	_reopen("shadow", {"title": TEXT["won_title"], "lines": won_lines, "t": 3.5})
 	main.sfx("clear", 0.8, -2.0, 0.0)
 	main.fx_ring(main.stair_pos, GOLD, 80.0, 0.6, 4.0)
 	queue_redraw()
