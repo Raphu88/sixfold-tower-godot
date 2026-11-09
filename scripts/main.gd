@@ -164,6 +164,10 @@ var flare_pos := Vector2.ZERO
 var flare_light := -1
 var loot_notice := {}  # a Rare (or better) find, fading in on the HUD: {text, color, t}
 var belt_broken := false  # this climb's belt has broken into crystals
+# The outfitter's pay for a climb (train.gd CLIMB_PAY), once, however it ends.
+var climb_best0 := 0  # this tower's best floor before the climb (set as it starts)
+var climb_paid := false
+var pay_line := ""  # what he paid, for the end-of-climb screens ("" before)
 # Gear (gear.gd): pieces lying on the floor, and the one you stand on.
 var gear_drops: Array = []  # {pos, id (its base id), rec (the gear record)}
 var gear_drop_chance := Gear.DROP_CHANCE
@@ -298,6 +302,7 @@ func _ready() -> void:
 	player.use_heirlooms(profile.heirlooms)
 	apply_appearance()
 	tower = profile.last_tower if Towers.TOWERS.has(profile.last_tower) else "kraken"
+	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
 	if Engine.has_meta("sixfold_test"):
@@ -1308,16 +1313,26 @@ func _arrive() -> void:
 		lines.append("Your burns heal")
 	if healed >= 1.0:
 		lines.append("Rested: +%d health" % int(healed))
-	# Bank the essence gathered on this floor: it strengthens your marks.
+	# Bank the essence gathered on this floor: it strengthens your marks. A
+	# share of it condenses into crystals first (train.gd CONDENSE_*, the
+	# setting): only the rest is banked, and only that grows anything.
+	var cond: Dictionary = profile.condense(run_essence, Train.condense_share(MenuScript.settings))
+	var keep: Dictionary = cond["keep"]
 	var banked := 0.0
-	for k in run_essence:
-		banked += float(run_essence[k])
-	if banked > 0.0:
-		lines.append("Banked %d essence" % int(banked))
+	var condensed := 0.0
+	for k in keep:
+		banked += float(keep[k])
+	for k in cond["made"]:
+		condensed += float(cond["made"][k])
+	if banked + condensed > 0.0:
+		var said: String = Train.TEXT["banked"] % int(round(banked))
+		if condensed >= 1.0:
+			said += "  ·  " + Train.TEXT["condensed"] % int(condensed)
+		lines.append(said)
 		profile.note("essence", banked)
 		tip("bank")
-	lines.append_array(SecretBonds.on_bank(profile, run_essence, run_flow, profile.path))  # (a secret bond grows from what's banked)
-	lines.append_array(profile.bank(run_essence, run_soak))
+	lines.append_array(SecretBonds.on_bank(profile, keep, run_flow, profile.path))  # (a secret bond grows from what's banked)
+	lines.append_array(profile.bank(keep, run_soak))
 	run_essence = {}
 	run_soak = {}
 	lines.append_array(_bank_flow())
@@ -1339,6 +1354,9 @@ func _arrive() -> void:
 		var broke := break_belt()
 		if broke != "":
 			lines.append(broke)
+		var paid := pay_climb()
+		if paid != "":
+			lines.append(paid)
 		var home := bring_pack_home()
 		if home != "":
 			lines.append(home)
@@ -1572,9 +1590,9 @@ func camp_card(i: int) -> Dictionary:
 	if pick.begins_with("crystal:"):
 		var kind := pick.get_slice(":", 1)
 		var amount := int(pick.get_slice(":", 2))
-		var held: int = profile.crystal_count(kind)
+		var held := int(profile.crystal_total(kind))
 		return {"name": Items.CRYSTAL["name"] % Essence.display(kind), "desc": Items.CRYSTAL["desc"] % [amount, Essence.display(kind).to_lower()],
-			"color": Essence.color(kind), "item": "", "crystal": kind, "note": "you hold %d like it" % held}
+			"color": Essence.color(kind), "item": "", "crystal": kind, "note": "you hold %d %s" % [held, Essence.display(kind)]}
 	var crafted := pick.begins_with("craft:")
 	var id := pick.substr(6) if crafted else pick
 	var d := Items.info(id)
@@ -1682,10 +1700,11 @@ func _take_vault_pick(pick: String) -> void:
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
-## Consumes an essence crystal of a kind: its essence is banked into you,
-## as at a stair. Returns what changed (empty if you hold none).
+## Consumes some of your essence crystal of a kind (up to Items.CRYSTAL
+## "step"): that essence is banked into you, as at a stair (none of it
+## condenses). Returns what changed (empty if you hold none).
 func consume_crystal(kind: String) -> Array:
-	var amount: float = profile.take_crystal(kind)
+	var amount: float = profile.take_crystal(kind, float(Items.CRYSTAL["step"]))
 	if amount <= 0.0:
 		return []
 	var lines: Array = [Items.CRYSTAL["consumed"] % [int(amount), Essence.display(kind).to_lower()]]
@@ -1741,6 +1760,9 @@ func read_recall() -> void:
 	var broke := break_belt(["scroll"])  # (the scroll itself is being read)
 	if broke != "":
 		lines.append(broke)
+	var paid := pay_climb()
+	if paid != "":
+		lines.append(paid)
 	var home := bring_pack_home()
 	if home != "":
 		lines.append(home)
@@ -1830,6 +1852,32 @@ func drop_from_pack(i: int) -> bool:
 	player.pack.remove_at(i)
 	drop_gear(player.global_position, g)
 	return true
+
+
+## A climb begins in `tower`: remember its best floor so far (the
+## outfitter pays more for floors past it) and that nothing is paid yet.
+func _note_climb_start() -> void:
+	climb_best0 = int(profile.record.get("best", {}).get(tower, 0))
+	climb_paid = false
+	pay_line = ""
+
+
+## The end of a climb, however it ends (a fall, the summit, a recall scroll,
+## the first climb's Regard): the outfitter pays crystals of the tower's kind
+## for the floors reached (train.gd CLIMB_PAY), once. Returns the line to show.
+func pay_climb() -> String:
+	if climb_paid:
+		return pay_line
+	climb_paid = true
+	var kind: String = tower_data()["essence"]
+	var amount: int = Train.climb_pay(floor_num, climb_best0)
+	if amount < 1:
+		return ""
+	profile.add_crystal(kind, float(amount))
+	profile.last_pay = {"kind": kind, "amount": float(amount)}
+	profile.save()
+	pay_line = Train.TEXT["pay"] % Train.price_text(kind, amount)
+	return pay_line
 
 
 ## The end of a survived climb (or a recall scroll): your pack comes down
@@ -2177,6 +2225,7 @@ func choose_tower(id: String) -> void:
 	tower = id
 	profile.last_tower = id
 	profile.save()
+	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
 	player.set_physics_process(true)
@@ -2378,6 +2427,7 @@ func on_player_died() -> void:
 		fall_note.append_array(Vessel.on_fall(self))  # (a vessel and what it held go with the belt)
 		if not fall_note.is_empty():
 			tip("fall_loss")
+		pay_climb()  # (the outfitter pays for the floors all the same: shown on the fall screen)
 	profile.save()
 	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
 	if first_climb and regard.is_empty() and not regard_pending:
@@ -2398,6 +2448,7 @@ var regard_mark := {}  # the Regard's mark once granted: {fell, part, id}
 func _grant_regard(fell: bool) -> void:
 	if not regard_mark.is_empty():
 		return
+	pay_climb()  # (the first climb is paid for too, fallen or not: money for the first train)
 	if unbound != null and unbound.broke_rules:
 		# A barrier broken on this climb: the beast refuses to mark you (unbound_run.gd).
 		UnboundRun.Unbound.become(profile)
@@ -2839,6 +2890,7 @@ func dev_tower(id: String) -> void:
 	tower = id
 	profile.last_tower = id
 	profile.save()
+	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
 	_greet()
