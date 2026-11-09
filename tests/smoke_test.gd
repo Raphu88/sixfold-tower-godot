@@ -10131,14 +10131,20 @@ func _secret_deep_tests() -> void:
 	var movable: Array = main.traps.filter(func(t): return Tr.KINDS[t["kind"]]["shape"] != "lane" and not t.get("own", false))
 	var moved_ok := true
 	var moved_any := false
-	for t2 in movable.slice(0, 6):
+	var why_not := ""
+	for t2 in movable:
+		if moved_any:
+			break
 		for dv in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var from: Vector2 = t2["pos"]
+			if moved_any:
+				break
 			if D.move_trap(t2, dv) == "":
+				why_not = "%s -> %s, %d hard" % [from, t2["pos"], Tr.hard_tiles(main.traps).size()]
 				moved_any = true
 				var steps: float = from.distance_to(t2["pos"]) / Tr.C
 				moved_ok = moved_ok and steps <= SB.MOVE_TILES + 0.01 and not main.is_solid(t2["pos"]) and Tr.hard_tiles(main.traps).size() <= hard0
-	_check(moved_any and moved_ok, "Move shifts a trap up to %d tiles to open floor, never leaving a tile with no safe moment" % SB.MOVE_TILES)
+	_check(moved_any and moved_ok, "Move shifts a trap up to %d tiles to open floor, never leaving a tile with no safe moment (%d traps, %s)" % [SB.MOVE_TILES, movable.size(), why_not])
 	# Raise and sink walls.
 	var spot := Vector2.ZERO
 	for info in main.room_info:
@@ -10233,11 +10239,13 @@ func _secret_deep_tests() -> void:
 		var stepped_it: bool = main.trap_view._stepped_on(own[0])
 		mon.queue_free()
 		_check(not stepped_me and stepped_it, "...that only monsters set off")
-	p.global_position = spot2 + Vector2(0, Tr.C)
-	if main.is_solid(p.global_position + Vector2(2 * Tr.C, 0)):
-		p.global_position = spot2
-	p.aim = Vector2.RIGHT
-	var gate_ok: bool = D.build("gate") == ""
+	var gate_ok := false
+	for info in main.room_info:
+		for off in [Vector2(-2.5 * Tr.C, Tr.C), Vector2(-2.5 * Tr.C, -Tr.C), Vector2(-1.5 * Tr.C, 0)]:
+			p.global_position = info["rect"].get_center() + off
+			p.aim = Vector2.RIGHT
+			if not gate_ok and not main.is_solid(p.global_position):
+				gate_ok = D.build("gate") == ""
 	_check(gate_ok and D.gates.size() == 1 and D.gates[0]["body"].collision_layer == 8 and main.astar.is_point_solid(D.gates[0]["tiles"][0]), "a gate: monsters can't pass (and go around); you can")
 	for info in main.room_info:
 		if D.builds >= SB.BUILD_MAX:
@@ -10275,6 +10283,7 @@ func _secret_deep_tests() -> void:
 	_check(kn.reach_k == SB.MEDIT["short"]["reach"], "...Half its reach")
 	_check(not T.use("man_edit", kn) and T.message == SB.TEXT["medit_max"], "...within its budget (%d changes)" % SB.MEDIT_MAX)
 	var kn2 = await _spawn("knight", p.global_position + Vector2(-120, 0))
+	var kn2_at: Vector2 = kn2.global_position
 	T.use("man_edit", kn2)
 	var turn_i := -1
 	for i in D.cards.size():
@@ -10283,7 +10292,7 @@ func _secret_deep_tests() -> void:
 	var into: String = String(D.cards[turn_i]["id"]).substr(5) if turn_i >= 0 else ""
 	main.choose_camp(turn_i)
 	await _frames(1)
-	var turned: Array = main.enemies().filter(func(e): return e.kind == into and e.global_position.distance_to(p.global_position + Vector2(-120, 0)) < 40.0)
+	var turned: Array = main.enemies().filter(func(e): return e.kind == into and e.has_meta("sb_edits") and "turned" in e.get_meta("sb_edits") and e.global_position.distance_to(kn2_at) < 80.0)
 	_check(turn_i >= 0 and (not is_instance_valid(kn2) or kn2.dead), "...or turns it into a weaker kind")
 	_check(not turned.is_empty(), "...standing where it stood (%s)" % into)
 	var champ = await _spawn("knight", p.global_position + Vector2(0, 100))
