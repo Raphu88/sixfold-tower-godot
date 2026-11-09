@@ -34,6 +34,8 @@ const AppearancePage := preload("res://scripts/appearance_page.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const TechniquePage := preload("res://scripts/technique_page.gd")
+const ClimbersPage := preload("res://scripts/climbers_page.gd")
+const Slots := preload("res://scripts/slots.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -44,13 +46,13 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
 	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
-	"create": 960.0, "appearance": 960.0, "techniques": 720.0}
+	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
 const COMPACT_H := 600.0
 
-## Settings, kept between sessions (in the same file as the profile).
+## Settings, kept between sessions (in the settings file, shared by every climber: slots.gd).
 ## "condense": the share of banked essence that condenses into crystals at a
 ## stair, in percent (train.gd CONDENSE_CHOICES).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks", "lighting": "",
@@ -505,6 +507,9 @@ func open(which: String, direct := false) -> void:
 			first = train_page.first_focus(list)
 		elif which == "create" or which == "appearance":
 			first = maxi(0, list.find(look_page.first_focus))
+		elif which == "climbers":
+			# (on the current climber's card)
+			first = maxi(0, list.map(func(b): return b.get_meta("climber_slot", 0)).find(Slots.current()))
 		var at: int = keep if keep >= 0 and keep < list.size() else first
 		if which == "train":
 			# (never onto another slot than the one whose card shows; on a
@@ -580,11 +585,16 @@ func _page_title() -> void:
 	var prof = main.profile
 	var primary := _button("Begin your first climb" if not prof.regarded else "Continue", _leave_title)
 	_title_button(primary, true)
+	if Slots.any():
+		# The climber picker (climbers_page.gd), naming the current climber.
+		var cb := _button(ClimbersPage.button_text(prof, Slots.current()), open.bind("climbers"))
+		cb.set_meta("climbers", true)
+		_title_button(cb)
 	_title_button(_button("Climber", open.bind("climber")))
 	_title_button(_button("Settings", open.bind("settings")))
 	_title_button(_button("Dev tools", open.bind("dev")))
 	if prof.regarded:
-		_title_button(_button("New climber", _ask_new.bind("title")))
+		_title_button(_button(ClimbersPage.TEXT["over"], _ask_new.bind("title")))
 	_gap(2)
 	_text(_title_status(), DIM, true)
 	var l: Label = box.get_child(box.get_child_count() - 1)
@@ -633,7 +643,7 @@ func _page_pause() -> void:
 	_button("Dev tools", open.bind("dev"), grid)
 	if not _on_train():
 		_button("Restart this climb", _restart, grid)
-	_button("New climber", _ask_new.bind("pause"), grid)
+	_button(ClimbersPage.TEXT["over"], _ask_new.bind("pause"), grid)
 	if can_quit():
 		var row := _grid(2)
 		_button("Exit to title", exit_to_title, row)
@@ -2067,13 +2077,16 @@ func _ask_new(back: String) -> void:
 	open("confirm_new")
 
 
+## Start over: this climber only (their slot starts again; the others are kept).
 func _page_confirm_new() -> void:
-	_header("NEW CLIMBER?", "")
-	_text("Start over with no marks. All your marks and their growth will be lost, and your heirlooms with them.", TEXT, true)
+	var CT: Dictionary = ClimbersPage.TEXT
+	var who: String = str(main.profile.appearance.get("name", ""))
+	_header(CT["over_title"], "")
+	_text(CT["over_text"] % (who if who != "" else CT["over_this"]), TEXT, true)
 	_gap()
 	var row := _grid(2)
-	_button("Start over", _new_climber, row)
-	_button("Cancel", open.bind(confirm_back), row)
+	_button(CT["over"], _new_climber, row)
+	_button(CT["cancel"], open.bind(confirm_back), row)
 
 
 func _page_dev() -> void:
@@ -2266,6 +2279,31 @@ func _leave_title() -> void:
 		return
 	Engine.set_meta("sixfold_title_seen", true)
 	close()
+
+
+## The climber picker (climbers_page.gd): six slots, from the title.
+func _page_climbers() -> void:
+	ClimbersPage.build(self)
+
+
+## The title with the climber picker over it (after deleting the current climber).
+func open_climbers() -> void:
+	open("title")
+	open("climbers")
+
+
+## The climber picker's figure: the climber screen's drawing in a slot's
+## look, with a soft light on each mark in its bond's colour.
+func figure_into(b, look: Dictionary, bonds: Dictionary) -> void:
+	BodyView._figure(b, look)
+	for part in bonds:
+		var info: Dictionary = bonds[part]
+		if not BodyView.SPOTS.has(part) or not Bonds.BONDS.has(info.get("id", "")):
+			continue
+		var col: Color = Bonds.BONDS[info["id"]]["color"]
+		var a := 0.5 if bool(info.get("faint", false)) else 1.0
+		UI.glow_into(b, BodyView.SPOTS[part], 22.0, col, 1.6 * a)
+		b.dot(BodyView.SPOTS[part], 6.0, Color(col.lightened(0.35), 0.9 * a))
 
 
 ## The appearance editor (appearance_page.gd): a new climber's, ending in Begin...

@@ -30,6 +30,8 @@ const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
+const Slots := preload("res://scripts/slots.gd")
+const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Train := preload("res://scripts/train.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Vessel := preload("res://scripts/vessel.gd")
@@ -292,6 +294,8 @@ func _ready() -> void:
 	if Engine.has_meta("sixfold_test"):
 		profile.saving = false  # tests never touch the real save
 	else:
+		# The climber played last (slots.gd; an old single save moves into slot 1 first).
+		profile.save_path = Slots.current_path()
 		profile.load_save()
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
@@ -357,10 +361,14 @@ func _ready() -> void:
 	secret_tools.main = self
 	add_child(secret_tools)
 	# A fresh start (not a restart or a new floor) opens on the title screen.
-	if not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
+	if not Engine.has_meta("sixfold_test") and Engine.has_meta("sixfold_climbers"):
+		# Back to the climber picker (after deleting the current climber).
+		Engine.remove_meta("sixfold_climbers")
+		menu.open_climbers.call_deferred()
+	elif not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
 		menu.open.call_deferred("title")
 	elif not profile.created and not Engine.has_meta("sixfold_test"):
-		# A new climber (New climber, or Start over) chooses a look first.
+		# A new climber (a new slot, or Start over) chooses a look first.
 		menu.open.call_deferred("create")
 	elif on_train:
 		menu.open.call_deferred("train")
@@ -695,8 +703,8 @@ func _process(delta: float) -> void:
 			new_climber()
 			return
 		new_climber_t = 3.0
-		var again := "Tap New again" if touch_active else "Press N again"
-		banner = {"title": "NEW CLIMBER?", "lines": ["%s within 3 seconds to start over." % again, "Your marks and all their growth will be lost."], "t": 3.0}
+		var CT: Dictionary = ClimbersPage.TEXT
+		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), CT["over_lost"]], "t": 3.0}
 		sfx("warn_knight", 1.2, -6.0, 0.0)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
@@ -2600,7 +2608,68 @@ func keep_heirloom(id: String) -> void:
 	end_regard()
 
 
-## Starts over as a new climber: no marks, back to the bondless first climb.
+## Plays another climber slot (slots.gd), from the climber picker: the
+## climber played now never saves again, the slot becomes current, and the
+## game starts again with its climber (on the train after the Regard, the
+## first climb, or, in an empty slot, the appearance page for a new
+## climber). False for a slot that doesn't exist (there's no seventh).
+func switch_climber(slot: int) -> bool:
+	if not Slots.valid(slot):
+		return false
+	profile.saving = false  # (nothing of this climber can land in another's file)
+	Slots.clear(slot)  # (an empty slot starts clean)
+	Slots.set_current(slot)
+	GuideScript.unload()
+	Engine.set_meta("sixfold_title_seen", true)  # (straight in, not via the title)
+	if get_tree().current_scene == self:  # (tests run the room outside a scene)
+		Engine.time_scale = 1.0
+		get_tree().reload_current_scene()
+	else:
+		_load_climber()
+		if menu != null:
+			if not profile.created:
+				menu.open("create")
+			else:
+				menu.close()
+	return true
+
+
+## Deletes a climber for good (the picker asks twice). If it was the climber
+## being played, the game starts again on the picker with whoever is current now.
+func delete_climber(slot: int) -> void:
+	if not Slots.valid(slot):
+		return
+	var was_current := slot == Slots.current()
+	if was_current:
+		profile.saving = false  # (the deleted climber must never write itself back)
+	Slots.delete(slot)
+	if not was_current:
+		return
+	GuideScript.unload()
+	if get_tree().current_scene == self:
+		Engine.set_meta("sixfold_climbers", true)
+		get_tree().reload_current_scene()
+	else:
+		_load_climber()
+		if menu != null:
+			menu.open_climbers()
+
+
+## Tests: the current slot's climber, loaded in place of a scene restart.
+func _load_climber() -> void:
+	profile = ProfileScript.new()
+	profile.save_path = Slots.current_path()
+	profile.load_save()
+	profile.saving = not Engine.has_meta("sixfold_test")
+	best_floor = profile.best_floor
+	first_climb = not profile.regarded
+	_give_bonds()
+	player.use_heirlooms(profile.heirlooms)
+	apply_appearance()
+
+
+## Starts over as a new climber in this slot: no marks, back to the bondless
+## first climb (the other slots are untouched).
 func new_climber() -> void:
 	profile.reset()
 	Engine.time_scale = 1.0
