@@ -18,7 +18,7 @@ extends VBoxContainer
 const UI := preload("res://scripts/ui.gd")
 
 const TEXT := {
-	"title": "CONTROLLER SETUP",
+	"title": "Controller setup",
 	"settings_button": "Controller setup",
 	"intro": "If a controller's buttons do the wrong things (some browsers send them scrambled), teach the game which is which. It asks for one control at a time: press whatever you want for each.",
 	"pick": "Press any button on the controller you want to set up",
@@ -451,7 +451,7 @@ func _line(text: String, col: Color, size: int, centered := false) -> Label:
 func _cell(text: String, col: Color) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_font_size_override("font_size", 14)
 	l.add_theme_color_override("font_color", col)
 	return l
 

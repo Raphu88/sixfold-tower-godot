@@ -114,9 +114,9 @@ const NAMES := [
 
 ## The editor's words.
 const TEXT := {
-	"new_title": "NEW CLIMBER",
+	"new_title": "New climber",
 	"new_sub": "Choose how you look. You can change it later.",
-	"edit_title": "APPEARANCE",
+	"edit_title": "Appearance",
 	"edit_sub": "How you look in the towers and on the climber screen.",
 	"name": "Name",
 	"name_hint": "optional",

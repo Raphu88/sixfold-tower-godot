@@ -617,8 +617,7 @@ static func says(text: String, face := 46.0, heading := "") -> HBoxContainer:
 	bubble.add_child(col)
 	var tag := Label.new()
 	tag.text = heading if heading != "" else TEXT["tag"]
-	tag.add_theme_font_size_override("font_size", 10)
-	tag.add_theme_color_override("font_color", Color(GLOW, 0.85))
+	UI.style_label(tag, "eyebrow", 10, Color(UI.PERIWINKLE, 0.9))
 	col.add_child(tag)
 	var l := Label.new()
 	l.text = text

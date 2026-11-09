@@ -6432,7 +6432,10 @@ func _controls_tests() -> void:
 	_check(main.menu.settings["music"] < music, "left turns the music down")
 	main.menu._set_setting("music", music)
 	await _pad_tap(JOY_BUTTON_B)
-	_check(main.menu.page == "pause", "B goes back a page")
+	_check(main.menu.page == "settings" and main.menu.rail.button("settings").has_focus(), "B goes back to the rail")
+	for i in 4:
+		await _pad_tap(JOY_BUTTON_DPAD_UP)
+	_check(main.menu.rail.button("resume").has_focus() and main.menu.page == "pause", "...up the rail to Resume")
 	await _pad_tap(JOY_BUTTON_A)
 	_check(not main.menu_open() and not paused, "A presses the focused button (Resume)")
 	await _frames(2)
@@ -6440,10 +6443,9 @@ func _controls_tests() -> void:
 	await _frames(2)
 	var texts: Array = _all_labels(main.menu).map(func(l): return l.text)
 	_check("Controller" in texts and texts.any(func(t): return "hold LB" in t), "the Controls page lists the controller")
+	_check(main.menu.rail.button("controls").has_focus(), "a page with nothing to press keeps the focus on the rail")
 	await _key_tap(KEY_ESCAPE)
-	_check(main.menu.page == "pause", "Esc goes back from a page to the pause menu")
-	await _key_tap(KEY_ESCAPE)
-	_check(not main.menu_open(), "...and closes it")
+	_check(not main.menu_open(), "...so Esc closes it")
 	await _frames(2)
 
 	print("restart is held")
@@ -7216,6 +7218,7 @@ func _run() -> void:
 	await _slim_hud_tests()
 	await _appearance_tests()
 	await _unbound_tests()
+	await _rail_tests()
 	await _climber_slot_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
@@ -7764,11 +7767,11 @@ func _screen_tests() -> void:
 		if b.text.begins_with("Inventory"):
 			b.pressed.emit()
 	await _frames(1)
-	_check(menu.page == "inventory" and _menu_button("Back") != null, "the pause menu opens the inventory, with Back")
+	_check(menu.page == "inventory" and menu.rail.visible and menu.rail.current == "inventory" and _menu_button("Close") != null, "the pause menu's rail opens the inventory beside it, with Close")
 	await _key_tap(KEY_ESCAPE)
-	_check(menu.page == "pause", "...and Esc goes back to the pause menu")
+	_check(menu.page == "inventory" and menu.rail.has_focus_inside(), "...and Esc goes back to the rail")
 	await _key_tap(KEY_ESCAPE)
-	_check(not main.menu_open() and not paused, "Esc on the pause menu resumes")
+	_check(not main.menu_open() and not paused, "Esc on the rail resumes")
 
 	# Tab: the climber screen.
 	await _key_tap(KEY_TAB)
@@ -8650,7 +8653,7 @@ func _train_tests() -> void:
 	await _train_settled()
 	await _key_tap(KEY_ESCAPE)
 	_check(menu.page == "pause", "Esc on the train opens the menu")
-	_menu_button("Resume").pressed.emit()
+	menu.rail.button("resume").pressed.emit()
 	await _frames(2)
 	_check(menu.page == "train" and main.menu_open(), "...and Resume returns to the train")
 	menu.toggle("inventory")
@@ -8747,6 +8750,10 @@ func _train_tests() -> void:
 	prof.save_path = prof.SAVE_PATH
 	_check(T.move(prof, p, "chest", 0) == "" and prof.pack.size() == 1, "...and back into your pack")
 	# A phone: big enough to touch; swipe along; tap the engine, a tower, the lever.
+	# (A phone-shaped screen, landscape: the headless window is square, where
+	# the cars shrink to fit and every size depends on the font.)
+	var was_size: Vector2i = root.size
+	root.size = Vector2i(800, 400)
 	main.touch._set_active(true)
 	await _frames(2)
 	menu.train_car = "personal"
@@ -8788,6 +8795,7 @@ func _train_tests() -> void:
 	_check(p.gear_id("helm") == "leather_cap" and p.gear_id("melee") == "dagger" and p.gear_id("armor") == "chain", "pieces in your pack go on as you enter (the dagger in place of the starting sword)")
 	_check(p.item_count("tonic") == 1 and prof.pack.is_empty() and prof.supplies.is_empty() and prof.store.is_empty(), "supplies go on your belt; the store restocks next visit")
 	main.touch._set_active(false)
+	root.size = was_size
 	# A fall after the Regard: the fall screen for a moment, then back on the
 	# train, on your own car (a confirm key goes at once; alone, it waits).
 	menu.train_car = "engine"
@@ -11570,6 +11578,138 @@ func _slot_climber(slot: int, name: String, bonds: Dictionary, crystal: Array):
 ## shared; the slot played last remembered; deleting one removes only it; no
 ## seventh; an old single save moves into slot 1 whole; the picker by keys,
 ## a tap, an empty slot, Delete twice.
+## The menu's left rail (rail.gd) and the interface's fonts (ui.gd).
+func _rail_tests() -> void:
+	print("the menu's rail and fonts")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var menu = main.menu
+	var U = load("res://scripts/ui.gd")
+	var R = load("res://scripts/rail.gd")
+	# The fonts load, and the body font is everyone's default.
+	var body: Font = U.font("body")
+	_check(body != null and ThemeDB.fallback_font == body and U.font("display") != body and U.font("mono") != body and U.font("eyebrow") != null, "the interface's fonts load, the body font the default")
+	_check(body.get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0 and U.font("display").get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0 and U.font("mono").get_string_size("12", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 8.0, "...and measure real text (Alegreya Sans, Grenze Gotisch, IBM Plex Mono)")
+	_check(menu.theme != null and menu.theme.default_font == body, "the menus' theme uses the body font")
+	# Esc opens the menu with its rail, the focus on Resume.
+	await _key_tap(KEY_ESCAPE)
+	await _frames(2)
+	var rail = menu.rail
+	_check(menu.page == "pause" and rail.visible and rail.buttons.size() == R.ITEMS.size() + R.FOOT.size(), "Esc opens the menu with the rail: its pages, Start over and Exit")
+	_check(rail.button("resume") != null and rail.button("resume").has_focus() and rail.current == "resume", "...the focus on Resume, lit as the page showing")
+	# Up and down move along the rail, showing each page as they go.
+	await _key_tap(KEY_DOWN)
+	_check(menu.page == "climber" and rail.button("climber").has_focus() and rail.current == "climber", "Down moves to Climber and shows the climber screen (the focus stays on the rail)")
+	await _key_tap(KEY_DOWN)
+	_check(menu.page == "inventory" and rail.button("inventory").has_focus(), "...Down again: the inventory")
+	await _key_tap(KEY_UP)
+	await _key_tap(KEY_UP)
+	await _key_tap(KEY_UP)
+	_check(rail.button("exit").has_focus() and menu.page == "pause", "Up from Resume wraps round to Exit (the foot only acts when pressed)")
+	await _key_tap(KEY_DOWN)
+	await _key_tap(KEY_DOWN)
+	# Right goes into the page; Esc comes back to the rail; Esc on the rail closes.
+	await _key_tap(KEY_RIGHT)
+	var f: Control = root.gui_get_focus_owner()
+	_check(menu.page == "climber" and f != null and not rail.buttons.has(f) and f.has_meta("tab"), "Right goes into the page (onto its tabs)")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "climber" and rail.has_focus_inside() and rail.button("climber").has_focus() and main.menu_open(), "Esc goes back to the rail, the page still showing")
+	await _key_tap(KEY_ESCAPE)
+	_check(not main.menu_open() and not paused, "...and Esc on the rail closes the menu")
+	# Enter on an item goes straight into its page.
+	await _key_tap(KEY_ESCAPE)
+	await _key_tap(KEY_DOWN)
+	await _key_tap(KEY_ENTER)
+	f = root.gui_get_focus_owner()
+	_check(menu.page == "climber" and f != null and not rail.buttons.has(f), "Enter on a rail item goes into its page")
+	menu.close()
+	await _frames(2)
+	# Every item opens its page (clicks and the controller's A press them).
+	menu.open("pause")
+	await _frames(2)
+	var want := {"climber": "climber", "inventory": "inventory", "archive": "climber", "settings": "settings", "controls": "controls", "dev": "dev", "over": "confirm_new"}
+	var wrong: Array = []
+	for id in want:
+		rail.button(id).pressed.emit()
+		await _frames(2)
+		if menu.page != want[id] or rail.current != id or not rail.visible:
+			wrong.append("%s opened %s" % [id, menu.page])
+	_check(wrong.is_empty(), "every rail item opens its page, lit on the rail (%s)" % ", ".join(wrong))
+	rail.button("archive").pressed.emit()
+	await _frames(2)
+	_check(menu.climber_tab == "archive", "Archive opens the climber screen's Archive")
+	rail.button("climber").pressed.emit()
+	await _frames(2)
+	_check(menu.climber_tab == "marks" and menu.page == "climber", "...and Climber goes back to its last other tab")
+	menu.open_mark("hand")
+	await _frames(2)
+	_check(menu.page == "mark" and rail.visible and rail.current == "climber", "a mark's page keeps the rail, Climber lit")
+	rail.button("resume").pressed.emit()
+	await _frames(2)
+	_check(not main.menu_open(), "Resume closes the menu")
+	# The keys that open a page directly still do, with the rail; Esc closes them at once.
+	await _key_tap(KEY_I)
+	_check(menu.page == "inventory" and rail.visible and rail.current == "inventory", "I opens the inventory with the rail")
+	await _key_tap(KEY_ESCAPE)
+	_check(not main.menu_open(), "...and Esc closes it at once")
+	# Touch: a tap on a rail item, on a phone-sized screen (landscape, drawn 1.5x).
+	var was_size: Vector2i = root.size
+	root.size = Vector2i(800, 400)
+	main.touch._set_active(true)
+	await _frames(3)
+	menu.open("pause")
+	await _frames(3)
+	await _tap_at(rail.button("settings").get_global_rect().get_center())
+	_check(menu.page == "settings" and rail.current == "settings", "tapping a rail item opens its page")
+	await _tap_at(rail.button("controls").get_global_rect().get_center())
+	_check(menu.page == "controls", "...and another")
+	# It fits a phone: a narrow rail of icons and short names, the page beside it.
+	var vis: Rect2 = menu.get_viewport_rect()
+	var fits := true
+	for b in rail.buttons:
+		fits = fits and vis.encloses(b.get_global_rect()) and b.size.y >= 36.0
+	_check(fits and rail.narrow and rail.size.x <= vis.size.x * 0.16, "on a phone the rail is narrow and every item fits on screen (%.0f of %.0f wide)" % [rail.size.x, vis.size.x])
+	for pg in ["climber", "inventory", "settings", "dev"]:
+		menu.open(pg)
+		await _frames(3)
+		var pr: Rect2 = menu.panel.get_global_rect()
+		if pr.position.x < rail.size.x - 1.0 or pr.end.x > vis.end.x + 1.0:
+			fits = false
+			print("    ", pg, " panel ", pr, " rail ", rail.size.x)
+	_check(fits, "...and each page sits beside it, inside the screen")
+	var close_b: Button = _menu_button("Close")
+	_check(close_b != null and vis.encloses(close_b.get_global_rect()), "...with Close at the top")
+	await _tap_at(close_b.get_global_rect().get_center())
+	_check(not main.menu_open(), "tapping Close shuts the menu")
+	main.touch._set_active(false)
+	main.player.touch_aim = false
+	root.size = was_size
+	await _frames(3)
+	# On a computer the rail is wide, with a line under each name.
+	menu.open("pause")
+	await _frames(2)
+	_check(not rail.narrow and rail.size.x == R.WIDE and menu.panel.get_global_rect().position.x >= R.WIDE, "on a computer the rail is wide and the page sits right of it")
+	menu.close()
+	await _frames(2)
+	# On the train the rail goes back to the train, and the inventory is your car.
+	main.profile.regarded = true
+	main.open_train()
+	await _frames(3)
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "pause" and rail.visible and rail.button("resume").text == R.TRAIN_ITEMS["resume"][0] and rail.button("inventory").text == R.TRAIN_ITEMS["inventory"][0], "on the train the menu's rail offers the train and your car")
+	rail.button("resume").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "train", "...and Train goes back to the train")
+	menu.go_back()
+	await _frames(2)
+	rail.button("inventory").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == main.Train.HOME, "...and Your car goes to your car")
+
+
 func _climber_slot_tests() -> void:
 	print("climber slots")
 	var S = load("res://scripts/slots.gd")

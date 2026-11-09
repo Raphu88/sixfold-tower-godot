@@ -14,7 +14,7 @@ const Unbound := preload("res://scripts/unbound.gd")
 const UI := preload("res://scripts/ui.gd")
 
 const TEXT := {
-	"title": "CLIMBERS",
+	"title": "Climbers",
 	"sub": "Up to six climbers. Choose one to play.",
 	"slot": "%d",
 	"current": "PLAYING",
@@ -46,7 +46,7 @@ const TEXT := {
 	"button_slot": "Climbers  ·  slot %d",
 	# Start over (title, pause menu, N twice): this climber only.
 	"over": "Start over",
-	"over_title": "START OVER?",
+	"over_title": "Start over?",
 	"over_text": "Start %s over with no marks. Their marks and growth, essence, crystals, train and heirlooms will be lost. Your other climbers are kept.",
 	"over_this": "this climber",
 	"over_banner": "START OVER?",
@@ -159,7 +159,7 @@ static func build(menu) -> void:
 		if prof != null:
 			var del: Button = menu._button(TEXT["delete_again"] if armed == slot else TEXT["delete"], _delete.bind(menu, slot), cell)
 			del.custom_minimum_size = Vector2(0, DELETE_H_SMALL if small else DELETE_H)
-			del.add_theme_font_size_override("font_size", 11 if small else 13)
+			del.add_theme_font_size_override("font_size", 13 if small else 15)
 			for c in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
 				del.add_theme_color_override(c, UI.BAD if armed == slot else (UI.DIM if c == "font_color" else UI.TEXT))
 			del.set_meta("climber_delete", slot)
@@ -244,31 +244,27 @@ class Card extends Button:
 		clip_contents = true
 		if prof != null:
 			_look = Appearance.look(prof.appearance)
-		var normal := UI.slot(current)
+		# A card in the new look: violet stone, edged in gilt for the one
+		# being played; an empty slot is fainter.
+		var normal := UI.card(UI.GOLD if current else Color(0, 0, 0, 0))
 		if prof == null:
-			normal.bg_color = Color(normal.bg_color, normal.bg_color.a * 0.55)
-		if current:
-			normal.border_color = Color(UI.GOLD, 0.7)
-			normal.set_border_width_all(2)
-		var hover := normal.duplicate()
-		hover.bg_color = hover.bg_color.lightened(0.07)
-		hover.border_color = UI.GOLD if current else Color(UI.GOLD, 0.45)
+			normal.top = Color(0.08, 0.07, 0.1, 0.7)
+			normal.bottom = Color(0.06, 0.052, 0.078, 0.7)
+			normal.edge = Color(UI.LINE, 0.8)
+		var hover := UI.card(UI.GOLD)
+		hover.top = Color(0.17, 0.15, 0.21, 0.97)
 		add_theme_stylebox_override("normal", normal)
 		add_theme_stylebox_override("hover", hover)
 		add_theme_stylebox_override("pressed", hover)
 		add_theme_stylebox_override("disabled", normal)
-		var f := StyleBoxFlat.new()
-		f.draw_center = false
-		f.border_color = UI.GOLD
-		f.set_border_width_all(2)
-		f.set_corner_radius_all(7)
-		f.set_expand_margin_all(3)
+		var f := UI.focus_box()
+		f.set_expand_margin_all(0)  # (the card clips what it draws)
 		add_theme_stylebox_override("focus", f)
 
 	func _draw() -> void:
 		var font := ThemeDB.fallback_font
-		var fs_num := 10 if small else 12
-		draw_string(font, Vector2(7, 4 + fs_num), slot_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs_num, UI.FAINT)
+		var fs_num := 9 if small else 10
+		UI.draw_eyebrow(self, Vector2(8, 6 + fs_num), slot_text, Color(UI.DIM, 0.8), fs_num)
 		if prof == null:
 			_draw_empty(font)
 			return
@@ -288,15 +284,16 @@ class Card extends Button:
 		# The words, right of the figure.
 		var x := c.x + fig_w * 0.5 + (2.0 if small else 8.0)
 		var w := size.x - x - (6.0 if small else 10.0)
-		var sizes := [12, 10, 10, 9] if small else [17, 13, 12, 11]
-		var y := (20.0 if small else 34.0)
+		var sizes := [17, 12, 12, 10] if small else [26, 15, 14, 13]
+		var y := (22.0 if small else 38.0)
 		var cols := [UI.GOLD if current else UI.TEXT, UI.TEXT, UI.DIM, UI.FAINT]
 		var gaps := [4.0, 3.0, 3.0] if small else [8.0, 6.0, 6.0]
 		for i in mini(lines.size(), 4):
 			if i > 0:
 				y += sizes[i - 1] + gaps[i - 1]
 			if String(lines[i]) != "":
-				draw_string(font, Vector2(x, y), _fit(font, lines[i], w, sizes[i]), HORIZONTAL_ALIGNMENT_LEFT, -1, sizes[i], cols[i])
+				var f: Font = UI.font("display") if i == 0 else font  # (the name in the display face)
+				draw_string(f, Vector2(x, y), _fit(f, lines[i], w, sizes[i]), HORIZONTAL_ALIGNMENT_LEFT, -1, sizes[i], cols[i])
 		# Their marks as small medallions along the bottom (a computer's card).
 		if not small and prof.regarded and not prof.bonds.is_empty():
 			var mb := UI.Draw.Batch.new()
@@ -315,8 +312,7 @@ class Card extends Button:
 					break
 			mb.flush(self)
 		if current:
-			var tw := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs_num - 1).x
-			draw_string(font, Vector2(size.x - tw - 8.0, 4 + fs_num), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs_num - 1, Color(UI.GOLD, 0.85))
+			UI.draw_eyebrow(self, Vector2(0, 6 + fs_num), tag, Color(UI.GOLD, 0.9), fs_num, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9.0)
 
 	func _draw_empty(font: Font) -> void:
 		var c := size * 0.5 + Vector2(0, -8.0 if small else -12.0)
@@ -327,14 +323,14 @@ class Card extends Button:
 		b.rect(Rect2(c - Vector2(r * 0.5, r * 0.09), Vector2(r, r * 0.18)), Color(UI.GOLD, 0.7))
 		b.rect(Rect2(c - Vector2(r * 0.09, r * 0.5), Vector2(r * 0.18, r)), Color(UI.GOLD, 0.7))
 		b.flush(self)
-		var fs := 12 if small else 15
+		var fs := 14 if small else 17
 		var t: String = lines[0] if lines.size() > 0 else ""
 		var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string(font, Vector2((size.x - tw) * 0.5, c.y + r + fs + 4.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.DIM)
 		if not small:
 			var s: String = lines[1] if lines.size() > 1 else ""
-			var sw := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-			draw_string(font, Vector2((size.x - sw) * 0.5, c.y + r + fs + 20.0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.FAINT)
+			var sw := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+			draw_string(font, Vector2((size.x - sw) * 0.5, c.y + r + fs + 20.0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.FAINT)
 
 	static func _fit(font: Font, t: String, w: float, fs: int) -> String:
 		if font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:

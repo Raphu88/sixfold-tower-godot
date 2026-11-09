@@ -104,7 +104,7 @@ func build(mode: String) -> void:
 	nr.add_theme_constant_override("separation", 6)
 	right.add_child(nr)
 	var nl: Label = m._label(T["name"], 96.0 if small else 112.0, UI.DIM)
-	nl.add_theme_font_size_override("font_size", 14)
+	nl.add_theme_font_size_override("font_size", 16)
 	nr.add_child(nl)
 	name_edit = LineEdit.new()
 	name_edit.text = draft["name"]
@@ -112,8 +112,10 @@ func build(mode: String) -> void:
 	name_edit.max_length = Appearance.NAME_MAX
 	name_edit.custom_minimum_size = Vector2(0, 40)
 	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_edit.add_theme_stylebox_override("normal", UI.box(Color(0.06, 0.055, 0.08), Color(1, 1, 1, 0.12), 6, 1, 8.0))
-	var focus := UI.box(Color(0.08, 0.07, 0.1), UI.GOLD, 6, 2, 8.0)
+	name_edit.add_theme_stylebox_override("normal", UI.box(Color(UI.VOID, 0.95), UI.LINE_HI, 6, 1, 8.0))
+	var focus := UI.box(Color(0.08, 0.07, 0.11), UI.GILT_HI, 6, 2, 8.0)
+	focus.shadow_color = Color(UI.GILT, 0.3)
+	focus.shadow_size = 5
 	name_edit.add_theme_stylebox_override("focus", focus)
 	name_edit.add_theme_color_override("font_color", UI.TEXT)
 	name_edit.add_theme_color_override("font_placeholder_color", UI.FAINT)
@@ -397,10 +399,10 @@ class OptionRow extends Button:
 		var colors := Appearance.has_colors(key)
 		# The option's name (and, for swatches, the choice's name under it).
 		if colors:
-			draw_string(font, Vector2(12, h * 0.5 - 2.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 14, UI.TEXT if on else UI.DIM)
-			draw_string(font, Vector2(12, h * 0.5 + 13.0), name, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 11, UI.GOLD if on else UI.FAINT)
+			draw_string(font, Vector2(12, h * 0.5 - 2.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 16, UI.TEXT if on else UI.DIM)
+			draw_string(font, Vector2(12, h * 0.5 + 13.0), name, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 13, UI.GOLD if on else UI.FAINT)
 		else:
-			draw_string(font, Vector2(12, h * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 14, UI.TEXT if on else UI.DIM)
+			draw_string(font, Vector2(12, h * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 16, UI.TEXT if on else UI.DIM)
 		# The arrows.
 		for side in [-1.0, 1.0]:
 			var r := Rect2(lx, 4.0, ARROW, h - 8.0) if side < 0.0 else Rect2(size.x - ARROW - 6.0, 4.0, ARROW, h - 8.0)
@@ -425,7 +427,7 @@ class OptionRow extends Button:
 					draw_circle(at, rad, col)
 					draw_circle(at + Vector2(-rad * 0.3, -rad * 0.3), rad * 0.3, Color(1, 1, 1, 0.18))
 		else:
-			draw_string(font, Vector2(mid.position.x, h * 0.5 + 2.0), name, HORIZONTAL_ALIGNMENT_CENTER, mid.size.x, 15, UI.GOLD if on else UI.TEXT)
+			draw_string(font, Vector2(mid.position.x, h * 0.5 + 2.0), name, HORIZONTAL_ALIGNMENT_CENTER, mid.size.x, 17, UI.GOLD if on else UI.TEXT)
 			var list2: Array = Appearance.OPTIONS[key]
 			var n := list2.size()
 			for i in n:

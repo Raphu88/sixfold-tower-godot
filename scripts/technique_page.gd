@@ -18,7 +18,7 @@ const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 
 const TEXT := {
-	"title": "TECHNIQUES",
+	"title": "Techniques",
 	"sub": "Six carried, one on each mark button. A part and up to three essences; the first leads.",
 	"slot_empty": "empty",
 	"shape": "%s  ·  %s",
@@ -111,7 +111,7 @@ static func build(menu) -> void:
 	else:
 		var part: String = t["part"]
 		var shb: Button = menu._button(TEXT["shape"] % [Unbound.PART_NAMES[part], Tech.SHAPES[t["shape"]]["name"]], _cycle_shape.bind(menu, sel), col)
-		shb.add_theme_font_size_override("font_size", 17)
+		shb.add_theme_font_size_override("font_size", 20)
 		shb.set_meta("tech_shape", true)
 		var most := Unbound.max_kinds(prof, part)
 		var lv := Unbound.level(prof, part)
@@ -144,7 +144,7 @@ static func build(menu) -> void:
 		var desc: Label = menu._small_label(Tech.describe(t), menu.TEXT)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.custom_minimum_size.x = 280.0
-		desc.add_theme_font_size_override("font_size", 14)
+		desc.add_theme_font_size_override("font_size", 16)
 		col.add_child(desc)
 		var fills: String = String(main.BondScript.Bonds.PART_FILLS[part])
 		fills = fills.substr(0, 1).to_upper() + fills.substr(1)  # ("Fills when you parry")
@@ -368,7 +368,7 @@ static func climber(menu, grid: GridContainer) -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(0, 70.0 if small else 96.0)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.add_theme_font_size_override("font_size", 11 if small else 12)
+		b.add_theme_font_size_override("font_size", 13 if small else 14)
 		b.add_theme_color_override("font_color", col.lightened(0.25))
 		b.set_meta("part", part)
 		b.clip_text = true
