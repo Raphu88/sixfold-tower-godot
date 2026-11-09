@@ -733,6 +733,9 @@ func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 ## The Regard: the beast's eye opens on you, and your first mark takes hold.
 func _draw_regard(size: Vector2, font: Font) -> void:
 	var rg: Dictionary = main.regard
+	if rg.get("refused", false):
+		_draw_refused(size, font)
+		return
 	var t: float = rg["t"]
 	var info: Dictionary = BondScript.Bonds.BONDS[rg["id"]]
 	var col: Color = info["color"]
@@ -793,6 +796,63 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		var a := clampf((t - 1.4 - i * 0.45) / 0.5, 0.0, 1.0)
 		var tc := col.lightened(0.2) if i == 2 else TEXT
 		draw_string(font, Vector2(0, ty), texts[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a))
+		ty += 26.0
+	if main.regard_done():
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
+		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
+		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+
+
+const UnboundData := preload("res://scripts/unbound.gd")
+const RAW_ESSENCE := Color(0.92, 0.9, 1.0)
+
+
+## The Regard refused (a barrier broken on the first climb): the eye opens,
+## looks you over, and turns away; no mark forms. Then the words.
+func _draw_refused(size: Vector2, font: Font) -> void:
+	var rg: Dictionary = main.regard
+	var t: float = rg["t"]
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, _overlay_shade(rg, 0.96)))
+	var c := Vector2(size.x / 2.0, size.y * 0.3)
+	# The eye opens, then narrows and looks aside.
+	var open := clampf((t - 0.4) / 1.0, 0.0, 1.0)
+	open = open * open * (3.0 - 2.0 * open)
+	var shut := clampf((t - 1.5) / 0.7, 0.0, 1.0)
+	var w := minf(size.x * 0.36, 300.0)
+	var h := 70.0 * open * (1.0 - 0.75 * shut)
+	var lid := PackedVector2Array()
+	for i in 33:
+		var k := float(i) / 32.0
+		lid.append(c + Vector2(lerpf(-w, w, k), -sin(PI * k) * h))
+	for i in 33:
+		var k := float(i) / 32.0
+		lid.append(c + Vector2(lerpf(w, -w, k), sin(PI * k) * h))
+	draw_colored_polygon(lid, Color(0.75, 0.72, 0.8, 0.08 + 0.08 * open))
+	draw_polyline(lid + PackedVector2Array([lid[0]]), Color(0.85, 0.82, 0.9, 0.7 * open + 0.1), 2.5, true)
+	if open > 0.2 and h > 6.0:
+		var look := c + Vector2(w * 0.55 * shut, 0)
+		var iris := minf(52.0 * minf(1.0, open * 1.2), h * 0.95)
+		draw_circle(look, iris, Color(0.55, 0.52, 0.6, 0.6))
+		draw_circle(look, iris * 0.28, Color(0.02, 0.02, 0.03, 0.95))
+	# Where a mark would grow: nothing takes hold; raw essence instead.
+	var mk := clampf((t - 1.8) / 1.0, 0.0, 1.0)
+	if mk > 0.0:
+		var mc := c + Vector2(0, 130)
+		draw_arc(mc, 18.0, 0.0, TAU, 32, Color(0.6, 0.58, 0.65, 0.5 * mk), 2.0, true)
+		for i in 6:
+			var a := float(i) * TAU / 6.0 + t * 0.6
+			draw_circle(mc + Vector2.from_angle(a) * (6.0 + 8.0 * mk), 2.0, Color(RAW_ESSENCE, 0.7 * mk))
+	var lines: Array = UnboundData.TEXT["refused_lines"].duplicate()
+	lines[1] = lines[1] % main.beast_name().capitalize()
+	var title: String = UnboundData.TEXT["refused_title"]
+	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
+	draw_string_outline(font, Vector2(0, size.y * 0.3 - 110), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, 7, Color(0, 0, 0, 0.8 * title_a))
+	draw_string(font, Vector2(0, size.y * 0.3 - 110), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 34, Color(RAW_ESSENCE, title_a))
+	var ty := size.y * 0.3 + 190.0
+	for i in lines.size():
+		var a2 := clampf((t - 1.4 - i * 0.45) / 0.5, 0.0, 1.0)
+		var tc := RAW_ESSENCE if i == 2 else TEXT
+		draw_string(font, Vector2(0, ty), lines[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a2))
 		ty += 26.0
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)

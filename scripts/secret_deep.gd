@@ -18,8 +18,8 @@ extends Node2D
 ##   Designer    Edit (3): re-time a trap room, move a trap, raise or sink a
 ##               wall for a while; Reroll (4): the next floor's puzzle and how
 ##               its rooms lean; Build (5): your own trap, wall or gate, and
-##               once a climb a passage to the stair (a pair of gates: it
-##               changes no wall, so it can't break a floor).
+##               once a climb a rift torn through the floor to the stair
+##               (rift.gd: anything locked it passes opens, emptied).
 ##   Manipulator Edit (3): tune a monster or turn it into a weaker kind;
 ##               Reroll (4): a sleeping room's pack, from two; Build (5): a
 ##               monster rewritten into your own, with a second kind's attack.
@@ -28,10 +28,13 @@ extends Node2D
 ## would), never leaves a trap room uncrossable by timing (Traps.hard_tiles
 ## is checked before and after: a change that adds a tile with no safe moment
 ## is undone), and never opens the floor's outer wall, a sealed wing, a secret
-## room, a vault, the puzzle's sealed room or the Proving. The Manipulator
-## leaves great foes, key carriers and the monsters bound to a floor's test alone.
+## room, a vault, the puzzle's sealed room or the Proving (the rift alone
+## tears through wings, vaults and secret rooms, taking what they held; it
+## too spares the outer wall and the Proving). The Manipulator leaves great
+## foes, key carriers and the monsters bound to a floor's test alone.
 ##
-## This node draws on the floor (z -4: walls, gates and the passage); the
+## This node draws on the floor (z -4: walls and gates; its child `rift` the
+## rift, z -6); the
 ## wireframes and readouts are drawn by secret_tools.gd over the darkness
 ## (draw_world).
 
@@ -63,8 +66,8 @@ var _rec = null  # a spliced cast as it's cast: {struck, n, dmg}
 var splices := 0  # (tests) behaviours a splice has given
 var walls: Array = []  # {tiles, body, t, kind ("raise", "sink", "build"), runs}
 var gates: Array = []  # {tiles, body}
-var portal := {}  # {a, b, inside}
-var builds := 0  # the Designer's builds this floor (the passage aside)
+var rift  # the Designer's rift on this floor (rift.gd, a child)
+var builds := 0  # the Designer's builds this floor (the rift aside)
 var retimed := {}  # trap rooms re-timed (room index -> true)
 var trails: Array = []  # traps moved: {from, to, t}
 var built = null  # the Manipulator's rewritten monster
@@ -76,7 +79,7 @@ var edited := 0  # monsters edited this floor (their tags are drawn)
 # This climb.
 var reroll_next := {}  # the Designer's Reroll, waiting for the next floor of rooms: {puzzle, lean, from}
 var lean_used := {}  # (tests) the last floor planned with a reroll: {puzzle, lean, floor}
-var passage_used := false
+var rift_used := false
 var _saved_forced := ""
 var _lean_on := false
 var _anim := 0.0
@@ -85,6 +88,9 @@ var _anim := 0.0
 func _ready() -> void:
 	z_as_relative = false
 	z_index = -4  # on the floor: over the room (-10) and the traps (-5), under everyone
+	rift = load("res://scripts/rift.gd").new()
+	rift.main = main
+	add_child(rift)
 
 
 func new_floor() -> void:
@@ -101,7 +107,8 @@ func new_floor() -> void:
 		if is_instance_valid(g["body"]):
 			g["body"].queue_free()
 	gates = []
-	portal = {}
+	if rift != null:
+		rift.clear()
 	builds = 0
 	retimed = {}
 	trails = []
@@ -115,7 +122,7 @@ func new_floor() -> void:
 
 ## Anything to draw or tick.
 func active() -> bool:
-	return cards_tool != "" or not walls.is_empty() or not gates.is_empty() or not portal.is_empty() or built != null \
+	return cards_tool != "" or not walls.is_empty() or not gates.is_empty() or built != null \
 		or not trails.is_empty() or edited > 0 or not splice.is_empty()
 
 
@@ -140,8 +147,6 @@ func _physics_process(delta: float) -> void:
 	_anim += delta
 	if not walls.is_empty():
 		_tick_walls(delta)
-	if not portal.is_empty():
-		_tick_portal()
 	if built != null:
 		_tick_built(delta)
 	if not trails.is_empty():
@@ -152,7 +157,7 @@ func _physics_process(delta: float) -> void:
 		_built_hit["t"] -= delta
 		if _built_hit["t"] <= 0.0:
 			_built_hit = {}
-	if not walls.is_empty() or not gates.is_empty() or not portal.is_empty() or not main.traps.is_empty() and builds > 0:
+	if not walls.is_empty() or not gates.is_empty() or not main.traps.is_empty() and builds > 0:
 		queue_redraw()
 
 
@@ -959,7 +964,7 @@ func _take_reroll(c: Dictionary, ctx: Dictionary) -> void:
 func before_build(n: int) -> void:
 	if n <= 1:
 		reroll_next = {}
-		passage_used = false
+		rift_used = false
 	if reroll_next.is_empty() or n < int(reroll_next.get("from", 0)):
 		return
 	_saved_forced = Catalog.forced
@@ -985,13 +990,13 @@ func after_build(plan: Dictionary) -> void:
 
 func _open_build() -> bool:
 	if not _layout_ok():
-		return _no(SB.TEXT["proving"] if main.floor_plan.get("proving", false) else SB.TEXT["no_portal"])
+		return _no(SB.TEXT["proving"] if main.floor_plan.get("proving", false) else SB.TEXT["not_here"])
 	var col := SB.color("designer")
 	var list: Array = []
 	for id in SB.BUILD_ORDER:
 		var info: Dictionary = SB.BUILD[id]
-		if id == "passage":
-			if passage_used:
+		if id == "rift":
+			if rift_used:
 				continue
 		elif builds >= SB.BUILD_MAX:
 			continue
@@ -1011,8 +1016,8 @@ func _take_build(c: Dictionary) -> void:
 ## Builds one of the palette in front of you. "" if done, else why not.
 func build(id: String) -> String:
 	if not _layout_ok():
-		return SB.TEXT["no_portal"]
-	if id != "passage" and builds >= SB.BUILD_MAX:
+		return SB.TEXT["not_here"]
+	if id != "rift" and builds >= SB.BUILD_MAX:
 		return SB.TEXT["build_max"]
 	var col := SB.color("designer")
 	var why := ""
@@ -1039,51 +1044,28 @@ func build(id: String) -> String:
 			for t in tiles:
 				main.astar.set_point_solid(t, true)  # (monsters go around)
 			gates.append({"tiles": tiles, "body": _body(_tiles_rect(tiles), 8)})  # (layer 8: monsters only)
-		"passage":
-			if passage_used:
+		"rift":
+			if rift_used:
 				return SB.TEXT["once_climb"]
-			var a: Vector2 = main.player.global_position
-			var b: Vector2 = main.clear_spot(main.stair_pos + Vector2(0, 80), 16.0)
-			if main.is_solid(b):
-				b = main.clear_spot(main.stair_pos + Vector2(0, 50), 16.0)
-			portal = {"a": a, "b": b, "inside": "a"}
-			passage_used = true
+			var lines: Array = rift.tear(main.player.global_position, self)
+			if lines.is_empty():
+				return SB.TEXT["rift_nothing"]
+			rift_used = true
+			main.banner = {"title": SB.TEXT["rift_title"], "lines": lines, "t": 3.5}
+			main.shake(10.0)
+			main.sfx("slam", 0.45, 0.0, 0.0)
+			main.light_flash(main.player.global_position, col, 2.0, 2.0, 0.5)
+			main.tip("tool_build_designer")
+			return ""
 	if why != "":
 		return why
-	if id != "passage":
+	if id != "rift":
 		builds += 1
 	main.fx_text(main.player.global_position + Vector2(0, -40), SB.TEXT["built"] % String(SB.BUILD[id]["name"]).to_lower(), col)
 	main.fx_ring(main.player.global_position + main.player.aim * C * SB.BUILD_AHEAD, col, 30.0, 0.35, 2.0)
 	main.tip("tool_build_designer")
 	queue_redraw()
 	return ""
-
-
-## The passage: stepping into one gate brings you out of the other (step out
-## of it before it takes you back).
-func _tick_portal() -> void:
-	var p = main.player
-	if p.dead or main.climbing:
-		return
-	var pp: Vector2 = p.global_position
-	var at := ""
-	for k in ["a", "b"]:
-		if pp.distance_to(portal[k]) < SB.PORTAL_R:
-			at = k
-	if at == "":
-		portal["inside"] = ""
-		return
-	if portal["inside"] != "":
-		return
-	var to := "b" if at == "a" else "a"
-	p.global_position = portal[to]
-	p.reset_physics_interpolation()
-	portal["inside"] = to
-	main.fx_ring(portal[at], SB.color("designer"), 30.0, 0.35, 2.0)
-	main.fx_ring(portal[to], SB.color("designer"), 30.0, 0.35, 2.0)
-	main.sfx("glint", 1.3, -6.0, 0.0)
-	if main.fog != null:
-		main.fog.set("last_tile", Vector2i(-999, -999))
 
 
 # --- the Manipulator ---------------------------------------------------------------
@@ -1458,7 +1440,7 @@ func second_attack(target) -> void:
 # --- drawing ------------------------------------------------------------------------
 
 ## On the floor: the Designer's walls (raised stone), sunk walls (open floor),
-## gates (bars) and the passage (two shimmering rings).
+## gates (bars) and the traps of your own (the rift draws itself: rift.gd).
 func _draw() -> void:
 	if main == null or not main.layout_on:
 		return
@@ -1487,13 +1469,6 @@ func _draw() -> void:
 	for tr in main.traps:
 		if tr.get("own", false):
 			b.arc(tr["pos"], 15.0, 0.0, TAU, 16, Color(col, 0.55), 1.5)
-	if not portal.is_empty():
-		for k in ["a", "b"]:
-			var c: Vector2 = portal[k]
-			for i in 3:
-				var ph := fposmod(_anim * 0.8 + i / 3.0, 1.0)
-				b.arc(c, SB.PORTAL_R * (0.4 + ph * 0.8), 0.0, TAU, 24, Color(col.lightened(0.3), 0.7 * (1.0 - ph)), 2.0)
-			b.arc(c, SB.PORTAL_R, 0.0, TAU, 28, Color(col, 0.85), 2.0)
 	b.flush(self)
 
 
@@ -1515,12 +1490,19 @@ func draw_world(b, labels: Array, col: Color, wire: bool) -> void:
 		if cards_tool == "des_edit":
 			for st in sink_tiles():
 				Traps._outline(b, Rect2(main.room.position + Vector2(st) * C, Vector2(C, C)), Color(col, 0.8 * pulse), 2.0)
+		elif not rift_used and rift != null:
+			# Where a rift would tear (faint outlines on the rock it would open).
+			var pl: Dictionary = rift.plan_from(pp)
+			if not pl.is_empty():
+				for t in pl["tiles"]:
+					if main._is_solid_tile(t.x, t.y):
+						Traps._outline(b, Rect2(main.room.position + Vector2(t) * C, Vector2(C, C)).grow(-6.0), Color(col, 0.35 * pulse), 1.0)
 	if cards_tool == "man_reroll" and cards_ctx.has("room"):
 		Traps._outline(b, main.room_info[int(cards_ctx["room"])]["rect"].grow(-4.0), Color(col, 0.7 * pulse), 2.0)
 	if cards_tool in ["man_edit", "man_build"] and cards_ctx.get("e") != null and is_instance_valid(cards_ctx["e"]):
 		var e0 = cards_ctx["e"]
 		b.arc(e0.global_position, e0.radius + 9.0, 0.0, TAU, 28, Color(col, 0.9 * pulse), 2.0)
-	# The Designer: walls with the seconds they have left, gates, the passage, moved traps.
+	# The Designer: walls with the seconds they have left, gates, moved traps.
 	for w in walls:
 		var r := _tiles_rect(w["tiles"])
 		Traps._outline(b, r.grow(1.0), Color(col, 0.55 if wire else 0.3), 1.2)
@@ -1533,11 +1515,6 @@ func draw_world(b, labels: Array, col: Color, wire: bool) -> void:
 				b.line(Vector2(tr0.end.x, tr0.position.y), Vector2(tr0.position.x, tr0.end.y), Color(col, 0.3), 1.0)
 	for g in gates:
 		Traps._outline(b, _tiles_rect(g["tiles"]).grow(1.0), Color(col, 0.5 if wire else 0.28), 1.2)
-	if not portal.is_empty():
-		b.line(portal["a"], portal["b"], Color(col, 0.18 if not wire else 0.35), 1.0)
-		for k in ["a", "b"]:
-			if portal[k].distance_to(pp) < 360.0:
-				labels.append([portal[k] + Vector2(-110, -SB.PORTAL_R - 6.0), SB.TEXT["portal_tag"], Color(col.lightened(0.3), 0.85), 9])
 	for tr in trails:
 		var a := clampf(tr["t"] / 2.5, 0.0, 1.0)
 		var n := 8

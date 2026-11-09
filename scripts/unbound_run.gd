@@ -2,9 +2,14 @@ extends Node2D
 ## The Unbound in a climb (main.gd owns one: `main.unbound`): strain and
 ## eruptions, the techniques' bolts, landings and bleeds, punching through
 ## the tower's barriers, and the choices the beasts offer (the refusal at
-## the Regard or a summit, condensing at a summit). Words and numbers are
+## the Regard, condensing at a summit). Words and numbers are
 ## here and in unbound.gd / technique.gd.
 ##
+## FILL: each technique fills from its body part's actions (part_action, from
+##   player.gd _part_action), like a mark's bond; full, it casts without
+##   spending anything (technique.gd CHARGE); cast early and the missing
+##   share adds strain. BOOST: carried essence of its kinds is spent on a
+##   cast for more power (automatic; the techniques page can switch it off).
 ## STRAIN: each cast strains the technique's body part. Above HOT its
 ##   techniques hit HOT_POWER harder but may waver (WAVER: half strength,
 ##   off aim); at ERUPT the part erupts: you lose ERUPT_HURT of your health
@@ -16,9 +21,13 @@ extends Node2D
 ##   and the Proving's sealed reliquary. Hold a strike against one with bare
 ##   fists (FISTS hold): each blow drains unbanked essence, hurts your hands
 ##   and cracks it; BLOWS of them break it, skipping its challenge and
-##   forfeiting its reward. Before the route is found the first blow only
-##   makes it shudder. Once Unbound: raw essence from a step away (any melee
-##   weapon or fists), costing essence, not health, and cracking it faster.
+##   forfeiting its reward. The very first blow ever only makes it shudder
+##   (the warning). Only on the bondless first climb do bare fists break a
+##   barrier, and breaking one breaks the tower's rules: at the Regard the
+##   beast refuses to mark you (broke_rules). After the first climb a
+##   marked climber's fists only make a barrier shudder. Once Unbound: raw
+##   essence from a step away (any melee weapon or fists), costing essence,
+##   not health, and cracking it faster.
 
 const Unbound := preload("res://scripts/unbound.gd")
 const Tech := preload("res://scripts/technique.gd")
@@ -49,6 +58,7 @@ const RAW := Color(0.92, 0.9, 1.0)
 
 const TEXT := {
 	"shudder": "It shudders",
+	"holds": "It shudders, and holds",
 	"crack": "Cracks",
 	"short": "Needs %d unbanked essence",
 	"hurt": "-%d",
@@ -78,7 +88,10 @@ var hits := {}  # barrier id -> cracks this floor
 var shudder := {}  # barrier id -> seconds it shakes
 var hold_t := 0.0
 var punches := 0  # blows landed (tests)
+var broke_rules := false  # a barrier broken on the bondless first climb: the Regard refuses you
 var waver_chance := WAVER  # (tests set it to 0 or 1)
+var fills := {}  # slot -> each technique's fill (kept while the climber's bonds are rebuilt)
+var boosts := 0  # boosted casts (tests)
 var _floor_key := ""
 
 
@@ -101,7 +114,10 @@ func give() -> void:
 	var techs: Array = Unbound.state(prof)["techs"]
 	for i in Unbound.PARTS.size():
 		if i < techs.size() and Tech.valid(techs[i]):
-			p.bonds[Unbound.PARTS[i]] = TechBond.new(techs[i], Unbound.PARTS[i], i, self)
+			var b = TechBond.new(techs[i], Unbound.PARTS[i], i, self)
+			b.attr_fill = 1.0 + prof.attribute("water")
+			b.essence = minf(float(fills.get(i, 0.0)), b.capacity())
+			p.bonds[Unbound.PARTS[i]] = b
 	p.attr_strength *= 1.0 + Unbound.gift(prof, "strength")
 	p.attr_speed *= 1.0 + Unbound.gift(prof, "speed")
 	p.attr_will *= 1.0 + Unbound.gift(prof, "will")
@@ -128,7 +144,20 @@ func add_strain(part: String, amount: float) -> void:
 		erupt(part)
 
 
-## Casts a carried technique (technique_bond.gd cast).
+## A body part did its thing (player.gd _part_action): the techniques of
+## that part fill, as a mark's bond would.
+func part_action(part: String, amount: float) -> void:
+	var p = main.player
+	if p == null or amount <= 0.0:
+		return
+	for b in p.bonds.values():
+		if "tech" in b and b.tech_part() == part:
+			b.fill(amount)
+	_sync()
+
+
+## Casts a carried technique (technique_bond.gd cast): it spends its fill
+## (what's missing adds strain), and a boost if you carry its essences.
 func cast(b, p) -> void:
 	var t: Dictionary = b.tech
 	var part: String = t["part"]
@@ -138,41 +167,53 @@ func cast(b, p) -> void:
 	var prof = main.profile
 	var power: float = Unbound.power(prof, part) * (1.0 + prof.attribute("fire"))
 	var hot := strain_of(part) > HOT
-	var short := pay(t)
+	var need: float = b.capacity()
+	var missing := clampf(need - b.essence, 0.0, need)
+	b.essence = maxf(0.0, b.essence - need)
+	if bool(Unbound.state(prof).get("boost", true)) and boost_pay(t):
+		power *= 1.0 + Tech.BOOST
+		boosts += 1
+		main.fx_text(p.global_position + Vector2(0, -66), Tech.TEXT["boosted"], Tech.color(Tech.lead(t)).lightened(0.3))
+		main.fx_ring(p.global_position, Tech.color(Tech.lead(t)), 34.0, 0.3, 2.5)
 	if hot:
 		power *= HOT_POWER
 		if randf() < waver_chance:
 			power *= WAVER_POWER
 			p.aim = p.aim.rotated(randf_range(-0.5, 0.5))
 			main.fx_text(p.global_position + Vector2(0, -52), TEXT["wavers"], Color(1.0, 0.55, 0.4))
-	if short > 0.0:
-		main.fx_text(p.global_position + Vector2(0, -60), Tech.TEXT["short"], Color(0.85, 0.8, 0.95))
+	if missing > 0.5:
+		main.fx_text(p.global_position + Vector2(0, -60), Tech.TEXT["not_full"], Color(0.85, 0.8, 0.95))
 	Tech.cast(t, p, power, self)
-	add_strain(part, Tech.strain(t) + short * Tech.SHORT_STRAIN)
+	add_strain(part, Tech.strain(t) + Tech.EMPTY_STRAIN * missing / maxf(need, 0.01))
 	_sync()
 
 
-## Pays a technique's cost from what you carry unbanked (the path's essence
-## from your unbanked flow). Returns how much it was short.
-func pay(t: Dictionary) -> float:
-	var short := 0.0
+## True if you carry all of a technique's boost unbanked (the path's essence
+## from your unbanked flow).
+func can_boost(t: Dictionary) -> bool:
+	var c := Tech.cost(t, main.profile)
+	for k in c:
+		var have: float = (main.run_flow if k == main.profile.path else 0.0) if k in Secret.ORDER else float(main.run_essence.get(k, 0.0))
+		if have + 0.001 < float(c[k]):
+			return false
+	return true
+
+
+## Spends a technique's boost from what you carry unbanked, if you carry all
+## of it (nothing is spent otherwise). True if it was spent.
+func boost_pay(t: Dictionary) -> bool:
+	if not can_boost(t):
+		return false
 	var c := Tech.cost(t, main.profile)
 	for k in c:
 		var need := float(c[k])
 		if k in Secret.ORDER:
-			var have: float = main.run_flow if k == main.profile.path else 0.0
-			var take := minf(have, need)
-			main.run_flow -= take
-			short += need - take
+			main.run_flow = maxf(0.0, main.run_flow - need)
 		else:
-			var have2 := float(main.run_essence.get(k, 0.0))
-			var take2 := minf(have2, need)
-			if take2 > 0.0:
-				main.run_essence[k] = have2 - take2
-				if float(main.run_essence[k]) <= 0.001:
-					main.run_essence.erase(k)
-			short += need - take2
-	return short
+			main.run_essence[k] = float(main.run_essence.get(k, 0.0)) - need
+			if float(main.run_essence[k]) <= 0.001:
+				main.run_essence.erase(k)
+	return true
 
 
 ## The part erupts: you're hurt badly (it can kill), it goes dark, raw essence shows.
@@ -206,20 +247,14 @@ func erupt(part: String) -> void:
 		main.on_player_died()
 
 
-## Each carried technique's gauge: its part's headroom (none while dark).
+## Keeps each carried technique's fill (so rebuilding the climber's bonds keeps it).
 func _sync() -> void:
 	var p = main.player
 	if p == null:
 		return
 	for b in p.bonds.values():
 		if "tech" in b:
-			var part: String = b.tech["part"]
-			# (something that fills marks, like a Vial of Essence, eases the strain instead)
-			var wrote: float = b.get_meta("wrote", b.essence)
-			if not is_dark(part) and b.essence > wrote + 0.5:
-				strain[part] = maxf(0.0, strain_of(part) - (b.essence - wrote))
-			b.essence = 0.0 if is_dark(part) else 100.0 - strain_of(part)
-			b.set_meta("wrote", b.essence)
+			fills[b.slot] = b.essence
 
 
 # --- each frame ---------------------------------------------------------------------
@@ -406,7 +441,8 @@ func _tick_fists(delta: float, p) -> void:
 		punch(bar)
 
 
-## One blow against a barrier: "shudder" (the route not yet found), "crack",
+## One blow against a barrier: "shudder" (the first ever: the warning),
+## "holds" (a marked climber after the first climb: nothing gives), "crack",
 ## "broke", or "short" (the Unbound without the essence for it).
 func punch(bar: Dictionary) -> String:
 	var prof = main.profile
@@ -414,6 +450,14 @@ func punch(bar: Dictionary) -> String:
 	var st := Unbound.state(prof)
 	var id: String = bar["id"]
 	var at: Vector2 = bar["rect"].get_center()
+	if not on and not main.first_climb:
+		shudder[id] = 0.5
+		main.fx_text(at + Vector2(0, -30), TEXT["holds"], Color(0.85, 0.82, 0.9))
+		main.shake(2.0)
+		main.sfx("hit_armor", 0.5, -6.0)
+		main.tip("unbound_fists_marked")
+		queue_redraw()
+		return "holds"
 	if not st["found"]:
 		st["found"] = true
 		prof.save()
@@ -458,11 +502,11 @@ func punch(bar: Dictionary) -> String:
 	queue_redraw()
 	if int(hits[id]) >= int(BLOWS[bar["kind"]]):
 		_break(bar)
-		st["broken"] = int(st["broken"]) + 1
 		prof.note("barriers")
 		prof.save()
-		if Unbound.offer_due(prof):
-			main.tip("unbound_noticed")
+		if main.first_climb and not on:
+			broke_rules = true
+			main.tip("unbound_rules")
 		return "broke"
 	main.fx_text(at + Vector2(0, -30), TEXT["crack"], barrier_color(bar["kind"]))
 	return "crack"
@@ -546,7 +590,9 @@ func _break(bar: Dictionary) -> void:
 # --- the beasts' offers -------------------------------------------------------------------
 
 ## The end of the Regard (main.gd end_regard): the first time, the choice to
-## refuse the mark. True while it shows.
+## refuse the mark (offered only when no barrier was broken; with one broken
+## the beast refused you as the Regard began: main.gd _grant_regard). True
+## while it shows.
 func ask_at_regard() -> bool:
 	var rg: Dictionary = main.regard
 	if rg.is_empty() or rg.has("asked") or Unbound.is_on(main.profile) or not main.profile.bonds.has(rg["part"]):
@@ -557,30 +603,19 @@ func ask_at_regard() -> bool:
 
 
 ## What a summit offers instead of a plain mark: "condense" (the Unbound),
-## "refuse" (a marked climber who has broken enough barriers, when a mark
-## would form), or "" (the usual).
+## or "" (the usual).
 func summit_choice() -> String:
-	var prof = main.profile
-	if Unbound.is_on(prof):
-		return "condense"
-	if Unbound.offer_due(prof) and not main.first_climb and not main.marked_this_climb and prof.ready_for_mark() != "" \
-			and prof.choose_bond(prof.tally, main.climb_soak) != "":
-		return "refuse"
-	return ""
+	return "condense" if Unbound.is_on(main.profile) else ""
 
 
 ## Opens the summit's choice (summit_choice); the victory shows after it, with `lines`.
 func offer_summit(kind: String, lines: Array) -> void:
-	var prof = main.profile
-	if kind == "condense":
-		var ess := String(main.tower_data().get("essence", "air"))
-		main.camp = {"stage": "condense", "choices": Unbound.PARTS.map(func(pt): return "condense:" + pt), "title": Unbound.TEXT["condense_title"],
-			"lines": [Unbound.TEXT["condense_sub"] % Tech.display(ess)], "kind": ess, "victory_lines": lines, "t": 0.0}
-		main.tip("unbound_condense")
-	else:
-		var part: String = prof.ready_for_mark()
-		_offer_refusal(part, prof.choose_bond(prof.tally, main.climb_soak), "summit", lines)
+	if kind != "condense":
 		return
+	var ess := String(main.tower_data().get("essence", "air"))
+	main.camp = {"stage": "condense", "choices": Unbound.PARTS.map(func(pt): return "condense:" + pt), "title": Unbound.TEXT["condense_title"],
+		"lines": [Unbound.TEXT["condense_sub"] % Tech.display(ess)], "kind": ess, "victory_lines": lines, "t": 0.0}
+	main.tip("unbound_condense")
 	_open_cards()
 
 
@@ -615,13 +650,12 @@ func card(pick: String) -> Dictionary:
 	var id := String(c.get("id", ""))
 	var bname: String = Bonds.BONDS[id]["name"] if Bonds.BONDS.has(id) else "?"
 	if pick == "unbind:accept":
-		var marked: bool = c.get("from", "") == "summit"
 		return {"name": Unbound.TEXT["accept_name"], "item": "", "color": Bonds.BONDS[id]["color"] if Bonds.BONDS.has(id) else Color(0.9, 0.8, 0.5),
-			"desc": (Unbound.TEXT["accept_desc_later"] if marked else Unbound.TEXT["accept_desc"]) % [bname, Bonds.PART_NAMES.get(part2, part2).to_lower()]}
+			"desc": Unbound.TEXT["accept_desc"] % [bname, Bonds.PART_NAMES.get(part2, part2).to_lower()]}
 	var armed: bool = int(c.get("armed", -1)) == 1
 	var again: String = Unbound.TEXT["refuse_again"] if main.touch_active else Unbound.TEXT["refuse_again_keys"]
 	return {"name": again if armed else Unbound.TEXT["refuse_name"], "item": "", "color": RAW,
-		"desc": Unbound.TEXT["refuse_desc_marked"] if c.get("from", "") == "summit" else Unbound.TEXT["refuse_desc"], "note": Unbound.TEXT["refuse_note"]}
+		"desc": Unbound.TEXT["refuse_desc"], "note": Unbound.TEXT["refuse_note"]}
 
 
 ## A card taken (main.gd choose_camp).
@@ -649,9 +683,6 @@ func choose(i: int) -> void:
 				main.player.set_physics_process(true)
 		elif c.get("from", "") == "regard":
 			main.end_regard()
-		else:
-			lines = main.summit_mark() + lines
-			main.show_victory(lines)
 		return
 	# Refusing is for good: a second press, and not in the first moment.
 	if float(c.get("t", 0.0)) < GRACE:
@@ -661,7 +692,6 @@ func choose(i: int) -> void:
 		main.card_focus = i
 		main.sfx("ui_move")
 		return
-	var was_marked: bool = c.get("from", "") == "summit"
 	Unbound.become(prof)
 	prof.save()
 	_close_cards()
@@ -673,12 +703,8 @@ func choose(i: int) -> void:
 		main.fx_ring(main.player.global_position, RAW, 90.0, 0.7, 5.0)
 	if c.get("from", "") == "regard":
 		main.end_regard()
-	elif c.get("from", "") == "dev":
-		if main.player != null:
-			main.player.set_physics_process(true)
-	else:
-		lines.push_front(Unbound.TEXT["became_marked"] if was_marked else Unbound.TEXT["became"])
-		main.show_victory(lines)
+	elif main.player != null:
+		main.player.set_physics_process(true)
 
 
 func _close_cards() -> void:

@@ -2209,6 +2209,8 @@ func _floor_title() -> String:
 func _give_bonds() -> void:
 	if player == null:
 		return
+	if unbound != null:
+		unbound._sync()  # (an Unbound's techniques keep their fill)
 	var old: Dictionary = player.bonds.duplicate()
 	player.bonds.clear()
 	for part in profile.bonds:
@@ -2379,13 +2381,24 @@ func on_player_died() -> void:
 
 
 ## The beast takes notice and your most-used body part takes its first mark.
-## Reaching the top earns a full mark; falling earns a faint one.
+## Reaching the top earns a full mark; falling earns a faint one. A barrier
+## broken on the first climb, and the beast refuses: no mark, Unbound.
 var regard_mark := {}  # the Regard's mark once granted: {fell, part, id}
 
 
 ## Grants (and saves) the Regard's mark, once.
 func _grant_regard(fell: bool) -> void:
 	if not regard_mark.is_empty():
+		return
+	if unbound != null and unbound.broke_rules:
+		# A barrier broken on this climb: the beast refuses to mark you (unbound_run.gd).
+		UnboundRun.Unbound.become(profile)
+		profile.regarded = true
+		profile.climbs += 1
+		profile.save()
+		regard_mark = {"fell": fell, "part": "", "id": "", "refused": true}
+		_give_bonds()
+		tip("unbound")
 		return
 	var part := leading_part()
 	if part == "":
@@ -2405,7 +2418,7 @@ func _begin_regard(fell: bool) -> void:
 	if not fell:
 		break_belt()  # (survived: what's left on the belt becomes crystals)
 		bring_pack_home()  # (and the pack comes down to the train, which appears now)
-	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "t": 0.0, "dark": fade > 0.5}
+	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "refused": regard_mark.get("refused", false), "t": 0.0, "dark": fade > 0.5}
 	GuideScript.moment("regard", "regard")
 	banner = {}
 	regard_pending = false

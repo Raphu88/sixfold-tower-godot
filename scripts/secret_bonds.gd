@@ -118,8 +118,8 @@ const TOOLS := {
 		"tip": "tool_reroll_designer"},
 	"des_build": {"bond": "designer", "depth": 5, "name": "Build", "where": "ring", "cards": true,
 		"cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 6.0},
-		"short": "Your own trap, wall or gate; a passage",
-		"desc": "Places a trap, wall or gate of your own in front of you, which monsters must respect (a few a floor; each costs its own), and once a climb opens a passage straight to the stair: a shimmering pair of gates between your spot and the stair's landing.",
+		"short": "Your own trap, wall or gate; a rift",
+		"desc": "Places a trap, wall or gate of your own in front of you, which monsters must respect (a few a floor; each costs its own), and once a climb tears a rift through the floor from where you stand to the stair: through rock, walls, doors, trap rooms and vaults. Anything locked it passes is opened, and what it held is taken, not given.",
 		"tip": "tool_build_designer"},
 	"man_edit": {"bond": "manipulator", "depth": 3, "name": "Edit", "where": "ring", "cards": true, "reach": 360.0,
 		"cost": {"flow": 6.0, "flow_kind": "life", "essence": 3.0},
@@ -254,21 +254,23 @@ const LEANS := {
 const STAIR_NEAR := 240.0
 
 ## The Designer's Build (depth 5): the palette, each with its own cost. At
-## most BUILD_MAX a floor (the passage aside: once a climb). Built
+## most BUILD_MAX a floor (the rift aside: once a climb). Built
 ## BUILD_AHEAD tiles in front of you. A trap is the tower's own plate, set off
 ## only by monsters; a wall lasts the floor; a gate lets you through but no
-## monster (they go around); the passage is a pair of gates, your spot and
-## the stair's landing (it changes no wall, so it can't break a floor).
+## monster (they go around); the rift (rift.gd) is a corridor two tiles wide
+## torn from your spot to the stair, through anything in the way; anything
+## locked it passes is opened and emptied. The dearest tool of all.
 const BUILD := {
 	"trap": {"name": "A trap", "desc": "The tower's own plate, ahead of you: only monsters set it off.", "cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 6.0}},
 	"wall": {"name": "A wall", "desc": "A stretch of wall across your aim, for the floor. It never shuts the stair away.", "cost": {"flow": 10.0, "flow_kind": "unmaking", "essence": 6.0}},
 	"gate": {"name": "A gate", "desc": "A gate across the way ahead: you pass, monsters don't (they go around).", "cost": {"flow": 10.0, "flow_kind": "unmaking", "essence": 8.0}},
-	"passage": {"name": "A passage", "desc": "Once a climb: two shimmering gates, here and at the stair's landing. Step in to cross.", "cost": {"flow": 16.0, "flow_kind": "unmaking", "essence": 10.0}},
+	"rift": {"name": "A rift", "desc": "Once a climb: tear a corridor through the floor from here to the stair. Anything locked it passes opens, and what it held is lost.", "cost": {"flow": 28.0, "flow_kind": "unmaking", "essence": 30.0}},
 }
-const BUILD_ORDER := ["trap", "wall", "gate", "passage"]
+const BUILD_ORDER := ["trap", "wall", "gate", "rift"]
 const BUILD_MAX := 3
 const BUILD_AHEAD := 2
-const PORTAL_R := 20.0
+## The rift's look: a faint light every `light_every` steps along it (reach, strength, glow).
+const RIFT := {"light_every": 4, "light_reach": 80.0, "light": 0.3, "glow": 0.12}
 
 ## The Manipulator's Edit (depth 3): each a change to one monster; a monster
 ## takes at most MEDIT_MAX ("its budget"). Turning it into a weaker kind of
@@ -498,8 +500,14 @@ const TEXT := {
 	"build_here": "No open floor ahead",
 	"built": "Built: %s",
 	"build_trap_tag": "yours",
-	"portal_tag": "passage",
-	"no_portal": "Not on this floor",
+	"rift_title": "THE RIFT",
+	"rift_done": "The floor tears open to the stair.",
+	"rift_vault": "The rift tears through the vault. What it held is gone.",
+	"rift_door": "The rift tears through a locked door. What lay behind it is gone.",
+	"rift_secret": "The rift tears through a hidden room. What it held is gone.",
+	"rift_traps": "Traps destroyed: %d.",
+	"rift_nothing": "Nothing to tear: the way to the stair is open.",
+	"not_here": "Not on this floor",
 	"medit_title": "EDIT: %s",
 	"medit_max": "Its budget is spent",
 	"turn": "Turn into: %s",

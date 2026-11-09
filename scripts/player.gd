@@ -414,6 +414,9 @@ func _break_gear(slot: String) -> void:
 ## the bond on it (if it has one) for casting.
 func _part_action(part: String, soak: float, fill: float) -> void:
 	main.add_soak(part, soak)
+	if main.unbound != null and main.unbound.on:
+		main.unbound.part_action(part, fill * (1.0 + gfx("fill")))  # (an Unbound's techniques of that part fill)
+		return
 	var b = bonds.get(part)
 	if b != null:
 		b.fill(fill * (1.0 + gfx("fill")))  # of the Well, a Tide Locket
