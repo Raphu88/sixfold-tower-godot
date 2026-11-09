@@ -11235,10 +11235,12 @@ func _secret_deep_tests() -> void:
 	main._start_floor(4)
 	await _frames(1)
 	var ri := -1
-	for i in main.room_info.size():
-		if not main.room_entered.has(i) and D.room_pack(i).size() >= 1:
+	var ri_far := -1.0
+	for i in main.room_info.size():  # (the farthest such room, so nothing new wakes at the sight of you)
+		var far: float = main.room_info[i]["rect"].get_center().distance_to(main.player.global_position)
+		if not main.room_entered.has(i) and D.room_pack(i).size() >= 1 and far > ri_far:
 			ri = i
-			break
+			ri_far = far
 	_check(ri >= 0, "a room not yet entered, with monsters asleep")
 	if ri >= 0:
 		main.run_flow = 200.0
@@ -11248,9 +11250,11 @@ func _secret_deep_tests() -> void:
 		var want: Array = D.cards[0]["kinds"].duplicate()
 		main.choose_camp(0)
 		await _frames(1)
-		var now: Array = D.room_pack(ri).map(func(e): return e.kind)
+		var r_ri: Rect2 = main.room_info[ri]["rect"].grow(40.0)  # (a spawn may be nudged off a pillar, just past the edge)
+		var now: Array = main.enemies().filter(func(e): return not e.aware and r_ri.has_point(e.global_position) and not e.ally).map(func(e): return e.kind)
 		now.sort()
-		_check(now == want and D.rerolled.has(ri), "...and the room holds the chosen pack, asleep (%s, was %d)" % [now, n_old])
+		want.sort()
+		_check(now == want and D.rerolled.has(ri), "...and the room holds the chosen pack, asleep (%s, wanted %s, was %d)" % [now, want, n_old])
 		_check(not T.use("man_reroll", ri), "...once a room")
 	await _clear_foes()
 
