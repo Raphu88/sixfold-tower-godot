@@ -3370,7 +3370,7 @@ func _title_tests() -> void:
 	_check(main.title_showing() and main.menu_open(), "the HUD and touch controls hide while the title shows")
 	var first := _menu_button("Begin your first climb")
 	_check(first != null and _menu_button("Start over") == null, "a new climber is offered the first climb (and nothing to lose)")
-	_check(_menu_button("Climber") != null and _menu_button("Settings") != null and _menu_button("Dev tools") != null, "the title has Climber, Settings and Dev tools")
+	_check(_menu_button("Climber") == null and _menu_button("Settings") != null and _menu_button("Dev tools") != null, "the title has Settings and Dev tools (the climber screen is in the pause menu)")
 	_check(first != null and first.has_focus(), "keyboard: the first button has focus")
 	var vis := root.get_visible_rect()
 	var inside := true
@@ -3383,10 +3383,10 @@ func _title_tests() -> void:
 	Input.action_release("pause")
 	await _frames(2)
 	_check(menu.page == "title" and paused, "Esc does nothing on the title")
-	# Body and Settings open over the title's backdrop; Back returns.
-	_menu_button("Climber").pressed.emit()
+	# Pages open over the title's backdrop; Back returns.
+	_menu_button("Dev tools").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "climber" and menu.backdrop.visible and not menu.backdrop.show_name, "Climber opens over the title backdrop")
+	_check(menu.page == "dev" and menu.backdrop.visible and not menu.backdrop.show_name, "Dev tools opens over the title backdrop")
 	_menu_button("Back").pressed.emit()
 	await _frames(2)
 	_check(menu.page == "title" and menu.backdrop.show_name, "...and Back returns to the title")
