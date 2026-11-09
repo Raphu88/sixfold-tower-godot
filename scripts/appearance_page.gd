@@ -1,7 +1,7 @@
 extends RefCounted
 ## The appearance editor (menu.gd's "create" and "appearance" pages): how
 ## the climber looks. A new climber meets it before the first climb (the
-## very first launch, New climber and Start over) as "create", ending in
+## very first launch, a new climber slot and Start over) as "create", ending in
 ## Begin; later the climber screen's Appearance button and the train's
 ## Your car open it as "appearance", ending in Done (or Back).
 ##

@@ -8,8 +8,8 @@ extends Node2D
 ## tap or click on it, Enter, or a press of the right stick (RS / R3)
 ## dismisses it at once.
 ##
-## Each tip is said once per save; what it said is kept in the Archive (the
-## climber screen's Archive tab). With the tips turned off in Settings, the
+## Each tip is said once per climber (each climber slot hears them again);
+## what it said is kept in the Archive (the climber screen's Archive tab). With the tips turned off in Settings, the
 ## Entity stays quiet but the Archive still fills in. "Replay tips" makes it
 ## say everything again. Short lines for moments (a fall, a beast slain, a
 ## new mark) use the same bubble. The words are in entity.gd.
@@ -20,8 +20,8 @@ extends Node2D
 const Entity := preload("res://scripts/entity.gd")
 const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
+const Slots := preload("res://scripts/slots.gd")
 
-const SAVE_PATH := "user://sixfold.cfg"
 ## Seconds between one bubble and the next, and to fade in or out.
 const GAP := 0.6
 const FADE := 0.25
@@ -35,10 +35,13 @@ const WIDTH_TOUCH := 300.0
 const TOP := 46.0
 const TOP_TOUCH := 64.0
 
-## What the Entity remembers, saved in the "guide" section of the save file:
-## on (tips on), known (Archive entries unlocked) and told (tips said).
+## What the Entity remembers, saved in the "guide" section: on (tips on, in
+## the shared settings file), known (Archive entries unlocked) and told (tips
+## said), both in the current climber's slot file (slots.gd).
 static var state := {"on": true, "known": {}, "told": {}}
 static var loaded := false
+## The climber file known and told were loaded from (and are saved to).
+static var loaded_from := ""
 ## Bubbles waiting their turn: {kind: "tip" or "say", id, text}. Kept across
 ## a restart (a scene reload), so a tip queued just before isn't lost.
 static var queue: Array = []
@@ -60,28 +63,66 @@ var watch_t := 0.0
 # --- the registry ------------------------------------------------------------------
 
 static func load_state() -> void:
-	if loaded:
+	if Engine.has_meta("sixfold_test"):
+		loaded = true  # (tests keep it in memory only)
+		return
+	var at: String = Slots.current_path()
+	if loaded and loaded_from == at:
 		return
 	loaded = true
-	if Engine.has_meta("sixfold_test"):
-		return
+	load_from(Slots.settings_path(), at)
+
+
+## Reads tips on or off from the settings file, and what's been said from a
+## climber's file (another climber starts with nothing said).
+static func load_from(settings: String, climber: String) -> void:
+	if loaded_from != climber:
+		queue.clear()  # (another climber: nothing of the last one's waits)
+	loaded_from = climber
+	state["known"] = {}
+	state["told"] = {}
 	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) != OK:
-		return
-	state["on"] = bool(cfg.get_value("guide", "on", true))
-	state["known"] = cfg.get_value("guide", "known", {})
-	state["told"] = cfg.get_value("guide", "told", {})
+	if cfg.load(settings) == OK:
+		state["on"] = bool(cfg.get_value("guide", "on", true))
+	cfg = ConfigFile.new()
+	if cfg.load(climber) == OK:
+		var k = cfg.get_value("guide", "known", {})
+		var t = cfg.get_value("guide", "told", {})
+		state["known"] = k if k is Dictionary else {}
+		state["told"] = t if t is Dictionary else {}
 
 
+## What's been said, into the current climber's file.
 static func save_state() -> void:
-	if Engine.has_meta("sixfold_test"):
+	if Engine.has_meta("sixfold_test") or loaded_from == "":
 		return
+	save_to(loaded_from)
+
+
+static func save_to(climber: String) -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(SAVE_PATH)
-	cfg.set_value("guide", "on", state["on"])
+	cfg.load(climber)
 	cfg.set_value("guide", "known", state["known"])
 	cfg.set_value("guide", "told", state["told"])
-	cfg.save(SAVE_PATH)
+	cfg.save(climber)
+
+
+## Tips on or off, into the shared settings file.
+static func save_on(settings: String) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(settings)
+	cfg.set_value("guide", "on", state["on"])
+	cfg.save(settings)
+
+
+## Another climber is about to be played (or this one was deleted): read
+## everything again next time.
+static func unload() -> void:
+	loaded = false
+	loaded_from = ""
+	state["known"] = {}
+	state["told"] = {}
+	queue.clear()
 
 
 ## False in tests (unless they ask for the Entity): it does nothing at all.
@@ -100,7 +141,8 @@ static func set_on(on: bool) -> void:
 	state["on"] = on
 	if not on:
 		queue = queue.filter(func(q): return q["kind"] != "tip")
-	save_state()
+	if not Engine.has_meta("sixfold_test"):
+		save_on(Slots.settings_path())
 
 
 ## The Archive entry for this tip is unlocked.
@@ -116,7 +158,7 @@ static func told(id: String) -> bool:
 
 
 ## The first time the climber meets something: queue the Entity's tip for
-## it (once per save). Unknown ids fall back (entity.gd's resolve) or do
+## it (once per climber). Unknown ids fall back (entity.gd's resolve) or do
 ## nothing. With tips off, the Archive entry still unlocks. True if queued.
 static func tip(id: String) -> bool:
 	if not live():
