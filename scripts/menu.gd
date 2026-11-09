@@ -51,7 +51,10 @@ const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "R
 const COMPACT_H := 600.0
 
 ## Settings, kept between sessions (in the same file as the profile).
-static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks", "lighting": ""}
+## "condense": the share of banked essence that condenses into crystals at a
+## stair, in percent (train.gd CONDENSE_CHOICES).
+static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks", "lighting": "",
+	"condense": Train.CONDENSE_DEFAULT}
 static var settings_loaded := false
 
 var main
@@ -663,6 +666,8 @@ func _page_settings() -> void:
 	_toggle("Controls list on screen (H)", "help")
 	_choice("HUD size", "hud_scale", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]])
 	_choice("Lighting", "lighting", [["low", "Low"], ["medium", "Medium"], ["high", "High"]])
+	_choice(Train.TEXT["condense_setting"], "condense", Train.CONDENSE_CHOICES)
+	_note(Train.TEXT["condense_note"])
 	_guide_settings()
 	_pad_settings()
 	_footer()
@@ -1569,7 +1574,7 @@ func _page_inventory() -> void:
 		var s := _slot(crystal_row, "crystal:" + kind, (36.0 if compact() else 40.0), "" if compact() else Essence.display(kind))
 		s.kind = "crystal"
 		s.id = kind
-		s.count = n
+		s.count = int(main.profile.crystal_total(kind))  # (one crystal of each kind: how much it holds)
 		s.empty = n <= 0
 		s.tint = Essence.color(kind)
 		keys.append(s.get_meta("slot"))
@@ -1855,13 +1860,14 @@ func _show_details(key: String) -> void:
 			var n: int = main.profile.crystal_count(arg)
 			var col: Color = Essence.color(arg)
 			_detail_head("crystal", arg, Items.CRYSTAL["name"] % Essence.display(arg), col)
+			var held := int(main.profile.crystal_total(arg))
 			if n <= 0:
 				_detail_text(Items.CRYSTAL["none"], DIM)
 			else:
-				var each: float = main.profile.crystal_total(arg) / n
-				_detail_text(_sentence(Items.CRYSTAL["desc"] % [int(round(each)), Essence.display(arg).to_lower()]), TEXT)
-				_detail_text("Holding %d  ·  %d essence in all  ·  kept between climbs" % [n, int(main.profile.crystal_total(arg))], DIM)
-			var eat := _button(Items.CRYSTAL["consume"], _consume_crystal.bind(arg), details)
+				_detail_text(_sentence(Items.CRYSTAL["desc"] % [held, Essence.display(arg).to_lower()]), TEXT)
+				_detail_text(Items.CRYSTAL["held"] % held, DIM)
+			var step := int(Items.CRYSTAL["step"])
+			var eat := _button(Items.CRYSTAL["consume"] % (step if n <= 0 else mini(step, held)), _consume_crystal.bind(arg), details)
 			eat.disabled = n <= 0
 		"rune":
 			var r: Dictionary = Items.CAMP_RUNES.get(p.camp_rune, {})
@@ -2482,6 +2488,9 @@ static func load_settings_from(path: String) -> void:
 		return
 	for k in settings:
 		settings[k] = cfg.get_value("settings", k, settings[k])
+	settings["condense"] = str(settings["condense"])
+	if not Train.CONDENSE_CHOICES.any(func(c): return c[0] == settings["condense"]):
+		settings["condense"] = Train.CONDENSE_DEFAULT  # (an old or broken save: the default share)
 
 
 static func save_settings() -> void:
@@ -2940,7 +2949,12 @@ class Slot extends Button:
 			draw_string(font, Vector2(5, 13), "new", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.GOLD)
 		if price > 0:
 			var gb := UI.Draw.Batch.new()
-			UI.gem_into(gb, Vector2(9, 9), 4.5, Essence.color(price_kind))
+			if price_kind == "any":  # (train.gd ANY: any kind: a gold gem flanked by two small ones)
+				UI.gem_into(gb, Vector2(6, 11), 3.0, Essence.color("fire"))
+				UI.gem_into(gb, Vector2(12, 11), 3.0, Essence.color("water"))
+				UI.gem_into(gb, Vector2(9, 7), 4.0, UI.GOLD)
+			else:
+				UI.gem_into(gb, Vector2(9, 9), 4.5, Essence.color(price_kind))
 			gb.flush(self)
 			var pt := str(price)
 			draw_string_outline(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.9))

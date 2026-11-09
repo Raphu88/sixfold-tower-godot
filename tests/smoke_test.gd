@@ -24,6 +24,14 @@ func _check(cond: bool, what: String) -> void:
 		print("  FAIL ", what)
 
 
+## All the essence a profile holds in crystals, every kind.
+func _purse(prof) -> float:
+	var t := 0.0
+	for c in prof.crystals:
+		t += float(c["amount"])
+	return t
+
+
 ## Sound names the code plays that the sound bank lacks (each would be a
 ## silent call): every sfx("name") in the scripts, and the sounds named in
 ## weapon, armor and monster data (with each weapon's "_heavy" finisher).
@@ -3036,11 +3044,11 @@ func _proving_tests() -> void:
 	_check(adds.size() == int(pv.TIERS[0]["adds"]) and adds.all(func(e): return e.kind == tw["sentinel_adds"]) and not main.door_view.lock_status().is_empty(), "...with its adds, behind shut doors")
 	for e in main.enemies():
 		e.set_physics_process(false)
-	var crystals0: int = prof.crystal_count(tw["essence"])
+	var crystals0: float = prof.crystal_total(tw["essence"])
 	for e in pv.mobs:
 		_slay(e)
 	await _until(func(): return pv.sealed.has("sentinel_done"), 3.0)
-	_check(main.door_view.lock_status().is_empty() and prof.crystal_count(tw["essence"]) > crystals0, "its fall opens the doors and leaves an essence crystal")
+	_check(main.door_view.lock_status().is_empty() and prof.crystal_total(tw["essence"]) > crystals0, "its fall opens the doors and leaves an essence crystal")
 	p.global_position = rect.call("shadow").get_center()
 	await _until(func(): return pv.shadow != null, 3.0)
 	var sh = pv.shadow
@@ -6154,14 +6162,16 @@ func _belt_tests() -> void:
 	p = main.player
 	p.items = {"tonic": 2}
 	var water0: float = main.profile.crystal_total("water")
+	var rpay: float = float(main.Train.climb_pay(main.floor_num, main.climb_best0)) if main.tower_data()["essence"] == "water" else 0.0  # (the outfitter's pay, in the tower's kind)
 	main._begin_regard(false)
-	_check(absf(main.profile.crystal_total("water") - water0 - 10.0) < 0.01, "reaching the Regard alive breaks the belt into crystals")
+	_check(absf(main.profile.crystal_total("water") - water0 - 10.0 - rpay) < 0.01, "reaching the Regard alive breaks the belt into crystals")
 	await _fresh_main()
 	p = main.player
 	p.items = {"tonic": 2}
 	water0 = main.profile.crystal_total("water")
+	rpay = float(main.Train.climb_pay(main.floor_num, main.climb_best0)) if main.tower_data()["essence"] == "water" else 0.0
 	main._begin_regard(true)
-	_check(main.profile.crystal_total("water") == water0, "falling loses it")
+	_check(main.profile.crystal_total("water") == water0 + rpay, "falling loses it (only the outfitter's pay comes)")
 	Engine.time_scale = 1.0
 
 
@@ -7189,6 +7199,7 @@ func _run() -> void:
 	await _train_tests()
 	await _lost_tests()
 	await _bench_tests()
+	await _economy_tests()
 	await _vessel_tests()
 	await _controls_tests()
 	await _pad_layout_tests()
@@ -7328,9 +7339,10 @@ func _wing_tests() -> void:
 	_check(crystal_cards.size() == 2 and crystal_cards[0].get_slice(":", 1) != crystal_cards[1].get_slice(":", 1), "two of them are essence crystals of different kinds")
 	var card: Dictionary = main.camp_card(0)
 	_check(card.has("crystal") and String(card["name"]).ends_with("Crystal"), "a crystal card reads as one (%s)" % card.get("name", ""))
-	var held0: int = main.profile.crystals.size()
+	var card0: String = main.camp["choices"][0]
+	var held0: float = main.profile.crystal_total(card0.get_slice(":", 1))
 	main.choose_camp(0)
-	_check(not main.camp_choosing and main.profile.crystals.size() == held0 + 1, "choosing a crystal card keeps the crystal")
+	_check(not main.camp_choosing and is_equal_approx(main.profile.crystal_total(card0.get_slice(":", 1)), held0 + round(float(card0.get_slice(":", 2)))), "choosing a crystal card keeps the crystal (combined with your crystal of that kind)")
 	p.global_position = w["pedestal"] + Vector2(0, 6)
 	await _frames(3)
 	_check(not main.camp_choosing, "(a pedestal gives once)")
@@ -7379,10 +7391,10 @@ func _wing_tests() -> void:
 	_check(w["vault"] == "dark" and not main.is_solid(gate) and main.is_solid(w["seal_pos"]), "its fall reopens the way; the vault stays locked for good")
 	_check(w.has("drop"), "the champion leaves an essence crystal")
 	if w.has("drop"):
-		held0 = main.profile.crystals.size()
+		held0 = main.profile.crystal_total(w["drop"]["kind"])
 		p.global_position = w["drop"]["pos"]
 		await _frames(3)
-		_check(main.profile.crystals.size() == held0 + 1, "walking over it keeps the crystal")
+		_check(main.profile.crystal_total(w["drop"]["kind"]) > held0, "walking over it keeps the crystal")
 	# Never trapped: a puzzle host's answer, or the room giving up.
 	_check(await _wing_floor(), "a fourth wing")
 	w = W.wings[0]
@@ -7424,8 +7436,11 @@ func _wing_tests() -> void:
 	main.profile.add_crystal("air", 40.0)
 	var xp0: float = main.profile.bonds["hand"]["xp"]
 	var lines: Array = main.consume_crystal("air")
-	_check(main.profile.crystal_count("air") == 0 and main.profile.bonds["hand"]["xp"] > xp0 and not lines.is_empty(), "consuming a crystal banks its essence into your marks (%s)" % [lines])
-	_check(main.consume_crystal("air").is_empty(), "(none left: nothing happens)")
+	var step := float(main.Items.CRYSTAL["step"])
+	_check(main.profile.crystal_total("air") == 40.0 - step and main.profile.bonds["hand"]["xp"] > xp0 and not lines.is_empty(), "consuming banks a step of a crystal's essence into your marks (%s)" % [lines])
+	for i in 10:
+		main.consume_crystal("air")
+	_check(main.profile.crystal_count("air") == 0 and main.consume_crystal("air").is_empty(), "(all of it consumed: none left, nothing happens)")
 
 	# Secret rooms.
 	_check(await _wing_floor(true, ""), "a floor with a secret room")
@@ -7492,10 +7507,16 @@ func _wing_tests() -> void:
 	main.run_soak = {"back": 4.0}
 	p.items = {"scroll": 1}  # (other belt items would break into crystals too)
 	p.item_sel = "scroll"
+	main.climb_paid = false
+	var tk: String = main.tower_data()["essence"]
+	var pay: int = main.Train.climb_pay(main.floor_num, main.climb_best0)
 	_check(not p.use_item() and main.victory.is_empty() and main.banner.get("title", "") == main.Items.RECALL["ask_title"], "using the scroll asks first")
 	_check(p.use_item(), "...and a second use reads it")
 	_check(not main.victory.is_empty() and main.victory.get("recall", false), "reading it ends the climb safely")
-	_check(main.profile.crystal_count("fire") == 1 and int(main.profile.crystal_total("fire")) == 23 and main.profile.crystal_count("air") == 1, "unbanked essence settles into crystals, one per kind")
+	var fire_pay := pay if tk == "fire" else 0
+	var air_pay := pay if tk == "air" else 0
+	_check(main.profile.crystal_count("fire") == 1 and int(main.profile.crystal_total("fire")) == 23 + fire_pay and int(main.profile.crystal_total("air")) == 5 + air_pay, "unbanked essence settles into crystals, one per kind")
+	_check(pay > 0 and int(main.profile.crystal_total(tk)) >= pay and main.victory["lines"].has(main.pay_line) and main.pay_line.contains(str(pay)), "a recall is paid for too: %s" % main.pay_line)
 	_check(main.run_essence.is_empty() and p.item_count("scroll") == 0 and main.profile.soak.get("back", 0.0) > 0.0, "the scroll is used up, and nothing else is lost")
 	main.victory["t"] = 9.0
 	main.end_regard()
@@ -8286,6 +8307,199 @@ func _entity_tests() -> void:
 	main.entity.current = {}
 
 
+## Money (the owner's three fixes, and the recall scroll): a share of what's
+## banked at a stair condenses into crystals (a setting); the outfitter pays
+## for every climb, a fall too; Commons and basic supplies cost half; the
+## recall scroll is always on the shelf and takes crystals of any kind.
+func _economy_tests() -> void:
+	print("money: condensing, the outfitter's pay, cheaper commons, the recall scroll")
+	await _fresh_main()
+	var T = main.Train
+	var G = main.Gear
+	var PS = main.ProfileScript
+	var M = main.MenuScript
+	var U = load("res://scripts/unbound.gd")
+	var prof = main.profile
+	var p = main.player
+	var menu = main.menu
+	var setting0 = M.settings["condense"]
+	main.grant_test_bonds()
+	# Condensing at a stair: the set share, per kind; only the rest is banked.
+	M.settings["condense"] = T.CONDENSE_DEFAULT
+	var share: float = T.condense_share(M.settings)
+	_check(is_equal_approx(share, 0.2), "condensing starts at 20%")
+	prof.crystals = []
+	var twin = PS.new()
+	twin.saving = false
+	twin.bonds = prof.bonds.duplicate(true)
+	var dens0 := float(prof.density.get("water", 0.0))
+	main.floor_num = 2
+	main.run_essence = {"water": 50.0, "air": 7.0}
+	main.run_soak = {}
+	main._arrive()
+	var cw := floorf(50.0 * share)
+	var ca := floorf(7.0 * share)
+	_check(prof.crystal_total("water") == cw and prof.crystal_total("air") == ca and prof.crystal_count("water") == 1, "a stair condenses %d%% of each kind into crystals (%s)" % [int(share * 100.0), prof.crystals])
+	_check(is_equal_approx(float(prof.density.get("water", 0.0)) - dens0, 50.0 - cw), "...and banks only the rest")
+	twin.bank({"water": 50.0 - cw, "air": 7.0 - ca}, {})
+	_check(is_equal_approx(prof.bonds["hand"]["xp"], twin.bonds["hand"]["xp"]) and is_equal_approx(prof.bonds["legs"]["xp"], twin.bonds["legs"]["xp"]) and prof.bonds["legs"]["xp"] > 0.0, "marks grow from the banked part only")
+	var want: String = T.TEXT["banked"] % int(57.0 - cw - ca) + "  ·  " + T.TEXT["condensed"] % int(cw + ca)
+	_check(main.banner.get("lines", []).has(want), "the stair's banner says so: %s" % want)
+	# The Unbound: the share is taken before essence pools raw in a part.
+	var ub = PS.new()
+	ub.saving = false
+	U.become(ub)
+	var cond: Dictionary = ub.condense({"blade": 40.0}, share)
+	ub.bank(cond["keep"], {})
+	var part: String = U.part_for(ub, "blade")
+	_check(ub.crystal_total("blade") == floorf(40.0 * share) and is_equal_approx(float(ub.part_density.get(part, {}).get("blade", 0.0)), 40.0 - floorf(40.0 * share)), "the Unbound condense the same share; only the rest pools raw in the %s" % part)
+	# The setting: on the Settings page, saved with the settings.
+	menu.open("settings")
+	await _frames(2)
+	var row: Array = _all_buttons(menu).filter(func(b): return b.get_meta("choice_key", "") == "condense")
+	_check(row.size() == T.CONDENSE_CHOICES.size(), "Settings has a row for the share (%d choices)" % row.size())
+	var b35: Array = row.filter(func(b): return b.get_meta("choice", "") == "35")
+	if b35.size() == 1:
+		b35[0].pressed.emit()
+		await _frames(2)
+	_check(M.settings["condense"] == "35" and is_equal_approx(T.condense_share(M.settings), 0.35), "choosing 35% changes the share")
+	menu.close()
+	var path := "user://smoke_condense_test.cfg"
+	M.save_settings_to(path)
+	M.settings["condense"] = "20"
+	M.load_settings_from(path)
+	_check(M.settings["condense"] == "35", "...and it's saved with the settings")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	M.settings["condense"] = "0"
+	prof.crystals = []
+	main.player.set_physics_process(true)
+	main.floor_num = 4
+	main.run_essence = {"water": 30.0}
+	main._arrive()
+	_check(prof.crystals.is_empty(), "at 0% nothing condenses")
+	M.settings["condense"] = T.CONDENSE_DEFAULT
+	# The outfitter pays for a fall: per floor reached, more past your best.
+	await _fresh_main()
+	prof = main.profile
+	p = main.player
+	main.grant_test_bonds()
+	main.tower = "kraken"
+	main._note_climb_start()
+	main.floor_num = 6
+	prof.crystals = []
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.parry_t = 0.0
+	p.receive_attack(99999.0, null)
+	var first_pay: int = T.climb_pay(6, 0)
+	_check(p.dead and prof.crystal_total("water") == float(first_pay) and first_pay == 6 * int(T.CLIMB_PAY["per_floor"]) + 6 * int(T.CLIMB_PAY["per_best"]), "a fall on floor 6 (a new best) still pays %d Water" % first_pay)
+	_check(main.pay_line.contains(str(first_pay)) and main.pay_line.begins_with(T.TEXT["pay"].get_slice("%", 0)), "...said on the fall screen: %s" % main.pay_line)
+	prof.note_floor("kraken", 6)
+	main._note_climb_start()
+	main.floor_num = 6
+	_check(main.climb_best0 == 6 and main.pay_climb() != "" and int(prof.last_pay["amount"]) == T.climb_pay(6, 6) and T.climb_pay(6, 6) < first_pay, "the same floor again pays less (%d): a new best floor pays more" % T.climb_pay(6, 6))
+	# A starting climber after one short fall can afford a Common piece or a supply in that tower's kind.
+	for t in main.Towers.ORDER:
+		var kind: String = main.Towers.TOWERS[t]["essence"]
+		var cheapest := 9999
+		for id in T.supplies():
+			var pr: Array = T.item_price(id)
+			if pr[0] == kind:
+				cheapest = mini(cheapest, int(pr[1]))
+		for id in T.common_pool():
+			var g = G.make(id)
+			if T.gear_kind(g) == kind:
+				cheapest = mini(cheapest, T.gear_price(g))
+		_check(T.climb_pay(3, 0) >= cheapest, "a first fall on floor 3 of the %s pays %d %s: enough for something at %d" % [t, T.climb_pay(3, 0), kind, cheapest])
+	# The summit pays too.
+	main.player.dead = false
+	main.player.hp = main.player.max_hp
+	main._note_climb_start()
+	main.floor_num = int(main.tower_data().get("summit", 12))
+	main.run_essence = {}
+	main._arrive()
+	await _frames(2)
+	_check(not main.victory.is_empty() and main.pay_line != "" and main.victory["lines"].has(main.pay_line), "the summit is paid for: %s" % main.pay_line)
+	main.victory = {}
+	# The first climb's Regard pays too (money for the first train).
+	await _fresh_main()
+	prof = main.profile
+	var fk: String = main.tower_data()["essence"]
+	main.floor_num = PS.FIRST_CLIMB_FLOORS
+	main.run_essence = {}
+	main._arrive()
+	await _frames(2)
+	_check(not main.regard.is_empty() and prof.crystal_total(fk) >= T.climb_pay(PS.FIRST_CLIMB_FLOORS, 0) and main.pay_line != "", "the first climb's Regard is paid for: %s" % main.pay_line)
+	main.regard = {}
+	# Cheaper commons: about half; Fine stays at its old price (4x the new Common).
+	var halves := true
+	var fines := true
+	for id in T.common_pool():
+		var base := float(T.BASE_PRICE.get(G.make(id)["base"], T.DEFAULT_PRICE))
+		var c: int = T.gear_price(G.make(id))
+		halves = halves and absf(c - base * 0.5) <= 0.5
+		var f: int = T.gear_price(G.make(id, "fine", []))
+		fines = fines and f == int(round(base * 2.0)) and absf(f - 4.0 * c) <= 2.0
+	_check(halves, "every Common piece costs half its old price")
+	_check(fines, "a Fine piece keeps its old price: about 4x its Common")
+	var basic := true
+	for id in T.SUPPLY_PRICE:
+		var worth := int(main.Items.ITEMS[id]["value"][main.Items.ITEMS[id]["kind"]])
+		basic = basic and T.item_price(id)[1] == int(round(worth / 2.0)) and int(load("res://scripts/bench.gd").BREW[id].values()[0]) < T.item_price(id)[1]
+	_check(basic, "basic supplies cost half their worth, and the bench brews them a little cheaper still")
+	_check(T.item_price("vial")[1] == int(main.Items.ITEMS["vial"]["value"]["water"]), "rarer brews keep their price")
+	# The recall scroll: always on the shelf, paid in crystals of any kind.
+	prof.regarded = true
+	main.first_climb = false
+	prof.crystals = []
+	prof.supplies = {}
+	prof.supply_paid = {}
+	p = main.player
+	p.items = {"draught": 1}
+	main.await_tower()
+	main.open_train()
+	menu = main.menu
+	var price: Array = T.item_price("scroll")
+	_check(price[0] == T.ANY and T.supplies().has("scroll") and T.price_text(price[0], price[1]) == "%d of any kind" % price[1], "the store always sells a recall scroll, for %s" % T.price_text(price[0], price[1]))
+	prof.add_crystal("water", 35.0)
+	prof.add_crystal("fire", 20.0)
+	prof.add_crystal("air", 10.0)
+	menu.train_car = "store"
+	menu.train_store = "shop"
+	menu.inv_sel = "supply:scroll"
+	menu.open("train")
+	await _frames(2)
+	var buy: Array = _car_buttons("buy", "scroll")
+	_check(_car_buttons("slot", "supply:scroll").size() == 1 and buy.size() == 1 and not buy[0].disabled, "its shelf slot and Buy (no one kind covers %d, but together they do)" % price[1])
+	if buy.size() == 1:
+		buy[0].pressed.emit()
+		await _frames(2)
+	var paid: Dictionary = T.last_paid(prof, "scroll")
+	var paid_sum := 0.0
+	for k in paid:
+		paid_sum += float(paid[k])
+	_check(int(prof.supplies.get("scroll", 0)) == 1 and paid_sum == float(price[1]) and prof.crystals_held() == 65.0 - price[1], "bought with a mix of kinds: %s, %d in all" % [paid, int(paid_sum)])
+	_check(paid.get("water", 0.0) == 35.0 and paid.get("fire", 0.0) == 20.0, "...the biggest crystals first")
+	var labels: Array = _all_labels(menu).map(func(l): return l.text)
+	_check(labels.any(func(t): return t.contains(T.TEXT["paid_with"] % T.paid_text(paid))), "...and the card says which it took")
+	_check(_car_buttons("slot", "supply:scroll").size() == 1, "the scroll stays on the shelf after buying")
+	prof.store = {}
+	T.stock(prof)
+	_check(T.supplies().has("scroll"), "...and after the rack is filled again")
+	_check(T.put_back(prof, "scroll") and prof.crystal_total("water") == 35.0 and prof.crystal_total("fire") == 20.0 and prof.crystal_total("air") == 10.0, "putting it back returns the same mix")
+	prof.crystals = []
+	prof.add_crystal("water", 30.0)
+	prof.add_crystal("fire", float(price[1]) - 31.0)
+	_check(T.buy_supply(prof, p, "scroll") == T.TEXT["needs_any"] % 1 and prof.crystals_held() == float(price[1]) - 1.0 and not prof.supplies.has("scroll"), "one short in all: it can't be bought, and nothing is taken")
+	menu.open("train")
+	await _frames(2)
+	buy = _car_buttons("buy", "scroll")
+	_check(buy.size() == 1 and buy[0].disabled, "...its Buy is off")
+	menu.close()
+	M.settings["condense"] = setting0
+	paused = false  # (the train's menu pauses the tree; the next test needs it running)
+
+
 ## The buttons and slots in the train's car you're in (the other cars are
 ## built too, so the next one shows while scrolling), with a meta.
 func _car_buttons(meta: String, val) -> Array:
@@ -8436,11 +8650,13 @@ func _train_tests() -> void:
 	await _frames(2)
 	_check(menu.page == "train" and menu.train_car == "personal", "I on the train opens your car")
 
-	# Buying with change: the smallest crystals first, the rest back as one crystal.
+	# Crystals of a kind combine into one; buying takes from it.
 	prof.crystals = []
 	prof.add_crystal("stone", 5.0)
 	prof.add_crystal("stone", 10.0)
 	prof.add_crystal("stone", 40.0)
+	_check(prof.crystal_count("stone") == 1 and prof.crystal_total("stone") == 55.0, "same-kind crystals combine into one crystal (%s)" % [prof.crystals])
+	var dprice: int = T.item_price("draught")[1]
 	menu.train_car = "store"
 	menu.train_store = "shop"
 	menu.inv_sel = "supply:draught"
@@ -8453,7 +8669,7 @@ func _train_tests() -> void:
 		buy[0].pressed.emit()
 		await _frames(2)
 	_check(int(prof.supplies.get("draught", 0)) == 1, "buying packs it for the next climb")
-	_check(prof.crystal_total("stone") == 43.0 and prof.crystal_count("stone") == 2, "12 Stone paid from the 5 and the 10; 3 back as change (%s)" % [prof.crystals])
+	_check(prof.crystal_total("stone") == 55.0 - dprice and prof.crystal_count("stone") == 1, "%d Stone paid from your Stone crystal (%s)" % [dprice, prof.crystals])
 	var labels: Array = _all_labels(menu).map(func(l): return l.text)
 	_check(labels.any(func(t): return t.begins_with("Bought: Healing Draught")), "...and the card says so")
 	# A price you can't pay says why.
@@ -8477,7 +8693,8 @@ func _train_tests() -> void:
 	_check(prof.pack.size() == 1 and G.same(prof.pack[0], today) and prof.crystal_total(kind) == before - cost and T.today(prof).is_empty(), "...into your pack, for its price (%d %s)" % [cost, kind])
 	# Selling: a crystal of its kind at 40% of its price (asks once first).
 	prof.pack = [G.make("leather_cap"), G.make("iron_helm", "rare", ["vigor", "calm"])]
-	_check(T.gear_kind(prof.pack[0]) == "stone" and T.gear_sell(prof.pack[0]) == 4, "a Leather Cap sells for 4 Stone")
+	var cap_sell := maxi(1, int(round(round(float(T.BASE_PRICE["leather_cap"]) * T.RARITY_PRICE["common"]) * T.SELL_SHARE)))
+	_check(T.gear_kind(prof.pack[0]) == "stone" and T.gear_sell(prof.pack[0]) == cap_sell, "a Leather Cap sells for %d Stone" % cap_sell)
 	_check(T.gear_kind(prof.pack[1]) == "stone" and T.gear_price(prof.pack[1]) == 56 and T.gear_sell(prof.pack[1]) == 22, "a Rare Iron Helm of Vigor: 56 Stone, sells for 22")
 	var sign: Array = _car_buttons("store_tab", "sell")
 	_check(sign.size() == 1, "the outfitter's sign: sell to him")
@@ -8498,7 +8715,7 @@ func _train_tests() -> void:
 	if sell.size() == 1:
 		sell[0].pressed.emit()
 		await _frames(2)
-	_check(prof.pack.size() == 1 and prof.crystal_total("stone") == stone + 4.0, "the second sells it: a 4 Stone crystal")
+	_check(prof.pack.size() == 1 and prof.crystal_total("stone") == stone + cap_sell, "the second sells it: %d Stone into your crystal" % cap_sell)
 	menu.train_store = "shop"
 	# The chest: keep a piece; it's saved with the profile (old saves load without one).
 	_check(T.move(prof, p, "pack", 0) == "" and prof.chest.size() == 1 and prof.pack.is_empty(), "a piece moves from your pack to the chest")
@@ -8611,7 +8828,9 @@ func _lost_tests() -> void:
 	main.grant_test_bonds()
 	main.tower = "kraken"
 	main.floor_num = 5
-	var crystals0: int = prof.crystals.size()
+	var crystals0: float = _purse(prof)
+	main.climb_best0 = 3
+	main.climb_paid = false
 	p.pack = [G.make("leather_cap"), G.make("dagger"), G.make("chain")]
 	p.take_gear(G.make_named("coral_trident"))
 	_check(p.weapon == "spear" and not p.carried().is_empty(), "a Coral Trident in hand, three pieces in the pack, items on the belt")
@@ -8623,7 +8842,10 @@ func _lost_tests() -> void:
 	_check(p.dead and prof.lost.size() == 4, "a fall loses the pack's three pieces and the weapon in hand (%d remembered)" % prof.lost.size())
 	_check(prof.lost.all(func(e): return e["tower"] == "kraken" and int(e["floor"]) == 5), "...remembered with the tower and floor where they fell")
 	_check(G.named_id(prof.lost[3]["rec"]) == "coral_trident", "...the weapon among them")
-	_check(prof.crystals.size() == crystals0, "the belt is lost, not broken into crystals")
+	var fall_pay: int = main.Train.climb_pay(5, 3)
+	_check(fall_pay == 2 * 5 + 3 * 2 or main.Train.CLIMB_PAY != {"per_floor": 2, "per_best": 3}, "(the pay: %d for floor 5, 2 floors past a best of 3)" % fall_pay)
+	_check(is_equal_approx(_purse(prof), crystals0 + fall_pay) and is_equal_approx(prof.crystal_total("water"), float(fall_pay)), "the belt is lost, not broken into crystals; the outfitter pays %d Water for the climb" % fall_pay)
+	_check(main.pay_line == main.Train.TEXT["pay"] % main.Train.price_text("water", fall_pay) and prof.last_pay.get("amount", 0.0) == float(fall_pay), "...said on the fall screen: %s" % main.pay_line)
 	var note: String = main.fall_note[0] if not main.fall_note.is_empty() else ""
 	_check(note == "Lost on the way down: your pack (3 pieces), your belt, your Coral Trident", "the fall screen says what was lost: %s" % note)
 	_check(Entity.TIPS.has("fall_loss") and Entity.TIPS.has("lost_cache"), "the Entity has tips for a fall's losses and a lost cache")
@@ -8761,7 +8983,8 @@ func _bench_tests() -> void:
 	if brew.size() == 1:
 		brew[0].pressed.emit()
 		await _frames(2)
-	_check(int(prof.supplies.get("draught", 0)) == 1 and prof.crystal_total("stone") == 15.0 and prof.crystal_count("stone") == 1, "brewing it costs 10 Stone (change back) and packs it (%s)" % [prof.crystals])
+	var brew_d: int = int(B.BREW["draught"]["stone"])
+	_check(brew_d < int(T.item_price("draught")[1]) and int(prof.supplies.get("draught", 0)) == 1 and prof.crystal_total("stone") == 25.0 - brew_d and prof.crystal_count("stone") == 1, "brewing it costs %d Stone, less than the store, and packs it (%s)" % [brew_d, prof.crystals])
 	_check(T.put_back(prof, "draught") and prof.crystal_total("stone") == 25.0 and not prof.supplies.has("draught"), "putting it back returns what was paid")
 	# Not a Rune Artist: tempering is greyed, and says why.
 	prof.heirlooms["melee"] = G.make("spear", "fine", ["edges"])
@@ -8814,9 +9037,11 @@ func _bench_tests() -> void:
 	_check(not G.wears(j) and not G.wears(spear), "pieces with traits never wear")
 	# Break down: a crystal of its kind, as the store's Sell gives.
 	prof.pack.append(G.make("axe"))
-	_check(B.break_down(prof, "pack:1") == "5 Blade" and prof.crystal_total("blade") == 110.0 and prof.pack.size() == 1, "breaking down an axe gives a 5 Blade crystal")
+	var axe_v: int = T.gear_sell(G.make("axe"))
+	_check(B.break_down(prof, "pack:1") == "%d Blade" % axe_v and prof.crystal_total("blade") == 105.0 + axe_v and prof.pack.size() == 1, "breaking down an axe gives %d Blade, as the store's Sell" % axe_v)
 	T.pack_supply(prof, "tonic", {"water": 8})
-	_check(B.break_down(prof, "supply:tonic") == "4 Water" and prof.crystal_total("water") == 4.0 and not prof.supplies.has("tonic"), "a packed tonic breaks into 4 Water")
+	var tonic_v := maxi(1, int(round(float(T.item_price("tonic")[1]) * T.SELL_SHARE)))
+	_check(B.break_down(prof, "supply:tonic") == "%d Water" % tonic_v and prof.crystal_total("water") == float(tonic_v) and not prof.supplies.has("tonic"), "a packed tonic breaks into %d Water" % tonic_v)
 	# Inscribe: a lasting rune, its effect in the gear's numbers and drawn on its icon.
 	prof.add_crystal("iron", 25.0)
 	var strike2: float = G.effects(prof.heirlooms["melee"])["strike"]
@@ -8825,7 +9050,7 @@ func _bench_tests() -> void:
 	_check(G.rune_strokes("sharpness") == G.rune_strokes("sharpness") and G.rune_strokes("sharpness").size() >= 3 and G.rune_strokes("sharpness") != G.rune_strokes("warding"), "a rune's strokes are hashed from its id")
 	# The recall scroll: only a Rune Artist binds one, and you carry one.
 	prof.add_crystal("air", 60.0)
-	prof.add_crystal("water", 56.0)
+	prof.add_crystal("water", 60.0 - prof.crystal_total("water"))
 	var ra: Dictionary = prof.bonds["brow"]
 	prof.bonds.erase("brow")
 	_check(B.brew(prof, p, "scroll").contains("Rune Artist") and not prof.supplies.has("scroll"), "only a Rune Artist can bind a recall scroll")
@@ -9779,7 +10004,7 @@ func _mirror_image_tests() -> void:
 	m.set_physics_process(false)
 	await _until(func(): return main.door_view.lock_rooms[mi]["state"] == "shut", 2.0)
 	_check(main.door_view.lock_rooms[mi]["state"] == "shut", "...and the doors shut behind you")
-	var crystals: int = main.profile.crystal_count(main.tower_data()["essence"])
+	var crystals: float = main.profile.crystal_total(main.tower_data()["essence"])
 	_check(main.profile.path == "", "(no path yet)")
 	_slay(m)
 	await _frames(1)
@@ -9788,7 +10013,7 @@ func _mirror_image_tests() -> void:
 		pend[s["kind"]] = float(pend.get(s["kind"], 0.0)) + float(s["amount"])
 	_check(main.camp_choosing and main.camp.get("stage", "") == "path", "its fall opens the path choice (a great foe)")
 	_check(pend.get("unmaking", 0.0) > pend.get("life", 0.0) and pend.get("life", 0.0) > 0.0, "it leaves mostly Unmaking, some Life")
-	_check(main.profile.crystal_count(main.tower_data()["essence"]) > crystals, "...and an essence crystal")
+	_check(main.profile.crystal_total(main.tower_data()["essence"]) > crystals, "...and an essence crystal")
 	main.camp["t"] = 5.0
 	main.choose_camp(1)
 	main.choose_camp(1)

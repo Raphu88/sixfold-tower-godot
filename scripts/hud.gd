@@ -223,7 +223,7 @@ func _top_signature() -> Array:
 	var p = main.player
 	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size,
 		main.gear_here.get("id", ""), p.gear_signature() if p != null else [], p != null and p.dead,
-		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size()]
+		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size(), main.pay_line]
 
 
 func _boss_alive() -> bool:
@@ -490,7 +490,11 @@ func _draw() -> void:
 		var now: Array = Lost.TEXT["now"]
 		sub = (Lost.TEXT["back"] % [main.best_floor, left]) + "  ·  " + _say(now[0], now[1], now[2])
 	# What the fall took (main.fall_note, lost.gd), under the banner's words.
-	var note: Array = main.fall_note if p.dead and not main.first_climb else []
+	var note: Array = main.fall_note.duplicate() if p.dead and not main.first_climb else []
+	var paid_at := -1  # (the outfitter's pay for the climb, in gold, last)
+	if p.dead and not main.first_climb and main.pay_line != "":
+		paid_at = note.size()
+		note.append(main.pay_line)
 	var note_w := minf(size.x - 32.0, 760.0)
 	var note_h := 0.0
 	for line in note:
@@ -506,7 +510,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(0, band.position.y + 74), sub, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
 		var ny := band.position.y + 100.0
 		for i in note.size():
-			var col_n := Color(0.95, 0.72, 0.62) if i == 0 else Color(TEXT, 0.75)
+			var col_n := GOLD if i == paid_at else (Color(0.95, 0.72, 0.62) if i == 0 else Color(TEXT, 0.75))
 			draw_multiline_string(font, Vector2((size.x - note_w) / 2.0, ny), note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 15, -1, col_n)
 			ny += font.get_multiline_string_size(note[i], HORIZONTAL_ALIGNMENT_CENTER, note_w, 15).y + 4.0
 
@@ -800,10 +804,20 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		var tc := col.lightened(0.2) if i == 2 else TEXT
 		draw_string(font, Vector2(0, ty), texts[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a))
 		ty += 26.0
+	_draw_regard_pay(size, font, ty, t - 1.4 - texts.size() * 0.45)
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
+
+
+## Under the Regard's words: what the outfitter paid for the first climb
+## (in gold), when there's room above the prompt.
+func _draw_regard_pay(size: Vector2, font: Font, y: float, since: float) -> void:
+	if main.pay_line == "" or y > size.y - 62.0:
+		return
+	var a := clampf(since / 0.5, 0.0, 1.0)
+	draw_string(font, Vector2(0, y + 4.0), main.pay_line, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(GOLD, a))
 
 
 const UnboundData := preload("res://scripts/unbound.gd")
@@ -857,6 +871,7 @@ func _draw_refused(size: Vector2, font: Font) -> void:
 		var tc := RAW_ESSENCE if i == 2 else TEXT
 		draw_string(font, Vector2(0, ty), lines[i], HORIZONTAL_ALIGNMENT_CENTER, size.x, 17 if i == 2 else 15, Color(tc, a2))
 		ty += 26.0
+	_draw_regard_pay(size, font, ty, t - 1.4 - lines.size() * 0.45)
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
 		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"

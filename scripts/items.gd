@@ -138,7 +138,8 @@ const ITEMS := {
 		"drop_weight": 1,
 		"kind": "air", "value": {"air": 8},
 	},
-	# Only from vaults (wings.gd): never dropped or offered at a camp.
+	# From vaults (wings.gd), and always on the train's store shelf, priced
+	# in crystals of any kind (train.gd ANY_PRICE): never dropped or offered at a camp.
 	"scroll": {
 		"name": "Recall Scroll",
 		"short": "Scroll",
@@ -176,13 +177,16 @@ const RECALL := {
 	"none": "You carried no unbanked essence.",
 }
 
-## Essence crystals (kept in the profile between climbs).
+## Essence crystals (kept in the profile between climbs; crystals of a kind
+## combine into one). Consuming banks up to "step" essence at a time.
 const CRYSTAL := {
 	"name": "%s Crystal",
 	"desc": "holds %d %s essence outside you; consume it to bank that essence into you",
-	"consume": "Consume one",
+	"step": 10,
+	"consume": "Consume %d",
 	"consumed": "Consumed: %d %s essence banked into you",
-	"none": "No crystals yet. Vaults and secret rooms may hold them, and a recall scroll turns unbanked essence into them.",
+	"held": "%d essence  ·  the train's money  ·  kept between climbs",
+	"none": "No crystals of this kind yet. Each stair condenses a share of what you bank into crystals, the outfitter pays for every climb, and vaults and secret rooms may hold them.",
 }
 
 

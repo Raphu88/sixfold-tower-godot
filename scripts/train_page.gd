@@ -636,6 +636,9 @@ func _store(root: Node) -> void:
 	oc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(oc)
 	var line: String = m.train_say if m.train_say != "" else Train.line("greet", prof.climbs)
+	if m.train_say == "" and not prof.last_pay.is_empty():
+		# (just back from a climb: he mentions what he paid for it)
+		line = Train.line("paid", prof.climbs) % Train.price_text(String(prof.last_pay["kind"]), int(prof.last_pay["amount"]))
 	oc.add_child(outfitter_says(line, 0.0))
 	var bust := TrainView.Outfitter.new()
 	bust.custom_minimum_size = Vector2(0, 104.0 if small else 150.0)
@@ -1594,6 +1597,9 @@ func _price_line(kind: String, amount: int, label := "") -> String:
 	var why := Train.short_of(_prof(), kind, amount)
 	tag.ok = why == ""
 	tag.custom_minimum_size = Vector2(110, 22)
+	if kind == Train.ANY:
+		tag.text_override = Train.price_text(kind, amount)  # ("60 of any kind")
+		tag.custom_minimum_size.x = 160.0
 	row.add_child(tag)
 	return why
 
@@ -1645,6 +1651,8 @@ func _supply_card(id: String) -> void:
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
 	var price := Train.item_price(id)
 	var why := _price_line(price[0], price[1])
+	if price[0] == Train.ANY:
+		m._detail_text(T["any_note"], UI.DIM)
 	var packed := int(prof.supplies.get(id, 0))
 	m._detail_text(T["packed"] % [packed, p.max_stack(id)], UI.DIM)
 	if why == "" and Train.supply_room(prof, p, id) <= 0:
@@ -1700,7 +1708,10 @@ func _done(text: String, say: String, sound: String) -> void:
 func _buy_supply(id: String) -> void:
 	var why := Train.buy_supply(_prof(), _player(), id)
 	if why == "":
-		_done(T["bought"] % Items.ITEMS[id]["name"], Train.line("bought"), "pickup")
+		var said: String = T["bought"] % Items.ITEMS[id]["name"]
+		if Train.item_price(id)[0] == Train.ANY:
+			said += "  ·  " + T["paid_with"] % Train.paid_text(Train.last_paid(_prof(), id))  # (which crystals it took)
+		_done(said, Train.line("bought"), "pickup")
 	else:
 		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
 
@@ -1803,9 +1814,14 @@ class PriceTag extends Control:
 	func _draw() -> void:
 		var font := ThemeDB.fallback_font
 		var b := UI.Draw.Batch.new()
-		UI.gem_into(b, Vector2(8, size.y * 0.5), 6.5, Essence.color(kind))
-		b.flush(self)
 		var t := text_override if text_override != "" else "%d %s" % [amount, Essence.display(kind)]
+		if kind == "any":  # (train.gd ANY: crystals of any kind)
+			UI.gem_into(b, Vector2(4, size.y * 0.5 + 3.0), 4.0, Essence.color("fire"))
+			UI.gem_into(b, Vector2(12, size.y * 0.5 + 3.0), 4.0, Essence.color("water"))
+			UI.gem_into(b, Vector2(8, size.y * 0.5 - 2.0), 5.0, UI.GOLD)
+		else:
+			UI.gem_into(b, Vector2(8, size.y * 0.5), 6.5, Essence.color(kind))
+		b.flush(self)
 		draw_string(font, Vector2(20, size.y * 0.5 + 5.0), t, HORIZONTAL_ALIGNMENT_LEFT, size.x - 20.0, 14, UI.TEXT if ok else UI.BAD)
 
 
