@@ -32,6 +32,8 @@ const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const AppearancePage := preload("res://scripts/appearance_page.gd")
 const Makers := preload("res://scripts/makers.gd")
+const Unbound := preload("res://scripts/unbound.gd")
+const TechniquePage := preload("res://scripts/technique_page.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -42,7 +44,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
 	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
-	"create": 960.0, "appearance": 960.0}
+	"create": 960.0, "appearance": 960.0, "techniques": 720.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
@@ -765,6 +767,8 @@ func _set_climber_tab(id: String) -> void:
 
 func _climber_line() -> String:
 	var prof = main.profile
+	if Unbound.is_on(prof):
+		return TechniquePage.climber_line(prof)  # (the Unbound: their stage)
 	var marks: int = prof.bonds.size()
 	var line := "%d of 6 marks  ·  %d %s  ·  best floor %d" % [marks, prof.climbs, "climb" if prof.climbs == 1 else "climbs", prof.best_floor]
 	var wound: String = main.proving.wound_text() if main.proving != null else ""  # (the Proving's lingering wound)
@@ -805,7 +809,9 @@ func _climber_marks(prof) -> void:
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	row.add_child(grid)
-	for part in mark_order():
+	if Unbound.is_on(prof):
+		TechniquePage.climber(self, grid)  # (the Unbound: each part's raw density, level and gift)
+	for part in (mark_order() if not Unbound.is_on(prof) else []):
 		var card := MarkCard.new()
 		card.main = main
 		card.part = part
@@ -820,7 +826,9 @@ func _climber_marks(prof) -> void:
 		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
 	if small:
 		return
-	if prof.bonds.is_empty():
+	if Unbound.is_on(prof):
+		_note(TechniquePage.TEXT["climber_note"])
+	elif prof.bonds.is_empty():
 		_note("Your first climb is bondless. Reach the top and the tower's beast takes notice: the body part you used most takes your first mark.")
 	else:
 		_note("Bonds grow across climbs from the essence you bank at each stair, up to step 5. Choose a mark to see every spell, what each step brings, and its body and passive effects.")
@@ -2159,6 +2167,7 @@ func _page_dev() -> void:
 	_dev_makers()
 
 	SecretPage.dev_section(self)  # the secret bonds: grant one at depth 1 or 2, or clear it
+	TechniquePage.dev_section(self)  # the Unbound (technique_page.gd)
 
 	_section("Cheats")
 	var crow := _row()
@@ -2253,6 +2262,11 @@ func _page_create() -> void:
 ## ...or later, from the climber screen or your car on the train.
 func _page_appearance() -> void:
 	look_page.build("edit")
+
+
+## The Unbound's techniques (technique_page.gd), from your car on the train.
+func _page_techniques() -> void:
+	TechniquePage.build(self)
 
 
 ## Opens the appearance editor; Back returns to `from` ("climber", or the
@@ -2962,6 +2976,7 @@ class CompareArrow extends Control:
 ## parts are dark sockets; where the next mark is forming, a gold one.
 class BodyView extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
+	const UnboundRef := preload("res://scripts/unbound.gd")
 	const MakersRef := preload("res://scripts/makers.gd")
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
@@ -2990,8 +3005,12 @@ class BodyView extends Control:
 		_backdrop(b)
 		_figure(b, main.climber_look)
 		MakersRef.core_figure_into(b, main.profile, SPOTS, t)  # (a core mark, beneath the marks)
+		var unbound: bool = UnboundRef.is_on(main.profile)
 		for part in ORDER:
-			_mark(b, part, t)
+			if unbound:
+				_veins(b, part, t)  # (the Unbound: veins of raw essence)
+			else:
+				_mark(b, part, t)
 		b.flush(self)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# Names beside the marks, on leader lines.
@@ -3007,7 +3026,10 @@ class BodyView extends Control:
 			var name: String = Bonds.PART_NAMES[part]
 			var sub := "unmarked"
 			var sub_col := UI.FAINT
-			if not info.is_empty():
+			if UnboundRef.is_on(prof):
+				sub = "level %d" % UnboundRef.level(prof, part)
+				sub_col = _vein_col(part, t)
+			elif not info.is_empty():
 				var data: Dictionary = Bonds.BONDS[info["id"]]
 				sub = data["name"]
 				sub_col = data["color"] if not info.get("faint", false) else Color(data["color"], 0.6)
@@ -3095,6 +3117,38 @@ class BodyView extends Control:
 		b.polygon(_p([-37, -60, -28, -71, -14, -77, -24, -66]), Color(cloak.lightened(0.45), 0.5))
 		# The head: the hood up (the face in its shadow) or down (appearance.gd).
 		Appearance.draw_front_head(b, look)
+
+	## The Unbound: veins of raw essence from the part, in its main colour,
+	## more and brighter with its level; hot with strain; raw essence after an eruption.
+	func _veins(b, part: String, t: float) -> void:
+		var prof = main.profile
+		var at: Vector2 = SPOTS[part]
+		var lv := UnboundRef.level(prof, part)
+		var col := _vein_col(part, t)
+		UI.glow_into(b, at, 10.0 + 2.2 * lv, col, 0.35 + 0.12 * lv)
+		var n := 3 + lv
+		var length := 8.0 + 1.6 * lv
+		for i in n:
+			var ang := float(i) * 2.399 + float(hash(part) % 40) * 0.1
+			var p0 := at
+			var p1 := at + Vector2.from_angle(ang) * length * 0.5 + Vector2.from_angle(ang + 1.5) * 2.5
+			var p2 := at + Vector2.from_angle(ang + 0.3) * length
+			var p3 := p1 + Vector2.from_angle(ang - 0.9) * length * 0.35
+			b.line(p0, p1, Color(col, 0.75), 1.8)
+			b.line(p1, p2, Color(col, 0.55), 1.3)
+			b.line(p1, p3, Color(col, 0.4), 1.0)
+		b.dot(at, 3.0 + 0.3 * lv, col.lightened(0.3))
+		var run = main.unbound
+		if run != null and run.glow.has(part):
+			for i in 6:
+				var ma := t * 3.0 + float(i) * TAU / 6.0
+				b.dot(at + Vector2.from_angle(ma) * 14.0, 2.0, Color(0.92, 0.9, 1.0, 0.85))
+
+	func _vein_col(part: String, t: float) -> Color:
+		var run = main.unbound
+		if run != null:
+			return run.vein_color(main.profile, part, t)
+		return UI.TEXT
 
 	func _mark(b, part: String, t: float) -> void:
 		var prof = main.profile

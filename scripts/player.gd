@@ -1345,6 +1345,9 @@ func _try_cast(part: String) -> bool:
 	var b = bonds.get(part)
 	if b == null:
 		return true
+	if b.has_method("blocked") and b.blocked():  # (an Unbound's part gone dark: unbound_run.gd)
+		main.fx_text(global_position + Vector2(0, -40), main.unbound.TEXT["dark"] % BondScript.PART_NAMES[b.tech_part()], Color(0.6, 0.6, 0.65))
+		return true
 	if attack_cd > 0.0 or drawing:
 		return false
 	cast_part = part
@@ -2286,6 +2289,9 @@ func _draw_fallen(b, look: Dictionary) -> void:
 ## Essence soaking into unmarked parts, and the marks themselves, with their
 ## steps and stored motes. Their glow is drawn unlit by _draw_overlay.
 func _draw_marks(side: Vector2, t: float) -> void:
+	if main.unbound != null and main.unbound.on:
+		main.unbound.draw_veins(self, self, side, t)  # (the Unbound: veins of raw essence, not marks)
+		return
 	var b := Draw.Batch.new()
 	for part in BondScript.Bonds.PARTS:
 		if bonds.has(part):
@@ -2344,7 +2350,9 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
 func _draw_overlay() -> void:
 	var c := overlay
-	if not bonds.is_empty():
+	if main != null and main.unbound != null and main.unbound.on:
+		main.unbound.glow_into(c, self)
+	elif not bonds.is_empty():
 		# The marks' glow: soft, unlit, so they shine in the dark.
 		var glow := Draw.Batch.new()
 		var gt := Time.get_ticks_msec() * 0.001
@@ -2397,7 +2405,7 @@ func _draw_overlay() -> void:
 		var pts := PackedVector2Array()
 		for i in 7:
 			pts.append(Vector2.from_angle(tw + TAU * i / 6.0) * (radius + 10.0))
-		c.draw_colored_polygon(pts, Color(barrier_color, 0.12))
+		c.draw_colored_polygon(pts.slice(0, 6), Color(barrier_color, 0.12))  # (the 7th point closes the outline: not for the fill)
 		c.draw_polyline(pts, Color(barrier_color, 0.8), 2.0, true)
 	if absorb_t > 0.0:
 		c.draw_arc(Vector2.ZERO, radius + 14.0 + 2.0 * sin(Time.get_ticks_msec() * 0.02), 0.0, TAU, 24, Color(barrier_color, 0.8), 2.0)

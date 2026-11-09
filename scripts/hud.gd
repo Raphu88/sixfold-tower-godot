@@ -315,7 +315,13 @@ func _draw_core() -> void:
 		UI.medallion_into(b, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), 0, 0.7 if ready else 0.0, bd.faint)
 		if bd.burned:
 			b.arc(mc, MARK_R + 3.0, 0.0, TAU, 28, Color(1.0, 0.4, 0.3, 0.9), 2.0)
+		if bd.has_method("hud_into"):
+			bd.hud_into(b, mc, MARK_R)  # (an Unbound's technique: its part's strain)
 		var key := _cast_key(part)
+		if bd.has_method("tip_lines"):  # (an Unbound's technique: technique_bond.gd)
+			tips.append([Rect2(mc - Vector2(MARK_R + 3, MARK_R + 3), Vector2(MARK_R * 2 + 6, MARK_R * 2 + 6)), bd.display_name(), bd.tip_lines(_cast_key(part), main.touch_active)])
+			mx += MARK_R * 2.0 + 8.0
+			continue
 		tips.append([Rect2(mc - Vector2(MARK_R + 3, MARK_R + 3), Vector2(MARK_R * 2 + 6, MARK_R * 2 + 6)), "%s  (%s)" % [bd.display_name(), BondScript.PART_NAMES[part]],
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
 			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
@@ -1248,13 +1254,13 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	if main.camp.get("stage", "") == "path":
 		_draw_path_choice(size, font)
 		return
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.72))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.9 if main.camp["stage"] == "unbind" else 0.72))  # (the refusal hides the Regard behind it)
 	var rune: bool = main.camp["stage"] == "rune"
 	var top_y := camp_card_rect(0, size).position.y
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
 	if main.camp["stage"] == "heirloom":
 		title = Gear.HEIRLOOM_TEXT["title"]
-	elif main.camp["stage"] in ["vault", "belt"]:
+	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense"]:
 		title = main.camp.get("title", "")
 	draw_string_outline(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, 6, Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(0, top_y - 62.0), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, GOLD)

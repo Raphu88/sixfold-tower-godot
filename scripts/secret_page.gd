@@ -54,6 +54,7 @@ static func build(menu) -> void:
 			menu._rich(bb, 13, menu.TEXT if have else menu.FAINT)
 	if bond == "developer":
 		_developer(menu, col)
+		menu.TechniquePage.core_section(menu)  # (an Unbound may be marked again: technique_page.gd)
 	# What the next depth needs.
 	menu._section("Growth")
 	for line in SB.next_lines(prof):
