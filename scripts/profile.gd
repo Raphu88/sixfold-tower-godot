@@ -105,12 +105,14 @@ var core_mark := ""
 var core_depth := 0
 ## The secret bond's own: what's been banked toward its next depth since the
 ## mark (kind -> amount: "essence", "life", "unmaking") and the Developer's Tune
-## (spell id -> setting). secret_bonds.gd reads and writes them.
+## (spell id -> setting), and its Edit (spell id -> {aspect: points}).
+## secret_bonds.gd reads and writes them.
 var core_xp := {}
 var core_tune := {}
 ## The Unbound (unbound.gd): whether you are, the barriers you've broken,
 ## routes and techniques. {} for a marked climber; unbound.gd state() fills it.
 var unbound := {}
+var core_edit := {}
 
 const ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -206,6 +208,7 @@ func reset() -> void:
 	core_xp = {}
 	core_tune = {}
 	unbound = {}
+	core_edit = {}
 	save()
 
 
@@ -273,6 +276,8 @@ func load_save() -> void:
 	core_tune = ct if ct is Dictionary else {}
 	var ub = cfg.get_value("unbound", "state", {})
 	unbound = ub if ub is Dictionary else {}
+	var ce = cfg.get_value("profile", "core_edit", {})
+	core_edit = ce if ce is Dictionary else {}
 
 
 func save() -> void:
@@ -311,6 +316,7 @@ func save() -> void:
 	cfg.set_value("profile", "core_xp", core_xp)
 	cfg.set_value("profile", "core_tune", core_tune)
 	cfg.set_value("unbound", "state", unbound)
+	cfg.set_value("profile", "core_edit", core_edit)
 	cfg.save(save_path)
 
 

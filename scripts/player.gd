@@ -1402,9 +1402,12 @@ func _release_cast() -> void:
 			return
 	# Count the foes the spell hits at once: several fill the throat.
 	main.cast_hits = 0
+	var sb_cast = main.secret_tools.before_cast(b) if main.secret_tools != null else null  # (the Developer's Splice)
 	main.counting_hits = true
 	b.cast(self)
 	main.counting_hits = false
+	if sb_cast != null:
+		main.secret_tools.after_cast(b, sb_cast)
 	if main.puzzle != null:  # (an Essence Lock answers to a spell of its essence)
 		main.puzzle.offer(String(b.data().get("affinity", "")), global_position, "bond")
 	b.overdraw_mult = 1.0

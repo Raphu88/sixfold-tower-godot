@@ -44,10 +44,16 @@ static func build(menu) -> void:
 			var t: Dictionary = SB.TOOLS[id]
 			var have: bool = d <= SB.depth_of(prof)
 			var cost := ""
-			if t["where"] == "ring":
-				cost = SB.cost_text(t["cost"], path) + ("  ·  lasts the floor" if t.get("lasts", "") == "floor" else "")
+			if id == "des_build":
+				cost = "  ·  ".join(SB.BUILD_ORDER.map(func(b): return "%s: %s" % [SB.BUILD[b]["name"], SB.cost_text(SB.BUILD[b]["cost"], path).get_slice("  (", 0)]))
+			elif t["where"] == "ring":
+				cost = SB.cost_text(t["cost"], path) + ("  ·  lasts the floor" if t.get("lasts", "") == "floor" else "") + ("  ·  once a floor" if t.get("once", "") == "floor" else "")
 			elif id == "dev_tune":
 				cost = "%d crystal essence a change, on the train" % int(SB.TUNE_COST)
+			elif id == "dev_edit":
+				cost = "%d crystal essence a point raised, on the train" % int(SB.EDIT_COST)
+			if id == "dev_write":
+				cost += "  ·  moving a mark: %d crystal essence, on the train" % int(SB.MARK_MOVE_COST)
 			var bb := "[color=#%s]Depth %d  ·  %s[/color]%s\n%s\n[color=#%s]%s[/color]" % [
 				(col if have else menu.FAINT).to_html(false), d, t["name"], "" if have else "  (locked)", t["desc"],
 				menu.DIM.to_html(false), cost]
@@ -74,6 +80,7 @@ static func _developer(menu, col: Color) -> void:
 	if not lens:
 		menu._note("Use Inspect from the tool ring to see them here this floor.")
 	var tune_on: bool = SB.depth_of(prof) >= int(SB.TOOLS["dev_tune"]["depth"])
+	var edit_on: bool = SB.depth_of(prof) >= int(SB.TOOLS["dev_edit"]["depth"])
 	var steady: float = 0.7 if p.has_bond("rune_artist") else 1.0
 	for part in main.BondScript.Bonds.PARTS:
 		if not p.bonds.has(part):
@@ -101,11 +108,23 @@ static func _developer(menu, col: Color) -> void:
 					b.disabled = not train
 					if cur == mode:
 						menu._primary(b)
+			if edit_on:
+				_edit_row(menu, col, bd, sp, train)
 	if tune_on:
 		if train:
 			menu._note(SB.TEXT["tune_cost"] % [int(SB.TUNE_COST), int(SB.crystals_held(prof))])
 		else:
 			menu._note(SB.TEXT["tune_only_train"])
+	if edit_on:
+		if train:
+			menu._note(SB.TEXT["edit_line"] % ["+%d%%" % int(round(SB.EDIT_POINT * 100.0)) + " each", -SB.EDIT_MAX, SB.EDIT_MAX, int(SB.EDIT_COST), int(SB.crystals_held(prof))])
+		else:
+			menu._note(SB.TEXT["edit_only_train"])
+	# Write: moving marks between body parts.
+	if SB.depth_of(prof) >= int(SB.TOOLS["dev_write"]["depth"]):
+		_marks_section(menu, col, train)
+	# A bribe for the next depth.
+	_bribe_section(menu, col, train)
 	# A change of path.
 	menu._section(SB.TEXT["path_title"])
 	if prof.path == "":
@@ -126,6 +145,141 @@ static func _developer(menu, col: Color) -> void:
 		dv.info = menu.get_meta("path_drain")
 		dv.custom_minimum_size = Vector2(0, 110)
 		menu.box.add_child(dv)
+
+
+## A spell's Edit: each of its aspects with its points, a button down and up.
+static func _edit_row(menu, col: Color, bd, sp: Dictionary, train: bool) -> void:
+	var prof = menu.main.profile
+	var id := String(sp["id"])
+	var pts: Dictionary = SB.active_edits(prof).get(id, {})
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 4)
+	row.add_theme_constant_override("v_separation", 4)
+	menu.box.add_child(row)
+	row.add_child(menu._small_label(SB.TEXT["edit_title"] if not pts.is_empty() else SB.TEXT["edit_title"] + " (" + SB.TEXT["edit_none"] + ")", col))
+	for a in SB.edit_aspects_for(bd, sp):
+		var n := int(pts.get(a, 0))
+		var down: Button = menu._button("-", _edit.bind(menu, id, a, -1), row)
+		down.set_meta("edit", [id, a, -1])
+		down.disabled = not train or n <= -SB.EDIT_MAX
+		down.tooltip_text = String(SB.EDIT_ASPECTS[a]["desc"])
+		row.add_child(menu._small_label("%s %s%d" % [SB.EDIT_ASPECTS[a]["name"], "+" if n > 0 else "", n], col.lightened(0.2) if n != 0 else menu.DIM))
+		var up: Button = menu._button("+", _edit.bind(menu, id, a, 1), row)
+		up.set_meta("edit", [id, a, 1])
+		up.disabled = not train or n >= SB.EDIT_MAX
+		up.tooltip_text = String(SB.EDIT_ASPECTS[a]["desc"])
+	if not pts.is_empty():
+		var cl: Button = menu._button(SB.TEXT["edit_clear"], _edit_clear.bind(menu, id), row)
+		cl.disabled = not train
+
+
+static func _edit(menu, spell_id: String, aspect: String, delta: int) -> void:
+	var main = menu.main
+	var why := SB.set_edit(main.profile, spell_id, aspect, delta)
+	menu.toast = why
+	menu.toast_t = 3.0
+	if why == "":
+		main.profile.save()
+		main._give_bonds()
+		main.sfx("glint", 1.1, -4.0, 0.0)
+		var told: String = main.tip_now("tool_edit_developer")
+		if told != "":
+			menu.toast = told
+	menu.open("climber", menu.opened_direct)
+
+
+static func _edit_clear(menu, spell_id: String) -> void:
+	var main = menu.main
+	SB.clear_edit(main.profile, spell_id)
+	main.profile.save()
+	main._give_bonds()
+	menu.open("climber", menu.opened_direct)
+
+
+## Write on the train: each mark with a button for every other body part.
+static func _marks_section(menu, col: Color, train: bool) -> void:
+	var main = menu.main
+	var prof = main.profile
+	var B = main.BondScript
+	menu._section(SB.TEXT["move_title"])
+	menu._note(SB.TEXT["move_line"] % [int(SB.MARK_MOVE_COST), int(SB.crystals_held(prof))] if train else SB.TEXT["move_only_train"])
+	for part in B.Bonds.PARTS:
+		if not prof.bonds.has(part):
+			continue
+		var id: String = prof.bonds[part]["id"]
+		var row := HFlowContainer.new()
+		row.add_theme_constant_override("h_separation", 4)
+		row.add_theme_constant_override("v_separation", 4)
+		menu.box.add_child(row)
+		row.add_child(menu._small_label("%s  ·  %s" % [B.Bonds.BONDS[id]["name"], B.PART_NAMES[part]], B.Bonds.BONDS[id]["color"]))
+		for to in B.Bonds.PARTS:
+			if to == part:
+				continue
+			var b: Button = menu._button(("swap with " if prof.bonds.has(to) else "to ") + String(B.PART_NAMES[to]), _move.bind(menu, part, to), row)
+			b.set_meta("move_mark", [part, to])
+			b.disabled = not train
+
+
+static func _move(menu, from: String, to: String) -> void:
+	var main = menu.main
+	var prof = main.profile
+	var id: String = String(prof.bonds.get(from, {}).get("id", ""))
+	var why := SB.move_mark(prof, from, to)
+	menu.toast = why
+	menu.toast_t = 3.0
+	if why == "":
+		prof.save()
+		main._give_bonds()
+		menu.toast = SB.TEXT["move_done"] % [main.BondScript.Bonds.BONDS[id]["name"], main.BondScript.PART_NAMES[to]]
+		main.sfx("glint", 0.9, -4.0, 0.0)
+		var told: String = main.tip_now("tool_write")
+		if told != "":
+			menu.toast += "  " + told
+	menu.open("climber", menu.opened_direct)
+
+
+## The bribe: what you could offer the Maker of Marks for the next depth.
+static func _bribe_section(menu, col: Color, train: bool) -> void:
+	var main = menu.main
+	var prof = main.profile
+	var st: Dictionary = SB.bribe_state(prof)
+	menu._section(SB.TEXT["bribe_title"])
+	var d := SB.depth_of(prof)
+	if d >= SB.MAX_DEPTH:
+		menu._note(SB.TEXT["bribe_full"])
+		return
+	menu._note(SB.TEXT["bribe_line"] % int(st.get("offered", 0)))
+	if int(st.get("for", 0)) == d + 1:
+		menu.box.add_child(menu._small_label(SB.TEXT["bribe_done"] % (d + 1), col))
+		return
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 6)
+	row.add_theme_constant_override("v_separation", 4)
+	menu.box.add_child(row)
+	for o in SB.bribe_offers(prof, main.Gear):
+		var b: Button = menu._button(String(o["text"]), _bribe.bind(menu, String(o["id"])), row)
+		b.set_meta("bribe", o["id"])
+		b.disabled = not train or not o["ok"]
+	if not train:
+		menu.box.add_child(menu._small_label(SB.TEXT["bribe_only_train"], menu.FAINT))
+
+
+static func _bribe(menu, offer_id: String) -> void:
+	var main = menu.main
+	var prof = main.profile
+	var res: Dictionary = SB.offer_bribe(prof, offer_id, main.Gear)
+	menu.toast = String(res["said"])
+	menu.toast_t = 4.0
+	if res["ok"]:
+		var grew: Array = SB.grow(prof)
+		if not grew.is_empty():
+			menu.toast += "  " + "  ".join(grew)
+			main._give_bonds()
+		main.sfx("crit", 0.7, -4.0, 0.0)
+	else:
+		main.sfx("ui_move", 0.6, -6.0, 0.0)
+	prof.save()
+	menu.open("climber", menu.opened_direct)
 
 
 static func _ring_key(main) -> String:
@@ -181,7 +335,7 @@ static func _path(menu) -> void:
 	menu.open("climber", menu.opened_direct)
 
 
-## The dev tools' section: grant each secret bond at depth 1 or 2, or clear it.
+## The dev tools section: grant each secret bond at any depth, or clear it.
 static func dev_section(menu) -> void:
 	var main = menu.main
 	var prof = main.profile
@@ -189,7 +343,7 @@ static func dev_section(menu) -> void:
 	var bond := SB.bond_of(prof)
 	var row: HBoxContainer = menu._row()
 	row.add_child(menu._label("%s" % (SB.TEXT["depth"] % [SB.display(bond), SB.depth_of(prof)] if bond != "" else "none"), 170.0, menu.GOLD if bond != "" else menu.DIM))
-	var grid: GridContainer = menu._grid(3, 6)
+	var grid: GridContainer = menu._grid(SB.CAP, 6)
 	for id in SB.ORDER:
 		for d in range(1, SB.CAP + 1):
 			var b: Button = menu._button("%s %d" % [SB.display(id), d], _dev_grant.bind(menu, id, d), grid)
@@ -197,8 +351,8 @@ static func dev_section(menu) -> void:
 	var row2: HBoxContainer = menu._row()
 	var cb: Button = menu._button("Clear the secret bond", _dev_clear.bind(menu), row2)
 	cb.disabled = bond == ""
-	menu._button("+60 essence, +10 flow carried", _dev_carry.bind(menu), row2)
-	menu._button("+40 crystal essence", _dev_crystals.bind(menu), row2)
+	menu._button("+100 essence, +20 flow carried", _dev_carry.bind(menu), row2)
+	menu._button("+150 crystal essence", _dev_crystals.bind(menu), row2)
 
 
 static func _dev_grant(menu, id: String, depth: int) -> void:
@@ -224,9 +378,9 @@ static func _dev_clear(menu) -> void:
 static func _dev_carry(menu) -> void:
 	var main = menu.main
 	var kind: String = main.tower_data()["essence"]
-	main.run_essence[kind] = float(main.run_essence.get(kind, 0.0)) + 60.0
+	main.run_essence[kind] = float(main.run_essence.get(kind, 0.0)) + 100.0
 	if main.profile.path != "":
-		main.run_flow += 10.0
+		main.run_flow += 20.0
 	menu.toast = "Carrying more essence"
 	menu.toast_t = 2.0
 	menu.open("dev")
@@ -234,9 +388,9 @@ static func _dev_carry(menu) -> void:
 
 static func _dev_crystals(menu) -> void:
 	var main = menu.main
-	main.profile.add_crystal(main.tower_data()["essence"], 40.0)
+	main.profile.add_crystal(main.tower_data()["essence"], 150.0)
 	main.profile.save()
-	menu.toast = "+40 crystal essence"
+	menu.toast = "+150 crystal essence"
 	menu.toast_t = 2.0
 	menu.open("dev")
 

@@ -9,14 +9,17 @@ extends RefCounted
 ## (makers.gd, built alongside) grant it through a meeting and write those
 ## two fields; everything here only reads them (and the dev tools set them).
 ## Two more profile fields belong to the secret bonds: `core_xp` (what has
-## been banked toward the next depth since the mark was taken) and
-## `core_tune` (the Developer's Tune: spell id -> "power", "cost" or "quick").
+## been banked toward the next depth since the mark was taken),
+## `core_tune` (the Developer's Tune: spell id -> "power", "cost" or "quick")
+## and `core_edit` (the Developer's Edit: spell id -> {aspect: points}). The
+## Developer's bribes are kept in the Makers' memory (profile.makers["bribe"]).
 ##
 ## THE TOOLS: one new tool per depth, from looking (depth 1) to rewriting
-## (depth 5). Depths 1 and 2 are built (CAP); 3 to 5 come next: add their
-## entries to TOOLS and RING and raise CAP. Every tool costs essence, paid
-## like a spell from what the climber carries (see COSTS). They're used from
-## the TOOL RING (secret_tools.gd), the same hold gesture as the item ring.
+## (depth 5): inspect, switch, edit, reroll, build. Every tool costs
+## essence, paid like a spell from what the climber carries (see COSTS).
+## They're used from the TOOL RING (secret_tools.gd), the same hold gesture
+## as the item ring; a tool with a choice ("cards") opens a few cards on the
+## camp's card screen and is paid only when a card that does something is taken.
 ##
 ## Every word and number is here, so it's easy to rename or retune. Only
 ## plain mechanical text: nothing that could touch the story.
@@ -26,8 +29,8 @@ const Essence := preload("res://scripts/essence.gd")
 const Themes := preload("res://scripts/themes.gd")
 
 const ORDER := ["developer", "designer", "manipulator"]
-## The deepest depth reachable for now (the next step builds 3 to 5).
-const CAP := 2
+## The deepest depth reachable (every depth is built).
+const CAP := 5
 const MAX_DEPTH := 5
 
 ## The bonds. "color" is its Maker's colour (the same as makers.gd).
@@ -88,14 +91,58 @@ const TOOLS := {
 		"short": "Two monsters fight each other",
 		"desc": "Sets the monster you aim at and the one nearest it against each other: they fight until one falls. Not a great foe.",
 		"tip": "tool_feud"},
+	# --- depth 3 to 5 ---
+	"dev_edit": {"bond": "developer", "depth": 3, "name": "Edit", "where": "train",
+		"short": "Move points between a spell's numbers",
+		"desc": "Between climbs: move points between a spell's own numbers within a budget: more reach for less power, a longer effect for a slower wind-up, and so on (on the climber screen's Core tab). Each point raised costs crystal essence.",
+		"tip": "tool_edit_developer"},
+	"dev_splice": {"bond": "developer", "depth": 4, "name": "Splice", "where": "ring", "cards": true,
+		"cost": {"essence": 12.0, "flow": 4.0, "flow_kind": "any"},
+		"short": "A spell takes a second bond's behaviour",
+		"desc": "Gives one of your spells a second bond's behaviour for the floor, picked from your other marks: a Chain Lightning that also pulls, a Barrier that also burns. One splice at a time: a new one replaces it.",
+		"tip": "tool_splice"},
+	"dev_write": {"bond": "developer", "depth": 5, "name": "Write", "where": "ring", "cards": true, "once": "floor",
+		"cost": {"essence": 24.0, "flow": 8.0, "flow_kind": "any"},
+		"short": "Cast any bond's spell, once a floor",
+		"desc": "Once a floor: cast any bond's spell you don't have, at the step your best bond has reached. Between climbs, Write also moves your marks between body parts (on the Core tab).",
+		"tip": "tool_write"},
+	"des_edit": {"bond": "designer", "depth": 3, "name": "Edit", "where": "ring", "cards": true, "reach": 380.0,
+		"cost": {"flow": 6.0, "flow_kind": "unmaking", "essence": 3.0},
+		"short": "Re-time, move a trap, raise or sink a wall",
+		"desc": "Re-times the beat of the trap room you aim at (slower, and quiet for a moment), moves the trap you aim at a few tiles, raises a stretch of wall in front of you for a while, or sinks a thin wall in front of you for a while. A trap room always stays crossable by timing.",
+		"tip": "tool_edit_designer"},
+	"des_reroll": {"bond": "designer", "depth": 4, "name": "Reroll", "where": "ring", "cards": true, "once": "floor",
+		"cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 4.0},
+		"short": "Choose the next floor's puzzle and rooms",
+		"desc": "At the stair: choose the next floor's puzzle from two, then how its rooms lean from two. Not before the Proving or the summit. Once a floor.",
+		"tip": "tool_reroll_designer"},
+	"des_build": {"bond": "designer", "depth": 5, "name": "Build", "where": "ring", "cards": true,
+		"cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 6.0},
+		"short": "Your own trap, wall or gate; a passage",
+		"desc": "Places a trap, wall or gate of your own in front of you, which monsters must respect (a few a floor; each costs its own), and once a climb opens a passage straight to the stair: a shimmering pair of gates between your spot and the stair's landing.",
+		"tip": "tool_build_designer"},
+	"man_edit": {"bond": "manipulator", "depth": 3, "name": "Edit", "where": "ring", "cards": true, "reach": 360.0,
+		"cost": {"flow": 6.0, "flow_kind": "life", "essence": 3.0},
+		"short": "Tune a monster, or turn it into a weaker kind",
+		"desc": "Tunes the monster you aim at within a budget (slower, weaker, half its reach, or frail), or turns it into a weaker kind of its tower. Not a great foe.",
+		"tip": "tool_edit_manipulator"},
+	"man_reroll": {"bond": "manipulator", "depth": 4, "name": "Reroll", "where": "ring", "cards": true, "reach": 560.0,
+		"cost": {"flow": 8.0, "flow_kind": "life", "essence": 4.0},
+		"short": "Choose what a room holds, before you enter",
+		"desc": "Aim at a room you haven't entered: its sleeping monsters become another pack of the tower's monsters, chosen from two.",
+		"tip": "tool_reroll_manipulator"},
+	"man_build": {"bond": "manipulator", "depth": 5, "name": "Build", "where": "ring", "cards": true, "reach": 300.0,
+		"cost": {"flow": 14.0, "flow_kind": "life", "essence": 8.0},
+		"short": "Rewrite a monster into your own",
+		"desc": "Rewrites the monster you aim at into your own for the floor: it fights for you, and takes an attack from a second kind of its tower (a knight that also fires arrows). One at a time. Not a great foe.",
+		"tip": "tool_build_manipulator"},
 }
 
 ## The tool ring's entries for each bond, in order (only those unlocked show).
-## The ring of depth 3 to 5 tools: add their ids here.
 const RING := {
-	"developer": ["dev_inspect", "dev_tune"],
-	"designer": ["des_inspect", "des_switch"],
-	"manipulator": ["man_inspect", "man_calm", "man_feud"],
+	"developer": ["dev_inspect", "dev_tune", "dev_edit", "dev_splice", "dev_write"],
+	"designer": ["des_inspect", "des_switch", "des_edit", "des_reroll", "des_build"],
+	"manipulator": ["man_inspect", "man_calm", "man_feud", "man_edit", "man_reroll", "man_build"],
 }
 
 ## The Developer's Tune: one setting per spell. Multiplies the spell's
@@ -115,6 +162,166 @@ const TUNE_COST := 6.0
 const PATH_CHANGE_COST := 20.0
 const PATH_CHANGE_DEPTH := 1
 
+## The Developer's Edit (depth 3, on the train): each spell's numbers are
+## grouped in ASPECTS; a point raises one by EDIT_POINT (a share) and must be
+## paid for by a point lowered in another of the same spell: the points of a
+## spell add up to zero or less, each aspect between -EDIT_MAX and +EDIT_MAX.
+## Each point raised costs EDIT_COST crystal essence; lowering one, or
+## clearing a spell's edit, is free. "keys": the spell's numbers it changes
+## ("power": everything its power drives, damage and shields; "windup" and
+## "cost": those). "less": a raised point makes the number smaller (a quicker
+## wind-up, a cheaper cast).
+const EDIT_ASPECTS := {
+	"power": {"name": "Power", "keys": ["power"], "desc": "damage, shields and what its power drives"},
+	"reach": {"name": "Reach", "keys": ["reach", "range", "radius", "length", "width", "hop", "travel", "arc"], "desc": "reach, range, radius and width"},
+	"time": {"name": "Length", "keys": ["duration", "stun", "lift"], "desc": "how long its effect lasts"},
+	"speed": {"name": "Wind-up", "keys": ["windup"], "less": true, "desc": "a quicker wind-up"},
+	"thrift": {"name": "Thrift", "keys": ["cost"], "less": true, "desc": "a cheaper cast"},
+}
+const EDIT_ORDER := ["power", "reach", "time", "speed", "thrift"]
+const EDIT_POINT := 0.12
+const EDIT_MAX := 3
+const EDIT_COST := 4.0
+
+## The Developer's Splice (depth 4): the behaviour each bond lends a spell
+## spliced with it (by the source mark's bond). The behaviour is added to
+## every foe the spliced spell strikes as it's cast; a spell that fires a shot
+## passes it to the shot's hit; one that strikes nothing at once (a shield, a
+## zone, a trap) releases it on the foes within SPLICE_PULSE of you.
+const SPLICE_FROM := {
+	"stormcaller": "stun", "windwalker": "knock", "hunter": "bolt", "tidecaller": "pull",
+	"warden": "expose", "deepcaller": "heal", "blade_forger": "bolt", "flameblade": "burn",
+	"rune_artist": "stun", "sandshaper": "knock", "venomist": "poison", "ashwalker": "blind",
+	"flame_contractor": "burn", "flamewing": "burn", "rekindler": "heal", "covenant": "expose",
+	"grafter": "burst", "surgeon": "cripple",
+}
+## The behaviours, with their numbers.
+const SPLICE_FX := {
+	"pull": {"name": "pulls", "desc": "pulls each foe it strikes toward you", "force": 420.0},
+	"knock": {"name": "throws back", "desc": "throws each foe it strikes away from you", "force": 420.0},
+	"burn": {"name": "burns", "desc": "sets each foe it strikes burning", "dmg": 3.0, "seconds": 4.0},
+	"poison": {"name": "poisons", "desc": "puts poison on each foe it strikes", "stacks": 3},
+	"stun": {"name": "stuns", "desc": "stuns each foe it strikes for a moment", "seconds": 0.7},
+	"heal": {"name": "heals you", "desc": "heals you for each foe it strikes", "heal": 4.0},
+	"bolt": {"name": "fires a bolt", "desc": "fires a bolt from each foe it strikes at the next foe near it", "share": 0.4, "reach": 220.0},
+	"expose": {"name": "exposes", "desc": "leaves each foe it strikes exposed: it takes more damage for a while", "seconds": 4.0},
+	"cripple": {"name": "cripples", "desc": "cripples each foe it strikes: it can't run or charge", "seconds": 3.0},
+	"blind": {"name": "blinds", "desc": "makes each foe it strikes lose track of you", "seconds": 2.5},
+	"burst": {"name": "bursts", "desc": "bursts around each foe it strikes, hurting those beside it", "share": 0.35, "radius": 60.0},
+}
+const SPLICE_PULSE := 120.0
+
+## The Developer's Write (depth 5): spells it can't cast for you (forms and
+## toggles that live in a mark, and the pact spells that write to your pact
+## book). Moving a mark to another body part on the train costs MARK_MOVE_COST.
+const WRITE_SKIP := ["aura", "firebirdform", "chimeraform", "mimic", "shed", "call", "command", "exchange", "grandcall"]
+const MARK_MOVE_COST := 12.0
+
+## The Designer's Edit (depth 3). Re-time: a trap room's beat runs RETIME
+## times slower and goes quiet for RETIME_QUIET of a beat. Move: a trap (not
+## a lane) moves up to MOVE_TILES tiles the way you aim. Raise: a stretch of
+## RAISE_LEN tiles across your aim, RAISE_AHEAD tiles ahead, for WALL_TIME
+## seconds. Sink: the first wall within SINK_REACH tiles the way you aim, if
+## it's at most SINK_THICK tiles thick (never the floor's outer wall, never
+## into a sealed wing, a secret room, a vault or the puzzle's sealed room),
+## for WALL_TIME seconds.
+const RETIME := 1.5
+const RETIME_QUIET := 0.5
+const MOVE_TILES := 3
+const RAISE_LEN := 3
+const RAISE_AHEAD := 2
+const SINK_REACH := 3
+const SINK_THICK := 2
+const WALL_TIME := 20.0
+const DES_EDIT := {
+	"retime": {"name": "Re-time", "desc": "This trap room's beat runs half again slower, and goes quiet for a moment."},
+	"move": {"name": "Move", "desc": "This trap moves up to %d tiles the way you aim, to open floor."},
+	"raise": {"name": "Raise a wall", "desc": "A stretch of wall rises in front of you for %ds: it blocks bodies, sight and paths."},
+	"sink": {"name": "Sink a wall", "desc": "The thin wall in front of you (two tiles at most) sinks for %ds: a way through."},
+}
+
+## The Designer's Reroll (depth 4): the next floor's puzzle from two kinds,
+## then a LEAN for its rooms from two. A lean changes how themes.gd hands out
+## rooms on that one floor: "good"/"quiet" are added to the chances of a good
+## or quiet room, "max_good" to the cap, "feature_w" multiplies the weight of
+## themes by feature. Used within STAIR_NEAR of the stair.
+const LEANS := {
+	"kind": {"name": "Kinder rooms", "desc": "More good rooms: springs, caches, camps.", "good": 0.35, "max_good": 1},
+	"traps": {"name": "Trap halls", "desc": "Its bad rooms lean to traps.", "feature_w": {"trap": 5.0}},
+	"lairs": {"name": "Lairs", "desc": "Its bad rooms lean to dens, pillared halls and crypts.", "feature_w": {"den": 4.0, "pillars": 4.0, "ambush": 4.0}},
+	"hush": {"name": "Hushed halls", "desc": "More quiet halls, where nothing stirs.", "quiet": 0.35},
+}
+const STAIR_NEAR := 240.0
+
+## The Designer's Build (depth 5): the palette, each with its own cost. At
+## most BUILD_MAX a floor (the passage aside: once a climb). Built
+## BUILD_AHEAD tiles in front of you. A trap is the tower's own plate, set off
+## only by monsters; a wall lasts the floor; a gate lets you through but no
+## monster (they go around); the passage is a pair of gates, your spot and
+## the stair's landing (it changes no wall, so it can't break a floor).
+const BUILD := {
+	"trap": {"name": "A trap", "desc": "The tower's own plate, ahead of you: only monsters set it off.", "cost": {"flow": 8.0, "flow_kind": "unmaking", "essence": 6.0}},
+	"wall": {"name": "A wall", "desc": "A stretch of wall across your aim, for the floor. It never shuts the stair away.", "cost": {"flow": 10.0, "flow_kind": "unmaking", "essence": 6.0}},
+	"gate": {"name": "A gate", "desc": "A gate across the way ahead: you pass, monsters don't (they go around).", "cost": {"flow": 10.0, "flow_kind": "unmaking", "essence": 8.0}},
+	"passage": {"name": "A passage", "desc": "Once a climb: two shimmering gates, here and at the stair's landing. Step in to cross.", "cost": {"flow": 16.0, "flow_kind": "unmaking", "essence": 10.0}},
+}
+const BUILD_ORDER := ["trap", "wall", "gate", "passage"]
+const BUILD_MAX := 3
+const BUILD_AHEAD := 2
+const PORTAL_R := 20.0
+
+## The Manipulator's Edit (depth 3): each a change to one monster; a monster
+## takes at most MEDIT_MAX ("its budget"). Turning it into a weaker kind of
+## its tower (a lower cost in floors.gd MONSTERS) uses up the budget; at most
+## TURN_CHOICES kinds are offered.
+const MEDIT := {
+	"slow": {"name": "Slower", "desc": "It moves 40% slower.", "speed": 0.6, "tag": "slowed"},
+	"weak": {"name": "Weaker", "desc": "Its blows deal 40% less.", "dmg": 0.6, "tag": "weakened"},
+	"short": {"name": "Half its reach", "desc": "It only attacks from half as far.", "reach": 0.5, "tag": "short reach"},
+	"frail": {"name": "Frail", "desc": "40% less health.", "hp": 0.6, "tag": "frail"},
+}
+const MEDIT_ORDER := ["slow", "weak", "short", "frail"]
+const MEDIT_MAX := 2
+const TURN_CHOICES := 2
+
+## The Manipulator's Reroll (depth 4): two packs of the tower's monsters for
+## a room, each about as strong as what was there (floors.gd costs).
+const PACK_TRIES := 12
+
+## The Manipulator's Build (depth 5): the second kind's attack it can take,
+## by that kind: "shot" a bolt at its foe, "ring" a burst around itself,
+## "blast" a burst on its foe, "dash" a leap that strikes, "venom" poison on
+## its foe. "dmg" is a share of its own damage, "every" seconds between,
+## "reach" px. At most SECOND_CHOICES kinds are offered.
+const SECOND := {
+	"slime": {"kind": "dash", "name": "Pounce"}, "archer": {"kind": "shot", "name": "Arrows"},
+	"knight": {"kind": "dash", "name": "Lunge"}, "bat": {"kind": "dash", "name": "Swoop"},
+	"thunderling": {"kind": "ring", "name": "Spark ring"}, "lurker": {"kind": "dash", "name": "Lunge"},
+	"shellback": {"kind": "ring", "name": "Shell bash"}, "cinder": {"kind": "shot", "name": "Ember spit"},
+	"smith": {"kind": "blast", "name": "Hammer"}, "scorpling": {"kind": "venom", "name": "Sting"},
+	"ram": {"kind": "dash", "name": "Charge"}, "wisp": {"kind": "shot", "name": "Dart"},
+	"bloomcap": {"kind": "blast", "name": "Spores"}, "thornhound": {"kind": "dash", "name": "Leap"},
+	"mongrel": {"kind": "shot", "name": "Quills"},
+}
+const SECOND_FX := {
+	"shot": {"dmg": 0.8, "every": 2.2, "reach": 360.0, "desc": "fires a bolt at its foe"},
+	"ring": {"dmg": 0.9, "every": 3.0, "reach": 90.0, "desc": "bursts around itself"},
+	"blast": {"dmg": 1.0, "every": 3.2, "reach": 260.0, "radius": 50.0, "desc": "bursts on its foe"},
+	"dash": {"dmg": 1.2, "every": 2.6, "reach": 200.0, "desc": "leaps at its foe and strikes"},
+	"venom": {"dmg": 0.5, "every": 2.4, "reach": 80.0, "stacks": 3, "desc": "poisons its foe"},
+}
+const SECOND_CHOICES := 3
+
+## The Developer's bribe (one of its extra needs), offered on the train: a
+## Regarded piece of gear (from your chest or pack) or `crystals` crystal
+## essence (a filled vessel too, once the game has one). The Maker of Marks
+## may refuse (then nothing is taken): it agrees with `agree`, less `each`
+## for every bribe offered before (it remembers), never below `least`. An
+## accepted bribe counts for the next depth only.
+const BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15}
+## Tests: 1 it always agrees, 0 always refuses, -1 by chance.
+static var bribe_force := -1
+
 ## Depth growth. "feed": what banked at a stair counts toward it ("essence"
 ## the six kinds, "life", "unmaking"). "need": banked since the mark for each
 ## depth (index = depth). The Developer's depths also each ask for ONE of ALSO.
@@ -127,7 +334,7 @@ const GROWTH := {
 ##   mastery    `bonds` of your tower bonds at step `step`
 ##   knowledge  this many of the Makers' traces (fragments) found (index = depth)
 ##   favour     a task done for a tower beast (not in the game yet)
-##   bribe      an offering the Maker of Marks accepts (not in the game yet)
+##   bribe      an offering the Maker of Marks accepts (see BRIBE)
 const ALSO := {
 	"mastery": {"bonds": 3, "step": 5},
 	"knowledge": [0, 0, 8, 10, 12, 14],
@@ -237,6 +444,88 @@ const TEXT := {
 	"path_confirm": "Press again to let it go",
 	"path_done": "Your %s flows out of your shadow",
 	"path_only_train": "On the train, between climbs.",
+	# --- depth 3 to 5 ---
+	"leave": "Leave it",
+	"leave_desc": "Nothing is paid.",
+	"once_floor": "Once a floor: used",
+	"once_climb": "Once a climb: used",
+	"edit_title": "EDIT",
+	"edit_line": "Points: %s  ·  budget: raise one only by lowering another (%d to %d each). Each point raised costs %d crystal essence (yours: %d).",
+	"edit_none": "unedited",
+	"edit_lower_first": "Lower another of its numbers first",
+	"edit_most": "As far as it goes",
+	"edit_least": "As low as it goes",
+	"edit_short": "Needs %d crystal essence (you hold %d)",
+	"edit_only_train": "Edit spells between climbs, on the train.",
+	"edit_clear": "Clear",
+	"splice_title": "SPLICE: WHICH SPELL?",
+	"splice_title2": "SPLICE: WHOSE BEHAVIOUR?",
+	"splice_need": "Splice needs two marks",
+	"splice_line": "%s %s",
+	"splice_tag": "spliced: %s",
+	"splice_done": "%s now %s",
+	"write_title": "WRITE: WHICH ESSENCE?",
+	"write_title2": "WRITE: WHICH BOND?",
+	"write_title3": "WRITE: WHICH SPELL?",
+	"write_none": "No bond left to write from",
+	"write_sub": "Cast at step %d, your best bond's.",
+	"write_done": "Written: %s",
+	"move_title": "MOVE YOUR MARKS",
+	"move_line": "Write moves a mark to another body part (a marked part swaps). Each move costs %d crystal essence (yours: %d).",
+	"move_short": "Needs %d crystal essence (you hold %d)",
+	"move_only_train": "Move marks between climbs, on the train.",
+	"move_done": "The %s mark moves to your %s",
+	"des_edit_title": "EDIT THE TOWER",
+	"retimed": "Re-timed",
+	"moved": "Moved",
+	"raised": "A wall rises",
+	"sunk": "The wall sinks",
+	"no_edit": "Nothing to edit here: aim at a trap or a wall",
+	"no_move": "No open floor that way",
+	"lane": "A slot in the wall: it can't move",
+	"retime_none": "Not a timed trap room",
+	"retimed_already": "Already re-timed",
+	"would_block": "It would leave no way past by timing",
+	"would_shut": "It would shut the way to the stair",
+	"no_room_wall": "No room for a wall there",
+	"reroll_title": "THE NEXT FLOOR: ITS PUZZLE",
+	"reroll_title2": "THE NEXT FLOOR: ITS ROOMS",
+	"reroll_far": "Go to the stair to reroll the next floor",
+	"reroll_not": "The next floor can't be rerolled",
+	"reroll_done": "The next floor: %s, %s",
+	"build_title": "BUILD",
+	"build_max": "As much as a floor allows",
+	"build_here": "No open floor ahead",
+	"built": "Built: %s",
+	"build_trap_tag": "yours",
+	"portal_tag": "passage",
+	"no_portal": "Not on this floor",
+	"medit_title": "EDIT: %s",
+	"medit_max": "Its budget is spent",
+	"turn": "Turn into: %s",
+	"turn_desc": "A weaker kind of its tower. Uses up its budget.",
+	"bound": "Bound to this floor's test: it won't change",
+	"key": "It carries a key: it won't change sides",
+	"reroll_room_title": "REROLL THE ROOM: %s",
+	"no_room": "Aim at a room you haven't entered, with monsters asleep in it",
+	"pack": "Pack %s",
+	"rerolled": "The room holds something else now",
+	"mbuild_title": "BUILD: %s, AND ITS SECOND ATTACK",
+	"mbuild_one": "One at a time: yours still stands",
+	"mbuild_desc": "It fights for you this floor, and %s.",
+	"yours": "yours",
+	"mbuilt": "Rewritten: yours",
+	"proving": "Not in the Proving",
+	"bribe_title": "A BRIBE (the Maker of Marks)",
+	"bribe_line": "An offering may stand in for the next depth's extra need. It may refuse (nothing is taken), and it remembers every bribe (%d offered).",
+	"bribe_crystals": "Offer %d crystal essence",
+	"bribe_gear": "Offer %s",
+	"bribe_vessel": "A filled vessel (not in the game yet)",
+	"bribe_yes": "It accepts the offering: it counts for depth %d.",
+	"bribe_no": "It refuses.",
+	"bribe_done": "Accepted for depth %d.",
+	"bribe_only_train": "On the train, between climbs.",
+	"bribe_full": "Every depth reached: nothing to offer for.",
 }
 
 
@@ -269,6 +558,7 @@ static func grant(prof, bond: String, depth: int) -> void:
 	if bond_of(prof) != bond:
 		prof.set("core_xp", {})
 		prof.set("core_tune", {})
+		prof.set("core_edit", {})
 	prof.set("core_mark", bond)
 	prof.set("core_depth", clampi(depth, 1, MAX_DEPTH))
 
@@ -279,6 +569,7 @@ static func clear(prof) -> void:
 	prof.set("core_depth", 0)
 	prof.set("core_xp", {})
 	prof.set("core_tune", {})
+	prof.set("core_edit", {})
 
 
 static func color(bond: String) -> Color:
@@ -413,7 +704,7 @@ static func spend_crystals(prof, amount: float) -> bool:
 # --- growth -----------------------------------------------------------------
 
 ## What a stair banks feeds the secret bond (core_xp), and it deepens when
-## it has enough (only up to CAP for now). `essence` kind -> amount banked,
+## it has enough (up to CAP). `essence` kind -> amount banked,
 ## `flow` the path's flow banked, `path` its kind. Returns lines for the banner.
 static func on_bank(prof, essence: Dictionary, flow: float, path: String) -> Array:
 	var bond := bond_of(prof)
@@ -482,7 +773,7 @@ static func also_status(prof) -> Dictionary:
 		"mastery": [full >= int(m["bonds"]), "Mastery: %d of your tower bonds at step %d (%d now)" % [int(m["bonds"]), int(m["step"]), full]],
 		"knowledge": [frags >= need_frag, "Knowledge: %d of the Makers' traces found (%d now)" % [need_frag, frags]],
 		"favour": [false, "A favour: a task done for a tower beast (not in the game yet)"],
-		"bribe": [false, "A bribe: an offering the Maker of Marks accepts (not in the game yet)"],
+		"bribe": [int(bribe_state(prof).get("for", 0)) == d, "A bribe: an offering the Maker of Marks accepts (on the train)"],
 	}
 
 
@@ -597,6 +888,256 @@ static func set_tune(prof, spell_id: String, mode: String) -> String:
 		tunes.erase(spell_id)
 	prof.set("core_tune", tunes)
 	return ""
+
+
+# --- the Developer: Edit (depth 3) ----------------------------------------------
+
+## The Edit points the climber's bonds use ({} unless the Developer at depth 3+).
+static func active_edits(prof) -> Dictionary:
+	if bond_of(prof) != "developer" or depth_of(prof) < int(TOOLS["dev_edit"]["depth"]):
+		return {}
+	var e = prof.get("core_edit")
+	return e if e is Dictionary else {}
+
+
+## The aspect a spell's number belongs to ("" for none): "power", "windup",
+## "cost", or a stat key such as "reach".
+static func edit_aspect(key: String) -> String:
+	for a in EDIT_ASPECTS:
+		if key in EDIT_ASPECTS[a]["keys"]:
+			return a
+	return ""
+
+
+## The Edit multiplier for one of a spell's numbers (1 when unedited).
+static func edit_mult(edits: Dictionary, spell_id: String, key: String) -> float:
+	if edits.is_empty() or not edits.has(spell_id):
+		return 1.0
+	var a := edit_aspect(key)
+	if a == "":
+		return 1.0
+	var n := int(edits[spell_id].get(a, 0))
+	if n == 0:
+		return 1.0
+	var sign := -1.0 if EDIT_ASPECTS[a].get("less", false) else 1.0
+	return maxf(0.2, 1.0 + sign * EDIT_POINT * n)
+
+
+## A spell's stat with its Edit applied (keeps whole numbers whole).
+static func edit_stat(edits: Dictionary, spell_id: String, key: String, value):
+	if not (value is float or value is int):
+		return value
+	var m := edit_mult(edits, spell_id, key)
+	if m == 1.0:
+		return value
+	if value is int:
+		return int(round(float(value) * m))
+	return float(value) * m
+
+
+## The aspects a spell can move points between (those it has numbers for).
+static func edit_aspects_for(b, sp: Dictionary) -> Array:
+	var out: Array = []
+	for a in EDIT_ORDER:
+		match a:
+			"power":
+				var d = b.spell_stat(sp, "damage")
+				if (d != null and float(d) > 0.0) or b.spell_stat(sp, "shield") != null or b.spell_stat(sp, "duration") != null:
+					out.append(a)
+			"speed", "thrift":
+				out.append(a)
+			_:
+				for k in EDIT_ASPECTS[a]["keys"]:
+					var v = b.spell_stat(sp, k)
+					if v != null and (v is float or v is int) and float(v) > 0.0:
+						out.append(a)
+						break
+	return out
+
+
+## A spell's points in words: "+2 Reach, -2 Power" ("" when unedited).
+static func edit_text(points: Dictionary) -> String:
+	var bits: Array = []
+	for a in EDIT_ORDER:
+		var n := int(points.get(a, 0))
+		if n != 0:
+			bits.append("%s%d %s" % ["+" if n > 0 else "", n, EDIT_ASPECTS[a]["name"]])
+	return ", ".join(bits)
+
+
+## Moves one point of a spell's aspect up (+1, paid in crystals) or down (-1,
+## free). "" if done, else why not.
+static func set_edit(prof, spell_id: String, aspect: String, delta: int) -> String:
+	if bond_of(prof) != "developer" or depth_of(prof) < int(TOOLS["dev_edit"]["depth"]):
+		return "Edit needs the Developer at depth 3"
+	if not EDIT_ASPECTS.has(aspect) or delta == 0:
+		return "No such number"
+	var all: Dictionary = active_edits(prof).duplicate(true)
+	var pts: Dictionary = all.get(spell_id, {}).duplicate()
+	var n := int(pts.get(aspect, 0)) + signi(delta)
+	if n > EDIT_MAX:
+		return TEXT["edit_most"]
+	if n < -EDIT_MAX:
+		return TEXT["edit_least"]
+	if delta > 0:
+		var sum := 0
+		for a in pts:
+			sum += int(pts[a])
+		if sum + 1 > 0:
+			return TEXT["edit_lower_first"]
+		if not spend_crystals(prof, EDIT_COST):
+			return TEXT["edit_short"] % [int(EDIT_COST), int(crystals_held(prof))]
+	if n == 0:
+		pts.erase(aspect)
+	else:
+		pts[aspect] = n
+	if pts.is_empty():
+		all.erase(spell_id)
+	else:
+		all[spell_id] = pts
+	prof.set("core_edit", all)
+	return ""
+
+
+## Clears a spell's edit (free).
+static func clear_edit(prof, spell_id: String) -> void:
+	var all: Dictionary = active_edits(prof).duplicate(true)
+	all.erase(spell_id)
+	prof.set("core_edit", all)
+
+
+# --- the Developer: Splice (4) and Write (5) -----------------------------------
+
+## The behaviour a bond lends a spliced spell.
+static func splice_effect(bond_id: String) -> String:
+	return String(SPLICE_FROM.get(bond_id, "knock"))
+
+
+## The bonds the Developer could Write from, by essence kind: {kind: [bond ids]}
+## (bonds the climber doesn't hold, with a spell Write can cast at `step`).
+static func write_bonds(held: Array, step: int, bonds_data: Dictionary) -> Dictionary:
+	var out := {}
+	for id in bonds_data:
+		if id in held:
+			continue
+		if write_spells(bonds_data[id], step).is_empty():
+			continue
+		var kind := String(bonds_data[id].get("affinity", ""))
+		if not out.has(kind):
+			out[kind] = []
+		out[kind].append(id)
+	return out
+
+
+## A bond's spells that Write can cast at `step` (learned by then, not a form or a pact spell).
+static func write_spells(bond_data: Dictionary, step: int) -> Array:
+	return bond_data["spells"].filter(func(sp): return int(sp["learn"]) <= step and not String(sp["type"]) in WRITE_SKIP)
+
+
+## Moves a mark from one body part to another on the train (a marked part
+## swaps), paid in crystals. "" if done, else why not.
+static func move_mark(prof, from: String, to: String) -> String:
+	if bond_of(prof) != "developer" or depth_of(prof) < int(TOOLS["dev_write"]["depth"]):
+		return "Moving marks needs the Developer at depth 5"
+	if from == to or not prof.bonds.has(from):
+		return "No mark there"
+	if not spend_crystals(prof, MARK_MOVE_COST):
+		return TEXT["move_short"] % [int(MARK_MOVE_COST), int(crystals_held(prof))]
+	var a: Dictionary = prof.bonds[from]
+	if prof.bonds.has(to):
+		prof.bonds[from] = prof.bonds[to]
+	else:
+		prof.bonds.erase(from)
+	prof.bonds[to] = a
+	return ""
+
+
+# --- the Developer's bribe ---------------------------------------------------
+
+## The Maker of Marks' memory of bribes, in the Makers' saved state:
+## {offered, refused, accepted, for (the depth an accepted bribe counts for)}.
+static func bribe_state(prof) -> Dictionary:
+	if prof == null:
+		return {}
+	var mk = prof.get("makers")
+	if not (mk is Dictionary):
+		return {}
+	var b = mk.get("bribe")
+	return b if b is Dictionary else {}
+
+
+## What the climber could offer: [{id, text, ok}] ("crystals", "gear:<i>"
+## for a Regarded piece in the chest, "pack:<i>" in the pack, "vessel").
+static func bribe_offers(prof, gear_script) -> Array:
+	var out: Array = []
+	var need := float(BRIBE["crystals"])
+	out.append({"id": "crystals", "text": TEXT["bribe_crystals"] % int(need), "ok": crystals_held(prof) + 0.001 >= need})
+	for where in ["chest", "pack"]:
+		var list: Array = prof.get(where)
+		for i in list.size():
+			var g = list[i]
+			if gear_script.is_gear(g) and gear_script.rarity(g) == "regarded":
+				out.append({"id": "%s:%d" % [where, i], "text": TEXT["bribe_gear"] % gear_script.display(g), "ok": true})
+	out.append({"id": "vessel", "text": TEXT["bribe_vessel"], "ok": false})
+	return out
+
+
+## The chance the Maker of Marks takes a bribe now.
+static func bribe_odds(prof) -> float:
+	var st := bribe_state(prof)
+	return maxf(float(BRIBE["least"]), float(BRIBE["agree"]) - float(BRIBE["each"]) * int(st.get("offered", 0)))
+
+
+## Offers a bribe for the next depth: {ok (accepted), said}. Refused: nothing
+## is taken, but it's remembered. `roll` in 0..1 (randf by default).
+static func offer_bribe(prof, offer_id: String, gear_script, roll := -1.0) -> Dictionary:
+	var d := depth_of(prof)
+	if bond_of(prof) != "developer":
+		return {"ok": false, "said": ""}
+	if d >= MAX_DEPTH:
+		return {"ok": false, "said": TEXT["bribe_full"]}
+	var st := bribe_state(prof).duplicate()
+	if int(st.get("for", 0)) == d + 1:
+		return {"ok": false, "said": TEXT["bribe_done"] % (d + 1)}
+	var offer := {}
+	for o in bribe_offers(prof, gear_script):
+		if o["id"] == offer_id:
+			offer = o
+	if offer.is_empty() or not offer["ok"]:
+		return {"ok": false, "said": "Nothing to offer"}
+	var agree := bribe_odds(prof)
+	if roll < 0.0:
+		roll = randf()
+	var yes := roll < agree
+	if bribe_force >= 0:
+		yes = bribe_force == 1
+	st["offered"] = int(st.get("offered", 0)) + 1
+	if yes:
+		if offer_id == "crystals":
+			spend_crystals(prof, float(BRIBE["crystals"]))
+		else:
+			var where := offer_id.get_slice(":", 0)
+			var list: Array = prof.get(where)
+			list.remove_at(int(offer_id.get_slice(":", 1)))
+		st["accepted"] = int(st.get("accepted", 0)) + 1
+		st["for"] = d + 1
+	else:
+		st["refused"] = int(st.get("refused", 0)) + 1
+	var mk = prof.get("makers")
+	if not (mk is Dictionary):
+		mk = {}
+	mk["bribe"] = st
+	prof.set("makers", mk)
+	return {"ok": yes, "said": TEXT["bribe_yes"] % (d + 1) if yes else TEXT["bribe_no"]}
+
+
+# --- the Designer: the next floor's lean ------------------------------------------
+
+## Two different ids from a list (fewer if it's short).
+static func two_of(list: Array) -> Array:
+	var l := list.duplicate()
+	l.shuffle()
+	return l.slice(0, 2)
 
 
 static func _num(f: float) -> String:

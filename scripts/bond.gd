@@ -69,6 +69,8 @@ func spell_stat(sp: Dictionary, key: String):
 	for s in range(1, step + 1):
 		if steps.has(s) and steps[s].has(key):
 			value = steps[s][key]
+	if not edits.is_empty():
+		value = SecretBonds.edit_stat(edits, sp["id"], key, value)  # the Developer's Edit
 	return value
 
 
@@ -119,8 +121,10 @@ func windup() -> float:
 
 ## The same numbers for any of its spells (the Developer's Inspect reads
 ## these), with the Developer's Tune (`tunes`: spell id -> setting, set by
-## main.gd from secret_bonds.gd) applied.
+## main.gd from secret_bonds.gd) applied, and its Edit (`edits`: spell id
+## -> {aspect: points}).
 var tunes := {}
+var edits := {}
 
 
 func spell_cost(sp: Dictionary) -> float:
@@ -128,7 +132,7 @@ func spell_cost(sp: Dictionary) -> float:
 
 
 func spell_power(sp: Dictionary) -> float:
-	return (0.75 if faint else 1.0) * overdraw_mult * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power")
+	return (0.75 if faint else 1.0) * overdraw_mult * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
 
 
 func spell_damage(sp: Dictionary) -> float:
