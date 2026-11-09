@@ -1,7 +1,8 @@
 extends RefCounted
 ## What carries over between climbs: your marks (bonds), how much essence has
 ## soaked into your unmarked body parts, and the essence you've banked since
-## your last mark. Saved to user://sixfold.cfg.
+## your last mark. Each climber is saved in their own slot's file (slots.gd:
+## user://climber_1.cfg to climber_6.cfg); save_path says which.
 ##
 ## The first climb is bondless. It ends in the Regard: the tower's beast
 ## takes notice and your most-used body part takes its first mark. Fall
@@ -13,7 +14,8 @@ const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Unbound := preload("res://scripts/unbound.gd")
-const SAVE_PATH := "user://sixfold.cfg"
+## Slot 1's file (main.gd points save_path at the current slot's: slots.gd).
+const SAVE_PATH := "user://climber_1.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
 const FAINT_DEBT := 80.0
@@ -92,7 +94,7 @@ var provings := {}
 ## "falls", "heirlooms", "essence", plus "best" (tower -> best floor) and
 ## "beasts_by" (tower -> beasts slain there). See note() and note_floor().
 var record := {}
-## Climbers before this one (New climber): the Entity remembers them.
+## Climbers before this one in this slot (Start over): the Entity remembers them.
 var former := 0
 ## The secret essences (secret.gd): the path chosen at the first great foe
 ## ("" until then, else "life" or "unmaking"; for good) and the flow banked
@@ -103,7 +105,7 @@ var flow := 0.0
 ## Old saves load with today's look (Appearance.DEFAULTS).
 var appearance := Appearance.DEFAULTS.duplicate()
 ## False until a new climber has chosen their look on the creation page
-## (the very first launch, and after New climber): it opens before the first climb.
+## (the very first launch, a new slot, and after Start over): it opens before the first climb.
 var created := true
 ## The Makers (makers.gd): fragments found, each Maker's interest, meetings,
 ## the core mark. makers.gd state() fills in its keys.
@@ -135,7 +137,8 @@ const ATTRIBUTES := {
 const ATTRIBUTE_CAP := 0.12
 const ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
 var saving := true
-## Where the profile is saved (tests point it elsewhere).
+## Where the profile is saved: its own slot's file, kept from when it was
+## loaded, so this climber never writes over another (tests point it elsewhere).
 var save_path := SAVE_PATH
 
 
@@ -333,6 +336,7 @@ func save() -> void:
 	cfg.set_value("profile", "core_tune", core_tune)
 	cfg.set_value("unbound", "state", unbound)
 	cfg.set_value("profile", "core_edit", core_edit)
+	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 
 

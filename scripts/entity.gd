@@ -78,6 +78,10 @@ const LINES := {
 		"What you've met, I've written down. The rest waits.",
 	],
 	"replay": ["Very well. I'll tell you again."],
+	"climbers": [
+		"Six may climb. Each keeps their own marks, crystals, train and record.",
+		"Choose who climbs. Settings are shared; the rest is theirs alone.",
+	],
 	# The train, between climbs.
 	"train": [
 		"The train waits. It always does.",
@@ -362,6 +366,9 @@ const TIPS := {
 	"appearance": {"group": "screens", "name": "Appearance",
 		"tip": "How you look is yours to choose. Change each part with {choose}; it changes nothing but your looks.",
 		"more": "The appearance page sets how the climber looks in the towers and on the climber screen: an optional name, skin, hair and its colour, eyes, cloak, tunic, and the hood up or down. Up and down move between the rows; Left and Right (or the arrows, or a swatch) change one. Randomise rolls a whole new look and keeps the name. Turn spins the preview (Q and E, or LB and RB). A new climber chooses a look before the first climb; change it any time with Appearance on the climber screen's Marks tab, or in your car on the train. Looks never change how you play."},
+	"climbers": {"group": "screens", "name": "Climbers",
+		"tip": "Up to six climbers, each kept apart. Choose one to play; Delete asks twice.",
+		"more": "The Climbers page (from the title screen) holds up to six climbers. Each has their own marks and essence, crystals, train, heirlooms, look and name, record, Makers and everything I have told them; a new climber hears my tips again. Settings, controller setup and tips on or off are shared. Choose a card to play that climber, or an empty slot to begin a new one. Delete under a card asks for a second press, and a deleted climber can't be brought back. Continue on the title plays whoever was played last. Start over only starts the current climber over."},
 	"inventory": {"group": "screens", "name": "The inventory",
 		"tip": "{inventory} shows everything you carry, and lets you use it.",
 		"more": "The inventory lays out what you wear like a body: helm, amulet and cloak; melee weapon, chest and ranged weapon; a ring, gloves and a ring; backpack, legs and boots. Beside it are your fists, gear lying at your feet and a camp's rune; below, your items with their counts (the quick item gilded). Worn pieces show their condition. Switch to Heirlooms to see what every climb begins with. Choose a slot for its details (compared with what you wear), to use an item, or to take the gear at your feet."},

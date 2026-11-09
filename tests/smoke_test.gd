@@ -3369,7 +3369,7 @@ func _title_tests() -> void:
 	_check(menu.backdrop.get_child_count() == 3 and menu.backdrop.motes.size() <= 40, "...in three layers with a few dozen motes")
 	_check(main.title_showing() and main.menu_open(), "the HUD and touch controls hide while the title shows")
 	var first := _menu_button("Begin your first climb")
-	_check(first != null and _menu_button("New climber") == null, "a new climber is offered the first climb (and nothing to lose)")
+	_check(first != null and _menu_button("Start over") == null, "a new climber is offered the first climb (and nothing to lose)")
 	_check(_menu_button("Climber") != null and _menu_button("Settings") != null and _menu_button("Dev tools") != null, "the title has Climber, Settings and Dev tools")
 	_check(first != null and first.has_focus(), "keyboard: the first button has focus")
 	var vis := root.get_visible_rect()
@@ -3417,20 +3417,20 @@ func _title_tests() -> void:
 	Engine.remove_meta("sixfold_title_seen")
 	main.touch._set_active(false)
 	main.player.touch_aim = false
-	# A climber with marks: Continue, a status line and New climber.
+	# A climber with marks: Continue, a status line and Start over.
 	main.grant_test_bonds()
 	menu.open("title")
 	await _frames(2)
 	var cont := _menu_button("Continue")
-	_check(cont != null and _menu_button("New climber") != null, "a marked climber sees Continue and New climber")
+	_check(cont != null and _menu_button("Start over") != null, "a marked climber sees Continue and Start over")
 	var status := false
 	for l in menu.find_children("*", "Label", true, false):
 		if l.text.begins_with("Marks: ") and "Best floor" in l.text:
 			status = true
 	_check(status, "the title shows marks carried and best floor")
-	_menu_button("New climber").pressed.emit()
+	_menu_button("Start over").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "confirm_new" and menu.backdrop.visible, "New climber asks over the title backdrop")
+	_check(menu.page == "confirm_new" and menu.backdrop.visible, "Start over asks over the title backdrop")
 	_menu_button("Cancel").pressed.emit()
 	await _frames(2)
 	_check(menu.page == "title", "...and Cancel returns to the title")
@@ -4357,7 +4357,7 @@ func _spell_tests() -> void:
 	Input.action_press("new_climber")
 	await _frames(2)
 	Input.action_release("new_climber")
-	_check(main.new_climber_t > 0.0 and main.banner.get("title", "") == "NEW CLIMBER?", "a first press asks to confirm")
+	_check(main.new_climber_t > 0.0 and main.banner.get("title", "") == "START OVER?", "a first press asks to confirm")
 	_check(not main.profile.bonds.is_empty(), "one press changes nothing yet")
 	await _frames(2)
 	Input.action_press("new_climber")
@@ -6817,6 +6817,7 @@ func _settle() -> void:
 
 func _run() -> void:
 	Engine.set_meta("sixfold_test", true)  # a fresh profile; never touches the real save
+	_clear_slots()  # (no test climbers left from an earlier run)
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await _frames(1)
@@ -7214,6 +7215,7 @@ func _run() -> void:
 	await _slim_hud_tests()
 	await _appearance_tests()
 	await _unbound_tests()
+	await _climber_slot_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -7746,15 +7748,15 @@ func _screen_tests() -> void:
 	p.add_item("tonic")
 	await _key_tap(KEY_ESCAPE)
 	_check(menu.page == "pause" and paused, "Esc opens the pause menu")
-	var want := ["Resume", "Settings", "Controls", "Dev tools", "Restart this climb", "New climber", "Exit to title"]
+	var want := ["Resume", "Settings", "Controls", "Dev tools", "Restart this climb", "Start over", "Exit to title"]
 	var have: Array = _all_buttons(menu).map(func(b): return b.text)
 	var missing := want.filter(func(t): return not (t in have))
-	_check(missing.is_empty(), "...with Resume, Settings, Controls, Dev tools, Restart, New climber and Exit (missing %s)" % [missing])
+	_check(missing.is_empty(), "...with Resume, Settings, Controls, Dev tools, Restart, Start over and Exit (missing %s)" % [missing])
 	_check(have.any(func(t): return t.begins_with("Climber")) and have.any(func(t): return t.begins_with("Inventory")), "...and Climber and Inventory")
 	_check(("Quit game" in have) == menu.can_quit() and menu.can_quit() != OS.has_feature("web"), "Quit game only where the game can be quit (not on the web)")
-	_menu_button("New climber").pressed.emit()
+	_menu_button("Start over").pressed.emit()
 	await _frames(1)
-	_check(menu.page == "confirm_new", "New climber asks first")
+	_check(menu.page == "confirm_new", "Start over asks first")
 	await _key_tap(KEY_ESCAPE)
 	_check(menu.page == "pause", "...and Esc cancels back to the pause menu")
 	for b in _all_buttons(menu):
@@ -11518,3 +11520,238 @@ func _vessel_tests() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	prof.save_path = prof.SAVE_PATH
 	prof.path = ""
+
+
+## Removes every test slot file (slots.gd's test copies), so no test sees
+## another's climbers.
+func _clear_slots() -> void:
+	var S = load("res://scripts/slots.gd")
+	for i in range(1, S.MAX + 1):
+		if FileAccess.file_exists(S.path(i)):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(S.path(i)))
+	for f in [S.settings_path(), S.backup_path()]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	S.forget()
+
+
+## A climber saved straight into a slot's file (tests).
+func _slot_climber(slot: int, name: String, bonds: Dictionary, crystal: Array):
+	var S = load("res://scripts/slots.gd")
+	var c = load("res://scripts/profile.gd").new()
+	c.save_path = S.path(slot)
+	c.created = true
+	c.regarded = not bonds.is_empty()
+	for part in bonds:
+		c.add_bond(part, bonds[part], false)
+	if not crystal.is_empty():
+		c.add_crystal(crystal[0], crystal[1])
+	c.appearance["name"] = name
+	c.saving = true
+	c.save()
+	c.saving = false
+	return c
+
+
+## Climber slots (slots.gd): up to six climbers, each in their own file and
+## kept apart (marks, crystals, train, look, the Entity's tips); settings
+## shared; the slot played last remembered; deleting one removes only it; no
+## seventh; an old single save moves into slot 1 whole; the picker by keys,
+## a tap, an empty slot, Delete twice.
+func _climber_slot_tests() -> void:
+	print("climber slots")
+	var S = load("res://scripts/slots.gd")
+	var P = load("res://scripts/profile.gd")
+	var A = load("res://scripts/appearance.gd")
+	var G = load("res://scripts/gear.gd")
+	var Guide = load("res://scripts/guide.gd")
+	var CP = load("res://scripts/climbers_page.gd")
+	var M = load("res://scripts/menu.gd")
+	_clear_slots()
+	await _fresh_main()
+	var menu = main.menu
+	main.touch._set_active(false)
+	_check(S.path(1) != "user://climber_1.cfg" and S.settings_path() != "user://sixfold.cfg", "tests use their own slot files, never the real saves")
+	_check(S.MAX == 6 and S.filled().is_empty() and S.first_empty() == 1 and S.current() == 1, "six slots, all empty at first, slot 1 current")
+	# Two climbers, each in their own file.
+	var a = _slot_climber(1, "Wren", {"hand": "stormcaller"}, ["fire", 40.0])
+	a.chest = [G.rec("axe")]
+	a.appearance["cloak"] = "crimson"
+	a.best_floor = 5
+	a.saving = true
+	a.save()
+	a.saving = false
+	_slot_climber(2, "Bryn", {"legs": "windwalker", "brow": "warden"}, ["water", 7.0])
+	_check(S.filled() == [1, 2] and S.first_empty() == 3, "two climbers fill slots 1 and 2")
+	var a2 = S.peek(1)
+	var b2 = S.peek(2)
+	_check(a2.bonds.keys() == ["hand"] and a2.crystal_total("fire") == 40.0 and a2.chest.size() == 1 and a2.appearance["name"] == "Wren" and a2.appearance["cloak"] == "crimson" and a2.best_floor == 5, "slot 1 loads its own climber (marks, crystals, chest, look)")
+	_check(b2.bonds.size() == 2 and b2.crystal_total("fire") == 0.0 and b2.crystal_total("water") == 7.0 and b2.chest.is_empty() and b2.appearance["name"] == "Bryn", "...and slot 2 its own")
+	a2.saving = true
+	a2.add_crystal("fire", 10.0)
+	a2.save()
+	_check(S.peek(1).crystal_total("fire") == 50.0 and S.peek(2).crystal_total("fire") == 0.0 and S.peek(2).crystal_total("water") == 7.0, "saving one climber leaves the other's file alone")
+	# The Entity's tips and Archive, per climber; tips on or off, shared.
+	Guide.state["told"] = {"move": true}
+	Guide.state["known"] = {"move": true}
+	Guide.save_to(S.path(1))
+	Guide.state["on"] = false
+	Guide.save_on(S.settings_path())
+	Guide.load_from(S.settings_path(), S.path(2))
+	_check(Guide.state["told"].is_empty() and Guide.state["known"].is_empty() and not Guide.state["on"], "a second climber hears the tips again (their own Archive), tips off is shared")
+	Guide.load_from(S.settings_path(), S.path(1))
+	_check(Guide.state["told"].has("move") and Guide.state["known"].has("move"), "...and the first remembers what was said")
+	Guide.forget()
+	Guide.loaded_from = ""
+	# Settings live in the shared file, never in a climber's.
+	var keep_condense = M.settings["condense"]
+	M.settings["condense"] = "35"
+	M.save_settings_to(S.settings_path())
+	var c1 := ConfigFile.new()
+	c1.load(S.path(1))
+	_check(not c1.has_section("settings") and not c1.has_section_key("guide", "on") and c1.has_section_key("slot", "played"), "settings stay out of a climber's file (which notes when they last played)")
+	# Switching swaps everything.
+	main.switch_climber(2)
+	await _frames(2)
+	var prof = main.profile
+	_check(S.current() == 2 and prof.save_path == S.path(2) and prof.appearance["name"] == "Bryn" and prof.bonds.size() == 2 and main.player.bonds.has("legs") and prof.crystal_total("fire") == 0.0, "switching to slot 2 plays its climber (marks, crystals)")
+	_check(main.climber_look == A.look(prof.appearance) and prof.chest.is_empty() and M.settings["condense"] == "35", "...in their own look and train, the settings unchanged")
+	Engine.remove_meta("sixfold_title_seen")
+	S.forget()
+	_check(S.current() == 2, "the slot played last is remembered")
+	prof.saving = true
+	prof.add_crystal("water", 3.0)
+	prof.save()
+	prof.saving = false
+	_check(S.peek(2).crystal_total("water") == 10.0 and S.peek(1).crystal_total("water") == 0.0 and S.peek(1).crystal_total("fire") == 50.0, "the climber played saves only into their own slot")
+	M.settings["condense"] = keep_condense
+	# The title: Climbers, naming the current climber.
+	main.choosing_tower = true
+	menu.open("title")
+	await _frames(2)
+	var cb: Array = _all_buttons(menu).filter(func(x): return x.has_meta("climbers"))
+	_check(cb.size() == 1 and cb[0].text == CP.TEXT["button_named"] % "Bryn", "the title has Climbers, naming the current climber")
+	_check(_menu_button(CP.TEXT["over"]) != null and _menu_button("New climber") == null, "...and Start over (this climber only)")
+	if cb.size() == 1:
+		cb[0].pressed.emit()
+	await _frames(2)
+	var cards: Array = _all_buttons(menu).filter(func(x): return x.has_meta("climber_slot"))
+	_check(menu.page == "climbers" and menu.backdrop.visible and cards.size() == 6, "Climbers opens the picker over the title: six slots")
+	var dels: Array = _all_buttons(menu).filter(func(x): return x.has_meta("climber_delete"))
+	_check(dels.size() == 2 and cards.filter(func(x): return x.prof == null).size() == 4, "...two climbers (each with Delete) and four empty")
+	await _until(func(): return cards[1].has_focus(), 1.0)
+	_check(cards[1].has_focus(), "keys and controller start on the current climber")
+	await _key_tap(KEY_LEFT)
+	_check(cards[0].has_focus(), "Left moves to the next card")
+	await _key_tap(KEY_ENTER)
+	await _frames(2)
+	_check(S.current() == 1 and main.profile.appearance["name"] == "Wren" and main.profile.crystal_total("fire") == 50.0 and not menu.is_open(), "Enter on a card plays that climber")
+	Engine.remove_meta("sixfold_title_seen")
+	# A tap on an empty slot: a new climber there, who chooses a look first.
+	main.touch._set_active(true)
+	menu.open("title")
+	await _frames(2)
+	menu.open("climbers")
+	await _frames(3)
+	cards = _all_buttons(menu).filter(func(x): return x.has_meta("climber_slot"))
+	var vis := root.get_visible_rect()
+	_check(cards.all(func(x): return x.get_global_rect().position.x >= vis.position.x and x.get_global_rect().end.x <= vis.end.x), "on a phone the cards fit across the screen")
+	menu.scroll.ensure_control_visible(cards[4])
+	await _frames(2)
+	await _tap_at(cards[4].get_global_rect().get_center())
+	await _until(func(): return menu.page == "create", 1.0)
+	_check(S.current() == 5 and menu.page == "create" and not main.profile.created and main.profile.bonds.is_empty() and main.profile.crystals.is_empty(), "a tap on an empty slot starts a new climber there: the appearance page")
+	main.profile.saving = true  # (tests: let this climber save, into its test slot)
+	menu.look_page.begin()
+	main.profile.saving = false
+	await _frames(2)
+	_check(S.exists(5) and S.filled() == [1, 2, 5] and not main.profile.regarded, "...whose Begin saves them in that slot, for the bondless first climb")
+	Engine.remove_meta("sixfold_title_seen")
+	main.touch._set_active(false)
+	# Six full: no seventh. Delete asks twice and removes only that climber.
+	for i in [3, 4, 6]:
+		_slot_climber(i, "C%d" % i, {}, [])
+	_check(S.filled().size() == 6 and S.first_empty() == 0 and not main.switch_climber(7) and S.current() == 5, "with six climbers there's no empty slot, and no seventh")
+	menu.open("title")
+	menu.open("climbers")
+	await _frames(2)
+	cards = _all_buttons(menu).filter(func(x): return x.has_meta("climber_slot"))
+	_check(cards.size() == 6 and cards.all(func(x): return x.prof != null), "...the picker shows six climbers")
+	var del4: Array = _all_buttons(menu).filter(func(x): return int(x.get_meta("climber_delete", 0)) == 4)
+	if del4.size() == 1:
+		del4[0].pressed.emit()
+	await _frames(2)
+	del4 = _all_buttons(menu).filter(func(x): return int(x.get_meta("climber_delete", 0)) == 4)
+	_check(S.exists(4) and del4.size() == 1 and del4[0].text == CP.TEXT["delete_again"], "Delete asks again first (nothing is deleted yet)")
+	if del4.size() == 1:
+		del4[0].pressed.emit()
+	await _frames(2)
+	_check(not S.exists(4) and S.filled() == [1, 2, 3, 5, 6] and S.current() == 5 and menu.page == "climbers", "a second press deletes only that climber")
+	_check(S.peek(1).crystal_total("fire") == 50.0 and S.peek(2).bonds.size() == 2, "...the others are untouched")
+	# Deleting the climber being played: whoever played last is current.
+	main.delete_climber(5)
+	await _frames(2)
+	_check(not S.exists(5) and S.exists(S.current()) and main.profile.save_path == S.path(S.current()) and menu.page == "climbers", "deleting the current climber moves on to another, on the picker")
+	menu.close()
+	Engine.remove_meta("sixfold_title_seen")
+	# An old single save (from before slots) moves into slot 1, whole.
+	_clear_slots()
+	var old := ConfigFile.new()
+	old.set_value("climb", "best_floor", 5)
+	old.set_value("profile", "regarded", true)
+	old.set_value("profile", "bonds", {"brow": {"debt": 0.0, "faint": false, "id": "warden", "xp": 540.0}, "hand": {"debt": 0.0, "faint": false, "id": "stormcaller", "xp": 160.0}})
+	old.set_value("profile", "climbs", 4)
+	old.set_value("profile", "crystals", [{"kind": "fire", "amount": 30.0}])
+	old.set_value("profile", "record", {"deaths": 1.0})
+	old.set_value("profile", "path", "life")
+	old.set_value("profile", "flow", 12.0)
+	old.set_value("train", "chest", [G.rec("axe")])
+	old.set_value("train", "supplies", {"tonic": 2})
+	old.set_value("guide", "on", false)
+	old.set_value("guide", "known", {"move": true, "train": true})
+	old.set_value("guide", "told", {"move": true})
+	old.set_value("makers", "state", {"interest": {"developer": 2}})
+	old.set_value("look", "appearance", {"name": "Old", "cloak": "plum"})
+	old.set_value("look", "created", true)
+	old.set_value("unbound", "state", {"on": false})
+	old.set_value("settings", "condense", "35")
+	old.set_value("settings", "music", 0.4)
+	old.set_value("pad", "layouts", {"Some pad": {"a": 1}})
+	old.save(S.settings_path())
+	S.forget()
+	_check(S.current() == 1 and S.filled() == [1], "an old single save moves into slot 1")
+	var raw := ConfigFile.new()
+	raw.load(S.path(1))
+	var same := true
+	for sec in old.get_sections():
+		for key in old.get_section_keys(sec):
+			var climbers: bool = not (sec in ["settings", "pad"]) and not (sec == "guide" and key == "on")
+			if climbers and raw.get_value(sec, key, null) != old.get_value(sec, key):
+				same = false
+			if not climbers and raw.has_section_key(sec, key):
+				same = false
+	_check(same, "...every value of the climber's untouched, and nothing shared in it")
+	var m = S.peek(1)
+	_check(m.created and m.regarded and m.bonds.size() == 2 and m.crystal_total("fire") == 30.0 and m.chest.size() == 1 and m.path == "life" and m.appearance["name"] == "Old" and m.climbs == 4 and m.best_floor == 5, "...and it loads as the same climber")
+	var st := ConfigFile.new()
+	st.load(S.settings_path())
+	_check(st.get_value("settings", "condense", "") == "35" and st.has_section("pad") and st.get_value("guide", "on", true) == false and not st.has_section("profile") and not st.has_section("train") and not st.has_section_key("guide", "told"), "...the settings file keeps only what's shared (settings, controller, tips on or off)")
+	var bak := ConfigFile.new()
+	_check(bak.load(S.backup_path()) == OK and bak.get_value("profile", "climbs", 0) == 4 and bak.get_value("settings", "music", 0.0) == 0.4, "...and a copy of the old file is kept as it was")
+	Guide.load_from(S.settings_path(), S.path(1))
+	_check(Guide.state["told"].has("move") and Guide.state["known"].size() == 2 and not Guide.state["on"], "...with what the Entity had said")
+	Guide.forget()
+	Guide.loaded_from = ""
+	var before := FileAccess.get_file_as_string(S.path(1))
+	S.forget()
+	S.migrate()
+	_check(FileAccess.get_file_as_string(S.path(1)) == before and S.filled() == [1], "it moves only once")
+	# A file of settings alone (no climber yet) makes no climber.
+	_clear_slots()
+	var only := ConfigFile.new()
+	only.set_value("settings", "music", 0.5)
+	only.save(S.settings_path())
+	S.forget()
+	_check(S.current() == 1 and S.filled().is_empty(), "a save with only settings makes no climber (a brand-new player)")
+	_clear_slots()
+	await _fresh_main()
