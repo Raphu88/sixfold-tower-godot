@@ -36,5 +36,5 @@ Screenshots can be rendered with `xvfb-run -a -s "-screen 0 1280x720x24" godot -
 
 ## Project
 - Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd` (world) and `scripts/ui.gd` (menus and HUD).
-- Sounds are built from CC0 packs by `tools/build_audio.py`; see `CREDITS.md` and the README. Only use CC0 assets.
+- Sounds are built from CC0 packs by `tools/build_audio.py`; see `CREDITS.md` and the README. Only use CC0 assets, except fonts: the owner allows SIL Open Font License (OFL) fonts, credited in `CREDITS.md` with their license file shipped alongside.
 - See README.md for the design, controls and file layout.
