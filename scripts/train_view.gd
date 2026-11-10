@@ -2,9 +2,11 @@ extends Control
 ## The train between climbs, drawn in code from the inside: menu.gd's
 ## "train" page. Its cars stand side by side in one long strip, each as wide
 ## as the view (the screen right of the menu's rail): the engine at the
-## front (left), then your car, the store car and the workshop. Scrolling
-## slides the strip (train_page.gd moves it and puts each car's things in
-## its room).
+## front (left), then the Outfitter's Car, your car, the workshop, the
+## Library (its walls lined with books, a ladder on a brass rail) and the
+## Settings & Controls car (a signal room: a frame of levers, a clock and a
+## block instrument). Scrolling slides the strip (train_page.gd moves it and
+## puts each car's things in its room).
 ##
 ## Each room is drawn in layers, back to front: its walls, panelling, floor
 ## and the dusk in its windows; the view outside (the stars and the moon,
@@ -357,6 +359,13 @@ func _geometry(r: Room) -> void:
 			r.wins.append({"round": false, "rect": rect, "glass": _arch(rect)})
 		for fx in [0.335, 0.665]:
 			r.lamps.append(Vector2(s.x * fx, r.ceil_y))
+		if r.car == "settings":
+			# The signal room's clock and its block instrument's dial, in the
+			# bays between the windows (their hands move: paint_live).
+			var bay0: float = (r.wins[0]["rect"].end.x + r.wins[1]["rect"].position.x) * 0.5
+			var bay1: float = (r.wins[1]["rect"].end.x + r.wins[2]["rect"].position.x) * 0.5
+			var rad := minf(26.0 * u, (r.wins[1]["rect"].position.x - r.wins[0]["rect"].end.x) * 0.3)
+			r.gauges = [[Vector2(bay0, r.top + 70.0 * u), rad], [Vector2(bay1, r.top + 92.0 * u), rad * 0.62]]
 
 
 ## An arched window's glass: a half circle over a rectangle.
@@ -490,6 +499,66 @@ func _wall(b, r: Room) -> void:
 					b.circle(Vector2(x + bw * 0.5 - 0.4 * u, ny - 0.4 * u), 0.6 * u, Color(0.6, 0.55, 0.5, 0.6), 6)
 				x += bw
 				i += 1
+		"library":
+			# Shelves of books from wall to wall, round the windows: walnut
+			# uprights and planks, spines of every leather, gilt bands on some.
+			Art.vgrad(b, wall, Art.WALNUT.darkened(0.35), Art.WALNUT.darkened(0.55))
+			var sh := 46.0 * u
+			var y := r.ceil_y + 14.0 * u + sh
+			var row := 0
+			while y < r.wain - 8.0 * u:
+				var x := 4.0 * u + Art.rnd(row * 7) * 10.0 * u
+				var n := 0
+				while x < s.x:
+					var bw := (5.0 + 7.0 * Art.rnd(row * 131 + n)) * u
+					var bh := (26.0 + 13.0 * Art.rnd(row * 71 + n * 3)) * u
+					var book := Rect2(x, y - bh, bw, bh)
+					var clear := true
+					for win in r.wins:
+						if win["rect"].grow(14.0 * u).intersects(book):
+							clear = false
+					if clear:
+						var col: Color = Volume.LEATHER[(row * 5 + n * 3) % Volume.LEATHER.size()].darkened(0.15 + 0.2 * Art.rnd(n + row))
+						if Art.rnd(row * 17 + n) > 0.86:
+							# (one leaning on its neighbour)
+							b.polygon(PackedVector2Array([Vector2(x, y), Vector2(x + bw, y), Vector2(x + bw + bh * 0.3, y - bh * 0.95), Vector2(x + bh * 0.3, y - bh * 0.95)]), col)
+							x += bh * 0.3
+						else:
+							b.rect(book.grow(0.5 * u), Art.OUTLINE)
+							Art.hgrad(b, book, col.lightened(0.08), col.darkened(0.35))
+							if bw > 7.0 * u:
+								for by in [book.position.y + 4.0 * u, book.end.y - 6.0 * u]:
+									b.rect(Rect2(book.position.x, by, bw, 1.2 * u), Color(Art.GILT, 0.55))
+							if Art.rnd(n * 13 + row) > 0.6:
+								b.rect(Rect2(book.position.x + 1.5 * u, book.position.y + bh * 0.35, bw - 3.0 * u, 5.0 * u), Color(0.86, 0.8, 0.64, 0.35))
+					x += bw + (0.5 + 1.5 * Art.rnd(n * 7 + row)) * u
+					n += 1
+				# The plank under the row.
+				var plank := Rect2(0, y, s.x, 5.0 * u)
+				b.rect(plank.grow(0.8 * u), Art.OUTLINE)
+				Art.vgrad(b, plank, Art.WALNUT.lightened(0.12), Art.WALNUT.darkened(0.3))
+				Art.vgrad(b, Rect2(0, plank.end.y, s.x, 8.0 * u), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
+				y += sh
+				row += 1
+			# The uprights between the bays.
+			for win in r.wins:
+				for x in [win["rect"].position.x - 14.0 * u, win["rect"].end.x + 8.0 * u]:
+					Art.post(b, Rect2(x, r.ceil_y, 6.0 * u, r.wain - r.ceil_y), Art.WALNUT.lightened(0.05))
+		"settings":
+			# The signal room: painted tongue-and-groove boards in deep teal,
+			# a brass line every few boards.
+			var teal := Color(0.07, 0.15, 0.17)
+			Art.vgrad(b, wall, teal.lightened(0.05), teal.darkened(0.3))
+			var y := r.ceil_y
+			var i := 0
+			while y < r.wain:
+				b.rect(Rect2(0, y, s.x, 1.2 * u), Color(0, 0, 0, 0.4))
+				b.rect(Rect2(0, y + 1.2 * u, s.x, 0.8 * u), Color(teal.lightened(0.3), 0.25))
+				if i % 4 == 3:
+					b.rect(Rect2(0, y + 3.0 * u, s.x, 1.2 * u), Color(Art.GILT, 0.18))
+				y += 13.0 * u
+				i += 1
+			_bays(b, r, teal.lightened(0.15))
 	# The shadow under the cornice.
 	Art.vgrad(b, Rect2(0, r.ceil_y, s.x, 40.0 * u), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
 
@@ -554,7 +623,8 @@ func _sky_col(r: Room, y: float, below: bool) -> Color:
 func _panelling(b, r: Room) -> void:
 	var s := r.size
 	var u := r.u
-	var wood: Color = {"engine": Art.IRON.lightened(0.06), "personal": Art.WALNUT, "store": Art.OAK.darkened(0.25), "workshop": Art.WALNUT.darkened(0.15)}[r.car]
+	var wood: Color = {"engine": Art.IRON.lightened(0.06), "personal": Art.WALNUT, "store": Art.OAK.darkened(0.25), "workshop": Art.WALNUT.darkened(0.15),
+		"library": Art.WALNUT.darkened(0.1), "settings": Color(0.2, 0.12, 0.08)}.get(r.car, Art.WALNUT)
 	var band := Rect2(0, r.wain, s.x, r.floor_y - r.wain)
 	Art.vgrad(b, band, wood.darkened(0.1), wood.darkened(0.3))
 	if r.car != "engine":
@@ -601,6 +671,25 @@ func _floor(b, r: Room) -> void:
 					x += 12.0 * u
 				y += 5.0 * u + row * 0.4 * u
 				row += 1
+		"settings":
+			# Checked tiles, dark and darker, in perspective rows.
+			Art.vgrad(b, fl, Color(0.1, 0.1, 0.12), Color(0.16, 0.15, 0.17))
+			var y := r.floor_y
+			var step := 7.0 * u
+			var row := 0
+			while y < s.y:
+				var tw := step * 2.6
+				var x := -tw * (row % 2) * 0.5
+				var k := 0
+				while x < s.x:
+					if k % 2 == 0:
+						b.rect(Rect2(x, y, tw, step), Color(0.55, 0.52, 0.48, 0.16))
+					x += tw
+					k += 1
+				b.rect(Rect2(0, y, s.x, 1.0 * u), Color(0, 0, 0, 0.4))
+				y += step
+				step *= 1.3
+				row += 1
 		_:
 			var wood := Art.WALNUT.darkened(0.3) if r.car != "workshop" else Art.OAK.darkened(0.3)
 			Art.vgrad(b, fl, wood.darkened(0.15), wood)
@@ -620,7 +709,7 @@ func _floor(b, r: Room) -> void:
 				# The runner: deep wine, gilt borders and a diamond along it.
 				var ry := r.floor_y + 9.0 * u
 				var run := Rect2(0, ry, s.x, s.y - ry)
-				var col := Art.RUNNER if r.car == "personal" else Color(0.1, 0.09, 0.17)
+				var col: Color = {"personal": Art.RUNNER, "library": Color(0.05, 0.12, 0.1)}.get(r.car, Color(0.1, 0.09, 0.17))
 				Art.vgrad(b, run, col.darkened(0.15), col)
 				b.rect(Rect2(0, ry, s.x, 1.5 * u), Color(0, 0, 0, 0.5))
 				b.rect(Rect2(0, ry + 3.0 * u, s.x, 1.5 * u), Color(Art.GILT, 0.5))
@@ -859,6 +948,10 @@ func paint_front(r: Room) -> void:
 			_store(b, r)
 		"workshop":
 			_workshop(b, r)
+		"library":
+			_library(b, r)
+		"settings":
+			_signal_room(b, r)
 	for h in r.lamps:
 		b.circle(h, 5.0 * r.u, Art.OUTLINE, 14)
 		b.circle(h, 4.0 * r.u, Art.GILT.darkened(0.3), 14)
@@ -882,7 +975,8 @@ func _window(b, r: Room, win: Dictionary, curtains: bool) -> void:
 	b.rect(Rect2(outer.end.x, outer.position.y + 4.0 * u, 4.0 * u, outer.size.y), Color(0, 0, 0, 0.3))
 	# The spandrels: the corners between the arch and its square frame (the
 	# view outside is clipped to the square), each with a gilt fan.
-	var wood: Color = {"personal": Art.WALNUT, "store": Art.OAK.darkened(0.3), "workshop": Art.BOARDS.darkened(0.1)}.get(r.car, Art.WALNUT)
+	var wood: Color = {"personal": Art.WALNUT, "store": Art.OAK.darkened(0.3), "workshop": Art.BOARDS.darkened(0.1), "library": Art.WALNUT.darkened(0.2),
+		"settings": Color(0.1, 0.2, 0.22)}.get(r.car, Art.WALNUT)
 	for side in [-1.0, 1.0]:
 		var corner := Vector2(rect.position.x if side < 0.0 else rect.end.x, rect.position.y)
 		var a0 := PI if side < 0.0 else PI * 1.5
@@ -1279,6 +1373,111 @@ func _workshop(b, r: Room) -> void:
 			Art.vgrad(b, Rect2(plank.position.x, plank.end.y + 1.0 * u, plank.size.x, 9.0 * u), Color(0, 0, 0, 0.4), Color(0, 0, 0, 0))
 
 
+## The Library: a brass rail under the cornice with a ladder hooked on it at
+## the far end, leaning on the shelves, and a globe on a stand by the door.
+func _library(b, r: Room) -> void:
+	var s := r.size
+	var u := r.u
+	var ry := r.ceil_y + 10.0 * u
+	b.rect(Rect2(0, ry - 2.5 * u, s.x, 5.0 * u).grow(1.0 * u), Art.OUTLINE)
+	Art.bar(b, Rect2(0, ry - 2.5 * u, s.x, 5.0 * u))
+	var x := 120.0 * u
+	while x < s.x:
+		Art.rivet(b, Vector2(x, ry), 2.0 * u)
+		x += 160.0 * u
+	# The ladder: two rails from the brass rail down to the floor, its rungs, wheels at its foot.
+	var lx := s.x - 70.0 * u
+	var foot := r.floor_y + 10.0 * u
+	for dx in [0.0, 30.0 * u]:
+		var top := Vector2(lx + dx - 26.0 * u, ry)
+		var bot := Vector2(lx + dx + 8.0 * u, foot)
+		b.stroke(top, bot, Art.OAK.lightened(0.05), 4.0 * u)
+		b.circle(bot + Vector2(0, 3.0 * u), 3.0 * u, Art.GILT.darkened(0.2), 10)
+		b.arc(top, 4.0 * u, PI, TAU, 8, Art.GILT, 2.0 * u)
+	var rungs := 9
+	for k in rungs:
+		var t := (k + 0.7) / (rungs + 0.4)
+		var a := Vector2(lx - 26.0 * u, ry).lerp(Vector2(lx + 8.0 * u, foot), t)
+		b.stroke(a, a + Vector2(30.0 * u, 0), Art.OAK.darkened(0.1), 2.6 * u)
+	# A globe on a stand, near the front of the car.
+	var gc := Vector2(60.0 * u, r.wain + 6.0 * u)
+	b.stroke(Vector2(gc.x, gc.y + 22.0 * u), Vector2(gc.x, r.floor_y + 8.0 * u), Art.WALNUT.lightened(0.1), 3.0 * u)
+	for dx in [-12.0, 12.0]:
+		b.stroke(Vector2(gc.x, r.floor_y + 2.0 * u), Vector2(gc.x + dx * u, r.floor_y + 12.0 * u), Art.WALNUT.lightened(0.1), 2.4 * u)
+	b.circle(gc, 21.0 * u, Art.OUTLINE, 28)
+	b.circle(gc, 20.0 * u, Color(0.3, 0.42, 0.45), 28)
+	b.polygon(Art.oval(gc + Vector2(-6, -4) * u, Vector2(8, 11) * u, 12), Color(0.55, 0.48, 0.3, 0.8))
+	b.polygon(Art.oval(gc + Vector2(9, 6) * u, Vector2(5, 7) * u, 10), Color(0.55, 0.48, 0.3, 0.8))
+	b.circle(gc + Vector2(-7, -8) * u, 5.0 * u, Color(1, 1, 1, 0.18), 10)
+	b.arc(gc, 24.0 * u, PI * 0.6, PI * 2.4, 24, Art.GILT.darkened(0.15), 2.0 * u)
+
+
+## The signal room: a clock and the block instrument's dial in the bays
+## (their hands move: paint_live), a frame of tall levers along the
+## panelling with red, blue, yellow and black handles (some pulled over), and
+## a polished key-plate of brass keys under the middle window.
+func _signal_room(b, r: Room) -> void:
+	var s := r.size
+	var u := r.u
+	# The clock: a brass case and a cream face with its hours.
+	if r.gauges.size() >= 2:
+		var c: Vector2 = r.gauges[0][0]
+		var rad: float = r.gauges[0][1]
+		_gauge_face(b, c, rad, u)
+		for k in 12:
+			var d := Vector2.from_angle(TAU * k / 12.0)
+			b.line(c + d * rad * 0.74, c + d * rad * 0.9, Color(0.15, 0.1, 0.08), maxf(0.8, rad * 0.06))
+		# The block instrument: a walnut box, its dial, a bell on top and a plunger below.
+		var dc: Vector2 = r.gauges[1][0]
+		var dr: float = r.gauges[1][1]
+		var box := Rect2(dc.x - dr * 1.9, dc.y - dr * 2.1, dr * 3.8, dr * 4.6)
+		b.rect(box.grow(1.2 * u), Art.OUTLINE)
+		Art.vgrad(b, box, Art.WALNUT.lightened(0.15), Art.WALNUT.darkened(0.3))
+		Art.grain(b, box.grow(-2.0 * u), Art.WALNUT, 41, u, true, false)
+		b.circle(Vector2(dc.x, box.position.y - 5.0 * u), 7.0 * u, Art.OUTLINE, 16)
+		b.circle(Vector2(dc.x, box.position.y - 5.0 * u), 6.0 * u, Art.GILT.darkened(0.1), 16)
+		b.circle(Vector2(dc.x - 2.0 * u, box.position.y - 7.0 * u), 2.0 * u, Art.GILT_HI, 8)
+		_gauge_face(b, dc, dr, u)
+		var pl := Vector2(dc.x, box.end.y - dr * 0.7)
+		b.circle(pl, dr * 0.3, Art.OUTLINE, 12)
+		b.circle(pl, dr * 0.24, Color(0.6, 0.12, 0.1), 12)
+	# The lever frame along the panelling.
+	var cols := [Color(0.72, 0.14, 0.11), Color(0.72, 0.14, 0.11), Color(0.85, 0.7, 0.15), Color(0.16, 0.3, 0.6), Color(0.08, 0.08, 0.09), Color(0.72, 0.14, 0.11)]
+	var fy := r.floor_y - 6.0 * u
+	b.rect(Rect2(0, fy - 4.0 * u, s.x, 10.0 * u), Art.OUTLINE)
+	Art.vgrad(b, Rect2(0, fy - 3.0 * u, s.x, 8.0 * u), Art.IRON.lightened(0.25), Art.IRON.darkened(0.1))
+	var x := 34.0 * u
+	var k := 0
+	while x < s.x - 20.0 * u:
+		var pulled := Art.rnd(k * 5 + 2) > 0.7
+		var top := Vector2(x + (22.0 if pulled else -4.0) * u, r.wain - 30.0 * u)
+		b.stroke(Vector2(x, fy), top, Art.OUTLINE, 6.0 * u)
+		b.stroke(Vector2(x, fy), top, cols[k % cols.size()], 4.0 * u)
+		b.line(Vector2(x - 1.0 * u, fy), top + Vector2(-1.0 * u, 0), Color(1, 1, 1, 0.22), 1.0 * u)
+		# Its polished steel handle and the catch.
+		var hd := (top - Vector2(x, fy)).normalized()
+		b.stroke(top, top + hd * 16.0 * u, Color(0.78, 0.78, 0.82), 4.0 * u)
+		b.line(top + hd * 6.0 * u + hd.orthogonal() * 3.0 * u, top + hd * 12.0 * u + hd.orthogonal() * 3.0 * u, Color(0.6, 0.6, 0.65), 1.6 * u)
+		# A small brass number plate on the frame.
+		var np := Rect2(x - 6.0 * u, fy - 16.0 * u, 12.0 * u, 7.0 * u)
+		b.rect(np.grow(0.8 * u), Art.OUTLINE)
+		b.rect(np, Art.GILT.darkened(0.15))
+		x += 38.0 * u
+		k += 1
+	# The key-plate under the middle window: a brass plate of round keys.
+	var w: Rect2 = r.wins[1]["rect"]
+	var kp := Rect2(w.get_center().x - 60.0 * u, w.end.y + 16.0 * u, 120.0 * u, 22.0 * u)
+	if kp.end.y < r.wain - 6.0 * u:
+		b.rect(kp.grow(1.2 * u), Art.OUTLINE)
+		Art.bevel(b, kp, Art.GILT.darkened(0.35), 2.0 * u)
+		for i in 6:
+			var kc := Vector2(kp.position.x + kp.size.x * (i + 0.5) / 6.0, kp.get_center().y)
+			b.circle(kc + Vector2(0.6, 1.0) * u, 5.0 * u, Color(0, 0, 0, 0.4), 12)
+			b.circle(kc, 4.6 * u, Art.OUTLINE, 12)
+			b.circle(kc, 3.8 * u, Color(0.9, 0.86, 0.76), 12)
+			b.circle(kc - Vector2(1, 1) * u, 1.2 * u, Color(1, 1, 1, 0.7), 6)
+
+
 ## The ends of the car: walnut pillars, riveted, with the gap where two cars meet.
 func _ends(b, r: Room) -> void:
 	var s := r.size
@@ -1312,6 +1511,19 @@ func paint_live(r: Room) -> void:
 	var u := r.u
 	for i in r.lamps.size():
 		_lantern(b, r, i)
+	if r.car == "settings" and r.gauges.size() >= 2:
+		var c: Vector2 = r.gauges[0][0]
+		var rad: float = r.gauges[0][1]
+		var tick := floorf(Time.get_unix_time_from_system())
+		for hand in [[fposmod(tick / 3600.0, 12.0) / 12.0, 0.5, 0.11], [fposmod(tick / 60.0, 60.0) / 60.0, 0.72, 0.08], [fposmod(tick, 60.0) / 60.0, 0.8, 0.04]]:
+			var d := Vector2.from_angle(-PI * 0.5 + TAU * hand[0])
+			b.line(c - d * rad * 0.12, c + d * rad * hand[1], Color(0.12, 0.08, 0.06) if hand[2] > 0.05 else Color(0.6, 0.1, 0.08), maxf(1.0, rad * hand[2]))
+		b.circle(c, maxf(1.6, rad * 0.1), Art.GILT, 8)
+		var dc: Vector2 = r.gauges[1][0]
+		var dr: float = r.gauges[1][1]
+		var d2 := Vector2.from_angle(PI * 0.75 + PI * 1.5 * (0.5 + 0.06 * sin(t * 0.7)))
+		b.line(dc, dc + d2 * dr * 0.8, Color(0.55, 0.1, 0.08), maxf(1.0, dr * 0.1))
+		b.circle(dc, maxf(1.4, dr * 0.12), Art.GILT, 8)
 	if r.car == "engine":
 		var reads := [0.62 + 0.035 * sin(t * 0.9) + 0.01 * sin(t * 8.1), 0.4 + 0.05 * sin(t * 0.6 + 1.0), 0.76 + 0.03 * sin(t * 1.3 + 2.0) + 0.008 * sin(t * 11.0)]
 		for i in r.gauges.size():
@@ -1431,6 +1643,7 @@ class Furnish extends PanelContainer:
 		"rack": [14, 12, 14, 14], "pack": [16, 22, 16, 14], "chest": [16, 14, 16, 18], "shelf": [12, 8, 12, 12],
 		"rail": [12, 8, 12, 10], "case": [14, 16, 14, 18], "board": [16, 12, 16, 14], "drawers": [8, 8, 8, 10],
 		"placard": [14, 12, 14, 12], "plain": [10, 8, 10, 8],
+		"bookcase": [16, 14, 16, 16], "lectern": [16, 14, 16, 22], "signal": [16, 16, 16, 16], "brake": [16, 40, 16, 16],
 	}
 	var kind := "plain"
 	var watch: Control = null  # the grid whose rows (or slots) the drawing follows
@@ -1662,6 +1875,112 @@ class Furnish extends PanelContainer:
 				for cx in [r.position.x + 7, r.end.x - 7]:
 					for cy in [r.position.y + 7, r.end.y - 7]:
 						b.dot(Vector2(cx, cy), 2.2, BR.lightened(0.1))
+			"bookcase":
+				# A walnut bookcase: a carved crown, fluted pilasters at its
+				# sides, a shelf under each row of volumes on brass brackets.
+				_shadow(b, r)
+				b.rect(r, Art.OUTLINE)
+				var body := r.grow(-1.5)
+				Art.vgrad(b, body, WAL.darkened(0.2), WAL.darkened(0.5))
+				Art.vgrad(b, Rect2(body.position.x + 8.0, body.position.y + 8.0, body.size.x - 16.0, body.size.y - 16.0), Color(0.05, 0.03, 0.03, 0.9), Color(0.09, 0.05, 0.04, 0.9))
+				Art.light(b, Vector2(body.get_center().x, body.position.y + 10.0), Vector2(body.size.x * 0.6, body.size.y * 0.4), Color(Art.LAMP, 0.06))
+				for px in [r.position.x + 1.5, r.end.x - 8.5]:
+					Art.post(b, Rect2(px, r.position.y + 1.5, 7.0, r.size.y - 3.0), WAL.lightened(0.05))
+					for k in 2:
+						b.rect(Rect2(px + 2.0 + k * 2.5, r.position.y + 10.0, 0.8, r.size.y - 20.0), Color(0, 0, 0, 0.35))
+				var rows := {}
+				for c in _cells():
+					rows[int(c.end.y)] = true
+				for ry in rows:
+					var pl := Rect2(r.position.x + 7.0, ry + 2.0, r.size.x - 14.0, 4.0)
+					Art.vgrad(b, Rect2(pl.position.x, pl.end.y, pl.size.x, 7.0), Color(0, 0, 0, 0.45), Color(0, 0, 0, 0))
+					b.rect(pl.grow(1.0), Art.OUTLINE)
+					Art.vgrad(b, pl, WAL.lightened(0.18), WAL.darkened(0.25))
+					b.rect(Rect2(pl.position, Vector2(pl.size.x, 1.0)), Color(1, 0.85, 0.6, 0.3))
+				var crown := Rect2(r.position.x - 5.0, r.position.y - 8.0, r.size.x + 10.0, 10.0)
+				b.rect(crown.grow(1.0), Art.OUTLINE)
+				Art.vgrad(b, crown, WAL.lightened(0.2), WAL.darkened(0.3))
+				b.rect(Rect2(crown.position.x, crown.end.y - 2.2, crown.size.x, 1.2), Color(BR, 0.75))
+				var cc := Vector2(crown.get_center().x, crown.position.y)
+				b.poly(PackedVector2Array([cc + Vector2(-22, 1), cc + Vector2(-10, -6), cc + Vector2(0, -9), cc + Vector2(10, -6), cc + Vector2(22, 1)]), WAL.lightened(0.05), 1.0)
+				b.ball(cc + Vector2(0, -3), 2.6, BR, false)
+				for fx in [r.position.x + 4.0, r.end.x - 18.0]:
+					b.rect(Rect2(fx - 1.0, r.end.y - 1.0, 15.0, 6.0), Art.OUTLINE)
+					Art.vgrad(b, Rect2(fx, r.end.y, 13.0, 4.0), WAL.darkened(0.1), WAL.darkened(0.5))
+			"lectern":
+				# A reading stand: a slanted walnut desk round a dark leather
+				# page, a brass book-rest along its foot, and a green-shaded
+				# reading lamp clamped to its corner, its light on the page.
+				_shadow(b, r)
+				var foot := Rect2(r.get_center().x - 18.0, r.end.y - 4.0, 36.0, 12.0)
+				b.rect(foot.grow(1.0), Art.OUTLINE)
+				Art.hgrad(b, foot, WAL.lightened(0.05), WAL.darkened(0.4))
+				b.rect(r, Art.OUTLINE)
+				Art.bevel(b, r.grow(-1.0), WAL.darkened(0.05), 5.0)
+				Art.grain(b, Rect2(r.position.x + 1.0, r.position.y + 1.0, r.size.x - 2.0, 6.0), WAL, 23, 1.0, false, false)
+				var page := r.grow(-7.0)
+				page.size.y -= 8.0
+				b.rect(page.grow(1.0), Color(0, 0, 0, 0.6))
+				Art.vgrad(b, page, Color(0.13, 0.1, 0.075), Color(0.085, 0.065, 0.05))
+				Art.light(b, Vector2(page.end.x - 30.0, page.position.y + 10.0), Vector2(page.size.x * 0.7, page.size.y * 0.55), Color(0.75, 0.95, 0.65, 0.07))
+				Art.moulding(b, page.grow(-3.0), 1.0, Art.GILT, 0.22)
+				var rest := Rect2(r.position.x + 10.0, r.end.y - 12.0, r.size.x - 20.0, 5.0)
+				b.rect(rest.grow(1.0), Art.OUTLINE)
+				Art.bar(b, rest)
+				# The reading lamp at the top right: its arm, the green glass shade, the bulb's glow.
+				var base := Vector2(r.end.x - 16.0, r.position.y + 2.0)
+				b.stroke(base, base + Vector2(-6, -18), Art.GILT.darkened(0.2), 2.6)
+				var sc := base + Vector2(-14, -20)
+				b.polygon(PackedVector2Array([sc + Vector2(-20, 6), sc + Vector2(-14, -4), sc + Vector2(12, -4), sc + Vector2(18, 6)]), Art.OUTLINE)
+				Art.vgrad(b, Rect2(sc.x - 17.0, sc.y - 3.0, 33.0, 8.0), Color(0.2, 0.55, 0.35), Color(0.08, 0.3, 0.18))
+				b.rect(Rect2(sc.x - 18.0, sc.y + 4.0, 35.0, 1.6), Art.GILT)
+				b.rect(Rect2(sc.x - 12.0, sc.y - 2.0, 10.0, 1.2), Color(1, 1, 1, 0.3))
+				Art.light(b, sc + Vector2(0, 8), Vector2(46.0, 22.0), Color(1.0, 0.92, 0.6, 0.35))
+				b.circle(base, 3.0, BR.darkened(0.1), 10)
+			"signal":
+				# The signal panel: a deep enamel face in a heavy riveted brass
+				# bezel, an engraved plate along its top.
+				_shadow(b, r)
+				b.rect(r, Art.OUTLINE)
+				Art.bevel(b, r.grow(-1.0), BR.darkened(0.3), 5.0)
+				var face := r.grow(-7.0)
+				b.rect(face.grow(1.0), Color(0, 0, 0, 0.6))
+				Art.vgrad(b, face, Color(0.05, 0.1, 0.11, 0.98), Color(0.03, 0.06, 0.07, 0.98))
+				Art.light(b, Vector2(face.get_center().x, face.position.y), Vector2(face.size.x * 0.6, face.size.y * 0.35), Color(Art.LAMP, 0.05))
+				for cx in [r.position.x + 9.0, r.end.x - 9.0]:
+					var cy := r.position.y + 9.0
+					while cy < r.end.y - 4.0:
+						Art.rivet(b, Vector2(cx, cy), 1.8)
+						cy += 46.0
+			"brake":
+				# The emergency brake: a red iron plate in a striped border,
+				# its pull handle on a chain at the top, a warning lamp.
+				_shadow(b, r)
+				b.rect(r, Art.OUTLINE)
+				var plate := r.grow(-1.5)
+				Art.vgrad(b, plate, Color(0.36, 0.07, 0.06), Color(0.2, 0.04, 0.04))
+				var st := 9.0
+				var x := plate.position.x - plate.size.y
+				while x < plate.end.x:
+					for edge in [[plate.position.y, plate.position.y + 5.0], [plate.end.y - 5.0, plate.end.y]]:
+						var a := Vector2(clampf(x, plate.position.x, plate.end.x), edge[0])
+						var e := Vector2(clampf(x + st * 0.5, plate.position.x, plate.end.x), edge[1])
+						if e.x > a.x:
+							b.polygon(PackedVector2Array([a, Vector2(clampf(x + st * 0.5, plate.position.x, plate.end.x), edge[0]), e, Vector2(clampf(x, plate.position.x, plate.end.x), edge[1])]), Color(0.9, 0.75, 0.2, 0.75))
+					x += st
+				for c in [plate.position + Vector2(8, 10), Vector2(plate.end.x - 8.0, plate.position.y + 10.0), Vector2(plate.position.x + 8.0, plate.end.y - 10.0), plate.end - Vector2(8, 10)]:
+					Art.rivet(b, c, 2.0, Art.IRON.lightened(0.6))
+				# The pull handle: a red T-bar hung from a chain.
+				var hx := r.get_center().x
+				var hy := r.position.y + 26.0
+				for k in 4:
+					b.circle(Vector2(hx, r.position.y + 6.0 + k * 4.0), 1.6, Art.GILT.darkened(0.2), 6)
+				b.rect(Rect2(hx - 20.0, hy - 3.0, 40.0, 7.0).grow(1.0), Art.OUTLINE)
+				Art.vgrad(b, Rect2(hx - 20.0, hy - 3.0, 40.0, 7.0), Color(0.9, 0.2, 0.15), Color(0.5, 0.08, 0.06))
+				b.rect(Rect2(hx - 18.0, hy - 2.0, 36.0, 1.2), Color(1, 1, 1, 0.35))
+				b.circle(Vector2(r.position.x + 22.0, r.position.y + 24.0), 5.0, Art.OUTLINE, 12)
+				b.circle(Vector2(r.position.x + 22.0, r.position.y + 24.0), 4.0, Color(1.0, 0.45, 0.25), 12)
+				Art.light(b, Vector2(r.position.x + 22.0, r.position.y + 24.0), Vector2(18, 18), Color(1.0, 0.4, 0.2, 0.3))
 			_:
 				b.rect(r, Color(0.08, 0.06, 0.05, 0.75))
 		b.flush(self)
@@ -1677,6 +1996,89 @@ class Furnish extends PanelContainer:
 			b.rect(Rect2(x, r.position.y, 4, 1), col)
 			b.rect(Rect2(x, r.end.y, 4, 1), col)
 			x += 8.0
+
+
+## A volume on the Library's bookcase: a button drawn as a leather-bound book
+## lying on its shelf, its spine to you: raised bands, a gilt-tooled title
+## label with the shelf's name, and how many of its subjects you've heard.
+## The one open on the lectern is lit gilt; the forbidden shelf is bound in
+## black with a clasp.
+class Volume extends Button:
+	const UI := preload("res://scripts/ui.gd")
+	const Art := preload("res://scripts/train_art.gd")
+	## The bindings, in shelf order.
+	const LEATHER := [Color(0.42, 0.12, 0.1), Color(0.12, 0.25, 0.2), Color(0.18, 0.16, 0.36), Color(0.4, 0.24, 0.1),
+		Color(0.28, 0.1, 0.24), Color(0.1, 0.2, 0.32), Color(0.34, 0.3, 0.12), Color(0.36, 0.14, 0.12), Color(0.14, 0.28, 0.28), Color(0.3, 0.18, 0.14)]
+	var count := ""
+	var leather := Color(0.4, 0.15, 0.1)
+	var on := false
+	var forbidden := false
+
+	func _ready() -> void:
+		focus_mode = Control.FOCUS_ALL
+		clip_text = true
+		for st in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+			add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "font_disabled_color"]:
+			add_theme_color_override(c, Color(0, 0, 0, 0))  # (the title is drawn on the spine)
+		focus_entered.connect(queue_redraw)
+		focus_exited.connect(queue_redraw)
+		mouse_entered.connect(queue_redraw)
+		mouse_exited.connect(queue_redraw)
+
+	func _draw() -> void:
+		var b := UI.Draw.Batch.new()
+		var hot := is_hovered() or button_pressed
+		var r := Rect2(Vector2(1, 2), size - Vector2(2, 3))
+		var col := leather.lightened(0.12) if (hot or has_focus() or on) else leather
+		# The book's shadow on the shelf, then its spine: rounded, lit on top.
+		b.rect(Rect2(r.position + Vector2(2, 3), r.size), Color(0, 0, 0, 0.4))
+		b.rect(r.grow(1.0), Art.OUTLINE)
+		Art.vgrad(b, r, col.lightened(0.15), col.darkened(0.45))
+		b.rect(Rect2(r.position.x, r.position.y + r.size.y * 0.18, r.size.x, 1.2), Color(1, 1, 1, 0.16))
+		# The raised bands near each end, and the head and tail.
+		var tight := size.x < 165.0  # (a phone: the bands closer to the ends, the label wider)
+		var bands: Array = [4.0, 8.0] if tight else [7.0, 12.0]
+		for bx in [r.position.x + bands[0], r.position.x + bands[1], r.end.x - bands[1] - 2.0, r.end.x - bands[0] - 2.0]:
+			b.rect(Rect2(bx, r.position.y, 2.4, r.size.y), Color(0, 0, 0, 0.35))
+			b.rect(Rect2(bx, r.position.y, 1.2, r.size.y), Color(Art.GILT, 0.65 if not forbidden else 0.35))
+		# The title label: a darker panel framed in gilt.
+		var inset: float = bands[1] + 5.0
+		var lab := Rect2(r.position.x + inset, r.position.y + 4.0, r.size.x - inset * 2.0, r.size.y - 8.0)
+		b.rect(lab, col.darkened(0.45))
+		b.flush(self)
+		var frame := PackedVector2Array([lab.position, Vector2(lab.end.x, lab.position.y), lab.end, Vector2(lab.position.x, lab.end.y), lab.position])
+		draw_polyline(frame, Color(Art.GILT, 0.5 if not on else 0.95), 1.0, true)
+		if forbidden:
+			# A clasp across the label.
+			draw_rect(Rect2(lab.end.x - 4.0, lab.get_center().y - 3.0, 10.0, 6.0), Art.IRON.lightened(0.5))
+		var lit := on or hot or has_focus()
+		var tc := Color(1.0, 0.92, 0.7) if lit else Color(0.92, 0.82, 0.6)
+		var fs := 14 if size.y < 42.0 else 16
+		var cw := UI.font("mono").get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 6.0 if count != "" else 0.0
+		UI.draw_label(self, Vector2(lab.position.x + 4.0, lab.get_center().y + fs * 0.33), text, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, lab.size.x - 7.0 - cw)
+		if count != "":
+			draw_string(UI.font("mono"), Vector2(lab.position.x, lab.get_center().y + 4.0), count, HORIZONTAL_ALIGNMENT_RIGHT, lab.size.x - 4.0, 10, Color(tc, 0.7))
+		if on:
+			# Open on the lectern: a gilt ribbon hanging from it.
+			draw_rect(Rect2(r.end.x - 22.0, r.end.y - 1.0, 4.0, 6.0), Color(0.85, 0.2, 0.15))
+			var ring := UI.rounded(r.grow(1.5), 3.0)
+			ring.append(ring[0])
+			draw_polyline(ring, UI.GILT_HI, 1.4, true)
+		if has_focus() and not _touching():
+			var ring := UI.rounded(r.grow(3.0), 4.0)
+			ring.append(ring[0])
+			draw_polyline(ring, Color(UI.GILT, 0.3), 5.0, true)
+			draw_polyline(ring, UI.GILT_HI, 1.6, true)
+
+	## On a phone nothing shows a focus outline.
+	func _touching() -> bool:
+		var n := get_parent()
+		while n != null:
+			if n.has_method("rail_showing"):
+				return n.main != null and n.main.touch_active
+			n = n.get_parent()
+		return false
 
 
 ## The outfitter behind his counter, drawn in code: an old climber in the
