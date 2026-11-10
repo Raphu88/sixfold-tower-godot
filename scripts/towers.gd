@@ -14,13 +14,13 @@ const SUMMIT := 12
 ## layout with a gauntlet of the tower's traps, its sentinel and the shadow
 ## of its beast. scripts/proving.gd holds its words and numbers; each
 ## tower's gauntlet, sentinel and adds are in TOWERS below.
-const PROVING := {
+static var PROVING := {
 	"floor": 6,
 	"name": "The Proving",
 	"line": "The tower's gaze settles on you. Here it takes your measure.",
 }
 
-const TOWERS := {
+static var TOWERS := {
 	"gryphon": {
 		"name": "The Gryphon's Tower",
 		"short": "Gryphon",

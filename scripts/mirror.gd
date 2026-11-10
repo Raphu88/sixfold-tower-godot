@@ -31,7 +31,7 @@ const Towers := preload("res://scripts/towers.gd")
 
 ## Which floors may hold a mirror room: from floor `from`, `chance` of them;
 ## never the Proving's floor, the summit, floor 1 or the bondless first climb.
-const ROOM := {"from": 4, "chance": 1.0 / 6.0}
+static var ROOM := {"from": 4, "chance": 1.0 / 6.0}
 ## The room's theme id (themes.gd).
 const THEME := "mirror"
 
@@ -80,14 +80,14 @@ const POISON := {"venomist": 3.0}  # seconds of poison its bolts give
 ## What it leaves (besides its secret essence): a crystal of the tower's
 ## essence worth this share of a vault's (a champion's is half), and
 ## sometimes a piece of gear a rarity row higher than the floor's.
-const PRIZE := {"crystal": 0.5, "gear": 0.25}
+static var PRIZE := {"crystal": 0.5, "gear": 0.25}
 ## The glass look: shades from dark to light that every colour of the
 ## climber is pulled toward (keeping `keep` of its own), its see-through-ness,
 ## the shimmer that sweeps across it, and the guard's arc.
 const LOOK := {"dark": Color(0.1, 0.12, 0.19), "mid": Color(0.45, 0.53, 0.66), "light": Color(0.88, 0.94, 1.0),
 	"keep": 0.22, "alpha": 0.92, "ghost": Color(0.55, 0.85, 1.0, 0.22), "shimmer": 0.55, "rim": Color(0.75, 0.88, 1.0),
 	"guard": Color(0.85, 0.93, 1.0), "glow": Color(0.62, 0.78, 1.0)}
-const TEXT := {
+static var TEXT := {
 	"name": "Mirror image",
 	"emerge": "It steps out of the glass",
 	"dodged": "Dodged",

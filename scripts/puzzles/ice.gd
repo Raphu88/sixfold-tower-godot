@@ -20,8 +20,8 @@ extends "res://scripts/puzzles/base.gd"
 ## Getting it wrong costs nothing: slide off the ice and try again.
 
 const NAME := "The Ice Hall"
-const NAMES := {"kraken": "Tide Slick"}
-const TEXT := {
+static var NAMES := {"kraken": "Tide Slick"}
+static var TEXT := {
 	"rule": ["On the ice you slide until a rock stops you.", "Come to rest on the dais."],
 	"quiet": "The dais sleeps while blood is spilled.",
 	"footing": "No footing on the ice",

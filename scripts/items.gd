@@ -35,7 +35,7 @@ const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "
 ##   drop_weight  how common it is (0: never found this way)
 ##   drop         false: never left by slain monsters (camps and vaults only)
 
-const ITEMS := {
+static var ITEMS := {
 	"draught": {
 		"name": "Healing Draught",
 		"short": "Draught",
@@ -165,7 +165,7 @@ const ITEMS := {
 
 ## Reading the recall scroll (main.gd read_recall). It asks first: use it
 ## again within CONFIRM seconds to read it.
-const RECALL := {
+static var RECALL := {
 	"confirm": 3.0,
 	"ask_title": "READ THE RECALL SCROLL?",
 	"ask": "Use it again within 3 seconds to leave the tower, keeping everything.",
@@ -179,7 +179,7 @@ const RECALL := {
 
 ## Essence crystals (kept in the profile between climbs; crystals of a kind
 ## combine into one). Consuming banks up to "step" essence at a time.
-const CRYSTAL := {
+static var CRYSTAL := {
 	"name": "%s Crystal",
 	"desc": "holds %d %s essence outside you; consume it to bank that essence into you",
 	"step": 10,
@@ -191,7 +191,7 @@ const CRYSTAL := {
 
 
 ## The belt's words (the swap card, the break at the end of a climb).
-const BELT := {
+static var BELT := {
 	"full_title": "YOUR BELT IS FULL",
 	"full_sub": "Swap a stack out for the %s (it stays at your feet), or leave it.",
 	"drop_name": "Swap out: %s",
@@ -233,7 +233,7 @@ const CAMP_MIN_FLOORS := 5
 ## How many item cards a camp offers.
 const CAMP_CHOICES := 3
 
-const CAMP := {
+static var CAMP := {
 	"title": "CAMP",
 	"choose": "CHOOSE ONE TO TAKE",
 	"sub": "The fire is warm. You rest fully.",
@@ -245,12 +245,12 @@ const CAMP := {
 ## Rune Artist's Runesmith at a camp: a rune on your gear that lasts the rest
 ## of the climb (the beast included), or one crafted item. The ids match the
 ## Inscribe spell's gear runes (bond.gd GEAR_RUNES).
-const CAMP_RUNES := {
+static var CAMP_RUNES := {
 	"sharpness": {"name": "Rune of Sharpness", "desc": "your strikes hit harder for the rest of the climb", "color": Color(1.0, 0.7, 0.45)},
 	"warding": {"name": "Rune of Warding", "desc": "you take less damage for the rest of the climb", "color": Color(0.6, 0.8, 1.0)},
 	"swiftness": {"name": "Rune of Swiftness", "desc": "you move faster for the rest of the climb", "color": Color(0.7, 1.0, 0.7)},
 }
-const CRAFT := {"name": "Craft: %s", "desc": "craft a %s by the fire, as well as what you took"}
+static var CRAFT := {"name": "Craft: %s", "desc": "craft a %s by the fire, as well as what you took"}
 
 
 static func info(id: String) -> Dictionary:

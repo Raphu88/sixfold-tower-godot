@@ -39,10 +39,10 @@ const Controls := preload("res://scripts/controls.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
 const Rail := preload("res://scripts/rail.gd")
 
-const T := Train.TEXT
+static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
 const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["bench", "enchant"]}
-const B := Bench.TEXT
+static var B := Bench.TEXT
 ## A touch or drag this far is a swipe, not a tap.
 const SWIPE := 14.0
 ## A swipe past this share of the screen (or this fast, in screens a second) goes to the next car.
@@ -1822,7 +1822,7 @@ func _piece_card(where: String, i: int) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	m.details.add_child(row)
-	var to_other := T["to_pack"] if where == "chest" else T["to_chest"]
+	var to_other: String = T["to_pack"] if where == "chest" else T["to_chest"]
 	var full: bool = Train.pack_room(prof, _player()) <= 0 if where == "chest" else prof.chest.size() >= Train.CHEST_SIZE
 	var mv: Button = m._button(to_other, _move.bind(where, i), row)
 	mv.custom_minimum_size = Vector2(0, 40)

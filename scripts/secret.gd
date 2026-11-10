@@ -24,7 +24,7 @@ extends RefCounted
 
 const ORDER := ["life", "unmaking"]
 
-const KINDS := {
+static var KINDS := {
 	"life": {"name": "Life", "color": Color(0.5, 0.81, 0.43), "deep": Color(0.07, 0.2, 0.08), "light": Color(0.78, 1.0, 0.62),
 		"motto": "you endure"},
 	"unmaking": {"name": "Unmaking", "color": Color(0.69, 0.44, 0.88), "deep": Color(0.11, 0.03, 0.17), "light": Color(0.9, 0.74, 1.0),
@@ -48,10 +48,10 @@ const CHAMPION_KIND := {
 	"gryphon": "unmaking", "kraken": "life", "wyvern": "unmaking",
 	"manticore": "life", "firebird": "life", "chimera": "unmaking",
 }
-const GROWTH := 0.1
+static var GROWTH := 0.1
 
 ## Banked flow each step needs (index = step - 1).
-const STEPS := [25.0, 75.0, 150.0, 300.0]
+static var STEPS := [25.0, 75.0, 150.0, 300.0]
 
 ## What each step does (index = step - 1).
 ##   Life      regen   health regrown a second
@@ -79,15 +79,15 @@ const EFFECTS := {
 		"undo": [0.0, 0.0, 0.0, 0.3],
 	},
 }
-const REFUSE_HEALTH := 0.25
+static var REFUSE_HEALTH := 0.25
 const REFUSE_PUSH := 120.0  # the burst throws back monsters this near
 const ERODE_REACH := 64.0
 const ERODE_TICK := 1.0
 const UNDO_REACH := 96.0
-const UNDO_CAP := 60.0
+static var UNDO_CAP := 60.0
 
 ## What each step does, in words (the choice's cards, the climber screen).
-const STEP_TEXT := {
+static var STEP_TEXT := {
 	"life": [
 		"Health slowly regrows",
 		"Every kill mends you a little",
@@ -103,7 +103,7 @@ const STEP_TEXT := {
 }
 
 ## Every other word.
-const TEXT := {
+static var TEXT := {
 	"choose_title": "CHOOSE YOUR PATH",
 	"choose_lines": [
 		"Two secret essences: Life and Unmaking. Only one can soak into you, and the choice is for good.",

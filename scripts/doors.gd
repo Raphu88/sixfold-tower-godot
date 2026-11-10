@@ -60,7 +60,7 @@ const SHADE_GLOW := Color(0.62, 0.52, 0.95)
 ## you step in (iron bars drop with a slam and a banner), and open again
 ## once the monsters that were inside are dead. A room with none never shuts,
 ## and LOCK_IN["failsafe"] seconds open it whatever happens.
-const LOCK_TEXT := {
+static var LOCK_TEXT := {
 	"hint_key": "Locked. Its key lies somewhere on this floor.",
 	"hint_carried": "Locked. One of this floor's monsters carries its key.",
 	"hint_lever": "Barred. A lever somewhere on this floor lifts the bars.",

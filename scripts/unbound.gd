@@ -22,7 +22,7 @@ extends RefCounted
 ## Profile state lives in profile.unbound (state() fills in its keys).
 
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
-const PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow", "throat": "Throat", "back": "Back"}
+static var PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow", "throat": "Throat", "back": "Back"}
 ## The six kinds and their natural parts.
 const NATURAL := {"blade": "hand", "air": "legs", "stone": "back", "water": "throat", "fire": "brow", "iron": "heart"}
 ## Each part's main colour (its natural essence's), for the veins.
@@ -56,7 +56,7 @@ const CONDENSE := 60.0
 ## density as growth; every other part keeps this share as soak.
 const SETTLE := 0.5
 
-const TEXT := {
+static var TEXT := {
 	"name": "Unbound",
 	"refuse_title": "THE BEAST OFFERS A MARK",
 	"refuse_lines": ["Take it, and you are marked as every climber is.", "Refuse it, and essence pools raw in your body. There is no road back."],

@@ -46,7 +46,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 
 ## Everything the Proving says.
-const TEXT := {
+static var TEXT := {
 	"arrive": "Two doors. One forgives, one does not.",
 	"arrive_first": "Two doors. The second will open once you have proven yourself here.",
 	"harder": "It remembers you. It asks more this time.",
@@ -130,9 +130,9 @@ const LETHAL_STEP := 1
 ## the unbanked essence, with this much health; the wound takes this share
 ## of max health until you have climbed this many stairs (from floor 5:
 ## until you reach floor 7).
-const CAST_DOWN := {"to": 5, "keep": 0.5, "health": 0.5, "wound": 0.25, "wound_stairs": 2, "pause": 1.6}
+static var CAST_DOWN := {"to": 5, "keep": 0.5, "health": 0.5, "wound": 0.25, "wound_stairs": 2, "pause": 1.6}
 ## The prize: this many cards; how close you walk to the pedestal.
-const PRIZE := {"choices": 3, "reach": 30.0}
+static var PRIZE := {"choices": 3, "reach": 30.0}
 ## How long you lean on the Lethal door before it opens (seconds); how
 ## close you must be inside a room before its stage begins (px in from its edge).
 const LEAN := 1.2

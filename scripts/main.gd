@@ -43,6 +43,7 @@ const MirrorScript := preload("res://scripts/mirror.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 const UnboundRun := preload("res://scripts/unbound_run.gd")
+const DataRegistry := preload("res://scripts/data_registry.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -53,6 +54,9 @@ const WALL := 24.0
 ## The single open room of floor 1 and the beast's floor. Floors of rooms
 ## and corridors use a bigger area that grows with height (Floors.arena_for).
 const OPEN_ROOM := Rect2(80, 100, 1120, 530)
+## The owner's changes to the game's words, numbers and colours (the Data
+## editor: data_registry.gd), applied first, before anything reads the tables.
+var _data_changes := DataRegistry.startup()
 var room := OPEN_ROOM
 var outer_walls: Array = []
 # Rooms and corridors: a tile grid of what's solid, and paths around it.
@@ -1259,7 +1263,7 @@ func _open_lost_cache() -> void:
 
 ## Falling into a chasm: no harm done, but you drop to the floor below (never
 ## below floor 1) and keep climbing from there. Unbanked essence stays with you.
-const FALL_TEXT := {"title": "YOU FELL", "line": "Down to floor %d. The beast watches you climb again."}
+static var FALL_TEXT := {"title": "YOU FELL", "line": "Down to floor %d. The beast watches you climb again."}
 
 func fall_through() -> void:
 	if climbing or player.dead:

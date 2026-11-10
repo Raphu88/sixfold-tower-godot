@@ -728,7 +728,7 @@ func _world_designer(b, labels: Array, col: Color, wire: bool) -> void:
 					kind = SB.TEXT["wing"]
 				elif int(d["room"]) >= 0 and int(d["room"]) < main.room_themes.size():
 					kind = SB.room_kind(main.room_themes[int(d["room"])])
-				var line2 := (SB.TEXT["door_to"] % kind) if kind != "" else ""
+				var line2: String = (SB.TEXT["door_to"] % kind) if kind != "" else ""
 				if float(d.get("held", 0.0)) > 0.0:
 					line2 += "  ·  " + SB.TEXT["held"] % int(ceil(float(d["held"])))
 				if line2 != "":

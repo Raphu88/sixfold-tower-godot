@@ -38,9 +38,12 @@ const RING_Z := 60
 const RING_THUMB := 46.0
 const RING_TEXT := 90.0
 
-const GOLD := UI.GOLD
-const TEXT := UI.TEXT
-const DIM_TEXT := UI.DIM
+static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
+	get: return UI.GOLD
+static var TEXT: Color:  # (UI.TEXT, read each time: the Data editor can change it)
+	get: return UI.TEXT
+static var DIM_TEXT: Color:  # (UI.DIM, read each time: the Data editor can change it)
+	get: return UI.DIM
 
 ## The core's layout, in HUD units (times the HUD size setting).
 const BAR_X := 16.0

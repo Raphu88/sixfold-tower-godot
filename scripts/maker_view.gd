@@ -271,7 +271,7 @@ func _draw() -> void:
 		_draw_cards(vs, font, col)
 	elif can_advance() and stage != "rise":
 		var pulse := 0.5 + 0.5 * sin(clock * 4.0)
-		var prompt := _say("Press Enter or click", "Press {a}", "Tap") + " " + Makers.TEXT["go_on"]
+		var prompt: String = _say("Press Enter or click", "Press {a}", "Tap") + " " + Makers.TEXT["go_on"]
 		draw_string(font, Vector2(0, vs.y - 16.0), prompt, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, Color(UI.DIM, 0.5 + 0.5 * pulse))
 
 

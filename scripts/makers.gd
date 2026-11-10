@@ -50,7 +50,7 @@ const R := "▇"
 ##   interrupt   what it says when it interrupts a sibling's meeting
 ##   entity      the Entity's line about it (the Archive, once you've met one)
 ##   fragments   its traces' words, one per fragment found (cycling)
-const MAKERS := {
+static var MAKERS := {
 	"marks": {
 		"name": "the Maker of Marks", "Name": "The Maker of Marks", "short": "Marks",
 		"made": "the bonds", "sign": "eye", "color": Color(0.56, 0.92, 1.0),
@@ -128,7 +128,7 @@ const ORDER := ["marks", "towers", "creatures"]
 
 ## The secret bonds (their tools come in a later step: for now the core mark
 ## is recorded and shown). Names decided for now by the owner.
-const SECRET_BONDS := {
+static var SECRET_BONDS := {
 	"developer": {"name": "the Developer", "Name": "Developer", "maker": "marks", "what": "tools for the bonds"},
 	"designer": {"name": "the Designer", "Name": "Designer", "maker": "towers", "what": "tools for the tower"},
 	"manipulator": {"name": "the Manipulator", "Name": "Manipulator", "maker": "creatures", "what": "tools for the creatures"},
@@ -136,42 +136,42 @@ const SECRET_BONDS := {
 
 ## The answers in a meeting. PLACEHOLDERS for the owner: short, neutral
 ## intents (which ones a Maker takes well is in its "good" list).
-const ANSWERS := [
+static var ANSWERS := [
 	{"id": "understand", "text": "To understand it.", "placeholder": false},
 	{"id": "take", "text": "To take more of it.", "placeholder": false},
 	{"id": "change", "text": "To change it.", "placeholder": false},
 	{"id": "nothing", "text": "Nothing. Only to climb.", "placeholder": false},
 ]
 ## The plea for a change of path (Life or Unmaking): offered once you have a path.
-const PLEA := {"id": "plea", "text": "Ask for a change of path", "desc": "It may refuse. If it agrees, your path and all its flow are cleared."}
+static var PLEA := {"id": "plea", "text": "Ask for a change of path", "desc": "It may refuse. If it agrees, your path and all its flow are cleared."}
 ## The same plea with a full vessel offered (one carried on your belt,
 ## vessel.gd): likelier to be granted (PLEA_ODDS "vessel").
-const VESSEL_PLEA := {"id": "plea_vessel", "text": "Offer the vessel", "desc": "A plea for a change of path: likelier granted. It keeps the vessel."}
+static var VESSEL_PLEA := {"id": "plea_vessel", "text": "Offer the vessel", "desc": "A plea for a change of path: likelier granted. It keeps the vessel."}
 
 ## Fragments: on this share of floors (at most one a floor), from this floor
 ## up, never on the first climb; read within `reach` of the wall. The light:
 ## its faint glow, and the shift when one is read (seconds, how far the
 ## darkness tints toward the Maker's colour). The Entity is quiet this long.
-const FRAGMENT := {"chance": 0.125, "min_floor": 2, "reach": 34.0, "glow_reach": 95.0, "glow": 0.45,
+static var FRAGMENT := {"chance": 0.125, "min_floor": 2, "reach": 34.0, "glow_reach": 95.0, "glow": 0.45,
 	"shift_time": 4.5, "shift_tint": 0.55, "quiet": 9.0, "moment": 3.2}
 ## The reveal: at least this many fragments found in all, then interest over
 ## the threshold (each time a Maker turns you away its threshold grows by
 ## `turned_extra` of itself, and its interest drops to `turned_keep` of it).
 ## At most `per_climb` meetings a climb; `delay` after the stair's fade.
-const REVEAL := {"fragments": 6, "threshold": 400.0, "turned_extra": 0.5, "turned_keep": 0.35, "per_climb": 1, "delay": 0.8}
+static var REVEAL := {"fragments": 6, "threshold": 400.0, "turned_extra": 0.5, "turned_keep": 0.35, "per_climb": 1, "delay": 0.8}
 ## Glimpses: once interest reaches `from` of the threshold, after a stair, at
 ## this chance (more as interest grows, up to `most`), at most `per_climb`.
-const GLIMPSE := {"from": 0.35, "chance": 0.2, "most": 0.45, "per_climb": 1, "time": 3.0, "quiet": 14.0,
+static var GLIMPSE := {"from": 0.35, "chance": 0.2, "most": 0.45, "per_climb": 1, "time": 3.0, "quiet": 14.0,
 	"kinds": ["shadow", "bend", "quiet"]}
 ## After you carry a core mark, the Maker whose mark it is may interrupt
 ## another Maker's meeting: how it plays out (weights).
-const INTERRUPT := {"chance": 0.5, "ways": {"cut_short": 1.0, "contradict": 1.0, "listen": 1.0}}
+static var INTERRUPT := {"chance": 0.5, "ways": {"cut_short": 1.0, "contradict": 1.0, "listen": 1.0}}
 ## A plea for a change of path: the chance a Maker agrees (more if its
 ## interest is high: + `per_ratio` for each threshold's worth past one).
 ## A full vessel offered with it adds `vessel` (up to `vessel_most`); the
 ## Maker takes the vessel whether it agrees or not (`vessel_back` true: a
 ## refusal hands it back).
-const PLEA_ODDS := {"agree": 0.4, "per_ratio": 0.15, "most": 0.8, "vessel": 0.35, "vessel_most": 0.95, "vessel_back": false}
+static var PLEA_ODDS := {"agree": 0.4, "per_ratio": 0.15, "most": 0.8, "vessel": 0.35, "vessel_most": 0.95, "vessel_back": false}
 ## Secret essence a Maker gives when it grants its bond (split by its "secret").
 const SECRET_ESSENCE := 24.0
 
@@ -211,7 +211,7 @@ const WEIGHTS := {
 }
 
 ## Plain words (mechanical text only).
-const TEXT := {
+static var TEXT := {
 	"fragment_title": "A FRAGMENT",
 	"fragment_line": "Fragments found: %d",
 	"shelf": "The forbidden shelf",
