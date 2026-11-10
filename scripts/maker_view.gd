@@ -241,20 +241,20 @@ func _draw() -> void:
 				speaker = interrupter
 				lines = [Makers.MAKERS[interrupter]["interrupt"][0]]
 	var scol := Makers.color(speaker)
-	var name: String = String(Makers.MAKERS[speaker]["Name"]).to_upper()
+	var name: String = String(Makers.MAKERS[speaker]["Name"])
 	var ty := below + (22.0 if not small else 18.0)
 	if stage == "answer":
 		ty = card_rect(0, vs).position.y - (64.0 if not small else 54.0)
-	var fs := 13.0 if not small else 11.0
-	draw_string_outline(font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 18 if not small else 15, 5, Color(0, 0, 0, 0.8 * a))
-	draw_string(font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 18 if not small else 15, Color(scol.lightened(0.25), a))
+	# Its name in the gothic face; its words in the fine italic (redact_into).
+	var fs := 17.0 if not small else 15.0
+	UI.draw_label(self, Vector2(0, ty), name, 22 if not small else 19, Color(scol.lightened(0.25), a), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 5, Color(0, 0, 0, 0.8 * a))
 	var ly := ty + 10.0
 	var tw := minf(vs.x - 60.0, 520.0)
 	for i in lines.size():
 		var la := clampf((t - i * LINE_GAP) / 0.35, 0.0, 1.0) if stage in ["speech", "interrupt"] else 1.0
 		if la <= 0.0:
 			break
-		ly += Makers.redact_into(self, Vector2((vs.x - tw) * 0.5, ly), tw, lines[i], Color(scol.lightened(0.15), 0.85 * la * a), fs, true)
+		ly += Makers.redact_into(self, Vector2((vs.x - tw) * 0.5, ly), tw, lines[i], Color(scol.lightened(0.15), 0.85 * la * a), fs, true) + (6.0 if not small else 3.0)
 	if stage == "verdict":
 		ly += 6.0
 		for line in result.get("lines", []):
@@ -291,12 +291,12 @@ func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:
 		var mid := r.position.y + r.size.y * (0.4 if not plea else 0.3)
 		draw_multiline_string(font, Vector2(r.position.x + 6, mid), o["text"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 15 if r.size.x > 150 else 13, 2, cc.lightened(0.35))
 		if plea:
-			draw_multiline_string(font, Vector2(r.position.x + 6, mid + 18.0), String(o.get("desc", Makers.PLEA["desc"])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 10, 3, UI.DIM)
+			draw_multiline_string(font, Vector2(r.position.x + 6, mid + 18.0), String(o.get("desc", Makers.PLEA["desc"])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 12, 3, UI.DIM)
 			if o["id"] == "plea_vessel" and main.player != null:
 				var V = load("res://scripts/vessel.gd")
 				V.draw_icon(self, Vector2(r.end.x - 15.0, r.position.y + 20.0), 10.0, V.carried(main.player), appear)
 		elif o.get("placeholder", false):
-			draw_string(font, Vector2(r.position.x, mid + 20.0), Makers.TEXT["placeholder"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 10, Color(UI.FAINT, 0.9))
+			draw_string(font, Vector2(r.position.x, mid + 20.0), Makers.TEXT["placeholder"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(UI.FAINT, 0.9))
 		draw_string(font, Vector2(r.position.x, r.end.y - 10.0), _hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, UI.GOLD)
 
 

@@ -1881,9 +1881,9 @@ class Lever extends Button:
 		b.ball(tip, 8.0, Color(0.75, 0.16, 0.12) if not hot else Color(0.9, 0.24, 0.16))
 		b.ball(pivot, 7.0, UI.TRAIN_BRASS)
 		b.flush(self)
-		draw_string(font, Vector2(0, plate.end.y + 19.0), word, HORIZONTAL_ALIGNMENT_CENTER, w, 16, UI.GOLD if not disabled else UI.FAINT)
+		UI.draw_label(self, Vector2(0, plate.end.y + 20.0), word, 18, UI.GOLD if not disabled else UI.FAINT, HORIZONTAL_ALIGNMENT_CENTER, w)
 		if sub != "":
-			draw_string(font, Vector2(0, plate.end.y + 34.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 11, Color(UI.TEXT, 0.85))
+			draw_string(font, Vector2(0, plate.end.y + 35.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 12, Color(UI.TEXT, 0.85))
 
 
 ## The brass band along the bottom (your crystals): riveted brass over dark

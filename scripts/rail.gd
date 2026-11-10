@@ -200,7 +200,7 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	if not narrow and not touch:
 		hint = Label.new()
 		hint.text = _hint_text(pad, ps)
-		UI.style_label(hint, "mono", 9, Color(UI.FAINT, 0.9))
+		UI.style_label(hint, "body", 12, Color(UI.FAINT, 0.9))
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		hint.custom_minimum_size.x = 60.0
@@ -486,7 +486,7 @@ class RailItem extends Button:
 			var tic := Vector2(size.x * 0.5, size.y * 0.5 - 6.0)
 			if not rail.car_icon(self, icon_id, tic, 6.5, ic, 1.4):
 				UI.draw_icon(self, icon_id, tic, 6.5, ic, 1.4)
-			draw_string(UI.font("bold"), Vector2(0, size.y * 0.5 + 13.0), short, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, tc)
+			UI.draw_label(self, Vector2(0, size.y * 0.5 + 13.0), short, 12, tc, HORIZONTAL_ALIGNMENT_CENTER, size.x)  # (a label: the gothic face)
 			return
 		var isz := 7.5 if narrow else (8.0 if small else 9.5)
 		var ix := 15.0 if narrow else 20.0
@@ -494,17 +494,18 @@ class RailItem extends Button:
 			UI.draw_icon(self, icon_id, Vector2(ix, size.y * 0.5), isz, ic, 1.5 if narrow else 1.7)
 		var x := ix + (14.0 if narrow else 20.0)
 		var w := size.x - x - 6.0
-		var bold := UI.font("bold")
+		# The item's name is a label (the gothic face); what it holds, under
+		# it, is text.
 		var label: String = short if narrow else text
-		var fs := 14 if narrow else (15 if small else 17)
+		var fs := 15 if narrow else (16 if small else 18)
 		if narrow or sub == "" or small:
-			draw_string(bold, Vector2(x, size.y * 0.5 + fs * 0.34), label, HORIZONTAL_ALIGNMENT_LEFT, w, fs, tc)
+			UI.draw_label(self, Vector2(x, size.y * 0.5 + fs * 0.32), label, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, w)
 		else:
-			draw_string(bold, Vector2(x, size.y * 0.5 - 1.0), label, HORIZONTAL_ALIGNMENT_LEFT, w, fs, tc)
-			draw_string(UI.font("regular"), Vector2(x, size.y * 0.5 + 13.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 12, Color(UI.DIM, 0.85 if lit else 0.7))
+			UI.draw_label(self, Vector2(x, size.y * 0.5 - 1.0), label, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, w)
+			draw_string(UI.font("body"), Vector2(x, size.y * 0.5 + 14.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 13, Color(UI.DIM, 0.85 if lit else 0.7))
 		if key_hint != "" and not narrow:
 			var mono := UI.font("mono")
-			draw_string(mono, Vector2(0, size.y * 0.5 - (1.0 if sub != "" and not small else -4.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 10, Color(UI.FAINT, 0.95))
+			draw_string(mono, Vector2(0, size.y * 0.5 - (1.0 if sub != "" and not small else -4.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 11, Color(UI.FAINT, 0.95))
 
 
 ## The thin rule over the rail's foot.
@@ -549,8 +550,8 @@ class RailIdent extends Control:
 		var x := 4.0 if narrow else 8.0
 		var w := size.x - x
 		var y := 0.0
-		# Where you are, in small capitals over the name (the old game's eyebrow).
-		var es := 8 if narrow else 10
+		# Where you are, a small gothic label over the name (the old game's eyebrow).
+		var es := 11 if narrow else 14
 		var place_col: Color = UI.GOLD
 		if not main.on_train and main.has_method("tower_data"):
 			var ess = main.tower_data().get("essence", "")
@@ -559,7 +560,7 @@ class RailIdent extends Control:
 				place_col = Essence.color(ess).lerp(UI.TEXT, 0.25)
 		if eyebrow:
 			y += es + 2.0
-			UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), place.to_upper(), w, es), place_col, es)
+			UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), UI.titled(place), w, es), place_col, es)
 		var ns := 18 if narrow else 30
 		y += ns * (0.95 if narrow else 1.0) + 2.0
 		UI.draw_title(self, Vector2(x, y), _fit(UI.font("display"), name, w, ns), ns, UI.GOLD, HORIZONTAL_ALIGNMENT_LEFT, -1, 0.0)
@@ -581,7 +582,7 @@ class RailIdent extends Control:
 		b.flush(self)
 		if not narrow:
 			var line := "%d of 6 marks  ·  best floor %d" % [prof.bonds.size(), prof.best_floor]
-			draw_string(UI.font("regular"), Vector2(x, cy + r + 18.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 12, UI.DIM)
+			draw_string(UI.font("body"), Vector2(x, cy + r + 18.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
 	static func _fit(f: Font, t: String, w: float, fs: int) -> String:
 		if f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:

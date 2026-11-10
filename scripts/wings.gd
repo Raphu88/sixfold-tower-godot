@@ -839,7 +839,7 @@ func _tick_tithe(s: Dictionary, delta: float, p) -> void:
 	if near and not s["told"]:
 		s["told"] = true
 		var line: String = TEXT["tithe_lean"] % cost if held >= cost else TEXT["tithe_short"] % [cost, int(held)]
-		main.banner = {"title": TEXT["tithe_title"], "lines": [TEXT["tithe"] % cost, line], "t": 3.5}
+		main.banner = {"title": TEXT["tithe_title"], "lines": [TEXT["tithe"] % cost, line], "t": 3.5, "inscribed": 1}
 	elif not near:
 		s["told"] = false
 	if _leaning(s["vault_door"], s["vault_dir"], p, s, delta):

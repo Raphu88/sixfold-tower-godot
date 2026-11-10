@@ -629,26 +629,28 @@ func _draw_labels() -> void:
 
 
 ## A framed panel of words in the world (the web version's puzSay): `pos` is
-## its bottom middle (top middle with "below"), kept on screen.
+## its bottom middle (top middle with "below"), kept on screen. Its title is
+## a label (the gothic face), its lines are written in the world (the fine
+## italic of inscriptions) and its foot is a plain note.
 func _panel(p: Dictionary) -> void:
-	var font := ThemeDB.fallback_font
-	var size := 11
-	var max_w: float = p.get("width", 250.0)
-	var rows: Array = []  # [text, colour, size]
+	var ins := UI.font("inscription")
+	var max_w: float = p.get("width", 250.0) * 1.16  # (the italic runs wider than plain text)
+	var rows: Array = []  # [text, colour, size, font, line height]
 	if p.get("title", "") != "":
-		rows.append([p["title"], UI.GOLD, 10])
-	var body_col: Color = UI.BAD if p.get("tone", "") == "bad" else Color(0.93, 0.89, 0.81)
+		rows.append([UI.title_case(p["title"]), UI.GOLD, 15, UI.font("display"), 19.0])
+	var body_col: Color = UI.BAD if p.get("tone", "") == "bad" else Color(0.95, 0.91, 0.83)
 	for line in p.get("lines", []):
-		for w in _wrap(font, String(line), size, max_w):
-			rows.append([w, body_col, size])
+		for w in _wrap_even(ins, String(line), 15, max_w):
+			rows.append([w, body_col, 15, ins, 17.0])
 	if p.get("foot", "") != "":
-		rows.append([p["foot"], UI.DIM, 10])
+		rows.append([p["foot"], UI.DIM, 12, UI.font("body"), 16.0])
 	var wide := 0.0
+	var tall := 0.0
 	for r in rows:
-		wide = maxf(wide, font.get_string_size(r[0], HORIZONTAL_ALIGNMENT_LEFT, -1, r[2]).x)
-	var pad := Vector2(8, 5)
-	var line_h := 14.0
-	var box_size := Vector2(wide + pad.x * 2.0, rows.size() * line_h + pad.y * 2.0)
+		wide = maxf(wide, r[3].get_string_size(r[0], HORIZONTAL_ALIGNMENT_LEFT, -1, r[2]).x)
+		tall += r[4]
+	var pad := Vector2(9, 5)
+	var box_size := Vector2(wide + pad.x * 2.0, tall + pad.y * 2.0)
 	var at: Vector2 = p["pos"]
 	var top_left := Vector2(at.x - box_size.x * 0.5, at.y if p.get("below", false) else at.y - box_size.y)
 	# Kept on screen.
@@ -662,10 +664,39 @@ func _panel(p: Dictionary) -> void:
 	var box := Rect2(top_left, box_size)
 	labels.draw_rect(box, Color(0.055, 0.043, 0.075, 0.88))
 	labels.draw_rect(box, Color(UI.GOLD, 0.5), false, 1.0)
-	for i in rows.size():
-		var r: Array = rows[i]
-		var y := box.position.y + pad.y + line_h * (i + 1) - 3.0
-		labels.draw_string(font, Vector2(box.position.x, y), r[0], HORIZONTAL_ALIGNMENT_CENTER, box.size.x, r[2], r[1])
+	var y := box.position.y + pad.y
+	for r in rows:
+		y += r[4]
+		labels.draw_string(r[3], Vector2(box.position.x, y - r[4] * 0.24), r[0], HORIZONTAL_ALIGNMENT_CENTER, box.size.x, r[2], r[1])
+
+
+## Each panel line's even wrapping, kept (panels are drawn every frame).
+static var _even_cache := {}
+
+
+## _wrap, with the lines evened out: the narrowest width that still takes
+## as few lines, so a riddle's last word isn't left alone on its own line.
+static func _wrap_even(font: Font, text: String, size: int, max_w: float) -> Array:
+	var key := "%d|%d|%s" % [size, int(max_w), text]
+	if _even_cache.has(key):
+		return _even_cache[key]
+	if _even_cache.size() > 64:
+		_even_cache.clear()
+	var out := _wrap(font, text, size, max_w)
+	if out.size() < 2:
+		_even_cache[key] = out
+		return out
+	var lo := max_w / out.size()
+	var hi := max_w
+	for i in 6:
+		var mid := (lo + hi) * 0.5
+		if _wrap(font, text, size, mid).size() > out.size():
+			lo = mid
+		else:
+			hi = mid
+	out = _wrap(font, text, size, hi)
+	_even_cache[key] = out
+	return out
 
 
 static func _wrap(font: Font, text: String, size: int, max_w: float) -> Array:

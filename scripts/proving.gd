@@ -32,6 +32,7 @@ extends Node2D
 ## Every word and number is here (and each tower's picks in towers.gd), so
 ## it's easy to rename: "the Proving" itself is a placeholder name.
 
+const UI := preload("res://scripts/ui.gd")
 const Floors := preload("res://scripts/floors.gd")
 const Rooms := preload("res://scripts/rooms.gd")
 const Traps := preload("res://scripts/traps.gd")
@@ -755,7 +756,7 @@ func _draw() -> void:
 func _draw_labels() -> void:
 	if not on or mode != "" or main.door_view == null:
 		return
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = UI.font("inscription")  # (the door's words are written there; its name is a label)
 	for d in main.door_view.list:
 		var lock: String = d["lock"]
 		if not lock in ["proving", "lethal", "lethal_sealed"]:
@@ -765,10 +766,9 @@ func _draw_labels() -> void:
 		var subs: Array = TEXT["door_ordinary_sub"] if lock == "proving" else (TEXT["door_lethal_sub"] if lock == "lethal" else TEXT["door_sealed_sub"])
 		var col := GOLD if lock == "proving" else (LETHAL_RED.lightened(0.25) if lock == "lethal" else Color(0.7, 0.6, 0.62))
 		var w := 220.0
-		labels.draw_string_outline(font, c + Vector2(-w / 2.0, 0), title, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 4, Color(0, 0, 0, 0.85))
-		labels.draw_string(font, c + Vector2(-w / 2.0, 0), title, HORIZONTAL_ALIGNMENT_CENTER, w, 11, col)
+		UI.draw_label(labels, c + Vector2(-w / 2.0, 0), title, 14, col, HORIZONTAL_ALIGNMENT_CENTER, w, 4, Color(0, 0, 0, 0.85))
 		for i in subs.size():
 			var line: String = String(subs[i]) % int(CAST_DOWN["to"]) if "%d" in String(subs[i]) else String(subs[i])
-			var at := c + Vector2(-w / 2.0, 13.0 + 11.0 * i)
-			labels.draw_string_outline(font, at, line, HORIZONTAL_ALIGNMENT_CENTER, w, 9, 3, Color(0, 0, 0, 0.85))
-			labels.draw_string(font, at, line, HORIZONTAL_ALIGNMENT_CENTER, w, 9, Color(0.92, 0.9, 0.86))
+			var at := c + Vector2(-w / 2.0, 15.0 + 13.0 * i)
+			labels.draw_string_outline(font, at, line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, Color(0, 0, 0, 0.85))
+			labels.draw_string(font, at, line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, Color(0.92, 0.9, 0.86))

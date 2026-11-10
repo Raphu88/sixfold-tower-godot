@@ -187,7 +187,8 @@ func _in_sight(pos: Vector2) -> bool:
 
 
 func _draw_labels() -> void:
-	var font := ThemeDB.fallback_font
+	# Words and numbers that pop up, and names over gear: the gothic face.
+	var font: Font = preload("res://scripts/ui.gd").font("display")
 	for t in texts:
 		var pos: Vector2 = t["pos"]
 		if not _in_sight(pos):
@@ -219,8 +220,8 @@ func _draw_labels() -> void:
 		var here: bool = main.gear_here == g
 		var label: String = main.Gear.display(r)
 		var lc: Color = (Color(1.0, 0.9, 0.65) if here else Color(0.9, 0.88, 0.85, 0.85)) if not fancy else Color(rc.lightened(0.25 if here else 0.1), 1.0 if here else 0.9)
-		labels.draw_string_outline(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 10, 3, Color(0, 0, 0, 0.8))
-		labels.draw_string(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 10, lc)
+		labels.draw_string_outline(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 12, 3, Color(0, 0, 0, 0.8))
+		labels.draw_string(font, gp + Vector2(-90, -20), label, HORIZONTAL_ALIGNMENT_CENTER, 180, 12, lc)
 		if fancy:
 			# A glint that turns and pulses over it: brighter for rarer finds.
 			var rank: int = main.Gear.rarity_rank(main.Gear.rarity(r))
