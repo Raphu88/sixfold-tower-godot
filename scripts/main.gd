@@ -154,6 +154,7 @@ var restart_t := 0.0
 var restart_armed := false  # the press began on this floor (not before a reload)
 ## Keyboard and controller: the highlighted tower or camp card.
 var card_focus := 0
+var card_rep = preload("res://scripts/nav.gd").Repeat.new()  # the card screens' held directions
 const CARD_KEYS := 6  # number keys 1 to 6 take a card directly (the rest: arrows and Enter)
 var overlay_closed_frame := -1  # (so the Start that closed it doesn't also open the menu)
 
@@ -226,7 +227,8 @@ var clouds: Array = []  # Venomist's Toxic Clouds: {pos, r, t, tick, color}
 var smokes: Array = []  # Ashwalker's Smoke Veils: {pos, r, t}
 var decoys: Array = []  # Ashwalker's Afterimages: {pos, t, aim}
 var ashfall_t := 0.0  # Ashfall: foes lose track of you once out of reach
-var slowmo := false  # time slows while a spell ring is open
+var slowmo := false  # time stops while a ring is open (spells, items, tools)
+const RING_TIME := 0.0  # the time scale while a ring is open: stopped
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
 
 # The monster lists, remembered for the frame (enemies(), targets()).
@@ -652,7 +654,7 @@ func _process(delta: float) -> void:
 	_frame_us = now_us
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
-		Engine.time_scale = 0.35 if slowmo else 1.0
+		Engine.time_scale = RING_TIME if slowmo else 1.0
 	if on_train:
 		return  # (the train's menu takes the keys)
 	if choosing_tower:
@@ -1436,13 +1438,14 @@ func _card_keys(count: int, per_row: int) -> bool:
 		return false
 	card_focus = clampi(card_focus, 0, count - 1)
 	var was := card_focus
-	if Input.is_action_just_pressed("ui_left"):
+	card_rep.update()  # (holding a direction repeats, the same for keys, the d-pad and the stick: nav.gd)
+	if card_rep.pulse("ui_left"):
 		card_focus = posmod(card_focus - 1, count)
-	elif Input.is_action_just_pressed("ui_right"):
+	elif card_rep.pulse("ui_right"):
 		card_focus = posmod(card_focus + 1, count)
-	elif Input.is_action_just_pressed("ui_up") and card_focus - per_row >= 0:
+	elif card_rep.pulse("ui_up") and card_focus - per_row >= 0:
 		card_focus -= per_row
-	elif Input.is_action_just_pressed("ui_down") and card_focus / per_row < (count - 1) / per_row:
+	elif card_rep.pulse("ui_down") and card_focus / per_row < (count - 1) / per_row:
 		card_focus = mini(card_focus + per_row, count - 1)
 	if card_focus != was:
 		sfx("ui_move")
@@ -3465,11 +3468,12 @@ func hitstop(seconds: float) -> void:
 	Engine.time_scale = 0.02
 
 
-## Time slows while you pick a spell from a mark's ring.
+## Time stops while a ring is open (a mark's spells, the belt's items, a
+## secret bond's tools, the Unbound's techniques), and runs again when it closes.
 func set_slowmo(on: bool) -> void:
 	slowmo = on
 	if hitstop_until == 0:
-		Engine.time_scale = 0.35 if on else 1.0
+		Engine.time_scale = RING_TIME if on else 1.0
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:

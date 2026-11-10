@@ -17,6 +17,7 @@ extends Node2D
 ## Tests: tips are off unless Engine has the "sixfold_tips" meta, so the
 ## other checks never see a bubble.
 
+const Nav := preload("res://scripts/nav.gd")
 const Entity := preload("res://scripts/entity.gd")
 const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
@@ -261,6 +262,8 @@ func showing() -> bool:
 
 
 func _process(delta: float) -> void:
+	if Engine.time_scale == 0.0:
+		delta = Nav.real_delta(delta)  # (a ring stops the game's time: the Entity still speaks)
 	if get_tree().paused:
 		if _drawn:
 			queue_redraw()  # (hidden under the menu; it comes back after)
