@@ -40,6 +40,7 @@ const Bench := preload("res://scripts/bench.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
+const Art := preload("res://scripts/icon_art.gd")
 
 ## Its item id on the belt (items.gd ITEMS).
 const ID := "vessel"
@@ -565,66 +566,45 @@ static func belt_into(b, c: Vector2, s: float) -> void:
 
 
 static func icon_into(b, c: Vector2, s: float, v) -> void:
-	var u := s / 10.0
-	var ol := clampf(u * 1.1, 0.8, 1.6)
-	var k := fill(v)
+	var k := snappedf(fill(v), 0.02)
+	var key := "vessel|%s|%.2f|%.2f|%s" % [String(v.get("kind", "")) if v is Dictionary else "", k, s, is_full(v)]
+	Art.cached(b, key, c, func(nb): _icon_art(nb, s, v, k))
+
+
+## The vessel's icon around (0, 0) (icon_art.gd's style).
+static func _icon_art(b, s: float, v, k: float) -> void:
+	var u := Art.unit(s)
 	var col := color(v)
-	var bc := c + Vector2(0, 2.4) * u
-	var r := 6.6 * u
-	if is_full(v):
-		for i in 3:
-			b.dot(bc, r + (4.0 - i * 1.2) * u, Color(col, 0.08))
-	# The glass belly.
-	b.dot(bc, r + ol + 0.8, Color(Palette.OUTLINE, Draw.FEATHER_ALPHA))
-	b.dot(bc, r + ol, Palette.OUTLINE)
-	b.dot(bc, r, GLASS.darkened(0.5))
-	b.dot(bc + Vector2(0.6, 0.8) * u, r * 0.8, GLASS.darkened(0.62))  # (the far side of the glass, darker)
-	if k > 0.0:
-		var h := r * (1.0 - 2.0 * k)  # the surface, from the centre (down is +)
-		var inner := r - 0.6 * u
-		if k >= 0.999:
-			b.dot(bc, inner, col.darkened(0.15))
-			b.dot(bc + Vector2(-0.8, -0.6) * u, inner * 0.7, col)
-		else:
-			var a0 := asin(clampf(h / inner, -1.0, 1.0))
-			var liquid := PackedVector2Array()
-			for i in 17:
-				liquid.append(bc + Vector2.from_angle(lerpf(a0, PI - a0, i / 16.0)) * inner)
-			b.polygon(liquid, col.darkened(0.15))
-			if k > 0.25:
-				var lit := PackedVector2Array()
-				for i in 13:
-					lit.append(bc + Vector2(-0.8, 0.2) * u + Vector2.from_angle(lerpf(a0 + 0.3, PI - a0 - 0.5, i / 12.0)) * (inner - 1.8 * u))
-				b.polygon(lit, col)
-			b.line(liquid[0], liquid[16], col.lightened(0.5), maxf(0.7, 0.7 * u))
-	# Brass bands: one round the belly, two straps over it.
-	var band := Color(BRASS.darkened(0.15))
+	var full := is_full(v)
+	var bc := Vector2(0, 2.6) * u
+	var r := 6.4 * u
+	if full:
+		Art.soft(b, bc, r * 1.9, Color(col, 0.5))
+	# The glass belly, filled to `k` (from the bottom).
+	var belly := Art.oval(bc, Vector2(r, r), 0.0, 32)
+	Art.glass(b, belly, s, col, bc.y + r - 2.0 * r * k if k > 0.0 else INF, 0.8 if full else 0.0)
+	# Brass bands: two straps over the belly and one round it.
 	for sx in [-1.0, 1.0]:
 		var pts := PackedVector2Array()
-		for i in 9:
-			var a := lerpf(-PI * 0.42, PI * 0.42, i / 8.0)
+		for i in 13:
+			var a := lerpf(-PI * 0.42, PI * 0.42, i / 12.0)
 			pts.append(bc + Vector2(sx * r * 0.5 * cos(a), r * 0.98 * sin(a)))
-		b.path(pts, Palette.OUTLINE, maxf(1.8 * u, 1.2))
-		b.path(pts, band, maxf(0.9 * u, 0.7))
-	b.line(bc + Vector2(-r - 0.2 * u, 0.6 * u), bc + Vector2(r + 0.2 * u, 0.6 * u), Palette.OUTLINE, 2.6 * u)
-	b.line(bc + Vector2(-r + 0.4 * u, 0.6 * u), bc + Vector2(r - 0.4 * u, 0.6 * u), BRASS, 1.4 * u)
-	b.dot(bc + Vector2(0, 0.6) * u, 1.1 * u, BRASS.lightened(0.35))
-	# The glass's shine.
-	b.polygon(Items.UIShape.oval(bc + Vector2(-3.2, -2.8) * u, Vector2(1.0, 2.0) * u, -0.6), Color(1, 1, 1, 0.55))
+		for i in 12:
+			b.line(pts[i], pts[i + 1], Art.INK, maxf(1.4 * u, 1.1) + Art.ol(s))
+		for i in 12:
+			b.line(pts[i], pts[i + 1], BRASS.darkened(0.1), maxf(0.8 * u, 0.7))
+	Art.rod(b, bc + Vector2(-r + 0.2 * u, 0.6 * u), bc + Vector2(r - 0.2 * u, 0.6 * u), 1.2 * u, BRASS, s, "gold")
+	b.circle(bc + Vector2(0, 0.6) * u, 1.0 * u, BRASS.lightened(0.35), 12)
+	Art.shine(b, bc + Vector2(-3.1, -2.7) * u, 0.9 * u, 1.9 * u, -0.6, 0.55)
 	# The brass collar and the sealed, domed cap with its knob.
-	var collar := Rect2(c + Vector2(-2.6, -6.4) * u, Vector2(5.2, 3.0) * u)
-	b.rect(collar.grow(ol), Palette.OUTLINE)
-	b.rect(collar, BRASS.darkened(0.2))
-	b.rect(Rect2(collar.position, Vector2(collar.size.x, 1.0 * u)), BRASS.lightened(0.25))
+	Art.shape(b, Art.rrect(Rect2(Vector2(-2.4, -6.2) * u, Vector2(4.8, 2.8) * u), 0.6 * u, 3), BRASS, s, "gold", Art.NO_RIM)
 	var dome := PackedVector2Array()
-	for i in 9:
-		dome.append(c + Vector2(0, -6.4) * u + Vector2.from_angle(lerpf(PI, TAU, i / 8.0)) * Vector2(3.6, 2.6) * u)
-	b.poly(dome, BRASS, ol)
-	b.dot(c + Vector2(-1.0, -7.6) * u, 0.8 * u, BRASS.lightened(0.45))
-	b.dot(c + Vector2(0, -9.4) * u, 1.3 * u + ol, Palette.OUTLINE)
-	b.dot(c + Vector2(0, -9.4) * u, 1.3 * u, BRASS.lightened(0.1))
-	if is_full(v):
-		Items._spark(b, bc + Vector2(2.4, -1.6) * u, 2.6 * u, Color(1, 1, 1, 0.9))
+	for i in 13:
+		dome.append(Vector2(0, -6.2) * u + Vector2.from_angle(lerpf(PI, TAU, i / 12.0)) * Vector2(3.3, 2.4) * u)
+	Art.shape(b, dome, BRASS, s, "gold")
+	Art.orb(b, Vector2(0, -9.0) * u, 1.15 * u, BRASS.lightened(0.1), s, "gold")
+	if full:
+		Art.spark(b, bc + Vector2(2.4, -1.6) * u, 2.4 * u, Color(1, 1, 1, 0.9))
 
 
 # --- the capture: the passing streak curls into the vessel ----------------------------------
