@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://y2sdjqbl2gcc"
-path="res://.godot/imported/AlegreyaSans-Regular.ttf-9b139661b10ede9e01bc91ea63e79c19.fontdata"
+uid="uid://dxa53c7ogpksg"
+path="res://.godot/imported/Grenze-VariableFont_wght.ttf-63acf68131f69c370ffc8c4ec3219b3a.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/alegreya_sans/AlegreyaSans-Regular.ttf"
-dest_files=["res://.godot/imported/AlegreyaSans-Regular.ttf-9b139661b10ede9e01bc91ea63e79c19.fontdata"]
+source_file="res://assets/fonts/grenze/Grenze-VariableFont_wght.ttf"
+dest_files=["res://.godot/imported/Grenze-VariableFont_wght.ttf-63acf68131f69c370ffc8c4ec3219b3a.fontdata"]
 
 [params]
 

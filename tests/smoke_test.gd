@@ -5091,7 +5091,7 @@ func _gear_tests() -> void:
 	main.menu.open("inventory")
 	await _frames(2)
 	var labels: Array = _all_labels(main.menu).map(func(l): return l.text)
-	_check(labels.any(func(t): return String(t).begins_with("BELT")) and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
+	_check(labels.any(func(t): return String(t).begins_with("Belt")) and "Mace" in labels and "Shortbow" in labels and "No armor" in labels, "the inventory lists your gear")
 	main.menu.open("dev")
 	await _frames(2)
 	var dev_buttons: Array = _all_buttons(main.menu)
@@ -8296,7 +8296,7 @@ func _entity_tests() -> void:
 	await _frames(2)
 	var texts: Array = _all_labels(menu).map(func(l): return l.text)
 	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "record"), "the Entity presents the Record")
-	_check("Monsters slain" in texts and "Beasts slain" in texts and "Falls" in texts and "BY TOWER" in texts and "Kraken" in texts, "...with its counters and each tower's best floor")
+	_check("Monsters slain" in texts and "Beasts slain" in texts and "Falls" in texts and "By Tower" in texts and "Kraken" in texts, "...with its counters and each tower's best floor")
 	menu.open("settings")
 	await _frames(2)
 	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "settings"), "the Entity presents Settings")
@@ -10315,7 +10315,7 @@ func _secret_bond_tests() -> void:
 		text += c.text + "\n"
 	for c in main.menu.find_children("*", "RichTextLabel", true, false):
 		text += c.get_parsed_text() + "\n"
-	_check(text.contains("DEVELOPER") and text.contains("Inspect") and text.contains("Tune") and text.contains("Growth".to_upper()), "the Core tab: the bond, its depth, its tools and growth")
+	_check(text.contains("Developer") and text.contains("Inspect") and text.contains("Tune") and text.contains("Growth"), "the Core tab: the bond, its depth, its tools and growth")
 	_check(not ["attunement", "spire", "trial", "judgment", "mana"].any(func(w): return text.to_lower().contains(w)), "...in the game's own words")
 	main.menu.close()
 	main.menu.open("dev")
@@ -11593,7 +11593,8 @@ func _rail_tests() -> void:
 	# The fonts load, and the body font is everyone's default.
 	var body: Font = U.font("body")
 	_check(body != null and ThemeDB.fallback_font == body and U.font("display") != body and U.font("mono") != body and U.font("eyebrow") != null, "the interface's fonts load, the body font the default")
-	_check(body.get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0 and U.font("display").get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0 and U.font("mono").get_string_size("12", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 8.0, "...and measure real text (Alegreya Sans, Grenze Gotisch, IBM Plex Mono)")
+	_check(body.get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0 and U.font("display").get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0 and U.font("mono").get_string_size("12", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 8.0 and U.font("inscription").get_string_size("Wren", HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 12.0, "...and measure real text (Grenze, Grenze Gotisch, Cormorant Garamond)")
+	_check(U.title_case("THE KRAKEN'S TOWER") == "The Kraken's Tower" and U.title_case("RARE: Coral Trident") == "Rare: Coral Trident" and U.title_case("HUD size") == "HUD size", "gothic text is shown in mixed case, never shouted")
 	_check(menu.theme != null and menu.theme.default_font == body, "the menus' theme uses the body font")
 	# Esc opens the menu with its rail, the focus on Resume.
 	await _key_tap(KEY_ESCAPE)
