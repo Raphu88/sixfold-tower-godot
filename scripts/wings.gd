@@ -43,7 +43,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Makers := preload("res://scripts/makers.gd")
 
 ## Every line the wings say, in one place.
-const TEXT := {
+static var TEXT := {
 	"sealed_title": "THE WAY SHUTS",
 	"sealed": "The way behind you grinds shut. This room will not let you go until its question is answered.",
 	"rule_title": "THE REGARD TESTS YOU",
@@ -90,21 +90,21 @@ const CONDITIONS := {
 		"broken": "A foe fell unstaggered."},
 }
 ## What breaking the condition brings: weights.
-const FAIL_MODES := {"lesser": 0.55, "champion": 0.45}
+static var FAIL_MODES := {"lesser": 0.55, "champion": 0.45}
 ## The waves: how many, the monsters' budget per wave (Floors.MONSTERS
 ## costs) and its growth per floor, at most this many at once, the pause
 ## between waves.
-const WAVES := {"count": [2, 3], "budget": 2.6, "per_floor": 0.35, "most": 4, "gap": 1.4, "rule_time": 2.4, "close_time": 2.2}
+static var WAVES := {"count": [2, 3], "budget": 2.6, "per_floor": 0.35, "most": 4, "gap": 1.4, "rule_time": 2.4, "close_time": 2.2}
 ## How long a challenge may run before the room gives up (never trapped).
 const FAILSAFE := 240.0
 ## Rewards. Crystals hold base + per_floor * floor essence; a lesser prize
 ## or a hidden one holds that fraction. The pedestal opens within reach.
-const REWARD := {"crystal_base": 16.0, "crystal_per_floor": 4.0, "lesser": 0.5, "hidden": 0.75, "reach": 30.0,
+static var REWARD := {"crystal_base": 16.0, "crystal_per_floor": 4.0, "lesser": 0.5, "hidden": 0.75, "reach": 30.0,
 	"gear": 0.45, "scroll": 0.3, "item": 0.25}
 ## Secret rooms: lean this long; dust falls every few seconds within `dust_near`;
 ## Keen Eyes outlines the wall within `keen_near`; the cache holds this much
 ## more than a good room's cache; a Tithe Door asks base + per_floor * floor.
-const SECRET := {"lean": 0.75, "dust_every": [2.5, 5.0], "dust_near": 230.0, "keen_near": 300.0, "cache_mult": 1.5, "gear_chance": 0.5,
+static var SECRET := {"lean": 0.75, "dust_every": [2.5, 5.0], "dust_near": 230.0, "keen_near": 300.0, "cache_mult": 1.5, "gear_chance": 0.5,
 	"tithe_base": 18.0, "tithe_per_floor": 4.0}
 const GOLD := Color(0.95, 0.75, 0.35)
 const DUST := Color(0.6, 0.55, 0.48)

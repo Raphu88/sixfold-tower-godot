@@ -17,7 +17,7 @@ const Tech := preload("res://scripts/technique.gd")
 const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 
-const TEXT := {
+static var TEXT := {
 	"title": "Techniques",
 	"sub": "Six carried, one on each mark button. A part and up to three essences; the first leads.",
 	"slot_empty": "empty",

@@ -25,7 +25,7 @@ const OPEN_MULT := 1.6
 const POUNCE_SPEED := 420.0
 const LUNGE_SPEED := 760.0
 
-const TYPES := {
+static var TYPES := {
 	"slime": {"hp": 24.0, "speed": 60.0, "radius": 13.0, "color": Color(0.5, 0.88, 0.4), "dmg": 8.0, "weight": 0.7},
 	"archer": {"hp": 18.0, "speed": 75.0, "radius": 11.0, "color": Color(0.62, 0.5, 0.3), "dmg": 8.0, "weight": 0.8},
 	"knight": {"hp": 48.0, "speed": 60.0, "radius": 15.0, "color": Color(0.66, 0.7, 0.8), "dmg": 14.0, "weight": 3.0},
@@ -176,13 +176,13 @@ var overlay: Node2D  # over the darkness: telegraphs and the health bar
 var champion := false
 var champ_t := 0.0  # until its next slam
 var champ_wind := 0.0  # the slam's wind-up, counting down
-const CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
+static var CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
 	"slam_reach": 88.0, "slam_dmg": 1.3, "slam_near": 120.0, "color": Color(1.0, 0.82, 0.4)}
 ## A shade (the Proving's shadow of a beast, proving.gd): drawn in faded,
 ## ghostly colours toward `color`, `keep` of its own colour kept, with wisps
 ## rising off it over the darkness.
 var shade := false
-const SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wisp": Color(0.72, 0.64, 1.0)}
+static var SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wisp": Color(0.72, 0.64, 1.0)}
 ## A mirror image of the climber (mirror.gd, which extends this script): a
 ## great foe that leaves mostly Unmaking (secret.gd SOURCES "mirror").
 var mirror := false

@@ -70,7 +70,7 @@ const PLATES := {
 const GLINT_LEAD := 0.25
 
 ## Placement rules (see the top of this file).
-const RULES := {
+static var RULES := {
 	"lead": 1.0,  # a set piece's first warning comes this long after the floor starts
 	"pace_min": 0.72,  # the beat quickens to this share of its length by the top floor
 	"patches": [[6, 1], [99, 2]],  # corridor spike patches a floor: [up to floor, how many]
@@ -92,7 +92,7 @@ const RULES := {
 ## avoid: what keeps you safe when it fires (besides being out of it)
 ##   "roll" (the roll's untouchable moment), "jump" (being in the air)
 ## tick:  hurts again every `tick` seconds while it fires (gas)
-const KINDS := {
+static var KINDS := {
 	"gust": {
 		"name": "gust lane", "trigger": "timed", "cycle": 3.2, "warn": 0.8, "fire": 0.3,
 		"shape": "lane", "len": 4, "r": 20.0, "reach": 20.0, "damage": 10.0, "push": 620.0,

@@ -50,7 +50,7 @@ const PACK_SIZE := 4
 const SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "offhand"]
 ## The slots added by worn pieces (PIECES), besides weapons and the chest.
 const PIECE_SLOTS := ["helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack"]
-const SLOT_NAMES := {
+static var SLOT_NAMES := {
 	"fists": "Fists", "melee": "Melee", "ranged": "Ranged", "armor": "Chest", "helm": "Helm", "gloves": "Gloves",
 	"legs": "Legs", "boots": "Boots", "cloak": "Cloak", "amulet": "Amulet", "ring": "Ring", "ring1": "Ring",
 	"ring2": "Ring", "backpack": "Backpack", "offhand": "Off-hand",
@@ -71,7 +71,7 @@ const DOLL := [
 ##   boost   a weapon of this rarity hits this much harder
 ## "Regarded" pieces (the beasts' own weapons) come later.
 const RARITY_ORDER := ["common", "fine", "rare", "storied", "regarded"]
-const RARITIES := {
+static var RARITIES := {
 	"common": {"name": "Common", "color": Color(0.9, 0.86, 0.76), "wears": true, "traits": 0, "boost": 0.0},
 	"fine": {"name": "Fine", "color": Color(0.55, 0.85, 0.5), "wears": false, "traits": 1, "boost": 0.05},
 	"rare": {"name": "Rare", "color": Color(0.45, 0.65, 1.0), "wears": false, "traits": 2, "boost": 0.10},
@@ -82,7 +82,7 @@ const RARITIES := {
 ## How rare a piece is, by floor (slain monsters). Vaults, caches and camps
 ## roll one row higher (the last row is only reached that way). Storied
 ## pieces are only found from STORIED_FROM up; below it they count as Rare.
-const RARITY_ODDS := [
+static var RARITY_ODDS := [
 	{"to": 3, "odds": {"common": 80, "fine": 20, "rare": 0, "storied": 0}},
 	{"to": 6, "odds": {"common": 60, "fine": 32, "rare": 8, "storied": 0}},
 	{"to": 9, "odds": {"common": 45, "fine": 38, "rare": 15, "storied": 2}},
@@ -92,7 +92,7 @@ const RARITY_ODDS := [
 const STORIED_FROM := 7
 ## A Rare find in a tower with its own pieces (NAMED "tower") is one of
 ## them this often.
-const TOWER_PIECE_CHANCE := 0.3
+static var TOWER_PIECE_CHANCE := 0.3
 ## Finds of this rarity or better fade in a short notice on the HUD.
 const NOTICE_FROM := "rare"
 
@@ -101,7 +101,7 @@ const NOTICE_FROM := "rare"
 ## "fine" is its strength on a Fine piece, "rare" on Rare and better. "key"
 ## is the number it adds to (see PIECES and EFFECT_ROWS); "desc" says it.
 const TRAIT_ORDER := ["vigor", "footing", "edges", "riposte", "breath", "second_wind", "thorns", "wind", "rolling", "hunt", "kindling", "embers", "well", "calm"]
-const TRAITS := {
+static var TRAITS := {
 	"vigor": {"name": "of Vigor", "short": "Vigor", "kind": "stone", "key": "health", "fine": 6.0, "rare": 10.0,
 		"slots": ["helm", "armor", "legs", "cloak", "amulet"], "desc": "+%s health"},
 	"footing": {"name": "of Footing", "short": "Footing", "kind": "stone", "key": "footing", "fine": 0.15, "rare": 0.25,
@@ -147,7 +147,7 @@ const RANK_CAP := 4
 ## The "deep" runes are the same at the spell's full strength: only a Rune
 ## Artist working a full vessel inscribes one (vessel.gd), never the
 ## bench's own Inscribe.
-const LASTING_RUNES := {
+static var LASTING_RUNES := {
 	"sharpness": {"name": "Rune of Sharpness", "short": "Sharpness", "key": "strike", "value": 0.10,
 		"desc": "strikes hit %s harder", "color": Color(1.0, 0.7, 0.45)},
 	"warding": {"name": "Rune of Warding", "short": "Warding", "key": "reduce", "value": 0.08,
@@ -163,13 +163,13 @@ const LASTING_RUNES := {
 }
 
 ## Of Embers: a burning foe takes this much every half second, this long.
-const EMBER_BURN := {"dmg": 2.0, "time": 2.0}
+static var EMBER_BURN := {"dmg": 2.0, "time": 2.0}
 ## Thorns only answer blows from this close.
 const THORNS_REACH := 70.0
 
 ## What gear adds up to at most, so stacking pieces can't break fights.
 ## The inventory shows "(capped)" beside a number that has reached its cap.
-const CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.12, "spell": 0.20}
+static var CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.12, "spell": 0.20}
 
 ## Named pieces keep their own names. Each is a base piece (its look, slot
 ## and, for weapons and armor, how it fights) with its own rule:
@@ -183,7 +183,7 @@ const CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.12, "s
 ## ember_mend, still_mend, spellweave, kill_mark, bastion.
 const NAMED_ORDER := ["stormstring", "coral_trident", "cinder_axe", "stinger_dagger", "sunsteel_blade", "thornmaul", "barnacle_mail", "wyvern_scaleplate",
 	"watchers_helm", "quickhand_gloves", "phantom_treads", "emberkin_mantle", "heartstone", "spellweave_ring", "reavers_greatsword", "bastion_plate"]
-const NAMED := {
+static var NAMED := {
 	# Rare tower pieces: only in their own tower.
 	"stormstring": {"base": "shortbow", "rarity": "rare", "tower": "gryphon", "kind": "air", "name": "Stormstring",
 		"desc": "a shortbow strung with storm-gut: a full draw also arcs to one more foe for half damage", "fx": {"arc": 0.5}},
@@ -236,8 +236,8 @@ const NAMED := {
 ## WORN_WEAPON as hard, a chest piece protects half as much). At 0 it breaks.
 ## Roughly: a weapon is badly worn after ~940 landed swings, a chest piece
 ## after ~94 blows, boots after ~500 rolls: about a whole climb of steady use.
-const WEAR := {"strike": 0.0008, "shot": 0.003, "hit": 0.008, "roll": 0.0015}
-const WEAR_BY := {
+static var WEAR := {"strike": 0.0008, "shot": 0.003, "hit": 0.008, "roll": 0.0015}
+static var WEAR_BY := {
 	"strike": ["melee", "gloves"], "shot": ["ranged"], "hit": ["armor", "helm", "legs", "cloak"], "roll": ["boots"],
 }
 const WORN := 0.25
@@ -262,7 +262,7 @@ const HEIRLOOM_SLOTS := [
 	{"id": "backpack", "name": "Backpack", "gear": "backpack"},
 	{"id": "offhand", "name": "Off-hand", "planned": true},
 ]
-const HEIRLOOM_TEXT := {
+static var HEIRLOOM_TEXT := {
 	"title": "CHOOSE AN HEIRLOOM",
 	"sub": "You survived. Keep one piece you carried: every climb will begin with it.",
 	"replaces": "replaces your %s",
@@ -276,7 +276,7 @@ const HEIRLOOM_TEXT := {
 }
 
 ## The words the gear prompt, cards and inventory use.
-const TEXT := {
+static var TEXT := {
 	"on_floor": "ON THE FLOOR",
 	"take_key": "Y  take it",
 	"take_pad": "{y}  take it",  # a controller ({y} becomes Y or Triangle)
@@ -313,7 +313,7 @@ const TEXT := {
 ##   walk       multiplier on walking speed
 ##   step       a sound layered on each footstep (chain mail and plate jingle)
 const ARMOR_ORDER := ["", "padded", "leather", "chain", "plate"]
-const ARMOR := {
+static var ARMOR := {
 	"": {
 		"name": "No armor",
 		"short": "None",
@@ -389,7 +389,7 @@ const PIECE_ORDER := [
 	"travel_cloak", "dusk_cloak", "satchel", "belt_pouch", "bone_charm", "ember_charm", "iron_band", "garnet_ring",
 	"tide_locket", "pearl_ring", "overdrawn_ring", "climbers_pack",
 ]
-const PIECES := {
+static var PIECES := {
 	"cloth_hood": {"slot": "helm", "name": "Cloth Hood", "short": "Hood", "desc": "a deep hood of plain cloth: your light reaches 10% farther",
 		"light": 0.10, "color": Color(0.46, 0.5, 0.42), "drop_weight": 3, "look": "hood"},
 	"leather_cap": {"slot": "helm", "name": "Leather Cap", "short": "Cap", "desc": "a padded leather cap: +8 health",
@@ -458,7 +458,7 @@ const EFFECT_ROWS := [
 const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dist", "light", "regen", "spell", "notice", "ailment", "jump"]
 
 ## How common each weapon is as a drop (fists are always carried).
-const WEAPON_DROP_WEIGHT := {
+static var WEAPON_DROP_WEIGHT := {
 	"dagger": 4, "sword": 3, "axe": 4, "mace": 3, "spear": 4, "greatsword": 2, "war_hammer": 2,
 	"shortbow": 3, "longbow": 2, "crossbow": 2,
 }

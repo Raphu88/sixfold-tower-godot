@@ -6,7 +6,7 @@ extends "res://scripts/puzzles/base.gd"
 ## Monsters are part of the answer here, so it takes no quiet or pressure mode.
 
 const NAME := "Weighing Room"
-const TEXT := {
+static var TEXT := {
 	"rule": ["The plates want a weight heavier than you: push a block on, or lure a monster.", "Strike the lever to put the blocks back."],
 	"reset": "The blocks return",
 	"heavy": "Rooted: the plate feels your weight",

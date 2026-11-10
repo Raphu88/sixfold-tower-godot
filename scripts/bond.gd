@@ -5,7 +5,7 @@ extends RefCounted
 
 const Bonds := preload("res://scripts/bonds.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
-const PART_NAMES := Bonds.PART_NAMES
+static var PART_NAMES := Bonds.PART_NAMES
 const PART_FILLS := Bonds.PART_FILLS
 const PART_BURN := Bonds.PART_BURN
 const MAX_STEP := 5

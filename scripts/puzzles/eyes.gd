@@ -5,7 +5,7 @@ extends "res://scripts/puzzles/base.gd"
 ## together; tier 3: a shorter window still.
 
 const NAME := "Hall of Eyes"
-const TEXT := {
+static var TEXT := {
 	"rule": ["Wake every eye. Strike them, or shoot over the rails."],
 	"rule_timed": ["Wake every eye together: each one sleeps again soon after."],
 	"quiet": "The eyes stay shut while blood is spilled. Deal with the guards first.",

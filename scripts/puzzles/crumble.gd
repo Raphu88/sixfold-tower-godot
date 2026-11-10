@@ -14,8 +14,8 @@ extends "res://scripts/puzzles/base.gd"
 ## over a lit stone doesn't help; only a Flamewing's glide passes unfelt.
 
 const NAME := "The Crumbling Path"
-const NAMES := {"wyvern": "Ember Path"}
-const TEXT := {
+static var NAMES := {"wyvern": "Ember Path"}
+static var TEXT := {
 	"rule": ["Step on every stone once, and only once.", "A stone you've used crumbles beneath you."],
 	"quiet": "The stones lie cold while blood is spilled.",
 	"crumble": "It crumbles beneath you",

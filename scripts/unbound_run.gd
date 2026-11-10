@@ -57,7 +57,7 @@ const BLOWS := {"stair": 4, "vault": 4, "gate": 3, "proving": 5}
 const GRACE := 0.8
 const RAW := Color(0.92, 0.9, 1.0)
 
-const TEXT := {
+static var TEXT := {
 	"shudder": "It shudders",
 	"holds": "It shudders, and holds",
 	"crack": "Cracks",

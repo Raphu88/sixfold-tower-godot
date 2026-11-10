@@ -19,7 +19,7 @@ const PlayerScript := preload("res://scripts/player.gd")
 const UI := preload("res://scripts/ui.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
-const T := Appearance.TEXT
+static var T := Appearance.TEXT
 
 var m  # the menu (menu.gd)
 var figure: Callable  # draws the climber screen's figure: (batch, look)

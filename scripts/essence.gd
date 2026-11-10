@@ -4,7 +4,7 @@ extends RefCounted
 ## whatever you hadn't banked). Banked essence strengthens your bonds, and
 ## the kind you gather decides which bond forms when a body part takes a mark.
 
-const KINDS := {
+static var KINDS := {
 	"air": {"name": "Air", "color": Color(0.78, 0.9, 1.0)},
 	"water": {"name": "Water", "color": Color(0.37, 0.72, 0.85)},
 	"iron": {"name": "Iron", "color": Color(0.8, 0.82, 0.88)},
@@ -14,7 +14,7 @@ const KINDS := {
 }
 
 ## What each monster drops: kind and amount (more on higher floors).
-const DROPS := {
+static var DROPS := {
 	"slime": ["water", 3.0],
 	"archer": ["air", 4.0],
 	"knight": ["iron", 7.0],

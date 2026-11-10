@@ -16,45 +16,45 @@ extends RefCounted
 
 # --- the palette ------------------------------------------------------------------
 ## The night: from the void behind everything up to a raised button's face.
-const VOID := Color(0.051, 0.043, 0.071)  # #0d0b12
-const STONE := Color(0.106, 0.094, 0.137)  # #1b1823
-const STONE_2 := Color(0.141, 0.125, 0.18)  # #24202e
-const STONE_3 := Color(0.176, 0.157, 0.224)  # #2d2839
+static var VOID := Color(0.051, 0.043, 0.071)  # #0d0b12
+static var STONE := Color(0.106, 0.094, 0.137)  # #1b1823
+static var STONE_2 := Color(0.141, 0.125, 0.18)  # #24202e
+static var STONE_3 := Color(0.176, 0.157, 0.224)  # #2d2839
 ## Thin lines: a card's edge, and a brighter one for hover and dividers.
-const LINE := Color(0.227, 0.204, 0.275)  # #3a3446
-const LINE_HI := Color(0.416, 0.376, 0.502)  # #6a6080
+static var LINE := Color(0.227, 0.204, 0.275)  # #3a3446
+static var LINE_HI := Color(0.416, 0.376, 0.502)  # #6a6080
 ## Gilt: lettering, the chosen thing, ornament. GILT_HI is its lit edge,
 ## GILT_DEEP its shadow (a primary button's lower half).
-const GILT := Color(0.886, 0.71, 0.353)  # #e2b55a
-const GILT_HI := Color(0.97, 0.85, 0.58)
-const GILT_DEEP := Color(0.42, 0.29, 0.1)
+static var GILT := Color(0.886, 0.71, 0.353)  # #e2b55a
+static var GILT_HI := Color(0.97, 0.85, 0.58)
+static var GILT_DEEP := Color(0.42, 0.29, 0.1)
 ## A cool periwinkle for the Entity and secondary highlights, and violet.
-const PERIWINKLE := Color(0.56, 0.69, 1.0)  # #8fb0ff
-const VIOLET := Color(0.79, 0.65, 1.0)  # #c9a6ff
-const BLOOD := Color(0.816, 0.314, 0.247)  # #d0503f
+static var PERIWINKLE := Color(0.56, 0.69, 1.0)  # #8fb0ff
+static var VIOLET := Color(0.79, 0.65, 1.0)  # #c9a6ff
+static var BLOOD := Color(0.816, 0.314, 0.247)  # #d0503f
 
 # Interface colours (the names the rest of the game uses)
-const GOLD := Color(0.91, 0.75, 0.42)  # gilt, a touch brighter for small lettering
-const TEXT := Color(0.925, 0.89, 0.81)  # parchment ink, #ece3cf
-const DIM := Color(0.66, 0.62, 0.71)  # muted, #9a92a6 lifted for small text
-const FAINT := Color(0.45, 0.41, 0.53)
-const PANEL := Color(0.075, 0.064, 0.1, 0.9)
-const PANEL_EDGE := Color(0.91, 0.75, 0.42, 0.22)
-const MENU_PANEL := Color(0.09, 0.078, 0.118, 0.97)
-const SLOT := Color(0.07, 0.06, 0.095, 0.94)
-const SLOT_EDGE := Color(0.3, 0.27, 0.36, 0.95)
-const SLOT_ON := Color(0.2, 0.145, 0.07, 0.96)
-const BUTTON := Color(0.176, 0.157, 0.224)  # STONE_3
-const BUTTON_HOVER := Color(0.22, 0.196, 0.28)
-const BUTTON_DOWN := Color(0.3, 0.22, 0.12)
-const SHADE := Color(0.03, 0.024, 0.045, 0.8)
-const GOOD := Color(0.56, 0.88, 0.52)
-const BAD := Color(0.98, 0.5, 0.42)
-const HEALTH := Color(0.78, 0.22, 0.2)
-const STAMINA := Color(0.45, 0.72, 0.38)
+static var GOLD := Color(0.91, 0.75, 0.42)  # gilt, a touch brighter for small lettering
+static var TEXT := Color(0.925, 0.89, 0.81)  # parchment ink, #ece3cf
+static var DIM := Color(0.66, 0.62, 0.71)  # muted, #9a92a6 lifted for small text
+static var FAINT := Color(0.45, 0.41, 0.53)
+static var PANEL := Color(0.075, 0.064, 0.1, 0.9)
+static var PANEL_EDGE := Color(0.91, 0.75, 0.42, 0.22)
+static var MENU_PANEL := Color(0.09, 0.078, 0.118, 0.97)
+static var SLOT := Color(0.07, 0.06, 0.095, 0.94)
+static var SLOT_EDGE := Color(0.3, 0.27, 0.36, 0.95)
+static var SLOT_ON := Color(0.2, 0.145, 0.07, 0.96)
+static var BUTTON := Color(0.176, 0.157, 0.224)  # STONE_3
+static var BUTTON_HOVER := Color(0.22, 0.196, 0.28)
+static var BUTTON_DOWN := Color(0.3, 0.22, 0.12)
+static var SHADE := Color(0.03, 0.024, 0.045, 0.8)
+static var GOOD := Color(0.56, 0.88, 0.52)
+static var BAD := Color(0.98, 0.5, 0.42)
+static var HEALTH := Color(0.78, 0.22, 0.2)
+static var STAMINA := Color(0.45, 0.72, 0.38)
 ## The Entity's speech bubbles (its own colours are in entity.gd).
-const ENTITY_BG := Color(0.11, 0.09, 0.19)
-const ENTITY_EDGE := Color(0.79, 0.75, 1.0, 0.42)
+static var ENTITY_BG := Color(0.11, 0.09, 0.19)
+static var ENTITY_EDGE := Color(0.79, 0.75, 1.0, 0.42)
 
 ## The train between climbs (train_view.gd draws it behind its pages):
 ## brass trim and rivets, oxblood cars, a bottle-green engine, warm windows.
