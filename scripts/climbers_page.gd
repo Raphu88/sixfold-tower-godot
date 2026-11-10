@@ -35,7 +35,7 @@ const TEXT := {
 	"played_days": "Played %d days ago",
 	"played_long": "Played over a month ago",
 	"delete": "Delete",
-	"delete_again": "Press again: delete forever",
+	"delete_again": "{again}: delete forever",
 	"delete_ask": "Press Delete again to delete %s for good. This can't be undone.",
 	"deleted": "%s is gone, and can't be brought back.",
 	"full": "All six slots are full. Delete a climber to make room for a new one.",
@@ -157,7 +157,7 @@ static func build(menu) -> void:
 		card.pressed.connect(_choose.bind(menu, slot))
 		cell.add_child(card)
 		if prof != null:
-			var del: Button = menu._button(TEXT["delete_again"] if armed == slot else TEXT["delete"], _delete.bind(menu, slot), cell)
+			var del: Button = menu._button(menu.Nav.fill(TEXT["delete_again"], main) if armed == slot else TEXT["delete"], _delete.bind(menu, slot), cell)
 			del.custom_minimum_size = Vector2(0, DELETE_H_SMALL if small else DELETE_H)
 			del.add_theme_font_size_override("font_size", 13 if small else 15)
 			for c in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:

@@ -37,6 +37,7 @@ const TechniquePage := preload("res://scripts/technique_page.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
 const RailScript := preload("res://scripts/rail.gd")
+const Nav := preload("res://scripts/nav.gd")
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -113,6 +114,17 @@ var _rail_focus := false  # after building the page, put the focus back on the r
 var _focus_now: Control = null  # what has the keys' focus (to tell a step onto the rail from the page)
 var _rail_grab := false  # the menu itself is moving the focus onto the rail
 var _rail_refused := false  # a step from the page onto the rail, other than Left, was turned back
+# Navigation (nav.gd): the menu moves the focus itself, so keys, the d-pad
+# and the stick step and repeat alike.
+var rep := Nav.Repeat.new()
+var _left_from := {}  # page -> what had the focus when you left it (back returns there)
+var _returning := false  # the page opening is a step back (its focus is put back)
+var _want_focus := {}  # the page being built: focus this (nav.gd describe), e.g. the new tab
+var _back_frame := -1  # Esc or B was used up this frame (leaving a text box)
+var _back_click := false  # a right-click (or the mouse's back button) is down: back on its release
+var _hovering := false  # the mouse is moving the focus (no sound, no preview)
+var _quiet := false  # rebuilding the page as it is (the prompts changed): no fade, sound or scroll
+var inv_armed := ""  # the slot pressed once (an item's second press uses it)
 
 
 func _ready() -> void:
@@ -157,7 +169,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	scroll.add_child(box)
 	hide()
-	get_viewport().gui_focus_changed.connect(func(_c): if page != "" and main != null: main.sfx("ui_move"))
+	get_viewport().gui_focus_changed.connect(func(_c): if page != "" and main != null and not _hovering and not _quiet: main.sfx("ui_move"))
 	get_viewport().gui_focus_changed.connect(_focus_changed)
 	load_settings()
 	if CLIMBER_TABS.any(func(t): return t[0] == settings["climber_tab"]) or settings["climber_tab"] == SecretPage.TAB[0]:
@@ -188,20 +200,47 @@ var touch_slider: HSlider = null
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey or event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.5):
 		nav_keys = true
-	elif event is InputEventMouseButton or event is InputEventScreenTouch:
+	elif event is InputEventMouseButton or event is InputEventScreenTouch or Nav.mouse_moved(event):
 		nav_keys = false
-	if page == "" or _typing():
+	if page == "":
+		return
+	if _typing():
+		# A text box: Esc or B leave the box, and nothing more.
+		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause"):
+			_leave_field()
+			_back_frame = Engine.get_process_frames()
+			get_viewport().set_input_as_handled()
+		return
+	# The mouse moving over a button moves the focus there.
+	if Nav.mouse_moved(event):
+		_hover(event.position)
+	# A right-click or the mouse's back button: back one level (on release,
+	# so the press doesn't reach the game as a parry once the menu closes).
+	if event is InputEventMouseButton and (event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_XBUTTON1):
+		if event.pressed:
+			_back_click = true
+		elif _back_click:
+			_back_click = false
+			go_back()
+		get_viewport().set_input_as_handled()
+		return
+	# The arrows, the d-pad and the stick: the menu moves the focus itself
+	# (_process, nav.gd), so they step and repeat alike.
+	if Nav.is_dir_event(event):
+		if main != null and main.pad != null:
+			main.pad._input(event)  # (it still notices which device is in use)
+		get_viewport().set_input_as_handled()
 		return
 	# Q and E (LB and RB): the climber screen's tabs, or the next mark.
-	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_Q or event.keycode == KEY_E):
-		if _cycle(1 if event.keycode == KEY_E else -1):
+	if event is InputEventKey and event.pressed and not event.echo and (event.physical_keycode == KEY_Q or event.physical_keycode == KEY_E):
+		if _cycle(1 if event.physical_keycode == KEY_E else -1):
 			get_viewport().set_input_as_handled()
 		return
 	if event is InputEventJoypadButton and event.pressed and event.device == Controls.PAD_DEVICE and (event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER):
 		if _cycle(1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else -1):
 			get_viewport().set_input_as_handled()
 		return
-	# The train: swipes, drags, the wheel and Left / Right move along it (train_page.gd).
+	# The train: swipes, drags and the wheel move along it (train_page.gd; Left / Right: _nav).
 	if page == "train":
 		if train_page.input(event):
 			get_viewport().set_input_as_handled()
@@ -282,11 +321,10 @@ func _process(delta: float) -> void:
 	if toast_t <= 0.0 and toast != "":
 		toast = ""
 	if _typing():
-		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field).
-		if Input.is_action_just_pressed("ui_cancel"):
-			look_page._focus_rows()
+		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field: _input).
 		_layout()
 		return
+	var used := Engine.get_process_frames() == _back_frame  # (Esc or B just left a text box)
 	if page == "create":
 		pass  # a new climber's look: only Begin leaves it (like the title)
 	elif Input.is_action_just_pressed("pause"):
@@ -294,10 +332,11 @@ func _process(delta: float) -> void:
 			# (once the Regard or the victory screen has played, Start moves on instead)
 			if _can_open():
 				open("pause")
-		elif page != "title":
+		elif page != "title" and not used:
 			go_back()
 	elif page != "" and page != "title" and Input.is_action_just_pressed("ui_cancel"):
-		go_back()  # Esc or B (Esc is also "pause", handled above)
+		if not used:
+			go_back()  # Esc or B (Esc is also "pause", handled above)
 	else:
 		for which in ["climber", "inventory"]:
 			if Input.is_action_just_pressed(which):
@@ -308,6 +347,18 @@ func _process(delta: float) -> void:
 		var v := Input.get_axis("ui_up", "ui_down")
 		if absf(v) > 0.2:
 			scroll.scroll_vertical += int(v * 700.0 * delta)
+	# The right stick scrolls the page (on the train, the card of the car you're in).
+	var rs := Nav.stick_scroll()
+	if page != "" and absf(rs) > 0.2:
+		var sc := _scroll_target()
+		if sc != null:
+			sc.scroll_vertical += int(rs * Nav.SCROLL_SPEED * delta)
+	# The arrows, the d-pad and the stick: a step per press, repeating while held.
+	if page != "" and is_inside_tree():
+		rep.update()
+		for a in Nav.DIRS:
+			if rep.pulse(a):
+				_nav(a)
 	_layout()
 
 
@@ -326,7 +377,17 @@ func _cycle(by: int) -> bool:
 		return true
 	if page == "climber":
 		var ids: Array = climber_tabs().map(func(t): return t[0])
-		_set_climber_tab(ids[(ids.find(climber_tab) + by + ids.size()) % ids.size()])
+		var id: String = ids[(ids.find(climber_tab) + by + ids.size()) % ids.size()]
+		if not rail.has_focus_inside():
+			_want_focus = {"meta": "tab", "value": id}  # (the focus follows onto the new tab)
+		_set_climber_tab(id)
+		return true
+	if page == "inventory":
+		var views := ["worn", "pack", "heirlooms"]
+		var v: String = views[(views.find(inv_view) + by + views.size()) % views.size()]
+		if not rail.has_focus_inside():
+			_want_focus = {"meta": "view", "value": v}
+		_inv_view(v)
 		return true
 	if page == "mark":
 		var order := mark_order()
@@ -368,6 +429,19 @@ func _can_open() -> bool:
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
 	if main != null and page != "": main.sfx("ui_back")
+	# In a slot's card: back to the slot.
+	var on: Control = get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+	if on != null and details != null and is_instance_valid(details) and details.is_ancestor_of(on):
+		var s := _slot_control(inv_sel)
+		if s != null:
+			s.grab_focus()
+			return
+	_returning = true  # (the page you go back to puts the focus back where it was)
+	_go_back()
+	_returning = false
+
+
+func _go_back() -> void:
 	if page in RAIL_ROOTS and rail_showing():
 		# In a page: back to the rail. On the rail (or a page opened by its
 		# own key, or on a phone): close.
@@ -378,6 +452,7 @@ func go_back() -> void:
 			rail.focus_current()
 		return
 	if page == "train":
+		_returning = false
 		open("pause")  # (the train has no Back: Esc opens the menu)
 	elif page == "confirm_new":
 		open(confirm_back)
@@ -584,7 +659,19 @@ func _wanted_height() -> float:
 ## opened by its own key (Tab, I), so Back closes it.
 func open(which: String, direct := false) -> void:
 	var was_closed := page == ""
-	var switching := which != page or which == "climber" or which == "mark"  # (a new tab or mark too)
+	var prev := page
+	var switching := (which != page or which == "climber" or which == "mark") and not _quiet  # (a new tab or mark too)
+	# What had the focus here, so going back can put it there again (nav.gd).
+	if page != "" and which != page and is_inside_tree():
+		var lf: Array = focusables()
+		_left_from[page] = Nav.describe(get_viewport().gui_get_focus_owner(), lf + rail.buttons)
+	var back_to: Dictionary = _left_from.get(which, {}) if _returning and which != "train" and focus_part == "" else {}
+	_returning = false
+	var want: Dictionary = _want_focus
+	_want_focus = {}
+	if was_closed:
+		Engine.time_scale = 1.0  # (a ring held as the menu opens: the menu's own fades still run)
+		rep.reset()
 	train_page.was_open = page == "train" and which == "train"  # (a new car slides into view)
 	# Rebuilding the same page (a dev button, a toast): keep the focus where it was.
 	var keep := -1
@@ -633,7 +720,7 @@ func open(which: String, direct := false) -> void:
 	center.visible = which != "train"
 	shade.visible = which != "title" and which != "train"
 	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else UI.SHADE.a)
-	if which == "pause" and was_closed:
+	if which == "pause" and (was_closed or prev == "train"):
 		on_rail = true  # (the pause menu starts on the rail, on Resume)
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
@@ -652,9 +739,9 @@ func open(which: String, direct := false) -> void:
 		c.get_parent().remove_child(c)
 		c.queue_free()
 	details = null
-	if keep < 0 or which == "mark":
+	if (keep < 0 or which == "mark") and not _quiet:
 		scroll.scroll_vertical = 0  # (another mark starts at its top)
-	if main != null and which != "title" and keep < 0: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
+	if main != null and which != "title" and keep < 0 and not _quiet: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
 	call("_page_" + which)
 	var list := focusables()
 	var first := _first_focus(which, list) if not list.is_empty() else -1
@@ -664,6 +751,25 @@ func open(which: String, direct := false) -> void:
 		rail.refresh(rail_item(), _on_train(), compact(), main.touch_active, main.pad_active, main.pad_ps)
 		_link_rail(list[first] if first >= 0 else null)
 	_layout()
+	# On a phone nothing has the focus (a tap is its own highlight).
+	if main != null and main.touch_active:
+		if which != "train":
+			get_viewport().gui_release_focus()
+		return
+	# Going back: the focus returns to what opened the page you left.
+	if not back_to.is_empty():
+		var rb: Control = Nav.find(rail.buttons, back_to) if rail.visible and back_to.get("meta", "") == "rail" else null
+		if rb != null:
+			_focus_rail.call_deferred(rb)
+			return
+		var bt: Control = Nav.find(list, back_to) if back_to.get("meta", "") != "rail" else null
+		if bt != null:
+			keep = list.find(bt)
+			on_rail = false
+	var wanted: Control = Nav.find(list, want)
+	if wanted != null:
+		keep = list.find(wanted)
+		on_rail = false
 	# Keyboard and controller: start on the first button (or slider), or the
 	# page's own starting point; or stay on the rail.
 	if rail.visible and (on_rail or list.is_empty()):
@@ -706,6 +812,8 @@ func _first_focus(which: String, list: Array) -> int:
 			first = train_page.first_focus(list)
 		elif which == "create" or which == "appearance":
 			first = maxi(0, list.find(look_page.first_focus))
+		elif which == "confirm_new":
+			first = maxi(0, list.map(func(b): return b.get_meta("cancel", false)).find(true))  # (Cancel: the safe one)
 		elif which == "climbers":
 			# (on the current climber's card)
 			first = maxi(0, list.map(func(b): return b.get_meta("climber_slot", 0)).find(Slots.current()))
@@ -716,6 +824,165 @@ func _first_focus(which: String, list: Array) -> int:
 func _focus_later(c: Control) -> void:
 	if is_instance_valid(c) and c.is_inside_tree() and not c.is_queued_for_deletion():
 		c.grab_focus()
+
+
+## Focus a rail item without showing its page (going back onto it).
+func _focus_rail(b: Control) -> void:
+	if is_instance_valid(b) and b.is_inside_tree():
+		_rail_grab = true
+		b.grab_focus()
+		_rail_grab = false
+
+
+# --- navigation (nav.gd) ------------------------------------------------------
+
+## One step of the arrows, the d-pad or the stick (each press, and each
+## repeat while held). The menu moves the focus itself so every page plays
+## by the same rules: a slider or an option row takes Left and Right; Left
+## from a page lands on the rail's item for the page you're on (never
+## another page); Up and Down stay in the page; the train moves on to the
+## next car past the last thing in this one; the title's list wraps round.
+func _nav(action: String) -> void:
+	var side: int = Nav.SIDES[action]
+	var by := -1 if action == "ui_up" or action == "ui_left" else 1
+	var across := side == SIDE_LEFT or side == SIDE_RIGHT
+	var f: Control = get_viewport().gui_get_focus_owner()
+	if f == null or not f.is_visible_in_tree() or not is_ancestor_of(f):
+		if page == "train" and across:
+			train_page.cycle(by)  # (nothing chosen in this car: Left / Right walk the train)
+			return
+		_nav_start()
+		return
+	if across:
+		if f is HSlider and Nav.step_slider(f, by):
+			return
+		if f.has_method("change") and f.has_method("tap_at"):
+			f.change(by)  # (an appearance row: its next choice)
+			return
+	var n: Control = f.find_valid_focus_neighbor(side)
+	if n != null and (n == f or not n.is_visible_in_tree() or n.focus_mode == Control.FOCUS_NONE):
+		n = null
+	# Left out of a slot's card: back to its slot (not onto another slot).
+	if side == SIDE_LEFT and details != null and is_instance_valid(details) and details.is_ancestor_of(f) and (n == null or not details.is_ancestor_of(n)):
+		var sl := _slot_control(inv_sel)
+		if sl != null:
+			sl.grab_focus()
+			return
+	if page == "train":
+		if n != null and not train_page._in_car(n):
+			n = null
+		if n == null and across:
+			train_page.cycle(by)  # past the last thing in this car: the next car
+			return
+	elif rail.visible:
+		if not rail.buttons.has(f) and n != null and rail.buttons.has(n):
+			if side == SIDE_LEFT:
+				_focus_rail(rail.button(rail_item()))  # (the page you're on, never another)
+				return
+			n = _next_in_page(f, by) if not across else null
+	if n == null and not across and page == "title":
+		var list := focusables()
+		if not list.is_empty():
+			n = list[list.size() - 1] if by < 0 else list[0]
+	if n != null and n != f:
+		n.grab_focus()
+
+
+## Keys or the controller with nothing focused (after a tap, say): start
+## on the rail's item for this page, or the page's starting point.
+func _nav_start() -> void:
+	if rail.visible:
+		rail.focus_current()
+		return
+	var list := focusables()
+	if not list.is_empty():
+		list[clampi(_first_focus(page, list), 0, list.size() - 1)].grab_focus()
+
+
+## The controller setup page steps the focus for a controller it records from.
+func nav_step(action: String) -> void:
+	nav_keys = true
+	_nav(action)
+
+
+## The mouse moved over a button (or slider): it takes the focus, so there's
+## one highlight and the keys go on from there. Not while a button is held
+## (a drag), on a phone, or away from a text box being typed in.
+func _hover(pos: Vector2) -> void:
+	if main != null and main.touch_active:
+		return
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		return
+	var list: Array = focusables()
+	if rail.visible:
+		list = rail.buttons + list
+	var c := Nav.topmost_at(list, pos)
+	var f: Control = get_viewport().gui_get_focus_owner()
+	if c == null or c == f or f is LineEdit:
+		return
+	_hovering = true
+	c.grab_focus()
+	_hovering = false
+
+
+## Esc or B in a text box: out of the box, onto what follows it.
+func _leave_field() -> void:
+	var f: Control = get_viewport().gui_get_focus_owner()
+	if page == "create" or page == "appearance":
+		look_page._focus_rows()
+		return
+	var n: Control = f.find_valid_focus_neighbor(SIDE_BOTTOM) if f != null else null
+	if n == null or n is LineEdit or not n.is_visible_in_tree():
+		var list := focusables()
+		n = list[0] if not list.is_empty() else null
+	if n != null:
+		n.grab_focus()
+	elif f != null:
+		f.release_focus()
+
+
+## The slot showing a key, in the inventory or the car you're in.
+func _slot_control(key: String) -> Control:
+	var root: Node = train_page.slot_root() if page == "train" else box
+	for c in root.find_children("*", "BaseButton", true, false):
+		if c.get_meta("slot", "") == key and c.is_visible_in_tree():
+			return c
+	return null
+
+
+## Onto the first button of the card showing (a slot was pressed).
+func _focus_card() -> void:
+	if details == null or not is_instance_valid(details):
+		return
+	var first: Control = null
+	for b in details.find_children("*", "BaseButton", true, false):
+		if not b.is_visible_in_tree() or b.focus_mode == Control.FOCUS_NONE:
+			continue
+		if not b.disabled:
+			b.grab_focus()
+			return
+		if first == null:
+			first = b
+	if first != null:
+		first.grab_focus()
+
+
+## What the right stick scrolls: the page, or on the train the car's card.
+func _scroll_target() -> ScrollContainer:
+	if page == "train":
+		var sc = train_page.card_scrolls.get(train_car)
+		return sc if sc != null and is_instance_valid(sc) else null
+	return scroll
+
+
+## The controller, keyboard or touch took over: the page's prompts change
+## to match (rebuilt as it is, the focus kept).
+func input_changed() -> void:
+	if page == "" or page == "padsetup" or _typing() or not is_inside_tree():
+		return
+	_quiet = true
+	open(page, opened_direct)
+	_quiet = false
 
 
 func close() -> void:
@@ -961,7 +1228,7 @@ func _page_controls() -> void:
 			grid.add_child(l)
 	box.add_child(grid)
 	_gap(2)
-	_note(Controls.pad_text("Controller casts: hold {lb} and press {x} hand, {a} legs, {b} heart, {y} brow, {rb} throat or {rt} back. Aim with the right stick; let go of it and you aim at the nearest monster, or the way you move. Press {back} for the climber screen, hold it to restart. In menus and on the cards: d-pad or stick to choose, {a} to take, {b} to go back.", ps))
+	_note(Controls.pad_text("Controller casts: hold {lb} and press {x} hand, {a} legs, {b} heart, {y} brow, {rb} throat or {rt} back. Aim with the right stick; let go of it and you aim at the nearest monster, or the way you move. Press {back} for the climber screen, hold it to restart. In menus and on the cards: d-pad or stick to choose (hold to repeat), {a} to take, {b} to go back, the right stick to scroll. With the mouse, point to choose, click to take, right-click to go back.", ps))
 	_note("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next; Take appears while you stand on gear. Hold a mark's button and slide to pick a spell. Climber, Bag and Menu sit at the top right.")
 	_footer()
 
@@ -1913,8 +2180,7 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	s.custom_minimum_size = Vector2(side, side)
 	s.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	s.set_meta("slot", key)
-	s.focus_entered.connect(_show_details.bind(key))
-	s.mouse_entered.connect(_show_details.bind(key))
+	s.focus_entered.connect(_show_details.bind(key))  # (the mouse moves the focus too: nav.gd)
 	s.pressed.connect(_slot_pressed.bind(key))
 	cell.add_child(s)
 	if caption == "":
@@ -1929,12 +2195,18 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	return s
 
 
-## A tap or Enter on a slot shows it; on an item, a second press uses it.
+## A press on a slot (Enter, A, a click or a tap) shows its card, and with
+## the keys or the controller puts the focus on the card's first button (B
+## comes back to the slot); on an item, a second press uses it.
 func _slot_pressed(key: String) -> void:
-	if key == inv_sel and key.begins_with("item:"):
+	if key == inv_sel and key == inv_armed and key.begins_with("item:"):
+		inv_armed = ""  # (the next press shows it again first)
 		_use_item(key.substr(5))
 		return
 	_show_details(key)
+	inv_armed = key
+	if nav_keys and not (main != null and main.touch_active):
+		_focus_card()
 
 
 ## Where each carried slot is, in words.
@@ -1948,6 +2220,8 @@ func _show_details(key: String) -> void:
 	if details == null or not is_instance_valid(details):
 		return
 	var changed := key != inv_sel or details.get_child_count() == 0
+	if key != inv_sel:
+		inv_armed = ""
 	inv_sel = key
 	for s in (train_page.slot_root() if page == "train" else box).find_children("*", "Button", true, false):
 		if s is Slot:
@@ -1999,7 +2273,7 @@ func _show_details(key: String) -> void:
 		"belt":
 			_detail_head("empty", "", "Empty belt slot", DIM)
 			_detail_text("Your belt holds %d kinds of item, up to %d of each (the recall scroll is one). A Belt Pouch or a Climber's Pack holds one more kind; a Satchel one more of each." % [p.belt_kinds(), p.max_stack("draught")], DIM)
-			_detail_text("Hold %s to open a ring of your belt items: time slows; point at one and let go to use it." % _item_key(), DIM)
+			_detail_text("Hold %s to open a ring of your belt items: time stops; point at one and let go to use it." % _item_key(), DIM)
 		"item":
 			var n: int = p.item_count(arg)
 			var data: Dictionary = Items.ITEMS[arg]
@@ -2310,7 +2584,7 @@ func _page_confirm_new() -> void:
 	_gap()
 	var row := _grid(2)
 	_button(CT["over"], _new_climber, row)
-	_button(CT["cancel"], open.bind(confirm_back), row)
+	_button(CT["cancel"], go_back, row).set_meta("cancel", true)
 
 
 func _page_dev() -> void:
@@ -3099,6 +3373,7 @@ func _slider(text: String, key: String) -> void:
 	s.step = 0.05
 	s.value = float(settings[key])
 	s.custom_minimum_size = Vector2(220, 38)
+	s.scrollable = false  # (the mouse wheel scrolls the page, not the volume)
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.value_changed.connect(func(v): _set_setting(key, v))
 	row.add_child(s)

@@ -27,6 +27,13 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Nav := preload("res://scripts/nav.gd")
+## The rings (spells, items; secret_tools.gd's tools too) draw over the touch
+## buttons; on a phone they keep clear of the thumb (this big a circle) and
+## leave room under them for the chosen one's name and words.
+const RING_Z := 60
+const RING_THUMB := 46.0
+const RING_TEXT := 90.0
 
 const GOLD := UI.GOLD
 const TEXT := UI.TEXT
@@ -60,6 +67,7 @@ var tip_box: StyleBoxFlat
 var card_box: StyleBox  # the big cards (towers, camps, the gear at your feet): ui.gd card
 var card_box_on: StyleBox
 var core: Node2D  # the always-there part, drawn under this node
+var rings: Node2D  # the spell and item rings, drawn over the touch buttons
 var core_redraws := 0  # times the core was drawn (tests, dev readout)
 var top_redraws := 0  # times this layer was drawn
 var show_perf := false  # the dev readout (menu.gd's dev tools)
@@ -108,6 +116,13 @@ func _ready() -> void:
 	core.draw.connect(_draw_core)
 	add_sibling.call_deferred(core)
 	(func(): if core.get_parent() != null: get_parent().move_child(core, get_index())).call_deferred()
+	# The rings go over everything in this layer, the touch buttons included,
+	# so no button hides a spoke.
+	rings = Node2D.new()
+	rings.name = "HudRings"
+	rings.z_index = RING_Z
+	rings.draw.connect(_draw_rings)
+	add_child(rings)
 
 
 func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
@@ -149,7 +164,7 @@ func _process(delta: float) -> void:
 	_update_tip()
 	var live := _top_live()
 	var ts := _top_signature()
-	redraw_t -= delta
+	redraw_t -= Nav.real_delta(delta) if Engine.time_scale == 0.0 else delta  # (a ring stops the game's time: real time then)
 	if live and redraw_t <= 0.0:
 		redraw_t = 1.0 / 30.0
 		queue_redraw()
@@ -542,10 +557,7 @@ func _draw() -> void:
 		_draw_camp_choice(size, font)
 	_draw_quarry(p, size, font)
 	_draw_stair_arrow(size, font)
-	if p.pick_open:
-		_draw_spell_ring(p, font)
-	if p.ring_open:
-		_draw_item_ring(p, font)
+	rings.queue_redraw()  # (the rings: _draw_rings, over the touch buttons)
 	_draw_loot_notice(size, font)
 
 
@@ -969,48 +981,62 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 
 # --- hold to pick ----------------------------------------------------------------
 
-## The ring of a mark's spells, around the climber (or the held button on a
-## phone). The highlighted one is cast when you let go.
-func _draw_spell_ring(p, font: Font) -> void:
+## The open ring (if any), on its own node over the touch buttons.
+func _draw_rings() -> void:
+	var p = main.player
+	if p == null or main.title_showing():
+		return
+	var font := ThemeDB.fallback_font
+	if p.pick_open:
+		_draw_spell_ring(p, font, rings)
+	if p.ring_open:
+		_draw_item_ring(p, font, rings)
+
+
+## The ring of a mark's spells, around the climber (or, on a phone, beside
+## the thumb on its button). The highlighted one is cast when you let go.
+func _draw_spell_ring(p, font: Font, ci: CanvasItem) -> void:
 	var b = p.bonds.get(p.pick_part)
 	if b == null:
 		return
 	var known: Array = b.spells()
-	var c: Vector2 = main.pick_anchor if main.touch_active else p.get_global_transform_with_canvas().origin
 	var ring_r := 78.0
-	draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.45))
+	var c: Vector2 = p.get_global_transform_with_canvas().origin
+	if main.touch_active:
+		c = Nav.ring_center(main.pick_anchor, ring_r + 34.0, get_viewport_rect().size, RING_THUMB, RING_TEXT)  # (beside the thumb, never under it)
+	ci.draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.45))
 	var col: Color = b.color()
 	for i in known.size():
 		var a := -PI / 2.0 + TAU * float(i) / float(known.size())
 		var at := c + Vector2.from_angle(a) * ring_r
 		var on: bool = i == p.pick_index
-		draw_circle(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
-		draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5, true)
+		ci.draw_circle(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
+		ci.draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5, true)
 		var words: PackedStringArray = known[i]["name"].split(" ")
 		for w in words.size():
-			UI.draw_label(self, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 12.0), words[w], 13, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT, HORIZONTAL_ALIGNMENT_CENTER, 60)
+			UI.draw_label(ci, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 12.0), words[w], 13, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT, HORIZONTAL_ALIGNMENT_CENTER, 60)
 	if p.pick_index >= 0 and p.pick_index < known.size():
 		var sp: Dictionary = known[p.pick_index]
-		UI.draw_label(self, c + Vector2(-160, ring_r + 54.0), sp["name"], 20, col.lightened(0.2), HORIZONTAL_ALIGNMENT_CENTER, 320, 4)
-		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
-		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
+		UI.draw_label(ci, c + Vector2(-160, ring_r + 54.0), sp["name"], 20, col.lightened(0.2), HORIZONTAL_ALIGNMENT_CENTER, 320, 4)
+		ci.draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
+		ci.draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
 
 
-## The ring of belt items, around the climber (or the held Item button on
-## a phone). The highlighted one is used when you let go.
-func _draw_item_ring(p, font: Font) -> void:
+## The ring of belt items, around the climber (or, on a phone, beside the
+## thumb on the Item button). The highlighted one is used when you let go.
+func _draw_item_ring(p, font: Font, ci: CanvasItem) -> void:
 	var have: Array = p.carried()
 	if have.is_empty():
 		return
 	var c: Vector2 = p.get_global_transform_with_canvas().origin
 	var ring_r := 78.0
 	var view := get_viewport_rect().size
-	if main.touch_active:
-		# On a phone the ring sits left of the buttons, clear of them and of
-		# your thumb; you point by sliding from the Item button.
-		c = Vector2(view.x * 0.4, view.y * 0.42)
 	c = Vector2(clampf(c.x, ring_r + 40.0, view.x - ring_r - 40.0), clampf(c.y, ring_r + 40.0, view.y - ring_r - 100.0))
-	draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.6))
+	if main.touch_active:
+		# On a phone the ring sits beside your thumb on the Item button (never
+		# under it); you point by sliding from the button.
+		c = Nav.ring_center(main.pick_anchor, ring_r + 34.0, view, RING_THUMB, RING_TEXT)
+	ci.draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.6))
 	var b := Draw.Batch.new()
 	for i in have.size():
 		var a := -PI / 2.0 + TAU * float(i) / float(have.size())
@@ -1020,20 +1046,20 @@ func _draw_item_ring(p, font: Font) -> void:
 		b.dot(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
 		b.arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5)
 		Items.icon_into(b, have[i], at + Vector2(0, -2), 11.0 if on else 9.5)
-	b.flush(self)
+	b.flush(ci)
 	for i in have.size():
 		var a := -PI / 2.0 + TAU * float(i) / float(have.size())
 		var at := c + Vector2.from_angle(a) * ring_r
 		var n := "%d" % p.item_count(have[i])
-		draw_string_outline(UI.font("mono"), at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.85))
-		draw_string(UI.font("mono"), at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
+		ci.draw_string_outline(UI.font("mono"), at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.85))
+		ci.draw_string(UI.font("mono"), at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
 	if p.ring_index >= 0 and p.ring_index < have.size():
 		var d: Dictionary = Items.info(have[p.ring_index])
 		var col: Color = d["color"]
-		UI.draw_label(self, c + Vector2(-160, ring_r + 54.0), d["name"], 20, col.lightened(0.2), HORIZONTAL_ALIGNMENT_CENTER, 320, 4)
+		UI.draw_label(ci, c + Vector2(-160, ring_r + 54.0), d["name"], 20, col.lightened(0.2), HORIZONTAL_ALIGNMENT_CENTER, 320, 4)
 		var line := _sentence(String(d["desc"]))
-		draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
-		draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
+		ci.draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
+		ci.draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
 
 
 ## A Rare (or better) find: a short notice fades in under the floor title.

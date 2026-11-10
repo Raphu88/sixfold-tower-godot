@@ -164,11 +164,14 @@ func _noticed(device: int) -> void:
 
 
 func _set_active(on: bool) -> void:
+	var was := active
 	active = on
 	last_active = on
 	main.pad_active = on
 	if main.player != null:
 		main.player.stick_aim = on
+	if was != on and main.menu != null and main.menu.is_open():
+		main.menu.input_changed.call_deferred()  # (an open menu's prompts follow)
 
 
 func _button(id: int, pressed: bool) -> void:

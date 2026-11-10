@@ -7,9 +7,11 @@ extends Control
 ## then the pages; at the bottom Start over and Exit.
 ##
 ## Keys and controller: up and down move along the rail and show each page
-## as you go; Right, Enter or A goes into the page; Esc or B comes back to
-## the rail, and from the rail closes the menu. Touch and mouse: tap or
-## click an item. On a phone the rail narrows to icons with short names.
+## as you go; Right, Enter or A goes into the page; Left from a page comes
+## back to the page's own item; Esc, B or a right-click comes back to the
+## rail, and from the rail closes the menu. Mouse: hovering moves the focus,
+## a click goes in. Touch: tap an item. On a phone the rail narrows to icons
+## with short names. (menu.gd _nav and nav.gd do the moving.)
 ##
 ## The words live in ITEMS, TRAIN_ITEMS, FOOT and TEXT.
 
@@ -164,7 +166,7 @@ func _key_for(id: String, touch: bool, pad: bool, ps: bool) -> String:
 		"climber":
 			return Controls.pad_text("{back}", ps) if pad else "Tab"
 		"inventory":
-			return Controls.pad_text("{up}", ps) if pad else "I"
+			return "" if pad else "I"  # (the d-pad moves the focus in a menu: nothing to show)
 		"resume":
 			return Controls.pad_text("{start}", ps) if pad else "Esc"
 	return ""

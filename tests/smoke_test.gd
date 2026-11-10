@@ -219,16 +219,16 @@ func _gryphon_tests() -> void:
 	_mark("brow", "hunter", 5)
 	_check(p.bonds["hand"].spells().size() == 4 and p.bonds["legs"].spells().size() == 4 and p.bonds["brow"].spells().size() == 4, "at step 5 each Gryphon bond knows four spells")
 	_check(main.ProfileScript.Bonds.step_note("windwalker", 2) == "learns Crosswind", "growing a step names the spell learned")
-	# Hold to pick: holding the key opens the ring (time slows); pointing picks.
+	# Hold to pick: holding the key opens the ring (time stops); pointing picks.
 	Input.action_press("cast_legs")
 	await _wait(0.4)
-	_check(p.pick_open and main.slowmo, "holding a mark's key opens its spell ring and slows time")
+	_check(p.pick_open and main.slowmo and Engine.time_scale == 0.0, "holding a mark's key opens its spell ring and stops time (%.2f)" % Engine.time_scale)
 	p.pick_dir_override = Vector2(1, 0) * 60.0  # points at the second spell (of four, from the top, clockwise)
 	await _wait(0.1)
 	Input.action_release("cast_legs")
 	await _frames(3)
 	_check(p.bonds["legs"].selected == 1 and p.bonds["legs"].spell_name() == "Crosswind", "pointing right picks Crosswind: %s" % p.bonds["legs"].spell_name())
-	_check(not main.slowmo, "letting go closes the ring")
+	_check(not main.slowmo and Engine.time_scale == 1.0, "letting go closes the ring, and time runs again")
 	main.set_slowmo(false)
 	Engine.time_scale = 1.0
 	await _settle()
@@ -6095,11 +6095,11 @@ func _belt_tests() -> void:
 	_check(p.item_count("draught") == 0 and not p.ring_open and Engine.time_scale == 1.0, "a tap of G uses the quick item; the ring stays shut")
 	p.add_item("draught")
 	p.heal_left = 0.0
-	# A hold opens the ring (time slows); pointing picks; letting go uses it.
+	# A hold opens the ring (time stops); pointing picks; letting go uses it.
 	p.mouse_aim = false
 	Input.action_press("use_item")
 	await _wait(0.4)
-	_check(p.ring_open and main.slowmo, "holding G opens the ring of belt items, and time slows")
+	_check(p.ring_open and main.slowmo and Engine.time_scale == 0.0, "holding G opens the ring of belt items, and time stops")
 	var have: Array = p.carried()
 	var target := have.find("haste")
 	p.item_dir_override = Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 60.0
@@ -7219,6 +7219,7 @@ func _run() -> void:
 	await _appearance_tests()
 	await _unbound_tests()
 	await _rail_tests()
+	await _nav_tests()
 	await _climber_slot_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
@@ -10077,10 +10078,10 @@ func _secret_bond_tests() -> void:
 	_check(T.ring_ready() and main.menu.climber_tabs().any(func(t): return t[0] == "core"), "with a secret bond: the tools and a Core tab")
 	main.touch._layout()
 	_check(main.touch.buttons.any(func(b): return b["id"] == "tools" and b["action"] == "tool_ring"), "...and a Tools button on a phone")
-	# Hold to open the ring (time slows), point, let go to use.
+	# Hold to open the ring (time stops), point, let go to use.
 	Input.action_press("tool_ring")
 	await _until(func(): return T.ring_open, 1.0)
-	_check(T.ring_open and main.slowmo, "holding the tool button opens the ring; time slows")
+	_check(T.ring_open and main.slowmo and Engine.time_scale == 0.0, "holding the tool button opens the ring; time stops")
 	await _frames(3)
 	T.ring_index = 0
 	T.dir_override = Vector2(0, -60)  # (pointing up: the first tool)
@@ -11711,6 +11712,336 @@ func _rail_tests() -> void:
 	_check(menu.page == "train" and menu.train_car == main.Train.HOME, "...and Your car goes to your car")
 
 
+## The mouse, as the game would get it (a move, a button).
+func _mouse_move(pos: Vector2) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.position = _to_window(pos)
+	ev.global_position = ev.position
+	ev.relative = Vector2(6, 6)
+	Input.parse_input_event(ev)
+
+
+func _mouse_button(pos: Vector2, button: int, down: bool) -> void:
+	var ev := InputEventMouseButton.new()
+	ev.position = _to_window(pos)
+	ev.global_position = ev.position
+	ev.button_index = button
+	ev.pressed = down
+	Input.parse_input_event(ev)
+
+
+func _focus_now() -> Control:
+	return root.gui_get_focus_owner()
+
+
+## How every menu answers keys, the mouse, a controller and touch (nav.gd):
+## the same rules everywhere.
+func _nav_tests() -> void:
+	print("menu navigation: keys, mouse, controller and touch alike")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	main.profile.regarded = true
+	var menu = main.menu
+	var rail = menu.rail
+	var Nav = load("res://scripts/nav.gd")
+	var p = main.player
+	# Left from a page lands on the rail's item for that page, never another.
+	menu.open("pause")
+	await _frames(2)
+	menu.open("inventory")
+	await _frames(3)
+	var melee = menu._slot_control("gear:melee")
+	melee.grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_LEFT)
+	await _until(func(): return rail.has_focus_inside(), 1.0)
+	_check(menu.page == "inventory" and rail.button("inventory").has_focus(), "Left from the inventory lands on its own rail item and the page stays (%s, %s)" % [menu.page, _focus_now()])
+	menu.open("settings")
+	await _frames(3)
+	var ps_btn = _all_buttons(menu).filter(func(b): return b.get_meta("setting", "") == "padsetup")[0]
+	ps_btn.grab_focus()
+	await _frames(1)
+	await _pad_tap(JOY_BUTTON_DPAD_LEFT)
+	await _until(func(): return rail.has_focus_inside(), 1.0)
+	_check(menu.page == "settings" and rail.button("settings").has_focus(), "...the d-pad too, from Settings")
+	# Up and down in a page never touch the rail (no flash on the way).
+	menu.open_mark("hand")
+	await _frames(3)
+	var seen: Array = []
+	var watch := func(c): seen.append(c)
+	root.gui_focus_changed.connect(watch)
+	await _key_tap(KEY_UP)
+	root.gui_focus_changed.disconnect(watch)
+	_check(not seen.any(func(c): return rail.buttons.has(c)) and menu.page == "mark", "Up at a page's top stays in the page: the rail never takes the focus, even for a moment")
+	# Holding a direction repeats, the same for keys, the d-pad and the stick.
+	for how in ["key", "dpad", "stick"]:
+		menu.close()
+		await _frames(2)
+		menu.open("pause")
+		await _until(func(): return rail.button("resume").has_focus(), 1.0)
+		if how == "key":
+			var ev := InputEventKey.new()
+			ev.physical_keycode = KEY_DOWN
+			ev.keycode = KEY_DOWN
+			ev.pressed = true
+			Input.parse_input_event(ev)
+		elif how == "dpad":
+			_pad_button(JOY_BUTTON_DPAD_DOWN, true)
+		else:
+			_pad_axis(JOY_AXIS_LEFT_Y, 1.0)
+		await _until(func(): return rail.button("archive").has_focus(), 2.0)
+		var got: bool = rail.button("archive").has_focus()
+		if how == "key":
+			var up := InputEventKey.new()
+			up.physical_keycode = KEY_DOWN
+			up.keycode = KEY_DOWN
+			Input.parse_input_event(up)
+		elif how == "dpad":
+			_pad_button(JOY_BUTTON_DPAD_DOWN, false)
+		else:
+			_pad_axis(JOY_AXIS_LEFT_Y, 0.0)
+		await _frames(3)
+		_check(got, "holding %s down repeats along the rail" % {"key": "the arrow key", "dpad": "the d-pad", "stick": "the stick"}[how])
+	main.pad._set_active(false)
+	# The key's own repeats (the system's) don't add steps of their own.
+	menu.close()
+	await _frames(2)
+	menu.open("pause")
+	await _until(func(): return rail.button("resume").has_focus(), 1.0)
+	var k := InputEventKey.new()
+	k.physical_keycode = KEY_DOWN
+	k.keycode = KEY_DOWN
+	k.pressed = true
+	Input.parse_input_event(k)
+	await _frames(2)
+	for i in 4:
+		var e: InputEventKey = k.duplicate()
+		e.echo = true
+		Input.parse_input_event(e)
+		await _frames(1)
+	var k2: InputEventKey = k.duplicate()
+	k2.pressed = false
+	Input.parse_input_event(k2)
+	await _frames(2)
+	_check(rail.button("climber").has_focus(), "a quick press is one step, whatever the system's key repeat sends")
+	# The stick wobbling past its deadzone is still one step (an appearance row).
+	menu.open_appearance("climber")
+	await _frames(3)
+	main.pad._set_active(true)  # (the controller in use: its first press doesn't rebuild the page under it)
+	await _frames(3)
+	var rkey: String = menu.look_page.first_focus.key
+	menu.look_page.rows[rkey].grab_focus()
+	await _frames(1)
+	var before: String = menu.look_page.rows[rkey].value
+	for v in [0.6, 0.8, 1.0, 0.95, 1.0, 0.97, 1.0]:
+		_pad_axis(JOY_AXIS_LEFT_X, v)
+		await _frames(1)
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	await _frames(2)
+	var A = load("res://scripts/appearance.gd")
+	var after: String = menu.look_page.rows[rkey].value
+	_check(after == A.step({rkey: before}, rkey, 1), "one push of the stick changes an appearance row by one, like the d-pad (%s -> %s)" % [before, after])
+	main.pad._set_active(false)
+	# Esc in a text box leaves the box, not the page; B the same.
+	menu.look_page.name_edit.grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "appearance" and not menu.look_page.name_edit.has_focus() and _focus_now() != null, "Esc in the name box leaves the box, not the page (%s)" % menu.page)
+	menu.look_page.name_edit.grab_focus()
+	await _frames(1)
+	await _pad_tap(JOY_BUTTON_B)
+	_check(menu.page == "appearance" and not menu.look_page.name_edit.has_focus(), "...and B the same")
+	main.pad._set_active(false)
+	# Back returns the focus to what opened the page.
+	menu.open("climber")
+	await _frames(3)
+	_all_buttons(menu).filter(func(b): return b.has_meta("appearance"))[0].grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ENTER)
+	await _until(func(): return menu.page == "appearance", 1.0)
+	await _key_tap(KEY_ESCAPE)
+	await _until(func(): return menu.page == "climber" and _focus_now() != null, 1.0)
+	_check(menu.page == "climber" and _focus_now() != null and _focus_now().has_meta("appearance"), "back from Appearance, the focus is on the Appearance button again (%s)" % _focus_now())
+	# Q / E move the focus onto the new tab.
+	var tab = _all_buttons(menu).filter(func(b): return b.get_meta("tab", "") == menu.climber_tab)[0]
+	tab.grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_E)
+	await _frames(2)
+	_check(_focus_now() != null and _focus_now().get_meta("tab", "") == menu.climber_tab, "Q / E move the focus onto the tab they open (%s)" % menu.climber_tab)
+	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
+	await _frames(2)
+	_check(_focus_now() != null and _focus_now().get_meta("tab", "") == menu.climber_tab, "...LB / RB too")
+	main.pad._set_active(false)
+	# The inventory's views switch with Q / E too.
+	menu.open("inventory")
+	await _frames(3)
+	menu._slot_control("gear:melee").grab_focus()
+	await _frames(1)
+	var view0: String = menu.inv_view
+	await _key_tap(KEY_E)
+	_check(menu.inv_view != view0, "Q / E switch the inventory's views (%s -> %s)" % [view0, menu.inv_view])
+	menu._inv_view("worn")
+	await _frames(3)
+	# Hover moves the focus.
+	var heal = _all_buttons(menu).filter(func(b): return b.get_meta("slot", "") == "gear:armor")[0]
+	_mouse_move(heal.get_global_rect().get_center())
+	await _until(func(): return heal.has_focus(), 1.0)
+	_check(heal.has_focus() and menu.inv_sel == "gear:armor", "the mouse over a slot moves the focus (and its card) there")
+	_mouse_move(rail.button("settings").get_global_rect().get_center())
+	await _until(func(): return rail.button("settings").has_focus(), 1.0)
+	_check(rail.button("settings").has_focus() and menu.page == "inventory", "...and over a rail item, without opening its page")
+	# A slot press opens its card: the focus goes to its first button; B comes back.
+	for i in 2:
+		p.add_item("draught")
+	p.hp = p.max_hp * 0.5
+	menu.open("inventory")
+	await _frames(3)
+	var dr = menu._slot_control("item:draught")
+	dr.grab_focus()
+	await _frames(1)
+	var n0: int = p.item_count("draught")
+	await _key_tap(KEY_ENTER)
+	var f: Control = _focus_now()
+	_check(f is Button and menu.details.is_ancestor_of(f) and f.text == "Use" and p.item_count("draught") == n0, "Enter on a slot puts the focus on its card's first button (Use), using nothing yet")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(menu.page == "inventory" and menu._slot_control("item:draught").has_focus(), "B from the card comes back to its slot")
+	main.pad._set_active(false)
+	await _key_tap(KEY_ENTER)
+	await _key_tap(KEY_ENTER)
+	_check(p.item_count("draught") == n0 - 1, "...and a second press uses the item")
+	# Mouse and touch: one press shows, a second uses (the same as the keys).
+	p.hp = p.max_hp * 0.5
+	menu.inv_sel = "gear:melee"
+	menu.open("inventory")
+	await _frames(3)
+	n0 = p.item_count("draught")
+	var at: Vector2 = menu._slot_control("item:draught").get_global_rect().get_center()
+	_mouse_move(at)
+	await _frames(2)
+	_mouse_button(at, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_mouse_button(at, MOUSE_BUTTON_LEFT, false)
+	await _frames(3)
+	_check(p.item_count("draught") == n0 and menu.inv_sel == "item:draught", "one click on an item shows it, using nothing")
+	_mouse_button(at, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_mouse_button(at, MOUSE_BUTTON_LEFT, false)
+	await _frames(3)
+	_check(p.item_count("draught") == n0 - 1, "...a second click uses it")
+	# A right-click goes back one level.
+	menu.open("pause")
+	await _frames(2)
+	menu.open("settings")
+	await _frames(3)
+	var sl = _focus_now()
+	_check(sl is HSlider and not sl.scrollable, "the settings' sliders don't take the mouse wheel (the page scrolls)")
+	_mouse_button(menu.panel.get_global_rect().get_center(), MOUSE_BUTTON_RIGHT, true)
+	await _frames(1)
+	_mouse_button(menu.panel.get_global_rect().get_center(), MOUSE_BUTTON_RIGHT, false)
+	await _frames(2)
+	_check(menu.page == "settings" and rail.has_focus_inside(), "a right-click goes back one level (from the page to the rail)")
+	# The Start over question starts on Cancel; Esc goes back to where you were.
+	menu.open("pause")
+	await _frames(2)
+	rail.button("over").grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ENTER)
+	await _frames(2)
+	_check(menu.page == "confirm_new" and _focus_now() != null and _focus_now().has_meta("cancel"), "Start over asks first, with the focus on Cancel")
+	await _key_tap(KEY_ESCAPE)
+	await _until(func(): return rail.button("over").has_focus(), 1.0)
+	_check(menu.page == "pause" and rail.button("over").has_focus(), "...and Esc goes back onto Start over, nothing lost")
+	menu.close()
+	await _frames(2)
+	# The store car: Enter on a shelf slot reaches its Buy; Left comes back.
+	main.open_train()
+	await _frames(4)
+	menu.train_page.go_to(menu.train_page._index("store"))
+	await _frames(6)
+	var d = menu._slot_control("supply:draught")
+	d.grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ENTER)
+	f = _focus_now()
+	_check(f is Button and menu.details.is_ancestor_of(f) and menu.inv_sel == "supply:draught", "in the store, Enter on a shelf puts the focus on that item's card (%s)" % (f.text if f is Button else f))
+	await _key_tap(KEY_LEFT)
+	_check(menu._slot_control("supply:draught") != null and menu._slot_control("supply:draught").has_focus(), "...and Left comes back to its slot")
+	# The menu from the train starts on the rail, like the menu in a climb.
+	await _pad_tap(JOY_BUTTON_B)
+	await _until(func(): return menu.page == "pause" and rail.button("resume").has_focus(), 1.0)
+	_check(menu.page == "pause" and rail.button("resume").has_focus(), "B on the train opens the menu on the rail's first item")
+	main.pad._set_active(false)
+	menu.close()
+	await _frames(3)
+	main.on_train = false
+	# The title's list wraps round.
+	menu.open("title")
+	await _frames(3)
+	var tl: Array = menu.focusables()
+	tl[0].grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_UP)
+	_check(tl[tl.size() - 1].has_focus(), "Up from the title's first button wraps round to the last")
+	menu.close()
+	await _frames(2)
+	# Prompts follow the input.
+	main.touch._set_active(true)
+	_check(Nav.fill("{again} to sell", main) == "Tap again to sell", "on a phone a second press says Tap again")
+	main.touch._set_active(false)
+	_check(Nav.fill("{again} to sell", main) == "Press again to sell", "...and with keys or a controller, Press again")
+	main.pad._set_active(true)
+	menu.open("pause")
+	await _frames(2)
+	_check(rail.buttons.all(func(b): return not String(b.key_hint).contains("{")), "the rail's prompts show no raw placeholders with a controller")
+	menu.open("climber")
+	await _frames(3)
+	main.pad._set_active(false)
+	var shown := func(t: String): return _all_labels(menu).any(func(l): return l.text == t and l.is_visible_in_tree())
+	await _until(func(): return shown.call("Q"), 1.0)
+	_check(shown.call("Q") and not shown.call("LB"), "switching to the keyboard mid-page, the page's prompts change to keys at once")
+	menu.close()
+	await _frames(2)
+	# On a phone, a tap doesn't leave a focus highlight on the page.
+	main.touch._set_active(true)
+	menu.open("pause")
+	await _frames(2)
+	await _tap_at(rail.button("settings").get_global_rect().get_center())
+	_check(menu.page == "settings" and _focus_now() == null, "on a phone, tapping a page open leaves no focus highlight")
+	menu.close()
+	await _frames(2)
+	main.touch._set_active(false)
+	# Rings: time stops while one is open, and they draw over the touch buttons,
+	# beside the thumb (never under it).
+	_check(main.hud.rings != null and main.hud.rings.z_index > main.touch.z_index and main.hud.rings.z_index > 0, "the spell and item rings draw over the touch buttons")
+	if main.secret_tools != null and main.secret_tools.ring_screen != null:
+		_check(main.secret_tools.ring_screen.z_index > main.touch.z_index, "...and the tool ring too")
+	var view := Vector2(800, 400)
+	var ok := true
+	for thumb in [Vector2(700, 300), Vector2(760, 360), Vector2(620, 380), Vector2(740, 120), Vector2(100, 300)]:
+		var c: Vector2 = Nav.ring_center(thumb, 112.0, view, 46.0, 90.0)
+		if c.distance_to(thumb) < 112.0 + 46.0 - 1.0:
+			ok = false
+			print("    ring at ", c, " covers the thumb at ", thumb)
+	_check(ok, "on a phone a ring sits beside the thumb that holds its button, never under it")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	p = main.player
+	p.mouse_aim = false
+	p.add_item("tonic")
+	p.add_item("haste")
+	p.add_item("draught")
+	Input.action_press("use_item")
+	await _until(func(): return p.ring_open, 1.5)
+	_check(p.ring_open and Engine.time_scale == 0.0, "an open ring stops time completely (%.2f)" % Engine.time_scale)
+	Input.action_release("use_item")
+	await _until(func(): return not p.ring_open, 1.5)
+	_check(not p.ring_open and Engine.time_scale == 1.0, "...and letting go starts it again")
+
+
 func _climber_slot_tests() -> void:
 	print("climber slots")
 	var S = load("res://scripts/slots.gd")
@@ -11835,7 +12166,7 @@ func _climber_slot_tests() -> void:
 		del4[0].pressed.emit()
 	await _frames(2)
 	del4 = _all_buttons(menu).filter(func(x): return int(x.get_meta("climber_delete", 0)) == 4)
-	_check(S.exists(4) and del4.size() == 1 and del4[0].text == CP.TEXT["delete_again"], "Delete asks again first (nothing is deleted yet)")
+	_check(S.exists(4) and del4.size() == 1 and del4[0].text == load("res://scripts/nav.gd").fill(CP.TEXT["delete_again"], main), "Delete asks again first (nothing is deleted yet)")
 	if del4.size() == 1:
 		del4[0].pressed.emit()
 	await _frames(2)

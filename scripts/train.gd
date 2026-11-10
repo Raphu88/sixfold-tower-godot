@@ -125,7 +125,7 @@ const TEXT := {
 	"chest_full": "your chest is full",
 	"pack_full": "your pack is full",
 	"sell_for": "Sell for %d %s",
-	"sell_ask": "Tap again to sell for %d %s",
+	"sell_ask": "{again} to sell for %d %s",
 	"sold": "Sold: %s for %s",
 	# Store car
 	"store_sub": "Kept by the outfitter. He buys what climbers bring down, and sells it to the next ones up.",

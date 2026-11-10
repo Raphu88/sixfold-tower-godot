@@ -42,7 +42,6 @@ const SWIPE := 14.0
 const SWIPE_CAR := 0.15
 const FLICK := 0.9
 const WHEEL_GAP := 220  # ms between cars on the mouse wheel (a trackpad sends many)
-const STICK_GAP := 260  # ms between cars on the stick
 
 var m  # the menu (menu.gd)
 var tips := {}  # car -> the Entity's tip said there this visit (kept while the page rebuilds)
@@ -63,7 +62,6 @@ var drag_samples: Array = []  # [msec, x] for the flick's speed
 var mouse_down := false
 var held_button: BaseButton = null  # the button a mouse drag began on, held off till it ends
 var wheel_at := 0
-var stick_at := 0
 
 
 func _init(menu) -> void:
@@ -1072,19 +1070,7 @@ func input(event: InputEvent) -> bool:
 				held_button = b
 				b.disabled = true
 		return drag_axis == "x"
-	# Left / Right past the last thing in this car: the next car.
-	for side in [["ui_left", -1, SIDE_LEFT], ["ui_right", 1, SIDE_RIGHT]]:
-		if event.is_action_pressed(side[0]):
-			if event is InputEventJoypadMotion:
-				var now := Time.get_ticks_msec()
-				if now - stick_at < STICK_GAP:
-					return _at_edge(side[2])
-				if _at_edge(side[2]):
-					stick_at = now
-			if _at_edge(side[2]):
-				cycle(side[1])
-				return true
-			return false
+	# (Left / Right past the last thing in this car go to the next car: menu.gd _nav.)
 	return false
 
 
@@ -1284,12 +1270,12 @@ func _cost_lines(cost: Dictionary, label: String) -> String:
 	return Bench.short_of(_prof(), cost)
 
 
-## A bench button that asks first: the first press says "Tap again", the
+## A bench button that asks first: the first press says "Press again" (or "Tap again"), the
 ## second does it. `ask` names this exact choice (m.sell_ask holds it).
 func _ask_button(parent: Node, text: String, again: String, ask: String, why: String, meta: String, meta_val: String) -> Button:
 	var full: String = m.inv_sel + "|" + ask
 	var asking: bool = m.sell_ask == full
-	var b: Button = m._button(again if asking else text, _ask.bind(full), parent)
+	var b: Button = m._button(m.Nav.fill(again, m.main) if asking else text, _ask.bind(full), parent)
 	b.custom_minimum_size.y = 40
 	b.disabled = why != ""
 	b.set_meta(meta, meta_val)
@@ -1651,7 +1637,7 @@ func _piece_card(where: String, i: int) -> void:
 	mv.custom_minimum_size = Vector2(0, 40)
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mv.disabled = full
-	var sell: Button = m._button(T["sell_ask"] % [got, Essence.display(kind)] if m.sell_ask == key else T["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), row)
+	var sell: Button = m._button(m.Nav.fill(T["sell_ask"] % [got, Essence.display(kind)], m.main) if m.sell_ask == key else T["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), row)
 	sell.custom_minimum_size = Vector2(0, 40)
 	sell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sell.set_meta("sell", key)
@@ -1769,7 +1755,7 @@ func _move(where: String, i: int) -> void:
 		_done(T["cant"] % why, "", "ui_back")
 
 
-## Selling asks once: the button says "Tap again to sell", and a second
+## Selling asks once: the button says "Press again to sell" (or "Tap again"), and a second
 ## press sells.
 func _sell(where: String, i: int) -> void:
 	var key := "%s:%d" % [where, i]

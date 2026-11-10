@@ -133,7 +133,7 @@ static func _developer(menu, col: Color) -> void:
 		menu._note(SB.TEXT["path_line"] % [int(prof.flow), int(SB.PATH_CHANGE_COST)])
 		var row2: HBoxContainer = menu._row()
 		var armed: bool = Time.get_ticks_msec() - int(menu.get_meta("path_armed", -99999)) < ARM_MS
-		var b2: Button = menu._button(SB.TEXT["path_confirm"] if armed else "Let your %s go" % Secret.display(prof.path), _path.bind(menu), row2)
+		var b2: Button = menu._button(menu.Nav.fill(SB.TEXT["path_confirm"], menu.main) if armed else "Let your %s go" % Secret.display(prof.path), _path.bind(menu), row2)
 		b2.set_meta("path_change", true)
 		b2.disabled = not train
 		if not train:

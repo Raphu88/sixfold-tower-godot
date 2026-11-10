@@ -3,7 +3,7 @@ extends Node2D
 ##
 ## THE TOOL RING: hold B (LB + LT on a controller, the Tools button on a
 ## phone) and past RING_HOLD a ring of the bond's unlocked tools opens while
-## time slows; point at one (the mouse, a stick, or slide your finger) and
+## time stops; point at one (the mouse, a stick, or slide your finger) and
 ## let go to use it. A tap uses the last tool again (or closes an open panel).
 ## The ring shows each tool's cost as essence gems. Targeted tools aim where
 ## you were aiming when the ring opened (that target is outlined).
@@ -24,6 +24,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const UI := preload("res://scripts/ui.gd")
 const Floors := preload("res://scripts/floors.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Nav := preload("res://scripts/nav.gd")
 
 const RING_HOLD := 0.25
 const RING_R := 76.0
@@ -38,6 +39,7 @@ const BAD := Color(1.0, 0.45, 0.4)
 
 var main
 var screen: Node2D
+var ring_screen: Node2D  # the tool ring, over the touch buttons (hud.gd RING_Z)
 # The ring.
 var holding := false
 var hold_t := 0.0
@@ -83,11 +85,19 @@ func _ready() -> void:
 	layer.add_child(screen)
 	if main.hud != null:
 		layer.move_child(screen, main.hud.get_index() + 1)  # over the HUD, under the touch buttons
+	# The ring itself goes over the touch buttons, so none hides a spoke.
+	ring_screen = Node2D.new()
+	ring_screen.name = "SecretToolsRing"
+	ring_screen.z_index = main.hud.RING_Z if main.hud != null else 60
+	ring_screen.draw.connect(_draw_ring_screen)
+	layer.add_child(ring_screen)
 
 
 func _exit_tree() -> void:
 	if screen != null and is_instance_valid(screen):
 		screen.queue_free()
+	if ring_screen != null and is_instance_valid(ring_screen):
+		ring_screen.queue_free()
 
 
 func prof():
@@ -139,6 +149,7 @@ func _physics_process(delta: float) -> void:
 	if on or _drew:
 		queue_redraw()
 		screen.queue_redraw()
+		ring_screen.queue_redraw()
 	_drew = on
 
 
@@ -319,6 +330,8 @@ func use(id: String, target = null) -> bool:
 	main.sfx("glint", 0.7, -6.0, 0.02)
 	queue_redraw()
 	screen.queue_redraw()
+	if ring_screen != null:
+		ring_screen.queue_redraw()
 	return true
 
 
@@ -831,7 +844,7 @@ func _draw_screen() -> void:
 	if p.pick_open and paid.has("dev_inspect"):
 		_draw_pick_numbers(font, view)
 	if ring_open:
-		_draw_ring(font, view)
+		pass  # (the ring: _draw_ring_screen, over the touch buttons)
 	elif note_t > 0.0 and message != "":
 		var a := clampf(note_t / 0.4, 0.0, 1.0)
 		var c: Vector2 = p.get_global_transform_with_canvas().origin + Vector2(0, -70)
@@ -839,6 +852,12 @@ func _draw_screen() -> void:
 		var x := clampf(c.x - w * 0.5, 12.0, view.x - w - 12.0)
 		screen.draw_string_outline(font, Vector2(x, c.y), message, HORIZONTAL_ALIGNMENT_CENTER, w, 14, 4, Color(0, 0, 0, 0.85 * a))
 		screen.draw_string(font, Vector2(x, c.y), message, HORIZONTAL_ALIGNMENT_CENTER, w, 14, Color(BAD, a))
+
+
+## The ring's own node: drawn over the touch buttons.
+func _draw_ring_screen() -> void:
+	if ring_open and _active() and not main.menu_open():
+		_draw_ring(ThemeDB.fallback_font, ring_screen.get_viewport_rect().size)
 
 
 ## The ring: each tool with its cost in gems, the highlighted one described below.
@@ -849,9 +868,10 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 		return
 	var col := SB.color(bond())
 	var c: Vector2 = p.get_global_transform_with_canvas().origin
-	if main.touch_active:
-		c = Vector2(view.x * 0.4, view.y * 0.42)
 	c = Vector2(clampf(c.x, RING_R + 44.0, view.x - RING_R - 44.0), clampf(c.y, RING_R + 44.0, view.y - RING_R - 110.0))
+	if main.touch_active:
+		# On a phone: beside the thumb on the Tools button, never under it.
+		c = Nav.ring_center(main.pick_anchor, RING_R + 40.0, view, main.hud.RING_THUMB, main.hud.RING_TEXT)
 	var path: String = main.profile.path
 	var b := Draw.Batch.new()
 	b.dot(c, RING_R + 40.0, Color(0, 0, 0, 0.62))
@@ -897,14 +917,14 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 					texts.append([gp + Vector2(1, 4), str(gems[g][1]), Color(0.95, 0.93, 0.88), 9, true])
 		else:
 			texts.append([at + Vector2(-34, r + 13.0), SB.TEXT["train_only"], Color(0.7, 0.7, 0.75, 0.8), 8])
-	b.flush(screen)
+	b.flush(ring_screen)
 	for t in texts:
 		if t.size() > 4:
-			screen.draw_string_outline(font, t[0], t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, t[3], 3, Color(0, 0, 0, 0.9))
-			screen.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, t[3], t[2])
+			ring_screen.draw_string_outline(font, t[0], t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, t[3], 3, Color(0, 0, 0, 0.9))
+			ring_screen.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, t[3], t[2])
 		else:
-			screen.draw_string_outline(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, 68, t[3], 3, Color(0, 0, 0, 0.9))
-			screen.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, 68, t[3], t[2])
+			ring_screen.draw_string_outline(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, 68, t[3], 3, Color(0, 0, 0, 0.9))
+			ring_screen.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, 68, t[3], t[2])
 	# The highlighted tool: its name, what it does, its cost and what's missing.
 	var id2: String = list[clampi(ring_index, 0, list.size() - 1)]
 	var info2: Dictionary = SB.TOOLS[id2]
@@ -912,7 +932,7 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 	var w := minf(360.0, view.x - 24.0)
 	var x := clampf(c.x - w * 0.5, 12.0, view.x - w - 12.0)
 	var title := "%s  ·  %s" % [SB.display(bond()), String(info2["name"])]
-	UI.draw_label(screen, Vector2(x, y), title, 17, col.lightened(0.25), HORIZONTAL_ALIGNMENT_CENTER, w, 4, Color(0, 0, 0, 0.85))
+	UI.draw_label(ring_screen, Vector2(x, y), title, 17, col.lightened(0.25), HORIZONTAL_ALIGNMENT_CENTER, w, 4, Color(0, 0, 0, 0.85))
 	var line := String(info2["short"])
 	if SB.usable_in_climb(id2):
 		var free2: bool = info2.get("lasts", "") == "floor" and paid.has(id2)
@@ -927,8 +947,8 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 			line += "\n" + SB.TEXT["no_target"]
 	else:
 		line += "  ·  " + SB.TEXT["train_only"]
-	screen.draw_multiline_string_outline(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, 4, Color(0, 0, 0, 0.85))
-	screen.draw_multiline_string(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, Color(0.92, 0.9, 0.86))
+	ring_screen.draw_multiline_string_outline(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, 4, Color(0, 0, 0, 0.85))
+	ring_screen.draw_multiline_string(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, Color(0.92, 0.9, 0.86))
 
 
 ## A tool's small glyph: an eye (Inspect), a lever (Switch), a wave (Calm),

@@ -163,8 +163,11 @@ func _input(event: InputEvent) -> void:
 
 
 func _set_active(on: bool) -> void:
+	var was := active
 	active = on
 	main.touch_active = on
+	if was != on and main.menu != null and main.menu.is_open():
+		main.menu.input_changed.call_deferred()  # (an open menu's prompts follow)
 	get_tree().root.content_scale_factor = PHONE_SCALE if on else 1.0
 	if main.player != null:
 		main.player.touch_aim = on
