@@ -138,7 +138,7 @@ const TIPS := {
 		"tip": "The beast has noticed you. I noticed it noticing. Your most-used part bears a mark now.",
 		"more": "The first climb is bondless and ends in the Regard: at its top the tower's beast takes notice, the body part you used most takes your first mark, and the essence you gathered most decides which bond it is. Fall during the first climb and you are still regarded, but the mark is faint: weaker until it has soaked up 80 more essence. Break a barrier on the first climb and the beast refuses to mark you instead: you are Unbound."},
 	"casting": {"group": "essence", "name": "Casting",
-		"tip": "Your mark answers to {cast}. Tap to cast; hold to choose a spell while time slows.",
+		"tip": "Your mark answers to {cast}. Tap to cast; hold to choose a spell while time stands still.",
 		"more": "Each mark is a bond with a body (an upgrade to a basic action), a passive, and spells learned as it grows (at steps 1, 2, 4 and 5; step 3 changes the first). A mark fills with essence during a climb as its body part does its work, and glows once a spell can be cast. Tap the mark's key ({cast}) to cast its selected spell, or hold it to open a ring of its spells, point at one and let go. The climber screen ({climber}) has a page for every mark with all its spells."},
 	"overdraw": {"group": "essence", "name": "Overdraw",
 		"tip": "You cast with too little essence and the mark burned. It heals at the stair. Do it again only if it's worth it.",
@@ -336,7 +336,7 @@ const TIPS := {
 		"more": "The belt holds four kinds of item, up to three of each (a recall scroll is one). A Belt Pouch or a Climber's Pack holds a fifth kind, and a Satchel or Climber's Pack a fourth of each. Step on a new kind with a full belt and you choose: swap a stack out (it stays where you stand) or leave the new one. Survive the climb and whatever is left on your belt breaks into essence crystals, at half its worth."},
 	"item_ring": {"group": "gear", "name": "The item ring",
 		"tip": "Hold {item} to see your whole belt. Point, let go, and it's used.",
-		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens while time slows: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
+		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens and time stands still: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
 	# --- the train ---
 	"train": {"group": "train", "name": "The train",
 		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. The engine takes you on when you're ready.",
@@ -375,7 +375,7 @@ const TIPS := {
 	# --- the secret bonds' tools (secret_bonds.gd, secret_tools.gd): mechanical text only ---
 	"tool_ring": {"group": "tools", "name": "The tool ring",
 		"tip": "Hold {tools} for your secret bond's tools. Every tool costs essence you carry.",
-		"more": "A secret bond's tools are used from the tool ring: hold {tools} and the ring opens while time slows; point at a tool (the mouse, a stick, or slide your finger) and let go to use it. A tap uses the last tool again, or closes an open panel. Under each tool, gems show its cost: your path's secret essence (Life or Unmaking) and ordinary essence, both from what you carry unbanked. A unit of secret essence you don't carry costs three essence instead. A tool that aims works on what you were aiming at when the ring opened."},
+		"more": "A secret bond's tools are used from the tool ring: hold {tools} and the ring opens and time stands still; point at a tool (the mouse, a stick, or slide your finger) and let go to use it. A tap uses the last tool again, or closes an open panel. Under each tool, gems show its cost: your path's secret essence (Life or Unmaking) and ordinary essence, both from what you carry unbanked. A unit of secret essence you don't carry costs three essence instead. A tool that aims works on what you were aiming at when the ring opened."},
 	"tool_inspect_developer": {"group": "tools", "name": "Inspect (the Developer)",
 		"tip": "Your spells' real numbers, for the rest of the floor: on the spell ring while you aim, and in the panel.",
 		"more": "The Developer's Inspect shows every spell you carry with its real numbers: cost, wind-up, damage, reach and the rest, with everything that changes them already counted (a faint mark, your density, gear, flow and Tune), and what each step adds. Once paid it lasts the floor: the spell ring shows the pointed spell's numbers while you aim, and using Inspect again opens or closes the panel for free."},

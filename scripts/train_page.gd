@@ -242,7 +242,7 @@ func go_to(i: int, from_drag := false) -> void:
 	if m.main.touch_active:
 		m.get_viewport().gui_release_focus()
 	elif m.rail.has_focus_inside():
-		m.rail.focus_current()  # (moving along from the rail: the focus stays on it, on this car)
+		m._focus_rail(m.rail.button(m.train_car))  # (moving along from the rail: the focus stays on it, on this car)
 	elif not focus.is_empty():
 		m._focus_later.call_deferred(focus[first_focus(focus)])
 
@@ -255,7 +255,7 @@ func back() -> void:
 	if f != null and f == m.rail.button(m.train_car):
 		return
 	m.main.sfx("ui_back")
-	m.rail.focus_current()
+	m._focus_rail(m.rail.button(m.train_car))
 
 
 ## Into the car you're in, onto its starting point (Right, Enter or A on the rail).
@@ -1027,22 +1027,8 @@ func input(event: InputEvent) -> bool:
 				held_button = b
 				b.disabled = true
 		return drag_axis == "x"
-	# Left past the first thing in this car: back to the rail (on the car
-	# you're in). Right past the last: nothing further. On the rail, Right
-	# goes into the car (rail.gd's neighbours) and Left stays put.
-	for side in [["ui_left", SIDE_LEFT], ["ui_right", SIDE_RIGHT]]:
-		if event.is_action_pressed(side[0]):
-			var f: Control = m.get_viewport().gui_get_focus_owner()
-			if f != null and m.rail.buttons.has(f):
-				return false
-			if not _at_edge(side[1]):
-				return false
-			if side[1] == SIDE_LEFT:
-				m.main.sfx("ui_back")
-				m.rail.focus_current()
-			elif f == null:
-				enter()  # (nothing focused: Right goes into the car)
-			return true
+	# (The arrows, the d-pad and the stick: menu.gd _nav. Left past the first
+	# thing in a car goes back to the rail; Right on the rail goes into it.)
 	return false
 
 
@@ -1256,12 +1242,12 @@ func _cost_lines(cost: Dictionary, label: String) -> String:
 	return Bench.short_of(_prof(), cost)
 
 
-## A bench button that asks first: the first press says "Tap again", the
+## A bench button that asks first: the first press says "Press again" (or "Tap again"), the
 ## second does it. `ask` names this exact choice (m.sell_ask holds it).
 func _ask_button(parent: Node, text: String, again: String, ask: String, why: String, meta: String, meta_val: String) -> Button:
 	var full: String = m.inv_sel + "|" + ask
 	var asking: bool = m.sell_ask == full
-	var b: Button = m._button(again if asking else text, _ask.bind(full), parent)
+	var b: Button = m._button(m.Nav.fill(again, m.main) if asking else text, _ask.bind(full), parent)
 	b.custom_minimum_size.y = 40
 	b.disabled = why != ""
 	b.set_meta(meta, meta_val)
@@ -1623,7 +1609,7 @@ func _piece_card(where: String, i: int) -> void:
 	mv.custom_minimum_size = Vector2(0, 40)
 	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mv.disabled = full
-	var sell: Button = m._button(T["sell_ask"] % [got, Essence.display(kind)] if m.sell_ask == key else T["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), row)
+	var sell: Button = m._button(m.Nav.fill(T["sell_ask"] % [got, Essence.display(kind)], m.main) if m.sell_ask == key else T["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), row)
 	sell.custom_minimum_size = Vector2(0, 40)
 	sell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sell.set_meta("sell", key)
@@ -1741,7 +1727,7 @@ func _move(where: String, i: int) -> void:
 		_done(T["cant"] % why, "", "ui_back")
 
 
-## Selling asks once: the button says "Tap again to sell", and a second
+## Selling asks once: the button says "Press again to sell" (or "Tap again"), and a second
 ## press sells.
 func _sell(where: String, i: int) -> void:
 	var key := "%s:%d" % [where, i]

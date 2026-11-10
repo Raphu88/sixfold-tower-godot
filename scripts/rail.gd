@@ -7,9 +7,11 @@ extends Control
 ## then the pages; at the bottom Start over and Exit.
 ##
 ## Keys and controller: up and down move along the rail and show each page
-## as you go; Right, Enter or A goes into the page; Esc or B comes back to
-## the rail, and from the rail closes the menu. Touch and mouse: tap or
-## click an item. On a phone the rail narrows to icons with short names.
+## as you go; Right, Enter or A goes into the page; Left from a page comes
+## back to the page's own item; Esc, B or a right-click comes back to the
+## rail, and from the rail closes the menu. Mouse: hovering moves the focus,
+## a click goes in. Touch: tap an item. On a phone the rail narrows to icons
+## with short names. (menu.gd _nav and nav.gd do the moving.)
 ##
 ## On the train the rail is always there, and it's the train's own
 ## navigation: the four cars first (choosing one moves the train there,
@@ -84,7 +86,9 @@ var ident: RailIdent
 var list: VBoxContainer
 var foot_box: VBoxContainer
 var hint: Label
-var _built_for := ""  # what the items were built for (train / climb, wide / narrow)
+var _built_for := ""  # what the items were built for (train / climb, wide / narrow, touch)
+var _built_pad := false  # ...and the keys' names they show (a controller, a PlayStation one)
+var _built_ps := false
 
 
 func _ready() -> void:
@@ -99,12 +103,22 @@ static func width_for(compact: bool) -> float:
 
 ## Builds (or refreshes) the rail for the page showing.
 func refresh(page_item: String, train: bool, compact: bool, touch: bool, pad: bool, ps: bool) -> void:
-	var key := "%s %s %s %s %s" % [train, compact, touch, pad, ps]
+	var key := "%s %s %s" % [train, compact, touch]
 	on_train = train
 	narrow = compact
 	if key != _built_for or buttons.is_empty():
 		_built_for = key
 		_build(touch, pad, ps)
+	elif pad != _built_pad or ps != _built_ps:
+		# Only the keys' names changed (a controller picked up or put down):
+		# rename them in place, so the item you're on keeps the focus and the
+		# first press of the new device still lands on it.
+		for b in buttons:
+			b.key_hint = _key_for(b.id, touch, pad, ps)
+		if hint != null:
+			hint.text = _hint_text(pad, ps)
+	_built_pad = pad
+	_built_ps = ps
 	current = page_item
 	at_car = menu.train_car if train and menu != null else ""
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -185,9 +199,7 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	hint = null
 	if not narrow and not touch:
 		hint = Label.new()
-		hint.text = Controls.pad_text(TEXT["hint_pad"], ps) if pad else TEXT["hint_keys"]
-		if on_train:
-			hint.text = Controls.pad_text(TEXT["hint_pad_train"], ps) if pad else TEXT["hint_keys_train"]
+		hint.text = _hint_text(pad, ps)
 		UI.style_label(hint, "mono", 9, Color(UI.FAINT, 0.9))
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -234,6 +246,13 @@ func _fit_rows() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and on_train:
 		_fit_rows.call_deferred()
+
+
+## The line of keys under the rail (on a computer).
+func _hint_text(pad: bool, ps: bool) -> String:
+	if on_train:
+		return Controls.pad_text(TEXT["hint_pad_train"], ps) if pad else TEXT["hint_keys_train"]
+	return Controls.pad_text(TEXT["hint_pad"], ps) if pad else TEXT["hint_keys"]
 
 
 ## A page's row: [id, name, short name, line, icon] (the Archive's name is the Entity's).
@@ -284,7 +303,7 @@ func _key_for(id: String, touch: bool, pad: bool, ps: bool) -> String:
 		"climber":
 			return Controls.pad_text("{back}", ps) if pad else "Tab"
 		"inventory":
-			return Controls.pad_text("{up}", ps) if pad else "I"
+			return "" if pad else "I"  # (the d-pad moves the focus in a menu: nothing to show)
 		"resume":
 			return Controls.pad_text("{start}", ps) if pad else "Esc"
 	return ""
