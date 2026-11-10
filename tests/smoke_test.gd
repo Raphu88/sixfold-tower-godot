@@ -7231,6 +7231,7 @@ func _run() -> void:
 	await _rail_tests()
 	await _nav_tests()
 	await _climber_slot_tests()
+	await _icon_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -12249,3 +12250,47 @@ func _climber_slot_tests() -> void:
 	_check(S.current() == 1 and S.filled().is_empty(), "a save with only settings makes no climber (a brand-new player)")
 	_clear_slots()
 	await _fresh_main()
+
+
+## The item and gear icons (icon_art.gd): every one draws, a cached icon is
+## the same picture moved, and finer gear glows in its rarity's colour.
+func _icon_tests() -> void:
+	print("icons")
+	var Art = load("res://scripts/icon_art.gd")
+	var I = load("res://scripts/items.gd")
+	var G = load("res://scripts/gear.gd")
+	var D = load("res://scripts/draw_util.gd")
+	var empty: Array = []
+	for id in I.ORDER:
+		for s in [10.5, 18.0, 40.0]:
+			var b = D.Batch.new()
+			I.icon_into(b, id, Vector2.ZERO, s)
+			if b.pts.is_empty() or b.pts.size() != b.cols.size():
+				empty.append("%s@%s" % [id, s])
+	for id in G.PIECE_ORDER + G.Weapons.ORDER + ["padded", "leather", "chain", "plate"]:
+		for s in [10.5, 18.0, 40.0]:
+			var b = D.Batch.new()
+			G.icon_into(b, id, Vector2.ZERO, s, G.color(id))
+			if b.pts.is_empty() or b.pts.size() != b.cols.size():
+				empty.append("%s@%s" % [id, s])
+	for n in G.NAMED_ORDER:
+		var b = D.Batch.new()
+		G.icon_into(b, G.make_named(n), Vector2.ZERO, 18.0, G.color(G.make_named(n)))
+		if b.pts.is_empty():
+			empty.append(n)
+	_check(empty.is_empty(), "every item, weapon, piece and named piece draws an icon at HUD, slot and card size %s" % [empty])
+	var a = D.Batch.new()
+	G.icon_into(a, G.make("axe", "fine", ["edges"], 2, "", "sharpness"), Vector2.ZERO, 18.0, Color.WHITE)
+	var m = D.Batch.new()
+	G.icon_into(m, G.make("axe", "fine", ["edges"], 2, "", "sharpness"), Vector2(30, 40), 18.0, Color.WHITE)
+	_check(a.pts.size() == m.pts.size() and m.pts[0].is_equal_approx(a.pts[0] + Vector2(30, 40)) and a.cols == m.cols, "a cached icon is the same picture, moved")
+	var plain = D.Batch.new()
+	G.icon_into(plain, G.make("sword"), Vector2.ZERO, 18.0, Color.WHITE)
+	var glow = D.Batch.new()
+	G.icon_into(glow, G.make("sword", "rare", ["edges", "hunt"]), Vector2.ZERO, 18.0, Color.WHITE)
+	var blue: Color = G.rarity_color(G.make("sword", "rare"))
+	_check(glow.pts.size() > plain.pts.size() and glow.cols[0].is_equal_approx(Color(blue, glow.cols[0].a)), "finer gear glows in its rarity's colour behind its icon; Common doesn't")
+	var faded = D.Batch.new()
+	G.icon_into(faded, G.make("sword"), Vector2.ZERO, 18.0, Color(1, 1, 1, 0.5))
+	_check(faded.cols.size() == plain.cols.size() and is_equal_approx(faded.cols[faded.cols.size() - 1].a, plain.cols[plain.cols.size() - 1].a * 0.5), "a faded colour fades the icon")
+	_check(Art.ol(10.5) < Art.ol(40.0) and Art.detail(10.5) == 0 and Art.detail(40.0) == 2, "outlines and detail scale with the icon's size")
