@@ -44,21 +44,21 @@ const Art := preload("res://scripts/icon_art.gd")
 ## Its item id on the belt (items.gd ITEMS).
 const ID := "vessel"
 ## How much secret essence one holds.
-const CAPACITY := 30.0
+static var CAPACITY := 30.0
 ## The chance a full vault prize offers a vessel as its third card.
-const VAULT_CHANCE := 0.04
+static var VAULT_CHANCE := 0.04
 ## Brewing one at the bench (a Rune Artist only).
-const BREW := {"iron": 60, "water": 45, "air": 45}
+static var BREW := {"iron": 60, "water": 45, "air": 45}
 ## The outfitter's trade for a full vessel: `one` of a single kind you
 ## choose, or `each` of every kind.
-const TRADE := {"one": 120, "each": 30}
+static var TRADE := {"one": 120, "each": 30}
 ## Tests and dev: >= 0 replaces VAULT_CHANCE.
 static var vault_force := -1.0
 
 const BRASS := Color(0.86, 0.64, 0.3)
 const GLASS := Color(0.62, 0.66, 0.74)
 
-const TEXT := {
+static var TEXT := {
 	"captured": "+%d %s into the vessel  (%d / %d)",
 	"full": "The vessel is full",
 	"use_empty": "The vessel waits, empty",

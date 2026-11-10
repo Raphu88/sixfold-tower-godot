@@ -20,7 +20,7 @@ const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
 
 ## Its name and the words around it.
-const TEXT := {
+static var TEXT := {
 	"name": "the Entity",  # in the middle of a sentence
 	"Name": "The Entity",  # at the start of one
 	"tag": "THE ENTITY",  # over its speech bubbles
@@ -35,7 +35,7 @@ const TEXT := {
 
 ## Short lines for moments and pages. One is picked (they're said in the
 ## Entity's voice). {floor}, {beast}, {Beast}, {tower} and {mark} are filled in.
-const LINES := {
+static var LINES := {
 	# Moments in play (after the first time, which is a tip).
 	"death": [
 		"Floor {floor}. I wrote it down.",
@@ -105,6 +105,7 @@ const GROUPS := [
 	["gear", "Gear and items"],
 	["train", "The train"],
 	["screens", "Screens"],
+	["creator", "Creator tools"],
 ]
 
 ## Every tip, in Archive order within its group: the Entity's line ("tip",
@@ -113,11 +114,11 @@ const GROUPS := [
 ## main.tip("id"). An id that isn't here falls back to the part before its
 ## last "_" ("puzzle_mirrors" -> "puzzle", "door_iron" -> "door"), so a new
 ## puzzle or door kind still gets a tip until it has its own.
-const TIPS := {
+static var TIPS := {
 	# --- first steps ---
 	"entity": {"group": "start", "name": "The Entity",
 		"tip": "You can see me. Good. When something new finds you, I'll say so, and keep every word in the Archive.",
-		"more": "The Entity is the small glowing presence that speaks in the corner of the screen. The first time you meet anything new, it says a line or two about it. Dismiss a tip with {dismiss}, or let it fade; it never stops the game. Everything it has told you is kept here in the Archive ({menu}, then Archive, or the Archive tab of the climber screen), grouped by subject; subjects you haven't met yet show as ???. Settings can turn the tips off (the Archive still fills in), and Replay tips makes the Entity tell you everything again."},
+		"more": "The Entity is the small glowing presence that speaks in the corner of the screen. The first time you meet anything new, it says a line or two about it. Dismiss a tip with {dismiss}, or let it fade; it never stops the game. Everything it has told you is kept here in the Archive (the Library: a car on the train, or {menu}, then Library, in a climb), grouped by subject; subjects you haven't met yet show as ???. Settings & Controls can turn the tips off (the Archive still fills in), and Replay tips makes the Entity tell you everything again."},
 	"move": {"group": "start", "name": "First steps",
 		"tip": "Walk with {move}. Strike with {attack}. Roll through what you can't stop; parry what you can with {parry}.",
 		"more": "Strikes chain into a combo that ends in a heavy finisher; each one costs stamina, and stamina waits a moment after you attack before it refills, so mashing leaves you winded. A roll ({roll}) makes you untouchable for a moment and costs stamina. A parry ({parry}) on time takes no damage, staggers the attacker and sends arrows back. A jump ({jump}) carries you over chasms and burning floor, but attacks still hit you in the air. Hitting a staggered foe is a riposte for 2.5 times the damage, and striking a foe from behind (a backstab) deals 50% more."},
@@ -348,8 +349,8 @@ const TIPS := {
 		"more": "A tap of {item} uses your quick item. Hold it (or {item_next}) and a ring of your belt items opens and time stands still: point at one (the mouse, a stick, or slide your finger) and let go to use it; it becomes your quick item. Fire Flasks fly where you aim, oils and draughts work for a while, Flare Powder lights the room and makes hidden traps and secret walls nearby glint."},
 	# --- the train ---
 	"train": {"group": "train", "name": "The train",
-		"tip": "A train, of all things. It waits between climbs: your own car, a store, a workshop. The engine takes you on when you're ready.",
-		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Walk along it from car to car ({cars}): the engine at the front, where you choose the next tower on its board and pull the lever to depart; your car (your heirlooms, your pack and a storage chest); the store car (the outfitter's supplies, an outfit, today's piece, and selling); and the workshop car (its bench: brewing, and enchanting for a Rune Artist). Your crystals sit along the bottom. Fall in a tower and you're back on the train in a moment."},
+		"tip": "A train, of all things. It waits between climbs: an outfitter, your own car, a workshop, a library. The engine takes you on when you're ready.",
+		"more": "After the Regard, every climb ends on the train, whether you won, fell or read a recall scroll, and every climb starts from it. Walk along it from car to car ({cars}): the engine at the front, where you choose the next tower on its board and pull the lever to depart; the Outfitter's Car (his supplies, an outfit, today's piece, and selling); your car (your heirlooms, your pack and a storage chest); the workshop (its bench: brewing, and enchanting for a Rune Artist); the Library (everything I've told you, on its shelves, read at the lectern); and the Settings & Controls Car (the settings, every key and button, and Start over). Your name at the top of the rail opens the climber screen; Dev Tools and Exit to Title Station sit under the cars. Your crystals sit along the bottom. Fall in a tower and you're back on the train in a moment."},
 	"store": {"group": "train", "name": "The store",
 		"tip": "The outfitter buys what climbers bring down and sells to the next ones up. He takes crystals: every stair condenses some for you, and he pays for every climb.",
 		"more": "Essence crystals are the only money, and you hold one crystal of each kind, growing as you add to it. Every stair condenses a share of the essence you bank into crystals (20% unless you change it in Settings), and the outfitter pays for every climb, even one that ends in a fall: a few crystals of the tower's kind for each floor you reached, more for floors past your best there. Every price is in one kind of essence, taken from your crystal of that kind. Common pieces and basic supplies are cheap; finer pieces cost more. The recall scroll is always on the shelf, and takes crystals of any kind, your biggest first. Supplies are packed onto your belt for your next climb (put one back for its full price before you go). Outfit is a rack of Common pieces, new every visit, and Today's piece is one finer piece. Sell turns a piece from your pack or chest into a crystal of its kind, at 40% of its price. A price you can't pay says how much more you need."},
@@ -371,7 +372,7 @@ const TIPS := {
 	# --- screens ---
 	"climber": {"group": "screens", "name": "The climber screen",
 		"tip": "{climber} shows what you are: your marks, the essence in you, and what I've recorded.",
-		"more": "The climber screen has your marks drawn on your body with a card for each (choose one for every spell and step), the essence settled in you and its bonuses, your record and heirlooms, and this Archive. {climber} opens and closes it; Q and E switch tabs."},
+		"more": "The climber screen has your marks drawn on your body with a card for each (choose one for every spell and step), the essence settled in you and its bonuses, your record and heirlooms. {climber} opens and closes it (so does your name at the top of the menu's rail); Q and E switch tabs. Everything I've told you is in the Library."},
 	"appearance": {"group": "screens", "name": "Appearance",
 		"tip": "How you look is yours to choose. Change each part with {choose}; it changes nothing but your looks.",
 		"more": "The appearance page sets how the climber looks in the towers and on the climber screen: an optional name, skin, hair and its colour, eyes, cloak, tunic, and the hood up or down. Up and down move between the rows; Left and Right (or the arrows, or a swatch) change one. Randomise rolls a whole new look and keeps the name. Turn spins the preview (Q and E, or LB and RB). A new climber chooses a look before the first climb; change it any time with Appearance on the climber screen's Marks tab, or in your car on the train. Looks never change how you play."},
@@ -381,6 +382,18 @@ const TIPS := {
 	"inventory": {"group": "screens", "name": "The inventory",
 		"tip": "{inventory} shows everything you carry, and lets you use it.",
 		"more": "The inventory lays out what you wear like a body: helm, amulet and cloak; melee weapon, chest and ranged weapon; a ring, gloves and a ring; backpack, legs and boots. Beside it are your fists, gear lying at your feet and a camp's rune; below, your items with their counts (the quick item gilded). Worn pieces show their condition. Switch to Heirlooms to see what every climb begins with. Choose a slot for its details (compared with what you wear), to use an item, or to take the gear at your feet."},
+	# --- creator tools (arrange.gd): Arrange mode says these in its own card
+	# (the game is paused there), the first time; "always" keeps them
+	# readable in the Archive before they're met (guide.gd known) ---
+	"arrange": {"group": "creator", "name": "Arrange mode", "always": true,
+		"tip": "Everything here can move. To move a thing, {grab}. To resize it, {resize}. It snaps to the grid and the edges; {nosnap} to place it freely.",
+		"more": "Arrange mode ({arrange}) pauses the game and outlines everything you can move, with its name. With a mouse or a finger, drag a thing to move it, and pull a corner handle to make it bigger or smaller (it keeps its shape). It snaps to an 8 px grid, the screen's edges and centre lines and the edges of other things, and thin lines show where; hold Shift to place it freely, or turn the grid off. With a controller, the d-pad (or LB and RB) picks the next thing, the left stick moves it, the right stick resizes it, X undoes, Y saves, and A or B finish. On a keyboard, Tab picks, the arrows nudge and [ and ] resize. Drag the toolbar by its title to move it aside; its ? shows this again. Nothing is kept until you Save."},
+	"arrange_sets": {"group": "creator", "name": "Phone and computer layouts", "always": true,
+		"tip": "Your phone and your computer each keep a layout of their own. Moving a thing on one leaves the other alone.",
+		"more": "There are two layouts: the computer's, and the phone's (which draws everything 1.5 times bigger and has the touch buttons). Each is arranged and saved on its own. Touching the screen switches to the phone's layout; a keyboard, mouse or controller switches back. In Arrange mode the button at the top right of the toolbar changes which one you're editing, so on a computer you can arrange the phone's layout too, shown as a phone shows it."},
+	"arrange_save": {"group": "creator", "name": "Saving a layout", "always": true,
+		"tip": "Save keeps it on this device. To make it everyone's, Save while the game runs from Godot on your computer, or Copy layout and give it to Claude.",
+		"more": "Save keeps your layout on this device only. To make it permanent for everyone: on your computer, run the game from Godot (F5), arrange it, and press Save; that also writes the project's file data/layout.json. Then in GitHub Desktop the change shows on the left: type a short summary at the bottom left (like \"New HUD layout\"), click \"Commit to main\", then \"Push origin\" at the top. On a phone or the web version, Save can't reach the project: tap Copy layout and paste it to Claude in chat. Reset goes back to the shared layout."},
 	# --- the secret bonds' tools (secret_bonds.gd, secret_tools.gd): mechanical text only ---
 	"tool_ring": {"group": "tools", "name": "The tool ring",
 		"tip": "Hold {tools} for your secret bond's tools. Every tool costs essence you carry.",
@@ -436,10 +449,20 @@ const TIPS := {
 	"tool_build_manipulator": {"group": "tools", "name": "Build (the Manipulator)",
 		"tip": "Rewrite a monster into your own for the floor, with a second kind's attack.",
 		"more": "The Manipulator's Build rewrites the monster you aim at into your own until the floor ends: it fights for you, and every few seconds uses an attack it took from another kind of its tower (a knight that also fires arrows). One at a time. Great foes, key carriers and monsters bound to a floor's test won't answer."},
+	# --- creator tools: the Data editor (data_page.gd, data_registry.gd) ---
+	"data_editor": {"group": "creator", "name": "Edit game data",
+		"tip": "Here you can rewrite the game: its words, numbers and colours. Even mine. Pick a section or search, change a value, and it takes.",
+		"more": "Edit game data (Dev tools, from {menu} or the title) changes the game's words, numbers and colours without any code. The tabs Words, Numbers, Colours and Appearance each hold sections (the Entity's words, store prices, menu colours and more); choose one, or type in the search box to find any name, word or number. Words go in a text box: its Edit button, a click or a tap opens it, and Enter or leaving the box keeps what you wrote (Esc leaves the box). Numbers have a slider and a box to type in. A colour's swatch opens sliders for its hue, colour, light and opacity, beside a #hex box. A changed entry turns gilt and shows its default under it; its Default button puts it back. My changes lists everything you changed, to put back one at a time, or all at once with two presses. Most changes show at once; a row says if it waits for the next page, the next floor or a restart. Changes save by themselves a moment after you make them (the ? button tells you all this again, and how to keep them for good)."},
+	"data_save": {"group": "creator", "name": "Keeping your changes",
+		"tip": "Saved. On the computer, in Godot, that went into the project: commit it in GitHub Desktop. On a phone it stays here: send it to Claude.",
+		"more": "Where a change is kept depends on where you play. On the computer, running the game from Godot (the play button or F5), Save writes your changes into the project's file data/overrides.json. To make them part of the game for good, open GitHub Desktop: it lists data/overrides.json under Changes. Write a short summary at the bottom left (\"Cheaper draughts\", say), click Commit to main, then Push origin at the top. From then on every copy of the game has them, the web version too. On a phone or in a browser, Save keeps the changes on that device only. To keep them for good, press Copy changes and paste what it copies into a message to Claude; or, on the computer, press Paste changes, paste them in, and Save there (then commit them as above)."},
+	"data_restart": {"group": "creator", "name": "Changes that wait for a restart",
+		"tip": "That one is read when the game starts. It's saved; you'll see it after the game starts again.",
+		"more": "A few values are read only once, as the game starts (the colour behind the rooms, for one). Their rows say \"applies after a restart\". The change is saved like any other: close the game and start it again to see it. Everything else shows at once, on the next page you open, or on the next floor, as its row says."},
 }
 
 ## Room features (themes.gd) -> the tip for walking into one.
-const ROOM_TIPS := {
+static var ROOM_TIPS := {
 	"trap": "trap_room", "den": "den", "ambush": "crypt", "spring": "good_room", "cache": "good_room",
 	"camp": "good_room", "chasm": "jump", "mirror": "mirror",
 }
@@ -464,6 +487,10 @@ const KEYS := {
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
 	"choose": ["the arrows (or a click on a swatch)", "the d-pad or stick", "the arrows or a swatch"],
 	"tools": ["B", "{lb} and {lt}", "Tools"],
+	"arrange": ["F2, or Dev tools then Arrange layout", "Dev tools, then Arrange layout", "Dev tools, then Arrange layout"],
+	"grab": ["drag it with the mouse", "pick it with the d-pad and push the left stick", "drag it with a finger"],
+	"resize": ["pull a corner handle", "push the right stick up or down", "pull a corner handle"],
+	"nosnap": ["hold Shift", "turn the grid off with {back}", "turn the grid off in the toolbar"],
 	"cars": ["Q and E, the mouse wheel, or a car on the rail at the left", "{lb} and {rb}, or up and down on the rail at the left", "swipe, or tap a car on the rail at the left"],
 }
 

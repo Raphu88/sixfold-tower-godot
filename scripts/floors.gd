@@ -8,7 +8,7 @@ extends RefCounted
 
 ## Monster price per floor budget, how often each is picked, and the floor
 ## it first appears on.
-const MONSTERS := {
+static var MONSTERS := {
 	"slime": {"cost": 1.0, "weight": 1.0, "from": 1},
 	"archer": {"cost": 1.5, "weight": 0.8, "from": 2},
 	"knight": {"cost": 2.5, "weight": 0.6, "from": 2},

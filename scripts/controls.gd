@@ -105,6 +105,7 @@ const HELP := [
 	["restart (hold)", "R", "hold {back}"],
 	["music", "M", "-"],
 	["controls panel", "H", "-"],
+	["arrange the layout (move the HUD)", "F2", "Dev tools"],
 	["dismiss the Entity's tip", "Enter / click it", "press {rs}"],
 ]
 
@@ -144,6 +145,7 @@ static func setup() -> void:
 	_bind("restart", [_key(KEY_R)])  # hold (main.gd), so a stray press doesn't end the climb
 	_bind("toggle_music", [_key(KEY_M)])
 	_bind("toggle_help", [_key(KEY_H)])
+	_bind("arrange", [_key(KEY_F2)])  # Arrange mode (arrange.gd)
 	_bind("new_climber", [_key(KEY_N)])
 	_bind("weapon_1", [_key(KEY_1)])
 	_bind("weapon_2", [_key(KEY_2)])

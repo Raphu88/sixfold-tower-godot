@@ -40,7 +40,7 @@ extends RefCounted
 
 const Rooms := preload("res://scripts/rooms.gd")
 
-const THEMES := {
+static var THEMES := {
 	# --- fixed by the room's job ------------------------------------------------
 	"arrival": {"name": "Arrival Hall", "kind": "calm", "sub": "", "tint": Color(0, 0, 0, 0),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "start"},

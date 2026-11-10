@@ -45,6 +45,7 @@ const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 const UnboundRun := preload("res://scripts/unbound_run.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
+const DataRegistry := preload("res://scripts/data_registry.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -55,6 +56,9 @@ const WALL := 24.0
 ## The single open room of floor 1 and the beast's floor. Floors of rooms
 ## and corridors use a bigger area that grows with height (Floors.arena_for).
 const OPEN_ROOM := Rect2(80, 100, 1120, 530)
+## The owner's changes to the game's words, numbers and colours (the Data
+## editor: data_registry.gd), applied first, before anything reads the tables.
+var _data_changes := DataRegistry.startup()
 var room := OPEN_ROOM
 var outer_walls: Array = []
 # Rooms and corridors: a tile grid of what's solid, and paths around it.
@@ -139,6 +143,7 @@ var touch
 var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
 var entity  # the Entity's bubble in play (guide.gd); main.tip("id") for a new system
+var arrange  # Arrange mode (arrange.gd): move and scale what's on screen; F2 or Dev tools
 var dev_no_death := false  # dev tool: you can't fall
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
@@ -253,6 +258,9 @@ func _ready() -> void:
 	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
 	preload("res://scripts/ui.gd").setup_fonts()  # (the interface's fonts: ui.gd)
+	# Where the HUD and the touch buttons sit (layout.gd): the shared defaults
+	# and this player's own arrangement, loaded once.
+	preload("res://scripts/layout.gd").ensure_loaded(Engine.has_meta("sixfold_test"))
 	audio = AudioScript.new()
 	add_child(audio)
 	_build_walls()
@@ -373,6 +381,13 @@ func _ready() -> void:
 	secret_tools = SecretToolsScript.new()
 	secret_tools.main = self
 	add_child(secret_tools)
+	# Arrange mode, over everything (the menu included).
+	var arrange_layer := CanvasLayer.new()
+	arrange_layer.layer = 20
+	add_child(arrange_layer)
+	arrange = preload("res://scripts/arrange.gd").new()
+	arrange.main = self
+	arrange_layer.add_child(arrange)
 	# A fresh start (not a restart or a new floor) opens on the title screen.
 	if not Engine.has_meta("sixfold_test") and Engine.has_meta("sixfold_climbers"):
 		# Back to the climber picker (after deleting the current climber).
@@ -1261,7 +1276,7 @@ func _open_lost_cache() -> void:
 
 ## Falling into a chasm: no harm done, but you drop to the floor below (never
 ## below floor 1) and keep climbing from there. Unbanked essence stays with you.
-const FALL_TEXT := {"title": "YOU FELL", "line": "Down to floor %d. The beast watches you climb again."}
+static var FALL_TEXT := {"title": "YOU FELL", "line": "Down to floor %d. The beast watches you climb again."}
 
 func fall_through() -> void:
 	if climbing or player.dead:

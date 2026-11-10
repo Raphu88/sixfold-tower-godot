@@ -45,7 +45,7 @@ const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall", "v
 ## Brewing: what each consumable costs at the bench (a little less than the
 ## store asks: you do the work; the basic supplies follow the store's
 ## halved prices, train.gd SUPPLY_PRICE). The recall scroll is only for a Rune Artist.
-const BREW := {
+static var BREW := {
 	"draught": {"stone": 5}, "tonic": {"water": 4}, "vial": {"water": 16}, "smoke": {"fire": 4},
 	"fire_flask": {"fire": 10}, "edge_oil": {"blade": 12}, "warding_oil": {"iron": 12}, "haste": {"air": 10},
 	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
@@ -57,19 +57,19 @@ const RUNE_ARTIST_BREW := 0.8
 ## Tempering to +1, +2, +3: the essence of the piece's kind (its trait's),
 ## times its rarity's TEMPER_RARITY. +2 and +3 also need that much density
 ## of the kind settled in you (profile.gd density).
-const TEMPER := [20, 45, 80]
-const TEMPER_RARITY := {"common": 1.0, "fine": 1.0, "rare": 1.5, "storied": 2.0, "regarded": 2.0}
-const TEMPER_DENSITY := [0, 100, 300]
+static var TEMPER := [20, 45, 80]
+static var TEMPER_RARITY := {"common": 1.0, "fine": 1.0, "rare": 1.5, "storied": 2.0, "regarded": 2.0}
+static var TEMPER_DENSITY := [0, 100, 300]
 ## Retrait: this much of the new trait's kind (times RETRAIT_RARE on Rare and better).
 const RETRAIT := 15
 const RETRAIT_RARE := 2.0
 ## Join: this much of the first piece's trait's kind.
 const JOIN := 30
 ## Inscribe: a lasting rune for this.
-const INSCRIBE := {"iron": 25}
+static var INSCRIBE := {"iron": 25}
 
 ## The words of the bench.
-const TEXT := {
+static var TEXT := {
 	"title": "The bench",
 	"rune_artist": "Rune Artist",
 	"needs_rune_artist": "Only a Rune Artist can %s. A Rune Artist could do it here, given the essence.",

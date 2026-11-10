@@ -13,7 +13,7 @@ const Slots := preload("res://scripts/slots.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const UI := preload("res://scripts/ui.gd")
 
-const TEXT := {
+static var TEXT := {
 	"title": "Climbers",
 	"sub": "Up to six climbers. Choose one to play.",
 	"slot": "%d",

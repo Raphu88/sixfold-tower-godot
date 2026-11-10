@@ -39,7 +39,7 @@ extends RefCounted
 
 ## Six body parts, one for each of the six towers; each holds one bond.
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
-const PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow", "throat": "Throat", "back": "Back"}
+static var PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow", "throat": "Throat", "back": "Back"}
 const PART_FILLS := {
 	"hand": "fills when you land weapon strikes",
 	"legs": "fills when you roll through an attack",
@@ -59,7 +59,7 @@ const PART_BURN := {
 ## The cast key for each body part.
 const PART_KEYS := {"hand": "Q", "legs": "E", "heart": "F", "brow": "C", "throat": "X", "back": "V"}
 
-const BONDS := {
+static var BONDS := {
 	# --- the Gryphon's tower (Air) -------------------------------------------
 	"stormcaller": {
 		"name": "Stormcaller",

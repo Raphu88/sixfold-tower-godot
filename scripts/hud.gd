@@ -29,6 +29,9 @@ const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Abilities := preload("res://scripts/abilities.gd")
+## Where each part sits (Arrange mode moves them): every block below is drawn
+## where it always was, under its element's transform (layout.gd).
+const Layout := preload("res://scripts/layout.gd")
 ## The rings (spells, items; secret_tools.gd's tools too) draw over the touch
 ## buttons; on a phone they keep clear of the thumb (this big a circle) and
 ## leave room under them for the chosen one's name and words.
@@ -36,9 +39,12 @@ const RING_Z := 60
 const RING_THUMB := 46.0
 const RING_TEXT := 90.0
 
-const GOLD := UI.GOLD
-const TEXT := UI.TEXT
-const DIM_TEXT := UI.DIM
+static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
+	get: return UI.GOLD
+static var TEXT: Color:  # (UI.TEXT, read each time: the Data editor can change it)
+	get: return UI.TEXT
+static var DIM_TEXT: Color:  # (UI.DIM, read each time: the Data editor can change it)
+	get: return UI.DIM
 
 ## The core's layout, in HUD units (times the HUD size setting).
 const BAR_X := 16.0
@@ -66,7 +72,8 @@ var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
 var hud_scale := 1.0  # the HUD size setting (ui.gd HUD_SCALES)
 var tips: Array = []  # [rect, title, lines] of what the mouse can hover for a tooltip
-var mark_spots := {}  # body part -> its medallion's centre on screen (ability_hints.gd labels it)
+var mark_spots := {}  # body part -> its medallion's centre, in the marks element's units (ability_hints.gd labels it)
+var mark_xform := Transform2D.IDENTITY  # the marks element's transform to the screen (the HUD size and Arrange mode)
 var tip_box: StyleBox
 var card_box: StyleBox  # the big cards (towers, camps, the gear at your feet): ui.gd card
 var card_box_on: StyleBox
@@ -226,7 +233,7 @@ func _core_signature() -> Array:
 	var p = main.player
 	if p == null or main.title_showing():
 		return [false]
-	var s := [true, hud_scale, get_viewport_rect().size, main.touch_active, main.pad_active, main.pad_ps,
+	var s := [true, hud_scale, get_viewport_rect().size, Layout.version, main.touch_active, main.pad_active, main.pad_ps,
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() == "crossbow" else 0.0,
@@ -256,7 +263,7 @@ func _top_live() -> bool:
 ## What this layer shows that doesn't move: it's redrawn when this changes.
 func _top_signature() -> Array:
 	var p = main.player
-	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size,
+	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size, Layout.version,
 		main.gear_here.get("id", ""), p.gear_signature() if p != null else [], p != null and p.dead,
 		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size(), main.pay_line]
 
@@ -297,10 +304,13 @@ func _draw_core() -> void:
 	var c := core
 	var font := ThemeDB.fallback_font
 	var hs := hud_scale
-	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2(hs, hs))
-	var b := Draw.Batch.new()
+	var view := hud_view()
+	var unit := Transform2D(0.0, Vector2(hs, hs), 0.0, Vector2.ZERO)
+	var mono := UI.font("mono")  # (numbers that change in place: tabular figures)
 	# Health and stamina: gilt-framed gauges, the health number on its bar
 	# (poison turns its fill sickly green).
+	var bx := Layout.xform("hud.bars", view)
+	var b := Draw.Batch.new()
 	var hp_k: float = p.hp / p.max_hp
 	var hp_col := UI.HEALTH.lerp(POISONED, 0.6) if p.poison_t > 0.0 else UI.HEALTH
 	UI.gauge_into(b, Rect2(BAR_X, BAR_Y, BAR_W, 12), hp_k, hp_col, hp_trail)
@@ -319,36 +329,77 @@ func _draw_core() -> void:
 		UI.diamond_into(b, Vector2(BAR_X + BAR_W - 9.0, BAR_Y + 6.0), 4.6, UI.OUTLINE, 0.8)
 		UI.diamond_into(b, Vector2(BAR_X + BAR_W - 9.0, BAR_Y + 6.0), 3.4, POISONED.lightened(0.2), 0.75)
 	var bars_rect := Rect2(BAR_X - 4, BAR_Y - 4, BAR_W + 8, 32)
-	# Your path's gem (secret.gd), once its banked flow reaches the first step.
+	c.draw_set_transform_matrix(unit * bx)
+	b.flush(c)
+	var hp_text := "%d / %d" % [int(ceil(p.hp)), int(round(p.max_health()))]
+	c.draw_string_outline(mono, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.85))
+	c.draw_string(mono, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 0.95, 0.92))
+	var wound_text: String = main.proving.wound_text() if main.proving != null else ""
+	if wound_text != "":  # the Proving's lingering wound, small at the bar's end
+		var tag: String = main.proving.TEXT["wound_tag"]
+		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 10, 3, Color(0, 0, 0, 0.85))
+		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 10, Color(0.82, 0.74, 1.0))
+	tips.append([bx * bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]] + ([wound_text] if wound_text != "" else [])])
+	# Your path's gem (secret.gd), once its banked flow reaches the first step,
+	# and the vessel you carry, and how full (vessel.gd).
+	var gx := Layout.xform("hud.gem", view)
 	var flow_rect := Rect2()
-	if main.flow_shown():
-		flow_rect = _flow_gem_into(b, Vector2(BAR_X + BAR_W + 22.0, BAR_Y + 8.0))
-	if p.item_count("vessel") > 0:  # the vessel you carry, and how full (vessel.gd)
-		load("res://scripts/vessel.gd").hud_into(b, p, Vector2(BAR_X + BAR_W + (52.0 if flow_rect.size.x > 0.0 else 22.0), BAR_Y + 8.0), tips)
+	if main.flow_shown() or p.item_count("vessel") > 0:
+		var gb := Draw.Batch.new()
+		var t0 := tips.size()
+		if main.flow_shown():
+			flow_rect = _flow_gem_into(gb, Vector2(BAR_X + BAR_W + 22.0, BAR_Y + 8.0))
+		if p.item_count("vessel") > 0:
+			load("res://scripts/vessel.gd").hud_into(gb, p, Vector2(BAR_X + BAR_W + (52.0 if flow_rect.size.x > 0.0 else 22.0), BAR_Y + 8.0), tips)
+		for i in range(t0, tips.size()):
+			tips[i][0] = gx * Rect2(tips[i][0])
+		c.draw_set_transform_matrix(unit * gx)
+		gb.flush(c)
+		if flow_rect.size.x > 0.0:
+			tips.append([gx * flow_rect, Secret.TEXT["hud_tip"] % [Secret.display(main.profile.path), main.profile.flow_step()], _flow_tip_lines()])
 	# The weapon in hand and the quick item: two small slots.
+	var wx := Layout.xform("hud.weapon", view)
+	var wb := Draw.Batch.new()
 	var wr := Rect2(BAR_X, ROW_Y, SLOT, SLOT)
 	var slot_i: int = p.slots().find(p.weapon)
-	UI.slot_into(b, wr, true, Gear.color(p.weapon))
-	Gear.icon_into(b, p.weapon_rec(), wr.get_center(), 10.5, Gear.color(p.weapon))  # (cracked when badly worn)
+	UI.slot_into(wb, wr, true, Gear.color(p.weapon))
+	Gear.icon_into(wb, p.weapon_rec(), wr.get_center(), 10.5, Gear.color(p.weapon))  # (cracked when badly worn)
 	if p.reload_t > 0.0 and p.wkind() == "crossbow":
 		var rk: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
-		b.rect(Rect2(wr.position + Vector2(2, 2), Vector2(SLOT - 4, (SLOT - 4) * rk)), Color(0, 0, 0, 0.45))
-	tips.append([wr, Gear.display(p.weapon), _gear_tip(p.weapon, maxi(slot_i, 0))])
+		wb.rect(Rect2(wr.position + Vector2(2, 2), Vector2(SLOT - 4, (SLOT - 4) * rk)), Color(0, 0, 0, 0.45))
+	tips.append([wx * wr, Gear.display(p.weapon), _gear_tip(p.weapon, maxi(slot_i, 0))])
+	c.draw_set_transform_matrix(unit * wx)
+	wb.flush(c)
+	if slot_i >= 0 and not main.touch_active:
+		c.draw_string_outline(mono, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 3, Color(0, 0, 0, 0.8))
+		c.draw_string(mono, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD)
 	var x := wr.end.x + 6.0
 	var sel: String = p.selected_item()
-	var ir := Rect2()
 	if sel != "":
-		ir = Rect2(x, ROW_Y, SLOT, SLOT)
-		UI.slot_into(b, ir, false, Color(Items.color(sel), 0.6))
-		Items.icon_into(b, sel, ir.get_center() + Vector2(0, -1), 10.5)
+		var ix := Layout.xform("hud.item", view)
+		var ib := Draw.Batch.new()
+		var ir := Rect2(x, ROW_Y, SLOT, SLOT)
+		UI.slot_into(ib, ir, false, Color(Items.color(sel), 0.6))
+		Items.icon_into(ib, sel, ir.get_center() + Vector2(0, -1), 10.5)
 		# Its count on a small gilt-ringed coin at the corner.
-		b.dot(ir.end - Vector2(3, 3), 7.2, UI.OUTLINE)
-		b.dot(ir.end - Vector2(3, 3), 6.0, UI.STONE)
-		UI.ring_into(b, ir.end - Vector2(3, 3), 6.0, 1.0, Color(UI.GILT, 0.8))
-		tips.append([ir, Items.ITEMS[sel]["name"], [_sentence(Items.ITEMS[sel]["desc"]),
+		ib.dot(ir.end - Vector2(3, 3), 7.2, UI.OUTLINE)
+		ib.dot(ir.end - Vector2(3, 3), 6.0, UI.STONE)
+		UI.ring_into(ib, ir.end - Vector2(3, 3), 6.0, 1.0, Color(UI.GILT, 0.8))
+		tips.append([ix * ir, Items.ITEMS[sel]["name"], [_sentence(Items.ITEMS[sel]["desc"]),
 			"Carrying %d  ·  %s to use it%s" % [p.item_count(sel), _use_key(), "" if p.carried().size() < 2 else "  ·  %s picks another" % _next_key()]]])
-		x = ir.end.x + 6.0
-	# Marks: a medallion each, its ring filling with essence; bright once it can cast.
+		c.draw_set_transform_matrix(unit * ix)
+		ib.flush(c)
+		c.draw_string(mono, ir.end + Vector2(-9, 0.5), str(p.item_count(sel)), HORIZONTAL_ALIGNMENT_CENTER, 12, 10, UI.GILT_HI)
+		if not main.touch_active:
+			UI.draw_key(c, ir.position + Vector2(-3, -5), _use_key(), 8)
+	# Marks: a medallion each, its ring filling with essence; bright once it
+	# can cast. (They follow the weapon when there's no quick item, unless
+	# arranged.)
+	if sel != "" or Layout.moved("hud.marks"):
+		x += SLOT + 6.0
+	var mkx := Layout.xform("hud.marks", view)
+	mark_xform = unit * mkx
+	var mb := Draw.Batch.new()
 	var marks: Array = []
 	for part in BondScript.Bonds.PARTS:
 		if p.bonds.has(part):
@@ -360,43 +411,24 @@ func _draw_core() -> void:
 		var col: Color = bd.color()
 		var ready: bool = bd.essence >= bd.cost()
 		var mc := Vector2(mx, my)
-		mark_spots[part] = mc * hs
-		UI.seal_into(b, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), ready, bd.faint, bd.burned)
+		mark_spots[part] = mc  # (in the marks element's own units: mark_xform puts them on screen)
+		UI.seal_into(mb, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), ready, bd.faint, bd.burned)
 		if bd.has_method("hud_into"):
-			bd.hud_into(b, mc, MARK_R)  # (an Unbound's technique: its part's strain)
+			bd.hud_into(mb, mc, MARK_R)  # (an Unbound's technique: its part's strain)
 		var key := _cast_key(part)
+		var mr := mkx * Rect2(mc - Vector2(MARK_R + 3, MARK_R + 3), Vector2(MARK_R * 2 + 6, MARK_R * 2 + 6))
 		if bd.has_method("tip_lines"):  # (an Unbound's technique: technique_bond.gd)
-			tips.append([Rect2(mc - Vector2(MARK_R + 3, MARK_R + 3), Vector2(MARK_R * 2 + 6, MARK_R * 2 + 6)), bd.display_name(), bd.tip_lines(_cast_key(part), main.touch_active)])
+			tips.append([mr, bd.display_name(), bd.tip_lines(_cast_key(part), main.touch_active)])
 			mx += MARK_R * 2.0 + 8.0
 			continue
-		tips.append([Rect2(mc - Vector2(MARK_R + 3, MARK_R + 3), Vector2(MARK_R * 2 + 6, MARK_R * 2 + 6)), "%s  (%s)" % [bd.display_name(), BondScript.PART_NAMES[part]],
+		tips.append([mr, "%s  (%s)" % [bd.display_name(), BondScript.PART_NAMES[part]],
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
 			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
 			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, ", hold it to pick a spell" if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
 			Abilities.fill(main, Abilities.TEXT["tip_all"])]])
 		mx += MARK_R * 2.0 + 8.0
-	b.flush(c)
-	# Words last, over the shapes.
-	var hp_text := "%d / %d" % [int(ceil(p.hp)), int(round(p.max_health()))]
-	var mono := UI.font("mono")  # (numbers that change in place: tabular figures)
-	c.draw_string_outline(mono, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 3, Color(0, 0, 0, 0.85))
-	c.draw_string(mono, Vector2(BAR_X + 6, BAR_Y + 10.5), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 0.95, 0.92))
-	var wound_text: String = main.proving.wound_text() if main.proving != null else ""
-	if wound_text != "":  # the Proving's lingering wound, small at the bar's end
-		var tag: String = main.proving.TEXT["wound_tag"]
-		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 10, 3, Color(0, 0, 0, 0.85))
-		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 10, Color(0.82, 0.74, 1.0))
-	tips.append([bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]] + ([wound_text] if wound_text != "" else [])])
-	if flow_rect.size.x > 0.0:
-		tips.append([flow_rect, Secret.TEXT["hud_tip"] % [Secret.display(main.profile.path), main.profile.flow_step()], _flow_tip_lines()])
-	if slot_i >= 0 and not main.touch_active:
-		c.draw_string_outline(mono, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 3, Color(0, 0, 0, 0.8))
-		c.draw_string(mono, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD)
-	if sel != "":
-		var n := str(p.item_count(sel))
-		c.draw_string(mono, ir.end + Vector2(-9, 0.5), n, HORIZONTAL_ALIGNMENT_CENTER, 12, 10, UI.GILT_HI)
-		if not main.touch_active:
-			UI.draw_key(c, ir.position + Vector2(-3, -5), _use_key(), 8)
+	c.draw_set_transform_matrix(unit * mkx)
+	mb.flush(c)
 	if not main.touch_active:
 		mx = x + MARK_R + 4.0
 		for part in marks:
@@ -404,7 +436,13 @@ func _draw_core() -> void:
 			var ready: bool = bd.essence >= bd.cost()
 			UI.draw_key(c, Vector2(mx + 3.0, my + 3.0), _cast_key(part), 8, bd.color().lightened(0.2) if ready else DIM_TEXT)
 			mx += MARK_R * 2.0 + 8.0
-	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## The screen in HUD units (the HUD size setting divides it): what the HUD's
+## corner elements are laid out on.
+func hud_view() -> Vector2:
+	return get_viewport_rect().size / hud_scale
 
 
 ## Your path's gem by the health bar: a glowing gem in its colour, four pips
@@ -486,20 +524,30 @@ func _draw() -> void:
 	var real_size := size
 	var hs := hud_scale
 	size = real_size / hs
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(hs, hs))
+	var unit := Transform2D(0.0, Vector2(hs, hs), 0.0, Vector2.ZERO)
+	draw_set_transform_matrix(unit)
+	# The weapon row pops up under the weapon; the essence counter goes under
+	# it (unless either is arranged elsewhere).
 	var y := ROW_Y + SLOT + 8.0
+	var own_place := Layout.moved("hud.weapon") or Layout.moved("hud.essence")
 	if swap_t > 0.0:
-		y += _draw_swap(p, Vector2(BAR_X, y), font, _fade(swap_t, SWAP_SHOW)) + 6.0
+		draw_set_transform_matrix(unit * Layout.xform("hud.weapon", size))
+		var sh := _draw_swap(p, Vector2(BAR_X, y), font, _fade(swap_t, SWAP_SHOW)) + 6.0
+		if not own_place:
+			y += sh
 	if essence_t > 0.0:
+		draw_set_transform_matrix(unit * Layout.xform("hud.essence", size))
 		_draw_essence(Vector2(BAR_X, y), font, _fade(essence_t, ESSENCE_SHOW))
 
 	# Controls, top right.
+	draw_set_transform_matrix(unit * Layout.xform("hud.hints", size))
 	if main.touch_active:
 		pass  # the touch buttons are labelled; no keyboard help needed
 	elif show_help:
 		_draw_help(size, font)
 	elif hints_t > 0.0:
 		_draw_screen_hints(size, font, _fade(hints_t, HINTS_SHOW))
+	draw_set_transform_matrix(unit)
 	if not main.gear_here.is_empty() and not main.camp_choosing and main.fade <= 0.0 and not main.overlay_showing() and not main.menu_open():
 		_draw_gear_prompt(p, main.gear_here["rec"], size, font)
 	if show_perf:
@@ -509,6 +557,7 @@ func _draw() -> void:
 	size = real_size
 
 	# The floor's title on arrival, top centre, fading out.
+	draw_set_transform_matrix(Layout.xform("hud.floor", size))
 	if floor_t > 0.0 or stair_t > 0.0:
 		var fa := _fade(maxf(floor_t, stair_t), FLOOR_SHOW)
 		var floor_text: String = main._floor_title()
@@ -522,6 +571,8 @@ func _draw() -> void:
 		draw_string_outline(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, 5, Color(0, 0, 0, 0.8 * fa))
 		draw_string(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(GOLD, fa))
 		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
+		if main.practice != null and main.practice.on:
+			sub_text = main.practice.TEXT["sub"]  # (the practice room: no tower, no floor)
 		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 3, Color(0, 0, 0, 0.6 * fa))
 		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, fa))
 	if stair_t > 0.0 and main.stair_open and not main.climbing:
@@ -538,6 +589,7 @@ func _draw() -> void:
 		UI.draw_label(self, Vector2(0, 69), stair_text, 19, Color(1.0, 0.88, 0.6, pulse * sa), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.7 * sa))
 
 	# A new floor: its number and what changed, fading out.
+	draw_set_transform_matrix(Layout.xform("hud.banner", size))
 	if not main.banner.is_empty():
 		var bn: Dictionary = main.banner
 		var a: float = clampf(bn["t"] / 0.6, 0.0, 1.0)
@@ -562,6 +614,7 @@ func _draw() -> void:
 			draw_string_outline(lf, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, ls, 4, Color(0, 0, 0, 0.8 * a))
 			draw_string(lf, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, ls, Color(TEXT, a))
 			ly += 23.0
+	draw_set_transform_matrix(Transform2D.IDENTITY)
 
 	# Messages: a banner across the middle.
 	var msg := ""
@@ -1162,11 +1215,17 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	var margin := 40.0
 	if Rect2(Vector2.ZERO, size).grow(-margin).has_point(sp):
 		return
+	# It rides the edge of its ring (layout.gd "hud.stair": by default the
+	# screen less a margin, and below the floor counter and stair line at the
+	# top), on the line from the screen's centre (or the ring's) to the stair.
+	var ring := Layout.box("hud.stair", size)
 	var center := size * 0.5
+	if not ring.has_point(center):
+		center = ring.get_center()
 	var d := (sp - center).normalized()
-	# Keep it below the floor counter and stair line at the top.
-	var top := 104.0
-	var at := center + d * minf((size.x * 0.5 - margin) / maxf(absf(d.x), 0.001), ((size.y * 0.5 - margin) if d.y > 0.0 else (size.y * 0.5 - top)) / maxf(absf(d.y), 0.001))
+	var reach_x: float = (ring.end.x - center.x) if d.x > 0.0 else (center.x - ring.position.x)
+	var reach_y: float = (ring.end.y - center.y) if d.y > 0.0 else (center.y - ring.position.y)
+	var at := center + d * minf(reach_x / maxf(absf(d.x), 0.001), reach_y / maxf(absf(d.y), 0.001))
 	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.006)
 	var tip := at + d * 14.0
 	# A gilt arrowhead, outlined and lit along one side, with a stud behind it.
@@ -1201,6 +1260,7 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 			_boss_trail = k
 		_boss_trail = k if _boss_trail < k else move_toward(_boss_trail, k, dt * 0.35)
 		var col := Color(0.62, 0.42, 0.9) if e.shade else Color(0.86, 0.26, 0.2)
+		draw_set_transform_matrix(Layout.xform("hud.beast", size))
 		var b := Draw.Batch.new()
 		# A dark band behind, the name between gilt rules, the bar in a gilt
 		# frame with horned finials and studs at the quarters.
@@ -1221,6 +1281,7 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 			UI.diamond_into(b, Vector2(sx, r.position.y - 2.6), 1.5, UI.GILT_HI)
 		b.flush(self)
 		UI.draw_title(self, Vector2(0, 79), name, 26, UI.GILT_HI if not e.shade else Color(0.85, 0.78, 1.0), HORIZONTAL_ALIGNMENT_CENTER, size.x, 0.8)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
 		return
 
 
@@ -1234,6 +1295,13 @@ var _boss_t := 0
 func _draw_wing_status(size: Vector2, font: Font) -> void:
 	if main.wings == null or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing:
 		return
+	draw_set_transform_matrix(Layout.xform("hud.plates", size))
+	_draw_plates(size, font)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## The lock-in room's plate and a challenge's (in the default layout's places).
+func _draw_plates(size: Vector2, font: Font) -> void:
 	# Shut in a lock-in room (doors.gd): say so, and how many foes are left.
 	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
 	var y := 84.0

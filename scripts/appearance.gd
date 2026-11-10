@@ -27,14 +27,14 @@ const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
 
 ## The option rows, in the order the editor shows them: [key, name].
-const ROWS := [
+static var ROWS := [
 	["skin", "Skin"], ["hair", "Hair"], ["hair_color", "Hair colour"], ["eyes", "Eyes"],
 	["cloak", "Cloak"], ["tunic", "Tunic"], ["hood", "Hood"],
 ]
 
 ## Each option: [id, name, colour] (colour options) or [id, name] (the rest).
 ## The first entry is not special; DEFAULTS says which one is today's look.
-const OPTIONS := {
+static var OPTIONS := {
 	"skin": [
 		["porcelain", "Porcelain", Color(0.98, 0.88, 0.8)],
 		["fair", "Fair", Palette.CLIMBER_SKIN],
@@ -106,14 +106,14 @@ const DEFAULTS := {
 }
 const NAME_MAX := 14  # letters in a name (it's optional)
 ## Names the dice offers (it never picks the one you have).
-const NAMES := [
+static var NAMES := [
 	"Ash", "Bryn", "Cass", "Dara", "Edda", "Fen", "Gale", "Hale", "Ines", "Jory",
 	"Kestrel", "Lio", "Mara", "Nell", "Oren", "Pell", "Quill", "Rhea", "Sorrel", "Tam",
 	"Ulla", "Vale", "Wren", "Yara", "Zeph",
 ]
 
 ## The editor's words.
-const TEXT := {
+static var TEXT := {
 	"new_title": "New climber",
 	"new_sub": "Choose how you look. You can change it later.",
 	"edit_title": "Appearance",

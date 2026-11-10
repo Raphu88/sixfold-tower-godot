@@ -22,6 +22,7 @@ const Entity := preload("res://scripts/entity.gd")
 const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
 const Slots := preload("res://scripts/slots.gd")
+const Layout := preload("res://scripts/layout.gd")  # (the bubble's place: "hud.entity")
 
 ## Seconds between one bubble and the next, and to fade in or out.
 const GAP := 0.6
@@ -152,10 +153,11 @@ static func set_on(on: bool) -> void:
 		save_on(Slots.settings_path())
 
 
-## The Archive entry for this tip is unlocked.
+## The Archive entry for this tip is unlocked (an "always" entry, such as
+## the creator tools', is readable before it's met).
 static func known(id: String) -> bool:
 	load_state()
-	return state["known"].has(Entity.resolve(id))
+	return state["known"].has(Entity.resolve(id)) or bool(Entity.entry(id).get("always", false))
 
 
 ## The Entity has said this tip.
@@ -405,7 +407,7 @@ func bubble_rect(text_h: float) -> Rect2:
 		top = 14.0 + 20.0 + Controls.HELP.size() * 17.0 + 10.0
 	var h := maxf(66.0, 30.0 + text_h + 16.0)
 	var r := Rect2(Vector2(size.x - w - (12.0 if touch else 16.0), top), Vector2(w, h))
-	if touch and main.touch != null:
+	if touch and main.touch != null and not Layout.moved("hud.entity"):
 		# A short screen with many marks: slide left, clear of the cast buttons.
 		main.touch._layout()
 		for b in main.touch.buttons:
@@ -433,7 +435,11 @@ func _draw() -> void:
 	appear = 1.0 - (1.0 - appear) * (1.0 - appear)
 	var a := appear * (clampf(leaving / FADE, 0.0, 1.0) if leaving > 0.0 else 1.0)
 	r.position.x += (1.0 - appear) * 26.0
-	rect = r
+	# Arranged elsewhere (Arrange mode): drawn in its default place under the
+	# element's transform, and taps follow it there.
+	var xf := Layout.xform("hud.entity", get_viewport_rect().size)
+	rect = xf * r
+	draw_set_transform_matrix(xf)
 	modulate.a = a
 	if _bubble == null:
 		_bubble = UI.entity_bubble()

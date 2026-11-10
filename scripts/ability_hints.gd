@@ -157,10 +157,13 @@ func _draw() -> void:
 		_draw_card(size)
 
 
+## Drawn under the marks element's transform (the HUD size and Arrange
+## mode: hud.gd mark_xform), in its own units, so they follow the medallions.
 func _draw_labels() -> void:
 	var font := UI.font("display")
-	var fs := 15
+	var fs := 14
 	var rows: Array = []  # per row: the x spans taken
+	draw_set_transform_matrix(main.hud.mark_xform)
 	for l in labels:
 		var at = main.hud.mark_spots.get(l["part"])
 		if at == null:
@@ -169,22 +172,22 @@ func _draw_labels() -> void:
 		var a := clampf(minf(t / READY_IN, (READY_IN + READY_STAY + READY_OUT - t) / READY_OUT), 0.0, 1.0)
 		var text := UI.title_case(String(l["text"]))
 		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 16.0
-		var hs: float = main.hud.hud_scale
-		var x0: float = maxf(4.0, at.x - w * 0.5)
+		var x0: float = at.x - w * 0.5
 		var row := 0
 		while row < rows.size() and rows[row].any(func(span): return x0 < span[1] + 4.0 and x0 + w > span[0] - 4.0):
 			row += 1
 		if row >= rows.size():
 			rows.append([])
 		rows[row].append([x0, x0 + w])
-		var y: float = at.y + (main.hud.MARK_R + 13.0) * hs + row * 21.0 + (1.0 - a) * -4.0
+		var y: float = at.y + main.hud.MARK_R + 13.0 + row * 20.0 + (1.0 - a) * -4.0
 		var col: Color = l["color"]
-		var r := Rect2(Vector2(x0, y - 9.0), Vector2(w, 19.0))
+		var r := Rect2(Vector2(x0, y - 9.0), Vector2(w, 18.0))
 		var b := Draw.Batch.new()
 		UI.cartouche_into(b, r, Color(col, 0.85), a)
 		b.flush(self)
 		draw_string_outline(font, Vector2(r.position.x, y + 5.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, 3, Color(0, 0, 0, 0.7 * a))
 		draw_string(font, Vector2(r.position.x, y + 5.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(col.lightened(0.35), a))
+	draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _draw_toast(size: Vector2) -> void:
@@ -216,27 +219,36 @@ func _draw_toast(size: Vector2) -> void:
 	draw_string(body, Vector2(x, y + 1.0), does, HORIZONTAL_ALIGNMENT_LEFT, dw, bs, Color(UI.TEXT, a))
 
 
+## Where the card goes: beside its button where the layout puts it
+## (layout.gd, Arrange mode), on the side with more room, kept on screen.
+func card_rect(size: Vector2) -> Rect2:
+	var w := 250.0
+	var lines: Array = card.get("lines", ["", "", "", ""])
+	var text_h := UI.font("body").get_multiline_string_size(String(lines[1]), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 14).y
+	var h := 30.0 + text_h + 40.0
+	var c := Vector2(size.x * 0.6, size.y * 0.4)
+	var rad := 30.0
+	if main.touch != null:
+		for bt in main.touch.buttons:
+			if bt.get("part", "") == card.get("part", ""):
+				c = bt["c"]
+				rad = bt["r"]
+	var pos := Vector2(c.x - rad - 14.0 - w, c.y - h * 0.5)
+	if c.x < size.x * 0.5:
+		pos.x = c.x + rad + 14.0  # (a button arranged to the left: the card goes right of it)
+	pos.x = clampf(pos.x, 8.0, size.x - w - 8.0)
+	pos.y = clampf(pos.y, 60.0, maxf(60.0, size.y - h - 8.0))
+	return Rect2(pos, Vector2(w, h))
+
+
 func _draw_card(size: Vector2) -> void:
 	var lines: Array = card["lines"]
 	var col: Color = card["color"]
 	var held: bool = card.get("held", false)
 	var a := 1.0 if held else clampf((CARD_AFTER - float(card["t"])) / 0.4, 0.0, 1.0)
-	var w := 250.0
 	var body := UI.font("body")
-	var text_h := body.get_multiline_string_size(String(lines[1]), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 14).y
-	var h := 30.0 + text_h + 40.0
-	# Beside its button (left of it), kept on screen.
-	var c := Vector2(size.x * 0.6, size.y * 0.4)
-	var rad := 30.0
-	if main.touch != null:
-		for bt in main.touch.buttons:
-			if bt.get("part", "") == card["part"]:
-				c = bt["c"]
-				rad = bt["r"]
-	var pos := Vector2(c.x - rad - 14.0 - w, c.y - h * 0.5)
-	pos.x = clampf(pos.x, 8.0, size.x - w - 8.0)
-	pos.y = clampf(pos.y, 60.0, size.y - h - 8.0)
-	var r := Rect2(pos, Vector2(w, h))
+	var r := card_rect(size)
+	var w := r.size.x
 	var st := UI.card(Color(col, 0.85), true, 10.0)
 	st.top = Color(0.13, 0.115, 0.17, 0.97 * a)
 	st.bottom = Color(0.07, 0.06, 0.09, 0.97 * a)

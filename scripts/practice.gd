@@ -18,6 +18,7 @@ const TEXT := {
 	"lines": ["Training dummies take your hits and never strike back.", "Your abilities refill as you go. Nothing here is kept."],
 	"leave": "Back to the train",
 	"paused": "Practice",
+	"sub": "Training dummies  ·  nothing kept",
 	"hint": "Practice  ·  {menu}, then Back to the train",
 	"pause_note": "Nothing done here is kept.",
 }

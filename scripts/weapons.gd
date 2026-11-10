@@ -40,14 +40,14 @@ const START_RANGED := "shortbow"
 
 ## Weapon Memory (Blade Forger): conjured blades take after the weapon in
 ## your hand. Melee weapons by class; bows and crossbows all fly as darts.
-const MEMORY := {
+static var MEMORY := {
 	"light": {"extra": 2, "speed": 640.0, "mult": 0.7, "life": 1.2},
 	"medium": {"extra": 0, "speed": 560.0, "mult": 1.0, "life": 1.5},
 	"heavy": {"extra": -1, "speed": 480.0, "mult": 1.5, "life": 1.6},
 	"ranged": {"extra": 0, "speed": 840.0, "mult": 1.3, "life": 2.0},
 }
 
-const WEAPONS := {
+static var WEAPONS := {
 	"fists": {
 		"name": "Fists",
 		"short": "Fists",
