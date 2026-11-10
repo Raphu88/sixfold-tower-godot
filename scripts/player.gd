@@ -127,6 +127,11 @@ var pick_t := 0.0
 var pick_open := false
 var pick_index := -1
 var pick_dir_override := Vector2.ZERO  # touch: finger offset from the button
+## A phone: holding a cast button that opens no ring (one spell, or a
+## technique) this long shows its card instead (ability_hints.gd), and
+## letting go casts nothing.
+const PEEK_HOLD := 0.45
+var pick_peeked := false
 # Bond effects on the climber
 var thunderhead_t := 0.0  # Stormcaller's Thunderhead
 var hawk_t := 0.0  # Hunter's Hawk's Eye
@@ -612,8 +617,18 @@ func _update_pick(delta: float) -> void:
 			pick_open = true
 			pick_index = b.selected
 			main.set_slowmo(true)
+		elif not pick_open and not pick_peeked and pick_t >= PEEK_HOLD and main.touch_active and main.hints != null:
+			pick_peeked = true
+			main.hints.show_card(pick_part)
 		if pick_open:
 			_aim_pick(b)
+		return
+	if pick_peeked:
+		# Let go after the card showed: nothing is cast.
+		pick_peeked = false
+		main.hints.release_card()
+		pick_dir_override = Vector2.ZERO
+		pick_part = ""
 		return
 	# Released: pick (if the ring was open) and cast.
 	if pick_open:
@@ -759,6 +774,7 @@ func _read_buffer() -> void:
 			pick_part = part
 			pick_t = 0.0
 			pick_open = false
+			pick_peeked = false
 	if pressed != "":
 		buffered = pressed
 		buffer_t = BUFFER_TIME
@@ -1410,6 +1426,8 @@ func _release_cast() -> void:
 	main.counting_hits = true
 	b.cast(self)
 	main.counting_hits = false
+	if main.hints != null:
+		main.hints.cast_done(b)  # (the first cast of each: its name and what it does)
 	if sb_cast != null:
 		main.secret_tools.after_cast(b, sb_cast)
 	if main.puzzle != null:  # (an Essence Lock answers to a spell of its essence)

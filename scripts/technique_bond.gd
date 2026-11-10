@@ -9,6 +9,7 @@ extends "res://scripts/bond.gd"
 
 const Tech := preload("res://scripts/technique.gd")
 const UnboundData := preload("res://scripts/unbound.gd")
+const Abilities := preload("res://scripts/abilities.gd")
 
 var tech: Dictionary
 var slot := 0
@@ -92,4 +93,5 @@ func tip_lines(key: String, touch: bool) -> Array:
 	return [Tech.describe(tech),
 		"Fill %d / %d (%s)  ·  %s strain %d / 100, +%d a cast" % [int(essence), int(capacity()), Bonds.PART_FILLS[part], UnboundData.PART_NAMES[part], int(s), int(Tech.strain(tech))],
 		"Boost +%d%%: %s carried" % [int(Tech.BOOST * 100.0), Tech.cost_text(tech, prof)],
-		"Its button is on the right" if touch else "Press %s to cast" % key]
+		"Its button is on the right" if touch else "Press %s to cast" % key,
+		Abilities.fill(run.main if run != null else null, Abilities.TEXT["tip_all"])]

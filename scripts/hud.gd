@@ -28,6 +28,7 @@ const Entity := preload("res://scripts/entity.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
+const Abilities := preload("res://scripts/abilities.gd")
 ## The rings (spells, items; secret_tools.gd's tools too) draw over the touch
 ## buttons; on a phone they keep clear of the thumb (this big a circle) and
 ## leave room under them for the chosen one's name and words.
@@ -65,6 +66,7 @@ var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
 var hud_scale := 1.0  # the HUD size setting (ui.gd HUD_SCALES)
 var tips: Array = []  # [rect, title, lines] of what the mouse can hover for a tooltip
+var mark_spots := {}  # body part -> its medallion's centre on screen (ability_hints.gd labels it)
 var tip_box: StyleBox
 var card_box: StyleBox  # the big cards (towers, camps, the gear at your feet): ui.gd card
 var card_box_on: StyleBox
@@ -288,6 +290,7 @@ static func _fade(t: float, total: float) -> float:
 func _draw_core() -> void:
 	core_redraws += 1
 	tips.clear()
+	mark_spots.clear()
 	var p = main.player
 	if p == null or main.title_showing():
 		return
@@ -357,6 +360,7 @@ func _draw_core() -> void:
 		var col: Color = bd.color()
 		var ready: bool = bd.essence >= bd.cost()
 		var mc := Vector2(mx, my)
+		mark_spots[part] = mc * hs
 		UI.seal_into(b, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), ready, bd.faint, bd.burned)
 		if bd.has_method("hud_into"):
 			bd.hud_into(b, mc, MARK_R)  # (an Unbound's technique: its part's strain)
@@ -369,7 +373,7 @@ func _draw_core() -> void:
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
 			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
 			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, ", hold it to pick a spell" if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
-			"Tab: the climber screen has every spell"]])
+			Abilities.fill(main, Abilities.TEXT["tip_all"])]])
 		mx += MARK_R * 2.0 + 8.0
 	b.flush(c)
 	# Words last, over the shapes.
