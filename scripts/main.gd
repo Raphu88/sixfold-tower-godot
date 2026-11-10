@@ -43,6 +43,7 @@ const MirrorScript := preload("res://scripts/mirror.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 const UnboundRun := preload("res://scripts/unbound_run.gd")
+const RoomStore := preload("res://scripts/room_store.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -138,6 +139,9 @@ var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
 var entity  # the Entity's bubble in play (guide.gd); main.tip("id") for a new system
 var dev_no_death := false  # dev tool: you can't fall
+## The room painter's Try it (painter.gd): the room being tried and what to
+## put back afterwards ({} when not trying a room). See try_room.
+var painter_try := {}
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
@@ -248,6 +252,7 @@ func _ready() -> void:
 	randomize()
 	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
+	RoomStore.startup()  # (the room painter's rooms: room_store.gd, before any floor is planned)
 	preload("res://scripts/ui.gd").setup_fonts()  # (the interface's fonts: ui.gd)
 	audio = AudioScript.new()
 	add_child(audio)
@@ -467,22 +472,9 @@ func _build_layout(walk: Array, blocks: Array = [], start := Vector2.ZERO, targe
 			var t := _tile_of(g)
 			if not _is_solid_tile(t.x, t.y):
 				goals.append(t)
-	for b in blocks:
-		var tiles: Array = _tiles_in(b).filter(func(t): return not _is_solid_tile(t.x, t.y))
-		for t in tiles:
-			solid[t.y * grid_size.x + t.x] = 1
-			astar.set_point_solid(t, true)
-		var reachable := true
-		for g in goals:
-			if astar.get_id_path(from, g).is_empty():
-				reachable = false
-				break
-		if reachable:
-			layout_blocks.append(b)
-		else:
-			for t in tiles:
-				solid[t.y * grid_size.x + t.x] = 0
-				astar.set_point_solid(t, false)
+	# (rooms.gd cover_kept: the same check the room painter runs on one room)
+	for i in Floors.Rooms.cover_kept(grid_size, solid, blocks.map(_tiles_in), from, goals, astar):
+		layout_blocks.append(blocks[i])
 	# Collision: solid tiles next to walkable ones, merged into runs per row.
 	for y in grid_size.y:
 		var run_start := -1
@@ -946,6 +938,8 @@ func _start_floor(n: int) -> void:
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
 	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
+	if not painter_try.is_empty():
+		plan = Floors.try_plan(painter_try["room"], n, Towers.TOWERS[tower])  # (the room painter's Try it)
 	if plan.is_empty():
 		MirrorScript.climb_ok = not first_climb  # (no mirror rooms on the bondless first climb)
 		if secret_tools != null:
@@ -1001,7 +995,7 @@ func _start_floor(n: int) -> void:
 	# The traps (traps.gd): laid before the pillars and chasms are made, since
 	# placing them may add shelter pillars, move monsters off trap tiles and
 	# clear chasms from under what matters.
-	traps = [] if plan.get("proving", false) else Traps.place(plan, tower_data(), n, self)  # (the Proving lays its gauntlet when a door is chosen)
+	traps = [] if plan.get("proving", false) or plan.has("try_room") else Traps.place(plan, tower_data(), n, self)  # (the Proving lays its gauntlet when a door is chosen)
 	trap_view.floor_marks = plan.get("trap_floor", {})
 	trap_view.reset()
 	springs = plan.get("springs", [])
@@ -1207,7 +1201,7 @@ func _open_cache() -> void:
 ## pack lies in an ordinary room (traps keep clear of it).
 func _place_lost_cache(plan: Dictionary, n: int) -> void:
 	lost_cache = {}
-	if not in_camp and not first_climb and profile != null and plan.has("room_info"):
+	if not in_camp and not first_climb and profile != null and plan.has("room_info") and not plan.has("try_room"):
 		var here := Lost.for_floor(profile, tower, n)
 		if not here.is_empty() and randf() < lost_cache_chance:
 			var at := Lost.spot(plan)
@@ -1271,6 +1265,8 @@ func fall_through() -> void:
 
 
 func _land_below(to: int) -> void:
+	if not painter_try.is_empty():
+		to = floor_num  # (trying a room: back into it)
 	_start_floor(to)
 	banner = {"title": FALL_TEXT["title"], "lines": [FALL_TEXT["line"] % to], "t": 3.0}
 	player.set_physics_process(true)
@@ -1294,6 +1290,9 @@ func lift_ward() -> void:
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
 func _climb() -> void:
+	if not painter_try.is_empty():
+		menu.open("painter")  # (trying a room: the stair leads back to the painter)
+		return
 	climbing = true
 	player.set_physics_process(false)
 	player.iframes = maxf(player.iframes, 2.0)  # nothing can hit you on the stair
@@ -2993,6 +2992,60 @@ func dev_floor(n: int) -> void:
 		profile.regarded = true  # (the Proving is never on the bondless first climb)
 		first_climb = false
 	_start_floor(n)
+
+
+## The room painter's Try it (painter.gd): walks into a room at once, in
+## this tower, on a floor of two rooms (floors.gd try_plan) with monsters
+## on the room's spots. You can't fall while trying. The pause key or the
+## stair goes back to the painter (menu.gd opens it, which calls end_try).
+## False if the room can't be joined to anything (no side has a doorway).
+func try_room(def: Dictionary) -> bool:
+	var summit := int(tower_data().get("summit", Towers.SUMMIT))
+	var n := clampi(maxi(floor_num, int(def.get("from", 2))), 2, maxi(2, summit - 1))
+	if Floors.try_plan(def, n, Towers.TOWERS[tower]).is_empty():
+		return false
+	if painter_try.is_empty():
+		painter_try = {"floor": floor_num, "in_camp": in_camp, "on_train": on_train, "choosing": choosing_tower,
+			"no_death": dev_no_death, "hp": player.hp, "sta": player.sta}
+	painter_try["room"] = def.duplicate(true)
+	on_train = false
+	choosing_tower = false
+	in_camp = false
+	camp_choosing = false
+	dev_no_death = true
+	_start_floor(n)
+	player.dead = false
+	player.set_physics_process(true)
+	if menu != null and menu.is_open():
+		menu.close()
+	return true
+
+
+## Trying a room from the painter.
+func trying_room() -> bool:
+	return not painter_try.is_empty()
+
+
+## Back from trying a room: the floor you were on is laid out again (or the
+## train or the tower choice stands again), with your health as it was.
+func end_try() -> void:
+	if painter_try.is_empty():
+		return
+	var was := painter_try
+	painter_try = {}
+	dev_no_death = was["no_death"]
+	in_camp = was["in_camp"]
+	_start_floor(int(was["floor"]))
+	player.dead = false
+	player.hp = minf(float(was["hp"]), player.max_health())
+	player.sta = float(was["sta"])
+	banner = {}
+	if was["on_train"] or was["choosing"]:
+		on_train = was["on_train"]
+		choosing_tower = was["choosing"]
+		player.set_physics_process(false)
+		for e in enemies():
+			e.set_physics_process(false)
 
 
 ## Something would kill the climber (player.gd): true if the ordinary

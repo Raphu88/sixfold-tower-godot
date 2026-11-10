@@ -328,6 +328,39 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 - **Secret essences:** take the Life or Unmaking path at once, bank +25 or +100 flow (to try each step), reset the path, or show the path choice.
 - **Secret bonds:** grant the Developer, Designer or Manipulator at any depth from 1 to 5, or clear it; carry +100 essence and +20 flow (to pay for tools); +150 crystal essence (for Tune, Edit, moving marks, a bribe and a change of path).
 - **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room, and show traps (outlines every trap and its reach, hidden ones too).
+- **Creator tools: Paint rooms** opens the room painter (see below).
+
+## The room painter (making rooms without code)
+
+**Dev tools → Paint rooms** (`scripts/painter.gd`) paints the climb's hand-made rooms tile by tile, the same small grids as `rooms.gd`, without touching code. It fills the screen:
+- **The grid** in the middle: the room, drawn in the game's own tile look (`scripts/painter_tiles.gd`: flagstones, walls with their brick faces, low walls, pillars, chasms, pools, monster spots and the puzzle pieces) in the current tower's colours. Small gilt marks outside its edges show where a corridor can join it. Pinch with two fingers, use the mouse wheel or the Zoom buttons to zoom; two fingers or the middle mouse button move the view.
+- **The tools** down the left: Brush, Fill (an area of the same tile), Box (a filled box, dragged corner to corner), Eraser (floor), Mirror left-right and top-bottom (what you paint is copied to the other side), Undo, Redo and Zoom.
+- **The palette** down the right: every tile with its look and name (floor, wall, rock, pillar, chasm, water, monster spot, random, and a puzzle room's rail, stone eye, plate, block, gate, lever and reward). Under it **Use in climbs** and **the checks**.
+- **The top bar:** Back (to Dev tools), the room's name and state, **Rooms** (every room, yours first, then the built-ins: open, copy, switch on or off, rename or delete yours; built-in rooms can be opened and copied but never changed, and painting one makes your own copy), **Room** (its name, job: start, combat, stair or puzzle, the puzzle and tier for a puzzle room, width and height from 7 x 6 up to 14 x 12, first floor, whether it may flip, which towers may use it, and which tower's look it's shown in), **Save** (Save, Copy rooms and Paste rooms, with a text box), **Try it** and **?** (the Entity's explanation again).
+
+**Controls.** Mouse: click or drag to paint, right-click erases. Touch: tap or drag to paint; tap the buttons. Keys: the arrows move a cursor on the grid, Enter or Space paints (hold it and move to paint along), Delete or Backspace erases, Q and E change the tile, Tab goes to the buttons (and back), Ctrl+Z and Ctrl+Y undo and redo, Esc leaves. Controller: the d-pad or stick moves the cursor, A paints, B erases, LB and RB change the tile, X the tool, Y goes to the buttons (B comes back), Start leaves. On the buttons the usual menu rules apply (`nav.gd`).
+
+**Checks** (`scripts/room_check.gd`) run as you paint and say what's wrong in plain words, outlined on the grid (tap one to find it): a side with no room for a doorway (a corridor needs two open tiles side by side, two deep), a stair with no open floor at the top middle or that can't be reached, a monster spot, a doorway, where the climber starts or a plate that can't be reached, a **low wall that cuts something off** (the game's own check, `rooms.gd` `cover_kept`, which main.gd also uses on every floor: in play such a wall would be left out), and what a puzzle room needs (eyes that can be hit, plates, blocks that can be pushed, a reward behind its gate). Chasms are only real in the Firebird's tower, so a room can pass in one tower and not in another; it's only offered where it passes. A room that fails is a **draft**: it can be saved and tried, but the climb won't use it.
+
+**Try it** drops you into the room at once, in the tower you're in, beside a small hall where you start, with a monster on each monster spot (none in a start room), and you can't fall. The pause key (Esc, Start, Menu) or the stair brings you back to the painter, and the floor you were on is laid out again (`floors.gd` `try_plan`, `main.gd` `try_room`).
+
+**Use in climbs.** A room switched on that passes its checks joins the floor planner's pool for its job (`rooms.gd` `custom`, `for_role`), alongside the built-ins: it can flip, never appears twice on a floor, and only from its first floor and in its towers.
+
+**Keeping rooms** (`scripts/room_store.gd`), the same pattern as the other creator tools:
+- Run from the Godot editor, **Save** writes `res://data/rooms_custom.json`. GitHub Desktop then shows the change: write a summary, **Commit to main**, **Push origin**, and the rooms are in every copy of the game, the web build included.
+- Anywhere else (the web build, a phone), Save writes `user://rooms_custom.json`, on that device only. **Copy rooms** puts all your rooms on the clipboard and in the text box, to paste to Claude or into **Paste rooms** on the computer (then Save there). Pasting a room with the id of one you have updates it; the rest are added.
+- At startup the project's file is read, then the device's on top. Leaving the painter saves what isn't saved yet.
+
+The file is plain JSON, one room per entry, its grid one row per line:
+
+```json
+{"format": 1, "rooms": [
+	{"id": "painted_1", "name": "Broken colonnade", "role": "combat", "from": 2, "flip": true,
+	 "towers": [], "on": true, "grid": [".............", ".o.o.....o.o.", "..."]}
+]}
+```
+
+`role` is the job, `from` the first floor, `towers` the tower ids that may use it (empty for all), `on` whether it's used in climbs; puzzle rooms add `"puzzle"` (`"eyes"` or `"plates"`) and `"tier"` (1 or 2). The device's file can also list `"deleted"` project rooms. The Entity explains each part the first time (the Archive's "Creator tools").
 
 ## Climbers and saves
 
@@ -500,7 +533,7 @@ Climbers who refuse the tower beasts' marks (`scripts/unbound.gd` holds every wo
 - **Branch rooms** (2 or 3) hang off the spine in the cells beside it: side rooms worth a look.
 - A cell or two beside the spine is kept for a **sealed wing**, and sometimes one for a **secret room** (see **Sealed wings, vaults and secrets** below).
 
-**Rooms.** A room is either **hand-made**, drawn as a small text grid in `scripts/rooms.gd` (one character per tile: walls, pillars, chasms, pools, monster spots and random tiles), or a shape **carved** in its tower's style: plain, open, a long hall, an L, a cross (corners notched), round (corners cut) or pillared (`SHAPES` in `rooms.gd`; each tower's favourites are its `shapes` in `towers.gd`: the Kraken's tower likes halls and L-shapes, the Wyvern's pillared rooms, and so on). Hand-made rooms suit their job (calm start rooms, combat rooms, stair rooms, puzzle rooms), flip at random so they don't repeat exactly, and never appear twice on a floor. A wall that touches a room's edge becomes part of its outline; one standing free inside is a low wall you can hide behind (it blocks movement, sight and shots). The game checks that the stair, every monster and the cache can be reached (any low wall that would cut one off is left out). To add a room, copy one in `rooms.gd` and draw your own.
+**Rooms.** A room is either **hand-made**, drawn as a small text grid in `scripts/rooms.gd` (one character per tile: walls, pillars, chasms, pools, monster spots and random tiles), or a shape **carved** in its tower's style: plain, open, a long hall, an L, a cross (corners notched), round (corners cut) or pillared (`SHAPES` in `rooms.gd`; each tower's favourites are its `shapes` in `towers.gd`: the Kraken's tower likes halls and L-shapes, the Wyvern's pillared rooms, and so on). Hand-made rooms suit their job (calm start rooms, combat rooms, stair rooms, puzzle rooms), flip at random so they don't repeat exactly, and never appear twice on a floor. A wall that touches a room's edge becomes part of its outline; one standing free inside is a low wall you can hide behind (it blocks movement, sight and shots). The game checks that the stair, every monster and the cache can be reached (any low wall that would cut one off is left out). To add a room, paint it in **Dev tools → Paint rooms** (see The room painter), or copy one in `rooms.gd` and draw your own.
 
 **Corridors and doors.** Corridors are two tiles wide and run straight from one room's wall to the facing wall of the next, as near the middle of both walls as the rooms' shapes allow, so they never cut through a room and what's drawn in it stays as drawn. Stone posts frame each doorway. Many doorways have a **door** (`scripts/doors.gd`): likelier on rooms where danger waits (three in four on dens, crypts, the stair landing and the puzzle room; one in three elsewhere; never on the start room). A closed door is solid: it blocks the way, shots and sight, so a room behind one stays dark until you open it. Walk up to a door and it swings open (a thud and a puff of dust); awake monsters open doors too. A door's look hints at the challenge inside, never the reward: plain planks for an ordinary room, iron bands, claw marks and bones at the threshold for a den, an engraved sigil of the hazard (wind, a wave, a flame, spikes, an ember, thorns or a chasm) for a trap room, a stone door with the puzzle's emblem (an eye or a plate) for the puzzle room, warm light under the door for a good room, and chains and a red glow for danger (a crypt, the stair landing), and a dark stone slab carved with a watching eye for a sealed wing.
 
@@ -684,7 +717,11 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/slots.gd` | Climber slots: each climber's save file, the shared settings file, the slot played last, deleting, and moving an old single save into slot 1 |
 | `scripts/climbers_page.gd` | The Climbers page (the climber picker) and its words, the title's Climbers button and the Start over words |
 | `scripts/floors.gd` | Plans each floor: the grid, spine, branches and kept cells, corridors, doors, monster groups, toughness |
-| `scripts/rooms.gd` | The hand-made rooms, drawn as text grids, the carved shapes, and how they turn into walls, pillars, chasms and pools |
+| `scripts/rooms.gd` | The hand-made rooms, drawn as text grids, the carved shapes, and how they turn into walls, pillars, chasms and pools; the painter's rooms in play (`custom`) and the low-wall check (`cover_kept`) |
+| `scripts/painter.gd` | The room painter (Dev tools → Paint rooms): the grid, tools, palette, checks, room list, settings, Save / Copy / Paste and Try it |
+| `scripts/painter_tiles.gd` | The painter's tiles: their names and notes, and how each is drawn in a tower's colours |
+| `scripts/room_check.gd` | The checks a painted room must pass (doorways, the stair, reachability, low walls, puzzles) |
+| `scripts/room_store.gd` | The painter's rooms: `data/rooms_custom.json` (from the editor) and `user://rooms_custom.json`, Copy and Paste |
 | `scripts/themes.gd` | Room themes: names, one-line rules, tints, door looks, and the rules that hand them out |
 | `scripts/doors.gd` | Doors: solid until you walk up, styled to hint at the room behind; locked doors with their keys and levers; lock-in rooms |
 | `scripts/unbound.gd` | The Unbound: their profile state, natural parts and routing, levels, gifts, stages, becoming Unbound and the Developer's way back, and their words |

@@ -105,6 +105,7 @@ const GROUPS := [
 	["gear", "Gear and items"],
 	["train", "The train"],
 	["screens", "Screens"],
+	["creator", "Creator tools"],
 ]
 
 ## Every tip, in Archive order within its group: the Entity's line ("tip",
@@ -427,6 +428,24 @@ const TIPS := {
 	"tool_build_manipulator": {"group": "tools", "name": "Build (the Manipulator)",
 		"tip": "Rewrite a monster into your own for the floor, with a second kind's attack.",
 		"more": "The Manipulator's Build rewrites the monster you aim at into your own until the floor ends: it fights for you, and every few seconds uses an attack it took from another kind of its tower (a knight that also fires arrows). One at a time. Great foes, key carriers and monsters bound to a floor's test won't answer."},
+	# --- creator tools: the room painter (painter.gd). It shows these in its
+	# own card the first time (the game is paused there), and "?" shows them
+	# all again; "always" keeps them readable in the Archive before they're met ---
+	"painter": {"group": "creator", "name": "The room painter", "always": true,
+		"tip": "Rooms are only tiles. Pick a tile on the right, then tap, click or drag on the grid to lay it. Built-in rooms stay as they are: painting one makes your copy.",
+		"more": "The room painter (Dev tools, then Paint rooms) draws a room tile by tile, the way the game's hand-made rooms are written. Pick a tile from the palette on the right: floor, wall, rock, pillar, chasm, water, a monster's spot, a random tile, or a puzzle room's rails, eyes, plates, blocks, gates, levers and rewards. Tap, click or drag on the grid to lay it. The tools on the left: Brush lays tiles one by one, Fill fills an area of the same tile, Box lays a filled box (drag from corner to corner), Eraser lays floor; Mirror copies what you paint to the other side, left and right or top and bottom; Undo and Redo; Zoom (or pinch with two fingers, or the mouse wheel). With a controller, move the cursor with the d-pad or stick: A paints, B erases, LB and RB change the tile, X the tool, Y goes to the buttons. With keys: the arrows, Enter paints, Delete erases, Q and E change the tile, Tab goes to the buttons. Rooms opens the list of rooms (open, copy, rename or delete yours; built-in rooms can only be copied), and Room its settings: its name, size, job (start, combat, stair or puzzle), first floor, whether it may flip, and which towers may use it."},
+	"painter_checks": {"group": "creator", "name": "The room's checks", "always": true,
+		"tip": "A room must let you reach everything that matters. What's wrong shows on the right, in red, and on the grid. A room that fails waits as a draft.",
+		"more": "The painter checks the room as you paint, the way the game would build it: a corridor needs two open tiles side by side, two deep, on a side of the room; the stair, every monster spot, where the climber starts and a puzzle's plates must all be reachable; a low wall (a wall standing free inside the room) that would cut one of them off is left out in play, so it's flagged; and a puzzle room needs what its puzzle uses. Problems show in red on the right and outlined on the grid (tap one to find it); warnings in gold are worth a look but don't stop the room. Chasms are only real in the Firebird's tower, so a room can pass in one tower and not another. A room that fails can still be saved as a draft, but the climb won't use it until it passes."},
+	"painter_try": {"group": "creator", "name": "Trying a room", "always": true,
+		"tip": "That was your room, in this tower, with monsters on their spots. Try it again whenever you change it.",
+		"more": "Try it drops you straight into the room you're painting, in the tower you're climbing, beside a small hall where you start, with a monster on each of its monster spots. You can't fall while trying a room. To come back to the painter, press {menu}, or walk onto the stair. The floor you were on is laid out again afterwards."},
+	"painter_climbs": {"group": "creator", "name": "Rooms in your climbs", "always": true,
+		"tip": "Switched on, your room joins the climb's rooms for its job, once it passes its checks.",
+		"more": "Use in climbs is a switch on each of your rooms (in the room list, the room's settings, and under the palette). Once a room is switched on and passes its checks, the floor planner may pick it like a built-in room of the same job: a start room for the room you begin a floor in, a combat room for the rooms along the way, a stair room for the stair hall, a puzzle room for the gallery. Like the built-ins, it can flip, never appears twice on one floor, and only shows up from its first floor and in the towers you chose. A draft stays out until it passes."},
+	"painter_save": {"group": "creator", "name": "Keeping your rooms", "always": true,
+		"tip": "Save keeps your rooms on this device. To make them part of the game for good, save from Godot on your computer, or Copy rooms and give them to Claude.",
+		"more": "Save keeps your rooms on the device you're playing on. To make them permanent, in every copy of the game and the web build too: on your computer, run the game from Godot (press F5), open the painter and press Save; that writes the project's file data/rooms_custom.json. Then open GitHub Desktop: the change shows on the left. Type a short summary at the bottom left (for example \"New rooms\"), press Commit to main, then Push origin at the top. On your phone: open Save, press Copy rooms and paste the text to Claude, who can add the rooms for you; or paste it into Paste rooms in the painter on your computer (running from Godot) and press Save there. Leaving the painter also saves what isn't saved yet."},
 }
 
 ## Room features (themes.gd) -> the tip for walking into one.
