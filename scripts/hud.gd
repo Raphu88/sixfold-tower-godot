@@ -228,6 +228,16 @@ func _notice_changes(p) -> void:
 	_last_stair = st
 
 
+## The corner's bars, gem, weapon, item and marks, together (in view px).
+func _corner_box(view: Vector2) -> Rect2:
+	var r := Rect2()
+	for id in ["hud.bars", "hud.gem", "hud.weapon", "hud.item", "hud.marks"]:
+		var b := Layout.box(id, view / hud_scale)
+		b = Rect2(b.position * hud_scale, b.size * hud_scale)
+		r = b if r.size == Vector2.ZERO else r.merge(b)
+	return r
+
+
 ## Everything the core shows; it's redrawn when this changes.
 func _core_signature() -> Array:
 	var p = main.player
@@ -556,13 +566,18 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	size = real_size
 
-	# The floor's title on arrival, top centre, fading out.
-	draw_set_transform_matrix(Layout.xform("hud.floor", size))
-	if floor_t > 0.0 or stair_t > 0.0:
+	# The floor's title on arrival, top centre, fading out (a narrow screen,
+	# where it would run into the corner's bars: under the corner instead).
+	var corner := _corner_box(size)
+	var floor_text: String = main._floor_title() if floor_t > 0.0 or stair_t > 0.0 else ""
+	var tw := UI.font("display").get_string_size(UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+	var bars := Layout.box("hud.bars", size / hud_scale)
+	var below := size.x * 0.5 - (tw * 0.5 + 76.0) < bars.end.x * hud_scale  # (its rules would cross the bars)
+	draw_set_transform_matrix(Transform2D(0.0, Vector2.ONE, 0.0, Vector2(0.0, corner.end.y if below else 0.0)) * Layout.xform("hud.floor", size))
+	# (moved under the corner, it gives way to the cards and to a new floor's banner)
+	if (floor_t > 0.0 or stair_t > 0.0) and not (below and (main.camp_choosing or main.choosing_tower or not main.banner.is_empty())):
 		var fa := _fade(maxf(floor_t, stair_t), FLOOR_SHOW)
-		var floor_text: String = main._floor_title()
 		# A soft band between gilt rules behind it, rules flanking the title.
-		var tw := UI.font("display").get_string_size(UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
 		var fb := Draw.Batch.new()
 		var bw := minf(size.x, maxf(tw + 260.0, 420.0))
 		UI.band_into(fb, Rect2((size.x - bw) * 0.5, 4.0, bw, 52.0), fa * 0.8, UI.GILT, 0.5)
@@ -593,7 +608,7 @@ func _draw() -> void:
 	if not main.banner.is_empty():
 		var bn: Dictionary = main.banner
 		var a: float = clampf(bn["t"] / 0.6, 0.0, 1.0)
-		var top := size.y * 0.3
+		var top := maxf(size.y * 0.3, corner.end.y + 50.0)  # (a short screen: under the corner's bars)
 		# A soft band between gilt rules, fading to both sides.
 		var bb := Draw.Batch.new()
 		var bw2 := minf(size.x, 820.0)
@@ -1021,16 +1036,23 @@ func _draw_refused(size: Vector2, font: Font) -> void:
 const TowersData := preload("res://scripts/towers.gd")
 
 
+## Room kept above the tower cards for the title and its line.
+const TOWER_HEAD := 78.0
+
+
 func tower_card_rect(i: int, size: Vector2) -> Rect2:
 	var total := TowersData.ORDER.size()
 	var rows := 2 if total > 4 else 1
 	var n := int(ceil(float(total) / rows))  # cards per row
 	var w := minf(260.0, (size.x - 40.0 - 16.0 * (n - 1)) / n)
 	var h := 230.0 if rows == 1 else minf(160.0, (size.y - 170.0) / 2.0)
+	# (a short screen: the cards take the height there is under the title)
+	if rows > 1:
+		h = clampf((size.y - TOWER_HEAD - 8.0 - 12.0 * (rows - 1)) / rows, h, 160.0)
 	var x0 := (size.x - (w * n + 16.0 * (n - 1))) / 2.0
 	var row := i / n
 	var col := i % n
-	var top := size.y * 0.5 - (h * rows + 12.0 * (rows - 1)) * 0.5 + 30.0
+	var top := maxf(size.y * 0.5 - (h * rows + 12.0 * (rows - 1)) * 0.5 + 30.0, TOWER_HEAD)
 	return Rect2(Vector2(x0 + col * (w + 16.0), top + row * (h + 12.0)), Vector2(w, h))
 
 
@@ -1088,7 +1110,9 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		draw_circle(Vector2(x + 6, y - 5), 6.0, ec)
 		draw_string(font, Vector2(x + 18, y), "%s essence" % Essence.display(t["essence"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, ec)
 		y += 18.0
-		draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 13 if narrow else 15, 4 if r.size.y < 200.0 else 7, DIM_TEXT)
+		var room := int((r.end.y - 30.0 - (y + 4.0)) / (15.0 if narrow else 17.0)) + 1  # (as many lines as fit above the hint)
+		if room > 0:
+			draw_multiline_string(font, Vector2(x, y + 4), t["blurb"], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 28.0, 13 if narrow else 15, mini(room, 4 if r.size.y < 200.0 else 7), DIM_TEXT)
 		var hint := _card_hint(i)
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, GOLD if last or focused else DIM_TEXT)
 
@@ -1391,6 +1415,10 @@ func camp_per_row() -> int:
 	return n if n <= 5 else int(ceil(n / 2.0))
 
 
+## Room kept above the camp's cards for its title and words.
+const CAMP_HEAD := 100.0
+
+
 func camp_card_rect(i: int, size: Vector2) -> Rect2:
 	if main.camp.get("stage", "") == "path":
 		return path_card_rect(i, size)
@@ -1400,10 +1428,15 @@ func camp_card_rect(i: int, size: Vector2) -> Rect2:
 	var gap := 16.0 if rows == 1 else 10.0
 	var w := minf(230.0, (size.x - 40.0 - gap * (per - 1)) / per)
 	var h := minf(230.0, size.y * 0.5) if rows == 1 else minf(180.0, (size.y - 170.0 - gap) / 2.0)
+	if rows == 1:
+		h = minf(230.0, maxf(h, size.y - CAMP_HEAD - 8.0))  # (a short screen: the cards take the height there is)
 	var row := i / per
 	var in_row := mini(per, n - row * per)
 	var x0 := (size.x - (w * in_row + gap * (in_row - 1))) / 2.0
 	var top := size.y * 0.5 - (h * rows + gap * (rows - 1)) * 0.5 + 40.0
+	if rows == 1:
+		top = maxf(top, CAMP_HEAD)
+		h = minf(h, size.y - 8.0 - top)
 	return Rect2(Vector2(x0 + (i % per) * (w + gap), top + row * (h + gap)), Vector2(w, h))
 
 
@@ -1580,14 +1613,14 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		var lines := 4 if not small else clampi(int((r.end.y - 46.0 - dy) / 16.0) + 1, 1, 4)
 		draw_multiline_string(font, Vector2(r.position.x + 8, dy), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 13 if small else 14, lines, TEXT)
 		if card.has("note"):
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, DIM_TEXT)
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UI.fit_size(font, card["note"], 13, r.size.x - 8.0), DIM_TEXT)
 		if card["item"] != "" and p != null and not card.has("belt"):
 			var n: int = p.item_count(card["item"])
 			var have := "carrying %d of %d" % [n, p.max_stack(card["item"])]
 			var full: bool = p.item_room(card["item"]) != ""
 			if p.item_room(card["item"]) == "belt":
 				have = "belt full: left at your feet"
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color(1.0, 0.5, 0.4) if full else DIM_TEXT)
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), have, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UI.fit_size(font, have, 13, r.size.x - 8.0), Color(1.0, 0.5, 0.4) if full else DIM_TEXT)
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), _card_hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, GOLD)
 
 

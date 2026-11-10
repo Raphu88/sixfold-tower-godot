@@ -383,23 +383,11 @@ func label_of(id: String) -> String:
 func toolbar() -> Dictionary:
 	var view := _view()
 	var w := minf(560.0, view.x - 16.0)
-	var h := 92.0
-	var at := bar_at
-	if at.x < 0.0:
-		at = Vector2((view.x - w) * 0.5, view.y * 0.5 - h * 0.5)
-	at.x = clampf(at.x, 0.0, maxf(view.x - w, 0.0))
-	at.y = clampf(at.y, 0.0, maxf(view.y - h, 0.0))
-	var bar := Rect2(at, Vector2(w, h))
-	var title := Rect2(at, Vector2(w, 24.0))
-	var out: Array = []
-	var set_w := 130.0
-	out.append(["set", Rect2(at + Vector2(w - set_w - 6.0, 3.0), Vector2(set_w, 19.0)), TEXT["switch"][Layout.active_set]])
-	out.append(["help", Rect2(at + Vector2(w - set_w - 34.0, 3.0), Vector2(24.0, 19.0)), TEXT["help"]])
+	var display := UI.font("display")
 	var ids := ["save", "copy", "undo", "grid", "reset_one", "reset_all", "done"]
-	var gap := 4.0
-	var bw := (w - 12.0 - gap * (ids.size() - 1)) / ids.size()
-	for i in ids.size():
-		var id: String = ids[i]
+	var labels := {}
+	var widest := 0.0
+	for id in ids:
 		var label: String
 		match id:
 			"grid":
@@ -408,8 +396,34 @@ func toolbar() -> Dictionary:
 				label = TEXT["sure"] if armed == id else TEXT[id]
 			_:
 				label = TEXT[id]
-		out.append([id, Rect2(at + Vector2(6.0 + i * (bw + gap), 27.0), Vector2(bw, 26.0)), label])
-	return {"bar": bar, "title": title, "buttons": out}
+		labels[id] = label
+		widest = maxf(widest, display.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 12.0)
+	# A narrow view (a phone at a big Interface size): the buttons in two rows.
+	var gap := 4.0
+	var per_row := ids.size()
+	if (w - 12.0 - gap * (per_row - 1)) / per_row < widest:
+		per_row = ceili(ids.size() / 2.0)
+	var rows := ceili(float(ids.size()) / per_row)
+	var h := 92.0 + (rows - 1) * 30.0
+	var at := bar_at
+	if at.x < 0.0:
+		at = Vector2((view.x - w) * 0.5, view.y * 0.5 - h * 0.5)
+	at.x = clampf(at.x, 0.0, maxf(view.x - w, 0.0))
+	at.y = clampf(at.y, 0.0, maxf(view.y - h, 0.0))
+	var bar := Rect2(at, Vector2(w, h))
+	var title := Rect2(at, Vector2(w, 24.0))
+	var out: Array = []
+	var set_label: String = TEXT["switch"][Layout.active_set]
+	var set_w := clampf(display.get_string_size(set_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 16.0, 130.0, w * 0.5)
+	out.append(["set", Rect2(at + Vector2(w - set_w - 6.0, 3.0), Vector2(set_w, 19.0)), set_label])
+	out.append(["help", Rect2(at + Vector2(w - set_w - 34.0, 3.0), Vector2(24.0, 19.0)), TEXT["help"]])
+	var bw := (w - 12.0 - gap * (per_row - 1)) / per_row
+	for i in ids.size():
+		var id: String = ids[i]
+		var col := i % per_row
+		var row := i / per_row
+		out.append([id, Rect2(at + Vector2(6.0 + col * (bw + gap), 27.0 + row * 30.0), Vector2(bw, 26.0)), labels[id]])
+	return {"bar": bar, "title": title, "buttons": out, "text_y": (rows - 1) * 30.0}
 
 
 func _toolbar_button_at(pos: Vector2) -> String:
@@ -1160,6 +1174,7 @@ func _draw_toolbar(body: Font, mono: Font, display: Font) -> void:
 		var scale := r.size.x / maxf(_default_size(sel).x, 0.001)
 		var anchor: String = Layout.ANCHOR_NAMES.get(String(ov.get("anchor", "")), "") if ov != null else "as built"
 		line = TEXT["readout"] % [label_of(sel), int(round(r.position.x)), int(round(r.position.y)), int(round(r.size.x)), int(round(r.size.y)), int(round(scale * 100.0)), anchor]
-	draw_string(mono, Vector2(bar.position.x + 8.0, bar.position.y + 70.0), line, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 16.0, 11, UI.TEXT)
+	var ty: float = tb.get("text_y", 0.0)
+	draw_string(mono, Vector2(bar.position.x + 8.0, bar.position.y + 70.0 + ty), line, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 16.0, 11, UI.TEXT)
 	var hint: String = TEXT["hint_touch"] if main.touch_active else (Controls.pad_text(TEXT["hint_pad"], main.pad_ps) if main.pad_active else TEXT["hint_keys"])
-	draw_string(body, Vector2(bar.position.x + 8.0, bar.position.y + 86.0), hint, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 16.0, 11, UI.DIM)
+	draw_string(body, Vector2(bar.position.x + 8.0, bar.position.y + 86.0 + ty), hint, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 16.0, 11, UI.DIM)

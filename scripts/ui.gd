@@ -431,9 +431,42 @@ static func lock_into(b, c: Vector2, s: float, col: Color) -> void:
 
 const Draw := preload("res://scripts/draw_util.gd")
 const OUTLINE := Color(0.03, 0.025, 0.04)
-## HUD sizes (a setting): how much bigger or smaller the HUD is drawn.
+## HUD sizes (a setting): how much bigger or smaller the HUD is drawn, on
+## top of the Interface size.
 const HUD_SCALES := {"small": 0.85, "normal": 1.0, "large": 1.2}
 const HUD_SCALE_ORDER := ["small", "normal", "large"]
+## Interface sizes (a setting, shared by every climber): how big the whole
+## interface is drawn (menus, the rail, the train's interface, the HUD and
+## the touch buttons), as [on a computer, on a phone]. The phone draws
+## everything bigger; its Normal is 1.25x what the phone used to show (1.5x,
+## now Small). (The game world keeps its size: see WORLD_ZOOMS.)
+const UI_SIZES := {"small": [0.85, 1.5], "normal": [1.0, 1.875], "large": [1.2, 2.25], "larger": [1.4, 2.5]}
+const UI_SIZE_ORDER := ["small", "normal", "large", "larger"]
+const UI_SIZE_NAMES := {"small": "Small", "normal": "Normal", "large": "Large", "larger": "Larger"}
+## World zoom (a setting): how close the camera is to the climber, times
+## the zoom the game always used (main.gd CAMERA_ZOOM). A phone also starts
+## a little closer (PHONE_WORLD) than it used to.
+const WORLD_ZOOMS := {"normal": 1.0, "closer": 1.2, "closest": 1.4}
+const WORLD_ZOOM_ORDER := ["normal", "closer", "closest"]
+const WORLD_ZOOM_NAMES := {"normal": "Normal", "closer": "Closer", "closest": "Closest"}
+const PHONE_WORLD := 1.15
+
+
+## The interface's scale (the root's content scale factor) for an
+## Interface size, on a phone (touch) or a computer.
+static func view_scale(size: String, touch: bool) -> float:
+	var row: Array = UI_SIZES.get(size, UI_SIZES["normal"])
+	return float(row[1] if touch else row[0])
+
+
+## How many of the device's own (CSS) pixels one view pixel takes on this
+## viewport: what a finger or an eye measures. (On the web the canvas is
+## drawn at the device's full resolution, devicePixelRatio pixels per CSS
+## pixel; elsewhere a window pixel is one.)
+static func device_px(vp: Viewport) -> float:
+	var k := vp.get_final_transform().get_scale().x if vp is Window else 1.0
+	var dpr := DisplayServer.screen_get_scale() if OS.has_feature("web") else 1.0
+	return k / maxf(dpr, 0.01)
 
 
 ## A capsule (a bar with round ends) from x0 to x1 along y, `r` its half height.

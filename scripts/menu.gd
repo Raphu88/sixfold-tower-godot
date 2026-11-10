@@ -38,6 +38,7 @@ const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
 const RailScript := preload("res://scripts/rail.gd")
 const Nav := preload("res://scripts/nav.gd")
+const Reflow := preload("res://scripts/reflow.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
@@ -70,8 +71,12 @@ const COMPACT_H := 600.0
 ## stair, in percent (train.gd CONDENSE_CHOICES). "train_rail": the train's
 ## rail as a menu ("menu") or drawn as the train on end ("end"), a dev-tools
 ## mock-up (rail.gd). "abilities_tab": the climber screen has opened on its
-## Abilities tab once (saves from before it start there).
-static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "abilities", "lighting": "",
+## Abilities tab once (saves from before it start there). "ui_size": the
+## Interface size (ui.gd UI_SIZES: a phone's Normal is bigger than it used
+## to be; a save from before the setting has none, so it starts on Normal);
+## "world_zoom": the camera (ui.gd WORLD_ZOOMS); "hud_scale": the HUD size,
+## on top of the interface's.
+static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "",
 	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false}
 static var settings_loaded := false
 
@@ -220,6 +225,7 @@ func is_open() -> bool:
 var touch_from := Vector2.ZERO
 var touch_moved := 0.0
 var touch_slider: HSlider = null
+var touch_rail := false  # the finger went down on the rail (a drag scrolls the rail)
 var _touch_began := false  # the finger down now went down while the menu was open
 
 
@@ -278,6 +284,7 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			touch_from = event.position
 			touch_moved = 0.0
+			touch_rail = rail.visible and rail.get_global_rect().has_point(event.position)
 			_touch_began = true
 			touch_slider = _control_at(event.position, "HSlider")
 			if touch_slider != null:
@@ -298,6 +305,8 @@ func _input(event: InputEvent) -> void:
 		touch_moved += event.relative.length()
 		if touch_slider != null:
 			_slide_to(touch_slider, event.position)
+		elif touch_moved >= 14.0 and touch_rail and rail.pane != null:
+			rail.pane.scroll_vertical -= int(event.relative.y)  # (a rail too tall for a short screen)
 		elif touch_moved >= 14.0:
 			scroll.scroll_vertical -= int(event.relative.y)
 		get_viewport().set_input_as_handled()
@@ -658,12 +667,19 @@ func _layout() -> void:
 		center.size = Vector2(s.x - rw, s.y)
 		var edge := 12.0 if compact() else 32.0  # space kept around the panel
 		var pad := 24.0 if compact() else 44.0  # the panel's own margins
+		var w := minf(float(WIDTHS.get(page, 560.0)), s.x - rw - edge - pad)
+		# A narrow screen (a phone at a big Interface size): rows too wide
+		# for it wrap, grids lose columns (reflow.gd); the page scrolls.
+		if box.get_combined_minimum_size().x > w + 0.5:
+			Reflow.fit(box, w, s.y - edge - pad)
+		if foot.get_combined_minimum_size().x > w + 0.5:
+			Reflow.fit(foot, w, s.y - edge - pad)
 		var h := minf(_wanted_height(), s.y - edge - pad)
 		if page in PINNED_FOOTER:
 			# The same size on every tab (Close or Back below, if there is one).
-			var fh := FOOT_H if foot.get_child_count() > 0 else 0.0
+			var fh := maxf(FOOT_H, foot.get_combined_minimum_size().y + 6.0) if foot.get_child_count() > 0 else 0.0
 			h = minf(maxf(_wanted_height(), 520.0 - fh), s.y - edge - pad - fh)
-		scroll.custom_minimum_size = Vector2(minf(float(WIDTHS.get(page, 560.0)), s.x - rw - edge - pad), h)
+		scroll.custom_minimum_size = Vector2(w, h)
 		panel.pivot_offset = panel.size * 0.5
 
 
@@ -1474,6 +1490,9 @@ func _set_settings_tab(id: String) -> void:
 
 ## The settings themselves, into `box` (the page, or the train's car).
 func settings_body() -> void:
+	# (first: on a phone, the size of everything is what's looked for first)
+	_choice("Interface size", "ui_size", UI.UI_SIZE_ORDER.map(func(k): return [k, UI.UI_SIZE_NAMES[k]]))
+	_choice("World zoom", "world_zoom", UI.WORLD_ZOOM_ORDER.map(func(k): return [k, UI.WORLD_ZOOM_NAMES[k]]))
 	_slider("Music", "music")
 	_slider("Sounds", "sounds")
 	_toggle("Screen shake", "shake")
@@ -2590,6 +2609,8 @@ func _slot_pressed(key: String) -> void:
 		return
 	_show_details(key)
 	inv_armed = key
+	if page == "train":
+		train_page.reveal_card.call_deferred()  # (a car that wraps on a small screen)
 	if nav_keys and not (main != null and main.touch_active):
 		_focus_card()
 
@@ -3425,6 +3446,10 @@ static func load_settings_from(path: String) -> void:
 		return
 	for k in settings:
 		settings[k] = cfg.get_value("settings", k, settings[k])
+	if not UI.UI_SIZES.has(str(settings["ui_size"])):
+		settings["ui_size"] = "normal"
+	if not UI.WORLD_ZOOMS.has(str(settings["world_zoom"])):
+		settings["world_zoom"] = "normal"
 	settings["condense"] = str(settings["condense"])
 	if not Train.CONDENSE_CHOICES.any(func(c): return c[0] == settings["condense"]):
 		settings["condense"] = Train.CONDENSE_DEFAULT  # (an old or broken save: the default share)
@@ -3456,6 +3481,7 @@ func apply_settings() -> void:
 	if main.hud != null:
 		main.hud.show_help = bool(settings["help"])
 		main.hud.hud_scale = float(UI.HUD_SCALES.get(str(settings["hud_scale"]), 1.0))
+	main.apply_view_scale()
 	if main.lighting != null:
 		# Lighting quality: unset, it starts on what suits the device (lighting.gd).
 		if not main.lighting.QUALITY.has(str(settings["lighting"])):

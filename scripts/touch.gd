@@ -12,8 +12,15 @@ const Palette := preload("res://scripts/palette.gd")
 
 const STICK_RADIUS := 55.0
 ## While touch is active the whole game is drawn bigger, so the world and
-## text are readable on a small screen.
+## text are readable on a small screen: at least this much (the Interface
+## size Small; Normal and up are bigger: ui.gd UI_SIZES, main.gd
+## apply_view_scale).
 const PHONE_SCALE := 1.5
+## A button answers a touch this far outside its ring (in its own units,
+## shrinking with it on a short view: layout.gd touch_fit), and at least
+## HIT_MIN device px across.
+const HIT_PAD := 12.0
+const HIT_MIN := 44.0
 const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory"]
 ## Held buttons a quick tap still has to reach the game with: let go a
 ## moment later (Item: a tap uses the quick item, a hold opens the ring).
@@ -81,7 +88,10 @@ func _layout() -> void:
 ## A button where the layout puts it: its circle fills its arranged box.
 func _button(id: String, action: String, s: Vector2) -> Dictionary:
 	var r := Layout.box("touch." + id, s)
-	return {"id": id, "action": action, "c": r.get_center(), "r": r.size.x * 0.5, "el": "touch." + id}
+	var rad := r.size.x * 0.5
+	var pad := HIT_PAD * Layout.touch_fit("touch." + id, s)
+	var hit := clampf(HIT_MIN * 0.5 / maxf(UI.device_px(get_viewport()), 0.01), rad + pad, rad + pad * 2.0)
+	return {"id": id, "action": action, "c": r.get_center(), "r": rad, "hit": hit, "el": "touch." + id}
 
 
 ## Where a touch starts the joystick (the left half of the screen, unless arranged).
@@ -191,7 +201,7 @@ func _set_active(on: bool) -> void:
 	Layout.use_set("touch" if on else "desktop")  # (the phone has its own arrangement)
 	if was != on and main.menu != null and main.menu.is_open():
 		main.menu.input_changed.call_deferred()  # (an open menu's prompts follow)
-	get_tree().root.content_scale_factor = PHONE_SCALE if on else 1.0
+	main.apply_view_scale()
 	if main.player != null:
 		main.player.touch_aim = on
 	if not on:
@@ -206,23 +216,24 @@ func _touch_down(index: int, pos: Vector2) -> void:
 	# Fallen (after the Regard): only the top bar answers; a tap anywhere
 	# else goes back to the train.
 	var fallen: bool = main.fallen()
-	for b in buttons:
-		if fallen and not (b["id"] in TOP_BAR):
-			continue
-		if pos.distance_to(b["c"]) <= b["r"] + 12.0:
-			held[index] = b["id"]
-			held_since[index] = Time.get_ticks_msec()
-			if b["id"] == "fullscreen":
-				var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
-			elif b["action"] != "":
-				if String(b["id"]).begins_with("cast_") or b["id"] == "item" or b["id"] == "tools":
-					main.pick_anchor = b["c"]
-				Input.action_press(b["action"])
-				if b["id"] in ONE_SHOT:
-					# Taps: release on the next frame so the next tap registers too.
-					get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(b["action"]))
-			return
+	# The button whose ring is nearest the touch, of those it's within reach of
+	# (their reaches can overlap: HIT_PAD, HIT_MIN).
+	var near: Array = buttons.filter(func(b): return pos.distance_to(b["c"]) <= b["hit"] and not (fallen and not (b["id"] in TOP_BAR)))
+	near.sort_custom(func(a, b): return pos.distance_to(a["c"]) - a["r"] < pos.distance_to(b["c"]) - b["r"])
+	for b in near.slice(0, 1):
+		held[index] = b["id"]
+		held_since[index] = Time.get_ticks_msec()
+		if b["id"] == "fullscreen":
+			var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		elif b["action"] != "":
+			if String(b["id"]).begins_with("cast_") or b["id"] == "item" or b["id"] == "tools":
+				main.pick_anchor = b["c"]
+			Input.action_press(b["action"])
+			if b["id"] in ONE_SHOT:
+				# Taps: release on the next frame so the next tap registers too.
+				get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(b["action"]))
+		return
 	if fallen:
 		main.fall_tapped()
 		return
