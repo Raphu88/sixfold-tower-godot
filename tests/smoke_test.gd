@@ -11276,13 +11276,16 @@ func _secret_deep_tests() -> void:
 		_check(ri >= 0, "Reroll shows the packs it could hold (%d cards; %s)" % [D.cards.size(), T.message])
 	if ri >= 0:
 		var want: Array = D.cards[0]["kinds"].duplicate()
+		var before_ids: Array = main.enemies().map(func(e): return e.get_instance_id())
 		main.choose_camp(0)
 		await _frames(1)
-		var r_ri: Rect2 = main.room_info[ri]["rect"].grow(40.0)  # (a spawn may be nudged off a pillar, just past the edge)
-		var now: Array = main.enemies().filter(func(e): return not e.aware and r_ri.has_point(e.global_position) and not e.ally).map(func(e): return e.kind)
+		# The new pack is exactly the monsters that weren't there before (a neighbour room's sleepers don't count).
+		var made: Array = main.enemies().filter(func(e): return not before_ids.has(e.get_instance_id()))
+		var now: Array = made.map(func(e): return e.kind)
 		now.sort()
 		want.sort()
-		_check(now == want and D.rerolled.has(ri), "...and the room holds the chosen pack, asleep (%s, wanted %s, was %d)" % [now, want, n_old])
+		var asleep: bool = made.all(func(e): return not e.aware)
+		_check(now == want and asleep and D.rerolled.has(ri), "...and the room holds the chosen pack, asleep (%s, wanted %s, was %d)" % [now, want, n_old])
 		_check(not T.use("man_reroll", ri), "...once a room")
 	await _clear_foes()
 
