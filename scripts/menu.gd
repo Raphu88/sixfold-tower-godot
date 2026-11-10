@@ -124,6 +124,13 @@ var _back_frame := -1  # Esc or B was used up this frame (leaving a text box)
 var _back_click := false  # a right-click (or the mouse's back button) is down: back on its release
 var _hovering := false  # the mouse is moving the focus (no sound, no preview)
 var _quiet := false  # rebuilding the page as it is (the prompts changed): no fade, sound or scroll
+var _prompts_for := []  # the input the page's prompts were written for: [touch, controller, PlayStation]
+var _prompts_stale := false  # another input took over: the page is rebuilt once nothing is held
+var _stale_since := 0  # when (msec) it went stale
+var _down := {}  # keys, buttons, sticks and fingers seen going down and not yet up (_track)
+## A press held longer than this doesn't hold the new prompts back (a stick
+## that drifts past its deadzone would otherwise keep them for ever).
+const PROMPTS_WAIT_MS := 2000
 var inv_armed := ""  # the slot pressed once (an item's second press uses it)
 
 
@@ -198,6 +205,7 @@ var touch_slider: HSlider = null
 
 
 func _input(event: InputEvent) -> void:
+	_track(event)
 	if event is InputEventKey or event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.5):
 		nav_keys = true
 	elif event is InputEventMouseButton or event is InputEventScreenTouch or Nav.mouse_moved(event):
@@ -320,6 +328,7 @@ func _process(delta: float) -> void:
 	toast_t -= delta
 	if toast_t <= 0.0 and toast != "":
 		toast = ""
+	_refresh_prompts()
 	if _typing():
 		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field: _input).
 		_layout()
@@ -776,6 +785,7 @@ func open(which: String, direct := false) -> void:
 		scroll.scroll_vertical = 0  # (another mark starts at its top)
 	if main != null and which != "title" and keep < 0 and not _quiet: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
 	call("_page_" + which)
+	_prompts_for = _input_mode()  # (input_changed: written for the input in use)
 	var list := focusables()
 	var first := _first_focus(which, list) if not list.is_empty() else -1
 	focus_part = ""  # (used once: back from a mark's page, on its card)
@@ -1015,11 +1025,117 @@ func _scroll_target() -> ScrollContainer:
 
 ## The controller, keyboard or touch took over: the page's prompts change
 ## to match (rebuilt as it is, the focus kept).
+##
+## Not while the press that made the switch is still down: a button acts
+## when it's let go, and Godot hands the release to the control that took
+## the press, so rebuilding the page between the two would lose it (the
+## first A, Enter or click after picking up another device did nothing).
+## The page is rebuilt once nothing is held, after the press has done its
+## work; if that press opened another page, that page was already written
+## for the new input and nothing more is built.
 func input_changed() -> void:
-	if page == "" or page == "padsetup" or _typing() or not is_inside_tree():
+	if not _prompts_stale:
+		_stale_since = Time.get_ticks_msec()
+	_prompts_stale = true
+	_refresh_prompts()
+
+
+## The input the prompts follow now (see _prompts_for).
+func _input_mode() -> Array:
+	if main == null:
+		return []
+	return [main.touch_active, main.pad_active, main.pad_ps]
+
+
+## Notes what goes down and comes up (input_changed waits for it all to
+## be let go).
+func _track(event: InputEvent) -> void:
+	if event is InputEventKey:
+		if event.echo:
+			return
+		var code: int = event.physical_keycode if event.physical_keycode != KEY_NONE else event.keycode
+		_down_set("k%d" % code, event.pressed, ["key", code])
+	elif event is InputEventMouseButton:
+		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+			return
+		_down_set("m%d" % event.button_index, event.pressed, ["mouse", event.button_index])
+	elif event is InputEventJoypadButton:
+		_down_set("j%d:%d" % [event.device, event.button_index], event.pressed, ["joy", event.device, event.button_index])
+	elif event is InputEventJoypadMotion:
+		var id := "a%d:%d" % [event.device, event.axis]
+		if absf(event.axis_value) >= 0.5:
+			_down_set(id, true, ["axis", event.device, event.axis])
+		elif absf(event.axis_value) < 0.35:
+			_down_set(id, false, [])
+	elif event is InputEventScreenTouch:
+		_down_set("t%d" % event.index, event.pressed, ["touch"])
+
+
+func _down_set(id: String, on: bool, what: Array) -> void:
+	if on:
+		_down[id] = what
+	else:
+		_down.erase(id)
+
+
+## Something seen going down is still held. (Godot is asked too, so one
+## whose release never came, the window losing focus, doesn't count.)
+func _input_held() -> bool:
+	for id in _down.keys():
+		var w: Array = _down[id]
+		var still := true
+		match w[0]:
+			"key":
+				still = Input.is_physical_key_pressed(w[1]) or Input.is_key_pressed(w[1])
+			"mouse":
+				still = Input.is_mouse_button_pressed(w[1])
+			"joy":
+				still = Input.is_joy_button_pressed(w[1], w[2])
+			"axis":
+				still = absf(Input.get_joy_axis(w[1], w[2])) >= 0.35
+		if still:
+			return true
+		_down.erase(id)
+	return false
+
+
+## Rebuilds the page for the new prompts, if they changed and nothing is
+## held (input_changed); called again each frame until it's done.
+func _refresh_prompts() -> void:
+	if not _prompts_stale:
 		return
+	if page == "" or page == "padsetup" or not is_inside_tree() or _input_mode() == _prompts_for:
+		_prompts_stale = false  # (closed, or the page is already written for it)
+		return
+	if _typing():
+		return  # (a name being typed: once out of the box)
+	if _input_held() and Time.get_ticks_msec() - _stale_since < PROMPTS_WAIT_MS:
+		return
+	_prompts_stale = false
+	# What has the focus (on the page or the rail), to put it back after.
+	var f: Control = get_viewport().gui_get_focus_owner()
+	var was: Dictionary = Nav.describe(f, focusables() + rail.buttons) if f != null and is_ancestor_of(f) else {}
+	var on_rail: bool = f != null and rail.buttons.has(f)
 	_quiet = true
 	open(page, opened_direct)
+	_quiet = false
+	if was.is_empty() or (main != null and main.touch_active):
+		return
+	var to: Control = Nav.find(rail.buttons, was) if on_rail else Nav.find(focusables(), was)
+	if to != null:
+		_refocus.call_deferred(to, on_rail)  # (after the focus open() puts back)
+
+
+func _refocus(c: Control, on_rail: bool) -> void:
+	if not is_instance_valid(c) or not c.is_inside_tree() or c.is_queued_for_deletion() or not c.is_visible_in_tree():
+		return
+	if c == get_viewport().gui_get_focus_owner():
+		return
+	_quiet = true  # (no sound: the focus only goes back where it was)
+	if on_rail:
+		_focus_rail(c)
+	else:
+		c.grab_focus()
 	_quiet = false
 
 
