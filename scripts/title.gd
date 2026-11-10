@@ -15,7 +15,6 @@ const Palette := preload("res://scripts/palette.gd")
 
 const TEXT := {
 	"title": "Sixfold Tower",
-	"eyebrow": "Six towers  ·  six marks",  # small capitals over the name
 	"tagline": "Climb. Be regarded. Bear the marks.",
 	"footer": "Prototype  ·  Sounds: CC0, see Credits",
 }
@@ -315,25 +314,24 @@ func _draw_front(c: CanvasItem) -> void:
 	c.draw_string(font, Vector2(16, s.y - 10), TEXT["footer"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(DIM, 0.7))
 	if not show_name:
 		return
-	# Small capitals, the name, a small ornament and the tagline.
+	# The name, a small ornament and the tagline (an inscription: the fine italic).
 	var col_w := s.x * 0.58
 	var fs := _title_size(s)
 	var ns := int(fs * 1.4)  # (Grenze Gotisch is small for its size, in mixed case)
 	var ty := _title_y(s) + fs * 0.12
 	var name: String = UI.title_case(TEXT["title"])
 	_glow(c, Vector2(col_w * 0.5, ty - ns * 0.3), Vector2(minf(col_w * 0.9, ns * 9.0), ns * 2.2), Color(UI.GILT, 0.1))
-	UI.draw_eyebrow(c, Vector2(0, ty - ns * 0.78), TEXT["eyebrow"], Color(UI.GILT, 0.85), maxi(10, int(fs * 0.2)), HORIZONTAL_ALIGNMENT_CENTER, col_w)
 	c.draw_string_outline(title_font, Vector2(0, ty + 4.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, 12, Color(0, 0, 0, 0.5))
 	c.draw_string_outline(title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, 4, Color(0.22, 0.12, 0.04, 0.95))
 	c.draw_string(title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, UI.GILT)
 	# A lit upper edge: the name again, a shade lighter, a pixel up.
 	c.draw_string(title_font, Vector2(0, ty - 1.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, Color(UI.GILT_HI, 0.35))
-	var ts := int(clampf(fs * 0.32, 16.0, 22.0))
+	var ts := int(clampf(fs * 0.38, 17.0, 26.0))
 	var half := minf(col_w * 0.3, 180.0)
 	var d := ty + fs * 0.3
 	UI.draw_divider(c, Vector2(col_w * 0.5 - half, d), Vector2(col_w * 0.5 + half, d), Color(UI.GILT, 0.8))
 	var tag_y := d + ts + 8.0
-	var it := UI.font("italic")
+	var it := UI.font("inscription")
 	c.draw_string_outline(it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, 4, Color(0, 0, 0, 0.6))
 	c.draw_string(it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, Color(UI.TEXT, 0.88))
 

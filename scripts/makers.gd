@@ -1058,7 +1058,7 @@ func _draw_over() -> void:
 	var col := color(m)
 	var w := 150.0
 	var at: Vector2 = fragment["wall"] + Vector2(-w * 0.5, -34.0 - (total - moment_t) * 3.0)
-	redact_into(over, at, w, text, Color(col.lightened(0.3), 0.85 * a), 9.0)
+	redact_into(over, at, w, text, Color(col.lightened(0.3), 0.9 * a), 12.0)
 
 
 # --- drawing: signs, redaction and the core mark ---------------------------------------
@@ -1115,15 +1115,16 @@ static func word_lengths(text: String) -> Array:
 
 
 ## Draws a line of text at `at` (top-left), wrapping at `width`: a redacted
-## line as blacked-out word bars, anything else as text. `size` is the font
-## size it stands for. Works on a CanvasItem or a Draw.Batch. Returns the
+## line as blacked-out word bars, anything else as text in the fine italic
+## of inscriptions (the Makers' words are written or spoken: ui.gd ROLES).
+## `size` is the font size it stands for. Works on a CanvasItem or a Draw.Batch. Returns the
 ## height used.
 static func redact_into(ci, at: Vector2, width: float, text: String, col: Color, size := 13.0, centered := false) -> float:
 	var line_h := size * 1.45
 	if not is_redacted(text):
 		if ci is CanvasItem:
-			var font := ThemeDB.fallback_font
-			var lines := maxi(1, int(ceil(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x / maxf(width, 1.0))) + 1)
+			var font := UI.font("inscription")
+			var lines := _text_lines(font, text, width, size)
 			ci.draw_multiline_string(font, at + Vector2(0, size), text, HORIZONTAL_ALIGNMENT_CENTER if centered else HORIZONTAL_ALIGNMENT_LEFT, width, int(size), lines, col)
 			return line_h * lines
 		return 0.0
@@ -1156,12 +1157,17 @@ static func redact_into(ci, at: Vector2, width: float, text: String, col: Color,
 	return line_h * rows.size()
 
 
+## How many lines written text wraps to at this width.
+static func _text_lines(font: Font, text: String, width: float, size: float) -> int:
+	var h := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, maxf(width, 1.0), int(size)).y
+	return maxi(1, int(round(h / maxf(font.get_height(int(size)), 1.0))))
+
+
 ## How tall a line drawn by redact_into is at this width.
 static func redact_height(width: float, text: String, size := 13.0) -> float:
 	var line_h := size * 1.45
 	if not is_redacted(text):
-		var font := ThemeDB.fallback_font
-		return line_h * maxi(1, int(ceil(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(size)).x / maxf(width, 1.0))))
+		return line_h * _text_lines(UI.font("inscription"), text, width, size)
 	var unit := size * 0.52
 	var gap := size * 0.45
 	var rows := 1

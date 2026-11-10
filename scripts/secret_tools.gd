@@ -1001,7 +1001,7 @@ func _panel_frame(font: Font, r: Rect2, title: String) -> Rect2:
 		var x := r.position.x + r.size.x * (i + 1) / 5.0
 		screen.draw_line(Vector2(x, r.position.y + 2), Vector2(x, r.position.y + 7), Color(col, 0.35), 1.0)
 		screen.draw_line(Vector2(x, r.end.y - 7), Vector2(x, r.end.y - 2), Color(col, 0.35), 1.0)
-	screen.draw_string(font, r.position + Vector2(10, 17), title, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 20.0, 13, col.lightened(0.25))
+	UI.draw_label(screen, r.position + Vector2(10, 18), title, 16, col.lightened(0.25), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 20.0)
 	var key := "Tap Tools" if main.touch_active else ("Press %s" % ("LB + LT" if main.pad_active else "B"))
 	screen.draw_string(font, r.position + Vector2(10, 17), SB.TEXT["panel_close"] % key, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 20.0, 10, Color(0.75, 0.72, 0.8, 0.8))
 	return Rect2(r.position + Vector2(10, 26), r.size - Vector2(20, 34))

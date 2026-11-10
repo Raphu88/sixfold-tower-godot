@@ -406,7 +406,7 @@ func _draw() -> void:
 	var tw := probe.size.x - 64.0
 	var text_h := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, tw, 15).y
 	var titled: bool = current["name"] != ""
-	var r := bubble_rect(text_h + (20.0 if titled else 0.0))
+	var r := bubble_rect(text_h + (24.0 if titled else 3.0))
 	# In: slide from the right and fade up. Out: fade.
 	var appear := clampf(shown_t / FADE, 0.0, 1.0)
 	appear = 1.0 - (1.0 - appear) * (1.0 - appear)
@@ -422,17 +422,18 @@ func _draw() -> void:
 	# The face, at the left, with a soft halo.
 	Entity.draw_face(self, r.position + Vector2(29, 32), 19.0, t)
 	var x := r.position.x + 56.0
-	# Its tag in small capitals, the subject in the display face, then the line.
-	UI.draw_eyebrow(self, Vector2(x, r.position.y + 16.0), Entity.TEXT["tag"], Color(UI.PERIWINKLE, 0.9), 10)
-	var ty := r.position.y + 34.0
+	# Its name tag (a small gothic label), the subject in the display face,
+	# then the line.
+	UI.draw_eyebrow(self, Vector2(x, r.position.y + 18.0), Entity.TEXT["tag"], Color(UI.PERIWINKLE, 0.9), 14)
+	var ty := r.position.y + 37.0
 	if titled:
-		UI.draw_title(self, Vector2(x, r.position.y + 35.0), String(current["name"]), 19, Color(0.9, 0.86, 1.0), HORIZONTAL_ALIGNMENT_LEFT, tw, 0.0)
-		ty += 20.0
+		UI.draw_title(self, Vector2(x, r.position.y + 39.0), String(current["name"]), 20, Color(0.9, 0.86, 1.0), HORIZONTAL_ALIGNMENT_LEFT, tw, 0.0)
+		ty += 21.0
 	draw_multiline_string(font, Vector2(x, ty), text, HORIZONTAL_ALIGNMENT_LEFT, tw, 15, -1, Entity.GLOW.lerp(Color.WHITE, 0.62))
 	# How to dismiss it, and that it's kept.
 	var how := "tap" if main.touch_active else (("R3" if main.pad_ps else "RS") if main.pad_active else "Enter")
 	var hint: String = how + ("  ·  " + Entity.TEXT["kept"] if current["kind"] == "tip" else "")
-	draw_string(UI.font("mono"), Vector2(r.position.x, r.end.y - 8.0), hint, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 12.0, 10, UI.FAINT)
+	draw_string(UI.font("mono"), Vector2(r.position.x, r.end.y - 8.0), hint, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 12.0, 11, UI.FAINT)
 	# Time left, a thin line along the bottom.
 	var k := clampf(1.0 - shown_t / maxf(life, 0.01), 0.0, 1.0)
 	draw_line(Vector2(r.position.x + 10.0, r.end.y - 2.5), Vector2(r.position.x + 10.0 + (r.size.x - 20.0) * k, r.end.y - 2.5), Color(Entity.GLOW, 0.35), 1.5)

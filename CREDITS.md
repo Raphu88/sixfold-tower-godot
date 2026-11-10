@@ -21,10 +21,10 @@ The game's sounds are built from these with `tools/build_audio.py`: layered, lev
 
 ## Fonts
 
-The interface's three typefaces are under the **SIL Open Font License 1.1** (free to use, embed and share with the game; the licence travels with each font in `assets/fonts/<family>/OFL.txt`). They're the unmodified files from Google Fonts.
+The interface's three typefaces are under the **SIL Open Font License 1.1** (free to use, embed and share with the game; the licence travels with each font in `assets/fonts/<family>/OFL.txt`). They're the unmodified files from Google Fonts (Grenze and Cormorant Garamond are variable fonts: one file holds every weight, and the game picks one).
 
 | Font | Designers | Used for | Files |
 | --- | --- | --- | --- |
-| [Grenze Gotisch](https://fonts.google.com/specimen/Grenze+Gotisch) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | titles: page headings, the game's name, banners, names on cards | `assets/fonts/grenze_gotisch/` (Bold) |
-| [Alegreya Sans](https://fonts.google.com/specimen/Alegreya+Sans) | Huerta Tipográfica (Juan Pablo del Peral) | all other text | `assets/fonts/alegreya_sans/` (Regular, Italic, Medium, Bold) |
-| [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) | Mike Abbink, Bold Monday | key badges, numbers, small hints | `assets/fonts/ibm_plex_mono/` (Medium) |
+| [Grenze Gotisch](https://fonts.google.com/specimen/Grenze+Gotisch) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | every title, heading, label, button, tab and name, banners and the HUD's big words | `assets/fonts/grenze_gotisch/` (Bold) |
+| [Grenze](https://fonts.google.com/specimen/Grenze) | Omnibus-Type (Renata Polastri, Pablo Ugerman) | text: descriptions, hints, numbers and key badges | `assets/fonts/grenze/` (variable; Regular, Medium and SemiBold used) |
+| [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) | Christian Thalmann (Catharsis Fonts) | inscriptions: words written in the world or quoted (rule panels, riddles, the Makers' words, room rules, mottos, the title's tagline) | `assets/fonts/cormorant_garamond/` (Italic, variable; SemiBold used) |

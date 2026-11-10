@@ -1868,9 +1868,9 @@ class Lever extends Button:
 		b.ball(tip, 8.0, Color(0.75, 0.16, 0.12) if not hot else Color(0.9, 0.24, 0.16))
 		b.ball(pivot, 7.0, UI.TRAIN_BRASS)
 		b.flush(self)
-		draw_string(font, Vector2(0, plate.end.y + 19.0), word, HORIZONTAL_ALIGNMENT_CENTER, w, 16, UI.GOLD if not disabled else UI.FAINT)
+		UI.draw_label(self, Vector2(0, plate.end.y + 20.0), word, 18, UI.GOLD if not disabled else UI.FAINT, HORIZONTAL_ALIGNMENT_CENTER, w)
 		if sub != "":
-			draw_string(font, Vector2(0, plate.end.y + 34.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 11, Color(UI.TEXT, 0.85))
+			draw_string(font, Vector2(0, plate.end.y + 35.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 12, Color(UI.TEXT, 0.85))
 
 
 ## An arrow at the edge of the screen to the next car: a brass tab with a
@@ -1890,7 +1890,6 @@ class EdgeArrow extends Button:
 		mouse_exited.connect(queue_redraw)
 
 	func _draw() -> void:
-		var font := ThemeDB.fallback_font
 		var w := size.x
 		var hot := is_hovered()
 		var b := UI.Draw.Batch.new()
@@ -1906,10 +1905,9 @@ class EdgeArrow extends Button:
 		b.flush(self)
 		var lines := car_name.split(" ")
 		var y := c.y + w * 0.44 + 14.0
-		for l in lines:
-			draw_string_outline(font, Vector2(-8, y), l, HORIZONTAL_ALIGNMENT_CENTER, w + 16.0, 11, 4, Color(0, 0, 0, 0.8))
-			draw_string(font, Vector2(-8, y), l, HORIZONTAL_ALIGNMENT_CENTER, w + 16.0, 11, Color(UI.TEXT, 0.9))
-			y += 12.0
+		for l in lines:  # (the car's name: a label, in the gothic face)
+			UI.draw_label(self, Vector2(-8, y + 1.0), l, 13, Color(UI.TEXT, 0.9), HORIZONTAL_ALIGNMENT_CENTER, w + 16.0, 4)
+			y += 13.0
 
 
 ## The brass bands along the top (the cars' names) and the bottom (your
