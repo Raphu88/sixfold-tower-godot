@@ -412,6 +412,7 @@ static func icon_into(b, id: String, c: Vector2, s: float) -> void:
 	if id == "vessel":
 		load("res://scripts/vessel.gd").belt_into(b, c, s)  # (filled as the belt's vessel is)
 		return
+	s = Art.size_step(s)
 	Art.cached(b, "item|%s|%.2f" % [id, s], c, func(nb): _item_art(nb, id, s))
 
 
@@ -642,6 +643,7 @@ static func draw_crystal_icon(ci: CanvasItem, col: Color, c: Vector2, s: float, 
 
 
 static func crystal_into(b, col: Color, c: Vector2, s: float) -> void:
+	s = Art.size_step(s)
 	Art.cached(b, "crystal|%s|%.2f" % [col.to_html(), s], c, func(nb): _crystal_art(nb, col, s))
 
 
@@ -670,6 +672,7 @@ static func _crystal_art(b, col: Color, s: float) -> void:
 ## A rune card's mark: a carved stone with a glowing three-stroke sigil.
 static func draw_rune_icon(ci: CanvasItem, col: Color, c: Vector2, s: float) -> void:
 	var b := Draw.Batch.new()
+	s = Art.size_step(s)
 	Art.cached(b, "camprune|%s|%.2f" % [col.to_html(), s], c, func(nb): _rune_art(nb, col, s))
 	b.flush(ci)
 

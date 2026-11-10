@@ -349,8 +349,9 @@ static func rarity_glow(b, c: Vector2, s: float, rarity: String, col: Color) -> 
 	var k: float = RARITY_GLOW.get(rarity, 0.0)
 	if k <= 0.0:
 		return
-	soft(b, c, s * (1.15 + 0.3 * k), Color(col, 0.5 * k + 0.18))
-	soft(b, c, s * 0.8, Color(col.lightened(0.25), 0.3 * k))
+	var small := 0.14 if s < 13.0 else 0.0  # (a HUD-sized icon needs it brighter to show)
+	soft(b, c, s * (1.15 + 0.3 * k + small * 2.0), Color(col, 0.5 * k + 0.18 + small))
+	soft(b, c, s * 0.8, Color(col.lightened(0.25), 0.3 * k + small))
 
 
 ## Points on an icon's grid: `arr` of Vector2 (about -10..10), scaled by `u`
@@ -402,6 +403,13 @@ static func smooth(ctrl: PackedVector2Array, per := 4) -> PackedVector2Array:
 
 
 # --- the cache ----------------------------------------------------------------------
+
+## An icon's size rounded to the cache's steps (a quarter pixel of half
+## size, too small to see), so a size that changes smoothly reuses a few
+## cached icons instead of building a new one every frame.
+static func size_step(s: float) -> float:
+	return maxf(0.25, snappedf(s, 0.25))
+
 
 static var _cache := {}
 const CACHE_MAX := 600

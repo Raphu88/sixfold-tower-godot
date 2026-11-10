@@ -1347,6 +1347,7 @@ static func draw_icon(ci: CanvasItem, id, c: Vector2, s: float, col: Color) -> v
 ## piece's rank (small gilt lozenges down its left side) and a lasting rune
 ## (its glyph on a dark stone, bottom right) over it. `col`'s alpha fades it.
 static func icon_into(b, g, c: Vector2, s: float, col: Color) -> void:
+	s = Art.size_step(s)
 	var start: int = b.pts.size()
 	var shadow := col.v < 0.08
 	var key := "gear|%s|%.2f|%s|%s" % [_look_key(g), s, Color(col, 1.0).to_html(false), shadow]

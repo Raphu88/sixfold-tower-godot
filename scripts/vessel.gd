@@ -564,6 +564,7 @@ static func belt_into(b, c: Vector2, s: float) -> void:
 
 
 static func icon_into(b, c: Vector2, s: float, v) -> void:
+	s = Art.size_step(s)
 	var k := snappedf(fill(v), 0.02)
 	var key := "vessel|%s|%.2f|%.2f|%s" % [String(v.get("kind", "")) if v is Dictionary else "", k, s, is_full(v)]
 	Art.cached(b, key, c, func(nb): _icon_art(nb, s, v, k))
