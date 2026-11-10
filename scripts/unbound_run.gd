@@ -35,6 +35,7 @@ const TechBond := preload("res://scripts/technique_bond.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
+const UI := preload("res://scripts/ui.gd")
 
 const HOT := 70.0
 const ERUPT := 100.0
@@ -791,15 +792,16 @@ func glow_into(c: CanvasItem, p) -> void:
 ## The strain bar under a technique's HUD medallion: amber to red, a tick at HOT, grey while dark.
 func strain_hud_into(b, c: Vector2, r: float, part: String) -> void:
 	var w := r * 2.0
-	var at := c + Vector2(-r, r + 5.0)
-	b.rect(Rect2(at - Vector2(1, 1), Vector2(w + 2.0, 5.0)), Color(0, 0, 0, 0.7))
+	var at := c + Vector2(-r, r + 6.0)
+	# A slim gilt-framed gauge under the medallion, a stud where it runs hot.
 	if is_dark(part):
-		b.rect(Rect2(at, Vector2(w * float(dark[part]) / DARK_TIME, 3.0)), Color(0.45, 0.42, 0.5))
+		UI.gauge_into(b, Rect2(at, Vector2(w, 3.0)), float(dark[part]) / DARK_TIME, Color(0.45, 0.42, 0.5), -1.0, Color(), 0)
 		return
 	var k := clampf(strain_of(part) / ERUPT, 0.0, 1.0)
 	var col := Color(0.95, 0.75, 0.35).lerp(Color(1.0, 0.25, 0.15), clampf((strain_of(part) - 40.0) / 60.0, 0.0, 1.0))
-	b.rect(Rect2(at, Vector2(w * k, 3.0)), col)
-	b.rect(Rect2(at + Vector2(w * HOT / ERUPT, -1.0), Vector2(1.0, 5.0)), Color(1, 1, 1, 0.7))
+	UI.gauge_into(b, Rect2(at, Vector2(w, 3.0)), k, col, -1.0, Color(), 0)
+	UI.diamond_into(b, at + Vector2(w * HOT / ERUPT, 1.5), 2.6, UI.OUTLINE)
+	UI.diamond_into(b, at + Vector2(w * HOT / ERUPT, 1.5), 1.6, UI.GILT_HI if k * ERUPT < HOT else Color(1.0, 0.5, 0.35))
 
 
 ## Cracks in struck barriers, the fist's charge, bolts in flight: over the darkness.

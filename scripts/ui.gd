@@ -1008,3 +1008,456 @@ static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Col
 			ci.draw_line(P.call(-9, -9), P.call(9, -9), col, w, true)
 		_:
 			ci.draw_colored_polygon(PackedVector2Array([P.call(0, -6), P.call(6, 0), P.call(0, 6), P.call(-6, 0)]), col)
+
+
+# --- the HUD's pieces and the selection wheels -----------------------------------------
+## Drawn into a Batch like the pieces above, in the menus' look: gilt-framed
+## gauges with a dark bezel and a gloss, engraved medallions, chamfered
+## plates and cartouches, banners as soft bands between gilt rules, the
+## touch buttons' bezel, and the selection wheels. Rings, frames and
+## gradients are built straight into the batch as strips (no round joints),
+## so the HUD stays cheap to redraw on a phone.
+
+## A ring (or an arc of one, `from` to `to` in radians) `w` wide, as a strip of quads.
+static func ring_into(b, c: Vector2, r: float, w: float, col: Color, from := 0.0, to := TAU, n := 0) -> void:
+	if n <= 0:
+		n = clampi(int(r * absf(to - from) / 3.5), 6, 72)
+	var r0 := maxf(r - w * 0.5, 0.0)
+	var r1 := r + w * 0.5
+	var p := PackedVector2Array()
+	p.resize(n * 6)
+	var d0 := Vector2.from_angle(from)
+	var pi0 := c + d0 * r0
+	var po0 := c + d0 * r1
+	for i in n:
+		var d := Vector2.from_angle(lerpf(from, to, float(i + 1) / n))
+		var pi1 := c + d * r0
+		var po1 := c + d * r1
+		var k := i * 6
+		p[k] = pi0
+		p[k + 1] = po0
+		p[k + 2] = po1
+		p[k + 3] = pi0
+		p[k + 4] = po1
+		p[k + 5] = pi1
+		pi0 = pi1
+		po0 = po1
+	b.pts.append_array(p)
+	b._color(col, n * 6)
+
+
+## A disc shaded from `inner` at its centre to `outer` at its edge (a fan).
+static func fan_into(b, c: Vector2, r: float, inner: Color, outer: Color, n := 40) -> void:
+	var p := PackedVector2Array()
+	var q := PackedColorArray()
+	p.resize(n * 3)
+	q.resize(n * 3)
+	var prev := c + Vector2(r, 0)
+	for i in n:
+		var nxt := c + Vector2.from_angle(TAU * float(i + 1) / n) * r
+		p[i * 3] = c
+		p[i * 3 + 1] = prev
+		p[i * 3 + 2] = nxt
+		q[i * 3] = inner
+		q[i * 3 + 1] = outer
+		q[i * 3 + 2] = outer
+		prev = nxt
+	b.pts.append_array(p)
+	b.cols.append_array(q)
+
+
+## A convex polygon shaded from `top` to `bottom` down its height.
+static func vgrad_into(b, pts: PackedVector2Array, top: Color, bottom: Color) -> void:
+	var y0 := INF
+	var y1 := -INF
+	var mid := Vector2.ZERO
+	for v in pts:
+		y0 = minf(y0, v.y)
+		y1 = maxf(y1, v.y)
+		mid += v
+	mid /= float(pts.size())
+	var h := maxf(y1 - y0, 0.001)
+	var mc := top.lerp(bottom, (mid.y - y0) / h)
+	var n := pts.size()
+	for i in n:
+		var a := pts[i]
+		var c2 := pts[(i + 1) % n]
+		b.pts.append_array([mid, a, c2])
+		b.cols.append_array([mc, top.lerp(bottom, (a.y - y0) / h), top.lerp(bottom, (c2.y - y0) / h)])
+
+
+## A rectangle with its corners cut (`cut` across): the plates, slots and gauges.
+static func chamfer(r: Rect2, cut: float) -> PackedVector2Array:
+	cut = clampf(cut, 0.0, minf(r.size.x, r.size.y) * 0.5)
+	var a := r.position
+	var e := r.end
+	return PackedVector2Array([Vector2(a.x + cut, a.y), Vector2(e.x - cut, a.y), Vector2(e.x, a.y + cut), Vector2(e.x, e.y - cut),
+		Vector2(e.x - cut, e.y), Vector2(a.x + cut, e.y), Vector2(a.x, e.y - cut), Vector2(a.x, a.y + cut)])
+
+
+## A frame between two outlines with the same number of points (outer and
+## inner), shaded from `top` to `bottom`: a gilt frame lit along its top.
+static func frame_into(b, outer: PackedVector2Array, inner: PackedVector2Array, top: Color, bottom: Color) -> void:
+	var y0 := INF
+	var y1 := -INF
+	for v in outer:
+		y0 = minf(y0, v.y)
+		y1 = maxf(y1, v.y)
+	var h := maxf(y1 - y0, 0.001)
+	var n := outer.size()
+	for i in n:
+		var j := (i + 1) % n
+		var o0 := outer[i]
+		var o1 := outer[j]
+		var i0 := inner[i]
+		var i1 := inner[j]
+		var co0 := top.lerp(bottom, (o0.y - y0) / h)
+		var co1 := top.lerp(bottom, (o1.y - y0) / h)
+		var ci0 := top.lerp(bottom, clampf((i0.y - y0) / h, 0.0, 1.0))
+		var ci1 := top.lerp(bottom, clampf((i1.y - y0) / h, 0.0, 1.0))
+		b.pts.append_array([o0, o1, i1, o0, i1, i0])
+		b.cols.append_array([co0, co1, ci1, co0, ci1, ci0])
+
+
+## A small diamond (a stud, a finial, a rule's centre).
+static func diamond_into(b, c: Vector2, r: float, col: Color, squash := 1.0) -> void:
+	b.pts.append_array([c + Vector2(0, -r), c + Vector2(r * squash, 0), c + Vector2(0, r), c + Vector2(0, -r), c + Vector2(0, r), c + Vector2(-r * squash, 0)])
+	b._color(col, 6)
+
+
+## A quad shaded left to right (`a` at the left edge, `z` at the right): bands and rules.
+static func hgrad_into(b, r: Rect2, a: Color, z: Color) -> void:
+	var p0 := r.position
+	var p1 := Vector2(r.end.x, r.position.y)
+	var p2 := r.end
+	var p3 := Vector2(r.position.x, r.end.y)
+	b.pts.append_array([p0, p1, p2, p0, p2, p3])
+	b.cols.append_array([a, z, z, a, z, a])
+
+
+## The gilt the HUD is edged with, lit along the top (GILT_HI) and shadowed
+## below; `dim` for a quiet line instead.
+static func gilt_pair(alpha := 1.0, dim := false) -> Array:
+	if dim:
+		return [Color(LINE_HI, 0.95 * alpha), Color(LINE, 0.95 * alpha)]
+	return [Color(GILT_HI, alpha), Color(GILT_DEEP.lerp(GILT, 0.35), alpha)]
+
+
+## A gauge in a gilt frame: a dark bezel, a gilt frame, an inset trough with
+## engraved notches at the quarters, the fill shaded and glossed with a lit
+## leading edge, and small gilt finials at both ends. `trail` (above k)
+## shows recent loss. `ticks` notches (0 for none).
+static func gauge_into(b, r: Rect2, k: float, col: Color, trail := -1.0, trail_col := Color(1.0, 0.85, 0.6, 0.85), ticks := 4, alpha := 1.0) -> void:
+	var slim := r.size.y < 9.0
+	var cut := 2.0 if slim else 3.0
+	var g := 2.0 if slim else 2.5  # the frame's reach outside the fill
+	var gp := gilt_pair(alpha)
+	vgrad_into(b, chamfer(r.grow(g + 1.2), cut + 1.2), Color(OUTLINE, 0.9 * alpha), Color(OUTLINE, 0.75 * alpha))
+	frame_into(b, chamfer(r.grow(g), cut + 1.0), chamfer(r.grow(g - (0.9 if slim else 1.1)), cut + 0.6), gp[0], gp[1])
+	var mid := r.position.y + r.size.y * 0.5
+	if not slim:  # the finials: a gilt diamond at each end
+		for x in [r.position.x - g - 3.2, r.end.x + g + 3.2]:
+			diamond_into(b, Vector2(x, mid), 3.6, Color(OUTLINE, 0.9 * alpha), 0.85)
+			diamond_into(b, Vector2(x, mid), 2.4, gp[0], 0.8)
+	# The trough: darker at the top, as if set into the frame.
+	vgrad_into(b, chamfer(r, cut), Color(col.darkened(0.88), alpha), Color(col.darkened(0.72), alpha))
+	k = clampf(k, 0.0, 1.0)
+	if trail > k:
+		var tr := Rect2(r.position, Vector2(r.size.x * clampf(trail, 0.0, 1.0), r.size.y))
+		vgrad_into(b, chamfer(tr, cut), Color(trail_col, trail_col.a * alpha), Color(trail_col.darkened(0.3), trail_col.a * alpha))
+	if k > 0.0:
+		var fr := Rect2(r.position, Vector2(maxf(r.size.x * k, 1.0), r.size.y))
+		vgrad_into(b, chamfer(fr, minf(cut, fr.size.x * 0.5)), Color(col.lightened(0.18), alpha), Color(col.darkened(0.38), alpha))
+		if fr.size.x > 4.0:
+			# The gloss: a soft light across the top of the fill.
+			var gl := Rect2(fr.position + Vector2(1.5, 1.0), Vector2(fr.size.x - 3.0, r.size.y * 0.38))
+			vgrad_into(b, chamfer(gl, 0.0), Color(1, 1, 1, 0.3 * alpha), Color(1, 1, 1, 0.02 * alpha))
+		if k < 1.0:
+			b.rect(Rect2(Vector2(fr.end.x - 1.0, r.position.y), Vector2(1.0, r.size.y)), Color(col.lightened(0.6), 0.75 * alpha))
+	for i in range(1, ticks):
+		var x := r.position.x + r.size.x * float(i) / ticks
+		b.rect(Rect2(Vector2(x - 0.5, r.position.y), Vector2(1.0, r.size.y)), Color(OUTLINE, 0.45 * alpha))
+		b.rect(Rect2(Vector2(x + 0.5, r.position.y + 1.0), Vector2(1.0, r.size.y - 1.0)), Color(1, 1, 1, 0.06 * alpha))
+
+
+## Engraved hatching over part of a gauge (health lost to a burned heart or
+## a wound): a tint and fine diagonal lines.
+static func hatch_into(b, r: Rect2, col: Color) -> void:
+	b.rect(r, Color(col, col.a * 0.55))
+	var x := r.position.x - r.size.y
+	while x < r.end.x:
+		var x0 := maxf(x, r.position.x)
+		var x1 := minf(x + r.size.y, r.end.x)
+		if x1 > x0 + 0.5:
+			b.line(Vector2(x0, r.end.y - (x0 - x)), Vector2(x1, r.end.y - (x1 - x)), Color(col.lightened(0.3), col.a), 1.0)
+		x += 4.0
+
+
+## A slot for the weapon in hand or an item: a chamfered well in a dark
+## bezel, framed in gilt (`on`, the one in hand) or in a quiet line, with
+## small gilt studs at its corners when on.
+static func slot_into(b, r: Rect2, on := false, accent := Color(0, 0, 0, 0), alpha := 1.0) -> void:
+	var gp := gilt_pair(alpha, not on)
+	vgrad_into(b, chamfer(r.grow(2.2), 6.2), Color(OUTLINE, 0.92 * alpha), Color(OUTLINE, 0.8 * alpha))
+	frame_into(b, chamfer(r.grow(1.2), 5.6), chamfer(r, 5.0), gp[0], gp[1])
+	vgrad_into(b, chamfer(r, 5.0), Color(STONE_2 if not on else Color(0.22, 0.16, 0.08), 0.96 * alpha), Color(VOID, 0.96 * alpha))
+	if accent.a > 0.0:
+		glow_into(b, r.get_center() + Vector2(0, r.size.y * 0.1), r.size.x * 0.44, accent, 0.7 * alpha)
+	b.rect(Rect2(r.position + Vector2(5.0, 1.0), Vector2(r.size.x - 10.0, 1.0)), Color(1, 1, 1, 0.08 * alpha))
+	if on:
+		for cx in [r.position.x + 1.6, r.end.x - 1.6]:
+			for cy in [r.position.y + 1.6, r.end.y - 1.6]:
+				diamond_into(b, Vector2(cx, cy), 1.5, Color(GILT_HI, 0.9 * alpha))
+
+
+## A plate for the HUD's small panels (the essence counter, the weapon
+## popup, the key hints): a chamfered slab, lighter at the top, a thin edge
+## and a gilt hairline along its top that fades to both ends. `alpha` fades it.
+static func plate_into(b, r: Rect2, alpha := 1.0, edge := Color(0, 0, 0, 0)) -> void:
+	var e := edge if edge.a > 0.0 else Color(LINE_HI, 0.8)
+	vgrad_into(b, chamfer(r.grow(1.0), 5.0), Color(OUTLINE, 0.7 * alpha), Color(OUTLINE, 0.7 * alpha))
+	frame_into(b, chamfer(r, 4.5), chamfer(r.grow(-1.0), 4.0), Color(e.lightened(0.15), e.a * alpha), Color(e.darkened(0.3), e.a * 0.8 * alpha))
+	vgrad_into(b, chamfer(r.grow(-1.0), 4.0), Color(STONE_2, 0.9 * alpha), Color(VOID, 0.9 * alpha))
+	var hw := (r.size.x - 12.0) * 0.5
+	hgrad_into(b, Rect2(r.position + Vector2(6.0, 2.0), Vector2(hw, 1.0)), Color(GILT, 0.0), Color(GILT, 0.35 * alpha))
+	hgrad_into(b, Rect2(r.position + Vector2(6.0 + hw, 2.0), Vector2(hw, 1.0)), Color(GILT, 0.35 * alpha), Color(GILT, 0.0))
+
+
+## A cartouche for a status line (a shut door, a challenge's rule): a dark
+## plate with pointed ends, edged in `col`, a stud beyond each point.
+static func cartouche_into(b, r: Rect2, col: Color, alpha := 1.0) -> void:
+	var h := r.size.y * 0.5
+	var mid := r.position.y + h
+	var cx := r.get_center().x
+	var outer := PackedVector2Array([Vector2(r.position.x, mid), Vector2(r.position.x + h, r.position.y), Vector2(r.end.x - h, r.position.y),
+		Vector2(r.end.x, mid), Vector2(r.end.x - h, r.end.y), Vector2(r.position.x + h, r.end.y)])
+	var ins := 1.3
+	var inner := PackedVector2Array([Vector2(r.position.x + ins * 1.8, mid), Vector2(r.position.x + h + ins * 0.5, r.position.y + ins), Vector2(r.end.x - h - ins * 0.5, r.position.y + ins),
+		Vector2(r.end.x - ins * 1.8, mid), Vector2(r.end.x - h - ins * 0.5, r.end.y - ins), Vector2(r.position.x + h + ins * 0.5, r.end.y - ins)])
+	var shadow := PackedVector2Array()
+	for v in outer:
+		shadow.append(v + (v - Vector2(cx, mid)).normalized() * 1.6)
+	vgrad_into(b, shadow, Color(OUTLINE, 0.6 * alpha), Color(OUTLINE, 0.75 * alpha))
+	vgrad_into(b, inner, Color(STONE_2, 0.88 * alpha), Color(VOID, 0.92 * alpha))
+	frame_into(b, outer, inner, Color(col.lightened(0.2), col.a * alpha), Color(col.darkened(0.35), col.a * alpha))
+	for x in [r.position.x - 5.0, r.end.x + 5.0]:
+		diamond_into(b, Vector2(x, mid), 2.4, Color(col, col.a * 0.85 * alpha))
+
+
+## A banner across the screen (a floor's news, a fall): a soft dark band
+## that fades out to both sides, between thin gilt rules that fade the same
+## way, each with a diamond at its centre.
+static func band_into(b, r: Rect2, alpha := 1.0, rule := GILT, shade := 0.6) -> void:
+	var cx := r.get_center().x
+	var half := r.size.x * 0.5
+	var dark := Color(VOID, shade * alpha)
+	var clear := Color(VOID, 0.0)
+	hgrad_into(b, Rect2(r.position, Vector2(half, r.size.y)), clear, dark)
+	hgrad_into(b, Rect2(Vector2(cx, r.position.y), Vector2(half, r.size.y)), dark, clear)
+	for y in [r.position.y, r.end.y - 1.0]:
+		var lit := Color(rule, 0.75 * alpha)
+		var off := Color(rule, 0.0)
+		hgrad_into(b, Rect2(Vector2(r.position.x + half * 0.2, y), Vector2(half * 0.8 - 6.0, 1.0)), off, lit)
+		hgrad_into(b, Rect2(Vector2(cx + 6.0, y), Vector2(half * 0.8 - 6.0, 1.0)), lit, off)
+		diamond_into(b, Vector2(cx, y + 0.5), 3.2, Color(OUTLINE, 0.8 * alpha))
+		diamond_into(b, Vector2(cx, y + 0.5), 2.2, Color(rule.lightened(0.2), 0.95 * alpha))
+
+
+## Thin gilt rules either side of a centred title, fading outward, each
+## starting at a stud: `cx` the centre, `gap` half the title's width.
+static func flank_into(b, cx: float, y: float, gap: float, reach: float, col: Color) -> void:
+	for side in [-1.0, 1.0]:
+		var x0: float = cx + side * gap
+		var x1: float = cx + side * (gap + reach)
+		var r := Rect2(Vector2(minf(x0, x1), y), Vector2(absf(x1 - x0), 1.0))
+		if side > 0.0:
+			hgrad_into(b, r, col, Color(col, 0.0))
+		else:
+			hgrad_into(b, r, Color(col, 0.0), col)
+		diamond_into(b, Vector2(x0 - side * 3.0, y + 0.5), 2.0, col)
+
+
+## A mark's medallion on the HUD: an engraved gilt rim with four studs, a
+## gauge ring filling with essence, the emblem in a dark well. `ready`
+## glows in the bond's colour; `burned` reddens the rim and cracks the face;
+## `faint` dims it all.
+static func seal_into(b, c: Vector2, r: float, col: Color, affinity: String, k: float, ready: bool, faint := false, burned := false) -> void:
+	if ready:
+		glow_into(b, c, r * 1.95, col, 0.8)
+	b.dot(c, r + 3.0, Color(OUTLINE, 0.9))
+	var rim_hi := Color(BLOOD.lightened(0.25), 0.95) if burned else (Color(GILT_HI, 0.95) if not faint else Color(LINE_HI, 0.9))
+	var rim_lo := Color(BLOOD.darkened(0.4), 0.95) if burned else (Color(GILT_DEEP.lerp(GILT, 0.3), 0.95) if not faint else Color(LINE, 0.9))
+	ring_into(b, c, r + 1.4, 1.8, rim_lo)
+	ring_into(b, c, r + 1.6, 1.0, rim_hi, PI * 0.95, PI * 2.05)  # lit along the top
+	for i in 4:
+		var d := Vector2.from_angle(-PI / 2.0 + i * PI / 2.0)
+		diamond_into(b, c + d * (r + 1.5), 1.7, Color(OUTLINE, 0.9))
+		diamond_into(b, c + d * (r + 1.5), 1.0, rim_hi)
+	var ring := maxf(2.0, r * 0.17)
+	ring_into(b, c, r - ring * 0.5, ring, col.darkened(0.68))
+	if k > 0.0:
+		var a1 := -PI / 2.0 + TAU * clampf(k, 0.0, 1.0)
+		ring_into(b, c, r - ring * 0.5, ring, Color(col if ready else col.darkened(0.15), 0.55 if faint else 1.0), -PI / 2.0, a1)
+		ring_into(b, c, r - ring * 0.25, ring * 0.3, Color(col.lightened(0.5), 0.25 if faint else 0.55), -PI / 2.0, a1)
+	var inner := r - ring - 0.6
+	fan_into(b, c, inner, col.darkened(0.6 if ready else 0.72), Color(0.04, 0.035, 0.06), 24)
+	emblem_into(b, c + Vector2(0, 0.3), inner * 0.7, affinity, col if not faint else col.darkened(0.35), 1.0 if r > 14.0 else 0.0)
+	if burned:
+		var crack := Color(1.0, 0.45, 0.32, 0.9)
+		b.path(PackedVector2Array([c + Vector2(-r * 0.9, -r * 0.35), c + Vector2(-r * 0.35, -r * 0.1), c + Vector2(-r * 0.1, -r * 0.45), c + Vector2(r * 0.35, r * 0.05)]), crack, 1.0)
+		b.path(PackedVector2Array([c + Vector2(r * 0.8, r * 0.5), c + Vector2(r * 0.3, r * 0.3), c + Vector2(r * 0.1, r * 0.75)]), crack, 1.0)
+
+
+## A touch button's face: a dark bezel, a gilt ring, a glassy translucent
+## face with a gloss along the top. `fill` draws an essence arc inside the
+## ring (a mark filling, a bow drawn); `ready` glows and lights the ring in
+## `col`; `pressed` tints the face; `quiet` dims the gilt (small buttons).
+static func button_into(b, c: Vector2, r: float, col: Color, pressed := false, ready := false, fill := 0.0, quiet := false) -> void:
+	if ready:
+		glow_into(b, c, r * 1.4, col, 0.9)
+	ring_into(b, c, r + 0.4, 3.4, Color(OUTLINE, 0.5))
+	fan_into(b, c, r - 1.0, Color(0.07, 0.06, 0.1, 0.32 if not pressed else 0.55), Color(0.03, 0.025, 0.045, 0.58 if not pressed else 0.72), 32)
+	var gilt := Color(GILT_HI, 0.8) if pressed else Color(GILT, 0.5 if quiet else 0.62)
+	ring_into(b, c, r - 0.8, 1.5, gilt)
+	ring_into(b, c, r - 0.6, 1.0, Color(GILT_HI, 0.35 if quiet else 0.5), PI * 1.1, PI * 1.9)
+	ring_into(b, c, r - 3.4, 1.0, Color(OUTLINE, 0.45))
+	if ready:
+		ring_into(b, c, r - 0.8, 2.6, Color(col, 0.95))
+	if fill > 0.0:
+		ring_into(b, c, r - 5.6, 3.6, Color(col.darkened(0.6), 0.5))
+		ring_into(b, c, r - 5.6, 3.6, Color(col, 0.9), -PI / 2.0, -PI / 2.0 + TAU * clampf(fill, 0.0, 1.0))
+	# The gloss: a pale crescent along the top of the glass.
+	ring_into(b, c + Vector2(0, r * 0.06), r - 7.0, 2.0, Color(1, 1, 1, 0.1), PI * 1.15, PI * 1.85)
+	if pressed:
+		b.dot(c, r - 3.0, Color(col, 0.16))
+
+
+## A selection wheel (the spell ring, the item ring, the tool ring...): the
+## world dimmed behind it, a dark disc with an engraved gilt rim, engraved
+## spokes between the options, the pointed-at sector washed in its colour,
+## each option in a medallion with its icon and name, the hovered one
+## lifted and glowing, its cost as gems on a pendant. `opts` holds, for
+## each option: "name", "col" (its colour), "icon" (a Callable(batch,
+## centre, size, colour)), and optionally "badge" (a count), "gems"
+## ([[colour, amount], ...]), "note" (a word in place of the cost) and
+## "off" (it can't be used now: greyed). `view` is the screen's size.
+static func draw_wheel(ci: CanvasItem, c: Vector2, ring_r: float, opts: Array, sel: int, accent: Color, view: Vector2) -> void:
+	var n := opts.size()
+	if n == 0:
+		return
+	var R := ring_r + 36.0
+	var b := Draw.Batch.new()
+	b.rect(Rect2(Vector2.ZERO, view), Color(VOID, 0.4))
+	glow_into(b, c, R * 1.25, Color(0, 0, 0), 2.2)
+	# The disc: clear at the centre (the climber shows through), dark at the rim.
+	fan_into(b, c, R - 3.0, Color(0.06, 0.05, 0.09, 0.32), Color(0.06, 0.05, 0.09, 0.9), 48)
+	var sector := TAU / float(n)
+	if sel >= 0 and sel < n:
+		# The pointed-at sector, washed in the option's colour.
+		var a0 := -PI / 2.0 + sector * (float(sel) - 0.5)
+		var sc: Color = opts[sel]["col"]
+		var steps := maxi(4, int(24.0 * sector / TAU) + 4)
+		for i in steps:
+			var t0 := a0 + sector * float(i) / steps
+			var t1 := a0 + sector * float(i + 1) / steps
+			b.pts.append_array([c + Vector2.from_angle(t0) * 16.0, c + Vector2.from_angle(t0) * (R - 4.0), c + Vector2.from_angle(t1) * (R - 4.0),
+				c + Vector2.from_angle(t0) * 16.0, c + Vector2.from_angle(t1) * (R - 4.0), c + Vector2.from_angle(t1) * 16.0])
+			b.cols.append_array([Color(sc, 0.0), Color(sc, 0.2), Color(sc, 0.2), Color(sc, 0.0), Color(sc, 0.2), Color(sc, 0.0)])
+		ring_into(b, c, R - 4.0, 2.0, Color(sc, 0.85), a0 + 0.04, a0 + sector - 0.04)
+	# The rim: a dark bezel, a gilt band lit along the top, a hairline inside it, engraved ticks between.
+	ring_into(b, c, R, 5.0, Color(OUTLINE, 0.92))
+	ring_into(b, c, R - 0.4, 2.0, Color(GILT_DEEP.lerp(GILT, 0.45), 0.95))
+	ring_into(b, c, R - 0.2, 1.0, Color(GILT_HI, 0.75), PI * 1.05, PI * 1.95)
+	ring_into(b, c, R - 6.5, 1.0, Color(GILT, 0.3))
+	for i in 48:
+		var d := Vector2.from_angle(TAU * i / 48.0)
+		b.line(c + d * (R - 6.0), c + d * (R - 2.5 if i % 4 == 0 else R - 4.0), Color(GILT, 0.32), 1.0)
+	# The spokes, engraved between the options, a stud where each meets the rim.
+	if n > 1:
+		for i in n:
+			var d := Vector2.from_angle(-PI / 2.0 + sector * (float(i) + 0.5))
+			b.line(c + d * 18.0, c + d * (R - 7.0), Color(OUTLINE, 0.75), 2.0)
+			b.line(c + d * 18.0 + d.orthogonal() * 1.2, c + d * (R - 7.0) + d.orthogonal() * 1.2, Color(GILT, 0.16), 1.0)
+			diamond_into(b, c + d * (R - 1.0), 3.4, Color(OUTLINE, 0.95))
+			diamond_into(b, c + d * (R - 1.0), 2.2, GILT_HI)
+	# The hub: a thin ring round the climber.
+	ring_into(b, c, 15.0, 3.0, Color(OUTLINE, 0.6))
+	ring_into(b, c, 15.0, 1.2, Color(accent.lerp(GILT, 0.5), 0.7))
+	# The options: the hovered one last, on top.
+	var order: Array = range(n)
+	if sel >= 0 and sel < n:
+		order.erase(sel)
+		order.append(sel)
+	var words: Array = []  # [pos, text, colour, size, kind]
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.006)
+	for i in order:
+		var o: Dictionary = opts[i]
+		var on: bool = i == sel
+		var off: bool = o.get("off", false)
+		var col: Color = o["col"] if not off else Color(0.55, 0.54, 0.6)
+		var mr := 23.0 if on else 19.0
+		var at := c + Vector2.from_angle(-PI / 2.0 + sector * i) * ring_r + (Vector2(0, -3.0) if on else Vector2.ZERO)
+		if on:
+			b.dot(at + Vector2(0, 5.0), mr + 2.0, Color(0, 0, 0, 0.45))  # lifted: its shadow below
+			glow_into(b, at, mr * 2.0, col, 1.1 + 0.5 * pulse)
+		b.dot(at, mr + 2.6, Color(OUTLINE, 0.95))
+		ring_into(b, at, mr + 0.8, 2.2, Color(col, 0.95) if on else Color(GILT_DEEP.lerp(GILT, 0.4), 0.9 if not off else 0.5))
+		ring_into(b, at, mr + 1.0, 1.0, Color(col.lightened(0.5), 0.9) if on else Color(GILT_HI, 0.55 if not off else 0.25), PI * 1.05, PI * 1.95)
+		fan_into(b, at, mr - 0.4, col.darkened(0.55 if on else 0.75), Color(0.035, 0.03, 0.05), 28)
+		ring_into(b, at, mr - 2.6, 1.0, Color(col, 0.35 if on else 0.18))
+		var icon = o.get("icon")
+		if icon is Callable and icon.is_valid():
+			icon.call(b, at + Vector2(0, -1.0), mr * (0.5 if on else 0.46), Color(col.lightened(0.25 if on else 0.0), 1.0 if not off else 0.6))
+		if not on:  # (the hovered one is named under the wheel)
+			words.append([at + Vector2(0, mr + 15.0), String(o.get("name", "")), Color(TEXT, 0.82 if not off else 0.5), 10, "name"])
+		# The cost (gems on a pendant under the medallion), a count, or a word.
+		var gems: Array = o.get("gems", [])
+		if String(o.get("note", "")) != "":
+			if not on:
+				words.append([at + Vector2(0, mr + 25.0), String(o["note"]), Color(DIM, 0.85), 9, "note"])
+		elif not gems.is_empty():
+			var gw := 22.0 * gems.size()
+			var gr := Rect2(at + Vector2(-gw * 0.5, mr - 5.0), Vector2(gw, 11.0))
+			vgrad_into(b, chamfer(gr.grow(1.0), 3.0), Color(OUTLINE, 0.95), Color(OUTLINE, 0.95))
+			vgrad_into(b, chamfer(gr, 2.6), Color(STONE_2, 0.98), Color(VOID, 0.98))
+			for g in gems.size():
+				var gc := Vector2(gr.position.x + 7.0 + 22.0 * g, gr.get_center().y)
+				gem_into(b, gc, 3.6, gems[g][0])
+				words.append([gc + Vector2(5.0, 3.8), str(gems[g][1]), Color(0.96, 0.93, 0.86), 9, "num"])
+		if String(o.get("badge", "")) != "":
+			var bc := at + Vector2(mr * 0.72, mr * 0.72)
+			b.dot(bc, 7.4, Color(OUTLINE, 0.95))
+			b.dot(bc, 6.2, Color(0.1, 0.085, 0.13))
+			ring_into(b, bc, 6.2, 1.0, Color(GILT, 0.7))
+			words.append([bc + Vector2(0, 3.6), String(o["badge"]), GILT_HI, 10, "badge"])
+	b.flush(ci)
+	var body := font("body")
+	var mono := font("mono")
+	for w in words:
+		var f: Font = mono if w[4] in ["num", "badge"] else body
+		var at: Vector2 = w[0]
+		if w[4] == "num":
+			ci.draw_string_outline(f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], 3, Color(0, 0, 0, 0.9))
+			ci.draw_string(f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], w[2])
+			continue
+		var wid := 40.0 if w[4] == "badge" else 84.0
+		if w[4] == "name":  # (names in the gothic face, like every label)
+			draw_label(ci, at - Vector2(wid * 0.5, 0), w[1], w[3] + 2, w[2], HORIZONTAL_ALIGNMENT_CENTER, wid, 3, Color(0, 0, 0, 0.9))
+			continue
+		ci.draw_string_outline(f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], 3, Color(0, 0, 0, 0.9))
+		ci.draw_string(f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], w[2])
+
+
+## Under a wheel: the pointed-at option's name in the display face between
+## gilt rules, and its text. `top` is the name's baseline.
+static func draw_wheel_caption(ci: CanvasItem, cx: float, top: float, w: float, title: String, text: String, col: Color, text_size := 14, lines := 2) -> void:
+	var x := cx - w * 0.5
+	var tw := minf(font("display").get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, w)
+	var b := Draw.Batch.new()
+	flank_into(b, cx, top - 6.0, tw * 0.5 + 10.0, 54.0, Color(col, 0.7))
+	b.flush(ci)
+	draw_title(ci, Vector2(x, top), title, 20, col.lightened(0.25), HORIZONTAL_ALIGNMENT_CENTER, w, 0.8)
+	if text != "":
+		var body := font("body")
+		ci.draw_multiline_string_outline(body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, 4, Color(0, 0, 0, 0.85))
+		ci.draw_multiline_string(body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, TEXT)

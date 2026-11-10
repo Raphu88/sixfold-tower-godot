@@ -52,6 +52,8 @@ const SWAP_SHOW := 1.5
 const FLOOR_SHOW := 5.0
 const STAIR_SHOW := 5.0
 const HINTS_SHOW := 8.0
+## Poison tints the health bar this way.
+const POISONED := Color(0.5, 0.78, 0.25)
 
 var main
 var vignette: GradientTexture2D  # (the hurt flash)
@@ -63,7 +65,7 @@ var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
 var hud_scale := 1.0  # the HUD size setting (ui.gd HUD_SCALES)
 var tips: Array = []  # [rect, title, lines] of what the mouse can hover for a tooltip
-var tip_box: StyleBoxFlat
+var tip_box: StyleBox
 var card_box: StyleBox  # the big cards (towers, camps, the gear at your feet): ui.gd card
 var card_box_on: StyleBox
 var core: Node2D  # the always-there part, drawn under this node
@@ -107,9 +109,21 @@ func _ready() -> void:
 	slot_on = UI.slot(true)
 	card_box = UI.card()
 	card_box_on = UI.card(UI.GOLD)
-	tip_box = UI.box(Color(0.07, 0.06, 0.1, 0.97), Color(UI.GOLD, 0.45), 6)
-	tip_box.shadow_color = Color(0, 0, 0, 0.5)
-	tip_box.shadow_size = 6
+	# The tooltip: a small ornate card, a gilt hairline inside its edge.
+	var tb := UI.Ornate.new()
+	tb.top = Color(0.13, 0.115, 0.17, 0.98)
+	tb.bottom = Color(0.06, 0.052, 0.082, 0.98)
+	tb.edge = Color(UI.GILT, 0.5)
+	tb.inner = Color(UI.GILT, 0.14)
+	tb.glow = Color(UI.GILT, 0.05)
+	tb.radius = 6.0
+	tb.shadow = 6.0
+	tb.highlight = true
+	tip_box = tb
+	# The card screens' cards: gilt flourishes at their corners, a hairline inside.
+	for cb in [card_box, card_box_on]:
+		cb.inner = Color(UI.GILT, 0.1)
+		cb.corners = Color(UI.GILT, 0.5)
 	# The core goes just under this node, in the same layer.
 	core = Node2D.new()
 	core.name = "HudCore"
@@ -211,7 +225,7 @@ func _core_signature() -> Array:
 	if p == null or main.title_showing():
 		return [false]
 	var s := [true, hud_scale, get_viewport_rect().size, main.touch_active, main.pad_active, main.pad_ps,
-		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta,
+		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() == "crossbow" else 0.0,
 		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
@@ -282,31 +296,36 @@ func _draw_core() -> void:
 	var hs := hud_scale
 	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2(hs, hs))
 	var b := Draw.Batch.new()
-	# Health and stamina: slim bars, the health number on its bar.
+	# Health and stamina: gilt-framed gauges, the health number on its bar
+	# (poison turns its fill sickly green).
 	var hp_k: float = p.hp / p.max_hp
-	UI.bar_into(b, Rect2(BAR_X, BAR_Y, BAR_W, 12), hp_k, UI.HEALTH, hp_trail)
-	UI.bar_into(b, Rect2(BAR_X, BAR_Y + 18.0, BAR_W * p.max_sta / 100.0, 6), p.sta / p.max_sta, UI.STAMINA, sta_trail, Color(0.95, 0.95, 0.7, 0.7))
+	var hp_col := UI.HEALTH.lerp(POISONED, 0.6) if p.poison_t > 0.0 else UI.HEALTH
+	UI.gauge_into(b, Rect2(BAR_X, BAR_Y, BAR_W, 12), hp_k, hp_col, hp_trail)
+	UI.gauge_into(b, Rect2(BAR_X, BAR_Y + 18.0, BAR_W * p.max_sta / 100.0, 6), p.sta / p.max_sta, UI.STAMINA, sta_trail, Color(0.95, 0.95, 0.7, 0.7), 0)
 	if p.barrier_hp > 0.0:
-		# The Warden's barrier: a gold band over the health bar.
+		# The Warden's barrier: a band of gilded glass over the health bar.
 		var bw: float = BAR_W * clampf(p.barrier_hp / p.max_hp, 0.0, 1.0)
-		UI.capsule(b, BAR_X, BAR_X + bw, BAR_Y + 3.0, 2.5, Color(1.0, 0.85, 0.45, 0.9))
+		UI.vgrad_into(b, UI.chamfer(Rect2(BAR_X, BAR_Y - 1.0, bw, 6.0), 2.0), Color(1.0, 0.93, 0.62, 0.95), Color(0.85, 0.62, 0.25, 0.75))
+		b.rect(Rect2(BAR_X + 2.0, BAR_Y + 4.0, maxf(bw - 4.0, 0.0), 1.0), Color(1.0, 0.97, 0.8, 0.8))
 	if p.max_health() < p.max_hp:
 		# A burned heart caps your health: the lost part shows scorched (the
-		# Proving's wound: bruised violet).
+		# Proving's wound: bruised violet), hatched like an engraving.
 		var cap_x: float = BAR_X + BAR_W * p.max_health() / p.max_hp
-		b.rect(Rect2(Vector2(cap_x, BAR_Y), Vector2(BAR_X + BAR_W - cap_x, 12)), Color(0.6, 0.45, 0.95, 0.4) if p.wound > 0.0 else Color(1.0, 0.35, 0.2, 0.35))
+		UI.hatch_into(b, Rect2(Vector2(cap_x, BAR_Y), Vector2(BAR_X + BAR_W - cap_x, 12)), Color(0.6, 0.45, 0.95, 0.6) if p.wound > 0.0 else Color(1.0, 0.4, 0.22, 0.55))
+	if p.poison_t > 0.0:  # a drop of poison at the bar's start
+		UI.diamond_into(b, Vector2(BAR_X + BAR_W - 9.0, BAR_Y + 6.0), 4.6, UI.OUTLINE, 0.8)
+		UI.diamond_into(b, Vector2(BAR_X + BAR_W - 9.0, BAR_Y + 6.0), 3.4, POISONED.lightened(0.2), 0.75)
 	var bars_rect := Rect2(BAR_X - 4, BAR_Y - 4, BAR_W + 8, 32)
 	# Your path's gem (secret.gd), once its banked flow reaches the first step.
 	var flow_rect := Rect2()
 	if main.flow_shown():
-		flow_rect = _flow_gem_into(b, Vector2(BAR_X + BAR_W + 16.0, BAR_Y + 9.0))
+		flow_rect = _flow_gem_into(b, Vector2(BAR_X + BAR_W + 22.0, BAR_Y + 8.0))
 	if p.item_count("vessel") > 0:  # the vessel you carry, and how full (vessel.gd)
-		load("res://scripts/vessel.gd").hud_into(b, p, Vector2(BAR_X + BAR_W + (44.0 if flow_rect.size.x > 0.0 else 16.0), BAR_Y + 9.0), tips)
+		load("res://scripts/vessel.gd").hud_into(b, p, Vector2(BAR_X + BAR_W + (52.0 if flow_rect.size.x > 0.0 else 22.0), BAR_Y + 8.0), tips)
 	# The weapon in hand and the quick item: two small slots.
 	var wr := Rect2(BAR_X, ROW_Y, SLOT, SLOT)
 	var slot_i: int = p.slots().find(p.weapon)
-	c.draw_style_box(slot_on, wr)
-	UI.glow_into(b, wr.get_center(), SLOT * 0.42, Gear.color(p.weapon), 0.6)
+	UI.slot_into(b, wr, true, Gear.color(p.weapon))
 	Gear.icon_into(b, p.weapon_rec(), wr.get_center(), 10.5, Gear.color(p.weapon))  # (cracked when badly worn)
 	if p.reload_t > 0.0 and p.wkind() == "crossbow":
 		var rk: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
@@ -317,8 +336,12 @@ func _draw_core() -> void:
 	var ir := Rect2()
 	if sel != "":
 		ir = Rect2(x, ROW_Y, SLOT, SLOT)
-		c.draw_style_box(slot, ir)
+		UI.slot_into(b, ir, false, Color(Items.color(sel), 0.6))
 		Items.icon_into(b, sel, ir.get_center() + Vector2(0, -1), 10.5)
+		# Its count on a small gilt-ringed coin at the corner.
+		b.dot(ir.end - Vector2(3, 3), 7.2, UI.OUTLINE)
+		b.dot(ir.end - Vector2(3, 3), 6.0, UI.STONE)
+		UI.ring_into(b, ir.end - Vector2(3, 3), 6.0, 1.0, Color(UI.GILT, 0.8))
 		tips.append([ir, Items.ITEMS[sel]["name"], [_sentence(Items.ITEMS[sel]["desc"]),
 			"Carrying %d  ·  %s to use it%s" % [p.item_count(sel), _use_key(), "" if p.carried().size() < 2 else "  ·  %s picks another" % _next_key()]]])
 		x = ir.end.x + 6.0
@@ -334,9 +357,7 @@ func _draw_core() -> void:
 		var col: Color = bd.color()
 		var ready: bool = bd.essence >= bd.cost()
 		var mc := Vector2(mx, my)
-		UI.medallion_into(b, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), 0, 0.7 if ready else 0.0, bd.faint)
-		if bd.burned:
-			b.arc(mc, MARK_R + 3.0, 0.0, TAU, 28, Color(1.0, 0.4, 0.3, 0.9), 2.0)
+		UI.seal_into(b, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), ready, bd.faint, bd.burned)
 		if bd.has_method("hud_into"):
 			bd.hud_into(b, mc, MARK_R)  # (an Unbound's technique: its part's strain)
 		var key := _cast_key(part)
@@ -369,8 +390,7 @@ func _draw_core() -> void:
 		c.draw_string(mono, wr.position + Vector2(3, 11), str(slot_i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD)
 	if sel != "":
 		var n := str(p.item_count(sel))
-		c.draw_string_outline(mono, ir.end + Vector2(-9, -3), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.9))
-		c.draw_string(mono, ir.end + Vector2(-9, -3), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, GOLD)
+		c.draw_string(mono, ir.end + Vector2(-9, 0.5), n, HORIZONTAL_ALIGNMENT_CENTER, 12, 10, UI.GILT_HI)
 		if not main.touch_active:
 			UI.draw_key(c, ir.position + Vector2(-3, -5), _use_key(), 8)
 	if not main.touch_active:
@@ -389,12 +409,28 @@ func _flow_gem_into(b, c: Vector2) -> Rect2:
 	var path: String = main.profile.path
 	var st: int = main.profile.flow_step()
 	var col := Secret.color(path)
-	UI.glow_into(b, c, 15.0, col, 1.1 + 0.15 * st)
+	UI.glow_into(b, c, 16.0, col, 1.1 + 0.15 * st)
+	# Set in a gilt hexagonal bezel, like a jewel in a mount.
+	var outer := PackedVector2Array()
+	var inner := PackedVector2Array()
+	for i in 6:
+		var d := Vector2.from_angle(-PI / 2.0 + TAU * i / 6.0)
+		outer.append(c + d * 10.6)
+		inner.append(c + d * 8.8)
+	var back := PackedVector2Array()
+	for v in outer:
+		back.append(c + (v - c) * 1.18)
+	UI.vgrad_into(b, back, Color(UI.OUTLINE, 0.9), Color(UI.OUTLINE, 0.9))
+	UI.frame_into(b, outer, inner, UI.GILT_HI, UI.GILT_DEEP.lerp(UI.GILT, 0.35))
+	UI.vgrad_into(b, inner, UI.STONE_2, UI.VOID)
 	UI.gem_into(b, c, 7.0, col)
+	# Its steps: four small gems on a gilt bar under it, lit as they're reached.
+	b.rect(Rect2(c + Vector2(-11.5, 13.2), Vector2(23, 3.6)), Color(UI.OUTLINE, 0.9))
+	b.rect(Rect2(c + Vector2(-10.5, 14.4), Vector2(21, 1.2)), Color(UI.GILT, 0.55))
 	for i in Secret.STEPS.size():
-		var at := c + Vector2(-8.25 + 5.5 * i, 12.5)
-		b.dot(at, 2.2, UI.OUTLINE)
-		b.dot(at, 1.5, Secret.KINDS[path]["light"] if i < st else Color(col, 0.25))
+		var at := c + Vector2(-8.25 + 5.5 * i, 15.0)
+		UI.diamond_into(b, at, 3.0, UI.OUTLINE)
+		UI.diamond_into(b, at, 2.1, Secret.KINDS[path]["light"] if i < st else Color(col.darkened(0.5), 0.9))
 	return Rect2(c - Vector2(12, 12), Vector2(24, 30))
 
 
@@ -472,6 +508,13 @@ func _draw() -> void:
 	if floor_t > 0.0 or stair_t > 0.0:
 		var fa := _fade(maxf(floor_t, stair_t), FLOOR_SHOW)
 		var floor_text: String = main._floor_title()
+		# A soft band between gilt rules behind it, rules flanking the title.
+		var tw := UI.font("display").get_string_size(UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+		var fb := Draw.Batch.new()
+		var bw := minf(size.x, maxf(tw + 260.0, 420.0))
+		UI.band_into(fb, Rect2((size.x - bw) * 0.5, 4.0, bw, 52.0), fa * 0.8, UI.GILT, 0.5)
+		UI.flank_into(fb, size.x * 0.5, 21.0, tw * 0.5 + 12.0, 64.0, Color(UI.GILT, 0.75 * fa))
+		fb.flush(self)
 		draw_string_outline(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, 5, Color(0, 0, 0, 0.8 * fa))
 		draw_string(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(GOLD, fa))
 		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
@@ -484,6 +527,10 @@ func _draw() -> void:
 		var stair_text := "The stair is open"
 		if left > 0:
 			stair_text += "  ·  %d %s left" % [left, "foe" if left == 1 else "foes"]
+		var sw := UI.font("display").get_string_size(stair_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x + 44.0
+		var sb := Draw.Batch.new()
+		UI.cartouche_into(sb, Rect2((size.x - sw) * 0.5, 53.0, sw, 23.0), Color(UI.GILT, 0.55 + 0.3 * pulse), sa)
+		sb.flush(self)
 		UI.draw_label(self, Vector2(0, 69), stair_text, 19, Color(1.0, 0.88, 0.6, pulse * sa), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.7 * sa))
 
 	# A new floor: its number and what changed, fading out.
@@ -491,6 +538,11 @@ func _draw() -> void:
 		var bn: Dictionary = main.banner
 		var a: float = clampf(bn["t"] / 0.6, 0.0, 1.0)
 		var top := size.y * 0.3
+		# A soft band between gilt rules, fading to both sides.
+		var bb := Draw.Batch.new()
+		var bw2 := minf(size.x, 820.0)
+		UI.band_into(bb, Rect2((size.x - bw2) * 0.5, top - 46.0, bw2, 62.0 + 22.0 * bn["lines"].size()), a, UI.GILT, 0.62)
+		bb.flush(self)
 		draw_string_outline(UI.font("display"), Vector2(0, top), UI.title_case(bn["title"]), HORIZONTAL_ALIGNMENT_CENTER, size.x, 46, 7, Color(0, 0, 0, 0.8 * a))
 		draw_string(UI.font("display"), Vector2(0, top), UI.title_case(bn["title"]), HORIZONTAL_ALIGNMENT_CENTER, size.x, 46, Color(GOLD, a))
 		var ly := top + 30.0
@@ -528,9 +580,10 @@ func _draw() -> void:
 		note_h += font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_CENTER, note_w, 17).y + 4.0
 	if msg != "":
 		var band := Rect2(0, size.y / 2.0 - 70.0, size.x, 90.0 + (note_h + 8.0 if note_h > 0.0 else 0.0))
-		draw_rect(band, Color(0, 0, 0, 0.55))
-		draw_line(band.position, Vector2(band.end.x, band.position.y), Color(GOLD, 0.4), 1.0)
-		draw_line(Vector2(0, band.end.y), band.end, Color(GOLD, 0.4), 1.0)
+		var db := Draw.Batch.new()
+		db.rect(band, Color(UI.VOID, 0.3))
+		UI.band_into(db, band, 1.0, UI.BLOOD if p.dead else UI.GILT, 0.7)
+		db.flush(self)
 		var col := Color(0.9, 0.3, 0.25) if p.dead else GOLD
 		draw_string_outline(UI.font("display"), Vector2(0, band.position.y + 48), UI.title_case(msg), HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, 6, Color(0, 0, 0, 0.8))
 		draw_string(UI.font("display"), Vector2(0, band.position.y + 48), UI.title_case(msg), HORIZONTAL_ALIGNMENT_CENTER, size.x, 40, col)
@@ -566,14 +619,13 @@ func _draw() -> void:
 func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
 	var have: Array = p.slots()
 	var r := Rect2(pos, Vector2(16.0 + 40.0 * have.size(), 62))
-	draw_style_box(panel, r)
 	var b := Draw.Batch.new()
+	UI.plate_into(b, r, a)
 	for i in have.size():
 		var id: String = have[i]
 		var c := r.position + Vector2(28.0 + 40.0 * i, 22)
 		var on: bool = id == p.weapon and id != ""
-		if on:
-			UI.glow_into(b, c, 17.0, Gear.color(id), 0.8 * a)
+		UI.slot_into(b, Rect2(c - Vector2(14, 14), Vector2(28, 28)), on, Gear.color(id) if on else Color(0, 0, 0, 0), a)
 		if id != "":
 			Gear.icon_into(b, id, c, 10.0, Color(Gear.color(id), (1.0 if on else 0.45) * a))
 		else:
@@ -583,8 +635,8 @@ func _draw_swap(p, pos: Vector2, font: Font, a: float) -> float:
 		var c := r.position + Vector2(28.0 + 40.0 * i, 22)
 		var on: bool = have[i] == p.weapon and have[i] != ""
 		if not main.touch_active:
-			draw_string(UI.font("mono"), c + Vector2(-18, -6), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(GOLD if on else DIM_TEXT, a))
-	UI.draw_label(self, Vector2(r.position.x, r.end.y - 9.0), Gear.display(p.weapon), 16, Color(TEXT, a), HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+			draw_string(UI.font("mono"), c + Vector2(-13, -3), str(i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(UI.GILT_HI if on else DIM_TEXT, a))
+	UI.draw_label(self, Vector2(r.position.x, r.end.y - 7.0), Gear.display(p.weapon), 16, Color(TEXT, a), HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	return r.size.y
 
 
@@ -598,8 +650,8 @@ func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
 	if held.is_empty():
 		return
 	var pill := Rect2(pos, Vector2(16.0 + 44.0 * held.size() + 62.0, 22))
-	draw_style_box(panel, pill)
 	var gems := Draw.Batch.new()
+	UI.plate_into(gems, pill, a)
 	for gi in held.size():
 		var col := Secret.color(held[gi]) if Secret.is_kind(held[gi]) else Essence.color(held[gi])
 		if Secret.is_kind(held[gi]):
@@ -611,7 +663,7 @@ func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
 		var amount: float = main.run_flow if Secret.is_kind(kind) else main.run_essence[kind]
 		draw_string(UI.font("mono"), Vector2(ex + 14, pos.y + 16), str(int(amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Secret.KINDS[kind]["light"] if Secret.is_kind(kind) else TEXT, a))
 		ex += 44.0
-	draw_string(font, Vector2(ex + 4, pos.y + 15), "unbanked", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(DIM_TEXT, a))
+	UI.draw_eyebrow(self, Vector2(ex + 2, pos.y + 15), "unbanked", Color(DIM_TEXT, a), 12)
 
 
 ## The keyboard (or controller) controls, top right (H, or the Controls setting).
@@ -626,7 +678,9 @@ func _draw_help(size: Vector2, font: Font) -> void:
 		key_w = maxf(key_w, font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
 	var box_w := key_w + 176.0
 	var box := Rect2(size.x - box_w - 16.0, 14, box_w, 20 + help.size() * 17)
-	draw_style_box(panel, box)
+	var pb := Draw.Batch.new()
+	UI.plate_into(pb, box)
+	pb.flush(self)
 	for i in help.size():
 		var row_y := box.position.y + 24 + i * 17
 		draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, GOLD)
@@ -652,24 +706,24 @@ func _draw_screen_hints(size: Vector2, font: Font, a := 1.0) -> void:
 	var hints: Array = [["Esc", "{start}", "menu"], ["Tab", "{back}", "climber"], ["I", "D-pad up", "inventory"], ["H", "-", "keys"]]
 	var parts: Array = []
 	var w := 0.0
+	var mono := UI.font("mono")
 	for h in hints:
 		var k: String = Controls.pad_text(h[1], main.pad_ps) if main.pad_active else h[0]
 		if k == "-":
 			continue
 		parts.append([k, h[2]])
-		w += font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + font.get_string_size(h[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 22.0
-	var r := Rect2(size.x - 16.0 - w - 8.0, 14, w + 8.0, 22)
-	var pb: StyleBoxFlat = panel.duplicate() if a < 0.999 else panel
-	if a < 0.999:
-		pb.bg_color.a *= a
-		pb.border_color.a *= a
-	draw_style_box(pb, r)
+		w += maxf(mono.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 8.0, 15.0) + font.get_string_size(h[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 20.0
+	var r := Rect2(size.x - 16.0 - w - 10.0, 12, w + 10.0, 26)
+	var b := Draw.Batch.new()
+	UI.plate_into(b, r, a)
+	b.flush(self)
+	# Each key on its badge, then what it opens.
 	var x := r.position.x + 10.0
 	for pt in parts:
-		draw_string(font, Vector2(x, 29), pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(GOLD, a))
-		x += font.get_string_size(pt[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 5.0
-		draw_string(font, Vector2(x, 29), pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(DIM_TEXT, a))
-		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 17.0
+		var kw: float = UI.draw_key(self, Vector2(x, 17), pt[0], 10, Color(GOLD, a)).x
+		x += kw + 5.0
+		draw_string(font, Vector2(x, 30), pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(DIM_TEXT, a))
+		x += font.get_string_size(pt[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 15.0
 
 
 ## A weapon's key numbers, for its tooltip.
@@ -702,12 +756,15 @@ func _draw_tip(font: Font) -> void:
 		box.position.x = minf(box.position.x, size.x - box.size.x - 6.0)
 		if box.end.y > size.y - 6.0:
 			box.position.y = m.y - box.size.y - 10.0
+		box.size.y += 8.0
 		draw_style_box(tip_box, box)
 		# The Entity tells you what it is (its small face in the corner).
-		Entity.draw_face(self, box.position + Vector2(box.size.x - 13.0, 14.0), 7.0, 0.0)
-		UI.draw_label(self, box.position + Vector2(11, 19), t[1], 17, GOLD)
+		Entity.draw_face(self, box.position + Vector2(box.size.x - 14.0, 15.0), 7.0, 0.0)
+		UI.draw_label(self, box.position + Vector2(12, 20), t[1], 17, GOLD)
+		# A gilt rule under the title, fading to the right.
+		draw_polyline_colors(PackedVector2Array([box.position + Vector2(12, 27), box.position + Vector2(box.size.x - 30.0, 27)]), PackedColorArray([Color(UI.GILT, 0.7), Color(UI.GILT, 0.0)]), 1.0)
 		for i in lines.size():
-			draw_string(font, box.position + Vector2(11, 37 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
+			draw_string(font, box.position + Vector2(12, 42 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
 		return
 
 
@@ -1004,22 +1061,24 @@ func _draw_spell_ring(p, font: Font, ci: CanvasItem) -> void:
 	var c: Vector2 = p.get_global_transform_with_canvas().origin
 	if main.touch_active:
 		c = Nav.ring_center(main.pick_anchor, ring_r + 34.0, get_viewport_rect().size, RING_THUMB, RING_TEXT)  # (beside the thumb, never under it)
-	ci.draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.45))
+	_paint_spell_ring(ci, p, b, known, c, ring_r)
+
+
+## The spell ring's look (ui.gd draw_wheel): each spell in a medallion with
+## its bond's emblem and its name, its cost as a gem; the pointed-at one
+## named and described under the wheel.
+func _paint_spell_ring(ci: CanvasItem, p, b, known: Array, c: Vector2, ring_r: float) -> void:
 	var col: Color = b.color()
-	for i in known.size():
-		var a := -PI / 2.0 + TAU * float(i) / float(known.size())
-		var at := c + Vector2.from_angle(a) * ring_r
-		var on: bool = i == p.pick_index
-		ci.draw_circle(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
-		ci.draw_arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5, true)
-		var words: PackedStringArray = known[i]["name"].split(" ")
-		for w in words.size():
-			UI.draw_label(ci, at + Vector2(-30, 4 + (w - (words.size() - 1) / 2.0) * 12.0), words[w], 13, Color(col.lightened(0.3), 1.0) if on else DIM_TEXT, HORIZONTAL_ALIGNMENT_CENTER, 60)
+	var aff: String = b.data()["affinity"]
+	var opts: Array = []
+	for sp in known:
+		var cost := int(round(b.spell_cost(sp)))
+		opts.append({"name": sp["name"], "col": col, "gems": [[col, cost]] if cost > 0 else [],
+			"icon": func(bt, at: Vector2, s: float, ic: Color): UI.emblem_into(bt, at, s, aff, ic, 1.0)})
+	UI.draw_wheel(ci, c, ring_r, opts, p.pick_index, col, get_viewport_rect().size)
 	if p.pick_index >= 0 and p.pick_index < known.size():
 		var sp: Dictionary = known[p.pick_index]
-		UI.draw_label(ci, c + Vector2(-160, ring_r + 54.0), sp["name"], 20, col.lightened(0.2), HORIZONTAL_ALIGNMENT_CENTER, 320, 4)
-		ci.draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
-		ci.draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), sp["desc"], HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
+		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, sp["name"], sp["desc"], col)
 
 
 ## The ring of belt items, around the climber (or, on a phone, beside the
@@ -1036,30 +1095,21 @@ func _draw_item_ring(p, font: Font, ci: CanvasItem) -> void:
 		# On a phone the ring sits beside your thumb on the Item button (never
 		# under it); you point by sliding from the button.
 		c = Nav.ring_center(main.pick_anchor, ring_r + 34.0, view, RING_THUMB, RING_TEXT)
-	ci.draw_circle(c, ring_r + 34.0, Color(0, 0, 0, 0.6))
-	var b := Draw.Batch.new()
-	for i in have.size():
-		var a := -PI / 2.0 + TAU * float(i) / float(have.size())
-		var at := c + Vector2.from_angle(a) * ring_r
-		var on: bool = i == p.ring_index
-		var col := Items.color(have[i])
-		b.dot(at, 25.0 if on else 21.0, Color(0.05, 0.04, 0.07, 0.92))
-		b.arc(at, 25.0 if on else 21.0, 0.0, TAU, 28, Color(col, 1.0 if on else 0.45), 3.0 if on else 1.5)
-		Items.icon_into(b, have[i], at + Vector2(0, -2), 11.0 if on else 9.5)
-	b.flush(ci)
-	for i in have.size():
-		var a := -PI / 2.0 + TAU * float(i) / float(have.size())
-		var at := c + Vector2.from_angle(a) * ring_r
-		var n := "%d" % p.item_count(have[i])
-		ci.draw_string_outline(UI.font("mono"), at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.85))
-		ci.draw_string(UI.font("mono"), at + Vector2(6, 18), n, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, TEXT)
+	_paint_item_ring(ci, p, have, c, ring_r)
+
+
+## The item ring's look (ui.gd draw_wheel): each item in a medallion with
+## its icon, its name and how many you carry; the pointed-at one named and
+## described under the wheel.
+func _paint_item_ring(ci: CanvasItem, p, have: Array, c: Vector2, ring_r: float) -> void:
+	var opts: Array = []
+	for id in have:
+		opts.append({"name": Items.info(id)["name"], "col": Items.color(id), "badge": str(p.item_count(id)),
+			"icon": func(bt, at: Vector2, s: float, _ic: Color): Items.icon_into(bt, id, at, s * 1.05)})
+	UI.draw_wheel(ci, c, ring_r, opts, p.ring_index, UI.GILT, get_viewport_rect().size)
 	if p.ring_index >= 0 and p.ring_index < have.size():
 		var d: Dictionary = Items.info(have[p.ring_index])
-		var col: Color = d["color"]
-		UI.draw_label(ci, c + Vector2(-160, ring_r + 54.0), d["name"], 20, col.lightened(0.2), HORIZONTAL_ALIGNMENT_CENTER, 320, 4)
-		var line := _sentence(String(d["desc"]))
-		ci.draw_multiline_string_outline(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, 4, Color(0, 0, 0, 0.8))
-		ci.draw_multiline_string(font, c + Vector2(-170, ring_r + 72.0), line, HORIZONTAL_ALIGNMENT_CENTER, 340, 14, 2, TEXT)
+		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, d["name"], _sentence(String(d["desc"])), d["color"])
 
 
 ## A Rare (or better) find: a short notice fades in under the floor title.
@@ -1115,8 +1165,17 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	var at := center + d * minf((size.x * 0.5 - margin) / maxf(absf(d.x), 0.001), ((size.y * 0.5 - margin) if d.y > 0.0 else (size.y * 0.5 - top)) / maxf(absf(d.y), 0.001))
 	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.006)
 	var tip := at + d * 14.0
-	draw_colored_polygon(PackedVector2Array([tip, at - d * 8.0 + d.orthogonal() * 10.0, at - d * 8.0 - d.orthogonal() * 10.0]), Color(1.0, 0.85, 0.5, pulse))
-	UI.draw_label(self, at - d * 26.0 + Vector2(-20, 4), "Stair", 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
+	# A gilt arrowhead, outlined and lit along one side, with a stud behind it.
+	var side := d.orthogonal()
+	var head := PackedVector2Array([tip, at - d * 8.0 + side * 10.0, at - d * 3.0, at - d * 8.0 - side * 10.0])
+	var b := Draw.Batch.new()
+	UI.glow_into(b, at, 22.0, UI.GILT, 0.6 * pulse)
+	b.poly(head, Color(UI.GILT_DEEP.lerp(UI.GILT, 0.6), 0.6 + 0.4 * pulse), 1.4)
+	b.polygon(PackedVector2Array([tip, at - d * 8.0 + side * 10.0, at - d * 3.0]), Color(UI.GILT_HI, 0.55 + 0.45 * pulse))
+	UI.diamond_into(b, at - d * 13.0, 3.4, UI.OUTLINE)
+	UI.diamond_into(b, at - d * 13.0, 2.2, Color(UI.GILT_HI, pulse))
+	b.flush(self)
+	UI.draw_label(self, at - d * 28.0 + Vector2(-20, 4), "Stair", 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
 
 
 func _draw_boss_bar(size: Vector2, font: Font) -> void:
@@ -1124,16 +1183,46 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 		if not e.is_boss():
 			continue
 		var w := minf(460.0, size.x - 120.0)
-		var r := Rect2(Vector2((size.x - w) / 2.0, 84), Vector2(w, 12))
+		var r := Rect2(Vector2((size.x - w) / 2.0, 86), Vector2(w, 12))
 		var name: String = UI.titled(main.beast_name())
 		if e.shade:  # the Proving's shadow of the beast
 			name = UI.titled(String(main.proving.TEXT["shadow_bar"]) % main.beast_name())
-		UI.draw_label(self, Vector2(0, 78), name, 19, GOLD, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
-		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
-		draw_rect(r, Color(0.3, 0.1, 0.08, 0.9))
-		draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(e.hp / e.max_hp, 0.0, 1.0), r.size.y)), Color(0.85, 0.3, 0.22))
-		draw_line(Vector2(r.position.x + r.size.x * 0.5, r.position.y), Vector2(r.position.x + r.size.x * 0.5, r.end.y), Color(1, 1, 1, 0.35), 1.0)
+		var k := clampf(e.hp / e.max_hp, 0.0, 1.0)
+		# The chunk just lost lingers, then drains down to it.
+		var now := Time.get_ticks_msec()
+		var dt := clampf((now - _boss_t) / 1000.0, 0.0, 0.1)
+		_boss_t = now
+		if e != _boss_seen:
+			_boss_seen = e
+			_boss_trail = k
+		_boss_trail = k if _boss_trail < k else move_toward(_boss_trail, k, dt * 0.35)
+		var col := Color(0.62, 0.42, 0.9) if e.shade else Color(0.86, 0.26, 0.2)
+		var b := Draw.Batch.new()
+		# A dark band behind, the name between gilt rules, the bar in a gilt
+		# frame with horned finials and studs at the quarters.
+		UI.band_into(b, Rect2(r.position.x - 70.0, 52.0, w + 140.0, 60.0), 1.0, UI.GILT, 0.7)
+		var tw := UI.font("display").get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+		UI.flank_into(b, size.x * 0.5, 70.0, tw * 0.5 + 12.0, minf(110.0, w * 0.5 - tw * 0.5 - 16.0), Color(UI.GILT, 0.8))
+		for side in [-1.0, 1.0]:
+			var tip := Vector2(r.get_center().x + side * (w * 0.5 + 22.0), r.get_center().y)
+			var base := Vector2(r.get_center().x + side * (w * 0.5 + 3.0), r.get_center().y)
+			var horn := PackedVector2Array([base + Vector2(0, -8.5), tip, base + Vector2(0, 8.5), base + Vector2(side * 5.0, 0)])
+			b.poly(horn, UI.GILT_DEEP.lerp(UI.GILT, 0.5), 1.2)
+			b.polygon(PackedVector2Array([base + Vector2(0, -8.5), tip, base + Vector2(side * 5.0, 0)]), UI.GILT_HI)
+			UI.diamond_into(b, tip + Vector2(side * 5.0, 0), 2.6, UI.GILT_HI)
+		UI.gauge_into(b, r, k, col, _boss_trail, Color(1.0, 0.82, 0.55, 0.9), 4)
+		for i in range(1, 4):
+			var sx := r.position.x + w * i / 4.0
+			UI.diamond_into(b, Vector2(sx, r.position.y - 2.6), 2.4, UI.OUTLINE)
+			UI.diamond_into(b, Vector2(sx, r.position.y - 2.6), 1.5, UI.GILT_HI)
+		b.flush(self)
+		UI.draw_title(self, Vector2(0, 79), name, 26, UI.GILT_HI if not e.shade else Color(0.85, 0.78, 1.0), HORIZONTAL_ALIGNMENT_CENTER, size.x, 0.8)
 		return
+
+
+var _boss_trail := 1.0  # the beast bar's lingering chunk
+var _boss_seen = null
+var _boss_t := 0
 
 
 ## A sealed wing's question (wings.gd): its condition, kept or broken, the
@@ -1143,30 +1232,41 @@ func _draw_wing_status(size: Vector2, font: Font) -> void:
 		return
 	# Shut in a lock-in room (doors.gd): say so, and how many foes are left.
 	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
+	var y := 84.0
 	if not ls.is_empty() and not _boss_alive():  # (a beast's shadow has its own bar there)
 		var t1: String = main.door_view.LOCK_TEXT["status"]
 		var t2: String = main.door_view.LOCK_TEXT["left"] % int(ls["left"])
+		var lw := maxf(UI.font("display").get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, font.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x) + 56.0
+		var lb := Draw.Batch.new()
+		UI.cartouche_into(lb, Rect2((size.x - lw) * 0.5, 67.0, lw, 42.0), Color(UI.BLOOD, 0.85))
+		lb.flush(self)
 		UI.draw_label(self, Vector2(0, 84), t1, 20, Color(0.9, 0.55, 0.45), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
 		draw_string_outline(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 3, Color(0, 0, 0, 0.7))
 		draw_string(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
+		y += 48.0  # (a challenge's words go under it)
 	var st: Dictionary = main.wings.status()
 	if st.is_empty():
 		return
-	var y := 84.0
 	var champ = st.get("champ")
 	if champ != null:
 		var w := minf(360.0, size.x - 140.0)
-		var r := Rect2(Vector2((size.x - w) / 2.0, y + 6.0), Vector2(w, 10))
+		var r := Rect2(Vector2((size.x - w) / 2.0, y + 8.0), Vector2(w, 8))
 		var name: String = UI.titled(String(main.wings.TEXT["champion"]))
+		var cb := Draw.Batch.new()
+		var nw := UI.font("display").get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
+		UI.flank_into(cb, size.x * 0.5, y - 6.0, nw * 0.5 + 10.0, 60.0, Color(UI.GILT, 0.7))
+		UI.gauge_into(cb, r, clampf(champ.hp / champ.max_hp, 0.0, 1.0), Color(0.95, 0.72, 0.3), -1.0, Color(), 4)
+		cb.flush(self)
 		UI.draw_label(self, Vector2(0, y), name, 19, GOLD, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
-		draw_rect(r.grow(2.0), Color(0, 0, 0, 0.8))
-		draw_rect(r, Color(0.3, 0.1, 0.08, 0.9))
-		draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(champ.hp / champ.max_hp, 0.0, 1.0), r.size.y)), Color(0.95, 0.72, 0.3))
 		y += 40.0
 	if champ != null and st["line"] == "":
 		return
 	var col := GOLD if st["ok"] else Color(0.9, 0.42, 0.35)
 	var head: String = UI.title_case(st["title"]) + ("" if st["ok"] else "  ·  broken")
+	var hw := maxf(UI.font("display").get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, font.get_string_size(st["line"], HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x if st["line"] != "" else 0.0) + 56.0
+	var wb := Draw.Batch.new()
+	UI.cartouche_into(wb, Rect2((size.x - hw) * 0.5, y - 17.0, hw, 42.0 if st["line"] != "" else 25.0), Color(col, 0.85))
+	wb.flush(self)
 	UI.draw_label(self, Vector2(0, y), head, 20, col, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
 	if st["line"] != "":
 		draw_string_outline(font, Vector2(0, y + 19.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 3, Color(0, 0, 0, 0.7))

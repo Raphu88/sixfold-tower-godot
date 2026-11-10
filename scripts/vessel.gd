@@ -304,9 +304,8 @@ static func hud_into(b, p, at: Vector2, tips: Array) -> Rect2:
 	if fill(v) > 0.0:
 		UI.glow_into(b, at, 12.0, col, 0.5 + 0.6 * fill(v))
 	icon_into(b, at + Vector2(0, -1), 8.5, v)
-	var bar := Rect2(at + Vector2(-8, 12), Vector2(16, 3))
-	b.rect(bar.grow(1.0), UI.OUTLINE)
-	b.rect(Rect2(bar.position, Vector2(bar.size.x * fill(v), bar.size.y)), col.lightened(0.2))
+	# Its gauge: a slim gilt-framed bar under it.
+	UI.gauge_into(b, Rect2(at + Vector2(-9, 13), Vector2(18, 3)), fill(v), col.lightened(0.2), -1.0, Color(), 0)
 	var r := Rect2(at - Vector2(11, 11), Vector2(22, 27))
 	var lines: Array = TEXT["hud_lines"].duplicate()
 	lines[0] = String(lines[0]) % int(CAPACITY)
