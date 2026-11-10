@@ -283,7 +283,7 @@ static func outfitter_says(text: String, face := 40.0) -> HBoxContainer:
 	bubble.add_child(col)
 	var tag := Label.new()
 	tag.text = Train.OUTFITTER["tag"]
-	UI.style_label(tag, "eyebrow", 10, Color(TrainView.OutfitterFace.BRASS, 0.95))
+	UI.style_label(tag, "eyebrow", 14, Color(TrainView.OutfitterFace.BRASS, 0.95))
 	col.add_child(tag)
 	var l := Label.new()
 	l.text = text
@@ -321,11 +321,11 @@ func _furnish(parent: Node, kind: String) -> VBoxContainer:
 	return col
 
 
-## A brass-lettered name on a piece of furniture.
+## A brass-lettered name on a piece of furniture (a small gothic label).
 func _tag(parent: Node, text: String) -> Label:
 	var l := Label.new()
-	l.text = text.to_upper()
-	UI.style_label(l, "eyebrow", 11 if _small() else 12, UI.GOLD)
+	l.text = text
+	UI.style_label(l, "eyebrow", 13 if _small() else 14, UI.GOLD)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	l.add_theme_constant_override("outline_size", 3)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1821,7 +1821,7 @@ class Purse extends Control:
 			draw_string(mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 15, col)
 			if size.x > 430.0:
 				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-				draw_string(font, Vector2(x + nw + 4.0, size.y * 0.5 + 4.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, 13, UI.DIM)
+				draw_string(UI.font("display"), Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, 15, UI.DIM)
 
 
 ## A price: a gem of its kind, the amount and the kind's name (red if you

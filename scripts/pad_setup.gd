@@ -403,7 +403,7 @@ func _build() -> void:
 			_button(TEXT["reset"], reset, row)
 	# What's been recorded so far.
 	if state != "pick" and not got.is_empty():
-		_line(TEXT["recorded"].to_upper(), Color(UI.GOLD, 0.7), 12)
+		UI.style_label(_line(TEXT["recorded"], Color(UI.GOLD, 0.75), 14), "eyebrow", 14, Color(UI.GOLD, 0.75))
 		var grid := GridContainer.new()
 		grid.columns = 2 if small else 4
 		grid.add_theme_constant_override("h_separation", 14)
@@ -414,7 +414,7 @@ func _build() -> void:
 				grid.add_child(_cell(s["name"], UI.DIM))
 				grid.add_child(_cell(pad.source_text(got[s["id"]]), UI.TEXT))
 	# The live readout.
-	_line(TEXT["readout"].to_upper(), Color(UI.GOLD, 0.7), 12)
+	UI.style_label(_line(TEXT["readout"], Color(UI.GOLD, 0.75), 14), "eyebrow", 14, Color(UI.GOLD, 0.75))
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", UI.box(Color(0.05, 0.045, 0.07), Color(1, 1, 1, 0.06), 6, 1, 8.0))
 	add_child(panel)

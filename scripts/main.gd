@@ -1135,7 +1135,7 @@ func _enter_room(i: int) -> void:
 func _room_banner(i: int) -> void:
 	var th: Dictionary = Themes.get_theme(room_themes[i])
 	tip("rooms")
-	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true}
+	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true, "inscribed": true}
 	sfx("glint", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)
 
 

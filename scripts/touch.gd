@@ -319,11 +319,11 @@ func _draw() -> void:
 	if not active or main.choosing_tower or main.camp_choosing or main.overlay_showing() or main.menu_open():
 		return  # nothing to press while choosing a tower or during the Regard
 	_layout()
-	var font := ThemeDB.fallback_font
+	var font := UI.font("display")  # (the buttons' names are labels: the gothic face)
 	var size := get_viewport_rect().size
 	if size.x < size.y:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.85))
-		draw_string(font, Vector2(0, size.y / 2.0), "Turn your phone sideways", HORIZONTAL_ALIGNMENT_CENTER, size.x, 28, Color(0.95, 0.8, 0.5))
+		draw_string(font, Vector2(0, size.y / 2.0), "Turn your phone sideways", HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, Color(0.95, 0.8, 0.5))
 		return
 
 	if stick_touch != -1:
@@ -333,7 +333,7 @@ func _draw() -> void:
 		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
 	else:
 		if main.gear_here.is_empty() and not (main.player != null and main.player.dead):  # (the gear card sits here while you stand on gear)
-			draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.3))
+			draw_string(UI.font("body"), Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()
@@ -414,16 +414,16 @@ func _draw() -> void:
 			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0, true)
 		if pressed:
 			draw_circle(c, r - 3.0, Color(col, 0.18))
-		var fsize := 15 if r > 30.0 else 12
+		var fsize := 16 if r > 30.0 else 13
 		if b["id"] == "climber" or b["id"] == "inventory":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
-			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 9, Color(col, 0.9))
+			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.9))
 			continue
 		if bond_aff != "":
-			draw_string(font, c + Vector2(-r, r * 0.55), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 12, Color(col, 0.95))
+			draw_string(font, c + Vector2(-r, r * 0.55), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
 			continue
 		if b["id"] == "item" and label != "Item":
-			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
+			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 14, Color(col, 0.95))
 			continue
 		draw_string(font, c + Vector2(-r, fsize * 0.35), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, fsize, Color(col, 0.9))
 

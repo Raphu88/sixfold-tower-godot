@@ -911,9 +911,8 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 	var y := c.y + RING_R + 58.0
 	var w := minf(360.0, view.x - 24.0)
 	var x := clampf(c.x - w * 0.5, 12.0, view.x - w - 12.0)
-	var title := "%s  ·  %s" % [SB.display(bond()).to_upper(), String(info2["name"])]
-	screen.draw_string_outline(font, Vector2(x, y), title, HORIZONTAL_ALIGNMENT_CENTER, w, 14, 4, Color(0, 0, 0, 0.85))
-	screen.draw_string(font, Vector2(x, y), title, HORIZONTAL_ALIGNMENT_CENTER, w, 14, col.lightened(0.25))
+	var title := "%s  ·  %s" % [SB.display(bond()), String(info2["name"])]
+	UI.draw_label(screen, Vector2(x, y), title, 17, col.lightened(0.25), HORIZONTAL_ALIGNMENT_CENTER, w, 4, Color(0, 0, 0, 0.85))
 	var line := String(info2["short"])
 	if SB.usable_in_climb(id2):
 		var free2: bool = info2.get("lasts", "") == "floor" and paid.has(id2)
@@ -928,8 +927,8 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 			line += "\n" + SB.TEXT["no_target"]
 	else:
 		line += "  ·  " + SB.TEXT["train_only"]
-	screen.draw_multiline_string_outline(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 3, 4, Color(0, 0, 0, 0.85))
-	screen.draw_multiline_string(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 3, Color(0.92, 0.9, 0.86))
+	screen.draw_multiline_string_outline(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, 4, Color(0, 0, 0, 0.85))
+	screen.draw_multiline_string(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 12, 3, Color(0.92, 0.9, 0.86))
 
 
 ## A tool's small glyph: an eye (Inspect), a lever (Switch), a wave (Calm),
@@ -1008,7 +1007,7 @@ func _panel_frame(font: Font, r: Rect2, title: String) -> Rect2:
 		var x := r.position.x + r.size.x * (i + 1) / 5.0
 		screen.draw_line(Vector2(x, r.position.y + 2), Vector2(x, r.position.y + 7), Color(col, 0.35), 1.0)
 		screen.draw_line(Vector2(x, r.end.y - 7), Vector2(x, r.end.y - 2), Color(col, 0.35), 1.0)
-	screen.draw_string(font, r.position + Vector2(10, 17), title, HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 20.0, 13, col.lightened(0.25))
+	UI.draw_label(screen, r.position + Vector2(10, 18), title, 16, col.lightened(0.25), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 20.0)
 	var key := "Tap Tools" if main.touch_active else ("Press %s" % ("LB + LT" if main.pad_active else "B"))
 	screen.draw_string(font, r.position + Vector2(10, 17), SB.TEXT["panel_close"] % key, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 20.0, 10, Color(0.75, 0.72, 0.8, 0.8))
 	return Rect2(r.position + Vector2(10, 26), r.size - Vector2(20, 34))

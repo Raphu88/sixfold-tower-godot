@@ -924,7 +924,7 @@ func _page_padsetup() -> void:
 ## A row of buttons for a setting with a few values; the current one gilded.
 func _choice(text: String, key: String, values: Array) -> void:
 	var row := _row()
-	row.add_child(_label(text, 120.0))
+	row.add_child(UI.style_label(_label(text, 120.0), "display", 18, TEXT))
 	for v in values:
 		var b := _button(v[1], func():
 			_set_setting(key, v[0])
@@ -955,7 +955,7 @@ func _page_controls() -> void:
 			if i == 0:
 				UI.style_label(l, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.75))  # (the columns' heads)
 			elif c == 0:
-				UI.style_label(l, "body", 16, TEXT)
+				UI.style_label(l, "display", 17, TEXT)  # (the action's name: a label)
 			else:
 				UI.style_label(l, "mono", 13, GOLD)  # (keys and buttons)
 			grid.add_child(l)
@@ -1193,7 +1193,7 @@ func _climber_archive() -> void:
 	var listed: Array = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] != "forbidden" or Guide.known(k))
 	var total := listed.size()
 	var heard: int = listed.filter(func(k): return Guide.known(k)).size()
-	_entity_says("archive", "%s  ·  %s" % [Entity.TEXT["tag"], (Entity.TEXT["heard"] % [heard, total]).to_upper()])
+	_entity_says("archive", "%s  ·  %s" % [Entity.TEXT["tag"], Entity.TEXT["heard"] % [heard, total]])
 	var mode := "keys"
 	if main != null and main.touch_active:
 		mode = "touch"
@@ -1276,7 +1276,7 @@ func _maker_shelves(mode: String, ps: bool) -> void:
 		icon.custom_minimum_size = Vector2(30, 30)
 		head.add_child(icon)
 		var frags: Array = st["fragments"].filter(func(f): return f.get("maker", "") == m)
-		var title := _label(d["Name"], 0.0, col.lightened(0.2))
+		var title := UI.style_label(_label(d["Name"], 0.0, col.lightened(0.2)), "display", 19, col.lightened(0.2))
 		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_child(title)
 		head.add_child(_label(Makers.TEXT["shelf_count"] % [frags.size(), "fragment" if frags.size() == 1 else "fragments"], 0.0, DIM))
@@ -1289,8 +1289,8 @@ func _maker_shelves(mode: String, ps: bool) -> void:
 			v.add_child(_small_label(Makers.TEXT["fragment_where"] % [i + 1, tw, int(f.get("floor", 0))], FAINT))
 			var r := Makers.Redacted.new()
 			r.text = words[int(f.get("n", i)) % words.size()]
-			r.color = Color(col.lightened(0.1), 0.7)
-			r.font_size = 12.0
+			r.color = Color(col.lightened(0.1), 0.8)
+			r.font_size = 15.0  # (an inscription: the fine italic)
 			r.set_meta("fragment_text", r.text)
 			v.add_child(r)
 		var bits: Array = []
@@ -1340,8 +1340,8 @@ func _entity_redacted(text: String) -> HBoxContainer:
 	row.add_child(bubble)
 	var r := Makers.Redacted.new()
 	r.text = text
-	r.color = Color(Entity.GLOW, 0.75)
-	r.font_size = 12.0
+	r.color = Color(Entity.GLOW, 0.8)
+	r.font_size = 15.0
 	bubble.add_child(r)
 	row.set_meta("entity_sibling", text)
 	return row
@@ -1481,7 +1481,7 @@ func _effect_panel(parent: Node, title: String, eff: Dictionary, col: Color) -> 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 1)
 	pc.add_child(v)
-	var t := _small_label(title.to_upper(), Color(GOLD, 0.7))
+	var t := _small_label(title, Color(GOLD, 0.7))
 	UI.style_label(t, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.75))
 	v.add_child(t)
 	var n := _label(eff["name"], 0.0, col.lightened(0.15))
@@ -1539,7 +1539,7 @@ func _spell_card(sp: Dictionary, step: int, col: Color, affinity: String, index:
 	var top := HBoxContainer.new()
 	v.add_child(top)
 	var name := _label(sp["name"], 0.0, col.lightened(0.2) if known else DIM)
-	name.add_theme_font_size_override("font_size", 18)
+	UI.style_label(name, "display", 19, col.lightened(0.2) if known else DIM)
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name)
 	var tag := _small_label("learned  ·  step %d" % learn if known else "learned at step %d" % learn, UI.GOOD if known else FAINT)
@@ -1924,8 +1924,7 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.clip_text = true
 	l.custom_minimum_size.x = side + 10.0
-	l.add_theme_font_size_override("font_size", 13)
-	l.add_theme_color_override("font_color", DIM)
+	UI.style_label(l, "display", 14, DIM)  # (what's in it, by name: a label)
 	cell.add_child(l)
 	return s
 
@@ -2793,7 +2792,7 @@ func _set_setting(key: String, value) -> void:
 
 # --- building blocks -----------------------------------------------------------
 
-## A page's heading: an eyebrow (small capitals: where it belongs), the
+## A page's heading: an eyebrow (a small gothic label: where it belongs), the
 ## title in the display face, a line under it, and an ornamental rule. On a
 ## rail page, Close sits at its right (a phone: the title and its line share
 ## one row, to save height).
@@ -2826,7 +2825,7 @@ func _header(text: String, sub: String, eyebrow := "") -> void:
 		line.add_child(l)
 		if sub != "":
 			var s := _label(sub, 0.0, DIM)
-			UI.style_label(s, "italic", 14, DIM)
+			UI.style_label(s, "body", 14, DIM)
 			s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			s.clip_text = true
@@ -2839,7 +2838,7 @@ func _header(text: String, sub: String, eyebrow := "") -> void:
 			s.text = sub
 			s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			s.custom_minimum_size.x = 360.0
-			UI.style_label(s, "italic", UI.SIZE_BODY, DIM)
+			UI.style_label(s, "body", UI.SIZE_BODY, DIM)
 			col.add_child(s)
 	if rail_showing() and page in RAIL_ROOTS:
 		# Close, and the key that does the same.
@@ -3005,8 +3004,8 @@ func _section(text: String, parent: Node = null) -> void:
 	gap.custom_minimum_size.y = 4
 	to.add_child(gap)
 	var l := Label.new()
-	l.text = text.to_upper()
-	UI.style_label(l, "eyebrow", UI.SIZE_EYEBROW, Color(GOLD, 0.78))
+	l.text = text
+	UI.style_label(l, "eyebrow", UI.SIZE_EYEBROW + 1, Color(GOLD, 0.82))
 	to.add_child(l)
 
 
@@ -3038,7 +3037,7 @@ func _label(text: String, width: float, color := TEXT) -> Label:
 
 ## A name and a value, in a two-column grid.
 func _pair(grid: GridContainer, name: String, value: String, col := TEXT) -> void:
-	grid.add_child(_label(name, 130.0, DIM))
+	grid.add_child(UI.style_label(_label(name, 130.0, DIM), "display", 17, DIM))  # (a label: gothic)
 	grid.add_child(_label(value, 0.0, col))
 
 
@@ -3085,7 +3084,7 @@ func _small(text: String, action: Callable) -> Button:
 
 func _slider(text: String, key: String) -> void:
 	var row := _row()
-	var name_label := _label(text, 120.0)
+	var name_label := UI.style_label(_label(text, 120.0), "display", 18, TEXT)
 	row.add_child(name_label)
 	var s := HSlider.new()
 	# Keys and controller: a focused slider lights up gold (left and right move it).
@@ -3175,7 +3174,10 @@ class Slot extends Button:
 		add_theme_stylebox_override("focus", f)
 
 	func _draw() -> void:
-		var font := ThemeDB.fallback_font
+		# A slot's name is a label (the gothic face); counts and prices are
+		# numbers (tabular figures).
+		var font := UI.font("mono")
+		var label := UI.font("display")
 		var c := size / 2.0
 		var s := size.x * 0.33
 		# A soft inner light behind what's in the slot, in its colour.
@@ -3191,14 +3193,14 @@ class Slot extends Button:
 		if locked:
 			UI.draw_lock(self, c + (Vector2(0, -5) if slot_name != "" else Vector2.ZERO), s * 0.7, Color(UI.FAINT, 0.8))
 			if slot_name != "":
-				draw_string(font, Vector2(0, size.y - 7.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 10, Color(UI.FAINT, 0.9))
+				draw_string(label, Vector2(0, size.y - 6.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color(UI.FAINT, 0.9))
 			return
 		match kind:
 			"gear", "heir", "floor":
 				if id != "" or (kind == "gear" and not empty):
 					Gear.draw_icon(self, rec if rec != null else id, c, s, tint if not empty else Color(tint, 0.3))
 				elif slot_name != "":
-					draw_string(font, Vector2(0, c.y + 4.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color(UI.FAINT, 0.9))
+					draw_string(label, Vector2(0, c.y + 5.0), slot_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(UI.FAINT, 0.9))
 				else:
 					draw_arc(c, s * 0.55, 0.0, TAU, 24, Color(UI.FAINT, 0.45), 1.5, true)
 				if wear >= 0.0:
@@ -3236,9 +3238,9 @@ class Slot extends Button:
 		if corner != "":
 			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD if on else UI.DIM)
 		if on and kind == "item":
-			draw_string(font, Vector2(5, size.y - 5.0), "quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.GOLD)
+			draw_string(label, Vector2(5, size.y - 5.0), "Quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.GOLD)
 		if kind == "floor":
-			draw_string(font, Vector2(5, 13), "new", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.GOLD)
+			draw_string(label, Vector2(5, 14), "New", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD)
 		if price > 0:
 			var gb := UI.Draw.Batch.new()
 			if price_kind == "any":  # (train.gd ANY: any kind: a gold gem flanked by two small ones)
@@ -3330,7 +3332,7 @@ class BodyView extends Control:
 		queue_redraw()  # the marks glow and pulse
 
 	func _draw() -> void:
-		var font := ThemeDB.fallback_font
+		var font := UI.font("display")
 		var k := minf(size.y / 292.0, size.x / 316.0)
 		var c := Vector2(size.x * 0.5, size.y * 0.5 + 4.0 * k)
 		var t := Time.get_ticks_msec() / 1000.0
@@ -3372,13 +3374,19 @@ class BodyView extends Control:
 				sub_col = Color(UI.GOLD, 0.8)
 			if part == "back":
 				name = "Back (behind)"
-			var w1 := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-			var w2 := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+			# The part and its mark are names (the gothic face); "unmarked" and
+			# the like are plain words.
+			var sf: Font = font if not info.is_empty() else UI.font("body")
+			var small := k < 0.8
+			var ns := 15 if small else 16
+			var ss := 13 if small else 14
+			var w1 := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
+			var w2 := sf.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss).x
 			var x1 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w1
 			var x2 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w2
-			draw_string_outline(font, Vector2(x1, ly + 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 3, Color(0, 0, 0, 0.6))
-			draw_string(font, Vector2(x1, ly + 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.TEXT if not info.is_empty() else UI.DIM)
-			draw_string(font, Vector2(x2, ly + 17.0), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, sub_col)
+			draw_string_outline(font, Vector2(x1, ly + 3.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns, 3, Color(0, 0, 0, 0.6))
+			draw_string(font, Vector2(x1, ly + 3.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns, UI.TEXT if not info.is_empty() else UI.DIM)
+			draw_string(sf, Vector2(x2, ly + (15.0 if small else 18.0)), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss, sub_col)
 
 	func _backdrop(b) -> void:
 		for i in 6:
@@ -3560,7 +3568,7 @@ class MarkCard extends Button:
 			var b := UI.Draw.Batch.new()
 			UI.socket_into(b, mc, r * 0.78, main.soak_fraction(part) if lead == part else 0.0)
 			b.flush(self)
-			draw_string(font, Vector2(x, h * 0.5 - 4.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, UI.DIM)
+			UI.draw_label(self, Vector2(x, h * 0.5 - 4.0), name, 19, UI.DIM)
 			# How much it has soaked up (on the first climb, against the part
 			# you've used most); the leader is where the next mark forms.
 			var soak: float = main.soak_fraction(part)
@@ -3597,7 +3605,7 @@ class MarkCard extends Button:
 			grow = "%d / %d to step %d" % [int(xp - lo), int(hi - lo), step + 1]
 		grow = _fit(font, grow, w, 13)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
-		draw_string(font, Vector2(x, y + 16.0), data["name"], HORIZONTAL_ALIGNMENT_LEFT, w, 18, col.lightened(0.12))
+		UI.draw_label(self, Vector2(x, y + 17.0), data["name"], 20, col.lightened(0.12), HORIZONTAL_ALIGNMENT_LEFT, w)
 		var sub := "%s  ·  %s" % [name, "faint" if faint else "step %d" % step]
 		draw_string(font, Vector2(x, y + 31.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 		UI.draw_bar(self, Rect2(Vector2(x, y + 38.0), Vector2(w, 6.0)), k, col)
@@ -3765,10 +3773,11 @@ class FlowView extends Control:
 		if st <= 0:
 			draw_string(font, Vector2(x, size.y * 0.5 + 5.0), Secret.TEXT["faint_sign"] % [Secret.display(path), int(Secret.STEPS[0])], HORIZONTAL_ALIGNMENT_LEFT, w, 15, Color(col, 0.75))
 			return
-		var head := "%s  ·  STEP %d OF %d" % [Secret.display(path).to_upper(), st, Secret.STEPS.size()]
-		draw_string(font, Vector2(x, 18), head, HORIZONTAL_ALIGNMENT_LEFT, w, 15, light)
-		var hw := font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 18.0
-		draw_string(font, Vector2(x + hw, 18), Secret.KINDS[path]["motto"], HORIZONTAL_ALIGNMENT_LEFT, maxf(w - hw, 10.0), 14, Color(col, 0.8))
+		# The path and its step (a label: gothic), then its motto (an inscription).
+		var head := "%s  ·  Step %d of %d" % [Secret.display(path), st, Secret.STEPS.size()]
+		UI.draw_label(self, Vector2(x, 19), head, 18, light, HORIZONTAL_ALIGNMENT_LEFT, w)
+		var hw := UI.font("display").get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 16.0
+		UI.draw_inscription(self, Vector2(x + hw, 19), Secret.KINDS[path]["motto"], 17, Color(col.lightened(0.15), 0.9), HORIZONTAL_ALIGNMENT_LEFT, maxf(w - hw, 10.0))
 		var small := size.y < 140.0
 		var y := 38.0
 		var lh := 17.0 if small else 20.0
@@ -3803,9 +3812,11 @@ class EssenceView extends Control:
 		var row_h := 32.0 if small else 42.0
 		var left_w := floorf(size.x * 0.58)
 		var b := UI.Draw.Batch.new()
-		var texts: Array = []  # [pos, text, size, colour, align width]
+		var texts: Array = []  # [pos, text, size, colour, align width, font (default body)]
+		var gothic := UI.font("display")  # (heads and names)
+		var mono := UI.font("mono")  # (numbers)
 		var head_col := Color(UI.GOLD, 0.7)
-		texts.append([Vector2(0, 12), "DENSITY AND ATTRIBUTES", 13, head_col, -1.0])
+		texts.append([Vector2(0, 12), "Density and Attributes", 15, head_col, -1.0, gothic])
 		var y := 22.0
 		for kind in KINDS:
 			var attr: Dictionary = prof.ATTRIBUTES[kind]
@@ -3816,9 +3827,9 @@ class EssenceView extends Control:
 			b.rect(Rect2(r.position, Vector2(2.0, r.size.y)), Color(col, 0.6))
 			var cy := y + (row_h - 4.0) * 0.5
 			UI.gem_into(b, Vector2(18, cy), 7.5, col)
-			texts.append([Vector2(34, cy + 5), Essence.display(kind), 17, col, -1.0])
+			texts.append([Vector2(34, cy + 5), Essence.display(kind), 18, col, -1.0, gothic])
 			texts.append([Vector2(88, cy + 5), attr["name"], 14, UI.TEXT, -1.0])
-			texts.append([Vector2(150, cy + 5), "%d" % int(prof.density.get(kind, 0.0)), 14, UI.DIM, 44.0])
+			texts.append([Vector2(150, cy + 5), "%d" % int(prof.density.get(kind, 0.0)), 14, UI.DIM, 44.0, mono])
 			var bx := 206.0
 			var bw := maxf(left_w - bx - 150.0, 60.0)
 			UI.bar_into(b, Rect2(Vector2(bx, cy - 3.5), Vector2(bw, 7.0)), clampf(bonus / prof.ATTRIBUTE_CAP, 0.0, 1.0), col)
@@ -3828,14 +3839,14 @@ class EssenceView extends Control:
 		# Right: settled in the body, and unbanked.
 		var rx := left_w + 22.0
 		var rw := size.x - rx
-		texts.append([Vector2(rx, 12), "SETTLED IN YOUR BODY", 13, head_col, -1.0])
+		texts.append([Vector2(rx, 12), "Settled in Your Body", 15, head_col, -1.0, gothic])
 		var most := 1.0
 		for part in Bonds.PARTS:
 			most = maxf(most, _total(prof, part))
 		var py := 26.0
 		var step := 20.0 if small else 24.0
 		for part in Bonds.PARTS:
-			texts.append([Vector2(rx, py + 11), Bonds.PART_NAMES[part], 13, UI.TEXT if prof.bonds.has(part) else UI.DIM, -1.0])
+			texts.append([Vector2(rx, py + 11), Bonds.PART_NAMES[part], 15, UI.TEXT if prof.bonds.has(part) else UI.DIM, -1.0, gothic])
 			var bar := Rect2(Vector2(rx + 56, py + 3), Vector2(rw - 96.0, 8))
 			UI.capsule(b, bar.position.x - 1.4, bar.end.x + 1.4, bar.get_center().y, 5.4, UI.OUTLINE)
 			UI.capsule(b, bar.position.x, bar.end.x, bar.get_center().y, 4.0, Color(0.14, 0.13, 0.17))
@@ -3847,10 +3858,10 @@ class EssenceView extends Control:
 					b.rect(Rect2(Vector2(bx, bar.position.y), Vector2(ww, bar.size.y)), Essence.color(e))
 					b.rect(Rect2(Vector2(bx, bar.position.y), Vector2(ww, 3.0)), Color(Essence.color(e).lightened(0.4), 0.5))
 					bx += ww
-			texts.append([Vector2(bar.end.x + 4, py + 11), "%d" % int(_total(prof, part)), 13, UI.DIM, 34.0])
+			texts.append([Vector2(bar.end.x + 4, py + 11), "%d" % int(_total(prof, part)), 13, UI.DIM, 34.0, mono])
 			py += step
 		py += 10.0
-		texts.append([Vector2(rx, py + 10), "UNBANKED THIS CLIMB", 13, head_col, -1.0])
+		texts.append([Vector2(rx, py + 10), "Unbanked This Climb", 15, head_col, -1.0, gothic])
 		py += 30.0
 		var x := rx
 		var any := false
@@ -3867,10 +3878,11 @@ class EssenceView extends Control:
 				py += 20.0
 		b.flush(self)
 		for tx in texts:
+			var f: Font = tx[5] if tx.size() > 5 else font
 			if tx[4] > 0.0:
-				draw_string(font, tx[0], tx[1], HORIZONTAL_ALIGNMENT_RIGHT, tx[4], tx[2], tx[3])
+				draw_string(f, tx[0], tx[1], HORIZONTAL_ALIGNMENT_RIGHT, tx[4], tx[2], tx[3])
 			else:
-				draw_string(font, tx[0], tx[1], HORIZONTAL_ALIGNMENT_LEFT, -1, tx[2], tx[3])
+				draw_string(f, tx[0], tx[1], HORIZONTAL_ALIGNMENT_LEFT, -1, tx[2], tx[3])
 		if not any:
 			draw_multiline_string(font, Vector2(rx, py + 1), "None yet: slain monsters leave essence; bank it at the stair.", HORIZONTAL_ALIGNMENT_LEFT, rw, 14, -1, UI.FAINT)
 		else:

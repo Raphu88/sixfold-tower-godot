@@ -263,7 +263,7 @@ class Card extends Button:
 
 	func _draw() -> void:
 		var font := ThemeDB.fallback_font
-		var fs_num := 9 if small else 10
+		var fs_num := 12 if small else 14  # (a small gothic label: the slot, and "current")
 		UI.draw_eyebrow(self, Vector2(8, 6 + fs_num), slot_text, Color(UI.DIM, 0.8), fs_num)
 		if prof == null:
 			_draw_empty(font)
