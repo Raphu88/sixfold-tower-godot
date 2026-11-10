@@ -7239,6 +7239,7 @@ func _run() -> void:
 	await _data_editor_tests()
 	await _icon_tests()
 	await _arrange_tests()
+	await _abilities_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -7809,11 +7810,15 @@ func _screen_tests() -> void:
 	await _key_tap(KEY_TAB)
 	_check(menu.page == "climber" and paused, "Tab opens the climber screen and pauses")
 	_check(_menu_button("Close") != null, "...with Close (not Back)")
-	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
-	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "...the body and a card for each of the six parts")
+	_check(menu.climber_tab == "abilities" and _all_buttons(menu).any(func(b): return b.has_meta("ability")), "...on its Abilities tab at first")
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 3, "...and its tabs (Marks, Essence, Record; the Archive is the Library now)")
+	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 4, "...and its tabs (Abilities, Marks, Essence, Record; the Archive is the Library now)")
 	tabs[1].pressed.emit()
+	await _frames(1)
+	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
+	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "the Marks tab: the body and a card for each of the six parts")
+	tabs = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
+	tabs[2].pressed.emit()
 	await _frames(1)
 	_check(menu.climber_tab == "essence" and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.EssenceView), "the Essence tab shows density and attributes")
 	menu.climber_tab = "marks"
@@ -12494,6 +12499,7 @@ func _nav_tests() -> void:
 	_check(menu.page == "appearance" and not menu.look_page.name_edit.has_focus(), "...and B the same")
 	main.pad._set_active(false)
 	# Back returns the focus to what opened the page.
+	menu.climber_tab = "marks"
 	menu.open("climber")
 	await _frames(3)
 	_all_buttons(menu).filter(func(b): return b.has_meta("appearance"))[0].grab_focus()
@@ -12933,6 +12939,329 @@ func _icon_tests() -> void:
 	G.icon_into(faded, G.make("sword"), Vector2.ZERO, 18.0, Color(1, 1, 1, 0.5))
 	_check(faded.cols.size() == plain.cols.size() and is_equal_approx(faded.cols[faded.cols.size() - 1].a, plain.cols[plain.cols.size() - 1].a * 0.5), "a faded colour fades the icon")
 	_check(Art.ol(10.5) < Art.ol(40.0) and Art.detail(10.5) == 0 and Art.detail(40.0) == 2, "outlines and detail scale with the icon's size")
+
+
+## The Abilities page (abilities.gd), names in play (ability_hints.gd), the
+## Entity's first words about abilities, and the practice room (practice.gd).
+func _abilities_tests() -> void:
+	var A = load("res://scripts/abilities.gd")
+	var U = load("res://scripts/unbound.gd")
+	var T = load("res://scripts/technique.gd")
+	var G = load("res://scripts/guide.gd")
+	var E = load("res://scripts/entity.gd")
+	print("abilities: the page for a marked climber")
+	await _fresh_main()
+	paused = false
+	main.touch._set_active(false)
+	main.pad_active = false
+	var p = main.player
+	var menu = main.menu
+	main.dev_set_mark("hand", "stormcaller", 2)
+	main.dev_set_mark("heart", "warden", 1)
+	var list: Array = A.entries(main, menu)
+	var kinds: Array = list.map(func(e): return e["kind"])
+	_check(kinds == ["mark", "spell", "spell", "spell", "spell", "mark", "spell", "spell", "spell", "spell"], "a marked climber's abilities: each mark, then every spell its bond has (%s)" % [kinds])
+	var spells: Array = list.filter(func(e): return e["kind"] == "spell" and e["part"] == "hand")
+	_check(spells.map(func(e): return e["locked"]) == [false, false, true, true], "...the spells past its step locked")
+	_check(spells[0]["name"] == "Chain Lightning" and spells[0]["press"] == "Q" and spells[1]["press"] == "hold Q" and spells[2]["press"] == "", "...the chosen one cast with its key, another held for the ring, a locked one with none")
+	_check(spells[0]["cost"] == "12 essence" and spells[0]["does"] != "" and not spells[0]["more"].is_empty(), "...each with its cost, what it does and its full numbers")
+	_check(list[0]["press"] == "Q" and list[5]["press"] == "F" and list[0]["cost"] == A.TEXT["ring_note"], "...each mark with its key (and 'hold for the ring' once it has two spells)")
+	main.pad_active = true
+	var pad_words: String = A.entries(main)[1]["press"]
+	main.pad_active = false
+	main.touch._set_active(true)
+	var touch_words: String = A.entries(main)[1]["press"]
+	var touch_head: String = A.entries(main)[0]["press"]
+	main.touch._set_active(false)
+	_check(pad_words.contains("LB") and pad_words.contains("X") and touch_words == "tap" and touch_head == "Chain Lightning", "the button words follow the input: '%s' on a controller, '%s' on a phone (its button shows '%s')" % [pad_words, touch_words, touch_head])
+	menu.open("abilities")
+	await _frames(3)
+	var cards: Array = _all_buttons(menu).filter(func(b): return b.has_meta("ability") and b.is_visible_in_tree())
+	_check(menu.page == "climber" and menu.climber_tab == "abilities" and cards.size() == 8, "menu.open('abilities') shows the climber screen's Abilities tab, a card per spell (%d)" % cards.size())
+	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
+	_check(tabs.size() > 0 and tabs[0].get_meta("tab") == "abilities", "...Abilities is the climber screen's first tab")
+	var locked: Array = cards.filter(func(b): return b.get_meta("locked"))
+	var texts: Array = _all_labels(menu).map(func(l): return l.text)
+	_check(locked.size() == 5 and "learned at step 4" in texts and "learned at step 2" in texts, "...the spells not learned yet dimmed, 'learned at step N'")
+	var first = cards[0]
+	_check(not first.more_box.visible, "...each card's numbers folded away at first")
+	var h0: float = first.size.y
+	first.pressed.emit()
+	await _frames(3)
+	_check(first.more_box.visible and first.more_box.get_child_count() > 0 and first.size.y > h0 + 20.0, "...and pressing it shows more: its full numbers (%.0f -> %.0f tall)" % [h0, first.size.y])
+	var heads: Array = menu.find_children("*", "PanelContainer", true, false).filter(func(c): return c.has_meta("ability_mark"))
+	_check(heads.size() == 2, "...under a header for each mark")
+	menu.close()
+	await _frames(2)
+
+	print("abilities: reaching the page in play")
+	await _key_tap(KEY_TAB)
+	_check(menu.page == "climber" and not menu.peeking, "Tab still opens the climber screen at once")
+	await _key_tap(KEY_TAB)
+	_check(not main.menu_open(), "...and closes it")
+	menu.climber_tab = "record"
+	var ev := InputEventKey.new()
+	ev.physical_keycode = KEY_TAB
+	ev.keycode = KEY_TAB
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await _frames(2)
+	_check(menu.page == "climber" and menu.climber_tab == "record", "holding Tab opens it on the tab you were on...")
+	await _wait(0.55)
+	_check(menu.page == "climber" and menu.climber_tab == "abilities" and menu.peeking, "...then, held a moment, peeks at Abilities")
+	ev = ev.duplicate()
+	ev.pressed = false
+	Input.parse_input_event(ev)
+	await _frames(3)
+	_check(not main.menu_open() and not paused and menu.climber_tab == "record", "...and letting go returns to the game (the tab you were on kept)")
+	# The phone's Climber button, held.
+	main.touch._set_active(true)
+	await _frames(2)
+	main.touch._layout()
+	var cb: Dictionary = {}
+	for b in main.touch.buttons:
+		if b["id"] == "climber":
+			cb = b
+	_touch(0, cb["c"], true)
+	await _wait(0.6)
+	_check(menu.page == "climber" and menu.climber_tab == "abilities" and menu.peeking, "holding the phone's Climber button peeks at Abilities")
+	_touch(0, cb["c"], false)
+	await _frames(3)
+	_check(not main.menu_open(), "...and lifting the finger returns to the game")
+	await _tap_at(cb["c"])
+	_check(menu.page == "climber" and not menu.peeking, "a tap on it opens the climber screen as before")
+	menu.close()
+	await _frames(2)
+	main.touch._set_active(false)
+	menu.climber_tab = "record"
+	menu.open("pause")
+	await _frames(2)
+	menu.rail.button("climber").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "climber" and menu.climber_tab == "abilities", "your name at the top of the rail opens the climber screen on Abilities")
+	menu.close()
+	await _frames(2)
+
+	print("abilities: names in play")
+	main.banner = {}
+	await _frames(2)
+	var hint = main.hints
+	main.hud.core.queue_redraw()
+	await _frames(2)
+	var mark_tip: Array = main.hud.tips.filter(func(t): return String(t[1]).begins_with("Stormcaller"))
+	_check(not mark_tip.is_empty() and String(mark_tip[0][2][0]).begins_with("Chain Lightning:") and mark_tip[0][2].any(func(l): return String(l).contains("Press Q to cast")) and mark_tip[0][2].any(func(l): return String(l).contains("hold Tab")), "hovering a mark's medallion names its spell, what it does, how to cast it and where to see them all")
+	_check(main.hud.mark_spots.has("hand") and main.hud.mark_spots.has("heart"), "the HUD knows where each medallion is")
+	p.bonds["hand"].essence = 0.0
+	await _frames(3)
+	var before: int = hint.shown_ready
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
+	await _frames(3)
+	_check(hint.shown_ready == before + 1 and hint.labels.any(func(l): return l["part"] == "hand" and l["text"] == "Chain Lightning"), "a mark that fills enough to cast shows its spell's name under its medallion")
+	var L = load("res://scripts/layout.gd")
+	var hv: Vector2 = main.hud.hud_view()
+	var unit := Transform2D(0.0, Vector2(main.hud.hud_scale, main.hud.hud_scale), 0.0, Vector2.ZERO)
+	L.move_to("hud.marks", L.default_box("hud.marks", hv).grow(10.0), hv)
+	main.hud.core.queue_redraw()
+	await _frames(2)
+	var mk: Transform2D = unit * L.xform("hud.marks", hv)
+	_check(L.moved("hud.marks") and main.hud.mark_xform.is_equal_approx(mk) and not mk.is_equal_approx(unit), "...drawn under the marks element's transform, so it follows them when they're arranged")
+	L.reset("hud.marks")
+	main.hud.core.queue_redraw()
+	await _wait(2.6)
+	_check(not hint.labels.any(func(l): return l["part"] == "hand"), "...which fades away again")
+	main.touch._set_active(true)
+	p.bonds["hand"].essence = 0.0
+	await _frames(3)
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
+	await _frames(3)
+	_check(not hint.labels.any(func(l): return l["part"] == "hand"), "...not on a phone, whose buttons carry the names")
+	main.touch._layout()
+	var cast_b: Dictionary = {}
+	for b in main.touch.buttons:
+		if b.get("part", "") == "hand":
+			cast_b = b
+	_check(not cast_b.is_empty(), "a phone's cast button for each mark")
+	var font = load("res://scripts/ui.gd").font("display")
+	_check(A.short_lines("Chain Lightning", font, 12, 46.0).size() == 2 and A.short_lines("Barrier", font, 12, 46.0) == ["Barrier"], "...its spell's whole name, in one line or two")
+	main.touch._set_active(false)
+
+	print("abilities: the Entity's first words, and first casts")
+	Engine.set_meta("sixfold_tips", true)
+	G.forget()
+	main._greet()
+	var queued: Array = G.queue.map(func(q): return q.get("id", ""))
+	_check("casting" in queued and "abilities" in queued and not ("unbound_cast" in queued), "a marked climber's climb: the Entity says how to cast and where the Abilities page is")
+	_check(not main.tip("abilities"), "...once")
+	for id in ["abilities", "abilities_unbound", "unbound_cast"]:
+		var e: Dictionary = E.TIPS.get(id, {})
+		_check(e.has("tip") and e.has("more") and String(e["tip"]).length() < 140, "the tip '%s' has a short line and an Archive account" % id)
+	var hb = p.bonds["hand"]
+	var toasts0: int = hint.toasts.size()
+	hint.cast_done(hb)
+	hint.cast_done(hb)
+	_check(hint.toasts.size() == toasts0 + 1 and hint.toasts[-1]["name"] == "Chain Lightning" and String(hint.toasts[-1]["does"]).contains("lightning"), "the first cast of a spell names it and says what it does, once")
+	hint.toasts.clear()
+	hint.toast = {}
+	G.forget()
+	G.queue.clear()
+	Engine.remove_meta("sixfold_tips")
+	hint.cast_done(hb)
+	_check(hint.toasts.is_empty(), "...and tests (or tips off) keep quiet")
+
+	print("abilities: the Unbound")
+	U.become(main.profile)
+	main.profile.regarded = true
+	main.first_climb = false
+	main._give_bonds()
+	list = A.entries(main, menu)
+	_check(list.size() == 6 and list.all(func(e): return e["kind"] == "technique"), "an Unbound's abilities: their six techniques")
+	_check(list.map(func(e): return e["name"]) == ["Ember Bolt", "Gale Dash", "Iron Will", "Hunter's Mark", "Tidal Shout", "Stone Shell"] and list.map(func(e): return e["press"]) == ["Q", "E", "F", "C", "X", "V"], "...each with its name and the button that casts it")
+	var eb: Dictionary = list[0]
+	_check(eb["does"] == T.describe(eb["tech"]) and eb["sub"].contains("Hand") and eb["sub"].contains("Bolt") and eb["sub"].contains("Fire") and eb["cost"].contains("20") and eb["cost"].contains("strain"), "...its part, shape and essences, what it does, its fill and strain")
+	var more_text := "\n".join(eb["more"])
+	_check(more_text.contains("Fills") and more_text.contains("Strain") and more_text.contains("Boost") and more_text.contains("wind-up"), "...and in more: how it fills, its strain, its boost and its numbers")
+	menu.open("abilities")
+	await _frames(3)
+	cards = _all_buttons(menu).filter(func(b): return b.has_meta("ability") and b.is_visible_in_tree())
+	tabs = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
+	_check(cards.size() == 6 and tabs[1].text == menu.UNBOUND_MARKS_TAB, "the page shows the six (and the Marks tab is the Body for the Unbound)")
+	_check(_all_buttons(menu).filter(func(b): return b.has_meta("try_abilities")).is_empty(), "...with no practice room in a climb")
+	menu.close()
+	await _frames(2)
+	main.hud.core.queue_redraw()
+	await _frames(2)
+	var tech_tip: Array = main.hud.tips.filter(func(t): return String(t[1]) == "Ember Bolt")
+	_check(not tech_tip.is_empty() and tech_tip[0][2][0] == T.describe(U.state(main.profile)["techs"][0]) and tech_tip[0][2].any(func(l): return String(l).contains("Press Q")), "hovering a technique's medallion names it and says what it does and how to cast it")
+	Engine.set_meta("sixfold_tips", true)
+	G.forget()
+	main._greet()
+	queued = G.queue.map(func(q): return q.get("id", ""))
+	_check("unbound_cast" in queued and "abilities_unbound" in queued and not ("casting" in queued), "a new Unbound's climb: the Entity says what techniques are and where to see and change them")
+	G.forget()
+	G.queue.clear()
+	Engine.remove_meta("sixfold_tips")
+	# A phone: a long press on a technique's button shows its card and casts nothing.
+	main.touch._set_active(true)
+	await _frames(2)
+	main.touch._layout()
+	for b in main.touch.buttons:
+		if b.get("part", "") == "hand":
+			cast_b = b
+	p.attack_cd = 0.0
+	p.bonds["hand"].essence = p.bonds["hand"].capacity()
+	main.unbound.strain.clear()
+	_touch(1, cast_b["c"], true)
+	await _wait(0.6)
+	_check(not hint.card.is_empty() and hint.card["lines"][0] == "Ember Bolt" and String(hint.card["lines"][1]).contains("bolt"), "a long press on a technique's button shows a card: its name and what it does")
+	_touch(1, cast_b["c"], false)
+	await _wait(0.4)
+	_check(main.unbound.strain_of("hand") == 0.0 and p.bonds["hand"].essence >= p.bonds["hand"].capacity() - 0.01 and p.cast_part == "", "...and letting go casts nothing")
+	_check(not hint.card.is_empty() and not hint.card["held"], "...the card stays a moment")
+	var L2 = load("res://scripts/layout.gd")
+	var tv: Vector2 = main.touch.get_viewport_rect().size
+	var mb: Rect2 = L2.box("touch.mark_1", tv)
+	L2.move_to("touch.mark_1", Rect2(Vector2(tv.x * 0.25, tv.y * 0.5) - mb.size * 0.75, mb.size * 1.5), tv)
+	main.touch._layout()
+	var moved_b: Dictionary = {}
+	for b in main.touch.buttons:
+		if b.get("part", "") == "hand":
+			moved_b = b
+	var cr: Rect2 = hint.card_rect(tv)
+	_check(moved_b["c"].x < tv.x * 0.5 and cr.position.x >= moved_b["c"].x + moved_b["r"] and absf(cr.get_center().y - moved_b["c"].y) < cr.size.y, "...beside the button where Arrange mode put it (%s, button at %s)" % [cr, moved_b["c"]])
+	L2.reset("touch.mark_1")
+	main.touch._layout()
+	await _wait(2.4)
+	_check(hint.card.is_empty(), "...then goes")
+	_touch(1, cast_b["c"], true)
+	await _frames(3)
+	_touch(1, cast_b["c"], false)
+	await _wait(0.5)
+	_check(main.unbound.strain_of("hand") > 0.0 and hint.card.is_empty(), "a tap still casts it")
+	main.touch._set_active(false)
+
+	print("abilities: on the train, and the practice room")
+	main.unbound.strain.clear()
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	menu.open("techniques", true)
+	await _frames(2)
+	var all_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("all_abilities"))
+	_check(all_b.size() == 1, "the techniques page offers all your abilities")
+	all_b[0].pressed.emit()
+	await _frames(3)
+	_check(menu.page == "climber" and menu.climber_tab == "abilities" and menu.rail.visible, "...which opens the Abilities page beside the train's rail")
+	var try_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("try_abilities"))
+	_check(try_b.size() == 1 and not _all_buttons(menu).filter(func(b): return b.has_meta("change_techniques")).is_empty(), "...with Try your abilities and Change techniques")
+	var save_path: String = main.profile.save_path
+	if FileAccess.file_exists("user://practice_test_save.cfg"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://practice_test_save.cfg"))
+	main.profile.save_path = "user://practice_test_save.cfg"
+	main.profile.saving = true
+	try_b[0].pressed.emit()
+	await _frames(3)
+	var pr = main.practice
+	var dummies: Array = main.enemies().filter(func(e): return e.kind == "dummy")
+	_check(pr.on and not main.on_train and not main.menu_open() and dummies.size() == 3, "Try your abilities: a practice room with three training dummies")
+	_check(not main.profile.saving and main.dev_no_death, "...where nothing is saved and nothing can fell you")
+	_check(main._floor_title() == pr.TEXT["title"] and menu.rail.place_text(main) == menu.rail.TEXT["practice"], "...and the HUD's title and the rail say Practice, not a tower and floor")
+	p = main.player
+	_check(p.bonds.values().all(func(b): return b.essence >= b.capacity() - 0.01), "...every technique full")
+	var d = dummies[0]
+	p.global_position = d.global_position + Vector2(0, 40)
+	var hp0: float = p.hp
+	await _wait(2.0)
+	_check(p.hp >= hp0 and dummies.all(func(e): return is_instance_valid(e) and not e.is_attacking() and e.velocity.length() < 1.0), "the dummies never attack, nor come at you")
+	d.take_hit(9999.0, Vector2.RIGHT)
+	_check(not d.dead and d.hp >= 1.0 and d.hits_taken == 1 and d.struck >= 9999.0, "a dummy takes any hit and never falls")
+	p.global_position = d.global_position + Vector2(0, 60)
+	p.aim = Vector2.UP
+	p.attack_cd = 0.0
+	main.unbound.cast(p.bonds["hand"], p)
+	await _wait(0.6)
+	_check(d.hits_taken >= 2, "...a technique lands on it")
+	await _wait(2.5)
+	_check(p.bonds["hand"].essence >= p.bonds["hand"].capacity() - 0.01, "...and the technique refills in a moment")
+	main.profile.save()
+	_check(not FileAccess.file_exists("user://practice_test_save.cfg"), "...and nothing done in the practice room is saved")
+	menu.open("pause")
+	await _frames(2)
+	var leave_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("leave_practice"))
+	_check(leave_b.size() == 1 and _menu_button("Restart this climb") == null, "the pause menu offers Back to the train")
+	leave_b[0].pressed.emit()
+	await _frames(4)
+	_check(not pr.on and main.on_train and menu.page == "climber" and menu.climber_tab == "abilities", "...which returns to the train, on the Abilities page")
+	_check(main.enemies().filter(func(e): return e.kind == "dummy" and not e.is_queued_for_deletion()).is_empty() and main.profile.saving and not main.dev_no_death, "...the dummies gone, saving and dying as before")
+	if FileAccess.file_exists("user://practice_test_save.cfg"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://practice_test_save.cfg"))
+	main.profile.save_path = save_path
+	main.profile.saving = false
+
+	print("abilities: fits a phone (800 x 400)")
+	var was_size: Vector2i = root.size
+	root.size = Vector2i(800, 400)
+	main.touch._set_active(true)
+	await _frames(2)
+	for who in ["unbound", "marked"]:
+		if who == "marked":
+			U.state(main.profile)["on"] = false
+			main.dev_set_mark("hand", "stormcaller", 3)
+			main.dev_set_mark("brow", "hunter", 5)
+			main._give_bonds()
+		menu.open("abilities")
+		await _frames(4)
+		var vis: Rect2 = menu.get_viewport_rect()
+		var pr_rect: Rect2 = menu.panel.get_global_rect()
+		var sc: Rect2 = menu.scroll.get_global_rect()
+		var wide: Array = _all_buttons(menu.box).filter(func(b): return b.is_visible_in_tree() and (b.get_global_rect().end.x > sc.end.x + 0.5 or b.get_global_rect().position.x < sc.position.x - 0.5))
+		_check(vis.grow(0.5).encloses(pr_rect) and wide.is_empty() and menu.compact(), "on a phone the %s climber's Abilities page fits the screen, every card inside it (%s in %s)" % [who, pr_rect, vis])
+		var lbl: Array = _all_labels(menu.box).filter(func(l): return l.is_visible_in_tree() and l.get_global_rect().end.x > sc.end.x + 1.0)
+		_check(lbl.is_empty(), "...no words run past its edge: %s" % [lbl.map(func(l): return l.text)])
+	menu.close()
+	await _frames(2)
+	main.touch._set_active(false)
+	root.size = was_size
+	await _frames(2)
 
 
 ## A mouse move with the left button held (Shift: Arrange mode places freely).

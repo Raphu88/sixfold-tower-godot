@@ -28,6 +28,7 @@ const Entity := preload("res://scripts/entity.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
+const Abilities := preload("res://scripts/abilities.gd")
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
 const Layout := preload("res://scripts/layout.gd")
@@ -71,6 +72,8 @@ var sta_trail := 1.0
 var show_help := false  # the keyboard controls panel (a setting)
 var hud_scale := 1.0  # the HUD size setting (ui.gd HUD_SCALES)
 var tips: Array = []  # [rect, title, lines] of what the mouse can hover for a tooltip
+var mark_spots := {}  # body part -> its medallion's centre, in the marks element's units (ability_hints.gd labels it)
+var mark_xform := Transform2D.IDENTITY  # the marks element's transform to the screen (the HUD size and Arrange mode)
 var tip_box: StyleBox
 var card_box: StyleBox  # the big cards (towers, camps, the gear at your feet): ui.gd card
 var card_box_on: StyleBox
@@ -294,6 +297,7 @@ static func _fade(t: float, total: float) -> float:
 func _draw_core() -> void:
 	core_redraws += 1
 	tips.clear()
+	mark_spots.clear()
 	var p = main.player
 	if p == null or main.title_showing():
 		return
@@ -394,6 +398,7 @@ func _draw_core() -> void:
 	if sel != "" or Layout.moved("hud.marks"):
 		x += SLOT + 6.0
 	var mkx := Layout.xform("hud.marks", view)
+	mark_xform = unit * mkx
 	var mb := Draw.Batch.new()
 	var marks: Array = []
 	for part in BondScript.Bonds.PARTS:
@@ -406,6 +411,7 @@ func _draw_core() -> void:
 		var col: Color = bd.color()
 		var ready: bool = bd.essence >= bd.cost()
 		var mc := Vector2(mx, my)
+		mark_spots[part] = mc  # (in the marks element's own units: mark_xform puts them on screen)
 		UI.seal_into(mb, mc, MARK_R, col if ready else col.darkened(0.45), bd.data()["affinity"], bd.essence / bd.capacity(), ready, bd.faint, bd.burned)
 		if bd.has_method("hud_into"):
 			bd.hud_into(mb, mc, MARK_R)  # (an Unbound's technique: its part's strain)
@@ -419,7 +425,7 @@ func _draw_core() -> void:
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
 			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
 			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, ", hold it to pick a spell" if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
-			"Tab: the climber screen has every spell"]])
+			Abilities.fill(main, Abilities.TEXT["tip_all"])]])
 		mx += MARK_R * 2.0 + 8.0
 	c.draw_set_transform_matrix(unit * mkx)
 	mb.flush(c)
@@ -565,6 +571,8 @@ func _draw() -> void:
 		draw_string_outline(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, 5, Color(0, 0, 0, 0.8 * fa))
 		draw_string(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(GOLD, fa))
 		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
+		if main.practice != null and main.practice.on:
+			sub_text = main.practice.TEXT["sub"]  # (the practice room: no tower, no floor)
 		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 3, Color(0, 0, 0, 0.6 * fa))
 		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, fa))
 	if stair_t > 0.0 and main.stair_open and not main.climbing:

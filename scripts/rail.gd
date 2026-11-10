@@ -42,7 +42,7 @@ const Art := preload("res://scripts/train_art.gd")
 
 ## The identity block at the top (a button: the climber screen): [id, name,
 ## short name, line, icon].
-const CLIMBER := ["climber", "Climber", "Climber", "Marks, essence, record", "climber"]
+const CLIMBER := ["climber", "Climber", "Climber", "Abilities, marks, essence, record", "climber"]
 ## The pages in a climb (the pause menu): [id, name, short name (a phone), a
 ## line under the name (a computer), icon]. The icons are drawn in ui.gd
 ## draw_icon, or below (car_icon). Library and Settings & Controls carry the
@@ -83,6 +83,7 @@ const TEXT := {
 	"on_train": "On the train",
 	"first_climb": "The first climb",
 	"place": "%s  ·  floor %d",
+	"practice": "Practice",  # (the practice room: practice.gd)
 	"hint_keys": "↑ ↓ choose   → enter   Esc close",
 	"hint_pad": "↑ ↓ choose   {a} enter   {b} close",
 	"hint_keys_train": "↑ ↓ choose   → enter   Q E cars",
@@ -345,6 +346,19 @@ func _train_items(parent: Node, touch: bool, pad: bool, ps: bool) -> void:
 
 
 ## True for a car's item on the train's rail.
+## Where the climber is, over their name: on the train, in the practice
+## room (practice.gd), or a tower and floor.
+func place_text(main) -> String:
+	if main.on_train:
+		return TEXT["on_train"] if not on_end else TEXT["station"]
+	if main.get("practice") != null and main.practice.on:
+		return TEXT["practice"]
+	if main.has_method("tower_data"):
+		var td: Dictionary = main.tower_data()
+		return TEXT["place"] % [td.get("short", td["name"]) if narrow else td["name"], main.floor_num]
+	return ""
+
+
 static func is_car(id: String) -> bool:
 	return TRAIN_CARS.has(id)
 
@@ -1038,12 +1052,7 @@ class RailIdent extends Button:
 		var name: String = str(prof.appearance.get("name", ""))
 		if name == "":
 			name = rail.TEXT["unnamed"]
-		var place := ""
-		if main.on_train:
-			place = rail.TEXT["on_train"] if not rail.on_end else rail.TEXT["station"]
-		elif main.has_method("tower_data"):
-			var td: Dictionary = main.tower_data()
-			place = rail.TEXT["place"] % [td.get("short", td["name"]) if narrow else td["name"], main.floor_num]
+		var place: String = rail.place_text(main)
 		# Where you are, a small gothic label over the name (the old game's eyebrow).
 		var es := 11 if narrow else 14
 		var place_col: Color = UI.GOLD

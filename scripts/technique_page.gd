@@ -187,6 +187,11 @@ static func build(menu) -> void:
 		ob.set_meta("route", k)
 	if not menu.compact():
 		menu._note(TEXT["route_note"])
+	# All six as the Abilities page shows them (and the practice room from there).
+	menu._gap(2)
+	var ab: Button = menu._button(menu.Abilities.TEXT["all"], menu.open.bind("abilities"))
+	ab.set_meta("all_abilities", true)
+	menu._primary(ab)
 	if menu.toast != "":
 		menu._text(menu.toast, menu.GOLD, true)
 	menu._footer()
