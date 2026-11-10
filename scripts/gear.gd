@@ -1327,7 +1327,6 @@ static func heirloom_copy(g) -> Dictionary:
 # shapes, so it is safe under torchlight too (gear on the floor, fx.gd).
 
 const Draw := preload("res://scripts/draw_util.gd")
-const Palette := preload("res://scripts/palette.gd")
 const Art := preload("res://scripts/icon_art.gd")
 
 
