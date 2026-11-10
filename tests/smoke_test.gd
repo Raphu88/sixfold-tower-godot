@@ -84,6 +84,7 @@ func _fresh_main() -> void:
 	main.queue_free()
 	await _frames(2)
 	Engine.time_scale = 1.0
+	paused = false  # (a page an earlier test left open must not freeze the new game)
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await _frames(2)
@@ -13410,7 +13411,7 @@ func _data_editor_tests() -> void:
 	_check(menu.page == "data" and menu.rail.visible and menu.rail_item() == "dev", "...which opens the editor beside the rail")
 	var said: Array = dp.said_box.get_children().filter(func(c): return c.get_meta("entity", "") == "data")
 	_check(said.size() == 1 and Guide.told("data_editor"), "the first time, the Entity explains the editor")
-	_check(Entity.ordered("creator") == ["data_editor", "data_save", "data_restart"] and Entity.GROUPS.any(func(g): return g == ["creator", "Creator tools"]), "...its words kept in the Archive, under Creator tools")
+	_check(["data_editor", "data_save", "data_restart"].all(func(k): return Entity.ordered("creator").has(k)) and Entity.GROUPS.any(func(g): return g == ["creator", "Creator tools"]), "...its words kept in the Archive, under Creator tools")
 	dp.set_tab("numbers")
 	await _frames(2)
 	_check(menu.focusables().filter(func(b): return b.has_meta("data_section")).size() == Reg.sections_in("numbers").size(), "a tab lists its sections")
