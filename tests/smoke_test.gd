@@ -4258,6 +4258,16 @@ func _slim_hud_tests() -> void:
 	var top: int = hud.top_redraws
 	await _frames(10)
 	_check(hud.top_redraws <= top + 1, "the fading layer rests when nothing fades (%d redraws)" % (hud.top_redraws - top))
+	# Poison turns the health bar green: being poisoned changes what the core shows.
+	var sig0: Array = hud._core_signature()
+	p.poison_t = 3.0
+	_check(hud._core_signature() != sig0, "being poisoned redraws the HUD (its health bar turns green)")
+	p.poison_t = 0.0
+	# The gilt pieces are built as plain strips (no round joints), so they stay cheap.
+	var strip = load("res://scripts/draw_util.gd").Batch.new()
+	hud.UI.ring_into(strip, Vector2.ZERO, 10.0, 2.0, Color.WHITE, 0.0, TAU, 12)
+	hud.UI.gauge_into(strip, Rect2(0, 0, 100, 12), 0.5, Color.RED, 0.7)
+	_check(strip.size() > 72 and strip.size() < 600, "the HUD's rings and gauges are a few triangles each (%d points)" % strip.size())
 	# Fading notices.
 	main.gather_essence("water", 5.0, p.global_position)
 	await _frames(2)
