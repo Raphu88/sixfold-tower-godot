@@ -46,19 +46,24 @@ const FAINT := UI.FAINT
 const SETTINGS_PATH := "user://sixfold.cfg"
 
 ## How wide each page's panel is (it shrinks to fit a small screen).
-const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
+const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
 	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0}
 ## The climber screen's tabs: [id, name].
-const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
+## (The Entity's Archive is the Library now: its own page, and a car on the train.)
+const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+## Settings & Controls: its two tabs (the train's car shows them too).
+const SETTINGS_TABS := [["settings", "Settings"], ["controls", "Controls"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
 const COMPACT_H := 600.0
 
 ## Settings, kept between sessions (in the settings file, shared by every climber: slots.gd).
 ## "condense": the share of banked essence that condenses into crystals at a
-## stair, in percent (train.gd CONDENSE_CHOICES).
+## stair, in percent (train.gd CONDENSE_CHOICES). "train_rail": the train's
+## rail as a menu ("menu") or drawn as the train on end ("end"), a dev-tools
+## mock-up (rail.gd).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks", "lighting": "",
-	"condense": Train.CONDENSE_DEFAULT}
+	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu"}
 static var settings_loaded := false
 
 var main
@@ -86,6 +91,8 @@ var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:
 var inv_view := "worn"  # the inventory's doll: what you wear ("worn") or your "heirlooms"
 var details: VBoxContainer  # the inventory's details pane
 var archive_open := ""  # the Archive entry shown open (a tip id)
+var library_shelf := ""  # the Library car: the shelf (an Archive group) on the lectern
+var settings_tab := "settings"  # Settings & Controls: its tab
 # The train (train_view.gd draws its cars; train_page.gd puts their things in them).
 var train_view: Control
 var train_page  # builds the train's cars (train_page.gd)
@@ -106,9 +113,8 @@ var look_from := ""
 # opens (the others are pages within them: a mark, controller setup, the
 # Start over question).
 var rail
-const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "settings", "padsetup", "controls", "dev", "confirm_new", "train"]
-const RAIL_ROOTS := ["pause", "climber", "inventory", "settings", "controls", "dev"]
-var climber_main := "marks"  # the climber screen's last tab other than the Archive
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "confirm_new", "train"]
+const RAIL_ROOTS := ["pause", "climber", "inventory", "library", "settings", "controls", "dev"]
 var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
 var _rail_focus := false  # after building the page, put the focus back on the rail
 var _focus_now: Control = null  # what has the keys' focus (to tell a step onto the rail from the page)
@@ -391,6 +397,13 @@ func _cycle(by: int) -> bool:
 			_want_focus = {"meta": "tab", "value": id}  # (the focus follows onto the new tab)
 		_set_climber_tab(id)
 		return true
+	if page == "settings":
+		var sids: Array = SETTINGS_TABS.map(func(t): return t[0])
+		var sid: String = sids[(sids.find(settings_tab) + by + sids.size()) % sids.size()]
+		if not rail.has_focus_inside():
+			_want_focus = {"meta": "tab", "value": sid}
+		_set_settings_tab(sid)
+		return true
 	if page == "inventory":
 		var views := ["worn", "pack", "heirlooms"]
 		var v: String = views[(views.find(inv_view) + by + views.size()) % views.size()]
@@ -459,11 +472,15 @@ func _go_back() -> void:
 		# On the train: back to the car you were on, in one press, the focus
 		# on the rail's light (a page opened from the car's own furniture:
 		# back onto that furniture).
+		var item := rail_item()
+		var direct := opened_direct
 		if opened_direct:
 			_want_focus = _left_from.get("train", {})
 		else:
 			_rail_focus = true
 		close()
+		if not direct and item in ["climber", "dev"] and not (main != null and main.touch_active):
+			_focus_rail.call_deferred(rail.button(item))  # (back onto who you are, or Dev Tools: the item that opened it)
 		return
 	if page in RAIL_ROOTS and rail_showing():
 		# In a page: back to the rail. On the rail (or a page opened by its
@@ -477,7 +494,12 @@ func _go_back() -> void:
 	if page == "confirm_new":
 		open(confirm_back)
 	elif page == "padsetup":
-		open("settings")
+		if _on_train() and not opened_from_title:
+			train_car = "settings"  # (back to the Settings & Controls car)
+			_want_focus = {"meta": "setting", "value": "padsetup"}
+			open("train")
+		else:
+			open("settings")
 	elif page == "mark":
 		focus_part = mark_part
 		open("climber", opened_direct)
@@ -552,11 +574,9 @@ func rail_item() -> String:
 		"pause":
 			return "resume"
 		"climber", "mark":
-			return "archive" if climber_tab == "archive" and page == "climber" else "climber"
-		"padsetup":
-			return "settings"
-		"confirm_new":
-			return "over"
+			return "climber"
+		"padsetup", "controls", "confirm_new":
+			return "settings"  # (controller setup, the controls list and Start over live in Settings & Controls)
 		"train":
 			return train_car  # (the car you're in)
 	return page
@@ -606,9 +626,9 @@ func _next_in_page(from: Control, dir: int) -> Control:
 ## Keys and controller moved onto a rail item: show its page as you pass
 ## (the focus stays on the rail). Clicks and taps press instead.
 func rail_focused(id: String) -> void:
-	if _rail_refused:
-		return
-	if not nav_keys or page == "" or id == rail_item() or id in ["over", "exit", "quit"]:
+	if _rail_refused or _rail_grab:
+		return  # (refused, or the menu itself putting the focus back on the rail: no page to show)
+	if not nav_keys or page == "" or id == rail_item() or id in ["exit", "quit"]:
 		return
 	if RailScript.is_car(id) and _on_train():
 		_go_car(id, true)  # (the train slides there; the focus stays on the rail)
@@ -619,7 +639,7 @@ func rail_focused(id: String) -> void:
 
 ## A rail item pressed (Enter, A, a click or a tap): its page, and into it.
 func rail_pressed(id: String) -> void:
-	if id == rail_item() and id in ["climber", "inventory", "archive", "settings", "controls", "dev"]:
+	if id == rail_item() and id in ["climber", "inventory", "library", "settings", "dev"] and page != "train":
 		_focus_page_start()
 		return
 	if RailScript.is_car(id) and _on_train():
@@ -655,18 +675,13 @@ func _rail_go(id: String, preview: bool) -> void:
 			else:
 				close()
 		"climber":
-			if climber_tab == "archive":
-				climber_tab = climber_main
 			open("climber")
-		"archive":
+		"library":
 			open_archive()
 		"inventory":
 			open("inventory")
 		"settings", "controls", "dev":
 			open(id)
-		"over":
-			var home := "train" if _on_train() else "pause"  # (Cancel comes back here)
-			_ask_new(home if page == "confirm_new" else (page if page in RAIL_ROOTS or page == "train" else home))
 		"exit":
 			exit_to_title()
 		"quit":
@@ -851,6 +866,8 @@ func _first_focus(which: String, list: Array) -> int:
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
 		elif which == "inventory":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
+		elif which == "settings" and settings_tab == "settings":
+			first = maxi(0, list.map(func(b): return b is HSlider).find(true))  # (on the music slider)
 		elif which == "train":
 			first = train_page.first_focus(list)
 		elif which == "create" or which == "appearance":
@@ -1308,9 +1325,29 @@ static func can_quit() -> bool:
 	return not (OS.has_feature("web") or OS.has_feature("mobile"))
 
 
+## Settings & Controls: its tabs (the settings, or every key and button),
+## and, set apart at the bottom, Start over this climber (it asks first).
+## The train's Settings & Controls car holds the same (train_page.gd).
 func _page_settings() -> void:
-	_header("Settings", "", "Menu")
+	_header("Settings & Controls", "", "Menu")
 	_entity_says("settings")
+	_tabs(SETTINGS_TABS, settings_tab, _set_settings_tab)
+	if settings_tab == "controls":
+		controls_body()
+	else:
+		settings_body()
+	if not opened_from_title and main != null and main.profile != null:
+		over_section()
+	_footer()
+
+
+func _set_settings_tab(id: String) -> void:
+	settings_tab = id
+	open(page if page == "train" else "settings", opened_direct)
+
+
+## The settings themselves, into `box` (the page, or the train's car).
+func settings_body() -> void:
 	_slider("Music", "music")
 	_slider("Sounds", "sounds")
 	_toggle("Screen shake", "shake")
@@ -1321,7 +1358,28 @@ func _page_settings() -> void:
 	_note(Train.TEXT["condense_note"])
 	_guide_settings()
 	_pad_settings()
-	_footer()
+
+
+## Start over this climber, set apart under a rule: a red-edged button that
+## asks first (the two-step confirm), with what it does.
+func over_section() -> void:
+	_gap(6)
+	_rule()
+	var b := _button(Train.TEXT["over"], _ask_new.bind("train" if page == "train" else page))
+	b.set_meta("over", true)
+	_danger(b)
+	_note(Train.TEXT["over_note"])
+
+
+## A button that undoes something big: dark red, a red edge.
+func _danger(b: Button) -> void:
+	for state in ["normal", "hover", "pressed"]:
+		var st := UI.box(Color(0.32, 0.06, 0.06, 0.9) if state == "normal" else Color(0.45, 0.09, 0.08, 0.95), Color(0.85, 0.35, 0.28, 0.75 if state == "normal" else 1.0), 6)
+		_button_margins(st)
+		b.add_theme_stylebox_override(state, st)
+	b.add_theme_color_override("font_color", Color(1.0, 0.85, 0.8))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.9))
+	b.add_theme_color_override("font_focus_color", Color(1.0, 0.95, 0.9))
 
 
 # --- controller setup (pad_setup.gd) ---
@@ -1357,8 +1415,15 @@ func _choice(text: String, key: String, values: Array) -> void:
 			_primary(b)
 
 
+## Every key and button on its own (Settings & Controls shows the same on its Controls tab).
 func _page_controls() -> void:
 	_header("Controls", "", "Menu")
+	controls_body()
+	_footer()
+
+
+## The controls list, into `box` (the page, or the train's car).
+func controls_body() -> void:
 	var ps: bool = main != null and main.pad_ps
 	var grid := GridContainer.new()
 	grid.columns = 3
@@ -1384,7 +1449,6 @@ func _page_controls() -> void:
 	_gap(2)
 	_note(Controls.pad_text("Controller casts: hold {lb} and press {x} hand, {a} legs, {b} heart, {y} brow, {rb} throat or {rt} back. Aim with the right stick; let go of it and you aim at the nearest monster, or the way you move. Press {back} for the climber screen, hold it to restart. In menus and on the cards: d-pad or stick to choose (hold to repeat), {a} to take, {b} to go back, the right stick to scroll. With the mouse, point to choose, click to take, right-click to go back.", ps))
 	_note("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next; Take appears while you stand on gear. Hold a mark's button and slide to pick a spell. Climber, Bag and Menu sit at the top right.")
-	_footer()
 
 
 # --- the climber screen ---------------------------------------------------------------
@@ -1404,8 +1468,6 @@ func _page_climber() -> void:
 			_climber_essence(prof)
 		"record":
 			_climber_record(prof)
-		"archive":
-			_climber_archive()
 		_:
 			_climber_marks(prof)
 	_footer()
@@ -1421,8 +1483,6 @@ func climber_tabs() -> Array:
 
 func _set_climber_tab(id: String) -> void:
 	climber_tab = id
-	if id != "archive":
-		climber_main = id
 	if settings["climber_tab"] != id:
 		settings["climber_tab"] = id  # remembered for next time
 		save_settings()
@@ -1600,10 +1660,19 @@ func _entity_says(key: String, heading := "") -> void:
 	_gap(0 if compact() else 2)
 
 
-## The pause menu's Archive: the climber screen on its Archive tab.
+## The Library: the Entity's Archive. On the train, its own car; in a climb, a page beside the rail.
 func open_archive() -> void:
-	climber_tab = "archive"
-	open("climber")
+	if _on_train() and not opened_from_title:
+		_go_car("library", false)
+		return
+	open("library")
+
+
+## The Library in a climb: the whole Archive on one page.
+func _page_library() -> void:
+	_header(Train.CARS.filter(func(c): return c[0] == "library")[0][1], "", "Menu")
+	_climber_archive()
+	_footer()
 
 
 ## The Archive: everything the Entity has told you, by subject. Each entry
@@ -1622,11 +1691,34 @@ func _climber_archive() -> void:
 		mode = "pad"
 	var ps: bool = main != null and main.pad_ps
 	for g in Entity.GROUPS:
-		var ids: Array = Entity.ordered(g[0])
+		_section(g[1])
+		archive_group(g[0], mode, ps)
+	_maker_shelves(mode, ps)
+	_gap(4)
+	archive_tools()
+
+
+## The Archive's tools: Replay the tips, and the tips on or off.
+func archive_tools() -> void:
+	var row := _grid(2)
+	_button(Entity.TEXT["replay"], _replay_tips, row)
+	var tog := CheckButton.new()
+	tog.text = "Guide tips"
+	tog.button_pressed = Guide.tips_on()
+	tog.custom_minimum_size.y = 38
+	tog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tog.toggled.connect(_set_tips)
+	row.add_child(tog)
+
+
+## One of the Archive's groups (a shelf of the Library), into `box`: what
+## you've met as buttons, the rest as ???, and the open entry's words.
+func archive_group(gid: String, mode: String, ps: bool, columns := 2) -> void:
+	if true:
+		var ids: Array = Entity.ordered(gid)
 		# What you've met first, then the rest as ???.
 		ids = ids.filter(func(k): return Guide.known(k)) + ids.filter(func(k): return not Guide.known(k))
-		_section(g[1])
-		var grid := _grid(2, 6, 4)
+		var grid := _grid(columns, 6, 4)
 		for id in ids:
 			if not Guide.known(id):
 				var l := _label(Entity.TEXT["locked"], 0.0, FAINT)
@@ -1652,17 +1744,6 @@ func _climber_archive() -> void:
 			said.set_meta("archive_open", archive_open)
 			box.add_child(said)
 			_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
-	_maker_shelves(mode, ps)
-	_gap(4)
-	var row := _grid(2)
-	_button(Entity.TEXT["replay"], _replay_tips, row)
-	var tog := CheckButton.new()
-	tog.text = "Guide tips"
-	tog.button_pressed = Guide.tips_on()
-	tog.custom_minimum_size.y = 38
-	tog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tog.toggled.connect(_set_tips)
-	row.add_child(tog)
 
 
 ## The forbidden shelf (makers.gd): a shelf for each Maker whose first
@@ -1670,7 +1751,7 @@ func _climber_archive() -> void:
 ## words redacted) and how many; then the Entity's tips about them. Nothing
 ## shows before then. The Entity speaks of its siblings (redacted) only once
 ## you've met one.
-func _maker_shelves(mode: String, ps: bool) -> void:
+func _maker_shelves(mode: String, ps: bool, columns := 2) -> void:
 	var prof = main.profile
 	var shown: Array = Makers.ORDER.filter(func(m): return Makers.shelf_shown(prof, m))
 	if shown.is_empty():
@@ -1729,7 +1810,7 @@ func _maker_shelves(mode: String, ps: bool) -> void:
 	var known: Array = Entity.ordered("forbidden").filter(func(k): return Guide.known(k))
 	if known.is_empty():
 		return
-	var grid := _grid(2, 6, 4)
+	var grid := _grid(columns, 6, 4)
 	for id in known:
 		var b := _button(("v  " if archive_open == id else ">  ") + Entity.TIPS[id]["name"], _archive_toggle.bind(id), grid)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -1770,7 +1851,7 @@ func _entity_redacted(text: String) -> HBoxContainer:
 
 func _archive_toggle(id: String) -> void:
 	archive_open = "" if archive_open == id else id
-	open("climber", opened_direct)
+	open(page if page == "train" else "library", opened_direct)
 
 
 ## Settings: the Entity's tips on or off, and Replay.
@@ -2742,7 +2823,11 @@ func _page_confirm_new() -> void:
 
 
 func _page_dev() -> void:
-	_header("Dev tools", "For testing. Changes to marks are saved.", "Menu")
+	_header("Dev Tools", "For testing. Changes to marks are saved.", "Menu")
+	load("res://scripts/arrange.gd").dev_section(self)  # Arrange layout (move the HUD and the buttons yourself)
+
+	# A mock-up to compare: the train's rail as a menu, or drawn as the train on end (rail.gd).
+	_choice("Train rail", "train_rail", [["menu", "Menu"], ["end", "Train on end"]])
 
 	_section("Marks")
 	var p = main.player

@@ -6433,6 +6433,7 @@ func _controls_tests() -> void:
 	focus = main.menu.get_viewport().gui_get_focus_owner()
 	_check(focus is Button and focus.text == "Resume", "the up arrow moves it back")
 	_check(not Input.is_action_pressed("item_next"), "the d-pad in a menu doesn't reach the game")
+	main.menu.settings_tab = "settings"
 	main.menu.open("settings")
 	await _frames(2)
 	focus = main.menu.get_viewport().gui_get_focus_owner()
@@ -6443,7 +6444,7 @@ func _controls_tests() -> void:
 	main.menu._set_setting("music", music)
 	await _pad_tap(JOY_BUTTON_B)
 	_check(main.menu.page == "settings" and main.menu.rail.button("settings").has_focus(), "B goes back to the rail")
-	for i in 4:
+	for i in 3:
 		await _pad_tap(JOY_BUTTON_DPAD_UP)
 	_check(main.menu.rail.button("resume").has_focus() and main.menu.page == "pause", "...up the rail to Resume")
 	await _pad_tap(JOY_BUTTON_A)
@@ -6453,7 +6454,7 @@ func _controls_tests() -> void:
 	await _frames(2)
 	var texts: Array = _all_labels(main.menu).map(func(l): return l.text)
 	_check("Controller" in texts and texts.any(func(t): return "hold LB" in t), "the Controls page lists the controller")
-	_check(main.menu.rail.button("controls").has_focus(), "a page with nothing to press keeps the focus on the rail")
+	_check(main.menu.rail.button("settings").has_focus(), "a page with nothing to press keeps the focus on the rail (Settings & Controls lit)")
 	await _key_tap(KEY_ESCAPE)
 	_check(not main.menu_open(), "...so Esc closes it")
 	await _frames(2)
@@ -7229,11 +7230,13 @@ func _run() -> void:
 	await _appearance_tests()
 	await _unbound_tests()
 	await _rail_tests()
+	await _train_rail_tests()
 	await _nav_tests()
 	await _switch_tests()
 	await _rail_line_tests()
 	await _climber_slot_tests()
 	await _icon_tests()
+	await _arrange_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -7772,17 +7775,24 @@ func _screen_tests() -> void:
 	p.add_item("tonic")
 	await _key_tap(KEY_ESCAPE)
 	_check(menu.page == "pause" and paused, "Esc opens the pause menu")
-	var want := ["Resume", "Settings", "Controls", "Dev tools", "Restart this climb", "Start over", "Exit to title"]
+	var want := ["Climber", "Resume", "Inventory", "Library", "Settings & Controls", "Dev Tools", "Restart this climb", "Exit to Title"]
 	var have: Array = _all_buttons(menu).map(func(b): return b.text)
 	var missing := want.filter(func(t): return not (t in have))
-	_check(missing.is_empty(), "...with Resume, Settings, Controls, Dev tools, Restart, Start over and Exit (missing %s)" % [missing])
-	_check(have.any(func(t): return t.begins_with("Climber")) and have.any(func(t): return t.begins_with("Inventory")), "...and Climber and Inventory")
+	_check(missing.is_empty(), "...with who you are (Climber), Resume, Inventory, Library, Settings & Controls, Dev Tools, Restart and Exit to Title (missing %s)" % [missing])
 	_check(("Quit game" in have) == menu.can_quit() and menu.can_quit() != OS.has_feature("web"), "Quit game only where the game can be quit (not on the web)")
-	_menu_button("Start over").pressed.emit()
+	_check(not have.any(func(t): return t.begins_with("Start over")), "...and no Start over beside them (it's in Settings & Controls)")
+	menu.open("settings")
+	await _frames(2)
+	var over_b: Array = menu.focusables().filter(func(b): return b.has_meta("over"))
+	_check(over_b.size() == 1 and over_b[0].text == main.Train.TEXT["over"], "Settings & Controls has Start over this climber, set apart at its foot")
+	if not over_b.is_empty():
+		over_b[0].pressed.emit()
 	await _frames(1)
 	_check(menu.page == "confirm_new", "Start over asks first")
 	await _key_tap(KEY_ESCAPE)
-	_check(menu.page == "pause", "...and Esc cancels back to the pause menu")
+	_check(menu.page == "settings", "...and Esc cancels back to Settings & Controls")
+	menu.open("pause")
+	await _frames(1)
 	for b in _all_buttons(menu):
 		if b.text.begins_with("Inventory"):
 			b.pressed.emit()
@@ -7800,7 +7810,7 @@ func _screen_tests() -> void:
 	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
 	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "...the body and a card for each of the six parts")
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 4, "...and its tabs (Marks, Essence, Record, Archive)")
+	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 3, "...and its tabs (Marks, Essence, Record; the Archive is the Library now)")
 	tabs[1].pressed.emit()
 	await _frames(1)
 	_check(menu.climber_tab == "essence" and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.EssenceView), "the Essence tab shows density and attributes")
@@ -7910,7 +7920,7 @@ func _screen_tests() -> void:
 	menu.open("pause")
 	await _frames(1)
 	Engine.set_meta("sixfold_title_seen", true)
-	_menu_button("Exit to title").pressed.emit()
+	_menu_button("Exit to Title").pressed.emit()
 	await _frames(2)
 	_check(menu.page == "title" and not Engine.has_meta("sixfold_title_seen"), "Exit goes back to the title screen")
 	menu.close()
@@ -8288,14 +8298,15 @@ func _entity_tests() -> void:
 		Guide.state["known"][id] = true
 	menu.open("pause")
 	await _frames(2)
-	_check(_menu_button(Entity.TEXT["archive"]) != null, "the pause menu has the Archive")
-	_menu_button(Entity.TEXT["archive"]).pressed.emit()
+	_check(_menu_button("Library") != null, "the pause menu has the Library")
+	_menu_button("Library").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "climber" and menu.climber_tab == "archive", "...which opens the climber screen's Archive tab")
+	_check(menu.page == "library", "...which opens the Archive beside the rail")
 	var entries: Array = menu.focusables().filter(func(b): return b.has_meta("archive"))
 	var locked: Array = menu.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
 	var hidden: int = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] == "forbidden").size()
-	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - hidden - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	var always: int = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k].get("always", false)).size()  # (the creator tools: readable before they're met)
+	_check(entries.size() == 4 + always and locked.size() == Entity.TIPS.size() - hidden - 4 - always, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
 	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "the Entity presents the Archive")
 	entries[2].grab_focus()
 	await _frames(1)
@@ -8618,12 +8629,12 @@ func _train_tests() -> void:
 	await _frames(3)
 	var view = menu.train_view
 	_check(menu.page == "train" and view.visible and paused and not menu.center.visible, "the train fills the screen: its cars are the menu")
-	_check(menu.train_car == "personal" and view.pos == 1.0, "it opens on your own car")
+	_check(menu.train_car == "personal" and view.pos == 2.0, "it opens on your own car")
 	var rail = menu.rail
 	var R = load("res://scripts/rail.gd")
 	var rail_ids: Array = rail.buttons.map(func(b): return b.id)
-	_check(rail.visible and rail_ids.slice(0, 4) == ["engine", "personal", "store", "workshop"], "the rail shows on the train: its cars first, front to back (%s)" % [rail_ids])
-	_check(rail_ids.slice(4, 4 + R.TRAIN_PAGES.size()) == R.TRAIN_PAGES and rail.button("over") != null and rail.button("exit") != null and rail.button("resume") == null, "...then the pages (Climber to Dev tools), and Start over and Exit at its foot")
+	_check(rail.visible and rail_ids.slice(0, 7) == ["climber", "engine", "store", "personal", "workshop", "library", "settings"], "the rail shows on the train: who you are, then the six cars front to back (%s)" % [rail_ids])
+	_check(rail_ids.slice(7) == (["dev", "exit", "quit"] if menu.can_quit() else ["dev", "exit"]) and rail.button("resume") == null, "...then Dev Tools, Exit to Title Station and (on a computer) Quit game (%s)" % [rail_ids.slice(7)])
 	_check(rail.current == "personal" and rail.button("personal").on, "...your car lit")
 	_check(view.get_global_rect().position.x >= rail.size.x - 0.5 and absf(view.get_global_rect().end.x - menu.get_viewport_rect().size.x) < 1.0, "the cars fill the screen right of the rail")
 	var top_things: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car") or b.has_meta("arrow") or b.has_meta("menu"))
@@ -8654,18 +8665,21 @@ func _train_tests() -> void:
 	# Keys: E the next car (the train slides there, the rail's light
 	# follows), Q back; up and down on the rail move along it too.
 	await _key_tap(KEY_E)
-	_check(menu.train_car == "store", "E moves to the next car")
+	_check(menu.train_car == "workshop", "E moves to the next car")
 	await _train_settled()
-	_check(view.pos == 2.0 and view.strip.position.x == -2.0 * view.size.x, "...and the train slides along to it")
-	_check(rail.current == "store" and rail.button("store").on and not rail.button("personal").on, "...and the rail's light follows")
+	_check(view.pos == 3.0 and view.strip.position.x == -3.0 * view.size.x, "...and the train slides along to it")
+	_check(rail.current == "workshop" and rail.button("workshop").on and not rail.button("personal").on, "...and the rail's light follows")
 	await _key_tap(KEY_Q)
 	_check(menu.train_car == "personal", "Q moves back")
 	rail.focus_current()
 	await _frames(1)
 	await _key_tap(KEY_UP)
-	_check(menu.train_car == "engine" and rail.button("engine").has_focus() and menu.page == "train", "Up on the rail moves onto the engine, and the train slides there (the focus stays on the rail)")
 	await _key_tap(KEY_UP)
-	_check(menu.page == "train" and not rail.button("engine").has_focus(), "...Up again wraps round to the rail's foot (which only acts when pressed)")
+	_check(menu.train_car == "engine" and rail.button("engine").has_focus() and menu.page == "train", "Up on the rail moves onto the Outfitter's Car, then the engine, and the train slides there (the focus stays on the rail)")
+	await _key_tap(KEY_UP)
+	_check(menu.page == "climber" and rail.button("climber").has_focus(), "...Up again reaches who you are, and shows the climber screen beside the rail")
+	await _key_tap(KEY_DOWN)
+	_check(menu.page == "train" and menu.train_car == "engine" and rail.button("engine").has_focus(), "...and Down goes back onto the engine")
 	rail.button("engine").grab_focus()
 	await _frames(1)
 	# Right goes into the car; Left at its edge comes back to the rail; Esc too.
@@ -8687,12 +8701,12 @@ func _train_tests() -> void:
 	# A controller: RB / LB move along (the light and the focus follow on
 	# the rail), A goes into the car, B comes back to the rail.
 	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
-	_check(menu.train_car == "personal" and rail.button("personal").has_focus(), "RB moves to the next car, the rail's focus following")
+	_check(menu.train_car == "store" and rail.button("store").has_focus(), "RB moves to the next car, the rail's focus following")
 	await _pad_tap(JOY_BUTTON_A)
 	f = menu.get_viewport().gui_get_focus_owner()
 	_check(f != null and menu.train_page._in_car(f), "A on the rail goes into the car")
 	await _pad_tap(JOY_BUTTON_B)
-	_check(rail.button("personal").has_focus() and menu.page == "train", "...and B comes back to the rail")
+	_check(rail.button("store").has_focus() and menu.page == "train", "...and B comes back to the rail")
 	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
 	_check(menu.train_car == "engine" and rail.button("engine").has_focus(), "LB moves back")
 	main.pad._set_active(false)
@@ -8702,46 +8716,47 @@ func _train_tests() -> void:
 	wheel.position = _to_window(Vector2(view.size.x * 0.5, view.size.y - 20.0))
 	Input.parse_input_event(wheel)
 	await _frames(2)
-	_check(menu.train_car == "personal", "the mouse wheel moves along too")
+	_check(menu.train_car == "store", "the mouse wheel moves along too")
 	await _train_settled()
 	# Choosing a car on the rail moves the train there.
 	menu.nav_keys = false
-	rail.button("store").pressed.emit()
-	await _frames(2)
-	_check(menu.train_car == "store" and view.target == 2 and rail.current == "store", "choosing a car on the rail moves the train there")
-	await _train_settled()
-	# A page opens beside the same rail; Back returns to the car you were on.
-	var rail_before = rail.buttons[0]
-	rail.button("settings").pressed.emit()
-	await _frames(2)
-	_check(menu.page == "settings" and rail.visible and rail.buttons[0] == rail_before and rail.current == "settings" and rail.at_car == "store", "a page opens beside the same rail (not built again), the car you were on marked")
-	_check(menu.panel.get_global_rect().position.x >= rail.size.x - 0.5, "...the page right of the rail")
-	await _key_tap(KEY_ESCAPE)
-	_check(menu.page == "train" and menu.train_car == "store" and rail.buttons[0] == rail_before and rail.current == "store", "...and Esc returns to the car you were on")
-	rail.button("climber").pressed.emit()
-	await _frames(2)
-	menu.go_back()
-	await _frames(2)
-	_check(menu.page == "train" and menu.train_car == "store", "...so does Back from the climber screen")
-	rail.button("archive").pressed.emit()
-	await _frames(2)
-	menu.nav_keys = false
 	rail.button("workshop").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "train" and menu.train_car == "workshop", "choosing a car from a page goes back to the train, on that car")
-	rail.button("store").grab_focus()
+	_check(menu.train_car == "workshop" and view.target == 3 and rail.current == "workshop", "choosing a car on the rail moves the train there")
+	await _train_settled()
+	# Who you are opens the climber screen beside the same rail; Back returns to the car you were on.
+	var rail_before = rail.buttons[0]
+	rail.button("climber").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "climber" and rail.visible and rail.buttons[0] == rail_before and rail.button("climber") == rail.ident and rail.current == "climber" and rail.at_car == "workshop", "who you are, at the top of the rail, opens the climber screen beside the same rail (not built again), the car you were on marked")
+	_check(menu.panel.get_global_rect().position.x >= rail.size.x - 0.5, "...the page right of the rail")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "train" and menu.train_car == "workshop" and rail.buttons[0] == rail_before and rail.current == "workshop", "...and Esc returns to the car you were on")
+	rail.button("dev").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "dev" and rail.current == "dev" and rail.at_car == "workshop", "Dev Tools opens beside the rail too")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "workshop", "...and Back returns to the car")
+	rail.button("climber").pressed.emit()
+	await _frames(2)
+	menu.nav_keys = false
+	rail.button("store").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "store", "choosing a car from a page goes back to the train, on that car")
+	rail.button("engine").grab_focus()
 	await _frames(1)
 	await _key_tap(KEY_DOWN)
-	_check(menu.page == "train" and menu.train_car == "workshop" and rail.button("workshop").has_focus(), "moving down the rail onto a car slides there")
-	await _key_tap(KEY_DOWN)
-	_check(menu.page == "climber" and rail.button("climber").has_focus() and rail.at_car == "workshop", "...and onto a page shows it (the focus stays on the rail)")
+	_check(menu.page == "train" and menu.train_car == "store" and rail.button("store").has_focus(), "moving down the rail onto a car slides there")
+	rail.button("engine").grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_UP)
+	_check(menu.page == "climber" and rail.button("climber").has_focus() and rail.at_car == "engine", "...and up onto who you are shows the climber screen (the focus stays on the rail)")
 	await _key_tap(KEY_ESCAPE)
-	_check(menu.page == "train" and menu.train_car == "workshop" and rail.button("workshop").has_focus(), "...and Esc there returns to the car, on the rail")
-	rail.button("inventory").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "inventory" and rail.current == "inventory", "the rail's Inventory opens the inventory beside it")
-	menu.close()
-	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "engine" and rail.button("climber").has_focus(), "...and Esc there returns to the car, the focus back on who you are")
+	var gone: Array = ["inventory", "archive", "controls", "over", "resume"].filter(func(id): return rail.button(id) != null)
+	_check(gone.is_empty() and rail.button("settings") != null and R.is_car("settings") and R.is_car("library"), "the train's rail has no separate Inventory, Archive, Controls or Start over: Library and Settings & Controls are cars (%s)" % [gone])
 	menu.toggle("inventory")
 	await _frames(2)
 	_check(menu.page == "train" and menu.train_car == "personal", "I on the train opens your car")
@@ -8853,16 +8868,16 @@ func _train_tests() -> void:
 	# screen, the cars in the rest, and everything in a car inside it.
 	var vis: Rect2 = menu.get_viewport_rect()
 	var off_rail: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < R.ROW_MIN[0] - 0.5)
-	_check(rail.narrow and off_rail.is_empty() and rail.buttons.size() == 4 + R.TRAIN_PAGES.size() + 2, "on a phone (800 x 400) the narrow rail fits its four cars, six pages and foot: %s" % [off_rail.map(func(b): return b.id)])
+	_check(rail.narrow and off_rail.is_empty() and rail.buttons.size() == 1 + 6 + R.TRAIN_PAGES.size() + R.TRAIN_FOOT.size() + (1 if menu.can_quit() else 0), "on a phone (800 x 400) the narrow rail fits who you are, its six cars, Dev Tools and its foot: %s" % [off_rail.map(func(b): return b.id)])
 	_check(rail.size.x <= vis.size.x * 0.16 and absf(view.get_global_rect().position.x - rail.size.x) < 1.0, "...and the cars fill the rest (%.0f of %.0f)" % [rail.size.x, vis.size.x])
 	var outside: Array = []
-	for car in ["engine", "personal", "store", "workshop"]:
+	for car in ["engine", "store", "personal", "workshop", "library", "settings"]:
 		menu.train_page.go_to(menu.train_page._index(car))
 		await _train_settled()
 		await _frames(2)
 		var vr: Rect2 = view.get_global_rect()
 		for b in _all_buttons(menu.train_page.roots[car]):
-			if b.is_visible_in_tree() and not vr.grow(0.5).encloses(b.get_global_rect()):
+			if b.is_visible_in_tree() and not vr.grow(0.5).encloses(b.get_global_rect()) and menu.train_page._scroll_of(b) == null:
 				outside.append("%s %s" % [car, b.text])
 	_check(outside.is_empty(), "...and every car's furniture and placard stay inside the car view: %s" % [outside])
 	menu.train_page.go_to(menu.train_page._index("personal"))
@@ -8877,18 +8892,18 @@ func _train_tests() -> void:
 	var mid_car: String = menu.train_car
 	_touch(0, Vector2(view.global_position.x + view.size.x * 0.18, mid), false)
 	await _frames(2)
-	_check(mid_light == "store" and mid_car == "personal", "mid-swipe the rail's light moves to the car coming into view (%s, still in %s)" % [mid_light, mid_car])
+	_check(mid_light == "workshop" and mid_car == "personal", "mid-swipe the rail's light moves to the car coming into view (%s, still in %s)" % [mid_light, mid_car])
 	await _train_settled()
 	menu.train_page.go_to(menu.train_page._index("personal"))
 	await _train_settled()
 	await _swipe(Vector2(view.size.x * 0.62, mid), Vector2(view.size.x * 0.3, mid))
-	_check(menu.train_car == "store" and view.target == 2, "a swipe to the left goes to the next car")
-	_check(rail.current == "store" and rail.button("store").on and not rail.button("personal").on, "...and the rail's light follows it")
+	_check(menu.train_car == "workshop" and view.target == 3, "a swipe to the left goes to the next car")
+	_check(rail.current == "workshop" and rail.button("workshop").on and not rail.button("personal").on, "...and the rail's light follows it")
 	_check(menu.train_sel.get("personal", "") == sel0, "...and doesn't press what it began on")
 	await _train_settled()
 	await _swipe(Vector2(view.size.x * 0.4, mid), Vector2(view.size.x * 0.52, mid), 0.05)
 	await _train_settled()
-	_check(menu.train_car == "store" and view.pos == 2.0, "a short one settles back on the same car")
+	_check(menu.train_car == "workshop" and view.pos == 3.0, "a short one settles back on the same car")
 	await _swipe(Vector2(view.size.x * 0.3, mid), Vector2(view.size.x * 0.62, mid))
 	_check(menu.train_car == "personal", "a swipe to the right goes back")
 	await _tap_at(rail.button("engine").get_global_rect().get_center())
@@ -9667,8 +9682,7 @@ func _maker_tests() -> void:
 	var h: float = M.redact_into(bars, Vector2.ZERO, 60.0, "▇▇▇▇ ▇▇▇▇▇ ▇▇▇ ▇▇▇▇▇▇", Color.WHITE, 13.0)
 	_check(bars.size() > 0 and h > 13.0 * 1.45, "redacted words draw as bars, wrapping (%.0f tall)" % h)
 	# Nothing shows before anything is found.
-	main.menu.climber_tab = "archive"
-	main.menu.open("climber")
+	main.menu.open("library")
 	await _frames(2)
 	_check(main.menu.find_children("*", "", true, false).all(func(n): return not n.has_meta("shelf")), "before a fragment is found the Archive shows no shelf")
 	main.menu.close()
@@ -9734,8 +9748,7 @@ func _maker_tests() -> void:
 	_check(mk.quiet() and not main.entity.can_show(), "the Entity goes quiet (no tip bubble)")
 	_check(main.banner.get("title", "") == M.TEXT["fragment_title"], "a short moment: the fragment's banner")
 	# The forbidden shelf.
-	main.menu.climber_tab = "archive"
-	main.menu.open("climber")
+	main.menu.open("library")
 	await _frames(2)
 	var shelves: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("shelf"))
 	var texts: Array = main.menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("fragment_text"))
@@ -9929,8 +9942,7 @@ func _maker_tests() -> void:
 	await _frames(2)
 	var labels: Array = main.menu.find_children("*", "Label", true, false).filter(func(l): return l.text == M.core_text(prof))
 	_check(labels.size() == 1, "the climber screen names the core mark")
-	main.menu.climber_tab = "archive"
-	main.menu.open("climber")
+	main.menu.open("library")
 	await _frames(2)
 	_check(main.menu.find_children("*", "", true, false).any(func(n): return n.has_meta("entity_sibling") and not M.is_redacted(n.get_meta("entity_sibling"))), "once you've met one, the Entity speaks of its siblings")
 	main.menu.close()
@@ -11719,18 +11731,20 @@ func _rail_tests() -> void:
 	await _key_tap(KEY_ESCAPE)
 	await _frames(2)
 	var rail = menu.rail
-	_check(menu.page == "pause" and rail.visible and rail.buttons.size() == R.ITEMS.size() + R.FOOT.size(), "Esc opens the menu with the rail: its pages, Start over and Exit")
+	_check(menu.page == "pause" and rail.visible and rail.buttons.size() == 1 + R.ITEMS.size() + R.FOOT.size(), "Esc opens the menu with the rail: who you are, its pages and Exit")
+	_check(rail.buttons.map(func(b): return b.text) == ["Climber", "Resume", "Inventory", "Library", "Settings & Controls", "Dev Tools", "Exit to Title"], "...named as on the train: Climber (who you are), Resume, Inventory, Library, Settings & Controls, Dev Tools, Exit to Title (%s)" % [rail.buttons.map(func(b): return b.text)])
 	_check(rail.button("resume") != null and rail.button("resume").has_focus() and rail.current == "resume", "...the focus on Resume, lit as the page showing")
 	# Up and down move along the rail, showing each page as they go.
 	await _key_tap(KEY_DOWN)
-	_check(menu.page == "climber" and rail.button("climber").has_focus() and rail.current == "climber", "Down moves to Climber and shows the climber screen (the focus stays on the rail)")
+	_check(menu.page == "inventory" and rail.button("inventory").has_focus() and rail.current == "inventory", "Down moves to Inventory and shows it (the focus stays on the rail)")
 	await _key_tap(KEY_DOWN)
-	_check(menu.page == "inventory" and rail.button("inventory").has_focus(), "...Down again: the inventory")
+	_check(menu.page == "library" and rail.button("library").has_focus(), "...Down again: the Library")
 	await _key_tap(KEY_UP)
 	await _key_tap(KEY_UP)
 	await _key_tap(KEY_UP)
-	_check(rail.button("exit").has_focus() and menu.page == "pause", "Up from Resume wraps round to Exit (the foot only acts when pressed)")
-	await _key_tap(KEY_DOWN)
+	_check(menu.page == "climber" and rail.button("climber") == rail.ident and rail.ident.has_focus() and rail.current == "climber", "Up from Resume reaches who you are, at the top, and shows the climber screen")
+	await _key_tap(KEY_UP)
+	_check(rail.button("exit").has_focus() and menu.page == "climber", "...Up again wraps round to Exit (the foot only acts when pressed)")
 	await _key_tap(KEY_DOWN)
 	# Right goes into the page; Esc comes back to the rail; Esc on the rail closes.
 	await _key_tap(KEY_RIGHT)
@@ -11745,13 +11759,13 @@ func _rail_tests() -> void:
 	await _key_tap(KEY_DOWN)
 	await _key_tap(KEY_ENTER)
 	f = root.gui_get_focus_owner()
-	_check(menu.page == "climber" and f != null and not rail.buttons.has(f), "Enter on a rail item goes into its page")
+	_check(menu.page == "inventory" and f != null and not rail.buttons.has(f), "Enter on a rail item goes into its page")
 	menu.close()
 	await _frames(2)
 	# Every item opens its page (clicks and the controller's A press them).
 	menu.open("pause")
 	await _frames(2)
-	var want := {"climber": "climber", "inventory": "inventory", "archive": "climber", "settings": "settings", "controls": "controls", "dev": "dev", "over": "confirm_new"}
+	var want := {"climber": "climber", "inventory": "inventory", "library": "library", "settings": "settings", "dev": "dev"}
 	var wrong: Array = []
 	for id in want:
 		rail.button(id).pressed.emit()
@@ -11759,12 +11773,12 @@ func _rail_tests() -> void:
 		if menu.page != want[id] or rail.current != id or not rail.visible:
 			wrong.append("%s opened %s" % [id, menu.page])
 	_check(wrong.is_empty(), "every rail item opens its page, lit on the rail (%s)" % ", ".join(wrong))
-	rail.button("archive").pressed.emit()
+	rail.button("library").pressed.emit()
 	await _frames(2)
-	_check(menu.climber_tab == "archive", "Archive opens the climber screen's Archive")
+	_check(menu.page == "library" and menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "Library opens the Entity's Archive as one page")
 	rail.button("climber").pressed.emit()
 	await _frames(2)
-	_check(menu.climber_tab == "marks" and menu.page == "climber", "...and Climber goes back to its last other tab")
+	_check(menu.page == "climber" and not menu.climber_tabs().any(func(t): return t[0] == "archive"), "...and the climber screen has no Archive tab of its own")
 	menu.open_mark("hand")
 	await _frames(2)
 	_check(menu.page == "mark" and rail.visible and rail.current == "climber", "a mark's page keeps the rail, Climber lit")
@@ -11785,8 +11799,10 @@ func _rail_tests() -> void:
 	await _frames(3)
 	await _tap_at(rail.button("settings").get_global_rect().get_center())
 	_check(menu.page == "settings" and rail.current == "settings", "tapping a rail item opens its page")
-	await _tap_at(rail.button("controls").get_global_rect().get_center())
-	_check(menu.page == "controls", "...and another")
+	await _tap_at(rail.button("library").get_global_rect().get_center())
+	_check(menu.page == "library", "...and another")
+	await _tap_at(rail.ident.get_global_rect().get_center())
+	_check(menu.page == "climber", "...and tapping who you are opens the climber screen")
 	# It fits a phone: a narrow rail of icons and short names, the page beside it.
 	var vis: Rect2 = menu.get_viewport_rect()
 	var fits := true
@@ -11820,17 +11836,289 @@ func _rail_tests() -> void:
 	main.profile.regarded = true
 	main.open_train()
 	await _frames(3)
-	_check(menu.page == "train" and rail.visible and rail.button("resume") == null and rail.button("personal") != null and rail.button("personal").text == main.Train.CARS[1][1], "on the train the rail is always there, with the cars and no Resume")
+	_check(menu.page == "train" and rail.visible and rail.button("resume") == null and rail.button("personal") != null and rail.button("personal").text == main.Train.CARS[2][1], "on the train the rail is always there, with the cars and no Resume")
 	_check(rail.button("personal").has_focus(), "...the keys start on it, on your car")
 	menu.go_back()
 	await _frames(2)
 	_check(menu.page == "train", "...and Esc there stays on the train")
-	rail.button("over").pressed.emit()
+	menu.nav_keys = false
+	rail.button("settings").pressed.emit()
+	await _frames(3)
+	var brake: Array = _car_buttons("over", true)
+	_check(menu.train_car == "settings" and brake.size() == 1, "Start over is in the Settings & Controls car")
+	if not brake.is_empty():
+		brake[0].pressed.emit()
 	await _frames(2)
-	_check(menu.page == "confirm_new" and rail.visible, "Start over from the train asks first, beside the rail")
+	_check(menu.page == "confirm_new" and rail.visible and rail.current == "settings", "Start over from the train asks first, beside the rail (Settings & Controls lit)")
 	menu.go_back()
 	await _frames(2)
-	_check(menu.page == "train", "...and Cancel goes back to the train")
+	_check(menu.page == "train" and menu.train_car == "settings", "...and Cancel goes back to the train, on that car")
+
+
+## The train's rail in the owner's order (rail.gd): who you are opens the
+## climber screen; the six cars, the Library and Settings & Controls cars
+## among them (the Archive and every setting working in them, Start over
+## with its confirm); Q / E and swipes through all six in order; Exit to
+## Title Station; Quit only on a computer; an 800 x 400 phone; the pause
+## rail's names; and the dev tools' train on end, which still navigates.
+func _train_rail_tests() -> void:
+	print("the train's rail: the owner's order, the Library and Settings & Controls cars, the train on end")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var menu = main.menu
+	var M = load("res://scripts/menu.gd")
+	var R = load("res://scripts/rail.gd")
+	var Guide = load("res://scripts/guide.gd")
+	var Entity = load("res://scripts/entity.gd")
+	var T = main.Train
+	var keep_settings: Dictionary = M.settings.duplicate()
+	main.profile.regarded = true
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	var rail = menu.rail
+	var view = menu.train_view
+	var tp = menu.train_page
+	var order := ["engine", "store", "personal", "workshop", "library", "settings"]
+	_check(T.CARS.map(func(c): return c[0]) == order and T.CARS.map(func(c): return c[1]) == ["Engine", "Outfitter's Car", "Your Car", "Workshop", "Library", "Settings & Controls Car"], "the train's cars, front to back: Engine, Outfitter's Car, Your Car, Workshop, Library, Settings & Controls Car")
+	var ids: Array = rail.buttons.map(func(b): return b.id)
+	_check(ids.slice(0, 9) == ["climber"] + order + ["dev", "exit"], "the rail: who you are, the six cars, Dev Tools, Exit to Title Station (%s)" % [ids])
+	_check(rail.button("exit").text == "Exit to Title Station" and rail.button("dev").text == "Dev Tools", "...named Exit to Title Station and Dev Tools")
+	_check(rail.button("quit") != null if menu.can_quit() else rail.button("quit") == null, "Quit game only where the game can be quit (a computer: %s)" % menu.can_quit())
+	_check(menu.can_quit() == not (OS.has_feature("web") or OS.has_feature("mobile")), "...never in a browser or on a phone")
+	# Who you are: hover, focus and a press open the climber screen.
+	_check(rail.ident is Button and rail.ident.focus_mode == Control.FOCUS_ALL and rail.buttons[0] == rail.ident, "who you are is a button, the rail's first stop")
+	menu.nav_keys = false
+	rail.ident.pressed.emit()
+	await _frames(2)
+	_check(menu.page == "climber" and rail.current == "climber" and rail.ident.on, "pressing it opens the climber screen beside the rail, lit")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train", "...and Back returns to the train")
+	await _click_at(rail.ident.get_global_rect().get_center())
+	_check(menu.page == "climber", "a click on it does too")
+	menu.close()
+	await _frames(2)
+	# Q / E pass through all six cars in order, and back.
+	menu.train_car = "engine"
+	menu.open("train")
+	await _frames(2)
+	var seen: Array = [menu.train_car]
+	for i in 5:
+		await _key_tap(KEY_E)
+		seen.append(menu.train_car)
+	await _key_tap(KEY_E)
+	_check(seen == order and menu.train_car == "settings", "E goes through all six cars in order, and stops at the last (%s)" % [seen])
+	var back: Array = [menu.train_car]
+	for i in 5:
+		await _key_tap(KEY_Q)
+		back.append(menu.train_car)
+	_check(back == ["settings", "library", "workshop", "personal", "store", "engine"], "...and Q back through them (%s)" % [back])
+	# Swipes too, on a phone (800 x 400).
+	var was_size: Vector2i = root.size
+	root.size = Vector2i(800, 400)
+	main.touch._set_active(true)
+	await _frames(2)
+	menu.train_car = "engine"
+	menu.open("train")
+	await _frames(3)
+	await _train_settled()
+	var mid: float = view.size.y * 0.5
+	var swiped: Array = [menu.train_car]
+	for i in 5:
+		await _swipe(Vector2(view.global_position.x + view.size.x * 0.62, mid), Vector2(view.global_position.x + view.size.x * 0.3, mid))
+		await _train_settled()
+		swiped.append(menu.train_car)
+	_check(swiped == order, "swiping left goes through all six cars in order (%s)" % [swiped])
+	# It fits: the narrow rail, every item on screen and big enough to tap.
+	var vis: Rect2 = menu.get_viewport_rect()
+	var off: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < 29.5)
+	_check(rail.narrow and off.is_empty(), "at 800 x 400 the rail fits who you are, the six cars, Dev and Station: %s" % [off.map(func(b): return b.id)])
+	_check(R.TRAIN_CARS["store"][0] == "Outfitter" and R.TRAIN_CARS["settings"][0] == "Settings" and R.TRAIN_FOOT[0][2] == "Station", "...with short names: Outfitter, Your Car, Library, Settings, Dev, Station")
+	var outside: Array = []
+	for car in ["library", "settings"]:
+		menu.train_car = car
+		menu.open("train")
+		await _train_settled()
+		await _frames(4)
+		var vr: Rect2 = view.get_global_rect()
+		for b in _all_buttons(tp.roots[car]):
+			if b.is_visible_in_tree() and not vr.grow(0.5).encloses(b.get_global_rect()) and tp._scroll_of(b) == null:
+				outside.append("%s %s" % [car, b.text])
+		var sc_rect: Rect2 = tp.card_scrolls[car].get_global_rect()
+		if not vr.grow(0.5).encloses(sc_rect):
+			outside.append("%s's panel" % car)
+	_check(outside.is_empty(), "...and the Library's and Settings & Controls' furniture fit in the car (their lists scroll in their panels): %s" % [outside])
+	# A slider set by a finger, in the car.
+	menu.train_car = "settings"
+	menu.settings_tab = "settings"
+	menu.open("train")
+	await _frames(4)
+	var sliders: Array = tp.roots["settings"].find_children("*", "HSlider", true, false).filter(func(sl): return sl.is_visible_in_tree())
+	if not sliders.is_empty():
+		var sl: HSlider = sliders[0]
+		var r: Rect2 = sl.get_global_rect()
+		await _tap_at(Vector2(r.position.x + r.size.x * 0.25, r.get_center().y))
+		_check(absf(float(M.settings["music"]) - 0.25) < 0.08 and menu.page == "train" and menu.train_car == "settings", "touching the music slider in the car sets it (%.2f), and doesn't move the train" % float(M.settings["music"]))
+	else:
+		_check(false, "the Settings & Controls car has sliders")
+	main.touch._set_active(false)
+	root.size = was_size
+	await _frames(3)
+	# The Library car: the Archive's shelves on the bookcase, read at the lectern.
+	Guide.forget()
+	for id in ["entity", "move", "glint", "ward", "train"]:
+		Guide.state["known"][id] = true
+	menu.train_car = "library"
+	menu.library_shelf = ""
+	menu.archive_open = ""
+	menu.open("train")
+	await _frames(3)
+	var vols: Array = _car_buttons("shelf", "start")
+	_check(_all_buttons(tp.roots["library"]).filter(func(b): return b.has_meta("shelf")).size() >= Entity.GROUPS.size(), "the Library's bookcase has a volume for each of the Archive's groups")
+	_check(menu.library_shelf == "start" and vols.size() == 1 and vols[0].on, "...the first with something heard is open on the lectern")
+	var entries: Array = _all_buttons(tp.roots["library"]).filter(func(b): return b.has_meta("archive"))
+	var locked: Array = tp.roots["library"].find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
+	_check(entries.size() == 3 and locked.size() == Entity.ordered("start").size() - 3, "the lectern shows that shelf's subjects: met ones as buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	var glint: Array = _car_buttons("archive", "glint")
+	if not glint.is_empty():
+		glint[0].grab_focus()
+		await _frames(1)
+		await _key_tap(KEY_ENTER)
+		await _frames(2)
+	var says: Array = tp.roots["library"].find_children("*", "", true, false).filter(func(c): return c.get_meta("archive_open", "") == "glint")
+	_check(menu.archive_open == "glint" and not says.is_empty() and menu.page == "train" and menu.train_car == "library", "opening a subject shows the Entity's tip and the fuller account, in the car")
+	var f: Control = _focus_now()
+	_check(f != null and f.get_meta("archive", "") == "glint", "...and the focus stays on it")
+	var train_vol: Array = _car_buttons("shelf", "train")
+	if not train_vol.is_empty():
+		train_vol[0].pressed.emit()
+		await _frames(2)
+	_check(menu.library_shelf == "train" and _car_buttons("archive", "train").size() == 1, "another volume opens its own shelf on the lectern")
+	_check(_car_buttons("archive", "glint").is_empty() and _all_buttons(tp.roots["library"]).any(func(b): return b.text == Entity.TEXT["replay"]), "...with Replay the tips there too")
+	menu.close()
+	menu.open_archive()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "library", "the Archive, asked for on the train, is the Library car")
+	# The Settings & Controls car: a setting changes and saves; the Controls tab; Start over.
+	menu.train_car = "settings"
+	menu.settings_tab = "settings"
+	menu.open("train")
+	await _frames(3)
+	var hud: Array = _all_buttons(tp.roots["settings"]).filter(func(b): return b.get_meta("choice_key", "") == "hud_scale" and b.get_meta("choice", "") == "large")
+	_check(hud.size() == 1, "the Settings & Controls car holds the settings")
+	if not hud.is_empty():
+		hud[0].pressed.emit()
+		await _frames(2)
+	var path := "user://smoke_settings_car.cfg"
+	M.save_settings_to(path)
+	var cfg := ConfigFile.new()
+	cfg.load(path)
+	_check(M.settings["hud_scale"] == "large" and main.hud.hud_scale == float(main.menu.UI.HUD_SCALES["large"]) and cfg.get_value("settings", "hud_scale", "") == "large", "choosing HUD size Large there sets it, applies it and saves it")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	_check(menu.page == "train" and menu.train_car == "settings", "...staying in the car")
+	var tog: Array = tp.roots["settings"].find_children("*", "CheckButton", true, false).filter(func(c): return c.is_visible_in_tree())
+	_check(tog.size() >= 3 and _all_buttons(tp.roots["settings"]).any(func(b): return b.get_meta("setting", "") == "padsetup"), "...the toggles and Controller setup too")
+	var ctab: Array = _car_buttons("panel_tab", "controls")
+	if not ctab.is_empty():
+		ctab[0].pressed.emit()
+		await _frames(2)
+	var labels: Array = _all_labels(tp.roots["settings"]).map(func(l): return l.text)
+	_check(menu.settings_tab == "controls" and "Controller" in labels and labels.any(func(t): return "hold LB" in t), "its Controls tab lists every key and button")
+	menu.settings_tab = "settings"
+	var brake: Array = _car_buttons("over", true)
+	_check(brake.size() == 1 and brake[0].text == T.TEXT["over"], "the emergency brake: Start over this climber")
+	if not brake.is_empty():
+		brake[0].pressed.emit()
+	await _frames(2)
+	_check(menu.page == "confirm_new" and _menu_button(load("res://scripts/climbers_page.gd").TEXT["cancel"]) != null, "...which asks first")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "settings" and main.profile.regarded, "...and Cancel goes back to the car, nothing lost")
+	# Controller setup from the car comes back to it.
+	var pads: Array = _all_buttons(tp.roots["settings"]).filter(func(b): return b.get_meta("setting", "") == "padsetup")
+	if not pads.is_empty():
+		pads[0].pressed.emit()
+		await _frames(2)
+	_check(menu.page == "padsetup" and rail.current == "settings", "Controller setup opens beside the rail, Settings & Controls lit")
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "settings", "...and Back returns to the car")
+	# Exit to Title Station.
+	rail.button("exit").pressed.emit()
+	await _frames(3)
+	_check(menu.page == "title", "Exit to Title Station goes to the title")
+	menu.close()
+	await _frames(2)
+	# The pause rail in a climb: the train's names, single pages.
+	main.on_train = false
+	main.choosing_tower = false
+	menu.open("pause")
+	await _frames(2)
+	_check(rail.buttons.map(func(b): return b.id) == ["climber", "resume", "inventory", "library", "settings", "dev", "exit"], "the pause rail: who you are, Resume, Inventory, Library, Settings & Controls, Dev Tools, Exit")
+	rail.button("settings").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "settings" and menu.focusables().any(func(b): return b.has_meta("tab") and b.get_meta("tab") == "controls"), "Settings & Controls in a climb: one page, its two tabs")
+	await _key_tap(KEY_E)
+	_check(menu.settings_tab == "controls" and menu.page == "settings", "...E (or RB) switches to Controls")
+	menu.settings_tab = "settings"
+	menu.close()
+	await _frames(2)
+	# The train on end (dev tools): it switches, and still navigates.
+	main.on_train = true
+	menu.train_car = "personal"
+	menu.open("dev")
+	await _frames(2)
+	var look: Array = menu.focusables().filter(func(b): return b.get_meta("choice_key", "") == "train_rail" and b.get_meta("choice", "") == "end")
+	_check(look.size() == 1 and M.settings["train_rail"] == "menu", "dev tools: Train rail, a menu at first, or the train on end")
+	if not look.is_empty():
+		look[0].pressed.emit()
+		await _frames(2)
+	menu.close()
+	await _frames(3)
+	_check(M.settings["train_rail"] == "end" and rail.on_end and menu.page == "train", "...switched to the train on end")
+	ids = rail.buttons.map(func(b): return b.id)
+	_check(ids.slice(0, 9) == ["climber"] + order + ["dev", "exit"], "...the same items in the same order (%s)" % [ids])
+	var cars: Array = rail.buttons.filter(func(b): return b.car)
+	var stacked := true
+	for i in cars.size() - 1:
+		stacked = stacked and cars[i].get_global_rect().end.y <= cars[i + 1].get_global_rect().position.y
+	_check(cars.size() == 6 and stacked and rail.button("engine").size.y > rail.button("store").size.y, "...the cars stacked under each other, the engine at the top and taller")
+	rail.focus_current()
+	await _frames(1)
+	await _key_tap(KEY_DOWN)
+	_check(menu.train_car == "workshop" and rail.button("workshop").has_focus(), "...Down on it moves to the next car")
+	await _key_tap(KEY_E)
+	_check(menu.train_car == "library" and rail.current == "library", "...E too, the light following")
+	menu.nav_keys = false
+	rail.button("engine").pressed.emit()
+	await _frames(2)
+	_check(menu.train_car == "engine", "...a click on a car goes there")
+	rail.ident.pressed.emit()
+	await _frames(2)
+	_check(menu.page == "climber", "...and the station's sign opens the climber screen")
+	menu.close()
+	await _frames(2)
+	root.size = Vector2i(800, 400)
+	main.touch._set_active(true)
+	menu.open("train")
+	await _frames(4)
+	vis = menu.get_viewport_rect()
+	off = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < 29.5)
+	_check(rail.narrow and rail.on_end and off.is_empty(), "...and fits at 800 x 400: %s" % [off.map(func(b): return b.id)])
+	await _tap_at(rail.button("workshop").get_global_rect().get_center())
+	_check(menu.train_car == "workshop", "...a tap on a car goes there")
+	main.touch._set_active(false)
+	root.size = was_size
+	for k in keep_settings:
+		M.settings[k] = keep_settings[k]
+	menu.open("train")
+	await _frames(2)
+	_check(not rail.on_end, "...and back to the menu")
+	menu.close()
+	await _frames(2)
 
 
 ## The mouse, as the game would get it (a move, a button).
@@ -11926,7 +12214,7 @@ func _switch_tests() -> void:
 	await _pad_tap(JOY_BUTTON_DPAD_UP)
 	await _frames(2)
 	var on_rail: Control = _focus_now()
-	_check(on_rail != null and menu.rail.buttons.has(on_rail) and on_rail.id == "over" and menu.page == "climber", "on the rail, the d-pad's first press moves along it, and the focus stays there after the prompts change (%s)" % [on_rail.id if on_rail != null and menu.rail.buttons.has(on_rail) else on_rail])
+	_check(on_rail != null and menu.rail.buttons.has(on_rail) and on_rail.id == "dev" and menu.page == "dev", "on the rail, the d-pad's first press moves along it, and the focus stays there after the prompts change (%s)" % [on_rail.id if on_rail != null and menu.rail.buttons.has(on_rail) else on_rail])
 	# Controller -> keys: Enter and the arrows work the first time.
 	menu.climber_tab = "marks"
 	menu.open("climber")
@@ -12034,7 +12322,7 @@ func _rail_line_tests() -> void:
 		var states: Array = []
 		for c in load("res://scripts/bench.gd").COUNTERS:
 			states.append(["workshop", c[0], "shop"])
-		states.append_array([["engine", "brew", "shop"], ["personal", "brew", "shop"], ["store", "brew", "shop"], ["store", "brew", "sell"]])
+		states.append_array([["engine", "brew", "shop"], ["personal", "brew", "shop"], ["store", "brew", "shop"], ["store", "brew", "sell"], ["library", "brew", "shop"], ["settings", "brew", "shop"]])
 		for st in states:
 			menu.train_car = st[0]
 			menu.train_bench = st[1]
@@ -12140,8 +12428,8 @@ func _nav_tests() -> void:
 			_pad_button(JOY_BUTTON_DPAD_DOWN, true)
 		else:
 			_pad_axis(JOY_AXIS_LEFT_Y, 1.0)
-		await _until(func(): return rail.button("archive").has_focus(), 2.0)
-		var got: bool = rail.button("archive").has_focus()
+		await _until(func(): return rail.button("library").has_focus(), 2.0)
+		var got: bool = rail.button("library").has_focus()
 		if how == "key":
 			var up := InputEventKey.new()
 			up.physical_keycode = KEY_DOWN
@@ -12174,7 +12462,7 @@ func _nav_tests() -> void:
 	k2.pressed = false
 	Input.parse_input_event(k2)
 	await _frames(2)
-	_check(rail.button("climber").has_focus(), "a quick press is one step, whatever the system's key repeat sends")
+	_check(rail.button("inventory").has_focus(), "a quick press is one step, whatever the system's key repeat sends")
 	# The stick wobbling past its deadzone is still one step (an appearance row).
 	menu.open_appearance("climber")
 	await _frames(3)
@@ -12293,16 +12581,18 @@ func _nav_tests() -> void:
 	await _frames(2)
 	_check(menu.page == "settings" and rail.has_focus_inside(), "a right-click goes back one level (from the page to the rail)")
 	# The Start over question starts on Cancel; Esc goes back to where you were.
-	menu.open("pause")
+	menu.open("settings")
 	await _frames(2)
-	rail.button("over").grab_focus()
+	var over_list: Array = menu.focusables().filter(func(b): return b.has_meta("over"))
+	if not over_list.is_empty():
+		over_list[0].grab_focus()
 	await _frames(1)
 	await _key_tap(KEY_ENTER)
 	await _frames(2)
 	_check(menu.page == "confirm_new" and _focus_now() != null and _focus_now().has_meta("cancel"), "Start over asks first, with the focus on Cancel")
 	await _key_tap(KEY_ESCAPE)
-	await _until(func(): return rail.button("over").has_focus(), 1.0)
-	_check(menu.page == "pause" and rail.button("over").has_focus(), "...and Esc goes back onto Start over, nothing lost")
+	await _until(func(): return _focus_now() != null and _focus_now().has_meta("over"), 1.0)
+	_check(menu.page == "settings" and _focus_now() != null and _focus_now().has_meta("over"), "...and Esc goes back onto Start over, nothing lost")
 	menu.close()
 	await _frames(2)
 	# The store car: Enter on a shelf slot reaches its Buy; Left comes back.
@@ -12641,3 +12931,340 @@ func _icon_tests() -> void:
 	G.icon_into(faded, G.make("sword"), Vector2.ZERO, 18.0, Color(1, 1, 1, 0.5))
 	_check(faded.cols.size() == plain.cols.size() and is_equal_approx(faded.cols[faded.cols.size() - 1].a, plain.cols[plain.cols.size() - 1].a * 0.5), "a faded colour fades the icon")
 	_check(Art.ol(10.5) < Art.ol(40.0) and Art.detail(10.5) == 0 and Art.detail(40.0) == 2, "outlines and detail scale with the icon's size")
+
+
+## A mouse move with the left button held (Shift: Arrange mode places freely).
+func _mouse_drag_to(pos: Vector2, shift := false) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.position = _to_window(pos)
+	ev.global_position = ev.position
+	ev.relative = Vector2(6, 6)
+	ev.shift_pressed = shift
+	ev.button_mask = MOUSE_BUTTON_MASK_LEFT
+	Input.parse_input_event(ev)
+
+
+func _near(a: Vector2, b: Vector2, by := 0.6) -> bool:
+	return a.distance_to(b) <= by
+
+
+## The touch button with this id (as touch.gd lays them out now).
+func _touch_btn(id: String) -> Dictionary:
+	main.touch._layout()
+	for b in main.touch.buttons:
+		if b["id"] == id:
+			return b
+	return {}
+
+
+## The layout registry and Arrange mode (layout.gd, arrange.gd).
+func _arrange_tests() -> void:
+	print("the layout and Arrange mode")
+	await _fresh_main()
+	var L = load("res://scripts/layout.gd")
+	var keep_paths := [L.user_path, L.project_path, L.write_project]
+	L.user_path = "user://smoke_layout.cfg"
+	L.project_path = "user://smoke_layout.json"  # (never the repository's own file)
+	L.write_project = false
+	for f in [L.user_path, L.project_path]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	L.clear_state()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var p = main.player
+	p.add_item("tonic")
+	for e in main.enemies():
+		e.set_physics_process(false)
+	await _frames(3)
+	var hud = main.hud
+	var view: Vector2 = hud.get_viewport_rect().size
+
+	# The defaults are today's layout.
+	_check(FileAccess.file_exists(L.PROJECT_PATH) and L.parse(FileAccess.get_file_as_string(L.PROJECT_PATH)) != null, "the shared defaults file (data/layout.json) is there and reads")
+	_check(L.box("hud.bars", view) == Rect2(hud.BAR_X - 4, hud.BAR_Y - 4, hud.BAR_W + 8, 32) and L.box("hud.weapon", view) == Rect2(hud.BAR_X, hud.ROW_Y, hud.SLOT, hud.SLOT) \
+		and L.box("hud.item", view) == Rect2(hud.BAR_X + hud.SLOT + 6, hud.ROW_Y, hud.SLOT, hud.SLOT), "the registry's defaults are the HUD's own places")
+	_check(L.box("hud.stair", view) == Rect2(40, 104, view.x - 80, view.y - 144), "the stair arrow's ring is the screen less its margins")
+	var all_still := true
+	for id in L.ids("desktop") + L.ids("touch"):
+		if L.xform(id, view) != Transform2D.IDENTITY:
+			all_still = false
+	_check(all_still, "with no arrangement nothing moves (every transform is the identity)")
+	var wtip: Array = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and wtip[0][0] == Rect2(hud.BAR_X, hud.ROW_Y, hud.SLOT, hud.SLOT), "the weapon's tooltip is where it always was")
+	main.touch._set_active(true)
+	await _frames(2)
+	_check(L.active_set == "touch", "a touch switches to the phone's layout")
+	var tv: Vector2 = main.touch.get_viewport_rect().size
+	var old := {"attack": [Vector2(-130, -130), 62.0, true], "jump": [Vector2(-36, -36), 30.0, true], "item_next": [Vector2(-478, -48), 22.0, true],
+		"fullscreen": [Vector2(-40, 40), 24.0, false], "inventory": [Vector2(-236, 40), 26.0, false], "cast_hand": [Vector2(-282, -222), 34.0, true], "cast_legs": [Vector2(-52, -262), 34.0, true]}
+	var same := true
+	for id in old:
+		var b := _touch_btn(id)
+		var corner: Vector2 = tv if old[id][2] else Vector2(tv.x, 0)
+		if b.is_empty() or not _near(b["c"], corner + old[id][0] * 0.75, 0.01) or absf(b["r"] - old[id][1] * 0.75) > 0.01:
+			same = false
+			print("    moved: ", id, " ", b)
+	_check(same, "the touch buttons are where they always were")
+	_check(main.touch.stick_zone() == Rect2(0, 0, tv.x * 0.5, tv.y), "the joystick starts anywhere on the left half")
+
+	# An arrangement moves an element, and its touch hit area goes with it.
+	L.set_override("touch.attack", {"anchor": "bl", "x": 120.0, "y": -40.0, "scale": 1.0})
+	var atk := _touch_btn("attack")
+	var want := Vector2(120.0 + 46.5, tv.y - 40.0 - 46.5)
+	_check(_near(atk["c"], want) and absf(atk["r"] - 46.5) < 0.01, "an arranged attack button sits where it was put (%s)" % atk["c"])
+	await _frames(2)
+	_touch(5, atk["c"], true)
+	await _frames(2)
+	_check(Input.is_action_pressed("attack"), "...and a tap there presses attack")
+	_touch(5, atk["c"], false)
+	await _frames(2)
+	_check(not Input.is_action_pressed("attack") and main.touch.stick_touch == -1, "...and lets go (the joystick didn't take it)")
+	_touch(5, tv + Vector2(-130, -130) * 0.75, true)
+	await _frames(2)
+	_check(not Input.is_action_pressed("attack"), "its old place doesn't press attack any more")
+	_touch(5, tv + Vector2(-130, -130) * 0.75, false)
+	await _frames(2)
+	L.use_set("desktop")
+	_check(not L.moved("touch.attack"), "the computer's layout keeps its own arrangement")
+	L.use_set("touch")
+	_check(L.moved("touch.attack"), "...and the phone's keeps the move")
+	# The limits: on screen, and touch buttons tappable.
+	L.set_override("touch.item_next", {"anchor": "br", "x": 900.0, "y": 900.0, "scale": 0.05})
+	var nb: Rect2 = L.box("touch.item_next", tv)
+	_check(nb.size.x * main.touch.PHONE_SCALE >= 44.0 - 0.01 and Rect2(Vector2.ZERO, tv).encloses(nb), "a touch button stays on screen and at least 44 px across on the phone (%s)" % nb)
+	L.move_to("touch.jump", Rect2(-300, -300, 4, 4), tv)
+	var jb: Rect2 = L.box("touch.jump", tv)
+	_check(Rect2(Vector2.ZERO, tv).encloses(jb) and jb.size.x >= L.MIN_TOUCH - 0.01, "...however it's dragged")
+	main.touch._set_active(false)
+	await _frames(2)
+	L.set_override("hud.weapon", {"anchor": "br", "x": -20.0, "y": -20.0, "scale": 2.0})
+	await _frames(3)
+	wtip = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and _near(wtip[0][0].position, view - Vector2(88, 88)) and _near(wtip[0][0].size, Vector2(68, 68)), "an arranged HUD slot moves and scales, its tooltip with it (%s)" % [wtip[0][0] if wtip.size() > 0 else "none"])
+	_check(_near(L.box("hud.weapon", Vector2(1000, 600)).end, Vector2(980, 580)), "pinned to a corner, it keeps its place on another screen size")
+	hud.hud_scale = 1.2
+	await _frames(3)
+	wtip = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and _near(wtip[0][0].end * 1.2, view - Vector2(24, 24), 1.0), "...and with a larger HUD size")
+	hud.hud_scale = 1.0
+	L.set_override("hud.weapon", {"anchor": "tl", "x": -5000.0, "y": -5000.0, "scale": 1.0})
+	var wb: Rect2 = L.box("hud.weapon", view)
+	_check(wb.end.x >= L.KEEP_ON - 0.01 and wb.end.y >= L.KEEP_ON - 0.01, "an element can't go wholly off screen")
+
+	# Saving and loading: user://, the two sets apart.
+	L.clear_state()
+	L.use_set("desktop")
+	L.set_override("hud.bars", {"anchor": "bl", "x": 10.0, "y": -10.0, "scale": 1.25})
+	L.use_set("touch")
+	L.set_override("touch.roll", {"anchor": "br", "x": -200.0, "y": -10.0, "scale": 1.5})
+	L.use_set("desktop")
+	_check(L.dirty(), "an unsaved change is noticed")
+	var res: Dictionary = L.save()
+	_check(res["user"] and res["project"] == null and not L.dirty() and FileAccess.file_exists(L.user_path), "Save writes user:// (and not the shared defaults outside the editor)")
+	var cfg := ConfigFile.new()
+	cfg.load(L.user_path)
+	var cd: Dictionary = cfg.get_value("layout", "desktop", {})
+	var ct: Dictionary = cfg.get_value("layout", "touch", {})
+	_check(cd.has("hud.bars") and not cd.has("touch.roll") and ct.has("touch.roll") and not ct.has("hud.bars"), "the computer's and the phone's arrangements are saved apart")
+	var snap: Dictionary = L.snapshot()
+	L.clear_state()
+	L.load_all(true)
+	_check(L.snapshot() == snap and not L.dirty(), "...and load back the same")
+	# Run from the editor, Save writes the shared defaults too.
+	L.write_project = true
+	res = L.save()
+	_check(res["project"] == true and L.parse(FileAccess.get_file_as_string(L.project_path)) == snap, "from the editor, Save writes the shared defaults file too")
+	cfg = ConfigFile.new()
+	cfg.load(L.user_path)
+	_check((cfg.get_value("layout", "desktop", {"x": 1}) as Dictionary).is_empty(), "...and the player's own file keeps only what differs from it")
+	L.write_project = false
+	L.load_all(true)
+	_check(L.snapshot() == snap, "the shared defaults load as the starting arrangement")
+	# Reset: back to the shared defaults (two presses in Arrange mode, below).
+	L.set_override("hud.bars", {"anchor": "tl", "x": 300.0, "y": 300.0, "scale": 1.0})
+	L.reset("hud.bars")
+	_check(L.get_override("hud.bars") == snap["desktop"]["hud.bars"], "Reset this puts an element back to its default")
+	L.set_override("hud.marks", {"anchor": "tl", "x": 300.0, "y": 300.0, "scale": 1.0})
+	L.reset_all()
+	_check(L.snapshot()["desktop"] == snap["desktop"], "Reset all puts them all back")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(L.project_path))
+	# Copy layout: valid JSON that loads back.
+	L.restore(snap)
+	var text: String = L.to_json()
+	var parsed = JSON.parse_string(text)
+	_check(parsed is Dictionary and int(parsed.get("format", 0)) == 1 and parsed["desktop"].has("hud.bars") and parsed["touch"].has("touch.roll"), "Copy layout gives valid JSON with both sets")
+	L.clear_state()
+	_check(L.load_json(text) and L.snapshot() == snap, "...that loads back the same arrangement")
+	_check(not L.load_json("not a layout") and not L.load_json("{\"desktop\": {\"hud.bars\": {\"anchor\": \"nowhere\"}}}") and L.snapshot() == snap, "...and nonsense is refused")
+	L.clear_state()
+
+	# Arrange mode: opens from Dev tools and pauses.
+	var ar = main.arrange
+	var menu = main.menu
+	menu.open("dev")
+	await _frames(3)
+	var ab := _menu_button("Arrange layout")
+	_check(ab != null, "Dev tools has Arrange layout")
+	if ab != null:
+		ab.pressed.emit()
+	await _frames(3)
+	_check(ar.is_open and paused and not main.menu_open() and not menu.visible, "Arrange layout opens Arrange mode, pauses the game and hides the menu")
+	_check(ar.redraws > 0 and ar.sel != "" and ar.toolbar()["buttons"].size() == 9, "it outlines the elements and shows its toolbar")
+	# Drag by mouse: snaps to the grid.
+	ar.sel = ""
+	var wr: Rect2 = ar.screen_rect("hud.weapon")
+	var from := wr.get_center()
+	_mouse_button(from, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_check(ar.sel == "hud.weapon" and ar.drag.get("kind", "") == "move", "pressing on the weapon slot picks it up")
+	_mouse_drag_to(from + Vector2(203, 157))
+	await _frames(2)
+	var moved: Rect2 = ar.screen_rect("hud.weapon")
+	var on_grid: bool = (fmod(moved.position.x, 8.0) == 0.0 or ar.guides.any(func(g): return g[0] == "x")) and (fmod(moved.position.y, 8.0) == 0.0 or ar.guides.any(func(g): return g[0] == "y"))
+	_check(on_grid and moved.position.distance_to(wr.position + Vector2(203, 157)) < 10.0, "dragging it moves it, onto the 8 px grid or a guide (%s)" % moved.position)
+	# Near the centre line it sticks there, with a guide.
+	_mouse_drag_to(from + Vector2(view.x * 0.5 - wr.get_center().x + 3.0, 157))
+	await _frames(2)
+	moved = ar.screen_rect("hud.weapon")
+	_check(absf(moved.get_center().x - view.x * 0.5) < 0.01 and ar.guides.any(func(g): return g[0] == "x" and absf(g[1] - view.x * 0.5) < 0.01), "near the centre line it snaps to it and shows a guide")
+	_mouse_drag_to(from + Vector2(203, 157) + Vector2(3, 3), true)
+	await _frames(2)
+	moved = ar.screen_rect("hud.weapon")
+	_check(_near(moved.position, wr.position + Vector2(206, 160), 0.2), "Shift places it freely (%s)" % moved.position)
+	_mouse_button(from + Vector2(206, 160), MOUSE_BUTTON_LEFT, false)
+	await _frames(3)
+	_check(ar.drag.is_empty() and ar.guides.is_empty() and L.moved("hud.weapon"), "letting go drops it there")
+	wtip = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and _near(wtip[0][0].position, moved.position, 0.2), "the HUD redraws there while paused, its tooltip with it")
+	# Scale by a corner handle (it keeps its shape).
+	var corner: Vector2 = moved.end
+	_mouse_button(corner, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_check(ar.drag.get("kind", "") == "scale", "pressing a corner handle starts scaling")
+	_mouse_drag_to(corner + Vector2(34, 20))
+	await _frames(2)
+	_mouse_button(corner + Vector2(34, 20), MOUSE_BUTTON_LEFT, false)
+	await _frames(2)
+	var scaled: Rect2 = ar.screen_rect("hud.weapon")
+	_check(_near(scaled.size, Vector2(68, 68), 0.5) and _near(scaled.position, moved.position, 0.5), "pulling the corner doubles it, square, from the opposite corner (%s)" % scaled)
+	ar.do_undo()
+	_check(_near(ar.screen_rect("hud.weapon").size, Vector2(34, 34), 0.5), "Undo takes the scaling back")
+	# Touch: the phone's layout, a finger drags a button.
+	ar.switch_set()
+	await _frames(3)
+	_check(main.touch_active and L.active_set == "touch" and paused, "the toolbar switches to editing the phone's layout (still paused)")
+	var rr: Rect2 = ar.screen_rect("touch.roll")
+	_touch(0, rr.get_center(), true)
+	await _frames(2)
+	_drag(0, rr.get_center() + Vector2(-150, -40))
+	await _frames(2)
+	_touch(0, rr.get_center() + Vector2(-150, -40), false)
+	await _frames(2)
+	var roll := _touch_btn("roll")
+	_check(ar.sel == "touch.roll" and roll["c"].distance_to(rr.get_center() + Vector2(-150, -40)) < 9.0, "a finger drags a touch button, and the button is there (%s)" % roll["c"])
+	_check(L.get_override("touch.roll") != null and L.get_override("touch.roll")["anchor"] in ["br", "b", "r", "c", "bl", "l"], "...pinned by the nearest corner or edge")
+	# Controller: the d-pad picks the next element, the left stick moves it.
+	main.touch._set_active(false)
+	ar.sel = L.ids()[0]
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(ar.sel == L.ids()[1], "the d-pad picks the next element (%s)" % ar.sel)
+	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
+	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
+	_check(ar.sel == L.ids()[1], "RB and LB step along too")
+	var before: Rect2 = ar.screen_rect(ar.sel)
+	_pad_axis(JOY_AXIS_LEFT_X, 1.0)
+	await _wait(0.3)
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	await _frames(3)
+	var after: Rect2 = ar.screen_rect(ar.sel)
+	_check(after.position.x > before.position.x + 20.0, "the left stick moves it (%.0f -> %.0f)" % [before.position.x, after.position.x])
+	_pad_axis(JOY_AXIS_RIGHT_Y, -1.0)
+	await _wait(0.3)
+	_pad_axis(JOY_AXIS_RIGHT_Y, 0.0)
+	await _frames(3)
+	_check(ar.screen_rect(ar.sel).size.x > after.size.x * 1.1, "the right stick scales it")
+	# Done with unsaved changes asks; Don't save goes back to the last save.
+	await _pad_tap(JOY_BUTTON_A)
+	_check(ar.is_open and ar.asking, "finishing with unsaved changes asks whether to save")
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	await _pad_tap(JOY_BUTTON_A)
+	await _frames(3)
+	_check(not ar.is_open and not L.dirty() and not L.moved("hud.weapon"), "Don't save closes it and forgets the changes")
+	_check(menu.page == "dev" and menu.visible and paused, "...back on the Dev tools page")
+	menu.close()
+	await _frames(3)
+	main.pad._set_active(false)
+	# F2 in play opens it and closes it again.
+	await _key_tap(KEY_F2)
+	await _frames(2)
+	_check(ar.is_open and paused, "F2 opens Arrange mode in play")
+	await _key_tap(KEY_F2)
+	await _frames(3)
+	_check(not ar.is_open and not paused, "...and F2 again closes it (nothing changed, so it doesn't ask)")
+	# Copy layout from the toolbar.
+	ar.open()
+	ar.sel = "hud.marks"
+	ar.nudge_scale(0.25)
+	ar.press("copy")
+	_check(ar.copy_open and ar.copy_box != null and ar.copy_box.text == ar.copy_text and L.parse(ar.copy_text) != null and L.parse(ar.copy_text)["desktop"].has("hud.marks"), "Copy layout shows the arrangement's JSON in a box")
+	ar._hide_copy()
+	# The two-step reset.
+	ar.press("reset_all")
+	_check(L.moved("hud.marks") and ar.armed == "reset_all", "Reset all asks for a second press")
+	ar.press("reset_all")
+	_check(not L.moved("hud.marks"), "...and the second press resets")
+	ar.press("done")
+	await _frames(3)
+	_check(not ar.is_open and not paused, "Done closes it (back as it was saved: nothing to ask)")
+	# The Entity explains it, the first time (tips on), in Arrange mode's own card.
+	var Guide = load("res://scripts/guide.gd")
+	var Entity = load("res://scripts/entity.gd")
+	_check(Guide.known("arrange") and Guide.known("arrange_save") and Guide.known("arrange_sets") and Entity.TIPS["arrange"]["group"] == "creator", "the creator tools' tips are readable in the Archive any time")
+	Engine.set_meta("sixfold_tips", true)
+	Guide.forget()
+	ar.open()
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange"] and Guide.told("arrange"), "opening Arrange mode the first time, the Entity explains it")
+	await _key_tap(KEY_ENTER)
+	_check(ar.card.is_empty() and ar.is_open, "Enter closes the card (and not Arrange mode)")
+	ar.press("save")
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange_save"], "the first Save: the Entity says how saving becomes permanent")
+	ar.card_next(true)
+	ar.switch_set()
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange_sets"], "the first switch: the phone and computer layouts are apart")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(ar.card.is_empty(), "B closes it too")
+	ar.switch_set()
+	ar.press("help")
+	_check(ar.card.get("ids", []) == ar.HELP, "the toolbar's ? shows it all again")
+	ar.card_next()
+	ar.card_next()
+	_check(int(ar.card.get("i", -1)) == 2, "...a page at a time (Next)")
+	ar.card_next()
+	_check(ar.card.is_empty(), "...then closes")
+	ar.close()
+	await _frames(3)
+	ar.open()
+	_check(ar.card.is_empty(), "the second time it doesn't say it again")
+	ar.close()
+	await _frames(3)
+	Guide.forget()
+	ar.open()
+	ar.card_next(true)
+	ar.finish()
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange_save"] and ar.is_open, "leaving without ever saving: it says how saving works first")
+	ar.card_next(true)
+	await _frames(3)
+	_check(not ar.is_open, "...and then leaves")
+	Engine.remove_meta("sixfold_tips")
+	Guide.forget()
+	# Tidy up: the built-in layout, the real paths, nothing left on disk.
+	L.clear_state()
+	L.use_set("desktop")
+	for f in [L.user_path, L.project_path]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	L.user_path = keep_paths[0]
+	L.project_path = keep_paths[1]
+	L.write_project = keep_paths[2]

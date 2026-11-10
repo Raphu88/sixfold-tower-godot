@@ -105,7 +105,7 @@ static func fill(text: String, main) -> String:
 
 ## What a control is, so the same one can be found again after its page is
 ## rebuilt: its first telling meta, else its text, else its place in the list.
-const METAS := ["rail", "tab", "view", "part", "slot", "setting", "appearance", "climbers", "climber_slot", "climber_delete", "choice", "archive", "option", "finish", "turn", "tower", "car", "back"]
+const METAS := ["rail", "tab", "view", "part", "slot", "setting", "appearance", "climbers", "climber_slot", "climber_delete", "choice", "archive", "option", "finish", "turn", "tower", "car", "shelf", "panel_tab", "over", "back"]
 
 
 static func describe(c: Control, list: Array) -> Dictionary:

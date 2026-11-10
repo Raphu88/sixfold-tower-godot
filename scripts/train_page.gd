@@ -2,12 +2,16 @@ extends RefCounted
 ## The train between climbs (menu.gd's "train" page): you walk along it
 ## from car to car, and each car's things are part of its room (drawn by
 ## train_view.gd). Front to back: the engine (choose the next tower on its
-## board, pull the lever to depart), your car (the heirloom wardrobe, your
-## pack and the storage chest), the store car (the outfitter behind his
-## counter: shelves of supplies, the outfit rail, today's piece in a glass
-## case, and selling) and the workshop (the bench). It opens on your car.
+## board, pull the lever to depart), the Outfitter's Car (the outfitter
+## behind his counter: shelves of supplies, the outfit rail, today's piece
+## in a glass case, and selling), your car (the heirloom wardrobe, your pack
+## and the storage chest), the workshop (the bench), the Library (the
+## Entity's Archive on a bookcase, read at a lectern) and the Settings &
+## Controls car (the signal panel of settings and controls, and the
+## emergency brake: Start over). It opens on your car.
 ##
-## The menu's rail (rail.gd) stays down the left: the cars, then the pages.
+## The menu's rail (rail.gd) stays down the left: who you are, the cars,
+## then Dev Tools and the way out.
 ## Moving along: choose a car on the rail (or move onto it with up and
 ## down), swipe or drag the train (it follows, then settles on the nearest
 ## car), the mouse wheel, or Q / E (LB / RB); the rail's light follows.
@@ -64,6 +68,7 @@ var drag_rail := false  # the touch began on the rail (it doesn't move the train
 var drag_samples: Array = []  # [msec, x] for the flick's speed
 var mouse_down := false
 var held_button: BaseButton = null  # the button a mouse drag began on, held off till it ends
+var touch_slider: HSlider = null  # a finger (or the mouse) on a slider in the car: it moves the slider, not the train
 var wheel_at := 0
 
 
@@ -142,6 +147,10 @@ func build() -> void:
 				_store(root)
 			"workshop":
 				_workshop(root)
+			"library":
+				_library(root)
+			"settings":
+				_settings_car(root)
 			_:
 				_personal(root)
 		m.train_sel[c] = m.inv_sel
@@ -195,6 +204,8 @@ func first_focus(list: Array) -> int:
 	for i in list.size():
 		var b: Control = list[i]
 		if (m.inv_sel != "" and b.get_meta("slot", "") == m.inv_sel) or (m.train_car == "engine" and b.get_meta("tower", "") == m.train_tower):
+			return i
+		if (m.train_car == "library" and b.get_meta("shelf", "") == m.library_shelf) or (m.train_car == "settings" and b.get_meta("panel_tab", "") == m.settings_tab):
 			return i
 	return 0
 
@@ -397,9 +408,21 @@ func _fit_card(car: String) -> void:
 	var sc: ScrollContainer = card_scrolls.get(car)
 	if sc == null or not is_instance_valid(sc) or sc.get_child_count() == 0:
 		return
-	var row: Control = sc.get_parent().get_parent()
+	# The car's row (the scroll may sit under a heading or tabs in its panel:
+	# they take their share first).
+	var row: Control = sc.get_parent()
+	var extra := 0.0
+	var root = roots.get(car)
+	while row.get_parent() != null and row.get_parent() != root and row.get_parent() is Control:
+		if row is VBoxContainer:
+			for c in row.get_children():
+				if c != sc and c is Control and c.visible and not c.is_ancestor_of(sc):
+					extra += c.get_combined_minimum_size().y + row.get_theme_constant("separation")
+		row = row.get_parent()
+	if row.get_parent() != root:
+		row = sc.get_parent().get_parent()
 	var want: float = sc.get_child(0).get_combined_minimum_size().y
-	var room := maxf(row.size.y - 30.0, 80.0)
+	var room := maxf(row.size.y - 30.0 - extra, 80.0)
 	sc.custom_minimum_size.y = clampf(want, 60.0, room)
 
 
@@ -973,8 +996,12 @@ func input(event: InputEvent) -> bool:
 			return true
 		if event.pressed:
 			_drag_begin(event.position)
+			if touch_slider != null:
+				m._slide_to(touch_slider, event.position)
 		else:
-			if drag_axis == "x":
+			if touch_slider != null:
+				touch_slider = null
+			elif drag_axis == "x":
 				_drag_end()
 			elif drag_moved < SWIPE:
 				tap(event.position)
@@ -989,7 +1016,10 @@ func input(event: InputEvent) -> bool:
 		if event.index != 0:
 			return true
 		drag_moved += (event.position - drag_last).length()
-		_drag_move(event.position, event.position - drag_last)
+		if touch_slider != null:
+			m._slide_to(touch_slider, event.position)
+		else:
+			_drag_move(event.position, event.position - drag_last)
 		drag_last = event.position
 		return true
 	if event is InputEventMouseButton:
@@ -999,6 +1029,7 @@ func input(event: InputEvent) -> bool:
 				_drag_begin(event.position)
 			else:
 				mouse_down = false
+				touch_slider = null
 				if drag_axis == "x":
 					_drag_end()
 				drag_axis = ""
@@ -1071,12 +1102,13 @@ func _drag_begin(at: Vector2) -> void:
 	drag_start = view.pos
 	drag_scroll = _scroll_at(at)
 	drag_rail = _on_rail(at)
+	touch_slider = null if drag_rail else _slider_at(at)
 	drag_samples = [[Time.get_ticks_msec(), at.x]]
 
 
 func _drag_move(at: Vector2, rel: Vector2) -> void:
-	if drag_rail:
-		return  # (a finger on the rail: a tap there, never a swipe of the train)
+	if drag_rail or touch_slider != null:
+		return  # (a finger on the rail: a tap there, never a swipe of the train; on a slider: the slider)
 	var d := at - drag_from
 	if drag_axis == "" and drag_moved >= SWIPE:
 		drag_axis = "x" if absf(d.x) > absf(d.y) else "y"
@@ -1155,6 +1187,22 @@ func _button_at(pos: Vector2) -> BaseButton:
 	return found
 
 
+## The slider under a point, in the car you're in (not scrolled out of its panel), or null.
+func _slider_at(pos: Vector2) -> HSlider:
+	var root = roots.get(m.train_car)
+	if root == null or not is_instance_valid(root):
+		return null
+	for c in root.find_children("*", "HSlider", true, false):
+		var sl: HSlider = c
+		if not sl.is_visible_in_tree() or not sl.get_global_rect().grow(4.0).has_point(pos):
+			continue
+		var sc := _scroll_of(sl)
+		if sc != null and not sc.get_global_rect().has_point(pos):
+			continue
+		return sl
+	return null
+
+
 func _scroll_of(n: Node) -> ScrollContainer:
 	var p := n.get_parent()
 	while p != null and p != view:
@@ -1174,6 +1222,170 @@ func _scroll_at(pos: Vector2) -> ScrollContainer:
 
 func _can_scroll(sc: ScrollContainer) -> bool:
 	return sc.get_v_scroll_bar().max_value > sc.size.y + 1.0
+
+
+# --- the Library ------------------------------------------------------------------
+
+## The Library: the Entity's Archive kept on a bookcase, a bound volume for
+## each of its subjects' groups (and, once you've found one, the Makers'
+## forbidden shelf), read at the lectern beside it: the chosen volume's
+## subjects (those you've met as buttons, the rest ???), the open one's
+## words, the Replay and Guide tips switches. The menu's own Archive pieces
+## (menu.gd archive_group, _maker_shelves, archive_tools) build the page,
+## so it works as the Archive does everywhere.
+func _library(root: Node) -> void:
+	var small := _small()
+	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
+	var ps: bool = m.main.pad_ps
+	if m.toast != "":
+		root.add_child(Entity.says(m.toast, 30.0 if small else 40.0))
+	var shelves: Array = library_shelves()
+	var shelf: String = m.library_shelf
+	if not shelves.any(func(s): return s[0] == shelf):
+		shelf = _shelf_of(m.archive_open, shelves)
+	m.library_shelf = shelf
+	var row := _main_row(root)
+	# The bookcase: a volume for each shelf of the Archive.
+	var listed: Array = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] != "forbidden" or m.Guide.known(k))
+	var heard: int = listed.filter(func(k): return m.Guide.known(k)).size()
+	var case := _furnish(row, "bookcase")
+	_tag(case, (T["bookcase_short"] if small else T["bookcase"]) % (T["shelf_heard"] % [heard, listed.size()]))
+	var grid := _grid(case, 2)
+	grid.add_theme_constant_override("h_separation", 6 if small else 8)
+	grid.add_theme_constant_override("v_separation", 7 if small else 10)
+	for i in shelves.size():
+		var s: Array = shelves[i]
+		var v := TrainView.Volume.new()
+		v.text = s[1]
+		v.count = s[2]
+		v.leather = TrainView.Volume.LEATHER[i % TrainView.Volume.LEATHER.size()] if s[0] != "forbidden" else Color(0.1, 0.08, 0.1)
+		v.forbidden = s[0] == "forbidden"
+		v.on = s[0] == shelf
+		v.custom_minimum_size = Vector2(150.0, 38.0) if small else Vector2(172.0, 44.0)
+		v.set_meta("shelf", s[0])
+		v.pressed.connect(_set_shelf.bind(s[0]))
+		grid.add_child(v)
+	# The lectern: the chosen volume, open.
+	var lec := TrainView.Furnish.new("lectern", small)
+	lec.custom_minimum_size.x = 310.0 if small else 440.0
+	lec.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(lec)
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 2 if small else 4)
+	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lec.add_child(pv)
+	var name: String = shelves.filter(func(s): return s[0] == shelf)[0][1]
+	_tag(pv, name)
+	var sc := _card_scroll(pv)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4 if small else 6)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(col)
+	var keep = m.box
+	m.box = col
+	if shelf == "forbidden":
+		m._maker_shelves(mode, ps, 1)
+	else:
+		m.archive_group(shelf, mode, ps, 1 if small else 2)
+	m._gap(4)
+	m.archive_tools()
+	m.box = keep
+	if small:
+		for b in col.find_children("*", "BaseButton", true, false):
+			b.custom_minimum_size.y = maxf(b.custom_minimum_size.y, 36.0)  # (a phone: big enough to tap)
+	col.minimum_size_changed.connect(_fit_card.bind(m.train_car), CONNECT_DEFERRED)
+	m.details = null
+
+
+## The Library's shelves: [group id, name, "heard of all"], the Archive's
+## groups in order and the forbidden shelf once anything is on it.
+func library_shelves() -> Array:
+	var out: Array = []
+	for g in Entity.GROUPS:
+		var ids: Array = Entity.ordered(g[0])
+		var heard: int = ids.filter(func(k): return m.Guide.known(k)).size()
+		out.append([g[0], g[1], "%d/%d" % [heard, ids.size()]])
+	var prof = _prof()
+	var makers_shown: bool = m.Makers.ORDER.any(func(mk): return m.Makers.shelf_shown(prof, mk))
+	var forbidden: Array = Entity.ordered("forbidden").filter(func(k): return m.Guide.known(k))
+	if makers_shown or not forbidden.is_empty():
+		out.append(["forbidden", m.Makers.TEXT["shelf"], "%d" % forbidden.size()])
+	return out
+
+
+## The shelf a subject is on (or the first with something heard).
+func _shelf_of(id: String, shelves: Array) -> String:
+	if id != "" and Entity.TIPS.has(id):
+		var g: String = Entity.TIPS[id]["group"]
+		if shelves.any(func(s): return s[0] == g):
+			return g
+	for g in Entity.GROUPS:
+		if Entity.ordered(g[0]).any(func(k): return m.Guide.known(k)):
+			return g[0]
+	return Entity.GROUPS[0][0]
+
+
+func _set_shelf(id: String) -> void:
+	if m.library_shelf == id:
+		return
+	m.library_shelf = id
+	m.archive_open = ""
+	m.open("train")
+
+
+# --- the Settings & Controls car ----------------------------------------------------
+
+## The Settings & Controls car, a signal room: the brass signal panel holds
+## the settings or every key and button (its two tabs), scrolling inside it;
+## the emergency brake beside it, set apart, is Start over this climber (it
+## asks first). The menu's own settings rows (menu.gd settings_body,
+## controls_body) fill the panel, so every setting works and saves as it
+## does on the page.
+func _settings_car(root: Node) -> void:
+	var small := _small()
+	if m.toast != "":
+		root.add_child(Entity.says(m.toast, 30.0 if small else 40.0))
+	var row := _main_row(root)
+	var panel := TrainView.Furnish.new("signal", small)
+	panel.custom_minimum_size.x = 470.0 if small else 600.0
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(panel)
+	var pv := VBoxContainer.new()
+	pv.add_theme_constant_override("separation", 4 if small else 8)
+	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(pv)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	tabs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pv.add_child(tabs)
+	for t in m.SETTINGS_TABS:
+		var b: Button = m._button(T["panel_" + t[0]], m._set_settings_tab.bind(t[0]), tabs)
+		b.custom_minimum_size.y = 38.0 if small else 40.0
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.set_meta("panel_tab", t[0])
+		_brass(b, t[0] == m.settings_tab)
+	var sc := _card_scroll(pv)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4 if small else 8)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(col)
+	var keep = m.box
+	m.box = col
+	if m.settings_tab == "controls":
+		m.controls_body()
+	else:
+		m.settings_body()
+	m.box = keep
+	col.minimum_size_changed.connect(_fit_card.bind(m.train_car), CONNECT_DEFERRED)
+	# The emergency brake: Start over, apart from everything else.
+	var brake := _furnish(row, "brake")
+	_tag(brake, T["brake"])
+	var ob: Button = m._button(T["over_short"] if small else T["over"], m._ask_new.bind("train"), brake)
+	ob.custom_minimum_size = Vector2(150.0 if small else 210.0, 40.0)
+	ob.set_meta("over", true)
+	m._danger(ob)
+	_note(brake, T["over_note"], 150.0 if small else 210.0)
+	m.details = null
 
 
 # --- the bench's cards -----------------------------------------------------------------

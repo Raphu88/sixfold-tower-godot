@@ -6,13 +6,17 @@ extends RefCounted
 ##
 ## You walk along it from the inside (menu.gd's "train" page: train_view.gd
 ## draws the cars, train_page.gd puts their things in them). Its cars, front
-## to back:
+## to back (the owner's order):
 ##   engine    the cab: choose the next tower on its board, pull the lever
+##   store     the Outfitter's Car: supplies, an outfit, today's piece, and
+##             selling what you brought down
 ##   personal  your own car: your heirlooms, your pack and a storage chest
-##   store     the store car, kept by the outfitter: supplies, an outfit,
-##             today's piece, and selling what you brought down
 ##   workshop  the workshop car: the bench (bench.gd): brewing for anyone,
 ##             enchanting for a Rune Artist, and breaking things down
+##   library   the Library: the Entity's Archive on its shelves, read at a
+##             lectern (and the Makers' forbidden shelf)
+##   settings  the Settings & Controls Car: a signal room whose panel holds
+##             the settings and the controls list, and Start over
 ##
 ## Essence crystals are the only currency (profile.gd keeps them as
 ## {kind, amount}, one crystal of each kind). Every price is in one kind of
@@ -25,8 +29,11 @@ const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
-## The cars, front to back: [id, name]. The train opens on HOME.
-const CARS := [["engine", "Engine"], ["personal", "Your car"], ["store", "Store car"], ["workshop", "Workshop"]]
+## The cars, front to back: [id, name]. The train opens on HOME. (Their short
+## names on a phone, and the line under each on a computer, are rail.gd
+## TRAIN_CARS.)
+const CARS := [["engine", "Engine"], ["store", "Outfitter's Car"], ["personal", "Your Car"], ["workshop", "Workshop"],
+	["library", "Library"], ["settings", "Settings & Controls Car"]]
 const HOME := "personal"
 
 ## Your storage chest (in your car): pieces kept safe between climbs.
@@ -175,6 +182,20 @@ const TEXT := {
 	"condense_setting": "To crystals",
 	"condense_note": "At each stair this share of the essence you bank condenses into crystals (the train's money) instead of growing your marks.",
 	"pay": "The outfitter pays for your climb: +%s",
+	# The Library: the Entity's Archive on its shelves, read at the lectern
+	"bookcase": "The Entity's Archive  ·  %s",
+	"bookcase_short": "Archive  ·  %s",
+	"lectern": "The lectern",
+	"lectern_empty": "Choose a shelf, then a subject to read it here.",
+	"shelf_heard": "%d of %d heard",
+	"forbidden": "Forbidden shelf",
+	# The Settings & Controls Car: the signal panel and the emergency brake
+	"panel_settings": "Settings",
+	"panel_controls": "Controls",
+	"brake": "Emergency brake",
+	"over": "Start over this climber",
+	"over_short": "Start over",
+	"over_note": "Wipes this climber's slot and begins a new one (the other climbers are kept). It asks first.",
 }
 
 ## The outfitter who keeps the store car: a retired climber who buys what
