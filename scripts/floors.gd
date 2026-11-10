@@ -513,7 +513,7 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 	if role == "gallery" and pz_kind != "" and not (pz_kind in Catalog.PREFAB):
 		return _puzzle_hall(pz_kind)
 	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)):
-		var fits: Array = Rooms.for_role(prefab_role, floor_num).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
+		var fits: Array = Rooms.for_role(prefab_role, floor_num, tower.get("beast_kind", "")).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
 		if role == "gallery" and pz_kind != "":
 			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
 			var top: Array = kind_fits.filter(func(r): return int(r.get("tier", 1)) == tier_cap)
@@ -558,6 +558,66 @@ static func _puzzle_hall(kind: String) -> Dictionary:
 	var size := Vector2i(mini(randi_range(int(lim[0]), int(lim[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(lim[2]), int(lim[3])), Rooms.MAX_SIZE.y))
 	var shape: String = shapes[randi() % shapes.size()]
 	return {"id": "hall_" + kind, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape, "puzzle": kind}
+
+
+## The room painter's Try it (painter.gd, main.gd try_room): a floor of two
+## rooms in `tower`, a plain hall to start in and the room being tried
+## (`def`, a hand-made room as drawn: not flipped) beside it, joined by a
+## corridor. Its monsters wait on the room's monster spots (none in a start
+## room). The stair stands in the room if it's a stair room, else in the
+## hall. {} if the two rooms can't be joined (no side has a doorway).
+static func try_plan(def: Dictionary, floor_num: int, tower: Dictionary) -> Dictionary:
+	var job: String = def.get("role", "combat")
+	var role: String = {"stair": "stair", "puzzle": "gallery"}.get(job, "guard")
+	var size := Rooms.size_of(def)
+	var hall_size := Vector2i(9, 8)
+	var cfg := plan_for(floor_num)
+	for attempt in 80:
+		var d: Vector2i = DIRS[randi() % DIRS.size()]
+		var hall_cell := Vector2i(1, 1) + d
+		var hall := {"id": "try_hall", "prefab": false, "rows": Rooms.prepare(Rooms.carve("rect", hall_size)), "size": hall_size,
+			"shape": "rect", "role": "entrance", "cell": hall_cell, "parent": -1,
+			"pos": Vector2i(hall_cell.x * CELL_TILES.x + randi_range(1, CELL_TILES.x - 1 - hall_size.x), hall_cell.y * CELL_TILES.y + randi_range(1, CELL_TILES.y - 1 - hall_size.y))}
+		var room := {"id": def.get("id", "try"), "prefab": true, "rows": Rooms.prepare(def["grid"]), "size": size, "shape": "prefab",
+			"role": role, "cell": Vector2i(1, 1), "parent": 0,
+			"pos": Vector2i(CELL_TILES.x + randi_range(1, maxi(1, CELL_TILES.x - 1 - size.x)), CELL_TILES.y + randi_range(1, maxi(1, CELL_TILES.y - 1 - size.y)))}
+		if role == "gallery":
+			room["puzzle"] = def.get("puzzle", "eyes")
+			room["tier"] = int(def.get("tier", 1))
+		elif role == "guard":
+			room["fixed"] = "quiet"
+		var link := _link(hall, room)
+		if link.is_empty():
+			continue
+		room["link"] = link
+		var infos: Array = [hall, room]
+		_crop(infos, [], [])
+		var themes := Themes.assign(infos, floor_num, tower.get("beast_kind", ""), tower)
+		var plan := _build(infos, themes, floor_num, tower, cfg, [], [])
+		var r: Dictionary = infos[1]
+		if role != "stair":
+			var hr: Rect2 = infos[0]["rect"]
+			plan["stair"] = Vector2(hr.get_center().x, hr.position.y + 34.0)
+		# The monsters: one on each of the room's spots.
+		var spots: Array = Rooms.features(r["rows"], r["rect"].position, CELL, tower)["spots"]
+		if job == "start":
+			plan["monsters"] = []
+		elif not spots.is_empty():
+			var list: Array = []
+			var knights := 0
+			for sp in spots:
+				var kind := _pick(floor_num, 99.0, knights, tower.get("weights", {}))
+				if kind == "":
+					kind = "slime"
+				if kind == "knight":
+					knights += 1
+				list.append([kind, sp])
+			plan["monsters"] = list
+		plan["locks"] = []
+		plan["wet_rooms"] = []  # (no pools but the room's own)
+		plan["try_room"] = 1
+		return plan
+	return {}
 
 
 ## Where a room's side can take a doorway (see Rooms.door_slots); a stair

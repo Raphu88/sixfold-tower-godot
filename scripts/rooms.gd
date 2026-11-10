@@ -298,9 +298,66 @@ const OPEN := ".M~"
 const SHAPES := ["rect", "open", "hall", "ell", "cross", "round", "pillars"]
 
 
-## The rooms for a role that can appear on a floor.
-static func for_role(role: String, floor_num: int) -> Array:
-	return ROOMS.filter(func(r): return r["role"] == role and int(r["from"]) <= floor_num)
+## Rooms made in the room painter (painter.gd) that pass its checks and are
+## switched on for climbs: room_store.gd fills this at startup and whenever
+## a room changes. Each is a room like those above, with "towers" (the tower
+## ids it may appear in; empty for all) and "ok" (the towers where it passes
+## the checks: chasms are only real in some towers).
+static var custom: Array = []
+
+
+## The rooms for a role that can appear on a floor (of the tower `tid`, if
+## given: the painter's rooms are only offered where they're allowed and pass).
+static func for_role(role: String, floor_num: int, tid := "") -> Array:
+	var out: Array = ROOMS.filter(func(r): return r["role"] == role and int(r["from"]) <= floor_num)
+	for r in custom:
+		if r["role"] != role or int(r["from"]) > floor_num:
+			continue
+		var towers: Array = r.get("towers", [])
+		var ok: Array = r.get("ok", [])
+		if tid != "" and ((not towers.is_empty() and not (tid in towers)) or not (tid in ok)):
+			continue
+		if tid == "" and ok.is_empty():
+			continue
+		out.append(r)
+	return out
+
+
+## The game's own check that low walls never shut anything away. main.gd
+## runs it on every floor of rooms, and the room painter on one room.
+## `solid` is the grid (1 = solid, row by row, `size` tiles), changed in
+## place: each block (a list of tiles: one low wall) is made solid in turn,
+## and kept only if every goal can still be reached from `from`; one that
+## would cut a goal off is left out. A path may step diagonally only past
+## two open sides (as monsters walk). Returns the indices of the blocks kept.
+static func cover_kept(size: Vector2i, solid: PackedByteArray, blocks: Array, from: Vector2i, goals: Array, astar: AStarGrid2D = null) -> Array:
+	if astar == null:
+		astar = AStarGrid2D.new()
+		astar.region = Rect2i(Vector2i.ZERO, size)
+		astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+		astar.update()
+		for y in size.y:
+			for x in size.x:
+				if solid[y * size.x + x] == 1:
+					astar.set_point_solid(Vector2i(x, y), true)
+	var kept: Array = []
+	for i in blocks.size():
+		var tiles: Array = blocks[i].filter(func(t): return t.x >= 0 and t.y >= 0 and t.x < size.x and t.y < size.y and solid[t.y * size.x + t.x] == 0)
+		for t in tiles:
+			solid[t.y * size.x + t.x] = 1
+			astar.set_point_solid(t, true)
+		var reachable := true
+		for g in goals:
+			if astar.get_id_path(from, g).is_empty():
+				reachable = false
+				break
+		if reachable:
+			kept.append(i)
+		else:
+			for t in tiles:
+				solid[t.y * size.x + t.x] = 0
+				astar.set_point_solid(t, false)
+	return kept
 
 
 ## A room's size in tiles.

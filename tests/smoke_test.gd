@@ -6833,6 +6833,7 @@ func _settle() -> void:
 func _run() -> void:
 	Engine.set_meta("sixfold_test", true)  # a fresh profile; never touches the real save
 	_clear_slots()  # (no test climbers left from an earlier run)
+	_clear_rooms()  # (nor painter rooms)
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await _frames(1)
@@ -7238,6 +7239,7 @@ func _run() -> void:
 	await _climber_slot_tests()
 	await _data_editor_tests()
 	await _icon_tests()
+	await _painter_tests()
 	await _arrange_tests()
 	await _abilities_tests()
 
@@ -12939,6 +12941,313 @@ func _icon_tests() -> void:
 	G.icon_into(faded, G.make("sword"), Vector2.ZERO, 18.0, Color(1, 1, 1, 0.5))
 	_check(faded.cols.size() == plain.cols.size() and is_equal_approx(faded.cols[faded.cols.size() - 1].a, plain.cols[plain.cols.size() - 1].a * 0.5), "a faded colour fades the icon")
 	_check(Art.ol(10.5) < Art.ol(40.0) and Art.detail(10.5) == 0 and Art.detail(40.0) == 2, "outlines and detail scale with the icon's size")
+
+
+## The room painter's files left from an earlier run (tests use their own paths).
+func _clear_rooms() -> void:
+	for f in ["user://test_rooms_custom.json", "user://test_rooms_project.json"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var Store = load("res://scripts/room_store.gd")
+	Store.rooms = []
+	Store.project = []
+	Store.deleted = []
+	Store.apply()
+
+
+## The scroll a control sits in, or null.
+func _scroll_of(c: Node) -> ScrollContainer:
+	return load("res://scripts/nav.gd").scroll_of(c)
+
+
+## The room painter (Dev tools -> Paint rooms: painter.gd), its checks
+## (room_check.gd) and how its rooms are kept and used (room_store.gd).
+func _painter_tests() -> void:
+	print("the room painter")
+	await _fresh_main()
+	_clear_rooms()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	var Rooms = load("res://scripts/rooms.gd")
+	var Check = load("res://scripts/room_check.gd")
+	var Store = load("res://scripts/room_store.gd")
+	var F = load("res://scripts/floors.gd")
+	var Towers = load("res://scripts/towers.gd")
+	var Entity = load("res://scripts/entity.gd")
+	var menu = main.menu
+	var builtins_before := JSON.stringify(Rooms.ROOMS)
+	# With no rooms of your own, the game is as it was.
+	var plain: Array = Rooms.ROOMS.filter(func(r): return r["role"] == "combat" and int(r["from"]) <= 5)
+	_check(Rooms.custom.is_empty() and Rooms.for_role("combat", 5, "kraken") == plain and Rooms.for_role("combat", 5) == plain, "with no painted rooms the floor planner's pool is the built-in rooms alone")
+	# Every built-in room passes the checks, in every tower.
+	var bad: Array = []
+	for r in Rooms.ROOMS:
+		for tid in Towers.ORDER:
+			for pr in Check.problems(r, tid):
+				if pr["level"] == "error":
+					bad.append("%s/%s: %s" % [r["id"], tid, pr["text"]])
+	_check(bad.is_empty(), "every built-in room passes the painter's checks in every tower: %s" % [bad])
+	for id in ["painter", "painter_checks", "painter_try", "painter_climbs", "painter_save"]:
+		_check(Entity.TIPS.has(id) and Entity.TIPS[id]["group"] == "creator", "the Entity explains the painter: %s" % id)
+	# Dev tools -> Paint rooms.
+	menu.open("dev")
+	await _frames(2)
+	var open_btns: Array = _all_buttons(menu).filter(func(b): return b.get_meta("setting", "") == "painter")
+	_check(open_btns.size() == 1, "Dev tools has Paint rooms (Creator tools)")
+	if open_btns.is_empty():
+		return
+	open_btns[0].pressed.emit()
+	await _frames(3)
+	var p = menu.painter
+	_check(menu.page == "painter" and p != null and p.visible and not menu.center.visible, "...which opens the room painter, filling the screen")
+	p.close_panel()  # (the Entity's first word)
+	# Round trip: the built-in rooms open as written, and come back the same.
+	var same := true
+	for r in Rooms.ROOMS:
+		p.open_room(r["id"])
+		same = same and p.builtin and p.room["grid"] == Array(r["grid"]) and p.room["role"] == r["role"] and int(p.room["from"]) == int(r["from"]) \
+			and p.room.get("puzzle", "") == r.get("puzzle", "") and int(p.room.get("tier", 0)) == int(r.get("tier", 0))
+	_check(same, "every built-in room opens in the painter exactly as written")
+	var copies := true
+	for r in Rooms.ROOMS:
+		p.copy_room(r["id"])
+		var back: Dictionary = JSON.parse_string(Store.export_text([p.room["id"]]))["rooms"][0]
+		copies = copies and not p.builtin and back["grid"] == Array(r["grid"]) and back["role"] == r["role"] and back.get("puzzle", "") == r.get("puzzle", "") and int(back["from"]) == int(r["from"])
+	_check(copies and Store.rooms.size() == Rooms.ROOMS.size(), "...copied as your own and written out, each comes back the same (%d)" % Store.rooms.size())
+	p.open_room("pillared_hall")
+	p.paint(Vector2i(6, 5), "#")
+	_check(not p.builtin and p.room["id"] != "pillared_hall" and p.tile_at(Vector2i(6, 5)) == "#" and JSON.stringify(Rooms.ROOMS) == builtins_before, "painting a built-in room paints your copy; the built-ins never change")
+	# Painting, undo and redo, the tools.
+	_clear_rooms()
+	p.new_room()
+	var id: String = p.room["id"]
+	_check(not p.builtin and p.size_of() == Vector2i(13, 11) and Store.find(id) == p.room, "New room: a blank room of your own")
+	p.pick_tile("o")
+	p.paint(Vector2i(3, 3))
+	_check(p.tile_at(Vector2i(3, 3)) == "o", "painting lays the tile")
+	p.do_undo()
+	_check(p.tile_at(Vector2i(3, 3)) == ".", "undo takes it back")
+	p.do_redo()
+	_check(p.tile_at(Vector2i(3, 3)) == "o", "redo lays it again")
+	p.pick_tile("#")
+	p.begin_stroke(Vector2i(1, 1))
+	p.continue_stroke(Vector2i(4, 1))
+	p.end_stroke()
+	_check(["#", "#", "#", "#"] == [1, 2, 3, 4].map(func(x): return p.tile_at(Vector2i(x, 1))), "a drag paints a line, with no gaps")
+	p.do_undo()
+	_check(p.tile_at(Vector2i(2, 1)) == "." and p.tile_at(Vector2i(3, 3)) == "o", "...one stroke, one undo")
+	p.mirror_x = true
+	p.paint(Vector2i(2, 5), "#")
+	_check(p.tile_at(Vector2i(10, 5)) == "#", "mirror left-right paints the other side too")
+	p.mirror_x = false
+	p.pick_tile("~")
+	p._tool_pressed("rect")
+	p.begin_stroke(Vector2i(5, 7))
+	p.continue_stroke(Vector2i(7, 8))
+	p.end_stroke()
+	var boxed := true
+	for y in range(7, 9):
+		for x in range(5, 8):
+			boxed = boxed and p.tile_at(Vector2i(x, y)) == "~"
+	_check(boxed, "the box tool lays a filled box")
+	p.pick_tile("C")
+	p._tool_pressed("fill")
+	p.paint(Vector2i(6, 8))
+	_check(p.tile_at(Vector2i(5, 7)) == "C" and p.tile_at(Vector2i(7, 8)) == "C" and p.tile_at(Vector2i(4, 8)) == ".", "the fill tool fills an area of the same tile")
+	p._tool_pressed("erase")
+	p.paint(Vector2i(6, 8))
+	_check(p.tile_at(Vector2i(6, 8)) == ".", "the eraser lays floor")
+	p._tool_pressed("brush")
+	for y in range(7, 9):
+		for x in range(5, 8):
+			p.paint(Vector2i(x, y), ".")
+	p.paint(Vector2i(2, 5), ".")
+	p.paint(Vector2i(10, 5), ".")
+	p.resize_room(11, 9)
+	_check(p.size_of() == Vector2i(11, 9) and p.tile_at(Vector2i(3, 3)) == "o", "the room's size changes, keeping what's painted")
+	p.resize_room(99, 99)
+	_check(p.size_of() == Check.MAX_SIZE, "...but never past the biggest a room may be")
+	p.do_undo()
+	p.do_undo()
+	_check(p.size_of() == Vector2i(13, 11), "...and undo puts the size back")
+	# Checks: a stair shut in, a monster spot behind a low wall.
+	var stair := {"role": "stair", "grid": [".....o.o.....", "......o......", ".............", ".............", ".............", ".............", ".............", ".............", "............."]}
+	var sp: Array = Check.problems(stair, "gryphon")
+	_check(sp.any(func(x): return x["level"] == "error" and String(x["text"]).begins_with("The stair can't be reached")) and not Check.passes(stair, "gryphon"), "a check catches a stair that can't be reached: %s" % [sp.map(func(x): return x["text"])])
+	var ring := {"role": "combat", "grid": [".............", ".............", ".............", ".............", ".............", ".............", "........###..", "........#M#..", "........###..", ".............", "............."]}
+	var rp: Array = Check.problems(ring, "gryphon")
+	_check(rp.any(func(x): return x["level"] == "error" and String(x["text"]).contains("low wall cuts off a monster spot")), "...and a low wall that cuts off a monster spot: %s" % [rp.map(func(x): return x["text"])])
+	ring["grid"][8] = "........#.#.."
+	_check(Check.passes(ring, "gryphon"), "...which passes once there's a way in")
+	var pit := {"role": "combat", "grid": [".............", ".............", ".............", ".............", ".............", ".............", "........CCC..", "........CMC..", "........CCC..", ".............", "............."]}
+	_check(Check.passes(pit, "firebird") and not Check.passes(pit, "gryphon") and Check.ok_towers(pit) == ["firebird"], "chasms are jumped in the Firebird's tower and walls elsewhere: a room can pass in one tower only")
+	# The painter shows them as you paint, and a draft stays out of climbs.
+	for t in [Vector2i(8, 6), Vector2i(9, 6), Vector2i(10, 6), Vector2i(8, 7), Vector2i(10, 7), Vector2i(8, 8), Vector2i(9, 8), Vector2i(10, 8)]:
+		p.paint(t, "#")
+	p.paint(Vector2i(9, 7), "M")
+	await _frames(1)
+	var shown: Array = p.checks_box.get_children().filter(func(c): return c is Button and String(c.text).contains("cuts off a monster spot"))
+	_check(not p.ready() and not shown.is_empty(), "the painter shows the check in plain words as you paint")
+	p.toggle_climbs()
+	_check(p.room["on"] and Rooms.custom.is_empty(), "a draft switched on still waits until it passes")
+	p.paint(Vector2i(9, 8), ".")
+	_check(p.ready() and Rooms.custom.size() == 1 and Rooms.custom[0]["id"] == id, "...and joins the climbs' rooms once it passes")
+	# Saving: the project's file (from Godot), then this device's on top.
+	Store.project_write = 1
+	var where: String = p.save_rooms()
+	_check(where == Store.project_path and FileAccess.file_exists(Store.project_path) and not Store.dirty, "from the Godot editor Save writes the project's file")
+	Store.project_write = 0
+	p.rename_room("Ring of stones")
+	where = p.save_rooms()
+	_check(where == Store.local_path and FileAccess.file_exists(Store.local_path), "elsewhere Save writes this device's file")
+	Store.load_files()
+	var loaded: Dictionary = Store.find(id)
+	var proj: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Store.project_path))
+	_check(loaded.get("name", "") == "Ring of stones" and loaded.get("grid", []) == p.room["grid"] and proj["rooms"][0]["name"] != "Ring of stones", "at startup the project's rooms load, then this device's on top")
+	_check(Rooms.custom.size() == 1, "...and the ones switched on that pass are in play again")
+	Store.remove(id)
+	Store.save()
+	Store.load_files()
+	_check(Store.find(id).is_empty() and id in Store.deleted, "a project room deleted on this device stays deleted there")
+	# Copy and paste.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Store.local_path))
+	Store.load_files()
+	p.open_room(id)
+	var text: String = p.copy_rooms()
+	var grid_was: Array = p.room["grid"].duplicate()
+	var name_was: String = p.room["name"]
+	_clear_rooms()
+	var got: Dictionary = p.paste_rooms(text)
+	_check(got.get("added", 0) == 1 and Store.find(id).get("grid", []) == grid_was and Store.find(id).get("name", "") == name_was, "Copy rooms and Paste rooms carry a room across whole")
+	got = p.paste_rooms(text)
+	_check(got.get("updated", 0) == 1 and Store.rooms.size() == 1, "...pasting it again updates it, not a second copy")
+	_check(Store.import_text("not rooms")["error"] != "" and Store.rooms.size() == 1, "...and text that isn't rooms is refused")
+	# The floor planner picks a room switched on, for its job, in its towers.
+	p.open_room(id)
+	p.toggle_tower("kraken")
+	_check(p.room["towers"] == ["kraken"], "a room can be kept to chosen towers")
+	if not p.room["on"]:
+		p.toggle_climbs()
+	_check(Rooms.for_role("combat", 3, "kraken").any(func(r): return r["id"] == id) and not Rooms.for_role("combat", 3, "gryphon").any(func(r): return r["id"] == id), "...and is offered only there")
+	var found := false
+	for i in 400:
+		var plan: Dictionary = F.plan_floor(3, Towers.TOWERS["kraken"])
+		if not plan.is_empty() and id in plan["room_ids"]:
+			found = true
+			break
+	_check(found, "the floor planner chooses your room for a combat room")
+	p.toggle_climbs()
+	_check(not Rooms.for_role("combat", 3, "kraken").any(func(r): return r["id"] == id), "switched off, it's out of the climbs")
+	p.toggle_climbs()
+	p.toggle_tower("")
+	# Try it: into the room at once, then back to the painter.
+	var spots := 0
+	for row in p.room["grid"]:
+		spots += String(row).count("M")
+	var floor_was: int = main.floor_num
+	_check(p.try_it() and main.trying_room() and menu.page == "", "Try it drops you into the room")
+	await _frames(3)
+	_check(main.room_info.size() == 2 and main.room_info[1]["id"] == id and main.enemies().size() == spots and main.dev_no_death, "...a floor of the room and a hall to start in, a monster on each spot, and you can't fall (%d monsters)" % main.enemies().size())
+	menu.open("pause")
+	await _frames(3)
+	_check(menu.page == "painter" and not main.trying_room() and main.floor_num == floor_was and not main.dev_no_death, "the pause key returns to the painter, and the floor you were on is laid out again")
+	p.close_panel()
+	p.try_it()
+	await _frames(3)
+	main._climb()
+	await _frames(3)
+	_check(menu.page == "painter" and not main.trying_room(), "...and so does the stair")
+	p.close_panel()
+	# Keys.
+	p.open_room(id)
+	p._go_grid()
+	menu.nav_keys = true
+	p.cursor = Vector2i(0, 0)
+	await _key_tap(KEY_RIGHT)
+	_check(p.cursor == Vector2i(1, 0), "keys: the arrows move the cursor on the grid")
+	p.pick_tile("o")
+	await _key_tap(KEY_ENTER)
+	_check(p.tile_at(Vector2i(1, 0)) == "o", "...Enter paints")
+	await _key_tap(KEY_E)
+	_check(p.tile == "C", "...E picks the next tile")
+	await _key_tap(KEY_DELETE)
+	_check(p.tile_at(Vector2i(1, 0)) == ".", "...Delete erases")
+	await _key_tap(KEY_TAB)
+	_check(not p.on_grid and p.is_ancestor_of(_focus_now()), "...Tab goes to the buttons")
+	await _key_tap(KEY_ESCAPE)
+	_check(p.on_grid and menu.page == "painter", "...and Esc comes back to the grid")
+	# The controller.
+	p.cursor = Vector2i(2, 2)
+	await _pad_tap(JOY_BUTTON_DPAD_DOWN)
+	_check(p.cursor == Vector2i(2, 3), "controller: the d-pad moves the cursor")
+	p.pick_tile("#")
+	await _pad_tap(JOY_BUTTON_A)
+	_check(p.tile_at(Vector2i(2, 3)) == "#", "...A paints")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(p.tile_at(Vector2i(2, 3)) == ".", "...B erases")
+	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
+	_check(p.tile == "X", "...RB picks the next tile")
+	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
+	_check(p.tile == "#", "...LB the one before")
+	await _pad_tap(JOY_BUTTON_X)
+	_check(p.tool == "fill", "...X the next tool")
+	p._tool_pressed("brush")
+	await _pad_tap(JOY_BUTTON_Y)
+	_check(not p.on_grid and p.is_ancestor_of(_focus_now()), "...Y goes to the buttons (the painter's menu)")
+	var on_btn: Control = _focus_now()
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(_focus_now() != on_btn and p.is_ancestor_of(_focus_now()), "...where the d-pad moves between them")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(p.on_grid, "...and B comes back to the grid")
+	main.pad._set_active(false)
+	# Touch, at a phone's size: it fits, a tap picks a tile, a drag paints.
+	var was_size: Vector2i = root.size
+	root.size = Vector2i(800, 400)
+	main.touch._set_active(true)
+	await _frames(4)
+	var vis: Rect2 = p.get_viewport_rect()
+	var outside: Array = p.focusables().filter(func(c): return _scroll_of(c) == null and not vis.grow(0.5).encloses(c.get_global_rect()))
+	_check(outside.is_empty(), "on a phone (800 x 400) every button is on screen: %s" % [outside.map(func(c): return c.get_meta("painter", ""))])
+	var tiny: Array = p.focusables().filter(func(c): return c.get_global_rect().size.y < 29.5)
+	_check(tiny.is_empty(), "...big enough to tap: %s" % [tiny.map(func(c): return c.get_meta("painter", ""))])
+	var gr: Rect2 = p.grid_view.get_global_rect()
+	_check(gr.size.x >= vis.size.x * 0.45 and gr.size.y >= vis.size.y * 0.7 and vis.grow(0.5).encloses(gr), "...and the grid gets most of the screen (%.0f x %.0f of %.0f x %.0f)" % [gr.size.x, gr.size.y, vis.size.x, vis.size.y])
+	var tb: Control = p.tile_buttons["o"]
+	await _tap_at(tb.get_global_rect().get_center())
+	_check(p.tile == "o", "a tap on the palette picks a tile")
+	var geo: Array = p.grid_view.geometry()
+	var xf: Transform2D = p.grid_view.get_global_transform()
+	var a: Vector2 = xf * (geo[0] + Vector2(1.5, 9.5) * geo[1])
+	var b: Vector2 = xf * (geo[0] + Vector2(4.5, 9.5) * geo[1])
+	_touch(0, a, true)
+	await _frames(2)
+	_drag(0, b)
+	await _frames(2)
+	_touch(0, b, false)
+	await _frames(2)
+	_check([1, 2, 3, 4].all(func(x): return p.tile_at(Vector2i(x, 9)) == "o"), "a finger dragged across the grid paints")
+	for which in ["rooms", "settings", "share", "help"]:
+		p.open_panel(which)
+		await _frames(3)
+		_check(vis.grow(0.5).encloses(p.sheet.get_global_rect()), "...the %s page fits the phone's screen" % which)
+		p.close_panel()
+	var help_btn: Control = p.top_buttons["help"]
+	await _tap_at(help_btn.get_global_rect().get_center())
+	_check(p.panel == "help" and p.sheet_box.get_children().filter(func(c): return c is Label).size() >= 10, "\"?\" shows the Entity's explanation again")
+	p.close_panel()
+	root.size = was_size
+	main.touch._set_active(false)
+	await _frames(2)
+	# Leaving: what isn't saved is saved, and Back returns to Dev tools.
+	p.paint(Vector2i(5, 5), "o")
+	_check(Store.dirty, "a change waits to be saved")
+	p._leave()
+	await _frames(2)
+	_check(menu.page == "dev" and not Store.dirty and not p.visible, "leaving the painter saves it and returns to Dev tools")
+	menu.close()
+	Store.project_write = -1
+	_clear_rooms()
+	_check(Rooms.custom.is_empty(), "(the test's rooms are cleared)")
 
 
 ## The Abilities page (abilities.gd), names in play (ability_hints.gd), the

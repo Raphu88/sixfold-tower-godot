@@ -229,8 +229,8 @@ func _input(event: InputEvent) -> void:
 		nav_keys = true
 	elif event is InputEventMouseButton or event is InputEventScreenTouch or Nav.mouse_moved(event):
 		nav_keys = false
-	if page == "":
-		return
+	if page == "" or page == "painter":
+		return  # (the room painter reads its own input: painter.gd)
 	if _typing():
 		# A text box: Esc or B leave the box, and nothing more.
 		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("pause"):
@@ -357,6 +357,8 @@ func _process(delta: float) -> void:
 	if toast_t <= 0.0 and toast != "":
 		toast = ""
 	_refresh_prompts()
+	if page == "painter":
+		return  # (the room painter reads its own keys: painter.gd)
 	if _typing():
 		# Typing a name: the keys are letters, not shortcuts (Esc leaves the field: _input).
 		_layout()
@@ -824,6 +826,8 @@ func _wanted_height() -> float:
 ## Opens a page (pausing the game) or switches to another page. `direct`:
 ## opened by its own key (Tab, I), so Back closes it.
 func open(which: String, direct := false) -> void:
+	if which == "pause" and main != null and main.has_method("trying_room") and main.trying_room():
+		which = "painter"  # (trying a room from the painter: the pause key goes back to it)
 	if which == "abilities":
 		# The Abilities page: the climber screen on its first tab (from play,
 		# the train's pages, or a peek).
@@ -1509,6 +1513,21 @@ func _danger(b: Button) -> void:
 func _pad_settings() -> void:
 	var PadSetup = load("res://scripts/pad_setup.gd")
 	_button(PadSetup.TEXT["settings_button"], open.bind("padsetup")).set_meta("setting", "padsetup")
+
+
+## Dev tools -> Paint rooms: the room painter (painter.gd), a page of its
+## own that fills the screen and reads its own input. Made the first time.
+var painter
+
+
+func _page_painter() -> void:
+	if painter == null:
+		painter = load("res://scripts/painter.gd").new()
+		painter.menu = self
+		add_child(painter)  # (last: over everything, and the first to see input)
+	center.visible = false
+	shade.visible = false
+	painter.enter()
 
 
 ## Dev tools -> Edit game data (data_page.gd).
@@ -2956,6 +2975,7 @@ func _page_confirm_new() -> void:
 func _page_dev() -> void:
 	_header("Dev Tools", "For testing. Changes to marks are saved.", "Menu")
 	load("res://scripts/arrange.gd").dev_section(self)  # Arrange layout (move the HUD and the buttons yourself)
+	load("res://scripts/painter.gd").dev_section(self)  # Paint rooms (the room painter)
 
 	# A mock-up to compare: the train's rail as a menu, or drawn as the train on end (rail.gd).
 	_choice("Train rail", "train_rail", [["menu", "Menu"], ["end", "Train on end"]])
