@@ -14,8 +14,8 @@ extends "res://scripts/puzzles/base.gd"
 ## for HOLD seconds to solve it.
 
 const NAME := "Beam and Mirrors"
-const NAMES := {"gryphon": "Wind Mirrors"}
-const TEXT := {
+static var NAMES := {"gryphon": "Wind Mirrors"}
+static var TEXT := {
 	"rule": ["Strike or shoot a mirror to turn it.", "Carry the light to the sigil."],
 	"fixed": "The grey mirror will not turn.",
 	"quiet": "The lamp will not wake while blood is spilled.",

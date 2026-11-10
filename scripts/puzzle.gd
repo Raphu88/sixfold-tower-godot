@@ -28,7 +28,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 const UI := preload("res://scripts/ui.gd")
 
-const TEXT := {
+static var TEXT := {
 	"warded": "The stair is warded. Solve the beast's test to lift it.",
 	"lifted_title": "THE WARD LIFTS",
 	"lifted": "The beast takes note.",

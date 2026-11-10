@@ -13,14 +13,15 @@ extends Control
 const Essence := preload("res://scripts/essence.gd")
 const Palette := preload("res://scripts/palette.gd")
 
-const TEXT := {
+static var TEXT := {
 	"title": "Sixfold Tower",
 	"tagline": "Climb. Be regarded. Bear the marks.",
 	"footer": "Prototype  ·  Sounds: CC0, see Credits",
 }
 
 const UI := preload("res://scripts/ui.gd")
-const GOLD := UI.GOLD
+static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
+	get: return UI.GOLD
 const DIM := Color(0.62, 0.59, 0.67)
 const SKY_TOP := Color(0.015, 0.015, 0.04)
 const SKY_MID := Color(0.05, 0.045, 0.1)

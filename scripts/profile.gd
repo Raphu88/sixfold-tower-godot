@@ -18,15 +18,15 @@ const Unbound := preload("res://scripts/unbound.gd")
 const SAVE_PATH := "user://climber_1.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
-const FAINT_DEBT := 80.0
+static var FAINT_DEBT := 80.0
 ## Banked essence needed to reach each step (index = step - 1). A bond grows
 ## from its own essence (AFFINITY_WEIGHT) and a little from the rest
 ## (OTHER_WEIGHT), slowed by STEP_RATE and by how many marks the body already
 ## carries (BODY_DRAG). The Proving (floor 6) can raise a mark a step too.
-const STEP_XP := [0.0, 150.0, 450.0, 1000.0, 1800.0]
-const AFFINITY_WEIGHT := 2.0
-const OTHER_WEIGHT := 0.25
-const STEP_RATE := 0.25
+static var STEP_XP := [0.0, 150.0, 450.0, 1000.0, 1800.0]
+static var AFFINITY_WEIGHT := 2.0
+static var OTHER_WEIGHT := 0.25
+static var STEP_RATE := 0.25
 ## Marks after the first: an unmarked body part fills like a battery. It
 ## soaks up only SOAK_RATE of what it does, and the fuller it is the slower it
 ## fills (gain x (1 - fill)); a body that carries more marks fills every part
@@ -34,10 +34,10 @@ const STEP_RATE := 0.25
 ## mark) at MARK_FULL of NEW_MARK_SOAK. New marks come only at a summit, at
 ## most one a climb (main.gd). Numbers are first guesses: aim, 20+ climbs
 ## for all six marks.
-const NEW_MARK_SOAK := 250.0
-const SOAK_RATE := 0.4
-const MARK_FULL := 0.9
-const BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
+static var NEW_MARK_SOAK := 250.0
+static var SOAK_RATE := 0.4
+static var MARK_FULL := 0.9
+static var BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
 
 var regarded := false
 var bonds := {}  # part -> {"id", "xp", "faint", "debt"}
@@ -125,7 +125,7 @@ var core_tune := {}
 var unbound := {}
 var core_edit := {}
 
-const ATTRIBUTES := {
+static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
 	"blade": {"name": "Strength", "bonus": "strike damage"},
 	"stone": {"name": "Vitality", "bonus": "health"},
@@ -134,8 +134,8 @@ const ATTRIBUTES := {
 	"water": {"name": "Spirit", "bonus": "marks fill faster"},
 }
 ## The bonuses are small: they grow with diminishing returns toward the cap.
-const ATTRIBUTE_CAP := 0.12
-const ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
+static var ATTRIBUTE_CAP := 0.12
+static var ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
 var saving := true
 ## Where the profile is saved: its own slot's file, kept from when it was
 ## loaded, so this climber never writes over another (tests point it elsewhere).

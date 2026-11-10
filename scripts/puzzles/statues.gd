@@ -13,8 +13,8 @@ extends "res://scripts/puzzles/base.gd"
 ## a wrong one FAILS: an ambush, then the statues speak a new riddle.
 
 const NAME := "Three Statues"
-const NAMES := {"manticore": "The Riddling Statues"}
-const TEXT := {
+static var NAMES := {"manticore": "The Riddling Statues"}
+static var TEXT := {
 	"rule": ["One of us always speaks true. The other two always lie.", "Stand on the plate behind the true way."],
 	"rule_alt": ["One of us always speaks true, one always lies, and one speaks once true and once false.", "Stand on the plate behind the true way."],
 	"plaque": "The plaque reads:",

@@ -24,8 +24,8 @@ const Gear := preload("res://scripts/gear.gd")
 const UI := preload("res://scripts/ui.gd")
 
 const NAME := "The Essence Lock"
-const NAMES := {"chimera": "The Hungry Lock"}
-const TEXT := {
+static var NAMES := {"chimera": "The Hungry Lock"}
+static var TEXT := {
 	"rule": ["Bring it a spark from a glowing foe, or a spell, item or weapon of that essence."],
 	"order": ["First: %s", "Then: %s", "Last: %s"],
 	"quiet": "The lock is cold while blood is spilled.",
@@ -37,7 +37,7 @@ const TEXT := {
 	"reset": "The lock asks anew",
 }
 ## The riddles, by essence (never naming it). Edit freely.
-const RIDDLES := {
+static var RIDDLES := {
 	"air": ["I have no body, yet I bear the hawk aloft. You feel me; you never hold me.",
 		"I fill every room and am never seen. Storms are my temper."],
 	"water": ["I take the shape of any cup, and wear the mountain down in time.",

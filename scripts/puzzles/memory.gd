@@ -20,8 +20,8 @@ extends "res://scripts/puzzles/base.gd"
 const Rooms := preload("res://scripts/rooms.gd")
 
 const NAME := "The Hall of Pedestals"
-const NAMES := {"firebird": "The Remembered Fires"}
-const TEXT := {
+static var NAMES := {"firebird": "The Remembered Fires"}
+static var TEXT := {
 	"rule": ["Light them in the order the murals keep.", "The murals hang in other rooms."],
 	"found": "Murals found: %d of %d",
 	"quiet": "The pedestals stay cold while blood is spilled.",

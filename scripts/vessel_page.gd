@@ -17,7 +17,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Secret := preload("res://scripts/secret.gd")
 const UI := preload("res://scripts/ui.gd")
 
-const V := Vessel.TEXT
+static var V := Vessel.TEXT
 
 
 ## A slot for a vessel in a grid (key "vessel:<i>", or the bench's own keys).

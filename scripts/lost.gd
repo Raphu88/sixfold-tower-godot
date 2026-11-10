@@ -20,7 +20,7 @@ const Themes := preload("res://scripts/themes.gd")
 ## The chance a fall also takes the weapon in your hand (the melee weapon
 ## if you held only your fists). The starting sword and bow are never
 ## counted: every climb starts with them.
-const WEAPON_CHANCE := 0.35
+static var WEAPON_CHANCE := 0.35
 ## Heirlooms are kept safe: an heirloom in your hand is never lost. Set this
 ## true to let a fall take an heirloom weapon too (it leaves your heirlooms,
 ## and may be found again like anything else lost).
@@ -29,7 +29,7 @@ const HEIRLOOM_WEAPON := false
 const KEEP := 6
 ## On each floor of rooms of a tower, the chance of a lost cache, when that
 ## tower holds lost pieces that fell within NEAR floors of it.
-const CACHE_CHANCE := 0.25
+static var CACHE_CHANCE := 0.25
 const NEAR := 2
 ## At most this many pieces lie in one cache (those lost nearest first).
 const CACHE_MAX := 3
@@ -44,7 +44,7 @@ const FALLBACK_FEATURES := ["start", "stair"]
 const LIGHT := [120.0, 0.5, 0.1]
 const LIGHT_COLOR := Color(0.72, 0.78, 1.0)
 
-const TEXT := {
+static var TEXT := {
 	"lost": "Lost on the way down: %s",
 	"pack": "your pack (%d %s)",
 	"belt": "your belt",
