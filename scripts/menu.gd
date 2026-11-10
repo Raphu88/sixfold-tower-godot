@@ -2824,6 +2824,7 @@ func _page_confirm_new() -> void:
 
 func _page_dev() -> void:
 	_header("Dev Tools", "For testing. Changes to marks are saved.", "Menu")
+	load("res://scripts/arrange.gd").dev_section(self)  # Arrange layout (move the HUD and the buttons yourself)
 
 	# A mock-up to compare: the train's rail as a menu, or drawn as the train on end (rail.gd).
 	_choice("Train rail", "train_rail", [["menu", "Menu"], ["end", "Train on end"]])

@@ -7236,6 +7236,7 @@ func _run() -> void:
 	await _rail_line_tests()
 	await _climber_slot_tests()
 	await _icon_tests()
+	await _arrange_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -8304,7 +8305,8 @@ func _entity_tests() -> void:
 	var entries: Array = menu.focusables().filter(func(b): return b.has_meta("archive"))
 	var locked: Array = menu.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("archive_locked"))
 	var hidden: int = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k]["group"] == "forbidden").size()
-	_check(entries.size() == 4 and locked.size() == Entity.TIPS.size() - hidden - 4, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
+	var always: int = Entity.TIPS.keys().filter(func(k): return Entity.TIPS[k].get("always", false)).size()  # (the creator tools: readable before they're met)
+	_check(entries.size() == 4 + always and locked.size() == Entity.TIPS.size() - hidden - 4 - always, "met entries are buttons, the rest ??? (%d, %d)" % [entries.size(), locked.size()])
 	_check(menu.find_children("*", "", true, false).any(func(c): return c.get_meta("entity", "") == "archive"), "the Entity presents the Archive")
 	entries[2].grab_focus()
 	await _frames(1)
@@ -12929,3 +12931,340 @@ func _icon_tests() -> void:
 	G.icon_into(faded, G.make("sword"), Vector2.ZERO, 18.0, Color(1, 1, 1, 0.5))
 	_check(faded.cols.size() == plain.cols.size() and is_equal_approx(faded.cols[faded.cols.size() - 1].a, plain.cols[plain.cols.size() - 1].a * 0.5), "a faded colour fades the icon")
 	_check(Art.ol(10.5) < Art.ol(40.0) and Art.detail(10.5) == 0 and Art.detail(40.0) == 2, "outlines and detail scale with the icon's size")
+
+
+## A mouse move with the left button held (Shift: Arrange mode places freely).
+func _mouse_drag_to(pos: Vector2, shift := false) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.position = _to_window(pos)
+	ev.global_position = ev.position
+	ev.relative = Vector2(6, 6)
+	ev.shift_pressed = shift
+	ev.button_mask = MOUSE_BUTTON_MASK_LEFT
+	Input.parse_input_event(ev)
+
+
+func _near(a: Vector2, b: Vector2, by := 0.6) -> bool:
+	return a.distance_to(b) <= by
+
+
+## The touch button with this id (as touch.gd lays them out now).
+func _touch_btn(id: String) -> Dictionary:
+	main.touch._layout()
+	for b in main.touch.buttons:
+		if b["id"] == id:
+			return b
+	return {}
+
+
+## The layout registry and Arrange mode (layout.gd, arrange.gd).
+func _arrange_tests() -> void:
+	print("the layout and Arrange mode")
+	await _fresh_main()
+	var L = load("res://scripts/layout.gd")
+	var keep_paths := [L.user_path, L.project_path, L.write_project]
+	L.user_path = "user://smoke_layout.cfg"
+	L.project_path = "user://smoke_layout.json"  # (never the repository's own file)
+	L.write_project = false
+	for f in [L.user_path, L.project_path]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	L.clear_state()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var p = main.player
+	p.add_item("tonic")
+	for e in main.enemies():
+		e.set_physics_process(false)
+	await _frames(3)
+	var hud = main.hud
+	var view: Vector2 = hud.get_viewport_rect().size
+
+	# The defaults are today's layout.
+	_check(FileAccess.file_exists(L.PROJECT_PATH) and L.parse(FileAccess.get_file_as_string(L.PROJECT_PATH)) != null, "the shared defaults file (data/layout.json) is there and reads")
+	_check(L.box("hud.bars", view) == Rect2(hud.BAR_X - 4, hud.BAR_Y - 4, hud.BAR_W + 8, 32) and L.box("hud.weapon", view) == Rect2(hud.BAR_X, hud.ROW_Y, hud.SLOT, hud.SLOT) \
+		and L.box("hud.item", view) == Rect2(hud.BAR_X + hud.SLOT + 6, hud.ROW_Y, hud.SLOT, hud.SLOT), "the registry's defaults are the HUD's own places")
+	_check(L.box("hud.stair", view) == Rect2(40, 104, view.x - 80, view.y - 144), "the stair arrow's ring is the screen less its margins")
+	var all_still := true
+	for id in L.ids("desktop") + L.ids("touch"):
+		if L.xform(id, view) != Transform2D.IDENTITY:
+			all_still = false
+	_check(all_still, "with no arrangement nothing moves (every transform is the identity)")
+	var wtip: Array = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and wtip[0][0] == Rect2(hud.BAR_X, hud.ROW_Y, hud.SLOT, hud.SLOT), "the weapon's tooltip is where it always was")
+	main.touch._set_active(true)
+	await _frames(2)
+	_check(L.active_set == "touch", "a touch switches to the phone's layout")
+	var tv: Vector2 = main.touch.get_viewport_rect().size
+	var old := {"attack": [Vector2(-130, -130), 62.0, true], "jump": [Vector2(-36, -36), 30.0, true], "item_next": [Vector2(-478, -48), 22.0, true],
+		"fullscreen": [Vector2(-40, 40), 24.0, false], "inventory": [Vector2(-236, 40), 26.0, false], "cast_hand": [Vector2(-282, -222), 34.0, true], "cast_legs": [Vector2(-52, -262), 34.0, true]}
+	var same := true
+	for id in old:
+		var b := _touch_btn(id)
+		var corner: Vector2 = tv if old[id][2] else Vector2(tv.x, 0)
+		if b.is_empty() or not _near(b["c"], corner + old[id][0] * 0.75, 0.01) or absf(b["r"] - old[id][1] * 0.75) > 0.01:
+			same = false
+			print("    moved: ", id, " ", b)
+	_check(same, "the touch buttons are where they always were")
+	_check(main.touch.stick_zone() == Rect2(0, 0, tv.x * 0.5, tv.y), "the joystick starts anywhere on the left half")
+
+	# An arrangement moves an element, and its touch hit area goes with it.
+	L.set_override("touch.attack", {"anchor": "bl", "x": 120.0, "y": -40.0, "scale": 1.0})
+	var atk := _touch_btn("attack")
+	var want := Vector2(120.0 + 46.5, tv.y - 40.0 - 46.5)
+	_check(_near(atk["c"], want) and absf(atk["r"] - 46.5) < 0.01, "an arranged attack button sits where it was put (%s)" % atk["c"])
+	await _frames(2)
+	_touch(5, atk["c"], true)
+	await _frames(2)
+	_check(Input.is_action_pressed("attack"), "...and a tap there presses attack")
+	_touch(5, atk["c"], false)
+	await _frames(2)
+	_check(not Input.is_action_pressed("attack") and main.touch.stick_touch == -1, "...and lets go (the joystick didn't take it)")
+	_touch(5, tv + Vector2(-130, -130) * 0.75, true)
+	await _frames(2)
+	_check(not Input.is_action_pressed("attack"), "its old place doesn't press attack any more")
+	_touch(5, tv + Vector2(-130, -130) * 0.75, false)
+	await _frames(2)
+	L.use_set("desktop")
+	_check(not L.moved("touch.attack"), "the computer's layout keeps its own arrangement")
+	L.use_set("touch")
+	_check(L.moved("touch.attack"), "...and the phone's keeps the move")
+	# The limits: on screen, and touch buttons tappable.
+	L.set_override("touch.item_next", {"anchor": "br", "x": 900.0, "y": 900.0, "scale": 0.05})
+	var nb: Rect2 = L.box("touch.item_next", tv)
+	_check(nb.size.x * main.touch.PHONE_SCALE >= 44.0 - 0.01 and Rect2(Vector2.ZERO, tv).encloses(nb), "a touch button stays on screen and at least 44 px across on the phone (%s)" % nb)
+	L.move_to("touch.jump", Rect2(-300, -300, 4, 4), tv)
+	var jb: Rect2 = L.box("touch.jump", tv)
+	_check(Rect2(Vector2.ZERO, tv).encloses(jb) and jb.size.x >= L.MIN_TOUCH - 0.01, "...however it's dragged")
+	main.touch._set_active(false)
+	await _frames(2)
+	L.set_override("hud.weapon", {"anchor": "br", "x": -20.0, "y": -20.0, "scale": 2.0})
+	await _frames(3)
+	wtip = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and _near(wtip[0][0].position, view - Vector2(88, 88)) and _near(wtip[0][0].size, Vector2(68, 68)), "an arranged HUD slot moves and scales, its tooltip with it (%s)" % [wtip[0][0] if wtip.size() > 0 else "none"])
+	_check(_near(L.box("hud.weapon", Vector2(1000, 600)).end, Vector2(980, 580)), "pinned to a corner, it keeps its place on another screen size")
+	hud.hud_scale = 1.2
+	await _frames(3)
+	wtip = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and _near(wtip[0][0].end * 1.2, view - Vector2(24, 24), 1.0), "...and with a larger HUD size")
+	hud.hud_scale = 1.0
+	L.set_override("hud.weapon", {"anchor": "tl", "x": -5000.0, "y": -5000.0, "scale": 1.0})
+	var wb: Rect2 = L.box("hud.weapon", view)
+	_check(wb.end.x >= L.KEEP_ON - 0.01 and wb.end.y >= L.KEEP_ON - 0.01, "an element can't go wholly off screen")
+
+	# Saving and loading: user://, the two sets apart.
+	L.clear_state()
+	L.use_set("desktop")
+	L.set_override("hud.bars", {"anchor": "bl", "x": 10.0, "y": -10.0, "scale": 1.25})
+	L.use_set("touch")
+	L.set_override("touch.roll", {"anchor": "br", "x": -200.0, "y": -10.0, "scale": 1.5})
+	L.use_set("desktop")
+	_check(L.dirty(), "an unsaved change is noticed")
+	var res: Dictionary = L.save()
+	_check(res["user"] and res["project"] == null and not L.dirty() and FileAccess.file_exists(L.user_path), "Save writes user:// (and not the shared defaults outside the editor)")
+	var cfg := ConfigFile.new()
+	cfg.load(L.user_path)
+	var cd: Dictionary = cfg.get_value("layout", "desktop", {})
+	var ct: Dictionary = cfg.get_value("layout", "touch", {})
+	_check(cd.has("hud.bars") and not cd.has("touch.roll") and ct.has("touch.roll") and not ct.has("hud.bars"), "the computer's and the phone's arrangements are saved apart")
+	var snap: Dictionary = L.snapshot()
+	L.clear_state()
+	L.load_all(true)
+	_check(L.snapshot() == snap and not L.dirty(), "...and load back the same")
+	# Run from the editor, Save writes the shared defaults too.
+	L.write_project = true
+	res = L.save()
+	_check(res["project"] == true and L.parse(FileAccess.get_file_as_string(L.project_path)) == snap, "from the editor, Save writes the shared defaults file too")
+	cfg = ConfigFile.new()
+	cfg.load(L.user_path)
+	_check((cfg.get_value("layout", "desktop", {"x": 1}) as Dictionary).is_empty(), "...and the player's own file keeps only what differs from it")
+	L.write_project = false
+	L.load_all(true)
+	_check(L.snapshot() == snap, "the shared defaults load as the starting arrangement")
+	# Reset: back to the shared defaults (two presses in Arrange mode, below).
+	L.set_override("hud.bars", {"anchor": "tl", "x": 300.0, "y": 300.0, "scale": 1.0})
+	L.reset("hud.bars")
+	_check(L.get_override("hud.bars") == snap["desktop"]["hud.bars"], "Reset this puts an element back to its default")
+	L.set_override("hud.marks", {"anchor": "tl", "x": 300.0, "y": 300.0, "scale": 1.0})
+	L.reset_all()
+	_check(L.snapshot()["desktop"] == snap["desktop"], "Reset all puts them all back")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(L.project_path))
+	# Copy layout: valid JSON that loads back.
+	L.restore(snap)
+	var text: String = L.to_json()
+	var parsed = JSON.parse_string(text)
+	_check(parsed is Dictionary and int(parsed.get("format", 0)) == 1 and parsed["desktop"].has("hud.bars") and parsed["touch"].has("touch.roll"), "Copy layout gives valid JSON with both sets")
+	L.clear_state()
+	_check(L.load_json(text) and L.snapshot() == snap, "...that loads back the same arrangement")
+	_check(not L.load_json("not a layout") and not L.load_json("{\"desktop\": {\"hud.bars\": {\"anchor\": \"nowhere\"}}}") and L.snapshot() == snap, "...and nonsense is refused")
+	L.clear_state()
+
+	# Arrange mode: opens from Dev tools and pauses.
+	var ar = main.arrange
+	var menu = main.menu
+	menu.open("dev")
+	await _frames(3)
+	var ab := _menu_button("Arrange layout")
+	_check(ab != null, "Dev tools has Arrange layout")
+	if ab != null:
+		ab.pressed.emit()
+	await _frames(3)
+	_check(ar.is_open and paused and not main.menu_open() and not menu.visible, "Arrange layout opens Arrange mode, pauses the game and hides the menu")
+	_check(ar.redraws > 0 and ar.sel != "" and ar.toolbar()["buttons"].size() == 9, "it outlines the elements and shows its toolbar")
+	# Drag by mouse: snaps to the grid.
+	ar.sel = ""
+	var wr: Rect2 = ar.screen_rect("hud.weapon")
+	var from := wr.get_center()
+	_mouse_button(from, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_check(ar.sel == "hud.weapon" and ar.drag.get("kind", "") == "move", "pressing on the weapon slot picks it up")
+	_mouse_drag_to(from + Vector2(203, 157))
+	await _frames(2)
+	var moved: Rect2 = ar.screen_rect("hud.weapon")
+	var on_grid: bool = (fmod(moved.position.x, 8.0) == 0.0 or ar.guides.any(func(g): return g[0] == "x")) and (fmod(moved.position.y, 8.0) == 0.0 or ar.guides.any(func(g): return g[0] == "y"))
+	_check(on_grid and moved.position.distance_to(wr.position + Vector2(203, 157)) < 10.0, "dragging it moves it, onto the 8 px grid or a guide (%s)" % moved.position)
+	# Near the centre line it sticks there, with a guide.
+	_mouse_drag_to(from + Vector2(view.x * 0.5 - wr.get_center().x + 3.0, 157))
+	await _frames(2)
+	moved = ar.screen_rect("hud.weapon")
+	_check(absf(moved.get_center().x - view.x * 0.5) < 0.01 and ar.guides.any(func(g): return g[0] == "x" and absf(g[1] - view.x * 0.5) < 0.01), "near the centre line it snaps to it and shows a guide")
+	_mouse_drag_to(from + Vector2(203, 157) + Vector2(3, 3), true)
+	await _frames(2)
+	moved = ar.screen_rect("hud.weapon")
+	_check(_near(moved.position, wr.position + Vector2(206, 160), 0.2), "Shift places it freely (%s)" % moved.position)
+	_mouse_button(from + Vector2(206, 160), MOUSE_BUTTON_LEFT, false)
+	await _frames(3)
+	_check(ar.drag.is_empty() and ar.guides.is_empty() and L.moved("hud.weapon"), "letting go drops it there")
+	wtip = hud.tips.filter(func(t): return t[1] == main.Gear.display(p.weapon))
+	_check(wtip.size() == 1 and _near(wtip[0][0].position, moved.position, 0.2), "the HUD redraws there while paused, its tooltip with it")
+	# Scale by a corner handle (it keeps its shape).
+	var corner: Vector2 = moved.end
+	_mouse_button(corner, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_check(ar.drag.get("kind", "") == "scale", "pressing a corner handle starts scaling")
+	_mouse_drag_to(corner + Vector2(34, 20))
+	await _frames(2)
+	_mouse_button(corner + Vector2(34, 20), MOUSE_BUTTON_LEFT, false)
+	await _frames(2)
+	var scaled: Rect2 = ar.screen_rect("hud.weapon")
+	_check(_near(scaled.size, Vector2(68, 68), 0.5) and _near(scaled.position, moved.position, 0.5), "pulling the corner doubles it, square, from the opposite corner (%s)" % scaled)
+	ar.do_undo()
+	_check(_near(ar.screen_rect("hud.weapon").size, Vector2(34, 34), 0.5), "Undo takes the scaling back")
+	# Touch: the phone's layout, a finger drags a button.
+	ar.switch_set()
+	await _frames(3)
+	_check(main.touch_active and L.active_set == "touch" and paused, "the toolbar switches to editing the phone's layout (still paused)")
+	var rr: Rect2 = ar.screen_rect("touch.roll")
+	_touch(0, rr.get_center(), true)
+	await _frames(2)
+	_drag(0, rr.get_center() + Vector2(-150, -40))
+	await _frames(2)
+	_touch(0, rr.get_center() + Vector2(-150, -40), false)
+	await _frames(2)
+	var roll := _touch_btn("roll")
+	_check(ar.sel == "touch.roll" and roll["c"].distance_to(rr.get_center() + Vector2(-150, -40)) < 9.0, "a finger drags a touch button, and the button is there (%s)" % roll["c"])
+	_check(L.get_override("touch.roll") != null and L.get_override("touch.roll")["anchor"] in ["br", "b", "r", "c", "bl", "l"], "...pinned by the nearest corner or edge")
+	# Controller: the d-pad picks the next element, the left stick moves it.
+	main.touch._set_active(false)
+	ar.sel = L.ids()[0]
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(ar.sel == L.ids()[1], "the d-pad picks the next element (%s)" % ar.sel)
+	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
+	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
+	_check(ar.sel == L.ids()[1], "RB and LB step along too")
+	var before: Rect2 = ar.screen_rect(ar.sel)
+	_pad_axis(JOY_AXIS_LEFT_X, 1.0)
+	await _wait(0.3)
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	await _frames(3)
+	var after: Rect2 = ar.screen_rect(ar.sel)
+	_check(after.position.x > before.position.x + 20.0, "the left stick moves it (%.0f -> %.0f)" % [before.position.x, after.position.x])
+	_pad_axis(JOY_AXIS_RIGHT_Y, -1.0)
+	await _wait(0.3)
+	_pad_axis(JOY_AXIS_RIGHT_Y, 0.0)
+	await _frames(3)
+	_check(ar.screen_rect(ar.sel).size.x > after.size.x * 1.1, "the right stick scales it")
+	# Done with unsaved changes asks; Don't save goes back to the last save.
+	await _pad_tap(JOY_BUTTON_A)
+	_check(ar.is_open and ar.asking, "finishing with unsaved changes asks whether to save")
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	await _pad_tap(JOY_BUTTON_A)
+	await _frames(3)
+	_check(not ar.is_open and not L.dirty() and not L.moved("hud.weapon"), "Don't save closes it and forgets the changes")
+	_check(menu.page == "dev" and menu.visible and paused, "...back on the Dev tools page")
+	menu.close()
+	await _frames(3)
+	main.pad._set_active(false)
+	# F2 in play opens it and closes it again.
+	await _key_tap(KEY_F2)
+	await _frames(2)
+	_check(ar.is_open and paused, "F2 opens Arrange mode in play")
+	await _key_tap(KEY_F2)
+	await _frames(3)
+	_check(not ar.is_open and not paused, "...and F2 again closes it (nothing changed, so it doesn't ask)")
+	# Copy layout from the toolbar.
+	ar.open()
+	ar.sel = "hud.marks"
+	ar.nudge_scale(0.25)
+	ar.press("copy")
+	_check(ar.copy_open and ar.copy_box != null and ar.copy_box.text == ar.copy_text and L.parse(ar.copy_text) != null and L.parse(ar.copy_text)["desktop"].has("hud.marks"), "Copy layout shows the arrangement's JSON in a box")
+	ar._hide_copy()
+	# The two-step reset.
+	ar.press("reset_all")
+	_check(L.moved("hud.marks") and ar.armed == "reset_all", "Reset all asks for a second press")
+	ar.press("reset_all")
+	_check(not L.moved("hud.marks"), "...and the second press resets")
+	ar.press("done")
+	await _frames(3)
+	_check(not ar.is_open and not paused, "Done closes it (back as it was saved: nothing to ask)")
+	# The Entity explains it, the first time (tips on), in Arrange mode's own card.
+	var Guide = load("res://scripts/guide.gd")
+	var Entity = load("res://scripts/entity.gd")
+	_check(Guide.known("arrange") and Guide.known("arrange_save") and Guide.known("arrange_sets") and Entity.TIPS["arrange"]["group"] == "creator", "the creator tools' tips are readable in the Archive any time")
+	Engine.set_meta("sixfold_tips", true)
+	Guide.forget()
+	ar.open()
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange"] and Guide.told("arrange"), "opening Arrange mode the first time, the Entity explains it")
+	await _key_tap(KEY_ENTER)
+	_check(ar.card.is_empty() and ar.is_open, "Enter closes the card (and not Arrange mode)")
+	ar.press("save")
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange_save"], "the first Save: the Entity says how saving becomes permanent")
+	ar.card_next(true)
+	ar.switch_set()
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange_sets"], "the first switch: the phone and computer layouts are apart")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(ar.card.is_empty(), "B closes it too")
+	ar.switch_set()
+	ar.press("help")
+	_check(ar.card.get("ids", []) == ar.HELP, "the toolbar's ? shows it all again")
+	ar.card_next()
+	ar.card_next()
+	_check(int(ar.card.get("i", -1)) == 2, "...a page at a time (Next)")
+	ar.card_next()
+	_check(ar.card.is_empty(), "...then closes")
+	ar.close()
+	await _frames(3)
+	ar.open()
+	_check(ar.card.is_empty(), "the second time it doesn't say it again")
+	ar.close()
+	await _frames(3)
+	Guide.forget()
+	ar.open()
+	ar.card_next(true)
+	ar.finish()
+	_check(not ar.card.is_empty() and ar.card["ids"] == ["arrange_save"] and ar.is_open, "leaving without ever saving: it says how saving works first")
+	ar.card_next(true)
+	await _frames(3)
+	_check(not ar.is_open, "...and then leaves")
+	Engine.remove_meta("sixfold_tips")
+	Guide.forget()
+	# Tidy up: the built-in layout, the real paths, nothing left on disk.
+	L.clear_state()
+	L.use_set("desktop")
+	for f in [L.user_path, L.project_path]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	L.user_path = keep_paths[0]
+	L.project_path = keep_paths[1]
+	L.write_project = keep_paths[2]

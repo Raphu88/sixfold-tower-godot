@@ -105,6 +105,7 @@ const GROUPS := [
 	["gear", "Gear and items"],
 	["train", "The train"],
 	["screens", "Screens"],
+	["creator", "Creator tools"],
 ]
 
 ## Every tip, in Archive order within its group: the Entity's line ("tip",
@@ -372,6 +373,18 @@ const TIPS := {
 	"inventory": {"group": "screens", "name": "The inventory",
 		"tip": "{inventory} shows everything you carry, and lets you use it.",
 		"more": "The inventory lays out what you wear like a body: helm, amulet and cloak; melee weapon, chest and ranged weapon; a ring, gloves and a ring; backpack, legs and boots. Beside it are your fists, gear lying at your feet and a camp's rune; below, your items with their counts (the quick item gilded). Worn pieces show their condition. Switch to Heirlooms to see what every climb begins with. Choose a slot for its details (compared with what you wear), to use an item, or to take the gear at your feet."},
+	# --- creator tools (arrange.gd): Arrange mode says these in its own card
+	# (the game is paused there), the first time; "always" keeps them
+	# readable in the Archive before they're met (guide.gd known) ---
+	"arrange": {"group": "creator", "name": "Arrange mode", "always": true,
+		"tip": "Everything here can move. To move a thing, {grab}. To resize it, {resize}. It snaps to the grid and the edges; {nosnap} to place it freely.",
+		"more": "Arrange mode ({arrange}) pauses the game and outlines everything you can move, with its name. With a mouse or a finger, drag a thing to move it, and pull a corner handle to make it bigger or smaller (it keeps its shape). It snaps to an 8 px grid, the screen's edges and centre lines and the edges of other things, and thin lines show where; hold Shift to place it freely, or turn the grid off. With a controller, the d-pad (or LB and RB) picks the next thing, the left stick moves it, the right stick resizes it, X undoes, Y saves, and A or B finish. On a keyboard, Tab picks, the arrows nudge and [ and ] resize. Drag the toolbar by its title to move it aside; its ? shows this again. Nothing is kept until you Save."},
+	"arrange_sets": {"group": "creator", "name": "Phone and computer layouts", "always": true,
+		"tip": "Your phone and your computer each keep a layout of their own. Moving a thing on one leaves the other alone.",
+		"more": "There are two layouts: the computer's, and the phone's (which draws everything 1.5 times bigger and has the touch buttons). Each is arranged and saved on its own. Touching the screen switches to the phone's layout; a keyboard, mouse or controller switches back. In Arrange mode the button at the top right of the toolbar changes which one you're editing, so on a computer you can arrange the phone's layout too, shown as a phone shows it."},
+	"arrange_save": {"group": "creator", "name": "Saving a layout", "always": true,
+		"tip": "Save keeps it on this device. To make it everyone's, Save while the game runs from Godot on your computer, or Copy layout and give it to Claude.",
+		"more": "Save keeps your layout on this device only. To make it permanent for everyone: on your computer, run the game from Godot (F5), arrange it, and press Save; that also writes the project's file data/layout.json. Then in GitHub Desktop the change shows on the left: type a short summary at the bottom left (like \"New HUD layout\"), click \"Commit to main\", then \"Push origin\" at the top. On a phone or the web version, Save can't reach the project: tap Copy layout and paste it to Claude in chat. Reset goes back to the shared layout."},
 	# --- the secret bonds' tools (secret_bonds.gd, secret_tools.gd): mechanical text only ---
 	"tool_ring": {"group": "tools", "name": "The tool ring",
 		"tip": "Hold {tools} for your secret bond's tools. Every tool costs essence you carry.",
@@ -454,6 +467,10 @@ const KEYS := {
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
 	"choose": ["the arrows (or a click on a swatch)", "the d-pad or stick", "the arrows or a swatch"],
 	"tools": ["B", "{lb} and {lt}", "Tools"],
+	"arrange": ["F2, or Dev tools then Arrange layout", "Dev tools, then Arrange layout", "Dev tools, then Arrange layout"],
+	"grab": ["drag it with the mouse", "pick it with the d-pad and push the left stick", "drag it with a finger"],
+	"resize": ["pull a corner handle", "push the right stick up or down", "pull a corner handle"],
+	"nosnap": ["hold Shift", "turn the grid off with {back}", "turn the grid off in the toolbar"],
 	"cars": ["Q and E, the mouse wheel, or a car on the rail at the left", "{lb} and {rb}, or up and down on the rail at the left", "swipe, or tap a car on the rail at the left"],
 }
 

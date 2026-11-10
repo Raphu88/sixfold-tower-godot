@@ -45,6 +45,7 @@ On a touchscreen the whole game is drawn 1.5x bigger so it reads on a small scre
 | Music on/off | M | Music slider in Settings & Controls |
 | Show/hide the controls list on screen (off at first; also in Settings & Controls) | H | Settings & Controls |
 | Dismiss the Entity's tip (or tap or click it) | Enter | Press the right stick (RS / R3) |
+| Arrange mode: move and resize the HUD and the phone's buttons yourself (see Arranging the layout) | F2, or Dev tools → Arrange layout | Dev tools → Arrange layout; then d-pad / LB / RB pick, left stick moves, right stick resizes |
 
 **Controllers.** Plug in (or pair) an Xbox, PlayStation or similar controller and just press a button. The prompts on screen (the controls panel, the gear card's "take it", the card screens, "press ... to begin your next climb") switch to controller buttons as soon as you use it, with PlayStation names on a PlayStation pad, and back to keys the moment you touch the keyboard or mouse (or to touch wording on a phone). Holding LB (L1) turns the face buttons, RB and RT into your six marks' casts; hold the cast button to open the spell ring and point with the right stick (every ring stops time while it's open). The button layout lives in `scripts/controls.gd` (`PAD` and `PAD_CAST`), read by `scripts/pad.gd`.
 
@@ -331,7 +332,51 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 - **Puzzles:** put one kind of puzzle on every floor of rooms (or back to the usual mix), and go to a floor of rooms to try it.
 - **Secret essences:** take the Life or Unmaking path at once, bank +25 or +100 flow (to try each step), reset the path, or show the path choice.
 - **Secret bonds:** grant the Developer, Designer or Manipulator at any depth from 1 to 5, or clear it; carry +100 essence and +20 flow (to pay for tools); +150 crystal essence (for Tune, Edit, moving marks, a bribe and a change of path).
+- **Layout:** **Arrange layout** opens Arrange mode (see Arranging the layout below).
 - **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room, and show traps (outlines every trap and its reach, hidden ones too).
+
+## Arranging the layout (Arrange mode)
+
+You can move and resize the HUD and the phone's buttons yourself, by hand, and keep the result. Open **Dev tools → Arrange layout** (or press **F2** during a climb). The game pauses and everything you can move gets a dashed gold outline with its name. The Entity explains it the first time (and the toolbar's **?** shows the explanation again; it's also in the Archive under **Creator tools**).
+
+**Moving things.**
+- **Mouse or finger:** drag a thing to move it. Pull one of the small square corner handles of the chosen thing to make it bigger or smaller (it keeps its shape). It snaps to an 8-pixel grid, to the screen's edges and centre lines, and to the edges of the other things; thin blue lines show what it snapped to. Hold **Shift** to place it freely (on a phone, turn **Grid** off).
+- **Keyboard:** **Tab** picks the next thing (Shift+Tab the one before), the **arrow keys** nudge it (8 pixels; 1 with Shift), **[** and **]** (or the mouse wheel) make it smaller or bigger, **Ctrl+Z** undoes, **Ctrl+S** saves, **G** turns the grid on or off, and **Esc**, **Enter** or **F2** finish.
+- **Controller:** the **d-pad** or **LB / RB** pick the next thing, the **left stick** moves it, the **right stick** (up and down) resizes it, **X** undoes, **Y** saves, **View** turns the grid on or off, and **A** or **B** finish.
+- **The toolbar** (drag it by its title to move it out of the way): **Save**, **Copy layout**, **Undo**, **Grid**, **Reset this** and **Reset all** (each asks for a second press), **Done**, a line saying where the chosen thing is and how big, and at the top right the button that switches between the **computer's** and the **phone's** layout.
+- Nothing can be dragged wholly off the screen, and the phone's buttons can't be made too small to tap. Leaving with changes you haven't saved asks whether to save them.
+
+**Two layouts.** The computer and the phone each have their own layout (the phone draws everything 1.5 times bigger and adds the touch buttons). On a computer, the toolbar's switch shows the phone's layout the way a phone draws it, so you can arrange the phone's buttons from your desk too. Things are pinned to the nearest corner or edge of the screen, so they keep their place on other screen sizes, turned sideways, and at every HUD size.
+
+**What can be moved (so far).** The HUD: health and stamina, the weapon, the quick item, the marks, the path gem and vessel, the unbanked essence counter, the key hints, the floor title, the new floor banner, the beast's health bar, the shut-door and challenge plates, the ring the stair arrow travels along, and the Entity's bubble. The phone: the joystick zone and every button (attack, roll, parry, jump, swap, each mark button, item, next item, take, tools, Bag, Climber, Menu, fullscreen). Where a button is drawn is exactly where it answers a tap.
+
+**Keeping your layout.**
+- **Save** keeps it on the device you're using (in the game's own save folder, `user://layout.cfg`). Only that device sees it.
+- **To make it everyone's layout** (the one the web version starts with), save it from your computer, inside Godot:
+  1. Open the project in Godot and press **F5** to play.
+  2. Press **F2** (or Dev tools → Arrange layout), arrange things, and press **Save**. Because the game is running from Godot, Save also writes the file `data/layout.json` in the project folder (the toolbar says so).
+  3. Open **GitHub Desktop**. On the left you'll see `data/layout.json` listed as changed.
+  4. At the bottom left, type a short summary, for example `New HUD layout`.
+  5. Click the blue **Commit to main** button.
+  6. Click **Push origin** at the top. A few minutes later the web version starts with your layout.
+- **From a phone (or the web version):** Save can't reach the project, so tap **Copy layout**. It copies the layout to the clipboard and shows it in a box (on a phone: long-press in the box, **Select all**, **Copy**). Paste it to Claude in the chat, and Claude puts it into `data/layout.json` for you.
+- **Reset this** / **Reset all** go back to the shared layout in `data/layout.json` (run from Godot, where Save writes that file, they go back to the built-in layout).
+
+**The file.** `data/layout.json` (and what Copy layout gives) looks like this; an empty set means "as built":
+
+```json
+{
+	"desktop": {
+		"hud.bars": {"anchor": "bl", "scale": 1.25, "x": 16.0, "y": -16.0}
+	},
+	"format": 1,
+	"touch": {
+		"touch.attack": {"anchor": "br", "scale": 1.1, "x": -12.0, "y": -8.0}
+	}
+}
+```
+
+Each entry names a thing (`hud.…` or `touch.…`), the corner or edge it's pinned to (`tl`, `t`, `tr`, `l`, `c`, `r`, `bl`, `b`, `br`), how far its own matching corner sits from the screen's (x and y; in HUD units for `hud.` things, which the HUD size setting multiplies), and its scale. The list of things, their names and built-in places is in `scripts/layout.gd`; Arrange mode itself is `scripts/arrange.gd`.
 
 ## Climbers and saves
 
@@ -730,6 +775,9 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/pad.gd` | Game controller: puts each controller into the standard layout (straight through, a guess, or your setup), turns its buttons into actions, LB for casts, notices which device was used last |
 | `scripts/pad_setup.gd` | Settings → Controller setup: records a controller's layout one control at a time, with a live readout of what it sends |
 | `scripts/touch.gd` | On-screen touch controls |
+| `scripts/layout.gd` | The layout registry: every arrangeable thing (HUD and touch buttons), its built-in place, the arrangement over it, loading and saving (see Arranging the layout) |
+| `scripts/arrange.gd` | Arrange mode: the outlines, dragging, scaling, snapping, the toolbar, Copy layout and the Entity's card |
+| `data/layout.json` | The shared layout everyone starts with (written by Save when the game runs from the Godot editor) |
 | `export_presets.cfg` | Web export settings |
 | `.github/workflows/web.yml` | Builds and publishes the web version |
 | `scripts/audio.gd` | Plays sound effects (random variants) and music |

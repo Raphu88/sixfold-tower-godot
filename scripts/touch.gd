@@ -23,6 +23,7 @@ const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
 const Items := preload("res://scripts/items.gd")
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const Layout := preload("res://scripts/layout.gd")
 
 var main
 var active := false
@@ -46,42 +47,54 @@ func _ready() -> void:
 	_release_all()
 
 
+## The buttons, in this order, with the action each presses (where each one
+## sits is in layout.gd: the element "touch.<id>", which Arrange mode moves).
+const BUTTONS := [["attack", "attack"], ["roll", "roll"], ["jump", "jump"], ["parry", "parry"], ["weapon", "weapon_next"],
+	["fullscreen", ""], ["menu", "pause"], ["climber", "climber"], ["inventory", "inventory"], ["item", "use_item"], ["item_next", "item_next"]]
+
+
 func _layout() -> void:
 	var s := get_viewport_rect().size
-	# Laid out for the scaled-up phone view; k keeps buttons thumb-sized.
-	var k := 0.75
-	var br := Vector2(s.x, s.y)  # bottom-right corner
-	var tr := Vector2(s.x, 0)  # top-right corner
-	buttons = [
-		{"id": "attack", "action": "attack", "c": br + Vector2(-130, -130) * k, "r": 62.0 * k},
-		{"id": "roll", "action": "roll", "c": br + Vector2(-268, -86) * k, "r": 44.0 * k},
-		{"id": "jump", "action": "jump", "c": br + Vector2(-36, -36) * k, "r": 30.0 * k},
-		{"id": "parry", "action": "parry", "c": br + Vector2(-150, -278) * k, "r": 42.0 * k},
-		{"id": "weapon", "action": "weapon_next", "c": br + Vector2(-290, -330) * k, "r": 28.0 * k},
-		{"id": "fullscreen", "action": "", "c": tr + Vector2(-40, 40) * k, "r": 24.0 * k},
-		{"id": "menu", "action": "pause", "c": tr + Vector2(-104, 40) * k, "r": 28.0 * k},
-		# The climber screen and the inventory, beside Menu.
-		{"id": "climber", "action": "climber", "c": tr + Vector2(-172, 40) * k, "r": 26.0 * k},
-		{"id": "inventory", "action": "inventory", "c": tr + Vector2(-236, 40) * k, "r": 26.0 * k},
-		# Items: bottom middle-right, clear of roll and the cast buttons.
-		{"id": "item", "action": "use_item", "c": br + Vector2(-395, -48) * k, "r": 34.0 * k},
-		{"id": "item_next", "action": "item_next", "c": br + Vector2(-478, -48) * k, "r": 22.0 * k},
-	]
+	buttons = []
+	for row in BUTTONS:
+		buttons.append(_button(row[0], row[1], s))
 	# Take: only while you stand on gear you'd swap for (Y on a keyboard).
 	if not main.gear_here.is_empty():
-		buttons.append({"id": "take", "action": "interact", "c": br + Vector2(-400, -372) * k, "r": 34.0 * k})
+		buttons.append(_button("take", "interact", s))
 	# Tools: only while you hold a secret bond (secret_tools.gd): tap for the
 	# last tool, hold and slide for the tool ring.
 	if main.secret_tools != null and main.secret_tools.ring_ready():
-		buttons.append({"id": "tools", "action": "tool_ring", "c": br + Vector2(-505, -235) * k, "r": 28.0 * k})
-	# One cast button per mark you carry, in these spots around attack.
-	var spots := [Vector2(-282, -222), Vector2(-52, -262), Vector2(-48, -368), Vector2(-405, -150), Vector2(-160, -400), Vector2(-395, -265)]
+		buttons.append(_button("tools", "tool_ring", s))
+	# One cast button per mark you carry, in the mark spots, in body order.
 	var i := 0
 	var p = main.player
 	for part in main.BondScript.Bonds.PARTS:
 		if p != null and p.bonds.has(part):
-			buttons.append({"id": "cast_" + part, "action": "cast_" + part, "c": br + spots[i] * k, "r": 34.0 * k, "part": part})
+			var b := _button("mark_%d" % (i + 1), "cast_" + part, s)
+			b["id"] = "cast_" + part
+			b["part"] = part
+			buttons.append(b)
 			i += 1
+
+
+## A button where the layout puts it: its circle fills its arranged box.
+func _button(id: String, action: String, s: Vector2) -> Dictionary:
+	var r := Layout.box("touch." + id, s)
+	return {"id": id, "action": action, "c": r.get_center(), "r": r.size.x * 0.5, "el": "touch." + id}
+
+
+## Where a touch starts the joystick (the left half of the screen, unless arranged).
+func stick_zone() -> Rect2:
+	return Layout.box("touch.stick", get_viewport_rect().size)
+
+
+## Unarranged, any touch left of the middle starts the joystick (as it
+## always did, even the very first touch, measured before the phone's 1.5x
+## view took over); arranged, a touch inside its zone.
+func _in_stick_zone(pos: Vector2) -> bool:
+	if not Layout.moved("touch.stick"):
+		return pos.x < get_viewport_rect().size.x * 0.5
+	return stick_zone().has_point(pos)
 
 
 func _input(event: InputEvent) -> void:
@@ -174,6 +187,7 @@ func _set_active(on: bool) -> void:
 	var was := active
 	active = on
 	main.touch_active = on
+	Layout.use_set("touch" if on else "desktop")  # (the phone has its own arrangement)
 	if was != on and main.menu != null and main.menu.is_open():
 		main.menu.input_changed.call_deferred()  # (an open menu's prompts follow)
 	get_tree().root.content_scale_factor = PHONE_SCALE if on else 1.0
@@ -212,7 +226,7 @@ func _touch_down(index: int, pos: Vector2) -> void:
 		main.fall_tapped()
 		return
 	# Anywhere on the left side starts the joystick under the thumb.
-	if stick_touch == -1 and pos.x < get_viewport_rect().size.x * 0.5:
+	if stick_touch == -1 and _in_stick_zone(pos):
 		stick_touch = index
 		stick_origin = pos
 		stick_pos = pos
@@ -313,7 +327,7 @@ func _process(_delta: float) -> void:
 
 func _signature() -> Array:
 	var p = main.player
-	var s := [get_viewport_rect().size, held.duplicate(), stick_touch, stick_origin, stick_pos, main.gear_here.is_empty(),
+	var s := [get_viewport_rect().size, Layout.version, held.duplicate(), stick_touch, stick_origin, stick_pos, main.gear_here.is_empty(),
 		main.choosing_tower, main.camp_choosing, main.overlay_showing(), main.menu_open(),
 		main.secret_tools != null and main.secret_tools.ring_ready()]
 	if p != null:
@@ -348,7 +362,8 @@ func _draw() -> void:
 		sb.flush(self)
 	else:
 		if main.gear_here.is_empty() and not (main.player != null and main.player.dead):  # (the gear card sits here while you stand on gear)
-			draw_string(UI.font("body"), Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.3))
+			var zone := stick_zone()
+			draw_string(UI.font("body"), zone.position + Vector2(30, zone.size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.3))
 
 	var p = main.player
 	var down := held.values()
