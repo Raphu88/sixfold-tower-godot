@@ -38,6 +38,7 @@ const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
 const RailScript := preload("res://scripts/rail.gd")
 const Nav := preload("res://scripts/nav.gd")
+const Abilities := preload("res://scripts/abilities.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -53,9 +54,12 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
 	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0}
-## The climber screen's tabs: [id, name].
+## The climber screen's tabs: [id, name]. Abilities (abilities.gd) comes
+## first: what you can cast and how; Marks is the body and each mark's
+## growth ("Body" for the Unbound, who carry no marks).
 ## (The Entity's Archive is the Library now: its own page, and a car on the train.)
-const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+const CLIMBER_TABS := [["abilities", "Abilities"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+const UNBOUND_MARKS_TAB := "Body"
 ## Settings & Controls: its two tabs (the train's car shows them too).
 const SETTINGS_TABS := [["settings", "Settings"], ["controls", "Controls"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
@@ -65,9 +69,10 @@ const COMPACT_H := 600.0
 ## "condense": the share of banked essence that condenses into crystals at a
 ## stair, in percent (train.gd CONDENSE_CHOICES). "train_rail": the train's
 ## rail as a menu ("menu") or drawn as the train on end ("end"), a dev-tools
-## mock-up (rail.gd).
-static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "marks", "lighting": "",
-	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu"}
+## mock-up (rail.gd). "abilities_tab": the climber screen has opened on its
+## Abilities tab once (saves from before it start there).
+static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "hud_scale": "normal", "climber_tab": "abilities", "lighting": "",
+	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false}
 static var settings_loaded := false
 
 var main
@@ -88,7 +93,7 @@ var center: CenterContainer
 var fade: Tween
 var opened_from_title := false
 var opened_direct := false  # the climber screen or inventory, opened by its own key: Back closes
-var climber_tab := "marks"  # the climber screen's tab (remembered between sessions)
+var climber_tab := "abilities"  # the climber screen's tab (remembered between sessions)
 var mark_part := ""  # the body part the mark detail page shows
 var focus_part := ""  # back on the Marks tab: the card to focus
 var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:draught", ...)
@@ -215,6 +220,7 @@ func is_open() -> bool:
 var touch_from := Vector2.ZERO
 var touch_moved := 0.0
 var touch_slider: HSlider = null
+var _touch_began := false  # the finger down now went down while the menu was open
 
 
 func _input(event: InputEvent) -> void:
@@ -272,13 +278,15 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			touch_from = event.position
 			touch_moved = 0.0
+			_touch_began = true
 			touch_slider = _control_at(event.position, "HSlider")
 			if touch_slider != null:
 				_slide_to(touch_slider, event.position)
 		else:
-			if touch_slider == null and touch_moved < 14.0:
-				_tap(event.position)
+			if touch_slider == null and touch_moved < 14.0 and _touch_began:
+				_tap(event.position)  # (not the lift of a press that opened the menu: the Climber button's, say)
 			touch_slider = null
+			_touch_began = false
 			# A phone: switch to the bigger phone layout (after the tap, so the
 			# button doesn't move under the finger).
 			if main != null and main.touch != null and not main.touch.active:
@@ -373,6 +381,7 @@ func _process(delta: float) -> void:
 			if Input.is_action_just_pressed(which):
 				toggle(which)
 				break
+	_update_peek()
 	if page == "mark":
 		# The detail page's text isn't focusable: up and down scroll it.
 		var v := Input.get_axis("ui_up", "ui_down")
@@ -391,6 +400,77 @@ func _process(delta: float) -> void:
 			if rep.pulse(a):
 				_nav(a)
 	_layout()
+
+
+# --- peeking at the Abilities page --------------------------------------------------
+# Tab (or the phone's Climber button) opens the climber screen as before;
+# held a moment longer it shows the Abilities tab, and letting go returns to
+# the game. (A controller's View is the climber screen on a short press and
+# restart on a long one, so it doesn't peek.)
+
+## How long Tab or the Climber button is held before it peeks.
+const PEEK_MS := 400
+var _peek_at := -1  # when the press that opened the climber screen began (msec), or -1
+var _peek_down := ""  # what's held: the key (Tab) or the finger on the Climber button (a _down id)
+var peeking := false  # held: showing Abilities until it's let go
+var _peek_prev := ""  # the tab to go back to after a peek
+
+
+func _arm_peek() -> void:
+	_peek_at = -1
+	peeking = false
+	if main == null or main.pad_active:
+		return
+	# (What opened it is still down: the menu notes presses itself, _track,
+	# since opening a page lets go of the game's actions.)
+	_peek_down = ""
+	if main.touch_active and main.touch != null:
+		# The finger that pressed the Climber button (still down, or it was a tap).
+		var cb: Dictionary = {}
+		for b in main.touch.buttons:
+			if b["id"] == "climber":
+				cb = b
+		for id in _down.keys():
+			var w: Array = _down[id]
+			if w.size() > 1 and w[0] == "touch" and not cb.is_empty() and w[1].distance_to(cb["c"]) <= float(cb["r"]) + 16.0:
+				_peek_down = id
+	else:
+		for ev in InputMap.action_get_events("climber"):
+			if ev is InputEventKey:
+				var code: int = ev.physical_keycode if ev.physical_keycode != KEY_NONE else ev.keycode
+				if _down.has("k%d" % code):
+					_peek_down = "k%d" % code
+	if _peek_down == "":
+		return
+	_peek_at = Time.get_ticks_msec()
+
+
+func _peek_held() -> bool:
+	return _down.has(_peek_down)
+
+
+func _update_peek() -> void:
+	if _peek_at < 0:
+		return
+	if page != "climber":
+		_peek_at = -1
+		peeking = false
+		return
+	if not _peek_held():
+		_peek_at = -1
+		if peeking:
+			peeking = false
+			if _peek_prev != "":
+				climber_tab = _peek_prev
+			close()  # (let go: back to the game)
+		return
+	if not peeking and Time.get_ticks_msec() - _peek_at >= PEEK_MS:
+		peeking = true
+		_peek_prev = climber_tab
+		if climber_tab != "abilities":
+			_quiet = true
+			open("abilities", true)
+			_quiet = false
 
 
 ## A name is being typed (the appearance page's name field has the keys).
@@ -464,6 +544,8 @@ func toggle(which: String) -> void:
 	elif page == "":
 		if _can_open() and not (main != null and main.overlay_showing()):
 			open(which, true)
+			if which == "climber":
+				_arm_peek()
 	elif page != "title" and page != "confirm_new":
 		open(which, opened_direct)
 
@@ -704,7 +786,7 @@ func _rail_go(id: String, preview: bool) -> void:
 			else:
 				close()
 		"climber":
-			open("climber")
+			open("abilities")  # (your name on the rail: what you can cast first; the other tabs beside it)
 		"library":
 			open_archive()
 		"inventory":
@@ -746,6 +828,12 @@ func _wanted_height() -> float:
 func open(which: String, direct := false) -> void:
 	if which == "pause" and main != null and main.has_method("trying_room") and main.trying_room():
 		which = "painter"  # (trying a room from the painter: the pause key goes back to it)
+	if which == "abilities":
+		# The Abilities page: the climber screen on its first tab (from play,
+		# the train's pages, or a peek).
+		climber_tab = "abilities"
+		which = "climber"
+		direct = direct or page == ""
 	var was_closed := page == ""
 	var prev := page
 	var switching := (which != page or which == "climber" or which == "mark") and not _quiet  # (a new tab or mark too)
@@ -1116,7 +1204,7 @@ func _track(event: InputEvent) -> void:
 		elif absf(event.axis_value) < 0.35:
 			_down_set(id, false, [])
 	elif event is InputEventScreenTouch:
-		_down_set("t%d" % event.index, event.pressed, ["touch"])
+		_down_set("t%d" % event.index, event.pressed, ["touch", event.position])
 
 
 func _down_set(id: String, on: bool, what: Array) -> void:
@@ -1307,8 +1395,11 @@ func _title_button(b: Button, primary := false) -> void:
 ## (and Quit game on a computer). Resume, the other pages, Start over and
 ## Exit are on the rail.
 func _page_pause() -> void:
+	var practicing: bool = main.practice != null and main.practice.on
 	if _on_train():
 		_header(Train.TEXT["title"], "", "Menu")
+	elif practicing:
+		_header(main.practice.TEXT["paused"], main.practice.TEXT["pause_note"], "Paused")
 	else:
 		_header("Paused", "", "%s  ·  floor %d" % [main.tower_data()["name"], main.floor_num])
 	var g := _grid(2, 10, 4 if compact() else 6)
@@ -1316,7 +1407,7 @@ func _page_pause() -> void:
 		var nt: Dictionary = Towers.TOWERS.get(train_tower, {})
 		if not nt.is_empty():
 			_pair(g, "Next climb", nt["name"], Essence.color(nt["essence"]).lerp(TEXT, 0.25))
-	else:
+	elif not practicing:
 		var t: Dictionary = main.tower_data()
 		_pair(g, "Tower", t["name"], Essence.color(t["essence"]).lerp(TEXT, 0.25))
 		_pair(g, "Floor", "%d   (best %d)" % [main.floor_num, main.profile.best_floor])
@@ -1333,7 +1424,11 @@ func _page_pause() -> void:
 	_pair(g, "Marks", ",  ".join(marks) if not marks.is_empty() else "none yet", TEXT if not marks.is_empty() else FAINT)
 	_gap(4)
 	var row := _grid(2)
-	if not _on_train():
+	if practicing:
+		var lb := _button(main.practice.TEXT["leave"], main.practice.leave, row)
+		lb.set_meta("leave_practice", true)
+		_primary(lb)
+	elif not _on_train():
 		_button("Restart this climb", _restart, row)
 	if can_quit():
 		_button("Quit game", _quit_game, row)
@@ -1513,6 +1608,8 @@ func _page_climber() -> void:
 	var tabs := climber_tabs()
 	_tabs(tabs, climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks", _set_climber_tab)
 	match climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks":
+		"abilities":
+			Abilities.build(self)
 		"core":
 			SecretPage.build(self)
 		"essence":
@@ -1526,7 +1623,9 @@ func _page_climber() -> void:
 
 ## The climber screen's tabs: a secret bond adds its Core tab (secret_page.gd).
 func climber_tabs() -> Array:
-	var tabs: Array = CLIMBER_TABS.duplicate()
+	var tabs: Array = CLIMBER_TABS.duplicate(true)
+	if main != null and main.profile != null and Unbound.is_on(main.profile):
+		tabs[1][1] = UNBOUND_MARKS_TAB  # (no marks: their body's raw essence)
 	if main != null and main.profile != null and main.SecretBonds.has_bond(main.profile):
 		tabs.append(SecretPage.TAB)
 	return tabs
@@ -3329,6 +3428,10 @@ static func load_settings_from(path: String) -> void:
 	settings["condense"] = str(settings["condense"])
 	if not Train.CONDENSE_CHOICES.any(func(c): return c[0] == settings["condense"]):
 		settings["condense"] = Train.CONDENSE_DEFAULT  # (an old or broken save: the default share)
+	if not bool(settings["abilities_tab"]):
+		# (Saved before the Abilities tab: the climber screen opens on it once.)
+		settings["abilities_tab"] = true
+		settings["climber_tab"] = "abilities"
 
 
 static func save_settings() -> void:

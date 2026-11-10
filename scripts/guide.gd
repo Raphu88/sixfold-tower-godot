@@ -40,7 +40,7 @@ const TOP_TOUCH := 64.0
 ## What the Entity remembers, saved in the "guide" section: on (tips on, in
 ## the shared settings file), known (Archive entries unlocked) and told (tips
 ## said), both in the current climber's slot file (slots.gd).
-static var state := {"on": true, "known": {}, "told": {}}
+static var state := {"on": true, "known": {}, "told": {}, "cast": {}}
 static var loaded := false
 ## The climber file known and told were loaded from (and are saved to).
 static var loaded_from := ""
@@ -84,6 +84,7 @@ static func load_from(settings: String, climber: String) -> void:
 	loaded_from = climber
 	state["known"] = {}
 	state["told"] = {}
+	state["cast"] = {}
 	var cfg := ConfigFile.new()
 	if cfg.load(settings) == OK:
 		state["on"] = bool(cfg.get_value("guide", "on", true))
@@ -93,6 +94,8 @@ static func load_from(settings: String, climber: String) -> void:
 		var t = cfg.get_value("guide", "told", {})
 		state["known"] = k if k is Dictionary else {}
 		state["told"] = t if t is Dictionary else {}
+		var c = cfg.get_value("guide", "cast", {})
+		state["cast"] = c if c is Dictionary else {}
 
 
 ## What's been said, into the current climber's file.
@@ -107,6 +110,7 @@ static func save_to(climber: String) -> void:
 	cfg.load(climber)
 	cfg.set_value("guide", "known", state["known"])
 	cfg.set_value("guide", "told", state["told"])
+	cfg.set_value("guide", "cast", state.get("cast", {}))
 	cfg.save(climber)
 
 
@@ -125,6 +129,7 @@ static func unload() -> void:
 	loaded_from = ""
 	state["known"] = {}
 	state["told"] = {}
+	state["cast"] = {}
 	queue.clear()
 
 
@@ -207,6 +212,21 @@ static func tell(id: String) -> String:
 	return String(Entity.entry(r)["tip"])
 
 
+## The first time this climber casts a spell or technique (`key`:
+## abilities.gd cast_key): true once, and it's remembered (ability_hints.gd
+## shows its name and what it does). False in quiet tests or with tips off.
+static func first_cast(key: String) -> bool:
+	if not live() or not tips_on():
+		return false
+	if not state.has("cast"):
+		state["cast"] = {}
+	if state["cast"].has(key):
+		return false
+	state["cast"][key] = true
+	save_state()
+	return true
+
+
 ## A short line for a moment (entity.gd LINES), ahead of any tips waiting.
 static func say(key: String, fill := {}) -> void:
 	if not live() or not tips_on():
@@ -226,13 +246,14 @@ static func moment(tip_id: String, line_key: String, fill := {}) -> void:
 static func replay() -> void:
 	load_state()
 	state["told"] = {}
+	state["cast"] = {}
 	queue.clear()
 	save_state()
 
 
 ## Tests: forget everything.
 static func forget() -> void:
-	state = {"on": true, "known": {}, "told": {}}
+	state = {"on": true, "known": {}, "told": {}, "cast": {}}
 	queue.clear()
 
 

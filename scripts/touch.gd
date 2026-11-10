@@ -23,6 +23,7 @@ const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
 const Items := preload("res://scripts/items.gd")
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const Abilities := preload("res://scripts/abilities.gd")
 const Layout := preload("res://scripts/layout.gd")
 
 var main
@@ -398,7 +399,7 @@ func _draw() -> void:
 				if bond != null:
 					col = bond.color()
 					fill = bond.essence / bond.capacity()
-					label = bond.spell_name().split(" ")[0]
+					label = Abilities.spell_name(bond)  # (the whole name, in one or two lines: below)
 					ready = bond.essence >= bond.cost()
 			"weapon":
 				label = "Swap"
@@ -433,9 +434,13 @@ func _draw() -> void:
 		var bt := Draw.Batch.new()
 		UI.button_into(bt, c, r, col, pressed, ready, fill, r < 27.0)
 		var bond_aff := ""
+		var name_lines: Array = []
+		var name_fs := clampi(int(round(r * 0.47)), 10, 20)  # (an arranged button's name grows and shrinks with it)
 		if b.has("part") and p != null and p.bonds.has(b["part"]):
 			bond_aff = p.bonds[b["part"]].data()["affinity"]
-			UI.emblem_into(bt, c + Vector2(0, -r * 0.2), r * 0.34, bond_aff, Color(col, 0.9), 0.0)
+			name_lines = Abilities.short_lines(label, font, name_fs, r * 1.8)
+			var two := name_lines.size() > 1
+			UI.emblem_into(bt, c + Vector2(0, -r * (0.42 if two else 0.24)), r * (0.24 if two else 0.32), bond_aff, Color(col, 0.9), 0.0)
 		bt.flush(self)
 		if item_icon != "":
 			Items.draw_icon(self, item_icon, c + Vector2(0, -5), r * 0.42)
@@ -444,8 +449,13 @@ func _draw() -> void:
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
 			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.9))
 			continue
-		if bond_aff != "":
-			draw_string(font, c + Vector2(-r, r * 0.55), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
+		if not name_lines.is_empty():
+			# Its spell's name: one line, or two, outlined so it reads on the glass.
+			var y0 := r * (0.12 if name_lines.size() > 1 else 0.56)
+			for i in name_lines.size():
+				var at := c + Vector2(-r * 1.1, y0 + i * name_fs * 0.92)
+				draw_string_outline(font, at, name_lines[i], HORIZONTAL_ALIGNMENT_CENTER, r * 2.2, name_fs, 3, Color(0, 0, 0, 0.75))
+				draw_string(font, at, name_lines[i], HORIZONTAL_ALIGNMENT_CENTER, r * 2.2, name_fs, col.lightened(0.45))
 			continue
 		if b["id"] == "item" and label != "Item":
 			draw_string(font, c + Vector2(-r, r * 0.75), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 14, Color(col, 0.95))

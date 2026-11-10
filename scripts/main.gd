@@ -44,6 +44,8 @@ const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 const UnboundRun := preload("res://scripts/unbound_run.gd")
 const RoomStore := preload("res://scripts/room_store.gd")
+const PracticeScript := preload("res://scripts/practice.gd")
+const HintsScript := preload("res://scripts/ability_hints.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
@@ -149,6 +151,8 @@ var dev_no_death := false  # dev tool: you can't fall
 var painter_try := {}
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
+var practice  # the practice room, from the train's Abilities page (practice.gd)
+var hints  # names in play: ready labels, first casts, the long-press card (ability_hints.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
 var new_climber_t := 0.0
@@ -318,6 +322,9 @@ func _ready() -> void:
 	unbound = UnboundRun.new()
 	unbound.main = self
 	add_child(unbound)
+	practice = PracticeScript.new()
+	practice.main = self
+	add_child(practice)
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
 	apply_appearance()
@@ -360,6 +367,9 @@ func _ready() -> void:
 	touch = TouchScript.new()
 	touch.main = self
 	layer.add_child(touch)
+	hints = HintsScript.new()  # (over the touch buttons, under the Entity's bubble)
+	hints.main = self
+	layer.add_child(hints)
 	# The Entity's tips, over the touch buttons (so a tap on a bubble is its own).
 	entity = GuideScript.new()
 	entity.main = self
@@ -395,6 +405,7 @@ func _ready() -> void:
 		menu.open.call_deferred("create")
 	elif on_train:
 		menu.open.call_deferred("train")
+		PracticeScript.after_train.call_deferred(self)  # (back from the practice room: its page again)
 
 
 ## A wall body of the last floor: it stops colliding at once (a freed body
@@ -953,6 +964,8 @@ func _start_floor(n: int) -> void:
 	if n == 1:
 		start = player.position if room == OPEN_ROOM else Vector2(300, 365)
 	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
+	if practice != null and practice.on:
+		plan = practice.plan()  # (the practice room: practice.gd)
 	if not painter_try.is_empty():
 		plan = Floors.try_plan(painter_try["room"], n, Towers.TOWERS[tower])  # (the room painter's Try it)
 	if plan.is_empty():
@@ -2262,8 +2275,13 @@ func choose_tower(id: String) -> void:
 func _greet() -> void:
 	tip("entity")
 	tip("move")
-	if not first_climb:
+	if not first_climb and UnboundRun.Unbound.is_on(profile):
+		tip("unbound_cast")  # (techniques on the mark buttons: abilities.gd, entity.gd)
+		tip("abilities_unbound")
+	elif not first_climb:
 		tip("casting")
+		tip("abilities")
+	if not first_climb:
 		tip("climber")
 	if first_climb:
 		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0}
@@ -2280,6 +2298,8 @@ func _apply_tower_look() -> void:
 
 
 func _floor_title() -> String:
+	if practice != null and practice.on:
+		return practice.TEXT["title"]
 	if in_camp:
 		return Items.CAMP["title"]
 	if first_climb:
