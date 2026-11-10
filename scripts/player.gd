@@ -597,7 +597,7 @@ func _auto_aim() -> void:
 
 
 ## Hold to pick: while a mark's key is held past PICK_HOLD, a ring of its
-## spells opens (time slows) and the direction you point picks one; letting
+## spells opens (time stops) and the direction you point picks one; letting
 ## go casts it. A quick tap just casts the selected spell.
 func _update_pick(delta: float) -> void:
 	if pick_part == "":
@@ -628,7 +628,7 @@ func _update_pick(delta: float) -> void:
 
 
 ## Hold to pick an item: past Items.RING_HOLD the ring of belt items opens
-## (time slows) and the direction you point picks one; letting go uses it.
+## (time stops) and the direction you point picks one; letting go uses it.
 ## A short press uses the quick item (or, from the d-pad down or T, picks
 ## the next one).
 func _update_item_hold(delta: float) -> void:

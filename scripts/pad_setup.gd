@@ -22,7 +22,7 @@ const TEXT := {
 	"settings_button": "Controller setup",
 	"intro": "If a controller's buttons do the wrong things (some browsers send them scrambled), teach the game which is which. It asks for one control at a time: press whatever you want for each.",
 	"pick": "Press any button on the controller you want to set up",
-	"pick_hint": "Or choose Begin below. B goes back.",
+	"pick_hint": "Or choose Begin below. The d-pad moves, A presses, B goes back.",
 	"none": "No controller yet: plug one in or switch it on, then press any button on it.",
 	"controller": "%s  ·  %s",
 	"unnamed": "Controller",
@@ -153,6 +153,10 @@ func _on_raw(ev: InputEvent) -> void:
 		if ev is InputEventJoypadButton and ev.pressed:
 			if _means_back(ev):
 				menu.go_back()
+			elif _means_dir(ev) != "":
+				menu.nav_step(_means_dir(ev))  # (the d-pad moves between the buttons, as anywhere)
+			elif _means(ev, "a"):
+				_press_focused(ev.device)
 			else:
 				begin(ev.device)
 		return
@@ -190,6 +194,36 @@ func _means_back(ev: InputEventJoypadButton) -> bool:
 	if layout.is_empty():
 		return ev.button_index == JOY_BUTTON_B
 	return _same("b%d" % ev.button_index, String(layout.get("b", "")).get_slice(",", 0))
+
+
+## Pressing what the controller's current layout calls this control
+## ("a", "up", ...), on the first screen.
+func _means(ev: InputEventJoypadButton, control: String) -> bool:
+	if pad._dev(ev.device)["kind"] == "raw":
+		return false  # (unknown numbers: any button begins)
+	var layout: Dictionary = pad.layout_of(ev.device)
+	if layout.is_empty():
+		return ev.button_index == pad.BUTTONS[control]
+	return _same("b%d" % ev.button_index, String(layout.get(control, "")).get_slice(",", 0))
+
+
+## The d-pad on the first screen: the menu's direction for it, or "".
+func _means_dir(ev: InputEventJoypadButton) -> String:
+	for d in [["up", "ui_up"], ["down", "ui_down"], ["left", "ui_left"], ["right", "ui_right"]]:
+		if _means(ev, d[0]):
+			return d[1]
+	return ""
+
+
+## A on the first screen: presses the focused button (Begin, Reset, Back),
+## for this controller; with nothing of ours focused, begins.
+func _press_focused(dev: int) -> void:
+	var f: Control = get_viewport().gui_get_focus_owner()
+	device = dev
+	if f is BaseButton and not f.disabled and menu.is_ancestor_of(f):
+		f.pressed.emit()
+		return
+	begin(dev)
 
 
 ## What a raw event means for this kind of step, as a source ("" if nothing yet).
