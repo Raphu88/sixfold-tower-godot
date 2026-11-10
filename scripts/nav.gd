@@ -39,6 +39,7 @@ class Repeat:
 	var next_at := {}  # action -> when (msec) it repeats next
 	var fired := {}  # actions that pulse this frame
 	var frame := -1
+	var last_ms := -1  # when it last updated (a long frame doesn't count as holding)
 
 	func update(actions: Array = DIRS) -> void:
 		var f := Engine.get_process_frames()
@@ -47,6 +48,13 @@ class Repeat:
 		frame = f
 		fired.clear()
 		var now := Time.get_ticks_msec()
+		# A long frame (a page being built: the train builds all its cars)
+		# isn't time the player held the key: the repeats wait on.
+		var stall := now - last_ms - 50 if last_ms >= 0 else 0
+		last_ms = now
+		if stall > 0:
+			for a in next_at:
+				next_at[a] = int(next_at[a]) + stall
 		for a in actions:
 			if Input.is_action_just_pressed(a):
 				fired[a] = true

@@ -8554,7 +8554,8 @@ func _swipe(a: Vector2, b: Vector2, slow := 0.0) -> void:
 
 ## The train between climbs (train.gd, train_page.gd, train_view.gd): the
 ## pack of spare pieces, the train opening after a climb on your own car,
-## moving along it (keys, a swipe, the wheel, the arrows), the store (buying
+## its rail down the left (the cars, then the pages), moving along it (the
+## rail, keys, a swipe, the wheel), the store (buying
 ## with change, a price you can't pay, putting back, today's piece,
 ## selling), the chest and its save, the engine where you choose the tower
 ## and depart, and a fall after the Regard bringing you back to the train.
@@ -8610,8 +8611,16 @@ func _train_tests() -> void:
 	var view = menu.train_view
 	_check(menu.page == "train" and view.visible and paused and not menu.center.visible, "the train fills the screen: its cars are the menu")
 	_check(menu.train_car == "personal" and view.pos == 1.0, "it opens on your own car")
-	var names: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car"))
-	_check(names.map(func(b): return b.get_meta("car")) == ["engine", "personal", "store", "workshop"], "its cars, front to back: the engine, your car, the store car, the workshop")
+	var rail = menu.rail
+	var R = load("res://scripts/rail.gd")
+	var rail_ids: Array = rail.buttons.map(func(b): return b.id)
+	_check(rail.visible and rail_ids.slice(0, 4) == ["engine", "personal", "store", "workshop"], "the rail shows on the train: its cars first, front to back (%s)" % [rail_ids])
+	_check(rail_ids.slice(4, 4 + R.TRAIN_PAGES.size()) == R.TRAIN_PAGES and rail.button("over") != null and rail.button("exit") != null and rail.button("resume") == null, "...then the pages (Climber to Dev tools), and Start over and Exit at its foot")
+	_check(rail.current == "personal" and rail.button("personal").on, "...your car lit")
+	_check(view.get_global_rect().position.x >= rail.size.x - 0.5 and absf(view.get_global_rect().end.x - menu.get_viewport_rect().size.x) < 1.0, "the cars fill the screen right of the rail")
+	var top_things: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car") or b.has_meta("arrow") or b.has_meta("menu"))
+	var top_bands: Array = view.chrome.get_children().filter(func(c): return c.get("at_top") == true)
+	_check(top_things.is_empty() and top_bands.is_empty() and _menu_button("Menu") == null, "no strip of car names along the top, no edge arrows and no Menu button")
 	_check(_car_buttons("slot", "heir:melee").size() == 1 and _car_buttons("slot", "chest:0").size() == 1, "your car holds the heirloom wardrobe and the chest")
 	# ...and the climber screen and the inventory, which come back to your car.
 	var car_pages: Array = _car_buttons("car_page", "climber") + _car_buttons("car_page", "inventory")
@@ -8634,19 +8643,51 @@ func _train_tests() -> void:
 	_check(not prof.store.get("outfit", []).is_empty() and prof.store.get("today", "") != "", "the store has an outfit rack and today's piece")
 	var today: Dictionary = T.today(prof)
 	_check(G.rarity(today) in ["fine", "rare"], "today's piece is Fine or Rare (%s)" % G.display(today))
-	# Keys: E the next car (the train slides there), Q back; Esc the menu,
-	# and Resume back to the train; I your car.
+	# Keys: E the next car (the train slides there, the rail's light
+	# follows), Q back; up and down on the rail move along it too.
 	await _key_tap(KEY_E)
 	_check(menu.train_car == "store", "E moves to the next car")
 	await _train_settled()
 	_check(view.pos == 2.0 and view.strip.position.x == -2.0 * view.size.x, "...and the train slides along to it")
+	_check(rail.current == "store" and rail.button("store").on and not rail.button("personal").on, "...and the rail's light follows")
 	await _key_tap(KEY_Q)
 	_check(menu.train_car == "personal", "Q moves back")
-	menu.get_viewport().gui_release_focus()
-	await _key_tap(KEY_LEFT)
-	_check(menu.train_car == "engine", "Left with nothing further that way goes to the car before")
-	await _key_tap(KEY_LEFT)
-	_check(menu.train_car == "engine", "...and the engine is the front of the train")
+	rail.focus_current()
+	await _frames(1)
+	await _key_tap(KEY_UP)
+	_check(menu.train_car == "engine" and rail.button("engine").has_focus() and menu.page == "train", "Up on the rail moves onto the engine, and the train slides there (the focus stays on the rail)")
+	await _key_tap(KEY_UP)
+	_check(menu.page == "train" and not rail.button("engine").has_focus(), "...Up again wraps round to the rail's foot (which only acts when pressed)")
+	rail.button("engine").grab_focus()
+	await _frames(1)
+	# Right goes into the car; Left at its edge comes back to the rail; Esc too.
+	await _key_tap(KEY_RIGHT)
+	var f = menu.get_viewport().gui_get_focus_owner()
+	_check(menu.page == "train" and f != null and not rail.buttons.has(f) and menu.train_page._in_car(f), "Right on the rail goes into the car")
+	for i in 6:
+		await _key_tap(KEY_LEFT)
+		if rail.has_focus_inside():
+			break
+	_check(rail.button("engine").has_focus() and menu.train_car == "engine", "...and Left from inside it comes back to the rail, on that car")
+	await _key_tap(KEY_ENTER)
+	f = menu.get_viewport().gui_get_focus_owner()
+	_check(f != null and menu.train_page._in_car(f), "Enter on the car you're in goes into it")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "train" and rail.button("engine").has_focus(), "Esc from inside a car comes back to the rail")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "train" and main.menu_open() and rail.button("engine").has_focus(), "...and Esc on the rail does nothing more (the train stays)")
+	# A controller: RB / LB move along (the light and the focus follow on
+	# the rail), A goes into the car, B comes back to the rail.
+	await _pad_tap(JOY_BUTTON_RIGHT_SHOULDER)
+	_check(menu.train_car == "personal" and rail.button("personal").has_focus(), "RB moves to the next car, the rail's focus following")
+	await _pad_tap(JOY_BUTTON_A)
+	f = menu.get_viewport().gui_get_focus_owner()
+	_check(f != null and menu.train_page._in_car(f), "A on the rail goes into the car")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(rail.button("personal").has_focus() and menu.page == "train", "...and B comes back to the rail")
+	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
+	_check(menu.train_car == "engine" and rail.button("engine").has_focus(), "LB moves back")
+	main.pad._set_active(false)
 	var wheel := InputEventMouseButton.new()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
 	wheel.pressed = true
@@ -8655,19 +8696,44 @@ func _train_tests() -> void:
 	await _frames(2)
 	_check(menu.train_car == "personal", "the mouse wheel moves along too")
 	await _train_settled()
-	var arrow: Array = _all_buttons(view.chrome).filter(func(b): return b.get_meta("arrow", 0) == 1)
-	_check(arrow.size() == 1, "an arrow at the edge leads to the next car")
-	if arrow.size() == 1:
-		arrow[0].pressed.emit()
-		await _frames(2)
-	_check(menu.train_car == "store", "...and takes you there")
-	await _key_tap(KEY_Q)
-	await _train_settled()
-	await _key_tap(KEY_ESCAPE)
-	_check(menu.page == "pause", "Esc on the train opens the menu")
-	menu.rail.button("resume").pressed.emit()
+	# Choosing a car on the rail moves the train there.
+	menu.nav_keys = false
+	rail.button("store").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "train" and main.menu_open(), "...and Resume returns to the train")
+	_check(menu.train_car == "store" and view.target == 2 and rail.current == "store", "choosing a car on the rail moves the train there")
+	await _train_settled()
+	# A page opens beside the same rail; Back returns to the car you were on.
+	var rail_before = rail.buttons[0]
+	rail.button("settings").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "settings" and rail.visible and rail.buttons[0] == rail_before and rail.current == "settings" and rail.at_car == "store", "a page opens beside the same rail (not built again), the car you were on marked")
+	_check(menu.panel.get_global_rect().position.x >= rail.size.x - 0.5, "...the page right of the rail")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "train" and menu.train_car == "store" and rail.buttons[0] == rail_before and rail.current == "store", "...and Esc returns to the car you were on")
+	rail.button("climber").pressed.emit()
+	await _frames(2)
+	menu.go_back()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "store", "...so does Back from the climber screen")
+	rail.button("archive").pressed.emit()
+	await _frames(2)
+	menu.nav_keys = false
+	rail.button("workshop").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "train" and menu.train_car == "workshop", "choosing a car from a page goes back to the train, on that car")
+	rail.button("store").grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_DOWN)
+	_check(menu.page == "train" and menu.train_car == "workshop" and rail.button("workshop").has_focus(), "moving down the rail onto a car slides there")
+	await _key_tap(KEY_DOWN)
+	_check(menu.page == "climber" and rail.button("climber").has_focus() and rail.at_car == "workshop", "...and onto a page shows it (the focus stays on the rail)")
+	await _key_tap(KEY_ESCAPE)
+	_check(menu.page == "train" and menu.train_car == "workshop" and rail.button("workshop").has_focus(), "...and Esc there returns to the car, on the rail")
+	rail.button("inventory").pressed.emit()
+	await _frames(2)
+	_check(menu.page == "inventory" and rail.current == "inventory", "the rail's Inventory opens the inventory beside it")
+	menu.close()
+	await _frames(2)
 	menu.toggle("inventory")
 	await _frames(2)
 	_check(menu.page == "train" and menu.train_car == "personal", "I on the train opens your car")
@@ -8775,8 +8841,41 @@ func _train_tests() -> void:
 	_check(small.is_empty(), "on a phone every button on the train is at least 36 tall (54 px): %s" % [small.map(func(b): return b.text)])
 	var sel0: String = menu.inv_sel
 	var mid: float = view.size.y * 0.5
+	# It fits a phone: the narrow rail, every car and page and its foot on
+	# screen, the cars in the rest, and everything in a car inside it.
+	var vis: Rect2 = menu.get_viewport_rect()
+	var off_rail: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < R.ROW_MIN[0] - 0.5)
+	_check(rail.narrow and off_rail.is_empty() and rail.buttons.size() == 4 + R.TRAIN_PAGES.size() + 2, "on a phone (800 x 400) the narrow rail fits its four cars, six pages and foot: %s" % [off_rail.map(func(b): return b.id)])
+	_check(rail.size.x <= vis.size.x * 0.16 and absf(view.get_global_rect().position.x - rail.size.x) < 1.0, "...and the cars fill the rest (%.0f of %.0f)" % [rail.size.x, vis.size.x])
+	var outside: Array = []
+	for car in ["engine", "personal", "store", "workshop"]:
+		menu.train_page.go_to(menu.train_page._index(car))
+		await _train_settled()
+		await _frames(2)
+		var vr: Rect2 = view.get_global_rect()
+		for b in _all_buttons(menu.train_page.roots[car]):
+			if b.is_visible_in_tree() and not vr.grow(0.5).encloses(b.get_global_rect()):
+				outside.append("%s %s" % [car, b.text])
+	_check(outside.is_empty(), "...and every car's furniture and placard stay inside the car view: %s" % [outside])
+	menu.train_page.go_to(menu.train_page._index("personal"))
+	await _train_settled()
+	# Mid-swipe, the rail's light is on the car nearest the middle.
+	_touch(0, Vector2(view.global_position.x + view.size.x * 0.9, mid), true)
+	await _frames(1)
+	for i in 8:
+		_drag(0, Vector2(view.global_position.x + view.size.x * (0.9 - 0.09 * (i + 1)), mid))
+		await _frames(1)
+	var mid_light: String = rail.current
+	var mid_car: String = menu.train_car
+	_touch(0, Vector2(view.global_position.x + view.size.x * 0.18, mid), false)
+	await _frames(2)
+	_check(mid_light == "store" and mid_car == "personal", "mid-swipe the rail's light moves to the car coming into view (%s, still in %s)" % [mid_light, mid_car])
+	await _train_settled()
+	menu.train_page.go_to(menu.train_page._index("personal"))
+	await _train_settled()
 	await _swipe(Vector2(view.size.x * 0.62, mid), Vector2(view.size.x * 0.3, mid))
 	_check(menu.train_car == "store" and view.target == 2, "a swipe to the left goes to the next car")
+	_check(rail.current == "store" and rail.button("store").on and not rail.button("personal").on, "...and the rail's light follows it")
 	_check(menu.train_sel.get("personal", "") == sel0, "...and doesn't press what it began on")
 	await _train_settled()
 	await _swipe(Vector2(view.size.x * 0.4, mid), Vector2(view.size.x * 0.52, mid), 0.05)
@@ -8784,9 +8883,8 @@ func _train_tests() -> void:
 	_check(menu.train_car == "store" and view.pos == 2.0, "a short one settles back on the same car")
 	await _swipe(Vector2(view.size.x * 0.3, mid), Vector2(view.size.x * 0.62, mid))
 	_check(menu.train_car == "personal", "a swipe to the right goes back")
-	var dep: Array = _all_buttons(view.chrome).filter(func(b): return b.get_meta("car", "") == "engine")
-	await _tap_at(dep[0].get_global_rect().get_center())
-	_check(menu.train_car == "engine", "tapping the engine's name goes there")
+	await _tap_at(rail.button("engine").get_global_rect().get_center())
+	_check(menu.train_car == "engine", "tapping the engine on the rail goes there")
 	await _train_settled()
 	prof.supplies = {"tonic": 1}
 	p.gear = G.start_gear()
@@ -11709,21 +11807,22 @@ func _rail_tests() -> void:
 	_check(not rail.narrow and rail.size.x == R.WIDE and menu.panel.get_global_rect().position.x >= R.WIDE, "on a computer the rail is wide and the page sits right of it")
 	menu.close()
 	await _frames(2)
-	# On the train the rail goes back to the train, and the inventory is your car.
+	# On the train the rail is always there: the cars, then the pages; no
+	# Resume (and no pause page to go back to).
 	main.profile.regarded = true
 	main.open_train()
 	await _frames(3)
+	_check(menu.page == "train" and rail.visible and rail.button("resume") == null and rail.button("personal") != null and rail.button("personal").text == main.Train.CARS[1][1], "on the train the rail is always there, with the cars and no Resume")
+	_check(rail.button("personal").has_focus(), "...the keys start on it, on your car")
 	menu.go_back()
 	await _frames(2)
-	_check(menu.page == "pause" and rail.visible and rail.button("resume").text == R.TRAIN_ITEMS["resume"][0] and rail.button("inventory").text == R.TRAIN_ITEMS["inventory"][0], "on the train the menu's rail offers the train and your car")
-	rail.button("resume").pressed.emit()
+	_check(menu.page == "train", "...and Esc there stays on the train")
+	rail.button("over").pressed.emit()
 	await _frames(2)
-	_check(menu.page == "train", "...and Train goes back to the train")
+	_check(menu.page == "confirm_new" and rail.visible, "Start over from the train asks first, beside the rail")
 	menu.go_back()
 	await _frames(2)
-	rail.button("inventory").pressed.emit()
-	await _frames(2)
-	_check(menu.page == "train" and menu.train_car == main.Train.HOME, "...and Your car goes to your car")
+	_check(menu.page == "train", "...and Cancel goes back to the train")
 
 
 ## The mouse, as the game would get it (a move, a button).
@@ -11983,10 +12082,19 @@ func _nav_tests() -> void:
 	_check(f is Button and menu.details.is_ancestor_of(f) and menu.inv_sel == "supply:draught", "in the store, Enter on a shelf puts the focus on that item's card (%s)" % (f.text if f is Button else f))
 	await _key_tap(KEY_LEFT)
 	_check(menu._slot_control("supply:draught") != null and menu._slot_control("supply:draught").has_focus(), "...and Left comes back to its slot")
-	# The menu from the train starts on the rail, like the menu in a climb.
+	# B from a car goes back to the train's rail, on that car (the rail is
+	# the train's menu); B there does nothing more.
 	await _pad_tap(JOY_BUTTON_B)
-	await _until(func(): return menu.page == "pause" and rail.button("resume").has_focus(), 1.0)
-	_check(menu.page == "pause" and rail.button("resume").has_focus(), "B on the train opens the menu on the rail's first item")
+	await _until(func(): return rail.button("store").has_focus(), 1.0)
+	_check(menu.page == "train" and rail.button("store").has_focus(), "B in a car goes back to the train's rail, on that car")
+	await _pad_tap(JOY_BUTTON_B)
+	_check(menu.page == "train" and rail.button("store").has_focus(), "...and B on the rail stays there")
+	# Hovering a car on the rail moves the focus but doesn't slide the train.
+	_mouse_move(rail.button("workshop").get_global_rect().get_center() + Vector2(0, -6))  # (the first move hands control to the mouse)
+	await _frames(2)
+	_mouse_move(rail.button("workshop").get_global_rect().get_center())
+	await _frames(2)
+	_check(rail.button("workshop").has_focus() and menu.train_car == "store", "hovering a car on the rail moves the focus there, without moving the train")
 	main.pad._set_active(false)
 	menu.close()
 	await _frames(3)
