@@ -13,13 +13,20 @@ extends Control
 ## a click goes in. Touch: tap an item. On a phone the rail narrows to icons
 ## with short names. (menu.gd _nav and nav.gd do the moving.)
 ##
-## The words live in ITEMS, TRAIN_ITEMS, FOOT and TEXT.
+## On the train the rail is always there, and it's the train's own
+## navigation: the four cars first (choosing one moves the train there,
+## and the light follows the train when you swipe or press Q / E), then
+## the pages, which open beside it. The rail stays put between a car and a
+## page: only its light moves.
+##
+## The words live in ITEMS, TRAIN_CARS, TRAIN_PAGES, FOOT and TEXT.
 
 const UI := preload("res://scripts/ui.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
+const Train := preload("res://scripts/train.gd")
 
 ## The pages: [id, name, short name (a phone), a line under the name (a
 ## computer), icon]. The icons are drawn in ui.gd draw_icon.
@@ -32,17 +39,26 @@ const ITEMS := [
 	["controls", "Controls", "Controls", "Every key and button", "controls"],
 	["dev", "Dev tools", "Dev", "For testing", "dev"],
 ]
-## On the train, two of them change: Resume goes back to the train, and the
-## inventory is your car (your chest and heirlooms).
-const TRAIN_ITEMS := {
-	"resume": ["Train", "Train", "Back to the cars", "train"],
-	"inventory": ["Your car", "Your car", "Your chest and heirlooms", "car"],
+## On the train the rail lists the cars first, front to back: [short name
+## (a phone), a line under the name (a computer), icon]. Their full names
+## are train.gd CARS; the icons are drawn below (car_icon).
+const TRAIN_CARS := {
+	"engine": ["Engine", "Choose a tower, depart", "engine"],
+	"personal": ["Your car", "Pack, chest, heirlooms", "bed"],
+	"store": ["Store", "The outfitter's wares", "scales"],
+	"workshop": ["Workshop", "The bench", "anvil"],
 }
+## ...then these pages, under a rule (Resume has no place on the train).
+const TRAIN_PAGES := ["climber", "inventory", "archive", "settings", "controls", "dev"]
 ## Along the bottom.
 const FOOT := [
 	["over", "Start over", "Start over", "", "over"],
 	["exit", "Exit to title", "Exit", "", "exit"],
 ]
+## On the train on a computer, under them (the train has no pause page to
+## hold it; a browser or a phone can't quit, menu.gd can_quit, and a short
+## screen leaves it out).
+const FOOT_QUIT := ["quit", "Quit game", "Quit", "", "quit"]
 const TEXT := {
 	"unnamed": "Unnamed climber",
 	"on_train": "On the train",
@@ -50,22 +66,29 @@ const TEXT := {
 	"place": "%s  ·  floor %d",
 	"hint_keys": "↑ ↓ choose   → enter   Esc close",
 	"hint_pad": "↑ ↓ choose   {a} enter   {b} close",
+	"hint_keys_train": "↑ ↓ choose   → enter   Q E cars",
+	"hint_pad_train": "↑ ↓ choose   {a} enter   {lb} {rb} cars",
 }
 
 ## Widths: a computer, and a phone (drawn 1.5x, so in its own units).
 const WIDE := 236.0
 const NARROW := 132.0
+## On the train, the smallest the cars' and pages' rows get: [phone, computer].
+const ROW_MIN := [30.0, 36.0]
 
 var menu  # menu.gd
 var narrow := false
 var buttons: Array = []  # the RailItems, top to bottom (the pages, then the foot)
 var current := ""  # the item lit as the page you're on
+var at_car := ""  # on the train: the car you're in (marked while a page shows)
 var on_train := false
 var ident: RailIdent
 var list: VBoxContainer
 var foot_box: VBoxContainer
 var hint: Label
-var _built_for := ""  # what the items were built for (train / climb, wide / narrow)
+var _built_for := ""  # what the items were built for (train / climb, wide / narrow, touch)
+var _built_pad := false  # ...and the keys' names they show (a controller, a PlayStation one)
+var _built_ps := false
 
 
 func _ready() -> void:
@@ -80,13 +103,24 @@ static func width_for(compact: bool) -> float:
 
 ## Builds (or refreshes) the rail for the page showing.
 func refresh(page_item: String, train: bool, compact: bool, touch: bool, pad: bool, ps: bool) -> void:
-	var key := "%s %s %s %s %s" % [train, compact, touch, pad, ps]
+	var key := "%s %s %s" % [train, compact, touch]
 	on_train = train
 	narrow = compact
 	if key != _built_for or buttons.is_empty():
 		_built_for = key
 		_build(touch, pad, ps)
+	elif pad != _built_pad or ps != _built_ps:
+		# Only the keys' names changed (a controller picked up or put down):
+		# rename them in place, so the item you're on keeps the focus and the
+		# first press of the new device still lands on it.
+		for b in buttons:
+			b.key_hint = _key_for(b.id, touch, pad, ps)
+		if hint != null:
+			hint.text = _hint_text(pad, ps)
+	_built_pad = pad
+	_built_ps = ps
 	current = page_item
+	at_car = menu.train_car if train and menu != null else ""
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	for b in buttons:
 		b.mouse_filter = Control.MOUSE_FILTER_STOP  # (closing the menu turned them off)
@@ -109,23 +143,29 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	col.offset_top = 8.0 if narrow else 20.0
 	col.offset_bottom = -(6.0 if narrow else 14.0)
 	col.add_theme_constant_override("separation", 4 if narrow else 10)
+	if on_train:
+		# (four cars as well as the pages: everything packs a little closer)
+		col.offset_top = 6.0 if narrow else 16.0
+		col.offset_bottom = -(4.0 if narrow else 10.0)
+		col.add_theme_constant_override("separation", 2 if narrow else 6)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(col)
 	ident = RailIdent.new()
 	ident.rail = self
 	ident.custom_minimum_size.y = 62.0 if narrow else 112.0
+	if on_train:
+		ident.eyebrow = not narrow  # (a phone: the cars below say where you are)
+		ident.custom_minimum_size.y = 40.0 if narrow else 104.0
 	col.add_child(ident)
 	list = VBoxContainer.new()
 	list.add_theme_constant_override("separation", 1 if narrow else 3)
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(list)
-	for it in ITEMS:
-		var row: Array = it
-		if on_train and TRAIN_ITEMS.has(it[0]):
-			row = [it[0]] + TRAIN_ITEMS[it[0]]
-		if it[0] == "archive":
-			row = [it[0], Entity.TEXT["archive"], Entity.TEXT["archive"], it[3], it[4]]
-		_item(list, row, _key_for(it[0], touch, pad, ps))
+	if on_train:
+		_train_items(list, touch, pad, ps)
+	else:
+		for it in ITEMS:
+			_item(list, _page_row(it), _key_for(it[0], touch, pad, ps))
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -137,13 +177,29 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	var sep := RailRule.new()
 	sep.custom_minimum_size.y = 6.0 if narrow else 9.0
 	foot_box.add_child(sep)
-	for it in FOOT:
-		var b := _item(foot_box, it, "")
+	var foot_items: Array = FOOT.duplicate()
+	if on_train and not narrow and menu != null and menu.can_quit():
+		foot_items.append(FOOT_QUIT)
+	var foot_parent: Container = foot_box
+	if on_train and narrow:
+		# A phone: the foot's items side by side, each its icon over its short name.
+		foot_parent = HBoxContainer.new()
+		foot_parent.add_theme_constant_override("separation", 2)
+		foot_parent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		foot_box.add_child(foot_parent)
+	for it in foot_items:
+		var b := _item(foot_parent, it, "")
 		b.small = true
+		if on_train:
+			b.custom_minimum_size.y = 32.0
+			if narrow:
+				b.tile = true
+				b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				b.custom_minimum_size.y = 36.0
 	hint = null
 	if not narrow and not touch:
 		hint = Label.new()
-		hint.text = Controls.pad_text(TEXT["hint_pad"], ps) if pad else TEXT["hint_keys"]
+		hint.text = _hint_text(pad, ps)
 		UI.style_label(hint, "body", 12, Color(UI.FAINT, 0.9))
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -155,13 +211,94 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 		b.focus_neighbor_top = b.get_path_to(buttons[(i - 1 + buttons.size()) % buttons.size()])
 		b.focus_neighbor_bottom = b.get_path_to(buttons[(i + 1) % buttons.size()])
 		b.focus_neighbor_left = b.get_path_to(b)
+	_fit_rows.call_deferred()
 	queue_redraw()
+
+
+## On the train, the cars' and pages' rows share the height left over, so
+## all ten fit any screen without a scroll: as tall as a computer's usual
+## rows where there's room, down to ROW_MIN (a phone's landscape screen).
+func _fit_rows() -> void:
+	if not is_inside_tree() or not on_train or list == null:
+		return
+	var rows: Array = buttons.filter(func(b): return b.row)
+	if rows.is_empty():
+		return
+	var want := 38.0 if narrow else 46.0
+	var h := size.y if size.y > 0.0 else get_viewport_rect().size.y
+	var col: Control = list.get_parent()
+	var fixed := 0.0  # everything but the rows, at their smallest
+	for c in col.get_children():
+		if c != list:
+			fixed += c.get_combined_minimum_size().y
+	fixed += col.get_theme_constant("separation") * (col.get_child_count() - 1)
+	fixed += col.offset_top - col.offset_bottom
+	for c in list.get_children():
+		if not rows.has(c):
+			fixed += c.get_combined_minimum_size().y
+	fixed += list.get_theme_constant("separation") * (list.get_child_count() - 1)
+	var each := clampf(floorf((h - fixed) / rows.size()), ROW_MIN[1 if not narrow else 0], want)
+	for b in rows:
+		if b.custom_minimum_size.y != each:
+			b.custom_minimum_size.y = each
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and on_train:
+		_fit_rows.call_deferred()
+
+
+## The line of keys under the rail (on a computer).
+func _hint_text(pad: bool, ps: bool) -> String:
+	if on_train:
+		return Controls.pad_text(TEXT["hint_pad_train"], ps) if pad else TEXT["hint_keys_train"]
+	return Controls.pad_text(TEXT["hint_pad"], ps) if pad else TEXT["hint_keys"]
+
+
+## A page's row: [id, name, short name, line, icon] (the Archive's name is the Entity's).
+func _page_row(it: Array) -> Array:
+	if it[0] == "archive":
+		return [it[0], Entity.TEXT["archive"], Entity.TEXT["archive"], it[3], it[4]]
+	return it
+
+
+## The train's rail: its cars, front to back, then a rule and the pages.
+func _train_items(parent: Node, touch: bool, pad: bool, ps: bool) -> void:
+	for c in Train.CARS:
+		var row: Array = TRAIN_CARS.get(c[0], [c[1], "", "car"])
+		var b := _item(parent, [c[0], c[1], row[0], row[1], row[2]], "")
+		b.row = true
+	var sep := RailRule.new()
+	sep.custom_minimum_size.y = 6.0 if narrow else 12.0
+	parent.add_child(sep)
+	for id in TRAIN_PAGES:
+		for it in ITEMS:
+			if it[0] == id:
+				var b := _item(parent, _page_row(it), _key_for(id, touch, pad, ps))
+				b.row = true
+
+
+## True for a car's item on the train's rail.
+static func is_car(id: String) -> bool:
+	return TRAIN_CARS.has(id)
+
+
+## Lights an item (the page or car showing) without building anything again;
+## on the train, `car` is the car you're in.
+func light(id: String, car := "") -> void:
+	current = id
+	at_car = car
+	for b in buttons:
+		b.on = b.id == current
+		b.queue_redraw()
 
 
 ## The key that opens a page directly, shown faintly beside it (not on a phone).
 func _key_for(id: String, touch: bool, pad: bool, ps: bool) -> String:
 	if touch:
 		return ""
+	if on_train and id == "inventory":
+		return ""  # (I on the train goes to your car)
 	match id:
 		"climber":
 			return Controls.pad_text("{back}", ps) if pad else "Tab"
@@ -229,6 +366,58 @@ func _draw() -> void:
 	draw_line(Vector2(size.x - 3.5, 0), Vector2(size.x - 3.5, size.y), Color(UI.GILT, 0.14), 1.0)
 
 
+## The train's cars' icons, drawn like ui.gd draw_icon (on a 20 x 20 grid
+## around the centre, in lines of width `w`): the engine a locomotive, your
+## car a bed, the store a pair of scales, the workshop an anvil and hammer
+## (and Quit game's power switch).
+## False for any other icon (ui.gd draws those).
+static func car_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color, w := 1.6) -> bool:
+	var u := s / 10.0
+	var P := func(x: float, y: float) -> Vector2: return c + Vector2(x, y) * u
+	match id:
+		"engine":  # a locomotive facing left: boiler, cab and its window, chimney, wheels, cowcatcher
+			ci.draw_polyline(PackedVector2Array([P.call(-9, 4), P.call(-9, -2.5), P.call(2, -2.5), P.call(2, -8), P.call(9, -8), P.call(9, 4), P.call(-9, 4)]), col, w, true)
+			ci.draw_rect(Rect2(P.call(4.2, -5.8), Vector2(2.8, 2.6) * u), Color(col, 0.55))
+			ci.draw_polyline(PackedVector2Array([P.call(-6.8, -2.5), P.call(-6.8, -6.5), P.call(-8, -8.5), P.call(-3.6, -8.5), P.call(-4.8, -6.5), P.call(-4.8, -2.5)]), col, w, true)
+			ci.draw_line(P.call(-1.5, -2.5), P.call(-1.5, 4), Color(col, 0.55), maxf(1.0, w * 0.7), true)
+			ci.draw_line(P.call(-9, 4), P.call(-10.5, 7.5), col, w, true)
+			ci.draw_arc(P.call(-4.5, 6.6), 2.2 * u, 0, TAU, 12, col, w, true)
+			ci.draw_arc(P.call(4.5, 6.6), 2.2 * u, 0, TAU, 12, col, w, true)
+		"bed":  # a bed: a tall headboard, a pillow, the blanket and a low footboard
+			ci.draw_line(P.call(-9, -7), P.call(-9, 8), col, w, true)
+			ci.draw_line(P.call(9, -1), P.call(9, 8), col, w, true)
+			ci.draw_polyline(PackedVector2Array([P.call(-9, 4), P.call(9, 4)]), col, w, true)
+			ci.draw_polyline(PackedVector2Array([P.call(-9, -7), P.call(-7, -8), P.call(-7, 1)]), col, w, true)
+			var pillow := PackedVector2Array()
+			for i in 13:
+				var a := TAU * i / 12.0
+				pillow.append(P.call(-4.5, -1.5) + Vector2(cos(a) * 2.6, sin(a) * 1.5) * u)
+			ci.draw_polyline(pillow, col, w, true)
+			ci.draw_colored_polygon(PackedVector2Array([P.call(-1.5, 0), P.call(9, 0), P.call(9, 4), P.call(-1.5, 4)]), Color(col, 0.4))
+			ci.draw_line(P.call(-1.5, 0), P.call(9, 0), col, w, true)
+		"scales":  # a balance: the post on its foot, the beam, two hanging pans
+			ci.draw_line(P.call(0, -8), P.call(0, 8), col, w, true)
+			ci.draw_line(P.call(-4, 8.5), P.call(4, 8.5), col, w, true)
+			ci.draw_line(P.call(-8, -5), P.call(8, -5), col, w, true)
+			ci.draw_circle(P.call(0, -8.5), 1.2 * u, col)
+			for sx in [-1.0, 1.0]:
+				var top: Vector2 = P.call(7.5 * sx, -5)
+				ci.draw_line(top, P.call(7.5 * sx - 3.5, 2), Color(col, 0.8), maxf(1.0, w * 0.75), true)
+				ci.draw_line(top, P.call(7.5 * sx + 3.5, 2), Color(col, 0.8), maxf(1.0, w * 0.75), true)
+				ci.draw_arc(P.call(7.5 * sx, 2), 3.6 * u, 0.0, PI, 10, col, w, true)
+		"quit":  # a power switch: a broken ring and a stroke down into it
+			ci.draw_arc(c, 7.5 * u, -PI * 0.5 + 0.7, PI * 1.5 - 0.7, 18, col, w, true)
+			ci.draw_line(P.call(0, -10), P.call(0, -2), col, w, true)
+		"anvil":  # an anvil, its horn to the left, a hammer resting above it
+			ci.draw_polyline(PackedVector2Array([P.call(-10, -1), P.call(-6, -3), P.call(8, -3), P.call(8, 0.5), P.call(4, 0.5),
+				P.call(3, 4), P.call(7, 8), P.call(-5, 8), P.call(-1, 4), P.call(-2, 0.5), P.call(-5, 0.5), P.call(-10, -1)]), col, w, true)
+			ci.draw_line(P.call(-1, -9.5), P.call(7, -5.5), col, w, true)
+			ci.draw_colored_polygon(PackedVector2Array([P.call(-3, -9), P.call(-1.5, -11.5), P.call(1.5, -9.5), P.call(0, -7)]), col)
+		_:
+			return false
+	return true
+
+
 ## A page's item on the rail: an icon, its name (and a line under it on a
 ## computer), and the key that opens it; lit gilt for the page you're on.
 class RailItem extends Button:
@@ -241,6 +430,8 @@ class RailItem extends Button:
 	var key_hint := ""
 	var on := false
 	var small := false
+	var row := false  # one of the train's cars or pages (its height set to fit, rail._fit_rows)
+	var tile := false  # a phone's foot on the train: the icon over the short name
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -275,6 +466,10 @@ class RailItem extends Button:
 		elif hot:
 			var pts := UI.rounded(r, 7.0)
 			draw_polygon(pts, PackedColorArray([Color(1, 1, 1, 0.045)]))
+		if not on and id == rail.at_car:
+			# The car you're in, while a page shows beside the rail: a dim bar,
+			# where you'll be when the page closes.
+			draw_rect(Rect2(1, 8, 2.0, size.y - 16), Color(UI.GILT, 0.55))
 		if has_focus() and not (rail.menu.main != null and rail.menu.main.touch_active):
 			var loop := UI.rounded(r.grow(-1.0), 7.0)
 			loop.append(loop[0])
@@ -286,9 +481,17 @@ class RailItem extends Button:
 		if small and not lit:
 			ic = Color(UI.DIM, 0.8)
 			tc = UI.DIM
+		if tile:
+			# The icon over the short name, centred.
+			var tic := Vector2(size.x * 0.5, size.y * 0.5 - 6.0)
+			if not rail.car_icon(self, icon_id, tic, 6.5, ic, 1.4):
+				UI.draw_icon(self, icon_id, tic, 6.5, ic, 1.4)
+			UI.draw_label(self, Vector2(0, size.y * 0.5 + 13.0), short, 12, tc, HORIZONTAL_ALIGNMENT_CENTER, size.x)  # (a label: the gothic face)
+			return
 		var isz := 7.5 if narrow else (8.0 if small else 9.5)
 		var ix := 15.0 if narrow else 20.0
-		UI.draw_icon(self, icon_id, Vector2(ix, size.y * 0.5), isz, ic, 1.5 if narrow else 1.7)
+		if not rail.car_icon(self, icon_id, Vector2(ix, size.y * 0.5), isz, ic, 1.5 if narrow else 1.7):
+			UI.draw_icon(self, icon_id, Vector2(ix, size.y * 0.5), isz, ic, 1.5 if narrow else 1.7)
 		var x := ix + (14.0 if narrow else 20.0)
 		var w := size.x - x - 6.0
 		# The item's name is a label (the gothic face); what it holds, under
@@ -323,6 +526,7 @@ class RailIdent extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
 	const ProfileScript := preload("res://scripts/profile.gd")
 	var rail
+	var eyebrow := true  # where you are, in small capitals over the name
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -354,8 +558,9 @@ class RailIdent extends Control:
 			var Essence = load("res://scripts/essence.gd")
 			if ess != "":
 				place_col = Essence.color(ess).lerp(UI.TEXT, 0.25)
-		y += es + 2.0
-		UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), UI.titled(place), w, es), place_col, es)
+		if eyebrow:
+			y += es + 2.0
+			UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), UI.titled(place), w, es), place_col, es)
 		var ns := 18 if narrow else 30
 		y += ns * (0.95 if narrow else 1.0) + 2.0
 		UI.draw_title(self, Vector2(x, y), _fit(UI.font("display"), name, w, ns), ns, UI.GOLD, HORIZONTAL_ALIGNMENT_LEFT, -1, 0.0)
