@@ -7230,6 +7230,8 @@ func _run() -> void:
 	await _unbound_tests()
 	await _rail_tests()
 	await _nav_tests()
+	await _switch_tests()
+	await _rail_line_tests()
 	await _climber_slot_tests()
 	await _icon_tests()
 
@@ -11851,6 +11853,234 @@ func _mouse_button(pos: Vector2, button: int, down: bool) -> void:
 
 func _focus_now() -> Control:
 	return root.gui_get_focus_owner()
+
+
+## The climber screen's tab button for `id`, or null.
+func _tab_button(id: String) -> Button:
+	for b in main.menu.focusables():
+		if b.get_meta("tab", "") == id:
+			return b
+	return null
+
+
+## The key names beside the climber screen's tabs ("Q" and "E", "LB" and
+## "RB"), or none on a phone.
+func _tab_keys() -> Array:
+	var tab := _tab_button("marks")
+	if tab == null:
+		return []
+	return tab.get_parent().get_children().filter(func(c): return c is Label).map(func(l): return l.text)
+
+
+## A mouse click on a point of the game view.
+func _click_at(pos: Vector2) -> void:
+	_mouse_button(pos, MOUSE_BUTTON_LEFT, true)
+	await _frames(2)
+	_mouse_button(pos, MOUSE_BUTTON_LEFT, false)
+	await _frames(2)
+
+
+## Picking up another device with a page open: its very first press counts
+## (a button, the d-pad, a key, a click, a tap), and the page's prompts
+## follow once it's let go (menu.gd input_changed; touch.gd).
+func _switch_tests() -> void:
+	print("switching device with a menu open: the first press counts")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	main.profile.regarded = true
+	var menu = main.menu
+	var pad_keys: Array = [main.Controls.pad_name("lb", false), main.Controls.pad_name("rb", false)]
+	# Keys -> controller: A on a focused page button.
+	menu.climber_tab = "marks"
+	menu.open("climber")
+	await _frames(3)
+	_check(_tab_keys() == ["Q", "E"], "with the keyboard the climber screen's tabs say Q and E (%s)" % [_tab_keys()])
+	var tab := _tab_button("essence")
+	tab.grab_focus()
+	await _frames(1)
+	_pad_button(JOY_BUTTON_A, true)
+	await _frames(2)
+	_check(main.pad_active and is_instance_valid(tab) and not tab.is_queued_for_deletion(), "A held after the keyboard: the controller takes over, and the page waits for the release")
+	_pad_button(JOY_BUTTON_A, false)
+	await _frames(3)
+	_check(menu.climber_tab == "essence", "...the first A press takes effect (the Essence tab)")
+	_check(_tab_keys() == pad_keys, "...and the prompts switch to the controller's words (%s)" % [_tab_keys()])
+	_check(_focus_now() == _tab_button("essence"), "...with the focus still on the tab pressed")
+	# Keys -> controller: the d-pad moves the focus on its first press.
+	main.pad._set_active(false)
+	await _frames(2)
+	_check(_tab_keys() == ["Q", "E"], "back on the keyboard the tabs say Q and E again")
+	_tab_button("essence").grab_focus()
+	await _frames(1)
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	await _frames(2)
+	_check(_focus_now() == _tab_button("record") and main.pad_active, "the d-pad's first press after the keyboard moves the focus (%s)" % [_focus_now()])
+	_check(_tab_keys() == pad_keys, "...and the prompts switch to the controller's words")
+	# A key held from the rail: the rail's item keeps the focus through the rebuild.
+	main.pad._set_active(false)
+	await _frames(2)
+	menu._focus_rail(menu.rail.button("exit"))
+	await _frames(1)
+	await _pad_tap(JOY_BUTTON_DPAD_UP)
+	await _frames(2)
+	var on_rail: Control = _focus_now()
+	_check(on_rail != null and menu.rail.buttons.has(on_rail) and on_rail.id == "over" and menu.page == "climber", "on the rail, the d-pad's first press moves along it, and the focus stays there after the prompts change (%s)" % [on_rail.id if on_rail != null and menu.rail.buttons.has(on_rail) else on_rail])
+	# Controller -> keys: Enter and the arrows work the first time.
+	menu.climber_tab = "marks"
+	menu.open("climber")
+	await _frames(3)
+	_check(main.pad_active and _tab_keys() == pad_keys, "with the controller the tabs say %s" % [pad_keys])
+	_tab_button("essence").grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_ENTER)
+	await _frames(2)
+	_check(not main.pad_active and menu.climber_tab == "essence", "after the controller, the first Enter takes effect")
+	_check(_tab_keys() == ["Q", "E"], "...and the prompts switch back to the keys")
+	main.pad._set_active(true)
+	await _frames(2)
+	_tab_button("essence").grab_focus()
+	await _frames(1)
+	await _key_tap(KEY_LEFT)
+	await _frames(2)
+	_check(_focus_now() == _tab_button("marks") and not main.pad_active, "after the controller, the first arrow moves the focus")
+	# Controller -> mouse: the first click.
+	main.pad._set_active(true)
+	await _frames(2)
+	await _click_at(_tab_button("record").get_global_rect().get_center())
+	await _frames(2)
+	_check(menu.climber_tab == "record" and not main.pad_active, "after the controller, the first click takes effect")
+	_check(_tab_keys() == ["Q", "E"], "...and the prompts are the keyboard's")
+	# Keys -> touch: the first tap, and the phone's layout after it.
+	await _tap_at(_tab_button("essence").get_global_rect().get_center())
+	await _frames(3)
+	_check(menu.climber_tab == "essence", "the first tap after the keyboard takes effect")
+	_check(main.touch_active and _tab_keys().is_empty(), "...then the menu switches to touch (no key names)")
+	main.touch._set_active(false)
+	menu.close()
+	await _frames(2)
+	# The card screens (drawn on the HUD each frame, never rebuilt): a camp.
+	main._enter_camp([])
+	await _frames(2)
+	_check(main.camp_choosing and main.card_focus == 0 and not main.pad_active, "a camp's cards, with the keyboard")
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	_check(main.card_focus == 1 and main.pad_active, "the d-pad's first press after the keyboard moves along a camp's cards")
+	await _key_tap(KEY_LEFT)
+	_check(main.card_focus == 0 and not main.pad_active, "...and the first arrow after the controller moves back")
+	main.choose_camp(0)
+	await _frames(2)
+
+	# The train: a car's button, and a placard's.
+	main.pad._set_active(false)
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	menu.train_page.go_to(menu.train_page._index("workshop"))
+	await _train_settled()
+	await _frames(2)
+	menu.train_bench = "brew"
+	menu.open("train")
+	await _frames(3)
+	var hint_keys: String = menu.rail.hint.text if menu.rail.hint != null else ""
+	var temper: Array = _car_buttons("bench_tab", "temper")
+	if temper.size() == 1:
+		temper[0].grab_focus()
+		await _frames(1)
+	await _pad_tap(JOY_BUTTON_A)
+	await _frames(3)
+	_check(menu.train_bench == "temper" and main.pad_active, "on the train, the first A after the keyboard works the bench's drawer")
+	_check(menu.rail.hint != null and menu.rail.hint.text != hint_keys, "...and the rail's hint changes to the controller's words")
+	var brew: Array = _car_buttons("bench_tab", "brew")
+	if brew.size() == 1:
+		brew[0].grab_focus()
+		await _frames(1)
+	await _key_tap(KEY_ENTER)
+	await _frames(3)
+	_check(menu.train_bench == "brew" and not main.pad_active, "...and the first Enter after the controller")
+	_check(menu.rail.hint != null and menu.rail.hint.text == hint_keys, "...the hint back in the keys' words")
+
+
+## The train's cars at a desktop's size and a phone's: no line of plain text
+## (one with no panel or button behind it) crosses the brass rail along the
+## wall or the skirting, and the workshop's note sits above the rail.
+func _rail_line_tests() -> void:
+	print("the train: nothing written across the brass rail")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var G = main.Gear
+	var prof = main.profile
+	prof.add_bond("brow", "rune_artist", false)
+	for k in ["stone", "blade", "fire", "iron"]:
+		prof.add_crystal(k, 30)
+	prof.pack = [G.make("axe"), G.make("leather_gloves", "fine", ["edges"])]
+	prof.chest = [G.make("grip_wraps", "fine", ["riposte"])]
+	prof.supplies = {"draught": 1}
+	var menu = main.menu
+	var was_size: Vector2i = root.size
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	for phone in [false, true]:
+		root.size = Vector2i(800, 400) if phone else Vector2i(1280, 720)
+		main.touch._set_active(phone)
+		await _frames(3)
+		var where := "on a phone (800 x 400)" if phone else "at 1280 x 720"
+		var crossing: Array = []
+		var note_ok := true
+		var note_seen := false
+		var states: Array = []
+		for c in load("res://scripts/bench.gd").COUNTERS:
+			states.append(["workshop", c[0], "shop"])
+		states.append_array([["engine", "brew", "shop"], ["personal", "brew", "shop"], ["store", "brew", "shop"], ["store", "brew", "sell"]])
+		for st in states:
+			menu.train_car = st[0]
+			menu.train_bench = st[1]
+			menu.train_store = st[2]
+			menu.inv_sel = ""
+			menu.open("train")
+			await _frames(4)
+			var tp = menu.train_page
+			var room = menu.train_view.rooms[st[0]]
+			var xf: Transform2D = room.get_global_transform()
+			var u: float = room.u
+			var rail := Vector2((xf * Vector2(0, room.wain - 4.0 * u)).y, (xf * Vector2(0, room.wain + 4.0 * u)).y)
+			var skirt := Vector2((xf * Vector2(0, room.floor_y - 10.0 * u)).y, (xf * Vector2(0, room.floor_y)).y)
+			for l in tp.roots[st[0]].find_children("*", "Label", true, false):
+				if not l.is_visible_in_tree():
+					continue
+				var gx: Transform2D = l.get_global_transform()
+				var top: float = (gx * Vector2.ZERO).y
+				var bottom: float = (gx * Vector2(0, l.size.y)).y
+				if l.has_meta("bench_note"):
+					note_seen = true
+					if bottom > rail.x:
+						note_ok = false
+						crossing.append("the %s note [%.0f-%.0f], rail at %.0f" % [st[1], top, bottom, rail.x])
+					continue
+				var backed := false
+				var p = l.get_parent()
+				while p != null and p != tp.roots[st[0]]:
+					if p is PanelContainer or p is BaseButton:
+						backed = true
+					p = p.get_parent()
+				if backed:
+					continue
+				if (top < rail.y and bottom > rail.x) or (top < skirt.y and bottom > skirt.x):
+					crossing.append("%s %s: %s" % [st[0], st[1] if st[0] == "workshop" else st[2], l.text.left(30)])
+		if not phone:
+			_check(note_seen and note_ok, "%s the workshop's note sits above the brass rail, for every counter: %s" % [where, crossing])
+		else:
+			_check(note_ok, "%s the workshop's note (shown or not) never crosses the brass rail: %s" % [where, crossing])
+		_check(crossing.is_empty(), "%s no plain text in any car crosses the brass rail or the skirting: %s" % [where, crossing])
+	main.touch._set_active(false)
+	root.size = was_size
+	menu.train_bench = "brew"
+	menu.train_store = "shop"
+	menu.close()
+	await _frames(2)
 
 
 ## How every menu answers keys, the mouse, a controller and touch (nav.gd):

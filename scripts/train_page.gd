@@ -678,13 +678,17 @@ func _store(root: Node) -> void:
 	goods.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(goods)
 	if selling:
-		_tag(goods, T["sell_title"])
+		# Its name and what selling does, on a panel above what you brought
+		# (the top of a centred column: above the brass rail however much
+		# there is).
+		var head := _furnish(goods, "plain")
+		_tag(head, T["sell_title"])
 		if prof.pack.is_empty() and prof.chest.is_empty() and prof.vessels.is_empty():
-			_note(goods, T["nothing_to_sell"])
+			_note(head, T["nothing_to_sell"]).set_meta("store_note", "nothing")
 		else:
-			keys.append_array(_pack_and_chest(goods, true))
 			if not small:
-				_note(goods, T["sell_note"] % int(round(Train.SELL_SHARE * 100.0)))
+				_note(head, T["sell_note"] % int(round(Train.SELL_SHARE * 100.0))).set_meta("store_note", "sell")
+			keys.append_array(_pack_and_chest(goods, true))
 	else:
 		var shelf := _furnish(goods, "shelf")
 		_tag(shelf, T["shelves"])
@@ -808,6 +812,11 @@ func _workshop(root: Node) -> void:
 	row.add_child(mid)
 	var left := _furnish(mid, "plain")
 	left.custom_minimum_size.x = 4.0 * _cell() + 18.0
+	if not small:
+		# What the counter does, at the top of its panel: the column is
+		# centred, so its top half is always above the brass rail (a line
+		# under the pieces would cross the rail on a short list).
+		_note(left, B["notes"][counter]).set_meta("bench_note", counter)
 	var keys: Array = []
 	match counter:
 		"brew":
@@ -857,8 +866,6 @@ func _workshop(root: Node) -> void:
 		var empty: String = B["nothing_join"] if counter == "join" else (B["nothing_break"] if counter == "break" else B["nothing"])
 		_note(left, empty)
 		keys.append("bench:none")
-	elif not small:
-		_note(mid, B["notes"][counter])
 	_card(row, keys, "")
 
 

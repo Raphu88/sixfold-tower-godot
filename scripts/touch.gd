@@ -86,9 +86,12 @@ func _layout() -> void:
 
 func _input(event: InputEvent) -> void:
 	# A menu is open: its own buttons take the touches.
+	# (It switches to touch once the finger lifts, after the tap: switching
+	# on the press would change the layout and rebuild the page under it, so
+	# the first tap would miss.)
 	if main.menu_open():
-		if event is InputEventScreenTouch and not active:
-			_set_active(true)
+		if event is InputEventScreenTouch and not event.pressed and not active:
+			_switch_after_tap.call_deferred()
 		return
 	# At a camp: a tap on a card takes it.
 	if main.camp_choosing:
@@ -160,6 +163,11 @@ func _input(event: InputEvent) -> void:
 		# Someone picked up a keyboard or mouse: hand control back to them.
 		if not (event is InputEventMouseMotion and event.relative.length() < 2.0):
 			_set_active(false)
+
+
+func _switch_after_tap() -> void:
+	if not active:
+		_set_active(true)
 
 
 func _set_active(on: bool) -> void:
