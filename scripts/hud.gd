@@ -663,7 +663,7 @@ func _draw_essence(pos: Vector2, font: Font, a: float) -> void:
 		var amount: float = main.run_flow if Secret.is_kind(kind) else main.run_essence[kind]
 		draw_string(UI.font("mono"), Vector2(ex + 14, pos.y + 16), str(int(amount)), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(Secret.KINDS[kind]["light"] if Secret.is_kind(kind) else TEXT, a))
 		ex += 44.0
-	UI.draw_eyebrow(self, Vector2(ex + 2, pos.y + 15), "unbanked", Color(DIM_TEXT, a), 9)
+	UI.draw_eyebrow(self, Vector2(ex + 2, pos.y + 15), "unbanked", Color(DIM_TEXT, a), 12)
 
 
 ## The keyboard (or controller) controls, top right (H, or the Controls setting).
