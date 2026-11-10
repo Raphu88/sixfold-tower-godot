@@ -103,7 +103,7 @@ const RECIPES := {
 }
 ## The six slots' recipes for a new Unbound (slot i is cast with part i's button).
 const STARTERS := ["ember_bolt", "gale_dash", "iron_will", "hunters_mark", "tidal_shout", "stone_shell"]
-const TEXT := {
+static var TEXT := {
 	"empty": "Empty",
 	"cost": "Boost: %s carried",
 	"strain": "Strain +%d",

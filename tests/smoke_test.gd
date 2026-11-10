@@ -7233,6 +7233,7 @@ func _run() -> void:
 	await _switch_tests()
 	await _rail_line_tests()
 	await _climber_slot_tests()
+	await _data_editor_tests()
 	await _icon_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
@@ -12641,3 +12642,313 @@ func _icon_tests() -> void:
 	G.icon_into(faded, G.make("sword"), Vector2.ZERO, 18.0, Color(1, 1, 1, 0.5))
 	_check(faded.cols.size() == plain.cols.size() and is_equal_approx(faded.cols[faded.cols.size() - 1].a, plain.cols[plain.cols.size() - 1].a * 0.5), "a faded colour fades the icon")
 	_check(Art.ol(10.5) < Art.ol(40.0) and Art.detail(10.5) == 0 and Art.detail(40.0) == 2, "outlines and detail scale with the icon's size")
+
+
+## The Data editor (data_registry.gd, data_page.gd): the game's words,
+## numbers and colours changed from inside the game, kept in a changes file.
+func _data_editor_tests() -> void:
+	print("the Data editor")
+	await _fresh_main()
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	main.grant_test_bonds()
+	var Reg = load("res://scripts/data_registry.gd")
+	var Items = load("res://scripts/items.gd")
+	var Train = load("res://scripts/train.gd")
+	var Entity = load("res://scripts/entity.gd")
+	var Guide = load("res://scripts/guide.gd")
+	var UI = load("res://scripts/ui.gd")
+	# With the project's file as shipped (no changes), nothing is changed.
+	var shipped = JSON.parse_string(FileAccess.get_file_as_string("res://data/overrides.json"))
+	_check(shipped is Dictionary and shipped.get("changes", null) is Dictionary and shipped["changes"].is_empty(), "the project's data/overrides.json ships with no changes")
+	_check(Reg.started and Reg.applied.is_empty() and Reg.problems.is_empty() and not Reg.dirty, "...so the game starts exactly as the scripts have it")
+	_check(Reg.local_path != Reg.LOCAL_PATH, "tests keep their changes away from the real file")
+	# The tests' own files (the project's too: tests never write res://).
+	Reg.project_path = "user://test_project_overrides.json"
+	Reg.local_path = "user://test_overrides.json"
+	Reg.project_write = 0
+	for f in [Reg.project_path, Reg.local_path]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	Reg.startup()
+	var heal: float = Items.ITEMS["draught"]["heal"]
+	var fields: Array = Reg.fields()
+	_check(fields.size() > 2000 and Reg.sections_in("words").size() >= 8 and Reg.sections_in("numbers").size() >= 8 and Reg.sections_in("colours").size() >= 5, "the registry offers thousands of fields, in words, numbers and colours (%d)" % fields.size())
+	var kinds := {}
+	for f in fields:
+		kinds[f["kind"]] = true
+	_check(kinds.has("text") and kinds.has("number") and kinds.has("colour") and kinds.has("bool"), "...of every kind: words, numbers, colours and on/off")
+	_check(Reg.field("items/ITEMS/draught/kind").is_empty() and Reg.field("items/ITEMS/draught/name")["kind"] == "text" and Reg.field("items/ITEMS/draught/heal")["kind"] == "number", "ids the code looks up aren't offered; names and numbers are")
+	# Applying by path changes the table itself.
+	_check(Reg.set_value("items/ITEMS/draught/heal", 45) == "" and is_equal_approx(Items.ITEMS["draught"]["heal"], 45.0), "a change by path writes into the table (items/ITEMS/draught/heal = 45)")
+	_check(Reg.is_changed("items/ITEMS/draught/heal") and is_equal_approx(Reg.default_of("items/ITEMS/draught/heal"), heal) and Reg.dirty, "...and remembers the default")
+	_check(Reg.set_value("ui/GOLD", "#ff8800") == "" and UI.GOLD.is_equal_approx(Color.html("#ff8800")) and main.menu.GOLD.is_equal_approx(UI.GOLD), "a single value too (ui/GOLD), and the menus' copy of it follows")
+	_check(Reg.set_value("palette/TOWER_TINT/kraken", Color(0.5, 0.5, 0.5)) == "" and load("res://scripts/palette.gd").TOWER_TINT["kraken"].is_equal_approx(Color(0.5, 0.5, 0.5)), "...and a colour in a table")
+	# Bad values are refused, and nothing changes.
+	var name0: String = Items.ITEMS["draught"]["name"]
+	_check(Reg.set_value("items/ITEMS/draught/heal", "lots") != "" and is_equal_approx(Items.ITEMS["draught"]["heal"], 45.0), "a number refuses words")
+	_check(Reg.set_value("items/ITEMS/draught/name", 5) != "" and Items.ITEMS["draught"]["name"] == name0, "words refuse a number")
+	_check(Reg.set_value("ui/DIM", "bluish") != "" and Reg.set_value("makers/PLEA_ODDS/vessel_back", 1) != "", "a colour refuses a non-colour; on/off refuses a number")
+	_check(Reg.set_value("items/ITEMS/draught/kind", "fire") != "" and Reg.set_value("nope/TABLE/x", 1) != "" and Reg.set_value("items/ITEMS/nothing/heal", 1) != "", "ids, unknown tables and missing keys are refused")
+	_check(Reg.set_value("entity/TEXT/heard", "heard them all") != "" and Reg.set_value("entity/TEXT/heard", "%d heard, of %d") == "", "words must keep their %d / %s blanks")
+	_check(Reg.set_value("items/ITEMS/draught/heal", 99999) == "" and Items.ITEMS["draught"]["heal"] <= heal * 10.0 + 0.01, "numbers are kept within bounds (%s)" % Items.ITEMS["draught"]["heal"])
+	_check(Reg.set_value("train/BASE_PRICE/dagger", 12.6) == "" and typeof(Train.BASE_PRICE["dagger"]) == TYPE_INT and Train.BASE_PRICE["dagger"] == 13, "a whole number stays whole")
+	_check(Reg.banned_in("The mana of the spire") == ["mana", "spire"] and Reg.banned_in("An inspired manager") .is_empty(), "the owner's banned words are spotted (whole words only)")
+	# Revert one, then all.
+	Reg.revert("train/BASE_PRICE/dagger")
+	_check(not Reg.is_changed("train/BASE_PRICE/dagger") and Train.BASE_PRICE["dagger"] == 10, "Default puts one field back")
+	Reg.revert_all()
+	_check(Reg.applied.is_empty() and is_equal_approx(Items.ITEMS["draught"]["heal"], heal) and UI.GOLD.is_equal_approx(Color(0.91, 0.75, 0.42)) and Reg.value("entity/TEXT/heard") == "%d of %d heard", "putting all back restores every table")
+	# Search.
+	var found: Array = Reg.search("BASE_PRICE dagger")
+	_check(found.size() == 1 and found[0]["path"] == "train/BASE_PRICE/dagger", "search finds a field by its key")
+	found = Reg.search("healing draught")
+	_check(found.any(func(f): return f["path"] == "items/ITEMS/draught/name"), "...and by what it says")
+	# Copy and paste: a round trip.
+	Reg.set_value("items/ITEMS/draught/heal", 50)
+	Reg.set_value("entity/TIPS/stair/tip", "Stairs: take them.")
+	Reg.set_value("enemy/TYPES/slime/color", Color(1, 0, 0))
+	var text: String = Reg.export_text()
+	var parsed = JSON.parse_string(text)
+	_check(parsed is Dictionary and parsed["format"] == 1 and parsed["changes"].size() == 3 and parsed["changes"]["enemy/TYPES/slime/color"] == "#ff0000ff", "Copy changes writes the changes file (%d)" % (parsed["changes"].size() if parsed is Dictionary else -1))
+	Reg.revert_all()
+	var r: Dictionary = Reg.import_text(text)
+	_check(r["done"] == 3 and r["refused"].is_empty() and is_equal_approx(Items.ITEMS["draught"]["heal"], 50.0) and Entity.TIPS["stair"]["tip"] == "Stairs: take them." and load("res://scripts/enemy.gd").TYPES["slime"]["color"].is_equal_approx(Color.RED), "...and Paste changes takes it back in")
+	r = Reg.import_text('{"changes": {"items/ITEMS/draught/heal": "lots", "nope/X/y": 1, "items/ITEMS/tonic/heal": 12}}')
+	_check(r["done"] == 1 and r["refused"].size() == 2, "...refusing what doesn't fit and taking the rest")
+	_check(Reg.import_text("not json")["error"] != "" and Reg.import_text("[1, 2]")["error"] != "", "...and saying so when it isn't a changes file")
+	Reg.revert_all()
+	# Saving and the two files: the project's, then this device's on top.
+	Reg.set_value("train/CLIMB_PAY/per_floor", 7)
+	_check(Reg.save() == Reg.local_path and FileAccess.file_exists(Reg.local_path) and not FileAccess.file_exists(Reg.project_path), "away from the Godot editor, Save writes this device's file")
+	Reg.project_write = 1
+	Reg.set_value("items/ITEMS/draught/heal", 55)
+	_check(Reg.save() == Reg.project_path and not FileAccess.file_exists(Reg.local_path), "from the Godot editor it writes the project's file (and this device's is folded in)")
+	var pf = JSON.parse_string(FileAccess.get_file_as_string(Reg.project_path))
+	_check(pf is Dictionary and pf["changes"].get("train/CLIMB_PAY/per_floor") == 7 and pf["changes"].get("items/ITEMS/draught/heal") == 55, "...with every change in it")
+	Reg.project_write = 0
+	Reg.set_value("train/CLIMB_PAY/per_floor", 9)
+	Reg.set_value("items/ITEMS/draught/heal", heal)  # (back to the default here: a reset of the project's change)
+	Reg.save()
+	Reg.revert_all()  # (as if the game started again: read both files)
+	Reg.project_write = 0
+	Reg.local.clear()
+	Reg.startup()
+	_check(Train.CLIMB_PAY["per_floor"] == 9 and is_equal_approx(Items.ITEMS["draught"]["heal"], heal), "at startup this device's changes go on top of the project's (and can put one back)")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Reg.local_path))
+	Reg.startup()
+	_check(Train.CLIMB_PAY["per_floor"] == 7 and is_equal_approx(Items.ITEMS["draught"]["heal"], 55.0), "...without them, the project's own")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Reg.project_path))
+	Reg.startup()
+	_check(Reg.applied.is_empty() and Train.CLIMB_PAY["per_floor"] == 2 and is_equal_approx(Items.ITEMS["draught"]["heal"], heal), "...and without either, the scripts' own values")
+	var bad := FileAccess.open(Reg.project_path, FileAccess.WRITE)
+	bad.store_string('{"format": 1, "changes": {"items/ITEMS/draught/heal": "lots", "train/CLIMB_PAY/per_best": 4}}')
+	bad.close()
+	Reg.startup()
+	_check(Train.CLIMB_PAY["per_best"] == 4 and is_equal_approx(Items.ITEMS["draught"]["heal"], heal) and Reg.problems.size() == 1, "a file with a bad entry still loads the rest, and says what it skipped")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Reg.project_path))
+	Reg.startup()
+	# Live: a price in the store, a tip the Entity says.
+	Reg.set_value("train/SUPPLY_PRICE/draught", 2)
+	var menu = main.menu
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	menu.train_car = "store"
+	menu.open("train")
+	await _frames(4)
+	var slot: Control = null
+	for b in menu.train_page.roots["store"].find_children("*", "BaseButton", true, false):
+		if b.get_meta("slot", "") == "supply:draught":
+			slot = b
+	_check(slot != null and slot.price == 2, "a price changed in the editor shows in the store (%s)" % (slot.price if slot != null else "no slot"))
+	menu.close()
+	Engine.set_meta("sixfold_tips", true)
+	var told: Dictionary = Guide.state["told"].duplicate()
+	Guide.state["told"].erase("bank")
+	Reg.set_value("entity/TIPS/bank/tip", "Banked. Every word of this is the owner's.")
+	_check(Guide.tell("bank") == "Banked. Every word of this is the owner's.", "an Entity tip changed in the editor is what it says")
+	# The page: from Dev tools, by keyboard, controller, mouse and touch.
+	Guide.state["told"].erase("data_editor")
+	Guide.state["told"].erase("data_save")
+	Guide.state["told"].erase("data_restart")
+	main.touch._set_active(false)
+	menu.close()
+	await _frames(2)
+	menu.open("dev")
+	await _frames(3)
+	var eb: Button = _menu_button(menu.data_page.TEXT["button"])
+	_check(eb != null, "Dev tools has an Edit game data button")
+	eb.pressed.emit()
+	await _frames(3)
+	var dp = menu.data_page
+	_check(menu.page == "data" and menu.rail.visible and menu.rail_item() == "dev", "...which opens the editor beside the rail")
+	var said: Array = dp.said_box.get_children().filter(func(c): return c.get_meta("entity", "") == "data")
+	_check(said.size() == 1 and Guide.told("data_editor"), "the first time, the Entity explains the editor")
+	_check(Entity.ordered("creator") == ["data_editor", "data_save", "data_restart"] and Entity.GROUPS.any(func(g): return g == ["creator", "Creator tools"]), "...its words kept in the Archive, under Creator tools")
+	dp.set_tab("numbers")
+	await _frames(2)
+	_check(menu.focusables().filter(func(b): return b.has_meta("data_section")).size() == Reg.sections_in("numbers").size(), "a tab lists its sections")
+	dp.open_section("prices")
+	await _frames(3)
+	var slider: HSlider = null
+	for c in menu.box.find_children("*", "HSlider", true, false):
+		if c.get_meta("data_slider", "") == "train/BASE_PRICE/dagger":
+			slider = c
+	_check(slider != null and is_equal_approx(slider.value, 10.0), "a number shows on a slider")
+	menu.nav_keys = true
+	slider.grab_focus()
+	await _frames(2)
+	await _key_tap(KEY_RIGHT)
+	_check(Train.BASE_PRICE["dagger"] == 11 and Reg.is_changed("train/BASE_PRICE/dagger"), "Right on its slider raises it (keyboard)")
+	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
+	await _frames(2)
+	_check(Train.BASE_PRICE["dagger"] == 12, "...and the d-pad (controller) (%d)" % Train.BASE_PRICE["dagger"])
+	var reset: Button = null
+	for b in menu.focusables():
+		if b.get_meta("data_reset", "") == "train/BASE_PRICE/dagger":
+			reset = b
+	_check(reset != null and reset.visible and dp.rows["train/BASE_PRICE/dagger"]["name"].get_theme_color("font_color").is_equal_approx(UI.GOLD), "a changed field turns gilt and shows its Default button")
+	await _pad_tap(JOY_BUTTON_LEFT_SHOULDER)
+	await _frames(3)
+	_check(dp.tab == "words" and menu.page == "data", "LB switches tabs")
+	dp.open_section("items_words")
+	await _frames(3)
+	var path := "items/ITEMS/draught/name"
+	var le: LineEdit = _data_find("data_path", path)
+	var edit: Button = _data_find("data_edit", path)
+	_check(le != null and edit != null and le.focus_mode == Control.FOCUS_CLICK, "words show in a text box the keys step past, with an Edit button")
+	edit.grab_focus()
+	await _key_tap(KEY_ENTER)
+	le = _data_find("data_path", path)
+	_check(menu._typing() and le.has_focus(), "Enter on Edit goes into the box")
+	le.text = "Draught of the Owner"
+	await _key_tap(KEY_ENTER)
+	await _frames(2)
+	var on: Control = menu.get_viewport().gui_get_focus_owner()
+	_check(Items.ITEMS["draught"]["name"] == "Draught of the Owner" and on != null and on.get_meta("data_edit", "") == path, "...and Enter keeps the new words, back on Edit")
+	_data_find("data_edit", path).grab_focus()
+	await _key_tap(KEY_ENTER)
+	le = _data_find("data_path", path)
+	le.text = "The mana draught"
+	await _key_tap(KEY_ESCAPE)
+	await _frames(2)
+	_check(menu.page == "data" and not menu._typing() and Items.ITEMS["draught"]["name"] == "The mana draught", "Esc leaves the box (keeping it), not the page")
+	_check(dp.rows[path]["note"].visible and dp.rows[path]["note"].text.contains("mana"), "...with a warning for a banned word")
+	# Touch on a phone: tap a field's Default, tap a section.
+	var was_size: Vector2i = root.size
+	root.size = Vector2i(800, 400)
+	main.touch._set_active(true)
+	await _frames(3)
+	menu.open("data")
+	await _frames(3)
+	var rb: Button = null
+	for b in menu.focusables():
+		if b.get_meta("data_reset", "") == "items/ITEMS/draught/name":
+			rb = b
+	menu.scroll.ensure_control_visible(rb)
+	await _frames(3)
+	await _tap_at(rb.get_global_rect().get_center())
+	_check(Items.ITEMS["draught"]["name"] == name0, "a tap on Default puts it back (touch)")
+	dp.open_section("")
+	await _frames(3)
+	var sb: Button = null
+	for b in menu.focusables():
+		if b.get_meta("data_section", "") == "makers":
+			sb = b
+	menu.scroll.ensure_control_visible(sb)
+	await _frames(3)
+	await _tap_at(sb.get_global_rect().get_center())
+	await _frames(2)
+	_check(dp.section == "makers" and menu.page == "data", "a tap opens a section")
+	var box_le: Control = null
+	for c in menu.box.find_children("*", "LineEdit", true, false):
+		if c.has_meta("data_path") and c.is_visible_in_tree():
+			box_le = c
+			break
+	menu.scroll.ensure_control_visible(box_le)
+	await _frames(3)
+	await _tap_at(box_le.get_global_rect().get_center())
+	_check(box_le.has_focus() and menu._typing(), "a tap on a text box goes into it (in a phone's browser, its own text box opens)")
+	await _key_tap(KEY_ESCAPE)
+	await _frames(2)
+	_check(not menu._typing() and menu.page == "data", "...and Esc leaves it")
+	# It fits a phone: nothing wider than the page, on every kind of field.
+	var wide: Array = []
+	for st in [["words", "entity"], ["numbers", "prices"], ["colours", "menu_colours"], ["looks", "looks"], ["changes", ""]]:
+		dp.set_tab(st[0])
+		if st[1] != "":
+			dp.open_section(st[1])
+		if st[0] == "colours":
+			dp.toggle_colour("ui/GOLD")
+		await _frames(3)
+		var sr: Rect2 = menu.scroll.get_global_rect()
+		if menu.box.get_combined_minimum_size().x > menu.scroll.size.x + 1.0:
+			wide.append("%s %.0f > %.0f" % [st[0], menu.box.get_combined_minimum_size().x, menu.scroll.size.x])
+		for c in menu.box.find_children("*", "Control", true, false):
+			if (c is BaseButton or c is LineEdit or c is HSlider) and c.is_visible_in_tree() and c.get_global_rect().end.x > sr.end.x + 1.0:
+				wide.append("%s %s" % [st[0], c.get_class()])
+		if not menu.get_viewport_rect().encloses(menu.panel.get_global_rect().grow(-1.0)):
+			wide.append("%s panel off screen" % st[0])
+	_check(wide.is_empty(), "on a phone (800 x 400) the editor fits: %s" % [wide.slice(0, 6)])
+	dp.toggle_colour("ui/GOLD")
+	root.size = was_size
+	main.touch._set_active(false)
+	await _frames(3)
+	# The Entity on Save and on a field that waits for a restart; the ? button.
+	dp.set_tab("colours")
+	dp.open_section("world_colours")
+	await _frames(2)
+	dp._apply("palette/VOID", "#101010")
+	_check(dp.said.contains("starts again") and Guide.told("data_restart"), "a change that waits for a restart: the Entity says so")
+	dp.save_now()
+	_check(Guide.told("data_save") and dp.said == Entity.TIPS["data_save"]["tip"], "the first Save: the Entity says how to keep changes for good")
+	dp.toggle_help()
+	await _frames(2)
+	var helps: Array = dp.said_box.get_children().filter(func(c): return c.has_meta("help_more"))
+	_check(helps.size() == 3 and helps[1].text.contains("GitHub Desktop"), "the ? button shows the Entity's whole account again")
+	dp.toggle_help()
+	# My changes: listed, and put back with two presses.
+	dp.set_tab("changes")
+	await _frames(2)
+	var n: int = Reg.applied.size()
+	var rows: int = menu.box.find_children("*", "PanelContainer", true, false).filter(func(c): return c.has_meta("data_row")).size()
+	_check(n >= 2 and rows == n, "My changes lists every change (%d of %d)" % [rows, n])
+	var all: Button = null
+	for b in menu.focusables():
+		if b.has_meta("data_revert_all"):
+			all = b
+	all.pressed.emit()
+	await _frames(2)
+	_check(Reg.applied.size() == n and dp.ask_all, "...Put all back asks first")
+	for b in menu.focusables():
+		if b.has_meta("data_revert_all"):
+			all = b
+	all.pressed.emit()
+	await _frames(2)
+	_check(Reg.applied.is_empty() and Train.BASE_PRICE["dagger"] == 10 and load("res://scripts/palette.gd").VOID.is_equal_approx(Color(0.035, 0.03, 0.05)), "...and the second press puts everything back")
+	# Back: to Dev tools, saved.
+	Reg.set_value("train/BASE_PRICE/axe", 20)
+	await _key_tap(KEY_ESCAPE)
+	await _frames(2)
+	_check(menu.page == "dev" and not Reg.dirty and FileAccess.file_exists(Reg.local_path), "Back returns to Dev tools, saving what wasn't saved")
+	# Clean up: everything as it was.
+	Reg.revert_all()
+	Guide.state["told"] = told
+	Engine.remove_meta("sixfold_tips")
+	menu.close()
+	for f in [Reg.project_path, Reg.local_path]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	Reg.project_path = Reg.PROJECT_PATH
+	Reg.project_write = -1
+	Reg.startup()
+	_check(Reg.applied.is_empty() and Train.BASE_PRICE["axe"] == 12, "the tests leave every table as the scripts have it")
+
+
+## The Data editor's control with this meta and value (its page may have been rebuilt).
+func _data_find(meta: String, value) -> Control:
+	for c in main.menu.box.find_children("*", "Control", true, false):
+		if c.has_meta(meta) and c.get_meta(meta) == value and not c.is_queued_for_deletion():
+			return c
+	return null

@@ -34,17 +34,17 @@ const CHEST_SIZE := 8
 ## Selling (or breaking down at the bench, bench.gd) gives back this share of
 ## a thing's price, as a crystal of its kind. A worn Common piece fetches
 ## less, down to WORN_SELL of that.
-const SELL_SHARE := 0.4
-const WORN_SELL := 0.25
+static var SELL_SHARE := 0.4
+static var WORN_SELL := 0.25
 ## How many Common pieces hang on the outfitter's rack each visit.
 const RACK_SIZE := 8
 ## Today's piece: one Fine or Rare piece, new after every climb.
-const TODAY_ODDS := {"fine": 75, "rare": 25}
+static var TODAY_ODDS := {"fine": 75, "rare": 25}
 
 ## A piece's base price: what it costs at the store (and sells from) is this
 ## times its rarity's RARITY_PRICE. Rings, amulets and the Climber's Pack are
 ## never Common: their number here is what a plain one would cost.
-const BASE_PRICE := {
+static var BASE_PRICE := {
 	"dagger": 10, "sword": 12, "axe": 12, "mace": 12, "spear": 12, "greatsword": 15, "war_hammer": 15,
 	"shortbow": 12, "longbow": 14, "crossbow": 15,
 	"padded": 8, "leather": 12, "chain": 16, "plate": 20,
@@ -54,22 +54,22 @@ const BASE_PRICE := {
 	"bone_charm": 12, "ember_charm": 12, "iron_band": 12, "garnet_ring": 12, "tide_locket": 12, "pearl_ring": 12,
 	"overdrawn_ring": 12, "climbers_pack": 12,
 }
-const DEFAULT_PRICE := 10
+static var DEFAULT_PRICE := 10
 ## Commons are the everyday buy, at half their base price (the owner's call:
 ## "I can never afford anything"); Fine and up kept their prices, so a Fine
 ## piece costs 4x its Common and finds still sell well.
-const RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 10.0}
+static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 10.0}
 ## Basic supplies cost half their worth (items.gd "value") at the store;
 ## everything else costs its worth. (A belt left over at the end of a climb
 ## still breaks into crystals at half its worth.)
-const SUPPLY_PRICE := {"draught": 6, "tonic": 5, "smoke": 5, "salts": 5, "flare": 4}
+static var SUPPLY_PRICE := {"draught": 6, "tonic": 5, "smoke": 5, "salts": 5, "flare": 4}
 ## Supplies priced in crystal essence of ANY kind (the owner's call: "recall
 ## scrolls should take any kind of essence and always be available"). The
 ## recall scroll is always on the shelf, and buying one never empties it
 ## (you carry one at most). Paid from your biggest crystals first
 ## (profile.gd spend_any).
 const ANY := "any"
-const ANY_PRICE := {"scroll": 60}
+static var ANY_PRICE := {"scroll": 60}
 
 ## Condensing (at every stair, the first climb's too): this share of the
 ## essence you bank becomes essence crystals instead of soaking into you,
@@ -82,7 +82,7 @@ const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["35", "35
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
 ## every floor past your best in that tower before the climb.
-const CLIMB_PAY := {"per_floor": 2, "per_best": 3}
+static var CLIMB_PAY := {"per_floor": 2, "per_best": 3}
 ## The essence a piece is priced in and sells for, when it has no trait (or
 ## name) to say: by its slot.
 const SLOT_KIND := {
@@ -91,7 +91,7 @@ const SLOT_KIND := {
 }
 
 ## The words of the train's pages.
-const TEXT := {
+static var TEXT := {
 	"title": "THE TRAIN",
 	"sub": "Brass, steam and the smell of oil. The towers wait past the windows.",
 	"purse": "Your crystals",
@@ -180,7 +180,7 @@ const TEXT := {
 ## The outfitter who keeps the store car: a retired climber who buys what
 ## climbers bring down and sells it to the next ones up. No name yet: change
 ## "name" and "tag" to give him one. One line is picked for each moment.
-const OUTFITTER := {
+static var OUTFITTER := {
 	"name": "the outfitter",
 	"tag": "THE OUTFITTER",
 	"greet": [

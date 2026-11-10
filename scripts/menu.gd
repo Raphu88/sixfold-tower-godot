@@ -39,15 +39,19 @@ const Slots := preload("res://scripts/slots.gd")
 const RailScript := preload("res://scripts/rail.gd")
 const Nav := preload("res://scripts/nav.gd")
 
-const GOLD := UI.GOLD
-const TEXT := UI.TEXT
-const DIM := UI.DIM
-const FAINT := UI.FAINT
+static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
+	get: return UI.GOLD
+static var TEXT: Color:  # (UI.TEXT, read each time: the Data editor can change it)
+	get: return UI.TEXT
+static var DIM: Color:  # (UI.DIM, read each time: the Data editor can change it)
+	get: return UI.DIM
+static var FAINT: Color:  # (UI.FAINT, read each time: the Data editor can change it)
+	get: return UI.FAINT
 const SETTINGS_PATH := "user://sixfold.cfg"
 
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 520.0, "controls": 660.0, "confirm_new": 440.0,
-	"dev": 660.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
+	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
 	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0}
 ## The climber screen's tabs: [id, name].
 const CLIMBER_TABS := [["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["archive", "Archive"]]
@@ -101,12 +105,15 @@ var train_say := ""  # the outfitter's (or the Entity's) answer to the last choi
 # "appearance" later; where Back from "appearance" goes ("climber", else the usual).
 var look_page
 var look_from := ""
+# Dev tools -> Edit game data (data_page.gd): the Data editor, kept so its
+# tab, section and search stay put while its page is rebuilt.
+var data_page = preload("res://scripts/data_page.gd").new(self)
 # The left rail (rail.gd) the in-game pages share: who you are, the pages,
 # Start over and Exit. RAIL_PAGES show it; RAIL_ROOTS are the pages it
 # opens (the others are pages within them: a mark, controller setup, the
 # Start over question).
 var rail
-const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "settings", "padsetup", "controls", "dev", "confirm_new", "train"]
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "settings", "padsetup", "controls", "dev", "data", "confirm_new", "train"]
 const RAIL_ROOTS := ["pause", "climber", "inventory", "settings", "controls", "dev"]
 var climber_main := "marks"  # the climber screen's last tab other than the Archive
 var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
@@ -306,6 +313,13 @@ func _tap(pos: Vector2) -> void:
 	if b == null and _control_at(pos, "LineEdit") != null and page in ["create", "appearance"]:
 		look_page.edit_name()  # (the appearance page's name)
 		return
+	if b == null and page == "data":
+		var field: Control = _control_at(pos, "LineEdit")
+		if field == null:
+			field = _control_at(pos, "TextEdit")
+		if field != null:
+			data_page.tap_field(field)  # (a text box in the Data editor)
+			return
 	if b == null or b.disabled:
 		return
 	if b.has_method("tap_at"):
@@ -373,7 +387,12 @@ func _process(delta: float) -> void:
 
 ## A name is being typed (the appearance page's name field has the keys).
 func _typing() -> bool:
-	return page != "" and is_inside_tree() and get_viewport().gui_get_focus_owner() is LineEdit
+	return page != "" and is_inside_tree() and _is_text_box(get_viewport().gui_get_focus_owner())
+
+
+## A box the keys type into (a name, or the Data editor's words).
+static func _is_text_box(c: Control) -> bool:
+	return c is LineEdit or c is TextEdit
 
 
 ## Q/E or LB/RB: the next climber tab, or the next mark on the detail page.
@@ -381,6 +400,9 @@ func _typing() -> bool:
 func _cycle(by: int) -> bool:
 	if page == "train":
 		return train_page.cycle(by)
+	if page == "data":
+		data_page.cycle(by)  # (the Data editor's tabs)
+		return true
 	if page == "create" or page == "appearance":
 		look_page.turn(by)  # the preview turns
 		return true
@@ -478,6 +500,9 @@ func _go_back() -> void:
 		open(confirm_back)
 	elif page == "padsetup":
 		open("settings")
+	elif page == "data":
+		data_page.leave()  # (saves what isn't saved yet)
+		open("dev")
 	elif page == "mark":
 		focus_part = mark_part
 		open("climber", opened_direct)
@@ -555,6 +580,8 @@ func rail_item() -> String:
 			return "archive" if climber_tab == "archive" and page == "climber" else "climber"
 		"padsetup":
 			return "settings"
+		"data":
+			return "dev"
 		"confirm_new":
 			return "over"
 		"train":
@@ -966,7 +993,7 @@ func _hover(pos: Vector2) -> void:
 		list = rail.buttons + list
 	var c := Nav.topmost_at(list, pos)
 	var f: Control = get_viewport().gui_get_focus_owner()
-	if c == null or c == f or f is LineEdit:
+	if c == null or c == f or _is_text_box(f):
 		return
 	_hovering = true
 	c.grab_focus()
@@ -1329,6 +1356,11 @@ func _page_settings() -> void:
 func _pad_settings() -> void:
 	var PadSetup = load("res://scripts/pad_setup.gd")
 	_button(PadSetup.TEXT["settings_button"], open.bind("padsetup")).set_meta("setting", "padsetup")
+
+
+## Dev tools -> Edit game data (data_page.gd).
+func _page_data() -> void:
+	data_page.build()
 
 
 ## Settings -> Controller setup: records a controller's layout (pad_setup.gd).
@@ -2743,6 +2775,17 @@ func _page_confirm_new() -> void:
 
 func _page_dev() -> void:
 	_header("Dev tools", "For testing. Changes to marks are saved.", "Menu")
+	# The Data editor (data_page.gd): the game's words, numbers and colours.
+	var drow := _row()
+	var db := _button(data_page.TEXT["button"], open.bind("data"), drow)
+	db.set_meta("setting", "data")
+	db.custom_minimum_size.x = 200.0
+	_primary(db)
+	var dn := _label(data_page.TEXT["button_note"], 0.0, DIM)
+	dn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	dn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drow.add_child(dn)
 
 	_section("Marks")
 	var p = main.player

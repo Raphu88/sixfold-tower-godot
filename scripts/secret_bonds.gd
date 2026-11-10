@@ -35,7 +35,7 @@ const MAX_DEPTH := 5
 
 ## The bonds. "color" is its Maker's colour (the same as makers.gd).
 ## "grows": what feeds it (GROWTH has the numbers).
-const BONDS := {
+static var BONDS := {
 	"developer": {"name": "Developer", "the": "the Developer", "maker": "marks", "maker_name": "the Maker of Marks",
 		"color": Color(0.56, 0.92, 1.0), "what": "tools for the bonds", "grows": "all essence"},
 	"designer": {"name": "Designer", "the": "the Designer", "maker": "towers", "maker_name": "the Maker of Towers",
@@ -56,7 +56,7 @@ const SUBSTITUTE := 3.0
 ## screen's Core tab). "lasts": "floor" (an Inspect: paid once, it stays for
 ## the floor; using it again on the same floor is free) or "" (paid each use).
 ## "reach": how far a targeted tool reaches (px). "tip": the Entity's tip id.
-const TOOLS := {
+static var TOOLS := {
 	"dev_inspect": {"bond": "developer", "depth": 1, "name": "Inspect", "where": "ring", "lasts": "floor",
 		"cost": {"essence": 6.0, "flow": 1.0, "flow_kind": "any"},
 		"short": "Every spell's real numbers",
@@ -321,7 +321,7 @@ const SECOND_CHOICES := 3
 ## for every bribe offered before (it remembers), never below `least`; a
 ## full vessel adds `vessel` to that (at most `vessel_most`). An accepted
 ## bribe counts for the next depth only.
-const BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15, "vessel": 0.25, "vessel_most": 0.9}
+static var BRIBE := {"crystals": 120.0, "agree": 0.6, "each": 0.12, "least": 0.15, "vessel": 0.25, "vessel_most": 0.9}
 ## Tests: 1 it always agrees, 0 always refuses, -1 by chance.
 static var bribe_force := -1
 
@@ -391,7 +391,7 @@ const ATTACKS := {
 const STRIKING := ["pounce", "lunge", "swoop", "dive", "charge"]
 
 ## Every other word.
-const TEXT := {
+static var TEXT := {
 	"ring_title": "TOOLS",
 	"train_only": "between climbs",
 	"no_tools": "No tools yet",

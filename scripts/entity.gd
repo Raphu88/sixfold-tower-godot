@@ -20,7 +20,7 @@ const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
 
 ## Its name and the words around it.
-const TEXT := {
+static var TEXT := {
 	"name": "the Entity",  # in the middle of a sentence
 	"Name": "The Entity",  # at the start of one
 	"tag": "THE ENTITY",  # over its speech bubbles
@@ -35,7 +35,7 @@ const TEXT := {
 
 ## Short lines for moments and pages. One is picked (they're said in the
 ## Entity's voice). {floor}, {beast}, {Beast}, {tower} and {mark} are filled in.
-const LINES := {
+static var LINES := {
 	# Moments in play (after the first time, which is a tip).
 	"death": [
 		"Floor {floor}. I wrote it down.",
@@ -105,6 +105,7 @@ const GROUPS := [
 	["gear", "Gear and items"],
 	["train", "The train"],
 	["screens", "Screens"],
+	["creator", "Creator tools"],
 ]
 
 ## Every tip, in Archive order within its group: the Entity's line ("tip",
@@ -113,7 +114,7 @@ const GROUPS := [
 ## main.tip("id"). An id that isn't here falls back to the part before its
 ## last "_" ("puzzle_mirrors" -> "puzzle", "door_iron" -> "door"), so a new
 ## puzzle or door kind still gets a tip until it has its own.
-const TIPS := {
+static var TIPS := {
 	# --- first steps ---
 	"entity": {"group": "start", "name": "The Entity",
 		"tip": "You can see me. Good. When something new finds you, I'll say so, and keep every word in the Archive.",
@@ -427,10 +428,20 @@ const TIPS := {
 	"tool_build_manipulator": {"group": "tools", "name": "Build (the Manipulator)",
 		"tip": "Rewrite a monster into your own for the floor, with a second kind's attack.",
 		"more": "The Manipulator's Build rewrites the monster you aim at into your own until the floor ends: it fights for you, and every few seconds uses an attack it took from another kind of its tower (a knight that also fires arrows). One at a time. Great foes, key carriers and monsters bound to a floor's test won't answer."},
+	# --- creator tools: the Data editor (data_page.gd, data_registry.gd) ---
+	"data_editor": {"group": "creator", "name": "Edit game data",
+		"tip": "Here you can rewrite the game: its words, numbers and colours. Even mine. Pick a section or search, change a value, and it takes.",
+		"more": "Edit game data (Dev tools, from {menu} or the title) changes the game's words, numbers and colours without any code. The tabs Words, Numbers, Colours and Appearance each hold sections (the Entity's words, store prices, menu colours and more); choose one, or type in the search box to find any name, word or number. Words go in a text box: its Edit button, a click or a tap opens it, and Enter or leaving the box keeps what you wrote (Esc leaves the box). Numbers have a slider and a box to type in. A colour's swatch opens sliders for its hue, colour, light and opacity, beside a #hex box. A changed entry turns gilt and shows its default under it; its Default button puts it back. My changes lists everything you changed, to put back one at a time, or all at once with two presses. Most changes show at once; a row says if it waits for the next page, the next floor or a restart. Changes save by themselves a moment after you make them (the ? button tells you all this again, and how to keep them for good)."},
+	"data_save": {"group": "creator", "name": "Keeping your changes",
+		"tip": "Saved. On the computer, in Godot, that went into the project: commit it in GitHub Desktop. On a phone it stays here: send it to Claude.",
+		"more": "Where a change is kept depends on where you play. On the computer, running the game from Godot (the play button or F5), Save writes your changes into the project's file data/overrides.json. To make them part of the game for good, open GitHub Desktop: it lists data/overrides.json under Changes. Write a short summary at the bottom left (\"Cheaper draughts\", say), click Commit to main, then Push origin at the top. From then on every copy of the game has them, the web version too. On a phone or in a browser, Save keeps the changes on that device only. To keep them for good, press Copy changes and paste what it copies into a message to Claude; or, on the computer, press Paste changes, paste them in, and Save there (then commit them as above)."},
+	"data_restart": {"group": "creator", "name": "Changes that wait for a restart",
+		"tip": "That one is read when the game starts. It's saved; you'll see it after the game starts again.",
+		"more": "A few values are read only once, as the game starts (the colour behind the rooms, for one). Their rows say \"applies after a restart\". The change is saved like any other: close the game and start it again to see it. Everything else shows at once, on the next page you open, or on the next floor, as its row says."},
 }
 
 ## Room features (themes.gd) -> the tip for walking into one.
-const ROOM_TIPS := {
+static var ROOM_TIPS := {
 	"trap": "trap_room", "den": "den", "ambush": "crypt", "spring": "good_room", "cache": "good_room",
 	"camp": "good_room", "chasm": "jump", "mirror": "mirror",
 }
