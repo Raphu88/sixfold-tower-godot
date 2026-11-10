@@ -3231,9 +3231,9 @@ func _draw_overlay() -> void:
 	if main.player != null and is_lost(global_position.distance_to(main.player.global_position)):
 		c.draw_string(ThemeDB.fallback_font, Vector2(-4, lift_y - radius - 16.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.78, 0.75, 0.9))
 	if diagnosis and not is_boss():
-		c.draw_string(ThemeDB.fallback_font, Vector2(-60, lift_y - radius - 18.0), WEAKNESS.get(kind, ""), HORIZONTAL_ALIGNMENT_CENTER, 120, 9, Color(0.85, 0.9, 0.95, 0.75))
+		c.draw_string(ThemeDB.fallback_font, Vector2(-60, lift_y - radius - 18.0), WEAKNESS.get(kind, ""), HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(0.85, 0.9, 0.95, 0.75))
 	if cripple_t > 0.0 or disarm_t > 0.0:
-		c.draw_string(ThemeDB.fallback_font, Vector2(-40, radius + 18.0), "disarmed" if disarm_t > 0.0 else "crippled", HORIZONTAL_ALIGNMENT_CENTER, 80, 9, Color(0.9, 0.95, 1.0, 0.85))
+		c.draw_string(preload("res://scripts/ui.gd").font("display"), Vector2(-40, radius + 18.0), "Disarmed" if disarm_t > 0.0 else "Crippled", HORIZONTAL_ALIGNMENT_CENTER, 80, 11, Color(0.9, 0.95, 1.0, 0.85))
 
 
 ## Collects shapes as one list of triangles, in order, sent as one draw call.

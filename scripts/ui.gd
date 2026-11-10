@@ -7,11 +7,12 @@ extends RefCounted
 ## palette.gd; the interface's are here.)
 ##
 ## The look: a deep violet-indigo night, gilt edges and lettering, warm
-## parchment ink, thin-bordered cards with a soft inner glow, small
-## letter-spaced eyebrow labels, and essence colours for essence things.
-## Titles are set in Grenze Gotisch, text in Alegreya Sans and small labels
-## and numbers in IBM Plex Mono (all SIL Open Font License, in
-## assets/fonts with their OFL.txt). Everything else is drawn in code.
+## parchment ink, thin-bordered cards with a soft inner glow, small gothic
+## eyebrow labels, and essence colours for essence things. Every title,
+## label, button and name is set in Grenze Gotisch, the text under them in
+## its plain sibling Grenze, and words written in the world or quoted in
+## Cormorant Garamond Italic (all SIL Open Font License, in assets/fonts
+## with their OFL.txt; see ROLES). Everything else is drawn in code.
 
 # --- the palette ------------------------------------------------------------------
 ## The night: from the void behind everything up to a raised button's face.
@@ -69,15 +70,18 @@ const TRAIN_SKY := [Color(0.05, 0.04, 0.09), Color(0.17, 0.1, 0.17), Color(0.46,
 const TRAIN_GROUND := Color(0.07, 0.06, 0.07)
 
 ## Text sizes (at the desktop scale; phones draw everything 1.5x bigger).
-## Alegreya Sans is small for its size (a low x-height), so these sit about
-## 15% above what a plain sans would use: they read the same, and keep the
-## same line heights.
-const SIZE_SMALL := 12
+## Grenze is narrow for its size, so text can sit a point above what a
+## plain sans would use and take no more room across.
+const SIZE_SMALL := 13
 const SIZE_BODY := 15
 const SIZE_LABEL := 17
 const SIZE_HEADING := 32
-## Eyebrow labels (small capitals over a title or section) and key badges.
-const SIZE_EYEBROW := 11
+## Eyebrow labels (a small gothic label over a title or section).
+const SIZE_EYEBROW := 14
+## Words written in the world, quoted or spoken (rule panels, riddles, the
+## Makers' words, mottos, flavour lines). Cormorant is small for its size
+## (a low x-height), so inscriptions sit two points above body text.
+const SIZE_INSCRIPTION := 17
 
 ## How long menus take to fade in and out (seconds).
 const FADE_IN := 0.12
@@ -85,22 +89,44 @@ const FADE_OUT := 0.1
 
 
 # --- fonts ------------------------------------------------------------------------
-## The font files (SIL OFL; see assets/fonts and CREDITS.md). "body" is the
-## everyday text (and the game's default font), "display" the titles.
+## The font files (SIL OFL; see assets/fonts and CREDITS.md): the gothic
+## display face, its plain sibling for text, and a fine italic for
+## inscriptions. Grenze and Cormorant are variable fonts: one file holds
+## every weight, and ROLES picks one.
 const FONT_FILES := {
-	"body": "res://assets/fonts/alegreya_sans/AlegreyaSans-Medium.ttf",
-	"regular": "res://assets/fonts/alegreya_sans/AlegreyaSans-Regular.ttf",
-	"bold": "res://assets/fonts/alegreya_sans/AlegreyaSans-Bold.ttf",
-	"italic": "res://assets/fonts/alegreya_sans/AlegreyaSans-Italic.ttf",
-	"display": "res://assets/fonts/grenze_gotisch/GrenzeGotisch-Bold.ttf",
-	"mono": "res://assets/fonts/ibm_plex_mono/IBMPlexMono-Medium.ttf",
+	"gothic": "res://assets/fonts/grenze_gotisch/GrenzeGotisch-Bold.ttf",
+	"text": "res://assets/fonts/grenze/Grenze-VariableFont_wght.ttf",
+	"fine": "res://assets/fonts/cormorant_garamond/CormorantGaramond-Italic-VariableFont_wght.ttf",
+}
+## The roles every script asks for (font(role)): [file, weight (0: the
+## file's own), tabular figures]. Figures are always lining (not old-style),
+## so numbers sit level.
+##   display      Grenze Gotisch Bold: every title, heading, label, button,
+##                tab, name and banner (in mixed case: see titled())
+##   eyebrow      the same, for the small label over a title or section
+##   body         Grenze Medium: descriptions, hints, numbers in text
+##   regular      Grenze Regular
+##   bold         Grenze SemiBold: a word picked out in body text
+##   mono         Grenze SemiBold with tabular figures: key badges and
+##                numbers that must line up
+##   inscription  Cormorant Garamond SemiBold Italic: words written in the
+##                world, quoted or spoken (see SIZE_INSCRIPTION)
+##   italic       the same as inscription
+const ROLES := {
+	"display": ["gothic", 0, false],
+	"eyebrow": ["gothic", 0, false],
+	"body": ["text", 500, false],
+	"regular": ["text", 400, false],
+	"bold": ["text", 600, false],
+	"mono": ["text", 600, true],
+	"inscription": ["fine", 600, false],
+	"italic": ["fine", 600, false],
 }
 static var _fonts := {}
 
 
-## A font by its role: "body", "regular", "bold", "italic", "display",
-## "mono", or "eyebrow" (bold, letter-spaced, for small
-## capitals). Figures are lining (not old-style), so numbers sit level.
+## A font by its role (see ROLES): "display", "eyebrow", "body", "regular",
+## "bold", "mono", "inscription" or "italic".
 static func font(kind := "body") -> Font:
 	if _fonts.is_empty():
 		setup_fonts()
@@ -108,37 +134,66 @@ static func font(kind := "body") -> Font:
 
 
 ## Loads the fonts once and makes the body font the game's default (every
-## Control, and every label drawn with ThemeDB.fallback_font). They cover
-## every letter and sign the game's words use.
+## Control, and every label drawn with ThemeDB.fallback_font). Grenze has
+## no arrows, so the fine italic stands behind the other two for those (its
+## lines are shorter, so it doesn't make any line taller).
 static func setup_fonts() -> void:
 	if not _fonts.is_empty():
 		return
 	var files := {}
 	for k in FONT_FILES:
-		var f = load(FONT_FILES[k]) if ResourceLoader.exists(FONT_FILES[k]) else null
-		files[k] = f
-	if files["body"] == null:
+		files[k] = load(FONT_FILES[k]) if ResourceLoader.exists(FONT_FILES[k]) else null
+	if files["text"] == null:
 		return  # (no fonts imported: keep Godot's own)
-	for k in files:
-		var base: Font = files[k] if files[k] != null else files["body"]
+	for k in ROLES:
+		var role: Array = ROLES[k]
+		var base: Font = files[role[0]] if files[role[0]] != null else files["text"]
 		var v := FontVariation.new()
 		v.base_font = base
-		v.opentype_features = {"lnum": 1, "pnum": 1} if k != "mono" else {}
-		# (Only the display face needs a fallback, for an arrow. Godot sizes a
-		# line by the tallest font in the chain, so no more than that.)
+		if int(role[1]) > 0:
+			v.variation_opentype = {"weight": int(role[1])}
+		v.opentype_features = {"lnum": 1, "tnum": 1} if role[2] else {"lnum": 1, "pnum": 1}
 		var fb: Array[Font] = []
-		if k == "display":
-			fb.append(files["body"])
+		if role[0] == "gothic":
+			fb.append(files["text"])
+		if role[0] != "fine" and files["fine"] != null:
+			fb.append(files["fine"])
 		v.fallbacks = fb
-		if k in ["body", "regular", "bold", "italic"]:
-			v.spacing_space = 1  # (Alegreya's word spaces are narrow: small text runs together without this)
+		if role[0] == "text":
+			# Grenze's lines are tall for its size (room for blackletter
+			# capitals): three pixels off top and bottom keep text blocks
+			# about as compact as before, at the sizes text is set in.
+			v.spacing_top = -3
+			v.spacing_bottom = -3
+		elif role[0] == "gothic":
+			# The same lines (Grenze Gotisch shares them): a little off, so
+			# a column of gothic labels stays as compact as plain ones, and
+			# still clears the capitals' tops and the descenders.
+			v.spacing_top = -3
+			v.spacing_bottom = -2
 		_fonts[k] = v
-	var eb := FontVariation.new()
-	eb.base_font = _fonts["bold"]
-	eb.spacing_glyph = 1
-	eb.opentype_features = {"lnum": 1, "tnum": 1}
-	_fonts["eyebrow"] = eb
 	ThemeDB.fallback_font = _fonts["body"]
+
+
+## Words in the gothic face read best in mixed case (blackletter capitals
+## run together): "THE KRAKEN'S TOWER" and "the kraken's tower" both become
+## "The Kraken's Tower". Mixed-case text keeps its capitals; only the first
+## letters of its words are raised (small words like "of" stay low).
+static func titled(t: String) -> String:
+	if t == "":
+		return t
+	var shout := t == t.to_upper() and t != t.to_lower()
+	var small := ["of", "the", "a", "an", "to", "and", "in", "on", "at", "for", "or", "by", "is"]
+	var words := (t.to_lower() if shout else t).split(" ")
+	var first := true
+	for i in words.size():
+		var w: String = words[i]
+		if w == "" or not w.left(1).is_valid_identifier():
+			continue
+		if first or not (w in small):
+			words[i] = w.left(1).to_upper() + w.substr(1)
+		first = false
+	return " ".join(words)
 
 
 ## A theme for Controls in the new look: the body font, ink text, and the
@@ -147,6 +202,9 @@ static func theme() -> Theme:
 	var t := Theme.new()
 	t.default_font = font("body")
 	t.default_font_size = 18
+	# Buttons and toggles are labels: the gothic face.
+	t.set_font("font", "Button", font("display"))
+	t.set_font("font", "CheckButton", font("display"))
 	t.set_stylebox("panel", "PanelContainer", menu_panel())
 	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
 		t.set_stylebox(state, "Button", button_box(state))
@@ -783,49 +841,95 @@ static func draw_divider(ci: CanvasItem, from: Vector2, to: Vector2, col := GOLD
 		ci.draw_circle(c + Vector2(8, 0), 1.0, Color(col, col.a * 0.6))
 
 
-## Small letter-spaced capitals (an eyebrow over a title, a section's name).
-## Returns its width.
+## A small gothic label (an eyebrow over a title, a section's name), in
+## mixed case (titled()). Returns its width.
 static func draw_eyebrow(ci: CanvasItem, at: Vector2, text: String, col := GOLD, size := SIZE_EYEBROW, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0) -> float:
 	var f := font("eyebrow")
-	var t := text.to_upper()
+	var t := titled(text)
 	ci.draw_string(f, at, t, align, width, size, col)
 	return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 
 
 ## A title in the display face (Grenze Gotisch), with a soft dark halo so
-## it reads over anything.
+## it reads over anything. All-capital text is shown in mixed case.
 static func draw_title(ci: CanvasItem, at: Vector2, text: String, size: int, col := GOLD, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, halo := 0.6) -> void:
 	var f := font("display")
+	text = title_case(text)
+	size = fit_size(f, text, size, width)
 	if halo > 0.0:
 		ci.draw_string_outline(f, at + Vector2(0, 2), text, align, width, size, maxi(4, size / 5), Color(0, 0, 0, halo * 0.6))
 		ci.draw_string_outline(f, at, text, align, width, size, 3, Color(0.12, 0.07, 0.03, halo))
 	ci.draw_string(f, at, text, align, width, size, col)
 
 
-## Display titles read best in mixed case (blackletter capitals run
-## together): "THE KRAKEN'S TOWER" becomes "The Kraken's Tower". Text that
-## isn't all capitals is left as it is.
+## A label or name in the display face, drawn plainly (or with an outline
+## of `outline` px so it reads over the world). All-capital text is shown
+## in mixed case.
+static func draw_label(ci: CanvasItem, at: Vector2, text: String, size: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, outline := 0, outline_col := Color(0, 0, 0, 0.8)) -> void:
+	var f := font("display")
+	text = title_case(text)
+	size = fit_size(f, text, size, width)
+	if outline > 0:
+		ci.draw_string_outline(f, at, text, align, width, size, outline, outline_col)
+	ci.draw_string(f, at, text, align, width, size, col)
+
+
+## The size a line can be drawn at to fit `width` (no narrower than 72% of
+## `size`, below which it's clipped as before): a long name on a narrow card
+## shrinks a little instead of losing its end.
+static func fit_size(f: Font, text: String, size: int, width: float) -> int:
+	if width <= 0.0:
+		return size
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	if w <= width:
+		return size
+	return maxi(int(size * width / w), int(ceil(size * 0.72)))
+
+
+## Words written in the world or quoted, in the fine italic (`outline` px
+## of dark behind them when they sit over the world).
+static func draw_inscription(ci: CanvasItem, at: Vector2, text: String, size: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, outline := 0, outline_col := Color(0, 0, 0, 0.8)) -> void:
+	var f := font("inscription")
+	if outline > 0:
+		ci.draw_string_outline(f, at, text, align, width, size, outline, outline_col)
+	ci.draw_string(f, at, text, align, width, size, col)
+
+
+## Gothic titles read best in mixed case (blackletter capitals run
+## together): "THE KRAKEN'S TOWER" becomes "The Kraken's Tower". In mixed
+## text only a shouted word of four letters or more is lowered ("RARE: Coral
+## Trident" becomes "Rare: Coral Trident"; short ones like "HUD" stay), and
+## the rest is left as it is (titled() also raises lower case).
 static func title_case(t: String) -> String:
-	if t != t.to_upper() or t == t.to_lower():
+	if t == t.to_lower():
 		return t
-	var small := ["of", "the", "a", "an", "to", "and", "in", "on", "at", "for"]
-	var words := t.to_lower().split(" ")
+	if t == t.to_upper():
+		return titled(t)
+	var words := t.split(" ")
+	var changed := false
 	for i in words.size():
 		var w: String = words[i]
-		if w == "" or (i > 0 and w in small):
-			continue
-		words[i] = w.left(1).to_upper() + w.substr(1)
-	return " ".join(words)
+		if w.length() >= 4 and w == w.to_upper() and w.to_lower() != w:
+			var letters := 0
+			for ch in w:
+				if ch.to_lower() != ch:
+					letters += 1
+			if letters >= 4:
+				words[i] = w.left(1) + w.substr(1).to_lower()
+				changed = true
+	return " ".join(words) if changed else t
 
 
-## A Label in a role's font: "display" titles, "eyebrow" small capitals,
-## "mono" numbers, "italic" asides.
+## A Label in a role's font (see ROLES). Gothic labels show all-capital
+## text in mixed case; eyebrows are always titled().
 static func style_label(l: Label, kind: String, size: int, col: Color) -> Label:
 	l.add_theme_font_override("font", font(kind))
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	if kind == "eyebrow":
-		l.uppercase = true  # (shown in capitals; its text stays as written)
+		l.text = titled(l.text)
+	elif kind == "display":
+		l.text = title_case(l.text)
 	return l
 
 
