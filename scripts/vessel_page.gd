@@ -78,7 +78,7 @@ static func _toggle(tp, i: int) -> void:
 
 
 ## The outfitter's offer for a full vessel: a crystal of one kind, or some of
-## every kind. Each asks once ("Tap again").
+## every kind. Each asks once ("Press again" / "Tap again").
 static func _trade(tp, i: int, v: Dictionary) -> void:
 	var m = tp.m
 	if not Vessel.is_full(v):
@@ -102,7 +102,7 @@ static func _trade_button(tp, parent: Node, i: int, choice: String, text: String
 	var m = tp.m
 	var ask := "vessel:%d|%s" % [i, choice]
 	var asking: bool = m.sell_ask == ask
-	var b: Button = m._button(V["trade_ask"] % text if asking else text, _do_trade.bind(tp, i, choice), parent)
+	var b: Button = m._button(m.Nav.fill(V["trade_ask"] % text, m.main) if asking else text, _do_trade.bind(tp, i, choice), parent)
 	b.custom_minimum_size.y = 38
 	b.clip_text = true
 	b.set_meta("vessel_trade", choice)

@@ -41,7 +41,7 @@ const TEXT := {
 	"back_title": "Let the tower beasts mark you again",
 	"back_desc": "The Developer's exception: you stop being Unbound. The densest part takes a mark (its bond chosen by what's pooled there), and the rest of your raw essence makes your next marks come sooner.",
 	"back_press": "Mark me again",
-	"back_again": "Press again to be marked again",
+	"back_again": "{again} to be marked again",
 	"back_train": "Only on the train.",
 	"part_card": "%s  ·  level %d",
 	"part_raw": "%d raw  ·  %s",
@@ -385,7 +385,7 @@ static func core_section(menu) -> void:
 	menu._section(TEXT["back_title"])
 	menu._note(TEXT["back_desc"])
 	var armed: bool = Time.get_ticks_msec() - int(menu.get_meta("unbound_back", -99999)) < ARM_MS
-	var b: Button = menu._button(TEXT["back_again"] if armed else TEXT["back_press"], _go_back.bind(menu))
+	var b: Button = menu._button(menu.Nav.fill(TEXT["back_again"], menu.main) if armed else TEXT["back_press"], _go_back.bind(menu))
 	b.disabled = not main.on_train
 	if not main.on_train:
 		menu.box.add_child(menu._small_label(TEXT["back_train"], menu.FAINT))
