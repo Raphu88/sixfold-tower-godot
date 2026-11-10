@@ -454,7 +454,7 @@ const KEYS := {
 	"dismiss": ["Enter or a click", "a press of the right stick", "a tap"],
 	"choose": ["the arrows (or a click on a swatch)", "the d-pad or stick", "the arrows or a swatch"],
 	"tools": ["B", "{lb} and {lt}", "Tools"],
-	"cars": ["Q and E, the mouse wheel, or the arrows at the screen's edges", "{lb} and {rb}, or the d-pad", "swipe, or tap the arrows at the screen's edges"],
+	"cars": ["Q and E, the mouse wheel, or a car on the rail at the left", "{lb} and {rb}, or up and down on the rail at the left", "swipe, or tap a car on the rail at the left"],
 }
 
 ## The Entity's colours (the interface's other colours are in ui.gd).

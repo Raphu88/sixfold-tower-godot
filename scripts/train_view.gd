@@ -1,9 +1,10 @@
 extends Control
 ## The train between climbs, drawn in code from the inside: menu.gd's
 ## "train" page. Its cars stand side by side in one long strip, each as wide
-## as the screen: the engine at the front (left), then your car, the store
-## car and the workshop. Scrolling slides the strip (train_page.gd moves it
-## and puts each car's things in its room).
+## as the view (the screen right of the menu's rail): the engine at the
+## front (left), then your car, the store car and the workshop. Scrolling
+## slides the strip (train_page.gd moves it and puts each car's things in
+## its room).
 ##
 ## Each room is drawn in layers, back to front: its walls, panelling, floor
 ## and the dusk in its windows; the view outside (the stars and the moon,
@@ -31,11 +32,12 @@ const Train := preload("res://scripts/train.gd")
 
 ## Below this screen height (a phone) the margins tighten (menu.gd COMPACT_H).
 const COMPACT_H := 600.0
-## The bands kept clear at the top (the cars' names), the bottom (your
-## crystals) and the sides (the arrows to the next car): [phone, desktop].
-const TOP := [44.0, 58.0]
-const BOTTOM := [50.0, 60.0]
-const SIDE := [52.0, 74.0]
+## The room kept clear at the top (under the ceiling), the bottom (the band
+## of your crystals) and the sides: [phone, desktop]. (The cars' names and
+## the way along the train are on the rail, rail.gd.)
+const TOP := [6.0, 10.0]
+const BOTTOM := [46.0, 56.0]
+const SIDE := [12.0, 22.0]
 const LIVE_FPS := 15.0  # how often the lamps, gauges, firebox and their sparks are redrawn
 const MIST_PERIOD := 240.0  # the mist repeats every this many (scaled) pixels, so it can drift for ever
 const CLOUD_PERIOD := 560.0  # and the clouds every this many
@@ -86,7 +88,8 @@ signal laid_out
 
 var strip: Control  # the cars, side by side
 var rooms := {}  # car id -> Room
-var chrome: Control  # over the cars: their names, the arrows, your crystals (train_page.gd)
+var chrome: Control  # over the cars: the band of your crystals (train_page.gd)
+var inset := 0.0  # the menu's rail down the left (rail.gd): the cars fill the rest
 var pos := 1.0  # where the train stands, in cars (0 = the engine)
 var target := 1  # the car it settles on
 var dragging := false  # a finger or the mouse holds it
@@ -102,6 +105,7 @@ var _stars: Array = []  # [x share of the screen, y share of the sky, size, whic
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip_contents = true  # (the cars slide under the rail's edge, not over it)
 	for i in 70:
 		_stars.append([Art.rnd(i * 3 + 1), pow(Art.rnd(i * 5 + 2), 1.4) * 0.9, 0.6 + 0.9 * pow(Art.rnd(i * 7 + 3), 3.0), i % 2])
 	strip = Control.new()
@@ -124,7 +128,16 @@ func ids() -> Array:
 
 
 func _size() -> Vector2:
-	return get_viewport_rect().size
+	return get_viewport_rect().size - Vector2(inset, 0.0)
+
+
+## Leaves `x` clear down the left for the rail (laid out again if it changed).
+func set_inset(x: float) -> void:
+	if x == inset:
+		return
+	inset = x
+	offset_left = x
+	refresh()
 
 
 ## Lays the cars out again if the screen changed size (before a build).
@@ -1873,47 +1886,8 @@ class Lever extends Button:
 			draw_string(font, Vector2(0, plate.end.y + 34.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 11, Color(UI.TEXT, 0.85))
 
 
-## An arrow at the edge of the screen to the next car: a brass tab with a
-## chevron, and the car's name under it.
-class EdgeArrow extends Button:
-	const UI := preload("res://scripts/ui.gd")
-	var dir := 1
-	var car_name := ""
-
-	func _ready() -> void:
-		focus_mode = Control.FOCUS_NONE
-		text = ""
-		var empty := StyleBoxEmpty.new()
-		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
-			add_theme_stylebox_override(st, empty)
-		mouse_entered.connect(queue_redraw)
-		mouse_exited.connect(queue_redraw)
-
-	func _draw() -> void:
-		var font := ThemeDB.fallback_font
-		var w := size.x
-		var hot := is_hovered()
-		var b := UI.Draw.Batch.new()
-		var c := Vector2(w * 0.5, w * 0.62)
-		b.dot(c, w * 0.44 + 1.5, UI.OUTLINE)
-		b.dot(c, w * 0.44, Color(0.12, 0.09, 0.07, 0.92))
-		b.arc(c, w * 0.44 - 1.0, 0.0, TAU, 28, UI.TRAIN_BRASS.lightened(0.2 if hot else 0.0), 2.0)
-		var k := w * 0.14 * dir
-		var col := UI.GOLD if hot else UI.TRAIN_BRASS.lightened(0.1)
-		b.line(c + Vector2(-k, -w * 0.18), c + Vector2(k, 0), col, 3.5)
-		b.line(c + Vector2(k, 0), c + Vector2(-k, w * 0.18), col, 3.5)
-		b.dot(c + Vector2(k, 0), 1.75, col)
-		b.flush(self)
-		var lines := car_name.split(" ")
-		var y := c.y + w * 0.44 + 14.0
-		for l in lines:
-			draw_string_outline(font, Vector2(-8, y), l, HORIZONTAL_ALIGNMENT_CENTER, w + 16.0, 11, 4, Color(0, 0, 0, 0.8))
-			draw_string(font, Vector2(-8, y), l, HORIZONTAL_ALIGNMENT_CENTER, w + 16.0, 11, Color(UI.TEXT, 0.9))
-			y += 12.0
-
-
-## The brass bands along the top (the cars' names) and the bottom (your
-## crystals): riveted brass over dark wood.
+## The brass band along the bottom (your crystals): riveted brass over dark
+## wood (`at_top`: a band along the top, edged below).
 class Band extends Control:
 	const UI := preload("res://scripts/ui.gd")
 	var at_top := false
@@ -1935,43 +1909,6 @@ class Band extends Control:
 			b.dot(Vector2(x, y), 1.6, UI.TRAIN_BRASS.darkened(0.35))
 			x += 64.0
 		b.flush(self)
-
-
-## Under the cars' names: a gold bar that slides along with the train, so
-## you can see where you are (and where you're going) mid-scroll.
-class Marker extends Control:
-	const UI := preload("res://scripts/ui.gd")
-	var view
-	var slots: Array = []  # each name's button
-	var _drawn := -1.0
-
-	func _ready() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	func _process(_d: float) -> void:
-		if view != null and view.pos != _drawn:
-			queue_redraw()
-
-	func _draw() -> void:
-		if view == null or slots.is_empty():
-			return
-		_drawn = view.pos
-		var inv := get_global_transform().affine_inverse()
-		var rects: Array = []
-		for s in slots:
-			if not is_instance_valid(s):
-				return
-			var gr: Rect2 = s.get_global_rect()
-			rects.append(Rect2(inv * gr.position, inv.basis_xform(gr.size)))
-		var p := clampf(view.pos, 0.0, rects.size() - 1.0)
-		var i := int(floor(p))
-		var j := mini(i + 1, rects.size() - 1)
-		var k := p - i
-		var a: Rect2 = rects[i]
-		var c: Rect2 = rects[j]
-		var x := lerpf(a.position.x, c.position.x, k)
-		var w := lerpf(a.size.x, c.size.x, k)
-		draw_rect(Rect2(x + 10.0, a.end.y - 4.0, w - 20.0, 3.0), UI.GOLD)
 
 
 # --- the workshop's bench ----------------------------------------------------------

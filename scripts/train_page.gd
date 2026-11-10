@@ -7,11 +7,13 @@ extends RefCounted
 ## counter: shelves of supplies, the outfit rail, today's piece in a glass
 ## case, and selling) and the workshop (the bench). It opens on your car.
 ##
-## Scrolling: swipe or drag the train (it follows, then settles on the
-## nearest car), the mouse wheel, Q / E or LB / RB, Left / Right (or the
-## d-pad and stick) past the last thing in a car, the arrows at the screen's
-## edges, or a car's name along the top. A choice's card is a brass-framed
-## placard in the car. Your crystals sit along the bottom, with Menu.
+## The menu's rail (rail.gd) stays down the left: the cars, then the pages.
+## Moving along: choose a car on the rail (or move onto it with up and
+## down), swipe or drag the train (it follows, then settles on the nearest
+## car), the mouse wheel, or Q / E (LB / RB); the rail's light follows.
+## Right, Enter or A on the rail goes into the car; Left at its edge, or
+## Esc or B, comes back to the rail. A choice's card is a brass-framed
+## placard in the car. Your crystals sit along the bottom.
 ##
 ## Every car is built at once (so the next one shows as you scroll), but
 ## only the car you're in answers taps, clicks and the keys. Its slots and
@@ -31,6 +33,7 @@ const UI := preload("res://scripts/ui.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
+const Rail := preload("res://scripts/rail.gd")
 
 const T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -42,7 +45,6 @@ const SWIPE := 14.0
 const SWIPE_CAR := 0.15
 const FLICK := 0.9
 const WHEEL_GAP := 220  # ms between cars on the mouse wheel (a trackpad sends many)
-const STICK_GAP := 260  # ms between cars on the stick
 
 var m  # the menu (menu.gd)
 var tips := {}  # car -> the Entity's tip said there this visit (kept while the page rebuilds)
@@ -50,7 +52,6 @@ var view  # the drawn train (m.train_view)
 var roots := {}  # car -> its things (a VBoxContainer in its room)
 var cards := {}  # car -> its placard's contents (m.details while you're in that car)
 var card_scrolls := {}  # car -> the placard's ScrollContainer
-var names: Array = []  # the cars' names along the top (buttons)
 var was_open := false  # (set by menu.gd: the train was already showing, so a new car slides into view)
 # A swipe or drag along the train.
 var drag_axis := ""  # "" undecided, "x" moving the train, "y" scrolling a card
@@ -59,11 +60,11 @@ var drag_last := Vector2.ZERO
 var drag_start := 0.0  # where the train stood
 var drag_moved := 0.0
 var drag_scroll: ScrollContainer = null
+var drag_rail := false  # the touch began on the rail (it doesn't move the train)
 var drag_samples: Array = []  # [msec, x] for the flick's speed
 var mouse_down := false
 var held_button: BaseButton = null  # the button a mouse drag began on, held off till it ends
 var wheel_at := 0
-var stick_at := 0
 
 
 func _init(menu) -> void:
@@ -103,6 +104,7 @@ func build() -> void:
 	var prof = _prof()
 	Train.stock(prof)
 	view = m.train_view
+	view.set_inset(Rail.width_for(_small()) if m.rail_showing() else 0.0)  # (the rail down the left)
 	view.refresh()
 	if not view.laid_out.is_connected(_relaid):
 		view.laid_out.connect(_relaid)
@@ -215,6 +217,7 @@ func go_to(i: int, from_drag := false) -> void:
 	if i < 0 or i >= list.size() or i == cur:
 		if from_drag:
 			view.go(cur)
+			m.rail.light(m.rail_item(), m.train_car)  # (back on the car it began on)
 		elif i != cur:
 			view.bump(signi(i - cur))
 		return
@@ -233,12 +236,36 @@ func go_to(i: int, from_drag := false) -> void:
 	m.details = cards.get(m.train_car)
 	_interactive()
 	_chrome()
+	var focus := focusables()
+	m.rail.light(m.rail_item(), m.train_car)  # (the rail's light follows the train)
+	m._link_rail(focus[first_focus(focus)] if not focus.is_empty() else null)
 	if m.main.touch_active:
 		m.get_viewport().gui_release_focus()
-	else:
-		var focus := focusables()
-		if not focus.is_empty():
-			m._focus_later.call_deferred(focus[first_focus(focus)])
+	elif m.rail.has_focus_inside():
+		m.rail.focus_current()  # (moving along from the rail: the focus stays on it, on this car)
+	elif not focus.is_empty():
+		m._focus_later.call_deferred(focus[first_focus(focus)])
+
+
+## Esc or B on the train: from inside a car (or the rail's foot), back to
+## the rail on the car you're in; there, nothing (the rail is the menu, and
+## only the engine's lever leaves the train).
+func back() -> void:
+	var f: Control = m.get_viewport().gui_get_focus_owner()
+	if f != null and f == m.rail.button(m.train_car):
+		return
+	m.main.sfx("ui_back")
+	m.rail.focus_current()
+
+
+## Into the car you're in, onto its starting point (Right, Enter or A on the rail).
+func enter() -> void:
+	if m.main.touch_active:
+		return
+	var focus := focusables()
+	if not focus.is_empty():
+		focus[first_focus(focus)].grab_focus()
+		m.main.sfx("ui_confirm")
 
 
 ## Who speaks at the top of a car: the Entity's tip the first time you're
@@ -897,81 +924,17 @@ func _bench_pieces(parent: Node, fits: Callable, heirlooms := true) -> Array:
 	return keys
 
 
-# --- over the cars: their names, the arrows, your crystals ---------------------------
+# --- over the cars: your crystals ---------------------------------------------------
 
-## The bands over the train: the cars' names along the top (the one you're
-## in gilded, a gold bar sliding under them as you go; tap one to go there),
-## an arrow at each edge to the next car, and along the bottom your crystals
-## (a gem and the essence held, for each kind) and Menu.
+## The band along the bottom of the cars: your crystals (a gem and the
+## essence held, for each kind). The cars' names, and the way along the
+## train, are on the rail (rail.gd).
 func _chrome() -> void:
 	var ch: Control = view.chrome
 	for c in ch.get_children():
 		ch.remove_child(c)
 		c.queue_free()
 	var mg: Vector3 = view.margins()
-	var small := _small()
-	var cur := _index(m.train_car)
-	var list := _ids()
-	# Along the top.
-	var top := TrainView.Band.new()
-	top.at_top = true
-	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	top.offset_bottom = mg.x
-	ch.add_child(top)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 4 if small else 10)
-	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	row.offset_bottom = mg.x - 3.0
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ch.add_child(row)
-	var keys := ["", ""]
-	if not m.main.touch_active:
-		keys = [Controls.pad_name("lb", m.main.pad_ps), Controls.pad_name("rb", m.main.pad_ps)] if m.main.pad_active else ["Q", "E"]
-	if keys[0] != "":
-		row.add_child(m._key_hint(keys[0]))
-	names.clear()
-	for i in list.size():
-		var b := Button.new()
-		b.text = Train.CARS[i][1]
-		b.flat = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(108.0 if small else 132.0, mg.x - 4.0)
-		b.add_theme_font_override("font", UI.font("display"))
-		b.add_theme_font_size_override("font_size", 19 if small else 22)
-		b.add_theme_color_override("font_color", UI.GILT_HI if i == cur else Color(UI.TEXT, 0.72))
-		b.add_theme_color_override("font_hover_color", UI.GOLD)
-		b.add_theme_color_override("font_pressed_color", UI.GOLD)
-		b.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-		b.add_theme_constant_override("outline_size", 3)
-		b.set_meta("car", list[i])
-		b.pressed.connect(go_to.bind(i))
-		row.add_child(b)
-		names.append(b)
-	if keys[1] != "":
-		row.add_child(m._key_hint(keys[1]))
-	var marker := TrainView.Marker.new()
-	marker.view = view
-	marker.slots = names
-	marker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ch.add_child(marker)
-	# The arrows at the edges.
-	for d in [-1, 1]:
-		var j: int = cur + d
-		if j < 0 or j >= list.size():
-			continue
-		var a := TrainView.EdgeArrow.new()
-		a.dir = d
-		a.car_name = Train.CARS[j][1]
-		var w := mg.z - 10.0
-		a.custom_minimum_size = Vector2(w, w * 1.6)
-		a.size = a.custom_minimum_size
-		var preset := Control.PRESET_CENTER_LEFT if d < 0 else Control.PRESET_CENTER_RIGHT
-		a.set_anchors_and_offsets_preset(preset, Control.PRESET_MODE_KEEP_SIZE, 5)
-		a.set_meta("arrow", d)
-		a.pressed.connect(go_to.bind(j))
-		ch.add_child(a)
-	# Along the bottom.
 	var bottom := TrainView.Band.new()
 	bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom.offset_top = -mg.y
@@ -981,24 +944,14 @@ func _chrome() -> void:
 	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	foot.offset_top = -mg.y + 5.0
 	foot.offset_bottom = -4.0
-	foot.offset_left = mg.z * 0.5
-	foot.offset_right = -mg.z * 0.5
+	foot.offset_left = 16.0
+	foot.offset_right = -16.0
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ch.add_child(foot)
 	var purse := Purse.new()
 	purse.profile = _prof()
 	purse.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot.add_child(purse)
-	var b: Button = m._button(T["menu"], m.open.bind("pause"), foot)
-	b.custom_minimum_size = Vector2(96, 38)
-	b.focus_mode = Control.FOCUS_NONE
-	b.set_meta("menu", true)
-	_brass(b)
-	if not m.main.touch_active:
-		var l: Label = m._label(Controls.pad_text("{start}", m.main.pad_ps) if m.main.pad_active else "Esc", 0.0, UI.FAINT)
-		l.add_theme_font_size_override("font_size", 14)
-		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		foot.add_child(l)
 
 
 # --- moving along: swipes, drags, the wheel and the keys ---------------------------------
@@ -1048,6 +1001,8 @@ func input(event: InputEvent) -> bool:
 					held_button = null
 			return false
 		if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+			if _on_rail(event.position):
+				return false  # (the wheel over the rail doesn't move the train)
 			var sc := _scroll_at(event.position)
 			if sc != null and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and _can_scroll(sc):
 				return false  # (the card scrolls)
@@ -1072,20 +1027,28 @@ func input(event: InputEvent) -> bool:
 				held_button = b
 				b.disabled = true
 		return drag_axis == "x"
-	# Left / Right past the last thing in this car: the next car.
-	for side in [["ui_left", -1, SIDE_LEFT], ["ui_right", 1, SIDE_RIGHT]]:
+	# Left past the first thing in this car: back to the rail (on the car
+	# you're in). Right past the last: nothing further. On the rail, Right
+	# goes into the car (rail.gd's neighbours) and Left stays put.
+	for side in [["ui_left", SIDE_LEFT], ["ui_right", SIDE_RIGHT]]:
 		if event.is_action_pressed(side[0]):
-			if event is InputEventJoypadMotion:
-				var now := Time.get_ticks_msec()
-				if now - stick_at < STICK_GAP:
-					return _at_edge(side[2])
-				if _at_edge(side[2]):
-					stick_at = now
-			if _at_edge(side[2]):
-				cycle(side[1])
-				return true
-			return false
+			var f: Control = m.get_viewport().gui_get_focus_owner()
+			if f != null and m.rail.buttons.has(f):
+				return false
+			if not _at_edge(side[1]):
+				return false
+			if side[1] == SIDE_LEFT:
+				m.main.sfx("ui_back")
+				m.rail.focus_current()
+			elif f == null:
+				enter()  # (nothing focused: Right goes into the car)
+			return true
 	return false
+
+
+## True if a point is on the menu's rail (down the left).
+func _on_rail(at: Vector2) -> bool:
+	return m.rail.visible and m.rail.get_global_rect().has_point(at)
 
 
 ## True if the focus can't move further that way inside this car.
@@ -1114,10 +1077,13 @@ func _drag_begin(at: Vector2) -> void:
 	drag_axis = ""
 	drag_start = view.pos
 	drag_scroll = _scroll_at(at)
+	drag_rail = _on_rail(at)
 	drag_samples = [[Time.get_ticks_msec(), at.x]]
 
 
 func _drag_move(at: Vector2, rel: Vector2) -> void:
+	if drag_rail:
+		return  # (a finger on the rail: a tap there, never a swipe of the train)
 	var d := at - drag_from
 	if drag_axis == "" and drag_moved >= SWIPE:
 		drag_axis = "x" if absf(d.x) > absf(d.y) else "y"
@@ -1134,6 +1100,10 @@ func _drag_move(at: Vector2, rel: Vector2) -> void:
 			raw = n + (raw - n) * 0.3
 		view.pos = raw
 		view.place()
+		# The rail's light follows the car nearest the middle as the train moves.
+		var near: String = _ids()[clampi(roundi(raw), 0, _ids().size() - 1)]
+		if m.rail.current != near:
+			m.rail.light(near, m.train_car)
 		drag_samples.append([Time.get_ticks_msec(), at.x])
 		if drag_samples.size() > 6:
 			drag_samples.pop_front()
@@ -1178,6 +1148,8 @@ func _button_at(pos: Vector2) -> BaseButton:
 	var places: Array = [view.chrome]
 	if roots.has(m.train_car) and is_instance_valid(roots[m.train_car]):
 		places.push_front(roots[m.train_car])
+	if _on_rail(pos):
+		places = [m.rail]  # (the rail stands over the cars' edge)
 	for place in places:
 		for c in place.find_children("*", "BaseButton", true, false):
 			var b: BaseButton = c

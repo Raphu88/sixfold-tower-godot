@@ -94,7 +94,6 @@ const SLOT_KIND := {
 const TEXT := {
 	"title": "THE TRAIN",
 	"sub": "Brass, steam and the smell of oil. The towers wait past the windows.",
-	"menu": "Menu",
 	"purse": "Your crystals",
 	"home": "Your pack comes down with you: %d %s",
 	"money": "The outfitter prices everything in one kind of essence, and takes it from your crystal of that kind.",

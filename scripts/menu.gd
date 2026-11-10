@@ -105,7 +105,7 @@ var look_from := ""
 # opens (the others are pages within them: a mark, controller setup, the
 # Start over question).
 var rail
-const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "settings", "padsetup", "controls", "dev", "confirm_new"]
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "settings", "padsetup", "controls", "dev", "confirm_new", "train"]
 const RAIL_ROOTS := ["pause", "climber", "inventory", "settings", "controls", "dev"]
 var climber_main := "marks"  # the climber screen's last tab other than the Archive
 var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
@@ -367,7 +367,16 @@ func _can_open() -> bool:
 
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
+	if page == "train":
+		train_page.back()  # (from inside a car, back to the rail)
+		return
 	if main != null and page != "": main.sfx("ui_back")
+	if page in RAIL_ROOTS and rail_showing() and _on_train():
+		# On the train: back to the car you were on, in one press (the rail
+		# lit on it; a page opened from the car's own furniture, into the car).
+		_rail_focus = not opened_direct
+		close()
+		return
 	if page in RAIL_ROOTS and rail_showing():
 		# In a page: back to the rail. On the rail (or a page opened by its
 		# own key, or on a phone): close.
@@ -377,9 +386,7 @@ func go_back() -> void:
 		else:
 			rail.focus_current()
 		return
-	if page == "train":
-		open("pause")  # (the train has no Back: Esc opens the menu)
-	elif page == "confirm_new":
+	if page == "confirm_new":
 		open(confirm_back)
 	elif page == "padsetup":
 		open("settings")
@@ -462,6 +469,8 @@ func rail_item() -> String:
 			return "settings"
 		"confirm_new":
 			return "over"
+		"train":
+			return train_car  # (the car you're in)
 	return page
 
 
@@ -511,10 +520,11 @@ func _next_in_page(from: Control, dir: int) -> Control:
 func rail_focused(id: String) -> void:
 	if _rail_refused:
 		return
-	if not nav_keys or page == "" or id == rail_item() or id in ["over", "exit"]:
+	if not nav_keys or page == "" or id == rail_item() or id in ["over", "exit", "quit"]:
 		return
-	if id == "inventory" and _on_train():
-		return  # (your car is on the train itself: only a press goes there)
+	if RailScript.is_car(id) and _on_train():
+		_go_car(id, true)  # (the train slides there; the focus stays on the rail)
+		return
 	_rail_focus = true
 	_rail_go(id, true)
 
@@ -524,8 +534,28 @@ func rail_pressed(id: String) -> void:
 	if id == rail_item() and id in ["climber", "inventory", "archive", "settings", "controls", "dev"]:
 		_focus_page_start()
 		return
+	if RailScript.is_car(id) and _on_train():
+		if page == "train" and id == train_car:
+			if nav_keys:
+				train_page.enter()  # (Enter or A on the car you're in: into it)
+		else:
+			_go_car(id, false)
+		return
 	_rail_focus = false
 	_rail_go(id, false)
+
+
+## On the train: to a car chosen on the rail. From the train the cars slide
+## along to it; from a page beside the rail, back to the train, on that car.
+## `stay`: the keys' focus stays on the rail (moving along it).
+func _go_car(id: String, stay: bool) -> void:
+	if page == "train":
+		train_page.go_to(train_page._index(id))
+		return
+	train_car = id
+	_rail_focus = stay or nav_keys
+	opened_direct = false
+	open("train")
 
 
 func _rail_go(id: String, preview: bool) -> void:
@@ -543,17 +573,16 @@ func _rail_go(id: String, preview: bool) -> void:
 		"archive":
 			open_archive()
 		"inventory":
-			if _on_train():
-				train_car = Train.HOME  # (your car: your chest and heirlooms)
-				open("train")
-			else:
-				open("inventory")
+			open("inventory")
 		"settings", "controls", "dev":
 			open(id)
 		"over":
-			_ask_new("pause" if page == "confirm_new" else (page if page in RAIL_ROOTS else "pause"))
+			var home := "train" if _on_train() else "pause"  # (Cancel comes back here)
+			_ask_new(home if page == "confirm_new" else (page if page in RAIL_ROOTS or page == "train" else home))
 		"exit":
 			exit_to_title()
+		"quit":
+			_quit_game()
 
 
 ## Keys and controller: onto the page's starting point (from the rail).
@@ -633,8 +662,8 @@ func open(which: String, direct := false) -> void:
 	center.visible = which != "train"
 	shade.visible = which != "title" and which != "train"
 	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else UI.SHADE.a)
-	if which == "pause" and was_closed:
-		on_rail = true  # (the pause menu starts on the rail, on Resume)
+	if (which == "pause" or which == "train") and was_closed:
+		on_rail = true  # (the pause menu starts on the rail, on Resume; the train on its rail, on your car)
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	elif compact():
