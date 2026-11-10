@@ -137,6 +137,7 @@ var touch
 var pad  # the game controller (pad.gd)
 var menu  # title, pause, settings and dev tool (menu.gd)
 var entity  # the Entity's bubble in play (guide.gd); main.tip("id") for a new system
+var arrange  # Arrange mode (arrange.gd): move and scale what's on screen; F2 or Dev tools
 var dev_no_death := false  # dev tool: you can't fall
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
@@ -249,6 +250,9 @@ func _ready() -> void:
 	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
 	preload("res://scripts/ui.gd").setup_fonts()  # (the interface's fonts: ui.gd)
+	# Where the HUD and the touch buttons sit (layout.gd): the shared defaults
+	# and this player's own arrangement, loaded once.
+	preload("res://scripts/layout.gd").ensure_loaded(Engine.has_meta("sixfold_test"))
 	audio = AudioScript.new()
 	add_child(audio)
 	_build_walls()
@@ -363,6 +367,13 @@ func _ready() -> void:
 	secret_tools = SecretToolsScript.new()
 	secret_tools.main = self
 	add_child(secret_tools)
+	# Arrange mode, over everything (the menu included).
+	var arrange_layer := CanvasLayer.new()
+	arrange_layer.layer = 20
+	add_child(arrange_layer)
+	arrange = preload("res://scripts/arrange.gd").new()
+	arrange.main = self
+	arrange_layer.add_child(arrange)
 	# A fresh start (not a restart or a new floor) opens on the title screen.
 	if not Engine.has_meta("sixfold_test") and Engine.has_meta("sixfold_climbers"):
 		# Back to the climber picker (after deleting the current climber).

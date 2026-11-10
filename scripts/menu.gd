@@ -2743,6 +2743,7 @@ func _page_confirm_new() -> void:
 
 func _page_dev() -> void:
 	_header("Dev tools", "For testing. Changes to marks are saved.", "Menu")
+	load("res://scripts/arrange.gd").dev_section(self)  # Arrange layout (move the HUD and the buttons yourself)
 
 	_section("Marks")
 	var p = main.player
