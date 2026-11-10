@@ -416,9 +416,8 @@ func _draw() -> void:
 	modulate.a = a
 	if _bubble == null:
 		_bubble = UI.entity_bubble()
-		# In play it's framed like the HUD: a hairline and small flourishes, in periwinkle.
-		_bubble.inner = Color(UI.PERIWINKLE, 0.16)
-		_bubble.corners = Color(UI.PERIWINKLE, 0.45)
+		# In play it's framed like the HUD: a periwinkle hairline inside its edge.
+		_bubble.inner = Color(UI.PERIWINKLE, 0.18)
 	draw_style_box(_bubble, r)
 	# The face, at the left, with a soft halo.
 	Entity.draw_face(self, r.position + Vector2(29, 32), 19.0, t)
