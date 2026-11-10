@@ -1228,7 +1228,7 @@ func _page_controls() -> void:
 			grid.add_child(l)
 	box.add_child(grid)
 	_gap(2)
-	_note(Controls.pad_text("Controller casts: hold {lb} and press {x} hand, {a} legs, {b} heart, {y} brow, {rb} throat or {rt} back. Aim with the right stick; let go of it and you aim at the nearest monster, or the way you move. Press {back} for the climber screen, hold it to restart. In menus and on the cards: d-pad or stick to choose, {a} to take, {b} to go back.", ps))
+	_note(Controls.pad_text("Controller casts: hold {lb} and press {x} hand, {a} legs, {b} heart, {y} brow, {rb} throat or {rt} back. Aim with the right stick; let go of it and you aim at the nearest monster, or the way you move. Press {back} for the climber screen, hold it to restart. In menus and on the cards: d-pad or stick to choose (hold to repeat), {a} to take, {b} to go back, the right stick to scroll. With the mouse, point to choose, click to take, right-click to go back.", ps))
 	_note("On a phone: the left side is a joystick, the buttons on the right attack, roll, parry, swap and cast; Item uses your item and the small arrow beside it picks the next; Take appears while you stand on gear. Hold a mark's button and slide to pick a spell. Climber, Bag and Menu sit at the top right.")
 	_footer()
 
