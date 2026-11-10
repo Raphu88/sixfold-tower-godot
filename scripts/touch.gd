@@ -327,10 +327,14 @@ func _draw() -> void:
 		return
 
 	if stick_touch != -1:
-		draw_circle(stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.3))
-		draw_arc(stick_origin, STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.25), 2.0, true)
+		# The stick: a dark well in a thin gilt ring, the knob a small bezel.
+		var sb := Draw.Batch.new()
+		UI.fan_into(sb, stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.12), Color(0, 0, 0, 0.36), 32)
+		UI.ring_into(sb, stick_origin, STICK_RADIUS, 1.5, Color(UI.GILT, 0.45))
+		UI.ring_into(sb, stick_origin, STICK_RADIUS - 4.0, 1.0, Color(UI.GILT, 0.14))
 		var knob := stick_origin + (stick_pos - stick_origin).limit_length(STICK_RADIUS)
-		draw_circle(knob, 28.0, Color(1, 1, 1, 0.35))
+		UI.button_into(sb, knob, 28.0, UI.GILT, true)
+		sb.flush(self)
 	else:
 		if main.gear_here.is_empty() and not (main.player != null and main.player.dead):  # (the gear card sits here while you stand on gear)
 			draw_string(font, Vector2(30, size.y - 30), "touch here to move", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.3))
@@ -343,10 +347,11 @@ func _draw() -> void:
 		var c: Vector2 = b["c"]
 		var r: float = b["r"]
 		var pressed: bool = b["id"] in down
-		var col := Color(1, 1, 1)
+		var col := UI.TEXT
 		var fill := 0.0
 		var label := ""
 		var ready := false  # a mark with enough essence to cast: its button lights up
+		var item_icon := ""
 		match b["id"]:
 			"attack":
 				label = p.Weapons.WEAPONS[p.weapon]["name"] if p != null else "Attack"
@@ -378,11 +383,11 @@ func _draw() -> void:
 				var id: String = p.selected_item() if p != null else ""
 				if id != "":
 					col = Items.color(id)
-					Items.draw_icon(self, id, c + Vector2(0, -5), r * 0.42)
+					item_icon = id  # (drawn over the button, below)
 					label = "%d" % p.item_count(id)
 				else:
 					label = "Item"
-					col = Color(1, 1, 1, 0.5)
+					col = Color(UI.TEXT, 0.5)
 			"item_next":
 				label = ">"
 			"fullscreen":
@@ -396,24 +401,18 @@ func _draw() -> void:
 			"tools":
 				label = "Tools"
 				col = main.secret_tools.SB.color(main.secret_tools.bond())
-		# A dark glassy disc with a coloured rim and a glint; a mark's button
-		# carries its emblem.
+		# A glassy disc in a dark bezel with a gilt ring and a gloss (ui.gd
+		# button_into): a mark's button carries its emblem and fills with
+		# essence, and glows in its colour once it can cast.
 		var bt := Draw.Batch.new()
-		if ready:
-			UI.glow_into(bt, c, r * 1.35, col, 0.9)
-		bt.dot(c, r + 1.6, Color(0, 0, 0, 0.3))
-		bt.dot(c, r, Color(0.035, 0.03, 0.05, 0.5 if not pressed else 0.68))
-		bt.arc(c, r - 1.2, 0.0, TAU, 40, Color(col, 0.95 if pressed or ready else 0.55), 3.5 if ready else 2.5)
-		bt.arc(c, r - 5.0, PI * 1.08, PI * 1.5, 10, Color(1, 1, 1, 0.13), 2.0)
+		UI.button_into(bt, c, r, col, pressed, ready, fill, r < 27.0)
 		var bond_aff := ""
 		if b.has("part") and p != null and p.bonds.has(b["part"]):
 			bond_aff = p.bonds[b["part"]].data()["affinity"]
-			UI.emblem_into(bt, c + Vector2(0, -r * 0.2), r * 0.34, bond_aff, Color(col, 0.85), 0.0)
+			UI.emblem_into(bt, c + Vector2(0, -r * 0.2), r * 0.34, bond_aff, Color(col, 0.9), 0.0)
 		bt.flush(self)
-		if fill > 0.0:
-			draw_arc(c, r - 4.0, -PI / 2.0, -PI / 2.0 + TAU * fill, 40, Color(col, 0.9), 4.0, true)
-		if pressed:
-			draw_circle(c, r - 3.0, Color(col, 0.18))
+		if item_icon != "":
+			Items.draw_icon(self, item_icon, c + Vector2(0, -5), r * 0.42)
 		var fsize := 15 if r > 30.0 else 12
 		if b["id"] == "climber" or b["id"] == "inventory":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))

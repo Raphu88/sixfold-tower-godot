@@ -853,67 +853,13 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 		c = Vector2(view.x * 0.4, view.y * 0.42)
 	c = Vector2(clampf(c.x, RING_R + 44.0, view.x - RING_R - 44.0), clampf(c.y, RING_R + 44.0, view.y - RING_R - 110.0))
 	var path: String = main.profile.path
-	var b := Draw.Batch.new()
-	b.dot(c, RING_R + 40.0, Color(0, 0, 0, 0.62))
-	b.arc(c, RING_R + 40.0, 0.0, TAU, 48, Color(col, 0.35), 1.5)
-	# A faint wireframe in the ring itself: spokes to each tool.
-	for i in list.size():
-		var a := -PI / 2.0 + TAU * float(i) / float(list.size())
-		b.line(c, c + Vector2.from_angle(a) * (RING_R - 26.0), Color(col, 0.18), 1.0)
-	b.arc(c, 12.0, 0.0, TAU, 16, Color(col, 0.5), 1.5)
-	var texts: Array = []
-	for i in list.size():
-		var id: String = list[i]
-		var info: Dictionary = SB.TOOLS[id]
-		var a := -PI / 2.0 + TAU * float(i) / float(list.size())
-		var at := c + Vector2.from_angle(a) * RING_R
-		var on: bool = i == ring_index
-		var here: bool = SB.usable_in_climb(id)
-		var r := 25.0 if on else 21.0
-		var cc := col if here else Color(0.55, 0.55, 0.6)
-		b.dot(at, r, Color(0.05, 0.04, 0.07, 0.94))
-		b.arc(at, r, 0.0, TAU, 28, Color(cc, 1.0 if on else 0.5), 3.0 if on else 1.5)
-		_tool_icon(b, id, at + Vector2(0, -6), 7.5 if on else 6.5, Color(cc.lightened(0.25), 0.95 if here else 0.6))
-		texts.append([at + Vector2(-34, 12), String(info["name"]), Color(cc.lightened(0.3), 1.0) if on else Color(0.8, 0.78, 0.84, 0.85 if here else 0.55), 9])
-		# Its cost as gems, under the disc.
-		if here:
-			var cost: Dictionary = info["cost"]
-			var free: bool = info.get("lasts", "") == "floor" and paid.has(id)
-			var gx := at + Vector2(0, r + 9.0)
-			if deep.used_up(id) != "":
-				texts.append([gx + Vector2(-34, 4), "used", Color(0.7, 0.7, 0.75, 0.85), 9])
-			elif free:
-				texts.append([gx + Vector2(-34, 4), "open", Color(col, 0.9), 9])
-			else:
-				var gems: Array = []
-				if float(cost.get("flow", 0.0)) > 0.0:
-					gems.append([SB.flow_color(cost, path), int(cost["flow"])])
-				if float(cost.get("essence", 0.0)) > 0.0:
-					gems.append([ESSENCE_GEM, int(cost["essence"])])
-				var x0 := gx.x - (gems.size() - 1) * 11.0
-				for g in gems.size():
-					var gp := Vector2(x0 + g * 22.0, gx.y)
-					UI.gem_into(b, gp + Vector2(-4, 0), 4.2, gems[g][0])
-					texts.append([gp + Vector2(1, 4), str(gems[g][1]), Color(0.95, 0.93, 0.88), 9, true])
-		else:
-			texts.append([at + Vector2(-34, r + 13.0), SB.TEXT["train_only"], Color(0.7, 0.7, 0.75, 0.8), 8])
-	b.flush(screen)
-	for t in texts:
-		if t.size() > 4:
-			screen.draw_string_outline(font, t[0], t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, t[3], 3, Color(0, 0, 0, 0.9))
-			screen.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, t[3], t[2])
-		else:
-			screen.draw_string_outline(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, 68, t[3], 3, Color(0, 0, 0, 0.9))
-			screen.draw_string(font, t[0], t[1], HORIZONTAL_ALIGNMENT_CENTER, 68, t[3], t[2])
+	_paint_ring(list, col, c, path, view)
 	# The highlighted tool: its name, what it does, its cost and what's missing.
 	var id2: String = list[clampi(ring_index, 0, list.size() - 1)]
 	var info2: Dictionary = SB.TOOLS[id2]
 	var y := c.y + RING_R + 58.0
 	var w := minf(360.0, view.x - 24.0)
 	var x := clampf(c.x - w * 0.5, 12.0, view.x - w - 12.0)
-	var title := "%s  ·  %s" % [SB.display(bond()).to_upper(), String(info2["name"])]
-	screen.draw_string_outline(font, Vector2(x, y), title, HORIZONTAL_ALIGNMENT_CENTER, w, 14, 4, Color(0, 0, 0, 0.85))
-	screen.draw_string(font, Vector2(x, y), title, HORIZONTAL_ALIGNMENT_CENTER, w, 14, col.lightened(0.25))
 	var line := String(info2["short"])
 	if SB.usable_in_climb(id2):
 		var free2: bool = info2.get("lasts", "") == "floor" and paid.has(id2)
@@ -928,8 +874,35 @@ func _draw_ring(font: Font, view: Vector2) -> void:
 			line += "\n" + SB.TEXT["no_target"]
 	else:
 		line += "  ·  " + SB.TEXT["train_only"]
-	screen.draw_multiline_string_outline(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 3, 4, Color(0, 0, 0, 0.85))
-	screen.draw_multiline_string(font, Vector2(x, y + 17.0), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 3, Color(0.92, 0.9, 0.86))
+	UI.draw_wheel_caption(screen, x + w * 0.5, y, w, String(info2["name"]), line, col, 12, 3)
+
+
+## The tool ring's look (ui.gd draw_wheel): each tool in a medallion with
+## its glyph and name, its cost as gems (or "open", "used", or "between
+## climbs" for one that can't be used in a climb).
+func _paint_ring(list: Array, col: Color, c: Vector2, path: String, view: Vector2) -> void:
+	var opts: Array = []
+	for id in list:
+		var info: Dictionary = SB.TOOLS[id]
+		var here: bool = SB.usable_in_climb(id)
+		var o := {"name": String(info["name"]), "col": col, "off": not here,
+			"icon": func(bt, at: Vector2, s: float, ic: Color): _tool_icon(bt, id, at, s * 0.82, ic)}
+		if not here:
+			o["note"] = SB.TEXT["train_only"]
+		elif deep.used_up(id) != "":
+			o["note"] = "used"
+		elif info.get("lasts", "") == "floor" and paid.has(id):
+			o["note"] = "open"
+		else:
+			var cost: Dictionary = info["cost"]
+			var gems: Array = []
+			if float(cost.get("flow", 0.0)) > 0.0:
+				gems.append([SB.flow_color(cost, path), int(cost["flow"])])
+			if float(cost.get("essence", 0.0)) > 0.0:
+				gems.append([ESSENCE_GEM, int(cost["essence"])])
+			o["gems"] = gems
+		opts.append(o)
+	UI.draw_wheel(screen, c, RING_R, opts, ring_index, col, view)
 
 
 ## A tool's small glyph: an eye (Inspect), a lever (Switch), a wave (Calm),
