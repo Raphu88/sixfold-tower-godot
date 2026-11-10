@@ -3394,7 +3394,7 @@ func _title_tests() -> void:
 	# Phones: a tap on a title button works (and switches to the phone layout).
 	await _tap_at(_menu_button("Settings").get_global_rect().get_center())
 	_check(menu.page == "settings" and menu.backdrop.visible, "tapping Settings on a phone opens it over the title")
-	_check(main.touch.active and is_equal_approx(root.content_scale_factor, 1.5), "...and the phone layout is on")
+	_check(main.touch.active and is_equal_approx(root.content_scale_factor, load("res://scripts/ui.gd").view_scale(str(menu.settings["ui_size"]), true)), "...and the phone layout is on")
 	menu.scroll.ensure_control_visible(_menu_button("Back"))  # (a long page scrolls to it, as a finger would)
 	await _frames(2)
 	await _tap_at(_menu_button("Back").get_global_rect().get_center())
@@ -7241,6 +7241,7 @@ func _run() -> void:
 	await _icon_tests()
 	await _painter_tests()
 	await _arrange_tests()
+	await _interface_size_tests()
 	await _abilities_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
@@ -7917,8 +7918,12 @@ func _screen_tests() -> void:
 	var ib: Dictionary = main.touch.buttons[ids.find("inventory")]
 	await _tap_at(ib["c"])
 	_check(menu.page == "inventory", "tapping Bag opens the inventory")
+	menu.scroll.ensure_control_visible(_slot("item:tonic"))  # (the page scrolls at the phone's Interface size)
+	await _frames(2)
 	await _tap_at(_slot("item:tonic").get_global_rect().get_center())
 	_check(menu.inv_sel == "item:tonic", "tapping a slot shows its details")
+	menu.scroll.scroll_vertical = 0  # (back up to Close)
+	await _frames(2)
 	await _tap_at(_menu_button("Close").get_global_rect().get_center())
 	await _frames(2)
 	_check(not main.menu_open(), "...and Close shuts the inventory")
@@ -8037,14 +8042,16 @@ func _mark_page_tests() -> void:
 	await _frames(3)
 	var tcard = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard and c.part == "hand")[0]
 	var box_rect: Rect2 = menu.scroll.get_global_rect()
-	_check(box_rect.has_point(tcard.get_global_rect().get_center()) and menu.scroll.get_v_scroll_bar().max_value <= menu.scroll.size.y + 2.0, "on a phone the Marks tab fits without scrolling")
+	menu.scroll.ensure_control_visible(tcard)  # (the cards scroll if the phone's Interface size leaves no room)
+	await _frames(2)
+	_check(box_rect.has_point(tcard.get_global_rect().get_center()), "on a phone the Marks tab shows its cards (scrolling if they don't fit)")
 	await _tap_at(tcard.get_global_rect().get_center())
 	_check(menu.page == "mark" and menu.mark_part == "hand", "tapping a mark's card opens its page")
 	await _tap_at(_menu_button("Back").get_global_rect().get_center())
 	_check(menu.page == "climber", "...and tapping Back returns to the cards")
 	menu.open("inventory", true)
 	await _frames(3)
-	_check(menu.scroll.get_v_scroll_bar().max_value <= menu.scroll.size.y + 2.0, "on a phone the inventory fits without scrolling (%d in %d)" % [menu.scroll.get_v_scroll_bar().max_value, menu.scroll.size.y])
+	_check(menu.box.get_combined_minimum_size().x <= menu.scroll.size.x + 1.0, "on a phone the inventory fits across, scrolling down if the Interface size leaves no room (%d in %d)" % [menu.box.get_combined_minimum_size().x, menu.scroll.size.x])
 	menu.close()
 	await _frames(2)
 	main.touch._set_active(false)
@@ -8869,16 +8876,16 @@ func _train_tests() -> void:
 	menu.train_car = "personal"
 	menu.open("train")
 	await _frames(3)
-	var small: Array = _all_buttons(view).filter(func(b): return b.is_visible_in_tree() and b.get_global_rect().size.y < 35.9)
-	_check(small.is_empty(), "on a phone every button on the train is at least 36 tall (54 px): %s" % [small.map(func(b): return b.text)])
+	var small: Array = _all_buttons(view).filter(func(b): return b.is_visible_in_tree() and b.get_global_rect().size.y * root.content_scale_factor < 53.9)
+	_check(small.is_empty(), "on a phone every button on the train is at least 54 px tall (36 at the old 1.5x): %s" % [small.map(func(b): return b.text)])
 	var sel0: String = menu.inv_sel
 	var mid: float = view.size.y * 0.5
 	# It fits a phone: the narrow rail, every car and page and its foot on
 	# screen, the cars in the rest, and everything in a car inside it.
 	var vis: Rect2 = menu.get_viewport_rect()
-	var off_rail: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < R.ROW_MIN[0] - 0.5)
+	var off_rail: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < rail.row_min() - 0.5)
 	_check(rail.narrow and off_rail.is_empty() and rail.buttons.size() == 1 + 6 + R.TRAIN_PAGES.size() + R.TRAIN_FOOT.size() + (1 if menu.can_quit() else 0), "on a phone (800 x 400) the narrow rail fits who you are, its six cars, Dev Tools and its foot: %s" % [off_rail.map(func(b): return b.id)])
-	_check(rail.size.x <= vis.size.x * 0.16 and absf(view.get_global_rect().position.x - rail.size.x) < 1.0, "...and the cars fill the rest (%.0f of %.0f)" % [rail.size.x, vis.size.x])
+	_check(rail.size.x <= vis.size.x * 0.18 and absf(view.get_global_rect().position.x - rail.size.x) < 1.0, "...and the cars fill the rest (%.0f of %.0f)" % [rail.size.x, vis.size.x])
 	var outside: Array = []
 	for car in ["engine", "store", "personal", "workshop", "library", "settings"]:
 		menu.train_page.go_to(menu.train_page._index(car))
@@ -9551,12 +9558,15 @@ func _appearance_tests() -> void:
 	main.touch._set_active(true)
 	await _frames(3)
 	var cl = page.rows["cloak"]
+	menu.scroll.ensure_control_visible(cl)  # (the page scrolls at the phone's Interface size)
+	await _frames(2)
 	var mid: Rect2 = cl._middle()
 	var n: int = A.OPTIONS["cloak"].size()
 	var ci: int = A.index_of("cloak", "crimson")
 	await _tap_at(cl.get_global_transform() * Vector2(mid.position.x + mid.size.x / n * (ci + 0.5), cl.size.y * 0.5))
 	_check(prof.appearance["cloak"] == "crimson" and main.climber_look["cloak"] == A.color_of("cloak", "crimson") and p.appearance_look["cloak"] == A.color_of("cloak", "crimson"), "a tap on a swatch picks it (a crimson cloak)")
 	var hood = page.rows["hood"]
+	menu.scroll.ensure_control_visible(hood)
 	await _frames(2)
 	await _tap_at(hood.get_global_transform() * Vector2(hood.size.x - 20.0, hood.size.y * 0.5))
 	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood down)")
@@ -11817,7 +11827,7 @@ func _rail_tests() -> void:
 	var fits := true
 	for b in rail.buttons:
 		fits = fits and vis.encloses(b.get_global_rect()) and b.size.y >= 36.0
-	_check(fits and rail.narrow and rail.size.x <= vis.size.x * 0.16, "on a phone the rail is narrow and every item fits on screen (%.0f of %.0f wide)" % [rail.size.x, vis.size.x])
+	_check(fits and rail.narrow and rail.size.x <= vis.size.x * 0.18, "on a phone the rail is narrow and every item fits on screen (%.0f of %.0f wide)" % [rail.size.x, vis.size.x])
 	for pg in ["climber", "inventory", "settings", "dev"]:
 		menu.open(pg)
 		await _frames(3)
@@ -13651,7 +13661,7 @@ func _arrange_tests() -> void:
 
 	# An arrangement moves an element, and its touch hit area goes with it.
 	L.set_override("touch.attack", {"anchor": "bl", "x": 120.0, "y": -40.0, "scale": 1.0})
-	var atk := _touch_btn("attack")
+	var atk: Dictionary = _touch_btn("attack")
 	var want := Vector2(120.0 + 46.5, tv.y - 40.0 - 46.5)
 	_check(_near(atk["c"], want) and absf(atk["r"] - 46.5) < 0.01, "an arranged attack button sits where it was put (%s)" % atk["c"])
 	await _frames(2)
@@ -14216,3 +14226,347 @@ func _data_find(meta: String, value) -> Control:
 		if c.has_meta(meta) and c.get_meta(meta) == value and not c.is_queued_for_deletion():
 			return c
 	return null
+
+
+# --- the Interface size ------------------------------------------------------------
+
+## The nearest ScrollContainer above a control (inside `top`), or null.
+func _scroll_above(c: Node, top: Node) -> ScrollContainer:
+	var p := c.get_parent()
+	while p != null and p != top.get_parent():
+		if p is ScrollContainer:
+			return p
+		p = p.get_parent()
+	return null
+
+
+## Where a tree of controls doesn't fit `view`: anything outside it that
+## isn't in a scroll (or a scroll itself outside it), anything wider than the
+## scroll it's in, and buttons over each other.
+func _fit_problems(where: String, top: Control, view: Rect2) -> Array:
+	var out: Array = []
+	var pressable: Array = []
+	for c in [top] + top.find_children("*", "Control", true, false):
+		if not c.is_visible_in_tree() or c.size.x < 1.0 or c.size.y < 1.0 or c.is_queued_for_deletion():
+			continue
+		var r: Rect2 = c.get_global_rect()
+		var sc := _scroll_above(c, top)
+		var vis := r
+		if sc != null:
+			var sr: Rect2 = sc.get_global_rect()
+			if r.position.x < sr.position.x - 1.0 or r.end.x > sr.end.x + 1.0:
+				out.append("%s: %s %s wider than its scroll (%.0f-%.0f in %.0f-%.0f)" % [where, c.get_class(), _what(c), r.position.x, r.end.x, sr.position.x, sr.end.x])
+			vis = r.intersection(sr)
+		elif not view.grow(1.0).encloses(r):
+			out.append("%s: %s %s off screen (%s in %s)" % [where, c.get_class(), _what(c), r, view])
+		if (c is BaseButton or c is LineEdit or c is HSlider or c is TextEdit) and vis.get_area() > 1.0:
+			pressable.append([c, vis])
+	for i in pressable.size():
+		for j in range(i + 1, pressable.size()):
+			var a: Control = pressable[i][0]
+			var b: Control = pressable[j][0]
+			if a.is_ancestor_of(b) or b.is_ancestor_of(a):
+				continue
+			var over: Rect2 = pressable[i][1].intersection(pressable[j][1])
+			if over.size.x > 1.0 and over.size.y > 1.0:
+				out.append("%s: %s and %s overlap" % [where, _what(a), _what(b)])
+	return out
+
+
+func _what(c: Control) -> String:
+	if c is Button and c.text != "":
+		return "'%s'" % c.text.left(24)
+	if c is Label and c.text != "":
+		return "'%s'" % c.text.left(24)
+	return String(c.name).left(24)
+
+
+## The touch buttons and the HUD's corner: on screen, apart.
+func _touch_problems(where: String) -> Array:
+	var out: Array = []
+	var L = load("res://scripts/layout.gd")
+	var t = main.touch
+	t._layout()
+	var view: Vector2 = t.get_viewport_rect().size
+	var px: float = load("res://scripts/ui.gd").device_px(root)
+	var hs: float = main.hud.hud_scale
+	var corner := ["hud.bars", "hud.gem", "hud.weapon", "hud.item", "hud.marks", "hud.essence"]
+	for i in t.buttons.size():
+		var b: Dictionary = t.buttons[i]
+		var r := Rect2(b["c"] - Vector2(b["r"], b["r"]), Vector2(b["r"], b["r"]) * 2.0)
+		if not Rect2(Vector2.ZERO, view).grow(0.5).encloses(r):
+			out.append("%s: touch %s off screen" % [where, b["id"]])
+		if b["hit"] * 2.0 * px < 44.0 - 0.01:
+			out.append("%s: touch %s hit area %.0f device px" % [where, b["id"], b["hit"] * 2.0 * px])
+		for j in range(i + 1, t.buttons.size()):
+			var o: Dictionary = t.buttons[j]
+			if b["c"].distance_to(o["c"]) < b["r"] + o["r"] - 0.5:
+				out.append("%s: touch %s and %s overlap" % [where, b["id"], o["id"]])
+		for id in corner:
+			var hb: Rect2 = L.box(id, view / hs)
+			hb = Rect2(hb.position * hs, hb.size * hs)
+			if hb.intersects(r.grow(-1.0)):
+				out.append("%s: touch %s over %s" % [where, b["id"], id])
+	for id in corner:
+		var hb: Rect2 = L.box(id, view / hs)
+		if not Rect2(Vector2.ZERO, view).grow(0.5).encloses(Rect2(hb.position * hs, hb.size * hs)):
+			out.append("%s: %s off screen" % [where, id])
+	return out
+
+
+func _interface_size_tests() -> void:
+	print("the Interface size and World zoom")
+	await _fresh_main()
+	var U = load("res://scripts/ui.gd")
+	var M = load("res://scripts/menu.gd")
+	var menu = main.menu
+	main.grant_test_bonds()
+	var prof = main.profile
+	var G = main.Gear
+	prof.add_bond("brow", "rune_artist", false)
+	for k in ["stone", "blade", "fire", "iron"]:
+		prof.add_crystal(k, 30)
+	prof.pack = [G.make("axe"), G.make("leather_gloves", "fine", ["edges"])]
+	prof.chest = [G.make("grip_wraps", "fine", ["riposte"])]
+	prof.supplies = {"draught": 1}
+	for e in main.enemies():
+		e.set_physics_process(false)
+	var was_size: Vector2i = root.size
+	var keep_ui: String = M.settings["ui_size"]
+	var keep_zoom: String = M.settings["world_zoom"]
+	# The setting: it scales the view, it saves, and a computer's Normal is as it was.
+	main.touch._set_active(false)
+	main.pad._set_active(false)
+	root.size = Vector2i(1280, 720)
+	menu._set_setting("ui_size", "normal")
+	await _frames(2)
+	_check(is_equal_approx(root.content_scale_factor, 1.0) and root.get_visible_rect().size == Vector2(1280, 720), "on a computer the Interface size Normal is the view as it was")
+	menu._set_setting("ui_size", "large")
+	await _frames(2)
+	_check(is_equal_approx(root.content_scale_factor, U.UI_SIZES["large"][0]) and root.get_visible_rect().size.y < 720.0 - 1.0, "...Large draws everything bigger")
+	main.touch._set_active(true)
+	await _frames(2)
+	_check(is_equal_approx(root.content_scale_factor, U.UI_SIZES["large"][1]), "...and a phone has its own, bigger scale")
+	menu._set_setting("ui_size", "normal")
+	await _frames(2)
+	_check(is_equal_approx(root.content_scale_factor, 1.25 * main.touch.PHONE_SCALE), "on a phone Normal is 1.25x the old phone size")
+	var path := "user://smoke_settings.cfg"
+	M.settings["ui_size"] = "larger"
+	M.save_settings_to(path)
+	M.settings["ui_size"] = "normal"
+	M.load_settings_from(path)
+	_check(M.settings["ui_size"] == "larger", "the Interface size saves with the settings and loads again")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var before := ConfigFile.new()
+	before.set_value("settings", "hud_scale", "large")
+	before.save(path)
+	M.settings["ui_size"] = "small"
+	M.load_settings_from(path)
+	_check(M.settings["ui_size"] == "small" and M.settings["hud_scale"] == "large", "(a save from before the setting has none: what's in use stays...)")
+	M.settings["ui_size"] = "normal"  # (a fresh launch)
+	M.load_settings_from(path)
+	_check(M.settings["ui_size"] == "normal", "...so a player from before starts on the new Normal")
+	before.set_value("settings", "ui_size", "huge")
+	before.save(path)
+	M.load_settings_from(path)
+	_check(M.settings["ui_size"] == "normal", "a broken Interface size goes back to Normal")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	menu._set_setting("ui_size", "normal")
+	# The setting's buttons, in Settings & Controls.
+	menu.settings_tab = "settings"
+	menu.open("settings")
+	await _frames(3)
+	var big: Array = _all_buttons(menu.box).filter(func(b): return b.get_meta("choice_key", "") == "ui_size" and b.get_meta("choice", "") == "large")
+	_check(big.size() == 1, "Settings & Controls has the Interface size")
+	if big.size() == 1:
+		big[0].pressed.emit()
+		await _frames(3)
+	_check(M.settings["ui_size"] == "large" and is_equal_approx(root.content_scale_factor, U.UI_SIZES["large"][1]) and menu.page == "settings", "...a press there changes it at once, the page rebuilt at the new size")
+	menu.close()
+	menu._set_setting("ui_size", "normal")
+	await _frames(2)
+	# World zoom: the camera, the interface's scale taken back out.
+	var z0: float = main.camera.zoom.x
+	menu._set_setting("world_zoom", "closest")
+	await _frames(2)
+	_check(main.camera.zoom.x > z0 * 1.3, "World zoom Closest brings the camera closer (%.2f -> %.2f)" % [z0, main.camera.zoom.x])
+	var world_px: float = main.camera.zoom.x * root.content_scale_factor
+	menu._set_setting("ui_size", "larger")
+	await _frames(2)
+	_check(is_equal_approx(main.camera.zoom.x * root.content_scale_factor, world_px), "...and a bigger Interface size leaves the world's size alone")
+	menu._set_setting("world_zoom", "normal")
+	menu._set_setting("ui_size", "small")
+	await _frames(2)
+	_check(is_equal_approx(main.camera.zoom.x * root.content_scale_factor, main.PHONE_CAMERA_ZOOM * U.PHONE_WORLD), "a phone's world is a little closer than it was")
+	menu._set_setting("ui_size", "normal")
+	# Readable text on a phone at Normal: body text and labels, in the
+	# device's own (CSS) pixels, on a phone 400 and 360 tall.
+	for sz in [Vector2i(800, 400), Vector2i(740, 360)]:
+		root.size = sz
+		await _frames(2)
+		var px: float = U.device_px(root)
+		_check(U.SIZE_BODY * px >= 13.5 and U.SIZE_SMALL * px >= 11.5 and U.SIZE_EYEBROW * px >= 11.5, "on a %dx%d phone at Normal, body text is %.1f px and the smallest labels %.1f px" % [sz.x, sz.y, U.SIZE_BODY * px, U.SIZE_SMALL * px])
+	_check(U.SIZE_BODY * U.device_px(root) > U.SIZE_BODY * (360.0 / 720.0) * main.touch.PHONE_SCALE * 1.2, "...bigger than the old phone size")
+	# The touch buttons: at Larger they keep their Normal size on the glass
+	# (their layout shrinks to fit the shorter view), tappable, their hit areas with them.
+	var L = load("res://scripts/layout.gd")
+	root.size = Vector2i(800, 400)
+	await _frames(2)
+	var atk_n: Dictionary = _touch_btn("attack")
+	var on_glass: float = atk_n["r"] * U.device_px(root)
+	menu._set_setting("ui_size", "larger")
+	await _frames(2)
+	var atk: Dictionary = _touch_btn("attack")
+	var tv: Vector2 = main.touch.get_viewport_rect().size
+	_check(absf(atk["r"] * U.device_px(root) - on_glass) < 0.5 and tv.y < L.TOUCH_FIT_H and absf(L.touch_fit("touch.attack", tv) - tv.y / L.TOUCH_FIT_H) < 0.001, "at Larger the touch buttons stay their Normal size on the phone (%.1f px)" % on_glass)
+	var small_hit: Array = main.touch.buttons.filter(func(b): return b["hit"] * 2.0 * U.device_px(root) < 44.0)
+	_check(small_hit.is_empty(), "...every one at least 44 px across to a finger: %s" % [small_hit.map(func(b): return b["id"])])
+	for e in main.enemies():
+		e.set_physics_process(false)
+	_touch(5, atk["c"], true)
+	await _frames(2)
+	_check(Input.is_action_pressed("attack"), "...and a tap on one presses it")
+	_touch(5, atk["c"], false)
+	await _frames(2)
+	# Arrange mode at a bigger size: a button moved stays anchored, and its
+	# hit area follows it.
+	var Lkeep := [L.user_path, L.project_path, L.write_project]
+	L.user_path = "user://smoke_layout.cfg"
+	L.project_path = "user://smoke_layout.json"
+	L.write_project = false
+	L.clear_state()
+	L.use_set("touch")
+	_check(main.arrange.can_open(), "Arrange mode opens at Larger")
+	main.arrange.open()
+	await _frames(2)
+	var want := Rect2(Vector2(40, tv.y - 120), atk["r"] * 2.0 * Vector2.ONE)
+	main.arrange._apply("touch.attack", want)
+	await _frames(2)
+	var tb: Dictionary = main.arrange.toolbar()
+	_check(Rect2(Vector2.ZERO, tv).encloses(tb["bar"]), "...its toolbar on screen")
+	main.arrange.close()
+	await _frames(2)
+	atk = _touch_btn("attack")
+	_check(_near(atk["c"], want.get_center(), 1.0) and absf(atk["r"] - want.size.x * 0.5) < 0.6, "...a button moved there stays where it was put (%s)" % atk["c"])
+	_touch(5, atk["c"], true)
+	await _frames(2)
+	_check(Input.is_action_pressed("attack"), "...and a tap there presses it")
+	_touch(5, atk["c"], false)
+	await _frames(2)
+	menu._set_setting("ui_size", "normal")
+	await _frames(2)
+	var at_n: Dictionary = _touch_btn("attack")
+	_check(at_n["c"].x < tv.x * 0.5 and Rect2(Vector2.ZERO, main.touch.get_viewport_rect().size).encloses(Rect2(at_n["c"] - Vector2.ONE * at_n["r"], Vector2.ONE * at_n["r"] * 2.0)), "...and back at Normal it's still bottom left, on screen")
+	L.clear_state()
+	L.user_path = Lkeep[0]
+	L.project_path = Lkeep[1]
+	L.write_project = Lkeep[2]
+	for f in ["user://smoke_layout.cfg", "user://smoke_layout.json"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	# Every page fits (or scrolls), at every size, on three phones.
+	var problems: Array = []
+	for sz in [Vector2i(800, 400), Vector2i(915, 412), Vector2i(740, 360)]:
+		root.size = sz
+		for ui in U.UI_SIZE_ORDER:
+			menu._set_setting("ui_size", ui)
+			main.touch._set_active(true)
+			await _frames(2)
+			var tag := "%s %dx%d" % [ui, sz.x, sz.y]
+			problems.append_array(await _pages_fit(tag))
+	_check(problems.is_empty(), "every page fits or scrolls at every Interface size, on 800x400, 915x412 and 740x360 (%d problems): %s" % [problems.size(), problems.slice(0, 12)])
+	for p in problems.slice(0, 200):
+		print("    ", p)
+	root.size = was_size
+	M.settings["ui_size"] = keep_ui
+	M.settings["world_zoom"] = keep_zoom
+	main.touch._set_active(false)
+	menu.apply_settings()
+	await _frames(2)
+
+
+## Opens every main page in turn and lists what doesn't fit.
+func _pages_fit(tag: String) -> Array:
+	var out: Array = []
+	var menu = main.menu
+	var view: Rect2 = root.get_visible_rect()
+	if menu.is_open():
+		menu.close()
+	main.on_train = false
+	await _frames(2)
+	out.append_array(_touch_problems(tag + " play"))
+	# The card screens (choosing a tower, a camp): on screen, apart, tall enough.
+	var vs: Vector2 = view.size
+	var keep_camp: Dictionary = main.camp
+	for which in ["towers", "camp"]:
+		var cards: Array = []
+		if which == "towers":
+			for i in main.Towers.ORDER.size():
+				cards.append(main.hud.tower_card_rect(i, vs))
+		else:
+			main.camp = {"choices": ["draught", "tonic", "salts", "gear:x"], "stage": "items"}
+			for i in 4:
+				cards.append(main.hud.camp_card_rect(i, vs))
+			main.camp = keep_camp
+		for i in cards.size():
+			if not Rect2(Vector2.ZERO, vs).encloses(cards[i]) or cards[i].size.y < 90.0:
+				out.append("%s %s card %d: %s on %s" % [tag, which, i, cards[i], vs])
+			for j in range(i + 1, cards.size()):
+				if cards[i].intersects(cards[j]):
+					out.append("%s %s cards %d and %d overlap" % [tag, which, i, j])
+	# Arrange mode's toolbar: on screen, its buttons inside it, their words readable.
+	var tb: Dictionary = main.arrange.toolbar()
+	if not Rect2(Vector2.ZERO, vs).encloses(tb["bar"]):
+		out.append("%s arrange toolbar off screen" % tag)
+	for b in tb["buttons"]:
+		var fs: int = load("res://scripts/ui.gd").fit_size(load("res://scripts/ui.gd").font("display"), b[2], 14, b[1].size.x - 8.0)
+		if not tb["bar"].encloses(b[1]) or fs < 12:
+			out.append("%s arrange button %s doesn't fit (%s, %d px words)" % [tag, b[0], b[1], fs])
+	var pages :=[["pause", ""], ["climber", "abilities"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"], ["mark", "hand"],
+		["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"], ["library", ""], ["settings", "settings"], ["settings", "controls"],
+		["dev", ""], ["data", ""], ["painter", ""], ["confirm_new", ""], ["climbers", ""], ["appearance", ""], ["techniques", ""]]
+	for pg in pages:
+		match pg[0]:
+			"climber":
+				menu.climber_tab = pg[1]
+			"inventory":
+				menu.inv_view = pg[1]
+			"settings":
+				menu.settings_tab = pg[1]
+		if pg[0] == "mark":
+			menu.open_mark(pg[1])
+		elif pg[0] == "appearance":
+			menu.open_appearance("climber")
+		else:
+			menu.open(pg[0])
+		await _frames(3)
+		var where := "%s %s %s" % [tag, pg[0], pg[1]]
+		if pg[0] == "painter":
+			out.append_array(_fit_problems(where, menu.painter, view))
+			continue
+		out.append_array(_fit_problems(where, menu.panel, view))
+		if menu.rail.visible:
+			out.append_array(_fit_problems(where + " rail", menu.rail, view))
+	menu.close()
+	await _frames(1)
+	# The train: every car, its rail.
+	main.await_tower()
+	main.open_train()
+	await _frames(3)
+	for car in ["engine", "store", "personal", "workshop", "library", "settings"]:
+		menu.train_car = car
+		menu.open("train")
+		await _frames(2)
+		menu.train_page.go_to(menu.train_page._index(car))
+		await _train_settled()
+		await _frames(2)
+		var vr: Rect2 = menu.train_view.get_global_rect()
+		var pane: Control = menu.train_page.car_scrolls[car]
+		out.append_array(_fit_problems("%s train %s" % [tag, car], pane, vr))
+		if pane.scale.x < menu.train_view.FIT_MIN - 0.01:
+			out.append("%s train %s: its things shrunk to %.2f (they should wrap and scroll)" % [tag, car, pane.scale.x])
+	out.append_array(_fit_problems(tag + " train rail", menu.rail, view))
+	menu.close()
+	main.on_train = false
+	await _frames(1)
+	return out

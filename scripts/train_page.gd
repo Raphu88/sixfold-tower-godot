@@ -56,6 +56,8 @@ var view  # the drawn train (m.train_view)
 var roots := {}  # car -> its things (a VBoxContainer in its room)
 var cards := {}  # car -> its placard's contents (m.details while you're in that car)
 var card_scrolls := {}  # car -> the placard's ScrollContainer
+var car_scrolls := {}  # car -> the pane its things stand in (it scrolls on a short screen)
+var pane_at := {}  # car -> how far its pane was scrolled (kept when the cars are built again)
 var was_open := false  # (set by menu.gd: the train was already showing, so a new car slides into view)
 # A swipe or drag along the train.
 var drag_axis := ""  # "" undecided, "x" moving the train, "y" scrolling a card
@@ -96,6 +98,12 @@ func _small() -> bool:
 	return m.compact()
 
 
+## How wide a car's area is (its things go in it: train_view.gd Room).
+func _area_w() -> float:
+	var r = view.rooms.get(m.train_car) if view != null else null
+	return r.area.size.x if r != null and r.area.size.x > 0.0 else 1e9
+
+
 func _cell() -> float:
 	return 50.0 if _small() else 56.0
 
@@ -119,8 +127,14 @@ func build() -> void:
 	if not Towers.TOWERS.has(m.train_tower):
 		m.train_tower = prof.last_tower if Towers.TOWERS.has(prof.last_tower) else Towers.ORDER[0]
 	m.train_sel[cur] = m.inv_sel
+	if not was_open:
+		pane_at.clear()  # (the train just opened: every car from its top)
+	for c in car_scrolls:
+		if was_open and is_instance_valid(car_scrolls[c]):
+			pane_at[c] = car_scrolls[c].scroll_vertical
 	view.clear_content()
 	roots.clear()
+	car_scrolls.clear()
 	cards.clear()
 	card_scrolls.clear()
 	var toast: String = m.toast
@@ -137,8 +151,22 @@ func build() -> void:
 		var root := VBoxContainer.new()
 		root.add_theme_constant_override("separation", 6 if _small() else 10)
 		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		view.rooms[c].area.add_child(root)
+		root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		# The car's things, in a pane that scrolls up and down if a short
+		# screen (a big Interface size) can't hold them (train_view.gd fit).
+		var pane := ScrollContainer.new()
+		pane.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		_brass_bar(pane)  # (a thin brass bar shows there's more below)
+		pane.follow_focus = true
+		pane.focus_mode = Control.FOCUS_NONE
+		pane.mouse_filter = Control.MOUSE_FILTER_PASS
+		pane.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+		pane.set_meta("car_pane", c)
+		view.rooms[c].area.add_child(pane)
+		pane.add_child(root)
 		roots[c] = root
+		car_scrolls[c] = pane
 		_speech(root, c, here)
 		match c:
 			"engine":
@@ -429,6 +457,24 @@ func _fit_card(car: String) -> void:
 func fit_cards() -> void:
 	for c in card_scrolls:
 		_fit_card(c)
+	# (a car rebuilt after a choice keeps where its pane was scrolled to)
+	for c in pane_at:
+		var pane: ScrollContainer = car_scrolls.get(c)
+		if pane != null and is_instance_valid(pane):
+			pane.scroll_vertical = pane_at[c]
+
+
+## A choice in a car whose things wrap past the screen (a big Interface
+## size): its placard scrolls into view, so what it says (and its buttons)
+## can be read and pressed.
+func reveal_card() -> void:
+	var pane: ScrollContainer = car_scrolls.get(m.train_car)
+	var sc: ScrollContainer = card_scrolls.get(m.train_car)
+	if pane == null or sc == null or not is_instance_valid(pane) or not is_instance_valid(sc) or not _can_scroll(pane):
+		return
+	var plac: Control = sc.get_parent() if sc.get_parent() is Control else sc
+	pane.ensure_control_visible(plac)
+	pane_at[m.train_car] = pane.scroll_vertical
 
 
 func _card_scroll(parent: Node) -> ScrollContainer:
@@ -438,13 +484,18 @@ func _card_scroll(parent: Node) -> ScrollContainer:
 	sc.focus_mode = Control.FOCUS_NONE
 	sc.custom_minimum_size.y = 80.0
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_brass_bar(sc)
+	parent.add_child(sc)
+	card_scrolls[m.train_car] = sc
+	return sc
+
+
+## A scroll's bar in brass (a placard's, a car's pane).
+static func _brass_bar(sc: ScrollContainer) -> void:
 	var bar := sc.get_v_scroll_bar()
 	bar.add_theme_stylebox_override("scroll", UI.box(Color(0, 0, 0, 0.3), Color(0, 0, 0, 0), 3))
 	for st in ["grabber", "grabber_highlight", "grabber_pressed"]:
 		bar.add_theme_stylebox_override(st, UI.box(Color(UI.TRAIN_BRASS, 0.75 if st == "grabber" else 1.0), Color(0, 0, 0, 0), 3))
-	parent.add_child(sc)
-	card_scrolls[m.train_car] = sc
-	return sc
 
 
 ## A slot for a piece of gear (or an empty space) in a grid.
@@ -1107,6 +1158,8 @@ func _drag_begin(at: Vector2) -> void:
 
 
 func _drag_move(at: Vector2, rel: Vector2) -> void:
+	if drag_rail and drag_moved >= SWIPE and m.rail.pane != null and rel != Vector2.ZERO:
+		m.rail.pane.scroll_vertical -= int(rel.y)  # (a rail too tall for a short screen scrolls)
 	if drag_rail or touch_slider != null:
 		return  # (a finger on the rail: a tap there, never a swipe of the train; on a slider: the slider)
 	var d := at - drag_from
@@ -1212,9 +1265,15 @@ func _scroll_of(n: Node) -> ScrollContainer:
 	return null
 
 
-## The card under a point (it scrolls when the finger or wheel moves up and down).
+## The card under a point (it scrolls when the finger or wheel moves up and
+## down), or else the car's own pane if it has more than fits (a short screen).
 func _scroll_at(pos: Vector2) -> ScrollContainer:
 	var sc: ScrollContainer = card_scrolls.get(m.train_car)
+	if sc != null and is_instance_valid(sc) and sc.get_global_rect().has_point(pos) and _can_scroll(sc):
+		return sc
+	var pane: ScrollContainer = car_scrolls.get(m.train_car)
+	if pane != null and is_instance_valid(pane) and pane.get_global_rect().has_point(pos) and _can_scroll(pane):
+		return pane
 	if sc != null and is_instance_valid(sc) and sc.get_global_rect().has_point(pos):
 		return sc
 	return null
@@ -1347,7 +1406,7 @@ func _settings_car(root: Node) -> void:
 		root.add_child(Entity.says(m.toast, 30.0 if small else 40.0))
 	var row := _main_row(root)
 	var panel := TrainView.Furnish.new("signal", small)
-	panel.custom_minimum_size.x = 470.0 if small else 600.0
+	panel.custom_minimum_size.x = minf(470.0 if small else 600.0, _area_w() - 12.0)  # (a narrow screen: as wide as the car)
 	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(panel)
 	var pv := VBoxContainer.new()

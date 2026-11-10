@@ -47,6 +47,13 @@ const RoomStore := preload("res://scripts/room_store.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
+const UI := preload("res://scripts/ui.gd")
+## The camera's zoom (world px to view px) at World zoom Normal: on a
+## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
+## The view's own scale (the Interface size) is taken back out, so the
+## world keeps its size whatever the interface's (see camera_zoom).
+const CAMERA_ZOOM := 1.35
+const PHONE_CAMERA_ZOOM := 1.5 * 1.1
 ## The stair opens once this share of a floor's monsters are down.
 const STAIR_OPENS_AT := 0.75
 
@@ -344,7 +351,7 @@ func _ready() -> void:
 
 	# The camera follows the climber, zoomed in, but never past the walls.
 	camera = Camera2D.new()
-	camera.zoom = Vector2(1.35, 1.35)
+	camera.zoom = Vector2.ONE * camera_zoom()
 	camera.position = player.position
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 6.0
@@ -758,9 +765,7 @@ func _process(delta: float) -> void:
 		_update_springs(delta)
 	if player != null:
 		camera.position = cam_prev.lerp(cam_curr, Engine.get_physics_interpolation_fraction())
-	# On phones the whole game is already drawn bigger, so pull the camera back.
-	var want := 1.1 if touch_active else 1.35
-	camera.zoom = Vector2(want, want)
+	camera.zoom = Vector2.ONE * camera_zoom()
 	# A new shake offset at most 60 times a second, so a 120 Hz screen shakes
 	# like a 60 Hz one instead of buzzing.
 	var now_ms := Time.get_ticks_msec()
@@ -2736,6 +2741,23 @@ func set_appearance(app: Dictionary) -> void:
 
 
 ## Tests: start with two marks instead of a bondless first climb.
+## The camera's zoom: the World zoom setting (closer on a phone), less the
+## Interface size's scale (that already draws the view bigger).
+func camera_zoom() -> float:
+	var world := float(UI.WORLD_ZOOMS.get(str(MenuScript.settings.get("world_zoom", "normal")), 1.0))
+	var want := PHONE_CAMERA_ZOOM * UI.PHONE_WORLD * world if touch_active else CAMERA_ZOOM * world
+	return want / maxf(get_tree().root.content_scale_factor, 0.01)
+
+
+## How big the interface is drawn: the Interface size setting, bigger on a
+## phone (ui.gd UI_SIZES). The root's content scale factor scales every view
+## px; the camera takes it back out of the world (camera_zoom).
+func apply_view_scale() -> void:
+	if not is_inside_tree():
+		return
+	get_tree().root.content_scale_factor = UI.view_scale(str(MenuScript.settings.get("ui_size", "normal")), touch_active)
+
+
 func grant_test_bonds() -> void:
 	profile.add_bond("hand", "stormcaller", false)
 	profile.add_bond("legs", "windwalker", false)

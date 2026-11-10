@@ -94,8 +94,14 @@ const TEXT := {
 ## Widths: a computer, and a phone (drawn 1.5x, so in its own units).
 const WIDE := 236.0
 const NARROW := 132.0
-## On the train, the smallest the cars' rows get: [phone, computer]...
+## On the train, the smallest the cars' rows get: [phone, computer] (a
+## phone's at the old 1.5x scale: a bigger Interface size lets them go
+## shorter in view px, as they're as tall on the glass, down to ROW_FLOOR;
+## see row_min)...
 const ROW_MIN := [30.0, 36.0]
+const ROW_FLOOR := 24.0
+## Below this view height the column packs tighter (and scrolls if it must).
+const SHORT_H := 340.0
 ## ...and the tallest; the train on end: its cars.
 const ROW_MAX := [38.0, 46.0]
 const END_MAX := [52.0, 66.0]
@@ -110,6 +116,7 @@ var on_train := false
 var on_end := false  # the train's rail drawn as the train standing on end
 var ident: RailIdent
 var list: VBoxContainer
+var pane: ScrollContainer  # holds the column; scrolls on a short screen
 var foot_box: VBoxContainer
 var hint: Label
 var _built_for := ""  # what the items were built for (train / climb, wide / narrow, touch, look)
@@ -136,7 +143,7 @@ func _look() -> String:
 
 ## Builds (or refreshes) the rail for the page showing.
 func refresh(page_item: String, train: bool, compact: bool, touch: bool, pad: bool, ps: bool) -> void:
-	var key := "%s %s %s %s" % [train, compact, touch, _look()]
+	var key := "%s %s %s %s %s" % [train, compact, touch, _look(), _short()]
 	on_train = train
 	narrow = compact
 	on_end = train and _look() == "end"
@@ -168,26 +175,38 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 		remove_child(c)
 		c.queue_free()
 	buttons.clear()
-	var col := VBoxContainer.new()
-	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The column of items, in a pane that scrolls if a short screen (a big
+	# Interface size) can't hold them all; a drag on the rail scrolls it.
+	pane = ScrollContainer.new()
+	pane.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pane.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	pane.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	pane.follow_focus = true
+	pane.mouse_filter = Control.MOUSE_FILTER_PASS
 	var side := 8.0 if narrow else 14.0
-	col.offset_left = side
-	col.offset_right = -side - 3.0
-	col.offset_top = 8.0 if narrow else 20.0
-	col.offset_bottom = -(6.0 if narrow else 14.0)
+	pane.offset_left = side
+	pane.offset_right = -side - 3.0
+	pane.offset_top = 8.0 if narrow else 20.0
+	pane.offset_bottom = -(6.0 if narrow else 14.0)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 4 if narrow else 10)
 	if on_train:
 		# (six cars as well as the pages: everything packs a little closer)
-		col.offset_top = 6.0 if narrow else 16.0
-		col.offset_bottom = -(4.0 if narrow else 10.0)
+		pane.offset_top = 6.0 if narrow else 16.0
+		pane.offset_bottom = -(4.0 if narrow else 10.0)
 		col.add_theme_constant_override("separation", 2 if narrow else 6)
 	if on_end:
 		# The train on end: a track down the left edge, the cars on it.
-		col.offset_left = 4.0 if narrow else 8.0
-		col.offset_right = -(5.0 if narrow else 9.0)
-		col.offset_top = 4.0 if narrow else 10.0
+		pane.offset_left = 4.0 if narrow else 8.0
+		pane.offset_right = -(5.0 if narrow else 9.0)
+		pane.offset_top = 4.0 if narrow else 10.0
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(col)
+	add_child(pane)
+	pane.add_child(col)
+	if _short():
+		col.add_theme_constant_override("separation", 1)
 	# Who you are: a button for the climber screen, the first stop.
 	ident = RailIdent.new()
 	ident.rail = self
@@ -291,6 +310,7 @@ func _fit_rows() -> void:
 		return
 	var k := 1 if not narrow else 0
 	var want: float = END_MAX[k] if on_end else ROW_MAX[k]
+	var lo := row_min()
 	var h := size.y if size.y > 0.0 else get_viewport_rect().size.y
 	var col: Control = list.get_parent()
 	var fixed := 0.0  # everything but the rows, at their smallest
@@ -298,19 +318,32 @@ func _fit_rows() -> void:
 		if c != list:
 			fixed += c.get_combined_minimum_size().y
 	fixed += col.get_theme_constant("separation") * (col.get_child_count() - 1)
-	fixed += col.offset_top - col.offset_bottom
+	fixed += pane.offset_top - pane.offset_bottom
 	for c in list.get_children():
 		if not rows.has(c):
 			fixed += c.get_combined_minimum_size().y
 	fixed += list.get_theme_constant("separation") * (list.get_child_count() - 1)
 	# (the train on end: the engine stands half as tall again as a car)
 	var share := rows.size() + (ENGINE_EXTRA if on_end else 0.0)
-	var each := clampf(floorf((h - fixed) / share), ROW_MIN[k], want)
+	var each := clampf(floorf((h - fixed) / share), lo, maxf(want, lo))
 	for b in rows:
 		var want_h := floorf(each * (1.0 + ENGINE_EXTRA)) if on_end and b.id == "engine" else each
 		if b.custom_minimum_size.y != want_h:
 			b.custom_minimum_size.y = want_h
 	queue_redraw()
+
+
+## The shortest a car's row gets on this screen (see ROW_MIN).
+func row_min() -> float:
+	if not narrow:
+		return ROW_MIN[1]
+	var csf := get_tree().root.content_scale_factor if is_inside_tree() else 1.5
+	return maxf(ROW_FLOOR, ROW_MIN[0] * 1.5 / maxf(csf, 1.5))
+
+
+## A short screen (a phone at a big Interface size): the column packs tighter.
+func _short() -> bool:
+	return is_inside_tree() and get_viewport_rect().size.y < SHORT_H
 
 
 func _notification(what: int) -> void:

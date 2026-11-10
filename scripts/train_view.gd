@@ -31,6 +31,10 @@ const Towers := preload("res://scripts/towers.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Train := preload("res://scripts/train.gd")
+const Reflow := preload("res://scripts/reflow.gd")
+## The least a car's things shrink to fit its width; past that they wrap (Room.fit).
+const FIT_MIN := 0.9
+const PANE_TOP := 14.0  # (a car's pane that scrolls: room at its top, see Room.fit)
 
 ## Below this screen height (a phone) the margins tighten (menu.gd COMPACT_H).
 const COMPACT_H := 600.0
@@ -306,13 +310,30 @@ class Room extends Control:
 	func _draw() -> void:
 		view.paint_room(self)
 
-	## Shrinks the car's things to fit its area if they're too big (a narrow screen).
+	## Fits the car's things to its area: a little too wide, they shrink a
+	## little (to FIT_MIN); wider than that (a phone at a big Interface
+	## size), their rows wrap instead (reflow.gd), so they keep their size;
+	## too tall, their pane scrolls (train_page.gd).
 	func fit() -> void:
 		for c in area.get_children():
 			if not (c is Control) or c.is_queued_for_deletion():
 				continue
-			var need: Vector2 = c.get_combined_minimum_size()
-			var k := minf(1.0, minf(area.size.x / maxf(need.x, 1.0), area.size.y / maxf(need.y, 1.0)))
+			var inner: Control = c.get_child(0) if c is ScrollContainer and c.get_child_count() > 0 else c
+			var need: Vector2 = inner.get_combined_minimum_size()
+			var k := minf(1.0, area.size.x / maxf(need.x, 1.0))
+			if k < FIT_MIN and Reflow.fit(inner, area.size.x, area.size.y):
+				need = inner.get_combined_minimum_size()
+			k = minf(1.0, area.size.x / maxf(c.get_combined_minimum_size().x, 1.0))  # (the pane's bar too)
+			if c == inner:
+				k = minf(k, area.size.y / maxf(need.y, 1.0))
+			if c != inner:
+				# Only a pane that scrolls clips its things (and keeps a little
+				# room at its top for what hangs over them: straps, a tool rack).
+				var scrolls := need.y > area.size.y / k + 1.0
+				c.clip_contents = scrolls
+				var sb := StyleBoxEmpty.new()
+				sb.content_margin_top = PANE_TOP if scrolls else 0.0
+				c.add_theme_stylebox_override("panel", sb)
 			c.scale = Vector2(k, k)
 			c.position = Vector2.ZERO
 			c.size = area.size / k

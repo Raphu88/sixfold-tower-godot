@@ -15,8 +15,9 @@ extends RefCounted
 ## nothing moves at all. Answers are cached (per element, for the screen size
 ## and the arrangement's version), so asking every frame costs a lookup.
 ##
-## Two layout sets: "desktop" (a computer) and "touch" (a phone, drawn 1.5x),
-## each with its own overrides; the touch buttons only exist in "touch".
+## Two layout sets: "desktop" (a computer) and "touch" (a phone, drawn
+## bigger: ui.gd UI_SIZES), each with its own overrides; the touch buttons
+## only exist in "touch".
 ##
 ## Where arrangements live (both in the same format, see to_json):
 ##   res://data/layout.json  the shared defaults, committed to the repository
@@ -50,8 +51,14 @@ const SET_NAMES := {"desktop": "computer", "touch": "phone"}
 const FORMAT := 1
 
 ## Touch buttons stay tappable: at least 44 px across on the phone, which
-## draws everything 1.5x (touch.gd PHONE_SCALE).
+## draws everything at least 1.5x (the Interface size Small: ui.gd UI_SIZES).
+## (In the buttons' own units: see TOUCH_FIT_H.)
 const MIN_TOUCH := 44.0 / 1.5
+## The touch buttons were laid out for a phone view this tall (in view px)
+## or taller. A bigger Interface size makes the view shorter in view px; the
+## buttons and their arrangement then shrink with it to fit (touch_fit), so
+## at Large and Larger they stay the size they are at Normal on the phone.
+const TOUCH_FIT_H := 384.0
 ## Scales an arrangement may use.
 const MIN_SCALE := 0.4
 const MAX_SCALE := 3.0
@@ -246,6 +253,15 @@ static func moved(id: String) -> bool:
 	return _over[active_set].has(id)
 
 
+## How much a touch button's layout shrinks to fit a short view (see
+## TOUCH_FIT_H): its default box, its arrangement and its smallest size are
+## all measured on the view divided by this, then scaled by it.
+static func touch_fit(id: String, screen: Vector2) -> float:
+	if active_set != "touch" or not is_button(id) or screen.y <= 0.0:
+		return 1.0
+	return minf(1.0, screen.y / TOUCH_FIT_H)
+
+
 static func _entry(id: String, screen: Vector2) -> Array:
 	var e = _cache.get(id)
 	if e != null and e[0] == version and e[2] == screen and e[1] == active_set:
@@ -264,21 +280,25 @@ static func _entry(id: String, screen: Vector2) -> Array:
 		e[5] = Transform2D.IDENTITY
 		return e
 	var dd: Dictionary = d[active_set]
-	var base: Vector2 = dd["size"] + screen * dd["fill"]
-	var def_box := Rect2(screen * dd["anchor"] + dd["pos"] - base * dd["pivot"], base)
-	e[3] = def_box
+	# (a touch button on a short view: laid out on the view / k, then scaled by k)
+	var k := touch_fit(id, screen)
+	var sc := screen / k
+	var base: Vector2 = dd["size"] + sc * dd["fill"]
+	var def_box := Rect2(sc * dd["anchor"] + dd["pos"] - base * dd["pivot"], base)
+	e[3] = Rect2(def_box.position * k, def_box.size * k)
 	var ov = _over[active_set].get(id)
 	if ov == null:
-		e[4] = def_box
+		e[4] = e[3]
 		e[5] = Transform2D.IDENTITY
 		return e
 	var a: Vector2 = ANCHORS.get(String(ov.get("anchor", "tl")), Vector2.ZERO)
 	var s := clampf(float(ov.get("scale", 1.0)), min_scale(id, screen), MAX_SCALE)
 	var size := base * s
-	var r := Rect2(screen * a + Vector2(float(ov.get("x", 0.0)), float(ov.get("y", 0.0))) - size * a, size)
-	r = _keep_on(r, screen, bool(d["button"]))
+	var r := Rect2(sc * a + Vector2(float(ov.get("x", 0.0)), float(ov.get("y", 0.0))) - size * a, size)
+	r = _keep_on(r, sc, bool(d["button"]))
+	r = Rect2(r.position * k, r.size * k)
 	e[4] = r
-	e[5] = Transform2D(0.0, Vector2(s, s), 0.0, r.position - def_box.position * s)
+	e[5] = Transform2D(0.0, Vector2(s, s), 0.0, r.position - e[3].position * s)
 	return e
 
 
@@ -288,7 +308,7 @@ static func min_scale(id: String, screen: Vector2) -> float:
 	if d.is_empty():
 		return MIN_SCALE
 	var dd: Dictionary = d[active_set]
-	var base: Vector2 = dd["size"] + screen * dd["fill"]
+	var base: Vector2 = dd["size"] + screen / touch_fit(id, screen) * dd["fill"]
 	var lo := MIN_SCALE
 	if bool(d["button"]) and base.x > 0.0:
 		lo = maxf(lo, MIN_TOUCH / base.x)
@@ -313,6 +333,10 @@ static func move_to(id: String, r: Rect2, screen: Vector2) -> void:
 	if d.is_empty():
 		return
 	var dd: Dictionary = d[active_set]
+	# (a touch button on a short view: back into its own units, see touch_fit)
+	var k := touch_fit(id, screen)
+	r = Rect2(r.position / k, r.size / k)
+	screen = screen / k
 	var base: Vector2 = dd["size"] + screen * dd["fill"]
 	var s := r.size.x / base.x if base.x > 0.0 else (r.size.y / base.y if base.y > 0.0 else 1.0)
 	s = clampf(s, min_scale(id, screen), MAX_SCALE)
