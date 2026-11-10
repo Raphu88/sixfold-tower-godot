@@ -3441,6 +3441,7 @@ func _make_theme() -> Theme:
 ## in hand (or the quick item) is gilded; empty slots are dim; planned ones
 ## are locked.
 class Slot extends Button:
+	const Art := preload("res://scripts/icon_art.gd")
 	const Gear := preload("res://scripts/gear.gd")
 	const Essence := preload("res://scripts/essence.gd")
 	const Items := preload("res://scripts/items.gd")
@@ -3493,16 +3494,18 @@ class Slot extends Button:
 		var label := UI.font("display")
 		var c := size / 2.0
 		var s := size.x * 0.33
-		# A soft inner light behind what's in the slot, in its colour.
-		if not empty and not locked:
+		# Gear better than Common glows in its rarity's colour (the icon draws
+		# the glow) and has a faint edge of it; anything else gets a soft
+		# inner light in its own colour.
+		var fancy: bool = rec != null and kind in ["gear", "heir", "floor"] and Gear.rarity(rec) != "common"
+		if not empty and not locked and not fancy:
 			var b := UI.Draw.Batch.new()
-			UI.glow_into(b, c, size.x * 0.46, tint if kind != "item" else Items.color(id), 0.7 if on else 0.45)
+			Art.soft(b, c, size.x * 0.5, Color(tint if kind != "item" else Items.color(id), 0.26 if on else 0.17))
 			b.flush(self)
 		if picked:
 			draw_rect(Rect2(Vector2(4, size.y - 4), Vector2(size.x - 8, 2)), Color(UI.GOLD, 0.85))
-		# Gear better than Common: edged in its rarity's colour.
-		if rec != null and kind in ["gear", "heir", "floor"] and Gear.rarity(rec) != "common":
-			draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(Gear.rarity_color(rec), 0.8), false, 1.5)
+		if fancy:
+			draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(Gear.rarity_color(rec), 0.45), false, 1.0)
 		if locked:
 			UI.draw_lock(self, c + (Vector2(0, -5) if slot_name != "" else Vector2.ZERO), s * 0.7, Color(UI.FAINT, 0.8))
 			if slot_name != "":
@@ -3551,7 +3554,11 @@ class Slot extends Button:
 		if corner != "":
 			draw_string(font, Vector2(5, 13), corner.get_slice(" ", 0), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD if on else UI.DIM)
 		if on and kind == "item":
-			draw_string(label, Vector2(5, size.y - 5.0), "Quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UI.GOLD)
+			# The quick item: a small gilt-edged tag in the bottom left.
+			var qw := label.get_string_size("Quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 8.0
+			var qr := Rect2(Vector2(3, size.y - 15.0), Vector2(qw, 12.0))
+			draw_style_box(UI.box(Color(UI.VOID, 0.85), Color(UI.GILT, 0.7), 3), qr)
+			draw_string(label, Vector2(qr.position.x + 4.0, qr.end.y - 2.5), "Quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GILT_HI)
 		if kind == "floor":
 			draw_string(label, Vector2(5, 14), "New", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD)
 		if price > 0:

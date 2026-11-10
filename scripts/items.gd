@@ -388,14 +388,13 @@ static func _heal_over_time(p, data: Dictionary, steady: bool) -> void:
 
 
 # --- drawing -----------------------------------------------------------------------
-# Icons follow draw_util.gd's style guide (filled, outlined, lit from the
-# top-left, one Batch each, no wide lines), so they also work lying on the
-# floor under torchlight (fx.gd).
+# Icons follow icon_art.gd's style (slim shapes, smooth shading lit from the
+# top-left, a light violet ink outline, shared materials). They use only
+# filled shapes, so they also work lying on the floor under torchlight
+# (fx.gd), and each is built once per size and copied after that.
 
 const Draw := preload("res://scripts/draw_util.gd")
-const Palette := preload("res://scripts/palette.gd")
-const _CORK := Color(0.6, 0.43, 0.27)
-const _GLASS := Color(0.62, 0.66, 0.74)
+const Art := preload("res://scripts/icon_art.gd")
 
 
 ## An item's icon, drawn in code, centred on `c` (about 2*s across).
@@ -410,192 +409,226 @@ static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, alpha :=
 
 
 static func icon_into(b, id: String, c: Vector2, s: float) -> void:
+	if id == "vessel":
+		load("res://scripts/vessel.gd").belt_into(b, c, s)  # (filled as the belt's vessel is)
+		return
+	s = Art.size_step(s)
+	Art.cached(b, "item|%s|%.2f" % [id, s], c, func(nb): _item_art(nb, id, s))
+
+
+## An item's icon around (0, 0): the art itself.
+static func _item_art(b, id: String, s: float) -> void:
 	var col := color(id)
-	var u := s / 10.0
-	var ol := clampf(u * 1.1, 0.8, 1.6)
+	var c := Vector2.ZERO
+	var u := Art.unit(s)
+	var lod := Art.detail(s)
 	match id:
-		"vessel":
-			load("res://scripts/vessel.gd").belt_into(b, c, s)  # (filled as the belt's vessel is)
 		"draught":
-			# A round flask: glass, the liquid inside with its surface, a cork.
-			_neck(b, c + Vector2(0, -6.2) * u, u, ol)
-			var bc := c + Vector2(0, 2.6) * u
-			var r := 6.6 * u
-			b.dot(bc, r + ol + 0.8, Color(Palette.OUTLINE, Draw.FEATHER_ALPHA))
-			b.dot(bc, r + ol, Palette.OUTLINE)
-			b.dot(bc, r, _GLASS.darkened(0.55))
-			var liquid := PackedVector2Array()
-			var a0 := asin(-0.2)
-			for i in 17:
-				liquid.append(bc + Vector2.from_angle(lerpf(a0, PI - a0, i / 16.0)) * (r - 0.6 * u))
-			b.polygon(liquid, col.darkened(0.2))
-			var inner := PackedVector2Array()
-			for i in 17:
-				inner.append(bc + Vector2(-0.8, -0.4) * u + Vector2.from_angle(lerpf(a0 + 0.25, PI - a0 - 0.4, i / 16.0)) * (r - 2.2 * u))
-			b.polygon(inner, col)
-			b.line(liquid[0], liquid[16], col.lightened(0.45), maxf(0.8, 0.8 * u))  # the surface
-			b.polygon(UIShape.oval(bc + Vector2(-2.9, -2.6) * u, Vector2(1.1, 2.2) * u, -0.6), Color(1, 1, 1, 0.6))
-			b.dot(bc + Vector2(2.6, 3.2) * u, 0.8 * u, Color(1, 1, 1, 0.35))
+			# A round flask: the red cure two-thirds up, a cork.
+			var bc := Vector2(0, 3.0) * u
+			var r := 6.4 * u
+			Art.glass(b, _flask(bc, r, Rect2(Vector2(-1.7, -6.0) * u, Vector2(3.4, 3.4) * u)), s, col, bc.y - r * 0.2)
+			_cork(b, Rect2(Vector2(-2.3, -9.0) * u, Vector2(4.6, 3.2) * u), s)
+			Art.shine(b, bc + Vector2(-3.0, -2.3) * u, 0.9 * u, 2.0 * u)
+			if lod > 0:
+				b.circle(bc + Vector2(2.3, 3.4) * u, 0.6 * u, Color(1, 1, 1, 0.35), 10)
 		"tonic":
-			# A squat square bottle with a green cure and a white cross label.
-			_neck(b, c + Vector2(0, -6.4) * u, u, ol)
-			var body := Rect2(c + Vector2(-5.6, -3.6) * u, Vector2(11.2, 12.6) * u)
-			var pts := _round_rect(body, 2.2 * u)
-			b.poly(pts, _GLASS.darkened(0.55), ol)
-			b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, body.size - Vector2(1.4, 3.9) * u), 1.6 * u), col.darkened(0.2))
-			b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, Vector2(body.size.x * 0.55, body.size.y - 3.9 * u)), 1.6 * u), col)
-			b.line(body.position + Vector2(0.9, 3.2) * u, body.position + Vector2(body.size.x - 0.9 * u, 3.2 * u), col.lightened(0.45), maxf(0.8, 0.8 * u))
-			var lc := body.get_center() + Vector2(0, 1.4) * u
-			b.dot(lc, 3.0 * u, Color(0.95, 0.93, 0.85))
-			b.rect(Rect2(lc - Vector2(0.6, 2.0) * u, Vector2(1.2, 4.0) * u), col.darkened(0.3))
-			b.rect(Rect2(lc - Vector2(2.0, 0.6) * u, Vector2(4.0, 1.2) * u), col.darkened(0.3))
-			b.rect(Rect2(body.position + Vector2(1.2, 1.0) * u, Vector2(1.2, 6.0) * u), Color(1, 1, 1, 0.5))
+			# A square bottle of green cure with a white cross on its label.
+			var body := Art.rrect(Rect2(Vector2(-5.2, -3.0) * u, Vector2(10.4, 12.2) * u), 2.4 * u)
+			body = _with_neck(body, Rect2(Vector2(-1.7, -6.2) * u, Vector2(3.4, 3.6) * u))
+			Art.glass(b, body, s, col, -0.2 * u)
+			_cork(b, Rect2(Vector2(-2.3, -9.2) * u, Vector2(4.6, 3.2) * u), s)
+			var lc := Vector2(0, 3.6) * u
+			Art.shape(b, Art.oval(lc, Vector2(3.0, 3.0) * u), Art.PAPER, s, "", Art.THIN | Art.NO_RIM)
+			var k := col.darkened(0.3)
+			b.rect(Rect2(lc - Vector2(0.65, 2.0) * u, Vector2(1.3, 4.0) * u), k)
+			b.rect(Rect2(lc - Vector2(2.0, 0.65) * u, Vector2(4.0, 1.3) * u), k)
+			Art.shine(b, Vector2(-3.4, -0.2) * u, 0.6 * u, 2.4 * u, 0.0, 0.5)
 		"vial":
-			# A tall vial with glowing essence and a spark in it.
-			var r := Rect2(c + Vector2(-3.0, -5.8) * u, Vector2(6.0, 15.0) * u)
-			b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u).grow(ol), Palette.OUTLINE)
-			var pts := _round_rect(r, 2.8 * u)
-			b.poly(pts, _GLASS.darkened(0.55), ol)
-			b.dot(c + Vector2(0, 3.6) * u, 6.0 * u, Color(col, 0.18))
-			b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 5.0 * u), Vector2(r.size.x - 1.4 * u, r.size.y - 5.7 * u)), 2.2 * u), col.darkened(0.15))
-			b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 5.0 * u), Vector2(r.size.x * 0.5, r.size.y - 5.7 * u)), 2.0 * u), col.lightened(0.15))
-			b.line(r.position + Vector2(0.8 * u, 5.0 * u), Vector2(r.end.x - 0.8 * u, r.position.y + 5.0 * u), col.lightened(0.6), maxf(0.8, 0.8 * u))
-			_spark(b, c + Vector2(0.3, 3.8) * u, 2.6 * u, Color(1, 1, 1, 0.9))
-			b.rect(Rect2(r.position + Vector2(0.9, 0.9) * u, Vector2(1.0, 4.0) * u), Color(1, 1, 1, 0.45))
-			b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u), _CORK)
-			b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 1.2) * u), _CORK.lightened(0.25))
+			# A tall vial of glowing essence with a spark in it.
+			var body := Art.rrect(Rect2(Vector2(-2.8, -5.6) * u, Vector2(5.6, 14.8) * u), 2.8 * u)
+			Art.soft(b, Vector2(0, 3.0) * u, 8.5 * u, Color(col, 0.4))
+			Art.glass(b, body, s, col, -1.2 * u, 1.0)
+			_cork(b, Rect2(Vector2(-3.4, -9.2) * u, Vector2(6.8, 3.8) * u), s)
+			Art.spark(b, Vector2(0.2, 3.6) * u, 2.6 * u, Color(1, 1, 1, 0.9))
+			Art.shine(b, Vector2(-1.5, -2.6) * u, 0.5 * u, 2.2 * u, 0.0, 0.5)
 		"smoke":
-			# A round bomb with a lit fuse.
-			var bc := c + Vector2(-0.8, 1.6) * u
-			b.stroke(bc + Vector2(3.0, -5.0) * u, c + Vector2(5.4, -7.6) * u, Color(0.78, 0.66, 0.46), 1.1 * u)
-			b.rect(Rect2(bc + Vector2(1.0, -7.4) * u, Vector2(3.6, 2.6) * u).grow(ol), Palette.OUTLINE)
-			b.rect(Rect2(bc + Vector2(1.0, -7.4) * u, Vector2(3.6, 2.6) * u), Color(0.45, 0.43, 0.48))
-			b.ball(bc, 7.0 * u, col.darkened(0.42), true)
-			b.dot(bc + Vector2(-2.8, -2.8) * u, 1.6 * u, Color(1, 1, 1, 0.5))
-			_spark(b, c + Vector2(6.0, -8.2) * u, 3.0 * u, Color(1.0, 0.75, 0.3))
-			_spark(b, c + Vector2(6.0, -8.2) * u, 1.5 * u, Color(1.0, 0.97, 0.8))
-		"scroll":
-			# A rolled parchment tied with a red cord, gold letters showing.
-			var paper := Color(0.88, 0.8, 0.62)
-			var body := Rect2(c + Vector2(-6.4, -5.2) * u, Vector2(12.8, 10.4) * u)
-			b.rect(body.grow(ol), Palette.OUTLINE)
-			b.rect(body, paper)
-			b.rect(Rect2(body.position, Vector2(body.size.x, 1.6 * u)), paper.lightened(0.2))
-			for k in 3:
-				var y := body.position.y + (2.8 + k * 2.4) * u
-				b.rect(Rect2(Vector2(body.position.x + 2.0 * u, y), Vector2((7.0 - k * 1.5) * u, 0.9 * u)), Color(col.darkened(0.25), 0.9))
-			for sx in [-1.0, 1.0]:
-				var rc: Vector2 = c + Vector2(sx * 7.2, 0) * u
-				var roll := Rect2(rc + Vector2(-1.8, -6.6) * u, Vector2(3.6, 13.2) * u)
-				b.rect(roll.grow(ol), Palette.OUTLINE)
-				b.rect(roll, paper.darkened(0.12))
-				b.rect(Rect2(roll.position, Vector2(1.1 * u, roll.size.y)), paper.lightened(0.15))
-			b.rect(Rect2(c + Vector2(1.6, -5.6) * u, Vector2(1.6, 11.2) * u), Color(0.75, 0.2, 0.18))
-			b.dot(c + Vector2(2.4, 5.8) * u, 1.6 * u, Color(0.75, 0.2, 0.18))
+			# A round iron bomb with a lit fuse.
+			var bc := Vector2(-0.8, 2.0) * u
+			Art.rod(b, bc + Vector2(3.4, -6.8) * u, Vector2(5.4, -7.0) * u, 0.9 * u, Color(0.84, 0.72, 0.52), s, "cloth")
+			var cap := Art.rrect(Rect2(bc + Vector2(-1.4, -8.4) * u, Vector2(2.8, 2.4) * u), 0.6 * u, 3)
+			var rot := Transform2D(0.7, bc)
+			cap = rot * (Transform2D(0.0, -bc) * cap)
+			Art.shape(b, cap, Art.IRON, s, "metal", Art.NO_RIM)
+			Art.orb(b, bc, 6.6 * u, Color(0.42, 0.42, 0.54), s, "metal")
+			_flame(b, Vector2(6.0, -7.8) * u, 2.8 * u, s, true)
 		"fire_flask":
-			# A round flask of fire with a burning rag for a stopper.
-			_round_flask(b, c, u, ol, col, false)
-			var rag := c + Vector2(0, -7.4) * u
-			b.rect(Rect2(rag + Vector2(-2.2, -1.4) * u, Vector2(4.4, 3.4) * u).grow(ol), Palette.OUTLINE)
-			b.rect(Rect2(rag + Vector2(-2.2, -1.4) * u, Vector2(4.4, 3.4) * u), Color(0.86, 0.8, 0.66))
-			_spark(b, rag + Vector2(0.6, -3.4) * u, 3.4 * u, Color(1.0, 0.6, 0.2))
-			_spark(b, rag + Vector2(0.6, -3.4) * u, 1.7 * u, Color(1.0, 0.95, 0.75))
+			# A round flask of fire, a burning rag for a stopper.
+			var bc := Vector2(0, 3.0) * u
+			var r := 6.4 * u
+			Art.glass(b, _flask(bc, r, Rect2(Vector2(-1.7, -5.8) * u, Vector2(3.4, 3.4) * u)), s, col, bc.y - r * 0.35, 0.7)
+			var rag := Art.smooth(Art.pts(c, u, [Vector2(-3.2, -8.0), Vector2(-0.6, -9.4), Vector2(2.8, -8.4), Vector2(2.4, -5.6), Vector2(4.6, -3.6),
+				Vector2(2.6, -3.8), Vector2(0.6, -5.2), Vector2(-2.6, -5.4)]), 3)
+			Art.shape(b, rag, Color(0.88, 0.82, 0.66), s, "cloth", Art.NO_RIM)
+			_flame(b, Vector2(-0.2, -11.0) * u, 3.0 * u, s, false)
+			Art.shine(b, bc + Vector2(-3.0, -2.3) * u, 0.9 * u, 2.0 * u)
 		"edge_oil":
 			# A slim vial of red oil, a little blade beside it.
-			_tall_vial(b, c + Vector2(-2.0, 0), u, ol, col)
-			var t0 := c + Vector2(2.8, 8.0) * u
-			var t1 := c + Vector2(8.6, -6.0) * u
-			b.stroke(t0, t1, Palette.OUTLINE, 2.6 * u)
-			b.stroke(t0, t1, Palette.STEEL, 1.4 * u)
-			b.line(t0.lerp(t1, 0.2), t1, Color(1, 1, 1, 0.7), maxf(0.6, 0.4 * u))
+			var body := Art.rrect(Rect2(Vector2(-5.4, -4.6) * u, Vector2(4.8, 13.8) * u), 2.4 * u)
+			Art.glass(b, body, s, col, -0.4 * u)
+			_cork(b, Rect2(Vector2(-5.8, -8.2) * u, Vector2(5.6, 3.6) * u), s)
+			Art.shine(b, Vector2(-4.0, -1.4) * u, 0.45 * u, 2.2 * u, 0.0, 0.5)
+			var t0 := Vector2(2.8, 8.4) * u
+			var t1 := Vector2(8.4, -7.8) * u
+			var dir := (t1 - t0).normalized()
+			var side := Art.lit_side(t0, t1)
+			Art.shape(b, PackedVector2Array([t0 + side * 1.1 * u, t1, t0 - side * 1.1 * u]), Art.STEEL, s, "metal")
+			Art.rod(b, t0 - dir * 0.3 * u, t0 - dir * 2.4 * u, 1.5 * u, Art.LEATHER, s, "leather")
 		"warding_oil":
-			# A squat bottle with a shield on its label.
-			_square_bottle(b, c, u, ol, col)
-			var lc := c + Vector2(0, 2.4) * u
-			var shield := PackedVector2Array([lc + Vector2(-2.6, -2.6) * u, lc + Vector2(2.6, -2.6) * u, lc + Vector2(2.4, 0.6) * u, lc + Vector2(0, 3.0) * u, lc + Vector2(-2.4, 0.6) * u])
-			b.poly(shield, Color(0.95, 0.93, 0.85), maxf(0.6, ol * 0.7))
-			b.rect(Rect2(lc + Vector2(-0.5, -2.0) * u, Vector2(1.0, 4.2) * u), col.darkened(0.35))
+			# A pear-shaped oil bottle with a shield on its label.
+			var body := PackedVector2Array()
+			for i in 25:
+				var a := lerpf(-PI * 0.3, PI * 1.3, i / 24.0)
+				body.append(Vector2(0, 3.6) * u + Vector2(cos(a) * 6.0, sin(a) * 5.4) * u)
+			body = _with_neck(body, Rect2(Vector2(-1.6, -6.4) * u, Vector2(3.2, 6.0) * u))
+			Art.glass(b, body, s, col, 0.6 * u)
+			_cork(b, Rect2(Vector2(-2.2, -9.4) * u, Vector2(4.4, 3.2) * u), s)
+			var lc := Vector2(0, 4.0) * u
+			var shield := Art.pts(lc, u, [Vector2(-2.6, -2.6), Vector2(2.6, -2.6), Vector2(2.4, 0.6), Vector2(0, 3.0), Vector2(-2.4, 0.6)])
+			Art.shape(b, shield, Art.PAPER, s, "", Art.THIN | Art.NO_RIM)
+			b.polygon(Art.pts(lc, u, [Vector2(0, -2.0), Vector2(1.8, -2.0), Vector2(1.7, 0.5), Vector2(0, 2.2)]), col.darkened(0.3))
+			Art.shine(b, Vector2(-3.6, 1.8) * u, 0.6 * u, 1.7 * u)
 		"haste":
-			# A round flask of bright green with speed lines behind it.
+			# A conical flask of bright green with speed lines behind it.
 			for k in 3:
-				var y := (-1.0 + k * 3.0) * u
-				b.rect(Rect2(c + Vector2(-10.0, y), Vector2((4.0 - k) * u, 0.9 * u)), Color(col, 0.75))
-			_round_flask(b, c + Vector2(1.5, 0), u, ol, col, true)
+				var y := (0.4 + k * 3.0) * u
+				var x0 := (-10.2 + k * 0.8) * u
+				b.line(Vector2(x0, y), Vector2(x0 + (4.2 - k * 1.0) * u, y), Color(col, 0.85 - k * 0.15), maxf(0.9, 0.8 * u))
+			var body := Art.pts(c, u, [Vector2(0.1, -6.4), Vector2(3.1, -6.4), Vector2(3.1, -2.2), Vector2(8.2, 7.2), Vector2(7.4, 9.0),
+				Vector2(-4.2, 9.0), Vector2(-5.0, 7.2), Vector2(0.1, -2.2)])
+			Art.glass(b, body, s, col, 2.6 * u)
+			_cork(b, Rect2(Vector2(-0.6, -9.4) * u, Vector2(4.4, 3.2) * u), s)
+			Art.shine(b, Vector2(-0.6, 3.0) * u, 0.5 * u, 2.2 * u, 0.5, 0.5)
 		"stoneskin":
-			# A squat bottle of grey-brown with a cut stone on its label.
-			_square_bottle(b, c, u, ol, col)
-			var gc := c + Vector2(0, 2.4) * u
-			var gem := PackedVector2Array([gc + Vector2(0, -3.0) * u, gc + Vector2(2.8, -0.6) * u, gc + Vector2(1.6, 2.6) * u, gc + Vector2(-1.6, 2.6) * u, gc + Vector2(-2.8, -0.6) * u])
-			b.poly(gem, col.darkened(0.25), maxf(0.6, ol * 0.7))
-			b.polygon(PackedVector2Array([gem[0], gem[4], gc]), col.lightened(0.3))
+			# A six-sided bottle of earthy draught, a stone stopper and a cut stone on it.
+			var body := PackedVector2Array()
+			for i in 6:
+				body.append(Vector2(0, 3.0) * u + Vector2.from_angle(PI / 6.0 + TAU * i / 6.0) * Vector2(6.4, 6.2) * u)
+			body = _with_neck(body, Rect2(Vector2(-1.7, -6.0) * u, Vector2(3.4, 3.6) * u))
+			Art.glass(b, body, s, col, 0.8 * u)
+			Art.shape(b, Art.pts(c, u, [Vector2(-2.6, -6.0), Vector2(-1.9, -9.4), Vector2(1.9, -9.4), Vector2(2.6, -6.0)]), Color(0.6, 0.58, 0.66), s)
+			var gc := Vector2(0, 4.2) * u
+			var gem := Art.pts(gc, u, [Vector2(0, -2.6), Vector2(2.4, -0.6), Vector2(1.4, 2.2), Vector2(-1.4, 2.2), Vector2(-2.4, -0.6)])
+			Art.shape(b, gem, col.lightened(0.15), s, "gem", Art.THIN | Art.NO_RIM)
+			b.polygon(PackedVector2Array([gem[0], gem[4], gc]), Color(1, 1, 1, 0.4))
+			Art.shine(b, Vector2(-3.4, 1.2) * u, 0.5 * u, 1.9 * u, 0.0, 0.45)
 		"salts":
-			# A small round tin, open, heaped with white crystals.
-			var tc := c + Vector2(0, 3.0) * u
-			b.poly(UIShape.oval(tc, Vector2(8.0, 4.6) * u), Color(0.5, 0.52, 0.56), ol)
-			b.polygon(UIShape.oval(tc + Vector2(0, -0.8) * u, Vector2(6.6, 3.4) * u), Color(0.3, 0.3, 0.34))
-			for v in [Vector2(-3.0, -1.6), Vector2(0, -3.0), Vector2(2.8, -1.4), Vector2(-1.2, -0.2), Vector2(1.6, 0.2)]:
-				b.ball(tc + v * u, 1.7 * u, col, true)
-			_spark(b, c + Vector2(4.0, -6.0) * u, 2.4 * u, Color(1, 1, 1, 0.9))
+			# A small open tin heaped with white crystals.
+			var tc := Vector2(0, 3.4) * u
+			var tin := PackedVector2Array([tc + Vector2(-7.6, -1.4) * u])
+			for i in 17:
+				tin.append(tc + Vector2(-cos(PI * i / 16.0) * 7.6, 1.4 + sin(PI * i / 16.0) * 3.4) * u)
+			tin.append(tc + Vector2(7.6, -1.4) * u)
+			Art.shape(b, tin, Color(0.6, 0.62, 0.72), s, "metal")
+			var mouth := Art.oval(tc + Vector2(0, -1.4) * u, Vector2(7.6, 2.8) * u)
+			Art.shape(b, mouth, Art.GOLD, s, "gold", Art.THIN | Art.NO_RIM)
+			b.polygon(Art.oval(tc + Vector2(0, -1.4) * u, Vector2(6.4, 2.0) * u), Color(0.15, 0.13, 0.2))
+			for v in [Vector2(-3.8, -2.0), Vector2(3.4, -1.8), Vector2(-1.5, -4.3), Vector2(1.7, -4.1), Vector2(0.1, -1.8), Vector2(0.0, -6.4)]:
+				_chunk(b, tc + v * u, 2.0 * u, col, s)
+			Art.spark(b, Vector2(4.8, -5.6) * u, 2.4 * u, Color(1, 1, 1, 0.9))
 		"flare":
 			# A paper cartridge of powder, its twist end spitting sparks.
-			var body := Rect2(c + Vector2(-3.4, -4.0) * u, Vector2(6.8, 13.0) * u)
-			b.rect(body.grow(ol), Palette.OUTLINE)
-			b.rect(body, Color(0.82, 0.3, 0.22))
-			b.rect(Rect2(body.position, Vector2(2.0 * u, body.size.y)), Color(0.95, 0.5, 0.4))
-			b.rect(Rect2(body.position + Vector2(0, 4.0 * u), Vector2(body.size.x, 2.4 * u)), Color(0.95, 0.88, 0.7))
-			b.polygon(PackedVector2Array([body.position, body.position + Vector2(body.size.x, 0), c + Vector2(0, -7.0) * u]), Color(0.9, 0.84, 0.66))
-			_spark(b, c + Vector2(0, -8.6) * u, 3.6 * u, col)
-			_spark(b, c + Vector2(0, -8.6) * u, 1.8 * u, Color(1, 1, 0.9))
-			b.dot(c + Vector2(4.6, -9.6) * u, 0.9 * u, col)
-			b.dot(c + Vector2(-4.2, -10.4) * u, 0.8 * u, col)
+			var body := Rect2(Vector2(-3.2, -3.0) * u, Vector2(6.4, 12.0) * u)
+			Art.shape(b, Art.rrect(body, 1.0 * u, 3), Color(0.88, 0.32, 0.26), s, "cloth")
+			var band := Rect2(body.position + Vector2(0, 4.0 * u), Vector2(body.size.x, 2.4 * u))
+			b.rect(band, Color(0.96, 0.89, 0.72))
+			b.rect(Rect2(band.position + Vector2(0, band.size.y - 0.6 * u), Vector2(band.size.x, 0.6 * u)), Color(0.78, 0.62, 0.46))
+			var twist := Art.pts(c, u, [Vector2(-3.2, -3.0), Vector2(3.2, -3.0), Vector2(0.9, -5.4), Vector2(1.4, -7.0), Vector2(-1.3, -7.0), Vector2(-0.9, -5.4)])
+			Art.shape(b, twist, Color(0.93, 0.86, 0.68), s, "cloth", Art.NO_RIM)
+			_flame(b, Vector2(0, -9.6) * u, 3.0 * u, s, true)
+			b.circle(Vector2(4.4, -9.2) * u, 0.8 * u, col, 10)
+			b.circle(Vector2(-4.0, -10.2) * u, 0.7 * u, col, 10)
+			if lod > 0:
+				b.circle(Vector2(3.0, -11.8) * u, 0.55 * u, Color(1, 1, 0.85), 10)
+		"scroll":
+			# A rolled parchment tied with a red cord and sealed, gold letters showing.
+			var body := Rect2(Vector2(-5.6, -4.6) * u, Vector2(11.2, 9.2) * u)
+			Art.shape(b, Art.rrect(body, 0.4 * u, 2), Art.PAPER, s, "cloth")
+			var lines := 3 if lod > 0 else 2
+			for k in lines:
+				var y := body.position.y + (2.2 + k * (5.6 / lines)) * u
+				b.rect(Rect2(Vector2(body.position.x + 1.6 * u, y), Vector2((6.0 - k * 1.5) * u, maxf(0.7, 0.8 * u))), Color(Art.GOLD.darkened(0.3), 0.95))
+			for sx in [-1.0, 1.0]:
+				var x: float = sx * 6.6 * u
+				Art.rod(b, Vector2(x, -5.8 * u), Vector2(x, 5.8 * u), 3.0 * u, Art.PAPER.darkened(0.04), s, "cloth")
+				b.circle(Vector2(x, -6.0 * u), 0.8 * u, Art.PAPER.darkened(0.45), 10)
+			var cord := Color(0.82, 0.22, 0.2)
+			b.rect(Rect2(Vector2(1.7, -4.6) * u, Vector2(1.3, 9.2) * u), cord)
+			Art.orb(b, Vector2(2.35, 4.8) * u, 1.7 * u, cord, s, "gem")
 		_:
-			b.ball(c, s * 0.5, col, true)
+			Art.orb(b, c, s * 0.5, col, s)
 
 
-## A round glass flask of `col` liquid (the draught's shape), with a cork
-## unless `cork` is false (the Fire Flask's rag goes there instead).
-static func _round_flask(b, c: Vector2, u: float, ol: float, col: Color, cork := true) -> void:
-	if cork:
-		_neck(b, c + Vector2(0, -6.2) * u, u, ol)
-	else:
-		var neck := Rect2(c + Vector2(-2.0, -7.8) * u, Vector2(4.0, 4.6) * u)
-		b.rect(neck.grow(ol), Palette.OUTLINE)
-		b.rect(neck, _GLASS.darkened(0.35))
-	var bc := c + Vector2(0, 2.6) * u
-	var r := 6.6 * u
-	b.dot(bc, r + ol, Palette.OUTLINE)
-	b.dot(bc, r, _GLASS.darkened(0.55))
-	var liquid := PackedVector2Array()
-	var a0 := asin(-0.2)
-	for i in 17:
-		liquid.append(bc + Vector2.from_angle(lerpf(a0, PI - a0, i / 16.0)) * (r - 0.6 * u))
-	b.polygon(liquid, col.darkened(0.2))
-	b.line(liquid[0], liquid[16], col.lightened(0.45), maxf(0.8, 0.8 * u))
-	b.dot(bc + Vector2(-0.8, 1.6) * u, r * 0.55, col)
-	b.polygon(UIShape.oval(bc + Vector2(-2.9, -2.6) * u, Vector2(1.1, 2.2) * u, -0.6), Color(1, 1, 1, 0.6))
+## A round flask's outside: a ball of radius `r` at `bc` with a neck.
+static func _flask(bc: Vector2, r: float, neck: Rect2) -> PackedVector2Array:
+	return _with_neck(Art.oval(bc, Vector2(r, r), 0.0, 32), neck)
 
 
-## A squat square bottle of `col` (the tonic's shape) with a blank pale label.
-static func _square_bottle(b, c: Vector2, u: float, ol: float, col: Color) -> void:
-	_neck(b, c + Vector2(0, -6.4) * u, u, ol)
-	var body := Rect2(c + Vector2(-5.6, -3.6) * u, Vector2(11.2, 12.6) * u)
-	b.poly(_round_rect(body, 2.2 * u), _GLASS.darkened(0.55), ol)
-	b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, body.size - Vector2(1.4, 3.9) * u), 1.6 * u), col.darkened(0.2))
-	b.polygon(_round_rect(Rect2(body.position + Vector2(0.7, 3.2) * u, Vector2(body.size.x * 0.55, body.size.y - 3.9 * u)), 1.6 * u), col)
-	b.dot(body.get_center() + Vector2(0, 1.4) * u, 3.6 * u, Color(0.25, 0.22, 0.26, 0.55))
-	b.rect(Rect2(body.position + Vector2(1.2, 1.0) * u, Vector2(1.2, 6.0) * u), Color(1, 1, 1, 0.5))
+## A bottle's outside joined with its neck (the neck reaches down into it).
+static func _with_neck(body: PackedVector2Array, neck: Rect2) -> PackedVector2Array:
+	var n := PackedVector2Array([neck.position, Vector2(neck.end.x, neck.position.y), neck.end + Vector2(0, neck.size.y), Vector2(neck.position.x, neck.end.y + neck.size.y)])
+	var best := body
+	var most := 0.0
+	for m in Geometry2D.merge_polygons(body, n):
+		var a := absf(_area(m))
+		if a > most:
+			most = a
+			best = m
+	return best
 
 
-## A slim tall vial of `col` (the essence vial's shape, without its glow).
-static func _tall_vial(b, c: Vector2, u: float, ol: float, col: Color) -> void:
-	var r := Rect2(c + Vector2(-3.0, -5.8) * u, Vector2(6.0, 15.0) * u)
-	b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u).grow(ol), Palette.OUTLINE)
-	b.poly(_round_rect(r, 2.8 * u), _GLASS.darkened(0.55), ol)
-	b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 4.0 * u), Vector2(r.size.x - 1.4 * u, r.size.y - 4.7 * u)), 2.2 * u), col.darkened(0.15))
-	b.polygon(_round_rect(Rect2(r.position + Vector2(0.7, 4.0 * u), Vector2(r.size.x * 0.5, r.size.y - 4.7 * u)), 2.0 * u), col.lightened(0.15))
-	b.rect(Rect2(r.position + Vector2(0.9, 0.9) * u, Vector2(1.0, 4.0) * u), Color(1, 1, 1, 0.45))
-	b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 3.6) * u), _CORK)
-	b.rect(Rect2(c + Vector2(-4.0, -9.4) * u, Vector2(8.0, 1.2) * u), _CORK.lightened(0.25))
+static func _area(p: PackedVector2Array) -> float:
+	var a := 0.0
+	for i in p.size():
+		a += p[i].cross(p[(i + 1) % p.size()])
+	return a * 0.5
+
+
+## A cork in `r`: soft wood, lit on its top.
+static func _cork(b, r: Rect2, s: float) -> void:
+	Art.shape(b, Art.rrect(r, r.size.y * 0.3, 4), Art.CORK, s, "wood")
+	if Art.detail(s) > 0:
+		b.circle(r.get_center() + Vector2(r.size.x * 0.2, r.size.y * 0.1), maxf(0.45, r.size.y * 0.09), Color(Art.CORK.darkened(0.4), 0.6), 10)
+
+
+## A small flame at `c`, `r` tall: orange round a pale heart. `spark` lights
+## it as a fuse's spitting spark instead.
+static func _flame(b, c: Vector2, r: float, s: float, spark: bool) -> void:
+	if spark:
+		Art.soft(b, c, r * 1.6, Color(1.0, 0.6, 0.2, 0.45))
+		Art.spark(b, c, r, Color(1.0, 0.68, 0.26))
+		Art.spark(b, c, r * 0.55, Color(1.0, 0.97, 0.82))
+		return
+	var unit := [Vector2(0, -1.0), Vector2(0.3, -0.45), Vector2(0.52, 0.05), Vector2(0.4, 0.5), Vector2(0, 0.66),
+		Vector2(-0.4, 0.5), Vector2(-0.52, 0.05), Vector2(-0.18, -0.3)]
+	var outer := PackedVector2Array()
+	var inner := PackedVector2Array()
+	for v in unit:
+		outer.append(c + v * r * 1.4)
+		inner.append(c + Vector2(0, r * 0.32) + v * r * 0.72)
+	outer = Art.smooth(outer, 3)
+	inner = Art.smooth(inner, 3)
+	Art.soft(b, c + Vector2(0, r * 0.3), r * 1.8, Color(1.0, 0.55, 0.2, 0.4))
+	Art.outline(b, outer, s, Art.ol(s) * 0.7)
+	Art.grad(b, outer, Color(1.0, 0.72, 0.3), Color(1.0, 0.5, 0.17), Color(0.9, 0.3, 0.12))
+	b.polygon(inner, Color(1.0, 0.92, 0.6))
+
+
+## A crystal chunk (salts): a little faceted lump.
+static func _chunk(b, c: Vector2, r: float, col: Color, s: float) -> void:
+	var p := Art.pts(c, r / 10.0, [Vector2(-9, 2), Vector2(-5, -8), Vector2(5, -9), Vector2(10, 0), Vector2(5, 8), Vector2(-6, 8)])
+	Art.shape(b, p, col, s, "gem", Art.THIN | Art.NO_RIM)
+	b.polygon(PackedVector2Array([p[0], p[1], p[2], c]), Color(1, 1, 1, 0.7))
 
 
 ## An essence crystal's icon in the essence's colour, centred on `c` (about
@@ -610,85 +643,52 @@ static func draw_crystal_icon(ci: CanvasItem, col: Color, c: Vector2, s: float, 
 
 
 static func crystal_into(b, col: Color, c: Vector2, s: float) -> void:
-	var u := s / 10.0
-	var ol := clampf(u * 1.1, 0.8, 1.6)
-	for i in 4:
-		b.dot(c, (9.0 - i * 1.6) * u, Color(col, 0.07))
-	var top := c + Vector2(0, -9.5) * u
-	var bot := c + Vector2(0, 9.0) * u
-	var l := c + Vector2(-5.2, -1.5) * u
-	var r := c + Vector2(5.2, -1.5) * u
-	var ml := c + Vector2(-4.0, 4.0) * u
-	var mr := c + Vector2(4.0, 4.0) * u
-	var outline := PackedVector2Array([top, r, mr, bot, ml, l])
-	b.poly(outline, col.darkened(0.35), ol)
-	b.polygon(PackedVector2Array([top, l, ml, c + Vector2(-0.6, 1.0) * u]), col.lightened(0.25))
-	b.polygon(PackedVector2Array([top, c + Vector2(-0.6, 1.0) * u, c + Vector2(0.8, 0.5) * u, r]), col)
-	b.polygon(PackedVector2Array([c + Vector2(0.8, 0.5) * u, r, mr, bot]), col.darkened(0.15))
-	b.polygon(PackedVector2Array([c + Vector2(-0.6, 1.0) * u, ml, bot, c + Vector2(0.8, 0.5) * u]), col.darkened(0.05))
-	b.line(top, c + Vector2(-0.6, 1.0) * u, col.lightened(0.55), maxf(0.7, 0.6 * u))
-	_spark(b, c + Vector2(-2.0, -3.6) * u, 2.4 * u, Color(1, 1, 1, 0.85))
+	s = Art.size_step(s)
+	Art.cached(b, "crystal|%s|%.2f" % [col.to_html(), s], c, func(nb): _crystal_art(nb, col, s))
 
 
-## A flask's neck and cork, with its bottom at `at`.
-static func _neck(b, at: Vector2, u: float, ol: float) -> void:
-	var neck := Rect2(at + Vector2(-2.0, -1.6) * u, Vector2(4.0, 4.6) * u)
-	var cork := Rect2(at + Vector2(-2.6, -4.6) * u, Vector2(5.2, 3.2) * u)
-	b.rect(neck.grow(ol), Palette.OUTLINE)
-	b.rect(cork.grow(ol), Palette.OUTLINE)
-	b.rect(neck, _GLASS.darkened(0.35))
-	b.rect(Rect2(neck.position, Vector2(1.2 * u, neck.size.y)), Color(1, 1, 1, 0.4))
-	b.rect(cork, _CORK)
-	b.rect(Rect2(cork.position, Vector2(cork.size.x, 1.1 * u)), _CORK.lightened(0.25))
-
-
-## A four-pointed sparkle.
-static func _spark(b, c: Vector2, r: float, col: Color) -> void:
-	b.polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.25, -r * 0.25), c + Vector2(r, 0), c + Vector2(r * 0.25, r * 0.25),
-		c + Vector2(0, r), c + Vector2(-r * 0.25, r * 0.25), c + Vector2(-r, 0), c + Vector2(-r * 0.25, -r * 0.25)]), col)
-
-
-static func _round_rect(r: Rect2, rad: float) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	rad = minf(rad, minf(r.size.x, r.size.y) * 0.5)
-	var cs := [Vector2(r.end.x - rad, r.position.y + rad), Vector2(r.end.x - rad, r.end.y - rad),
-		Vector2(r.position.x + rad, r.end.y - rad), Vector2(r.position.x + rad, r.position.y + rad)]
-	for k in 4:
-		for i in 4:
-			pts.append(cs[k] + Vector2.from_angle(-PI / 2.0 + (k + i / 3.0) * PI / 2.0) * rad)
-	return pts
+static func _crystal_art(b, col: Color, s: float) -> void:
+	var u := Art.unit(s)
+	Art.soft(b, Vector2.ZERO, 10.5 * u, Color(col, 0.32))
+	var top := Vector2(0, -9.4) * u
+	var bot := Vector2(0, 9.2) * u
+	var l := Vector2(-4.8, -1.6) * u
+	var r := Vector2(4.8, -1.6) * u
+	var ml := Vector2(-3.8, 4.0) * u
+	var mr := Vector2(3.8, 4.0) * u
+	var mid := Vector2(-0.6, 1.0) * u
+	var mid2 := Vector2(0.8, 0.5) * u
+	var rr := Art.ramp(col, "gem")
+	Art.outline(b, PackedVector2Array([top, r, mr, bot, ml, l]), s)
+	Art.grad(b, PackedVector2Array([top, l, ml, mid]), col.lightened(0.35), rr[3], col)
+	Art.grad(b, PackedVector2Array([top, mid, mid2, r]), rr[3], col, col.darkened(0.1))
+	Art.grad(b, PackedVector2Array([mid2, r, mr, bot]), col, rr[1], rr[0])
+	Art.grad(b, PackedVector2Array([mid, ml, bot, mid2]), col, col.darkened(0.12), rr[1])
+	b.line(top, mid, Color(col.lightened(0.6), 0.85), maxf(0.6, 0.5 * u))
+	b.line(top + Vector2(-0.3, 0.6) * u, l + Vector2(0.5, 0) * u, Color(1, 1, 1, 0.5), maxf(0.5, 0.4 * u))
+	Art.spark(b, Vector2(-1.9, -3.6) * u, 2.3 * u, Color(1, 1, 1, 0.88))
 
 
 ## A rune card's mark: a carved stone with a glowing three-stroke sigil.
 static func draw_rune_icon(ci: CanvasItem, col: Color, c: Vector2, s: float) -> void:
 	var b := Draw.Batch.new()
-	var u := s / 10.0
-	var stone := PackedVector2Array()
-	for i in 7:
-		var a := -PI / 2.0 + TAU * i / 7.0
-		stone.append(c + Vector2.from_angle(a) * (8.6 + (0.8 if i % 2 == 0 else -0.4)) * u)
-	b.poly(stone, Color(0.3, 0.28, 0.34), clampf(u * 1.1, 0.8, 1.6))
-	var lit := PackedVector2Array()
-	for p in stone:
-		lit.append(c + (p - c) * 0.82 + Draw.LIGHT_DIR * 0.9 * u)
-	b.polygon(lit, Color(0.4, 0.38, 0.45))
-	for i in 5:
-		b.dot(c, (7.0 - i) * u, Color(col, 0.08))
-	for i in 3:
-		var a := -PI / 2.0 + TAU * i / 3.0
-		var p0 := c + Vector2.from_angle(a) * 1.4 * u
-		var p1 := c + Vector2.from_angle(a + 2.2) * 5.8 * u
-		b.line(p0, p1, Color(col.darkened(0.5), 0.9), 2.2 * u)
-		b.line(p0, p1, col.lightened(0.2), 1.2 * u)
-	b.dot(c, 1.4 * u, col.lightened(0.5))
+	s = Art.size_step(s)
+	Art.cached(b, "camprune|%s|%.2f" % [col.to_html(), s], c, func(nb): _rune_art(nb, col, s))
 	b.flush(ci)
 
 
-class UIShape:
-	## An oval's points, turned by `rot`.
-	static func oval(c: Vector2, rad: Vector2, rot := 0.0, n := 12) -> PackedVector2Array:
-		var pts := PackedVector2Array()
-		for i in n:
-			var a := TAU * i / n
-			pts.append(c + Vector2(cos(a) * rad.x, sin(a) * rad.y).rotated(rot))
-		return pts
+static func _rune_art(b, col: Color, s: float) -> void:
+	var u := Art.unit(s)
+	var stone := PackedVector2Array()
+	for i in 7:
+		var a := -PI / 2.0 + TAU * i / 7.0
+		stone.append(Vector2.from_angle(a) * (8.6 + (0.8 if i % 2 == 0 else -0.4)) * u)
+	Art.shape(b, Art.smooth(stone, 3), Color(0.42, 0.39, 0.5), s)
+	Art.soft(b, Vector2.ZERO, 7.5 * u, Color(col, 0.45))
+	for i in 3:
+		var a := -PI / 2.0 + TAU * i / 3.0
+		var p0 := Vector2.from_angle(a) * 1.4 * u
+		var p1 := Vector2.from_angle(a + 2.2) * 5.6 * u
+		b.line(p0, p1, Color(Art.INK, 0.8), 2.0 * u)
+		b.line(p0, p1, col.lightened(0.25), 1.0 * u)
+	b.circle(Vector2.ZERO, 1.3 * u, col.lightened(0.5), 12)
