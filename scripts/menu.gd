@@ -41,6 +41,7 @@ const Nav := preload("res://scripts/nav.gd")
 const Reflow := preload("res://scripts/reflow.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Book := preload("res://scripts/book.gd")
+const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 const TreeView := preload("res://scripts/tree_view.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
@@ -686,6 +687,7 @@ func _layout() -> void:
 		var edge := 12.0 if compact() else 32.0  # space kept around the panel
 		var pad := 24.0 if compact() else 44.0  # the panel's own margins
 		var w := minf(float(WIDTHS.get(page, 560.0)), s.x - rw - edge - pad)
+		w = ArrangeUI.panel_width(self, w, s.x - rw - edge - pad)  # (Arrange mode: the panel made wider or narrower)
 		# A narrow screen (a phone at a big Interface size): rows too wide
 		# for it wrap, grids lose columns (reflow.gd); the page scrolls.
 		if box.get_combined_minimum_size().x > w + 0.5:
@@ -699,6 +701,7 @@ func _layout() -> void:
 			h = minf(maxf(_wanted_height(), 520.0 - fh), s.y - edge - pad - fh)
 		scroll.custom_minimum_size = Vector2(w, h)
 		panel.pivot_offset = panel.size * 0.5
+	ArrangeUI.after_layout(self)  # (what Arrange mode moved, on top: arrange_ui.gd)
 
 
 ## Between climbs, on the train (main.gd on_train).
@@ -964,6 +967,7 @@ func open(which: String, direct := false) -> void:
 		rail.refresh(rail_item(), _on_train(), compact(), main.touch_active, main.pad_active, main.pad_ps)
 		_link_rail(list[first] if first >= 0 else null)
 	_layout()
+	ArrangeUI.tag_page(self)  # (what Arrange mode can move on this page)
 	# On a phone nothing has the focus (a tap is its own highlight).
 	if main != null and main.touch_active:
 		if which != "train":
@@ -3534,6 +3538,7 @@ func _header(text: String, sub: String, eyebrow := "") -> void:
 	var small := compact() and page != "title"
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
+	row.set_meta("arrange", "title")  # (its name in Arrange mode: arrange_ui.gd)
 	box.add_child(row)
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3620,6 +3625,7 @@ func _tabs(list: Array, current: String, choose: Callable) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.set_meta("arrange", "tabs")
 	box.add_child(row)
 	# Q and E (LB and RB) switch tabs too: their keys either side.
 	var keys := ["", ""]
@@ -3688,6 +3694,7 @@ func _footer() -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 14)
+	row.set_meta("arrange", "footer")
 	(foot if pinned else box).add_child(row)
 	var closing := _back_page() == "" and page != "mark"
 	var prev: Button = null

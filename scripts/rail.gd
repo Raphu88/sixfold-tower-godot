@@ -39,6 +39,7 @@ const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
 const Train := preload("res://scripts/train.gd")
 const Art := preload("res://scripts/train_art.gd")
+const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 
 ## The identity block at the top (a button: the climber screen): [id, name,
 ## short name, line, icon].
@@ -129,9 +130,10 @@ func _ready() -> void:
 	clip_contents = true
 
 
-## How wide the rail is on this screen.
+## How wide the rail is on this screen (wider or narrower if Arrange mode
+## resized it: arrange_ui.gd).
 static func width_for(compact: bool) -> float:
-	return NARROW if compact else WIDE
+	return (NARROW if compact else WIDE) * ArrangeUI.rail_width_k()
 
 
 ## The look chosen for the train's rail in dev tools: "menu" or "end".
