@@ -2190,7 +2190,6 @@ func throw_flask(p, id := "fire_flask") -> void:
 	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") and id == "fire_flask" else 1.0)
 	var dmg: float = float(data.get("dmg", 0.0)) * (1.0 + float(data.get("per_floor", 0.0)) * maxf(0.0, floor_num - 1))
 	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r, "id": id})
-	sfx("throw", 1.0, -2.0)
 
 
 func _update_flasks(delta: float) -> void:
