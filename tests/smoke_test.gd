@@ -6837,6 +6837,15 @@ func _run() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await _frames(1)
+	if "parts" in OS.get_cmdline_user_args():
+		await _part_tests()  # (only tests/parts: a quick run)
+		print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
+		for f in failed:
+			print("  FAILED: ", f)
+		main.queue_free()
+		await _frames(2)
+		quit(1 if failures > 0 else 0)
+		return
 	main.grant_test_bonds()  # most checks below need two marks to work with
 	await _frames(5)
 	var p = main.player
@@ -7243,6 +7252,7 @@ func _run() -> void:
 	await _arrange_tests()
 	await _interface_size_tests()
 	await _abilities_tests()
+	await _part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -7251,6 +7261,21 @@ func _run() -> void:
 	main.queue_free()
 	await _frames(2)
 	quit(1 if failures > 0 else 0)
+
+
+## More tests, each in its own file under tests/parts/ (so several people can
+## add tests without touching each other's): every .gd there, in name order,
+## is a RefCounted with `func run(t) -> void` (t is this test: t.main,
+## t._check, t._fresh_main, t._frames, t._wait, t._tap_at...). Run alone with
+## `godot --headless -s tests/smoke_test.gd -- parts` (only these).
+func _part_tests() -> void:
+	var files: Array = Array(DirAccess.get_files_at("res://tests/parts")).filter(func(f): return f.ends_with(".gd"))
+	files.sort()
+	for f in files:
+		var s = load("res://tests/parts/" + f)
+		_check(s is GDScript and s.can_instantiate(), "tests/parts/%s loads" % f)
+		if s is GDScript and s.can_instantiate():
+			await s.new().run(self)
 
 
 ## A floor of rooms with a sealed wing (and a secret room, if `secret`), its monsters gone.
@@ -7815,13 +7840,13 @@ func _screen_tests() -> void:
 	_check(_menu_button("Close") != null, "...with Close (not Back)")
 	_check(menu.climber_tab == "abilities" and _all_buttons(menu).any(func(b): return b.has_meta("ability")), "...on its Abilities tab at first")
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 4, "...and its tabs (Abilities, Marks, Essence, Record; the Archive is the Library now)")
-	tabs[1].pressed.emit()
+	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 5, "...and its sections, each a ribbon of the book (Abilities, Tree, Marks, Essence, Record; the Archive is the Library now)")
+	tabs[2].pressed.emit()
 	await _frames(1)
 	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
 	_check(cards.size() == 6 and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.BodyView), "the Marks tab: the body and a card for each of the six parts")
 	tabs = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	tabs[2].pressed.emit()
+	tabs[3].pressed.emit()
 	await _frames(1)
 	_check(menu.climber_tab == "essence" and menu.find_children("*", "Control", true, false).any(func(c): return c.get_script() == M.EssenceView), "the Essence tab shows density and attributes")
 	menu.climber_tab = "marks"
@@ -10727,6 +10752,8 @@ func _unbound_tests() -> void:
 	_check("unmaking" in U.kinds_for(prof) and not ("life" in U.kinds_for(prof)), "only your own path's secret essence")
 	prof.path = ""
 	var sh: Dictionary = TP.cycle_shape(prof, one)
+	_check(sh["part"] == "hand" and sh["shape"] == "volley", "after the hand's own shapes come the forms its tree has opened (Volley, at level 3)")
+	sh = TP.cycle_shape(prof, sh)
 	_check(sh["part"] == "legs" and sh["shape"] == "dash" and sh["kinds"].size() == 1, "tapping the part cycles its shape (and part)")
 
 	print("the Unbound: casting, filling, boosting and strain")
@@ -13443,7 +13470,7 @@ func _abilities_tests() -> void:
 	await _frames(3)
 	cards = _all_buttons(menu).filter(func(b): return b.has_meta("ability") and b.is_visible_in_tree())
 	tabs = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(cards.size() == 6 and tabs[1].text == menu.UNBOUND_MARKS_TAB, "the page shows the six (and the Marks tab is the Body for the Unbound)")
+	_check(cards.size() == 6 and tabs[menu.MARKS_TAB_INDEX].text == menu.UNBOUND_MARKS_TAB, "the page shows the six (and the Marks tab is the Body for the Unbound)")
 	_check(_all_buttons(menu).filter(func(b): return b.has_meta("try_abilities")).is_empty(), "...with no practice room in a climb")
 	menu.close()
 	await _frames(2)
@@ -14522,7 +14549,7 @@ func _pages_fit(tag: String) -> Array:
 		var fs: int = load("res://scripts/ui.gd").fit_size(load("res://scripts/ui.gd").font("display"), b[2], 14, b[1].size.x - 8.0)
 		if not tb["bar"].encloses(b[1]) or fs < 12:
 			out.append("%s arrange button %s doesn't fit (%s, %d px words)" % [tag, b[0], b[1], fs])
-	var pages :=[["pause", ""], ["climber", "abilities"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"], ["mark", "hand"],
+	var pages :=[["pause", ""], ["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"], ["mark", "hand"],
 		["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"], ["library", ""], ["settings", "settings"], ["settings", "controls"],
 		["dev", ""], ["data", ""], ["painter", ""], ["confirm_new", ""], ["climbers", ""], ["appearance", ""], ["techniques", ""]]
 	for pg in pages:

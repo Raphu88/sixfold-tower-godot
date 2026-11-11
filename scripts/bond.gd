@@ -5,6 +5,8 @@ extends RefCounted
 
 const Bonds := preload("res://scripts/bonds.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
+const Library := preload("res://scripts/library.gd")
+const TreeRules := preload("res://scripts/tree.gd")
 static var PART_NAMES := Bonds.PART_NAMES
 const PART_FILLS := Bonds.PART_FILLS
 const PART_BURN := Bonds.PART_BURN
@@ -42,9 +44,33 @@ func data() -> Dictionary:
 var selected := 0  # which learned spell the mark's key casts
 
 
-## The spells this bond knows at its current step, in the order learned.
+## The choices made on this bond's tree (tree.gd): step -> the side chosen
+## (main.gd sets it from the profile). A fork not chosen yet uses today's side.
+var choices := {}
+## A variation's strength for the cast under way (library.gd run_mark_variation).
+var var_power := 1.0
+## Where the last Chain Lightning's last leap struck (Stormcaller's Lingering).
+var last_point = null
+
+
+## The spells this bond knows at its current step, in the order learned (a
+## fork's chosen side, or today's until it's chosen: tree.gd bond_spells).
 func spells() -> Array:
-	return data()["spells"].filter(func(sp): return int(sp["learn"]) <= step)
+	if choices.is_empty():
+		return data()["spells"].filter(func(sp): return int(sp["learn"]) <= step)
+	return TreeRules.bond_spells(id, step, choices)
+
+
+## The step-3 variation in force on this bond's first spell ({} for today's change).
+func alt_change() -> Dictionary:
+	if step < 3 or choices.is_empty():
+		return {}
+	return TreeRules.alt_change(id, choices)
+
+
+## True for the spell today's step-3 change applies to (the first spell).
+static func is_changed_spell(sp: Dictionary) -> bool:
+	return sp.get("changes", {}).has(3)
 
 
 ## The spell the mark's key casts.
@@ -66,9 +92,18 @@ func stat(key: String):
 func spell_stat(sp: Dictionary, key: String):
 	var steps: Dictionary = sp["steps"]
 	var value = null
+	# A step-3 variation chosen in place of today's change: its values, not the change's.
+	var alt := alt_change() if is_changed_spell(sp) else {}
+	var alt_steps: Dictionary = alt.get("steps", {})
 	for s in range(1, step + 1):
+		if not alt.is_empty() and s == 3:
+			if alt_steps.has(3) and alt_steps[3].has(key):
+				value = alt_steps[3][key]
+			continue
 		if steps.has(s) and steps[s].has(key):
 			value = steps[s][key]
+	if not alt.is_empty() and alt.has("variation"):
+		value = Library.mark_stat(String(alt["variation"]), key, value)  # (Wide, Long, Quick...)
 	if not edits.is_empty():
 		value = SecretBonds.edit_stat(edits, sp["id"], key, value)  # the Developer's Edit
 	return value
@@ -132,7 +167,7 @@ func spell_cost(sp: Dictionary) -> float:
 
 
 func spell_power(sp: Dictionary) -> float:
-	return (0.75 if faint else 1.0) * overdraw_mult * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
+	return (0.75 if faint else 1.0) * overdraw_mult * var_power * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
 
 
 func spell_damage(sp: Dictionary) -> float:
@@ -179,6 +214,17 @@ func pay(free := false) -> String:
 
 
 func cast(p) -> void:
+	var sp := spell()
+	var alt := alt_change() if is_changed_spell(sp) else {}
+	if not alt.is_empty():
+		Library.cast_mark_variation(self, sp, p, alt)  # (a step-3 variation: the tower's way, or the library's)
+		return
+	_cast_type(p)
+
+
+## Runs the selected spell by its type (a type this file doesn't know is a
+## fork alternative's: its tower's file runs it, library.gd cast_spell).
+func _cast_type(p) -> void:
 	match spell()["type"]:
 		"chain":
 			_chain(p)
@@ -324,7 +370,8 @@ func cast(p) -> void:
 			_transfer(p)
 		"amputate":
 			_amputate(p)
-
+		_:
+			Library.cast_spell(self, spell(), p)
 
 
 func _overdrawn() -> bool:
@@ -362,6 +409,7 @@ func _chain(p) -> void:
 	if hit.is_empty():
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
+	last_point = points[-1]
 	main.fx_bolt(points, color())
 	for pt in points:
 		main.light_flash(pt, color(), 1.0, 1.4, 0.3)

@@ -125,6 +125,11 @@ var core_tune := {}
 var unbound := {}
 var core_edit := {}
 
+## The tree (tree.gd): the choices made at each fork, for good, on both
+## paths. tree.gd state() fills in its keys; a save from before the tree is
+## migrated as it loads (the forks a mark already passed: today's side, chosen).
+var tree := {}
+
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
 	"blade": {"name": "Strength", "bonus": "strike damage"},
@@ -223,6 +228,7 @@ func reset() -> void:
 	core_tune = {}
 	unbound = {}
 	core_edit = {}
+	tree = {}
 	save()
 
 
@@ -295,6 +301,12 @@ func load_save() -> void:
 	unbound = ub if ub is Dictionary else {}
 	var ce = cfg.get_value("profile", "core_edit", {})
 	core_edit = ce if ce is Dictionary else {}
+	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
+	if tr is Dictionary:
+		tree = tr
+	else:
+		tree = {}
+		load("res://scripts/tree.gd").migrate(self)  # (an old save: the forks already passed keep today's side)
 
 
 func save() -> void:
@@ -336,6 +348,7 @@ func save() -> void:
 	cfg.set_value("profile", "core_tune", core_tune)
 	cfg.set_value("unbound", "state", unbound)
 	cfg.set_value("profile", "core_edit", core_edit)
+	cfg.set_value("tree", "state", tree)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 

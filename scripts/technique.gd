@@ -2,7 +2,10 @@ extends RefCounted
 ## The Unbound's techniques: their own spells, built from a body part and
 ## one to three essences (the first leads). Every word and number is here.
 ##
-## A technique is {"name", "part", "shape", "kinds"}:
+## A technique is {"name", "part", "shape", "kinds"}, and maybe "vars" (a
+## variation from the library, library.gd VARIATIONS: at most
+## Library.MAX_VARIATIONS) and "effects" ({kind: effect id}: another of that
+## essence's library effects in place of its base one):
 ##   the PART gives its shape (SHAPES: the hand strikes or throws a bolt, the
 ##   legs dash or leap, the back raises a shell or pushes, the throat shouts
 ##   in a cone or pulls, the brow marks a foe or sees through fog, the heart
@@ -24,6 +27,8 @@ extends RefCounted
 ## A few ready-made recipes (RECIPES) fill an Unbound's six slots at first.
 
 const Unbound := preload("res://scripts/unbound.gd")
+const Library := preload("res://scripts/library.gd")
+const SpellFx := preload("res://scripts/spell_fx.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Secret := preload("res://scripts/secret.gd")
 
@@ -32,48 +37,13 @@ const PART_SHAPES := {
 	"hand": ["strike", "bolt"], "legs": ["dash", "leap"], "back": ["shell", "push"],
 	"throat": ["shout", "pull"], "brow": ["mark", "sight"], "heart": ["within"],
 }
-## class: "hit" (strikes foes), "move" (moves you, hits on the way or on landing),
-## "self" (works on you), "shell" (a barrier on you), "mark" (one foe), "sight".
-const SHAPES := {
-	"strike": {"name": "Strike", "class": "hit", "says": "A blow of raw essence in front of you", "damage": 16.0, "reach": 50.0, "arc": 60.0},
-	"bolt": {"name": "Bolt", "class": "hit", "says": "A bolt thrown where you aim", "damage": 12.0, "speed": 470.0, "range": 340.0},
-	"dash": {"name": "Dash", "class": "move", "says": "You dash forward, untouchable, striking what you pass", "damage": 8.0, "dist": 130.0},
-	"leap": {"name": "Leap", "class": "move", "says": "You leap where you aim and land hard on what's there", "damage": 14.0, "dist": 130.0, "radius": 56.0},
-	"shell": {"name": "Shell", "class": "shell", "says": "A shell around you that takes blows for you", "shield": 30.0, "duration": 5.0},
-	"push": {"name": "Push", "class": "hit", "says": "A burst that throws back every foe around you", "damage": 6.0, "radius": 85.0, "force": 380.0},
-	"shout": {"name": "Shout", "class": "hit", "says": "A shout in a cone in front of you", "damage": 10.0, "reach": 135.0, "arc": 38.0},
-	"pull": {"name": "Pull", "class": "hit", "says": "Drags the foes in a line in front of you to you", "damage": 5.0, "length": 210.0, "width": 54.0},
-	"mark": {"name": "Mark", "class": "mark", "says": "Marks the foe you aim at: it takes 50% more damage for a while", "range": 320.0, "duration": 8.0},
-	"sight": {"name": "Sight", "class": "sight", "says": "For a while you see every foe through walls and fog", "duration": 8.0, "near": 220.0},
-	"within": {"name": "Within", "class": "self", "says": "Works on yourself", "duration": 8.0},
-}
-## What each kind does, by the shape's class. Numbers at full (lead) strength:
-##   burn     damage a second for burn_t seconds
-##   slow     seconds a foe walks slower
-##   reach    shapes reach (and dashes carry) this much farther; knock harder
-##   stagger  seconds a foe is staggered
-##   pierce   ignores armour; drag pulls a foe toward you
-##   cut      this much more damage; bleed damage a second for 3 s
-##   heal     health back for each foe hit
-##   erode    this much more damage, ignores armour, erodes this a second for 4 s; costs you health
-const KINDS := {
-	"fire": {"hit": "burns what it hits", "self": "your strikes burn for a while", "shell": "bursts into flame when it breaks", "near": "burns the foes near you",
-		"burn": 4.0, "burn_t": 3.0, "kindle": 5.0},
-	"water": {"hit": "slows what it hits", "self": "you heal steadily for a while", "shell": "mends you while it holds", "near": "slows the foes near you",
-		"slow": 3.5, "mend": 24.0},
-	"air": {"hit": "reaches farther and throws harder", "self": "you move faster and roll for less", "shell": "lasts longer", "near": "lets you see for longer",
-		"reach": 0.4, "move": "carries you farther"},
-	"stone": {"hit": "staggers what it hits", "self": "you take less damage and can't be knocked back", "shell": "is much stronger", "near": "staggers the foes near you",
-		"stagger": 0.7},
-	"iron": {"hit": "pierces armour and drags foes toward you", "self": "your stamina comes back faster", "shell": "is stronger", "near": "drags the foes near you closer",
-		"drag": 220.0},
-	"blade": {"hit": "cuts deeper and leaves foes bleeding", "self": "your strikes hit harder for a while", "shell": "sharpens your strikes while it holds", "near": "cuts the foes near you",
-		"cut": 0.35, "bleed": 3.0},
-	"life": {"hit": "heals you for each foe it hits", "self": "heals you at once", "shell": "heals you as it rises", "near": "heals you for each foe near you",
-		"heal": 3.0, "self_heal": 22.0},
-	"unmaking": {"hit": "ignores armour and keeps eroding, at a cost in your health", "self": "your strikes hit harder, at a cost in health", "shell": "is stronger, at a cost in health", "near": "erodes the foes near you, at a cost in health",
-		"erode": 3.0, "more": 0.3, "toll": 3.0},
-}
+## The forms (shapes) and what each kind does live in the shared library
+## (library.gd FORMS and EFFECTS, where every name, line and number is);
+## these are the very same dictionaries, by the names the code has always used:
+##   SHAPES: form id -> its entry ("class", "says", its numbers);
+##   KINDS: essence -> its base effect (a phrase for each class of form, numbers).
+static var SHAPES: Dictionary = Library.FORMS
+static var KINDS: Dictionary = Library.base_effects()
 ## The others flavour the lead at this share of their strength (2nd, 3rd).
 const FLAVOUR := [1.0, 0.5, 0.35]
 ## The fill a technique needs to cast (it's full there), the carried
@@ -138,8 +108,37 @@ static func recipe(id: String) -> Dictionary:
 
 ## A technique record, or {} if it isn't one (broken saves).
 static func valid(t) -> bool:
-	return t is Dictionary and PART_SHAPES.has(String(t.get("part", ""))) and String(t.get("shape", "")) in PART_SHAPES[t["part"]] \
-		and t.get("kinds") is Array and not t["kinds"].is_empty()
+	if not (t is Dictionary and PART_SHAPES.has(String(t.get("part", ""))) and t.get("kinds") is Array and not t["kinds"].is_empty()):
+		return false
+	var sh := String(t.get("shape", ""))
+	if sh in PART_SHAPES[t["part"]]:
+		return true
+	# (a library form of that part, once it's written)
+	return Library.built(Library.form(sh)) and String(Library.form(sh).get("part", "")) == String(t["part"])
+
+
+## Its variations (library ids that exist and are written, at most MAX_VARIATIONS).
+static func variations(t: Dictionary) -> Array:
+	var out: Array = []
+	var vs = t.get("vars", [])
+	if vs is Array:
+		for v in vs:
+			if Library.built(Library.variation(String(v))) and not String(v) in out and out.size() < Library.MAX_VARIATIONS:
+				out.append(String(v))
+	return out
+
+
+## The effect an essence brings to it (its chosen library effect, else its base one).
+static func effect_of(t: Dictionary, kind: String) -> String:
+	var fx = t.get("effects", {})
+	if fx is Dictionary and fx.has(kind) and Library.built(Library.effect(String(fx[kind]))) and String(Library.effect(String(fx[kind])).get("kind", "")) == kind:
+		return String(fx[kind])
+	return String(Library.BASE.get(kind, ""))
+
+
+## How much farther a technique reaches with Air in it (by its weights).
+static func reach_mult(w: Dictionary) -> float:
+	return 1.0 + float(KINDS["air"]["reach"]) * float(w.get("air", 0.0))
 
 
 static func shape(t: Dictionary) -> Dictionary:
@@ -184,12 +183,20 @@ static func cost(t: Dictionary, prof = null) -> Dictionary:
 	return out
 
 
+## Strain a cast adds: by how many kinds, plus its form's and its variation's.
 static func strain(t: Dictionary) -> float:
-	return float(STRAIN[clampi(t["kinds"].size() - 1, 0, STRAIN.size() - 1)])
+	var s := float(STRAIN[clampi(t["kinds"].size() - 1, 0, STRAIN.size() - 1)])
+	s += float(Library.form(String(t.get("shape", ""))).get("strain", 0.0))
+	for v in variations(t):
+		s += float(Library.variation(v).get("strain", 0.0))
+	return s
 
 
 static func windup(t: Dictionary) -> float:
-	return float(WINDUP[0]) + float(WINDUP[1]) * float(t["kinds"].size() - 1)
+	var w := float(WINDUP[0]) + float(WINDUP[1]) * float(t["kinds"].size() - 1)
+	for v in variations(t):
+		w *= float(Library.variation(v).get("windup", 1.0))
+	return w
 
 
 static func cost_text(t: Dictionary, prof = null) -> String:
@@ -224,8 +231,15 @@ static func describe(t: Dictionary) -> String:
 		var phrase: String = KINDS[k][key]
 		if cls == "move" and k == "air":
 			phrase = KINDS[k]["move"]
+		var fx := effect_of(t, k)
+		if fx != String(Library.BASE.get(k, "")):
+			phrase = String(Library.effect(fx).get(key, Library.effect(fx).get("hit", phrase)))
 		bits.append(phrase if i == 0 else "a little " + phrase if key != "self" else "and a little: " + phrase)
 	var what: String = sh["says"]
+	var vs := variations(t)
+	if not vs.is_empty():
+		var v := Library.variation(vs[0])
+		what = "%s (%s: %s)" % [what, v["name"], String(v["says"]).to_lower()]
 	match cls:
 		"self":
 			return "%s: %s%s." % [what, bits[0], ("; " + "; ".join(bits.slice(1))) if bits.size() > 1 else ""]
@@ -253,16 +267,122 @@ static func weights(t: Dictionary) -> Dictionary:
 ## waver all folded in). `run` is unbound_run.gd (bolts, landings, bleeds).
 ## Returns how many foes it touched.
 static func cast(t: Dictionary, p, power: float, run) -> int:
-	var main = p.main
-	var sh: Dictionary = shape(t)
+	var vs := variations(t)
+	var w := cast_weights(t)
+	if vs.is_empty():
+		return _cast_form(t, p, power, run, shape(t), w)
+	return _cast_varied(t, p, power, run, vs[0], w)
+
+
+## The weights a cast acts with: weights(), plus "_fx" (the kinds whose
+## chosen effect replaces their base one: {kind: effect id}) when there are any.
+static func cast_weights(t: Dictionary) -> Dictionary:
 	var w := weights(t)
+	var fx := {}
+	for k in t["kinds"]:
+		var id := effect_of(t, String(k))
+		if id != String(Library.BASE.get(String(k), "")):
+			fx[String(k)] = id
+	if not fx.is_empty():
+		w["_fx"] = fx
+	return w
+
+
+## A form's numbers under a variation (Wide widens, Long reaches farther).
+static func varied_shape(sh: Dictionary, vid: String) -> Dictionary:
+	var v := Library.variation(vid)
+	var out := sh.duplicate()
+	match vid:
+		"wide":
+			for k in ["arc", "radius", "near", "width"]:
+				if out.has(k):
+					out[k] = float(out[k]) * float(v.get("arc" if k == "arc" else "radius", 1.4))
+		"long":
+			for k in ["reach", "range", "dist", "length", "near"]:
+				if out.has(k):
+					out[k] = float(out[k]) * float(v.get("reach", 1.4))
+	return out
+
+
+## A cast under its variation (library.gd VARIATIONS): its numbers changed,
+## cast again (Split, Mirrored, Echo), later (Delayed), jumping on (Chain)
+## or leaving a field (Lingering).
+static func _cast_varied(t: Dictionary, p, power: float, run, vid: String, w: Dictionary) -> int:
+	var v := Library.variation(vid)
+	var sh := varied_shape(shape(t), vid)
+	var pw := power * float(v.get("power", 1.0))
+	var cls := String(sh.get("class", "hit"))
+	var aimed: bool = cls in ["hit", "mark"] and String(t["shape"]) != "push"
+	var main = p.main
+	match vid:
+		"split":
+			if not aimed:
+				return _cast_form(t, p, power, run, sh, w)
+			var aim: Vector2 = p.aim
+			var n := int(v.get("copies", 3))
+			var hits := 0
+			for i in n:
+				p.aim = aim.rotated(deg_to_rad(float(v.get("spread", 22.0))) * (float(i) - float(n - 1) * 0.5))
+				hits += _cast_form(t, p, pw, run, sh, w)
+			p.aim = aim
+			return hits
+		"mirrored":
+			if cls in ["move", "self", "shell", "sight"]:
+				return _cast_form(t, p, power, run, sh, w)
+			var hits := _cast_form(t, p, pw, run, sh, w)
+			var aim: Vector2 = p.aim
+			p.aim = -aim
+			hits += _cast_form(t, p, pw, run, sh, w)
+			p.aim = aim
+			return hits
+		"echo":
+			var hits := _cast_form(t, p, power, run, sh, w)
+			SpellFx.later(main, float(v.get("delay", 1.0)), func():
+				if is_instance_valid(p) and not p.dead:
+					_cast_form(t, p, pw, run, sh, w))
+			return hits
+		"delayed":
+			SpellFx.mark(main, p.global_position + (p.aim * 50.0 if aimed else Vector2.ZERO), float(v.get("delay", 0.6)), color(lead(t)))
+			SpellFx.later(main, float(v.get("delay", 0.6)), func():
+				if is_instance_valid(p) and not p.dead:
+					_cast_form(t, p, pw, run, sh, w))
+			return 0
+		"chain":
+			var cw := w.duplicate()
+			cw["_chain"] = {"hop": float(v.get("hop", 170.0)), "share": float(v.get("power", 0.6))}
+			return _cast_form(t, p, power, run, sh, cw)
+		"lingering":
+			var hits := _cast_form(t, p, power, run, sh, w)
+			var at: Vector2 = p.global_position
+			if aimed:
+				at += p.aim * minf(float(sh.get("reach", sh.get("range", sh.get("length", 120.0)))) * 0.6, 140.0)
+			var fw := {}
+			for k in w:
+				if not String(k).begins_with("_"):
+					fw[k] = float(w[k]) * 0.5
+			var dmg := float(sh.get("damage", 6.0)) * power * float(v.get("power", 0.2))
+			SpellFx.field(main, at, float(v.get("radius", 52.0)), float(v.get("duration", 3.0)), float(v.get("tick", 0.5)), color(lead(t)), func(foes: Array):
+				for e in foes:
+					hit(p, e, dmg, Vector2.ZERO, fw, power * 0.5, run))
+			return hits
+	return _cast_form(t, p, pw, run, sh, w)
+
+
+## Casts a form with these numbers (`sh`) and weights (`w`). A library form
+## this file doesn't run is run by its content file (library.gd cast_form).
+static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: Dictionary) -> int:
+	var main = p.main
 	var col := color(lead(t))
-	var reach_k := 1.0 + float(KINDS["air"]["reach"]) * float(w.get("air", 0.0))
+	var reach_k := reach_mult(w)
 	var origin: Vector2 = p.global_position
 	var aim: Vector2 = p.aim
 	var hits := 0
 	if w.has("unmaking"):
 		_toll(p, float(KINDS["unmaking"]["toll"]) * float(w["unmaking"]))
+	if not String(t["shape"]) in Library.FORMS or not String(t["shape"]) in ["strike", "bolt", "dash", "leap", "push", "shout", "pull", "mark", "sight", "shell", "within"]:
+		hits = Library.cast_form(String(t["shape"]), t, p, power, run, sh, w)
+		main.light_flash(origin + aim * 20.0, col, 1.0, 1.0, 0.25)
+		return maxi(hits, 0)
 	match String(t["shape"]):
 		"strike":
 			var reach: float = float(sh["reach"]) * reach_k
@@ -355,7 +475,9 @@ static func cast(t: Dictionary, p, power: float, run) -> int:
 			var near: float = float(sh["near"])
 			var w2 := {}
 			for k in w:
-				if k != "air":
+				if String(k).begins_with("_"):
+					w2[k] = w[k]  # (a chosen effect, a Chain)
+				elif k != "air":
 					w2[k] = float(w[k]) * 0.5
 			for e in main.targets():
 				if e.global_position.distance_to(origin) <= near:
@@ -378,6 +500,8 @@ static func cast(t: Dictionary, p, power: float, run) -> int:
 		"within":
 			var dur: float = float(sh["duration"])
 			for k in w:
+				if String(k).begins_with("_"):
+					continue
 				var s: float = float(w[k])
 				match String(k):
 					"fire":
@@ -402,9 +526,49 @@ static func cast(t: Dictionary, p, power: float, run) -> int:
 
 
 ## A foe struck by a technique: its damage, then what each kind adds.
-static func hit(p, e, dmg: float, dir: Vector2, w: Dictionary, power: float, run) -> void:
+static func hit(p, e, dmg: float, dir: Vector2, w_all: Dictionary, power: float, run) -> void:
 	if e == null or not is_instance_valid(e) or e.dead:
 		return
+	# A kind with another chosen effect (its "_fx") works through that
+	# effect instead of its base one; Chain ("_chain") jumps on afterwards.
+	var w := w_all
+	var fx: Dictionary = w_all.get("_fx", {})
+	if not fx.is_empty():
+		w = {}
+		for k in w_all:
+			if not String(k).begins_with("_") and not fx.has(k):
+				w[k] = w_all[k]
+	_hit_base(p, e, dmg, dir, w, power, run)
+	if not fx.is_empty() and is_instance_valid(e) and not e.dead:
+		for k in fx:
+			Library.hit_effect(String(fx[k]), p, e, float(w_all.get(k, 0.0)), power, run)
+	var ch: Dictionary = w_all.get("_chain", {})
+	if not ch.is_empty() and dmg > 0.0 and p.main != null:
+		var best = null
+		var best_d := float(ch.get("hop", 170.0))
+		for o in p.main.targets():
+			if o == e or o.dead:
+				continue
+			var d: float = o.global_position.distance_to(e.global_position) if is_instance_valid(e) else INF
+			if d < best_d:
+				best_d = d
+				best = o
+		if best != null:
+			var w2 := w_all.duplicate()
+			w2.erase("_chain")  # (one jump, not a chain without end)
+			p.main.fx_bolt([e.global_position if is_instance_valid(e) else p.global_position, best.global_position], color(_lead_of(w_all)))
+			hit(p, best, dmg * float(ch.get("share", 0.6)), Vector2.ZERO, w2, power, run)
+
+
+static func _lead_of(w: Dictionary) -> String:
+	for k in w:
+		if not String(k).begins_with("_") and float(w[k]) >= 1.0:
+			return String(k)
+	return "air"
+
+
+## A struck foe: its damage, then what each kind's base effect adds.
+static func _hit_base(p, e, dmg: float, dir: Vector2, w: Dictionary, power: float, run) -> void:
 	var pierce := false
 	var force := 140.0 * (1.0 + float(w.get("air", 0.0)))
 	if w.has("blade"):

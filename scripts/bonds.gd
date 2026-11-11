@@ -611,4 +611,12 @@ static func step_note(id: String, step: int) -> String:
 			bits.append("learns %s" % sp["name"])
 		elif sp.get("changes", {}).has(step):
 			bits.append("%s: %s" % [sp["name"], sp["changes"][step]])
+	# A fork whose other side is written (tree.gd): the choice waits in the book.
+	var alt: Dictionary = load("res://scripts/tree.gd").fork_alt(id, step)
+	if step in [2, 3, 4] and not alt.is_empty() and not bool(alt.get("placeholder", false)):
+		bits.append(FORK_NOTE % String(alt.get("name", "")))
 	return ", ".join(bits)
+
+
+## A step-note's words for a fork that's ready (the other side's name).
+static var FORK_NOTE := "or %s: choose in your book"

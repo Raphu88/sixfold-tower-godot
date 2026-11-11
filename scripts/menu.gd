@@ -40,6 +40,8 @@ const RailScript := preload("res://scripts/rail.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Reflow := preload("res://scripts/reflow.gd")
 const Abilities := preload("res://scripts/abilities.gd")
+const Book := preload("res://scripts/book.gd")
+const TreeView := preload("res://scripts/tree_view.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -55,11 +57,14 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
 	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0}
-## The climber screen's tabs: [id, name]. Abilities (abilities.gd) comes
-## first: what you can cast and how; Marks is the body and each mark's
-## growth ("Body" for the Unbound, who carry no marks).
+## The climber screen is the book (book.gd): its sections, [id, name], each
+## a ribbon. Abilities (abilities.gd) comes first: what you can cast and
+## how; the Tree (tree_view.gd) is the body map, where you choose how you
+## grow; Marks is the body and each mark's growth ("Body" for the Unbound,
+## who carry no marks).
 ## (The Entity's Archive is the Library now: its own page, and a car on the train.)
-const CLIMBER_TABS := [["abilities", "Abilities"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+const CLIMBER_TABS := [["abilities", "Abilities"], ["tree", "Tree"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+const MARKS_TAB_INDEX := 2
 const UNBOUND_MARKS_TAB := "Body"
 ## Settings & Controls: its two tabs (the train's car shows them too).
 const SETTINGS_TABS := [["settings", "Settings"], ["controls", "Controls"]]
@@ -284,6 +289,7 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			touch_from = event.position
 			touch_moved = 0.0
+			_swipe = Vector2.ZERO
 			touch_rail = rail.visible and rail.get_global_rect().has_point(event.position)
 			_touch_began = true
 			touch_slider = _control_at(event.position, "HSlider")
@@ -292,6 +298,8 @@ func _input(event: InputEvent) -> void:
 		else:
 			if touch_slider == null and touch_moved < 14.0 and _touch_began:
 				_tap(event.position)  # (not the lift of a press that opened the menu: the Climber button's, say)
+			elif _is_swipe() and _touch_began:
+				_cycle(-1 if _swipe.x > 0.0 else 1)  # (the book: a swipe turns the page)
 			touch_slider = null
 			_touch_began = false
 			# A phone: switch to the bigger phone layout (after the tap, so the
@@ -302,14 +310,24 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		if event.index != 0:
 			return
-		touch_moved += event.relative.length()
+		touch_moved = maxf(touch_moved + event.relative.length(), (event.position - touch_from).length())
+		_swipe = event.position - touch_from
 		if touch_slider != null:
 			_slide_to(touch_slider, event.position)
 		elif touch_moved >= 14.0 and touch_rail and rail.pane != null:
 			rail.pane.scroll_vertical -= int(event.relative.y)  # (a rail too tall for a short screen)
-		elif touch_moved >= 14.0:
+		elif touch_moved >= 14.0 and not (page == "climber" and absf(_swipe.x) > absf(_swipe.y)):
 			scroll.scroll_vertical -= int(event.relative.y)
 		get_viewport().set_input_as_handled()
+
+
+## The book (the climber page): a finger gone far enough across, mostly
+## sideways, off the rail, turns a page.
+var _swipe := Vector2.ZERO
+
+
+func _is_swipe() -> bool:
+	return page == "climber" and not touch_rail and touch_slider == null and absf(_swipe.x) >= Book.SWIPE and absf(_swipe.x) > absf(_swipe.y) * 1.6
 
 
 ## The topmost visible control of a class under a point, or null.
@@ -916,6 +934,8 @@ func open(which: String, direct := false) -> void:
 		on_rail = true  # (the pause menu starts on the rail, on Resume; the train on its rail, on your car)
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	elif which == "climber":
+		panel.add_theme_stylebox_override("panel", Book.panel_style(compact()))  # (the climber's book)
 	elif compact():
 		var st := UI.menu_panel()
 		st.set_content_margin_all(12.0)
@@ -1623,12 +1643,15 @@ func controls_body() -> void:
 func _page_climber() -> void:
 	var prof = main.profile
 	var who: String = prof.appearance.get("name", "")
-	_header(who if who != "" else "Climber", _climber_line(), "Climber")
+	_header(who if who != "" else "Climber", _climber_line(), Book.TEXT["name"])
 	var tabs := climber_tabs()
-	_tabs(tabs, climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks", _set_climber_tab)
+	Book.ribbons(self, tabs, climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks", _set_climber_tab)  # (the book's sections)
+	_gap(0 if compact() else 2)
 	match climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks":
 		"abilities":
 			Abilities.build(self)
+		"tree":
+			TreeView.build(self)
 		"core":
 			SecretPage.build(self)
 		"essence":
@@ -1644,18 +1667,22 @@ func _page_climber() -> void:
 func climber_tabs() -> Array:
 	var tabs: Array = CLIMBER_TABS.duplicate(true)
 	if main != null and main.profile != null and Unbound.is_on(main.profile):
-		tabs[1][1] = UNBOUND_MARKS_TAB  # (no marks: their body's raw essence)
+		tabs[MARKS_TAB_INDEX][1] = UNBOUND_MARKS_TAB  # (no marks: their body's raw essence)
 	if main != null and main.profile != null and main.SecretBonds.has_bond(main.profile):
 		tabs.append(SecretPage.TAB)
 	return tabs
 
 
 func _set_climber_tab(id: String) -> void:
+	var ids: Array = climber_tabs().map(func(t): return t[0])
+	var dir := signi(ids.find(id) - ids.find(climber_tab))
 	climber_tab = id
 	if settings["climber_tab"] != id:
 		settings["climber_tab"] = id  # remembered for next time
 		save_settings()
 	open("climber", opened_direct)
+	if dir != 0 and page == "climber":
+		Book.turn(self, dir)  # (the page turns)
 
 
 func _climber_line() -> String:
@@ -2126,7 +2153,7 @@ func _mark_bond(info: Dictionary) -> void:
 	_section("Spells")
 	_rich(_cast_line(), 12, DIM)
 	var i := 0
-	for sp in data["spells"]:
+	for sp in TreeView.TreeRules.bond_spells(String(info["id"]), TreeView.TreeRules.MAX_STEP, TreeView.TreeRules.mark_choices(main.profile, String(info["id"]))):  # (the tree: forks chosen)
 		i += 1
 		_spell_card(sp, step, col, data["affinity"], i)
 	_section("Steps")
@@ -3116,6 +3143,7 @@ func _page_dev() -> void:
 
 	SecretPage.dev_section(self)  # the secret bonds: grant one at depth 1 or 2, or clear it
 	TechniquePage.dev_section(self)  # the Unbound (technique_page.gd)
+	TreeView.dev_section(self)  # the tree's choices (tree_view.gd)
 
 	_section("Cheats")
 	var crow := _row()
