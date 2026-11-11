@@ -29,6 +29,7 @@ extends "res://scripts/enemy.gd"
 const Weapons := preload("res://scripts/weapons.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Appearance := preload("res://scripts/appearance.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
 
 ## Which floors may hold a mirror room: from floor `from`, `chance` of them;
 ## never the Proving's floor, the summit, floor 1 or the bondless first climb.
@@ -738,6 +739,7 @@ static func draw_climber(b, lk: Dictionary, pose: Dictionary) -> void:
 	var sway := sin(t * 1.7) * 0.8 + s * 1.4
 	Appearance.draw_legs(b, Vector2.ZERO, f, sd, lt, lk, s)
 	Appearance.draw_cloak(b, Vector2.ZERO, f, sd, lt, lk, sway, Vector2.ZERO)
+	GearLook.tower_back(b, Vector2.ZERO, f, sd, lt, lk)  # (gear_look.gd: a backpack, a slung weapon)
 	Appearance.draw_torso(b, Vector2.ZERO, f, sd, lt, lk)
 	var torso: Color = lk.get("torso", lk.get("tunic", Palette.CLIMBER_TUNIC))
 	var tk: float = float(lk.get("torso_r", 8.5)) / 8.5
@@ -759,7 +761,9 @@ static func draw_climber(b, lk: Dictionary, pose: Dictionary) -> void:
 	var sh_y: float = lk.get("sh_y", 9.3)
 	for sgn in [-1.0, 1.0]:
 		b.ball(_p(f, sd, 0.3, sgn * sh_y), sh_r, lk.get("shoulder", lk["cloak"].darkened(0.12)), true, lt)
+	GearLook.tower_chest(b, Vector2.ZERO, f, sd, lt, lk, t)  # (an amulet, a fine chest piece's glow)
 	Appearance.draw_head(b, _p(f, sd, -0.5, 0.0), f, sd, lt, lk, sway, Vector2.ZERO)
+	GearLook.tower_head(b, _p(f, sd, -0.5, 0.0), f, sd, lt, lk, t)
 	_draw_arms(b, lk, pose, _p(f, sd, 0.3 + s * 0.8, sh_y), _p(f, sd, 0.3 - s * 0.8, -sh_y))
 
 

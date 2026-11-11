@@ -11,6 +11,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
 
 ## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
 ## "The climber's core numbers"); these read them, so a change shows at once.
@@ -262,6 +263,16 @@ func use_heirlooms(heirlooms: Dictionary) -> void:
 		var pieces: Array = Gear.heirloom_pieces(heirlooms, hs).filter(func(r): return Gear.slot_of(r) == gs)
 		for i in mini(pieces.size(), into.size()):
 			gear[into[i]] = Gear.heirloom_copy(pieces[i])
+	weapon = gear_id("melee") if gear_id("melee") != "" else "fists"
+	if wkind() == "melee":
+		swing = wdata()["combo"][0]
+	refresh_gear()
+
+
+## Wears this gear (carried slot -> record) all at once, with no fuss: the
+## train's Loadout (train.gd dress). The melee weapon comes to hand.
+func wear_set(g: Dictionary) -> void:
+	gear = g
 	weapon = gear_id("melee") if gear_id("melee") != "" else "fists"
 	if wkind() == "melee":
 		swing = wdata()["combo"][0]
@@ -2146,6 +2157,22 @@ func set_appearance(app: Dictionary) -> void:
 	queue_redraw()
 
 
+## The look dressed in what you wear (gear_look.gd, via _piece_look and
+## _armor_look), worked out again only when the gear, the weapon in hand or
+## the appearance changes; a copy, as the drawing tints it (hurt, fallen).
+var _dress_key := -1
+var _dress_cache := {}
+func _dressed_look() -> Dictionary:
+	var key := hash([gear, weapon, appearance_look])
+	if key != _dress_key or _dress_cache.is_empty():
+		_dress_key = key
+		_dress_cache = appearance_look.duplicate()
+		_piece_look(_dress_cache, true)
+		_armor_look(_dress_cache)
+		_piece_look(_dress_cache, false)
+	return _dress_cache.duplicate()
+
+
 ## The climber, built into one batch (one draw call) in the style of
 ## draw_util.gd: a hooded head, shoulders and arms over a cloak that sways,
 ## boots that step, armor and the weapon in hand. Marks glow on top. The
@@ -2153,10 +2180,7 @@ func set_appearance(app: Dictionary) -> void:
 func _draw() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var dt := get_process_delta_time()
-	var look := appearance_look.duplicate()
-	_piece_look(look, true)
-	_armor_look(look)
-	_piece_look(look, false)
+	var look := _dressed_look()
 	# A hit flushes the climber red, then fades (no snap back).
 	var hurt := clampf((hurt_t - 0.25) / 0.15, 0.0, 1.0) * 0.6
 	for k in look:
@@ -2240,87 +2264,21 @@ func _draw_shadow(t: float, dt: float) -> void:
 	b.flush(self)
 
 
-## Worn pieces that show (gear.gd PIECES "look"): a cloak's colour (before
-## the armor, so the hood follows it), then the helm, gloves and boots.
+## Worn pieces that show, dressed over the look in three steps (gear_look.gd
+## dress; mirror.gd calls them in the same order): before the armor (a
+## cloak's colour, so the hood follows it), the armor, then after it the
+## helm, gloves, boots and the rest (the backpack, amulet, rings, weapons).
 func _piece_look(look: Dictionary, before_armor: bool) -> void:
 	if before_armor:
-		look["head"] = Appearance.head_kind(look)  # hood up, or bare
-		look["boot_r"] = 3.0
-		look["studs"] = false
-		var cl = gear.get("cloak", {})
-		if Gear.is_gear(cl):
-			look["cloak"] = Gear.color(cl)
+		GearLook.before_armor(look, gear)
 		return
-	match gear_id("armor"):
-		"plate":
-			look["head"] = "helm"
-		"chain":
-			look["head"] = "coif"
-	var hm = gear.get("helm", {})
-	if Gear.is_gear(hm):
-		var col := Gear.color(hm)
-		match String(Gear.info(hm).get("look", "hood")):
-			"cap":
-				look["head"] = "cap"
-				look["cap"] = col
-			"helm":
-				look["head"] = "helm"
-				look["hood"] = col.darkened(0.1)
-			_:
-				look["head"] = "hood"
-				look["hood"] = col
-	var gl = gear.get("gloves", {})
-	if Gear.is_gear(gl):
-		look["hand"] = Gear.color(gl).darkened(0.15)
-	var bt = gear.get("boots", {})
-	if Gear.is_gear(bt):
-		look["boot"] = Gear.color(bt).darkened(0.1)
-		match String(Gear.info(bt).get("look", "")):
-			"hobnail":
-				look["boot_r"] = 3.4
-				look["studs"] = true
-			"soft":
-				look["boot_r"] = 2.8
+	GearLook.after_armor(look, gear)
+	GearLook.extras(look, gear, weapon)
 
 
 ## Colours and sizes for the armor you wear (none: tunic and cloak).
 func _armor_look(look: Dictionary) -> void:
-	var cloak: Color = look["cloak"]
-	look["torso"] = look["tunic"]
-	look["shoulder"] = cloak.darkened(0.12)
-	look["shoulder_r"] = 4.6
-	look["sleeve"] = look["tunic"]
-	look["hand"] = look["skin"]
-	look["hood"] = cloak.darkened(0.22)
-	var id := gear_id("armor")
-	if id == "":
-		return
-	var col: Color = armor()["color"]
-	match id:
-		"padded":
-			look["torso"] = col
-			look["shoulder"] = col.darkened(0.08)
-			look["shoulder_r"] = 5.0
-			look["sleeve"] = col.darkened(0.15)
-		"leather":
-			look["torso"] = col
-			look["shoulder"] = col.darkened(0.18)
-			look["shoulder_r"] = 5.2
-			look["sleeve"] = col.darkened(0.1)
-			look["hand"] = col.darkened(0.3)  # gloves
-		"chain":
-			look["torso"] = col.darkened(0.12)
-			look["shoulder"] = col
-			look["shoulder_r"] = 5.4
-			look["sleeve"] = col.darkened(0.2)
-			look["hood"] = col.darkened(0.3)  # a mail coif
-		"plate":
-			look["torso"] = col.darkened(0.15)
-			look["shoulder"] = col
-			look["shoulder_r"] = 6.2  # big pauldrons: broader and heavier
-			look["sleeve"] = col.darkened(0.3)
-			look["hand"] = col.darkened(0.25)  # gauntlets
-			look["hood"] = col.darkened(0.1)  # a steel helm
+	GearLook.armor_look(look, gear)
 
 
 func _draw_standing(b, look: Dictionary, t: float) -> void:
@@ -2338,9 +2296,12 @@ func _draw_standing(b, look: Dictionary, t: float) -> void:
 	# with its peak trailing behind, or bare with the hood down).
 	Appearance.draw_legs(b, lx, _f, _sd, _light, look, s)
 	Appearance.draw_cloak(b, lx, _f, _sd, _light, look, sway, d)
+	GearLook.tower_back(b, lx, _f, _sd, _light, look)  # (a backpack, the other weapon slung)
 	Appearance.draw_torso(b, lx, _f, _sd, _light, look)
 	_draw_armor_detail(b, lx, look)
+	GearLook.tower_chest(b, lx, _f, _sd, _light, look, t)  # (an amulet, a fine chest piece's glow)
 	Appearance.draw_head(b, lx + _at(-0.5, 0.0), _f, _sd, _light, look, sway, d)
+	GearLook.tower_head(b, lx + _at(-0.5, 0.0), _f, _sd, _light, look, t)  # (a candle, a feather, a fine helm's crest)
 	var sh_y: float = look.get("sh_y", 9.3)  # (wider apart on a broad build)
 	var sh_w := lx + _at(0.3 + s * 0.8, sh_y)
 	var sh_o := lx + _at(0.3 - s * 0.8, -sh_y)
@@ -2724,6 +2685,10 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 		draw_weapon.call()
 	for h in hands:
 		b.ball(h[1], h[2], look["hand"], true, _light)
+	if not hands.is_empty():
+		GearLook.ring_glint(b, hands[0][1], look, "ring1")  # (rings glint on the hands)
+		if hands.size() > 1:
+			GearLook.ring_glint(b, hands[1][1], look, "ring2")
 
 
 ## A swung weapon lying along `along` from the grip: sword, axe, mace,

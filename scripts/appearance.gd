@@ -21,8 +21,12 @@ extends RefCounted
 ##     [gear]      the caller's: arms, the weapon, the hands
 ##   On the climber screen, the book, the climber picker and the preview
 ##   (seen from the front; menu.gd BodyView._figure calls draw_front):
-##     the cloak behind → legs and boots → tunic and belt → arms →
-##     the mantle → [gear: none drawn here yet] → draw_front_head.
+##     [gear: a backpack, a slung bow] → the cloak behind → legs and boots →
+##     [gear: leg armour, boots] → tunic and belt → [gear: body armour, a
+##     pack's straps] → arms → [gear: the weapon, gloves, rings] → the
+##     mantle → [gear: pauldrons, the amulet] → draw_front_head → [gear: a
+##     cap, helm or coif]. The gear layers are gear_look.gd's, drawn only
+##     for a dressed look (GearLook.dress: "gear_on").
 ##
 ## Reusing it (the mirror image, or anything else drawn like the climber):
 ##   var look := Appearance.look(profile.appearance)   # once, when it changes
@@ -36,6 +40,7 @@ extends RefCounted
 
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
 
 ## The option rows: [key, name]. The editor shows them a tab at a time (TABS).
 static var ROWS := [
@@ -458,6 +463,8 @@ static func draw_legs(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, l
 	for sg in [1.0, -1.0]:
 		var at: Vector2 = lx + _q(f, sd, 2.0 + sg * s * 4.5, sg * apart)
 		b.stroke(lx + _q(f, sd, 0.5, sg * apart * 0.7), at - f * 1.2, legs.darkened(0.25), 3.2)
+		if lk.has("greave"):  # worn leg armour: a knee plate (gear_look.gd)
+			b.dot(lx + _q(f, sd, 1.4 + sg * s * 2.2, sg * apart * 0.85), 1.5, lk["greave"])
 		b.ball(at, boot_r, lk["boot"], true, light)
 		if lk.get("studs", false):  # Hobnail Boots
 			b.dot(at + f * boot_r * 0.7, 0.7, Palette.STEEL)
@@ -905,13 +912,25 @@ static func draw_fallen_body(b, f: Vector2, sd: Vector2, light: Vector2, lk: Dic
 
 ## The whole front figure, in layers (see the top of the file).
 static func draw_front(b, lk: Dictionary) -> void:
+	var gear: bool = lk.get("gear_on", false)  # (dressed in worn gear: gear_look.gd)
+	if gear:
+		GearLook.front_behind(b, lk)  # gear: a backpack, a slung bow
 	_front_cloak(b, lk)  # clothes: the cloak behind
 	_front_legs(b, lk)  # body and clothes: legs in their trousers, boots
+	if gear:
+		GearLook.front_legs(b, lk)  # gear: leg armour, boots
 	_front_tunic(b, lk)  # clothes: the tunic, its skirt, the belt
+	if gear:
+		GearLook.front_chest(b, lk)  # gear: body armour, a pack's straps
 	_front_arms(b, lk)  # body: arms in their sleeves, hands
+	if gear:
+		GearLook.front_arms(b, lk)  # gear: the weapon in hand, gloves, rings
 	_front_mantle(b, lk)  # clothes: the cloak's mantle over the shoulders
-	# (gear: nothing worn is drawn on the front figure yet; it would go here)
+	if gear:
+		GearLook.front_shoulders(b, lk)  # gear: pauldrons, the amulet
 	draw_front_head(b, lk)  # head: the hood or hair, the face, what's at the neck
+	if gear:
+		GearLook.front_head(b, lk)  # gear: a cap, a helm or a mail coif
 
 
 static func _sx(pts: PackedVector2Array, k: float) -> PackedVector2Array:
@@ -1147,7 +1166,7 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 ## Hood up: the face in the hood's shadow, the hair peeking out. Hood down:
 ## the face lit, the hood in folds round the neck. Then what's at the neck.
 static func draw_front_head(b, lk: Dictionary) -> void:
-	var cloak: Color = lk["cloak"]
+	var cloak: Color = lk.get("hood_front", lk["cloak"])  # (a worn hood or coif: its own colour)
 	var skin: Color = lk["skin"]
 	var hair: Color = lk["hair"]
 	var style: String = lk.get("hair_style", "short")
