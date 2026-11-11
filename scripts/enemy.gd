@@ -155,6 +155,9 @@ var reborn := false  # the Firebird rises once from its ashes
 var turn := 0  # a mongrel alternates its two attacks
 var cripple_t := 0.0  # Surgeon's Sever: can't run or charge
 var chill_t := 0.0  # a Coral Trident's hit: walks 25% slower
+var unravel_t := 0.0  # the Unbound's Unravel: its armour is stripped (blows pierce)
+var hollow_t := 0.0  # the Unbound's Hollow: it takes more from everything...
+var hollow_k := 0.0  # ...this much more
 var burn_t := 0.0  # of Embers: burning, a little damage every half second
 var burn_dmg := 0.0
 var burn_tick := 0.0
@@ -354,6 +357,8 @@ func _physics_process(delta: float) -> void:
 	open_t -= delta
 	cripple_t -= delta
 	chill_t -= delta
+	unravel_t -= delta
+	hollow_t -= delta
 	_tick_burn(delta)
 	disarm_t -= delta
 	_tick_venom(delta)
@@ -1812,6 +1817,10 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 	if submerged:
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "under the water", Color(0.5, 0.75, 0.85))
 		return
+	if unravel_t > 0.0:
+		pierce = true  # (Unravel: its armour stays stripped)
+	if hollow_t > 0.0:
+		amount *= 1.0 + hollow_k  # (Hollow: it takes more from everything)
 	if main.counting_hits:
 		main.cast_hits += 1
 		if main.secret_tools != null:

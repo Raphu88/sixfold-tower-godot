@@ -40,6 +40,7 @@ const VesselPage := preload("res://scripts/vessel_page.gd")
 const Rail := preload("res://scripts/rail.gd")
 const Book := preload("res://scripts/book.gd")
 const TreeRules := preload("res://scripts/tree.gd")
+const EssenceBench := preload("res://scripts/essence_bench.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -237,6 +238,8 @@ func first_focus(list: Array) -> int:
 			return i
 		if (m.train_car == "library" and b.get_meta("shelf", "") == m.library_shelf) or (m.train_car == "settings" and b.get_meta("panel_tab", "") == m.settings_tab):
 			return i
+		if m.train_car == "workshop" and m.train_bench == EssenceBench.COUNTER and b.has_meta("bench_start"):
+			return i  # (the essence bench: its first vial)
 	return 0
 
 
@@ -876,6 +879,9 @@ func _workshop(root: Node) -> void:
 	var small := _small()
 	var counter: String = m.train_bench
 	var row := _main_row(root)
+	if small and counter == EssenceBench.COUNTER:
+		EssenceBench.build(self, row)  # (a phone: the essence bench alone, a way back to the counters in its head)
+		return
 	var side := VBoxContainer.new()
 	side.add_theme_constant_override("separation", 6)
 	side.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -889,6 +895,11 @@ func _workshop(root: Node) -> void:
 	var cg := _grid(drawers, 2 if small else 1)
 	cg.add_theme_constant_override("v_separation", 4)
 	_counters(cg, Vector2(80.0, 36.0) if small else Vector2(194.0, 34.0), 2 if small else 1)
+	# The essence bench (essence_bench.gd): where the Unbound build their techniques.
+	EssenceBench.drawer(self, cg, Vector2(80.0, 36.0) if small else Vector2(194.0, 34.0), small)
+	if counter == EssenceBench.COUNTER:
+		EssenceBench.build(self, row)
+		return
 	var mid := VBoxContainer.new()
 	mid.add_theme_constant_override("separation", 4 if small else 6)
 	mid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
