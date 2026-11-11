@@ -4146,60 +4146,12 @@ class BodyView extends Control:
 			out.append(Vector2(pts[i], pts[i + 1]))
 		return out
 
-	## The figure, in a frame about 290 tall centred on the waist. Lit from
-	## the top-left: the left side of each piece is paler, the right darker.
-	## Its colours, hair and hood come from `look` (appearance.gd look(); the
-	## appearance page's preview draws it too).
+	## The figure, in a frame about 290 tall centred on the waist, lit from
+	## the top-left, in the climber's look (appearance.gd look(); drawn in
+	## layers by appearance.gd draw_front, which the appearance page's
+	## preview, the book and the climber picker share).
 	static func _figure(b, look: Dictionary) -> void:
-		var cloak: Color = look["cloak"]
-		var tunic: Color = look["tunic"]
-		var skin: Color = look["skin"]
-		var boot: Color = look["boot"]
-		var leather := Color(0.3, 0.2, 0.13)
-		# The cloak hangs behind, from the shoulders to below the knees.
-		b.poly(_p([-30, -68, 30, -68, 46, -20, 56, 40, 64, 100, 48, 108, 30, 104, 14, 110, 0, 104, -14, 110, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20]), cloak.darkened(0.22), 1.6)
-		b.polygon(_p([-30, -68, -6, -68, -10, 104, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20]), cloak.darkened(0.04))
-		b.polygon(_p([38, -36, 46, -20, 56, 40, 64, 100, 48, 108, 44, 40]), cloak.darkened(0.4))
-		b.polygon(_p([-21, 10, 21, 10, 27, 104, 14, 110, 0, 104, -14, 110, -27, 104]), cloak.darkened(0.58))
-		for f in [[-40, 18, -52, 100], [-27, 30, -33, 104], [32, 24, 40, 100], [46, 30, 56, 98]]:
-			b.line(Vector2(f[0], f[1]), Vector2(f[2], f[3]), Color(cloak.darkened(0.5), 0.75), 1.8)
-		b.line(Vector2(-58, 50), Vector2(-62, 98), Color(cloak.lightened(0.3), 0.35), 1.4)
-		# Legs and boots.
-		for sg in [-1.0, 1.0]:
-			var shade := 0.22 if sg < 0.0 else 0.38
-			b.poly(_p([sg * 3, 10, sg * 17, 10, sg * 16, 96, sg * 4, 96]), tunic.darkened(shade), 1.4)
-			b.poly(_p([sg * 2.5, 92, sg * 17.5, 92, sg * 18, 110, sg * 22, 124, sg * 1, 124, sg * 2, 110]), boot if sg < 0.0 else boot.darkened(0.25), 1.4)
-			b.rect(Rect2(Vector2(minf(sg * 2.5, sg * 17.5), 92), Vector2(15, 4)), boot.lightened(0.22))
-			b.line(Vector2(sg * 4, 121), Vector2(sg * 15, 121), Color(boot.lightened(0.3), 0.5), 1.2)
-		# The tunic, a skirt below the belt, and the belt.
-		b.poly(_p([-27, -66, 27, -66, 24, -24, 21, 16, -21, 16, -24, -24]), tunic.darkened(0.14), 1.6)
-		b.polygon(_p([-27, -66, 1, -66, 1, 16, -21, 16, -24, -24]), tunic)
-		b.polygon(_p([-7, -66, 7, -66, 0, -40]), tunic.darkened(0.42))
-		b.poly(_p([-21, 14, 21, 14, 26, 38, -26, 38]), tunic.darkened(0.16), 1.4)
-		b.polygon(_p([-21, 14, 0, 14, 0, 38, -26, 38]), tunic.darkened(0.04))
-		b.rect(Rect2(-23.4, 4.6, 46.8, 11.8), UI.OUTLINE)
-		b.rect(Rect2(-22, 6, 44, 9), leather)
-		b.rect(Rect2(-22, 6, 44, 2.4), leather.lightened(0.2))
-		b.rect(Rect2(-5.4, 3.6, 10.8, 13.8), UI.OUTLINE)
-		b.rect(Rect2(-4, 5, 8, 11), UI.GOLD.darkened(0.2))
-		b.rect(Rect2(-1.6, 7.4, 3.2, 6.2), leather)
-		# Arms in their sleeves, hands out of the cloak.
-		for sg in [-1.0, 1.0]:
-			var sh := Vector2(sg * 28, -60)
-			var el := Vector2(sg * 40, -24)
-			var wr := Vector2(sg * 48, 1)
-			var col := tunic if sg < 0.0 else tunic.darkened(0.2)
-			b.stroke(sh, el, col, 13.0)
-			b.stroke(el, wr, col, 11.0)
-			b.line(sh + Vector2(-3.5, 1), el + Vector2(-4, 0), Color(col.lightened(0.25), 0.6), 2.0)
-			b.stroke(wr - (wr - el).normalized() * 2.0, wr + (wr - el).normalized() * 1.5, tunic.darkened(0.45), 12.0)
-			b.ball(Vector2(sg * 50, 9), 6.8, skin if sg < 0.0 else skin.darkened(0.14))
-		# The mantle over the shoulders.
-		b.poly(_p([-42, -50, -34, -68, -14, -80, 14, -80, 34, -68, 42, -50, 30, -42, 14, -50, 0, -46, -14, -50, -30, -42]), cloak.darkened(0.14), 1.6)
-		b.polygon(_p([-42, -50, -34, -68, -14, -80, 0, -80, 0, -46, -14, -50, -30, -42]), cloak.lightened(0.06))
-		b.polygon(_p([-37, -60, -28, -71, -14, -77, -24, -66]), Color(cloak.lightened(0.45), 0.5))
-		# The head: the hood up (the face in its shadow) or down (appearance.gd).
-		Appearance.draw_front_head(b, look)
+		Appearance.draw_front(b, look)
 
 	## The Unbound: veins of raw essence from the part, in its main colour,
 	## more and brighter with its level; hot with strain; raw essence after an eruption.

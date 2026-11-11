@@ -161,7 +161,7 @@ const SECTIONS := [
 		"tables": ["enemy/TYPES", "enemy/CHAMPION", "enemy/SHADE", "traps/KINDS"], "kinds": ["colour"], "names": {"KINDS": "Traps"}},
 	# --- appearance ---
 	{"id": "looks", "group": "looks", "name": "Appearance options", "when": "page",
-		"tables": ["appearance/OPTIONS", "appearance/ROWS"], "kinds": ["text", "colour"], "names": {"OPTIONS": "Options", "ROWS": "Row names"}},
+		"tables": ["appearance/OPTIONS", "appearance/ROWS", "appearance/TABS", "appearance/ACCENTS"], "kinds": ["text", "colour"], "names": {"OPTIONS": "Options", "ROWS": "Row names", "TABS": "Tabs", "ACCENTS": "Small things (scarf, metal, feather, face)"}},
 ]
 
 ## Keys never offered anywhere: ids and names the code looks things up by.

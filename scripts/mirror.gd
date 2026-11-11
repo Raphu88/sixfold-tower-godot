@@ -28,6 +28,7 @@ extends "res://scripts/enemy.gd"
 
 const Weapons := preload("res://scripts/weapons.gd")
 const Towers := preload("res://scripts/towers.gd")
+const Appearance := preload("res://scripts/appearance.gd")
 
 ## Which floors may hold a mirror room: from floor `from`, `chance` of them;
 ## never the Proving's floor, the summit, floor 1 or the bondless first climb.
@@ -238,14 +239,12 @@ func copy_from(pl) -> void:
 			"shape": String(BOND_SHAPE.get(bd.id, "blast")), "color": bd.color(), "step": int(bd.step)})
 
 
-## The climber's colours (the base colours, then the worn pieces that show,
-## exactly as player.gd dresses them). Point `base` at the climber's
-## appearance once it has one.
+## The climber's look (their appearance, then the worn pieces that show,
+## exactly as player.gd dresses them); today's look without a climber.
 static func climber_look(pl) -> Dictionary:
-	var lk := {
-		"cloak": Palette.CLIMBER_CLOAK, "skin": Palette.CLIMBER_SKIN, "tunic": Palette.CLIMBER_TUNIC,
-		"hair": Palette.CLIMBER_HAIR, "boot": Palette.CLIMBER_BOOT,
-	}
+	var lk := Appearance.look(Appearance.DEFAULTS)
+	lk["hood"] = lk["cloak"].darkened(0.22)
+	lk["head"] = Appearance.head_kind(lk)
 	# The climber's own looks (appearance.gd), when they've chosen them.
 	if pl != null and "appearance_look" in pl and pl.appearance_look is Dictionary:
 		lk = pl.appearance_look.duplicate()
@@ -691,13 +690,9 @@ func _mark_at(part: String, f: Vector2, sd: Vector2) -> Vector2:
 ## Curled up, tumbling along its roll (as the climber rolls).
 func _draw_rolled(b) -> void:
 	var k := clampf(1.0 - state_t / float(ROLL["time"]), 0.0, 1.0) * TAU
-	var cloak: Color = look.get("cloak", Palette.CLIMBER_CLOAK)
-	b.ball(Vector2.ZERO, 12.0, cloak)
-	for j in 2:
-		var x := cos(k + j * PI) * 8.0
-		var h := sqrt(maxf(0.0, 144.0 - x * x)) * 0.8
-		b.line(roll_dir * x + roll_dir.orthogonal() * h, roll_dir * x - roll_dir.orthogonal() * h, cloak.darkened(0.3), 2.2)
-	b.ball(roll_dir * (5.0 * cos(k)), 5.0, look.get("hood", cloak.darkened(0.22)))
+	var lk: Dictionary = look if look.has("hood") and look.has("head") else climber_look(null).merged(look, true)
+	Appearance.draw_rolled_cloak(b, lk, roll_dir, roll_dir.orthogonal(), k, Draw.LIGHT_DIR)
+	b.ball(roll_dir * (5.0 * cos(k)), 5.0, Appearance.crown(lk))
 
 
 ## Every colour from index `from` on pulled toward silvered glass, a shimmer
@@ -736,83 +731,40 @@ static func draw_climber(b, lk: Dictionary, pose: Dictionary) -> void:
 	var lt: Vector2 = pose.get("light", Draw.LIGHT_DIR)
 	var s: float = pose.get("s", 0.0)
 	var t: float = pose.get("t", 0.0)
-	var cloak: Color = lk.get("cloak", Palette.CLIMBER_CLOAK)
-	var boot: Color = lk.get("boot", Palette.CLIMBER_BOOT)
-	var boot_r: float = lk.get("boot_r", 3.0)
-	for sg in [1.0, -1.0]:
-		var at: Vector2 = _p(f, sd, 2.0 + sg * s * 4.5, sg * 5.2)
-		b.ball(at, boot_r, boot, true, lt)
-		if lk.get("studs", false):
-			b.dot(at + f * boot_r * 0.7, 0.7, Palette.STEEL)
+	# The body, clothes and head in the climber's look, in layers, exactly as
+	# player.gd draws them (appearance.gd); the armour and arms here.
+	if not (lk.has("cloak") and lk.has("hood") and lk.has("head") and lk.has("skin") and lk.has("hair")):
+		lk = climber_look(null).merged(lk, true)  # (a partial look: the rest as the climber's defaults)
 	var sway := sin(t * 1.7) * 0.8 + s * 1.4
-	var shape := [
-		Vector2(2.0, 11.0), Vector2(-3.0, 13.5), Vector2(-9.0, 12.5), Vector2(-13.0, 6.5 + sway * 0.6), Vector2(-15.0, sway),
-		Vector2(-13.0, -6.5 + sway * 0.6), Vector2(-9.0, -12.5), Vector2(-3.0, -13.5), Vector2(2.0, -11.0), Vector2(3.0, 0.0),
-	]
-	b.poly(_cloth(shape, f, sd, Vector2.ZERO, Vector2.ZERO, 1.0), cloak.darkened(0.3), 1.2)
-	b.polygon(_cloth(shape, f, sd, lt * 1.2, Vector2(-5.0, 0.0), 0.86), cloak)
-	b.polygon(_cloth(shape, f, sd, lt * 3.0, Vector2(-5.0, 0.0), 0.45), Color(cloak.lightened(0.3), 0.45))
-	for sgn in [-1.0, 1.0]:
-		b.line(_p(f, sd, -3.0, sgn * 4.5), _p(f, sd, -12.5, sgn * 3.0 + sway * 0.8), cloak.darkened(0.38), 1.3)
+	Appearance.draw_legs(b, Vector2.ZERO, f, sd, lt, lk, s)
+	Appearance.draw_cloak(b, Vector2.ZERO, f, sd, lt, lk, sway, Vector2.ZERO)
+	Appearance.draw_torso(b, Vector2.ZERO, f, sd, lt, lk)
 	var torso: Color = lk.get("torso", lk.get("tunic", Palette.CLIMBER_TUNIC))
-	b.ball(_p(f, sd, 2.0, 0.0), 8.5, torso, true, lt)
+	var tk: float = float(lk.get("torso_r", 8.5)) / 8.5
 	var arm: String = pose.get("armor", "")
 	var c := _p(f, sd, 2.0, 0.0)
 	match arm:
 		"padded":
 			for k in 5:
 				var a := f.angle() + (k - 2) * 0.38
-				b.line(c + Vector2.from_angle(a) * 5.5, c + Vector2.from_angle(a) * 8.0, Color(0, 0, 0, 0.3), 1.0)
+				b.line(c + Vector2.from_angle(a) * 5.5 * tk, c + Vector2.from_angle(a) * 8.0 * tk, Color(0, 0, 0, 0.3), 1.0)
 		"leather":
-			b.line(_p(f, sd, 9.5, -3.5), _p(f, sd, 3.0, 8.5), torso.darkened(0.35), 1.8)
+			b.line(_p(f, sd, 2.0 + 7.5 * tk, -3.5 * tk), _p(f, sd, 3.0, 8.5 * tk), torso.darkened(0.35), 1.8)
 		"chain":
 			for k in 7:
-				b.dot(c + Vector2.from_angle(f.angle() + (k - 3) * 0.3) * 7.2, 0.8, Color(1, 1, 1, 0.3))
+				b.dot(c + Vector2.from_angle(f.angle() + (k - 3) * 0.3) * 7.2 * tk, 0.8, Color(1, 1, 1, 0.3))
 		"plate":
-			b.line(_p(f, sd, 6.6, 0.0), _p(f, sd, 10.2, 0.0), torso.lightened(0.35), 1.2)
-	var sh_r: float = lk.get("shoulder_r", 4.6)
+			b.line(_p(f, sd, 2.0 + 4.6 * tk, 0.0), _p(f, sd, 2.0 + 8.2 * tk, 0.0), torso.lightened(0.35), 1.2)
+	var sh_r: float = float(lk.get("shoulder_r", 4.6)) + float(lk.get("sh_add", 0.0))
+	var sh_y: float = lk.get("sh_y", 9.3)
 	for sgn in [-1.0, 1.0]:
-		b.ball(_p(f, sd, 0.3, sgn * 9.3), sh_r, lk.get("shoulder", cloak.darkened(0.12)), true, lt)
-	# The head: hood, helm or cap.
-	var hood: Color = lk.get("hood", cloak.darkened(0.22))
-	var hd := _p(f, sd, -0.5, 0.0)
-	var head: String = lk.get("head", "hood")
-	if head == "hood" or head == "coif":
-		b.poly(PackedVector2Array([hd + _p(f, sd, -2.0, 4.2), hd + _p(f, sd, -8.5, sway * 0.3), hd + _p(f, sd, -2.0, -4.2)]), hood.darkened(0.15), 1.0)
-	if head == "cap" or head == "bare":  # (hood down: the hair shows)
-		hood = lk.get("hair", Palette.CLIMBER_HAIR)
-	b.ball(hd, 6.6, hood, true, lt)
-	var skin: Color = lk.get("skin", Palette.CLIMBER_SKIN)
-	match head:
-		"helm":
-			b.line(hd + _p(f, sd, -5.5, 0.0), hd + _p(f, sd, 5.5, 0.0), hood.lightened(0.25), 1.4)
-			b.line(hd + _p(f, sd, 4.6, -3.8), hd + _p(f, sd, 4.6, 3.8), Palette.OUTLINE, 1.6)
-		"cap":
-			b.dot(hd + f * 4.5, 2.8, skin)
-			b.ball(hd - f * 1.6, 5.4, lk.get("cap", hood), true, lt)
-		_:
-			b.dot(hd + f * 3.8, 3.9, Color(Palette.OUTLINE, 0.5))
-			b.dot(hd + f * 2.9, 3.1, lk.get("hair", Palette.CLIMBER_HAIR))
-			b.dot(hd + f * 4.5, 2.8, skin)
-			b.dot(hd + _p(f, sd, 6.0, 1.3), 0.75, Palette.OUTLINE)
-			b.dot(hd + _p(f, sd, 6.0, -1.3), 0.75, Palette.OUTLINE)
-	_draw_arms(b, lk, pose, _p(f, sd, 0.3 + s * 0.8, 9.3), _p(f, sd, 0.3 - s * 0.8, -9.3))
+		b.ball(_p(f, sd, 0.3, sgn * sh_y), sh_r, lk.get("shoulder", lk["cloak"].darkened(0.12)), true, lt)
+	Appearance.draw_head(b, _p(f, sd, -0.5, 0.0), f, sd, lt, lk, sway, Vector2.ZERO)
+	_draw_arms(b, lk, pose, _p(f, sd, 0.3 + s * 0.8, sh_y), _p(f, sd, 0.3 - s * 0.8, -sh_y))
 
 
 static func _p(f: Vector2, sd: Vector2, x: float, y: float) -> Vector2:
 	return f * x + sd * y
-
-
-static func _cloth(pts: Array, f: Vector2, sd: Vector2, offset: Vector2, mid: Vector2, k: float) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	var n := pts.size()
-	for i in n:
-		var p: Vector2 = mid + (pts[i] - mid) * k
-		var q: Vector2 = mid + (pts[(i + 1) % n] - mid) * k
-		for u in [0.25, 0.75]:
-			var r: Vector2 = p.lerp(q, u)
-			out.append(offset + _p(f, sd, r.x, r.y))
-	return out
 
 
 ## Arms, the weapon in hand (resting, wound back, mid-swing or drawn), hands on top.
