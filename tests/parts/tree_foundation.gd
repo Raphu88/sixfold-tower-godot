@@ -167,7 +167,7 @@ func _tree_rules() -> void:
 	prof.part_density = {"legs": {"air": 120.0}}
 	_check(TR.effect_open(prof, "spark") and not TR.effect_open(prof, "lift"), "an effect opens once enough of its essence has pooled (Spark at 100 Air)")
 	var rows: Array = TR.effect_rows(prof, "legs")
-	_check(rows.any(func(r): return r["id"] == "spark" and r["state"] == "owned") and rows.any(func(r): return r["id"] == "gust" and r["state"] == "placeholder"), "...shown on the legs' tree")
+	_check(rows.any(func(r): return r["id"] == "spark" and r["state"] == "owned") and rows.any(func(r): return r["id"] == "gust" and r["state"] == "locked"), "...shown on the legs' tree (Gust, at 600, still locked)")
 	# Echoes.
 	var echo: Dictionary = load("res://scripts/library.gd").echo_of({"part": "throat", "shape": "shout", "kinds": ["air", "stone"]})
 	_check(echo.get("name", "") == "Gale Lift", "an Air shout with Stone echoes Gale Lift")
