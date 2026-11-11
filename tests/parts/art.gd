@@ -142,7 +142,8 @@ func _drawn() -> void:
 	states = {}
 	for b in _buds():
 		states[b.get_meta("bud_state")] = true
-	_check(states.has("owned") and states.has("learnable") and states.has("available") and states.has("locked") and states.has("placeholder"),
+	# ("Coming later" only shows while some piece is still unwritten; with the whole set built there may be none.)
+	_check(states.has("owned") and states.has("learnable") and states.has("available") and states.has("locked"),
 		"buds for every state of an Unbound tree: yours, learnable again, a ready choice, locked, coming later (%s)" % [states.keys()])
 	_check(_buds().any(func(b): return String(b.get_meta("bud")).begins_with("fx:")), "...and its essences' effects")
 	var quick = _bud("|quick")
@@ -375,9 +376,8 @@ func _sky_star() -> void:
 	_check(menu.page == "climber" and menu.climber_tab == "tree" and menu.get_meta("tree_part", "") == "hand", "tapping it opens the book's Tree on the hand")
 	# Nothing to choose: no star.
 	var TR = load("res://scripts/tree.gd")
-	TR.choose(main.profile, "mark:stormcaller:2", "overcharge")
-	TR.choose(main.profile, "mark:stormcaller:3", "change")
-	TR.choose(main.profile, "mark:warden:3", "change")
+	for node_id in TR.ready_forks(main.profile):  # (every fork ready now, whatever the tower files have written)
+		TR.choose(main.profile, node_id, TR.available(main.profile, node_id)[0])
 	menu.close()
 	await t._frames(2)
 	main.open_train()
