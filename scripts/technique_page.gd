@@ -16,6 +16,8 @@ const Unbound := preload("res://scripts/unbound.gd")
 const Tech := preload("res://scripts/technique.gd")
 const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
+const Library := preload("res://scripts/library.gd")
+const TreeRules := preload("res://scripts/tree.gd")
 
 static var TEXT := {
 	"title": "Techniques",
@@ -141,6 +143,12 @@ static func build(menu) -> void:
 			gb.add_theme_color_override("font_color", gcol)
 			gb.disabled = locked or g > t["kinds"].size()
 			gb.set_meta("tech_gem", g)
+		# A variation from the tree (library.gd VARIATIONS), once the climber owns one.
+		if not TreeRules.owned_variations(prof).is_empty() or not Tech.variations(t).is_empty():
+			var vs := Tech.variations(t)
+			var vtext: String = Library.TEXT["variation"] % Library.variation(vs[0])["name"] if not vs.is_empty() else Library.TEXT["no_variation"]
+			var vb: Button = menu._button(vtext, _cycle_variation.bind(menu, sel), col)
+			vb.set_meta("tech_variation", true)
 		var desc: Label = menu._small_label(Tech.describe(t), menu.TEXT)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.custom_minimum_size.x = 280.0
@@ -237,17 +245,46 @@ static func _pick_slot(menu, i: int) -> void:
 
 
 ## Every part's shapes in one cycle: Hand · Strike, Hand · Bolt, Legs · Dash, ...
-static func shape_order() -> Array:
+## With a climber, the forms their tree has opened follow each part's own
+## (tree.gd owned_forms: Volley after Strike and Bolt, once the hand is level 3).
+static func shape_order(prof = null) -> Array:
 	var out: Array = []
 	for part in ["hand", "legs", "back", "throat", "brow", "heart"]:
-		for sh in Tech.PART_SHAPES[part]:
+		var forms: Array = Tech.PART_SHAPES[part] if prof == null else TreeRules.owned_forms(prof, part)
+		for sh in forms:
 			out.append([part, sh])
 	return out
 
 
+## The next variation a technique can carry: none, then each one the
+## climber owns (tree.gd owned_variations), in the library's order.
+static func cycle_variation(prof, t: Dictionary) -> Dictionary:
+	var owned: Array = TreeRules.owned_variations(prof)
+	var order: Array = [""]
+	for v in Library.VARIATION_ORDER:
+		if v in owned:
+			order.append(v)
+	var now: String = Tech.variations(t)[0] if not Tech.variations(t).is_empty() else ""
+	var next: String = order[(order.find(now) + 1) % order.size()]
+	var out := t.duplicate(true)
+	if next == "":
+		out.erase("vars")
+	else:
+		out["vars"] = [next]
+	_unname_recipe(out)
+	return out
+
+
+static func _cycle_variation(menu, i: int) -> void:
+	var techs: Array = _st(menu)["techs"]
+	if Tech.valid(techs[i]):
+		techs[i] = cycle_variation(menu.main.profile, techs[i])
+	_save_and_redraw(menu)
+
+
 ## The next shape (and part); essences past the new part's limit drop off.
 static func cycle_shape(prof, t: Dictionary) -> Dictionary:
-	var order := shape_order()
+	var order := shape_order(prof)
 	var at := 0
 	if Tech.valid(t):
 		for i in order.size():

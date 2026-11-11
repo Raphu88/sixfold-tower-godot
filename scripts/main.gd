@@ -17,6 +17,8 @@ const Floors := preload("res://scripts/floors.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Essence := preload("res://scripts/essence.gd")
 const BondScript := preload("res://scripts/bond.gd")
+const TreeRules := preload("res://scripts/tree.gd")
+const SpellFxScript := preload("res://scripts/spell_fx.gd")
 const Towers := preload("res://scripts/towers.gd")
 const MenuScript := preload("res://scripts/menu.gd")
 const Items := preload("res://scripts/items.gd")
@@ -921,6 +923,7 @@ func _start_floor(n: int) -> void:
 			c.queue_free()
 	attackers.clear()
 	rod = {}
+	SpellFxScript.clear(self)  # (orbs, fields and timed casts from the library's spells)
 	walls.clear()
 	cyclones.clear()
 	waves.clear()
@@ -2331,6 +2334,7 @@ func _give_bonds() -> void:
 			b.selected = old[part].selected
 		b.tunes = SecretBonds.active_tunes(profile)  # the Developer's Tune (secret_bonds.gd)
 		b.edits = SecretBonds.active_edits(profile)  # ...and its Edit
+		b.choices = TreeRules.mark_choices(profile, String(info["id"]))  # the forks chosen (tree.gd)
 		b.attr_power = 1.0 + profile.attribute("fire")
 		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b

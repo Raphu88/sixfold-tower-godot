@@ -28,6 +28,12 @@ const Essence := preload("res://scripts/essence.gd")
 const Controls := preload("res://scripts/controls.gd")
 const Entity := preload("res://scripts/entity.gd")
 const UI := preload("res://scripts/ui.gd")
+const Library := preload("res://scripts/library.gd")
+const TreeRules := preload("res://scripts/tree.gd")
+## Every entry is a grimoire card (grimoire_card.gd: the same card the
+## book's Tree and the essence bench show).
+const GrimoireCard := preload("res://scripts/grimoire_card.gd")
+const KeyBadge := GrimoireCard.KeyBadge
 
 ## Every word on the page and in the hints. {climber}, {cast} and the like
 ## become the keys, controller buttons or touch words in use (entity.gd KEYS).
@@ -157,16 +163,20 @@ static func entries(main, menu = null) -> Array:
 		var data: Dictionary = Bonds.BONDS[info["id"]]
 		var step := ProfileScript.step_for_xp(float(info["xp"]))
 		var faint: bool = info.get("faint", false)
-		var known: Array = data["spells"].filter(func(sp): return int(sp["learn"]) <= step)
+		# The tree's choices (tree.gd): a fork's chosen side, or today's until it's chosen.
+		var choices := TreeRules.mark_choices(prof, String(info["id"]))
+		var known: Array = TreeRules.bond_spells(String(info["id"]), step, choices)
+		var shown: Array = TreeRules.bond_spells(String(info["id"]), TreeRules.MAX_STEP, choices)
+		var alt3 := TreeRules.alt_change(String(info["id"]), choices) if step >= 3 else {}
 		var bd = main.player.bonds.get(part) if main.player != null else null
 		var sel_id: String = String(bd.spell()["id"]) if bd != null and bd.has_method("spell") and not known.is_empty() else (String(known[0]["id"]) if not known.is_empty() else "")
 		out.append({"kind": "mark", "part": part, "id": info["id"], "name": data["name"], "color": data["color"], "affinity": data["affinity"],
 			"sub": TEXT["mark_sub"] % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), TEXT["mark_faint"] if faint else TEXT["mark_step"] % step],
 			"does": TEXT["mark_more"] % [data["body"]["name"], data["body"]["desc"], data["passive"]["name"], data["passive"]["desc"]],
-			"press": press(main, part) if mode(main) != 2 else _sel_name(data, sel_id), "cost": TEXT["ring_note"] if known.size() > 1 else "", "locked": false, "learn": 1,
+			"press": press(main, part) if mode(main) != 2 else _sel_name({"spells": shown, "name": data["name"]}, sel_id), "cost": TEXT["ring_note"] if known.size() > 1 else "", "locked": false, "learn": 1,
 			"selected": false, "step": step, "faint": faint, "more": []})
 		var i := 0
-		for sp in data["spells"]:
+		for sp in shown:
 			i += 1
 			var learn := int(sp["learn"])
 			var locked := learn > step
@@ -184,8 +194,11 @@ static func entries(main, menu = null) -> Array:
 				if changes != "":
 					more.append(changes)
 				more.append(TEXT["more_fill"] % [g, Bonds.PART_NAMES[part].to_lower(), Bonds.PART_FILLS[part], int(30 + 10 * step), step])
+			var does := _sentence(sp["desc"])
+			if not alt3.is_empty() and sp.get("changes", {}).has(3):
+				does += " %s: %s" % [alt3.get("name", ""), _sentence(String(alt3.get("desc", "")))]  # (the step-3 variation chosen)
 			out.append({"kind": "spell", "part": part, "id": sp["id"], "name": sp["name"], "color": data["color"], "affinity": data["affinity"],
-				"sub": data["name"], "does": _sentence(sp["desc"]), "press": "" if locked else press(main, part, not selected and known.size() > 1),
+				"type": String(sp.get("type", "")), "sub": data["name"], "does": does, "press": "" if locked else press(main, part, not selected and known.size() > 1),
 				"cost": TEXT["cost"] % int(round(cost)) if cost > 0.0 else "", "locked": locked, "learn": learn, "selected": selected,
 				"step": step, "index": i, "more": more,
 				"tag": TEXT["locked"] % learn if locked else (TEXT["selected"] if selected and known.size() > 1 else ""), "tag_color": UI.FAINT if locked else UI.GOOD})
@@ -233,7 +246,14 @@ static func _technique(main, button: String, i: int, t: Dictionary) -> Dictionar
 		"affinity": lead if lead in Unbound.NATURAL else "", "sub": TEXT["tech_sub"] % [Unbound.PART_NAMES[part], sh["name"], ", ".join(kinds)],
 		"does": Tech.describe(t), "press": press(main, button), "cost": "%s  ·  %s" % [TEXT["fill"] % int(round(charge)), TEXT["strain"] % int(Tech.strain(t))],
 		"locked": false, "learn": 1, "selected": true, "step": Unbound.level(prof, part), "fill": have / maxf(charge, 0.01), "more": more, "tech": t,
-		"tag": TEXT["tech_sub"] % [Unbound.PART_NAMES[part], sh["name"], ", ".join(kinds)], "tag_color": UI.DIM}
+		"tag": TEXT["tech_sub"] % [Unbound.PART_NAMES[part], sh["name"], ", ".join(kinds)], "tag_color": UI.DIM,
+		"echo": _echo_text(t)}
+
+
+## "echoes Gale Lift" when a technique comes close to a bond's spell (library.gd ECHOES).
+static func _echo_text(t: Dictionary) -> String:
+	var e := Library.echo_of(t)
+	return Library.TEXT["echoes"] % e["name"] if not e.is_empty() else ""
 
 
 ## What one essence does in a technique, in a few words (technique.gd KINDS).
@@ -364,7 +384,7 @@ static func build(menu) -> void:
 			group.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			indent.add_child(group)
 			continue
-		var card := AbilityCard.new()
+		var card := GrimoireCard.new()
 		card.small = small
 		card.entry = e
 		card.words = {"more": TEXT["more"], "less": TEXT["less"]}
@@ -468,179 +488,6 @@ static func _mark_head(menu, e: Dictionary, small: bool) -> void:
 		d.custom_minimum_size.x = 200.0
 		UI.style_label(d, "body", 13, UI.DIM)
 		v.add_child(d)
-
-
-## One ability: its medallion (a lock if not learned yet), name and tag,
-## the line under the name, what it does, the button to press and its cost
-## or fill. Press it for more: the full numbers. A Button, so the keys, the
-## controller, a click and a tap all reach it (menu.gd's touch taps press it).
-class AbilityCard extends Button:
-	const UI := preload("res://scripts/ui.gd")
-	signal toggled_more(id: String, on: bool)
-	var entry := {}
-	var words := {}  # "more" and "less" (abilities.gd TEXT)
-	var small := false
-	var opened := false
-	var body: VBoxContainer
-	var more_box: VBoxContainer
-	var more_label: Label
-	const PAD := Vector2(12, 8)
-
-	func _ready() -> void:
-		focus_mode = Control.FOCUS_ALL
-		size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		set_meta("ability", entry.get("id", ""))
-		set_meta("ability_part", entry.get("part", ""))
-		set_meta("locked", entry.get("locked", false))
-		var col: Color = entry.get("color", UI.FAINT)
-		var locked: bool = entry.get("locked", false)
-		var normal := UI.card(Color(col, 0.75) if not locked else Color(0, 0, 0, 0), not locked, 10.0)
-		if locked:
-			normal.top = Color(0.085, 0.076, 0.11, 0.9)
-			normal.bottom = Color(0.07, 0.062, 0.09, 0.9)
-		var hover := UI.card(UI.GOLD, not locked, 10.0)
-		hover.top = Color(0.16, 0.14, 0.2, 0.98)
-		if not locked:
-			hover.strip = col
-		add_theme_stylebox_override("normal", normal)
-		add_theme_stylebox_override("hover", hover)
-		add_theme_stylebox_override("pressed", hover)
-		add_theme_stylebox_override("focus", UI.focus_box())
-		pressed.connect(_toggle)
-		_build()
-
-	func _build() -> void:
-		var col: Color = entry.get("color", UI.FAINT)
-		var locked: bool = entry.get("locked", false)
-		body = VBoxContainer.new()
-		body.add_theme_constant_override("separation", 2)
-		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		body.set_anchors_preset(Control.PRESET_FULL_RECT)
-		body.offset_left = PAD.x + 3.0
-		body.offset_right = -PAD.x
-		body.offset_top = PAD.y
-		body.offset_bottom = -PAD.y
-		add_child(body)
-		body.minimum_size_changed.connect(_sync_height)
-		body.resized.connect(_sync_height)
-		var h := HBoxContainer.new()
-		h.add_theme_constant_override("separation", 10 if small else 12)
-		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		body.add_child(h)
-		var icon := AbilityIcon.new()
-		icon.col = col
-		icon.affinity = entry.get("affinity", "")
-		icon.locked = locked
-		icon.fill = float(entry.get("fill", 1.0))
-		icon.empty = entry.get("kind", "") == "empty"
-		icon.custom_minimum_size = Vector2(32, 32) if small else Vector2(40, 40)
-		icon.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		h.add_child(icon)
-		var mid := VBoxContainer.new()
-		mid.add_theme_constant_override("separation", 0)
-		mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		h.add_child(mid)
-		var top := HBoxContainer.new()
-		top.add_theme_constant_override("separation", 8)
-		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mid.add_child(top)
-		var n := _l(entry.get("name", ""), "display", 18 if small else 20, col.lightened(0.2) if not locked else UI.DIM)
-		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		n.clip_text = true
-		n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		top.add_child(n)
-		var tag: String = entry.get("tag", "")
-		if tag != "":
-			var tl := _l(tag, "body", 12 if small else 13, entry.get("tag_color", UI.FAINT))
-			tl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			top.add_child(tl)
-		var d := _l(entry.get("does", ""), "body", 14 if small else 15, UI.TEXT if not locked else UI.DIM)
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		d.custom_minimum_size.x = 120.0
-		mid.add_child(d)
-		# The button and the cost, at the right.
-		var side := VBoxContainer.new()
-		side.add_theme_constant_override("separation", 1)
-		side.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		side.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		h.add_child(side)
-		if entry.get("press", "") != "":
-			var kb := KeyBadge.new()
-			kb.key = entry["press"]
-			kb.col = col.lightened(0.3)
-			kb.size_flags_horizontal = Control.SIZE_SHRINK_END
-			side.add_child(kb)
-		if entry.get("cost", "") != "":
-			var cl := _l(entry["cost"], "mono", 12, UI.GOLD if not locked else UI.FAINT)
-			cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			side.add_child(cl)
-		more_label = _l("", "body", 11 if small else 12, UI.FAINT)
-		more_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		side.add_child(more_label)
-		# More: the full numbers.
-		more_box = VBoxContainer.new()
-		more_box.add_theme_constant_override("separation", 2)
-		more_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		body.add_child(more_box)
-		for line in entry.get("more", []):
-			var r := RichTextLabel.new()
-			r.bbcode_enabled = true
-			r.fit_content = true
-			r.scroll_active = false
-			r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			r.custom_minimum_size.x = 160.0
-			r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			r.add_theme_font_override("normal_font", UI.font("body"))
-			r.add_theme_font_size_override("normal_font_size", 13 if small else 14)
-			r.add_theme_color_override("default_color", UI.DIM if not locked else UI.FAINT)
-			r.text = line
-			more_box.add_child(r)
-		_show_more()
-
-	func _l(text: String, role: String, sz: int, c: Color) -> Label:
-		var l := Label.new()
-		l.text = text
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		UI.style_label(l, role, sz, c)
-		return l
-
-	func _show_more() -> void:
-		var has: bool = not entry.get("more", []).is_empty()
-		more_box.visible = opened and has
-		more_label.text = String(words.get("less" if opened else "more", "")) if has else ""
-		_sync_height()
-
-	func _toggle() -> void:
-		if entry.get("more", []).is_empty():
-			return
-		opened = not opened
-		_show_more()
-		toggled_more.emit(String(entry.get("id", "")), opened)
-
-	## Its height follows its contents (the wrapped text, and "more" when open).
-	func _sync_height() -> void:
-		if body == null:
-			return
-		var h := body.get_combined_minimum_size().y + PAD.y * 2.0
-		if absf(custom_minimum_size.y - h) > 0.5:
-			custom_minimum_size.y = h
-
-
-## A key badge: the button to press ("Q", "LB + X", "tap"), drawn like the HUD's.
-class KeyBadge extends Control:
-	const UI := preload("res://scripts/ui.gd")
-	var key := ""
-	var col := Color(0.91, 0.75, 0.42)
-	const SIZE := 13
-
-	func _ready() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var w: float = UI.font("mono").get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, SIZE).x + 8.0
-		custom_minimum_size = Vector2(maxf(w, SIZE + 5.0), SIZE + 6.0)
-
-	func _draw() -> void:
-		UI.draw_key(self, Vector2(size.x - custom_minimum_size.x, 0.0), key, SIZE, col)
 
 
 ## An ability's medallion: in its bond's (or lead essence's) colour with its

@@ -32,6 +32,8 @@ extends Node2D
 const Unbound := preload("res://scripts/unbound.gd")
 const Tech := preload("res://scripts/technique.gd")
 const TechBond := preload("res://scripts/technique_bond.gd")
+const TreeRules := preload("res://scripts/tree.gd")
+const Library := preload("res://scripts/library.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
@@ -185,6 +187,9 @@ func cast(b, p) -> void:
 	if missing > 0.5:
 		main.fx_text(p.global_position + Vector2(0, -60), Tech.TEXT["not_full"], Color(0.85, 0.8, 0.95))
 	Tech.cast(t, p, power, self)
+	if TreeRules.note_echo(prof, t):
+		# The first time a technique comes close to a bond's spell (library.gd ECHOES).
+		main.fx_text(p.global_position + Vector2(0, -78), Library.TEXT["echoes"] % Library.echo_of(t)["name"], Color(0.79, 0.65, 1.0))
 	add_strain(part, Tech.strain(t) + Tech.EMPTY_STRAIN * missing / maxf(need, 0.01))
 	_sync()
 

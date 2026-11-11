@@ -38,6 +38,8 @@ const Entity := preload("res://scripts/entity.gd")
 const Controls := preload("res://scripts/controls.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
 const Rail := preload("res://scripts/rail.gd")
+const Book := preload("res://scripts/book.gd")
+const TreeRules := preload("res://scripts/tree.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -653,28 +655,36 @@ func _personal(root: Node) -> void:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(col)
 	keys.append_array(_pack_and_chest(col))
-	# The mirror (the climber screen), the trunk (the inventory) and how you look.
+	# Your book lying on its cushion (the climber screen: book.gd), the trunk
+	# (the inventory) and how you look.
 	var furniture := HBoxContainer.new()
 	furniture.add_theme_constant_override("separation", 8)
 	furniture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(furniture)
-	for f in [["mirror", "climber"], ["trunk", "inventory"], ["looks", "appearance"]]:
+	var book = Book.ClosedBook.new()
+	book.text = Book.TEXT["short"] if _small() else Book.TEXT["name"]
+	book.custom_minimum_size = Vector2(118, 80) if _small() else Vector2(150, 92)
+	book.ready_star = TreeRules.is_fork_ready(prof)  # (a choice waits on the tree)
+	book.set_meta("car_page", "climber")
+	book.set_meta("book", true)
+	book.pressed.connect(m.open.bind("climber", true))
+	furniture.add_child(book)
+	var side := VBoxContainer.new()
+	side.add_theme_constant_override("separation", 8)
+	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	side.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	side.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	furniture.add_child(side)
+	for f in [["trunk", "inventory"], ["looks", "appearance"]]:
 		var label: String = T[f[0] + "_short"] if _small() else T[f[0]]
 		var go: Callable = m.open_appearance.bind("") if f[1] == "appearance" else m.open.bind(f[1], true)
-		var b: Button = m._button(label, go, furniture)
+		var b: Button = m._button(label, go, side)
 		b.custom_minimum_size.y = 40
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.set_meta("car_page", f[1])
 		b.clip_text = true
 		_brass(b)
-		# (three side by side: tighter margins so each name fits)
 		b.add_theme_font_size_override("font_size", 15 if _small() else 16)
-		var ratios: Dictionary = {"climber": 1.0, "inventory": 1.25, "appearance": 0.9} if _small() else {"climber": 1.0, "inventory": 1.12, "appearance": 1.3}
-		b.size_flags_stretch_ratio = ratios[f[1]]
-		for state in ["normal", "hover", "pressed"]:
-			var st: StyleBox = b.get_theme_stylebox(state)
-			st.content_margin_left = 5
-			st.content_margin_right = 5
 	if m.Unbound.is_on(prof):
 		# The Unbound's techniques (technique_page.gd): built and named here.
 		var tb: Button = m._button(T["techniques"], m.open.bind("techniques", true), col)
