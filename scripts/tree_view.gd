@@ -204,7 +204,7 @@ static func _node_row(menu, n: Dictionary, sel: String, small: bool, last: bool)
 	r.add_child(lab)
 	var opts: Array = n["options"]
 	for i in opts.size():
-		if i > 0:
+		if i > 0 and n["kind"] == "fork":
 			var orl := Label.new()
 			orl.text = TEXT["or"]
 			UI.style_label(orl, "body", 12, UI.FAINT)

@@ -10752,6 +10752,8 @@ func _unbound_tests() -> void:
 	_check("unmaking" in U.kinds_for(prof) and not ("life" in U.kinds_for(prof)), "only your own path's secret essence")
 	prof.path = ""
 	var sh: Dictionary = TP.cycle_shape(prof, one)
+	_check(sh["part"] == "hand" and sh["shape"] == "volley", "after the hand's own shapes come the forms its tree has opened (Volley, at level 3)")
+	sh = TP.cycle_shape(prof, sh)
 	_check(sh["part"] == "legs" and sh["shape"] == "dash" and sh["kinds"].size() == 1, "tapping the part cycles its shape (and part)")
 
 	print("the Unbound: casting, filling, boosting and strain")
@@ -13468,7 +13470,7 @@ func _abilities_tests() -> void:
 	await _frames(3)
 	cards = _all_buttons(menu).filter(func(b): return b.has_meta("ability") and b.is_visible_in_tree())
 	tabs = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(cards.size() == 6 and tabs[1].text == menu.UNBOUND_MARKS_TAB, "the page shows the six (and the Marks tab is the Body for the Unbound)")
+	_check(cards.size() == 6 and tabs[menu.MARKS_TAB_INDEX].text == menu.UNBOUND_MARKS_TAB, "the page shows the six (and the Marks tab is the Body for the Unbound)")
 	_check(_all_buttons(menu).filter(func(b): return b.has_meta("try_abilities")).is_empty(), "...with no practice room in a climb")
 	menu.close()
 	await _frames(2)
