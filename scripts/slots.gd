@@ -20,8 +20,10 @@ extends RefCounted
 ## is kept as it was (BACKUP), the climber's sections are written to slot 1
 ## and read back, and only then does the settings file drop them.
 ##
-## Tests (Engine "sixfold_test") use their own files, never the real saves.
+## Tests (Engine "sixfold_test") use their own files, never the real saves
+## (in a folder of each test run's own: test_run.gd).
 
+const TestRun := preload("res://scripts/test_run.gd")
 const MAX := 6
 const SETTINGS := "user://sixfold.cfg"
 const SLOT := "user://climber_%d.cfg"
@@ -45,11 +47,11 @@ static func testing() -> bool:
 
 
 static func settings_path() -> String:
-	return TEST_SETTINGS if testing() else SETTINGS
+	return TestRun.path(TEST_SETTINGS) if testing() else SETTINGS
 
 
 static func backup_path() -> String:
-	return TEST_BACKUP if testing() else BACKUP
+	return TestRun.path(TEST_BACKUP) if testing() else BACKUP
 
 
 static func valid(slot: int) -> bool:
@@ -58,7 +60,7 @@ static func valid(slot: int) -> bool:
 
 ## A slot's save file.
 static func path(slot: int) -> String:
-	return (TEST_SLOT if testing() else SLOT) % clampi(slot, 1, MAX)
+	return TestRun.path(TEST_SLOT % clampi(slot, 1, MAX)) if testing() else SLOT % clampi(slot, 1, MAX)
 
 
 ## A climber lives in this slot (their file holds a profile or a look).

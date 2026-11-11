@@ -4,6 +4,7 @@ extends SceneTree
 ## overdraw, getting hurt, dying) so script errors surface without a player.
 ##
 ## Run: godot --headless -s tests/smoke_test.gd
+const TestRun := preload("res://scripts/test_run.gd")  # (every user:// path a test touches: its own run folder)
 
 var main
 var failures := 0
@@ -12,6 +13,10 @@ const EnemyHP := {"slime": 24.0, "archer": 18.0, "knight": 48.0}
 
 
 func _init() -> void:
+	# This run's own folder for every user:// file it touches (save slots,
+	# overrides, rooms, layout), set before anything loads: two test runs at
+	# once never trip each other up (scripts/test_run.gd).
+	TestRun.begin()
 	_run.call_deferred()
 
 
@@ -3100,7 +3105,7 @@ func _proving_tests() -> void:
 	_check(p.dead and not pv.casting and main.floor_num == 6, "a death in the Lethal Proving is a real death")
 
 	print("saving Provings won")
-	var path := "user://smoke_proving_test.cfg"
+	var path := TestRun.path("user://smoke_proving_test.cfg")
 	prof.provings = {"kraken": 2, "gryphon": 1}
 	prof.save_path = path
 	prof.saving = true
@@ -4184,7 +4189,7 @@ func _shadow_tests() -> void:
 	_check(menu.settings["lighting"] == "low" and lt.quality == "low", "choosing Low switches the lighting to Low")
 	menu.close()
 	await _frames(2)
-	var path := "user://test_lighting.cfg"
+	var path := TestRun.path("user://test_lighting.cfg")
 	menu.save_settings_to(path)
 	menu.settings["lighting"] = "high"
 	menu.load_settings_from(path)
@@ -5247,11 +5252,11 @@ func _gear_slot_tests() -> void:
 	var cfg := ConfigFile.new()
 	var kept := {"melee": G.make("axe"), "helm": G.make("iron_helm"), "rings": [G.make("garnet_ring"), G.make("iron_band")]}
 	cfg.set_value("profile", "heirlooms", kept)
-	cfg.save("user://items_test.cfg")
+	cfg.save(TestRun.path("user://items_test.cfg"))
 	var cfg2 := ConfigFile.new()
-	cfg2.load("user://items_test.cfg")
+	cfg2.load(TestRun.path("user://items_test.cfg"))
 	var back: Dictionary = G.load_heirlooms(cfg2.get_value("profile", "heirlooms", {}))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://items_test.cfg"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TestRun.path("user://items_test.cfg")))
 	_check(G.same(back["melee"], kept["melee"]) and G.same(back["helm"], kept["helm"]) and back["rings"].size() == 2, "heirloom records save and load back the same")
 	# A climb starts from plain-id heirlooms too.
 	var q = load("res://scripts/player.gd").new()
@@ -6707,7 +6712,7 @@ func _pad_layout_tests() -> void:
 	_raw_button(7, 2, false)
 	await _frames(1)
 	# Saved and loaded.
-	var path := "user://pad_test.cfg"
+	var path := TestRun.path("user://pad_test.cfg")
 	P.layouts = {"standard|Pad": {"a": "b1", "lt": "a2+@-1"}}
 	P.offered = {"standard|Pad": true}
 	P.save_layouts(path)
@@ -6844,6 +6849,7 @@ func _run() -> void:
 			print("  FAILED: ", f)
 		main.queue_free()
 		await _frames(2)
+		TestRun.finish()
 		quit(1 if failures > 0 else 0)
 		return
 	main.grant_test_bonds()  # most checks below need two marks to work with
@@ -7260,6 +7266,7 @@ func _run() -> void:
 	# Free the room (and its music) before quitting, so nothing leaks at exit.
 	main.queue_free()
 	await _frames(2)
+	TestRun.finish()
 	quit(1 if failures > 0 else 0)
 
 
@@ -8446,7 +8453,7 @@ func _economy_tests() -> void:
 		await _frames(2)
 	_check(M.settings["condense"] == "35" and is_equal_approx(T.condense_share(M.settings), 0.35), "choosing 35% changes the share")
 	menu.close()
-	var path := "user://smoke_condense_test.cfg"
+	var path := TestRun.path("user://smoke_condense_test.cfg")
 	M.save_settings_to(path)
 	M.settings["condense"] = "20"
 	M.load_settings_from(path)
@@ -8872,7 +8879,7 @@ func _train_tests() -> void:
 	# The chest: keep a piece; it's saved with the profile (old saves load without one).
 	_check(T.move(prof, p, "pack", 0) == "" and prof.chest.size() == 1 and prof.pack.is_empty(), "a piece moves from your pack to the chest")
 	prof.supplies = {"tonic": 2}
-	var path := "user://smoke_train_test.cfg"
+	var path := TestRun.path("user://smoke_train_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -9110,7 +9117,7 @@ func _lost_tests() -> void:
 	main._start_floor(4)
 	_check(main.lost_cache.is_empty(), "lost things only turn up in the tower where they fell")
 	# Saved with the profile; old saves load with nothing lost.
-	var path := "user://smoke_lost_test.cfg"
+	var path := TestRun.path("user://smoke_lost_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -9256,7 +9263,7 @@ func _bench_tests() -> void:
 	_check(small.is_empty() and bench_buttons.call("retrait", "water").size() == 1, "on a phone every bench button is at least 36 tall: %s" % [small.map(func(b): return b.text)])
 	main.touch._set_active(false)
 	# Saved and loaded: ranks, runes and what packed supplies cost.
-	var path := "user://smoke_bench_test.cfg"
+	var path := TestRun.path("user://smoke_bench_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -9494,7 +9501,7 @@ func _secret_tests() -> void:
 	_check(_menu_button("Reset path") != null and _menu_button("+25 flow") != null, "the dev tools can set the path, add flow and reset it")
 	main.menu.close()
 	# Saved, and old saves load.
-	var path := "user://smoke_secret_test.cfg"
+	var path := TestRun.path("user://smoke_secret_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -9629,7 +9636,7 @@ func _appearance_tests() -> void:
 	# The very first launch: no save, so Begin on the title opens it.
 	var Prof = load("res://scripts/profile.gd")
 	var none = Prof.new()
-	none.save_path = "user://smoke_no_save_here.cfg"
+	none.save_path = TestRun.path("user://smoke_no_save_here.cfg")
 	none.load_save()
 	_check(not none.created and none.appearance == A.DEFAULTS, "with no save at all, a climber is still to be made, in today's look")
 	prof.created = false
@@ -9662,7 +9669,7 @@ func _appearance_tests() -> void:
 	menu.close()
 	await _frames(2)
 	# Save, load, old saves and odd ones.
-	var path := "user://smoke_look_test.cfg"
+	var path := TestRun.path("user://smoke_look_test.cfg")
 	prof.appearance = A.normalized({"name": "Wren", "skin": "deep", "hair": "braid", "hair_color": "copper", "eyes": "green", "cloak": "plum", "tunic": "navy", "hood": "down"})
 	prof.save_path = path
 	prof.saving = true
@@ -9993,7 +10000,7 @@ func _maker_tests() -> void:
 	paused = false
 	await _frames(1)
 	# Saved with the profile; old saves load.
-	var path := "user://makers_test.cfg"
+	var path := TestRun.path("user://makers_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -10501,7 +10508,7 @@ func _secret_bond_tests() -> void:
 	SB.grant(prof, "developer", 2)
 	prof.core_tune = {"chain_lightning": "quick"}
 	prof.core_xp = {"essence": 12.0}
-	var path := "user://smoke_sbond_test.cfg"
+	var path := TestRun.path("user://smoke_sbond_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -10916,7 +10923,7 @@ func _unbound_tests() -> void:
 	main.on_train = false
 
 	print("the Unbound: saved")
-	var path := "user://smoke_unbound_test.cfg"
+	var path := TestRun.path("user://smoke_unbound_test.cfg")
 	U.state(prof)["boost"] = false
 	prof.unbound["broken"] = 2  # (an old save's barrier count)
 	prof.save_path = path
@@ -11480,7 +11487,7 @@ func _secret_deep_tests() -> void:
 	prof.core_edit = {"chain_lightning": {"reach": 1, "power": -1}}
 	var mk: Dictionary = prof.makers
 	mk["bribe"] = {"offered": 2, "for": 0}
-	var path := "user://smoke_sdeep_test.cfg"
+	var path := TestRun.path("user://smoke_sdeep_test.cfg")
 	prof.save_path = path
 	prof.saving = true
 	prof.save()
@@ -11698,7 +11705,7 @@ func _vessel_tests() -> void:
 	SB.bribe_force = -1
 	SB.clear(prof)
 	# Saved with the chest.
-	var path := "user://smoke_vessel_test.cfg"
+	var path := TestRun.path("user://smoke_vessel_test.cfg")
 	prof.vessels = [V.make("life", V.CAPACITY), {"kind": "unmaking", "amount": 4.5, "packed": true}, {"kind": "nonsense", "amount": 9}]
 	prof.save_path = path
 	prof.saving = true
@@ -12058,7 +12065,7 @@ func _train_rail_tests() -> void:
 	if not hud.is_empty():
 		hud[0].pressed.emit()
 		await _frames(2)
-	var path := "user://smoke_settings_car.cfg"
+	var path := TestRun.path("user://smoke_settings_car.cfg")
 	M.save_settings_to(path)
 	var cfg := ConfigFile.new()
 	cfg.load(path)
@@ -12982,7 +12989,7 @@ func _icon_tests() -> void:
 
 ## The room painter's files left from an earlier run (tests use their own paths).
 func _clear_rooms() -> void:
-	for f in ["user://test_rooms_custom.json", "user://test_rooms_project.json"]:
+	for f in [TestRun.path("user://test_rooms_custom.json"), TestRun.path("user://test_rooms_project.json")]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	var Store = load("res://scripts/room_store.gd")
@@ -13540,9 +13547,9 @@ func _abilities_tests() -> void:
 	var try_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("try_abilities"))
 	_check(try_b.size() == 1 and not _all_buttons(menu).filter(func(b): return b.has_meta("change_techniques")).is_empty(), "...with Try your abilities and Change techniques")
 	var save_path: String = main.profile.save_path
-	if FileAccess.file_exists("user://practice_test_save.cfg"):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://practice_test_save.cfg"))
-	main.profile.save_path = "user://practice_test_save.cfg"
+	if FileAccess.file_exists(TestRun.path("user://practice_test_save.cfg")):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TestRun.path("user://practice_test_save.cfg")))
+	main.profile.save_path = TestRun.path("user://practice_test_save.cfg")
 	main.profile.saving = true
 	try_b[0].pressed.emit()
 	await _frames(3)
@@ -13569,7 +13576,7 @@ func _abilities_tests() -> void:
 	await _wait(2.5)
 	_check(p.bonds["hand"].essence >= p.bonds["hand"].capacity() - 0.01, "...and the technique refills in a moment")
 	main.profile.save()
-	_check(not FileAccess.file_exists("user://practice_test_save.cfg"), "...and nothing done in the practice room is saved")
+	_check(not FileAccess.file_exists(TestRun.path("user://practice_test_save.cfg")), "...and nothing done in the practice room is saved")
 	menu.open("pause")
 	await _frames(2)
 	var leave_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("leave_practice"))
@@ -13578,8 +13585,8 @@ func _abilities_tests() -> void:
 	await _frames(4)
 	_check(not pr.on and main.on_train and menu.page == "climber" and menu.climber_tab == "abilities", "...which returns to the train, on the Abilities page")
 	_check(main.enemies().filter(func(e): return e.kind == "dummy" and not e.is_queued_for_deletion()).is_empty() and main.profile.saving and not main.dev_no_death, "...the dummies gone, saving and dying as before")
-	if FileAccess.file_exists("user://practice_test_save.cfg"):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://practice_test_save.cfg"))
+	if FileAccess.file_exists(TestRun.path("user://practice_test_save.cfg")):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TestRun.path("user://practice_test_save.cfg")))
 	main.profile.save_path = save_path
 	main.profile.saving = false
 
@@ -13640,8 +13647,8 @@ func _arrange_tests() -> void:
 	await _fresh_main()
 	var L = load("res://scripts/layout.gd")
 	var keep_paths := [L.user_path, L.project_path, L.write_project]
-	L.user_path = "user://smoke_layout.cfg"
-	L.project_path = "user://smoke_layout.json"  # (never the repository's own file)
+	L.user_path = TestRun.path("user://smoke_layout.cfg")
+	L.project_path = TestRun.path("user://smoke_layout.json")  # (never the repository's own file)
 	L.write_project = false
 	for f in [L.user_path, L.project_path]:
 		if FileAccess.file_exists(f):
@@ -13685,6 +13692,31 @@ func _arrange_tests() -> void:
 			print("    moved: ", id, " ", b)
 	_check(same, "the touch buttons are where they always were")
 	_check(main.touch.stick_zone() == Rect2(0, 0, tv.x * 0.5, tv.y), "the joystick starts anywhere on the left half")
+	# The stair arrow keeps clear of every touch button, whichever way the
+	# stair lies, at every Interface size (a phone's view at each one's scale).
+	main.touch.buttons = []  # (every button of the arrangement, shown or not)
+	var arrow_clear := true
+	var slid := 0
+	var UIS = load("res://scripts/ui.gd")
+	for ui in UIS.UI_SIZE_ORDER:
+		var pv: Vector2 = Vector2(2400, 1080) / float(UIS.UI_SIZES[ui][1])
+		for vsz in [pv, Vector2(800, 400)]:
+			var keep: Array = hud.touch_keep_out(vsz)
+			for i in 32:
+				var sp: Vector2 = vsz * 0.5 + Vector2.from_angle(TAU * i / 32.0) * vsz.length()
+				var spot: Array = hud.stair_arrow_spot(vsz, sp)
+				var ring: Rect2 = L.box("hud.stair", vsz)
+				if not ring.grow(0.5).has_point(spot[0]) or not hud._arrow_clear(spot[0], spot[1], keep):
+					arrow_clear = false
+					print("    stair arrow under a button: ", ui, " ", vsz, " ", spot)
+				var c: Vector2 = vsz * 0.5
+				var d0: Vector2 = (sp - c).normalized()
+				var rx: float = (ring.end.x - c.x) if d0.x > 0.0 else (c.x - ring.position.x)
+				var ry: float = (ring.end.y - c.y) if d0.y > 0.0 else (c.y - ring.position.y)
+				if spot[0].distance_to(c + d0 * minf(rx / maxf(absf(d0.x), 0.001), ry / maxf(absf(d0.y), 0.001))) > 1.0:
+					slid += 1
+	_check(arrow_clear and slid > 0, "the stair arrow keeps clear of the touch buttons at every Interface size (slid aside %d times)" % slid)
+	main.touch._layout()
 
 	# An arrangement moves an element, and its touch hit area goes with it.
 	L.set_override("touch.attack", {"anchor": "bl", "x": 120.0, "y": -40.0, "scale": 1.0})
@@ -13965,8 +13997,8 @@ func _data_editor_tests() -> void:
 	_check(Reg.started and Reg.applied.is_empty() and Reg.problems.is_empty() and not Reg.dirty, "...so the game starts exactly as the scripts have it")
 	_check(Reg.local_path != Reg.LOCAL_PATH, "tests keep their changes away from the real file")
 	# The tests' own files (the project's too: tests never write res://).
-	Reg.project_path = "user://test_project_overrides.json"
-	Reg.local_path = "user://test_overrides.json"
+	Reg.project_path = TestRun.path("user://test_project_overrides.json")
+	Reg.local_path = TestRun.path("user://test_overrides.json")
 	Reg.project_write = 0
 	for f in [Reg.project_path, Reg.local_path]:
 		if FileAccess.file_exists(f):
@@ -14377,7 +14409,7 @@ func _interface_size_tests() -> void:
 	menu._set_setting("ui_size", "normal")
 	await _frames(2)
 	_check(is_equal_approx(root.content_scale_factor, 1.25 * main.touch.PHONE_SCALE), "on a phone Normal is 1.25x the old phone size")
-	var path := "user://smoke_settings.cfg"
+	var path := TestRun.path("user://smoke_settings.cfg")
 	M.settings["ui_size"] = "larger"
 	M.save_settings_to(path)
 	M.settings["ui_size"] = "normal"
@@ -14458,8 +14490,8 @@ func _interface_size_tests() -> void:
 	# Arrange mode at a bigger size: a button moved stays anchored, and its
 	# hit area follows it.
 	var Lkeep := [L.user_path, L.project_path, L.write_project]
-	L.user_path = "user://smoke_layout.cfg"
-	L.project_path = "user://smoke_layout.json"
+	L.user_path = TestRun.path("user://smoke_layout.cfg")
+	L.project_path = TestRun.path("user://smoke_layout.json")
 	L.write_project = false
 	L.clear_state()
 	L.use_set("touch")
@@ -14488,7 +14520,7 @@ func _interface_size_tests() -> void:
 	L.user_path = Lkeep[0]
 	L.project_path = Lkeep[1]
 	L.write_project = Lkeep[2]
-	for f in ["user://smoke_layout.cfg", "user://smoke_layout.json"]:
+	for f in [TestRun.path("user://smoke_layout.cfg"), TestRun.path("user://smoke_layout.json")]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	# Every page fits (or scrolls), at every size, on three phones.

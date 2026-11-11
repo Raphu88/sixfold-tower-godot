@@ -31,6 +31,7 @@ extends RefCounted
 ## Never let an edit break the game: a value of the wrong kind is refused,
 ## numbers are kept within bounds, and words keep their %d / %s blanks.
 
+const TestRun := preload("res://scripts/test_run.gd")
 const PROJECT_PATH := "res://data/overrides.json"
 const LOCAL_PATH := "user://overrides.json"
 const FORMAT := 1
@@ -209,7 +210,7 @@ static var _sections := {}  # id -> section
 ## to call again: it starts from the scripts' own values each time.
 static func startup() -> bool:
 	if Engine.has_meta("sixfold_test") and local_path == LOCAL_PATH:
-		local_path = "user://test_overrides.json"  # (tests never touch the real one)
+		local_path = TestRun.path("user://test_overrides.json")  # (tests never touch the real one)
 	load_files()
 	apply_effective()
 	started = true

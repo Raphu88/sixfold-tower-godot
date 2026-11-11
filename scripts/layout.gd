@@ -121,6 +121,7 @@ const TOUCH := [
 	["mark_6", "Mark button 6", "br", Vector2(-395, -265), 34.0],
 ]
 
+const TestRun := preload("res://scripts/test_run.gd")
 ## Where the arrangements are kept (tests point these elsewhere).
 const PROJECT_PATH := "res://data/layout.json"
 const USER_PATH := "user://layout.cfg"
@@ -478,6 +479,8 @@ static func ensure_loaded(tests := false) -> void:
 		return
 	_loaded = true
 	write_project = OS.has_feature("editor") and not tests
+	if tests and user_path == USER_PATH:
+		user_path = TestRun.path("user://smoke_layout.cfg")  # (tests never touch the real one)
 	load_all(not tests)
 
 
