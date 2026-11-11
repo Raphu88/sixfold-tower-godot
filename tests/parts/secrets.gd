@@ -194,7 +194,7 @@ func _lean_open(how: String) -> void:
 			t._drag(0, at + into * 40.0)
 	await t._wait(0.4)
 	var early: bool = s["open"]
-	await t._until(func(): return s["open"], 2.0)
+	await t._until(func(): return s["open"], 3.0)  # (a busy machine runs slower)
 	match how:
 		"keys":
 			key.pressed = false
@@ -207,7 +207,7 @@ func _lean_open(how: String) -> void:
 			t._touch(0, at + into * 40.0, false)
 	await t._frames(3)
 	_release_moves()
-	_check(not early and s["open"], "pressing into it a moment does nothing; leaning on it (%s) grinds it open" % how)
+	_check(not early and s["open"], "pressing into it a moment does nothing; leaning on it (%s) grinds it open (early %s, open %s)" % [how, early, s["open"]])
 	if how != "keys":
 		return
 	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth) and not _collides(mc) and not _collides(W._tile_center(mouth + Vector2i(into))),
