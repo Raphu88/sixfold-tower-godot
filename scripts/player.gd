@@ -2186,53 +2186,23 @@ func _draw_standing(b, look: Dictionary, t: float) -> void:
 	if hurt_t > 0.45:
 		lean = -2.5 * (hurt_t - 0.45) / 0.25  # rocked back by a hit
 	var lx := _f * lean
-	var cloak: Color = look["cloak"]
-	# Boots step out from under the cloak.
-	var boot_r: float = look.get("boot_r", 3.0)
-	for sg in [1.0, -1.0]:
-		var at: Vector2 = lx + _at(2.0 + sg * s * 4.5, sg * 5.2)
-		b.ball(at, boot_r, look["boot"], true, _light)
-		if look.get("studs", false):  # Hobnail Boots
-			b.dot(at + _at(boot_r * 0.7, 0.0), 0.7, Palette.STEEL)
-	# The cloak: hangs from the shoulders, its hem trails and sways.
 	var d := _cloak_drift
 	var sway := sin(t * 1.7) * 0.8 + cos(_walk_phase) * 1.4 * _walk_amp
-	var shape := [
-		Vector2(2.0, 11.0), Vector2(-3.0, 13.5), Vector2(-9.0, 12.5) + d * 0.4,
-		Vector2(-13.0 + d.x, 6.5 + d.y * 0.8 + sway * 0.6), Vector2(-15.0 + d.x, d.y + sway),
-		Vector2(-13.0 + d.x, -6.5 + d.y * 0.8 + sway * 0.6), Vector2(-9.0, -12.5) + d * 0.4,
-		Vector2(-3.0, -13.5), Vector2(2.0, -11.0), Vector2(3.0, 0.0),
-	]
-	var mid := Vector2(-5.0 + d.x * 0.5, d.y * 0.5)
-	b.poly(_shape(shape, lx, Vector2.ZERO, 1.0), cloak.darkened(0.3), 1.2)
-	b.polygon(_shape(shape, lx + _light * 1.2, mid, 0.86), cloak)
-	b.polygon(_shape(shape, lx + _light * 3.0, mid, 0.45), Color(cloak.lightened(0.3), 0.45))
-	for sgn in [-1.0, 1.0]:  # folds down the back
-		b.line(lx + _at(-3.0, sgn * 4.5), lx + _at(-12.5 + d.x, sgn * 3.0 + d.y + sway * 0.8), cloak.darkened(0.38), 1.3)
-	# Torso, armor on the chest, shoulders.
-	b.ball(lx + _at(2.0, 0.0), 8.5, look["torso"], true, _light)
+	# In layers (appearance.gd draws the body, clothes and head from the
+	# climber's look; the gear is drawn here): legs and boots stepping out
+	# from under the cloak; the cloak, its hem trailing and swaying; the
+	# chest and belt; armour and the shoulders; the head (a hood or helm
+	# with its peak trailing behind, or bare with the hood down).
+	Appearance.draw_legs(b, lx, _f, _sd, _light, look, s)
+	Appearance.draw_cloak(b, lx, _f, _sd, _light, look, sway, d)
+	Appearance.draw_torso(b, lx, _f, _sd, _light, look)
 	_draw_armor_detail(b, lx, look)
-	# The head: a hood (or helm) with a peak trailing behind, or bare with
-	# the hood down (appearance.gd, which anything drawn like the climber shares).
 	Appearance.draw_head(b, lx + _at(-0.5, 0.0), _f, _sd, _light, look, sway, d)
-	var sh_w := lx + _at(0.3 + s * 0.8, 9.3)
-	var sh_o := lx + _at(0.3 - s * 0.8, -9.3)
+	var sh_y: float = look.get("sh_y", 9.3)  # (wider apart on a broad build)
+	var sh_w := lx + _at(0.3 + s * 0.8, sh_y)
+	var sh_o := lx + _at(0.3 - s * 0.8, -sh_y)
 	# Over the head: arms, the weapon, then the hands that hold it.
 	_draw_weapon(b, sh_w, sh_o, look, s)
-
-
-## The cloak's points in the drawing frame, shrunk toward `mid` by `k` and
-## rounded off (each corner cut once), so the cloth reads soft, not angular.
-func _shape(pts: Array, offset: Vector2, mid: Vector2, k: float) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	var n := pts.size()
-	for i in n:
-		var p: Vector2 = mid + (pts[i] - mid) * k
-		var q: Vector2 = mid + (pts[(i + 1) % n] - mid) * k
-		for u in [0.25, 0.75]:
-			var r: Vector2 = p.lerp(q, u)
-			out.append(offset + _at(r.x, r.y))
-	return out
 
 
 ## Armor on the chest, where it shows in front of the head.
@@ -2240,23 +2210,24 @@ func _draw_armor_detail(b, lx: Vector2, look: Dictionary) -> void:
 	var c := lx + _at(2.0, 0.0)
 	var fa := _f.angle()
 	var torso: Color = look["torso"]
+	var tk: float = float(look.get("torso_r", 8.5)) / 8.5  # (the build)
 	match gear_id("armor"):
 		"padded":
 			for k in 5:  # quilting
 				var a := fa + (k - 2) * 0.38
-				b.line(c + Vector2.from_angle(a) * 5.5, c + Vector2.from_angle(a) * 8.0, Color(0, 0, 0, 0.3), 1.0)
+				b.line(c + Vector2.from_angle(a) * 5.5 * tk, c + Vector2.from_angle(a) * 8.0 * tk, Color(0, 0, 0, 0.3), 1.0)
 		"leather":
-			b.line(lx + _at(9.5, -3.5), lx + _at(3.0, 8.5), torso.darkened(0.35), 1.8)  # a strap
-			b.dot(lx + _at(8.4, -1.4), 1.2, Color(0.85, 0.7, 0.45))  # its buckle
+			b.line(lx + _at(2.0 + 7.5 * tk, -3.5 * tk), lx + _at(3.0, 8.5 * tk), torso.darkened(0.35), 1.8)  # a strap
+			b.dot(lx + _at(2.0 + 6.4 * tk, -1.4 * tk), 1.2, Color(0.85, 0.7, 0.45))  # its buckle
 		"chain":
 			for k in 7:  # rings
 				var a := fa + (k - 3) * 0.3
-				b.dot(c + Vector2.from_angle(a) * 7.2, 0.8, Color(1, 1, 1, 0.3))
+				b.dot(c + Vector2.from_angle(a) * 7.2 * tk, 0.8, Color(1, 1, 1, 0.3))
 		"plate":
-			b.line(lx + _at(6.6, 0.0), lx + _at(10.2, 0.0), torso.lightened(0.35), 1.2)  # the ridge
-	var sh_r: float = look["shoulder_r"]
+			b.line(lx + _at(2.0 + 4.6 * tk, 0.0), lx + _at(2.0 + 8.2 * tk, 0.0), torso.lightened(0.35), 1.2)  # the ridge
+	var sh_r: float = look["shoulder_r"] + float(look.get("sh_add", 0.0))  # (the build)
 	for sgn in [-1.0, 1.0]:
-		var at := lx + _at(0.3, sgn * 9.3)
+		var at := lx + _at(0.3, sgn * float(look.get("sh_y", 9.3)))
 		b.ball(at, sh_r, look["shoulder"], true, _light)
 		if gear_id("armor") == "plate":
 			b.arc(at, sh_r - 1.6, fa + sgn * 0.3, fa + sgn * 2.4, 6, Color(1, 1, 1, 0.3), 1.0)
@@ -2268,15 +2239,11 @@ func _draw_armor_detail(b, lx: Vector2, look: Dictionary) -> void:
 func _draw_rolling(b, look: Dictionary) -> void:
 	var dur := 0.26 if has_bond("windwalker") else 0.22
 	var spin := clampf(1.0 - roll_t / dur, 0.0, 1.0) * TAU
-	var cloak: Color = look["cloak"]
 	var fwd := Vector2.RIGHT  # the drawing frame faces the roll
 	var across := Vector2.UP
-	b.ball(Vector2.ZERO, 12.0, cloak, true, _light)
-	# Folds of cloak sweep over the back as it turns.
-	for k in 2:
-		var x := cos(spin + k * PI) * 8.0
-		var h := sqrt(maxf(0.0, 144.0 - x * x)) * 0.8
-		b.line(fwd * x + across * h, fwd * x - across * h, cloak.darkened(0.3) if k == 0 else cloak.lightened(0.15), 2.2)
+	# The cloak balled round you, its folds sweeping over the back as it
+	# turns (its trim and pattern too: appearance.gd).
+	Appearance.draw_rolled_cloak(b, look, fwd, across, spin, _light)
 	for sgn in [-1.0, 1.0]:  # hands tucked in
 		b.ball(fwd * 3.0 + across * sgn * 8.0, 2.6, look["hand"], true, _light)
 	var c := cos(spin)
@@ -2285,13 +2252,8 @@ func _draw_rolling(b, look: Dictionary) -> void:
 
 ## Fallen: face down, cloak spread, arms flung out, the weapon dropped.
 func _draw_fallen(b, look: Dictionary) -> void:
-	var cloak: Color = look["cloak"]
-	var shape := [
-		Vector2(4.0, 12.0), Vector2(-6.0, 16.0), Vector2(-16.0, 11.0), Vector2(-19.0, 2.0),
-		Vector2(-16.0, -10.0), Vector2(-5.0, -15.0), Vector2(4.0, -11.0), Vector2(6.0, 0.0),
-	]
-	b.poly(_shape(shape, Vector2.ZERO, Vector2.ZERO, 1.0), cloak.darkened(0.25), 1.2)
-	b.polygon(_shape(shape, _light * 1.5, Vector2(-6.0, 0.0), 0.8), cloak)
+	# The legs out from under the cloak, the cloak spread (appearance.gd).
+	Appearance.draw_fallen_body(b, _f, _sd, _light, look)
 	# The weapon lies where it fell.
 	var w := wdata()
 	var grip := _at(8.0, 18.0)
@@ -2309,7 +2271,7 @@ func _draw_fallen(b, look: Dictionary) -> void:
 		var hand := _at(5.0 - sgn * 2.0, sgn * 16.0)
 		b.stroke(_at(0.5, sgn * 8.5), hand, look["sleeve"], 3.4)
 		b.ball(hand, 2.8, look["hand"], true, _light)
-	b.ball(_at(0.0, 0.0), 8.0, look["torso"], true, _light)
+	b.ball(_at(0.0, 0.0), float(look.get("torso_r", 8.5)) - 0.5, look["torso"], true, _light)
 	b.ball(_at(8.0, 2.5), 6.0, Appearance.crown(look), true, _light)
 
 
