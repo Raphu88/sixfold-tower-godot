@@ -142,7 +142,7 @@ func _tree_rules() -> void:
 	prof.part_density = {"hand": {"blade": U.LEVELS[2]}}
 	_check(U.level(prof, "hand") == 3 and TR.is_fork_ready(prof, "hand"), "at level 3 the level-2 fork is ready")
 	_check("volley" in TR.owned_forms(prof, "hand") and not "brand" in TR.owned_forms(prof, "hand"), "...and Volley (level 3) is open; Brand (level 7) isn't")
-	_check(TR.node(prof, "unbound:hand:7")["options"][0]["state"] == "placeholder" and TR.node(prof, "unbound:hand:10")["state"] == "later", "forms and capstones not written yet show as Coming later")
+	_check(TR.node(prof, "unbound:hand:7")["options"][0]["state"] == "locked" and TR.node(prof, "unbound:hand:10")["state"] == "locked", "forms and capstones not reached yet are locked (tests/parts/unbound_forms.gd tests them)")
 	_check(TR.choose(prof, "unbound:hand:2", "split"), "choosing Split")
 	var o2: Array = TR.node(prof, "unbound:hand:2")["options"]
 	_check(o2[0]["state"] == "owned" and o2[1]["state"] == "learnable" and int(o2[1]["cost"]) == TR.skipped_cost(2), "...Quick, passed on, can be learned now the hand is a level past it (%s)" % o2[1]["state"])
