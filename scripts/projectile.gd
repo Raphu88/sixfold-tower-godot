@@ -25,6 +25,7 @@ var cluster := 0  # Cluster Blast: splits into this many explosions
 var return_to = null  # Recall: blades that come back to this node
 var out_t := 0.0  # how long before a recalled blade turns back
 var returning := false
+var weapon := false  # the climber's own bow or crossbow shot (spells' shots don't fill the hand or carry the weapon's rules)
 var splice := {}  # the Developer's Splice: a spliced spell's shot carries its behaviour (secret_tools.gd)
 
 
@@ -97,7 +98,7 @@ func _physics_process(delta: float) -> void:
 					_burst()
 					queue_free()
 					return
-				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy)
+				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy, weapon)
 				if not pierce:
 					queue_free()
 					return

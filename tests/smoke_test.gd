@@ -327,6 +327,13 @@ func _gryphon_tests() -> void:
 	var hp_c: float = c.hp
 	p.ranged_hit(c, 10.0, Vector2.RIGHT, 0.0, false)
 	_check(hp_c - c.hp >= 20.0, "Hawk's Eye doubles arrow damage")
+	var hand_b = p.bonds.get("hand")
+	if hand_b != null:
+		hand_b.essence = 0.0
+		p.ranged_hit(c, 1.0, Vector2.RIGHT, 0.0, false)
+		_check(hand_b.essence == 0.0, "a spell's shot doesn't fill the hand's mark (%.1f)" % hand_b.essence)
+		p.ranged_hit(c, 1.0, Vector2.RIGHT, 0.0, false, true)
+		_check(hand_b.essence > 0.0, "...the climber's own arrow does")
 	c.global_position = p.global_position + Vector2(190, 0)
 	hp_c = c.hp
 	_cast("brow", "rain_of_arrows")

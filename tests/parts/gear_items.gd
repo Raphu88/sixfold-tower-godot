@@ -348,7 +348,7 @@ func _new_pieces() -> void:
 	if hand != null:
 		hand.essence = 0.0
 		var tgt = await t._dummy(p.global_position + Vector2(60, 0))
-		p.ranged_hit(tgt, 5.0, Vector2.RIGHT, 0.0, true)
+		p.ranged_hit(tgt, 5.0, Vector2.RIGHT, 0.0, true, true)
 		_check(hand.essence >= 3.99, "a Hollowmoon Bow: a full draw that hits fills the hand's mark")
 		tgt.queue_free()
 
@@ -397,7 +397,7 @@ func _beast_rules() -> void:
 	p._fire_bolt()
 	_check(m.get_children().size() - before >= 3, "Spinecaster: each bolt looses two barbs beside it")
 	var v = await t._dummy(p.global_position + Vector2(300, 200))
-	p.ranged_hit(v, 2.0, Vector2.RIGHT, 0.0, false)
+	p.ranged_hit(v, 2.0, Vector2.RIGHT, 0.0, false, true)
 	_check(v.venom >= 2, "...and every barb poisons")
 	v.queue_free()
 	# Stormtalon: arcs on to two more foes.
@@ -406,7 +406,7 @@ func _beast_rules() -> void:
 	var s0 = await t._dummy(p.global_position + Vector2(200, 0))
 	var s1 = await t._dummy(p.global_position + Vector2(260, 0))
 	var s2 = await t._dummy(p.global_position + Vector2(320, 0))
-	p.ranged_hit(s0, 20.0, Vector2.RIGHT, 0.0, true)
+	p.ranged_hit(s0, 20.0, Vector2.RIGHT, 0.0, true, true)
 	_check(s1.hp < 999.0 and s2.hp < 999.0, "Stormtalon: a full draw arcs on to two more foes")
 	for x in [s0, s1, s2]:
 		x.queue_free()
