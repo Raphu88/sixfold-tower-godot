@@ -20,19 +20,32 @@ extends Control
 ##     layout shows as the phone draws it), and a readout of the chosen
 ##     element's place and size.
 ## Finishing with unsaved changes asks whether to save them. The Entity
-## explains it all (entity.gd's creator tips "arrange", "arrange_sets" and
-## "arrange_save") in a card of this screen's own, the first time each comes
-## up (tips on, as in play), and the toolbar's ? shows them again. The words
-## are in TEXT.
+## explains it all (entity.gd's creator tips "arrange", "arrange_sets",
+## "arrange_save" and "arrange_menus") in a card of this screen's own, the
+## first time each comes up (tips on, as in play), and the toolbar's ? shows
+## them again. The words are in TEXT.
+##
+## Over a menu (F2 with a page open, or Dev tools: Arrange menus) it
+## arranges the menu instead, which stays showing: the page's panel, its
+## title, rows, columns and cards, the left rail (its width, text size, who
+## you are, the list's spacing) and, on the train, the furniture and
+## placards of the car you're in (arrange_ui.gd tags them all). The element
+## under the pointer lights up with its name; a second click where the chosen
+## one is picks the bigger thing around it (PgUp / PgDn too). Side handles
+## resize what can be resized (the panel's width, the rail's width and its
+## list's spacing). Reset page puts back everything showing. The toolbar's
+## "Arrange the HUD" / "Arrange the menu" switches between the two.
 
 const Layout := preload("res://scripts/layout.gd")
+const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Guide := preload("res://scripts/guide.gd")
-## The Entity's explanations, in the order ? shows them.
+## The Entity's explanations, in the order ? shows them (over a menu, its own first).
 const HELP := ["arrange", "arrange_sets", "arrange_save"]
+const MENU_HELP := ["arrange_menus", "arrange", "arrange_sets", "arrange_save"]
 
 const TEXT := {
 	"title": "Arrange",
@@ -40,10 +53,13 @@ const TEXT := {
 	"set_names": {"desktop": "Computer", "touch": "Phone"},
 	"switch": {"desktop": "Edit the phone's", "touch": "Edit the computer's"},
 	"save": "Save", "copy": "Copy layout", "undo": "Undo", "grid_on": "Grid: on", "grid_off": "Grid: off",
-	"reset_one": "Reset this", "reset_all": "Reset all", "sure": "Sure?", "done": "Done",
+	"reset_one": "Reset this", "reset_page": "Reset page", "reset_all": "Reset all", "sure": "Sure?", "done": "Done",
+	"view_menu": "Arrange the menu", "view_hud": "Arrange the HUD",
 	"none": "Choose something: tap, click, Tab or the d-pad",
-	"readout": "%s  ·  x %d  y %d  ·  %d × %d  ·  %d%%  ·  pinned %s",
+	"readout": "%s  ·  x %d  y %d  ·  %d × %d  ·  %d%%  ·  %s",
+	"pinned": "pinned %s", "as_built": "as built", "moved": "moved from its place",
 	"hint_keys": "Drag to move · drag a corner to scale · Shift: no snapping · Tab: next · arrows: nudge · [ ]: size · Ctrl+Z: undo · Esc: done",
+	"hint_menu": "Point at a thing, drag to move · corner: scale · side: resize · wheel or [ ]: size · click again or PgUp: the bigger part · Esc: done",
 	"hint_pad": "D-pad or {lb} {rb}: next · left stick: move · right stick: size · {x}: undo · {y}: save · {a} or {b}: done",
 	"hint_touch": "Drag a thing to move it · pull a corner to scale it · drag this bar to move the toolbar",
 	"saved": "Saved",
@@ -54,6 +70,7 @@ const TEXT := {
 	"copy_note": "It's on the clipboard. On a phone: long-press in the box, Select all, then Copy, and paste it to Claude.",
 	"close": "Close",
 	"reset_one_done": "%s is back in its default place",
+	"reset_page_done": "Everything showing is back in its default place",
 	"reset_all_done": "Everything is back in its default place",
 	"undone": "Undone", "nothing": "Nothing to undo",
 	"ask": "Save your changes?",
@@ -103,6 +120,8 @@ var hover := ""  # the toolbar button under the mouse
 var card := {}  # the Entity's card: {ids, i}
 var card_then := ""  # what to do once it's closed ("finish")
 var redraws := 0  # (tests)
+var menu_mode := false  # arranging the menu showing (not the HUD)
+var hover_el := ""  # over a menu: the element under the mouse (lit with its name)
 
 var _menu_page := ""  # the menu page it was opened from (reopened on Done)
 var _was_paused := false
@@ -155,20 +174,23 @@ func _process(delta: float) -> void:
 static func dev_section(menu) -> void:
 	menu._section(DEV["section"])
 	var row: HBoxContainer = menu._row()
-	var b: Button = menu._button(DEV["button"], _dev_open.bind(menu), row)
+	var b: Button = menu._button(DEV["button"], _dev_open.bind(menu, "hud"), row)
 	b.disabled = menu.main == null or menu.main.arrange == null
+	var bm: Button = menu._button(DEV["menus"], _dev_open.bind(menu, "menu"), row)
+	bm.disabled = b.disabled
 	menu._note(DEV["note"])
 
 
-static func _dev_open(menu) -> void:
+static func _dev_open(menu, want: String) -> void:
 	if menu.main != null and menu.main.arrange != null:
-		menu.main.arrange.open()
+		menu.main.arrange.open(want)
 
 
 const DEV := {
 	"section": "Layout",
 	"button": "Arrange layout",
-	"note": "Move and scale the HUD and the touch buttons yourself (F2 in play). Save keeps it; run from the Godot editor, Save also writes data/layout.json for GitHub Desktop.",
+	"menus": "Arrange menus",
+	"note": "Arrange layout moves and scales the HUD and the touch buttons (F2 in play); Arrange menus does the same for this page, and F2 with any menu open (or on the train) for that one: its panels, titles, buttons, cards, the rail and the train's furniture. Save keeps it; run from the Godot editor, Save also writes data/layout.json for GitHub Desktop.",
 }
 
 
@@ -182,7 +204,9 @@ func can_open() -> bool:
 
 # --- opening and closing -------------------------------------------------------------
 
-func open() -> void:
+## `want`: "hud" arranges the HUD (an open menu hides), "menu" the menu
+## showing, "" the menu if one is open, else the HUD.
+func open(want := "") -> void:
 	if is_open:
 		return
 	is_open = true
@@ -190,11 +214,13 @@ func open() -> void:
 	_was_touch = main.touch_active
 	var m = main.menu
 	_menu_page = m.page if m != null and m.is_open() else ""
+	menu_mode = _menu_page != "" and not (_menu_page in ArrangeUI.SKIP_PAGES) and want != "hud"
+	hover_el = ""
 	if m != null:
-		if _menu_page != "":
-			m.page = ""  # (hidden while arranging; Done opens it again)
+		if _menu_page != "" and not menu_mode:
+			m.page = ""  # (hidden while arranging the HUD; Done opens it again)
 			m.visible = false
-		m.process_mode = Node.PROCESS_MODE_DISABLED
+		m.process_mode = Node.PROCESS_MODE_DISABLED  # (it stays showing over a menu, but doesn't answer)
 	get_tree().paused = true
 	if main.touch != null:
 		main.touch.release_all()
@@ -202,7 +228,8 @@ func open() -> void:
 		main.pad.release_all()
 	# The floor title and the key hints show, so you see what you move.
 	var hud = main.hud
-	if hud != null:
+	_hud_kept = []
+	if hud != null and not menu_mode:
 		_hud_kept = [hud.floor_t, hud.hints_t]
 		hud.floor_t = hud.FLOOR_SHOW * 0.5
 		hud.hints_t = hud.HINTS_SHOW * 0.5
@@ -213,14 +240,69 @@ func open() -> void:
 	armed = ""
 	axes.clear()
 	stick_moving = false
-	var list := Layout.ids()
+	if menu_mode:
+		ArrangeUI.tag_page(m)  # (what's on the page now)
+		get_viewport().gui_release_focus()  # (a controller's d-pad picks things here, not the page's buttons)
+	var list := elements()
 	if not (sel in list):
 		sel = list[0] if not list.is_empty() else ""
 	visible = true
 	if main.has_method("sfx"):
 		main.sfx("ui_open")
 	card = {}
-	_tell("arrange")
+	var first: Array = []
+	for id in (["arrange", "arrange_menus"] if menu_mode else ["arrange"]):
+		if Guide.tell(id) != "":
+			first.append(id)
+	if not first.is_empty():
+		show_card(first)
+	_changed()
+
+
+## What can be arranged now: the menu's elements (arrange_ui.gd), or the HUD's.
+func elements() -> Array:
+	if menu_mode and main.menu != null:
+		return ArrangeUI.ids_on_screen(main.menu)
+	return Layout.ids()
+
+
+## Over a menu: arranges the menu (true) or the HUD (false, the menu hidden).
+func set_view(on_menu: bool) -> void:
+	var m = main.menu
+	if _menu_page == "" or m == null or (_menu_page in ArrangeUI.SKIP_PAGES) or on_menu == menu_mode:
+		return
+	menu_mode = on_menu
+	m.page = _menu_page if on_menu else ""
+	m.visible = on_menu
+	hover_el = ""
+	drag = {}
+	guides.clear()
+	if on_menu:
+		ArrangeUI.tag_page(m)
+		_tell("arrange_menus")
+	elif main.hud != null and _hud_kept.is_empty():
+		# (the floor title and the key hints show, so you see what you move)
+		_hud_kept = [main.hud.floor_t, main.hud.hints_t]
+		main.hud.floor_t = main.hud.FLOOR_SHOW * 0.5
+		main.hud.hints_t = main.hud.HINTS_SHOW * 0.5
+	var list := elements()
+	sel = list[0] if not list.is_empty() else ""
+	_changed()
+
+
+## The page built again as it is (after a resize, the other layout set).
+func _rebuild_menu() -> void:
+	var m = main.menu
+	if not is_open or not menu_mode or m == null or m.page == "":
+		return
+	m._quiet = true
+	m.open(m.page, m.opened_direct)
+	m._quiet = false
+	m.process_mode = Node.PROCESS_MODE_DISABLED
+	get_viewport().gui_release_focus.call_deferred()  # (after the page puts its focus back)
+	if not (sel in elements()):
+		var list := elements()
+		sel = list[0] if not list.is_empty() else ""
 	_changed()
 
 
@@ -262,18 +344,26 @@ func close() -> void:
 		main.sfx("ui_close")
 	# The menu comes back a frame later, so the key that finished doesn't
 	# reach it too.
-	_restore.call_deferred(_menu_page, _was_paused)
+	_restore.call_deferred(_menu_page, _was_paused, menu_mode)
 	_menu_page = ""
+	hover_el = ""
 	_changed()
+	menu_mode = false
 
 
-func _restore(page: String, was_paused: bool) -> void:
+func _restore(page: String, was_paused: bool, quiet := false) -> void:
 	var m = main.menu
 	if m != null:
 		m.process_mode = Node.PROCESS_MODE_ALWAYS
 	if page != "" and m != null:
 		m.visible = true
-		m.open(page)
+		if quiet and m.page == page:
+			# (it stayed showing: built again as it is, so what was resized fits)
+			m._quiet = true
+			m.open(page, m.opened_direct)
+			m._quiet = false
+		else:
+			m.open(page)
 	else:
 		get_tree().paused = was_paused
 
@@ -288,31 +378,47 @@ func _hs() -> float:
 	return main.hud.hud_scale if main.hud != null else 1.0
 
 
+## A menu's, the rail's or the train's element (arrange_ui.gd), not the HUD's.
+func is_live(id: String) -> bool:
+	return not Layout.has(id) and ArrangeUI.has(id)
+
+
 ## An element's arranged box on the view, in view pixels.
 func screen_rect(id: String) -> Rect2:
+	if is_live(id):
+		return ArrangeUI.rect(id)
 	var k := Layout.space_scale(id, _hs())
 	var b := Layout.box(id, Layout.space_size(id, _view(), _hs()))
 	return Rect2(b.position * k, b.size * k)
 
 
+## Its size at scale 1 (a menu's element: as resized).
 func _default_size(id: String) -> Vector2:
+	if is_live(id):
+		return ArrangeUI.base_rect(id).size
 	var k := Layout.space_scale(id, _hs())
 	return Layout.default_box(id, Layout.space_size(id, _view(), _hs())).size * k
 
 
 ## Puts an element at this view rect (Layout re-anchors it to the nearest corner or edge).
 func _apply(id: String, r: Rect2) -> void:
+	if is_live(id):
+		ArrangeUI.move_to(id, r)
+		_changed()
+		return
 	var k := Layout.space_scale(id, _hs())
 	Layout.move_to(id, Rect2(r.position / k, r.size / k), Layout.space_size(id, _view(), _hs()))
 	_changed()
 
 
 ## Everything that draws from the layout redraws (the game is paused, so
-## their own change checks don't run).
+## their own change checks don't run); over a menu, the menu is laid out again.
 func _changed() -> void:
 	queue_redraw()
 	if main == null:
 		return
+	if menu_mode and main.menu != null and main.menu.page != "":
+		ArrangeUI.refresh(main.menu)
 	if main.hud != null:
 		main.hud.queue_redraw()
 		if main.hud.core != null:
@@ -326,18 +432,50 @@ func _changed() -> void:
 ## The element under a point: the smallest one there (so a button wins over
 ## the joystick zone it sits beside).
 func element_at(pos: Vector2) -> String:
+	var hits := elements_at(pos)
+	return hits[0] if not hits.is_empty() else ""
+
+
+## Every element under a point, the smallest first.
+func elements_at(pos: Vector2) -> Array:
+	var found: Array = []
+	for id in elements():
+		var r := screen_rect(id).abs().grow(0.0 if menu_mode else 4.0)
+		if r.has_point(pos):
+			found.append([r.get_area(), id])
+	found.sort_custom(func(a, b): return a[0] < b[0])
+	return found.map(func(f): return f[1])
+
+
+## Over a menu: the thing around the chosen one (`by` 1), or the biggest
+## thing inside it (-1).
+func pick_nested(by: int) -> void:
+	if sel == "":
+		return
+	var r := screen_rect(sel)
 	var best := ""
-	var area := INF
-	for id in Layout.ids():
-		var r := screen_rect(id).abs().grow(4.0)
-		if r.has_point(pos) and r.get_area() < area:
-			area = r.get_area()
+	var area := INF if by > 0 else -1.0
+	for id in elements():
+		if id == sel:
+			continue
+		var o := screen_rect(id)
+		if by > 0 and o.grow(0.5).encloses(r) and o.get_area() > r.get_area() and o.get_area() < area:
 			best = id
-	return best
+			area = o.get_area()
+		elif by < 0 and r.grow(0.5).encloses(o) and o.get_area() < r.get_area() and o.get_area() > area:
+			best = id
+			area = o.get_area()
+	if best != "":
+		sel = best
+		if main.has_method("sfx"):
+			main.sfx("ui_move")
+		queue_redraw()
 
 
 ## Is it on screen just now (the rest are outlined fainter)?
 func showing(id: String) -> bool:
+	if is_live(id):
+		return true
 	var p = main.player
 	match id:
 		"hud.item":
@@ -369,6 +507,8 @@ func showing(id: String) -> bool:
 
 ## The name Arrange mode shows (a mark button says whose mark is there now).
 func label_of(id: String) -> String:
+	if is_live(id):
+		return ArrangeUI.display_name(id)
 	var name := Layout.display_name(id)
 	if id.begins_with("touch.mark_") and main.touch != null:
 		for b in main.touch.buttons:
@@ -382,9 +522,11 @@ func label_of(id: String) -> String:
 ## The toolbar's rect and its buttons: {"bar": Rect2, "title": Rect2, "buttons": [[id, Rect2, label]]}.
 func toolbar() -> Dictionary:
 	var view := _view()
-	var w := minf(560.0, view.x - 16.0)
+	var w := minf(660.0 if menu_mode else 560.0, view.x - 16.0)
 	var display := UI.font("display")
 	var ids := ["save", "copy", "undo", "grid", "reset_one", "reset_all", "done"]
+	if menu_mode:
+		ids.insert(5, "reset_page")
 	var labels := {}
 	var widest := 0.0
 	for id in ids:
@@ -392,7 +534,7 @@ func toolbar() -> Dictionary:
 		match id:
 			"grid":
 				label = TEXT["grid_on"] if grid else TEXT["grid_off"]
-			"reset_one", "reset_all":
+			"reset_one", "reset_all", "reset_page":
 				label = TEXT["sure"] if armed == id else TEXT[id]
 			_:
 				label = TEXT[id]
@@ -407,7 +549,8 @@ func toolbar() -> Dictionary:
 	var h := 92.0 + (rows - 1) * 30.0
 	var at := bar_at
 	if at.x < 0.0:
-		at = Vector2((view.x - w) * 0.5, view.y * 0.5 - h * 0.5)
+		# (over a menu: at the bottom, out of the page's way)
+		at = Vector2((view.x - w) * 0.5, view.y - h - 8.0 if menu_mode else view.y * 0.5 - h * 0.5)
 	at.x = clampf(at.x, 0.0, maxf(view.x - w, 0.0))
 	at.y = clampf(at.y, 0.0, maxf(view.y - h, 0.0))
 	var bar := Rect2(at, Vector2(w, h))
@@ -417,6 +560,11 @@ func toolbar() -> Dictionary:
 	var set_w := clampf(display.get_string_size(set_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 16.0, 130.0, w * 0.5)
 	out.append(["set", Rect2(at + Vector2(w - set_w - 6.0, 3.0), Vector2(set_w, 19.0)), set_label])
 	out.append(["help", Rect2(at + Vector2(w - set_w - 34.0, 3.0), Vector2(24.0, 19.0)), TEXT["help"]])
+	if _menu_page != "" and not (_menu_page in ArrangeUI.SKIP_PAGES):
+		# Over a menu: switch between arranging it and the HUD.
+		var vl: String = TEXT["view_hud"] if menu_mode else TEXT["view_menu"]
+		var vw := clampf(display.get_string_size(vl, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 16.0, 110.0, w * 0.3)
+		out.append(["view", Rect2(at + Vector2(w - set_w - 40.0 - vw, 3.0), Vector2(vw, 19.0)), vl])
 	var bw := (w - 12.0 - gap * (per_row - 1)) / per_row
 	for i in ids.size():
 		var id: String = ids[i]
@@ -444,16 +592,21 @@ func press(id: String) -> void:
 			do_undo()
 		"grid":
 			grid = not grid
-		"reset_one", "reset_all":
+		"reset_one", "reset_all", "reset_page":
 			if armed == id and Time.get_ticks_msec() <= armed_until:
 				armed = ""
 				_push_undo()
 				if id == "reset_one" and sel != "":
 					Layout.reset(sel)
 					_say(TEXT["reset_one_done"] % label_of(sel))
+				elif id == "reset_page":
+					reset_page()
+					_say(TEXT["reset_page_done"])
 				elif id == "reset_all":
 					Layout.reset_all()
 					_say(TEXT["reset_all_done"])
+				if menu_mode:
+					_rebuild_menu.call_deferred()  # (a panel's width back: its rows unwrap)
 			else:
 				armed = id
 				armed_until = Time.get_ticks_msec() + CONFIRM_MS
@@ -461,11 +614,21 @@ func press(id: String) -> void:
 			finish()
 		"set":
 			switch_set()
+		"view":
+			set_view(not menu_mode)
 		"help":
-			show_card(HELP)
+			show_card(MENU_HELP if menu_mode else HELP)
 	if main.has_method("sfx"):
 		main.sfx("ui_confirm")
 	_changed()
+
+
+## Everything showing back in its default place (a menu's page, the rail, the car).
+func reset_page() -> void:
+	for id in elements():
+		Layout.reset(id)
+	if menu_mode:
+		ArrangeUI.refresh(main.menu)
 
 
 func save() -> void:
@@ -506,6 +669,8 @@ func do_undo() -> void:
 	Layout.restore(undo.pop_back())
 	_say(TEXT["undone"])
 	_changed()
+	if menu_mode:
+		_rebuild_menu.call_deferred()
 
 
 ## Edits the other layout set: on a computer, the phone's (drawn as the phone draws it).
@@ -514,7 +679,9 @@ func switch_set() -> void:
 		return
 	main.touch._set_active(not main.touch.active)
 	get_tree().paused = true  # (still)
-	var list := Layout.ids()
+	if menu_mode:
+		_rebuild_menu()  # (the menu as that layout draws it)
+	var list := elements()
 	if not (sel in list):
 		sel = list[0] if not list.is_empty() else ""
 	_tell("arrange_sets")
@@ -715,7 +882,7 @@ func _input(event: InputEvent) -> void:
 				pointer_down(-1, event.position, event.shift_pressed)
 			else:
 				pointer_up(-1)
-		elif event.pressed and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN) and sel != "" and not asking:
+		elif event.pressed and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN) and sel != "" and not asking and (not menu_mode or ArrangeUI.has(sel)):
 			_push_undo()
 			nudge_scale(0.05 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -0.05)
 		elif event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -730,6 +897,12 @@ func _input(event: InputEvent) -> void:
 		if h != hover:
 			hover = h
 			queue_redraw()
+		if menu_mode and drag.is_empty():
+			# Over a menu: the element under the mouse lights up with its name.
+			var he := "" if toolbar()["bar"].has_point(event.position) else element_at(event.position)
+			if he != hover_el:
+				hover_el = he
+				queue_redraw()
 	elif event is InputEventScreenTouch:
 		if event.pressed:
 			pointer_down(event.index, event.position, false)
@@ -793,6 +966,10 @@ func _key(event: InputEventKey) -> void:
 				nudge_scale(0.05)
 		KEY_DELETE, KEY_BACKSPACE:
 			press("reset_one")
+		KEY_PAGEUP:
+			pick_nested(1)
+		KEY_PAGEDOWN:
+			pick_nested(-1)
 
 
 func _pad_event(event: InputEvent) -> void:
@@ -835,7 +1012,7 @@ func _pad_event(event: InputEvent) -> void:
 
 ## The next (or previous) element.
 func pick(by: int) -> void:
-	var list := Layout.ids()
+	var list := elements()
 	if list.is_empty():
 		return
 	var i := list.find(sel)
@@ -890,23 +1067,57 @@ func pointer_down(ptr: int, pos: Vector2, free := false) -> void:
 	if tb["title"].has_point(pos) or tb["bar"].has_point(pos):
 		drag = {"kind": "bar", "ptr": ptr, "from": pos, "at": tb["bar"].position}
 		return
-	# A corner handle of the chosen element: scale.
+	# A corner handle of the chosen element: scale; a side handle: resize.
 	if sel != "":
 		var r := screen_rect(sel)
 		var grab := GRAB_TOUCH if ptr >= 0 else GRAB
-		var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
-		for ci in 4:
-			if pos.distance_to(corners[ci]) <= grab:
+		if _corner_handles(sel):
+			var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+			for ci in 4:
+				if pos.distance_to(corners[ci]) <= grab:
+					_push_undo()
+					drag = {"kind": "scale", "ptr": ptr, "from": pos, "rect": r, "corner": ci, "scale": r.size.x / maxf(_default_size(sel).x, 0.001)}
+					queue_redraw()
+					return
+		for sh in side_handles(sel):
+			if pos.distance_to(sh[1]) <= grab:
 				_push_undo()
-				drag = {"kind": "scale", "ptr": ptr, "from": pos, "rect": r, "corner": ci, "scale": r.size.x / maxf(_default_size(sel).x, 0.001)}
+				drag = {"kind": "resize", "ptr": ptr, "from": pos, "rect": r, "side": sh[0]}
 				queue_redraw()
 				return
-	var id := element_at(pos)
-	if id != "":
+	# What's under it: the smallest thing; pressed again where the chosen
+	# one is, it stays chosen (to drag it) and, if it isn't dragged, the
+	# bigger thing around it is chosen.
+	var hits := elements_at(pos)
+	if not hits.is_empty():
+		var again: bool = sel in hits
+		var id: String = sel if again else hits[0]
 		sel = id
 		_push_undo()
-		drag = {"kind": "move", "ptr": ptr, "from": pos, "rect": screen_rect(id), "moved": false}
+		drag = {"kind": "move", "ptr": ptr, "from": pos, "rect": screen_rect(id), "moved": false, "again": again, "hits": hits}
 	queue_redraw()
+
+
+## Whether the chosen element has corner handles (it scales with its box).
+func _corner_handles(id: String) -> bool:
+	return not is_live(id) or (ArrangeUI.cap(id, "scale") and not ArrangeUI.cap(id, "inside"))
+
+
+## The side handles of an element that can be resized: [side, point].
+func side_handles(id: String) -> Array:
+	if not is_live(id):
+		return []
+	var r := screen_rect(id)
+	var out: Array = []
+	if ArrangeUI.cap(id, "x"):
+		out.append(["right", Vector2(r.end.x, r.get_center().y)])
+		if r.position.x > 1.0:
+			out.append(["left", Vector2(r.position.x, r.get_center().y)])
+	if ArrangeUI.cap(id, "y"):
+		out.append(["bottom", Vector2(r.get_center().x, r.end.y)])
+		if r.position.y > 1.0:
+			out.append(["top", Vector2(r.get_center().x, r.position.y)])
+	return out
 
 
 func pointer_move(ptr: int, pos: Vector2, free := false) -> void:
@@ -929,16 +1140,55 @@ func pointer_move(ptr: int, pos: Vector2, free := false) -> void:
 			_apply(sel, r)
 		"scale":
 			_scale_drag(pos, free)
+		"resize":
+			_resize_drag(pos, free)
 
 
 func pointer_up(ptr: int) -> void:
 	if drag.is_empty() or drag["ptr"] != ptr:
 		return
-	if drag["kind"] == "move" and not drag.get("moved", false) and not undo.is_empty():
-		undo.pop_back()  # (a tap that only chose it changed nothing)
+	var kind: String = drag["kind"]
+	if kind == "move" and not drag.get("moved", false):
+		if not undo.is_empty():
+			undo.pop_back()  # (a tap that only chose it changed nothing)
+		if drag.get("again", false):
+			# Pressed again where the chosen one is: the bigger thing around it
+			# (and from the biggest, back to the smallest).
+			var hits: Array = drag["hits"]
+			var i := hits.find(sel)
+			if hits.size() > 1 and i >= 0:
+				sel = hits[(i + 1) % hits.size()]
+				if main.has_method("sfx"):
+					main.sfx("ui_move")
 	drag = {}
 	guides.clear()
 	queue_redraw()
+	if kind == "resize" and menu_mode:
+		_rebuild_menu.call_deferred()  # (narrower or wider: the page's rows wrap again to fit)
+
+
+## Pulling a side handle: the element is resized (the page's panel and the
+## rail across, the rail's list down), the other side staying put.
+func _resize_drag(pos: Vector2, free: bool) -> void:
+	var r: Rect2 = drag["rect"]
+	var side: String = drag["side"]
+	var s := ArrangeUI.scale_of(sel)
+	if ArrangeUI.cap(sel, "inside"):
+		s = 1.0
+	var px := 0.0
+	match side:
+		"right":
+			px = pos.x - r.position.x
+		"left":
+			px = r.end.x - pos.x
+		"bottom":
+			px = pos.y - r.position.y
+		"top":
+			px = r.end.y - pos.y
+	if not free and grid:
+		px = roundf(px / GRID) * GRID
+	ArrangeUI.resize_to(sel, "w" if side in ["left", "right"] else "h", maxf(px, 8.0) / maxf(s, 0.01))
+	_changed()
 
 
 ## Pulling a corner: the opposite corner stays put and the element keeps its shape.
@@ -961,11 +1211,17 @@ func _scale_drag(pos: Vector2, free: bool) -> void:
 
 
 func _min_scale(id: String) -> float:
+	if is_live(id):
+		return Layout.MIN_SCALE
 	return Layout.min_scale(id, Layout.space_size(id, _view(), _hs()))
 
 
 ## Grows or shrinks the chosen element by this much of its default size, about its centre.
 func nudge_scale(by: float) -> void:
+	if is_live(sel):
+		ArrangeUI.nudge_scale(sel, by)
+		_changed()
+		return
 	var r := screen_rect(sel)
 	var base := _default_size(sel)
 	var s := clampf(snappedf(r.size.x / maxf(base.x, 0.001) + by, 0.05), _min_scale(sel), Layout.MAX_SCALE)
@@ -975,6 +1231,11 @@ func nudge_scale(by: float) -> void:
 
 ## Let go of the stick: onto the grid (and a tidy scale).
 func _settle(id: String) -> void:
+	if is_live(id):
+		if grid:
+			_apply(id, snap(screen_rect(id), id))
+			guides.clear()
+		return
 	var r := screen_rect(id)
 	var base := _default_size(id)
 	var s := clampf(snappedf(r.size.x / maxf(base.x, 0.001), 0.05), _min_scale(id), Layout.MAX_SCALE)
@@ -995,11 +1256,14 @@ func snap(r: Rect2, id: String) -> Rect2:
 	var near := SNAP_TOUCH if main.touch_active else SNAP
 	var xs: Array = [0.0, view.x * 0.5, view.x]
 	var ys: Array = [0.0, view.y * 0.5, view.y]
-	for o in Layout.ids():
+	for o in elements():
 		if o == id:
 			continue
 		var orr := screen_rect(o)
-		if orr.size.x >= view.x * 0.45 or orr.size.y >= view.y * 0.8:
+		if menu_mode:
+			if ArrangeUI.is_inside(id, o):
+				continue  # (what's in it moves with it)
+		elif orr.size.x >= view.x * 0.45 or orr.size.y >= view.y * 0.8:
 			continue  # (the big zones would catch everything)
 		xs.append_array([orr.position.x, orr.end.x])
 		ys.append_array([orr.position.y, orr.end.y])
@@ -1064,12 +1328,17 @@ func _draw() -> void:
 		draw_multiline(bold, Color(UI.GILT, 0.11))
 		draw_line(Vector2(view.x * 0.5, 0), Vector2(view.x * 0.5, view.y), Color(UI.PERIWINKLE, 0.12))
 		draw_line(Vector2(0, view.y * 0.5), Vector2(view.x, view.y * 0.5), Color(UI.PERIWINKLE, 0.12))
-	# Each element: a dashed gilt outline and its name (the chosen one solid, with handles).
-	for id in Layout.ids():
-		if id == sel:
-			continue
-		_draw_element(id, false, body)
-	if sel != "":
+	# Each element: a dashed gilt outline and its name (the chosen one solid,
+	# with handles). Over a menu, only the one under the mouse and the chosen one.
+	if menu_mode:
+		if hover_el != "" and hover_el != sel and ArrangeUI.has(hover_el):
+			_draw_element(hover_el, false, body)
+	else:
+		for id in Layout.ids():
+			if id == sel:
+				continue
+			_draw_element(id, false, body)
+	if sel != "" and (not menu_mode or ArrangeUI.has(sel)):
 		_draw_element(sel, true, body)
 	# The guides of a drag.
 	for g in guides:
@@ -1136,10 +1405,18 @@ func _draw_element(id: String, chosen: bool, font: Font) -> void:
 	draw_rect(Rect2(at + Vector2(-3.0, -size + 1.0), Vector2(nw + 6.0, size + 3.0)), Color(UI.VOID, 0.72 * a))
 	draw_string(font, at, name, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 	if chosen:
-		for c in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
-			var h := Rect2(c - Vector2(HANDLE, HANDLE) * 0.5, Vector2(HANDLE, HANDLE))
+		if _corner_handles(id):
+			for c in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
+				var h := Rect2(c - Vector2(HANDLE, HANDLE) * 0.5, Vector2(HANDLE, HANDLE))
+				draw_rect(h.grow(1.0), Color(0, 0, 0, 0.8))
+				draw_rect(h, UI.GILT_HI)
+		# Side handles (resizing): bars across the edge's middle.
+		for sh in side_handles(id):
+			var across: bool = sh[0] in ["left", "right"]
+			var hs := Vector2(HANDLE * 0.75, HANDLE * 2.2) if across else Vector2(HANDLE * 2.2, HANDLE * 0.75)
+			var h := Rect2(sh[1] - hs * 0.5, hs)
 			draw_rect(h.grow(1.0), Color(0, 0, 0, 0.8))
-			draw_rect(h, UI.GILT_HI)
+			draw_rect(h, UI.PERIWINKLE)
 
 
 func _draw_button(r: Rect2, label: String, primary: bool, font: Font, focused := false) -> void:
@@ -1161,7 +1438,14 @@ func _draw_toolbar(body: Font, mono: Font, display: Font) -> void:
 	for i in 3:
 		draw_circle(title.position + Vector2(10.0, 8.0 + i * 4.5), 1.2, Color(UI.GILT, 0.6))
 		draw_circle(title.position + Vector2(14.0, 8.0 + i * 4.5), 1.2, Color(UI.GILT, 0.6))
-	UI.draw_label(self, title.position + Vector2(22.0, 17.0), TEXT["title"] + "  ·  " + TEXT["editing"] % TEXT["set_names"][Layout.active_set], 15, UI.GOLD)
+	var title_text: String = TEXT["title"] + "  ·  " + TEXT["editing"] % TEXT["set_names"][Layout.active_set]
+	var room := title.size.x
+	for b in tb["buttons"]:
+		if (b[1] as Rect2).position.y < title.end.y:
+			room = minf(room, (b[1] as Rect2).position.x - title.position.x - 26.0)
+	if display.get_string_size(title_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x > room:
+		title_text = TEXT["title"]  # (a narrow toolbar: the buttons beside it need the room)
+	UI.draw_label(self, title.position + Vector2(22.0, 17.0), title_text, 15, UI.GOLD)
 	for b in tb["buttons"]:
 		var primary: bool = b[0] == "done" or (b[0] == "save" and Layout.dirty())
 		var armed_now: bool = b[0] == armed
@@ -1172,9 +1456,12 @@ func _draw_toolbar(body: Font, mono: Font, display: Font) -> void:
 		var r := screen_rect(sel)
 		var ov = Layout.get_override(sel)
 		var scale := r.size.x / maxf(_default_size(sel).x, 0.001)
-		var anchor: String = Layout.ANCHOR_NAMES.get(String(ov.get("anchor", "")), "") if ov != null else "as built"
+		var anchor: String = TEXT["pinned"] % Layout.ANCHOR_NAMES.get(String(ov.get("anchor", "")), "") if ov != null else TEXT["as_built"]
+		if is_live(sel):
+			scale = ArrangeUI.scale_of(sel)
+			anchor = TEXT["moved"] if ArrangeUI.override(sel) != null else TEXT["as_built"]
 		line = TEXT["readout"] % [label_of(sel), int(round(r.position.x)), int(round(r.position.y)), int(round(r.size.x)), int(round(r.size.y)), int(round(scale * 100.0)), anchor]
 	var ty: float = tb.get("text_y", 0.0)
 	draw_string(mono, Vector2(bar.position.x + 8.0, bar.position.y + 70.0 + ty), line, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 16.0, 11, UI.TEXT)
-	var hint: String = TEXT["hint_touch"] if main.touch_active else (Controls.pad_text(TEXT["hint_pad"], main.pad_ps) if main.pad_active else TEXT["hint_keys"])
+	var hint: String = TEXT["hint_touch"] if main.touch_active else (Controls.pad_text(TEXT["hint_pad"], main.pad_ps) if main.pad_active else (TEXT["hint_menu"] if menu_mode else TEXT["hint_keys"]))
 	draw_string(body, Vector2(bar.position.x + 8.0, bar.position.y + 86.0 + ty), hint, HORIZONTAL_ALIGNMENT_LEFT, bar.size.x - 16.0, 11, UI.DIM)

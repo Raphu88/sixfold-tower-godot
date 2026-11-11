@@ -30,10 +30,12 @@ extends RefCounted
 ## the HUD size setting, as hud.gd draws its corner), a "screen" element in
 ## the game view's own pixels.
 ##
-## Step 2 (menus, the rail, the train): register more elements with
-## register("menu.title", {...}) using the same fields as ELEMENTS, then draw
-## under xform() or read box(); arrange.gd shows whatever is registered for
-## the current set.
+## Step 2 (menus, the rail, the train): those are built from containers,
+## so they aren't registered here; arrange_ui.gd tags them as they're built
+## and keeps their arrangements in these same sets, with the anchor OWN
+## ("own": moved from wherever the container puts it, see arrange_ui.gd).
+## Elements drawn at a fixed place can still register("id", {...}) with the
+## fields ELEMENTS uses, then draw under xform() or read box().
 
 ## Anchor names, as fractions of the screen (an override's element is pinned
 ## by the same point of itself).
@@ -44,8 +46,11 @@ const ANCHORS := {
 }
 const ANCHOR_NAMES := {
 	"tl": "top left", "t": "top", "tr": "top right", "l": "left", "c": "centre", "r": "right",
-	"bl": "bottom left", "b": "bottom", "br": "bottom right",
+	"bl": "bottom left", "b": "bottom", "br": "bottom right", "own": "its own place",
 }
+## The anchor of a menu's, the rail's or the train's element (arrange_ui.gd):
+## x and y are shares of the screen it moved from its built-in place.
+const OWN := "own"
 const SETS := ["desktop", "touch"]
 const SET_NAMES := {"desktop": "computer", "touch": "phone"}
 const FORMAT := 1
@@ -410,7 +415,9 @@ static func revert() -> void:
 ##   {"format": 1, "desktop": {"hud.bars": {"anchor": "tl", "x": 12, "y": 10, "scale": 1}}, "touch": {...}}
 ## x and y are the offset of the element's anchor point from the screen's
 ## (in the element's units: HUD units for "hud." elements, view pixels
-## otherwise); scale multiplies its size.
+## otherwise); scale multiplies its size. A menu's, the rail's or the
+## train's element (anchor "own", arrange_ui.gd) has x and y as shares of the
+## screen it moved from its built-in place, and maybe "w" / "h" (resized).
 static func to_json(over = null) -> String:
 	var src: Dictionary = _over if over == null else over
 	var out := {"format": FORMAT}
@@ -444,7 +451,7 @@ static func parse(text: String):
 			if bool(ov.get("reset", false)):
 				out[s][id] = {"reset": true}
 				continue
-			if not ANCHORS.has(String(ov.get("anchor", ""))):
+			if not _anchor_ok(ov):
 				return null
 			out[s][id] = _clean(ov)
 	return out
@@ -463,9 +470,23 @@ static func load_json(text: String) -> bool:
 	return true
 
 
+static func _anchor_ok(ov: Dictionary) -> bool:
+	var a := String(ov.get("anchor", ""))
+	return ANCHORS.has(a) or a == OWN
+
+
 static func _clean(ov: Dictionary) -> Dictionary:
 	if bool(ov.get("reset", false)):
 		return {"reset": true}
+	if String(ov.get("anchor", "")) == OWN:
+		# (a menu's, the rail's or the train's element: shares of the screen,
+		# and a resized one's width or height as a share of its own)
+		var o := {"anchor": OWN, "x": snappedf(float(ov.get("x", 0.0)), 0.0001), "y": snappedf(float(ov.get("y", 0.0)), 0.0001),
+			"scale": snappedf(float(ov.get("scale", 1.0)), 0.001)}
+		for k in ["w", "h"]:
+			if ov.has(k) and absf(float(ov[k]) - 1.0) > 0.0005:
+				o[k] = snappedf(float(ov[k]), 0.001)
+		return o
 	return {"anchor": String(ov.get("anchor", "tl")), "x": snappedf(float(ov.get("x", 0.0)), 0.1),
 		"y": snappedf(float(ov.get("y", 0.0)), 0.1), "scale": snappedf(float(ov.get("scale", 1.0)), 0.001)}
 
@@ -504,7 +525,7 @@ static func load_all(with_user := true) -> void:
 						continue
 					if bool(ov.get("reset", false)):
 						over[s].erase(id)
-					elif ANCHORS.has(String(ov.get("anchor", ""))):
+					elif _anchor_ok(ov):
 						over[s][id] = _clean(ov)
 	for s in SETS:  # ("reset" marks only mean something over the shared defaults)
 		for id in over[s].keys():
