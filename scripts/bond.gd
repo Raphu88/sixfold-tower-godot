@@ -387,12 +387,12 @@ func _chain(p) -> void:
 	var reach: float = stat("reach")
 	var hit: Array = []
 	var points: Array = [from]
-	# Lightning Rod: the chain bends through a planted rod first.
-	if not main.rod.is_empty() and from.distance_to(main.rod["pos"]) < 420.0:
-		from = main.rod["pos"]
-		points.append(from)
-		reach = maxf(reach, float(main.rod["reach"]))
-	for i in leaps:
+	# Lightning Rod: when the chain runs out of foes in reach it leaps to a
+	# planted rod (never a leap lost) and on from it, around corners; a chain
+	# that ends near the rod strikes it too. Either way the rod beats at once.
+	var rod: Dictionary = main.rod
+	var rod_used := false
+	while hit.size() < leaps:
 		var best = null
 		var best_d := reach
 		for e in main.targets():
@@ -403,11 +403,22 @@ func _chain(p) -> void:
 				best_d = d
 				best = e
 		if best == null:
+			if not rod_used and not rod.is_empty() and from.distance_to(rod["pos"]) < (float(rod["link"]) if hit.is_empty() else maxf(float(stat("hop")), float(rod["reach"]))):
+				rod_used = true
+				from = rod["pos"]
+				points.append(from)
+				reach = maxf(float(stat("hop")), float(rod["reach"]))
+				continue
 			break
 		hit.append(best)
 		points.append(best.global_position)
 		from = best.global_position
 		reach = stat("hop")
+	if not rod_used and not rod.is_empty() and not hit.is_empty() and from.distance_to(rod["pos"]) < float(rod["reach"]):
+		rod_used = true
+		points.append(rod["pos"])
+	if rod_used:
+		rod_beat(main, rod)
 	if hit.is_empty():
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
@@ -448,14 +459,79 @@ func _overcharge(p) -> void:
 	main.sfx("zap", 0.8, -4.0)
 
 
-# Plant a rod: your chains bend through it.
+# Plant a rod where you aim. Every `beat` seconds it strikes the nearest
+# `targets` foes within `radius` and charges them; your chains leap through
+# it (Chain Lightning above); when it ends, every charged foe within
+# `burst_radius` has its charge drawn out in a burst. A new rod replaces
+# the old one (which bursts first).
 func _rod(p) -> void:
 	var main = p.main
-	var at: Vector2 = p.global_position + p.aim * 90.0
-	main.rod = {"pos": at, "t": stat("duration"), "reach": stat("reach")}
+	var sp := spell()
+	if not main.rod.is_empty():
+		rod_burst(main, main.rod)
+	var at: Vector2 = main.walkable_point(p.global_position, p.global_position + p.aim * float(stat("range")), 14.0)
+	main.rod = {"pos": at, "t": float(stat("duration")), "total": float(stat("duration")), "reach": float(stat("reach")), "link": float(stat("link")),
+		"radius": float(stat("radius")), "every": float(stat("beat")), "next": float(stat("beat")) * 0.5, "targets": int(stat("targets")),
+		"damage": damage(), "burst": float(stat("burst")) * spell_power(sp) * flow_power, "burst_radius": float(stat("burst_radius")),
+		"color": color(), "flash": 0.0}
 	main.fx_ring(at, color(), 26.0, 0.3, 2.0)
 	main.light_flash(at, color(), 0.9, 1.0, 0.3)
 	main.sfx("equip_sword", 0.7, -2.0)
+
+
+## The rod's time runs down; it beats on its rhythm and bursts at the end (main.gd ticks it).
+static func tick_rod(main, delta: float) -> void:
+	var rod: Dictionary = main.rod
+	if rod.is_empty():
+		return
+	rod["t"] = float(rod["t"]) - delta
+	rod["flash"] = float(rod.get("flash", 0.0)) + delta
+	rod["next"] = float(rod.get("next", 0.0)) - delta
+	if float(rod["next"]) <= 0.0 and float(rod["t"]) > 0.0:
+		rod_beat(main, rod)
+	if float(rod["t"]) <= 0.0:
+		rod_burst(main, rod)
+		main.rod = {}
+
+
+## One beat: lightning from the rod to the nearest foes in its radius, each struck and charged.
+static func rod_beat(main, rod: Dictionary) -> void:
+	if rod.is_empty() or not rod.has("every"):
+		return
+	rod["next"] = float(rod["every"])
+	rod["flash"] = 0.0
+	var at: Vector2 = rod["pos"]
+	var near: Array = main.targets().filter(func(e): return not e.dead and e.global_position.distance_to(at) <= float(rod["radius"]) + e.radius)
+	near.sort_custom(func(a, b): return a.global_position.distance_to(at) < b.global_position.distance_to(at))
+	var col: Color = rod["color"]
+	for e in near.slice(0, int(rod["targets"])):
+		main.fx_bolt([at + Vector2(0, -28), e.global_position], col)
+		e.charged = maxf(e.charged, 4.0)
+		e.take_hit(float(rod["damage"]), Vector2.ZERO, 0.0)
+	if not near.is_empty():
+		main.light_flash(at, col, 0.9, 1.0, 0.2)
+		main.sfx("zap", 1.3, -7.0)
+
+
+## The rod's end: it draws the charge out of every charged foe near it, striking each.
+static func rod_burst(main, rod: Dictionary) -> void:
+	if rod.is_empty() or not rod.has("burst"):
+		return
+	var at: Vector2 = rod["pos"]
+	var col: Color = rod["color"]
+	var drawn := 0
+	for e in main.targets():
+		if e.dead or e.charged <= 0.0 or e.global_position.distance_to(at) > float(rod["burst_radius"]) + e.radius:
+			continue
+		e.charged = 0.0
+		main.fx_bolt([e.global_position, at + Vector2(0, -28)], col)
+		e.take_hit(float(rod["burst"]), (e.global_position - at).normalized(), 80.0)
+		drawn += 1
+	main.fx_ring(at, col, float(rod["burst_radius"]), 0.4, 4.0)
+	main.light_flash(at, col, 1.6 if drawn > 0 else 0.8, 1.4, 0.3)
+	if drawn > 0:
+		main.sfx("thunder", 1.2, -6.0)
+		main.shake(3.0)
 
 
 # For a while, every chain leaps twice as many times.
@@ -564,9 +640,15 @@ func _riptide(p) -> void:
 		main.fx_text(origin + Vector2(0, -34), "nothing in line", color())
 
 
-# A wave carries every foe in front of you until it breaks against a wall.
+# A wave sweeps up every foe in front of you for `travel`: each is struck as
+# it's picked up (`damage`), drawn toward the wave's middle (`gather`), and
+# foes carried into each other both take `collide` (each pair once, at most
+# `max_collide` times a foe). A foe dashed against a wall takes `crash` on top
+# (and Undercurrent's stun). Where the wave runs out, it lets them go.
 func _carry(p) -> void:
-	p.main.add_wave(p.global_position, p.aim, stat("width"), 2000.0, damage(), 0.0, true, color())
+	var k: float = spell_power(spell()) * flow_power
+	p.main.add_wave(p.global_position, p.aim, stat("width"), stat("travel"), damage(), 0.0, true, color(),
+		{"collide": float(stat("collide")) * k, "crash": float(stat("crash")) * k, "gather": float(stat("gather")), "max_collide": int(stat("max_collide"))})
 	p.main.sfx("hit_slime", 0.5)
 	p.main.sfx("gust", 0.6)
 
@@ -1030,22 +1112,49 @@ func _neuro(p) -> void:
 	p.main.sfx("ready", 1.3, -4.0)
 
 
+# Every poisoned foe within `radius` bursts: all its poison still to come at
+# once, plus `damage` for each stack. Then the venom leaps: each foe within
+# `spread_radius` of a burst that wasn't poisoned itself takes `spread` of the
+# most stacks that burst beside it. A foe that had `stagger_at` stacks or
+# more is staggered (half as long for a beast).
 func _virulence(p) -> void:
 	var main = p.main
-	var n := 0
+	var col := color()
+	var per: float = damage()
+	var burst: Array = []  # [foe, stacks, where]
 	for e in main.targets():
-		if e.venom > 0:
-			var dmg: float = e.venom_left()
-			e.venom = 0
-			e.venom_t = 0.0
-			main.fx_text(e.global_position + Vector2(0, -e.radius - 30.0), "Virulence %d" % int(dmg), color())
-			main.fx_burst(e.global_position, Vector2.ZERO, color(), 12, 220.0)
-			e.take_hit(dmg, Vector2.ZERO, 0.0)
-			n += 1
+		if e.venom > 0 and not e.dead and e.global_position.distance_to(p.global_position) <= float(stat("radius")) + e.radius:
+			burst.append([e, int(e.venom), e.global_position])
+	for b in burst:
+		var e = b[0]
+		var stacks: int = b[1]
+		var dmg: float = e.venom_left() + per * stacks
+		e.venom = 0
+		e.venom_t = 0.0
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 30.0), "Virulence %d" % int(dmg), col)
+		main.fx_burst(e.global_position, Vector2.ZERO, col, 12, 220.0)
+		e.take_hit(dmg, Vector2.ZERO, 0.0)
+		if is_instance_valid(e) and not e.dead and stacks >= int(stat("stagger_at")):
+			e.stagger(float(stat("stagger")) * (0.5 if e.is_boss() else 1.0))
+	var burst_foes: Array = burst.map(func(b): return b[0])
+	for e in main.targets():
+		if e.dead or e in burst_foes or e.venom > 0:
+			continue
+		var most := 0
+		var from := Vector2.ZERO
+		for b in burst:
+			if int(b[1]) > most and e.global_position.distance_to(b[2]) <= float(stat("spread_radius")) + e.radius:
+				most = int(b[1])
+				from = b[2]
+		var n := int(ceil(float(most) * float(stat("spread"))))
+		if n > 0:
+			e.add_venom(n)
+			main.fx_bolt([from, e.global_position], col)
 	main.sfx("burn", 0.7)
-	main.light_flash(p.global_position, color(), 1.6, 1.4, 0.3)
-	if n == 0:
-		main.fx_text(p.global_position + Vector2(0, -34), "nothing poisoned", color())
+	main.fx_ring(p.global_position, col, float(stat("radius")), 0.4, 3.0)
+	main.light_flash(p.global_position, col, 1.6, 1.4, 0.3)
+	if burst.is_empty():
+		main.fx_text(p.global_position + Vector2(0, -34), "nothing poisoned", col)
 
 
 # --- Ashwalker ------------------------------------------------------------------------
@@ -1301,12 +1410,19 @@ func _graft_burst(p, dmg: float, with_effects: bool) -> void:
 	var main = p.main
 	var n: int = main.grafts.size()
 	var effects: bool = with_effects and bool(stat("effects"))
-	var r: float = 90.0 + (40.0 if effects and main.grafts.has("throat") else 0.0)
-	var total: float = dmg + 5.0 * n + (5.0 if effects and main.grafts.has("hand") else 0.0)
+	var k: float = spell_power(spell()) * flow_power
+	var r: float = float(stat("radius")) + float(stat("per_graft_radius")) * n + (40.0 if effects and main.grafts.has("throat") else 0.0)
+	var total: float = dmg + float(stat("per_graft")) * k * n + (5.0 * k if effects and main.grafts.has("hand") else 0.0)
+	var shove: float = float(stat("shove")) * (1.6 if effects and main.grafts.has("legs") else 1.0)
 	for e in main.targets():
 		var to: Vector2 = e.global_position - p.global_position
 		if to.length() < r + e.radius:
-			e.take_hit(total, to.normalized(), 360.0 if effects and main.grafts.has("legs") else 160.0, true)
+			var kind: String = e.kind
+			var at: Vector2 = e.global_position
+			var harvest: bool = not e.is_boss() and not e.mirror and not e.shade
+			e.take_hit(total, to.normalized(), shove, true)
+			if e.dead and harvest:
+				graft_drop(main, at, kind)  # a foe the burst slays always leaves a graft
 			if effects and not e.dead:
 				if main.grafts.has("brow"):
 					e.stagger(0.6)
@@ -1315,7 +1431,7 @@ func _graft_burst(p, dmg: float, with_effects: bool) -> void:
 	if effects and main.grafts.has("heart"):
 		p.hp = minf(p.max_health(), p.hp + 4.0 * n * p.heal_mult())
 	main.fx_ring(p.global_position, color(), r, 0.4, 5.0)
-	main.fx_burst(p.global_position, Vector2.ZERO, color(), 18, 280.0)
+	main.fx_burst(p.global_position, Vector2.ZERO, color(), 18 + 4 * n, 280.0)
 	main.sfx("hit_heavy", 0.8)
 	main.shake(4.0)
 	# An overdrawn burst may make a graft reject.
@@ -1325,13 +1441,33 @@ func _graft_burst(p, dmg: float, with_effects: bool) -> void:
 		main.fx_text(p.global_position + Vector2(0, -44), "Your %s graft rejects" % lost, Color(0.9, 0.5, 0.5))
 
 
-## Mimic: the newest graft's monster trick, once.
+## Leaves a graft of `kind` where a foe fell, if its body part is still free
+## and none lies there already (the Grafter's bursts, Harvest).
+static func graft_drop(main, at: Vector2, kind: String) -> void:
+	if main.grafts.has(main.graft_part(kind)):
+		return
+	if main.graft_drops.any(func(g): return g["pos"].distance_to(at) < 4.0):
+		return
+	main.graft_drops.append({"pos": at, "kind": kind, "t": float(main.GRAFT_DROP["life"])})
+
+
+## Mimic: the newest graft's monster trick, once. With no graft, the trick of
+## the foe nearest your aim (within `reach`).
 func _mimic(p) -> void:
 	var main = p.main
-	if main.graft_order.is_empty():
-		main.fx_text(p.global_position + Vector2(0, -40), "no graft to mimic", color())
-		return
-	var part: String = main.graft_order[-1]
+	var part := ""
+	var kind := ""
+	if not main.graft_order.is_empty():
+		part = main.graft_order[-1]
+		kind = main.grafts[part]
+	else:
+		var t = _target_in_aim(p, float(stat("reach")))
+		if t == null:
+			main.fx_text(p.global_position + Vector2(0, -40), "nothing to mimic", color())
+			return
+		kind = t.kind
+		part = main.graft_part(kind)
+		main.fx_bolt([p.global_position, t.global_position], color())
 	var dmg := damage()
 	match part:
 		"hand":  # a heavy blow in front
@@ -1364,21 +1500,26 @@ func _mimic(p) -> void:
 			if t != null:
 				p.global_position = main.walkable_point(t.global_position, t.global_position - t.face * (t.radius + p.radius + 6.0), 14.0)
 				p.aim = t.face
-	main.fx_text(p.global_position + Vector2(0, -40), "Mimic: %s" % main.grafts[part], color())
+	main.fx_text(p.global_position + Vector2(0, -40), "Mimic: %s" % kind, color())
 	main.fx_ring(p.global_position, color(), 34.0, 0.3, 3.0)
 	main.sfx("gust", 1.0, -4.0)
 
 
+## Shed: cast off your newest graft in a burst that heals its part's burn.
+## With no graft, a layer of skin: a lesser burst (`bare`) that heals the
+## burn of the part this mark sits on.
 func _shed(p) -> void:
 	var main = p.main
 	if main.graft_order.is_empty():
-		main.fx_text(p.global_position + Vector2(0, -40), "no graft to shed", color())
+		burned = false
+		main.fx_text(p.global_position + Vector2(0, -44), "Shed your skin", color())
+		_graft_burst(p, damage() * float(stat("bare")), false)
 		return
-	var part: String = main.graft_order.pop_back()
-	main.grafts.erase(part)
-	if p.bonds.has(part):
-		p.bonds[part].burned = false
-	main.fx_text(p.global_position + Vector2(0, -44), "Shed your %s graft" % part, color())
+	var gone: String = main.graft_order.pop_back()
+	main.grafts.erase(gone)
+	if p.bonds.has(gone):
+		p.bonds[gone].burned = false
+	main.fx_text(p.global_position + Vector2(0, -44), "Shed your %s graft" % gone, color())
 	_graft_burst(p, damage(), false)
 
 
