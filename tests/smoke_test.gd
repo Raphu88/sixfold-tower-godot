@@ -404,7 +404,7 @@ func _kraken_bond_tests() -> void:
 	k.state_t = 9.0
 	_cast("legs", "carry")
 	await _wait(1.6)
-	_check(k.stun > 0.0 or k.global_position.x > p.global_position.x + 200.0, "Carry sweeps a foe away and breaks it against a wall")
+	_check(k.stun > 0.0 or k.global_position.x > p.global_position.x + 200.0, "Carry sweeps a foe away (and breaks it against a wall where there is one)")
 	k.global_position = p.global_position + Vector2(220, 0)
 	_cast("legs", "riptide")
 	await _wait(0.3)
@@ -3253,7 +3253,10 @@ func _chimera_bond_tests() -> void:
 	_check(main.grafts.has("heart") and main.graft_drops.is_empty(), "walking over a graft binds it")
 	hp0 = dummy.hp
 	_cast("heart", "graft_burst")
-	_check(hp0 - dummy.hp >= 14.0 + 15.0, "Graft Burst hits harder for every graft (%.0f)" % (hp0 - dummy.hp))
+	var gb = p.bonds["heart"]
+	var gb_sp: Dictionary = gb.spells().filter(func(sp): return sp["id"] == "graft_burst")[0]
+	var gb_min: float = float(gb.spell_stat(gb_sp, "damage")) + float(gb.spell_stat(gb_sp, "per_graft")) * main.grafts.size()
+	_check(hp0 - dummy.hp >= gb_min - 0.5, "Graft Burst hits harder for every graft (%.0f, at least %.0f)" % [hp0 - dummy.hp, gb_min])
 	p.hp = 50.0
 	_cast("heart", "mimic")  # newest graft: the slime's heart, which mends
 	_check(p.hp > 50.0, "Mimic uses your newest graft's power")

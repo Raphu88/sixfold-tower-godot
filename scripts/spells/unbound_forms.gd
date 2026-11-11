@@ -30,7 +30,9 @@ extends RefCounted
 ## Things that stay a while (beams, rings, trails, signs, pools, cloaks) live
 ## in Fx (one under main, "UnboundForms"; a new floor clears it), which also
 ## draws them, in code, over the darkness.
-## WORKED EXAMPLE: Volley (the hand, level 3): three small bolts in a fan.
+## WORKED EXAMPLE: Volley (the hand, level 3): four small bolts in a fan
+## that bend toward foes (unbound_run.gd add_bolt's "seek"); each that strikes
+## a foe the same volley already struck hits harder ("focus", adding up).
 
 const PATH := "res://scripts/spells/unbound_forms.gd"
 const NODE := "UnboundForms"
@@ -63,14 +65,14 @@ static var TREE := {
 
 ## Level 3 forms add 2 strain, level 7 forms 4 (their price: the owner may change it).
 static var FORMS := {
-	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Three small bolts thrown in a fan", "damage": 7.0, "speed": 440.0, "range": 300.0,
-		"count": 3, "spread": 16.0, "strain": 2.0, "opens": 3, "levels": {}},
+	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Four small bolts thrown in a fan that bend a little toward foes; each that strikes a foe already struck by the volley hits harder", "damage": 7.0, "speed": 440.0, "range": 300.0,
+		"count": 4, "spread": 13.0, "seek": 2.5, "seek_range": 150.0, "focus": 0.3, "strain": 2.0, "opens": 3, "levels": {}},
 	"brand": {"name": "Brand", "part": "hand", "class": "hit", "says": "A touch that sets a burst on a foe a moment later", "touch": 4.0, "damage": 22.0, "reach": 60.0, "arc": 55.0,
 		"delay": 0.8, "radius": 60.0, "strain": 4.0, "opens": 7, "levels": {}},
 	"stride": {"name": "Stride", "part": "legs", "class": "move", "says": "For a few seconds you leave a trail that carries the effect", "damage": 4.0, "duration": 3.0, "radius": 20.0,
 		"life": 1.6, "tick": 0.5, "strain": 2.0, "opens": 3, "levels": {}},
-	"vault": {"name": "Vault", "part": "legs", "class": "move", "says": "A hop back away from a foe, with a burst where you stood", "damage": 16.0, "dist": 110.0, "radius": 64.0,
-		"strain": 4.0, "opens": 7, "levels": {}},
+	"vault": {"name": "Vault", "part": "legs", "class": "move", "says": "A hop back, untouchable, with a burst where you stood that stays on the ground and bursts twice more", "damage": 18.0, "dist": 110.0, "radius": 70.0,
+		"untouchable": 0.6, "pulses": 2, "tick": 0.5, "share": 0.4, "strain": 4.0, "opens": 7, "levels": {}},
 	"wake": {"name": "Wake", "part": "back", "class": "hit", "says": "A slow ring that rolls outward from you", "damage": 12.0, "radius": 170.0, "speed": 150.0, "force": 200.0,
 		"strain": 2.0, "opens": 3, "levels": {}},
 	"mantle": {"name": "Mantle", "part": "back", "class": "shell", "says": "A cloak that answers the next blow you take", "shield": 16.0, "duration": 8.0, "damage": 20.0, "radius": 90.0,
@@ -249,9 +251,11 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 		"volley":
 			var n := int(sh.get("count", 3))
 			var spread := deg_to_rad(float(sh.get("spread", 16.0)))
+			var struck := {}  # (the volley's own count of hits on each foe: "focus")
+			var extra := {"seek": float(sh.get("seek", 0.0)), "seek_range": float(sh.get("seek_range", 0.0)) * reach_k, "focus": float(sh.get("focus", 0.0)), "struck": struck}
 			for i in n:
 				var dir: Vector2 = aim.rotated(spread * (float(i) - float(n - 1) * 0.5))
-				run.add_bolt(origin + dir * (p.radius + 6.0), dir * float(sh["speed"]), float(sh["range"]) * reach_k, float(sh["damage"]) * power, w, power, col)
+				run.add_bolt(origin + dir * (p.radius + 6.0), dir * float(sh["speed"]), float(sh["range"]) * reach_k, float(sh["damage"]) * power, w, power, col, extra)
 			main.sfx("form_bolt", 1.0, -3.0)
 			return 0
 		"brand":
@@ -285,9 +289,13 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			p.jump_total = 0.32
 			p.jump_t = 0.32
 			p.jump_vel = -aim * dist / 0.32
-			p.iframes = maxf(p.iframes, 0.4)
+			p.iframes = maxf(p.iframes, float(sh.get("untouchable", 0.4)))
 			main.fx_ghost(origin, p.radius, col)
 			var hits := _burst(p, origin, float(sh["radius"]), float(sh["damage"]) * power, w, power, run, col)
+			# The burst stays on the ground where you stood and bursts again (the technique's effect each time).
+			if int(sh.get("pulses", 0)) > 0:
+				_add(main, base.merged({"kind": "ground", "pos": origin, "r": float(sh["radius"]), "left": int(sh["pulses"]), "every": float(sh["tick"]),
+					"next": float(sh["tick"]), "dmg": float(sh["damage"]) * float(sh["share"]) * power}))
 			main.shake(4.0)
 			main.sfx("roll", 1.1, -3.0)
 			main.sfx("hit_heavy", 0.7, -4.0)
@@ -375,6 +383,10 @@ static func _pulse(pc: Dictionary, at: Vector2) -> int:
 		main.fx_ring(at, col, float(pc["r"]) * 0.7, 0.18, 4.0)
 		main.fx_ring(at, col.lightened(0.3), float(pc["r"]), 0.32, 3.0)
 		main.sfx("heartbeat", 1.0, -4.0)
+	elif pc["kind"] == "ground":
+		main.fx_ring(at, col, float(pc["r"]), 0.35, 4.0)
+		main.fx_burst(at, Vector2.ZERO, col, 10, 180.0)
+		main.sfx("hit_heavy", 0.9, -7.0)
 	else:
 		main.fx_ring(at, col, float(pc["r"]), 0.4, 3.0)
 		main.sfx("form_hum", 1.0, -4.0)
@@ -483,6 +495,13 @@ static func _tick_piece(pc: Dictionary, p, delta: float) -> bool:
 			pc["next"] = float(pc["next"]) - delta
 			if float(pc["next"]) <= 0.0:
 				_pulse(pc, p.global_position + pc["off"])
+		"ground":
+			pc["flash"] = float(pc.get("flash", 0.0)) + delta
+			if int(pc["left"]) <= 0:
+				return float(pc["flash"]) < 0.4
+			pc["next"] = float(pc["next"]) - delta
+			if float(pc["next"]) <= 0.0:
+				_pulse(pc, pc["pos"])
 		"call":
 			pc["left"] = float(pc["left"]) - delta
 			if float(pc["left"]) <= 0.0:
@@ -777,6 +796,18 @@ static func _draw_fx(n) -> void:
 					n.draw_polyline(pts, Color(col.lightened(0.25), (0.35 - 0.08 * ring) * fade), 1.5, true)
 				var fk := clampf(float(pc.get("flash", 1.0)) / 0.3, 0.0, 1.0)
 				n.draw_arc(c, r * (0.3 + 0.7 * fk), 0.0, TAU, 40, Color(col.lightened(0.4), 0.7 * (1.0 - fk)), 3.0, true)
+			"ground":
+				var c: Vector2 = pc["pos"]
+				var r := float(pc["r"])
+				var fade := 1.0 if int(pc["left"]) > 0 else clampf(1.0 - float(pc.get("flash", 0.0)) / 0.4, 0.0, 1.0)
+				var fk := clampf(float(pc.get("flash", 1.0)) / 0.3, 0.0, 1.0)
+				n.draw_circle(c, r, Color(col, (0.08 + 0.12 * (1.0 - fk)) * fade))
+				n.draw_arc(c, r, 0.0, TAU, 40, Color(col.lightened(0.2), 0.5 * fade), 1.5, true)
+				for i in 6:
+					var ang := float(i) * TAU / 6.0 + clock * 0.8
+					var q := c + Vector2.from_angle(ang) * r * (0.45 + 0.1 * sin(clock * 5.0 + i))
+					n.draw_line(q, q + Vector2.from_angle(ang) * 8.0, Color(col.lightened(0.4), 0.6 * fade), 1.5, true)
+				n.draw_arc(c, r * (0.3 + 0.7 * fk), 0.0, TAU, 40, Color(col.lightened(0.4), 0.7 * (1.0 - fk) * fade), 3.0, true)
 			"beat":
 				if p == null:
 					continue

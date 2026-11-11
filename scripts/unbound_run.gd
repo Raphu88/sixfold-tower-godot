@@ -314,8 +314,14 @@ func _new_floor() -> void:
 	_sync()
 
 
-func add_bolt(pos: Vector2, vel: Vector2, reach: float, dmg: float, w: Dictionary, power: float, col: Color) -> void:
-	bolts.append({"pos": pos, "vel": vel, "left": reach, "dmg": dmg, "w": w, "power": power, "col": col, "trail": [pos]})
+## `extra` (Volley): "seek" (how fast it turns toward the nearest foe ahead
+## within "seek_range", in radians a second), "focus" and "struck" (a
+## dictionary the volley's bolts share: each that strikes a foe the volley
+## already struck hits `focus` harder for every earlier hit).
+func add_bolt(pos: Vector2, vel: Vector2, reach: float, dmg: float, w: Dictionary, power: float, col: Color, extra := {}) -> void:
+	var b := {"pos": pos, "vel": vel, "left": reach, "dmg": dmg, "w": w, "power": power, "col": col, "trail": [pos]}
+	b.merge(extra)
+	bolts.append(b)
 
 
 func add_landing(after: float, r: float, dmg: float, w: Dictionary, power: float, col: Color) -> void:
@@ -332,6 +338,8 @@ func _tick_bolts(delta: float) -> void:
 	var p = main.player
 	var keep: Array = []
 	for b in bolts:
+		if float(b.get("seek", 0.0)) > 0.0:
+			_seek(b, delta)
 		var step: Vector2 = b["vel"] * delta
 		b["pos"] += step
 		b["left"] -= step.length()
@@ -342,7 +350,12 @@ func _tick_bolts(delta: float) -> void:
 		if not gone:
 			for e in main.targets():
 				if b["pos"].distance_to(e.global_position) < e.radius + 5.0:
-					Tech.hit(p, e, b["dmg"], b["vel"].normalized(), b["w"], b["power"], self)
+					var dmg: float = b["dmg"]
+					if b.has("struck"):
+						var before: int = int(b["struck"].get(e.get_instance_id(), 0))
+						dmg *= 1.0 + float(b.get("focus", 0.0)) * before
+						b["struck"][e.get_instance_id()] = before + 1
+					Tech.hit(p, e, dmg, b["vel"].normalized(), b["w"], b["power"], self)
 					gone = true
 					break
 		if gone:
@@ -350,6 +363,24 @@ func _tick_bolts(delta: float) -> void:
 		else:
 			keep.append(b)
 	bolts = keep
+
+
+## A seeking bolt turns a little toward the nearest foe ahead of it.
+func _seek(b: Dictionary, delta: float) -> void:
+	var v: Vector2 = b["vel"]
+	var best = null
+	var best_d := float(b.get("seek_range", 150.0))
+	for e in main.targets():
+		var to: Vector2 = e.global_position - b["pos"]
+		var d := to.length()
+		if d < best_d and absf(v.angle_to(to)) < 1.2:
+			best_d = d
+			best = e
+	if best == null:
+		return
+	var want: float = v.angle_to(best.global_position - b["pos"])
+	var turn := float(b["seek"]) * delta
+	b["vel"] = v.rotated(clampf(want, -turn, turn))
 
 
 func _tick_landings(delta: float, p) -> void:

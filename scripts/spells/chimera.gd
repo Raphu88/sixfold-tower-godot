@@ -46,8 +46,8 @@ static var FORKS := {
 			"desc": "Graft Burst bursts again a second later, a little weaker",
 			"steps": {3: {"damage": 10.0}}},
 		4: {"id": "graft_bud", "name": "Bud", "type": "graft_bud", "learn": 4,
-			"desc": "your newest graft buds into a creature of its kind that fights beside you for 15 seconds (one at a time)",
-			"steps": {4: {"cost": 10.0, "windup": 0.3, "duration": 15.0}}},
+			"desc": "your newest graft buds into a creature of its kind that fights beside you for 15 seconds (one at a time); with no graft, a lump of your own flesh buds for 6",
+			"steps": {4: {"cost": 10.0, "windup": 0.3, "duration": 15.0, "bare_kind": "slime", "bare": 0.4}}},
 	},
 	"surgeon": {
 		"change": {"name": "Disarming", "says": "a foe already crippled is disarmed instead"},
@@ -71,10 +71,10 @@ static var FORKS := {
 static var TEXT := {
 	"no_creature": "no creature to rally",
 	"no_release": "no creature to release",
-	"no_graft": "no graft to bud",
 	"no_one": "no one in reach",
 	"harvested": "Harvested: %s",
 	"bud": "Bud: %s",
+	"bud_bare": "Bud: your own flesh",
 	"crippled": "Crippled",
 	"asleep": "Asleep",
 	"woken": "Woken!",
@@ -264,7 +264,7 @@ static func _harvest(bond, p) -> void:
 		var kind: String = t.kind
 		t.take_hit(t.hp + 1.0, Vector2.ZERO, 0.0)
 		if not main.graft_drops.any(func(g): return g["pos"].distance_to(at) < 4.0):
-			main.graft_drops.append({"pos": at, "kind": kind, "t": 20.0})
+			main.graft_drops.append({"pos": at, "kind": kind, "t": float(main.GRAFT_DROP["life"])})
 		main.fx_text(at + Vector2(0, -t.radius - 30.0), TEXT["harvested"] % kind, col)
 		main.sfx("hit_slime", 0.8)
 		reaped = true
@@ -290,17 +290,18 @@ static func _harvest(bond, p) -> void:
 static func _bud(bond, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
-	if main.graft_order.is_empty():
-		main.fx_text(p.global_position + Vector2(0, -40), TEXT["no_graft"], col)
-		return
-	var kind: String = main.grafts[main.graft_order[-1]]
+	# With no graft, a lump of your own flesh buds instead: `bare_kind`, for `bare` of the time.
+	var bare: bool = main.graft_order.is_empty()
+	var kind: String = String(bond.stat("bare_kind")) if bare else String(main.grafts[main.graft_order[-1]])
+	if not load("res://scripts/enemy.gd").TYPES.has(kind):
+		kind = "slime"
 	for a in main.allies():
 		if a.has_meta("graft_bud"):
 			a._fade_ally()
-	var seconds: float = float(bond.stat("duration")) * (0.5 if bond._overdrawn() else 1.0)  # overdrawn: it withers sooner
+	var seconds: float = float(bond.stat("duration")) * (float(bond.stat("bare")) if bare else 1.0) * (0.5 if bond._overdrawn() else 1.0)  # overdrawn: it withers sooner
 	var a = main.spawn_ally(kind, p.global_position + p.aim * 44.0, bond.step, seconds)
 	a.set_meta("graft_bud", true)
-	main.fx_text(a.global_position + Vector2(0, -a.radius - 26.0), TEXT["bud"] % kind, col)
+	main.fx_text(a.global_position + Vector2(0, -a.radius - 26.0), TEXT["bud_bare"] if bare else TEXT["bud"] % kind, col)
 	# Tendrils grow from you to it.
 	var from: Vector2 = p.global_position
 	var to: Vector2 = a.global_position

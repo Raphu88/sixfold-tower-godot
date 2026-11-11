@@ -427,6 +427,11 @@ func _draw_fields() -> void:
 		draw_line(rp + Vector2(0, 6), rp + Vector2(0, -26), Color(0.75, 0.75, 0.8), 2.5)
 		draw_circle(rp + Vector2(0, -28), 4.0 + sin(t * 9.0), Color(gold, 0.9))
 		draw_arc(rp, main.rod["reach"] * 0.15 + 6.0 * sin(t * 4.0), 0.0, TAU, 20, Color(gold, 0.25), 1.5)
+		# Its reach on the floor, and a flash at each beat; it brightens as its burst nears.
+		var fk: float = clampf(float(main.rod.get("flash", 1.0)) / 0.3, 0.0, 1.0)
+		var near_end: float = 1.0 - clampf(float(main.rod.get("t", 9.0)) / 1.5, 0.0, 1.0)
+		draw_arc(rp, float(main.rod.get("radius", 0.0)), 0.0, TAU, 40, Color(gold, 0.12 + 0.2 * near_end), 1.0, true)
+		draw_circle(rp + Vector2(0, -28), 9.0 * (1.0 - fk) + 3.0 * near_end, Color(gold, 0.35 * (1.0 - fk) + 0.2 * near_end))
 	for w in main.walls:
 		var c: Color = w["color"]
 		var a: float = clampf(w["t"] / 0.5, 0.0, 1.0)

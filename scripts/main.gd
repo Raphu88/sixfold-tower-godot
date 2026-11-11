@@ -224,7 +224,7 @@ var _fall_us := 0  # (real time: a hit-pause slows the game's own clock at the m
 var campfire: Node2D
 
 # Lingering spell effects in the room
-var rod := {}  # Lightning Rod: {pos, t, reach}
+var rod := {}  # Lightning Rod: {pos, t, reach, radius, beat...} (bond.gd _rod)
 var walls: Array = []  # Crosswind: {a, b, t, color}
 var cyclones: Array = []  # Eye of the Storm: {pos, r, t, color}
 var rains: Array = []  # Rain of Arrows: {pos, r, t, tick, damage, color}
@@ -833,10 +833,7 @@ func _update_spell_fields(delta: float) -> void:
 	if trap_view != null:
 		trap_view.tick(delta)
 	track_t -= delta
-	if not rod.is_empty():
-		rod["t"] -= delta
-		if rod["t"] <= 0.0:
-			rod = {}
+	BondScript.tick_rod(self, delta)  # Lightning Rod: its beats and its burst
 	for w in walls:
 		w["t"] -= delta
 	walls = walls.filter(func(w): return w["t"] > 0.0)
@@ -3232,12 +3229,16 @@ func spawn_enemy(kind: String, pos: Vector2):
 
 # --- Tidecaller's waves and standing water ----------------------------------------
 
-func add_wave(origin: Vector2, dir: Vector2, width: float, travel: float, dmg: float, push: float, carry: bool, color: Color) -> void:
-	waves.append({"pos": origin + dir * 16.0, "dir": dir, "width": width, "left": travel, "dmg": dmg, "push": push, "carry": carry, "hit": [], "color": color})
+func add_wave(origin: Vector2, dir: Vector2, width: float, travel: float, dmg: float, push: float, carry: bool, color: Color, extra := {}) -> void:
+	var w := {"pos": origin + dir * 16.0, "dir": dir, "width": width, "left": travel, "dmg": dmg, "push": push, "carry": carry, "hit": [], "color": color}
+	w.merge(extra)
+	waves.append(w)
 
 
 ## Waves roll forward. An aimed surge shoves each foe it meets once; Carry
-## sweeps foes along with it until they break against a wall or pillar.
+## (bond.gd _carry) sweeps foes along with it: struck as they're picked up,
+## drawn together, hurt when they crash into each other, harder against a
+## wall or pillar; where the wave runs out it lets them go.
 func _update_waves(delta: float) -> void:
 	for w in waves:
 		var step := 520.0 * delta
@@ -3246,6 +3247,8 @@ func _update_waves(delta: float) -> void:
 		var side := dir.orthogonal()
 		w["pos"] += dir * step
 		for e in enemies():
+			if e.dead:
+				continue
 			var rel: Vector2 = e.global_position - w["pos"]
 			if absf(rel.dot(side)) > w["width"] * 0.5 + e.radius:
 				continue
@@ -3255,20 +3258,63 @@ func _update_waves(delta: float) -> void:
 			if w["carry"]:
 				if not (e in w["hit"]):
 					w["hit"].append(e)
-				var col = e.move_and_collide(dir * step)
+					e.take_hit(w["dmg"], dir, 0.0)
+					if not is_instance_valid(e) or e.dead:
+						continue
+				var lateral := rel.dot(side)
+				var pull := -side * lateral * minf(1.0, float(w.get("gather", 0.0)) * delta)
+				var col = e.move_and_collide(dir * step + pull)
 				if col != null:
 					_break_against_wall(e, w)
 			elif not (e in w["hit"]):
 				w["hit"].append(e)
 				e.tide_push(dir * w["push"])
 				e.take_hit(w["dmg"], dir, w["push"])
+		if w["carry"]:
+			_carried_collide(w)
 		if not room.grow(-10.0).has_point(w["pos"]) or w["left"] <= 0.0:
 			if w["carry"]:
+				var inside: bool = room.grow(-10.0).has_point(w["pos"])
 				for e in w["hit"]:
 					if is_instance_valid(e) and not e.dead and e.global_position.distance_to(w["pos"]) < w["width"]:
-						_break_against_wall(e, w)
+						if inside:
+							e.knock = dir * 160.0  # (the wave ran out: it lets go)
+						else:
+							_break_against_wall(e, w)
 			w["left"] = -1.0
 	waves = waves.filter(func(w): return w["left"] > 0.0)
+
+
+## Carry: foes the wave holds that touch both take its collision hit (each
+## pair once; each foe at most `max_collide` times a wave).
+func _carried_collide(w: Dictionary) -> void:
+	var dmg := float(w.get("collide", 0.0))
+	if dmg <= 0.0:
+		return
+	if not w.has("pairs"):
+		w["pairs"] = {}
+		w["bumps"] = {}
+	var held: Array = w["hit"].filter(func(e): return is_instance_valid(e) and not e.dead and absf((e.global_position - w["pos"]).dot(w["dir"])) < e.radius + 24.0)
+	var cap := int(w.get("max_collide", 3))
+	for i in held.size():
+		for j in range(i + 1, held.size()):
+			var a = held[i]
+			var b = held[j]
+			if not is_instance_valid(a) or not is_instance_valid(b) or a.dead or b.dead:
+				continue
+			if a.global_position.distance_to(b.global_position) > a.radius + b.radius + 6.0:
+				continue
+			var key := "%d:%d" % [mini(a.get_instance_id(), b.get_instance_id()), maxi(a.get_instance_id(), b.get_instance_id())]
+			if w["pairs"].has(key):
+				continue
+			w["pairs"][key] = true
+			fx_burst((a.global_position + b.global_position) * 0.5, -w["dir"], w["color"], 8, 180.0)
+			for e in [a, b]:
+				var n: int = int(w["bumps"].get(e.get_instance_id(), 0))
+				if n < cap and is_instance_valid(e) and not e.dead:
+					w["bumps"][e.get_instance_id()] = n + 1
+					e.take_hit(dmg, Vector2.ZERO, 0.0)
+			sfx("hit_heavy", 1.1, -6.0)
 
 
 func _break_against_wall(e, w: Dictionary) -> void:
@@ -3279,7 +3325,7 @@ func _break_against_wall(e, w: Dictionary) -> void:
 	w["broken"].append(e)
 	fx_burst(e.global_position, -w["dir"], w["color"], 10, 220.0)
 	sfx("hit_heavy", 0.8, -2.0)
-	e.take_hit(w["dmg"], Vector2.ZERO, 0.0, true)
+	e.take_hit(float(w.get("crash", w["dmg"])), Vector2.ZERO, 0.0, true)
 	if player.has_bond("tidecaller"):
 		e.stagger(1.2)  # Undercurrent: driven into a wall, stunned
 
@@ -3414,6 +3460,17 @@ const GRAFT_PART := {
 	"lurker": "back", "shellback": "heart", "cinder": "throat", "smith": "hand", "scorpling": "back",
 	"ram": "legs", "wisp": "legs", "bloomcap": "throat", "thornhound": "legs", "mongrel": "hand",
 }
+
+
+## Grafter's Grafting: the chance a slain monster leaves a graft, by how many
+## grafts you already carry (the last value for more), and how many seconds
+## a graft lies on the floor.
+static var GRAFT_DROP := {"chance": [0.75, 0.55, 0.4, 0.3], "life": 20.0}
+
+
+static func graft_chance(carried: int) -> float:
+	var c: Array = GRAFT_DROP["chance"]
+	return float(c[clampi(carried, 0, c.size() - 1)]) if not c.is_empty() else 0.0
 
 
 static func graft_part(kind: String) -> String:
@@ -3582,8 +3639,8 @@ func on_enemy_killed(e) -> void:
 		light_flash(e.global_position, Color(0.95, 0.89, 0.42), 1.6, 1.8, 0.35)
 		sfx("zap", 0.9)
 	# Grafter's Grafting: slain monsters sometimes leave a graft.
-	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < 0.3:
-		graft_drops.append({"pos": e.global_position, "kind": e.kind, "t": 20.0})
+	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < graft_chance(grafts.size()):
+		BondScript.graft_drop(self, e.global_position, e.kind)
 	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
 	if not e.is_boss() and randf() < gear_drop_chance:
 		drop_gear(e.global_position + Vector2(0, 10), find_gear(e.kind), true)

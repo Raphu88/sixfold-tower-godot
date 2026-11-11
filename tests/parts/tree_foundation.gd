@@ -480,7 +480,8 @@ func _variations() -> void:
 	# Volley: the hand's level-3 form, through its content file.
 	run.bolts.clear()
 	T.cast({"part": "hand", "shape": "volley", "kinds": ["fire"]}, p, 1.0, run)
-	_check(run.bolts.size() == 3, "Volley (a new form) throws three small bolts")
+	var vcount := int(load("res://scripts/spells/unbound_forms.gd").FORMS["volley"]["count"])
+	_check(run.bolts.size() == vcount, "Volley (a new form) throws its small bolts (%d)" % vcount)
 	# A chosen effect in place of the base one (Spark: Air leaps to one more foe).
 	var hb1: float = b.hp
 	T.cast({"part": "hand", "shape": "strike", "kinds": ["air"], "effects": {"air": "spark"}}, p, 1.0, run)
