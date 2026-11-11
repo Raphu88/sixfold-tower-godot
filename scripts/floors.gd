@@ -399,7 +399,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	for l in locks:
 		if l.has("pos"):
 			doorways.append(Rect2(l["pos"] - Vector2(CELL, CELL) * 0.5, Vector2(CELL, CELL)))  # (traps keep clear of keys and levers)
-	var torches := _torches(infos)
+	var torches := _torches(infos, wings + secrets)
 	if not puzzle.is_empty():
 		puzzle = Catalog.finish(puzzle, infos, _index_of_role(infos, "gallery"), torches, doors)
 	var used := _used_grid(infos, wings, secrets)
@@ -895,13 +895,19 @@ static func _monster_spot(info: Dictionary, free_spots: Array, placed: Array, pi
 ## One torch per room, on its north wall: over the middle unless a doorway
 ## or the room's outline is in the way. As narrow rects for room.gd, which
 ## hangs a torch over the middle of each.
-static func _torches(infos: Array) -> Array:
+static func _torches(infos: Array, kept: Array = []) -> Array:
 	var out: Array = []
 	for i in infos.size():
 		var info: Dictionary = infos[i]
 		var rows: Array = info["rows"]
 		var w: int = info["size"].x
 		var north: Array = []
+		# A wing's doorway or a secret wall in this room's north wall: no torch
+		# there (it would hang in the doorway, or give the secret away).
+		for k in kept:
+			if int(k["parent"]) == i and Vector2(k["into"]) == Vector2.UP:
+				for t in k["mouth"]:
+					north.append(t.x - info["pos"].x)
 		for j in infos.size():
 			var other: Dictionary = infos[j]
 			if other.has("link"):

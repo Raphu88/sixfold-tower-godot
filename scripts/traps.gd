@@ -362,6 +362,10 @@ static func _protect(ctx: Dictionary) -> void:
 	for w in plan.get("wings", []):  # (a sealed wing's door too: wings.gd hangs it later)
 		for t in w.get("door", []):
 			_mark_box(ctx, t, 0, 2)
+	# The tile in front of a secret wall, where you stand to lean on it (no
+	# trap or shelter pillar there to give it away or stand in the way).
+	for s in plan.get("secrets", []):
+		_mark_box(ctx, s["mouth"][0] - Vector2i(s["into"]), 0, 2)
 	var pz: Dictionary = plan.get("puzzle", {})
 	if not pz.is_empty():
 		_mark_rect(ctx, pz["room"], 2)
