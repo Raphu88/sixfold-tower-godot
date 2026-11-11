@@ -1184,6 +1184,7 @@ func release_draw() -> void:
 		force *= rule("gale")
 		dmg *= 1.2
 	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
+	arrow.weapon = true
 	arrow.life = float(w.get("life", 1.6))
 	main.sfx_fade("draw")  # the creak stops when the string goes
 	# A harder draw looses a louder, sharper shot.
@@ -1207,6 +1208,7 @@ func _fire_bolt() -> void:
 	if hand != null and hand.burned:
 		dmg *= 0.6
 	var bolt = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * float(w["speed"]), dmg, float(w["knock"]), bool(w["pierce"]))
+	bolt.weapon = true
 	bolt.life = float(w["life"])
 	bolt.heavy = bool(w.get("heavy", false))
 	bolt.style = "bolt"
@@ -1214,6 +1216,7 @@ func _fire_bolt() -> void:
 	for i in int(rule("volley")):
 		var side := 0.2 * (1.0 + floorf(i / 2.0)) * (1.0 if i % 2 == 0 else -1.0)
 		var barb = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim.rotated(side) * float(w["speed"]), dmg * 0.5, float(w["knock"]) * 0.5, false)
+		barb.weapon = true
 		barb.life = float(w["life"]) * 0.8
 		barb.style = "bolt"
 	main.sfx("crossbow")
@@ -1222,12 +1225,16 @@ func _fire_bolt() -> void:
 
 
 ## Called by your arrows when they hit a monster.
-func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
+## `weapon`: the climber's own bow or crossbow shot. Only those fill the
+## hand's mark and carry the weapon's rules (a spell's shot is just a hit).
+func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon := false) -> void:
 	# Hunter's Hawk's Eye: every arrow strikes a weak point.
 	if hawk_t > 0.0:
 		dmg *= 2.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Color(0.85, 0.63, 0.42))
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
+	if not weapon:
+		return
 	_part_action("hand", 0.5, 6.0)
 	# Stormstring: a full draw arcs on to one more foe (Stormtalon: two).
 	var arc := rule("arc")
