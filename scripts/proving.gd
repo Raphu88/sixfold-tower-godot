@@ -563,7 +563,7 @@ func _begin_shadow() -> void:
 	main.light_flash(at, SHADE, 2.0, 2.0, 0.6)
 	_shut("shadow", main.room_info[rooms["shadow"]]["gates"], [shadow])
 	main.banner = {"title": TEXT["shadow_title"], "lines": [TEXT["shadow"] % main.beast_name()], "t": 3.2}
-	main.sfx("warn_knight", 0.45, 0.0, 0.0)
+	main.sfx("shadow_rise", 1.0, 0.0, 0.0)
 	main.shake(9.0)
 
 

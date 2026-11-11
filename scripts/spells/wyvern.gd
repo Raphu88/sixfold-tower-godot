@@ -218,7 +218,7 @@ static func _tethered_blade(bond, p) -> void:
 		b.line(to - dir * 9.0 + side * 6.0, to - dir * 9.0 - side * 6.0, Palette.STEEL.darkened(0.35), 2.5)
 	_add(main, 3.0, tick, paint, true)
 	main.sfx("swing", 1.1)
-	main.sfx("equip_sword", 0.9, -4.0)
+	main.sfx("spell_blade", 1.0, -2.0)
 	main.light_flash(p.global_position + p.aim * 30.0, col, 0.9, 0.9, 0.2)
 
 
@@ -270,7 +270,7 @@ static func _falling_swords(bond, p) -> void:
 				_shadow(b, spot, 12.0, 0.4 * fade)
 				_great_sword(b, spot + Vector2(0, -24), col, fade)
 		_add(main, land + 0.6, tick, paint, true)
-	main.sfx("equip_sword", 1.2)
+	main.sfx("spell_iron")
 	main.sfx("charge", 0.7, -6.0)
 	main.light_flash(center, col, 1.2, 1.0, 0.35)
 
@@ -328,7 +328,7 @@ static func _flame_wheel(bond, p) -> void:
 		b.circle(tip, 3.5, Color(1.0, 0.92, 0.6, fade))
 	_add(main, 0.45, Callable(), paint, true)
 	main.sfx("swing_heavy", 0.9)
-	main.sfx("burn", 1.1, -3.0)
+	main.sfx("spell_fire", 1.1, -2.0)
 	main.light_flash(p.global_position, col, 1.4, 1.5, 0.3)
 	if hits > 0:
 		main.hitstop(0.04)
@@ -345,7 +345,7 @@ static func _ring_of_embers(bond, sp: Dictionary, p) -> void:
 	for i in 8:
 		main.add_flame(p.global_position + Vector2.from_angle(TAU * i / 8.0) * r, 16.0, t, true)
 	main.fx_ring(p.global_position, bond.color(), r + 16.0, 0.35, 3.0)
-	main.sfx("burn", 0.8, -2.0)
+	main.sfx("spell_fire", 0.85)
 
 
 ## Blazing Lunge: you lunge `distance` along your aim (stopping short of a
@@ -386,7 +386,7 @@ static func _blazing_lunge(bond, p) -> void:
 			b.circle(at + Vector2(0, -h), 1.6, Color(1.0, 0.9, 0.55, 0.9 * k), 8)
 	_add(main, 0.5, Callable(), paint, true)
 	main.sfx("swing_heavy", 1.2)
-	main.sfx("burn", 1.3, -2.0)
+	main.sfx("spell_fire", 1.2)
 	main.light_flash(to_pt, col, 1.3, 1.5, 0.3)
 	if hits > 0:
 		main.hitstop(0.05)
@@ -451,7 +451,7 @@ static func _rune_brand(bond, p) -> void:
 		b.circle(at + Vector2(0, -rr - 6.0), 2.5 + 0.8 * sin(age * 6.0), Color(col.lightened(0.4), 0.9 * a), 10)
 	_add(main, float(bond.stat("duration")), tick, paint, true)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 26.0), TEXT["branded"], col)
-	main.sfx("ready", 1.2, -4.0)
+	main.sfx("spell_rune")
 	main.sfx("glint", 0.9, -6.0)
 
 
@@ -520,7 +520,7 @@ static func _binding_circle(bond, p) -> void:
 	_add(main, float(bond.stat("duration")), tick, paint, false)
 	main.fx_ring(center, col, r, 0.4, 4.0)
 	main.light_flash(center, col, 1.2, 1.2, 0.35)
-	main.sfx("parry", 0.55, -4.0)
+	main.sfx("spell_iron", 0.8)
 	main.sfx("ready", 0.8, -6.0)
 
 

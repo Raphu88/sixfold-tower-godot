@@ -46,6 +46,7 @@ var statues: Array = []  # world positions (left to right)
 var plates: Array = []  # {pos, k, t}
 var plaque := Vector2.ZERO
 var lines: Array = []  # each statue's statements (text)
+var voiced := -1  # the statue speaking now (its murmur plays as it starts)
 var statements: Array = []  # the same, as [kind, other statue, own index] (for the solver)
 var answer := 0
 var liars: Array = []  # the statues that lie (or alternate) in one consistent reading
@@ -332,6 +333,9 @@ func panels() -> Array:
 		if d < best_d:
 			best_d = d
 			best = i
+	if best != voiced:
+		voiced = best
+		if best >= 0: main.sfx("statue_voice", 0.9 + 0.1 * best, 0.0, 0.03)  # (the statue that speaks: a low stone murmur)
 	if best >= 0:
 		var lie: bool = keen and best in liars
 		out.append({"pos": statues[best] + Vector2(0, 22.0 if south else -32.0), "below": south,

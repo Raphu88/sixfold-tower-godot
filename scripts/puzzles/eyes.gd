@@ -84,7 +84,7 @@ func _light(e: Dictionary, spark := true) -> void:
 	var was: float = e["lit"]
 	e["lit"] = window() if tier >= 2 else INF
 	if was <= 0.0:
-		main.sfx("glint", 1.1, -2.0, 0.0)
+		main.sfx("eye_open", 1.0, 0.0, 0.04)
 		main.fx_ring(e["pos"], Color(1.0, 0.85, 0.45), 30.0, 0.3, 2.5)
 		main.light_flash(e["pos"], Color(1.0, 0.8, 0.4), 0.8, 1.2, 0.3)
 		# Stormcaller's Static: the spark leaps to the nearest sleeping eye.

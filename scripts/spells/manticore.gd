@@ -160,7 +160,7 @@ static func _sandblast(bond, p) -> void:
 			b.circle(at, 1.2 + fmod(i * 0.71, 1.4), Color(SAND.lightened(0.1 * (i % 3)), 0.85 * (1.0 - k)), 8)
 		b.circle(origin + aim * reach * 0.5 * k, reach * 0.35 * (0.5 + k), Color(SAND, 0.12 * (1.0 - k)))
 	_add(main, 0.45, Callable(), paint, true)
-	main.sfx("gust", 0.8, -2.0)
+	main.sfx("spell_sand")
 	main.sfx("hit_light", 0.7, -4.0)
 	main.light_flash(origin + aim * 40.0, col, 1.0, 0.8, 0.25)
 
@@ -196,7 +196,7 @@ static func _aftershock(bond, sp: Dictionary, p) -> void:
 					e.stagger(0.3)
 		main.fx_ring(at, col, r, 0.4, 5.0)
 		main.fx_burst(at, Vector2.ZERO, col, 14, 220.0)
-		main.sfx("slam", 1.05, -3.0)
+		main.sfx("spell_stone", 1.0, -2.0)
 		main.shake(5.0))
 
 
@@ -239,7 +239,7 @@ static func _quicksand(bond, p) -> void:
 		b.arc(center, r, 0.0, TAU, 40, Color(col, 0.55 * a), 2.0)
 	_add(main, dur, tick, paint, false)
 	main.fx_burst(center, Vector2.ZERO, SAND, 16, 180.0)
-	main.sfx("slam", 0.6, -4.0)
+	main.sfx("spell_stone", 0.7)
 	main.sfx("gust", 0.5, -4.0)
 	main.shake(3.0)
 
@@ -291,7 +291,7 @@ static func _contagion(bond, p) -> void:
 		b.circle(at + Vector2(-5, -10 + 18.0 * drip), 2.0, Color(col, 0.8 * a * (1.0 - drip)), 10)
 	_add(main, float(bond.stat("duration")), tick, paint, true)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 26.0), TEXT["infected"], col)
-	main.sfx("hit_slime", 1.1, -3.0)
+	main.sfx("spell_poison")
 	main.sfx("hiss", 1.2, -8.0)
 
 
@@ -310,7 +310,7 @@ static func _spray(bond, sp: Dictionary, p) -> void:
 		b.style = "venom"
 		b.tint = col
 		b.venom = stacks
-	main.sfx("hit_slime", 1.5, -4.0)
+	main.sfx("spell_poison", 1.3)
 	if bond.overdraw_mult < 1.0:
 		p.poison(1.5)  # (an overdrawn spit poisons you briefly, as Venom Spit does)
 
@@ -365,7 +365,7 @@ static func _enfeeble(bond, p) -> void:
 	if n == 0:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["nothing_poisoned"], col)
 	main.fx_ring(p.global_position, col, r, 0.45, 2.5)
-	main.sfx("hiss", 0.8, -2.0)
+	main.sfx("spell_poison", 0.8)
 	main.light_flash(p.global_position, col, 1.2, 1.0, 0.3)
 
 
@@ -435,7 +435,7 @@ static func _cinder_trail(bond, p) -> void:
 			b.circle(at, 1.8 * (1.0 - u) + 0.6, Color(1.0, 0.6 - 0.2 * u, 0.2, 0.9 * a * (1.0 - u)), 8)
 		b.circle(feet, 10.0, Color(col, 0.18 * a))
 	_add(main, float(bond.stat("duration")), tick, paint, true)
-	main.sfx("burn", 1.4, -2.0)
+	main.sfx("spell_fire", 1.3, -2.0)
 	main.light_flash(p.global_position, col, 1.0, 1.0, 0.3)
 
 

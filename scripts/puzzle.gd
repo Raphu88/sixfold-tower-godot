@@ -259,6 +259,7 @@ func solve() -> void:
 	main.lift_ward()
 	main.fx_text(room.get_center() + Vector2(0, -50), TEXT["solved"] % display_name(), Color(1.0, 0.89, 0.63))
 	main.shake(4.0)
+	main.sfx("puzzle_solve", 1.0, 0.0, 0.0)
 	queue_redraw_all()
 
 
@@ -272,7 +273,7 @@ func fail(msg: String) -> void:
 	_unseal()  # (you may run, or fight)
 	main.banner = {"title": display_name().to_upper(), "lines": [msg, TEXT["ambush"]], "t": 3.0}
 	main.shake(6.0)
-	main.sfx("warn_knight", 0.7, -2.0, 0.0)
+	main.sfx("puzzle_fail", 1.0, 0.0, 0.0)
 	var n: int = AMBUSH.x + main.floor_num / AMBUSH.y
 	for k in n:
 		var e = _spawn_here(2.0)

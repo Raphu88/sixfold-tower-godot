@@ -1053,7 +1053,7 @@ func build(id: String) -> String:
 			rift_used = true
 			main.banner = {"title": SB.TEXT["rift_title"], "lines": lines, "t": 3.5}
 			main.shake(10.0)
-			main.sfx("slam", 0.45, 0.0, 0.0)
+			main.sfx("rift", 1.0, 0.0, 0.0)
 			main.light_flash(main.player.global_position, col, 2.0, 2.0, 0.5)
 			main.tip("tool_build_designer")
 			return ""

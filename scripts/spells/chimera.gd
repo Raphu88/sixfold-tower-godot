@@ -164,7 +164,7 @@ static func _rally(bond, p) -> void:
 	Fire.spawn(main, dur, Callable(), paint, {})
 	main.light_flash(p.global_position, col, 1.3, 1.4, 0.3)
 	main.sfx("ready", 1.2)
-	main.sfx("warn_knight", 1.4, -8.0)
+	main.sfx("beast_call", 1.0, -2.0)
 
 
 ## Mighty: Bind and Call as it is (binding works as before); a creature it
@@ -242,7 +242,7 @@ static func _release(bond, p) -> void:
 	main.fx_burst(at, Vector2.ZERO, col, 20, 300.0)
 	main.light_flash(at, col, 1.8, 1.8, 0.35)
 	main.sfx("hit_heavy", 0.8)
-	main.sfx("ready", 1.0, -4.0)
+	main.sfx("beast_call", 1.15, -4.0)
 	main.shake(4.0)
 
 
@@ -316,7 +316,7 @@ static func _bud(bond, p) -> void:
 		n.draw_circle(to, 6.0 + 10.0 * k, Color(col, 0.25 * f))
 	Fire.spawn(main, 0.45, Callable(), paint, {})
 	main.light_flash(to, col, 1.3, 1.4, 0.3)
-	main.sfx("hit_slime", 0.7)
+	main.sfx("spell_life", 0.9)
 	main.sfx("ready", 0.8, -5.0)
 
 
@@ -362,7 +362,7 @@ static func _bloodletting(bond, p) -> void:
 	Fire.spawn(main, float(bond.stat("duration")), tick, paint, {"at": t.global_position, "tick": 0.5})
 	main.fx_burst(t.global_position, Vector2.ZERO, BLOOD, 8, 160.0)
 	main.sfx("swing", 1.6)
-	main.sfx("hit_stab", 1.2, -4.0)
+	main.sfx("spell_blade", 1.1, -2.0)
 
 
 ## Chained: Sever as it is, then the cut leaps to the foe nearest the first
@@ -400,7 +400,7 @@ static func _chained(bond, p) -> void:
 		for c in [from, to]:  # a fine cross-cut where each was struck
 			n.draw_line(c - dir.rotated(0.8) * 10.0, c + dir.rotated(0.8) * 10.0, Color(BLOOD, 0.8 * f), 2.0, true)
 	Fire.spawn(main, 0.3, Callable(), paint, {})
-	main.sfx("swing", 1.9, -3.0)
+	main.sfx("spell_blade", 1.2, -2.0)
 
 
 ## Anesthetize: a fine needle; the foe sleeps (it can't move or attack)

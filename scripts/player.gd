@@ -1571,6 +1571,7 @@ func on_flow_kill(e) -> void:
 		var got := mend_by(flow_mend)
 		if got >= 1.0:
 			main.fx_text(global_position + Vector2(0, -40), "+%d" % int(round(got)), Secret.KINDS["life"]["light"])
+			main.sfx("life_mend", 1.0, 0.0)
 	if flow_undo > 0.0 and not _undoing:
 		_undoing = true  # (a foe undone by the undoing doesn't undo again)
 		var col := Secret.color("unmaking")
@@ -1578,6 +1579,7 @@ func on_flow_kill(e) -> void:
 		var dmg := minf(float(e.max_hp) * flow_undo, Secret.UNDO_CAP)
 		main.fx_ring(at, col, Secret.UNDO_REACH, 0.4, 4.0)
 		main.fx_burst(at, Vector2.ZERO, Secret.KINDS["unmaking"]["light"], 18, 320.0)
+		main.sfx("unmake", 1.0, 0.0)
 		for o in main.targets():
 			if o != e and not o.dead and not o.ally and o.global_position.distance_to(at) < Secret.UNDO_REACH + o.radius:
 				main.fx_bolt([at, o.global_position], col)

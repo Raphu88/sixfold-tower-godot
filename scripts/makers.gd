@@ -590,7 +590,7 @@ func read_fragment() -> void:
 		shift_light = main.lighting.add_light(room.get_center(), maxf(room.size.x, room.size.y) * 0.8 + 60.0, col, 0.0, 0.25)
 	main.light_flash(fragment["wall"], col, 2.2, 1.8, 0.9)
 	main.fx_ring(fragment["wall"], col, 70.0, 0.9, 3.0)
-	main.sfx("glint", 0.5, -2.0, 0.0)
+	main.sfx("maker_fragment", 1.0, 0.0, 0.0)
 	main.sfx("ready", 0.45, -8.0, 0.0)
 	main.banner = {"title": TEXT["fragment_title"], "lines": [TEXT["fragment_line"] % fragment_count(main.profile)], "t": 3.0}
 	main.profile.save()
@@ -768,7 +768,7 @@ func start_glimpse(maker: String, kind: String) -> void:
 			main.fx_ring(p.global_position, Color(col, 0.3), 170.0, 1.6, 1.0)
 			shift_col = col
 			shift_t = 1.8
-			main.sfx("glint", 0.35, -10.0, 0.0)
+			main.sfx("maker_glimpse", 1.0, 0.0, 0.0)
 		"shadow":
 			main.sfx("step", 0.5, -14.0, 0.0)
 	main.tip("glimpse")
@@ -803,7 +803,7 @@ func start_meeting(maker: String) -> void:
 	if main.player != null:
 		main.player.velocity = Vector2.ZERO
 	get_tree().paused = true
-	main.sfx("warn_knight", 0.35, -6.0, 0.0)
+	main.sfx("maker_meeting", 1.0, 0.0, 0.0)
 	main.sfx("glint", 0.3, -4.0, 0.0)
 
 

@@ -1042,7 +1042,7 @@ func _start_floor(n: int) -> void:
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
 		tip("beast")
-		sfx("warn_knight", 0.5, 0.0, 0.0)
+		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, -2.0)  # (the beast takes notice: its roar)
 	pillars = plan["pillars"]
 	for p in pillars:
 		var body := StaticBody2D.new()
@@ -2160,7 +2160,7 @@ func throw_flask(p) -> void:
 	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") else 1.0)
 	var dmg: float = float(data["dmg"]) * (1.0 + float(data["per_floor"]) * maxf(0.0, floor_num - 1))
 	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r})
-	sfx("swing", 0.7, -4.0)
+	sfx("throw", 1.0, -2.0)
 
 
 func _update_flasks(delta: float) -> void:
@@ -2190,7 +2190,7 @@ func _burst_flask(f: Dictionary) -> void:
 	fx_burst(pos, Vector2.ZERO, Color(1.0, 0.9, 0.5), 10, 180.0)
 	light_flash(pos, col, 1.2 + f["r"] / 60.0, 2.0, 0.45)
 	sfx("burn", 0.9, 0.0)
-	sfx("hit_heavy", 0.6, -4.0)
+	sfx("glass_break", 1.0, -2.0)
 	shake(4.0)
 
 
@@ -2204,7 +2204,7 @@ func light_flare(pos: Vector2, seconds: float) -> void:
 	var data: Dictionary = Items.ITEMS["flare"]
 	flare_light = lighting.add_light(pos, float(data["radius"]), Color(1.0, 0.88, 0.62), 0.9, 0.25) if lighting != null else -1
 	light_flash(pos, Items.color("flare"), 2.4, 2.0, 0.6)
-	sfx("glint", 0.8, -2.0, 0.0)
+	sfx("flare", 1.0, 0.0)
 
 
 ## Is this spot lit by a Flare (hidden traps and secret walls there glint)?
@@ -2228,6 +2228,7 @@ func await_tower() -> void:
 	choosing_tower = true
 	on_train = profile.regarded
 	if on_train:
+		sfx_ambience("train")
 		Train.stock(profile)
 		profile.save()
 	card_focus = maxi(Towers.ORDER.find(tower), 0)
@@ -2241,6 +2242,7 @@ func await_tower() -> void:
 func open_train() -> void:
 	on_train = true
 	choosing_tower = true
+	sfx_ambience("train")
 	player.set_physics_process(false)
 	for e in enemies():
 		e.set_physics_process(false)
@@ -2255,6 +2257,7 @@ func open_train() -> void:
 func depart(id: String) -> void:
 	if not on_train or not Towers.TOWERS.has(id):
 		return
+	sfx("train_whistle", 1.0, 0.0, 0.0)
 	choose_tower(id)  # (packs up and leaves the train)
 	if menu != null and menu.is_open():
 		menu.close()
@@ -2300,6 +2303,7 @@ func _greet() -> void:
 ## Each tower's stone, light and torches.
 func _apply_tower_look() -> void:
 	var t := tower_data()
+	sfx_ambience(tower)
 	lighting.set_tower_look(tower)
 	room_view.self_modulate = t["stone"] * Palette.TOWER_TINT.get(tower, Color.WHITE)
 	room_view.set_torch_color(t["torch"])
@@ -2387,7 +2391,7 @@ func summit_mark() -> Array:
 func show_victory(lines: Array) -> void:
 	victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
 	player.set_physics_process(false)
-	sfx("clear", 0.7, 0.0, 0.0)
+	sfx("summit_win", 1.0, 0.0, 0.0)
 
 
 ## Winning the Proving (proving.gd): one of your marks grows a step, the
@@ -2543,7 +2547,7 @@ func _begin_regard(fell: bool) -> void:
 	for c in get_children():
 		if "reflected" in c:
 			c.queue_free()
-	sfx("clear", 0.55, 0.0, 0.0)
+	sfx("regard", 1.0, 0.0, 0.0)
 	sfx("glint", 0.6, -2.0, 0.0)
 
 
@@ -2858,7 +2862,7 @@ func rise_secret(kind: String, amount: float, from: Vector2) -> void:
 			fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, false)
 		fx_text(from + Vector2(0, -64), Secret.TEXT["gather"] % [int(round(amount)), Secret.display(kind)], Secret.KINDS[kind]["light"])
 		light_flash(from, Secret.color(kind), 1.6, 1.6, 0.6)
-		sfx("glint", 0.8, -4.0, 0.0)
+		sfx("secret_life" if kind == "life" else "secret_unmaking", 1.0, -2.0, 0.0)
 	else:
 		pass_through(kind, amount, from)
 
@@ -2873,6 +2877,7 @@ func pass_through(kind: String, amount: float, from: Vector2) -> void:
 		fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, true)
 	if player != null:
 		fx_text(player.global_position + Vector2(0, -58), Secret.TEXT["passes"] % Secret.display(kind), Color(Secret.color(kind), 0.9))
+	sfx("secret_pass", 1.0, 0.0, 0.0)
 	tip("secret_pass")
 
 
@@ -3599,6 +3604,22 @@ func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> voi
 func sfx_fade(sound: String) -> void:
 	if audio != null:
 		audio.fade(sound)
+
+
+## A creature's own sound, "<what>_<kind>" (roar_kraken, hurt_bat), if the
+## bank has one; otherwise `fallback` (if any).
+func sfx_kind(what: String, kind: String, fallback := "", pitch := 1.0, volume_db := 0.0) -> void:
+	var sound := what + "_" + kind
+	if audio != null and audio.has_sound(sound):
+		sfx(sound, pitch, volume_db)
+	elif fallback != "":
+		sfx(fallback, pitch, volume_db)
+
+
+## The ambience under the music: a tower's own, the train's, or the default.
+func sfx_ambience(place: String) -> void:
+	if audio != null:
+		audio.set_ambience(place)
 
 
 func fx_ring(pos: Vector2, color: Color, reach: float, dur := 0.3, width := 3.0) -> void:
