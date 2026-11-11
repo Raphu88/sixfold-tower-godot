@@ -1403,6 +1403,7 @@ func _arrive() -> void:
 		var paid := pay_climb()
 		if paid != "":
 			lines.append(paid)
+		lines.append_array(_keep_beast_pieces())
 		var home := bring_pack_home()
 		if home != "":
 			lines.append(home)
@@ -1957,6 +1958,29 @@ func drop_gear(pos: Vector2, g, fresh := false) -> void:
 		sfx("glint", 1.4, -4.0, 0.0)
 
 
+## A slain beast leaves its own Regarded piece where it falls (always the
+## first time; gear.gd REGARDED_DROP), glinting gold.
+func _beast_piece(e) -> void:
+	var n := Gear.beast_piece(tower)
+	if n == "" or not Gear.beast_drops(int(profile.record.get("beasts_by", {}).get(tower, 0))):
+		return
+	drop_gear(e.global_position + Vector2(0, 14), Gear.make_named(n), true)
+	light_flash(e.global_position, Gear.rarity_color(Gear.make_named(n)), 2.0, 2.2, 0.6)
+
+
+## A beast's Regarded piece still on the floor when you take the summit's
+## stair comes down with you, in your pack (it can't be left behind).
+func _keep_beast_pieces() -> Array:
+	var lines: Array = []
+	for d in gear_drops.duplicate():
+		var r: Dictionary = d.get("rec", {})
+		if Gear.rarity(r) == "regarded":
+			player.pack.append(r)
+			gear_drops.erase(d)
+			lines.append(Gear.TEXT["beast_kept"] % Gear.display(r))
+	return lines
+
+
 ## A fresh find for this floor and tower (gear.gd roll_gear): rarity by
 ## floor (`higher` rows up for caches, camps and vaults), never a piece you
 ## already carry, no rings or amulets on the bondless first climb.
@@ -2144,9 +2168,10 @@ func break_belt(skip: Array = []) -> String:
 	return Items.BELT["broke"] % ", ".join(made)
 
 
-## Throws a Fire Flask where you aim (short of a wall): it bursts a moment later.
-func throw_flask(p) -> void:
-	var data: Dictionary = Items.ITEMS["fire_flask"]
+## Throws a Fire Flask (or another thrown item: a net, a lodestone bomb)
+## where you aim, short of a wall: it bursts a moment later.
+func throw_flask(p, id := "fire_flask") -> void:
+	var data: Dictionary = Items.ITEMS[id]
 	var from: Vector2 = p.global_position
 	var to := from
 	var step := 8.0
@@ -2157,9 +2182,9 @@ func throw_flask(p) -> void:
 			break
 		to = next
 		dist += step
-	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") else 1.0)
-	var dmg: float = float(data["dmg"]) * (1.0 + float(data["per_floor"]) * maxf(0.0, floor_num - 1))
-	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r})
+	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") and id == "fire_flask" else 1.0)
+	var dmg: float = float(data.get("dmg", 0.0)) * (1.0 + float(data.get("per_floor", 0.0)) * maxf(0.0, floor_num - 1))
+	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r, "id": id})
 	sfx("swing", 0.7, -4.0)
 
 
@@ -2177,6 +2202,9 @@ func _update_flasks(delta: float) -> void:
 
 
 func _burst_flask(f: Dictionary) -> void:
+	if String(f.get("id", "fire_flask")) != "fire_flask":
+		Items.burst(self, f)  # (a net or a lodestone bomb: items.gd)
+		return
 	var col: Color = Items.color("fire_flask")
 	var pos: Vector2 = f["to"]
 	for e in targets():
@@ -2209,6 +2237,9 @@ func light_flare(pos: Vector2, seconds: float) -> void:
 
 ## Is this spot lit by a Flare (hidden traps and secret walls there glint)?
 func flare_reveals(pos: Vector2) -> bool:
+	# (A Scroll of Seeing, or a Wayfinder's Pendant near you, shows them too.)
+	if player != null and is_instance_valid(player) and pos.distance_to(player.global_position) < player.gfx("seek"):
+		return true
 	return flare_t > 0.0 and pos.distance_to(flare_pos) < float(Items.ITEMS["flare"]["reveal"])
 
 
@@ -3529,6 +3560,7 @@ func on_enemy_killed(e) -> void:
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
 		GuideScript.say("beast_slain", {"beast": beast_name()})
+		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.
 	if e.overcharge_t > 0.0:
 		var pts: Array = []

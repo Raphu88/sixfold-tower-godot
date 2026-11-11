@@ -49,6 +49,8 @@ static var BREW := {
 	"draught": {"stone": 5}, "tonic": {"water": 4}, "vial": {"water": 16}, "smoke": {"fire": 4},
 	"fire_flask": {"fire": 10}, "edge_oil": {"blade": 12}, "warding_oil": {"iron": 12}, "haste": {"air": 10},
 	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
+	"antidote": {"stone": 6}, "heartroot": {"water": 13}, "net": {"water": 8}, "lodestone": {"iron": 10}, "briar_tonic": {"blade": 8},
+	"wardbreaker": {"blade": 10}, "lantern_oil": {"fire": 5}, "unmaking_ash": {"fire": 13}, "gale_feather": {"air": 8}, "seeing_scroll": {"air": 11},
 	"scroll": {"air": 30, "water": 30},
 }
 ## A Rune Artist brews for this share of the cost.
