@@ -420,7 +420,13 @@ func _grafter() -> void:
 	main.grafts.clear()
 	main.graft_order.clear()
 	paid = _cast(b)
-	_check(is_equal_approx(paid, 10.0) and main.allies().is_empty(), "Bud costs 10 (with no graft it does nothing)")
+	var bare: Array = main.allies()
+	var bare_s: float = float(b.stat("duration")) * float(b.stat("bare"))
+	_check(is_equal_approx(paid, 10.0) and bare.size() == 1 and bare[0].kind == String(b.stat("bare_kind")) and bare[0].ally_t <= bare_s + 0.01,
+		"Bud costs 10; with no graft a lump of your own flesh buds for %.0f seconds" % bare_s)
+	for a in main.allies():
+		a.queue_free()
+	await t._frames(2)
 	main.add_graft("bat")
 	b.essence = b.capacity()
 	_cast(b)

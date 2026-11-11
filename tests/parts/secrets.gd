@@ -212,7 +212,13 @@ func _lean_open(how: String) -> void:
 		return
 	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth) and not _collides(mc) and not _collides(W._tile_center(mouth + Vector2i(into))),
 		"...its passage and room open to walking and the path grid")
-	_check(not main.astar.get_id_path(main._tile_of(main.player_start), main._tile_of(deep)).is_empty(), "...and the room can be reached from the start")
+	# From where the climber leaned (a sealed wing shuts its doors behind
+	# you, so the start may be cut off for now); any open tile of the room
+	# will do, since its middle can hold what it guards.
+	var from_t: Vector2i = main._tile_of(p.global_position)
+	var in_room: Array = W._secret_tiles(s).filter(func(k): return s["rect"].has_point(W._tile_center(k)) and not main.astar.is_point_solid(k))
+	var reached: bool = in_room.any(func(k): return not main.astar.get_id_path(from_t, k).is_empty())
+	_check(reached, "...and the room can be walked into from where you leaned (%s, %d open tiles in it, middle solid: %s)" % [s["content"], in_room.size(), main.astar.is_point_solid(main._tile_of(deep))])
 	_check(main.room_view.solid[mouth.y * main.grid_size.x + mouth.x] == 0, "...drawn as floor now")
 	await t._frames(2)
 	_check(main.lighting._solid_copy == main.solid, "...and the light's shadows know the walls moved")
