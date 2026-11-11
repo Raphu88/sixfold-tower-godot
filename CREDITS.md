@@ -61,7 +61,6 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [Ice breaking/shattering](https://opengameart.org/content/ice-breakingshattering) | IgnasD | frost, the ice puzzle, wisps |
 | [Sand spell](https://opengameart.org/content/sand-spell) | qubodup | sand spells |
 | [windy ambient noise](https://opengameart.org/content/windy-ambient-noise) | Some Weirdo | the Gryphon's, the Manticore's and the Firebird's ambience |
-| [Crickets Ambient Noise - loopable](https://opengameart.org/content/crickets-ambient-noise-loopable) | Wolfgang_ | the Thornwild's and the Manticore's ambience |
 | [Forest bird sounds](https://opengameart.org/content/forest-bird-sounds) | pauliuw | the Thornwild's ambience |
 | [Dripping water loop](https://opengameart.org/content/dripping-water-loop) | qubodup | the flooded halls' ambience |
 
