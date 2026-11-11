@@ -69,14 +69,17 @@ const DOLL := [
 ##   traits  how many traits a piece of this rarity carries (fewer for
 ##           rings and amulets, which are Fine to begin with: natural_rarity)
 ##   boost   a weapon of this rarity hits this much harder
-## "Regarded" pieces (the beasts' own weapons) come later.
+##   named_traits  how many traits a named piece of this rarity carries
+##           besides its own rule
+## "Regarded" pieces are the beasts' own weapons and armour (NAMED "beast"):
+## never found as plain pieces, only where a slain beast falls (REGARDED_DROP).
 const RARITY_ORDER := ["common", "fine", "rare", "storied", "regarded"]
 static var RARITIES := {
-	"common": {"name": "Common", "color": Color(0.9, 0.86, 0.76), "wears": true, "traits": 0, "boost": 0.0},
-	"fine": {"name": "Fine", "color": Color(0.55, 0.85, 0.5), "wears": false, "traits": 1, "boost": 0.05},
-	"rare": {"name": "Rare", "color": Color(0.45, 0.65, 1.0), "wears": false, "traits": 2, "boost": 0.10},
-	"storied": {"name": "Storied", "color": Color(0.95, 0.7, 0.3), "wears": false, "traits": 1, "boost": 0.12},
-	"regarded": {"name": "Regarded", "color": Color(1.0, 0.84, 0.35), "wears": false, "traits": 0, "boost": 0.15},
+	"common": {"name": "Common", "color": Color(0.9, 0.86, 0.76), "wears": true, "traits": 0, "boost": 0.0, "named_traits": 0},
+	"fine": {"name": "Fine", "color": Color(0.55, 0.85, 0.5), "wears": false, "traits": 1, "boost": 0.05, "named_traits": 1},
+	"rare": {"name": "Rare", "color": Color(0.45, 0.65, 1.0), "wears": false, "traits": 2, "boost": 0.10, "named_traits": 1},
+	"storied": {"name": "Storied", "color": Color(0.95, 0.62, 0.24), "wears": false, "traits": 1, "boost": 0.12, "named_traits": 1},
+	"regarded": {"name": "Regarded", "color": Color(1.0, 0.86, 0.36), "wears": false, "traits": 4, "boost": 0.15, "named_traits": 4},
 }
 
 ## How rare a piece is, by floor (slain monsters). Vaults, caches and camps
@@ -98,9 +101,13 @@ const NOTICE_FROM := "rare"
 
 ## Traits: every one belongs to an essence kind (its colour; later the bench
 ## tempers it with that kind's crystals) and rolls only on the slots listed.
+## A piece never carries the same trait twice (make() replaces a repeat with
+## another that fits). Every slot but the backpack has at least four, so a
+## Regarded piece always gets four different ones.
 ## "fine" is its strength on a Fine piece, "rare" on Rare and better. "key"
 ## is the number it adds to (see PIECES and EFFECT_ROWS); "desc" says it.
-const TRAIT_ORDER := ["vigor", "footing", "edges", "riposte", "breath", "second_wind", "thorns", "wind", "rolling", "hunt", "kindling", "embers", "well", "calm"]
+const TRAIT_ORDER := ["vigor", "footing", "mending", "venom", "edges", "riposte", "breath", "second_wind", "thorns", "wind", "rolling", "hunt", "quickdraw",
+	"shadows", "striding", "kindling", "embers", "lantern", "well", "calm"]
 static var TRAITS := {
 	"vigor": {"name": "of Vigor", "short": "Vigor", "kind": "stone", "key": "health", "fine": 6.0, "rare": 10.0,
 		"slots": ["helm", "armor", "legs", "cloak", "amulet"], "desc": "+%s health"},
@@ -130,6 +137,18 @@ static var TRAITS := {
 		"slots": ["amulet", "ring", "helm"], "desc": "marks fill %s faster"},
 	"calm": {"name": "of Calm", "short": "Calm", "kind": "water", "key": "parry", "fine": 0.05, "rare": 0.08,
 		"slots": ["gloves", "helm", "ring"], "desc": "the parry window is %s longer"},
+	"mending": {"name": "of Mending", "short": "Mending", "kind": "stone", "key": "kill_heal", "fine": 1.0, "rare": 2.0,
+		"slots": ["melee", "ranged", "amulet"], "desc": "each kill heals you %s"},
+	"venom": {"name": "of Venom", "short": "Venom", "kind": "stone", "key": "venom_chance", "fine": 0.08, "rare": 0.12,
+		"slots": ["melee", "ranged"], "desc": "hits have a %s chance to poison the foe"},
+	"quickdraw": {"name": "of the Quick Draw", "short": "Quick Draw", "kind": "air", "key": "draw", "fine": 0.06, "rare": 0.10,
+		"slots": ["ranged", "gloves"], "desc": "bows draw and crossbows reload %s faster"},
+	"shadows": {"name": "of Shadows", "short": "Shadows", "kind": "air", "key": "notice", "fine": 0.10, "rare": 0.15,
+		"slots": ["cloak", "boots", "helm", "ranged"], "desc": "monsters notice you %s later"},
+	"striding": {"name": "of Striding", "short": "Striding", "kind": "air", "key": "roll_dist", "fine": 0.03, "rare": 0.05,
+		"slots": ["boots", "legs", "cloak"], "desc": "rolls carry %s farther"},
+	"lantern": {"name": "of the Lantern", "short": "Lantern", "kind": "fire", "key": "light", "fine": 0.10, "rare": 0.15,
+		"slots": ["helm", "amulet", "cloak", "armor"], "desc": "your light reaches %s farther"},
 }
 ## Tempering (the bench): each rank adds this share of a trait's base
 ## strength, and makes a weapon hit this much harder.
@@ -178,54 +197,96 @@ static var CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.1
 ##   fx      numbers and rules it adds (worn pieces: instead of the base's own)
 ##   armor   chest numbers that replace the base armor's
 ##   color   its icon's colour (else the base's)
+##   short   its name under its slot
+##   beast   a Regarded piece: that tower's beast's own (REGARDED_DROP)
 ## The rules (fx keys) are read by player.gd: arc, chill, cinder, venom,
 ## kill_heal, thorn_burst, thorns, watch, kill_fill, dodge_haste, iframe,
-## ember_mend, still_mend, spellweave, kill_mark, bastion.
+## ember_mend, still_mend, spellweave, kill_mark, bastion, draw_mark,
+## still_guard, seek, parry_sta, and the beasts' gale and arcs, grasp and
+## ink, quake, volley and venom_shot, rebirth, triune.
 const NAMED_ORDER := ["stormstring", "coral_trident", "cinder_axe", "stinger_dagger", "sunsteel_blade", "thornmaul", "barnacle_mail", "wyvern_scaleplate",
-	"watchers_helm", "quickhand_gloves", "phantom_treads", "emberkin_mantle", "heartstone", "spellweave_ring", "reavers_greatsword", "bastion_plate"]
+	"watchers_helm", "quickhand_gloves", "phantom_treads", "emberkin_mantle", "heartstone", "spellweave_ring", "reavers_greatsword", "bastion_plate",
+	"hollowmoon_bow", "rootbound_greaves", "wayfinders_pendant", "duelists_ring",
+	"stormtalon", "deepcoil_coat", "wyrmspine_mace", "spinecaster", "sunplume_mantle", "triune_fang"]
 static var NAMED := {
 	# Rare tower pieces: only in their own tower.
-	"stormstring": {"base": "shortbow", "rarity": "rare", "tower": "gryphon", "kind": "air", "name": "Stormstring",
+	"stormstring": {"base": "shortbow", "rarity": "rare", "tower": "gryphon", "kind": "air", "name": "Stormstring", "short": "Stormstring",
 		"desc": "a shortbow strung with storm-gut: a full draw also arcs to one more foe for half damage", "fx": {"arc": 0.5}},
-	"coral_trident": {"base": "spear", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Coral Trident",
+	"coral_trident": {"base": "spear", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Coral Trident", "short": "Trident",
 		"desc": "a three-pronged spear of living coral: its hits slow foes by 25% for 1.5 s", "fx": {"chill": 1.5}},
-	"cinder_axe": {"base": "axe", "rarity": "rare", "tower": "wyvern", "kind": "fire", "name": "Cinder Axe",
+	"cinder_axe": {"base": "axe", "rarity": "rare", "tower": "wyvern", "kind": "fire", "name": "Cinder Axe", "short": "Cinder Axe",
 		"desc": "an axe that never cools: its finisher leaves the floor burning for 2 s (it burns foes, not you)", "fx": {"cinder": 2.0}},
-	"stinger_dagger": {"base": "dagger", "rarity": "rare", "tower": "manticore", "kind": "stone", "name": "Stinger Dagger",
+	"stinger_dagger": {"base": "dagger", "rarity": "rare", "tower": "manticore", "kind": "stone", "name": "Stinger Dagger", "short": "Stinger",
 		"desc": "a dagger ground from a stinger: every hit poisons the foe a little more", "fx": {"venom": 1.0}},
-	"sunsteel_blade": {"base": "sword", "rarity": "rare", "tower": "firebird", "kind": "fire", "name": "Sunsteel Blade",
+	"sunsteel_blade": {"base": "sword", "rarity": "rare", "tower": "firebird", "kind": "fire", "name": "Sunsteel Blade", "short": "Sunsteel",
 		"desc": "a sword with a warm, bright edge: each kill heals you 4", "fx": {"kill_heal": 4.0}},
-	"thornmaul": {"base": "war_hammer", "rarity": "rare", "tower": "chimera", "kind": "blade", "name": "Thornmaul",
+	"thornmaul": {"base": "war_hammer", "rarity": "rare", "tower": "chimera", "kind": "blade", "name": "Thornmaul", "short": "Thornmaul",
 		"desc": "a hammer bound in briars: a staggering finisher throws thorns at foes nearby for 6 each", "fx": {"thorn_burst": 6.0}},
-	"barnacle_mail": {"base": "chain", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Barnacle Mail",
+	"barnacle_mail": {"base": "chain", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Barnacle Mail", "short": "Barnacle",
 		"desc": "chain mail crusted with shells: foes that strike you up close take 5", "fx": {"thorns": 5.0}, "color": Color(0.5, 0.66, 0.66)},
-	"wyvern_scaleplate": {"base": "plate", "rarity": "rare", "tower": "wyvern", "kind": "iron", "name": "Wyvern Scaleplate",
+	"wyvern_scaleplate": {"base": "plate", "rarity": "rare", "tower": "wyvern", "kind": "iron", "name": "Wyvern Scaleplate", "short": "Scaleplate",
 		"desc": "plate of overlapping scales: 32% off a blow, with only chain mail's weight",
 		"armor": {"reduce": 0.32, "roll_cost": 1.3, "roll_dist": 0.88, "regen": 0.87, "walk": 0.95}, "color": Color(0.62, 0.42, 0.36)},
 	# Storied pieces: rare finds from floor 7 up, each with its own story.
-	"watchers_helm": {"base": "iron_helm", "rarity": "storied", "kind": "iron", "name": "Watcher's Helm",
+	"watchers_helm": {"base": "iron_helm", "rarity": "storied", "kind": "iron", "name": "Watcher's Helm", "short": "Watcher's",
 		"desc": "a helm with a narrow slit: foes you parry take 20% more damage from you for 3 s; +6 health", "fx": {"health": 6.0, "watch": 0.2},
 		"color": Color(0.62, 0.66, 0.8)},
-	"quickhand_gloves": {"base": "leather_gloves", "rarity": "storied", "kind": "blade", "name": "Quickhand Gloves",
+	"quickhand_gloves": {"base": "leather_gloves", "rarity": "storied", "kind": "blade", "name": "Quickhand Gloves", "short": "Quickhand",
 		"desc": "thin gloves stained dark: each kill fills your hand's mark by 5% of its pool; strikes hit 3% harder", "fx": {"strike": 0.03, "kill_fill": 0.05},
 		"color": Color(0.42, 0.2, 0.24)},
-	"phantom_treads": {"base": "soft_boots", "rarity": "storied", "kind": "air", "name": "Phantom Treads",
+	"phantom_treads": {"base": "soft_boots", "rarity": "storied", "kind": "air", "name": "Phantom Treads", "short": "Phantom",
 		"desc": "boots that leave no prints: a dodge quickens your walk by 20% for 2 s, and a roll keeps you untouchable a moment longer",
 		"fx": {"dodge_haste": 0.2, "iframe": 0.05}, "color": Color(0.7, 0.78, 0.86)},
-	"emberkin_mantle": {"base": "travel_cloak", "rarity": "storied", "kind": "fire", "name": "Emberkin Mantle",
+	"emberkin_mantle": {"base": "travel_cloak", "rarity": "storied", "kind": "fire", "name": "Emberkin Mantle", "short": "Emberkin",
 		"desc": "a cloak that smoulders at the hem: once a floor, falling below a fifth of your health heals 25 over 2 s", "fx": {"ember_mend": 25.0},
 		"color": Color(0.7, 0.3, 0.18)},
-	"heartstone": {"base": "bone_charm", "rarity": "storied", "kind": "stone", "name": "Heartstone",
+	"heartstone": {"base": "bone_charm", "rarity": "storied", "kind": "stone", "name": "Heartstone", "short": "Heartstone",
 		"desc": "a stone that beats: +16 health, and you regain 1 health every 3 s while no monster has noticed you", "fx": {"health": 16.0, "still_mend": 1.0},
 		"color": Color(0.85, 0.35, 0.35)},
-	"spellweave_ring": {"base": "garnet_ring", "rarity": "storied", "kind": "fire", "name": "Spellweave Ring",
+	"spellweave_ring": {"base": "garnet_ring", "rarity": "storied", "kind": "fire", "name": "Spellweave Ring", "short": "Spellweave",
 		"desc": "a ring of three braided wires: every third spell you cast costs nothing", "fx": {"spellweave": 3.0}, "color": Color(0.85, 0.55, 0.95)},
-	"reavers_greatsword": {"base": "greatsword", "rarity": "storied", "kind": "blade", "name": "Reaver's Greatsword",
+	"reavers_greatsword": {"base": "greatsword", "rarity": "storied", "kind": "blade", "name": "Reaver's Greatsword", "short": "Reaver's",
 		"desc": "a notched greatsword: kills restore 4 health and 4 essence to your hand's mark", "fx": {"kill_heal": 4.0, "kill_mark": 4.0}},
-	"bastion_plate": {"base": "plate", "rarity": "storied", "kind": "iron", "name": "Bastion Plate",
+	"bastion_plate": {"base": "plate", "rarity": "storied", "kind": "iron", "name": "Bastion Plate", "short": "Bastion",
 		"desc": "old, dented plate: once a floor, falling below 30% health raises a 30-point barrier for 6 s", "fx": {"bastion": 30.0},
 		"color": Color(0.74, 0.7, 0.6)},
+	"hollowmoon_bow": {"base": "longbow", "rarity": "storied", "kind": "water", "name": "Hollowmoon Bow", "short": "Hollowmoon",
+		"desc": "a pale bow bent like a new moon: a full draw that hits pours 4 essence into your hand's mark", "fx": {"draw_mark": 4.0},
+		"color": Color(0.78, 0.84, 0.95)},
+	"rootbound_greaves": {"base": "plated_greaves", "rarity": "storied", "kind": "stone", "name": "Rootbound Greaves", "short": "Rootbound",
+		"desc": "greaves grown through with living root: 5% damage taken off and +8 health; while you stand still, blows hurt 25% less",
+		"fx": {"reduce": 0.05, "health": 8.0, "still_guard": 0.25}, "color": Color(0.52, 0.44, 0.32)},
+	"wayfinders_pendant": {"base": "sunstone_pendant", "rarity": "storied", "kind": "air", "name": "Wayfinder's Pendant", "short": "Wayfinder",
+		"desc": "a compass whose needle points at what is hidden: secret walls and hidden traps near you glint; your light reaches 15% farther",
+		"fx": {"seek": 220.0, "light": 0.15}, "color": Color(0.5, 0.78, 0.95)},
+	"duelists_ring": {"base": "silver_ring", "rarity": "storied", "kind": "blade", "name": "Duelist's Ring", "short": "Duelist's",
+		"desc": "a ring worn smooth by a duelist's thumb: the parry window is 10% longer, and every parry gives back 15 more stamina",
+		"fx": {"parry": 0.10, "parry_sta": 15.0}, "color": Color(0.88, 0.3, 0.32)},
+	# Regarded pieces: each tower's beast's own weapon or armour, left where it
+	# falls (REGARDED_DROP). Four traits besides its rule; never wears.
+	"stormtalon": {"base": "longbow", "rarity": "regarded", "beast": "gryphon", "kind": "air", "name": "Stormtalon", "short": "Stormtalon",
+		"desc": "the Gryphon's own bow, strung with its storm: a full draw flies faster and hits harder, and arcs on to two more foes for 60%",
+		"fx": {"gale": 1.6, "arc": 0.6, "arcs": 2.0}, "color": Color(0.62, 0.8, 1.0)},
+	"deepcoil_coat": {"base": "leather", "rarity": "regarded", "beast": "kraken", "kind": "water", "name": "Deepcoil Coat", "short": "Deepcoil",
+		"desc": "the Kraken's own hide, cured dark: 24% off a blow with leather's lightness; foes that strike you up close are gripped and slowed; once a floor, falling below half health bursts a cloud of ink that hides you",
+		"armor": {"reduce": 0.24, "roll_cost": 1.1, "roll_dist": 0.96, "regen": 0.96, "walk": 0.99}, "fx": {"grasp": 2.0, "ink": 5.0},
+		"color": Color(0.24, 0.42, 0.5)},
+	"wyrmspine_mace": {"base": "mace", "rarity": "regarded", "beast": "wyvern", "kind": "iron", "name": "Wyrmspine Mace", "short": "Wyrmspine",
+		"desc": "the Wyvern's own spine, set on a haft: a heavy blow cracks the floor, and the foes near the one you hit take 12 and stagger",
+		"fx": {"quake": 12.0}, "color": Color(0.86, 0.8, 0.66)},
+	"spinecaster": {"base": "crossbow", "rarity": "regarded", "beast": "manticore", "kind": "stone", "name": "Spinecaster", "short": "Spinecaster",
+		"desc": "the Manticore's own tail, strung as a crossbow: each bolt looses two barbs beside it (half damage), and every barb poisons",
+		"fx": {"volley": 2.0, "venom_shot": 2.0}, "color": Color(0.78, 0.5, 0.3)},
+	"sunplume_mantle": {"base": "travel_cloak", "rarity": "regarded", "beast": "firebird", "kind": "fire", "name": "Sunplume Mantle", "short": "Sunplume",
+		"desc": "a cloak of the Firebird's own plumes: once a climb, a blow that would fell you bursts you into flame and you rise with 40% of your health; poison and burning floor hurt 25% less",
+		"fx": {"rebirth": 0.4, "ailment": 0.25}, "color": Color(0.95, 0.46, 0.2)},
+	"triune_fang": {"base": "greatsword", "rarity": "regarded", "beast": "chimera", "kind": "blade", "name": "Triune Fang", "short": "Triune",
+		"desc": "the Chimera's own fang, three heads on one hilt: its strikes take turns between them; the lion's hits 30% harder, the goat's staggers, the serpent's poisons",
+		"fx": {"triune": 0.3}, "color": Color(0.86, 0.68, 0.4)},
 }
+## A tower's beast leaves its Regarded piece where it falls: always the
+## first time you slay it, and after that this often ("again").
+static var REGARDED_DROP := {"first": 1.0, "again": 0.25}
 
 ## Wear (Common pieces only): how much condition each use takes off.
 ##   strike  a melee swing that lands (the melee weapon and gloves)
@@ -301,6 +362,8 @@ static var TEXT := {
 	"tower_piece": "found only in its tower",
 	"capped": "%s (capped)",
 	"notice": "%s: %s",  # "RARE: Coral Trident"
+	"beast_piece": "left by its beast",
+	"beast_kept": "%s comes down with you, in your pack",
 }
 
 ## Armor (the chest slot). Reduction cuts the damage of attacks that land
@@ -376,6 +439,14 @@ static var ARMOR := {
 ##   belt      more kinds of item on the belt
 ##   pack      room for this many more spare pieces in your pack (PACK_SIZE)
 ##   jump      jumps carry this much farther; free_jump: jumps cost no stamina
+##   ranged    bows and crossbows hit this much harder
+##   draw      bows draw and crossbows reload this much faster
+##   thorns    foes that strike you up close take this much
+##   footing   traps and burning floor hurt this much less
+##   riposte   ripostes and backstabs hit this much harder
+##   venom_chance  hits have this chance to poison the foe
+##   item_heal healing items heal this much more
+##   wade      water doesn't slow you
 ##   steady    light blows (under LIGHT_BLOW) can't knock you back
 ##   heavy     adds HEAVY_ROLL to a roll's cost
 ##   rarity    a piece that is always this rarity (rings and amulets are Fine)
@@ -388,6 +459,8 @@ const PIECE_ORDER := [
 	"padded_trousers", "leather_leggings", "chain_leggings", "soft_boots", "climbing_boots", "hobnail_boots",
 	"travel_cloak", "dusk_cloak", "satchel", "belt_pouch", "bone_charm", "ember_charm", "iron_band", "garnet_ring",
 	"tide_locket", "pearl_ring", "overdrawn_ring", "climbers_pack",
+	"feathered_cap", "miners_helm", "archers_bracers", "studded_gloves", "ranger_breeches", "plated_greaves", "wading_boots", "feather_cape",
+	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier",
 ]
 static var PIECES := {
 	"cloth_hood": {"slot": "helm", "name": "Cloth Hood", "short": "Hood", "desc": "a deep hood of plain cloth: your light reaches 10% farther",
@@ -439,6 +512,37 @@ static var PIECES := {
 		"overdraw_guard": 1.0, "rarity": "rare", "color": Color(0.95, 0.5, 0.3), "drop_weight": 1},
 	"climbers_pack": {"slot": "backpack", "name": "Climber's Pack", "short": "Pack", "desc": "a well-worn pack with many pockets: one more kind of item on the belt, 4 of each, and room for 2 more spare pieces",
 		"belt": 1, "stack": 1, "pack": 2, "rarity": "rare", "color": Color(0.4, 0.46, 0.3), "drop_weight": 1},
+	# More choice for every slot.
+	"feathered_cap": {"slot": "helm", "name": "Feathered Cap", "short": "Feathered", "desc": "a soft cap with a hawk's feather: bows and crossbows hit 6% harder",
+		"ranged": 0.06, "color": Color(0.36, 0.52, 0.36), "drop_weight": 3, "look": "cap"},
+	"miners_helm": {"slot": "helm", "name": "Miner's Helm", "short": "Miner's", "desc": "a brass helm with a candle on the brow: your light reaches 25% farther; 3% damage taken off",
+		"light": 0.25, "reduce": 0.03, "color": Color(0.8, 0.62, 0.32), "drop_weight": 2, "look": "helm"},
+	"archers_bracers": {"slot": "gloves", "name": "Archer's Bracers", "short": "Bracers", "desc": "laced leather bracers: bows draw and crossbows reload 10% faster",
+		"draw": 0.10, "color": Color(0.6, 0.42, 0.26), "drop_weight": 3},
+	"studded_gloves": {"slot": "gloves", "name": "Studded Gloves", "short": "Studded", "desc": "gloves set with iron studs: strikes hit 2% harder, and foes that strike you up close take 4",
+		"strike": 0.02, "thorns": 4.0, "color": Color(0.42, 0.32, 0.28), "drop_weight": 2},
+	"ranger_breeches": {"slot": "legs", "name": "Ranger's Breeches", "short": "Breeches", "desc": "soft green breeches: you walk 3% faster, and monsters notice you 10% later",
+		"walk": 0.03, "notice": 0.10, "color": Color(0.38, 0.48, 0.32), "drop_weight": 3},
+	"plated_greaves": {"slot": "legs", "name": "Plated Greaves", "short": "Greaves", "desc": "steel plates strapped over the shins: 7% damage taken off; heavy",
+		"reduce": 0.07, "heavy": true, "color": Color(0.74, 0.76, 0.82), "drop_weight": 1},
+	"wading_boots": {"slot": "boots", "name": "Wading Boots", "short": "Wading", "desc": "tall oiled boots: water doesn't slow you, and traps and burning floor hurt 10% less",
+		"wade": true, "footing": 0.10, "color": Color(0.3, 0.44, 0.46), "drop_weight": 2},
+	"feather_cape": {"slot": "cloak", "name": "Feather Cape", "short": "Feather", "desc": "a short cape of grey feathers: jumps carry 15% farther and rolls 4% farther",
+		"jump": 0.15, "roll_dist": 0.04, "color": Color(0.64, 0.56, 0.48), "drop_weight": 2},
+	"herb_pouch": {"slot": "backpack", "name": "Herb Pouch", "short": "Herbs", "desc": "a pouch of dried healing herbs: healing items heal 25% more",
+		"item_heal": 0.25, "color": Color(0.52, 0.58, 0.32), "drop_weight": 2},
+	"wolf_tooth": {"slot": "amulet", "name": "Wolf-Tooth Necklace", "short": "Wolf-Tooth", "desc": "a wolf's fang on a leather thong: ripostes and backstabs hit 12% harder",
+		"riposte": 0.12, "rarity": "fine", "color": Color(0.93, 0.89, 0.78), "drop_weight": 1},
+	"sunstone_pendant": {"slot": "amulet", "name": "Sunstone Pendant", "short": "Sunstone", "desc": "a stone that keeps the day's light: your light reaches 20% farther; spells hit 3% harder",
+		"light": 0.2, "spell": 0.03, "rarity": "fine", "color": Color(1.0, 0.7, 0.28), "drop_weight": 1},
+	"silver_ring": {"slot": "ring", "name": "Silver Ring", "short": "Silver", "desc": "a cool silver band: the parry window is 6% longer",
+		"parry": 0.06, "rarity": "fine", "color": Color(0.84, 0.88, 0.94), "drop_weight": 1},
+	"jade_ring": {"slot": "ring", "name": "Jade Ring", "short": "Jade", "desc": "a ring carved from green jade: +12 max stamina",
+		"stamina": 12.0, "rarity": "fine", "color": Color(0.34, 0.76, 0.52), "drop_weight": 1},
+	"viper_ring": {"slot": "ring", "name": "Viper Ring", "short": "Viper", "desc": "a coiled serpent with emerald eyes: hits have a 12% chance to poison the foe",
+		"venom_chance": 0.12, "rarity": "rare", "color": Color(0.44, 0.72, 0.32), "drop_weight": 1},
+	"bandolier": {"slot": "backpack", "name": "Bandolier", "short": "Bandolier", "desc": "a crossed belt of loops and pockets: two more kinds of item on the belt",
+		"belt": 2, "rarity": "rare", "color": Color(0.46, 0.3, 0.2), "drop_weight": 1},
 }
 ## The numbers effects() adds up, and how the inventory names them:
 ## [key, label, as a share (%) or a count, higher is better, (shown as a
@@ -452,10 +556,12 @@ const EFFECT_ROWS := [
 	["jump", "Jump reach", true, true], ["footing", "Trap harm", true, true, true], ["riposte", "Ripostes", true, true],
 	["thorns", "Thorns", false, true], ["roll_cost", "Roll stamina", true, true, true], ["ranged", "Bows", true, true],
 	["embers", "Burn chance", true, true], ["fill", "Marks fill", true, true], ["kill_essence", "Essence a kill", false, true],
-	["pack", "Pack spaces", false, true],
+	["pack", "Pack spaces", false, true], ["kill_heal", "Heal a kill", false, true], ["draw", "Draw and reload", true, true],
+	["venom_chance", "Poison chance", true, true], ["item_heal", "Item healing", true, true], ["parry_sta", "Stamina a parry", false, true],
 ]
 ## Only these numbers halve on a badly worn piece (the rest are penalties or switches).
-const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dist", "light", "regen", "spell", "notice", "ailment", "jump"]
+const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dist", "light", "regen", "spell", "notice", "ailment", "jump",
+	"ranged", "draw", "thorns", "footing"]
 
 ## How common each weapon is as a drop (fists are always carried).
 static var WEAPON_DROP_WEIGHT := {
@@ -466,21 +572,21 @@ static var WEAPON_DROP_WEIGHT := {
 ## Monsters favour gear that suits them: these are four times as likely.
 const FAVOUR_MULT := 4
 const FAVOUR := {
-	"knight": ["chain", "plate", "sword", "mace", "greatsword", "iron_helm", "gauntlets"],
-	"archer": ["shortbow", "longbow", "crossbow", "leather", "leather_cap"],
+	"knight": ["chain", "plate", "sword", "mace", "greatsword", "iron_helm", "gauntlets", "plated_greaves"],
+	"archer": ["shortbow", "longbow", "crossbow", "leather", "leather_cap", "feathered_cap", "archers_bracers"],
 	"smith": ["war_hammer", "mace", "chain", "plate", "gauntlets", "hobnail_boots"],
 	"shellback": ["mace", "chain", "chain_leggings"],
 	"ram": ["war_hammer", "axe", "hobnail_boots"],
-	"thornhound": ["dagger", "leather", "leather_gloves"],
-	"mongrel": ["axe", "spear", "leather", "leather_leggings"],
-	"scorpling": ["dagger", "padded", "travel_cloak"],
+	"thornhound": ["dagger", "leather", "leather_gloves", "studded_gloves"],
+	"mongrel": ["axe", "spear", "leather", "leather_leggings", "wolf_tooth"],
+	"scorpling": ["dagger", "padded", "travel_cloak", "viper_ring"],
 	"thunderling": ["spear", "chain", "soft_boots"],
-	"lurker": ["spear", "padded", "climbing_boots"],
+	"lurker": ["spear", "padded", "climbing_boots", "wading_boots"],
 	"slime": ["padded", "dagger", "padded_trousers"],
-	"bat": ["dagger", "shortbow", "dusk_cloak"],
+	"bat": ["dagger", "shortbow", "dusk_cloak", "feather_cape"],
 	"cinder": ["shortbow", "crossbow", "grip_wraps"],
-	"wisp": ["shortbow", "padded", "cloth_hood"],
-	"bloomcap": ["padded", "leather", "travel_cloak"],
+	"wisp": ["shortbow", "padded", "cloth_hood", "miners_helm"],
+	"bloomcap": ["padded", "leather", "travel_cloak", "herb_pouch", "ranger_breeches"],
 }
 
 
@@ -494,7 +600,7 @@ static func make(base: String, rarity := "", traits: Array = [], rank := 0, name
 	if not is_gear(base):
 		return {}
 	var r := rarity if RARITIES.has(rarity) else natural_rarity(base)
-	var keep: Array = traits.filter(func(t): return TRAITS.has(String(t))).map(func(t): return String(t))
+	var keep := unique_traits(base, traits)
 	var g := {"base": base, "rarity": r, "traits": keep, "rank": clampi(rank, 0, RANK_CAP)}
 	if NAMED.has(named) and String(NAMED[named]["base"]) == base:
 		g["named"] = named
@@ -503,6 +609,23 @@ static func make(base: String, rarity := "", traits: Array = [], rank := 0, name
 	if bool(RARITIES[r]["wears"]) and keep.is_empty() and not g.has("named"):
 		g["wear"] = 1.0
 	return g
+
+
+## A piece's traits with no trait twice: known traits only, and a repeat
+## replaced by another trait that fits the slot and isn't on the piece (the
+## same one every time, so an old save's piece cleans the same way on every
+## load), or dropped if none is left.
+static func unique_traits(base, traits: Array) -> Array:
+	var given: Array = traits.map(func(t): return String(t)).filter(func(t): return TRAITS.has(t))
+	var out: Array = []
+	for t in given:
+		if not (t in out):
+			out.append(t)
+			continue
+		var pool: Array = traits_for(trait_slot(base)).filter(func(o): return not (o in out) and not (o in given))
+		if not pool.is_empty():
+			out.append(pool[posmod(hash(base_id(base) + str(out.size())), pool.size())])
+	return out
 
 
 ## A record from anything: a record (filled in where keys are missing), an
@@ -629,10 +752,11 @@ static func traits_for(slot: String) -> Array:
 
 ## How many traits a fresh piece of this rarity carries: its rarity's count,
 ## less what its natural rarity already gives (a Fine ring has none; a Rare
-## one has one). Named pieces carry one besides their own rule.
+## one has one). Named pieces carry their rarity's "named_traits" besides
+## their own rule (one; four on a Regarded piece).
 static func trait_count(base, r: String, named := "") -> int:
 	if named != "":
-		return 1 if traits_for(trait_slot(base)).size() > 0 else 0
+		return mini(int(RARITIES.get(r, {}).get("named_traits", 1)), traits_for(trait_slot(base)).size())
 	return maxi(0, int(RARITIES[r]["traits"]) - int(RARITIES[natural_rarity(base)]["traits"]))
 
 
@@ -691,7 +815,21 @@ static func named_pool(r: String, tower_id: String, exclude: Array = []) -> Arra
 		and (r != "rare" or String(NAMED[n].get("tower", "")) == tower_id))
 
 
-## A named piece as a record (its rarity, and its one rolled trait).
+## The Regarded piece a tower's beast leaves (a NAMED id), or "".
+static func beast_piece(tower_id: String) -> String:
+	for n in NAMED_ORDER:
+		if String(NAMED[n].get("beast", "")) == tower_id:
+			return n
+	return ""
+
+
+## Whether a slain beast leaves its piece this time: `slain` is how many
+## times it has fallen to you, this time included (REGARDED_DROP).
+static func beast_drops(slain: int) -> bool:
+	return randf() < float(REGARDED_DROP["first" if slain <= 1 else "again"])
+
+
+## A named piece as a record (its rarity, and its rolled traits).
 static func make_named(n: String) -> Dictionary:
 	var d: Dictionary = NAMED[n]
 	return make(String(d["base"]), String(d["rarity"]), roll_traits(d["base"], d["rarity"], n), 0, n)
@@ -818,6 +956,9 @@ static func desc(id) -> String:
 
 
 static func short(id) -> String:
+	var n := named_id(id)
+	if NAMED.has(n) and NAMED[n].has("short"):
+		return String(NAMED[n]["short"])  # (a named piece's own short name)
 	return info(id).get("short", "-")
 
 
@@ -1158,6 +1299,8 @@ static func describe(g) -> Array:
 		tags[0] = "%s %s" % [rarity_name(r), d.get("name", "")]
 		if nd.has("tower"):
 			tags.append(TEXT["tower_piece"])
+		elif nd.has("beast"):
+			tags.append(TEXT["beast_piece"])
 	if wears(r):
 		tags.append(TEXT["condition"] % int(round(condition(r) * 100.0)))
 	else:
@@ -1374,9 +1517,12 @@ static func _icon_art(b, g, s: float, col: Color, shadow: bool) -> void:
 		var r := rarity(g)
 		if r != "common":
 			Art.rarity_glow(b, c, s, r, rarity_color(g))
+		Art.ground(b, s, 9.0, 6.6 if slot_of(g) in ["ring", "amulet"] else 7.6, 0.34)
 	_icon_body(b, g, c, s, col)
 	if not (g is Dictionary) or shadow:
 		return
+	if rarity(g) == "regarded":
+		Art.regarded_glints(b, c, s, rarity_color(g))
 	var k := int(g.get("rank", 0))
 	var d := maxf(1.7, s * 0.13)
 	for i in k:
@@ -1454,8 +1600,20 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 		return
 	var u := Art.unit(s)  # drawn on a grid of about -10..10
 	var lod := Art.detail(s)
+	var nm := named_id(g)
 	var steel := Art.STEEL
 	var wood := Art.WOOD
+	# A named weapon is cast in its own colour (gear.gd NAMED "color"):
+	# a sunsteel edge, a stinger's amber, a fang's ivory, a bow's pale wood.
+	if NAMED.has(nm) and NAMED[nm].has("color") and Weapons.WEAPONS.has(id):
+		if Weapons.is_ranged(id):
+			wood = NAMED[nm]["color"]
+		else:
+			steel = NAMED[nm]["color"]
+	if nm == "cinder_axe":
+		steel = Color(0.4, 0.36, 0.4)
+	elif nm == "reavers_greatsword":
+		steel = Color(0.62, 0.62, 0.7)
 	var d := Vector2(1, -1).normalized()  # weapons lie from bottom-left to top-right
 	var side := d.orthogonal()
 	var p := func(x: float, y: float) -> Vector2: return c + Vector2(x, y) * u
@@ -1481,8 +1639,18 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 					var at := base.lerp(grip_end, 0.25 + k * 0.25)
 					b.line(at + side * 0.8 * u, at - side * 0.8 * u, Art.LEATHER.darkened(0.4), maxf(0.5, 0.4 * u))
 			_blade(b, base, tip, sz[2] * u, steel, s)
-			Art.rod(b, base + side * sz[3] * u, base - side * sz[3] * u, (1.7 if id == "greatsword" else 1.3) * u, Art.GOLD, s, "gold")
-			Art.orb(b, grip_end - d * 1.2 * u, (1.3 if id == "dagger" else 1.6) * u, Art.GOLD, s, "gold")
+			if lod > 0 and id != "dagger":
+				# The fuller: a groove down the blade.
+				b.line(base + d * 1.2 * u, base.lerp(tip, 0.68), Color(steel.darkened(0.45), 0.7), maxf(0.5, 0.42 * u))
+				b.line(base + d * 1.2 * u - side * 0.35 * u, base.lerp(tip, 0.68) - side * 0.35 * u, Color(1, 1, 1, 0.35), maxf(0.4, 0.25 * u))
+			var guard_col := Art.GOLD if nm != "reavers_greatsword" else Art.IRON
+			Art.rod(b, base + side * sz[3] * u, base - side * sz[3] * u, (1.7 if id == "greatsword" else 1.3) * u, guard_col, s, "gold" if guard_col == Art.GOLD else "metal")
+			if lod > 0:
+				for sg in [1.0, -1.0]:
+					Art.orb(b, base + side * sg * sz[3] * u, 0.75 * u, guard_col.lightened(0.1), s, "gold", false)
+			_sword_touch(b, nm, base, tip, grip_end, d, side, sz, u, s, lod)
+			if nm != "triune_fang":
+				Art.orb(b, grip_end - d * 1.2 * u, (1.3 if id == "dagger" else 1.6) * u, Art.GOLD, s, "gold")
 		"axe":
 			var h0: Vector2 = p.call(-7.6, 7.6)
 			var h1: Vector2 = p.call(6.4, -6.4)
@@ -1502,23 +1670,62 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 			var glint := PackedVector2Array()
 			for i in 11:
 				glint.append(edge[i] - away * 0.7 * u)
+			var edge_col := Color(1, 1, 1, 0.55) if nm != "cinder_axe" else Color(1.0, 0.56, 0.2, 0.95)
 			for i in glint.size() - 1:
-				b.line(glint[i], glint[i + 1], Color(1, 1, 1, 0.55), maxf(0.6, 0.5 * u))
+				b.line(glint[i], glint[i + 1], edge_col, maxf(0.6, (0.5 if nm != "cinder_axe" else 0.9) * u))
+			if lod > 0:
+				Art.rivet(b, m + away * 2.2 * u, 0.6 * u, Art.GOLD if nm != "cinder_axe" else Color(1.0, 0.5, 0.2))
+			if nm == "cinder_axe":
+				Art.soft(b, edge[6] + away * 0.6 * u, 4.6 * u, Color(1.0, 0.5, 0.15, 0.5))
+				for v in [Vector2(-8.0, -1.0), Vector2(-5.0, -8.2), Vector2(-9.2, -5.6)]:
+					Art.spark(b, c + v * u, 1.1 * u, Color(1.0, 0.72, 0.3, 0.95))
 		"mace":
 			var h0: Vector2 = p.call(-7.6, 7.6)
 			var hc: Vector2 = p.call(4.2, -4.2)
 			_haft(b, h0, hc, 1.6 * u, s, lod)
 			Art.orb(b, h0, 1.4 * u, Art.LEATHER, s, "leather")
-			for i in 6:
-				var a := TAU * i / 6.0 + 0.3
-				Art.shape(b, PackedVector2Array([hc + Vector2.from_angle(a - 0.4) * 3.0 * u, hc + Vector2.from_angle(a) * 6.2 * u, hc + Vector2.from_angle(a + 0.4) * 3.0 * u]), Art.IRON, s, "metal", Art.NO_RIM | Art.THIN)
-			Art.orb(b, hc, 3.7 * u, steel, s, "metal")
+			if nm == "wyrmspine_mace":
+				# Vertebrae down the haft, and long curved spines off a skull-round head.
+				for k in 3:
+					var at := h0.lerp(hc, 0.3 + k * 0.17)
+					Art.orb(b, at, 1.25 * u, steel.darkened(0.08), s, "", true)
+				for i in 7:
+					var a := TAU * i / 7.0 - 0.5
+					var bs := hc + Vector2.from_angle(a) * 3.0 * u
+					var tip := hc + Vector2.from_angle(a + 0.45) * 7.6 * u
+					Art.shape(b, PackedVector2Array([bs + Vector2.from_angle(a - 1.2) * 1.1 * u, tip, bs + Vector2.from_angle(a + 1.6) * 1.1 * u]), steel.lightened(0.05), s, "", Art.NO_RIM | Art.THIN)
+				Art.orb(b, hc, 3.9 * u, steel, s, "")
+				b.circle(hc + Vector2(-1.2, 0.4) * u, 0.75 * u, Color(0.2, 0.12, 0.1), 10)
+				b.circle(hc + Vector2(1.0, -1.0) * u, 0.75 * u, Color(0.2, 0.12, 0.1), 10)
+			else:
+				for i in 6:
+					var a := TAU * i / 6.0 + 0.3
+					Art.shape(b, PackedVector2Array([hc + Vector2.from_angle(a - 0.4) * 3.0 * u, hc + Vector2.from_angle(a) * 6.2 * u, hc + Vector2.from_angle(a + 0.4) * 3.0 * u]), Art.IRON, s, "metal", Art.NO_RIM | Art.THIN)
+				Art.orb(b, hc, 3.7 * u, steel, s, "metal")
+				if lod > 0:
+					for i in 3:
+						Art.rivet(b, hc + Vector2.from_angle(PI * 0.8 + i * 0.7) * 2.2 * u, 0.45 * u, Art.IRON)
 		"spear":
 			var h0: Vector2 = p.call(-9.6, 9.6)
 			var base: Vector2 = p.call(3.8, -3.8)
 			_haft(b, h0, base, 1.3 * u, s, lod)
-			_leaf(b, base, p.call(10.4, -10.4), 2.1 * u, steel, s)
+			if nm == "coral_trident":
+				# Three prongs of living coral, the middle one longest.
+				var cross := base + d * 1.6 * u
+				Art.rod(b, cross + side * 3.4 * u, cross - side * 3.4 * u, 1.5 * u, steel, s, "")
+				for k in [-1.0, 0.0, 1.0]:
+					var root: Vector2 = cross + side * k * 3.0 * u
+					var tip: Vector2 = root + d * (8.6 - absf(k) * 2.4) * u
+					Art.rod(b, root, tip - d * 1.4 * u, 1.2 * u, steel, s, "")
+					Art.shape(b, PackedVector2Array([tip + d * 0.8 * u, tip - d * 1.8 * u + side * 1.2 * u, tip - d * 1.8 * u - side * 1.2 * u]), steel.lightened(0.15), s, "", Art.THIN | Art.NO_RIM)
+				if lod > 0:
+					for v in [Vector2(2.2, -6.8), Vector2(6.6, -2.6)]:
+						b.circle(c + v * u, 0.55 * u, Color(1, 0.9, 0.86, 0.8), 8)
+			else:
+				_leaf(b, base, p.call(10.4, -10.4), 2.1 * u, steel, s)
 			Art.rod(b, base - d * 0.5 * u, base + d * 0.5 * u, 2.2 * u, Art.LEATHER, s, "leather")
+			if lod > 0:
+				Art.stitches(b, base - d * 0.4 * u - side * 0.9 * u, base + d * 0.4 * u - side * 0.9 * u, 2, Color(Art.LEATHER.lightened(0.4), 0.8), maxf(0.4, 0.3 * u))
 		"war_hammer":
 			var h0: Vector2 = p.call(-7.6, 7.6)
 			var hc: Vector2 = p.call(4.4, -4.4)
@@ -1530,19 +1737,60 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 			Art.shape(b, spike, steel, s, "metal")
 			Art.shape(b, blk, steel, s, "metal")
 			b.line(blk[1].lerp(blk[2], 0.12), blk[1].lerp(blk[2], 0.88), Color(Art.INK, 0.35), maxf(0.6, 0.5 * u))
+			if lod > 0:
+				for k in [0.25, 0.75]:
+					Art.rivet(b, blk[0].lerp(blk[3], k) + down * 1.2 * u, 0.5 * u, Art.IRON)
+			if nm == "thornmaul":
+				# A briar wound round the haft and over the head, thorns out.
+				var vine := Color(0.36, 0.6, 0.3)
+				var prev := h0.lerp(hc, 0.12)
+				for k in 13:
+					var tt := 0.12 + k * 0.07
+					var at := h0.lerp(hc, tt) + side * sin(tt * 26.0) * 1.6 * u
+					b.line(prev, at, Art.INK, 1.3 * u + Art.ol(s))
+					b.line(prev, at, vine, 1.1 * u)
+					if k % 3 == 1:
+						var out := side * (1.0 if sin(tt * 26.0) > 0.0 else -1.0)
+						b.polygon(PackedVector2Array([at + d * 0.5 * u, at + out * 1.9 * u, at - d * 0.5 * u]), vine.lightened(0.25))
+					prev = at
+				for v in [Vector2(4.6, -1.0), Vector2(1.8, -6.4)]:
+					var lf := Art.oval(c + v * u, Vector2(1.5, 0.8) * u, -0.8, 10)
+					Art.shape(b, lf, vine.lightened(0.15), s, "", Art.THIN | Art.NO_RIM)
 		"shortbow", "longbow":
 			var r := (10.0 if id == "shortbow" else 12.0) * u
 			var o: Vector2 = p.call(-4.6, 0.0)
 			var t0 := o + Vector2.from_angle(-1.12) * r
 			var t1 := o + Vector2.from_angle(1.12) * r
-			b.line(t0, t1, Color(0.95, 0.91, 0.82), maxf(0.6, 0.4 * u))  # the string
+			var storm := nm in ["stormstring", "stormtalon"]
+			b.line(t0, t1, Color(0.95, 0.91, 0.82) if not storm else Color(0.7, 0.88, 1.0), maxf(0.6, 0.4 * u))  # the string
+			if storm:
+				Art.bolt(b, t0.lerp(t1, 0.08), t1.lerp(t0, 0.08), maxf(0.5, 0.4 * u), Color(0.8, 0.92, 1.0), 6)
 			_arrow(b, p.call(-6.4, 0.0), p.call(10.0, 0.0), u, s)
-			Art.arc_rod(b, o, r, -1.12, 1.12, 1.9 * u, wood, s, "wood", 0.45)
+			Art.arc_rod(b, o, r, -1.12, 1.12, 1.9 * u, wood, s, "wood" if nm == "" else "metal", 0.45)
+			for tp in [t0, t1]:
+				Art.orb(b, tp, 0.85 * u, Art.GOLD if nm == "" else wood.lightened(0.2), s, "gold")  # the nocks
+			if nm == "stormtalon":
+				for k in [-1.0, 1.0]:
+					var tp: Vector2 = t0 if k < 0.0 else t1
+					Art.feather(b, tp, tp + Vector2(-3.6, k * 3.2) * u, 1.3 * u, Color(0.86, 0.88, 0.94), s, Art.THIN | Art.NO_RIM)
 			Art.rod(b, o + Vector2(r, -1.6 * u), o + Vector2(r, 1.6 * u), 2.1 * u, Art.LEATHER, s, "leather")  # the grip
+			if nm == "hollowmoon_bow":
+				Art.soft(b, o + Vector2(r, 0), 3.8 * u, Color(0.8, 0.88, 1.0, 0.5))
+				Art.orb(b, o + Vector2(r + 0.2 * u, 0), 1.5 * u, Color(0.94, 0.96, 1.0), s, "gem")
+				b.circle(o + Vector2(r + 0.9 * u, -0.4 * u), 1.2 * u, Color(0.4, 0.46, 0.62), 12)
 		"crossbow":
 			var pc: Vector2 = p.call(1.6, 0.0)
 			var tips := [pc + Vector2.from_angle(-1.22) * 7.6 * u, pc + Vector2.from_angle(1.22) * 7.6 * u]
-			Art.arc_rod(b, pc, 7.6 * u, -1.22, 1.22, 1.6 * u, steel, s, "metal", 0.35)
+			if nm == "spinecaster":
+				# The bow arms are a segmented tail, each tip a barb.
+				for i in 9:
+					var a := lerpf(-1.22, 1.22, i / 8.0)
+					Art.orb(b, pc + Vector2.from_angle(a) * 7.6 * u, (1.25 - absf(a) * 0.3) * u, wood, s, "")
+				for tp in tips:
+					var out: Vector2 = (tp - pc).normalized()
+					Art.shape(b, PackedVector2Array([tp + out * 2.6 * u, tp + out.orthogonal() * 1.0 * u, tp - out.orthogonal() * 1.0 * u]), Color(0.95, 0.85, 0.6), s, "", Art.THIN | Art.NO_RIM)
+			else:
+				Art.arc_rod(b, pc, 7.6 * u, -1.22, 1.22, 1.6 * u, steel, s, "metal", 0.35)
 			b.line(tips[0], p.call(-2.0, -0.2), Color(0.95, 0.91, 0.82), maxf(0.6, 0.4 * u))
 			b.line(tips[1], p.call(-2.0, 0.2), Color(0.95, 0.91, 0.82), maxf(0.6, 0.4 * u))
 			var stock := Art.pts(c, u, [Vector2(-9.6, 0.8), Vector2(-9.6, -1.4), Vector2(-4.0, -1.4), Vector2(8.6, -0.7),
@@ -1550,7 +1798,15 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 			Art.shape(b, stock, wood, s, "wood")
 			if lod > 1:
 				b.line(p.call(-8.6, 0.0), p.call(6.0, 0.0), Color(wood.darkened(0.35), 0.5), 0.5 * u)
+			if lod > 0:
+				Art.rivet(b, p.call(-6.2, 0.0), 0.55 * u, Art.IRON)
+				Art.shape(b, Art.pts(c, u, [Vector2(-4.2, 1.0), Vector2(-2.6, 1.0), Vector2(-3.0, 3.2), Vector2(-3.8, 3.2)]), Art.IRON, s, "metal", Art.THIN | Art.NO_RIM)  # the trigger
 			_arrow(b, p.call(-2.0, -1.8), p.call(9.2, -1.8), u * 0.8, s)
+			if nm == "spinecaster":
+				for k in [-1.0, 1.0]:
+					var bt: Vector2 = p.call(-0.6, -1.8 + k * 2.4)
+					Art.rod(b, bt, bt + Vector2(7.6, k * 1.4) * u, 0.6 * u, Color(0.92, 0.84, 0.62), s, "")
+				b.circle(p.call(9.4, -1.8), 0.9 * u, Color(0.55, 0.85, 0.35, 0.9), 10)
 		"", "padded", "leather", "chain", "plate":
 			var shape := [Vector2(-7.4, -7.0), Vector2(-3.2, -9.4), Vector2(0, -6.6), Vector2(3.2, -9.4), Vector2(7.4, -7.0),
 				Vector2(6.6, 1.0), Vector2(4.0, 9.0), Vector2(-4.0, 9.0), Vector2(-6.6, 1.0)]
@@ -1592,18 +1848,98 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 							b.arc(c + Vector2(x, y) * u, 1.0 * u, PI * 0.9, PI * 2.1, 8, Color(dark, 0.9), maxf(0.5, 0.42 * u))
 							b.circle(c + Vector2(x - 0.3, y - 0.4) * u, 0.4 * u, Color(ac.lightened(0.45), 0.8), 8)
 				"plate":
-					for y in [-1.0, 3.6]:
-						b.line(c + Vector2(-6.6, y) * u, c + Vector2(6.6, y) * u, Color(dark, 0.85), maxf(0.6, 0.6 * u))
-						b.line(c + Vector2(-6.2, y + 0.8) * u, c + Vector2(6.2, y + 0.8) * u, Color(ac.lightened(0.45), 0.6), maxf(0.5, 0.35 * u))
+					if nm == "wyvern_scaleplate":
+						for row in 5:
+							for k in 5:
+								var x := -5.2 + k * 2.6 + (1.3 if row % 2 == 1 else 0.0)
+								var y := -4.4 + row * 2.7
+								if absf(x) > 6.2 - maxf(0.0, y - 2.0) * 0.45:
+									continue
+								b.arc(c + Vector2(x, y) * u, 1.35 * u, PI * 0.05, PI * 0.95, 8, Color(dark, 0.95), maxf(0.55, 0.45 * u))
+								b.arc(c + Vector2(x, y - 0.3) * u, 1.0 * u, PI * 1.15, PI * 1.6, 5, Color(ac.lightened(0.45), 0.7), maxf(0.45, 0.3 * u))
+					else:
+						for y in [-1.0, 3.6]:
+							b.line(c + Vector2(-6.6, y) * u, c + Vector2(6.6, y) * u, Color(dark, 0.85), maxf(0.6, 0.6 * u))
+							b.line(c + Vector2(-6.2, y + 0.8) * u, c + Vector2(6.2, y + 0.8) * u, Color(ac.lightened(0.45), 0.6), maxf(0.5, 0.35 * u))
+						# A ridge down the breastplate, lit on one side.
+						b.line(c + Vector2(0, -5.6) * u, c + Vector2(0, -1.4) * u, Color(dark, 0.7), maxf(0.5, 0.45 * u))
+						b.line(c + Vector2(-0.4, -5.6) * u, c + Vector2(-0.4, -1.4) * u, Color(1, 1, 1, 0.45), maxf(0.4, 0.3 * u))
 					for x in [-6.8, 6.8]:
 						Art.orb(b, c + Vector2(x, -7.0) * u, 2.5 * u, ac, s, "metal")
 					if lod > 0:
 						for x in [-4.2, 4.2]:
-							b.circle(c + Vector2(x, 6.4) * u, 0.6 * u, Art.GOLD, 10)
+							Art.rivet(b, c + Vector2(x, 6.4) * u, 0.6 * u, Art.GOLD)
+					if nm == "bastion_plate":
+						var sh := Art.pts(c, u, [Vector2(-2.6, -4.6), Vector2(2.6, -4.6), Vector2(2.4, -0.6), Vector2(0, 1.8), Vector2(-2.4, -0.6)])
+						Art.shape(b, sh, Color(0.62, 0.2, 0.2), s, "cloth", Art.THIN)
+						b.line(c + Vector2(0, -4.2) * u, c + Vector2(0, 1.2) * u, Art.GOLD, maxf(0.5, 0.45 * u))
+						b.line(c + Vector2(-2.0, -2.6) * u, c + Vector2(2.0, -2.6) * u, Art.GOLD, maxf(0.5, 0.45 * u))
 		_:
 			Art.orb(b, c, s * 0.5, col, s)
+	if ARMOR.has(id):
+		_chest_touch(b, nm, c, u, s, lod, _readable(col))
 	if g is Dictionary and is_worn(g):
 		_cracks(b, c, s)
+
+
+## The swords' named touches: a Stinger's barb and venom drop, a Sunsteel
+## sun at the guard, a Reaver's notches and red grip, the Triune Fang's
+## three heads for a pommel.
+static func _sword_touch(b, nm: String, base: Vector2, tip: Vector2, grip_end: Vector2, d: Vector2, side: Vector2, sz: Array, u: float, s: float, lod: int) -> void:
+	match nm:
+		"stinger_dagger":
+			var at := base.lerp(tip, 0.72)
+			var lit := side if side.dot(Art.LIGHT) > 0.0 else -side
+			Art.shape(b, PackedVector2Array([at - lit * 1.2 * u, at - lit * 3.0 * u - d * 1.6 * u, at - lit * 1.0 * u + d * 1.4 * u]), Color(0.86, 0.6, 0.28), s, "", Art.THIN | Art.NO_RIM)
+			b.circle(tip + d * 0.4 * u + Vector2(0.6, 1.4) * u, 0.75 * u, Color(0.55, 0.88, 0.35, 0.95), 10)
+		"sunsteel_blade":
+			Art.soft(b, base, 4.4 * u, Color(1.0, 0.8, 0.4, 0.55))
+			for i in 8:
+				var a := TAU * i / 8.0
+				b.line(base + Vector2.from_angle(a) * 1.6 * u, base + Vector2.from_angle(a) * 2.9 * u, Color(1.0, 0.86, 0.45), maxf(0.5, 0.45 * u))
+			Art.orb(b, base, 1.5 * u, Color(1.0, 0.78, 0.36), s, "gold")
+		"reavers_greatsword":
+			var lit := side if side.dot(Art.LIGHT) > 0.0 else -side
+			for k in [0.3, 0.5, 0.66]:
+				var at := base.lerp(tip, k) + lit * float(sz[2]) * u
+				b.polygon(PackedVector2Array([at + d * 0.7 * u, at - lit * 1.0 * u, at - d * 0.7 * u]), Color(0.16, 0.12, 0.18))
+			Art.rod(b, base - d * 0.6 * u, grip_end + d * 0.6 * u, 1.3 * u, Color(0.6, 0.16, 0.18), s, "leather")
+		"triune_fang":
+			# Three heads for a pommel: the lion's gold, the goat's horn, the serpent's green.
+			var pm := grip_end - d * 1.6 * u
+			Art.orb(b, pm + side * 1.4 * u, 1.15 * u, Color(0.95, 0.72, 0.3), s, "gold")
+			Art.orb(b, pm - side * 1.4 * u, 1.15 * u, Color(0.45, 0.78, 0.36), s, "gem")
+			Art.orb(b, pm - d * 1.2 * u, 1.15 * u, Color(0.9, 0.86, 0.76), s, "")
+			if lod > 0:
+				for k in 3:
+					var at := base.lerp(tip, 0.25 + k * 0.17)
+					b.circle(at, 0.5 * u, [Color(0.95, 0.72, 0.3), Color(0.9, 0.86, 0.76), Color(0.45, 0.78, 0.36)][k], 8)
+
+
+## The named chest pieces' touches: Barnacle Mail's shells, the Deepcoil
+## Coat's coiled arms and suckers.
+static func _chest_touch(b, nm: String, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+	match nm:
+		"barnacle_mail":
+			for v in [Vector2(-4.2, -3.0), Vector2(3.2, 0.8), Vector2(-1.6, 4.6), Vector2(4.6, -4.4), Vector2(-5.0, 2.4)]:
+				var sc: Vector2 = c + v * u
+				Art.shape(b, Art.oval(sc, Vector2(1.5, 1.2) * u, 0.0, 10), Color(0.9, 0.86, 0.76), s, "", Art.THIN | Art.NO_RIM)
+				b.circle(sc + Vector2(0.1, -0.1) * u, 0.55 * u, Color(0.25, 0.3, 0.32), 8)
+		"deepcoil_coat":
+			var arm := Color(0.3, 0.55, 0.62)
+			for sg in [-1.0, 1.0]:
+				var prev := c + Vector2(sg * 6.0, -6.0) * u
+				for k in 9:
+					var a := k * 0.55
+					var at := c + Vector2(sg * (5.6 - k * 0.5 + cos(a * 2.0) * 0.9), -6.0 + k * 1.7) * u
+					b.line(prev, at, Art.INK, (1.5 - k * 0.1) * u + Art.ol(s))
+					b.line(prev, at, arm, (1.5 - k * 0.1) * u)
+					if lod > 0 and k % 2 == 1:
+						b.circle(at - Vector2(sg * 0.5, 0) * u, 0.38 * u, Color(0.85, 0.92, 0.9, 0.85), 8)
+					prev = at
+			b.line(c + Vector2(0, -6.0) * u, c + Vector2(0, 8.6) * u, Color(col.darkened(0.45), 0.9), maxf(0.55, 0.45 * u))
+			for y in [-2.0, 2.4, 6.0]:
+				Art.rivet(b, c + Vector2(0, y) * u, 0.6 * u, Color(0.7, 0.86, 0.9))
 
 
 ## A wooden haft from `a` to `e`, with a hint of grain on a big icon.
@@ -1705,6 +2041,31 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 						for k in 7:
 							b.circle(c + Vector2(-6.6 + k * 2.2, 3.1) * u, 0.32 * u, Color(lit, 0.7), 8)
 					Art.orb(b, c + Vector2(0, -6.0) * u, 1.0 * u, base_col.darkened(0.2), s, "leather")
+				"feathered_cap":
+					# A soft brimmed cap, a long hawk's feather swept back from its band.
+					Art.feather(b, c + Vector2(2.0, -1.2) * u, c + Vector2(9.4, -9.6) * u, 2.0 * u, Color(0.86, 0.66, 0.4), s)
+					var crown := Art.smooth(P.call([Vector2(-6.4, 1.6), Vector2(-5.6, -4.6), Vector2(-1.0, -7.4), Vector2(4.4, -5.8), Vector2(6.4, 1.6)]), 3)
+					Art.shape(b, crown, base_col, s, "cloth")
+					var brim := Art.smooth(P.call([Vector2(-9.4, 2.6), Vector2(-6.0, 0.8), Vector2(6.0, 0.8), Vector2(9.4, 2.6), Vector2(6.0, 4.8), Vector2(-6.0, 4.8)]), 3)
+					Art.shape(b, brim, base_col.darkened(0.12), s, "cloth", Art.THIN)
+					Art.shape(b, Art.rrect(Rect2(c + Vector2(-6.2, -0.4) * u, Vector2(12.4, 1.8) * u), 0.4 * u, 2), Color(0.46, 0.28, 0.18), s, "leather", Art.THIN | Art.NO_RIM)
+					if lod > 0:
+						b.line(c + Vector2(-1.0, -7.0) * u, c + Vector2(-0.4, -0.6) * u, Color(dark, 0.6), thin)
+				"miners_helm":
+					# A brass dome with a candle in a cup on the brow, lit.
+					var dome := PackedVector2Array()
+					for i in 17:
+						var a := PI + PI * i / 16.0
+						dome.append(c + Vector2(cos(a) * 7.8, 4.0 + sin(a) * 9.0) * u)
+					Art.shape(b, dome, base_col, s, "gold")
+					Art.shape(b, Art.rrect(Rect2(c + Vector2(-9.0, 3.0) * u, Vector2(18.0, 2.4) * u), 0.6 * u, 2), base_col.darkened(0.2), s, "gold", Art.THIN)
+					if lod > 0:
+						for x in [-5.6, -2.0, 2.0, 5.6]:
+							Art.rivet(b, c + Vector2(x, 4.2) * u, 0.45 * u, base_col)
+					Art.shape(b, Art.rrect(Rect2(c + Vector2(-1.3, -6.4) * u, Vector2(2.6, 3.8) * u), 0.4 * u, 2), Color(0.97, 0.93, 0.82), s, "", Art.THIN)
+					Art.shape(b, Art.pts(c, u, [Vector2(-2.6, -2.8), Vector2(2.6, -2.8), Vector2(1.8, -1.0), Vector2(-1.8, -1.0)]), base_col.darkened(0.15), s, "gold", Art.THIN | Art.NO_RIM)
+					Art.soft(b, c + Vector2(0, -8.6) * u, 5.0 * u, Color(1.0, 0.75, 0.3, 0.55))
+					Art.flame(b, c + Vector2(0, -8.2) * u, 1.9 * u, s)
 				_:
 					var dome := PackedVector2Array()
 					for i in 17:
@@ -1716,11 +2077,16 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 					Art.shape(b, Art.rrect(Rect2(c + Vector2(-8.0, 2.2) * u, Vector2(16.0, 2.0) * u), 0.5 * u, 2), base_col.darkened(0.25), s, "metal", Art.THIN | Art.NO_RIM)
 					if named == "watchers_helm":
 						b.rect(Rect2(c + Vector2(-5.6, -0.8) * u, Vector2(11.2, 1.2) * u), Color(0.06, 0.05, 0.08))
+						Art.soft(b, c + Vector2(0, -4.0) * u, 3.0 * u, Color(0.5, 0.75, 1.0, 0.6))
+						Art.orb(b, c + Vector2(0, -4.0) * u, 1.3 * u, Color(0.45, 0.7, 1.0), s, "gem")
 					Art.shape(b, P.call([Vector2(-1.0, 2.0), Vector2(1.0, 2.0), Vector2(0.9, 9.0), Vector2(-0.9, 9.0)]), base_col, s, "metal", Art.THIN)  # nose guard
 					if lod > 0:
 						for x in [-6.4, -3.2, 3.2, 6.4]:
-							b.circle(c + Vector2(x, 3.2) * u, 0.4 * u, Color(lit, 0.9), 8)
+							Art.rivet(b, c + Vector2(x, 3.2) * u, 0.42 * u, base_col)
 		"gloves":
+			if id == "archers_bracers":
+				_bracers(b, c, u, s, lod, base_col)
+				return
 			var palm := Art.smooth(P.call([Vector2(-5.0, -8.0), Vector2(3.6, -8.4), Vector2(4.6, -1.4), Vector2(8.0, -3.2), Vector2(9.0, -1.2),
 				Vector2(5.2, 3.8), Vector2(3.8, 9.0), Vector2(-4.6, 9.0), Vector2(-5.8, 2.0)]), 2)
 			var gkind := "metal" if id == "gauntlets" else ("cloth" if id == "grip_wraps" else "leather")
@@ -1735,6 +2101,11 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 						b.line(c + Vector2(-5.4, y + 1.0) * u, c + Vector2(4.6, y - 1.4) * u, Color(lit, 0.6), thin * 0.8)
 					# a loose end trailing from the wrist
 					Art.shape(b, P.call([Vector2(-4.0, 7.0), Vector2(-1.0, 7.4), Vector2(-4.6, 10.4), Vector2(-7.4, 10.0)]), base_col, s, "cloth", Art.THIN | Art.NO_RIM)
+				"studded_gloves":
+					var cuff: PackedVector2Array = P.call([Vector2(-5.2, 5.4), Vector2(4.6, 5.4), Vector2(4.2, 9.0), Vector2(-4.6, 9.0)])
+					Art.shape(b, cuff, base_col.darkened(0.2), s, "leather", Art.THIN | Art.NO_RIM)
+					for v in [Vector2(-2.8, -0.6), Vector2(0.4, -0.8), Vector2(3.0, -0.4), Vector2(-2.0, 2.6), Vector2(1.4, 2.6)]:
+						Art.rivet(b, c + v * u, 0.85 * u, Art.STEEL)
 				"gauntlets":
 					for y in [-3.0, 0.2, 3.4]:
 						b.line(c + Vector2(-5.4, y) * u, c + Vector2(4.6, y) * u, Color(dark, 0.85), maxf(0.6, 0.55 * u))
@@ -1748,11 +2119,20 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 					if lod > 0:
 						for k in 6:
 							b.line(c + Vector2(-4.4 + k * 1.6, 6.3) * u, c + Vector2(-3.8 + k * 1.6, 6.3) * u, Color(lit, 0.7), thin * 0.8)
+					if named == "quickhand_gloves":
+						# A thin knife sheathed at the cuff, a red thread round the fingers.
+						Art.rod(b, c + Vector2(-6.6, 3.0) * u, c + Vector2(-6.6, 9.8) * u, 1.3 * u, Color(0.2, 0.14, 0.14), s, "leather")
+						Art.rod(b, c + Vector2(-6.6, 1.6) * u, c + Vector2(-6.6, 3.2) * u, 0.9 * u, Art.STEEL, s, "metal")
+						Art.orb(b, c + Vector2(-6.6, 1.0) * u, 0.8 * u, Art.GOLD, s, "gold")
+						b.line(c + Vector2(-4.8, -4.4) * u, c + Vector2(3.8, -4.8) * u, Color(0.9, 0.3, 0.3, 0.9), thin)
 		"legs":
-			_legs(b, id, c, u, s, lod, base_col)
+			_legs(b, id, c, u, s, lod, base_col, named)
 		"boots":
-			_boots(b, id, c, u, s, lod, base_col)
+			_boots(b, id, c, u, s, lod, base_col, named)
 		"cloak":
+			if id == "feather_cape" or named == "sunplume_mantle":
+				_feathered_cloak(b, c, u, s, lod, base_col, named == "sunplume_mantle")
+				return
 			var cl := Art.smooth(P.call([Vector2(-2.8, -9.2), Vector2(2.8, -9.2), Vector2(5.6, -5.8), Vector2(8.8, 8.6), Vector2(4.0, 9.6),
 				Vector2(0, 8.8), Vector2(-4.0, 9.6), Vector2(-8.8, 8.6), Vector2(-5.6, -5.8)]), 3)
 			Art.shape(b, cl, base_col, s, "cloth")
@@ -1768,10 +2148,20 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 					b.circle(c + Vector2(x, 9.0) * u, 0.9 * u, Color(1.0, 0.62, 0.25, 0.9), 10)
 			Art.orb(b, c + Vector2(0, -7.4) * u, 1.6 * u, Art.GOLD, s, "gold")  # the clasp
 		"backpack":
-			_bag(b, id, c, u, s, lod, base_col)
+			if id == "herb_pouch":
+				_herb_pouch(b, c, u, s, lod, base_col)
+			elif id == "bandolier":
+				_bandolier(b, c, u, s, lod, base_col)
+			else:
+				_bag(b, id, c, u, s, lod, base_col)
 		"amulet":
 			b.arc(c + Vector2(0, -3.0) * u, 6.6 * u, PI * 1.05, TAU - PI * 0.05, 24, Color(Art.INK, 0.8), maxf(1.1, 0.75 * u) + 1.0)
-			b.arc(c + Vector2(0, -3.0) * u, 6.6 * u, PI * 1.05, TAU - PI * 0.05, 24, Color(0.9, 0.8, 0.52), maxf(0.7, 0.6 * u))  # the cord
+			var cord_col := Color(0.9, 0.8, 0.52) if id != "wolf_tooth" else Color(0.42, 0.28, 0.18)
+			b.arc(c + Vector2(0, -3.0) * u, 6.6 * u, PI * 1.05, TAU - PI * 0.05, 24, cord_col, maxf(0.7, 0.6 * u))  # the cord
+			if lod > 0 and id != "wolf_tooth":
+				for i in 9:  # its links
+					var a := PI * 1.1 + i * PI * 0.1
+					b.circle(c + Vector2(0, -3.0) * u + Vector2.from_angle(a) * 6.6 * u, maxf(0.35, 0.28 * u), Color(1.0, 0.95, 0.75, 0.6), 6)
 			if named == "heartstone":
 				var heart := PackedVector2Array()
 				for i in 32:
@@ -1779,6 +2169,35 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 					heart.append(c + Vector2(0, 4.6) * u + Vector2(16.0 * pow(sin(t), 3), -(13.0 * cos(t) - 5.0 * cos(2 * t) - 2.0 * cos(3 * t) - cos(4 * t))) * u * 0.3)
 				Art.shape(b, heart, base_col, s, "gem")
 				Art.shine(b, c + Vector2(-2.0, 2.6) * u, 0.6 * u, 1.2 * u, -0.6, 0.6)
+				Art.orb(b, c + Vector2(0, -0.6) * u, 1.1 * u, Art.GOLD, s, "gold")
+			elif named == "wayfinders_pendant":
+				# A compass: a brass case, a pale face, a needle that points away from north.
+				var cc := c + Vector2(0, 4.6) * u
+				Art.orb(b, cc, 5.0 * u, Art.BRASS, s, "gold")
+				b.circle(cc, 3.8 * u, Color(0.93, 0.9, 0.8), 20)
+				for i in 8:
+					var a := TAU * i / 8.0
+					b.line(cc + Vector2.from_angle(a) * 3.0 * u, cc + Vector2.from_angle(a) * 3.6 * u, Color(0.3, 0.26, 0.3), maxf(0.4, 0.3 * u))
+				var nd := Vector2.from_angle(-0.7)
+				b.polygon(PackedVector2Array([cc + nd * 3.2 * u, cc + nd.orthogonal() * 0.8 * u, cc - nd.orthogonal() * 0.8 * u]), Color(0.36, 0.62, 0.9))
+				b.polygon(PackedVector2Array([cc - nd * 3.2 * u, cc + nd.orthogonal() * 0.8 * u, cc - nd.orthogonal() * 0.8 * u]), Color(0.86, 0.3, 0.28))
+				b.circle(cc, 0.6 * u, Art.GOLD, 10)
+				Art.shine(b, cc + Vector2(-1.6, -1.6) * u, 0.6 * u, 1.3 * u, -0.6, 0.45)
+				Art.orb(b, c + Vector2(0, -0.6) * u, 1.1 * u, Art.GOLD, s, "gold")
+			elif id == "wolf_tooth":
+				# A long curved fang on a dark thong, bound with a twist of sinew.
+				var fang := Art.smooth(P.call([Vector2(-2.2, 0.6), Vector2(2.4, 0.6), Vector2(2.6, 4.6), Vector2(0.8, 9.0), Vector2(-0.6, 9.8), Vector2(-0.2, 6.2), Vector2(-1.8, 3.4)]), 3)
+				Art.shape(b, fang, base_col, s)
+				b.line(c + Vector2(1.4, 2.0) * u, c + Vector2(0.6, 7.6) * u, Color(1, 1, 1, 0.55), maxf(0.45, 0.35 * u))
+				Art.shape(b, Art.rrect(Rect2(c + Vector2(-2.6, -0.6) * u, Vector2(5.2, 1.8) * u), 0.5 * u, 2), Color(0.42, 0.28, 0.18), s, "leather", Art.THIN | Art.NO_RIM)
+			elif id == "sunstone_pendant":
+				var gc := c + Vector2(0, 4.6) * u
+				Art.soft(b, gc, 8.0 * u, Color(1.0, 0.7, 0.3, 0.5))
+				for i in 12:
+					var a := TAU * i / 12.0
+					b.line(gc + Vector2.from_angle(a) * 4.6 * u, gc + Vector2.from_angle(a) * (6.2 if i % 2 == 0 else 5.4) * u, Color(1.0, 0.82, 0.45, 0.9), maxf(0.5, 0.4 * u))
+				Art.orb(b, gc, 4.2 * u, Art.GOLD, s, "gold")
+				_facets(b, gc, 3.0 * u, base_col, s, 8)
 				Art.orb(b, c + Vector2(0, -0.6) * u, 1.1 * u, Art.GOLD, s, "gold")
 			elif id == "bone_charm":
 				var tooth := Art.smooth(P.call([Vector2(-2.8, 1.8), Vector2(2.8, 1.8), Vector2(2.0, 5.6), Vector2(0.6, 9.8), Vector2(-1.6, 6.0)]), 3)
@@ -1803,11 +2222,51 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 
 ## The three leggings, told apart by shape: baggy quilted trousers with
 ## rolled cuffs, slim laced leather, and straight mail with steel knee cops.
-static func _legs(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+static func _legs(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color, named := "") -> void:
 	var dark := col.darkened(0.45)
 	var lit := col.lightened(0.3)
 	var thin := maxf(0.55, 0.42 * u)
 	match id:
+		"ranger_breeches":
+			# Loose green breeches tucked at the knee, a patch and a pocket.
+			var legs := Art.smooth(Art.pts(c, u, [Vector2(-6.8, -8.6), Vector2(6.8, -8.6), Vector2(8.0, -1.0), Vector2(7.2, 6.4), Vector2(5.4, 9.4), Vector2(1.8, 9.4),
+				Vector2(1.2, 4.0), Vector2(0, -0.6), Vector2(-1.2, 4.0), Vector2(-1.8, 9.4), Vector2(-5.4, 9.4), Vector2(-7.2, 6.4), Vector2(-8.0, -1.0)]), 2)
+			Art.shape(b, legs, col, s, "cloth")
+			for sx in [-1.0, 1.0]:
+				Art.shape(b, Art.rrect(Rect2(c + Vector2(sx * 4.0 - 1.8, 1.6) * u, Vector2(3.6, 3.0) * u), 0.8 * u, 2), col.darkened(0.2), s, "cloth", Art.THIN | Art.NO_RIM)
+				b.line(c + Vector2(sx * 6.6, 6.0) * u, c + Vector2(sx * 2.0, 6.4) * u, Color(0.42, 0.28, 0.18), maxf(0.7, 0.8 * u))  # the garter
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-6.8, -9.2) * u, Vector2(13.6, 2.0) * u), 0.4 * u, 2), Color(0.42, 0.28, 0.18), s, "leather", Art.THIN | Art.NO_RIM)
+			if lod > 0:
+				Art.stitches(b, c + Vector2(-6.0, -4.8) * u, c + Vector2(-2.6, -4.8) * u, 3, Color(lit, 0.7), thin * 0.8)
+		"plated_greaves":
+			if named != "rootbound_greaves":
+				var legs := Art.pts(c, u, [Vector2(-6.4, -8.6), Vector2(6.4, -8.6), Vector2(7.0, 9.2), Vector2(1.8, 9.2), Vector2(0.4, -0.8),
+					Vector2(-0.4, -0.8), Vector2(-1.8, 9.2), Vector2(-7.0, 9.2)])
+				Art.shape(b, legs, Color(0.34, 0.26, 0.22), s, "leather")
+			else:
+				var legs := Art.smooth(Art.pts(c, u, [Vector2(-6.4, -8.6), Vector2(6.4, -8.6), Vector2(7.0, 9.2), Vector2(1.8, 9.2), Vector2(0.4, -0.8),
+					Vector2(-0.4, -0.8), Vector2(-1.8, 9.2), Vector2(-7.0, 9.2)]), 2)
+				Art.shape(b, legs, Color(0.44, 0.34, 0.24), s, "wood")
+			for sx in [-1.0, 1.0]:
+				var shin := Art.smooth(Art.pts(c, u, [Vector2(sx * 1.6, 2.4), Vector2(sx * 6.6, 2.4), Vector2(sx * 6.4, 8.4), Vector2(sx * 4.0, 9.4), Vector2(sx * 1.8, 8.4)]), 2)
+				Art.shape(b, shin, col if named == "" else col.lightened(0.1), s, "metal" if named == "" else "wood")
+				Art.orb(b, c + Vector2(sx * 4.1, 1.4) * u, 2.2 * u, Art.STEEL if named == "" else Color(0.6, 0.5, 0.36), s, "metal")
+				if lod > 0:
+					b.line(c + Vector2(sx * 4.1, 3.4) * u, c + Vector2(sx * 4.1, 8.4) * u, Color(1, 1, 1, 0.35), maxf(0.4, 0.3 * u))
+			for sx in [-1.0, 1.0]:
+				b.line(c + Vector2(sx * 1.4, -3.4) * u, c + Vector2(sx * 6.6, -3.4) * u, Color(0.22, 0.15, 0.1), maxf(0.6, 0.7 * u))  # the straps
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-6.6, -9.2) * u, Vector2(13.2, 2.2) * u), 0.4 * u, 2), Color(0.3, 0.2, 0.14), s, "leather", Art.THIN | Art.NO_RIM)
+			if named == "rootbound_greaves":
+				var root := Color(0.5, 0.36, 0.22)
+				for sx in [-1.0, 1.0]:
+					var prev := c + Vector2(sx * 6.2, -7.4) * u
+					for k in 8:
+						var at := c + Vector2(sx * (4.0 + sin(k * 1.4) * 2.6), -6.0 + k * 2.0) * u
+						b.line(prev, at, Art.INK, 1.1 * u + Art.ol(s))
+						b.line(prev, at, root, 1.1 * u)
+						prev = at
+					Art.shape(b, Art.oval(c + Vector2(sx * 6.8, -4.0) * u, Vector2(1.5, 0.8) * u, sx * 0.6, 10), Color(0.45, 0.7, 0.32), s, "", Art.THIN | Art.NO_RIM)
+			return
 		"padded_trousers":
 			var legs := Art.pts(c, u, [Vector2(-7.2, -8.6), Vector2(7.2, -8.6), Vector2(8.4, -2.0), Vector2(9.2, 6.2), Vector2(8.6, 9.2), Vector2(1.6, 9.2),
 				Vector2(1.0, 6.0), Vector2(0, -1.0), Vector2(-1.0, 6.0), Vector2(-1.6, 9.2), Vector2(-8.6, 9.2), Vector2(-9.2, 6.2), Vector2(-8.4, -2.0)])
@@ -1857,11 +2316,31 @@ static func _legs(b, id: String, c: Vector2, u: float, s: float, lod: int, col: 
 
 ## The three boots, told apart by shape: low slouchy soft boots, laced
 ## climbing boots on a thick lugged sole, tall iron-shod hobnails.
-static func _boots(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+static func _boots(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color, named := "") -> void:
 	var dark := col.darkened(0.45)
 	var lit := col.lightened(0.3)
 	var thin := maxf(0.55, 0.42 * u)
+	if named == "phantom_treads":
+		# Pale wisps trail behind the boot: it leaves no prints.
+		for k in 3:
+			var y := 1.0 + k * 2.6
+			var wisp := Art.smooth(Art.pts(c, u, [Vector2(-6.4, y - 0.7), Vector2(-10.0 + k, y - 0.2), Vector2(-9.0 + k, y + 0.8), Vector2(-6.0, y + 0.6)]), 2)
+			b.polygon(wisp, Color(0.82, 0.9, 1.0, 0.55 - k * 0.12))
 	match id:
+		"wading_boots":
+			# Tall oiled boots up to the thigh, a strap at the top, water beading off.
+			var boot := Art.smooth(Art.pts(c, u, [Vector2(-5.4, -9.6), Vector2(2.0, -9.6), Vector2(2.6, 0.8), Vector2(7.4, 3.0), Vector2(9.4, 6.0),
+				Vector2(9.0, 8.8), Vector2(-6.0, 8.8), Vector2(-6.2, -2.0)]), 2)
+			Art.shape(b, boot, col, s, "leather")
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-6.0, -9.8) * u, Vector2(8.6, 2.4) * u), 0.6 * u, 2), col.darkened(0.25), s, "leather", Art.THIN)
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-1.4, -9.6) * u, Vector2(2.2, 2.0) * u), 0.3 * u, 2), Art.STEEL, s, "metal", Art.THIN | Art.NO_RIM)
+			b.line(c + Vector2(-5.8, 8.6) * u, c + Vector2(8.8, 8.6) * u, Color(dark, 0.9), maxf(0.7, 0.8 * u))
+			b.line(c + Vector2(-4.4, -6.0) * u, c + Vector2(-4.8, 5.0) * u, Color(lit, 0.45), thin * 1.4)  # the oiled shine
+			for v in [Vector2(4.8, 1.0), Vector2(-7.4, 2.6), Vector2(7.6, -1.6)]:
+				var dc: Vector2 = c + v * u
+				var drop := PackedVector2Array([dc + Vector2(0, -1.4) * u, dc + Vector2(0.8, 0.2) * u, dc + Vector2(0, 0.9) * u, dc + Vector2(-0.8, 0.2) * u])
+				b.polygon(drop, Color(0.6, 0.85, 1.0, 0.9))
+			return
 		"soft_boots":
 			var boot := Art.smooth(Art.pts(c, u, [Vector2(-5.4, -3.6), Vector2(2.0, -4.2), Vector2(2.6, 1.6), Vector2(7.6, 3.4), Vector2(9.4, 6.4),
 				Vector2(8.6, 8.8), Vector2(-6.0, 8.8), Vector2(-6.2, 2.0)]), 3)
@@ -1898,6 +2377,118 @@ static func _boots(b, id: String, c: Vector2, u: float, s: float, lod: int, col:
 			for k in 6:
 				Art.orb(b, c + Vector2(-5.4 + k * 2.8, 9.0) * u, 0.85 * u, Art.STEEL, s, "metal")
 			b.line(c + Vector2(-5.0, -8.4) * u, c + Vector2(-5.4, 5.6) * u, Color(lit, 0.35), thin)
+
+
+## A cut stone seen face on: `n` facets round `c`, each lit by how it faces
+## the light, outlined, with a glint.
+static func _facets(b, c: Vector2, r: float, col: Color, s: float, n := 6) -> void:
+	var gem := PackedVector2Array()
+	for i in n:
+		gem.append(c + Vector2.from_angle(-PI / 2.0 + TAU * i / n) * r)
+	Art.outline(b, gem, s, Art.ol(s) * 0.8)
+	var l := Art.LIGHT.normalized()
+	for i in n:
+		var a := gem[i]
+		var e := gem[(i + 1) % n]
+		var lit := ((a + e) * 0.5 - c).normalized().dot(l)
+		b.polygon(PackedVector2Array([c, a, e]), col.lightened(0.38 * lit) if lit > 0.0 else col.darkened(-0.42 * lit))
+	b.polygon(Art.oval(c, Vector2(r * 0.42, r * 0.42), 0.0, n), col.lightened(0.12))
+	b.circle(c + l * r * 0.45, maxf(0.4, r * 0.18), Color(1, 1, 1, 0.8), 8)
+
+
+## Archer's Bracers: a laced leather cuff for the forearm and a thumb loop.
+static func _bracers(b, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+	var cuff := Art.smooth(Art.pts(c, u, [Vector2(-6.4, -8.4), Vector2(5.0, -9.2), Vector2(6.2, 1.0), Vector2(5.0, 8.8), Vector2(-4.2, 9.4), Vector2(-6.8, 0.6)]), 2)
+	Art.shape(b, cuff, col, s, "leather")
+	var guard := Art.smooth(Art.pts(c, u, [Vector2(-3.6, -7.0), Vector2(2.8, -7.4), Vector2(3.4, 6.8), Vector2(-2.6, 7.2)]), 2)
+	Art.shape(b, guard, col.darkened(0.22), s, "leather", Art.THIN)
+	var lace := Color(0.95, 0.88, 0.7)
+	for k in 5:
+		var y := -5.6 + k * 2.6
+		b.line(c + Vector2(-2.4, y) * u, c + Vector2(2.2, y + 1.3) * u, lace, maxf(0.5, 0.42 * u))
+		b.line(c + Vector2(2.2, y) * u, c + Vector2(-2.4, y + 1.3) * u, lace, maxf(0.5, 0.42 * u))
+	if lod > 0:
+		for sx in [-1.0, 1.0]:
+			Art.stitches(b, c + Vector2(sx * 5.4, -7.4) * u, c + Vector2(sx * 5.2, 7.6) * u, 6, Color(col.lightened(0.4), 0.6), maxf(0.4, 0.3 * u))
+	Art.rivet(b, c + Vector2(-5.6, 0.8) * u, 0.7 * u, Art.BRASS)
+	Art.rivet(b, c + Vector2(5.4, 0.8) * u, 0.7 * u, Art.BRASS)
+
+
+## A cloak of feathers: rows of overlapping plumes, the Feather Cape's grey,
+## or the Firebird's plumes glowing from gold to flame.
+static func _feathered_cloak(b, c: Vector2, u: float, s: float, lod: int, col: Color, fire: bool) -> void:
+	var cl := Art.smooth(Art.pts(c, u, [Vector2(-2.8, -9.2), Vector2(2.8, -9.2), Vector2(5.8, -5.6), Vector2(8.6, 5.0), Vector2(4.0, 7.0),
+		Vector2(0, 6.0), Vector2(-4.0, 7.0), Vector2(-8.6, 5.0), Vector2(-5.8, -5.6)]), 3)
+	if fire:
+		Art.soft(b, c + Vector2(0, 2.0) * u, 11.0 * u, Color(1.0, 0.55, 0.2, 0.45))
+	Art.shape(b, cl, col.darkened(0.2), s, "cloth")
+	var rows := [[-4.2, 3, 4.4], [-0.6, 4, 6.2], [3.0, 5, 7.8], [6.4, 5, 8.6]]
+	for ri in rows.size():
+		var y: float = rows[ri][0]
+		var n: int = rows[ri][1]
+		var half: float = rows[ri][2]
+		for k in n:
+			var x := -half + (k + 0.5) * (2.0 * half / n)
+			var tip := c + Vector2(x, y + 3.6) * u
+			var fc := col.lerp(Color(1.0, 0.85, 0.4), 0.15 * ri) if fire else col.lightened(0.05 * ri + (0.08 if (k + ri) % 2 == 0 else 0.0))
+			if fire and ri == rows.size() - 1:
+				fc = Color(1.0, 0.82, 0.4)
+			var pl := Art.smooth(Art.pts(c, u, [Vector2(x - 1.3, y - 0.4), Vector2(x + 1.3, y - 0.4), Vector2(x + 1.0, y + 2.6), Vector2(x, y + 4.4), Vector2(x - 1.0, y + 2.6)]), 2)
+			Art.shape(b, pl, fc, s, "cloth", Art.THIN | Art.NO_RIM)
+			b.polygon(PackedVector2Array([c + Vector2(x - 0.7, y + 3.2) * u, c + Vector2(x, y + 4.4) * u, c + Vector2(x + 0.7, y + 3.2) * u]),
+				Color(1.0, 0.95, 0.7) if fire else fc.darkened(0.5))  # the barred tip
+			if lod > 0:
+				b.line(c + Vector2(x, y + 0.3) * u, tip, Color(fc.lightened(0.4), 0.7), maxf(0.4, 0.28 * u))
+	if fire:
+		for x in [-5.6, -1.6, 2.4, 6.0]:
+			Art.spark(b, c + Vector2(x, 10.2) * u, 1.1 * u, Color(1.0, 0.78, 0.3, 0.95))
+	var collar := Art.smooth(Art.pts(c, u, [Vector2(-4.6, -9.4), Vector2(4.6, -9.4), Vector2(5.4, -6.6), Vector2(0, -5.6), Vector2(-5.4, -6.6)]), 2)
+	Art.shape(b, collar, col.darkened(0.35) if not fire else Color(0.62, 0.2, 0.12), s, "cloth", Art.THIN)
+	Art.orb(b, c + Vector2(0, -7.4) * u, 1.6 * u, Art.GOLD if not fire else Color(1.0, 0.6, 0.25), s, "gold")
+
+
+## A Herb Pouch: a drawstring bag, sprigs of green and a red flower peeking out.
+static func _herb_pouch(b, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+	for v in [[Vector2(-2.4, -3.0), Vector2(-5.2, -9.2)], [Vector2(0.4, -3.0), Vector2(1.0, -9.8)], [Vector2(2.6, -3.0), Vector2(5.8, -8.2)]]:
+		b.line(c + v[0] * u, c + v[1] * u, Art.INK, 0.9 * u + Art.ol(s))
+		b.line(c + v[0] * u, c + v[1] * u, Color(0.4, 0.62, 0.28), 0.9 * u)
+		var lf := Art.oval(c + v[1] * u, Vector2(1.6, 0.9) * u, (v[1] - v[0]).angle(), 10)
+		Art.shape(b, lf, Color(0.48, 0.72, 0.34), s, "", Art.THIN | Art.NO_RIM)
+	Art.orb(b, c + Vector2(1.0, -9.8) * u, 1.1 * u, Color(0.88, 0.32, 0.36), s, "")
+	var bag := Art.smooth(Art.pts(c, u, [Vector2(-4.0, -3.0), Vector2(4.0, -3.0), Vector2(7.2, 3.2), Vector2(6.0, 8.6), Vector2(-6.0, 8.6), Vector2(-7.2, 3.2)]), 3)
+	Art.shape(b, bag, col, s, "cloth")
+	Art.shape(b, Art.rrect(Rect2(c + Vector2(-4.6, -3.8) * u, Vector2(9.2, 2.0) * u), 0.8 * u, 2), col.darkened(0.2), s, "cloth", Art.THIN | Art.NO_RIM)
+	b.line(c + Vector2(3.6, -2.8) * u, c + Vector2(5.6, 0.8) * u, Color(0.92, 0.84, 0.64), maxf(0.5, 0.45 * u))  # the drawstring
+	Art.orb(b, c + Vector2(5.8, 1.2) * u, 0.7 * u, Color(0.92, 0.84, 0.64), s, "")
+	if lod > 0:
+		b.line(c + Vector2(-4.0, 1.0) * u, c + Vector2(-3.4, 7.0) * u, Color(col.darkened(0.4), 0.55), maxf(0.4, 0.35 * u))
+		b.line(c + Vector2(0.6, 0.6) * u, c + Vector2(0.4, 7.4) * u, Color(col.darkened(0.4), 0.55), maxf(0.4, 0.35 * u))
+
+
+## A Bandolier: a crossed belt with a buckle, little pouches and loops for vials.
+static func _bandolier(b, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+	var a := c + Vector2(-8.4, -7.4) * u
+	var e := c + Vector2(8.0, 8.0) * u
+	var side := (e - a).normalized().orthogonal()
+	var strap := PackedVector2Array([a + side * 2.2 * u, e + side * 2.2 * u, e - side * 2.2 * u, a - side * 2.2 * u])
+	Art.shape(b, strap, col, s, "leather")
+	if lod > 0:
+		Art.stitches(b, a + side * 1.5 * u, e + side * 1.5 * u, 9, Color(col.lightened(0.45), 0.6), maxf(0.4, 0.3 * u))
+		Art.stitches(b, a - side * 1.5 * u, e - side * 1.5 * u, 9, Color(col.lightened(0.45), 0.6), maxf(0.4, 0.3 * u))
+	var vials := [Color(0.9, 0.3, 0.32), Color(0.45, 0.85, 0.5), Color(0.55, 0.75, 1.0)]
+	for k in 3:
+		var at := a.lerp(e, 0.18 + k * 0.13) + side * 2.2 * u
+		var body := Art.rrect(Rect2(at - Vector2(1.0, 3.4) * u, Vector2(2.0, 3.6) * u), 0.9 * u, 3)
+		Art.glass(b, body, s, vials[k], at.y - 2.0 * u)
+	for k in 2:
+		var at := a.lerp(e, 0.66 + k * 0.17)
+		var pouch := Art.rrect(Rect2(at - Vector2(2.4, 1.0) * u, Vector2(4.8, 4.2) * u), 0.9 * u, 3)
+		Art.shape(b, pouch, col.darkened(0.12), s, "leather", Art.THIN)
+		Art.shape(b, Art.rrect(Rect2(at - Vector2(2.6, 1.2) * u, Vector2(5.2, 1.8) * u), 0.6 * u, 2), col.darkened(0.25), s, "leather", Art.THIN | Art.NO_RIM)
+		Art.rivet(b, at + Vector2(0, 0.6) * u, 0.5 * u, Art.BRASS)
+	var bk := a.lerp(e, 0.5)
+	Art.shape(b, Art.rrect(Rect2(bk - Vector2(2.0, 2.0) * u, Vector2(4.0, 4.0) * u), 0.6 * u, 2), Art.BRASS, s, "gold", Art.THIN)
+	b.rect(Rect2(bk - Vector2(1.0, 1.0) * u, Vector2(2.0, 2.0) * u), col.darkened(0.3))
 
 
 ## The bags: a satchel on a long strap, a small pouch on a belt, and the
@@ -1941,6 +2532,35 @@ static func _bag(b, id: String, c: Vector2, u: float, s: float, lod: int, col: C
 static func _ring(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color, named: String) -> void:
 	var rc := c + Vector2(0, 2.2) * u
 	match id:
+		"jade_ring":
+			# A thick band carved from one piece of jade, with a cloud in the stone.
+			_band(b, rc, Vector2(6.6, 5.8) * u, 2.9 * u, col, s, "gem")
+			if lod > 0:
+				b.arc(rc, 5.2 * u, PI * 1.15, PI * 1.5, 6, Color(0.85, 1.0, 0.9, 0.5), maxf(0.5, 0.5 * u))
+				b.circle(rc + Vector2(4.6, 2.4) * u, 0.7 * u, Color(0.2, 0.45, 0.3, 0.6), 8)
+		"silver_ring":
+			_band(b, rc, Vector2(6.0, 5.2) * u, 1.4 * u, col, s, "metal")
+			if named == "duelists_ring":
+				# Two tiny crossed blades over a red stone.
+				for sg in [-1.0, 1.0]:
+					b.line(rc + Vector2(sg * 3.2, -9.6) * u, rc + Vector2(-sg * 2.4, -4.4) * u, Art.INK, 0.9 * u + Art.ol(s))
+					b.line(rc + Vector2(sg * 3.2, -9.6) * u, rc + Vector2(-sg * 2.4, -4.4) * u, Art.STEEL, 0.75 * u)
+				_facets(b, rc + Vector2(0, -6.8) * u, 2.2 * u, Color(0.86, 0.22, 0.26), s, 6)
+			else:
+				Art.shape(b, Art.pts(rc, u, [Vector2(-1.8, -4.6), Vector2(1.8, -4.6), Vector2(1.2, -6.2), Vector2(-1.2, -6.2)]), col, s, "metal", Art.THIN | Art.NO_RIM)
+				_facets(b, rc + Vector2(0, -7.4) * u, 2.0 * u, Color(0.36, 0.56, 0.95), s, 6)
+		"viper_ring":
+			# A serpent coiled into a ring, head raised, two emerald eyes.
+			_band(b, rc, Vector2(6.0, 5.2) * u, 1.9 * u, col, s, "metal")
+			if lod > 0:
+				for i in 10:
+					var a := TAU * i / 10.0
+					b.circle(rc + Vector2(cos(a) * 5.1, sin(a) * 4.3) * u, 0.35 * u, Color(col.darkened(0.45), 0.8), 6)
+			var head := Art.smooth(Art.pts(rc, u, [Vector2(-1.2, -4.6), Vector2(-2.2, -7.2), Vector2(0, -9.4), Vector2(2.2, -7.2), Vector2(1.2, -4.6)]), 2)
+			Art.shape(b, head, col, s, "metal", Art.THIN)
+			for sx in [-1.0, 1.0]:
+				b.circle(rc + Vector2(sx * 0.9, -7.6) * u, 0.55 * u, Color(0.3, 1.0, 0.5), 8)
+			b.line(rc + Vector2(0, -9.4) * u, rc + Vector2(0.6, -10.8) * u, Color(0.9, 0.3, 0.3), maxf(0.4, 0.3 * u))
 		"iron_band":
 			_band(b, rc, Vector2(6.4, 5.6) * u, 2.6 * u, Art.IRON.lightened(0.15), s, "metal")
 			if lod > 0:

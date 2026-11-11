@@ -5277,7 +5277,7 @@ func _gear_slot_tests() -> void:
 	for id in G.PIECES:
 		if G.PIECES[id].get("rarity", "common") == "common":
 			common += 1
-	_check(common == 16, "the sixteen Common pieces (%d)" % common)
+	_check(common == 25, "the twenty-five Common pieces (%d)" % common)
 	var words := ""
 	for id in G.PIECES:
 		words += " " + String(G.PIECES[id]["name"]) + " " + String(G.PIECES[id]["desc"])
@@ -5695,7 +5695,7 @@ func _rarity_tests() -> void:
 		trait_ok = trait_ok and Essence.KINDS.has(d["kind"]) and not d["slots"].is_empty() and float(d["rare"]) > float(d["fine"])
 		for sl in d["slots"]:
 			trait_ok = trait_ok and sl in ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring"]
-	_check(trait_ok and G.TRAITS.size() == 14, "fourteen traits, each tied to an essence and to the slots it suits")
+	_check(trait_ok and G.TRAITS.size() == 20, "twenty traits, each tied to an essence and to the slots it suits")
 	var kinds_seen := {}
 	for t in G.TRAITS:
 		kinds_seen[G.TRAITS[t]["kind"]] = true
@@ -5939,7 +5939,7 @@ func _belt_tests() -> void:
 
 	print("the new consumables")
 	p.items = {}
-	_check(Items.ORDER.size() == 13 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
+	_check(Items.ORDER.size() >= 13 and ["fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare"].all(func(id): return Items.ITEMS.has(id) and Items.ITEMS[id].has("kind") and Items.ITEMS[id].has("value")), "seven new consumables, each with its essence and worth")
 	# Fire Flask: thrown at your aim, it bursts and leaves burning floor.
 	main.floor_num = 3
 	p.global_position = Vector2(500, 400)

@@ -7,8 +7,10 @@ extends RefCounted
 ##   (unit(s) draws the -10..10 grid a little inside the cell).
 ## Light: one light, from the top-left (LIGHT). Shapes are shaded with smooth
 ##   gradients (lit at the top-left, falling to a violet-leaning shadow at
-##   the lower right), a soft shine on the edges that face the light, and a
-##   sharp highlight only on glass, gems and polished metal.
+##   the lower right), a soft shine on the edges that face the light, a faint
+##   cool bounce light along the edges in shadow (so a shape reads round,
+##   not flat), and a sharp highlight only on glass, gems and polished metal.
+##   A soft contact shadow under the icon sets it down in its slot (ground()).
 ## Outline: a light, crisp line of dark violet ink (INK), one width for the
 ##   whole icon scaled to its size (ol(s)), on a faint feather that smooths
 ##   its edge. Details inside a shape (stitches, grain, rivets) have none.
@@ -16,7 +18,8 @@ extends RefCounted
 ##   night's violet (SHADOW_TINT) so the icons sit in the menus' palette;
 ##   gold is the menus' gilt; steel takes a cool shine, gold a warm one.
 ## Rarity: finer gear glows softly behind its icon in its rarity's colour,
-##   brighter the rarer it is (rarity_glow()); Common has none.
+##   brighter the rarer it is (rarity_glow()); Common has none. A Regarded
+##   piece (a beast's own) also throws gold rays and two glints.
 ## Size: s is half the icon's width. detail(s) says how much fine detail
 ##   (grain, stitches, rivets) the size can carry: the HUD (~21 px) keeps to
 ##   clear shapes, a card adds the rest.
@@ -54,6 +57,8 @@ const THIN := 8  # a thinner outline (a part laid over another)
 
 ## How strongly each rarity glows behind an icon.
 const RARITY_GLOW := {"common": 0.0, "fine": 0.5, "rare": 0.68, "storied": 0.85, "regarded": 1.0}
+## The bounce light on a shape's shadowed edges: a cool violet-white.
+const BOUNCE := Color(0.72, 0.7, 0.98)
 
 
 ## The size of one step on an icon's -10..10 grid, for half-size `s`.
@@ -159,6 +164,150 @@ static func shape(b, pts: PackedVector2Array, col: Color, s: float, kind := "", 
 		grad(b, pts, r[3], col, r[1])
 	if not (flags & NO_RIM):
 		rim(b, pts, s, r[4])
+		if s >= 13.0:
+			bounce(b, pts, s, kind)
+			if kind in ["metal", "gold"]:
+				sheen(b, pts, s, r[4])
+	if s >= 26.0 and not (flags & THIN) and kind == "leather":
+		seam(b, pts, s, r[3])
+
+
+## A faint cool light along the edges of `pts` that face away from the
+## light (light thrown back from below): it rounds a shape off.
+static func bounce(b, pts: PackedVector2Array, s: float, kind := "") -> void:
+	var w := maxf(0.6, s * 0.05)
+	var l := -LIGHT.normalized()
+	var n := pts.size()
+	var cw := _clockwise(pts)
+	var a0 := 0.42 if kind in ["metal", "gold", "glass", "gem"] else 0.28
+	for i in n:
+		var a := pts[i]
+		var e := pts[(i + 1) % n]
+		if a.distance_squared_to(e) < 0.01:
+			continue
+		var side := (e - a).normalized().orthogonal()
+		if not cw:
+			side = -side
+		var facing := side.dot(l)
+		if facing < 0.35:
+			continue
+		var inset := -side * (w * 0.5 + 0.35)
+		b.line(a + inset, e + inset, Color(BOUNCE, a0 * clampf((facing - 0.35) * 2.0, 0.0, 1.0)), w)
+
+
+## Polished metal's sheen: a soft pale band across `pts`, square to the
+## light, a little above its middle (cut to the shape).
+static func sheen(b, pts: PackedVector2Array, s: float, col: Color) -> void:
+	var l := -LIGHT.normalized()
+	var mn := INF
+	var mx := -INF
+	for p in pts:
+		mn = minf(mn, p.dot(l))
+		mx = maxf(mx, p.dot(l))
+	var span := mx - mn
+	if span < 3.0:
+		return
+	var across := l.orthogonal() * 1e3
+	var d0 := mn + span * 0.26
+	var d1 := mn + span * 0.4
+	var band := PackedVector2Array([l * d0 - across, l * d0 + across, l * d1 + across, l * d1 - across])
+	for part in Geometry2D.intersect_polygons(pts, band):
+		var idx := Geometry2D.triangulate_polygon(part)
+		for i in idx:
+			var t := (part[i].dot(l) - d0) / (d1 - d0)
+			b.pts.append(part[i])
+			b.cols.append(Color(col, col.a * 0.32 * (1.0 - absf(t * 2.0 - 1.0))))
+
+
+## Leather's seam: a row of pale stitches just inside the edge (card size).
+static func seam(b, pts: PackedVector2Array, s: float, col: Color) -> void:
+	var inner := Geometry2D.offset_polygon(pts, -maxf(1.4, s * 0.075))
+	if inner.is_empty():
+		return
+	var ring: PackedVector2Array = inner[0]
+	var w := maxf(0.5, s * 0.022)
+	var step := maxf(2.4, s * 0.09)
+	var stitch_col := Color(col.lightened(0.35), 0.5)
+	var n := ring.size()
+	var carry := 0.0
+	for i in n:
+		var a := ring[i]
+		var e := ring[(i + 1) % n]
+		var len := a.distance_to(e)
+		var t := carry
+		while t < len:
+			var t1 := minf(t + step * 0.55, len)
+			b.line(a.lerp(e, t / len), a.lerp(e, t1 / len), stitch_col, w)
+			t += step
+		carry = t - len
+
+
+## A soft contact shadow under an icon of half-size `s` (its foot at `y`
+## on the icon's grid, `wide` grid steps across), so it sits in its slot.
+static func ground(b, s: float, y := 8.8, wide := 7.0, a := 0.42) -> void:
+	var u := unit(s)
+	var c := Vector2(0.8, y) * u
+	var n := 20
+	var rx := wide * u
+	var ry := maxf(1.2, 1.7 * u)
+	var mid := Color(INK, a)
+	var none := Color(INK, 0.0)
+	for i in n:
+		var a0 := TAU * i / n
+		var a1 := TAU * (i + 1) / n
+		var p0 := c + Vector2(cos(a0) * rx, sin(a0) * ry)
+		var p1 := c + Vector2(cos(a1) * rx, sin(a1) * ry)
+		b.pts.append_array([c, p0, p1])
+		b.cols.append_array([mid, none, none])
+
+
+## A small dome rivet (a stud, a nail head) at `p`: dark ring, lit cap, a glint.
+static func rivet(b, p: Vector2, r: float, col: Color) -> void:
+	var l := LIGHT.normalized()
+	b.circle(p + Vector2(0.25, 0.3) * r, r * 1.15, Color(INK, 0.55), 10)
+	b.circle(p, r, col.darkened(0.2), 10)
+	b.circle(p + l * r * 0.25, r * 0.65, col.lightened(0.25), 10)
+	b.circle(p + l * r * 0.45, maxf(0.35, r * 0.28), Color(1, 1, 1, 0.75), 8)
+
+
+## A row of stitches from `a` to `e`: short dashes, `n` of them.
+static func stitches(b, a: Vector2, e: Vector2, n: int, col: Color, w: float) -> void:
+	for i in n:
+		var t0 := (i + 0.2) / float(n)
+		var t1 := (i + 0.65) / float(n)
+		b.line(a.lerp(e, t0), a.lerp(e, t1), col, w)
+
+
+## A feather from `root` to `tip`, `wd` wide: a vane in `col` with a quill
+## and a few barbs, lit on its upper side.
+static func feather(b, root: Vector2, tip: Vector2, wd: float, col: Color, s: float, flags := 0) -> void:
+	var dir := (tip - root).normalized()
+	var side := lit_side(root, tip)
+	var len := root.distance_to(tip)
+	var ctrl := PackedVector2Array([root + dir * len * 0.12, root + dir * len * 0.35 + side * wd, root + dir * len * 0.78 + side * wd * 0.7, tip,
+		root + dir * len * 0.75 - side * wd * 0.75, root + dir * len * 0.35 - side * wd * 0.95])
+	var vane := smooth(ctrl, 3)
+	shape(b, vane, col, s, "cloth", flags)
+	var w := maxf(0.5, wd * 0.16)
+	b.line(root, tip - dir * len * 0.05, col.lightened(0.45), w)
+	if s >= 13.0:
+		for k in 4:
+			var at := root.lerp(tip, 0.32 + k * 0.14)
+			b.line(at, at + (side * 0.8 + dir * 0.6).normalized() * wd * 0.7, Color(col.darkened(0.35), 0.6), w * 0.8)
+			b.line(at, at + (-side * 0.8 + dir * 0.6).normalized() * wd * 0.7, Color(col.darkened(0.35), 0.6), w * 0.8)
+
+
+## A zigzag bolt of lightning from `a` to `e`, `n` kinks, pale with a glow.
+static func bolt(b, a: Vector2, e: Vector2, w: float, col: Color, n := 4) -> void:
+	var side := (e - a).normalized().orthogonal()
+	var prev := a
+	for i in n:
+		var t := float(i + 1) / n
+		var p := a.lerp(e, t) + (side * w * 2.2 * (1.0 if i % 2 == 0 else -1.0) if i < n - 1 else Vector2.ZERO)
+		b.line(prev, p, Color(col, 0.35), w * 2.6)
+		b.line(prev, p, col, w)
+		b.line(prev, p, Color(1, 1, 1, 0.85), w * 0.45)
+		prev = p
 
 
 ## A soft shine just inside the edges of `pts` that face the light.
@@ -211,6 +360,10 @@ static func orb(b, c: Vector2, r: float, col: Color, s: float, kind := "", outli
 		var p1 := c + Vector2.from_angle(a1) * r
 		b.pts.append_array([hot, p0, p1])
 		b.cols.append_array([rr[3], _edge(rr, Vector2.from_angle(a0).dot(l)), _edge(rr, Vector2.from_angle(a1).dot(l))])
+	if s >= 13.0 and r >= 2.5:
+		var bw := maxf(0.6, r * 0.14)
+		var away := (-l).angle()
+		b.arc(c, r - bw * 0.7, away - 1.0, away + 1.0, 12, Color(BOUNCE, 0.28 if kind in ["metal", "gem", "glass", "gold"] else 0.18), bw)
 	if kind in ["metal", "gem", "glass", "gold"]:
 		b.circle(c + l * r * 0.48, maxf(0.55, r * 0.2), rr[4], 12)
 	else:
@@ -325,6 +478,23 @@ static func spark(b, c: Vector2, r: float, col: Color) -> void:
 		c + Vector2(0, r), c + Vector2(-r * 0.2, r * 0.2), c + Vector2(-r, 0), c + Vector2(-r * 0.2, -r * 0.2)]), col)
 
 
+## A small flame at `c`, `r` tall: orange round a pale heart, glowing.
+static func flame(b, c: Vector2, r: float, s: float) -> void:
+	var unit := [Vector2(0, -1.0), Vector2(0.3, -0.45), Vector2(0.52, 0.05), Vector2(0.4, 0.5), Vector2(0, 0.66),
+		Vector2(-0.4, 0.5), Vector2(-0.52, 0.05), Vector2(-0.18, -0.3)]
+	var outer := PackedVector2Array()
+	var inner := PackedVector2Array()
+	for v in unit:
+		outer.append(c + v * r * 1.4)
+		inner.append(c + Vector2(0, r * 0.32) + v * r * 0.72)
+	outer = smooth(outer, 3)
+	inner = smooth(inner, 3)
+	soft(b, c + Vector2(0, r * 0.3), r * 1.8, Color(1.0, 0.55, 0.2, 0.4))
+	outline(b, outer, s, ol(s) * 0.7)
+	grad(b, outer, Color(1.0, 0.72, 0.3), Color(1.0, 0.5, 0.17), Color(0.9, 0.3, 0.12))
+	b.polygon(inner, Color(1.0, 0.92, 0.6))
+
+
 ## A soft round glow: `col` at the centre (its alpha) fading smoothly to
 ## nothing at radius `r` (one fan of triangles).
 static func soft(b, c: Vector2, r: float, col: Color) -> void:
@@ -350,8 +520,24 @@ static func rarity_glow(b, c: Vector2, s: float, rarity: String, col: Color) -> 
 	if k <= 0.0:
 		return
 	var small := 0.14 if s < 13.0 else 0.0  # (a HUD-sized icon needs it brighter to show)
+	if rarity == "regarded":
+		# A beast's own piece: gold rays turning out from behind it.
+		for i in 8:
+			var a := TAU * i / 8.0 + PI / 8.0
+			var d := Vector2.from_angle(a)
+			var reach := s * (1.25 if i % 2 == 0 else 1.0)
+			var tip := c + d * reach
+			var base_w := s * (0.16 if i % 2 == 0 else 0.11)
+			b.pts.append_array([c + d.orthogonal() * base_w, tip, c - d.orthogonal() * base_w])
+			b.cols.append_array([Color(col, 0.42 + small), Color(col, 0.0), Color(col, 0.42 + small)])
 	soft(b, c, s * (1.15 + 0.3 * k + small * 2.0), Color(col, 0.5 * k + 0.18 + small))
 	soft(b, c, s * 0.8, Color(col.lightened(0.25), 0.3 * k + small))
+
+
+## A Regarded piece's two glints, over its icon (drawn after the icon).
+static func regarded_glints(b, c: Vector2, s: float, col: Color) -> void:
+	spark(b, c + Vector2(-0.62, -0.7) * s, maxf(1.6, s * 0.17), Color(col.lightened(0.5), 0.95))
+	spark(b, c + Vector2(0.74, 0.36) * s, maxf(1.2, s * 0.11), Color(col.lightened(0.6), 0.85))
 
 
 ## Points on an icon's grid: `arr` of Vector2 (about -10..10), scaled by `u`

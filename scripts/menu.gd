@@ -2537,7 +2537,7 @@ func _worn_cell(parent: Node, p, slot: String, side: float, caption: bool) -> Sl
 	var name: String = Gear.SLOT_NAMES.get(slot, slot)
 	var cap := ""
 	if caption:
-		cap = (String(Gear.info(g).get("name", "")) if slot in ["melee", "ranged"] else Gear.short(g)) if has else ("No armor" if slot == "armor" else name)
+		cap = (String(Gear.info(g).get("name", "")) if slot in ["melee", "ranged"] and Gear.named_id(g) == "" else Gear.short(g)) if has else ("No armor" if slot == "armor" else name)
 	var s := _slot(parent, "gear:" + slot, side, cap)
 	s.kind = "gear"
 	s.id = Gear.base_id(g)

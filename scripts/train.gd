@@ -60,12 +60,16 @@ static var BASE_PRICE := {
 	"travel_cloak": 8, "dusk_cloak": 12, "satchel": 12, "belt_pouch": 15,
 	"bone_charm": 12, "ember_charm": 12, "iron_band": 12, "garnet_ring": 12, "tide_locket": 12, "pearl_ring": 12,
 	"overdrawn_ring": 12, "climbers_pack": 12,
+	"feathered_cap": 10, "miners_helm": 12, "archers_bracers": 10, "studded_gloves": 12, "ranger_breeches": 10, "plated_greaves": 15,
+	"wading_boots": 11, "feather_cape": 11, "herb_pouch": 12, "wolf_tooth": 12, "sunstone_pendant": 12, "silver_ring": 12, "jade_ring": 12,
+	"viper_ring": 12, "bandolier": 14,
 }
 static var DEFAULT_PRICE := 10
 ## Commons are the everyday buy, at half their base price (the owner's call:
 ## "I can never afford anything"); Fine and up kept their prices, so a Fine
-## piece costs 4x its Common and finds still sell well.
-static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 10.0}
+## piece costs 4x its Common and finds still sell well. A beast's Regarded
+## piece is the dearest of all (it sells for the most).
+static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 14.0}
 ## Basic supplies cost half their worth (items.gd "value") at the store;
 ## everything else costs its worth. (A belt left over at the end of a climb
 ## still breaks into crystals at half its worth.)

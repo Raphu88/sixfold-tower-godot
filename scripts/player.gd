@@ -172,11 +172,14 @@ var ward_oil_t := 0.0  # Warding Oil: traps can't hurt you while its barrier hol
 var haste_t := 0.0  # Haste Draught: a quicker walk, cheaper rolls
 var stone_t := 0.0  # Stoneskin Draught: less damage, no knockback
 var salts_t := 0.0  # Second Wind Salts: stamina refills faster
+var buffs := {}  # items that add to your numbers for a while (items.gd "buff"): id -> {t, fx}
 # Rules of named gear (gear.gd NAMED) and traits.
 var dodge_haste_t := 0.0  # Phantom Treads: a dodge quickens your walk
 var still_t := 0.0  # Heartstone: toward the next health while unnoticed
 var spells_cast := 0  # Spellweave Ring: every third spell is free
 var guard_floor := {}  # once-a-floor rules used: rule -> the floor
+var triune_n := 0  # Triune Fang: which head strikes next
+var rebirth_used := false  # Sunplume Mantle: once a climb
 ## The flow (secret.gd): the path's essence banked, which lives in your
 ## shadow. main.gd set_flow gives the path and its step; the numbers below
 ## follow from them (secret.gd EFFECTS).
@@ -342,9 +345,23 @@ func gear_signature() -> Array:
 	return out
 
 
-## A number your worn pieces add up to (0 when none does).
+## A number your worn pieces add up to (0 when none does), with what any
+## item working on you adds (buffs: a Briar Tonic's thorns, Lantern Oil's light).
 func gfx(key: String) -> float:
-	return float(gear_fx.get(key, 0.0))
+	var v := float(gear_fx.get(key, 0.0))
+	for b in buffs.values():
+		v += float(b["fx"].get(key, 0.0))
+	return v
+
+
+## An item's effect for `seconds` (items.gd "buff"); using another refreshes it.
+func add_buff(id: String, seconds: float, fx: Dictionary) -> void:
+	buffs[id] = {"t": seconds, "fx": fx}
+
+
+## Seconds left on an item's effect (0 if none).
+func buff_left(id: String) -> float:
+	return float(buffs.get(id, {}).get("t", 0.0))
 
 
 ## Protection from all you wear (the chest plus helm and legs), capped.
@@ -578,7 +595,7 @@ func _physics_process(delta: float) -> void:
 				if a.global_position.distance_to(global_position) < 130.0:
 					spd *= 1.15
 					break
-		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper")) * trap_slow
+		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper") or gear_fx.get("wade", false)) * trap_slow
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
@@ -855,6 +872,10 @@ func _tick_timers(delta: float) -> void:
 	stone_t -= delta
 	salts_t -= delta
 	dodge_haste_t -= delta
+	for id in buffs.keys():
+		buffs[id]["t"] -= delta
+		if buffs[id]["t"] <= 0.0:
+			buffs.erase(id)
 	# Heartstone: a little health back while no monster has noticed you.
 	var still := gfx("still_mend")
 	if still > 0.0 and hp < max_health() and not dead:
@@ -1123,7 +1144,7 @@ func _strikes_landed(hits: int) -> void:
 
 func _tick_draw(delta: float) -> void:
 	var w := wdata()
-	draw_t += delta
+	draw_t += delta * (1.0 + gfx("draw"))  # of the Quick Draw; Archer's Bracers
 	if draw_t >= w["draw_time"] and not draw_ready:
 		draw_ready = true
 		main.sfx("bow_full", 1.0, 0.0, 0.03)
@@ -1158,6 +1179,10 @@ func release_draw() -> void:
 		dmg *= 0.6
 	var speed: float = lerpf(w["speed_min"], w["speed_max"], k)
 	var force: float = lerpf(w["knock_min"], w["knock_max"], k)
+	if full and rule("gale") > 0.0:  # Stormtalon: a full draw rides the storm
+		speed *= 1.3
+		force *= rule("gale")
+		dmg *= 1.2
 	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
 	arrow.life = float(w.get("life", 1.6))
 	main.sfx_fade("draw")  # the creak stops when the string goes
@@ -1173,7 +1198,7 @@ func release_draw() -> void:
 func _fire_bolt() -> void:
 	var w := wdata()
 	attack_cd = w["recover"]
-	reload_t = w["reload"]
+	reload_t = float(w["reload"]) / (1.0 + gfx("draw"))
 	sta = maxf(0.0, sta - w["sta"])
 	sta_delay = float(Combat.CLIMBER["strike_wait"])
 	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
@@ -1185,6 +1210,12 @@ func _fire_bolt() -> void:
 	bolt.life = float(w["life"])
 	bolt.heavy = bool(w.get("heavy", false))
 	bolt.style = "bolt"
+	# Spinecaster: two barbs fly beside the bolt.
+	for i in int(rule("volley")):
+		var side := 0.2 * (1.0 + floorf(i / 2.0)) * (1.0 if i % 2 == 0 else -1.0)
+		var barb = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim.rotated(side) * float(w["speed"]), dmg * 0.5, float(w["knock"]) * 0.5, false)
+		barb.life = float(w["life"]) * 0.8
+		barb.style = "bolt"
 	main.sfx("crossbow")
 	knock = -aim * 50.0
 	main.shake(2.5)
@@ -1198,15 +1229,34 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool) -> void:
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Color(0.85, 0.63, 0.42))
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	_part_action("hand", 0.5, 6.0)
-	# Stormstring: a full draw arcs on to one more foe.
+	# Stormstring: a full draw arcs on to one more foe (Stormtalon: two).
 	var arc := rule("arc")
 	if heavy and arc > 0.0 and wkind() == "bow":
-		for o in main.targets():
-			if o != e and not o.dead and o.global_position.distance_to(e.global_position) < 170.0:
-				main.fx_bolt([e.global_position, o.global_position], Color(0.78, 0.9, 1.0))
-				main.sfx("zap", 1.2, -6.0)
-				o.take_hit(dmg * arc, Vector2.ZERO)
+		var from = e
+		var struck: Array = [e]
+		for i in maxi(1, int(rule("arcs"))):
+			var next = null
+			var best := 170.0
+			for o in main.targets():
+				var d: float = o.global_position.distance_to(from.global_position)
+				if not (o in struck) and not o.dead and d < best:
+					next = o
+					best = d
+			if next == null:
 				break
+			main.fx_bolt([from.global_position, next.global_position], Color(0.78, 0.9, 1.0))
+			main.sfx("zap", 1.2, -6.0)
+			next.take_hit(dmg * arc, Vector2.ZERO)
+			struck.append(next)
+			from = next
+	# Spinecaster: every barb poisons.
+	if rule("venom_shot") > 0.0 and not e.dead:
+		e.add_venom(int(rule("venom_shot")))
+	# Hollowmoon Bow: a full draw that hits pours essence into the hand's mark.
+	if heavy and rule("draw_mark") > 0.0 and wkind() == "bow":
+		var hand = bonds.get("hand")
+		if hand != null:
+			hand.essence = minf(hand.capacity(), hand.essence + rule("draw_mark"))
 
 
 ## `rock`: the blow breaks poise like a heavy one (maces, hammers);
@@ -1267,6 +1317,13 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	if gfx("watch") > 0.0 and e.has_meta("watched") and float(e.get_meta("watched")) > Time.get_ticks_msec() * 0.001:
 		dmg *= 1.0 + gfx("watch")
 	dmg *= flow_damage  # Unmaking's flow
+	# Triune Fang: the heads take turns (the lion's bite hits harder).
+	var head := -1
+	if hit_sound != "arrow_hit" and rule("triune") > 0.0:
+		head = triune_n % 3
+		triune_n += 1
+		if head == 0:
+			dmg *= 1.0 + rule("triune")
 	var contact: Vector2 = e.global_position - dir * e.radius
 	if crit:
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), "Riposte!", Color(1.0, 0.85, 0.4))
@@ -1287,13 +1344,17 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	var material: String = e.MATERIAL.get(e.kind, "")
 	if material != "":
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
-	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce)
+	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
 	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
 	if hit_sound != "arrow_hit" and not e.dead:
 		if rule("chill") > 0.0:
 			e.chill_t = maxf(e.chill_t, rule("chill"))
 		if rule("venom") > 0.0:
 			e.add_venom(int(rule("venom")))
+		_beast_rules(e, head, heavy or rock)
+	# of Venom, a Viper Ring: now and then a hit poisons.
+	if not e.dead and gfx("venom_chance") > 0.0 and randf() < gfx("venom_chance"):
+		e.add_venom(1)
 	# A finishing blow fills the back too.
 	if e.dead:
 		_part_action("back", 2.0, 6.0)
@@ -1310,10 +1371,29 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 					o.take_hit(thorn, (o.global_position - e.global_position).normalized(), 120.0)
 
 
+## The beasts' melee weapons, after a blow lands (not on a kill): the
+## Triune Fang's goat staggers and its serpent poisons; a Wyrmspine Mace's
+## heavy blow cracks the floor round the foe.
+func _beast_rules(e, head: int, heavy: bool) -> void:
+	if head == 1 and not e.is_boss():
+		e.stagger(0.5)
+	elif head == 2:
+		e.add_venom(2)
+	var quake := rule("quake")
+	if quake > 0.0 and heavy:
+		main.fx_ring(e.global_position, Color(0.86, 0.8, 0.66), 110.0, 0.35, 5.0)
+		main.shake(5.0)
+		for o in main.targets():
+			if o != e and not o.dead and o.global_position.distance_to(e.global_position) < 110.0 + o.radius:
+				o.take_hit(quake, (o.global_position - e.global_position).normalized(), 120.0)
+				if not o.is_boss() and not o.dead:
+					o.stagger(0.6)
+
+
 ## A foe fell to your weapon: what your gear does then (a Sunsteel Blade's
 ## and a Reaver's healing, Quickhand Gloves' and a Pearl Ring's essence).
 func _on_kill() -> void:
-	var heal := rule("kill_heal") * heal_mult()
+	var heal := (rule("kill_heal") + gfx("kill_heal")) * heal_mult()  # (of Mending, a Heartroot)
 	if heal > 0.0 and hp < max_health():
 		hp = minf(max_health(), hp + heal)
 		main.fx_text(global_position + Vector2(0, -44), "+%d" % int(heal), Color(0.6, 1.0, 0.7))
@@ -1558,7 +1638,25 @@ func _defy_death() -> bool:
 	if flow_refuse and once_a_floor("life_refuse"):
 		_refuse_fall()
 		return true
+	if gfx("rebirth") > 0.0 and not rebirth_used:
+		_rebirth()
+		return true
 	return main.proving_spare()  # the ordinary Proving casts you down instead
+
+
+## Sunplume Mantle: once a climb, a killing blow bursts you into flame and
+## you rise again with some of your health, burning the foes around you.
+func _rebirth() -> void:
+	rebirth_used = true
+	var col := Color(1.0, 0.55, 0.22)
+	hp = maxf(hp, max_health() * gfx("rebirth"))
+	iframes = maxf(iframes, 1.5)
+	main.add_flame(global_position, 70.0, 3.0, true)
+	main.fx_text(global_position + Vector2(0, -52), "Reborn in flame", col)
+	main.fx_ring(global_position, col, 90.0, 0.55, 6.0)
+	main.fx_burst(global_position, Vector2.UP, Color(1.0, 0.85, 0.5), 30, 300.0)
+	main.light_flash(global_position, col, 2.4, 2.2, 0.7)
+	main.sfx("burn", 0.7, 0.0, 0.0)
 
 
 ## Life's flow at step 4: once a floor, a killing blow leaves you at low
@@ -1688,6 +1786,8 @@ func stagger_self(seconds: float) -> void:
 
 ## A sting that landed: poisoned for a few seconds (a new sting refreshes it).
 func poison(seconds: float) -> void:
+	if gfx("antivenom") > 0.0:
+		return  # (an Antivenom: proof against poison for a while)
 	if poison_t <= 0.0:
 		main.fx_text(global_position + Vector2(0, -40), "Poisoned", Color(0.55, 0.85, 0.35))
 	poison_t = maxf(poison_t, seconds * (1.0 - gfx("ailment")))  # Travel Cloak
@@ -1787,12 +1887,17 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	if rune_gear == "warding":
 		dmg *= 0.75
 	dmg *= 1.0 - 0.15 * graft("heart")
+	if gfx("still_guard") > 0.0 and velocity.length() < 12.0 and roll_t <= 0.0:
+		dmg *= 1.0 - gfx("still_guard")  # Rootbound Greaves: standing your ground
 	# Armor takes the edge off attacks that land (poison and fire tick past it):
 	# the chest, helm and legs together, up to Gear.PROTECTION_CAP.
 	var raw := dmg
 	dmg *= 1.0 - protection()
 	hp -= dmg
 	_thorns(source)
+	if gfx("grasp") > 0.0 and source is Node and is_instance_valid(source) and "chill_t" in source \
+			and source.global_position.distance_to(global_position) < Gear.THORNS_REACH + float(source.get("radius")):
+		source.chill_t = maxf(source.chill_t, gfx("grasp"))  # Deepcoil Coat: gripped
 	wear_gear("hit")
 	hits_taken += 1  # (a sealed wing's "take no hit" counts these)
 	Makers.feed(main, "wound", dmg / maxf(max_health(), 1.0))
@@ -1848,6 +1953,11 @@ func _low_health_rules() -> void:
 		heal_rate = maxf(heal_rate, mend / 2.0)
 		main.fx_text(global_position + Vector2(0, -48), "The mantle smoulders: +%d" % int(mend), Color(1.0, 0.6, 0.3))
 		main.light_flash(global_position, Color(1.0, 0.55, 0.25), 1.2, 1.6, 0.4)
+	var ink := gfx("ink")
+	if ink > 0.0 and hp < max_health() * 0.5 and once_a_floor("ink"):
+		main.smokes.append({"pos": global_position, "r": 110.0, "t": ink})  # Deepcoil Coat: a cloud of ink
+		main.fx_burst(global_position, Vector2.ZERO, Color(0.12, 0.16, 0.24), 24, 200.0)
+		main.fx_text(global_position + Vector2(0, -48), "Ink", Color(0.5, 0.7, 0.8))
 	var bastion := gfx("bastion")
 	if bastion > 0.0 and hp < max_health() * 0.3 and once_a_floor("bastion"):
 		raise_barrier(bastion, 6.0, false, Color(0.9, 0.85, 0.6))
@@ -1946,7 +2056,7 @@ func _on_parry(source, perfect := false) -> void:
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
 	on_parry.emit(source, perfect)
-	sta = minf(max_sta, sta + (30.0 if perfect else 12.0))
+	sta = minf(max_sta, sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
 	var at: Vector2 = global_position + aim * (radius + 8.0)
 	var gold := Color(1.0, 0.92, 0.7)
 	if perfect:
