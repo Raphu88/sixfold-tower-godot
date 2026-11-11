@@ -4356,7 +4356,8 @@ func _tower_tests() -> void:
 	main.choose_tower("wyvern")
 	await _frames(2)
 	_check(main.tower == "wyvern" and not main.choosing_tower and main.floor_num == 1, "choosing the Wyvern's tower starts its floor 1")
-	_check(main.enemies().filter(func(e): return e.kind == "knight").size() == 2, "the Wyvern's floor 1 has two knights")
+	var want_knights: int = main.Towers.TOWERS["wyvern"]["first"].count("knight")
+	_check(main.enemies().filter(func(e): return e.kind == "knight").size() == want_knights, "the Wyvern's floor 1 has its knights (%d)" % want_knights)
 	_check(main.profile.last_tower == "wyvern", "the choice is remembered")
 
 
@@ -10093,7 +10094,7 @@ func _mirror_image_tests() -> void:
 	var names: Array = e.spells.map(func(s): return s["name"])
 	_check(e.spells.size() == 2 and "Chain Lightning" in names and "Gale Lift" in names, "it casts your marks' spells: %s" % ", ".join(names))
 	_check(e.marks.size() == p.bonds.size(), "your marks show on it")
-	_check(e.max_hp > 100.0 and e.max_hp < 3.5 * 48.0 * main.Floors.toughness(5).x, "a mini-boss's health, below a champion's (%d)" % int(e.max_hp))
+	_check(e.max_hp > 100.0 and e.max_hp < float(main.EnemyScript.CHAMPION["hp"]) * 48.0 * main.Floors.toughness(5).x, "a mini-boss's health, below a champion's (%d)" % int(e.max_hp))
 	var hp0: float = e.hp
 	e.state = "chase"
 	e.take_hit(20.0, Vector2.ZERO)

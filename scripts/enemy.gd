@@ -14,14 +14,21 @@ const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "b
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
-const GLINT_LEAD := 0.25  # seconds from the glint to the hit
-const FLINCH_TIME := 0.3
+## The rules every attack keeps live in combat.gd FOES (the Data editor's
+## "The climber's core numbers"); these read them.
+const Combat := preload("res://scripts/combat.gd")
+var GLINT_LEAD: float:  # seconds from the glint to the hit
+	get: return float(Combat.FOES["glint_lead"])
+var FLINCH_TIME: float:
+	get: return float(Combat.FOES["flinch_time"])
 ## A monster flinches from a light hit at most this often (no stun-locking
 ## by mashing); heavy hits (finishers) always rock it.
-const FLINCH_COOLDOWN := 1.2
+var FLINCH_COOLDOWN: float:
+	get: return float(Combat.FOES["flinch_cooldown"])
 ## After an attack, a monster is open: hits deal this much more. That's
 ## where your damage should come from.
-const OPEN_MULT := 1.6
+var OPEN_MULT: float:
+	get: return float(Combat.FOES["opening"])
 const POUNCE_SPEED := 420.0
 const LUNGE_SPEED := 760.0
 
@@ -32,27 +39,27 @@ static var TYPES := {
 	# The Gryphon's tower
 	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
-	"gryphon": {"hp": 300.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
+	"gryphon": {"hp": 280.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
 	# The Kraken's tower
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
-	"kraken": {"hp": 340.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
+	"kraken": {"hp": 316.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
-	"wyvern": {"hp": 320.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
+	"wyvern": {"hp": 298.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
-	"manticore": {"hp": 350.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
+	"manticore": {"hp": 326.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
 	"bloomcap": {"hp": 34.0, "speed": 0.0, "radius": 14.0, "color": Color(0.88, 0.42, 0.32), "dmg": 13.0, "weight": 60.0},
-	"firebird": {"hp": 330.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
+	"firebird": {"hp": 306.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
 	# The Chimera's tower
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
-	"chimera": {"hp": 380.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
+	"chimera": {"hp": 354.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# Covenant's spirit familiar (only ever on your side)
 	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
 }
@@ -179,7 +186,7 @@ var overlay: Node2D  # over the darkness: telegraphs and the health bar
 var champion := false
 var champ_t := 0.0  # until its next slam
 var champ_wind := 0.0  # the slam's wind-up, counting down
-static var CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
+static var CHAMPION := {"hp": 3.0, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
 	"slam_reach": 88.0, "slam_dmg": 1.3, "slam_near": 120.0, "color": Color(1.0, 0.82, 0.4)}
 ## A shade (the Proving's shadow of a beast, proving.gd): drawn in faded,
 ## ghostly colours toward `color`, `keep` of its own colour kept, with wisps

@@ -107,9 +107,12 @@ const SECTIONS := [
 		"names": {"STEP_XP": "Essence for each step", "AFFINITY_WEIGHT": "Own-kind essence counts", "OTHER_WEIGHT": "Other essence counts", "STEP_RATE": "Step growth rate",
 			"NEW_MARK_SOAK": "Soaked to take a new mark", "SOAK_RATE": "Soak rate", "MARK_FULL": "A mark is full at", "BODY_DRAG": "Slower growth as marks spread",
 			"FAINT_DEBT": "A faint mark's extra essence", "ATTRIBUTE_CAP": "Attribute bonus at most", "ATTRIBUTE_HALF": "Density for half the bonus", "DROPS": "Essence monsters drop"}},
+	{"id": "climber_numbers", "group": "numbers", "name": "The climber's core numbers", "when": "live",
+		"tables": ["combat/CLIMBER", "combat/FOES"], "kinds": ["number"],
+		"names": {"CLIMBER": "The climber: health, stamina, parry, roll", "FOES": "Every monster's attack"}},
 	{"id": "monsters", "group": "numbers", "name": "Monsters", "when": "floor",
-		"tables": ["enemy/TYPES", "enemy/CHAMPION", "floors/MONSTERS"], "kinds": ["number"], "skip": ["radius", "size", "from"],
-		"names": {"TYPES": "Health, speed, damage", "CHAMPION": "Champions (times)", "MONSTERS": "How often they come"}},
+		"tables": ["enemy/TYPES", "enemy/CHAMPION", "floors/MONSTERS", "floors/CURVE"], "kinds": ["number"], "skip": ["radius", "size", "from"],
+		"names": {"TYPES": "Health, speed, damage", "CHAMPION": "Champions (times)", "MONSTERS": "How often they come", "CURVE": "Harder with height (per floor)"}},
 	{"id": "items_numbers", "group": "numbers", "name": "Items and camps", "when": "live",
 		"tables": ["items/ITEMS", "items/BELT", "items/CAMP", "items/CRYSTAL", "items/RECALL", "lost/WEAPON_CHANCE", "lost/CACHE_CHANCE", "vessel/CAPACITY", "vessel/VAULT_CHANCE"], "kinds": ["number"]},
 	{"id": "gear_numbers", "group": "numbers", "name": "Gear and drops", "when": "live",
@@ -177,7 +180,7 @@ const KEY_NAMES := {"desc": "description", "dmg": "damage", "hp": "health", "mor
 const NUMBER_HINTS := {
 	"chance": [0.0, 1.0, 0.01], "odds": [0.0, 100.0, 1.0], "share": [0.0, 1.0, 0.01], "keep": [0.0, 1.0, 0.01],
 	"SELL_SHARE": [0.0, 1.0, 0.01], "WORN_SELL": [0.0, 1.0, 0.01], "MARK_FULL": [0.1, 1.0, 0.01], "VIGNETTE": [0.0, 1.0, 0.01],
-	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01],
+	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01], "roll_iframes": [0.0, 1.0, 0.01],
 }
 
 ## Words the owner never wants in the game (CLAUDE.md): a warning, not a block.

@@ -69,7 +69,7 @@ static var EFFECTS := {
 	# --- Iron ---------------------------------------------------------------------
 	"shrapnel": {"kind": "iron", "name": "Shrapnel", "says": "Shards fly from the struck foe", "opens": 100, "strain": 0.0, "levels": {},
 		"hit": "throws shards from what it hits into the foes around it", "self": "shards fly out from you into the foes near you", "shell": "throws shards out as it rises", "near": "throws shards between the foes near you",
-		"count": 3, "hop": 130.0, "damage": 4.0},
+		"count": 3, "hop": 130.0, "damage": 3.0},
 	"temper": {"kind": "iron", "name": "Temper", "says": "Your next weapon strikes hit harder", "opens": 300, "strain": 0.0, "levels": {},
 		"hit": "tempers your weapon: your strikes hit harder for a moment", "self": "tempers your weapon a long while, and your stamina comes back", "shell": "tempers your weapon while it holds", "near": "tempers your weapon for each foe near you",
 		"edge": 3.0, "long": 7.0, "stamina": 30.0},
@@ -79,7 +79,7 @@ static var EFFECTS := {
 	# --- Blade --------------------------------------------------------------------
 	"rend": {"kind": "blade", "name": "Rend", "says": "Bleeds stack", "opens": 100, "strain": 0.0, "levels": {},
 		"hit": "opens a bleed that deepens with each hit", "self": "opens a deepening bleed in the foes near you", "shell": "rends the foes near you as it rises", "near": "rends the foes near you",
-		"bleed": 1.5, "stacks": 5, "keep": 4.0, "around": 90.0},
+		"bleed": 2.5, "stacks": 5, "keep": 4.0, "around": 90.0},
 	"shards": {"kind": "blade", "name": "Shards", "says": "Blades left on the floor cut what walks over them", "opens": 300, "strain": 0.0, "levels": {},
 		"hit": "leaves blades on the floor that cut what walks over them", "self": "scatters blades on the floor around you", "shell": "scatters blades around you as it rises", "near": "scatters blades under the foes near you",
 		"radius": 34.0, "seconds": 4.0, "damage": 2.5, "around": 64.0},
@@ -105,7 +105,7 @@ static var EFFECTS := {
 		"more": 0.25, "seconds": 4.0, "around": 130.0},
 	"fray": {"kind": "unmaking", "name": "Fray", "says": "Erodes faster the longer it lasts", "opens": 600, "strain": 0.0, "levels": {},
 		"hit": "frays what it hits, eroding faster the longer it lasts, at a cost in your health", "self": "frays the foes near you, at a cost in health", "shell": "frays the foes near you as it rises, at a cost in health", "near": "frays the foes near you, at a cost in health",
-		"erode": 1.5, "grow": 0.5, "seconds": 4.0, "around": 120.0},
+		"erode": 2.0, "grow": 0.6, "seconds": 4.0, "around": 120.0},
 }
 
 ## Echoes (more than library.gd's own six): a technique of this form, led by

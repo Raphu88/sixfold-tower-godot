@@ -16,8 +16,8 @@ extends RefCounted
 ##   Step 4: Challenge or Tidebreak: a parry while the barrier holds sends out a wave.
 ## Deepcaller (Undertow):
 ##   Step 2: Anchor or Leech: a leech of water clings to a foe and drinks from it.
-##   Step 3: Deeper (today's) or Patient: a longer wind-up drains nearly
-##     twice as hard (the library's Charged).
+##   Step 3: Deeper (today's) or Patient: a longer wind-up drains much
+##     harder (the library's Charged).
 ##   Step 4: Siphon or Drown: pull a foe under; the more hurt it is, the harder.
 ##
 ## Things that last a while are small Lasting nodes under the SpellFx node
@@ -47,8 +47,8 @@ static var FORKS := {
 		4: {"id": "geysers", "name": "Geysers", "type": "geysers", "learn": 4,
 			"desc": "three geysers burst one after another along your aim, each throwing foes off their feet",
 			"steps": {
-				4: {"cost": 14.0, "windup": 0.45, "damage": 12.0, "radius": 50.0, "count": 3, "spacing": 75.0, "stun": 0.6},
-				5: {"damage": 14.0},
+				4: {"cost": 14.0, "windup": 0.45, "damage": 10.0, "radius": 50.0, "count": 3, "spacing": 75.0, "stun": 0.6},
+				5: {"damage": 12.0},
 			}},
 	},
 	"warden": {
@@ -78,7 +78,7 @@ static var FORKS := {
 				4: {"damage": 4.0},
 			}},
 		3: {"id": "patient", "variation": "charged", "name": "Patient",
-			"desc": "a longer wind-up drains up to 3 foes nearly twice as hard",
+			"desc": "a longer wind-up drains up to 3 foes much harder",
 			"steps": {3: {}}},
 		4: {"id": "drown", "name": "Drown", "type": "drown", "learn": 4,
 			"desc": "pull the foe you aim at under: the more hurt it is, the harder it strikes, and a badly hurt foe is held a moment",
