@@ -105,10 +105,15 @@ func _tree_rules() -> void:
 	_check(TR.is_fork_ready(prof, "hand") and TR.ready_forks(prof, "hand") == ["mark:stormcaller:2", "mark:stormcaller:3"], "at step 3 the forks at 2 and 3 are ready (%s)" % [TR.ready_forks(prof, "hand")])
 	_check(not TR.is_fork_ready(prof, "legs"), "...a step-1 mark has none")
 	_check(TR.available(prof, "mark:stormcaller:4").is_empty(), "a fork not reached yet can't be chosen")
+	# A side not written yet (every fork is written now, so one is stood in for a moment).
+	var L = load("res://scripts/library.gd")
+	var written: Dictionary = L.MARK_FORKS["stormcaller"][4]
+	L.MARK_FORKS["stormcaller"][4] = {"id": "thunderclap", "name": "Thunderclap", "placeholder": true, "learn": 4, "desc": "a burst that stuns every charged foe"}
 	var n4: Dictionary = TR.node(prof, "mark:stormcaller:4")
 	_check(n4["options"][1]["state"] == "placeholder" and n4["options"][1]["name"] == "Thunderclap", "a side not written yet shows as a placeholder (Thunderclap)")
 	prof.bonds["hand"]["xp"] = 1000.0
 	_check(TR.node(prof, "mark:stormcaller:4")["state"] == "owned" and not TR.choose(prof, "mark:stormcaller:4", "thunderclap"), "...and can't be chosen even once reached (its fork isn't ready: today's side stays)")
+	L.MARK_FORKS["stormcaller"][4] = written
 	prof.bonds["hand"]["xp"] = 500.0
 	_check(not TR.choose(prof, "mark:stormcaller:2", "nothing"), "an option that isn't there is refused")
 	_check(TR.choose(prof, "mark:stormcaller:2", "ball_lightning"), "choosing Ball Lightning at step 2")
@@ -142,7 +147,7 @@ func _tree_rules() -> void:
 	prof.part_density = {"hand": {"blade": U.LEVELS[2]}}
 	_check(U.level(prof, "hand") == 3 and TR.is_fork_ready(prof, "hand"), "at level 3 the level-2 fork is ready")
 	_check("volley" in TR.owned_forms(prof, "hand") and not "brand" in TR.owned_forms(prof, "hand"), "...and Volley (level 3) is open; Brand (level 7) isn't")
-	_check(TR.node(prof, "unbound:hand:7")["options"][0]["state"] == "placeholder" and TR.node(prof, "unbound:hand:10")["state"] == "later", "forms and capstones not written yet show as Coming later")
+	_check(TR.node(prof, "unbound:hand:7")["options"][0]["state"] == "locked" and TR.node(prof, "unbound:hand:10")["state"] == "locked", "forms and capstones not reached yet are locked (tests/parts/unbound_forms.gd tests them)")
 	_check(TR.choose(prof, "unbound:hand:2", "split"), "choosing Split")
 	var o2: Array = TR.node(prof, "unbound:hand:2")["options"]
 	_check(o2[0]["state"] == "owned" and o2[1]["state"] == "learnable" and int(o2[1]["cost"]) == TR.skipped_cost(2), "...Quick, passed on, can be learned now the hand is a level past it (%s)" % o2[1]["state"])

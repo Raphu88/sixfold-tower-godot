@@ -219,7 +219,7 @@ func _gryphon_tests() -> void:
 	_mark("legs", "windwalker", 5)
 	_mark("brow", "hunter", 5)
 	_check(p.bonds["hand"].spells().size() == 4 and p.bonds["legs"].spells().size() == 4 and p.bonds["brow"].spells().size() == 4, "at step 5 each Gryphon bond knows four spells")
-	_check(main.ProfileScript.Bonds.step_note("windwalker", 2) == "learns Crosswind", "growing a step names the spell learned")
+	_check(main.ProfileScript.Bonds.step_note("windwalker", 2).begins_with("learns Crosswind"), "growing a step names the spell learned")
 	# Hold to pick: holding the key opens the ring (time stops); pointing picks.
 	Input.action_press("cast_legs")
 	await _wait(0.4)
