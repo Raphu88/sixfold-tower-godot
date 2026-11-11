@@ -184,7 +184,7 @@ static func _blazing_trail(bond, p) -> void:
 	spawn(main, dur, tick, paint, {"last": p.global_position, "at": p.global_position})
 	main.fx_ring(p.global_position, col, 36.0, 0.3, 3.0)
 	main.light_flash(p.global_position, col, 1.3, 1.4, 0.3)
-	main.sfx("burn", 1.1, -2.0)
+	main.sfx("spell_fire", 1.1, -2.0)
 
 
 ## Detonate: the patches of your burning ground nearest you burst, one after
@@ -216,7 +216,7 @@ static func _detonate(bond, p) -> void:
 		var s: Vector2 = spots[i]
 		FX.later(main, 0.08 + 0.07 * i, func():
 			main.explode(s, r, dmg, col)
-			main.sfx("burn", 0.8 + 0.08 * i, -6.0))
+			main.sfx("fire_blast", 0.9 + 0.08 * i, -4.0))
 	# Fuses race out from you to each patch.
 	var paint := func(n):
 		var k := clampf(n.age / 0.12, 0.0, 1.0)
@@ -272,7 +272,7 @@ static func _cinder_dive(bond, p) -> void:
 	main.light_flash(end, col, 1.6, 1.8, 0.3)
 	main.fx_burst(end, p.aim, col, 14, 260.0)
 	main.sfx("gust", 1.2)
-	main.sfx("burn", 1.0, -3.0)
+	main.sfx("spell_fire", 1.0, -2.0)
 	main.shake(3.0)
 	if bond._overdrawn():
 		p.hp = maxf(1.0, p.hp - 5.0)  # an overdrawn dive scorches you too
@@ -341,7 +341,7 @@ static func _heat_haze(bond, p) -> void:
 			n.draw_circle(pf["pos"] + Vector2(0, -10.0 * k), 4.0 + 8.0 * k, Color(0.5, 0.45, 0.42, 0.45 * (1.0 - k)))
 	spawn(main, float(bond.stat("duration")), tick, paint, {"at": p.global_position, "r": p.aura_r, "tick": 0.0, "puffs": []})
 	main.fx_ring(p.global_position, col, p.aura_r, 0.4, 3.0)
-	main.sfx("burn", 1.3, -3.0)
+	main.sfx("spell_fire", 1.25, -2.0)
 	main.sfx("gust", 0.6, -8.0)
 
 
@@ -381,7 +381,7 @@ static func _flashpoint(bond, p) -> void:
 	spawn(main, 0.4, Callable(), paint, {"at": at})
 	main.fx_burst(at, Vector2.ZERO, col, 22, 320.0)
 	main.light_flash(at, col, 1.8, 2.0, 0.35)
-	main.sfx("burn", 0.8)
+	main.sfx("fire_blast", 0.9)
 	main.sfx("hit_heavy", 0.9, -4.0)
 	main.shake(5.0)
 
@@ -414,7 +414,7 @@ static func _backdraft(bond, p) -> void:
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 16, 280.0)
 			main.fx_text(p.global_position + Vector2(0, -58), TEXT["backdraft"], col)
 			main.light_flash(p.global_position, col, 1.5, 1.8, 0.3)
-			main.sfx("burn", 1.1)
+			main.sfx("fire_blast", 1.05)
 			main.shake(3.0)
 		n.data["last"] = p.hp
 		return true
@@ -428,4 +428,4 @@ static func _backdraft(bond, p) -> void:
 	spawn(main, float(bond.stat("duration")), tick, paint, {"last": p.hp, "cd": 0.0, "at": p.global_position, "bursts": []})
 	main.fx_ring(p.global_position, col, 40.0, 0.35, 3.0)
 	main.sfx("charge", 0.9, -3.0)
-	main.sfx("burn", 0.9, -5.0)
+	main.sfx("spell_fire", 0.9, -3.0)

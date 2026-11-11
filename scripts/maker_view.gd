@@ -150,7 +150,7 @@ func choose(i: int) -> void:
 	elif listening:
 		result["lines"].append(Makers.TEXT["listen"] % Makers.MAKERS[interrupter]["Name"])
 	if result.get("granted", "") != "":
-		main.sfx("crit", 0.6, -2.0)
+		main.sfx("maker_grant", 1.0, 0.0, 0.0)
 	else:
 		main.sfx("ui_back", 0.7, -4.0, 0.0)
 	_to("verdict")

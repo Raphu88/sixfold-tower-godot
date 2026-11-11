@@ -188,7 +188,7 @@ func light(q: Dictionary) -> bool:
 	if lit_n < order.size() and q["sign"] == order[lit_n]:
 		q["lit"] = true
 		lit_n += 1
-		main.sfx("burn", 1.2, -6.0)
+		main.sfx("pedestal", 0.9 + 0.08 * lit_n, 0.0, 0.0)
 		main.fx_burst(q["pos"] + Vector2(0, -10), Vector2.UP, LIT, 10, 120.0)
 		if lit_n >= order.size():
 			host.solve()

@@ -114,7 +114,7 @@ func slide(b: Dictionary, dir: Vector2) -> bool:
 	var tw := body.create_tween()
 	tw.tween_property(body, "position", to, 0.14)
 	b["tween"] = tw
-	main.sfx("slam", 0.9, -10.0)
+	main.sfx("stone_slide", 1.0, 0.0)
 	main.shake(1.5)
 	return true
 
@@ -159,7 +159,7 @@ func _pull(l: Dictionary) -> void:
 	if l["t"] > 0.0:
 		return
 	l["t"] = 0.6
-	main.sfx("trap_click", 0.8, -4.0)
+	main.sfx("lever", 1.0, 0.0)
 	if host.solved:
 		return
 	reset()

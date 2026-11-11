@@ -367,7 +367,7 @@ func _start(p, g: Vector2i, d: Vector2i) -> void:
 	last_pos = p.global_position
 	stuck_t = 0.0
 	slides += 1
-	main.sfx("roll", 1.45, -12.0, 0.08)
+	main.sfx("ice_slide", 1.0, 0.0, 0.08)
 
 
 func _slide(p, delta: float) -> void:
@@ -379,7 +379,7 @@ func _slide(p, delta: float) -> void:
 		p.velocity = to / delta
 		slide_dir = Vector2i.ZERO
 		if not exit_slide:
-			main.sfx("hit_blunt", 0.7, -14.0, 0.05)
+			main.sfx("ice_bump", 1.0, 0.0, 0.05)
 			main.fx_burst(target + dv * 18.0, -dv, ICE_HI, 5, 70.0)
 		else:
 			slides = 0

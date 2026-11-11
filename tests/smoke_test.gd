@@ -66,10 +66,34 @@ func _silent_sounds() -> Array:
 	for kind in E.MATERIAL:
 		if E.MATERIAL[kind] != "":
 			names[E.MATERIAL[kind]] = true
+		# Every monster cries when struck and has its own death (enemy.gd
+		# _hurt_voice, main.gd on_enemy_killed); every beast a roar and a warning.
+		names["hurt_" + kind] = true
+		names["kill_" + kind] = true
+	for kind in E.BOSSES:
+		names["roar_" + kind] = true
+		names["warn_" + kind] = true
+	for id in preload("res://scripts/items.gd").USE_SOUNDS.values():
+		names[id] = true
+	# The train's and the bench's results (train_page.gd _done's sound), and
+	# the other half of a choice the regex above only sees the start of.
+	var done := RegEx.new()
+	done.compile("_done\\(.*\"([a-z_]+)\"\\)+\\s*$")
+	for f in ["train_page.gd", "vessel_page.gd"]:
+		for line in FileAccess.get_file_as_string("res://scripts/" + f).split("\n"):
+			var m := done.search(line)
+			if m != null:
+				names[m.get_string(1)] = true
+	for n in ["craft_break", "craft_rune", "secret_unmaking"]:
+		names[n] = true
 	var missing: Array = []
 	for n in names:
 		if not main.audio.has_sound(n):
 			missing.append(n)
+	# Each tower has its own ambience, and so does the train.
+	for place in preload("res://scripts/towers.gd").ORDER + ["train"]:
+		if not main.audio.Bank.MUSIC.has("ambience_" + place):
+			missing.append("ambience_" + place)
 	return missing
 
 
@@ -6877,6 +6901,12 @@ func _run() -> void:
 	_check(main.audio.streams.size() >= 30 and main.audio.has_sound("hit"), "sounds loaded (%d)" % main.audio.streams.size())
 	var silent := _silent_sounds()
 	_check(silent.is_empty(), "every sound the code plays is in the sound bank (missing: %s)" % ", ".join(silent))
+	var amb_was: String = main.audio.ambience_key
+	main.audio.set_ambience("kraken", 0.01)
+	_check(main.audio.ambience_key == "ambience_kraken" and main.audio.ambience.playing, "each tower has its own ambience (the Kraken's: %s)" % main.audio.ambience_key)
+	main.audio.set_ambience("nowhere", 0.01)
+	_check(main.audio.ambience_key == "ambience", "anywhere else, the default ambience")
+	main.audio.set_ambience(amb_was.trim_prefix("ambience_"), 0.01)
 	for i in 12:  # a busy frame: the same hit a dozen times
 		main.audio.last_played.erase("hit")
 		main.audio.play("hit")

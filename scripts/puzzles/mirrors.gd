@@ -244,7 +244,7 @@ func turn(m: Dictionary, quiet := false) -> bool:
 	m["cd"] = TURN_CD
 	_retrace()
 	if not quiet:
-		main.sfx("trap_click", 1.3, -6.0)
+		main.sfx("mirror_turn", 1.0, 0.0)
 	main.fx_burst(m["pos"], Vector2.ZERO, Color(0.9, 0.95, 1.0), 6, 90.0)
 	return true
 

@@ -395,6 +395,11 @@ static func camp_choices(marked := true) -> Array:
 	return out
 
 
+## The sound of using each item (sound_bank.gd); one not listed plays "ready".
+const USE_SOUNDS := {"draught": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
+	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready"}
+
+
 ## Uses an item on the climber. Returns false (and says why) if it would do
 ## nothing, so it isn't wasted.
 static func use(id: String, p) -> bool:
@@ -515,7 +520,7 @@ static func use(id: String, p) -> bool:
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 20, 360.0)
 			main.sfx("gust", 1.0, -3.0)
 	main.fx_ring(p.global_position, col, 34.0, 0.3, 3.0)
-	main.sfx("ready", 1.0, -3.0)
+	main.sfx(USE_SOUNDS.get(id, "ready"), 1.0, -3.0)
 	return true
 
 

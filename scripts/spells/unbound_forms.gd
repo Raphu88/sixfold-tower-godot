@@ -252,7 +252,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			for i in n:
 				var dir: Vector2 = aim.rotated(spread * (float(i) - float(n - 1) * 0.5))
 				run.add_bolt(origin + dir * (p.radius + 6.0), dir * float(sh["speed"]), float(sh["range"]) * reach_k, float(sh["damage"]) * power, w, power, col)
-			main.sfx("zap", 1.35, -5.0)
+			main.sfx("form_bolt", 1.0, -3.0)
 			return 0
 		"brand":
 			var reach: float = float(sh["reach"]) * reach_k
@@ -303,7 +303,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			p.raise_barrier(shield, dur, false, col)
 			_add(main, base.merged({"kind": "mantle", "left": dur, "total": dur, "r": float(sh["radius"]) * reach_k, "dmg": float(sh["damage"]) * power,
 				"stored": float(p.barrier_stored), "taken": int(p.hits_taken), "bhp": float(p.barrier_hp), "bt": float(p.barrier_t)}))
-			main.sfx("parry", 0.6, -6.0)
+			main.sfx("form_shell", 1.0, -3.0)
 			return 0
 		"hum":
 			var pc := base.merged({"kind": "hum", "off": off, "r": float(sh["radius"]) * reach_k, "left": int(sh["pulses"]), "every": float(sh["tick"]), "next": 0.0,
@@ -323,12 +323,12 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 				spot = _clear_to(main, origin, spot)
 			_add(main, base.merged({"kind": "call", "from": origin, "to": spot, "left": float(sh["travel"]), "total": float(sh["travel"]), "r": float(sh["radius"]),
 				"dmg": float(sh["damage"]) * power}))
-			main.sfx("warn_knight", 1.6, -6.0)
+			main.sfx("spell_wind", 0.75, -3.0)
 			return 0
 		"glare":
 			_add(main, base.merged({"kind": "glare", "dir": aim, "rot": null, "left": float(sh["duration"]), "total": float(sh["duration"]), "len": float(sh["length"]) * reach_k,
 				"width": float(sh["width"]), "every": float(sh["tick"]), "next": 0.0, "n": 0, "dmg": float(sh["damage"]) * power}))
-			main.sfx("charge", 1.5, -6.0)
+			main.sfx("form_beam", 1.0, -3.0)
 			return 0
 		"omen":
 			var at := _clear_to(main, origin, origin + aim * float(sh["range"]) * reach_k)
@@ -345,7 +345,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 		"wellspring":
 			_add(main, base.merged({"kind": "well", "pos": origin + off, "left": float(sh["duration"]), "total": float(sh["duration"]),
 				"r": float(sh["radius"]), "every": float(sh["tick"]), "next": 0.0, "hold": float(sh["hold"])}))
-			main.sfx("ready", 0.8, -4.0)
+			main.sfx("spell_life", 0.9, -3.0)
 			return 0
 	return -1
 
@@ -374,10 +374,10 @@ static func _pulse(pc: Dictionary, at: Vector2) -> int:
 	if pc["kind"] == "beat":
 		main.fx_ring(at, col, float(pc["r"]) * 0.7, 0.18, 4.0)
 		main.fx_ring(at, col.lightened(0.3), float(pc["r"]), 0.32, 3.0)
-		main.sfx("hit_blunt", 0.55, -6.0)
+		main.sfx("heartbeat", 1.0, -4.0)
 	else:
 		main.fx_ring(at, col, float(pc["r"]), 0.4, 3.0)
-		main.sfx("warn_knight", 0.75, -9.0)
+		main.sfx("form_hum", 1.0, -4.0)
 	main.light_flash(at, col, 1.0, 0.9, 0.2)
 	return n
 
@@ -609,7 +609,7 @@ static func _capstones(n, p, delta: float) -> void:
 		main.fx_ring(p.global_position, RAW, 110.0, 0.5, 3.0)
 		main.fx_burst(p.global_position, Vector2.ZERO, RAW, 18, 200.0)
 		main.light_flash(p.global_position, RAW, 2.0, 1.8, 0.5)
-		main.sfx("ready", 0.6, 0.0)
+		main.sfx("heartbeat", 0.9, 0.0)
 		n.pieces.append({"kind": "heart_glow", "left": 1.2, "col": col, "age": 0.0})
 
 

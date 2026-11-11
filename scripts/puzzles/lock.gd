@@ -185,7 +185,7 @@ func _take(k: String) -> bool:
 	step += 1
 	main.fx_text(lock + Vector2(0, -40), TEXT["taken"] % Essence.display(k), Essence.color(k))
 	main.fx_ring(lock, Essence.color(k), 70.0, 0.5, 3.0)
-	main.sfx("glint", 0.8 + 0.2 * step, -2.0, 0.0)
+	main.sfx("lock_turn", 0.9 + 0.1 * step, 0.0, 0.0)
 	main.shake(3.0)
 	if step >= answers.size():
 		host.solve()

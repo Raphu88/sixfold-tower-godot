@@ -184,7 +184,7 @@ static func _flood(bond, sp: Dictionary, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_burst(at, Vector2.ZERO, col, 18, 240.0)
 	main.light_flash(at, col, 1.4, 0.9, 0.4)
-	main.sfx("hit_slime", 0.5)
+	main.sfx("wave", 0.8)
 	main.sfx("gust", 0.6, -6.0)
 
 
@@ -212,7 +212,7 @@ static func _geysers(bond, p) -> void:
 		FX.mark(main, at, delay, col)
 		FX.later(main, delay, func():
 			_geyser_burst(main, at, radius, dmg, stun, col))
-	main.sfx("hit_slime", 0.6, -4.0)
+	main.sfx("spell_water", 0.9, -2.0)
 
 
 static func _geyser_burst(main, at: Vector2, radius: float, dmg: float, stun: float, col: Color) -> void:
@@ -241,7 +241,7 @@ static func _geyser_burst(main, at: Vector2, radius: float, dmg: float, stun: fl
 	_lasting(main, 0.55, Callable(), paint)
 	main.fx_burst(at, Vector2.UP, col, 14, 260.0)
 	main.light_flash(at, col, 1.2, 1.2, 0.3)
-	main.sfx("hit_slime", 0.7)
+	main.sfx("geyser")
 	main.sfx("gust", 1.2, -6.0)
 	main.shake(3.0)
 
@@ -296,7 +296,7 @@ static func _bulwark(bond, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_burst(center + aim * radius, aim, WATER, 14, 220.0)
 	main.light_flash(center + aim * radius, col, 1.1, 1.0, 0.3)
-	main.sfx("hit_slime", 0.8)
+	main.sfx("spell_frost", 0.8)
 	main.sfx("parry", 0.6, -8.0)
 
 
@@ -363,7 +363,7 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 		if st["parried"] and p.barrier_hp > 0.0:
 			main.add_wave(p.global_position, p.aim, width, travel, dmg, push, false, WATER)
 			main.fx_text(p.global_position + Vector2(0, -48), TEXT["tidebreak"], col)
-			main.sfx("hit_slime", 0.6)
+			main.sfx("wave")
 			main.sfx("gust", 0.8, -4.0)
 			main.shake(4.0)
 			st["swell"] = 0.4
@@ -434,7 +434,7 @@ static func _leech(bond, sp: Dictionary, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_bolt([p.global_position, target.global_position], col)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 22.0), TEXT["leeched"], col)
-	main.sfx("hit_slime", 1.2, -4.0)
+	main.sfx("spell_water", 1.2, -2.0)
 
 
 ## Drown: the foe you aim at is pulled under: `damage`, plus `missing` of
@@ -475,7 +475,7 @@ static func _drown(bond, sp: Dictionary, p) -> void:
 	main.fx_bolt([at, p.global_position], col)
 	main.fx_burst(at, Vector2.UP, col, 14, 220.0)
 	main.light_flash(at, col, 1.2, 1.2, 0.35)
-	main.sfx("hit_slime", 0.5)
+	main.sfx("spell_water", 0.7)
 	main.sfx("zap", 0.5, -6.0)
 	main.hitstop(0.05)
 	if bond._overdrawn():

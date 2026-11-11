@@ -197,7 +197,7 @@ static func _ball_lightning(bond, p) -> void:
 				main.light_flash(o["pos"], col, 1.0, 1.2, 0.2)
 				main.sfx("zap", 1.3, -6.0))
 	main.light_flash(start, col, 1.0, 1.4, 0.3)
-	main.sfx("zap", 0.7, -3.0)
+	main.sfx("spell_lightning", 1.0, -2.0)
 
 
 ## Thunderclap: every charged foe in reach is stunned and struck, and its
@@ -238,7 +238,7 @@ static func _thunderclap(bond, p) -> void:
 		n.draw_arc(at, r * 0.35, 0.0, TAU, 28, Color(col, 0.5 * a), 3.0, true)
 	_lasting(main, 0.45, Callable(), paint)
 	main.light_flash(at, col, 2.2, 1.8, 0.35)
-	main.sfx("zap", 0.5)
+	main.sfx("thunder")
 	main.sfx("slam", 0.7, -4.0)
 	main.shake(7.0)
 	main.hitstop(0.06)
@@ -284,7 +284,7 @@ static func _updraft(bond, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_ring(at, col, radius, 0.3, 3.0)
 	main.light_flash(at, col, 1.0, 0.8, 0.3)
-	main.sfx("gust", 1.1)
+	main.sfx("spell_wind", 1.1)
 
 
 ## Hurl: every foe in the air near you is flung along your aim. It strikes
@@ -336,7 +336,7 @@ static func _hurl(bond, sp: Dictionary, p) -> void:
 				n.draw_line(from, from - aim * (22.0 + 10.0 * k), Color(col.lightened(0.3), 0.6), 2.0, true)
 	_lasting(main, 0.9, tick, paint)
 	main.fx_cone(p.global_position, aim, 120.0, deg_to_rad(25.0), col)
-	main.sfx("gust", 0.7)
+	main.sfx("spell_wind", 0.8)
 	main.sfx("swing_heavy", 0.8, -4.0)
 
 

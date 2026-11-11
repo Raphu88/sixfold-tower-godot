@@ -406,7 +406,7 @@ static func _burning_floor(main, at: Vector2, r: float, seconds: float, burn: fl
 		for o in foes:
 			o.ignite(burn, burn_t))
 	runner(main).decal("flames", at, seconds, r, col)
-	main.sfx("burn", 1.2, -8.0)
+	main.sfx("spell_fire", 1.2, -6.0)
 
 
 ## A blast a moment later (and the warning ring meanwhile).
@@ -421,7 +421,7 @@ static func _blast_later(p, at: Vector2, delay: float, r: float, dmg: float, bur
 				o.ignite(burn, 2.0)
 		runner(main).decal("blast", c, 0.45, r, col)
 		main.light_flash(c, col, 1.2, 1.6, 0.3)
-		main.sfx("burn", 0.8, -4.0))
+		main.sfx("fire_blast", 1.0, -4.0))
 
 
 ## Smoulder: burns, and when this foe falls while it smoulders, the burn
@@ -467,7 +467,7 @@ static func _chill(main, e, share: float) -> void:
 		e.stagger(float(fx["freeze"]) * (0.5 + 0.5 * share) * (0.5 if e.is_boss() else 1.0))
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), "Frozen", _col("chill").lightened(0.3))
 		runner(main).decal("frost", e.global_position, 1.0, e.radius + 6.0, _col("chill"), {"a": e})
-		main.sfx("glint", 0.7, -4.0)
+		main.sfx("spell_frost", 1.0, -4.0)
 	e.set_meta("chill_n", stacks)
 	e.set_meta("chill_at", now)
 
@@ -478,7 +478,7 @@ static func _mist(p, at: Vector2, r: float, seconds: float, lose: float, col: Co
 		for o in foes:
 			o.lose_track(lose, null))
 	runner(main).decal("mist", at, seconds, r, col.lightened(0.35))
-	main.sfx("hiss", 0.8, -8.0)
+	main.sfx("spell_water", 0.8, -6.0)
 
 
 static func _lift(main, e, share: float) -> void:
@@ -495,7 +495,7 @@ static func _gust(main, e, dir: Vector2, force: float, col: Color) -> void:
 	e.tide_push(dir * force * k)
 	e.knock = dir * force * k * 0.7
 	runner(main).decal("gust", e.global_position, 0.45, 28.0, col, {"dir": dir})
-	main.sfx("gust", 1.3, -6.0)
+	main.sfx("spell_wind", 1.2, -4.0)
 
 
 static func _rubble(main, at: Vector2, r: float, seconds: float, slow: float, col: Color) -> void:
@@ -503,7 +503,7 @@ static func _rubble(main, at: Vector2, r: float, seconds: float, slow: float, co
 		for o in foes:
 			o.chill_t = maxf(o.chill_t, slow))
 	runner(main).decal("rubble", at, seconds, r, col)
-	main.sfx("slam", 1.4, -10.0)
+	main.sfx("spell_stone", 1.2, -6.0)
 
 
 static func _grit(p, seconds: float) -> void:
@@ -523,7 +523,7 @@ static func _tremor(p, at: Vector2, r: float, dmg: float, stagger: float, col: C
 				o.stagger(stagger)
 		runner(main).decal("tremor", at, 0.55, r, col)
 		main.shake(3.0)
-		main.sfx("slam", 0.9, -6.0))
+		main.sfx("spell_stone", 0.85, -4.0))
 
 
 static func _shrapnel(p, at: Vector2, count: int, hop: float, dmg: float, col: Color, skip) -> void:
@@ -539,7 +539,7 @@ static func _shrapnel(p, at: Vector2, count: int, hop: float, dmg: float, col: C
 	for i in range(n, count):
 		var ang := TAU * float(i) / float(count) + randf() * 0.5
 		runner(main).decal("shard", at, 0.3, 4.0, col, {"to": at + Vector2.from_angle(ang) * hop * 0.6})
-	main.sfx("hit_armor", 1.5, -8.0)
+	main.sfx("spell_iron", 1.3, -6.0)
 
 
 static func _temper(p, seconds: float, stamina: float) -> void:
@@ -560,7 +560,7 @@ static func _lodestone(main, at: Vector2, r: float, pull: float, col: Color, ski
 		o.tide_push(to.normalized() * minf(pull, to.length() * 3.0))
 		runner(main).decal("lode", at, 0.45, 4.0, col, {"to": o.global_position})
 	main.fx_ring(at, col, 26.0, 0.35, 3.0)
-	main.sfx("glint", 0.6, -8.0)
+	main.sfx("spell_iron", 0.7, -6.0)
 
 
 ## Rend: each hit deepens the bleed (up to "stacks"), the bleed growing with it.
@@ -584,7 +584,7 @@ static func _blades(p, at: Vector2, r: float, seconds: float, dmg: float, col: C
 			if o.velocity.length() > 5.0 or o.is_attacking():
 				o.take_hit(dmg, Vector2.ZERO, 0.0, false, true))
 	runner(main).decal("blades", at, seconds, r, col)
-	main.sfx("glint", 1.4, -8.0)
+	main.sfx("spell_blade", 1.2, -6.0)
 
 
 ## Answer: for a while, the first foe to start a swing at you (near enough)
@@ -630,7 +630,7 @@ static func _bloom(p, at: Vector2, heal: float, seconds: float, col: Color) -> v
 			var T = load("res://scripts/technique.gd")
 			T._heal(p, heal)
 			main.fx_burst(at, Vector2.UP, col, 8, 90.0)
-			main.sfx("pickup", 1.3, -6.0)
+			main.sfx("spell_life", 1.1, -4.0)
 			r.decals.erase(d)
 			return false
 		return true)
