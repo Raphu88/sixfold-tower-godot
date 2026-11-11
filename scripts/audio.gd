@@ -26,6 +26,7 @@ var last_played := {}
 var last_variant := {}
 var music: AudioStreamPlayer
 var ambience: AudioStreamPlayer
+var ambience_key := "ambience"  # which loop plays: "ambience", or "ambience_<tower>" / "ambience_train"
 var music_on := true
 
 
@@ -85,7 +86,31 @@ func set_levels(music_frac: float, sound_frac: float) -> void:
 func _apply_music() -> void:
 	var off := not music_on or music_level <= 0.01
 	music.volume_db = -80.0 if off else MUSIC_DB + linear_to_db(music_level)
-	ambience.volume_db = -80.0 if off else AMBIENCE_DB + linear_to_db(music_level)
+	ambience.volume_db = _ambience_db()
+
+
+func _ambience_db() -> float:
+	return -80.0 if not music_on or music_level <= 0.01 else AMBIENCE_DB + linear_to_db(music_level)
+
+
+## Each place has its own ambience under the music: a tower's id ("kraken"),
+## "train", or anything else for the default loop. The old loop fades out as
+## the new one fades in.
+func set_ambience(place: String, fade_time := 2.0) -> void:
+	var key := "ambience_" + place
+	if not Bank.MUSIC.has(key):
+		key = "ambience"
+	if key == ambience_key or ambience == null:
+		return
+	ambience_key = key
+	var old := ambience
+	ambience = _loop_player(Bank.MUSIC[key], -60.0)
+	var tw := create_tween()
+	tw.tween_property(ambience, "volume_db", _ambience_db(), fade_time)
+	if old != null:
+		var out := create_tween()
+		out.tween_property(old, "volume_db", -60.0, fade_time)
+		out.tween_callback(old.queue_free)
 
 
 func has_sound(sound: String) -> bool:

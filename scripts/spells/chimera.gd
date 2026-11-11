@@ -16,7 +16,7 @@ extends RefCounted
 ##
 ## The pact book, the retinue and the grafts are bond.gd's and main.gd's, as
 ## before: these spells only use them (main.allies(), spawn_ally, grafts).
-## What stays a while is drawn by firebird.gd's Lasting node (spawn()).
+## What stays a while is spell_fx.gd's shared Lasting node (firebird.gd spawn()).
 
 const FX := preload("res://scripts/spell_fx.gd")
 const Fire := preload("res://scripts/spells/firebird.gd")
@@ -25,11 +25,11 @@ static var FORKS := {
 	"covenant": {
 		"change": {"name": "Paired", "says": "each Call brings two creatures"},
 		2: {"id": "rally", "name": "Rally", "type": "rally", "learn": 2,
-			"desc": "your creatures are healed a third and stay 4 seconds longer; for 8 seconds they move faster and hit half again as hard",
-			"steps": {2: {"cost": 6.0, "windup": 0.1, "duration": 8.0, "heal": 0.35, "might": 1.5, "haste": 1.3, "extend": 4.0}}},
+			"desc": "your creatures are healed a third and stay 4 seconds longer; for 8 seconds they move faster and hit a third again as hard",
+			"steps": {2: {"cost": 6.0, "windup": 0.1, "duration": 8.0, "heal": 0.35, "might": 1.35, "haste": 1.3, "extend": 4.0}}},
 		3: {"id": "mighty", "variation": "charged", "name": "Mighty",
-			"desc": "Call winds up longer and calls one creature, nearly twice as strong",
-			"steps": {3: {"might": 1.8}}},
+			"desc": "Call winds up longer and calls one creature, twice as strong",
+			"steps": {3: {"might": 2.1}}},
 		4: {"id": "release", "name": "Release", "type": "release", "learn": 4,
 			"desc": "release your nearest creature in a burst that hurts the foes around it and heals you",
 			"steps": {4: {"cost": 8.0, "windup": 0.15, "damage": 12.0, "radius": 85.0, "heal": 0.3}}},
@@ -43,7 +43,7 @@ static var FORKS := {
 				4: {"damage": 18.0},
 			}},
 		3: {"id": "echoing", "variation": "echo", "name": "Echoing",
-			"desc": "Graft Burst bursts again a second later, at half strength",
+			"desc": "Graft Burst bursts again a second later, a little weaker",
 			"steps": {3: {"damage": 10.0}}},
 		4: {"id": "graft_bud", "name": "Bud", "type": "graft_bud", "learn": 4,
 			"desc": "your newest graft buds into a creature of its kind that fights beside you for 15 seconds (one at a time)",
@@ -52,9 +52,9 @@ static var FORKS := {
 	"surgeon": {
 		"change": {"name": "Disarming", "says": "a foe already crippled is disarmed instead"},
 		2: {"id": "bloodletting", "name": "Bloodletting", "type": "bloodletting", "learn": 2,
-			"desc": "open a vein on the foe you aim at: it bleeds for 6 seconds, and you heal for half of what it loses",
+			"desc": "open a vein on the foe you aim at: it bleeds for 6 seconds, and you heal for 40% of what it loses",
 			"steps": {
-				2: {"cost": 10.0, "windup": 0.25, "damage": 2.5, "duration": 6.0, "reach": 130.0, "share": 0.5},
+				2: {"cost": 10.0, "windup": 0.25, "damage": 2.5, "duration": 6.0, "reach": 130.0, "share": 0.4},
 				4: {"damage": 3.2},
 				5: {"damage": 4.0},
 			}},
@@ -164,7 +164,7 @@ static func _rally(bond, p) -> void:
 	Fire.spawn(main, dur, Callable(), paint, {})
 	main.light_flash(p.global_position, col, 1.3, 1.4, 0.3)
 	main.sfx("ready", 1.2)
-	main.sfx("warn_knight", 1.4, -8.0)
+	main.sfx("beast_call", 1.0, -2.0)
 
 
 ## Mighty: Bind and Call as it is (binding works as before); a creature it
@@ -242,7 +242,7 @@ static func _release(bond, p) -> void:
 	main.fx_burst(at, Vector2.ZERO, col, 20, 300.0)
 	main.light_flash(at, col, 1.8, 1.8, 0.35)
 	main.sfx("hit_heavy", 0.8)
-	main.sfx("ready", 1.0, -4.0)
+	main.sfx("beast_call", 1.15, -4.0)
 	main.shake(4.0)
 
 
@@ -316,7 +316,7 @@ static func _bud(bond, p) -> void:
 		n.draw_circle(to, 6.0 + 10.0 * k, Color(col, 0.25 * f))
 	Fire.spawn(main, 0.45, Callable(), paint, {})
 	main.light_flash(to, col, 1.3, 1.4, 0.3)
-	main.sfx("hit_slime", 0.7)
+	main.sfx("spell_life", 0.9)
 	main.sfx("ready", 0.8, -5.0)
 
 
@@ -362,7 +362,7 @@ static func _bloodletting(bond, p) -> void:
 	Fire.spawn(main, float(bond.stat("duration")), tick, paint, {"at": t.global_position, "tick": 0.5})
 	main.fx_burst(t.global_position, Vector2.ZERO, BLOOD, 8, 160.0)
 	main.sfx("swing", 1.6)
-	main.sfx("hit_stab", 1.2, -4.0)
+	main.sfx("spell_blade", 1.1, -2.0)
 
 
 ## Chained: Sever as it is, then the cut leaps to the foe nearest the first
@@ -400,7 +400,7 @@ static func _chained(bond, p) -> void:
 		for c in [from, to]:  # a fine cross-cut where each was struck
 			n.draw_line(c - dir.rotated(0.8) * 10.0, c + dir.rotated(0.8) * 10.0, Color(BLOOD, 0.8 * f), 2.0, true)
 	Fire.spawn(main, 0.3, Callable(), paint, {})
-	main.sfx("swing", 1.9, -3.0)
+	main.sfx("spell_blade", 1.2, -2.0)
 
 
 ## Anesthetize: a fine needle; the foe sleeps (it can't move or attack)

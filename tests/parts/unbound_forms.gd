@@ -4,6 +4,7 @@ extends RefCounted
 ## and with a variation, hits and strains; each capstone works; nothing is
 ## left a placeholder; old Unbound saves are unaffected.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
+const TestRun := preload("res://scripts/test_run.gd")  # (every user:// path a test touches: its own run folder)
 
 const F := preload("res://scripts/spells/unbound_forms.gd")
 
@@ -384,7 +385,7 @@ func _old_saves() -> void:
 	print("the Unbound's forms: old saves")
 	await _fresh()
 	var P = load("res://scripts/profile.gd")
-	var path := "user://smoke_unbound_forms.cfg"
+	var path := TestRun.path("user://smoke_unbound_forms.cfg")
 	var techs: Array = []
 	for id in T.STARTERS:
 		techs.append(T.recipe(id))

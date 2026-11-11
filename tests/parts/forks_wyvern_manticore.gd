@@ -97,6 +97,10 @@ func _cast_by_key() -> void:
 	p.cast_t = 0.0
 	p._try_cast("hand")
 	await t._wait(hb.windup() + 0.12)
+	for i in 120:  # (a busy machine runs the fight slower than the clock: wait for the cast itself)
+		if p.cast_t <= 0.0:
+			break
+		await t._frames(1)
 	_check(is_equal_approx(before - hb.essence, hb.cost()), "...casting %s takes its %d essence (%.1f)" % [hb.spell_name(), int(hb.cost()), before - hb.essence])
 
 

@@ -400,8 +400,9 @@ func _draw_fields() -> void:
 		var k: float = clampf(f["t"] / maxf(f["total"], 0.01), 0.0, 1.0)
 		var fp: Vector2 = f["from"].lerp(f["to"], k) + Vector2(0, -sin(k * PI) * 34.0)
 		draw_circle(f["from"].lerp(f["to"], k) + Vector2(0, 6), 5.0, Color(0, 0, 0, 0.25))
-		draw_arc(f["to"], f["r"], 0.0, TAU, 32, Color(1.0, 0.5, 0.2, 0.25 + 0.3 * k), 1.5, true)
-		main.Items.draw_icon(self, "fire_flask", fp, 7.0)
+		var fid: String = f.get("id", "fire_flask")
+		draw_arc(f["to"], f["r"], 0.0, TAU, 32, Color(main.Items.color(fid), 0.25 + 0.3 * k), 1.5, true)
+		main.Items.draw_icon(self, fid, fp, 7.0)
 	for m in main.meteors:
 		var mk: float = clampf(1.0 - m["t"] / 0.6, 0.0, 1.0)
 		draw_circle(m["pos"], m["r"], Color(m["color"], 0.08 + 0.12 * mk))

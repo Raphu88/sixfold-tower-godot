@@ -31,6 +31,7 @@ extends RefCounted
 ## Never let an edit break the game: a value of the wrong kind is refused,
 ## numbers are kept within bounds, and words keep their %d / %s blanks.
 
+const TestRun := preload("res://scripts/test_run.gd")
 const PROJECT_PATH := "res://data/overrides.json"
 const LOCAL_PATH := "user://overrides.json"
 const FORMAT := 1
@@ -88,9 +89,12 @@ const SECTIONS := [
 		"tables": ["unbound/TEXT", "unbound/PART_NAMES", "technique/TEXT", "technique_page/TEXT", "unbound_run/TEXT"], "kinds": ["text"]},
 	{"id": "library_words", "group": "words", "name": "The library, the tree and the book", "when": "page",
 		"tables": ["library/FORMS", "library/EFFECTS", "library/VARIATIONS", "library/TEXT", "spells.gryphon/FORKS", "spells.kraken/FORKS", "spells.wyvern/FORKS",
-			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/TEXT", "tree_view/TEXT", "book/TEXT", "bonds/FORK_NOTE"], "kinds": ["text"],
-		"skip": ["type", "variation", "class", "form"],
-		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "TEXT": "Words", "FORK_NOTE": "A fork's step note"}},
+			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/TEXT", "tree_view/TEXT", "book/TEXT", "bonds/FORK_NOTE",
+			"spells.unbound_forms/TREE", "spells.unbound_effects/ECHO_ACTS", "spells.gryphon/TEXT", "spells.kraken/TEXT", "spells.wyvern/TEXT",
+			"spells.manticore/TEXT", "spells.firebird/TEXT", "spells.chimera/TEXT", "spells.unbound_forms/TEXT", "essence_bench/TEXT"], "kinds": ["text"],
+		"skip": ["type", "variation", "class", "form", "fork"],
+		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "TEXT": "Words", "FORK_NOTE": "A fork's step note",
+			"TREE": "The Unbound's capstones", "ECHO_ACTS": "Echoes: what each does"}},
 	{"id": "menu_words", "group": "words", "name": "Title, climbers and appearance", "when": "page",
 		"tables": ["title/TEXT", "climbers_page/TEXT", "appearance/TEXT", "appearance/NAMES", "essence/KINDS"], "kinds": ["text"],
 		"names": {"NAMES": "Names the dice offers", "KINDS": "Essences"}},
@@ -107,15 +111,18 @@ const SECTIONS := [
 		"names": {"STEP_XP": "Essence for each step", "AFFINITY_WEIGHT": "Own-kind essence counts", "OTHER_WEIGHT": "Other essence counts", "STEP_RATE": "Step growth rate",
 			"NEW_MARK_SOAK": "Soaked to take a new mark", "SOAK_RATE": "Soak rate", "MARK_FULL": "A mark is full at", "BODY_DRAG": "Slower growth as marks spread",
 			"FAINT_DEBT": "A faint mark's extra essence", "ATTRIBUTE_CAP": "Attribute bonus at most", "ATTRIBUTE_HALF": "Density for half the bonus", "DROPS": "Essence monsters drop"}},
+	{"id": "climber_numbers", "group": "numbers", "name": "The climber's core numbers", "when": "live",
+		"tables": ["combat/CLIMBER", "combat/FOES"], "kinds": ["number"],
+		"names": {"CLIMBER": "The climber: health, stamina, parry, roll", "FOES": "Every monster's attack"}},
 	{"id": "monsters", "group": "numbers", "name": "Monsters", "when": "floor",
-		"tables": ["enemy/TYPES", "enemy/CHAMPION", "floors/MONSTERS"], "kinds": ["number"], "skip": ["radius", "size", "from"],
-		"names": {"TYPES": "Health, speed, damage", "CHAMPION": "Champions (times)", "MONSTERS": "How often they come"}},
+		"tables": ["enemy/TYPES", "enemy/CHAMPION", "floors/MONSTERS", "floors/CURVE"], "kinds": ["number"], "skip": ["radius", "size", "from"],
+		"names": {"TYPES": "Health, speed, damage", "CHAMPION": "Champions (times)", "MONSTERS": "How often they come", "CURVE": "Harder with height (per floor)"}},
 	{"id": "items_numbers", "group": "numbers", "name": "Items and camps", "when": "live",
 		"tables": ["items/ITEMS", "items/BELT", "items/CAMP", "items/CRYSTAL", "items/RECALL", "lost/WEAPON_CHANCE", "lost/CACHE_CHANCE", "vessel/CAPACITY", "vessel/VAULT_CHANCE"], "kinds": ["number"]},
 	{"id": "gear_numbers", "group": "numbers", "name": "Gear and drops", "when": "live",
 		"tables": ["gear/RARITIES", "gear/RARITY_ODDS", "gear/TOWER_PIECE_CHANCE", "gear/TRAITS", "gear/CAPS", "gear/WEAR", "gear/WEAR_BY", "gear/EMBER_BURN",
-			"gear/WEAPON_DROP_WEIGHT", "gear/ARMOR", "gear/PIECES", "gear/NAMED"], "kinds": ["number"],
-		"names": {"RARITY_ODDS": "Rarity odds by floor", "CAPS": "Bonus caps", "WEAR": "Wear", "WEAPON_DROP_WEIGHT": "Weapon drop weights", "PIECES": "Worn pieces", "NAMED": "Named pieces"}},
+			"gear/WEAPON_DROP_WEIGHT", "gear/ARMOR", "gear/PIECES", "gear/NAMED", "gear/REGARDED_DROP"], "kinds": ["number"],
+		"names": {"REGARDED_DROP": "A beast leaves its Regarded piece (chance)", "RARITY_ODDS": "Rarity odds by floor", "CAPS": "Bonus caps", "WEAR": "Wear", "WEAPON_DROP_WEIGHT": "Weapon drop weights", "PIECES": "Worn pieces", "NAMED": "Named pieces"}},
 	{"id": "weapons_numbers", "group": "numbers", "name": "Weapons", "when": "live",
 		"tables": ["weapons/WEAPONS", "weapons/MEMORY"], "kinds": ["number"]},
 	{"id": "bench_numbers", "group": "numbers", "name": "Workshop and vessel", "when": "live",
@@ -130,8 +137,10 @@ const SECTIONS := [
 		"tables": ["makers/FRAGMENT", "makers/REVEAL", "makers/GLIMPSE", "makers/INTERRUPT", "makers/PLEA_ODDS", "secret_bonds/BRIBE"], "kinds": ["number", "bool"]},
 	{"id": "library_numbers", "group": "numbers", "name": "The library: forms, effects, variations, forks", "when": "live",
 		"tables": ["library/FORMS", "library/EFFECTS", "library/VARIATIONS", "spells.gryphon/FORKS", "spells.kraken/FORKS", "spells.wyvern/FORKS",
-			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/SKIP_COST"], "kinds": ["number"], "skip": ["learn"],
-		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "SKIP_COST": "Learning a passed side (crystal essence: base, per level)"}},
+			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/SKIP_COST",
+			"spells.unbound_forms/TREE", "spells.unbound_effects/ECHO_ACTS"], "kinds": ["number"], "skip": ["learn", "fork"],
+		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "SKIP_COST": "Learning a passed side (crystal essence: base, per level)",
+			"TREE": "The Unbound's capstones", "ECHO_ACTS": "Echoes: what each does"}},
 	{"id": "secret_numbers", "group": "numbers", "name": "Secret essences", "when": "live",
 		"tables": ["secret/STEPS", "secret/GROWTH", "secret/REFUSE_HEALTH", "secret/UNDO_CAP"], "kinds": ["number"]},
 	# --- colours ---
@@ -177,7 +186,7 @@ const KEY_NAMES := {"desc": "description", "dmg": "damage", "hp": "health", "mor
 const NUMBER_HINTS := {
 	"chance": [0.0, 1.0, 0.01], "odds": [0.0, 100.0, 1.0], "share": [0.0, 1.0, 0.01], "keep": [0.0, 1.0, 0.01],
 	"SELL_SHARE": [0.0, 1.0, 0.01], "WORN_SELL": [0.0, 1.0, 0.01], "MARK_FULL": [0.1, 1.0, 0.01], "VIGNETTE": [0.0, 1.0, 0.01],
-	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01],
+	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01], "roll_iframes": [0.0, 1.0, 0.01],
 }
 
 ## Words the owner never wants in the game (CLAUDE.md): a warning, not a block.
@@ -209,7 +218,7 @@ static var _sections := {}  # id -> section
 ## to call again: it starts from the scripts' own values each time.
 static func startup() -> bool:
 	if Engine.has_meta("sixfold_test") and local_path == LOCAL_PATH:
-		local_path = "user://test_overrides.json"  # (tests never touch the real one)
+		local_path = TestRun.path("user://test_overrides.json")  # (tests never touch the real one)
 	load_files()
 	apply_effective()
 	started = true

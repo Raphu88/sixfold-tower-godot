@@ -62,7 +62,7 @@ static var FORKS := {
 		4: {"id": "hurl", "name": "Hurl", "type": "hurl", "learn": 4,
 			"desc": "fling every foe in the air along your aim; each crashes into the foes in its path and lands hard",
 			"steps": {
-				4: {"cost": 10.0, "windup": 0.3, "damage": 12.0, "splash": 9.0, "force": 720.0, "reach": 420.0},
+				4: {"cost": 10.0, "windup": 0.3, "damage": 15.0, "splash": 12.0, "force": 720.0, "reach": 420.0},
 			}},
 	},
 	"hunter": {
@@ -74,11 +74,11 @@ static var FORKS := {
 			}},
 		3: {"id": "split_shot", "variation": "split", "name": "Split",
 			"desc": "three arrows fan out from your bow, each a little weaker",
-			"steps": {3: {"arrows": 3, "spread": 10.0, "power": 0.6}}},
+			"steps": {3: {"arrows": 3, "spread": 6.0, "power": 0.8}}},
 		4: {"id": "pinning_shot", "name": "Pinning Shot", "type": "pin", "learn": 4,
 			"desc": "a heavy arrow that pins the first foe it strikes to the floor for 2 seconds, open to every blow",
 			"steps": {
-				4: {"cost": 10.0, "windup": 0.4, "damage": 12.0, "speed": 760.0, "range": 520.0, "pin": 2.0},
+				4: {"cost": 10.0, "windup": 0.4, "damage": 16.0, "speed": 760.0, "range": 520.0, "pin": 2.0},
 			}},
 	},
 }
@@ -128,63 +128,12 @@ static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	return false
 
 
-# --- something that lasts: a small node with its own tick and drawing -------------------
+# --- something that lasts -------------------------------------------------------------
 
-## Lives under the SpellFx node: pauses with the fight, and a new floor
-## (SpellFx.clear, which drops its token) ends it.
-class Lasting extends Node2D:
-	var main
-	var t := 1.0
-	var total := 1.0
-	var age := 0.0
-	var tick: Callable  # tick(node, delta)
-	var paint: Callable  # paint(node): draws with the node's draw_* calls
-	var data := {}
-	var token := {}
-
-	func _process(delta: float) -> void:
-		var fx = get_parent()
-		if main == null or not is_instance_valid(main) or fx == null or not fx.timers.has(token):
-			queue_free()
-			return
-		age += delta
-		t -= delta
-		if tick.is_valid():
-			tick.call(self, delta)
-		if t <= 0.0:
-			finish()
-			return
-		queue_redraw()
-
-	func finish() -> void:
-		var fx = get_parent()
-		if fx != null and "timers" in fx:
-			fx.timers.erase(token)
-		queue_free()
-
-	## 0 to 1 as it starts, 1 to 0 as it ends (over `edge` seconds).
-	func fade(edge := 0.3) -> float:
-		return clampf(age / 0.12, 0.0, 1.0) * clampf(t / edge, 0.0, 1.0)
-
-	func _draw() -> void:
-		if paint.is_valid():
-			paint.call(self)
-
-
-static func _lasting(main, seconds: float, tick: Callable, paint: Callable) -> Lasting:
-	var fx = FX.of(main)
-	if fx == null:
-		return null
-	var n := Lasting.new()
-	n.main = main
-	n.t = seconds
-	n.total = maxf(seconds, 0.01)
-	n.tick = tick
-	n.paint = paint
-	n.token = {"t": INF, "fn": Callable(), "lasting": n.get_instance_id()}  # (never fires; SpellFx.clear drops it)
-	fx.timers.append(n.token)
-	fx.add_child(n)
-	return n
+## Something a spell leaves for a while: spell_fx.gd's shared Lasting node
+## (tick(n, delta), paint(n); n.t, n.total, n.age, n.fade(), n.finish()).
+static func _lasting(main, seconds: float, tick: Callable, paint: Callable) -> Node2D:
+	return FX.lasting(main, seconds, tick, paint)
 
 
 static func _alive(e) -> bool:
@@ -248,7 +197,7 @@ static func _ball_lightning(bond, p) -> void:
 				main.light_flash(o["pos"], col, 1.0, 1.2, 0.2)
 				main.sfx("zap", 1.3, -6.0))
 	main.light_flash(start, col, 1.0, 1.4, 0.3)
-	main.sfx("zap", 0.7, -3.0)
+	main.sfx("spell_lightning", 1.0, -2.0)
 
 
 ## Thunderclap: every charged foe in reach is stunned and struck, and its
@@ -289,7 +238,7 @@ static func _thunderclap(bond, p) -> void:
 		n.draw_arc(at, r * 0.35, 0.0, TAU, 28, Color(col, 0.5 * a), 3.0, true)
 	_lasting(main, 0.45, Callable(), paint)
 	main.light_flash(at, col, 2.2, 1.8, 0.35)
-	main.sfx("zap", 0.5)
+	main.sfx("thunder")
 	main.sfx("slam", 0.7, -4.0)
 	main.shake(7.0)
 	main.hitstop(0.06)
@@ -335,7 +284,7 @@ static func _updraft(bond, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_ring(at, col, radius, 0.3, 3.0)
 	main.light_flash(at, col, 1.0, 0.8, 0.3)
-	main.sfx("gust", 1.1)
+	main.sfx("spell_wind", 1.1)
 
 
 ## Hurl: every foe in the air near you is flung along your aim. It strikes
@@ -387,7 +336,7 @@ static func _hurl(bond, sp: Dictionary, p) -> void:
 				n.draw_line(from, from - aim * (22.0 + 10.0 * k), Color(col.lightened(0.3), 0.6), 2.0, true)
 	_lasting(main, 0.9, tick, paint)
 	main.fx_cone(p.global_position, aim, 120.0, deg_to_rad(25.0), col)
-	main.sfx("gust", 0.7)
+	main.sfx("spell_wind", 0.8)
 	main.sfx("swing_heavy", 0.8, -4.0)
 
 

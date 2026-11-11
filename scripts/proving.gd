@@ -118,11 +118,11 @@ const DOOR_AT := [1, 8]
 ##   storied      how many of the three are Storied pieces (rings and amulets)
 ##   crystal      the sentinel's crystal, as a share of a vault crystal (wings.gd)
 const TIERS := [
-	{"trap_floor": 6, "sentinel_hp": 1.0, "adds": 2, "shadow_hp": 0.35, "shadow_dmg": 0.75, "rarity": "rare", "rank": 0, "storied": 0, "crystal": 0.5},
-	{"trap_floor": 8, "sentinel_hp": 1.15, "adds": 2, "shadow_hp": 0.42, "shadow_dmg": 0.8, "rarity": "rare", "rank": 1, "storied": 0, "crystal": 0.6},
-	{"trap_floor": 10, "sentinel_hp": 1.3, "adds": 3, "shadow_hp": 0.5, "shadow_dmg": 0.85, "rarity": "rare", "rank": 1, "storied": 1, "crystal": 0.7},
-	{"trap_floor": 11, "sentinel_hp": 1.45, "adds": 3, "shadow_hp": 0.58, "shadow_dmg": 0.9, "rarity": "rare", "rank": 2, "storied": 1, "crystal": 0.8},
-	{"trap_floor": 12, "sentinel_hp": 1.7, "adds": 4, "shadow_hp": 0.7, "shadow_dmg": 1.0, "rarity": "rare", "rank": 3, "storied": 2, "crystal": 1.0},
+	{"trap_floor": 6, "sentinel_hp": 1.0, "adds": 2, "shadow_hp": 0.38, "shadow_dmg": 0.75, "rarity": "rare", "rank": 0, "storied": 0, "crystal": 0.5},
+	{"trap_floor": 8, "sentinel_hp": 1.15, "adds": 2, "shadow_hp": 0.45, "shadow_dmg": 0.8, "rarity": "rare", "rank": 1, "storied": 0, "crystal": 0.6},
+	{"trap_floor": 10, "sentinel_hp": 1.3, "adds": 3, "shadow_hp": 0.54, "shadow_dmg": 0.85, "rarity": "rare", "rank": 1, "storied": 1, "crystal": 0.7},
+	{"trap_floor": 11, "sentinel_hp": 1.45, "adds": 3, "shadow_hp": 0.62, "shadow_dmg": 0.9, "rarity": "rare", "rank": 2, "storied": 1, "crystal": 0.8},
+	{"trap_floor": 12, "sentinel_hp": 1.7, "adds": 4, "shadow_hp": 0.75, "shadow_dmg": 1.0, "rarity": "rare", "rank": 3, "storied": 2, "crystal": 1.0},
 ]
 const MAX_TIER := 3
 const LETHAL_STEP := 1
@@ -563,7 +563,7 @@ func _begin_shadow() -> void:
 	main.light_flash(at, SHADE, 2.0, 2.0, 0.6)
 	_shut("shadow", main.room_info[rooms["shadow"]]["gates"], [shadow])
 	main.banner = {"title": TEXT["shadow_title"], "lines": [TEXT["shadow"] % main.beast_name()], "t": 3.2}
-	main.sfx("warn_knight", 0.45, 0.0, 0.0)
+	main.sfx("shadow_rise", 1.0, 0.0, 0.0)
 	main.shake(9.0)
 
 

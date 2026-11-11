@@ -15,13 +15,13 @@ extends RefCounted
 ##     more, regain more); step 4 Pyre Oath or BACKDRAFT (blows you take
 ##     burst into fire).
 ##
-## Hooks worked around here (bond.gd and player.gd are left alone): Firebird
-## Form makes Wingburst free by its type, so Cinder Dive gives its own cost
-## back in the form; Rekindle's payback (twice what you lost) lives in
-## player.gd, so Deep Burn adds its extra share itself when the burn ends.
+## Firebird Form makes a spell marked "free_in_form" free (player.gd), so
+## Cinder Dive carries the mark, as Wingburst does. Rekindle's payback
+## (twice what you lost) lives in player.gd, so Deep Burn adds its extra
+## share itself when the burn ends.
 ##
-## What these spells leave in the world for a while is drawn by a Lasting
-## node (spawn() below; chimera.gd uses it too). A new floor clears it.
+## What these spells leave in the world for a while is spell_fx.gd's shared
+## Lasting node (spawn() below; chimera.gd uses it too). A new floor clears it.
 
 const FX := preload("res://scripts/spell_fx.gd")
 
@@ -40,22 +40,22 @@ static var FORKS := {
 		4: {"id": "detonate", "name": "Detonate", "type": "detonate", "learn": 4,
 			"desc": "every patch of your burning ground bursts at once (up to 6 bursts); with none, one bigger burst at your aim",
 			"steps": {
-				4: {"cost": 12.0, "windup": 0.3, "damage": 12.0, "radius": 50.0, "bursts": 6},
-				5: {"damage": 15.0},
+				4: {"cost": 12.0, "windup": 0.3, "damage": 14.0, "radius": 58.0, "bursts": 6},
+				5: {"damage": 17.0},
 			}},
 	},
 	"flamewing": {
 		"change": {"name": "Growing", "says": "Heat Aura grows hotter the longer it burns"},
-		2: {"id": "cinder_dive", "name": "Cinder Dive", "type": "cinder_dive", "learn": 2,
+		2: {"id": "cinder_dive", "name": "Cinder Dive", "type": "cinder_dive", "learn": 2, "free_in_form": true,
 			"desc": "dive through the foes along your aim in a streak of fire, setting each one burning; the aura's built-up heat makes it hotter (free in Firebird Form)",
 			"steps": {
-				2: {"cost": 10.0, "windup": 0.15, "damage": 10.0, "dist": 150.0, "burn": 2.0, "burn_time": 3.0},
-				4: {"damage": 13.0},
-				5: {"damage": 16.0},
+				2: {"cost": 10.0, "windup": 0.15, "damage": 8.0, "dist": 150.0, "burn": 2.0, "burn_time": 3.0},
+				4: {"damage": 11.0},
+				5: {"damage": 13.0},
 			}},
 		3: {"id": "broad", "variation": "wide", "name": "Broad",
 			"desc": "Heat Aura reaches 40% farther from the start, a little weaker",
-			"steps": {3: {"damage": 3.8}}},
+			"steps": {3: {"damage": 4.4}}},
 		4: {"id": "heat_haze", "name": "Heat Haze", "type": "heat_haze", "learn": 4,
 			"desc": "for 8 seconds your aura burns away the shots that enter it and sets the foes in it burning (it lights the aura if it's off)",
 			"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 8.0, "burn": 2.0}}},
@@ -65,9 +65,9 @@ static var FORKS := {
 		2: {"id": "flashpoint", "name": "Flashpoint", "type": "flashpoint", "learn": 2,
 			"desc": "spend a tenth of your health in a burst of fire around you; the lower your health, the harder it hits",
 			"steps": {
-				2: {"cost": 9.0, "windup": 0.15, "price": 0.1, "damage": 10.0, "radius": 90.0},
-				4: {"damage": 12.0},
-				5: {"damage": 14.0},
+				2: {"cost": 9.0, "windup": 0.15, "price": 0.1, "damage": 12.0, "radius": 90.0},
+				4: {"damage": 15.0},
+				5: {"damage": 18.0},
 			}},
 		3: {"id": "deep_burn", "variation": "charged", "name": "Deep Burn",
 			"desc": "Rekindle winds up longer and burns deeper: you lose a third more, and regain two and a half times what you lost",
@@ -120,88 +120,30 @@ static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	var payback := float(bond.spell_stat(sp, "payback"))
 	var token := int(p.get_meta("deep_burn", 0)) + 1
 	p.set_meta("deep_burn", token)
-	FX.later(main, float(p.rekindle_total) + 0.1, func():
+	var burning: bool = p.rekindle_t > 0.0
+	# (It waits for the burn itself to end, not a clock of its own: on a busy
+	# frame the fight's time and a timer's can drift apart.)
+	FX.lasting(main, float(p.rekindle_total) + 5.0, func(_n, _d: float) -> bool:
 		if not is_instance_valid(p) or p.dead or int(p.get_meta("deep_burn", 0)) != token:
-			return
-		if p.rekindle_t <= 0.0 and p.rekindle_fought and p.rekindle_lost > 0.0:
+			return false
+		if p.rekindle_t > 0.0:
+			return true  # (still burning)
+		if burning and p.rekindle_fought and p.rekindle_lost > 0.0:
 			var extra: float = p.rekindle_lost * payback
 			p.hp = minf(p.max_health(), p.hp + extra)
-			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color()))
+			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color())
+		return false, Callable())
 	return true
 
 
 # --- what stays a while ------------------------------------------------------------
 
-## The drawing (and ticking) of a spell that stays a while. tick(n, delta)
-## returns false to end it early; paint(n) draws with n.draw_*. n.age counts
-## up to n.life; n.data holds the spell's own state. It sits over the
-## darkness like the library's spell effects, and it watches a SpellFx
-## timer so a new floor (SpellFx.clear) ends it too.
-class Lasting extends Node2D:
-	var life := 1.0
-	var age := 0.0
-	var data := {}
-	var tick := Callable()
-	var paint := Callable()
-	var fx
-	var sentinel := {}
-
-	func _ready() -> void:
-		z_as_relative = false
-		z_index = 46
-
-	func alive() -> bool:
-		if fx == null or not is_instance_valid(fx):
-			return false
-		for tm in fx.timers:
-			if is_same(tm, sentinel):
-				return true
-		return false
-
-	func finish() -> void:
-		if fx != null and is_instance_valid(fx):
-			for i in fx.timers.size():
-				if is_same(fx.timers[i], sentinel):
-					fx.timers.remove_at(i)
-					break
-		queue_free()
-
-	func _process(delta: float) -> void:
-		if is_queued_for_deletion():
-			return
-		if not alive():
-			queue_free()
-			return
-		age += delta
-		if tick.is_valid() and not bool(tick.call(self, delta)):
-			finish()
-			return
-		if age >= life:
-			finish()
-			return
-		queue_redraw()
-
-	func _draw() -> void:
-		if paint.is_valid():
-			paint.call(self)
-
-	## 1 while it lasts, easing to 0 over its last `tail` seconds.
-	func fade(tail := 0.35) -> float:
-		return clampf((life - age) / tail, 0.0, 1.0)
-
-
-## Something a spell leaves in the world for `seconds` (see Lasting).
+## Something a spell leaves in the world for `seconds`: spell_fx.gd's shared
+## Lasting node. tick(n, delta) returns false to end it early; paint(n)
+## draws with n.draw_*; n.age counts up, n.data holds the spell's own state,
+## and n.fade(tail) eases out over its last `tail` seconds (0.35 if not given).
 static func spawn(main, seconds: float, tick: Callable, paint: Callable, data := {}) -> Node2D:
-	var n := Lasting.new()
-	n.life = seconds
-	n.tick = tick
-	n.paint = paint
-	n.data = data
-	n.fx = FX.of(main)
-	FX.later(main, 1.0e9, func(): pass)  # (the sentinel: SpellFx.clear drops it)
-	n.sentinel = n.fx.timers.back()
-	main.add_child(n)
-	return n
+	return FX.lasting(main, seconds, tick, paint, data, {"fade_in": false, "fade_edge": 0.35})
 
 
 ## Rising tongues of flame in a ring (the game's flames: short thick strokes).
@@ -242,7 +184,7 @@ static func _blazing_trail(bond, p) -> void:
 	spawn(main, dur, tick, paint, {"last": p.global_position, "at": p.global_position})
 	main.fx_ring(p.global_position, col, 36.0, 0.3, 3.0)
 	main.light_flash(p.global_position, col, 1.3, 1.4, 0.3)
-	main.sfx("burn", 1.1, -2.0)
+	main.sfx("spell_fire", 1.1, -2.0)
 
 
 ## Detonate: the patches of your burning ground nearest you burst, one after
@@ -274,7 +216,7 @@ static func _detonate(bond, p) -> void:
 		var s: Vector2 = spots[i]
 		FX.later(main, 0.08 + 0.07 * i, func():
 			main.explode(s, r, dmg, col)
-			main.sfx("burn", 0.8 + 0.08 * i, -6.0))
+			main.sfx("fire_blast", 0.9 + 0.08 * i, -4.0))
 	# Fuses race out from you to each patch.
 	var paint := func(n):
 		var k := clampf(n.age / 0.12, 0.0, 1.0)
@@ -330,13 +272,8 @@ static func _cinder_dive(bond, p) -> void:
 	main.light_flash(end, col, 1.6, 1.8, 0.3)
 	main.fx_burst(end, p.aim, col, 14, 260.0)
 	main.sfx("gust", 1.2)
-	main.sfx("burn", 1.0, -3.0)
+	main.sfx("spell_fire", 1.0, -2.0)
 	main.shake(3.0)
-	# Free in Firebird Form, as Wingburst is (unless the cast was free anyway).
-	var weave := int(p.gfx("spellweave"))
-	var was_free: bool = main.in_sigil(start) or (weave > 0 and p.spells_cast % weave == 0)
-	if p.firebird_t > 0.0 and not bond._overdrawn() and not was_free:
-		bond.essence = minf(bond.capacity(), bond.essence + bond.cost())
 	if bond._overdrawn():
 		p.hp = maxf(1.0, p.hp - 5.0)  # an overdrawn dive scorches you too
 		main.fx_text(p.global_position + Vector2(0, -30), "-5", col)
@@ -404,7 +341,7 @@ static func _heat_haze(bond, p) -> void:
 			n.draw_circle(pf["pos"] + Vector2(0, -10.0 * k), 4.0 + 8.0 * k, Color(0.5, 0.45, 0.42, 0.45 * (1.0 - k)))
 	spawn(main, float(bond.stat("duration")), tick, paint, {"at": p.global_position, "r": p.aura_r, "tick": 0.0, "puffs": []})
 	main.fx_ring(p.global_position, col, p.aura_r, 0.4, 3.0)
-	main.sfx("burn", 1.3, -3.0)
+	main.sfx("spell_fire", 1.25, -2.0)
 	main.sfx("gust", 0.6, -8.0)
 
 
@@ -444,7 +381,7 @@ static func _flashpoint(bond, p) -> void:
 	spawn(main, 0.4, Callable(), paint, {"at": at})
 	main.fx_burst(at, Vector2.ZERO, col, 22, 320.0)
 	main.light_flash(at, col, 1.8, 2.0, 0.35)
-	main.sfx("burn", 0.8)
+	main.sfx("fire_blast", 0.9)
 	main.sfx("hit_heavy", 0.9, -4.0)
 	main.shake(5.0)
 
@@ -477,7 +414,7 @@ static func _backdraft(bond, p) -> void:
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 16, 280.0)
 			main.fx_text(p.global_position + Vector2(0, -58), TEXT["backdraft"], col)
 			main.light_flash(p.global_position, col, 1.5, 1.8, 0.3)
-			main.sfx("burn", 1.1)
+			main.sfx("fire_blast", 1.05)
 			main.shake(3.0)
 		n.data["last"] = p.hp
 		return true
@@ -491,4 +428,4 @@ static func _backdraft(bond, p) -> void:
 	spawn(main, float(bond.stat("duration")), tick, paint, {"last": p.hp, "cd": 0.0, "at": p.global_position, "bursts": []})
 	main.fx_ring(p.global_position, col, 40.0, 0.35, 3.0)
 	main.sfx("charge", 0.9, -3.0)
-	main.sfx("burn", 0.9, -5.0)
+	main.sfx("spell_fire", 0.9, -3.0)

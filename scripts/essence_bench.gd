@@ -652,7 +652,7 @@ static func _pour(tp, kind: String) -> void:
 	set_draft(m, pour(prof, d, kind))
 	if opening:
 		m.set_meta("bench_pour", {"kind": kind, "t": Time.get_ticks_msec()})
-		m.main.sfx("hiss", 1.7, -8.0, 0.0)
+		m.main.sfx("pour", 1.0, -2.0, 0.0)
 	else:
 		m.remove_meta("bench_pour")
 		m.main.sfx("ui_move", 0.8, -4.0, 0.0)
@@ -700,7 +700,7 @@ static func _fit(tp, vid: String) -> void:
 static func _save(tp) -> void:
 	var m = tp.m
 	if save(m):
-		m.main.sfx("ready", 1.0, -2.0, 0.0)
+		m.main.sfx("craft_rune", 1.0, 0.0, 0.0)
 	m.remove_meta("bench_pour")
 	_redraw(tp, "bench_save", true)
 

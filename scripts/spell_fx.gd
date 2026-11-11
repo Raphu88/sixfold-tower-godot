@@ -12,13 +12,21 @@ extends Node2D
 ##   orb(main, pos, vel, seconds, radius, col, fn)     fn(orb, delta) each frame;
 ##                                                     orb {pos, vel, t, radius, col}; set orb.done to end it
 ##   mark(main, pos, seconds, col)                     a shrinking ring: something lands here soon
+##   lasting(main, seconds, tick, paint, data, opts)   something that stays a while, drawn in
+##                                                     code (a Lasting node: see below)
+##   item(main, seconds, tick, paint, high)            the same, kept as a dictionary
+##                                                     {t, age, done}, painted into a Batch
+##   listen(node, signal, fn)                          fn on a signal while `node` lasts (a
+##                                                     foe's or main's on_hit, the climber's on_parry)
 
 const NAME := "SpellFx"
+const DrawUtil := preload("res://scripts/draw_util.gd")
 
 var timers: Array = []  # {t, fn}
 var fields: Array = []  # {pos, radius, t, tick, every, col, fn, age}
 var orbs: Array = []  # {pos, vel, t, radius, col, fn, done, age}
 var marks: Array = []  # {pos, t, total, col}
+var lastings: Array = []  # Lasting nodes (children of this one)
 
 
 func _ready() -> void:
@@ -71,11 +79,15 @@ static func clear(main) -> void:
 		n.fields.clear()
 		n.orbs.clear()
 		n.marks.clear()
+		for l in n.lastings:
+			if is_instance_valid(l):
+				l.queue_free()
+		n.lastings.clear()
 		n.queue_redraw()
 
 
 func busy() -> bool:
-	return not (timers.is_empty() and fields.is_empty() and orbs.is_empty() and marks.is_empty())
+	return not (timers.is_empty() and fields.is_empty() and orbs.is_empty() and marks.is_empty() and lastings.is_empty())
 
 
 func _process(delta: float) -> void:
@@ -148,3 +160,113 @@ func _draw() -> void:
 	for m in marks:
 		var k := 1.0 - float(m["t"]) / float(m["total"])
 		draw_arc(m["pos"], lerpf(34.0, 8.0, k), 0.0, TAU, 32, Color(m["col"], 0.4 + 0.5 * k), 2.0, true)
+
+
+# --- something that lasts: a small node with its own tick and drawing -------------------
+
+## Something a spell leaves in the world for `seconds`: a Lasting node under
+## this one, so it pauses with the fight and a new floor (clear) ends it.
+## tick(node, delta) runs each frame (returning false ends it early);
+## paint(node) draws with the node's draw_* calls. node.data holds the
+## spell's own state; node.t counts down, node.age up, node.total is the
+## whole; node.finish() ends it. opts: "z" (its draw layer: 46, the default,
+## is over the darkness; 11 is on the floor), "fade_in" (fade() eases in
+## too; default true) and "fade_edge" (fade()'s default edge, 0.3).
+static func lasting(main, seconds: float, tick: Callable, paint: Callable, data := {}, opts := {}) -> Node2D:
+	var fx = of(main)
+	if fx == null:
+		return null
+	var n := Lasting.new()
+	n.main = main
+	n.t = seconds
+	n.total = maxf(seconds, 0.01)
+	n.tick = tick
+	n.paint = paint
+	n.data = data
+	n.z_index = int(opts.get("z", 46))
+	n.fade_in = bool(opts.get("fade_in", true))
+	n.fade_edge = float(opts.get("fade_edge", 0.3))
+	fx.lastings.append(n)
+	fx.add_child(n)
+	return n
+
+
+## A lasting thing kept as a dictionary {t, age, done, node}: tick(item, delta)
+## each frame (set item.done to end it; changing item.t lengthens it) and
+## paint(batch, item) into a draw_util.gd Batch. `high` draws it over the
+## darkness; otherwise it lies on the floor.
+static func item(main, seconds: float, tick: Callable, paint: Callable, high := false) -> Dictionary:
+	var it := {"t": seconds, "age": 0.0, "done": false}
+	var step := func(_n, delta: float) -> bool:
+		it["t"] -= delta
+		it["age"] += delta
+		if tick.is_valid() and not it["done"]:
+			tick.call(it, delta)
+		return float(it["t"]) > 0.0 and not it["done"]
+	var draw := func(n):
+		if paint.is_valid():
+			var b = DrawUtil.Batch.new()
+			paint.call(b, it)
+			b.flush(n)
+	it["node"] = lasting(main, INF, step, draw, {}, {"z": 46 if high else 11})
+	return it
+
+
+## Calls fn on `sig` until `node` leaves the tree (its Lasting ends, or a new floor).
+static func listen(node: Node, sig: Signal, fn: Callable) -> void:
+	if node == null or sig.is_null():
+		return
+	sig.connect(fn)
+	node.tree_exiting.connect(func():
+		if is_instance_valid(sig.get_object()) and sig.is_connected(fn):
+			sig.disconnect(fn))
+
+
+class Lasting extends Node2D:
+	var main
+	var t := 1.0
+	var total := 1.0
+	var age := 0.0
+	var tick: Callable  # tick(node, delta); returning false ends it
+	var paint: Callable  # paint(node): draws with the node's draw_* calls
+	var data := {}
+	var fade_in := true
+	var fade_edge := 0.3
+
+	func _ready() -> void:
+		z_as_relative = false
+
+	func _process(delta: float) -> void:
+		if is_queued_for_deletion():
+			return
+		var fx = get_parent()
+		if main == null or not is_instance_valid(main) or fx == null or not ("lastings" in fx) or not fx.lastings.has(self):
+			queue_free()
+			return
+		age += delta
+		t -= delta
+		if tick.is_valid():
+			var keep = tick.call(self, delta)
+			if keep is bool and not keep:
+				finish()
+				return
+		if t <= 0.0:
+			finish()
+			return
+		queue_redraw()
+
+	func finish() -> void:
+		var fx = get_parent()
+		if fx != null and "lastings" in fx:
+			fx.lastings.erase(self)
+		queue_free()
+
+	## 1 while it lasts, easing to 0 over its last `edge` seconds (and in
+	## over its first 0.12, unless fade_in is off).
+	func fade(edge := -1.0) -> float:
+		var e := fade_edge if edge < 0.0 else edge
+		return (clampf(age / 0.12, 0.0, 1.0) if fade_in else 1.0) * clampf(t / e, 0.0, 1.0)
+
+	func _draw() -> void:
+		if paint.is_valid():
+			paint.call(self)

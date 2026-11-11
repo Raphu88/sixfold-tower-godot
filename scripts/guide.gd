@@ -356,7 +356,7 @@ func _show(q: Dictionary) -> void:
 	leaving = 0.0
 	life = clampf(3.0 + text.length() * LIFE_PER_CHAR, LIFE_MIN, LIFE_MAX)
 	shown += 1
-	main.sfx("ready", 1.6, -16.0, 0.0)
+	main.sfx("tip_chime", 1.0, 0.0, 0.03)
 
 
 ## Lets the bubble go now (a tap, a click, Enter or the right stick).

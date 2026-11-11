@@ -27,13 +27,23 @@ const STEADY_HEAL := 1.3
 ## ...and take this much less time.
 const STEADY_TIME := 0.6
 
-const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare", "scroll", "vessel"]
+const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
+	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "wardbreaker", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
+	"scroll", "vessel"]
 
 ## Each item: name, short name, what it does, colour and its numbers; also
 ##   kind         its essence (the belt breaks it into this kind of crystal)
 ##   value        what it's worth in essence, by kind
 ##   drop_weight  how common it is (0: never found this way)
 ##   drop         false: never left by slain monsters (camps and vaults only)
+##   buff         {key: amount} the item adds to your numbers while it lasts
+##                ("duration"): the keys your gear adds up (gear.gd PIECES),
+##                plus antivenom (no poison takes hold), guardbreak (blows go
+##                through shells and guards) and seek (hidden traps and
+##                secret walls this near you glint)
+##   thrown       thrown where you aim, like the Fire Flask ("range",
+##                "radius", "flight"): it bursts there (burst())
+##   secret       the secret essence it draws on (its look and words only)
 
 static var ITEMS := {
 	"draught": {
@@ -137,6 +147,96 @@ static var ITEMS := {
 		"duration": 20.0, "radius": 420.0, "reveal": 360.0,
 		"drop_weight": 1,
 		"kind": "air", "value": {"air": 8},
+	},
+	"antidote": {
+		"name": "Antivenom",
+		"short": "Antivenom",
+		"desc": "cures poison, and no poison takes hold of you for 30 seconds",
+		"color": Color(0.62, 0.86, 0.36),
+		"duration": 30.0, "buff": {"antivenom": 1.0},
+		"drop_weight": 2,
+		"kind": "stone", "value": {"stone": 8},
+	},
+	"heartroot": {
+		"name": "Heartroot",
+		"short": "Heartroot",
+		"desc": "a living root, chewed: heals 20 health, and for 30 seconds every kill heals you 4 more",
+		"color": Color(0.82, 0.32, 0.4),
+		"heal": 20.0, "time": 0.5, "duration": 30.0, "buff": {"kill_heal": 4.0},
+		"drop_weight": 1, "drop": false, "secret": "life",
+		"kind": "water", "value": {"water": 16},
+	},
+	"net": {
+		"name": "Throwing Net",
+		"short": "Net",
+		"desc": "thrown where you aim: the foes it lands on are tangled for a moment and slowed for 4 seconds (a beast only slowed)",
+		"color": Color(0.84, 0.76, 0.56),
+		"thrown": true, "range": 150.0, "radius": 52.0, "flight": 0.4, "tangle": 1.0, "slow": 4.0,
+		"drop_weight": 2,
+		"kind": "water", "value": {"water": 10},
+	},
+	"lodestone": {
+		"name": "Lodestone Bomb",
+		"short": "Lodestone",
+		"desc": "thrown where you aim: it bursts and drags the foes around it together, with a jolt of 8 (a beast barely moves)",
+		"color": Color(0.5, 0.56, 0.78),
+		"thrown": true, "range": 170.0, "radius": 95.0, "flight": 0.35, "dmg": 8.0, "pull": 430.0,
+		"drop_weight": 1,
+		"kind": "iron", "value": {"iron": 12},
+	},
+	"briar_tonic": {
+		"name": "Briar Tonic",
+		"short": "Briar",
+		"desc": "a bitter green draught: for 25 seconds, foes that strike you up close take 8",
+		"color": Color(0.4, 0.66, 0.3),
+		"duration": 25.0, "buff": {"thorns": 8.0},
+		"drop_weight": 1,
+		"kind": "blade", "value": {"blade": 10},
+	},
+	"wardbreaker": {
+		"name": "Wardbreaker Charm",
+		"short": "Wardbreaker",
+		"desc": "snap the charm: for 20 seconds your blows and arrows go through shells and guards",
+		"color": Color(0.9, 0.42, 0.5),
+		"duration": 20.0, "buff": {"guardbreak": 1.0},
+		"drop_weight": 1,
+		"kind": "blade", "value": {"blade": 12},
+	},
+	"lantern_oil": {
+		"name": "Lantern Oil",
+		"short": "Lantern Oil",
+		"desc": "a flask of clear oil for your light: it reaches 60% farther for two minutes",
+		"color": Color(1.0, 0.78, 0.36),
+		"duration": 120.0, "buff": {"light": 0.6},
+		"drop_weight": 2,
+		"kind": "fire", "value": {"fire": 6},
+	},
+	"unmaking_ash": {
+		"name": "Ash of Unmaking",
+		"short": "Ash",
+		"desc": "scattered around you: every foe within reach comes partly apart, losing an eighth of its health (a beast, a little)",
+		"color": Color(0.66, 0.44, 0.86),
+		"radius": 115.0, "share": 0.12, "beast_share": 0.03,
+		"drop_weight": 1, "drop": false, "secret": "unmaking",
+		"kind": "fire", "value": {"fire": 16},
+	},
+	"gale_feather": {
+		"name": "Gale Feather",
+		"short": "Gale",
+		"desc": "blown from your palm: a gust hurls the foes around you back (a beast only staggers a step)",
+		"color": Color(0.7, 0.88, 0.98),
+		"radius": 120.0, "push": 560.0, "dmg": 4.0,
+		"drop_weight": 1,
+		"kind": "air", "value": {"air": 10},
+	},
+	"seeing_scroll": {
+		"name": "Scroll of Seeing",
+		"short": "Seeing",
+		"desc": "read aloud: for a minute every hidden trap and secret wall on the floor glints, wherever it is",
+		"color": Color(0.62, 0.78, 0.98),
+		"duration": 60.0, "buff": {"seek": 6000.0},
+		"drop_weight": 1,
+		"kind": "air", "value": {"air": 14},
 	},
 	# From vaults (wings.gd), and always on the train's store shelf, priced
 	# in crystals of any kind (train.gd ANY_PRICE): never dropped or offered at a camp.
@@ -295,6 +395,13 @@ static func camp_choices(marked := true) -> Array:
 	return out
 
 
+## The sound of using each item (sound_bank.gd); one not listed plays "ready".
+const USE_SOUNDS := {"draught": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
+	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready",
+	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw", "wardbreaker": "use_ward",
+	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime"}
+
+
 ## Uses an item on the climber. Returns false (and says why) if it would do
 ## nothing, so it isn't wasted.
 static func use(id: String, p) -> bool:
@@ -344,8 +451,8 @@ static func use(id: String, p) -> bool:
 			var last: float = float(data["duration"]) * (ASHWALKER_SMOKE if p.has_bond("ashwalker") else 1.0)
 			main.smokes.append({"pos": p.global_position, "r": float(data["radius"]), "t": last})
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 18, 160.0)
-		"fire_flask":
-			main.throw_flask(p)
+		"fire_flask", "net", "lodestone":
+			main.throw_flask(p, id)
 		"edge_oil":
 			p.edge_t = float(data["duration"])
 			main.fx_text(above, "Edge oiled", col)
@@ -373,18 +480,90 @@ static func use(id: String, p) -> bool:
 			var lasts: float = float(data["duration"]) * (HUNTER_FLARE if p.has_bond("hunter") else 1.0)
 			main.light_flare(p.global_position, lasts)
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 22, 260.0)
+		"antidote":
+			if p.poison_t <= 0.0 and p.buff_left(id) > 1.0:
+				main.fx_text(above, "Already proof against poison", Color(0.8, 0.78, 0.85))
+				return false
+			p.poison_t = 0.0
+			p.add_buff(id, float(data["duration"]), data["buff"])
+			main.fx_text(above, "Proof against poison", col)
+		"heartroot":
+			_heal_over_time(p, data, steady)
+			p.add_buff(id, float(data["duration"]), data["buff"])
+			main.fx_burst(p.global_position, Vector2.UP, col, 14, 160.0)
+		"briar_tonic", "wardbreaker", "lantern_oil", "seeing_scroll":
+			p.add_buff(id, float(data["duration"]), data["buff"])
+			main.fx_text(above, {"briar_tonic": "Briars", "wardbreaker": "Wards break", "lantern_oil": "Your light grows",
+				"seeing_scroll": "The hidden shows itself"}[id], col)
+			if id == "lantern_oil":
+				main.light_flash(p.global_position, col, 1.6, 2.0, 0.4)
+			elif id == "seeing_scroll":
+				main.sfx("glint", 0.8, -2.0, 0.0)
+		"unmaking_ash":
+			var hit := 0
+			for e in main.targets():
+				if e.dead or e.global_position.distance_to(p.global_position) > float(data["radius"]) + e.radius:
+					continue
+				var share: float = float(data["beast_share"] if e.is_boss() else data["share"])
+				e.take_hit(e.max_hp * share, Vector2.ZERO, 0.0, false, true)
+				main.fx_burst(e.global_position, Vector2.UP, col, 10, 180.0)
+				hit += 1
+			main.fx_ring(p.global_position, col, float(data["radius"]), 0.45, 4.0)
+			main.fx_text(above, "Unmade" if hit > 0 else "The ash scatters", col)
+		"gale_feather":
+			for e in main.targets():
+				var to: Vector2 = e.global_position - p.global_position
+				if e.dead or to.length() > float(data["radius"]) + e.radius:
+					continue
+				var dir: Vector2 = to.normalized() if to.length() > 0.1 else p.aim
+				e.take_hit(float(data["dmg"]), dir, 0.0)
+				e.knock = dir * float(data["push"]) * (0.2 if e.is_boss() else 1.0)
+			main.fx_ring(p.global_position, col, float(data["radius"]), 0.35, 5.0)
+			main.fx_burst(p.global_position, Vector2.ZERO, col, 20, 360.0)
+			main.sfx("gust", 1.0, -3.0)
 	main.fx_ring(p.global_position, col, 34.0, 0.3, 3.0)
-	main.sfx("ready", 1.0, -3.0)
+	main.sfx(USE_SOUNDS.get(id, "ready"), 1.0, -3.0)
 	return true
 
 
 ## Healing items heal over a short time. Steady Hands heals more, faster.
 static func _heal_over_time(p, data: Dictionary, steady: bool) -> void:
-	var amount: float = float(data["heal"]) * (STEADY_HEAL if steady else 1.0) * p.heal_mult()  # Life's flow
+	var amount: float = float(data["heal"]) * (STEADY_HEAL if steady else 1.0) * p.heal_mult() * (1.0 + p.gfx("item_heal"))  # Life's flow; a Herb Pouch
 	var t: float = float(data["time"]) * (STEADY_TIME if steady else 1.0)
 	p.heal_left += amount
 	p.heal_rate = maxf(p.heal_rate if p.heal_left > amount else 0.0, amount / t)
 	p.main.fx_text(p.global_position + Vector2(0, -44), "+%d" % int(round(amount)), Color(0.6, 1.0, 0.7))
+
+
+## A thrown item bursts where it lands (main.gd _update_flasks; the Fire
+## Flask's burst is main.gd's own): `f` is {to, r, id}.
+static func burst(main, f: Dictionary) -> void:
+	var id := String(f.get("id", ""))
+	var data := info(id)
+	var col: Color = data.get("color", Color.WHITE)
+	var pos: Vector2 = f["to"]
+	match id:
+		"net":
+			for e in main.targets():
+				if e.dead or e.global_position.distance_to(pos) > float(f["r"]) + e.radius:
+					continue
+				e.chill_t = maxf(e.chill_t, float(data["slow"]) * (0.5 if e.is_boss() else 1.0))
+				if not e.is_boss():
+					e.stagger(float(data["tangle"]))
+				main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), "Tangled", col)
+			main.sfx("swing", 0.6, -4.0)
+		"lodestone":
+			for e in main.targets():
+				var to: Vector2 = pos - e.global_position
+				if e.dead or to.length() > float(f["r"]) + e.radius:
+					continue
+				var dir: Vector2 = to.normalized() if to.length() > 1.0 else Vector2.ZERO
+				e.take_hit(float(data["dmg"]), -dir, 0.0)
+				e.knock = dir * float(data["pull"]) * minf(1.0, to.length() / 60.0) * (0.15 if e.is_boss() else 1.0)
+			main.light_flash(pos, col, 1.4, 1.8, 0.35)
+			main.sfx("zap", 0.6, -3.0)
+	main.fx_ring(pos, col, float(f["r"]), 0.35, 5.0)
+	main.fx_burst(pos, Vector2.ZERO, col, 16, 240.0)
 
 
 # --- drawing -----------------------------------------------------------------------
@@ -422,6 +601,7 @@ static func _item_art(b, id: String, s: float) -> void:
 	var c := Vector2.ZERO
 	var u := Art.unit(s)
 	var lod := Art.detail(s)
+	Art.ground(b, s, 9.2, 6.4, 0.36)  # (it sits in its slot)
 	match id:
 		"draught":
 			# A round flask: the red cure two-thirds up, a cork.
@@ -565,8 +745,164 @@ static func _item_art(b, id: String, s: float) -> void:
 			var cord := Color(0.82, 0.22, 0.2)
 			b.rect(Rect2(Vector2(1.7, -4.6) * u, Vector2(1.3, 9.2) * u), cord)
 			Art.orb(b, Vector2(2.35, 4.8) * u, 1.7 * u, cord, s, "gem")
+		"antidote":
+			# A squat green bottle with a leaf on its label, a serpent crossed out.
+			var body := Art.rrect(Rect2(Vector2(-5.0, -1.6) * u, Vector2(10.0, 10.6) * u), 3.4 * u)
+			body = _with_neck(body, Rect2(Vector2(-1.6, -5.6) * u, Vector2(3.2, 4.6) * u))
+			Art.glass(b, body, s, col, 0.4 * u)
+			_cork(b, Rect2(Vector2(-2.2, -8.8) * u, Vector2(4.4, 3.2) * u), s)
+			var lc := Vector2(0, 4.0) * u
+			Art.shape(b, Art.rrect(Rect2(lc - Vector2(3.4, 2.6) * u, Vector2(6.8, 5.2) * u), 0.8 * u, 3), Art.PAPER, s, "", Art.THIN | Art.NO_RIM)
+			var leaf := Art.oval(lc, Vector2(2.4, 1.2) * u, -0.6, 12)
+			b.polygon(leaf, col.darkened(0.25))
+			b.line(lc + Vector2(-1.8, 1.3) * u, lc + Vector2(1.8, -1.3) * u, col.darkened(0.5), maxf(0.4, 0.3 * u))
+			Art.shine(b, Vector2(-3.4, 1.2) * u, 0.5 * u, 2.0 * u, 0.0, 0.5)
+		"heartroot":
+			# A gnarled red root shaped like a heart, rootlets trailing, a green shoot.
+			var hc := Vector2(0, 1.6) * u
+			var heart := PackedVector2Array()
+			for i in 36:
+				var t := TAU * i / 36.0
+				heart.append(hc + Vector2(16.0 * pow(sin(t), 3), -(13.0 * cos(t) - 5.0 * cos(2 * t) - 2.0 * cos(3 * t) - cos(4 * t))) * u * 0.42)
+			for v in [[Vector2(-2.0, 6.8), Vector2(-5.4, 9.6)], [Vector2(0.6, 7.4), Vector2(1.4, 10.0)], [Vector2(2.4, 6.4), Vector2(6.0, 8.6)]]:
+				Art.rod(b, v[0] * u, v[1] * u, 0.7 * u, Color(0.62, 0.36, 0.3), s, "wood")
+			Art.shape(b, heart, col, s, "wood")
+			if lod > 0:
+				b.line(hc + Vector2(-3.6, -2.0) * u, hc + Vector2(-1.0, 3.6) * u, Color(col.darkened(0.45), 0.7), maxf(0.45, 0.4 * u))
+				b.line(hc + Vector2(3.0, -2.6) * u, hc + Vector2(1.6, 2.2) * u, Color(col.darkened(0.45), 0.7), maxf(0.45, 0.4 * u))
+			Art.rod(b, hc + Vector2(0.4, -3.4) * u, hc + Vector2(1.6, -8.2) * u, 0.7 * u, Color(0.42, 0.66, 0.3), s, "")
+			Art.shape(b, Art.oval(hc + Vector2(3.4, -8.4) * u, Vector2(2.0, 1.0) * u, -0.3, 10), Color(0.5, 0.78, 0.36), s, "", Art.THIN | Art.NO_RIM)
+			Art.soft(b, hc, 7.0 * u, Color(0.78, 1.0, 0.62, 0.22))
+		"net":
+			# A bundled net of knotted cord, lead weights at its corners.
+			var bundle := Art.smooth(Art.pts(c, u, [Vector2(-7.6, -2.0), Vector2(-3.0, -7.6), Vector2(4.6, -6.6), Vector2(8.2, 0.4), Vector2(5.2, 7.4), Vector2(-4.4, 7.8)]), 3)
+			Art.shape(b, bundle, col.darkened(0.25), s, "cloth", Art.NO_RIM)
+			var cord := col.lightened(0.1)
+			var cw := maxf(0.55, 0.5 * u)
+			for k in 6:
+				var x := -6.0 + k * 2.6
+				b.line(Vector2(x - 1.6, -6.4) * u, Vector2(x + 2.4, 7.4) * u, cord, cw)
+				b.line(Vector2(x + 2.4, -6.4) * u, Vector2(x - 1.6, 7.4) * u, cord, cw)
+			Art.outline(b, bundle, s)
+			if lod > 0:
+				for k in 5:
+					b.circle(Vector2(-4.0 + k * 2.0, -0.4 + (k % 2) * 2.6) * u, 0.5 * u, cord.lightened(0.2), 8)
+			for v in [Vector2(-7.6, -2.0), Vector2(8.2, 0.4), Vector2(-4.4, 7.8), Vector2(5.2, 7.4)]:
+				Art.orb(b, v * u, 1.3 * u, Art.IRON, s, "metal")
+		"lodestone":
+			# A dark iron bomb banded with a lodestone, iron filings leaping to it.
+			var bc := Vector2(-0.6, 1.6) * u
+			Art.orb(b, bc, 6.8 * u, col.darkened(0.3), s, "metal")
+			Art.shape(b, Art.rrect(Rect2(bc + Vector2(-6.9, -1.0) * u, Vector2(13.8, 2.2) * u), 0.6 * u, 2), Art.BRASS, s, "gold", Art.THIN | Art.NO_RIM)
+			_facets_item(b, bc + Vector2(0, 0.1) * u, 2.6 * u, Color(0.42, 0.46, 0.7), s)
+			Art.shape(b, Art.rrect(Rect2(bc + Vector2(-1.6, -8.6) * u, Vector2(3.2, 2.6) * u), 0.6 * u, 3), Art.IRON, s, "metal", Art.NO_RIM)
+			for v in [Vector2(7.4, -6.0), Vector2(8.6, -2.4), Vector2(5.8, -8.6), Vector2(-7.8, -6.4)]:
+				var at: Vector2 = v * u
+				var to := (bc - at).normalized()
+				b.line(at, at + to * 1.6 * u, Color(0.78, 0.82, 0.95), maxf(0.5, 0.45 * u))
+			Art.spark(b, Vector2(6.4, -4.4) * u, 1.8 * u, Color(0.8, 0.88, 1.0, 0.9))
+		"briar_tonic":
+			# A tall green bottle wound about with a thorny briar.
+			var body := Art.rrect(Rect2(Vector2(-3.6, -3.4) * u, Vector2(7.2, 12.6) * u), 2.4 * u)
+			body = _with_neck(body, Rect2(Vector2(-1.4, -6.4) * u, Vector2(2.8, 3.6) * u))
+			Art.glass(b, body, s, col, -0.6 * u)
+			_cork(b, Rect2(Vector2(-2.0, -9.4) * u, Vector2(4.0, 3.2) * u), s)
+			var vine := Color(0.34, 0.52, 0.24)
+			var prev := Vector2(-4.4, 8.2) * u
+			for k in 9:
+				var y := 8.2 - k * 1.6
+				var at := Vector2(sin(k * 1.3) * 4.4, y) * u
+				b.line(prev, at, Art.INK, 1.0 * u + Art.ol(s))
+				b.line(prev, at, vine, 1.0 * u)
+				if k % 2 == 0:
+					var out := Vector2(signf(at.x) if absf(at.x) > 0.1 else 1.0, -0.4).normalized()
+					b.polygon(PackedVector2Array([at + Vector2(0, -0.5) * u, at + out * 1.8 * u, at + Vector2(0, 0.5) * u]), vine.lightened(0.3))
+				prev = at
+			Art.shine(b, Vector2(-2.4, -0.4) * u, 0.45 * u, 1.8 * u, 0.0, 0.45)
+		"wardbreaker":
+			# A red charm on a cord, split across by a crack of light.
+			b.arc(Vector2(0, -2.0) * u, 6.0 * u, PI * 1.08, TAU - PI * 0.08, 20, Art.INK, maxf(1.1, 0.75 * u) + 1.0)
+			b.arc(Vector2(0, -2.0) * u, 6.0 * u, PI * 1.08, TAU - PI * 0.08, 20, Color(0.88, 0.8, 0.6), maxf(0.7, 0.6 * u))
+			var cc := Vector2(0, 4.2) * u
+			var shield := Art.pts(cc, u, [Vector2(-4.8, -4.6), Vector2(4.8, -4.6), Vector2(4.4, 0.8), Vector2(0, 5.0), Vector2(-4.4, 0.8)])
+			Art.shape(b, shield, col, s, "gem")
+			Art.shape(b, Art.pts(cc, u, [Vector2(-3.4, -3.4), Vector2(3.4, -3.4), Vector2(3.1, 0.4), Vector2(0, 3.5), Vector2(-3.1, 0.4)]), col.darkened(0.2), s, "gem", Art.NO_OUTLINE | Art.NO_RIM)
+			var crack := Art.pts(cc, u, [Vector2(-1.0, -4.6), Vector2(0.6, -2.0), Vector2(-0.6, 0.0), Vector2(1.0, 2.2), Vector2(0, 5.0)])
+			Art.soft(b, cc, 4.0 * u, Color(1.0, 0.9, 0.7, 0.45))
+			for i in crack.size() - 1:
+				b.line(crack[i], crack[i + 1], Color(1.0, 0.95, 0.8), maxf(0.6, 0.6 * u))
+			Art.orb(b, Vector2(0, -0.8) * u, 1.0 * u, Art.GOLD, s, "gold")
+			for v in [Vector2(-5.8, 1.0), Vector2(5.6, 6.2)]:
+				Art.spark(b, v * u, 1.3 * u, Color(1.0, 0.92, 0.75, 0.9))
+		"lantern_oil":
+			# A small tin oil can with a long spout, a drop of clear oil at its tip, the light it feeds.
+			var can := Art.rrect(Rect2(Vector2(-6.0, -2.2) * u, Vector2(9.6, 11.0) * u), 1.6 * u, 3)
+			Art.shape(b, Art.pts(c, u, [Vector2(2.6, 0.4), Vector2(9.0, -6.4), Vector2(9.8, -5.6), Vector2(3.8, 2.4)]), Art.BRASS, s, "gold", Art.THIN)
+			Art.shape(b, can, Color(0.66, 0.68, 0.76), s, "metal")
+			Art.shape(b, Art.rrect(Rect2(Vector2(-6.4, -3.4) * u, Vector2(10.4, 2.0) * u), 0.6 * u, 2), Art.BRASS, s, "gold", Art.THIN | Art.NO_RIM)
+			Art.rod(b, Vector2(-4.0, -4.4) * u, Vector2(1.6, -4.4) * u, 1.0 * u, Art.BRASS, s, "gold")
+			var lc := Vector2(-1.2, 3.6) * u
+			Art.shape(b, Art.oval(lc, Vector2(3.0, 3.0) * u), Art.PAPER, s, "", Art.THIN | Art.NO_RIM)
+			Art.flame(b, lc + Vector2(0, 0.4) * u, 1.6 * u, s)
+			var dc := Vector2(9.8, -3.6) * u
+			b.polygon(PackedVector2Array([dc + Vector2(0, -1.2) * u, dc + Vector2(0.9, 0.4) * u, dc + Vector2(0, 1.2) * u, dc + Vector2(-0.9, 0.4) * u]), col)
+			Art.soft(b, dc, 3.0 * u, Color(col, 0.5))
+		"unmaking_ash":
+			# A small violet pouch spilling dark ash, motes of it coming apart in the air.
+			var bag := Art.smooth(Art.pts(c, u, [Vector2(-3.0, -4.6), Vector2(2.4, -4.6), Vector2(5.6, 1.0), Vector2(4.2, 6.6), Vector2(-5.6, 6.6), Vector2(-6.4, 1.0)]), 3)
+			var heap := Art.smooth(Art.pts(c, u, [Vector2(1.0, 6.0), Vector2(5.0, 3.4), Vector2(9.0, 5.4), Vector2(9.8, 8.6), Vector2(1.6, 8.6)]), 2)
+			Art.shape(b, heap, Color(0.24, 0.18, 0.3), s, "", Art.NO_RIM)
+			Art.shape(b, bag, col.darkened(0.25), s, "cloth")
+			Art.shape(b, Art.rrect(Rect2(Vector2(-3.6, -5.6) * u, Vector2(6.4, 1.8) * u), 0.6 * u, 2), col.darkened(0.45), s, "cloth", Art.THIN | Art.NO_RIM)
+			Art.soft(b, Vector2(4.0, -4.0) * u, 7.0 * u, Color(col, 0.35))
+			for v in [Vector2(3.6, -6.4), Vector2(6.4, -3.8), Vector2(1.0, -9.0), Vector2(7.8, -8.0), Vector2(5.0, -10.0)]:
+				var r := (0.9 if v.y > -7.0 else 0.6) * u
+				b.polygon(PackedVector2Array([v * u + Vector2(0, -r), v * u + Vector2(r, 0), v * u + Vector2(0, r), v * u + Vector2(-r, 0)]), Color(0.9, 0.74, 1.0, 0.9))
+			if lod > 0:
+				Art.spark(b, Vector2(-2.2, 1.4) * u, 1.6 * u, Color(0.92, 0.8, 1.0, 0.8))
+		"gale_feather":
+			# A long pale feather riding swirls of wind.
+			for k in 3:
+				var cc := Vector2(-3.0 + k * 3.2, 3.0 - k * 2.4) * u
+				b.arc(cc, (2.6 + k * 0.6) * u, PI * 0.2, PI * 1.6, 14, Color(col, 0.75 - k * 0.15), maxf(0.6, 0.6 * u))
+			Art.feather(b, Vector2(-7.4, 8.6) * u, Vector2(7.6, -9.0) * u, 3.0 * u, col.lightened(0.15), s)
+			Art.rod(b, Vector2(-8.4, 9.8) * u, Vector2(-6.6, 7.6) * u, 0.7 * u, Color(0.9, 0.86, 0.76), s, "")
+		"seeing_scroll":
+			# A scroll sealed in blue, an open eye drawn on it in silver.
+			var body := Rect2(Vector2(-5.6, -4.6) * u, Vector2(11.2, 9.2) * u)
+			Art.shape(b, Art.rrect(body, 0.4 * u, 2), Art.PAPER, s, "cloth")
+			for sx in [-1.0, 1.0]:
+				var x: float = sx * 6.6 * u
+				Art.rod(b, Vector2(x, -5.8 * u), Vector2(x, 5.8 * u), 3.0 * u, Art.PAPER.darkened(0.04), s, "cloth")
+				b.circle(Vector2(x, -6.0 * u), 0.8 * u, Art.PAPER.darkened(0.45), 10)
+			var ec := Vector2(-0.6, -0.4) * u
+			var eye := PackedVector2Array()
+			for i in 16:
+				var a := TAU * i / 16.0
+				eye.append(ec + Vector2(cos(a) * 3.8, sin(a) * 2.0 * (1.0 if sin(a) > 0.0 else 1.0)) * u)
+			Art.outline(b, eye, s, Art.ol(s) * 0.7)
+			b.polygon(eye, Color(0.95, 0.96, 1.0))
+			Art.orb(b, ec, 1.5 * u, col.darkened(0.2), s, "gem", false)
+			b.circle(ec, 0.6 * u, Color(0.08, 0.06, 0.12), 10)
+			Art.soft(b, ec, 5.0 * u, Color(col, 0.3))
+			Art.orb(b, Vector2(2.6, 4.6) * u, 1.8 * u, Color(0.3, 0.46, 0.86), s, "gem")
 		_:
 			Art.orb(b, c, s * 0.5, col, s)
+
+
+## A cut stone seen face on, for an item (a lodestone's band).
+static func _facets_item(b, c: Vector2, r: float, col: Color, s: float, n := 6) -> void:
+	var gem := PackedVector2Array()
+	for i in n:
+		gem.append(c + Vector2.from_angle(-PI / 2.0 + TAU * i / n) * r)
+	Art.outline(b, gem, s, Art.ol(s) * 0.8)
+	var l := Art.LIGHT.normalized()
+	for i in n:
+		var a := gem[i]
+		var e := gem[(i + 1) % n]
+		var lit := ((a + e) * 0.5 - c).normalized().dot(l)
+		b.polygon(PackedVector2Array([c, a, e]), col.lightened(0.38 * lit) if lit > 0.0 else col.darkened(-0.42 * lit))
+	b.circle(c + l * r * 0.45, maxf(0.4, r * 0.18), Color(1, 1, 1, 0.8), 8)
 
 
 ## A round flask's outside: a ball of radius `r` at `bc` with a neck.
@@ -599,6 +935,12 @@ static func _cork(b, r: Rect2, s: float) -> void:
 	Art.shape(b, Art.rrect(r, r.size.y * 0.3, 4), Art.CORK, s, "wood")
 	if Art.detail(s) > 0:
 		b.circle(r.get_center() + Vector2(r.size.x * 0.2, r.size.y * 0.1), maxf(0.45, r.size.y * 0.09), Color(Art.CORK.darkened(0.4), 0.6), 10)
+		# A twist of twine where the cork meets the neck.
+		var y := r.end.y + r.size.y * 0.12
+		var tw := maxf(0.5, r.size.y * 0.16)
+		b.line(Vector2(r.position.x - r.size.x * 0.02, y), Vector2(r.end.x + r.size.x * 0.02, y), Art.INK, tw + Art.ol(s))
+		b.line(Vector2(r.position.x - r.size.x * 0.02, y), Vector2(r.end.x + r.size.x * 0.02, y), Color(0.86, 0.76, 0.56), tw)
+		b.line(Vector2(r.end.x, y), Vector2(r.end.x + r.size.x * 0.28, y + r.size.y * 0.7), Color(0.86, 0.76, 0.56), tw * 0.8)
 
 
 ## A small flame at `c`, `r` tall: orange round a pale heart. `spark` lights

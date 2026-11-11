@@ -270,8 +270,9 @@ func go_to(i: int, from_drag := false) -> void:
 	m.toast = ""
 	m.sell_ask = ""
 	m.train_say = ""
-	m.main.sfx("ui_move", 0.8, -4.0, 0.0)
+	m.main.sfx("train_car", 1.0, 0.0, 0.0)
 	view.go(i)
+	if m.train_car == "store": m.main.sfx("shop_bell", 1.0, 0.0, 0.0)  # (the outfitter's door bell)
 	m.inv_sel = m.train_sel.get(m.train_car, "")
 	if not tips.has(m.train_car):
 		# The first time here this visit: the Entity may have something to say.
@@ -1754,7 +1755,7 @@ func _break_card(thing: String) -> void:
 func _brew(id: String) -> void:
 	var why := Bench.brew(_prof(), _player(), id)
 	if why == "":
-		_done(B["brewed"] % Items.ITEMS[id]["name"], "", "pickup")
+		_done(B["brewed"] % Items.ITEMS[id]["name"], "", "brew")
 	else:
 		_done(B["cant"] % why, "", "ui_back")
 
@@ -1809,7 +1810,7 @@ func _bench_do(thing: String, ask: String) -> void:
 				return
 			said = B["broke"] % [name, got]
 	if why == "":
-		_done(said, "", "pickup" if what == "break" else "armor_on")
+		_done(said, "", "craft_break" if what == "break" else ("craft_rune" if what in ["retrait", "inscribe", "vrune"] else "craft"))
 	else:
 		_done(B["cant"] % why, "", "ui_back")
 
@@ -1990,7 +1991,7 @@ func _buy_supply(id: String) -> void:
 		var said: String = T["bought"] % Items.ITEMS[id]["name"]
 		if Train.item_price(id)[0] == Train.ANY:
 			said += "  ·  " + T["paid_with"] % Train.paid_text(Train.last_paid(_prof(), id))  # (which crystals it took)
-		_done(said, Train.line("bought"), "pickup")
+		_done(said, Train.line("bought"), "buy")
 	else:
 		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
 
@@ -2006,7 +2007,7 @@ func _buy_gear(i: int) -> void:
 	var why := Train.buy_gear(prof, _player(), i)
 	if why == "":
 		m.inv_sel = "today" if i < 0 else "outfit:%d" % i
-		_done(T["bought"] % Gear.display(g) + "  ·  " + T["moved_pack"] % Gear.display(g), Train.line("bought"), "armor_on")
+		_done(T["bought"] % Gear.display(g) + "  ·  " + T["moved_pack"] % Gear.display(g), Train.line("bought"), "buy")
 	else:
 		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
 
@@ -2043,7 +2044,7 @@ func _sell(where: String, i: int) -> void:
 	var name := Gear.display(list[i])
 	var got := Train.sell(prof, where, i)
 	if got != "":
-		_done(T["sold"] % [name, got], Train.line("sold"), "pickup")
+		_done(T["sold"] % [name, got], Train.line("sold"), "sell")
 
 
 

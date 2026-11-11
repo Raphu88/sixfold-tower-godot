@@ -33,7 +33,7 @@ static var TEXT := {
 	"bench_note": "In the Workshop car: choose its form, pour its essences in order, pick their effects and fit a variation.",
 	"level": "%s: level %d  ·  combines up to %d %s",
 	"level_next": "  (%d at level %d)",
-	"gem_empty": "+ essence",
+	"gem_empty": "open",
 	"gem_locked": "level %d",
 	"fill": "%s: full at %d, then it casts for nothing  ·  strain +%d of 100",
 	"boost": "Boost: spends %s you carry unbanked for +%d%% power",
@@ -149,12 +149,13 @@ static func build(menu) -> void:
 				gcol = menu.FAINT
 			else:
 				text = TEXT["gem_empty"]
-			var gb: Button = menu._button(text, _cycle_gem.bind(menu, sel, g), gems)
-			gb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			gb.custom_minimum_size = Vector2(0, 44)
-			gb.add_theme_color_override("font_color", gcol)
-			gb.disabled = locked or g > t["kinds"].size()
-			gb.set_meta("tech_gem", g)
+			# (Read only: the essence bench builds and changes techniques.)
+			var gl: Label = menu._small_label(text, gcol)
+			gl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			gl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			gl.custom_minimum_size = Vector2(0, 30)
+			gl.set_meta("tech_gem_label", g)
+			gems.add_child(gl)
 		var desc: Label = menu._small_label(Tech.describe(t), menu.TEXT)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.custom_minimum_size.x = 280.0
@@ -341,14 +342,6 @@ static func cycle_gem(prof, t: Dictionary, g: int) -> Dictionary:
 	else:
 		kinds.append(pick)
 	return out
-
-
-static func _cycle_gem(menu, i: int, g: int) -> void:
-	var techs: Array = _st(menu)["techs"]
-	if not Tech.valid(techs[i]):
-		return
-	techs[i] = cycle_gem(menu.main.profile, techs[i], g)
-	_save_and_redraw(menu)
 
 
 static func _rename(menu, i: int, s: String, redraw := true) -> void:

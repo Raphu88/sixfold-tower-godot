@@ -14,14 +14,26 @@ const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "b
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
-const GLINT_LEAD := 0.25  # seconds from the glint to the hit
-const FLINCH_TIME := 0.3
+## It lost health: `source` is "blow" (take_hit), "burn" or "venom". main.gd
+## sends the same for every foe (main.on_hit). Spells listen here (e.g.
+## Rune Brand: spell_fx.gd listen()) instead of watching its health.
+signal on_hit(foe, dmg: float, source: String)
+
+## The rules every attack keeps live in combat.gd FOES (the Data editor's
+## "The climber's core numbers"); these read them.
+const Combat := preload("res://scripts/combat.gd")
+var GLINT_LEAD: float:  # seconds from the glint to the hit
+	get: return float(Combat.FOES["glint_lead"])
+var FLINCH_TIME: float:
+	get: return float(Combat.FOES["flinch_time"])
 ## A monster flinches from a light hit at most this often (no stun-locking
 ## by mashing); heavy hits (finishers) always rock it.
-const FLINCH_COOLDOWN := 1.2
+var FLINCH_COOLDOWN: float:
+	get: return float(Combat.FOES["flinch_cooldown"])
 ## After an attack, a monster is open: hits deal this much more. That's
 ## where your damage should come from.
-const OPEN_MULT := 1.6
+var OPEN_MULT: float:
+	get: return float(Combat.FOES["opening"])
 const POUNCE_SPEED := 420.0
 const LUNGE_SPEED := 760.0
 
@@ -32,27 +44,27 @@ static var TYPES := {
 	# The Gryphon's tower
 	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
-	"gryphon": {"hp": 300.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
+	"gryphon": {"hp": 280.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
 	# The Kraken's tower
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
-	"kraken": {"hp": 340.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
+	"kraken": {"hp": 316.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
-	"wyvern": {"hp": 320.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
+	"wyvern": {"hp": 298.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
-	"manticore": {"hp": 350.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
+	"manticore": {"hp": 326.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
 	"bloomcap": {"hp": 34.0, "speed": 0.0, "radius": 14.0, "color": Color(0.88, 0.42, 0.32), "dmg": 13.0, "weight": 60.0},
-	"firebird": {"hp": 330.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
+	"firebird": {"hp": 306.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
 	# The Chimera's tower
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
-	"chimera": {"hp": 380.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
+	"chimera": {"hp": 354.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# Covenant's spirit familiar (only ever on your side)
 	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
 }
@@ -96,13 +108,23 @@ const RAKE_ARC := 70.0
 const DIVE_RADIUS := 78.0
 
 var kind := "slime"
+var voice_at := 0  # when it may cry out again (msec; _hurt_voice)
 var main
 var hp := 1.0
 var max_hp := 1.0
 var radius := 12.0
 var color := Color.WHITE
 var speed := 60.0
-var dmg := 8.0
+var base_dmg := 8.0  # its own blows (the table's "dmg"; a champion's is higher)
+## What softens or hardens its blows for a while (Enfeeble): spells scale
+## this, never dmg itself, so their effect comes off cleanly.
+var dmg_mult := 1.0
+## What its blows deal: base_dmg * dmg_mult (setting it sets that result).
+var dmg: float:
+	get:
+		return base_dmg * dmg_mult
+	set(v):
+		base_dmg = v / dmg_mult if dmg_mult != 0.0 else v
 var weight := 1.0  # how hard it is to shove when bodies collide
 var dead := false:
 	set(v):
@@ -179,7 +201,7 @@ var overlay: Node2D  # over the darkness: telegraphs and the health bar
 var champion := false
 var champ_t := 0.0  # until its next slam
 var champ_wind := 0.0  # the slam's wind-up, counting down
-static var CHAMPION := {"hp": 3.5, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
+static var CHAMPION := {"hp": 3.0, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
 	"slam_reach": 88.0, "slam_dmg": 1.3, "slam_near": 120.0, "color": Color(1.0, 0.82, 0.4)}
 ## A shade (the Proving's shadow of a beast, proving.gd): drawn in faded,
 ## ghostly colours toward `color`, `keep` of its own colour kept, with wisps
@@ -719,6 +741,7 @@ func _bat(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:  # hover: circle, swoop when it's our turn
 			if dist < 170.0 and main.request_attack(self):
 				_begin_wind("wind", 0.45)
+				main.sfx("warn_bat")
 				aim_dir = dir
 			else:
 				_circle(dir, dist, 110.0, speed)
@@ -749,7 +772,7 @@ func _thunderling(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 75.0 and main.request_attack(self):
 				_begin_wind("wind_spark", 0.9)
-				main.sfx("charge", 1.3, -4.0)
+				main.sfx("warn_thunderling")
 			elif main.holds_attack(self) or main.can_attack():
 				velocity = dir * speed
 			else:
@@ -821,13 +844,13 @@ func _gryphon(delta: float, dir: Vector2, dist: float, p) -> void:
 				velocity = dir * speed
 			elif dist < 95.0:
 				_begin_wind("wind_rake", 0.55)
-				main.sfx("warn_knight", 0.7)
+				main.sfx("warn_gryphon")
 			elif dist > 140.0 and randf() < delta * 0.9:
 				_begin_wind("wind_dive", 0.75)
-				main.sfx("warn_archer", 0.6)
+				main.sfx("roar_gryphon", 1.0, -3.0)
 			elif randf() < delta * 0.6:
 				_begin_wind("wind_gale", 0.6)
-				main.sfx("warn_archer", 0.9)
+				main.sfx("wingbeat", 0.9)
 			else:
 				velocity = dir * speed
 				main.release_attack(self)
@@ -839,7 +862,7 @@ func _call_flock() -> void:
 		return
 	called_flock = true
 	main.fx_text(global_position + Vector2(0, -radius - 30.0), "%s calls for help" % main.beast_name().capitalize(), color)
-	main.sfx("warn_knight", 0.6)
+	main.sfx("warn_gryphon", 1.15)
 	for i in 2:
 		main.spawn_enemy(FLOCK.get(kind, "slime"), global_position + Vector2.from_angle(randf() * TAU) * (radius + 40.0))
 
@@ -865,6 +888,7 @@ func _lurker(delta: float, dir: Vector2, dist: float, p) -> void:
 			state_t -= delta
 			if state_t <= 0.0:
 				_begin_wind("wind", 0.45)
+				main.sfx("warn_lurker")
 				lunge_dir = dir
 		"wind":
 			velocity = Vector2.ZERO
@@ -920,7 +944,7 @@ func _shellback(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 60.0 and main.request_attack(self):
 				_begin_wind("wind_bash", 0.7)
-				main.sfx("warn_knight", 0.9)
+				main.sfx("warn_shellback")
 			else:
 				velocity = dir * speed
 
@@ -980,16 +1004,16 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 				velocity = dir * speed if dist > 180.0 else Vector2.ZERO
 			elif dist < SWEEP_REACH - 30.0 and randf() < 0.5:
 				_begin_wind("wind_sweep", 0.7)
-				main.sfx("warn_knight", 0.5)
+				main.sfx("warn_kraken")
 			elif randf() < 0.5:
 				slam_spots = [p.global_position]
 				for i in 2:
 					slam_spots.append(p.global_position + Vector2.from_angle(randf() * TAU) * randf_range(80.0, 130.0))
 				_begin_wind("wind_slam", 0.9)
-				main.sfx("warn_archer", 0.5)
+				main.sfx("roar_kraken", 1.0, -3.0)
 			else:
 				_begin_wind("wind_ink", 0.55)
-				main.sfx("warn_archer", 0.8)
+				main.sfx("bubble", 0.7)
 
 
 # --- the Wyvern's tower --------------------------------------------------------------
@@ -1016,7 +1040,7 @@ func _cinder(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 210.0 and main.request_attack(self):
 				_begin_wind("wind_spit", 0.6)
-				main.sfx("warn_archer", 1.0, -4.0)
+				main.sfx("warn_cinder")
 			elif dist < 140.0:
 				velocity = -dir * speed  # keeps its distance
 			else:
@@ -1047,7 +1071,7 @@ func _smith(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 75.0 and main.request_attack(self):
 				_begin_wind("wind_hammer", 0.85)
-				main.sfx("warn_knight", 0.75)
+				main.sfx("warn_smith")
 			else:
 				velocity = dir * speed
 
@@ -1106,10 +1130,10 @@ func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
 				velocity = dir * speed if dist > 120.0 else Vector2.ZERO
 			elif dist < 105.0:
 				_begin_wind("wind_tail", 0.6)
-				main.sfx("warn_knight", 0.6)
+				main.sfx("warn_wyvern")
 			elif dist < BREATH_REACH and randf() < 0.55:
 				_begin_wind("wind_breath", 0.8)
-				main.sfx("charge", 0.6)
+				main.sfx("roar_wyvern", 1.0, -3.0)
 			else:
 				_begin_wind("wind_embers", 0.6)
 				main.sfx("warn_archer", 0.8)
@@ -1147,7 +1171,7 @@ func _scorpling(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 60.0 and main.request_attack(self):
 				_begin_wind("wind_sting", 0.5)
-				main.sfx("warn_archer", 1.05, -6.0)
+				main.sfx("warn_scorpling")
 			elif dist < 60.0:
 				_circle(dir, dist, 85.0, speed * 0.7)
 			else:
@@ -1187,7 +1211,7 @@ func _ram(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 210.0 and dist > 70.0 and main.request_attack(self):
 				_begin_wind("wind_charge", 0.8)
-				main.sfx("warn_knight", 0.65)
+				main.sfx("warn_ram")
 			else:
 				velocity = dir * speed
 
@@ -1238,7 +1262,7 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta):
 				main.fx_ring(global_position, Color(1.0, 0.75, 0.45), ROAR_RADIUS, 0.45, 8.0)
 				main.fx_burst(global_position, Vector2.ZERO, Color(0.85, 0.7, 0.5), 20, 300.0)
-				main.sfx("warn_knight", 0.4)
+				main.sfx("roar_manticore")
 				main.sfx("slam", 0.85)
 				main.shake(9.0)
 				if dist < ROAR_RADIUS + p.radius:
@@ -1254,7 +1278,7 @@ func _manticore(delta: float, dir: Vector2, dist: float, p) -> void:
 				velocity = dir * speed if dist > 110.0 else Vector2.ZERO
 			elif dist < 100.0 and randf() < 0.6:
 				_begin_wind("wind_claw", 0.55)
-				main.sfx("warn_knight", 0.75)
+				main.sfx("warn_manticore")
 			elif dist < ROAR_RADIUS:
 				_begin_wind("wind_roar", 0.9)
 				main.sfx("charge", 0.5)
@@ -1295,6 +1319,7 @@ func _wisp(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 170.0 and main.request_attack(self):
 				_begin_wind("wind", 0.45)
+				main.sfx("warn_wisp")
 				aim_dir = dir
 			else:
 				# Flickers about rather than circling smoothly.
@@ -1327,7 +1352,7 @@ func _bloomcap(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 340.0 and main.request_attack(self):
 				_begin_wind("wind_lob", 0.9)
-				main.sfx("charge", 1.2, -6.0)
+				main.sfx("warn_bloomcap")
 
 
 # The Firebird: a burning swoop straight through you (parryable) that leaves
@@ -1346,7 +1371,7 @@ func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
 			main.fx_burst(global_position, Vector2.ZERO, color, 30, 360.0)
 			main.light_flash(global_position, color, 2.5, 2.5, 0.6)
 			main.fx_text(global_position + Vector2(0, -radius - 30.0), "The Firebird rises again", color)
-			main.sfx("crit", 0.5)
+			main.sfx("roar_firebird")
 			main.shake(10.0)
 		return
 	_call_flock()
@@ -1408,13 +1433,13 @@ func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
 				_circle(dir, dist, 170.0, speed)
 			elif dist < 230.0 and randf() < 0.45:
 				_begin_wind("wind_swoop", 0.6)
-				main.sfx("warn_knight", 0.8)
+				main.sfx("warn_firebird")
 			elif randf() < 0.5:
 				storm_spots = [p.global_position]
 				for i in 3:
 					storm_spots.append(p.global_position + Vector2.from_angle(TAU * i / 3.0 + randf()) * randf_range(90.0, 140.0))
 				_begin_wind("wind_storm", 0.9)
-				main.sfx("charge", 0.6)
+				main.sfx("roar_firebird", 1.0, -3.0)
 			else:
 				_begin_wind("wind_embers", 0.6)
 				main.sfx("warn_archer", 0.7)
@@ -1461,7 +1486,7 @@ func _thornhound(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:
 			if dist < 120.0 and main.request_attack(self):
 				_begin_wind("wind", 0.45)
-				main.sfx("warn_archer", 1.5, -6.0)
+				main.sfx("warn_thornhound")
 			elif dist < 120.0:
 				_circle(dir, dist, 110.0, speed * 0.8)
 			else:
@@ -1504,7 +1529,7 @@ func _mongrel(delta: float, dir: Vector2, dist: float, p) -> void:
 			if dist < 75.0 and main.request_attack(self):
 				turn += 1
 				_begin_wind("wind_bite", 0.6)
-				main.sfx("warn_knight", 1.0)
+				main.sfx("warn_mongrel")
 			elif dist < 260.0 and turn % 2 == 1 and main.request_attack(self):
 				turn += 1
 				_begin_wind("wind_quills", 0.6)
@@ -1587,15 +1612,15 @@ func _chimera(delta: float, dir: Vector2, dist: float, p) -> void:
 				velocity = dir * speed if dist > 110.0 else Vector2.ZERO
 			elif dist < 100.0:
 				_begin_wind("wind_maul", 0.55)
-				main.sfx("warn_knight", 0.7)
+				main.sfx("warn_chimera")
 			else:
 				var roll := randf()
 				if dist < 210.0 and roll < 0.35:
 					_begin_wind("wind_charge", 0.8)
-					main.sfx("warn_knight", 0.55)
+					main.sfx("warn_ram", 0.75)
 				elif dist < BREATH_REACH and roll < 0.7:
 					_begin_wind("wind_breath", 0.8)
-					main.sfx("charge", 0.6)
+					main.sfx("roar_chimera", 1.0, -3.0)
 				else:
 					_begin_wind("wind_spikes", 0.6)
 					main.sfx("warn_archer", 0.7)
@@ -1727,6 +1752,7 @@ func _tick_burn(delta: float) -> void:
 		if submerged:
 			return
 		hp -= burn_dmg
+		_was_hit(burn_dmg, "burn")
 		flash = 0.05
 		if hp <= 0.0:
 			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
@@ -1747,6 +1773,7 @@ func _tick_venom(delta: float) -> void:
 	if venom_tick <= 0.0:
 		venom_tick = 0.5
 		hp -= float(venom)
+		_was_hit(float(venom), "venom")
 		flash = 0.05
 		if hp <= 0.0:
 			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
@@ -1809,6 +1836,15 @@ func _wander(delta: float) -> void:
 	_redraw()
 
 
+## Tells whoever listens that it lost health (on_hit, and main's on_hit).
+## Listeners should act next frame, not inside this call: the blow that
+## sent it hasn't finished (it may be about to kill).
+func _was_hit(amount: float, source: String) -> void:
+	on_hit.emit(self, amount, source)
+	if main != null and main.has_signal("on_hit"):
+		main.on_hit.emit(self, amount, source)
+
+
 ## `pierce`: the blow ignores armour (Unmaking's flow, from step 3): a
 ## shellback's shell doesn't turn it and a knight's guard doesn't shrug it off.
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
@@ -1843,6 +1879,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "ashes", Color(0.7, 0.6, 0.55))
 		return
 	hp -= amount
+	_was_hit(amount, "blow")
 	flash = 0.12
 	squash = 1.0
 	if dir != Vector2.ZERO:
@@ -1860,6 +1897,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		_leave_remains()
 		queue_free()
 		return
+	_hurt_voice()
 	# Flinching: slimes and archers are knocked out of what they were doing.
 	# Knights shrug off hits while winding up; only heavy blows rock them
 	# when they aren't attacking.
@@ -1873,6 +1911,16 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		if is_attacking():
 			aim_dir = Vector2.ZERO
 			_end_attack(_idle_state(), 0.6)
+
+
+## Its cry when struck (hurt_<kind>), spaced out so a flurry of blows
+## doesn't make a choir (beasts cry less often still).
+func _hurt_voice() -> void:
+	var now := Time.get_ticks_msec()
+	if now < voice_at:
+		return
+	voice_at = now + int(randf_range(1300.0, 2200.0) if is_boss() else randf_range(450.0, 900.0))
+	main.sfx_kind("hurt", kind, "", 1.0, 0.0)
 
 
 ## Windwalker's Gale Lift: helpless in the air.

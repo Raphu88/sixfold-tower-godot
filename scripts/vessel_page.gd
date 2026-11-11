@@ -123,7 +123,7 @@ static func _do_trade(tp, i: int, choice: String) -> void:
 	var got := Vessel.trade(tp._prof(), i, choice)
 	if got != "":
 		m.inv_sel = ""
-		tp._done(V["traded"] % got, Train.line("sold"), "pickup")
+		tp._done(V["traded"] % got, Train.line("sold"), "sell")
 
 
 # --- the bench's Vessel counter --------------------------------------------------------------
@@ -206,7 +206,7 @@ static func bench_card(tp, arg: String) -> void:
 static func _brew(tp) -> void:
 	var why := Vessel.brew(tp._prof())
 	if why == "":
-		tp._done(V["brewed"], "", "pickup")
+		tp._done(V["brewed"], "", "brew")
 	else:
 		tp._done(Bench.TEXT["cant"] % why, "", "ui_back")
 

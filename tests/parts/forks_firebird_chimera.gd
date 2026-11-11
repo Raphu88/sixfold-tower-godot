@@ -205,7 +205,8 @@ func _flamewing() -> void:
 	var paid := _cast(b)
 	_check(is_equal_approx(paid, 10.0), "Cinder Dive costs 10 (%.1f)" % paid)
 	_check(p.global_position.x > start.x + 100.0, "...you dive along your aim (%.0f px)" % (p.global_position.x - start.x))
-	_check(foe.hp <= 300.0 - 15.0 and foe.burn_t > 0.0 and p.aura_heat == 0.0, "...striking the foe you pass with the aura's heat and setting it burning (%.0f)" % foe.hp)
+	var dive_dmg: float = float(TR.fork_alt("flamewing", 2)["steps"][2]["damage"]) + 20.0 * 0.3  # (its damage, plus a share of the heat)
+	_check(foe.hp <= 300.0 - dive_dmg + 0.5 and foe.burn_t > 0.0 and p.aura_heat == 0.0, "...striking the foe you pass with the aura's heat and setting it burning (%.0f)" % foe.hp)
 	p.firebird_t = 5.0
 	b.essence = b.capacity()
 	paid = _cast(b)
@@ -279,6 +280,10 @@ func _rekindler() -> void:
 	var low: float = p.hp
 	var lost: float = p.rekindle_lost
 	await t._wait(0.25)
+	for i in 300:  # (until the burn has ended and the payback landed: a busy machine runs the fight slower)
+		if p.rekindle_t <= 0.0 and p.hp - low >= lost * 2.3:
+			break
+		await t._frames(1)
 	Engine.time_scale = 1.0
 	_check(lost > 0.0 and p.hp - low >= lost * 2.3, "...and pays back two and a half times what you lost (lost %.1f, back %.1f)" % [lost, p.hp - low])
 	# Step 4: Backdraft.
@@ -318,11 +323,12 @@ func _covenant() -> void:
 	var spd0: float = ally.speed
 	b.essence = b.capacity()
 	_cast(b)
-	_check(is_equal_approx(ally.dmg, dmg0 * 1.5) and is_equal_approx(ally.speed, spd0 * 1.3) and ally.hp > ally.max_hp * 0.8 and ally.ally_t > 30.0,
+	var might: float = float(TR.fork_alt("covenant", 2)["steps"][2]["might"])
+	_check(is_equal_approx(ally.dmg, dmg0 * might) and is_equal_approx(ally.speed, spd0 * 1.3) and ally.hp > ally.max_hp * 0.8 and ally.ally_t > 30.0,
 		"...your creatures heal, stay longer, and hit harder and move faster (%.1f -> %.1f)" % [dmg0, ally.dmg])
 	b.essence = b.capacity()
 	_cast(b)
-	_check(is_equal_approx(ally.dmg, dmg0 * 1.5), "...casting again doesn't stack")
+	_check(is_equal_approx(ally.dmg, dmg0 * might), "...casting again doesn't stack")
 	Engine.time_scale = 8.0
 	await t._wait(1.2)
 	Engine.time_scale = 1.0
@@ -343,7 +349,8 @@ func _covenant() -> void:
 	var out: Array = main.allies()
 	_check(is_equal_approx(paid, 14.0) and out.size() == 1 and out[0].kind == "knight", "...it costs 14 and calls from your retinue (%s)" % [out.map(func(a): return a.kind)])
 	if out.size() == 1:
-		_check(is_equal_approx(out[0].max_hp, (30.0 + 15.0 * 3) * 1.8) and is_equal_approx(out[0].dmg, (4.0 + 3.0 * 3) * 1.8), "...nearly twice as strong (%.0f health)" % out[0].max_hp)
+		var mighty: float = float(TR.fork_alt("covenant", 3)["steps"][3]["might"])
+		_check(is_equal_approx(out[0].max_hp, (30.0 + 15.0 * 3) * mighty) and is_equal_approx(out[0].dmg, (4.0 + 3.0 * 3) * mighty), "...about twice as strong (%.0f health)" % out[0].max_hp)
 	var weak = _foes([Vector2(60, 0)])[0]
 	var kind: String = weak.kind
 	main.profile.pacts = []

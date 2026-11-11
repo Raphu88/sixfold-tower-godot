@@ -66,6 +66,11 @@ const WALL := 24.0
 ## The single open room of floor 1 and the beast's floor. Floors of rooms
 ## and corridors use a bigger area that grows with height (Floors.arena_for).
 const OPEN_ROOM := Rect2(80, 100, 1120, 530)
+
+## Any foe lost health (enemy.gd on_hit, sent for every foe): for spells
+## and other content that care about "a foe was hit".
+signal on_hit(foe, dmg: float, source: String)
+
 ## The owner's changes to the game's words, numbers and colours (the Data
 ## editor: data_registry.gd), applied first, before anything reads the tables.
 var _data_changes := DataRegistry.startup()
@@ -1042,7 +1047,7 @@ func _start_floor(n: int) -> void:
 	if plan.get("summit", false):
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
 		tip("beast")
-		sfx("warn_knight", 0.5, 0.0, 0.0)
+		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, -2.0)  # (the beast takes notice: its roar)
 	pillars = plan["pillars"]
 	for p in pillars:
 		var body := StaticBody2D.new()
@@ -1403,6 +1408,7 @@ func _arrive() -> void:
 		var paid := pay_climb()
 		if paid != "":
 			lines.append(paid)
+		lines.append_array(_keep_beast_pieces())
 		var home := bring_pack_home()
 		if home != "":
 			lines.append(home)
@@ -1957,6 +1963,29 @@ func drop_gear(pos: Vector2, g, fresh := false) -> void:
 		sfx("glint", 1.4, -4.0, 0.0)
 
 
+## A slain beast leaves its own Regarded piece where it falls (always the
+## first time; gear.gd REGARDED_DROP), glinting gold.
+func _beast_piece(e) -> void:
+	var n := Gear.beast_piece(tower)
+	if n == "" or not Gear.beast_drops(int(profile.record.get("beasts_by", {}).get(tower, 0))):
+		return
+	drop_gear(e.global_position + Vector2(0, 14), Gear.make_named(n), true)
+	light_flash(e.global_position, Gear.rarity_color(Gear.make_named(n)), 2.0, 2.2, 0.6)
+
+
+## A beast's Regarded piece still on the floor when you take the summit's
+## stair comes down with you, in your pack (it can't be left behind).
+func _keep_beast_pieces() -> Array:
+	var lines: Array = []
+	for d in gear_drops.duplicate():
+		var r: Dictionary = d.get("rec", {})
+		if Gear.rarity(r) == "regarded":
+			player.pack.append(r)
+			gear_drops.erase(d)
+			lines.append(Gear.TEXT["beast_kept"] % Gear.display(r))
+	return lines
+
+
 ## A fresh find for this floor and tower (gear.gd roll_gear): rarity by
 ## floor (`higher` rows up for caches, camps and vaults), never a piece you
 ## already carry, no rings or amulets on the bondless first climb.
@@ -2144,9 +2173,10 @@ func break_belt(skip: Array = []) -> String:
 	return Items.BELT["broke"] % ", ".join(made)
 
 
-## Throws a Fire Flask where you aim (short of a wall): it bursts a moment later.
-func throw_flask(p) -> void:
-	var data: Dictionary = Items.ITEMS["fire_flask"]
+## Throws a Fire Flask (or another thrown item: a net, a lodestone bomb)
+## where you aim, short of a wall: it bursts a moment later.
+func throw_flask(p, id := "fire_flask") -> void:
+	var data: Dictionary = Items.ITEMS[id]
 	var from: Vector2 = p.global_position
 	var to := from
 	var step := 8.0
@@ -2157,10 +2187,9 @@ func throw_flask(p) -> void:
 			break
 		to = next
 		dist += step
-	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") else 1.0)
-	var dmg: float = float(data["dmg"]) * (1.0 + float(data["per_floor"]) * maxf(0.0, floor_num - 1))
-	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r})
-	sfx("swing", 0.7, -4.0)
+	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") and id == "fire_flask" else 1.0)
+	var dmg: float = float(data.get("dmg", 0.0)) * (1.0 + float(data.get("per_floor", 0.0)) * maxf(0.0, floor_num - 1))
+	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r, "id": id})
 
 
 func _update_flasks(delta: float) -> void:
@@ -2177,6 +2206,9 @@ func _update_flasks(delta: float) -> void:
 
 
 func _burst_flask(f: Dictionary) -> void:
+	if String(f.get("id", "fire_flask")) != "fire_flask":
+		Items.burst(self, f)  # (a net or a lodestone bomb: items.gd)
+		return
 	var col: Color = Items.color("fire_flask")
 	var pos: Vector2 = f["to"]
 	for e in targets():
@@ -2190,7 +2222,7 @@ func _burst_flask(f: Dictionary) -> void:
 	fx_burst(pos, Vector2.ZERO, Color(1.0, 0.9, 0.5), 10, 180.0)
 	light_flash(pos, col, 1.2 + f["r"] / 60.0, 2.0, 0.45)
 	sfx("burn", 0.9, 0.0)
-	sfx("hit_heavy", 0.6, -4.0)
+	sfx("glass_break", 1.0, -2.0)
 	shake(4.0)
 
 
@@ -2204,11 +2236,14 @@ func light_flare(pos: Vector2, seconds: float) -> void:
 	var data: Dictionary = Items.ITEMS["flare"]
 	flare_light = lighting.add_light(pos, float(data["radius"]), Color(1.0, 0.88, 0.62), 0.9, 0.25) if lighting != null else -1
 	light_flash(pos, Items.color("flare"), 2.4, 2.0, 0.6)
-	sfx("glint", 0.8, -2.0, 0.0)
+	sfx("flare", 1.0, 0.0)
 
 
 ## Is this spot lit by a Flare (hidden traps and secret walls there glint)?
 func flare_reveals(pos: Vector2) -> bool:
+	# (A Scroll of Seeing, or a Wayfinder's Pendant near you, shows them too.)
+	if player != null and is_instance_valid(player) and pos.distance_to(player.global_position) < player.gfx("seek"):
+		return true
 	return flare_t > 0.0 and pos.distance_to(flare_pos) < float(Items.ITEMS["flare"]["reveal"])
 
 
@@ -2228,6 +2263,7 @@ func await_tower() -> void:
 	choosing_tower = true
 	on_train = profile.regarded
 	if on_train:
+		sfx_ambience("train")
 		Train.stock(profile)
 		profile.save()
 	card_focus = maxi(Towers.ORDER.find(tower), 0)
@@ -2241,6 +2277,7 @@ func await_tower() -> void:
 func open_train() -> void:
 	on_train = true
 	choosing_tower = true
+	sfx_ambience("train")
 	player.set_physics_process(false)
 	for e in enemies():
 		e.set_physics_process(false)
@@ -2255,6 +2292,7 @@ func open_train() -> void:
 func depart(id: String) -> void:
 	if not on_train or not Towers.TOWERS.has(id):
 		return
+	sfx("train_whistle", 1.0, 0.0, 0.0)
 	choose_tower(id)  # (packs up and leaves the train)
 	if menu != null and menu.is_open():
 		menu.close()
@@ -2300,6 +2338,7 @@ func _greet() -> void:
 ## Each tower's stone, light and torches.
 func _apply_tower_look() -> void:
 	var t := tower_data()
+	sfx_ambience(tower)
 	lighting.set_tower_look(tower)
 	room_view.self_modulate = t["stone"] * Palette.TOWER_TINT.get(tower, Color.WHITE)
 	room_view.set_torch_color(t["torch"])
@@ -2387,7 +2426,7 @@ func summit_mark() -> Array:
 func show_victory(lines: Array) -> void:
 	victory = {"t": 0.0, "beast": beast_name(), "lines": lines, "dark": fade > 0.5}
 	player.set_physics_process(false)
-	sfx("clear", 0.7, 0.0, 0.0)
+	sfx("summit_win", 1.0, 0.0, 0.0)
 
 
 ## Winning the Proving (proving.gd): one of your marks grows a step, the
@@ -2543,7 +2582,7 @@ func _begin_regard(fell: bool) -> void:
 	for c in get_children():
 		if "reflected" in c:
 			c.queue_free()
-	sfx("clear", 0.55, 0.0, 0.0)
+	sfx("regard", 1.0, 0.0, 0.0)
 	sfx("glint", 0.6, -2.0, 0.0)
 
 
@@ -2858,7 +2897,7 @@ func rise_secret(kind: String, amount: float, from: Vector2) -> void:
 			fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, false)
 		fx_text(from + Vector2(0, -64), Secret.TEXT["gather"] % [int(round(amount)), Secret.display(kind)], Secret.KINDS[kind]["light"])
 		light_flash(from, Secret.color(kind), 1.6, 1.6, 0.6)
-		sfx("glint", 0.8, -4.0, 0.0)
+		sfx("secret_life" if kind == "life" else "secret_unmaking", 1.0, -2.0, 0.0)
 	else:
 		pass_through(kind, amount, from)
 
@@ -2873,6 +2912,7 @@ func pass_through(kind: String, amount: float, from: Vector2) -> void:
 		fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, true)
 	if player != null:
 		fx_text(player.global_position + Vector2(0, -58), Secret.TEXT["passes"] % Secret.display(kind), Color(Secret.color(kind), 0.9))
+	sfx("secret_pass", 1.0, 0.0, 0.0)
 	tip("secret_pass")
 
 
@@ -3529,6 +3569,7 @@ func on_enemy_killed(e) -> void:
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
 		GuideScript.say("beast_slain", {"beast": beast_name()})
+		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.
 	if e.overcharge_t > 0.0:
 		var pts: Array = []
@@ -3599,6 +3640,22 @@ func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> voi
 func sfx_fade(sound: String) -> void:
 	if audio != null:
 		audio.fade(sound)
+
+
+## A creature's own sound, "<what>_<kind>" (roar_kraken, hurt_bat), if the
+## bank has one; otherwise `fallback` (if any).
+func sfx_kind(what: String, kind: String, fallback := "", pitch := 1.0, volume_db := 0.0) -> void:
+	var sound := what + "_" + kind
+	if audio != null and audio.has_sound(sound):
+		sfx(sound, pitch, volume_db)
+	elif fallback != "":
+		sfx(fallback, pitch, volume_db)
+
+
+## The ambience under the music: a tower's own, the train's, or the default.
+func sfx_ambience(place: String) -> void:
+	if audio != null:
+		audio.set_ambience(place)
 
 
 func fx_ring(pos: Vector2, color: Color, reach: float, dur := 0.3, width := 3.0) -> void:

@@ -25,7 +25,7 @@ extends RefCounted
 ## CAPSTONES: each part's level-10 node (TREE[part][10]["capstone"]): a name,
 ## one plain line and its numbers. They're on for an Unbound whose part is at
 ## level 10 (capstone_on) and play out in the climb through this file's node
-## (Fx, under main: casts are noticed from unbound_run.gd's strain clock).
+## (Fx, under main) and its on_cast (library.gd calls it after every cast).
 ##
 ## Things that stay a while (beams, rings, trails, signs, pools, cloaks) live
 ## in Fx (one under main, "UnboundForms"; a new floor clears it), which also
@@ -63,7 +63,7 @@ static var TREE := {
 
 ## Level 3 forms add 2 strain, level 7 forms 4 (their price: the owner may change it).
 static var FORMS := {
-	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Three small bolts thrown in a fan", "damage": 6.0, "speed": 440.0, "range": 300.0,
+	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Three small bolts thrown in a fan", "damage": 7.0, "speed": 440.0, "range": 300.0,
 		"count": 3, "spread": 16.0, "strain": 2.0, "opens": 3, "levels": {}},
 	"brand": {"name": "Brand", "part": "hand", "class": "hit", "says": "A touch that sets a burst on a foe a moment later", "touch": 4.0, "damage": 22.0, "reach": 60.0, "arc": 55.0,
 		"delay": 0.8, "radius": 60.0, "strain": 4.0, "opens": 7, "levels": {}},
@@ -83,7 +83,7 @@ static var FORMS := {
 		"strain": 2.0, "opens": 3, "levels": {}},
 	"omen": {"name": "Omen", "part": "brow", "class": "hit", "says": "A sign on the floor that bursts when a foe steps on it", "damage": 28.0, "range": 90.0, "trigger": 26.0, "radius": 80.0,
 		"duration": 10.0, "strain": 4.0, "opens": 7, "levels": {}},
-	"heartbeat": {"name": "Heartbeat", "part": "heart", "class": "hit", "says": "The effect beats out around you every second for a while", "damage": 5.0, "radius": 90.0, "beats": 5, "tick": 1.0,
+	"heartbeat": {"name": "Heartbeat", "part": "heart", "class": "hit", "says": "The effect beats out around you every second for a while", "damage": 4.5, "radius": 90.0, "beats": 4, "tick": 1.0,
 		"strain": 2.0, "opens": 3, "levels": {}},
 	"wellspring": {"name": "Wellspring", "part": "heart", "class": "self", "says": "A pool on the floor that works on you while you stand in it", "radius": 56.0, "duration": 7.0, "tick": 0.5,
 		"hold": 1.5, "strain": 4.0, "opens": 7, "levels": {}},
@@ -252,7 +252,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			for i in n:
 				var dir: Vector2 = aim.rotated(spread * (float(i) - float(n - 1) * 0.5))
 				run.add_bolt(origin + dir * (p.radius + 6.0), dir * float(sh["speed"]), float(sh["range"]) * reach_k, float(sh["damage"]) * power, w, power, col)
-			main.sfx("zap", 1.35, -5.0)
+			main.sfx("form_bolt", 1.0, -3.0)
 			return 0
 		"brand":
 			var reach: float = float(sh["reach"]) * reach_k
@@ -303,7 +303,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 			p.raise_barrier(shield, dur, false, col)
 			_add(main, base.merged({"kind": "mantle", "left": dur, "total": dur, "r": float(sh["radius"]) * reach_k, "dmg": float(sh["damage"]) * power,
 				"stored": float(p.barrier_stored), "taken": int(p.hits_taken), "bhp": float(p.barrier_hp), "bt": float(p.barrier_t)}))
-			main.sfx("parry", 0.6, -6.0)
+			main.sfx("form_shell", 1.0, -3.0)
 			return 0
 		"hum":
 			var pc := base.merged({"kind": "hum", "off": off, "r": float(sh["radius"]) * reach_k, "left": int(sh["pulses"]), "every": float(sh["tick"]), "next": 0.0,
@@ -323,12 +323,12 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 				spot = _clear_to(main, origin, spot)
 			_add(main, base.merged({"kind": "call", "from": origin, "to": spot, "left": float(sh["travel"]), "total": float(sh["travel"]), "r": float(sh["radius"]),
 				"dmg": float(sh["damage"]) * power}))
-			main.sfx("warn_knight", 1.6, -6.0)
+			main.sfx("spell_wind", 0.75, -3.0)
 			return 0
 		"glare":
 			_add(main, base.merged({"kind": "glare", "dir": aim, "rot": null, "left": float(sh["duration"]), "total": float(sh["duration"]), "len": float(sh["length"]) * reach_k,
 				"width": float(sh["width"]), "every": float(sh["tick"]), "next": 0.0, "n": 0, "dmg": float(sh["damage"]) * power}))
-			main.sfx("charge", 1.5, -6.0)
+			main.sfx("form_beam", 1.0, -3.0)
 			return 0
 		"omen":
 			var at := _clear_to(main, origin, origin + aim * float(sh["range"]) * reach_k)
@@ -345,7 +345,7 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 		"wellspring":
 			_add(main, base.merged({"kind": "well", "pos": origin + off, "left": float(sh["duration"]), "total": float(sh["duration"]),
 				"r": float(sh["radius"]), "every": float(sh["tick"]), "next": 0.0, "hold": float(sh["hold"])}))
-			main.sfx("ready", 0.8, -4.0)
+			main.sfx("spell_life", 0.9, -3.0)
 			return 0
 	return -1
 
@@ -374,10 +374,10 @@ static func _pulse(pc: Dictionary, at: Vector2) -> int:
 	if pc["kind"] == "beat":
 		main.fx_ring(at, col, float(pc["r"]) * 0.7, 0.18, 4.0)
 		main.fx_ring(at, col.lightened(0.3), float(pc["r"]), 0.32, 3.0)
-		main.sfx("hit_blunt", 0.55, -6.0)
+		main.sfx("heartbeat", 1.0, -4.0)
 	else:
 		main.fx_ring(at, col, float(pc["r"]), 0.4, 3.0)
-		main.sfx("warn_knight", 0.75, -9.0)
+		main.sfx("form_hum", 1.0, -4.0)
 	main.light_flash(at, col, 1.0, 0.9, 0.2)
 	return n
 
@@ -573,8 +573,8 @@ static func _well_tick(pc: Dictionary, p) -> void:
 
 # --- the capstones -----------------------------------------------------------------------------
 
-## Each frame: notices casts by part (unbound_run.gd sets a part's idle
-## clock to 0 when it strains it), and runs the capstones the climber has.
+## Each frame: runs the capstones the climber has that aren't about a cast
+## (on_cast below answers casts).
 static func _capstones(n, p, delta: float) -> void:
 	var main = n.main
 	var run = main.get("unbound")
@@ -585,22 +585,12 @@ static func _capstones(n, p, delta: float) -> void:
 	var prof = main.profile
 	var c: Dictionary = n.cap
 	if c.is_empty():
-		c["idle"] = run.idle.duplicate()
-		c["fill"] = _fills(p)
-		c["pos"] = p.global_position
 		c["heart"] = false
 	var gz: Array = n.gaze
 	for g in gz.duplicate():
 		g["t"] = float(g["t"]) - delta
 		if float(g["t"]) <= 0.0 or not is_instance_valid(g["e"]) or g["e"].dead:
 			gz.erase(g)
-	var was: Dictionary = c["idle"]
-	for part in run.idle:
-		if not was.has(part) or float(run.idle[part]) < float(was[part]) - 0.0001:
-			if capstone_on(prof, String(part)):
-				_on_cast(n, p, String(part), c)
-	c["idle"] = run.idle.duplicate()
-	c["fill"] = _fills(p)
 	# Unbowed: while a shell holds you, every part's strain fades.
 	if capstone_on(prof, "back") and float(p.barrier_hp) > 0.0:
 		var fade := float(capstone("back")["fade"])
@@ -619,41 +609,34 @@ static func _capstones(n, p, delta: float) -> void:
 		main.fx_ring(p.global_position, RAW, 110.0, 0.5, 3.0)
 		main.fx_burst(p.global_position, Vector2.ZERO, RAW, 18, 200.0)
 		main.light_flash(p.global_position, RAW, 2.0, 1.8, 0.5)
-		main.sfx("ready", 0.6, 0.0)
+		main.sfx("heartbeat", 0.9, 0.0)
 		n.pieces.append({"kind": "heart_glow", "left": 1.2, "col": col, "age": 0.0})
-	c["pos"] = p.global_position
 
 
-static func _fills(p) -> Dictionary:
-	var out := {}
-	for b in p.bonds.values():
-		if "tech" in b:
-			out[b.slot] = float(b.essence)
-	return out
+## Something was just cast (library.gd on_cast): an Unbound's technique from
+## a part whose capstone the climber has sets that capstone off.
+static func on_cast(p, cast: Dictionary) -> void:
+	if String(cast.get("by", "")) != "technique" or p == null or not is_instance_valid(p) or p.dead:
+		return
+	var main = p.main
+	var run = main.get("unbound") if main != null else null
+	var part := String(cast.get("part", ""))
+	if run == null or not run.on or not capstone_on(main.profile, part):
+		return
+	var n = of(main)
+	if n != null:
+		_on_cast(n, p, part, cast.get("bond"), cast.get("at", p.global_position))
 
 
-## The technique just cast from a part (the one whose fill dropped, else the first of that part).
-static func _cast_bond(p, part: String, before: Dictionary):
-	var best = null
-	var drop := -1.0
-	for b in p.bonds.values():
-		if "tech" in b and b.tech_part() == part:
-			var d := float(before.get(b.slot, 0.0)) - float(b.essence)
-			if d > drop:
-				drop = d
-				best = b
-	return best
-
-
-## A technique was cast from a part whose capstone the climber has.
-static func _on_cast(n, p, part: String, c: Dictionary) -> void:
+## A technique (`b`) was cast from a part whose capstone the climber has;
+## `at` is where the climber stood as it began.
+static func _on_cast(n, p, part: String, b, at: Vector2) -> void:
 	var main = n.main
 	var run = main.unbound
 	var prof = main.profile
 	var Tech = _tech()
 	var U = load("res://scripts/unbound.gd")
 	var cap := capstone(part)
-	var b = _cast_bond(p, part, c["fill"])
 	var t: Dictionary = b.tech if b != null else {"part": part, "shape": "strike", "kinds": [String(U.PART_KIND[part])]}
 	var w: Dictionary = Tech.cast_weights(t)
 	var col: Color = Tech.color(Tech.lead(t))
@@ -673,7 +656,6 @@ static func _on_cast(n, p, part: String, c: Dictionary) -> void:
 				main.sfx("zap", 1.6, -6.0)
 		"legs":
 			var heat: float = clampf(run.strain_of(part) / run.ERUPT, 0.0, 1.0)
-			var at: Vector2 = c["pos"]
 			main.fx_ghost(at, p.radius, RAW)
 			n.pieces.append({"kind": "after", "pos": at, "left": float(cap["delay"]), "total": float(cap["delay"]), "r": float(cap["radius"]),
 				"dmg": float(cap["damage"]) * power * (1.0 + float(cap["hot"]) * heat), "w": _scaled(w, float(cap["share"])), "power": power,
@@ -900,7 +882,7 @@ class Fx extends Node2D:
 	var src: Script
 	var pieces: Array = []
 	var gaze: Array = []  # Piercing Gaze's marked foes: {e, t, col}
-	var cap := {}  # the capstones' watch: {idle, fill, pos, heart}
+	var cap := {}  # the capstones' state this floor: {heart}
 	var floor_key := ""
 	var drawn := false  # something was drawn last time
 

@@ -16,8 +16,8 @@ extends RefCounted
 ##   Step 4: Challenge or Tidebreak: a parry while the barrier holds sends out a wave.
 ## Deepcaller (Undertow):
 ##   Step 2: Anchor or Leech: a leech of water clings to a foe and drinks from it.
-##   Step 3: Deeper (today's) or Patient: a longer wind-up drains nearly
-##     twice as hard (the library's Charged).
+##   Step 3: Deeper (today's) or Patient: a longer wind-up drains much
+##     harder (the library's Charged).
 ##   Step 4: Siphon or Drown: pull a foe under; the more hurt it is, the harder.
 ##
 ## Things that last a while are small Lasting nodes under the SpellFx node
@@ -47,8 +47,8 @@ static var FORKS := {
 		4: {"id": "geysers", "name": "Geysers", "type": "geysers", "learn": 4,
 			"desc": "three geysers burst one after another along your aim, each throwing foes off their feet",
 			"steps": {
-				4: {"cost": 14.0, "windup": 0.45, "damage": 12.0, "radius": 50.0, "count": 3, "spacing": 75.0, "stun": 0.6},
-				5: {"damage": 14.0},
+				4: {"cost": 14.0, "windup": 0.45, "damage": 10.0, "radius": 50.0, "count": 3, "spacing": 75.0, "stun": 0.6},
+				5: {"damage": 12.0},
 			}},
 	},
 	"warden": {
@@ -78,7 +78,7 @@ static var FORKS := {
 				4: {"damage": 4.0},
 			}},
 		3: {"id": "patient", "variation": "charged", "name": "Patient",
-			"desc": "a longer wind-up drains up to 3 foes nearly twice as hard",
+			"desc": "a longer wind-up drains up to 3 foes much harder",
 			"steps": {3: {}}},
 		4: {"id": "drown", "name": "Drown", "type": "drown", "learn": 4,
 			"desc": "pull the foe you aim at under: the more hurt it is, the harder it strikes, and a badly hurt foe is held a moment",
@@ -127,62 +127,12 @@ static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	return false
 
 
-# --- something that lasts: a small node with its own tick and drawing -------------------
+# --- something that lasts -------------------------------------------------------------
 
-## Lives under the SpellFx node: pauses with the fight, and a new floor
-## (SpellFx.clear, which drops its token) ends it.
-class Lasting extends Node2D:
-	var main
-	var t := 1.0
-	var total := 1.0
-	var age := 0.0
-	var tick: Callable  # tick(node, delta)
-	var paint: Callable  # paint(node): draws with the node's draw_* calls
-	var token := {}
-
-	func _process(delta: float) -> void:
-		var fx = get_parent()
-		if main == null or not is_instance_valid(main) or fx == null or not fx.timers.has(token):
-			queue_free()
-			return
-		age += delta
-		t -= delta
-		if tick.is_valid():
-			tick.call(self, delta)
-		if t <= 0.0:
-			finish()
-			return
-		queue_redraw()
-
-	func finish() -> void:
-		var fx = get_parent()
-		if fx != null and "timers" in fx:
-			fx.timers.erase(token)
-		queue_free()
-
-	## 0 to 1 as it starts, 1 to 0 as it ends (over `edge` seconds).
-	func fade(edge := 0.3) -> float:
-		return clampf(age / 0.12, 0.0, 1.0) * clampf(t / edge, 0.0, 1.0)
-
-	func _draw() -> void:
-		if paint.is_valid():
-			paint.call(self)
-
-
-static func _lasting(main, seconds: float, tick: Callable, paint: Callable) -> Lasting:
-	var fx = FX.of(main)
-	if fx == null:
-		return null
-	var n := Lasting.new()
-	n.main = main
-	n.t = seconds
-	n.total = maxf(seconds, 0.01)
-	n.tick = tick
-	n.paint = paint
-	n.token = {"t": INF, "fn": Callable(), "lasting": n.get_instance_id()}  # (never fires; SpellFx.clear drops it)
-	fx.timers.append(n.token)
-	fx.add_child(n)
-	return n
+## Something a spell leaves for a while: spell_fx.gd's shared Lasting node
+## (tick(n, delta), paint(n); n.t, n.total, n.age, n.fade(), n.finish()).
+static func _lasting(main, seconds: float, tick: Callable, paint: Callable) -> Node2D:
+	return FX.lasting(main, seconds, tick, paint)
 
 
 static func _alive(e) -> bool:
@@ -234,7 +184,7 @@ static func _flood(bond, sp: Dictionary, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_burst(at, Vector2.ZERO, col, 18, 240.0)
 	main.light_flash(at, col, 1.4, 0.9, 0.4)
-	main.sfx("hit_slime", 0.5)
+	main.sfx("wave", 0.8)
 	main.sfx("gust", 0.6, -6.0)
 
 
@@ -262,7 +212,7 @@ static func _geysers(bond, p) -> void:
 		FX.mark(main, at, delay, col)
 		FX.later(main, delay, func():
 			_geyser_burst(main, at, radius, dmg, stun, col))
-	main.sfx("hit_slime", 0.6, -4.0)
+	main.sfx("spell_water", 0.9, -2.0)
 
 
 static func _geyser_burst(main, at: Vector2, radius: float, dmg: float, stun: float, col: Color) -> void:
@@ -291,7 +241,7 @@ static func _geyser_burst(main, at: Vector2, radius: float, dmg: float, stun: fl
 	_lasting(main, 0.55, Callable(), paint)
 	main.fx_burst(at, Vector2.UP, col, 14, 260.0)
 	main.light_flash(at, col, 1.2, 1.2, 0.3)
-	main.sfx("hit_slime", 0.7)
+	main.sfx("geyser")
 	main.sfx("gust", 1.2, -6.0)
 	main.shake(3.0)
 
@@ -346,7 +296,7 @@ static func _bulwark(bond, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_burst(center + aim * radius, aim, WATER, 14, 220.0)
 	main.light_flash(center + aim * radius, col, 1.1, 1.0, 0.3)
-	main.sfx("hit_slime", 0.8)
+	main.sfx("spell_frost", 0.8)
 	main.sfx("parry", 0.6, -8.0)
 
 
@@ -393,8 +343,7 @@ static func _mirrored(bond, sp: Dictionary, p) -> void:
 
 ## Tidebreak: for a while, every parry made while your barrier holds sends
 ## an aimed wave out (main.gd add_wave, as Tidal Surge's). It raises a thin
-## barrier if none holds. (No parry hook in player.gd: it watches the
-## parry's flash, player.gd parry_flash, which every parry sets.)
+## barrier if none holds. (It listens to the climber's on_parry, player.gd.)
 static func _tidebreak(bond, sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
@@ -405,20 +354,20 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 	var travel := float(bond.stat("travel"))
 	var push := float(bond.stat("push"))
 	var dmg: float = bond.damage()
-	var st := {"last": p.parry_flash, "swell": 0.0}
+	var st := {"parried": false, "swell": 0.0}
 	var tick := func(n, delta: float):
 		st["swell"] = maxf(0.0, st["swell"] - delta)
 		if p == null or not is_instance_valid(p) or p.dead:
 			n.finish()
 			return
-		if p.parry_flash > float(st["last"]) + 0.05 and p.barrier_hp > 0.0:
+		if st["parried"] and p.barrier_hp > 0.0:
 			main.add_wave(p.global_position, p.aim, width, travel, dmg, push, false, WATER)
 			main.fx_text(p.global_position + Vector2(0, -48), TEXT["tidebreak"], col)
-			main.sfx("hit_slime", 0.6)
+			main.sfx("wave")
 			main.sfx("gust", 0.8, -4.0)
 			main.shake(4.0)
 			st["swell"] = 0.4
-		st["last"] = p.parry_flash
+		st["parried"] = false
 	var paint := func(n):
 		if p == null or not is_instance_valid(p):
 			return
@@ -432,7 +381,8 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 		var side: Vector2 = p.aim.orthogonal()
 		var crest: Vector2 = c + p.aim * (r + 6.0)
 		n.draw_line(crest - side * 9.0, crest + side * 9.0, Color(1, 1, 1, 0.8 * a + 0.2 * st["swell"]), 2.0, true)
-	_lasting(main, dur, tick, paint)
+	var node := _lasting(main, dur, tick, paint)
+	FX.listen(node, p.on_parry, func(_source, _perfect): st["parried"] = true)  # (the wave goes out next frame)
 	main.fx_ring(p.global_position, col, 40.0, 0.35, 3.0)
 	main.sfx("hit_slime", 0.9, -4.0)
 	main.sfx("parry", 0.7, -8.0)
@@ -484,7 +434,7 @@ static func _leech(bond, sp: Dictionary, p) -> void:
 	_lasting(main, float(bond.stat("duration")), tick, paint)
 	main.fx_bolt([p.global_position, target.global_position], col)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 22.0), TEXT["leeched"], col)
-	main.sfx("hit_slime", 1.2, -4.0)
+	main.sfx("spell_water", 1.2, -2.0)
 
 
 ## Drown: the foe you aim at is pulled under: `damage`, plus `missing` of
@@ -525,7 +475,7 @@ static func _drown(bond, sp: Dictionary, p) -> void:
 	main.fx_bolt([at, p.global_position], col)
 	main.fx_burst(at, Vector2.UP, col, 14, 220.0)
 	main.light_flash(at, col, 1.2, 1.2, 0.35)
-	main.sfx("hit_slime", 0.5)
+	main.sfx("spell_water", 0.7)
 	main.sfx("zap", 0.5, -6.0)
 	main.hitstop(0.05)
 	if bond._overdrawn():

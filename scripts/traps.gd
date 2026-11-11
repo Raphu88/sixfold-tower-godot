@@ -359,6 +359,9 @@ static func _protect(ctx: Dictionary) -> void:
 	for d in plan.get("doors", []):
 		for t in d["tiles"]:
 			_mark_box(ctx, t, 0, 2)
+	for w in plan.get("wings", []):  # (a sealed wing's door too: wings.gd hangs it later)
+		for t in w.get("door", []):
+			_mark_box(ctx, t, 0, 2)
 	# The tile in front of a secret wall, where you stand to lean on it (no
 	# trap or shelter pillar there to give it away or stand in the way).
 	for s in plan.get("secrets", []):

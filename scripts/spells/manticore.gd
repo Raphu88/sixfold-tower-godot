@@ -25,10 +25,9 @@ extends RefCounted
 ##     Step 4: Vanish (today's) or Cinder Trail: for a while your steps leave
 ##       burning ash behind you.
 ##
-## What these spells leave in the world for a while is drawn by this file's
-## own small node (Drawer, under main as "ManticoreFx"): library.gd has no
-## hook for a content file's own drawings, so it lives here, and like
-## spell_fx.gd it forgets everything when a new floor starts.
+## What these spells leave in the world for a while is spell_fx.gd's shared
+## lasting helper (_add below): it pauses with the fight and a new floor
+## clears it. Enfeeble softens a foe through its dmg_mult (enemy.gd).
 
 const FX := preload("res://scripts/spell_fx.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -55,10 +54,10 @@ static var FORKS := {
 		"change": {"name": "Piercing", "says": "Venom Spit pierces"},
 		2: {"id": "contagion", "name": "Contagion", "type": "contagion", "learn": 2,
 			"desc": "infect the foe you aim at with 2 stacks of poison; for 6 seconds its poison spreads to every foe that comes near it",
-			"steps": {2: {"cost": 10.0, "windup": 0.3, "stacks": 2, "duration": 6.0, "radius": 62.0, "range": 300.0}}},
+			"steps": {2: {"cost": 10.0, "windup": 0.3, "stacks": 2, "duration": 6.0, "radius": 80.0, "range": 300.0}}},
 		3: {"id": "spray", "variation": "split", "name": "Spray",
-			"desc": "Venom Spit throws three globs in a fan, each carrying half the poison",
-			"steps": {3: {"pierce": false, "copies": 3, "spray": 18.0}}},
+			"desc": "Venom Spit throws three globs in a fan, each half as hard but carrying 3 stacks of poison",
+			"steps": {3: {"pierce": false, "copies": 3, "spray": 14.0, "stacks": 6}}},
 		4: {"id": "enfeeble", "name": "Enfeeble", "type": "enfeeble", "learn": 4,
 			"desc": "every poisoned foe near you is enfeebled for 6 seconds: it hits 40% softer and walks slower (a beast, half as much)",
 			"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 6.0, "radius": 220.0, "weaken": 0.4}}},
@@ -160,7 +159,7 @@ static func _sandblast(bond, p) -> void:
 			b.circle(at, 1.2 + fmod(i * 0.71, 1.4), Color(SAND.lightened(0.1 * (i % 3)), 0.85 * (1.0 - k)), 8)
 		b.circle(origin + aim * reach * 0.5 * k, reach * 0.35 * (0.5 + k), Color(SAND, 0.12 * (1.0 - k)))
 	_add(main, 0.45, Callable(), paint, true)
-	main.sfx("gust", 0.8, -2.0)
+	main.sfx("spell_sand")
 	main.sfx("hit_light", 0.7, -4.0)
 	main.light_flash(origin + aim * 40.0, col, 1.0, 0.8, 0.25)
 
@@ -196,7 +195,7 @@ static func _aftershock(bond, sp: Dictionary, p) -> void:
 					e.stagger(0.3)
 		main.fx_ring(at, col, r, 0.4, 5.0)
 		main.fx_burst(at, Vector2.ZERO, col, 14, 220.0)
-		main.sfx("slam", 1.05, -3.0)
+		main.sfx("spell_stone", 1.0, -2.0)
 		main.shake(5.0))
 
 
@@ -239,7 +238,7 @@ static func _quicksand(bond, p) -> void:
 		b.arc(center, r, 0.0, TAU, 40, Color(col, 0.55 * a), 2.0)
 	_add(main, dur, tick, paint, false)
 	main.fx_burst(center, Vector2.ZERO, SAND, 16, 180.0)
-	main.sfx("slam", 0.6, -4.0)
+	main.sfx("spell_stone", 0.7)
 	main.sfx("gust", 0.5, -4.0)
 	main.shake(3.0)
 
@@ -291,7 +290,7 @@ static func _contagion(bond, p) -> void:
 		b.circle(at + Vector2(-5, -10 + 18.0 * drip), 2.0, Color(col, 0.8 * a * (1.0 - drip)), 10)
 	_add(main, float(bond.stat("duration")), tick, paint, true)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 26.0), TEXT["infected"], col)
-	main.sfx("hit_slime", 1.1, -3.0)
+	main.sfx("spell_poison")
 	main.sfx("hiss", 1.2, -8.0)
 
 
@@ -310,7 +309,7 @@ static func _spray(bond, sp: Dictionary, p) -> void:
 		b.style = "venom"
 		b.tint = col
 		b.venom = stacks
-	main.sfx("hit_slime", 1.5, -4.0)
+	main.sfx("spell_poison", 1.3)
 	if bond.overdraw_mult < 1.0:
 		p.poison(1.5)  # (an overdrawn spit poisons you briefly, as Venom Spit does)
 
@@ -336,7 +335,7 @@ static func _enfeeble(bond, p) -> void:
 			continue
 		var k := weaken * (0.5 if e.is_boss() else 1.0)
 		var foe = e
-		foe.dmg *= 1.0 - k
+		foe.dmg_mult *= 1.0 - k  # (enemy.gd: its blows, softened)
 		var tick := func(it: Dictionary, _delta: float):
 			if not is_instance_valid(foe) or foe.dead:
 				it["done"] = true
@@ -344,7 +343,7 @@ static func _enfeeble(bond, p) -> void:
 			foe.chill_t = maxf(foe.chill_t, 0.3)
 			if float(it["t"]) <= 0.05:  # (wearing off: its strength comes back)
 				it["done"] = true
-				foe.dmg /= 1.0 - k
+				foe.dmg_mult /= 1.0 - k
 				foe.remove_meta("enfeebled")
 		var paint := func(b, it: Dictionary):
 			if not is_instance_valid(foe):
@@ -365,7 +364,7 @@ static func _enfeeble(bond, p) -> void:
 	if n == 0:
 		main.fx_text(p.global_position + Vector2(0, -34), TEXT["nothing_poisoned"], col)
 	main.fx_ring(p.global_position, col, r, 0.45, 2.5)
-	main.sfx("hiss", 0.8, -2.0)
+	main.sfx("spell_poison", 0.8)
 	main.light_flash(p.global_position, col, 1.2, 1.0, 0.3)
 
 
@@ -435,7 +434,7 @@ static func _cinder_trail(bond, p) -> void:
 			b.circle(at, 1.8 * (1.0 - u) + 0.6, Color(1.0, 0.6 - 0.2 * u, 0.2, 0.9 * a * (1.0 - u)), 8)
 		b.circle(feet, 10.0, Color(col, 0.18 * a))
 	_add(main, float(bond.stat("duration")), tick, paint, true)
-	main.sfx("burn", 1.4, -2.0)
+	main.sfx("spell_fire", 1.3, -2.0)
 	main.light_flash(p.global_position, col, 1.0, 1.0, 0.3)
 
 
@@ -458,63 +457,8 @@ static func _aimed(p, reach: float):
 
 ## Something this file left in the world: `tick(item, delta)` each frame and
 ## `paint(batch, item)` each draw (either may be an empty Callable), for
-## `seconds` or until item.done. `high` draws it over the darkness.
+## `seconds` or until item.done. `high` draws it over the darkness. (The
+## shared helper, spell_fx.gd item(): it pauses with the fight and a new
+## floor clears it.)
 static func _add(main, seconds: float, tick: Callable, paint: Callable, high := false) -> Dictionary:
-	var it := {"t": seconds, "age": 0.0, "done": false, "tick": tick, "paint": paint, "high": high}
-	var n = Drawer.of(main)
-	if n != null:
-		n.items.append(it)
-	return it
-
-
-## This file's drawings and timed effects, under main. A new floor (a new
-## floor plan) forgets them, as spell_fx.gd forgets its own.
-class Drawer extends Node2D:
-	const NAME := "ManticoreFx"
-	var items: Array = []
-	var plan = null
-	var air: Node2D
-
-	static func of(main):
-		if main == null or not is_instance_valid(main):
-			return null
-		var n = main.get_node_or_null(NAME)
-		if n == null:
-			n = Drawer.new()
-			n.name = NAME
-			n.plan = main.floor_plan
-			main.add_child(n)
-		return n
-
-	func _ready() -> void:
-		z_as_relative = false
-		z_index = 11  # (on the floor, over the room's own drawings)
-		air = Node2D.new()
-		air.z_as_relative = false
-		air.z_index = 46  # (over the darkness, like spell_fx.gd)
-		air.draw.connect(func(): _paint(air, true))
-		add_child(air)
-
-	func _process(delta: float) -> void:
-		var main = get_parent()
-		if not is_same(main.floor_plan, plan):
-			plan = main.floor_plan
-			items.clear()
-		for it in items.duplicate():
-			it["t"] -= delta
-			it["age"] += delta
-			if (it["tick"] as Callable).is_valid() and not it["done"]:
-				it["tick"].call(it, delta)
-		items = items.filter(func(it): return float(it["t"]) > 0.0 and not it["done"])
-		queue_redraw()
-		air.queue_redraw()
-
-	func _draw() -> void:
-		_paint(self, false)
-
-	func _paint(c: CanvasItem, high: bool) -> void:
-		var b := Draw.Batch.new()
-		for it in items:
-			if bool(it["high"]) == high and (it["paint"] as Callable).is_valid():
-				it["paint"].call(b, it)
-		b.flush(c)
+	return FX.item(main, seconds, tick, paint, high)
