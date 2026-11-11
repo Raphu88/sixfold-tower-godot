@@ -45,7 +45,7 @@ On a touchscreen the whole game is drawn bigger so it reads on a small screen (h
 | Music on/off | M | Music slider in Settings & Controls |
 | Show/hide the controls list on screen (off at first; also in Settings & Controls) | H | Settings & Controls |
 | Dismiss the Entity's tip (or tap or click it) | Enter | Press the right stick (RS / R3) |
-| Arrange mode: move and resize the HUD and the phone's buttons yourself (see Arranging the layout) | F2, or Dev tools → Arrange layout | Dev tools → Arrange layout; then d-pad / LB / RB pick, left stick moves, right stick resizes |
+| Arrange mode: move and resize the HUD, the phone's buttons, the menus, the rail and the train's furniture yourself (see Arranging the layout) | F2 (with a menu open: that menu), or Dev tools → Arrange layout / Arrange menus | Dev tools → Arrange layout; then d-pad / LB / RB pick, left stick moves, right stick resizes |
 
 **Controllers.** Plug in (or pair) an Xbox, PlayStation or similar controller and just press a button. The prompts on screen (the controls panel, the gear card's "take it", the card screens, "press ... to begin your next climb") switch to controller buttons as soon as you use it, with PlayStation names on a PlayStation pad, and back to keys the moment you touch the keyboard or mouse (or to touch wording on a phone). Holding LB (L1) turns the face buttons, RB and RT into your six marks' casts; hold the cast button to open the spell ring and point with the right stick (every ring stops time while it's open). The button layout lives in `scripts/controls.gd` (`PAD` and `PAD_CAST`), read by `scripts/pad.gd`.
 
@@ -383,7 +383,7 @@ The **dev tools** page is for testing (`scripts/menu.gd`, with the actions in `m
 - **Puzzles:** put one kind of puzzle on every floor of rooms (or back to the usual mix), and go to a floor of rooms to try it.
 - **Secret essences:** take the Life or Unmaking path at once, bank +25 or +100 flow (to try each step), reset the path, or show the path choice.
 - **Secret bonds:** grant the Developer, Designer or Manipulator at any depth from 1 to 5, or clear it; carry +100 essence and +20 flow (to pay for tools); +150 crystal essence (for Tune, Edit, moving marks, a bribe and a change of path).
-- **Layout:** **Arrange layout** opens Arrange mode (see Arranging the layout below).
+- **Layout:** **Arrange layout** opens Arrange mode for the HUD and touch buttons, **Arrange menus** for the Dev tools page (F2 with any page open arranges that page; see Arranging the layout below).
 - **Cheats:** no dying (a killing blow leaves you at 1 health), heal, clear the room, and show traps (outlines every trap and its reach, hidden ones too).
 - **Creator tools: Paint rooms** opens the room painter (see below).
 
@@ -421,41 +421,66 @@ The file is plain JSON, one room per entry, its grid one row per line:
 
 ## Arranging the layout (Arrange mode)
 
-You can move and resize the HUD and the phone's buttons yourself, by hand, and keep the result. Open **Dev tools → Arrange layout** (or press **F2** during a climb). The game pauses and everything you can move gets a dashed gold outline with its name. The Entity explains it the first time (and the toolbar's **?** shows the explanation again; it's also in the Archive under **Creator tools**).
+You can move and resize the HUD, the phone's buttons, the menus, the left rail and the train's furniture yourself, by hand, and keep the result. The Entity explains it the first time (and the toolbar's **?** shows the explanation again; it's also in the Archive under **Creator tools**).
+
+- **The HUD and the phone's buttons:** press **F2** during a climb (or **Dev tools → Arrange layout**). The game pauses and everything you can move gets a dashed gold outline with its name.
+- **A menu:** open the page you want to change (the inventory, the climber's book, Settings, the pause menu, the Library, the train...) and press **F2** (or **Dev tools → Arrange menus** for the Dev tools page itself). The page stays showing. Point at something and it lights up with its name.
+- The toolbar's **Arrange the HUD** / **Arrange the menu** button (top right, when a menu is open) switches between the two.
 
 **Moving things.**
-- **Mouse or finger:** drag a thing to move it. Pull one of the small square corner handles of the chosen thing to make it bigger or smaller (it keeps its shape). It snaps to an 8-pixel grid, to the screen's edges and centre lines, and to the edges of the other things; thin blue lines show what it snapped to. Hold **Shift** to place it freely (on a phone, turn **Grid** off).
-- **Keyboard:** **Tab** picks the next thing (Shift+Tab the one before), the **arrow keys** nudge it (8 pixels; 1 with Shift), **[** and **]** (or the mouse wheel) make it smaller or bigger, **Ctrl+Z** undoes, **Ctrl+S** saves, **G** turns the grid on or off, and **Esc**, **Enter** or **F2** finish.
+- **Mouse or finger:** drag a thing to move it. Pull one of the small square corner handles of the chosen thing to make it bigger or smaller (it keeps its shape), or turn the **mouse wheel**. It snaps to an 8-pixel grid, to the screen's edges and centre lines, and to the edges of the other things; thin blue lines show what it snapped to. Hold **Shift** to place it freely (on a phone, turn **Grid** off).
+- **Things inside things (menus):** a card sits in a column, the column in the page's panel. A click picks the smallest thing under the pointer; **click again in the same spot** for the bigger thing around it (or press **PgUp**; **PgDn** goes back in). Then drag it from anywhere inside it.
+- **Resizing (menus):** the page's panel, the rail and the rail's list have long blue **side handles**. Pull the panel's side to make the page wider or narrower (its rows wrap to fit), the rail's right edge to change its width, and the bottom of the rail's list to spread its pages or cars apart. The mouse wheel on the rail changes its text size.
+- **Keyboard:** **Tab** picks the next thing (Shift+Tab the one before), the **arrow keys** nudge it (8 pixels; 1 with Shift), **[** and **]** (or the mouse wheel) make it smaller or bigger, **PgUp** / **PgDn** pick the bigger / smaller thing around it, **Ctrl+Z** undoes, **Ctrl+S** saves, **G** turns the grid on or off, **Delete** resets the chosen thing, and **Esc**, **Enter** or **F2** finish.
 - **Controller:** the **d-pad** or **LB / RB** pick the next thing, the **left stick** moves it, the **right stick** (up and down) resizes it, **X** undoes, **Y** saves, **View** turns the grid on or off, and **A** or **B** finish.
-- **The toolbar** (drag it by its title to move it out of the way): **Save**, **Copy layout**, **Undo**, **Grid**, **Reset this** and **Reset all** (each asks for a second press), **Done**, a line saying where the chosen thing is and how big, and at the top right the button that switches between the **computer's** and the **phone's** layout.
-- Nothing can be dragged wholly off the screen, and the phone's buttons can't be made too small to tap. Leaving with changes you haven't saved asks whether to save them.
+- **The toolbar** (drag it by its title to move it out of the way; over a menu it starts at the bottom): **Save**, **Copy layout**, **Undo**, **Grid**, **Reset this**, **Reset page** (over a menu: everything showing) and **Reset all** (each reset asks for a second press), **Done**, a line saying what's chosen, where and how big, and at the top right the buttons that switch between the **computer's** and the **phone's** layout and between the menu and the HUD.
+- Nothing can be dragged off the screen: HUD things keep at least a corner on it, the phone's buttons stay wholly on it and can't be made too small to tap, a page's panel stays on the screen, what's on a page stays inside the page, the rail's parts inside the rail and a car's furniture inside its car. Leaving with changes you haven't saved asks whether to save them.
 
-**Two layouts.** The computer and the phone each have their own layout (the phone draws everything bigger, at the Interface size, and adds the touch buttons). On a computer, the toolbar's switch shows the phone's layout the way a phone draws it, so you can arrange the phone's buttons from your desk too. Things are pinned to the nearest corner or edge of the screen, so they keep their place on other screen sizes, turned sideways, and at every HUD and Interface size (at Large and Larger the phone's buttons and their arrangement shrink together to fit the shorter view, so an arranged button keeps its place).
+**What can be moved.**
+- The HUD: health and stamina, the weapon, the quick item, the marks, the path gem and vessel, the unbanked essence counter, the key hints, the floor title, the new floor banner, the beast's health bar, the shut-door and challenge plates, the ring the stair arrow travels along (on a phone the arrow slides along it to stay clear of the touch buttons), and the Entity's bubble.
+- The phone: the joystick zone and every button (attack, roll, parry, jump, swap, each mark button, item, next item, take, tools, Bag, Climber, Menu, fullscreen). Where a button is drawn is exactly where it answers a tap.
+- Every menu page: its panel (move, scale, make wider or narrower), its title, its tabs or ribbons, each row, grid, column and paragraph, the columns inside a row, and the cards inside them (the inventory's item card, the climber screen's cards, the book's pages, grimoire and technique cards, the appearance page's live preview). This works for every page, new ones too: the game finds them as the page is built. A page with tabs (the climber's book, Settings & Controls) is arranged per tab; the panel is shared by its tabs.
+- The left rail: its width, its text size, who you are (the block at the top), the list of pages or cars (and its spacing) and the bottom buttons.
+- The train, car by car: each piece of furniture and placard (the heirloom wardrobe, the pack and the chest, the book on its cushion, the outfitter, his shelves, rail, glass case and sign, the bench and its drawers, the tower board, the bookcase and lectern, the signal panel, the brake), the Entity's or the outfitter's words, and the signs and buttons that stand on their own. What's in a piece moves with it. Arrange mode shows the car you're in; to arrange another car, press Done, move along the train and press F2 again.
+- Buttons stay buttons: a moved or scaled button is pressed where it's drawn, with the mouse, a finger, the keys or a controller.
 
-**What can be moved (so far).** The HUD: health and stamina, the weapon, the quick item, the marks, the path gem and vessel, the unbanked essence counter, the key hints, the floor title, the new floor banner, the beast's health bar, the shut-door and challenge plates, the ring the stair arrow travels along (on a phone the arrow slides along it to stay clear of the touch buttons), and the Entity's bubble. The phone: the joystick zone and every button (attack, roll, parry, jump, swap, each mark button, item, next item, take, tools, Bag, Climber, Menu, fullscreen). Where a button is drawn is exactly where it answers a tap.
+**Two layouts.** The computer and the phone each have their own layout (the phone draws everything bigger, at the Interface size, and adds the touch buttons). On a computer, the toolbar's switch shows the phone's layout the way a phone draws it, so you can arrange the phone's buttons from your desk too. HUD things are pinned to the nearest corner or edge of the screen, so they keep their place on other screen sizes, turned sideways, and at every HUD and Interface size (at Large and Larger the phone's buttons and their arrangement shrink together to fit the shorter view, so an arranged button keeps its place). Menus, the rail and the train are kept as a move from their own built-in place, measured as a share of the screen, so a menu arranged on the computer keeps its proportions on a phone; the phone uses the computer's arrangement of them unless you arrange the phone's own.
 
 **Keeping your layout.**
 - **Save** keeps it on the device you're using (in the game's own save folder, `user://layout.cfg`). Only that device sees it.
 - **To make it everyone's layout** (the one the web version starts with), save it from your computer, inside Godot:
   1. Open the project in Godot and press **F5** to play.
-  2. Press **F2** (or Dev tools → Arrange layout), arrange things, and press **Save**. Because the game is running from Godot, Save also writes the file `data/layout.json` in the project folder (the toolbar says so).
+  2. Press **F2** (in a climb for the HUD, or with a menu open for that menu), arrange things, and press **Save**. Because the game is running from Godot, Save also writes the file `data/layout.json` in the project folder (the toolbar says so).
   3. Open **GitHub Desktop**. On the left you'll see `data/layout.json` listed as changed.
   4. At the bottom left, type a short summary, for example `New HUD layout`.
   5. Click the blue **Commit to main** button.
   6. Click **Push origin** at the top. A few minutes later the web version starts with your layout.
 - **From a phone (or the web version):** Save can't reach the project, so tap **Copy layout**. It copies the layout to the clipboard and shows it in a box (on a phone: long-press in the box, **Select all**, **Copy**). Paste it to Claude in the chat, and Claude puts it into `data/layout.json` for you.
-- **Reset this** / **Reset all** go back to the shared layout in `data/layout.json` (run from Godot, where Save writes that file, they go back to the built-in layout).
+- **Reset this** / **Reset page** / **Reset all** go back to the shared layout in `data/layout.json` (run from Godot, where Save writes that file, they go back to the built-in layout).
 
-**The file.** `data/layout.json` (and what Copy layout gives) looks like this; an empty set means "as built":
+**The file.** `data/layout.json` (and what Copy layout gives) looks like this; an empty set means "as built", and anything not listed stays exactly as built:
 
 ```json
 {
 	"desktop": {
-		"hud.bars": {"anchor": "bl", "scale": 1.25, "x": 16.0, "y": -16.0}
+		"hud.bars": {"anchor": "bl", "scale": 1.25, "x": 16.0, "y": -16.0},
+		"menu.inventory.panel": {"anchor": "own", "scale": 0.9, "w": 0.85, "x": -0.03, "y": 0.0},
+		"rail.box": {"anchor": "own", "scale": 1.1, "w": 1.2, "x": 0.0, "y": 0.0},
+		"train.personal.book": {"anchor": "own", "scale": 1.3, "x": -0.05, "y": -0.04}
 	},
 	"format": 1,
 	"touch": {
 		"touch.attack": {"anchor": "br", "scale": 1.1, "x": -12.0, "y": -8.0}
+	}
+}
+```
+
+Each entry names a thing and says where it goes:
+- `hud.…` and `touch.…` things: the corner or edge it's pinned to (`tl`, `t`, `tr`, `l`, `c`, `r`, `bl`, `b`, `br`), how far its own matching corner sits from the screen's (x and y; in HUD units for `hud.` things, which the HUD size setting multiplies), and its scale. Their list, names and built-in places are in `scripts/layout.gd`.
+- `menu.…`, `rail.…` and `train.…` things have the anchor `own`: x and y move them from their built-in place by that share of the screen's width and height, scale grows them about their middle, and `w` / `h` (where they can be resized) are their width / height as a share of the built-in one. Their names are the page (and its tab), then the element: `menu.inventory.row1.column2.card1` is the first card in the second column of the inventory's first row; `train.store.shelf` the Outfitter's shelves. Arrange mode shows each thing's friendly name.
+
+For code: Arrange mode itself is `scripts/arrange.gd`; `scripts/arrange_ui.gd` finds the menus', the rail's and the train's elements as each page is built (`tag_page`, called from `menu.gd` `open`) and puts their arrangement on top of where their containers lay them out. A page needs nothing of its own; a row can name its kind with `set_meta("arrange", "title")` (as `menu.gd` `_header`, `_tabs` and `_footer` do).
+
 ## Editing the game's data (no code)
 
 **Dev tools → Edit game data** changes the game's **words, numbers and colours** from inside the game, and keeps the changes for good. No code and no prompts: pick a field, change it, done. The Entity explains the page the first time it opens (and how to keep changes the first time you press Save); the **?** button next to Save explains it again at any time, and its words are kept in the Archive under **Creator tools**.
@@ -493,7 +518,6 @@ A changed field turns **gilt**, shows its **default** under it and gets a **Defa
 }
 ```
 
-Each entry names a thing (`hud.…` or `touch.…`), the corner or edge it's pinned to (`tl`, `t`, `tr`, `l`, `c`, `r`, `bl`, `b`, `br`), how far its own matching corner sits from the screen's (x and y; in HUD units for `hud.` things, which the HUD size setting multiplies), and its scale. The list of things, their names and built-in places is in `scripts/layout.gd`; Arrange mode itself is `scripts/arrange.gd`.
 At startup the game reads `data/overrides.json`, then this device's own changes (`user://overrides.json`) on top. A key is the script's file name, the table, then the keys down to the value (`puzzles.lock/TEXT/quiet` for a script in a folder). A value of the wrong kind, a missing key or a number out of bounds is refused or kept in bounds, so a bad file can't break the game. For code: the tables are `static var`s (not `const`) so they can be changed while the game runs; `scripts/data_registry.gd` lists which tables the editor offers (its `SECTIONS`: the friendly name, the tables, which kinds of value) and does the applying and saving; `scripts/data_page.gd` is the page. To offer a new table, turn its `const` into `static var` and add it to a section.
 
 ## Climbers and saves
@@ -1030,7 +1054,8 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/pad.gd` | Game controller: puts each controller into the standard layout (straight through, a guess, or your setup), turns its buttons into actions, LB for casts, notices which device was used last |
 | `scripts/pad_setup.gd` | Settings → Controller setup: records a controller's layout one control at a time, with a live readout of what it sends |
 | `scripts/touch.gd` | On-screen touch controls |
-| `scripts/layout.gd` | The layout registry: every arrangeable thing (HUD and touch buttons), its built-in place, the arrangement over it, loading and saving (see Arranging the layout) |
+| `scripts/layout.gd` | The layout registry: every arrangeable thing (HUD and touch buttons), its built-in place, the arrangement over it (the menus' too), loading and saving (see Arranging the layout) |
+| `scripts/arrange_ui.gd` | Arrange mode for the menus, the left rail and the train's furniture: finds what can be arranged as each page is built, and puts the arrangement on top of the containers' layout |
 | `scripts/arrange.gd` | Arrange mode: the outlines, dragging, scaling, snapping, the toolbar, Copy layout and the Entity's card |
 | `data/layout.json` | The shared layout everyone starts with (written by Save when the game runs from the Godot editor) |
 | `export_presets.cfg` | Web export settings |

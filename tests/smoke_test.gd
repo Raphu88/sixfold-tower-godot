@@ -13902,7 +13902,7 @@ func _arrange_tests() -> void:
 		ab.pressed.emit()
 	await _frames(3)
 	_check(ar.is_open and paused and not main.menu_open() and not menu.visible, "Arrange layout opens Arrange mode, pauses the game and hides the menu")
-	_check(ar.redraws > 0 and ar.sel != "" and ar.toolbar()["buttons"].size() == 9, "it outlines the elements and shows its toolbar")
+	_check(ar.redraws > 0 and ar.sel != "" and ar.toolbar()["buttons"].size() == 10, "it outlines the elements and shows its toolbar (with Arrange the menu: it was opened over one)")
 	# Drag by mouse: snaps to the grid.
 	ar.sel = ""
 	var wr: Rect2 = ar.screen_rect("hud.weapon")
