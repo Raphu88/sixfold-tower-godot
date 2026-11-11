@@ -90,7 +90,6 @@ get_file dragonflap dragonflap.wav                   # VishwaJai: Dragon Flap
 get_zip icebreak IceShatters_0.zip                   # IgnasD: Ice breaking/shattering
 get_file sandspell sand-spell.flac                   # qubodup: Sand spell
 get_file windy windy_ambiance.ogg                    # Some Weirdo: windy ambient noise
-get_file crickets crickets_1.mp3                     # Wolfgang_: Crickets Ambient Noise
 get_7z forestbirds forest_birds.7z                   # pauliuw: Forest bird sounds
 get_file drip atmosbasement.mp3_.flac                # qubodup: Dripping water loop
 get_file firecrackle fire-1.wav                      # AntumDeluge: Fire Crackling

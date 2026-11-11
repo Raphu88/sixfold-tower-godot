@@ -471,14 +471,14 @@ AMBIENCE = {
     # The forge: a boiler's roar, the fire, an anvil somewhere, steam.
     "wyvern": {"beds": [("steam/generator_loop.wav", -2, 0.9, 1800, 40), ("firecrackle/fire-1.wav", -8, 1.0, 5000, 200)],
                "scatter": [("anvil/blacksmithhammer.wav", -20, 0.8, 3000, 200, 7), (STEAM + "1.wav", -24, 0.8, 4000, 300, 11)]},
-    # Sun-baked sandstone: a dry wind, insects in the heat, sand trickling.
-    "manticore": {"beds": [("windy/windy_ambiance.ogg@60+44", -2, 0.9, 1800, 80), ("crickets/crickets_1.mp3", -14, 1.15, 9000, 2500)],
+    # Sun-baked sandstone: a dry wind, sand trickling.
+    "manticore": {"beds": [("windy/windy_ambiance.ogg@60+44", -2, 0.9, 1800, 80)],
                   "scatter": [(R2 + "sfx100v2_stones_01.ogg", -24, 0.6, 3000, 200, 9), (R2 + "sfx100v2_stones_03.ogg", -24, 0.5, 3000, 200, 13)]},
     # Open heights over chasms: a high wind, embers, a far-off cry.
     "firebird": {"beds": [("windy/windy_ambiance.ogg@100+44", 0, 1.1, 4000, 200), ("firecrackle/fire-1.wav", -16, 1.1, 6000, 300)],
                  "scatter": [("peacock/peacockscream.flac", -28, 0.7, 2500, 300, 17)]},
-    # The Thornwild: night insects, birds, a growl in the thorns.
-    "chimera": {"beds": [("crickets/crickets_1.mp3", -6, 1.0, 8000, 300)],
+    # The Thornwild: a low wind through the thorns, birds, a growl.
+    "chimera": {"beds": [("windy/windy_ambiance.ogg@120+44", -4, 0.8, 1400, 60)],
                 "scatter": [("forestbirds/Forest Birds/Forest Birds 2.wav", -18, 1.0, 6000, 400, 10), ("forestbirds/Forest Birds/Forest Birds 7.wav", -18, 0.95, 6000, 400, 12),
                             (SNARLS + "9.77+2.55", -26, 0.7, 1500, 100, 15), ("dog/dog/dog-growl.flac", -26, 0.8, 1500, 100, 17)]},
     # The train: a deep rumble, the engine's chuff, wheels over rail joints.

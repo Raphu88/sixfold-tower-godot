@@ -10482,7 +10482,11 @@ func _secret_bond_tests() -> void:
 	main.menu.remove_meta("path_drain")
 
 	print("the Designer")
-	var ok: bool = await _wing_floor(true)
+	var ok: bool = false
+	for tries in 8:  # (a floor with an unlocked door too: the door checks below need one)
+		ok = await _wing_floor(true)
+		if ok and main.door_view.list.any(func(d): return String(d["lock"]) == "" and String(d.get("fixed", "")) == ""):
+			break
 	_check(ok, "a floor of rooms with a secret wall")
 	SB.grant(prof, "designer", 2)
 	prof.path = "unmaking"
