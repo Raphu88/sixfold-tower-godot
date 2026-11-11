@@ -127,62 +127,12 @@ static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	return false
 
 
-# --- something that lasts: a small node with its own tick and drawing -------------------
+# --- something that lasts -------------------------------------------------------------
 
-## Lives under the SpellFx node: pauses with the fight, and a new floor
-## (SpellFx.clear, which drops its token) ends it.
-class Lasting extends Node2D:
-	var main
-	var t := 1.0
-	var total := 1.0
-	var age := 0.0
-	var tick: Callable  # tick(node, delta)
-	var paint: Callable  # paint(node): draws with the node's draw_* calls
-	var token := {}
-
-	func _process(delta: float) -> void:
-		var fx = get_parent()
-		if main == null or not is_instance_valid(main) or fx == null or not fx.timers.has(token):
-			queue_free()
-			return
-		age += delta
-		t -= delta
-		if tick.is_valid():
-			tick.call(self, delta)
-		if t <= 0.0:
-			finish()
-			return
-		queue_redraw()
-
-	func finish() -> void:
-		var fx = get_parent()
-		if fx != null and "timers" in fx:
-			fx.timers.erase(token)
-		queue_free()
-
-	## 0 to 1 as it starts, 1 to 0 as it ends (over `edge` seconds).
-	func fade(edge := 0.3) -> float:
-		return clampf(age / 0.12, 0.0, 1.0) * clampf(t / edge, 0.0, 1.0)
-
-	func _draw() -> void:
-		if paint.is_valid():
-			paint.call(self)
-
-
-static func _lasting(main, seconds: float, tick: Callable, paint: Callable) -> Lasting:
-	var fx = FX.of(main)
-	if fx == null:
-		return null
-	var n := Lasting.new()
-	n.main = main
-	n.t = seconds
-	n.total = maxf(seconds, 0.01)
-	n.tick = tick
-	n.paint = paint
-	n.token = {"t": INF, "fn": Callable(), "lasting": n.get_instance_id()}  # (never fires; SpellFx.clear drops it)
-	fx.timers.append(n.token)
-	fx.add_child(n)
-	return n
+## Something a spell leaves for a while: spell_fx.gd's shared Lasting node
+## (tick(n, delta), paint(n); n.t, n.total, n.age, n.fade(), n.finish()).
+static func _lasting(main, seconds: float, tick: Callable, paint: Callable) -> Node2D:
+	return FX.lasting(main, seconds, tick, paint)
 
 
 static func _alive(e) -> bool:
@@ -393,8 +343,7 @@ static func _mirrored(bond, sp: Dictionary, p) -> void:
 
 ## Tidebreak: for a while, every parry made while your barrier holds sends
 ## an aimed wave out (main.gd add_wave, as Tidal Surge's). It raises a thin
-## barrier if none holds. (No parry hook in player.gd: it watches the
-## parry's flash, player.gd parry_flash, which every parry sets.)
+## barrier if none holds. (It listens to the climber's on_parry, player.gd.)
 static func _tidebreak(bond, sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
@@ -405,20 +354,20 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 	var travel := float(bond.stat("travel"))
 	var push := float(bond.stat("push"))
 	var dmg: float = bond.damage()
-	var st := {"last": p.parry_flash, "swell": 0.0}
+	var st := {"parried": false, "swell": 0.0}
 	var tick := func(n, delta: float):
 		st["swell"] = maxf(0.0, st["swell"] - delta)
 		if p == null or not is_instance_valid(p) or p.dead:
 			n.finish()
 			return
-		if p.parry_flash > float(st["last"]) + 0.05 and p.barrier_hp > 0.0:
+		if st["parried"] and p.barrier_hp > 0.0:
 			main.add_wave(p.global_position, p.aim, width, travel, dmg, push, false, WATER)
 			main.fx_text(p.global_position + Vector2(0, -48), TEXT["tidebreak"], col)
 			main.sfx("hit_slime", 0.6)
 			main.sfx("gust", 0.8, -4.0)
 			main.shake(4.0)
 			st["swell"] = 0.4
-		st["last"] = p.parry_flash
+		st["parried"] = false
 	var paint := func(n):
 		if p == null or not is_instance_valid(p):
 			return
@@ -432,7 +381,8 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 		var side: Vector2 = p.aim.orthogonal()
 		var crest: Vector2 = c + p.aim * (r + 6.0)
 		n.draw_line(crest - side * 9.0, crest + side * 9.0, Color(1, 1, 1, 0.8 * a + 0.2 * st["swell"]), 2.0, true)
-	_lasting(main, dur, tick, paint)
+	var node := _lasting(main, dur, tick, paint)
+	FX.listen(node, p.on_parry, func(_source, _perfect): st["parried"] = true)  # (the wave goes out next frame)
 	main.fx_ring(p.global_position, col, 40.0, 0.35, 3.0)
 	main.sfx("hit_slime", 0.9, -4.0)
 	main.sfx("parry", 0.7, -8.0)

@@ -15,13 +15,13 @@ extends RefCounted
 ##     more, regain more); step 4 Pyre Oath or BACKDRAFT (blows you take
 ##     burst into fire).
 ##
-## Hooks worked around here (bond.gd and player.gd are left alone): Firebird
-## Form makes Wingburst free by its type, so Cinder Dive gives its own cost
-## back in the form; Rekindle's payback (twice what you lost) lives in
-## player.gd, so Deep Burn adds its extra share itself when the burn ends.
+## Firebird Form makes a spell marked "free_in_form" free (player.gd), so
+## Cinder Dive carries the mark, as Wingburst does. Rekindle's payback
+## (twice what you lost) lives in player.gd, so Deep Burn adds its extra
+## share itself when the burn ends.
 ##
-## What these spells leave in the world for a while is drawn by a Lasting
-## node (spawn() below; chimera.gd uses it too). A new floor clears it.
+## What these spells leave in the world for a while is spell_fx.gd's shared
+## Lasting node (spawn() below; chimera.gd uses it too). A new floor clears it.
 
 const FX := preload("res://scripts/spell_fx.gd")
 
@@ -46,7 +46,7 @@ static var FORKS := {
 	},
 	"flamewing": {
 		"change": {"name": "Growing", "says": "Heat Aura grows hotter the longer it burns"},
-		2: {"id": "cinder_dive", "name": "Cinder Dive", "type": "cinder_dive", "learn": 2,
+		2: {"id": "cinder_dive", "name": "Cinder Dive", "type": "cinder_dive", "learn": 2, "free_in_form": true,
 			"desc": "dive through the foes along your aim in a streak of fire, setting each one burning; the aura's built-up heat makes it hotter (free in Firebird Form)",
 			"steps": {
 				2: {"cost": 10.0, "windup": 0.15, "damage": 8.0, "dist": 150.0, "burn": 2.0, "burn_time": 3.0},
@@ -120,88 +120,30 @@ static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	var payback := float(bond.spell_stat(sp, "payback"))
 	var token := int(p.get_meta("deep_burn", 0)) + 1
 	p.set_meta("deep_burn", token)
-	FX.later(main, float(p.rekindle_total) + 0.1, func():
+	var burning: bool = p.rekindle_t > 0.0
+	# (It waits for the burn itself to end, not a clock of its own: on a busy
+	# frame the fight's time and a timer's can drift apart.)
+	FX.lasting(main, float(p.rekindle_total) + 5.0, func(_n, _d: float) -> bool:
 		if not is_instance_valid(p) or p.dead or int(p.get_meta("deep_burn", 0)) != token:
-			return
-		if p.rekindle_t <= 0.0 and p.rekindle_fought and p.rekindle_lost > 0.0:
+			return false
+		if p.rekindle_t > 0.0:
+			return true  # (still burning)
+		if burning and p.rekindle_fought and p.rekindle_lost > 0.0:
 			var extra: float = p.rekindle_lost * payback
 			p.hp = minf(p.max_health(), p.hp + extra)
-			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color()))
+			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color())
+		return false, Callable())
 	return true
 
 
 # --- what stays a while ------------------------------------------------------------
 
-## The drawing (and ticking) of a spell that stays a while. tick(n, delta)
-## returns false to end it early; paint(n) draws with n.draw_*. n.age counts
-## up to n.life; n.data holds the spell's own state. It sits over the
-## darkness like the library's spell effects, and it watches a SpellFx
-## timer so a new floor (SpellFx.clear) ends it too.
-class Lasting extends Node2D:
-	var life := 1.0
-	var age := 0.0
-	var data := {}
-	var tick := Callable()
-	var paint := Callable()
-	var fx
-	var sentinel := {}
-
-	func _ready() -> void:
-		z_as_relative = false
-		z_index = 46
-
-	func alive() -> bool:
-		if fx == null or not is_instance_valid(fx):
-			return false
-		for tm in fx.timers:
-			if is_same(tm, sentinel):
-				return true
-		return false
-
-	func finish() -> void:
-		if fx != null and is_instance_valid(fx):
-			for i in fx.timers.size():
-				if is_same(fx.timers[i], sentinel):
-					fx.timers.remove_at(i)
-					break
-		queue_free()
-
-	func _process(delta: float) -> void:
-		if is_queued_for_deletion():
-			return
-		if not alive():
-			queue_free()
-			return
-		age += delta
-		if tick.is_valid() and not bool(tick.call(self, delta)):
-			finish()
-			return
-		if age >= life:
-			finish()
-			return
-		queue_redraw()
-
-	func _draw() -> void:
-		if paint.is_valid():
-			paint.call(self)
-
-	## 1 while it lasts, easing to 0 over its last `tail` seconds.
-	func fade(tail := 0.35) -> float:
-		return clampf((life - age) / tail, 0.0, 1.0)
-
-
-## Something a spell leaves in the world for `seconds` (see Lasting).
+## Something a spell leaves in the world for `seconds`: spell_fx.gd's shared
+## Lasting node. tick(n, delta) returns false to end it early; paint(n)
+## draws with n.draw_*; n.age counts up, n.data holds the spell's own state,
+## and n.fade(tail) eases out over its last `tail` seconds (0.35 if not given).
 static func spawn(main, seconds: float, tick: Callable, paint: Callable, data := {}) -> Node2D:
-	var n := Lasting.new()
-	n.life = seconds
-	n.tick = tick
-	n.paint = paint
-	n.data = data
-	n.fx = FX.of(main)
-	FX.later(main, 1.0e9, func(): pass)  # (the sentinel: SpellFx.clear drops it)
-	n.sentinel = n.fx.timers.back()
-	main.add_child(n)
-	return n
+	return FX.lasting(main, seconds, tick, paint, data, {"fade_in": false, "fade_edge": 0.35})
 
 
 ## Rising tongues of flame in a ring (the game's flames: short thick strokes).
@@ -332,11 +274,6 @@ static func _cinder_dive(bond, p) -> void:
 	main.sfx("gust", 1.2)
 	main.sfx("burn", 1.0, -3.0)
 	main.shake(3.0)
-	# Free in Firebird Form, as Wingburst is (unless the cast was free anyway).
-	var weave := int(p.gfx("spellweave"))
-	var was_free: bool = main.in_sigil(start) or (weave > 0 and p.spells_cast % weave == 0)
-	if p.firebird_t > 0.0 and not bond._overdrawn() and not was_free:
-		bond.essence = minf(bond.capacity(), bond.essence + bond.cost())
 	if bond._overdrawn():
 		p.hp = maxf(1.0, p.hp - 5.0)  # an overdrawn dive scorches you too
 		main.fx_text(p.global_position + Vector2(0, -30), "-5", col)

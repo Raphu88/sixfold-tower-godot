@@ -31,6 +31,7 @@ extends RefCounted
 ##       on the computer) to make them part of the project.
 
 const Rooms := preload("res://scripts/rooms.gd")
+const TestRun := preload("res://scripts/test_run.gd")
 const Check := preload("res://scripts/room_check.gd")
 const Towers := preload("res://scripts/towers.gd")
 
@@ -64,8 +65,8 @@ static var started := false
 ## this first thing). Safe to call again.
 static func startup() -> void:
 	if Engine.has_meta("sixfold_test") and local_path == LOCAL_PATH:
-		local_path = "user://test_rooms_custom.json"  # (tests never touch the real files)
-		project_path = "user://test_rooms_project.json"
+		local_path = TestRun.path("user://test_rooms_custom.json")  # (tests never touch the real files)
+		project_path = TestRun.path("user://test_rooms_project.json")
 	load_files()
 	started = true
 

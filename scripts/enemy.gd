@@ -14,6 +14,11 @@ const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "b
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
+## It lost health: `source` is "blow" (take_hit), "burn" or "venom". main.gd
+## sends the same for every foe (main.on_hit). Spells listen here (e.g.
+## Rune Brand: spell_fx.gd listen()) instead of watching its health.
+signal on_hit(foe, dmg: float, source: String)
+
 ## The rules every attack keeps live in combat.gd FOES (the Data editor's
 ## "The climber's core numbers"); these read them.
 const Combat := preload("res://scripts/combat.gd")
@@ -109,7 +114,16 @@ var max_hp := 1.0
 var radius := 12.0
 var color := Color.WHITE
 var speed := 60.0
-var dmg := 8.0
+var base_dmg := 8.0  # its own blows (the table's "dmg"; a champion's is higher)
+## What softens or hardens its blows for a while (Enfeeble): spells scale
+## this, never dmg itself, so their effect comes off cleanly.
+var dmg_mult := 1.0
+## What its blows deal: base_dmg * dmg_mult (setting it sets that result).
+var dmg: float:
+	get:
+		return base_dmg * dmg_mult
+	set(v):
+		base_dmg = v / dmg_mult if dmg_mult != 0.0 else v
 var weight := 1.0  # how hard it is to shove when bodies collide
 var dead := false:
 	set(v):
@@ -1734,6 +1748,7 @@ func _tick_burn(delta: float) -> void:
 		if submerged:
 			return
 		hp -= burn_dmg
+		_was_hit(burn_dmg, "burn")
 		flash = 0.05
 		if hp <= 0.0:
 			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
@@ -1754,6 +1769,7 @@ func _tick_venom(delta: float) -> void:
 	if venom_tick <= 0.0:
 		venom_tick = 0.5
 		hp -= float(venom)
+		_was_hit(float(venom), "venom")
 		flash = 0.05
 		if hp <= 0.0:
 			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
@@ -1816,6 +1832,15 @@ func _wander(delta: float) -> void:
 	_redraw()
 
 
+## Tells whoever listens that it lost health (on_hit, and main's on_hit).
+## Listeners should act next frame, not inside this call: the blow that
+## sent it hasn't finished (it may be about to kill).
+func _was_hit(amount: float, source: String) -> void:
+	on_hit.emit(self, amount, source)
+	if main != null and main.has_signal("on_hit"):
+		main.on_hit.emit(self, amount, source)
+
+
 ## `pierce`: the blow ignores armour (Unmaking's flow, from step 3): a
 ## shellback's shell doesn't turn it and a knight's guard doesn't shrug it off.
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
@@ -1850,6 +1875,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "ashes", Color(0.7, 0.6, 0.55))
 		return
 	hp -= amount
+	_was_hit(amount, "blow")
 	flash = 0.12
 	squash = 1.0
 	if dir != Vector2.ZERO:

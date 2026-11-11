@@ -31,6 +31,7 @@ extends RefCounted
 ## Never let an edit break the game: a value of the wrong kind is refused,
 ## numbers are kept within bounds, and words keep their %d / %s blanks.
 
+const TestRun := preload("res://scripts/test_run.gd")
 const PROJECT_PATH := "res://data/overrides.json"
 const LOCAL_PATH := "user://overrides.json"
 const FORMAT := 1
@@ -88,9 +89,12 @@ const SECTIONS := [
 		"tables": ["unbound/TEXT", "unbound/PART_NAMES", "technique/TEXT", "technique_page/TEXT", "unbound_run/TEXT"], "kinds": ["text"]},
 	{"id": "library_words", "group": "words", "name": "The library, the tree and the book", "when": "page",
 		"tables": ["library/FORMS", "library/EFFECTS", "library/VARIATIONS", "library/TEXT", "spells.gryphon/FORKS", "spells.kraken/FORKS", "spells.wyvern/FORKS",
-			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/TEXT", "tree_view/TEXT", "book/TEXT", "bonds/FORK_NOTE"], "kinds": ["text"],
-		"skip": ["type", "variation", "class", "form"],
-		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "TEXT": "Words", "FORK_NOTE": "A fork's step note"}},
+			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/TEXT", "tree_view/TEXT", "book/TEXT", "bonds/FORK_NOTE",
+			"spells.unbound_forms/TREE", "spells.unbound_effects/ECHO_ACTS", "spells.gryphon/TEXT", "spells.kraken/TEXT", "spells.wyvern/TEXT",
+			"spells.manticore/TEXT", "spells.firebird/TEXT", "spells.chimera/TEXT", "spells.unbound_forms/TEXT", "essence_bench/TEXT"], "kinds": ["text"],
+		"skip": ["type", "variation", "class", "form", "fork"],
+		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "TEXT": "Words", "FORK_NOTE": "A fork's step note",
+			"TREE": "The Unbound's capstones", "ECHO_ACTS": "Echoes: what each does"}},
 	{"id": "menu_words", "group": "words", "name": "Title, climbers and appearance", "when": "page",
 		"tables": ["title/TEXT", "climbers_page/TEXT", "appearance/TEXT", "appearance/NAMES", "essence/KINDS"], "kinds": ["text"],
 		"names": {"NAMES": "Names the dice offers", "KINDS": "Essences"}},
@@ -133,8 +137,10 @@ const SECTIONS := [
 		"tables": ["makers/FRAGMENT", "makers/REVEAL", "makers/GLIMPSE", "makers/INTERRUPT", "makers/PLEA_ODDS", "secret_bonds/BRIBE"], "kinds": ["number", "bool"]},
 	{"id": "library_numbers", "group": "numbers", "name": "The library: forms, effects, variations, forks", "when": "live",
 		"tables": ["library/FORMS", "library/EFFECTS", "library/VARIATIONS", "spells.gryphon/FORKS", "spells.kraken/FORKS", "spells.wyvern/FORKS",
-			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/SKIP_COST"], "kinds": ["number"], "skip": ["learn"],
-		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "SKIP_COST": "Learning a passed side (crystal essence: base, per level)"}},
+			"spells.manticore/FORKS", "spells.firebird/FORKS", "spells.chimera/FORKS", "tree/SKIP_COST",
+			"spells.unbound_forms/TREE", "spells.unbound_effects/ECHO_ACTS"], "kinds": ["number"], "skip": ["learn", "fork"],
+		"names": {"FORMS": "Forms", "EFFECTS": "Effects", "VARIATIONS": "Variations", "FORKS": "Forks (a tower's marks)", "SKIP_COST": "Learning a passed side (crystal essence: base, per level)",
+			"TREE": "The Unbound's capstones", "ECHO_ACTS": "Echoes: what each does"}},
 	{"id": "secret_numbers", "group": "numbers", "name": "Secret essences", "when": "live",
 		"tables": ["secret/STEPS", "secret/GROWTH", "secret/REFUSE_HEALTH", "secret/UNDO_CAP"], "kinds": ["number"]},
 	# --- colours ---
@@ -212,7 +218,7 @@ static var _sections := {}  # id -> section
 ## to call again: it starts from the scripts' own values each time.
 static func startup() -> bool:
 	if Engine.has_meta("sixfold_test") and local_path == LOCAL_PATH:
-		local_path = "user://test_overrides.json"  # (tests never touch the real one)
+		local_path = TestRun.path("user://test_overrides.json")  # (tests never touch the real one)
 	load_files()
 	apply_effective()
 	started = true

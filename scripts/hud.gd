@@ -1239,17 +1239,9 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	var margin := 40.0
 	if Rect2(Vector2.ZERO, size).grow(-margin).has_point(sp):
 		return
-	# It rides the edge of its ring (layout.gd "hud.stair": by default the
-	# screen less a margin, and below the floor counter and stair line at the
-	# top), on the line from the screen's centre (or the ring's) to the stair.
-	var ring := Layout.box("hud.stair", size)
-	var center := size * 0.5
-	if not ring.has_point(center):
-		center = ring.get_center()
-	var d := (sp - center).normalized()
-	var reach_x: float = (ring.end.x - center.x) if d.x > 0.0 else (center.x - ring.position.x)
-	var reach_y: float = (ring.end.y - center.y) if d.y > 0.0 else (center.y - ring.position.y)
-	var at := center + d * minf(reach_x / maxf(absf(d.x), 0.001), reach_y / maxf(absf(d.y), 0.001))
+	var spot := stair_arrow_spot(size, sp)
+	var at: Vector2 = spot[0]
+	var d: Vector2 = spot[1]
 	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.006)
 	var tip := at + d * 14.0
 	# A gilt arrowhead, outlined and lit along one side, with a stud behind it.
@@ -1263,6 +1255,97 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	UI.diamond_into(b, at - d * 13.0, 2.2, Color(UI.GILT_HI, pulse))
 	b.flush(self)
 	UI.draw_label(self, at - d * 28.0 + Vector2(-20, 4), "Stair", 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
+
+
+## Where the stair arrow sits and which way it points ([at, dir]) for a
+## stair at screen point `sp`. It rides the edge of its ring (layout.gd
+## "hud.stair": by default the screen less a margin, and below the floor
+## counter and stair line at the top), on the line from the screen's centre
+## (or the ring's) to the stair. With touch controls it slides along the ring
+## until it's clear of every touch button (a phone's Jump, Attack...).
+func stair_arrow_spot(size: Vector2, sp: Vector2) -> Array:
+	var ring := Layout.box("hud.stair", size)
+	var center := size * 0.5
+	if not ring.has_point(center):
+		center = ring.get_center()
+	var d := (sp - center).normalized()
+	var reach_x: float = (ring.end.x - center.x) if d.x > 0.0 else (center.x - ring.position.x)
+	var reach_y: float = (ring.end.y - center.y) if d.y > 0.0 else (center.y - ring.position.y)
+	var at := center + d * minf(reach_x / maxf(absf(d.x), 0.001), reach_y / maxf(absf(d.y), 0.001))
+	if not main.touch_active:
+		return [at, d]
+	var keep := touch_keep_out(size)
+	if _arrow_clear(at, d, keep):
+		return [at, d]
+	var per := 2.0 * (ring.size.x + ring.size.y)
+	var s0 := _ring_param(ring, at)
+	var step := 6.0
+	for k in range(1, int(per / step / 2.0) + 1):
+		for sgn in [1.0, -1.0]:
+			var q := _ring_point(ring, s0 + sgn * k * step)
+			var dq := (sp - q).normalized() if sp.distance_to(q) > 1.0 else d
+			if _arrow_clear(q, dq, keep):
+				return [q, dq]
+	return [at, d]
+
+
+## The touch buttons as circles [centre, radius] (those on screen now, else
+## every button of the touch arrangement).
+func touch_keep_out(size: Vector2) -> Array:
+	var out: Array = []
+	var t = main.get("touch")
+	if t != null and not t.buttons.is_empty():
+		for b in t.buttons:
+			out.append([b["c"], float(b["r"])])
+		return out
+	for row in Layout.TOUCH:
+		var r := Layout.box("touch." + String(row[0]), size)
+		out.append([r.get_center(), r.size.x * 0.5])
+	return out
+
+
+## The arrow (its glow and head) and its "Stair" label stay this far from a button.
+const STAIR_ARROW_CLEAR := 26.0
+const STAIR_LABEL_CLEAR := 24.0
+
+
+func _arrow_clear(at: Vector2, d: Vector2, keep: Array) -> bool:
+	var label := at - d * 28.0 + Vector2(0, -2)
+	for c in keep:
+		var r := float(c[1])
+		if at.distance_to(c[0]) < r + STAIR_ARROW_CLEAR or label.distance_to(c[0]) < r + STAIR_LABEL_CLEAR:
+			return false
+	return true
+
+
+## A point on the ring's edge, `s` along it clockwise from its top-left corner.
+func _ring_point(ring: Rect2, s: float) -> Vector2:
+	var w := ring.size.x
+	var h := ring.size.y
+	s = fposmod(s, 2.0 * (w + h))
+	if s < w:
+		return ring.position + Vector2(s, 0)
+	if s < w + h:
+		return Vector2(ring.end.x, ring.position.y + s - w)
+	if s < 2.0 * w + h:
+		return Vector2(ring.end.x - (s - w - h), ring.end.y)
+	return Vector2(ring.position.x, ring.end.y - (s - 2.0 * w - h))
+
+
+## How far along the ring's edge (as _ring_point) a point on it is.
+func _ring_param(ring: Rect2, at: Vector2) -> float:
+	var w := ring.size.x
+	var h := ring.size.y
+	var edges := [absf(at.y - ring.position.y), absf(at.x - ring.end.x), absf(at.y - ring.end.y), absf(at.x - ring.position.x)]
+	var e: int = edges.find(edges.min())
+	match e:
+		0:
+			return at.x - ring.position.x
+		1:
+			return w + at.y - ring.position.y
+		2:
+			return w + h + ring.end.x - at.x
+	return 2.0 * w + h + ring.end.y - at.y
 
 
 func _draw_boss_bar(size: Vector2, font: Font) -> void:

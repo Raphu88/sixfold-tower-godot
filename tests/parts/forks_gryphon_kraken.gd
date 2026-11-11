@@ -5,6 +5,7 @@ extends RefCounted
 ## what it says; no placeholders are left; old saves are unaffected.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
+const TestRun := preload("res://scripts/test_run.gd")
 const BONDS := ["stormcaller", "windwalker", "hunter", "tidecaller", "warden", "deepcaller"]
 
 var t
@@ -115,6 +116,10 @@ func _cast() -> float:
 	p.aim = dir
 	p._try_cast("hand")
 	await t._wait(b.windup() + 0.12)
+	for i in 120:  # (a busy machine runs the fight slower than the clock: wait for the cast itself)
+		if p.cast_t <= 0.0:
+			break
+		await t._frames(1)
 	return before - b.essence
 
 
@@ -185,7 +190,7 @@ func _written() -> void:
 func _old_saves() -> void:
 	print("the Gryphon's and the Kraken's forks: old saves")
 	await t._fresh_main()
-	var path := "user://smoke_forks_gk.cfg"
+	var path := TestRun.path("user://smoke_forks_gk.cfg")
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
 	cfg.set_value("profile", "bonds", {

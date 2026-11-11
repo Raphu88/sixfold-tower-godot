@@ -168,6 +168,7 @@ func cast(b, p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -40), TEXT["dark"] % Unbound.PART_NAMES[part], Color(0.6, 0.6, 0.65))
 		return
 	var prof = main.profile
+	var at: Vector2 = p.global_position
 	var power: float = Unbound.power(prof, part) * (1.0 + prof.attribute("fire"))
 	var hot := strain_of(part) > HOT
 	var need: float = b.capacity()
@@ -192,6 +193,7 @@ func cast(b, p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -78), Library.TEXT["echoes"] % Library.echo_of(t)["name"], Color(0.79, 0.65, 1.0))
 	add_strain(part, Tech.strain(t) + Tech.EMPTY_STRAIN * missing / maxf(need, 0.01))
 	_sync()
+	Library.on_cast(p, {"by": "technique", "bond": b, "part": part, "at": at, "tech": t})  # (the capstones answer: unbound_forms.gd)
 
 
 ## True if you carry all of a technique's boost unbanked (the path's essence

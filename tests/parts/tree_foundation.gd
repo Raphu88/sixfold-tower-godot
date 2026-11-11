@@ -3,6 +3,7 @@ extends RefCounted
 ## and old saves, the book and its sections, choosing on the Tree, Ball
 ## Lightning, the variations, the Data editor, and fitting a phone.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
+const TestRun := preload("res://scripts/test_run.gd")  # (every user:// path a test touches: its own run folder)
 
 const Book := preload("res://scripts/book.gd")
 
@@ -180,7 +181,7 @@ func _saves() -> void:
 	var main = _main()
 	var P = load("res://scripts/profile.gd")
 	var TR = load("res://scripts/tree.gd")
-	var path := "user://smoke_tree.cfg"
+	var path := TestRun.path("user://smoke_tree.cfg")
 	# An old save: a Stormcaller at step 3 and a Warden at step 4, no tree.
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
@@ -208,7 +209,7 @@ func _saves() -> void:
 	_check(TR.mark_choice(again, "stormcaller", 2) == "ball_lightning" and TR.mark_choice(again, "stormcaller", 3) == TR.CHANGE, "choices are saved with the climber and load again")
 	var fresh = P.new()
 	fresh.saving = false
-	fresh.save_path = "user://smoke_tree_none.cfg"
+	fresh.save_path = TestRun.path("user://smoke_tree_none.cfg")
 	fresh.load_save()
 	_check(TR.state(fresh)["marks"].is_empty(), "a new climber has chosen nothing")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

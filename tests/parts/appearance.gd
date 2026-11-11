@@ -7,6 +7,7 @@ extends RefCounted
 ## keys, controller and touch and fit 800x400 at every Interface size.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
+const TestRun := preload("res://scripts/test_run.gd")
 const A := preload("res://scripts/appearance.gd")
 const Mirror := preload("res://scripts/mirror.gd")
 const M := preload("res://scripts/menu.gd")
@@ -197,7 +198,7 @@ func _randomise_covers() -> void:
 func _old_saves() -> void:
 	print("appearance: old saves")
 	var Prof = load("res://scripts/profile.gd")
-	var path := "user://smoke_look_old_%d.cfg" % OS.get_process_id()
+	var path := TestRun.path("user://smoke_look_old.cfg")
 	var old := ConfigFile.new()
 	old.set_value("profile", "regarded", true)
 	old.set_value("look", "appearance", {"name": "Wren", "skin": "deep", "hair": "braid", "hair_color": "copper", "eyes": "green", "cloak": "plum", "tunic": "navy", "hood": "down"})

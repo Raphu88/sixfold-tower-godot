@@ -41,6 +41,7 @@ var stick_pos := Vector2.ZERO
 var held := {}  # touch index -> button id
 var held_since := {}  # touch index -> when it went down (ms)
 var buttons: Array = []  # {id, action, center, radius, label}
+var _own := {}  # the actions the touch controls are holding down right now
 
 
 ## Every action a touch can hold down (released when screens change, since
@@ -205,7 +206,7 @@ func _set_active(on: bool) -> void:
 	if main.player != null:
 		main.player.touch_aim = on
 	if not on:
-		_release_all()
+		_release_own()
 	elif main.pad != null and main.pad.active:
 		main.pad._set_active(false)  # a touch: touch prompts, not controller ones
 	queue_redraw()
@@ -230,6 +231,8 @@ func _touch_down(index: int, pos: Vector2) -> void:
 			if String(b["id"]).begins_with("cast_") or b["id"] == "item" or b["id"] == "tools":
 				main.pick_anchor = b["c"]
 			Input.action_press(b["action"])
+			if not (b["id"] in ONE_SHOT):
+				_own[b["action"]] = true
 			if b["id"] in ONE_SHOT:
 				# Taps: release on the next frame so the next tap registers too.
 				get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(b["action"]))
@@ -261,6 +264,7 @@ func _touch_up(index: int) -> void:
 					get_tree().create_timer(0.05, true, false, true).timeout.connect(Input.action_release.bind(b["action"]))
 				else:
 					Input.action_release(b["action"])
+					_own.erase(b["action"])
 
 
 func _update_stick() -> void:
@@ -294,19 +298,38 @@ func _axis(pos_action: String, neg_action: String, value: float) -> void:
 	if value > 0.0:
 		Input.action_press(pos_action, value)
 		Input.action_release(neg_action)
+		_own[pos_action] = true
+		_own.erase(neg_action)
 	elif value < 0.0:
 		Input.action_press(neg_action, -value)
 		Input.action_release(pos_action)
+		_own[neg_action] = true
+		_own.erase(pos_action)
 	else:
 		Input.action_release(pos_action)
 		Input.action_release(neg_action)
+		_own.erase(pos_action)
+		_own.erase(neg_action)
 
 
 func release_all() -> void:
 	_release_all()
 
 
+## Lets go of only what the touch controls themselves hold (another input
+## taking over: a controller's stick event has already pressed its own
+## actions, and releasing everything here swallowed that first push).
+func _release_own() -> void:
+	for a in _own:
+		Input.action_release(a)
+	_own.clear()
+	stick_touch = -1
+	held.clear()
+	held_since.clear()
+
+
 func _release_all() -> void:
+	_own.clear()
 	for a in HELD_ACTIONS:
 		Input.action_release(a)
 	stick_touch = -1
