@@ -74,8 +74,8 @@ const SECTIONS := [
 	{"id": "towers_words", "group": "words", "name": "Towers and rooms", "when": "live",
 		"tables": ["towers/TOWERS", "towers/PROVING", "themes/THEMES"], "kinds": ["text"], "names": {"THEMES": "Rooms"}},
 	{"id": "train_words", "group": "words", "name": "The train and store", "when": "page",
-		"tables": ["train/TEXT", "train/OUTFITTER", "bench/TEXT", "vessel/TEXT"], "kinds": ["text"],
-		"names": {"TEXT": "Words"}},
+		"tables": ["train/TEXT", "train/OUTFITTER", "bench/TEXT", "vessel/TEXT", "loadout_page/TEXT", "stash_page/STASH_TEXT"], "kinds": ["text"],
+		"names": {"TEXT": "Words", "STASH_TEXT": "The stash screen"}},
 	{"id": "climb_words", "group": "words", "name": "The climb: wings, finds, mirrors", "when": "live",
 		"tables": ["wings/TEXT", "lost/TEXT", "mirror/TEXT", "proving/TEXT", "doors/LOCK_TEXT", "puzzle/TEXT", "traps/KINDS", "main/FALL_TEXT"], "kinds": ["text"],
 		"names": {"KINDS": "Traps"}},
@@ -105,6 +105,8 @@ const SECTIONS := [
 			"DEFAULT_PRICE": "Price of anything else", "SELL_SHARE": "Share paid when selling", "WORN_SELL": "Share paid for worn gear", "TODAY_ODDS": "Today's special: rarity odds"}},
 	{"id": "climb_pay", "group": "numbers", "name": "Climb pay", "when": "live",
 		"tables": ["train/CLIMB_PAY"], "kinds": ["number"], "names": {"CLIMB_PAY": "Crystals a climb pays"}},
+	{"id": "stash_room", "group": "numbers", "name": "The stash", "when": "page",
+		"tables": ["train/CHEST_SIZE"], "kinds": ["number"], "names": {"CHEST_SIZE": "Pieces the stash holds"}},
 	{"id": "growth", "group": "numbers", "name": "Mark growth and essence", "when": "live",
 		"tables": ["profile/STEP_XP", "profile/AFFINITY_WEIGHT", "profile/OTHER_WEIGHT", "profile/STEP_RATE", "profile/NEW_MARK_SOAK", "profile/SOAK_RATE", "profile/MARK_FULL",
 			"profile/BODY_DRAG", "profile/FAINT_DEBT", "profile/ATTRIBUTE_CAP", "profile/ATTRIBUTE_HALF", "profile/ATTRIBUTES", "essence/DROPS"], "kinds": ["number"],
@@ -186,7 +188,7 @@ const KEY_NAMES := {"desc": "description", "dmg": "damage", "hp": "health", "mor
 const NUMBER_HINTS := {
 	"chance": [0.0, 1.0, 0.01], "odds": [0.0, 100.0, 1.0], "share": [0.0, 1.0, 0.01], "keep": [0.0, 1.0, 0.01],
 	"SELL_SHARE": [0.0, 1.0, 0.01], "WORN_SELL": [0.0, 1.0, 0.01], "MARK_FULL": [0.1, 1.0, 0.01], "VIGNETTE": [0.0, 1.0, 0.01],
-	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01], "roll_iframes": [0.0, 1.0, 0.01],
+	"ATTRIBUTE_CAP": [0.0, 1.0, 0.01], "roll_iframes": [0.0, 1.0, 0.01], "CHEST_SIZE": [8.0, 200.0, 1.0],
 }
 
 ## Words the owner never wants in the game (CLAUDE.md): a warning, not a block.

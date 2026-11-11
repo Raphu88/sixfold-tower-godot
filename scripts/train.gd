@@ -10,7 +10,8 @@ extends RefCounted
 ##   engine    the cab: choose the next tower on its board, pull the lever
 ##   store     the Outfitter's Car: supplies, an outfit, today's piece, and
 ##             selling what you brought down
-##   personal  your own car: your heirlooms, your pack and a storage chest
+##   personal  your own car: what you'll wear (the Loadout, loadout_page.gd),
+##             your pack and your stash (the storage chest, stash_page.gd)
 ##   workshop  the workshop car: the bench (bench.gd): brewing for anyone,
 ##             enchanting for a Rune Artist, and breaking things down
 ##   library   the Library: the Entity's Archive on its shelves, read at a
@@ -36,8 +37,11 @@ const CARS := [["engine", "Engine"], ["store", "Outfitter's Car"], ["personal", 
 	["library", "Library"], ["settings", "Settings & Controls Car"]]
 const HOME := "personal"
 
-## Your storage chest (in your car): pieces kept safe between climbs.
-const CHEST_SIZE := 8
+## Your stash (the storage chest in your car): pieces kept safe between
+## climbs. (It held 8 before the stash screen; old saves load as they are.)
+static var CHEST_SIZE := 40
+## How many stash spaces your car shows before the stash screen (Open the stash).
+const CAR_STASH := 8
 ## Selling (or breaking down at the bench, bench.gd) gives back this share of
 ## a thing's price, as a crystal of its kind. A worn Common piece fetches
 ## less, down to WORN_SELL of that.
@@ -119,21 +123,23 @@ static var TEXT := {
 	"cant": "Can't buy: %s",
 	# Your car
 	"personal_sub": "Your heirlooms, and a chest for what you want to keep.",
-	"chest": "Storage chest  ·  %d of %d",
+	"chest": "Stash  ·  %d of %d",
 	"pack": "Your pack  ·  %d of %d",
 	"heirlooms": "Heirlooms",
 	"view_chest": "Chest",
 	"view_heirlooms": "Heirlooms",
-	"chest_empty": "An empty space in your chest. Pieces kept here are safe between climbs, and never wear.",
+	"chest_empty": "An empty space in your stash. Pieces kept here are safe between climbs, and never wear.",
 	"pack_empty": "An empty space in your pack. Your pack goes up the tower with you: fall, and what's in it is lost.",
-	"in_chest": "In your storage chest: safe between climbs.",
-	"in_pack": "In your pack: it goes up the tower with you, and you put it on as you enter if its slot is free (or holds only the starting sword or bow).",
-	"to_chest": "Into the chest",
+	"in_chest": "In your stash: safe on the train. It doesn't go up the tower.",
+	"in_pack": "In your pack: it goes up the tower with you as a spare. If nothing is worn in its slot, you put it on as you set off.",
+	"to_chest": "Into the stash",
 	"to_pack": "Into your pack",
-	"moved_chest": "Into the chest: %s",
+	"moved_chest": "Into the stash: %s",
 	"moved_pack": "Into your pack: %s",
-	"chest_full": "your chest is full",
+	"chest_full": "your stash is full",
 	"pack_full": "your pack is full",
+	"pack_shrinks": "your pack would hold too little: move a piece out of it first",
+	"no_room": "your pack and stash are both full",
 	"sell_for": "Sell for %d %s",
 	"sell_ask": "{again} to sell for %d %s",
 	"sold": "Sold: %s for %s",
@@ -144,10 +150,10 @@ static var TEXT := {
 	"belt_full": "your belt can't hold more",
 	"put_back": "Put one back (what you paid comes back)",
 	"put_back_done": "Put back: %s",
-	"outfit_note": "Common pieces for your next climb. What you buy goes in your pack, and you wear it as you enter if its slot is free.",
+	"outfit_note": "Common pieces for your next climb. Buy into your pack (it goes up the tower) or your stash (it stays on the train), or buy and wear it.",
 	"today_note": "One finer piece, new after every climb.",
 	"today_sold": "Sold. Another piece comes after your next climb.",
-	"sell_note": "What you brought down in your pack, and what's in your chest. Each sells for a crystal of its kind, at %d%% of its price.",
+	"sell_note": "What you brought down in your pack, and what's in your stash. Each sells for a crystal of its kind, at %d%% of its price.",
 	"nothing_to_sell": "Nothing to sell. Bring finds home in your pack: survive a climb, or read a recall scroll.",
 	"against": "Against what you'd start with",
 	"shelves": "Supplies",
@@ -166,6 +172,18 @@ static var TEXT := {
 	"looks": "Appearance",  # how you look (appearance_page.gd)
 	"looks_short": "Looks",
 	"techniques": "Techniques",  # the Unbound's (technique_page.gd)
+	"loadout": "Loadout",  # what you'll wear, and your pack (loadout_page.gd)
+	"loadout_short": "Loadout",
+	"stash": "Stash",  # the stash screen (stash_page.gd)
+	"stash_short": "Stash",
+	"open_stash": "Open the stash (%d)",
+	"buy_pack": "Buy: into your pack",
+	"buy_chest": "Buy: into your stash",
+	"buy_wear": "Buy and wear it",
+	"afford": "You can afford it.",
+	"show": "Show: %s",
+	"sort_by": "Sort: %s",
+	"wear_tag": "You'll wear",
 	# The engine: where you choose the next tower
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",
@@ -178,7 +196,7 @@ static var TEXT := {
 	"pull": "Pull the lever to depart.",
 	"depart_pack": "Going with you: %s.",
 	"depart_none": "nothing in your pack",
-	"depart_risk": "Fall, and your pack and belt are lost; your chest, heirlooms and crystals are safe.",
+	"depart_risk": "Fall, and your pack and belt are lost; your stash, heirlooms and crystals are safe.",
 	"last": "last climbed",
 	# Condensing at the stair (main.gd _arrive), its setting, and the outfitter's pay for a climb
 	"banked": "Banked %d essence",
@@ -515,27 +533,51 @@ static func pack_room(profile, player) -> int:
 	return maxi(0, int(player.pack_size()) - profile.pack.size())
 
 
-## Buys a piece off the rack (`i`) or today's piece (i = -1) into your pack.
+## Buys a piece off the rack (`i`) or today's piece (i = -1) into your pack
+## (`to` "pack"), your stash ("chest"), or straight onto you ("wear": into
+## your pack, then worn, what you wore there going back into the pack).
 ## "" if bought, else why not.
-static func buy_gear(profile, player, i: int) -> String:
+static func buy_gear(profile, player, i: int, to := "pack") -> String:
 	var g: Dictionary = today(profile) if i < 0 else (outfit(profile)[i] if i < outfit(profile).size() else {})
 	if g.is_empty():
 		return TEXT["today_sold"]
-	if pack_room(profile, player) <= 0:
-		return TEXT["pack_full"]
+	var why := buy_room(profile, player, g, to)
+	if why != "":
+		return why
 	var kind := gear_kind(g)
 	var cost := gear_price(g)
-	var why := short_of(profile, kind, cost)
+	why = short_of(profile, kind, cost)
 	if why != "":
 		return why
 	profile.spend(kind, cost)
-	profile.pack.append(g)
+	if to == "chest":
+		profile.chest.append(g)
+	else:
+		profile.pack.append(g)
 	if i < 0:
 		profile.store["today"] = ""
 	else:
 		var rack: Array = profile.store["outfit"]
 		rack[i] = ""
+	if to == "wear":
+		equip(profile, player, "pack", profile.pack.size() - 1)
 	profile.save()
+	return ""
+
+
+## Why a piece can't be bought into `to` ("pack", "chest" or "wear"), or "".
+static func buy_room(profile, player, g, to := "pack") -> String:
+	if to == "chest":
+		return TEXT["chest_full"] if profile.chest.size() >= CHEST_SIZE else ""
+	if pack_room(profile, player) <= 0:
+		return TEXT["pack_full"]
+	if to == "wear":
+		var slot := wear_slot_for(profile, player, g)
+		var after: Dictionary = profile.wear.duplicate()
+		after[slot] = Gear.rec(g)
+		var old = profile.wear.get(slot, null)
+		if pack_size_with(profile, after) < profile.pack.size() + (1 if old != null else 0):
+			return TEXT["pack_shrinks"]
 	return ""
 
 
@@ -582,6 +624,8 @@ static func sell(profile, where: String, i: int) -> String:
 ## heirloom); the rest go up the tower in your pack. Packed supplies go
 ## onto your belt. The store's stock clears, for new stock next visit.
 static func pack_up(profile, player) -> void:
+	if not profile.wear.is_empty():
+		dress(profile, player)  # (what you chose to wear goes on first, over the heirloom or starting piece)
 	var starts := {"melee": Gear.make(Gear.Weapons.START_MELEE), "ranged": Gear.make(Gear.Weapons.START_RANGED)}
 	for g in profile.pack:
 		var r := Gear.rec(g)
@@ -589,13 +633,14 @@ static func pack_up(profile, player) -> void:
 			continue
 		var slot: String = player.slot_for(r)
 		var held = player.gear.get(slot, {})
-		var free: bool = not Gear.is_gear(held) or (starts.has(slot) and Gear.same(held, starts[slot]) \
+		var free: bool = not Gear.is_gear(held) or (starts.has(slot) and Gear.same(held, starts[slot]) and not profile.wear.has(slot) \
 			and Gear.heirloom_pieces(profile.heirlooms, Gear.heirloom_slot_for_carry(slot)).is_empty())
 		if free:
 			player.take_gear(r, slot)
 		else:
 			player.pack.append(r)
 	profile.pack = []
+	profile.wear = {}  # (it's on you now: worn pieces, like any you find)
 	load(VESSEL).pack_up(profile, player)  # (a vessel packed from the chest goes on the belt)
 	for id in profile.supplies.keys():
 		for k in int(profile.supplies[id]):
@@ -609,3 +654,268 @@ static func pack_up(profile, player) -> void:
 	profile.store = {}
 	profile.last_pay = {}  # (the outfitter's greeting about the last climb's pay is said)
 	profile.save()
+
+
+# --- the loadout: what you'll wear when you set off ---------------------------------
+# On the train you choose what to wear from your pack or your stash
+# (loadout_page.gd). The chosen pieces (profile.wear: carried slot ->
+# record) go on as you depart, over your heirloom or the starting piece in
+# that slot (an heirloom you don't wear waits on the train, still yours);
+# from then on they're worn pieces like any you find. Pieces left in your
+# pack still go on in a slot nothing is worn in (pack_up). The climber on
+# the train wears the loadout already (dress), so the climber screen and
+# the figure show it.
+
+## The slots you can wear something in (not the off-hand: kept for later).
+const WEAR_SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack"]
+
+## The sorts and filters of the stash screen (stash_page.gd): [id, name].
+## A slot filter is "all" or a slot (Gear.slot_of); an essence filter "all"
+## or a kind.
+static var STASH_SORTS := [["newest", "Newest"], ["rarity", "Rarity"], ["slot", "Slot"], ["kind", "Essence"], ["price", "Price"]]
+static var SLOT_FILTERS := [["all", "All slots"], ["melee", "Melee"], ["ranged", "Ranged"], ["armor", "Chest"], ["helm", "Helm"], ["gloves", "Gloves"],
+	["legs", "Legs"], ["boots", "Boots"], ["cloak", "Cloak"], ["amulet", "Amulet"], ["ring", "Rings"], ["backpack", "Backpack"]]
+## The outfit rail's filter, and where selling shows pieces from: [id, name].
+static var RACK_FILTERS := [["all", "Everything"], ["better", "Better than yours"], ["weapons", "Weapons"], ["armour", "Armour"], ["more", "Cloaks and packs"]]
+static var SELL_FROM := [["all", "Pack and stash"], ["pack", "Your pack"], ["chest", "Your stash"]]
+const RACK_GROUPS := {"weapons": ["melee", "ranged"], "armour": ["armor", "helm", "gloves", "legs", "boots"], "more": ["cloak", "backpack", "amulet", "ring"]}
+const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack"]
+
+
+## What you'd wear with these chosen pieces (`wear`, else profile.wear):
+## the starting sword and bow, your heirlooms in their slots, then the chosen
+## pieces over them (carried slot -> record).
+static func dressed(profile, wear = null) -> Dictionary:
+	var chosen: Dictionary = profile.wear if wear == null else wear
+	var g := Gear.start_gear()
+	for hs in profile.heirlooms:
+		var gs := Gear.gear_slot_for(String(hs))
+		if gs == "":
+			continue
+		var into: Array = Gear.carry_slots(gs)
+		var pieces: Array = Gear.heirloom_pieces(profile.heirlooms, hs).filter(func(r): return Gear.slot_of(r) == gs)
+		for i in mini(pieces.size(), into.size()):
+			g[into[i]] = Gear.heirloom_copy(pieces[i])
+	for slot in chosen:
+		if g.has(slot):
+			g[slot] = Gear.rec(chosen[slot])
+	return g
+
+
+## Puts the loadout on the climber on the train (their gear, weapon and the
+## numbers it adds up to).
+static func dress(profile, player) -> void:
+	if player != null and player.has_method("wear_set"):
+		player.wear_set(dressed(profile))
+
+
+## What you'll set off in, slot by slot: {slot: {"rec", "from"}} where
+## "from" is "wear" (chosen), "heir" (your heirloom), "start" (the sword or
+## bow every climb starts with) or "pack" (a pack piece that goes on because
+## nothing else is worn there; its "i" in the pack). Empty slots are left out.
+static func setoff(profile, _player = null) -> Dictionary:
+	var g := dressed(profile)
+	var starts := {"melee": Gear.make(Gear.Weapons.START_MELEE), "ranged": Gear.make(Gear.Weapons.START_RANGED)}
+	var out := {}
+	for slot in WEAR_SLOTS:
+		var r = g.get(slot, {})
+		if not Gear.is_gear(r):
+			continue
+		var from := "wear" if profile.wear.has(slot) else ("start" if starts.has(slot) and Gear.same(r, starts[slot]) else "heir")
+		if from == "start" and not Gear.heirloom_pieces(profile.heirlooms, Gear.heirloom_slot_for_carry(slot)).is_empty():
+			from = "heir"  # (an heirloom that's the very same as the starting piece)
+		out[slot] = {"rec": r, "from": from}
+	for i in profile.pack.size():
+		var p := Gear.rec(profile.pack[i])
+		if p.is_empty():
+			continue
+		var into: Array = Gear.carry_slots(Gear.slot_of(p))
+		var slot: String = into[0]
+		for sl in into:
+			if not out.has(sl):
+				slot = sl
+				break
+		var held: Dictionary = out.get(slot, {})
+		if held.is_empty() or held["from"] == "start":
+			out[slot] = {"rec": p, "from": "pack", "i": i}
+	return out
+
+
+## The gear you'll set off in (carried slot -> record), for drawing and numbers.
+static func setoff_gear(profile, player = null) -> Dictionary:
+	var g := {}
+	for s in Gear.SLOTS:
+		g[s] = {}
+	var so := setoff(profile, player)
+	for slot in so:
+		g[slot] = so[slot]["rec"]
+	return g
+
+
+## How many pieces your pack holds with these chosen pieces worn (a
+## Climber's Pack holds more).
+static func pack_size_with(profile, wear: Dictionary) -> int:
+	return Gear.PACK_SIZE + int(Gear.total_effects(dressed(profile, wear)).get("pack", 0))
+
+
+## The slot a piece goes in when you choose to wear it: its own; for a ring
+## the first ring slot with nothing in it, else the first one you haven't
+## chosen a ring for, else the first.
+static func wear_slot_for(profile, _player, g) -> String:
+	var into: Array = Gear.carry_slots(Gear.slot_of(g))
+	if into.size() > 1:
+		var dg := dressed(profile)
+		for sl in into:
+			if not Gear.is_gear(dg.get(sl, {})):
+				return sl
+		for sl in into:
+			if not profile.wear.has(sl):
+				return sl
+	return into[0]
+
+
+## Wears a piece from your pack or stash (`where` "pack" or "chest", index
+## `i`; `into` picks a ring slot). A piece you chose to wear there before
+## goes back where this one came from; an heirloom stays yours and waits on
+## the train this climb. "" if done, else why not.
+static func equip(profile, player, where: String, i: int, into := "") -> String:
+	var from := _list(profile, where)
+	if i < 0 or i >= from.size():
+		return ""
+	var g := Gear.rec(from[i])
+	if g.is_empty():
+		return ""
+	var slots: Array = Gear.carry_slots(Gear.slot_of(g))
+	var slot: String = into if into in slots else wear_slot_for(profile, player, g)
+	var old = profile.wear.get(slot, null)
+	var after: Dictionary = profile.wear.duplicate()
+	after[slot] = g
+	var pack_after: int = profile.pack.size() - (1 if where == "pack" else 0) + (1 if old != null and where == "pack" else 0)
+	if pack_size_with(profile, after) < pack_after:
+		return TEXT["pack_shrinks"]
+	from.remove_at(i)
+	if old != null:
+		from.insert(i, old)
+	profile.wear = after
+	dress(profile, player)
+	profile.save()
+	return ""
+
+
+## Takes off a piece you chose to wear, into your pack (`to` "pack") or
+## stash ("chest"); "" picks the pack if it has room, else the stash. "" if
+## done, else why not.
+static func unequip(profile, player, slot: String, to := "") -> String:
+	if not profile.wear.has(slot):
+		return ""
+	var after: Dictionary = profile.wear.duplicate()
+	after.erase(slot)
+	var cap := pack_size_with(profile, after)
+	if to == "":
+		to = "pack" if profile.pack.size() < cap else ("chest" if profile.chest.size() < CHEST_SIZE else "")
+		if to == "":
+			return TEXT["no_room"]
+	if to == "chest":
+		if profile.chest.size() >= CHEST_SIZE:
+			return TEXT["chest_full"]
+		if profile.pack.size() > cap:
+			return TEXT["pack_shrinks"]
+		profile.chest.append(profile.wear[slot])
+	else:
+		if profile.pack.size() + 1 > cap:
+			return TEXT["pack_full"] if profile.pack.size() < pack_size_with(profile, profile.wear) else TEXT["pack_shrinks"]
+		profile.pack.append(profile.wear[slot])
+	profile.wear = after
+	dress(profile, player)
+	profile.save()
+	return ""
+
+
+## What a piece is set against: what you'd wear in its slot (for a ring,
+## the first ring slot; "" for no armour; null for nothing there).
+static func worn_against(profile, player, g):
+	var r := Gear.rec(g)
+	var so := setoff_gear(profile, player)
+	for sl in Gear.carry_slots(Gear.slot_of(r)):
+		var held = so.get(sl, {})
+		if not Gear.is_gear(held):
+			return "" if sl == "armor" else null
+	return so.get(Gear.carry_slots(Gear.slot_of(r))[0], null)
+
+
+## A piece set against what you'd wear in its slot: its better numbers
+## (+1 each) less its worse ones (Gear.compare), so > 0 is better on the
+## whole, < 0 worse, 0 about the same (or the very piece you wear). Anything
+## beats an empty slot.
+static func versus(profile, player, g) -> int:
+	var r := Gear.rec(g)
+	if r.is_empty():
+		return 0
+	var so := setoff_gear(profile, player)
+	for sl in Gear.carry_slots(Gear.slot_of(r)):
+		if Gear.same(so.get(sl, {}), r):
+			return 0
+	var other = worn_against(profile, player, r)
+	var n := 0
+	for row in Gear.compare(r, other, 12):
+		n += int(row[3])
+	if other == null:
+		n = maxi(n, 1)
+	return n
+
+
+## The indices of a list (your stash or pack) to show, filtered by slot
+## (`slot`: "all" or a slot) and essence (`kind`: "all" or a kind), and
+## sorted (`sort`, STASH_SORTS).
+static func sorted_indices(list: Array, sort := "newest", slot := "all", kind := "all") -> Array:
+	var idx: Array = []
+	for i in list.size():
+		var r := Gear.rec(list[i])
+		if r.is_empty():
+			continue
+		if slot != "all" and Gear.slot_of(r) != slot:
+			continue
+		if kind != "all" and gear_kind(r) != kind:
+			continue
+		idx.append(i)
+	match sort:
+		"newest":
+			idx.reverse()
+		"rarity":
+			idx.sort_custom(func(a, b): return _key_rarity(list[a], a) > _key_rarity(list[b], b))
+		"slot":
+			idx.sort_custom(func(a, b): return _key_slot(list[a], a) < _key_slot(list[b], b))
+		"kind":
+			idx.sort_custom(func(a, b): return _key_kind(list[a], a) < _key_kind(list[b], b))
+		"price":
+			idx.sort_custom(func(a, b): return _key_price(list[a], a) > _key_price(list[b], b))
+	return idx
+
+
+static func _key_rarity(g, i: int) -> float:
+	return Gear.rarity_rank(Gear.rarity(g)) * 10000.0 + gear_price(g) + i * 0.0001
+
+
+static func _key_slot(g, i: int) -> float:
+	return SLOT_ORDER.find(Gear.slot_of(g)) * 100000.0 - Gear.rarity_rank(Gear.rarity(g)) * 1000.0 + i * 0.01
+
+
+static func _key_kind(g, i: int) -> float:
+	return Essence.KINDS.keys().find(gear_kind(g)) * 100000.0 - gear_price(g) * 10.0 + i * 0.01
+
+
+static func _key_price(g, i: int) -> float:
+	return gear_sell(g) * 1000.0 + Gear.rarity_rank(Gear.rarity(g)) + i * 0.0001
+
+
+
+## Does the outfit rail show this piece under a filter (RACK_FILTERS)? A
+## sold space shows only with "all".
+static func rack_shows(profile, player, g, filter: String) -> bool:
+	if filter == "all":
+		return true
+	if not Gear.is_gear(g):
+		return false
+	if filter == "better":
+		return versus(profile, player, g) > 0
+	return Gear.slot_of(g) in RACK_GROUPS.get(filter, [])

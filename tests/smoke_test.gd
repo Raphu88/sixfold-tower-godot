@@ -8741,14 +8741,14 @@ func _train_tests() -> void:
 	var top_things: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car") or b.has_meta("arrow") or b.has_meta("menu"))
 	var top_bands: Array = view.chrome.get_children().filter(func(c): return c.get("at_top") == true)
 	_check(top_things.is_empty() and top_bands.is_empty() and _menu_button("Menu") == null, "no strip of car names along the top, no edge arrows and no Menu button")
-	_check(_car_buttons("slot", "heir:melee").size() == 1 and _car_buttons("slot", "chest:0").size() == 1, "your car holds the heirloom wardrobe and the chest")
-	# ...and the climber screen and the inventory, which come back to your car.
-	var car_pages: Array = _car_buttons("car_page", "climber") + _car_buttons("car_page", "inventory")
-	_check(car_pages.size() == 2, "your car has buttons for the climber screen and the inventory")
+	_check(_car_buttons("slot", "worn:melee").size() == 1 and _car_buttons("slot", "chest:0").size() == 1, "your car holds the wardrobe of what you'll wear, and the stash")
+	# ...and the climber screen and the Loadout, which come back to your car.
+	var car_pages: Array = _car_buttons("car_page", "climber") + _car_buttons("car_page", "loadout")
+	_check(car_pages.size() == 2, "your car has buttons for the climber screen and the Loadout")
 	if car_pages.size() == 2:
 		car_pages[1].pressed.emit()
 		await _frames(2)
-		var inv_ok: bool = menu.page == "inventory"
+		var inv_ok: bool = menu.page == "loadout"
 		menu.close()
 		await _frames(2)
 		var back_ok: bool = menu.page == "train" and menu.train_car == "personal"

@@ -77,6 +77,11 @@ var last_pay := {}
 ## (the store's price, or the bench's cheaper brewing price).
 var chest: Array = []
 var pack: Array = []
+## What you'll wear when you set off (the Loadout in your car, loadout_page.gd):
+## carried slot ("armor", "helm", "ring1"...) -> a gear record, chosen from
+## your pack or your stash. It goes on over your heirloom or the starting
+## piece in that slot as you depart, and is cleared then (old saves: none).
+var wear := {}
 var supplies := {}
 var supply_paid := {}
 var store := {}
@@ -210,6 +215,7 @@ func reset() -> void:
 	last_pay = {}
 	chest = []
 	pack = []
+	wear = {}
 	supplies = {}
 	supply_paid = {}
 	store = {}
@@ -257,6 +263,7 @@ func load_save() -> void:
 	last_pay = lp if lp is Dictionary and lp.has("kind") and float(lp.get("amount", 0.0)) >= 1.0 else {}
 	chest =_records(cfg.get_value("train", "chest", []))
 	pack = _records(cfg.get_value("train", "pack", []))
+	wear = _worn_set(cfg.get_value("train", "wear", {}))
 	supplies = {}
 	var sup = cfg.get_value("train", "supplies", {})
 	if sup is Dictionary:
@@ -330,6 +337,7 @@ func save() -> void:
 	cfg.set_value("profile", "former", former)
 	cfg.set_value("train", "chest", chest)
 	cfg.set_value("train", "pack", pack)
+	cfg.set_value("train", "wear", wear)
 	cfg.set_value("train", "supplies", supplies)
 	cfg.set_value("train", "supply_paid", supply_paid)
 	cfg.set_value("train", "store", store)
@@ -354,6 +362,18 @@ func save() -> void:
 
 
 ## Gear records from a save (unknown or broken entries are dropped).
+## The Loadout's pieces from a save: each in a slot it fits (a ring in
+## ring1 or ring2); anything unknown or misplaced goes.
+static func _worn_set(raw) -> Dictionary:
+	var out := {}
+	if raw is Dictionary:
+		for slot in raw:
+			var r := Gear.rec(raw[slot])
+			if not r.is_empty() and String(slot) in Gear.carry_slots(Gear.slot_of(r)):
+				out[String(slot)] = r
+	return out
+
+
 static func _records(raw) -> Array:
 	var out: Array = []
 	if raw is Array:

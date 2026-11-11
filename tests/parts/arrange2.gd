@@ -83,6 +83,8 @@ func _index_path(m, c: Node) -> String:
 
 func _open(page: String) -> void:
 	var m = t.main.menu
+	if page == "inventory":
+		t.main.on_train = false  # (on the train the inventory opens the Loadout: these checks want the climb's inventory page)
 	if m.is_open() and m.page == page:
 		m.close()
 		await t._frames(3)
