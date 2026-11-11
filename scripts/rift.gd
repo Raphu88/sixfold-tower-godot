@@ -4,7 +4,8 @@ extends Node2D
 ## stair, straight or with one bend (whichever tears less rock). It goes
 ## through anything in the way: rock, walls, cover, pillars, doors, trap
 ## rooms (traps on its tiles are destroyed), sealed wings and their vaults,
-## secret rooms. Anything locked it passes is opened, and what it held is
+## secret rooms (running right beside one tears into it too). Anything
+## locked it passes is opened, and what it held is
 ## TAKEN, not given: a vault's pedestal and cards, a locked room's cache and
 ## drops, a secret room's contents (and a Maker's fragment on its wall).
 ##
@@ -191,8 +192,14 @@ func tear(pos: Vector2, deep) -> Array:
 		for i in W.secrets.size():
 			var s: Dictionary = W.secrets[i]
 			var st: Array = W._secret_tiles(s)
-			st.append(s["mouth"][0])
-			if st.any(func(t): return set.has(t)) and not s["taken"]:
+			var mouth: Vector2i = s["mouth"][0]
+			st.append(mouth)
+			# Running right beside it tears into it too: its tiles have no wall
+			# collision of their own (only its first tile does), so bared rock
+			# there would let the climber walk into a passage still shut.
+			var beside := func(t: Vector2i) -> bool:
+				return t != mouth and N4.any(func(d): return set.has(t + d))
+			if (st.any(func(t): return set.has(t)) or st.any(beside)) and not s["taken"]:
 				_empty_secret(s)
 				lines.append(SB.TEXT["rift_secret"])
 				taken.append("secret:%d" % i)
