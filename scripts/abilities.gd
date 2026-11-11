@@ -34,6 +34,8 @@ const TreeRules := preload("res://scripts/tree.gd")
 ## book's Tree and the essence bench show).
 const GrimoireCard := preload("res://scripts/grimoire_card.gd")
 const KeyBadge := GrimoireCard.KeyBadge
+## The Tree (tree_view.gd): every entry links to its node there, "On the body map".
+const TreeView := preload("res://scripts/tree_view.gd")
 
 ## Every word on the page and in the hints. {climber}, {cast} and the like
 ## become the keys, controller buttons or touch words in use (entity.gd KEYS).
@@ -372,6 +374,10 @@ static func build(menu) -> void:
 	if not (small and not list.is_empty()):
 		menu._note(fill(main, intro))
 	var group: Node = menu.box  # (a mark's spells sit a little in under it)
+	# An entry reached from the Tree ("In your abilities"): picked out, scrolled to.
+	var focus := String(menu.get_meta("abilities_focus", ""))
+	if focus != "":
+		menu.remove_meta("abilities_focus")
 	for e in list:
 		if e["kind"] == "mark":
 			_mark_head(menu, e, small)
@@ -389,6 +395,7 @@ static func build(menu) -> void:
 		card.entry = e
 		card.words = {"more": TEXT["more"], "less": TEXT["less"]}
 		card.opened = open.has(e["id"])
+		card.selected = focus != "" and String(e["id"]) == focus
 		card.toggled_more.connect(func(id, on):
 			var o: Dictionary = menu.get_meta("abilities_open", {})
 			if on:
@@ -396,7 +403,19 @@ static func build(menu) -> void:
 			else:
 				o.erase(id)
 			menu.set_meta("abilities_open", o))
-		group.add_child(card)
+		# Beside it, "On the body map": the book's Tree with it picked out.
+		var at: Array = TreeView.node_of(main, e)
+		if at.is_empty():
+			group.add_child(card)
+		else:
+			var line := HBoxContainer.new()
+			line.add_theme_constant_override("separation", 6)
+			line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			group.add_child(line)
+			line.add_child(card)
+			line.add_child(_map_link(menu, at, small))
+		if card.selected:
+			_scroll_to(menu, card)
 	# What next: practice (on the train), the techniques page, every step.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -427,6 +446,26 @@ static func build(menu) -> void:
 			notes.append(fill(main, TEXT["peek"]))
 		if not notes.is_empty():
 			menu._note("  ".join(notes))
+
+
+## "On the body map": a small link beside an entry that turns the book to
+## the Tree, its node picked out (tree_view.gd open_tree). `at`: [part, bud key].
+static func _map_link(menu, at: Array, small: bool) -> Button:
+	var b := TreeView.MapLink.new()
+	b.menu = menu
+	b.small = small
+	b.text = TreeView.TEXT["on_map"]
+	b.tooltip_text = TreeView.TEXT["on_map"]
+	b.set_meta("map_link", "%s|%s" % at if String(at[1]) != "" else String(at[0]))
+	b.pressed.connect(TreeView.open_tree.bind(menu, String(at[0]), String(at[1])))
+	return b
+
+
+## The page scrolls to a card once it's laid out (reached from the Tree).
+static func _scroll_to(menu, card: Control) -> void:
+	menu.get_tree().create_timer(0.05, true).timeout.connect(func():
+		if is_instance_valid(card) and card.is_inside_tree() and menu.scroll != null:
+			menu.scroll.ensure_control_visible(card))
 
 
 ## A mark's header: its medallion, name, part, essence and step, the button
@@ -481,6 +520,9 @@ static func _mark_head(menu, e: Dictionary, small: bool) -> void:
 		UI.style_label(rn, "body", 12, UI.FAINT)
 		rn.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		side.add_child(rn)
+	var at: Array = TreeView.node_of(menu.main, e)
+	if not at.is_empty():
+		h.add_child(_map_link(menu, at, small))
 	if not small:
 		var d := Label.new()
 		d.text = e["does"]
