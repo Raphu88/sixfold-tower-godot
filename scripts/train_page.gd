@@ -639,19 +639,22 @@ func _depart() -> void:
 
 # --- your car ---------------------------------------------------------------------
 
-## Your heirlooms on the wardrobe (laid out like the inventory's paper
-## doll), your pack, and the storage chest; the card beside them.
+## What you'll wear on the wardrobe (laid out like the inventory's paper
+## doll: your heirlooms, what you chose to wear, a pack piece that goes on),
+## your pack, and your stash; the card beside them. The Loadout and the
+## stash screen (loadout_page.gd, stash_page.gd) open from here.
 func _personal(root: Node) -> void:
 	var prof = _prof()
 	var row := _main_row(root)
 	var keys: Array = []
 	var doll := _furnish(row, "rack")
-	_tag(doll, T["heirlooms"])
+	_tag(doll, T["wear_tag"])
 	var grid := _grid(doll, 3, false)
 	grid.add_theme_constant_override("v_separation", 4)
+	var so := Train.setoff(prof, _player())
 	for r in Gear.DOLL:
 		for slot in r:
-			var s = m._heir_cell(grid, slot, _cell(), false)
+			var s = m.loadout_page._worn_cell(grid, slot, so)
 			keys.append(s.get_meta("slot"))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8 if _small() else 14)
@@ -679,7 +682,7 @@ func _personal(root: Node) -> void:
 	side.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	side.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	furniture.add_child(side)
-	for f in [["trunk", "inventory"], ["looks", "appearance"]]:
+	for f in [["loadout", "loadout"], ["looks", "appearance"]]:
 		var label: String = T[f[0] + "_short"] if _small() else T[f[0]]
 		var go: Callable = m.open_appearance.bind("") if f[1] == "appearance" else m.open.bind(f[1], true)
 		var b: Button = m._button(label, go, side)
@@ -698,30 +701,41 @@ func _personal(root: Node) -> void:
 	_card(row, keys, "pack:0" if not prof.pack.is_empty() else "chest:0")
 
 
-## Your pack's spaces and your chest's, 4 to a row. Returns their keys.
+## Your pack's spaces and your stash's, 4 to a row (each piece's arrow says
+## whether it beats what you'd wear). Your car shows the first spaces of the
+## stash and a button to the stash screen; selling (`filled_only`) shows
+## what's there, filtered by where it is and its slot, and sorted
+## (sell_from, sell_slot, sell_sort). Returns their keys.
 func _pack_and_chest(parent: Node, filled_only := false) -> Array:
 	var prof = _prof()
 	var keys: Array = []
 	var size: int = _player().pack_size()
-	if not filled_only or not prof.pack.is_empty():
+	var lp = m.loadout_page
+	if not filled_only or (not prof.pack.is_empty() and sell_from != "chest"):
 		var pk := _furnish(parent, "pack")
 		_tag(pk, T["pack"] % [prof.pack.size(), size])
 		var pg := _grid(pk, 4)
-		for i in maxi(size, prof.pack.size()):
-			if filled_only and i >= prof.pack.size():
-				break
-			var s = _gear_slot(pg, "pack:%d" % i, prof.pack[i] if i < prof.pack.size() else null, "")
-			keys.append(s.get_meta("slot"))
-	if not filled_only or not prof.chest.is_empty() or not prof.vessels.is_empty():
+		var order: Array = Train.sorted_indices(prof.pack, sell_sort, sell_slot) if filled_only else range(maxi(size, prof.pack.size()))
+		for i in order:
+			keys.append(lp.piece_cell(pg, "pack", i, _cell()).get_meta("slot"))
+	if not filled_only or ((not prof.chest.is_empty() or not prof.vessels.is_empty()) and sell_from != "pack"):
 		var ch := _furnish(parent, "chest")
 		_tag(ch, T["chest"] % [prof.chest.size(), Train.CHEST_SIZE])
 		var cg := _grid(ch, 4)
-		for i in Train.CHEST_SIZE:
-			if filled_only and i >= prof.chest.size():
-				break
-			var s = _gear_slot(cg, "chest:%d" % i, prof.chest[i] if i < prof.chest.size() else null, "")
-			keys.append(s.get_meta("slot"))
+		if filled_only:
+			for i in Train.sorted_indices(prof.chest, sell_sort, sell_slot):
+				keys.append(lp.piece_cell(cg, "chest", i, _cell()).get_meta("slot"))
+		else:
+			for i in mini(Train.CAR_STASH, maxi(Train.CAR_STASH, prof.chest.size())):
+				keys.append(lp.piece_cell(cg, "chest", i, _cell()).get_meta("slot"))
 		keys.append_array(VesselPage.chest_slots(self, cg))  # (vessels, after the pieces)
+		if not filled_only:
+			# The stash screen: every piece, sorted and filtered.
+			var sb: Button = m._button(T["open_stash"] % prof.chest.size(), m.open.bind("stash", true), ch)
+			sb.custom_minimum_size.y = 36
+			sb.set_meta("car_page", "stash")
+			sb.clip_text = true
+			_brass(sb)
 	return keys
 
 
@@ -768,7 +782,7 @@ func _store(root: Node) -> void:
 	if selling:
 		# Its name and what selling does, on a panel above what you brought
 		# (the top of a centred column: above the brass rail however much
-		# there is).
+		# there is), with where to sell from, which slot and the order.
 		var head := _furnish(goods, "plain")
 		_tag(head, T["sell_title"])
 		if prof.pack.is_empty() and prof.chest.is_empty() and prof.vessels.is_empty():
@@ -776,6 +790,13 @@ func _store(root: Node) -> void:
 		else:
 			if not small:
 				_note(head, T["sell_note"] % int(round(Train.SELL_SHARE * 100.0))).set_meta("store_note", "sell")
+			var bar := HBoxContainer.new()
+			bar.add_theme_constant_override("separation", 6)
+			head.add_child(bar)
+			_store_cycler(bar, "from", Train.SELL_FROM, sell_from, "%s")
+			_store_cycler(bar, "slot", Train.SLOT_FILTERS, sell_slot, "%s")
+			for c in bar.get_children():
+				c.custom_minimum_size.x = 120.0 if small else 140.0
 			keys.append_array(_pack_and_chest(goods, true))
 	else:
 		var shelf := _furnish(goods, "shelf")
@@ -796,15 +817,20 @@ func _store(root: Node) -> void:
 		goods.add_child(low)
 		var rail := _furnish(low, "rail")
 		_tag(rail, T["rail"])
+		_store_cycler(rail, "rack", Train.RACK_FILTERS, rack_filter, T["show"])
 		var rg := _grid(rail, 4)
 		rg.add_theme_constant_override("v_separation", 16)
-		rail.add_theme_constant_override("separation", 14)
+		rail.add_theme_constant_override("separation", 14 if rack_filter == "all" else 8)
 		var rack := Train.outfit(prof)
 		for i in rack.size():
 			var g: Dictionary = rack[i]
+			if not Train.rack_shows(prof, _player(), g, rack_filter):
+				continue
 			var s = _gear_slot(rg, "outfit:%d" % i, g, "Sold")
 			s.wear = -1.0
 			_price_on(s, Train.gear_kind(g), Train.gear_price(g), not g.is_empty())
+			if not g.is_empty():
+				s.better = signi(Train.versus(prof, _player(), g))
 			keys.append(s.get_meta("slot"))
 		var case := _furnish(low, "case")
 		case.get_parent().size_flags_vertical = Control.SIZE_SHRINK_END
@@ -812,6 +838,8 @@ func _store(root: Node) -> void:
 		var g := Train.today(prof)
 		var ts = _gear_slot(case, "today", g, "Sold")
 		ts.wear = -1.0
+		if not g.is_empty():
+			ts.better = signi(Train.versus(prof, _player(), g))
 		ts.custom_minimum_size = Vector2(_cell(), _cell()) * 1.3
 		_price_on(ts, Train.gear_kind(g), Train.gear_price(g), not g.is_empty())
 		keys.append("today")
@@ -826,6 +854,47 @@ func _set_store(id: String) -> void:
 	m.inv_sel = ""
 	m.sell_ask = ""
 	m.toast = ""
+	m.open("train")
+
+
+## The store's filters: the outfit rail's (what it shows) and selling's
+## (where from, which slot, the order). Kept while the game runs.
+var rack_filter := "all"
+var sell_from := "all"
+var sell_slot := "all"
+var sell_sort := "newest"
+
+
+## An option row (stash_page.gd Cycler) for one of the store's filters.
+func _store_cycler(parent: Node, which: String, choices: Array, current: String, fmt: String) -> void:
+	var c = m.stash_page.Cycler.new()
+	c.choices = choices
+	c.value = current
+	c.fmt = fmt
+	c.changed = _set_store_filter.bind(which)
+	c.custom_minimum_size = Vector2(0, 32)
+	c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c.set_meta("store_filter", which)
+	c.add_theme_font_size_override("font_size", 13 if _small() else 14)
+	_brass(c, current != choices[0][0])
+	parent.add_child(c)
+
+
+func _set_store_filter(value: String, which: String) -> void:
+	match which:
+		"rack":
+			rack_filter = value
+		"from":
+			sell_from = value
+		"slot":
+			sell_slot = value
+		"sort":
+			sell_sort = value
+	m.inv_sel = ""
+	m.sell_ask = ""
+	m.toast = ""
+	m._want_focus = {"meta": "store_filter", "value": which}
+	m.main.sfx("ui_move")
 	m.open("train")
 
 
@@ -1828,8 +1897,13 @@ func details(key: String) -> void:
 	match kind:
 		"bench":
 			_bench_card(key.substr(6))
+		"worn":
+			m.loadout_page.details(key)  # (what you'll wear: loadout_page.gd)
 		"pack", "chest":
-			_piece_card(kind, int(arg))
+			if m.train_car == "personal":
+				m.loadout_page.piece_card(kind, int(arg))  # (wear it, move it, sell it)
+			else:
+				_piece_card(kind, int(arg))
 		"supply":
 			_supply_card(arg)
 		"outfit":
@@ -1919,8 +1993,9 @@ func _piece_card(where: String, i: int) -> void:
 		var said: String = T["chest_full"] if where == "pack" else T["pack_full"]
 		m._detail_text(said.left(1).to_upper() + said.substr(1) + ".", UI.DIM)
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
-	if not selling:
-		m._detail_stats(g, _start_piece(g))
+	var against = Train.worn_against(prof, _player(), g)
+	if not (Gear.is_gear(against) and Gear.same(against, g)):
+		m._detail_stats(g, against)  # (set against what you'd wear)
 
 
 func _supply_card(id: String) -> void:
@@ -1962,16 +2037,28 @@ func _offer_card(i: int) -> void:
 	var kind := Train.gear_kind(g)
 	var cost := Train.gear_price(g)
 	var why := _price_line(kind, cost)
-	if why == "" and Train.pack_room(prof, _player()) <= 0:
-		why = T["pack_full"]
-	var buy: Button = m._button(T["buy"], _buy_gear.bind(i), m.details)
-	buy.custom_minimum_size.y = 40
-	buy.disabled = why != ""
-	buy.set_meta("buy", "today" if i < 0 else "outfit:%d" % i)
-	if why != "":
-		m._detail_text(T["cant"] % why, UI.BAD)
+	m._detail_text(T["afford"] if why == "" else T["cant"] % why, UI.GOOD if why == "" else UI.BAD)
+	var vs := Train.versus(prof, _player(), g)
+	m._detail_text(m.loadout_page.TEXT["versus_better"] if vs > 0 else (m.loadout_page.TEXT["versus_worse"] if vs < 0 else m.loadout_page.TEXT["versus_even"]), UI.GOOD if vs > 0 else (UI.BAD if vs < 0 else UI.DIM))
+	var meta := "today" if i < 0 else "outfit:%d" % i
+	for to in [["pack", T["buy_pack"]], ["chest", T["buy_chest"]], ["wear", T["buy_wear"]]]:
+		var room := Train.buy_room(prof, _player(), g, to[0])
+		var b: Button = m._button(to[1], _buy_gear.bind(i, to[0]), m.details)
+		b.custom_minimum_size.y = 36 if _small() else 40
+		b.clip_text = true
+		b.disabled = why != "" or room != ""
+		b.set_meta("buy", meta if to[0] == "pack" else meta + ":" + to[0])
+		if why == "" and room != "":
+			b.tooltip_text = room
+	if why == "" and Train.buy_room(prof, _player(), g, "pack") != "":
+		m._detail_text(T["cant"] % Train.buy_room(prof, _player(), g, "pack"), UI.DIM)
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
-	m._detail_stats(g, _start_piece(g))
+	var against = Train.worn_against(prof, _player(), g)
+	m._detail_stats(g, against)
+	if Gear.is_gear(against):
+		var pl := Gear.plays_like(g, against)
+		if pl != "":
+			m._detail_text(pl, UI.DIM)
 
 
 # --- actions ------------------------------------------------------------------------
@@ -2001,13 +2088,14 @@ func _put_back(id: String) -> void:
 		_done(T["put_back_done"] % Items.ITEMS[id]["name"], Train.line("put_back"), "ui_back")
 
 
-func _buy_gear(i: int) -> void:
+func _buy_gear(i: int, to := "pack") -> void:
 	var prof = _prof()
 	var g: Dictionary = Train.today(prof) if i < 0 else Train.outfit(prof)[i]
-	var why := Train.buy_gear(prof, _player(), i)
+	var why := Train.buy_gear(prof, _player(), i, to)
 	if why == "":
 		m.inv_sel = "today" if i < 0 else "outfit:%d" % i
-		_done(T["bought"] % Gear.display(g) + "  ·  " + T["moved_pack"] % Gear.display(g), Train.line("bought"), "buy")
+		var where: String = {"pack": T["moved_pack"], "chest": T["moved_chest"], "wear": m.loadout_page.TEXT["worn_now"]}[to]
+		_done(T["bought"] % Gear.display(g) + "  ·  " + where % Gear.display(g), Train.line("bought"), "buy")
 	else:
 		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
 

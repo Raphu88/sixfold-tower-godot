@@ -936,7 +936,7 @@ class TreeMap extends Control:
 		else:
 			fb.polygon(UI._oval(Vector2(0, 126), Vector2(74, 12), 24), Color(0, 0, 0, 0.3))
 			fb.polygon(UI._oval(Vector2(0, 126), Vector2(48, 7), 24), Color(0, 0, 0, 0.3))
-		BV._figure(fb, main.climber_look)
+		BV._figure(fb, main.dressed_look())
 		for pt in BV.ORDER:
 			if unbound:
 				_veins_into(fb, pt, View._part_color(prof, pt), pt == part)

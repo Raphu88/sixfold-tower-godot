@@ -35,6 +35,7 @@ const GuideScript := preload("res://scripts/guide.gd")
 const Slots := preload("res://scripts/slots.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Train := preload("res://scripts/train.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Vessel := preload("res://scripts/vessel.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
@@ -341,6 +342,8 @@ func _ready() -> void:
 	add_child(practice)
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
+	if not profile.wear.is_empty():
+		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
 	apply_appearance()
 	tower = profile.last_tower if Towers.TOWERS.has(profile.last_tower) else "kraken"
 	_note_climb_start()
@@ -2751,6 +2754,8 @@ func _load_climber() -> void:
 	first_climb = not profile.regarded
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
+	if not profile.wear.is_empty():
+		Train.dress(profile, player)
 	apply_appearance()
 
 
@@ -2774,6 +2779,25 @@ func apply_appearance() -> void:
 	climber_look = Appearance.look(profile.appearance)
 	if player != null:
 		player.set_appearance(profile.appearance)
+
+
+## The climber's look dressed in what they wear (gear_look.gd), for the
+## front figure (the climber screen, the tree): on the train, the Loadout
+## they'll set off in (train.gd setoff_gear). Worked out again only when the
+## gear or the look changes.
+var _dressed_key := ""
+var _dressed := {}
+func dressed_look() -> Dictionary:
+	if player == null or climber_look.is_empty():
+		return climber_look
+	var gear: Dictionary = Train.setoff_gear(profile, player) if on_train else player.gear
+	var key: String = str(climber_look.hash()) + String(player.weapon)
+	for s in Gear.SLOTS:
+		key += "|" + Gear.code(gear.get(s, {}))
+	if key != _dressed_key:
+		_dressed_key = key
+		_dressed = GearLook.dressed(climber_look, gear, "" if on_train else player.weapon)
+	return _dressed
 
 
 ## A new look chosen (the creation page, or Appearance later): kept and shown.

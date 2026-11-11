@@ -56,7 +56,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
-	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0}
+	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0}
 ## The climber screen is the book (book.gd): its sections, [id, name], each
 ## a ribbon. Abilities (abilities.gd) comes first: what you can cast and
 ## how; the Tree (tree_view.gd) is the body map, where you choose how you
@@ -115,6 +115,10 @@ var settings_tab := "settings"  # Settings & Controls: its tab
 # The train (train_view.gd draws its cars; train_page.gd puts their things in them).
 var train_view: Control
 var train_page  # builds the train's cars (train_page.gd)
+## Your car's gear screens on the train: the Loadout and the stash
+## (loadout_page.gd, stash_page.gd: pages of their own, built there).
+var loadout_page = preload("res://scripts/loadout_page.gd").new(self)
+var stash_page = preload("res://scripts/stash_page.gd").new(self)
 var train_car := Train.HOME  # the car you're in
 var train_sel := {}  # car -> the slot whose card shows there
 var train_store := "shop"  # the store car: its shelves ("shop") or selling ("sell")
@@ -135,8 +139,8 @@ var data_page = preload("res://scripts/data_page.gd").new(self)
 # opens (the others are pages within them: a mark, controller setup, the
 # Start over question).
 var rail
-const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "data", "confirm_new", "train"]
-const RAIL_ROOTS := ["pause", "climber", "inventory", "library", "settings", "controls", "dev"]
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "data", "confirm_new", "train", "loadout", "stash"]
+const RAIL_ROOTS := ["pause", "climber", "inventory", "library", "settings", "controls", "dev", "loadout", "stash"]
 var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
 var _rail_focus := false  # after building the page, put the focus back on the rail
 var _focus_now: Control = null  # what has the keys' focus (to tell a step onto the rail from the page)
@@ -535,6 +539,11 @@ func _cycle(by: int) -> bool:
 			_want_focus = {"meta": "tab", "value": sid}
 		_set_settings_tab(sid)
 		return true
+	if page == "loadout" or page == "stash":
+		if not rail.has_focus_inside():
+			_want_focus = {"meta": "tab", "value": "stash" if page == "loadout" else "loadout"}
+		loadout_page.cycle(by)
+		return true
 	if page == "inventory":
 		var views := ["worn", "pack", "heirlooms"]
 		var v: String = views[(views.find(inv_view) + by + views.size()) % views.size()]
@@ -724,6 +733,9 @@ func rail_item() -> String:
 			return "dev"
 		"train":
 			return train_car  # (the car you're in)
+		"loadout", "stash":
+			if _on_train():
+				return Train.HOME  # (your car's screens: your car lit on the rail)
 	return page
 
 
@@ -868,6 +880,8 @@ func open(which: String, direct := false) -> void:
 		climber_tab = "abilities"
 		which = "climber"
 		direct = direct or page == ""
+	if which == "inventory" and _on_train():
+		which = "loadout"  # (on the train your gear is the Loadout: the pack and stash are the train's)
 	var was_closed := page == ""
 	var prev := page
 	var switching := (which != page or which == "climber" or which == "mark") and not _quiet  # (a new tab or mark too)
@@ -1019,7 +1033,7 @@ func _first_focus(which: String, list: Array) -> int:
 				first = maxi(first, list.map(func(b): return b.get_meta("part", "")).find(focus_part))
 		elif which == "mark":
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
-		elif which == "inventory":
+		elif which == "inventory" or which == "loadout" or which == "stash":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
 		elif which == "settings" and settings_tab == "settings":
 			first = maxi(0, list.map(func(b): return b is HSlider).find(true))  # (on the music slider)
@@ -2634,6 +2648,10 @@ func _slot_pressed(key: String) -> void:
 		inv_armed = ""  # (the next press shows it again first)
 		_use_item(key.substr(5))
 		return
+	if key == inv_sel and key == inv_armed and (page == "loadout" or page == "stash"):
+		inv_armed = ""
+		if (loadout_page if page == "loadout" else stash_page).quick(key):
+			return  # (a second press on a pack or stash piece moves it across)
 	_show_details(key)
 	inv_armed = key
 	if page == "train":
@@ -2670,6 +2688,9 @@ func _show_details(key: String) -> void:
 	var arg := key.get_slice(":", 1)
 	if page == "train" and kind != "heir":
 		train_page.details(key)
+		return
+	if page == "loadout" or page == "stash":
+		(loadout_page if page == "loadout" else stash_page).details(key)
 		return
 	match kind:
 		"gear":
@@ -2992,6 +3013,15 @@ func _drop_pack(i: int) -> void:
 func _pick_item(id: String) -> void:
 	main.player.item_sel = id
 	open("inventory", opened_direct)
+
+
+## Your car's Loadout and stash (loadout_page.gd, stash_page.gd).
+func _page_loadout() -> void:
+	loadout_page.build()
+
+
+func _page_stash() -> void:
+	stash_page.build()
 
 
 # --- the train ---------------------------------------------------------------------
@@ -3885,6 +3915,8 @@ class Slot extends Button:
 	var price := 0  # the train's store: a price, drawn as a gem and a number
 	var price_kind := ""
 	var price_ok := true  # false: you can't pay it (the number is red)
+	var better := 0  # the Loadout and store: +1 beats what you'd wear (a green up arrow), -1 worse (red, down)
+	var tag := ""  # a small tag in the bottom left ("Pack", "Set": where a worn piece comes from)
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -3982,6 +4014,16 @@ class Slot extends Button:
 			draw_string(label, Vector2(qr.position.x + 4.0, qr.end.y - 2.5), "Quick", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GILT_HI)
 		if kind == "floor":
 			draw_string(label, Vector2(5, 14), "New", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD)
+		if better != 0 and not empty:
+			var ab := UI.Draw.Batch.new()
+			ab.dot(Vector2(size.x - 9, 9), 6.0, Color(UI.VOID, 0.75))
+			UI.arrow_into(ab, Vector2(size.x - 9, 9), 4.2, better > 0, UI.GOOD if better > 0 else UI.BAD)
+			ab.flush(self)
+		if tag != "":
+			var tw := label.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 8.0
+			var trect := Rect2(Vector2(3, size.y - 15.0), Vector2(tw, 12.0))
+			draw_style_box(UI.box(Color(UI.VOID, 0.85), Color(UI.GILT, 0.6), 3), trect)
+			draw_string(label, Vector2(trect.position.x + 4.0, trect.end.y - 2.5), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GILT_HI)
 		if price > 0:
 			var gb := UI.Draw.Batch.new()
 			if price_kind == "any":  # (train.gd ANY: any kind: a gold gem flanked by two small ones)
@@ -4080,7 +4122,7 @@ class BodyView extends Control:
 		draw_set_transform(c, 0.0, Vector2(k, k))
 		var b := UI.Draw.Batch.new()
 		_backdrop(b)
-		_figure(b, main.climber_look)
+		_figure(b, main.dressed_look())  # (in what you wear: gear_look.gd)
 		MakersRef.core_figure_into(b, main.profile, SPOTS, t)  # (a core mark, beneath the marks)
 		var unbound: bool = UnboundRef.is_on(main.profile)
 		for part in ORDER:

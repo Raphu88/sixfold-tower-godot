@@ -60,7 +60,7 @@ const ITEMS := [
 const TRAIN_CARS := {
 	"engine": ["Engine", "Choose a tower, depart", "engine"],
 	"store": ["Outfitter", "Supplies, outfit, selling", "scales"],
-	"personal": ["Your Car", "Pack, chest, heirlooms", "bed"],
+	"personal": ["Your Car", "Loadout, pack, stash", "bed"],
 	"workshop": ["Workshop", "The bench", "anvil"],
 	"library": ["Library", "What the Entity told you", "book"],
 	"settings": ["Settings", "Sound, screen, every key", "lever"],
