@@ -152,12 +152,12 @@ static var VARIATIONS := {
 	"long": {"name": "Long", "says": "Reaches farther", "strain": 4.0, "reach": 1.4, "power": 1.0, "levels": {}},
 	"quick": {"name": "Quick", "says": "Winds up faster, a little weaker", "strain": 4.0, "windup": 0.5, "power": 0.85, "levels": {}},
 	"split": {"name": "Split", "says": "Three smaller copies fan out", "strain": 4.0, "copies": 3, "spread": 22.0, "power": 0.45, "levels": {}},
-	"lingering": {"name": "Lingering", "says": "Leaves a field for a few seconds", "strain": 4.0, "duration": 3.0, "radius": 52.0, "tick": 0.5, "power": 0.2, "levels": {}},
+	"lingering": {"name": "Lingering", "says": "Leaves a field for a few seconds", "strain": 4.0, "duration": 3.0, "radius": 52.0, "tick": 0.5, "power": 0.15, "levels": {}},
 	"chain": {"name": "Chain", "says": "Jumps to one more foe", "strain": 4.0, "hop": 170.0, "power": 0.6, "levels": {}},
-	"delayed": {"name": "Delayed", "says": "Bursts a moment later, harder", "strain": 4.0, "delay": 0.6, "power": 1.35, "levels": {}},
+	"delayed": {"name": "Delayed", "says": "Bursts a moment later, harder", "strain": 4.0, "delay": 0.6, "power": 1.45, "levels": {}},
 	"mirrored": {"name": "Mirrored", "says": "Also casts behind you", "strain": 4.0, "power": 0.8, "levels": {}},
-	"echo": {"name": "Echo", "says": "Casts again, weaker, a second later", "strain": 4.0, "delay": 1.0, "power": 0.5, "levels": {}},
-	"charged": {"name": "Charged", "says": "A longer wind-up charges it, up to twice as hard", "strain": 4.0, "windup": 2.0, "power": 1.8, "levels": {}},
+	"echo": {"name": "Echo", "says": "Casts again, weaker, a second later", "strain": 4.0, "delay": 1.0, "power": 0.6, "levels": {}},
+	"charged": {"name": "Charged", "says": "A longer wind-up charges it, much harder", "strain": 4.0, "windup": 2.0, "power": 1.65, "levels": {}},
 }
 const VARIATION_ORDER := ["wide", "long", "quick", "split", "lingering", "chain", "delayed", "mirrored", "echo", "charged"]
 

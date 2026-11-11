@@ -18,15 +18,21 @@ static var MONSTERS := {
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
 	"shellback": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
-	"smith": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
+	"smith": {"cost": 3.0, "weight": 1.0, "from": 2, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
-	"ram": {"cost": 2.5, "weight": 1.0, "from": 2, "only": true},
+	"ram": {"cost": 3.0, "weight": 1.0, "from": 2, "only": true},
 	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 2, "only": true},
 }
 const MAX_MONSTERS := 9
+## How the climb gets harder with height (the Data editor's "Monsters"):
+## each floor past the first, monsters have `health` and `damage` more of
+## their own (a share: 0.08 is 8%); each floor buys its monsters from a
+## budget of `budget` plus `budget_per_floor` for each floor, and a floor
+## of rooms gets `rooms_budget` more (MONSTERS' "cost" is each one's price).
+static var CURVE := {"health": 0.08, "damage": 0.05, "budget": 4.5, "budget_per_floor": 1.0, "rooms_budget": 1.0}
 const Rooms := preload("res://scripts/rooms.gd")
 
 ## Pillar layouts, as fractions of the room (x, y, radius in px).
@@ -815,7 +821,7 @@ static func _ambush_spots(info: Dictionary) -> Array:
 ## rooms along the route come next, then the branches. None in the start
 ## room, the good rooms or a crypt (its dead rise when you walk in).
 static func _monsters(infos: Array, spots: Array, floor_num: int, tower: Dictionary, pillars: Array) -> Array:
-	var budget := 4.5 + 1.0 * floor_num + 1.0
+	var budget := float(CURVE["budget"]) + float(CURVE["budget_per_floor"]) * floor_num + float(CURVE["rooms_budget"])
 	var kinds: Array = []
 	var knights := 0
 	while budget >= 1.0 and kinds.size() < MAX_MONSTERS + 2:
@@ -1391,7 +1397,7 @@ static func build(floor_num: int, room: Rect2, player_start: Vector2, tower: Dic
 	var chasms: Array = chasm_layout(room, pillars, player_start) if tower.get("chasms", false) else []
 
 	# Spend the floor's budget on monsters.
-	var budget := 4.5 + 1.0 * floor_num
+	var budget := float(CURVE["budget"]) + float(CURVE["budget_per_floor"]) * floor_num
 	var kinds: Array = []
 	var knights := 0
 	while budget >= 1.0 and kinds.size() < MAX_MONSTERS:
@@ -1465,7 +1471,7 @@ static func puddles(room: Rect2, pillars: Array, start: Vector2) -> Array:
 ## How much tougher monsters are on a floor (health, damage).
 static func toughness(floor_num: int) -> Vector2:
 	var f := float(maxi(floor_num - 1, 0))
-	return Vector2(1.0 + 0.08 * f, 1.0 + 0.05 * f)
+	return Vector2(1.0 + float(CURVE["health"]) * f, 1.0 + float(CURVE["damage"]) * f)
 
 
 static func _pick(floor_num: int, budget: float, knights: int, mix: Dictionary = {}) -> String:

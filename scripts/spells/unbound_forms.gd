@@ -63,7 +63,7 @@ static var TREE := {
 
 ## Level 3 forms add 2 strain, level 7 forms 4 (their price: the owner may change it).
 static var FORMS := {
-	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Three small bolts thrown in a fan", "damage": 6.0, "speed": 440.0, "range": 300.0,
+	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Three small bolts thrown in a fan", "damage": 7.0, "speed": 440.0, "range": 300.0,
 		"count": 3, "spread": 16.0, "strain": 2.0, "opens": 3, "levels": {}},
 	"brand": {"name": "Brand", "part": "hand", "class": "hit", "says": "A touch that sets a burst on a foe a moment later", "touch": 4.0, "damage": 22.0, "reach": 60.0, "arc": 55.0,
 		"delay": 0.8, "radius": 60.0, "strain": 4.0, "opens": 7, "levels": {}},
@@ -83,7 +83,7 @@ static var FORMS := {
 		"strain": 2.0, "opens": 3, "levels": {}},
 	"omen": {"name": "Omen", "part": "brow", "class": "hit", "says": "A sign on the floor that bursts when a foe steps on it", "damage": 28.0, "range": 90.0, "trigger": 26.0, "radius": 80.0,
 		"duration": 10.0, "strain": 4.0, "opens": 7, "levels": {}},
-	"heartbeat": {"name": "Heartbeat", "part": "heart", "class": "hit", "says": "The effect beats out around you every second for a while", "damage": 5.0, "radius": 90.0, "beats": 5, "tick": 1.0,
+	"heartbeat": {"name": "Heartbeat", "part": "heart", "class": "hit", "says": "The effect beats out around you every second for a while", "damage": 4.5, "radius": 90.0, "beats": 4, "tick": 1.0,
 		"strain": 2.0, "opens": 3, "levels": {}},
 	"wellspring": {"name": "Wellspring", "part": "heart", "class": "self", "says": "A pool on the floor that works on you while you stand in it", "radius": 56.0, "duration": 7.0, "tick": 0.5,
 		"hold": 1.5, "strain": 4.0, "opens": 7, "levels": {}},

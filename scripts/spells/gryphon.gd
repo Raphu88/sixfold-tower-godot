@@ -62,7 +62,7 @@ static var FORKS := {
 		4: {"id": "hurl", "name": "Hurl", "type": "hurl", "learn": 4,
 			"desc": "fling every foe in the air along your aim; each crashes into the foes in its path and lands hard",
 			"steps": {
-				4: {"cost": 10.0, "windup": 0.3, "damage": 12.0, "splash": 9.0, "force": 720.0, "reach": 420.0},
+				4: {"cost": 10.0, "windup": 0.3, "damage": 15.0, "splash": 12.0, "force": 720.0, "reach": 420.0},
 			}},
 	},
 	"hunter": {
@@ -74,11 +74,11 @@ static var FORKS := {
 			}},
 		3: {"id": "split_shot", "variation": "split", "name": "Split",
 			"desc": "three arrows fan out from your bow, each a little weaker",
-			"steps": {3: {"arrows": 3, "spread": 10.0, "power": 0.6}}},
+			"steps": {3: {"arrows": 3, "spread": 6.0, "power": 0.8}}},
 		4: {"id": "pinning_shot", "name": "Pinning Shot", "type": "pin", "learn": 4,
 			"desc": "a heavy arrow that pins the first foe it strikes to the floor for 2 seconds, open to every blow",
 			"steps": {
-				4: {"cost": 10.0, "windup": 0.4, "damage": 12.0, "speed": 760.0, "range": 520.0, "pin": 2.0},
+				4: {"cost": 10.0, "windup": 0.4, "damage": 16.0, "speed": 760.0, "range": 520.0, "pin": 2.0},
 			}},
 	},
 }

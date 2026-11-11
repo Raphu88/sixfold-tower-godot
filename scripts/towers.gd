@@ -63,7 +63,7 @@ static var TOWERS := {
 		"essence": "iron",
 		"blurb": "A hot forge-tower of knights, cinders and smiths. The hardest climb. The Wyvern waits at the top.",
 		"weights": {"knight": 1.2, "cinder": 1.2, "smith": 1.0, "archer": 0.3, "slime": 0.2},
-		"first": ["knight", "cinder", "smith", "knight"],
+		"first": ["knight", "cinder", "smith", "cinder"],
 		"summit": SUMMIT,
 		"beast_kind": "wyvern",
 		"gauntlet": "furnace", "sentinel": "smith", "sentinel_adds": "cinder",  # the Proving (floor 6, proving.gd)

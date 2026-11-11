@@ -338,7 +338,8 @@ func _hunter() -> void:
 	paid = await _cast()
 	var now: Array = arrows.call()
 	_check(paid == 9.0, "Piercing Shot still costs 9 (%.1f)" % paid)
-	_check(now.size() - before == 3 and now.all(func(a): return is_equal_approx(a.dmg, 14.0 * 0.6)), "three arrows fan out, each at 60%% (%d)" % (now.size() - before))
+	var split_power: float = float(TR.fork_alt("hunter", 3)["steps"][3]["power"])
+	_check(now.size() - before == 3 and now.all(func(a): return is_equal_approx(a.dmg, 14.0 * split_power)), "three arrows fan out, each at %d%% (%d)" % [roundi(split_power * 100.0), now.size() - before])
 
 	print("Hunter: Pinning Shot")
 	await _marked("hunter", 4)
@@ -474,7 +475,7 @@ func _deepcaller() -> void:
 		foes.append(_foe(p.global_position + dir * (50.0 + 30.0 * i)))
 	paid = await _cast()
 	var hurt: Array = foes.filter(func(f): return f.hp < f.max_hp)
-	_check(paid == 12.0 and hurt.size() == 3 and hurt.all(func(f): return is_equal_approx(f.max_hp - f.hp, 8.0 * 1.8)), "it drains 3 foes nearly twice as hard (%d)" % hurt.size())
+	_check(paid == 12.0 and hurt.size() == 3 and hurt.all(func(f): return is_equal_approx(f.max_hp - f.hp, 8.0 * float(L.variation("charged")["power"]))), "it drains 3 foes much harder (%d)" % hurt.size())
 
 	print("Deepcaller: Drown")
 	await _marked("deepcaller", 4)

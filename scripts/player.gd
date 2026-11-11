@@ -12,26 +12,41 @@ const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
 
+## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
+## "The climber's core numbers"); these read them, so a change shows at once.
+const Combat := preload("res://scripts/combat.gd")
 ## Damage multiplier for striking a foe from behind.
-const BACKSTAB_MULT := 1.5
-const MAX_HP := 140.0  # tougher than the first, very clumsy climber
-const MAX_STA := 100.0
-const STA_REGEN := 34.0  # per second, once the short wait after acting is over
+var BACKSTAB_MULT: float:
+	get: return float(Combat.CLIMBER["backstab"])
+var MAX_HP: float:  # tougher than the first, very clumsy climber
+	get: return float(Combat.CLIMBER["health"])
+var MAX_STA: float:
+	get: return float(Combat.CLIMBER["stamina"])
+var STA_REGEN: float:  # per second, once the short wait after acting is over
+	get: return float(Combat.CLIMBER["stamina_regen"])
 ## There is no sprint: one steady pace, so stamina is for fighting.
-const WALK := 165.0
+var WALK: float:
+	get: return float(Combat.CLIMBER["walk"])
 ## A jump: a short hop that clears chasms and burning floor (not attacks).
-const JUMP_TIME := 0.42
-const JUMP_COST := 10.0
+var JUMP_TIME: float:
+	get: return float(Combat.CLIMBER["jump_time"])
+var JUMP_COST: float:
+	get: return float(Combat.CLIMBER["jump_cost"])
 const JUMP_HEIGHT := 16.0
-const STRIKE_DAMAGE := 8.0
-const BUFFER_TIME := 0.2  # presses this early still count when you recover
-const COMBO_WINDOW := 0.35  # time after recovering to continue the chain
+var STRIKE_DAMAGE: float:
+	get: return float(Combat.CLIMBER["strike_damage"])
+var BUFFER_TIME: float:  # presses this early still count when you recover
+	get: return float(Combat.CLIMBER["buffer"])
+var COMBO_WINDOW: float:  # time after recovering to continue the chain
+	get: return float(Combat.CLIMBER["combo_window"])
 ## Parry: active this long after pressing; a hit that lands within
 ## PARRY_PERFECT of the press is a perfect parry. Monsters glint 0.25 s
 ## before their blow, so pressing on the glint always parries, and pressing
 ## a beat after it is perfect.
-const PARRY_WINDOW := 0.32
-const PARRY_PERFECT := 0.14
+var PARRY_WINDOW: float:
+	get: return float(Combat.CLIMBER["parry_window"])
+var PARRY_PERFECT: float:
+	get: return float(Combat.CLIMBER["perfect_parry"])
 
 var main  # the room (main.gd), set before the player is added
 var radius := 14.0
@@ -886,7 +901,7 @@ func _try_jump(input: Vector2) -> bool:
 		_winded()
 		return true
 	sta -= cost
-	sta_delay = 0.5
+	sta_delay = float(Combat.CLIMBER["jump_wait"])
 	jump_vel = input * WALK * (1.0 + gfx("jump"))
 	wear_gear("roll")
 	jump_t = JUMP_TIME
@@ -947,7 +962,7 @@ func _try_roll(input: Vector2) -> bool:
 		return true  # (on the Ice Hall's ice you can only slide)
 	# Windwalker's Body: the roll becomes a long wind dash.
 	var wind := has_bond("windwalker")
-	var cost := (16.0 if wind else 24.0) * (1.0 - 0.25 * minf(graft("legs"), 1.6))
+	var cost := float(Combat.CLIMBER["dash_cost" if wind else "roll_cost"]) * (1.0 - 0.25 * minf(graft("legs"), 1.6))
 	var dist_mult := 1.0
 	# Armor weighs on a roll: heavier suits cost more and carry you less far.
 	cost *= armor()["roll_cost"] * (1.0 + Gear.HEAVY_ROLL * gfx("heavy"))  # heavy pieces add a little
@@ -962,13 +977,13 @@ func _try_roll(input: Vector2) -> bool:
 		_winded()
 		return true
 	sta -= cost
-	sta_delay = 0.7
+	sta_delay = float(Combat.CLIMBER["roll_wait"])
 	roll_dir = input.normalized() if input != Vector2.ZERO else aim
-	var duration := 0.26 if wind else 0.22
-	roll_speed = (500.0 if wind else 320.0) * dist_mult * (1.0 + 0.15 * graft("legs"))
+	var duration := float(Combat.CLIMBER["dash_time" if wind else "roll_time"])
+	roll_speed = float(Combat.CLIMBER["dash_speed" if wind else "roll_speed"]) * dist_mult * (1.0 + 0.15 * graft("legs"))
 	roll_t = duration
-	iframes = duration * 0.85 + gfx("iframe")  # Phantom Treads
-	roll_cd = (duration + 0.25) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
+	iframes = duration * float(Combat.CLIMBER["roll_iframes"]) + gfx("iframe")  # Phantom Treads
+	roll_cd = (duration + float(Combat.CLIMBER["roll_cooldown"])) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	attack_cd = 0.0
 	combo = 0
 	ghost_t = 0.0
@@ -1013,7 +1028,7 @@ func _melee() -> bool:
 	var heavy: bool = swing["heavy"]
 	combo = (combo + 1) % chain.size()
 	sta = maxf(0.0, sta - swing["sta"] * (1.0 - gfx("chain")))  # Grip Wraps
-	sta_delay = 0.9  # stamina waits a moment after you attack: mashing runs you dry
+	sta_delay = float(Combat.CLIMBER["strike_wait"])  # stamina waits a moment after you attack: mashing runs you dry
 	var recover: float = swing["recover"]
 	if has_bond("flameblade"):
 		recover = minf(recover, chain[0]["recover"])  # Hot Blood: chains never slow down
@@ -1135,7 +1150,7 @@ func release_draw() -> void:
 	drawing = false
 	attack_cd = w["recover"]
 	sta = maxf(0.0, sta - w["sta"])
-	sta_delay = 0.9
+	sta_delay = float(Combat.CLIMBER["strike_wait"])
 	var dmg: float = lerpf(w["dmg_min"], w["dmg_max"], k * k) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	wear_gear("shot")
 	var hand = bonds.get("hand")
@@ -1160,7 +1175,7 @@ func _fire_bolt() -> void:
 	attack_cd = w["recover"]
 	reload_t = w["reload"]
 	sta = maxf(0.0, sta - w["sta"])
-	sta_delay = 0.9
+	sta_delay = float(Combat.CLIMBER["strike_wait"])
 	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	wear_gear("shot")
 	var hand = bonds.get("hand")
@@ -1325,7 +1340,7 @@ func _try_parry() -> bool:
 	drawing = false
 	parry_window = PARRY_WINDOW * (0.6 if _burned("brow") else 1.0) * (1.0 + 0.25 * graft("brow")) * (1.0 + gfx("parry"))  # gauntlets shorten it
 	parry_t = parry_window
-	parry_cd = 0.45
+	parry_cd = float(Combat.CLIMBER["parry_cooldown"])
 	var threat := _nearest_threat()
 	if threat != Vector2.ZERO:
 		aim = threat
@@ -1778,11 +1793,11 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	wear_gear("hit")
 	hits_taken += 1  # (a sealed wing's "take no hit" counts these)
 	Makers.feed(main, "wound", dmg / maxf(max_health(), 1.0))
-	hurt_t = 0.7  # longer grace after a hit, so a crowd can't chain-hit you
+	hurt_t = float(Combat.CLIMBER["grace"])  # longer grace after a hit, so a crowd can't chain-hit you
 	squash = 1.0
 	if source != null and not steadfast:
 		var planted: bool = has_bond("sandshaper") or (gear_fx.get("steady", false) and raw < Gear.LIGHT_BLOW) or stone_t > 0.0  # Rooted Stance; Hobnail Boots; Stoneskin
-		knock = Vector2.ZERO if planted else (global_position - source.global_position).normalized() * 240.0
+		knock = Vector2.ZERO if planted else (global_position - source.global_position).normalized() * float(Combat.CLIMBER["knockback"])
 	# Getting hit interrupts swings, draws and cast wind-ups (not while
 	# the Warden's barrier holds: Steadfast).
 	if not steadfast:
