@@ -189,7 +189,13 @@ static func strain(t: Dictionary) -> float:
 	s += float(Library.form(String(t.get("shape", ""))).get("strain", 0.0))
 	for v in variations(t):
 		s += float(Library.variation(v).get("strain", 0.0))
+	s += float(_effects_file().echo_strain(t))  # (an echo costs a little strain: unbound_effects.gd ECHO_ACTS)
 	return s
+
+
+## The Unbound's effects file (its echoes and its effects on yourself).
+static func _effects_file():
+	return load("res://scripts/spells/unbound_effects.gd")
 
 
 static func windup(t: Dictionary) -> float:
@@ -233,7 +239,8 @@ static func describe(t: Dictionary) -> String:
 			phrase = KINDS[k]["move"]
 		var fx := effect_of(t, k)
 		if fx != String(Library.BASE.get(k, "")):
-			phrase = String(Library.effect(fx).get(key, Library.effect(fx).get("hit", phrase)))
+			var fe := Library.effect(fx)
+			phrase = String(fe.get("move", fe.get(key, fe.get("hit", phrase))) if cls == "move" else fe.get(key, fe.get("hit", phrase)))
 		bits.append(phrase if i == 0 else "a little " + phrase if key != "self" else "and a little: " + phrase)
 	var what: String = sh["says"]
 	var vs := variations(t)
@@ -269,9 +276,11 @@ static func weights(t: Dictionary) -> Dictionary:
 static func cast(t: Dictionary, p, power: float, run) -> int:
 	var vs := variations(t)
 	var w := cast_weights(t)
-	if vs.is_empty():
-		return _cast_form(t, p, power, run, shape(t), w)
-	return _cast_varied(t, p, power, run, vs[0], w)
+	var hits := _cast_form(t, p, power, run, shape(t), w) if vs.is_empty() else _cast_varied(t, p, power, run, vs[0], w)
+	# A technique that comes close to a bond's spell adds a weaker touch of it
+	# (unbound_effects.gd ECHO_ACTS; library.gd ECHOES).
+	_effects_file().cast_echo(t, p, power, run)
+	return hits
 
 
 ## The weights a cast acts with: weights(), plus "_fx" (the kinds whose
@@ -486,6 +495,11 @@ static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: D
 			main.fx_ring(origin, col, near, 0.6, 2.0)
 			main.sfx("glint", 0.8, -4.0)
 		"shell":
+			var chosen: Dictionary = w.get("_fx", {})
+			if not chosen.is_empty():
+				w = w.duplicate()
+				for k in chosen:
+					w.erase(k)  # (a chosen effect works instead of its essence's base one: _self_effects)
 			var shield: float = float(sh["shield"]) * power * (1.0 + 1.0 * float(w.get("stone", 0.0)) + 0.5 * float(w.get("iron", 0.0)) + 0.5 * float(w.get("unmaking", 0.0)))
 			var dur: float = float(sh["duration"]) * (1.0 + 0.6 * float(w.get("air", 0.0)))
 			p.raise_barrier(shield, dur, w.has("fire"), col)
@@ -495,13 +509,15 @@ static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: D
 				p.edge_t = maxf(p.edge_t, dur * float(w["blade"]))
 			if w.has("life"):
 				_heal(p, float(KINDS["life"]["self_heal"]) * power * float(w["life"]) * 0.6)
+			_self_effects(p, chosen, cast_weights(t), power, run, "shell")
 			main.fx_ring(origin, col, 40.0, 0.35, 3.0)
 			main.sfx("parry", 0.7, -6.0)
 		"within":
 			var dur: float = float(sh["duration"])
+			var chosen: Dictionary = w.get("_fx", {})
 			for k in w:
-				if String(k).begins_with("_"):
-					continue
+				if String(k).begins_with("_") or chosen.has(k):
+					continue  # (a chosen effect works instead: _self_effects)
 				var s: float = float(w[k])
 				match String(k):
 					"fire":
@@ -519,6 +535,7 @@ static func _cast_form(t: Dictionary, p, power: float, run, sh: Dictionary, w: D
 						p.edge_t = maxf(p.edge_t, dur * s)
 					"life":
 						_heal(p, float(KINDS["life"]["self_heal"]) * power * s)
+			_self_effects(p, chosen, w, power, run, "self")
 			main.fx_ring(origin, col, 30.0, 0.4, 3.0)
 			main.sfx("ready", 1.1, -4.0)
 	main.light_flash(origin + aim * 20.0, col, 1.0, 1.0, 0.25)
@@ -558,6 +575,15 @@ static func hit(p, e, dmg: float, dir: Vector2, w_all: Dictionary, power: float,
 			w2.erase("_chain")  # (one jump, not a chain without end)
 			p.main.fx_bolt([e.global_position if is_instance_valid(e) else p.global_position, best.global_position], color(_lead_of(w_all)))
 			hit(p, best, dmg * float(ch.get("share", 0.6)), Vector2.ZERO, w2, power, run)
+
+
+## Chosen effects on yourself (Within) or as a shell rises: each runs
+## through the content file that declared it (its self_effect).
+static func _self_effects(p, chosen: Dictionary, w: Dictionary, power: float, run, cls: String) -> void:
+	for k in chosen:
+		var s = Library._effect_src.get(String(chosen[k]))
+		if s != null and s.has_method("self_effect"):
+			s.self_effect(String(chosen[k]), p, float(w.get(k, 0.0)), power, run, cls)
 
 
 static func _lead_of(w: Dictionary) -> String:

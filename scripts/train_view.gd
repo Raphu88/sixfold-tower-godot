@@ -106,6 +106,21 @@ var live_acc := 0.0
 var fit_hook := Callable()  # (train_page.gd: the placards fitted to what they say)
 var _laid_for := Vector2.ZERO
 var _stars: Array = []  # [x share of the screen, y share of the sky, size, which of two twinkling sets]
+## A new star in Your Car's window while a choice waits on the tree
+## (SkyStar): a tap opens the book's Tree on that part. (The book on its
+## cushion has its gilt mote too, for the keys and the controller.)
+var sky_star: Button
+var _star_part := ""
+var _star_check := 0.0
+var _star_born := -1.0  # (when it came out: a star built again keeps its age)
+var _star_at := Vector2.ZERO  # where it hangs in the car (_star_spot)
+## Where the star may hang in a window, the first clear of the car's things,
+## the moon and the towers wins (the right-hand window first, then the
+## left, then the middle): a share across the glass from its middle, and a
+## share of the way down from the top of the glass to the horizon.
+const STAR_SPOTS := [Vector2(-0.25, 0.3), Vector2(0.25, 0.3), Vector2(0.0, 0.12), Vector2(-0.4, 0.6), Vector2(0.4, 0.6),
+	Vector2(0.45, 0.0), Vector2(-0.45, 0.0), Vector2(0.0, 0.0)]
+const STAR_CAR := "personal"
 
 
 func _ready() -> void:
@@ -218,6 +233,7 @@ func _process(delta: float) -> void:
 			pos = target
 		place()
 	t += delta
+	_place_star(delta)
 	live_acc += delta
 	var live := live_acc >= 1.0 / LIVE_FPS
 	if live:
@@ -240,9 +256,107 @@ func clear_content() -> void:
 			r.area.remove_child(c)
 			c.queue_free()
 	for c in chrome.get_children():
+		if c == sky_star:
+			continue  # (the window's star stays: _place_star)
 		chrome.remove_child(c)
 		c.queue_free()
 	fit_frames = 3
+	_star_check = 0.12  # (the climber may have chosen: look again once the car's things are laid out)
+
+
+# --- the window's star --------------------------------------------------------------
+
+## The star in Your Car's window: there while a fork is ready (looked at a
+## couple of times a second, and whenever the cars are built again), in the
+## sky of the car's right-hand window, and moving with the car.
+func _place_star(delta: float) -> void:
+	var m = get_parent()
+	if m == null or not ("main" in m) or m.main == null or m.main.profile == null or not rooms.has(STAR_CAR):
+		return
+	_star_check -= delta
+	var r: Room = rooms[STAR_CAR]
+	if _star_check <= 0.0:
+		_star_check = 0.5
+		_star_part = load("res://scripts/tree_view.gd").ready_part(m.main.profile) if m.page == "train" else ""
+		if _star_part != "":
+			_star_at = _star_spot(r)
+	if _star_part == "":
+		_star_born = -1.0
+		if sky_star != null and is_instance_valid(sky_star):
+			sky_star.visible = false
+		return
+	if _star_born < 0.0:
+		_star_born = Time.get_ticks_msec() * 0.001
+	# (train_page.gd rebuilds the chrome now and then, freeing what's in it:
+	# the star is made again, as old as it was)
+	if sky_star == null or not is_instance_valid(sky_star) or sky_star.is_queued_for_deletion():
+		sky_star = SkyStar.new()
+		sky_star.set_meta("sky_star", true)
+		sky_star.tooltip_text = String(load("res://scripts/book.gd").TEXT["open"])
+		sky_star.pressed.connect(_star_pressed)
+		chrome.add_child(sky_star)
+	if sky_star.get_parent() == null:
+		chrome.add_child(sky_star)
+	elif sky_star.get_parent() != chrome:
+		sky_star.reparent(chrome, false)
+	var sz := maxf(40.0, 48.0 * r.u)
+	sky_star.size = Vector2(sz, sz)
+	sky_star.position = strip.position + r.position + _star_at - Vector2(sz, sz) * 0.5
+	sky_star.visible = absf(r.index - pos) < 0.98
+	sky_star.born = _star_born
+
+
+## The first of STAR_SPOTS (in the right-hand window, then the left, then
+## the middle) clear of the car's panels and buttons, the moon and the
+## towers on the horizon; if none is, the one least covered. In the car's own frame.
+func _star_spot(r: Room) -> Vector2:
+	var u := r.u
+	var sz := maxf(40.0, 48.0 * u)
+	var blocks: Array = []
+	for c in r.area.find_children("*", "Control", true, false):
+		if (c is PanelContainer or c is BaseButton or c is Label) and c.is_visible_in_tree():
+			var g: Rect2 = c.get_global_rect()
+			blocks.append(Rect2(g.position - r.global_position, g.size))
+	var moon := Vector2(MOON_AT.x * r.size.x, r.top + MOON_AT.y * (r.horizon - r.top))
+	var best := Vector2.INF
+	var best_cost := INF
+	var order: Array = range(r.wins.size())
+	order.reverse()
+	if order.size() == 3:
+		order = [2, 0, 1]
+	for wi in order:
+		var box: Rect2 = r.wins[wi]["rect"]
+		var half := box.size.x * 0.5
+		for sp in STAR_SPOTS:
+			var x: float = box.get_center().x + half * sp.x
+			var top := box.position.y + half - sqrt(maxf(0.0, half * half - (half * sp.x) * (half * sp.x)))
+			var at := Vector2(x, lerpf(top + sz * 0.45, r.horizon - sz * 0.5, sp.y))
+			var rect := Rect2(at - Vector2(sz, sz) * 0.5, Vector2(sz, sz)).grow(4.0)
+			var cost := 0.0
+			for b in blocks:
+				cost += b.intersection(rect).get_area()
+			if at.distance_to(moon) < 34.0 * u:
+				cost += sz * sz * 0.3
+			for k in TOWER_AT.size():
+				var tx: float = (TOWER_AT[k] - FAR_SLIDE * r.index) * r.size.x
+				if absf(at.x - tx) < 26.0 * u and at.y > r.horizon - 118.0 * u:
+					cost += sz * sz * 0.2
+			if cost <= 0.0:
+				return at
+			if cost < best_cost:
+				best_cost = cost
+				best = at
+	return best
+
+
+## The star tapped (or clicked): the book opens on the Tree, on the part
+## whose choice waits.
+func _star_pressed() -> void:
+	var m = get_parent()
+	if m == null or _star_part == "":
+		return
+	m.climber_tab = "tree"
+	load("res://scripts/tree_view.gd").open_tree(m, _star_part)
 
 
 ## A car's room: its layers (see the top of this file) and an area (inside
@@ -2473,3 +2587,58 @@ class Bench extends Control:
 		Art.vgrad(b, Rect2(slate.position.x - 0.5 * u, slate.end.y + 2.4 * u, slate.size.x + 1.0 * u, 1.8 * u), Art.WALNUT.lightened(0.2), Art.WALNUT.darkened(0.2))
 		b.rect(Rect2(slate.position.x + slate.size.x * 0.6, slate.end.y + 0.6 * u, 5.0 * u, 1.8 * u), Color(0.92, 0.92, 0.88))
 		b.flush(self)
+
+
+## The window's new star (see _place_star): a bright four-pointed star that
+## twinkles with a soft halo, coming out with a little burst of light the
+## first time it shows. A Button, so a tap or a click reaches it.
+class SkyStar extends Button:
+	const UI := preload("res://scripts/ui.gd")
+	var born := 0.0
+
+	func _ready() -> void:
+		focus_mode = Control.FOCUS_NONE  # (the keys and the controller have the book's own mote)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		for st in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+			add_theme_stylebox_override(st, StyleBoxEmpty.new())
+
+	func _process(_delta: float) -> void:
+		if is_visible_in_tree():
+			queue_redraw()
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var u := size.x / 48.0
+		var now := Time.get_ticks_msec() * 0.001
+		var age := now - born
+		var grow := clampf(age / 0.9, 0.0, 1.0)
+		var tw := 0.8 + 0.2 * sin(now * 3.1) * sin(now * 1.7 + 0.6)
+		var hot := is_hovered() or button_pressed
+		var warm := Color(1.0, 0.9, 0.62)
+		var core := Color(1.0, 0.97, 0.86)
+		# A warm halo (brighter than the sky's own stars), the long glints,
+		# then the star itself, gilt-white.
+		for i in 5:
+			draw_circle(c, (21.0 - i * 4.0) * u * grow * tw, Color(UI.GILT_HI, 0.045 + 0.035 * i))
+		var reach := (22.0 if hot else 19.0) * u * grow * tw
+		for d in [Vector2(1, 0), Vector2(0, 1)]:
+			draw_line(c - d * reach, c + d * reach, Color(warm, 0.6), 1.5 * u, true)
+		for d in [Vector2(1, 1), Vector2(1, -1)]:
+			draw_line(c - d.normalized() * reach * 0.42, c + d.normalized() * reach * 0.42, Color(warm, 0.35), 1.1 * u, true)
+		var pts := PackedVector2Array()
+		for i in 8:
+			var a := i * TAU / 8.0 - PI * 0.5
+			pts.append(c + Vector2.from_angle(a) * (8.5 if i % 2 == 0 else 2.8) * u * grow * (0.9 + 0.1 * tw))
+		draw_colored_polygon(pts, UI.GILT_HI.lerp(core, 0.5))
+		draw_circle(c, 2.4 * u * grow, Color.WHITE)
+		if age < 1.4:
+			# Coming out: a ring of light spreading and fading.
+			var k := age / 1.4
+			draw_arc(c, (7.0 + 16.0 * k) * u, 0.0, TAU, 32, Color(UI.GILT_HI, 0.65 * (1.0 - k)), 1.6 * u, true)
+		else:
+			# Now and then a soft ring, as if it called.
+			var k2 := fposmod(age - 1.4, 3.2) / 3.2
+			if k2 < 0.5:
+				draw_arc(c, (8.0 + 14.0 * k2 * 2.0) * u, 0.0, TAU, 32, Color(UI.GILT, 0.35 * (1.0 - k2 * 2.0)), 1.2 * u, true)
+		if hot:
+			draw_arc(c, 15.0 * u, 0.0, TAU, 32, Color(UI.GILT, 0.6), 1.4 * u, true)

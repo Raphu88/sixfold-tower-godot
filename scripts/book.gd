@@ -5,8 +5,13 @@ extends RefCounted
 ## light ink reads on it), a crease down the spine, and a ribbon hanging
 ## from the top edge for each section: Abilities, Tree, Marks (Body for the
 ## Unbound), Essence, Record (and Core with a secret bond). Pages turn with
-## Q / E, LB / RB, a swipe across the page, or a tap on a ribbon; a short
-## shadow sweeps across as they do (Turn).
+## Q / E, LB / RB, a swipe across the page, or a tap on a ribbon; a leaf
+## lifts and sweeps over as they do (Turn).
+##
+## The tooling: a double gilt fillet round the cover with a row of stamped
+## dots between, a fleuron in each corner, headbands striped at the spine's
+## ends and gilt page edges; the ribbons are satin, with a sheen down the
+## middle, a forked tail and a little gilt bar where they leave the spine.
 ##
 ## It opens from the identity block on the rail, Tab, the Climber button,
 ## and the book lying in Your Car on the train (ClosedBook, train_page.gd).
@@ -30,7 +35,7 @@ static var PAGE := Color(0.155, 0.125, 0.105)
 static var PAGE_EDGE := Color(0.32, 0.27, 0.2)
 ## A swipe turns a page once it has gone this far across (view px), mostly sideways.
 const SWIPE := 70.0
-const TURN_TIME := 0.22
+const TURN_TIME := 0.34
 
 
 ## The book's panel look (menu.gd sets it on the climber page's panel).
@@ -109,15 +114,37 @@ class BookStyle extends StyleBox:
 		for p in cover:
 			cc.append(leather.lightened(0.06).lerp(leather.darkened(0.35), clampf((p.y - rect.position.y) / maxf(rect.size.y, 1.0), 0.0, 1.0)))
 		rs.canvas_item_add_polygon(ci, cover, cc)
+		# The tooling: a double gilt fillet, stamped dots between, a fleuron
+		# in each corner.
 		var tool := UI.rounded(rect.grow(-3.0), 7.0)
 		tool.append(tool[0])
 		rs.canvas_item_add_polyline(ci, tool, PackedColorArray([Color(UI.GILT, 0.55)]), 1.0, true)
+		if border >= 8.0:
+			var inner := UI.rounded(rect.grow(-border + 2.0), 5.0)
+			inner.append(inner[0])
+			rs.canvas_item_add_polyline(ci, inner, PackedColorArray([Color(UI.GILT, 0.3)]), 1.0, true)
+			var mid_r := rect.grow(-(3.0 + border - 2.0) * 0.5)
+			var step_px := 14.0
+			for x in range(int(mid_r.position.x + 22.0), int(mid_r.end.x - 22.0), int(step_px)):
+				for y in [mid_r.position.y, mid_r.end.y]:
+					rs.canvas_item_add_circle(ci, Vector2(x, y), 0.9, Color(UI.GILT, 0.32))
+			for y in range(int(mid_r.position.y + 22.0), int(mid_r.end.y - 22.0), int(step_px)):
+				for x in [mid_r.position.x, mid_r.end.x]:
+					rs.canvas_item_add_circle(ci, Vector2(x, y), 0.9, Color(UI.GILT, 0.32))
+		for corner in [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]:
+			var at: Vector2 = rect.position + rect.size * corner + Vector2(1.0 - 2.0 * corner.x, 1.0 - 2.0 * corner.y) * (border * 0.5 + 1.5)
+			var d: Vector2 = Vector2(1.0 - 2.0 * corner.x, 1.0 - 2.0 * corner.y)
+			_fleuron(ci, at, d, 6.0 if compact else 9.0)
 		# The pages: a stack of edges at the sides, then the spread.
 		var pr := rect.grow(-border)
 		for i in 3:
 			var e := pr.grow(-float(i) * 1.2)
 			e.position.y += 1.5
 			rs.canvas_item_add_polygon(ci, UI.rounded(e, 4.0), PackedColorArray([edge.darkened(0.2 * i)]))
+		# Gilt page edges, showing round the spread.
+		var gilt_edge := UI.rounded(pr.grow(0.5), 4.0)
+		gilt_edge.append(gilt_edge[0])
+		rs.canvas_item_add_polyline(ci, gilt_edge, PackedColorArray([Color(UI.GILT, 0.4)]), 1.0, true)
 		var spread := pr.grow(-2.0)
 		var mid := spread.position.x + spread.size.x * 0.5
 		for half in [0, 1]:
@@ -140,6 +167,25 @@ class BookStyle extends StyleBox:
 		var rule := UI.rounded(spread.grow(-6.0), 2.0)
 		rule.append(rule[0])
 		rs.canvas_item_add_polyline(ci, rule, PackedColorArray([Color(UI.GILT, 0.12)]), 1.0, true)
+		# The headbands: a little striped silk band at each end of the spine.
+		var hw := 14.0 if compact else 20.0
+		for y in [spread.position.y - 1.0, spread.end.y - 3.0]:
+			for i in 6:
+				var c := Color(0.62, 0.16, 0.16) if i % 2 == 0 else Color(0.86, 0.74, 0.46)
+				rs.canvas_item_add_rect(ci, Rect2(mid - hw * 0.5 + hw * i / 6.0, y, hw / 6.0 + 0.5, 4.0), c)
+			rs.canvas_item_add_rect(ci, Rect2(mid - hw * 0.5, y + 4.0, hw, 1.0), Color(0, 0, 0, 0.35))
+
+	## A gilt fleuron in a corner of the cover, pointing in along `d`.
+	func _fleuron(ci: RID, at: Vector2, d: Vector2, s: float) -> void:
+		var rs := RenderingServer
+		var g := Color(UI.GILT, 0.7)
+		rs.canvas_item_add_circle(ci, at, s * 0.22, g)
+		var leaf := PackedVector2Array([at, at + Vector2(d.x * s * 0.5, d.y * s * 0.12), at + Vector2(d.x * s, 0), at + Vector2(d.x * s * 0.5, -d.y * s * 0.05)])
+		rs.canvas_item_add_polygon(ci, leaf, PackedColorArray([g]))
+		var leaf2 := PackedVector2Array([at, at + Vector2(d.x * s * 0.12, d.y * s * 0.5), at + Vector2(0, d.y * s), at + Vector2(-d.x * s * 0.05, d.y * s * 0.5)])
+		rs.canvas_item_add_polygon(ci, leaf2, PackedColorArray([g]))
+		rs.canvas_item_add_line(ci, at, at + d * s * 0.62, Color(UI.GILT, 0.55), 1.0, true)
+		rs.canvas_item_add_circle(ci, at + d * s * 0.7, s * 0.12, g)
 
 
 ## A section's ribbon: a strip of silk hanging from the top edge, notched at
@@ -163,14 +209,20 @@ class Ribbon extends Button:
 	func _draw() -> void:
 		var hot := is_hovered() or has_focus()
 		var w := size.x
-		var h := size.y if on else size.y - 6.0
+		var h := size.y if on else size.y - (6.0 if not hot else 3.0)
 		var notch := 7.0
 		var c := col.lightened(0.12) if on else col.darkened(0.25 if not hot else 0.05)
 		var pts := PackedVector2Array([Vector2(3, 0), Vector2(w - 3, 0), Vector2(w - 3, h), Vector2(w * 0.5, h - notch), Vector2(3, h)])
 		draw_colored_polygon(PackedVector2Array([Vector2(5, 2), Vector2(w - 1, 2), Vector2(w - 1, h + 2), Vector2(w * 0.5 + 2, h - notch + 2), Vector2(5, h + 2)]), Color(0, 0, 0, 0.35))
-		draw_colored_polygon(pts, c)
+		# Satin: darker at the edges, a sheen down the middle.
+		var cols := PackedColorArray([c.darkened(0.12), c.darkened(0.12), c.darkened(0.2), c.darkened(0.05), c.darkened(0.2)])
+		draw_polygon(pts, cols)
+		var sheen := PackedVector2Array([Vector2(w * 0.3, 0), Vector2(w * 0.55, 0), Vector2(w * 0.55, h - notch * 0.7), Vector2(w * 0.3, h - notch * 0.4)])
+		draw_colored_polygon(sheen, Color(1, 1, 1, 0.1 if not on else 0.14))
 		draw_line(Vector2(6, 2), Vector2(6, h - 2), Color(1, 1, 1, 0.12), 1.0)
 		draw_line(Vector2(w - 6, 2), Vector2(w - 6, h - 2), Color(0, 0, 0, 0.2), 1.0)
+		# Where it leaves the spine: a little gilt bar.
+		draw_rect(Rect2(3, 0, w - 6, 3), Color(UI.GILT, 0.55 if on else 0.3))
 		if on:
 			var gl := pts.duplicate()
 			gl.append(gl[0])
@@ -193,7 +245,10 @@ class Ribbon extends Button:
 		return false
 
 
-## A page turning: a shadow and a lit edge sweep across the book and fade.
+## A page turning: a leaf lifts from one side of the spread and sweeps over
+## the spine to the other, its free edge lit and curling, a shadow running
+## ahead of it on the page below; then it's gone (a third of a second), so
+## nothing is hidden for long.
 class Turn extends Control:
 	var dir := 1
 	var t := 0.0
@@ -201,18 +256,49 @@ class Turn extends Control:
 	func _process(delta: float) -> void:
 		t += delta
 		queue_redraw()
-		if t >= 0.22:
+		if t >= load("res://scripts/book.gd").TURN_TIME:
 			queue_free()
 
 	func _draw() -> void:
-		var k := clampf(t / 0.22, 0.0, 1.0)
-		var x := size.x * (k if dir > 0 else 1.0 - k)
-		var wdt := size.x * 0.18
-		var from := x - wdt * 0.5
+		var Book = load("res://scripts/book.gd")
+		var k := clampf(t / float(Book.TURN_TIME), 0.0, 1.0)
+		k = k * k * (3.0 - 2.0 * k)  # (eased: it lifts slowly, falls quickly, settles)
+		var m := 12.0
+		var top := m
+		var bot := size.y - m
+		var spine := size.x * 0.5
+		var half := spine - m
+		# Where the free edge is: from the far side, over the spine, to the near side.
+		var x := spine + dir * half * cos(k * PI)
+		var lift := sin(k * PI)
+		var page: Color = Book.PAGE.lightened(0.08)
+		var fade := 1.0 - smoothstep(0.85, 1.0, k)
+		# The shadow it casts ahead of its edge, on the page below.
+		var sw := 40.0 * lift + 6.0
+		var ahead := -dir if k < 0.5 else dir
 		for i in 6:
-			var a := (1.0 - k) * 0.22 * (1.0 - absf(float(i) - 2.5) / 3.0)
-			draw_rect(Rect2(from + wdt * i / 6.0, 8.0, wdt / 6.0, size.y - 16.0), Color(0, 0, 0, a))
-		draw_line(Vector2(x, 10.0), Vector2(x, size.y - 10.0), Color(1.0, 0.92, 0.75, 0.3 * (1.0 - k)), 2.0)
+			var a := 0.16 * lift * (1.0 - float(i) / 6.0) * fade
+			var x0: float = x + ahead * sw * float(i) / 6.0
+			draw_rect(Rect2(minf(x0, x0 + ahead * sw / 6.0), top, sw / 6.0, bot - top), Color(0, 0, 0, a))
+		# The leaf: from the spine to its free edge, its edge raised and curved.
+		var curl := 10.0 * lift
+		var pts := PackedVector2Array()
+		var n := 10
+		pts.append(Vector2(spine, top))
+		for i in n + 1:
+			var f := float(i) / n
+			pts.append(Vector2(lerpf(spine, x, f), top - curl * f * f))
+		for i in n + 1:
+			var f := float(n - i) / n
+			pts.append(Vector2(lerpf(spine, x, f) + (x - spine) * 0.04 * sin(f * PI) , bot + curl * 0.6 * f * f))
+		var cols := PackedColorArray()
+		for p in pts:
+			var f := absf(p.x - spine) / maxf(absf(x - spine), 1.0)
+			cols.append(Color(page.darkened(0.35 * (1.0 - f) + 0.15 * (1.0 - lift)), 0.96 * fade))
+		if absf(x - spine) > 1.5:
+			draw_polygon(pts, cols)
+			draw_line(Vector2(x, top - curl), Vector2(x + (x - spine) * 0.0, bot + curl * 0.6), Color(1.0, 0.92, 0.72, 0.5 * fade), 1.5, true)
+			draw_line(Vector2(spine, top), Vector2(spine, bot), Color(0, 0, 0, 0.3 * fade), 2.0)
 
 
 ## The book as it lies closed in Your Car (train_page.gd): a thick volume in

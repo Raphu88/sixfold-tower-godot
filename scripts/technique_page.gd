@@ -3,11 +3,14 @@ extends RefCounted
 ## controller and touch all work):
 ##   the TECHNIQUES page (from your car on the train): your six carried
 ##     techniques along the top (each on a mark button), the chosen one's
-##     card below: its part and shape on top (tap to change), up to three
-##     essence gems (tap one to cycle it; the first leads), what it will do
-##     in plain words, how it fills, its strain and boost, and an optional
-##     name (and whether casts boost from carried essence); then the
-##     ready-made recipes and where each kind of essence pools (routing);
+##     card below: its part and form, "Build at the bench" (the essence
+##     bench in the Workshop car, essence_bench.gd, is where techniques are
+##     built: the form, the essences in order and their effects, a fitting),
+##     its essence gems (a quick swap: tap one to cycle it; the first
+##     leads), what it will do in plain words (and "echoes X"), how it
+##     fills, its strain and boost, and an optional name (and whether casts
+##     boost from carried essence); then the ready-made recipes and where
+##     each kind of essence pools (routing);
 ##   the climber screen's part cards and stage (menu.gd calls climber());
 ##   the Developer's way back (secret_page.gd calls core_section());
 ##   the dev tools' section.
@@ -18,13 +21,16 @@ const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 const Library := preload("res://scripts/library.gd")
 const TreeRules := preload("res://scripts/tree.gd")
+const EssenceBench := preload("res://scripts/essence_bench.gd")
 
 static var TEXT := {
 	"title": "Techniques",
 	"sub": "Six carried, one on each mark button. A part and up to three essences; the first leads.",
 	"slot_empty": "empty",
 	"shape": "%s  ·  %s",
-	"shape_hint": "tap to change the shape",
+	"shape_hint": "build one at the bench",
+	"bench": "Build at the bench",
+	"bench_note": "In the Workshop car: choose its form, pour its essences in order, pick their effects and fit a variation.",
 	"level": "%s: level %d  ·  combines up to %d %s",
 	"level_next": "  (%d at level %d)",
 	"gem_empty": "+ essence",
@@ -108,13 +114,19 @@ static func build(menu) -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)
 	card.add_child(col)
+	# Building is at the essence bench, in the Workshop car (essence_bench.gd).
+	var bench_b: Button = menu._button(TEXT["bench"], EssenceBench.open_for.bind(menu, sel), col)
+	bench_b.set_meta("tech_bench", true)
+	menu._primary(bench_b)
+	bench_b.disabled = not main.on_train
 	if t.is_empty():
-		menu._button(Tech.TEXT["empty"] + "  ·  " + TEXT["shape_hint"], _cycle_shape.bind(menu, sel), col)
+		col.add_child(menu._small_label(Tech.TEXT["empty"] + "  ·  " + TEXT["shape_hint"], menu.DIM))
 	else:
 		var part: String = t["part"]
-		var shb: Button = menu._button(TEXT["shape"] % [Unbound.PART_NAMES[part], Tech.SHAPES[t["shape"]]["name"]], _cycle_shape.bind(menu, sel), col)
-		shb.add_theme_font_size_override("font_size", 20)
-		shb.set_meta("tech_shape", true)
+		var shl: Label = menu._small_label(TEXT["shape"] % [Unbound.PART_NAMES[part], Tech.SHAPES[t["shape"]]["name"]], Tech.color(Tech.lead(t)).lightened(0.25))
+		shl.add_theme_font_size_override("font_size", 20)
+		shl.set_meta("tech_shape", true)
+		col.add_child(shl)
 		var most := Unbound.max_kinds(prof, part)
 		var lv := Unbound.level(prof, part)
 		var line: String = TEXT["level"] % [Unbound.PART_NAMES[part], lv, most, "essence" if most == 1 else "essences"]
@@ -143,17 +155,19 @@ static func build(menu) -> void:
 			gb.add_theme_color_override("font_color", gcol)
 			gb.disabled = locked or g > t["kinds"].size()
 			gb.set_meta("tech_gem", g)
-		# A variation from the tree (library.gd VARIATIONS), once the climber owns one.
-		if not TreeRules.owned_variations(prof).is_empty() or not Tech.variations(t).is_empty():
-			var vs := Tech.variations(t)
-			var vtext: String = Library.TEXT["variation"] % Library.variation(vs[0])["name"] if not vs.is_empty() else Library.TEXT["no_variation"]
-			var vb: Button = menu._button(vtext, _cycle_variation.bind(menu, sel), col)
-			vb.set_meta("tech_variation", true)
 		var desc: Label = menu._small_label(Tech.describe(t), menu.TEXT)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.custom_minimum_size.x = 280.0
 		desc.add_theme_font_size_override("font_size", 16)
 		col.add_child(desc)
+		# "Echoes Gale Lift": the mix comes close to a bond's spell (library.gd ECHOES).
+		var echo := EssenceBench.echo_line(t)
+		if echo != "":
+			var el: Label = menu._small_label(echo, Color(0.79, 0.65, 1.0))
+			el.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			el.custom_minimum_size.x = 280.0
+			el.set_meta("tech_echo", true)
+			col.add_child(el)
 		var fills: String = String(main.BondScript.Bonds.PART_FILLS[part])
 		fills = fills.substr(0, 1).to_upper() + fills.substr(1)  # ("Fills when you parry")
 		var fl: Label = menu._small_label(TEXT["fill"] % [fills, int(round(Tech.charge(t, prof))), int(Tech.strain(t))], menu.GOLD)
@@ -275,13 +289,6 @@ static func cycle_variation(prof, t: Dictionary) -> Dictionary:
 	return out
 
 
-static func _cycle_variation(menu, i: int) -> void:
-	var techs: Array = _st(menu)["techs"]
-	if Tech.valid(techs[i]):
-		techs[i] = cycle_variation(menu.main.profile, techs[i])
-	_save_and_redraw(menu)
-
-
 ## The next shape (and part); essences past the new part's limit drop off.
 static func cycle_shape(prof, t: Dictionary) -> Dictionary:
 	var order := shape_order(prof)
@@ -306,12 +313,6 @@ static func _unname_recipe(t: Dictionary) -> void:
 	for id in Tech.RECIPES:
 		if String(t.get("name", "")) == String(Tech.RECIPES[id]["name"]):
 			t["name"] = ""
-
-
-static func _cycle_shape(menu, i: int) -> void:
-	var techs: Array = _st(menu)["techs"]
-	techs[i] = cycle_shape(menu.main.profile, techs[i] if techs[i] is Dictionary else {})
-	_save_and_redraw(menu)
 
 
 ## The next essence in gem `g` (skipping kinds already in it; a gem past the
