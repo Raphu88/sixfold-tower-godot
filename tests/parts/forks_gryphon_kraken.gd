@@ -115,6 +115,10 @@ func _cast() -> float:
 	p.aim = dir
 	p._try_cast("hand")
 	await t._wait(b.windup() + 0.12)
+	for i in 120:  # (a busy machine runs the fight slower than the clock: wait for the cast itself)
+		if p.cast_t <= 0.0:
+			break
+		await t._frames(1)
 	return before - b.essence
 
 

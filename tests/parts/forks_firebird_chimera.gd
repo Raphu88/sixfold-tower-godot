@@ -279,6 +279,10 @@ func _rekindler() -> void:
 	var low: float = p.hp
 	var lost: float = p.rekindle_lost
 	await t._wait(0.25)
+	for i in 300:  # (until the burn has ended and the payback landed: a busy machine runs the fight slower)
+		if p.rekindle_t <= 0.0 and p.hp - low >= lost * 2.3:
+			break
+		await t._frames(1)
 	Engine.time_scale = 1.0
 	_check(lost > 0.0 and p.hp - low >= lost * 2.3, "...and pays back two and a half times what you lost (lost %.1f, back %.1f)" % [lost, p.hp - low])
 	# Step 4: Backdraft.

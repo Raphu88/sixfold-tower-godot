@@ -120,13 +120,19 @@ static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	var payback := float(bond.spell_stat(sp, "payback"))
 	var token := int(p.get_meta("deep_burn", 0)) + 1
 	p.set_meta("deep_burn", token)
-	FX.later(main, float(p.rekindle_total) + 0.1, func():
+	var burning: bool = p.rekindle_t > 0.0
+	# (It waits for the burn itself to end, not a clock of its own: on a busy
+	# frame the fight's time and a timer's can drift apart.)
+	FX.lasting(main, float(p.rekindle_total) + 5.0, func(_n, _d: float) -> bool:
 		if not is_instance_valid(p) or p.dead or int(p.get_meta("deep_burn", 0)) != token:
-			return
-		if p.rekindle_t <= 0.0 and p.rekindle_fought and p.rekindle_lost > 0.0:
+			return false
+		if p.rekindle_t > 0.0:
+			return true  # (still burning)
+		if burning and p.rekindle_fought and p.rekindle_lost > 0.0:
 			var extra: float = p.rekindle_lost * payback
 			p.hp = minf(p.max_health(), p.hp + extra)
-			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color()))
+			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color())
+		return false, Callable())
 	return true
 
 
