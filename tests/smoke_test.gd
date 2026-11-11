@@ -6270,6 +6270,21 @@ func _controls_tests() -> void:
 	_check(InputMap.action_has_event("ui_accept", C._button(JOY_BUTTON_A)) and InputMap.action_has_event("ui_cancel", C._button(JOY_BUTTON_B)), "A confirms and B goes back in menus")
 	_check(C.PAD_CAST.size() == 6 and C.PART_PAD.size() == 6, "six casts with LB held, one per body part")
 
+	print("from touch to a controller")
+	main.touch._set_active(true)
+	main.touch._set_move(Vector2(-60, 0))  # (the touch stick held to the left)
+	await _frames(1)
+	var held_left := Input.is_action_pressed("move_left")
+	_pad_axis(JOY_AXIS_LEFT_X, 1.0)  # one push of the stick, held steady (no more events)
+	await _frames(2)
+	_check(held_left and not main.touch.active and Input.is_action_pressed("move_right") and not Input.is_action_pressed("move_left"),
+		"the first push of a controller's stick after touch counts (touch lets go of only what it held)")
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	await _frames(1)
+	main.pad._set_active(false)
+	main.touch.release_all()
+	await _frames(1)
+
 	print("controller buttons")
 	_check(not main.pad_active and not p.stick_aim, "the keyboard is in charge to begin with")
 	_pad_button(JOY_BUTTON_B, true)

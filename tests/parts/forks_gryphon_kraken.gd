@@ -5,6 +5,7 @@ extends RefCounted
 ## what it says; no placeholders are left; old saves are unaffected.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
+const TestRun := preload("res://scripts/test_run.gd")
 const BONDS := ["stormcaller", "windwalker", "hunter", "tidecaller", "warden", "deepcaller"]
 
 var t
@@ -189,7 +190,7 @@ func _written() -> void:
 func _old_saves() -> void:
 	print("the Gryphon's and the Kraken's forks: old saves")
 	await t._fresh_main()
-	var path := "user://smoke_forks_gk.cfg"
+	var path := TestRun.path("user://smoke_forks_gk.cfg")
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
 	cfg.set_value("profile", "bonds", {
