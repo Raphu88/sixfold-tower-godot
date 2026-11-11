@@ -2157,6 +2157,22 @@ func set_appearance(app: Dictionary) -> void:
 	queue_redraw()
 
 
+## The look dressed in what you wear (gear_look.gd, via _piece_look and
+## _armor_look), worked out again only when the gear, the weapon in hand or
+## the appearance changes; a copy, as the drawing tints it (hurt, fallen).
+var _dress_key := -1
+var _dress_cache := {}
+func _dressed_look() -> Dictionary:
+	var key := hash([gear, weapon, appearance_look])
+	if key != _dress_key or _dress_cache.is_empty():
+		_dress_key = key
+		_dress_cache = appearance_look.duplicate()
+		_piece_look(_dress_cache, true)
+		_armor_look(_dress_cache)
+		_piece_look(_dress_cache, false)
+	return _dress_cache.duplicate()
+
+
 ## The climber, built into one batch (one draw call) in the style of
 ## draw_util.gd: a hooded head, shoulders and arms over a cloak that sways,
 ## boots that step, armor and the weapon in hand. Marks glow on top. The
@@ -2164,10 +2180,7 @@ func set_appearance(app: Dictionary) -> void:
 func _draw() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var dt := get_process_delta_time()
-	var look := appearance_look.duplicate()
-	_piece_look(look, true)
-	_armor_look(look)
-	_piece_look(look, false)
+	var look := _dressed_look()
 	# A hit flushes the climber red, then fades (no snap back).
 	var hurt := clampf((hurt_t - 0.25) / 0.15, 0.0, 1.0) * 0.6
 	for k in look:
