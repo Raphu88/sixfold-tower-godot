@@ -359,6 +359,9 @@ static func _protect(ctx: Dictionary) -> void:
 	for d in plan.get("doors", []):
 		for t in d["tiles"]:
 			_mark_box(ctx, t, 0, 2)
+	for w in plan.get("wings", []):  # (a sealed wing's door too: wings.gd hangs it later)
+		for t in w.get("door", []):
+			_mark_box(ctx, t, 0, 2)
 	var pz: Dictionary = plan.get("puzzle", {})
 	if not pz.is_empty():
 		_mark_rect(ctx, pz["room"], 2)

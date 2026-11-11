@@ -10906,16 +10906,31 @@ func _unbound_tests() -> void:
 	main.on_train = true
 	main.menu.open("techniques")
 	await _frames(2)
-	var gem: Button = null
-	for b in main.menu.focusables():
-		if b.get_meta("tech_gem", -1) == 0:
-			gem = b
-	var before: String = String(U.state(prof)["techs"][0]["kinds"][0])
-	var found_gem := gem != null
-	if found_gem:
-		gem.pressed.emit()
-		await _frames(2)
-	_check(found_gem and String(U.state(prof)["techs"][0]["kinds"][0]) != before, "the technique page: tapping a gem changes it")
+	# The essence bench builds techniques: the page shows a technique's
+	# essences (its gems) but has no buttons to change them, only the way to the bench.
+	var gem_labels := 0
+	var bench_btn: Button = null
+	var gem_btns := 0
+	var stack: Array = [main.menu]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Label and n.has_meta("tech_gem_label"):
+			gem_labels += 1
+		if n is Button and n.has_meta("tech_gem"):
+			gem_btns += 1
+		if n is Button and n.has_meta("tech_bench"):
+			bench_btn = n
+	var lead: String = T.display(String(U.state(prof)["techs"][0]["kinds"][0]))
+	var shows_lead := false
+	stack = [main.menu]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Label and n.has_meta("tech_gem_label") and String(n.text).begins_with(lead):
+			shows_lead = true
+	_check(gem_labels == U.KINDS_AT.size() and gem_btns == 0 and shows_lead, "the technique page shows the essences (%d gems, the lead %s) with no buttons to change them" % [gem_labels, lead])
+	_check(bench_btn != null and not bench_btn.disabled, "...and its button builds at the essence bench")
 	main.menu.open("climber")
 	await _frames(2)
 	_check(main.menu._climber_line().begins_with("Unbound") and main.menu._climber_line().contains(U.stage_name(prof)), "the climber screen shows the stage")
