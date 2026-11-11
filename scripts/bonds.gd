@@ -471,7 +471,7 @@ static var BONDS := {
 					4: {"damage": 4.0},
 					5: {"damage": 5.0},
 				}},
-			{"id": "wingburst", "name": "Wingburst", "type": "wingburst", "learn": 2,
+			{"id": "wingburst", "name": "Wingburst", "type": "wingburst", "learn": 2, "free_in_form": true,
 				"desc": "release the aura's built-up heat as burning wings around you",
 				"steps": {2: {"cost": 10.0, "windup": 0.25, "damage": 12.0, "radius": 115.0}, 4: {"damage": 15.0}, 5: {"damage": 18.0}}},
 			{"id": "warmth", "name": "Warmth", "type": "warmth", "learn": 4,

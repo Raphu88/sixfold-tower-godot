@@ -46,6 +46,15 @@ extends RefCounted
 ##       a new Unbound form: returns how many foes it touched, or -1 if it isn't yours.
 ##   static func hit_effect(effect_id: String, p, e, share: float, power: float, run) -> bool
 ##       a new effect on a struck foe (share: 1 lead, 0.5 second, 0.35 third).
+##   static func on_cast(p, cast: Dictionary) -> void
+##       optional: something was just cast (on_cast() below says what's in `cast`).
+##
+## Other hooks a content file can use:
+##   enemy.gd on_hit(foe, dmg, source) a foe lost health (main.gd on_hit: any foe)
+##   player.gd on_parry(source, perfect) a parry landed
+##   enemy.gd dmg_mult                  scales a foe's blows (Enfeeble), never dmg itself
+##   spell_fx.gd lasting(), item(), listen()  what stays a while, drawn in code,
+##                                      and a signal listened to while it lasts
 ##
 ## FORKS (one file per tower: scripts/spells/<tower>.gd), for each bond:
 ##   "change": {"name", "says"}           a name for today's step-3 change
@@ -381,6 +390,18 @@ static func hit_effect(id: String, p, e, share: float, power: float, run) -> boo
 	return false
 
 
+## Something was just cast; every content file with an on_cast hears it.
+## `cast`: "by" ("technique": an Unbound's, unbound_run.gd cast; "bond": a
+## mark's spell, bond.gd cast), "bond" (the bond or technique_bond cast),
+## "part" (the body part: a technique's own part, a mark's slot), "at"
+## (where the climber stood as the cast began), and "tech" (a technique's
+## dictionary) or "spell" (a bond spell's).
+static func on_cast(p, cast: Dictionary) -> void:
+	for s in _sources:
+		if s.has_method("on_cast"):
+			s.on_cast(p, cast)
+
+
 ## A step-3 variation of a bond's first spell: the tower's own way, else the
 ## library's generic one. `cast_now` runs the spell itself (bond.gd _cast_type).
 static func cast_mark_variation(bond, sp: Dictionary, p, alt: Dictionary) -> void:
@@ -417,23 +438,32 @@ static func run_mark_variation(bond, p, vid: String) -> void:
 		"echo":
 			bond._cast_type(p)
 			var pw := float(v.get("power", 0.5))
+			var sel: int = bond.selected  # (the spell cast now, even if the climber switches)
 			FX.later(p.main, float(v.get("delay", 1.0)), func():
 				if is_instance_valid(p) and not p.dead:
-					bond.var_power = pw
-					bond._cast_type(p)
-					bond.var_power = 1.0)
+					_recast(bond, p, sel, pw))
 		"delayed":
 			var pw := float(v.get("power", 1.35))
 			FX.mark(p.main, p.global_position + p.aim * 60.0, float(v.get("delay", 0.6)), bond.color())
+			var sel: int = bond.selected  # (the spell cast now, even if the climber switches)
 			FX.later(p.main, float(v.get("delay", 0.6)), func():
 				if is_instance_valid(p) and not p.dead:
-					bond.var_power = pw
-					bond._cast_type(p)
-					bond.var_power = 1.0)
+					_recast(bond, p, sel, pw))
 		_:
 			bond.var_power = float(v.get("power", 1.0)) if vid in ["wide", "quick", "charged"] else 1.0
 			bond._cast_type(p)
 			bond.var_power = 1.0
+
+
+## Casts a bond's spell `sel` (the one selected when the variation began)
+## again at `pw`, then puts back whichever spell is selected now.
+static func _recast(bond, p, sel: int, pw: float) -> void:
+	var now: int = bond.selected
+	bond.selected = sel
+	bond.var_power = pw
+	bond._cast_type(p)
+	bond.var_power = 1.0
+	bond.selected = now
 
 
 ## A bond spell's number under a generic variation (Wide, Long, Quick,

@@ -215,11 +215,13 @@ func pay(free := false) -> String:
 
 func cast(p) -> void:
 	var sp := spell()
+	var at: Vector2 = p.global_position
 	var alt := alt_change() if is_changed_spell(sp) else {}
 	if not alt.is_empty():
 		Library.cast_mark_variation(self, sp, p, alt)  # (a step-3 variation: the tower's way, or the library's)
-		return
-	_cast_type(p)
+	else:
+		_cast_type(p)
+	Library.on_cast(p, {"by": "bond", "bond": self, "part": part, "at": at, "spell": sp})  # (content files may answer)
 
 
 ## Runs the selected spell by its type (a type this file doesn't know is a

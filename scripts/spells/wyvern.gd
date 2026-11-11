@@ -26,10 +26,9 @@ extends RefCounted
 ##     Step 4: Ward Circle (today's) or Binding Circle: a circle at your aim
 ##       that foes can walk into but not out of.
 ##
-## What these spells leave in the world for a while is drawn by this file's
-## own small node (Drawer, under main as "WyvernFx"): library.gd has no hook
-## for a content file's own drawings, so it lives here, and like spell_fx.gd
-## it forgets everything when a new floor starts.
+## What these spells leave in the world for a while is spell_fx.gd's shared
+## lasting helper (_add below): it pauses with the fight and a new floor
+## clears it. Rune Brand listens to its foe's on_hit (enemy.gd).
 
 const FX := preload("res://scripts/spell_fx.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -408,7 +407,7 @@ static func _rune_brand(bond, p) -> void:
 		return
 	var dmg: float = bond.damage()
 	var blast := float(bond.stat("blast"))
-	var st := {"hp": float(target.hp), "pos": target.global_position, "foe": target}
+	var st := {"hurt": false, "pos": target.global_position, "foe": target}
 	var burst := func(at: Vector2):
 		for e in main.targets():
 			var to: Vector2 = e.global_position - at
@@ -428,11 +427,10 @@ static func _rune_brand(bond, p) -> void:
 			burst.call(st["pos"])
 			return
 		st["pos"] = e.global_position
-		if float(e.hp) < float(st["hp"]) - 0.01:
+		if st["hurt"]:
 			it["done"] = true
 			burst.call(st["pos"])
 			return
-		st["hp"] = float(e.hp)
 	var from: Vector2 = p.global_position
 	var paint := func(b, it: Dictionary):
 		var e = st["foe"]
@@ -449,7 +447,11 @@ static func _rune_brand(bond, p) -> void:
 			var ra := spin + TAU * i / 3.0
 			b.line(at + Vector2.from_angle(ra) * rr * 0.3, at + Vector2.from_angle(ra + 2.0) * rr * 0.85, Color(col.lightened(0.3), 0.85 * a), 2.0)
 		b.circle(at + Vector2(0, -rr - 6.0), 2.5 + 0.8 * sin(age * 6.0), Color(col.lightened(0.4), 0.9 * a), 10)
-	_add(main, float(bond.stat("duration")), tick, paint, true)
+	var it := _add(main, float(bond.stat("duration")), tick, paint, true)
+	# (Hurt by anything, a blow, a burn or poison: it bursts next frame.)
+	FX.listen(it["node"], target.on_hit, func(_foe, amount: float, _source):
+		if amount > 0.01:
+			st["hurt"] = true)
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 26.0), TEXT["branded"], col)
 	main.sfx("ready", 1.2, -4.0)
 	main.sfx("glint", 0.9, -6.0)
@@ -551,63 +553,8 @@ static func _shadow(b, pos: Vector2, r: float, alpha: float) -> void:
 
 ## Something this file left in the world: `tick(item, delta)` each frame and
 ## `paint(batch, item)` each draw (either may be an empty Callable), for
-## `seconds` or until item.done. `high` draws it over the darkness.
+## `seconds` or until item.done. `high` draws it over the darkness. (The
+## shared helper, spell_fx.gd item(): it pauses with the fight and a new
+## floor clears it.)
 static func _add(main, seconds: float, tick: Callable, paint: Callable, high := false) -> Dictionary:
-	var it := {"t": seconds, "age": 0.0, "done": false, "tick": tick, "paint": paint, "high": high}
-	var n = Drawer.of(main)
-	if n != null:
-		n.items.append(it)
-	return it
-
-
-## This file's drawings and timed effects, under main. A new floor (a new
-## floor plan) forgets them, as spell_fx.gd forgets its own.
-class Drawer extends Node2D:
-	const NAME := "WyvernFx"
-	var items: Array = []
-	var plan = null
-	var air: Node2D
-
-	static func of(main):
-		if main == null or not is_instance_valid(main):
-			return null
-		var n = main.get_node_or_null(NAME)
-		if n == null:
-			n = Drawer.new()
-			n.name = NAME
-			n.plan = main.floor_plan
-			main.add_child(n)
-		return n
-
-	func _ready() -> void:
-		z_as_relative = false
-		z_index = 11  # (on the floor, over the room's own drawings)
-		air = Node2D.new()
-		air.z_as_relative = false
-		air.z_index = 46  # (over the darkness, like spell_fx.gd)
-		air.draw.connect(func(): _paint(air, true))
-		add_child(air)
-
-	func _process(delta: float) -> void:
-		var main = get_parent()
-		if not is_same(main.floor_plan, plan):
-			plan = main.floor_plan
-			items.clear()
-		for it in items.duplicate():
-			it["t"] -= delta
-			it["age"] += delta
-			if (it["tick"] as Callable).is_valid() and not it["done"]:
-				it["tick"].call(it, delta)
-		items = items.filter(func(it): return float(it["t"]) > 0.0 and not it["done"])
-		queue_redraw()
-		air.queue_redraw()
-
-	func _draw() -> void:
-		_paint(self, false)
-
-	func _paint(c: CanvasItem, high: bool) -> void:
-		var b := Draw.Batch.new()
-		for it in items:
-			if bool(it["high"]) == high and (it["paint"] as Callable).is_valid():
-				it["paint"].call(b, it)
-		b.flush(c)
+	return FX.item(main, seconds, tick, paint, high)

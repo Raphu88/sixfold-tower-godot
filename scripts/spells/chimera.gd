@@ -16,7 +16,7 @@ extends RefCounted
 ##
 ## The pact book, the retinue and the grafts are bond.gd's and main.gd's, as
 ## before: these spells only use them (main.allies(), spawn_ally, grafts).
-## What stays a while is drawn by firebird.gd's Lasting node (spawn()).
+## What stays a while is spell_fx.gd's shared Lasting node (firebird.gd spawn()).
 
 const FX := preload("res://scripts/spell_fx.gd")
 const Fire := preload("res://scripts/spells/firebird.gd")

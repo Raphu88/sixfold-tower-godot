@@ -66,6 +66,11 @@ const WALL := 24.0
 ## The single open room of floor 1 and the beast's floor. Floors of rooms
 ## and corridors use a bigger area that grows with height (Floors.arena_for).
 const OPEN_ROOM := Rect2(80, 100, 1120, 530)
+
+## Any foe lost health (enemy.gd on_hit, sent for every foe): for spells
+## and other content that care about "a foe was hit".
+signal on_hit(foe, dmg: float, source: String)
+
 ## The owner's changes to the game's words, numbers and colours (the Data
 ## editor: data_registry.gd), applied first, before anything reads the tables.
 var _data_changes := DataRegistry.startup()

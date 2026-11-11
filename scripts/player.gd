@@ -1264,12 +1264,14 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	else:
 		main.fx_burst(contact, dir, Color(1.0, 0.95, 0.85), 8 if heavy else 5)
 		main.sfx("hit_heavy" if heavy else hit_sound)
+		# Every blow lands with a beat of hit-pause and a little shake,
+		# whatever the monster is made of (a crit's bigger ones are above).
+		main.hitstop(0.085 if heavy else 0.05)
+		main.shake(5.0 if heavy else 2.5)
 	# The monster's body adds its own note: armour clanks, slime squelches.
 	var material: String = e.MATERIAL.get(e.kind, "")
 	if material != "":
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
-		main.hitstop(0.085 if heavy else 0.05)
-		main.shake(5.0 if heavy else 2.5)
 	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce)
 	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
 	if hit_sound != "arrow_hit" and not e.dead:
@@ -1379,7 +1381,8 @@ func _try_cast(part: String) -> bool:
 
 func _release_cast() -> void:
 	var b = bonds[cast_part]
-	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and b.spell()["type"] == "wingburst")
+	# Firebird Form: a spell marked "free_in_form" (Wingburst, Cinder Dive) costs nothing.
+	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)))
 	# Spellweave Ring: every third spell costs nothing.
 	spells_cast += 1
 	Makers.feed(main, "cast", 1.0, b.id + ":" + String(b.spell()["name"]))
@@ -1918,10 +1921,16 @@ func _tick_bond_effects(delta: float) -> void:
 			hp = minf(max_health(), hp + d * 0.5 * heal_mult())
 
 
+## A parry landed (`source`: what was parried). Spells listen here (e.g.
+## Tidebreak: spell_fx.gd listen()).
+signal on_parry(source, perfect: bool)
+
+
 func _on_parry(source, perfect := false) -> void:
 	parry_t = 0.0
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
+	on_parry.emit(source, perfect)
 	sta = minf(max_sta, sta + (30.0 if perfect else 12.0))
 	var at: Vector2 = global_position + aim * (radius + 8.0)
 	var gold := Color(1.0, 0.92, 0.7)

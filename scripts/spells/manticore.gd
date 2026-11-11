@@ -25,10 +25,9 @@ extends RefCounted
 ##     Step 4: Vanish (today's) or Cinder Trail: for a while your steps leave
 ##       burning ash behind you.
 ##
-## What these spells leave in the world for a while is drawn by this file's
-## own small node (Drawer, under main as "ManticoreFx"): library.gd has no
-## hook for a content file's own drawings, so it lives here, and like
-## spell_fx.gd it forgets everything when a new floor starts.
+## What these spells leave in the world for a while is spell_fx.gd's shared
+## lasting helper (_add below): it pauses with the fight and a new floor
+## clears it. Enfeeble softens a foe through its dmg_mult (enemy.gd).
 
 const FX := preload("res://scripts/spell_fx.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -336,7 +335,7 @@ static func _enfeeble(bond, p) -> void:
 			continue
 		var k := weaken * (0.5 if e.is_boss() else 1.0)
 		var foe = e
-		foe.dmg *= 1.0 - k
+		foe.dmg_mult *= 1.0 - k  # (enemy.gd: its blows, softened)
 		var tick := func(it: Dictionary, _delta: float):
 			if not is_instance_valid(foe) or foe.dead:
 				it["done"] = true
@@ -344,7 +343,7 @@ static func _enfeeble(bond, p) -> void:
 			foe.chill_t = maxf(foe.chill_t, 0.3)
 			if float(it["t"]) <= 0.05:  # (wearing off: its strength comes back)
 				it["done"] = true
-				foe.dmg /= 1.0 - k
+				foe.dmg_mult /= 1.0 - k
 				foe.remove_meta("enfeebled")
 		var paint := func(b, it: Dictionary):
 			if not is_instance_valid(foe):
@@ -458,63 +457,8 @@ static func _aimed(p, reach: float):
 
 ## Something this file left in the world: `tick(item, delta)` each frame and
 ## `paint(batch, item)` each draw (either may be an empty Callable), for
-## `seconds` or until item.done. `high` draws it over the darkness.
+## `seconds` or until item.done. `high` draws it over the darkness. (The
+## shared helper, spell_fx.gd item(): it pauses with the fight and a new
+## floor clears it.)
 static func _add(main, seconds: float, tick: Callable, paint: Callable, high := false) -> Dictionary:
-	var it := {"t": seconds, "age": 0.0, "done": false, "tick": tick, "paint": paint, "high": high}
-	var n = Drawer.of(main)
-	if n != null:
-		n.items.append(it)
-	return it
-
-
-## This file's drawings and timed effects, under main. A new floor (a new
-## floor plan) forgets them, as spell_fx.gd forgets its own.
-class Drawer extends Node2D:
-	const NAME := "ManticoreFx"
-	var items: Array = []
-	var plan = null
-	var air: Node2D
-
-	static func of(main):
-		if main == null or not is_instance_valid(main):
-			return null
-		var n = main.get_node_or_null(NAME)
-		if n == null:
-			n = Drawer.new()
-			n.name = NAME
-			n.plan = main.floor_plan
-			main.add_child(n)
-		return n
-
-	func _ready() -> void:
-		z_as_relative = false
-		z_index = 11  # (on the floor, over the room's own drawings)
-		air = Node2D.new()
-		air.z_as_relative = false
-		air.z_index = 46  # (over the darkness, like spell_fx.gd)
-		air.draw.connect(func(): _paint(air, true))
-		add_child(air)
-
-	func _process(delta: float) -> void:
-		var main = get_parent()
-		if not is_same(main.floor_plan, plan):
-			plan = main.floor_plan
-			items.clear()
-		for it in items.duplicate():
-			it["t"] -= delta
-			it["age"] += delta
-			if (it["tick"] as Callable).is_valid() and not it["done"]:
-				it["tick"].call(it, delta)
-		items = items.filter(func(it): return float(it["t"]) > 0.0 and not it["done"])
-		queue_redraw()
-		air.queue_redraw()
-
-	func _draw() -> void:
-		_paint(self, false)
-
-	func _paint(c: CanvasItem, high: bool) -> void:
-		var b := Draw.Batch.new()
-		for it in items:
-			if bool(it["high"]) == high and (it["paint"] as Callable).is_valid():
-				it["paint"].call(b, it)
-		b.flush(c)
+	return FX.item(main, seconds, tick, paint, high)
