@@ -337,6 +337,9 @@ static func context(plan: Dictionary, main = null) -> Dictionary:
 		var t := tile_of(p["pos"])
 		if _inside(t, gs):
 			solid[t.y * gs.x + t.x] = 1
+	for r in plan.get("impassable", []):  # (a tower's ground no one walks: the Wyvern's molten channels)
+		for t in _tiles(r, gs):
+			solid[t.y * gs.x + t.x] = 1
 	var chasm := PackedByteArray()
 	chasm.resize(n)
 	for r in plan.get("chasms", []):

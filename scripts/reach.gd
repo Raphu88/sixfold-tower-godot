@@ -175,6 +175,10 @@ static func plan_grid(plan: Dictionary) -> Dictionary:
 				list.append(Vector2i(x, y))
 		block_tiles.append(list)
 	Rooms.cover_kept(size, solid, block_tiles, from, goals)  # (marks the kept cover solid)
+	# A tower's own ground no one walks (the Wyvern's molten channels; their
+	# bridges are left out; a crank's raised bridge is a gate: plan_check).
+	for r in plan.get("impassable", []):
+		_fill(solid, size, Floors.tile_rect(r), 1)
 	for s in plan.get("secrets", []):
 		for r in [s["rect"], s["corridor"]] + ([s["alcove"]] if s.has("alcove") else []):
 			_fill(solid, size, Floors.tile_rect(r), 1)
@@ -258,6 +262,11 @@ static func plan_check(plan: Dictionary) -> Dictionary:
 				opens[lid] = {"all": puzzle_all}
 			"oneway":
 				opens[lid] = {"any": d.get("lock_side", [])}
+	# A tower's own gates (a crank's raised bridge): shut until what opens
+	# them (the crank) is reached, like a lever's door.
+	for lg in plan.get("lever_gates", []):
+		doors.append({"tiles": lg["tiles"], "lock": "lever", "lock_id": int(lg["lock_id"])})
+		opens[int(lg["lock_id"])] = {"any": _near_tiles(lg["lock_pos"])}
 	var start := tile(plan.get("start", Vector2.ZERO))
 	var f := flood(size, solid, start, doors, opens)
 	var reach: PackedByteArray = f["reach"]
@@ -367,6 +376,10 @@ static func live_check(main, from := Vector2.INF) -> Dictionary:
 			if is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion() and e.has_meta("key") and int(e.get_meta("key")) == lid:
 				any.append_array(_near_tiles(e.global_position))
 		opens[lid] = {"all": puzzle_all} if kind == "puzzle" else {"any": any}
+	# The tower's own ground and gates as they are now (main.tower_floor).
+	var own = main.get("tower_floor")
+	if own != null and is_instance_valid(own):
+		own.reach_live(solid, size, doors, opens)
 	var start := tile(main.player.global_position if from == Vector2.INF else from)
 	if not _open_tile(solid, size, start):
 		# (standing in a doorway that's shut, or over a pit: look from a tile beside)

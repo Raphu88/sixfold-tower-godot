@@ -20,6 +20,14 @@ extends RefCounted
 ##   rest          the chance of a calm rest room
 ##   trader        the chance of a wandering trader, from floor `trader_from`
 ##   kind_first    the first room after the start is a kind one (no danger)
+##   prefab        how often hand-made rooms turn up, as a share of floors.gd
+##                 PREFAB_CHANCE (a tower that favours its own shapes: less)
+##   module        (a tower's own) the script that gives the tower its own
+##                 floors, scripts/towers/<tower>_floor.gd: it shapes the
+##                 plan (shape_plan, as floors.gd finishes it), carves the
+##                 tower's own room shapes (SHAPE_MODULES below) and runs on
+##                 the live floor as main.tower_floor (its system, its task
+##                 kinds, its scenario room)
 
 static var STYLES := {
 	"default": {
@@ -34,11 +42,36 @@ static var STYLES := {
 	},
 	"gryphon": {"shapes": ["circle", "gallery", "split", "ring"]},
 	"kraken": {"shapes": ["gallery", "split", "cover", "gallery"]},
-	"wyvern": {"shapes": ["ring", "cover", "ring", "gallery"]},
-	"manticore": {"shapes": ["cover", "split", "ring", "cover"]},
+	# The Wyvern's forge: long workshop halls in a grid, cut by molten
+	# channels (more ways between rooms: a grid, not a tree).
+	"wyvern": {"shapes": ["workshop", "hall", "workshop", "forgehall"], "gallery": ["forgehall", "workshop", "hall"],
+		"loops": [2, 3], "loops_high": [3, 4], "prefab": 0.35, "module": "res://scripts/towers/wyvern_floor.gd"},
+	# The Manticore's sandstone: courtyards open to the sky, colonnades, and
+	# low-walled alleys between them.
+	"manticore": {"shapes": ["court", "alleys", "colonnade", "court"], "gallery": ["court", "colonnade", "court"],
+		"loops": [2, 3], "prefab": 0.35, "module": "res://scripts/towers/manticore_floor.gd"},
 	"firebird": {"shapes": ["circle", "ring", "split", "circle"]},
 	"chimera": {"shapes": ["cover", "circle", "gallery", "split"]},
 }
+
+## Carved room shapes that belong to a tower's own script (rooms.gd carve
+## hands them over): shape -> the script that carves it.
+const SHAPE_MODULES := {
+	"workshop": "res://scripts/towers/wyvern_floor.gd", "forgehall": "res://scripts/towers/wyvern_floor.gd",
+	"court": "res://scripts/towers/manticore_floor.gd", "alleys": "res://scripts/towers/manticore_floor.gd",
+	"colonnade": "res://scripts/towers/manticore_floor.gd",
+}
+
+
+## The tower's own floor script (its style's "module"), or null.
+static func module_for(tid: String) -> Script:
+	var path := String(STYLES.get(tid, {}).get("module", ""))
+	return load(path) if path != "" else null
+
+
+## The script that carves a tower's own room shape, or null.
+static func shape_module(shape: String) -> Script:
+	return load(SHAPE_MODULES[shape]) if SHAPE_MODULES.has(shape) else null
 
 
 ## A tower's style: its own keys over the default's.
