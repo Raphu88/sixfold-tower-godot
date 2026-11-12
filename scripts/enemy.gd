@@ -23,6 +23,15 @@ signal on_reaction(foe, reaction: String, source)
 
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
+## Marks' passive ranks that change what a foe takes (bond.gd taken_mult;
+## loaded once it's needed: bond.gd loads the library and its content).
+static var _bond_script: Script = null
+
+
+static func _bond() -> Script:
+	if _bond_script == null:
+		_bond_script = load("res://scripts/bond.gd")
+	return _bond_script
 
 ## The rules every attack keeps live in combat.gd FOES (the Data editor's
 ## "The climber's core numbers"); these read them.
@@ -561,9 +570,28 @@ func _physics_process(delta: float) -> void:
 func tide_push(v: Vector2) -> void:
 	knock = v
 	tide_t = 0.45
+	bumped.clear()
+	# Undercurrent III: your knockbacks leave foes soaked.
+	if main.player != null and main.player.passive_rank("tidecaller") >= 3:
+		Reactions.apply(main, self, "soaked", float(Reactions.STATES["soaked"]["seconds"]), "undercurrent")
+
+
+## Undercurrent II: the foes a shoved foe has already been knocked into.
+var bumped := {}
 
 
 func _undercurrent() -> void:
+	# Undercurrent II: a shoved foe knocked into another stuns them both.
+	if tide_t > 0.0 and main.player != null and main.player.passive_rank("tidecaller") >= 2:
+		var st: float = _bond().Bonds.passive_num("tidecaller", 2, "stun")
+		for o in main.enemies():
+			if o == self or o.dead or bumped.has(o.get_instance_id()) or o.global_position.distance_to(global_position) > radius + o.radius + 2.0:
+				continue
+			bumped[o.get_instance_id()] = true
+			for f in [self, o]:
+				f.stagger(st * (0.5 if f.is_boss() else 1.0))
+			main.fx_burst((global_position + o.global_position) * 0.5, knock.normalized(), Color(0.37, 0.72, 0.79), 8, 180.0)
+			main.sfx("hit_heavy", 1.1, -6.0)
 	if tide_t > 0.0 and get_slide_collision_count() > 0 and main.player.has_bond("tidecaller"):
 		tide_t = 0.0
 		stagger(1.2)
@@ -1981,6 +2009,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		main.sfx("hit_armor", 1.2, -2.0)
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
+	amount *= _bond().taken_mult(main, self)  # (Static II, Quarry II, the Maelstrom's drench)
 	if open_t > 0.0 and stun <= 0.0:
 		amount *= OPEN_MULT  # caught recovering from its attack
 		main.fx_text(global_position + Vector2(0, -radius - 34.0), "Opening!", Color(1.0, 0.85, 0.45))

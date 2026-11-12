@@ -340,7 +340,7 @@ static func _conduct(main, foe, r: Dictionary, k: float) -> void:
 			_arc(main, at, o.global_position, r["color"], 0.4)
 		main.fx_ring(o.global_position, r["color"], o.radius + 14.0, 0.3, 2.0)
 		o.stagger(float(r["stun"]) * (0.5 if o.is_boss() else 1.0))
-		o.take_hit(float(r["damage"]) * k, Vector2.ZERO, 0.0)
+		_lightning(main, o, float(r["damage"]) * k)
 	main.fx_ring(at, r["color"], float(r["radius"]), 0.35, 2.0)
 	main.hitstop(0.05)
 
@@ -436,9 +436,20 @@ static func _skybolt(main, foe, r: Dictionary, k: float) -> void:
 	main.fx_burst(at, Vector2.ZERO, r["color"], 18, 260.0)
 	if _alive(foe):
 		foe.stagger(float(r["stun"]) * (0.5 if foe.is_boss() else 1.0))
-		foe.take_hit(float(r["damage"]) * k, Vector2.ZERO, 0.0, true)
+		_lightning(main, foe, float(r["damage"]) * k, true)
 	main.shake(6.0)
 	main.hitstop(0.06)
+
+
+## A reaction's lightning strikes a foe (main.gd hit_kind: a foe drenched by
+## the Maelstrom's Apex takes double from it).
+static func _lightning(main, foe, dmg: float, heavy := false) -> void:
+	var was = main.get("hit_kind")
+	if was != null:
+		main.hit_kind = "lightning"
+	foe.take_hit(dmg, Vector2.ZERO, 0.0, heavy)
+	if was != null:
+		main.hit_kind = was
 
 
 ## A jagged arc of lightning from a to b that flickers for `secs` (Conduct, Skybolt).
