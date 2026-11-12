@@ -314,7 +314,7 @@ static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor
 	var kinds: Array = Scenarios.kinds_for(floor_num, tid)
 	kinds.shuffle()
 	for i in spots:
-		if n_scn <= 0 or kinds.is_empty():
+		if n_scn <= 0 or kinds.is_empty() or spots.filter(func(j): return not infos[j].has("fixed")).size() <= 2:  # (two rooms stay free: a den and another)
 			break
 		for k in kinds:
 			if Themes.fits("scn_" + k, infos[i], tid, tower):
@@ -326,9 +326,9 @@ static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor
 	# A calm rest room and a wandering trader, now and then (in a free room).
 	var free: Array = spots.filter(func(i): return not infos[i].has("fixed"))
 	free.shuffle()
-	if not free.is_empty() and randf() < float(style["rest"]) and Themes.fits("rest", infos[free[0]], tid, tower):
+	if free.size() >= 3 and randf() < float(style["rest"]) and Themes.fits("rest", infos[free[0]], tid, tower):
 		infos[free.pop_front()]["fixed"] = "rest"
-	if not free.is_empty() and floor_num >= int(style["trader_from"]) and randf() < float(style["trader"]) and Themes.fits("trader", infos[free[0]], tid, tower):
+	if free.size() >= 3 and floor_num >= int(style["trader_from"]) and randf() < float(style["trader"]) and Themes.fits("trader", infos[free[0]], tid, tower):
 		infos[free.pop_front()]["fixed"] = "trader"
 
 
@@ -624,7 +624,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		"torches": torches + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
 		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks,
 		"objective": objective, "chests": chests, "cracks": cracks, "rests": rests, "traders": traders, "scenarios": scenarios, "vaults": vaults,
-		"loops": loops.size(), "keep": keep, "ok": ok}
+		"loops": loops.size(), "keep": keep, "ok": ok, "bridges": infos.filter(func(x): return x.has("bridge")).map(func(x): return x["bridge"])}
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
@@ -672,6 +672,14 @@ static func _chests(infos: Array, monsters: Array, objective: Dictionary, scenar
 		if info.get("piece", false) and th["kind"] != "bad":
 			continue  # (a piece of the task is its reason to be)
 		var spot := Objectives._spot(info, monsters, 1, false)
+		if spot == Vector2.INF:
+			spot = Objectives._spot(info, [], 0, false, [], 0.0)  # (a crowded room: anywhere open)
+		if spot == Vector2.INF:
+			for t in Rooms.open_tiles(info["rows"], 0):
+				if not info["reserved"].has(t):
+					spot = Vector2(info["rect"].position) + (Vector2(t) + Vector2(0.5, 0.5)) * CELL
+					info["reserved"][t] = true
+					break
 		if spot == Vector2.INF:
 			continue
 		out.append({"pos": spot, "room": i, "rich": info["role"] == "branch"})
@@ -1066,13 +1074,28 @@ static func _chasm_band(idx: int, infos: Array, loops: Array = []) -> Array:
 			tiles.append(t)
 		if tiles.size() < length - 3:
 			continue
+		# Now and then a narrow bridge crosses it (two tiles of floor left in
+		# the band, drawn as planks): walk it, or jump the chasm anywhere else.
+		var bridge: Array = []
+		if randf() < float(BRIDGE["chance"]) and tiles.size() >= 6:
+			var k: int = randi_range(2, tiles.size() - 4)
+			bridge = [tiles[k], tiles[k + 1]]
 		for t in tiles:
 			info["reserved"][t] = true
 			for d in DIRS:
 				info["reserved"][t + d] = true
+			if t in bridge:
+				continue
 			band.append(Rect2(info["rect"].position + Vector2(t) * CELL, Vector2(CELL, CELL)))
+		if not bridge.is_empty():
+			var a: Rect2 = Rect2(info["rect"].position + Vector2(bridge[0]) * CELL, Vector2(CELL, CELL))
+			info["bridge"] = {"rect": a.merge(Rect2(info["rect"].position + Vector2(bridge[1]) * CELL, Vector2(CELL, CELL))), "vertical": vertical}
 		return band
 	return []
+
+
+## How often a chasm room gets a narrow bridge across its band.
+static var BRIDGE := {"chance": 0.5}
 
 
 ## A one-tile band across the longest corridor (four tiles long at least),
@@ -1560,7 +1583,7 @@ static func _locks(infos: Array, themes: Array, doors: Array, monsters: Array, w
 		var info: Dictionary = infos[d["room"]]
 		if d.get("loop", false) or String(d.get("lock", "")) != "" or info["role"] != "branch" or info.get("piece", false):
 			continue
-		if Themes.get_theme(info["theme"])["feature"] in ["scenario", "trader", "rest", "mirror"]:
+		if Themes.get_theme(info["theme"])["feature"] in ["scenario", "trader", "rest", "mirror", "den"]:
 			continue
 		cands.append(d)
 	for w in wings:

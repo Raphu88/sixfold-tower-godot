@@ -1408,6 +1408,7 @@ func lift_ward() -> void:
 		profile.note("puzzles")
 		MakersScript.feed(self, "puzzle")
 	else:
+		profile.note("tasks")
 		MakersScript.feed(self, "objective")
 	tip("stair")
 	banner = {"title": Objectives.TEXT["done_title"], "lines": [Objectives.TEXT["done"]], "t": 2.8}

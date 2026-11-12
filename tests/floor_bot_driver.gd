@@ -21,6 +21,10 @@ var limit := 300.0
 var floor0 := 0
 var why := ""  # what it's doing (for a failure's report)
 var log_lines: Array = []
+var last_step := {}
+var no_lure := {}  # monsters that wouldn't come to the plate
+var lure_mon = null
+var lure_t := 0.0
 
 # Walking
 var astar: AStarGrid2D
@@ -41,6 +45,7 @@ var foe = null
 var foe_t := 0.0
 var foe_hp := 0.0
 var foe_hit_t := 0.0
+var foe_dry := 0.0
 var ignore: Dictionary = {}  # enemy -> until
 var attack_cd := 0.0
 var swing_hold := 0  # ticks to keep attack held (a bow's draw)
@@ -78,8 +83,34 @@ func _finish(ok: bool, reason: String) -> void:
 		return
 	done = true
 	_release_all()
+	if not ok:
+		log_lines.append(_diagnose())
 	result = {"ok": ok, "why": reason, "time": t_game, "floor": floor0, "kind": main.objective.kind if main.objective != null else "",
 		"fights": fights, "hits": hits_taken, "close_calls": close_calls, "log": log_lines.slice(-8)}
+
+
+## Why a floor wasn't finished: where we stand, what we were after, and
+## whether a way there exists (with the doors as they are, and with every
+## door open), so a failure tells a bot's fault from the floor's.
+func _diagnose() -> String:
+	var p = main.player
+	var pos: Vector2 = p.global_position
+	var at: Vector2 = last_step.get("pos", main.stair_pos)
+	_build_grid()
+	var a := _tile(pos)
+	var b := _tile(at)
+	var ours := astar.get_id_path(a, b).size() if astar.region.has_point(a) and astar.region.has_point(b) else -1
+	for d in main.door_view.list:
+		for t in d["tiles"]:
+			astar.set_point_solid(t, false)
+	for t in avoid:
+		astar.set_point_solid(t, main.astar.is_point_solid(t))
+	var open := astar.get_id_path(a, b).size() if astar.region.has_point(a) and astar.region.has_point(b) else -1
+	var foe_s := ""
+	if foe != null and is_instance_valid(foe):
+		foe_s = " foe %s at %s (%d px, aware %s)" % [foe.kind, foe.global_position.round(), int(pos.distance_to(foe.global_position)), foe.aware]
+	return "at %s room %d, after %s at %s (%d px); path ours %d, all doors open %d; stuck %d; locks shut %s%s; cards %s %s; moving %s; input %s; overlay %s" % [pos.round(), main.room_at,
+		last_step.get("why", "?"), at.round(), int(pos.distance_to(at)), ours, open, stuck_n, main.door_view.lock_status(), foe_s, main.camp_choosing, main.camp.get("stage", ""), p.is_physics_processing(), Input.get_vector("move_left", "move_right", "move_up", "move_down").round(), main.overlay_showing()]
 
 
 func _note(s: String) -> void:
@@ -167,7 +198,7 @@ func _physics_process(delta: float) -> void:
 	# Cards (a reliquary, a vault, a trader): take the first, as a tap would.
 	if main.camp_choosing:
 		_release_all()
-		if main.camp.get("stage", "") == "vault":
+		if main.camp.get("choices", []).size() > 0:  # (a vault, the reliquary, a trader, a full belt's swap...)
 			main.choose_camp(0)
 		return
 	attack_cd -= delta
@@ -207,7 +238,7 @@ func _pick_foe():
 	var pos: Vector2 = p.global_position
 	var lock_on: bool = main.door_view != null and not main.door_view.lock_status().is_empty()
 	var pz = main.puzzle
-	var quiet_pz: bool = pz != null and pz.kind != "" and not pz.solved and pz.room.has_point(pos) and (not pz.awake or String(pz.kind) in ["ice", "crumble", "plates", "statues"])  # (clear the room before the ice, the stones or the plates)
+	var quiet_pz: bool = pz != null and pz.kind != "" and not pz.solved and pz.room.has_point(pos) and (not pz.awake or String(pz.kind) in ["ice", "crumble", "statues"])  # (clear the room before the ice, the stones or the plates)
 	var cur_room: Rect2 = Rect2()
 	if main.room_at >= 0 and main.room_at < main.room_info.size():
 		cur_room = main.room_info[main.room_at]["rect"]
@@ -230,7 +261,7 @@ func _pick_foe():
 			want = true
 		elif main.objective.kind == "keeper" and e == main.objective.keeper:
 			want = true
-		elif main.scenarios.running():
+		elif main.scenarios.running() and main.scenarios.active.get("mobs", []).has(e):
 			want = true
 		if want and d < best_d:
 			best_d = d
@@ -245,11 +276,12 @@ func _fight(e, delta: float) -> void:
 		foe_t = 0.0
 		foe_hp = e.hp
 		foe_hit_t = 0.0
+		foe_dry = 0.0
 		fights += 1
 	foe_t += delta
 	why = "fighting a %s" % e.kind
-	if foe_t > 14.0:
-		ignore[e] = t_game + 8.0  # (can't get at it: leave it a while)
+	if foe_dry > 10.0 or foe_t > 45.0:
+		ignore[e] = t_game + 20.0  # (no harm done to it for a while: leave it be)
 		foe = null
 		return
 	_equip("melee")
@@ -257,8 +289,10 @@ func _fight(e, delta: float) -> void:
 	if e.hp < foe_hp - 0.1:
 		foe_hp = e.hp
 		foe_hit_t = 0.0
+		foe_dry = 0.0
 	else:
 		foe_hit_t += delta
+		foe_dry += delta
 	if foe_hit_t > 2.5:
 		foe_hit_t = 0.0
 		var side: Vector2 = (e.global_position - p.global_position).orthogonal().normalized() * (1.0 if randf() < 0.5 else -1.0)
@@ -352,7 +386,9 @@ func _task_step() -> Dictionary:
 			return {"pos": pc["pos"], "act": "walk", "r": 6.0, "why": "a shard"}
 		"motes":
 			var pc := _nearest(ob.pieces.filter(func(x): return x["state"] != "done"))
-			return {"pos": pc["pos"], "act": "chase", "r": 4.0, "why": "a mote"}
+			var over: Vector2 = (pc["pos"] - pos).normalized() * 24.0 if pos.distance_to(pc["pos"]) < 160.0 else Vector2.ZERO
+			var want: Vector2 = main.walkable_point(pc["pos"], pc["pos"] + over, 10.0)  # (run through it: it flees)
+			return {"pos": want, "act": "chase", "r": 4.0, "why": "a mote"}
 	return {}
 
 
@@ -380,6 +416,7 @@ func _nearest(list: Array) -> Dictionary:
 # --- doing it ----------------------------------------------------------------------
 
 func _do(step: Dictionary, delta: float) -> void:
+	last_step = step
 	var p = main.player
 	var pos: Vector2 = p.global_position
 	var at: Vector2 = step["pos"]
@@ -445,6 +482,8 @@ func _go(at: Vector2, r := 12.0, chase := false) -> void:
 func _unstick() -> void:
 	var p = main.player
 	var pos: Vector2 = p.global_position
+	if foe != null and is_instance_valid(foe) and stuck_n % 3 == 0:
+		ignore[foe] = t_game + 25.0  # (we keep sticking on the way to it: leave it)
 	# A door shut to us (barred from this side): don't plan through it again.
 	for d in main.door_view.list:
 		if not d["open"] and d["rect"].grow(30.0).has_point(pos) and String(d["lock"]) != "":
@@ -584,8 +623,8 @@ func _shoot(at: Vector2, from: Vector2) -> void:
 	_aim(at - pos)
 	if swing_hold <= 0 and attack_cd <= 0.0 and not p.drawing:
 		Input.action_press("attack")
-		swing_hold = 50  # (held: a full draw flies straight and far)
-		attack_cd = 0.9
+		swing_hold = 28  # (held about half a second: a good arrow, quickly)
+		attack_cd = 0.6
 
 
 # --- precise steps (ice slides, stepping stones, pushing a block) ------------------
@@ -618,6 +657,12 @@ func _run_steps(delta: float) -> void:
 				_move(to.normalized() * clampf(to.length() / 30.0, 0.35, 1.0))
 		"slide":
 			var ice = main.puzzle.cur
+			var on: bool = ice.in_field(ice.grid(pos))
+			if not on and (s.get("started", false) or not s.get("enter", false)) and step_t > 0.2:
+				steps.clear()  # (off the ice: the rest of the line is for nothing)
+				step_t = 0.0
+				step_hp = 0.0
+				return
 			if not s.get("started", false):
 				# Push the stick that way until the slide begins (a rock right
 				# there: it never does, so move on after a moment).
@@ -682,7 +727,8 @@ func _puzzle_step() -> Dictionary:
 		"eyes":
 			for e in cur.eyes:
 				if e["lit"] <= 0.0:
-					return {"pos": e["pos"], "act": "shoot", "from": _shot_spot(e["pos"]), "why": "an eye"}
+					var unlit: Array = cur.eyes.filter(func(x): return x["lit"] <= 0.0).map(func(x): return x["pos"])
+					return {"pos": e["pos"], "act": "shoot", "from": _shot_spot(e["pos"], unlit), "why": "an eye"}
 			return {"pos": pos, "act": "stand", "r": 999.0, "why": "the eyes"}
 		"memory":
 			for m in cur.murals:
@@ -722,7 +768,7 @@ func _puzzle_step() -> Dictionary:
 
 
 ## A spot in the room in clear sight of a point (to shoot it).
-func _shot_spot(at: Vector2) -> Vector2:
+func _shot_spot(at: Vector2, all: Array = []) -> Vector2:
 	var pz = main.puzzle
 	var best := Vector2.INF
 	var best_d := INF
@@ -744,6 +790,9 @@ func _shot_spot(at: Vector2) -> Vector2:
 			if main.astar.is_point_solid(tq) or (not main.astar.is_point_solid(tp) and main.astar.get_id_path(tp, tq).is_empty()):
 				continue
 			var d: float = q.distance_to(at) + q.distance_to(main.player.global_position) * 0.3
+			for o in all:
+				if not main.clear_line(q, o):
+					d += 600.0  # (a spot that sees every eye at once is worth walking to)
 			if d < best_d:
 				best_d = d
 				best = q
@@ -868,7 +917,7 @@ func _plan_ice() -> Dictionary:
 		return {"pos": way_on, "act": "exact", "why": "the way onto the ice"}
 	steps = []
 	for i in range(1, route.size()):
-		steps.append({"kind": "slide", "dir": route[i], "max": 6.0})
+		steps.append({"kind": "slide", "dir": route[i], "max": 6.0, "enter": i == 1})
 	steps.append({"kind": "wait", "t": 0.8})
 	return idle
 
@@ -905,17 +954,39 @@ func _plates_step() -> Dictionary:
 		return {"pos": pos, "act": "none", "why": "pushing a block"}
 	# No block left: bring a monster onto the plate (stand past it, wait).
 	var plate2: Dictionary = free_plates[0]
+	# The nearest walker in (or by) the room; the room sends one if there's none.
 	var mon = null
+	var best_m := INF
+	var room: Rect2 = main.puzzle.room.grow(120.0)
 	for e in main.enemies():
-		if not (e.kind in main.EnemyScript.FLIERS) and not e.dead:
+		if e.kind in main.EnemyScript.FLIERS or e.dead or not room.has_point(e.global_position) or no_lure.has(e):
+			continue
+		if e.kind in ["archer", "bloomcap", "thunderling", "lurker"]:
+			continue  # (they keep their distance, or sink: no good on a plate)
+		var dm: float = e.global_position.distance_to(plate2["pos"])
+		if dm < best_m:
+			best_m = dm
 			mon = e
-			break
+	if mon != null:
+		if mon != lure_mon:
+			lure_mon = mon
+			lure_t = 0.0
+		lure_t += get_physics_process_delta_time()
+		if lure_t > 12.0:
+			no_lure[mon] = true  # (it won't come: fight it, and the room sends another)
+			lure_mon = null
+			return {"pos": plate2["pos"] + Vector2(0, 60), "act": "stand", "r": 20.0, "why": "waiting for a monster to lure"}
+	for e in main.enemies():
+		if not no_lure.has(e):
+			ignore[e] = t_game + 1.0  # (not now: we need them on the plate, not dead)
 	if mon == null:
-		# The room sends one in pressure mode; otherwise wait for a wanderer.
-		return {"pos": plate2["pos"], "act": "stand", "r": 40.0, "why": "waiting for a monster to lure"}
+		return {"pos": plate2["pos"] + Vector2(0, 60), "act": "stand", "r": 20.0, "why": "waiting for a monster to lure"}
+	# Stand past the plate from it: it comes to strike and stops on the plate.
 	var away: Vector2 = (plate2["pos"] - mon.global_position).normalized()
-	ignore[mon] = t_game + 1.0
-	return {"pos": plate2["pos"] + away * 34.0, "act": "stand", "r": 6.0, "why": "luring a monster onto the plate"}
+	var stand: Vector2 = plate2["pos"] + away * (float(mon.radius) + 22.0)
+	if main.is_solid(stand):
+		stand = plate2["pos"] - away * (float(mon.radius) + 22.0)
+	return {"pos": stand, "act": "stand", "r": 5.0, "why": "luring a monster onto the plate"}
 
 
 ## The pushes that bring a block to a spot: [[block tile, dir], ...] (a

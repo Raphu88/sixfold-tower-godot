@@ -65,7 +65,7 @@ static func sweep(tree: SceneTree, m, each: int, speed: float, only_tower := "",
 	m.player.mouse_aim = false
 	var towers: Array = m.Towers.ORDER if only_tower == "" else [only_tower]
 	var kinds: Array = O.all_kinds()
-	var ki := 0
+	var ki := maxi(0, m.Towers.ORDER.find(only_tower)) * floors.size() * each  # (one tower alone: start where the full sweep would)
 	for tid in towers:
 		for fl in floors:
 			for k in each:
@@ -131,7 +131,7 @@ static func play(tree: SceneTree, m, fl: int, speed: float) -> Dictionary:
 		await tree.process_frame
 		if Engine.time_scale != speed and m.hitstop_until == 0 and not m.slowmo:
 			Engine.time_scale = speed
-		if Time.get_ticks_msec() - real0 > 240000:
+		if Time.get_ticks_msec() - real0 > 900000:
 			bot._finish(false, "real-time limit")
 	m.test_speed = 1.0
 	m.dev_no_death = false

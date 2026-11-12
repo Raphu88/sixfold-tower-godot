@@ -40,6 +40,7 @@ var chests: Array = []  # {pos, room, rich, open, taken}
 var vaults: Array = []  # {pos, room, taken}
 var rests: Array = []  # {pos, room, rect}
 var traders: Array = []  # {pos, room, used}
+var bridges: Array = []  # {rect, vertical}: planks across a chasm (floors.gd)
 var check_t := 0.0
 var redraw_t := 0.0
 
@@ -58,6 +59,7 @@ func setup(plan: Dictionary) -> void:
 		rests.append(r.duplicate())
 	for t in plan.get("traders", []):
 		traders.append({"pos": t["pos"], "room": t["room"], "used": false})
+	bridges = plan.get("bridges", []).duplicate()
 	check_t = 0.0
 	queue_redraw()
 
@@ -67,6 +69,7 @@ func clear() -> void:
 	vaults.clear()
 	rests.clear()
 	traders.clear()
+	bridges.clear()
 	queue_redraw()
 
 
@@ -103,7 +106,10 @@ func _process(delta: float) -> void:
 		if r["rect"].has_point(pos) and p.hp < p.max_health():
 			p.hp = minf(p.max_health(), p.hp + float(RULES["rest_heal"]) * delta * p.heal_mult())
 	for t in traders:
-		if not t["used"] and pos.distance_to(t["pos"]) < reach + 8.0:
+		if t.get("rearm", false) and pos.distance_to(t["pos"]) > reach + 50.0:
+			t["rearm"] = false
+			t["used"] = false
+		if not t["used"] and not t.get("rearm", false) and pos.distance_to(t["pos"]) < reach + 8.0:
 			t["used"] = true
 			_offer_trade(t)
 	redraw_t -= delta
@@ -167,13 +173,15 @@ func card(pick: String) -> Dictionary:
 ## Returns what to say.
 func take(pick: String) -> String:
 	if pick == "trade:leave":
+		for t in traders:
+			t["rearm"] = true  # (step away and come back to trade again)
 		return ""
 	var id := pick.get_slice(":", 1)
 	var cost := float(pick.get_slice(":", 2))
 	var held := purse()
 	if held + 0.001 < cost:
 		for t in traders:
-			t["used"] = false  # (come back when you can pay)
+			t["rearm"] = true  # (come back when you can pay: once you've stepped away)
 		return TEXT["trade_short"] % int(cost)
 	for k in main.run_essence.keys():
 		main.run_essence[k] = maxf(0.0, float(main.run_essence[k]) - cost * float(main.run_essence[k]) / held)
@@ -183,6 +191,8 @@ func take(pick: String) -> String:
 func _draw() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	var pulse := 0.5 + 0.5 * sin(t * 3.0)
+	for br in bridges:
+		_draw_bridge(br["rect"], br["vertical"])
 	for c in chests:
 		_draw_chest(c, pulse)
 	for v in vaults:
@@ -210,6 +220,29 @@ func _draw() -> void:
 		draw_rect(Rect2(at + Vector2(14, -2), Vector2(14, 14)), Palette.OUTLINE, false, 1.5)
 		if not tr["used"]:
 			draw_arc(at, 24.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.3 + 0.3 * pulse), 2.0)
+
+
+## Planks across the chasm, rope along both sides (the band runs north-south
+## when `vertical`, so you cross it east-west).
+func _draw_bridge(r: Rect2, vertical: bool) -> void:
+	draw_rect(r.grow(1.0), Color(0.08, 0.06, 0.05))
+	var wood := Color(0.46, 0.33, 0.2)
+	var n := 6
+	for k in n:
+		var f := float(k) / n
+		var plank: Rect2
+		if vertical:
+			plank = Rect2(r.position.x + f * r.size.x + 1.0, r.position.y + 2.0, r.size.x / n - 2.0, r.size.y - 4.0)
+		else:
+			plank = Rect2(r.position.x + 2.0, r.position.y + f * r.size.y + 1.0, r.size.x - 4.0, r.size.y / n - 2.0)
+		draw_rect(plank, wood.lightened(0.06 * (k % 2)))
+	var rope := Color(0.7, 0.6, 0.42)
+	if vertical:
+		draw_line(r.position + Vector2(-4, 3), Vector2(r.end.x + 4, r.position.y + 3), rope, 2.0)
+		draw_line(Vector2(r.position.x - 4, r.end.y - 3), r.end + Vector2(4, -3), rope, 2.0)
+	else:
+		draw_line(r.position + Vector2(3, -4), Vector2(r.position.x + 3, r.end.y + 4), rope, 2.0)
+		draw_line(Vector2(r.end.x - 3, r.position.y - 4), r.end + Vector2(-3, 4), rope, 2.0)
 
 
 func _draw_chest(c: Dictionary, pulse: float) -> void:

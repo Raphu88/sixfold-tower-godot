@@ -257,8 +257,9 @@ func solve() -> void:
 		main.gather_essence(main.tower_data().get("essence", "air"), amount, r)
 		main.fx_ring(r, Color(1.0, 0.85, 0.5), 60.0, 0.5, 3.0)
 	# The floor's task (objective.gd), or an optional puzzle's own vault.
-	if main.objective != null and main.objective.kind != "":
-		main.objective.puzzle_solved(self)
+	var ob = main.get("objective")
+	if ob != null and (spec.get("optional", false) or (ob.kind != "" and ob.spec.get("puzzle", false))):
+		ob.puzzle_solved(self)
 	else:
 		main.lift_ward()
 	main.fx_text(room.get_center() + Vector2(0, -50), TEXT["solved"] % display_name(), Color(1.0, 0.89, 0.63))
