@@ -59,7 +59,7 @@ func _plan(tid: String, fl: int, kind := "") -> Dictionary:
 func _floor_with(tid: String, fl: int, kind: String, want: Callable) -> bool:
 	var main = t.main
 	main.tower = tid
-	for n in 25:
+	for n in 60:
 		Objectives.forced = kind
 		Objectives.climb_used.clear()
 		main._start_floor(fl + n % 4)
