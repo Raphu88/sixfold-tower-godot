@@ -296,6 +296,8 @@ func _golem() -> void:
 	var main = t.main
 	var p = main.player
 	var e = main.spawn_enemy("golem", main.walkable_point(p.global_position, p.global_position + Vector2(140, 0), 14.0))
+	e.max_hp = 9999.0  # (the checks strike it many times: it must outlive them)
+	e.hp = 9999.0
 	await t._frames(2)
 	_check(e.get_script() == load("res://scripts/towers/forge_golem.gd"), "a golem is spawned with its own script (enemy.gd SUBKINDS)")
 	e.aware = true
@@ -398,9 +400,13 @@ func _manticore_system() -> void:
 		return
 	var p = main.player
 	# Shade hides you; the sun gives you away.
-	var sh: Vector2i = tf.shade.keys()[0]
+	var shades: Array = tf.shade.keys().filter(func(k): return not main.is_solid(Man._world(k)))
+	var sh: Vector2i = shades[0] if not shades.is_empty() else tf.shade.keys()[0]
+	t.paused = false
+	p.set_physics_process(true)
+	p.velocity = Vector2.ZERO
 	p.global_position = Man._world(sh)
-	await t._frames(3)
+	await t._until(func(): return is_equal_approx(main.sight_k(), float(Man.SHADE["sight"])), 1.5)  # (the floor reads where you stand each tick)
 	_check(is_equal_approx(main.sight_k(), float(Man.SHADE["sight"])), "in the shade monsters notice you only from nearer (%.2f)" % main.sight_k())
 	var foe = main.spawn_enemy("scorpling", main.walkable_point(p.global_position, p.global_position + Vector2(0, 260), 14.0))
 	foe.aware = true
@@ -488,6 +494,8 @@ func _burrower() -> void:
 	var p = main.player
 	var dr: Vector2i = tf.sand.keys()[0]
 	var e = main.spawn_enemy("burrower", Man._world(dr))
+	e.max_hp = 9999.0  # (the checks strike it many times: it must outlive them)
+	e.hp = 9999.0
 	e.global_position = Man._world(dr)
 	await t._frames(2)
 	_check(e.get_script() == load("res://scripts/towers/burrower.gd") and e.submerged, "a burrower waits under the sand, out of reach")

@@ -1977,6 +1977,7 @@ func _room_fog_tests() -> void:
 	main.first_climb = false
 	var ok_ids := true
 	var ok_reach := true
+	var with_made := 0
 	for n in 6:
 		var plan: Dictionary = F.rooms_floor(2 + n % 3, main.Towers.TOWERS["firebird"] if n % 2 == 0 else main.Towers.TOWERS["kraken"])
 		var ids: Array = plan.get("room_ids", [])
@@ -1984,7 +1985,9 @@ func _room_fog_tests() -> void:
 		var uniq := {}
 		for id in made:
 			uniq[id] = true
-		ok_ids = ok_ids and ids.size() == plan["rooms"].size() and uniq.size() == made.size() and made.size() >= 1
+		ok_ids = ok_ids and ids.size() == plan["rooms"].size() and uniq.size() == made.size()
+		with_made += 1 if made.size() >= 1 else 0
+	ok_ids = ok_ids and with_made >= 4  # (scenario and task rooms take some cells now: most floors, not every one, hold a hand-made room)
 	for n in 4:
 		main.tower = main.Towers.ORDER[n]
 		main._start_floor(3)
@@ -1994,7 +1997,7 @@ func _room_fog_tests() -> void:
 		var from: Vector2i = main._tile_of(main.player_start)
 		var to: Vector2i = main._tile_of(main.stair_pos)
 		ok_reach = ok_reach and not main.astar.get_id_path(from, to).is_empty()
-	_check(ok_ids, "each floor mixes hand-made rooms (none twice on a floor) with carved ones")
+	_check(ok_ids, "floors mix hand-made rooms (none twice on a floor) with carved ones (%d of 6 hold one)" % with_made)
 	_check(ok_reach, "the stair can always be reached through the rooms")
 	# Fog: you see what your climber can see.
 	var fog = main.fog
