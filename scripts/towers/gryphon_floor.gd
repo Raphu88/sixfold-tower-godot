@@ -257,6 +257,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	plan["span"] = Grid.merge(gap_tiles)
 	plan["impassable"] = Grid.merge(drop_tiles)
 	plan["sky_bridges"] = bridges
+	plan["bridged_corridors"] = links.filter(func(l): return not l["link"].get("flank", []).is_empty()).size()  # (corridors that became bridges: the tests count them)
 	plan["tower_floor"] = {"module": PATH}
 	plan["floor_num"] = floor_num
 

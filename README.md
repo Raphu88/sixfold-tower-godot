@@ -725,6 +725,65 @@ The Gryphon's floors are built by `scripts/towers/gryphon_floor.gd` (the Data ed
 
 Tests: `tests/parts/towers_kraken_gryphon.gd` (layouts, reachability over dozens of floors, the water and the wind, both tasks, both creatures, both scenarios, and the floor bot on both towers). The floor bot sweep can be narrowed to one tower: `godot --headless --fixed-fps 60 -s tests/floor_bot_sweep.gd -- 2 tower=kraken`.
 
+### Giving a tower its own floors: the content contract
+
+Every tower with floors of its own (today the Gryphon, the Kraken, the Wyvern and the Manticore) works the same way, so a new one plugs in without touching shared code:
+
+1. **Its floor script** is `scripts/towers/<tower>_floor.gd` and `extends "res://scripts/towers/tower_floor.gd"`. That base file lists every hook and does nothing in each one, so a tower overrides only what it needs. Don't declare `var main` (the base has it).
+2. **Name it** in the tower's entry in `scripts/floor_styles.gd` as `"module": "res://scripts/towers/<tower>_floor.gd"`. Room shapes of its own go in `SHAPE_MODULES` (shape name → script) and are carved by its `carve(shape, size)`. Other style keys it can set: `shapes`, `own_shapes`, `gallery`, `room_grow`, `prefab`, `loops`, `corridor`.
+3. **Planning hooks** (static, called while a floor is planned):
+   - `shape_corridors(infos, links, corridors, walk) -> Array` returns the corridors' walkable rects. One straight rect per link comes in. The hook may record `link["tiles"]` and `link["path"]`.
+   - `shape_plan(plan, infos, links, floor_num, tower)` lays the tower's ground over the finished plan. Set `plan["ok"] = false` to have the floor planned again. It writes:
+     - `plan["tower_floor"] = {"module": <its path>, ...}`. `main.gd` makes the node from this.
+     - `plan["impassable"]`: Rect2s nobody walks. `reach.gd` and the traps treat them as rock. Today: deep pools, flooding corridors, open drops, molten metal.
+     - `plan["gates"]`: `[{tiles, lock_id, opens: {any: [tiles]} or {all: [tiles]}}]`, ground that's shut until what opens it is reached. `reach.gd` counts each one as a locked door, and the traps keep off it. Today: the Kraken's moat and sunken rooms, the Gryphon's gap, the Wyvern's raised bridges.
+   - Shared checks that help: `scripts/towers/water_wind_grid.gd` has `cuts()`, which checks that impassable ground cuts nothing off, with doors open and with locked doors shut.
+   - `place_task(kind, spec, infos, cands, dist, monsters, floor_num, cell)` places the pieces of its own task kind. The default spreads them over `cands` the plain way (`objectives.gd place_spread`).
+   - `scenario_plan(kind, info, gates, floor_num, cell)` returns its own scenario's marks, or `{}` when the room won't do.
+4. **Its own task kind** goes in `objectives.gd KINDS` with `"towers": [<tower>]` and `"module": <its path>`.
+5. **Its own scenario** goes in `scenarios.gd SCENARIOS` with `"towers"`, `"module"`, optional `"seal"` (the doors shut while it runs) and `"weight"`. Give it an `scn_<kind>` room in `themes.gd`.
+6. **Hooks in play** are called on `main.tower_floor`, the node made fresh each floor:
+   - building: `setup(plan)`, `clear()`
+   - ground: `blocks_walking(tile)` (also counts in `main.is_solid`), `slow_at(pos)`, `wet(pos)` (shallow water: `main.in_water`), `sight_k()` (how far monsters notice you), `is_void(pos)` (an open drop), `reach_live(solid, size, doors, opens)` (for the safety net)
+   - the dev tool: `open_gates()` (Open all doors opens its gates too)
+   - swings: `strike(from, dir, reach, arc)` (every melee swing)
+   - its task: `task_tick(ob, delta, p, hurt)`, `task_strike(ob, from, dir, reach, arc)`; it draws its own pieces
+   - its scenario: `scenario_begin(s, host)`, `scenario_tick(s, delta, p, host)` (calls `host._finish(s, grade)`), `scenario_title(s)`, `scenario_status(s)`, `scenario_goal(s)`; it draws it too
+7. **Floor bot hooks** (`tests/floor_bot_driver.gd`):
+   - `bot_step(bot)`: a step before anything else (a crank)
+   - `bot_task(bot)`: its own task's next step
+   - `bot_grid(astar, bot)`: costs and walls on the bot's grid
+   - `bot_avoid()`: tiles never to step on
+   - `bot_steer(pos, d)`: adjusts the stick (bracing against wind)
+8. **Its creature** is a script that `extends "res://scripts/enemy.gd"`, listed in `enemy.gd SUBKINDS` and spawned with `EnemyScript.make(kind)`. It overrides what it needs: `setup`, `_act`, `_draw_own`, `_overlay_extra`, `take_hit`, `on_parried`. Give it an entry in `enemy.gd TYPES`, `floors.gd MONSTERS`, `essence.gd DROPS`, `gear.gd FAVOUR`, the tower's `weights`, and sounds in `sound_bank.gd` (`hurt_<kind>`, `kill_<kind>`).
+9. **Data editor:** put its tables in `static var`s and register them in `data_registry.gd`.
+10. **Drawing and sight:**
+    - `paint_layout(room_view, batch) -> bool`: draws the floor's walls, rock, cover and door posts itself (`room.gd`).
+    - `sight_open() -> PackedByteArray`: rock the eye sees across, one byte per grid tile, read as each floor starts (`fog.gd`).
+    - Anything else it draws, it draws on its own node (z under the climber), or on a child it adds to `main.room_view` (as the Kraken's water does, under the pillars).
+
+**Older per-tower hooks map onto these:**
+
+| Older hook | Use instead |
+| --- | --- |
+| a style's "builder", `after_build(plan, infos, links, floor_num, tower, style)` | the style's `module` and `shape_plan(plan, infos, links, floor_num, tower)` (the style is `floor_styles.gd for_tower(tid)`) |
+| a style's "script", `finish_plan`, `script_for` | the same |
+| an organic `carve()` | `carve()` with the shape in `SHAPE_MODULES` |
+| the "prefab" factor | the style's `prefab` |
+| `main.tower_systems` / `tower_call(name)` | the one `main.tower_floor` and its hooks (a tower with several systems runs them inside its own node) |
+| `tower_call("strike")` from `player._melee` | `strike()` |
+| a `water_slow` factor | `slow_at()` (and `wet()` for shallow water) |
+| `main.sight_open` / `fog.see_open` | `sight_open()` |
+| how far you're seen | `sight_k()` |
+| `room.gd layout_painter.paint()` | `paint_layout()` |
+| "towers"/"script" task kinds with custom delegation | "towers"/"module" kinds, `place_task` / `task_tick` / `task_strike` (the kind draws itself) |
+| "towers"/"script" scenarios and `handler()` | "towers"/"module" scenarios and the `scenario_*` hooks |
+| creature hooks | an `enemy.gd SUBKINDS` script |
+| `bot_go` | `bot_steer()` (or `bot_step()` for a step of its own) |
+| a custom `bot_step` | `bot_step()` |
+| `bot_grid` | `bot_grid()` |
+| `no_foot` / `fluid_locks` / `lever_gates` | `impassable` and `gates` |
+
 ## Marks, essence and the Regard
 
 - **Six body parts**, one for each of the six towers: hand, legs, heart, brow, throat and back. Each holds one mark. A **backstab** (striking a foe that faces away from you, because it has committed to an attack or you rolled behind it) deals 50% more damage.
@@ -1221,6 +1280,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/towers/gryphon_floor.gd` | The Gryphon's floors: drops, bridges, the floors seen below, the wind, the vanes task and the Long Bridge |
 | `scripts/towers/deepfin.gd`, `scripts/towers/harrier.gd` | The Kraken's deepfin and the Gryphon's harrier: how they act and look |
 | `scripts/towers/water_wind_grid.gd` | Tile helpers for both: the "nothing cut off" check, corridors along their length |
+| `scripts/towers/tower_floor.gd` | The base every tower's floor script extends: every hook (planning, in play, the floor bot), each doing nothing until a tower overrides it (see the content contract under Towers) |
 | `scripts/objectives.gd` | The floor's one task: the kinds (braziers, runes, levers, orb, Keeper, wardstone, shards, motes, and the puzzles), their words, counts and timings, picking one per floor (no repeats in a climb) and placing its pieces |
 | `scripts/objective.gd` | The task in play: its pieces, the HUD's line and arrow, lifting the ward, the stair's gold light, essence and reliquary |
 | `scripts/scenarios.gd` | Scenario rooms: the mark, the six set pieces (defend, collapse, duel, unseen, rescue, gauntlet), grades, and what's noticed (renown, the Makers, `main.noticed`) |

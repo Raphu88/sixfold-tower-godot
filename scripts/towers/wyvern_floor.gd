@@ -847,6 +847,14 @@ func _in_swing(from: Vector2, dir: Vector2, reach: float, arc_deg: float, at: Ve
 
 
 ## A crank turned: its bridge comes down for good.
+## The dev tool's Open all doors (main.gd open_all_doors): every raised
+## bridge comes down.
+func open_gates() -> void:
+	for ch in channels:
+		if ch.has("crank"):
+			lower(ch)
+
+
 func lower(ch: Dictionary) -> void:
 	if ch["lowered"]:
 		return

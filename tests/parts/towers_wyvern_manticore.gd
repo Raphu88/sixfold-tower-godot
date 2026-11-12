@@ -423,7 +423,7 @@ func _manticore_system() -> void:
 			break
 	if spot != Vector2.INF:
 		p.global_position = spot
-		await t._frames(3)
+		await t._until(func(): return is_equal_approx(main.sight_k(), float(Man.SUN["sight"])), 1.5)  # (the floor reads where you stand each tick)
 		_check(is_equal_approx(main.sight_k(), float(Man.SUN["sight"])), "in the sun you're seen from farther (%.2f)" % main.sight_k())
 	var x0: float = tf._sun_at(s)
 	_check(float(s["hi"]) > float(s["lo"]), "the sun shaft moves across its court (now at %.0f)" % x0)

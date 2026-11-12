@@ -3860,6 +3860,9 @@ func _setup_tower_floor(plan: Dictionary) -> void:
 		tower_floor.clear()
 		tower_floor.queue_free()
 	tower_floor = null
+	if room_view != null and room_view.layout_painter != null:
+		room_view.layout_painter = null
+		room_view.queue_redraw()
 	var spec: Dictionary = plan.get("tower_floor", {})
 	if spec.is_empty() or not spec.has("module"):
 		return
@@ -3867,6 +3870,8 @@ func _setup_tower_floor(plan: Dictionary) -> void:
 	tower_floor.main = self
 	add_child(tower_floor)
 	tower_floor.setup(plan)
+	room_view.layout_painter = tower_floor  # (its paint_layout hook: the floor is drawn again with it)
+	room_view.queue_redraw()
 
 
 func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:

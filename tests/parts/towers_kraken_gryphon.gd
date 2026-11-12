@@ -101,14 +101,14 @@ func _layouts() -> void:
 		tagged_g = tagged_g and plan.get("tower_floor", {}).get("module", "") == G.PATH
 		if not plan.get("voids", []).is_empty():
 			with_voids += 1
-		if not plan.get("sky_bridges", []).is_empty():
+		if not plan.get("sky_bridges", []).is_empty() or int(plan.get("bridged_corridors", 0)) > 0:
 			bridged += 1
 	_check(tagged_g, "the Gryphon's floors are built by its own floor script")
 	_check(with_voids >= 11, "its halls open onto drops (%d of 12 floors)" % with_voids)
 	_check(bridged >= 6, "...crossed by bridges and walkways (%d of 12)" % bridged)
 	# Other towers keep their plain corridors and no tower system.
 	var plain := _plan("wyvern", 5)
-	_check(not plain.has("tower_floor") and not plain.has("water") and not plain.has("voids"), "other towers are untouched")
+	_check(not plain.has("water") and not plain.has("voids") and String(plain.get("tower_floor", {}).get("module", "")) != K.PATH, "other towers keep their own floors (no water, no drops)")
 
 
 ## Reachability: over dozens of floors of each, the stair, every room and

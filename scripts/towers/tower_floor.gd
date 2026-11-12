@@ -40,6 +40,13 @@ extends Node2D
 ##   wet(pos) -> bool                     shallow water (main.in_water)
 ##   sight_k() -> float                   how far monsters see you, a share
 ##   is_void(pos) -> bool                 an open drop (the bot keeps off)
+##   sight_open() -> PackedByteArray      per grid tile, 1 where the eye sees
+##                                        across rock (an abyss): fog.gd; empty
+##                                        for none (read as each floor starts)
+##   paint_layout(room_view, batch) -> bool
+##                                        draws the floor's walls, rock, cover
+##                                        and door posts itself (true), or
+##                                        leaves them to room.gd (false)
 ##   reach_live(solid, size, doors, opens)
 ##                                        the live floor's ground and gates
 ##                                        for reach.gd's safety net
@@ -110,6 +117,14 @@ func sight_k() -> float:
 
 
 func is_void(_pos: Vector2) -> bool:
+	return false
+
+
+func sight_open() -> PackedByteArray:
+	return PackedByteArray()
+
+
+func paint_layout(_room_view, _batch) -> bool:
 	return false
 
 

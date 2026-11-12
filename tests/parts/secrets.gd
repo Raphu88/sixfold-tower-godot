@@ -84,8 +84,8 @@ func _carved_everywhere() -> void:
 	for tid in main.Towers.ORDER:
 		main.tower = tid
 		for n in 40:
-			if found.get(tid, 0) >= 3:
-				break
+			if found.get(tid, 0) >= 3 and (contents.size() == 3 or found.get(tid, 0) >= 8):
+				break  # (three a tower, more until every kind of contents has turned up: they're random)
 			var fl: int = 2 + n % 10
 			if fl == 6:
 				continue
