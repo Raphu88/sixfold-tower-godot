@@ -24,6 +24,7 @@ extends RefCounted
 ## (spell_fx.gd): they pause with the fight and a new floor clears them.
 
 const FX := preload("res://scripts/spell_fx.gd")
+const Reactions := preload("res://scripts/reactions.gd")
 const Projectile := preload("res://scripts/projectile.gd")
 
 ## A big beast is held only this much as long by a stun.
@@ -139,6 +140,19 @@ static func _alive(e) -> bool:
 	return e != null and is_instance_valid(e) and not e.dead
 
 
+## Water soaks what it touches (reactions.gd STATES).
+static func _wet(main, e, source = null) -> void:
+	if _alive(e):
+		Reactions.apply(main, e, "soaked", float(Reactions.STATES["soaked"]["seconds"]), source)
+
+
+## A drain on a foe: Hemorrhage doubles it if the foe bleeds (reactions.gd).
+static func _drain_mult(main, e, source) -> float:
+	if _alive(e) and "hemorrhage" in Reactions.apply(main, e, "drained", 0.0, source):
+		return Reactions.num("hemorrhage", "mult")
+	return 1.0
+
+
 ## The monsters' shots in flight (projectile.gd, not yours or turned back).
 static func _foe_shots(main) -> Array:
 	return main.get_children().filter(func(c): return c.get_script() == Projectile and not c.friendly and not c.is_queued_for_deletion())
@@ -179,6 +193,7 @@ static func _flood(bond, sp: Dictionary, p) -> void:
 				continue
 			e.chill_t = maxf(e.chill_t, 0.7)
 			e.take_hit(dmg, Vector2.ZERO, 0.0)
+			_wet(main, e, bond)
 	var paint := func(n):
 		_draw_water(n, at, radius * clampf(n.age / 0.35, 0.2, 1.0), col, n.fade(0.6))
 	_lasting(main, float(bond.stat("duration")), tick, paint)
@@ -223,6 +238,7 @@ static func _geyser_burst(main, at: Vector2, radius: float, dmg: float, stun: fl
 		e.take_hit(dmg, to.normalized() if to.length() > 0.1 else Vector2.RIGHT, 160.0)
 		if _alive(e):
 			e.stagger(stun * (BOSS_SHARE if e.is_boss() else 1.0))
+			_wet(main, e, "geysers")
 	var paint := func(n):
 		var k: float = clampf(n.age / n.total, 0.0, 1.0)
 		var a: float = 1.0 - k
@@ -361,7 +377,7 @@ static func _tidebreak(bond, sp: Dictionary, p) -> void:
 			n.finish()
 			return
 		if st["parried"] and p.barrier_hp > 0.0:
-			main.add_wave(p.global_position, p.aim, width, travel, dmg, push, false, WATER)
+			main.add_wave(p.global_position, p.aim, width, travel, dmg, push, false, WATER, {"states": {"soaked": float(Reactions.STATES["soaked"]["seconds"])}, "source": bond})
 			main.fx_text(p.global_position + Vector2(0, -48), TEXT["tidebreak"], col)
 			main.sfx("wave")
 			main.sfx("gust", 0.8, -4.0)
@@ -412,9 +428,12 @@ static func _leech(bond, sp: Dictionary, p) -> void:
 		if st["tick"] <= 0.0:
 			st["tick"] = 1.0
 			st["drop"] = 0.35
-			st["e"].take_hit(dmg, Vector2.ZERO, 0.0)
+			var d: float = dmg * _drain_mult(main, st["e"], bond)
+			if _alive(st["e"]):
+				st["e"].take_hit(d, Vector2.ZERO, 0.0)
+				_wet(main, st["e"], bond)
 			if _alive(p):
-				p.hp = minf(p.max_health(), p.hp + dmg * heal * p.heal_mult())
+				p.hp = minf(p.max_health(), p.hp + d * heal * p.heal_mult())
 	var paint := func(n):
 		var e = st["e"]
 		if not _alive(e):
@@ -452,7 +471,10 @@ static func _drown(bond, sp: Dictionary, p) -> void:
 	var hurt: bool = e.hp < e.max_hp * 0.5
 	var at: Vector2 = e.global_position
 	var r: float = e.radius
-	e.take_hit(dmg, Vector2.ZERO, 0.0, true)
+	_wet(main, e, bond)
+	dmg *= _drain_mult(main, e, bond)
+	if _alive(e):
+		e.take_hit(dmg, Vector2.ZERO, 0.0, true)
 	if hurt and _alive(e):
 		e.stagger(float(bond.stat("stun")) * (BOSS_SHARE if e.is_boss() else 1.0))
 		main.fx_text(at + Vector2(0, -r - 22.0), TEXT["drowned"], col)

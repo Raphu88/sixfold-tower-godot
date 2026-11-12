@@ -3,6 +3,7 @@ extends Node2D
 ## them back. Friendly arrows (yours, or reflected ones) hit monsters instead.
 
 const Draw := preload("res://scripts/draw_util.gd")
+const Pacts := preload("res://scripts/pacts.gd")
 
 var main
 var vel := Vector2.ZERO
@@ -101,6 +102,10 @@ func _physics_process(delta: float) -> void:
 					queue_free()
 					return
 				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy, weapon, shot, fills)
+				# Whirling Steel (Blade Forger and Windwalker): a conjured blade lifts a light foe.
+				if style == "blade" and is_instance_valid(e) and not e.dead and not e.is_boss() and Pacts.has(main.player, "whirling_steel") \
+						and float(e.weight) <= Pacts.num("whirling_steel", "weight") and e.airborne <= 0.0:
+					e.lift(Pacts.num("whirling_steel", "lift"))
 				if not pierce:
 					queue_free()
 					return

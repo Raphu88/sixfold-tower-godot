@@ -328,8 +328,12 @@ func add_landing(after: float, r: float, dmg: float, w: Dictionary, power: float
 	landings.append({"t": after, "r": r, "dmg": dmg, "w": w, "power": power, "col": col})
 
 
-func add_dot(e, dps: float, seconds: float, col: Color) -> void:
+## `state`: the foe holds it while the dot lasts (a blade's cut: "bleeding",
+## reactions.gd); the dot itself does the damage.
+func add_dot(e, dps: float, seconds: float, col: Color, state := "") -> void:
 	dots.append({"e": e, "dps": dps, "t": seconds, "tick": 0.5, "col": col})
+	if state != "" and is_instance_valid(e) and not e.dead:
+		load("res://scripts/reactions.gd").apply(main, e, state, seconds, "unbound", -1.0)
 
 
 func _tick_bolts(delta: float) -> void:
