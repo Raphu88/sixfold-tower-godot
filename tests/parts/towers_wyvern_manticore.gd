@@ -462,9 +462,9 @@ func _sunstones_task() -> void:
 	ob.strike(p.global_position, Vector2.UP, 60.0, 60.0)
 	_check(int(pc["face"]) == (f0 + 1) % 8, "striking a sun stone turns it an eighth")
 	# Sun on the stone, facing away: nothing; facing its seal: it wakes.
-	var per := float(Man.SEAL["period"])
 	for q in ob.pieces:
-		q["phase"] = fposmod(0.17 - Time.get_ticks_msec() / 1000.0 / per, 1.0)  # (its skylight coming over it now)
+		q["sun_a"] = q["pos"]  # (its skylight held right over it: no waiting on the sun's timing)
+		q["sun_b"] = q["pos"]
 	pc["face"] = (int(pc["want"]) + 4) % 8
 	await t._wait(0.4)
 	_check(tf.stone_lit(pc) and pc["state"] != "done" and float(pc["charge"]) == 0.0, "the sun on a stone facing away lights nothing")
@@ -473,7 +473,8 @@ func _sunstones_task() -> void:
 	_check(pc["state"] == "done", "turned to face its seal while the sun is on it: the seal wakes")
 	for q in ob.pieces:
 		q["face"] = q["want"]
-		q["phase"] = fposmod(0.17 - Time.get_ticks_msec() / 1000.0 / per, 1.0)
+		q["sun_a"] = q["pos"]
+		q["sun_b"] = q["pos"]
 	await t._wait(float(Man.SEAL["charge"]) + 0.4)
 	_check(ob.done and not main.ward, "every seal awake: the stair's ward lifts")
 
