@@ -25,6 +25,8 @@ static var MONSTERS := {
 	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 3, "only": true},
+	"ashwing": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},
+	"briar": {"cost": 1.8, "weight": 1.0, "from": 3, "only": true},
 }
 const MAX_MONSTERS := 9
 ## How the climb gets harder with height (the Data editor's "Monsters"):
@@ -71,6 +73,7 @@ const Objectives := preload("res://scripts/objectives.gd")
 const Cracks := preload("res://scripts/cracks.gd")
 const Styles := preload("res://scripts/floor_styles.gd")
 const Scenarios := preload("res://scripts/scenarios.gd")
+const Organic := preload("res://scripts/towers/organic.gd")
 
 ## The grid's tiles start here (world px), CELL px each.
 const ORIGIN := Vector2(80, 100)
@@ -503,6 +506,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 				else:
 					sc["room"] = i
 					blocks.append_array(sc.get("blocks", []))  # (the Watchful Hall's cover)
+					chasms.append_array(sc.get("chasms", []))  # (the Burning Bridge's chasm)
 					scenarios.append(sc)
 			"chasm":
 				var band := _chasm_band(i, infos, loops)
@@ -633,6 +637,10 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
+	# A tower's own floor features, laid last (floor_styles.gd "builder": the
+	# Firebird's updrafts and burning bridges, the Thornwild's thorns...).
+	if String(style.get("builder", "")) != "":
+		load(String(style["builder"])).after_build(plan, infos, links, floor_num, tower, style)
 	return plan
 
 
@@ -821,8 +829,10 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 		var gl: Array = ROOM_SIZE["gallery"]
 		var gsize := Vector2i(mini(randi_range(int(gl[0]), int(gl[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(gl[2]), int(gl[3])), Rooms.MAX_SIZE.y))
 		var gshape: String = gshapes[randi() % gshapes.size()]
-		return {"id": "carved_" + gshape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(gshape, gsize)), "size": gsize, "shape": gshape}
-	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)):
+		return {"id": "carved_" + gshape, "prefab": false, "rows": Rooms.prepare(carve(gshape, gsize)), "size": gsize, "shape": gshape}
+	# (floor_styles.gd "prefab": a tower whose rooms are grown or broken, not built, has fewer hand-made ones)
+	var prefab_k: float = 1.0 if role == "stair" else float(style.get("prefab", 1.0))
+	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)) * prefab_k:
 		var fits: Array = Rooms.for_role(prefab_role, floor_num, tower.get("beast_kind", "")).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
 		if role == "gallery" and pz_kind != "":
 			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
@@ -857,7 +867,13 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 	w = mini(w, Rooms.MAX_SIZE.x)
 	h = mini(h, Rooms.MAX_SIZE.y)
 	var size := Vector2i(w, h)
-	return {"id": "carved_" + shape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(shape, size)), "size": size, "shape": shape}
+	return {"id": "carved_" + shape, "prefab": false, "rows": Rooms.prepare(carve(shape, size)), "size": size, "shape": shape}
+
+
+## A carved room: rooms.gd's shapes, or the organic ones (towers/organic.gd:
+## the Firebird's islands, the Thornwild's caves).
+static func carve(shape: String, size: Vector2i) -> Array:
+	return Organic.carve(shape, size) if Organic.is_shape(shape) else Rooms.carve(shape, size)
 
 
 ## A plain carved hall for a puzzle that lays itself out (statues, mirrors,

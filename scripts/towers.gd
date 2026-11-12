@@ -95,14 +95,14 @@ static var TOWERS := {
 		"short": "Firebird",
 		"beast": "the Firebird",
 		"essence": "fire",
-		"blurb": "Open heights broken by chasms: jump the gaps. Wisps and bloomcaps. The Firebird waits at the top.",
+		"blurb": "Islands of rock over the abyss, bridges that burn behind you, updrafts and ember storms. Wisps, bloomcaps and ashwings. The Firebird waits at the top.",
 		"chasms": true,
-		"weights": {"wisp": 1.4, "bloomcap": 1.0, "archer": 0.6, "knight": 0.3, "slime": 0.2},
+		"weights": {"wisp": 1.4, "bloomcap": 1.0, "ashwing": 0.8, "archer": 0.5, "knight": 0.3, "slime": 0.2},
 		"first": ["wisp", "archer", "wisp", "archer"],
 		"summit": SUMMIT,
 		"beast_kind": "firebird",
 		"gauntlet": "emberfall", "sentinel": "wisp", "sentinel_adds": "bloomcap",  # the Proving (floor 6, proving.gd)
-		"shapes": ["round", "round", "rect", "pillars"],  # carved room shapes (rooms.gd); a repeat makes one likelier
+		"shapes": ["island", "island", "atoll", "round"],  # carved room shapes (rooms.gd, towers/organic.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its firestorm can't be parried: get out of the circles. It rises once from its ashes.",
 		"stone": Color(1.0, 0.9, 0.82),
 		"ambient": Color(0.6, 0.47, 0.42),
@@ -113,13 +113,13 @@ static var TOWERS := {
 		"short": "Chimera",
 		"beast": "the Chimera",
 		"essence": "blade",
-		"blurb": "The Thornwild, where beasts are bred: packs of thornhounds and patchwork mongrels. The Chimera waits at the top.",
-		"weights": {"thornhound": 1.4, "mongrel": 1.0, "archer": 0.5, "knight": 0.4},
+		"blurb": "The Thornwild, where beasts are bred: grown caves, living thorns, packs of thornhounds, patchwork mongrels and bushes that grab. The Chimera waits at the top.",
+		"weights": {"thornhound": 1.4, "mongrel": 1.0, "briar": 0.7, "archer": 0.4, "knight": 0.4},
 		"first": ["thornhound", "archer", "thornhound", "slime"],
 		"summit": SUMMIT,
 		"beast_kind": "chimera",
 		"gauntlet": "bramble", "sentinel": "mongrel", "sentinel_adds": "thornhound",  # the Proving (floor 6, proving.gd)
-		"shapes": ["cross", "ell", "rect", "round"],  # carved room shapes (rooms.gd); a repeat makes one likelier
+		"shapes": ["cave", "den", "cave", "round"],  # carved room shapes (rooms.gd, towers/organic.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its lion's breath can't be parried: roll or step aside.",
 		"stone": Color(0.86, 0.95, 0.82),
 		"ambient": Color(0.46, 0.53, 0.43),

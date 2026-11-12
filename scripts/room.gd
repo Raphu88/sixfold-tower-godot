@@ -46,6 +46,11 @@ var batch  # while drawing
 var chunk_items: Array = []  # the squares' canvas items
 var features: Node2D  # puddles, chasms and pillars, drawn over the floor
 var tint := Color.WHITE  # the tower's stone colour, passed on to the squares
+## A tower that draws its own walls (towers/firebird_floor.gd: the abyss
+## round its islands; towers/chimera_floor.gd: the Thornwild's grown rock):
+## an object with paint(room_view, batch) -> bool, true when it drew the
+## walls, the layout's rock, the cover and the door posts itself.
+var layout_painter = null
 var ambient_t := 0.0  # until the next redraw of flames, embers and dust
 
 
@@ -336,12 +341,13 @@ func _draw() -> void:
 		var k := float(i) / 6.0
 		_outline(room.grow(-i * 7.0), Color(0, 0, 0, 0.07 * (1.0 - k)), 7.0)
 
-	_draw_walls()
-	_draw_layout()
-	for b in blocks:
-		_draw_cover(b)
-	for d in doors:
-		_draw_door_post(d)
+	if layout_painter == null or not is_instance_valid(layout_painter) or not layout_painter.paint(self, batch):
+		_draw_walls()
+		_draw_layout()
+		for b in blocks:
+			_draw_cover(b)
+		for d in doors:
+			_draw_door_post(d)
 	chunk_items = batch.flush(get_canvas_item(), -1)  # under features and ambient
 	batch = null
 	tint = self_modulate

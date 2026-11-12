@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "ashwing": "", "briar": "hit_slime"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -23,6 +23,8 @@ signal on_reaction(foe, reaction: String, source)
 
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
+## The towers' own creatures (the ashwing, the briar) are run and drawn there.
+const Creatures := preload("res://scripts/towers/creatures.gd")
 ## Marks' passive ranks that change what a foe takes (bond.gd taken_mult;
 ## loaded once it's needed: bond.gd loads the library and its content).
 static var _bond_script: Script = null
@@ -79,6 +81,9 @@ static var TYPES := {
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
 	"chimera": {"hp": 354.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
+	# The towers' own creatures (towers/creatures.gd runs them)
+	"ashwing": {"hp": 24.0, "speed": 105.0, "radius": 11.0, "color": Color(1.0, 0.5, 0.22), "dmg": 9.0, "weight": 0.5},
+	"briar": {"hp": 42.0, "speed": 38.0, "radius": 14.0, "color": Color(0.3, 0.46, 0.22), "dmg": 11.0, "weight": 3.0},
 	# Covenant's spirit familiar (only ever on your side)
 	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
 }
@@ -91,11 +96,12 @@ const WEAKNESS := {
 	"bloomcap": "it can't move: get close", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
 	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
+	"ashwing": "strike or soak its ash before it rises", "briar": "fire flushes it out of hiding",
 	"mirror": "a finisher or a blow from behind breaks its guard",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
-const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird"]
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "ashwing"]
 ## What each beast calls when it's half dead.
 const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp", "chimera": "thornhound"}
 const BITE_REACH := 70.0  # a thornhound's leap
@@ -303,6 +309,8 @@ func setup(k: String, room) -> void:
 	if kind == "lurker":
 		state = "sub"
 		submerged = true
+	if Creatures.has(kind):
+		Creatures.setup(self)
 
 
 ## A called creature (Covenant): fights on your side, scaled to your bond's step.
@@ -553,7 +561,10 @@ func _physics_process(delta: float) -> void:
 		"chimera":
 			_chimera(delta, dir, dist, p)
 		_:
-			_act(delta, dir, dist, p)
+			if Creatures.has(kind):
+				Creatures.act(self, delta, dir, dist, p)
+			else:
+				_act(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
@@ -2024,6 +2035,8 @@ func _was_hit(amount: float, source: String) -> void:
 func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierce := false) -> void:
 	if dead:
 		return
+	if Creatures.has(kind) and Creatures.intercept(self, amount, dir, heavy):
+		return
 	if submerged:
 		main.fx_text(global_position + Vector2(0, -radius - 10.0), "under the water", Color(0.5, 0.75, 0.85))
 		return
@@ -2066,6 +2079,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.95, 0.85))
 	if hp <= 0.0 and kind == "firebird" and not reborn:
 		_fall_to_ashes()
+		return
+	if hp <= 0.0 and Creatures.has(kind) and Creatures.on_lethal(self):
 		return
 	if hp <= 0.0:
 		dead = true
@@ -2299,6 +2314,9 @@ func _draw() -> void:
 			_draw_chimera(p, t, f)
 		"familiar":
 			_draw_wisp(p, t, f)
+		_:
+			if Creatures.has(kind):
+				Creatures.draw(self, p, _glow, t, f)
 	if shade:
 		_fade_to_shade(p)
 		_fade_to_shade(_glow)
@@ -3396,6 +3414,8 @@ func _draw_overlay() -> void:
 		if state == "wind_embers":
 			_fan(o, 5, 12.0, 120.0)
 	_overlay_extra(o)
+	if Creatures.has(kind):
+		Creatures.overlay(self, o)
 	# The body's glowing bits (eyes, fire, sparks).
 	o.pts.append_array(_glow.pts)
 	o.cols.append_array(_glow.cols)

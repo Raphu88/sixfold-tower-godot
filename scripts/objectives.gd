@@ -25,6 +25,12 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
+## A tower's own kinds name their "towers" (only there) and a "script" that
+## places and runs them (towers/rekindle.gd, towers/heartroots.gd):
+##   rekindle   (the Firebird's) carry a flame from the hearth to light the
+##              beacons before it gutters; braziers and lit beacons relight it
+##   heartroots (the Chimera's) the hungry grove: cut the heart-roots in the
+##              order they wake, and the thorns recede from the stair
 
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 const Rooms := preload("res://scripts/rooms.gd")
@@ -60,6 +66,15 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
+	"rekindle": {"name": "Rekindle the Beacons", "hint": "Take a flame from the hearth and carry it to each beacon before it gutters. Braziers and lit beacons relight it.",
+		"status": "Beacons lit %d of %d", "status_carry": "Flame %d%%  ·  beacons %d of %d", "status_take": "Take a flame from the hearth",
+		"piece": "Beacon", "hearth": "Hearth", "brazier": "Brazier", "count": [[3, 2], [7, 3], [99, 4]], "weight": 1.6,
+		"burn_base": 22.0, "burn_min": 14.0, "burn_per_floor": 0.6, "walk_share": 1.7, "hit_loss": 0.25, "braziers": [[4, 1], [99, 2]],
+		"towers": ["firebird"], "script": "res://scripts/towers/rekindle.gd"},
+	"heartroots": {"name": "The Hungry Grove", "hint": "Heart-roots feed the thorns on the stair. Cut each as it wakes, in turn, and the thorns recede.",
+		"status": "Heart-roots cut %d of %d", "status_next": "Cut the waking heart-root  ·  %d of %d", "piece": "Heart-root",
+		"count": [[3, 3], [99, 4]], "weight": 1.6, "hp": 3, "lash": 6.0, "lash_cd": 1.2,
+		"towers": ["chimera"], "script": "res://scripts/towers/heartroots.gd"},
 }
 ## How likely each puzzle kind is next to the kinds above (its tower's own
 ## puzzle counts double).
@@ -83,6 +98,13 @@ static var TEXT := {
 	"stone_wakes": "The wardstone wakes",
 	"keeper_falls": "The Keeper drops the stair's key",
 	"optional_vault": "The puzzle's vault opens",
+	"guttered": "The flame gutters out",
+	"kindled": "The flame catches",
+	"relit": "Flame renewed",
+	"flicker": "The flame flickers",
+	"asleep": "It sleeps. Cut the one that's awake",
+	"wakes": "Another heart-root wakes",
+	"recede": "The thorns recede from the stair",
 }
 ## When it's done: essence at the stair (this, plus this much a floor).
 static var REWARD := {"essence": 6.0, "per_floor": 2.0, "light": 230.0}
@@ -128,13 +150,14 @@ static func display_name(kind: String, tid: String) -> String:
 ## The kind for a floor: never one used this climb if another is left;
 ## the tower's own puzzle likelier.
 static func pick(floor_num: int, tid: String) -> String:
-	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)):
+	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and allowed(forced, tid):
 		return forced
 	if Catalog.forced != "" and is_puzzle(Catalog.forced):
 		return Catalog.forced  # (the dev tool's Puzzles buttons: that puzzle is the task)
 	var table := {}
 	for k in KINDS:
-		table[k] = float(KINDS[k].get("weight", 1.0))
+		if allowed(k, tid):
+			table[k] = float(KINDS[k].get("weight", 1.0))
 	for k in Catalog.TYPES:
 		table[k] = float(PUZZLE_WEIGHT["signature"] if Catalog.SIGNATURE.get(tid, "") == k else PUZZLE_WEIGHT["base"])
 	var fresh := {}
@@ -146,6 +169,12 @@ static func pick(floor_num: int, tid: String) -> String:
 			if climb_used.is_empty() or k != climb_used[-1]:
 				fresh[k] = table[k]
 	return _weighted(fresh)
+
+
+## Whether a kind may be a floor's task in a tower (a tower's own kinds only there).
+static func allowed(kind: String, tid: String) -> bool:
+	var towers: Array = KINDS.get(kind, {}).get("towers", [])
+	return towers.is_empty() or tid in towers
 
 
 static func _weighted(table: Dictionary) -> String:
@@ -188,6 +217,9 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 	var k: Dictionary = KINDS[kind]
 	spec["hint"] = k["hint"]
 	var n := count_for(kind, floor_num)
+	if k.has("script"):
+		# (a tower's own kind places its own pieces: towers/rekindle.gd, towers/heartroots.gd)
+		return load(String(k["script"])).place(spec, infos, adj, monsters, stair, floor_num, n, cell)
 	var dist := _graph_dist(adj, 0)
 	var stair_i := _index_of_role(infos, "stair")
 	var gal := _index_of_role(infos, "gallery")
@@ -398,4 +430,6 @@ static func targets(spec: Dictionary) -> Array:
 		out.append(spec["tablet"]["pos"])
 	if spec.has("pedestal"):
 		out.append(spec["pedestal"])
+	for x in spec.get("extra", []):  # (a tower's own kind: the hearth, the braziers)
+		out.append(x["pos"])
 	return out

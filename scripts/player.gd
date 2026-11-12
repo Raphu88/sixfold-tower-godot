@@ -1295,6 +1295,9 @@ func _melee() -> bool:
 		main.scenarios.strike(global_position, aim, reach, swing["arc"])
 	if main.get("cracks") != null:
 		main.cracks.strike(global_position, aim, reach, swing["arc"], heavy)
+	# A tower's own things a blow can reach (thorns, heart-roots, spore pods).
+	if main.has_method("tower_call"):
+		main.tower_call("strike", [global_position, aim, reach, swing["arc"], heavy])
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:

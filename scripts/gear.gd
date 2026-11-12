@@ -621,6 +621,8 @@ const FAVOUR := {
 	"cinder": ["shortbow", "crossbow", "grip_wraps"],
 	"wisp": ["shortbow", "padded", "cloth_hood", "miners_helm"],
 	"bloomcap": ["padded", "leather", "travel_cloak", "herb_pouch", "ranger_breeches"],
+	"ashwing": ["shortbow", "cloth_hood", "feather_cape", "padded"],
+	"briar": ["leather", "travel_cloak", "herb_pouch", "ranger_breeches", "leather_gloves"],
 }
 
 

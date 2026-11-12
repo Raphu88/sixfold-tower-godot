@@ -20,6 +20,13 @@ extends RefCounted
 ##   rest          the chance of a calm rest room
 ##   trader        the chance of a wandering trader, from floor `trader_from`
 ##   kind_first    the first room after the start is a kind one (no danger)
+##   prefab        how likely hand-made rooms are, as a share of the usual
+##                 (a tower whose rooms are grown or broken, not built, has fewer)
+##   builder       a script that lays the tower's own floor features last
+##                 (after_build: the Firebird's updrafts and burning bridges,
+##                 the Thornwild's thorns, brambles and spore pods)
+## Shapes may also be towers/organic.gd's: island, atoll (the Firebird's
+## rooms of rock over the abyss), cave, den, grotto (the Thornwild's).
 
 static var STYLES := {
 	"default": {
@@ -36,8 +43,14 @@ static var STYLES := {
 	"kraken": {"shapes": ["gallery", "split", "cover", "gallery"]},
 	"wyvern": {"shapes": ["ring", "cover", "ring", "gallery"]},
 	"manticore": {"shapes": ["cover", "split", "ring", "cover"]},
-	"firebird": {"shapes": ["circle", "ring", "split", "circle"]},
-	"chimera": {"shapes": ["cover", "circle", "gallery", "split"]},
+	# Islands of rock over the abyss, joined by bridges: fewer ways round,
+	# updrafts across the gaps, bridges that burn behind you, ember storms.
+	"firebird": {"shapes": ["island", "atoll", "island", "island", "circle"], "gallery": ["island", "atoll", "island"],
+		"loops": [0, 1], "loops_high": [1, 2], "prefab": 0.25, "builder": "res://scripts/towers/firebird_floor.gd"},
+	# The Thornwild: grown caves and dens, tangled ways through (more loops,
+	# some through thorns), brambles, spore pods.
+	"chimera": {"shapes": ["cave", "den", "grotto", "cave", "den"], "gallery": ["cave", "den", "grotto"],
+		"loops": [2, 3], "loops_high": [2, 4], "cracks": [0, 1], "prefab": 0.25, "builder": "res://scripts/towers/chimera_floor.gd"},
 }
 
 

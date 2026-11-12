@@ -36,6 +36,8 @@ static var DROPS := {
 	"thornhound": ["blade", 3.0],
 	"mongrel": ["blade", 6.0],
 	"chimera": ["blade", 30.0],
+	"ashwing": ["fire", 4.5],
+	"briar": ["blade", 5.0],
 }
 
 

@@ -356,6 +356,8 @@ func _task_step() -> Dictionary:
 		return {"pos": main.stair_pos, "act": "walk", "r": 8.0, "why": "the stair"}
 	if ob.spec.get("puzzle", false):
 		return _puzzle_step()
+	if ob.get("custom") != null:
+		return ob.custom.bot_step(self, pos)  # (a tower's own task: towers/rekindle.gd, towers/heartroots.gd)
 	var k: String = ob.kind
 	match k:
 		"braziers":
@@ -474,6 +476,10 @@ func _go(at: Vector2, r := 12.0, chase := false) -> void:
 		_move(nudge)
 		return
 	var d := _steer(pos, at)
+	# A tower's own obstacle in the way (a thorn wall: cut it).
+	for sys in main.get("tower_systems") if main.get("tower_systems") != null else []:
+		if sys.on and sys.has_method("bot_go") and sys.bot_go(self, pos, d):
+			return
 	# A chasm ahead: jump it.
 	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 30.0) and not main.in_chasm(pos) and not p.in_air():
 		_move(d)
@@ -564,6 +570,23 @@ func _build_grid() -> void:
 	for t in avoid:
 		if astar.region.has_point(t):
 			astar.set_point_solid(t, true)
+	# A tower's own floor: what can be walked (or cut) through after all.
+	for sys in main.get("tower_systems") if main.get("tower_systems") != null else []:
+		if sys.on and sys.has_method("bot_grid"):
+			sys.bot_grid(astar)
+
+
+## Strike at a spot just ahead (a thorn wall in the way).
+func strike_at(q: Vector2) -> void:
+	var p = main.player
+	_equip("melee")
+	var to: Vector2 = q - p.global_position
+	_move(to.normalized() * 0.3 if to.length() > 36.0 else Vector2.ZERO)
+	_aim(to)
+	if attack_cd <= 0.0 and p.attack_cd <= 0.0:
+		_tap("attack")
+		attack_cd = 0.4
+	why = "cutting thorns"
 
 
 ## Which way to push the stick: toward the farthest point along the path
@@ -969,7 +992,7 @@ func _plates_step() -> Dictionary:
 	for e in main.enemies():
 		if e.kind in main.EnemyScript.FLIERS or e.dead or not room.has_point(e.global_position) or no_lure.has(e):
 			continue
-		if e.kind in ["archer", "bloomcap", "thunderling", "lurker"]:
+		if e.kind in ["archer", "bloomcap", "thunderling", "lurker", "briar"]:
 			continue  # (they keep their distance, or sink: no good on a plate)
 		var dm: float = e.global_position.distance_to(plate2["pos"])
 		if dm < best_m:
