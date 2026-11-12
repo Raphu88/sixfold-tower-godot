@@ -57,6 +57,11 @@ const Pacts := preload("res://scripts/pacts.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 const UI := preload("res://scripts/ui.gd")
 const Reach := preload("res://scripts/reach.gd")
+const ObjectiveScript := preload("res://scripts/objective.gd")
+const Objectives := preload("res://scripts/objectives.gd")
+const CracksScript := preload("res://scripts/cracks.gd")
+const ScenariosScript := preload("res://scripts/scenarios.gd")
+const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -247,7 +252,17 @@ var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, co
 var hit_kind := ""
 var fog  # line-of-sight fog on floors of rooms (fog.gd)
 var puzzle  # the floor's puzzle, whose solving lifts the stair's ward (puzzle.gd)
-var ward := false  # the stair is warded until the floor's puzzle is solved
+var ward := false  # the stair is warded until the floor's task is done (objective.gd)
+var objective  # the floor's one task: its pieces, the HUD's line and arrow, the stair's reward (objective.gd)
+var cracks  # the floor's cracked walls (cracks.gd)
+var scenarios  # the floor's scenario rooms (scenarios.gd)
+var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
+## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
+## for the summit or the Regard to read.
+var noticed: Array = []
+## How fast the game runs (1 always in play; the floor bot's tests run it
+## faster: tests/parts/floor_bot.gd).
+static var test_speed := 1.0
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
@@ -323,6 +338,18 @@ func _ready() -> void:
 	puzzle = PuzzleScript.new()
 	puzzle.main = self
 	add_child(puzzle)
+	objective = ObjectiveScript.new()
+	objective.main = self
+	add_child(objective)
+	cracks = CracksScript.new()
+	cracks.main = self
+	add_child(cracks)
+	scenarios = ScenariosScript.new()
+	scenarios.main = self
+	add_child(scenarios)
+	room_rewards = RoomRewardsScript.new()
+	room_rewards.main = self
+	add_child(room_rewards)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
@@ -707,7 +734,7 @@ func _process(delta: float) -> void:
 	_frame_us = now_us
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
-		Engine.time_scale = RING_TIME if slowmo else 1.0
+		Engine.time_scale = RING_TIME if slowmo else test_speed
 	if on_train:
 		return  # (the train's menu takes the keys)
 	if choosing_tower:
@@ -994,6 +1021,10 @@ func _start_floor(n: int) -> void:
 		lighting.remove_light(flare_light)
 	flare_light = -1
 	if not in_camp:
+		if camp_choosing and player != null:
+			player.set_physics_process(true)  # (cards left open by a vault or the reliquary: the new floor closes them)
+			if wings != null:
+				wings.unfreeze()
 		camp_choosing = false
 	if campfire != null:
 		campfire.queue_free()
@@ -1014,7 +1045,11 @@ func _start_floor(n: int) -> void:
 		MirrorScript.climb_ok = not first_climb  # (no mirror rooms on the bondless first climb)
 		if secret_tools != null:
 			secret_tools.before_build(n)  # (the Designer's Reroll: the puzzle and rooms chosen for this floor)
+		if n <= 1:
+			Objectives.climb_used.clear()  # (a new climb: every kind of task is fresh)
 		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
+		if not plan.get("objective", {}).is_empty():
+			Objectives.climb_used.append(String(plan["objective"]["kind"]))
 		if secret_tools != null:
 			secret_tools.after_build(plan)
 		if MirrorScript.THEME in plan.get("themes", []):
@@ -1058,6 +1093,9 @@ func _start_floor(n: int) -> void:
 	# Sealed wings, their vaults, and secret rooms (wings.gd): after the doors,
 	# before the fog and the first drawing (their closed tiles are solid).
 	wings.setup(plan)
+	cracks.setup(plan)  # (cracked walls: solid until broken, their alcoves rock)
+	scenarios.setup(plan if not in_camp else {})
+	room_rewards.setup(plan if not in_camp else {})
 	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
 	# The traps (traps.gd): laid before the pillars and chasms are made, since
 	# placing them may add shelter pillars, move monsters off trap tiles and
@@ -1108,12 +1146,13 @@ func _start_floor(n: int) -> void:
 	# A trap room whose traps wouldn't fit is just a quiet hall.
 	for i in plan.get("hazard_rooms", []):
 		if not traps.any(func(tr): return int(tr.get("room", -1)) == i):
-			room_themes[i] = "quiet"
+			room_themes[i] = "post"  # (its chest stays: floors.gd)
 	door_view.restyle(room_themes)
 	_update_room_looks(plan.get("camps", []))
 	if puzzle != null:
 		puzzle.setup(plan.get("puzzle", {}) if not in_camp else {})
-		ward = puzzle.active()
+		# (a painter's Try it has a puzzle but no task: its puzzle wards the stair)
+		ward = puzzle.active() and plan.get("objective", {}).is_empty() and not plan.get("puzzle", {}).get("optional", false)
 
 	var tough := Floors.toughness(n)
 	var spawned: Array = []
@@ -1130,6 +1169,10 @@ func _start_floor(n: int) -> void:
 	# A locked door's key may be carried by one of them.
 	door_view.tag_carriers(plan.get("doors", []) + plan.get("wings", []), spawned)
 	proving.setup(plan)
+	# The floor's one task (after the monsters: a Keeper joins them).
+	objective.setup(plan.get("objective", {}) if not in_camp else {})
+	if objective.active():
+		ward = true
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
@@ -1147,7 +1190,7 @@ func _update_room_looks(camps: Array) -> void:
 	var looks: Array = []
 	for i in room_info.size():
 		var th: Dictionary = Themes.get_theme(room_themes[i])
-		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", "")})
+		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", ""), "shape": room_info[i].get("shape", "")})
 	room_view.set_looks(looks, springs, camps)
 
 
@@ -1370,19 +1413,41 @@ func check_stuck() -> Array:
 	return opened
 
 
-## The floor's puzzle is solved: the ward lifts and the stair opens.
+## The floor's task is done (objective.gd; a puzzle kind through puzzle.gd):
+## the ward lifts and the stair opens, with gold light, essence and the
+## reliquary beside it.
 func lift_ward() -> void:
 	ward = false
 	stair_open = true
 	room_view.stair_open = true
-	profile.note("puzzles")
-	MakersScript.feed(self, "puzzle")
+	var was_puzzle: bool = objective == null or objective.kind == "" or objective.spec.get("puzzle", false)
+	if was_puzzle:
+		profile.note("puzzles")
+		MakersScript.feed(self, "puzzle")
+	else:
+		profile.note("tasks")
+		MakersScript.feed(self, "objective")
 	tip("stair")
-	banner = {"title": PuzzleScript.TEXT["lifted_title"], "lines": [PuzzleScript.TEXT["lifted"]], "t": 2.5}
+	banner = {"title": Objectives.TEXT["done_title"], "lines": [Objectives.TEXT["done"]], "t": 2.8}
+	if objective != null and objective.kind != "":
+		objective.done = true
+		objective.reward()
 	if door_view.unlock_puzzle():  # (warded doors open with it)
 		banner["lines"].append(door_view.LOCK_TEXT["puzzle_line"])
 	sfx("clear", 0.9, -2.0, 0.0)
-	fx_ring(stair_pos, Color(0.75, 0.55, 1.0), 80.0, 0.6, 4.0)
+	shake(5.0)
+	fx_ring(stair_pos, Color(1.0, 0.84, 0.45), 80.0, 0.6, 4.0)
+
+
+## A scenario's grade, noticed by the beast (scenarios.gd).
+func note_noticed(kind: String, grade: String) -> void:
+	noticed.append({"floor": floor_num, "kind": kind, "grade": grade, "tower": tower})
+
+
+## How many times the beast noticed you this climb (a grade of `at_least`).
+func beast_noticed_count(at_least := "bronze") -> int:
+	var rank := {"bronze": 1, "silver": 2, "gold": 3}
+	return noticed.filter(func(n): return int(rank.get(n["grade"], 0)) >= int(rank.get(at_least, 1))).size()
 
 
 ## Walking onto the open stair: fade out, rest, grow, fade into the next floor.
@@ -1499,8 +1564,10 @@ func _arrive() -> void:
 	else:
 		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
 	if ward and not proving.on:
-		banner["lines"] = banner.get("lines", []) + [PuzzleScript.TEXT["warded"]]
-		banner["t"] = maxf(float(banner.get("t", 0.0)), 3.5)
+		# The floor's one task, announced: its name and how.
+		var said: Array = objective.banner_lines() if objective != null and objective.kind != "" else [PuzzleScript.TEXT["warded"]]
+		banner["lines"] = banner.get("lines", []) + said
+		banner["t"] = maxf(float(banner.get("t", 0.0)), 4.5)
 		tip("ward")
 	if layout_on:
 		tip("fog")
@@ -1657,6 +1724,8 @@ func camp_card(i: int) -> Dictionary:
 		return unbound.card(pick)
 	if pick.begins_with("sb:"):
 		return secret_tools.card(pick)  # a secret bond tool's choice (secret_tools.gd)
+	if pick.begins_with("trade:"):
+		return room_rewards.card(pick)  # a wandering trader's wares (room_rewards.gd)
 	if pick.begins_with("path:"):
 		var k := pick.substr(5)
 		return {"name": Secret.display(k), "desc": Secret.KINDS[k]["motto"], "color": Secret.color(k), "item": "", "secret": k,
@@ -1805,6 +1874,8 @@ func _take_vault_pick(pick: String) -> void:
 	elif pick.begins_with("gear:"):
 		said = _take_gear(Gear.rec(pick.substr(5)))
 		col = Gear.color(pick.substr(5))
+	elif pick.begins_with("trade:"):
+		said = room_rewards.take(pick)
 	else:
 		said = _take_item(pick, "Took")
 		col = Items.color(pick)
@@ -1977,6 +2048,7 @@ func _note_climb_start() -> void:
 	climb_best0 = int(profile.record.get("best", {}).get(tower, 0))
 	climb_paid = false
 	pay_line = ""
+	noticed = []
 
 
 ## The end of a climb, however it ends (a fall, the summit, a recall scroll,
@@ -2271,6 +2343,8 @@ func _update_flasks(delta: float) -> void:
 
 
 func _burst_flask(f: Dictionary) -> void:
+	if cracks != null and String(f.get("id", "fire_flask")) in ["fire_flask", "lodestone"]:
+		cracks.blast(f["to"], float(f.get("r", 40.0)))  # (a bomb breaks a cracked wall)
 	if String(f.get("id", "fire_flask")) != "fire_flask":
 		Items.burst(self, f)  # (a net or a lodestone bomb: items.gd)
 		return
@@ -3719,6 +3793,8 @@ func in_chasm(pos: Vector2) -> bool:
 
 ## The climber's fire explodes: hurts every foe in the circle.
 func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
+	if cracks != null:
+		cracks.blast(pos, r)  # (a burst breaks a cracked wall)
 	for e in targets():
 		var to: Vector2 = e.global_position - pos
 		if to.length() < r + e.radius:
@@ -3814,6 +3890,8 @@ func on_enemy_killed(e) -> void:
 		proving.on_enemy_killed(e)
 	if door_view != null:
 		door_view.on_enemy_killed(e)
+	if objective != null:
+		objective.on_enemy_killed(e)  # (the Keeper drops the stair's key)
 	var drop: Array = Essence.drop_for(e.kind, floor_num)
 	gather_essence(drop[0], drop[1], e.global_position)
 	# Every kill also yields a little of the tower's own essence.
@@ -3835,6 +3913,8 @@ func on_enemy_killed(e) -> void:
 ## Hit-pause: freeze the action for a moment so impacts land.
 ## Overlapping calls keep the longest freeze.
 func hitstop(seconds: float) -> void:
+	if test_speed != 1.0:
+		return  # (the floor bot runs the game faster: no freezes)
 	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
 	if until > hitstop_until:
 		hitstop_until = until
@@ -3846,7 +3926,7 @@ func hitstop(seconds: float) -> void:
 func set_slowmo(on: bool) -> void:
 	slowmo = on
 	if hitstop_until == 0:
-		Engine.time_scale = RING_TIME if on else 1.0
+		Engine.time_scale = RING_TIME if on else test_speed
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:

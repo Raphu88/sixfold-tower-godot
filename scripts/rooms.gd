@@ -295,7 +295,13 @@ const OPEN := ".M~"
 ##   cross    the four corners notched
 ##   round    the corners cut off
 ##   pillars  four square pillars, kept clear of the middle
-const SHAPES := ["rect", "open", "hall", "ell", "cross", "round", "pillars"]
+##   ring     a ring around one great block in the middle
+##   circle   round: everything outside an ellipse cut away
+##   gallery  a long gallery with a row of pillars down each side
+##   split    two levels: a ledge of low wall across the room, with steps
+##            (gaps) through it; room.gd lights the upper level and draws the steps
+##   cover    low walls scattered through the room to hide behind
+const SHAPES := ["rect", "open", "hall", "ell", "cross", "round", "pillars", "ring", "circle", "gallery", "split", "cover"]
 
 
 ## Rooms made in the room painter (painter.gd) that pass its checks and are
@@ -427,6 +433,63 @@ static func carve(shape: String, size: Vector2i) -> Array:
 					for y in 2:
 						for x in 2:
 							g[o.y + y][o.x + x] = "#"
+		"ring":
+			# One great block in the middle, a walk of at least two tiles around it.
+			var bw := maxi(2, w - 6)
+			var bh := maxi(2, h - 6)
+			if w >= 8 and h >= 7:
+				var x0 := (w - bw) / 2
+				var y0 := (h - bh) / 2
+				for y in range(y0, y0 + bh):
+					for x in range(x0, x0 + bw):
+						g[y][x] = "#"
+		"circle":
+			var rx := w * 0.5
+			var ry := h * 0.5
+			for y in h:
+				for x in w:
+					var dx := (x + 0.5 - rx) / rx
+					var dy := (y + 0.5 - ry) / ry
+					if dx * dx + dy * dy > 1.12:
+						g[y][x] = "X"
+		"gallery":
+			if w >= 9 and h >= 6:
+				for x in range(2, w - 2, 3):
+					g[1][x] = "o"
+					g[h - 2][x] = "o"
+		"split":
+			# A ledge across the long way, two tiles from the middle, with steps through it.
+			if h >= 7 and w >= 8:
+				var ly := cy - 1 if randf() < 0.5 else cy
+				for x in range(1, w - 1):
+					g[ly][x] = "#"
+				var steps := [2, w - 4] if w >= 10 else [w / 2 - 1]
+				if w >= 12:
+					steps.append(w / 2 - 1)
+				for sx in steps:
+					for k in 2:
+						if sx + k >= 1 and sx + k < w - 1:
+							g[ly][sx + k] = "."
+		"cover":
+			# Low walls to hide behind, kept off the edges and apart.
+			if w >= 8 and h >= 7:
+				var spots := []
+				for tries in 30:
+					if spots.size() >= 3 + (w * h) / 60:
+						break
+					var horiz := randf() < 0.5
+					var o := Vector2i(randi_range(2, w - 4), randi_range(2, h - 4))
+					var near := false
+					for s in spots:
+						near = near or (absi(s.x - o.x) < 3 and absi(s.y - o.y) < 3)
+					if near:
+						continue
+					spots.append(o)
+					g[o.y][o.x] = "#"
+					if horiz:
+						g[o.y][o.x + 1] = "#"
+					else:
+						g[o.y + 1][o.x] = "#"
 	var rows: Array = []
 	for row in g:
 		rows.append("".join(PackedStringArray(row)))

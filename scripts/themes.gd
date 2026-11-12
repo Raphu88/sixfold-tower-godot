@@ -46,9 +46,9 @@ static var THEMES := {
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "start"},
 	"landing": {"name": "Stair Landing", "kind": "mixed", "sub": "The way up, and those set to guard it.",
 		"tint": Color(0.75, 0.55, 1.0, 0.05), "door": "chained", "min_size": Vector2i(0, 0), "towers": [], "feature": "stair"},
-	"puzzle_eyes": {"name": "Hall of Eyes", "kind": "mixed", "sub": "Stone eyes sleep in the walls. Wake them all to lift the stair's ward.",
+	"puzzle_eyes": {"name": "Hall of Eyes", "kind": "mixed", "sub": "Stone eyes sleep in the walls. Wake them all.",
 		"tint": Color(0.6, 0.5, 1.0, 0.08), "door": "puzzle", "emblem": "eye", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
-	"puzzle_plates": {"name": "Weighing Room", "kind": "mixed", "sub": "The plates want a weight heavier than you. Hold them all down to lift the stair's ward.",
+	"puzzle_plates": {"name": "Weighing Room", "kind": "mixed", "sub": "The plates want a weight heavier than you. Hold them all down.",
 		"tint": Color(0.6, 0.5, 1.0, 0.08), "door": "puzzle", "emblem": "plate", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"puzzle_statues": {"name": "Hall of Statues", "kind": "mixed", "sub": "Three statues wait to be asked. Only one tells the truth about the way.",
 		"tint": Color(0.6, 0.5, 1.0, 0.08), "door": "puzzle", "emblem": "statue", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
@@ -64,6 +64,33 @@ static var THEMES := {
 		"tint": Color(1.0, 0.8, 0.5, 0.07), "door": "puzzle", "emblem": "glyph", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"quiet": {"name": "Quiet Hall", "kind": "calm", "sub": "Dust and silence. Nothing stirs here.", "tint": Color(0, 0, 0, 0),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": ""},
+	# The floor's task in the gallery (objectives.gd): the rune path, the wardstone.
+	"hall_runes": {"name": "Hall of Runes", "kind": "mixed", "sub": "Runes cut into the floor, waiting to be walked in the right order.",
+		"tint": Color(1.0, 0.85, 0.5, 0.07), "door": "puzzle", "emblem": "glyph", "min_size": Vector2i(0, 0), "towers": [], "feature": "objective"},
+	"hall_wardstone": {"name": "Wardstone Hall", "kind": "mixed", "sub": "A tall stone hums in the middle of the hall. The beast's creatures hate it.",
+		"tint": Color(0.75, 0.6, 1.0, 0.07), "door": "puzzle", "emblem": "eye", "min_size": Vector2i(0, 0), "towers": [], "feature": "objective"},
+	# Rooms with a job of their own (floors.gd fixes them before the rest).
+	"rest": {"name": "Still Chamber", "kind": "calm", "sub": "No creature comes here. Rest a while and your wounds close.",
+		"tint": Color(0.55, 0.75, 1.0, 0.07), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "rest"},
+	"trader": {"name": "Wandering Trader", "kind": "calm", "sub": "A cloaked trader with a laden pack. They take unbanked essence.",
+		"tint": Color(1.0, 0.8, 0.5, 0.07), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "trader"},
+	"strongroom": {"name": "Strongroom", "kind": "mixed", "sub": "Locked away, and worth the trouble.",
+		"tint": Color(1.0, 0.8, 0.4, 0.08), "door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "vault"},
+	"post": {"name": "Guard Post", "kind": "mixed", "sub": "Someone set guards here, and a strongbox to keep.",
+		"tint": Color(0.7, 0.6, 0.5, 0.05), "door": "den", "min_size": Vector2i(0, 0), "towers": [], "feature": "post"},
+	# Scenario rooms (scenarios.gd): short set pieces, played through and graded.
+	"scn_defend": {"name": "The Last Camp", "kind": "scenario", "sub": "A fallen climber's camp, still burning. Step onto the mark to defend it.",
+		"tint": Color(1.0, 0.65, 0.35, 0.08), "door": "warm", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario"},
+	"scn_collapse": {"name": "The Falling Hall", "kind": "scenario", "sub": "The roof is coming down. Step onto the mark, then run for the far end.",
+		"tint": Color(0.75, 0.65, 0.55, 0.08), "door": "hazard", "sigil": "spike", "min_size": Vector2i(7, 6), "towers": [], "feature": "scenario"},
+	"scn_duel": {"name": "The Champion's Circle", "kind": "scenario", "sub": "A champion waits to fight you fairly, alone. Step onto the mark to begin.",
+		"tint": Color(1.0, 0.82, 0.4, 0.07), "door": "crown", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario"},
+	"scn_unseen": {"name": "The Watchful Hall", "kind": "scenario", "sub": "Lanterns sweep the hall. Step onto the mark, then cross without being seen.",
+		"tint": Color(0.6, 0.65, 0.9, 0.07), "door": "plank", "min_size": Vector2i(8, 6), "towers": [], "feature": "scenario"},
+	"scn_rescue": {"name": "The Caged Cub", "kind": "scenario", "sub": "Something small whimpers in a cage. Free it and lead it to the door.",
+		"tint": Color(0.6, 0.85, 0.55, 0.07), "door": "warm", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario"},
+	"scn_gauntlet": {"name": "The Gauntlet", "kind": "scenario", "sub": "Step onto the mark and the doors shut: beat every wave, and be quick.",
+		"tint": Color(0.85, 0.35, 0.3, 0.07), "door": "den", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario", "decor": "bones"},
 	# The Proving's rooms (floor 6, proving.gd lays them out and says what each
 	# is as you walk in; its gauntlet is the tower's own trap room). Kind
 	# "proving": never handed out to other floors' rooms.
@@ -138,9 +165,9 @@ static var THEMES := {
 ## Rules for the rooms with no fixed job (see `assign`).
 const RULES := {
 	"good_chance": 0.2,  # after the first two rooms: this often a good room...
-	"quiet_chance": 0.2,  # ...this often a quiet one; otherwise a bad one, if the cap allows
+	"quiet_chance": 0.2,  # ...this often a guard post (no room is left empty); otherwise a bad one, if the cap allows
 	"max_good": 2,  # good rooms on a floor at most
-	"max_bad": [[1, 2], [3, 3], [99, 4]],  # [up to floor, bad rooms at most], den included
+	"max_bad": [[2, 2], [4, 3], [99, 4]],  # [up to floor, bad rooms at most], den included
 	"tower_weight": 2.0,  # a tower's own themes are this much likelier there
 	"trap_from": 2,  # from this floor every floor has a trap room (see `assign`)
 }
@@ -153,7 +180,8 @@ const DOOR_ALWAYS := ["mirror"]
 ## themes by feature. Empty: the usual rules.
 static var lean := {}
 
-const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "crypt", "pillars"]
+const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "crypt", "pillars",
+	"hall_runes", "hall_wardstone", "strongroom", "post", "scn_defend", "scn_collapse", "scn_duel", "scn_unseen", "scn_rescue", "scn_gauntlet"]
 
 
 static func get_theme(id: String) -> Dictionary:
@@ -178,7 +206,7 @@ static func fits(id: String, info: Dictionary, tid: String, tower: Dictionary) -
 		return false
 	var rows: Array = info["rows"]
 	match th["feature"]:
-		"spring", "cache", "camp":
+		"spring", "cache", "camp", "rest", "trader":
 			return Rooms.clear_spot(rows, 3) != Vector2i(-1, -1)
 		"pillars":
 			var n := 0
@@ -206,18 +234,23 @@ static func assign(infos: Array, floor_num: int, tid: String, tower: Dictionary)
 	var free: Array = []
 	for i in infos.size():
 		var info: Dictionary = infos[i]
-		match String(info["role"]):
-			"entrance":
-				info["theme"] = "arrival"
-			"stair":
-				info["theme"] = "landing"
-			"gallery":
-				info["theme"] = puzzle_theme(String(info.get("puzzle", "")))
-			_:
-				info["theme"] = String(info.get("fixed", ""))  # (fixed beforehand: a mirror room, mirror.gd)
-				if info["theme"] == "":
-					free.append(i)
+		var role := String(info["role"])
+		if role == "entrance":
+			info["theme"] = "arrival"
+		elif role == "stair":
+			info["theme"] = "landing"
+		elif role == "gallery" and info.get("puzzle", "") != "":
+			info["theme"] = puzzle_theme(String(info.get("puzzle", "")))
+		else:
+			info["theme"] = String(info.get("fixed", ""))  # (fixed beforehand: a mirror room, a scenario, the task's hall)
+			if info["theme"] == "":
+				free.append(i)
 	free.shuffle()
+	# The first room after the start is a kind one (floors.gd marks it).
+	for i in free.duplicate():
+		if infos[i].get("kind_first", false):
+			free.erase(i)
+			free.push_front(i)
 	var max_bad := 4
 	for step in RULES["max_bad"]:
 		if floor_num <= int(step[0]):
@@ -249,26 +282,26 @@ static func assign(infos: Array, floor_num: int, tid: String, tower: Dictionary)
 		if want == "den":
 			id = "den" if fits("den", info, tid, tower) else _pick_kind("bad", info, tid, tower, used, caches, floor_num)
 		elif want == "quiet":
-			id = "quiet"
+			id = "post"  # (no room is left empty: a guard post and its strongbox)
 		else:
 			id = _pick_kind(want, info, tid, tower, used, caches, floor_num)
 			if id == "" and want == "good":
-				id = _pick_kind("bad", info, tid, tower, used, caches, floor_num) if n_bad < max_bad else ""
+				id = _pick_kind("bad", info, tid, tower, used, caches, floor_num) if n_bad < max_bad and k > 0 else ""
 		if id == "":
-			id = "quiet"
+			id = "post" if k > 0 else "rest"
 		if THEMES[id]["kind"] == "bad":
 			n_bad += 1
 		elif THEMES[id]["kind"] == "good":
 			n_good += 1
 		if THEMES[id]["feature"] == "cache":
 			caches += 1
-		if id != "quiet":
+		if id != "quiet" and id != "post":
 			used[id] = true
 		info["theme"] = id
-	# Every floor (from floor 2) has a trap room: a quiet room becomes one if
+	# Every floor (from floor 2) has a trap room: a guard post becomes one if
 	# the cap allows, else a bad room that isn't a den or another trap room.
 	if floor_num >= int(RULES["trap_from"]) and not free.any(func(i): return THEMES[infos[i]["theme"]]["feature"] == "trap"):
-		var order: Array = free.filter(func(i): return infos[i]["theme"] == "quiet" and n_bad < max_bad)
+		var order: Array = free.filter(func(i): return infos[i]["theme"] in ["quiet", "post"] and n_bad < max_bad and not infos[i].get("kind_first", false))
 		order.append_array(free.filter(func(i): return THEMES[infos[i]["theme"]]["kind"] == "bad" and not (THEMES[infos[i]["theme"]]["feature"] in ["den", "trap"])))
 		for i in order:
 			var id := _pick_kind("bad", infos[i], tid, tower, used, caches, floor_num, "trap")
@@ -289,7 +322,7 @@ static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dicti
 	var total := 0.0
 	for id in THEMES:
 		var th: Dictionary = THEMES[id]
-		if th["kind"] != kind or used.has(id) or th["feature"] in ["start", "stair", "puzzle"]:
+		if th["kind"] != kind or used.has(id) or th["feature"] in ["start", "stair", "puzzle", "objective", "scenario", "vault", "rest", "trader", "post"]:
 			continue
 		if th["feature"] == "cache" and caches > 0:
 			continue

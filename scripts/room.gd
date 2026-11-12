@@ -413,6 +413,8 @@ func _draw_looks() -> void:
 			continue
 		var box: Rect2 = lk.get("rect", walk[0])
 		var seed := int(box.position.x) * 7 + int(box.position.y) * 13
+		if String(lk.get("shape", "")) == "split":
+			_draw_split(lk.get("rows", []), box.position)
 		match String(lk.get("decor", "")):
 			"bones":
 				for k in 7:
@@ -437,6 +439,36 @@ func _draw_looks() -> void:
 							for i in 13:
 								pts.append(p + Vector2.from_angle(TAU * i / 12.0) * (rr + q * 7.0))
 							batch.polyline(pts, Color(0.6, 0.85, 0.9, 0.12), 1.5)
+
+
+## A room on two levels (rooms.gd "split"): the floor above the ledge is
+## raised (lit a little, a shadow cast along the ledge's foot) and the gaps
+## through the ledge are steps.
+func _draw_split(rows: Array, at: Vector2) -> void:
+	var ledge := -1
+	for y in rows.size():
+		var row: String = rows[y]
+		if row.count("#") >= row.length() - 6 and row.count("#") >= 4:
+			ledge = y
+			break
+	if ledge < 0:
+		return
+	for y in ledge:
+		var row: String = rows[y]
+		for x in row.length():
+			if row[x] != "X" and row[x] != "#":
+				batch.rect(Rect2(at + Vector2(x, y) * TILE, Vector2(TILE, TILE)), Color(1.0, 0.96, 0.88, 0.05))
+	var row_l: String = rows[ledge]
+	for x in row_l.length():
+		var tl := at + Vector2(x, ledge) * TILE
+		if row_l[x] == "#":
+			batch.rect(Rect2(tl + Vector2(0, TILE), Vector2(TILE, 6.0)), Color(0, 0, 0, 0.18))
+		elif row_l[x] != "X":
+			# Steps: treads lit along their front edges, darker going down.
+			for k in 4:
+				var y0: float = tl.y + k * TILE / 4.0
+				batch.rect(Rect2(Vector2(tl.x + 2.0, y0), Vector2(TILE - 4.0, TILE / 4.0 - 1.0)), Color(0, 0, 0, 0.06 + 0.04 * k))
+				batch.line(Vector2(tl.x + 2.0, y0), Vector2(tl.x + TILE - 2.0, y0), Color(1.0, 0.95, 0.85, 0.16), 1.5)
 
 
 func _in_walk(p: Vector2, walk: Array) -> bool:

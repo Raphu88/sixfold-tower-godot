@@ -10,7 +10,15 @@ static var TEXT := {
 	"rule": ["The plates want a weight heavier than you: push a block on, or lure a monster.", "Strike the lever to put the blocks back."],
 	"reset": "The blocks return",
 	"heavy": "Rooted: the plate feels your weight",
+	"sent": "Something heavy comes",
 }
+## More plates than blocks: a monster must hold one. If none that can stands
+## in the room for this long while you're there, the beast sends one, so the
+## room can never be left without an answer.
+const SEND_AFTER := 8.0
+## Monsters that keep their distance (or sink): they never stand on a plate.
+const KEEP_AWAY := ["archer", "bloomcap", "thunderling", "lurker"]
+var send_t := 0.0
 const BREAKS := {"sandshaper": "Rooted Stance: you're heavy enough to hold a plate down yourself."}
 const SEAL_FROM := 99
 const MODES := []
@@ -43,6 +51,23 @@ func _build() -> void:
 func tick(delta: float) -> void:
 	for l in levers:
 		l["t"] = maxf(0.0, l["t"] - delta)
+	if plates.size() > blocks.size() and not host.solved and room.has_point(main.player.global_position):
+		var walker := false
+		for e in main.enemies():
+			if not e.is_queued_for_deletion() and not (e.kind in main.EnemyScript.FLIERS) and not (e.kind in KEEP_AWAY) and room.grow(80.0).has_point(e.global_position):
+				walker = true
+				break
+		send_t = 0.0 if walker else send_t + delta
+		if send_t >= SEND_AFTER:
+			send_t = 0.0
+			var at: Vector2 = host._spot()
+			if at != Vector2.INF:
+				var e = main.spawn_enemy("slime", at)  # (a walker: it can hold a plate down)
+				e.wake()
+				main.floor_total += 1
+				main.foes_changed()
+				main.fx_burst(at, Vector2.UP, Color(0.6, 0.5, 0.85), 12, 120.0)
+				main.fx_text(at + Vector2(0, -36), TEXT["sent"], Color(0.85, 0.8, 0.7))
 	for pl in plates:
 		pl["down"] = _weighed(pl["pos"])
 	_push(delta)
