@@ -174,7 +174,7 @@ static func entries(main, menu = null) -> Array:
 		var sel_id: String = String(bd.spell()["id"]) if bd != null and bd.has_method("spell") and not known.is_empty() else (String(known[0]["id"]) if not known.is_empty() else "")
 		out.append({"kind": "mark", "part": part, "id": info["id"], "name": data["name"], "color": data["color"], "affinity": data["affinity"],
 			"sub": TEXT["mark_sub"] % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), TEXT["mark_faint"] if faint else TEXT["mark_step"] % step],
-			"does": TEXT["mark_more"] % [data["body"]["name"], data["body"]["desc"], data["passive"]["name"], data["passive"]["desc"]],
+			"does": TEXT["mark_more"] % [data["body"]["name"], data["body"]["desc"], Bonds.passive_at(String(info["id"]), step)["name"], Bonds.passive_at(String(info["id"]), step)["desc"]],
 			"press": press(main, part) if mode(main) != 2 else _sel_name({"spells": shown, "name": data["name"]}, sel_id), "cost": TEXT["ring_note"] if known.size() > 1 else "", "locked": false, "learn": 1,
 			"selected": false, "step": step, "faint": faint, "more": []})
 		var i := 0

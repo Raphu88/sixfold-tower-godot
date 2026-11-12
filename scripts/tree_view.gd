@@ -497,6 +497,68 @@ static func _learn(menu, key: String) -> void:
 	menu.open("climber", menu.opened_direct)
 
 
+# --- the step-3 re-pick ------------------------------------------------------------------
+
+## The book's Marks tab: a panel for each mark whose step-3 choice was made
+## before the Transformations (tree.gd REPICK): both sides, one to take for
+## free, and a button to keep what it has. Each is offered until used.
+static func repick_panel(menu) -> void:
+	var main = menu.main
+	var prof = main.profile
+	for bond_id in TreeRules.repick_offers(prof):
+		var col: Color = Bonds.BONDS[bond_id]["color"]
+		var now := TreeRules.mark_choice(prof, bond_id, 3)
+		var pc := PanelContainer.new()
+		pc.add_theme_stylebox_override("panel", UI.card(Color(col, 0.8), true, 10.0))
+		pc.set_meta("repick", bond_id)
+		menu.box.add_child(pc)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 6)
+		pc.add_child(v)
+		var head := Label.new()
+		head.text = TreeRules.TEXT["repick_head"]
+		UI.style_label(head, "display", 19, col.lightened(0.15))
+		v.add_child(head)
+		menu._rich(TreeRules.TEXT["repick_says"] % String(Bonds.BONDS[bond_id]["name"]), 13, menu.DIM, v)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		v.add_child(row)
+		var kept := ""
+		for o in TreeRules.repick_sides(bond_id):
+			var mine := String(o["id"]) == now
+			if mine:
+				kept = String(o["name"])
+			var box := VBoxContainer.new()
+			box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			box.add_theme_constant_override("separation", 2)
+			row.add_child(box)
+			var says := String(o.get("says", ""))
+			menu._rich("[color=#%s]%s[/color]%s  %s" % [col.lightened(0.2).to_html(false), o["name"], ("  ·  " + TreeRules.TEXT["repick_now"]) if mine else "",
+				says.left(1).to_upper() + says.substr(1)], 13, menu.TEXT, box)
+			if not mine:
+				var b: Button = menu._button(TreeRules.TEXT["repick_take"] % o["name"], _repick.bind(menu, bond_id, String(o["id"]), String(o["name"])), box)
+				b.set_meta("repick_take", String(o["id"]))
+				b.custom_minimum_size.y = 40.0
+		if kept != "":
+			var k: Button = menu._button(TreeRules.TEXT["repick_keep"] % kept, _repick.bind(menu, bond_id, "", kept), v)
+			k.set_meta("repick_keep", bond_id)
+			k.custom_minimum_size.y = 36.0
+
+
+## Takes a side (or, with no option, keeps the one held), then reopens the book.
+static func _repick(menu, bond_id: String, option: String, name: String) -> void:
+	var main = menu.main
+	if option == "":
+		TreeRules.repick_keep(main.profile, bond_id)
+	elif TreeRules.repick(main.profile, bond_id, option):
+		main._give_bonds()
+		main.sfx("ready", 0.9)
+	main.profile.save()
+	menu.toast = TreeRules.TEXT["repick_done"] % [String(Bonds.BONDS[bond_id]["name"]), name]
+	menu.toast_t = 3.0
+	menu.open("climber", menu.opened_direct)
+
+
 # --- the dev tools ----------------------------------------------------------------------
 
 ## The dev page's "The tree": forget every choice (to try the forks again),

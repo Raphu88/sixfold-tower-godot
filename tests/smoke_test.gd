@@ -7246,7 +7246,8 @@ func _run() -> void:
 	main.profile.bonds["hand"]["xp"] = main.ProfileScript.STEP_XP[2] + 10.0
 	main._give_bonds()
 	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
-	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
+	var most3: int = int(main.BondScript.Bonds.BONDS["stormcaller"]["spells"][0]["steps"][3]["most"])
+	_check(int(p.bonds["hand"].stat("most")) == most3, "step 3 Chain Lightning branches to up to %d foes (Branching Storm)" % most3)
 	var foes5: Array = main.enemies()
 	_check(foes5.size() >= 4, "floor 4 has more monsters (%d)" % foes5.size())
 	_check(foes5[0].max_hp > EnemyHP.get(foes5[0].kind, 0.0), "monsters are tougher higher up")
