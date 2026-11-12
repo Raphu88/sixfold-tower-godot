@@ -5862,11 +5862,14 @@ func _rarity_tests() -> void:
 	p.stand_in_fire(0.01)
 	_check(absf((100.0 - p.hp) - 3.0) < 0.01, "of Footing (Rare): burning floor hurts 25%% less (%.1f)" % (100.0 - p.hp))
 	# of Embers: a strike can set the foe burning.
+	# (no pool under it: water would turn the fire to Steam, as reactions.gd means it to)
+	main.puddles = main.puddles.filter(func(pd): return pd["pos"].distance_to(Vector2(530, 400)) > float(pd["r"]) + 60.0)
 	var burner = await _dummy(Vector2(530, 400))
+	burner.states.erase("soaked")
 	burner.ignite(2.0, 2.0)
 	var bhp2: float = burner.hp
 	burner.set_physics_process(true)
-	await _wait(0.6)
+	await _until(func(): return burner.hp < bhp2, 1.5)
 	_check(burner.hp < bhp2 and burner.burn_t > 0.0, "a burning foe takes damage every half second")
 	burner.queue_free()
 	# Named weapons: a Coral Trident slows; a Sunsteel Blade heals on a kill.
