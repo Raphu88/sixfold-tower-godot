@@ -1814,6 +1814,9 @@ func add_venom(stacks: int) -> void:
 		return
 	venom = mini(venom + stacks, 12)
 	venom_t = maxf(venom_t, 3.0 + 0.5 * venom)
+	_bond().manticore().on_venom(main, self)  # (Toxin Build III: heavily poisoned, it staggers)
+
+
 
 
 ## Sets it burning (of Embers): `dmg` every half second for `seconds`.
@@ -2004,6 +2007,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		return
 	if unravel_t > 0.0:
 		pierce = true  # (Unravel: its armour stays stripped)
+	if not pierce and _bond().manticore().strips_guard(main, self):
+		pierce = true  # (Corrosive poison, or slowed under Shifting Sands II: no shell or guard holds)
 	if hollow_t > 0.0:
 		amount *= 1.0 + hollow_k  # (Hollow: it takes more from everything)
 	if main.counting_hits:

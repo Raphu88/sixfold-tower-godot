@@ -155,7 +155,9 @@ func _virulence() -> void:
 	var left: float = heavy.venom_left()
 	var per: float = p.bonds["hand"].spell_damage(p.bonds["hand"].spells().filter(func(sp): return sp["id"] == "virulence")[0])
 	var paid := await _cast("virulence")
-	_check(is_equal_approx(paid, float(_stat("virulence", "cost"))), "Virulence costs %.0f" % paid)
+	var hb = p.bonds["hand"]
+	var back: float = 2.0 * float(_stat("virulence", "refill")) * hb.spell_cost(hb.data()["spells"][0])  # (its Apex: the two foes it bursts refill the mark)
+	_check(is_equal_approx(paid, float(_stat("virulence", "cost")) - back), "Virulence costs %.0f, less what the 2 foes it bursts give back (%.0f)" % [float(_stat("virulence", "cost")), paid])
 	var dealt: float = heavy.max_hp - heavy.hp
 	_check(heavy.venom == 0 and dealt >= left + per * stacks - 0.5, "...a poisoned foe takes all its poison at once and bursts for more a stack (%.0f of at least %.0f)" % [dealt, left + per * stacks])
 	_check(heavy.stun > 0.0 and light.stun <= 0.0, "...a heavily stacked foe is staggered; a lightly poisoned one isn't")

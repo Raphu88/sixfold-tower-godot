@@ -6,24 +6,32 @@ extends RefCounted
 ##   Sandshaper
 ##     Step 2: Sand Wall (today's) or Sandblast: a cone of scouring sand that
 ##       stings the foes in front of you and blinds them.
-##     Step 3: Ringed (today's change) or Aftershock (Echo): a second quake,
-##       half as strong, shakes the same ground a second later.
+##     Step 3, two Transformations of Quake: Shatter (side A, bonds.gd's step
+##       3) or Upheaval (side B, the "aftershock" choice).
 ##     Step 4: Sinkhole (today's) or Quicksand: a wide patch at your aim that
 ##       slows foes hard and grinds them down.
+##     Shifting Sands II: slowed foes can't dodge or block. III: standing
+##       still a second hardens your skin. Apex: Fault Line buries and crushes.
 ##   Venomist
 ##     Step 2: Toxic Cloud (today's) or Contagion: a foe you infect spreads
 ##       its poison to every foe that comes near it.
-##     Step 3: Piercing (today's change) or Spray (Split): Venom Spit throws
-##       three globs in a fan, each with half the poison.
+##     Step 3: Corrosive (side A) or Bloom (side B, "spray").
 ##     Step 4: Neurotoxin (today's) or Enfeeble: every poisoned foe near you
 ##       hits softer and walks slower for a while.
+##     Toxin Build II: a poisoned foe that dies passes its poison on. III: a
+##       foe at 8 stacks is staggered. Apex: Virulence refills your mark.
 ##   Ashwalker
 ##     Step 2: Afterimage (today's) or Ash Step: you vanish in ash and step
 ##       out further along your aim; foes where you stood lose you.
-##     Step 3: Igniting (today's change) or Billowing (Wide): a much wider
-##       smoke cloud that lasts longer.
+##     Step 3: Ember Smoke (side A) or Shroud Walk (side B, "billowing").
 ##     Step 4: Vanish (today's) or Cinder Trail: for a while your steps leave
 ##       burning ash behind you.
+##     Unseen Strike II: it staggers too. III: a kill while unseen hides you
+##       again a moment. Apex: during Ashfall an unseen strike leaps on.
+##
+## The step-3 choices keep their old ids (a save that chose today's change
+## gets side A; one that chose the other side gets side B). Side A's numbers
+## are the first spell's step 3 in bonds.gd; side B's are FORKS[bond][3].
 ##
 ## What these spells leave in the world for a while is spell_fx.gd's shared
 ## lasting helper (_add below): it pauses with the fight and a new floor
@@ -32,10 +40,11 @@ extends RefCounted
 const FX := preload("res://scripts/spell_fx.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
+const Reactions := preload("res://scripts/reactions.gd")
 
 static var FORKS := {
 	"sandshaper": {
-		"change": {"name": "Ringed", "says": "Quake also throws up a ring of low walls"},
+		"change": {"name": "Shatter", "says": "the quake leaves sharp shards that cut foes walking over them"},
 		2: {"id": "sandblast", "name": "Sandblast", "type": "sandblast", "learn": 2,
 			"desc": "a blast of scouring sand in a cone in front of you stings every foe it catches and blinds them: they lose track of you",
 			"steps": {
@@ -43,33 +52,33 @@ static var FORKS := {
 				4: {"damage": 9.0},
 				5: {"damage": 11.0},
 			}},
-		3: {"id": "aftershock", "variation": "echo", "name": "Aftershock",
-			"desc": "a second quake, half as strong, shakes the same ground a second later",
-			"steps": {3: {"ring": false, "aftershock": 0.5, "delay": 1.0}}},
+		3: {"id": "aftershock", "name": "Upheaval",
+			"desc": "the quake throws every foe it strikes into the air, helpless (a beast is only rocked)",
+			"steps": {3: {"shards": 0.0, "upheaval": 1.6}}},
 		4: {"id": "quicksand", "name": "Quicksand", "type": "quicksand", "learn": 4,
 			"desc": "a wide patch of quicksand at your aim for 6 seconds: foes in it are slowed hard, drawn to its middle and ground down",
 			"steps": {4: {"cost": 14.0, "windup": 0.4, "duration": 6.0, "radius": 78.0, "range": 140.0, "damage": 3.0}}},
 	},
 	"venomist": {
-		"change": {"name": "Piercing", "says": "Venom Spit pierces"},
+		"change": {"name": "Corrosive", "says": "the spit still pierces, your poison strips shells and guards, and poisoned foes take 25% more from blows"},
 		2: {"id": "contagion", "name": "Contagion", "type": "contagion", "learn": 2,
 			"desc": "infect the foe you aim at with 2 stacks of poison; for 6 seconds its poison spreads to every foe that comes near it",
 			"steps": {2: {"cost": 10.0, "windup": 0.3, "stacks": 2, "duration": 6.0, "radius": 80.0, "range": 300.0}}},
-		3: {"id": "spray", "variation": "split", "name": "Spray",
-			"desc": "Venom Spit throws three globs in a fan, each half as hard but carrying 3 stacks of poison",
-			"steps": {3: {"pierce": false, "copies": 3, "spray": 14.0, "stacks": 6}}},
+		3: {"id": "spray", "name": "Bloom",
+			"desc": "Venom Spit bursts into a small cloud of poison where it lands, for 2.5 seconds",
+			"steps": {3: {"corrode": 0.0, "pierce": false, "bloom": 2.5, "bloom_radius": 45.0}}},
 		4: {"id": "enfeeble", "name": "Enfeeble", "type": "enfeeble", "learn": 4,
 			"desc": "every poisoned foe near you is enfeebled for 6 seconds: it hits 40% softer and walks slower (a beast, half as much)",
 			"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 6.0, "radius": 220.0, "weaken": 0.4}}},
 	},
 	"ashwalker": {
-		"change": {"name": "Igniting", "says": "cast Smoke Veil again to ignite the cloud"},
+		"change": {"name": "Ember Smoke", "says": "the smoke burns the foes inside it"},
 		2: {"id": "ash_step", "name": "Ash Step", "type": "ash_step", "learn": 2,
 			"desc": "you vanish in a puff of ash and step out further along your aim; foes near where you stood lose track of you",
 			"steps": {2: {"cost": 9.0, "windup": 0.15, "distance": 135.0, "radius": 60.0, "duration": 2.5}}},
-		3: {"id": "billowing", "variation": "wide", "name": "Billowing",
-			"desc": "Smoke Veil's cloud is much wider and lasts 8 seconds",
-			"steps": {3: {"ignite": false, "duration": 8.0}}},
+		3: {"id": "billowing", "name": "Shroud Walk",
+			"desc": "Smoke Veil's cloud moves with you for its first 3 seconds",
+			"steps": {3: {"embers": false, "follow": 3.0}}},
 		4: {"id": "cinder_trail", "name": "Cinder Trail", "type": "cinder_trail", "learn": 4,
 			"desc": "for 5 seconds your steps leave burning ash behind you that burns the foes who cross it",
 			"steps": {4: {"cost": 12.0, "windup": 0.2, "duration": 5.0, "embers": 2.5, "spacing": 24.0, "radius": 16.0}}},
@@ -83,6 +92,11 @@ static var TEXT := {
 	"blinded": "Blinded",
 	"infected": "Infected",
 	"enfeebled": "Enfeebled",
+	"buried": "Buried",
+	"seized": "Seized",
+	"hidden": "Hidden",
+	"off_balance": "Staggered",
+	"refilled": "+%d essence",
 }
 
 const SAND := Color(0.85, 0.72, 0.48)
@@ -109,19 +123,14 @@ static func cast_spell(bond, sp: Dictionary, p) -> bool:
 	return true
 
 
-## The step-3 variations this file runs itself (Billowing is the library's
-## own Wide: it returns false and the library casts it, a wider cloud).
-static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
+## The step-3 Transformations' side B: the first spell cast as it is, its
+## numbers (FORKS[bond][3] steps) doing the rest (bond.gd reads them).
+static func cast_variation(bond, _sp: Dictionary, p, alt: Dictionary) -> bool:
 	match String(alt.get("id", "")):
-		"aftershock":
-			if String(bond.id) != "sandshaper":
+		"aftershock", "spray", "billowing":
+			if not String(bond.id) in ["sandshaper", "venomist", "ashwalker"]:
 				return false
-			_aftershock(bond, sp, p)
-			return true
-		"spray":
-			if String(bond.id) != "venomist":
-				return false
-			_spray(bond, sp, p)
+			bond._cast_type(p)
 			return true
 	return false
 
@@ -162,41 +171,6 @@ static func _sandblast(bond, p) -> void:
 	main.sfx("spell_sand")
 	main.sfx("hit_light", 0.7, -4.0)
 	main.light_flash(origin + aim * 40.0, col, 1.0, 0.8, 0.25)
-
-
-## Aftershock: Quake as it is (without Ringed), and a second quake on the
-## same ground `delay` later at `aftershock` of its strength (no rubble).
-static func _aftershock(bond, sp: Dictionary, p) -> void:
-	bond._cast_type(p)
-	var main = p.main
-	var col: Color = bond.color()
-	var at: Vector2 = p.global_position
-	var r := float(bond.spell_stat(sp, "radius"))
-	var delay := float(bond.spell_stat(sp, "delay"))
-	var dmg: float = bond.spell_damage(sp) * float(bond.spell_stat(sp, "aftershock"))
-	FX.mark(main, at, delay, col)
-	var paint := func(b, it: Dictionary):
-		var k := clampf(float(it["age"]) / delay, 0.0, 1.0)
-		var fade := clampf(float(it["t"]) / 0.4, 0.0, 1.0)
-		for i in 7:  # cracks running out from where the quake struck
-			var a := TAU * i / 7.0 + 0.4
-			var mid := at + Vector2.from_angle(a + 0.15) * r * 0.45 * k
-			var end := at + Vector2.from_angle(a - 0.1) * r * 0.85 * k
-			b.line(at, mid, Color(0.12, 0.09, 0.06, 0.7 * fade), 2.5)
-			b.line(mid, end, Color(0.12, 0.09, 0.06, 0.6 * fade), 1.8)
-			b.line(mid, end + Vector2(0, -1), Color(SAND, 0.35 * fade), 1.0)
-	_add(main, delay + 0.4, Callable(), paint, false)
-	FX.later(main, delay, func():
-		for e in main.targets():
-			var to: Vector2 = e.global_position - at
-			if to.length() < r + e.radius:
-				e.take_hit(dmg, to.normalized() if to.length() > 0.1 else Vector2.ZERO, 120.0, true)
-				if not e.dead and not e.is_boss():
-					e.stagger(0.3)
-		main.fx_ring(at, col, r, 0.4, 5.0)
-		main.fx_burst(at, Vector2.ZERO, col, 14, 220.0)
-		main.sfx("spell_stone", 1.0, -2.0)
-		main.shake(5.0))
 
 
 ## Quicksand: a patch at your aim (short of a wall) for `duration` seconds.
@@ -292,26 +266,6 @@ static func _contagion(bond, p) -> void:
 	main.fx_text(target.global_position + Vector2(0, -target.radius - 26.0), TEXT["infected"], col)
 	main.sfx("spell_poison")
 	main.sfx("hiss", 1.2, -8.0)
-
-
-## Spray: three globs of Venom Spit in a fan `spray` degrees apart, each half
-## as hard and carrying half the stacks (rounded up). It doesn't pierce.
-static func _spray(bond, sp: Dictionary, p) -> void:
-	var main = p.main
-	var col: Color = bond.color()
-	var stacks := maxi(1, int(ceil(float(bond.spell_stat(sp, "stacks")) * 0.5)))
-	var dmg: float = bond.spell_damage(sp) * 0.5
-	var spread := deg_to_rad(float(bond.spell_stat(sp, "spray")))
-	var copies := maxi(1, int(bond.spell_stat(sp, "copies")))
-	for i in copies:
-		var dir: Vector2 = p.aim.rotated(spread * (float(i) - float(copies - 1) * 0.5))
-		var b = main.spawn_player_arrow(p.global_position + dir * (p.radius + 6.0), dir * 520.0, dmg, 60.0, false)
-		b.style = "venom"
-		b.tint = col
-		b.venom = stacks
-	main.sfx("spell_poison", 1.3)
-	if bond.overdraw_mult < 1.0:
-		p.poison(1.5)  # (an overdrawn spit poisons you briefly, as Venom Spit does)
 
 
 ## Enfeeble: every poisoned foe within `radius` hits `weaken` softer (a beast
@@ -436,6 +390,338 @@ static func _cinder_trail(bond, p) -> void:
 	_add(main, float(bond.stat("duration")), tick, paint, true)
 	main.sfx("spell_fire", 1.3, -2.0)
 	main.light_flash(p.global_position, col, 1.0, 1.0, 0.3)
+
+
+# --- marks' growth: Transformations, passive ranks and Apexes ----------------------------
+# (bond.gd, player.gd, enemy.gd and main.gd call these; each does nothing
+# unless its mark has grown to it.)
+
+## The climber's bond with this id (null if none).
+static func _held(p, bond_id: String):
+	if p == null or not is_instance_valid(p) or not ("bonds" in p):
+		return null
+	for b in p.bonds.values():
+		if String(b.id) == bond_id and b.has_method("spell_stat"):
+			return b
+	return null
+
+
+## The mark's passive rank (player.gd passive_rank), 0 without it.
+static func _rank(p, bond_id: String) -> int:
+	return int(p.passive_rank(bond_id)) if _held(p, bond_id) != null else 0
+
+
+## A bond's passive rank at its step (bonds.gd passive_rank).
+static func _brank(b) -> int:
+	return int(load("res://scripts/bonds.gd").passive_rank(int(b.step)))
+
+
+## A number of a passive's rank (bonds.gd passive_num).
+static func _pnum(bond_id: String, rank: int, key: String, fallback := 0.0) -> float:
+	return float(load("res://scripts/bonds.gd").passive_num(bond_id, rank, key, fallback))
+
+
+## A number of the bond's first spell at its step (its step-3 Transformation's, if chosen).
+static func _first(bond, key: String, fallback = 0.0):
+	var v = bond.spell_stat(bond.data()["spells"][0], key)
+	return v if v != null else fallback
+
+
+static func _player(main):
+	if main == null or not is_instance_valid(main) or not ("player" in main):
+		return null
+	var p = main.player
+	return p if p != null and is_instance_valid(p) else null
+
+
+## Upheaval (side B): a foe the quake strikes is thrown into the air for
+## `upheaval` seconds (a beast is too heavy: it's only rocked).
+static func upheave(bond, e) -> void:
+	var t = bond.stat("upheaval")
+	if t == null or float(t) <= 0.0 or not is_instance_valid(e) or e.dead:
+		return
+	if e.is_boss():
+		e.stagger(0.3)
+		return
+	Reactions.apply(e.main, e, "airborne", float(t), bond)
+
+
+## Shatter (side A): the quake leaves sharp shards over its ground for
+## `shards` seconds; a foe walking over them is cut for `shard_damage` of
+## the quake's damage, at most once every `shard_every` seconds.
+static func shatter(bond, p, at: Vector2, r: float) -> void:
+	var secs = bond.stat("shards")
+	if secs == null or float(secs) <= 0.0:
+		return
+	var main = p.main
+	var dmg: float = bond.damage() * float(bond.stat("shard_damage"))
+	var every := float(bond.stat("shard_every"))
+	var st := {"tick": 0.0, "last": {}, "next": {}}
+	var tick := func(it: Dictionary, delta: float):
+		st["tick"] -= delta
+		if st["tick"] > 0.0:
+			return
+		st["tick"] = 0.25
+		var last: Dictionary = st["last"]
+		var nxt: Dictionary = st["next"]
+		var now := {}
+		for e in main.targets():
+			if e.global_position.distance_to(at) > r + e.radius * 0.5:
+				continue
+			now[e] = e.global_position
+			var moved: bool = e.velocity.length() > 8.0 or (last.has(e) and Vector2(last[e]).distance_to(e.global_position) > 2.0)
+			if moved and float(it["age"]) >= float(nxt.get(e, 0.0)):
+				nxt[e] = float(it["age"]) + every
+				e.take_hit(dmg, Vector2.ZERO, 0.0)
+				main.fx_burst(e.global_position + Vector2(0, e.radius * 0.6), Vector2.UP, SAND, 5, 120.0)
+		st["last"] = now
+	var paint := func(b, it: Dictionary):
+		var a := clampf(float(it["age"]) / 0.25, 0.0, 1.0) * clampf(float(it["t"]) / 0.6, 0.0, 1.0)
+		for i in 22:  # shards of stone standing up out of the ground (fixed places: no flicker)
+			var u := fmod(i * 0.618, 1.0)
+			var v := sqrt(fmod(i * 0.377 + 0.13, 1.0))
+			var pt := at + Vector2.from_angle(TAU * u) * r * 0.92 * v
+			var h := 5.0 + fmod(i * 0.71, 1.0) * 5.0
+			var lean := (fmod(i * 0.29, 1.0) - 0.5) * 4.0
+			b.polygon(PackedVector2Array([pt + Vector2(-2.6, 0), pt + Vector2(2.6, 0), pt + Vector2(lean, -h)]), Color(SAND.darkened(0.25), 0.9 * a))
+			b.line(pt + Vector2(0.8, -0.5), pt + Vector2(lean * 0.8 + 0.4, -h + 1.0), Color(SAND.lightened(0.3), 0.7 * a), 1.0)
+	_add(main, float(secs), tick, paint, false)
+
+
+## Fault Line's Apex: every foe on the line as it splits is buried (stunned
+## `bury` seconds, a beast half as long) and crushed (the spell's damage).
+static func bury(bond, p, center: Vector2) -> void:
+	var t = bond.stat("bury")
+	if t == null or float(t) <= 0.0:
+		return
+	var main = p.main
+	var half: Vector2 = p.aim.orthogonal() * float(bond.stat("length")) * 0.5
+	var a := center - half
+	var z := center + half
+	var w := float(bond.stat("bury_width"))
+	var dmg: float = bond.damage()
+	for e in main.targets():
+		var c := Geometry2D.get_closest_point_to_segment(e.global_position, a, z)
+		if c.distance_to(e.global_position) > w + e.radius:
+			continue
+		e.take_hit(dmg, Vector2.ZERO, 0.0, true)
+		if not is_instance_valid(e) or e.dead:
+			continue
+		e.stagger(float(t) * (0.5 if e.is_boss() else 1.0))
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), TEXT["buried"], SAND)
+		var foe = e
+		var paint := func(b, it: Dictionary):
+			if not is_instance_valid(foe):
+				return
+			var k := clampf(float(it["age"]) / 0.2, 0.0, 1.0) * clampf(float(it["t"]) / 0.4, 0.0, 1.0)
+			var at: Vector2 = foe.global_position + Vector2(0, foe.radius * 0.3)
+			b.circle(at, foe.radius + 6.0, Color(SAND.darkened(0.5), 0.55 * k))
+			for i in 7:  # earth heaped over it
+				var ang := PI + PI * float(i) / 6.0
+				b.circle(at + Vector2.from_angle(ang) * (foe.radius + 2.0) * Vector2(1.0, 0.5), 5.0, Color(SAND.darkened(0.2), 0.85 * k), 10)
+		_add(main, float(t) * (0.5 if e.is_boss() else 1.0), Callable(), paint, true)
+
+
+## Shifting Sands II: a foe it counts as slowed (the slowed state, your rubble,
+## or Shifting Sands' last steps: enemy.gd's 110).
+static func slowed(main, e) -> bool:
+	if Reactions.has(e, "slowed") or main.rubble_slow(e.global_position) < 1.0:
+		return true
+	var p = _player(main)
+	return p != null and p.has_bond("sandshaper") and e.global_position.distance_to(p.global_position) < 110.0
+
+
+## Corrosive's strength (0 unless the Venomist chose it).
+static func _corrode(main) -> float:
+	var b = _held(_player(main), "venomist")
+	if b == null or b.step < 3:
+		return 0.0
+	return float(_first(b, "corrode", 0.0))
+
+
+## A blow on `e` ignores its shell or guard: Corrosive poison (side A), or
+## Shifting Sands II on a slowed foe (enemy.gd take_hit).
+static func strips_guard(main, e) -> bool:
+	var p = _player(main)
+	if p == null or e.dead:
+		return false
+	if e.venom > 0 and _corrode(main) > 0.0:
+		return true
+	return _rank(p, "sandshaper") >= 2 and slowed(main, e)
+
+
+## Corrosive: a poisoned foe takes `corrode` more from blows (1 for any other).
+static func blow_mult(main, e) -> float:
+	if e.venom <= 0:
+		return 1.0
+	return 1.0 + _corrode(main)
+
+
+## Bloom (side B): the spit bursts into a small cloud of poison where it lands
+## (a Toxic Cloud of `bloom_radius` for `bloom` seconds).
+static func bloom(bond, shot) -> void:
+	var t = bond.stat("bloom")
+	if t == null or float(t) <= 0.0:
+		return
+	var main = shot.main
+	var r := float(bond.stat("bloom_radius"))
+	var col: Color = bond.color()
+	shot.on_end.append(func(_s, at: Vector2):
+		main.clouds.append({"pos": at, "r": r, "t": float(t), "tick": 0.0, "color": col})
+		main.fx_burst(at, Vector2.ZERO, col, 12, 170.0)
+		main.fx_ring(at, col, r, 0.3, 2.0)
+		main.sfx("hit_slime", 0.85, -4.0))
+
+
+## Toxin Build II: a poisoned foe that dies passes `pass` of its stacks
+## (at least one) to each foe within `pass_radius` (main.gd on_enemy_killed).
+static func on_killed(main, e) -> void:
+	if e.venom <= 0:
+		return
+	var b = _held(_player(main), "venomist")
+	if b == null or _brank(b) < 2:
+		return
+	var n := maxi(1, int(ceil(float(e.venom) * _pnum(String(b.id), 2, "pass", 0.5))))
+	var r: float = _pnum(String(b.id), 2, "pass_radius", 90.0)
+	for o in main.targets():
+		if o == e or o.dead:
+			continue
+		if o.global_position.distance_to(e.global_position) <= r + o.radius:
+			o.add_venom(n)
+			main.fx_bolt([e.global_position, o.global_position], b.color())
+
+
+## Toxin Build III: a foe at `stagger_at` stacks or more is staggered (a
+## beast half as long), at most once every `again` seconds (enemy.gd add_venom).
+static func on_venom(main, e) -> void:
+	if e.dead or e.venom < 2:
+		return
+	var b = _held(_player(main), "venomist")
+	if b == null or _brank(b) < 3 or e.venom < int(_pnum(String(b.id), 3, "stagger_at", 8.0)):
+		return
+	var now := Time.get_ticks_msec()
+	if now < int(e.get_meta("toxin_stagger", 0)):
+		return
+	e.set_meta("toxin_stagger", now + int(_pnum(String(b.id), 3, "again", 4.0) * 1000.0))
+	e.stagger(_pnum("venomist", 3, "stagger", 0.8) * (0.5 if e.is_boss() else 1.0))
+	main.fx_text(e.global_position + Vector2(0, -e.radius - 30.0), TEXT["seized"], b.color())
+
+
+## Virulence's Apex: each foe it burst refills the mark with `refill` of a
+## Venom Spit's essence (up to the mark's capacity).
+static func refill(bond, p, n: int) -> void:
+	var k = bond.stat("refill")
+	if k == null or float(k) <= 0.0 or n <= 0:
+		return
+	var add: float = bond.spell_cost(bond.data()["spells"][0]) * float(k) * n
+	bond.essence = minf(bond.capacity(), bond.essence + add)
+	p.main.fx_text(p.global_position + Vector2(0, -52), TEXT["refilled"] % int(round(add)), bond.color())
+
+
+## Smoke Veil's step 3: Ember Smoke (side A: the smoke burns the foes in it,
+## `damage` every half second) or Shroud Walk (side B: it moves with you
+## for `follow` seconds).
+static func veil(bond, p, sm: Dictionary) -> void:
+	var main = p.main
+	if bool(bond.stat("embers")):
+		var dmg: float = bond.damage()
+		var st := {"tick": 0.0}
+		var tick := func(it: Dictionary, delta: float):
+			if not main.smokes.any(func(x): return is_same(x, sm)):
+				it["done"] = true
+				return
+			st["tick"] -= delta
+			if st["tick"] > 0.0:
+				return
+			st["tick"] = 0.5
+			for e in main.targets():
+				if e.global_position.distance_to(sm["pos"]) < float(sm["r"]) + e.radius:
+					Reactions.apply(main, e, "burning", 1.0, bond, dmg)
+		var paint := func(b, it: Dictionary):
+			var age: float = it["age"]
+			var a := clampf(age / 0.4, 0.0, 1.0) * clampf(float(it["t"]) / 0.6, 0.0, 1.0)
+			var c: Vector2 = sm["pos"]
+			var r := float(sm["r"])
+			for i in 14:  # embers drifting up through the smoke
+				var u := fmod(i * 0.618, 1.0)
+				var rise := fmod(age * (0.35 + 0.2 * fmod(i * 0.37, 1.0)) + u, 1.0)
+				var pt := c + Vector2(cos(TAU * u) * r * 0.8 * sqrt(fmod(i * 0.41 + 0.2, 1.0)), sin(TAU * u) * r * 0.5) + Vector2(sin(age * 2.0 + i) * 4.0, -24.0 * rise)
+				b.circle(pt, 1.4 + 0.8 * (1.0 - rise), Color(1.0, 0.55 + 0.3 * rise, 0.2, 0.85 * a * (1.0 - rise)), 8)
+		_add(main, float(sm["t"]) + 0.5, tick, paint, true)
+	var f = bond.stat("follow")
+	if f != null and float(f) > 0.0:
+		var walk := func(it: Dictionary, _delta: float):
+			if not is_instance_valid(p) or p.dead or not main.smokes.any(func(x): return is_same(x, sm)):
+				it["done"] = true
+				return
+			sm["pos"] = p.global_position
+		_add(main, float(f), walk, Callable(), false)
+
+
+## Unseen Strike's ranks and Ashfall's Apex, after an unseen strike landed
+## (player.gd _strike): II staggers the foe (knocked off balance for
+## `stagger` seconds, its attack broken; not the stun a riposte needs); III
+## hides you a moment if it died; while Ashfall falls, the strike leaps to
+## the nearest other foe within `leap` for `leap_share` of its damage.
+static func unseen_struck(p, e, dmg: float, dir: Vector2) -> void:
+	var b = _held(p, "ashwalker")
+	if b == null:
+		return
+	var main = p.main
+	var rank: int = _brank(b)
+	var alive: bool = is_instance_valid(e) and not e.dead
+	if rank >= 2 and alive and not e.is_boss():
+		e.flinch = maxf(e.flinch, _pnum("ashwalker", 2, "stagger", 0.6))
+		if e.is_attacking():
+			e.aim_dir = Vector2.ZERO
+			e._end_attack(e._idle_state(), 0.6)
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), TEXT["off_balance"], b.color())
+	if rank >= 3 and not alive:
+		p.vanish_t = maxf(p.vanish_t, _pnum(String(b.id), 3, "hide", 1.5))
+		main.fx_burst(p.global_position, Vector2.ZERO, ASH, 12, 160.0)
+		main.fx_text(p.global_position + Vector2(0, -44), TEXT["hidden"], b.color())
+	if main.ashfall_t <= 0.0:
+		return
+	var leap := 0.0
+	var share := 0.0
+	for sp in b.spells():
+		if String(sp.get("type", "")) == "ashfall" and b.spell_stat(sp, "leap") != null:
+			leap = float(b.spell_stat(sp, "leap"))
+			share = float(b.spell_stat(sp, "leap_share"))
+	if leap <= 0.0:
+		return
+	var from: Vector2 = e.global_position if is_instance_valid(e) else p.global_position
+	var best = null
+	var bd := leap
+	for o in main.targets():
+		if o == e or o.dead:
+			continue
+		var d: float = o.global_position.distance_to(from)
+		if d < bd:
+			bd = d
+			best = o
+	if best == null:
+		return
+	var to: Vector2 = best.global_position
+	best.take_hit(dmg * share, (to - from).normalized() if to.distance_to(from) > 0.1 else dir, 140.0, true)
+	var paint := func(bb, it: Dictionary):
+		var k := clampf(float(it["t"]) / 0.35, 0.0, 1.0)
+		bb.line(from, to, Color(ASH, 0.5 * k), 7.0)
+		bb.line(from, to, Color(1.0, 0.6, 0.3, 0.8 * k), 2.0)
+		for i in 6:  # cinders along the leap
+			bb.circle(from.lerp(to, (float(i) + 0.5) / 6.0) + Vector2(0, -8.0 * (1.0 - k)), 1.8, Color(1.0, 0.65, 0.3, k), 8)
+	_add(main, 0.35, Callable(), paint, true)
+	main.fx_burst(to, Vector2.ZERO, ASH, 10, 180.0)
+	main.sfx("hit_stab", 1.1, -4.0)
+
+
+## Shifting Sands III: standing still `still` seconds hardens your skin, so
+## blows take `harden` less (player.gd receive_attack multiplies by this).
+static func hardened(p) -> float:
+	var b = _held(p, "sandshaper")
+	if b == null or _brank(b) < 3 or float(p.still_for) < _pnum(String(b.id), 3, "still", 1.0):
+		return 1.0
+	return 1.0 - _pnum(String(b.id), 3, "harden", 0.3)
 
 
 # --- helpers ------------------------------------------------------------------------------

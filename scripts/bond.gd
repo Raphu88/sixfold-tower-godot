@@ -20,6 +20,15 @@ static func gryphon() -> Script:
 static func kraken() -> Script:
 	return load("res://scripts/spells/kraken.gd")
 
+
+## The Wyvern's and the Manticore's (their marks' Transformations, passive ranks and Apexes).
+static func wyvern() -> Script:
+	return load("res://scripts/spells/wyvern.gd")
+
+
+static func manticore() -> Script:
+	return load("res://scripts/spells/manticore.gd")
+
 ## What a mark's spells' blows are, while it casts (main.gd hit_kind), and
 ## the kinds a foe drenched by the Maelstrom's Apex takes double from.
 const HIT_KINDS := {"stormcaller": "lightning"}
@@ -45,6 +54,8 @@ var flow_power := 1.0  # Unmaking's flow: spells deal more damage (player.set_fl
 ## overdrawing an already-burned mark tears out of you.
 const OVERDRAW_POWER := 0.7
 const TEAR_HEALTH := 1.0
+
+
 
 
 func _init(bond_id: String, body_part: String) -> void:
@@ -186,8 +197,12 @@ var tunes := {}
 var edits := {}
 
 
+## A cast's cost scaled for the moment (Runesmith III: inside your circles; player.gd sets it around a cast).
+var cost_mult := 1.0
+
+
 func spell_cost(sp: Dictionary) -> float:
-	return float(spell_stat(sp, "cost")) * (1.25 if faint else 1.0) * SecretBonds.tune_mult(tunes, sp["id"], "cost")
+	return float(spell_stat(sp, "cost")) * (1.25 if faint else 1.0) * cost_mult * SecretBonds.tune_mult(tunes, sp["id"], "cost")
 
 
 func spell_power(sp: Dictionary) -> float:
@@ -796,6 +811,7 @@ static func taken_mult(main, e) -> float:
 		k *= 1.0 + Bonds.passive_num("hunter", 2, "more")
 	if String(main.get("hit_kind")) in DRENCH_KINDS:
 		k *= kraken().drenched(e)
+	k *= manticore().blow_mult(main, e)  # (Corrosive: a poisoned foe takes more)
 	return k
 
 
@@ -806,6 +822,7 @@ static func on_kill(main, e) -> void:
 	var p = main.player
 	if p == null or not is_instance_valid(p) or p.dead or not p.has_method("passive_rank"):
 		return
+	manticore().on_killed(main, e)  # (Toxin Build II: its poison passes on)
 	if Reactions.has(e, "charged") and p.passive_rank("stormcaller") >= 3:
 		for b in p.bonds.values():
 			if b.id == "stormcaller" and not b.refund:
@@ -942,9 +959,13 @@ func _blade_shape(p) -> Dictionary:
 	return p.Weapons.memory(p.weapon)
 
 
-func _throw_blades(p, count: int, spread: float, back := false, jitter := 0.0) -> void:
+## Throws `count` blades (and Weapon Memory's extra) across `spread`; returns
+## them. `sp`: the spell whose damage they carry (the selected one if {}).
+func _throw_blades(p, count: int, spread: float, back := false, jitter := 0.0, sp := {}) -> Array:
 	var main = p.main
 	var shape := _blade_shape(p)
+	var out: Array = []
+	var dmg: float = spell_damage(sp) if not sp.is_empty() else damage()
 	count = maxi(1, count + int(shape["extra"]))
 	var aim: Vector2 = p.aim
 	for i in count:
@@ -952,19 +973,23 @@ func _throw_blades(p, count: int, spread: float, back := false, jitter := 0.0) -
 		off += randf_range(-jitter, jitter)
 		var dir := aim.rotated(off)
 		var spd: float = float(shape["speed"]) * (randf_range(0.85, 1.1) if jitter > 0.0 else 1.0)
-		var b = main.spawn_player_arrow(p.global_position + dir * (p.radius + 6.0), dir * spd, damage() * float(shape["mult"]), 120.0, true)
+		var b = main.spawn_player_arrow(p.global_position + dir * (p.radius + 6.0), dir * spd, dmg * float(shape["mult"]), 120.0, true)
 		b.style = "blade"
 		b.tint = color()
 		b.life = float(shape["life"])
 		if back:
 			b.return_to = p
 			b.out_t = 0.4
+		out.append(b)
+	wyvern().arm_blades(self, p, out)  # (Weapon Memory II: they carry your weapon's traits)
+	return out
 
 
 func _blades(p) -> void:
 	var main = p.main
 	var aim: Vector2 = p.aim
-	_throw_blades(p, int(stat("count")), deg_to_rad(stat("spread")) * (float(stat("count")) - 1.0) / 2.0)
+	var thrown := _throw_blades(p, int(stat("count")), deg_to_rad(stat("spread")) * (float(stat("count")) - 1.0) / 2.0)
+	wyvern().conjured(self, p, thrown)  # (step 3: Embedded Steel or Weapon Echo)
 	main.sfx("swing", 1.4)
 	main.sfx("equip_sword", 1.3, -4.0)
 	main.light_flash(p.global_position + aim * 30.0, color(), 1.0, 0.9, 0.25)
@@ -1079,7 +1104,8 @@ func _bladeward(p) -> void:
 # A storm of blades fanning out toward your aim.
 func _edges(p) -> void:
 	var main = p.main
-	_throw_blades(p, int(stat("count")), deg_to_rad(stat("spread")) * 0.5, false, deg_to_rad(4.0))
+	var thrown := _throw_blades(p, int(stat("count")), deg_to_rad(stat("spread")) * 0.5, false, deg_to_rad(4.0))
+	wyvern().edges(self, p, thrown)  # (its Apex: edges left on the floor)
 	main.sfx("swing_heavy", 1.3)
 	main.sfx("equip_sword", 0.9)
 	main.light_flash(p.global_position + p.aim * 40.0, color(), 1.6, 1.4, 0.35)
@@ -1089,13 +1115,26 @@ func _edges(p) -> void:
 # --- Flameblade --------------------------------------------------------------------
 
 func _kindle(p) -> void:
-	p.kindle_t = stat("duration")
-	p.kindle_dmg = damage()
-	p.kindle_sustain = bool(stat("sustain"))
-	p.kindle_color = color()
+	var brand = stat("brand")
+	if p.kindle_t > 0.0 and brand != null and float(brand) > 0.0:
+		wyvern().release_heat(p)  # (Brand: casting it again releases your heat)
+	_light_kindle(p, spell())
 	p.main.fx_ring(p.global_position + p.aim * 14.0, color(), 30.0, 0.3, 3.0)
 	p.main.sfx("burn", 1.2, -4.0)
 	p.main.light_flash(p.global_position, color(), 1.2, 1.2, 0.3)
+
+
+## Kindles the weapon with Kindle Blade's numbers (`sp`): Forge Heart's heat
+## cap, Brand's brands (wyvern.gd).
+func _light_kindle(p, sp: Dictionary) -> void:
+	p.kindle_t = float(spell_stat(sp, "duration"))
+	p.kindle_dmg = spell_damage(sp)
+	p.kindle_sustain = bool(spell_stat(sp, "sustain"))
+	p.kindle_color = color()
+	var cap = spell_stat(sp, "heat_cap")
+	p.kindle_cap = float(cap) if cap != null else 100.0
+	var brand = spell_stat(sp, "brand")
+	p.kindle_brand = float(brand) if brand != null else 0.0
 
 
 # A wave of fire thrown forward.
@@ -1113,6 +1152,8 @@ func _searing(p) -> void:
 	p.kindle_t = maxf(p.kindle_t, stat("duration"))
 	p.kindle_dmg = maxf(p.kindle_dmg, 3.0 * power())
 	p.kindle_color = color()
+	var cap = spell_stat(data()["spells"][0], "heat_cap")  # (Forge Heart holds for any kindling)
+	p.kindle_cap = maxf(100.0, float(cap) if cap != null else 100.0)
 	p.searing_dmg = damage()
 	p.main.fx_ring(p.global_position, color(), 36.0, 0.35, 3.0)
 	p.main.sfx("burn", 1.0, -4.0)
@@ -1132,6 +1173,7 @@ func _overheat(p) -> void:
 			if not e.dead:
 				Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), self)
 			hits += 1
+	wyvern().overheat(self, p, heat)  # (Brand's brands ignite; its Apex: a ring and Kindle Blade lit again)
 	p.heat = 0.0
 	main.fx_cone(p.global_position, p.aim, reach + 10.0, deg_to_rad(65.0), color())
 	main.fx_text(p.global_position + Vector2(0, -40), "Overheat! %d" % int(dmg), color())
@@ -1151,9 +1193,16 @@ func _trap(p) -> void:
 	var main = p.main
 	var at: Vector2 = p.global_position + p.aim * 50.0
 	at = at.clamp(main.room.position + Vector2(20, 20), main.room.end - Vector2(20, 20))
-	main.runes.append({"pos": at, "r": 22.0, "blast": stat("blast"), "damage": damage(), "linked": bool(stat("linked")), "color": color(), "t": 40.0})
+	var cp = stat("creep_power")  # (Creeping Runes burst harder)
+	var rune := {"pos": at, "r": 22.0, "blast": stat("blast"), "damage": damage() * (float(cp) if cp != null else 1.0), "linked": bool(stat("linked")), "color": color(), "t": 40.0}
+	if rune["linked"] and stat("link_damage") != null:  # (Linked Runes: fire runs between them, main.gd _update_runes)
+		rune["link"] = float(stat("link_damage")) * power() * flow_power
+		rune["link_w"] = float(stat("link_width"))
+		rune["link_fire"] = float(stat("link_fire")) if stat("link_fire") != null else 0.0
+	main.runes.append(rune)
 	while main.runes.size() > MAX_RUNES:
 		main.runes.pop_front()
+	wyvern().creep(self, p, rune)  # (Creeping Runes)
 	main.fx_ring(at, color(), 26.0, 0.3, 2.0)
 	main.sfx("ready", 0.7, -4.0)
 
@@ -1177,7 +1226,9 @@ func _ward(p) -> void:
 
 
 func _sigil(p) -> void:
-	p.main.sigils.append({"pos": p.global_position, "r": stat("radius"), "t": stat("duration"), "color": color()})
+	var sig := {"pos": p.global_position, "r": stat("radius"), "t": stat("duration"), "color": color()}
+	p.main.sigils.append(sig)
+	wyvern().follow_sigil(self, p, sig)  # (its Apex: it moves with you a while)
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.5, 5.0)
 	p.main.light_flash(p.global_position, color(), 1.6, 2.0, 0.5)
 	p.main.sfx("crit", 0.6, -4.0)
@@ -1206,7 +1257,10 @@ func _quake(p) -> void:
 				e.stagger(0.4)
 				if Pacts.has(p, "dust_devil"):  # Dust Devil (Windwalker and Sandshaper): it's thrown up
 					e.lift(Pacts.num("dust_devil", "lift"))
+			if not e.dead:
+				manticore().upheave(self, e)  # (Upheaval: thrown into the air)
 	main.rubble.append({"pos": p.global_position, "r": r, "t": 4.0})
+	manticore().shatter(self, p, p.global_position, r)  # (Shatter: shards on the ground)
 	if bool(stat("ring")):
 		var ring: Array = []
 		for i in 10:
@@ -1248,6 +1302,7 @@ func _sinkhole(p) -> void:
 
 func _fault(p) -> void:
 	var center: Vector2 = p.global_position + p.aim * 90.0
+	manticore().bury(self, p, center)  # (its Apex: foes on the line are buried and crushed)
 	p.main.add_stone_wall(_line_points(center, p.aim, stat("length"), 16.0), 9.0, stat("duration"), true)
 	p.main.fx_burst(center, p.aim, color(), 20, 240.0)
 	p.main.sfx("slam", 0.7)
@@ -1262,6 +1317,7 @@ func _spit(p) -> void:
 	b.style = "venom"
 	b.tint = color()
 	b.venom = int(stat("stacks"))
+	manticore().bloom(self, b)  # (Bloom: a cloud where it lands)
 	main.sfx("hit_slime", 1.4, -4.0)
 	if _overdrawn():
 		p.poison(1.5)  # an overdrawn spit poisons you briefly
@@ -1318,6 +1374,7 @@ func _virulence(p) -> void:
 		if n > 0:
 			e.add_venom(n)
 			main.fx_bolt([from, e.global_position], col)
+	manticore().refill(self, p, burst.size())  # (its Apex: each foe burst refills the mark)
 	main.sfx("burn", 0.7)
 	main.fx_ring(p.global_position, col, float(stat("radius")), 0.4, 3.0)
 	main.light_flash(p.global_position, col, 1.6, 1.4, 0.3)
@@ -1329,20 +1386,9 @@ func _virulence(p) -> void:
 
 func _veil(p) -> void:
 	var main = p.main
-	if bool(stat("ignite")) and not main.smokes.is_empty():
-		var sm: Dictionary = main.smokes.pop_back()
-		for e in main.targets():
-			if e.global_position.distance_to(sm["pos"]) < sm["r"] + e.radius:
-				e.take_hit(damage(), (e.global_position - sm["pos"]).normalized(), 120.0, true)
-				if not e.dead:
-					Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), self)
-		main.fx_ring(sm["pos"], Color(1.0, 0.5, 0.2), sm["r"], 0.4, 6.0)
-		main.fx_burst(sm["pos"], Vector2.ZERO, Color(1.0, 0.55, 0.2), 24, 260.0)
-		main.light_flash(sm["pos"], Color(1.0, 0.5, 0.2), 2.0, 2.0, 0.4)
-		main.sfx("burn", 0.6)
-		main.shake(5.0)
-		return
-	main.smokes.append({"pos": p.global_position, "r": stat("radius"), "t": stat("duration")})
+	var sm := {"pos": p.global_position, "r": stat("radius"), "t": stat("duration")}
+	main.smokes.append(sm)
+	manticore().veil(self, p, sm)  # (step 3: Ember Smoke or Shroud Walk)
 	main.sfx("gust", 0.5, -2.0)
 	if _overdrawn():
 		p.poison(1.0)  # an overdrawn veil chokes you as well

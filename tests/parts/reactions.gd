@@ -567,6 +567,9 @@ func _climber_off() -> void:
 	var main = t.main
 	var p = main.player
 	_check(R.CLIMBER["enabled"] == false, "monsters giving the climber states is off by default")
+	main.puddles = []  # (no pool underfoot: fire on a soaked climber would turn to Steam)
+	p.states.clear()
+	p.barrier_hp = 0.0
 	p.iframes = 0.0
 	p.hurt_t = 0.0
 	p.hp = p.max_health()
@@ -576,11 +579,18 @@ func _climber_off() -> void:
 	# Switched on (the owner's choice, in the Data editor), it would.
 	R.CLIMBER["enabled"] = true
 	p.hurt_t = 0.0
+	p.iframes = 0.0  # (the first blow's grace must not swallow this one)
+	p.parry_t = 0.0
+	var hp_was: float = p.hp
+	var why := "hurt_t %.2f iframes %.2f parry %.2f unbreak %.2f absorb %.2f barrier %.1f th %s" % [p.hurt_t, p.iframes, p.parry_t, p.unbreak_t, p.absorb_t, p.barrier_hp, th.kind if is_instance_valid(th) else "gone"]
 	p.receive_attack(2.0, th)
 	var on: bool = R.has(p, "burning")
+	why += " | hp %.1f->%.1f states %s" % [hp_was, p.hp, p.states]
 	R.CLIMBER["enabled"] = false
-	await t._frames(2)
-	_check(on and p.states.is_empty(), "...switched on, a cinder's blow would set you burning; switched off again, it's gone")
+	p.set_physics_process(true)  # (an earlier screen may have left the climber still; the clearing runs in its physics step)
+	t.paused = false
+	await t._until(func(): return p.states.is_empty(), 1.0)
+	_check(on and p.states.is_empty(), "...switched on, a cinder's blow would set you burning; switched off again, it's gone (%s; after %s)" % [why, p.states])
 	p.iframes = 999.0
 
 
