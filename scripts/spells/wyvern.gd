@@ -103,7 +103,7 @@ static var FORKS := {
 			}},
 		3: {"id": "afterglow", "name": "Creeping Runes",
 			"desc": "your runes crawl toward the nearest foe, and burst wider and harder",
-			"steps": {3: {"linked": false, "creep": 70.0, "creep_reach": 300.0, "blast": 75.0, "creep_power": 1.7}}},
+			"steps": {3: {"linked": false, "creep": 70.0, "creep_reach": 300.0, "blast": 75.0, "creep_power": 1.5}}},
 		4: {"id": "binding_circle", "name": "Binding Circle", "type": "binding_circle", "learn": 4,
 			"desc": "a rune circle at your aim holds every foe in it: they can walk in but not out for 4 seconds",
 			"steps": {4: {"cost": 14.0, "windup": 0.35, "duration": 4.0, "radius": 72.0, "range": 120.0}}},

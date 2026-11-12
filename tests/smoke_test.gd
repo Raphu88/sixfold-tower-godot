@@ -689,7 +689,8 @@ func _wyvern_bond_tests() -> void:
 	p._equip("fists")
 	var before: int = proj.call().size()
 	_cast("hand", "conjured_blades")
-	_check(proj.call().size() - before == 7, "Weapon Memory: with fists, Conjured Blades throws more, smaller blades (%d)" % (proj.call().size() - before))
+	var fist_blades: int = int(p.bonds["hand"].stat("count")) + int(p.Weapons.memory("fists")["extra"])
+	_check(proj.call().size() - before == fist_blades and fist_blades > int(p.bonds["hand"].stat("count")), "Weapon Memory: with fists, Conjured Blades throws more, smaller blades (%d)" % (proj.call().size() - before))
 	p._equip("sword")
 	for c in proj.call():
 		c.queue_free()
@@ -746,10 +747,11 @@ func _wyvern_bond_tests() -> void:
 	_check(hot > cold * 1.3, "...and a hot weapon hits harder (%.0f vs %.0f)" % [hot, cold])
 	_cast("heart", "kindle_blade")
 	_check(p.kindle_t > 0.0, "Kindle Blade sets the weapon burning")
-	p.kindle_t = 0.5
+	p.heat = 95.0
 	p.attack_cd = 0.0
 	p._melee()
-	_check(p.kindle_t >= 2.0, "...and at step 3+ landing strikes keeps it burning")
+	_check(p.heat > 100.0, "...and at step 3+ (Forge Heart) your heat climbs past full while it burns (%.0f)" % p.heat)
+	p.heat = 0.0
 	var waves0: int = main.waves.size()
 	_cast("heart", "flame_lash")
 	_check(main.waves.size() == waves0 + 1, "Flame Lash throws a wave of fire")
@@ -847,7 +849,7 @@ func _manticore_bond_tests() -> void:
 	main.puddles = []
 	var hp0: float = k.hp
 	_cast("heart", "quake")
-	_check(k.hp < hp0 and main.rubble.size() == 1 and main.stone_walls.size() >= 8, "Quake hurts nearby foes, leaves rubble, and at step 3+ throws up a ring of walls")
+	_check(k.hp < hp0 and main.rubble.size() == 1 and main.stone_walls.is_empty(), "Quake hurts nearby foes and leaves rubble (at step 3+ Shatter's shards, not walls)")
 	_check(main.rubble_slow(p.global_position) < 1.0, "rubble slows foes")
 	main._start_floor(main.floor_num)
 	await _frames(2)
@@ -937,9 +939,9 @@ func _manticore_bond_tests() -> void:
 	_cast("back", "smoke_veil")
 	main._update_ground(0.016)
 	_check(a.is_lost(30.0), "Smoke Veil: foes inside lose track of you")
-	hp0 = a.hp
-	_cast("back", "smoke_veil")
-	_check(a.hp < hp0 and main.smokes.is_empty(), "...and at step 3+ casting again ignites it")
+	await _frames(3)
+	_check(a.burn_t > 0.0 and main.smokes.size() == 1, "...and at step 3+ (Ember Smoke) the smoke burns the foe inside it")
+	main.smokes.clear()
 	a.lost_t = 0.0
 	p.global_position = Vector2(700, 400)
 	_cast("back", "afterimage")
