@@ -7246,7 +7246,8 @@ func _run() -> void:
 	main.profile.bonds["hand"]["xp"] = main.ProfileScript.STEP_XP[2] + 10.0
 	main._give_bonds()
 	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
-	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
+	var most3: int = int(main.BondScript.Bonds.BONDS["stormcaller"]["spells"][0]["steps"][3]["most"])
+	_check(int(p.bonds["hand"].stat("most")) == most3, "step 3 Chain Lightning branches to up to %d foes (Branching Storm)" % most3)
 	var foes5: Array = main.enemies()
 	_check(foes5.size() >= 4, "floor 4 has more monsters (%d)" % foes5.size())
 	_check(foes5[0].max_hp > EnemyHP.get(foes5[0].kind, 0.0), "monsters are tougher higher up")
@@ -8083,10 +8084,11 @@ func _mark_page_tests() -> void:
 			right = false
 	_check(right, "...each with the step that teaches it, the ones past step 1 locked")
 	var texts: Array = _all_labels(menu).map(func(l): return l.text)
-	_check("learned at step 4" in texts and "learned at step 5" in texts and "Quick Nerves" in texts and "Static" in texts, "...saying 'learned at step N', with the body and passive effects")
+	_check("learned at step 4" in texts and "learned at step 5" in texts and "Quick Nerves" in texts and texts.any(func(x): return String(x).begins_with("Static")), "...saying 'learned at step N', with the body and passive effects (its passive with its rank)")
 	var rich: Array = menu.find_children("*", "RichTextLabel", true, false).map(func(r): return r.text)
 	_check(rich.any(func(t): return t.contains("Cost 12 essence") and t.contains("Wind-up 0.45 s")), "...the cost and wind-up of each spell")
-	_check(rich.any(func(t): return t.contains("Step 3:") and t.contains("leaps 2 more times")), "...and what later steps change")
+	var change3: String = main.BondScript.Bonds.BONDS["stormcaller"]["spells"][0]["changes"][3]
+	_check(rich.any(func(t): return t.contains("Step 3:") and t.contains(change3)), "...and what later steps change")
 	_check(_menu_button("Back") != null, "...with Back")
 	menu.scroll.scroll_vertical = 200
 	await _key_tap(KEY_E)

@@ -401,14 +401,24 @@ static func _held(p, bond_id: String):
 	if p == null or not is_instance_valid(p) or not ("bonds" in p):
 		return null
 	for b in p.bonds.values():
-		if String(b.id) == bond_id and b.has_method("passive_rank"):
+		if String(b.id) == bond_id and b.has_method("spell_stat"):
 			return b
 	return null
 
 
+## The mark's passive rank (player.gd passive_rank), 0 without it.
 static func _rank(p, bond_id: String) -> int:
-	var b = _held(p, bond_id)
-	return b.passive_rank() if b != null else 0
+	return int(p.passive_rank(bond_id)) if _held(p, bond_id) != null else 0
+
+
+## A bond's passive rank at its step (bonds.gd passive_rank).
+static func _brank(b) -> int:
+	return int(load("res://scripts/bonds.gd").passive_rank(int(b.step)))
+
+
+## A number of a passive's rank (bonds.gd passive_num).
+static func _pnum(bond_id: String, rank: int, key: String, fallback := 0.0) -> float:
+	return float(load("res://scripts/bonds.gd").passive_num(bond_id, rank, key, fallback))
 
 
 ## A number of the bond's first spell at its step (its step-3 Transformation's, if chosen).
@@ -569,10 +579,10 @@ static func on_killed(main, e) -> void:
 	if e.venom <= 0:
 		return
 	var b = _held(_player(main), "venomist")
-	if b == null or b.passive_rank() < 2:
+	if b == null or _brank(b) < 2:
 		return
-	var n := maxi(1, int(ceil(float(e.venom) * b.passive_num("pass", 0.5))))
-	var r: float = b.passive_num("pass_radius", 90.0)
+	var n := maxi(1, int(ceil(float(e.venom) * _pnum(String(b.id), 2, "pass", 0.5))))
+	var r: float = _pnum(String(b.id), 2, "pass_radius", 90.0)
 	for o in main.targets():
 		if o == e or o.dead:
 			continue
@@ -587,13 +597,13 @@ static func on_venom(main, e) -> void:
 	if e.dead or e.venom < 2:
 		return
 	var b = _held(_player(main), "venomist")
-	if b == null or b.passive_rank() < 3 or e.venom < int(b.passive_num("stagger_at", 8.0)):
+	if b == null or _brank(b) < 3 or e.venom < int(_pnum(String(b.id), 3, "stagger_at", 8.0)):
 		return
 	var now := Time.get_ticks_msec()
 	if now < int(e.get_meta("toxin_stagger", 0)):
 		return
-	e.set_meta("toxin_stagger", now + int(b.passive_num("again", 4.0) * 1000.0))
-	e.stagger(b.passive_num("stagger", 0.8) * (0.5 if e.is_boss() else 1.0))
+	e.set_meta("toxin_stagger", now + int(_pnum(String(b.id), 3, "again", 4.0) * 1000.0))
+	e.stagger(_pnum("venomist", 3, "stagger", 0.8) * (0.5 if e.is_boss() else 1.0))
 	main.fx_text(e.global_position + Vector2(0, -e.radius - 30.0), TEXT["seized"], b.color())
 
 
@@ -658,16 +668,16 @@ static func unseen_struck(p, e, dmg: float, dir: Vector2) -> void:
 	if b == null:
 		return
 	var main = p.main
-	var rank: int = b.passive_rank()
+	var rank: int = _brank(b)
 	var alive: bool = is_instance_valid(e) and not e.dead
 	if rank >= 2 and alive and not e.is_boss():
-		e.flinch = maxf(e.flinch, b.passive_num("stagger", 0.6))
+		e.flinch = maxf(e.flinch, _pnum("ashwalker", 2, "stagger", 0.6))
 		if e.is_attacking():
 			e.aim_dir = Vector2.ZERO
 			e._end_attack(e._idle_state(), 0.6)
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), TEXT["off_balance"], b.color())
 	if rank >= 3 and not alive:
-		p.vanish_t = maxf(p.vanish_t, b.passive_num("hide", 1.5))
+		p.vanish_t = maxf(p.vanish_t, _pnum(String(b.id), 3, "hide", 1.5))
 		main.fx_burst(p.global_position, Vector2.ZERO, ASH, 12, 160.0)
 		main.fx_text(p.global_position + Vector2(0, -44), TEXT["hidden"], b.color())
 	if main.ashfall_t <= 0.0:
@@ -709,9 +719,9 @@ static func unseen_struck(p, e, dmg: float, dir: Vector2) -> void:
 ## blows take `harden` less (player.gd receive_attack multiplies by this).
 static func hardened(p) -> float:
 	var b = _held(p, "sandshaper")
-	if b == null or b.passive_rank() < 3 or float(p.still_for) < b.passive_num("still", 1.0):
+	if b == null or _brank(b) < 3 or float(p.still_for) < _pnum(String(b.id), 3, "still", 1.0):
 		return 1.0
-	return 1.0 - b.passive_num("harden", 0.3)
+	return 1.0 - _pnum(String(b.id), 3, "harden", 0.3)
 
 
 # --- helpers ------------------------------------------------------------------------------

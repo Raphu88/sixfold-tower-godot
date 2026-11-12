@@ -248,7 +248,7 @@ func _select_keys() -> void:
 	_check(f != null and String(f.get_meta("bud", "")) == String(menu.get_meta("tree_sel", _map().sel)), "Right from the part: onto its branch, on the chosen bud (%s)" % (f.get_meta("bud", "") if f != null else ""))
 	await t._key_tap(KEY_DOWN)
 	f = _focus()
-	_check(f != null and String(f.get_meta("bud", "")).ends_with("|change"), "Down along the branch: the next line (Forked, today's step-3 change) (%s)" % (f.get_meta("bud", "") if f != null else ""))
+	_check(f != null and String(f.get_meta("bud", "")).ends_with("|change"), "Down along the branch: the next line (Branching Storm, today's step-3 side) (%s)" % (f.get_meta("bud", "") if f != null else ""))
 	await t._key_tap(KEY_UP)
 	await t._key_tap(KEY_UP)
 	f = _focus()
@@ -326,7 +326,7 @@ func _links() -> void:
 	_check(menu.climber_tab == "abilities" and cards.size() == 1 and cards[0].selected, "...which turns back to Abilities, Chain Lightning picked out")
 	# A step-3 change is part of the spell it changes; a passed side is in no entry.
 	await _open_tree("hand", "mark:stormcaller:3|change")
-	_check(t._all_buttons(menu).any(func(b): return b.get_meta("tree_link", "") == "chain_lightning"), "Forked (today's step-3 change) links to Chain Lightning")
+	_check(t._all_buttons(menu).any(func(b): return b.get_meta("tree_link", "") == "chain_lightning"), "Branching Storm (today's step-3 side) links to Chain Lightning")
 	await _open_tree("hand", "mark:stormcaller:2|ball_lightning")
 	_check(not t._all_buttons(menu).any(func(b): return b.has_meta("tree_link")), "a side not chosen yet isn't in your abilities")
 	# The Unbound: a technique links to its form's bud, and back.

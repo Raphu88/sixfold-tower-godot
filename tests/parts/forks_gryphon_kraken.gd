@@ -1,8 +1,9 @@
 extends RefCounted
 ## The Gryphon's and the Kraken's forks (Phase B, job 1): every new spell
-## and variation of Stormcaller, Windwalker, Hunter, Tidecaller, Warden and
-## Deepcaller can be chosen at its fork, casts, does what it says and costs
-## what it says; no placeholders are left; old saves are unaffected.
+## of Stormcaller, Windwalker, Hunter, Tidecaller, Warden and Deepcaller can
+## be chosen at its fork, casts, does what it says and costs what it says;
+## no placeholders are left; old saves are unaffected. (The step-3 choices
+## are Transformations now: tests/parts/marks_gryphon_kraken.gd.)
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
 const TestRun := preload("res://scripts/test_run.gd")
@@ -150,8 +151,8 @@ func _written() -> void:
 				missing.append("%s:%d" % [bid, s])
 			words += " " + String(alt.get("name", "")) + " " + String(alt.get("desc", ""))
 			if s == 3:
-				if not L.VARIATIONS.has(String(alt.get("variation", ""))):
-					missing.append("%s:3 variation" % bid)
+				if not alt.get("steps", {}).has(3):
+					missing.append("%s:3 steps" % bid)
 			else:
 				types.append(String(alt.get("type", "")))
 				if int(alt.get("learn", 0)) != s or not alt.get("steps", {}).has(s):
@@ -252,7 +253,7 @@ func _stormcaller() -> void:
 
 
 func _windwalker() -> void:
-	print("Windwalker: Updraft, Echoing, Hurl")
+	print("Windwalker: Updraft")
 	await _marked("windwalker", 2)
 	var main = _main()
 	var p = main.player
@@ -266,22 +267,6 @@ func _windwalker() -> void:
 	e.airborne = 0.0
 	await t._frames(4)
 	_check(e.airborne <= 0.0, "...once: it isn't thrown again while it stands there")
-
-	print("Windwalker: Echoing")
-	await _marked("windwalker", 3)
-	main = _main()
-	p = main.player
-	_check(_choose("windwalker", 3, "echoing"), "Echoing can be chosen at step 3")
-	var b = p.bonds["hand"]
-	b.select(0)
-	_check(float(b.stat("arc")) == 35.0 and float(b.stat("lift")) == 1.8, "...Gale Lift keeps its narrow cone (not today's widening) and lifts for 1.8 s")
-	e = _foe(p.global_position + dir * 70.0)
-	paid = await _cast()
-	_check(paid == 10.0, "Gale Lift still costs 10 (%.1f)" % paid)
-	_check(e.airborne > 1.0, "the first gust lifts the foe")
-	e.airborne = 0.0
-	await t._wait(1.1)
-	_check(e.airborne > 0.5, "...and a second gust a second later lifts it again (%.1f s)" % e.airborne)
 
 	print("Windwalker: Hurl")
 	await _marked("windwalker", 4)
@@ -330,22 +315,6 @@ func _hunter() -> void:
 	var waiting: Array = G._snares.filter(func(s): return is_instance_valid(s) and not s.is_queued_for_deletion())
 	_check(waiting.size() == 2, "no more than 2 snares wait at once (%d)" % waiting.size())
 
-	print("Hunter: Split")
-	await _marked("hunter", 3)
-	main = _main()
-	p = main.player
-	_check(_choose("hunter", 3, "split_shot"), "Split can be chosen at step 3")
-	var b = p.bonds["hand"]
-	b.select(0)
-	_check(is_equal_approx(b.windup(), 0.3) and not b.stat("charged"), "...Piercing Shot loses today's charging (wind-up 0.3 s)")
-	var arrows := func(): return main.get_children().filter(func(c): return c.get_script() == load("res://scripts/projectile.gd") and c.friendly and c.style == "essence")
-	var before: int = arrows.call().size()
-	paid = await _cast()
-	var now: Array = arrows.call()
-	_check(paid == 9.0, "Piercing Shot still costs 9 (%.1f)" % paid)
-	var split_power: float = float(TR.fork_alt("hunter", 3)["steps"][3]["power"])
-	_check(now.size() - before == 3 and now.all(func(a): return is_equal_approx(a.dmg, 14.0 * split_power)), "three arrows fan out, each at %d%% (%d)" % [roundi(split_power * 100.0), now.size() - before])
-
 	print("Hunter: Pinning Shot")
 	await _marked("hunter", 4)
 	main = _main()
@@ -375,18 +344,6 @@ func _tidecaller() -> void:
 	await t._wait(0.7)
 	_check(e.chill_t > 0.0 and e.hp < e.max_hp, "a foe in the flood wades slowly and takes a little damage (%.1f)" % (e.max_hp - e.hp))
 
-	print("Tidecaller: Swelling")
-	await _marked("tidecaller", 3)
-	main = _main()
-	p = main.player
-	_check(_choose("tidecaller", 3, "swelling"), "Swelling can be chosen at step 3")
-	var b = p.bonds["hand"]
-	b.select(0)
-	_check(not b.stat("aimed") and is_equal_approx(float(b.stat("radius")), 115.0 * 1.4), "...Tidal Surge stays a burst around you, reaching farther (%.0f)" % float(b.stat("radius")))
-	e = _foe(p.global_position + dir * 140.0)
-	paid = await _cast()
-	_check(paid == 12.0 and e.hp < e.max_hp and e.knock.dot(dir) > 0.0, "a foe beyond today's reach is struck and shoved away")
-
 	print("Tidecaller: Geysers")
 	await _marked("tidecaller", 4)
 	main = _main()
@@ -413,25 +370,6 @@ func _warden() -> void:
 	await t._wait(0.6)
 	_check(not is_instance_valid(shot), "a monster's shot is stopped at the wall")
 	_check(e.knock.dot(dir) > 100.0, "...and a foe walking into it is held back")
-
-	print("Warden: Mirrored")
-	await _marked("warden", 3)
-	main = _main()
-	p = main.player
-	_check(_choose("warden", 3, "mirrored"), "Mirrored can be chosen at step 3")
-	var b = p.bonds["hand"]
-	b.select(0)
-	paid = await _cast()
-	_check(paid == 12.0 and p.barrier_hp > 0.0 and not p.barrier_burst, "Barrier still costs 12 and rises (without today's burst)")
-	shot = main.spawn_projectile(p.global_position + dir * 150.0, -dir * 300.0, 8.0)
-	await t._wait(0.5)
-	_check(is_instance_valid(shot) and shot.friendly and shot.reflected and shot.vel.dot(dir) > 0.0 and is_equal_approx(shot.dmg, 12.0),
-		"a shot that reaches the barrier flies back at its shooter, harder")
-	p.barrier_hp = 0.0
-	await t._frames(3)
-	shot = main.spawn_projectile(p.global_position + dir * 100.0, -dir * 300.0, 8.0)
-	await t._wait(0.3)
-	_check(not is_instance_valid(shot) or not shot.friendly, "...but not once the barrier is gone")
 
 	print("Warden: Tidebreak")
 	await _marked("warden", 4)
@@ -466,21 +404,6 @@ func _deepcaller() -> void:
 	_check(paid == _data_cost("deepcaller", 2) and paid == 8.0, "it costs what it says (%.1f)" % paid)
 	await t._wait(1.2)
 	_check(e.hp <= e.max_hp - 2.9 and p.hp > 40.0, "it drinks from the foe every second and gives you half (%.0f, +%.1f)" % [e.max_hp - e.hp, p.hp - 40.0])
-
-	print("Deepcaller: Patient")
-	await _marked("deepcaller", 3)
-	main = _main()
-	p = main.player
-	_check(_choose("deepcaller", 3, "patient"), "Patient can be chosen at step 3")
-	var b = p.bonds["hand"]
-	b.select(0)
-	_check(is_equal_approx(b.windup(), 0.7) and int(b.stat("targets")) == 3, "...Undertow winds up twice as long and drains 3 foes (not today's 5)")
-	var foes: Array = []
-	for i in 4:
-		foes.append(_foe(p.global_position + dir * (50.0 + 30.0 * i)))
-	paid = await _cast()
-	var hurt: Array = foes.filter(func(f): return f.hp < f.max_hp)
-	_check(paid == 12.0 and hurt.size() == 3 and hurt.all(func(f): return is_equal_approx(f.max_hp - f.hp, 8.0 * float(L.variation("charged")["power"]))), "it drains 3 foes much harder (%d)" % hurt.size())
 
 	print("Deepcaller: Drown")
 	await _marked("deepcaller", 4)

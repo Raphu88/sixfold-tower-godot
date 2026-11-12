@@ -124,8 +124,16 @@ var barrier_t := 0.0
 var barrier_stored := 0.0  # what it has absorbed (released as a burst from step 3)
 var barrier_burst := false
 var barrier_color := Color.WHITE
+var barrier_max := 0.0  # how strong it was raised (Steadfast II restores toward it)
+var barrier_grow := 0.0  # Bastion: this much of each blow it blocks comes back to it...
+var barrier_cap := 0.0  # ...up to this
+var barrier_burst_r := 0.0  # Bastion: its burst reaches this far (else 110)
+var barrier_front := 1.0  # Moving Wall: blows from the wall's side wear it this fast...
+var barrier_wall := 0.0  # ...the wall reaching this many degrees either side of your aim
 var absorb_t := 0.0  # Absorb: hits are stored in the barrier instead
 var unbreak_t := 0.0  # Unbreakable: no damage, no attacking
+var unbreak_strike := 0.0  # its Apex: you may strike, at this much damage...
+var unbreak_stored := 0.0  # ...and what it kept from you bursts out at its end (kraken.gd unbreakable)
 # Deepcaller
 var anchor_target  # Anchor: a tethered foe
 var anchor_t := 0.0
@@ -135,6 +143,8 @@ var drink_t := 0.0
 var drink_age := 0.0
 var drink_dmg := 0.0
 var drink_tick := 0.0
+var drink_jump := 0.0  # its Apex: on a kill the drain jumps to a foe this near (kraken.gd drink_jump)
+var drink_at := Vector2.ZERO  # where the foe it drinks from was
 ## States on the climber (reactions.gd): only while CLIMBER "enabled" (off).
 var states := {}
 var is_climber := true
@@ -164,8 +174,10 @@ const PEEK_HOLD := 0.45
 var pick_peeked := false
 # Bond effects on the climber
 var thunderhead_t := 0.0  # Stormcaller's Thunderhead
+var thunderhead_bolt := 0.0  # its Apex: a strike you land calls a bolt this strong
 var hawk_t := 0.0  # Hunter's Hawk's Eye
 var quarry  # Hunter's Quarry: the last foe you struck
+var quarry_fresh := false  # (a foe struck the first time isn't your Quarry yet: bond.gd taken_mult)
 var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
 var items := Items.START.duplicate()  # item id -> count
@@ -588,25 +600,15 @@ func has_bond(bond_id: String) -> bool:
 	return false
 
 
-## The Wyvern's and the Manticore's marks' growth (Transformations, passive
-## ranks, Apexes) runs in their towers' files, looked up when first needed
-## (a preload here would load them before library.gd has merged them).
-static var _wyvern_script: Script = null
 
 
-static func _wyvern_marks() -> Script:
-	if _wyvern_script == null:
-		_wyvern_script = load("res://scripts/spells/wyvern.gd")
-	return _wyvern_script
-
-
-static var _manticore_script: Script = null
-
-
-static func _manticore_marks() -> Script:
-	if _manticore_script == null:
-		_manticore_script = load("res://scripts/spells/manticore.gd")
-	return _manticore_script
+## A mark's passive rank (bonds.gd passive_rank: II from step 3, III at
+## step 5), or 0 without the mark.
+func passive_rank(bond_id: String) -> int:
+	for b in bonds.values():
+		if b.id == bond_id:
+			return BondScript.Bonds.passive_rank(b.step)
+	return 0
 
 
 func _physics_process(delta: float) -> void:
@@ -1147,6 +1149,9 @@ func _try_roll(input: Vector2) -> bool:
 	main.sfx("roll")
 	if wind:
 		main.sfx("gust", 1.3, -6.0)
+		if passive_rank("windwalker") >= 3:  # Featherweight III: the roll leaves a gust
+			BondScript.gryphon().roll_gust(main, global_position, BondScript.Bonds.passive_num("windwalker", 3, "radius"), BondScript.Bonds.passive_num("windwalker", 3, "lift"),
+				BondScript.Bonds.passive_num("windwalker", 3, "weight"), BondScript.Bonds.BONDS["windwalker"]["color"])
 	wear_gear("roll")
 	return true
 
@@ -1154,8 +1159,8 @@ func _try_roll(input: Vector2) -> bool:
 func _try_attack() -> bool:
 	if attack_cd > 0.0 or drawing:
 		return false
-	if unbreak_t > 0.0:
-		return true  # Unbreakable: you cannot attack
+	if unbreak_t > 0.0 and unbreak_strike <= 0.0:
+		return true  # Unbreakable: you cannot attack (its Apex lets you: unbreak_strike)
 	if sta <= 0.0:
 		_winded()
 		return true
@@ -1226,7 +1231,7 @@ func _melee() -> bool:
 		dmg += kindle_dmg
 	if desperate_t > 0.0:
 		dmg *= 1.0 + 1.5 * (1.0 - hp / max_hp)  # Desperation
-	_wyvern_marks().swing_fire(self)  # (Heat II: at full heat your swings throw fire)
+	BondScript.wyvern().swing_fire(self)  # (Heat II: at full heat your swings throw fire)
 	dmg *= 1.0 + 0.2 * graft("hand")
 	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
 	var hits := 0
@@ -1261,7 +1266,7 @@ func _melee() -> bool:
 		_part_action("throat", 2.0 * (hits - 1), 8.0 * (hits - 1))
 	if hits > 0:
 		_strikes_landed(hits)
-		_wyvern_marks().strike_landed(self)  # (Weapon Memory III: every 5th throws a blade)
+		BondScript.wyvern().strike_landed(self)  # (Weapon Memory III: every 5th throws a blade)
 		wear_gear("strike")  # a landed swing wears the weapon and gloves (Commons)
 		if heavy and float(w.get("finisher_sta", 0.0)) > 0.0:
 			sta = minf(max_sta, sta + float(w["finisher_sta"]))  # the sword: a landed finisher gives breath back
@@ -1287,7 +1292,7 @@ func _kindled_strike(e) -> void:
 	if not e.dead:
 		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "kindle", maxf(1.0, kindle_dmg * 0.3))
 		if kindle_brand > 0.0:
-			_wyvern_marks().brand(self, e)  # (Brand)
+			BondScript.wyvern().brand(self, e)  # (Brand)
 	if Pacts.has(self, "forge_runes") and rune_cd <= 0.0:
 		var pf: Dictionary = Pacts.PACTS["forge_runes"]
 		rune_cd = float(pf["every"])
@@ -1521,16 +1526,22 @@ func _essence_shot_hit(e, dmg: float, dir: Vector2, kind: String) -> void:
 ## `backstab_bonus` adds to the backstab multiplier (daggers); `stagger`
 ## staggers the foe for that long (the war hammer's finisher).
 func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit", rock := false, backstab_bonus := 0.0, stagger := 0.0) -> void:
+	quarry_fresh = quarry != e  # (Quarry II: not yet your Quarry, bond.gd taken_mult)
 	quarry = e  # Hunter's Quarry remembers it
 	var crit := false
+	if unbreak_t > 0.0 and unbreak_strike > 0.0:
+		dmg *= unbreak_strike  # Unbreakable's Apex: you strike at half damage
 	# A staggered foe is open: a riposte deals critical damage.
 	if e.stun > 0.0:
 		dmg *= 2.5
 		force *= 1.4
 		crit = true
-	# Windwalker passive, Featherweight: airborne foes take extra damage.
+	# Windwalker passive, Featherweight: airborne foes take extra damage
+	# (rank II: your strikes keep them aloft).
 	if has_bond("windwalker") and e.airborne > 0.0:
 		dmg *= 1.5
+		if passive_rank("windwalker") >= 2:
+			e.airborne = minf(e.airborne + BondScript.Bonds.passive_num("windwalker", 2, "juggle"), maxf(e.airborne, BondScript.Bonds.passive_num("windwalker", 2, "most")))
 	# Ashwalker's Unseen Strike: a foe that hasn't noticed you, or lost you.
 	var unseen: bool = has_bond("ashwalker") and e.unaware()
 	if unseen:
@@ -1567,7 +1578,9 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 			if e.global_position.distance_to(other.global_position) < 150.0:
 				main.fx_bolt([e.global_position, other.global_position], Color(0.95, 0.89, 0.42))
 				main.sfx("zap", 1.25, -6.0)
+				main.hit_kind = BondScript.HIT_KINDS["stormcaller"]
 				other.take_hit(5.0, Vector2.ZERO)
+				main.hit_kind = ""
 				Reactions.apply(main, other, "charged", 2.0, "static")  # (the arc charges it)
 				break
 	# of the Riposte: ripostes and backstabs hit harder.
@@ -1604,9 +1617,16 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	var material: String = e.MATERIAL.get(e.kind, "")
 	if material != "":
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
+	if hit_sound != "arrow_hit" and rule("chill") > 0.0:
+		main.hit_kind = "frost"  # (a chilling blow: a drenched foe takes double, bond.gd taken_mult)
 	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
 	if unseen:
-		_manticore_marks().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
+		BondScript.manticore().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
+	if main.hit_kind == "frost":
+		main.hit_kind = ""
+	quarry_fresh = false
+	if thunderhead_t > 0.0 and thunderhead_bolt > 0.0 and not e.dead:
+		BondScript.gryphon().sky_bolt(main, e, thunderhead_bolt, BondScript.Bonds.BONDS["stormcaller"]["color"])  # Thunderhead's Apex
 	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
 	if hit_sound != "arrow_hit" and not e.dead:
 		if rule("chill") > 0.0:
@@ -1755,7 +1775,7 @@ func _release_cast() -> void:
 		free = true
 		main.fx_text(global_position + Vector2(0, -52), "Spellweave", Color(0.85, 0.55, 0.95))
 	if "cost_mult" in b:
-		b.cost_mult = 1.0 - _wyvern_marks().circle_thrift(self)  # (Runesmith III: inside your circles)
+		b.cost_mult = 1.0 - BondScript.wyvern().circle_thrift(self)  # (Runesmith III: inside your circles)
 	var paid: String = b.pay(free)
 	if "cost_mult" in b:
 		b.cost_mult = 1.0
@@ -2138,6 +2158,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	if unblockable:
 		source = null  # nothing to parry or turn
 	if unbreak_t > 0.0:
+		unbreak_stored += dmg  # (its Apex: it bursts out at the end)
 		main.fx_text(global_position + Vector2(0, -30), "Unbreakable", barrier_color)
 		main.sfx("hit_armor", 1.2, -4.0)
 		return
@@ -2164,22 +2185,33 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 			main.sfx("hit_armor", 1.0, -2.0)
 	if hurt_t > 0.0:
 		return
-	# The Warden's barrier soaks damage first.
+	# Pressure II (Deepcaller): a badly hurt foe near you hits softer.
+	if source != null and is_instance_valid(source) and "max_hp" in source and source.hp < source.max_hp * 0.5 \
+			and source.global_position.distance_to(global_position) < BondScript.PRESSURE_REACH and passive_rank("deepcaller") >= 2:
+		dmg *= 1.0 - BondScript.Bonds.passive_num("deepcaller", 2, "softer")
+	# The Warden's barrier soaks damage first (Moving Wall: blows from the
+	# wall's side wear it slower; Bastion: it grows back from each blow).
 	var steadfast := barrier_hp > 0.0
 	if barrier_hp > 0.0:
-		var take := minf(barrier_hp, dmg)
-		barrier_hp -= take
+		var wear := 1.0
+		if barrier_front < 1.0 and source != null and is_instance_valid(source) and "global_position" in source \
+				and absf(aim.angle_to(source.global_position - global_position)) <= deg_to_rad(barrier_wall) + 0.1:
+			wear = barrier_front
+		var take := minf(barrier_hp / wear, dmg)
+		barrier_hp -= take * wear
 		barrier_stored += take
 		dmg -= take
+		if barrier_grow > 0.0 and barrier_hp > 0.0:
+			barrier_hp = minf(maxf(barrier_cap, barrier_hp), barrier_hp + take * barrier_grow)
 		main.fx_ring(global_position, barrier_color, radius + 10.0, 0.2, 2.0)
 		if barrier_hp <= 0.0:
-			_break_barrier()
+			_break_barrier(true)
 		if dmg <= 0.0:
 			main.sfx("hit_armor", 1.3, -4.0)
 			return
 	if has_rune("warding"):
 		dmg *= 0.75
-	dmg *= _manticore_marks().hardened(self)  # (Shifting Sands III: standing still)
+	dmg *= BondScript.manticore().hardened(self)  # (Shifting Sands III: standing still)
 	dmg *= 1.0 - 0.15 * graft("heart")
 	if gfx("still_guard") > 0.0 and velocity.length() < 12.0 and roll_t <= 0.0:
 		dmg *= 1.0 - gfx("still_guard")  # Rootbound Greaves: standing your ground
@@ -2209,6 +2241,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		drawing = false
 		combo = 0
 	drink_target = null
+	drink_t = 0.0  # (a hit breaks a drain: Drink Deep's Apex jumps only on a kill)
 	main.fx_text(global_position + Vector2(0, -24), "-%d" % int(dmg), Color(1.0, 0.42, 0.34))
 	main.fx_burst(global_position, knock.normalized(), Color(1.0, 0.4, 0.34), 8)
 	main.sfx("hurt")
@@ -2263,23 +2296,30 @@ func _low_health_rules() -> void:
 ## Warden's Barrier.
 func raise_barrier(shield: float, duration: float, burst: bool, col: Color) -> void:
 	barrier_hp = maxf(barrier_hp, shield)
+	barrier_max = maxf(barrier_max, barrier_hp)
 	barrier_t = maxf(barrier_t, duration)
 	barrier_burst = burst or barrier_burst
 	barrier_color = col
 
 
 ## The barrier is spent or expires: from step 3 it releases what it absorbed.
-func _break_barrier() -> void:
+## `broken`: spent by blows (Steadfast III gives back half the Barrier's cost).
+func _break_barrier(broken := false) -> void:
+	if broken and passive_rank("warden") >= 3:
+		for b in bonds.values():
+			if b.id == "warden":
+				b.essence = minf(b.capacity(), b.essence + b.spell_cost(b.data()["spells"][0]) * BondScript.Bonds.passive_num("warden", 3, "refund"))
+	var reach := barrier_burst_r if barrier_burst_r > 0.0 else 110.0
 	if barrier_burst and barrier_stored > 0.0:
 		var power := maxf(10.0, barrier_stored)
-		main.fx_ring(global_position, barrier_color, 110.0, 0.4, 6.0)
+		main.fx_ring(global_position, barrier_color, reach, 0.4, 6.0)
 		main.fx_burst(global_position, Vector2.ZERO, barrier_color, 22, 320.0)
 		main.light_flash(global_position, barrier_color, 1.6, 1.6, 0.4)
 		main.sfx("crit", 0.8)
 		main.shake(6.0)
 		for e in main.targets():
 			var to: Vector2 = e.global_position - global_position
-			if to.length() < 110.0 + e.radius:
+			if to.length() < reach + e.radius:
 				e.take_hit(power, to.normalized(), 260.0, true)
 	elif barrier_stored > 0.0 or barrier_hp <= 0.0:
 		main.fx_text(global_position + Vector2(0, -36), "Barrier breaks", barrier_color)
@@ -2287,6 +2327,12 @@ func _break_barrier() -> void:
 	barrier_t = 0.0
 	barrier_stored = 0.0
 	barrier_burst = false
+	barrier_max = 0.0
+	barrier_grow = 0.0
+	barrier_cap = 0.0
+	barrier_burst_r = 0.0
+	barrier_front = 1.0
+	barrier_wall = 0.0
 
 
 ## Bond effects that run on a timer: barrier, absorb, anchor, drink.
@@ -2300,7 +2346,7 @@ func _tick_bond_effects(delta: float) -> void:
 	var kindled := kindle_t > 0.0
 	kindle_t -= delta
 	if kindled and kindle_t <= 0.0 and kindle_brand > 0.0:
-		_wyvern_marks().release_heat(self)  # (Brand: the kindling goes out and your heat is released)
+		BondScript.wyvern().release_heat(self)  # (Brand: the kindling goes out and your heat is released)
 	rune_cd -= delta
 	still_for = still_for + delta if velocity.length() < 12.0 and roll_t <= 0.0 else 0.0
 	# Heat fades once you stop landing strikes (never while Forge Heart burns).
@@ -2339,10 +2385,13 @@ func _tick_bond_effects(delta: float) -> void:
 		drink_t -= delta
 		drink_age += delta
 		drink_tick -= delta
+		if drink_jump > 0.0 and (drink_target == null or not is_instance_valid(drink_target) or drink_target.dead):
+			drink_target = BondScript.kraken().drink_jump(main, drink_at, drink_jump)  # its Apex: on a kill it jumps on
 		if drink_target == null or not is_instance_valid(drink_target) or drink_target.dead or drink_target.global_position.distance_to(global_position) > 300.0:
 			drink_t = 0.0
 		elif drink_tick <= 0.0:
 			drink_tick = 0.25
+			drink_at = drink_target.global_position
 			var d := drink_dmg * (1.0 + drink_age)
 			var bled: bool = Reactions.has(drink_target, "bleeding")
 			if "hemorrhage" in Reactions.apply(main, drink_target, "drained", 0.0, "drink"):
@@ -2362,8 +2411,12 @@ func _on_parry(source, perfect := false) -> void:
 	parry_t = 0.0
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
+	# Steadfast II (Warden): a parry while shielded restores the barrier.
+	if barrier_hp > 0.0 and passive_rank("warden") >= 2:
+		barrier_hp = maxf(barrier_hp, minf(barrier_max, barrier_hp + barrier_max * BondScript.Bonds.passive_num("warden", 2, "restore")))
+		main.fx_ring(global_position, barrier_color, radius + 14.0, 0.25, 3.0)
 	on_parry.emit(source, perfect)
-	_wyvern_marks().parry_heat(self, perfect)  # (Heat III: parries add heat)
+	BondScript.wyvern().parry_heat(self, perfect)  # (Heat III: parries add heat)
 	sta = minf(max_sta, sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
 	var at: Vector2 = global_position + aim * (radius + 8.0)
 	var gold := Color(1.0, 0.92, 0.7)

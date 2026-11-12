@@ -17,6 +17,9 @@ const SIDE_B := {"blade_forger": "back_to_back", "flameblade": "ring_of_embers",
 ## A number of the first spell that only side A sets, and one only side B sets.
 const ONLY_A := {"blade_forger": "embed", "flameblade": "heat_cap", "rune_artist": "linked", "sandshaper": "shards", "venomist": "corrode", "ashwalker": "embers"}
 const ONLY_B := {"blade_forger": "echo", "flameblade": "brand", "rune_artist": "creep", "sandshaper": "upheaval", "venomist": "bloom", "ashwalker": "follow"}
+## Words of each great spell's Apex, in its line (bonds.gd).
+const APEX := {"blade_forger": "leave edges on the floor", "flameblade": "erupts in a ring of fire", "rune_artist": "moves with you",
+	"sandshaper": "buried", "venomist": "refills your mark", "ashwalker": "leaps to a second foe"}
 ## Steps by banked essence (profile.gd STEP_XP).
 const STEP2 := 150.0
 const STEP3 := 450.0
@@ -180,7 +183,7 @@ func _cards() -> void:
 	for bid in BOND_IDS:
 		ranks_ok = ranks_ok and Bonds.passive_rank(2) == 1 and Bonds.passive_rank(3) == 2 and Bonds.passive_rank(5) == 3
 		ranks_ok = ranks_ok and Bonds.passive_line(bid, 2) != "" and Bonds.passive_line(bid, 3) != ""
-		ranks_ok = ranks_ok and Bonds.apex_note(Bonds.BONDS[bid]["spells"][3]) != ""
+		ranks_ok = ranks_ok and String(Bonds.BONDS[bid]["spells"][3]["desc"]).contains(String(APEX[bid]))
 	_check(ranks_ok, "a passive is rank I, II from step 3 and III at step 5; each of the six has a line for II and III, and each great spell an Apex")
 	var A = load("res://scripts/abilities.gd")
 	var shown := {}
@@ -194,11 +197,11 @@ func _cards() -> void:
 	_check(not shown[STEP2].contains(l2) and shown[STEP3].contains("Toxin Build II") and shown[STEP3].contains(l2) and not shown[STEP3].contains(l3) \
 		and shown[STEP5].contains("Toxin Build III") and shown[STEP5].contains(l3), "the mark's card shows its passive's rank and each new line as it grows (%s)" % shown[STEP5])
 	var vir: Array = A.entries(main).filter(func(e): return String(e.get("id", "")) == "virulence")
-	_check(not vir.is_empty() and String(vir[0]["does"]).contains("Apex"), "...and the great spell's card its Apex")
+	_check(not vir.is_empty() and String(vir[0]["does"]).contains(String(APEX["venomist"])), "...and the great spell's card its Apex")
 	var nodes: Array = TR.mark_nodes(main.profile, "hand")
 	var n3: Dictionary = nodes[2]
 	var n5: Dictionary = nodes[4]
-	_check(n3["options"].all(func(o): return String(o["says"]).contains(l2)) and String(n5["options"][0]["says"]).contains("Apex") and String(n5["options"][0]["says"]).contains(l3),
+	_check(n3["options"].all(func(o): return String(o["says"]).contains(l2)) and String(n5["options"][0]["says"]).contains(String(APEX["venomist"])) and String(n5["options"][0]["says"]).contains(l3),
 		"the tree's step 3 shows rank II with either Transformation, and step 5 the Apex and rank III")
 	_check(Bonds.step_note("venomist", 3).contains("rank II") and Bonds.step_note("venomist", 5).contains("rank III") and not Bonds.step_note("venomist", 4).contains("rank"),
 		"the stair's banner says when the passive grows a rank")
@@ -270,7 +273,7 @@ func _blade_forger() -> void:
 	_check(is_equal_approx(looks[STEP2]["ratio"], 1.0) and looks[STEP2]["venom"] == 0, "Weapon Memory I: blades don't carry the weapon's quality or traits (%.2f, %d)" % [looks[STEP2]["ratio"], looks[STEP2]["venom"]])
 	_check(q > 1.0 and absf(looks[STEP3]["ratio"] - q) < 0.01 and looks[STEP3]["venom"] > 0, "Weapon Memory II (step 3): a Stinger Dagger's blades hit %.2fx as its strikes do and poison (%.2f, %d)" % [q, looks[STEP3]["ratio"], looks[STEP3]["venom"]])
 	# Weapon Memory III: every 5th strike that lands throws a free blade.
-	var every := int(Bonds.BONDS["blade_forger"]["passive"]["every"])
+	var every := int(Bonds.passive_num("blade_forger", 3, "every"))
 	var free := {}
 	for xp in [STEP3, STEP5]:
 		main = await _climber("blade_forger", xp)
@@ -377,7 +380,7 @@ func _flameblade() -> void:
 		p.heat = 0.0
 		p._on_parry(foe, false)
 		heats[xp] = p.heat
-	_check(heats[STEP3] == 0.0 and is_equal_approx(heats[STEP5], float(Bonds.BONDS["flameblade"]["passive"]["parry_heat"])), "Heat III (step 5): a parry adds heat (%s)" % heats)
+	_check(heats[STEP3] == 0.0 and is_equal_approx(heats[STEP5], Bonds.passive_num("flameblade", 3, "parry_heat")), "Heat III (step 5): a parry adds heat (%s)" % heats)
 	# Overheat's Apex: at full heat it erupts in a ring and lights Kindle Blade again.
 	main = await _climber("flameblade", STEP5)
 	p = main.player
@@ -451,7 +454,7 @@ func _rune_artist() -> void:
 		await _cast_by_key()
 		paid[xp] = e0 - hb.essence
 		main.wards.clear()
-	var thrift := float(Bonds.BONDS["rune_artist"]["passive"]["thrift"])
+	var thrift := Bonds.passive_num("rune_artist", 3, "thrift")
 	var full := float(Bonds.BONDS["rune_artist"]["spells"][0]["steps"][1]["cost"])
 	_check(is_equal_approx(paid[STEP3], full) and is_equal_approx(paid[STEP5], full * (1.0 - thrift)), "Runesmith III (step 5): a spell cast inside your Ward Circle costs %d%% less (%s)" % [int(thrift * 100.0), paid])
 	# Grand Sigil's Apex: it moves with you for half its time.
@@ -518,7 +521,7 @@ func _sandshaper() -> void:
 		p.parry_t = 0.0
 		p.receive_attack(20.0, null)
 		hurt[xp] = p.max_health() - p.hp
-	var harden := float(Bonds.BONDS["sandshaper"]["passive"]["harden"])
+	var harden := Bonds.passive_num("sandshaper", 3, "harden")
 	_check(hurt[STEP3] > 0.0 and absf(hurt[STEP5] - hurt[STEP3] * (1.0 - harden)) < 0.01, "Shifting Sands III (step 5): standing still you take %d%% less (%s)" % [int(harden * 100.0), hurt])
 	# Fault Line's Apex: foes on the line are buried and crushed.
 	main = await _climber("sandshaper", STEP5)
@@ -566,7 +569,7 @@ func _venomist() -> void:
 		dying.venom_t = 6.0
 		dying.take_hit(9999.0, Vector2.ZERO, 0.0)
 		passed[xp] = by.venom
-	_check(passed[STEP2] == 0 and passed[STEP3] == int(ceil(6.0 * float(Bonds.BONDS["venomist"]["passive"]["pass"]))), "Toxin Build II (step 3): a poisoned foe that dies passes half its stacks to the foe beside it (%s)" % passed)
+	_check(passed[STEP2] == 0 and passed[STEP3] == int(ceil(6.0 * Bonds.passive_num("venomist", 2, "pass"))), "Toxin Build II (step 3): a poisoned foe that dies passes half its stacks to the foe beside it (%s)" % passed)
 	# Toxin Build III: a foe at 8 stacks is staggered (not before step 5).
 	var stun := {}
 	for xp in [STEP3, STEP5]:

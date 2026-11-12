@@ -68,15 +68,17 @@ static var BONDS := {
 		"style": ["hand", "throat"],
 		"tower": "gryphon",
 		"body": {"name": "Quick Nerves", "desc": "your strikes and rolls recover faster"},
-		"passive": {"name": "Static", "desc": "foes your lightning hits stay charged; striking a charged foe arcs to another"},
+		"passive": {"name": "Static", "desc": "foes your lightning hits stay charged; striking a charged foe arcs to another",
+			"ranks": {2: {"says": "charged foes take 20% more from everything", "more": 0.2},
+				3: {"says": "a charged foe's death refunds your next Chain Lightning"}}},
 		"spells": [
 			{"id": "chain_lightning", "name": "Chain Lightning", "type": "chain", "learn": 1,
 				"desc": "lightning leaps between up to 4 foes",
-				"changes": {3: "leaps 2 more times and stuns"},
+				"changes": {3: "every leap splits in two, up to 8 foes, all left charged"},
 				"steps": {
 					1: {"cost": 12.0, "windup": 0.45, "leaps": 4, "damage": 10.0, "stun": 0.0, "reach": 280.0, "hop": 170.0},
 					2: {"damage": 12.0},
-					3: {"leaps": 6, "stun": 0.4},
+					3: {"most": 8, "branch": 2, "boost": 1.5},
 					4: {"damage": 14.0},
 					5: {"damage": 16.0},
 				}},
@@ -91,8 +93,8 @@ static var BONDS := {
 					5: {"damage": 4.0, "burst": 5.0},
 				}},
 			{"id": "thunderhead", "name": "Thunderhead", "type": "thunderhead", "learn": 5,
-				"desc": "for 8 seconds every chain leaps twice as many times",
-				"steps": {5: {"cost": 16.0, "windup": 0.4, "duration": 8.0}}},
+				"desc": "for 8 seconds every chain leaps twice as many times, and every strike you land calls a bolt from above",
+				"steps": {5: {"cost": 16.0, "windup": 0.4, "duration": 8.0, "bolt": 8.0}}},
 		],
 	},
 	"windwalker": {
@@ -102,15 +104,17 @@ static var BONDS := {
 		"style": ["legs", "throat"],
 		"tower": "gryphon",
 		"body": {"name": "Wind Dash", "desc": "your roll becomes a long wind dash that carries you through foes"},
-		"passive": {"name": "Featherweight", "desc": "airborne foes take extra damage from you"},
+		"passive": {"name": "Featherweight", "desc": "airborne foes take extra damage from you",
+			"ranks": {2: {"says": "your strikes keep airborne foes aloft", "juggle": 0.45, "most": 2.0},
+				3: {"says": "your rolls leave a gust that lifts light foes", "lift": 1.0, "radius": 60.0, "weight": 1.5}}},
 		"spells": [
 			{"id": "gale_lift", "name": "Gale Lift", "type": "lift", "learn": 1,
 				"desc": "a gust launches foes in front of you into the air, helpless",
-				"changes": {3: "lifts every foe in a wide cone"},
+				"changes": {3: "foes fly twice as high and slam down, hurting foes where they land"},
 				"steps": {
 					1: {"cost": 10.0, "windup": 0.3, "arc": 35.0, "reach": 140.0, "lift": 1.5, "damage": 0.0},
 					2: {"lift": 1.7},
-					3: {"arc": 70.0, "reach": 175.0, "lift": 1.8},
+					3: {"arc": 55.0, "reach": 165.0, "high": 2.0, "slam": 10.0, "splash": 6.0, "splash_radius": 70.0},
 					5: {"lift": 2.1},
 				}},
 			{"id": "crosswind", "name": "Crosswind", "type": "crosswind", "learn": 2,
@@ -120,8 +124,8 @@ static var BONDS := {
 				"desc": "slam every airborne foe into the ground, hurting foes where they land",
 				"steps": {4: {"cost": 10.0, "windup": 0.3, "damage": 14.0, "splash": 5.0, "radius": 48.0}}},
 			{"id": "eye_of_the_storm", "name": "Eye of the Storm", "type": "cyclone", "learn": 5,
-				"desc": "a cyclone holds every foe in an area aloft for 5 seconds",
-				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 5.0, "radius": 110.0, "range": 150.0}}},
+				"desc": "a cyclone holds every foe in an area aloft for 5 seconds; you steer it with your aim",
+				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 5.0, "radius": 110.0, "range": 150.0, "steer": 170.0}}},
 		],
 	},
 	"hunter": {
@@ -131,15 +135,17 @@ static var BONDS := {
 		"style": ["brow", "back"],
 		"tower": "gryphon",
 		"body": {"name": "Keen Eyes", "desc": "you see farther in the dark and spot hidden traps"},
-		"passive": {"name": "Quarry", "desc": "you always know where the last foe you struck is"},
+		"passive": {"name": "Quarry", "desc": "you always know where the last foe you struck is",
+			"ranks": {2: {"says": "your Quarry takes 25% more from you", "more": 0.25},
+				3: {"says": "felling your Quarry marks the nearest foe and refills a shot", "reach": 400.0}}},
 		"spells": [
 			{"id": "piercing_shot", "name": "Piercing Shot", "type": "shot", "learn": 1,
 				"desc": "a long-range arrow of essence that pierces a whole line of foes",
-				"changes": {3: "a longer wind-up charges it for triple damage"},
+				"changes": {3: "the arrow curves to your Quarry and strikes it twice"},
 				"steps": {
 					1: {"cost": 9.0, "windup": 0.3, "damage": 12.0, "speed": 900.0, "charged": false},
 					2: {"damage": 14.0},
-					3: {"windup": 0.75, "charged": true},
+					3: {"windup": 0.45, "seek": 520.0, "strikes": 2, "boost": 2.0, "turn": 7.0},
 					4: {"damage": 16.0},
 				}},
 			{"id": "track", "name": "Track", "type": "track", "learn": 2,
@@ -149,8 +155,8 @@ static var BONDS := {
 				"desc": "for 5 seconds every arrow strikes a weak point for double damage",
 				"steps": {4: {"cost": 12.0, "windup": 0.25, "duration": 5.0}}},
 			{"id": "rain_of_arrows", "name": "Rain of Arrows", "type": "rain", "learn": 5,
-				"desc": "arrows fall on a marked area for 4 seconds",
-				"steps": {5: {"cost": 16.0, "windup": 0.45, "duration": 4.0, "radius": 85.0, "range": 190.0, "damage": 5.0}}},
+				"desc": "arrows fall on a marked area for 4 seconds; the rain follows your Quarry",
+				"steps": {5: {"cost": 16.0, "windup": 0.45, "duration": 4.0, "radius": 85.0, "range": 190.0, "damage": 4.0, "follow": 150.0}}},
 		],
 	},
 	# --- the Kraken's tower (Water) -------------------------------------------
@@ -161,15 +167,17 @@ static var BONDS := {
 		"style": ["legs", "throat"],
 		"tower": "kraken",
 		"body": {"name": "Waterborn", "desc": "you move at full speed through water"},
-		"passive": {"name": "Undercurrent", "desc": "foes you drive into a wall are stunned"},
+		"passive": {"name": "Undercurrent", "desc": "foes you drive into a wall are stunned",
+			"ranks": {2: {"says": "foes knocked into each other are stunned too", "stun": 0.7},
+				3: {"says": "your knockbacks leave foes soaked"}}},
 		"spells": [
 			{"id": "tidal_surge", "name": "Tidal Surge", "type": "surge", "learn": 1,
 				"desc": "a wave bursts outward, hurling foes away from you",
-				"changes": {3: "becomes an aimed wave that travels forward"},
+				"changes": {3: "the surge rolls out twice; the second wave hits where the foes landed"},
 				"steps": {
 					1: {"cost": 12.0, "windup": 0.4, "radius": 115.0, "damage": 6.0, "push": 300.0, "aimed": false},
 					2: {"damage": 8.0},
-					3: {"aimed": true, "width": 150.0, "travel": 360.0},
+					3: {"aimed": true, "width": 150.0, "travel": 360.0, "again": 0.45, "second": 1.0},
 					4: {"damage": 10.0},
 					5: {"damage": 12.0, "width": 190.0},
 				}},
@@ -183,8 +191,8 @@ static var BONDS := {
 					5: {"damage": 12.0, "collide": 5.0, "crash": 14.0},
 				}},
 			{"id": "maelstrom", "name": "Maelstrom", "type": "maelstrom", "learn": 5,
-				"desc": "a whirlpool drags every foe in a wide area to its centre for 5 seconds",
-				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 5.0, "radius": 150.0, "range": 160.0, "damage": 3.0}}},
+				"desc": "a whirlpool drags every foe in a wide area to its centre for 5 seconds; foes it drags are soaked and take double from lightning and frost",
+				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 5.0, "radius": 150.0, "range": 160.0, "damage": 3.0, "drench": 2.0, "linger": 2.0}}},
 		],
 	},
 	"warden": {
@@ -194,15 +202,17 @@ static var BONDS := {
 		"style": ["heart", "brow"],
 		"tower": "kraken",
 		"body": {"name": "Heavy Frame", "desc": "keep holding parry to block: blocked hits deal far less and cost stamina"},
-		"passive": {"name": "Steadfast", "desc": "while your barrier holds, you cannot be knocked back or interrupted"},
+		"passive": {"name": "Steadfast", "desc": "while your barrier holds, you cannot be knocked back or interrupted",
+			"ranks": {2: {"says": "a parry while shielded restores the barrier", "restore": 0.35},
+				3: {"says": "a broken barrier refunds half its cost", "refund": 0.5}}},
 		"spells": [
 			{"id": "barrier", "name": "Barrier", "type": "barrier", "learn": 1,
 				"desc": "a shell that absorbs damage for 6 seconds",
-				"changes": {3: "when it breaks, it releases everything it absorbed as a burst"},
+				"changes": {3: "grows with every blow it blocks and bursts outward when it breaks"},
 				"steps": {
 					1: {"cost": 12.0, "windup": 0.25, "duration": 6.0, "shield": 25.0, "burst": false},
 					2: {"shield": 30.0},
-					3: {"burst": true},
+					3: {"burst": true, "grow": 0.5, "cap": 2.0, "burst_radius": 140.0},
 					4: {"shield": 36.0},
 					5: {"shield": 44.0},
 				}},
@@ -213,8 +223,8 @@ static var BONDS := {
 				"desc": "every foe nearby must attack you for 4 seconds, and takes more damage from you",
 				"steps": {4: {"cost": 10.0, "windup": 0.3, "duration": 4.0, "radius": 230.0}}},
 			{"id": "unbreakable", "name": "Unbreakable", "type": "unbreakable", "learn": 5,
-				"desc": "for 4 seconds you take no damage, but cannot attack",
-				"steps": {5: {"cost": 16.0, "windup": 0.2, "duration": 4.0}}},
+				"desc": "for 4 seconds you take no damage; you may strike at half damage, and what you absorbed bursts out at the end",
+				"steps": {5: {"cost": 16.0, "windup": 0.2, "duration": 4.0, "strike": 0.5, "radius": 130.0, "least": 10.0}}},
 		],
 	},
 	"deepcaller": {
@@ -224,15 +234,17 @@ static var BONDS := {
 		"style": ["heart"],
 		"tower": "kraken",
 		"body": {"name": "Deep Lungs", "desc": "your stamina refills faster"},
-		"passive": {"name": "Pressure", "desc": "foes below half health move slower near you"},
+		"passive": {"name": "Pressure", "desc": "foes below half health move slower near you",
+			"ranks": {2: {"says": "foes below half health also hit softer near you", "softer": 0.25},
+				3: {"says": "a kill near you heals you", "heal": 6.0}}},
 		"spells": [
 			{"id": "undertow", "name": "Undertow", "type": "drain", "learn": 1,
 				"desc": "drag life from up to 3 foes and drink some of it back",
-				"changes": {3: "drains up to 5 foes"},
+				"changes": {3: "drains 5 foes and pulls them toward you"},
 				"steps": {
 					1: {"cost": 12.0, "windup": 0.35, "targets": 3, "damage": 7.0, "reach": 210.0, "heal": 0.5},
 					2: {"damage": 8.0},
-					3: {"targets": 5},
+					3: {"targets": 5, "reach": 250.0, "pull": 300.0, "hold": 0.5, "boost": 1.35},
 					4: {"damage": 10.0},
 					5: {"damage": 12.0},
 				}},
@@ -243,8 +255,8 @@ static var BONDS := {
 				"desc": "drain essence instead of health, refilling your bonds",
 				"steps": {4: {"cost": 4.0, "windup": 0.35, "targets": 3, "damage": 5.0, "reach": 200.0, "refill": 8.0}}},
 			{"id": "drink_deep", "name": "Drink Deep", "type": "drink", "learn": 5,
-				"desc": "channel a drain on one foe; it grows stronger every second it holds",
-				"steps": {5: {"cost": 14.0, "windup": 0.3, "duration": 4.0, "reach": 260.0, "damage": 3.0}}},
+				"desc": "channel a drain on one foe; it grows stronger every second it holds, and jumps to a new foe on a kill without breaking",
+				"steps": {5: {"cost": 14.0, "windup": 0.3, "duration": 4.0, "reach": 260.0, "damage": 3.0, "jump": 260.0}}},
 		],
 	},
 	# --- the Wyvern's tower (Iron) ---------------------------------------------
@@ -256,8 +268,8 @@ static var BONDS := {
 		"tower": "wyvern",
 		"body": {"name": "Long Edge", "desc": "your melee strikes reach farther"},
 		"passive": {"name": "Weapon Memory", "desc": "your conjured blades copy the weapon you hold: more, quicker little knives with fists or a dagger, fewer and harder blades with a greatsword or hammer, swift piercing darts with a bow or crossbow",
-			"ranks": {2: "your blades also carry your weapon's traits and its quality", 3: "every 5th strike that lands throws a free blade"},
-			"every": 5},
+			"ranks": {2: {"says": "your blades also carry your weapon's traits and its quality"},
+				3: {"says": "every 5th strike that lands throws a free blade", "every": 5}}},
 		"spells": [
 			{"id": "conjured_blades", "name": "Conjured Blades", "type": "blades", "learn": 1,
 				"desc": "a fan of conjured blades that pierce through foes",
@@ -276,8 +288,7 @@ static var BONDS := {
 				"desc": "blades orbit you for 6 seconds, cutting foes that come close",
 				"steps": {4: {"cost": 14.0, "windup": 0.3, "duration": 6.0, "damage": 3.0, "radius": 48.0}, 5: {"damage": 4.0}}},
 			{"id": "thousand_edges", "name": "Thousand Edges", "type": "edges", "learn": 5,
-				"desc": "a storm of conjured blades fans out toward your aim",
-				"apex": "the blades leave edges on the floor that cut foes crossing them",
+				"desc": "a storm of conjured blades fans out toward your aim; the blades leave edges on the floor that cut foes crossing them",
 				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0, "edges": 3, "edge_reach": 0.5, "edge_damage": 3.0, "edge_time": 4.0, "edge_radius": 16.0}}},
 		],
 	},
@@ -289,8 +300,8 @@ static var BONDS := {
 		"tower": "wyvern",
 		"body": {"name": "Hot Blood", "desc": "your strike chains never slow down: even the finisher recovers fast"},
 		"passive": {"name": "Heat", "desc": "each strike in a row heats your weapon and hits harder; heat fades if you stop striking",
-			"ranks": {2: "at full heat your swings throw fire", 3: "parries add heat"},
-			"fire_damage": 6.0, "fire_travel": 130.0, "fire_width": 46.0, "parry_heat": 25.0, "perfect_heat": 45.0},
+			"ranks": {2: {"says": "at full heat your swings throw fire", "fire_damage": 6.0, "fire_travel": 130.0, "fire_width": 46.0},
+				3: {"says": "parries add heat", "parry_heat": 25.0, "perfect_heat": 45.0}}},
 		"spells": [
 			{"id": "kindle_blade", "name": "Kindle Blade", "type": "kindle", "learn": 1,
 				"desc": "your weapon is wreathed in fire for 6 seconds: strikes burn and build heat much faster",
@@ -309,8 +320,7 @@ static var BONDS := {
 				"desc": "kindles your weapon; while it burns, a parry explodes against the attacker",
 				"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 6.0, "damage": 18.0}, 5: {"damage": 22.0}}},
 			{"id": "overheat", "name": "Overheat", "type": "overheat", "learn": 5,
-				"desc": "release all your heat in one strike: the more heat, the bigger the blow",
-				"apex": "a release at full heat also erupts in a ring of fire around you and lights Kindle Blade again",
+				"desc": "release all your heat in one strike: the more heat, the bigger the blow; a release at full heat also erupts in a ring of fire around you and lights Kindle Blade again",
 				"steps": {5: {"cost": 12.0, "windup": 0.3, "damage": 10.0, "reach": 90.0, "full": 100.0, "ring": 110.0, "ring_damage": 16.0}}},
 		],
 	},
@@ -322,8 +332,8 @@ static var BONDS := {
 		"tower": "wyvern",
 		"body": {"name": "Steady Mind", "desc": "every spell you cast, from any bond, has a shorter wind-up"},
 		"passive": {"name": "Runesmith", "desc": "at a camp, also inscribe a rune on your gear that lasts the rest of the climb (sharpness, warding or swiftness), or craft one more item",
-			"ranks": {2: "a camp's rune comes with a second rune of your choice", 3: "spells you cast inside your circles cost 40% less"},
-			"thrift": 0.4},
+			"ranks": {2: {"says": "a camp's rune comes with a second rune of your choice"},
+				3: {"says": "spells you cast inside your circles cost 40% less", "thrift": 0.4}}},
 		"spells": [
 			{"id": "rune_trap", "name": "Rune Trap", "type": "trap", "learn": 1,
 				"desc": "inscribe a rune on the floor that detonates when a foe steps on it (up to 3)",
@@ -342,8 +352,7 @@ static var BONDS := {
 				"desc": "a rune circle around you that foes cannot enter for 5 seconds",
 				"steps": {4: {"cost": 14.0, "windup": 0.35, "duration": 5.0, "radius": 75.0}}},
 			{"id": "grand_sigil", "name": "Grand Sigil", "type": "sigil", "learn": 5,
-				"desc": "a great rune circle; inside it your spells cost nothing for 6 seconds",
-				"apex": "the circle moves with you for the first half of its time",
+				"desc": "a great rune circle; inside it your spells cost nothing for 6 seconds; the circle moves with you for the first half of its time",
 				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 6.0, "radius": 120.0, "follow": 0.5}}},
 		],
 	},
@@ -356,8 +365,8 @@ static var BONDS := {
 		"tower": "manticore",
 		"body": {"name": "Rooted Stance", "desc": "you cannot be knocked back or slowed"},
 		"passive": {"name": "Shifting Sands", "desc": "foes walking up to you slow in their last few steps",
-			"ranks": {2: "slowed foes can't dodge or block your blows", 3: "standing still for a second hardens your skin: you take 30% less damage"},
-			"still": 1.0, "harden": 0.3},
+			"ranks": {2: {"says": "slowed foes can't dodge or block your blows"},
+				3: {"says": "standing still for a second hardens your skin: you take 30% less damage", "still": 1.0, "harden": 0.3}}},
 		"spells": [
 			{"id": "quake", "name": "Quake", "type": "quake", "learn": 1,
 				"desc": "shatter the ground around you, leaving rubble that slows foes",
@@ -376,8 +385,7 @@ static var BONDS := {
 				"desc": "a pit at your aim swallows a small foe, or traps a large one",
 				"steps": {4: {"cost": 14.0, "windup": 0.4, "trap": 2.5}}},
 			{"id": "fault_line", "name": "Fault Line", "type": "fault", "learn": 5,
-				"desc": "split the floor in a line across your aim; foes cannot cross it for 8 seconds",
-				"apex": "foes caught on the line are buried (stunned) and crushed",
+				"desc": "split the floor in a line across your aim; foes cannot cross it for 8 seconds; foes caught on the line are buried (stunned) and crushed",
 				"steps": {5: {"cost": 16.0, "windup": 0.45, "duration": 8.0, "length": 320.0, "damage": 18.0, "bury": 2.0, "bury_width": 28.0}}},
 		],
 	},
@@ -389,8 +397,8 @@ static var BONDS := {
 		"tower": "manticore",
 		"body": {"name": "Venom Glands", "desc": "your weapon strikes add a weak poison"},
 		"passive": {"name": "Toxin Build", "desc": "poison stacks, and each new stack makes it last longer",
-			"ranks": {2: "a poisoned foe that dies passes half its stacks to each foe beside it", 3: "a foe at 8 stacks or more is staggered"},
-			"pass": 0.5, "pass_radius": 90.0, "stagger_at": 8, "stagger": 0.8, "again": 4.0},
+			"ranks": {2: {"says": "a poisoned foe that dies passes half its stacks to each foe beside it", "pass": 0.5, "pass_radius": 90.0},
+				3: {"says": "a foe at 8 stacks or more is staggered", "stagger_at": 8, "stagger": 0.8, "again": 4.0}}},
 		"spells": [
 			{"id": "venom_spit", "name": "Venom Spit", "type": "spit", "learn": 1,
 				"desc": "spit venom that poisons a foe (3 stacks)",
@@ -409,8 +417,7 @@ static var BONDS := {
 				"desc": "your next hit on a poisoned foe paralyzes it for 2 seconds",
 				"steps": {4: {"cost": 8.0, "windup": 0.15, "duration": 8.0, "paralyze": 2.0}}},
 			{"id": "virulence", "name": "Virulence", "type": "virulence", "learn": 5,
-				"desc": "every poisoned foe near you takes all its poison at once and bursts harder for each stack; the venom leaps to foes beside it, and heavily poisoned foes are staggered",
-				"apex": "each foe it bursts refills your mark with half a Venom Spit's essence",
+				"desc": "every poisoned foe near you takes all its poison at once and bursts harder for each stack; the venom leaps to foes beside it, and heavily poisoned foes are staggered; each foe it bursts refills your mark with half a Venom Spit's essence",
 				"steps": {5: {"cost": 14.0, "windup": 0.4, "radius": 240.0, "damage": 4.0, "spread": 0.5, "spread_radius": 90.0, "stagger_at": 6, "stagger": 1.0, "refill": 0.5}}},
 		],
 	},
@@ -422,8 +429,8 @@ static var BONDS := {
 		"tower": "manticore",
 		"body": {"name": "Smokeborn", "desc": "you see through smoke and darkness: your light reaches farther"},
 		"passive": {"name": "Unseen Strike", "desc": "striking a foe that hasn't noticed you, or has lost you, deals triple damage",
-			"ranks": {2: "unseen strikes also stagger, breaking off the foe's attack", 3: "a kill while unseen hides you again for a moment"},
-			"stagger": 0.6, "hide": 1.5},
+			"ranks": {2: {"says": "unseen strikes also stagger, breaking off the foe's attack", "stagger": 0.6},
+				3: {"says": "a kill while unseen hides you again for a moment", "hide": 1.5}}},
 		"spells": [
 			{"id": "smoke_veil", "name": "Smoke Veil", "type": "veil", "learn": 1,
 				"desc": "a cloud of smoke around you; foes inside it lose track of you",
@@ -441,8 +448,7 @@ static var BONDS := {
 				"desc": "become unseen until you strike or 4 seconds pass",
 				"steps": {4: {"cost": 12.0, "windup": 0.2, "duration": 4.0}}},
 			{"id": "ashfall", "name": "Ashfall", "type": "ashfall", "learn": 5,
-				"desc": "ash blankets the room for 10 seconds; foes lose track of you once you're out of reach",
-				"apex": "an unseen strike while it falls leaps to a second foe",
+				"desc": "ash blankets the room for 10 seconds; foes lose track of you once you're out of reach; an unseen strike while it falls leaps to a second foe",
 				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0, "leap": 160.0, "leap_share": 0.75}}},
 		],
 	},
@@ -640,31 +646,33 @@ static func step_note(id: String, step: int) -> String:
 	var alt: Dictionary = load("res://scripts/tree.gd").fork_alt(id, step)
 	if step in [2, 3, 4] and not alt.is_empty() and not bool(alt.get("placeholder", false)):
 		bits.append(FORK_NOTE % String(alt.get("name", "")))
-	# The passive grows a rank (its new line is in the book).
-	var rank := passive_rank(step)
-	if rank > passive_rank(step - 1) and passive_line(id, rank) != "":
-		bits.append(RANK_WORDS["grows"] % [BONDS[id]["passive"]["name"], rank_numeral(rank)])
+	# The passive grows a rank (passive_rank): its new line.
+	var pr := passive_rank(step)
+	if pr > passive_rank(step - 1) and passive_line(id, pr) != "":
+		bits.append(PASSIVE_NOTE % [String(BONDS[id]["passive"]["name"]), RANK_NAMES[pr], passive_line(id, pr)])
 	return ", ".join(bits)
 
 
 ## A step-note's words for a fork that's ready (the other side's name).
 static var FORK_NOTE := "or %s: choose in your book"
 
-## A mark's passive grows with it: rank I from the start, II at step 3, III
-## at step 5 (PASSIVE_RANK_AT: rank -> step). Each rank's new line is the
-## passive's "ranks" (rank -> line); a passive without them stays as it is.
-const PASSIVE_RANK_AT := {2: 3, 3: 5}
-static var RANK_WORDS := {"numerals": {1: "I", 2: "II", 3: "III"}, "name": "%s %s", "more": "rank %s: %s", "grows": "%s grows to rank %s", "apex": "Apex: %s."}
+
+# --- passive ranks ----------------------------------------------------------------------------
+
+## A bond's passive grows with the mark: rank I from the start, rank II at
+## step 3 and rank III at step 5 (PASSIVE_RANK_AT: rank -> the step it
+## comes at). Each rank's line and numbers are the passive's "ranks"
+## ({rank: {"says", numbers...}}); a passive without them stays as it is.
+static var PASSIVE_RANK_AT := {2: 3, 3: 5}
+static var RANK_NAMES := {1: "I", 2: "II", 3: "III"}
+## A step-note's words when the passive grows (its name, the rank, its new line).
+static var PASSIVE_NOTE := "%s grows to rank %s: %s"
+## The passive's name with its rank, and its line for a rank still ahead.
+static var PASSIVE_RANK := "%s %s"
+static var PASSIVE_AHEAD := "rank %s at step %d: %s"
 
 
-## A great spell's Apex, as a sentence to follow its line ("" if it has none).
-static func apex_note(sp: Dictionary) -> String:
-	var ap := String(sp.get("apex", ""))
-	if ap == "":
-		return ""
-	return " " + RANK_WORDS["apex"] % (ap.left(1).to_upper() + ap.substr(1))
-
-
+## The passive's rank at a step (1 to 3).
 static func passive_rank(step: int) -> int:
 	var r := 1
 	for k in PASSIVE_RANK_AT:
@@ -673,30 +681,37 @@ static func passive_rank(step: int) -> int:
 	return r
 
 
-static func rank_numeral(rank: int) -> String:
-	var n: Dictionary = RANK_WORDS["numerals"]
-	return String(n.get(rank, n.get(str(rank), str(rank))))
-
-
-## The new line a passive gains at `rank` ("" if none).
+## A passive rank's line ("" if the passive has none for that rank).
 static func passive_line(id: String, rank: int) -> String:
-	var ranks = BONDS.get(id, {}).get("passive", {}).get("ranks", {})
-	if not (ranks is Dictionary):
+	if not BONDS.has(id):
 		return ""
-	return String(ranks.get(rank, ranks.get(str(rank), "")))
+	var r = BONDS[id]["passive"].get("ranks", {}).get(rank, {})
+	return String(r.get("says", "")) if r is Dictionary else ""
 
 
-## A passive as a mark at `step` holds it: {"name" (with its rank past I),
-## "desc" (its own line, then each rank's line it has reached), "rank"}.
+## A number of a passive's rank (`fallback` if it has none).
+static func passive_num(id: String, rank: int, key: String, fallback := 0.0) -> float:
+	if not BONDS.has(id):
+		return fallback
+	var r = BONDS[id]["passive"].get("ranks", {}).get(rank, {})
+	return float(r.get(key, fallback)) if r is Dictionary else fallback
+
+
+## The passive as a mark's cards show it at a step: {"name": with its rank
+## (once it has ranks), "desc": its line and each rank's line reached,
+## "ahead": the ranks still to come, "rank"}.
 static func passive_at(id: String, step: int) -> Dictionary:
-	var pas: Dictionary = BONDS[id]["passive"]
+	var pd: Dictionary = BONDS[id]["passive"]
 	var rank := passive_rank(step)
-	var lines: Array = [String(pas["desc"])]
-	for r in range(2, rank + 1):
-		var l := passive_line(id, r)
-		if l != "":
-			lines.append(RANK_WORDS["more"] % [rank_numeral(r), l])
-	var nm := String(pas["name"])
-	if rank > 1 and passive_line(id, 2) != "":
-		nm = RANK_WORDS["name"] % [nm, rank_numeral(rank)]
-	return {"name": nm, "desc": "; ".join(lines), "rank": rank}
+	var ranked: bool = pd.has("ranks") and not (pd["ranks"] as Dictionary).is_empty()
+	var desc := String(pd["desc"])
+	var ahead: Array = []
+	for k in [2, 3]:
+		var line := passive_line(id, k)
+		if line == "":
+			continue
+		if rank >= k:
+			desc += "; " + line
+		else:
+			ahead.append(PASSIVE_AHEAD % [RANK_NAMES[k], int(PASSIVE_RANK_AT[k]), line])
+	return {"name": PASSIVE_RANK % [pd["name"], RANK_NAMES[rank]] if ranked else String(pd["name"]), "desc": desc, "ahead": ahead, "rank": rank}

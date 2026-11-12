@@ -512,14 +512,24 @@ static func _held(p, bond_id: String):
 	if p == null or not is_instance_valid(p) or not ("bonds" in p):
 		return null
 	for b in p.bonds.values():
-		if String(b.id) == bond_id and b.has_method("passive_rank"):
+		if String(b.id) == bond_id and b.has_method("spell_stat"):
 			return b
 	return null
 
 
+## The mark's passive rank (player.gd passive_rank), 0 without it.
 static func _rank(p, bond_id: String) -> int:
-	var b = _held(p, bond_id)
-	return b.passive_rank() if b != null else 0
+	return int(p.passive_rank(bond_id)) if _held(p, bond_id) != null else 0
+
+
+## A bond's passive rank at its step (bonds.gd passive_rank).
+static func _brank(b) -> int:
+	return int(load("res://scripts/bonds.gd").passive_rank(int(b.step)))
+
+
+## A number of a passive's rank (bonds.gd passive_num).
+static func _pnum(bond_id: String, rank: int, key: String, fallback := 0.0) -> float:
+	return float(load("res://scripts/bonds.gd").passive_num(bond_id, rank, key, fallback))
 
 
 ## A number of the bond's first spell at its step (its step-3 Transformation's, if chosen).
@@ -532,7 +542,7 @@ static func _first(bond, key: String, fallback = 0.0):
 ## rarity and temper, as your strikes do) and its traits (of Embers, a
 ## venomous blade's poison).
 static func arm_blades(bond, p, blades: Array) -> void:
-	if String(bond.id) != "blade_forger" or bond.passive_rank() < 2 or blades.is_empty():
+	if String(bond.id) != "blade_forger" or _brank(bond) < 2 or blades.is_empty():
 		return
 	var q := 1.0
 	for slot in ["melee", "ranged"]:
@@ -635,9 +645,9 @@ static func _echo_hit(main, bond, e, fx: Dictionary, dmg: float) -> void:
 ## of Conjured Blades along your aim (its Transformation too).
 static func strike_landed(p) -> void:
 	var b = _held(p, "blade_forger")
-	if b == null or b.passive_rank() < 3:
+	if b == null or _brank(b) < 3:
 		return
-	var every := maxi(1, int(b.passive_num("every", 5.0)))
+	var every := maxi(1, int(_pnum(String(b.id), 3, "every", 5.0)))
 	var n := int(p.get_meta("blade_strikes", 0)) + 1
 	p.set_meta("blade_strikes", n % every)
 	if n < every:
@@ -696,10 +706,10 @@ static func swing_fire(p) -> void:
 	if p.heat < 100.0:
 		return
 	var b = _held(p, "flameblade")
-	if b == null or b.passive_rank() < 2:
+	if b == null or _brank(b) < 2:
 		return
-	var dmg: float = b.passive_num("fire_damage", 6.0) * b.spell_power(b.data()["spells"][0]) * b.flow_power
-	p.main.add_wave(p.global_position + p.aim * (p.radius + 6.0), p.aim, b.passive_num("fire_width", 46.0), b.passive_num("fire_travel", 130.0), dmg, 40.0, false, b.color(),
+	var dmg: float = _pnum(String(b.id), 2, "fire_damage", 6.0) * b.spell_power(b.data()["spells"][0]) * b.flow_power
+	p.main.add_wave(p.global_position + p.aim * (p.radius + 6.0), p.aim, _pnum(String(b.id), 2, "fire_width", 46.0), _pnum(String(b.id), 2, "fire_travel", 130.0), dmg, 40.0, false, b.color(),
 		{"states": {"burning": float(Reactions.STATES["burning"]["seconds"])}, "source": b, "amount": maxf(1.0, dmg * 0.2)})
 	p.main.sfx("burn", 1.3, -8.0)
 
@@ -707,9 +717,9 @@ static func swing_fire(p) -> void:
 ## Heat III: a parry heats your weapon (a perfect one more).
 static func parry_heat(p, perfect: bool) -> void:
 	var b = _held(p, "flameblade")
-	if b == null or b.passive_rank() < 3:
+	if b == null or _brank(b) < 3:
 		return
-	p.heat = minf(p.heat_cap(), p.heat + b.passive_num("perfect_heat" if perfect else "parry_heat", 25.0))
+	p.heat = minf(p.heat_cap(), p.heat + _pnum("flameblade", 3, "perfect_heat" if perfect else "parry_heat", 25.0))
 	p.heat_idle = 0.0
 	p.main.fx_ring(p.global_position, b.color(), 30.0, 0.25, 2.5)
 
@@ -821,7 +831,7 @@ static func second_rune(p) -> bool:
 ## Grand Sigil), else 0.
 static func circle_thrift(p) -> float:
 	var b = _held(p, "rune_artist")
-	if b == null or b.passive_rank() < 3:
+	if b == null or _brank(b) < 3:
 		return 0.0
 	var main = p.main
 	var at: Vector2 = p.global_position
@@ -834,7 +844,7 @@ static func circle_thrift(p) -> float:
 		for n in fx.lastings:
 			if is_instance_valid(n) and not n.is_queued_for_deletion() and n.data.has("circle") and at.distance_to(n.data["circle"]["pos"]) < float(n.data["circle"]["r"]):
 				inside = true
-	return b.passive_num("thrift", 0.4) if inside else 0.0
+	return _pnum(String(b.id), 3, "thrift", 0.4) if inside else 0.0
 
 
 ## Linked Runes (side A): linked runes that went off together (main.gd
