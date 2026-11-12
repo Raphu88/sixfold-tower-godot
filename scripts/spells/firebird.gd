@@ -4,39 +4,52 @@ extends RefCounted
 ## worked example is scripts/spells/gryphon.gd (Stormcaller).
 ##
 ##   Flame Contractor: step 2 Fire Wall or BLAZING TRAIL (burning ground
-##     wherever you walk); step 3 Charged or QUICKFIRE (the library's Quick);
-##     step 4 Cluster Blast or DETONATE (every patch of your burning ground
-##     bursts at once).
+##     wherever you walk); step 3, a Transformation of Fireball: SUNFIRE
+##     (slower, larger, burning ground along its whole path) or SEEKER FLAME
+##     (curves toward foes, explodes twice); step 4 Cluster Blast or
+##     DETONATE (every patch of your burning ground bursts at once).
 ##   Flamewing: step 2 Wingburst or CINDER DIVE (a dive through foes that
-##     spends the aura's heat); step 3 Growing or BROAD (the library's Wide);
-##     step 4 Warmth or HEAT HAZE (the aura burns away shots).
+##     spends the aura's heat); step 3, Heat Aura becomes FURNACE (heat
+##     builds faster, foes in it slow) or EMBER WINGS (it reaches out as
+##     wings to your sides, knocking foes away); step 4 Warmth or HEAT HAZE
+##     (the aura burns away shots).
 ##   Rekindler: step 2 Desperation or FLASHPOINT (spend health in a burst
-##     of fire); step 3 Spreading or DEEP BURN (the library's Charged: lose
-##     more, regain more); step 4 Pyre Oath or BACKDRAFT (blows you take
-##     burst into fire).
+##     of fire); step 3, Rekindle becomes BONFIRE (foes you strike burn,
+##     each growing the payback) or CAUTERIZE (a small heal now, the payback
+##     as a barrier); step 4 Pyre Oath or BACKDRAFT (blows you take burst
+##     into fire).
+##
+## Step 3's first side keeps the old choice id "change", its second side the
+## old id in FORKS[bond][3] (quickfire, broad, deep_burn), so old saves map
+## by themselves. The first side runs in cast_change(), the second in
+## cast_variation(); their numbers are the bond's step 3 (bonds.gd) and
+## FORKS[bond][3]["steps"][3]. The step-5 spells' Apex upgrades are in
+## bonds.gd; Meteor's crater is crater() below.
 ##
 ## Firebird Form makes a spell marked "free_in_form" free (player.gd), so
 ## Cinder Dive carries the mark, as Wingburst does. Rekindle's payback
-## (twice what you lost) lives in player.gd, so Deep Burn adds its extra
-## share itself when the burn ends.
+## (twice what you lost, more with Bonfire, a barrier with Cauterize) lives
+## in player.gd.
 ##
 ## What these spells leave in the world for a while is spell_fx.gd's shared
 ## Lasting node (spawn() below; chimera.gd uses it too). A new floor clears it.
 
 const FX := preload("res://scripts/spell_fx.gd")
+const Reactions := preload("res://scripts/reactions.gd")
 
 static var FORKS := {
 	"flame_contractor": {
-		"change": {"name": "Charged", "says": "Fireball charges: a longer wind-up and a much bigger explosion"},
+		"change": {"name": "Sunfire", "says": "a slower, larger fireball that leaves burning ground along its whole path",
+			"reach": 420.0, "gap": 24.0, "patch": 18.0, "size": 1.6},
 		2: {"id": "blazing_trail", "name": "Blazing Trail", "type": "blazing_trail", "learn": 2,
 			"desc": "for 4 seconds you leave a trail of burning ground wherever you walk (it burns foes, not you)",
 			"steps": {
 				2: {"cost": 10.0, "windup": 0.2, "duration": 4.0, "burns": 2.5, "gap": 30.0},
 				4: {"duration": 5.0},
 			}},
-		3: {"id": "quickfire", "variation": "quick", "name": "Quickfire",
-			"desc": "Fireball winds up in half the time and costs 8, a little weaker",
-			"steps": {3: {"damage": 19.0, "cost": 8.0}}},
+		3: {"id": "quickfire", "name": "Seeker Flame", "transform": true,
+			"desc": "the fireball curves toward foes and explodes twice",
+			"steps": {3: {"damage": 18.0, "radius": 62.0, "seek": 5.0, "seek_reach": 240.0, "again": 0.8, "delay": 0.35}}},
 		4: {"id": "detonate", "name": "Detonate", "type": "detonate", "learn": 4,
 			"desc": "every patch of your burning ground bursts at once (up to 6 bursts); with none, one bigger burst at your aim",
 			"steps": {
@@ -45,7 +58,7 @@ static var FORKS := {
 			}},
 	},
 	"flamewing": {
-		"change": {"name": "Growing", "says": "Heat Aura grows hotter the longer it burns"},
+		"change": {"name": "Furnace", "says": "the aura's heat builds faster, and foes in it are slowed"},
 		2: {"id": "cinder_dive", "name": "Cinder Dive", "type": "cinder_dive", "learn": 2, "free_in_form": true,
 			"desc": "dive through the foes along your aim in a streak of fire, setting each one burning; the aura's built-up heat makes it hotter (free in Firebird Form)",
 			"steps": {
@@ -53,15 +66,15 @@ static var FORKS := {
 				4: {"damage": 11.0},
 				5: {"damage": 13.0},
 			}},
-		3: {"id": "broad", "variation": "wide", "name": "Broad",
-			"desc": "Heat Aura reaches 40% farther from the start, a little weaker",
-			"steps": {3: {"damage": 4.4}}},
+		3: {"id": "broad", "name": "Ember Wings", "transform": true,
+			"desc": "the aura grows hotter the longer it burns and reaches out as wings to your sides, burning hard and knocking away the foes they touch",
+			"steps": {3: {"grows": true, "wings": 2.3, "wing_arc": 55.0, "wing_power": 1.5, "push": 300.0, "push_every": 1.0}}},
 		4: {"id": "heat_haze", "name": "Heat Haze", "type": "heat_haze", "learn": 4,
 			"desc": "for 8 seconds your aura burns away the shots that enter it and sets the foes in it burning (it lights the aura if it's off)",
 			"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 8.0, "burn": 2.0}}},
 	},
 	"rekindler": {
-		"change": {"name": "Spreading", "says": "foes near you burn too while you rekindle"},
+		"change": {"name": "Bonfire", "says": "foes you strike while you burn catch fire, and the payback grows with each one"},
 		2: {"id": "flashpoint", "name": "Flashpoint", "type": "flashpoint", "learn": 2,
 			"desc": "spend a tenth of your health in a burst of fire around you; the lower your health, the harder it hits",
 			"steps": {
@@ -69,9 +82,9 @@ static var FORKS := {
 				4: {"damage": 15.0},
 				5: {"damage": 18.0},
 			}},
-		3: {"id": "deep_burn", "variation": "charged", "name": "Deep Burn",
-			"desc": "Rekindle winds up longer and burns deeper: you lose a third more, and regain two and a half times what you lost",
-			"steps": {3: {"deep": 0.05, "payback": 0.5}}},
+		3: {"id": "deep_burn", "name": "Cauterize", "transform": true,
+			"desc": "Rekindle heals you a little at once, and its payback comes as a barrier",
+			"steps": {3: {"mend": 0.1, "shield": 3.0, "shield_time": 10.0}}},
 		4: {"id": "backdraft", "name": "Backdraft", "type": "backdraft", "learn": 4,
 			"desc": "for 10 seconds every blow you take bursts into fire around you, hotter for a bigger blow",
 			"steps": {
@@ -83,9 +96,12 @@ static var FORKS := {
 
 ## The few words these spells show in the world.
 static var TEXT := {
-	"deep_burn": "Deep Burn +%d",
 	"backdraft": "Backdraft",
+	"bonfire": "Bonfire",
+	"cauterize": "Cauterized +%d",
 }
+## Meteor's crater (its Apex): patches of your burning ground in a ring and at the middle.
+static var CRATER := {"patches": 6, "patch": 24.0, "ring": 0.55}
 
 
 ## Runs this file's spells.
@@ -108,32 +124,222 @@ static func cast_spell(bond, sp: Dictionary, p) -> bool:
 	return true
 
 
-## Rekindler's Deep Burn: Rekindle as it is, burning deeper, then the extra
-## share back when the burn ends. Quickfire and Broad are the library's own
-## Quick and Wide (they change numbers only), so they fall through.
+## Step 3's first side, a Transformation (from step 3 until the other side is
+## chosen): Sunfire and Bonfire run here. Furnace is Heat Aura's own numbers
+## (bond.gd _aura reads them), so it falls through.
+static func cast_change(bond, sp: Dictionary, p) -> bool:
+	match String(bond.id):
+		"flame_contractor":
+			_sunfire(bond, sp, p)
+			return true
+		"rekindler":
+			_bonfire(bond, sp, p)
+			return true
+	return false
+
+
+## Step 3's second side, a Transformation: Seeker Flame, Ember Wings, Cauterize.
 static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
-	if String(bond.id) != "rekindler" or String(alt.get("id", "")) != "deep_burn":
-		return false
-	bond._cast_type(p)
+	match [String(bond.id), String(alt.get("id", ""))]:
+		["flame_contractor", "quickfire"]:
+			_seeker_flame(bond, sp, p)
+			return true
+		["flamewing", "broad"]:
+			_ember_wings(bond, sp, p)
+			return true
+		["rekindler", "deep_burn"]:
+			_cauterize(bond, sp, p)
+			return true
+	return false
+
+
+# --- the Transformations ---------------------------------------------------------------
+
+## Sunfire: a slower, bigger fireball that leaves your burning ground every
+## few steps of its flight, all the way to where it bursts.
+static func _sunfire(bond, sp: Dictionary, p) -> void:
 	var main = p.main
-	p.rekindle_loss += p.max_hp * float(bond.spell_stat(sp, "deep"))
-	var payback := float(bond.spell_stat(sp, "payback"))
-	var token := int(p.get_meta("deep_burn", 0)) + 1
-	p.set_meta("deep_burn", token)
-	var burning: bool = p.rekindle_t > 0.0
-	# (It waits for the burn itself to end, not a clock of its own: on a busy
-	# frame the fight's time and a timer's can drift apart.)
-	FX.lasting(main, float(p.rekindle_total) + 5.0, func(_n, _d: float) -> bool:
-		if not is_instance_valid(p) or p.dead or int(p.get_meta("deep_burn", 0)) != token:
+	var ch: Dictionary = FORKS["flame_contractor"]["change"]
+	var ball = bond._fireball(p, 0)
+	var speed := float(bond.spell_stat(sp, "speed"))
+	ball.vel = p.aim * speed
+	if not bond._overdrawn():
+		ball.life = float(ch["reach"]) / maxf(speed, 1.0)
+	ball.scale = Vector2.ONE * float(ch["size"])
+	var blast = bond.spell_stat(sp, "blast")  # (it hits harder than the plain fireball, at every step)
+	if blast != null:
+		ball.explode_dmg *= float(blast)
+	var trail := float(bond.spell_stat(sp, "trail"))
+	var gap := float(ch["gap"])
+	var patch := float(ch["patch"])
+	main.add_flame(ball.position, patch, trail, true)
+	FX.lasting(main, ball.life + 1.0, func(n, _d: float) -> bool:
+		var b = n.data["ball"]  # (kept in the data, not captured: it may be gone by now)
+		if not is_instance_valid(b) or b.explode_r <= 0.0 or b.is_queued_for_deletion():
 			return false
-		if p.rekindle_t > 0.0:
-			return true  # (still burning)
-		if burning and p.rekindle_fought and p.rekindle_lost > 0.0:
-			var extra: float = p.rekindle_lost * payback
-			p.hp = minf(p.max_health(), p.hp + extra)
-			main.fx_text(p.global_position + Vector2(0, -58), TEXT["deep_burn"] % int(extra), bond.color())
-		return false, Callable())
-	return true
+		var at: Vector2 = b.position
+		while at.distance_to(n.data["last"]) >= gap:  # (a patch every `gap` px, even on a long frame)
+			var next: Vector2 = n.data["last"] + (at - n.data["last"]).normalized() * gap
+			main.add_flame(next, patch, trail, true)
+			n.data["last"] = next
+		return true, Callable(), {"last": ball.position, "ball": ball})
+	main.light_flash(p.global_position, bond.color(), 1.4, 1.4, 0.3)
+
+
+## Seeker Flame: the fireball turns toward the nearest foe ahead of it, and
+## where it bursts it bursts again a moment later.
+static func _seeker_flame(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var ball = bond._fireball(p, 0)
+	var turn := float(bond.spell_stat(sp, "seek"))
+	var reach := float(bond.spell_stat(sp, "seek_reach"))
+	var again := float(bond.spell_stat(sp, "again"))
+	var delay := float(bond.spell_stat(sp, "delay"))
+	var r: float = ball.explode_r
+	var dmg: float = ball.explode_dmg * again
+	var col: Color = bond.color()
+	if not bond._overdrawn():
+		ball.life = 1.3
+	var tick := func(n, d: float) -> bool:
+		var fb = n.data["ball"]  # (kept in the data, not captured: it may be gone by now)
+		if is_instance_valid(fb) and fb.explode_r > 0.0 and not fb.is_queued_for_deletion():
+			n.data["last"] = fb.position
+			var best = null
+			var best_d := reach
+			for e in main.targets():
+				var dd: float = e.global_position.distance_to(fb.position)
+				if dd < best_d and fb.vel.dot(e.global_position - fb.position) > 0.0:
+					best_d = dd
+					best = e
+			if best != null:
+				var want: float = fb.vel.angle_to(best.global_position - fb.position)
+				fb.vel = fb.vel.rotated(clampf(want, -turn * d, turn * d))
+			return true
+		# It burst (or went out): the second burst, where it was.
+		if not n.data["again"]:
+			n.data["again"] = true
+			var at: Vector2 = n.data["last"]
+			FX.mark(main, at, delay, col)
+			FX.later(main, delay, func():
+				main.explode(at, r, dmg, col)
+				main.sfx("fire_blast", 1.15, -3.0))
+		return false
+	FX.lasting(main, 3.0, tick, Callable(), {"last": ball.position, "again": false, "ball": ball})
+
+
+## Ember Wings: Heat Aura as ever (cast again, it goes out and the wings
+## with it). The wings themselves are ember_wings(), which bond.gd _aura
+## starts whenever the aura lights (Heat Haze and Firebird Form light it too).
+static func _ember_wings(bond, _sp: Dictionary, p) -> void:
+	bond._cast_type(p)
+
+
+## While the aura burns it reaches out as two wings to your sides (across
+## your aim): foes they touch burn with the aura and are knocked away, each
+## at most once every `push_every` seconds. (`bond`'s selected spell is Heat Aura.)
+static func ember_wings(bond, p) -> void:
+	var main = p.main
+	var fx = FX.of(main)
+	if fx != null and fx.lastings.any(func(l): return is_instance_valid(l) and l.data.has("ember_wings")):
+		return  # (one pair of wings)
+	var col: Color = bond.color()
+	var span := float(bond.stat("wings"))
+	var arc := deg_to_rad(float(bond.stat("wing_arc")))
+	var push := float(bond.stat("push"))
+	var every := float(bond.stat("push_every"))
+	var power := float(bond.stat("wing_power"))
+	var tick := func(n, d: float) -> bool:
+		if not is_instance_valid(p) or p.dead or p.aura_part != bond.part:
+			return false
+		n.data["at"] = p.global_position
+		n.data["aim"] = p.aim
+		var r: float = p.aura_r * (2.0 if p.firebird_t > 0.0 else 1.0)
+		n.data["r"] = r
+		n.data["tick"] -= d
+		if n.data["tick"] > 0.0:
+			return true
+		n.data["tick"] = 0.5
+		var side: Vector2 = p.aim.orthogonal()
+		var now: float = n.age
+		for e in main.targets():
+			var to: Vector2 = e.global_position - p.global_position
+			var dist := to.length()
+			if dist < r + e.radius or dist > r * span + e.radius or dist < 1.0:
+				continue  # (inside the aura itself, or past the wing's tip)
+			if absf(side.angle_to(to)) > arc and absf((-side).angle_to(to)) > arc:
+				continue
+			e.take_hit(p.aura_dmg * power, Vector2.ZERO, 0.0)
+			p.aura_heat = minf(60.0, p.aura_heat + p.aura_dmg * power)
+			if e.dead:
+				continue
+			Reactions.apply(main, e, "burning", 1.5, "aura")
+			var key: int = e.get_instance_id()
+			if now >= float(n.data["pushed"].get(key, -99.0)) + every:
+				n.data["pushed"][key] = now
+				e.knock = to.normalized() * push * (0.4 if e.kind == "knight" else (0.12 if e.is_boss() else 1.0))
+				main.fx_burst(e.global_position, to.normalized(), col, 6, 200.0)
+		return true
+	var paint := func(n):
+		var at: Vector2 = n.data["at"]
+		var r: float = n.data["r"]
+		var side: Vector2 = Vector2(n.data["aim"]).orthogonal()
+		var beat := 0.85 + 0.15 * sin(n.age * 5.0)
+		for s in [1.0, -1.0]:
+			var axis: Vector2 = side * s
+			for i in 7:  # long swept feathers of flame, fanning out to the wing's tip
+				var a: float = lerpf(-arc, arc, i / 6.0) * beat
+				var dir: Vector2 = axis.rotated(a)
+				var tip: Vector2 = at + dir * r * span * (0.8 + 0.2 * cos(a * 2.0))
+				var root: Vector2 = at + dir * r * 0.8
+				n.draw_line(root, tip, Color(col.lightened(0.25), 0.55), 3.0, true)
+				n.draw_line(root.lerp(tip, 0.4), tip, Color(1.0, 0.9, 0.6, 0.45), 1.5, true)
+	FX.lasting(main, INF, tick, paint, {"at": p.global_position, "aim": p.aim, "r": p.aura_r, "tick": 0.0, "pushed": {}, "ember_wings": true})
+	main.sfx("gust", 0.8, -4.0)
+
+
+## Bonfire: Rekindle as ever; while you burn, the foes you strike catch fire
+## and each grows the payback (player.gd _strike and _tick_fire_bonds).
+static func _bonfire(bond, sp: Dictionary, p) -> void:
+	bond._cast_type(p)
+	p.rekindle_per = float(bond.spell_stat(sp, "per_burning"))
+	p.rekindle_most = int(bond.spell_stat(sp, "most"))
+	var col: Color = bond.color()
+	var tick := func(_n, _d: float) -> bool:
+		return is_instance_valid(p) and not p.dead and p.rekindle_t > 0.0
+	var paint := func(n):
+		if not is_instance_valid(p):
+			return
+		var at: Vector2 = p.global_position + Vector2(0, 6)
+		flame_ring(n, at, Vector2(20, 8), 8, n.age * 3.0, col, 0.8, 7.0 + 1.5 * p.rekindle_burned.size())
+	spawn(p.main, float(p.rekindle_total) + 0.1, tick, paint)
+
+
+## Cauterize: a small heal at once, then Rekindle as ever; its payback comes
+## as a barrier instead of health (player.gd).
+static func _cauterize(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var heal: float = p.mend_by(p.max_hp * float(bond.spell_stat(sp, "mend")) * p.heal_mult())
+	bond._cast_type(p)
+	p.rekindle_shield = float(bond.spell_stat(sp, "shield"))
+	p.rekindle_shield_t = float(bond.spell_stat(sp, "shield_time"))
+	if heal >= 1.0:
+		main.fx_text(p.global_position + Vector2(0, -58), TEXT["cauterize"] % int(round(heal)), bond.color())
+	main.fx_ring(p.global_position, Color(1.0, 0.85, 0.6), 26.0, 0.25, 3.0)
+
+
+## Meteor's Apex: where it lands (after `delay`), a crater of your burning ground.
+static func crater(bond, p, at: Vector2, r: float, seconds: float, delay: float) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	FX.later(main, delay, func():
+		var n := int(CRATER["patches"])
+		main.add_flame(at, float(CRATER["patch"]), seconds, true)
+		for i in n:
+			main.add_flame(at + Vector2.from_angle(TAU * i / n) * r * float(CRATER["ring"]), float(CRATER["patch"]), seconds, true)
+		spawn(main, seconds, Callable(), func(nd):  # the scorched rim
+			var a: float = nd.fade(0.8)
+			nd.draw_arc(at, r * 0.8, 0.0, TAU, 40, Color(0.18, 0.1, 0.08, 0.5 * a), 6.0, true)
+			nd.draw_arc(at, r * 0.8, 0.0, TAU, 40, Color(col, 0.35 * a), 2.0, true)))
 
 
 # --- what stays a while ------------------------------------------------------------

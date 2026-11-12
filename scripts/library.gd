@@ -74,7 +74,10 @@ extends RefCounted
 ##      steps), the other side of the step-2 fork.
 ##   3: a VARIATION choice: {"id", "variation": a VARIATIONS id, "name",
 ##      "desc", "steps": {3: {key: value}}} — the step-3 values replace
-##      today's change's on the bond's first spell.
+##      today's change's on the bond's first spell. Or a TRANSFORMATION
+##      ("transform": true, no "variation"): the file's cast_variation runs
+##      it, and the first side ("change") may run in its cast_change
+##      (cast_mark_change below); the tree shows "change"'s "says" for it.
 ##   4: a SPELL, the other side of the step-4 fork (learn: 4).
 ##   Any of them with "placeholder": true (a name and a line, nothing to
 ##   run) shows as "Coming later" and can't be chosen; today's spell stays.

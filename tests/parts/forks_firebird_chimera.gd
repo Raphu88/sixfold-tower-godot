@@ -1,8 +1,8 @@
 extends RefCounted
 ## The Firebird's and the Chimera's forks (scripts/spells/firebird.gd and
 ## chimera.gd): every new spell can be chosen at its fork, casts, does what
-## it says and costs what it says; each step-3 variation changes the first
-## spell; old saves keep today's spells. Run by smoke_test.gd (_part_tests).
+## it says and costs what it says; each step-3 side can be chosen (what the
+## Transformations do: marks_firebird_chimera.gd); old saves keep today's spells. Run by smoke_test.gd (_part_tests).
 
 const TOWERS := {
 	"flame_contractor": "hand", "flamewing": "heart", "rekindler": "back",
@@ -130,7 +130,7 @@ func _all_forks_written() -> void:
 			if s != 3:
 				_check(int(alt.get("learn", 0)) == s and alt.has("type") and float(alt["steps"][s].get("cost", 0.0)) > 0.0, "...a spell learned at step %d with a cost" % s)
 			else:
-				_check(L.built(L.variation(String(alt.get("variation", "")))), "...a library variation (%s)" % alt.get("variation", "?"))
+				_check(bool(alt.get("transform", false)) and not alt.has("variation") and (alt["steps"][3] as Dictionary).size() > 0, "...a Transformation with its own numbers (%s)" % alt.get("name", "?"))
 		var ch: Dictionary = L.MARK_FORKS[bond_id]["change"]
 		_check(String(ch.get("name", "")) != "", "...today's step-3 change has a name (%s)" % ch.get("name", ""))
 	var words := ""
@@ -158,15 +158,10 @@ func _flame_contractor() -> void:
 		p.global_position += Vector2(16, 0)
 		await t._frames(2)
 	_check(n0 >= 1 and friendly.call() >= n0 + 3, "...walking leaves burning ground behind you (%d -> %d patches)" % [n0, friendly.call()])
-	# Step 3: Quickfire.
+	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
 	main.profile.bonds["hand"]["xp"] = 450.0
 	main._give_bonds()
-	_check(_choose("flame_contractor", 3, "quickfire"), "Quickfire can be chosen at step 3")
-	b = _mark("flame_contractor", "fireball")
-	_check(is_equal_approx(b.windup(), 0.175) and is_equal_approx(b.cost(), 8.0) and is_equal_approx(float(b.stat("radius")), 55.0), "...Fireball winds up in half the time and costs 8, without Charged's bigger blast (%.3f s)" % b.windup())
-	paid = _cast(b)
-	var balls: Array = main.get_children().filter(func(c): return "explode_r" in c and c.style == "fireball")
-	_check(is_equal_approx(paid, 8.0) and balls.size() == 1 and balls[0].explode_dmg < 19.0 and balls[0].explode_dmg > 14.0, "...and throws a fireball a little weaker (%.1f)" % (balls[0].explode_dmg if not balls.is_empty() else 0.0))
+	_check(_choose("flame_contractor", 3, "quickfire"), "%s can be chosen at step 3" % TR.fork_alt("flame_contractor", 3)["name"])
 	# Step 4: Detonate.
 	main.profile.bonds["hand"]["xp"] = 1000.0
 	main._give_bonds()
@@ -212,15 +207,10 @@ func _flamewing() -> void:
 	paid = _cast(b)
 	_check(is_equal_approx(paid, 0.0), "...and it's free in Firebird Form, as Wingburst is (%.1f)" % paid)
 	p.firebird_t = 0.0
-	# Step 3: Broad.
+	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
 	main.profile.bonds["heart"]["xp"] = 450.0
 	main._give_bonds()
-	_check(_choose("flamewing", 3, "broad"), "Broad can be chosen at step 3")
-	b = _mark("flamewing", "heat_aura")
-	_check(is_equal_approx(float(b.stat("radius")), 62.0 * 1.4) and not bool(b.stat("grows")), "...Heat Aura reaches 40%% farther and doesn't grow (%.1f)" % float(b.stat("radius")))
-	_cast(b)
-	_check(p.aura_part == "heart" and is_equal_approx(p.aura_r, 62.0 * 1.4) and p.aura_dmg < 3.8, "...and burns that wide, a little weaker (%.2f)" % p.aura_dmg)
-	_cast(b)  # (off again)
+	_check(_choose("flamewing", 3, "broad"), "%s can be chosen at step 3" % TR.fork_alt("flamewing", 3)["name"])
 	# Step 4: Heat Haze.
 	main.profile.bonds["heart"]["xp"] = 1000.0
 	main._give_bonds()
@@ -262,30 +252,10 @@ func _rekindler() -> void:
 	b.essence = b.capacity()
 	_cast(b)
 	_check(p.hp == 1.0, "...never your last health")
-	# Step 3: Deep Burn.
+	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
 	main.profile.bonds["back"]["xp"] = 450.0
 	main._give_bonds()
-	_check(_choose("rekindler", 3, "deep_burn"), "Deep Burn can be chosen at step 3")
-	b = _mark("rekindler", "rekindle")
-	_check(is_equal_approx(b.windup(), 0.4) and not bool(b.stat("spread")), "...Rekindle winds up longer, and foes near you don't burn")
-	p.hp = p.max_hp * 0.6
-	paid = _cast(b)
-	_check(is_equal_approx(paid, 8.0) and is_equal_approx(p.rekindle_loss, p.max_hp * 0.2), "...it costs 8 and burns deeper: a fifth of your health (%.1f)" % p.rekindle_loss)
-	p.rekindle_fought = true
-	Engine.time_scale = 5.0
-	for i in 400:
-		if p.rekindle_t <= 0.3:
-			break
-		await t._frames(1)
-	var low: float = p.hp
-	var lost: float = p.rekindle_lost
-	await t._wait(0.25)
-	for i in 300:  # (until the burn has ended and the payback landed: a busy machine runs the fight slower)
-		if p.rekindle_t <= 0.0 and p.hp - low >= lost * 2.3:
-			break
-		await t._frames(1)
-	Engine.time_scale = 1.0
-	_check(lost > 0.0 and p.hp - low >= lost * 2.3, "...and pays back two and a half times what you lost (lost %.1f, back %.1f)" % [lost, p.hp - low])
+	_check(_choose("rekindler", 3, "deep_burn"), "%s can be chosen at step 3" % TR.fork_alt("rekindler", 3)["name"])
 	# Step 4: Backdraft.
 	main.profile.bonds["back"]["xp"] = 1000.0
 	main._give_bonds()
@@ -333,31 +303,10 @@ func _covenant() -> void:
 	await t._wait(1.2)
 	Engine.time_scale = 1.0
 	_check(is_instance_valid(ally) and is_equal_approx(ally.dmg, dmg0) and is_equal_approx(ally.speed, spd0), "...and it wears off after 8 seconds")
-	# Step 3: Mighty (the pact book still works).
-	main._start_floor(main.floor_num)
-	await t._frames(2)
-	for e in main.enemies():
-		e.set_physics_process(false)
+	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
 	main.profile.bonds["hand"]["xp"] = 450.0
 	main._give_bonds()
-	_check(_choose("covenant", 3, "mighty"), "Mighty can be chosen at step 3")
-	b = _mark("covenant", "bind_and_call")
-	_check(is_equal_approx(b.windup(), 1.2) and int(b.stat("count")) == 1, "...Call winds up longer and brings one creature")
-	main.profile.pacts = ["knight"]
-	_foes([])
-	paid = _cast(b)
-	var out: Array = main.allies()
-	_check(is_equal_approx(paid, 14.0) and out.size() == 1 and out[0].kind == "knight", "...it costs 14 and calls from your retinue (%s)" % [out.map(func(a): return a.kind)])
-	if out.size() == 1:
-		var mighty: float = float(TR.fork_alt("covenant", 3)["steps"][3]["might"])
-		_check(is_equal_approx(out[0].max_hp, (30.0 + 15.0 * 3) * mighty) and is_equal_approx(out[0].dmg, (4.0 + 3.0 * 3) * mighty), "...about twice as strong (%.0f health)" % out[0].max_hp)
-	var weak = _foes([Vector2(60, 0)])[0]
-	var kind: String = weak.kind
-	main.profile.pacts = []
-	weak.hp = weak.max_hp * 0.2
-	b.essence = b.capacity()
-	_cast(b)
-	_check(kind in main.profile.pacts and weak.dead, "...and binding into the pact book works as before")
+	_check(_choose("covenant", 3, "mighty"), "%s can be chosen at step 3" % TR.fork_alt("covenant", 3)["name"])
 	# Step 4: Release.
 	main.profile.bonds["hand"]["xp"] = 1000.0
 	main._give_bonds()
@@ -398,19 +347,10 @@ func _grafter() -> void:
 	p.global_position = main.graft_drops[0]["pos"]
 	await t._wait(0.2)
 	_check(main.grafts.size() == 1, "...which binds when you walk over it, as ever")
-	# Step 3: Echoing.
+	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
 	main.profile.bonds["legs"]["xp"] = 450.0
 	main._give_bonds()
-	_check(_choose("grafter", 3, "echoing"), "Echoing can be chosen at step 3")
-	b = _mark("grafter", "graft_burst")
-	_check(not bool(b.stat("effects")), "...Graft Burst doesn't take Manifold's effects")
-	foe = _foes([Vector2(50, 0)])[0]
-	paid = _cast(b)
-	var first: float = 300.0 - foe.hp
-	_check(is_equal_approx(paid, 10.0) and first > 0.0, "...it costs 10 and bursts at once (%.1f)" % first)
-	await t._wait(1.2)
-	var second: float = 300.0 - foe.hp - first
-	_check(second > 0.0 and second < first, "...then again a second later, weaker (%.1f)" % second)
+	_check(_choose("grafter", 3, "echoing"), "%s can be chosen at step 3" % TR.fork_alt("grafter", 3)["name"])
 	# Step 4: Bud.
 	main.profile.bonds["legs"]["xp"] = 1000.0
 	main._give_bonds()
@@ -456,17 +396,10 @@ func _surgeon() -> void:
 	var cut: float = foe.hp
 	await t._wait(1.3)
 	_check(foe.hp < cut - 2.0 and p.hp > hp0, "...it bleeds, and you heal for part of it (%.0f -> %.0f, +%.1f)" % [cut, foe.hp, p.hp - hp0])
-	# Step 3: Chained.
+	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
 	main.profile.bonds["brow"]["xp"] = 450.0
 	main._give_bonds()
-	_check(_choose("surgeon", 3, "chained"), "Chained can be chosen at step 3")
-	b = _mark("surgeon", "sever")
-	var pair := _foes([Vector2(70, 0), Vector2(160, 30)])
-	for e in pair:
-		e.cripple_t = 0.0
-	paid = _cast(b)
-	_check(is_equal_approx(paid, 8.0) and pair[0].cripple_t > 0.0 and pair[1].cripple_t > 0.0 and pair[0].disarm_t <= 0.0, "...Sever costs 8 and cripples the foe you aim at and the one near it")
-	_check(300.0 - pair[1].hp < 300.0 - pair[0].hp, "...the second a little weaker")
+	_check(_choose("surgeon", 3, "chained"), "%s can be chosen at step 3" % TR.fork_alt("surgeon", 3)["name"])
 	# Step 4: Anesthetize.
 	main.profile.bonds["brow"]["xp"] = 1000.0
 	main._give_bonds()

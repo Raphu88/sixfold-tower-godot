@@ -3600,6 +3600,10 @@ func add_graft(kind: String) -> bool:
 	graft_order.append(part)
 	fx_text(player.global_position + Vector2(0, -44), "Grafted: %s to your %s" % [kind, part], Color(0.75, 0.55, 0.7))
 	sfx("hit_slime", 0.8)
+	# Grafting III: a new graft heals its body part's burn.
+	if player.passive_rank("grafter") >= 3 and player.bonds.has(part) and player.bonds[part].burned:
+		player.bonds[part].burned = false
+		fx_text(player.global_position + Vector2(0, -60), "your %s heals" % part, Color(0.75, 0.55, 0.7))
 	return true
 
 
@@ -3625,9 +3629,17 @@ func add_flame(pos: Vector2, r: float, t: float, friendly := false) -> void:
 
 
 func _update_flames(delta: float) -> void:
+	# Kindled II (Flame Contractor): your burning ground slowly spreads.
+	var spread := 0.0
+	if player != null and player.passive_rank("flame_contractor") >= 2:
+		spread = BondScript.Bonds.passive_num("flame_contractor", 2, "spread", 4.0)
 	for f in flames:
 		f["t"] -= delta
 		if f.get("friendly", false):
+			if spread > 0.0:
+				if not f.has("r0"):
+					f["r0"] = f["r"]
+				f["r"] = minf(float(f["r0"]) * BondScript.Bonds.passive_num("flame_contractor", 2, "spread_most", 1.6), float(f["r"]) + spread * delta)
 			f["tick"] -= delta
 			if f["tick"] <= 0.0:
 				f["tick"] = 0.5
@@ -3650,12 +3662,17 @@ func _update_flames(delta: float) -> void:
 	meteors = meteors.filter(func(m): return m["t"] > 0.0)
 	if player == null or player.dead:
 		return
+	var underfoot := false  # (any fire, yours or not: Fireproof II)
+	var hostile := false
 	for f in flames:
-		if f.get("friendly", false):
-			continue
 		if player.global_position.distance_to(f["pos"]) < f["r"] + player.radius * 0.5:
-			player.stand_in_fire(delta)
-			break
+			underfoot = true
+			if not f.get("friendly", false):
+				hostile = true
+				player.stand_in_fire(delta)
+				break
+	if underfoot:
+		player.fire_underfoot(delta, hostile)
 
 
 ## Gaps in the floor. Walking monsters can't enter them (they collide with
@@ -3708,6 +3725,12 @@ func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 func _kindled(e) -> void:
 	if e.dead and player != null and player.has_bond("flame_contractor"):
 		add_flame(e.global_position, 26.0, 3.0, true)
+		# Kindled III: each foe your fire kills gives the mark back some essence (once a foe).
+		if player.passive_rank("flame_contractor") >= 3 and not e.has_meta("kindled_refund"):
+			e.set_meta("kindled_refund", true)
+			for b in player.bonds.values():
+				if b.id == "flame_contractor":
+					b.essence = minf(b.capacity(), b.essence + BondScript.Bonds.passive_num("flame_contractor", 3, "refund", 2.0))
 
 
 func in_water(pos: Vector2) -> bool:

@@ -46,7 +46,7 @@ var tally := {}  # essence kind -> banked since the last mark
 var climbs := 0
 var best_floor := 1
 var last_tower := "kraken"
-var pacts: Array = []  # Covenant's pact book: monster kinds bound, kept between climbs
+var pacts: Array = []  # Covenant's kin book: monster kinds bound, kept between climbs
 var pacts_formed: Array = []  # named pacts (pacts.gd) formed at least once: announced once, listed in the book
 ## Essence density: everything you've banked, by essence type, and how it
 ## settled in your body parts (by what each part did). Each type is an

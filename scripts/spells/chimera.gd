@@ -4,17 +4,27 @@ extends RefCounted
 ## worked example is scripts/spells/gryphon.gd (Stormcaller).
 ##
 ##   Covenant: step 2 Command or RALLY (heal and spur every creature);
-##     step 3 Paired or MIGHTY (the library's Charged: one creature, nearly
-##     twice as strong); step 4 Exchange or RELEASE (a creature bursts,
-##     hurting foes and healing you).
+##     step 3, Bind and Call becomes PACK CALL (two creatures, a little
+##     weaker, that hunt as a pack) or CHAMPION BOND (one creature that grows
+##     with every kill it makes this floor); step 4 Exchange or RELEASE (a
+##     creature bursts, hurting foes and healing you).
 ##   Grafter: step 2 Mimic or HARVEST (a weakened foe always leaves a
-##     graft); step 3 Manifold or ECHOING (the library's Echo); step 4 Shed
-##     or BUD (your newest graft grows into a creature of its kind).
-##   Surgeon: step 2 Mend or BLOODLETTING (a bleed that heals you); step 3
-##     Disarming or CHAINED (the library's Chain: Sever cripples a second
-##     foe); step 4 Transfer or ANESTHETIZE (a foe sleeps until struck).
+##     graft); step 3, Graft Burst becomes HUNGRY FLESH (each graft's effect,
+##     and it tears a graft from a foe below half health) or FLESH SHELL (it
+##     grows a shell, thicker for every graft); step 4 Shed or BUD (your
+##     newest graft grows into a creature of its kind).
+##   Surgeon: step 2 Mend or BLOODLETTING (a bleed that heals you); step 3,
+##     Sever becomes VIVISECT (a weak point: your next 3 hits on that foe are
+##     critical) or ARTERIAL CUT (it bleeds hard); step 4 Transfer or
+##     ANESTHETIZE (a foe sleeps until struck).
 ##
-## The pact book, the retinue and the grafts are bond.gd's and main.gd's, as
+## Step 3's first side keeps the old choice id "change", its second side the
+## old id in FORKS[bond][3] (mighty, echoing, chained), so old saves map by
+## themselves. The first side runs in cast_change(), the second in
+## cast_variation(). The step-5 spells' Apex upgrades are in bonds.gd;
+## Chimera Form's grafts that fire on their own are grafts_awake() below.
+##
+## The kin book, the retinue and the grafts are bond.gd's and main.gd's, as
 ## before: these spells only use them (main.allies(), spawn_ally, grafts).
 ## What stays a while is spell_fx.gd's shared Lasting node (firebird.gd spawn()).
 
@@ -23,34 +33,35 @@ const Fire := preload("res://scripts/spells/firebird.gd")
 
 static var FORKS := {
 	"covenant": {
-		"change": {"name": "Paired", "says": "each Call brings two creatures"},
+		"change": {"name": "Pack Call", "says": "each Call brings two creatures, each a little weaker, that hunt as a pack: each hits harder for every packmate near it",
+			"reach": 150.0},
 		2: {"id": "rally", "name": "Rally", "type": "rally", "learn": 2,
 			"desc": "your creatures are healed a third and stay 4 seconds longer; for 8 seconds they move faster and hit a third again as hard",
 			"steps": {2: {"cost": 6.0, "windup": 0.1, "duration": 8.0, "heal": 0.35, "might": 1.35, "haste": 1.3, "extend": 4.0}}},
-		3: {"id": "mighty", "variation": "charged", "name": "Mighty",
-			"desc": "Call winds up longer and calls one creature, twice as strong",
-			"steps": {3: {"might": 2.1}}},
+		3: {"id": "mighty", "name": "Champion Bond", "transform": true,
+			"desc": "Call brings one champion, twice as strong, that grows with every kill it makes this floor",
+			"steps": {3: {"might": 2.0, "grow": 0.25, "grow_most": 2.5}}},
 		4: {"id": "release", "name": "Release", "type": "release", "learn": 4,
 			"desc": "release your nearest creature in a burst that hurts the foes around it and heals you",
 			"steps": {4: {"cost": 8.0, "windup": 0.15, "damage": 12.0, "radius": 85.0, "heal": 0.3}}},
 	},
 	"grafter": {
-		"change": {"name": "Manifold", "says": "each graft adds its own effect to Graft Burst"},
+		"change": {"name": "Hungry Flesh", "says": "each graft adds its own effect to Graft Burst, and the burst tears a graft from a foe below half health"},
 		2: {"id": "harvest", "name": "Harvest", "type": "harvest", "learn": 2,
 			"desc": "cut the foe you aim at; one below a third of its health is slain and always leaves a graft",
 			"steps": {
 				2: {"cost": 9.0, "windup": 0.2, "damage": 14.0, "reach": 130.0, "below": 0.33},
 				4: {"damage": 18.0},
 			}},
-		3: {"id": "echoing", "variation": "echo", "name": "Echoing",
-			"desc": "Graft Burst bursts again a second later, a little weaker",
-			"steps": {3: {"damage": 10.0}}},
+		3: {"id": "echoing", "name": "Flesh Shell", "transform": true,
+			"desc": "Graft Burst grows a shell of flesh around you, thicker for every graft you carry",
+			"steps": {3: {"shell": 16.0, "per_shell": 6.0, "shell_time": 6.0}}},
 		4: {"id": "graft_bud", "name": "Bud", "type": "graft_bud", "learn": 4,
 			"desc": "your newest graft buds into a creature of its kind that fights beside you for 15 seconds (one at a time); with no graft, a lump of your own flesh buds for 6",
 			"steps": {4: {"cost": 10.0, "windup": 0.3, "duration": 15.0, "bare_kind": "slime", "bare": 0.4}}},
 	},
 	"surgeon": {
-		"change": {"name": "Disarming", "says": "a foe already crippled is disarmed instead"},
+		"change": {"name": "Vivisect", "says": "the cut finds a weak point: your next 3 hits on that foe are critical"},
 		2: {"id": "bloodletting", "name": "Bloodletting", "type": "bloodletting", "learn": 2,
 			"desc": "open a vein on the foe you aim at: it bleeds for 6 seconds, and you heal for 40% of what it loses",
 			"steps": {
@@ -58,9 +69,9 @@ static var FORKS := {
 				4: {"damage": 3.2},
 				5: {"damage": 4.0},
 			}},
-		3: {"id": "chained", "variation": "chain", "name": "Chained",
-			"desc": "Sever leaps on to a second foe near the first and cripples it too, a little weaker",
-			"steps": {3: {"damage": 10.0}}},
+		3: {"id": "chained", "name": "Arterial Cut", "transform": true,
+			"desc": "the cut opens an artery and bleeds hard (more than three times as much)",
+			"steps": {3: {"bleed": 0.5}}},
 		4: {"id": "anesthetize", "name": "Anesthetize", "type": "anesthetize", "learn": 4,
 			"desc": "the foe you aim at falls asleep for 4 seconds (less for a beast); the blow that wakes it strikes half again as hard",
 			"steps": {4: {"cost": 10.0, "windup": 0.25, "damage": 4.0, "sleep": 4.0, "reach": 150.0}}},
@@ -78,7 +89,15 @@ static var TEXT := {
 	"crippled": "Crippled",
 	"asleep": "Asleep",
 	"woken": "Woken!",
+	"champion": "Champion: %d kills",
+	"torn": "Torn: %s",
+	"shell": "Shell %d",
+	"artery": "Artery cut",
+	"weak": "Weak point",
+	"awake": "%s graft",
 }
+## Chimera Form's Apex: how far a graft that fires by itself looks for a foe.
+static var AWAKE := {"reach": 170.0}
 
 const BLOOD := Color(0.82, 0.12, 0.16)
 
@@ -103,17 +122,310 @@ static func cast_spell(bond, sp: Dictionary, p) -> bool:
 	return true
 
 
-## Covenant's Mighty and Surgeon's Chained run here; Grafter's Echoing is the
-## library's own Echo (it falls through).
+## Step 3's first side, a Transformation: Pack Call and Hungry Flesh run here.
+## Vivisect is Sever's own numbers (bond.gd _sever marks the weak point with
+## weak_point() below), so it falls through.
+static func cast_change(bond, sp: Dictionary, p) -> bool:
+	match String(bond.id):
+		"covenant":
+			_pack_call(bond, sp, p)
+			return true
+		"grafter":
+			_hungry_flesh(bond, sp, p)
+			return true
+	return false
+
+
+## Step 3's second side, a Transformation: Champion Bond, Flesh Shell, Arterial Cut.
 static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
 	match [String(bond.id), String(alt.get("id", ""))]:
 		["covenant", "mighty"]:
-			_mighty(bond, sp, p)
+			_champion(bond, sp, p)
+			return true
+		["grafter", "echoing"]:
+			_flesh_shell(bond, sp, p)
 			return true
 		["surgeon", "chained"]:
-			_chained(bond, p)
+			_arterial(bond, sp, p)
 			return true
 	return false
+
+
+# --- the Transformations ---------------------------------------------------------------
+
+## The creatures a cast just called (those out now that weren't before).
+static func _called(main, before: Array) -> Array:
+	return main.allies().filter(func(a): return not a in before and not a.dead)
+
+
+## Pack Call: Bind and Call as ever (two creatures from step 3), each a little
+## weaker, hunting as a pack: a blow lands harder for every packmate near it.
+static func _pack_call(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var before: Array = main.allies()
+	bond._cast_type(p)
+	var power := float(bond.spell_stat(sp, "power"))
+	var pack := float(bond.spell_stat(sp, "pack"))
+	var reach := float(FORKS["covenant"]["change"]["reach"])
+	for a in _called(main, before):
+		a.max_hp *= power
+		a.hp = a.max_hp
+		a.dmg *= power
+		a.set_meta("pack", true)
+		a.set_meta("ally_strike", func(me, _target, blow: float) -> float:
+			var mates := 0
+			for o in main.allies():
+				if o != me and not o.dead and o.has_meta("pack") and o.global_position.distance_to(me.global_position) < reach:
+					mates += 1
+			return blow * (1.0 + pack * mates))
+	# The pack's bond: faint lines between packmates that hunt together.
+	var tick := func(_n, _d: float) -> bool:
+		return main.allies().filter(func(a): return a.has_meta("pack")).size() > 0
+	var paint := func(n):
+		var packed: Array = main.allies().filter(func(a): return a.has_meta("pack") and not a.dead)
+		for i in packed.size():
+			for j in range(i + 1, packed.size()):
+				var a = packed[i]
+				var b = packed[j]
+				if a.global_position.distance_to(b.global_position) < reach:
+					n.draw_line(a.global_position, b.global_position, Color(col, 0.22 + 0.08 * sin(n.age * 4.0)), 1.5, true)
+	if not main.allies().filter(func(a): return a.has_meta("pack")).is_empty() and not _has_lasting(main, "pack_lines"):
+		var node = Fire.spawn(main, INF, tick, paint, {"pack_lines": true})
+		node.z_index = 11  # (on the floor, under the creatures)
+
+
+static func _has_lasting(main, key: String) -> bool:
+	var fx = FX.of(main)
+	return fx != null and fx.lastings.any(func(l): return is_instance_valid(l) and l.data.has(key))
+
+
+## Champion Bond: Bind and Call as ever (one creature), half again as strong;
+## each kill it makes this floor grows it (and any champion called later on
+## the floor starts that big). A new floor forgets the kills (it clears the
+## Lasting that counts them).
+static func _champion(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var before: Array = main.allies()
+	bond._cast_type(p)
+	var might := float(bond.spell_stat(sp, "might"))
+	var grow := float(bond.spell_stat(sp, "grow"))
+	var most := float(bond.spell_stat(sp, "grow_most"))
+	var tally = _champion_tally(main)
+	for a in _called(main, before):
+		a.set_meta("champion_base", [a.max_hp, a.dmg])
+		var size_up := func(c) -> void:
+			var k: float = might * minf(1.0 + grow * int(tally.data["kills"]), most)
+			var base: Array = c.get_meta("champion_base")
+			var was: float = c.max_hp
+			c.max_hp = base[0] * k
+			c.hp = minf(c.max_hp, c.hp + (c.max_hp - was))
+			c.dmg = base[1] * k
+			c.scale = Vector2.ONE * minf(1.1 + 0.1 * int(tally.data["kills"]), 1.6)
+		size_up.call(a)
+		a.hp = a.max_hp
+		a.set_meta("ally_kill", func(me, _foe) -> void:
+			tally.data["kills"] = int(tally.data["kills"]) + 1
+			size_up.call(me)
+			main.fx_text(me.global_position + Vector2(0, -me.radius - 30.0), TEXT["champion"] % int(tally.data["kills"]), col)
+			main.fx_ring(me.global_position, col, me.radius + 16.0, 0.35, 3.0))
+		var tick := func(n, _d: float) -> bool:
+			var c = n.data["a"]  # (kept in the data, not captured: it may be gone by now)
+			return is_instance_valid(c) and not c.dead
+		var paint := func(n):
+			var c = n.data["a"]
+			var at: Vector2 = c.global_position
+			var t: float = n.age
+			var rr: float = c.radius * c.scale.x
+			n.draw_arc(at + Vector2(0, rr * 0.6), rr * 1.3, 0.0, TAU, 28, Color(col, 0.4 + 0.15 * sin(t * 4.0)), 2.0, true)
+			for k in 3:  # a crown of three points over it
+				var x := (k - 1) * 6.0
+				var top: float = -rr * 1.2 - 12.0 - (4.0 if k == 1 else 0.0)
+				n.draw_line(at + Vector2(x, -rr * 1.2 - 4.0), at + Vector2(x, top), Color(col.lightened(0.4), 0.85), 2.0, true)
+		Fire.spawn(main, float(a.ally_t) + 1.0, tick, paint, {"a": a})
+		main.fx_ring(a.global_position, col, 44.0, 0.45, 4.0)
+		main.light_flash(a.global_position, col, 1.5, 1.6, 0.35)
+	main.sfx("crit", 0.9, -6.0)
+
+
+## The floor's count of a champion's kills (a Lasting that a new floor clears).
+static func _champion_tally(main):
+	var fx = FX.of(main)
+	for l in fx.lastings:
+		if is_instance_valid(l) and l.data.has("champion_kills"):
+			return l
+	var node = FX.lasting(main, INF, Callable(), Callable(), {"champion_kills": true, "kills": 0})
+	return node
+
+
+## Hungry Flesh: Graft Burst as ever (each graft's effect too); then it tears
+## a graft from the weakest foe it caught below `tear` of its health (not a
+## beast): that foe is struck again, and the graft binds to you at once if
+## its body part is free (else the torn flesh mends you a little).
+static func _hungry_flesh(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var n: int = main.grafts.size()
+	var r: float = float(bond.spell_stat(sp, "radius")) + float(bond.spell_stat(sp, "per_graft_radius")) * n + (40.0 if main.grafts.has("throat") else 0.0)
+	var at: Vector2 = p.global_position
+	var caught: Array = main.targets().filter(func(e): return e.global_position.distance_to(at) < r + e.radius)
+	bond._cast_type(p)
+	var below := float(bond.spell_stat(sp, "tear"))
+	var torn = null
+	for e in caught:
+		if not is_instance_valid(e) or e.dead or e.is_boss() or e.mirror or e.shade or e.hp > e.max_hp * below:
+			continue
+		if torn == null or e.hp / e.max_hp < torn.hp / torn.max_hp:
+			torn = e
+	if torn == null:
+		return
+	var kind: String = torn.kind
+	var where: Vector2 = torn.global_position
+	torn.take_hit(bond.damage(), (where - at).normalized(), 160.0, true)
+	if main.add_graft(kind):
+		main.fx_text(where + Vector2(0, -40), TEXT["torn"] % kind, col)
+	else:
+		p.mend_by(4.0 * p.heal_mult())
+	# A strand of flesh, torn from it back to you.
+	var paint := func(nd):
+		if not is_instance_valid(p):
+			return
+		var k := clampf(nd.age / 0.25, 0.0, 1.0)
+		var to: Vector2 = p.global_position
+		var pts := PackedVector2Array()
+		for i in 9:
+			var u := k * i / 8.0
+			pts.append(where.lerp(to, u) + (to - where).orthogonal().normalized() * sin(u * TAU * 1.5) * 8.0)
+		nd.draw_polyline(pts, Color(col.darkened(0.1), 0.9 * nd.fade(0.2)), 3.0, true)
+		nd.draw_circle(where.lerp(to, k), 5.0, Color(BLOOD, 0.9 * nd.fade(0.2)))
+	Fire.spawn(main, 0.45, Callable(), paint, {})
+	main.fx_burst(where, (at - where).normalized(), BLOOD, 12, 240.0)
+	main.sfx("hit_slime", 0.7)
+
+
+## Flesh Shell: Graft Burst as ever, and the flesh closes over you as a
+## barrier: `shell`, and `per_shell` more for every graft you carry.
+static func _flesh_shell(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	bond._cast_type(p)
+	var shield: float = (float(bond.spell_stat(sp, "shell")) + float(bond.spell_stat(sp, "per_shell")) * main.grafts.size()) * minf(bond.power(), 1.0)
+	p.raise_barrier(shield, float(bond.spell_stat(sp, "shell_time")), false, col)
+	main.fx_text(p.global_position + Vector2(0, -58), TEXT["shell"] % int(round(shield)), col)
+	var paint := func(n):
+		if not is_instance_valid(p):
+			return
+		var at: Vector2 = p.global_position
+		var f: float = n.fade(0.3)
+		for i in 10:  # plates of flesh closing over you
+			var a: float = TAU * i / 10.0 + n.age
+			var k := clampf(n.age / 0.3, 0.0, 1.0)
+			n.draw_arc(at, (p.radius + 8.0) * k + 2.0, a, a + 0.5, 6, Color(col.darkened(0.15), 0.85 * f), 4.0, true)
+	Fire.spawn(main, 0.6, Callable(), paint, {})
+
+
+## Arterial Cut: Sever as ever, bleeding hard (its "bleed" share, bond.gd _sever).
+static func _arterial(bond, _sp: Dictionary, p) -> void:
+	var main = p.main
+	var t = bond._target_in_aim(p, 130.0)
+	bond._cast_type(p)
+	if t == null or not is_instance_valid(t) or t.dead:
+		return
+	var at: Vector2 = t.global_position
+	main.fx_burst(at, Vector2.UP, BLOOD, 16, 220.0)
+	main.fx_text(at + Vector2(0, -t.radius - 44.0), TEXT["artery"], BLOOD)
+
+
+## Vivisect (bond.gd _sever): a weak point on the foe; your next `crits` hits
+## on it are critical (`crit` times as hard: player.gd _strike), for `weak_time`.
+static func weak_point(bond, p, t) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var wp := {"n": int(bond.stat("crits")), "mult": float(bond.stat("crit")), "until": Time.get_ticks_msec() * 0.001 + float(bond.stat("weak_time"))}
+	t.set_meta("weak_point", wp)
+	main.fx_text(t.global_position + Vector2(0, -t.radius - 44.0), TEXT["weak"], col)
+	var tick := func(n, _d: float) -> bool:
+		var f = n.data["foe"]  # (kept in the data, not captured: it may be gone by now)
+		return is_instance_valid(f) and not f.dead and f.has_meta("weak_point") and f.get_meta("weak_point") == wp
+	var paint := func(n):
+		var f = n.data["foe"]
+		var at: Vector2 = f.global_position
+		var rr: float = f.radius + 7.0
+		var spin: float = n.age * 1.5
+		for k in 4:  # a fine sighting mark over the weak point
+			var a: float = spin + TAU * k / 4.0
+			n.draw_line(at + Vector2.from_angle(a) * rr, at + Vector2.from_angle(a) * (rr + 6.0), Color(col, 0.85), 1.5, true)
+		for k in int(wp["n"]):  # one pip for each critical hit left
+			n.draw_circle(at + Vector2(-6.0 + 6.0 * k, -rr - 8.0), 2.0, Color(BLOOD, 0.9))
+	Fire.spawn(main, float(bond.stat("weak_time")), tick, paint, {"foe": t})
+
+
+# --- Chimera Form's Apex: the grafts awake ------------------------------------------------
+
+## For as long as Chimera Form lasts, every `every` seconds the next graft you
+## carry uses its power by itself (the same powers as Mimic, aimed at the
+## nearest foe, without moving you).
+static func grafts_awake(bond, p) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var every := float(bond.stat("every"))
+	var dmg: float = bond.damage()
+	var tick := func(n, d: float) -> bool:
+		if not is_instance_valid(p) or p.dead or p.chimera_t <= 0.0:
+			return false
+		n.data["t"] -= d
+		if n.data["t"] > 0.0 or main.graft_order.is_empty():
+			return true
+		n.data["t"] = every
+		var order: Array = main.graft_order
+		var part: String = order[int(n.data["i"]) % order.size()]
+		n.data["i"] = int(n.data["i"]) + 1
+		_graft_power(main, p, part, dmg, col)
+		return true
+	Fire.spawn(main, float(p.chimera_t), tick, Callable(), {"t": 0.2, "i": 0})
+
+
+## One graft's power, by itself (grafts_awake).
+static func _graft_power(main, p, part: String, dmg: float, col: Color) -> void:
+	var at: Vector2 = p.global_position
+	var near = null
+	var best: float = float(AWAKE["reach"])
+	for e in main.targets():
+		var d: float = e.global_position.distance_to(at)
+		if d < best + e.radius:
+			best = d
+			near = e
+	match part:
+		"hand":  # a heavy blow on the nearest foe
+			if near != null:
+				near.take_hit(dmg * 1.5, (near.global_position - at).normalized(), 300.0, true)
+				main.fx_bolt([at, near.global_position], col)
+		"legs":  # a raking kick that staggers
+			if near != null:
+				near.take_hit(dmg, (near.global_position - at).normalized(), 160.0)
+				near.stagger(0.3 * (0.5 if near.is_boss() else 1.0))
+				main.fx_bolt([at, near.global_position], col)
+		"heart":  # mends flesh
+			p.mend_by(dmg * 0.5 * p.heal_mult())
+		"brow":  # a shriek that staggers the foes near you
+			for e in main.targets():
+				if e.global_position.distance_to(at) < 90.0 + e.radius:
+					e.stagger(0.8 * (0.5 if e.is_boss() else 1.0))
+		"throat":  # a burst of sparks
+			for e in main.targets():
+				var to: Vector2 = e.global_position - at
+				if to.length() < 120.0 + e.radius:
+					e.take_hit(dmg * 0.8, to.normalized(), 180.0)
+		"back":  # a sting that poisons
+			if near != null:
+				near.take_hit(dmg, Vector2.ZERO, 0.0)
+				if not near.dead:
+					near.add_venom(2)
+				main.fx_bolt([at, near.global_position], col)
+	main.fx_text(at + Vector2(0, -50), TEXT["awake"] % part, col)
+	main.fx_ring(at, col, 30.0, 0.25, 2.0)
+	main.sfx("gust", 1.2, -8.0)
 
 
 # --- Covenant ------------------------------------------------------------------------
@@ -165,38 +477,6 @@ static func _rally(bond, p) -> void:
 	main.light_flash(p.global_position, col, 1.3, 1.4, 0.3)
 	main.sfx("ready", 1.2)
 	main.sfx("beast_call", 1.0, -2.0)
-
-
-## Mighty: Bind and Call as it is (binding works as before); a creature it
-## calls comes nearly twice as strong, and bigger.
-static func _mighty(bond, sp: Dictionary, p) -> void:
-	var main = p.main
-	var col: Color = bond.color()
-	var before: Array = main.allies()
-	bond._cast_type(p)
-	var might := float(bond.spell_stat(sp, "might"))
-	for a in main.allies():
-		if a in before:
-			continue
-		a.max_hp *= might
-		a.hp = a.max_hp
-		a.dmg *= might
-		a.scale = Vector2.ONE * 1.2
-		a.set_meta("mighty", true)
-		var tick := func(_n, _d: float) -> bool:
-			return is_instance_valid(a) and not a.dead
-		var paint := func(n):
-			var at: Vector2 = a.global_position
-			var t: float = n.age
-			n.draw_arc(at + Vector2(0, a.radius * 0.6), a.radius * 1.3, 0.0, TAU, 28, Color(col, 0.4 + 0.15 * sin(t * 4.0)), 2.0, true)
-			for k in 3:  # a crown of three points over it
-				var x := (k - 1) * 6.0
-				var top: float = -a.radius * 1.2 - 12.0 - (4.0 if k == 1 else 0.0)
-				n.draw_line(at + Vector2(x, -a.radius * 1.2 - 4.0), at + Vector2(x, top), Color(col.lightened(0.4), 0.85), 2.0, true)
-		Fire.spawn(main, float(a.ally_t) + 1.0, tick, paint, {})
-		main.fx_ring(a.global_position, col, 44.0, 0.45, 4.0)
-		main.light_flash(a.global_position, col, 1.5, 1.6, 0.35)
-	main.sfx("crit", 0.9, -6.0)
 
 
 ## Release: your nearest creature bursts; the more life it had left, the
@@ -345,7 +625,7 @@ static func _bloodletting(bond, p) -> void:
 		if n.data["tick"] <= 0.0:
 			n.data["tick"] = 0.5
 			t.take_hit(dmg, Vector2.ZERO, 0.0)
-			var heal: float = dmg * share * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult()
+			var heal: float = dmg * share * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult() * bond.bleeding_near_mult(p)  # (Diagnosis III)
 			p.hp = minf(p.max_health(), p.hp + heal)
 		return true
 	var paint := func(n):
@@ -366,44 +646,6 @@ static func _bloodletting(bond, p) -> void:
 	main.fx_burst(t.global_position, Vector2.ZERO, BLOOD, 8, 160.0)
 	main.sfx("swing", 1.6)
 	main.sfx("spell_blade", 1.1, -2.0)
-
-
-## Chained: Sever as it is, then the cut leaps to the foe nearest the first
-## (within the library's Chain hop) and cripples it too, at Chain's power.
-static func _chained(bond, p) -> void:
-	var main = p.main
-	var col: Color = bond.color()
-	var first = bond._target_in_aim(p, 130.0)
-	var from: Vector2 = first.global_position if first != null else Vector2.ZERO
-	bond._cast_type(p)
-	if first == null:
-		return
-	var v: Dictionary = load("res://scripts/library.gd").variation("chain")
-	var hop := float(v.get("hop", 170.0))
-	var second = null
-	var best := INF
-	for e in main.targets():
-		if e == first or e.dead:
-			continue
-		var d: float = e.global_position.distance_to(from)
-		if d < hop and d < best:
-			best = d
-			second = e
-	if second == null:
-		return
-	var to: Vector2 = second.global_position
-	second.take_hit(bond.damage() * float(v.get("power", 0.6)), (to - from).normalized(), 60.0)
-	second.cripple_t = maxf(second.cripple_t, float(bond.stat("duration")))
-	main.fx_text(to + Vector2(0, -second.radius - 30.0), TEXT["crippled"], col)
-	var paint := func(n):
-		var k := clampf(n.age / 0.1, 0.0, 1.0)
-		var f: float = n.fade(0.2)
-		n.draw_line(from, from.lerp(to, k), Color(col, 0.85 * f), 2.0, true)
-		var dir := (to - from).normalized()
-		for c in [from, to]:  # a fine cross-cut where each was struck
-			n.draw_line(c - dir.rotated(0.8) * 10.0, c + dir.rotated(0.8) * 10.0, Color(BLOOD, 0.8 * f), 2.0, true)
-	Fire.spawn(main, 0.3, Callable(), paint, {})
-	main.sfx("spell_blade", 1.2, -2.0)
 
 
 ## Anesthetize: a fine needle; the foe sleeps (it can't move or attack)
