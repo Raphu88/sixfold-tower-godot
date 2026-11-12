@@ -684,6 +684,8 @@ func _physics_process(delta: float) -> void:
 	elif lunge_t > 0.0:
 		lunge_t -= delta
 		velocity = aim * lunge_speed
+		if main.in_chasm(global_position + aim * (radius + 8.0)) and not main.in_chasm(global_position):
+			velocity = Vector2.ZERO  # (a swing's lunge never carries you over the lip of a chasm)
 	else:
 		if pending_weapon != "" and attack_cd <= 0.0 and not drawing:
 			_equip(pending_weapon)

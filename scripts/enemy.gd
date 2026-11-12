@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": ""}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -64,6 +64,8 @@ static var TYPES := {
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
 	"deepfin": {"hp": 34.0, "speed": 120.0, "radius": 13.0, "color": Color(0.22, 0.42, 0.5), "dmg": 13.0, "weight": 1.2},  # (scripts/towers/deepfin.gd)
+	"ashwing": {"hp": 24.0, "speed": 105.0, "radius": 11.0, "color": Color(1.0, 0.5, 0.22), "dmg": 9.0, "weight": 0.5},  # (scripts/towers/ashwing.gd)
+	"briar": {"hp": 42.0, "speed": 38.0, "radius": 14.0, "color": Color(0.3, 0.46, 0.22), "dmg": 11.0, "weight": 3.0},  # (scripts/towers/briar.gd)
 	"kraken": {"hp": 316.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
@@ -97,17 +99,19 @@ const WEAKNESS := {
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
 	"mirror": "a finisher or a blow from behind breaks its guard",
 	"deepfin": "lightning when it's out of the water", "harrier": "parry the dive on a ledge",
+	"ashwing": "strike or soak its ash before it rises", "briar": "fire flushes it out of hiding",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
-const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier"]
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier", "ashwing"]
 ## Monsters that swim through deep water (the Kraken's tower), where others can't wade.
 const SWIMMERS := ["lurker", "kraken", "deepfin"]
 ## Kinds with a script of their own (a tower's creature): spawn them with make().
 ## The script extends this one and overrides what it needs (_act, _draw_own,
 ## _overlay_extra, take_hit, on_parried...).
 const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "res://scripts/towers/burrower.gd",
-	"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd"}
+	"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd",
+	"ashwing": "res://scripts/towers/ashwing.gd", "briar": "res://scripts/towers/briar.gd"}
 
 
 ## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call
@@ -2090,6 +2094,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 	if hp <= 0.0 and kind == "firebird" and not reborn:
 		_fall_to_ashes()
 		return
+	if hp <= 0.0 and _refuse_death():
+		return  # (a kind of its own that doesn't fall yet: the ashwing sinks into ash)
 	if hp <= 0.0:
 		dead = true
 		main.release_attack(self)
@@ -2148,6 +2154,12 @@ func is_boss() -> bool:
 ## A kind this script doesn't know fights here (mirror.gd's mirror image).
 func _act(_delta: float, _dir: Vector2, _dist: float, _p) -> void:
 	velocity = Vector2.ZERO
+
+
+## A kind with a script of its own (SUBKINDS) whose health just ran out:
+## true keeps it standing (it handles what happens instead).
+func _refuse_death() -> bool:
+	return false
 
 
 ## The body of a kind with a script of its own (SUBKINDS), into the pen.

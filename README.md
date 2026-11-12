@@ -634,8 +634,8 @@ Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each
 | The Kraken's Tower | Water | slimes, lurkers, shellbacks and deepfins, in water that rises and drains; the Kraken on floor 12 | damp, teal stone and green-white torches |
 | The Wyvern's Tower | Iron | knights, cinders, smiths and forge golems; the Wyvern on floor 12 (the hardest) | a forge: workshop halls, molten channels, grated corridors, furnaces (see below) |
 | The Manticore's Tower | Stone | scorplings, rams and burrowers; the Manticore on floor 12 | sun-baked sandstone: courts in the sun, shaded alleys, sand (see below) |
-| The Firebird's Tower | Fire | wisps and bloomcaps, and chasms to jump; the Firebird on floor 12 | pale, sunlit stone and gold torches |
-| The Chimera's Tower | Blade | thornhounds and mongrels; the Chimera on floor 12 | the Thornwild: mossy green stone and pale green torches |
+| The Firebird's Tower | Fire | wisps, bloomcaps and ashwings, and chasms to jump; the Firebird on floor 12 | islands of pale, sunlit rock over the abyss, bridges between them, gold torches |
+| The Chimera's Tower | Blade | thornhounds, mongrels and briars; the Chimera on floor 12 | the Thornwild: grown caves of mossy green rock, roots and thorns, pale green torches |
 
 **The Gryphon's tower has a summit.** On floor 12, the summit, the Gryphon itself waits, alone. It rakes with its talons up close (a red wedge, parryable), dives on you from range (it locks onto where you stood when it glints; the landing can't be parried, so roll out of the red circle), and throws a fan of feathers (parryable, and a Crosswind turns them back). It can't be lifted or interrupted, only staggered, and at half health it calls two bats. Beat it, take the stair, and the climb is complete.
 
@@ -725,9 +725,42 @@ The Gryphon's floors are built by `scripts/towers/gryphon_floor.gd` (the Data ed
 
 Tests: `tests/parts/towers_kraken_gryphon.gd` (layouts, reachability over dozens of floors, the water and the wind, both tasks, both creatures, both scenarios, and the floor bot on both towers). The floor bot sweep can be narrowed to one tower: `godot --headless --fixed-fps 60 -s tests/floor_bot_sweep.gd -- 2 tower=kraken`.
 
+### The Firebird's tower: islands over the abyss
+
+Its floors of rooms are **islands of rock floating over the abyss** (`scripts/towers/firebird_floor.gd`, and the shapes in `scripts/towers/organic.gd`). Rooms are ragged **islands** (some are **atolls**, ringed round a hole of real chasm in the middle: mind your footing, and mind being knocked in), rarely a built room. The corridors between them are **bridges** of planks with a rope along each side, drawn over nothing: the rock between rooms is painted as the abyss, with the islands' cliffs falling away under their edges and a warm haze far below. Islands are joined sparsely (fewer loops than other towers). You can **see across the abyss** to the islands beyond (it's rock to walk on but open to the eye), so a floor feels open and high.
+
+Its own system is **embers and rebirth**:
+- **Updrafts.** A long bridge may be broken by a **gap too wide to jump** (two or three tiles), with a **vent** of rising air on either side (rising streaks, a chevron toward the far side). Step onto a vent and the updraft carries you across, in an arc, to the bridge beyond. In **Firebird Form** you fly anyway, and an updraft carries you faster.
+- **Burning bridges.** Some bridges **burn behind you**: once you've crossed one, it smoulders for a moment and a slice of it falls away into the abyss (a one-tile gap: jump it, or wait), then **regrows from embers** about nine seconds later, so the way back always comes again. It never burns out from under your feet.
+- **Ember storms.** On some islands (from floor 3) a storm sweeps across **on a beat**: a haze builds on the windward side ("Ember storm! Get behind rock"), then a front of burning wind crosses the island. **Stand behind rock** (a rock spire, a pillar, the island's edge upwind) and it passes over you ("Sheltered"); caught in the open, it burns you. It burns monsters too, except the fiery ones and those that fly above it. Storm islands get two or three rock spires to shelter behind. Firebird Form's own fire doesn't burn you.
+
+Its own task, **Rekindle the Beacons**: a **hearth** burns in a room near the start; walk up to it to take a flame, then carry it to each cold **beacon** (two to four, in far rooms) to light it. The flame **gutters** as you go (the HUD shows how much is left), and a blow costs it a quarter; **braziers** on the way, and every beacon once lit, renew it. The flame always lasts long enough for the longest leg of the best order, with time to spare. The arrow points at a beacon while your flame will last the way, else at the nearest fire.
+
+Its own creature, the **ashwing** (from floor 3): an ember-bird that circles, glints and dives straight through where you stood (parryable), leaving a trail of fire. The first time it falls it sinks into a heap of **glowing ash** and **rises again** three seconds later at half health, unless you **scatter the ash** (strike it) or **soak it** (water, a soaking spell). It's a flier (it crosses chasms) and drops fire essence.
+
+Its own scenario, **the Burning Bridge**: a room broken by a chasm with a narrow bridge across it. Step onto the mark and the bridge starts **burning away behind you** while the tower's creatures come at you from the far side: cross before the fire overtakes you (it drops you to the floor below). The bridge knits back once it's over.
+
+### The Chimera's tower: the Thornwild
+
+Its floors of rooms are **grown, not built** (`scripts/towers/chimera_floor.gd`, shapes in `scripts/towers/organic.gd`): **caves** of lobes grown into each other, round **dens** with burrows off them, **grottoes** with clumps of root to hide behind. Passages bulge and wander where the roots pushed through, and everything is drawn as **rounded, root-bound rock with no straight wall**: boulders bulging over the floor's edges, rounded corners, roots creeping out over the floor, gnarled stumps for cover. Floors are tangled: more loops than other towers, some of them through thorns.
+
+Its own system is **living thorns**:
+- **Thorn walls.** Hedges of thorn across a passage. **Any blow cuts them** (two blows, or one finishing blow; any weapon will do, fists too), **fire burns them** at once (a Fire Flask, burning ground, an exploding spell), and they **grow back** after a while (never onto anyone standing there). Like a cracked wall, but alive. Because any weapon cuts them, one may stand on the way to the stair.
+- **Closing thickets.** Some thickets stand open as you pass, then **grow closed behind you**: cut your way back out.
+- **Brambles.** Patches of bramble on the floor **slow** whoever walks them, and a foe **knocked into them bleeds**.
+- **Spore pods.** Glowing pods in the rooms: strike one, walk into it, burn it or knock a foe into it and it **bursts** into a cloud. **Green** poisons whoever stands in it (you and foes alike: lure them in); **blue** calms the foes in it for six seconds (they wander and won't attack until struck).
+
+Its own task, **the Hungry Grove**: thorns choke the stair, fed by **heart-roots** in rooms across the floor (three, then four). One is **awake** at a time, its heart pulsing red; cut it (three blows) and the next wakes. Strike a sleeping one and its thorns lash you. When the last is cut the thorns **recede from the stair**, and every thorn wall on the floor withers with them.
+
+Its own creature, the **briar** (a thicket lurker, from floor 3): it **hides as a bush**, often beside brambles (now and then two eyes blink in the leaves). Come close (or linger near it) and it **lashes out and grabs you**, dragging you toward it while it squeezes (a **roll breaks free**); then it stands and swipes (parryable) until it can hide again. **Fire flushes it out**: it reels, burning, open to blows. It drops blade essence.
+
+Its own scenario, **the Closing Thicket**: step onto the mark at the room's far end and thorns grow in from the edges, ring by ring, with hedges between you and the doorway. Cut your way out before the thicket seals the doorway. It withers once it's over, whatever happens: you're never shut in.
+
+**Where it lives.** Each tower's floor script is its `module` in `floor_styles.gd` (`scripts/towers/firebird_floor.gd`, `scripts/towers/chimera_floor.gd`, on the shared hooks of `scripts/towers/tower_floor.gd`: see the content contract below); their room shapes are in `scripts/towers/organic.gd`, the tasks in `scripts/towers/rekindle.gd` and `scripts/towers/heartroots.gd`, the scenarios in `scripts/towers/tower_scenarios.gd`, and the creatures in `scripts/towers/ashwing.gd` and `scripts/towers/briar.gd` (their behaviour and drawing in `scripts/towers/creatures.gd`). Numbers and words are data (`RULES` and `TEXT` in `firebird_floor.gd`, `chimera_floor.gd` and `creatures.gd`, `MOUTH` in `organic.gd`, the tasks in `objectives.gd` `KINDS`, the scenarios in `scenarios.gd` `SCENARIOS` and `TEXT`, the rooms' names in `themes.gd`; all in the Data editor). The floor checks (`scripts/reach.gd`) count thorns, gaps and burnt slices as passable (they're cut, carried over or regrow): thorns never cut the monsters' path grid in two, they only weigh on it. The floor bot cuts thorns in its way (`bot_step`), rides updrafts by walking onto them, and does both tasks (`bot_task`). A burst of fire reaches the tower's floor through the `blast(pos, r)` hook (`main.explode`). Tests: `tests/parts/towers_firebird_chimera.gd`; the bot sweep narrows to one tower with `tower=firebird` or `tower=chimera`.
+
 ### Giving a tower its own floors: the content contract
 
-Every tower with floors of its own (today the Gryphon, the Kraken, the Wyvern and the Manticore) works the same way, so a new one plugs in without touching shared code:
+Every tower with floors of its own (today all six: the Gryphon, the Kraken, the Wyvern, the Manticore, the Firebird and the Chimera) works the same way, so a new one plugs in without touching shared code:
 
 1. **Its floor script** is `scripts/towers/<tower>_floor.gd` and `extends "res://scripts/towers/tower_floor.gd"`. That base file lists every hook and does nothing in each one, so a tower overrides only what it needs. Don't declare `var main` (the base has it).
 2. **Name it** in the tower's entry in `scripts/floor_styles.gd` as `"module": "res://scripts/towers/<tower>_floor.gd"`. Room shapes of its own go in `SHAPE_MODULES` (shape name → script) and are carved by its `carve(shape, size)`. Other style keys it can set: `shapes`, `own_shapes`, `gallery`, `room_grow`, `prefab`, `loops`, `corridor`.
@@ -746,7 +779,7 @@ Every tower with floors of its own (today the Gryphon, the Kraken, the Wyvern an
    - building: `setup(plan)`, `clear()`
    - ground: `blocks_walking(tile)` (also counts in `main.is_solid`), `slow_at(pos)`, `wet(pos)` (shallow water: `main.in_water`), `sight_k()` (how far monsters notice you), `is_void(pos)` (an open drop), `reach_live(solid, size, doors, opens)` (for the safety net)
    - the dev tool: `open_gates()` (Open all doors opens its gates too)
-   - swings: `strike(from, dir, reach, arc)` (every melee swing)
+   - swings: `strike(from, dir, reach, arc)` (every melee swing); bursts: `blast(pos, r)` (`main.explode`: bombs, exploding spells)
    - its task: `task_tick(ob, delta, p, hurt)`, `task_strike(ob, from, dir, reach, arc)`; it draws its own pieces
    - its scenario: `scenario_begin(s, host)`, `scenario_tick(s, delta, p, host)` (calls `host._finish(s, grade)`), `scenario_title(s)`, `scenario_status(s)`, `scenario_goal(s)`; it draws it too
 7. **Floor bot hooks** (`tests/floor_bot_driver.gd`):
@@ -1070,6 +1103,8 @@ Monsters wait in the rooms: most in the den, one or two guarding the stair, the 
 | **Wake the Wardstone** | Walk up to the stone in the Wardstone Hall to wake it, then keep the beast's creatures off it while it charges (they head for it); it only charges while none is near. |
 | **Gather the Key Shards** | Three shards in three rooms, each with a guard. |
 | **Catch the Motes** | Motes (4 to 6, named for the tower: wind, tide, ember, sand, spark, seed) drift away from you inside their rooms: corner them. |
+| **Rekindle the Beacons** (the Firebird's only) | Take a flame from the hearth and carry it to each beacon before it gutters; braziers and lit beacons renew it. |
+| **The Hungry Grove** (the Chimera's only) | Cut the heart-roots in the order they wake; the thorns recede from the stair. |
 | **A puzzle** | Any of the eight puzzles below can be the task: then the gallery holds it, and solving it lifts the ward. |
 
 When it's done: **THE STAIR IS UNSEALED**, a column of gold light on the stair, a burst of essence, and a **reliquary** beside the stair: walk up to it and take one of three (a relic: a ring or an amulet; a piece of gear; an item). When the floor's puzzle isn't the task, the gallery may still hold one, for its own **vault** (a vault's cards for solving it); it never seals you in. The dev tools' **Puzzles** buttons make that puzzle every floor's task.
@@ -1133,7 +1168,7 @@ Some rooms are short set pieces you play through, and how you do is **noticed** 
 - **The Watchful Hall:** lanterns sweep the hall. Cross to the far end without their light falling on you; walls and cover hide you, and each time you're seen a monster comes.
 - **The Caged Cub** (from floor 3): a small grey creature whimpers in a cage. Break it open, then lead it to the door while the monsters go for it.
 - **The Gauntlet:** the doors shut; beat every wave, and be quick.
-- **Hold the Forge** (the Wyvern's tower, from floor 3) and **the Sinking Court** (the Manticore's tower): the towers' own scenarios, described with their towers above. A tower's own scenario turns up only in its tower, three times as often as one of the shared ones (`towers` and `weight` in `SCENARIOS`), and its tower's floor script runs it.
+- **Hold the Forge** (the Wyvern's tower, from floor 3), **the Sinking Court** (the Manticore's tower), **the Burning Bridge** (the Firebird's) and **the Closing Thicket** (the Chimera's): the towers' own scenarios, described with their towers above. A tower's own scenario turns up only in its tower, three times as often as one of the shared ones (`towers` and `weight` in `SCENARIOS`), and its tower's floor script runs it.
 
 Each ends with a **grade**: gold, silver, bronze or none (a fall, leaving the room, the camp or the cub lost). A grade pays essence and **renown** (`Renown.earn`), feeds the Makers' interest (`Makers.feed(main, "scenario")`), and goes on the climb's tally of what the beast noticed (`main.noticed`, with `main.beast_noticed_count()`, for the summit or the Regard to read later), with a banner: **THE GRYPHON NOTICED**. Their status shows under the task's line at the top of the screen.
 
@@ -1285,6 +1320,12 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/objective.gd` | The task in play: its pieces, the HUD's line and arrow, lifting the ward, the stair's gold light, essence and reliquary |
 | `scripts/scenarios.gd` | Scenario rooms: the mark, the six set pieces (defend, collapse, duel, unseen, rescue, gauntlet), grades, and what's noticed (renown, the Makers, `main.noticed`) |
 | `scripts/cracks.gd` | Cracked walls: planning them (loops, stubs, alcoves), their cracks and dust, breaking them, what's behind |
+| `scripts/towers/organic.gd` | Grown and broken room shapes: the Firebird's islands and atolls, the Thornwild's caves, dens and grottoes |
+| `scripts/towers/firebird_floor.gd` | The Firebird's floor script: islands over the abyss, updraft gaps, burning bridges, ember storms, seeing across the abyss and painting it; its task and scenario |
+| `scripts/towers/chimera_floor.gd` | The Chimera's floor script: the Thornwild's thorn walls and closing thickets, brambles, spore pods, bulging passages and grown rock; its task and scenario |
+| `scripts/towers/rekindle.gd`, `scripts/towers/heartroots.gd` | The Firebird's and the Chimera's own tasks (run by their floor scripts) |
+| `scripts/towers/ashwing.gd`, `scripts/towers/briar.gd`, `scripts/towers/creatures.gd` | The Firebird's and the Chimera's own creatures (`enemy.gd SUBKINDS`), their behaviour and drawing |
+| `scripts/towers/tower_scenarios.gd` | The Firebird's and the Chimera's own scenarios: the Burning Bridge, the Closing Thicket |
 | `scripts/room_rewards.gd` | Chests of spoils, strongrooms' pedestals, rest rooms and wandering traders |
 | `scripts/rooms.gd` | The hand-made rooms, drawn as text grids, the carved shapes, and how they turn into walls, pillars, chasms and pools; the painter's rooms in play (`custom`) and the low-wall check (`cover_kept`) |
 | `scripts/painter.gd` | The room painter (Dev tools → Paint rooms): the grid, tools, palette, checks, room list, settings, Save / Copy / Paste and Try it |
