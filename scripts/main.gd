@@ -1757,10 +1757,18 @@ func choose_camp(i: int) -> void:
 			return
 	elif pick.begins_with("rune:"):
 		var r := pick.substr(5)
-		player.camp_rune = r
-		player.rune_gear = r
+		if camp.get("second", false):
+			player.camp_rune2 = r  # (Runesmith II: a second rune beside the first)
+		else:
+			player.camp_rune = r
+			player.rune_gear = r
 		taken.append("%s inscribed on your gear" % Items.CAMP_RUNES[r]["name"])
 		fx_ring(player.global_position, Items.CAMP_RUNES[r]["color"], 30.0, 0.35, 3.0)
+		if not camp.get("second", false) and BondScript.wyvern().second_rune(player):
+			var others: Array = Items.CAMP_RUNES.keys().filter(func(x): return x != r).map(func(x): return "rune:" + x)
+			camp = {"stage": "rune", "choices": others, "lines": [BondScript.wyvern().TEXT["second_rune"]], "taken": taken, "second": true}
+			card_focus = 0
+			return
 	else:
 		taken.append(_take_item(pick.substr(6), "Crafted"))
 	camp_choosing = false
@@ -3474,9 +3482,11 @@ func _update_runes(delta: float) -> void:
 						other["fire"] = true
 				break
 	if fired:
-		for r in runes.filter(func(x): return x.get("fire", false)):
+		var went: Array = runes.filter(func(x): return x.get("fire", false))
+		for r in went:
 			_detonate_rune(r)
 		runes = runes.filter(func(x): return not x.get("fire", false))
+		BondScript.wyvern().runes_fired(self, went)  # (Linked Runes: fire runs between them)
 
 
 func _detonate_rune(r: Dictionary) -> void:
@@ -3620,6 +3630,8 @@ func in_sigil(pos: Vector2) -> bool:
 		if pos.distance_to(s["pos"]) < s["r"]:
 			return true
 	return false
+
+
 
 
 ## Burning floor: hurts the climber standing in it, a little at a time.
