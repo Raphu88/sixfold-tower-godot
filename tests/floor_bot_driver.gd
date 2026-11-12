@@ -340,7 +340,10 @@ func _task_step() -> Dictionary:
 			if ice.slide_dir == Vector2i.ZERO:
 				var I = load("res://scripts/puzzles/ice.gd")
 				steps = []
-				for d in I.way_off(ice.cols, ice.rows_n, ice.rocks, g):
+				var off: Array = I.way_off(ice.cols, ice.rows_n, ice.rocks, g)
+				if off.is_empty():
+					off = [[Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP][randi() % 4]]  # (no line off from here: try a way)
+				for d in off:
 					steps.append({"kind": "slide", "dir": d, "max": 6.0})
 			return {"pos": pos, "act": "none", "why": "off the ice"}
 		for y in ice.rows_n:
@@ -457,6 +460,9 @@ func _go(at: Vector2, r := 12.0, chase := false) -> void:
 	var pos: Vector2 = p.global_position
 	if path_goal == Vector2.INF or path_goal.distance_to(at) > (20.0 if not chase else 40.0) or path_t <= 0.0 or path.is_empty():
 		_plan(at)
+		# No way round the Ice Hall's ice: cross it, sliding.
+		if path.is_empty() and steps.is_empty() and _ice_cross(at):
+			return
 	# Stuck? (a body, a door barred from this side, a pillar's edge)
 	if pos.distance_to(last_pos) < 0.6:
 		still_t += get_physics_process_delta_time()
@@ -634,7 +640,7 @@ func _run_steps(delta: float) -> void:
 	var p = main.player
 	var pos: Vector2 = p.global_position
 	var s: Dictionary = steps[0]
-	if step_hp > 0.0 and p.hp < step_hp - 0.5 and String(s["kind"]) != "push":
+	if step_hp > 0.0 and p.hp < step_hp - 0.5 and String(s["kind"]) == "to":  # (on the ice a blow only nudges the line: it carries on, and plans again at its end)
 		steps.clear()  # (struck: knocked about, think again)
 		step_hp = 0.0
 		step_t = 0.0
@@ -684,6 +690,11 @@ func _run_steps(delta: float) -> void:
 			_move(Vector2.ZERO)
 			if step_t >= float(s["t"]):
 				_next_step()
+		"go":
+			if pos.distance_to(s["pos"]) <= 30.0:
+				_next_step()
+			else:
+				_go(s["pos"], 6.0)
 
 
 func _next_step() -> void:
@@ -1022,6 +1033,65 @@ func _push_plan(b: Dictionary, goal: Vector2) -> Array:
 		out.push_front([pr[0], pr[1]])
 		at = pr[0]
 	return out
+
+
+## When the ice cuts the way (its ring of floor broken), a line across it:
+## walk to a way on, slide from rock to rock, and off on the side we want.
+## Sets `steps` and returns true if there's one.
+func _ice_cross(target: Vector2) -> bool:
+	var pz = main.puzzle
+	if pz == null or String(pz.kind) != "ice" or pz.cur == null:
+		return false
+	var ice = pz.cur
+	var I = load("res://scripts/puzzles/ice.gd")
+	var pos: Vector2 = main.player.global_position
+	if ice.in_field(ice.grid(pos)):
+		return false
+	var a := _tile(pos)
+	var goal := _tile(target)
+	var best: Array = []
+	var best_n := 999
+	for e in I.entries(ice.cols, ice.rows_n):
+		var on: Vector2 = ice.center(e[0])
+		var tw := _tile(on)
+		if main.astar.is_point_solid(tw) or astar.is_point_solid(tw):
+			continue
+		var first: Vector2i = I.slide_from(e[0], e[1], ice.cols, ice.rows_n, ice.rocks)
+		if first == e[0]:
+			continue
+		if first == I.EXIT:
+			continue  # (straight across: handled as a rest-free line below)
+		if astar.get_id_path(a, tw).is_empty() and a != tw:
+			continue
+		var prev := {first: [e[1]]}
+		var queue: Array = [first]
+		while not queue.is_empty():
+			var s: Vector2i = queue.pop_front()
+			for d in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+				var t: Vector2i = I.slide_from(s, d, ice.cols, ice.rows_n, ice.rocks)
+				if t == I.EXIT:
+					var off: Vector2i = s
+					while ice.in_field(off):
+						off += d
+					var to := _tile(ice.center(off))
+					if not astar.is_point_solid(to) and not astar.get_id_path(to, goal).is_empty():
+						var line: Array = prev[s] + [d]
+						if line.size() < best_n:
+							best_n = line.size()
+							best = [e[0]] + line
+				elif t != s and not prev.has(t):
+					prev[t] = prev[s] + [d]
+					queue.append(t)
+	if best.is_empty():
+		return false
+	var way_on: Vector2 = ice.center(best[0])
+	steps = []
+	if pos.distance_to(way_on) > 6.0:
+		steps.append({"kind": "go", "pos": way_on, "max": 40.0})  # (walk there the usual way...)
+		steps.append({"kind": "to", "pos": way_on, "r": 4.0, "max": 4.0})  # (...and onto the very spot)
+	for i in range(1, best.size()):
+		steps.append({"kind": "slide", "dir": best[i], "max": 6.0, "enter": i == 1})
+	return true
 
 
 ## A spot inside a room to walk to: its middle, or (when the middle is off

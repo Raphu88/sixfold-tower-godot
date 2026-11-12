@@ -1259,10 +1259,14 @@ func goal_line() -> String:
 	return main.objective.status_line()
 
 
+var goal_rect := Rect2()  # where the task's line was drawn (screen px)
+
+
 ## The task's line, top centre in a small cartouche (under the corner's bars
 ## on a narrow screen); it gives way to the floor's title while that shows.
 func _draw_goal(size: Vector2, font: Font) -> void:
 	var line := goal_line()
+	goal_rect = Rect2()
 	if line == "" or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing or floor_t > 0.0 or stair_t > 0.0:
 		return
 	var w := UI.font("display").get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 44.0
@@ -1272,6 +1276,7 @@ func _draw_goal(size: Vector2, font: Font) -> void:
 		y = corner.end.y + 22.0  # (a narrow screen: under the corner)
 	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.004)
 	var gb := Draw.Batch.new()
+	goal_rect = Rect2((size.x - w) * 0.5, y - 18.0, w, 48.0)  # (the line and a scenario's under it: the arrow keeps off)
 	UI.cartouche_into(gb, Rect2((size.x - w) * 0.5, y - 16.0, w, 23.0), Color(UI.GILT, 0.6 * pulse))
 	gb.flush(self)
 	UI.draw_label(self, Vector2(0, y), line, 18, Color(1.0, 0.88, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.7))
@@ -1340,9 +1345,13 @@ func stair_arrow_spot(size: Vector2, sp: Vector2) -> Array:
 	var reach_x: float = (ring.end.x - center.x) if d.x > 0.0 else (center.x - ring.position.x)
 	var reach_y: float = (ring.end.y - center.y) if d.y > 0.0 else (center.y - ring.position.y)
 	var at := center + d * minf(reach_x / maxf(absf(d.x), 0.001), reach_y / maxf(absf(d.y), 0.001))
-	if not main.touch_active:
+	# Clear of the touch buttons, and of the floor task's line at the top.
+	var keep: Array = touch_keep_out(size) if main.touch_active else []
+	if goal_rect.has_area():
+		for k in 4:
+			keep.append([goal_rect.position + Vector2(goal_rect.size.x * (k + 0.5) / 4.0, goal_rect.size.y * 0.5), goal_rect.size.y * 0.5 + 6.0])
+	if keep.is_empty():
 		return [at, d]
-	var keep := touch_keep_out(size)
 	if _arrow_clear(at, d, keep):
 		return [at, d]
 	var per := 2.0 * (ring.size.x + ring.size.y)
