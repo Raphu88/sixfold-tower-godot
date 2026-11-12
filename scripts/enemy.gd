@@ -1778,6 +1778,19 @@ func add_venom(stacks: int) -> void:
 		return
 	venom = mini(venom + stacks, 12)
 	venom_t = maxf(venom_t, 3.0 + 0.5 * venom)
+	_manticore_marks().on_venom(main, self)  # (Toxin Build III: heavily poisoned, it staggers)
+
+
+## The Manticore's marks' growth (Corrosive, Shifting Sands II, Toxin Build
+## III) runs in its tower's file, looked up when first needed (a preload here
+## would load it before library.gd has merged it).
+static var _manticore_script: Script = null
+
+
+static func _manticore_marks() -> Script:
+	if _manticore_script == null:
+		_manticore_script = load("res://scripts/spells/manticore.gd")
+	return _manticore_script
 
 
 ## Sets it burning (of Embers): `dmg` every half second for `seconds`.
@@ -1968,6 +1981,9 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		return
 	if unravel_t > 0.0:
 		pierce = true  # (Unravel: its armour stays stripped)
+	if not pierce and _manticore_marks().strips_guard(main, self):
+		pierce = true  # (Corrosive poison, or slowed under Shifting Sands II: no shell or guard holds)
+	amount *= _manticore_marks().blow_mult(main, self)  # (Corrosive: poisoned foes take more)
 	if hollow_t > 0.0:
 		amount *= 1.0 + hollow_k  # (Hollow: it takes more from everything)
 	if main.counting_hits:

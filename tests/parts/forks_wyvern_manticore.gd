@@ -1,9 +1,10 @@
 extends RefCounted
 ## The forks of the Wyvern's and the Manticore's bonds (scripts/spells/wyvern.gd
 ## and manticore.gd): each new spell can be chosen at its fork, casts, does
-## what it says and costs what it says; each step-3 variation changes the first
-## spell as it says; old saves keep today's spells. Run by smoke_test.gd
-## (_part_tests); `t` is the smoke test.
+## what it says and costs what it says; old saves keep today's spells. The
+## step-3 Transformations, passive ranks and Apexes are tested in
+## tests/parts/marks_wyvern_manticore.gd. Run by smoke_test.gd (_part_tests);
+## `t` is the smoke test.
 
 const Bonds := preload("res://scripts/bonds.gd")
 
@@ -31,8 +32,6 @@ func run(smoke) -> void:
 	await _enfeeble()
 	await _ash_step()
 	await _cinder_trail()
-	await _variations_wyvern()
-	await _variations_manticore()
 
 
 func _check(cond: bool, what: String) -> void:
@@ -120,7 +119,7 @@ func _written() -> void:
 				ok = ok and not types.has(o["type"])
 				types[o["type"]] = true
 			else:
-				ok = ok and L.VARIATIONS.has(String(o.get("variation", "")))
+				ok = ok and o.get("steps", {}).has(3)  # (a Transformation's side B: its numbers)
 		ok = ok and String(f.get("change", {}).get("name", "")) != ""
 	_check(ok, "every fork of the Wyvern's and the Manticore's six bonds is written: a name, a line, numbers (no placeholder left)")
 	var unique := true
@@ -344,82 +343,3 @@ func _cinder_trail() -> void:
 	var e = await _foe(start + Vector2(60, 0))
 	await t._wait(0.7)
 	_check(e.hp < 400.0, "...that burns a foe in it")
-
-
-# --- the step-3 variations -----------------------------------------------------------------
-
-## Chooses a step-3 variation and checks its first spell still costs today's.
-func _vary(bond_id: String, id: String):
-	var hb = _choose(bond_id, 3, id)
-	hb.select(0)
-	var first: Dictionary = Bonds.BONDS[bond_id]["spells"][0]
-	_check(not hb.alt_change().is_empty() and is_equal_approx(hb.cost(), float(first["steps"][1]["cost"])), "...%s still costs %d" % [first["name"], int(first["steps"][1]["cost"])])
-	hb.essence = hb.capacity()
-	return hb
-
-
-func _variations_wyvern() -> void:
-	print("  the Wyvern's variations")
-	# Back to Back: Conjured Blades fans out ahead and behind.
-	var main = await _climber("blade_forger", 450.0)
-	var p = main.player
-	var hb = _vary("blade_forger", "back_to_back")
-	var shots := func(): return main.get_children().filter(func(c): return "style" in c and c.style == "blade" and c.friendly)
-	hb.cast(p)
-	var bl: Array = shots.call()
-	_check(int(hb.stat("count")) == 3 and bl.any(func(b): return b.vel.x > 0.0) and bl.any(func(b): return b.vel.x < 0.0), "Back to Back: three blades ahead and three behind (%d blades)" % bl.size())
-	# Ring of Embers: Kindle Blade, and the floor around you burns.
-	main = await _climber("flameblade", 450.0)
-	p = main.player
-	hb = _vary("flameblade", "ring_of_embers")
-	var f0: int = main.flames.size()
-	hb.cast(p)
-	_check(p.kindle_t > 0.0 and not p.kindle_sustain and main.flames.size() == f0 + 8, "Ring of Embers: your weapon kindles (not sustained) and eight patches burn around you")
-	# Afterglow: a rune that goes off leaves its glyph glowing.
-	main = await _climber("rune_artist", 450.0)
-	p = main.player
-	hb = _vary("rune_artist", "afterglow")
-	hb.cast(p)
-	_check(main.runes.size() == 1 and not main.runes[0]["linked"], "Afterglow: Rune Trap lays its rune (not linked)")
-	var at: Vector2 = main.runes[0]["pos"]
-	var e = await _foe(at)
-	await t._frames(3)
-	var FX = load("res://scripts/spell_fx.gd")
-	var fx = FX.of(main)
-	_check(main.runes.is_empty() and e.hp < 400.0 and fx.fields.size() == 1 and fx.fields[0]["pos"].distance_to(at) < 1.0, "...and when it goes off its glyph keeps glowing")
-	var hp1: float = e.hp
-	await t._wait(0.7)
-	_check(e.hp < hp1 and e.chill_t > 0.0, "...searing and slowing the foe in it")
-
-
-func _variations_manticore() -> void:
-	print("  the Manticore's variations")
-	# Aftershock: a second, weaker quake a second later.
-	var main = await _climber("sandshaper", 450.0)
-	var p = main.player
-	main.profile.bonds.erase("legs")  # (no Windwalker: with it, Dust Devil throws the foe up and the aftershock makes a Crater: tests/parts/reactions.gd)
-	main._give_bonds()
-	var hb = _vary("sandshaper", "aftershock")
-	var e = await _foe(p.global_position + Vector2(50, 0))
-	hb.cast(p)
-	var hp1: float = e.hp
-	_check(hp1 < 400.0 and not bool(hb.stat("ring")), "Aftershock: Quake strikes (without its ring of walls)")
-	await t._wait(1.25)
-	_check(e.hp < hp1 and hp1 - e.hp < 400.0 - hp1, "...and a weaker second quake follows (%.0f, then %.0f)" % [400.0 - hp1, hp1 - e.hp])
-	# Spray: three globs, half the poison each.
-	main = await _climber("venomist", 450.0)
-	p = main.player
-	hb = _vary("venomist", "spray")
-	hb.cast(p)
-	var globs: Array = main.get_children().filter(func(c): return "style" in c and c.style == "venom" and c.friendly)
-	var want := int(ceil(float(hb.stat("stacks")) * 0.5))
-	_check(globs.size() == 3 and globs.all(func(g): return g.venom == want and not g.pierce), "Spray: Venom Spit throws three globs of %d stacks (%d)" % [want, globs.size()])
-	# Billowing: a much wider cloud that lasts longer.
-	main = await _climber("ashwalker", 450.0)
-	p = main.player
-	hb = _vary("ashwalker", "billowing")
-	hb.cast(p)
-	var base_r := float(Bonds.BONDS["ashwalker"]["spells"][0]["steps"][1]["radius"])
-	_check(main.smokes.size() == 1 and main.smokes[0]["r"] > base_r * 1.3 and is_equal_approx(main.smokes[0]["t"], 8.0), "Billowing: Smoke Veil's cloud is wider (%.0f) and lasts 8 seconds" % main.smokes[0]["r"] if not main.smokes.is_empty() else "Billowing: a cloud")
-	hb.cast(p)
-	_check(main.smokes.size() == 2, "...and casting again makes another cloud (no igniting)")

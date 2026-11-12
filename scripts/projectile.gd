@@ -30,6 +30,10 @@ var weapon := false  # the climber's own bow, crossbow or pistol shot (spells' s
 var fills := true  # a weapon shot fills the hand's mark (an enchanted pistol's essence shot doesn't)
 var shot := ""  # an enchanted pistol's essence shot: its essence (weapons.gd ESSENCE_SHOT)
 var splice := {}  # the Developer's Splice: a spliced spell's shot carries its behaviour (secret_tools.gd)
+## Marks' spells (scripts/spells/): fn(shot, foe) after it strikes a foe, and
+## fn(shot, where) once when it ends (on a foe, a wall, or at the end of its flight).
+var on_strike: Array = []
+var on_end: Array = []
 
 
 func _physics_process(delta: float) -> void:
@@ -50,6 +54,7 @@ func _physics_process(delta: float) -> void:
 				return
 	elif life <= 0.0 or not main.room.has_point(position):
 		_burst()
+		_ended()
 		queue_free()
 		return
 	# Crosswind: a wall of wind turns enemy arrows back at their shooter.
@@ -64,6 +69,7 @@ func _physics_process(delta: float) -> void:
 	# The walls between rooms stop every shot.
 	if return_to == null and main.is_solid(position):
 		_burst()
+		_ended()
 		main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 4, 140.0)
 		if friendly and style in ["arrow", "bolt"]:
 			main.sfx("arrow_hit", 1.25, -12.0)  # your arrow thunks into the wall
@@ -77,6 +83,7 @@ func _physics_process(delta: float) -> void:
 	for pl in main.pillars:
 		if return_to == null and position.distance_to(pl["pos"]) < pl["r"]:
 			_burst()
+			_ended()
 			main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 5, 160.0)
 			main.sfx("arrow_hit", 1.2, -8.0)
 			queue_free()
@@ -84,6 +91,7 @@ func _physics_process(delta: float) -> void:
 	# The climber's arrows light the puzzle's eyes (and stop there).
 	if friendly and return_to == null and main.puzzle != null and main.puzzle.shot(position):
 		_burst()
+		_ended()
 		main.sfx("arrow_hit", 1.1, -6.0)
 		queue_free()
 		return
@@ -99,14 +107,19 @@ func _physics_process(delta: float) -> void:
 					e.add_venom(venom)
 				if explode_r > 0.0:
 					_burst()
+					_ended()
 					queue_free()
 					return
 				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy, weapon, shot, fills)
+				for fn in on_strike:
+					if fn.is_valid():
+						fn.call(self, e)
 				# Whirling Steel (Blade Forger and Windwalker): a conjured blade lifts a light foe.
 				if style == "blade" and is_instance_valid(e) and not e.dead and not e.is_boss() and Pacts.has(main.player, "whirling_steel") \
 						and float(e.weight) <= Pacts.num("whirling_steel", "weight") and e.airborne <= 0.0:
 					e.lift(Pacts.num("whirling_steel", "lift"))
 				if not pierce:
+					_ended()
 					queue_free()
 					return
 		queue_redraw()
@@ -136,6 +149,14 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	queue_redraw()
+
+
+func _ended() -> void:
+	var fns := on_end
+	on_end = []
+	for fn in fns:
+		if fn.is_valid():
+			fn.call(self, position)
 
 
 ## A fireball goes off: one explosion, or a cluster of three around the impact.

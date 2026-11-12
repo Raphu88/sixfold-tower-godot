@@ -588,6 +588,27 @@ func has_bond(bond_id: String) -> bool:
 	return false
 
 
+## The Wyvern's and the Manticore's marks' growth (Transformations, passive
+## ranks, Apexes) runs in their towers' files, looked up when first needed
+## (a preload here would load them before library.gd has merged them).
+static var _wyvern_script: Script = null
+
+
+static func _wyvern_marks() -> Script:
+	if _wyvern_script == null:
+		_wyvern_script = load("res://scripts/spells/wyvern.gd")
+	return _wyvern_script
+
+
+static var _manticore_script: Script = null
+
+
+static func _manticore_marks() -> Script:
+	if _manticore_script == null:
+		_manticore_script = load("res://scripts/spells/manticore.gd")
+	return _manticore_script
+
+
 func _physics_process(delta: float) -> void:
 	if not states.is_empty():
 		Reactions.tick_climber(self, delta)  # (monsters' states on you: off unless reactions.gd CLIMBER "enabled")
@@ -655,7 +676,7 @@ func _physics_process(delta: float) -> void:
 		elif reload_t > 0.0 and wkind() in ["crossbow", "gun"]:
 			spd *= wdata()["reload_move"]  # you can walk while you reload
 		spd *= attr_speed * armor()["walk"] * (1.0 + gfx("walk"))  # heavy armor slows you a little; boots
-		if rune_gear == "swiftness":
+		if has_rune("swiftness"):
 			spd *= 1.15
 		if haste_t > 0.0:
 			spd *= 1.0 + float(Items.ITEMS["haste"]["walk"])  # Haste Draught
@@ -1197,7 +1218,7 @@ func _melee() -> bool:
 	var hand = bonds.get("hand")
 	if hand != null and hand.burned:
 		dmg *= 0.6
-	if rune_gear == "sharpness":
+	if has_rune("sharpness"):
 		dmg *= 1.3
 	if has_bond("flameblade"):
 		dmg *= 1.0 + heat / 200.0  # Heat: up to half again as hard
@@ -1205,6 +1226,7 @@ func _melee() -> bool:
 		dmg += kindle_dmg
 	if desperate_t > 0.0:
 		dmg *= 1.0 + 1.5 * (1.0 - hp / max_hp)  # Desperation
+	_wyvern_marks().swing_fire(self)  # (Heat II: at full heat your swings throw fire)
 	dmg *= 1.0 + 0.2 * graft("hand")
 	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
 	var hits := 0
@@ -1239,6 +1261,7 @@ func _melee() -> bool:
 		_part_action("throat", 2.0 * (hits - 1), 8.0 * (hits - 1))
 	if hits > 0:
 		_strikes_landed(hits)
+		_wyvern_marks().strike_landed(self)  # (Weapon Memory III: every 5th throws a blade)
 		wear_gear("strike")  # a landed swing wears the weapon and gloves (Commons)
 		if heavy and float(w.get("finisher_sta", 0.0)) > 0.0:
 			sta = minf(max_sta, sta + float(w["finisher_sta"]))  # the sword: a landed finisher gives breath back
@@ -1263,6 +1286,8 @@ func _kindled_strike(e) -> void:
 	var at: Vector2 = e.global_position
 	if not e.dead:
 		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "kindle", maxf(1.0, kindle_dmg * 0.3))
+		if kindle_brand > 0.0:
+			_wyvern_marks().brand(self, e)  # (Brand)
 	if Pacts.has(self, "forge_runes") and rune_cd <= 0.0:
 		var pf: Dictionary = Pacts.PACTS["forge_runes"]
 		rune_cd = float(pf["every"])
@@ -1284,7 +1309,7 @@ func _strikes_landed(hits: int) -> void:
 		return
 	heat_idle = 0.0
 	var before := heat
-	heat = minf(100.0, heat + 12.0 * hits * (2.0 if kindle_t > 0.0 else 1.0) * (Items.FLAMEBLADE_OIL if edge_t > 0.0 else 1.0))  # Edge Oil builds heat faster
+	heat = minf(heat_cap(), heat + 12.0 * hits * (2.0 if kindle_t > 0.0 else 1.0) * (Items.FLAMEBLADE_OIL if edge_t > 0.0 else 1.0))  # Edge Oil builds heat faster
 	if heat >= 100.0 and before < 100.0:
 		main.fx_text(global_position + Vector2(0, -44), "White hot", Color(1.0, 0.85, 0.5))
 		main.sfx("burn", 1.4, -6.0)
@@ -1507,7 +1532,8 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	if has_bond("windwalker") and e.airborne > 0.0:
 		dmg *= 1.5
 	# Ashwalker's Unseen Strike: a foe that hasn't noticed you, or lost you.
-	if has_bond("ashwalker") and e.unaware():
+	var unseen: bool = has_bond("ashwalker") and e.unaware()
+	if unseen:
 		dmg *= 3.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 52.0), "Unseen", Color(0.85, 0.6, 0.5))
 	vanish_t = 0.0  # striking ends Vanish
@@ -1579,6 +1605,8 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	if material != "":
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
 	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
+	if unseen:
+		_manticore_marks().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
 	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
 	if hit_sound != "arrow_hit" and not e.dead:
 		if rule("chill") > 0.0:
@@ -1726,7 +1754,11 @@ func _release_cast() -> void:
 	if weave > 0 and spells_cast % weave == 0 and not free:
 		free = true
 		main.fx_text(global_position + Vector2(0, -52), "Spellweave", Color(0.85, 0.55, 0.95))
+	if "cost_mult" in b:
+		b.cost_mult = 1.0 - _wyvern_marks().circle_thrift(self)  # (Runesmith III: inside your circles)
 	var paid: String = b.pay(free)
+	if "cost_mult" in b:
+		b.cost_mult = 1.0
 	var part_name: String = BondScript.PART_NAMES[cast_part]
 	# Ring of the Overdrawn: the first overdraw each floor doesn't burn.
 	if paid == "burned" and gfx("overdraw_guard") > 0.0 and once_a_floor("overdraw"):
@@ -1785,6 +1817,14 @@ var kindle_t := 0.0  # Kindle Blade: the weapon burns
 var kindle_dmg := 0.0
 var kindle_sustain := false
 var kindle_color := Color(1.0, 0.5, 0.24)
+var kindle_cap := 100.0  # Forge Heart: how far heat climbs while kindled (it never fades then)
+var kindle_brand := 0.0  # Brand: seconds a kindled strike brands a foe (wyvern.gd)
+var still_for := 0.0  # Shifting Sands III: how long you've stood still
+
+
+## How high heat climbs now: 100, or Forge Heart's cap while kindled.
+func heat_cap() -> float:
+	return maxf(100.0, kindle_cap) if kindle_t > 0.0 else 100.0
 var searing_dmg := 0.0  # Searing Parry: a kindled parry explodes for this much
 var bladeward_t := 0.0  # Bladeward: blades orbit you
 var bladeward_dmg := 0.0
@@ -1793,6 +1833,12 @@ var bladeward_tick := 0.0
 var bladeward_color := Color(0.65, 0.89, 0.71)
 var rune_gear := ""  # Inscribe: "sharpness", "warding" or "swiftness" for this floor
 var camp_rune := ""  # Runesmith: a rune inscribed at a camp, for the rest of the climb
+var camp_rune2 := ""  # Runesmith II: a second camp rune, for the rest of the climb
+
+
+## A rune on your gear: this floor's (Inscribe, or the camp's) or Runesmith II's second.
+func has_rune(r: String) -> bool:
+	return rune_gear == r or (camp_rune2 == r and r != "")
 
 # The Manticore's bonds.
 var neuro_t := 0.0  # Neurotoxin: the next hit on a poisoned foe paralyzes it
@@ -2131,8 +2177,9 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		if dmg <= 0.0:
 			main.sfx("hit_armor", 1.3, -4.0)
 			return
-	if rune_gear == "warding":
+	if has_rune("warding"):
 		dmg *= 0.75
+	dmg *= _manticore_marks().hardened(self)  # (Shifting Sands III: standing still)
 	dmg *= 1.0 - 0.15 * graft("heart")
 	if gfx("still_guard") > 0.0 and velocity.length() < 12.0 and roll_t <= 0.0:
 		dmg *= 1.0 - gfx("still_guard")  # Rootbound Greaves: standing your ground
@@ -2250,12 +2297,18 @@ func _tick_bond_effects(delta: float) -> void:
 	vanish_t -= delta
 	absorb_t -= delta
 	unbreak_t -= delta
+	var kindled := kindle_t > 0.0
 	kindle_t -= delta
+	if kindled and kindle_t <= 0.0 and kindle_brand > 0.0:
+		_wyvern_marks().release_heat(self)  # (Brand: the kindling goes out and your heat is released)
 	rune_cd -= delta
-	# Heat fades once you stop landing strikes.
+	still_for = still_for + delta if velocity.length() < 12.0 and roll_t <= 0.0 else 0.0
+	# Heat fades once you stop landing strikes (never while Forge Heart burns).
 	heat_idle += delta
-	if heat_idle > 1.5:
+	if heat_idle > 1.5 and not (kindle_t > 0.0 and kindle_cap > 100.0):
 		heat = move_toward(heat, 0.0, 40.0 * delta)
+	if heat > heat_cap():
+		heat = move_toward(heat, heat_cap(), 40.0 * delta)
 	# Bladeward: orbiting blades cut whatever comes close.
 	if bladeward_t > 0.0:
 		bladeward_t -= delta
@@ -2310,6 +2363,7 @@ func _on_parry(source, perfect := false) -> void:
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
 	on_parry.emit(source, perfect)
+	_wyvern_marks().parry_heat(self, perfect)  # (Heat III: parries add heat)
 	sta = minf(max_sta, sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
 	var at: Vector2 = global_position + aim * (radius + 8.0)
 	var gold := Color(1.0, 0.92, 0.7)

@@ -174,7 +174,7 @@ static func entries(main, menu = null) -> Array:
 		var sel_id: String = String(bd.spell()["id"]) if bd != null and bd.has_method("spell") and not known.is_empty() else (String(known[0]["id"]) if not known.is_empty() else "")
 		out.append({"kind": "mark", "part": part, "id": info["id"], "name": data["name"], "color": data["color"], "affinity": data["affinity"],
 			"sub": TEXT["mark_sub"] % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), TEXT["mark_faint"] if faint else TEXT["mark_step"] % step],
-			"does": TEXT["mark_more"] % [data["body"]["name"], data["body"]["desc"], data["passive"]["name"], data["passive"]["desc"]],
+			"does": TEXT["mark_more"] % [data["body"]["name"], data["body"]["desc"], Bonds.passive_at(String(info["id"]), step)["name"], Bonds.passive_at(String(info["id"]), step)["desc"]],  # (its passive's rank: bonds.gd)
 			"press": press(main, part) if mode(main) != 2 else _sel_name({"spells": shown, "name": data["name"]}, sel_id), "cost": TEXT["ring_note"] if known.size() > 1 else "", "locked": false, "learn": 1,
 			"selected": false, "step": step, "faint": faint, "more": []})
 		var i := 0
@@ -196,7 +196,7 @@ static func entries(main, menu = null) -> Array:
 				if changes != "":
 					more.append(changes)
 				more.append(TEXT["more_fill"] % [g, Bonds.PART_NAMES[part].to_lower(), Bonds.PART_FILLS[part], int(30 + 10 * step), step])
-			var does := _sentence(sp["desc"])
+			var does := _sentence(sp["desc"]) + Bonds.apex_note(sp)  # (a great spell's Apex)
 			if not alt3.is_empty() and sp.get("changes", {}).has(3):
 				does += " %s: %s" % [alt3.get("name", ""), _sentence(String(alt3.get("desc", "")))]  # (the step-3 variation chosen)
 			out.append({"kind": "spell", "part": part, "id": sp["id"], "name": sp["name"], "color": data["color"], "affinity": data["affinity"],

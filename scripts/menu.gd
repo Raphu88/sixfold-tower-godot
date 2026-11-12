@@ -2300,7 +2300,7 @@ func _mark_bond(info: Dictionary) -> void:
 	row.add_theme_constant_override("separation", 10)
 	box.add_child(row)
 	_effect_panel(row, "Body", data["body"], col)
-	_effect_panel(row, "Passive", data["passive"], col)
+	_effect_panel(row, "Passive", Bonds.passive_at(String(info["id"]), step), col)  # (with its rank's lines: bonds.gd)
 	_section("Spells")
 	_rich(_cast_line(), 12, DIM)
 	var i := 0
@@ -2396,7 +2396,7 @@ func _spell_card(sp: Dictionary, step: int, col: Color, affinity: String, index:
 	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(tag)
 	var d := Label.new()
-	d.text = _sentence(sp["desc"])
+	d.text = _sentence(sp["desc"]) + Bonds.apex_note(sp)  # (a great spell's Apex)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	d.custom_minimum_size.x = 200.0
 	d.add_theme_font_size_override("font_size", 15)

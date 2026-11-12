@@ -71,7 +71,7 @@ const SECTIONS := [
 		"tables": ["weapons/WEAPONS", "weapons/ESSENCE_SHOT", "weapons/GUN_TEXT"], "kinds": ["text"],
 		"names": {"ESSENCE_SHOT": "Essence shot (enchanted pistols)", "GUN_TEXT": "Pistols' words"}},
 	{"id": "bonds_words", "group": "words", "name": "Bonds and marks", "when": "live",
-		"tables": ["bonds/BONDS", "bonds/PART_NAMES"], "kinds": ["text"], "names": {"PART_NAMES": "Body parts"}},
+		"tables": ["bonds/BONDS", "bonds/PART_NAMES", "bonds/RANK_WORDS"], "kinds": ["text"], "names": {"PART_NAMES": "Body parts", "RANK_WORDS": "Passive ranks"}},
 	{"id": "towers_words", "group": "words", "name": "Towers and rooms", "when": "live",
 		"tables": ["towers/TOWERS", "towers/PROVING", "themes/THEMES"], "kinds": ["text"], "names": {"THEMES": "Rooms"}},
 	{"id": "train_words", "group": "words", "name": "The train and store", "when": "page",

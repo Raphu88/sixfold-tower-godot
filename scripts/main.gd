@@ -1750,10 +1750,18 @@ func choose_camp(i: int) -> void:
 			return
 	elif pick.begins_with("rune:"):
 		var r := pick.substr(5)
-		player.camp_rune = r
-		player.rune_gear = r
+		if camp.get("second", false):
+			player.camp_rune2 = r  # (Runesmith II: a second rune beside the first)
+		else:
+			player.camp_rune = r
+			player.rune_gear = r
 		taken.append("%s inscribed on your gear" % Items.CAMP_RUNES[r]["name"])
 		fx_ring(player.global_position, Items.CAMP_RUNES[r]["color"], 30.0, 0.35, 3.0)
+		if not camp.get("second", false) and _wyvern_marks().second_rune(player):
+			var others: Array = Items.CAMP_RUNES.keys().filter(func(x): return x != r).map(func(x): return "rune:" + x)
+			camp = {"stage": "rune", "choices": others, "lines": [_wyvern_marks().TEXT["second_rune"]], "taken": taken, "second": true}
+			card_focus = 0
+			return
 	else:
 		taken.append(_take_item(pick.substr(6), "Crafted"))
 	camp_choosing = false
@@ -3467,9 +3475,11 @@ func _update_runes(delta: float) -> void:
 						other["fire"] = true
 				break
 	if fired:
-		for r in runes.filter(func(x): return x.get("fire", false)):
+		var went: Array = runes.filter(func(x): return x.get("fire", false))
+		for r in went:
 			_detonate_rune(r)
 		runes = runes.filter(func(x): return not x.get("fire", false))
+		_wyvern_marks().runes_fired(self, went)  # (Linked Runes: fire runs between them)
 
 
 func _detonate_rune(r: Dictionary) -> void:
@@ -3611,6 +3621,27 @@ func in_sigil(pos: Vector2) -> bool:
 	return false
 
 
+## The Wyvern's and the Manticore's marks' growth (Transformations, passive
+## ranks, Apexes) runs in their towers' files, looked up when first needed
+## (a preload here would load them before library.gd has merged them).
+static var _wyvern_script: Script = null
+
+
+static func _wyvern_marks() -> Script:
+	if _wyvern_script == null:
+		_wyvern_script = load("res://scripts/spells/wyvern.gd")
+	return _wyvern_script
+
+
+static var _manticore_script: Script = null
+
+
+static func _manticore_marks() -> Script:
+	if _manticore_script == null:
+		_manticore_script = load("res://scripts/spells/manticore.gd")
+	return _manticore_script
+
+
 ## Burning floor: hurts the climber standing in it, a little at a time.
 ## `friendly` fire (the climber's own) burns monsters instead.
 func add_flame(pos: Vector2, r: float, t: float, friendly := false) -> void:
@@ -3739,6 +3770,7 @@ func on_enemy_killed(e) -> void:
 		arena.on_enemy_killed(e)  # (the station's arena: no drops, essence or record)
 		return
 	profile.note("slain")
+	_manticore_marks().on_killed(self, e)  # (Toxin Build II: its poison passes on)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)

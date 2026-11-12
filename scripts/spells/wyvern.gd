@@ -6,26 +6,35 @@ extends RefCounted
 ##   Blade Forger
 ##     Step 2: Recall (today's) or Tethered Blade: one heavy blade on an iron
 ##       chain skewers the first foe in its path and drags it to you.
-##     Step 3: Five Blades (today's change) or Back to Back (Mirrored): the
-##       fan also flies out behind you, each blade a little weaker.
+##     Step 3, two Transformations of Conjured Blades: Embedded Steel (side A,
+##       bonds.gd's step 3) or Weapon Echo (side B, the "back_to_back" choice).
 ##     Step 4: Bladeward (today's) or Falling Swords: three great swords hang
 ##       over the spot you aim at, then fall one after another.
+##     Weapon Memory II (step 3): blades carry your weapon's traits and
+##       quality. III (step 5): every 5th landed strike throws a free blade.
+##     Apex (step 5): Thousand Edges leaves edges on the floor.
 ##   Flameblade
 ##     Step 2: Flame Lash (today's) or Flame Wheel: a burning spin that
 ##       strikes every foe around you, sets them burning and heats your weapon.
-##     Step 3: Sustained (today's change) or Ring of Embers (Lingering): the
-##       floor around you burns while your weapon is kindled.
+##     Step 3: Forge Heart (side A) or Brand (side B, "ring_of_embers").
 ##     Step 4: Searing Parry (today's) or Blazing Lunge: you lunge through
 ##       foes along your aim, untouchable, burning each one you pass.
+##     Heat II: at full heat swings throw fire. III: parries add heat.
+##     Apex: a full-heat Overheat erupts in a ring and lights Kindle Blade.
 ##   Rune Artist (the bench and the camps answer to the bond, not to a spell,
 ##   so its crafting works whichever side is chosen)
 ##     Step 2: Inscribe (today's) or Rune Brand: a rune on the foe you aim at
 ##       that bursts the next time it's hurt.
-##     Step 3: Linked (today's change) or Afterglow (Lingering): a rune that
-##       goes off leaves its glyph glowing, slowing and searing foes in it.
+##     Step 3: Linked Runes (side A) or Creeping Runes (side B, "afterglow").
 ##     Step 4: Ward Circle (today's) or Binding Circle: a circle at your aim
 ##       that foes can walk into but not out of.
+##     Runesmith II: a camp's rune comes with a second. III: spells cast
+##       inside your circles (Ward, Binding, the Grand Sigil) cost less.
+##     Apex: the Grand Sigil moves with you for half its time.
 ##
+## The step-3 choices keep their old ids (a save that chose today's change
+## gets side A; one that chose the other side gets side B). Side A's numbers
+## are the first spell's step 3 in bonds.gd; side B's are FORKS[bond][3].
 ## What these spells leave in the world for a while is spell_fx.gd's shared
 ## lasting helper (_add below): it pauses with the fight and a new floor
 ## clears it. Rune Brand listens to its foe's on_hit (enemy.gd).
@@ -33,10 +42,11 @@ extends RefCounted
 const FX := preload("res://scripts/spell_fx.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
+const Reactions := preload("res://scripts/reactions.gd")
 
 static var FORKS := {
 	"blade_forger": {
-		"change": {"name": "Five Blades", "says": "Conjured Blades throws five blades"},
+		"change": {"name": "Embedded Steel", "says": "blades that hit stay in the foe and burst again a moment later"},
 		2: {"id": "tethered_blade", "name": "Tethered Blade", "type": "tethered_blade", "learn": 2,
 			"desc": "one heavy blade on an iron chain skewers the first foe in its path and drags it to you",
 			"steps": {
@@ -44,9 +54,18 @@ static var FORKS := {
 				4: {"damage": 22.0},
 				5: {"damage": 26.0},
 			}},
-		3: {"id": "back_to_back", "variation": "mirrored", "name": "Back to Back",
-			"desc": "Conjured Blades also fans out behind you, each blade a little weaker",
-			"steps": {3: {"count": 3}}},
+		3: {"id": "back_to_back", "name": "Weapon Echo",
+			"desc": "Conjured Blades throws five blades, and each carries your weapon's finisher: a heavy weapon's stagger, a dagger's poison, an edge's bleeding, a pistol's burn",
+			"steps": {3: {"embed": 0.0, "echo": true, "count": 5, "spread": 14.0}},
+			# What each weapon's blades carry: "stagger" seconds, or a state:
+			# poisoned (stacks), bleeding or burning (each half second, this
+			# share of the blade's damage, for the state's own time), slowed (seconds).
+			"echo": {
+				"fists": {"stagger": 0.35}, "dagger": {"poisoned": 3}, "sword": {"bleeding": 0.2}, "axe": {"bleeding": 0.3},
+				"mace": {"stagger": 0.5}, "spear": {"stagger": 0.35}, "greatsword": {"stagger": 0.6}, "war_hammer": {"stagger": 0.8},
+				"cane": {"stagger": 0.45}, "sword_cane": {"bleeding": 0.25}, "shortbow": {"bleeding": 0.2}, "longbow": {"stagger": 0.4},
+				"crossbow": {"stagger": 0.5}, "flintlock": {"burning": 0.3}, "revolver": {"burning": 0.25}, "other": {"stagger": 0.35},
+			}},
 		4: {"id": "falling_swords", "name": "Falling Swords", "type": "falling_swords", "learn": 4,
 			"desc": "three great swords hang over the spot you aim at, then fall one after another, each striking hard where it lands",
 			"steps": {
@@ -55,7 +74,7 @@ static var FORKS := {
 			}},
 	},
 	"flameblade": {
-		"change": {"name": "Sustained", "says": "Kindle Blade lasts as long as you keep landing strikes"},
+		"change": {"name": "Forge Heart", "says": "while your weapon is kindled, its heat never fades and climbs past full, to 150"},
 		2: {"id": "flame_wheel", "name": "Flame Wheel", "type": "flame_wheel", "learn": 2,
 			"desc": "you spin with your burning weapon: every foe around you is struck and set burning, and each one heats your weapon",
 			"steps": {
@@ -63,9 +82,9 @@ static var FORKS := {
 				4: {"damage": 11.0},
 				5: {"damage": 13.0},
 			}},
-		3: {"id": "ring_of_embers", "variation": "lingering", "name": "Ring of Embers",
-			"desc": "Kindle Blade also sets the floor around you burning for 4 seconds, scorching foes that cross it",
-			"steps": {3: {"sustain": false, "embers": 4.0, "ember_ring": 58.0}}},
+		3: {"id": "ring_of_embers", "name": "Brand",
+			"desc": "kindled strikes brand foes; when the kindling goes out, or you cast Kindle Blade again or Overheat, your heat is released and every branded foe ignites",
+			"steps": {3: {"heat_cap": 100.0, "brand": 8.0, "brand_damage": 8.0, "brand_heat": 0.2, "brand_radius": 40.0}}},
 		4: {"id": "blazing_lunge", "name": "Blazing Lunge", "type": "blazing_lunge", "learn": 4,
 			"desc": "you lunge along your aim through foes, untouchable, burning each one you pass; your weapon heats up",
 			"steps": {
@@ -74,7 +93,7 @@ static var FORKS := {
 			}},
 	},
 	"rune_artist": {
-		"change": {"name": "Linked", "says": "setting off one rune sets off them all"},
+		"change": {"name": "Linked Runes", "says": "setting off one rune sets off every rune, and fire runs between them"},
 		2: {"id": "rune_brand", "name": "Rune Brand", "type": "rune_brand", "learn": 2,
 			"desc": "brand the foe you aim at with a rune: the next time it is hurt, the rune bursts against it and the foes around it",
 			"steps": {
@@ -82,9 +101,9 @@ static var FORKS := {
 				4: {"damage": 19.0},
 				5: {"damage": 22.0},
 			}},
-		3: {"id": "afterglow", "variation": "lingering", "name": "Afterglow",
-			"desc": "a Rune Trap that goes off leaves its glyph glowing for 3 seconds, slowing and searing foes in it",
-			"steps": {3: {"linked": false, "glow": 3.0, "glow_damage": 2.0}}},
+		3: {"id": "afterglow", "name": "Creeping Runes",
+			"desc": "your runes crawl toward the nearest foe, and burst wider and harder",
+			"steps": {3: {"linked": false, "creep": 70.0, "creep_reach": 300.0, "blast": 75.0, "creep_power": 1.4}}},
 		4: {"id": "binding_circle", "name": "Binding Circle", "type": "binding_circle", "learn": 4,
 			"desc": "a rune circle at your aim holds every foe in it: they can walk in but not out for 4 seconds",
 			"steps": {4: {"cost": 14.0, "windup": 0.35, "duration": 4.0, "radius": 72.0, "range": 120.0}}},
@@ -96,6 +115,8 @@ static var TEXT := {
 	"no_target": "no target",
 	"branded": "Branded",
 	"bound": "Bound",
+	"ignited": "Ignited",
+	"second_rune": "Runesmith: choose a second rune for your gear",
 }
 
 
@@ -119,19 +140,14 @@ static func cast_spell(bond, sp: Dictionary, p) -> bool:
 	return true
 
 
-## The step-3 variations this file runs itself (Back to Back is the library's
-## own Mirrored: it returns false and the library casts it).
-static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
+## The step-3 Transformations' side B: the first spell cast as it is, its
+## numbers (FORKS[bond][3] steps) doing the rest (bond.gd reads them).
+static func cast_variation(bond, _sp: Dictionary, p, alt: Dictionary) -> bool:
 	match String(alt.get("id", "")):
-		"ring_of_embers":
-			if String(bond.id) != "flameblade":
+		"back_to_back", "ring_of_embers", "afterglow":
+			if not String(bond.id) in ["blade_forger", "flameblade", "rune_artist"]:
 				return false
-			_ring_of_embers(bond, sp, p)
-			return true
-		"afterglow":
-			if String(bond.id) != "rune_artist":
-				return false
-			_afterglow(bond, sp, p)
+			bond._cast_type(p)
 			return true
 	return false
 
@@ -304,7 +320,7 @@ static func _flame_wheel(bond, p) -> void:
 			e.take_hit(bond.damage(), to.normalized() if to.length() > 0.1 else p.aim, 150.0)
 			e.ignite(float(bond.stat("burn")) * bond.power(), float(bond.stat("burning")))
 			hits += 1
-	p.heat = minf(100.0, p.heat + float(bond.stat("heat")) * hits)
+	p.heat = minf(p.heat_cap(), p.heat + float(bond.stat("heat")) * hits)
 	var start: float = p.aim.angle()
 	var paint := func(b, it: Dictionary):
 		if not is_instance_valid(p):
@@ -334,19 +350,6 @@ static func _flame_wheel(bond, p) -> void:
 		main.shake(3.0)
 
 
-## Ring of Embers: Kindle Blade as it is (no step-3 change), and eight patches
-## of your own fire around you that burn foes (never you) for `embers` seconds.
-static func _ring_of_embers(bond, sp: Dictionary, p) -> void:
-	bond._cast_type(p)
-	var main = p.main
-	var r := float(bond.spell_stat(sp, "ember_ring"))
-	var t := float(bond.spell_stat(sp, "embers"))
-	for i in 8:
-		main.add_flame(p.global_position + Vector2.from_angle(TAU * i / 8.0) * r, 16.0, t, true)
-	main.fx_ring(p.global_position, bond.color(), r + 16.0, 0.35, 3.0)
-	main.sfx("spell_fire", 0.85)
-
-
 ## Blazing Lunge: you lunge `distance` along your aim (stopping short of a
 ## wall), untouchable; every foe on the way is struck and set burning, and
 ## the weapon heats up by `heat`.
@@ -369,7 +372,7 @@ static func _blazing_lunge(bond, p) -> void:
 	p.roll_speed = dist / 0.16
 	p.iframes = maxf(p.iframes, 0.24)
 	p.ghost_t = 0.0
-	p.heat = minf(100.0, p.heat + float(bond.stat("heat")))
+	p.heat = minf(p.heat_cap(), p.heat + float(bond.stat("heat")))
 	var paint := func(b, it: Dictionary):
 		var k := clampf(float(it["t"]) / 0.5, 0.0, 1.0)
 		var side := aim.orthogonal()
@@ -457,32 +460,6 @@ static func _rune_brand(bond, p) -> void:
 	main.sfx("glint", 0.9, -6.0)
 
 
-## Afterglow: Rune Trap as it is (without Linked), and when that rune goes
-## off its glyph keeps glowing for `glow` seconds: foes in it are chilled
-## (walk slower) and seared (`glow_damage` every half second).
-static func _afterglow(bond, sp: Dictionary, p) -> void:
-	var main = p.main
-	var last = main.runes.back() if not main.runes.is_empty() else null
-	bond._cast_type(p)
-	if main.runes.is_empty() or is_same(main.runes.back(), last):
-		return
-	var rune: Dictionary = main.runes.back()
-	var glow := float(bond.spell_stat(sp, "glow"))
-	var dmg: float = float(bond.spell_stat(sp, "glow_damage")) * bond.spell_power(sp) * bond.flow_power
-	var col: Color = bond.color()
-	var tick := func(it: Dictionary, _delta: float):
-		if rune.get("fire", false):
-			it["done"] = true
-			FX.field(main, rune["pos"], float(rune["blast"]) * 0.8, glow, 0.5, col, func(foes: Array):
-				for e in foes:
-					if is_instance_valid(e) and not e.dead:
-						e.chill_t = maxf(e.chill_t, 0.7)
-						e.take_hit(dmg, Vector2.ZERO, 0.0))
-		elif not main.runes.any(func(x): return is_same(x, rune)):
-			it["done"] = true  # (it faded, or a newer rune took its place)
-	_add(main, float(rune.get("t", 40.0)) + 1.0, tick, Callable(), false)
-
-
 ## Binding Circle: a circle at your aim (short of a wall). Any foe inside it
 ## can't leave until it fades: it's held at the rim and chilled. A beast is
 ## too strong to hold: it's only chilled while inside.
@@ -519,11 +496,448 @@ static func _binding_circle(bond, p) -> void:
 		for i in 4:
 			var ga := -age * 0.6 + TAU * i / 4.0
 			b.circle(center + Vector2.from_angle(ga) * r * 0.62, 3.0, Color(col.lightened(0.3), 0.8 * a), 12)
-	_add(main, float(bond.stat("duration")), tick, paint, false)
+	var it := _add(main, float(bond.stat("duration")), tick, paint, false)
+	it["node"].data["circle"] = {"pos": center, "r": r}  # (Runesmith III: one of your circles)
 	main.fx_ring(center, col, r, 0.4, 4.0)
 	main.light_flash(center, col, 1.2, 1.2, 0.35)
 	main.sfx("spell_iron", 0.8)
 	main.sfx("ready", 0.8, -6.0)
+
+
+# --- marks' growth: Transformations, passive ranks and Apexes ----------------------------
+# (bond.gd and player.gd call these; each does nothing unless its mark has grown to it.)
+
+## The climber's bond with this id (null if none).
+static func _held(p, bond_id: String):
+	if p == null or not is_instance_valid(p) or not ("bonds" in p):
+		return null
+	for b in p.bonds.values():
+		if String(b.id) == bond_id and b.has_method("passive_rank"):
+			return b
+	return null
+
+
+static func _rank(p, bond_id: String) -> int:
+	var b = _held(p, bond_id)
+	return b.passive_rank() if b != null else 0
+
+
+## A number of the bond's first spell at its step (its step-3 Transformation's, if chosen).
+static func _first(bond, key: String, fallback = 0.0):
+	var v = bond.spell_stat(bond.data()["spells"][0], key)
+	return v if v != null else fallback
+
+
+## Weapon Memory II: the blades carry the weapon in your hand's quality (its
+## rarity and temper, as your strikes do) and its traits (of Embers, a
+## venomous blade's poison).
+static func arm_blades(bond, p, blades: Array) -> void:
+	if String(bond.id) != "blade_forger" or bond.passive_rank() < 2 or blades.is_empty():
+		return
+	var q := 1.0
+	for slot in ["melee", "ranged"]:
+		if p.weapon != "fists" and p.weapon == p.gear_id(slot):
+			q = float(p.Gear.weapon_power(p.gear[slot]))
+	var traits := func(_shot, e):
+		if not is_instance_valid(p) or not is_instance_valid(e) or e.dead:
+			return
+		p._melee_rules(e, false)
+		var v := int(p.rule("draw_venom") + p.rule("venom_shot") + p.rule("venom"))
+		if v > 0:
+			e.add_venom(v)
+	for b in blades:
+		b.dmg *= q
+		b.on_strike.append(traits)
+
+
+## Conjured Blades' step 3: Embedded Steel (side A: a blade that hits stays
+## in the foe and bursts `embed` seconds later) or Weapon Echo (side B: each
+## blade carries the weapon's finisher, echo_of()).
+static func conjured(bond, p, blades: Array) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var delay := float(_first(bond, "embed", 0.0))
+	if delay > 0.0:
+		var pw := float(_first(bond, "embed_power", 1.0))
+		var r := float(_first(bond, "embed_radius", 36.0))
+		var splash := float(_first(bond, "embed_splash", 0.5))
+		var held := {}  # (one blade stays in each foe a cast)
+		for b in blades:
+			b.on_strike.append(func(shot, e):
+				if held.has(e):
+					return
+				held[e] = true
+				_embed(main, col, e, shot.vel.normalized(), float(shot.dmg) * pw, splash, r, delay))
+	if bool(_first(bond, "echo", false)):
+		var fx := echo_of(String(p.weapon))
+		for b in blades:
+			b.on_strike.append(func(shot, e): _echo_hit(main, bond, e, fx, float(shot.dmg)))
+
+
+## A blade left in a foe: `delay` later it bursts against the foe for `dmg`
+## and every other foe within `r` of it for `splash` of that (where the foe
+## fell, if it died first).
+static func _embed(main, col: Color, e, dir: Vector2, dmg: float, splash: float, r: float, delay: float) -> void:
+	if not is_instance_valid(e) or e.dead:
+		return
+	var st := {"pos": e.global_position, "off": -dir * e.radius * 0.55, "dir": dir}
+	var tick := func(it: Dictionary, _delta: float):
+		if is_instance_valid(e) and not e.dead:
+			st["pos"] = e.global_position
+		if float(it["age"]) < delay:
+			return
+		it["done"] = true
+		for o in main.targets():
+			var to: Vector2 = o.global_position - st["pos"]
+			if o == e or to.length() <= r + o.radius:
+				o.take_hit(dmg if o == e else dmg * splash, to.normalized() if to.length() > 0.1 else dir, 120.0)
+		main.fx_ring(st["pos"], col, r, 0.25, 3.0)
+		main.fx_burst(st["pos"], Vector2.ZERO, Palette.STEEL, 10, 220.0)
+		main.light_flash(st["pos"], col, 0.9, 1.0, 0.2)
+		main.sfx("hit_stab", 1.3, -4.0)
+	var paint := func(b, it: Dictionary):
+		var k := clampf(float(it["age"]) / delay, 0.0, 1.0)
+		var d: Vector2 = st["dir"]
+		var side := d.orthogonal()
+		var at: Vector2 = st["pos"] + st["off"]
+		b.circle(at, 4.0 + 7.0 * k, Color(col, 0.1 + 0.3 * k))
+		b.poly(PackedVector2Array([at + d * 6.0, at + side * 2.5, at - d * 9.0, at - side * 2.5]), Color(col.lightened(0.2 * k), 0.95), 1.0)
+		b.line(at - d * 9.0 + side * 4.5, at - d * 9.0 - side * 4.5, Palette.STEEL.darkened(0.3), 2.0)
+		if k > 0.6:  # it glows hotter just before it goes
+			b.circle(at, 2.0 + 3.0 * k, Color(1, 1, 1, (k - 0.6) * 2.0))
+	_add(main, delay + 0.1, tick, paint, true)
+
+
+## Weapon Echo: what the blades carry for the weapon in your hand (FORKS
+## blade_forger 3 "echo": "stagger" seconds, or a state and its amount).
+static func echo_of(weapon: String) -> Dictionary:
+	var t: Dictionary = FORKS["blade_forger"][3].get("echo", {})
+	return t.get(weapon, t.get("other", {}))
+
+
+static func _echo_hit(main, bond, e, fx: Dictionary, dmg: float) -> void:
+	for k in fx:
+		if not is_instance_valid(e) or e.dead:
+			return
+		var v := float(fx[k])
+		match String(k):
+			"stagger":
+				e.stagger(v * (0.5 if e.is_boss() else 1.0))
+			"bleeding", "burning":
+				Reactions.apply(main, e, String(k), 0.0, bond, maxf(0.5, v * dmg))
+			"poisoned":
+				Reactions.apply(main, e, "poisoned", 0.0, bond, v)
+			_:
+				Reactions.apply(main, e, String(k), v, bond)
+
+
+## Weapon Memory III: every `every`th strike that lands throws a free blade
+## of Conjured Blades along your aim (its Transformation too).
+static func strike_landed(p) -> void:
+	var b = _held(p, "blade_forger")
+	if b == null or b.passive_rank() < 3:
+		return
+	var every := maxi(1, int(b.passive_num("every", 5.0)))
+	var n := int(p.get_meta("blade_strikes", 0)) + 1
+	p.set_meta("blade_strikes", n % every)
+	if n < every:
+		return
+	var thrown: Array = b._throw_blades(p, 1, 0.0, false, 0.0, b.data()["spells"][0])
+	conjured(b, p, thrown)
+	p.main.sfx("equip_sword", 1.5, -6.0)
+
+
+## Thousand Edges' Apex: each blade leaves `edges` edges along its path, on
+## the floor for `edge_time` seconds; a foe crossing one is cut (struck and
+## bleeding) every half second.
+static func edges(bond, p, blades: Array) -> void:
+	var n := int(bond.stat("edges") if bond.stat("edges") != null else 0)
+	if n <= 0 or blades.is_empty():
+		return
+	var main = p.main
+	var col: Color = bond.color()
+	var pts: Array = []
+	for b in blades:
+		var from: Vector2 = b.position
+		var end: Vector2 = main.walkable_point(from, from + b.vel * float(b.life), 10.0)
+		for i in n:
+			pts.append(from.lerp(end, (float(i) + 1.0) / float(n + 1)))
+	var dmg: float = float(bond.stat("edge_damage")) * bond.power() * bond.flow_power
+	var r := float(bond.stat("edge_radius"))
+	var st := {"tick": 0.0}
+	var tick := func(_it: Dictionary, delta: float):
+		st["tick"] -= delta
+		if st["tick"] > 0.0:
+			return
+		st["tick"] = 0.5
+		for e in main.targets():
+			for pt in pts:
+				if e.global_position.distance_to(pt) <= r + e.radius:
+					e.take_hit(dmg, Vector2.ZERO, 0.0)
+					if not e.dead:
+						Reactions.apply(main, e, "bleeding", 0.0, bond, maxf(0.5, dmg * 0.5))
+					break
+	var paint := func(b, it: Dictionary):
+		var a := clampf(float(it["age"]) / 0.3, 0.0, 1.0) * clampf(float(it["t"]) / 0.6, 0.0, 1.0)
+		for i in pts.size():  # steel slivers standing in the floor, each turned its own way
+			var at: Vector2 = pts[i]
+			var d := Vector2.from_angle(float(i) * 2.39996)
+			var side := d.orthogonal()
+			b.line(at - d * 7.0, at + d * 7.0, Color(Palette.OUTLINE, 0.5 * a), 3.5)
+			b.polygon(PackedVector2Array([at + d * 8.0, at + side * 2.2, at - d * 6.0, at - side * 2.2]), Color(Palette.STEEL.lightened(0.15), 0.9 * a))
+			b.line(at - d * 4.0, at + d * 6.0, Color(col.lightened(0.4), 0.7 * a), 1.0)
+	var it := _add(main, float(bond.stat("edge_time")), tick, paint, false)
+	it["node"].data["edges"] = pts
+
+
+## Heat II: at full heat each swing also throws a short wave of fire along your aim.
+static func swing_fire(p) -> void:
+	if p.heat < 100.0:
+		return
+	var b = _held(p, "flameblade")
+	if b == null or b.passive_rank() < 2:
+		return
+	var dmg: float = b.passive_num("fire_damage", 6.0) * b.spell_power(b.data()["spells"][0]) * b.flow_power
+	p.main.add_wave(p.global_position + p.aim * (p.radius + 6.0), p.aim, b.passive_num("fire_width", 46.0), b.passive_num("fire_travel", 130.0), dmg, 40.0, false, b.color(),
+		{"states": {"burning": float(Reactions.STATES["burning"]["seconds"])}, "source": b, "amount": maxf(1.0, dmg * 0.2)})
+	p.main.sfx("burn", 1.3, -8.0)
+
+
+## Heat III: a parry heats your weapon (a perfect one more).
+static func parry_heat(p, perfect: bool) -> void:
+	var b = _held(p, "flameblade")
+	if b == null or b.passive_rank() < 3:
+		return
+	p.heat = minf(p.heat_cap(), p.heat + b.passive_num("perfect_heat" if perfect else "parry_heat", 25.0))
+	p.heat_idle = 0.0
+	p.main.fx_ring(p.global_position, b.color(), 30.0, 0.25, 2.5)
+
+
+## Brand (side B): a kindled strike brands the foe for the climber's
+## `kindle_brand` seconds (a flame-in-a-ring over it); release_heat()
+## ignites every brand at once.
+static func brand(p, e) -> void:
+	if not is_instance_valid(e) or e.dead:
+		return
+	var main = p.main
+	var had = e.get_meta("brand") if e.has_meta("brand") else null
+	if had is Dictionary and not had["done"] and float(had["t"]) > 0.0:
+		had["t"] = maxf(float(had["t"]), p.kindle_brand)
+		return
+	var col: Color = p.kindle_color
+	var foe = e
+	var tick := func(it: Dictionary, _delta: float):
+		if not is_instance_valid(foe) or foe.dead:
+			it["done"] = true
+	var paint := func(b, it: Dictionary):
+		if not is_instance_valid(foe):
+			return
+		var at: Vector2 = foe.global_position + Vector2(0, -foe.radius - 10.0)
+		var a := clampf(float(it["age"]) / 0.15, 0.0, 1.0) * clampf(float(it["t"]) / 0.5, 0.0, 1.0)
+		var flick := 1.0 + 0.15 * sin(float(it["age"]) * 14.0)
+		b.arc(at, 6.5, 0.0, TAU, 16, Color(col, 0.85 * a), 1.6)
+		b.polygon(PackedVector2Array([at + Vector2(0, -6.0 * flick), at + Vector2(3.0, 2.5), at + Vector2(-3.0, 2.5)]), Color(1.0, 0.75, 0.35, 0.9 * a))
+		b.circle(at + Vector2(0, 1.0), 1.6, Color(1.0, 0.95, 0.7, a), 8)
+	var it := _add(main, p.kindle_brand, tick, paint, true)
+	foe.set_meta("brand", it)
+	main.fx_text(foe.global_position + Vector2(0, -foe.radius - 26.0), TEXT["branded"], col)
+
+
+## Brand: your heat is released (the kindling went out, Kindle Blade was cast
+## again, or Overheat): every branded foe ignites, struck for `brand_damage`
+## plus `brand_heat` for each point of heat and set burning, and the foes
+## touching it take half. The heat is spent if anything ignited. Returns how many.
+static func release_heat(p) -> int:
+	var b = _held(p, "flameblade")
+	if b == null:
+		return 0
+	var main = p.main
+	var first: Dictionary = b.data()["spells"][0]
+	var dmg: float = (float(_first(b, "brand_damage", 0.0)) + float(p.heat) * float(_first(b, "brand_heat", 0.0))) * b.spell_power(first) * b.flow_power
+	var r := float(_first(b, "brand_radius", 40.0))
+	var col: Color = b.color()
+	var lit: Array = []
+	for e in main.targets():
+		var it = e.get_meta("brand") if e.has_meta("brand") else null
+		if not (it is Dictionary) or it["done"] or float(it["t"]) <= 0.0:
+			continue
+		it["done"] = true
+		e.remove_meta("brand")
+		lit.append([e, e.global_position])
+	for l in lit:
+		var at: Vector2 = l[1]
+		for o in main.targets():
+			var to: Vector2 = o.global_position - at
+			if to.length() <= r + o.radius:
+				o.take_hit(dmg if o == l[0] else dmg * 0.5, to.normalized() if to.length() > 0.1 else Vector2.ZERO, 140.0, true)
+				if is_instance_valid(o) and not o.dead:
+					Reactions.apply(main, o, "burning", float(Reactions.STATES["burning"]["seconds"]), b)
+		main.fx_text(at + Vector2(0, -36), TEXT["ignited"], col)
+		main.fx_ring(at, col, r, 0.3, 4.0)
+		main.fx_burst(at, Vector2.ZERO, Color(1.0, 0.6, 0.25), 16, 260.0)
+		main.light_flash(at, col, 1.3, 1.5, 0.3)
+	if not lit.is_empty():
+		p.heat = 0.0
+		main.sfx("burn", 0.7)
+		main.shake(4.0)
+	return lit.size()
+
+
+## Overheat (bond.gd): Brand's brands ignite; its Apex: a release at `full`
+## heat or more also erupts in a ring of fire around you and lights Kindle
+## Blade again.
+static func overheat(bond, p, heat: float) -> void:
+	release_heat(p)
+	var full = bond.stat("full")
+	if full == null or heat < float(full):
+		return
+	var main = p.main
+	var col: Color = bond.color()
+	var r := float(bond.stat("ring"))
+	var dmg: float = float(bond.stat("ring_damage")) * bond.power() * bond.flow_power
+	for e in main.targets():
+		var to: Vector2 = e.global_position - p.global_position
+		if to.length() <= r + e.radius:
+			e.take_hit(dmg, to.normalized() if to.length() > 0.1 else p.aim, 220.0, true)
+			if is_instance_valid(e) and not e.dead:
+				Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), bond)
+	bond._light_kindle(p, bond.data()["spells"][0])
+	main.fx_ring(p.global_position, col, r, 0.45, 7.0)
+	main.fx_ring(p.global_position, Color(1.0, 0.9, 0.6), r * 0.6, 0.3, 3.0)
+	main.fx_burst(p.global_position, Vector2.ZERO, Color(1.0, 0.6, 0.25), 28, 340.0)
+	main.light_flash(p.global_position, col, 2.0, 2.2, 0.45)
+	main.sfx("burn", 1.0)
+
+
+## Runesmith II: a camp's rune comes with a second (main.gd's camp asks).
+static func second_rune(p) -> bool:
+	return _rank(p, "rune_artist") >= 2
+
+
+## Runesmith III: how much less a spell costs where you stand: the passive's
+## "thrift" inside one of your circles (a Ward Circle, a Binding Circle, the
+## Grand Sigil), else 0.
+static func circle_thrift(p) -> float:
+	var b = _held(p, "rune_artist")
+	if b == null or b.passive_rank() < 3:
+		return 0.0
+	var main = p.main
+	var at: Vector2 = p.global_position
+	var inside: bool = main.in_sigil(at)
+	for w in main.wards:
+		if at.distance_to(w["pos"]) < float(w["r"]):
+			inside = true
+	var fx = FX.of(main)
+	if not inside and fx != null:
+		for n in fx.lastings:
+			if is_instance_valid(n) and not n.is_queued_for_deletion() and n.data.has("circle") and at.distance_to(n.data["circle"]["pos"]) < float(n.data["circle"]["r"]):
+				inside = true
+	return b.passive_num("thrift", 0.4) if inside else 0.0
+
+
+## Linked Runes (side A): linked runes that went off together (main.gd
+## _update_runes) send fire from each to the next, round in a ring, striking
+## each foe on the way once and setting it burning.
+static func runes_fired(main, went: Array) -> void:
+	var linked: Array = went.filter(func(r): return float(r.get("link", 0.0)) > 0.0)
+	if linked.size() < 2:
+		return
+	var segs: Array = []
+	for i in linked.size() - 1:
+		segs.append([linked[i]["pos"], linked[i + 1]["pos"]])
+	if linked.size() >= 3:
+		segs.append([linked[linked.size() - 1]["pos"], linked[0]["pos"]])
+	var dmg := float(linked[0]["link"])
+	var w := float(linked[0].get("link_w", 20.0))
+	var col: Color = linked[0]["color"]
+	var fire := float(linked[0].get("link_fire", 0.0))
+	if fire > 0.0:  # (the fire stays on the floor along the lines a while, your own: it burns foes, not you)
+		for sg in segs:
+			var n := maxi(1, int(Vector2(sg[0]).distance_to(sg[1]) / 26.0))
+			for i in n + 1:
+				main.add_flame(Vector2(sg[0]).lerp(sg[1], float(i) / float(n)), 14.0, fire, true)
+	var struck := {}
+	for sg in segs:
+		for e in main.targets():
+			if struck.has(e):
+				continue
+			var c := Geometry2D.get_closest_point_to_segment(e.global_position, sg[0], sg[1])
+			if c.distance_to(e.global_position) <= w + e.radius:
+				struck[e] = true
+				e.take_hit(dmg, (sg[1] - sg[0]).normalized().orthogonal(), 80.0)
+				if is_instance_valid(e) and not e.dead:
+					Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "linked runes")
+	var paint := func(b, it: Dictionary):
+		var k := clampf(float(it["t"]) / 0.6, 0.0, 1.0)
+		for sg in segs:
+			var a: Vector2 = sg[0]
+			var z: Vector2 = sg[1]
+			b.line(a, z, Color(col, 0.25 * k), w * 1.6)
+			b.line(a, z, Color(1.0, 0.55, 0.2, 0.7 * k), 5.0)
+			b.line(a, z, Color(1.0, 0.92, 0.6, 0.9 * k), 1.8)
+			var n := int(a.distance_to(z) / 18.0)
+			for i in n:  # flames licking up along the line
+				var at := a.lerp(z, (float(i) + 0.5) / maxf(1.0, float(n)))
+				var h := (6.0 + 5.0 * sin(float(it["age"]) * 22.0 + i * 1.9)) * k
+				b.line(at, at + Vector2(0, -h), Color(1.0, 0.6, 0.2, 0.85 * k), 2.5)
+	_add(main, 0.6, Callable(), paint, true)
+	main.sfx("burn", 1.1)
+
+
+## Creeping Runes (side B): a laid rune crawls toward the nearest foe within
+## `creep_reach`, `creep` px a second (never into a wall), until it goes off.
+static func creep(bond, p, rune: Dictionary) -> void:
+	var speed := float(bond.stat("creep") if bond.stat("creep") != null else 0.0)
+	if speed <= 0.0:
+		return
+	var reach := float(bond.stat("creep_reach"))
+	var main = p.main
+	var col: Color = bond.color()
+	var st := {"from": rune["pos"]}
+	var tick := func(it: Dictionary, delta: float):
+		if rune.get("fire", false) or not main.runes.any(func(x): return is_same(x, rune)):
+			it["done"] = true
+			return
+		var best = null
+		var bd := reach
+		for e in main.targets():
+			var d: float = e.global_position.distance_to(rune["pos"])
+			if d < bd:
+				bd = d
+				best = e
+		if best == null:
+			return
+		var next: Vector2 = rune["pos"].move_toward(best.global_position, speed * delta)
+		if not main.is_solid(next):
+			st["from"] = rune["pos"]
+			rune["pos"] = next
+	var paint := func(b, it: Dictionary):
+		var at: Vector2 = rune["pos"]
+		var d: Vector2 = (at - st["from"])
+		if d.length() < 0.01:
+			return
+		d = d.normalized()
+		var side := d.orthogonal()
+		var age: float = it["age"]
+		for i in 3:  # little legs of ink, scuttling
+			var sway := sin(age * 18.0 + i * 2.1) * 4.0
+			var base := at - d * (6.0 + 5.0 * i)
+			b.line(base + side * 9.0, base + side * (13.0 + sway * 0.4) - d * sway, Color(col, 0.7), 1.5)
+			b.line(base - side * 9.0, base - side * (13.0 - sway * 0.4) + d * sway, Color(col, 0.7), 1.5)
+	_add(main, float(rune["t"]) + 1.0, tick, paint, false)
+
+
+## Grand Sigil's Apex: the sigil moves with you for `follow` of its time.
+static func follow_sigil(bond, p, sig: Dictionary) -> void:
+	var f = bond.stat("follow")
+	if f == null or float(f) <= 0.0:
+		return
+	var tick := func(it: Dictionary, _delta: float):
+		if not is_instance_valid(p) or p.dead:
+			it["done"] = true
+			return
+		sig["pos"] = p.global_position
+	_add(p.main, float(sig["t"]) * float(f), tick, Callable(), false)
 
 
 # --- helpers ------------------------------------------------------------------------------

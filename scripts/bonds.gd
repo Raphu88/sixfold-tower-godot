@@ -255,15 +255,17 @@ static var BONDS := {
 		"style": ["hand", "back"],
 		"tower": "wyvern",
 		"body": {"name": "Long Edge", "desc": "your melee strikes reach farther"},
-		"passive": {"name": "Weapon Memory", "desc": "your conjured blades copy the weapon you hold: more, quicker little knives with fists or a dagger, fewer and harder blades with a greatsword or hammer, swift piercing darts with a bow or crossbow"},
+		"passive": {"name": "Weapon Memory", "desc": "your conjured blades copy the weapon you hold: more, quicker little knives with fists or a dagger, fewer and harder blades with a greatsword or hammer, swift piercing darts with a bow or crossbow",
+			"ranks": {2: "your blades also carry your weapon's traits and its quality", 3: "every 5th strike that lands throws a free blade"},
+			"every": 5},
 		"spells": [
 			{"id": "conjured_blades", "name": "Conjured Blades", "type": "blades", "learn": 1,
 				"desc": "a fan of conjured blades that pierce through foes",
-				"changes": {3: "five blades"},
+				"changes": {3: "Embedded Steel: blades that hit stay in the foe and burst again a moment later"},
 				"steps": {
-					1: {"cost": 10.0, "windup": 0.35, "count": 3, "damage": 7.0, "spread": 18.0},
+					1: {"cost": 10.0, "windup": 0.35, "count": 3, "damage": 7.0, "spread": 18.0, "embed": 0.0},
 					2: {"damage": 9.0},
-					3: {"count": 5, "spread": 14.0},
+					3: {"embed": 0.6, "embed_power": 1.0, "embed_splash": 0.25, "embed_radius": 36.0},
 					4: {"damage": 11.0, "cost": 8.0},
 					5: {"damage": 13.0},
 				}},
@@ -275,7 +277,8 @@ static var BONDS := {
 				"steps": {4: {"cost": 14.0, "windup": 0.3, "duration": 6.0, "damage": 3.0, "radius": 48.0}, 5: {"damage": 4.0}}},
 			{"id": "thousand_edges", "name": "Thousand Edges", "type": "edges", "learn": 5,
 				"desc": "a storm of conjured blades fans out toward your aim",
-				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0}}},
+				"apex": "the blades leave edges on the floor that cut foes crossing them",
+				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0, "edges": 2, "edge_damage": 2.0, "edge_time": 4.0, "edge_radius": 14.0}}},
 		],
 	},
 	"flameblade": {
@@ -285,15 +288,17 @@ static var BONDS := {
 		"style": ["hand", "heart"],
 		"tower": "wyvern",
 		"body": {"name": "Hot Blood", "desc": "your strike chains never slow down: even the finisher recovers fast"},
-		"passive": {"name": "Heat", "desc": "each strike in a row heats your weapon and hits harder; heat fades if you stop striking"},
+		"passive": {"name": "Heat", "desc": "each strike in a row heats your weapon and hits harder; heat fades if you stop striking",
+			"ranks": {2: "at full heat your swings throw fire", 3: "parries add heat"},
+			"fire_damage": 6.0, "fire_travel": 130.0, "fire_width": 46.0, "parry_heat": 25.0, "perfect_heat": 45.0},
 		"spells": [
 			{"id": "kindle_blade", "name": "Kindle Blade", "type": "kindle", "learn": 1,
 				"desc": "your weapon is wreathed in fire for 6 seconds: strikes burn and build heat much faster",
-				"changes": {3: "it lasts as long as you keep landing strikes"},
+				"changes": {3: "Forge Heart: while kindled, your heat never fades and climbs past full, to 150"},
 				"steps": {
-					1: {"cost": 10.0, "windup": 0.25, "duration": 6.0, "damage": 3.0, "sustain": false},
+					1: {"cost": 10.0, "windup": 0.25, "duration": 6.0, "damage": 3.0, "sustain": false, "heat_cap": 100.0},
 					2: {"damage": 4.0},
-					3: {"sustain": true},
+					3: {"heat_cap": 150.0, "duration": 8.0},
 					4: {"damage": 5.0},
 					5: {"damage": 6.0},
 				}},
@@ -305,7 +310,8 @@ static var BONDS := {
 				"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 6.0, "damage": 18.0}, 5: {"damage": 22.0}}},
 			{"id": "overheat", "name": "Overheat", "type": "overheat", "learn": 5,
 				"desc": "release all your heat in one strike: the more heat, the bigger the blow",
-				"steps": {5: {"cost": 12.0, "windup": 0.3, "damage": 10.0, "reach": 90.0}}},
+				"apex": "a release at full heat also erupts in a ring of fire around you and lights Kindle Blade again",
+				"steps": {5: {"cost": 12.0, "windup": 0.3, "damage": 10.0, "reach": 90.0, "full": 100.0, "ring": 110.0, "ring_damage": 16.0}}},
 		],
 	},
 	"rune_artist": {
@@ -315,15 +321,17 @@ static var BONDS := {
 		"style": ["brow", "legs"],
 		"tower": "wyvern",
 		"body": {"name": "Steady Mind", "desc": "every spell you cast, from any bond, has a shorter wind-up"},
-		"passive": {"name": "Runesmith", "desc": "at a camp, also inscribe a rune on your gear that lasts the rest of the climb (sharpness, warding or swiftness), or craft one more item"},
+		"passive": {"name": "Runesmith", "desc": "at a camp, also inscribe a rune on your gear that lasts the rest of the climb (sharpness, warding or swiftness), or craft one more item",
+			"ranks": {2: "a camp's rune comes with a second rune of your choice", 3: "spells you cast inside your circles cost 40% less"},
+			"thrift": 0.4},
 		"spells": [
 			{"id": "rune_trap", "name": "Rune Trap", "type": "trap", "learn": 1,
 				"desc": "inscribe a rune on the floor that detonates when a foe steps on it (up to 3)",
-				"changes": {3: "Linked Runes: setting off one of your runes sets off every rune you have laid"},
+				"changes": {3: "Linked Runes: setting off one rune sets off every rune you have laid, and fire runs between them"},
 				"steps": {
 					1: {"cost": 8.0, "windup": 0.35, "damage": 16.0, "blast": 60.0, "linked": false},
 					2: {"damage": 18.0},
-					3: {"linked": true},
+					3: {"linked": true, "link_damage": 14.0, "link_width": 20.0, "link_fire": 3.0},
 					4: {"damage": 22.0},
 					5: {"damage": 26.0},
 				}},
@@ -335,7 +343,8 @@ static var BONDS := {
 				"steps": {4: {"cost": 14.0, "windup": 0.35, "duration": 5.0, "radius": 75.0}}},
 			{"id": "grand_sigil", "name": "Grand Sigil", "type": "sigil", "learn": 5,
 				"desc": "a great rune circle; inside it your spells cost nothing for 6 seconds",
-				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 6.0, "radius": 120.0}}},
+				"apex": "the circle moves with you for the first half of its time",
+				"steps": {5: {"cost": 18.0, "windup": 0.5, "duration": 6.0, "radius": 120.0, "follow": 0.5}}},
 		],
 	},
 	# --- the Manticore's tower (Stone) -----------------------------------------
@@ -346,15 +355,17 @@ static var BONDS := {
 		"style": ["heart", "throat"],
 		"tower": "manticore",
 		"body": {"name": "Rooted Stance", "desc": "you cannot be knocked back or slowed"},
-		"passive": {"name": "Shifting Sands", "desc": "foes walking up to you slow in their last few steps"},
+		"passive": {"name": "Shifting Sands", "desc": "foes walking up to you slow in their last few steps",
+			"ranks": {2: "slowed foes can't dodge or block your blows", 3: "standing still for a second hardens your skin: you take 30% less damage"},
+			"still": 1.0, "harden": 0.3},
 		"spells": [
 			{"id": "quake", "name": "Quake", "type": "quake", "learn": 1,
 				"desc": "shatter the ground around you, leaving rubble that slows foes",
-				"changes": {3: "it also throws up a ring of low walls around you"},
+				"changes": {3: "Shatter: the quake leaves sharp shards that cut foes walking over them"},
 				"steps": {
-					1: {"cost": 11.0, "windup": 0.35, "damage": 10.0, "radius": 95.0, "ring": false},
+					1: {"cost": 11.0, "windup": 0.35, "damage": 10.0, "radius": 95.0, "ring": false, "shards": 0.0},
 					2: {"damage": 12.0},
-					3: {"ring": true},
+					3: {"shards": 5.0, "shard_damage": 0.3, "shard_every": 1.0},
 					4: {"damage": 15.0},
 					5: {"damage": 18.0},
 				}},
@@ -366,7 +377,8 @@ static var BONDS := {
 				"steps": {4: {"cost": 14.0, "windup": 0.4, "trap": 2.5}}},
 			{"id": "fault_line", "name": "Fault Line", "type": "fault", "learn": 5,
 				"desc": "split the floor in a line across your aim; foes cannot cross it for 8 seconds",
-				"steps": {5: {"cost": 16.0, "windup": 0.45, "duration": 8.0, "length": 320.0}}},
+				"apex": "foes caught on the line are buried (stunned) and crushed",
+				"steps": {5: {"cost": 16.0, "windup": 0.45, "duration": 8.0, "length": 320.0, "damage": 18.0, "bury": 2.0, "bury_width": 28.0}}},
 		],
 	},
 	"venomist": {
@@ -376,15 +388,17 @@ static var BONDS := {
 		"style": ["hand", "back"],
 		"tower": "manticore",
 		"body": {"name": "Venom Glands", "desc": "your weapon strikes add a weak poison"},
-		"passive": {"name": "Toxin Build", "desc": "poison stacks, and each new stack makes it last longer"},
+		"passive": {"name": "Toxin Build", "desc": "poison stacks, and each new stack makes it last longer",
+			"ranks": {2: "a poisoned foe that dies passes half its stacks to each foe beside it", 3: "a foe at 8 stacks or more is staggered"},
+			"pass": 0.5, "pass_radius": 90.0, "stagger_at": 8, "stagger": 0.8, "again": 4.0},
 		"spells": [
 			{"id": "venom_spit", "name": "Venom Spit", "type": "spit", "learn": 1,
 				"desc": "spit venom that poisons a foe (3 stacks)",
-				"changes": {3: "the spit pierces through foes"},
+				"changes": {3: "Corrosive: the spit still pierces, your poison strips shells and guards, and poisoned foes take 25% more from blows"},
 				"steps": {
-					1: {"cost": 7.0, "windup": 0.25, "damage": 4.0, "stacks": 3, "pierce": false},
+					1: {"cost": 7.0, "windup": 0.25, "damage": 4.0, "stacks": 3, "pierce": false, "corrode": 0.0},
 					2: {"stacks": 4},
-					3: {"pierce": true},
+					3: {"corrode": 0.25, "pierce": true},
 					4: {"stacks": 5},
 					5: {"stacks": 6},
 				}},
@@ -396,7 +410,8 @@ static var BONDS := {
 				"steps": {4: {"cost": 8.0, "windup": 0.15, "duration": 8.0, "paralyze": 2.0}}},
 			{"id": "virulence", "name": "Virulence", "type": "virulence", "learn": 5,
 				"desc": "every poisoned foe near you takes all its poison at once and bursts harder for each stack; the venom leaps to foes beside it, and heavily poisoned foes are staggered",
-				"steps": {5: {"cost": 14.0, "windup": 0.4, "radius": 240.0, "damage": 4.0, "spread": 0.5, "spread_radius": 90.0, "stagger_at": 6, "stagger": 1.0}}},
+				"apex": "each foe it bursts refills your mark with half a Venom Spit's essence",
+				"steps": {5: {"cost": 14.0, "windup": 0.4, "radius": 240.0, "damage": 4.0, "spread": 0.5, "spread_radius": 90.0, "stagger_at": 6, "stagger": 1.0, "refill": 0.5}}},
 		],
 	},
 	"ashwalker": {
@@ -406,16 +421,18 @@ static var BONDS := {
 		"style": ["back", "legs"],
 		"tower": "manticore",
 		"body": {"name": "Smokeborn", "desc": "you see through smoke and darkness: your light reaches farther"},
-		"passive": {"name": "Unseen Strike", "desc": "striking a foe that hasn't noticed you, or has lost you, deals triple damage"},
+		"passive": {"name": "Unseen Strike", "desc": "striking a foe that hasn't noticed you, or has lost you, deals triple damage",
+			"ranks": {2: "unseen strikes also stagger, breaking off the foe's attack", 3: "a kill while unseen hides you again for a moment"},
+			"stagger": 0.6, "hide": 1.5},
 		"spells": [
 			{"id": "smoke_veil", "name": "Smoke Veil", "type": "veil", "learn": 1,
 				"desc": "a cloud of smoke around you; foes inside it lose track of you",
-				"changes": {3: "cast again while a cloud stands to ignite it, burning every foe inside"},
+				"changes": {3: "Ember Smoke: the smoke burns the foes inside it"},
 				"steps": {
-					1: {"cost": 9.0, "windup": 0.25, "duration": 6.0, "radius": 85.0, "ignite": false, "damage": 0.0},
-					3: {"ignite": true, "damage": 20.0},
-					4: {"damage": 24.0},
-					5: {"damage": 28.0},
+					1: {"cost": 9.0, "windup": 0.25, "duration": 6.0, "radius": 85.0, "embers": false, "damage": 0.0},
+					3: {"embers": true, "damage": 3.0},
+					4: {"damage": 3.5},
+					5: {"damage": 4.0},
 				}},
 			{"id": "afterimage", "name": "Afterimage", "type": "decoy", "learn": 2,
 				"desc": "leave an ash copy of yourself; nearby foes go after it instead",
@@ -425,7 +442,8 @@ static var BONDS := {
 				"steps": {4: {"cost": 12.0, "windup": 0.2, "duration": 4.0}}},
 			{"id": "ashfall", "name": "Ashfall", "type": "ashfall", "learn": 5,
 				"desc": "ash blankets the room for 10 seconds; foes lose track of you once you're out of reach",
-				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0}}},
+				"apex": "an unseen strike while it falls leaps to a second foe",
+				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0, "leap": 160.0, "leap_share": 1.0}}},
 		],
 	},
 	# --- the Firebird's tower (Fire) ---------------------------------------------
@@ -622,8 +640,63 @@ static func step_note(id: String, step: int) -> String:
 	var alt: Dictionary = load("res://scripts/tree.gd").fork_alt(id, step)
 	if step in [2, 3, 4] and not alt.is_empty() and not bool(alt.get("placeholder", false)):
 		bits.append(FORK_NOTE % String(alt.get("name", "")))
+	# The passive grows a rank (its new line is in the book).
+	var rank := passive_rank(step)
+	if rank > passive_rank(step - 1) and passive_line(id, rank) != "":
+		bits.append(RANK_WORDS["grows"] % [BONDS[id]["passive"]["name"], rank_numeral(rank)])
 	return ", ".join(bits)
 
 
 ## A step-note's words for a fork that's ready (the other side's name).
 static var FORK_NOTE := "or %s: choose in your book"
+
+## A mark's passive grows with it: rank I from the start, II at step 3, III
+## at step 5 (PASSIVE_RANK_AT: rank -> step). Each rank's new line is the
+## passive's "ranks" (rank -> line); a passive without them stays as it is.
+const PASSIVE_RANK_AT := {2: 3, 3: 5}
+static var RANK_WORDS := {"numerals": {1: "I", 2: "II", 3: "III"}, "name": "%s %s", "more": "rank %s: %s", "grows": "%s grows to rank %s", "apex": "Apex: %s."}
+
+
+## A great spell's Apex, as a sentence to follow its line ("" if it has none).
+static func apex_note(sp: Dictionary) -> String:
+	var ap := String(sp.get("apex", ""))
+	if ap == "":
+		return ""
+	return " " + RANK_WORDS["apex"] % (ap.left(1).to_upper() + ap.substr(1))
+
+
+static func passive_rank(step: int) -> int:
+	var r := 1
+	for k in PASSIVE_RANK_AT:
+		if step >= int(PASSIVE_RANK_AT[k]):
+			r = maxi(r, int(k))
+	return r
+
+
+static func rank_numeral(rank: int) -> String:
+	var n: Dictionary = RANK_WORDS["numerals"]
+	return String(n.get(rank, n.get(str(rank), str(rank))))
+
+
+## The new line a passive gains at `rank` ("" if none).
+static func passive_line(id: String, rank: int) -> String:
+	var ranks = BONDS.get(id, {}).get("passive", {}).get("ranks", {})
+	if not (ranks is Dictionary):
+		return ""
+	return String(ranks.get(rank, ranks.get(str(rank), "")))
+
+
+## A passive as a mark at `step` holds it: {"name" (with its rank past I),
+## "desc" (its own line, then each rank's line it has reached), "rank"}.
+static func passive_at(id: String, step: int) -> Dictionary:
+	var pas: Dictionary = BONDS[id]["passive"]
+	var rank := passive_rank(step)
+	var lines: Array = [String(pas["desc"])]
+	for r in range(2, rank + 1):
+		var l := passive_line(id, r)
+		if l != "":
+			lines.append(RANK_WORDS["more"] % [rank_numeral(r), l])
+	var nm := String(pas["name"])
+	if rank > 1 and passive_line(id, 2) != "":
+		nm = RANK_WORDS["name"] % [nm, rank_numeral(rank)]
+	return {"name": nm, "desc": "; ".join(lines), "rank": rank}

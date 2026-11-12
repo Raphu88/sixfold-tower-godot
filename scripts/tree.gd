@@ -64,6 +64,7 @@ static var TEXT := {
 	"effects_need": "%d %s pooled in your body",
 	"cost": "%d crystal essence",
 	"change_says": "Today's change to %s: %s.",
+	"rank_says": "%s grows to rank %s: %s.",
 }
 
 
@@ -214,6 +215,19 @@ static func _mark_option(bond_id: String, step: int, which: String) -> Dictionar
 		"alt": alt, "color": data["color"]}
 
 
+## What else a step brings a mark beside its node: its passive's new rank
+## (bonds.gd passive_rank) and the Apex of the spell learned there ("" if none).
+static func mark_extra(bond_id: String, step: int) -> String:
+	var bits: Array = []
+	var sp := base_spell(bond_id, step) if not step in FORK_STEPS else {}
+	if Bonds.apex_note(sp) != "":
+		bits.append(Bonds.apex_note(sp).strip_edges())
+	var rank: int = Bonds.passive_rank(step)
+	if rank > Bonds.passive_rank(step - 1) and Bonds.passive_line(bond_id, rank) != "":
+		bits.append(TEXT["rank_says"] % [Bonds.BONDS[bond_id]["passive"]["name"], Bonds.rank_numeral(rank), Bonds.passive_line(bond_id, rank)])
+	return " ".join(bits)
+
+
 ## A marked part's nodes (none for an unmarked part).
 static func mark_nodes(p, part: String) -> Array:
 	var out: Array = []
@@ -236,6 +250,7 @@ static func mark_nodes(p, part: String) -> Array:
 		if not s in FORK_STEPS:
 			n["kind"] = "spell"
 			var o := _mark_option(bond_id, s, "base")
+			o["says"] = (String(o["says"]) + " " + mark_extra(bond_id, s)).strip_edges()
 			o["state"] = "owned" if step >= s else "locked"
 			n["options"] = [o]
 			n["state"] = "owned" if step >= s else "locked"
@@ -244,6 +259,11 @@ static func mark_nodes(p, part: String) -> Array:
 		n["kind"] = "fork"
 		var a := _mark_option(bond_id, s, "base")
 		var b := _mark_option(bond_id, s, "alt")
+		var extra := mark_extra(bond_id, s)
+		if extra != "":
+			for o in [a, b]:
+				if o["built"]:
+					o["says"] = (String(o["says"]) + " " + extra).strip_edges()
 		var c := mark_choice(p, bond_id, s)
 		n["chosen"] = c
 		if step < s:
