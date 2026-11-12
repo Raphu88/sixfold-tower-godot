@@ -824,7 +824,7 @@ and the code that runs them:
 - **Good rooms:** a **Healing Spring** (stand in the pool to heal until it runs dry), a **Forgotten Cache** (an urn of the tower's essence: walk onto it for a burst, more on higher floors; sometimes it holds gear), a **Fallen Climber's Camp** (a cold fire, a bedroll and an item left behind), and each tower's own (the Gryphon's Windswept Aerie, the Kraken's Tidepool, the Wyvern's Cold Forge, the Manticore's Hidden Oasis, the Firebird's Ember Pyre, the Chimera's Thornwild Nest). Two at most a floor, and no traps in them.
 - **Bad rooms:** the **Monster Den** (more of the floor's monsters wait there), the **Restless Crypt** (from floor 3: its dead rise when you walk in), the **Pillared Hall** (archers like it), the **trap rooms**, each laying its own set piece of traps (see Traps: the Spike Gallery, Dart Hall, the Furnace and Miasma Hall in any tower, plus each tower's own: the Gryphon's Windhall, the Kraken's Sluice Hall, the Firebird's Emberfall and the Chimera's Bramble Hall; every floor from 2 has one), and in the Firebird's tower **the Chasm**, a band of chasm right across a room. A quiet room is just a **Quiet Hall**.
 
-Monsters wait in the rooms: most in the den, some guarding the stair, the rest along the route and in the branches, never in the start room or a good room (hand-made rooms' marked spots first). A monster stays put until it sees you (or you come close, or it's hit), then rouses its neighbours and finds its way to you around the walls (a path grid, `AStarGrid2D`). Monsters can't attack what they can't see, and walls stop every shot. Each room has one torch on its north wall.
+Monsters wait in the rooms: most in the den, some guarding the stair, the rest along the route and in the branches (each dead end gets one before the rooms on the way through, so a side room is never left with nothing in it), never in the start room or a good room (hand-made rooms' marked spots first). A monster stays put until it sees you (or you come close, or it's hit), then rouses its neighbours and finds its way to you around the walls (a path grid, `AStarGrid2D`). Monsters can't attack what they can't see, and walls stop every shot. Each room has one torch on its north wall.
 
 **Fog.** On floors of rooms you see only what your climber can see: walls block sight (chasms, water and pillars don't), places you've seen stay dimly mapped, and places you haven't are dark. Monsters out of sight are hidden until you see them (`scripts/fog.gd`), and closed doors block sight like walls. The cache's and spring's numbers live in `CACHE` and `SPRING` in `scripts/floors.gd`. In the Firebird's tower the rooms' chasm tiles are real chasms, and every floor has a chasm to jump (a Chasm room, or failing that a long corridor cut by one); elsewhere chasm tiles are walls. In the Kraken's tower the rooms' pools fill with water. Once the stair opens, an arrow at the edge of the screen points the way.
 
@@ -900,6 +900,10 @@ Halfway up every tower (never on the bondless first climb), floor 6 is a special
 - **A violet ward:** solving the floor's puzzle opens it.
 
 **Lock-in rooms.** Some rooms shut their doorways behind you once you're well inside: monster dens (3 in 4), restless crypts (9 in 10), some guard rooms (3 in 10), the stair landing from floor 6 (3 in 5), and the sealed wings (`LOCK_IN` in `doors.gd`). Iron bars drop with a slam and a banner ("THE DOORS GRIND SHUT"), and the top of the screen says the doors are shut and how many foes are left (on a phone too). They open again when the monsters that were in the room are dead. A room with no monsters left never shuts, and two and a half minutes open it whatever happens, so you're never stranded.
+
+**There is always a way out.** `scripts/reach.gd` walks a floor the way the rules allow: a closed door opens as you walk up to it, a locked door only once its key, lever or carrier (or, for a warded door, the puzzle's room and every mural) can be reached without passing it, and doorways that open again by themselves (a lock-in room's bars, a wing's gate, a puzzle's seal) don't count as walls. Every floor plan is checked with it before it's used (`Floors.rooms_floor`): the stair and what lifts its ward, every room, each wing's door, and every key, lever and carrier must be reachable from the start, or the floor is planned again (the planner itself never makes such a floor that the tests have found: this is the backstop). A monster carries at most one key. The cover in rooms never walls off a key, lever, mural, camp or spring (`Floors.cover_targets`). And while the climb goes on, every two seconds while a door is locked, the game checks from where you stand (`main.gd` `check_stuck`): if the stair can't be reached and a locked door in your way has no key, lever or carrier you could reach, that lock gives way, with a banner ("A LOCK GIVES WAY"; the words are `relent_title` and `relent` in `LOCK_TEXT` in `doors.gd`). The recall scroll isn't relied on for this (you carry one at most, not always, and not on the first climb).
+
+**Doors that only look dangerous.** The stair landing and a restless crypt have a **chained** door (two chains across it, an iron ring where they cross, red light under it): danger waits there, but the door isn't locked and opens as you walk up. Only a locked door shows a gold padlock.
 
 ## Sealed wings, vaults and secrets
 
@@ -1011,6 +1015,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/room_store.gd` | The painter's rooms: `data/rooms_custom.json` (from the editor) and `user://rooms_custom.json`, Copy and Paste |
 | `scripts/themes.gd` | Room themes: names, one-line rules, tints, door looks, and the rules that hand them out |
 | `scripts/doors.gd` | Doors: solid until you walk up, styled to hint at the room behind; locked doors with their keys and levers; lock-in rooms |
+| `scripts/reach.gd` | Can the climber get out? Walks a floor plan, or the floor being played, the way doors, locks and keys allow (the planner's last check and the game's safety net) |
 | `scripts/unbound.gd` | The Unbound: their profile state, natural parts and routing, levels, gifts, stages, becoming Unbound and the Developer's way back, and their words |
 | `scripts/technique.gd` | The Unbound's techniques: fill, boost, strain, recipes, plain-words descriptions, casting and the variations on a cast (shapes and kinds come from the library) |
 | `scripts/library.gd` | The shared library: forms, effects, variations and echoes in data, the content contract, and loading the content files |
@@ -1082,6 +1087,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/data_page.gd` | Dev tools → Edit game data: the Data editor's page (tabs, sections, search, a row per field, My changes, Save / Copy / Paste, the Entity's help) |
 | `data/overrides.json` | Changes made in the Data editor (empty until you save some from the Godot editor) |
 | `tests/smoke_test.gd` | Headless test that drives every action |
+| `tests/reach_sweep.gd` | A heavier sweep of the floor planner: thousands of floors checked for a way out |
 | `scripts/test_run.gd` | Gives each test run its own folder for the files it saves (`user://test_runs/<number>/`), so two test runs at once never share a file |
 
 ## Testing
@@ -1098,6 +1104,13 @@ It ends with every test file in `tests/parts/` (each a `run(t)` function, so sev
 
 ```bash
 godot --headless -s tests/smoke_test.gd -- parts
+```
+
+Add `part=` and a word to run only the parts files whose names hold it (`-- parts part=reachability`). The reachability part (`tests/parts/reachability.gd`) sweeps a few hundred floor plans and sixty floors as the game builds them; a heavier sweep, which also counts dead ends left with nothing in them, is its own script:
+
+```bash
+godot --headless -s tests/reach_sweep.gd -- 200        # floor plans: 200 per tower and floor
+godot --headless -s tests/reach_sweep.gd -- live 40    # floors as the game builds them
 ```
 
 ## Rebuilding the sounds

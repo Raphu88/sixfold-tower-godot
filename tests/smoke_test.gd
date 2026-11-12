@@ -7334,6 +7334,10 @@ func _run() -> void:
 func _part_tests() -> void:
 	var files: Array = Array(DirAccess.get_files_at("res://tests/parts")).filter(func(f): return f.ends_with(".gd"))
 	files.sort()
+	# `-- parts part=reachability` runs only the parts whose names hold that word.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("part="):
+			files = files.filter(func(f): return a.trim_prefix("part=") in f)
 	for f in files:
 		var s = load("res://tests/parts/" + f)
 		_check(s is GDScript and s.can_instantiate(), "tests/parts/%s loads" % f)

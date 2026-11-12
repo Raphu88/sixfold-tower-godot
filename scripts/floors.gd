@@ -122,14 +122,23 @@ static func arena_for(floor_num: int) -> Rect2:
 
 
 ## A floor of rooms (see above). Planned again (a few times at most) in the
-## rare case the rooms won't fit together.
-static func rooms_floor(floor_num: int, tower: Dictionary) -> Dictionary:
+## rare case the rooms won't fit together, or as a last check (reach.gd)
+## finds the stair, a room, a wing's door or what opens a lock out of reach
+## (the planner never makes such a floor that anyone knows of: this is the
+## backstop; tests/parts/reachability.gd sweeps it).
+## `check` false skips the last check (the tests, to see what the planner
+## itself makes).
+static func rooms_floor(floor_num: int, tower: Dictionary, check := true) -> Dictionary:
 	var plan := {}
+	var fallback := {}
 	for attempt in 60:
 		plan = plan_floor(floor_num, tower)
 		if not plan.is_empty() and not plan.get("puzzle", {}).is_empty():
-			return plan
-	return plan
+			if not check or load("res://scripts/reach.gd").plan_check(plan)["ok"]:
+				return plan
+			if fallback.is_empty():
+				fallback = plan  # (main.gd's safety net opens a lock if it must)
+	return fallback if not fallback.is_empty() else plan
 
 
 static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
@@ -420,6 +429,28 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
 	return plan
+
+
+## What cover (a room's "#" blocks) must never wall off from the start
+## (main.gd _build_layout keeps a block only if all of these stay reachable).
+static func cover_targets(plan: Dictionary) -> Array:
+	var out: Array = [plan.get("stair", Vector2.ZERO)]
+	for m in plan.get("monsters", []):
+		out.append(m[1])
+	if plan.has("cache"):
+		out.append(plan["cache"]["pos"])
+	# What opens a locked door, the murals the Hall of Pedestals asks you to
+	# read, a camp's pack and a spring's pool: walled off, they'd be lost.
+	for l in plan.get("locks", []):
+		if l.has("pos"):
+			out.append(l["pos"])
+	for m in plan.get("puzzle", {}).get("murals", []):
+		out.append(Vector2(m["pos"]) + Vector2(0, 30))  # (the tile under the tablet)
+	for c in plan.get("camps", []):
+		out.append(c["item"])
+	for s in plan.get("springs", []):
+		out.append(s["pos"])
+	return out
 
 
 ## A random walk across the grid's cells: the spine. It starts on an edge.
@@ -817,8 +848,9 @@ static func _ambush_spots(info: Dictionary) -> Array:
 
 
 ## The floor's monsters, bought from a budget that grows with height, and
-## the rooms they wait in: dens hold the most, the stair's guards and the
-## rooms along the route come next, then the branches. None in the start
+## the rooms they wait in: dens hold the most, every dead end (a branch
+## room) gets one before the rooms along the route do, so none is left with
+## nothing in it, and the stair's guards come next. None in the start
 ## room, the good rooms or a crypt (its dead rise when you walk in).
 static func _monsters(infos: Array, spots: Array, floor_num: int, tower: Dictionary, pillars: Array) -> Array:
 	var budget := float(CURVE["budget"]) + float(CURVE["budget_per_floor"]) * floor_num + float(CURVE["rooms_budget"])
@@ -832,11 +864,24 @@ static func _monsters(infos: Array, spots: Array, floor_num: int, tower: Diction
 		budget -= MONSTERS[pick]["cost"]
 		if pick == "knight":
 			knights += 1
+	# Rooms take monsters in rounds: each room that holds any gets one, then
+	# the busier rooms another, then the dens a third. In the first round the
+	# dens come first, then the dead ends (branch rooms), so a small budget
+	# never leaves a den empty or a dead end with nothing in it; the rooms on
+	# the way through come after.
 	var order: Array = []
 	for round_ in 3:
+		var these: Array = []
 		for i in infos.size():
 			if _room_weight(infos[i], spots[i], floor_num) > round_:
-				order.append(i)
+				these.append(i)
+		if round_ == 0:
+			var rank := func(i: int) -> int:
+				if Themes.get_theme(infos[i]["theme"])["feature"] == "den":
+					return 0
+				return 1 if infos[i]["role"] == "branch" else 2
+			these.sort_custom(func(a, b): return rank.call(a) * 100 + a < rank.call(b) * 100 + b)
+		order.append_array(these)
 	if order.is_empty():
 		order = range(1, infos.size())
 	# Archers like a pillared hall.
@@ -1263,6 +1308,8 @@ static func _locks(infos: Array, doors: Array, monsters: Array, wings: Array, fl
 		if kind == "carried":
 			var carriers: Array = []
 			for m in monsters.size():
+				if out.any(func(l): return int(l.get("carrier", -1)) == m):
+					continue  # (a monster carries one key at most: a second would be lost)
 				for h in hosts:
 					if infos[h]["rect"].has_point(monsters[m][1]) and h != 0:
 						carriers.append(m)

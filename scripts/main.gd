@@ -51,6 +51,7 @@ const PracticeScript := preload("res://scripts/practice.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 const UI := preload("res://scripts/ui.gd")
+const Reach := preload("res://scripts/reach.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -758,6 +759,10 @@ func _process(delta: float) -> void:
 	if not cleared and not climbing and alive == 0:
 		cleared = true
 		sfx("clear", 1.0, 0.0, 0.0)
+	stuck_t -= delta
+	if stuck_t <= 0.0:
+		stuck_t = STUCK_EVERY
+		check_stuck()
 	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
 		_climb()
 	if not cache.is_empty() and not cache["taken"] and not climbing and not player.dead \
@@ -1010,11 +1015,8 @@ func _start_floor(n: int) -> void:
 			cache["gear"] = find_gear("", 1)  # (a cache rolls one rarity row higher)
 	room_view.cache = cache
 	_place_lost_cache(plan, n)
-	var targets: Array = [stair_pos]
-	for m in plan["monsters"]:
-		targets.append(m[1])
-	if not cache.is_empty():
-		targets.append(cache["pos"])
+	var targets: Array = Floors.cover_targets(plan)  # (the stair, monsters, keys, levers...: cover never walls them off)
+	targets.append(stair_pos)
 	if not lost_cache.is_empty():
 		targets.append(lost_cache["pos"])
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
@@ -1312,6 +1314,36 @@ func _land_below(to: int) -> void:
 	banner = {"title": FALL_TEXT["title"], "lines": [FALL_TEXT["line"] % to], "t": 3.0}
 	player.set_physics_process(true)
 	sfx("hurt", 0.7, -6.0, 0.0)
+
+
+## The safety net: a climber is never shut away from the stair for good.
+## Every few seconds (only while a door is locked), reach.gd walks the floor
+## from where the climber stands; if the stair (or what lifts its ward)
+## can't be reached and a locked door in reach is in the way whose key,
+## lever or carrier can't be reached either, that lock gives way. The floor
+## planner never makes such a floor (tests/parts/reachability.gd), so this
+## is only for what nobody foresaw. Returns the lock ids it opened.
+const STUCK_EVERY := 2.0
+var stuck_t := STUCK_EVERY
+
+
+func check_stuck() -> Array:
+	if not layout_on or climbing or in_camp or player == null or player.dead or door_view == null or door_view.locked_count() == 0:
+		return []
+	var c := Reach.live_check(self)
+	if not c["checked"] or c["stair"] or c["blocked"].is_empty():
+		return []
+	var opened: Array = c["blocked"].duplicate()
+	for lid in opened:
+		for d in door_view.list:
+			if String(d["lock"]) != "" and int(d["lock_id"]) == int(lid):
+				fx_burst(d["rect"].get_center(), d["out"], DoorsScript.KEY_GOLD, 14, 120.0)
+		door_view.unlock(int(lid))
+	var LT: Dictionary = door_view.LOCK_TEXT
+	banner = {"title": LT["relent_title"], "lines": [LT["relent"]], "t": 3.0}
+	sfx("slam", 0.8, -4.0, 0.0)
+	shake(3.0)
+	return opened
 
 
 ## The floor's puzzle is solved: the ward lifts and the stair opens.
