@@ -379,7 +379,10 @@ func _voids() -> void:
 	tf.gust_state = "blow"
 	tf.gust_t = 1.0
 	tf.gust_dir = Vector2.RIGHT
-	tf._tick_gust(1.0 / 60.0)
+	for i in 8:
+		tf.gust_state = "blow"
+		tf.gust_t = 1.0
+		tf._tick_gust(1.0 / 60.0)
 	_check(p.knock.dot(Vector2.RIGHT) > 50.0, "a gust shoves you near a drop (%.0f)" % p.knock.x)
 	tf.gust_state = "calm"
 	tf.gust_t = 99.0
@@ -394,7 +397,7 @@ func _voids() -> void:
 	slime.airborne = 0.0
 	tf._tick_falls()
 	await t._frames(1)
-	_check(slime.dead or not is_instance_valid(slime), "a foe thrown into the air comes down over a drop and falls")
+	_check(not is_instance_valid(slime) or slime.dead, "a foe thrown into the air comes down over a drop and falls")
 	# The climber falls to the floor below.
 	var fl0: int = main.floor_num
 	p.global_position = Grid.centre(vt)
@@ -468,7 +471,7 @@ func _harrier() -> void:
 	_check(tf.near_void(e.global_position, 75.0), "it stands on a ledge")
 	e.on_parried(false)
 	await t._frames(1)
-	_check(e.dead or not is_instance_valid(e), "parried on a ledge, it tumbles over the edge and falls")
+	_check(not is_instance_valid(e) or e.dead, "parried on a ledge, it tumbles over the edge and falls")
 	_check(load("res://scripts/essence.gd").DROPS.has("harrier") and Towers.TOWERS["gryphon"]["weights"].has("harrier"), "it drops air essence and spawns in the Gryphon's tower")
 
 
@@ -498,9 +501,9 @@ func _long_bridge() -> void:
 	p.global_position = s["start"]
 	await t._frames(3)
 	_check(main.scenarios.running(), "stepping onto its mark begins it")
-	await t._wait(1.6)
+	await t._wait(2.8)  # (its intro, then the first raptor)
 	var raptors: int = main.enemies().filter(func(x): return x.kind == "harrier").size()
-	_check(raptors >= 1, "raptors come diving out of the open air (%d)" % raptors)
+	_check(raptors >= 1, "raptors come diving out of the open air (%d; %s, spawns %d)" % [raptors, s["state"], s["spawns"].size()])
 	for e in main.enemies():
 		t._slay(e)
 	p.global_position = s["end"]

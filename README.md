@@ -630,8 +630,8 @@ Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each
 
 | Tower | Essence | Monsters | Look |
 | --- | --- | --- | --- |
-| The Gryphon's Tower | Air | archers, bats and thunderlings; the Gryphon on floor 12 | cold, blue stone and pale torches |
-| The Kraken's Tower | Water | slimes, lurkers and shellbacks; the Kraken on floor 12 | damp, teal stone and green-white torches |
+| The Gryphon's Tower | Air | archers, bats, harriers and thunderlings, over open drops in the wind; the Gryphon on floor 12 | cold, blue stone and pale torches |
+| The Kraken's Tower | Water | slimes, lurkers, shellbacks and deepfins, in water that rises and drains; the Kraken on floor 12 | damp, teal stone and green-white torches |
 | The Wyvern's Tower | Iron | knights, cinders and smiths; the Wyvern on floor 12 (the hardest) | hot forge-red stone and orange torches |
 | The Manticore's Tower | Stone | scorplings and rams; the Manticore on floor 12 | sun-baked sandstone and warm torches |
 | The Firebird's Tower | Fire | wisps and bloomcaps, and chasms to jump; the Firebird on floor 12 | pale, sunlit stone and gold torches |
@@ -664,6 +664,34 @@ Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each
 **The Gryphon's monsters:** the **bat** circles you, then glints and swoops straight through where you stood (parryable). The **thunderling** walks up, stops and sparks, then bursts into a ring of lightning: it can't be parried, so step out of the ring or roll through it.
 
 Every kill also yields 1.5 essence of the tower's own kind, so the tower you choose is how you steer which bonds you'll form. The tower's beast is the one who regards you at the top of your first climb.
+
+## The Kraken's tower: flooded floors
+
+The Kraken's floors are built by their own script, `scripts/towers/kraken_floor.gd` (switched on by `"script"` in the tower's entry in `scripts/floor_styles.gd`). Its numbers, words and colours are in the Data editor ("The Kraken's water and the Gryphon's heights": `WATER`, `TEXT`, `LOOK`).
+
+- **Layout.** Rooms are mostly round and oval (`own_shapes` in `floor_styles.gd`; hand-made rooms are rarer here), a little smaller than elsewhere so the corridors between them are longer, and the corridors **wind**: each long enough corridor wanders up to three tiles sideways and back (two tiles wide, three at a bend), drawn as a curving channel of water. Round rooms often have a **deep pool** in the middle with a walk all round it.
+- **The water.** Every room and corridor is a basin with a **water level** drawn in code: the water spreads across a room as it rises, ripples move on it, a **level line** shows on the room's north wall with a pale **tide mark** above it where it last stood, and salt crusts the floor where it reached.
+  - **Tides:** most rooms and corridors fill and drain on a cycle, never deeper than **shallow**; the cycles lag from room to room, so the tide seems to roll through the floor. Shallow water slows you (unless you wear Wading Boots or have a water bond) and soaks foes that wade in it (soaked foes conduct lightning: see States and reactions).
+  - **Deep water** can't be crossed on foot: you and walking monsters stop at its edge, and monsters path round it. **Pools** stay deep. A **loop corridor** (a second way round) may flood deep at high tide; if it rises while you stand in it, the water sweeps you out.
+  - **Sunken rooms:** now and then a dead-end room lies under deep water with its chest on the bottom. A **sluice wheel** in the room next to it drains it: stand at the wheel until it turns. The water rushes into the wheel's own room for a while, and the sunken room can be walked (its guards are swimmers: when it drains they're stranded).
+  - Deep water is never the only way to the stair (the planner checks every floor: a pool or a flooding corridor may only ever take a second way), except for the task below.
+- **The task: Drain the Stairwell** (`sluices` in `objectives.gd`, only in this tower). The passage into the stair room is flooded deep. Turn every sluice wheel on the floor (stand at each until it turns; a blow sets it back) and each one lowers the water a step; with the last, the stairwell drains and the ward lifts.
+- **The deepfin** (`scripts/towers/deepfin.gd`, from floor 3). It lives in deep water: only a fin and its wake show as it shadows you along the bank, and nothing can touch it down there. Come near the water and it rises, glints and **leaps out** at you, jaws first (parryable). Then it's stranded on the stone, thrashing: soaked through, so lightning arcs through it, and every blow lands half again as hard, until it drags itself back. Too long out of the water (its pool drained) and it dries out and weakens. With no deep water on a floor it keeps to the shallows as a lurker does. Drops water essence.
+- **The scenario: the Filling Room** (`flood` in `scenarios.gd`, only in this tower; likelier than the shared scenarios here). Step onto the mark: the doors shut and the water comes in while lurkers and the tower's monsters come for you. Reach the drain wheel at the far end and turn it (a blow knocks your hands off it for a moment) before the water fills the room. Graded on the hits you take and how high the water got.
+
+## The Gryphon's tower: open heights
+
+The Gryphon's floors are built by `scripts/towers/gryphon_floor.gd` (the Data editor's "The Kraken's water and the Gryphon's heights": `VOIDS`, `GUST`, `TEXT`, `LOOK`).
+
+- **Layout.** Big open halls with **ledges and balconies over open drops**: a hall may have a round **well** in the middle with a balcony all round it (sometimes a bridge straight across), a **ledge** where one side falls away, or a **span** of drop right across it with one narrow bridge. Long corridors become **bridges**: the rock beside them falls away, so you cross a plank walkway over the drop. Beyond the halls' walls there's no rock to see, only open air: every hall stands like a balcony.
+- **Seeing down.** Through every drop and past every wall you see the floors below, drawn in code: two layers of halls, smaller and dimmer the deeper they are, with their flagstones, walls and torches, sliding with parallax as you move, with tiny shapes walking them.
+- **Falling.** Step or get knocked off an edge and you fall to the floor below ("YOU FELL", the same as the Firebird's chasms). Walking monsters keep out of the drops; fliers cross them. Drops never cut anything off: they only ever take tiles away (the planner checks every floor).
+- **Wind.** Every few seconds a gust blows across the open spans: streaks of wind show which way a moment before, then it shoves whoever stands near a drop (you and foes) that way. Brace by walking against it. A foe thrown into the air (lifted, or knocked up) is carried over the edge and falls when it comes down; a flier stunned over a drop (a parried bat or harrier) falls too.
+- **The task: Turn the Wind Vanes** (`vanes` in `objectives.gd`, only in this tower). No bridge reaches the stair room: its passage is an open gap. Strike each wind vane round (two blows each); when the last turns, a steady wind blows across the gap and you walk over on it.
+- **The harrier** (`scripts/towers/harrier.gd`, from floor 3). A raptor that soars high over the halls (its shadow sweeps the floor), folds its wings and dives at you with a glint. Its strike throws you the way it flew: toward the edge, if you stand on one. After the dive it stands on the floor a moment (your opening) before it climbs back up. **Parry the dive on a ledge** and it tumbles over the edge and falls. Drops air essence.
+- **The scenario: the Long Bridge** (`bridge` in `scenarios.gd`, only in this tower, in dead-end halls). The hall falls away but for a landing by the door, one long bridge and a perch at the far end. Step onto the mark and cross while gusts blow across the bridge toward the drop and harriers dive out of the open air. Graded on the hits you take and your time; leave the hall and it's over.
+
+Tests: `tests/parts/towers_kraken_gryphon.gd` (layouts, reachability over dozens of floors, the water and the wind, both tasks, both creatures, both scenarios, and the floor bot on both towers). The floor bot sweep can be narrowed to one tower: `godot --headless --fixed-fps 60 -s tests/floor_bot_sweep.gd -- 2 tower=kraken`.
 
 ## Marks, essence and the Regard
 
@@ -1152,6 +1180,10 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/climbers_page.gd` | The Climbers page (the climber picker) and its words, the title's Climbers button and the Start over words |
 | `scripts/floors.gd` | Plans each floor: the grid, spine, branches and kept cells, loops, corridors, doors, the rooms' jobs and payoffs (chests, rest rooms, traders, strongrooms), monster groups, toughness |
 | `scripts/floor_styles.gd` | How each tower builds its floors: extra room shapes, gallery shapes, loops, cracked walls, scenario, rest and trader chances (the hook for per-tower layouts) |
+| `scripts/towers/kraken_floor.gd` | The Kraken's floors: winding corridors, pools, the water levels (tides, floods, sunken rooms and their sluice wheels), the sluices task and the Filling Room |
+| `scripts/towers/gryphon_floor.gd` | The Gryphon's floors: drops, bridges, the floors seen below, the wind, the vanes task and the Long Bridge |
+| `scripts/towers/deepfin.gd`, `scripts/towers/harrier.gd` | The Kraken's deepfin and the Gryphon's harrier: how they act and look |
+| `scripts/towers/water_wind_grid.gd` | Tile helpers for both: the "nothing cut off" check, corridors along their length |
 | `scripts/objectives.gd` | The floor's one task: the kinds (braziers, runes, levers, orb, Keeper, wardstone, shards, motes, and the puzzles), their words, counts and timings, picking one per floor (no repeats in a climb) and placing its pieces |
 | `scripts/objective.gd` | The task in play: its pieces, the HUD's line and arrow, lifting the ward, the stair's gold light, essence and reliquary |
 | `scripts/scenarios.gd` | Scenario rooms: the mark, the six set pieces (defend, collapse, duel, unseen, rescue, gauntlet), grades, and what's noticed (renown, the Makers, `main.noticed`) |

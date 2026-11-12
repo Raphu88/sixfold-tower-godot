@@ -222,6 +222,15 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		for pc in obj["pieces"]:
 			var pt := Grid.tile(pc["pos"])
 			opens.append_array([pt, pt + Vector2i.RIGHT, pt + Vector2i.LEFT, pt + Vector2i.DOWN, pt + Vector2i.UP])
+		# The moat must really shut the stair room off (the task opens it).
+		var mblock := {}
+		for tt in moat:
+			mblock[tt] = true
+		var mw := Grid.walk(g, start, mblock)
+		var st := Grid.tile(plan["stair"])
+		if mw[st.y * int(g["size"].x) + st.x] == 1:
+			plan["ok"] = false
+			return
 		locks.append({"id": 900, "tiles": moat, "opens": {"all": opens}})
 		basins.append({"kind": "moat", "tiles": moat, "room": stair_i, "shape": "channel", "path": mpath, "level": 0.92})
 		for tt in moat:
@@ -325,6 +334,8 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		var info: Dictionary = infos[i]
 		if info["role"] == "entrance" or randf() < float(W["dry_rooms"]):
 			continue
+		if info["role"] == "gallery" and info.get("puzzle", "") != "":
+			continue  # (a puzzle hall stays dry: the ice slides, the plates weigh as they should)
 		var tiles: Array = Grid.room_tiles(info).filter(func(x): return not used.has(x))
 		if tiles.is_empty():
 			continue
@@ -408,6 +419,12 @@ static func _holds_opener(plan: Dictionary, r: Rect2) -> bool:
 			return true
 	for p in load("res://scripts/objectives.gd").targets(plan.get("objective", {})):
 		if r.has_point(p):
+			return true
+	# Anything else the floor asks you to reach (a mural, a camp's pack...), but its chest.
+	var chests: Array = plan.get("chests", []).map(func(c): return c["pos"])
+	var mons: Array = plan.get("monsters", []).map(func(m): return m[1])
+	for p in load("res://scripts/floors.gd").cover_targets(plan):
+		if r.has_point(p) and not p in chests and not p in mons:
 			return true
 	return false
 
@@ -534,6 +551,14 @@ func _physics_process(delta: float) -> void:
 		return
 	_tick_levels(delta, false)
 	_tick_valves(delta)
+	# Something the task needs that fell into deep water (a dropped orb, a
+	# key) washes up on the nearest bank.
+	var ob = main.objective
+	if ob != null and ob.kind == "orb" and not ob.carried and not ob.pieces.is_empty() and deep_at(ob.pieces[0]["pos"]):
+		var bi: int = tile_basin.get(Grid.tile(ob.pieces[0]["pos"]), -1)
+		var dry := _nearest_dry(ob.pieces[0]["pos"], bi)
+		if dry != Vector2.INF:
+			ob.pieces[0]["pos"] = dry
 
 
 ## Levels move: tides on their cycles, the rest toward their targets; deep

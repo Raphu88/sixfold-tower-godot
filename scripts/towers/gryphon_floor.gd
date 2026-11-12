@@ -416,6 +416,8 @@ static func scn_plan(kind: String, info: Dictionary, gates: Array, _floor_num: i
 		if Grid.centre(tt).distance_to(s) > cell * 3.0:
 			spawns.append(Grid.centre(tt))
 	spawns.shuffle()
+	if spawns.is_empty():
+		spawns = [e, rect.get_center()]
 	return {"kind": kind, "rect": rect, "start": s, "end": e, "centre": rect.get_center(), "spawns": spawns.slice(0, 8), "gates": gates,
 		"keep": [s, e], "voids": voids, "bridge": bridge, "dir": (e - s).normalized()}
 
@@ -424,6 +426,7 @@ static func scn_plan(kind: String, info: Dictionary, gates: Array, _floor_num: i
 
 func _ready() -> void:
 	z_index = -3  # (over the floor and its chasm drawing, under the climber)
+	process_physics_priority = -50  # (before the climber moves: a blow's knock is checked first)
 
 
 func setup(p: Dictionary) -> void:
@@ -515,8 +518,26 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if main == null or main.player == null or not is_same(main.floor_plan, plan):
 		return
+	_catch_edge()
 	_tick_gust(delta)
 	_tick_falls()
+
+
+## A blow that would throw the climber over an edge stops at the edge: you
+## catch yourself. Only the wind and a harrier's dive throw you off.
+func _catch_edge() -> void:
+	var p = main.player
+	# (a strike's little step forward never carries you over either)
+	if p.lunge_t > 0.0 and is_void(p.global_position + p.aim * (p.lunge_speed * p.lunge_t + 6.0)):
+		p.lunge_t = 0.0
+	if p.dead or p.knock.length() < 20.0 or gust_state == "blow" or Time.get_ticks_msec() < int(p.get_meta("thrown_until", 0)):
+		return
+	var k: Vector2 = p.knock
+	var reach: float = k.length_squared() / 1800.0 + float(p.radius) * 0.5  # (how far the knock carries, as it wears off)
+	for part in [Vector2(k.x, 0.0), Vector2(0.0, k.y)]:
+		if part.length() > 1.0 and is_void(p.global_position + part.normalized() * minf(reach, CELL * 2.0)):
+			k -= part
+	p.knock = k
 
 
 ## The wind: calm, then streaks (warn), then a shove (blow) at whoever
@@ -661,9 +682,11 @@ func no_foot_tiles() -> Array:
 ## The floor bot braces against a gust near a drop.
 func bot_steer(pos: Vector2, d: Vector2) -> Vector2:
 	if gust_state == "blow" and exposed.has(Grid.tile(pos)):
-		return d.normalized() * 0.6 - gust_dir * 0.9
-	if gust_state == "warn" and exposed.has(Grid.tile(pos)) and near_void(pos, CELL * 1.2):
-		return -gust_dir * 0.4  # (wait it out, a step from the edge)
+		# Lean into it just hard enough to stand, and creep on a little.
+		var force: float = forced.get("force", gust_force)
+		var lean := -gust_dir * minf(0.95, force / 165.0 + 0.08)
+		var on := (d.normalized() if d.length() > 0.01 else Vector2.ZERO) * 0.25
+		return (lean + on).limit_length(1.0)
 	return d
 
 

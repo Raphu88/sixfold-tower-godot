@@ -15,7 +15,7 @@ static var HARRIER := {
 	"dive_range": 290.0,  # it dives from this near
 	"dive_speed": 520.0,
 	"wind": 0.6,  # the dive's wind-up (the glint comes within it)
-	"knock": 300.0,  # how hard its strike throws you (px/s, along the dive)
+	"knock": 240.0,  # how hard its strike throws you (px/s, along the dive)
 	"perch": 1.0,  # seconds on the floor after a dive (open)
 	"climb": 0.7,  # seconds to climb back up
 	"ledge": 75.0,  # a parry within this of a drop sends it over
@@ -56,6 +56,7 @@ static func act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 				p.receive_attack(e.dmg, e)
 				if p.hp < before - 0.1 and not e.dead:
 					p.knock = e.aim_dir * float(H["knock"])  # (thrown the way it flew)
+					p.set_meta("thrown_until", Time.get_ticks_msec() + 400)  # (gryphon_floor.gd lets this one carry you over an edge)
 			if e.state_t <= 0.0 and e.state == "dive":
 				e._end_attack("perch", float(H["perch"]))
 		"perch":

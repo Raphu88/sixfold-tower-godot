@@ -26,7 +26,7 @@ static var TOWERS := {
 		"short": "Gryphon",
 		"beast": "the Gryphon",
 		"essence": "air",
-		"blurb": "Wind-swept halls of archers, bats and thunderlings. The Gryphon waits at the top.",
+		"blurb": "Open halls over long drops, swept by the wind: archers, bats, harriers and thunderlings. The Gryphon waits at the top.",
 		"weights": {"archer": 1.1, "bat": 1.2, "thunderling": 0.8, "harrier": 0.9, "slime": 0.3, "knight": 0.3},
 		"first": ["archer", "bat", "bat", "archer"],
 		"summit": SUMMIT,  # the floor where the beast is fought
@@ -43,7 +43,7 @@ static var TOWERS := {
 		"short": "Kraken",
 		"beast": "the Kraken",
 		"essence": "water",
-		"blurb": "Flooded halls of slimes, lurkers and shellbacks. Water slows you. The Kraken waits at the top.",
+		"blurb": "Flooded halls where the water rises and drains: slimes, lurkers, shellbacks and deepfins. The Kraken waits at the top.",
 		"puddles": true,
 		"weights": {"slime": 1.2, "lurker": 1.0, "shellback": 0.8, "deepfin": 0.9, "archer": 0.4, "knight": 0.3},
 		"first": ["knight", "slime", "lurker", "slime"],
