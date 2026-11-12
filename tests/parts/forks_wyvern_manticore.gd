@@ -397,6 +397,8 @@ func _variations_manticore() -> void:
 	# Aftershock: a second, weaker quake a second later.
 	var main = await _climber("sandshaper", 450.0)
 	var p = main.player
+	main.profile.bonds.erase("legs")  # (no Windwalker: with it, Dust Devil throws the foe up and the aftershock makes a Crater: tests/parts/reactions.gd)
+	main._give_bonds()
 	var hb = _vary("sandshaper", "aftershock")
 	var e = await _foe(p.global_position + Vector2(50, 0))
 	hb.cast(p)

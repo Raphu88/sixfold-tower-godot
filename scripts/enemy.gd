@@ -18,6 +18,11 @@ const Draw := preload("res://scripts/draw_util.gd")
 ## sends the same for every foe (main.on_hit). Spells listen here (e.g.
 ## Rune Brand: spell_fx.gd listen()) instead of watching its health.
 signal on_hit(foe, dmg: float, source: String)
+## A reaction fired on it (reactions.gd): main.gd sends the same for any foe.
+signal on_reaction(foe, reaction: String, source)
+
+const Reactions := preload("res://scripts/reactions.gd")
+const Pacts := preload("res://scripts/pacts.gd")
 
 ## The rules every attack keeps live in combat.gd FOES (the Data editor's
 ## "The climber's core numbers"); these read them.
@@ -134,9 +139,27 @@ var dead := false:
 
 var state := "idle"
 var state_t := 0.0
-var airborne := 0.0
+## Its states (reactions.gd): state -> seconds left. The one place every
+## timed state lives; the old names below read and write it, and a state
+## that rises here may set off a reaction.
+var states := {}
+var reacted := {}  # reaction id -> when it last fired here (msec; reactions.gd "again")
+var airborne: float:  # Windwalker's Gale Lift: helpless in the air
+	get: return states.get("airborne", 0.0)
+	set(v): _set_state("airborne", v)
 var stun := 0.0
-var charged := 0.0
+var charged: float:  # Stormcaller's lightning
+	get: return states.get("charged", 0.0)
+	set(v): _set_state("charged", v)
+var soaked: float:  # wet: Tidecaller's and Deepcaller's water, pools on the floor
+	get: return states.get("soaked", 0.0)
+	set(v): _set_state("soaked", v)
+var bleeding: float:  # a Surgeon's Sever, a blade's cut: bleed_dps every half second
+	get: return states.get("bleeding", 0.0)
+	set(v): _set_state("bleeding", v)
+var bleed_dps := 0.0
+var bleed_tick := 0.0
+var wade_t := 0.0  # how long it has stood in water (a moment soaks it)
 var flash := 0.0
 var contact_cd := 0.0
 var aim_dir := Vector2.ZERO
@@ -160,10 +183,20 @@ var glint := 0.0  # the white flash before a hit, for drawing
 var glinted := false
 var attack_from := Vector2.ZERO  # where a pounce or lunge started
 var face := Vector2.LEFT  # where it's looking, eased toward the climber
-var venom := 0  # Venomist's poison stacks
-var venom_t := 0.0
+var _venom := 0
+var venom: int:  # Venomist's poison stacks
+	get: return _venom
+	set(v):
+		_venom = v
+		if v <= 0:
+			states.erase("poisoned")
+var venom_t: float:  # how long the poison lasts (the "poisoned" state)
+	get: return states.get("poisoned", 0.0)
+	set(v): _set_state("poisoned", v)
 var venom_tick := 0.0
-var lost_t := 0.0  # Ashwalker: it has lost track of you
+var lost_t: float:  # Ashwalker: it has lost track of you (the "unseen" state)
+	get: return states.get("unseen", 0.0)
+	set(v): _set_state("unseen", v)
 var lure = null  # ...and goes after this decoy instead (a dictionary with "pos")
 var notice_t := 0.0  # still noticing you at the start of a floor
 var aware := true  # on a floor of rooms, a monster waits until it sees you
@@ -176,11 +209,15 @@ var storm_spots: Array = []  # the Firebird's firestorm
 var reborn := false  # the Firebird rises once from its ashes
 var turn := 0  # a mongrel alternates its two attacks
 var cripple_t := 0.0  # Surgeon's Sever: can't run or charge
-var chill_t := 0.0  # a Coral Trident's hit: walks 25% slower
+var chill_t: float:  # a Coral Trident's hit: walks 25% slower (the "slowed" state)
+	get: return states.get("slowed", 0.0)
+	set(v): _set_state("slowed", v)
 var unravel_t := 0.0  # the Unbound's Unravel: its armour is stripped (blows pierce)
 var hollow_t := 0.0  # the Unbound's Hollow: it takes more from everything...
 var hollow_k := 0.0  # ...this much more
-var burn_t := 0.0  # of Embers: burning, a little damage every half second
+var burn_t: float:  # of Embers: burning, a little damage every half second (the "burning" state)
+	get: return states.get("burning", 0.0)
+	set(v): _set_state("burning", v)
 var burn_dmg := 0.0
 var burn_tick := 0.0
 var flinch_cd := 0.0  # light hits can't flinch it again until this runs out
@@ -351,6 +388,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	flash -= delta
 	charged -= delta
+	soaked -= delta
 	overcharge_t -= delta
 	tide_t -= delta
 	challenged_t -= delta
@@ -382,6 +420,7 @@ func _physics_process(delta: float) -> void:
 	unravel_t -= delta
 	hollow_t -= delta
 	_tick_burn(delta)
+	_tick_bleed(delta)
 	disarm_t -= delta
 	_tick_venom(delta)
 	if dead:
@@ -489,6 +528,13 @@ func _physics_process(delta: float) -> void:
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
 		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken"] or kind in FLIERS)
+	# Wading in water a moment soaks it (fliers and foes in the air stay dry).
+	if not kind in FLIERS and main.in_water(global_position):
+		wade_t += delta
+		if soaked < 0.5 and wade_t >= float(Reactions.STATES["soaked"]["wade"]):
+			soaked = float(Reactions.STATES["soaked"]["seconds"]) * 0.5
+	else:
+		wade_t = 0.0
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
 	# Sandshaper: rubble slows; Shifting Sands slows foes walking up to you
@@ -1662,17 +1708,18 @@ func _ally_ai(delta: float) -> void:
 				best_d = d
 				target = e
 	var go := Vector2.ZERO
+	var pace: float = Pacts.ally_tick(main, self, delta)  # (Menagerie: your newest graft's power)
 	if target != null:
 		var to: Vector2 = target.global_position - global_position
 		var reach: float = radius + target.radius + 10.0
 		face = face.slerp(to.normalized(), minf(1.0, 8.0 * delta)).normalized()
 		if to.length() > reach:
-			go = to.normalized() * speed
+			go = to.normalized() * speed * pace
 			if not main.clear_line(global_position, target.global_position):
-				go = main.path_dir(global_position, target.global_position) * speed
+				go = main.path_dir(global_position, target.global_position) * speed * pace
 		elif ally_cd <= 0.0:
 			ally_cd = 0.9
-			target.take_hit(dmg, to.normalized(), 120.0)
+			target.take_hit(Pacts.ally_strike(main, self, target, dmg), to.normalized(), 120.0)
 			main.fx_burst(target.global_position - to.normalized() * target.radius, to.normalized(), Color(0.7, 1.0, 0.8), 5, 200.0)
 			main.sfx("hit", 1.2, -6.0)
 	elif p != null and global_position.distance_to(p.global_position) > 60.0:
@@ -1758,6 +1805,72 @@ func _tick_burn(delta: float) -> void:
 			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
 			return
 		main.fx_text(global_position + Vector2(0, -radius - 14.0), "-%d" % int(burn_dmg), Color(1.0, 0.55, 0.25))
+
+
+## Bleeding: `dps` every half second for `seconds` (a Surgeon's Sever, a
+## blade's cut). A bleed of 0 only marks it bleeding (the Unbound's cuts do
+## their own damage: unbound_run.gd add_dot).
+func bleed(dps: float, seconds: float) -> void:
+	if dead:
+		return
+	bleed_dps = maxf(bleed_dps if bleeding > 0.0 else 0.0, dps)
+	bleeding = maxf(bleeding, seconds)
+
+
+func _tick_bleed(delta: float) -> void:
+	if bleeding <= 0.0:
+		return
+	bleeding -= delta
+	bleed_tick -= delta
+	if bleed_tick <= 0.0:
+		bleed_tick = 0.5
+		if bleed_dps <= 0.0 or submerged:
+			return
+		hp -= bleed_dps
+		_was_hit(bleed_dps, "bleed")
+		flash = 0.05
+		if hp <= 0.0:
+			take_hit(1.0, Vector2.ZERO, 0.0)  # dies the usual way
+			return
+		main.fx_text(global_position + Vector2(0, -radius - 14.0), "-%d" % int(bleed_dps), Color(0.9, 0.25, 0.25))
+
+
+## Soaks it for `seconds` (water spells, pools on the floor).
+func soak(seconds: float) -> void:
+	soaked = maxf(soaked, seconds)
+
+
+# --- states (reactions.gd) ------------------------------------------------------------
+
+## Every timed state is written through here: a state that rises (lands, or
+## is renewed) asks reactions.gd whether it meets another the foe holds.
+func _set_state(id: String, v: float) -> void:
+	var was: float = states.get(id, 0.0)
+	if v <= 0.0:
+		states.erase(id)
+		return
+	states[id] = v
+	if v > was + 0.0001 and not dead and not ally and main != null and is_inside_tree():
+		Reactions.landed(main, self, id)
+
+
+## Holds a state for at least `seconds` (reactions.gd apply).
+func hold_state(id: String, seconds: float) -> void:
+	_set_state(id, maxf(float(states.get(id, 0.0)), seconds))
+
+
+## Takes a state away (a reaction consumed it).
+func clear_state(id: String) -> void:
+	match id:
+		"poisoned":
+			venom = 0
+		"unseen":
+			lost_t = 0.0
+			lure = null
+			notice_t = 0.0
+		"bleeding":
+			bleed_dps = 0.0
+	states.erase(id)
 
 
 ## All the poison still to come, at once (Virulence).
@@ -1898,6 +2011,11 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		queue_free()
 		return
 	_hurt_voice()
+	# A heavy blow on a foe in the air slams it down (reactions.gd: Crater).
+	if heavy and airborne > 0.0:
+		Reactions.apply(main, self, "slam", 0.0, null)
+		if dead:
+			return
 	# Flinching: slimes and archers are knocked out of what they were doing.
 	# Knights shrug off hits while winding up; only heavy blows rock them
 	# when they aren't attacking.
@@ -3236,6 +3354,7 @@ func _draw_overlay() -> void:
 	if stun > 0.0:
 		for i in 3:
 			o.circle(Vector2(0, lift_y - radius - 8.0) + Vector2.from_angle(now * 4.0 + i * TAU / 3.0) * 7.0, 2.0, Color(1.0, 0.89, 0.63), 10)
+	_draw_states(o, lift_y, now)
 	if venom > 0:
 		for i in mini(venom, 6):
 			var ph := fmod(now * 3.0 + i * 0.37, 1.0)
@@ -3286,11 +3405,91 @@ func _draw_overlay() -> void:
 		o.rect(Rect2(top, Vector2(w2 * clampf(hp / max_hp, 0.0, 1.0), 3.0)), Color(0.85, 0.25, 0.2))
 	o.flush(c)
 	if main.player != null and is_lost(global_position.distance_to(main.player.global_position)):
-		c.draw_string(ThemeDB.fallback_font, Vector2(-4, lift_y - radius - 16.0), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.78, 0.75, 0.9))
+		c.draw_string(ThemeDB.fallback_font, Vector2(-4, lift_y - radius - (32.0 if _pips > 0 else 16.0)), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.78, 0.75, 0.9))
 	if diagnosis and not is_boss():
-		c.draw_string(ThemeDB.fallback_font, Vector2(-60, lift_y - radius - 18.0), WEAKNESS.get(kind, ""), HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(0.85, 0.9, 0.95, 0.75))
+		c.draw_string(ThemeDB.fallback_font, Vector2(-60, lift_y - radius - (32.0 if _pips > 0 else 18.0)), WEAKNESS.get(kind, ""), HORIZONTAL_ALIGNMENT_CENTER, 120, 10, Color(0.85, 0.9, 0.95, 0.75))
 	if cripple_t > 0.0 or disarm_t > 0.0:
 		c.draw_string(preload("res://scripts/ui.gd").font("display"), Vector2(-40, radius + 18.0), "Disarmed" if disarm_t > 0.0 else "Crippled", HORIZONTAL_ALIGNMENT_CENTER, 80, 11, Color(0.9, 0.95, 1.0, 0.85))
+
+
+## Its states, readable at a glance (reactions.gd STATES' colours): a row of
+## small badges over its head, each a glyph of its own (a bolt, an arrow up,
+## a drop, a flame, bubbles, a red drop, a snowflake), and a touch on the
+## body: drips while soaked, flames while burning, red drops while bleeding.
+## (Unseen keeps its "?"; poison its rising bubbles.)
+var _pips := 0  # state badges drawn over its head this frame (text above moves up)
+
+
+func _draw_states(o: Pen, lift_y: float, now: float) -> void:
+	_pips = 0
+	if states.is_empty() or ally:
+		return
+	var shown: Array = []
+	for st in ["charged", "airborne", "soaked", "burning", "poisoned", "bleeding", "slowed"]:
+		if Reactions.has(self, st):
+			shown.append(st)
+	_pips = shown.size()
+	if shown.is_empty():
+		return
+	var big := float(CHAMPION["size"]) if champion else 1.0
+	var gap := 13.0
+	var y := lift_y - radius * big - 21.0
+	var x0 := -gap * (shown.size() - 1) * 0.5
+	for i in shown.size():
+		var st: String = shown[i]
+		var c := Vector2(x0 + gap * i, y)
+		var col: Color = Reactions.STATES[st]["color"]
+		var left := float(states.get(st, 1.0))
+		var al := 1.0 if left > 0.6 or st == "slowed" else 0.45 + 0.55 * absf(sin(now * 10.0))  # (blinks as it runs out)
+		o.circle(c, 6.4, Color(0.05, 0.04, 0.04, 0.78 * al), 14)
+		o.arc(c, 6.0, 0.0, TAU, 1.2, Color(col, 0.9 * al), 14)
+		_glyph(o, st, c, Color(col.lightened(0.1), al))
+	# On the body.
+	if soaked > 0.0:
+		for i in 3:
+			var ph := fmod(now * 1.6 + i * 0.33, 1.0)
+			o.circle(Vector2((i - 1) * radius * 0.6, lift_y + radius * 0.2 + ph * radius * 0.9), 1.4, Color(0.45, 0.72, 1.0, 0.85 * (1.0 - ph)), 6)
+	if burn_t > 0.0 and not submerged:
+		for i in 3:
+			var ph := fmod(now * 2.2 + i * 0.29, 1.0)
+			var bx := sin(i * 2.1 + now * 3.0) * radius * 0.5
+			var by := lift_y - radius * 0.3 - ph * radius
+			var fh := 4.0 * (1.0 - ph) + 1.0
+			o.tri(Vector2(bx - fh * 0.6, by), Vector2(bx + fh * 0.6, by), Vector2(bx, by - fh * 1.8), Color(1.0, 0.55 + 0.3 * ph, 0.2, 0.85 * (1.0 - ph)))
+	if bleeding > 0.0:
+		var ph2 := fmod(now * 1.3, 1.0)
+		o.circle(Vector2(radius * 0.35, lift_y + ph2 * radius), 1.5, Color(0.85, 0.12, 0.15, 0.9 * (1.0 - ph2)), 6)
+
+
+## One state's glyph, about 8 px across, centred on `c`.
+func _glyph(o: Pen, st: String, c: Vector2, col: Color) -> void:
+	match st:
+		"charged":  # a zigzag bolt
+			o.quad(c + Vector2(1.5, -4.0), c + Vector2(-1.5, 0.3), 1.6, col)
+			o.quad(c + Vector2(-1.5, 0.3), c + Vector2(1.5, -0.3), 1.6, col)
+			o.quad(c + Vector2(1.5, -0.3), c + Vector2(-1.5, 4.0), 1.6, col)
+		"airborne":  # an arrow up
+			o.quad(c + Vector2(0, 4.0), c + Vector2(0, -2.0), 1.6, col)
+			o.tri(c + Vector2(-3.5, -0.5), c + Vector2(3.5, -0.5), c + Vector2(0, -4.5), col)
+		"soaked":  # a drop
+			o.circle(c + Vector2(0, 1.4), 2.8, col, 10)
+			o.tri(c + Vector2(-2.6, 0.6), c + Vector2(2.6, 0.6), c + Vector2(0, -4.4), col)
+		"burning":  # a flame
+			o.tri(c + Vector2(-3.2, 3.6), c + Vector2(3.2, 3.6), c + Vector2(0.4, -4.6), col)
+			o.circle(c + Vector2(0, 2.0), 2.4, col, 10)
+			o.tri(c + Vector2(-1.4, 3.4), c + Vector2(1.4, 3.4), c + Vector2(0.2, -1.0), Color(1.0, 0.92, 0.6, col.a))
+		"poisoned":  # bubbles
+			o.circle(c + Vector2(-1.4, 1.2), 2.4, col, 10)
+			o.circle(c + Vector2(2.0, -1.8), 1.5, col, 8)
+			o.circle(c + Vector2(-0.6, -3.0), 0.9, col, 6)
+		"bleeding":  # a red drop and a small one
+			o.circle(c + Vector2(-0.8, 1.6), 2.5, col, 10)
+			o.tri(c + Vector2(-3.1, 0.9), c + Vector2(1.5, 0.9), c + Vector2(-0.8, -3.8), col)
+			o.circle(c + Vector2(2.6, -1.2), 1.1, col, 6)
+		"slowed":  # a snowflake
+			for k in 3:
+				var d := Vector2.from_angle(PI * k / 3.0 + PI * 0.5) * 4.0
+				o.quad(c - d, c + d, 1.3, col)
 
 
 ## Collects shapes as one list of triangles, in order, sent as one draw call.

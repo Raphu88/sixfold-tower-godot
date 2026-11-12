@@ -48,11 +48,19 @@ extends RefCounted
 ##       a new effect on a struck foe (share: 1 lead, 0.5 second, 0.35 third).
 ##   static func on_cast(p, cast: Dictionary) -> void
 ##       optional: something was just cast (on_cast() below says what's in `cast`).
+##   static func on_reaction(p, info: Dictionary) -> void
+##       optional: a reaction fired on a foe (reactions.gd; on_reaction() below).
 ##
 ## Other hooks a content file can use:
 ##   enemy.gd on_hit(foe, dmg, source) a foe lost health (main.gd on_hit: any foe)
 ##   player.gd on_parry(source, perfect) a parry landed
 ##   enemy.gd dmg_mult                  scales a foe's blows (Enfeeble), never dmg itself
+##   reactions.gd apply(main, foe, state, seconds, source) gives a foe a state
+##                                      (charged, airborne, soaked, burning, poisoned,
+##                                      bleeding, slowed, unseen; or a "slam", "drained")
+##                                      and returns the reactions it set off;
+##                                      Reactions.has(foe, state); main.on_reaction signal
+##   pacts.gd has(p, id)                 the climber holds a named pact (two marks)
 ##   spell_fx.gd lasting(), item(), listen()  what stays a while, drawn in code,
 ##                                      and a signal listened to while it lasts
 ##
@@ -400,6 +408,15 @@ static func on_cast(p, cast: Dictionary) -> void:
 	for s in _sources:
 		if s.has_method("on_cast"):
 			s.on_cast(p, cast)
+
+
+## A reaction fired (reactions.gd); every content file with an on_reaction
+## hears it. `info`: "id" (the reaction), "foe", "at" (where), "source"
+## (what set it off, if known) and "states" (what the foe held just before).
+static func on_reaction(p, info: Dictionary) -> void:
+	for s in _sources:
+		if s.has_method("on_reaction"):
+			s.on_reaction(p, info)
 
 
 ## A step-3 variation of a bond's first spell: the tower's own way, else the

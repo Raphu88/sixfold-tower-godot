@@ -289,6 +289,7 @@ func _gryphon_tests() -> void:
 	await _settle()
 	# Windwalker.
 	b2.hp = 999.0
+	b2.charged = 0.0  # (still charged by the chain, Gale Lift would set off a Skybolt and it would fall at once: reactions.gd)
 	b2.global_position = p.global_position + Vector2(80, 0)
 	p.aim = Vector2.RIGHT
 	_cast("legs", "gale_lift")
@@ -774,6 +775,7 @@ func _wyvern_bond_tests() -> void:
 	p._try_cast("hand")
 	_check(p.cast_total < b.windup(), "Steady Mind: every spell winds up faster")
 	p.cast_t = 0.0
+	main.runes.clear()  # (the small fire runes the kindled strikes above left: Forge Runes, pacts.gd)
 	_cast("brow", "rune_trap")
 	p.aim = Vector2.UP
 	_cast("brow", "rune_trap")
@@ -6990,6 +6992,10 @@ func _run() -> void:
 	await _settle()
 
 	print("casts and overdraw")
+	# (Chain Lightning charges the slime and Gale Lift then lifts it: a Skybolt,
+	# reactions.gd. It must live through that for the checks after.)
+	slime.max_hp = 400.0
+	slime.hp = 400.0
 	for part in ["hand", "legs"]:
 		p.bonds[part].essence = 0.0
 		p.attack_cd = 0.0
@@ -7457,6 +7463,7 @@ func _wing_tests() -> void:
 	_check(main.is_solid(gate), "(a sealed doorway stays shut)")
 	p.global_position = w["rect"].get_center()
 	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	await _until(func(): return String(w["state"]) != "closing" and String(w["state"]) != "rule", 5.0)  # (a busy machine runs slower)
 	_check(w["state"] == "waves" and not W._alive(w["mobs"]).is_empty() and W.challenge_live(), "then the Regard states its rule and the waves come (%d)" % W._alive(w["mobs"]).size())
 	_check(W._alive(w["mobs"]).all(func(e): return w["rect"].grow(4.0).has_point(e.global_position) and e.aware), "the waves appear inside the wing, awake")
 	_check(not W.status().is_empty() and W.status()["ok"], "the HUD shows the rule, kept")
@@ -7487,6 +7494,7 @@ func _wing_tests() -> void:
 	w["fail"] = "lesser"
 	await _enter_wing(w)
 	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	await _until(func(): return String(w["state"]) != "closing" and String(w["state"]) != "rule", 5.0)  # (a busy machine runs slower)
 	for e in W._alive(w["mobs"]):
 		e.set_physics_process(false)
 	p.hits_taken += 1  # struck
@@ -7505,6 +7513,7 @@ func _wing_tests() -> void:
 	w["fail"] = "champion"
 	await _enter_wing(w)
 	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	await _until(func(): return String(w["state"]) != "closing" and String(w["state"]) != "rule", 5.0)  # (a busy machine runs slower)
 	for e in W._alive(w["mobs"]):
 		e.set_physics_process(false)
 	w["clock"] = float(w["limit"]) + 1.0  # too slow
@@ -7540,6 +7549,7 @@ func _wing_tests() -> void:
 	w = W.wings[0]
 	await _enter_wing(w)
 	await _wait(float(W.WAVES["close_time"]) + float(W.WAVES["rule_time"]) + 0.3)
+	await _until(func(): return String(w["state"]) != "closing" and String(w["state"]) != "rule", 5.0)  # (a busy machine runs slower)
 	for e in W._alive(w["mobs"]):
 		e.set_physics_process(false)
 	w["clock"] = W.FAILSAFE + 1.0

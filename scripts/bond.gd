@@ -7,6 +7,9 @@ const Bonds := preload("res://scripts/bonds.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const Library := preload("res://scripts/library.gd")
 const TreeRules := preload("res://scripts/tree.gd")
+## States and reactions (what a spell leaves on a foe), and named pacts.
+const Reactions := preload("res://scripts/reactions.gd")
+const Pacts := preload("res://scripts/pacts.gd")
 static var PART_NAMES := Bonds.PART_NAMES
 const PART_FILLS := Bonds.PART_FILLS
 const PART_BURN := Bonds.PART_BURN
@@ -454,6 +457,7 @@ func _overcharge(p) -> void:
 	target.overcharge_t = stat("duration")
 	target.overcharge_dmg = damage()
 	target.overcharge_r = stat("radius")
+	Reactions.apply(main, target, "charged", float(stat("duration")), self)
 	main.fx_bolt([p.global_position, target.global_position], color())
 	main.fx_ring(target.global_position, color(), 30.0, 0.3, 2.0)
 	main.sfx("zap", 0.8, -4.0)
@@ -581,9 +585,35 @@ func _lift(p) -> void:
 		e.knock = aim * 120.0
 		if dmg > 0.0:
 			e.take_hit(dmg, aim, 60.0)
+		if Pacts.has(p, "dust_devil"):
+			_shards(main, e.global_position)
 		lifted += 1
 	if lifted == 0:
 		main.fx_text(origin + Vector2(0, -34), "nothing to lift", color())
+
+
+## Dust Devil: shards of stone left on the floor that cut what walks over
+## them (and set it bleeding).
+static func _shards(main, at: Vector2) -> void:
+	var pd: Dictionary = Pacts.PACTS["dust_devil"]
+	var r := float(pd["radius"])
+	var col: Color = pd["color"]
+	var SpellFx = load("res://scripts/spell_fx.gd")
+	SpellFx.field(main, at, r, float(pd["seconds"]), 0.5, col, func(foes: Array):
+		for o in foes:
+			if is_instance_valid(o) and not o.dead and o.airborne <= 0.0:
+				o.take_hit(float(pd["damage"]), Vector2.ZERO, 0.0)
+				Reactions.apply(main, o, "bleeding", 2.0, "dust devil", float(pd["bleed"])))
+	var bits: Array = []
+	for i in 7:
+		bits.append([Vector2.from_angle(randf() * TAU) * randf() * r * 0.85, randf() * TAU])
+	SpellFx.lasting(main, float(pd["seconds"]), Callable(), func(n):
+		var a: float = n.fade(0.5)
+		for b in bits:
+			var c: Vector2 = at + b[0]
+			var d := Vector2.from_angle(b[1])
+			n.draw_colored_polygon(PackedVector2Array([c + d * 5.0, c + d.orthogonal() * 2.0, c - d * 3.0, c - d.orthogonal() * 2.0]), Color(col, 0.85 * a))
+		n.draw_arc(at, r, 0.0, TAU, 28, Color(col, 0.25 * a), 1.2, true), {}, {"z": 11})
 
 
 # A wave bursts out around you, hurling every foe in reach away. From step 3
@@ -597,7 +627,7 @@ func _surge(p) -> void:
 	main.sfx("gust", 0.7, -4.0)
 	main.shake(5.0)
 	if stat("aimed"):
-		main.add_wave(origin, p.aim, stat("width"), stat("travel"), damage(), stat("push"), false, color())
+		main.add_wave(origin, p.aim, stat("width"), stat("travel"), damage(), stat("push"), false, color(), {"states": {"soaked": _soak_time()}, "source": self})
 		return
 	var radius: float = stat("radius")
 	main.fx_ring(origin, color(), radius, 0.45, 6.0)
@@ -612,6 +642,7 @@ func _surge(p) -> void:
 		var dir := to.normalized() if to.length() > 0.1 else Vector2.RIGHT
 		e.tide_push(dir * float(stat("push")))
 		e.take_hit(damage(), dir, stat("push"))
+		_soak(main, e, true)
 		hit += 1
 	if hit == 0:
 		main.fx_text(origin + Vector2(0, -34), "nothing in reach", color())
@@ -632,6 +663,7 @@ func _riptide(p) -> void:
 		var pull := -aim * minf(along * 2.4, 520.0)
 		e.tide_push(pull)
 		e.take_hit(damage(), Vector2.ZERO)
+		_soak(main, e, true)
 		e.knock = pull
 		pulled += 1
 	main.fx_cone(origin, aim, length, deg_to_rad(6.0), color())
@@ -648,7 +680,8 @@ func _riptide(p) -> void:
 func _carry(p) -> void:
 	var k: float = spell_power(spell()) * flow_power
 	p.main.add_wave(p.global_position, p.aim, stat("width"), stat("travel"), damage(), 0.0, true, color(),
-		{"collide": float(stat("collide")) * k, "crash": float(stat("crash")) * k, "gather": float(stat("gather")), "max_collide": int(stat("max_collide"))})
+		{"collide": float(stat("collide")) * k, "crash": float(stat("crash")) * k, "gather": float(stat("gather")), "max_collide": int(stat("max_collide")),
+			"states": {"soaked": _soak_time()}, "source": self})
 	p.main.sfx("hit_slime", 0.5)
 	p.main.sfx("gust", 0.6)
 
@@ -709,6 +742,30 @@ func _unbreakable(p) -> void:
 	p.main.sfx("parry", 0.5)
 
 
+## How long a water spell soaks what it touches (reactions.gd STATES).
+static func _soak_time() -> float:
+	return float(Reactions.STATES["soaked"]["seconds"])
+
+
+## A water spell soaks the foe; Tempest (Stormcaller and Tidecaller): a
+## Tidecaller's wave (`wave`) charges it as well.
+func _soak(main, e, wave := false) -> void:
+	if e == null or not is_instance_valid(e) or e.dead:
+		return
+	Reactions.apply(main, e, "soaked", _soak_time(), self)
+	if wave and Pacts.has(main.player, "tempest") and is_instance_valid(e) and not e.dead:
+		Reactions.apply(main, e, "charged", Pacts.num("tempest", "charged"), "tempest")
+
+
+## A Deepcaller's drain on one foe: its damage, doubled by Hemorrhage (a
+## bleeding foe: reactions.gd).
+func _drained(main, e) -> float:
+	var dmg := damage()
+	if "hemorrhage" in Reactions.apply(main, e, "drained", 0.0, self):
+		dmg *= Reactions.num("hemorrhage", "mult")
+	return dmg
+
+
 ## The foes nearest you, up to `count`, within `reach`.
 func _nearest(p, count: int, reach: float) -> Array:
 	var list: Array = p.main.targets().filter(func(e): return e.global_position.distance_to(p.global_position) < reach)
@@ -724,10 +781,18 @@ func _drain(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -34), "no one in reach", color())
 		return
 	var total := 0.0
+	var extra := 0.0  # Bloodletter: what bleeding foes give back again
 	for e in foes:
 		main.fx_bolt([e.global_position, p.global_position], color())
-		e.take_hit(damage(), Vector2.ZERO)
-		total += damage()
+		var dmg := _drained(main, e)
+		var bled: bool = Reactions.has(e, "bleeding")
+		if is_instance_valid(e) and not e.dead:
+			e.take_hit(dmg, Vector2.ZERO)
+			_soak(main, e)
+		total += dmg
+		if bled and Pacts.has(p, "bloodletter"):
+			extra += dmg * (Pacts.num("bloodletter", "heal") - 1.0)
+	total += extra
 	var heal: float = total * float(stat("heal")) * (1.5 if p.main.tower_data()["essence"] == "water" else 1.0) * p.heal_mult()
 	p.hp = minf(p.max_health(), p.hp + heal)
 	main.fx_text(p.global_position + Vector2(0, -40), "+%d" % int(heal), Color(0.5, 1.0, 0.6))
@@ -744,6 +809,7 @@ func _anchor(p) -> void:
 		return
 	p.anchor_target = target
 	p.anchor_t = stat("duration")
+	_soak(p.main, target)
 	p.anchor_len = stat("length")
 	p.main.sfx("equip_sword", 0.6, -2.0)
 
@@ -757,7 +823,9 @@ func _siphon(p) -> void:
 		return
 	for e in foes:
 		main.fx_bolt([e.global_position, p.global_position], Color(0.6, 0.85, 1.0))
-		e.take_hit(damage(), Vector2.ZERO)
+		var dmg := _drained(main, e)
+		if is_instance_valid(e) and not e.dead:
+			e.take_hit(dmg, Vector2.ZERO)
 	for b in p.bonds.values():
 		b.fill(float(stat("refill")) * foes.size())
 	main.fx_text(p.global_position + Vector2(0, -40), "essence drawn", Color(0.6, 0.85, 1.0))
@@ -829,6 +897,10 @@ func _downdraft(p) -> void:
 	var slammed := 0
 	for e in main.targets():
 		if e.airborne <= 0.0 or e.global_position.distance_to(p.global_position) > 420.0:
+			continue
+		Reactions.apply(main, e, "slam", 0.0, self)  # (Crater: slammed out of the air)
+		if not is_instance_valid(e) or e.dead:
+			slammed += 1
 			continue
 		e.airborne = 0.0
 		main.fx_ring(e.global_position, color(), stat("radius"), 0.35, 4.0)
@@ -938,7 +1010,8 @@ func _kindle(p) -> void:
 # A wave of fire thrown forward.
 func _lash(p) -> void:
 	var main = p.main
-	main.add_wave(p.global_position + p.aim * (p.radius + 6.0), p.aim, stat("width"), stat("travel"), damage(), 70.0, false, color())
+	main.add_wave(p.global_position + p.aim * (p.radius + 6.0), p.aim, stat("width"), stat("travel"), damage(), 70.0, false, color(),
+		{"states": {"burning": float(Reactions.STATES["burning"]["seconds"])}, "source": self, "amount": maxf(1.0, damage() * 0.2)})
 	main.sfx("swing_heavy", 1.1)
 	main.sfx("burn", 1.0, -4.0)
 	main.light_flash(p.global_position + p.aim * 40.0, color(), 1.4, 1.4, 0.3)
@@ -965,6 +1038,8 @@ func _overheat(p) -> void:
 		var to: Vector2 = e.global_position - p.global_position
 		if to.length() <= reach + e.radius and absf(p.aim.angle_to(to)) <= deg_to_rad(65.0):
 			e.take_hit(dmg, to.normalized(), 260.0, true)
+			if not e.dead:
+				Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), self)
 			hits += 1
 	p.heat = 0.0
 	main.fx_cone(p.global_position, p.aim, reach + 10.0, deg_to_rad(65.0), color())
@@ -1035,9 +1110,11 @@ func _quake(p) -> void:
 	for e in main.targets():
 		var to: Vector2 = e.global_position - p.global_position
 		if to.length() < r + e.radius:
-			e.take_hit(damage(), to.normalized(), 160.0, true)
+			e.take_hit(damage(), to.normalized(), 160.0, true)  # (a heavy blow: a foe in the air is slammed, Crater)
 			if not e.dead and not e.is_boss():
 				e.stagger(0.4)
+				if Pacts.has(p, "dust_devil"):  # Dust Devil (Windwalker and Sandshaper): it's thrown up
+					e.lift(Pacts.num("dust_devil", "lift"))
 	main.rubble.append({"pos": p.global_position, "r": r, "t": 4.0})
 	if bool(stat("ring")):
 		var ring: Array = []
@@ -1166,6 +1243,8 @@ func _veil(p) -> void:
 		for e in main.targets():
 			if e.global_position.distance_to(sm["pos"]) < sm["r"] + e.radius:
 				e.take_hit(damage(), (e.global_position - sm["pos"]).normalized(), 120.0, true)
+				if not e.dead:
+					Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), self)
 		main.fx_ring(sm["pos"], Color(1.0, 0.5, 0.2), sm["r"], 0.4, 6.0)
 		main.fx_burst(sm["pos"], Vector2.ZERO, Color(1.0, 0.55, 0.2), 24, 260.0)
 		main.light_flash(sm["pos"], Color(1.0, 0.5, 0.2), 2.0, 2.0, 0.4)
@@ -1252,6 +1331,8 @@ func _wingburst(p) -> void:
 		var to: Vector2 = e.global_position - p.global_position
 		if to.length() < r + e.radius:
 			e.take_hit(dmg, to.normalized(), 220.0, true)
+			if not e.dead:
+				Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), self)
 	p.aura_heat = 0.0
 	main.fx_ring(p.global_position, color(), r, 0.4, 6.0)
 	main.fx_burst(p.global_position, Vector2.ZERO, color(), 26, 340.0)
@@ -1538,6 +1619,18 @@ func _sever(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -40), "no one in reach", color())
 		return
 	t.take_hit(damage(), (t.global_position - p.global_position).normalized(), 60.0)
+	if t.dead:
+		main.sfx("swing", 1.6)
+		return
+	# The cut bleeds (reactions.gd), and slows it while it's crippled;
+	# Toxic Precision (Venomist and Surgeon) adds poison.
+	Reactions.apply(main, t, "bleeding", float(stat("duration")), self, maxf(1.0, damage() * 0.15))
+	Reactions.apply(main, t, "slowed", float(stat("duration")), self)
+	if Pacts.has(p, "toxic_precision") and not t.dead:
+		t.add_venom(int(Pacts.num("toxic_precision", "stacks")))
+	if t.dead:
+		main.sfx("swing", 1.6)
+		return
 	if bool(stat("disarm")) and t.cripple_t > 0.0:
 		t.disarm_t = stat("duration")
 		main.release_attack(t)

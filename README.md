@@ -704,6 +704,44 @@ Every kill also yields 1.5 essence of the tower's own kind, so the tower you cho
 - **Overdraw:** casting without enough essence still works, but the cast is weaker (70%) and the body part **burns**. Overdraw a burned mark again and it **tears**: the missing essence comes out of your health, so spamming spells can kill you.
 - **Burns** last until the next stair: hand strikes weaker, legs rolls costlier, heart caps your health lower, brow shortens your parry window, throat slows stamina recovery, back loses the backstab bonus.
 
+## States, reactions and named pacts
+
+Marks work together. Spells leave **states** on a foe, two states that meet set off a **reaction**, and two marks that answer each other form a **named pact**. Every name, line, colour and number is in data, in the Data editor's **States, reactions and pacts** sections (words, numbers and colours): `scripts/reactions.gd` (`STATES`, `REACTIONS`, `RULES`, `CLIMBER`) and `scripts/pacts.gd` (`PACTS`, `GRAFT_POWER`, `TEXT`).
+
+**States.** A foe can be **charged**, **airborne**, **soaked**, **burning**, **poisoned**, **bleeding**, **slowed** or **unseen** (it has lost track of you: smoke, a decoy, Vanish, Ashfall, Steam, Mist). They live in one place, the foe's `states` dictionary (`enemy.gd`): state to seconds left. The foe's older fields are that same dictionary under their old names (`charged`, `airborne`, `burn_t`, `venom_t`, `chill_t`, `lost_t`), so everything that already charged, lifted, burned, poisoned, slowed or blinded a foe gives it the state too: Stormcaller's lightning and Static arcs, Gale Lift and the cyclones, venom, of Embers and burning ground, a Coral Trident's chill, Ashwalker's smoke and decoys. New: **soaked** (Tidecaller's waves, Riptide, Carry, the Maelstrom, Flood, Geysers, Tidebreak's waves, Deepcaller's Undertow, Anchor, Leech and Drown, the Unbound's Water and its Chill, Current and Mist, and any foe standing in a pool) and a general **bleeding** (`enemy.gd bleed(dps, seconds)`: Surgeon's Sever and Bloodletting, the Unbound's Blade, Rend and Answer, Dust Devil's shards). Fire burns (Fireball, Cluster, Meteor, Firewall and every burning floor, Fire Lash, Overheat, Wingburst, the Heat Aura, an ignited Smoke Veil, a kindled weapon). A heavy blow on a foe in the air is a **slam** (Quake, Downdraft, a finisher, an explosion), and a Deepcaller's drains and a Lifeline are a **drain**: moments, not states. Each state shows as a small badge over the foe's head, a glyph of its own in its colour (a bolt, an arrow up, a drop, a flame, bubbles, a red drop, a snowflake; it blinks as it runs out), with drips, flames or blood on the body; unseen keeps its "?".
+
+**Reactions.** When a state lands on a foe that holds the other of a pair, the reaction fires once (then waits its `again` seconds on that foe) and its word rises over the foe:
+
+| States that meet | Reaction | What happens |
+| --- | --- | --- |
+| soaked + charged | Conduct | lightning jumps to every soaked foe within 140; each is struck, stunned 1 s and dries off |
+| soaked + burning | Steam | a cloud where it stood; foes inside lose track of you (both states go) |
+| burning + poisoned | Fumes | the poison spreads to the foes beside it as burning gas (half its stacks, and burning) |
+| airborne + slam | Crater | slammed out of the air: a big hit, and the foes around it are struck and knocked down |
+| airborne + charged | Skybolt | a bolt from above strikes it, and it falls |
+| bleeding + drained | Hemorrhage | the drain is doubled |
+| slowed + burning | Smoulder | the burn lasts twice as long |
+| unseen + poisoned | Ambush | your first poison on a foe that has lost track of you: 5 more stacks (smoke on a foe already poisoned is no ambush) |
+
+Reaction damage grows 15% for each step of your strongest mark past the first (`RULES per_step`); a chain of reactions setting each other off through a crowd stops after 4 (`RULES depth`). Reactions fire on monsters only. Whether monsters can give *you* states is still the owner's question: it is built but **off** (`CLIMBER "enabled"` false: nothing lands on the climber). Switched on in the Data editor, each monster kind in `CLIMBER "from"` would leave its state on a blow, and a reaction on you would hurt.
+
+**Named pacts.** A pact holds while you carry both of its marks, wherever they sit; the first time it forms it is announced (its name over you, and the Entity's tip) and remembered (`profile.gd pacts_formed`, an old save has none). Your book's **Marks** section lists the pacts you hold; the **Library** has a shelf of those you've formed (the rest as ???).
+
+| Pact | Marks | What it does |
+| --- | --- | --- |
+| Tempest | Stormcaller + Tidecaller | your waves leave foes charged as well as soaked (so they Conduct) |
+| Dust Devil | Windwalker + Sandshaper | Quake throws foes up; Gale Lift leaves shards that cut and bleed what walks over them |
+| Whirling Steel | Blade Forger + Windwalker | conjured blades lift light foes |
+| Forge Runes | Flameblade + Rune Artist | kindled strikes leave small fire runes (they arm after a moment and burn what sets them off) |
+| Wildfire | Flame Contractor + Flamewing | burning ground anywhere feeds the aura's heat |
+| Undying | Warden + Rekindler | Last Ember also raises a barrier |
+| Bloodletter | Deepcaller + Surgeon | draining a bleeding foe heals double |
+| Ambusher | Hunter + Ashwalker | unseen shots always strike a weak point |
+| Toxic Precision | Venomist + Surgeon | Sever adds 3 poison stacks |
+| Menagerie | Covenant + Grafter | your creatures carry your newest graft's power (hand: harder blows, legs: faster, heart: they mend, brow: blows stagger, throat: blows splash, back: blows poison) |
+
+Tests: `tests/parts/reactions.gd` (every reaction from real casts, each pact, the Unbound's states, old saves, the climber switch staying off, the book and the Library).
+
 ## Secret essences: Life and Unmaking
 
 Two essences aren't like the six (`scripts/secret.gd`, where every word and number lives). **Ordinary monsters never leave them: only great foes do.** A tower's beast leaves mostly Life and some Unmaking; the Proving's shadow of the beast the same split, but less; a champion (a sealed wing's, or the Proving's sentinel) a little of one or the other, by tower (Life from the Kraken's, Manticore's and Firebird's towers, Unmaking from the Gryphon's, Wyvern's and Chimera's). A mirror image of the climber (see **Mirror images**) leaves mostly Unmaking and some Life. Amounts grow with the floor like other essence. None drop on the bondless first climb. They rise from the foe as big glowing motes in their colour (Life green, Unmaking violet) and fly to you. They aren't currency: the crystals, the store, the bench and density never list them.
@@ -857,6 +895,8 @@ and the code that runs them:
 - `static func cast_spell(bond, sp: Dictionary, p) -> bool`: runs your spell types (`sp["type"]`, unique in the game); true if handled. Use the bond's helpers as `bond.gd`'s own spells do: `bond.stat(key)`, `bond.damage()`, `bond.color()`, `bond.spell_power(sp)`, and the player `p` (`p.main`, `p.aim`, `p.global_position`).
 - `static func cast_variation(bond, sp, p, alt) -> bool` (optional): your own way to run a step-3 variation (call `bond._cast_type(p)` for the spell itself). Return false and the library runs it generically: Split, Mirrored, Echo and Delayed cast the spell again at their power; Wide, Long, Quick, Charged and Chain change its numbers (`library.gd mark_stat`).
 - Things that stay a while (orbs, fields, timed casts) go through `scripts/spell_fx.gd`: `later(main, seconds, fn)`, `field(main, pos, radius, seconds, tick, col, fn)`, `orb(main, pos, vel, seconds, radius, col, fn)`, `mark(main, pos, seconds, col)`; and anything with its own drawing, `lasting(main, seconds, tick, paint, data)` (a small node: `tick(n, delta)`, `paint(n)` with `n.draw_*`, `n.fade()`, `n.finish()`) or `item(main, seconds, tick, paint, high)` (a dictionary painted into a `draw_util.gd` Batch). A new floor clears them all.
+- **States and reactions** (`scripts/reactions.gd`; see **States, reactions and named pacts**): `Reactions.apply(main, foe, state, seconds, source, amount := 0.0)` gives a foe a state (`"charged"`, `"airborne"`, `"soaked"`, `"burning"`, `"poisoned"`, `"bleeding"`, `"slowed"`, `"unseen"`) or a moment (`"slam"`, `"drained"`) and returns the ids of the reactions it set off (`[]` if none); `amount` is burning or bleeding damage each half second or poison stacks (0: the state's own; -1: only the state, when your spell does its own damage). `Reactions.has(foe, state)`, `Reactions.left(foe, state)`, `Reactions.held(foe)`, `Reactions.clear(foe, state)`, `Reactions.num(id, key)`. Listen with `main.on_reaction(foe, id, source)` (or a foe's `on_reaction`), or `static func on_reaction(p, info)` in your file (`info`: id, foe, at, source, the states it held). A foe's old fields still work and still react: `e.charged = 4.0`, `e.ignite(dmg, s)`, `e.add_venom(n)`, `e.lift(s)`, `e.lose_track(s, null)`, `e.chill_t = s`, and the new `e.soak(s)`, `e.bleed(dps, s)`. A new state or reaction is a row in `STATES` or `REACTIONS` (and its effect in `reactions.gd _fire`). Give every spell the states it should leave, so reactions happen without anyone planning them.
+- **Named pacts** (`scripts/pacts.gd`): `Pacts.has(p, id)`, `Pacts.held(p)`, `Pacts.num(id, key)`; a new pact is a row in `PACTS` (its two `bonds`, name, line, colour, numbers) and a `Pacts.has(...)` check where it acts. The file's header lists where each one acts.
 - Hooks to listen to instead of watching numbers: `static func on_cast(p, cast)` in your file hears every cast (a technique's or a mark's spell: `Library.on_cast`); a foe's `on_hit(foe, dmg, source)` signal (and `main.on_hit` for any foe) when it loses health; the climber's `on_parry(source, perfect)`; `spell_fx.gd listen(node, signal, fn)` listens while your lasting node lives. To soften or harden a foe's blows, scale its `dmg_mult`, never `dmg`.
 
 **New Unbound forms** (`unbound_forms.gd`: `static var FORMS`, as in `library.gd FORMS`, with `"part"`, `"class"`, `"says"`, numbers, `"strain"` and `"opens"` = the level) run in `static func cast_form(id, t, p, power, run, sh, w) -> int` (return the foes touched, -1 if it isn't yours; `sh` is the form's numbers with any variation applied, `w` the essences' weights; `Technique.hit(p, e, dmg, dir, w, power, run)` strikes a foe with every essence's effect, `run.add_bolt(...)` throws a bolt). Where a form opens is `TREE` in the same file. **New effects** (`unbound_effects.gd`: `static var EFFECTS`, with `"kind"`, `"name"`, `"says"`, a phrase for each class of form, numbers and `"opens"` = essence pooled) run in `static func hit_effect(id, p, e, share, power, run) -> bool` on a struck foe and `static func self_effect(id, p, share, power, run, cls) -> bool` on yourself (`cls` "self" for Within, "shell" for a Shell rising). Remove `"placeholder": true` once a piece is written. **Echoes** go in any file's `static var ECHOES`; what an echo adds in play is `unbound_effects.gd ECHO_ACTS` (by the spell's id).
@@ -1053,6 +1093,8 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/appearance_page.gd` | The appearance editor: the new climber's creation page and Appearance later (the live preview, the tabs and option rows, the name, Randomise, Begin / Done) |
 | `scripts/bond.gd` | A bond: essence, steps, burning, and the spell code |
 | `scripts/bonds.gd` | Bond definitions: spells and what each step changes |
+| `scripts/reactions.gd` | States on foes and the reactions when two meet: every name, number and colour, the API spells use (`apply`, `has`), the reactions' effects and words, and the climber side (off) |
+| `scripts/pacts.gd` | Named pacts (two marks that answer each other): their table, `has`/`held`, the first-time announcement, Menagerie's graft powers |
 | `scripts/essence.gd` | Essence kinds and what each monster drops |
 | `scripts/secret_bonds.gd` | The three secret bonds: who holds which (the profile's `core_mark`, `core_depth`), every tool and its cost, depth growth, Tune, the plan's room kinds, monsters' next attacks, and all their words |
 | `scripts/secret_tools.gd` | The secret bonds in play: the tool ring, using and paying for tools, the Designer's plan and readouts, the Manipulator's readouts, calm and feuds, and the wireframe look |

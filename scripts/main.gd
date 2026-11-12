@@ -52,6 +52,8 @@ const ArenaScript := preload("res://scripts/arena.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
+const Reactions := preload("res://scripts/reactions.gd")
+const Pacts := preload("res://scripts/pacts.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 const UI := preload("res://scripts/ui.gd")
 const Reach := preload("res://scripts/reach.gd")
@@ -75,6 +77,9 @@ const OPEN_ROOM := Rect2(80, 100, 1120, 530)
 ## Any foe lost health (enemy.gd on_hit, sent for every foe): for spells
 ## and other content that care about "a foe was hit".
 signal on_hit(foe, dmg: float, source: String)
+## A reaction fired on a foe (reactions.gd): two states met. Marks and other
+## content listen here (enemy.gd on_reaction for one foe).
+signal on_reaction(foe, reaction: String, source)
 
 ## The owner's changes to the game's words, numbers and colours (the Data
 ## editor: data_registry.gd), applied first, before anything reads the tables.
@@ -875,6 +880,7 @@ func _update_spell_fields(delta: float) -> void:
 				e.knock = to.normalized() * minf(to.length() * 4.0, 260.0)
 				if hurt:
 					e.take_hit(m["damage"], Vector2.ZERO, 0.0)
+					Reactions.apply(self, e, "soaked", float(Reactions.STATES["soaked"]["seconds"]), "maelstrom")
 	maelstroms = maelstroms.filter(func(m): return m["t"] > 0.0)
 	for r in rains:
 		r["t"] -= delta
@@ -2438,6 +2444,7 @@ func _give_bonds() -> void:
 	player.refresh_gear()
 	if unbound != null:
 		unbound.give()  # (the Unbound carry techniques in the marks' places)
+	Pacts.announce(self)  # (two marks that answer each other: a named pact, announced the first time)
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -3339,6 +3346,7 @@ func _update_waves(delta: float) -> void:
 				if not (e in w["hit"]):
 					w["hit"].append(e)
 					e.take_hit(w["dmg"], dir, 0.0)
+					_wave_states(e, w)
 					if not is_instance_valid(e) or e.dead:
 						continue
 				var lateral := rel.dot(side)
@@ -3350,6 +3358,7 @@ func _update_waves(delta: float) -> void:
 				w["hit"].append(e)
 				e.tide_push(dir * w["push"])
 				e.take_hit(w["dmg"], dir, w["push"])
+				_wave_states(e, w)
 		if w["carry"]:
 			_carried_collide(w)
 		if not room.grow(-10.0).has_point(w["pos"]) or w["left"] <= 0.0:
@@ -3363,6 +3372,19 @@ func _update_waves(delta: float) -> void:
 							_break_against_wall(e, w)
 			w["left"] = -1.0
 	waves = waves.filter(func(w): return w["left"] > 0.0)
+
+
+## What a wave leaves on each foe it meets (its "states": {state: seconds},
+## reactions.gd). Tempest (Stormcaller and Tidecaller): a soaking wave
+## charges them as well.
+func _wave_states(e, w: Dictionary) -> void:
+	var sts: Dictionary = w.get("states", {})
+	if sts.is_empty() or not is_instance_valid(e) or e.dead:
+		return
+	for st in sts:
+		Reactions.apply(self, e, String(st), float(sts[st]), w.get("source"), float(w.get("amount", 0.0)))
+	if sts.has("soaked") and Pacts.has(player, "tempest") and is_instance_valid(e) and not e.dead:
+		Reactions.apply(self, e, "charged", Pacts.num("tempest", "charged"), "tempest")
 
 
 ## Carry: foes the wave holds that touch both take its collision hit (each
@@ -3430,9 +3452,12 @@ func _update_runes(delta: float) -> void:
 				e.knock = out * 140.0
 	for r in runes:
 		r["t"] -= delta
+		r["arm"] = float(r.get("arm", 0.0)) - delta  # (a Forge Rune arms a moment after it's left)
 	runes = runes.filter(func(r): return r["t"] > 0.0)
 	var fired := false
 	for r in runes:
+		if float(r["arm"]) > 0.0:
+			continue
 		for e in targets():
 			if e.global_position.distance_to(r["pos"]) < r["r"] + e.radius:
 				fired = true
@@ -3454,6 +3479,8 @@ func _detonate_rune(r: Dictionary) -> void:
 			e.take_hit(r["damage"], to.normalized(), 180.0, true)
 			if not e.dead:
 				e.stagger(0.6)
+			if not e.dead and r.has("burn"):  # (a Forge Rune: fire)
+				Reactions.apply(self, e, "burning", float(r.get("burn_t", 3.0)), "forge rune", float(r["burn"]))
 	fx_ring(r["pos"], r["color"], r["blast"], 0.35, 5.0)
 	fx_burst(r["pos"], Vector2.ZERO, r["color"], 14, 260.0)
 	light_flash(r["pos"], r["color"], 1.3, 1.4, 0.3)
@@ -3601,6 +3628,11 @@ func _update_flames(delta: float) -> void:
 					if e.global_position.distance_to(f["pos"]) < f["r"] + e.radius:
 						e.take_hit(3.0, Vector2.ZERO, 0.0)
 						_kindled(e)
+						if not e.dead:
+							Reactions.apply(self, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "fire ground")
+						# Wildfire (Flame Contractor and Flamewing): burning ground feeds the aura's heat.
+						if player != null and player.aura_part != "" and Pacts.has(player, "wildfire"):
+							player.aura_heat = minf(60.0, player.aura_heat + Pacts.num("wildfire", "heat"))
 	flames = flames.filter(func(f): return f["t"] > 0.0)
 	# Meteors land.
 	for m in meteors:
@@ -3656,6 +3688,8 @@ func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 		if to.length() < r + e.radius:
 			e.take_hit(dmg, to.normalized() if to.length() > 0.1 else Vector2.ZERO, 200.0, true)
 			_kindled(e)
+			if not e.dead:
+				Reactions.apply(self, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "fire")
 	fx_ring(pos, color, r, 0.35, 6.0)
 	fx_burst(pos, Vector2.ZERO, color, 18, 300.0)
 	light_flash(pos, color, 1.0 + r / 60.0, 2.0, 0.35)

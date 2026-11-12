@@ -31,6 +31,7 @@ const Library := preload("res://scripts/library.gd")
 const SpellFx := preload("res://scripts/spell_fx.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Reactions := preload("res://scripts/reactions.gd")
 
 ## Each part's shapes, in the order the builder cycles them.
 const PART_SHAPES := {
@@ -615,6 +616,8 @@ static func _hit_base(p, e, dmg: float, dir: Vector2, w: Dictionary, power: floa
 		e.ignite(float(KINDS["fire"]["burn"]) * float(w["fire"]) * power, float(KINDS["fire"]["burn_t"]))
 	if w.has("water"):
 		e.chill_t = maxf(e.chill_t, float(KINDS["water"]["slow"]) * float(w["water"]))
+		if is_instance_valid(e) and not e.dead:
+			e.soak(float(Reactions.STATES["soaked"]["seconds"]) * minf(1.0, 0.5 + 0.5 * float(w["water"])))  # (water soaks: reactions.gd)
 	if w.has("stone"):
 		e.stagger(float(KINDS["stone"]["stagger"]) * float(w["stone"]))
 	if w.has("iron") and not e.is_boss():
@@ -622,7 +625,7 @@ static func _hit_base(p, e, dmg: float, dir: Vector2, w: Dictionary, power: floa
 		if to_me.length() > p.radius + e.radius + 8.0:
 			e.knock = to_me.normalized() * float(KINDS["iron"]["drag"]) * float(w["iron"])
 	if w.has("blade"):
-		run.add_dot(e, float(KINDS["blade"]["bleed"]) * float(w["blade"]) * power, 3.0, color("blade"))
+		run.add_dot(e, float(KINDS["blade"]["bleed"]) * float(w["blade"]) * power, 3.0, color("blade"), "bleeding")
 	if w.has("unmaking"):
 		run.add_dot(e, float(KINDS["unmaking"]["erode"]) * float(w["unmaking"]) * power, 4.0, color("unmaking"))
 	if w.has("life"):

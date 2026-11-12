@@ -1545,6 +1545,8 @@ func _library(root: Node) -> void:
 		m._maker_shelves(mode, ps, 1)
 	else:
 		m.archive_group(shelf, mode, ps, 1 if small else 2)
+		if shelf == "essence":
+			m.pact_shelf(1 if small else 2)  # (the named pacts you've formed: pacts.gd)
 	m._gap(4)
 	m.archive_tools()
 	m.box = keep
