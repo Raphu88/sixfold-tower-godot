@@ -107,6 +107,11 @@ const SFX := {
 	"warn_lurker": ["res://assets/audio/sfx/warn_lurker_0.wav"],
 	"hurt_lurker": ["res://assets/audio/sfx/hurt_lurker_0.wav", "res://assets/audio/sfx/hurt_lurker_1.wav"],
 	"kill_lurker": ["res://assets/audio/sfx/kill_lurker_0.wav"],
+	# The towers' own creatures borrow their cousins' voices (scripts/towers/).
+	"hurt_deepfin": ["res://assets/audio/sfx/hurt_lurker_0.wav", "res://assets/audio/sfx/hurt_lurker_1.wav"],
+	"kill_deepfin": ["res://assets/audio/sfx/kill_lurker_0.wav"],
+	"hurt_harrier": ["res://assets/audio/sfx/hurt_bat_0.wav", "res://assets/audio/sfx/hurt_bat_1.wav"],
+	"kill_harrier": ["res://assets/audio/sfx/kill_bat_0.wav"],
 	"warn_shellback": ["res://assets/audio/sfx/warn_shellback_0.wav"],
 	"hurt_shellback": ["res://assets/audio/sfx/hurt_shellback_0.wav", "res://assets/audio/sfx/hurt_shellback_1.wav"],
 	"kill_shellback": ["res://assets/audio/sfx/kill_shellback_0.wav"],

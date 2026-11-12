@@ -26,8 +26,8 @@ static var TOWERS := {
 		"short": "Gryphon",
 		"beast": "the Gryphon",
 		"essence": "air",
-		"blurb": "Wind-swept halls of archers, bats and thunderlings. The Gryphon waits at the top.",
-		"weights": {"archer": 1.3, "bat": 1.4, "thunderling": 0.8, "slime": 0.3, "knight": 0.3},
+		"blurb": "Open halls over long drops, swept by the wind: archers, bats, harriers and thunderlings. The Gryphon waits at the top.",
+		"weights": {"archer": 1.1, "bat": 1.2, "thunderling": 0.8, "harrier": 0.9, "slime": 0.3, "knight": 0.3},
 		"first": ["archer", "bat", "bat", "archer"],
 		"summit": SUMMIT,  # the floor where the beast is fought
 		"beast_kind": "gryphon",
@@ -43,9 +43,9 @@ static var TOWERS := {
 		"short": "Kraken",
 		"beast": "the Kraken",
 		"essence": "water",
-		"blurb": "Flooded halls of slimes, lurkers and shellbacks. Water slows you. The Kraken waits at the top.",
+		"blurb": "Flooded halls where the water rises and drains: slimes, lurkers, shellbacks and deepfins. The Kraken waits at the top.",
 		"puddles": true,
-		"weights": {"slime": 1.3, "lurker": 1.1, "shellback": 0.8, "archer": 0.4, "knight": 0.3},
+		"weights": {"slime": 1.2, "lurker": 1.0, "shellback": 0.8, "deepfin": 0.9, "archer": 0.4, "knight": 0.3},
 		"first": ["knight", "slime", "lurker", "slime"],
 		"summit": SUMMIT,
 		"beast_kind": "kraken",
@@ -61,13 +61,13 @@ static var TOWERS := {
 		"short": "Wyvern",
 		"beast": "the Wyvern",
 		"essence": "iron",
-		"blurb": "A hot forge-tower of knights, cinders and smiths. The hardest climb. The Wyvern waits at the top.",
-		"weights": {"knight": 1.2, "cinder": 1.2, "smith": 1.0, "archer": 0.3, "slime": 0.2},
+		"blurb": "A forge of workshop halls and molten channels: cross by the bridges, mind the heat. Knights, cinders, smiths and forge golems. The hardest climb. The Wyvern waits at the top.",
+		"weights": {"knight": 1.2, "cinder": 1.2, "smith": 1.0, "golem": 0.7, "archer": 0.3, "slime": 0.2},
 		"first": ["knight", "cinder", "smith", "cinder"],
 		"summit": SUMMIT,
 		"beast_kind": "wyvern",
 		"gauntlet": "furnace", "sentinel": "smith", "sentinel_adds": "cinder",  # the Proving (floor 6, proving.gd)
-		"shapes": ["pillars", "rect", "pillars", "ell"],  # carved room shapes (rooms.gd); a repeat makes one likelier
+		"shapes": ["hall", "workshop", "rect", "hall"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its fire breath can't be parried: roll or step aside.",
 		"stone": Color(1.0, 0.86, 0.8),
 		"ambient": Color(0.52, 0.42, 0.42),
@@ -78,13 +78,13 @@ static var TOWERS := {
 		"short": "Manticore",
 		"beast": "the Manticore",
 		"essence": "stone",
-		"blurb": "Sun-baked sandstone halls of scorplings and charging rams. Stings poison. The Manticore waits at the top.",
-		"weights": {"scorpling": 1.4, "ram": 0.9, "archer": 0.6, "knight": 0.3, "slime": 0.2},
+		"blurb": "Sun-baked courtyards and shaded alleys over shifting sand. The sun gives you away; shade hides you. Scorplings, rams and burrowers. The Manticore waits at the top.",
+		"weights": {"scorpling": 1.4, "ram": 0.9, "burrower": 0.8, "archer": 0.6, "knight": 0.3, "slime": 0.2},
 		"first": ["scorpling", "archer", "ram", "scorpling"],
 		"summit": SUMMIT,
 		"beast_kind": "manticore",
 		"gauntlet": "spikes", "sentinel": "ram", "sentinel_adds": "scorpling",  # the Proving (floor 6, proving.gd)
-		"shapes": ["ell", "rect", "ell", "cross"],  # carved room shapes (rooms.gd); a repeat makes one likelier
+		"shapes": ["court", "colonnade", "rect", "court"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its roar can't be parried: roll through it.",
 		"stone": Color(1.0, 0.93, 0.76),
 		"ambient": Color(0.56, 0.5, 0.4),

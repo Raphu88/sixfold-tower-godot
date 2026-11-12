@@ -20,6 +20,22 @@ extends RefCounted
 ##   rest          the chance of a calm rest room
 ##   trader        the chance of a wandering trader, from floor `trader_from`
 ##   kind_first    the first room after the start is a kind one (no danger)
+##   own_shapes    (optional) replaces the tower's favourite shapes (towers.gd)
+##                 for every room but the entrance
+##   room_grow     (optional) tiles added to (or taken from, below 0) each
+##                 carved room's width and height
+##   prefab        how often hand-made rooms turn up, as a share of floors.gd
+##                 PREFAB_CHANCE (a tower that favours its own shapes: less)
+##   corridor      how corridors run: "straight", or the tower's own (its
+##                 module's shape_corridors: "winding", "bridges")
+##   module        (a tower's own) the script that gives the tower its own
+##                 floors, scripts/towers/<tower>_floor.gd, extending
+##                 scripts/towers/tower_floor.gd (the hooks and what each is
+##                 for are there, and in the README's content contract). It
+##                 carves the tower's own room shapes (SHAPE_MODULES below),
+##                 shapes the corridors and the finished plan, places and runs
+##                 the tower's own task kinds and scenario, and runs on the
+##                 live floor as main.tower_floor (its system).
 
 static var STYLES := {
 	"default": {
@@ -32,13 +48,44 @@ static var STYLES := {
 		"rest": 0.25, "trader": 0.3, "trader_from": 3,
 		"kind_first": true,
 	},
-	"gryphon": {"shapes": ["circle", "gallery", "split", "ring"]},
-	"kraken": {"shapes": ["gallery", "split", "cover", "gallery"]},
-	"wyvern": {"shapes": ["ring", "cover", "ring", "gallery"]},
-	"manticore": {"shapes": ["cover", "split", "ring", "cover"]},
+	# Open heights: big halls with ledges and balconies over open voids,
+	# corridors that are bridges over the drop (scripts/towers/gryphon_floor.gd).
+	"gryphon": {"shapes": ["open", "open", "rect", "round", "split"], "own_shapes": ["open", "open", "rect", "round"],
+		"gallery": ["open", "rect", "round"], "room_grow": 0, "prefab": 0.35, "corridor": "bridges", "module": "res://scripts/towers/gryphon_floor.gd"},
+	# Flooded: round and oval rooms, winding corridors, pools, and water that
+	# rises and drains (scripts/towers/kraken_floor.gd).
+	"kraken": {"shapes": ["circle", "circle", "ring", "round"], "own_shapes": ["circle", "circle", "round"],
+		"gallery": ["circle", "ring", "circle"], "room_grow": -1, "prefab": 0.3, "corridor": "winding", "module": "res://scripts/towers/kraken_floor.gd"},
+	# The Wyvern's forge: long workshop halls in a grid, cut by molten
+	# channels (more ways between rooms: a grid, not a tree).
+	"wyvern": {"shapes": ["workshop", "hall", "workshop", "forgehall"], "gallery": ["forgehall", "workshop", "hall"],
+		"loops": [2, 3], "loops_high": [3, 4], "prefab": 0.35, "module": "res://scripts/towers/wyvern_floor.gd"},
+	# The Manticore's sandstone: courtyards open to the sky, colonnades, and
+	# low-walled alleys between them.
+	"manticore": {"shapes": ["court", "alleys", "colonnade", "court"], "gallery": ["court", "colonnade", "court"],
+		"loops": [2, 3], "prefab": 0.35, "module": "res://scripts/towers/manticore_floor.gd"},
 	"firebird": {"shapes": ["circle", "ring", "split", "circle"]},
 	"chimera": {"shapes": ["cover", "circle", "gallery", "split"]},
 }
+
+## Carved room shapes that belong to a tower's own script (rooms.gd carve
+## hands them over): shape -> the script that carves it.
+const SHAPE_MODULES := {
+	"workshop": "res://scripts/towers/wyvern_floor.gd", "forgehall": "res://scripts/towers/wyvern_floor.gd",
+	"court": "res://scripts/towers/manticore_floor.gd", "alleys": "res://scripts/towers/manticore_floor.gd",
+	"colonnade": "res://scripts/towers/manticore_floor.gd",
+}
+
+
+## The tower's own floor script (its style's "module"), or null.
+static func module_for(tid: String) -> Script:
+	var path := String(STYLES.get(tid, {}).get("module", ""))
+	return load(path) if path != "" else null
+
+
+## The script that carves a tower's own room shape, or null.
+static func shape_module(shape: String) -> Script:
+	return load(SHAPE_MODULES[shape]) if SHAPE_MODULES.has(shape) else null
 
 
 ## A tower's style: its own keys over the default's.
@@ -48,3 +95,4 @@ static func for_tower(tid: String) -> Dictionary:
 	for k in own:
 		out[k] = own[k]
 	return out
+

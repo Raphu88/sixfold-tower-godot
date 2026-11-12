@@ -91,6 +91,15 @@ static var THEMES := {
 		"tint": Color(0.6, 0.85, 0.55, 0.07), "door": "warm", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario"},
 	"scn_gauntlet": {"name": "The Gauntlet", "kind": "scenario", "sub": "Step onto the mark and the doors shut: beat every wave, and be quick.",
 		"tint": Color(0.85, 0.35, 0.3, 0.07), "door": "den", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario", "decor": "bones"},
+	# The towers' own scenarios (scripts/towers/: their floor scripts run them).
+	"scn_forge": {"name": "Hold the Forge", "kind": "scenario", "sub": "Three furnaces, and the forge's foes coming to put them out. Step onto the mark, then keep them lit.",
+		"tint": Color(1.0, 0.5, 0.25, 0.08), "door": "hazard", "sigil": "ember", "min_size": Vector2i(7, 6), "towers": ["wyvern"], "feature": "scenario"},
+	"scn_sinking": {"name": "The Sinking Court", "kind": "scenario", "sub": "The court's floor is ready to give way to sand. Step onto the mark, then keep to the stones to the far gate.",
+		"tint": Color(1.0, 0.85, 0.5, 0.08), "door": "hazard", "sigil": "spike", "min_size": Vector2i(8, 6), "towers": ["manticore"], "feature": "scenario"},
+	"scn_flood": {"name": "The Filling Room", "kind": "scenario", "sub": "A drain wheel, rusted shut. Step onto the mark and the water comes in.",
+		"tint": Color(0.35, 0.65, 0.85, 0.08), "door": "hazard", "sigil": "wave", "min_size": Vector2i(7, 6), "towers": ["kraken"], "feature": "scenario"},
+	"scn_bridge": {"name": "The Long Bridge", "kind": "scenario", "sub": "One bridge over the drop, and the wind howling. Step onto the mark to cross.",
+		"tint": Color(0.75, 0.85, 1.0, 0.07), "door": "hazard", "sigil": "wind", "min_size": Vector2i(8, 7), "towers": ["gryphon"], "feature": "scenario"},
 	# The Proving's rooms (floor 6, proving.gd lays them out and says what each
 	# is as you walk in; its gauntlet is the tower's own trap room). Kind
 	# "proving": never handed out to other floors' rooms.

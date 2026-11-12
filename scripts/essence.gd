@@ -26,9 +26,11 @@ static var DROPS := {
 	"kraken": ["water", 30.0],
 	"cinder": ["fire", 4.0],
 	"smith": ["iron", 6.0],
+	"golem": ["iron", 7.0],  # the forge golem (scripts/towers/forge_golem.gd)
 	"wyvern": ["fire", 30.0],
 	"scorpling": ["stone", 3.0],
 	"ram": ["stone", 6.0],
+	"burrower": ["stone", 5.0],  # the burrower (scripts/towers/burrower.gd)
 	"manticore": ["stone", 30.0],
 	"wisp": ["fire", 3.0],
 	"bloomcap": ["fire", 5.0],
@@ -36,6 +38,8 @@ static var DROPS := {
 	"thornhound": ["blade", 3.0],
 	"mongrel": ["blade", 6.0],
 	"chimera": ["blade", 30.0],
+	"deepfin": ["water", 5.0],  # (the Kraken's tower: scripts/towers/deepfin.gd)
+	"harrier": ["air", 4.0],  # (the Gryphon's tower: scripts/towers/harrier.gd)
 }
 
 

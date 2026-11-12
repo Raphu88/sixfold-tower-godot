@@ -40,7 +40,7 @@ static func flood(size: Vector2i, solid: PackedByteArray, start: Vector2i, doors
 		walkable[i] = 1 if solid[i] == 0 else 0
 	for d in doors:
 		var kind := String(d.get("lock", ""))
-		var locked := kind in ["key", "carried", "lever", "puzzle", "oneway"]
+		var locked := kind in ["key", "carried", "lever", "puzzle", "oneway", "gate"]
 		for t in d["tiles"]:
 			if t.x < 0 or t.y < 0 or t.x >= size.x or t.y >= size.y:
 				continue
@@ -175,6 +175,13 @@ static func plan_grid(plan: Dictionary) -> Dictionary:
 				list.append(Vector2i(x, y))
 		block_tiles.append(list)
 	Rooms.cover_kept(size, solid, block_tiles, from, goals)  # (marks the kept cover solid)
+	# A tower's own ground no one walks (plan["impassable"], from its floor
+	# script: the Kraken's deep pools and flooding corridors, the Gryphon's
+	# drops, the Wyvern's molten channels, bridges left out). What a tower
+	# opens in play (a moat, a gap, a sunken room, a raised bridge) is a gate
+	# instead: plan["gates"], see plan_check.
+	for r in plan.get("impassable", []):
+		_fill(solid, size, Floors.tile_rect(r), 1)
 	for s in plan.get("secrets", []):
 		for r in [s["rect"], s["corridor"]] + ([s["alcove"]] if s.has("alcove") else []):
 			_fill(solid, size, Floors.tile_rect(r), 1)
@@ -258,6 +265,13 @@ static func plan_check(plan: Dictionary) -> Dictionary:
 				opens[lid] = {"all": puzzle_all}
 			"oneway":
 				opens[lid] = {"any": d.get("lock_side", [])}
+	# A tower's own gates (plan["gates"], from its floor script: the Kraken's
+	# moat and sunken rooms, the Gryphon's gap, the Wyvern's raised bridges):
+	# shut until what opens them is reached, like a lever's door.
+	# {tiles, lock_id, opens: {any: [tiles]} (any one reached) or {all: [tiles]}}
+	for gt in plan.get("gates", []):
+		doors.append({"tiles": gt["tiles"], "lock": "gate", "lock_id": int(gt["lock_id"])})
+		opens[int(gt["lock_id"])] = gt["opens"]
 	var start := tile(plan.get("start", Vector2.ZERO))
 	var f := flood(size, solid, start, doors, opens)
 	var reach: PackedByteArray = f["reach"]
@@ -367,6 +381,10 @@ static func live_check(main, from := Vector2.INF) -> Dictionary:
 			if is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion() and e.has_meta("key") and int(e.get_meta("key")) == lid:
 				any.append_array(_near_tiles(e.global_position))
 		opens[lid] = {"all": puzzle_all} if kind == "puzzle" else {"any": any}
+	# The tower's own ground and gates as they are now (main.tower_floor).
+	var own = main.get("tower_floor")
+	if own != null and is_instance_valid(own):
+		own.reach_live(solid, size, doors, opens)
 	var start := tile(main.player.global_position if from == Vector2.INF else from)
 	if not _open_tile(solid, size, start):
 		# (standing in a doorway that's shut, or over a pit: look from a tile beside)

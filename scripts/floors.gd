@@ -15,12 +15,16 @@ static var MONSTERS := {
 	# Tower monsters: only appear where the tower's mix lists them.
 	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
 	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
+	"harrier": {"cost": 1.4, "weight": 1.0, "from": 3, "only": true},  # (dives from the open sky: scripts/towers/harrier.gd)
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
 	"shellback": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
+	"deepfin": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (lives in deep water: scripts/towers/kraken_floor.gd puts it in a pool)
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
 	"smith": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
 	"ram": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
+	"golem": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},  # (the Wyvern's forge golem: scripts/towers/forge_golem.gd)
+	"burrower": {"cost": 1.8, "weight": 1.0, "from": 3, "only": true},  # (the Manticore's burrower: scripts/towers/burrower.gd)
 	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
@@ -325,7 +329,8 @@ static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor
 			if Themes.fits("scn_" + k, infos[i], tid, tower):
 				infos[i]["fixed"] = "scn_" + k
 				infos[i]["no_piece"] = true
-				kinds.erase(k)
+				while k in kinds:
+					kinds.erase(k)  # (every copy: a kind can be listed more than once, scenarios.gd "weight")
 				n_scn -= 1
 				break
 	# A calm rest room and a wandering trader, now and then (in a free room).
@@ -407,6 +412,11 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		for t in link["door"]:
 			_reserve_door(infos[l["c"]], t)
 			_reserve_door(infos[l["p"]], t)  # (clamped into the parent: the tile inside its end)
+	# The tower's own floor (floor_styles.gd "module", scripts/towers/tower_floor.gd):
+	# its corridors (winding, bridges...), then its finished plan, below.
+	var own: Script = Styles.module_for(String(tower.get("beast_kind", ""))) if not style.is_empty() else null
+	if own != null:
+		corridors = own.shape_corridors(infos, links, corridors, walk)
 	walk.append_array(corridors)
 	# The kept cells: sealed wings and secret rooms (see "sealed wings" below).
 	var kept_walk: Array = []
@@ -633,6 +643,10 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
+	# The tower's own floor over the finished plan: water, drops, molten
+	# channels, sand, sun... keeping clear of what matters (it may set ok false).
+	if own != null and ok:
+		own.shape_plan(plan, infos, links, floor_num, tower)
 	return plan
 
 
@@ -822,7 +836,7 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 		var gsize := Vector2i(mini(randi_range(int(gl[0]), int(gl[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(gl[2]), int(gl[3])), Rooms.MAX_SIZE.y))
 		var gshape: String = gshapes[randi() % gshapes.size()]
 		return {"id": "carved_" + gshape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(gshape, gsize)), "size": gsize, "shape": gshape}
-	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)):
+	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)) * float(style.get("prefab", 1.0)):  # (floor_styles.gd "prefab": a tower may favour its own shapes)
 		var fits: Array = Rooms.for_role(prefab_role, floor_num, tower.get("beast_kind", "")).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
 		if role == "gallery" and pz_kind != "":
 			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
@@ -844,10 +858,11 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 	var lim: Array = ROOM_SIZE.get(role, ROOM_SIZE["guard"])
 	var shapes: Array = tower.get("shapes", ["rect", "open", "round"]).duplicate()
 	if role != "entrance":
+		shapes = style.get("own_shapes", shapes).duplicate()  # (floor_styles.gd: a tower's own shapes)
 		shapes.append_array(style.get("shapes", []))  # (floor_styles.gd: the newer shapes)
 	var shape: String = shapes[randi() % shapes.size()]
-	var w := randi_range(int(lim[0]), int(lim[1]))
-	var h := randi_range(int(lim[2]), int(lim[3]))
+	var w := randi_range(int(lim[0]), int(lim[1])) + int(style.get("room_grow", 0))
+	var h := randi_range(int(lim[2]), int(lim[3])) + int(style.get("room_grow", 0))
 	if shape == "hall":
 		w += 2
 		h = maxi(5, h - 2)

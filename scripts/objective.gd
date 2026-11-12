@@ -44,6 +44,7 @@ var redraw_t := 0.0
 var over: Node2D  # the marker over the arrow's target, over the darkness
 var optional_done := false
 var reach_lights: Array = []
+var own_kind := false  # a tower's own kind: main.tower_floor runs it (objectives.gd "module")
 
 
 func _ready() -> void:
@@ -62,6 +63,7 @@ func setup(s: Dictionary) -> void:
 		return
 	spec = s
 	kind = String(s["kind"])
+	own_kind = Objectives.module_of(kind) != null
 	hp_seen = main.player.hp if main.player != null else 0.0
 	if s.get("puzzle", false):
 		return  # (puzzle.gd runs it)
@@ -102,6 +104,7 @@ func clear() -> void:
 	stair_light = -1
 	spec = {}
 	kind = ""
+	own_kind = false
 	done = false
 	pieces.clear()
 	tablet = {}
@@ -154,6 +157,8 @@ func _piece_color() -> Color:
 			return WARD
 		"motes":
 			return Essence.color(main.tower_data().get("essence", "air"))
+		"furnaces":
+			return Color(1.0, 0.6, 0.3)
 	return GOLD
 
 
@@ -312,6 +317,8 @@ func _process(delta: float) -> void:
 func _tick(delta: float, p, hurt: bool) -> void:
 	var k := _k()
 	var pos: Vector2 = p.global_position
+	if own_kind and main.get("tower_floor") != null:
+		main.tower_floor.task_tick(self, delta, p, hurt)  # (the tower's own kind)
 	match kind:
 		"braziers":
 			for pc in pieces:
@@ -510,6 +517,9 @@ func _spawn_near(at: Vector2, dist: float):
 
 ## A melee swing (player.gd): strikes a lever up.
 func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+	if own_kind and not done and main.get("tower_floor") != null:
+		main.tower_floor.task_strike(self, from, dir, reach, arc_deg)  # (the tower's own kind: bellows, sun stones)
+		return
 	if kind != "levers" or done:
 		return
 	for pc in pieces:
@@ -638,6 +648,8 @@ func _draw() -> void:
 		_draw_reliquary(reliquary["pos"], reliquary["taken"], pulse)
 	if kind == "" or spec.get("puzzle", false):
 		return
+	if own_kind:
+		return  # (the tower's own kind draws itself: main.tower_floor)
 	match kind:
 		"braziers":
 			for pc in pieces:

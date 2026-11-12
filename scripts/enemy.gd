@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": ""}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -59,17 +59,21 @@ static var TYPES := {
 	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
 	"gryphon": {"hp": 280.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
+	"harrier": {"hp": 24.0, "speed": 105.0, "radius": 12.0, "color": Color(0.58, 0.5, 0.42), "dmg": 10.0, "weight": 0.9},  # (scripts/towers/harrier.gd)
 	# The Kraken's tower
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
+	"deepfin": {"hp": 34.0, "speed": 120.0, "radius": 13.0, "color": Color(0.22, 0.42, 0.5), "dmg": 13.0, "weight": 1.2},  # (scripts/towers/deepfin.gd)
 	"kraken": {"hp": 316.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
+	"golem": {"hp": 66.0, "speed": 44.0, "radius": 18.0, "color": Color(0.4, 0.36, 0.35), "dmg": 15.0, "weight": 4.5},  # (scripts/towers/forge_golem.gd)
 	"wyvern": {"hp": 298.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
+	"burrower": {"hp": 34.0, "speed": 110.0, "radius": 13.0, "color": Color(0.78, 0.62, 0.38), "dmg": 13.0, "weight": 1.5},  # (scripts/towers/burrower.gd)
 	"manticore": {"hp": 326.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
@@ -88,14 +92,30 @@ const WEAKNESS := {
 	"bat": "parry the swoop", "thunderling": "step out of the ring", "lurker": "strike while it's up",
 	"shellback": "strike from behind", "cinder": "parry the ember back", "smith": "the opening after the hammer",
 	"scorpling": "parry the sting", "ram": "let it charge into a wall", "wisp": "parry the dart",
-	"bloomcap": "it can't move: get close", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
+	"bloomcap": "it can't move: get close", "golem": "quench it, or strike while it cools", "burrower": "lure it onto stone", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
 	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
 	"mirror": "a finisher or a blow from behind breaks its guard",
+	"deepfin": "lightning when it's out of the water", "harrier": "parry the dive on a ledge",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
-const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird"]
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier"]
+## Monsters that swim through deep water (the Kraken's tower), where others can't wade.
+const SWIMMERS := ["lurker", "kraken", "deepfin"]
+## Kinds with a script of their own (a tower's creature): spawn them with make().
+## The script extends this one and overrides what it needs (_act, _draw_own,
+## _overlay_extra, take_hit, on_parried...).
+const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "res://scripts/towers/burrower.gd",
+	"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd"}
+
+
+## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call
+## setup(kind, main) on it as usual.
+static func make(kind: String):
+	return load(String(SUBKINDS.get(kind, "res://scripts/enemy.gd"))).new()
+
+
 ## What each beast calls when it's half dead.
 const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp", "chimera": "thornhound"}
 const BITE_REACH := 70.0  # a thornhound's leap
@@ -383,6 +403,8 @@ func _ready() -> void:
 	collision_mask = 1 | 8  # walls, pillars, and Sandshaper's stone walls
 	if not kind in FLIERS:
 		collision_mask |= 16  # walking monsters can't step into chasms
+		if not kind in SWIMMERS:
+			collision_mask |= 32  # ...nor wade into deep water (scripts/towers/kraken_floor.gd)
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -482,7 +504,8 @@ func _physics_process(delta: float) -> void:
 			sees = main.clear_line(global_position, p.global_position) if aware or dist < 460.0 else false
 		var seen := sees
 		if not aware:
-			if (seen and dist < 460.0) or dist < 110.0:
+			var sk: float = main.sight_k()  # (the Manticore's sun and shade)
+			if (seen and dist < 460.0 * sk) or dist < 110.0 * minf(sk, 1.0):
 				wake()
 			else:
 				# Asleep: nothing to work out; only a shove moves it.
@@ -558,7 +581,7 @@ func _physics_process(delta: float) -> void:
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
-		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken"] or kind in FLIERS)
+		velocity *= main.water_slow(global_position, kind in SWIMMERS or kind in FLIERS)
 	# Wading in water a moment soaks it (fliers and foes in the air stay dry).
 	if not kind in FLIERS and main.in_water(global_position):
 		wade_t += delta
@@ -2127,6 +2150,11 @@ func _act(_delta: float, _dir: Vector2, _dist: float, _p) -> void:
 	velocity = Vector2.ZERO
 
 
+## The body of a kind with a script of its own (SUBKINDS), into the pen.
+func _draw_own(_p, _t: float, _f: Vector2) -> void:
+	pass
+
+
 ## More telegraphs over the darkness, for a kind drawn elsewhere (mirror.gd).
 func _overlay_extra(_o) -> void:
 	pass
@@ -2299,6 +2327,8 @@ func _draw() -> void:
 			_draw_chimera(p, t, f)
 		"familiar":
 			_draw_wisp(p, t, f)
+		_:
+			_draw_own(p, t, f)  # (a kind with a script of its own: SUBKINDS)
 	if shade:
 		_fade_to_shade(p)
 		_fade_to_shade(_glow)
