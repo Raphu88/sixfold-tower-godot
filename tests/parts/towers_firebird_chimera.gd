@@ -434,9 +434,10 @@ func _thornwild_system() -> void:
 	var fresh: Array = ch.pods.filter(func(x): return not x["burst"])
 	var pd2: Dictionary = fresh[0] if not fresh.is_empty() else {"pos": main.player_start, "kind": "calm", "burst": false}
 	pd2["kind"] = "calm"
+	ch.clouds.clear()  # (the poison cloud would sting it awake again)
 	var g = await t._spawn("knight", Vector2(pd2["pos"]) + Vector2(10, 0))
 	ch.burst(pd2)
-	await t._frames(4)
+	await t._wait(0.2)
 	_check(g.calm, "a calming cloud soothes the foes in it")
 	g.queue_free()
 
