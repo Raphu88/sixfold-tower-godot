@@ -407,7 +407,11 @@ func _voids() -> void:
 			break
 		await t._wait(0.05)
 	_check(main.floor_num == fl0 - 1, "stepping off an edge drops you to the floor below (%d -> %d)" % [fl0, main.floor_num])
-	await t._wait(1.2)
+	for i in 100:  # (let the fall finish: the floor below is built at the end of its fade)
+		if not main.climbing and main.fade <= 0.0:
+			break
+		await t._wait(0.05)
+	await t._frames(2)
 
 
 func _vanes() -> void:
@@ -447,7 +451,7 @@ func _harrier() -> void:
 	await t._frames(1)
 	var p = main.player
 	p.global_position = Grid.centre(tf.exposed.keys()[0])
-	var e = main.spawn_enemy("harrier", p.global_position + Vector2(150, -60))
+	var e = main.spawn_enemy("harrier", main.walkable_point(p.global_position, p.global_position + Vector2(140, 0), 14.0))  # (in sight: it dives only at what it sees)
 	e.aware = true
 	e.notice_t = 0.0
 	await t._frames(2)
@@ -457,14 +461,14 @@ func _harrier() -> void:
 	p.iframes = 0.0
 	p.hurt_t = 0.0
 	var hit := false
-	for i in 300:
+	for i in 900:
 		states[e.state] = true
 		if p.hp < p.max_hp:
 			hit = true
 			break
 		e.state_t = minf(e.state_t, 0.3) if e.state == "soar" else e.state_t
 		await t.physics_frame
-	_check(states.has("wind_dive") and states.has("dive"), "it dives at you with a glint (%s)" % [states.keys()])
+	_check(states.has("wind_dive") and states.has("dive"), "it dives at you with a glint (%s; %d px, can attack %s, aware %s, lost %s, state_t %.2f, script %s)" % [states.keys(), int(e.global_position.distance_to(p.global_position)), main.can_attack(), e.aware, e.is_lost(), e.state_t, e.get_script().resource_path])
 	_check(hit and p.knock.length() > 150.0, "its strike throws you the way it flew")
 	# Parried near a drop: it falls.
 	e.global_position = tf._nearest_floor(Grid.centre(tf.voids.keys()[0]))

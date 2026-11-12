@@ -1072,7 +1072,7 @@ func _plan_tests() -> void:
 		# Corridors run between rooms, never through one, and meet them only at their walls.
 		for c in plan["corridors"]:
 			# (a tower with its own corridors, winding or bridged, is checked in its own part: tests/parts/towers_kraken_gryphon.gd)
-			ok_corr = ok_corr and (c.size.x == 80.0 or c.size.y == 80.0 or load("res://scripts/floor_styles.gd").for_tower(tid).has("script"))
+			ok_corr = ok_corr and (c.size.x == 80.0 or c.size.y == 80.0 or load("res://scripts/floor_styles.gd").for_tower(tid).has("module"))
 			for ri in infos:
 				var inner: Rect2 = ri["rect"].grow(-1.0)
 				ok_edges = ok_edges and not inner.intersects(c)
@@ -11428,10 +11428,13 @@ func _secret_deep_tests() -> void:
 	var spot2 := Vector2.ZERO
 	for info in main.room_info:
 		var c2: Vector2 = info["rect"].get_center()
-		p.global_position = c2 + Vector2(-2.5 * Tr.C, 0)
-		p.aim = Vector2.RIGHT
-		if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
-			spot2 = p.global_position
+		for dir2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:  # (from each side of the middle: a tower's pool or drop may fill it)
+			p.global_position = c2 - dir2 * 2.5 * Tr.C
+			p.aim = dir2
+			if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
+				spot2 = p.global_position
+				break
+		if spot2 != Vector2.ZERO:
 			break
 	_check(spot2 != Vector2.ZERO, "an open room to build in")
 	var n_traps: int = main.traps.size()

@@ -183,6 +183,19 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 				drop[tt] = true
 	if Grid.cuts(g, start, base, drop):
 		drop.clear()  # (never happens that anyone knows of: the bridges' rock is apart)
+	# The Long Bridge's drop (scenarios.gd "bridge": its plan made it).
+	for sc in plan.get("scenarios", []):
+		if String(sc["kind"]) != "bridge":
+			continue
+		var block := drop.duplicate()
+		for tt in sc["voids"]:
+			block[tt] = true
+		if Grid.cuts(g, start, base, block):
+			plan["ok"] = false  # (never known to happen: plan the floor again)
+			return
+		for tt in sc["voids"]:
+			drop[tt] = true
+		bridges.append_array(sc["bridge"])
 	# The halls' set pieces.
 	for i in infos.size():
 		var info: Dictionary = infos[i]
@@ -209,17 +222,6 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 				drop[tt] = true
 			bridges.append_array(res["bridge"])
 			break
-	# The Long Bridge's drop (scenarios.gd "bridge": its plan made it).
-	for sc in plan.get("scenarios", []):
-		if String(sc["kind"]) != "bridge":
-			continue
-		var block := drop.duplicate()
-		for tt in sc["voids"]:
-			block[tt] = true
-		if not Grid.cuts(g, start, base, block):
-			for tt in sc["voids"]:
-				drop[tt] = true
-			bridges.append_array(sc["bridge"])
 	# Into the floor's chasms (main.gd falls), then kept clear of what
 	# matters exactly as the traps will (traps.gd clear_pits).
 	var all := drop.duplicate()
