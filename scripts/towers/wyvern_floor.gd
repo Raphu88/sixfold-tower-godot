@@ -159,12 +159,12 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	var out := {"module": MODULE, "channels": [], "furnaces": [], "barrels": []}
 	var themes: Array = plan["themes"]
 	var used_rooms := {}
-	var cands: Array = []  # rooms a channel may cut (trap rooms too: the traps keep off the metal)
-	var calm: Array = []  # rooms a furnace may stand in (no traps there)
+	var cands: Array = []  # rooms a channel may cut
+	var calm: Array = []  # rooms a furnace may stand in (not the kind rooms)
 	for i in infos.size():
-		if _fits(infos[i], String(themes[i]), true):
-			cands.append(i)
 		if _fits(infos[i], String(themes[i]), false):
+			cands.append(i)
+		if _fits(infos[i], String(themes[i]), true):
 			calm.append(i)
 	cands.shuffle()
 	var molten := {}  # grid tile -> true (bridges left out)
@@ -281,9 +281,10 @@ static func _metal_to_plan(plan: Dictionary, out: Dictionary) -> void:
 	plan["lever_gates"] = gates
 
 
-## Rooms a channel or a furnace may go in: ordinary halls, not the start,
-## the stair, a puzzle, the task's own hall, a scenario or a good room.
-static func _fits(info: Dictionary, theme: String, traps_ok: bool) -> bool:
+## Rooms a channel may cut (or, `calm_only`, a furnace stand in): halls, not
+## the start, the stair, a puzzle, the task's own hall, a scenario, a trap
+## room (its set piece needs the whole floor), a spring, rest or trader.
+static func _fits(info: Dictionary, theme: String, calm_only: bool) -> bool:
 	if not (info["role"] in ["guard", "branch", "gallery"]):
 		return false
 	if info["role"] == "gallery" and String(info.get("puzzle", "")) != "":
@@ -291,11 +292,12 @@ static func _fits(info: Dictionary, theme: String, traps_ok: bool) -> bool:
 	if mini(info["size"].x, info["size"].y) < 6:
 		return false
 	var th: Dictionary = Themes.get_theme(theme)
-	if String(th["kind"]) in ["good", "calm", "scenario", "mirror", "proving"]:
+	if String(th["kind"]) in ["scenario", "mirror", "proving"]:
 		return false
-	if String(th["feature"]) == "trap":
-		return traps_ok
-	return not (String(th["feature"]) in ["vault", "rest", "trader", "cache", "spring", "camp", "mirror", "puzzle", "objective", "chasm", "ambush", "scenario"])
+	if calm_only and String(th["kind"]) in ["good", "calm"]:
+		return false  # (no furnace's heat in a kind room)
+	# (trap rooms keep their whole floor for their set pieces)
+	return not (String(th["feature"]) in ["trap", "vault", "rest", "trader", "spring", "mirror", "puzzle", "objective", "chasm", "ambush", "scenario"])
 
 
 ## A channel across room `i`: {room, tiles (grid), bridge (grid), vertical,
@@ -999,31 +1001,32 @@ func bot_step(bot) -> Dictionary:
 	if channels.all(func(c): return c["lowered"]):
 		return {}
 	var now := Time.get_ticks_msec()
-	if now < bot_next and bot_crank.is_empty():
+	if now >= bot_next:
+		bot_next = now + 500
+		bot_crank = {}
+		bot._build_grid()  # (its own grid: locked doors shut)
+		var a := grid_tile(main.player.global_position)
+		for ch in channels:
+			if ch["lowered"] or float(bot_spent.get(ch["lock_id"], 0.0)) > 25.0:
+				continue  # (one it has spent long on is left: something else first)
+			var b := grid_tile(ch["crank"])
+			if bot.astar.region.has_point(a) and bot.astar.region.has_point(b):
+				var was: bool = bot.astar.is_point_solid(a)
+				bot.astar.set_point_solid(a, false)
+				var n: int = bot.astar.get_id_path(a, b, false).size()
+				bot.astar.set_point_solid(a, was)
+				if n > 0:
+					bot_crank = ch
+					break
+	if bot_crank.is_empty() or bot_crank["lowered"]:
 		return {}
-	if not bot_crank.is_empty() and not bot_crank["lowered"]:
-		return {"pos": bot_crank["crank"], "act": "strike", "why": "a crank"}
-	bot_next = now + 500
-	bot_crank = {}
-	bot._build_grid()  # (its own grid: locked doors shut)
-	var a := grid_tile(main.player.global_position)
-	for ch in channels:
-		if ch["lowered"]:
-			continue
-		var b := grid_tile(ch["crank"])
-		if bot.astar.region.has_point(a) and bot.astar.region.has_point(b):
-			var was: bool = bot.astar.is_point_solid(a)
-			bot.astar.set_point_solid(a, false)
-			var n: int = bot.astar.get_id_path(a, b, false).size()
-			bot.astar.set_point_solid(a, was)
-			if n > 0:
-				bot_crank = ch
-				return {"pos": ch["crank"], "act": "strike", "why": "a crank"}
-	return {}
+	bot_spent[bot_crank["lock_id"]] = float(bot_spent.get(bot_crank["lock_id"], 0.0)) + bot.get_physics_process_delta_time()
+	return {"pos": bot_crank["crank"], "act": "strike", "why": "a crank"}
 
 
 var bot_next := 0
 var bot_crank := {}
+var bot_spent := {}  # lock id -> seconds the bot has spent going for that crank
 
 
 ## The bot's grid: furnaces' heat costs a detour.

@@ -243,6 +243,8 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 		for i in open_rooms:
 			if out["pits"].size() >= n_pit:
 				break
+			if String(Themes.get_theme(String(themes[i]))["feature"]) == "trap":
+				continue  # (a trap room keeps its whole floor for its set piece)
 			var t := _clear_tile(infos[i], links, i, 2)
 			if t == Vector2i(-1, -1):
 				continue
