@@ -41,6 +41,9 @@ const Rail := preload("res://scripts/rail.gd")
 const Book := preload("res://scripts/book.gd")
 const TreeRules := preload("res://scripts/tree.gd")
 const EssenceBench := preload("res://scripts/essence_bench.gd")
+const Stations := preload("res://scripts/stations.gd")
+const StationView := preload("res://scripts/station_view.gd")
+const Renown := preload("res://scripts/renown.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -550,17 +553,39 @@ func _engine(root: Node) -> void:
 	var small := _small()
 	var row := _main_row(root)
 	var board := _furnish(row, "board")
+	var stations: bool = m.train_board == "stations"
+	# Its name, and a sign to turn it between the towers and the stations.
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	board.add_child(top)
 	var h := Label.new()
-	h.text = UI.title_case(T["depart_title"])
+	h.text = UI.title_case(Stations.TEXT["depart_title"] if stations else T["depart_title"])
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	UI.style_label(h, "display", 24 if small else 28, UI.GOLD)
-	board.add_child(h)
+	top.add_child(h)
+	var flip: Button = m._button(Stations.TEXT["to_towers"] if stations else Stations.TEXT["to_stations"], _set_board.bind("towers" if stations else "stations"), top)
+	flip.custom_minimum_size = Vector2(104 if small else 120, 32 if small else 36)
+	flip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	flip.set_meta("board", "towers" if stations else "stations")
+	_brass(flip, false)
 	if not small:
-		var sub := _note(board, T["depart_sub"], 10.0)
+		var sub := _note(board, Stations.TEXT["depart_sub"] if stations else T["depart_sub"], 10.0)
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var grid := _grid(board, 3, false)
+	var grid := _grid(board, 3 if not stations else 2, false)
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
+	if stations:
+		for st in Stations.STATIONS:
+			var sc = StationView.StationCard.new()
+			sc.station = st
+			sc.chosen = String(st["id"]) == m.train_station
+			sc.custom_minimum_size = Vector2(148.0, 58.0) if small else Vector2(196.0, 74.0)
+			sc.set_meta("station", String(st["id"]))
+			sc.pressed.connect(_choose_station.bind(String(st["id"])))
+			grid.add_child(sc)
+		_station_placard(row)
+		return
 	for id in Towers.ORDER:
 		var b := TowerCard.new()
 		b.tower = id
@@ -630,6 +655,65 @@ func _choose_tower(id: String) -> void:
 	m.train_tower = id
 	m.main.sfx("ui_confirm", 1.0, -4.0, 0.0)
 	m.open("train")
+
+
+## The engine's board: the towers, or the stations (stations.gd).
+func _set_board(which: String) -> void:
+	m.train_board = which
+	if which == "stations" and m.train_station == "" and not Stations.STATIONS.is_empty():
+		m.train_station = String(Stations.STATIONS[0]["id"])
+	m._want_focus = {"meta": "board", "value": "towers" if which == "stations" else "stations"}
+	m.main.sfx("ui_confirm", 1.0, -4.0, 0.0)
+	m.open("train")
+
+
+func _choose_station(id: String) -> void:
+	if m.train_station == id:
+		return
+	m.train_station = id
+	m.main.sfx("ui_confirm", 1.0, -4.0, 0.0)
+	m.open("train")
+
+
+## The chosen station's placard: what it is, your renown, and the lever
+## that takes the train there (nothing you carry is at risk).
+func _station_placard(row: Node) -> void:
+	var small := _small()
+	var st := Stations.station(m.train_station)
+	var plac := TrainView.Furnish.new("placard", small)
+	plac.custom_minimum_size.x = 270.0 if small else 330.0
+	plac.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(plac)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3 if small else 6)
+	plac.add_child(col)
+	_tag(col, Stations.TEXT["station_tag"])
+	var name := Label.new()
+	name.text = String(st.get("name", ""))
+	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	UI.style_label(name, "display", 23 if small else 25, Color(st.get("lamp", UI.GOLD)).lerp(UI.TEXT, 0.35))
+	col.add_child(name)
+	var rn := _note(col, "%s  ·  %s" % [Renown.TEXT["points"] % Renown.points(_prof()), Renown.rank_name(Renown.rank(_prof()))], 10.0)
+	rn.add_theme_color_override("font_color", UI.GOLD)
+	if not small:
+		_note(col, String(st.get("blurb", "")), 10.0)
+	var stops: Array = Stations.stops(String(st.get("id", ""))).map(func(s): return Stations.stop_name(s))
+	var sl := _note(col, ",  ".join(stops), 10.0)
+	sl.add_theme_color_override("font_color", UI.TEXT)
+	_note(col, Stations.TEXT["safe"], 10.0)
+	var lever := TrainView.Lever.new()
+	lever.word = T["lever"]
+	lever.sub = Stations.TEXT["lever_for"] % String(st.get("short", ""))
+	lever.custom_minimum_size = Vector2(130, 108) if small else Vector2(150, 140)
+	lever.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	lever.set_meta("go_station", String(st.get("id", "")))
+	lever.pressed.connect(_go_station)
+	col.add_child(lever)
+
+
+func _go_station() -> void:
+	m.main.sfx("ui_confirm", 0.7, 0.0, 0.0)
+	m.go_station(m.train_station)
 
 
 func _depart() -> void:
@@ -773,6 +857,19 @@ func _store(root: Node) -> void:
 	sign.set_meta("store_tab", "shop" if selling else "sell")
 	sign.clip_text = true
 	_brass(sign)
+	if not selling:
+		# His upgrades (renown unlocks them): a placard's card shows them all.
+		var up: Button = m._button(T["upgrades_short"] if small else T["upgrades"] % [Train.upgrades_done(prof), Train.UPGRADES.size()], m._slot_pressed.bind("upgrades"), oc)
+		up.custom_minimum_size.y = 36
+		up.set_meta("slot", "upgrades")
+		up.focus_entered.connect(m._show_details.bind("upgrades"))
+		up.clip_text = true
+		_brass(up, m.inv_sel == "upgrades")
+		if not small:
+			var nx := Train.next_upgrade(prof)
+			var nl := _note(oc, T["upgrade_next"] % [nx["name"], Renown.rank_name(int(nx["rank"]))] if not nx.is_empty() else T["upgrade_all"], 10.0)
+			nl.add_theme_font_size_override("font_size", 13)
+			nl.set_meta("store_note", "upgrade")
 	# The goods.
 	var goods := VBoxContainer.new()
 	goods.add_theme_constant_override("separation", 6 if small else 12)
@@ -803,7 +900,7 @@ func _store(root: Node) -> void:
 		_tag(shelf, T["shelves"])
 		var sg := _grid(shelf, 6)
 		for id in Train.supplies():
-			var price := Train.item_price(id)
+			var price := Train.supply_price(prof, id)
 			var packed := int(prof.supplies.get(id, 0))
 			var s = m._slot(sg, "supply:" + id, _cell(), "")
 			s.kind = "item"
@@ -828,7 +925,7 @@ func _store(root: Node) -> void:
 				continue
 			var s = _gear_slot(rg, "outfit:%d" % i, g, "Sold")
 			s.wear = -1.0
-			_price_on(s, Train.gear_kind(g), Train.gear_price(g), not g.is_empty())
+			_price_on(s, Train.gear_kind(g), Train.buy_price(prof, g), not g.is_empty())
 			if not g.is_empty():
 				s.better = signi(Train.versus(prof, _player(), g))
 			keys.append(s.get_meta("slot"))
@@ -841,8 +938,19 @@ func _store(root: Node) -> void:
 		if not g.is_empty():
 			ts.better = signi(Train.versus(prof, _player(), g))
 		ts.custom_minimum_size = Vector2(_cell(), _cell()) * 1.3
-		_price_on(ts, Train.gear_kind(g), Train.gear_price(g), not g.is_empty())
+		_price_on(ts, Train.gear_kind(g), Train.buy_price(prof, g), not g.is_empty())
 		keys.append("today")
+		if Train.upgraded(prof, "order"):
+			# The special order: the piece he holds for you.
+			_tag(case, T["order"])
+			var og := Train.order(prof)
+			var os = _gear_slot(case, "order", og, "Empty")
+			os.wear = -1.0
+			if not og.is_empty():
+				os.better = signi(Train.versus(prof, _player(), og))
+			_price_on(os, Train.gear_kind(og), Train.buy_price(prof, og), not og.is_empty())
+			keys.append("order")
+		keys.append("upgrades")  # (the sign under the outfitter: his upgrades)
 	if keys.is_empty():
 		m.details = null
 		return
@@ -1910,6 +2018,10 @@ func details(key: String) -> void:
 			_offer_card(int(arg))
 		"today":
 			_offer_card(-1)
+		"order":
+			_offer_card(-2)
+		"upgrades":
+			_upgrades_card()
 		"vessel":
 			VesselPage.card(self, int(arg))
 
@@ -2004,7 +2116,7 @@ func _supply_card(id: String) -> void:
 	var data: Dictionary = Items.ITEMS[id]
 	_head("item", id, data["name"], Items.color(id))
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
-	var price := Train.item_price(id)
+	var price := Train.supply_price(prof, id)
 	var why := _price_line(price[0], price[1])
 	if price[0] == Train.ANY:
 		m._detail_text(T["any_note"], UI.DIM)
@@ -2025,22 +2137,28 @@ func _supply_card(id: String) -> void:
 		m._detail_text(T["supplies_note"], UI.FAINT)
 
 
-## A piece on the rack (i), or today's piece (i = -1).
+## A piece on the rack (i), today's piece (i = -1), or the special order (i = -2).
 func _offer_card(i: int) -> void:
 	var prof = _prof()
-	var g: Dictionary = Train.today(prof) if i < 0 else Train.outfit(prof)[i]
+	var g: Dictionary = Train.order(prof) if i == -2 else (Train.today(prof) if i < 0 else Train.outfit(prof)[i])
 	if g.is_empty():
+		if i == -2:
+			_head("empty", "", T["order"], UI.DIM)
+			m._detail_text(T["order_empty"], UI.DIM)
+			return
 		_head("empty", "", "Sold", UI.DIM)
 		m._detail_text(T["today_sold"] if i < 0 else "Sold. The rack is filled again after your next climb.", UI.DIM)
 		return
 	_head("gear", g, Gear.display(g), Gear.color(g))
+	if i == -2:
+		m._detail_text(T["order_note"], UI.GOLD)
 	var kind := Train.gear_kind(g)
-	var cost := Train.gear_price(g)
+	var cost := Train.buy_price(prof, g)
 	var why := _price_line(kind, cost)
 	m._detail_text(T["afford"] if why == "" else T["cant"] % why, UI.GOOD if why == "" else UI.BAD)
 	var vs := Train.versus(prof, _player(), g)
 	m._detail_text(m.loadout_page.TEXT["versus_better"] if vs > 0 else (m.loadout_page.TEXT["versus_worse"] if vs < 0 else m.loadout_page.TEXT["versus_even"]), UI.GOOD if vs > 0 else (UI.BAD if vs < 0 else UI.DIM))
-	var meta := "today" if i < 0 else "outfit:%d" % i
+	var meta := "order" if i == -2 else ("today" if i < 0 else "outfit:%d" % i)
 	for to in [["pack", T["buy_pack"]], ["chest", T["buy_chest"]], ["wear", T["buy_wear"]]]:
 		var room := Train.buy_room(prof, _player(), g, to[0])
 		var b: Button = m._button(to[1], _buy_gear.bind(i, to[0]), m.details)
@@ -2052,6 +2170,11 @@ func _offer_card(i: int) -> void:
 			b.tooltip_text = room
 	if why == "" and Train.buy_room(prof, _player(), g, "pack") != "":
 		m._detail_text(T["cant"] % Train.buy_room(prof, _player(), g, "pack"), UI.DIM)
+	if i != -2 and Train.upgraded(prof, "order") and Train.order(prof).is_empty():
+		var hb: Button = m._button(T["hold"], _hold.bind(i), m.details)
+		hb.custom_minimum_size.y = 36 if _small() else 40
+		hb.clip_text = true
+		hb.set_meta("buy", meta + ":hold")
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
 	var against = Train.worn_against(prof, _player(), g)
 	m._detail_stats(g, against)
@@ -2090,14 +2213,40 @@ func _put_back(id: String) -> void:
 
 func _buy_gear(i: int, to := "pack") -> void:
 	var prof = _prof()
-	var g: Dictionary = Train.today(prof) if i < 0 else Train.outfit(prof)[i]
+	var g: Dictionary = Train.order(prof) if i == -2 else (Train.today(prof) if i < 0 else Train.outfit(prof)[i])
 	var why := Train.buy_gear(prof, _player(), i, to)
 	if why == "":
-		m.inv_sel = "today" if i < 0 else "outfit:%d" % i
+		m.inv_sel = "order" if i == -2 else ("today" if i < 0 else "outfit:%d" % i)
 		var where: String = {"pack": T["moved_pack"], "chest": T["moved_chest"], "wear": m.loadout_page.TEXT["worn_now"]}[to]
 		_done(T["bought"] % Gear.display(g) + "  ·  " + where % Gear.display(g), Train.line("bought"), "buy")
 	else:
 		_done(T["cant"] % why, Train.line("poor") if why.begins_with("needs") else "", "ui_back")
+
+
+## Asks the outfitter to hold a piece (the special order).
+func _hold(i: int) -> void:
+	var prof = _prof()
+	var g: Dictionary = Train.today(prof) if i < 0 else Train.outfit(prof)[i]
+	var why := Train.hold(prof, i)
+	if why == "":
+		m.inv_sel = "order"
+		_done(T["held"] % Gear.display(g), Train.line("bought"), "ui_confirm")
+	else:
+		_done(T["cant"] % why, "", "ui_back")
+
+
+## The outfitter's upgrades: each one, unlocked or what rank unlocks it.
+func _upgrades_card() -> void:
+	var prof = _prof()
+	_head("empty", "", T["upgrades_title"], UI.GOLD)
+	m._detail_text(T["upgrades_note"] % ("%s, %s" % [Renown.TEXT["points"] % Renown.points(prof), Renown.rank_name(Renown.rank(prof))]), UI.DIM)
+	for u in Train.UPGRADES:
+		if Train.upgraded(prof, String(u["id"])):
+			m._detail_text(T["upgrade_on"] % [u["name"], u["desc"]], UI.GOOD)
+		else:
+			m._detail_text(T["upgrade_off"] % [u["name"], Renown.rank_name(int(u["rank"])), Renown.needed(int(u["rank"]))], UI.DIM)
+	var nx := Train.next_upgrade(prof)
+	m._detail_text(T["upgrade_next"] % [nx["name"], Renown.rank_name(int(nx["rank"]))] if not nx.is_empty() else T["upgrade_all"], UI.GOLD)
 
 
 func _move(where: String, i: int) -> void:

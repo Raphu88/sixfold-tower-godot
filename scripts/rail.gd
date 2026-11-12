@@ -40,6 +40,9 @@ const Controls := preload("res://scripts/controls.gd")
 const Train := preload("res://scripts/train.gd")
 const Art := preload("res://scripts/train_art.gd")
 const ArrangeUI := preload("res://scripts/arrange_ui.gd")
+const Stations := preload("res://scripts/stations.gd")
+const StationView := preload("res://scripts/station_view.gd")
+const Renown := preload("res://scripts/renown.gd")
 
 ## The identity block at the top (a button: the climber screen): [id, name,
 ## short name, line, icon].
@@ -76,6 +79,9 @@ const FOOT := [
 const TRAIN_FOOT := [
 	["exit", "Exit to Title Station", "Station", "", "station"],
 ]
+## At a station (stations.gd): its stops are the rail's items, then this at
+## the foot (the train waits at the platform).
+const STATION_FOOT := [["leave_station", "Back to the train", "Train", "", "train"]]
 ## On the train on a computer, under them (the train has no pause page to
 ## hold it; a browser or a phone can't quit, menu.gd can_quit).
 const FOOT_QUIT := ["quit", "Quit game", "Quit", "", "quit"]
@@ -89,6 +95,8 @@ const TEXT := {
 	"hint_pad": "↑ ↓ choose   {a} enter   {b} close",
 	"hint_keys_train": "↑ ↓ choose   → enter   Q E cars",
 	"hint_pad_train": "↑ ↓ choose   {a} enter   {lb} {rb} cars",
+	"hint_keys_station": "↑ ↓ choose   → enter   Q E stops",
+	"hint_pad_station": "↑ ↓ choose   {a} enter   {lb} {rb} stops",
 	"station": "Title Station",  # the sign over the engine, the train on end
 }
 
@@ -115,6 +123,7 @@ var current := ""  # the item lit as the page you're on
 var at_car := ""  # on the train: the car you're in (marked while a page shows)
 var on_train := false
 var on_end := false  # the train's rail drawn as the train standing on end
+var at_station := ""  # the station you're at ("" on the train): its stops are the items
 var ident: RailIdent
 var list: VBoxContainer
 var pane: ScrollContainer  # holds the column; scrolls on a short screen
@@ -145,10 +154,12 @@ func _look() -> String:
 
 ## Builds (or refreshes) the rail for the page showing.
 func refresh(page_item: String, train: bool, compact: bool, touch: bool, pad: bool, ps: bool) -> void:
-	var key := "%s %s %s %s %s" % [train, compact, touch, _look(), _short()]
+	var st: String = menu.station_page.station if train and menu != null and menu.has_method("at_station") and menu.at_station() else ""
+	var key := "%s %s %s %s %s %s %s" % [train, compact, touch, _look(), _short(), st, Renown.worn_title(menu.main.profile) != "" if menu != null and menu.main != null and menu.main.profile != null else false]
 	on_train = train
 	narrow = compact
-	on_end = train and _look() == "end"
+	at_station = st
+	on_end = train and _look() == "end" and st == ""
 	if key != _built_for or buttons.is_empty():
 		_built_for = key
 		_build(touch, pad, ps)
@@ -219,6 +230,8 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 		ident.custom_minimum_size.y = 40.0 if narrow else 104.0
 	if on_end:
 		ident.custom_minimum_size.y = 46.0 if narrow else 96.0
+	if menu != null and menu.main != null and menu.main.profile != null and Renown.worn_title(menu.main.profile) != "":
+		ident.custom_minimum_size.y += 10.0 if narrow else 16.0  # (the title worn, under the name)
 	col.add_child(ident)
 	buttons.append(ident)
 	list = VBoxContainer.new()
@@ -229,7 +242,13 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(list)
 	var foot_items: Array = (TRAIN_FOOT if on_train else FOOT).duplicate()
-	if on_train:
+	if at_station != "":
+		foot_items = STATION_FOOT.duplicate()
+		for stop in Stations.stops(at_station):
+			var info: Dictionary = Stations.STOPS.get(stop, {})
+			var b := _item(list, [stop, String(info.get("name", stop)), String(info.get("short", stop)), String(info.get("line", "")), stop], "")
+			b.row = true
+	elif on_train:
 		_train_items(list, touch, pad, ps)
 		if menu != null and menu.can_quit():
 			foot_items.append(FOOT_QUIT)
@@ -355,6 +374,8 @@ func _notification(what: int) -> void:
 
 ## The line of keys under the rail (on a computer).
 func _hint_text(pad: bool, ps: bool) -> String:
+	if at_station != "":
+		return Controls.pad_text(TEXT["hint_pad_station"], ps) if pad else TEXT["hint_keys_station"]
 	if on_train:
 		return Controls.pad_text(TEXT["hint_pad_train"], ps) if pad else TEXT["hint_keys_train"]
 	return Controls.pad_text(TEXT["hint_pad"], ps) if pad else TEXT["hint_keys"]
@@ -384,8 +405,13 @@ func _train_items(parent: Node, touch: bool, pad: bool, ps: bool) -> void:
 ## Where the climber is, over their name: on the train, in the practice
 ## room (practice.gd), or a tower and floor.
 func place_text(main) -> String:
+	if main.on_train and at_station != "":
+		var st: Dictionary = Stations.station(at_station)
+		return String(st.get("short", "")) if narrow else String(st.get("name", ""))
 	if main.on_train:
 		return TEXT["on_train"] if not on_end else TEXT["station"]
+	if main.get("arena") != null and main.arena.on:
+		return Stations.stop_name(String(main.arena.ev.get("stop", "arena")))
 	if main.get("practice") != null and main.practice.on:
 		return TEXT["practice"]
 	if main.has_method("tower_data"):
@@ -570,6 +596,8 @@ func _draw_end() -> void:
 ## signal lever, Exit to Title Station a station lamp (and Quit game's power
 ## switch). False for any other icon (ui.gd draws those).
 static func car_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color, w := 1.6) -> bool:
+	if StationView.icon(ci, id, c, s, col, w):
+		return true  # (a station's stops: station_view.gd)
 	var u := s / 10.0
 	var P := func(x: float, y: float) -> Vector2: return c + Vector2(x, y) * u
 	match id:
@@ -1105,6 +1133,12 @@ class RailIdent extends Button:
 		y += ns * (0.95 if narrow else 1.0) + 2.0
 		var nc: Color = UI.GILT_HI if (on or hot or focus) else UI.GOLD
 		UI.draw_title(self, Vector2(x, y), _fit(UI.font("display"), name, w, ns), ns, nc, HORIZONTAL_ALIGNMENT_LEFT, -1, 0.0)
+		# The title worn (renown.gd), under the name.
+		var worn: String = load("res://scripts/renown.gd").worn_title(prof)
+		if worn != "":
+			var tsz := 12 if narrow else 17
+			y += tsz + (1.0 if narrow else 3.0)
+			draw_string(UI.font("italic"), Vector2(x, y), _fit(UI.font("italic"), worn, w, tsz), HORIZONTAL_ALIGNMENT_LEFT, w, tsz, Color(UI.GILT_HI if (on or hot or focus) else UI.GOLD, 0.92))
 		# The six marks.
 		var r := 6.5 if narrow else 10.0
 		if rail.on_end and narrow:

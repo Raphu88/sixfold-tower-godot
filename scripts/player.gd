@@ -77,6 +77,8 @@ var pending_weapon := ""
 ## cloak, amulet, two rings and a backpack. Kept on the player, so a new
 ## climb (a scene reload) starts afresh.
 var gear := Gear.start_gear()
+## The station's boons bought (boons.gd fx): added to what the gear adds.
+var boon_fx := {}
 ## Spare pieces carried besides what you wear (gear records), up to
 ## pack_size(). They come home to the train if you survive.
 var pack: Array = []
@@ -324,6 +326,8 @@ func take_gear(g, into := "") -> Dictionary:
 ## speed and the rest; Gear.total_effects), after any gear changes.
 func refresh_gear() -> void:
 	gear_fx = Gear.total_effects(gear)
+	for k in boon_fx:  # (the station's boons: boons.gd)
+		gear_fx[k] = float(gear_fx.get(k, 0.0)) + float(boon_fx[k])
 	max_sta = MAX_STA + float(gear_fx.get("stamina", 0.0))
 	sta = minf(sta, max_sta)
 	var was := max_hp

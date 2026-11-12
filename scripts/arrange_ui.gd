@@ -44,7 +44,7 @@ const PAGE_NAMES := {
 	"pause": "Pause menu", "settings": "Settings", "controls": "Controls", "climber": "Climber book",
 	"inventory": "Inventory", "mark": "Mark page", "library": "Library", "dev": "Dev tools",
 	"data": "Edit game data", "appearance": "Appearance", "techniques": "Techniques",
-	"climbers": "Climbers", "confirm_new": "Start over", "padsetup": "Controller setup", "train": "Train",
+	"climbers": "Climbers", "confirm_new": "Start over", "padsetup": "Controller setup", "train": "Train", "station": "Station",
 }
 ## Pages never arranged (the title has its own picture; the painter and a
 ## new climber's look have their own screens).
@@ -460,6 +460,8 @@ static func page_key(m) -> String:
 			return "climber." + String(m.climber_tab)
 		"settings":
 			return "settings." + String(m.settings_tab)
+		"station":
+			return "station." + String(m.station_page.stop)
 	return String(m.page)
 
 

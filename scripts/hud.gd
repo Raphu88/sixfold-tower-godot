@@ -588,6 +588,8 @@ func _draw() -> void:
 		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
 		if main.practice != null and main.practice.on:
 			sub_text = main.practice.TEXT["sub"]  # (the practice room: no tower, no floor)
+		if main.get("arena") != null and main.arena.on:
+			sub_text = String(main.arena.ev.get("name", ""))  # (the station's arena: arena.gd)
 		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 3, Color(0, 0, 0, 0.6 * fa))
 		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, fa))
 	if stair_t > 0.0 and main.stair_open and not main.climbing:
