@@ -414,6 +414,9 @@ func _relics() -> void:
 	p._equip("sword_cane")
 	print("  R46")
 	var q = await _dummy(p.global_position + Vector2(30, 0))
+	p.gear_fx.erase("venom_chance")  # (worn pieces left by earlier tests may poison now and then)
+	p.buffs.clear()
+	q.venom = 0
 	print("  R47")
 	p.sta = p.max_sta
 	print("  R48")
