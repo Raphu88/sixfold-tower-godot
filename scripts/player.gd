@@ -1883,6 +1883,7 @@ var aura_drain := 2.5
 var aura_grows := false
 var aura_ramp := 10.0  # a growing aura reaches double heat over this many seconds (Furnace: sooner)
 var aura_heat_mult := 1.0  # Furnace: heat builds this many times as fast
+var aura_peak := 1.0  # a growing aura's damage rises by this share at its hottest (Furnace: more)
 var aura_slow := false  # Furnace: foes in the aura are slowed
 var aura_heat := 0.0  # built up while the aura burns foes; Wingburst releases it
 var aura_tick := 0.0
@@ -2092,7 +2093,7 @@ func _tick_fire_bonds(delta: float) -> void:
 			if aura_tick <= 0.0:
 				aura_tick = 0.5
 				var r := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
-				var dmg := aura_dmg * (1.0 + minf(aura_time / maxf(aura_ramp, 0.1), 1.0) if aura_grows else 1.0)
+				var dmg := aura_dmg * (1.0 + minf(aura_time / maxf(aura_ramp, 0.1), 1.0) * aura_peak if aura_grows else 1.0)
 				for e in main.targets():
 					if e.global_position.distance_to(global_position) < r + e.radius:
 						e.take_hit(dmg, Vector2.ZERO, 0.0)

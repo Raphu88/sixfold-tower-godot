@@ -232,7 +232,7 @@ func _ember_wings() -> void:
 	var side = _foes([Vector2(0, 115), Vector2(115, 0)])
 	var b = _mark("flamewing", "heat_aura")
 	_cast(b)
-	_check(p.aura_part == "heart" and not p.aura_grows, "Ember Wings: the aura is lit")
+	_check(p.aura_part == "heart" and p.aura_grows and is_equal_approx(p.aura_peak, 1.0), "Ember Wings: the aura is lit (and grows hotter, as Growing did)")
 	await t._wait(0.6)
 	_check(side[0].hp < 300.0 and side[0].knock.length() > 50.0, "...its wings reach foes at your side, burning and knocking them away (%.0f)" % side[0].hp)
 	_check(side[1].hp == 300.0, "...not foes ahead past the aura")

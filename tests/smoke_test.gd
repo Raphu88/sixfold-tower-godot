@@ -2973,10 +2973,18 @@ func _firebird_bond_tests() -> void:
 	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
 	await _wait(3.2)
 	_check(not p.dead, "...and landing a hit keeps you standing")
+	# (At step 5 its passive is rank III: twice a floor, and surviving it erupts.)
+	var uses: int = int(main.BondScript.Bonds.passive_num("rekindler", "uses", 2.0))
+	for i in uses - 1:
+		p.hp = p.MAX_HP
+		p.hurt_t = 0.0
+		p.receive_attack(9999.0, null)
+		p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(not p.dead and p.ember_used, "...%d times a floor at rank II" % uses)
 	p.hp = p.MAX_HP
 	p.hurt_t = 0.0
 	p.receive_attack(9999.0, null)
-	_check(p.dead, "...but only once per floor")
+	_check(p.dead, "...but no more")
 	dummy.queue_free()
 
 
@@ -3217,7 +3225,7 @@ func _chimera_bond_tests() -> void:
 	p.global_position = Vector2(500, 400)
 	main.profile.pacts = ["knight", "slime", "archer"]
 	_cast("hand", "grand_call")
-	_check(main.allies().size() == 3 and p.bonds["hand"].essence == 0.0, "Grand Call: every creature in your book at once, draining the mark")
+	_check(main.allies().size() == 3 and p.bonds["hand"].essence > 0.0, "Grand Call: every creature in your book at once (its Apex: the mark isn't drained)")
 	_check(p.has_bond("covenant"), "(Pack Stride and Kinship come with the mark)")
 	main._start_floor(main.floor_num)
 	await _frames(2)
@@ -3278,10 +3286,10 @@ func _chimera_bond_tests() -> void:
 	_check(t.WEAKNESS.has("knight"), "Diagnosis knows what each foe is weak to")
 	_cast("brow", "sever")
 	_check(t.cripple_t > 0.0, "Sever cripples a foe")
-	_cast("brow", "sever")
-	_check(t.disarm_t > 0.0 and not main.request_attack(t), "...and at step 3+ a crippled foe is disarmed: it can't attack")
+	_check(t.has_meta("weak_point"), "...and at step 3+ (Vivisect) finds a weak point: your next hits on it are critical")
 	t.cripple_t = 0.0
 	t.disarm_t = 0.0
+	t.remove_meta("weak_point")
 	p.hp = 40.0
 	p.poison_t = 3.0
 	_cast("brow", "mend")
@@ -3290,10 +3298,10 @@ func _chimera_bond_tests() -> void:
 	p.poison_t = 3.0
 	_cast("brow", "transfer")
 	_check(not p.bonds["heart"].burned and p.poison_t <= 0.0 and t.venom > 0, "Transfer moves your burns and poison onto a foe")
-	t.hp = t.max_hp * 0.6
+	t.hp = t.max_hp * 0.8
 	_cast("brow", "amputate")
-	_check(t.disarm_t <= 0.0, "Amputate needs a foe below half health")
-	t.hp = t.max_hp * 0.4
+	_check(t.disarm_t <= 0.0, "Amputate needs a foe below three quarters of its health")
+	t.hp = t.max_hp * 0.7
 	_cast("brow", "amputate")
 	_check(t.cripple_t > 1000.0 and t.disarm_t > 1000.0, "...then cripples and disarms it for the rest of the fight")
 	t.queue_free()

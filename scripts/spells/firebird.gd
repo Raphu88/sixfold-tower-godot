@@ -67,8 +67,8 @@ static var FORKS := {
 				5: {"damage": 13.0},
 			}},
 		3: {"id": "broad", "name": "Ember Wings", "transform": true,
-			"desc": "the aura reaches out as wings to your sides, burning and knocking away the foes they touch",
-			"steps": {3: {"wings": 2.3, "wing_arc": 55.0, "push": 300.0, "push_every": 1.0}}},
+			"desc": "the aura grows hotter the longer it burns and reaches out as wings to your sides, burning hard and knocking away the foes they touch",
+			"steps": {3: {"grows": true, "wings": 2.3, "wing_arc": 55.0, "wing_power": 1.5, "push": 300.0, "push_every": 1.0}}},
 		4: {"id": "heat_haze", "name": "Heat Haze", "type": "heat_haze", "learn": 4,
 			"desc": "for 8 seconds your aura burns away the shots that enter it and sets the foes in it burning (it lights the aura if it's off)",
 			"steps": {4: {"cost": 10.0, "windup": 0.2, "duration": 8.0, "burn": 2.0}}},
@@ -166,6 +166,9 @@ static func _sunfire(bond, sp: Dictionary, p) -> void:
 	if not bond._overdrawn():
 		ball.life = float(ch["reach"]) / maxf(speed, 1.0)
 	ball.scale = Vector2.ONE * float(ch["size"])
+	var blast = bond.spell_stat(sp, "blast")  # (it hits harder than the plain fireball, at every step)
+	if blast != null:
+		ball.explode_dmg *= float(blast)
 	var trail := float(bond.spell_stat(sp, "trail"))
 	var gap := float(ch["gap"])
 	var patch := float(ch["patch"])
@@ -224,20 +227,27 @@ static func _seeker_flame(bond, sp: Dictionary, p) -> void:
 	FX.lasting(main, 3.0, tick, Callable(), {"last": ball.position, "again": false, "ball": ball})
 
 
-## Ember Wings: Heat Aura as ever, and while it burns it reaches out as two
-## wings to your sides (across your aim): foes they touch burn with the
-## aura and are knocked away, each at most once every `push_every` seconds.
-static func _ember_wings(bond, sp: Dictionary, p) -> void:
-	var main = p.main
-	var was_on: bool = p.aura_part != ""
+## Ember Wings: Heat Aura as ever (cast again, it goes out and the wings
+## with it). The wings themselves are ember_wings(), which bond.gd _aura
+## starts whenever the aura lights (Heat Haze and Firebird Form light it too).
+static func _ember_wings(bond, _sp: Dictionary, p) -> void:
 	bond._cast_type(p)
-	if was_on or p.aura_part != bond.part:
-		return  # (cast again: the aura goes out, and the wings with it)
+
+
+## While the aura burns it reaches out as two wings to your sides (across
+## your aim): foes they touch burn with the aura and are knocked away, each
+## at most once every `push_every` seconds. (`bond`'s selected spell is Heat Aura.)
+static func ember_wings(bond, p) -> void:
+	var main = p.main
+	var fx = FX.of(main)
+	if fx != null and fx.lastings.any(func(l): return is_instance_valid(l) and l.data.has("ember_wings")):
+		return  # (one pair of wings)
 	var col: Color = bond.color()
-	var span := float(bond.spell_stat(sp, "wings"))
-	var arc := deg_to_rad(float(bond.spell_stat(sp, "wing_arc")))
-	var push := float(bond.spell_stat(sp, "push"))
-	var every := float(bond.spell_stat(sp, "push_every"))
+	var span := float(bond.stat("wings"))
+	var arc := deg_to_rad(float(bond.stat("wing_arc")))
+	var push := float(bond.stat("push"))
+	var every := float(bond.stat("push_every"))
+	var power := float(bond.stat("wing_power"))
 	var tick := func(n, d: float) -> bool:
 		if not is_instance_valid(p) or p.dead or p.aura_part != bond.part:
 			return false
@@ -258,8 +268,8 @@ static func _ember_wings(bond, sp: Dictionary, p) -> void:
 				continue  # (inside the aura itself, or past the wing's tip)
 			if absf(side.angle_to(to)) > arc and absf((-side).angle_to(to)) > arc:
 				continue
-			e.take_hit(p.aura_dmg, Vector2.ZERO, 0.0)
-			p.aura_heat = minf(60.0, p.aura_heat + p.aura_dmg)
+			e.take_hit(p.aura_dmg * power, Vector2.ZERO, 0.0)
+			p.aura_heat = minf(60.0, p.aura_heat + p.aura_dmg * power)
 			if e.dead:
 				continue
 			Reactions.apply(main, e, "burning", 1.5, "aura")
@@ -283,7 +293,7 @@ static func _ember_wings(bond, sp: Dictionary, p) -> void:
 				var root: Vector2 = at + dir * r * 0.8
 				n.draw_line(root, tip, Color(col.lightened(0.25), 0.55), 3.0, true)
 				n.draw_line(root.lerp(tip, 0.4), tip, Color(1.0, 0.9, 0.6, 0.45), 1.5, true)
-	FX.lasting(main, INF, tick, paint, {"at": p.global_position, "aim": p.aim, "r": p.aura_r, "tick": 0.0, "pushed": {}})
+	FX.lasting(main, INF, tick, paint, {"at": p.global_position, "aim": p.aim, "r": p.aura_r, "tick": 0.0, "pushed": {}, "ember_wings": true})
 	main.sfx("gust", 0.8, -4.0)
 
 

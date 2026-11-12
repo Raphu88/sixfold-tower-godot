@@ -1334,8 +1334,12 @@ func _aura(p) -> void:
 	# Furnace (step 3's first side): the heat builds over `ramp` seconds, `heat` times as fast, and slows.
 	p.aura_ramp = float(stat("ramp")) if stat("ramp") != null else 10.0
 	p.aura_heat_mult = float(stat("heat")) if stat("heat") != null else 1.0
+	p.aura_peak = float(stat("peak")) if stat("peak") != null else 1.0
 	p.aura_slow = stat("slow") == true
 	p.aura_color = color()
+	# Ember Wings (step 3's second side): the aura reaches out as wings (firebird.gd).
+	if stat("wings") != null:
+		load("res://scripts/spells/firebird.gd").ember_wings(self, p)
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.35, 3.0)
 	p.main.sfx("burn", 1.0, -4.0)
 

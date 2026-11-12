@@ -446,7 +446,7 @@ static var BONDS := {
 				"steps": {
 					1: {"cost": 10.0, "windup": 0.35, "damage": 14.0, "radius": 55.0},
 					2: {"damage": 16.0},
-					3: {"windup": 0.5, "radius": 80.0, "damage": 20.0, "speed": 250.0, "trail": 3.0},
+					3: {"windup": 0.5, "radius": 95.0, "damage": 20.0, "speed": 250.0, "trail": 3.0, "blast": 1.35},
 					4: {"damage": 23.0},
 					5: {"damage": 26.0},
 				}},
@@ -479,7 +479,7 @@ static var BONDS := {
 				"steps": {
 					1: {"cost": 6.0, "windup": 0.2, "damage": 3.0, "radius": 62.0, "drain": 2.5, "grows": false},
 					2: {"damage": 3.5},
-					3: {"grows": true, "ramp": 4.0, "heat": 2.0, "slow": true},
+					3: {"grows": true, "ramp": 4.0, "peak": 1.5, "heat": 2.0, "slow": true},
 					4: {"damage": 4.0},
 					5: {"damage": 5.0},
 				}},
@@ -544,7 +544,7 @@ static var BONDS := {
 				"changes": {3: "Pack Call: each Call brings two creatures, each a little weaker, that hunt as a pack (never more than three out at once)"},
 				"steps": {
 					1: {"cost": 14.0, "windup": 0.6, "duration": 30.0, "count": 1},
-					3: {"count": 2, "power": 0.85, "pack": 0.35},
+					3: {"count": 2, "power": 0.85, "pack": 0.5},
 				}},
 			{"id": "command", "name": "Command", "type": "command", "learn": 2,
 				"desc": "aimed at a foe: every creature attacks it. Aimed at no one: they fall back and guard you",
@@ -608,7 +608,7 @@ static var BONDS := {
 				"steps": {
 					1: {"cost": 8.0, "windup": 0.2, "damage": 8.0, "duration": 6.0, "disarm": false},
 					2: {"damage": 10.0},
-					3: {"crits": 3, "crit": 2.0, "weak_time": 8.0},
+					3: {"crits": 3, "crit": 2.5, "weak_time": 8.0},
 					4: {"damage": 12.0},
 					5: {"damage": 14.0},
 				}},
