@@ -22,8 +22,33 @@ static func is_shape(s: String) -> bool:
 	return s in SHAPES
 
 
-## A room of `shape`, `size` tiles, as rows.
+const Rooms := preload("res://scripts/rooms.gd")
+
+
+## A room of `shape`, `size` tiles, as rows: carved again (a few times at
+## most) until every side has a mouth and the stair's spot is floor.
 static func carve(shape: String, size: Vector2i) -> Array:
+	var rows: Array = []
+	for attempt in 12:
+		rows = _carve_once(shape if attempt < 10 else "island", size)
+		if _sound(rows, size):
+			return rows
+	return rows
+
+
+static func _sound(rows: Array, size: Vector2i) -> bool:
+	for side in 4:
+		if Rooms.door_slots(rows, side).is_empty():
+			return false
+	var mid := size.x / 2
+	for y in 3:
+		for x in range(mid - 2, mid + 2):
+			if not Rooms.open_at(rows, x, y):
+				return false
+	return true
+
+
+static func _carve_once(shape: String, size: Vector2i) -> Array:
 	var w := size.x
 	var h := size.y
 	var g: Array = []
@@ -55,6 +80,11 @@ static func carve(shape: String, size: Vector2i) -> Array:
 			_spires(g, w, h, randi_range(2, 3))
 		"cave":
 			_spires(g, w, h, randi_range(0, 1))
+	# (the stair's spot, at the top middle, stays floor)
+	for y in 3:
+		for x in range(w / 2 - 2, w / 2 + 2):
+			if g[y][x] == "#":
+				g[y][x] = "."
 	_connect(g, w, h)
 	var rows: Array = []
 	for row in g:

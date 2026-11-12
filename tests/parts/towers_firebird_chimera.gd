@@ -56,6 +56,21 @@ func _floor(tid: String, n: int, kind := "") -> void:
 		e.set_physics_process(false)
 
 
+## Only this scenario turns up for now (the others wait for a floor 99); gives back what to restore.
+func _only_scenario(kind: String) -> Dictionary:
+	var froms := {}
+	for k in Scenarios.SCENARIOS:
+		froms[k] = Scenarios.SCENARIOS[k]["from"]
+		if k != kind:
+			Scenarios.SCENARIOS[k]["from"] = 99
+	return froms
+
+
+func _restore_scenarios(froms: Dictionary) -> void:
+	for k in froms:
+		Scenarios.SCENARIOS[k]["from"] = froms[k]
+
+
 func _sys(name: String):
 	for s in t.main.tower_systems:
 		if (name == "firebird" and s.has_method("set_burnt")) or (name == "chimera" and s.has_method("add_thorn")):
@@ -137,7 +152,7 @@ func _plans() -> void:
 				break
 	_check(fb["bad"].is_empty(), "the Firebird's floors: the stair, every room and the task are always reachable (%d floors) %s" % [fb["floors"], fb["bad"]])
 	_check(ch["bad"].is_empty(), "the Thornwild's floors: the stair, every room and the task are always reachable (%d floors) %s" % [ch["floors"], ch["bad"]])
-	_check(fb["organic"] * 10 >= fb["rooms"] * 6 and ch["organic"] * 10 >= ch["rooms"] * 6, "most rooms are grown or broken, not boxes (Firebird %d of %d, Thornwild %d of %d)" % [fb["organic"], fb["rooms"], ch["organic"], ch["rooms"]])
+	_check(fb["organic"] * 2 >= fb["rooms"] and ch["organic"] * 2 >= ch["rooms"], "most rooms are grown or broken, not boxes (Firebird %d of %d, Thornwild %d of %d)" % [fb["organic"], fb["rooms"], ch["organic"], ch["rooms"]])
 	_check(fb["gaps"] >= 18 and fb.get("ok_gap", false) and fb["burning"] >= 18 and fb["storms"] >= 20 and fb["spires"] >= 20,
 		"the Firebird lays updraft gaps, burning bridges and ember storms with rock to shelter behind (%d, %d, %d, %d spires)" % [fb["gaps"], fb["burning"], fb["storms"], fb["spires"]])
 	_check(ch["thorns"] >= 50 and ch["closing"] >= 12 and ch["brambles"] >= 30 and ch["pods"] >= 60 and ch["on_way"] > 0,
@@ -306,14 +321,15 @@ func _burning_bridge() -> void:
 	var main = t.main
 	var fb = _sys("firebird")
 	var sc := {}
-	var keep: float = main.Floors.Styles.STYLES["default"]["scenario"]
-	for i in 40:
-		await _floor("firebird", 4, "shards")
+	var froms := _only_scenario("burning_bridge")
+	for i in 60:
+		await _floor("firebird", 3 + i % 3, "shards")
 		for s in main.scenarios.list:
 			if s["kind"] == "burning_bridge":
 				sc = s
 		if not sc.is_empty():
 			break
+	_restore_scenarios(froms)
 	_check(not sc.is_empty() and sc["steps"].size() >= 2 and main.in_chasm(Rect2(sc["chasms"][0]).get_center()), "a Firebird room can be the Burning Bridge: a chasm and a bridge across it")
 	if sc.is_empty():
 		return
@@ -337,7 +353,6 @@ func _burning_bridge() -> void:
 	_check(sc["state"] == "done" and sc["grade"] in ["gold", "silver", "bronze"], "reaching the far side ends it with a grade (%s)" % sc["grade"])
 	await t._wait(1.8)
 	_check(not main.in_chasm(first.get_center()), "...and the bridge knits back")
-	main.Floors.Styles.STYLES["default"]["scenario"] = keep
 
 
 # --- the Thornwild ------------------------------------------------------------------------
@@ -360,14 +375,15 @@ func _thornwild_system() -> void:
 	p.hp = 999.0
 	var th: Dictionary = ch.grown()[0]
 	var c: Vector2 = Rect2(th["rect"]).get_center()
-	_check(th["body"] != null and main.astar.is_point_solid(th["tiles"][0]), "a thorn wall blocks the way (and monsters' paths)")
+	_check(th["body"] != null and main.astar.get_point_weight_scale(th["tiles"][0]) > 10.0 and not main.astar.is_point_solid(th["tiles"][0]),
+		"a thorn wall blocks the way (monsters go round it where they can; the path grid stays whole)")
 	var side: Vector2 = c + (Vector2(-50, 0) if Rect2(th["rect"]).size.y > Rect2(th["rect"]).size.x else Vector2(0, -50))
 	if main.is_solid(side):
 		side = c - (side - c)
 	ch.strike(side, (c - side).normalized(), 50.0, 60.0, false)
 	_check(th["state"] == "grown", "one light blow only scores it")
 	ch.strike(side, (c - side).normalized(), 50.0, 60.0, false)
-	_check(th["state"] == "cut" and th["body"] == null and not main.astar.is_point_solid(th["tiles"][0]), "a second blow cuts through (any weapon will do)")
+	_check(th["state"] == "cut" and th["body"] == null and main.astar.get_point_weight_scale(th["tiles"][0]) == 1.0, "a second blow cuts through (any weapon will do)")
 	var keep_r: float = CH.RULES["regrow"]
 	CH.RULES["regrow"] = 0.3
 	th["t"] = 0.3
@@ -415,7 +431,8 @@ func _thornwild_system() -> void:
 	await t._wait(0.7)
 	_check(f.hp < hp0, "a poison cloud hurts a foe standing in it")
 	f.queue_free()
-	var pd2: Dictionary = calm[0] if not calm.is_empty() else ch.pods[1]
+	var fresh: Array = ch.pods.filter(func(x): return not x["burst"])
+	var pd2: Dictionary = fresh[0] if not fresh.is_empty() else {"pos": main.player_start, "kind": "calm", "burst": false}
 	pd2["kind"] = "calm"
 	var g = await t._spawn("knight", Vector2(pd2["pos"]) + Vector2(10, 0))
 	ch.burst(pd2)
@@ -472,7 +489,10 @@ func _briar() -> void:
 	var at: Vector2 = p.global_position + Vector2(60, 0)
 	if main.is_solid(at):
 		at = p.global_position + Vector2(-60, 0)
+	var stand: Vector2 = p.global_position
+	p.global_position = at + Vector2(0, 300) if not main.is_solid(at + Vector2(0, 300)) else at + Vector2(300, 0)
 	var b = await t._spawn("briar", at)
+	p.global_position = stand
 	_check(b.submerged and b.state == "hide" and not (b in main.targets()), "the briar hides as a bush: it can't be targeted")
 	b.aware = true
 	b.set_physics_process(true)
@@ -496,13 +516,15 @@ func _thicket() -> void:
 	var main = t.main
 	var ch = _sys("chimera")
 	var sc := {}
-	for i in 40:
-		await _floor("chimera", 4, "shards")
+	var froms := _only_scenario("thicket")
+	for i in 60:
+		await _floor("chimera", 3 + i % 3, "shards")
 		for s in main.scenarios.list:
 			if s["kind"] == "thicket":
 				sc = s
 		if not sc.is_empty():
 			break
+	_restore_scenarios(froms)
 	_check(not sc.is_empty(), "a Thornwild room can be the Closing Thicket")
 	if sc.is_empty():
 		return

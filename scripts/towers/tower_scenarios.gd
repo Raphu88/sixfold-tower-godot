@@ -42,29 +42,33 @@ static func plan_extra(out: Dictionary, info: Dictionary, gates: Array, _floor_n
 
 
 static func _plan_bridge(out: Dictionary, info: Dictionary, gates: Array, cell: float) -> Dictionary:
+	# Along the room's long way if its doorways allow, else across it.
+	var long_x: bool = info["size"].x >= info["size"].y
+	for ax in [long_x, not long_x]:
+		var res := _bridge_along(out.duplicate(true), info, gates, cell, ax)
+		if not res.is_empty():
+			return res
+	return {}
+
+
+static func _bridge_along(out: Dictionary, info: Dictionary, gates: Array, cell: float, ax: bool) -> Dictionary:
 	var rect: Rect2 = info["rect"]
 	var rows: Array = info["rows"]
 	var size: Vector2i = info["size"]
-	var ax := size.x >= size.y  # the bridge runs along the room's long way
 	var n := size.x if ax else size.y
 	var m := size.y if ax else size.x
 	if n < 8 or m < 5:
 		return {}
-	# Every doorway must be at one end (the near end).
-	var lows := 0
-	var highs := 0
-	for g in gates:
-		var gt: Vector2i = Vector2i(g[0]) - Vector2i(info["pos"])
+	# Every doorway must be at an end, clear of the chasm; the near end is
+	# the room's own doorway's (the first).
+	var flip := false
+	for gi in gates.size():
+		var gt: Vector2i = Vector2i(gates[gi][0]) - Vector2i(info["pos"])
 		var along := gt.x if ax else gt.y
-		if along < n * 0.3:
-			lows += 1
-		elif along > n * 0.7:
-			highs += 1
-		else:
+		if along >= n * 0.3 and along <= n * 0.7:
 			return {}
-	if lows > 0 and highs > 0:
-		return {}
-	var flip := highs > 0  # (the near end is the high one)
+		if gi == 0:
+			flip = along > n * 0.7
 	var tile := func(u: int, v: int) -> Vector2i:
 		var uu := (n - 1 - u) if flip else u
 		return Vector2i(uu, v) if ax else Vector2i(v, uu)
@@ -215,8 +219,11 @@ static func tick(host, s: Dictionary, delta: float, p) -> void:
 	var cfg := _cfg(s["kind"])
 	match String(s["kind"]):
 		"burning_bridge":
-			if not Rect2(s["rect"]).grow(8.0).has_point(p.global_position) and not p.in_air():
+			if not Rect2(s["rect"]).grow(60.0).has_point(p.global_position) and not p.in_air():
 				host._finish(s, "none", _text()["left"])
+				return
+			if float(s["t"]) > float(s["limit"]) + 4.0:
+				host._finish(s, "none")  # (the bridge is all burnt and you never crossed)
 				return
 			s["burn_t"] -= delta
 			if s["burn_t"] <= 0.0 and int(s["burnt"]) < s["steps"].size():

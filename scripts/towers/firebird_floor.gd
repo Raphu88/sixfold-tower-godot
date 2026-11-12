@@ -242,6 +242,16 @@ func setup(plan: Dictionary) -> void:
 	open.resize(gs.x * gs.y)
 	for i in open.size():
 		open[i] = 1 if main.solid[i] == 1 and walked[i] == 0 else 0
+	# Hidden things keep a skin of rock to the eye (a secret room, a cracked
+	# wall's alcove: seen across the abyss, they'd give themselves away).
+	var hidden: Array = []
+	for s in plan.get("secrets", []):
+		hidden.append_array([s["rect"], s["corridor"]] + ([s["alcove"]] if s.has("alcove") else []))
+	for c in plan.get("cracks", []):
+		hidden.append_array(c.get("walk", []))
+	for r in hidden:
+		for t in main._tiles_in(Rect2(r).grow(CELL)):
+			open[t.y * gs.x + t.x] = 0
 	main.sight_open = open
 	main.room_view.layout_painter = self
 	main.room_view.queue_redraw()

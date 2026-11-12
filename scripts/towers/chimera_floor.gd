@@ -319,12 +319,18 @@ func _grow(th: Dictionary, quiet := false) -> void:
 	queue_redraw()
 
 
+## Monsters' paths go round a grown thorn wall where they can (it costs
+## them dearly), but it never cuts the path grid in two: what lies behind
+## thorns stays reachable, as reach.gd sees it.
+const PATH_COST := 30.0
+
+
 func _set_path(th: Dictionary, closed: bool) -> void:
 	if main.astar == null:
 		return
 	for t in th["tiles"]:
 		if main.astar.region.has_point(t) and not main._is_solid_tile(t.x, t.y):
-			main.astar.set_point_solid(t, closed)
+			main.astar.set_point_weight_scale(t, PATH_COST if closed else 1.0)
 
 
 func _drop_body(th: Dictionary) -> void:
@@ -567,12 +573,12 @@ func _tick_clouds(delta: float, p) -> void:
 
 # --- the floor bot ----------------------------------------------------------------------
 
-## The bot's path grid: thorn walls can be cut, so it may plan through them.
+## The bot's path grid: thorn walls can be cut, so it may plan through them
+## (at a cost: a way round is better if there's one).
 func bot_grid(astar: AStarGrid2D) -> void:
 	for th in grown():
 		for t in th["tiles"]:
-			if astar.region.has_point(t):
-				astar.set_point_solid(t, false)
+			if astar.region.has_point(t) and not astar.is_point_solid(t):
 				astar.set_point_weight_scale(t, 4.0)
 	for t in bramble:
 		if astar.region.has_point(t) and not astar.is_point_solid(t):
