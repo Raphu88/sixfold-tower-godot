@@ -1008,6 +1008,10 @@ func _start_floor(n: int) -> void:
 		lighting.remove_light(flare_light)
 	flare_light = -1
 	if not in_camp:
+		if camp_choosing and player != null:
+			player.set_physics_process(true)  # (cards left open by a vault or the reliquary: the new floor closes them)
+			if wings != null:
+				wings.unfreeze()
 		camp_choosing = false
 	if campfire != null:
 		campfire.queue_free()

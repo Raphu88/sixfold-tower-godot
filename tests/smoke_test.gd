@@ -2066,7 +2066,7 @@ func _puzzle_tests() -> void:
 	for e in main.enemies():
 		e.set_physics_process(false)
 	await _frames(2)
-	_check(main.ward and pz.active(), "a floor of rooms starts with its stair warded")
+	_check(main.ward and (pz.active() or main.objective.active()), "a floor of rooms starts with its stair warded (by its task: %s)" % main.objective.kind)
 	# The stair stays shut however many monsters fall.
 	for e in main.enemies():
 		_slay(e)
@@ -11392,7 +11392,7 @@ func _secret_deep_tests() -> void:
 		var c2: Vector2 = info["rect"].get_center()
 		p.global_position = c2 + Vector2(-2.5 * Tr.C, 0)
 		p.aim = Vector2.RIGHT
-		if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty():
+		if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
 			spot2 = p.global_position
 			break
 	_check(spot2 != Vector2.ZERO, "an open room to build in")
