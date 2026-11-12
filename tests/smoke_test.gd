@@ -7339,7 +7339,7 @@ func _run() -> void:
 ## `-- parts stations` (only the files whose names hold "stations").
 func _part_tests() -> void:
 	var files: Array = Array(DirAccess.get_files_at("res://tests/parts")).filter(func(f): return f.ends_with(".gd"))
-	var only: Array = Array(OS.get_cmdline_user_args()).filter(func(a): return a != "parts")
+	var only: Array = Array(OS.get_cmdline_user_args()).filter(func(a): return a != "parts" and not String(a).begins_with("part="))
 	if not only.is_empty():
 		files = files.filter(func(f): return only.any(func(o): return String(f).contains(o)))
 	files.sort()
