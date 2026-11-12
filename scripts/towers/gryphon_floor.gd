@@ -686,10 +686,25 @@ func is_void(pos: Vector2) -> bool:
 
 
 ## The drops as they are now, for reach.gd's safety net: rock.
-func reach_live(solid: PackedByteArray, size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
-	for lt in bot_avoid():
+## (The gap is a gate: it opens once every vane still to turn is reached.)
+func reach_live(solid: PackedByteArray, size: Vector2i, doors: Array, opens: Dictionary) -> void:
+	for tt in voids:
+		if span.has(tt):
+			continue
+		var lt: Vector2i = main._tile_of(Grid.centre(tt))
 		if lt.x >= 0 and lt.y >= 0 and lt.x < size.x and lt.y < size.y:
 			solid[lt.y * size.x + lt.x] = 1
+	if span.is_empty() or span_open:
+		return
+	var near: Array = []
+	var ob = main.objective
+	if ob != null:
+		for pc in ob.pieces:
+			if pc["state"] != "done":
+				var t0: Vector2i = main._tile_of(pc["pos"])
+				near.append_array([t0, t0 + Vector2i.RIGHT, t0 + Vector2i.LEFT, t0 + Vector2i.DOWN, t0 + Vector2i.UP])
+	doors.append({"tiles": span.keys().map(func(x): return main._tile_of(Grid.centre(x))), "lock": "gate", "lock_id": 9950})
+	opens[9950] = {"all": near}
 
 
 ## Tiles nobody can walk on right now (the floor bot keeps off them).

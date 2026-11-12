@@ -768,13 +768,34 @@ func deep_toward(from: Vector2, toward: Vector2) -> Vector2:
 
 
 ## Deep water as it is now, for reach.gd's safety net: rock.
-func reach_live(solid: PackedByteArray, size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
+## (Water held by wheels is a gate: the moat opens once every wheel still to
+## turn is reached, a sunken room once its wheel is.)
+func reach_live(solid: PackedByteArray, size: Vector2i, doors: Array, opens: Dictionary) -> void:
+	var ob = main.objective
 	for b in basins:
-		if b["deep"]:
-			for tt in b["tiles"]:
-				var lt: Vector2i = main._tile_of(Grid.centre(tt))
-				if lt.x >= 0 and lt.y >= 0 and lt.x < size.x and lt.y < size.y:
-					solid[lt.y * size.x + lt.x] = 1
+		if not b["deep"]:
+			continue
+		if b["kind"] in ["moat", "sunken"]:
+			var at: Array = []
+			if b["kind"] == "moat" and ob != null:
+				for pc in ob.pieces:
+					if pc["state"] != "done":
+						at.append(pc["pos"])
+			for v in valves:
+				if int(v["basin"]) == int(b["id"]) and not v["done"]:
+					at.append(v["pos"])
+			var lid := 9000 + int(b["id"])
+			doors.append({"tiles": b["tiles"].map(func(x): return main._tile_of(Grid.centre(x))), "lock": "gate", "lock_id": lid})
+			var near: Array = []
+			for q in at:
+				var t0: Vector2i = main._tile_of(q)
+				near.append_array([t0, t0 + Vector2i.RIGHT, t0 + Vector2i.LEFT, t0 + Vector2i.DOWN, t0 + Vector2i.UP])
+			opens[lid] = {"all": near} if b["kind"] == "moat" else {"any": near}
+			continue
+		for tt in b["tiles"]:
+			var lt: Vector2i = main._tile_of(Grid.centre(tt))
+			if lt.x >= 0 and lt.y >= 0 and lt.x < size.x and lt.y < size.y:
+				solid[lt.y * size.x + lt.x] = 1
 
 
 ## Tiles nobody can walk on right now (the floor bot keeps off them).
