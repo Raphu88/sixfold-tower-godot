@@ -68,8 +68,10 @@ func _silent_sounds() -> Array:
 			names[E.MATERIAL[kind]] = true
 		# Every monster cries when struck and has its own death (enemy.gd
 		# _hurt_voice, main.gd on_enemy_killed); every beast a roar and a warning.
-		names["hurt_" + kind] = true
-		names["kill_" + kind] = true
+		# (a tower's own creature borrows a voice: towers/creatures.gd VOICE)
+		var voice: String = preload("res://scripts/towers/creatures.gd").voice(kind)
+		names["hurt_" + voice] = true
+		names["kill_" + voice] = true
 	for kind in E.BOSSES:
 		names["roar_" + kind] = true
 		names["warn_" + kind] = true
