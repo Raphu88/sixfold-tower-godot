@@ -194,7 +194,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 	var W := WATER
 	var g := Grid.grid(plan)
 	var start := Grid.tile(plan["start"])
-	var base := Grid.walk(g, start, {})
+	var base := Grid.walks(g, start, plan)
 	var prot := Grid.protected(plan, infos)
 	var used := {}
 	var basins: Array = []
@@ -246,7 +246,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		for i in infos.size():
 			var info: Dictionary = infos[i]
 			var th: Dictionary = load("res://scripts/themes.gd").get_theme(String(info["theme"]))
-			if info["role"] != "branch" or int(deg[i]) != 1 or info.get("piece", false) or not String(th["feature"]) in ["", "den", "pillars", "post", "trap"]:
+			if info["role"] != "branch" or int(deg[i]) != 1 or info.get("piece", false) or not String(th["feature"]) in ["", "den", "pillars", "post"]:
 				continue
 			cands.append(i)
 		cands.shuffle()
@@ -262,7 +262,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 			var block := {}
 			for tt in tiles:
 				block[tt] = true
-			if Grid.cuts_off(g, start, base, block):
+			if Grid.cuts(g, start, base, block):
 				continue
 			var par := int(info["parent"])
 			var vpos: Vector2 = load("res://scripts/objectives.gd")._spot(infos[par], plan["monsters"], 1)
@@ -291,7 +291,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		if info["role"] == "gallery" and info.get("puzzle", "") != "":
 			continue
 		var th: Dictionary = load("res://scripts/themes.gd").get_theme(String(info["theme"]))
-		if String(th["kind"]) == "scenario" or String(th["feature"]) in ["mirror", "trap"]:
+		if String(th["kind"]) == "scenario" or String(th["feature"]) in ["mirror", "trap", "ambush"]:
 			continue
 		var r: Rect2 = info["rect"]
 		var rx: float = r.size.x * 0.5 - float(W["pool_margin"]) * CELL
@@ -309,7 +309,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		var block := no_foot.duplicate()
 		for tt in tiles:
 			block[tt] = true
-		if Grid.cuts_off(g, start, base, block):
+		if Grid.cuts(g, start, base, block):
 			continue
 		basins.append({"kind": "pool", "tiles": tiles, "room": i, "shape": "ellipse", "c": c, "rx": rx + CELL * 0.55, "ry": ry + CELL * 0.55, "level": 0.86})
 		for tt in tiles:
@@ -325,7 +325,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		var block := no_foot.duplicate()
 		for tt in tiles:
 			block[tt] = true
-		if Grid.cuts_off(g, start, base, block):
+		if Grid.cuts(g, start, base, block):
 			continue
 		basins.append({"kind": "flood", "tiles": tiles, "room": -1, "shape": "channel", "path": _inner_path(l["link"]),
 			"low": float(W["flood_low"]), "high": float(W["flood_high"]), "period": randf_range(W["tide_period"][0], W["tide_period"][1]), "phase": randf()})
@@ -373,10 +373,18 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		if b["kind"] != "tide":
 			for tt in b["tiles"]:
 				deep_set[tt] = true
-	for m in plan["monsters"]:
+	var carriers := {}  # (a monster that carries a key stays where the planner put it)
+	for d in plan.get("doors", []) + plan.get("wings", []):
+		if d.has("lock_carrier"):
+			carriers[int(d["lock_carrier"])] = true
+	for l in plan.get("locks", []):
+		if l.has("carrier"):
+			carriers[int(l["carrier"])] = true
+	for mi in plan["monsters"].size():
+		var m: Array = plan["monsters"][mi]
 		var mt := Grid.tile(m[1])
 		if m[0] == "deepfin":
-			if deep_spots.is_empty():
+			if deep_spots.is_empty() or carriers.has(mi):
 				m[0] = "lurker"
 			else:
 				m[1] = Grid.centre(deep_spots.pop_back())
@@ -693,6 +701,20 @@ func _spill(room: int) -> void:
 
 
 # --- what the rest of the game asks ---------------------------------------------------
+
+## The dev tool's Open all doors (main.gd open_all_doors): the water held by
+## wheels drains at once (the moat, sunken rooms).
+func open_gates() -> void:
+	for b in basins:
+		if b["kind"] in ["moat", "sunken"]:
+			b["target"] = float(WATER["moat_low"]) if b["kind"] == "moat" else 0.04
+			b["level"] = b["target"]
+			b["deep"] = false
+			b["swept"] = false
+			_set_solid(b, false)
+	for v in valves:
+		v["done"] = true
+
 
 ## Shallow water here (main.gd in_water: slows walking, soaks foes).
 func wet(pos: Vector2) -> bool:

@@ -1297,6 +1297,8 @@ func _update_springs(delta: float) -> void:
 ## Opens every door on the floor (the dev tool, and tests).
 func open_all_doors() -> void:
 	door_view.open_all()
+	if tower_floor != null:
+		tower_floor.open_gates()  # (a tower's own locks: the Kraken's held water, the Gryphon's gap)
 
 
 ## Walking onto a good room's essence cache: a burst of the tower's essence.

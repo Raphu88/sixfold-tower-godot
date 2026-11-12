@@ -146,7 +146,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 	var V := VOIDS
 	var g := Grid.grid(plan)
 	var start := Grid.tile(plan["start"])
-	var base := Grid.walk(g, start, {})
+	var base := Grid.walks(g, start, plan)
 	var prot := Grid.protected(plan, infos)
 	var drop := {}  # tiles of open drop (not the gap)
 	var gap := {}
@@ -181,7 +181,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		for tt in l["link"].get("flank", []):
 			if not gap.has(tt) and not prot.has(tt):
 				drop[tt] = true
-	if Grid.cuts_off(g, start, base, drop):
+	if Grid.cuts(g, start, base, drop):
 		drop.clear()  # (never happens that anyone knows of: the bridges' rock is apart)
 	# The halls' set pieces.
 	for i in infos.size():
@@ -203,7 +203,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 			var block := drop.duplicate()
 			for tt in res["tiles"]:
 				block[tt] = true
-			if Grid.cuts_off(g, start, base, block):
+			if Grid.cuts(g, start, base, block):
 				continue
 			for tt in res["tiles"]:
 				drop[tt] = true
@@ -216,7 +216,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		var block := drop.duplicate()
 		for tt in sc["voids"]:
 			block[tt] = true
-		if not Grid.cuts_off(g, start, base, block):
+		if not Grid.cuts(g, start, base, block):
 			for tt in sc["voids"]:
 				drop[tt] = true
 			bridges.append_array(sc["bridge"])
@@ -662,6 +662,11 @@ func wet(_pos: Vector2) -> bool:
 	return false
 
 
+## The dev tool's Open all doors (main.gd open_all_doors): the wind bridges the gap.
+func open_gates() -> void:
+	_open_span()
+
+
 ## A drop within `r` px of `pos` (a harrier parried on a ledge falls).
 func near_void(pos: Vector2, r: float) -> bool:
 	var t0 := Grid.tile(pos)
@@ -757,7 +762,7 @@ func task_strike(ob, from: Vector2, dir: Vector2, reach: float, arc: float) -> v
 
 
 func _open_span() -> void:
-	if span_open:
+	if span_open or span.is_empty():
 		return
 	span_open = true
 	var keep: Array = []

@@ -116,6 +116,38 @@ static func cuts_off(g: Dictionary, start: Vector2i, base: PackedByteArray, bloc
 	return false
 
 
+## The floor's locked doors' tiles (not a door barred from one side: it opens
+## from its far side).
+static func locked_tiles(plan: Dictionary) -> Dictionary:
+	var out := {}
+	for d in plan.get("doors", []):
+		if not String(d.get("lock", "")) in ["", "oneway"]:
+			for t in d["tiles"]:
+				out[t] = true
+	for w in plan.get("wings", []):
+		if String(w.get("lock", "")) != "":
+			for t in w.get("door", []):
+				out[t] = true
+	return out
+
+
+## The "nothing cut off" check both ways: with every door open, and with the
+## locked doors still shut (a key or its carrier must stay on this side).
+## `walks` is from walks(): {base, base_locked, locked}.
+static func cuts(g: Dictionary, start: Vector2i, walks_: Dictionary, block: Dictionary) -> bool:
+	if cuts_off(g, start, walks_["base"], block):
+		return true
+	var both: Dictionary = block.duplicate()
+	for t in walks_["locked"]:
+		both[t] = true
+	return cuts_off(g, start, walks_["base_locked"], both)
+
+
+static func walks(g: Dictionary, start: Vector2i, plan: Dictionary) -> Dictionary:
+	var locked := locked_tiles(plan)
+	return {"base": walk(g, start, {}), "base_locked": walk(g, start, locked), "locked": locked}
+
+
 ## Tiles that must stay plain floor (and a tile around each): the start,
 ## the stair, doors and doorways, what the floor asks you to reach
 ## (floors.gd cover_targets), monsters, and each room's reserved tiles.
