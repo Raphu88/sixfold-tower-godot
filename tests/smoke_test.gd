@@ -4454,7 +4454,8 @@ func _item_tests() -> void:
 	await _fresh_main()
 	var p = main.player
 	var Items = main.Items
-	_check(p.item_count("draught") == 1 and p.carried() == ["draught"], "every climb starts with one healing draught")
+	_check(p.item_count("draught") == 1 and p.item_count("stamina") == 1 and p.carried() == ["draught", "stamina"], "every climb starts with one Healing Draught and one Stamina Draught")
+	p.items = {"draught": 1}  # (the draught alone, for the checks below)
 	_check(InputMap.has_action("use_item") and InputMap.has_action("item_next"), "use item (G) and next item (T) are bound")
 	# The healing draught heals over a moment, not all at once.
 	p.hp = 50.0
@@ -4543,6 +4544,7 @@ func _item_tests() -> void:
 	_mark("brow", "surgeon", 2)
 	p.hp = 20.0
 	p.add_item("draught")
+	p.item_sel = "draught"
 	p.use_item()
 	var steady_amount: float = p.heal_left
 	var steady_time: float = p.heal_left / p.heal_rate
@@ -4583,6 +4585,7 @@ func _item_tests() -> void:
 	_touch(4, item_btn["c"], false)
 	await _wait(0.12)
 	_check(p.item_count("draught") == 0, "tapping the item button uses the item")
+	p.items = {}
 	p.add_item("draught")
 	p.add_item("tonic")
 	p.item_sel = "draught"
@@ -5818,7 +5821,7 @@ func _rarity_tests() -> void:
 	_check(absf(dealt["fine"] / dealt["common"] - 1.05) < 0.01 and absf(dealt["rare"] / dealt["common"] - 1.10) < 0.01, "Fine weapons hit 5%% harder, Rare 10%% (%s)" % [dealt])
 	# Traits do what they say: of Edges, of Calm, of Rolling, of the Hunt, of the Riposte.
 	p.take_gear(G.make("leather_gloves", "fine", ["edges"]))
-	_check(absf(p.gfx("strike") - 0.07) < 0.0001, "of Edges on Leather Gloves: 4% + 3% strikes")
+	_check(absf(p.gfx("strike") - 0.09) < 0.0001, "of Edges on Leather Gloves: 4% + 5% strikes")
 	p.take_gear(G.make("iron_helm", "rare", ["calm"]))
 	p.parry_cd = 0.0
 	p.attack_cd = 0.0
@@ -6211,7 +6214,9 @@ func _belt_tests() -> void:
 	var stone0: float = main.profile.crystal_total("stone")
 	var fire0: float = main.profile.crystal_total("fire")
 	var line: String = main.break_belt()
-	_check(absf(main.profile.crystal_total("stone") - stone0 - 12.0) < 0.01 and absf(main.profile.crystal_total("fire") - fire0 - 6.0) < 0.01, "unused belt items break into crystals at half their worth: %s" % line)
+	var want_stone: float = 2.0 * float(main.Items.ITEMS["draught"]["value"]["stone"]) * main.Items.BREAK_SHARE
+	var want_fire: float = float(main.Items.ITEMS["fire_flask"]["value"]["fire"]) * main.Items.BREAK_SHARE
+	_check(absf(main.profile.crystal_total("stone") - stone0 - want_stone) < 0.01 and absf(main.profile.crystal_total("fire") - fire0 - want_fire) < 0.01, "unused belt items break into crystals at half their worth: %s" % line)
 	_check(p.items.is_empty() and main.break_belt() == "", "...once (the belt is empty after)")
 	# Surviving the first climb's Regard breaks it too; falling doesn't.
 	await _fresh_main()
@@ -6220,7 +6225,7 @@ func _belt_tests() -> void:
 	var water0: float = main.profile.crystal_total("water")
 	var rpay: float = float(main.Train.climb_pay(main.floor_num, main.climb_best0)) if main.tower_data()["essence"] == "water" else 0.0  # (the outfitter's pay, in the tower's kind)
 	main._begin_regard(false)
-	_check(absf(main.profile.crystal_total("water") - water0 - 10.0 - rpay) < 0.01, "reaching the Regard alive breaks the belt into crystals")
+	_check(absf(main.profile.crystal_total("water") - water0 - float(main.Items.ITEMS["tonic"]["value"]["water"]) - rpay) < 0.01, "reaching the Regard alive breaks the belt into crystals")
 	await _fresh_main()
 	p = main.player
 	p.items = {"tonic": 2}
@@ -7934,7 +7939,7 @@ func _screen_tests() -> void:
 	_check(_slot("gear:fists") != null and melee != null and melee.id == "axe" and melee.on and _slot("gear:ranged").id == "shortbow" and _slot("gear:armor") != null, "...carried gear in slots: fists, the axe in hand, the bow, armor")
 	var draught = _slot("item:draught")
 	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial") == null, "...the belt's items with their counts")
-	_check(_slot("belt:2") != null and _slot("belt:3") != null and _slot("belt:4") == null, "...and its two empty cells (a belt of 4 kinds)")
+	_check(_slot("item:stamina") != null and _slot("belt:3") != null and _slot("belt:4") == null, "...the Stamina Draught every climb starts with, and an empty cell (a belt of 4 kinds)")
 	_check(_slot("gear:offhand") != null and _slot("gear:offhand").locked, "...the off-hand kept for later, locked")
 	menu._inv_view("heirlooms")
 	await _frames(2)
@@ -11690,6 +11695,7 @@ func _vessel_tests() -> void:
 	p.vessel = {}
 	# A Rune Artist brews one; nobody else can.
 	prof.vessels = []
+	prof.crystals = []  # (the belt broken above left a little Iron: the Stamina Draught)
 	for k in V.BREW:
 		prof.add_crystal(k, float(V.BREW[k]))
 	_check(V.brew(prof).contains("Rune Artist") and prof.vessels.is_empty(), "only a Rune Artist can brew a vessel")

@@ -68,7 +68,8 @@ const SECTIONS := [
 		"tables": ["gear/RARITIES", "gear/TRAITS", "gear/NAMED", "gear/ARMOR", "gear/PIECES", "gear/SLOT_NAMES", "gear/TEXT", "gear/HEIRLOOM_TEXT", "gear/LASTING_RUNES"], "kinds": ["text"],
 		"names": {"NAMED": "Named pieces", "PIECES": "Worn pieces", "TEXT": "Words", "HEIRLOOM_TEXT": "Heirlooms"}},
 	{"id": "weapons_words", "group": "words", "name": "Weapons", "when": "live",
-		"tables": ["weapons/WEAPONS"], "kinds": ["text"]},
+		"tables": ["weapons/WEAPONS", "weapons/ESSENCE_SHOT", "weapons/GUN_TEXT"], "kinds": ["text"],
+		"names": {"ESSENCE_SHOT": "Essence shot (enchanted pistols)", "GUN_TEXT": "Pistols' words"}},
 	{"id": "bonds_words", "group": "words", "name": "Bonds and marks", "when": "live",
 		"tables": ["bonds/BONDS", "bonds/PART_NAMES"], "kinds": ["text"], "names": {"PART_NAMES": "Body parts"}},
 	{"id": "towers_words", "group": "words", "name": "Towers and rooms", "when": "live",
@@ -134,7 +135,8 @@ const SECTIONS := [
 			"gear/WEAPON_DROP_WEIGHT", "gear/ARMOR", "gear/PIECES", "gear/NAMED", "gear/REGARDED_DROP"], "kinds": ["number"],
 		"names": {"REGARDED_DROP": "A beast leaves its Regarded piece (chance)", "RARITY_ODDS": "Rarity odds by floor", "CAPS": "Bonus caps", "WEAR": "Wear", "WEAPON_DROP_WEIGHT": "Weapon drop weights", "PIECES": "Worn pieces", "NAMED": "Named pieces"}},
 	{"id": "weapons_numbers", "group": "numbers", "name": "Weapons", "when": "live",
-		"tables": ["weapons/WEAPONS", "weapons/MEMORY"], "kinds": ["number"]},
+		"tables": ["weapons/WEAPONS", "weapons/MEMORY", "weapons/ESSENCE_SHOT"], "kinds": ["number"],
+		"names": {"ESSENCE_SHOT": "Essence shot (enchanted pistols)"}},
 	{"id": "bench_numbers", "group": "numbers", "name": "Workshop and vessel", "when": "live",
 		"tables": ["bench/BREW", "bench/TEMPER", "bench/TEMPER_RARITY", "bench/TEMPER_DENSITY", "bench/INSCRIBE", "vessel/BREW", "vessel/TRADE"], "kinds": ["number"],
 		"names": {"BREW": "Brewing costs", "TEMPER": "Tempering costs", "TRADE": "Vessel trade"}},
@@ -196,7 +198,8 @@ const SECTIONS := [
 
 ## Keys never offered anywhere: ids and names the code looks things up by.
 const SKIP_KEYS := ["id", "group", "kind", "key", "sound", "hit_sound", "equip", "step", "icon", "slot", "part", "theme", "beast_kind",
-	"summit", "floor", "feature", "door", "emblem", "trigger", "shape", "base", "rarity", "role", "flip"]
+	"summit", "floor", "feature", "door", "emblem", "trigger", "shape", "base", "rarity", "role", "flip",
+	"shot_sound", "crack", "reload_sound", "load_sound", "blade_sound"]
 
 ## Friendlier names for common keys (the rest are written out from the key).
 const KEY_NAMES := {"desc": "description", "dmg": "damage", "hp": "health", "more": "Archive text", "tip": "tip",
@@ -728,6 +731,8 @@ static func _walk(sec: Dictionary, path: String, v, skip: Array) -> void:
 			_walk(sec, path + "/" + str(i), v[i], skip)
 		return
 	var kind := kind_of(v)
+	if v is String and path.ends_with("/history"):
+		kind = "text"  # (a relic's history starts blank, for the owner to write)
 	if kind == "" or not kind in sec["kinds"] or _by_path.has(path):
 		return
 	var f := {"path": path, "section": sec["id"], "kind": kind}

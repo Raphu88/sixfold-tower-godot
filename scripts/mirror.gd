@@ -338,7 +338,7 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta, maxf(0.0, dist - p.radius) / shot_speed()):
 				_loose()
 				var rec: Array = SHOT["recover"]
-				_end_attack("recover", float(SHOT["crossbow"]) if String(wd["kind"]) == "crossbow" else randf_range(float(rec[0]), float(rec[1])))
+				_end_attack("recover", float(SHOT["crossbow"]) if String(wd["kind"]) == "crossbow" or String(wd.get("class", "")) == "heavy" and String(wd["kind"]) == "gun" else randf_range(float(rec[0]), float(rec[1])))
 		"wind_spell":
 			velocity = Vector2.ZERO
 			_aim_spell(delta, dir, dist, p)
@@ -421,7 +421,13 @@ func _swing_hit(p) -> void:
 func _loose() -> void:
 	var v := aim_dir * shot_speed()
 	var arrow = main.spawn_projectile(global_position + aim_dir * (radius + 4.0), v, shot_damage())
-	arrow.heavy = String(wd["kind"]) == "crossbow"
+	arrow.heavy = String(wd["kind"]) == "crossbow" or bool(wd.get("heavy", false))
+	if String(wd["kind"]) == "gun":
+		arrow.style = "shot"
+		main.sfx(String(wd["shot_sound"]), float(wd.get("shot_pitch", 1.0)) * 0.95, -4.0)
+		main.fx_burst(arrow.global_position, aim_dir, Color(1.0, 0.85, 0.55), 6, 220.0)
+		arrow.life = maxf(float(wd.get("life", 0.5)) * 1.6, 0.8)
+		return
 	arrow.life = 1.8
 	main.sfx("bow", 0.95, -2.0)
 
@@ -848,6 +854,11 @@ static func _draw_arms(b, lk: Dictionary, pose: Dictionary, sh_w: Vector2, sh_o:
 				b.stroke(nock, nock + f * (18.0 + 14.0 * kd), Palette.WOOD.lightened(0.2), 1.6)
 			hands.append([sh_w, bgrip + sd * 0.5, 3.0])
 			hands.append([sh_o, nock if pose.has("draw") else free, 2.8])
+		"gun":
+			var ggrip := f * (r + 3.0) + sd * 2.0
+			GearLook.tower_gun(b, id, ggrip, f, lt, 0.0, Weapons.WEAPONS[id].get("color", Palette.WOOD))
+			hands.append([sh_w, ggrip, 3.0])
+			hands.append([sh_o, free, 2.8])
 		"crossbow":
 			var back := f * 4.0 + sd * 3.0
 			var front := back + f * 22.0
@@ -877,6 +888,8 @@ static func _draw_arms(b, lk: Dictionary, pose: Dictionary, sh_w: Vector2, sh_o:
 static func _swung(b, id: String, grip: Vector2, along: Vector2, length: float, glint: float, lt: Vector2) -> void:
 	var side := along.orthogonal()
 	match id:
+		"cane", "sword_cane":
+			GearLook.tower_cane(b, id, grip, along, length, glint, lt, false, Weapons.WEAPONS[id].get("color", Palette.WOOD))
 		"axe":
 			var head := grip + along * (length - 4.0)
 			b.stroke(grip - along * 4.0, head + along * 3.0, Palette.WOOD, 2.6)

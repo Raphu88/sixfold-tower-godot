@@ -1,14 +1,16 @@
 extends RefCounted
 ## Weapon definitions. Each weapon is plain data; player.gd reads it, and
 ## gear.gd knows how weapons are found, carried and compared. Names and text
-## live here so they're easy to change. Every weapon here is plain, common
-## gear; enchanted weapons can be added later as more entries (an
-## "enchant" field read in player.gd is the natural place to start).
+## live here so they're easy to change. Each base weapon is plain, ordinary
+## gear with its own clear use; a Fine or Rare piece is enchanted (its
+## traits, gear.gd), and an enchanted pistol fires essence shot instead of
+## lead (ESSENCE_SHOT).
 ##
 ## Weapon fields:
 ##   name, short  the full name, and a short one for the HUD's slots
 ##   desc         a line about what it's like
-##   kind         "melee", "bow" (hold to draw) or "crossbow" (fire, then reload)
+##   kind         "melee", "bow" (hold to draw), "crossbow" (fire, then reload)
+##                or "gun" (a pistol: fire its shots, then reload them all)
 ##   slot         where it's carried: "fists" (always), "melee" or "ranged"
 ##   class        "light", "medium" or "heavy": how it handles (Weapon Memory
 ##                and the like read this instead of the weapon's id)
@@ -18,6 +20,22 @@ extends RefCounted
 ##   equip        the sound when you switch to it
 ##   rocks        every hit counts as heavy against poise (maces and hammers)
 ##   backstab     extra backstab multiplier on top of the usual 1.5x (daggers)
+##   parry        while it's in hand, the parry window is this much longer (canes)
+##   finisher_sta a landed finisher gives back this much stamina (the sword)
+##   color        its wood's colour (canes and pistols; others are steel or bow wood)
+##
+## Pistol fields (kind "gun"):
+##   dmg, speed, knock, life   a shot's damage, speed, knockback and flight time
+##   heavy        a shot rocks what it hits (breaks poise, as a heavy blow)
+##   shots        how many shots before it must reload (1 for a flintlock)
+##   reload       seconds to reload all of them; a roll breaks it off (it
+##                starts again after the roll), and so does putting it away
+##   reload_move  walking speed while reloading
+##   kick         how hard a shot pushes you back
+##   refill       an enchanted pistol never reloads: each empty chamber fills
+##                itself with essence after this many seconds
+##   shot_sound, shot_pitch, crack, crack_pitch   the shot (two layers)
+##   reload_sound, reload_pitch, load_sound, load_pitch   reloading, and done
 ##
 ## Swing fields (melee combo chains):
 ##   dmg      multiplier on the base strike damage (8)
@@ -26,20 +44,22 @@ extends RefCounted
 ##   lunge    forward step speed, knock: knockback given to the target
 ##   heavy    a finisher: bigger hit-pause, heavier sound, breaks poise
 ##   side     which way the swing sweeps (arcs) or which fist punches (fists)
-##   stagger  seconds a hit staggers the foe (war hammer)
+##   stagger  seconds a hit staggers the foe (war hammer, canes)
+##   blade    the sword-cane's finisher: the blade comes out of the cane for it
 
 ## The base strike damage every swing's "dmg" multiplies (player.gd STRIKE_DAMAGE).
 const BASE := 8.0
 
 ## Every weapon, in the order the dev tools and lists show them.
-const ORDER := ["fists", "dagger", "sword", "axe", "mace", "spear", "greatsword", "war_hammer", "shortbow", "longbow", "crossbow"]
+const ORDER := ["fists", "dagger", "sword", "axe", "mace", "spear", "greatsword", "war_hammer", "cane", "sword_cane",
+	"shortbow", "longbow", "crossbow", "flintlock", "revolver"]
 
 ## What a new climb starts with in the melee and ranged slots.
 const START_MELEE := "sword"
 const START_RANGED := "shortbow"
 
 ## Weapon Memory (Blade Forger): conjured blades take after the weapon in
-## your hand. Melee weapons by class; bows and crossbows all fly as darts.
+## your hand. Melee weapons by class; bows, crossbows and pistols all fly as darts.
 static var MEMORY := {
 	"light": {"extra": 2, "speed": 640.0, "mult": 0.7, "life": 1.2},
 	"medium": {"extra": 0, "speed": 560.0, "mult": 1.0, "life": 1.5},
@@ -91,12 +111,13 @@ static var WEAPONS := {
 	"sword": {
 		"name": "Sword",
 		"short": "Sword",
-		"desc": "the all-rounder: a three-hit chain ending in a slow, heavy finisher",
+		"desc": "the all-rounder: a three-hit chain, and a landed finisher gives you back 10 stamina",
 		"kind": "melee",
 		"slot": "melee",
 		"class": "medium",
 		"style": "arc",
 		"length": 24.0,
+		"finisher_sta": 10.0,
 		"swing_time": 0.15,
 		"sound": "swing",
 		"hit_sound": "hit",
@@ -208,6 +229,50 @@ static var WEAPONS := {
 			{"dmg": 3.0, "range": 56.0, "arc": 70.0, "sta": 42.0, "recover": 1.2, "lunge": 240.0, "knock": 460.0, "heavy": true, "side": -1.0, "stagger": 0.6},
 		],
 	},
+	"cane": {
+		"name": "Walking Cane",
+		"short": "Cane",
+		"desc": "quick, light blows; the hooked finisher staggers, and the parry window is 20% longer while it's in hand",
+		"kind": "melee",
+		"slot": "melee",
+		"class": "light",
+		"style": "arc",
+		"color": Color(0.42, 0.28, 0.18),
+		"length": 26.0,
+		"swing_time": 0.11,
+		"sound": "swing_light",
+		"pitch": 1.1,
+		"hit_sound": "hit_blunt",
+		"equip": "equip_fists",
+		"parry": 0.2,
+		"combo": [
+			{"dmg": 0.6, "range": 44.0, "arc": 50.0, "sta": 8.0, "recover": 0.26, "lunge": 170.0, "knock": 110.0, "heavy": false, "side": 1.0},
+			{"dmg": 0.65, "range": 44.0, "arc": 50.0, "sta": 8.0, "recover": 0.27, "lunge": 170.0, "knock": 110.0, "heavy": false, "side": -1.0},
+			{"dmg": 1.1, "range": 48.0, "arc": 60.0, "sta": 14.0, "recover": 0.5, "lunge": 240.0, "knock": 240.0, "heavy": true, "side": 1.0, "stagger": 0.35},
+		],
+	},
+	"sword_cane": {
+		"name": "Sword-Cane",
+		"short": "Sword-Cane",
+		"desc": "two quick blows with the cane, then the blade comes out for a long, hard finisher",
+		"kind": "melee",
+		"slot": "melee",
+		"class": "light",
+		"style": "arc",
+		"color": Color(0.24, 0.2, 0.2),
+		"length": 26.0,
+		"swing_time": 0.12,
+		"sound": "swing_light",
+		"pitch": 1.05,
+		"hit_sound": "hit_blunt",
+		"blade_sound": "hit_stab",
+		"equip": "equip_dagger",
+		"combo": [
+			{"dmg": 0.65, "range": 44.0, "arc": 50.0, "sta": 9.0, "recover": 0.28, "lunge": 170.0, "knock": 110.0, "heavy": false, "side": 1.0},
+			{"dmg": 0.7, "range": 44.0, "arc": 50.0, "sta": 9.0, "recover": 0.3, "lunge": 170.0, "knock": 120.0, "heavy": false, "side": -1.0},
+			{"dmg": 2.1, "range": 60.0, "arc": 80.0, "sta": 20.0, "recover": 0.6, "lunge": 320.0, "knock": 260.0, "heavy": true, "side": 1.0, "blade": true},
+		],
+	},
 	"shortbow": {
 		"name": "Shortbow",
 		"short": "Short",
@@ -272,6 +337,91 @@ static var WEAPONS := {
 		"reload_move": 0.8,  # walking speed while reloading
 		"life": 1.4,
 	},
+	"flintlock": {
+		"name": "Flintlock Pistol",
+		"short": "Flintlock",
+		"desc": "one heavy shot that throws foes back, then a long reload (a roll breaks it off)",
+		"kind": "gun",
+		"slot": "ranged",
+		"class": "heavy",
+		"color": Color(0.5, 0.32, 0.2),
+		"equip": "equip_crossbow",
+		"dmg": 34.0,
+		"speed": 1100.0,
+		"knock": 460.0,
+		"heavy": true,
+		"pierce": false,
+		"sta": 10.0,
+		"recover": 0.4,
+		"shots": 1,
+		"reload": 2.2,
+		"reload_move": 0.7,
+		"life": 0.5,
+		"kick": 110.0,
+		"refill": 1.8,
+		"shot_sound": "thunder", "shot_pitch": 2.3, "crack": "crossbow", "crack_pitch": 0.7,
+		"reload_sound": "pour", "reload_pitch": 1.6, "load_sound": "crossbow_load", "load_pitch": 1.2,
+	},
+	"revolver": {
+		"name": "Revolver",
+		"short": "Revolver",
+		"desc": "six quick shots, then a reload of all six (a roll breaks it off)",
+		"kind": "gun",
+		"slot": "ranged",
+		"class": "light",
+		"color": Color(0.36, 0.24, 0.18),
+		"equip": "equip_crossbow",
+		"dmg": 10.0,
+		"speed": 1000.0,
+		"knock": 110.0,
+		"heavy": false,
+		"pierce": false,
+		"sta": 5.0,
+		"recover": 0.2,
+		"shots": 6,
+		"reload": 2.0,
+		"reload_move": 0.8,
+		"life": 0.55,
+		"kick": 26.0,
+		"refill": 0.5,
+		"shot_sound": "crossbow", "shot_pitch": 1.5, "crack": "hit_armor", "crack_pitch": 1.6,
+		"reload_sound": "crossbow_reload", "reload_pitch": 1.4, "load_sound": "lock_turn", "load_pitch": 1.2,
+	},
+}
+
+
+## Essence shot: what an enchanted pistol fires instead of lead, by the
+## essence of its enchantment (its first trait's, or a relic's own). It
+## never stops to reload: each empty chamber fills itself (the pistol's
+## "refill"). An essence shot doesn't fill your hand's mark the way your
+## own arrows, bolts and lead shot do: the essence is the pistol's, not yours.
+##   stagger  seconds a hit staggers the foe (half on a beast)
+##   shards, fan, share  it splits into this many shards, this far apart
+##            (radians), each this share of the damage
+##   pierce   it flies on through every foe in its path
+##   speed, life  it flies this much faster and farther; refill: its
+##            chambers fill this much sooner (a share of the time)
+##   radius, share  it bursts this wide where it strikes, hurting the foes
+##            around for this share of its damage
+##   chill    seconds a hit slows the foe
+static var ESSENCE_SHOT := {
+	"stone": {"name": "Stone shot", "desc": "rocks and staggers what it hits", "stagger": 0.3},
+	"blade": {"name": "Blade shot", "desc": "splits into three shards", "shards": 3, "fan": 0.15, "share": 0.5},
+	"iron": {"name": "Iron shot", "desc": "pierces every foe in its path", "pierce": 1.0},
+	"air": {"name": "Air shot", "desc": "flies faster and farther; refills sooner", "speed": 1.7, "life": 1.5, "refill": 0.7},
+	"fire": {"name": "Fire shot", "desc": "bursts in flame over the foes around", "radius": 40.0, "share": 0.6},
+	"water": {"name": "Water shot", "desc": "chills what it hits for 2 seconds", "chill": 2.0},
+}
+## An essence an enchantment can have but ESSENCE_SHOT doesn't list fires this.
+const ESSENCE_SHOT_DEFAULT := "iron"
+## The words a pistol's card and the HUD use.
+static var GUN_TEXT := {
+	"shot": "%s: %s",  # "Fire shot: it bursts in flame..."
+	"refills": "Its chambers fill themselves: no reloading",
+	"reloading": "Reloading",
+	"broken_off": "Reload broken off",
+	"loaded": "Loaded",
+	"shots": "%d of %d",
 }
 
 
@@ -286,6 +436,17 @@ static func is_weapon(id: String) -> bool:
 ## True for weapons that shoot (bows and crossbows).
 static func is_ranged(id: String) -> bool:
 	return WEAPONS.has(id) and WEAPONS[id]["kind"] != "melee"
+
+
+## True for pistols (fire their shots, then reload them all).
+static func is_gun(id: String) -> bool:
+	return WEAPONS.has(id) and WEAPONS[id]["kind"] == "gun"
+
+
+## The essence shot of an enchantment's essence (ESSENCE_SHOT; an essence
+## it doesn't list fires ESSENCE_SHOT_DEFAULT's).
+static func essence_shot(kind: String) -> Dictionary:
+	return ESSENCE_SHOT.get(kind, ESSENCE_SHOT[ESSENCE_SHOT_DEFAULT])
 
 
 ## Weapon Memory: how conjured blades take after this weapon.
@@ -341,6 +502,14 @@ static func stats(id: String) -> Array:
 				["Damage", "%d" % int(w["dmg"]), float(w["dmg"]), true],
 				["Range", "%d" % int(rng2), rng2, true],
 				["Stamina", "%d a shot" % int(w["sta"]), float(w["sta"]), false],
+				["Reload", "%.1f s" % float(w["reload"]), float(w["reload"]), false],
+			]
+		"gun":
+			var rng3: float = float(w["speed"]) * float(w["life"])
+			return [
+				["Damage", "%d" % int(w["dmg"]), float(w["dmg"]), true],
+				["Range", "%d" % int(rng3), rng3, true],
+				["Shots", "%d" % int(w["shots"]), float(w["shots"]), true],
 				["Reload", "%.1f s" % float(w["reload"]), float(w["reload"]), false],
 			]
 	return []

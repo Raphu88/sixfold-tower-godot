@@ -46,7 +46,7 @@ const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall", "v
 ## store asks: you do the work; the basic supplies follow the store's
 ## halved prices, train.gd SUPPLY_PRICE). The recall scroll is only for a Rune Artist.
 static var BREW := {
-	"draught": {"stone": 5}, "tonic": {"water": 4}, "vial": {"water": 16}, "smoke": {"fire": 4},
+	"draught": {"stone": 2}, "stamina": {"iron": 2}, "tonic": {"water": 4}, "vial": {"water": 16}, "smoke": {"fire": 4},
 	"fire_flask": {"fire": 10}, "edge_oil": {"blade": 12}, "warding_oil": {"iron": 12}, "haste": {"air": 10},
 	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
 	"antidote": {"stone": 6}, "heartroot": {"water": 13}, "net": {"water": 8}, "lodestone": {"iron": 10}, "briar_tonic": {"blade": 8},

@@ -24,7 +24,7 @@ On a touchscreen the whole game is drawn bigger so it reads on a small screen (h
 | Aim | The mouse | Right stick; let go and you aim at the nearest monster, or the way you move |
 | Roll | Space | B / Circle |
 | Jump (over chasms and burning floor) | Z, or the Jump button on a phone | A / Cross |
-| Strike / hold to draw a bow / fire the crossbow | Left click or J | RT / R2 |
+| Strike / hold to draw a bow / fire the crossbow or a pistol | Left click or J | RT / R2 |
 | Parry | Right click or K | LT / L2 |
 | Switch weapon | 1 Fists, 2 your melee weapon, 3 your ranged weapon, or the mouse wheel | RB / R1 or d-pad right (next), d-pad left (previous) |
 | Take the gear you stand on (your old piece goes in your pack, or is dropped if it's full) | Y, or the Take button on a phone | Y / Triangle |
@@ -72,16 +72,16 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 
 | Piece | Slot | What it does |
 | --- | --- | --- |
-| Cloth Hood | Helm | your light reaches 10% farther |
+| Cloth Hood | Helm | your light reaches 10% farther; monsters notice you 8% later |
 | Leather Cap | Helm | +8 health |
 | Iron Helm | Helm (heavy) | 6% damage taken off |
-| Grip Wraps | Gloves | strike chains cost 6% less stamina |
-| Leather Gloves | Gloves | strikes hit 4% harder |
+| Grip Wraps | Gloves | strike chains cost 6% less stamina; your bare fists hit 15% harder |
+| Leather Gloves | Gloves | strikes hit 4% harder, and a chain's finisher 15% harder |
 | Gauntlets | Gloves (heavy) | strikes hit 7% harder; the parry window is 5% shorter |
 | Padded Trousers | Legs | +10 max stamina |
-| Leather Leggings | Legs | rolls carry 5% farther |
+| Leather Leggings | Legs | rolls carry 5% farther and cost 5% less stamina |
 | Chain Leggings | Legs (heavy) | 5% damage taken off |
-| Soft Boots | Boots | you walk 4% faster |
+| Soft Boots | Boots | you walk 4% faster, and quietly: monsters notice you 10% later |
 | Climbing Boots | Boots | jumps cost no stamina and carry 10% farther |
 | Hobnail Boots | Boots (heavy) | light blows (under 14 damage) can't knock you back; you walk 3% slower |
 | Travel Cloak | Cloak | poison wears off 25% sooner and burning floor hurts 25% less |
@@ -91,24 +91,24 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 | Feathered Cap | Helm | bows and crossbows hit 6% harder |
 | Miner's Helm | Helm | your light reaches 25% farther; 3% damage taken off |
 | Archer's Bracers | Gloves | bows draw and crossbows reload 10% faster |
-| Studded Gloves | Gloves | strikes hit 2% harder; foes that strike you up close take 4 |
+| Studded Gloves | Gloves | your bare fists hit 25% harder; foes that strike you up close take 4 |
 | Ranger's Breeches | Legs | you walk 3% faster; monsters notice you 10% later |
 | Plated Greaves | Legs (heavy) | 7% damage taken off |
 | Wading Boots | Boots | water doesn't slow you; traps and burning floor hurt 10% less |
 | Feather Cape | Cloak | jumps carry 15% farther and rolls 4% farther |
 | Herb Pouch | Backpack | healing items heal 25% more |
 
-**Rings and amulets** (Fine, so they never wear; you wear two rings and both count):
+**Rings and amulets** (Fine, so they never wear; enchanted by nature, each in its own essence, which its card names; you wear two rings and both count):
 
 | Piece | Slot | What it does |
 | --- | --- | --- |
 | Bone Charm | Amulet | +10 health |
-| Ember Charm | Amulet | spells hit 6% harder |
-| Iron Band | Ring | stamina refills 5% faster |
-| Garnet Ring | Ring | strikes hit 4% harder |
+| Ember Charm | Amulet | spells hit 6% harder; your light reaches 10% farther |
+| Iron Band | Ring | stamina refills 5% faster, and starts refilling 25% sooner after you act |
+| Garnet Ring | Ring | strikes hit 4% harder; each kill gives back 6 stamina |
 | Wolf-Tooth Necklace | Amulet | ripostes and backstabs hit 12% harder |
 | Sunstone Pendant | Amulet | your light reaches 20% farther; spells hit 3% harder |
-| Silver Ring | Ring | the parry window is 6% longer |
+| Silver Ring | Ring | the parry window is 6% longer; a perfect parry heals you 3 |
 | Jade Ring | Ring | +12 max stamina |
 
 **Rare by nature** (found only as Rare finds; never wear):
@@ -122,13 +122,15 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 | Viper Ring | Ring | hits have a 12% chance to poison the foe |
 | Bandolier | Backpack | two more kinds of item on the belt |
 
-**Worn gear shows on the climber, everywhere** (`scripts/gear_look.gd`): in the tower, on the climber screen's figure, the tree's body map, the mirror image and the Loadout's large figure (the creation and Appearance previews stay gear-free, so you can see your hair and clothes). The chest piece by its weight (a quilted gambeson, a leather cuirass with its strap and tassets, a mail hauberk, a steel breastplate with faulds and pauldrons), the helm (a cloth hood in its colour; a cap, with a feather on the Feathered Cap; a helm with cheek guards and a nasal, a candle on the Miner's Helm, a narrow slit on the Watcher's Helm; plate brings a helm and mail a coif when you wear no helm piece), gloves (wraps, leather, studs, gauntlets, bracers), the legs (quilting, leather knee panels, mail, plated greaves), boots (laces, hobnails, tall wading boots), the cloak (a worn cloak's colour replaces your own; a Feather Cape is short), the backpack (a Climber's Pack with its bedroll and straps, a satchel at the hip, a belt pouch, a bandolier), the amulet on its chain and a stone on each ringed hand, the weapon in hand (every kind: sword, greatsword, dagger, axe, mace, war hammer, spear, the Coral Trident's three prongs, bows and the crossbow) and the other weapon slung on your back (a bow and quiver, or a hilt over the shoulder). **Rules with your appearance:** a helm or cap pushes your hood down, so your hair shows under it (long hair and braids still hang below); a worn hood or mail coif replaces your hood's colour; your tunic, trousers and belt show where armour doesn't cover them. **Rarity** shows as a thin edge in its colour on Fine and better pieces (a fine cloak is trimmed in it); **named pieces** (tower pieces, Storied, Regarded) are drawn in their own colour with a gilt line, and a Regarded piece carries a glowing stone. In the tower, where the climber is small, the gear is kept to what reads: the pack and slung weapon on your back, knee plates, the amulet's glint, a candle or feather, a fine helm's crest, a glint on a ringed hand.
+**Worn gear shows on the climber, everywhere** (`scripts/gear_look.gd`): in the tower, on the climber screen's figure, the tree's body map, the mirror image and the Loadout's large figure (the creation and Appearance previews stay gear-free, so you can see your hair and clothes). The chest piece by its weight (a quilted gambeson, a leather cuirass with its strap and tassets, a mail hauberk, a steel breastplate with faulds and pauldrons), the helm (a cloth hood in its colour; a cap, with a feather on the Feathered Cap; a helm with cheek guards and a nasal, a candle on the Miner's Helm, a narrow slit on the Watcher's Helm; plate brings a helm and mail a coif when you wear no helm piece), gloves (wraps, leather, studs, gauntlets, bracers), the legs (quilting, leather knee panels, mail, plated greaves), boots (laces, hobnails, tall wading boots), the cloak (a worn cloak's colour replaces your own; a Feather Cape is short), the backpack (a Climber's Pack with its bedroll and straps, a satchel at the hip, a belt pouch, a bandolier), the amulet on its chain and a stone on each ringed hand, the weapon in hand (every kind: sword, greatsword, dagger, axe, mace, war hammer, spear, the Coral Trident's three prongs, the walking cane with its crook, the sword-cane with its silver knob (its blade out for the finisher, the empty cane in the other hand), bows, the crossbow, and the pistols: a flintlock's long barrel and wooden stock, a revolver's cylinder, which swings out while it reloads) and the other weapon slung on your back (a bow and quiver, a cane across the back, a hilt over the shoulder, or a pistol holstered at the hip). **Rules with your appearance:** a helm or cap pushes your hood down, so your hair shows under it (long hair and braids still hang below); a worn hood or mail coif replaces your hood's colour; your tunic, trousers and belt show where armour doesn't cover them. **Rarity** shows as a thin edge in its colour on Fine and better pieces (a fine cloak is trimmed in it); **named pieces** (tower pieces, Storied, Regarded) are drawn in their own colour with a gilt line, and a Regarded piece carries a glowing stone. In the tower, where the climber is small, the gear is kept to what reads: the pack and slung weapon on your back, knee plates, the amulet's glint, a candle or feather, a fine helm's crest, a glint on a ringed hand.
 
 **Protection** from everything you wear adds up (plate 35%, an iron helm 6% and chain leggings 5% make 46%) but never goes past **50%** (`PROTECTION_CAP`).
 
-### Rarities and traits
+### Rarities and traits: ordinary, enchanted and relics
 
 Gear comes in five **rarities** (`RARITIES` in `gear.gd`), each with its colour on the floor label, the drop's glint, the inventory slot's edge and the card: **Common** (parchment), **Fine** (green, 1 trait, weapons +5% damage), **Rare** (blue, 2 traits, weapons +10%), **Storied** (amber, its own named rule and 1 trait, weapons +12%) and **Regarded** (gold, a beast's own weapon or armour: its own named rule and **4 traits**, weapons +15%; see **Regarded pieces** below). Rings and amulets are Fine by nature, so they carry one trait fewer. Backpacks take no traits. Only plain **Common** pieces wear; anything with a trait, and anything finer, never does.
+
+**Ordinary or enchanted** (the owner's direction: "keep tiers but make each piece exciting; some not enchanted and some enchanted"). A **Common** piece is **ordinary**: not enchanted, no traits, only its own use, and every base piece has one clear use of its own (no two the same; the cards say "ordinary"). **Fine** and **Rare** pieces are **enchanted**: their traits, and their card's first line says "Enchanted: <essence> essence" in that essence's colour (the essence of its first trait). Rings and amulets are enchanted by nature, each in its own essence (`PIECES` "kind"); the Climber's Pack and the Bandolier are Rare by nature but ordinary. **Storied** and **Regarded** pieces are **relics**: a name, their own rule, and a card line saying whether they're enchanted (the Lastbell Revolver isn't). Helpers in `gear.gd`: `enchanted`, `enchant_kind`, `shot_kind`. **Relics' histories:** every named piece has a `history` in `NAMED`, blank for the owner to write (in `gear.gd`, or the Data editor's Words → Gear → Named pieces); a card shows it only once it isn't blank.
 
 **No trait twice.** A piece never carries the same trait twice, whatever made it: a drop, a cache, a camp, a vault, today's piece, a Proving relic, Join or Retrait at the bench. `gear.gd make()` (which every piece passes through, old saves too) replaces a repeat with another trait that fits the slot and isn't on the piece, the same one every time, so a piece in an old save is cleaned when it loads; if no trait is left for the slot, the repeat goes. Every slot but the backpack has at least four traits, so a Regarded piece always has four different ones.
 
@@ -149,24 +151,26 @@ Storied pieces are only found from floor 7 up. A **Rare** or better find fades i
 | --- | --- | --- | --- | --- |
 | of Vigor | Stone | +6 health | +10 | helm, chest, legs, cloak, amulet |
 | of Footing | Stone | traps and burning floor hurt 15% less | 25% | boots, legs |
-| of Edges | Blade | strikes +3% | +5% | melee, gloves, rings |
-| of the Riposte | Blade | ripostes and backstabs +8% | +12% | melee, gloves |
+| of Edges | Blade | strikes +5% | +8% | melee, gloves, rings |
+| of the Riposte | Blade | ripostes and backstabs +8% | +12% | melee, gloves, ranged |
 | of Breath | Iron | +8 max stamina | +12 | legs, chest, cloak |
-| of Second Wind | Iron | stamina refills 4% faster | 6% | rings, amulet, chest |
+| of Second Wind | Iron | stamina refills 6% faster | 10% | rings, amulet, chest, ranged |
 | of Thorns | Iron | foes that strike you up close take 3 | 5 | chest, gloves |
-| of the Wind | Air | walk +2% | +3% | boots, cloak, legs |
+| of the Wind | Air | walk +4% | +6% | boots, cloak, legs |
 | of Rolling | Air | rolls cost 5% less stamina | 8% | boots, legs |
-| of the Hunt | Air | bows and crossbows +5% | +8% | ranged, gloves, helm |
-| of Kindling | Fire | spells +4% | +6% | amulet, rings, helm |
-| of Embers | Fire | strikes have a 10% chance to set the foe burning (2 every half second for 2 s) | 15% | melee, gloves |
-| of the Well | Water | marks fill 4% faster | 6% | amulet, rings, helm |
+| of the Hunt | Air | bows, crossbows and pistols +8% | +12% | ranged, gloves, helm |
+| of Kindling | Fire | spells +6% | +9% | amulet, rings, helm |
+| of Embers | Fire | hits have a 10% chance to set the foe burning (2 every half second for 2 s) | 15% | melee, gloves, ranged |
+| of the Well | Water | marks fill 6% faster | 9% | amulet, rings, helm, ranged |
 | of Calm | Water | parry window +5% | +8% | gloves, helm, rings |
-| of Mending | Stone | each kill heals you 1 | 2 | melee, ranged, amulet |
+| of Mending | Stone | each kill heals you 2 | 3 | melee, ranged, amulet |
 | of Venom | Stone | hits have an 8% chance to poison the foe | 12% | melee, ranged |
-| of the Quick Draw | Air | bows draw and crossbows reload 6% faster | 10% | ranged, gloves |
+| of the Quick Draw | Air | bows draw, and crossbows and pistols reload, 8% faster | 12% | ranged, gloves |
 | of Shadows | Air | monsters notice you 10% later | 15% | cloak, boots, helm, ranged |
-| of Striding | Air | rolls carry 3% farther | 5% | boots, legs, cloak |
+| of Striding | Air | rolls carry 5% farther | 8% | boots, legs, cloak |
 | of the Lantern | Fire | your light reaches 10% farther | 15% | helm, amulet, cloak, chest |
+
+The faint traits (Edges, Wind, Second Wind, Hunt, Kindling, Well, Mending, Quick Draw, Striding) were made noticeable; the caps below keep stacking in check. Ranged weapons can now carry fire, water, iron and blade traits too, so an enchanted pistol can fire every essence's shot.
 
 **Caps** (`CAPS`): whatever you wear adds at most +25% strikes, +40 health, +30 stamina, +12% walk and +20% spells; the inventory says "(capped)" beside a number that has hit its cap. The gear card's comparison counts traits (green up arrows, red down arrows), and for weapons its "plays like" line names the traits it adds or loses ("hits harder, adds Embers").
 
@@ -194,6 +198,10 @@ Storied pieces are only found from floor 7 up. A **Rare** or better find fades i
 | Rootbound Greaves | plated greaves | Storied | 5% damage taken off and +8 health; while you stand still, blows hurt 25% less |
 | Wayfinder's Pendant | sunstone pendant | Storied | secret walls and hidden traps near you glint; your light reaches 15% farther |
 | Duelist's Ring | silver ring | Storied | the parry window is 10% longer; every parry gives back 15 more stamina |
+| Ashgrove Cane | walking cane | Storied | a perfect parry with it staggers every foe near you for a moment |
+| Quietsteel | sword-cane | Storied | its drawn finisher poisons every foe it cuts |
+| Lastbell Revolver | revolver | Storied | not enchanted: lead and a reload, but the last shot in the cylinder hits twice as hard |
+| Emberlock | flintlock | Storied | fires fire shot, and a kill with it fills its chamber at once |
 
 **Regarded pieces** (`NAMED` entries with a `beast`): each tower's beast has its own weapon or armour, and leaves it where it falls at the summit: always the first time you slay that beast, and a quarter of the time after that (`REGARDED_DROP`). It glints gold on the floor, with a "REGARDED:" notice, and if you take the stair without picking it up it comes down in your pack anyway. A Regarded piece carries its own rule and **four different traits**, never wears, is rarer than anything Storied (no monster, cache, camp or vault ever rolls one), and sells for the most (`RARITY_PRICE` x14). Its icon throws gold rays and two glints behind its glow.
 
@@ -216,12 +224,14 @@ Storied pieces are only found from floor 7 up. A **Rare** or better find fades i
 | --- | --- | --- | --- | --- | --- |
 | Fists | light | quick jabs on a cheap 4-hit chain ending in a heavy hook | 4 to 10 | 42 | 30 to 36 |
 | Dagger | light | fast, short and cheap; a backstab deals 2x instead of 1.5x | 6 to 11 | 43 | 36 to 40 |
-| Sword | medium | the all-rounder: 3 hits, a slow heavy finisher | 8 to 14 | 58 | 46 to 56 |
+| Sword | medium | the all-rounder: 3 hits, a slow heavy finisher; a finisher that lands gives back 10 stamina | 8 to 14 | 58 | 46 to 56 |
 | Axe | medium | slower and harder than the sword, with a wider hacking arc | 10 to 18 | 70 | 48 to 56 |
 | Mace | medium | every blow counts as heavy against poise: it rocks monsters out of their wind-ups and cracks shells | 9 to 16 | 70 | 44 to 50 |
 | Spear | medium | long, narrow thrusts: strike from beyond a monster's reach, but miss what's beside you | 8 to 13 | 54 | 74 to 86 |
 | Greatsword | heavy | two-handed: slow, huge sweeping arcs that catch a crowd; hungry for stamina | 13 to 21 | 94 | 60 to 66 |
 | War Hammer | heavy | the slowest and heaviest, 2 hits: every blow rocks, and the finisher staggers (half as long on a beast) | 16 to 24 | 74 | 52 to 56 |
+| Walking Cane | light | quick, light blows; the hooked finisher staggers (a riposte's opening), and the parry window is 20% longer while it's in hand | 5 to 9 | 30 | 44 to 48 |
+| Sword-Cane | light | two quick cane blows, then the blade comes out of the cane for a long, hard finisher (drawn with the empty cane in the other hand) | 5 to 17 | 38 | 44 to 60 |
 
 **Ranged weapons:**
 
@@ -230,6 +240,21 @@ Storied pieces are only found from floor 7 up. A **Rare** or better find fades i
 | Shortbow | hold to draw (0.75 s), release to loose: 5 to 20 damage; a full draw pierces. You walk at 45% while drawing. |
 | Longbow | a slower draw (1.1 s) for harder, farther arrows (6 to 30 damage), but you barely walk while drawing (28%) |
 | Crossbow | press to fire a fast, strong bolt at once (24 damage; it rocks what it hits), then a 1.1 s reload you can't skip. You can walk (a little slower) while it reloads; the slot and the phone's attack button fill back up. |
+| Flintlock Pistol | one heavy shot (34 damage, short range): it rocks what it hits, throws it back harder than any bolt and kicks you back; then a long 2.2 s reload |
+| Revolver | six quick shots (10 each, 0.2 s apart), then a 2 s reload of all six |
+
+**Pistols** (`kind: "gun"` in `weapons.gd`) go in the ranged slot. An ordinary pistol starts reloading by itself once it's empty; reloading is something you do, so **a roll breaks it off** (it starts again from the beginning after the roll), and so does putting the pistol away. You walk a little slower while reloading (`reload_move`), and the quick-draw traits and Archer's Bracers reload pistols faster. Lead shot that lands fills your hand's mark as arrows and bolts do. The HUD's weapon slot shades while it reloads and shows a pip for each shot (lit while loaded); on a phone the attack button reads "Revolver 4/6" and its ring fills as it reloads. The sounds are the bank's own, pitched: thunder and a crossbow's clack for the flintlock, a quick clack and a ring of steel for the revolver, powder poured and a ramrod's click, a ratchet and a lock's turn for reloading.
+
+**Essence shot** (`ESSENCE_SHOT` in `weapons.gd`). An **enchanted** pistol (Fine or Rare, or an enchanted relic) fires its enchantment's essence instead of lead, and **never stops to reload**: each empty chamber fills itself after a moment (`refill`: 1.8 s for a flintlock, 0.5 s a chamber for a revolver), in hand or holstered, even through a roll. An essence shot doesn't fill your hand's mark (the essence is the pistol's, not yours). What it does follows the essence:
+
+| Essence | Shot |
+| --- | --- |
+| Stone | rocks and staggers what it hits (half as long on a beast) |
+| Blade | splits into three shards in a narrow fan, each half the damage |
+| Iron | pierces every foe in its path |
+| Air | flies 70% faster and half again as far; its chambers fill 30% sooner |
+| Fire | bursts in flame over the foes around (60% of its damage) |
+| Water | chills what it hits, slowing it for 2 s |
 
 Weapon classes matter elsewhere too: Blade Forger's **Weapon Memory** throws more, smaller knives with a light weapon, fewer and harder blades with a heavy one, and fast darts with any bow or crossbow. Hunter's spells and Hawk's Eye work with every bow and the crossbow.
 
@@ -253,7 +278,8 @@ The dev tools have a **Gear** row: a button for every weapon, armor and worn pie
 
 | Item | Essence | What it does |
 | --- | --- | --- |
-| Healing Draught | Stone | heals 40 health over 1.5 seconds |
+| Healing Draught | Stone | a staple: heals 40 health over 1.5 seconds |
+| Stamina Draught | Iron | a staple: 50 stamina back at once, and stamina refills 40% faster for 5 seconds |
 | Cleansing Tonic | Water | cures poison, heals every burned body part, and a little health |
 | Essence Vial | Water | fills every mark with essence |
 | Smoke Bomb | Fire | a cloud of smoke around you: monsters inside lose track of you (beasts don't) |
@@ -262,7 +288,7 @@ The dev tools have a **Gear** row: a button for every weapon, armor and worn pie
 | Warding Oil | Iron | a 25-point barrier for 15 s; traps can't hurt you while it holds |
 | Haste Draught | Air | walk 25% faster and rolls cost 30% less for 10 s |
 | Stoneskin Draught | Stone | 20% damage taken off (it counts toward the 50% cap) and no knockback for 12 s |
-| Second Wind Salts | Iron | stamina full at once, refilling 50% faster for 8 s |
+| Second Wind Salts | Iron | stamina full at once; for 8 s it never waits after you act and refills 50% faster |
 | Flare Powder | Air | lights the room for 20 s; hidden traps and secret walls nearby glint |
 | Antivenom | Stone | cures poison, and no poison takes hold of you for 30 s |
 | Heartroot | Water (Life) | heals 20, and for 30 s every kill heals you 4 more |
@@ -276,7 +302,7 @@ The dev tools have a **Gear** row: a button for every weapon, armor and worn pie
 | Scroll of Seeing | Air | for a minute every hidden trap and secret wall on the floor glints, wherever it is |
 | Recall Scroll | Air and Water | from vaults, and always on the train's store shelf for 60 crystal essence of any kind; one at most: read it to leave the tower safely, keeping everything (see **Sealed wings, vaults and secrets**) |
 
-Every climb starts with one Healing Draught. Slain monsters (not beasts) sometimes leave an item (8%); walk over it to pick it up. Warding Oil, Stoneskin Draughts and the two items of the secret essences (Heartroot and Ash of Unmaking) are never dropped by monsters; camps and vaults offer them. Every item is also on the train's store shelf and brewed at the bench. Items that work for a while (Antivenom, Heartroot, Briar Tonic, Wardbreaker, Lantern Oil, the Scroll of Seeing) add to the same numbers your gear does (`buff` in `items.gd`); using another refreshes it.
+**Staples and the rest** (the owner's direction: "health and stamina potions are common and cheap, a staple for any climber; other consumables are a little more unique"). The **Healing Draught** and **Stamina Draught** are staples (`staple` in `items.gd`): every climb starts with one of each (`START`), they cost 3 at the store (`SUPPLY_PRICE`, half their small worth), and they're most of what slain monsters leave. Everything else is rarer: it costs its full worth (10 to 20), monsters drop it far less often, and camps and vaults offer only these rarer things, never a staple. Slain monsters (not beasts) sometimes leave an item (10%); walk over it to pick it up. Warding Oil, Stoneskin Draughts and the two items of the secret essences (Heartroot and Ash of Unmaking) are never dropped by monsters; camps and vaults offer them. Every item is also on the train's store shelf and brewed at the bench. Items that work for a while (Antivenom, Heartroot, Briar Tonic, Wardbreaker, Lantern Oil, the Scroll of Seeing) add to the same numbers your gear does (`buff` in `items.gd`); using another refreshes it.
 
 **The belt at the end of a climb.** Survive a climb (beat its beast, reach the Regard without falling, or read a recall scroll) and whatever is left on your belt breaks into **essence crystals** at half its worth, one crystal per essence (`value` and `BREAK_SHARE` in `items.gd`); the victory screen says what it became. Fall and it's lost.
 
@@ -319,7 +345,7 @@ After the Regard, every climb ends on **the train**, a steampunk train waiting o
 - **The outfitter's pay for every climb**, however it ends (a fall too, the summit, a recall scroll, the first climb's Regard): crystals of the tower's kind, **2 for every floor reached** and **3 more for every floor past your best in that tower** before the climb (`CLIMB_PAY`). The fall screen, the victory or recall screen and the Regard say it in gold ("The outfitter pays for your climb: +30 Water"), and his greeting in the store car mentions it until you depart. A fall on floor 6 pays 12, or 30 if it's a new best; a summit pays 24, or up to 60 the first time.
 - Selling and breaking down, vault and secret-room prizes, champions and mirror images, a recall scroll (your unbanked essence) and the belt at the end of a survived climb.
 
-Every price is in one kind of essence (a consumable's own kind; a piece's trait or named kind, else its slot's: chest and helm Stone, gloves and melee Blade, legs, ranged and backpack Iron, boots and cloak Air, amulets Fire, rings Water), shown as a gem and a number, red when you can't pay; the card says why in words ("needs 12 more Fire"). The one exception is the recall scroll, which takes any kind. Prices: a piece's `BASE_PRICE` (8 to 20) times its rarity's `RARITY_PRICE`: **Common x0.5** (half what they first were, 4 to 10), Fine x2, Rare x4, Storied x8, Regarded x14 (so a Fine piece costs 4x its Common, the finds you sell keep their worth, and a beast's own piece sells for the most). **Basic supplies** (Healing Draught 6 Stone, Cleansing Tonic 5 Water, Smoke Bomb 5 Fire, Second Wind Salts 5 Iron, Flare Powder 4 Air: `SUPPLY_PRICE`) cost half their worth; the rarer brews cost their worth in `items.gd`. Selling gives 40% of the price (at least 1), so a Common sells for 2 to 4. In the **Inventory**, the Essence crystals row shows how much each kind holds; **Consume 10** banks up to 10 of it into you at a time (`CRYSTAL["step"]` in `items.gd`). The Entity explains the train, the store, the chest, the bench and enchanting the first time you see each. The stash (`chest` in the save), pack, the Loadout (`wear`), packed supplies, the store's stock and the last climb's pay are saved with your profile (the `train` section; old saves load with an empty stash and nothing chosen to wear).
+Every price is in one kind of essence (a consumable's own kind; a piece's trait or named kind, else its slot's: chest and helm Stone, gloves and melee Blade, legs, ranged and backpack Iron, boots and cloak Air, amulets Fire, rings Water), shown as a gem and a number, red when you can't pay; the card says why in words ("needs 12 more Fire"). The one exception is the recall scroll, which takes any kind. Prices: a piece's `BASE_PRICE` (8 to 20) times its rarity's `RARITY_PRICE`: **Common x0.5** (half what they first were, 4 to 10), Fine x2, Rare x4, Storied x8, Regarded x14 (so a Fine piece costs 4x its Common, the finds you sell keep their worth, and a beast's own piece sells for the most). **The staples** (Healing Draught 3 Stone, Stamina Draught 3 Iron: `SUPPLY_PRICE`) cost half their worth and come first on the shelf; everything else costs its worth in `items.gd` (10 to 20). Selling gives 40% of the price (at least 1), so a Common sells for 2 to 4. In the **Inventory**, the Essence crystals row shows how much each kind holds; **Consume 10** banks up to 10 of it into you at a time (`CRYSTAL["step"]` in `items.gd`). The Entity explains the train, the store, the chest, the bench and enchanting the first time you see each. The stash (`chest` in the save), pack, the Loadout (`wear`), packed supplies, the store's stock and the last climb's pay are saved with your profile (the `train` section; old saves load with an empty stash and nothing chosen to wear).
 
 **What a climb earns** (rough, at 20%): a floor gives about 30 essence low down and 60 by floor 5, so a fall on floor 6 banks about 220, condenses about 44 (most of it the tower's kind) and is paid 12 (30 on a new best): roughly 40 to 60 crystal essence, enough for a few Common pieces and supplies in the tower's kind. A summit gathers about 800, condenses about 160 and is paid 24 or more (these are estimates from the monster budgets in `floors.gd`, before caches, puzzles and vaults).
 
@@ -983,7 +1009,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 - **The Unbound**, the other path: techniques built at the essence bench, a tree per body part with its new forms, every effect and a capstone at level 10.
 - **Overdraw.** Cast without enough essence and the spell still fires, but the body part burns: a burned hand weakens your strikes, burned legs make rolls cost more and travel less. Burns heal at the next stair.
 - **Marks and motes on the body.** Each bond shows as a sigil that grows lines with its step, circled by motes as its essence fills.
-- **Gear.** Eight melee weapons, two bows and a crossbow, four suits of armor, and twenty-five Common worn pieces plus Fine and Rare rings, amulets, packs and a bandolier for the helm, gloves, legs, boots, cloak, amulet, ring and backpack slots; Fine, Rare and Storied finds with twenty essence traits (never one twice on a piece), twenty named pieces (eight only in their own tower), six Regarded pieces left by the beasts, caps on what gear adds, wear on Common pieces and a 50% protection cap (see **Gear: weapons, armor and worn pieces** above). *Bows*: hold to draw (you walk slowly while drawing and stamina stops recovering), release to loose. Damage and speed grow with the draw, and a full draw (a soft tick and ring tell you) pierces through foes. A quick tap fires a weak shot; rolling or getting hit drops the arrow. Weapons are plain data in `scripts/weapons.gd`, armor and worn pieces in `scripts/gear.gd`.
+- **Gear.** Ten melee weapons (canes among them), two bows, a crossbow and two pistols, four suits of armor, and twenty-five Common worn pieces plus Fine and Rare rings, amulets, packs and a bandolier for the helm, gloves, legs, boots, cloak, amulet, ring and backpack slots; Fine, Rare and Storied finds with twenty essence traits (never one twice on a piece), twenty-four named pieces (eight only in their own tower), six Regarded pieces left by the beasts, caps on what gear adds, wear on Common pieces and a 50% protection cap (see **Gear: weapons, armor and worn pieces** above). *Bows*: hold to draw (you walk slowly while drawing and stamina stops recovering), release to loose. Damage and speed grow with the draw, and a full draw (a soft tick and ring tell you) pierces through foes. A quick tap fires a weak shot; rolling or getting hit drops the arrow. Weapons are plain data in `scripts/weapons.gd`, armor and worn pieces in `scripts/gear.gd`.
 - **Solid bodies.** The climber and monsters can't share space; overlapping bodies are pushed apart, and heavier ones (the knight) give way less. Foes lifted by Gale Lift pass over everyone.
 - **Timing over mashing.** Swings cost real stamina (a sword chain is 58), and stamina waits almost a second after you attack before it refills, so mashing leaves you winded. Monsters have **poise**: once they commit to an attack, light hits don't stop it (read the glint, then parry or roll); only heavy hits (finishers) rock them, and light hits make a monster flinch at most once every 1.2 seconds, so you can't stun-lock it. After every attack a monster is **open** for most of its recovery: a gold ring pulses around it and your hits deal 60% more ("Opening!"). Beasts have less health than before, longer openings after their attacks, and their fire burns out faster.
 - **Readable fights.** Every monster attack follows one rhythm: a wind-up, then a **glint** (a white star and a "ting") exactly 0.25 s before the blow lands, then a recovery where the monster is open. Parry on the glint and it always works; parry a beat after the glint for a **perfect parry** (longer stagger, more stamina back, bigger flash). The parry window is about a third of a second, turns you toward the attacker (or an incoming arrow) so aiming can't make it miss, and can cancel the tail of a swing. Only two monsters attack at a time; the rest circle and wait their turn. Slimes and archers flinch when hit (so aggressive play works on them); knights keep winding up through your hits, so parry, riposte or roll against them. The knight slashes up close and lunges from further out; the slime creeps up and pounces (touching it is harmless).
@@ -1112,7 +1138,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `assets/audio/` | Built sound effects and music |
 | `tools/fetch_audio_sources.sh` | Downloads the CC0 source sound packs |
 | `tools/build_audio.py` | Builds `assets/audio` from the source packs |
-| `scripts/weapons.gd` | Weapon definitions: every melee weapon, bow and crossbow, as data |
+| `scripts/weapons.gd` | Weapon definitions: every melee weapon, cane, bow, crossbow and pistol, as data, and enchanted pistols' essence shot (`ESSENCE_SHOT`) |
 | `scripts/gear.gd` | Gear records, rarities and their odds by floor, traits, caps, named pieces (Storied and tower pieces), armor and the worn pieces, slots and the paper doll, drops, wear, protection, heirloom slots (and old-save conversion), comparing and gear icons |
 | `scripts/data_registry.gd` | The Data editor's engine: which tables can be edited (sections, kinds of value, bounds), applying changes by key, refusing bad values, the two changes files, Copy and Paste |
 | `scripts/data_page.gd` | Dev tools → Edit game data: the Data editor's page (tabs, sections, search, a row per field, My changes, Save / Copy / Paste, the Entity's help) |
@@ -1130,7 +1156,7 @@ godot --headless -s tests/smoke_test.gd
 
 Each run keeps the files it saves (test climbers, the Data editor's and the room painter's test files, the layout) in a folder of its own (`scripts/test_run.gd`), removed when it ends, so several test runs can go at once without tripping each other up.
 
-It ends with every test file in `tests/parts/` (each a `run(t)` function, so several people can add tests without touching the same file): the spell rework (`spell_rework.gd`: Lightning Rod's beat, its chain link and its burst; Virulence's burst, spread and stagger; Carry striking, gathering, crashing foes together and into a wall; Graft Burst with no grafts and grafts coming sooner; Mimic and Shed with no graft; Volley adding up and bending; Vault staying on the ground); the tree's foundation (`tree_foundation.gd`: the library playing as before, choosing for good, the Unbound learning a passed side and its cost, placeholders that can't be chosen, old saves, the book from every way in, turning its pages by keys, controller and swipe, choosing on the Tree with a second press, Ball Lightning and Lingering in play, every variation on a technique, Volley and Spark, the Data editor seeing the library, and the book fitting a phone at every Interface size); the Unbound's effects and the essence bench (`bench.gd`: every effect on a hit, a move, a shell and on yourself at each strength, a dozen of them doing their thing in play, the echoes found, costing strain and recorded, the bench building a technique with the lead order, an effect, a fitting and the strain gauge and setting it in a slot, the keys, a controller and a tap at the bench, a marked climber kept out, and the bench and the Techniques page fitting 800x400 at every Interface size); and secret rooms (`secrets.gd`: carved in every tower behind a plain wall tile, with no torch on it and no trap in front, shut to sight, fog, paths and bodies until leaned open by keys, a controller or the touch stick, then reachable, drawn, lit and in sight; the cache, the crystals and the Tithe Door; a Maker's fragment on the north wall; and a rift beside one tearing into it), and the Loadout and stash (`loadout.gd`: wearing from the pack and the stash, taking off, an heirloom waiting on the train, rings, a Climber's Pack's room, what goes on as you depart, moving between pack and stash and the stash's room, sorting and filtering, old saves, buying into the pack, stash or straight onto you and selling from either, comparing with what you wear, every worn piece and weapon drawn on the front figure and in the tower, the screens by their buttons, and the Loadout, stash and store fitting at every Interface size), and stations (`stations.gd`: travelling to the station and back by the engine's board and lever and the rail, each drill's scoring and each drill run in the arena to a gold, a fall there losing the drill, a bout won (renown, crystals, the next bout opened) and lost (only the fee), giving up from the pause menu, a champion and the mirror image sent, a tier's relic, a challenge paying once, renown earned by climbs and beasts and its ranks, titles earned by deeds and worn in the book and on the rail, boons bought at the shrine and with you on the next climb, the outfitter's upgrades (the wider rack, the scroll, the discount, better stock, the special order) and their sign and slot in his car, an old save loading with no renown, and every stop fitting a phone at Normal and Larger). To run only those:
+It ends with every test file in `tests/parts/` (each a `run(t)` function, so several people can add tests without touching the same file): the spell rework (`spell_rework.gd`: Lightning Rod's beat, its chain link and its burst; Virulence's burst, spread and stagger; Carry striking, gathering, crashing foes together and into a wall; Graft Burst with no grafts and grafts coming sooner; Mimic and Shed with no graft; Volley adding up and bending; Vault staying on the ground); the tree's foundation (`tree_foundation.gd`: the library playing as before, choosing for good, the Unbound learning a passed side and its cost, placeholders that can't be chosen, old saves, the book from every way in, turning its pages by keys, controller and swipe, choosing on the Tree with a second press, Ball Lightning and Lingering in play, every variation on a technique, Volley and Spark, the Data editor seeing the library, and the book fitting a phone at every Interface size); the Unbound's effects and the essence bench (`bench.gd`: every effect on a hit, a move, a shell and on yourself at each strength, a dozen of them doing their thing in play, the echoes found, costing strain and recorded, the bench building a technique with the lead order, an effect, a fitting and the strain gauge and setting it in a slot, the keys, a controller and a tap at the bench, a marked climber kept out, and the bench and the Techniques page fitting 800x400 at every Interface size); and secret rooms (`secrets.gd`: carved in every tower behind a plain wall tile, with no torch on it and no trap in front, shut to sight, fog, paths and bodies until leaned open by keys, a controller or the touch stick, then reachable, drawn, lit and in sight; the cache, the crystals and the Tithe Door; a Maker's fragment on the north wall; and a rift beside one tearing into it), and the Loadout and stash (`loadout.gd`: wearing from the pack and the stash, taking off, an heirloom waiting on the train, rings, a Climber's Pack's room, what goes on as you depart, moving between pack and stash and the stash's room, sorting and filtering, old saves, buying into the pack, stash or straight onto you and selling from either, comparing with what you wear, every worn piece and weapon drawn on the front figure and in the tower, the screens by their buttons, and the Loadout, stash and store fitting at every Interface size), and stations (`stations.gd`: travelling to the station and back by the engine's board and lever and the rail, each drill's scoring and each drill run in the arena to a gold, a fall there losing the drill, a bout won (renown, crystals, the next bout opened) and lost (only the fee), giving up from the pause menu, a champion and the mirror image sent, a tier's relic, a challenge paying once, renown earned by climbs and beasts and its ranks, titles earned by deeds and worn in the book and on the rail, boons bought at the shrine and with you on the next climb, the outfitter's upgrades (the wider rack, the scroll, the discount, better stock, the special order) and their sign and slot in his car, an old save loading with no renown, and every stop fitting a phone at Normal and Larger). To run only those: Also the new weapons and consumables (`weapons_items.gd`: the canes' parry and stagger and the sword-cane's drawn finisher; the flintlock and revolver firing, reloading, a roll or putting one away breaking the reload off; every essence shot, and enchanted pistols filling their own chambers without filling the hand; the new relics' rules; every Common piece ordinary but useful and no two alike; Fine and Rare finds enchanted and saying so; relics' blank histories shown only once written; the staples' prices and drops; the Stamina Draught; how the new weapons are drawn; and a save keeping them).
 
 ```bash
 godot --headless -s tests/smoke_test.gd -- parts

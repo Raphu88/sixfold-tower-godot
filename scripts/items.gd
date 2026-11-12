@@ -15,10 +15,11 @@ const RING_HOLD := 0.25
 ## Unused belt items at the end of a survived climb break into essence
 ## crystals at this share of their worth ("value").
 const BREAK_SHARE := 0.5
-## What every climb starts with.
-const START := {"draught": 1}
-## The chance that a slain monster (not a beast) leaves an item.
-const DROP_CHANCE := 0.08
+## What every climb starts with: one of each staple.
+const START := {"draught": 1, "stamina": 1}
+## The chance that a slain monster (not a beast) leaves an item (most often
+## a staple: a Healing or Stamina Draught).
+const DROP_CHANCE := 0.1
 ## Items lying on the floor fade after this many seconds.
 const DROP_LIFE := 40.0
 
@@ -27,7 +28,7 @@ const STEADY_HEAL := 1.3
 ## ...and take this much less time.
 const STEADY_TIME := 0.6
 
-const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
+const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
 	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "wardbreaker", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
 	"scroll", "vessel"]
 
@@ -36,6 +37,9 @@ const ORDER := ["draught", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "
 ##   value        what it's worth in essence, by kind
 ##   drop_weight  how common it is (0: never found this way)
 ##   drop         false: never left by slain monsters (camps and vaults only)
+##   staple       a cheap everyday draught every climber carries (Healing and
+##                Stamina Draughts): common from monsters and cheap at the
+##                store; camps and vaults offer the rarer things instead
 ##   buff         {key: amount} the item adds to your numbers while it lasts
 ##                ("duration"): the keys your gear adds up (gear.gd PIECES),
 ##                plus antivenom (no poison takes hold), guardbreak (blows go
@@ -53,8 +57,17 @@ static var ITEMS := {
 		"color": Color(0.9, 0.3, 0.32),
 		"heal": 40.0,
 		"time": 1.5,
-		"drop_weight": 5,
-		"kind": "stone", "value": {"stone": 12},
+		"drop_weight": 12, "staple": true,
+		"kind": "stone", "value": {"stone": 6},
+	},
+	"stamina": {
+		"name": "Stamina Draught",
+		"short": "Stamina",
+		"desc": "a quick, bitter swallow: 50 stamina back at once, and stamina refills 40% faster for 5 seconds",
+		"color": Color(0.95, 0.78, 0.3),
+		"stamina": 50.0, "regen": 0.4, "duration": 5.0,
+		"drop_weight": 10, "staple": true,
+		"kind": "iron", "value": {"iron": 6},
 	},
 	"tonic": {
 		"name": "Cleansing Tonic",
@@ -63,15 +76,15 @@ static var ITEMS := {
 		"color": Color(0.45, 0.85, 0.5),
 		"heal": 10.0,
 		"time": 0.5,
-		"drop_weight": 2,
-		"kind": "water", "value": {"water": 10},
+		"drop_weight": 1,
+		"kind": "water", "value": {"water": 14},
 	},
 	"vial": {
 		"name": "Essence Vial",
 		"short": "Vial",
 		"desc": "fills every mark with essence",
 		"color": Color(0.55, 0.75, 1.0),
-		"drop_weight": 2,
+		"drop_weight": 1,
 		"needs_mark": true,
 		"kind": "water", "value": {"water": 20},
 	},
@@ -83,7 +96,7 @@ static var ITEMS := {
 		"radius": 95.0,
 		"duration": 5.0,
 		"drop_weight": 1,
-		"kind": "fire", "value": {"fire": 10},
+		"kind": "fire", "value": {"fire": 14},
 	},
 	"fire_flask": {
 		"name": "Fire Flask",
@@ -91,8 +104,8 @@ static var ITEMS := {
 		"desc": "thrown where you aim: it bursts in flame and leaves the floor burning for 3 seconds (it burns foes, not you)",
 		"color": Color(1.0, 0.5, 0.18),
 		"dmg": 30.0, "per_floor": 0.1, "radius": 46.0, "range": 160.0, "burn": 3.0, "flight": 0.35,
-		"drop_weight": 2,
-		"kind": "fire", "value": {"fire": 12},
+		"drop_weight": 1,
+		"kind": "fire", "value": {"fire": 16},
 	},
 	"edge_oil": {
 		"name": "Edge Oil",
@@ -101,7 +114,7 @@ static var ITEMS := {
 		"color": Color(0.88, 0.42, 0.45),
 		"mult": 1.25, "duration": 20.0,
 		"drop_weight": 1,
-		"kind": "blade", "value": {"blade": 15},
+		"kind": "blade", "value": {"blade": 18},
 	},
 	"warding_oil": {
 		"name": "Warding Oil",
@@ -110,7 +123,7 @@ static var ITEMS := {
 		"color": Color(0.72, 0.78, 0.95),
 		"shield": 25.0, "duration": 15.0,
 		"drop_weight": 1, "drop": false,
-		"kind": "iron", "value": {"iron": 15},
+		"kind": "iron", "value": {"iron": 18},
 	},
 	"haste": {
 		"name": "Haste Draught",
@@ -119,7 +132,7 @@ static var ITEMS := {
 		"color": Color(0.75, 0.95, 0.55),
 		"walk": 0.25, "roll": 0.3, "duration": 10.0,
 		"drop_weight": 1,
-		"kind": "air", "value": {"air": 12},
+		"kind": "air", "value": {"air": 15},
 	},
 	"stoneskin": {
 		"name": "Stoneskin Draught",
@@ -128,16 +141,16 @@ static var ITEMS := {
 		"color": Color(0.7, 0.62, 0.5),
 		"reduce": 0.2, "duration": 12.0,
 		"drop_weight": 1, "drop": false,
-		"kind": "stone", "value": {"stone": 12},
+		"kind": "stone", "value": {"stone": 16},
 	},
 	"salts": {
 		"name": "Second Wind Salts",
 		"short": "Salts",
-		"desc": "a sharp breath: your stamina is full at once, and refills 50% faster for 8 seconds",
+		"desc": "a sharp breath: your stamina is full at once, and for 8 seconds it never waits after you act and refills 50% faster",
 		"color": Color(0.92, 0.95, 0.98),
 		"regen": 0.5, "duration": 8.0,
 		"drop_weight": 1,
-		"kind": "iron", "value": {"iron": 10},
+		"kind": "iron", "value": {"iron": 14},
 	},
 	"flare": {
 		"name": "Flare Powder",
@@ -146,7 +159,7 @@ static var ITEMS := {
 		"color": Color(1.0, 0.85, 0.45),
 		"duration": 20.0, "radius": 420.0, "reveal": 360.0,
 		"drop_weight": 1,
-		"kind": "air", "value": {"air": 8},
+		"kind": "air", "value": {"air": 12},
 	},
 	"antidote": {
 		"name": "Antivenom",
@@ -154,8 +167,8 @@ static var ITEMS := {
 		"desc": "cures poison, and no poison takes hold of you for 30 seconds",
 		"color": Color(0.62, 0.86, 0.36),
 		"duration": 30.0, "buff": {"antivenom": 1.0},
-		"drop_weight": 2,
-		"kind": "stone", "value": {"stone": 8},
+		"drop_weight": 1,
+		"kind": "stone", "value": {"stone": 12},
 	},
 	"heartroot": {
 		"name": "Heartroot",
@@ -164,7 +177,7 @@ static var ITEMS := {
 		"color": Color(0.82, 0.32, 0.4),
 		"heal": 20.0, "time": 0.5, "duration": 30.0, "buff": {"kill_heal": 4.0},
 		"drop_weight": 1, "drop": false, "secret": "life",
-		"kind": "water", "value": {"water": 16},
+		"kind": "water", "value": {"water": 20},
 	},
 	"net": {
 		"name": "Throwing Net",
@@ -172,8 +185,8 @@ static var ITEMS := {
 		"desc": "thrown where you aim: the foes it lands on are tangled for a moment and slowed for 4 seconds (a beast only slowed)",
 		"color": Color(0.84, 0.76, 0.56),
 		"thrown": true, "range": 150.0, "radius": 52.0, "flight": 0.4, "tangle": 1.0, "slow": 4.0,
-		"drop_weight": 2,
-		"kind": "water", "value": {"water": 10},
+		"drop_weight": 1,
+		"kind": "water", "value": {"water": 14},
 	},
 	"lodestone": {
 		"name": "Lodestone Bomb",
@@ -182,7 +195,7 @@ static var ITEMS := {
 		"color": Color(0.5, 0.56, 0.78),
 		"thrown": true, "range": 170.0, "radius": 95.0, "flight": 0.35, "dmg": 8.0, "pull": 430.0,
 		"drop_weight": 1,
-		"kind": "iron", "value": {"iron": 12},
+		"kind": "iron", "value": {"iron": 16},
 	},
 	"briar_tonic": {
 		"name": "Briar Tonic",
@@ -191,7 +204,7 @@ static var ITEMS := {
 		"color": Color(0.4, 0.66, 0.3),
 		"duration": 25.0, "buff": {"thorns": 8.0},
 		"drop_weight": 1,
-		"kind": "blade", "value": {"blade": 10},
+		"kind": "blade", "value": {"blade": 14},
 	},
 	"wardbreaker": {
 		"name": "Wardbreaker Charm",
@@ -200,7 +213,7 @@ static var ITEMS := {
 		"color": Color(0.9, 0.42, 0.5),
 		"duration": 20.0, "buff": {"guardbreak": 1.0},
 		"drop_weight": 1,
-		"kind": "blade", "value": {"blade": 12},
+		"kind": "blade", "value": {"blade": 16},
 	},
 	"lantern_oil": {
 		"name": "Lantern Oil",
@@ -208,8 +221,8 @@ static var ITEMS := {
 		"desc": "a flask of clear oil for your light: it reaches 60% farther for two minutes",
 		"color": Color(1.0, 0.78, 0.36),
 		"duration": 120.0, "buff": {"light": 0.6},
-		"drop_weight": 2,
-		"kind": "fire", "value": {"fire": 6},
+		"drop_weight": 1,
+		"kind": "fire", "value": {"fire": 10},
 	},
 	"unmaking_ash": {
 		"name": "Ash of Unmaking",
@@ -218,7 +231,7 @@ static var ITEMS := {
 		"color": Color(0.66, 0.44, 0.86),
 		"radius": 115.0, "share": 0.12, "beast_share": 0.03,
 		"drop_weight": 1, "drop": false, "secret": "unmaking",
-		"kind": "fire", "value": {"fire": 16},
+		"kind": "fire", "value": {"fire": 20},
 	},
 	"gale_feather": {
 		"name": "Gale Feather",
@@ -227,7 +240,7 @@ static var ITEMS := {
 		"color": Color(0.7, 0.88, 0.98),
 		"radius": 120.0, "push": 560.0, "dmg": 4.0,
 		"drop_weight": 1,
-		"kind": "air", "value": {"air": 10},
+		"kind": "air", "value": {"air": 14},
 	},
 	"seeing_scroll": {
 		"name": "Scroll of Seeing",
@@ -236,7 +249,7 @@ static var ITEMS := {
 		"color": Color(0.62, 0.78, 0.98),
 		"duration": 60.0, "buff": {"seek": 6000.0},
 		"drop_weight": 1,
-		"kind": "air", "value": {"air": 14},
+		"kind": "air", "value": {"air": 16},
 	},
 	# From vaults (wings.gd), and always on the train's store shelf, priced
 	# in crystals of any kind (train.gd ANY_PRICE): never dropped or offered at a camp.
@@ -363,7 +376,9 @@ static func color(id: String) -> Color:
 
 ## A random item, weighted by how common each one is. Without a mark, an
 ## essence vial would do nothing, so `marked` false leaves those out;
-## `dropped` (a slain monster's) leaves out the items never dropped.
+## `dropped` (a slain monster's) leaves out the items never dropped, and is
+## the only way to find a staple: camps, vaults and caches offer the rarer
+## things (a camp's rest heals you anyway).
 static func random_item(marked := true, exclude: Array = [], dropped := false) -> String:
 	var total := 0
 	for id in ORDER:
@@ -384,7 +399,12 @@ static func random_item(marked := true, exclude: Array = [], dropped := false) -
 
 static func _skip(id: String, marked: bool, exclude: Array, dropped: bool) -> bool:
 	return id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)) \
-		or (dropped and not ITEMS[id].get("drop", true))
+		or (dropped and not ITEMS[id].get("drop", true)) or (not dropped and ITEMS[id].get("staple", false))
+
+
+## True for the cheap everyday draughts (ITEMS "staple").
+static func is_staple(id: String) -> bool:
+	return bool(ITEMS.get(id, {}).get("staple", false))
 
 
 ## Three different items for a camp's cards.
@@ -396,7 +416,7 @@ static func camp_choices(marked := true) -> Array:
 
 
 ## The sound of using each item (sound_bank.gd); one not listed plays "ready".
-const USE_SOUNDS := {"draught": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
+const USE_SOUNDS := {"draught": "drink", "stamina": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
 	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready",
 	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw", "wardbreaker": "use_ward",
 	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime"}
@@ -423,6 +443,14 @@ static func use(id: String, p) -> bool:
 				main.fx_text(above, "Already at full health", Color(0.8, 0.78, 0.85))
 				return false
 			_heal_over_time(p, data, steady)
+		"stamina":
+			if p.sta >= p.max_sta - 0.5 and p.buff_left(id) > 1.0:
+				main.fx_text(above, "You're already breathing easy", Color(0.8, 0.78, 0.85))
+				return false
+			p.sta = minf(p.max_sta, p.sta + float(data["stamina"]))
+			p.sta_delay = 0.0
+			p.add_buff(id, float(data["duration"]), {"regen": float(data["regen"])})
+			main.fx_text(above, "+%d stamina" % int(data["stamina"]), col)
 		"tonic":
 			var burned := false
 			for b in p.bonds.values():
@@ -612,6 +640,19 @@ static func _item_art(b, id: String, s: float) -> void:
 			Art.shine(b, bc + Vector2(-3.0, -2.3) * u, 0.9 * u, 2.0 * u)
 			if lod > 0:
 				b.circle(bc + Vector2(2.3, 3.4) * u, 0.6 * u, Color(1, 1, 1, 0.35), 10)
+		"stamina":
+			# A tall, slim bottle of amber draught, a cork, and a gust on its label.
+			var body := Art.rrect(Rect2(Vector2(-3.8, -3.6) * u, Vector2(7.6, 12.8) * u), 2.2 * u)
+			body = _with_neck(body, Rect2(Vector2(-1.5, -6.6) * u, Vector2(3.0, 3.8) * u))
+			Art.glass(b, body, s, col, -1.4 * u)
+			_cork(b, Rect2(Vector2(-2.1, -9.6) * u, Vector2(4.2, 3.2) * u), s)
+			var lc := Vector2(0, 3.4) * u
+			Art.shape(b, Art.rrect(Rect2(lc - Vector2(2.8, 2.2) * u, Vector2(5.6, 4.4) * u), 0.8 * u, 3), Art.PAPER, s, "", Art.THIN | Art.NO_RIM)
+			var k := col.darkened(0.45)
+			for row in 2:
+				var y := (2.6 + row * 1.7) * u
+				b.line(Vector2(-1.9 * u, y), Vector2((1.4 - row * 0.8) * u, y), k, maxf(0.6, 0.45 * u))
+			Art.shine(b, Vector2(-2.4, -0.6) * u, 0.5 * u, 2.4 * u, 0.0, 0.5)
 		"tonic":
 			# A square bottle of green cure with a white cross on its label.
 			var body := Art.rrect(Rect2(Vector2(-5.2, -3.0) * u, Vector2(10.4, 12.2) * u), 2.4 * u)

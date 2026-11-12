@@ -113,39 +113,39 @@ static var TRAITS := {
 		"slots": ["helm", "armor", "legs", "cloak", "amulet"], "desc": "+%s health"},
 	"footing": {"name": "of Footing", "short": "Footing", "kind": "stone", "key": "footing", "fine": 0.15, "rare": 0.25,
 		"slots": ["boots", "legs"], "desc": "traps and burning floor hurt %s less"},
-	"edges": {"name": "of Edges", "short": "Edges", "kind": "blade", "key": "strike", "fine": 0.03, "rare": 0.05,
+	"edges": {"name": "of Edges", "short": "Edges", "kind": "blade", "key": "strike", "fine": 0.05, "rare": 0.08,
 		"slots": ["melee", "gloves", "ring"], "desc": "strikes hit %s harder"},
 	"riposte": {"name": "of the Riposte", "short": "Riposte", "kind": "blade", "key": "riposte", "fine": 0.08, "rare": 0.12,
-		"slots": ["melee", "gloves"], "desc": "ripostes and backstabs hit %s harder"},
+		"slots": ["melee", "gloves", "ranged"], "desc": "ripostes and backstabs hit %s harder"},
 	"breath": {"name": "of Breath", "short": "Breath", "kind": "iron", "key": "stamina", "fine": 8.0, "rare": 12.0,
 		"slots": ["legs", "armor", "cloak"], "desc": "+%s max stamina"},
-	"second_wind": {"name": "of Second Wind", "short": "Second Wind", "kind": "iron", "key": "regen", "fine": 0.04, "rare": 0.06,
-		"slots": ["ring", "amulet", "armor"], "desc": "stamina refills %s faster"},
+	"second_wind": {"name": "of Second Wind", "short": "Second Wind", "kind": "iron", "key": "regen", "fine": 0.06, "rare": 0.10,
+		"slots": ["ring", "amulet", "armor", "ranged"], "desc": "stamina refills %s faster"},
 	"thorns": {"name": "of Thorns", "short": "Thorns", "kind": "iron", "key": "thorns", "fine": 3.0, "rare": 5.0,
 		"slots": ["armor", "gloves"], "desc": "foes that strike you up close take %s damage"},
-	"wind": {"name": "of the Wind", "short": "Wind", "kind": "air", "key": "walk", "fine": 0.02, "rare": 0.03,
+	"wind": {"name": "of the Wind", "short": "Wind", "kind": "air", "key": "walk", "fine": 0.04, "rare": 0.06,
 		"slots": ["boots", "cloak", "legs"], "desc": "you walk %s faster"},
 	"rolling": {"name": "of Rolling", "short": "Rolling", "kind": "air", "key": "roll_cost", "fine": 0.05, "rare": 0.08,
 		"slots": ["boots", "legs"], "desc": "rolls cost %s less stamina"},
-	"hunt": {"name": "of the Hunt", "short": "Hunt", "kind": "air", "key": "ranged", "fine": 0.05, "rare": 0.08,
-		"slots": ["ranged", "gloves", "helm"], "desc": "bows and crossbows hit %s harder"},
-	"kindling": {"name": "of Kindling", "short": "Kindling", "kind": "fire", "key": "spell", "fine": 0.04, "rare": 0.06,
+	"hunt": {"name": "of the Hunt", "short": "Hunt", "kind": "air", "key": "ranged", "fine": 0.08, "rare": 0.12,
+		"slots": ["ranged", "gloves", "helm"], "desc": "bows, crossbows and pistols hit %s harder"},
+	"kindling": {"name": "of Kindling", "short": "Kindling", "kind": "fire", "key": "spell", "fine": 0.06, "rare": 0.09,
 		"slots": ["amulet", "ring", "helm"], "desc": "spells hit %s harder"},
 	"embers": {"name": "of Embers", "short": "Embers", "kind": "fire", "key": "embers", "fine": 0.10, "rare": 0.15,
-		"slots": ["melee", "gloves"], "desc": "strikes have a %s chance to set the foe burning"},
-	"well": {"name": "of the Well", "short": "Well", "kind": "water", "key": "fill", "fine": 0.04, "rare": 0.06,
-		"slots": ["amulet", "ring", "helm"], "desc": "marks fill %s faster"},
+		"slots": ["melee", "gloves", "ranged"], "desc": "hits have a %s chance to set the foe burning"},
+	"well": {"name": "of the Well", "short": "Well", "kind": "water", "key": "fill", "fine": 0.06, "rare": 0.09,
+		"slots": ["amulet", "ring", "helm", "ranged"], "desc": "marks fill %s faster"},
 	"calm": {"name": "of Calm", "short": "Calm", "kind": "water", "key": "parry", "fine": 0.05, "rare": 0.08,
 		"slots": ["gloves", "helm", "ring"], "desc": "the parry window is %s longer"},
-	"mending": {"name": "of Mending", "short": "Mending", "kind": "stone", "key": "kill_heal", "fine": 1.0, "rare": 2.0,
+	"mending": {"name": "of Mending", "short": "Mending", "kind": "stone", "key": "kill_heal", "fine": 2.0, "rare": 3.0,
 		"slots": ["melee", "ranged", "amulet"], "desc": "each kill heals you %s"},
 	"venom": {"name": "of Venom", "short": "Venom", "kind": "stone", "key": "venom_chance", "fine": 0.08, "rare": 0.12,
 		"slots": ["melee", "ranged"], "desc": "hits have a %s chance to poison the foe"},
-	"quickdraw": {"name": "of the Quick Draw", "short": "Quick Draw", "kind": "air", "key": "draw", "fine": 0.06, "rare": 0.10,
-		"slots": ["ranged", "gloves"], "desc": "bows draw and crossbows reload %s faster"},
+	"quickdraw": {"name": "of the Quick Draw", "short": "Quick Draw", "kind": "air", "key": "draw", "fine": 0.08, "rare": 0.12,
+		"slots": ["ranged", "gloves"], "desc": "bows draw, and crossbows and pistols reload, %s faster"},
 	"shadows": {"name": "of Shadows", "short": "Shadows", "kind": "air", "key": "notice", "fine": 0.10, "rare": 0.15,
 		"slots": ["cloak", "boots", "helm", "ranged"], "desc": "monsters notice you %s later"},
-	"striding": {"name": "of Striding", "short": "Striding", "kind": "air", "key": "roll_dist", "fine": 0.03, "rare": 0.05,
+	"striding": {"name": "of Striding", "short": "Striding", "kind": "air", "key": "roll_dist", "fine": 0.05, "rare": 0.08,
 		"slots": ["boots", "legs", "cloak"], "desc": "rolls carry %s farther"},
 	"lantern": {"name": "of the Lantern", "short": "Lantern", "kind": "fire", "key": "light", "fine": 0.10, "rare": 0.15,
 		"slots": ["helm", "amulet", "cloak", "armor"], "desc": "your light reaches %s farther"},
@@ -199,88 +199,105 @@ static var CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.1
 ##   color   its icon's colour (else the base's)
 ##   short   its name under its slot
 ##   beast   a Regarded piece: that tower's beast's own (REGARDED_DROP)
+##   history its story, for the owner to write: shown on its card only once
+##           it isn't blank
+##   enchanted  false for a relic that isn't enchanted (an old plain piece
+##           with its own rule); the rest are enchanted in their "kind"
 ## The rules (fx keys) are read by player.gd: arc, chill, cinder, venom,
 ## kill_heal, thorn_burst, thorns, watch, kill_fill, dodge_haste, iframe,
 ## ember_mend, still_mend, spellweave, kill_mark, bastion, draw_mark,
 ## still_guard, seek, parry_sta, and the beasts' gale and arcs, grasp and
-## ink, quake, volley and venom_shot, rebirth, triune.
+## ink, quake, volley and venom_shot, rebirth, triune; and the canes' and
+## pistols' quell, draw_venom, last_shot and kill_load.
 const NAMED_ORDER := ["stormstring", "coral_trident", "cinder_axe", "stinger_dagger", "sunsteel_blade", "thornmaul", "barnacle_mail", "wyvern_scaleplate",
 	"watchers_helm", "quickhand_gloves", "phantom_treads", "emberkin_mantle", "heartstone", "spellweave_ring", "reavers_greatsword", "bastion_plate",
-	"hollowmoon_bow", "rootbound_greaves", "wayfinders_pendant", "duelists_ring",
+	"hollowmoon_bow", "rootbound_greaves", "wayfinders_pendant", "duelists_ring", "ashgrove_cane", "quietsteel", "lastbell_revolver", "emberlock",
 	"stormtalon", "deepcoil_coat", "wyrmspine_mace", "spinecaster", "sunplume_mantle", "triune_fang"]
 static var NAMED := {
 	# Rare tower pieces: only in their own tower.
-	"stormstring": {"base": "shortbow", "rarity": "rare", "tower": "gryphon", "kind": "air", "name": "Stormstring", "short": "Stormstring",
+	"stormstring": {"base": "shortbow", "history": "", "rarity": "rare", "tower": "gryphon", "kind": "air", "name": "Stormstring", "short": "Stormstring",
 		"desc": "a shortbow strung with storm-gut: a full draw also arcs to one more foe for half damage", "fx": {"arc": 0.5}},
-	"coral_trident": {"base": "spear", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Coral Trident", "short": "Trident",
+	"coral_trident": {"base": "spear", "history": "", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Coral Trident", "short": "Trident",
 		"desc": "a three-pronged spear of living coral: its hits slow foes by 25% for 1.5 s", "fx": {"chill": 1.5}},
-	"cinder_axe": {"base": "axe", "rarity": "rare", "tower": "wyvern", "kind": "fire", "name": "Cinder Axe", "short": "Cinder Axe",
+	"cinder_axe": {"base": "axe", "history": "", "rarity": "rare", "tower": "wyvern", "kind": "fire", "name": "Cinder Axe", "short": "Cinder Axe",
 		"desc": "an axe that never cools: its finisher leaves the floor burning for 2 s (it burns foes, not you)", "fx": {"cinder": 2.0}},
-	"stinger_dagger": {"base": "dagger", "rarity": "rare", "tower": "manticore", "kind": "stone", "name": "Stinger Dagger", "short": "Stinger",
+	"stinger_dagger": {"base": "dagger", "history": "", "rarity": "rare", "tower": "manticore", "kind": "stone", "name": "Stinger Dagger", "short": "Stinger",
 		"desc": "a dagger ground from a stinger: every hit poisons the foe a little more", "fx": {"venom": 1.0}},
-	"sunsteel_blade": {"base": "sword", "rarity": "rare", "tower": "firebird", "kind": "fire", "name": "Sunsteel Blade", "short": "Sunsteel",
+	"sunsteel_blade": {"base": "sword", "history": "", "rarity": "rare", "tower": "firebird", "kind": "fire", "name": "Sunsteel Blade", "short": "Sunsteel",
 		"desc": "a sword with a warm, bright edge: each kill heals you 4", "fx": {"kill_heal": 4.0}},
-	"thornmaul": {"base": "war_hammer", "rarity": "rare", "tower": "chimera", "kind": "blade", "name": "Thornmaul", "short": "Thornmaul",
+	"thornmaul": {"base": "war_hammer", "history": "", "rarity": "rare", "tower": "chimera", "kind": "blade", "name": "Thornmaul", "short": "Thornmaul",
 		"desc": "a hammer bound in briars: a staggering finisher throws thorns at foes nearby for 6 each", "fx": {"thorn_burst": 6.0}},
-	"barnacle_mail": {"base": "chain", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Barnacle Mail", "short": "Barnacle",
+	"barnacle_mail": {"base": "chain", "history": "", "rarity": "rare", "tower": "kraken", "kind": "water", "name": "Barnacle Mail", "short": "Barnacle",
 		"desc": "chain mail crusted with shells: foes that strike you up close take 5", "fx": {"thorns": 5.0}, "color": Color(0.5, 0.66, 0.66)},
-	"wyvern_scaleplate": {"base": "plate", "rarity": "rare", "tower": "wyvern", "kind": "iron", "name": "Wyvern Scaleplate", "short": "Scaleplate",
+	"wyvern_scaleplate": {"base": "plate", "history": "", "rarity": "rare", "tower": "wyvern", "kind": "iron", "name": "Wyvern Scaleplate", "short": "Scaleplate",
 		"desc": "plate of overlapping scales: 32% off a blow, with only chain mail's weight",
 		"armor": {"reduce": 0.32, "roll_cost": 1.3, "roll_dist": 0.88, "regen": 0.87, "walk": 0.95}, "color": Color(0.62, 0.42, 0.36)},
 	# Storied pieces: rare finds from floor 7 up, each with its own story.
-	"watchers_helm": {"base": "iron_helm", "rarity": "storied", "kind": "iron", "name": "Watcher's Helm", "short": "Watcher's",
+	"watchers_helm": {"base": "iron_helm", "history": "", "rarity": "storied", "kind": "iron", "name": "Watcher's Helm", "short": "Watcher's",
 		"desc": "a helm with a narrow slit: foes you parry take 20% more damage from you for 3 s; +6 health", "fx": {"health": 6.0, "watch": 0.2},
 		"color": Color(0.62, 0.66, 0.8)},
-	"quickhand_gloves": {"base": "leather_gloves", "rarity": "storied", "kind": "blade", "name": "Quickhand Gloves", "short": "Quickhand",
+	"quickhand_gloves": {"base": "leather_gloves", "history": "", "rarity": "storied", "kind": "blade", "name": "Quickhand Gloves", "short": "Quickhand",
 		"desc": "thin gloves stained dark: each kill fills your hand's mark by 5% of its pool; strikes hit 3% harder", "fx": {"strike": 0.03, "kill_fill": 0.05},
 		"color": Color(0.42, 0.2, 0.24)},
-	"phantom_treads": {"base": "soft_boots", "rarity": "storied", "kind": "air", "name": "Phantom Treads", "short": "Phantom",
+	"phantom_treads": {"base": "soft_boots", "history": "", "rarity": "storied", "kind": "air", "name": "Phantom Treads", "short": "Phantom",
 		"desc": "boots that leave no prints: a dodge quickens your walk by 20% for 2 s, and a roll keeps you untouchable a moment longer",
 		"fx": {"dodge_haste": 0.2, "iframe": 0.05}, "color": Color(0.7, 0.78, 0.86)},
-	"emberkin_mantle": {"base": "travel_cloak", "rarity": "storied", "kind": "fire", "name": "Emberkin Mantle", "short": "Emberkin",
+	"emberkin_mantle": {"base": "travel_cloak", "history": "", "rarity": "storied", "kind": "fire", "name": "Emberkin Mantle", "short": "Emberkin",
 		"desc": "a cloak that smoulders at the hem: once a floor, falling below a fifth of your health heals 25 over 2 s", "fx": {"ember_mend": 25.0},
 		"color": Color(0.7, 0.3, 0.18)},
-	"heartstone": {"base": "bone_charm", "rarity": "storied", "kind": "stone", "name": "Heartstone", "short": "Heartstone",
+	"heartstone": {"base": "bone_charm", "history": "", "rarity": "storied", "kind": "stone", "name": "Heartstone", "short": "Heartstone",
 		"desc": "a stone that beats: +16 health, and you regain 1 health every 3 s while no monster has noticed you", "fx": {"health": 16.0, "still_mend": 1.0},
 		"color": Color(0.85, 0.35, 0.35)},
-	"spellweave_ring": {"base": "garnet_ring", "rarity": "storied", "kind": "fire", "name": "Spellweave Ring", "short": "Spellweave",
+	"spellweave_ring": {"base": "garnet_ring", "history": "", "rarity": "storied", "kind": "fire", "name": "Spellweave Ring", "short": "Spellweave",
 		"desc": "a ring of three braided wires: every third spell you cast costs nothing", "fx": {"spellweave": 3.0}, "color": Color(0.85, 0.55, 0.95)},
-	"reavers_greatsword": {"base": "greatsword", "rarity": "storied", "kind": "blade", "name": "Reaver's Greatsword", "short": "Reaver's",
+	"reavers_greatsword": {"base": "greatsword", "history": "", "rarity": "storied", "kind": "blade", "name": "Reaver's Greatsword", "short": "Reaver's",
 		"desc": "a notched greatsword: kills restore 4 health and 4 essence to your hand's mark", "fx": {"kill_heal": 4.0, "kill_mark": 4.0}},
-	"bastion_plate": {"base": "plate", "rarity": "storied", "kind": "iron", "name": "Bastion Plate", "short": "Bastion",
+	"bastion_plate": {"base": "plate", "history": "", "rarity": "storied", "kind": "iron", "name": "Bastion Plate", "short": "Bastion",
 		"desc": "old, dented plate: once a floor, falling below 30% health raises a 30-point barrier for 6 s", "fx": {"bastion": 30.0},
 		"color": Color(0.74, 0.7, 0.6)},
-	"hollowmoon_bow": {"base": "longbow", "rarity": "storied", "kind": "water", "name": "Hollowmoon Bow", "short": "Hollowmoon",
+	"hollowmoon_bow": {"base": "longbow", "history": "", "rarity": "storied", "kind": "water", "name": "Hollowmoon Bow", "short": "Hollowmoon",
 		"desc": "a pale bow bent like a new moon: a full draw that hits pours 4 essence into your hand's mark", "fx": {"draw_mark": 4.0},
 		"color": Color(0.78, 0.84, 0.95)},
-	"rootbound_greaves": {"base": "plated_greaves", "rarity": "storied", "kind": "stone", "name": "Rootbound Greaves", "short": "Rootbound",
+	"rootbound_greaves": {"base": "plated_greaves", "history": "", "rarity": "storied", "kind": "stone", "name": "Rootbound Greaves", "short": "Rootbound",
 		"desc": "greaves grown through with living root: 5% damage taken off and +8 health; while you stand still, blows hurt 25% less",
 		"fx": {"reduce": 0.05, "health": 8.0, "still_guard": 0.25}, "color": Color(0.52, 0.44, 0.32)},
-	"wayfinders_pendant": {"base": "sunstone_pendant", "rarity": "storied", "kind": "air", "name": "Wayfinder's Pendant", "short": "Wayfinder",
+	"wayfinders_pendant": {"base": "sunstone_pendant", "history": "", "rarity": "storied", "kind": "air", "name": "Wayfinder's Pendant", "short": "Wayfinder",
 		"desc": "a compass whose needle points at what is hidden: secret walls and hidden traps near you glint; your light reaches 15% farther",
 		"fx": {"seek": 220.0, "light": 0.15}, "color": Color(0.5, 0.78, 0.95)},
-	"duelists_ring": {"base": "silver_ring", "rarity": "storied", "kind": "blade", "name": "Duelist's Ring", "short": "Duelist's",
+	"duelists_ring": {"base": "silver_ring", "history": "", "rarity": "storied", "kind": "blade", "name": "Duelist's Ring", "short": "Duelist's",
 		"desc": "a ring worn smooth by a duelist's thumb: the parry window is 10% longer, and every parry gives back 15 more stamina",
 		"fx": {"parry": 0.10, "parry_sta": 15.0}, "color": Color(0.88, 0.3, 0.32)},
+	"ashgrove_cane": {"base": "cane", "history": "", "rarity": "storied", "kind": "stone", "name": "Ashgrove Cane", "short": "Ashgrove",
+		"desc": "a cane of pale ash, its knob worn bright: a perfect parry with it staggers every foe near you for a moment", "fx": {"quell": 0.8},
+		"color": Color(0.86, 0.8, 0.66)},
+	"quietsteel": {"base": "sword_cane", "history": "", "rarity": "storied", "kind": "blade", "name": "Quietsteel", "short": "Quietsteel",
+		"desc": "a sword-cane whose blade comes out without a whisper: its drawn finisher poisons every foe it cuts", "fx": {"draw_venom": 3.0},
+		"color": Color(0.32, 0.3, 0.36)},
+	"lastbell_revolver": {"base": "revolver", "history": "", "rarity": "storied", "kind": "iron", "enchanted": false, "name": "Lastbell Revolver", "short": "Lastbell",
+		"desc": "an old, plain revolver, not enchanted: it reloads like any other, but the last shot in the cylinder hits twice as hard", "fx": {"last_shot": 1.0},
+		"color": Color(0.7, 0.56, 0.32)},
+	"emberlock": {"base": "flintlock", "history": "", "rarity": "storied", "kind": "fire", "name": "Emberlock", "short": "Emberlock",
+		"desc": "a flintlock whose pan never goes cold: it fires fire shot, and a kill with it fills its chamber at once", "fx": {"kill_load": 1.0},
+		"color": Color(0.72, 0.34, 0.2)},
 	# Regarded pieces: each tower's beast's own weapon or armour, left where it
 	# falls (REGARDED_DROP). Four traits besides its rule; never wears.
-	"stormtalon": {"base": "longbow", "rarity": "regarded", "beast": "gryphon", "kind": "air", "name": "Stormtalon", "short": "Stormtalon",
+	"stormtalon": {"base": "longbow", "history": "", "rarity": "regarded", "beast": "gryphon", "kind": "air", "name": "Stormtalon", "short": "Stormtalon",
 		"desc": "the Gryphon's own bow, strung with its storm: a full draw flies faster and hits harder, and arcs on to two more foes for 60%",
 		"fx": {"gale": 1.6, "arc": 0.6, "arcs": 2.0}, "color": Color(0.62, 0.8, 1.0)},
-	"deepcoil_coat": {"base": "leather", "rarity": "regarded", "beast": "kraken", "kind": "water", "name": "Deepcoil Coat", "short": "Deepcoil",
+	"deepcoil_coat": {"base": "leather", "history": "", "rarity": "regarded", "beast": "kraken", "kind": "water", "name": "Deepcoil Coat", "short": "Deepcoil",
 		"desc": "the Kraken's own hide, cured dark: 24% off a blow with leather's lightness; foes that strike you up close are gripped and slowed; once a floor, falling below half health bursts a cloud of ink that hides you",
 		"armor": {"reduce": 0.24, "roll_cost": 1.1, "roll_dist": 0.96, "regen": 0.96, "walk": 0.99}, "fx": {"grasp": 2.0, "ink": 5.0},
 		"color": Color(0.24, 0.42, 0.5)},
-	"wyrmspine_mace": {"base": "mace", "rarity": "regarded", "beast": "wyvern", "kind": "iron", "name": "Wyrmspine Mace", "short": "Wyrmspine",
+	"wyrmspine_mace": {"base": "mace", "history": "", "rarity": "regarded", "beast": "wyvern", "kind": "iron", "name": "Wyrmspine Mace", "short": "Wyrmspine",
 		"desc": "the Wyvern's own spine, set on a haft: a heavy blow cracks the floor, and the foes near the one you hit take 12 and stagger",
 		"fx": {"quake": 12.0}, "color": Color(0.86, 0.8, 0.66)},
-	"spinecaster": {"base": "crossbow", "rarity": "regarded", "beast": "manticore", "kind": "stone", "name": "Spinecaster", "short": "Spinecaster",
+	"spinecaster": {"base": "crossbow", "history": "", "rarity": "regarded", "beast": "manticore", "kind": "stone", "name": "Spinecaster", "short": "Spinecaster",
 		"desc": "the Manticore's own tail, strung as a crossbow: each bolt looses two barbs beside it (half damage), and every barb poisons",
 		"fx": {"volley": 2.0, "venom_shot": 2.0}, "color": Color(0.78, 0.5, 0.3)},
-	"sunplume_mantle": {"base": "travel_cloak", "rarity": "regarded", "beast": "firebird", "kind": "fire", "name": "Sunplume Mantle", "short": "Sunplume",
+	"sunplume_mantle": {"base": "travel_cloak", "history": "", "rarity": "regarded", "beast": "firebird", "kind": "fire", "name": "Sunplume Mantle", "short": "Sunplume",
 		"desc": "a cloak of the Firebird's own plumes: once a climb, a blow that would fell you bursts you into flame and you rise with 40% of your health; poison and burning floor hurt 25% less",
 		"fx": {"rebirth": 0.4, "ailment": 0.25}, "color": Color(0.95, 0.46, 0.2)},
-	"triune_fang": {"base": "greatsword", "rarity": "regarded", "beast": "chimera", "kind": "blade", "name": "Triune Fang", "short": "Triune",
+	"triune_fang": {"base": "greatsword", "history": "", "rarity": "regarded", "beast": "chimera", "kind": "blade", "name": "Triune Fang", "short": "Triune",
 		"desc": "the Chimera's own fang, three heads on one hilt: its strikes take turns between them; the lion's hits 30% harder, the goat's staggers, the serpent's poisons",
 		"fx": {"triune": 0.3}, "color": Color(0.86, 0.68, 0.4)},
 }
@@ -364,6 +381,14 @@ static var TEXT := {
 	"notice": "%s: %s",  # "RARE: Coral Trident"
 	"beast_piece": "left by its beast",
 	"beast_kept": "%s comes down with you, in your pack",
+	# Ordinary or enchanted (cards): a Common piece is ordinary, with only its
+	# own use; Fine and Rare pieces are enchanted (their traits), and so are
+	# rings and amulets by nature; Storied and Regarded pieces are relics.
+	"ordinary": "ordinary",
+	"enchanted": "Enchanted: %s essence",
+	"relic": "A relic, enchanted: %s essence",
+	"relic_plain": "A relic, not enchanted",
+	"history": "%s",
 }
 
 ## Armor (the chest slot). Reduction cuts the damage of attacks that land
@@ -450,6 +475,13 @@ static var ARMOR := {
 ##   steady    light blows (under LIGHT_BLOW) can't knock you back
 ##   heavy     adds HEAVY_ROLL to a roll's cost
 ##   rarity    a piece that is always this rarity (rings and amulets are Fine)
+##   kind      the essence of a piece enchanted by nature (rings and amulets);
+##             plain pieces have none: they're ordinary
+##   finisher  a chain's finisher hits this much harder
+##   fist      your bare fists hit this much harder
+##   kill_sta  each kill gives back this much stamina
+##   quick_breath  stamina starts refilling this much sooner after you act
+##   parry_heal    a perfect parry heals you this much
 ##   drop_weight  how common it is as a drop (0: not found yet)
 ##   look      how it shows on the climber (player.gd)
 ## Penalties (heavy, a shorter parry, a slower walk) stay when a piece is
@@ -463,26 +495,26 @@ const PIECE_ORDER := [
 	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier",
 ]
 static var PIECES := {
-	"cloth_hood": {"slot": "helm", "name": "Cloth Hood", "short": "Hood", "desc": "a deep hood of plain cloth: your light reaches 10% farther",
-		"light": 0.10, "color": Color(0.46, 0.5, 0.42), "drop_weight": 3, "look": "hood"},
+	"cloth_hood": {"slot": "helm", "name": "Cloth Hood", "short": "Hood", "desc": "a deep hood of plain cloth: your light reaches 10% farther, and it hides your face (monsters notice you 8% later)",
+		"light": 0.10, "notice": 0.08, "color": Color(0.46, 0.5, 0.42), "drop_weight": 3, "look": "hood"},
 	"leather_cap": {"slot": "helm", "name": "Leather Cap", "short": "Cap", "desc": "a padded leather cap: +8 health",
 		"health": 8.0, "color": Color(0.55, 0.38, 0.24), "drop_weight": 3, "look": "cap"},
 	"iron_helm": {"slot": "helm", "name": "Iron Helm", "short": "Helm", "desc": "a plain iron helm: 6% damage taken off; heavy",
 		"reduce": 0.06, "heavy": true, "color": Color(0.7, 0.72, 0.78), "drop_weight": 2, "look": "helm"},
-	"grip_wraps": {"slot": "gloves", "name": "Grip Wraps", "short": "Wraps", "desc": "cloth wound tight round the hands: strike chains cost 6% less stamina",
-		"chain": 0.06, "color": Color(0.82, 0.76, 0.62), "drop_weight": 3},
-	"leather_gloves": {"slot": "gloves", "name": "Leather Gloves", "short": "Gloves", "desc": "stiff leather gloves: strikes hit 4% harder",
-		"strike": 0.04, "color": Color(0.5, 0.33, 0.2), "drop_weight": 3},
+	"grip_wraps": {"slot": "gloves", "name": "Grip Wraps", "short": "Wraps", "desc": "cloth wound tight round the hands: strike chains cost 6% less stamina, and your bare fists hit 15% harder",
+		"chain": 0.06, "fist": 0.15, "color": Color(0.82, 0.76, 0.62), "drop_weight": 3},
+	"leather_gloves": {"slot": "gloves", "name": "Leather Gloves", "short": "Gloves", "desc": "stiff leather gloves: strikes hit 4% harder, and a chain's finisher 15% harder",
+		"strike": 0.04, "finisher": 0.15, "color": Color(0.5, 0.33, 0.2), "drop_weight": 3},
 	"gauntlets": {"slot": "gloves", "name": "Gauntlets", "short": "Gauntlets", "desc": "steel gauntlets: strikes hit 7% harder, but the parry window is 5% shorter; heavy",
 		"strike": 0.07, "parry": -0.05, "heavy": true, "color": Color(0.72, 0.74, 0.8), "drop_weight": 2},
 	"padded_trousers": {"slot": "legs", "name": "Padded Trousers", "short": "Trousers", "desc": "quilted trousers: +10 max stamina",
 		"stamina": 10.0, "color": Color(0.62, 0.55, 0.42), "drop_weight": 3},
-	"leather_leggings": {"slot": "legs", "name": "Leather Leggings", "short": "Leggings", "desc": "supple leather leggings: rolls carry 5% farther",
-		"roll_dist": 0.05, "color": Color(0.46, 0.31, 0.2), "drop_weight": 3},
+	"leather_leggings": {"slot": "legs", "name": "Leather Leggings", "short": "Leggings", "desc": "supple leather leggings: rolls carry 5% farther and cost 5% less stamina",
+		"roll_dist": 0.05, "roll_cost": 0.05, "color": Color(0.46, 0.31, 0.2), "drop_weight": 3},
 	"chain_leggings": {"slot": "legs", "name": "Chain Leggings", "short": "Chain legs", "desc": "mail leggings: 5% damage taken off; heavy",
 		"reduce": 0.05, "heavy": true, "color": Color(0.62, 0.65, 0.7), "drop_weight": 2},
-	"soft_boots": {"slot": "boots", "name": "Soft Boots", "short": "Soft", "desc": "light boots of soft hide: you walk 4% faster",
-		"walk": 0.04, "color": Color(0.5, 0.4, 0.3), "drop_weight": 3, "look": "soft"},
+	"soft_boots": {"slot": "boots", "name": "Soft Boots", "short": "Soft", "desc": "light boots of soft hide: you walk 4% faster, and quietly (monsters notice you 10% later)",
+		"walk": 0.04, "notice": 0.10, "color": Color(0.5, 0.4, 0.3), "drop_weight": 3, "look": "soft"},
 	"climbing_boots": {"slot": "boots", "name": "Climbing Boots", "short": "Climbing", "desc": "laced boots with grippy soles: jumps cost no stamina and carry 10% farther",
 		"free_jump": true, "jump": 0.10, "color": Color(0.38, 0.3, 0.24), "drop_weight": 3, "look": "climbing"},
 	"hobnail_boots": {"slot": "boots", "name": "Hobnail Boots", "short": "Hobnail", "desc": "iron-studded boots: light blows can't knock you back, but you walk 3% slower; heavy",
@@ -495,20 +527,20 @@ static var PIECES := {
 		"stack": 1, "color": Color(0.56, 0.4, 0.24), "drop_weight": 2},
 	"belt_pouch": {"slot": "backpack", "name": "Belt Pouch", "short": "Pouch", "desc": "a pouch on your belt: room for one more kind of item",
 		"belt": 1, "color": Color(0.45, 0.33, 0.22), "drop_weight": 2},
-	"bone_charm": {"slot": "amulet", "name": "Bone Charm", "short": "Bone", "desc": "a carved bone on a cord: +10 health",
+	"bone_charm": {"kind": "stone", "slot": "amulet", "name": "Bone Charm", "short": "Bone", "desc": "a carved bone on a cord: +10 health",
 		"health": 10.0, "rarity": "fine", "color": Color(0.88, 0.84, 0.72), "drop_weight": 1},
-	"ember_charm": {"slot": "amulet", "name": "Ember Charm", "short": "Ember", "desc": "a warm red stone on a chain: spells hit 6% harder",
-		"spell": 0.06, "rarity": "fine", "color": Color(0.9, 0.42, 0.25), "drop_weight": 1},
-	"iron_band": {"slot": "ring", "name": "Iron Band", "short": "Iron", "desc": "a plain iron ring: stamina refills 5% faster",
-		"regen": 0.05, "rarity": "fine", "color": Color(0.66, 0.68, 0.74), "drop_weight": 1},
-	"garnet_ring": {"slot": "ring", "name": "Garnet Ring", "short": "Garnet", "desc": "a gold ring set with a garnet: strikes hit 4% harder",
-		"strike": 0.04, "rarity": "fine", "color": Color(0.78, 0.22, 0.28), "drop_weight": 1},
+	"ember_charm": {"kind": "fire", "slot": "amulet", "name": "Ember Charm", "short": "Ember", "desc": "a warm red stone on a chain: spells hit 6% harder, and its glow carries your light 10% farther",
+		"spell": 0.06, "light": 0.10, "rarity": "fine", "color": Color(0.9, 0.42, 0.25), "drop_weight": 1},
+	"iron_band": {"kind": "iron", "slot": "ring", "name": "Iron Band", "short": "Iron", "desc": "a plain iron ring: stamina refills 5% faster, and starts refilling 25% sooner after you act",
+		"regen": 0.05, "quick_breath": 0.25, "rarity": "fine", "color": Color(0.66, 0.68, 0.74), "drop_weight": 1},
+	"garnet_ring": {"kind": "blade", "slot": "ring", "name": "Garnet Ring", "short": "Garnet", "desc": "a gold ring set with a garnet: strikes hit 4% harder, and each kill gives back 6 stamina",
+		"strike": 0.04, "kill_sta": 6.0, "rarity": "fine", "color": Color(0.78, 0.22, 0.28), "drop_weight": 1},
 	# Rare by nature: only found as Rare finds (or better).
-	"tide_locket": {"slot": "amulet", "name": "Tide Locket", "short": "Tide", "desc": "a locket full of sea water: marks fill 8% faster; +6 health",
+	"tide_locket": {"kind": "water", "slot": "amulet", "name": "Tide Locket", "short": "Tide", "desc": "a locket full of sea water: marks fill 8% faster; +6 health",
 		"fill": 0.08, "health": 6.0, "rarity": "rare", "color": Color(0.37, 0.72, 0.85), "drop_weight": 1},
-	"pearl_ring": {"slot": "ring", "name": "Pearl Ring", "short": "Pearl", "desc": "a ring set with a black pearl: each kill puts 2 essence into your emptiest mark",
+	"pearl_ring": {"kind": "water", "slot": "ring", "name": "Pearl Ring", "short": "Pearl", "desc": "a ring set with a black pearl: each kill puts 2 essence into your emptiest mark",
 		"kill_essence": 2.0, "rarity": "rare", "color": Color(0.86, 0.86, 0.92), "drop_weight": 1},
-	"overdrawn_ring": {"slot": "ring", "name": "Ring of the Overdrawn", "short": "Overdrawn", "desc": "a scorched ring: your first overdraw each floor doesn't burn the body part",
+	"overdrawn_ring": {"kind": "fire", "slot": "ring", "name": "Ring of the Overdrawn", "short": "Overdrawn", "desc": "a scorched ring: your first overdraw each floor doesn't burn the body part",
 		"overdraw_guard": 1.0, "rarity": "rare", "color": Color(0.95, 0.5, 0.3), "drop_weight": 1},
 	"climbers_pack": {"slot": "backpack", "name": "Climber's Pack", "short": "Pack", "desc": "a well-worn pack with many pockets: one more kind of item on the belt, 4 of each, and room for 2 more spare pieces",
 		"belt": 1, "stack": 1, "pack": 2, "rarity": "rare", "color": Color(0.4, 0.46, 0.3), "drop_weight": 1},
@@ -519,8 +551,8 @@ static var PIECES := {
 		"light": 0.25, "reduce": 0.03, "color": Color(0.8, 0.62, 0.32), "drop_weight": 2, "look": "helm"},
 	"archers_bracers": {"slot": "gloves", "name": "Archer's Bracers", "short": "Bracers", "desc": "laced leather bracers: bows draw and crossbows reload 10% faster",
 		"draw": 0.10, "color": Color(0.6, 0.42, 0.26), "drop_weight": 3},
-	"studded_gloves": {"slot": "gloves", "name": "Studded Gloves", "short": "Studded", "desc": "gloves set with iron studs: strikes hit 2% harder, and foes that strike you up close take 4",
-		"strike": 0.02, "thorns": 4.0, "color": Color(0.42, 0.32, 0.28), "drop_weight": 2},
+	"studded_gloves": {"slot": "gloves", "name": "Studded Gloves", "short": "Studded", "desc": "gloves set with iron studs: your bare fists hit 25% harder, and foes that strike you up close take 4",
+		"fist": 0.25, "thorns": 4.0, "color": Color(0.42, 0.32, 0.28), "drop_weight": 2},
 	"ranger_breeches": {"slot": "legs", "name": "Ranger's Breeches", "short": "Breeches", "desc": "soft green breeches: you walk 3% faster, and monsters notice you 10% later",
 		"walk": 0.03, "notice": 0.10, "color": Color(0.38, 0.48, 0.32), "drop_weight": 3},
 	"plated_greaves": {"slot": "legs", "name": "Plated Greaves", "short": "Greaves", "desc": "steel plates strapped over the shins: 7% damage taken off; heavy",
@@ -531,15 +563,15 @@ static var PIECES := {
 		"jump": 0.15, "roll_dist": 0.04, "color": Color(0.64, 0.56, 0.48), "drop_weight": 2},
 	"herb_pouch": {"slot": "backpack", "name": "Herb Pouch", "short": "Herbs", "desc": "a pouch of dried healing herbs: healing items heal 25% more",
 		"item_heal": 0.25, "color": Color(0.52, 0.58, 0.32), "drop_weight": 2},
-	"wolf_tooth": {"slot": "amulet", "name": "Wolf-Tooth Necklace", "short": "Wolf-Tooth", "desc": "a wolf's fang on a leather thong: ripostes and backstabs hit 12% harder",
+	"wolf_tooth": {"kind": "blade", "slot": "amulet", "name": "Wolf-Tooth Necklace", "short": "Wolf-Tooth", "desc": "a wolf's fang on a leather thong: ripostes and backstabs hit 12% harder",
 		"riposte": 0.12, "rarity": "fine", "color": Color(0.93, 0.89, 0.78), "drop_weight": 1},
-	"sunstone_pendant": {"slot": "amulet", "name": "Sunstone Pendant", "short": "Sunstone", "desc": "a stone that keeps the day's light: your light reaches 20% farther; spells hit 3% harder",
+	"sunstone_pendant": {"kind": "fire", "slot": "amulet", "name": "Sunstone Pendant", "short": "Sunstone", "desc": "a stone that keeps the day's light: your light reaches 20% farther; spells hit 3% harder",
 		"light": 0.2, "spell": 0.03, "rarity": "fine", "color": Color(1.0, 0.7, 0.28), "drop_weight": 1},
-	"silver_ring": {"slot": "ring", "name": "Silver Ring", "short": "Silver", "desc": "a cool silver band: the parry window is 6% longer",
-		"parry": 0.06, "rarity": "fine", "color": Color(0.84, 0.88, 0.94), "drop_weight": 1},
-	"jade_ring": {"slot": "ring", "name": "Jade Ring", "short": "Jade", "desc": "a ring carved from green jade: +12 max stamina",
+	"silver_ring": {"kind": "water", "slot": "ring", "name": "Silver Ring", "short": "Silver", "desc": "a cool silver band: the parry window is 6% longer, and a perfect parry heals you 3",
+		"parry": 0.06, "parry_heal": 3.0, "rarity": "fine", "color": Color(0.84, 0.88, 0.94), "drop_weight": 1},
+	"jade_ring": {"kind": "iron", "slot": "ring", "name": "Jade Ring", "short": "Jade", "desc": "a ring carved from green jade: +12 max stamina",
 		"stamina": 12.0, "rarity": "fine", "color": Color(0.34, 0.76, 0.52), "drop_weight": 1},
-	"viper_ring": {"slot": "ring", "name": "Viper Ring", "short": "Viper", "desc": "a coiled serpent with emerald eyes: hits have a 12% chance to poison the foe",
+	"viper_ring": {"kind": "stone", "slot": "ring", "name": "Viper Ring", "short": "Viper", "desc": "a coiled serpent with emerald eyes: hits have a 12% chance to poison the foe",
 		"venom_chance": 0.12, "rarity": "rare", "color": Color(0.44, 0.72, 0.32), "drop_weight": 1},
 	"bandolier": {"slot": "backpack", "name": "Bandolier", "short": "Bandolier", "desc": "a crossed belt of loops and pockets: two more kinds of item on the belt",
 		"belt": 2, "rarity": "rare", "color": Color(0.46, 0.3, 0.2), "drop_weight": 1},
@@ -558,27 +590,29 @@ const EFFECT_ROWS := [
 	["embers", "Burn chance", true, true], ["fill", "Marks fill", true, true], ["kill_essence", "Essence a kill", false, true],
 	["pack", "Pack spaces", false, true], ["kill_heal", "Heal a kill", false, true], ["draw", "Draw and reload", true, true],
 	["venom_chance", "Poison chance", true, true], ["item_heal", "Item healing", true, true], ["parry_sta", "Stamina a parry", false, true],
+	["finisher", "Finishers", true, true], ["fist", "Fists", true, true], ["kill_sta", "Stamina a kill", false, true],
+	["quick_breath", "Stamina wait", true, true, true], ["parry_heal", "Heal a perfect parry", false, true],
 ]
 ## Only these numbers halve on a badly worn piece (the rest are penalties or switches).
 const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dist", "light", "regen", "spell", "notice", "ailment", "jump",
-	"ranged", "draw", "thorns", "footing"]
+	"ranged", "draw", "thorns", "footing", "finisher", "fist", "roll_cost", "kill_sta", "quick_breath", "parry_heal"]
 
 ## How common each weapon is as a drop (fists are always carried).
 static var WEAPON_DROP_WEIGHT := {
-	"dagger": 4, "sword": 3, "axe": 4, "mace": 3, "spear": 4, "greatsword": 2, "war_hammer": 2,
-	"shortbow": 3, "longbow": 2, "crossbow": 2,
+	"dagger": 4, "sword": 3, "axe": 4, "mace": 3, "spear": 4, "greatsword": 2, "war_hammer": 2, "cane": 3, "sword_cane": 2,
+	"shortbow": 3, "longbow": 2, "crossbow": 2, "flintlock": 2, "revolver": 2,
 }
 
 ## Monsters favour gear that suits them: these are four times as likely.
 const FAVOUR_MULT := 4
 const FAVOUR := {
 	"knight": ["chain", "plate", "sword", "mace", "greatsword", "iron_helm", "gauntlets", "plated_greaves"],
-	"archer": ["shortbow", "longbow", "crossbow", "leather", "leather_cap", "feathered_cap", "archers_bracers"],
-	"smith": ["war_hammer", "mace", "chain", "plate", "gauntlets", "hobnail_boots"],
+	"archer": ["shortbow", "longbow", "crossbow", "flintlock", "leather", "leather_cap", "feathered_cap", "archers_bracers"],
+	"smith": ["war_hammer", "mace", "chain", "plate", "gauntlets", "hobnail_boots", "revolver", "flintlock"],
 	"shellback": ["mace", "chain", "chain_leggings"],
 	"ram": ["war_hammer", "axe", "hobnail_boots"],
-	"thornhound": ["dagger", "leather", "leather_gloves", "studded_gloves"],
-	"mongrel": ["axe", "spear", "leather", "leather_leggings", "wolf_tooth"],
+	"thornhound": ["dagger", "sword_cane", "leather", "leather_gloves", "studded_gloves"],
+	"mongrel": ["axe", "spear", "cane", "leather", "leather_leggings", "wolf_tooth"],
 	"scorpling": ["dagger", "padded", "travel_cloak", "viper_ring"],
 	"thunderling": ["spear", "chain", "soft_boots"],
 	"lurker": ["spear", "padded", "climbing_boots", "wading_boots"],
@@ -756,6 +790,8 @@ static func traits_for(slot: String) -> Array:
 ## their own rule (one; four on a Regarded piece).
 static func trait_count(base, r: String, named := "") -> int:
 	if named != "":
+		if not bool(NAMED.get(named, {}).get("enchanted", true)):
+			return 0  # (a relic that isn't enchanted carries no traits)
 		return mini(int(RARITIES.get(r, {}).get("named_traits", 1)), traits_for(trait_slot(base)).size())
 	return maxi(0, int(RARITIES[r]["traits"]) - int(RARITIES[natural_rarity(base)]["traits"]))
 
@@ -997,6 +1033,8 @@ static func color(id) -> Color:
 		return ARMOR[b]["color"]
 	if PIECES.has(b):
 		return PIECES[b]["color"]
+	if Weapons.WEAPONS.has(b) and Weapons.WEAPONS[b].has("color"):
+		return Weapons.WEAPONS[b]["color"]  # (canes' and pistols' dark wood)
 	if Weapons.is_ranged(b):
 		return Color(0.85, 0.66, 0.42)
 	return Color(0.82, 0.85, 0.92)
@@ -1061,7 +1099,7 @@ static func effects(g) -> Dictionary:
 	if not d.is_empty():
 		var f := factor(g) if g is Dictionary else 1.0
 		for k in d:
-			if k in ["slot", "name", "short", "desc", "color", "drop_weight", "look", "rarity"]:
+			if k in ["slot", "name", "short", "desc", "color", "drop_weight", "look", "rarity", "kind", "history", "enchanted"]:
 				continue
 			var v = d[k]
 			if (v is float or v is int) and k in BONUS_KEYS:
@@ -1080,6 +1118,53 @@ static func effects(g) -> Dictionary:
 			var key := String(rn["key"])
 			out[key] = float(out.get(key, 0.0)) + float(rn["value"])
 	return out
+
+
+## Ordinary or enchanted. A plain Common piece is ordinary: no traits, only
+## its own use. Fine and Rare pieces are enchanted (their traits), and so
+## are rings and amulets by nature (PIECES "kind"). Named pieces are relics,
+## enchanted in their own essence unless NAMED says "enchanted": false.
+static func enchanted(g) -> bool:
+	var r := rec(g)
+	if r.is_empty():
+		return false
+	var n := named_id(r)
+	if NAMED.has(n):
+		return bool(NAMED[n].get("enchanted", true))
+	if not r.get("traits", []).is_empty():
+		return true
+	return PIECES.get(base_id(r), {}).has("kind")
+
+
+## The essence of a piece's enchantment ("" for an ordinary piece): a
+## relic's own, else its first trait's, else its nature's (a ring's).
+static func enchant_kind(g) -> String:
+	if not enchanted(g):
+		return ""
+	var r := rec(g)
+	var n := named_id(r)
+	if NAMED.has(n):
+		return String(NAMED[n]["kind"])
+	for t in r.get("traits", []):
+		if TRAITS.has(String(t)):
+			return String(TRAITS[t]["kind"])
+	return String(PIECES.get(base_id(r), {}).get("kind", ""))
+
+
+## The essence an enchanted pistol fires (weapons.gd ESSENCE_SHOT), or ""
+## for anything else: an ordinary pistol fires lead and reloads.
+static func shot_kind(g) -> String:
+	if not Weapons.is_gun(base_id(g)):
+		return ""
+	return enchant_kind(g)
+
+
+## A relic's history (NAMED "history", for the owner to write; "" while blank).
+static func history(g) -> String:
+	var n := named_id(g)
+	if NAMED.has(n):
+		return String(NAMED[n].get("history", "")).strip_edges()
+	return ""
 
 
 ## A weapon's own rules (a named weapon's NAMED fx), for while it's in hand.
@@ -1245,11 +1330,13 @@ static func plays_like(a, b) -> String:
 	var ka := String(Weapons.WEAPONS[ia]["kind"])
 	var kb := String(Weapons.WEAPONS[ib]["kind"])
 	if ka != kb:
-		bits.append({"bow": "a bow you draw", "crossbow": "fires at once, then reloads", "melee": "a melee weapon"}[ka])
+		bits.append({"bow": "a bow you draw", "crossbow": "fires at once, then reloads", "melee": "a melee weapon", "gun": "a pistol: shoot, then reload"}[ka])
+	if shot_kind(a) != shot_kind(b) and shot_kind(a) != "":
+		bits.append(String(Weapons.essence_shot(shot_kind(a))["name"]).to_lower())
 	var words := {
 		"Damage": ["hits harder", "hits softer"], "Reach": ["longer reach", "shorter reach"], "Range": ["flies farther", "shorter range"],
 		"Stamina": ["costs less stamina", "costs more stamina"], "Speed": ["faster", "slower"], "Draw": ["draws faster", "draws slower"],
-		"Reload": ["reloads faster", "reloads slower"],
+		"Reload": ["reloads faster", "reloads slower"], "Shots": ["more shots", "fewer shots"],
 	}
 	var near := 0.06 if ia != ib else 0.03  # (the same weapon: a rarity's few percent count)
 	for i in mini(sa.size(), sb.size()):
@@ -1294,6 +1381,8 @@ static func describe(g) -> Array:
 	lines.append(what.left(1).to_upper() + what.substr(1) + ".")
 	var r := rec(g)
 	var tags: Array = [rarity_name(r)]
+	if not enchanted(r) and not NAMED.has(named_id(r)):
+		tags.append(TEXT["ordinary"])
 	if NAMED.has(named_id(r)):
 		var nd: Dictionary = NAMED[named_id(r)]
 		tags[0] = "%s %s" % [rarity_name(r), d.get("name", "")]
@@ -1308,13 +1397,32 @@ static func describe(g) -> Array:
 	lines.append("  ·  ".join(tags))
 	if is_worn(r):
 		lines.append(TEXT["worn_weapon"] if Weapons.WEAPONS.has(base_id(r)) else TEXT["worn"])
+	# A relic's history, once the owner has written it (blank: nothing shows).
+	if history(r) != "":
+		lines.append(TEXT["history"] % history(r))
 	return lines
 
 
-## A piece's traits for a card: [[text, colour (its essence's)], ...].
+## A piece's enchantment and traits for a card: [[text, colour (its
+## essence's)], ...]. An enchanted piece says so first, with its essence
+## (a relic says whether it's enchanted); an enchanted pistol then says
+## what its essence shot does. Ordinary pieces have none of these lines.
 static func trait_lines(g) -> Array:
 	var r := rec(g)
 	var out: Array = []
+	var ek := enchant_kind(r)
+	if NAMED.has(named_id(r)):
+		if ek != "":
+			out.append([TEXT["relic"] % Essence.display(ek), Essence.color(ek)])
+		else:
+			out.append([TEXT["relic_plain"], RARITIES["common"]["color"]])
+	elif ek != "":
+		out.append([TEXT["enchanted"] % Essence.display(ek), Essence.color(ek)])
+	var sk := shot_kind(r)
+	if sk != "":
+		var shot := Weapons.essence_shot(sk)
+		out.append([Weapons.GUN_TEXT["shot"] % [shot["name"], shot["desc"]], Essence.color(sk)])
+		out.append([Weapons.GUN_TEXT["refills"], Essence.color(sk)])
 	for t in r.get("traits", []):
 		if TRAITS.has(t):
 			out.append([trait_text(t, r["rarity"], int(r.get("rank", 0))), Essence.color(TRAITS[t]["kind"])])
@@ -1778,6 +1886,66 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 				Art.soft(b, o + Vector2(r, 0), 3.8 * u, Color(0.8, 0.88, 1.0, 0.5))
 				Art.orb(b, o + Vector2(r + 0.2 * u, 0), 1.5 * u, Color(0.94, 0.96, 1.0), s, "gem")
 				b.circle(o + Vector2(r + 0.9 * u, -0.4 * u), 1.2 * u, Color(0.4, 0.46, 0.62), 12)
+		"cane", "sword_cane":
+			# A walking cane: a dark shaft, a steel ferrule, and a crook; the
+			# sword-cane drawn a little apart, its blade showing between the
+			# shaft and the silver-knobbed handle.
+			var cw: Color = color(g)
+			var foot: Vector2 = p.call(-8.6, 8.6)
+			if id == "cane":
+				var top: Vector2 = p.call(4.6, -4.6)
+				Art.rod(b, foot, top, 1.35 * u, cw, s, "wood")
+				Art.arc_rod(b, top + Vector2(2.6, 0.0) * u, 2.6 * u, -PI, 0.55, 1.35 * u, cw.lightened(0.08), s, "wood", 0.2)
+				if lod > 0:
+					Art.rod(b, top - d * 1.6 * u, top - d * 0.4 * u, 1.6 * u, Art.GOLD, s, "gold")  # a brass band under the crook
+			else:
+				var mouth: Vector2 = p.call(-0.8, 0.8)
+				var hilt: Vector2 = p.call(4.4, -4.4)
+				Art.rod(b, foot, mouth, 1.35 * u, cw, s, "wood")
+				_blade(b, mouth, hilt + d * 0.6 * u, 0.85 * u, steel, s)
+				Art.rod(b, mouth - d * 0.6 * u, mouth + d * 0.5 * u, 1.65 * u, Art.STEEL, s, "metal")  # the collar where the blade parts
+				Art.rod(b, hilt, p.call(7.2, -7.2), 1.35 * u, cw, s, "wood")
+				Art.orb(b, p.call(8.0, -8.0), 1.7 * u, Art.STEEL.lightened(0.1), s, "metal")
+			Art.orb(b, foot, 0.95 * u, Art.IRON, s, "metal")
+		"flintlock":
+			# A flintlock pistol: a long barrel on a wooden full stock, its
+			# hammer cocked, a brass cap on the butt.
+			var fw: Color = color(g)
+			var stock := Art.pts(c, u, [Vector2(-9.4, 5.2), Vector2(-7.4, 7.8), Vector2(-5.0, 6.6), Vector2(-2.2, 0.8), Vector2(6.8, -0.6),
+				Vector2(6.8, -2.4), Vector2(-3.4, -2.4), Vector2(-5.6, -1.0)])
+			Art.shape(b, stock, fw, s, "wood")
+			Art.rod(b, p.call(-3.2, -3.2), p.call(9.6, -3.2), 1.25 * u, steel, s, "metal")
+			Art.orb(b, p.call(9.6, -3.2), 0.85 * u, Art.GOLD, s, "gold")
+			if lod > 0:
+				b.line(p.call(-1.0, -1.5), p.call(6.2, -1.5), Color(fw.darkened(0.45), 0.8), maxf(0.5, 0.4 * u))  # the ramrod
+				Art.shape(b, Art.pts(c, u, [Vector2(-3.2, -2.0), Vector2(-0.6, -2.0), Vector2(-0.8, 0.2), Vector2(-3.0, 0.4)]), Art.IRON, s, "metal", Art.THIN | Art.NO_RIM)  # the lock
+			Art.shape(b, Art.pts(c, u, [Vector2(-3.8, -2.6), Vector2(-5.2, -5.8), Vector2(-3.4, -6.2), Vector2(-2.6, -3.0)]), steel.darkened(0.15), s, "metal", Art.THIN)  # the hammer
+			b.arc(p.call(-1.4, 1.0), 1.5 * u, 0.2, PI - 0.2, 10, Art.GOLD.darkened(0.2), maxf(0.6, 0.45 * u))  # the trigger guard
+			Art.orb(b, p.call(-8.4, 6.6), 1.5 * u, Art.GOLD, s, "gold")  # the butt cap
+			if nm == "emberlock":
+				# A pan that never goes cold: embers at the lock.
+				Art.soft(b, p.call(-2.0, -1.0), 4.0 * u, Color(1.0, 0.5, 0.15, 0.55))
+				for v in [Vector2(-1.4, -4.6), Vector2(0.8, -6.0), Vector2(-3.0, -7.4)]:
+					Art.spark(b, c + v * u, 1.0 * u, Color(1.0, 0.72, 0.3, 0.95))
+		"revolver":
+			# A revolver: a curved wooden grip, a steel frame with its fluted
+			# cylinder, a short barrel and a hammer spur.
+			var rw: Color = color(g)
+			var grip := Art.smooth(Art.pts(c, u, [Vector2(-7.8, 6.4), Vector2(-5.0, 7.8), Vector2(-2.8, 1.6), Vector2(-1.2, -0.6),
+				Vector2(-4.0, -1.8), Vector2(-6.4, 0.6)]), 2)
+			Art.shape(b, grip, rw, s, "wood")
+			Art.rod(b, p.call(2.6, -2.8), p.call(10.0, -2.8), 1.2 * u, steel, s, "metal")
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-4.4, -4.0) * u, Vector2(7.8, 4.4) * u), 0.9 * u, 3), steel.darkened(0.1), s, "metal")
+			var cyl := Art.rrect(Rect2(c + Vector2(-1.8, -4.8) * u, Vector2(4.8, 5.6) * u), 1.4 * u, 3)
+			Art.shape(b, cyl, steel.lightened(0.06), s, "metal")
+			if lod > 0:
+				for k in [-0.2, 1.4]:
+					b.line(c + Vector2(k, -4.0) * u, c + Vector2(k, 0.0) * u, Color(Art.INK, 0.45), maxf(0.5, 0.35 * u))  # the flutes
+				Art.orb(b, p.call(9.4, -4.2), 0.55 * u, steel, s, "metal", false)  # the front sight
+			Art.shape(b, Art.pts(c, u, [Vector2(-4.0, -3.4), Vector2(-6.2, -5.6), Vector2(-5.0, -6.0), Vector2(-3.0, -4.0)]), steel.darkened(0.2), s, "metal", Art.THIN)  # the hammer spur
+			b.arc(p.call(-0.8, 1.4), 1.5 * u, 0.2, PI - 0.2, 10, steel.darkened(0.25), maxf(0.6, 0.45 * u))  # the trigger guard
+			if nm == "lastbell_revolver" and lod > 0:
+				Art.rod(b, p.call(8.4, -2.8), p.call(9.2, -2.8), 1.6 * u, Art.GOLD, s, "gold")  # a brass band at the muzzle
 		"crossbow":
 			var pc: Vector2 = p.call(1.6, 0.0)
 			var tips := [pc + Vector2.from_angle(-1.22) * 7.6 * u, pc + Vector2.from_angle(1.22) * 7.6 * u]

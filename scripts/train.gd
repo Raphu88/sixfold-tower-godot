@@ -78,8 +78,8 @@ static var STOCK_ODDS := {"fine": 50, "rare": 45, "storied": 5}
 ## times its rarity's RARITY_PRICE. Rings, amulets and the Climber's Pack are
 ## never Common: their number here is what a plain one would cost.
 static var BASE_PRICE := {
-	"dagger": 10, "sword": 12, "axe": 12, "mace": 12, "spear": 12, "greatsword": 15, "war_hammer": 15,
-	"shortbow": 12, "longbow": 14, "crossbow": 15,
+	"dagger": 10, "sword": 12, "axe": 12, "mace": 12, "spear": 12, "greatsword": 15, "war_hammer": 15, "cane": 8, "sword_cane": 14,
+	"shortbow": 12, "longbow": 14, "crossbow": 15, "flintlock": 16, "revolver": 18,
 	"padded": 8, "leather": 12, "chain": 16, "plate": 20,
 	"cloth_hood": 8, "leather_cap": 10, "iron_helm": 14, "grip_wraps": 10, "leather_gloves": 10, "gauntlets": 14,
 	"padded_trousers": 8, "leather_leggings": 10, "chain_leggings": 14, "soft_boots": 10, "climbing_boots": 10, "hobnail_boots": 12,
@@ -96,10 +96,11 @@ static var DEFAULT_PRICE := 10
 ## piece costs 4x its Common and finds still sell well. A beast's Regarded
 ## piece is the dearest of all (it sells for the most).
 static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 14.0}
-## Basic supplies cost half their worth (items.gd "value") at the store;
-## everything else costs its worth. (A belt left over at the end of a climb
-## still breaks into crystals at half its worth.)
-static var SUPPLY_PRICE := {"draught": 6, "tonic": 5, "smoke": 5, "salts": 5, "flare": 4}
+## The staples (items.gd "staple": Healing and Stamina Draughts) cost half
+## their small worth (items.gd "value") at the store: cheap enough for every
+## climber. Everything else is rarer and costs its full worth. (A belt left
+## over at the end of a climb still breaks into crystals at half its worth.)
+static var SUPPLY_PRICE := {"draught": 3, "stamina": 3}
 ## Supplies priced in crystal essence of ANY kind (the owner's call: "recall
 ## scrolls should take any kind of essence and always be available"). The
 ## recall scroll is always on the shelf, and buying one never empties it
@@ -167,7 +168,7 @@ static var TEXT := {
 	"sold": "Sold: %s for %s",
 	# Store car
 	"store_sub": "Kept by the outfitter. He buys what climbers bring down, and sells it to the next ones up.",
-	"supplies_note": "Supplies are packed onto your belt for your next climb, beside the draught every climb starts with.",
+	"supplies_note": "Supplies are packed onto your belt for your next climb, beside the Healing and Stamina Draughts every climb starts with.",
 	"packed": "Packed for your next climb: %d  ·  your belt holds %d",
 	"belt_full": "your belt can't hold more",
 	"put_back": "Put one back (what you paid comes back)",
@@ -383,11 +384,12 @@ static func climb_pay(reached: int, best_before: int) -> int:
 	return int(CLIMB_PAY["per_floor"]) * reached + int(CLIMB_PAY["per_best"]) * maxi(0, reached - maxi(best_before, 0))
 
 
-## The consumables the store sells: always the same shelf, in Items.ORDER
-## (the recall scroll among them, always there; only the outfit rail and
-## today's piece change between visits).
+## The consumables the store sells: always the same shelf, the cheap staples
+## first, then the rest in Items.ORDER (the recall scroll among them, always
+## there; only the outfit rail and today's piece change between visits).
 static func supplies() -> Array:
-	return Items.ORDER.filter(func(id): return not Items.ITEMS[id].get("value", {}).is_empty())
+	var all: Array = Items.ORDER.filter(func(id): return not Items.ITEMS[id].get("value", {}).is_empty())
+	return all.filter(func(id): return Items.is_staple(id)) + all.filter(func(id): return not Items.is_staple(id))
 
 
 ## Why a price can't be paid, in words ("needs 12 more Fire"), or "" if it
