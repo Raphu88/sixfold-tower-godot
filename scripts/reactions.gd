@@ -46,12 +46,13 @@ const SpellFx := preload("res://scripts/spell_fx.gd")
 const UI := preload("res://scripts/ui.gd")
 
 ## The states. "seconds": how long one lasts when a spell doesn't say;
-## "dps": burning or bleeding damage each half second; "stacks": poison.
+## "dps": burning or bleeding damage each half second; "stacks": poison;
+## "wade": seconds a foe stands in a pool before it's soaked.
 ## "event": a moment (it reacts with what the foe holds, and is gone).
 static var STATES := {
 	"charged": {"name": "Charged", "says": "crackling with lightning", "color": Color(0.95, 0.89, 0.42), "seconds": 4.0},
 	"airborne": {"name": "Airborne", "says": "thrown into the air, helpless", "color": Color(0.82, 0.93, 1.0), "seconds": 1.2},
-	"soaked": {"name": "Soaked", "says": "dripping wet", "color": Color(0.36, 0.66, 0.96), "seconds": 4.0},
+	"soaked": {"name": "Soaked", "says": "dripping wet", "color": Color(0.36, 0.66, 0.96), "seconds": 4.0, "wade": 0.3},
 	"burning": {"name": "Burning", "says": "on fire, hurt every half second", "color": Color(1.0, 0.55, 0.2), "seconds": 3.0, "dps": 2.0},
 	"poisoned": {"name": "Poisoned", "says": "poison stacks hurt it every half second", "color": Color(0.55, 0.86, 0.35), "stacks": 1},
 	"bleeding": {"name": "Bleeding", "says": "bleeding, hurt every half second", "color": Color(0.86, 0.18, 0.2), "seconds": 3.0, "dps": 1.5},

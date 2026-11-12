@@ -159,6 +159,7 @@ var bleeding: float:  # a Surgeon's Sever, a blade's cut: bleed_dps every half s
 	set(v): _set_state("bleeding", v)
 var bleed_dps := 0.0
 var bleed_tick := 0.0
+var wade_t := 0.0  # how long it has stood in water (a moment soaks it)
 var flash := 0.0
 var contact_cd := 0.0
 var aim_dir := Vector2.ZERO
@@ -527,9 +528,13 @@ func _physics_process(delta: float) -> void:
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
 		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken"] or kind in FLIERS)
-	# Standing in water soaks it (fliers and foes in the air stay dry).
-	if soaked < 0.5 and not kind in FLIERS and main.in_water(global_position):
-		soaked = float(Reactions.STATES["soaked"]["seconds"]) * 0.5
+	# Wading in water a moment soaks it (fliers and foes in the air stay dry).
+	if not kind in FLIERS and main.in_water(global_position):
+		wade_t += delta
+		if soaked < 0.5 and wade_t >= float(Reactions.STATES["soaked"]["wade"]):
+			soaked = float(Reactions.STATES["soaked"]["seconds"]) * 0.5
+	else:
+		wade_t = 0.0
 	if hp < max_hp * 0.5 and p.has_bond("deepcaller") and dist < 150.0:
 		velocity *= 0.6
 	# Sandshaper: rubble slows; Shifting Sands slows foes walking up to you
