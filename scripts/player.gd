@@ -12,6 +12,8 @@ const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
+const Reactions := preload("res://scripts/reactions.gd")
+const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
 
 ## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
@@ -133,6 +135,10 @@ var drink_t := 0.0
 var drink_age := 0.0
 var drink_dmg := 0.0
 var drink_tick := 0.0
+## States on the climber (reactions.gd): only while CLIMBER "enabled" (off).
+var states := {}
+var is_climber := true
+var rune_cd := 0.0  # Forge Runes: when the next kindled strike may leave a rune
 var cast_t := 0.0
 var cast_total := 0.0
 var cast_part := ""
@@ -583,6 +589,8 @@ func has_bond(bond_id: String) -> bool:
 
 
 func _physics_process(delta: float) -> void:
+	if not states.is_empty():
+		Reactions.tick_climber(self, delta)  # (monsters' states on you: off unless reactions.gd CLIMBER "enabled")
 	if dead:
 		velocity = knock
 		knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
@@ -1209,6 +1217,8 @@ func _melee() -> bool:
 		var blade: bool = swing.get("blade", false)
 		_strike(e, dmg, to.normalized(), swing["knock"], heavy, String(w.get("blade_sound", w["hit_sound"])) if blade else w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
 		_melee_rules(e, heavy)
+		if kindle_t > 0.0:
+			_kindled_strike(e)
 		if blade and rule("draw_venom") > 0.0 and not e.dead:
 			e.add_venom(int(rule("draw_venom")))  # Quietsteel: the drawn blade poisons
 		hits += 1
@@ -1245,6 +1255,23 @@ func _melee_rules(e, heavy: bool) -> void:
 		e.ignite(Gear.EMBER_BURN["dmg"], Gear.EMBER_BURN["time"])
 	if heavy and rule("cinder") > 0.0:
 		main.add_flame(e.global_position, 30.0, rule("cinder"), true)
+
+
+## A kindled weapon sets what it strikes burning; Forge Runes (Flameblade
+## and Rune Artist) leaves a small fire rune where it struck.
+func _kindled_strike(e) -> void:
+	var at: Vector2 = e.global_position
+	if not e.dead:
+		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "kindle", maxf(1.0, kindle_dmg * 0.3))
+	if Pacts.has(self, "forge_runes") and rune_cd <= 0.0:
+		var pf: Dictionary = Pacts.PACTS["forge_runes"]
+		rune_cd = float(pf["every"])
+		var mine: Array = main.runes.filter(func(r): return r.get("forge", false))
+		while mine.size() >= int(pf["most"]):
+			main.runes.erase(mine.pop_front())
+		main.runes.append({"pos": at + aim * 10.0, "r": 18.0, "blast": float(pf["blast"]), "damage": float(pf["damage"]), "linked": false,
+			"color": pf["color"], "t": float(pf["life"]), "forge": true, "arm": 0.8, "burn": float(pf["burn"]), "burn_t": float(pf["burn_t"])})
+		main.fx_ring(at, pf["color"], 20.0, 0.3, 2.0)
 
 
 ## Flameblade: landed strikes heat the weapon; kindling keeps burning.
@@ -1397,9 +1424,13 @@ func _fire_gun() -> void:
 ## `shot`: an essence shot's essence (weapons.gd ESSENCE_SHOT), "" for none.
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon := false, shot := "", fills := true) -> void:
 	# Hunter's Hawk's Eye: every arrow strikes a weak point.
+	# Ambusher (Hunter and Ashwalker): a shot it never saw coming does too.
 	if hawk_t > 0.0:
 		dmg *= 2.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Color(0.85, 0.63, 0.42))
+	elif Pacts.has(self, "ambusher") and Reactions.has(e, "unseen"):
+		dmg *= Pacts.num("ambusher", "mult")
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Pacts.PACTS["ambusher"]["color"])
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	if not weapon:
 		return
@@ -1511,6 +1542,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 				main.fx_bolt([e.global_position, other.global_position], Color(0.95, 0.89, 0.42))
 				main.sfx("zap", 1.25, -6.0)
 				other.take_hit(5.0, Vector2.ZERO)
+				Reactions.apply(main, other, "charged", 2.0, "static")  # (the arc charges it)
 				break
 	# of the Riposte: ripostes and backstabs hit harder.
 	if crit or backstab:
@@ -1840,6 +1872,8 @@ func _defy_death() -> bool:
 		ember_used = true
 		ember_t = 3.0
 		main.fx_text(global_position + Vector2(0, -44), "Last Ember: strike to stay standing!", Color(1.0, 0.5, 0.25))
+		if Pacts.has(self, "undying"):  # Undying (Warden and Rekindler): a barrier rises too
+			raise_barrier(Pacts.num("undying", "shield"), Pacts.num("undying", "seconds"), false, Pacts.PACTS["undying"]["color"])
 		main.sfx("burn", 0.7)
 		return true
 	if ember_t > 0.0:
@@ -1965,6 +1999,8 @@ func _tick_fire_bonds(delta: float) -> void:
 					if e.global_position.distance_to(global_position) < r + e.radius:
 						e.take_hit(dmg, Vector2.ZERO, 0.0)
 						aura_heat = minf(60.0, aura_heat + dmg)
+						if not e.dead:
+							Reactions.apply(main, e, "burning", 1.5, "aura", maxf(1.0, dmg * 0.3))
 	# Rekindle: lose health now, regain twice that later if you kept fighting.
 	if rekindle_t > 0.0:
 		rekindle_t -= delta
@@ -2106,6 +2142,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	dmg *= 1.0 - protection()
 	hp -= dmg
 	_thorns(source)
+	Reactions.from_monster(main, self, source)  # (off unless reactions.gd CLIMBER "enabled")
 	if gfx("grasp") > 0.0 and source is Node and is_instance_valid(source) and "chill_t" in source \
 			and source.global_position.distance_to(global_position) < Gear.THORNS_REACH + float(source.get("radius")):
 		source.chill_t = maxf(source.chill_t, gfx("grasp"))  # Deepcoil Coat: gripped
@@ -2214,6 +2251,7 @@ func _tick_bond_effects(delta: float) -> void:
 	absorb_t -= delta
 	unbreak_t -= delta
 	kindle_t -= delta
+	rune_cd -= delta
 	# Heat fades once you stop landing strikes.
 	heat_idle += delta
 	if heat_idle > 1.5:
@@ -2253,8 +2291,13 @@ func _tick_bond_effects(delta: float) -> void:
 		elif drink_tick <= 0.0:
 			drink_tick = 0.25
 			var d := drink_dmg * (1.0 + drink_age)
-			drink_target.take_hit(d, Vector2.ZERO)
-			hp = minf(max_health(), hp + d * 0.5 * heal_mult())
+			var bled: bool = Reactions.has(drink_target, "bleeding")
+			if "hemorrhage" in Reactions.apply(main, drink_target, "drained", 0.0, "drink"):
+				d *= Reactions.num("hemorrhage", "mult")  # (Hemorrhage: a bleeding foe drained)
+			if is_instance_valid(drink_target) and not drink_target.dead:
+				drink_target.take_hit(d, Vector2.ZERO)
+			var heal_k := Pacts.num("bloodletter", "heal") if bled and Pacts.has(self, "bloodletter") else 1.0  # Bloodletter
+			hp = minf(max_health(), hp + d * 0.5 * heal_mult() * heal_k)
 
 
 ## A parry landed (`source`: what was parried). Spells listen here (e.g.

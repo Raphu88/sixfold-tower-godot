@@ -213,6 +213,7 @@ static func hit_effect(id: String, p, e, share: float, power: float, run) -> boo
 			var push: float = float(fx["push"]) * share * (0.25 if e.is_boss() else 1.0)
 			e.tide_push(p.aim * push)
 			e.knock = p.aim * push * 0.6
+			_wet(main, e, share)
 			runner(main).decal("current", at, 0.5, 30.0, col, {"dir": p.aim})
 		"mist":
 			if _fresh(id, e):
@@ -230,6 +231,8 @@ static func hit_effect(id: String, p, e, share: float, power: float, run) -> boo
 			if best != null:
 				best.take_hit(float(fx["damage"]) * share * power, Vector2.ZERO, 60.0)
 				main.fx_bolt([at, best.global_position], Color(0.85, 0.95, 1.0))
+				_charge(main, best, share)
+			_charge(main, e, share)
 		"lift":
 			_lift(main, e, share)
 		"gust":
@@ -311,6 +314,7 @@ static func self_effect(id: String, p, share: float, power: float, run, cls := "
 				for o in _near(main, at, around):
 					var dir: Vector2 = (o.global_position - at).normalized() if o.global_position.distance_to(at) > 1.0 else Vector2.RIGHT
 					o.tide_push(dir * float(fx["push"]) * share * (0.25 if o.is_boss() else 1.0))
+					_wet(main, o, share)
 				main.fx_ring(at, col, around, 0.4, 4.0)
 			else:
 				var dist: float = float(fx["glide"]) * (0.5 + 0.5 * share)
@@ -328,6 +332,7 @@ static func self_effect(id: String, p, share: float, power: float, run, cls := "
 					break
 				o.take_hit(float(fx["damage"]) * share * power, Vector2.ZERO, 60.0)
 				main.fx_bolt([at, o.global_position], Color(0.85, 0.95, 1.0))
+				_charge(main, o, share)
 				n += 1
 			runner(main).decal("spark", at, 0.4, 26.0, col)
 		"lift":
@@ -398,6 +403,22 @@ static func _spell_fx():
 	return load("res://scripts/spell_fx.gd")
 
 
+static func _reactions():
+	return load("res://scripts/reactions.gd")
+
+
+## Water soaks what it touches (reactions.gd), a little less at a lesser share.
+static func _wet(main, e, share: float) -> void:
+	if e != null and is_instance_valid(e) and not e.dead:
+		_reactions().apply(main, e, "soaked", float(_reactions().STATES["soaked"]["seconds"]) * (0.5 + 0.5 * minf(share, 1.0)), "unbound")
+
+
+## A spark leaves the foe charged (reactions.gd).
+static func _charge(main, e, share: float) -> void:
+	if e != null and is_instance_valid(e) and not e.dead:
+		_reactions().apply(main, e, "charged", float(_reactions().STATES["charged"]["seconds"]) * (0.5 + 0.5 * minf(share, 1.0)), "unbound")
+
+
 # --- what each effect does ------------------------------------------------------------
 
 ## Burning floor: foes standing in it burn.
@@ -462,6 +483,7 @@ static func _chill(main, e, share: float) -> void:
 	var stacks: int = int(e.get_meta("chill_n", 0)) if now - float(e.get_meta("chill_at", -99.0)) < float(fx["window"]) else 0
 	stacks += 1
 	e.chill_t = maxf(e.chill_t, float(fx["chill"]) * (0.5 + share))
+	_wet(main, e, share)
 	if stacks >= int(fx["stacks"]):
 		stacks = 0
 		e.stagger(float(fx["freeze"]) * (0.5 + 0.5 * share) * (0.5 if e.is_boss() else 1.0))
@@ -476,7 +498,8 @@ static func _mist(p, at: Vector2, r: float, seconds: float, lose: float, col: Co
 	var main = p.main
 	_spell_fx().field(main, at, r, seconds, 0.4, col, func(foes: Array):
 		for o in foes:
-			o.lose_track(lose, null))
+			o.lose_track(lose, null)
+			_wet(main, o, 0.4))
 	runner(main).decal("mist", at, seconds, r, col.lightened(0.35))
 	main.sfx("spell_water", 0.8, -6.0)
 
@@ -572,7 +595,7 @@ static func _rend(p, e, share: float, power: float, run) -> void:
 	e.set_meta("rend_n", n)
 	e.set_meta("rend_at", now)
 	if run != null and run.has_method("add_dot"):
-		run.add_dot(e, float(fx["bleed"]) * float(n) * share * power, 3.0, _col("rend"))
+		run.add_dot(e, float(fx["bleed"]) * float(n) * share * power, 3.0, _col("rend"), "bleeding")
 	runner(p.main).decal("rend", e.global_position, 0.8, e.radius, _col("rend"), {"a": e, "n": n})
 
 
@@ -604,7 +627,7 @@ static func _answer(p, seconds: float, dmg: float, bleed: float, run) -> void:
 			if o.is_attacking():
 				o.take_hit(dmg, (o.global_position - p.global_position).normalized(), 200.0, true, true)
 				if is_instance_valid(o) and not o.dead and run != null and run.has_method("add_dot"):
-					run.add_dot(o, bleed, 3.0, col)
+					run.add_dot(o, bleed, 3.0, col, "bleeding")
 				main.fx_bolt([p.global_position, o.global_position], col.lightened(0.4))
 				main.fx_text(o.global_position + Vector2(0, -o.radius - 22.0), "Answered", col.lightened(0.3))
 				main.sfx("parry", 1.3, -4.0)
@@ -656,9 +679,13 @@ static func _lifeline(p, e, drain: float, seconds: float, col: Color) -> void:
 			return false
 		if st["tick"] <= 0.0:
 			st["tick"] = 0.5
-			e2.take_hit(drain, Vector2.ZERO, 0.0, false, true)
+			var dr := drain
+			if "hemorrhage" in _reactions().apply(main, e2, "drained", 0.0, "lifeline"):
+				dr *= _reactions().num("hemorrhage", "mult")  # (Hemorrhage: a bleeding foe drained)
+			if is_instance_valid(e2) and not e2.dead:
+				e2.take_hit(dr, Vector2.ZERO, 0.0, false, true)
 			var T = load("res://scripts/technique.gd")
-			T._heal(p, drain * float(fx["share"]))
+			T._heal(p, dr * float(fx["share"]))
 		if st["t"] <= 0.0:
 			r.decals.erase(d)
 			return false
@@ -767,6 +794,7 @@ static func cast_echo(t: Dictionary, p, power: float, run) -> bool:
 				var dir: Vector2 = (o.global_position - at).normalized()
 				o.tide_push(dir * float(a["push"]) * (0.25 if o.is_boss() else 1.0))
 				o.chill_t = maxf(o.chill_t, float(a["slow"]))
+				_wet(main, o, 1.0)
 			main.fx_cone(at, aim, float(a["reach"]), deg_to_rad(float(a["arc"])), col)
 		"fireball":
 			var spot: Vector2 = at + aim * float(a["at"])
@@ -791,6 +819,7 @@ static func cast_echo(t: Dictionary, p, power: float, run) -> bool:
 					var n = next[0]
 					n.take_hit(float(a["damage"]) * pw, Vector2.ZERO, 60.0)
 					n.stagger(float(a["stun"]))
+					_charge(main, n, 1.0)
 					main.fx_bolt([pos, n.global_position], Color(0.8, 0.9, 1.0))
 					hit_list.append(n)
 					pos = n.global_position

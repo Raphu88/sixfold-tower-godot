@@ -335,6 +335,8 @@ static func _bloodletting(bond, p) -> void:
 	var dmg: float = bond.damage()
 	var share := float(bond.stat("share"))
 	t.take_hit(dmg * 2.0, (t.global_position - p.global_position).normalized(), 60.0)
+	if is_instance_valid(t) and not t.dead:  # (it bleeds: reactions.gd; the thread does the damage)
+		load("res://scripts/reactions.gd").apply(main, t, "bleeding", float(bond.stat("duration")), bond, -1.0)
 	var tick := func(n, d: float) -> bool:
 		if not is_instance_valid(t) or t.dead or not is_instance_valid(p) or p.dead:
 			return false
