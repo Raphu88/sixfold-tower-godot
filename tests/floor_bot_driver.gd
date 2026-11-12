@@ -257,7 +257,16 @@ func _think(delta: float) -> void:
 	if target != null and _ice_under():
 		# (on the ice the stick slides us: strike from where we stand; stay
 		# while it's in reach, else carry on)
-		if _ice_jab(target, delta):
+		var stay := _ice_jab(target, delta)
+		# Out on the ice too, and keeping the puzzle asleep: slide over
+		# beside it (round to its back if our blows do it no harm: a shell).
+		var pz = main.puzzle
+		if foe == target and foe_t < 25.0 and not pz.awake and pz.cur.in_field(pz.cur.grid(target.global_position)) and _ice_huntable(target):
+			if (not stay or foe_dry > 2.5) and not _ice_after(target, stay).is_empty():
+				if steps.is_empty():
+					_move(Vector2.ZERO)
+				return
+		if stay:
 			_move(Vector2.ZERO)
 			return
 	elif target != null:
@@ -326,6 +335,15 @@ func _fight(e, delta: float) -> void:
 		ignore[e] = t_game + 20.0  # (no harm done to it for a while: leave it be)
 		foe = null
 		return
+	# Out on the ice where a blade can't reach it (we keep off the ice): an arrow.
+	if foe_t > 1.5 and _ice_bow_at(e):
+		if e.hp < foe_hp - 0.1:
+			foe_hp = e.hp
+			foe_dry = 0.0
+		else:
+			foe_dry += delta
+		_shoot(e.global_position, Vector2.INF)
+		return
 	_equip("melee")
 	# No harm done for a while (a shell's front, a pillar between): step round it.
 	if e.hp < foe_hp - 0.1:
@@ -352,8 +370,10 @@ func _fight(e, delta: float) -> void:
 	var on_ice: bool = pz != null and String(pz.kind) == "ice" and pz.cur != null and pz.cur.in_field(pz.cur.grid(e.global_position))
 	if on_ice and to.length() > reach:
 		# Never walk onto the ice after it: it comes to us. One that stays
-		# out there: step on down a lane it stands in (it stops us beside it).
-		var st: Dictionary = _ice_after(e) if foe_t > 3.0 else {}
+		# out there: step on and slide over to rest beside it (_ice_after).
+		# (not a flier: it comes and goes over the ice; and not for ever:
+		# after a while it's left be, as any foe we can't harm)
+		var st: Dictionary = _ice_after(e) if foe_t > 3.0 and foe_t < 20.0 and _ice_huntable(e) else {}
 		if st.is_empty():
 			_move(Vector2.ZERO)
 		else:
@@ -400,6 +420,13 @@ func _task_step() -> Dictionary:
 			# afresh from wherever the last one ended: to the dais if it's
 			# the task and awake, else off.
 			var to_dais: bool = main.ward and ob.kind == "ice" and not pz.solved and pz.awake and not pz.locked
+			if main.ward and ob.kind == "ice" and not pz.awake:
+				# (asleep while a guard stands out on the ice: go to it, not off)
+				for e in main.enemies():
+					if not e.dead and pz.room.grow(-4.0).has_point(e.global_position) and ice.in_field(ice.grid(e.global_position)) and _ice_huntable(e) and not (ignore.has(e) and float(ignore[e]) > t_game):
+						var st := _ice_after(e)
+						if not st.is_empty():
+							return st
 			return _ice_on(ice, to_dais)
 	# The tower's own floor first: a crank whose bridge is still up.
 	if main.get("tower_floor") != null:
@@ -510,7 +537,8 @@ func _do(step: Dictionary, delta: float) -> void:
 		"exact":
 			_go_to_exact(at)
 		"none":
-			pass
+			if _ice_under():
+				_move(Vector2.ZERO)  # (on the ice a stick left pushed would start a slide)
 
 
 ## Walk to a spot by path, around the walls; doors open as we walk up.
@@ -804,6 +832,10 @@ func _puzzle_step() -> Dictionary:
 		# Quiet: its guards must fall first (they're picked as foes inside).
 		for e in main.enemies():
 			if pz.room.grow(-4.0).has_point(e.global_position):
+				if String(pz.kind) == "ice" and cur.in_field(cur.grid(e.global_position)) and _ice_huntable(e) and not (ignore.has(e) and float(ignore[e]) > t_game):
+					var st := _ice_after(e)  # (out on the ice: slide over beside it)
+					if not st.is_empty():
+						return st
 				return {"pos": e.global_position, "act": "walk", "r": 30.0, "why": "the puzzle's guards"}
 		return {"pos": _room_entry(pz.room), "act": "stand", "r": 40.0, "why": "the puzzle wakes"}
 	match String(pz.kind):
@@ -970,6 +1002,48 @@ func _ice_keep_off(d: Vector2) -> Vector2:
 	return Vector2.ZERO
 
 
+## Whether we've come to rest on the ice: not sliding, settled on the
+## middle of the tile (the ice drifts us there) and still. A body pressed
+## against us can keep us from settling: after a second, near enough will do.
+func _ice_settled(ice) -> bool:
+	var p = main.player
+	if ice.slide_dir != Vector2i.ZERO:
+		ice_wait_t = 0.0
+		return false
+	if p.global_position.distance_to(ice.center(ice.grid(p.global_position))) > 2.5 or p.velocity.length() > 8.0:
+		ice_wait_t += get_physics_process_delta_time()
+		if ice_wait_t < 1.0:
+			return false
+	ice_wait_t = 0.0
+	return true
+
+
+## Whether to shoot a foe that's out on the ice: we're off it, it's out of
+## a blade's reach (or round a rock), there's a clear line for an arrow, and
+## a bow in the ranged slot.
+func _ice_bow_at(e) -> bool:
+	var pz = main.puzzle
+	if pz == null or String(pz.kind) != "ice" or pz.cur == null or _ice_under() or e.get("submerged"):
+		return false
+	if not pz.cur.in_field(pz.cur.grid(e.global_position)):
+		return false
+	var p = main.player
+	var to: Vector2 = e.global_position - p.global_position
+	if to.length() <= 46.0 + float(e.radius) and main.clear_line(p.global_position, e.global_position):
+		return false  # (in reach: the blade)
+	if to.length() > 360.0 or not main.clear_line(p.global_position, e.global_position):
+		return false
+	var W: Dictionary = load("res://scripts/weapons.gd").WEAPONS
+	var bow: String = p.gear_id("ranged")
+	return bow != "" and W.has(bow) and String(W[bow].get("kind", "")) == "bow"
+
+
+## A foe out on the ice we may go after: not one under the surface (it
+## rises beside us of itself), nor a flier that's awake (it comes and goes).
+func _ice_huntable(e) -> bool:
+	return not e.get("submerged") and not (e.kind in main.EnemyScript.FLIERS and e.aware)
+
+
 ## Whether the climber is on the ice (or still sliding off it).
 func _ice_under() -> bool:
 	var pz = main.puzzle
@@ -1013,37 +1087,75 @@ func _ice_jab(e, delta: float) -> bool:
 	return near and main.puzzle.cur.slide_dir == Vector2i.ZERO
 
 
-## A foe that stays out on the ice: the way on whose lane runs straight to
-## it, no rock between (sliding down it, it stops us beside it, or we shove
-## it along), walked to and stepped on from. {} if there's none.
-func _ice_after(e) -> Dictionary:
+## A foe that stays out on the ice: the slides that bring us to rest beside
+## it (it stops a slide like a rock: the puzzle's own slide_from with its
+## tile counted as one). Off the ice: walk to the way on that starts the
+## fewest such slides and step on; on it: the next slide. {} if no line of
+## slides reaches it (it's left be, then, as any foe we can't harm).
+func _ice_after(e, behind_only := false) -> Dictionary:
 	var pz = main.puzzle
-	if pz == null or String(pz.kind) != "ice" or pz.cur == null or _ice_under():
+	if pz == null or String(pz.kind) != "ice" or pz.cur == null:
 		return {}
 	var ice = pz.cur
 	var I = ice.get_script()
 	var at: Vector2i = ice.grid(e.global_position)
+	if not ice.in_field(at) or ice.rocks.has(at):
+		return {}
+	var rk: Dictionary = ice.rocks.duplicate()
+	rk[at] = true
 	var pos: Vector2 = main.player.global_position
+	var what := "after a %s on the ice" % e.kind
+	# (its back, for one whose front turns blows: the tile behind where it looks)
+	var back: Vector2i = at - I.cardinal(Vector2(e.face)) if "face" in e and Vector2(e.face).length() > 0.1 else Vector2i(-999, -999)
+	var beside := func(t: Vector2i) -> bool:
+		return t == back if behind_only else absi(t.x - at.x) + absi(t.y - at.y) == 1
+	if _ice_under():
+		if not _ice_settled(ice):
+			return {"pos": pos, "act": "none", "why": what}
+		if beside.call(ice.grid(pos)):
+			return {"pos": pos, "act": "none", "why": what}  # (there: strike it)
+		var dirs := _ice_path_to(ice, rk, ice.grid(pos), beside)
+		if dirs.is_empty():
+			return {}
+		steps = [{"kind": "slide", "dir": dirs[0], "max": 4.0}]
+		return {"pos": pos, "act": "none", "why": what}
 	var best: Array = []
 	var best_d := INF
 	for en in I.entries(ice.cols, ice.rows_n):
-		var t: Vector2i = en[0] + en[1]
-		var hits := false
-		while ice.in_field(t) and not ice.rocks.has(t):
-			if t == at:
-				hits = true
-				break
-			t += en[1]
-		if not hits or main.astar.is_point_solid(_tile(ice.center(en[0]))):
+		var first: Vector2i = I.slide_from(en[0], en[1], ice.cols, ice.rows_n, rk)
+		if first == I.EXIT or first == en[0] or main.astar.is_point_solid(_tile(ice.center(en[0]))):
 			continue
-		var dd: float = _path_len(pos, ice.center(en[0])) + (60.0 if ice_foe_entry.size() == 2 and en[0] != ice_foe_entry[0] else 0.0)  # (keep to the one we chose)
+		var n := 0 if beside.call(first) else _ice_path_to(ice, rk, first, beside).size()
+		if n == 0 and not beside.call(first):
+			continue
+		var dd: float = _path_len(pos, ice.center(en[0])) + 40.0 * n + (60.0 if ice_foe_entry.size() == 2 and en[0] != ice_foe_entry[0] else 0.0)  # (keep to the one we chose)
 		if dd < best_d:
 			best_d = dd
 			best = [en[0], en[1]]
 	if best.is_empty():
 		return {}
 	ice_foe_entry = best
-	return _ice_go_on(ice, best, "after a %s on the ice" % e.kind)
+	return _ice_go_on(ice, best, what)
+
+
+## The fewest slides (over rocks `rk`) from a resting tile to one `goal`
+## accepts: [dirs], [] if none or already there.
+func _ice_path_to(ice, rk: Dictionary, from: Vector2i, goal: Callable) -> Array:
+	var I = ice.get_script()
+	var prev := {from: []}
+	var queue: Array = [from]
+	var i := 0
+	while i < queue.size():
+		var s: Vector2i = queue[i]
+		i += 1
+		if goal.call(s):
+			return prev[s]
+		for d in I.DIRS:
+			var t: Vector2i = I.slide_from(s, d, ice.cols, ice.rows_n, rk)
+			if t != I.EXIT and t != s and not prev.has(t):
+				prev[t] = prev[s] + [d]
+				queue.append(t)
+	return []
 
 
 ## Walk to a way onto the ice (by path, then exactly onto the middle of its
@@ -1093,23 +1205,28 @@ func _ice_on(ice, to_dais: bool) -> Dictionary:
 	var pos: Vector2 = p.global_position
 	var idle := {"pos": pos, "act": "none", "why": "on the ice" if to_dais else "off the ice"}
 	ice_entry = []
-	if ice.slide_dir != Vector2i.ZERO:
-		ice_wait_t = 0.0
-		return idle  # (still sliding)
+	if not _ice_settled(ice):
+		return idle
 	var g: Vector2i = ice.grid(pos)
-	# Wait until we've settled on the tile's middle (the ice drifts us there).
-	if pos.distance_to(ice.center(g)) > 2.5 or p.velocity.length() > 8.0:
-		ice_wait_t += get_physics_process_delta_time()
-		if ice_wait_t < 1.0:
-			return idle
-	ice_wait_t = 0.0
 	if to_dais and g == ice.dais:
 		return idle  # (on it: it wakes and takes us)
-	var dirs: Array = _ice_path(ice, g, ice.dais) if to_dais else []
-	if dirs.is_empty():
-		dirs = I.way_off(ice.cols, ice.rows_n, ice.rocks, g, ice.dais if to_dais else I.EXIT)
-	if dirs.is_empty():
-		dirs = I.way_off(ice.cols, ice.rows_n, ice.rocks, g)
+	# Monsters standing on the ice stop a slide as a rock does: plan round
+	# them first (one pressed against us would stop every slide its way).
+	var rk: Dictionary = ice.rocks.duplicate()
+	for e in main.enemies():
+		var et: Vector2i = ice.grid(e.global_position)
+		if not e.dead and not e.get("submerged") and ice.in_field(et) and et != g and et != ice.dais and not (e.kind in main.EnemyScript.FLIERS):
+			rk[et] = true
+	var dirs: Array = []
+	for r in [rk, ice.rocks]:
+		if to_dais:
+			dirs = _ice_path_to(ice, r, g, func(t): return t == ice.dais)
+		if dirs.is_empty():
+			dirs = I.way_off(ice.cols, ice.rows_n, r, g, ice.dais if to_dais else I.EXIT)
+		if dirs.is_empty():
+			dirs = I.way_off(ice.cols, ice.rows_n, r, g)
+		if not dirs.is_empty():
+			break
 	if dirs.is_empty():
 		_note("no slide off the ice from %s" % g)
 		return idle
