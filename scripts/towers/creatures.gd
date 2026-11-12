@@ -1,7 +1,8 @@
 extends RefCounted
-## The towers' own creatures, run and drawn here so enemy.gd only hands
-## them over (its hooks call act, draw, overlay, intercept and on_lethal for
-## a kind listed in KINDS). Each plays off its tower's system:
+## The towers' own creatures, run and drawn here for their scripts
+## (towers/ashwing.gd, towers/briar.gd: enemy.gd SUBKINDS), which hand over
+## act, draw, overlay, intercept and the first fall. Each plays off its
+## tower's system:
 ##   ashwing  (the Firebird's) an ember-bird that circles, glints and dives
 ##            through where you stood, trailing fire. The first time it falls
 ##            it sinks into a heap of glowing ash and RISES AGAIN a few
@@ -12,13 +13,12 @@ extends RefCounted
 ##            toward it (a roll breaks free); then it stands and swipes until
 ##            it can hide again. Fire flushes it out of hiding: it reels,
 ##            burning, open to blows.
-## Their sounds borrow the bank's voices (VOICE), their numbers are enemy.gd
-## TYPES and RULES below, their drops essence.gd DROPS and gear.gd FAVOUR.
+## Their sounds borrow the bank's voices (sound_bank.gd hurt_/kill_ entries
+## from the wisp and the bloomcap), their numbers are enemy.gd TYPES and
+## RULES below, their drops essence.gd DROPS and gear.gd FAVOUR.
 
 const Palette := preload("res://scripts/palette.gd")
 
-## Which existing voice (warn_, hurt_, kill_ sounds) each creature borrows.
-static var VOICE := {"ashwing": "wisp", "briar": "bloomcap"}
 ## ashwing: ash (seconds it lies as ash), rise (health it rises with, a
 ## share), dive (px a second), trail (seconds each flame of its trail
 ## burns), reach (how near it starts a dive); briar: spring (how near you
@@ -49,10 +49,6 @@ const C_LEAF := Color(0.26, 0.42, 0.2)
 const C_LEAF_HI := Color(0.36, 0.56, 0.26)
 const C_THORN := Color(0.66, 0.6, 0.42)
 const C_BARK := Color(0.33, 0.24, 0.15)
-
-
-static func voice(kind: String) -> String:
-	return String(VOICE.get(kind, kind))
 
 
 static func has(kind: String) -> bool:

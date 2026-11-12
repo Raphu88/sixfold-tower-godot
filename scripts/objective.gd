@@ -44,10 +44,7 @@ var redraw_t := 0.0
 var over: Node2D  # the marker over the arrow's target, over the darkness
 var optional_done := false
 var reach_lights: Array = []
-## A tower's own kind runs here (objectives.gd "script": towers/rekindle.gd,
-## towers/heartroots.gd): it gets setup, tick, draw, strike, its HUD line
-## and arrow, and what the climber must still reach.
-var custom = null
+var own_kind := false  # a tower's own kind: main.tower_floor runs it (objectives.gd "module")
 
 
 func _ready() -> void:
@@ -66,6 +63,7 @@ func setup(s: Dictionary) -> void:
 		return
 	spec = s
 	kind = String(s["kind"])
+	own_kind = Objectives.module_of(kind) != null
 	hp_seen = main.player.hp if main.player != null else 0.0
 	if s.get("puzzle", false):
 		return  # (puzzle.gd runs it)
@@ -86,11 +84,6 @@ func setup(s: Dictionary) -> void:
 		reach_lights.append(_light(pedestal, 80.0, GOLD, 0.4))
 	if kind == "keeper":
 		_spawn_keeper()
-	if _k().has("script"):
-		custom = load(String(_k()["script"])).new()
-		custom.host = self
-		custom.main = main
-		custom.setup(s)
 	queue_redraw()
 
 
@@ -108,12 +101,10 @@ func clear() -> void:
 		if stair_light >= 0:
 			main.lighting.remove_light(stair_light)
 	reach_lights.clear()
-	if custom != null:
-		custom.clear()
-		custom = null
 	stair_light = -1
 	spec = {}
 	kind = ""
+	own_kind = false
 	done = false
 	pieces.clear()
 	tablet = {}
@@ -166,6 +157,8 @@ func _piece_color() -> Color:
 			return WARD
 		"motes":
 			return Essence.color(main.tower_data().get("essence", "air"))
+		"furnaces":
+			return Color(1.0, 0.6, 0.3)
 	return GOLD
 
 
@@ -189,8 +182,6 @@ func status_line() -> String:
 			pname = pname.substr(4)  # ("Solve the Ice Hall", not "the The")
 		return Objectives.TEXT["puzzle_status"] % pname
 	var k := _k()
-	if custom != null:
-		return custom.status_line()
 	match kind:
 		"runes":
 			if not tablet.get("read", false):
@@ -233,8 +224,6 @@ func _find_target() -> Array:
 		if main.puzzle == null or not main.puzzle.active():
 			return []
 		return [main.puzzle.room.get_center(), main.puzzle.display_name()]
-	if custom != null:
-		return custom.arrow_target(from)
 	match kind:
 		"runes":
 			if not tablet.get("read", false):
@@ -284,8 +273,6 @@ func live_targets() -> Array:
 	var out: Array = []
 	if kind == "" or done or spec.get("puzzle", false):
 		return out
-	if custom != null:
-		return custom.live_targets()
 	match kind:
 		"runes":
 			if not tablet.get("read", false):
@@ -330,10 +317,8 @@ func _process(delta: float) -> void:
 func _tick(delta: float, p, hurt: bool) -> void:
 	var k := _k()
 	var pos: Vector2 = p.global_position
-	if custom != null:
-		if custom.tick(delta, p, hurt):
-			_complete()
-		return
+	if own_kind and main.get("tower_floor") != null:
+		main.tower_floor.task_tick(self, delta, p, hurt)  # (the tower's own kind)
 	match kind:
 		"braziers":
 			for pc in pieces:
@@ -532,8 +517,8 @@ func _spawn_near(at: Vector2, dist: float):
 
 ## A melee swing (player.gd): strikes a lever up.
 func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
-	if custom != null and not done:
-		custom.strike(from, dir, reach, arc_deg)
+	if own_kind and not done and main.get("tower_floor") != null:
+		main.tower_floor.task_strike(self, from, dir, reach, arc_deg)  # (the tower's own kind: bellows, sun stones)
 		return
 	if kind != "levers" or done:
 		return
@@ -605,8 +590,6 @@ func _complete() -> void:
 	if done:
 		return
 	done = true
-	if custom != null and custom.has_method("on_complete"):
-		custom.on_complete()
 	target = []
 	for e in mobs:
 		if is_instance_valid(e):
@@ -665,9 +648,8 @@ func _draw() -> void:
 		_draw_reliquary(reliquary["pos"], reliquary["taken"], pulse)
 	if kind == "" or spec.get("puzzle", false):
 		return
-	if custom != null:
-		custom.draw(self, t)
-		return
+	if own_kind:
+		return  # (the tower's own kind draws itself: main.tower_floor)
 	match kind:
 		"braziers":
 			for pc in pieces:

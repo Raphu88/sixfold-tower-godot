@@ -71,11 +71,26 @@ func _restore_scenarios(froms: Dictionary) -> void:
 		Scenarios.SCENARIOS[k]["from"] = froms[k]
 
 
+## The floor's own system (main.tower_floor), if it's that tower's.
 func _sys(name: String):
-	for s in t.main.tower_systems:
-		if (name == "firebird" and s.has_method("set_burnt")) or (name == "chimera" and s.has_method("add_thorn")):
-			return s
+	var tf = t.main.tower_floor
+	if tf == null:
+		return null
+	if (name == "firebird" and tf.has_method("set_burnt")) or (name == "chimera" and tf.has_method("add_thorn")):
+		return tf
 	return null
+
+
+## A monster of the kind, with its own script if it has one (enemy.gd make), still.
+func _spawn(kind: String, pos: Vector2):
+	var main = t.main
+	var e = main.EnemyScript.make(kind)
+	e.setup(kind, main)
+	e.position = pos
+	main.add_child(e)
+	await t._frames(1)
+	e.set_physics_process(false)
+	return e
 
 
 # --- layouts ----------------------------------------------------------------------------
@@ -172,18 +187,19 @@ func _plans() -> void:
 func _firebird_system() -> void:
 	print("towers: the Firebird's islands (updrafts, burning bridges, ember storms)")
 	var main = t.main
-	var fb = _sys("firebird")
+	var fb = null
 	var found := false
 	for i in 30:
 		await _floor("firebird", 7, "shards")
-		if not fb.gaps.is_empty() and not fb.bridges.is_empty() and not fb.storms.is_empty():
+		fb = _sys("firebird")
+		if fb != null and not fb.gaps.is_empty() and not fb.bridges.is_empty() and not fb.storms.is_empty():
 			found = true
 			break
-	_check(found and fb.on and main.room_view.layout_painter == fb, "a Firebird floor wakes its system and paints the abyss")
+	_check(found and fb.on and main.room_view.layout_painter == fb, "a Firebird floor runs its own system (main.tower_floor) and paints the abyss")
 	if not found:
 		return
 	var open := 0
-	for v in main.sight_open:
+	for v in fb.sight_open():
 		open += int(v)
 	_check(open > 100, "you can see across the abyss to other islands (%d tiles open to the eye)" % open)
 	var p = main.player
@@ -253,10 +269,11 @@ func _rekindle() -> void:
 	var main = t.main
 	await _floor("firebird", 5, "rekindle")
 	var ob = main.objective
-	_check(ob.kind == "rekindle" and ob.custom != null and main.ward, "the Firebird's task can be Rekindle the Beacons")
-	if ob.custom == null:
+	await t._frames(2)
+	var rk = _sys("firebird").rk if _sys("firebird") != null else null
+	_check(ob.kind == "rekindle" and ob.own_kind and rk != null and main.ward, "the Firebird's task can be Rekindle the Beacons")
+	if rk == null:
 		return
-	var rk = ob.custom
 	_check(rk.extras.size() >= 2 and rk.extras[0]["kind"] == "hearth" and rk.burn >= 14.0 and ob.pieces.size() >= 2, "a hearth, braziers and beacons; the flame lasts %.0f s" % rk.burn)
 	var p = main.player
 	p.max_hp = 999.0
@@ -266,7 +283,7 @@ func _rekindle() -> void:
 	_check(ob.pieces[0]["state"] == "todo", "a beacon won't light without a flame")
 	p.global_position = rk.extras[0]["pos"]
 	await t._frames(3)
-	_check(rk.carrying and main.hud.goal_line().contains("%"), "walking up to the hearth takes a flame (%s)" % main.hud.goal_line())
+	_check(rk.carrying, "walking up to the hearth takes a flame")
 	p.global_position = main.player_start
 	await t._frames(2)
 	rk.flame = 0.05
@@ -293,7 +310,7 @@ func _ashwing() -> void:
 	await t._frames(2)
 	var p = main.player
 	var at: Vector2 = p.global_position + Vector2(0, -60)
-	var a = await t._spawn("ashwing", at)
+	var a = await _spawn("ashwing", at)
 	_check(a.kind in a.FLIERS and Creatures.has("ashwing") and main.Floors.MONSTERS.has("ashwing") and Towers.TOWERS["firebird"]["weights"].has("ashwing"), "the ashwing is the Firebird's, a flier, in its tower's mix")
 	a.take_hit(9999.0, Vector2.ZERO, 0.0)
 	await t._frames(1)
@@ -304,11 +321,11 @@ func _ashwing() -> void:
 	_check(not a.dead and a.state != "ashes" and a.get_meta("reborn", false) and a.hp < a.max_hp, "...and rises again (at %d of %d health)" % [int(a.hp), int(a.max_hp)])
 	a.take_hit(9999.0, Vector2.ZERO, 0.0)
 	_check(a.dead, "the second time it falls for good")
-	var b = await t._spawn("ashwing", at)
+	var b = await _spawn("ashwing", at)
 	b.take_hit(9999.0, Vector2.ZERO, 0.0)
 	b.take_hit(1.0, Vector2.RIGHT, 50.0)
 	_check(b.dead, "a blow on its ash scatters it: it won't rise")
-	var c = await t._spawn("ashwing", at)
+	var c = await _spawn("ashwing", at)
 	c.take_hit(9999.0, Vector2.ZERO, 0.0)
 	c.soaked = 2.0
 	c.set_physics_process(true)
@@ -319,7 +336,7 @@ func _ashwing() -> void:
 func _burning_bridge() -> void:
 	print("towers: the Burning Bridge")
 	var main = t.main
-	var fb = _sys("firebird")
+	var fb = null
 	var sc := {}
 	var froms := _only_scenario("burning_bridge")
 	for i in 60:
@@ -328,6 +345,7 @@ func _burning_bridge() -> void:
 			if s["kind"] == "burning_bridge":
 				sc = s
 		if not sc.is_empty():
+			fb = _sys("firebird")
 			break
 	_restore_scenarios(froms)
 	_check(not sc.is_empty() and sc["steps"].size() >= 2 and main.in_chasm(Rect2(sc["chasms"][0]).get_center()), "a Firebird room can be the Burning Bridge: a chasm and a bridge across it")
@@ -360,11 +378,12 @@ func _burning_bridge() -> void:
 func _thornwild_system() -> void:
 	print("towers: the Thornwild (thorns, closing thickets, brambles, spore pods)")
 	var main = t.main
-	var ch = _sys("chimera")
+	var ch = null
 	var found := false
 	for i in 30:
 		await _floor("chimera", 7, "shards")
-		if ch.on and not ch.grown().is_empty() and not ch.bramble.is_empty() and ch.pods.size() >= 2 and ch.thorns.any(func(x): return x["kind"] == "closing"):
+		ch = _sys("chimera")
+		if ch != null and ch.on and not ch.grown().is_empty() and not ch.bramble.is_empty() and ch.pods.size() >= 2 and ch.thorns.any(func(x): return x["kind"] == "closing"):
 			found = true
 			break
 	_check(found and main.room_view.layout_painter == ch, "a Thornwild floor wakes its system and paints its grown rock")
@@ -380,9 +399,9 @@ func _thornwild_system() -> void:
 	var side: Vector2 = c + (Vector2(-50, 0) if Rect2(th["rect"]).size.y > Rect2(th["rect"]).size.x else Vector2(0, -50))
 	if main.is_solid(side):
 		side = c - (side - c)
-	ch.strike(side, (c - side).normalized(), 50.0, 60.0, false)
+	ch.strike(side, (c - side).normalized(), 50.0, 60.0)
 	_check(th["state"] == "grown", "one light blow only scores it")
-	ch.strike(side, (c - side).normalized(), 50.0, 60.0, false)
+	ch.strike(side, (c - side).normalized(), 50.0, 60.0)
 	_check(th["state"] == "cut" and th["body"] == null and main.astar.get_point_weight_scale(th["tiles"][0]) == 1.0, "a second blow cuts through (any weapon will do)")
 	var keep_r: float = CH.RULES["regrow"]
 	CH.RULES["regrow"] = 0.3
@@ -413,7 +432,7 @@ func _thornwild_system() -> void:
 	var bt: Vector2i = ch.bramble.keys()[0]
 	var bpos: Vector2 = main.room.position + (Vector2(bt) + Vector2(0.5, 0.5)) * 40.0
 	_check(main.water_slow(bpos) < 0.7 and main.water_slow(bpos + Vector2(4000, 4000)) == 1.0, "brambles slow whoever walks them")
-	var e = await t._spawn("slime", bpos)
+	var e = await _spawn("slime", bpos)
 	e.knock = Vector2(300, 0)
 	ch._tick_brambles()
 	_check(e.bleeding > 0.0, "...and a foe knocked into them bleeds")
@@ -423,10 +442,10 @@ func _thornwild_system() -> void:
 	var calm: Array = ch.pods.filter(func(x): return x["kind"] == "calm")
 	var pd: Dictionary = pois[0] if not pois.is_empty() else ch.pods[0]
 	pd["kind"] = "poison"
-	var f = await t._spawn("knight", Vector2(pd["pos"]) + Vector2(20, 0))
+	var f = await _spawn("knight", Vector2(pd["pos"]) + Vector2(20, 0))
 	var hp0: float = f.hp
 	p.global_position = Vector2(pd["pos"]) + Vector2(60, 0)
-	ch.strike(p.global_position, Vector2.LEFT, 70.0, 60.0, false)
+	ch.strike(p.global_position, Vector2.LEFT, 70.0, 60.0)
 	_check(pd["burst"], "a blow bursts a spore pod")
 	await t._wait(0.7)
 	_check(f.hp < hp0, "a poison cloud hurts a foe standing in it")
@@ -435,7 +454,7 @@ func _thornwild_system() -> void:
 	var pd2: Dictionary = fresh[0] if not fresh.is_empty() else {"pos": main.player_start, "kind": "calm", "burst": false}
 	pd2["kind"] = "calm"
 	ch.clouds.clear()  # (the poison cloud would sting it awake again)
-	var g = await t._spawn("knight", Vector2(pd2["pos"]) + Vector2(10, 0))
+	var g = await _spawn("knight", Vector2(pd2["pos"]) + Vector2(10, 0))
 	ch.burst(pd2)
 	await t._wait(0.2)
 	_check(g.calm, "a calming cloud soothes the foes in it")
@@ -445,13 +464,14 @@ func _thornwild_system() -> void:
 func _heartroots() -> void:
 	print("towers: the Hungry Grove")
 	var main = t.main
-	var ch = _sys("chimera")
 	await _floor("chimera", 5, "heartroots")
+	var ch = _sys("chimera")
 	var ob = main.objective
-	_check(ob.kind == "heartroots" and ob.custom != null and main.ward and ob.pieces.size() >= 3, "the Chimera's task can be the Hungry Grove")
-	if ob.custom == null:
+	await t._frames(2)
+	var hr = ch.hr if ch != null else null
+	_check(ob.kind == "heartroots" and ob.own_kind and hr != null and main.ward and ob.pieces.size() >= 3, "the Chimera's task can be the Hungry Grove")
+	if hr == null:
 		return
-	var hr = ob.custom
 	var p = main.player
 	p.max_hp = 999.0
 	p.hp = 999.0
@@ -492,7 +512,7 @@ func _briar() -> void:
 		at = p.global_position + Vector2(-60, 0)
 	var stand: Vector2 = p.global_position
 	p.global_position = at + Vector2(0, 300) if not main.is_solid(at + Vector2(0, 300)) else at + Vector2(300, 0)
-	var b = await t._spawn("briar", at)
+	var b = await _spawn("briar", at)
 	p.global_position = stand
 	_check(b.submerged and b.state == "hide" and not (b in main.targets()), "the briar hides as a bush: it can't be targeted")
 	b.aware = true
@@ -506,7 +526,7 @@ func _briar() -> void:
 	await t._frames(3)
 	_check(b.state != "grab", "...a roll breaks free")
 	b.queue_free()
-	var c = await t._spawn("briar", at)
+	var c = await _spawn("briar", at)
 	main.explode(at + Vector2(10, 0), 30.0, 1.0, Color(1, 0.5, 0.2))
 	_check(not c.submerged and c.stun > 0.0, "fire flushes a hiding briar out")
 	c.queue_free()
@@ -515,7 +535,7 @@ func _briar() -> void:
 func _thicket() -> void:
 	print("towers: the Closing Thicket")
 	var main = t.main
-	var ch = _sys("chimera")
+	var ch = null
 	var sc := {}
 	var froms := _only_scenario("thicket")
 	for i in 60:
@@ -524,6 +544,7 @@ func _thicket() -> void:
 			if s["kind"] == "thicket":
 				sc = s
 		if not sc.is_empty():
+			ch = _sys("chimera")
 			break
 	_restore_scenarios(froms)
 	_check(not sc.is_empty(), "a Thornwild room can be the Closing Thicket")

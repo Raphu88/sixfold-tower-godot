@@ -62,11 +62,6 @@ const Objectives := preload("res://scripts/objectives.gd")
 const CracksScript := preload("res://scripts/cracks.gd")
 const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
-## Towers' own floor systems (scripts/towers/): each is told of every new
-## floor (setup) and of blows and bursts; a tower's system only wakes on its
-## own floors. Creatures is the towers' own monsters (their voices).
-const TOWER_SYSTEMS := [preload("res://scripts/towers/firebird_floor.gd"), preload("res://scripts/towers/chimera_floor.gd")]
-const Creatures := preload("res://scripts/towers/creatures.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -262,10 +257,7 @@ var objective  # the floor's one task: its pieces, the HUD's line and arrow, the
 var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
-var tower_systems: Array = []  # the towers' own floor systems (TOWER_SYSTEMS)
-## Tiles that are rock to walk on but open to the eye (the Firebird's abyss:
-## fog.gd sees across them); empty on other floors.
-var sight_open := PackedByteArray()
+var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
 var noticed: Array = []
@@ -359,11 +351,6 @@ func _ready() -> void:
 	room_rewards = RoomRewardsScript.new()
 	room_rewards.main = self
 	add_child(room_rewards)
-	for sys_script in TOWER_SYSTEMS:
-		var sys = sys_script.new()
-		sys.main = self
-		add_child(sys)
-		tower_systems.append(sys)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
@@ -636,16 +623,24 @@ func is_solid(pos: Vector2) -> bool:
 	if not layout_on:
 		return false
 	var t := _tile_of(pos)
+	return _is_solid_tile(t.x, t.y) or (tower_floor != null and tower_floor.blocks_walking(t))  # (the Wyvern's molten metal: no one walks there)
+
+
+## Walls only (sight and shots pass over the Wyvern's molten metal).
+func wall_at(pos: Vector2) -> bool:
+	if not layout_on:
+		return false
+	var t := _tile_of(pos)
 	return _is_solid_tile(t.x, t.y)
 
 
-## Nothing solid between two points.
+## Nothing solid between two points (walls: you see and shoot over molten metal).
 func clear_line(a: Vector2, b: Vector2) -> bool:
 	if not layout_on:
 		return true
 	var steps := int(a.distance_to(b) / 16.0) + 1
 	for i in steps + 1:
-		if is_solid(a.lerp(b, float(i) / steps)):
+		if wall_at(a.lerp(b, float(i) / steps)):
 			return false
 	return true
 
@@ -1108,6 +1103,7 @@ func _start_floor(n: int) -> void:
 	# before the fog and the first drawing (their closed tiles are solid).
 	wings.setup(plan)
 	cracks.setup(plan)  # (cracked walls: solid until broken, their alcoves rock)
+	_setup_tower_floor(plan if not in_camp else {})  # (before the scenarios: a tower's scenario lives in it)
 	scenarios.setup(plan if not in_camp else {})
 	room_rewards.setup(plan if not in_camp else {})
 	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
@@ -1171,7 +1167,7 @@ func _start_floor(n: int) -> void:
 	var tough := Floors.toughness(n)
 	var spawned: Array = []
 	for m in plan["monsters"]:
-		var e = EnemyScript.new()
+		var e = EnemyScript.make(m[0])
 		e.setup(m[0], self)
 		e.max_hp *= tough.x
 		e.hp = e.max_hp
@@ -1187,10 +1183,6 @@ func _start_floor(n: int) -> void:
 	objective.setup(plan.get("objective", {}) if not in_camp else {})
 	if objective.active():
 		ward = true
-	# The tower's own floor (updrafts, burning bridges, thorns...): before the fog looks.
-	sight_open = PackedByteArray()
-	for sys in tower_systems:
-		sys.setup(plan if not in_camp else {})
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
@@ -1305,6 +1297,8 @@ func _update_springs(delta: float) -> void:
 ## Opens every door on the floor (the dev tool, and tests).
 func open_all_doors() -> void:
 	door_view.open_all()
+	if tower_floor != null:
+		tower_floor.open_gates()  # (a tower's own locks: the Kraken's held water, the Gryphon's gap)
 
 
 ## Walking onto a good room's essence cache: a burst of the tower's essence.
@@ -3409,7 +3403,7 @@ func targets() -> Array:
 
 
 func spawn_enemy(kind: String, pos: Vector2):
-	var e = EnemyScript.new()
+	var e = EnemyScript.make(kind)
 	e.setup(kind, self)
 	var tough := Floors.toughness(floor_num)
 	e.max_hp *= tough.x
@@ -3675,6 +3669,7 @@ const GRAFT_PART := {
 	"slime": "heart", "archer": "brow", "knight": "hand", "bat": "legs", "thunderling": "throat",
 	"lurker": "back", "shellback": "heart", "cinder": "throat", "smith": "hand", "scorpling": "back",
 	"ram": "legs", "wisp": "legs", "bloomcap": "throat", "thornhound": "legs", "mongrel": "hand",
+	"golem": "heart", "burrower": "back",
 	"ashwing": "back", "briar": "hand",
 }
 
@@ -3814,7 +3809,8 @@ func in_chasm(pos: Vector2) -> bool:
 func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 	if cracks != null:
 		cracks.blast(pos, r)  # (a burst breaks a cracked wall)
-	tower_call("blast", [pos, r])  # (fire burns thorns, bursts spore pods, flushes a lurker)
+	if tower_floor != null:
+		tower_floor.blast(pos, r)  # (a tower's own ground: the Thornwild's thorns burn)
 	for e in targets():
 		var to: Vector2 = e.global_position - pos
 		if to.length() < r + e.radius:
@@ -3845,23 +3841,40 @@ func in_water(pos: Vector2) -> bool:
 	for pd in puddles:
 		if pos.distance_to(pd["pos"]) < pd["r"]:
 			return true
-	return false
+	return tower_floor != null and tower_floor.wet(pos)  # (the Kraken's rising water)
 
 
 ## Water slows you (unless you're Waterborn).
 func water_slow(pos: Vector2, waterborn := false) -> float:
-	var k := 1.0 if waterborn or not in_water(pos) else 0.6
-	for sys in tower_systems:
-		if sys.on:
-			k *= sys.slow(pos)  # (the Thornwild's brambles)
-	return k
+	var k := 1.0 if tower_floor == null or waterborn else float(tower_floor.slow_at(pos))  # (the Manticore's sand)
+	return k if waterborn or not in_water(pos) else 0.6 * k
 
 
-## Tells the towers' own floor systems something happened (a blow, a burst).
-func tower_call(method: String, args: Array = []) -> void:
-	for sys in tower_systems:
-		if sys.on and sys.has_method(method):
-			sys.callv(method, args)
+## How far monsters notice the climber from, as a share (enemy.gd): the
+## Manticore's sun gives you away from farther; its shade hides you.
+func sight_k() -> float:
+	return 1.0 if tower_floor == null else float(tower_floor.sight_k())
+
+
+## The tower's own floor (floor_styles.gd "module"): a node of its script,
+## made fresh for each floor that has one (plan["tower_floor"]).
+func _setup_tower_floor(plan: Dictionary) -> void:
+	if tower_floor != null and is_instance_valid(tower_floor):
+		tower_floor.clear()
+		tower_floor.queue_free()
+	tower_floor = null
+	if room_view != null and room_view.layout_painter != null:
+		room_view.layout_painter = null
+		room_view.queue_redraw()
+	var spec: Dictionary = plan.get("tower_floor", {})
+	if spec.is_empty() or not spec.has("module"):
+		return
+	tower_floor = load(String(spec["module"])).new()
+	tower_floor.main = self
+	add_child(tower_floor)
+	tower_floor.setup(plan)
+	room_view.layout_painter = tower_floor  # (its paint_layout hook: the floor is drawn again with it)
+	room_view.queue_redraw()
 
 
 func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
@@ -3935,7 +3948,7 @@ func on_enemy_killed(e) -> void:
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)
 	if fx != null:
 		fx.debris(e.global_position, e.color, int(e.radius * 0.8))
-	var kill_sound: String = "kill_" + Creatures.voice(e.kind)
+	var kill_sound: String = "kill_" + e.kind
 	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
 	shake(6.0)
@@ -3974,7 +3987,7 @@ func sfx_fade(sound: String) -> void:
 ## A creature's own sound, "<what>_<kind>" (roar_kraken, hurt_bat), if the
 ## bank has one; otherwise `fallback` (if any).
 func sfx_kind(what: String, kind: String, fallback := "", pitch := 1.0, volume_db := 0.0) -> void:
-	var sound := what + "_" + Creatures.voice(kind)  # (a tower's own creature borrows a voice: creatures.gd VOICE)
+	var sound := what + "_" + kind
 	if audio != null and audio.has_sound(sound):
 		sfx(sound, pitch, volume_db)
 	elif fallback != "":

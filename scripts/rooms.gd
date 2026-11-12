@@ -389,6 +389,9 @@ static func flipped(room: Dictionary, flip_x: bool, flip_y: bool) -> Array:
 ## A carved room of `shape`, `size` tiles, as rows (the same legend as the
 ## hand-made rooms).
 static func carve(shape: String, size: Vector2i) -> Array:
+	var own: Script = load("res://scripts/floor_styles.gd").shape_module(shape)
+	if own != null:
+		return own.carve(shape, size)  # (a tower's own shape: floor_styles.gd SHAPE_MODULES)
 	var w := size.x
 	var h := size.y
 	var g: Array = []

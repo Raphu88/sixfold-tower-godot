@@ -6,7 +6,8 @@ extends RefCounted
 ## be reached from a hearth, a brazier or a beacon already lit, with time
 ## to spare), and a blow costs it a share. Braziers on the way, and every
 ## beacon once lit, relight it. Placed by `place` (objectives.gd), run by
-## an instance hosted by objective.gd. Words and numbers: objectives.gd
+## the Firebird's floor script (firebird_floor.gd task_tick), with the
+## floor's objective node as its host. Words and numbers: objectives.gd
 ## KINDS["rekindle"] and TEXT.
 
 const Objectives := preload("res://scripts/objectives.gd")
@@ -28,16 +29,8 @@ var kindles := 0  # (tests)
 
 ## The pieces: the hearth in a room near the start, beacons spread over far
 ## rooms, braziers between. {} if they won't fit.
-static func place(spec: Dictionary, infos: Array, adj: Array, monsters: Array, _stair: Vector2, floor_num: int, n: int, _cell: float) -> Dictionary:
+static func place(spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, floor_num: int, n: int, _cell: float) -> Dictionary:
 	var k: Dictionary = Objectives.KINDS["rekindle"]
-	var dist := Objectives._graph_dist(adj, 0)
-	var stair_i := Objectives._index_of_role(infos, "stair")
-	var cands: Array = []
-	for i in infos.size():
-		var info: Dictionary = infos[i]
-		if i == 0 or i == stair_i or info.get("no_piece", false) or (info["role"] == "gallery" and info.get("puzzle", "") != ""):
-			continue
-		cands.append(i)
 	if cands.size() < 3:
 		return {}
 	# The hearth: the nearest room to the start that has room for it.
@@ -114,6 +107,24 @@ func setup(s: Dictionary) -> void:
 		extras.append(e)
 	for pc in host.pieces:
 		pc["state"] = "todo"
+	# The plan judged the legs as the crow flies; on the floor as built, the
+	# worst leg is walked round the walls (bridges wind): never shorter than that.
+	var lit: Array = extras.map(func(e): return e["pos"])
+	var left: Array = host.pieces.map(func(pc): return pc["pos"])
+	var worst := 0.0
+	while not left.is_empty():
+		var best_d := INF
+		var best_i := 0
+		for i in left.size():
+			for q in lit:
+				var d: float = host._path_len(q, left[i])
+				if d < best_d:
+					best_d = d
+					best_i = i
+		worst = maxf(worst, best_d)
+		lit.append(left[best_i])
+		left.remove_at(best_i)
+	burn = maxf(burn, worst / WALK * float(_k()["walk_share"]) + 6.0)
 
 
 func clear() -> void:
@@ -182,15 +193,6 @@ func tick(delta: float, p, hurt: bool) -> bool:
 	return host.done_count() == host.pieces.size() and not host.pieces.is_empty()
 
 
-func status_line() -> String:
-	var k := _k()
-	if carrying:
-		return String(k["status_carry"]) % [int(100.0 * flame / burn), host.done_count(), host.pieces.size()]
-	if host.done_count() == 0:
-		return String(k["status_take"])
-	return String(k["status"]) % [host.done_count(), host.pieces.size()]
-
-
 ## The arrow: a beacon while the flame will last the way, else the nearest fire.
 func arrow_target(from: Vector2) -> Array:
 	var goal := _goal(from)
@@ -209,7 +211,7 @@ func _goal(from: Vector2) -> Array:
 			best = pc["pos"]
 	if best == Vector2.INF:
 		return []
-	if carrying and flame > best_d / WALK * 1.15 + 1.0:
+	if carrying and (flame > best_d / WALK * 1.15 + 1.0 or flame >= burn * 0.95):  # (a fresh flame: go, whatever the way)
 		return [best, "piece"]
 	var src := Vector2.INF
 	var src_d := INF

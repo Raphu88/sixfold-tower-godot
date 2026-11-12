@@ -235,7 +235,7 @@ const LEAVES := 8
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 1
+	collision_mask = 1 | 32  # walls, and deep water (the Kraken's tower: scripts/towers/kraken_floor.gd)
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -684,6 +684,8 @@ func _physics_process(delta: float) -> void:
 	elif lunge_t > 0.0:
 		lunge_t -= delta
 		velocity = aim * lunge_speed
+		if main.in_chasm(global_position + aim * (radius + 8.0)) and not main.in_chasm(global_position):
+			velocity = Vector2.ZERO  # (a swing's lunge never carries you over the lip of a chasm)
 	else:
 		if pending_weapon != "" and attack_cd <= 0.0 and not drawing:
 			_equip(pending_weapon)
@@ -1295,9 +1297,9 @@ func _melee() -> bool:
 		main.scenarios.strike(global_position, aim, reach, swing["arc"])
 	if main.get("cracks") != null:
 		main.cracks.strike(global_position, aim, reach, swing["arc"], heavy)
-	# A tower's own things a blow can reach (thorns, heart-roots, spore pods).
-	if main.has_method("tower_call"):
-		main.tower_call("strike", [global_position, aim, reach, swing["arc"], heavy])
+	# The tower's own floor: a crank, a water barrel, bellows, a sun stone.
+	if main.get("tower_floor") != null:
+		main.tower_floor.strike(global_position, aim, reach, swing["arc"])
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:

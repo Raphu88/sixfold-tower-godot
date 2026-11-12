@@ -13,8 +13,9 @@ extends RefCounted
 ##                   way out. Cut your way back to the doorway before the
 ##                   thicket seals it. It withers once it's over, whatever
 ##                   happens: you're never shut in.
-## plan_extra finishes each one's plan (scenarios.gd plan); the rest runs
-## from scenarios.gd. Numbers are its SCENARIOS, words its TEXT.
+## Each tower's floor script hands its scenario's hooks here (plan, begin,
+## tick, status, goal, draw, and finish once it's over). Numbers are
+## scenarios.gd SCENARIOS, words its TEXT.
 
 const ORIGIN := Vector2(80, 100)
 const CELL := 40.0
@@ -30,6 +31,21 @@ static func _text() -> Dictionary:
 
 
 # --- planning -------------------------------------------------------------------------
+
+## A scenario's marks in its room (scenarios.gd plan, through the tower's
+## floor script's scenario_plan): {kind, rect, gates, start, end, centre,
+## spawns, keep, ...}; {} if the room won't do.
+static func plan(kind: String, info: Dictionary, gates: Array, floor_num: int, cell: float) -> Dictionary:
+	var rect: Rect2 = info["rect"]
+	var open: Array = Rooms.open_tiles(info["rows"], 1).filter(func(t): return not info["reserved"].has(t))
+	if open.size() < 12:
+		return {}
+	var at := func(t: Vector2i) -> Vector2: return rect.position + (Vector2(t) + Vector2(0.5, 0.5)) * cell
+	var spawns: Array = open.map(at)
+	spawns.shuffle()
+	var out := {"kind": kind, "rect": rect, "gates": gates, "centre": rect.get_center(), "spawns": spawns.slice(0, 10), "start": rect.get_center(), "end": rect.get_center()}
+	return plan_extra(out, info, gates, floor_num, cell)
+
 
 ## Finishes a scenario's plan; {} if the room won't do.
 static func plan_extra(out: Dictionary, info: Dictionary, gates: Array, _floor_num: int, cell: float) -> Dictionary:
@@ -140,17 +156,13 @@ static func _plan_thicket(out: Dictionary, info: Dictionary, gates: Array, cell:
 # --- running (scenarios.gd) -------------------------------------------------------------
 
 static func _firebird(host):
-	for sys in host.main.tower_systems:
-		if sys.has_method("set_burnt"):
-			return sys
-	return null
+	var tf = host.main.get("tower_floor")
+	return tf if tf != null and tf.has_method("set_burnt") else null
 
 
 static func _thorns(host):
-	for sys in host.main.tower_systems:
-		if sys.has_method("add_thorn"):
-			return sys
-	return null
+	var tf = host.main.get("tower_floor")
+	return tf if tf != null and tf.has_method("add_thorn") else null
 
 
 static func begin(host, s: Dictionary) -> void:

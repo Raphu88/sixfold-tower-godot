@@ -1,4 +1,4 @@
-extends Node2D
+extends "res://scripts/towers/tower_floor.gd"
 ## The Firebird's tower: islands of rock over the abyss. Its rooms are
 ## ragged islands (towers/organic.gd), the corridors between them bridges
 ## over nothing, and you can see across the abyss to the islands beyond
@@ -16,12 +16,20 @@ extends Node2D
 ##              across the island; stand behind rock (a spire, a pillar, the
 ##              island's edge) and it passes over you. Firebird Form's own
 ##              fire doesn't burn you. It burns monsters too (not the fiery ones).
-## Planned by after_build (floors.gd, from floor_styles.gd "builder"), run
-## by this node (main.gd tower_systems), which also paints the abyss
-## (room.gd layout_painter). Every number and word is in RULES and TEXT.
+## This is the tower's floor script (floor_styles.gd "module", the hooks of
+## scripts/towers/tower_floor.gd): it carves the islands (carve), lays the
+## system over each plan (shape_plan), runs it as main.tower_floor, paints
+## the abyss (paint_layout), lets the eye across it (sight_open), and runs
+## the tower's own task, Rekindle the Beacons (towers/rekindle.gd), and its
+## scenario, the Burning Bridge (towers/tower_scenarios.gd). Every number
+## and word is in RULES and TEXT.
 
 const Rooms := preload("res://scripts/rooms.gd")
 const Themes := preload("res://scripts/themes.gd")
+const Organic := preload("res://scripts/towers/organic.gd")
+const Rekindle := preload("res://scripts/towers/rekindle.gd")
+const TowerScenarios := preload("res://scripts/towers/tower_scenarios.gd")
+const PATH := "res://scripts/towers/firebird_floor.gd"
 const Palette := preload("res://scripts/palette.gd")
 
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
@@ -53,7 +61,6 @@ static var TEXT := {
 ## Monsters the storm doesn't burn (they're fire themselves, or fly above it).
 const FIERY := ["wisp", "cinder", "firebird", "ashwing", "bloomcap", "wyvern", "bat", "gryphon"]
 
-var main
 var on := false
 var data := {}
 var gaps: Array = []
@@ -69,6 +76,11 @@ var redraw_t := 0.0
 var carries := 0  # (tests)
 var storm_hits := 0
 var sheltered := 0
+var sight_mask := PackedByteArray()
+var chasms_taken := false
+var rk = null  # the floor's Rekindle task in play (towers/rekindle.gd), when it's the task
+var cleaned := {}  # scenarios already tidied after they ended
+var bot_ref = null  # the floor bot, while one plays (tests: bot_grid hands it over)
 
 
 # --- planning (floors.gd) ---------------------------------------------------------------
@@ -83,7 +95,22 @@ static func step_for(table: Array, floor_num: int) -> int:
 ## Lays the tower's own features on a planned floor: gaps with updrafts and
 ## burning bridges in the corridors, ember storms (with rock spires to
 ## shelter behind) on some islands. Writes plan["firebird"].
-static func after_build(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary, _style: Dictionary) -> void:
+## The tower's room shapes (floor_styles.gd SHAPE_MODULES): islands, atolls.
+static func carve(shape: String, size: Vector2i) -> Array:
+	return Organic.carve(shape, size)
+
+
+## Lays the tower's own features over a planned floor (floors.gd): gaps with
+## updrafts and burning bridges in the corridors, ember storms (with rock
+## spires to shelter behind) on some islands. Writes plan["firebird"] and
+## plan["tower_floor"].
+static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary) -> void:
+	plan["tower_floor"] = {"module": PATH}
+	# (the Burning Bridge's chasm, and the Rekindle hearth and braziers kept clear of cover)
+	for sc in plan.get("scenarios", []):
+		plan["chasms"].append_array(sc.get("chasms", []))
+	for x in plan.get("objective", {}).get("extra", []):
+		plan["keep"].append(x["pos"])
 	var out := {"corridors": [], "gaps": [], "burning": [], "storms": []}
 	var cands: Array = []
 	for l in links:
@@ -201,14 +228,12 @@ func setup(plan: Dictionary) -> void:
 	sheltered = 0
 	if main == null:
 		return
-	if main.room_view != null and main.room_view.layout_painter == self:
-		main.room_view.layout_painter = null
 	data = plan.get("firebird", {})
 	if data.is_empty() or not main.layout_on:
 		queue_redraw()
 		return
 	on = true
-	base_chasms = main.chasms.duplicate()
+	chasms_taken = false  # (main sets the floor's chasms after this: taken on the first tick)
 	gaps = data["gaps"].duplicate(true)
 	for b0 in data["burning"]:
 		var b: Dictionary = b0.duplicate()
@@ -252,19 +277,31 @@ func setup(plan: Dictionary) -> void:
 	for r in hidden:
 		for t in main._tiles_in(Rect2(r).grow(CELL)):
 			open[t.y * gs.x + t.x] = 0
-	main.sight_open = open
-	main.room_view.layout_painter = self
-	main.room_view.queue_redraw()
+	sight_mask = open
 	queue_redraw()
 
 
-func slow(_pos: Vector2) -> float:
-	return 1.0
+func clear() -> void:
+	if rk != null:
+		rk.clear()
+		rk = null
+
+
+func sight_open() -> PackedByteArray:
+	return sight_mask
+
+
+func paint_layout(rv, batch) -> bool:
+	return paint(rv, batch)
 
 
 func _physics_process(delta: float) -> void:
 	if not on or main == null or main.player == null:
 		return
+	if not chasms_taken:
+		chasms_taken = true
+		base_chasms = main.chasms.duplicate()
+	_tidy_scenarios()
 	var p = main.player
 	if not p.dead and not main.climbing:
 		_updrafts(p)
@@ -356,6 +393,9 @@ func _bridges(delta: float, p) -> void:
 
 ## A slice of floor falls away into the abyss (a chasm) or comes back.
 func set_burnt(key, r: Rect2, gone: bool) -> void:
+	if not chasms_taken:
+		chasms_taken = true
+		base_chasms = main.chasms.duplicate()
 	if gone:
 		burnt[key] = r
 	else:
@@ -444,10 +484,152 @@ func storm_state(s: Dictionary) -> Dictionary:
 
 # --- the floor bot and the tests ---------------------------------------------------------
 
-## The bot: wait out a storm's warning behind rock? It simply keeps going;
-## nothing here needs more than walking (updrafts take you when you step on).
-func bot_avoid() -> Array:
-	return []
+# --- the tower's own task: Rekindle the Beacons (towers/rekindle.gd) -----------------------
+
+static func place_task(kind: String, spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, floor_num: int, cell: float) -> Dictionary:
+	return Rekindle.place(spec, infos, cands, dist, monsters, floor_num, Objectives.count_for(kind, floor_num), cell)
+
+
+func _rekindle(ob):
+	if rk == null and ob.kind == "rekindle":
+		rk = Rekindle.new()
+		rk.host = ob
+		rk.main = main
+		rk.setup(ob.spec)
+	return rk
+
+
+func task_tick(ob, delta: float, p, hurt: bool) -> void:
+	var r = _rekindle(ob)
+	if r == null:
+		return
+	r.tick(delta, p, hurt)
+	# The arrow: a beacon while the flame will last the way, else the nearest fire.
+	var goal: Array = r.arrow_target(p.global_position)
+	if not goal.is_empty():
+		ob.target = goal
+		ob.target_t = 0.3
+
+
+## The floor bot's grid: a chasm too wide to jump (an atoll's hole) is a
+## wall to it; a one-tile band is jumped, an updraft's gap is ridden.
+func bot_grid(astar: AStarGrid2D, bot) -> void:
+	bot_ref = bot
+	var tiles := {}
+	for r in main.chasms:
+		for t in main._tiles_in(r):
+			tiles[t] = true
+	var ridden := {}
+	for g in gaps:
+		for t in main._tiles_in(Rect2(g["rect"])):
+			ridden[t] = true
+	for t in tiles:
+		if ridden.has(t) or not astar.region.has_point(t):
+			continue
+		var across_x: bool = tiles.has(t + Vector2i.LEFT) or tiles.has(t + Vector2i.RIGHT)
+		var across_y: bool = tiles.has(t + Vector2i.UP) or tiles.has(t + Vector2i.DOWN)
+		if across_x and across_y:
+			astar.set_point_solid(t, true)
+
+
+## The floor bot's stick: never a step into a chasm on foot. It jumps a
+## narrow one from its lip (the bot takes off there) and an updraft's vent
+## carries it over a gap; otherwise (out of breath, mid-swing) it waits.
+func bot_steer(pos: Vector2, d: Vector2) -> Vector2:
+	var p = main.player
+	if d.length() < 0.01 or p == null or p.in_air() or main.in_chasm(pos):
+		return d
+	d = _path_aim(pos, d)
+	var ok := func(dir: Vector2) -> bool:
+		var dn := dir.normalized()
+		if not main.in_chasm(pos + dn * 9.0):
+			return true
+		for g in gaps:
+			for v in g["vents"]:
+				if Rect2(v["rect"]).grow(10.0).has_point(pos):
+					return true  # (the updraft takes it)
+		# At the lip: on only for a jump it can make now that lands on firm ground
+		# (the bot takes off here); out of breath or mid-swing, it waits.
+		if p.sta < float(p.JUMP_COST) or p.attack_cd > 0.15 or p.roll_t > 0.0 or p.cast_t > 0.0:
+			return false
+		var land: Vector2 = pos + dn * (float(p.WALK) * float(p.JUMP_TIME) - 6.0)
+		return not main.in_chasm(land) and not main.is_solid(land)
+	if ok.call(d):
+		return d
+	for a in [Vector2(d.x, 0.0), Vector2(0.0, d.y)]:
+		if a.length() > 0.2 and ok.call(a):
+			return a
+	return Vector2.ZERO
+
+
+## Where the bot's stick points cuts across a chasm (round an atoll's ring,
+## the far point in sight lies over the hole): it follows its path point by
+## point instead, so it only ever jumps where the path crosses (one tile).
+func _path_aim(pos: Vector2, d: Vector2) -> Vector2:
+	if bot_ref == null or not is_instance_valid(bot_ref) or bot_ref.path.size() < 2:
+		return d
+	var dn := d.normalized()
+	var crosses := false
+	for k in range(1, 9):
+		if main.in_chasm(pos + dn * k * 10.0):
+			crosses = true
+			break
+	if not crosses:
+		return d
+	var pts: PackedVector2Array = bot_ref.path
+	var bi := 0
+	var bd := INF
+	for i in pts.size():
+		var dd := pos.distance_to(pts[i])
+		if dd < bd:
+			bd = dd
+			bi = i
+	var target: Vector2 = pts[mini(bi + 1, pts.size() - 1)]
+	if target.distance_to(pos) < 12.0 and bi + 2 < pts.size():
+		target = pts[bi + 2]
+	return target - pos
+
+
+func bot_task(bot) -> Dictionary:
+	var ob = main.objective
+	var r = _rekindle(ob)
+	return r.bot_step(bot, main.player.global_position) if r != null else {}
+
+
+# --- the tower's own scenario: the Burning Bridge (towers/tower_scenarios.gd) ----------------
+
+static func scenario_plan(kind: String, info: Dictionary, gates: Array, floor_num: int, cell: float) -> Dictionary:
+	return TowerScenarios.plan(kind, info, gates, floor_num, cell)
+
+
+func scenario_begin(s: Dictionary, host) -> void:
+	TowerScenarios.begin(host, s)
+
+
+func scenario_tick(s: Dictionary, delta: float, p, host) -> void:
+	TowerScenarios.tick(host, s, delta, p)
+
+
+func scenario_title(s: Dictionary) -> String:
+	return String(main.ScenariosScript.TEXT.get(s["kind"], ""))
+
+
+func scenario_status(s: Dictionary) -> Dictionary:
+	return TowerScenarios.status(null, s)
+
+
+func scenario_goal(s: Dictionary) -> Vector2:
+	return TowerScenarios.goal(null, s)
+
+
+## A scenario that ended: the bridge knits back.
+func _tidy_scenarios() -> void:
+	if main.scenarios == null:
+		return
+	for s in main.scenarios.list:
+		if s["state"] == "done" and not cleaned.has(s["room"]) and s["kind"] == "burning_bridge":
+			cleaned[s["room"]] = true
+			TowerScenarios.finish(main.scenarios, s)
 
 
 # --- drawing ------------------------------------------------------------------------------
@@ -456,6 +638,12 @@ func _draw() -> void:
 	if not on:
 		return
 	var t := Time.get_ticks_msec() / 1000.0
+	if rk != null:
+		rk.draw(self, t)
+	if main.scenarios != null:
+		for s in main.scenarios.list:
+			if s["kind"] == "burning_bridge":
+				TowerScenarios.draw(self, s, t)
 	for b in bridges:
 		var r: Rect2 = b["slice"]
 		match String(b["state"]):

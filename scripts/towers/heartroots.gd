@@ -5,8 +5,9 @@ extends RefCounted
 ## (three blows) and the next wakes. Strike a sleeping one and its thorns
 ## lash you. When the last is cut the thorns recede from the stair, and
 ## every thorn wall on the floor withers with them (chimera_floor.gd).
-## Placed by `place` (objectives.gd), run by an instance hosted by
-## objective.gd. Words and numbers: objectives.gd KINDS["heartroots"] and TEXT.
+## Placed by `place` (chimera_floor.gd place_task), run by the Chimera's
+## floor script (task_tick, task_strike) with the floor's objective node as
+## its host. Words and numbers: objectives.gd KINDS["heartroots"] and TEXT.
 
 const Objectives := preload("res://scripts/objectives.gd")
 const Palette := preload("res://scripts/palette.gd")
@@ -24,15 +25,7 @@ var lashes := 0  # (tests)
 
 ## The roots: spread over far rooms, one to a room where it can be; the
 ## order they wake in is drawn at random. {} if they won't fit.
-static func place(spec: Dictionary, infos: Array, adj: Array, monsters: Array, _stair: Vector2, _floor_num: int, n: int, _cell: float) -> Dictionary:
-	var dist := Objectives._graph_dist(adj, 0)
-	var stair_i := Objectives._index_of_role(infos, "stair")
-	var cands: Array = []
-	for i in infos.size():
-		var info: Dictionary = infos[i]
-		if i == 0 or i == stair_i or info.get("no_piece", false) or (info["role"] == "gallery" and info.get("puzzle", "") != ""):
-			continue
-		cands.append(i)
+static func place(spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, _floor_num: int, n: int, _cell: float) -> Dictionary:
 	var spread := Objectives._spread(cands, n, infos, dist)
 	if spread.size() < mini(n, 2):
 		return {}
@@ -108,14 +101,10 @@ func strike(from: Vector2, dir: Vector2, reach: float, arc: float) -> void:
 func on_complete() -> void:
 	main.fx_text(main.stair_pos + Vector2(0, -40), Objectives.TEXT["recede"], Color(0.75, 0.95, 0.6))
 	main.fx_burst(main.stair_pos, Vector2.UP, Color(0.45, 0.65, 0.3), 24, 200.0)
-	for sys in main.tower_systems:
-		if sys.on and sys.has_method("wither_all"):
-			sys.wither_all()
-			main.fx_text(main.player.global_position + Vector2(0, -60), sys.TEXT["withered"], Color(0.75, 0.95, 0.6))
-
-
-func status_line() -> String:
-	return String(_k()["status_next"]) % [step, host.pieces.size()]
+	var tf = main.get("tower_floor")
+	if tf != null and tf.has_method("wither_all"):
+		tf.wither_all()
+		main.fx_text(main.player.global_position + Vector2(0, -60), tf.TEXT["withered"], Color(0.75, 0.95, 0.6))
 
 
 func arrow_target(_from: Vector2) -> Array:

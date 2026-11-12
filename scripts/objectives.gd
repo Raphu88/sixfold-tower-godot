@@ -25,12 +25,17 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
-## A tower's own kinds name their "towers" (only there) and a "script" that
-## places and runs them (towers/rekindle.gd, towers/heartroots.gd):
-##   rekindle   (the Firebird's) carry a flame from the hearth to light the
-##              beacons before it gutters; braziers and lit beacons relight it
-##   heartroots (the Chimera's) the hungry grove: cut the heart-roots in the
-##              order they wake, and the thorns recede from the stair
+## The towers' own kinds (each only in its tower, run by its floor script):
+##   sluices    (the Kraken's) the way into the stair room is flooded deep;
+##              turn each sluice wheel (stand at it) to drain it
+##   vanes      (the Gryphon's) the way into the stair room is an open gap;
+##              strike each wind vane round and the wind carries you over
+##   furnaces   (the Wyvern's) strike each cold furnace's bellows until it
+##              roars, in the heat it throws (scripts/towers/wyvern_floor.gd)
+##   sunstones  (the Manticore's) turn each polished stone so the moving sun
+##              it catches falls on its seal (scripts/towers/manticore_floor.gd)
+## A kind with "towers" only turns up in those towers; one with "module" is
+## placed and run by that tower's own floor script (main.tower_floor).
 
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 const Rooms := preload("res://scripts/rooms.gd")
@@ -66,15 +71,28 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
+	"sluices": {"name": "Drain the Stairwell", "hint": "The way to the stair is flooded. Turn every sluice wheel to send the water elsewhere.",
+		"status": "Sluices turned %d of %d", "piece": "Sluice", "count": [[4, 2], [99, 3]], "weight": 1.6,
+		"towers": ["kraken"], "module": "res://scripts/towers/kraken_floor.gd",
+		"turn_time": 1.8, "reach": 52.0},
+	"vanes": {"name": "Turn the Wind Vanes", "hint": "No bridge reaches the stair. Strike every wind vane round until the wind blows across the gap.",
+		"status": "Vanes turned %d of %d", "piece": "Vane", "count": [[4, 2], [99, 3]], "weight": 1.6,
+		"towers": ["gryphon"], "module": "res://scripts/towers/gryphon_floor.gd",
+		"strikes": 2},
 	"rekindle": {"name": "Rekindle the Beacons", "hint": "Take a flame from the hearth and carry it to each beacon before it gutters. Braziers and lit beacons relight it.",
-		"status": "Beacons lit %d of %d", "status_carry": "Flame %d%%  ·  beacons %d of %d", "status_take": "Take a flame from the hearth",
-		"piece": "Beacon", "hearth": "Hearth", "brazier": "Brazier", "count": [[3, 2], [7, 3], [99, 4]], "weight": 1.6,
+		"status": "Beacons lit %d of %d", "piece": "Beacon", "hearth": "Hearth", "brazier": "Brazier", "count": [[3, 2], [7, 3], [99, 4]], "weight": 1.6,
 		"burn_base": 22.0, "burn_min": 14.0, "burn_per_floor": 0.6, "walk_share": 1.7, "hit_loss": 0.25, "braziers": [[4, 1], [99, 2]],
-		"towers": ["firebird"], "script": "res://scripts/towers/rekindle.gd"},
+		"towers": ["firebird"], "module": "res://scripts/towers/firebird_floor.gd"},
 	"heartroots": {"name": "The Hungry Grove", "hint": "Heart-roots feed the thorns on the stair. Cut each as it wakes, in turn, and the thorns recede.",
-		"status": "Heart-roots cut %d of %d", "status_next": "Cut the waking heart-root  ·  %d of %d", "piece": "Heart-root",
-		"count": [[3, 3], [99, 4]], "weight": 1.6, "hp": 3, "lash": 6.0, "lash_cd": 1.2,
-		"towers": ["chimera"], "script": "res://scripts/towers/heartroots.gd"},
+		"status": "Heart-roots cut %d of %d", "piece": "Heart-root", "count": [[3, 3], [99, 4]], "weight": 1.6, "hp": 3, "lash": 6.0, "lash_cd": 1.2,
+		"towers": ["chimera"], "module": "res://scripts/towers/chimera_floor.gd"},
+	# The towers' own kinds.
+	"furnaces": {"name": "Stoke the Furnaces", "hint": "Strike each cold furnace's bellows until it roars. Don't linger in its heat.",
+		"status": "Furnaces lit %d of %d", "piece": "Furnace", "count": [[5, 2], [99, 3]], "weight": 1.6,
+		"towers": ["wyvern"], "module": "res://scripts/towers/wyvern_floor.gd"},
+	"sunstones": {"name": "Wake the Sun Seals", "hint": "Strike each polished stone to turn it. When the sun crosses it, it throws the light where it faces: onto its seal.",
+		"status": "Seals lit %d of %d", "piece": "Sun stone", "count": [[5, 2], [99, 3]], "weight": 1.6,
+		"towers": ["manticore"], "module": "res://scripts/towers/manticore_floor.gd"},
 }
 ## How likely each puzzle kind is next to the kinds above (its tower's own
 ## puzzle counts double).
@@ -117,6 +135,18 @@ static var climb_used: Array = []
 
 static func is_puzzle(kind: String) -> bool:
 	return Catalog.TYPES.has(kind)
+
+
+## Whether a kind may turn up in tower `tid` (a tower's own kind only there).
+static func allowed(kind: String, tid: String) -> bool:
+	var towers: Array = KINDS.get(kind, {}).get("towers", [])
+	return towers.is_empty() or tid in towers
+
+
+## The tower floor script that places and runs a kind (null for the shared kinds).
+static func module_of(kind: String) -> Script:
+	var path := String(KINDS.get(kind, {}).get("module", ""))
+	return load(path) if path != "" else null
 
 
 ## Every kind there is: the floor kinds and the puzzles.
@@ -171,12 +201,6 @@ static func pick(floor_num: int, tid: String) -> String:
 	return _weighted(fresh)
 
 
-## Whether a kind may be a floor's task in a tower (a tower's own kinds only there).
-static func allowed(kind: String, tid: String) -> bool:
-	var towers: Array = KINDS.get(kind, {}).get("towers", [])
-	return towers.is_empty() or tid in towers
-
-
 static func _weighted(table: Dictionary) -> String:
 	var total := 0.0
 	for k in table:
@@ -217,9 +241,6 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 	var k: Dictionary = KINDS[kind]
 	spec["hint"] = k["hint"]
 	var n := count_for(kind, floor_num)
-	if k.has("script"):
-		# (a tower's own kind places its own pieces: towers/rekindle.gd, towers/heartroots.gd)
-		return load(String(k["script"])).place(spec, infos, adj, monsters, stair, floor_num, n, cell)
 	var dist := _graph_dist(adj, 0)
 	var stair_i := _index_of_role(infos, "stair")
 	var gal := _index_of_role(infos, "gallery")
@@ -233,6 +254,10 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 		if info["role"] == "gallery" and info.get("puzzle", "") != "":
 			continue
 		cands.append(i)
+	var own := module_of(kind)
+	if own != null:
+		# (a tower's own kind: its floor script places it, from the same rooms)
+		return own.place_task(kind, spec, infos, cands, dist, monsters, floor_num, cell)
 	match kind:
 		"runes", "wardstone":
 			if gal < 0 or infos[gal].get("puzzle", "") != "":
@@ -333,6 +358,24 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 	return spec
 
 
+## The plain way to place a kind's pieces: `count_for` pieces spread over
+## that many of `cands` (far rooms first, a dead end among them), one free
+## spot each (a tower's floor script may use it for its own kind:
+## scripts/towers/tower_floor.gd place_task). {} if they won't fit.
+static func place_spread(kind: String, spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, floor_num: int) -> Dictionary:
+	var n := count_for(kind, floor_num)
+	var spread := _spread(cands, n, infos, dist)
+	if spread.size() < mini(n, 2):
+		return {}
+	for j in n:
+		var ri: int = spread[j % spread.size()]
+		var p := _spot(infos[ri], monsters, 1, false, spec["pieces"].map(func(x): return x["pos"]), 90.0)
+		if p == Vector2.INF:
+			return {}
+		spec["pieces"].append({"pos": p, "room": ri})
+	return spec
+
+
 ## Up to `n` rooms, spread out: the farthest from the start first, a branch
 ## (a dead end) among them, no two in a row on the route if it can be helped.
 static func _spread(cands: Array, n: int, infos: Array, dist: Array) -> Array:
@@ -430,6 +473,4 @@ static func targets(spec: Dictionary) -> Array:
 		out.append(spec["tablet"]["pos"])
 	if spec.has("pedestal"):
 		out.append(spec["pedestal"])
-	for x in spec.get("extra", []):  # (a tower's own kind: the hearth, the braziers)
-		out.append(x["pos"])
 	return out

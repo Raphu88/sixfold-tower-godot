@@ -1,7 +1,7 @@
-extends Node2D
+extends "res://scripts/towers/tower_floor.gd"
 ## The Chimera's tower, the Thornwild: grown caves, dens and grottoes
 ## (towers/organic.gd) joined by passages the roots have pushed through
-## (they bulge and wander: after_build adds the bulges), drawn as rounded
+## (they bulge and wander: shape_plan adds the bulges), drawn as rounded
 ## rock and root with no straight wall in sight (paint). Its own system is
 ## LIVING THORNS:
 ##   thorn walls   hedges of thorn across a passage. Any blow cuts them (two
@@ -17,13 +17,20 @@ extends Node2D
 ##                 foe into it and it bursts into a cloud: green poisons
 ##                 whoever stands in it (you and foes alike), blue calms the
 ##                 foes in it for a while (they wander and don't attack until struck).
-## Planned by after_build (floors.gd, floor_styles.gd "builder"), run here
-## (main.gd tower_systems). The hungry grove (towers/heartroots.gd) withers
-## every thorn when its heart-roots are cut; the closing thicket scenario
-## (towers/tower_scenarios.gd) grows thorns through this node.
+## This is the tower's floor script (floor_styles.gd "module", the hooks of
+## scripts/towers/tower_floor.gd): it carves the caves (carve), lays the
+## thorns over each plan (shape_plan), runs them as main.tower_floor, paints
+## the grown rock (paint_layout), and runs the tower's own task, the Hungry
+## Grove (towers/heartroots.gd: cutting its roots withers every thorn), and
+## its scenario, the Closing Thicket (towers/tower_scenarios.gd), whose
+## thorns grow through this node.
 
 const Rooms := preload("res://scripts/rooms.gd")
 const Themes := preload("res://scripts/themes.gd")
+const Organic := preload("res://scripts/towers/organic.gd")
+const Heartroots := preload("res://scripts/towers/heartroots.gd")
+const TowerScenarios := preload("res://scripts/towers/tower_scenarios.gd")
+const PATH := "res://scripts/towers/chimera_floor.gd"
 const Palette := preload("res://scripts/palette.gd")
 
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
@@ -55,8 +62,9 @@ static var TEXT := {
 	"calm": "Soothing spores",
 }
 
-var main
 var on := false
+var hr = null  # the floor's Hungry Grove in play (towers/heartroots.gd), when it's the task
+var cleaned := {}  # scenarios already tidied after they ended
 var data := {}
 var thorns: Array = []  # {tiles, rect, kind, state ("grown", "cut", "open", "closing", "withered"), hp, t, fire, body, passed}
 var bramble := {}  # Vector2i -> true
@@ -83,7 +91,17 @@ static func step_for(table: Array, floor_num: int) -> int:
 ## Lays the Thornwild's features on a planned floor: passages that bulge,
 ## thorn walls and closing thickets across passages, bramble patches and
 ## spore pods in the rooms. Writes plan["thornwild"].
-static func after_build(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary, _style: Dictionary) -> void:
+## The tower's room shapes (floor_styles.gd SHAPE_MODULES): caves, dens, grottoes.
+static func carve(shape: String, size: Vector2i) -> Array:
+	return Organic.carve(shape, size)
+
+
+## Lays the Thornwild's features over a planned floor (floors.gd): passages
+## that bulge, thorn walls and closing thickets across passages, bramble
+## patches and spore pods in the rooms. Writes plan["thornwild"] and
+## plan["tower_floor"].
+static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary) -> void:
+	plan["tower_floor"] = {"module": PATH}
 	var out := {"thorns": [], "brambles": [], "pods": []}
 	var walk: Array = plan["walk"]
 	var taken := {}
@@ -245,8 +263,6 @@ func setup(plan: Dictionary) -> void:
 	_clear()
 	if main == null:
 		return
-	if main.room_view != null and main.room_view.layout_painter == self:
-		main.room_view.layout_painter = null
 	data = plan.get("thornwild", {})
 	if data.is_empty() or not main.layout_on:
 		return
@@ -261,9 +277,19 @@ func setup(plan: Dictionary) -> void:
 		var p: Dictionary = p0.duplicate()
 		p["burst"] = false
 		pods.append(p)
-	main.room_view.layout_painter = self
-	main.room_view.queue_redraw()
 	queue_redraw()
+
+
+func clear() -> void:
+	_clear()
+
+
+func paint_layout(rv, batch) -> bool:
+	return paint(rv, batch)
+
+
+func slow_at(pos: Vector2) -> float:
+	return slow(pos)
 
 
 func _clear() -> void:
@@ -399,7 +425,8 @@ func in_bramble(pos: Vector2) -> bool:
 
 
 ## A melee swing (player.gd): cuts thorn walls in reach, bursts pods.
-func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float, heavy: bool) -> void:
+func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+	var heavy: bool = main.player != null and bool(main.player.swing.get("heavy", false))  # (a finishing blow cuts at once)
 	for th in thorns:
 		if th["state"] != "grown":
 			continue
@@ -432,8 +459,8 @@ func blast(pos: Vector2, r: float) -> void:
 		if not pd["burst"] and Vector2(pd["pos"]).distance_to(pos) < r + 20.0:
 			burst(pd)
 	for e in main.enemies():
-		if e.kind == "briar" and e.global_position.distance_to(pos) < r + 50.0:
-			main.Creatures.flush(e)
+		if e.kind == "briar" and e.global_position.distance_to(pos) < r + 50.0 and e.has_method("flush"):
+			e.flush()
 
 
 func _near_point(th: Dictionary, from: Vector2) -> Vector2:
@@ -457,6 +484,9 @@ func burst(pd: Dictionary) -> void:
 func _physics_process(delta: float) -> void:
 	if not on or main == null or main.player == null:
 		return
+	_tidy_scenarios()
+	if hr != null and main.objective.done and not withered:
+		hr.on_complete()  # (the grove's heart is cut: the thorns recede and wither)
 	var p = main.player
 	var pos: Vector2 = p.global_position
 	check_t -= delta
@@ -575,7 +605,7 @@ func _tick_clouds(delta: float, p) -> void:
 
 ## The bot's path grid: thorn walls can be cut, so it may plan through them
 ## (at a cost: a way round is better if there's one).
-func bot_grid(astar: AStarGrid2D) -> void:
+func bot_grid(astar: AStarGrid2D, _bot = null) -> void:
 	for th in grown():
 		for t in th["tiles"]:
 			if astar.region.has_point(t) and not astar.is_point_solid(t):
@@ -585,17 +615,91 @@ func bot_grid(astar: AStarGrid2D) -> void:
 			astar.set_point_weight_scale(t, 2.0)
 
 
-## The bot walking: a thorn wall in the way is struck until it's cut.
-## True when it took over this tick.
-func bot_go(bot, pos: Vector2, d: Vector2) -> bool:
-	if d == Vector2.ZERO:
-		return false
+## The bot walking: a thorn wall on its way, near, is struck until it's cut.
+func bot_step(bot) -> Dictionary:
+	var pos: Vector2 = main.player.global_position
 	for th in grown():
 		var q := _near_point(th, pos)
-		if q.distance_to(pos) < 50.0 and (q - pos).normalized().dot(d.normalized()) > 0.3:
-			bot.strike_at(q)
-			return true
-	return false
+		if q.distance_to(pos) > 70.0:
+			continue
+		var r: Rect2 = Rect2(th["rect"]).grow(24.0)
+		for pt in bot.path:
+			if r.has_point(pt):
+				return {"pos": q, "act": "strike", "why": "cutting thorns"}
+	return {}
+
+
+# --- the tower's own task: the Hungry Grove (towers/heartroots.gd) ------------------------
+
+static func place_task(kind: String, spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, floor_num: int, cell: float) -> Dictionary:
+	return Heartroots.place(spec, infos, cands, dist, monsters, floor_num, Objectives.count_for(kind, floor_num), cell)
+
+
+func _grove(ob):
+	if hr == null and ob.kind == "heartroots":
+		hr = Heartroots.new()
+		hr.host = ob
+		hr.main = main
+		hr.setup(ob.spec)
+	return hr
+
+
+func task_tick(ob, delta: float, p, hurt: bool) -> void:
+	var g = _grove(ob)
+	if g == null:
+		return
+	g.tick(delta, p, hurt)
+	var goal: Array = g.arrow_target(p.global_position)  # (the arrow: the root that's awake)
+	if not goal.is_empty():
+		ob.target = goal
+		ob.target_t = 0.3
+
+
+func task_strike(ob, from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+	var g = _grove(ob)
+	if g != null:
+		g.strike(from, dir, reach, arc_deg)
+
+
+func bot_task(bot) -> Dictionary:
+	var g = _grove(main.objective)
+	return g.bot_step(bot, main.player.global_position) if g != null else {}
+
+
+# --- the tower's own scenario: the Closing Thicket (towers/tower_scenarios.gd) ---------------
+
+static func scenario_plan(kind: String, info: Dictionary, gates: Array, floor_num: int, cell: float) -> Dictionary:
+	return TowerScenarios.plan(kind, info, gates, floor_num, cell)
+
+
+func scenario_begin(s: Dictionary, host) -> void:
+	TowerScenarios.begin(host, s)
+
+
+func scenario_tick(s: Dictionary, delta: float, p, host) -> void:
+	TowerScenarios.tick(host, s, delta, p)
+
+
+func scenario_title(s: Dictionary) -> String:
+	return String(main.ScenariosScript.TEXT.get(s["kind"], ""))
+
+
+func scenario_status(s: Dictionary) -> Dictionary:
+	return TowerScenarios.status(null, s)
+
+
+func scenario_goal(s: Dictionary) -> Vector2:
+	return TowerScenarios.goal(null, s)
+
+
+## A scenario that ended: the thicket withers.
+func _tidy_scenarios() -> void:
+	if main.scenarios == null:
+		return
+	for s in main.scenarios.list:
+		if s["state"] == "done" and not cleaned.has(s["room"]) and s["kind"] == "thicket":
+			cleaned[s["room"]] = true
+			TowerScenarios.finish(main.scenarios, s)
 
 
 # --- drawing ------------------------------------------------------------------------------
@@ -606,6 +710,12 @@ func _draw() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	for th in thorns:
 		_draw_thorn(th, t)
+	if hr != null:
+		hr.draw(self, t)
+	if main.scenarios != null:
+		for s in main.scenarios.list:
+			if s["kind"] == "thicket":
+				TowerScenarios.draw(self, s, t)
 	for pd in pods:
 		if not pd["burst"]:
 			_draw_pod(pd, t)

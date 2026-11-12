@@ -36,9 +36,7 @@ var looks := 0  # times sight was worked out (tests and the dev readout)
 ## The tiles whose fog may still be easing: around where sight was last
 ## worked out, and around where it was worked out before that.
 var ease_box := Rect2i()
-
-
-var see_open := false  # tiles the climber sees across though they can't walk there (main.sight_open)
+var see_open := PackedByteArray()  # rock the eye sees across (main.tower_floor sight_open: a tower's abyss), or empty
 
 
 func _ready() -> void:
@@ -67,8 +65,11 @@ func reset() -> void:
 	bytes.resize(n)
 	bytes.fill(int(DARK * 255.0))
 	img = Image.create_from_data(grid.x, grid.y, false, Image.FORMAT_L8, bytes)
-	# (the Firebird's abyss: rock to walk, open to the eye; main.sight_open)
-	see_open = main.get("sight_open") != null and main.sight_open.size() == n
+	see_open = PackedByteArray()
+	if main.get("tower_floor") != null:
+		see_open = main.tower_floor.sight_open()
+		if see_open.size() != n:
+			see_open = PackedByteArray()
 	tex = ImageTexture.create_from_image(img)
 	_look()
 	_snap()
@@ -132,7 +133,7 @@ func _line_clear(a: Vector2i, b: Vector2i) -> bool:
 	while true:
 		if x == b.x and y == b.y:
 			return true
-		if not (x == a.x and y == a.y) and main.solid[y * grid.x + x] == 1 and not (see_open and main.sight_open[y * grid.x + x] == 1):
+		if not (x == a.x and y == a.y) and main.solid[y * grid.x + x] == 1 and (see_open.is_empty() or see_open[y * grid.x + x] == 0):
 			return false
 		var e2 := 2 * err
 		if e2 >= dy:
