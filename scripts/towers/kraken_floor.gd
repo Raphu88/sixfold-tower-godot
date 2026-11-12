@@ -231,6 +231,11 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		if mw[st.y * int(g["size"].x) + st.x] == 1:
 			plan["ok"] = false
 			return
+		# ...and every wheel must be on this side of it.
+		for pc in obj["pieces"]:
+			if not load("res://scripts/reach.gd").near_reached(mw, g["size"], pc["pos"]):
+				plan["ok"] = false
+				return
 		locks.append({"id": 900, "tiles": moat, "opens": {"all": opens}})
 		basins.append({"kind": "moat", "tiles": moat, "room": stair_i, "shape": "channel", "path": mpath, "level": 0.92})
 		for tt in moat:

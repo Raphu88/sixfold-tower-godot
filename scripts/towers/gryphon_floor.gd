@@ -243,6 +243,11 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		if now[st.y * int(g["size"].x) + st.x] == 1:
 			plan["ok"] = false
 			return
+		# ...and every vane must be on this side of it.
+		for pc in obj["pieces"]:
+			if not load("res://scripts/reach.gd").near_reached(now, g["size"], pc["pos"]):
+				plan["ok"] = false
+				return
 		var opens: Array = []
 		for pc in obj["pieces"]:
 			var pt := Grid.tile(pc["pos"])
