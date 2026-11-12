@@ -113,16 +113,22 @@ static func place_murals(spec: Dictionary, infos: Array, gi: int, torches: Array
 		var torch_col := -99
 		if i < torches.size():
 			torch_col = int(floor((torches[i].get_center().x - info["rect"].position.x) / CELL))
+		# A spot is three open tiles with rock (the room's north wall) above
+		# the middle one: the top row of a built room, or wherever a grown
+		# room's outline bends round (towers/organic.gd). [column, row]
 		var cols: Array = []
-		for c in range(1, String(rows[0]).length() - 1):
-			if absi(c - torch_col) <= 1:
-				continue
-			var ok := true
-			for dc in [-1, 0, 1]:
-				ok = ok and Rooms.open_at(rows, c + dc, 0) and not info["reserved"].has(Vector2i(c + dc, 0))
-			if ok and Rooms.open_at(rows, c, 1):
-				cols.append(c)
+		for r in range(0, rows.size() - 1):
+			for c in range(1, String(rows[0]).length() - 1):
+				if r == 0 and absi(c - torch_col) <= 1:
+					continue
+				var ok := true
+				for dc in [-1, 0, 1]:
+					ok = ok and Rooms.open_at(rows, c + dc, r) and not info["reserved"].has(Vector2i(c + dc, r))
+				ok = ok and (r == 0 or String(rows[r - 1])[c] == "X")
+				if ok and Rooms.open_at(rows, c, r + 1):
+					cols.append([c, r])
 		cols.shuffle()
+		cols.sort_custom(func(a, b): return int(a[1]) < int(b[1]))  # (the top row first, where there is one)
 		if not cols.is_empty():
 			spots[i] = cols
 	var with_room: Array = rooms.filter(func(i): return spots.has(i))
@@ -132,16 +138,16 @@ static func place_murals(spec: Dictionary, infos: Array, gi: int, torches: Array
 	for k in order.size():
 		var i: int = with_room[k % with_room.size()]
 		var cols: Array = spots[i]
-		var pick := -1
+		var pick := []
 		for c in cols:
-			if out.all(func(m): return m["room_i"] != i or absi(int(m["col"]) - int(c)) >= 3):
+			if out.all(func(m): return m["room_i"] != i or absi(int(m["col"]) - int(c[0])) >= 3 or int(m["row"]) != int(c[1])):
 				pick = c
 				break
-		if pick < 0:
+		if pick.is_empty():
 			return {}
 		var rect: Rect2 = infos[i]["rect"]
-		out.append({"pos": Vector2(rect.position.x + (pick + 0.5) * CELL, rect.position.y - 16.0), "sign": order[k], "n": k + 1,
-			"room": rect, "room_i": i, "col": pick})
+		out.append({"pos": Vector2(rect.position.x + (int(pick[0]) + 0.5) * CELL, rect.position.y + int(pick[1]) * CELL - 16.0), "sign": order[k], "n": k + 1,
+			"room": rect, "room_i": i, "col": int(pick[0]), "row": int(pick[1])})
 	var s := spec.duplicate()
 	s["murals"] = out
 	return s
