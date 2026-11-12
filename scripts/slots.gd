@@ -3,7 +3,7 @@ extends RefCounted
 ## everything. Each slot is its own save file (user://climber_1.cfg ...
 ## climber_6.cfg) holding that climber's profile (profile.gd: marks, essence,
 ## crystals, the train, heirlooms, look and name, Record, Makers, path and
-## flow, the Unbound, secret bond, lost pieces, Provings, pact book) and what
+## flow, the Unbound, secret bond, lost pieces, Provings, kin book) and what
 ## the Entity has told them (guide.gd: the tips said and the Archive).
 ##
 ## The settings file (user://sixfold.cfg) is shared by every climber: the

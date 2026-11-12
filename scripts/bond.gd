@@ -10,6 +10,20 @@ const TreeRules := preload("res://scripts/tree.gd")
 ## States and reactions (what a spell leaves on a foe), and named pacts.
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
+## The Gryphon's and the Kraken's content files run their marks' passive
+## ranks and Apex upgrades (taken_mult, on_kill, the great spells): loaded
+## when needed, never preloaded (library.gd loads them as it starts).
+static func gryphon() -> Script:
+	return load("res://scripts/spells/gryphon.gd")
+
+
+static func kraken() -> Script:
+	return load("res://scripts/spells/kraken.gd")
+
+## What a mark's spells' blows are, while it casts (main.gd hit_kind), and
+## the kinds a foe drenched by the Maelstrom's Apex takes double from.
+const HIT_KINDS := {"stormcaller": "lightning"}
+const DRENCH_KINDS := ["lightning", "frost"]
 static var PART_NAMES := Bonds.PART_NAMES
 const PART_FILLS := Bonds.PART_FILLS
 const PART_BURN := Bonds.PART_BURN
@@ -52,8 +66,10 @@ var selected := 0  # which learned spell the mark's key casts
 var choices := {}
 ## A variation's strength for the cast under way (library.gd run_mark_variation).
 var var_power := 1.0
-## Where the last Chain Lightning's last leap struck (Stormcaller's Lingering).
+## Where the last Chain Lightning's last leap struck (Stormcaller's Living Bolt).
 var last_point = null
+## Static III: a charged foe died, so the next Chain Lightning costs nothing.
+var refund := false
 
 
 ## The spells this bond knows at its current step, in the order learned (a
@@ -132,6 +148,11 @@ func passive_name() -> String:
 	return data()["passive"]["name"]
 
 
+## The passive's rank at this mark's step (1; II from step 3; III at step 5).
+func passive_rank() -> int:
+	return Bonds.passive_rank(step)
+
+
 func color() -> Color:
 	return data()["color"]
 
@@ -198,6 +219,9 @@ var missing := 0.0
 
 
 func pay(free := false) -> String:
+	if refund and is_changed_spell(spell()):
+		refund = false  # Static III: refunded
+		free = true
 	if free:  # Grand Sigil: spells cost nothing inside it
 		overdraw_mult = 1.0
 		missing = 0.0
@@ -220,10 +244,15 @@ func cast(p) -> void:
 	var sp := spell()
 	var at: Vector2 = p.global_position
 	var alt := alt_change() if is_changed_spell(sp) else {}
+	var kind: String = HIT_KINDS.get(id, "")
+	if kind != "":
+		p.main.hit_kind = kind  # (what its blows are, while it casts: a drenched foe takes double, bond.gd taken_mult)
 	if not alt.is_empty():
 		Library.cast_mark_variation(self, sp, p, alt)  # (a step-3 variation: the tower's way, or the library's)
-	else:
+	elif not (step >= 3 and is_changed_spell(sp) and Library.cast_mark_change(self, sp, p)):  # (today's side: the tower's way, from step 3)
 		_cast_type(p)
+	if kind != "":
+		p.main.hit_kind = ""
 	Library.on_cast(p, {"by": "bond", "bond": self, "part": part, "at": at, "spell": sp})  # (content files may answer)
 
 
@@ -508,10 +537,12 @@ static func rod_beat(main, rod: Dictionary) -> void:
 	var near: Array = main.targets().filter(func(e): return not e.dead and e.global_position.distance_to(at) <= float(rod["radius"]) + e.radius)
 	near.sort_custom(func(a, b): return a.global_position.distance_to(at) < b.global_position.distance_to(at))
 	var col: Color = rod["color"]
+	main.hit_kind = HIT_KINDS["stormcaller"]
 	for e in near.slice(0, int(rod["targets"])):
 		main.fx_bolt([at + Vector2(0, -28), e.global_position], col)
 		e.charged = maxf(e.charged, 4.0)
 		e.take_hit(float(rod["damage"]), Vector2.ZERO, 0.0)
+	main.hit_kind = ""
 	if not near.is_empty():
 		main.light_flash(at, col, 0.9, 1.0, 0.2)
 		main.sfx("zap", 1.3, -7.0)
@@ -524,6 +555,7 @@ static func rod_burst(main, rod: Dictionary) -> void:
 	var at: Vector2 = rod["pos"]
 	var col: Color = rod["color"]
 	var drawn := 0
+	main.hit_kind = HIT_KINDS["stormcaller"]
 	for e in main.targets():
 		if e.dead or e.charged <= 0.0 or e.global_position.distance_to(at) > float(rod["burst_radius"]) + e.radius:
 			continue
@@ -531,6 +563,7 @@ static func rod_burst(main, rod: Dictionary) -> void:
 		main.fx_bolt([e.global_position, at + Vector2(0, -28)], col)
 		e.take_hit(float(rod["burst"]), (e.global_position - at).normalized(), 80.0)
 		drawn += 1
+	main.hit_kind = ""
 	main.fx_ring(at, col, float(rod["burst_radius"]), 0.4, 4.0)
 	main.light_flash(at, col, 1.6 if drawn > 0 else 0.8, 1.4, 0.3)
 	if drawn > 0:
@@ -538,10 +571,12 @@ static func rod_burst(main, rod: Dictionary) -> void:
 		main.shake(3.0)
 
 
-# For a while, every chain leaps twice as many times.
+# For a while, every chain leaps twice as many times; its Apex: every
+# strike you land calls a bolt from above (player.gd _strike, gryphon.gd sky_bolt).
 func _thunderhead(p) -> void:
 	var main = p.main
 	p.thunderhead_t = stat("duration")
+	p.thunderhead_bolt = float(stat("bolt") if stat("bolt") != null else 0.0) * power() * flow_power
 	main.fx_ring(p.global_position, color(), 80.0, 0.5, 4.0)
 	main.light_flash(p.global_position, color(), 2.0, 1.6, 0.6)
 	main.sfx("zap", 0.6)
@@ -690,7 +725,8 @@ func _carry(p) -> void:
 func _maelstrom(p) -> void:
 	var main = p.main
 	var at: Vector2 = p.global_position + p.aim * stat("range")
-	main.maelstroms.append({"pos": at, "r": stat("radius"), "t": stat("duration") * power(), "damage": damage(), "tick": 0.0, "color": color()})
+	main.maelstroms.append({"pos": at, "r": stat("radius"), "t": stat("duration") * power(), "damage": damage(), "tick": 0.0, "color": color(),
+		"drench": float(stat("drench") if stat("drench") != null else 0.0), "linger": float(stat("linger") if stat("linger") != null else 0.0)})  # (its Apex: kraken.gd drench)
 	main.sfx("gust", 0.5)
 	main.light_flash(at, color(), 1.8, 1.0, 0.5)
 
@@ -734,12 +770,64 @@ func _challenge(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -34), "no one to challenge", color())
 
 
-# For a few seconds you take no damage, but cannot attack.
+# For a few seconds you take no damage; its Apex: you may strike at half
+# damage, and what it kept from you bursts out at the end (kraken.gd unbreakable).
 func _unbreakable(p) -> void:
 	p.unbreak_t = stat("duration")
+	kraken().unbreakable(self, spell(), p)
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.5, 5.0)
 	p.main.light_flash(p.global_position, color(), 1.4, 1.4, 0.5)
 	p.main.sfx("parry", 0.5)
+
+
+## The passives' ranks and the Maelstrom's Apex, on a blow a foe takes
+## (enemy.gd take_hit): Static II (a charged foe takes more from
+## everything), Quarry II (your Quarry takes more from you: player.gd
+## quarry_fresh is a foe just struck the first time) and a drenched foe
+## struck by lightning or frost (main.gd hit_kind).
+static func taken_mult(main, e) -> float:
+	var p = main.player if main != null else null
+	if p == null or not is_instance_valid(p) or not p.has_method("passive_rank"):
+		return 1.0
+	var k := 1.0
+	if Reactions.has(e, "charged") and p.passive_rank("stormcaller") >= 2:
+		k *= 1.0 + Bonds.passive_num("stormcaller", 2, "more")
+	if p.quarry == e and not p.quarry_fresh and p.passive_rank("hunter") >= 2:
+		k *= 1.0 + Bonds.passive_num("hunter", 2, "more")
+	if String(main.get("hit_kind")) in DRENCH_KINDS:
+		k *= kraken().drenched(e)
+	return k
+
+
+## A foe died (main.gd on_enemy_killed): Static III (a charged foe: the next
+## Chain Lightning is free), Quarry III (your Quarry: the nearest foe
+## becomes it and a shot comes back) and Pressure III (near you: you heal).
+static func on_kill(main, e) -> void:
+	var p = main.player
+	if p == null or not is_instance_valid(p) or p.dead or not p.has_method("passive_rank"):
+		return
+	if Reactions.has(e, "charged") and p.passive_rank("stormcaller") >= 3:
+		for b in p.bonds.values():
+			if b.id == "stormcaller" and not b.refund:
+				b.refund = true
+				main.fx_text(p.global_position + Vector2(0, -60), gryphon().TEXT["refunded"], b.color())
+	if p.quarry == e and p.passive_rank("hunter") >= 3:
+		var next = gryphon()._nearest_to(main, e.global_position, Bonds.passive_num("hunter", 3, "reach", 400.0), [e])
+		p.quarry = next
+		for b in p.bonds.values():
+			if b.id == "hunter":
+				b.essence = minf(b.capacity(), b.essence + b.spell_cost(b.data()["spells"][0]))
+				main.fx_text(p.global_position + Vector2(0, -60), gryphon().TEXT["refilled"], b.color())
+				if next != null:
+					main.fx_text(next.global_position + Vector2(0, -next.radius - 22.0), gryphon().TEXT["quarry"], b.color())
+	if p.passive_rank("deepcaller") >= 3 and e.global_position.distance_to(p.global_position) < float(PRESSURE_REACH):
+		var heal: float = Bonds.passive_num("deepcaller", 3, "heal") * p.heal_mult()
+		p.hp = minf(p.max_health(), p.hp + heal)
+		main.fx_text(p.global_position + Vector2(0, -44), "+%d" % int(round(heal)), Color(0.5, 1.0, 0.6))
+
+
+## How near a foe must be for a Deepcaller's Pressure (enemy.gd uses the same).
+const PRESSURE_REACH := 150.0
 
 
 ## How long a water spell soaks what it touches (reactions.gd STATES).
@@ -842,6 +930,7 @@ func _drink(p) -> void:
 	p.drink_t = stat("duration")
 	p.drink_age = 0.0
 	p.drink_dmg = damage()
+	p.drink_jump = float(stat("jump") if stat("jump") != null else 0.0)  # (its Apex: on a kill it jumps on, kraken.gd drink_jump)
 	p.main.sfx("charge", 0.6)
 
 
@@ -922,7 +1011,8 @@ func _downdraft(p) -> void:
 func _cyclone(p) -> void:
 	var main = p.main
 	var at: Vector2 = p.global_position + p.aim * stat("range")
-	main.cyclones.append({"pos": at, "r": stat("radius"), "t": stat("duration") * power(), "color": color()})
+	main.cyclones.append({"pos": at, "r": stat("radius"), "t": stat("duration") * power(), "color": color(),
+		"steer": float(stat("steer") if stat("steer") != null else 0.0), "range": float(stat("range"))})  # (its Apex: you steer it, gryphon.gd steer_cyclone)
 	main.sfx("gust", 0.6)
 	main.light_flash(at, color(), 1.8, 1.2, 0.5)
 
@@ -962,7 +1052,8 @@ func _hawkeye(p) -> void:
 func _rain(p) -> void:
 	var main = p.main
 	var at: Vector2 = p.global_position + p.aim * stat("range")
-	main.rains.append({"pos": at, "r": stat("radius"), "t": stat("duration"), "tick": 0.0, "damage": damage(), "color": color()})
+	main.rains.append({"pos": at, "r": stat("radius"), "t": stat("duration"), "tick": 0.0, "damage": damage(), "color": color(),
+		"follow": float(stat("follow") if stat("follow") != null else 0.0)})  # (its Apex: it follows your Quarry, gryphon.gd follow_quarry)
 	main.sfx("bow", 0.8)
 
 
@@ -1277,7 +1368,8 @@ func _ashfall(p) -> void:
 
 # --- Flame Contractor -----------------------------------------------------------------
 
-func _fireball(p, split: int) -> void:
+## Throws a fireball (returned: Sunfire and Seeker Flame shape it further, firebird.gd).
+func _fireball(p, split: int) -> Node2D:
 	var main = p.main
 	var b = main.spawn_player_arrow(p.global_position + p.aim * (p.radius + 6.0), p.aim * 420.0, damage(), 80.0, false)
 	b.style = "fireball"
@@ -1287,6 +1379,7 @@ func _fireball(p, split: int) -> void:
 	b.cluster = split
 	b.life = 0.15 if _overdrawn() else 1.0  # an overdrawn fireball bursts early, close to you
 	main.sfx("burn", 1.2, -4.0)
+	return b
 
 
 func _firewall(p) -> void:
@@ -1302,6 +1395,10 @@ func _meteor(p) -> void:
 	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 180.0
 	p.main.meteors.append({"pos": at, "r": stat("radius"), "dmg": damage(), "t": 0.6, "color": color()})
 	p.main.sfx("charge", 0.4)
+	# Apex: it leaves a burning crater where it lands (firebird.gd).
+	var crater = stat("crater")
+	if crater != null and float(crater) > 0.0:
+		load("res://scripts/spells/firebird.gd").crater(self, p, at, float(stat("radius")), float(crater), 0.6)
 
 
 # --- Flamewing -----------------------------------------------------------------------
@@ -1318,7 +1415,15 @@ func _aura(p) -> void:
 	p.aura_r = stat("radius")
 	p.aura_drain = stat("drain")
 	p.aura_grows = bool(stat("grows"))
+	# Furnace (step 3's first side): the heat builds over `ramp` seconds, `heat` times as fast, and slows.
+	p.aura_ramp = float(stat("ramp")) if stat("ramp") != null else 10.0
+	p.aura_heat_mult = float(stat("heat")) if stat("heat") != null else 1.0
+	p.aura_peak = float(stat("peak")) if stat("peak") != null else 1.0
+	p.aura_slow = stat("slow") == true
 	p.aura_color = color()
+	# Ember Wings (step 3's second side): the aura reaches out as wings (firebird.gd).
+	if stat("wings") != null:
+		load("res://scripts/spells/firebird.gd").ember_wings(self, p)
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.35, 3.0)
 	p.main.sfx("burn", 1.0, -4.0)
 
@@ -1354,6 +1459,7 @@ func _warmth(p) -> void:
 
 func _firebird_form(p) -> void:
 	p.firebird_t = stat("duration")
+	p.firebird_fly = stat("flight") == true  # Apex: you fly over chasms and hazards (player.gd flying)
 	if p.aura_part == "":
 		# Turn the aura on too, from whichever mark knows it.
 		for b in p.bonds.values():
@@ -1380,6 +1486,10 @@ func _rekindle(p) -> void:
 	p.rekindle_fought = false
 	p.rekindle_spread = bool(stat("spread"))
 	p.rekindle_tick = 0.0
+	p.rekindle_per = 0.0  # (Bonfire and Cauterize set their own after: firebird.gd)
+	p.rekindle_most = 0
+	p.rekindle_shield = 0.0
+	p.rekindle_burned.clear()
 	p.main.fx_ring(p.global_position, color(), 30.0, 0.3, 3.0)
 	p.main.sfx("burn", 1.0)
 
@@ -1399,6 +1509,9 @@ func _pyre(p) -> void:
 
 func _phoenix(p) -> void:
 	p.phoenix_t = stat("duration")
+	# Apex: at its end you regain (this share of) the health it held back (player.gd).
+	p.phoenix_regain = float(stat("regain")) if stat("regain") != null else 0.0
+	p.phoenix_held = 0.0
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 4.0)
 	p.main.light_flash(p.global_position, color(), 1.8, 1.8, 0.4)
 	p.main.sfx("crit", 0.7)
@@ -1410,7 +1523,7 @@ const MAX_OUT := 3  # never more than three creatures out at once
 
 
 ## Aimed at a monster below a quarter of its health: binds its kind into the
-## pact book (kept between climbs). Otherwise calls the next creature of
+## kin book (kept between climbs). Otherwise calls the next creature of
 ## your retinue (the first three kinds in the book; a spirit familiar until
 ## you've bound one).
 func _call(p) -> void:
@@ -1429,7 +1542,7 @@ func _call(p) -> void:
 	var retinue: Array = main.profile.pacts.slice(0, 3)
 	if retinue.is_empty():
 		retinue = ["familiar"]
-	var seconds: float = stat("duration") * (0.5 if _overdrawn() else 1.0)  # half-bound
+	var seconds: float = stat("duration") * (0.5 if _overdrawn() else 1.0) * _stay()  # half-bound
 	for i in int(stat("count")):
 		if main.allies().size() >= MAX_OUT:
 			break
@@ -1478,11 +1591,25 @@ func _grand_call(p) -> void:
 	var kinds: Array = main.profile.pacts.slice(0, 6)
 	if kinds.is_empty():
 		kinds = ["familiar", "familiar"]
+	# Apex: they arrive empowered (`might`), and it drains the whole mark only if `drains`.
+	var might: float = float(stat("might")) if stat("might") != null else 1.0
 	for i in kinds.size():
-		main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, step, stat("duration"))
-	essence = 0.0  # drains the whole mark
+		var a = main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, step, float(stat("duration")) * _stay())
+		if might != 1.0:
+			a.max_hp *= might
+			a.hp = a.max_hp
+			a.dmg *= might
+			a.scale = Vector2.ONE * 1.15
+			a.set_meta("empowered", true)
+	if stat("drains") != false:
+		essence = 0.0  # drains the whole mark
 	main.light_flash(p.global_position, color(), 2.4, 2.0, 0.5)
 	main.sfx("crit", 0.6)
+
+
+## Kinship from rank II: your creatures stay longer (bonds.gd passive "stay").
+func _stay() -> float:
+	return Bonds.passive_num(id, 2, "stay", 1.0) if id == "covenant" and passive_rank() >= 2 else 1.0
 
 
 # --- Grafter -----------------------------------------------------------------------
@@ -1608,6 +1735,9 @@ func _chimera_form(p) -> void:
 	p.chimera_t = stat("duration")
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 5.0)
 	p.main.sfx("crit", 0.7)
+	# Apex: your grafts' powers fire on their own while it lasts (chimera.gd).
+	if stat("every") != null and float(stat("every")) > 0.0:
+		load("res://scripts/spells/chimera.gd").grafts_awake(self, p)
 
 
 # --- Surgeon -----------------------------------------------------------------------
@@ -1624,7 +1754,9 @@ func _sever(p) -> void:
 		return
 	# The cut bleeds (reactions.gd), and slows it while it's crippled;
 	# Toxic Precision (Venomist and Surgeon) adds poison.
-	Reactions.apply(main, t, "bleeding", float(stat("duration")), self, maxf(1.0, damage() * 0.15))
+	# (Arterial Cut, step 3's second side, bleeds harder: its own "bleed" share.)
+	var bleed: float = float(stat("bleed")) if stat("bleed") != null else 0.15
+	Reactions.apply(main, t, "bleeding", float(stat("duration")), self, maxf(1.0, damage() * bleed))
 	Reactions.apply(main, t, "slowed", float(stat("duration")), self)
 	if Pacts.has(p, "toxic_precision") and not t.dead:
 		t.add_venom(int(Pacts.num("toxic_precision", "stacks")))
@@ -1638,12 +1770,32 @@ func _sever(p) -> void:
 	else:
 		t.cripple_t = stat("duration")
 		main.fx_text(t.global_position + Vector2(0, -t.radius - 30.0), "Crippled", color())
+	# Vivisect (step 3's first side): a weak point; your next hits on it are critical (player.gd _strike).
+	if stat("crits") != null and int(stat("crits")) > 0:
+		load("res://scripts/spells/chimera.gd").weak_point(self, p, t)
 	main.sfx("swing", 1.6)
+
+
+## Diagnosis from rank III: Mend and Bloodletting heal this much more (1 + a
+## share for each bleeding foe near you).
+static func bleeding_near_mult(p) -> float:
+	var rank := 0
+	for b in p.bonds.values():
+		if b.id == "surgeon":
+			rank = b.passive_rank()
+	if rank < 3:
+		return 1.0
+	var reach := Bonds.passive_num("surgeon", 3, "mend_reach", 220.0)
+	var n := 0
+	for e in p.main.targets():
+		if not e.dead and Reactions.has(e, "bleeding") and e.global_position.distance_to(p.global_position) < reach + e.radius:
+			n += 1
+	return 1.0 + Bonds.passive_num("surgeon", 3, "mend_per", 0.2) * n
 
 
 func _mend(p) -> void:
 	var main = p.main
-	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult()  # Steady Hands; Life's flow
+	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult() * bleeding_near_mult(p)  # Steady Hands; Life's flow; Diagnosis III
 	p.hp = minf(p.max_health(), p.hp + amount)
 	p.poison_t = 0.0
 	p.fire_t = 0.0
@@ -1682,7 +1834,8 @@ func _transfer(p) -> void:
 func _amputate(p) -> void:
 	var main = p.main
 	var t = _target_in_aim(p, 130.0)
-	if t == null or t.hp > t.max_hp * 0.5:
+	var below: float = float(stat("below")) if stat("below") != null else 0.5  # (its Apex: up to three quarters)
+	if t == null or t.hp > t.max_hp * below:
 		main.fx_text(p.global_position + Vector2(0, -40), "not wounded enough", color())
 		return
 	t.cripple_t = 9999.0

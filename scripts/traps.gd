@@ -92,6 +92,9 @@ static var RULES := {
 ## avoid: what keeps you safe when it fires (besides being out of it)
 ##   "roll" (the roll's untouchable moment), "jump" (being in the air)
 ## tick:  hurts again every `tick` seconds while it fires (gas)
+## The kinds that are fire (Flamewing's Fireproof III turns them into heat), and its words.
+const FIRE_KINDS := ["flame", "ember"]
+static var FIRE_FED := "Fed the aura"
 static var KINDS := {
 	"gust": {
 		"name": "gust lane", "trigger": "timed", "cycle": 3.2, "warn": 0.8, "fire": 0.3,
@@ -1781,6 +1784,11 @@ func _catch_player(tr: Dictionary, k: Dictionary) -> void:
 	if p.ward_oil_t > 0.0 and p.barrier_hp > 0.0:
 		main.fx_text(p.global_position + Vector2(0, -44), "Warded", Color(0.72, 0.78, 0.95))
 		main.fx_ring(p.global_position, Color(0.72, 0.78, 0.95), p.radius + 12.0, 0.25, 2.0)
+		return
+	# Flamewing's Fireproof III: a fire trap feeds the aura instead of hurting you.
+	if tr["kind"] in FIRE_KINDS and p.passive_rank("flamewing") >= 3:
+		p.feed_aura(3.0)
+		main.fx_text(p.global_position + Vector2(0, -44), FIRE_FED, k["color"])
 		return
 	p.receive_attack(tr["dmg"] * (1.0 - p.gfx("footing")), null, true)  # of Footing
 	main.fx_text(p.global_position + Vector2(0, -44), k["text"], k["color"])

@@ -3,6 +3,7 @@ extends CharacterBody2D
 ## Bonds fill through what their body part does, and enhance the body.
 
 const BondScript := preload("res://scripts/bond.gd")
+const Bonds := preload("res://scripts/bonds.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -124,8 +125,16 @@ var barrier_t := 0.0
 var barrier_stored := 0.0  # what it has absorbed (released as a burst from step 3)
 var barrier_burst := false
 var barrier_color := Color.WHITE
+var barrier_max := 0.0  # how strong it was raised (Steadfast II restores toward it)
+var barrier_grow := 0.0  # Bastion: this much of each blow it blocks comes back to it...
+var barrier_cap := 0.0  # ...up to this
+var barrier_burst_r := 0.0  # Bastion: its burst reaches this far (else 110)
+var barrier_front := 1.0  # Moving Wall: blows from the wall's side wear it this fast...
+var barrier_wall := 0.0  # ...the wall reaching this many degrees either side of your aim
 var absorb_t := 0.0  # Absorb: hits are stored in the barrier instead
 var unbreak_t := 0.0  # Unbreakable: no damage, no attacking
+var unbreak_strike := 0.0  # its Apex: you may strike, at this much damage...
+var unbreak_stored := 0.0  # ...and what it kept from you bursts out at its end (kraken.gd unbreakable)
 # Deepcaller
 var anchor_target  # Anchor: a tethered foe
 var anchor_t := 0.0
@@ -135,6 +144,8 @@ var drink_t := 0.0
 var drink_age := 0.0
 var drink_dmg := 0.0
 var drink_tick := 0.0
+var drink_jump := 0.0  # its Apex: on a kill the drain jumps to a foe this near (kraken.gd drink_jump)
+var drink_at := Vector2.ZERO  # where the foe it drinks from was
 ## States on the climber (reactions.gd): only while CLIMBER "enabled" (off).
 var states := {}
 var is_climber := true
@@ -164,8 +175,10 @@ const PEEK_HOLD := 0.45
 var pick_peeked := false
 # Bond effects on the climber
 var thunderhead_t := 0.0  # Stormcaller's Thunderhead
+var thunderhead_bolt := 0.0  # its Apex: a strike you land calls a bolt this strong
 var hawk_t := 0.0  # Hunter's Hawk's Eye
 var quarry  # Hunter's Quarry: the last foe you struck
+var quarry_fresh := false  # (a foe struck the first time isn't your Quarry yet: bond.gd taken_mult)
 var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
 var items := Items.START.duplicate()  # item id -> count
@@ -548,7 +561,14 @@ func _burned(part: String) -> bool:
 ## A burned heart caps your health lower until the next stair; the
 ## Proving's wound, for a few floors.
 func max_health() -> float:
-	return max_hp * (0.75 if _burned("heart") else 1.0) * (1.0 - wound)
+	return (max_hp + _graft_health()) * (0.75 if _burned("heart") else 1.0) * (1.0 - wound)
+
+
+## Grafting from rank II: each graft you carry gives a little more health.
+func _graft_health() -> float:
+	if main == null or not ("grafts" in main) or main.grafts.is_empty() or passive_rank("grafter") < 2:
+		return 0.0
+	return Bonds.passive_num("grafter", 2, "graft_health", 0.0) * main.grafts.size()
 
 
 ## The path and its flow step (main.gd, from the save): what the flow does.
@@ -586,6 +606,26 @@ func has_bond(bond_id: String) -> bool:
 		if b.id == bond_id:
 			return true
 	return false
+
+
+## A mark's passive rank (bonds.gd passive_rank: II from step 3, III at
+## step 5), or 0 without the mark.
+func passive_rank(bond_id: String) -> int:
+	for b in bonds.values():
+		if b.id == bond_id:
+			return BondScript.Bonds.passive_rank(b.step)
+	return 0
+
+
+## One of your creatures fell (enemy.gd): Covenant's Kinship III heals you
+## for a share of its health.
+func creature_fell(a) -> void:
+	if dead or passive_rank("covenant") < 3:
+		return
+	var got := mend_by(float(a.max_hp) * Bonds.passive_num("covenant", 3, "fall_heal", 0.25) * heal_mult())
+	if got >= 1.0:
+		main.fx_text(global_position + Vector2(0, -44), "+%d" % int(round(got)), Color(0.9, 0.5, 0.55))
+		main.fx_bolt([a.global_position, global_position], Color(0.9, 0.5, 0.55))
 
 
 func _physics_process(delta: float) -> void:
@@ -668,7 +708,7 @@ func _physics_process(delta: float) -> void:
 				if a.global_position.distance_to(global_position) < 130.0:
 					spd *= 1.15
 					break
-		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper") or gear_fx.get("wade", false)) * trap_slow
+		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper") or gear_fx.get("wade", false) or flying()) * trap_slow
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
@@ -1060,15 +1100,25 @@ func _tick_jump(delta: float) -> void:
 
 ## How high off the ground you are, for drawing.
 func jump_height() -> float:
+	var hover := (FLY_HEIGHT + 2.0 * sin(Time.get_ticks_msec() * 0.006)) if flying() else 0.0  # (Firebird Form's flight)
 	if jump_t <= 0.0 or jump_total <= 0.0:
-		return 0.0
+		return hover
 	var k := clampf(1.0 - jump_t / jump_total, 0.0, 1.0)
-	return sin(PI * k) * JUMP_HEIGHT + (6.0 if glide_left > 0.0 and Input.is_action_pressed("jump") and jump_t < jump_total * 0.5 else 0.0)
+	return maxf(hover, sin(PI * k) * JUMP_HEIGHT + (6.0 if glide_left > 0.0 and Input.is_action_pressed("jump") and jump_t < jump_total * 0.5 else 0.0))
 
 
-## Off the ground: chasms and burning floor can't touch you.
+## Off the ground: chasms and burning floor can't touch you (a jump, or flight).
 func in_air() -> bool:
-	return jump_t > 0.0
+	return jump_t > 0.0 or flying()
+
+
+## Firebird Form's Apex: flying over chasms, burning floor, water and traps
+## while the form lasts (anything a jump clears, and pressure plates).
+const FLY_HEIGHT := 12.0
+
+
+func flying() -> bool:
+	return firebird_fly and firebird_t > 0.0 and not dead
 
 
 ## Walking (or being knocked) into a chasm: you fall, lose some health,
@@ -1126,6 +1176,9 @@ func _try_roll(input: Vector2) -> bool:
 	main.sfx("roll")
 	if wind:
 		main.sfx("gust", 1.3, -6.0)
+		if passive_rank("windwalker") >= 3:  # Featherweight III: the roll leaves a gust
+			BondScript.gryphon().roll_gust(main, global_position, BondScript.Bonds.passive_num("windwalker", 3, "radius"), BondScript.Bonds.passive_num("windwalker", 3, "lift"),
+				BondScript.Bonds.passive_num("windwalker", 3, "weight"), BondScript.Bonds.BONDS["windwalker"]["color"])
 	wear_gear("roll")
 	return true
 
@@ -1133,8 +1186,8 @@ func _try_roll(input: Vector2) -> bool:
 func _try_attack() -> bool:
 	if attack_cd > 0.0 or drawing:
 		return false
-	if unbreak_t > 0.0:
-		return true  # Unbreakable: you cannot attack
+	if unbreak_t > 0.0 and unbreak_strike <= 0.0:
+		return true  # Unbreakable: you cannot attack (its Apex lets you: unbreak_strike)
 	if sta <= 0.0:
 		_winded()
 		return true
@@ -1496,27 +1549,58 @@ func _essence_shot_hit(e, dmg: float, dir: Vector2, kind: String) -> void:
 ## `backstab_bonus` adds to the backstab multiplier (daggers); `stagger`
 ## staggers the foe for that long (the war hammer's finisher).
 func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound := "hit", rock := false, backstab_bonus := 0.0, stagger := 0.0) -> void:
+	quarry_fresh = quarry != e  # (Quarry II: not yet your Quarry, bond.gd taken_mult)
 	quarry = e  # Hunter's Quarry remembers it
 	var crit := false
+	if unbreak_t > 0.0 and unbreak_strike > 0.0:
+		dmg *= unbreak_strike  # Unbreakable's Apex: you strike at half damage
 	# A staggered foe is open: a riposte deals critical damage.
 	if e.stun > 0.0:
 		dmg *= 2.5
 		force *= 1.4
 		crit = true
-	# Windwalker passive, Featherweight: airborne foes take extra damage.
+	# Surgeon's Vivisect: the cut found a weak point; the next hits on it are critical.
+	var weak_hit := false
+	if not crit and e.has_meta("weak_point"):
+		var wp: Dictionary = e.get_meta("weak_point")
+		if int(wp.get("n", 0)) > 0 and float(wp.get("until", 0.0)) > Time.get_ticks_msec() * 0.001:
+			wp["n"] = int(wp["n"]) - 1
+			dmg *= float(wp.get("mult", 2.0))
+			force *= 1.4
+			crit = true
+			weak_hit = true
+		if int(wp.get("n", 0)) <= 0 or float(wp.get("until", 0.0)) <= Time.get_ticks_msec() * 0.001:
+			e.remove_meta("weak_point")
+	# Windwalker passive, Featherweight: airborne foes take extra damage
+	# (rank II: your strikes keep them aloft).
 	if has_bond("windwalker") and e.airborne > 0.0:
 		dmg *= 1.5
+		if passive_rank("windwalker") >= 2:
+			e.airborne = minf(e.airborne + BondScript.Bonds.passive_num("windwalker", 2, "juggle"), maxf(e.airborne, BondScript.Bonds.passive_num("windwalker", 2, "most")))
 	# Ashwalker's Unseen Strike: a foe that hasn't noticed you, or lost you.
 	if has_bond("ashwalker") and e.unaware():
 		dmg *= 3.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 52.0), "Unseen", Color(0.85, 0.6, 0.5))
 	vanish_t = 0.0  # striking ends Vanish
 	rekindle_fought = true
+	# Rekindler's Bonfire: while you burn, the foes you strike catch fire too, and each grows the payback.
+	if rekindle_t > 0.0 and rekindle_per > 0.0 and not e.dead:
+		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "rekindle")
+		if not e.get_instance_id() in rekindle_burned and rekindle_burned.size() < rekindle_most:
+			rekindle_burned.append(e.get_instance_id())
 	if ember_t > 0.0:
 		ember_t = 0.0
 		main.fx_text(global_position + Vector2(0, -44), "Rekindled", Color(1.0, 0.6, 0.3))
 		main.light_flash(global_position, Color(1.0, 0.5, 0.25), 1.6, 1.8, 0.4)
 		main.sfx("crit", 0.8)
+		# Last Ember III: surviving it erupts in flame around you.
+		if passive_rank("rekindler") >= 3:
+			var col := Color(1.0, 0.45, 0.22)
+			var r := Bonds.passive_num("rekindler", 3, "erupt_radius", 110.0)
+			main.explode(global_position, r, Bonds.passive_num("rekindler", 3, "erupt", 30.0), col)
+			main.add_flame(global_position, r * 0.45, 3.0, true)
+			main.fx_text(global_position + Vector2(0, -60), "Last Ember erupts", col)
+			main.sfx("fire_blast", 0.8)
 	# Venomist's Neurotoxin: a hit on a poisoned foe paralyzes it.
 	if neuro_t > 0.0 and e.venom > 0:
 		neuro_t = 0.0
@@ -1541,7 +1625,9 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 			if e.global_position.distance_to(other.global_position) < 150.0:
 				main.fx_bolt([e.global_position, other.global_position], Color(0.95, 0.89, 0.42))
 				main.sfx("zap", 1.25, -6.0)
+				main.hit_kind = BondScript.HIT_KINDS["stormcaller"]
 				other.take_hit(5.0, Vector2.ZERO)
+				main.hit_kind = ""
 				Reactions.apply(main, other, "charged", 2.0, "static")  # (the arc charges it)
 				break
 	# of the Riposte: ripostes and backstabs hit harder.
@@ -1560,7 +1646,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 			dmg *= 1.0 + rule("triune")
 	var contact: Vector2 = e.global_position - dir * e.radius
 	if crit:
-		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), "Riposte!", Color(1.0, 0.85, 0.4))
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), "Weak point!" if weak_hit else "Riposte!", Color(1.0, 0.85, 0.4))
 		main.fx_ring(contact, Color(1.0, 0.85, 0.4), 40.0, 0.3, 4.0)
 		main.fx_burst(contact, dir, Color(1.0, 0.9, 0.6), 14, 380.0)
 		main.sfx("crit")
@@ -1578,7 +1664,20 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	var material: String = e.MATERIAL.get(e.kind, "")
 	if material != "":
 		main.sfx(material, 1.0, -2.0 if heavy or crit else -4.0)
+	var weak_spot: bool = backstab or e.open_t > 0.0  # (Diagnosis II: where it's weak)
+	if hit_sound != "arrow_hit" and rule("chill") > 0.0:
+		main.hit_kind = "frost"  # (a chilling blow: a drenched foe takes double, bond.gd taken_mult)
 	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
+	if main.hit_kind == "frost":
+		main.hit_kind = ""
+	quarry_fresh = false
+	if thunderhead_t > 0.0 and thunderhead_bolt > 0.0 and not e.dead:
+		BondScript.gryphon().sky_bolt(main, e, thunderhead_bolt, BondScript.Bonds.BONDS["stormcaller"]["color"])  # Thunderhead's Apex
+	# Surgeon's Diagnosis II: striking a foe where it's weak staggers it (now and then).
+	if weak_spot and not e.dead and passive_rank("surgeon") >= 2 and float(e.get_meta("diagnosed", -99.0)) + Bonds.passive_num("surgeon", 2, "weak_every", 3.0) <= Time.get_ticks_msec() * 0.001:
+		e.set_meta("diagnosed", Time.get_ticks_msec() * 0.001)
+		e.stagger(Bonds.passive_num("surgeon", 2, "weak_stagger", 0.5) * (0.5 if e.is_boss() else 1.0))
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 52.0), "Weak spot", Color(0.85, 0.9, 0.95))
 	# Named weapons: a Coral Trident slows, a Stinger Dagger poisons.
 	if hit_sound != "arrow_hit" and not e.dead:
 		if rule("chill") > 0.0:
@@ -1813,12 +1912,17 @@ var aura_dmg := 3.0
 var aura_r := 62.0
 var aura_drain := 2.5
 var aura_grows := false
+var aura_ramp := 10.0  # a growing aura reaches double heat over this many seconds (Furnace: sooner)
+var aura_heat_mult := 1.0  # Furnace: heat builds this many times as fast
+var aura_peak := 1.0  # a growing aura's damage rises by this share at its hottest (Furnace: more)
+var aura_slow := false  # Furnace: foes in the aura are slowed
 var aura_heat := 0.0  # built up while the aura burns foes; Wingburst releases it
 var aura_tick := 0.0
 var aura_color := Color(1.0, 0.68, 0.28)
 var warmth_t := 0.0
 var warmth_heal := 2.5
 var firebird_t := 0.0  # Firebird Form
+var firebird_fly := false  # its Apex: you fly over chasms and hazards while it lasts (flying())
 var rekindle_t := 0.0  # Rekindle: burning now, paid back later
 var rekindle_total := 5.0
 var rekindle_loss := 0.0
@@ -1826,12 +1930,24 @@ var rekindle_lost := 0.0
 var rekindle_fought := false
 var rekindle_spread := false
 var rekindle_tick := 0.0
+var rekindle_per := 0.0  # Bonfire: the payback grows this much for each foe you set burning
+var rekindle_most := 0  # (counting up to this many)
+var rekindle_burned: Array = []  # (those foes, by instance id)
+var rekindle_shield := 0.0  # Cauterize: the payback comes as a barrier this many times what you lost
+var rekindle_shield_t := 10.0  # (lasting this long)
 var desperate_t := 0.0
 var pyre_t := 0.0
 var pyre_dmg := 30.0
 var phoenix_t := 0.0
+var phoenix_regain := 0.0  # its Apex: at its end you regain this share of what it held back
+var phoenix_held := 0.0  # (the health it kept you from losing)
 var ember_t := 0.0  # Last Ember: burning at 1 health; strike to stay standing
-var ember_used := false
+var ember_used := false:  # true once Last Ember is spent for the floor (a new floor sets it false)
+	set(v):
+		ember_used = v
+		if not v:
+			ember_count = 0
+var ember_count := 0  # (Last Ember II works twice a floor: how many times it has this floor)
 
 # The Chimera's bonds.
 var call_index := 0  # Covenant: the next creature of the retinue
@@ -1862,6 +1978,7 @@ func _defy_death() -> bool:
 		return true
 	if phoenix_t > 0.0:
 		main.fx_text(global_position + Vector2(0, -44), "Phoenix Heart", Color(1.0, 0.6, 0.3))
+		phoenix_held = minf(phoenix_held + 1.0 - hp, max_health())  # (its Apex gives this back at the end)
 		return true
 	if pyre_t > 0.0:
 		pyre_t = 0.0
@@ -1869,7 +1986,10 @@ func _defy_death() -> bool:
 		main.fx_text(global_position + Vector2(0, -44), "Pyre Oath", Color(1.0, 0.5, 0.25))
 		return true
 	if has_bond("rekindler") and not ember_used and ember_t <= 0.0:
-		ember_used = true
+		ember_count += 1
+		# (Last Ember II: twice a floor)
+		if ember_count >= (int(Bonds.passive_num("rekindler", 2, "uses", 2.0)) if passive_rank("rekindler") >= 2 else 1):
+			ember_used = true
 		ember_t = 3.0
 		main.fx_text(global_position + Vector2(0, -44), "Last Ember: strike to stay standing!", Color(1.0, 0.5, 0.25))
 		if Pacts.has(self, "undying"):  # Undying (Warden and Rekindler): a barrier rises too
@@ -1970,6 +2090,16 @@ func _tick_fire_bonds(delta: float) -> void:
 	desperate_t -= delta
 	pyre_t -= delta
 	phoenix_t -= delta
+	# Phoenix Heart's Apex: at its end, the health it held back comes back to you.
+	if phoenix_t <= 0.0 and phoenix_held > 0.0:
+		var back := minf(phoenix_held * phoenix_regain, max_health() - hp)
+		phoenix_held = 0.0
+		if back >= 1.0 and not dead:
+			hp += back
+			main.fx_text(global_position + Vector2(0, -52), "Phoenix Heart +%d" % int(back), Color(1.0, 0.6, 0.3))
+			main.fx_burst(global_position, Vector2.UP, Color(1.0, 0.75, 0.4), 22, 260.0)
+			main.light_flash(global_position, Color(1.0, 0.55, 0.25), 2.0, 2.0, 0.5)
+			main.sfx("ready", 0.7)
 	# Last Ember: burn out unless you land a hit in time.
 	if ember_t > 0.0:
 		ember_t -= delta
@@ -1994,13 +2124,15 @@ func _tick_fire_bonds(delta: float) -> void:
 			if aura_tick <= 0.0:
 				aura_tick = 0.5
 				var r := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
-				var dmg := aura_dmg * (1.0 + minf(aura_time / 10.0, 1.0) if aura_grows else 1.0)
+				var dmg := aura_dmg * (1.0 + minf(aura_time / maxf(aura_ramp, 0.1), 1.0) * aura_peak if aura_grows else 1.0)
 				for e in main.targets():
 					if e.global_position.distance_to(global_position) < r + e.radius:
 						e.take_hit(dmg, Vector2.ZERO, 0.0)
-						aura_heat = minf(60.0, aura_heat + dmg)
+						aura_heat = minf(60.0, aura_heat + dmg * aura_heat_mult)
 						if not e.dead:
 							Reactions.apply(main, e, "burning", 1.5, "aura", maxf(1.0, dmg * 0.3))
+						if aura_slow and not e.dead:  # Furnace: the heat slows them
+							Reactions.apply(main, e, "slowed", 0.8, "aura")
 	# Rekindle: lose health now, regain twice that later if you kept fighting.
 	if rekindle_t > 0.0:
 		rekindle_t -= delta
@@ -2016,9 +2148,17 @@ func _tick_fire_bonds(delta: float) -> void:
 					if e.global_position.distance_to(global_position) < 60.0 + e.radius:
 						e.take_hit(3.0, Vector2.ZERO, 0.0)
 		if rekindle_t <= 0.0:
-			if rekindle_fought:
-				hp = minf(max_health(), hp + rekindle_lost * 2.0)
-				main.fx_text(global_position + Vector2(0, -44), "Rekindled +%d" % int(rekindle_lost * 2.0), Color(1.0, 0.6, 0.3))
+			# Bonfire: the payback grows with each foe you set burning.
+			var back := rekindle_lost * (2.0 + rekindle_per * rekindle_burned.size())
+			if rekindle_fought and rekindle_shield > 0.0:
+				# Cauterize: the payback comes as a barrier instead.
+				var shield := rekindle_lost * rekindle_shield
+				raise_barrier(shield, rekindle_shield_t, false, Color(1.0, 0.55, 0.3))
+				main.fx_text(global_position + Vector2(0, -44), "Cauterized: shield %d" % int(shield), Color(1.0, 0.6, 0.3))
+				main.sfx("ready", 0.8)
+			elif rekindle_fought:
+				hp = minf(max_health(), hp + back)
+				main.fx_text(global_position + Vector2(0, -44), "Rekindled +%d" % int(back), Color(1.0, 0.6, 0.3))
 				main.sfx("ready", 0.8)
 			else:
 				main.fx_text(global_position + Vector2(0, -44), "the fire goes out", Color(0.7, 0.6, 0.55))
@@ -2063,6 +2203,44 @@ func _tick_poison(delta: float) -> void:
 func stand_in_fire(delta: float) -> void:
 	if iframes > 0.0 or dead or in_air() or has_bond("flamewing"):  # Fireproof
 		return
+	_burn_floor(delta)
+
+
+## Flamewing's Fireproof from rank II: standing in fire (yours or not) heals
+## you a little; from rank III, fire that would hurt you feeds the aura too
+## (main.gd, every frame you stand in burning floor).
+var fire_mend_t := 0.0
+
+
+func fire_underfoot(delta: float, hostile: bool) -> void:
+	var rank := passive_rank("flamewing")
+	if rank < 2 or dead or in_air():
+		return
+	fire_mend_t += delta
+	if fire_mend_t < 0.5:
+		return
+	fire_mend_t = 0.0
+	var got := mend_by(Bonds.passive_num("flamewing", 2, "fire_heal", 1.5) * heal_mult())
+	if got >= 1.0:
+		main.fx_text(global_position + Vector2(0, -24), "+%d" % int(round(got)), Color(1.0, 0.75, 0.4))
+	if hostile and rank >= 3:
+		feed_aura(1.0)
+
+
+## Fireproof III: fire that would have hurt you feeds the aura's heat and
+## the Flamewing mark's essence instead (`share`: 1 for a half second of
+## burning floor; a fire trap's blast gives more).
+func feed_aura(share: float) -> void:
+	if passive_rank("flamewing") < 3:
+		return
+	aura_heat = minf(60.0, aura_heat + Bonds.passive_num("flamewing", 3, "feed_heat", 8.0) * share)
+	for b in bonds.values():
+		if b.id == "flamewing":
+			b.essence = minf(b.capacity(), b.essence + Bonds.passive_num("flamewing", 3, "feed_essence", 1.5) * share)
+	main.fx_burst(global_position, Vector2.UP, Color(1.0, 0.7, 0.3), 4, 120.0)
+
+
+func _burn_floor(delta: float) -> void:
 	fire_t += delta
 	if fire_t < 0.5:
 		return
@@ -2092,6 +2270,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	if unblockable:
 		source = null  # nothing to parry or turn
 	if unbreak_t > 0.0:
+		unbreak_stored += dmg  # (its Apex: it bursts out at the end)
 		main.fx_text(global_position + Vector2(0, -30), "Unbreakable", barrier_color)
 		main.sfx("hit_armor", 1.2, -4.0)
 		return
@@ -2118,16 +2297,27 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 			main.sfx("hit_armor", 1.0, -2.0)
 	if hurt_t > 0.0:
 		return
-	# The Warden's barrier soaks damage first.
+	# Pressure II (Deepcaller): a badly hurt foe near you hits softer.
+	if source != null and is_instance_valid(source) and "max_hp" in source and source.hp < source.max_hp * 0.5 \
+			and source.global_position.distance_to(global_position) < BondScript.PRESSURE_REACH and passive_rank("deepcaller") >= 2:
+		dmg *= 1.0 - BondScript.Bonds.passive_num("deepcaller", 2, "softer")
+	# The Warden's barrier soaks damage first (Moving Wall: blows from the
+	# wall's side wear it slower; Bastion: it grows back from each blow).
 	var steadfast := barrier_hp > 0.0
 	if barrier_hp > 0.0:
-		var take := minf(barrier_hp, dmg)
-		barrier_hp -= take
+		var wear := 1.0
+		if barrier_front < 1.0 and source != null and is_instance_valid(source) and "global_position" in source \
+				and absf(aim.angle_to(source.global_position - global_position)) <= deg_to_rad(barrier_wall) + 0.1:
+			wear = barrier_front
+		var take := minf(barrier_hp / wear, dmg)
+		barrier_hp -= take * wear
 		barrier_stored += take
 		dmg -= take
+		if barrier_grow > 0.0 and barrier_hp > 0.0:
+			barrier_hp = minf(maxf(barrier_cap, barrier_hp), barrier_hp + take * barrier_grow)
 		main.fx_ring(global_position, barrier_color, radius + 10.0, 0.2, 2.0)
 		if barrier_hp <= 0.0:
-			_break_barrier()
+			_break_barrier(true)
 		if dmg <= 0.0:
 			main.sfx("hit_armor", 1.3, -4.0)
 			return
@@ -2162,6 +2352,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		drawing = false
 		combo = 0
 	drink_target = null
+	drink_t = 0.0  # (a hit breaks a drain: Drink Deep's Apex jumps only on a kill)
 	main.fx_text(global_position + Vector2(0, -24), "-%d" % int(dmg), Color(1.0, 0.42, 0.34))
 	main.fx_burst(global_position, knock.normalized(), Color(1.0, 0.4, 0.34), 8)
 	main.sfx("hurt")
@@ -2216,23 +2407,30 @@ func _low_health_rules() -> void:
 ## Warden's Barrier.
 func raise_barrier(shield: float, duration: float, burst: bool, col: Color) -> void:
 	barrier_hp = maxf(barrier_hp, shield)
+	barrier_max = maxf(barrier_max, barrier_hp)
 	barrier_t = maxf(barrier_t, duration)
 	barrier_burst = burst or barrier_burst
 	barrier_color = col
 
 
 ## The barrier is spent or expires: from step 3 it releases what it absorbed.
-func _break_barrier() -> void:
+## `broken`: spent by blows (Steadfast III gives back half the Barrier's cost).
+func _break_barrier(broken := false) -> void:
+	if broken and passive_rank("warden") >= 3:
+		for b in bonds.values():
+			if b.id == "warden":
+				b.essence = minf(b.capacity(), b.essence + b.spell_cost(b.data()["spells"][0]) * BondScript.Bonds.passive_num("warden", 3, "refund"))
+	var reach := barrier_burst_r if barrier_burst_r > 0.0 else 110.0
 	if barrier_burst and barrier_stored > 0.0:
 		var power := maxf(10.0, barrier_stored)
-		main.fx_ring(global_position, barrier_color, 110.0, 0.4, 6.0)
+		main.fx_ring(global_position, barrier_color, reach, 0.4, 6.0)
 		main.fx_burst(global_position, Vector2.ZERO, barrier_color, 22, 320.0)
 		main.light_flash(global_position, barrier_color, 1.6, 1.6, 0.4)
 		main.sfx("crit", 0.8)
 		main.shake(6.0)
 		for e in main.targets():
 			var to: Vector2 = e.global_position - global_position
-			if to.length() < 110.0 + e.radius:
+			if to.length() < reach + e.radius:
 				e.take_hit(power, to.normalized(), 260.0, true)
 	elif barrier_stored > 0.0 or barrier_hp <= 0.0:
 		main.fx_text(global_position + Vector2(0, -36), "Barrier breaks", barrier_color)
@@ -2240,6 +2438,12 @@ func _break_barrier() -> void:
 	barrier_t = 0.0
 	barrier_stored = 0.0
 	barrier_burst = false
+	barrier_max = 0.0
+	barrier_grow = 0.0
+	barrier_cap = 0.0
+	barrier_burst_r = 0.0
+	barrier_front = 1.0
+	barrier_wall = 0.0
 
 
 ## Bond effects that run on a timer: barrier, absorb, anchor, drink.
@@ -2286,10 +2490,13 @@ func _tick_bond_effects(delta: float) -> void:
 		drink_t -= delta
 		drink_age += delta
 		drink_tick -= delta
+		if drink_jump > 0.0 and (drink_target == null or not is_instance_valid(drink_target) or drink_target.dead):
+			drink_target = BondScript.kraken().drink_jump(main, drink_at, drink_jump)  # its Apex: on a kill it jumps on
 		if drink_target == null or not is_instance_valid(drink_target) or drink_target.dead or drink_target.global_position.distance_to(global_position) > 300.0:
 			drink_t = 0.0
 		elif drink_tick <= 0.0:
 			drink_tick = 0.25
+			drink_at = drink_target.global_position
 			var d := drink_dmg * (1.0 + drink_age)
 			var bled: bool = Reactions.has(drink_target, "bleeding")
 			if "hemorrhage" in Reactions.apply(main, drink_target, "drained", 0.0, "drink"):
@@ -2309,6 +2516,10 @@ func _on_parry(source, perfect := false) -> void:
 	parry_t = 0.0
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
+	# Steadfast II (Warden): a parry while shielded restores the barrier.
+	if barrier_hp > 0.0 and passive_rank("warden") >= 2:
+		barrier_hp = maxf(barrier_hp, minf(barrier_max, barrier_hp + barrier_max * BondScript.Bonds.passive_num("warden", 2, "restore")))
+		main.fx_ring(global_position, barrier_color, radius + 14.0, 0.25, 3.0)
 	on_parry.emit(source, perfect)
 	sta = minf(max_sta, sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
 	var at: Vector2 = global_position + aim * (radius + 8.0)

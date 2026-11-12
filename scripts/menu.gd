@@ -1791,6 +1791,7 @@ func mark_order() -> Array:
 ## (press one for its page).
 func _climber_marks(prof) -> void:
 	var small := compact()
+	TreeView.repick_panel(self)  # (a step-3 choice made before the Transformations: chosen again, once, for free)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	box.add_child(row)
@@ -1912,7 +1913,7 @@ func _climber_record(prof) -> void:
 	_pair(r, "Best floor", "%d" % prof.best_floor)
 	_pair(r, "Marks", "%d of 6" % prof.bonds.size())
 	if not prof.pacts.is_empty():
-		_pair(r, "Pacts", "%d bound" % prof.pacts.size())
+		_pair(r, "Kin", "%d bound" % prof.pacts.size())
 	_record_counts(prof, r, left)
 	_section("Heirlooms", right)
 	# Only the slots holding one (there are eleven), two to a row.
@@ -2300,7 +2301,9 @@ func _mark_bond(info: Dictionary) -> void:
 	row.add_theme_constant_override("separation", 10)
 	box.add_child(row)
 	_effect_panel(row, "Body", data["body"], col)
-	_effect_panel(row, "Passive", data["passive"], col)
+	var pa: Dictionary = Bonds.passive_at(String(info["id"]), step)  # (its rank, and the ranks ahead)
+	var ahead: String = ". ".join(pa["ahead"].map(func(s): return String(s).left(1).to_upper() + String(s).substr(1)))
+	_effect_panel(row, "Passive", {"name": pa["name"], "desc": String(pa["desc"]) + (". " + ahead if ahead != "" else "")}, col)
 	_section("Spells")
 	_rich(_cast_line(), 12, DIM)
 	var i := 0
@@ -4514,7 +4517,7 @@ class MarkCard extends Button:
 		grow = _fit(font, grow, w, 13)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
 		UI.draw_label(self, Vector2(x, y + 17.0), data["name"], 20, col.lightened(0.12), HORIZONTAL_ALIGNMENT_LEFT, w)
-		var sub := "%s  ·  %s" % [name, "faint" if faint else "step %d" % step]
+		var sub := "%s  ·  %s  ·  %s" % [name, "faint" if faint else "step %d" % step, Bonds.passive_at(String(info["id"]), step)["name"]]  # (its passive and rank)
 		draw_string(font, Vector2(x, y + 31.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 		UI.draw_bar(self, Rect2(Vector2(x, y + 38.0), Vector2(w, 6.0)), k, col)
 		draw_string(font, Vector2(x, y + 57.0), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.FAINT if not faint else Color(UI.BAD, 0.85))

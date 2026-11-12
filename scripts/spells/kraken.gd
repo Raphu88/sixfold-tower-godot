@@ -5,20 +5,30 @@ extends RefCounted
 ##
 ## Tidecaller (Tidal Surge):
 ##   Step 2: Riptide or Flood: a wide pool of water where foes wade slowly.
-##   Step 3: Aimed (today's) or Swelling: the burst stays around you but
-##     reaches farther (the library's Wide).
+##   Step 3, a Transformation of Tidal Surge: Breaking Wave (the aimed
+##     surge rolls out twice) or Return Tide (foes are hurled out, then
+##     dragged back into a tight cluster).
 ##   Step 4: Carry or Geysers: three geysers burst one after another along
 ##     your aim, throwing foes off their feet.
 ## Warden (Barrier), as in the owner's proposal:
 ##   Step 2: Absorb or Bulwark: a curved wall of water in front of you stops
 ##     shots for 4 seconds.
-##   Step 3: Bursting (today's) or Mirrored: shots that hit the barrier fly back.
+##   Step 3: Bastion (the barrier grows with every blow it blocks and bursts
+##     when it breaks) or Moving Wall (the barrier stands as a wall where you
+##     aim, moving with you, and turns shots back; unlike Bulwark, which
+##     stands still where it was raised, stops shots and holds foes back).
 ##   Step 4: Challenge or Tidebreak: a parry while the barrier holds sends out a wave.
 ## Deepcaller (Undertow):
 ##   Step 2: Anchor or Leech: a leech of water clings to a foe and drinks from it.
-##   Step 3: Deeper (today's) or Patient: a longer wind-up drains much
-##     harder (the library's Charged).
+##   Step 3: Abyssal Draw (drains 5 foes and pulls them toward you) or Cold
+##     Current (drained foes are slowed; the life you drink becomes a shield).
 ##   Step 4: Siphon or Drown: pull a foe under; the more hurt it is, the harder.
+##
+## The step-3 TRANSFORMATIONS: side A is today's side (the first spell's
+## step 3 in bonds.gd; cast_change runs it), side B is FORKS[bond][3]
+## (cast_variation). Their ids are the old variations' (swelling, mirrored,
+## patient) so old saves keep the side they chose. The passives' ranks and
+## the Apex upgrades are in bonds.gd; their code is at the end of this file.
 ##
 ## Things that last a while are small Lasting nodes under the SpellFx node
 ## (spell_fx.gd): they pause with the fight and a new floor clears them.
@@ -35,16 +45,16 @@ const WATER := Color(0.55, 0.82, 0.95)
 
 static var FORKS := {
 	"tidecaller": {
-		"change": {"name": "Aimed", "says": "Tidal Surge becomes an aimed wave that travels forward"},
+		"change": {"name": "Breaking Wave", "says": "the surge rolls out twice; the second wave hits where the foes landed"},
 		2: {"id": "flood", "name": "Flood", "type": "flood", "learn": 2,
 			"desc": "flood a wide circle where you aim for 6 seconds: foes in it wade slowly and take a little damage",
 			"steps": {
 				2: {"cost": 9.0, "windup": 0.3, "radius": 90.0, "range": 140.0, "duration": 6.0, "damage": 1.5},
 				4: {"radius": 105.0, "damage": 2.0},
 			}},
-		3: {"id": "swelling", "variation": "wide", "name": "Swelling",
-			"desc": "the burst stays around you but reaches farther and shoves harder, a little weaker",
-			"steps": {3: {"push": 340.0}}},
+		3: {"id": "swelling", "name": "Return Tide",
+			"desc": "foes are hurled out, then dragged back into a tight cluster",
+			"steps": {3: {"radius": 150.0, "push": 340.0, "back": 0.6, "back_power": 1.0, "cluster": 75.0, "hold": 0.4}}},
 		4: {"id": "geysers", "name": "Geysers", "type": "geysers", "learn": 4,
 			"desc": "three geysers burst one after another along your aim, each throwing foes off their feet",
 			"steps": {
@@ -53,16 +63,16 @@ static var FORKS := {
 			}},
 	},
 	"warden": {
-		"change": {"name": "Bursting", "says": "Barrier bursts with what it absorbed when it breaks"},
+		"change": {"name": "Bastion", "says": "the barrier grows with every blow it blocks and bursts outward when it breaks"},
 		2: {"id": "bulwark", "name": "Bulwark", "type": "bulwark", "learn": 2,
 			"desc": "a curved wall of water in front of you stops shots for 4 seconds and holds foes back",
 			"steps": {
 				2: {"cost": 8.0, "windup": 0.2, "duration": 4.0, "radius": 60.0, "arc": 55.0},
 				4: {"duration": 5.0},
 			}},
-		3: {"id": "mirrored", "variation": "mirrored", "name": "Mirrored",
-			"desc": "shots that hit the barrier fly back at their shooter, harder",
-			"steps": {3: {"mirror": 1.5}}},
+		3: {"id": "mirrored", "name": "Moving Wall",
+			"desc": "the barrier stands as a wall where you aim, moving with you: it turns shots back, and blows from that side wear it half as fast",
+			"steps": {3: {"mirror": 1.5, "front": 0.5, "wall": 52.0, "wall_arc": 60.0}}},
 		4: {"id": "tidebreak", "name": "Tidebreak", "type": "tidebreak", "learn": 4,
 			"desc": "for 8 seconds a parry while your barrier holds sends out a wave (it raises a thin barrier if you have none)",
 			"steps": {
@@ -71,16 +81,16 @@ static var FORKS := {
 			}},
 	},
 	"deepcaller": {
-		"change": {"name": "Deeper", "says": "Undertow drains 5 foes"},
+		"change": {"name": "Abyssal Draw", "says": "Undertow drains 5 foes and pulls them toward you"},
 		2: {"id": "leech", "name": "Leech", "type": "leech", "learn": 2,
 			"desc": "a leech of water clings to the foe you aim at for 6 seconds, drinking from it every second and giving you half",
 			"steps": {
 				2: {"cost": 8.0, "windup": 0.25, "reach": 280.0, "duration": 6.0, "damage": 3.0, "heal": 0.5},
 				4: {"damage": 4.0},
 			}},
-		3: {"id": "patient", "variation": "charged", "name": "Patient",
-			"desc": "a longer wind-up drains up to 3 foes much harder",
-			"steps": {3: {}}},
+		3: {"id": "patient", "name": "Cold Current",
+			"desc": "drained foes are slowed, and the life you drink also becomes a shield",
+			"steps": {3: {"slow": 3.0, "shield": 2.0, "shield_time": 6.0, "boost": 1.3}}},
 		4: {"id": "drown", "name": "Drown", "type": "drown", "learn": 4,
 			"desc": "pull the foe you aim at under: the more hurt it is, the harder it strikes, and a badly hurt foe is held a moment",
 			"steps": {
@@ -97,6 +107,9 @@ static var TEXT := {
 	"mirrored": "Mirrored",
 	"leeched": "Leeched",
 	"drowned": "Drowned",
+	"turned": "Turned back",
+	"shielded": "+%d shield",
+	"drink_on": "the drain moves on",
 }
 
 
@@ -120,12 +133,33 @@ static func cast_spell(bond, sp: Dictionary, p) -> bool:
 	return true
 
 
-## Warden's Mirrored runs here; Swelling (Wide) and Patient (Charged) are the library's own.
+## Side B of the step-3 Transformations (FORKS[bond][3]): Return Tide,
+## Moving Wall and Cold Current. (Their ids are the old variations'.)
 static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool:
-	if String(bond.id) == "warden" and String(alt.get("id", "")) == "mirrored":
-		_mirrored(bond, sp, p)
-		return true
-	return false
+	match [String(bond.id), String(alt.get("id", ""))]:
+		["tidecaller", "swelling"]:
+			_return_tide(bond, sp, p)
+		["warden", "mirrored"]:
+			_moving_wall(bond, sp, p)
+		["deepcaller", "patient"]:
+			_cold_current(bond, sp, p)
+		_:
+			return false
+	return true
+
+
+## Side A (today's side) from step 3: Breaking Wave, Bastion, Abyssal Draw.
+static func cast_change(bond, sp: Dictionary, p) -> bool:
+	match String(bond.id):
+		"tidecaller":
+			_breaking_wave(bond, sp, p)
+		"warden":
+			_bastion(bond, sp, p)
+		"deepcaller":
+			_abyssal_draw(bond, sp, p)
+		_:
+			return false
+	return true
 
 
 # --- something that lasts -------------------------------------------------------------
@@ -316,47 +350,6 @@ static func _bulwark(bond, p) -> void:
 	main.sfx("parry", 0.6, -8.0)
 
 
-## Warden's Mirrored: Barrier as it is (without today's burst), and while
-## it holds, the monsters' shots that reach it fly back at their shooter,
-## `mirror` times as hard.
-static func _mirrored(bond, sp: Dictionary, p) -> void:
-	bond._cast_type(p)
-	var main = p.main
-	var col: Color = bond.color()
-	var mult := float(bond.spell_stat(sp, "mirror"))
-	var st := {"flash": 0.0}
-	var tick := func(n, delta: float):
-		st["flash"] = maxf(0.0, st["flash"] - delta)
-		if p == null or not is_instance_valid(p) or p.dead or (p.barrier_hp <= 0.0 and n.age > 0.1):
-			n.finish()
-			return
-		for s in _foe_shots(main):
-			if s.position.distance_to(p.global_position) > p.radius + 20.0:
-				continue
-			s.reflected = true
-			s.friendly = true
-			s.dmg *= mult
-			s.force = 220.0
-			s.life = 2.0
-			s.vel = -s.vel * 1.15
-			st["flash"] = 0.25
-			main.fx_burst(s.position, s.vel.normalized(), col, 8, 200.0)
-			main.fx_text(p.global_position + Vector2(0, -36), TEXT["mirrored"], col)
-			main.sfx("parry", 1.4, -6.0)
-	var paint := func(n):
-		if p == null or not is_instance_valid(p):
-			return
-		var c: Vector2 = p.global_position
-		var r: float = p.radius + 16.0
-		var a: float = 0.45 + 0.55 * clampf(st["flash"] / 0.25, 0.0, 1.0)
-		# Silver facets turning slowly over the barrier's dome: it throws shots back.
-		for k in 6:
-			var ang: float = n.age * 0.8 + float(k) * TAU / 6.0
-			n.draw_arc(c, r, ang, ang + 0.6, 6, Color(0.9, 0.95, 1.0, 0.55 * a), 2.0, true)
-			n.draw_line(c + Vector2.from_angle(ang + 0.3) * (r - 4.0), c + Vector2.from_angle(ang + 0.3) * (r + 4.0), Color(col.lightened(0.5), 0.6 * a), 1.5, true)
-	_lasting(main, float(bond.spell_stat(sp, "duration")) + 0.2, tick, paint)
-
-
 ## Tidebreak: for a while, every parry made while your barrier holds sends
 ## an aimed wave out (main.gd add_wave, as Tidal Surge's). It raises a thin
 ## barrier if none holds. (It listens to the climber's on_parry, player.gd.)
@@ -502,3 +495,285 @@ static func _drown(bond, sp: Dictionary, p) -> void:
 	main.hitstop(0.05)
 	if bond._overdrawn():
 		p.hp = maxf(1.0, p.hp - 6.0)  # an overdrawn drain drinks from you too, like Undertow
+
+
+# --- the step-3 Transformations ----------------------------------------------------------
+
+## Speed a shove needs to carry a foe `dist` px before it stops (enemy.gd
+## slows a shove by 900 px/s every second).
+static func _carry_speed(dist: float) -> float:
+	return sqrt(1800.0 * maxf(0.0, dist))
+
+
+## Tidecaller's Breaking Wave: Tidal Surge's aimed wave, and `again`
+## seconds later a second wave from where you cast it, along the same line,
+## at `second` times the damage: it catches the foes where the first one
+## threw them.
+static func _breaking_wave(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var origin: Vector2 = p.global_position
+	var aim: Vector2 = p.aim
+	bond._cast_type(p)
+	var width := float(bond.spell_stat(sp, "width"))
+	var travel := float(bond.spell_stat(sp, "travel"))
+	var push := float(bond.spell_stat(sp, "push"))
+	var dmg: float = bond.spell_damage(sp) * float(bond.spell_stat(sp, "second"))
+	var col: Color = bond.color()
+	FX.mark(main, origin + aim * 40.0, float(bond.spell_stat(sp, "again")), col)
+	FX.later(main, float(bond.spell_stat(sp, "again")), func():
+		main.add_wave(origin, aim, width, travel, dmg, push, false, col, {"states": {"soaked": float(Reactions.STATES["soaked"]["seconds"])}, "source": bond})
+		main.sfx("wave", 1.15)
+		main.shake(4.0))
+
+
+## Tidecaller's Return Tide: Tidal Surge's burst around you (`radius`), and
+## `back` seconds later every foe it struck is dragged back to one spot
+## `cluster` px in front of where you cast it, struck again (`back_power`
+## of the damage), soaked and held there a moment (`hold`).
+static func _return_tide(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var origin: Vector2 = p.global_position
+	var radius := float(bond.spell_stat(sp, "radius"))
+	var caught: Array = main.targets().filter(func(e): return e.global_position.distance_to(origin) <= radius + e.radius)
+	bond._cast_type(p)
+	var center: Vector2 = main.walkable_point(origin, origin + p.aim * float(bond.spell_stat(sp, "cluster")), 14.0)
+	var dmg: float = bond.spell_damage(sp) * float(bond.spell_stat(sp, "back_power"))
+	var hold := float(bond.spell_stat(sp, "hold"))
+	var col: Color = bond.color()
+	var held := {"foes": caught}  # (a lambda mustn't capture foes that may be freed)
+	FX.later(main, float(bond.spell_stat(sp, "back")), func():
+		var n := 0
+		for e in held["foes"]:
+			if not _alive(e):
+				continue
+			var to: Vector2 = center - e.global_position
+			var dist := maxf(0.0, to.length() - e.radius * 0.5)
+			e.knock = to.normalized() * _carry_speed(dist) if to.length() > 1.0 else Vector2.ZERO
+			e.take_hit(dmg, Vector2.ZERO, 0.0)
+			if _alive(e):
+				_wet(main, e, bond)
+				e.stagger(hold * (BOSS_SHARE if e.is_boss() else 1.0))
+				main.fx_bolt([e.global_position, center], col)
+			n += 1
+		_return_paint(main, center, radius, col)
+		if n > 0:
+			main.sfx("wave", 0.7)
+			main.sfx("hit_slime", 0.6, -4.0)
+			main.shake(4.0))
+
+
+## The drawing of the tide coming back: a ring of water closing on its spot.
+static func _return_paint(main, center: Vector2, radius: float, col: Color) -> void:
+	var paint := func(n):
+		var k: float = clampf(n.age / n.total, 0.0, 1.0)
+		var a: float = 1.0 - k * k
+		var r: float = lerpf(radius, 18.0, 1.0 - pow(1.0 - k, 2.0))
+		n.draw_arc(center, r, 0.0, TAU, 40, Color(col.lightened(0.3), 0.8 * a), 3.0, true)
+		n.draw_arc(center, r * 0.8, 0.0, TAU, 36, Color(1, 1, 1, 0.35 * a), 1.5, true)
+		n.draw_circle(center, 16.0 * k + 4.0, Color(col, 0.25 * a))
+	_lasting(main, 0.45, Callable(), paint)
+
+
+## Warden's Bastion: Barrier (it bursts when it breaks), and it grows with
+## every blow it blocks: `grow` of each blow comes back to it, up to `cap`
+## times its strength; its burst reaches `burst_radius` (player.gd
+## receive_attack and _break_barrier).
+static func _bastion(bond, sp: Dictionary, p) -> void:
+	bond._cast_type(p)
+	if p.barrier_hp <= 0.0:
+		return
+	p.barrier_grow = float(bond.spell_stat(sp, "grow"))
+	p.barrier_cap = maxf(p.barrier_cap, p.barrier_hp * float(bond.spell_stat(sp, "cap")))
+	p.barrier_burst_r = float(bond.spell_stat(sp, "burst_radius"))
+
+
+## Warden's Moving Wall: the barrier stands as a curved wall `wall` px out
+## along your aim, `wall_arc` degrees either side, and moves and turns with
+## you while it holds. The monsters' shots that reach it fly back at their
+## shooter, `mirror` times as hard; foes walking into it are shoved back;
+## blows from that side wear the barrier only `front` as fast (player.gd
+## receive_attack). Unlike Bulwark (a wall of water left where you raised
+## it, that only stops shots), it is the barrier itself.
+static func _moving_wall(bond, sp: Dictionary, p) -> void:
+	bond._cast_type(p)
+	if p.barrier_hp <= 0.0:
+		return
+	var main = p.main
+	var col: Color = bond.color()
+	var mult := float(bond.spell_stat(sp, "mirror"))
+	var dist := float(bond.spell_stat(sp, "wall"))
+	var half := deg_to_rad(float(bond.spell_stat(sp, "wall_arc")))
+	p.barrier_front = float(bond.spell_stat(sp, "front"))
+	p.barrier_wall = float(bond.spell_stat(sp, "wall_arc"))
+	var st := {"flash": 0.0}
+	var tick := func(n, delta: float):
+		st["flash"] = maxf(0.0, st["flash"] - delta)
+		if p == null or not is_instance_valid(p) or p.dead or p.barrier_hp <= 0.0:
+			return false
+		var c: Vector2 = p.global_position
+		var aim: Vector2 = p.aim
+		for s in _foe_shots(main):
+			var rel: Vector2 = s.position - c
+			if absf(aim.angle_to(rel)) > half + 0.1:
+				continue
+			var prev: Vector2 = s.position - s.vel * delta - c
+			if absf(rel.length() - dist) > 14.0 and (prev.length() - dist) * (rel.length() - dist) > 0.0:
+				continue
+			s.reflected = true
+			s.friendly = true
+			s.dmg *= mult
+			s.force = 220.0
+			s.life = 2.0
+			s.vel = -s.vel * 1.15
+			st["flash"] = 0.25
+			main.fx_burst(s.position, s.vel.normalized(), col, 8, 200.0)
+			main.fx_text(c + Vector2(0, -36), TEXT["turned"], col)
+			main.sfx("parry", 1.4, -6.0)
+		for e in main.targets():
+			var rel: Vector2 = e.global_position - c
+			if absf(aim.angle_to(rel)) > half + 0.1:
+				continue
+			var d := rel.length()
+			if d < dist + e.radius + 4.0 and e.knock.dot(rel.normalized()) < 160.0:
+				e.knock = rel.normalized() * 200.0
+	var paint := func(n):
+		if p == null or not is_instance_valid(p):
+			return
+		var c: Vector2 = p.global_position
+		var ang: float = p.aim.angle()
+		var a: float = (0.6 + 0.4 * clampf(st["flash"] / 0.25, 0.0, 1.0)) * n.fade(0.3)
+		n.draw_arc(c, dist, ang - half, ang + half, 24, Color(WATER.darkened(0.1), 0.4 * a), 10.0, true)
+		n.draw_arc(c, dist + 4.0, ang - half, ang + half, 24, Color(col.lightened(0.35), 0.9 * a), 2.0, true)
+		# Silver facets sliding along it: it turns shots back.
+		for k in 5:
+			var u := fmod(n.age * 0.5 + float(k) / 5.0, 1.0)
+			var f: float = lerpf(ang - half, ang + half, u)
+			n.draw_line(c + Vector2.from_angle(f) * (dist - 5.0), c + Vector2.from_angle(f) * (dist + 5.0), Color(0.92, 0.96, 1.0, 0.7 * a), 2.0, true)
+	_lasting(main, float(bond.spell_stat(sp, "duration")) + 0.2, tick, paint)
+
+
+## Deepcaller's Abyssal Draw: Undertow (at `boost`, reaching `reach`), and
+## each foe it drains is pulled toward you and held a moment (`hold`).
+static func _abyssal_draw(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var foes: Array = bond._nearest(p, int(bond.spell_stat(sp, "targets")), float(bond.spell_stat(sp, "reach")))
+	bond.var_power = float(bond.spell_stat(sp, "boost"))
+	bond._cast_type(p)
+	bond.var_power = 1.0
+	var hold := float(bond.spell_stat(sp, "hold"))
+	var most := float(bond.spell_stat(sp, "pull"))
+	for e in foes:
+		if not _alive(e):
+			continue
+		var to: Vector2 = p.global_position - e.global_position
+		var dist := maxf(0.0, to.length() - p.radius - e.radius - 12.0)
+		e.knock = to.normalized() * minf(_carry_speed(dist), most * 2.0)
+		e.stagger(hold * (BOSS_SHARE if e.is_boss() else 1.0))
+		main.fx_burst(e.global_position, to.normalized(), bond.color(), 6, 200.0)
+
+
+## Deepcaller's Cold Current: Undertow (at `boost`); the foes it drains are
+## slowed (`slow` seconds), and `shield` of the life you drink also becomes
+## a barrier for `shield_time` seconds (on top of any you hold).
+static func _cold_current(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var foes: Array = bond._nearest(p, int(bond.spell_stat(sp, "targets")), float(bond.spell_stat(sp, "reach")))
+	var before := {}
+	for e in foes:
+		before[e.get_instance_id()] = float(e.hp)
+	bond.var_power = float(bond.spell_stat(sp, "boost"))
+	bond._cast_type(p)
+	bond.var_power = 1.0
+	var drunk := 0.0
+	for e in foes:
+		var hp0 := float(before[e.get_instance_id()])
+		drunk += hp0 - (float(e.hp) if _alive(e) else 0.0)
+		if _alive(e):
+			Reactions.apply(main, e, "slowed", float(bond.spell_stat(sp, "slow")), bond)
+	var shield: float = maxf(0.0, drunk) * float(bond.spell_stat(sp, "heal")) * float(bond.spell_stat(sp, "shield"))
+	if shield > 0.0 and is_instance_valid(p) and not p.dead:
+		p.raise_barrier(maxf(p.barrier_hp, 0.0) + shield, float(bond.spell_stat(sp, "shield_time")), false, bond.color())
+		main.fx_ring(p.global_position, bond.color(), p.radius + 14.0, 0.3, 2.0)
+		main.fx_text(p.global_position + Vector2(0, -56), TEXT["shielded"] % int(round(shield)), bond.color())
+
+
+# --- the passives' ranks and the Apex upgrades -----------------------------------------------
+# (bond.gd, player.gd and main.gd call these; the numbers are in bonds.gd.)
+
+## Maelstrom's Apex: a foe it drags is drenched for `seconds`: it takes
+## `mult` times as much from lightning and frost (bond.gd taken_mult).
+static func drench(e, mult: float, seconds: float) -> void:
+	if _alive(e):
+		e.set_meta("drench", [Time.get_ticks_msec() * 0.001 + seconds, mult])
+
+
+## How much more a drenched foe takes from this blow (1 if it isn't drenched).
+static func drenched(e) -> float:
+	if not e.has_meta("drench"):
+		return 1.0
+	var d = e.get_meta("drench")
+	if d is Array and Time.get_ticks_msec() * 0.001 < float(d[0]):
+		return float(d[1])
+	return 1.0
+
+
+## Unbreakable's Apex: while it lasts you may strike (player.gd
+## unbreak_strike); when it ends, what it kept from you bursts out: every
+## foe within `radius` takes it (at least `least`).
+static func unbreakable(bond, sp: Dictionary, p) -> void:
+	var main = p.main
+	var col: Color = bond.color()
+	var radius := float(bond.spell_stat(sp, "radius"))
+	var least := float(bond.spell_stat(sp, "least"))
+	var k: float = bond.spell_power(sp) * bond.flow_power
+	p.unbreak_strike = float(bond.spell_stat(sp, "strike"))
+	p.unbreak_stored = 0.0
+	var tick := func(n, _delta: float):
+		if p == null or not is_instance_valid(p) or p.dead:
+			return false
+		if n.t > 0.0:
+			return
+		if p.unbreak_t > 0.05:
+			return  # (cast again: the later one bursts)
+		var power: float = maxf(least, p.unbreak_stored) * k
+		p.unbreak_strike = 0.0
+		p.unbreak_stored = 0.0
+		var c: Vector2 = p.global_position
+		main.fx_ring(c, col, radius, 0.45, 6.0)
+		main.fx_burst(c, Vector2.ZERO, col, 26, 340.0)
+		main.light_flash(c, col, 1.8, 1.6, 0.4)
+		main.sfx("crit", 0.7)
+		main.shake(7.0)
+		for e in main.targets():
+			var to: Vector2 = e.global_position - c
+			if to.length() < radius + e.radius:
+				e.take_hit(power, to.normalized() if to.length() > 0.1 else Vector2.RIGHT, 280.0, true)
+	var paint := func(n):
+		if p == null or not is_instance_valid(p):
+			return
+		var c: Vector2 = p.global_position
+		var a: float = 0.35 + 0.35 * clampf(p.unbreak_stored / 40.0, 0.0, 1.0)
+		var r: float = p.radius + 18.0 + 3.0 * sin(n.age * 6.0)
+		n.draw_arc(c, r, 0.0, TAU, 36, Color(col.lightened(0.3), a), 2.5, true)
+		n.draw_arc(c, r + 5.0, n.age * 2.0, n.age * 2.0 + PI, 18, Color(col, a * 0.7), 1.5, true)
+	_lasting(main, float(bond.spell_stat(sp, "duration")) + 0.05, tick, paint)
+
+
+## Drink Deep's Apex: when the foe it drinks from dies, the drain jumps to
+## the nearest foe within `reach` of it, its strength kept (or null).
+static func drink_jump(main, at: Vector2, reach: float):
+	var best = null
+	var best_d := reach
+	for e in main.targets():
+		if e.dead:
+			continue
+		var d: float = at.distance_to(e.global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best != null:
+		var col: Color = load("res://scripts/bonds.gd").BONDS["deepcaller"]["color"]
+		main.fx_bolt([at, best.global_position], col)
+		main.fx_text(best.global_position + Vector2(0, -best.radius - 22.0), TEXT["drink_on"], col)
+		main.sfx("zap", 0.6, -4.0)
+	return best

@@ -42,6 +42,9 @@ extends RefCounted
 ##   static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool
 ##       optional: your own way to run a step-3 variation (true if handled;
 ##       false falls back to the library's generic one, run_mark_variation()).
+##   static func cast_change(bond, sp: Dictionary, p) -> bool
+##       optional: your own way to run today's side of the step 3 choice
+##       (a Transformation's side A) from step 3 on; false casts it as before.
 ##   static func cast_form(form_id: String, t: Dictionary, p, power: float, run, sh: Dictionary, w: Dictionary) -> int
 ##       a new Unbound form: returns how many foes it touched, or -1 if it isn't yours.
 ##   static func hit_effect(effect_id: String, p, e, share: float, power: float, run) -> bool
@@ -71,7 +74,10 @@ extends RefCounted
 ##      steps), the other side of the step-2 fork.
 ##   3: a VARIATION choice: {"id", "variation": a VARIATIONS id, "name",
 ##      "desc", "steps": {3: {key: value}}} — the step-3 values replace
-##      today's change's on the bond's first spell.
+##      today's change's on the bond's first spell. Or a TRANSFORMATION
+##      ("transform": true, no "variation"): the file's cast_variation runs
+##      it, and the first side ("change") may run in its cast_change
+##      (cast_mark_change below); the tree shows "change"'s "says" for it.
 ##   4: a SPELL, the other side of the step-4 fork (learn: 4).
 ##   Any of them with "placeholder": true (a name and a line, nothing to
 ##   run) shows as "Coming later" and can't be chosen; today's spell stays.
@@ -426,6 +432,13 @@ static func cast_mark_variation(bond, sp: Dictionary, p, alt: Dictionary) -> voi
 	if s != null and s.has_method("cast_variation") and bool(s.cast_variation(bond, sp, p, alt)):
 		return
 	run_mark_variation(bond, p, String(alt.get("variation", "")))
+
+
+## Today's side of the step-3 choice from step 3 on: the tower's own way
+## (a Transformation's side A), if it has one. False: cast it as before.
+static func cast_mark_change(bond, sp: Dictionary, p) -> bool:
+	var s = _bond_src.get(String(bond.id))
+	return s != null and s.has_method("cast_change") and bool(s.cast_change(bond, sp, p))
 
 
 ## The generic variations on a bond's spell: Split, Mirrored, Echo and

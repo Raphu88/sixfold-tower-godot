@@ -23,6 +23,15 @@ signal on_reaction(foe, reaction: String, source)
 
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
+## Marks' passive ranks that change what a foe takes (bond.gd taken_mult;
+## loaded once it's needed: bond.gd loads the library and its content).
+static var _bond_script: Script = null
+
+
+static func _bond() -> Script:
+	if _bond_script == null:
+		_bond_script = load("res://scripts/bond.gd")
+	return _bond_script
 
 ## The rules every attack keeps live in combat.gd FOES (the Data editor's
 ## "The climber's core numbers"); these read them.
@@ -279,7 +288,7 @@ func setup(k: String, room) -> void:
 		state = "rest"
 	if kind in BOSSES:
 		state_t = 1.6
-	# Covenant's Kinship: a kind in your pact book is slower to notice you.
+	# Covenant's Kinship: a kind in your kin book is slower to notice you.
 	if main != null and main.profile != null and kind in main.profile.pacts and main.player != null and main.player.has_bond("covenant"):
 		state_t *= 2.0
 		notice_t = state_t
@@ -561,9 +570,28 @@ func _physics_process(delta: float) -> void:
 func tide_push(v: Vector2) -> void:
 	knock = v
 	tide_t = 0.45
+	bumped.clear()
+	# Undercurrent III: your knockbacks leave foes soaked.
+	if main.player != null and main.player.passive_rank("tidecaller") >= 3:
+		Reactions.apply(main, self, "soaked", float(Reactions.STATES["soaked"]["seconds"]), "undercurrent")
+
+
+## Undercurrent II: the foes a shoved foe has already been knocked into.
+var bumped := {}
 
 
 func _undercurrent() -> void:
+	# Undercurrent II: a shoved foe knocked into another stuns them both.
+	if tide_t > 0.0 and main.player != null and main.player.passive_rank("tidecaller") >= 2:
+		var st: float = _bond().Bonds.passive_num("tidecaller", 2, "stun")
+		for o in main.enemies():
+			if o == self or o.dead or bumped.has(o.get_instance_id()) or o.global_position.distance_to(global_position) > radius + o.radius + 2.0:
+				continue
+			bumped[o.get_instance_id()] = true
+			for f in [self, o]:
+				f.stagger(st * (0.5 if f.is_boss() else 1.0))
+			main.fx_burst((global_position + o.global_position) * 0.5, knock.normalized(), Color(0.37, 0.72, 0.79), 8, 180.0)
+			main.sfx("hit_heavy", 1.1, -6.0)
 	if tide_t > 0.0 and get_slide_collision_count() > 0 and main.player.has_bond("tidecaller"):
 		tide_t = 0.0
 		stagger(1.2)
@@ -1719,7 +1747,13 @@ func _ally_ai(delta: float) -> void:
 				go = main.path_dir(global_position, target.global_position) * speed * pace
 		elif ally_cd <= 0.0:
 			ally_cd = 0.9
-			target.take_hit(Pacts.ally_strike(main, self, target, dmg), to.normalized(), 120.0)
+			var blow: float = Pacts.ally_strike(main, self, target, dmg)
+			if has_meta("ally_strike"):  # (Covenant's Pack Call: the pack hits harder; chimera.gd)
+				blow = float((get_meta("ally_strike") as Callable).call(self, target, blow))
+			var struck = target
+			struck.take_hit(blow, to.normalized(), 120.0)
+			if struck.dead and has_meta("ally_kill"):  # (Champion Bond: it grows with each kill)
+				(get_meta("ally_kill") as Callable).call(self, struck)
 			main.fx_burst(target.global_position - to.normalized() * target.radius, to.normalized(), Color(0.7, 1.0, 0.8), 5, 200.0)
 			main.sfx("hit", 1.2, -6.0)
 	elif p != null and global_position.distance_to(p.global_position) > 60.0:
@@ -1753,6 +1787,8 @@ func receive_attack(amount: float, _source, _unblockable := false) -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.6, 0.55))
 	if hp <= 0.0:
 		main.fx_text(global_position + Vector2(0, -radius - 22.0), "your %s falls" % kind, Color(0.8, 0.8, 0.8))
+		if main.player != null and main.player.has_method("creature_fell"):
+			main.player.creature_fell(self)  # (Kinship III: it heals you as it falls)
 		_fade_ally()
 
 
@@ -1981,6 +2017,7 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		main.sfx("hit_armor", 1.2, -2.0)
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
+	amount *= _bond().taken_mult(main, self)  # (Static II, Quarry II, the Maelstrom's drench)
 	if open_t > 0.0 and stun <= 0.0:
 		amount *= OPEN_MULT  # caught recovering from its attack
 		main.fx_text(global_position + Vector2(0, -radius - 34.0), "Opening!", Color(1.0, 0.85, 0.45))

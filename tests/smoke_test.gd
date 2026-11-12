@@ -2973,10 +2973,18 @@ func _firebird_bond_tests() -> void:
 	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
 	await _wait(3.2)
 	_check(not p.dead, "...and landing a hit keeps you standing")
+	# (At step 5 its passive is rank III: twice a floor, and surviving it erupts.)
+	var uses: int = int(main.BondScript.Bonds.passive_num("rekindler", 2, "uses", 2.0))
+	for i in uses - 1:
+		p.hp = p.MAX_HP
+		p.hurt_t = 0.0
+		p.receive_attack(9999.0, null)
+		p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
+	_check(not p.dead and p.ember_used, "...%d times a floor at rank II" % uses)
 	p.hp = p.MAX_HP
 	p.hurt_t = 0.0
 	p.receive_attack(9999.0, null)
-	_check(p.dead, "...but only once per floor")
+	_check(p.dead, "...but no more")
 	dummy.queue_free()
 
 
@@ -3178,7 +3186,7 @@ func _chimera_bond_tests() -> void:
 
 	# Covenant.
 	_cast("hand", "bind_and_call")
-	_check(main.allies().size() == 2 and main.allies()[0].kind == "familiar", "Call with an empty pact book brings spirit familiars (two at step 3+)")
+	_check(main.allies().size() == 2 and main.allies()[0].kind == "familiar", "Call with an empty kin book brings spirit familiars (two at step 3+)")
 	for a in main.allies():
 		a.queue_free()
 	await _frames(2)
@@ -3186,7 +3194,7 @@ func _chimera_bond_tests() -> void:
 	weak.hp = weak.max_hp * 0.2
 	_cast("hand", "bind_and_call")
 	await _frames(2)
-	_check("knight" in main.profile.pacts and (not is_instance_valid(weak) or weak.dead), "Bind: a monster below a quarter of its health joins your pact book")
+	_check("knight" in main.profile.pacts and (not is_instance_valid(weak) or weak.dead), "Bind: a monster below a quarter of its health joins your kin book")
 	_cast("hand", "bind_and_call")
 	await _frames(1)
 	_check(main.allies().size() == 2 and main.allies()[0].kind == "knight", "...and Call brings your bound creatures")
@@ -3217,7 +3225,7 @@ func _chimera_bond_tests() -> void:
 	p.global_position = Vector2(500, 400)
 	main.profile.pacts = ["knight", "slime", "archer"]
 	_cast("hand", "grand_call")
-	_check(main.allies().size() == 3 and p.bonds["hand"].essence == 0.0, "Grand Call: every creature in your book at once, draining the mark")
+	_check(main.allies().size() == 3 and p.bonds["hand"].essence > 0.0, "Grand Call: every creature in your book at once (its Apex: the mark isn't drained)")
 	_check(p.has_bond("covenant"), "(Pack Stride and Kinship come with the mark)")
 	main._start_floor(main.floor_num)
 	await _frames(2)
@@ -3278,10 +3286,10 @@ func _chimera_bond_tests() -> void:
 	_check(t.WEAKNESS.has("knight"), "Diagnosis knows what each foe is weak to")
 	_cast("brow", "sever")
 	_check(t.cripple_t > 0.0, "Sever cripples a foe")
-	_cast("brow", "sever")
-	_check(t.disarm_t > 0.0 and not main.request_attack(t), "...and at step 3+ a crippled foe is disarmed: it can't attack")
+	_check(t.has_meta("weak_point"), "...and at step 3+ (Vivisect) finds a weak point: your next hits on it are critical")
 	t.cripple_t = 0.0
 	t.disarm_t = 0.0
+	t.remove_meta("weak_point")
 	p.hp = 40.0
 	p.poison_t = 3.0
 	_cast("brow", "mend")
@@ -3290,10 +3298,10 @@ func _chimera_bond_tests() -> void:
 	p.poison_t = 3.0
 	_cast("brow", "transfer")
 	_check(not p.bonds["heart"].burned and p.poison_t <= 0.0 and t.venom > 0, "Transfer moves your burns and poison onto a foe")
-	t.hp = t.max_hp * 0.6
+	t.hp = t.max_hp * 0.8
 	_cast("brow", "amputate")
-	_check(t.disarm_t <= 0.0, "Amputate needs a foe below half health")
-	t.hp = t.max_hp * 0.4
+	_check(t.disarm_t <= 0.0, "Amputate needs a foe below three quarters of its health")
+	t.hp = t.max_hp * 0.7
 	_cast("brow", "amputate")
 	_check(t.cripple_t > 1000.0 and t.disarm_t > 1000.0, "...then cripples and disarms it for the rest of the fight")
 	t.queue_free()
@@ -5862,11 +5870,14 @@ func _rarity_tests() -> void:
 	p.stand_in_fire(0.01)
 	_check(absf((100.0 - p.hp) - 3.0) < 0.01, "of Footing (Rare): burning floor hurts 25%% less (%.1f)" % (100.0 - p.hp))
 	# of Embers: a strike can set the foe burning.
+	# (no pool under it: water would turn the fire to Steam, as reactions.gd means it to)
+	main.puddles = main.puddles.filter(func(pd): return pd["pos"].distance_to(Vector2(530, 400)) > float(pd["r"]) + 60.0)
 	var burner = await _dummy(Vector2(530, 400))
+	burner.states.erase("soaked")
 	burner.ignite(2.0, 2.0)
 	var bhp2: float = burner.hp
 	burner.set_physics_process(true)
-	await _wait(0.6)
+	await _until(func(): return burner.hp < bhp2, 1.5)
 	_check(burner.hp < bhp2 and burner.burn_t > 0.0, "a burning foe takes damage every half second")
 	burner.queue_free()
 	# Named weapons: a Coral Trident slows; a Sunsteel Blade heals on a kill.
@@ -7246,7 +7257,8 @@ func _run() -> void:
 	main.profile.bonds["hand"]["xp"] = main.ProfileScript.STEP_XP[2] + 10.0
 	main._give_bonds()
 	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
-	_check(p.bonds["hand"].stat("leaps") == 6, "step 3 Chain Lightning leaps 6 times")
+	var most3: int = int(main.BondScript.Bonds.BONDS["stormcaller"]["spells"][0]["steps"][3]["most"])
+	_check(int(p.bonds["hand"].stat("most")) == most3, "step 3 Chain Lightning branches to up to %d foes (Branching Storm)" % most3)
 	var foes5: Array = main.enemies()
 	_check(foes5.size() >= 4, "floor 4 has more monsters (%d)" % foes5.size())
 	_check(foes5[0].max_hp > EnemyHP.get(foes5[0].kind, 0.0), "monsters are tougher higher up")
@@ -8087,10 +8099,11 @@ func _mark_page_tests() -> void:
 			right = false
 	_check(right, "...each with the step that teaches it, the ones past step 1 locked")
 	var texts: Array = _all_labels(menu).map(func(l): return l.text)
-	_check("learned at step 4" in texts and "learned at step 5" in texts and "Quick Nerves" in texts and "Static" in texts, "...saying 'learned at step N', with the body and passive effects")
+	_check("learned at step 4" in texts and "learned at step 5" in texts and "Quick Nerves" in texts and texts.any(func(x): return String(x).begins_with("Static")), "...saying 'learned at step N', with the body and passive effects (its passive with its rank)")
 	var rich: Array = menu.find_children("*", "RichTextLabel", true, false).map(func(r): return r.text)
 	_check(rich.any(func(t): return t.contains("Cost 12 essence") and t.contains("Wind-up 0.45 s")), "...the cost and wind-up of each spell")
-	_check(rich.any(func(t): return t.contains("Step 3:") and t.contains("leaps 2 more times")), "...and what later steps change")
+	var change3: String = main.BondScript.Bonds.BONDS["stormcaller"]["spells"][0]["changes"][3]
+	_check(rich.any(func(t): return t.contains("Step 3:") and t.contains(change3)), "...and what later steps change")
 	_check(_menu_button("Back") != null, "...with Back")
 	menu.scroll.scroll_vertical = 200
 	await _key_tap(KEY_E)
