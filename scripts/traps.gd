@@ -339,7 +339,7 @@ static func context(plan: Dictionary, main = null) -> Dictionary:
 			solid[t.y * gs.x + t.x] = 1
 	var chasm := PackedByteArray()
 	chasm.resize(n)
-	for r in plan.get("chasms", []):
+	for r in plan.get("chasms", []) + plan.get("no_trap", []):  # (no_trap: a tower's deep water, scripts/towers/)
 		for t in _tiles(r, gs):
 			chasm[t.y * gs.x + t.x] = 1
 	var prot := PackedByteArray()

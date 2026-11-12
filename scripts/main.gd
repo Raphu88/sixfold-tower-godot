@@ -264,6 +264,7 @@ var noticed: Array = []
 ## faster: tests/parts/floor_bot.gd).
 static var test_speed := 1.0
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
+var tower_floor = null  # a tower's own floor system (floor_styles.gd "script", scripts/towers/), or null
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
 var grafts := {}  # Grafter: body part -> monster kind, for the rest of the climb
@@ -1003,6 +1004,9 @@ func _start_floor(n: int) -> void:
 	clouds.clear()
 	smokes.clear()
 	decoys.clear()
+	if tower_floor != null:
+		tower_floor.queue_free()  # (the last floor's water, voids and wind)
+		tower_floor = null
 	ashfall_t = 0.0
 	if player != null:
 		player.rune_gear = player.camp_rune  # runes on gear last one floor (a camp's, the rest of the climb)
@@ -1143,6 +1147,12 @@ func _start_floor(n: int) -> void:
 					puddles.append_array(Floors.puddles(r.grow(-40.0), avoid, start).slice(0, 2))
 	room_view.set_puddles(puddles)
 	set_chasms(plan.get("chasms", []))
+	# A tower's own system (scripts/towers/): the Kraken's water, the Gryphon's voids and wind.
+	if plan.has("tower_floor") and not in_camp:
+		tower_floor = load(String(plan["tower_floor"])).new()
+		tower_floor.main = self
+		add_child(tower_floor)
+		tower_floor.setup(plan)
 	# A trap room whose traps wouldn't fit is just a quiet hall.
 	for i in plan.get("hazard_rooms", []):
 		if not traps.any(func(tr): return int(tr.get("room", -1)) == i):
@@ -3825,7 +3835,7 @@ func in_water(pos: Vector2) -> bool:
 	for pd in puddles:
 		if pos.distance_to(pd["pos"]) < pd["r"]:
 			return true
-	return false
+	return tower_floor != null and tower_floor.wet(pos)  # (the Kraken's rising water)
 
 
 ## Water slows you (unless you're Waterborn).

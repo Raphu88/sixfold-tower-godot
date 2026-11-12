@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": ""}
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -59,9 +59,11 @@ static var TYPES := {
 	"bat": {"hp": 10.0, "speed": 120.0, "radius": 9.0, "color": Color(0.6, 0.48, 0.82), "dmg": 6.0, "weight": 0.4},
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
 	"gryphon": {"hp": 280.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
+	"harrier": {"hp": 24.0, "speed": 105.0, "radius": 12.0, "color": Color(0.58, 0.5, 0.42), "dmg": 10.0, "weight": 0.9},  # (scripts/towers/harrier.gd)
 	# The Kraken's tower
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
+	"deepfin": {"hp": 34.0, "speed": 120.0, "radius": 13.0, "color": Color(0.22, 0.42, 0.5), "dmg": 13.0, "weight": 1.2},  # (scripts/towers/deepfin.gd)
 	"kraken": {"hp": 316.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
@@ -92,10 +94,17 @@ const WEAKNESS := {
 	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
 	"mirror": "a finisher or a blow from behind breaks its guard",
+	"deepfin": "lightning when it's out of the water", "harrier": "parry the dive on a ledge",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
-const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird"]
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier"]
+## Monsters that swim through deep water (the Kraken's tower), where others can't wade.
+const SWIMMERS := ["lurker", "kraken", "deepfin"]
+## Towers' own monsters, run and drawn by their own scripts (scripts/towers/):
+## each has act(e, delta, dir, dist, p), draw(e, pen, glow, t, f), and may
+## parried(e, perfect) -> bool (true: it handled the parry).
+const TOWER_KINDS := {"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd"}
 ## What each beast calls when it's half dead.
 const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp", "chimera": "thornhound"}
 const BITE_REACH := 70.0  # a thornhound's leap
@@ -303,6 +312,8 @@ func setup(k: String, room) -> void:
 	if kind == "lurker":
 		state = "sub"
 		submerged = true
+	if TOWER_KINDS.has(kind):
+		load(TOWER_KINDS[kind]).setup(self)
 
 
 ## A called creature (Covenant): fights on your side, scaled to your bond's step.
@@ -383,6 +394,8 @@ func _ready() -> void:
 	collision_mask = 1 | 8  # walls, pillars, and Sandshaper's stone walls
 	if not kind in FLIERS:
 		collision_mask |= 16  # walking monsters can't step into chasms
+		if not kind in SWIMMERS:
+			collision_mask |= 32  # ...nor wade into deep water (scripts/towers/kraken_floor.gd)
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -552,13 +565,15 @@ func _physics_process(delta: float) -> void:
 			_mongrel(delta, dir, dist, p)
 		"chimera":
 			_chimera(delta, dir, dist, p)
+		"deepfin", "harrier":
+			load(TOWER_KINDS[kind]).act(self, delta, dir, dist, p)
 		_:
 			_act(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
-		velocity *= main.water_slow(global_position, kind in ["lurker", "kraken"] or kind in FLIERS)
+		velocity *= main.water_slow(global_position, kind in SWIMMERS or kind in FLIERS)
 	# Wading in water a moment soaks it (fliers and foes in the air stay dry).
 	if not kind in FLIERS and main.in_water(global_position):
 		wade_t += delta
@@ -2148,6 +2163,8 @@ func stagger(duration: float) -> void:
 
 ## Parried: staggered and open to a riposte. A perfect parry staggers longer.
 func on_parried(perfect := false) -> void:
+	if TOWER_KINDS.has(kind) and load(TOWER_KINDS[kind]).parried(self, perfect):
+		return  # (a tower's own monster: a harrier parried on a ledge falls)
 	stun = 1.6 if perfect else 0.9
 	aim_dir = Vector2.ZERO
 	_end_attack(_idle_state(), 0.0)
@@ -2297,6 +2314,8 @@ func _draw() -> void:
 			_draw_mongrel(p, t, f)
 		"chimera":
 			_draw_chimera(p, t, f)
+		"deepfin", "harrier":
+			load(TOWER_KINDS[kind]).draw(self, p, _glow, t, f)
 		"familiar":
 			_draw_wisp(p, t, f)
 	if shade:

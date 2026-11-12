@@ -12,6 +12,7 @@ extends Node
 ## Used by tests/parts/floor_bot.gd (a few floors) and tests/floor_bot_sweep.gd.
 
 const CELL := 40.0
+const Objectives := preload("res://scripts/objectives.gd")
 
 var main
 var done := false
@@ -331,6 +332,10 @@ func _task_step() -> Dictionary:
 	var pos: Vector2 = p.global_position
 	avoid.clear()
 	_avoid_marks()
+	# A tower's ground that can't be walked (deep water, open drops: scripts/towers/).
+	if main.tower_floor != null:
+		for t in main.tower_floor.no_foot_tiles():
+			avoid[t] = true
 	# The Ice Hall's ice: walked round, never across (on it, you slide).
 	var pz = main.puzzle
 	if pz != null and String(pz.kind) == "ice" and pz.cur != null:
@@ -356,6 +361,8 @@ func _task_step() -> Dictionary:
 		return {"pos": main.stair_pos, "act": "walk", "r": 8.0, "why": "the stair"}
 	if ob.spec.get("puzzle", false):
 		return _puzzle_step()
+	if main.tower_floor != null and Objectives.KINDS.get(ob.kind, {}).has("tower"):
+		return main.tower_floor.bot_step(self)  # (a tower's own task: its floor script knows the way)
 	var k: String = ob.kind
 	match k:
 		"braziers":
@@ -474,11 +481,14 @@ func _go(at: Vector2, r := 12.0, chase := false) -> void:
 		_move(nudge)
 		return
 	var d := _steer(pos, at)
-	# A chasm ahead: jump it.
-	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 30.0) and not main.in_chasm(pos) and not p.in_air():
+	# A chasm ahead: jump it (never an open drop: scripts/towers/gryphon_floor.gd).
+	var drop_ahead: bool = main.tower_floor != null and main.tower_floor.has_method("is_void") and main.tower_floor.is_void(pos + d.normalized() * 30.0)
+	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 30.0) and not main.in_chasm(pos) and not p.in_air() and not drop_ahead:
 		_move(d)
 		_tap("jump")
 		return
+	if main.tower_floor != null:
+		d = main.tower_floor.bot_steer(pos, d)  # (bracing against the wind near a drop)
 	_move(d)
 
 

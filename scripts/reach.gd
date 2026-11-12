@@ -40,7 +40,7 @@ static func flood(size: Vector2i, solid: PackedByteArray, start: Vector2i, doors
 		walkable[i] = 1 if solid[i] == 0 else 0
 	for d in doors:
 		var kind := String(d.get("lock", ""))
-		var locked := kind in ["key", "carried", "lever", "puzzle", "oneway"]
+		var locked := kind in ["key", "carried", "lever", "puzzle", "oneway", "valve"]
 		for t in d["tiles"]:
 			if t.x < 0 or t.y < 0 or t.x >= size.x or t.y >= size.y:
 				continue
@@ -182,6 +182,10 @@ static func plan_grid(plan: Dictionary) -> Dictionary:
 			_fill(solid, size, Rect2i(s["vault_door"], Vector2i.ONE), 1)
 	for w in plan.get("wings", []):
 		_fill(solid, size, Rect2i(w["vault_door"], Vector2i.ONE), 1)
+	# A tower's ground that can't be crossed on foot (the Kraken's deep water,
+	# the Gryphon's open voids: scripts/towers/): rock to the walk.
+	for r in plan.get("no_foot", []):
+		_fill(solid, size, Floors.tile_rect(r), 1)
 	# Cracked walls are rock until broken (never needed), and so is what's behind.
 	for c in plan.get("cracks", []):
 		for t in c["tiles"]:
@@ -258,6 +262,11 @@ static func plan_check(plan: Dictionary) -> Dictionary:
 				opens[lid] = {"all": puzzle_all}
 			"oneway":
 				opens[lid] = {"any": d.get("lock_side", [])}
+	# Water held back by valves, a gap the wind will bridge (scripts/towers/):
+	# a lock whose opener is what turns them ({any}/{all} tiles).
+	for fl in plan.get("fluid_locks", []):
+		doors.append({"tiles": fl["tiles"], "lock": "valve", "lock_id": int(fl["id"])})
+		opens[int(fl["id"])] = fl["opens"]
 	var start := tile(plan.get("start", Vector2.ZERO))
 	var f := flood(size, solid, start, doors, opens)
 	var reach: PackedByteArray = f["reach"]

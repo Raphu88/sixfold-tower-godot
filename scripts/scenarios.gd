@@ -15,6 +15,14 @@ extends Node2D
 ##   unseen    cross the hall without the lanterns' light falling on you
 ##   rescue    free a caged cub and lead it to the door, keeping it safe
 ##   gauntlet  beat every wave, and be quick
+## A tower's own kinds ("tower" in SCENARIOS: only there) are run by its
+## floor script (scripts/towers/): it plans them (scn_plan), and main.gd's
+## tower_floor begins, ticks and draws them (scn_begin, scn_tick, scn_status,
+## scn_goal), calling _finish here with the grade:
+##   flood     (the Kraken's) the room fills: turn the drain wheel at the far
+##             end before the water closes over you
+##   bridge    (the Gryphon's) cross the long bridge over the drop in high
+##             wind while raptors dive
 ## floors.gd fixes scenario rooms (in dead ends first) and asks `plan` for
 ## each one's marks; main.gd runs them through `setup`.
 
@@ -37,6 +45,11 @@ static var SCENARIOS := {
 	"rescue": {"from": 3, "cage_hits": 3, "cub_hp": 60.0, "drain": 10.0, "near": 40.0, "speed": 150.0, "wave_every": 6.0, "per_wave": 2,
 		"gold": 0.75, "silver": 0.4},
 	"gauntlet": {"from": 2, "waves": 3, "budget": 2.6, "budget_per_floor": 0.35, "par": 14.0, "par_per_wave": 7.0, "silver_k": 1.5},
+	# Towers' own (scripts/towers/): "weight" makes one likelier than the others.
+	"flood": {"from": 2, "tower": "kraken", "weight": 3.0, "fill": 34.0, "fill_per_floor": -0.8, "fill_min": 24.0, "turn": 4.0,
+		"wave_every": 6.0, "per_wave": 1, "gold_hits": 1, "silver_hits": 3, "gold_level": 0.5, "slow": 0.45},
+	"bridge": {"from": 2, "tower": "gryphon", "weight": 3.0, "gust_every": 2.6, "gust": 150.0, "raptors": 2, "raptors_per_floors": 5,
+		"dive_every": 4.0, "gold_hits": 0, "silver_hits": 2, "slack": 2.6},
 }
 ## What a grade pays: essence (base, per floor) and renown.
 static var GRADES := {
@@ -68,6 +81,11 @@ static var TEXT := {
 	"failed": "It's over",
 	"left": "You left the room",
 	"cub": "A small grey creature, all ears",
+	"flood": "Turn the drain wheel before it fills",
+	"flood_line": "Water %d%%  ·  wheel %d%%",
+	"flood_full": "The water closes over you",
+	"bridge": "Cross the long bridge",
+	"bridge_line": "Hits %d  ·  %d s",
 }
 
 var main
@@ -82,17 +100,46 @@ var results: Array = []  # this floor's grades (tests)
 
 
 ## Which kinds may appear on a floor.
-static func kinds_for(floor_num: int, _tid: String) -> Array:
+static func kinds_for(floor_num: int, tid: String) -> Array:
 	var out: Array = []
 	for k in SCENARIOS:
-		if floor_num >= int(SCENARIOS[k]["from"]):
+		if floor_num >= int(SCENARIOS[k]["from"]) and String(SCENARIOS[k].get("tower", tid)) == tid:
 			out.append(k)
 	return out
+
+
+## The kinds in a random order, each one's "weight" (default 1) making it
+## likelier to come early (a tower's own scenario is weighted up).
+static func shuffled(kinds: Array) -> Array:
+	var left: Array = kinds.duplicate()
+	var out: Array = []
+	while not left.is_empty():
+		var total := 0.0
+		for k in left:
+			total += float(SCENARIOS.get(k, {}).get("weight", 1.0))
+		var roll := randf() * total
+		var pick = left[-1]
+		for k in left:
+			roll -= float(SCENARIOS.get(k, {}).get("weight", 1.0))
+			if roll <= 0.0:
+				pick = k
+				break
+		out.append(pick)
+		left.erase(pick)
+	return out
+
+
+## A tower's own scenario: its floor script (scripts/towers/), else null.
+static func tower_script(kind: String) -> Script:
+	var tid := String(SCENARIOS.get(kind, {}).get("tower", ""))
+	return load("res://scripts/towers/%s_floor.gd" % tid) if tid != "" else null
 
 
 ## A scenario's marks in its room (floors.gd): {kind, rect, start (the mark),
 ## end, spawns, gates, sentries, centre, keep}; {} if the room won't do.
 static func plan(kind: String, info: Dictionary, gates: Array, _floor_num: int, cell: float) -> Dictionary:
+	if SCENARIOS.get(kind, {}).has("tower"):
+		return tower_script(kind).scn_plan(kind, info, gates, _floor_num, cell)
 	var rect: Rect2 = info["rect"]
 	var rows: Array = info["rows"]
 	var size: Vector2i = info["size"]
@@ -235,6 +282,8 @@ func _begin(s: Dictionary) -> void:
 			cub = {"pos": s["cage"], "hp": float(cfg["cub_hp"]), "free": false, "cage": int(cfg["cage_hits"])}
 	if s["kind"] in ["defend", "duel", "rescue", "gauntlet"]:
 		_seal(s)
+	if cfg.has("tower") and main.get("tower_floor") != null:
+		main.tower_floor.scn_begin(self, s)  # (a tower's own scenario: it may seal the room)
 	var th: Dictionary = main.Themes.get_theme("scn_" + String(s["kind"]))
 	main.banner = {"title": String(th["name"]).to_upper(), "lines": [TEXT[s["kind"]]], "t": 2.2}
 	main.sfx("ready", 0.9, -2.0)
@@ -262,6 +311,12 @@ func _tick(s: Dictionary, delta: float, p) -> void:
 		_finish(s, "none")
 		return
 	s["mobs"] = s["mobs"].filter(func(e): return is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion())
+	if cfg.has("tower"):
+		if main.get("tower_floor") != null:
+			main.tower_floor.scn_tick(self, s, delta, p)  # (a tower's own scenario)
+		else:
+			_finish(s, "none")
+		return
 	match String(s["kind"]):
 		"defend":
 			s["wave_t"] -= delta
@@ -490,6 +545,8 @@ func status() -> Dictionary:
 		return {}
 	var s := active
 	var cfg: Dictionary = SCENARIOS[s["kind"]]
+	if cfg.has("tower"):
+		return main.tower_floor.scn_status(s) if main.get("tower_floor") != null else {}
 	match String(s["kind"]):
 		"defend":
 			return {"title": TEXT["defend"], "line": TEXT["defend_line"] % [int(100.0 * maxf(s["camp_hp"], 0.0) / float(cfg["camp_hp"])), maxi(0, int(ceil(float(cfg["time"]) - s["t"])))]}
@@ -510,6 +567,8 @@ func status() -> Dictionary:
 func goal_point() -> Vector2:
 	if active.is_empty():
 		return Vector2.INF
+	if SCENARIOS[active["kind"]].has("tower"):
+		return main.tower_floor.scn_goal(active) if main.get("tower_floor") != null else Vector2.INF
 	match String(active["kind"]):
 		"collapse", "unseen":
 			return active["end"]
@@ -567,7 +626,7 @@ func _draw() -> void:
 		elif s["state"] == "done":
 			var col: Color = {"gold": gold, "silver": Color(0.85, 0.88, 0.95), "bronze": Color(0.85, 0.6, 0.4), "none": Color(0.4, 0.38, 0.42)}[s["grade"]]
 			draw_arc(s["start"], 16.0, 0.0, TAU, 24, Color(col, 0.6), 2.0)
-		if s["kind"] in ["collapse", "unseen"] and s["state"] != "done":
+		if s["kind"] in ["collapse", "unseen", "flood", "bridge"] and s["state"] != "done":
 			draw_arc(s["end"], 22.0, 0.0, TAU, 32, Color(0.7, 0.95, 0.7, 0.5 + 0.3 * pulse), 2.5)
 		match String(s["kind"]):
 			"defend":

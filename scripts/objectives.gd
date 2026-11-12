@@ -25,6 +25,12 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
+## A tower's own kinds ("tower" in KINDS) come up only in that tower, and
+## its floor script (scripts/towers/) builds and runs what they need:
+##   sluices    (the Kraken's) the way into the stair room is flooded deep;
+##              turn each sluice wheel (stand at it) to drain it
+##   vanes      (the Gryphon's) the way into the stair room is an open gap;
+##              strike each wind vane round and the wind carries you over
 
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 const Rooms := preload("res://scripts/rooms.gd")
@@ -60,6 +66,13 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
+	# Towers' own kinds ("tower": only there; scripts/towers/ runs them).
+	"sluices": {"name": "Drain the Stairwell", "hint": "The way to the stair is flooded. Turn every sluice wheel to send the water elsewhere.",
+		"status": "Sluices turned %d of %d", "piece": "Sluice", "count": [[4, 2], [99, 3]], "weight": 1.6, "tower": "kraken",
+		"turn_time": 1.8, "reach": 52.0},
+	"vanes": {"name": "Turn the Wind Vanes", "hint": "No bridge reaches the stair. Strike every wind vane round until the wind blows across the gap.",
+		"status": "Vanes turned %d of %d", "piece": "Vane", "count": [[4, 2], [99, 3]], "weight": 1.6, "tower": "gryphon",
+		"strikes": 2},
 }
 ## How likely each puzzle kind is next to the kinds above (its tower's own
 ## puzzle counts double).
@@ -128,13 +141,14 @@ static func display_name(kind: String, tid: String) -> String:
 ## The kind for a floor: never one used this climb if another is left;
 ## the tower's own puzzle likelier.
 static func pick(floor_num: int, tid: String) -> String:
-	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)):
+	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and fits_tower(forced, tid):
 		return forced
 	if Catalog.forced != "" and is_puzzle(Catalog.forced):
 		return Catalog.forced  # (the dev tool's Puzzles buttons: that puzzle is the task)
 	var table := {}
 	for k in KINDS:
-		table[k] = float(KINDS[k].get("weight", 1.0))
+		if fits_tower(k, tid):
+			table[k] = float(KINDS[k].get("weight", 1.0))
 	for k in Catalog.TYPES:
 		table[k] = float(PUZZLE_WEIGHT["signature"] if Catalog.SIGNATURE.get(tid, "") == k else PUZZLE_WEIGHT["base"])
 	var fresh := {}
@@ -146,6 +160,12 @@ static func pick(floor_num: int, tid: String) -> String:
 			if climb_used.is_empty() or k != climb_used[-1]:
 				fresh[k] = table[k]
 	return _weighted(fresh)
+
+
+## Whether a kind may be a floor's task in a tower (a tower's own kind only there).
+static func fits_tower(kind: String, tid: String) -> bool:
+	var only := String(KINDS.get(kind, {}).get("tower", ""))
+	return only == "" or only == tid
 
 
 static func _weighted(table: Dictionary) -> String:

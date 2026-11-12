@@ -449,6 +449,10 @@ func _tick(delta: float, p, hurt: bool) -> void:
 							break
 				if pc.has("light") and main.lighting != null:
 					main.lighting.move_light(pc["light"], pc["pos"])
+		_:
+			# A tower's own kind (objectives.gd "tower"): its floor script runs it.
+			if k.has("tower") and main.get("tower_floor") != null:
+				main.tower_floor.task_tick(self, delta, p, hurt)
 	if not done and kind != "levers" and done_count() == pieces.size() and not pieces.is_empty():
 		_complete()
 
@@ -510,6 +514,9 @@ func _spawn_near(at: Vector2, dist: float):
 
 ## A melee swing (player.gd): strikes a lever up.
 func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+	if _k().has("tower") and not done and main.get("tower_floor") != null:
+		main.tower_floor.task_strike(self, from, dir, reach, arc_deg)  # (a tower's own kind: a wind vane)
+		return
 	if kind != "levers" or done:
 		return
 	for pc in pieces:

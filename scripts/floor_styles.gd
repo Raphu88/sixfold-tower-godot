@@ -20,6 +20,15 @@ extends RefCounted
 ##   rest          the chance of a calm rest room
 ##   trader        the chance of a wandering trader, from floor `trader_from`
 ##   kind_first    the first room after the start is a kind one (no danger)
+##   own_shapes    (optional) replaces the tower's favourite shapes (towers.gd)
+##                 for every room but the entrance
+##   prefab        (optional) how much likelier (or rarer, below 1) a hand-made room is
+##   room_grow     (optional) tiles added to (or taken from, below 0) each
+##                 carved room's width and height
+##   script        (optional) the tower's own floor script (scripts/towers/):
+##                 floors.gd asks it to shape the corridors (shape_corridors)
+##                 and to finish the plan (finish_plan); main.gd runs it as a
+##                 node on the floor (setup), for the tower's own system
 
 static var STYLES := {
 	"default": {
@@ -32,8 +41,14 @@ static var STYLES := {
 		"rest": 0.25, "trader": 0.3, "trader_from": 3,
 		"kind_first": true,
 	},
-	"gryphon": {"shapes": ["circle", "gallery", "split", "ring"]},
-	"kraken": {"shapes": ["gallery", "split", "cover", "gallery"]},
+	# Open heights: big halls with ledges and balconies over open voids,
+	# corridors that are bridges over the drop (scripts/towers/gryphon_floor.gd).
+	"gryphon": {"shapes": ["open", "open", "rect", "round", "split"], "own_shapes": ["open", "open", "rect", "round"],
+		"gallery": ["open", "rect", "round"], "room_grow": 0, "prefab": 0.35, "corridor": "bridges", "script": "res://scripts/towers/gryphon_floor.gd"},
+	# Flooded: round and oval rooms, winding corridors, pools, and water that
+	# rises and drains (scripts/towers/kraken_floor.gd).
+	"kraken": {"shapes": ["circle", "circle", "ring", "round"], "own_shapes": ["circle", "circle", "round"],
+		"gallery": ["circle", "ring", "circle"], "room_grow": -1, "prefab": 0.3, "corridor": "winding", "script": "res://scripts/towers/kraken_floor.gd"},
 	"wyvern": {"shapes": ["ring", "cover", "ring", "gallery"]},
 	"manticore": {"shapes": ["cover", "split", "ring", "cover"]},
 	"firebird": {"shapes": ["circle", "ring", "split", "circle"]},
@@ -48,3 +63,9 @@ static func for_tower(tid: String) -> Dictionary:
 	for k in own:
 		out[k] = own[k]
 	return out
+
+
+## The tower's own floor script (or null): see "script" above.
+static func script_for(style: Dictionary) -> Script:
+	var path := String(style.get("script", ""))
+	return load(path) if path != "" else null

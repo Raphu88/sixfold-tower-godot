@@ -91,6 +91,11 @@ static var THEMES := {
 		"tint": Color(0.6, 0.85, 0.55, 0.07), "door": "warm", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario"},
 	"scn_gauntlet": {"name": "The Gauntlet", "kind": "scenario", "sub": "Step onto the mark and the doors shut: beat every wave, and be quick.",
 		"tint": Color(0.85, 0.35, 0.3, 0.07), "door": "den", "min_size": Vector2i(8, 7), "towers": [], "feature": "scenario", "decor": "bones"},
+	# Towers' own scenarios (scripts/towers/: scenarios.gd SCENARIOS "tower").
+	"scn_flood": {"name": "The Filling Room", "kind": "scenario", "sub": "A drain wheel, rusted shut. Step onto the mark and the water comes in.",
+		"tint": Color(0.35, 0.65, 0.85, 0.08), "door": "hazard", "sigil": "wave", "min_size": Vector2i(7, 6), "towers": ["kraken"], "feature": "scenario"},
+	"scn_bridge": {"name": "The Long Bridge", "kind": "scenario", "sub": "One bridge over the drop, and the wind howling. Step onto the mark to cross.",
+		"tint": Color(0.75, 0.85, 1.0, 0.07), "door": "hazard", "sigil": "wind", "min_size": Vector2i(8, 7), "towers": ["gryphon"], "feature": "scenario"},
 	# The Proving's rooms (floor 6, proving.gd lays them out and says what each
 	# is as you walk in; its gauntlet is the tower's own trap room). Kind
 	# "proving": never handed out to other floors' rooms.
