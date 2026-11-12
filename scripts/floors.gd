@@ -297,6 +297,11 @@ static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor
 			info["no_piece"] = true
 	if style.get("kind_first", true) and infos.size() > 1 and infos[1]["role"] == "guard" and not infos[1].has("fixed"):
 		infos[1]["kind_first"] = true
+		if Rooms.clear_spot(infos[1]["rows"], 3) == Vector2i(-1, -1):
+			# (no room in it for a spring or a camp: a plain room of the same size, its doorways as they were)
+			infos[1]["rows"] = Rooms.prepare(Rooms.carve("rect", infos[1]["size"]))
+			infos[1]["shape"] = "rect"
+			infos[1]["prefab"] = false
 	if floor_num < 2:
 		return
 	# Scenarios: in branch rooms (dead ends) first, then guard rooms.

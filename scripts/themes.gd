@@ -206,7 +206,7 @@ static func fits(id: String, info: Dictionary, tid: String, tower: Dictionary) -
 		return false
 	var rows: Array = info["rows"]
 	match th["feature"]:
-		"spring", "cache", "camp":
+		"spring", "cache", "camp", "rest", "trader":
 			return Rooms.clear_spot(rows, 3) != Vector2i(-1, -1)
 		"pillars":
 			var n := 0
