@@ -98,7 +98,7 @@ const SECTIONS := [
 			"TREE": "The Unbound's capstones", "ECHO_ACTS": "Echoes: what each does"}},
 	{"id": "reactions_words", "group": "words", "name": "States, reactions and pacts", "when": "live",
 		"tables": ["reactions/STATES", "reactions/REACTIONS", "pacts/PACTS", "pacts/GRAFT_POWER", "pacts/TEXT"], "kinds": ["text"],
-		"skip": ["states", "consume", "bonds", "from", "event"],
+		"skip": ["states", "consume", "bonds", "from", "event", "lands"],
 		"names": {"STATES": "States (what a foe holds)", "REACTIONS": "Reactions (two states meet)", "PACTS": "Named pacts (two marks)",
 			"GRAFT_POWER": "Menagerie: what each graft gives your creatures", "TEXT": "Words"}},
 	{"id": "menu_words", "group": "words", "name": "Title, climbers and appearance", "when": "page",

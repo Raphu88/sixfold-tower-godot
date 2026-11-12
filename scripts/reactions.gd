@@ -56,14 +56,16 @@ static var STATES := {
 	"poisoned": {"name": "Poisoned", "says": "poison stacks hurt it every half second", "color": Color(0.55, 0.86, 0.35), "stacks": 1},
 	"bleeding": {"name": "Bleeding", "says": "bleeding, hurt every half second", "color": Color(0.86, 0.18, 0.2), "seconds": 3.0, "dps": 1.5},
 	"slowed": {"name": "Slowed", "says": "walking slower", "color": Color(0.7, 0.9, 0.98), "seconds": 2.0},
-	"unseen": {"name": "Unseen", "says": "it has lost sight of you", "color": Color(0.74, 0.7, 0.68), "seconds": 2.0},
+	"unseen": {"name": "Unseen", "says": "it has lost track of you", "color": Color(0.74, 0.7, 0.68), "seconds": 2.0},
 	"slam": {"name": "Slam", "says": "slammed down hard", "color": Color(0.85, 0.75, 0.6), "event": true},
 	"drained": {"name": "Drained", "says": "its life drawn out", "color": Color(0.5, 0.9, 0.75), "event": true},
 }
 
 ## The reactions: the two states that meet ("states"), what's cleared
 ## ("consume"), how long before it can fire on the same foe again ("again",
-## seconds), its sound and numbers. Damage grows with your strongest mark's
+## seconds), its sound and numbers. "lands": only when that one of the two
+## is the state landing (Ambush: poison on a foe already lost, not smoke on
+## a foe already poisoned, which would give you away). Damage grows with your strongest mark's
 ## step (RULES "per_step").
 static var REACTIONS := {
 	"conduct": {"name": "Conduct", "says": "Lightning jumps to every soaked foe nearby and stuns it", "states": ["soaked", "charged"], "consume": ["soaked"],
@@ -80,7 +82,7 @@ static var REACTIONS := {
 		"color": Color(0.9, 0.2, 0.3), "sound": "hit_slime", "pitch": 0.7, "again": 0.0, "mult": 2.0},
 	"smoulder": {"name": "Smoulder", "says": "A slowed foe burns twice as long", "states": ["slowed", "burning"], "consume": [],
 		"color": Color(0.95, 0.42, 0.18), "sound": "burn", "pitch": 0.6, "again": 6.0, "mult": 2.0},
-	"ambush": {"name": "Ambush", "says": "Poisoned while it can't see you: 5 more stacks, and it notices you", "states": ["unseen", "poisoned"], "consume": ["unseen"],
+	"ambush": {"name": "Ambush", "says": "Your first poison on a foe that has lost track of you: 5 more stacks", "states": ["unseen", "poisoned"], "consume": [], "lands": "poisoned",
 		"color": Color(0.62, 0.9, 0.5), "sound": "crit", "pitch": 1.2, "again": 8.0, "stacks": 5},
 }
 
@@ -149,9 +151,10 @@ static func apply(main, foe, state: String, seconds: float, source = null, amoun
 	return out
 
 
-## True while the foe holds the state. Poison needs a stack; "unseen" is
-## any foe that hasn't noticed you, is asleep or has lost you (Ashwalker's
-## smoke, Vanish, Ashfall); "slowed" counts a Surgeon's crippling too.
+## True while the foe holds the state. Poison needs a stack; "unseen" is a
+## foe that has lost track of you (Ashwalker's smoke and decoys, Vanish,
+## Ashfall, Steam, Mist: enemy.gd is_lost); "slowed" counts a Surgeon's
+## crippling too.
 static func has(foe, state: String) -> bool:
 	if foe == null or not is_instance_valid(foe) or not ("states" in foe):
 		return false
@@ -161,12 +164,16 @@ static func has(foe, state: String) -> bool:
 		"poisoned":
 			return foe.venom > 0 and float(foe.states.get("poisoned", 0.0)) > 0.0
 		"unseen":
-			return not foe.dead and (foe.unaware() or (not foe.aware and not foe.is_boss()))
+			return not foe.dead and main_player_ok(foe) and foe.is_lost(foe.global_position.distance_to(foe.main.player.global_position))
 		"slowed":
 			return float(foe.states.get("slowed", 0.0)) > 0.0 or foe.cripple_t > 0.0
 		"burning":
 			return float(foe.states.get("burning", 0.0)) > 0.0 and not foe.submerged
 	return float(foe.states.get(state, 0.0)) > 0.0
+
+
+static func main_player_ok(foe) -> bool:
+	return foe.main != null and is_instance_valid(foe.main) and foe.main.player != null
 
 
 static func left(foe, state: String) -> float:
@@ -229,6 +236,8 @@ static func landed(main, foe, state: String) -> void:
 			continue
 		var other: String = pair[1] if pair[0] == state else pair[0]
 		if other == state or not has(foe, other):
+			continue
+		if r.has("lands") and String(r["lands"]) != state:
 			continue
 		if _cooling(foe, id, r):
 			continue

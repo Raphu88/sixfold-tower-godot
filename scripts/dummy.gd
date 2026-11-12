@@ -54,7 +54,9 @@ func _physics_process(delta: float) -> void:
 	squash = move_toward(squash, 0.0, 6.0 * delta)
 	wobble = move_toward(wobble, 0.0, 3.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 1400.0 * delta)
+	soaked -= delta
 	_tick_burn(delta)
+	_tick_bleed(delta)
 	_tick_venom(delta)
 	glint = 0.0
 	if hp <= 1.0:
@@ -95,6 +97,8 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 		knock = dir * force * 0.5
 	if amount > 0.0:
 		main.fx_text(global_position + Vector2(0, -radius - 12.0), str(int(round(amount))), Color(1.0, 0.95, 0.85))
+	if heavy and airborne > 0.0:
+		Reactions.apply(main, self, "slam", 0.0, null)  # (reactions work on it as on a monster: Crater)
 
 
 func _leave_remains() -> void:

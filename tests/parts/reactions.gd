@@ -320,7 +320,12 @@ func _ambush() -> void:
 	await _until_fired("ambush", before)
 	_check(_fired("ambush") > before, "poison on a foe that can't see you: Ambush")
 	_check(a.venom >= stacks + int(R.num("ambush", "stacks")), "...5 more stacks (%d)" % a.venom)
-	_check(a.lost_t <= 0.0, "...and it notices you")
+	# Smoke on a foe that's already poisoned is no ambush (it would give you away).
+	var b = _foe(p.global_position + dir * 100.0 + dir.orthogonal() * 60.0, 999.0)
+	b.add_venom(2)
+	before = _fired("ambush")
+	b.lose_track(3.0, null)
+	_check(_fired("ambush") == before and R.has(b, "unseen"), "...but smoke on a foe already poisoned is not, and it stays lost")
 
 
 # --- named pacts --------------------------------------------------------------------

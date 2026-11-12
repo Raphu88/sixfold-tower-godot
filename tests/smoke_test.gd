@@ -289,6 +289,7 @@ func _gryphon_tests() -> void:
 	await _settle()
 	# Windwalker.
 	b2.hp = 999.0
+	b2.charged = 0.0  # (still charged by the chain, Gale Lift would set off a Skybolt and it would fall at once: reactions.gd)
 	b2.global_position = p.global_position + Vector2(80, 0)
 	p.aim = Vector2.RIGHT
 	_cast("legs", "gale_lift")
@@ -774,6 +775,7 @@ func _wyvern_bond_tests() -> void:
 	p._try_cast("hand")
 	_check(p.cast_total < b.windup(), "Steady Mind: every spell winds up faster")
 	p.cast_t = 0.0
+	main.runes.clear()  # (the small fire runes the kindled strikes above left: Forge Runes, pacts.gd)
 	_cast("brow", "rune_trap")
 	p.aim = Vector2.UP
 	_cast("brow", "rune_trap")
@@ -6990,6 +6992,10 @@ func _run() -> void:
 	await _settle()
 
 	print("casts and overdraw")
+	# (Chain Lightning charges the slime and Gale Lift then lifts it: a Skybolt,
+	# reactions.gd. It must live through that for the checks after.)
+	slime.max_hp = 400.0
+	slime.hp = 400.0
 	for part in ["hand", "legs"]:
 		p.bonds[part].essence = 0.0
 		p.attack_cd = 0.0
