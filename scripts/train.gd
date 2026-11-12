@@ -28,6 +28,8 @@ extends RefCounted
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Renown := preload("res://scripts/renown.gd")
+const Boons := preload("res://scripts/boons.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -51,6 +53,26 @@ static var WORN_SELL := 0.25
 const RACK_SIZE := 8
 ## Today's piece: one Fine or Rare piece, new after every climb.
 static var TODAY_ODDS := {"fine": 75, "rare": 25}
+
+## The outfitter's upgrades: your renown rank (renown.gd RANKS) unlocks
+## each one, for good. The Outfitter's Car shows them on a placard (the next
+## one, and what unlocks it). Their numbers are UPGRADE_FX.
+##   wide_rack  more pieces on the outfit rail (rack_extra)
+##   scroll     the recall scroll he always stocks costs less (scroll_price)
+##   stock      rack pieces may come Fine (rack_fine, in percent) and
+##              today's piece rolls on STOCK_ODDS
+##   discount   everything he sells costs less (discount; boons.gd adds more)
+##   order      a special order: he holds one piece you choose (from the
+##              rack or the case) until you buy it, on any later visit
+static var UPGRADES := [
+	{"id": "wide_rack", "rank": 1, "name": "A wider rack", "desc": "Two more pieces hang on the outfit rail."},
+	{"id": "scroll", "rank": 2, "name": "A scroll kept aside", "desc": "The recall scroll he always stocks costs 40 of any kind, not 60."},
+	{"id": "stock", "rank": 3, "name": "Better stock", "desc": "Rack pieces may come Fine, and today's piece is likelier Rare, now and then Storied."},
+	{"id": "discount", "rank": 4, "name": "A regular's discount", "desc": "Everything he sells costs 10% less."},
+	{"id": "order", "rank": 5, "name": "Special order", "desc": "He holds one piece you choose, from the rack or the case, until you come back for it."},
+]
+static var UPGRADE_FX := {"rack_extra": 2, "scroll_price": 40, "rack_fine": 25, "discount": 0.1}
+static var STOCK_ODDS := {"fine": 50, "rare": 45, "storied": 5}
 
 ## A piece's base price: what it costs at the store (and sells from) is this
 ## times its rarity's RARITY_PRICE. Rings, amulets and the Climber's Pack are
@@ -184,6 +206,21 @@ static var TEXT := {
 	"show": "Show: %s",
 	"sort_by": "Sort: %s",
 	"wear_tag": "You'll wear",
+	# The outfitter's upgrades (UPGRADES) and the special order
+	"upgrades": "Upgrades  ·  %d of %d",
+	"upgrades_short": "Upgrades",
+	"upgrades_title": "The outfitter's upgrades",
+	"upgrades_note": "Your renown unlocks them: %s. Win renown on climbs and at a station.",
+	"upgrade_on": "%s: %s",
+	"upgrade_off": "%s: at the rank of %s (%d renown)",
+	"upgrade_next": "Next: %s, at the rank of %s",
+	"upgrade_all": "Every upgrade is yours.",
+	"order": "Special order",
+	"order_empty": "Nothing held. Choose a piece on the rack or in the case and ask him to hold it.",
+	"order_note": "Held for you until you buy it.",
+	"hold": "Hold it for me (special order)",
+	"held": "Held for you: %s",
+	"hold_full": "he already holds a piece for you",
 	# The engine: where you choose the next tower
 	"depart_title": "CHOOSE A TOWER",
 	"depart_sub": "Each tower's monsters and essence shape the marks you'll form.",
@@ -386,7 +423,92 @@ static func paid_text(paid: Dictionary) -> String:
 static func stock(profile) -> void:
 	if not profile.store.is_empty():
 		return
-	profile.store = {"outfit": roll_outfit().map(func(g): return Gear.code(g)), "today": Gear.code(roll_today())}
+	profile.store = {"outfit": roll_outfit(profile).map(func(g): return Gear.code(g)), "today": Gear.code(roll_today(profile))}
+
+
+# --- the outfitter's upgrades (renown) ------------------------------------------------------
+
+## True once your renown rank has unlocked this upgrade (UPGRADES).
+static func upgraded(profile, id: String) -> bool:
+	if profile == null:
+		return false
+	for u in UPGRADES:
+		if String(u["id"]) == id:
+			return Renown.rank(profile) >= int(u["rank"])
+	return false
+
+
+## How many upgrades are unlocked.
+static func upgrades_done(profile) -> int:
+	return UPGRADES.filter(func(u): return upgraded(profile, String(u["id"]))).size()
+
+
+## The next upgrade still locked ({} once they're all yours).
+static func next_upgrade(profile) -> Dictionary:
+	for u in UPGRADES:
+		if not upgraded(profile, String(u["id"])):
+			return u
+	return {}
+
+
+## How many pieces hang on the outfit rail.
+static func rack_size(profile) -> int:
+	return RACK_SIZE + (int(UPGRADE_FX["rack_extra"]) if upgraded(profile, "wide_rack") else 0)
+
+
+## What the outfitter takes off his prices (0 to 1): his upgrade and your boons.
+static func discount(profile) -> float:
+	if profile == null:
+		return 0.0
+	var d := float(UPGRADE_FX["discount"]) if upgraded(profile, "discount") else 0.0
+	return clampf(d + Boons.discount(profile), 0.0, 0.9)
+
+
+## What a piece costs you at the store (gear_price, less his discount).
+static func buy_price(profile, g) -> int:
+	var p := gear_price(g)
+	if p <= 0:
+		return 0
+	return maxi(1, int(round(float(p) * (1.0 - discount(profile)))))
+
+
+## What a consumable costs you at the store: [kind, amount] (item_price, the
+## scroll kept aside, less his discount).
+static func supply_price(profile, id: String) -> Array:
+	var price := item_price(id)
+	if int(price[1]) <= 0:
+		return price
+	var amount := int(price[1])
+	if id == "scroll" and price[0] == ANY and upgraded(profile, "scroll"):
+		amount = mini(amount, int(UPGRADE_FX["scroll_price"]))
+	return [price[0], maxi(1, int(round(float(amount) * (1.0 - discount(profile)))))]
+
+
+## The special order: the piece he holds for you ({} for none).
+static func order(profile) -> Dictionary:
+	if profile == null:
+		return {}
+	return Gear.rec(Renown.state(profile)["order"])
+
+
+## Asks him to hold a piece off the rack (`i`) or today's piece (i = -1):
+## it leaves the rack and waits as your special order. "" if done, else why not.
+static func hold(profile, i: int) -> String:
+	if not upgraded(profile, "order"):
+		return "?"
+	if not order(profile).is_empty():
+		return TEXT["hold_full"]
+	var g: Dictionary = today(profile) if i < 0 else (outfit(profile)[i] if i < outfit(profile).size() else {})
+	if g.is_empty():
+		return TEXT["today_sold"]
+	Renown.state(profile)["order"] = Gear.code(g)
+	if i < 0:
+		profile.store["today"] = ""
+	else:
+		var rack: Array = profile.store["outfit"]
+		rack[i] = ""
+	profile.save()
+	return ""
 
 
 ## The Common pieces anyone can buy: weapons, armor and worn pieces that
@@ -402,25 +524,28 @@ static func common_pool() -> Array:
 	return out
 
 
-## RACK_SIZE different Common pieces, in the order the inventory lists slots.
-static func roll_outfit() -> Array:
+## RACK_SIZE different Common pieces (more with the wider rack), in the
+## order the inventory lists slots. With better stock some come Fine.
+static func roll_outfit(profile = null) -> Array:
 	var pool := common_pool()
 	pool.shuffle()
-	var pick: Array = pool.slice(0, RACK_SIZE)
-	var order: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
-	pick.sort_custom(func(a, b): return order.find(Gear.slot_of(a)) < order.find(Gear.slot_of(b)))
-	return pick.map(func(id): return Gear.make(id))
+	var pick: Array = pool.slice(0, rack_size(profile))
+	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
+	pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
+	var fine := upgraded(profile, "stock")
+	return pick.map(func(id): return Gear.make(id, "fine", Gear.roll_traits(id, "fine")) if fine and randi() % 100 < int(UPGRADE_FX["rack_fine"]) else Gear.make(id))
 
 
-## Today's piece: Fine or Rare (TODAY_ODDS), with its traits.
-static func roll_today() -> Dictionary:
+## Today's piece: Fine or Rare (TODAY_ODDS; STOCK_ODDS with better stock), with its traits.
+static func roll_today(profile = null) -> Dictionary:
+	var odds: Dictionary = STOCK_ODDS if upgraded(profile, "stock") else TODAY_ODDS
 	var total := 0
-	for r in TODAY_ODDS:
-		total += int(TODAY_ODDS[r])
+	for r in odds:
+		total += int(odds[r])
 	var roll := randi() % maxi(total, 1)
 	var rar := "fine"
-	for r in TODAY_ODDS:
-		roll -= int(TODAY_ODDS[r])
+	for r in odds:
+		roll -= int(odds[r])
 		if roll < 0:
 			rar = r
 			break
@@ -467,7 +592,7 @@ static func supply_room(profile, player, id: String) -> int:
 
 ## Buys one of a consumable, packed for the next climb. "" if bought, else why not.
 static func buy_supply(profile, player, id: String) -> String:
-	var price := item_price(id)
+	var price := supply_price(profile, id)
 	if price[1] <= 0:
 		return TEXT["belt_full"]
 	if supply_room(profile, player, id) <= 0:
@@ -538,14 +663,14 @@ static func pack_room(profile, player) -> int:
 ## your pack, then worn, what you wore there going back into the pack).
 ## "" if bought, else why not.
 static func buy_gear(profile, player, i: int, to := "pack") -> String:
-	var g: Dictionary = today(profile) if i < 0 else (outfit(profile)[i] if i < outfit(profile).size() else {})
+	var g: Dictionary = order(profile) if i == -2 else (today(profile) if i < 0 else (outfit(profile)[i] if i < outfit(profile).size() else {}))
 	if g.is_empty():
 		return TEXT["today_sold"]
 	var why := buy_room(profile, player, g, to)
 	if why != "":
 		return why
 	var kind := gear_kind(g)
-	var cost := gear_price(g)
+	var cost := buy_price(profile, g)
 	why = short_of(profile, kind, cost)
 	if why != "":
 		return why
@@ -554,7 +679,9 @@ static func buy_gear(profile, player, i: int, to := "pack") -> String:
 		profile.chest.append(g)
 	else:
 		profile.pack.append(g)
-	if i < 0:
+	if i == -2:
+		Renown.state(profile)["order"] = ""  # (the special order, collected)
+	elif i < 0:
 		profile.store["today"] = ""
 	else:
 		var rack: Array = profile.store["outfit"]

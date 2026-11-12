@@ -43,6 +43,9 @@ const Abilities := preload("res://scripts/abilities.gd")
 const Book := preload("res://scripts/book.gd")
 const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 const TreeView := preload("res://scripts/tree_view.gd")
+const StationPage := preload("res://scripts/station_page.gd")
+const StationView := preload("res://scripts/station_view.gd")
+const Stations := preload("res://scripts/stations.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -57,7 +60,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
-	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0}
+	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0}
 ## The climber screen is the book (book.gd): its sections, [id, name], each
 ## a ribbon. Abilities (abilities.gd) comes first: what you can cast and
 ## how; the Tree (tree_view.gd) is the body map, where you choose how you
@@ -128,6 +131,12 @@ var train_tower := ""  # the engine: the tower chosen for the next climb
 var bench_pick := 0  # Retrait: which of a piece's traits to replace
 var sell_ask := ""  # a piece asked to be sold: a second press sells it
 var train_say := ""  # the outfitter's (or the Entity's) answer to the last choice
+var train_board := "towers"  # the engine's destination board: "towers" or "stations"
+var train_station := ""  # the engine: a station chosen instead of a tower ("" for none)
+# A station between towers (station_page.gd builds its page, station_view.gd
+# draws it behind): while you're at one, the rail lists its stops.
+var station_page
+var station_view: Control
 # The appearance editor (appearance_page.gd): "create" for a new climber,
 # "appearance" later; where Back from "appearance" goes ("climber", else the usual).
 var look_page
@@ -140,7 +149,7 @@ var data_page = preload("res://scripts/data_page.gd").new(self)
 # opens (the others are pages within them: a mark, controller setup, the
 # Start over question).
 var rail
-const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "data", "confirm_new", "train", "loadout", "stash"]
+const RAIL_PAGES := ["pause", "climber", "mark", "inventory", "library", "settings", "padsetup", "controls", "dev", "data", "confirm_new", "train", "loadout", "stash", "station"]
 const RAIL_ROOTS := ["pause", "climber", "inventory", "library", "settings", "controls", "dev", "loadout", "stash"]
 var nav_keys := false  # the last thing pressed was a key or the controller (not a click or tap)
 var _rail_focus := false  # after building the page, put the focus back on the rail
@@ -179,6 +188,10 @@ func _ready() -> void:
 	train_view.hide()
 	add_child(train_view)
 	train_page = TrainPage.new(self)
+	station_view = StationView.new()
+	station_view.hide()
+	add_child(station_view)
+	station_page = StationPage.new(self)
 	look_page = AppearancePage.new(self, func(b, lk): BodyView._figure(b, lk))
 	shade = ColorRect.new()
 	shade.color = UI.SHADE
@@ -520,6 +533,8 @@ static func _is_text_box(c: Control) -> bool:
 func _cycle(by: int) -> bool:
 	if page == "train":
 		return train_page.cycle(by)
+	if page == "station":
+		return station_page.cycle(by)
 	if page == "data":
 		data_page.cycle(by)  # (the Data editor's tabs)
 		return true
@@ -604,6 +619,9 @@ func go_back() -> void:
 	if page == "train":
 		train_page.back()  # (from inside a car, back to the rail; on the rail, nothing)
 		return
+	if page == "station":
+		station_page.back()  # (from the card to its tile, from the page to the rail, from the rail back to the train)
+		return
 	if main != null and page != "": main.sfx("ui_back")
 	_returning = true  # (the page you go back to puts the focus back where it was)
 	_go_back()
@@ -667,6 +685,8 @@ func _go_back() -> void:
 func _back_page() -> String:
 	if opened_from_title:
 		return "title"
+	if at_station():
+		return "station"
 	if _on_train():
 		return "train"
 	if opened_direct:
@@ -736,6 +756,8 @@ func rail_item() -> String:
 			return "dev"
 		"train":
 			return train_car  # (the car you're in)
+		"station":
+			return station_page.stop  # (the stop you're at)
 		"loadout", "stash":
 			if _on_train():
 				return Train.HOME  # (your car's screens: your car lit on the rail)
@@ -788,7 +810,12 @@ func _next_in_page(from: Control, dir: int) -> Control:
 func rail_focused(id: String) -> void:
 	if _rail_refused or _rail_grab:
 		return  # (refused, or the menu itself putting the focus back on the rail: no page to show)
-	if not nav_keys or page == "" or id == rail_item() or id in ["exit", "quit"]:
+	if not nav_keys or page == "" or id == rail_item() or id in ["exit", "quit", "leave_station"]:
+		return
+	if at_station() and station_page.stop_ids().has(id):
+		station_page.stop = id  # (its page shows as you pass; the focus stays on the rail)
+		_rail_focus = true
+		open("station")
 		return
 	if RailScript.is_car(id) and _on_train():
 		_go_car(id, true)  # (the train slides there; the focus stays on the rail)
@@ -799,6 +826,17 @@ func rail_focused(id: String) -> void:
 
 ## A rail item pressed (Enter, A, a click or a tap): its page, and into it.
 func rail_pressed(id: String) -> void:
+	if id == "leave_station":
+		leave_station()
+		return
+	if at_station() and station_page.stop_ids().has(id):
+		if page == "station" and id == station_page.stop:
+			_focus_page_start()
+		else:
+			station_page.stop = id
+			_rail_focus = false
+			open("station")
+		return
 	if id == rail_item() and id in ["climber", "inventory", "library", "settings", "dev"] and page != "train":
 		_focus_page_start()
 		return
@@ -943,16 +981,28 @@ func open(which: String, direct := false) -> void:
 	backdrop.show_name = which == "title"
 	# The train is its own page (its cars fill the screen), and stands behind
 	# the pages opened from it.
-	train_view.visible = _on_train() and not backdrop.visible
+	if which == "train":
+		station_page.station = ""  # (back on the train: the station is behind you)
+	var stationed := at_station() and not backdrop.visible
+	train_view.visible = _on_train() and not backdrop.visible and not stationed
+	station_view.visible = stationed
+	if stationed:
+		var st := Stations.station(station_page.station)
+		station_view.stop = station_page.stop if which == "station" else ""
+		station_view.title = String(st.get("name", ""))
+		station_view.lamp = st.get("lamp", station_view.lamp)
+		station_view.set_inset(RailScript.width_for(compact()) if rail_showing() else 0.0)
 	center.visible = which != "train"
 	shade.visible = which != "title" and which != "train"
-	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else UI.SHADE.a)
+	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else (0.38 if stationed and which == "station" else (0.62 if stationed else UI.SHADE.a)))
 	if (which == "pause" or which == "train") and was_closed:
 		on_rail = true  # (the pause menu starts on the rail, on Resume; the train on its rail, on your car)
 	if which == "title":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	elif which == "climber":
 		panel.add_theme_stylebox_override("panel", Book.panel_style(compact()))  # (the climber's book)
+	elif which == "station":
+		panel.add_theme_stylebox_override("panel", TrainPage.brass_box(12.0 if compact() else 22.0, 10.0))  # (walnut and brass, like the train)
 	elif compact():
 		var st := UI.menu_panel()
 		st.set_content_margin_all(12.0)
@@ -1043,6 +1093,8 @@ func _first_focus(which: String, list: Array) -> int:
 			first = maxi(0, list.map(func(b): return b is HSlider).find(true))  # (on the music slider)
 		elif which == "train":
 			first = train_page.first_focus(list)
+		elif which == "station":
+			first = station_page.first_focus(list)
 		elif which == "create" or which == "appearance":
 			first = maxi(0, list.find(look_page.first_focus))
 		elif which == "confirm_new":
@@ -1333,9 +1385,12 @@ func close() -> void:
 	if page == "":
 		return
 	if _on_train():
-		# Between climbs, closing a page returns to the train; only departing
-		# for a tower (main.gd depart) leaves it.
-		if page != "train":
+		# Between climbs, closing a page returns to the train (or the station
+		# you're at); only departing for a tower (main.gd depart) leaves it.
+		if at_station():
+			if page != "station":
+				open("station")
+		elif page != "train":
 			open("train")
 		return
 	if main != null: main.sfx("ui_close")
@@ -1450,8 +1505,11 @@ func _title_button(b: Button, primary := false) -> void:
 ## Exit are on the rail.
 func _page_pause() -> void:
 	var practicing: bool = main.practice != null and main.practice.on
+	var fighting: bool = main.arena != null and main.arena.on  # (the station's arena: arena.gd)
 	if _on_train():
 		_header(Train.TEXT["title"], "", "Menu")
+	elif fighting:
+		_header(String(main.arena.ev.get("name", "")), Stations.TEXT["pause_note"], Stations.TEXT["paused"])
 	elif practicing:
 		_header(main.practice.TEXT["paused"], main.practice.TEXT["pause_note"], "Paused")
 	else:
@@ -1461,7 +1519,7 @@ func _page_pause() -> void:
 		var nt: Dictionary = Towers.TOWERS.get(train_tower, {})
 		if not nt.is_empty():
 			_pair(g, "Next climb", nt["name"], Essence.color(nt["essence"]).lerp(TEXT, 0.25))
-	elif not practicing:
+	elif not practicing and not fighting:
 		var t: Dictionary = main.tower_data()
 		_pair(g, "Tower", t["name"], Essence.color(t["essence"]).lerp(TEXT, 0.25))
 		_pair(g, "Floor", "%d   (best %d)" % [main.floor_num, main.profile.best_floor])
@@ -1478,7 +1536,11 @@ func _page_pause() -> void:
 	_pair(g, "Marks", ",  ".join(marks) if not marks.is_empty() else "none yet", TEXT if not marks.is_empty() else FAINT)
 	_gap(4)
 	var row := _grid(2)
-	if practicing:
+	if fighting:
+		var gb := _button(Stations.TEXT["give_up"], main.arena.give_up, row)
+		gb.set_meta("give_up", true)
+		_primary(gb)
+	elif practicing:
 		var lb := _button(main.practice.TEXT["leave"], main.practice.leave, row)
 		lb.set_meta("leave_practice", true)
 		_primary(lb)
@@ -1705,12 +1767,14 @@ func _set_climber_tab(id: String) -> void:
 
 func _climber_line() -> String:
 	var prof = main.profile
+	var worn: String = load("res://scripts/renown.gd").worn_title(prof)  # (the title worn: renown.gd)
+	var lead := worn + "  ·  " if worn != "" else ""
 	if Unbound.is_on(prof):
-		return TechniquePage.climber_line(prof)  # (the Unbound: their stage)
+		return lead + TechniquePage.climber_line(prof)  # (the Unbound: their stage)
 	var marks: int = prof.bonds.size()
 	var line := "%d of 6 marks  ·  %d %s  ·  best floor %d" % [marks, prof.climbs, "climb" if prof.climbs == 1 else "climbs", prof.best_floor]
 	var wound: String = main.proving.wound_text() if main.proving != null else ""  # (the Proving's lingering wound)
-	return line + ("  ·  " + wound if wound != "" else "")
+	return lead + line + ("  ·  " + wound if wound != "" else "")
 
 
 ## The body parts in the order the cards show them: marked ones first (top
@@ -3033,6 +3097,39 @@ func _page_stash() -> void:
 ## Between climbs: the train's cars (train_page.gd builds them, in train_view.gd's rooms).
 func _page_train() -> void:
 	train_page.build()
+
+
+func _page_station() -> void:
+	station_page.build()
+
+
+## True while you're at a station (between climbs, its page or one opened from it).
+func at_station() -> bool:
+	return station_page != null and station_page.station != "" and _on_train()
+
+
+## To a station (the engine's lever, or back from its arena): its page, on
+## stop `stop` (else its first), the card `pick` showing `said`.
+func go_station(id: String, stop := "", pick := "", said: Array = []) -> void:
+	if not _on_train():
+		return
+	var arriving: bool = station_page.station == ""
+	station_page.arrive(id, stop, pick, said)
+	if arriving and said.is_empty() and main != null:
+		main.sfx("train_whistle", 1.1, -4.0, 0.0)
+	opened_direct = false
+	_rail_focus = true
+	open("station")
+
+
+## Leaves the station: back on the train, in the engine.
+func leave_station() -> void:
+	station_page.station = ""
+	train_car = "engine"
+	if main != null:
+		main.sfx("ui_back")
+	_rail_focus = true
+	open("train")
 
 
 # --- the dev tool ------------------------------------------------------------------

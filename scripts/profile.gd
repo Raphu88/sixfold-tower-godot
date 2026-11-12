@@ -135,6 +135,11 @@ var core_edit := {}
 ## migrated as it loads (the forks a mark already passed: today's side, chosen).
 var tree := {}
 
+## Renown (renown.gd): renown earned, deeds, titles, the station's medals,
+## bouts and challenges, boons bought, the outfitter's special order.
+## {} for a climber who has none yet (an old save); renown.gd state() fills it.
+var renown := {}
+
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
 	"blade": {"name": "Strength", "bonus": "strike damage"},
@@ -235,6 +240,7 @@ func reset() -> void:
 	unbound = {}
 	core_edit = {}
 	tree = {}
+	renown = {}
 	save()
 
 
@@ -308,6 +314,8 @@ func load_save() -> void:
 	unbound = ub if ub is Dictionary else {}
 	var ce = cfg.get_value("profile", "core_edit", {})
 	core_edit = ce if ce is Dictionary else {}
+	var rn = cfg.get_value("renown", "state", {})
+	renown = rn if rn is Dictionary else {}
 	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
 	if tr is Dictionary:
 		tree = tr
@@ -357,6 +365,7 @@ func save() -> void:
 	cfg.set_value("unbound", "state", unbound)
 	cfg.set_value("profile", "core_edit", core_edit)
 	cfg.set_value("tree", "state", tree)
+	cfg.set_value("renown", "state", renown)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 

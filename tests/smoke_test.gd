@@ -7330,9 +7330,13 @@ func _run() -> void:
 ## add tests without touching each other's): every .gd there, in name order,
 ## is a RefCounted with `func run(t) -> void` (t is this test: t.main,
 ## t._check, t._fresh_main, t._frames, t._wait, t._tap_at...). Run alone with
-## `godot --headless -s tests/smoke_test.gd -- parts` (only these).
+## `godot --headless -s tests/smoke_test.gd -- parts` (only these), or
+## `-- parts stations` (only the files whose names hold "stations").
 func _part_tests() -> void:
 	var files: Array = Array(DirAccess.get_files_at("res://tests/parts")).filter(func(f): return f.ends_with(".gd"))
+	var only: Array = Array(OS.get_cmdline_user_args()).filter(func(a): return a != "parts")
+	if not only.is_empty():
+		files = files.filter(func(f): return only.any(func(o): return String(f).contains(o)))
 	files.sort()
 	for f in files:
 		var s = load("res://tests/parts/" + f)

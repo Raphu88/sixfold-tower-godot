@@ -48,6 +48,9 @@ const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 const UnboundRun := preload("res://scripts/unbound_run.gd")
 const RoomStore := preload("res://scripts/room_store.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
+const ArenaScript := preload("res://scripts/arena.gd")
+const Renown := preload("res://scripts/renown.gd")
+const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 const UI := preload("res://scripts/ui.gd")
@@ -167,6 +170,7 @@ var painter_try := {}
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
 var practice  # the practice room, from the train's Abilities page (practice.gd)
+var arena  # the station's drills, bouts and challenges (arena.gd)
 var hints  # names in play: ready labels, first casts, the long-press card (ability_hints.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
@@ -340,7 +344,11 @@ func _ready() -> void:
 	practice = PracticeScript.new()
 	practice.main = self
 	add_child(practice)
+	arena = ArenaScript.new()
+	arena.main = self
+	add_child(arena)
 	_give_bonds()
+	player.boon_fx = Boons.fx(profile)  # (the station's boons, every climb: boons.gd)
 	player.use_heirlooms(profile.heirlooms)
 	if not profile.wear.is_empty():
 		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
@@ -423,6 +431,7 @@ func _ready() -> void:
 	elif on_train:
 		menu.open.call_deferred("train")
 		PracticeScript.after_train.call_deferred(self)  # (back from the practice room: its page again)
+		ArenaScript.after_train.call_deferred(self)  # (back from the station's arena: the station again)
 
 
 ## A wall body of the last floor: it stops colliding at once (a freed body
@@ -979,6 +988,8 @@ func _start_floor(n: int) -> void:
 	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
 	if practice != null and practice.on:
 		plan = practice.plan()  # (the practice room: practice.gd)
+	if arena != null and arena.on:
+		plan = arena.plan()  # (the station's arena: arena.gd)
 	if not painter_try.is_empty():
 		plan = Floors.try_plan(painter_try["room"], n, Towers.TOWERS[tower])  # (the room painter's Try it)
 	if plan.is_empty():
@@ -1922,6 +1933,7 @@ func pay_climb() -> String:
 	if climb_paid:
 		return pay_line
 	climb_paid = true
+	Renown.on_climb_end(profile, tower_data()["name"], floor_num, climb_best0, player != null and player.dead)  # (renown for the floors: renown.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -2302,6 +2314,7 @@ func depart(id: String) -> void:
 func choose_tower(id: String) -> void:
 	if not choosing_tower or not Towers.TOWERS.has(id):
 		return
+	var from_train := on_train
 	if on_train:
 		# Leaving the train (Depart, or the dev tools): your pack and supplies come too.
 		Train.pack_up(profile, player)
@@ -2313,6 +2326,8 @@ func choose_tower(id: String) -> void:
 	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
+	if from_train:
+		Boons.on_depart(self)  # (a boon's draught on the belt, a Keen Eye's piece: boons.gd)
 	player.set_physics_process(true)
 	sfx("equip_sword", 0.8, -2.0, 0.0)
 	_greet()
@@ -2347,6 +2362,8 @@ func _apply_tower_look() -> void:
 func _floor_title() -> String:
 	if practice != null and practice.on:
 		return practice.TEXT["title"]
+	if arena != null and arena.on:
+		return String(arena.ev.get("name", ""))
 	if in_camp:
 		return Items.CAMP["title"]
 	if first_climb:
@@ -2510,6 +2527,11 @@ func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 
 
 func on_player_died() -> void:
+	if arena != null and arena.on:
+		player.dead = false
+		player.hp = 1.0
+		arena.spare()
+		return
 	profile.note("deaths")
 	if run_flow > 0.0 and profile.path != "":
 		run_flow = 0.0  # the flow you carried is lost (what's banked stays)
@@ -3173,6 +3195,8 @@ func end_try() -> void:
 ## Something would kill the climber (player.gd): true if the ordinary
 ## Proving casts them down instead (proving.gd).
 func proving_spare() -> bool:
+	if arena != null and arena.spare():
+		return true  # (the station's arena: a fall loses the event, never the climber)
 	return proving != null and proving.spare()
 
 
@@ -3645,10 +3669,14 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 
 func on_enemy_killed(e) -> void:
+	if arena != null and arena.on:
+		arena.on_enemy_killed(e)  # (the station's arena: no drops, essence or record)
+		return
 	profile.note("slain")
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
+		Renown.on_beast(profile, beast_name())
 		GuideScript.say("beast_slain", {"beast": beast_name()})
 		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.
