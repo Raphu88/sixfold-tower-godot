@@ -267,7 +267,9 @@ func _top_live() -> bool:
 		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing or (p.dead and not main.first_climb) \
 		or p.pick_open or p.ring_open or not main.loot_notice.is_empty() or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
 		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
-		or (main.door_view != null and not main.door_view.lock_status().is_empty())
+		or (main.door_view != null and not main.door_view.lock_status().is_empty()) \
+		or (main.get("objective") != null and main.objective.active() and not main.climbing) \
+		or (main.get("scenarios") != null and main.scenarios.running())
 
 
 ## What this layer shows that doesn't move: it's redrawn when this changes.
@@ -275,7 +277,8 @@ func _top_signature() -> Array:
 	var p = main.player
 	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size, Layout.version,
 		main.gear_here.get("id", ""), p.gear_signature() if p != null else [], p != null and p.dead,
-		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size(), main.pay_line]
+		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size(), main.pay_line,
+		goal_line()]
 
 
 func _boss_alive() -> bool:
@@ -688,6 +691,7 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, main.fade))
 
 	_draw_boss_bar(size, font)
+	_draw_goal(size, font)
 	_draw_wing_status(size, font)
 	if not main.regard.is_empty():
 		_draw_regard(size, font)
@@ -1247,12 +1251,57 @@ func _draw_quarry(p, size: Vector2, font: Font) -> void:
 # --- bosses ------------------------------------------------------------------------
 
 ## A beast's health, as a long bar under the floor counter.
-## Rooms floors are bigger than the screen: once the stair opens, an arrow at
-## the screen edge points the way to it.
-func _draw_stair_arrow(size: Vector2, font: Font) -> void:
-	if not main.stair_open or main.climbing or main.player == null or main.camp_choosing:
+## The floor's task on the HUD (objective.gd): a short line ("Braziers lit 2
+## of 4"), "" for none.
+func goal_line() -> String:
+	if main.get("objective") == null or main.climbing or main.in_camp:
+		return ""
+	return main.objective.status_line()
+
+
+## The task's line, top centre in a small cartouche (under the corner's bars
+## on a narrow screen); it gives way to the floor's title while that shows.
+func _draw_goal(size: Vector2, font: Font) -> void:
+	var line := goal_line()
+	if line == "" or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing or floor_t > 0.0 or stair_t > 0.0:
 		return
-	var sp: Vector2 = main.get_viewport().get_canvas_transform() * main.stair_pos
+	var w := UI.font("display").get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 44.0
+	var corner := _corner_box(size)
+	var y := 26.0
+	if size.x * 0.5 - w * 0.5 < corner.end.x + 8.0:
+		y = corner.end.y + 22.0  # (a narrow screen: under the corner)
+	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.004)
+	var gb := Draw.Batch.new()
+	UI.cartouche_into(gb, Rect2((size.x - w) * 0.5, y - 16.0, w, 23.0), Color(UI.GILT, 0.6 * pulse))
+	gb.flush(self)
+	UI.draw_label(self, Vector2(0, y), line, 18, Color(1.0, 0.88, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.7))
+	# A scenario's own line under it.
+	if main.get("scenarios") != null:
+		var st: Dictionary = main.scenarios.status()
+		if not st.is_empty():
+			var sline: String = "%s  ·  %s" % [st["title"], st["line"]]
+			UI.draw_label(self, Vector2(0, y + 22.0), sline, 15, Color(0.95, 0.9, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size.x, 3, Color(0, 0, 0, 0.7))
+
+
+## Where the arrow at the screen's edge points: the floor's task's nearest
+## piece while the stair is warded, then the stair once it opens. [pos, label] or [].
+func arrow_goal() -> Array:
+	if main.player == null or main.climbing or main.camp_choosing:
+		return []
+	if main.get("objective") != null and main.ward and main.objective.active():
+		return main.objective.arrow_target()
+	if main.stair_open:
+		return [main.stair_pos, "Stair"]
+	return []
+
+
+## Rooms floors are bigger than the screen: an arrow at the screen edge
+## points the way to the task's next piece, then to the open stair.
+func _draw_stair_arrow(size: Vector2, font: Font) -> void:
+	var goal := arrow_goal()
+	if goal.is_empty():
+		return
+	var sp: Vector2 = main.get_viewport().get_canvas_transform() * Vector2(goal[0])
 	var margin := 40.0
 	if Rect2(Vector2.ZERO, size).grow(-margin).has_point(sp):
 		return
@@ -1271,7 +1320,9 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	UI.diamond_into(b, at - d * 13.0, 3.4, UI.OUTLINE)
 	UI.diamond_into(b, at - d * 13.0, 2.2, Color(UI.GILT_HI, pulse))
 	b.flush(self)
-	UI.draw_label(self, at - d * 28.0 + Vector2(-20, 4), "Stair", 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
+	var label: String = goal[1]
+	var lw := UI.font("display").get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	UI.draw_label(self, at - d * 28.0 + Vector2(-lw * 0.5, 4), label, 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
 
 
 ## Where the stair arrow sits and which way it points ([at, dir]) for a

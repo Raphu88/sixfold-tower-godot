@@ -1221,6 +1221,14 @@ func _melee() -> bool:
 	# A lever for a barred door.
 	if main.door_view != null:
 		main.door_view.strike(global_position, aim, reach, swing["arc"])
+	# The floor's task (levers), a scenario's cage, a cracked wall (a
+	# finisher breaks it; a lighter blow knocks hollow).
+	if main.get("objective") != null:
+		main.objective.strike(global_position, aim, reach, swing["arc"])
+	if main.get("scenarios") != null:
+		main.scenarios.strike(global_position, aim, reach, swing["arc"])
+	if main.get("cracks") != null:
+		main.cracks.strike(global_position, aim, reach, swing["arc"], heavy)
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:

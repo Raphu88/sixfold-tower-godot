@@ -378,6 +378,9 @@ static func _protect(ctx: Dictionary) -> void:
 	for cp in plan.get("camps", []):
 		_mark_box(ctx, tile_of(cp["pos"]), 1, 2)
 		_mark_box(ctx, tile_of(cp["item"]), 1, 2)
+	# The floor's task, chests, rest rooms, traders, scenarios' marks (floors.gd "keep").
+	for k in plan.get("keep", []):
+		_mark_box(ctx, tile_of(k), 1, 2)
 	# Nothing at a chasm's edge (a jump needs a clear take-off and landing).
 	var gs: Vector2i = ctx["gs"]
 	var chasm: PackedByteArray = ctx["chasm"]
@@ -1264,6 +1267,8 @@ static func ensure_passable(ctx: Dictionary, list: Array) -> void:
 		goals.append([tile_of(sp["pos"])])
 	for cp in plan.get("camps", []):
 		goals.append([tile_of(cp["pos"])])
+	for k in plan.get("keep", []):
+		goals.append([tile_of(k)])
 	var walls := ctx.duplicate()
 	for it in 240:
 		var hard := PackedByteArray()
@@ -1474,6 +1479,8 @@ static func clear_pits(plan: Dictionary) -> void:
 			guard.call(centre(t), 1)
 	for m in plan.get("monsters", []):
 		guard.call(m[1], 0)
+	for k in plan.get("keep", []):
+		guard.call(k, 1)
 	var pz: Dictionary = plan.get("puzzle", {})
 	for key in pz:
 		if pz[key] is Array:

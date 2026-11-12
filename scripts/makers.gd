@@ -199,6 +199,8 @@ const WEIGHTS := {
 	"door": {"towers": 2.0},
 	"vault": {"towers": 6.0},
 	"puzzle": {"towers": 6.0},
+	"objective": {"towers": 4.0},
+	"scenario": {"towers": 3.0, "creatures": 3.0},
 	"kill": {"creatures": 0.3},
 	"champion": {"creatures": 8.0},
 	"beast": {"creatures": 12.0, "marks": 3.0, "towers": 3.0},

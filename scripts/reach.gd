@@ -19,6 +19,7 @@ extends RefCounted
 
 const Floors := preload("res://scripts/floors.gd")
 const Rooms := preload("res://scripts/rooms.gd")
+const Objectives := preload("res://scripts/objectives.gd")
 
 
 ## The walk itself. `size` and `solid` are the grid (1 = rock), `start` a
@@ -39,7 +40,7 @@ static func flood(size: Vector2i, solid: PackedByteArray, start: Vector2i, doors
 		walkable[i] = 1 if solid[i] == 0 else 0
 	for d in doors:
 		var kind := String(d.get("lock", ""))
-		var locked := kind in ["key", "carried", "lever", "puzzle"]
+		var locked := kind in ["key", "carried", "lever", "puzzle", "oneway"]
 		for t in d["tiles"]:
 			if t.x < 0 or t.y < 0 or t.x >= size.x or t.y >= size.y:
 				continue
@@ -181,7 +182,34 @@ static func plan_grid(plan: Dictionary) -> Dictionary:
 			_fill(solid, size, Rect2i(s["vault_door"], Vector2i.ONE), 1)
 	for w in plan.get("wings", []):
 		_fill(solid, size, Rect2i(w["vault_door"], Vector2i.ONE), 1)
+	# Cracked walls are rock until broken (never needed), and so is what's behind.
+	for c in plan.get("cracks", []):
+		for t in c["tiles"]:
+			_fill(solid, size, Rect2i(t, Vector2i.ONE), 1)
+		if String(c["kind"]) != "loop" and c.has("alcove"):
+			_fill(solid, size, Floors.tile_rect(c["alcove"]), 1)
 	return {"size": size, "solid": solid}
+
+
+## The tiles the stair's ward asks the climber to reach on a plan: the
+## task's pieces (objectives.gd), or the puzzle's room and its murals when
+## the puzzle is the task.
+static func ward_tiles(plan: Dictionary, solid: PackedByteArray, size: Vector2i) -> Array:
+	var out: Array = []
+	var obj: Dictionary = plan.get("objective", {})
+	var pz: Dictionary = plan.get("puzzle", {})
+	if not obj.is_empty() and not obj.get("puzzle", false):
+		for p in Objectives.targets(obj):
+			out.append(tile(p))
+		return out
+	if pz.is_empty() or pz.get("optional", false):
+		return out
+	var gallery: Rect2 = pz.get("room", Rect2())
+	if gallery.has_area():
+		out.append(_open_in(solid, size, gallery))
+	for m in pz.get("murals", []):
+		out.append(tile(Vector2(m["pos"]) + Vector2(0, 30)))
+	return out
 
 
 static func _fill(solid: PackedByteArray, size: Vector2i, tr: Rect2i, v: int) -> void:
@@ -206,15 +234,7 @@ static func plan_check(plan: Dictionary) -> Dictionary:
 	var solid: PackedByteArray = g["solid"]
 	var doors: Array = []
 	var opens := {}
-	var gallery := Rect2()
-	var pz: Dictionary = plan.get("puzzle", {})
-	if not pz.is_empty():
-		gallery = pz.get("room", Rect2())
-	var puzzle_all: Array = []
-	if gallery.has_area():
-		puzzle_all.append(_open_in(solid, size, gallery))
-	for m in pz.get("murals", []):
-		puzzle_all.append(tile(Vector2(m["pos"]) + Vector2(0, 30)))
+	var puzzle_all: Array = ward_tiles(plan, solid, size)
 	# A monster carries one key (doors.gd tag_carriers: the last lock to name it wins).
 	var carries := {}
 	for d in plan.get("doors", []) + plan.get("wings", []):
@@ -236,6 +256,8 @@ static func plan_check(plan: Dictionary) -> Dictionary:
 				opens[lid] = {"any": _near_tiles(mons[c][1])} if c >= 0 and c < mons.size() and int(carries.get(c, -1)) == lid else {}
 			"puzzle":
 				opens[lid] = {"all": puzzle_all}
+			"oneway":
+				opens[lid] = {"any": d.get("lock_side", [])}
 	var start := tile(plan.get("start", Vector2.ZERO))
 	var f := flood(size, solid, start, doors, opens)
 	var reach: PackedByteArray = f["reach"]
@@ -311,7 +333,11 @@ static func live_check(main, from := Vector2.INF) -> Dictionary:
 						solid[t.y * size.x + t.x] = 0
 	var pz = main.puzzle
 	var puzzle_all: Array = []
-	if main.ward and pz != null and String(pz.kind) != "" and not pz.solved:
+	var ob = main.get("objective")
+	if main.ward and ob != null and ob.kind != "" and not ob.spec.get("puzzle", false):
+		for p in ob.live_targets():
+			puzzle_all.append(tile(p))
+	elif main.ward and pz != null and String(pz.kind) != "" and not pz.solved:
 		puzzle_all.append(_open_in(solid, size, pz.room))
 		if pz.cur != null and "murals" in pz.cur:
 			for m in pz.cur.murals:
@@ -326,6 +352,9 @@ static func live_check(main, from := Vector2.INF) -> Dictionary:
 			kind = ""  # (its key is in hand)
 		doors.append({"tiles": d["tiles"], "lock": kind, "lock_id": lid})
 		if kind == "" or opens.has(lid):
+			continue
+		if kind == "oneway":
+			opens[lid] = {"any": d.get("lock_side", [])}
 			continue
 		var any: Array = []
 		for k in dv.keys:

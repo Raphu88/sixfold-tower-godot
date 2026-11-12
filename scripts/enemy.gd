@@ -199,6 +199,10 @@ var overlay: Node2D  # over the darkness: telegraphs and the health bar
 ## any tower monster, bigger and tougher, crowned, with a gold aura and one
 ## extra attack: a ground slam, telegraphed by a closing ring (roll out).
 var champion := false
+## A scenario's goal (scenarios.gd): a place it heads for instead of the
+## climber (a camp, a cub) while the climber is farther than GOAL_LEAVE.
+var goal := Vector2.INF
+const GOAL_LEAVE := 130.0
 var champ_t := 0.0  # until its next slam
 var champ_wind := 0.0  # the slam's wind-up, counting down
 static var CHAMPION := {"hp": 3.0, "dmg": 1.3, "size": 1.35, "weight": 3.0, "slam_every": 6.0, "slam_wind": 0.9,
@@ -396,6 +400,24 @@ func _physics_process(delta: float) -> void:
 			p = feud
 		else:
 			feud = null
+	# A scenario's goal (scenarios.gd): it goes for the camp or the cub
+	# unless the climber comes close.
+	if goal != Vector2.INF and p != null and not p.dead and p == main.player and global_position.distance_to(p.global_position) > GOAL_LEAVE and not is_attacking():
+		var gd: Vector2 = goal - global_position
+		if gd.length() > 30.0:
+			path_t -= delta
+			if path_t <= 0.0 and main.take_path_turn():
+				path_t = 0.25
+				path_d = main.path_dir(global_position, goal)
+			if path_d == Vector2.ZERO:
+				path_d = gd.normalized()
+			velocity = path_d * speed + knock
+			face = face.slerp(gd.normalized(), minf(1.0, 8.0 * delta)).normalized()
+		else:
+			velocity = knock
+		move_and_slide()
+		_redraw()
+		return
 	if p == null or p.dead:
 		_end_attack("idle", 1.0)
 		_drift()
