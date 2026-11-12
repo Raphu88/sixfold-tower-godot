@@ -446,7 +446,7 @@ static var BONDS := {
 				"steps": {
 					1: {"cost": 10.0, "windup": 0.35, "damage": 14.0, "radius": 55.0},
 					2: {"damage": 16.0},
-					3: {"windup": 0.5, "radius": 95.0, "damage": 20.0, "speed": 250.0, "trail": 3.0, "blast": 1.35},
+					3: {"windup": 0.5, "radius": 95.0, "damage": 20.0, "speed": 250.0, "trail": 3.0, "blast": 1.5},
 					4: {"damage": 23.0},
 					5: {"damage": 26.0},
 				}},
@@ -511,7 +511,7 @@ static var BONDS := {
 				"changes": {3: "Bonfire: foes you strike while you burn catch fire, and the payback grows with each one"},
 				"steps": {
 					1: {"cost": 8.0, "windup": 0.2, "duration": 5.0, "loss": 0.15, "spread": false},
-					3: {"per_burning": 0.35, "most": 5},
+					3: {"per_burning": 0.5, "most": 5},
 					4: {"loss": 0.18},
 					5: {"loss": 0.2},
 				}},
