@@ -542,7 +542,7 @@ func bot_steer(pos: Vector2, d: Vector2) -> Vector2:
 	d = _path_aim(pos, d)
 	var ok := func(dir: Vector2) -> bool:
 		var dn := dir.normalized()
-		if not main.in_chasm(pos + dn * 9.0):
+		if not main.in_chasm(pos + dn * (9.0 + 3.3 * Engine.time_scale)):  # (a tick's stride further at a sped-up test)
 			return true
 		for g in gaps:
 			for v in g["vents"]:
