@@ -265,8 +265,8 @@ static func _loops(infos: Array, floor_num: int, style: Dictionary) -> Array:
 	for pr in pairs:
 		if out.size() >= want:
 			break
-		# Never into the start room (it keeps one way in).
-		if pr[0] == 0 or pr[1] == 0:
+		# Never into the start room or the stair room (each keeps its one way in).
+		if pr[0] == 0 or pr[1] == 0 or infos[pr[0]]["role"] == "stair" or infos[pr[1]]["role"] == "stair":
 			continue
 		var a: int = pr[1]
 		var b: int = pr[0]

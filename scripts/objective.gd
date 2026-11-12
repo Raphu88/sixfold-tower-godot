@@ -558,8 +558,12 @@ func on_enemy_killed(e) -> void:
 
 ## The floor's puzzle was solved (puzzle.gd): the task, or its own vault.
 func puzzle_solved(host) -> void:
-	if spec.get("puzzle", false) and not done:
-		_complete()
+	if not host.spec.get("optional", false):
+		# The floor's own puzzle (the task): it lifts the ward, never a vault.
+		if not done:
+			_complete()
+		elif main.ward:
+			main.lift_ward()
 		return
 	if optional_done:
 		return

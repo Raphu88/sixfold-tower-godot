@@ -98,7 +98,7 @@ static func _plan_loop(infos: Array, joined: Dictionary, taken: Array, bounds: R
 	var pairs: Array = []
 	for i in infos.size():
 		for j in range(i + 1, infos.size()):
-			if i == 0 or joined.has(_pair(i, j)):
+			if i == 0 or joined.has(_pair(i, j)) or infos[i]["role"] == "stair" or infos[j]["role"] == "stair":
 				continue
 			var d: Vector2i = infos[j]["cell"] - infos[i]["cell"]
 			if absi(d.x) + absi(d.y) == 1:

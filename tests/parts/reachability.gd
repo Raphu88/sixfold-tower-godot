@@ -44,11 +44,17 @@ func _checker() -> void:
 	var tower: Dictionary = Towers.TOWERS["gryphon"]
 	var plan := Floors.rooms_floor(4, tower)
 	_check(Reach.plan_check(plan)["ok"], "a fresh floor plan passes the check")
-	# Lock the stair room's own door, its key inside the stair room.
+	# Lock the stair room's own door, its key inside the stair room (on a
+	# floor where that door is its one way in: a loop may reach a room off it).
 	var si := -1
-	for i in plan["room_info"].size():
-		if plan["room_info"][i]["role"] == "stair":
-			si = i
+	for n in 60:
+		si = -1
+		for i in plan["room_info"].size():
+			if plan["room_info"][i]["role"] == "stair":
+				si = i
+		if plan["room_info"][si]["gates"].size() == 1:
+			break
+		plan = Floors.rooms_floor(4, tower)
 	var door := {}
 	for d in plan["doors"]:
 		if int(d["room"]) == si:
@@ -242,7 +248,7 @@ func _stair_door(main) -> Dictionary:
 			if main.room_info[i]["role"] == "stair":
 				si = i
 		for d in main.door_view.list:
-			if si >= 0 and int(d["room"]) == si and not d["open"] and String(d["lock"]) == "":
+			if si >= 0 and int(d["room"]) == si and not d["open"] and String(d["lock"]) == "" and main.room_info[si]["gates"].size() == 1:  # (one way in: a loop may reach a room off the stair room)
 				for e in main.enemies():
 					e.queue_free()
 				await t._frames(2)

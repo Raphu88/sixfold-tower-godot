@@ -100,7 +100,7 @@ func _plans() -> void:
 	_check(ok_nolock, "no lock on the way: the stair and every piece of the task are reached with every lock shut")
 	_check(ok_lockpay, "a lock only guards something worth it (a strongroom or a sealed wing)")
 	_check(ok_pay and ok_quiet, "every room pays off (no quiet halls, no empty dead ends)")
-	_check(loops >= 54 and oneway > 0, "floors loop: extra ways between rooms, some barred from one side (%d over 54 floors, %d barred)" % [loops, oneway])
+	_check(loops >= 36 and oneway > 0, "floors loop: extra ways between rooms, some barred from one side (%d over 54 floors, %d barred)" % [loops, oneway])
 	_check(cracks >= 40 and ok_cracks_opt, "cracked walls on most floors (%d over 54)" % cracks)
 	_check(kinds.size() >= 12, "many kinds of task turn up (%s)" % [kinds.keys()])
 
