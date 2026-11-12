@@ -48,9 +48,13 @@ const SecretToolsScript := preload("res://scripts/secret_tools.gd")
 const UnboundRun := preload("res://scripts/unbound_run.gd")
 const RoomStore := preload("res://scripts/room_store.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
+const ArenaScript := preload("res://scripts/arena.gd")
+const Renown := preload("res://scripts/renown.gd")
+const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 const UI := preload("res://scripts/ui.gd")
+const Reach := preload("res://scripts/reach.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -167,6 +171,7 @@ var painter_try := {}
 var secret_tools  # the secret bonds' tool ring and tools (secret_tools.gd)
 var unbound  # the Unbound in a climb: strain, techniques, barriers (unbound_run.gd)
 var practice  # the practice room, from the train's Abilities page (practice.gd)
+var arena  # the station's drills, bouts and challenges (arena.gd)
 var hints  # names in play: ready labels, first casts, the long-press card (ability_hints.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var cast_hits := 0
@@ -340,7 +345,11 @@ func _ready() -> void:
 	practice = PracticeScript.new()
 	practice.main = self
 	add_child(practice)
+	arena = ArenaScript.new()
+	arena.main = self
+	add_child(arena)
 	_give_bonds()
+	player.boon_fx = Boons.fx(profile)  # (the station's boons, every climb: boons.gd)
 	player.use_heirlooms(profile.heirlooms)
 	if not profile.wear.is_empty():
 		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
@@ -423,6 +432,7 @@ func _ready() -> void:
 	elif on_train:
 		menu.open.call_deferred("train")
 		PracticeScript.after_train.call_deferred(self)  # (back from the practice room: its page again)
+		ArenaScript.after_train.call_deferred(self)  # (back from the station's arena: the station again)
 
 
 ## A wall body of the last floor: it stops colliding at once (a freed body
@@ -758,6 +768,10 @@ func _process(delta: float) -> void:
 	if not cleared and not climbing and alive == 0:
 		cleared = true
 		sfx("clear", 1.0, 0.0, 0.0)
+	stuck_t -= delta
+	if stuck_t <= 0.0:
+		stuck_t = STUCK_EVERY
+		check_stuck()
 	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
 		_climb()
 	if not cache.is_empty() and not cache["taken"] and not climbing and not player.dead \
@@ -979,6 +993,8 @@ func _start_floor(n: int) -> void:
 	var plan: Dictionary = _camp_plan() if in_camp else (proving.make_plan() if proving.due(n) else {})  # (floor 6: the Proving's own layout)
 	if practice != null and practice.on:
 		plan = practice.plan()  # (the practice room: practice.gd)
+	if arena != null and arena.on:
+		plan = arena.plan()  # (the station's arena: arena.gd)
 	if not painter_try.is_empty():
 		plan = Floors.try_plan(painter_try["room"], n, Towers.TOWERS[tower])  # (the room painter's Try it)
 	if plan.is_empty():
@@ -1010,11 +1026,8 @@ func _start_floor(n: int) -> void:
 			cache["gear"] = find_gear("", 1)  # (a cache rolls one rarity row higher)
 	room_view.cache = cache
 	_place_lost_cache(plan, n)
-	var targets: Array = [stair_pos]
-	for m in plan["monsters"]:
-		targets.append(m[1])
-	if not cache.is_empty():
-		targets.append(cache["pos"])
+	var targets: Array = Floors.cover_targets(plan)  # (the stair, monsters, keys, levers...: cover never walls them off)
+	targets.append(stair_pos)
 	if not lost_cache.is_empty():
 		targets.append(lost_cache["pos"])
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
@@ -1312,6 +1325,36 @@ func _land_below(to: int) -> void:
 	banner = {"title": FALL_TEXT["title"], "lines": [FALL_TEXT["line"] % to], "t": 3.0}
 	player.set_physics_process(true)
 	sfx("hurt", 0.7, -6.0, 0.0)
+
+
+## The safety net: a climber is never shut away from the stair for good.
+## Every few seconds (only while a door is locked), reach.gd walks the floor
+## from where the climber stands; if the stair (or what lifts its ward)
+## can't be reached and a locked door in reach is in the way whose key,
+## lever or carrier can't be reached either, that lock gives way. The floor
+## planner never makes such a floor (tests/parts/reachability.gd), so this
+## is only for what nobody foresaw. Returns the lock ids it opened.
+const STUCK_EVERY := 2.0
+var stuck_t := STUCK_EVERY
+
+
+func check_stuck() -> Array:
+	if not layout_on or climbing or in_camp or player == null or player.dead or door_view == null or door_view.locked_count() == 0:
+		return []
+	var c := Reach.live_check(self)
+	if not c["checked"] or c["stair"] or c["blocked"].is_empty():
+		return []
+	var opened: Array = c["blocked"].duplicate()
+	for lid in opened:
+		for d in door_view.list:
+			if String(d["lock"]) != "" and int(d["lock_id"]) == int(lid):
+				fx_burst(d["rect"].get_center(), d["out"], DoorsScript.KEY_GOLD, 14, 120.0)
+		door_view.unlock(int(lid))
+	var LT: Dictionary = door_view.LOCK_TEXT
+	banner = {"title": LT["relent_title"], "lines": [LT["relent"]], "t": 3.0}
+	sfx("slam", 0.8, -4.0, 0.0)
+	shake(3.0)
+	return opened
 
 
 ## The floor's puzzle is solved: the ward lifts and the stair opens.
@@ -1922,6 +1965,7 @@ func pay_climb() -> String:
 	if climb_paid:
 		return pay_line
 	climb_paid = true
+	Renown.on_climb_end(profile, tower_data()["name"], floor_num, climb_best0, player != null and player.dead)  # (renown for the floors: renown.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -2302,6 +2346,7 @@ func depart(id: String) -> void:
 func choose_tower(id: String) -> void:
 	if not choosing_tower or not Towers.TOWERS.has(id):
 		return
+	var from_train := on_train
 	if on_train:
 		# Leaving the train (Depart, or the dev tools): your pack and supplies come too.
 		Train.pack_up(profile, player)
@@ -2313,6 +2358,8 @@ func choose_tower(id: String) -> void:
 	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
+	if from_train:
+		Boons.on_depart(self)  # (a boon's draught on the belt, a Keen Eye's piece: boons.gd)
 	player.set_physics_process(true)
 	sfx("equip_sword", 0.8, -2.0, 0.0)
 	_greet()
@@ -2347,6 +2394,8 @@ func _apply_tower_look() -> void:
 func _floor_title() -> String:
 	if practice != null and practice.on:
 		return practice.TEXT["title"]
+	if arena != null and arena.on:
+		return String(arena.ev.get("name", ""))
 	if in_camp:
 		return Items.CAMP["title"]
 	if first_climb:
@@ -2510,6 +2559,11 @@ func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 
 
 func on_player_died() -> void:
+	if arena != null and arena.on:
+		player.dead = false
+		player.hp = 1.0
+		arena.spare()
+		return
 	profile.note("deaths")
 	if run_flow > 0.0 and profile.path != "":
 		run_flow = 0.0  # the flow you carried is lost (what's banked stays)
@@ -3173,6 +3227,8 @@ func end_try() -> void:
 ## Something would kill the climber (player.gd): true if the ordinary
 ## Proving casts them down instead (proving.gd).
 func proving_spare() -> bool:
+	if arena != null and arena.spare():
+		return true  # (the station's arena: a fall loses the event, never the climber)
 	return proving != null and proving.spare()
 
 
@@ -3645,10 +3701,14 @@ func spawn_player_arrow(pos: Vector2, vel: Vector2, dmg: float, force: float, pi
 
 
 func on_enemy_killed(e) -> void:
+	if arena != null and arena.on:
+		arena.on_enemy_killed(e)  # (the station's arena: no drops, essence or record)
+		return
 	profile.note("slain")
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
+		Renown.on_beast(profile, beast_name())
 		GuideScript.say("beast_slain", {"beast": beast_name()})
 		_beast_piece(e)
 	# Overcharge: a charged foe's death throws lightning to everything near it.

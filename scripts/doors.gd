@@ -77,6 +77,10 @@ static var LOCK_TEXT := {
 	"open_title": "THE DOORS GRIND OPEN",
 	"status": "THE DOORS ARE SHUT",
 	"left": "%d left",
+	# The safety net (main.gd check_stuck): the stair can't be reached and a lock
+	# in the way can't be opened, so it gives way.
+	"relent_title": "A LOCK GIVES WAY",
+	"relent": "With no other way on, a locked door opens.",
 }
 ## Which rooms lock you in (by theme, or by role), and how often; the stair
 ## landing only from a higher floor. Checked a few times a second.
@@ -1032,7 +1036,8 @@ func _draw_closed(b, d: Dictionary) -> void:
 			b.circle(c, rad, iron.lightened(0.1))
 			_sigil(b, c, rad * 0.75, String(d["sigil"]))
 		"chained":
-			# Two chains across, and a padlock where they cross.
+			# Two chains across, and an iron ring where they cross (no padlock:
+			# only a locked door shows one, _draw_lock, so this never looks locked).
 			var a0 := inner.position
 			var a1 := inner.end
 			var b0 := Vector2(inner.end.x, inner.position.y)
@@ -1044,10 +1049,8 @@ func _draw_closed(b, d: Dictionary) -> void:
 					b.circle(p, 3.0, Palette.OUTLINE)
 					b.circle(p, 2.0, Color(0.5, 0.48, 0.5))
 			var c := inner.get_center()
-			b.rect(Rect2(c - Vector2(6, 3), Vector2(12, 10)), Palette.OUTLINE)
-			b.rect(Rect2(c - Vector2(5, 2), Vector2(10, 8)), Color(0.55, 0.45, 0.25))
-			b.arc(c + Vector2(0, -3), 4.0, PI, TAU, 8, Color(0.5, 0.48, 0.5), 2.0)
-			b.rect(Rect2(c + Vector2(-1, 1), Vector2(2, 3)), Palette.OUTLINE)
+			b.arc(c, 5.0, 0.0, TAU, 14, Palette.OUTLINE, 4.0)
+			b.arc(c, 5.0, 0.0, TAU, 14, Color(0.5, 0.48, 0.5), 2.2)
 		"warm":
 			# A brass ring to pull.
 			var c := inner.get_center() + along * long * 0.28

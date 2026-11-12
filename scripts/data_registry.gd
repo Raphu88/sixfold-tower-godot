@@ -68,7 +68,8 @@ const SECTIONS := [
 		"tables": ["gear/RARITIES", "gear/TRAITS", "gear/NAMED", "gear/ARMOR", "gear/PIECES", "gear/SLOT_NAMES", "gear/TEXT", "gear/HEIRLOOM_TEXT", "gear/LASTING_RUNES"], "kinds": ["text"],
 		"names": {"NAMED": "Named pieces", "PIECES": "Worn pieces", "TEXT": "Words", "HEIRLOOM_TEXT": "Heirlooms"}},
 	{"id": "weapons_words", "group": "words", "name": "Weapons", "when": "live",
-		"tables": ["weapons/WEAPONS"], "kinds": ["text"]},
+		"tables": ["weapons/WEAPONS", "weapons/ESSENCE_SHOT", "weapons/GUN_TEXT"], "kinds": ["text"],
+		"names": {"ESSENCE_SHOT": "Essence shot (enchanted pistols)", "GUN_TEXT": "Pistols' words"}},
 	{"id": "bonds_words", "group": "words", "name": "Bonds and marks", "when": "live",
 		"tables": ["bonds/BONDS", "bonds/PART_NAMES"], "kinds": ["text"], "names": {"PART_NAMES": "Body parts"}},
 	{"id": "towers_words", "group": "words", "name": "Towers and rooms", "when": "live",
@@ -98,6 +99,12 @@ const SECTIONS := [
 	{"id": "menu_words", "group": "words", "name": "Title, climbers and appearance", "when": "page",
 		"tables": ["title/TEXT", "climbers_page/TEXT", "appearance/TEXT", "appearance/NAMES", "essence/KINDS"], "kinds": ["text"],
 		"names": {"NAMES": "Names the dice offers", "KINDS": "Essences"}},
+	{"id": "stations_words", "group": "words", "name": "Stations, renown, titles and boons", "when": "page",
+		"tables": ["stations/STATIONS", "stations/STOPS", "stations/DRILLS", "stations/TIERS", "stations/CHALLENGES", "stations/RULES", "stations/MEDALS", "stations/TEXT",
+			"renown/RANKS", "renown/TITLES", "renown/TEXT", "boons/BOONS", "boons/TEXT", "train/UPGRADES"], "kinds": ["text"],
+		"skip": ["rule", "tower", "stops", "waves", "rules", "foes", "start_item"],
+		"names": {"STATIONS": "Stations", "STOPS": "A station's stops", "DRILLS": "The gym's drills", "TIERS": "The tournament's tiers and bouts", "CHALLENGES": "Challenges",
+			"RULES": "Bout rules", "MEDALS": "Medals", "RANKS": "Renown ranks", "TITLES": "Titles", "BOONS": "Boons", "UPGRADES": "The outfitter's upgrades"}},
 	# --- numbers ---
 	{"id": "prices", "group": "numbers", "name": "Store prices", "when": "live",
 		"tables": ["train/BASE_PRICE", "train/RARITY_PRICE", "train/SUPPLY_PRICE", "train/ANY_PRICE", "train/DEFAULT_PRICE", "train/SELL_SHARE", "train/WORN_SELL", "train/TODAY_ODDS"], "kinds": ["number"],
@@ -128,7 +135,8 @@ const SECTIONS := [
 			"gear/WEAPON_DROP_WEIGHT", "gear/ARMOR", "gear/PIECES", "gear/NAMED", "gear/REGARDED_DROP"], "kinds": ["number"],
 		"names": {"REGARDED_DROP": "A beast leaves its Regarded piece (chance)", "RARITY_ODDS": "Rarity odds by floor", "CAPS": "Bonus caps", "WEAR": "Wear", "WEAPON_DROP_WEIGHT": "Weapon drop weights", "PIECES": "Worn pieces", "NAMED": "Named pieces"}},
 	{"id": "weapons_numbers", "group": "numbers", "name": "Weapons", "when": "live",
-		"tables": ["weapons/WEAPONS", "weapons/MEMORY"], "kinds": ["number"]},
+		"tables": ["weapons/WEAPONS", "weapons/MEMORY", "weapons/ESSENCE_SHOT"], "kinds": ["number"],
+		"names": {"ESSENCE_SHOT": "Essence shot (enchanted pistols)"}},
 	{"id": "bench_numbers", "group": "numbers", "name": "Workshop and vessel", "when": "live",
 		"tables": ["bench/BREW", "bench/TEMPER", "bench/TEMPER_RARITY", "bench/TEMPER_DENSITY", "bench/INSCRIBE", "vessel/BREW", "vessel/TRADE"], "kinds": ["number"],
 		"names": {"BREW": "Brewing costs", "TEMPER": "Tempering costs", "TRADE": "Vessel trade"}},
@@ -148,6 +156,14 @@ const SECTIONS := [
 			"TREE": "The Unbound's capstones", "ECHO_ACTS": "Echoes: what each does"}},
 	{"id": "secret_numbers", "group": "numbers", "name": "Secret essences", "when": "live",
 		"tables": ["secret/STEPS", "secret/GROWTH", "secret/REFUSE_HEALTH", "secret/UNDO_CAP"], "kinds": ["number"]},
+	{"id": "stations_numbers", "group": "numbers", "name": "Stations, renown and boons", "when": "page",
+		"tables": ["stations/DRILLS", "stations/TIERS", "stations/CHALLENGES", "stations/RULE_FX", "stations/RELIC_CHANCE", "stations/REPEAT",
+			"renown/RANKS", "renown/CLIMB", "renown/TITLES", "boons/BOONS", "train/UPGRADES", "train/UPGRADE_FX", "train/STOCK_ODDS"], "kinds": ["number"],
+		"skip": ["waves", "rules", "foes", "stops"],
+		"names": {"DRILLS": "Drills: time, medals, renown", "TIERS": "Tiers: fee, crystals, renown", "CHALLENGES": "Challenges: rewards", "RULE_FX": "Bout rules' numbers",
+			"RELIC_CHANCE": "A repeat tier win gives a relic (chance)", "REPEAT": "A repeat win pays (share)", "RANKS": "Renown for each rank", "CLIMB": "Renown a climb earns",
+			"TITLES": "Titles: deeds' numbers", "BOONS": "Boons: prices, levels, ranks", "UPGRADES": "The outfitter's upgrades: ranks", "UPGRADE_FX": "The outfitter's upgrades: numbers",
+			"STOCK_ODDS": "Better stock: today's piece odds"}},
 	# --- colours ---
 	{"id": "essence_colours", "group": "colours", "name": "Essences", "when": "live", "hook": "icons",
 		"tables": ["essence/KINDS", "secret/KINDS"], "kinds": ["colour"]},
@@ -173,6 +189,8 @@ const SECTIONS := [
 		"names": {"TOWER_FOG": "Darkness", "TOWER_TINT": "Stone tint", "TOWERS": "Stone, ambient and torch", "THEMES": "Room tints"}},
 	{"id": "monster_colours", "group": "colours", "name": "Monsters and traps", "when": "live",
 		"tables": ["enemy/TYPES", "enemy/CHAMPION", "enemy/SHADE", "traps/KINDS"], "kinds": ["colour"], "names": {"KINDS": "Traps"}},
+	{"id": "station_colours", "group": "colours", "name": "Stations and medals", "when": "page",
+		"tables": ["stations/STATIONS", "stations/MEDALS"], "kinds": ["colour"], "names": {"STATIONS": "Stations' lamps", "MEDALS": "Medals"}},
 	# --- appearance ---
 	{"id": "looks", "group": "looks", "name": "Appearance options", "when": "page",
 		"tables": ["appearance/OPTIONS", "appearance/ROWS", "appearance/TABS", "appearance/ACCENTS"], "kinds": ["text", "colour"], "names": {"OPTIONS": "Options", "ROWS": "Row names", "TABS": "Tabs", "ACCENTS": "Small things (scarf, metal, feather, face)"}},
@@ -180,7 +198,8 @@ const SECTIONS := [
 
 ## Keys never offered anywhere: ids and names the code looks things up by.
 const SKIP_KEYS := ["id", "group", "kind", "key", "sound", "hit_sound", "equip", "step", "icon", "slot", "part", "theme", "beast_kind",
-	"summit", "floor", "feature", "door", "emblem", "trigger", "shape", "base", "rarity", "role", "flip"]
+	"summit", "floor", "feature", "door", "emblem", "trigger", "shape", "base", "rarity", "role", "flip",
+	"shot_sound", "crack", "reload_sound", "load_sound", "blade_sound"]
 
 ## Friendlier names for common keys (the rest are written out from the key).
 const KEY_NAMES := {"desc": "description", "dmg": "damage", "hp": "health", "more": "Archive text", "tip": "tip",
@@ -712,6 +731,8 @@ static func _walk(sec: Dictionary, path: String, v, skip: Array) -> void:
 			_walk(sec, path + "/" + str(i), v[i], skip)
 		return
 	var kind := kind_of(v)
+	if v is String and path.ends_with("/history"):
+		kind = "text"  # (a relic's history starts blank, for the owner to write)
 	if kind == "" or not kind in sec["kinds"] or _by_path.has(path):
 		return
 	var f := {"path": path, "section": sec["id"], "kind": kind}

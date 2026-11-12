@@ -634,9 +634,12 @@ func _break(bar: Dictionary) -> void:
 ## while it shows.
 func ask_at_regard() -> bool:
 	var rg: Dictionary = main.regard
-	if rg.is_empty() or rg.has("asked") or Unbound.is_on(main.profile) or not main.profile.bonds.has(rg["part"]):
+	# (asked once per Regard: remembered on its granted mark too, so a Regard
+	# shown again in the same session never offers it a second time)
+	if rg.is_empty() or rg.has("asked") or main.regard_mark.get("asked", false) or Unbound.is_on(main.profile) or not main.profile.bonds.has(rg["part"]):
 		return false
 	rg["asked"] = true
+	main.regard_mark["asked"] = true
 	_offer_refusal(rg["part"], rg["id"], "regard", [])
 	return true
 

@@ -275,8 +275,8 @@ func _new_pieces() -> void:
 		p.take_gear(G.make(id))
 		var fx: Dictionary = G.total_effects(p.gear, true)
 		for k in d:
-			if k in ["slot", "name", "short", "desc", "color", "drop_weight", "look", "rarity"]:
-				continue
+			if k in ["slot", "name", "short", "desc", "color", "drop_weight", "look", "rarity", "kind"]:
+				continue  # ("kind": a ring's essence, not a number)
 			if k == "heavy":
 				if int(fx.get("heavy", 0)) < 1:
 					bad.append(id + ":" + k)

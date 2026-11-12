@@ -186,7 +186,11 @@ func _lean_open(how: String) -> void:
 		"touch":
 			touch = main.get_children().filter(func(c): return c is CanvasLayer)[0].get_children().filter(func(c): return "stick_touch" in c)[0]
 			var screen: Vector2 = touch.get_viewport_rect().size
+			touch.stick_touch = -1  # (a finger an earlier test left down must not hold the stick)
+			touch.held.clear()
 			at = Vector2(200, screen.y - 200)
+			if touch.Layout.moved("touch.stick"):
+				at = touch.stick_zone().get_center()
 			t._touch(0, at, true)
 			await t._frames(2)
 			t._drag(0, at + into * 20.0)

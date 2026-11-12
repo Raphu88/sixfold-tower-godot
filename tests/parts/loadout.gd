@@ -259,8 +259,8 @@ func _compare() -> void:
 	_check(Train.versus(prof, p, G.make("leather_cap")) > 0 and Train.worn_against(prof, p, G.make("leather_cap")) == null, "anything beats an empty helm (it's set against nothing)")
 	prof.wear = {"helm": G.make("iron_helm", "rare", ["vigor", "calm"])}
 	Train.dress(prof, p)
-	_check(Train.versus(prof, p, G.make("cloth_hood")) < 0, "a plain hood is worse than the Rare helm you'll wear")
-	var rows: Array = G.compare(G.make("cloth_hood"), Train.worn_against(prof, p, G.make("cloth_hood")))
+	_check(Train.versus(prof, p, G.make("leather_cap")) < 0, "a plain cap is worse than the Rare helm you'll wear")
+	var rows: Array = G.compare(G.make("leather_cap"), Train.worn_against(prof, p, G.make("leather_cap")))
 	_check(rows.any(func(r): return int(r[3]) < 0) and rows.any(func(r): return int(r[3]) > 0), "...its card sets each number against it, better and worse")
 	_reset()
 

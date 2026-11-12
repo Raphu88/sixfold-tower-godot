@@ -246,7 +246,7 @@ func _core_signature() -> Array:
 	var s := [true, hud_scale, get_viewport_rect().size, Layout.version, main.touch_active, main.pad_active, main.pad_ps,
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
-		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() == "crossbow" else 0.0,
+		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
 		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
 		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
@@ -377,6 +377,21 @@ func _draw_core() -> void:
 	if p.reload_t > 0.0 and p.wkind() == "crossbow":
 		var rk: float = clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
 		wb.rect(Rect2(wr.position + Vector2(2, 2), Vector2(SLOT - 4, (SLOT - 4) * rk)), Color(0, 0, 0, 0.45))
+	if p.wkind() == "gun":
+		# A pistol: its reload shades the slot as the crossbow's does, and a
+		# pip for each shot runs along the slot's foot, bright while loaded.
+		if p.reload_t > 0.0:
+			var gk: float = clampf(p.reload_t / maxf(p.gun_reload_time(), 0.01), 0.0, 1.0)
+			wb.rect(Rect2(wr.position + Vector2(2, 2), Vector2(SLOT - 4, (SLOT - 4) * gk)), Color(0, 0, 0, 0.45))
+		var shots: int = p.gun_shots()
+		var loaded: int = p.ammo_left()
+		var magic: String = p.gun_magic()
+		var lit: Color = Essence.color(magic) if magic != "" else Color(1.0, 0.86, 0.5)
+		var pw := (SLOT - 8.0) / maxf(float(shots), 1.0)
+		for i in shots:
+			var pc := Vector2(wr.position.x + 4.0 + pw * (i + 0.5), wr.end.y - 3.5)
+			wb.dot(pc, minf(2.6, pw * 0.42) + 0.8, UI.OUTLINE)
+			wb.dot(pc, minf(2.6, pw * 0.42), lit if i < loaded else Color(0.3, 0.28, 0.32))
 	tips.append([wx * wr, Gear.display(p.weapon), _gear_tip(p.weapon, maxi(slot_i, 0))])
 	c.draw_set_transform_matrix(unit * wx)
 	wb.flush(c)
@@ -588,6 +603,8 @@ func _draw() -> void:
 		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
 		if main.practice != null and main.practice.on:
 			sub_text = main.practice.TEXT["sub"]  # (the practice room: no tower, no floor)
+		if main.get("arena") != null and main.arena.on:
+			sub_text = String(main.arena.ev.get("name", ""))  # (the station's arena: arena.gd)
 		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 3, Color(0, 0, 0, 0.6 * fa))
 		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, fa))
 	if stair_t > 0.0 and main.stair_open and not main.climbing:
