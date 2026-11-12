@@ -199,7 +199,17 @@ static func after_build(plan: Dictionary, infos: Array, links: Array, floor_num:
 	for b in out["brambles"]:
 		btiles.append_array(b["tiles"])
 	for m in plan["monsters"]:
-		if String(m[0]) != "briar" or btiles.is_empty():
+		if String(m[0]) != "briar":
+			continue
+		# (never in a puzzle's hall: a bush that won't budge would stand in the puzzle's way)
+		var in_puzzle := false
+		for info in infos:
+			if info["role"] == "gallery" and info.get("puzzle", "") != "" and Rect2(info["rect"]).has_point(m[1]):
+				in_puzzle = true
+		if in_puzzle:
+			m[0] = "thornhound"
+			continue
+		if btiles.is_empty():
 			continue
 		var best := Vector2.INF
 		for bt in btiles:
@@ -613,25 +623,25 @@ func _draw_thorn(th: Dictionary, t: float) -> void:
 		var k := 1.0
 		if st == "closing":
 			k = 1.0 - clampf(float(th["t"]) / float(RULES["close_after"]), 0.0, 1.0)
-		draw_rect(r.grow(-4.0), Color(0.08, 0.12, 0.07, 0.7 * k))
+		draw_rect(r.grow(-2.0), Color(0.06, 0.1, 0.05, 0.85 * k))
 		# Tangled stems across the gap, thorns along them.
-		for i in 7:
+		for i in 13:
 			var a := r.position + Vector2(_h(sd, i) * r.size.x, _h(sd, i + 9) * r.size.y)
 			var b := r.position + Vector2(_h(sd, i + 20) * r.size.x, _h(sd, i + 31) * r.size.y)
 			var m := (a + b) * 0.5 + (b - a).orthogonal().normalized() * 6.0 * sin(t * 0.8 + i)
 			var pts := PackedVector2Array([a, m, b])
-			draw_polyline(pts, Color(Palette.OUTLINE, k), 4.5)
-			draw_polyline(pts, Color(vine.lightened(0.1 * (i % 3)), k), 2.8)
+			draw_polyline(pts, Color(Palette.OUTLINE, k), 5.5)
+			draw_polyline(pts, Color(vine.lightened(0.12 * (i % 3)), k), 3.5)
 			for j in 3:
 				var q := a.lerp(b, 0.25 + 0.25 * j)
 				var n := (b - a).orthogonal().normalized() * (1.0 if j % 2 == 0 else -1.0)
-				draw_colored_polygon(PackedVector2Array([q - (b - a).normalized() * 2.0, q + n * 6.0 * k, q + (b - a).normalized() * 2.0]), Color(thorn, k))
+				draw_colored_polygon(PackedVector2Array([q - (b - a).normalized() * 2.5, q + n * 7.5 * k, q + (b - a).normalized() * 2.5]), Color(thorn, k))
 		if st == "grown" and int(th["hp"]) < int(RULES["hp"]):
 			draw_line(r.position + Vector2(6, 6), r.end - Vector2(6, 6), Color(0.75, 0.9, 0.6, 0.6), 2.0)
 		# A leaf or two.
-		for i in 3:
+		for i in 5:
 			var c := r.position + Vector2(_h(sd, 50 + i) * r.size.x, _h(sd, 60 + i) * r.size.y)
-			draw_circle(c, 4.0 * k, Color(0.3, 0.5, 0.22, k))
+			draw_circle(c, 5.0 * k, Color(0.3, 0.5, 0.22, k))
 	elif st in ["cut", "open"]:
 		# Stumps along the edges (cut), or a thicket held back to either side (open).
 		var horiz := r.size.x < r.size.y  # (a wall across a passage running east-west is tall)

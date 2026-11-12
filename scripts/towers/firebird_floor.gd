@@ -227,6 +227,10 @@ func setup(plan: Dictionary) -> void:
 	for c in data["corridors"]:
 		for t in main._tiles_in(c["rect"]):
 			bridge_tiles[t] = "h" if c["horiz"] else "v"
+	for w in plan.get("wings", []):  # (a sealed wing's way in is a bridge too; a secret's stays hidden)
+		var wr: Rect2 = w["corridor"]
+		for t in main._tiles_in(wr):
+			bridge_tiles[t] = "h" if wr.size.x > wr.size.y else "v"
 	# The abyss: rock to walk on, open to the eye (what's carved, hidden or not, stays rock to sight).
 	var gs: Vector2i = main.grid_size
 	var walked := PackedByteArray()

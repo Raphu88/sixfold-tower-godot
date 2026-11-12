@@ -255,7 +255,7 @@ func _rekindle() -> void:
 	p.global_position = main.player_start
 	await t._frames(2)
 	rk.flame = 0.05
-	await t._frames(6)
+	await t._wait(0.3)
 	_check(not rk.carrying, "...which gutters out if it isn't carried in time")
 	for pc in ob.pieces:
 		p.global_position = rk.extras[0]["pos"]
