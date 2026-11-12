@@ -25,6 +25,11 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
+## The towers' own kinds (each only in its tower, run by its floor script):
+##   sluices    (the Kraken's) the way into the stair room is flooded deep;
+##              turn each sluice wheel (stand at it) to drain it
+##   vanes      (the Gryphon's) the way into the stair room is an open gap;
+##              strike each wind vane round and the wind carries you over
 ##   furnaces   (the Wyvern's) strike each cold furnace's bellows until it
 ##              roars, in the heat it throws (scripts/towers/wyvern_floor.gd)
 ##   sunstones  (the Manticore's) turn each polished stone so the moving sun
@@ -66,6 +71,14 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
+	"sluices": {"name": "Drain the Stairwell", "hint": "The way to the stair is flooded. Turn every sluice wheel to send the water elsewhere.",
+		"status": "Sluices turned %d of %d", "piece": "Sluice", "count": [[4, 2], [99, 3]], "weight": 1.6,
+		"towers": ["kraken"], "module": "res://scripts/towers/kraken_floor.gd",
+		"turn_time": 1.8, "reach": 52.0},
+	"vanes": {"name": "Turn the Wind Vanes", "hint": "No bridge reaches the stair. Strike every wind vane round until the wind blows across the gap.",
+		"status": "Vanes turned %d of %d", "piece": "Vane", "count": [[4, 2], [99, 3]], "weight": 1.6,
+		"towers": ["gryphon"], "module": "res://scripts/towers/gryphon_floor.gd",
+		"strikes": 2},
 	# The towers' own kinds.
 	"furnaces": {"name": "Stoke the Furnaces", "hint": "Strike each cold furnace's bellows until it roars. Don't linger in its heat.",
 		"status": "Furnaces lit %d of %d", "piece": "Furnace", "count": [[5, 2], [99, 3]], "weight": 1.6,
@@ -328,6 +341,24 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 				var gp := _spot(infos[pc["room"]], monsters + [[0, pc["pos"]]], 0)
 				if gp != Vector2.INF:
 					monsters.append([pick_monster.call(), gp])
+	return spec
+
+
+## The plain way to place a kind's pieces: `count_for` pieces spread over
+## that many of `cands` (far rooms first, a dead end among them), one free
+## spot each (a tower's floor script may use it for its own kind:
+## scripts/towers/tower_floor.gd place_task). {} if they won't fit.
+static func place_spread(kind: String, spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, floor_num: int) -> Dictionary:
+	var n := count_for(kind, floor_num)
+	var spread := _spread(cands, n, infos, dist)
+	if spread.size() < mini(n, 2):
+		return {}
+	for j in n:
+		var ri: int = spread[j % spread.size()]
+		var p := _spot(infos[ri], monsters, 1, false, spec["pieces"].map(func(x): return x["pos"]), 90.0)
+		if p == Vector2.INF:
+			return {}
+		spec["pieces"].append({"pos": p, "room": ri})
 	return spec
 
 

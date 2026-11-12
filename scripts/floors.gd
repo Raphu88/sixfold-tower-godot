@@ -15,8 +15,10 @@ static var MONSTERS := {
 	# Tower monsters: only appear where the tower's mix lists them.
 	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
 	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
+	"harrier": {"cost": 1.4, "weight": 1.0, "from": 3, "only": true},  # (dives from the open sky: scripts/towers/harrier.gd)
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
 	"shellback": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
+	"deepfin": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (lives in deep water: scripts/towers/kraken_floor.gd puts it in a pool)
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
 	"smith": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
@@ -410,6 +412,11 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		for t in link["door"]:
 			_reserve_door(infos[l["c"]], t)
 			_reserve_door(infos[l["p"]], t)  # (clamped into the parent: the tile inside its end)
+	# The tower's own floor (floor_styles.gd "module", scripts/towers/tower_floor.gd):
+	# its corridors (winding, bridges...), then its finished plan, below.
+	var own: Script = Styles.module_for(String(tower.get("beast_kind", ""))) if not style.is_empty() else null
+	if own != null:
+		corridors = own.shape_corridors(infos, links, corridors, walk)
 	walk.append_array(corridors)
 	# The kept cells: sealed wings and secret rooms (see "sealed wings" below).
 	var kept_walk: Array = []
@@ -636,10 +643,9 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
-	# The tower's own floor (floor_styles.gd "module"): molten channels, sand,
-	# sun... laid over the finished plan, keeping clear of what matters.
-	var own: Script = Styles.module_for(String(tower.get("beast_kind", ""))) if not style.is_empty() else null
-	if own != null:
+	# The tower's own floor over the finished plan: water, drops, molten
+	# channels, sand, sun... keeping clear of what matters (it may set ok false).
+	if own != null and ok:
 		own.shape_plan(plan, infos, links, floor_num, tower)
 	return plan
 
@@ -852,10 +858,11 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 	var lim: Array = ROOM_SIZE.get(role, ROOM_SIZE["guard"])
 	var shapes: Array = tower.get("shapes", ["rect", "open", "round"]).duplicate()
 	if role != "entrance":
+		shapes = style.get("own_shapes", shapes).duplicate()  # (floor_styles.gd: a tower's own shapes)
 		shapes.append_array(style.get("shapes", []))  # (floor_styles.gd: the newer shapes)
 	var shape: String = shapes[randi() % shapes.size()]
-	var w := randi_range(int(lim[0]), int(lim[1]))
-	var h := randi_range(int(lim[2]), int(lim[3]))
+	var w := randi_range(int(lim[0]), int(lim[1])) + int(style.get("room_grow", 0))
+	var h := randi_range(int(lim[2]), int(lim[3])) + int(style.get("room_grow", 0))
 	if shape == "hall":
 		w += 2
 		h = maxi(5, h - 2)

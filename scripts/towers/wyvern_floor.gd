@@ -1,4 +1,4 @@
-extends Node2D
+extends "res://scripts/towers/tower_floor.gd"
 ## THE WYVERN'S FORGE: what makes a floor of the Wyvern's tower its own
 ## (floor_styles.gd names this script as the tower's "module").
 ##
@@ -239,7 +239,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	if not R.plan_check(plan)["ok"]:
 		var bare := plan.duplicate()
 		bare["impassable"] = []
-		bare["lever_gates"] = []
+		bare["gates"] = []
 		if R.plan_check(bare)["ok"]:
 			var steps: Array = []
 			for ch in out["channels"]:
@@ -264,7 +264,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	plan["tower_floor"] = out
 
 
-## The plan's "impassable" (the metal, bridges left out) and "lever_gates"
+## The plan's "impassable" (the metal, bridges left out) and "gates"
 ## (raised bridges, their cranks) from the channels laid.
 static func _metal_to_plan(plan: Dictionary, out: Dictionary) -> void:
 	var molten := {}
@@ -274,11 +274,13 @@ static func _metal_to_plan(plan: Dictionary, out: Dictionary) -> void:
 			if not (t in ch["bridge"]):
 				molten[t] = true
 		if ch.has("crank"):
-			gates.append({"tiles": ch["bridge"], "lock_id": int(ch["lock_id"]), "lock_pos": ch["crank"]})
+			var ct := grid_tile(ch["crank"])
+			gates.append({"tiles": ch["bridge"], "lock_id": int(ch["lock_id"]), "lock_pos": ch["crank"],
+				"opens": {"any": [ct, ct + Vector2i.RIGHT, ct + Vector2i.LEFT, ct + Vector2i.DOWN, ct + Vector2i.UP]}})
 	var tiles: Array = molten.keys()
 	tiles.sort_custom(func(a, b): return a.y < b.y or (a.y == b.y and a.x < b.x))
 	plan["impassable"] = Rooms.merge_rows(tiles.map(func(t): return _tile_rect(t)))
-	plan["lever_gates"] = gates
+	plan["gates"] = gates
 
 
 ## Rooms a channel may cut (or, `calm_only`, a furnace stand in): halls, not
@@ -545,7 +547,7 @@ static func scenario_plan(kind: String, info: Dictionary, gates: Array, floor_nu
 
 # --- the live floor (main.tower_floor) -------------------------------------------
 
-var main
+# (main: the game, set by main.gd: tower_floor.gd)
 var spec := {}
 var channels: Array = []  # the plan's, plus: lowered (bool), body (a raised bridge's)
 var molten := {}  # grid tile -> true: the metal no one crosses (a raised bridge's tiles too)
@@ -845,6 +847,14 @@ func _in_swing(from: Vector2, dir: Vector2, reach: float, arc_deg: float, at: Ve
 
 
 ## A crank turned: its bridge comes down for good.
+## The dev tool's Open all doors (main.gd open_all_doors): every raised
+## bridge comes down.
+func open_gates() -> void:
+	for ch in channels:
+		if ch.has("crank"):
+			lower(ch)
+
+
 func lower(ch: Dictionary) -> void:
 	if ch["lowered"]:
 		return

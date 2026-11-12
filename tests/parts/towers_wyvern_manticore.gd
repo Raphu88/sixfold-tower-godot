@@ -113,7 +113,7 @@ func _plans() -> void:
 						bridges_ok = bridges_ok and ch["bridge"].size() >= 2
 					if ch.has("crank"):
 						stat["cranks"] += 1
-						gate_ok = gate_ok and plan["lever_gates"].any(func(gt): return int(gt["lock_id"]) == int(ch["lock_id"]))
+						gate_ok = gate_ok and plan["gates"].any(func(gt): return int(gt["lock_id"]) == int(ch["lock_id"]))
 					for tile in ch["tiles"]:
 						var solid: bool = g["solid"][tile.y * g["size"].x + tile.x] == 1
 						metal_solid = metal_solid and (solid != (tile in ch["bridge"]))
@@ -418,12 +418,14 @@ func _manticore_system() -> void:
 	var spot := Vector2.INF
 	for k in 40:
 		var q := sr.position + Vector2(randf() * sr.size.x, randf() * sr.size.y)
-		if not main.is_solid(q) and not tf.in_shade(q):
+		var clear_round := [Vector2(24, 0), Vector2(-24, 0), Vector2(0, 24), Vector2(0, -24)].all(func(o): return not main.is_solid(q + o) and not tf.in_shade(q + o))
+		var by_pillar: bool = main.pillars.any(func(pl): return q.distance_to(pl["pos"]) < float(pl["r"]) + 30.0)
+		if not main.is_solid(q) and not tf.in_shade(q) and clear_round and not by_pillar:  # (room round it: nothing shoves you into the shade)
 			spot = q
 			break
 	if spot != Vector2.INF:
 		p.global_position = spot
-		await t._frames(3)
+		await t._until(func(): return is_equal_approx(main.sight_k(), float(Man.SUN["sight"])), 1.5)  # (the floor reads where you stand each tick)
 		_check(is_equal_approx(main.sight_k(), float(Man.SUN["sight"])), "in the sun you're seen from farther (%.2f)" % main.sight_k())
 	var x0: float = tf._sun_at(s)
 	_check(float(s["hi"]) > float(s["lo"]), "the sun shaft moves across its court (now at %.0f)" % x0)

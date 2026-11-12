@@ -235,7 +235,7 @@ const LEAVES := 8
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 1
+	collision_mask = 1 | 32  # walls, and deep water (the Kraken's tower: scripts/towers/kraken_floor.gd)
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()

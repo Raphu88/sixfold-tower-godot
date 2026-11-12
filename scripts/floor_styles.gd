@@ -20,14 +20,22 @@ extends RefCounted
 ##   rest          the chance of a calm rest room
 ##   trader        the chance of a wandering trader, from floor `trader_from`
 ##   kind_first    the first room after the start is a kind one (no danger)
+##   own_shapes    (optional) replaces the tower's favourite shapes (towers.gd)
+##                 for every room but the entrance
+##   room_grow     (optional) tiles added to (or taken from, below 0) each
+##                 carved room's width and height
 ##   prefab        how often hand-made rooms turn up, as a share of floors.gd
 ##                 PREFAB_CHANCE (a tower that favours its own shapes: less)
+##   corridor      how corridors run: "straight", or the tower's own (its
+##                 module's shape_corridors: "winding", "bridges")
 ##   module        (a tower's own) the script that gives the tower its own
-##                 floors, scripts/towers/<tower>_floor.gd: it shapes the
-##                 plan (shape_plan, as floors.gd finishes it), carves the
-##                 tower's own room shapes (SHAPE_MODULES below) and runs on
-##                 the live floor as main.tower_floor (its system, its task
-##                 kinds, its scenario room)
+##                 floors, scripts/towers/<tower>_floor.gd, extending
+##                 scripts/towers/tower_floor.gd (the hooks and what each is
+##                 for are there, and in the README's content contract). It
+##                 carves the tower's own room shapes (SHAPE_MODULES below),
+##                 shapes the corridors and the finished plan, places and runs
+##                 the tower's own task kinds and scenario, and runs on the
+##                 live floor as main.tower_floor (its system).
 
 static var STYLES := {
 	"default": {
@@ -40,8 +48,14 @@ static var STYLES := {
 		"rest": 0.25, "trader": 0.3, "trader_from": 3,
 		"kind_first": true,
 	},
-	"gryphon": {"shapes": ["circle", "gallery", "split", "ring"]},
-	"kraken": {"shapes": ["gallery", "split", "cover", "gallery"]},
+	# Open heights: big halls with ledges and balconies over open voids,
+	# corridors that are bridges over the drop (scripts/towers/gryphon_floor.gd).
+	"gryphon": {"shapes": ["open", "open", "rect", "round", "split"], "own_shapes": ["open", "open", "rect", "round"],
+		"gallery": ["open", "rect", "round"], "room_grow": 0, "prefab": 0.35, "corridor": "bridges", "module": "res://scripts/towers/gryphon_floor.gd"},
+	# Flooded: round and oval rooms, winding corridors, pools, and water that
+	# rises and drains (scripts/towers/kraken_floor.gd).
+	"kraken": {"shapes": ["circle", "circle", "ring", "round"], "own_shapes": ["circle", "circle", "round"],
+		"gallery": ["circle", "ring", "circle"], "room_grow": -1, "prefab": 0.3, "corridor": "winding", "module": "res://scripts/towers/kraken_floor.gd"},
 	# The Wyvern's forge: long workshop halls in a grid, cut by molten
 	# channels (more ways between rooms: a grid, not a tree).
 	"wyvern": {"shapes": ["workshop", "hall", "workshop", "forgehall"], "gallery": ["forgehall", "workshop", "hall"],
@@ -81,3 +95,4 @@ static func for_tower(tid: String) -> Dictionary:
 	for k in own:
 		out[k] = own[k]
 	return out
+

@@ -12,6 +12,7 @@ extends Node
 ## Used by tests/parts/floor_bot.gd (a few floors) and tests/floor_bot_sweep.gd.
 
 const CELL := 40.0
+const Objectives := preload("res://scripts/objectives.gd")
 
 var main
 var done := false
@@ -61,6 +62,10 @@ var fights := 0
 var hits_taken := 0
 var close_calls := 0
 var hp_seen := 0.0
+var last_move := Vector2.ZERO  # (the stick, for a fall's report)
+var last_knock := Vector2.ZERO
+var trail: Array = []
+var stick_raw := false  # (the next move keeps its strength: bracing against the wind)
 
 
 func start(m, max_time := 300.0) -> void:
@@ -126,6 +131,26 @@ func _release_all() -> void:
 
 
 func _move(d: Vector2) -> void:
+	# Never step off an edge into an open drop (scripts/towers/gryphon_floor.gd):
+	# a player sees it; slide along it, or stop.
+	var tf = main.tower_floor if main != null else null
+	stick_raw = false
+	if tf != null and main.player != null:
+		var braced: Vector2 = tf.bot_steer(main.player.global_position, d)  # (bracing against the wind near a drop)
+		stick_raw = braced != d
+		d = braced
+	if tf != null and d.length() > 0.01 and main.player != null:
+		var pos: Vector2 = main.player.global_position
+		var off_edge := func(dir: Vector2) -> bool:
+			return tf.is_void(pos + dir.normalized() * 6.0) or tf.is_void(pos + dir.normalized() * 14.0) or tf.is_void(pos + dir.normalized() * 22.0)
+		if off_edge.call(d):
+			var keep := Vector2.ZERO
+			for a in [Vector2(d.x, 0.0), Vector2(0.0, d.y)]:
+				if a.length() > 0.2 and not off_edge.call(a):
+					keep = a
+					break
+			d = keep
+	last_move = d.normalized() * 10.0
 	_stick(["move_left", "move_right", "move_up", "move_down"], d)
 
 
@@ -134,7 +159,7 @@ func _aim(d: Vector2) -> void:
 
 
 func _stick(names: Array, d: Vector2) -> void:
-	var v := d.normalized() if d.length() > 0.01 else Vector2.ZERO
+	var v := (d.limit_length(1.0) if stick_raw else d.normalized()) if d.length() > 0.01 else Vector2.ZERO
 	var vals := [maxf(0.0, -v.x), maxf(0.0, v.x), maxf(0.0, -v.y), maxf(0.0, v.y)]
 	for i in 4:
 		if vals[i] > 0.05:
@@ -186,6 +211,15 @@ func _physics_process(delta: float) -> void:
 		if p.hp <= 1.5 and hp_seen > 1.5:
 			close_calls += 1  # (it would have fallen: the dev tool kept it standing)
 	hp_seen = p.hp
+	if main.climbing and main.floor_num == floor0 and main.in_chasm(p.global_position) and not p.in_air():
+		var tf = main.tower_floor
+		var gust: String = String(tf.get("gust_state")) if tf != null and "gust_state" in tf else ""
+		_finish(false, "fell into a chasm (%s; wind %s, knock %d, avoided %s, last %s)" % [why, gust, int(last_knock.length()), avoid.has(_tile(p.global_position)), trail])  # (falling sets climbing too: it's no stair)
+		return
+	last_knock = p.knock
+	trail.append("%s v%s m%s void_ahead %s here %s" % [p.global_position.round(), p.velocity.round(), last_move.round(), main.tower_floor.is_void(p.global_position + last_move * 2.2) if main.tower_floor != null else false, main.in_chasm(p.global_position)])
+	if trail.size() > 6:
+		trail.pop_front()
 	if main.floor_num != floor0 or main.climbing:
 		_finish(main.floor_num > floor0 or main.climbing, "stair" if main.floor_num > floor0 or main.climbing else "fell to floor %d" % main.floor_num)
 		return
@@ -331,6 +365,10 @@ func _task_step() -> Dictionary:
 	var pos: Vector2 = p.global_position
 	avoid.clear()
 	_avoid_marks()
+	# A tower's ground that can't be walked (deep water, open drops: tower_floor.gd bot_avoid).
+	if main.tower_floor != null:
+		for t in main.tower_floor.bot_avoid():
+			avoid[t] = true
 	# The Ice Hall's ice: walked round, never across (on it, you slide).
 	var pz = main.puzzle
 	if pz != null and String(pz.kind) == "ice" and pz.cur != null:
@@ -481,8 +519,9 @@ func _go(at: Vector2, r := 12.0, chase := false) -> void:
 		_move(nudge)
 		return
 	var d := _steer(pos, at)
-	# A chasm ahead: jump it.
-	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 30.0) and not main.in_chasm(pos) and not p.in_air():
+	# A chasm ahead: jump it (never an open drop: scripts/towers/gryphon_floor.gd).
+	var drop_ahead: bool = main.tower_floor != null and main.tower_floor.is_void(pos + d.normalized() * 30.0)
+	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 30.0) and not main.in_chasm(pos) and not p.in_air() and not drop_ahead:
 		_move(d)
 		_tap("jump")
 		return

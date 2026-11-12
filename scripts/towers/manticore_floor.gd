@@ -1,4 +1,4 @@
-extends Node2D
+extends "res://scripts/towers/tower_floor.gd"
 ## THE MANTICORE'S SANDSTONE: what makes a floor of the Manticore's tower its
 ## own (floor_styles.gd names this script as the tower's "module").
 ##
@@ -484,7 +484,7 @@ static func scenario_plan(kind: String, info: Dictionary, gates: Array, floor_nu
 
 # --- the live floor (main.tower_floor) -------------------------------------------
 
-var main
+# (main: the game, set by main.gd: tower_floor.gd)
 var spec := {}
 var shade := {}  # grid tile -> true
 var sand := {}  # grid tile -> true (drifts, crumbled flagstones, settled quicksand)

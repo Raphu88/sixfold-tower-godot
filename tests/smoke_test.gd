@@ -1071,7 +1071,8 @@ func _plan_tests() -> void:
 			ok_theme_fixed = ok_theme_fixed and gal["rect"] == plan["puzzle"]["room"]
 		# Corridors run between rooms, never through one, and meet them only at their walls.
 		for c in plan["corridors"]:
-			ok_corr = ok_corr and (c.size.x == 80.0 or c.size.y == 80.0)
+			# (a tower with its own corridors, winding or bridged, is checked in its own part: tests/parts/towers_kraken_gryphon.gd)
+			ok_corr = ok_corr and (c.size.x == 80.0 or c.size.y == 80.0 or load("res://scripts/floor_styles.gd").for_tower(tid).has("module"))
 			for ri in infos:
 				var inner: Rect2 = ri["rect"].grow(-1.0)
 				ok_edges = ok_edges and not inner.intersects(c)
@@ -1297,7 +1298,8 @@ func _terrain_tests() -> void:
 		var from: Vector2i = main._tile_of(main.player_start)
 		var goals: Array = [main.stair_pos]
 		for e in main.enemies():
-			goals.append(e.global_position)
+			if not e.submerged:  # (a deepfin lives in deep water: nobody walks to it)
+				goals.append(e.global_position)
 		if not main.cache.is_empty():
 			goals.append(main.cache["pos"])
 		for g in goals:
@@ -1979,7 +1981,7 @@ func _room_fog_tests() -> void:
 	var ok_reach := true
 	var with_made := 0
 	for n in 6:
-		var plan: Dictionary = F.rooms_floor(2 + n % 3, main.Towers.TOWERS["firebird"] if n % 2 == 0 else main.Towers.TOWERS["kraken"])
+		var plan: Dictionary = F.rooms_floor(2 + n % 3, main.Towers.TOWERS["firebird"] if n % 2 == 0 else main.Towers.TOWERS["wyvern"])  # (the Kraken carves most of its rooms round: floor_styles.gd)
 		var ids: Array = plan.get("room_ids", [])
 		var made: Array = ids.filter(func(id): return not String(id).begins_with("carved_"))
 		var uniq := {}
@@ -7764,6 +7766,8 @@ func _lock_tests() -> void:
 		for d in main.door_view.list:
 			if d["lock"] in ["", "oneway"] and not d["open"]:  # (a door barred from one side opens from its far side)
 				main.door_view.open_door(d, true)
+		if main.tower_floor != null:
+			main.tower_floor.open_gates()  # (a tower task's own moat or gap opens with its task: tests/parts/towers_kraken_gryphon.gd)
 		var from: Vector2i = main._tile_of(main.player_start)
 		var goals: Array = [main.stair_pos]
 		for k in main.door_view.keys + main.door_view.levers:
@@ -11424,10 +11428,13 @@ func _secret_deep_tests() -> void:
 	var spot2 := Vector2.ZERO
 	for info in main.room_info:
 		var c2: Vector2 = info["rect"].get_center()
-		p.global_position = c2 + Vector2(-2.5 * Tr.C, 0)
-		p.aim = Vector2.RIGHT
-		if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
-			spot2 = p.global_position
+		for dir2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:  # (from each side of the middle: a tower's pool or drop may fill it)
+			p.global_position = c2 - dir2 * 2.5 * Tr.C
+			p.aim = dir2
+			if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
+				spot2 = p.global_position
+				break
+		if spot2 != Vector2.ZERO:
 			break
 	_check(spot2 != Vector2.ZERO, "an open room to build in")
 	var n_traps: int = main.traps.size()

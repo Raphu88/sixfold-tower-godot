@@ -38,6 +38,8 @@ static var DROPS := {
 	"thornhound": ["blade", 3.0],
 	"mongrel": ["blade", 6.0],
 	"chimera": ["blade", 30.0],
+	"deepfin": ["water", 5.0],  # (the Kraken's tower: scripts/towers/deepfin.gd)
+	"harrier": ["air", 4.0],  # (the Gryphon's tower: scripts/towers/harrier.gd)
 }
 
 

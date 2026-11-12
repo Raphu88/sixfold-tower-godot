@@ -15,6 +15,11 @@ extends Node2D
 ##   unseen    cross the hall without the lanterns' light falling on you
 ##   rescue    free a caged cub and lead it to the door, keeping it safe
 ##   gauntlet  beat every wave, and be quick
+## The towers' own kinds (each only in its tower, run by its floor script):
+##   flood     (the Kraken's) the room fills: turn the drain wheel at the far
+##             end before the water closes over you
+##   bridge    (the Gryphon's) cross the long bridge over the drop in high
+##             wind while raptors dive
 ##   forge     (the Wyvern's) keep three furnaces lit while waves come
 ##   sinking   (the Manticore's) the court's floor gives way to sand: keep to
 ##             the stones and reach the far gate
@@ -45,6 +50,10 @@ static var SCENARIOS := {
 	"rescue": {"from": 3, "cage_hits": 3, "cub_hp": 60.0, "drain": 10.0, "near": 40.0, "speed": 150.0, "wave_every": 6.0, "per_wave": 2,
 		"gold": 0.75, "silver": 0.4},
 	"gauntlet": {"from": 2, "waves": 3, "budget": 2.6, "budget_per_floor": 0.35, "par": 14.0, "par_per_wave": 7.0, "silver_k": 1.5},
+	"flood": {"from": 2, "towers": ["kraken"], "module": "res://scripts/towers/kraken_floor.gd", "seal": true, "weight": 3, "fill": 34.0, "fill_per_floor": -0.8, "fill_min": 24.0, "turn": 4.0,
+		"wave_every": 6.0, "per_wave": 1, "gold_hits": 1, "silver_hits": 3, "gold_level": 0.5, "slow": 0.45},
+	"bridge": {"from": 2, "towers": ["gryphon"], "module": "res://scripts/towers/gryphon_floor.gd", "weight": 3, "gust_every": 2.6, "gust": 150.0, "raptors": 2, "raptors_per_floors": 5,
+		"dive_every": 4.0, "gold_hits": 0, "silver_hits": 2, "slack": 2.6},
 	"forge": {"from": 3, "towers": ["wyvern"], "module": "res://scripts/towers/wyvern_floor.gd", "seal": true, "weight": 3},
 	"sinking": {"from": 2, "towers": ["manticore"], "module": "res://scripts/towers/manticore_floor.gd", "weight": 3},
 }
@@ -78,6 +87,11 @@ static var TEXT := {
 	"failed": "It's over",
 	"left": "You left the room",
 	"cub": "A small grey creature, all ears",
+	"flood": "Turn the drain wheel before it fills",
+	"flood_line": "Water %d%%  ·  wheel %d%%",
+	"flood_full": "The water closes over you",
+	"bridge": "Cross the long bridge",
+	"bridge_line": "Hits %d  ·  %d s",
 }
 
 var main
@@ -599,7 +613,7 @@ func _draw() -> void:
 		elif s["state"] == "done":
 			var col: Color = {"gold": gold, "silver": Color(0.85, 0.88, 0.95), "bronze": Color(0.85, 0.6, 0.4), "none": Color(0.4, 0.38, 0.42)}[s["grade"]]
 			draw_arc(s["start"], 16.0, 0.0, TAU, 24, Color(col, 0.6), 2.0)
-		if s["kind"] in ["collapse", "unseen"] and s["state"] != "done":
+		if s["kind"] in ["collapse", "unseen", "flood", "bridge"] and s["state"] != "done":
 			draw_arc(s["end"], 22.0, 0.0, TAU, 32, Color(0.7, 0.95, 0.7, 0.5 + 0.3 * pulse), 2.5)
 		match String(s["kind"]):
 			"defend":

@@ -257,7 +257,7 @@ var objective  # the floor's one task: its pieces, the HUD's line and arrow, the
 var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
-var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/)
+var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
 var noticed: Array = []
@@ -1297,6 +1297,8 @@ func _update_springs(delta: float) -> void:
 ## Opens every door on the floor (the dev tool, and tests).
 func open_all_doors() -> void:
 	door_view.open_all()
+	if tower_floor != null:
+		tower_floor.open_gates()  # (a tower's own locks: the Kraken's held water, the Gryphon's gap)
 
 
 ## Walking onto a good room's essence cache: a burst of the tower's essence.
@@ -3836,7 +3838,7 @@ func in_water(pos: Vector2) -> bool:
 	for pd in puddles:
 		if pos.distance_to(pd["pos"]) < pd["r"]:
 			return true
-	return false
+	return tower_floor != null and tower_floor.wet(pos)  # (the Kraken's rising water)
 
 
 ## Water slows you (unless you're Waterborn).
@@ -3858,6 +3860,9 @@ func _setup_tower_floor(plan: Dictionary) -> void:
 		tower_floor.clear()
 		tower_floor.queue_free()
 	tower_floor = null
+	if room_view != null and room_view.layout_painter != null:
+		room_view.layout_painter = null
+		room_view.queue_redraw()
 	var spec: Dictionary = plan.get("tower_floor", {})
 	if spec.is_empty() or not spec.has("module"):
 		return
@@ -3865,6 +3870,8 @@ func _setup_tower_floor(plan: Dictionary) -> void:
 	tower_floor.main = self
 	add_child(tower_floor)
 	tower_floor.setup(plan)
+	room_view.layout_painter = tower_floor  # (its paint_layout hook: the floor is drawn again with it)
+	room_view.queue_redraw()
 
 
 func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
