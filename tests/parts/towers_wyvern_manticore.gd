@@ -418,7 +418,9 @@ func _manticore_system() -> void:
 	var spot := Vector2.INF
 	for k in 40:
 		var q := sr.position + Vector2(randf() * sr.size.x, randf() * sr.size.y)
-		if not main.is_solid(q) and not tf.in_shade(q):
+		var clear_round := [Vector2(24, 0), Vector2(-24, 0), Vector2(0, 24), Vector2(0, -24)].all(func(o): return not main.is_solid(q + o) and not tf.in_shade(q + o))
+		var by_pillar: bool = main.pillars.any(func(pl): return q.distance_to(pl["pos"]) < float(pl["r"]) + 30.0)
+		if not main.is_solid(q) and not tf.in_shade(q) and clear_round and not by_pillar:  # (room round it: nothing shoves you into the shade)
 			spot = q
 			break
 	if spot != Vector2.INF:
