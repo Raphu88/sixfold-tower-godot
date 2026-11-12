@@ -228,18 +228,57 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 		for pc in obj["pieces"]:
 			plan["pillars"].append({"pos": pc["furnace"], "r": 17.0})
 	# What reach.gd and the traps need to know.
-	var tiles: Array = molten.keys()
-	tiles.sort_custom(func(a, b): return a.y < b.y or (a.y == b.y and a.x < b.x))
-	plan["impassable"] = Rooms.merge_rows(tiles.map(func(t): return _tile_rect(t)))
-	var gates: Array = []
+	_metal_to_plan(plan, out)
 	for ch in out["channels"]:
 		if ch.has("crank"):
-			gates.append({"tiles": ch["bridge"], "lock_id": int(ch["lock_id"]), "lock_pos": ch["crank"]})
 			plan["keep"].append(ch["crank"])
-	plan["lever_gates"] = gates
+	# The planner proves its own floors: if the metal walls anything off (a
+	# low wall cutting a bridge's end from its side, say), it gives way:
+	# gutters first, then raised bridges are laid down, then whole channels.
+	var R = load("res://scripts/reach.gd")
+	if not R.plan_check(plan)["ok"]:
+		var bare := plan.duplicate()
+		bare["impassable"] = []
+		bare["lever_gates"] = []
+		if R.plan_check(bare)["ok"]:
+			var steps: Array = []
+			for ch in out["channels"]:
+				if ch.get("gutter", false):
+					steps.append(["drop", ch])
+			for ch in out["channels"]:
+				if ch.has("crank"):
+					steps.append(["lay", ch])
+			for ch in out["channels"]:
+				if not ch.get("gutter", false):
+					steps.append(["drop", ch])
+			for st in steps:
+				if st[0] == "drop":
+					out["channels"].erase(st[1])
+				else:
+					st[1].erase("crank")
+				_metal_to_plan(plan, out)
+				if R.plan_check(plan)["ok"]:
+					break
 	for i in used_rooms:
 		plan["safe_rooms"].append(infos[i]["rect"])  # (no traps by the fires: they're danger enough)
 	plan["tower_floor"] = out
+
+
+## The plan's "impassable" (the metal, bridges left out) and "lever_gates"
+## (raised bridges, their cranks) from the channels laid.
+static func _metal_to_plan(plan: Dictionary, out: Dictionary) -> void:
+	var molten := {}
+	var gates: Array = []
+	for ch in out["channels"]:
+		for t in ch["tiles"]:
+			if not (t in ch["bridge"]):
+				molten[t] = true
+		if ch.has("crank"):
+			gates.append({"tiles": ch["bridge"], "lock_id": int(ch["lock_id"]), "lock_pos": ch["crank"]})
+	var tiles: Array = molten.keys()
+	tiles.sort_custom(func(a, b): return a.y < b.y or (a.y == b.y and a.x < b.x))
+	plan["impassable"] = Rooms.merge_rows(tiles.map(func(t): return _tile_rect(t)))
+	plan["lever_gates"] = gates
 
 
 ## Rooms a channel or a furnace may go in: ordinary halls, not the start,
