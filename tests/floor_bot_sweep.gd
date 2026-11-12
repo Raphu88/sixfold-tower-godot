@@ -73,6 +73,11 @@ static func sweep(tree: SceneTree, m, each: int, speed: float, only_tower := "",
 				# The task: the next kind in turn (so every kind gets played), unless narrowed.
 				O.forced = only_kind if only_kind != "" else kinds[ki % kinds.size()]
 				ki += 1
+				var tries := 0
+				while not O.allowed(O.forced, tid) and only_kind == "" and tries < kinds.size():
+					O.forced = kinds[ki % kinds.size()]  # (a tower's own kind only in its tower)
+					ki += 1
+					tries += 1
 				var r: Dictionary = await play(tree, m, fl, speed)
 				O.forced = ""
 				res["floors"] += 1

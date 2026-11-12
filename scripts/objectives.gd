@@ -25,12 +25,17 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
-## A tower's own kinds ("tower" in KINDS) come up only in that tower, and
-## its floor script (scripts/towers/) builds and runs what they need:
+## The towers' own kinds (each only in its tower, run by its floor script):
 ##   sluices    (the Kraken's) the way into the stair room is flooded deep;
 ##              turn each sluice wheel (stand at it) to drain it
 ##   vanes      (the Gryphon's) the way into the stair room is an open gap;
 ##              strike each wind vane round and the wind carries you over
+##   furnaces   (the Wyvern's) strike each cold furnace's bellows until it
+##              roars, in the heat it throws (scripts/towers/wyvern_floor.gd)
+##   sunstones  (the Manticore's) turn each polished stone so the moving sun
+##              it catches falls on its seal (scripts/towers/manticore_floor.gd)
+## A kind with "towers" only turns up in those towers; one with "module" is
+## placed and run by that tower's own floor script (main.tower_floor).
 
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 const Rooms := preload("res://scripts/rooms.gd")
@@ -66,13 +71,21 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
-	# Towers' own kinds ("tower": only there; scripts/towers/ runs them).
 	"sluices": {"name": "Drain the Stairwell", "hint": "The way to the stair is flooded. Turn every sluice wheel to send the water elsewhere.",
-		"status": "Sluices turned %d of %d", "piece": "Sluice", "count": [[4, 2], [99, 3]], "weight": 1.6, "tower": "kraken",
+		"status": "Sluices turned %d of %d", "piece": "Sluice", "count": [[4, 2], [99, 3]], "weight": 1.6,
+		"towers": ["kraken"], "module": "res://scripts/towers/kraken_floor.gd",
 		"turn_time": 1.8, "reach": 52.0},
 	"vanes": {"name": "Turn the Wind Vanes", "hint": "No bridge reaches the stair. Strike every wind vane round until the wind blows across the gap.",
-		"status": "Vanes turned %d of %d", "piece": "Vane", "count": [[4, 2], [99, 3]], "weight": 1.6, "tower": "gryphon",
+		"status": "Vanes turned %d of %d", "piece": "Vane", "count": [[4, 2], [99, 3]], "weight": 1.6,
+		"towers": ["gryphon"], "module": "res://scripts/towers/gryphon_floor.gd",
 		"strikes": 2},
+	# The towers' own kinds.
+	"furnaces": {"name": "Stoke the Furnaces", "hint": "Strike each cold furnace's bellows until it roars. Don't linger in its heat.",
+		"status": "Furnaces lit %d of %d", "piece": "Furnace", "count": [[5, 2], [99, 3]], "weight": 1.6,
+		"towers": ["wyvern"], "module": "res://scripts/towers/wyvern_floor.gd"},
+	"sunstones": {"name": "Wake the Sun Seals", "hint": "Strike each polished stone to turn it. When the sun crosses it, it throws the light where it faces: onto its seal.",
+		"status": "Seals lit %d of %d", "piece": "Sun stone", "count": [[5, 2], [99, 3]], "weight": 1.6,
+		"towers": ["manticore"], "module": "res://scripts/towers/manticore_floor.gd"},
 }
 ## How likely each puzzle kind is next to the kinds above (its tower's own
 ## puzzle counts double).
@@ -110,6 +123,18 @@ static func is_puzzle(kind: String) -> bool:
 	return Catalog.TYPES.has(kind)
 
 
+## Whether a kind may turn up in tower `tid` (a tower's own kind only there).
+static func allowed(kind: String, tid: String) -> bool:
+	var towers: Array = KINDS.get(kind, {}).get("towers", [])
+	return towers.is_empty() or tid in towers
+
+
+## The tower floor script that places and runs a kind (null for the shared kinds).
+static func module_of(kind: String) -> Script:
+	var path := String(KINDS.get(kind, {}).get("module", ""))
+	return load(path) if path != "" else null
+
+
 ## Every kind there is: the floor kinds and the puzzles.
 static func all_kinds() -> Array:
 	return KINDS.keys() + Catalog.TYPES.keys()
@@ -141,13 +166,13 @@ static func display_name(kind: String, tid: String) -> String:
 ## The kind for a floor: never one used this climb if another is left;
 ## the tower's own puzzle likelier.
 static func pick(floor_num: int, tid: String) -> String:
-	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and fits_tower(forced, tid):
+	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and allowed(forced, tid):
 		return forced
 	if Catalog.forced != "" and is_puzzle(Catalog.forced):
 		return Catalog.forced  # (the dev tool's Puzzles buttons: that puzzle is the task)
 	var table := {}
 	for k in KINDS:
-		if fits_tower(k, tid):
+		if allowed(k, tid):
 			table[k] = float(KINDS[k].get("weight", 1.0))
 	for k in Catalog.TYPES:
 		table[k] = float(PUZZLE_WEIGHT["signature"] if Catalog.SIGNATURE.get(tid, "") == k else PUZZLE_WEIGHT["base"])
@@ -160,12 +185,6 @@ static func pick(floor_num: int, tid: String) -> String:
 			if climb_used.is_empty() or k != climb_used[-1]:
 				fresh[k] = table[k]
 	return _weighted(fresh)
-
-
-## Whether a kind may be a floor's task in a tower (a tower's own kind only there).
-static func fits_tower(kind: String, tid: String) -> bool:
-	var only := String(KINDS.get(kind, {}).get("tower", ""))
-	return only == "" or only == tid
 
 
 static func _weighted(table: Dictionary) -> String:
@@ -221,6 +240,10 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 		if info["role"] == "gallery" and info.get("puzzle", "") != "":
 			continue
 		cands.append(i)
+	var own := module_of(kind)
+	if own != null:
+		# (a tower's own kind: its floor script places it, from the same rooms)
+		return own.place_task(kind, spec, infos, cands, dist, monsters, floor_num, cell)
 	match kind:
 		"runes", "wardstone":
 			if gal < 0 or infos[gal].get("puzzle", "") != "":
@@ -318,6 +341,24 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 				var gp := _spot(infos[pc["room"]], monsters + [[0, pc["pos"]]], 0)
 				if gp != Vector2.INF:
 					monsters.append([pick_monster.call(), gp])
+	return spec
+
+
+## The plain way to place a kind's pieces: `count_for` pieces spread over
+## that many of `cands` (far rooms first, a dead end among them), one free
+## spot each (a tower's floor script may use it for its own kind:
+## scripts/towers/tower_floor.gd place_task). {} if they won't fit.
+static func place_spread(kind: String, spec: Dictionary, infos: Array, cands: Array, dist: Array, monsters: Array, floor_num: int) -> Dictionary:
+	var n := count_for(kind, floor_num)
+	var spread := _spread(cands, n, infos, dist)
+	if spread.size() < mini(n, 2):
+		return {}
+	for j in n:
+		var ri: int = spread[j % spread.size()]
+		var p := _spot(infos[ri], monsters, 1, false, spec["pieces"].map(func(x): return x["pos"]), 90.0)
+		if p == Vector2.INF:
+			return {}
+		spec["pieces"].append({"pos": p, "room": ri})
 	return spec
 
 

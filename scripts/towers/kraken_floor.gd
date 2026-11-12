@@ -1,5 +1,5 @@
-extends Node2D
-## The Kraken's tower: flooded floors (floor_styles.gd "script").
+extends "res://scripts/towers/tower_floor.gd"
+## The Kraken's tower: flooded floors (floor_styles.gd "module").
 ##
 ## LAYOUT: round and oval rooms (floor_styles.gd), corridors that wind and
 ## twist between them (shape_corridors: a 2-tile passage that wanders up to
@@ -24,7 +24,7 @@ extends Node2D
 ## be crossed on foot (a body on layer 32 that the climber and walking
 ## monsters collide with; swimmers pass). Pools and flooding corridors never
 ## cut anything off (water_wind_grid.gd), so they only ever close a second
-## way; a sunken room and the moat are locks (reach.gd "fluid_locks") whose
+## way; a sunken room and the moat are locks (reach.gd "gates") whose
 ## openers are their wheels.
 ##
 ## The creature: the deepfin (deepfin.gd) swims in deep water and lunges out.
@@ -84,7 +84,7 @@ static var LOOK := {
 	"sheen": Color(0.3, 0.5, 0.55), "salt": Color(0.86, 0.9, 0.84), "wheel": Color(0.5, 0.38, 0.24), "iron": Color(0.36, 0.4, 0.44),
 }
 
-var main
+# (main: the game, set by main.gd: tower_floor.gd)
 var plan := {}
 var basins: Array = []
 var tile_basin := {}  # Vector2i -> basin index
@@ -190,7 +190,7 @@ static var STATS := {"corridors": 0, "long": 0, "wound": 0}
 
 ## The water, laid over a planned floor (see the top). Sets plan["ok"] false
 ## when the floor's task can't be built (then the floor is planned again).
-static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, tower: Dictionary, _style: Dictionary) -> void:
+static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary) -> void:
 	var W := WATER
 	var g := Grid.grid(plan)
 	var start := Grid.tile(plan["start"])
@@ -236,7 +236,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 			if not load("res://scripts/reach.gd").near_reached(mw, g["size"], pc["pos"]):
 				plan["ok"] = false
 				return
-		locks.append({"id": 900, "tiles": moat, "opens": {"all": opens}})
+		locks.append({"lock_id": 900, "tiles": moat, "opens": {"all": opens}})
 		basins.append({"kind": "moat", "tiles": moat, "room": stair_i, "shape": "channel", "path": mpath, "level": 0.92})
 		for tt in moat:
 			used[tt] = true
@@ -278,7 +278,7 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 			for dy in range(-1, 2):
 				for dx in range(-1, 2):
 					prot[vt + Vector2i(dx, dy)] = true
-			locks.append({"id": 901 + i, "tiles": tiles, "opens": {"any": [vt, vt + Vector2i.RIGHT, vt + Vector2i.LEFT, vt + Vector2i.DOWN, vt + Vector2i.UP]}})
+			locks.append({"lock_id": 901 + i, "tiles": tiles, "opens": {"any": [vt, vt + Vector2i.RIGHT, vt + Vector2i.LEFT, vt + Vector2i.DOWN, vt + Vector2i.UP]}})
 			for tt in tiles:
 				used[tt] = true
 			plan["keep"].append(vpos)
@@ -390,12 +390,10 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 				m[1] = Grid.centre(deep_spots.pop_back())
 		elif deep_set.has(mt) and not m[0] in ["lurker", "kraken"]:
 			m[0] = "deepfin" if floor_num >= 3 else "lurker"
-	var all_deep: Array = deep_set.keys()
 	plan["water"] = {"basins": basins, "valves": valves}
-	plan["no_foot"] = Grid.merge(no_foot.keys())
-	plan["fluid_locks"] = locks
-	plan["no_trap"] = Grid.merge(all_deep)
-	plan["tower_floor"] = PATH
+	plan["impassable"] = Grid.merge(no_foot.keys())
+	plan["gates"] = locks
+	plan["tower_floor"] = {"module": PATH}
 	plan["pools"] = []  # (the old round puddles: this water replaces them)
 	plan["wet_rooms"] = []
 
@@ -455,7 +453,7 @@ static func _adj(links: Array, n: int) -> Array:
 # --- the scenario's plan (scenarios.gd "flood") --------------------------------------
 
 ## The Filling Room: the mark by the door, the drain wheel at the far end.
-static func scn_plan(kind: String, info: Dictionary, gates: Array, _floor_num: int, cell: float) -> Dictionary:
+static func scenario_plan(kind: String, info: Dictionary, gates: Array, _floor_num: int, cell: float) -> Dictionary:
 	var rect: Rect2 = info["rect"]
 	var open: Array = load("res://scripts/rooms.gd").open_tiles(info["rows"], 1).filter(func(x): return not info["reserved"].has(x))
 	if open.size() < 12 or gates.is_empty():
@@ -769,8 +767,18 @@ func deep_toward(from: Vector2, toward: Vector2) -> Vector2:
 	return best
 
 
+## Deep water as it is now, for reach.gd's safety net: rock.
+func reach_live(solid: PackedByteArray, size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
+	for b in basins:
+		if b["deep"]:
+			for tt in b["tiles"]:
+				var lt: Vector2i = main._tile_of(Grid.centre(tt))
+				if lt.x >= 0 and lt.y >= 0 and lt.x < size.x and lt.y < size.y:
+					solid[lt.y * size.x + lt.x] = 1
+
+
 ## Tiles nobody can walk on right now (the floor bot keeps off them).
-func no_foot_tiles() -> Array:
+func bot_avoid() -> Array:
 	var out: Array = []
 	for b in basins:
 		if b["deep"]:
@@ -784,7 +792,7 @@ func bot_steer(_pos: Vector2, d: Vector2) -> Vector2:
 
 
 ## The floor bot's next step for the task (tests/floor_bot_driver.gd).
-func bot_step(bot) -> Dictionary:
+func bot_task(bot) -> Dictionary:
 	var ob = main.objective
 	if ob.kind != "sluices" or ob.done:
 		return {}
@@ -845,8 +853,7 @@ func _moat_step(ob) -> void:
 
 # --- the Filling Room (scenarios.gd "flood") ------------------------------------------
 
-func scn_begin(scn, s: Dictionary) -> void:
-	scn._seal(s)
+func scenario_begin(s: Dictionary, scn) -> void:
 	var prev := {}
 	for tt in s["tiles"]:
 		if tile_basin.has(tt):
@@ -862,7 +869,7 @@ func scn_begin(scn, s: Dictionary) -> void:
 	main.sfx("wave", 0.6, -2.0, 0.0)
 
 
-func scn_tick(scn, s: Dictionary, delta: float, p) -> void:
+func scenario_tick(s: Dictionary, delta: float, p, scn) -> void:
 	var cfg: Dictionary = scn.SCENARIOS["flood"]
 	if scn_basin < 0:
 		scn._finish(s, "none")
@@ -914,14 +921,14 @@ func _scn_drain() -> void:
 	scn_basin = -1
 
 
-func scn_status(s: Dictionary) -> Dictionary:
+func scenario_status(s: Dictionary) -> Dictionary:
 	var S = load("res://scripts/scenarios.gd")
 	var lvl: float = basins[scn_basin]["level"] if scn_basin >= 0 else 0.0
 	var k := clampf(s.get("wheel_t", 0.0) / float(S.SCENARIOS["flood"]["turn"]), 0.0, 1.0)
 	return {"title": S.TEXT["flood"], "line": S.TEXT["flood_line"] % [int(lvl * 100.0), int(k * 100.0)]}
 
 
-func scn_goal(s: Dictionary) -> Vector2:
+func scenario_goal(s: Dictionary) -> Vector2:
 	return s["wheel"]
 
 

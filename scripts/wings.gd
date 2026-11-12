@@ -532,7 +532,7 @@ func _send_champion(w: Dictionary) -> void:
 	var pp: Vector2 = main.player.global_position
 	spots.sort_custom(func(a, b): return a.distance_to(pp) > b.distance_to(pp))
 	var at: Vector2 = spots[0] if not spots.is_empty() else w["rect"].get_center()
-	var e = main.EnemyScript.new()
+	var e = main.EnemyScript.make(kind)
 	e.setup(kind, main)
 	e.make_champion()
 	var tough: Vector2 = main.Floors.toughness(main.floor_num)

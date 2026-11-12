@@ -61,13 +61,13 @@ static var TOWERS := {
 		"short": "Wyvern",
 		"beast": "the Wyvern",
 		"essence": "iron",
-		"blurb": "A hot forge-tower of knights, cinders and smiths. The hardest climb. The Wyvern waits at the top.",
-		"weights": {"knight": 1.2, "cinder": 1.2, "smith": 1.0, "archer": 0.3, "slime": 0.2},
+		"blurb": "A forge of workshop halls and molten channels: cross by the bridges, mind the heat. Knights, cinders, smiths and forge golems. The hardest climb. The Wyvern waits at the top.",
+		"weights": {"knight": 1.2, "cinder": 1.2, "smith": 1.0, "golem": 0.7, "archer": 0.3, "slime": 0.2},
 		"first": ["knight", "cinder", "smith", "cinder"],
 		"summit": SUMMIT,
 		"beast_kind": "wyvern",
 		"gauntlet": "furnace", "sentinel": "smith", "sentinel_adds": "cinder",  # the Proving (floor 6, proving.gd)
-		"shapes": ["pillars", "rect", "pillars", "ell"],  # carved room shapes (rooms.gd); a repeat makes one likelier
+		"shapes": ["hall", "workshop", "rect", "hall"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its fire breath can't be parried: roll or step aside.",
 		"stone": Color(1.0, 0.86, 0.8),
 		"ambient": Color(0.52, 0.42, 0.42),
@@ -78,13 +78,13 @@ static var TOWERS := {
 		"short": "Manticore",
 		"beast": "the Manticore",
 		"essence": "stone",
-		"blurb": "Sun-baked sandstone halls of scorplings and charging rams. Stings poison. The Manticore waits at the top.",
-		"weights": {"scorpling": 1.4, "ram": 0.9, "archer": 0.6, "knight": 0.3, "slime": 0.2},
+		"blurb": "Sun-baked courtyards and shaded alleys over shifting sand. The sun gives you away; shade hides you. Scorplings, rams and burrowers. The Manticore waits at the top.",
+		"weights": {"scorpling": 1.4, "ram": 0.9, "burrower": 0.8, "archer": 0.6, "knight": 0.3, "slime": 0.2},
 		"first": ["scorpling", "archer", "ram", "scorpling"],
 		"summit": SUMMIT,
 		"beast_kind": "manticore",
 		"gauntlet": "spikes", "sentinel": "ram", "sentinel_adds": "scorpling",  # the Proving (floor 6, proving.gd)
-		"shapes": ["ell", "rect", "ell", "cross"],  # carved room shapes (rooms.gd); a repeat makes one likelier
+		"shapes": ["court", "colonnade", "rect", "court"],  # carved room shapes (rooms.gd); a repeat makes one likelier
 		"beast_hint": "Watch for the glint. Its roar can't be parried: roll through it.",
 		"stone": Color(1.0, 0.93, 0.76),
 		"ambient": Color(0.56, 0.5, 0.4),

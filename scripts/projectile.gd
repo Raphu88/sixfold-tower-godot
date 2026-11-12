@@ -67,7 +67,7 @@ func _physics_process(delta: float) -> void:
 				main.fx_burst(position, vel.normalized(), w["color"], 6, 180.0)
 				break
 	# The walls between rooms stop every shot.
-	if return_to == null and main.is_solid(position):
+	if return_to == null and (main.wall_at(position) if main.has_method("wall_at") else main.is_solid(position)):  # (shots fly over molten metal)
 		_burst()
 		_ended()
 		main.fx_burst(position, -vel.normalized(), Color(0.8, 0.75, 0.7), 4, 140.0)

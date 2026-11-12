@@ -7,7 +7,7 @@ extends RefCounted
 ## The rule both towers keep: ground that can't be crossed on foot (deep
 ## water, an open void) may never cut any other floor off from the start.
 ## It may only take away the tiles it covers. (Water held back by a valve
-## and a gap the wind will bridge are locks instead: reach.gd "fluid_locks".)
+## and a gap the wind will bridge are locks instead: reach.gd "gates".)
 
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
 const CELL := 40.0  # (floors.gd CELL)

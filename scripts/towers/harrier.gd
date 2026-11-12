@@ -1,5 +1,5 @@
-extends RefCounted
-## The harrier: the Gryphon's tower's own creature (enemy.gd TOWER_KINDS).
+extends "res://scripts/enemy.gd"
+## The harrier: the Gryphon's tower's own creature (enemy.gd SUBKINDS spawns it with this script).
 ## A raptor that soars high over the open halls (only its shadow sweeps the
 ## floor), then folds its wings and dives at you with a glint. Its strike
 ## throws you the way it was flying: toward the edge if you stand on one.
@@ -20,16 +20,16 @@ static var HARRIER := {
 	"climb": 0.7,  # seconds to climb back up
 	"ledge": 75.0,  # a parry within this of a drop sends it over
 }
-static var TEXT := {"falls": "Sent falling!"}
+static var HARRIER_TEXT := {"falls": "Sent falling!"}
 
 
-static func setup(e) -> void:
+static func _begin(e) -> void:
 	e.state = "soar"
 	e.state_t = randf_range(0.5, 1.5)
 	e.set_meta("h", float(HARRIER["soar_h"]))
 
 
-static func act(e, delta: float, dir: Vector2, dist: float, p) -> void:
+static func _own_act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 	var H := HARRIER
 	var h: float = e.get_meta("h", float(H["soar_h"]))
 	match e.state:
@@ -86,27 +86,47 @@ static func act(e, delta: float, dir: Vector2, dist: float, p) -> void:
 
 
 ## Parried near a drop: over the edge it goes.
-static func parried(e, _perfect: bool) -> bool:
+static func _own_parried(e, _perfect: bool) -> bool:
 	var tf = e.main.get("tower_floor")
 	if tf == null or not tf.has_method("near_void") or not tf.near_void(e.global_position, float(HARRIER["ledge"])):
 		return false
-	e.main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), TEXT["falls"], Color(1.0, 0.89, 0.63))
+	e.main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), HARRIER_TEXT["falls"], Color(1.0, 0.89, 0.63))
 	tf.drop_foe(e)
 	return true
 
 
+# --- as a monster (enemy.gd calls these) -------------------------------------------
+
+func setup(k: String, room) -> void:
+	super.setup(k, room)
+	_begin(self)
+
+
+func _act(delta: float, dir: Vector2, dist: float, p) -> void:
+	_own_act(self, delta, dir, dist, p)
+
+
+func _draw_own(p, t: float, f: Vector2) -> void:
+	_own_draw(self, p, _glow, t, f)
+
+
+func on_parried(perfect := false) -> void:
+	if not _own_parried(self, perfect):
+		super.on_parried(perfect)
+
+
 # --- drawing -----------------------------------------------------------------------
 
-const C_BELLY := Color(0.86, 0.8, 0.68)
-const C_WING := Color(0.46, 0.38, 0.3)
-const C_TIP := Color(0.24, 0.2, 0.18)
-const C_BEAK := Color(0.96, 0.78, 0.3)
+const C_HARRIER_BELLY := Color(0.86, 0.8, 0.68)
+const C_HARRIER_WING := Color(0.46, 0.38, 0.3)
+const C_HARRIER_TIP := Color(0.24, 0.2, 0.18)
+const C_HARRIER_BEAK := Color(0.96, 0.78, 0.3)
 
 
 ## Seen from above: broad wings spread on the soar, folded back in the dive,
 ## a fanned tail, a pale breast and a hooked beak; high up it's drawn above
 ## its shadow (enemy.gd draws the shadow where it is).
-static func draw(e, p, glow, t: float, f: Vector2) -> void:
+static func _own_draw(e, p, glow, t: float, f: Vector2) -> void:
 	var h: float = e.get_meta("h", 40.0)
 	var o := Vector2(0, -h)
 	var s := f.orthogonal()
@@ -121,26 +141,26 @@ static func draw(e, p, glow, t: float, f: Vector2) -> void:
 	# Tail: a fan of feathers behind.
 	for k in 5:
 		var a := (k - 2) * 0.16 * (1.0 - fold * 0.6)
-		e._feather(p, o - f * 6.0, (-f).rotated(a), 13.0, 4.0, C_WING.darkened(0.1 + 0.05 * absf(k - 2)))
+		e._feather(p, o - f * 6.0, (-f).rotated(a), 13.0, 4.0, C_HARRIER_WING.darkened(0.1 + 0.05 * absf(k - 2)))
 	# Wings: long, stepped primaries; swept back as it folds.
 	for sgn in [-1.0, 1.0]:
 		var out: Vector2 = (s * sgn * (1.0 - fold) - f * (0.25 + fold * 0.9) + s * sgn * beat * 0.4).normalized()
 		var span := 26.0 * (1.0 - fold * 0.45)
 		var root: Vector2 = o + s * sgn * 4.0
 		var wpts := PackedVector2Array([root + f * 4.0, root + out * span * 0.55 + f * 3.0, root + out * span, root + out * span * 0.9 - f * 6.0, root - f * 5.0])
-		p.poly(wpts, C_WING, 1.3)
+		p.poly(wpts, C_HARRIER_WING, 1.3)
 		for k in 4:
 			var at: Vector2 = root + out * span * (0.62 + 0.11 * k)
-			e._feather(p, at, (out - f * 0.5).normalized(), 9.0 - k, 3.0, C_TIP)
-		p.quad(root + out * span * 0.2, root + out * span * 0.85, 2.0, C_WING.lightened(0.15), 1.0)
+			e._feather(p, at, (out - f * 0.5).normalized(), 9.0 - k, 3.0, C_HARRIER_TIP)
+		p.quad(root + out * span * 0.2, root + out * span * 0.85, 2.0, C_HARRIER_WING.lightened(0.15), 1.0)
 	# Body: a pale breast, a darker back.
 	p.egg(o, Vector2(9.0, 6.5), f.angle(), col, true)
-	p.oval(o + f * 1.5, Vector2(5.5, 3.6), f.angle(), C_BELLY)
+	p.oval(o + f * 1.5, Vector2(5.5, 3.6), f.angle(), C_HARRIER_BELLY)
 	# Head and hooked beak.
 	var head := o + f * 9.0
 	p.ball(head, 4.6, col.lightened(0.1))
-	p.tri(head + f * 3.0 + s * 2.2, head + f * 8.5 + s * 0.2, head + f * 3.0 - s * 2.2, C_BEAK)
-	p.tri(head + f * 8.5 + s * 0.2, head + f * 6.0 - s * 1.2, head + f * 7.4 + s * 1.0, C_BEAK.darkened(0.3))
+	p.tri(head + f * 3.0 + s * 2.2, head + f * 8.5 + s * 0.2, head + f * 3.0 - s * 2.2, C_HARRIER_BEAK)
+	p.tri(head + f * 8.5 + s * 0.2, head + f * 6.0 - s * 1.2, head + f * 7.4 + s * 1.0, C_HARRIER_BEAK.darkened(0.3))
 	for sgn in [-1.0, 1.0]:
 		glow.circle(head + f * 1.6 + s * sgn * 2.4 + Vector2(0, -0.6), 1.2, Color(1.0, 0.85, 0.35) if e.state in ["wind_dive", "dive"] else Color(0.15, 0.12, 0.1), 8)
 	if dive > 0.0:

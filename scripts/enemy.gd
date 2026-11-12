@@ -68,10 +68,12 @@ static var TYPES := {
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
+	"golem": {"hp": 66.0, "speed": 44.0, "radius": 18.0, "color": Color(0.4, 0.36, 0.35), "dmg": 15.0, "weight": 4.5},  # (scripts/towers/forge_golem.gd)
 	"wyvern": {"hp": 298.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
+	"burrower": {"hp": 34.0, "speed": 110.0, "radius": 13.0, "color": Color(0.78, 0.62, 0.38), "dmg": 13.0, "weight": 1.5},  # (scripts/towers/burrower.gd)
 	"manticore": {"hp": 326.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
@@ -90,7 +92,7 @@ const WEAKNESS := {
 	"bat": "parry the swoop", "thunderling": "step out of the ring", "lurker": "strike while it's up",
 	"shellback": "strike from behind", "cinder": "parry the ember back", "smith": "the opening after the hammer",
 	"scorpling": "parry the sting", "ram": "let it charge into a wall", "wisp": "parry the dart",
-	"bloomcap": "it can't move: get close", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
+	"bloomcap": "it can't move: get close", "golem": "quench it, or strike while it cools", "burrower": "lure it onto stone", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
 	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
 	"mirror": "a finisher or a blow from behind breaks its guard",
@@ -101,10 +103,19 @@ const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimer
 const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier"]
 ## Monsters that swim through deep water (the Kraken's tower), where others can't wade.
 const SWIMMERS := ["lurker", "kraken", "deepfin"]
-## Towers' own monsters, run and drawn by their own scripts (scripts/towers/):
-## each has act(e, delta, dir, dist, p), draw(e, pen, glow, t, f), and may
-## parried(e, perfect) -> bool (true: it handled the parry).
-const TOWER_KINDS := {"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd"}
+## Kinds with a script of their own (a tower's creature): spawn them with make().
+## The script extends this one and overrides what it needs (_act, _draw_own,
+## _overlay_extra, take_hit, on_parried...).
+const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "res://scripts/towers/burrower.gd",
+	"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd"}
+
+
+## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call
+## setup(kind, main) on it as usual.
+static func make(kind: String):
+	return load(String(SUBKINDS.get(kind, "res://scripts/enemy.gd"))).new()
+
+
 ## What each beast calls when it's half dead.
 const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp", "chimera": "thornhound"}
 const BITE_REACH := 70.0  # a thornhound's leap
@@ -312,8 +323,6 @@ func setup(k: String, room) -> void:
 	if kind == "lurker":
 		state = "sub"
 		submerged = true
-	if TOWER_KINDS.has(kind):
-		load(TOWER_KINDS[kind]).setup(self)
 
 
 ## A called creature (Covenant): fights on your side, scaled to your bond's step.
@@ -495,7 +504,8 @@ func _physics_process(delta: float) -> void:
 			sees = main.clear_line(global_position, p.global_position) if aware or dist < 460.0 else false
 		var seen := sees
 		if not aware:
-			if (seen and dist < 460.0) or dist < 110.0:
+			var sk: float = main.sight_k()  # (the Manticore's sun and shade)
+			if (seen and dist < 460.0 * sk) or dist < 110.0 * minf(sk, 1.0):
 				wake()
 			else:
 				# Asleep: nothing to work out; only a shove moves it.
@@ -565,8 +575,6 @@ func _physics_process(delta: float) -> void:
 			_mongrel(delta, dir, dist, p)
 		"chimera":
 			_chimera(delta, dir, dist, p)
-		"deepfin", "harrier":
-			load(TOWER_KINDS[kind]).act(self, delta, dir, dist, p)
 		_:
 			_act(delta, dir, dist, p)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
@@ -2142,6 +2150,11 @@ func _act(_delta: float, _dir: Vector2, _dist: float, _p) -> void:
 	velocity = Vector2.ZERO
 
 
+## The body of a kind with a script of its own (SUBKINDS), into the pen.
+func _draw_own(_p, _t: float, _f: Vector2) -> void:
+	pass
+
+
 ## More telegraphs over the darkness, for a kind drawn elsewhere (mirror.gd).
 func _overlay_extra(_o) -> void:
 	pass
@@ -2163,8 +2176,6 @@ func stagger(duration: float) -> void:
 
 ## Parried: staggered and open to a riposte. A perfect parry staggers longer.
 func on_parried(perfect := false) -> void:
-	if TOWER_KINDS.has(kind) and load(TOWER_KINDS[kind]).parried(self, perfect):
-		return  # (a tower's own monster: a harrier parried on a ledge falls)
 	stun = 1.6 if perfect else 0.9
 	aim_dir = Vector2.ZERO
 	_end_attack(_idle_state(), 0.0)
@@ -2314,10 +2325,10 @@ func _draw() -> void:
 			_draw_mongrel(p, t, f)
 		"chimera":
 			_draw_chimera(p, t, f)
-		"deepfin", "harrier":
-			load(TOWER_KINDS[kind]).draw(self, p, _glow, t, f)
 		"familiar":
 			_draw_wisp(p, t, f)
+		_:
+			_draw_own(p, t, f)  # (a kind with a script of its own: SUBKINDS)
 	if shade:
 		_fade_to_shade(p)
 		_fade_to_shade(_glow)

@@ -83,7 +83,7 @@ func _layouts() -> void:
 	var tagged := true
 	for k in 12:
 		var plan := _plan("kraken", [3, 5, 8, 10][k % 4])
-		tagged = tagged and plan.get("tower_floor", "") == K.PATH
+		tagged = tagged and plan.get("tower_floor", {}).get("module", "") == K.PATH
 		for ri in plan.get("room_info", []):
 			rooms += 1
 			circles += 1 if ri["shape"] == "circle" else 0
@@ -98,7 +98,7 @@ func _layouts() -> void:
 	var tagged_g := true
 	for k in 12:
 		var plan := _plan("gryphon", [3, 5, 8, 10][k % 4])
-		tagged_g = tagged_g and plan.get("tower_floor", "") == G.PATH
+		tagged_g = tagged_g and plan.get("tower_floor", {}).get("module", "") == G.PATH
 		if not plan.get("voids", []).is_empty():
 			with_voids += 1
 		if not plan.get("sky_bridges", []).is_empty():
@@ -133,7 +133,7 @@ func _reach() -> void:
 			var g := Reach.plan_grid(plan)
 			var start := Reach.tile(plan["start"])
 			var block := {}
-			for fl2 in plan.get("fluid_locks", []):
+			for fl2 in plan.get("gates", []):
 				for tt in fl2["tiles"]:
 					block[tt] = true
 			var walked := Grid.walk(g, start, block)
@@ -519,9 +519,9 @@ func _data() -> void:
 	for sec in Reg.SECTIONS:
 		tables.append_array(sec["tables"])
 	var need := ["towers.kraken_floor/WATER", "towers.kraken_floor/TEXT", "towers.gryphon_floor/VOIDS", "towers.gryphon_floor/GUST", "towers.gryphon_floor/TEXT",
-		"towers.deepfin/DEEPFIN", "towers.harrier/HARRIER"]
+		"towers.deepfin/DEEPFIN", "towers.harrier/HARRIER", "towers.deepfin/DEEPFIN_TEXT", "towers.harrier/HARRIER_TEXT"]
 	_check(need.all(func(x): return x in tables), "the towers' numbers and words are in the Data editor")
-	_check(Objectives.KINDS["sluices"]["tower"] == "kraken" and Objectives.KINDS["vanes"]["tower"] == "gryphon" and not Objectives.fits_tower("sluices", "gryphon"), "each tower's own task comes up only there")
+	_check(Objectives.KINDS["sluices"]["towers"] == ["kraken"] and Objectives.KINDS["vanes"]["towers"] == ["gryphon"] and not Objectives.allowed("sluices", "gryphon"), "each tower's own task comes up only there")
 	_check(Scenarios.kinds_for(5, "kraken").has("flood") and not Scenarios.kinds_for(5, "gryphon").has("flood") and Scenarios.kinds_for(5, "gryphon").has("bridge"), "each tower's own scenario comes up only there")
 
 

@@ -609,6 +609,8 @@ const FAVOUR := {
 	"knight": ["chain", "plate", "sword", "mace", "greatsword", "iron_helm", "gauntlets", "plated_greaves"],
 	"archer": ["shortbow", "longbow", "crossbow", "flintlock", "leather", "leather_cap", "feathered_cap", "archers_bracers"],
 	"smith": ["war_hammer", "mace", "chain", "plate", "gauntlets", "hobnail_boots", "revolver", "flintlock"],
+	"golem": ["war_hammer", "mace", "plate", "gauntlets", "iron_helm"],
+	"burrower": ["dagger", "spear", "leather", "climbing_boots"],
 	"shellback": ["mace", "chain", "chain_leggings"],
 	"ram": ["war_hammer", "axe", "hobnail_boots"],
 	"thornhound": ["dagger", "sword_cane", "leather", "leather_gloves", "studded_gloves"],

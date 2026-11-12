@@ -1,5 +1,5 @@
-extends Node2D
-## The Gryphon's tower: open heights (floor_styles.gd "script").
+extends "res://scripts/towers/tower_floor.gd"
+## The Gryphon's tower: open heights (floor_styles.gd "module").
 ##
 ## LAYOUT: big open halls (floor_styles.gd) with ledges and balconies over
 ## open VOIDS, and corridors that are BRIDGES: the rock beside each long
@@ -70,7 +70,7 @@ static var LOOK := {
 	"wind": Color(0.86, 0.93, 1.0), "vane": Color(0.62, 0.6, 0.66),
 }
 
-var main
+# (main: the game, set by main.gd: tower_floor.gd)
 var plan := {}
 var voids := {}  # Vector2i -> true: open drop
 var span := {}  # Vector2i -> true: the stair's gap (vanes)
@@ -142,7 +142,7 @@ static func shape_corridors(infos: Array, links: Array, corridors: Array, walk: 
 
 ## The drops, laid over a planned floor (see the top). Sets plan["ok"] false
 ## when the floor's task can't be built (then the floor is planned again).
-static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary, _style: Dictionary) -> void:
+static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary) -> void:
 	var V := VOIDS
 	var g := Grid.grid(plan)
 	var start := Grid.tile(plan["start"])
@@ -252,12 +252,12 @@ static func finish_plan(plan: Dictionary, infos: Array, links: Array, floor_num:
 		for pc in obj["pieces"]:
 			var pt := Grid.tile(pc["pos"])
 			opens.append_array([pt, pt + Vector2i.RIGHT, pt + Vector2i.LEFT, pt + Vector2i.DOWN, pt + Vector2i.UP])
-		plan["fluid_locks"] = [{"id": 950, "tiles": gap_tiles, "opens": {"all": opens}}]
+		plan["gates"] = [{"lock_id": 950, "tiles": gap_tiles, "opens": {"all": opens}}]
 	plan["voids"] = Grid.merge(drop_tiles + gap_tiles)
 	plan["span"] = Grid.merge(gap_tiles)
-	plan["no_foot"] = Grid.merge(drop_tiles)
+	plan["impassable"] = Grid.merge(drop_tiles)
 	plan["sky_bridges"] = bridges
-	plan["tower_floor"] = PATH
+	plan["tower_floor"] = {"module": PATH}
 	plan["floor_num"] = floor_num
 
 
@@ -364,7 +364,7 @@ static func _design(design: String, info: Dictionary, prot: Dictionary, drop: Di
 ## The Long Bridge: only in a dead end (one way in). The hall falls away but
 ## for a landing by the door, a bridge two tiles wide to a perch at the far
 ## end, and the mark on the landing.
-static func scn_plan(kind: String, info: Dictionary, gates: Array, _floor_num: int, cell: float) -> Dictionary:
+static func scenario_plan(kind: String, info: Dictionary, gates: Array, _floor_num: int, cell: float) -> Dictionary:
 	if gates.size() != 1:
 		return {}
 	var rect: Rect2 = info["rect"]
@@ -437,7 +437,7 @@ func _ready() -> void:
 func setup(p: Dictionary) -> void:
 	plan = p
 	var live := {}
-	for r in main.chasms:
+	for r in p.get("chasms", []):
 		for tt in Grid.tiles_of(r):
 			live[tt] = true
 	for r in p.get("voids", []):
@@ -684,8 +684,15 @@ func is_void(pos: Vector2) -> bool:
 	return voids.has(tt) and not (span_open and span.has(tt))
 
 
+## The drops as they are now, for reach.gd's safety net: rock.
+func reach_live(solid: PackedByteArray, size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
+	for lt in bot_avoid():
+		if lt.x >= 0 and lt.y >= 0 and lt.x < size.x and lt.y < size.y:
+			solid[lt.y * size.x + lt.x] = 1
+
+
 ## Tiles nobody can walk on right now (the floor bot keeps off them).
-func no_foot_tiles() -> Array:
+func bot_avoid() -> Array:
 	var out: Array = []
 	for tt in voids:
 		if not (span_open and span.has(tt)):
@@ -704,7 +711,7 @@ func bot_steer(pos: Vector2, d: Vector2) -> Vector2:
 	return d
 
 
-func bot_step(_bot) -> Dictionary:
+func bot_task(_bot) -> Dictionary:
 	var ob = main.objective
 	if ob.kind != "vanes" or ob.done:
 		return {}
@@ -791,7 +798,7 @@ func _open_span() -> void:
 
 # --- the Long Bridge (scenarios.gd "bridge") ------------------------------------------
 
-func scn_begin(scn, s: Dictionary) -> void:
+func scenario_begin(s: Dictionary, scn) -> void:
 	var cfg: Dictionary = scn.SCENARIOS["bridge"]
 	s["gust_in"] = 1.5
 	s["spawn_t"] = 0.8
@@ -799,7 +806,7 @@ func scn_begin(scn, s: Dictionary) -> void:
 	s["limit"] = s["start"].distance_to(s["end"]) / 140.0 * float(cfg["slack"]) + 4.0
 
 
-func scn_tick(scn, s: Dictionary, delta: float, p) -> void:
+func scenario_tick(s: Dictionary, delta: float, p, scn) -> void:
 	var cfg: Dictionary = scn.SCENARIOS["bridge"]
 	if not s["rect"].grow(-4.0).has_point(p.global_position):
 		scn._finish(s, "none", scn.TEXT["left"])
@@ -830,12 +837,12 @@ func scn_tick(scn, s: Dictionary, delta: float, p) -> void:
 		scn._finish(s, grade)
 
 
-func scn_status(s: Dictionary) -> Dictionary:
+func scenario_status(s: Dictionary) -> Dictionary:
 	var S = load("res://scripts/scenarios.gd")
 	return {"title": S.TEXT["bridge"], "line": S.TEXT["bridge_line"] % [int(s.get("hits", 0)), int(s.get("t", 0.0))]}
 
 
-func scn_goal(s: Dictionary) -> Vector2:
+func scenario_goal(s: Dictionary) -> Vector2:
 	return s["end"]
 
 
