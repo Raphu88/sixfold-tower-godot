@@ -1902,6 +1902,12 @@ func _trap_free_route(haz: Dictionary, goals: Array) -> bool:
 	for d in main.door_view.list:
 		for t in d["tiles"]:
 			doors[t] = true
+	var own = main.get("tower_floor")
+	if own != null and "channels" in own:
+		for ch in own.channels:  # (a Wyvern bridge raised by its crank is a door of sorts)
+			if not ch["lowered"]:
+				for t in ch["bridge"]:
+					doors[t] = true
 	var pillar := {}
 	for pl in main.pillars:
 		pillar[Traps.tile_of(pl["pos"])] = true

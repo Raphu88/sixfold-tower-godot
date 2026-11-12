@@ -25,6 +25,12 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
+##   furnaces   (the Wyvern's) strike each cold furnace's bellows until it
+##              roars, in the heat it throws (scripts/towers/wyvern_floor.gd)
+##   sunstones  (the Manticore's) turn each polished stone so the moving sun
+##              it catches falls on its seal (scripts/towers/manticore_floor.gd)
+## A kind with "towers" only turns up in those towers; one with "module" is
+## placed and run by that tower's own floor script (main.tower_floor).
 
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
 const Rooms := preload("res://scripts/rooms.gd")
@@ -60,6 +66,13 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
+	# The towers' own kinds.
+	"furnaces": {"name": "Stoke the Furnaces", "hint": "Strike each cold furnace's bellows until it roars. Don't linger in its heat.",
+		"status": "Furnaces lit %d of %d", "piece": "Furnace", "count": [[5, 2], [99, 3]], "weight": 1.6,
+		"towers": ["wyvern"], "module": "res://scripts/towers/wyvern_floor.gd"},
+	"sunstones": {"name": "Wake the Sun Seals", "hint": "Strike each polished stone to turn it. When the sun crosses it, it throws the light where it faces: onto its seal.",
+		"status": "Seals lit %d of %d", "piece": "Sun stone", "count": [[5, 2], [99, 3]], "weight": 1.6,
+		"towers": ["manticore"], "module": "res://scripts/towers/manticore_floor.gd"},
 }
 ## How likely each puzzle kind is next to the kinds above (its tower's own
 ## puzzle counts double).
@@ -97,6 +110,18 @@ static func is_puzzle(kind: String) -> bool:
 	return Catalog.TYPES.has(kind)
 
 
+## Whether a kind may turn up in tower `tid` (a tower's own kind only there).
+static func allowed(kind: String, tid: String) -> bool:
+	var towers: Array = KINDS.get(kind, {}).get("towers", [])
+	return towers.is_empty() or tid in towers
+
+
+## The tower floor script that places and runs a kind (null for the shared kinds).
+static func module_of(kind: String) -> Script:
+	var path := String(KINDS.get(kind, {}).get("module", ""))
+	return load(path) if path != "" else null
+
+
 ## Every kind there is: the floor kinds and the puzzles.
 static func all_kinds() -> Array:
 	return KINDS.keys() + Catalog.TYPES.keys()
@@ -128,13 +153,14 @@ static func display_name(kind: String, tid: String) -> String:
 ## The kind for a floor: never one used this climb if another is left;
 ## the tower's own puzzle likelier.
 static func pick(floor_num: int, tid: String) -> String:
-	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)):
+	if forced != "" and (KINDS.has(forced) or is_puzzle(forced)) and allowed(forced, tid):
 		return forced
 	if Catalog.forced != "" and is_puzzle(Catalog.forced):
 		return Catalog.forced  # (the dev tool's Puzzles buttons: that puzzle is the task)
 	var table := {}
 	for k in KINDS:
-		table[k] = float(KINDS[k].get("weight", 1.0))
+		if allowed(k, tid):
+			table[k] = float(KINDS[k].get("weight", 1.0))
 	for k in Catalog.TYPES:
 		table[k] = float(PUZZLE_WEIGHT["signature"] if Catalog.SIGNATURE.get(tid, "") == k else PUZZLE_WEIGHT["base"])
 	var fresh := {}
@@ -201,6 +227,10 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 		if info["role"] == "gallery" and info.get("puzzle", "") != "":
 			continue
 		cands.append(i)
+	var own := module_of(kind)
+	if own != null:
+		# (a tower's own kind: its floor script places it, from the same rooms)
+		return own.place_task(kind, spec, infos, cands, dist, monsters, floor_num, cell)
 	match kind:
 		"runes", "wardstone":
 			if gal < 0 or infos[gal].get("puzzle", "") != "":

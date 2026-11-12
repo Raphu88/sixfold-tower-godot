@@ -66,10 +66,12 @@ static var TYPES := {
 	# The Wyvern's tower
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
+	"golem": {"hp": 66.0, "speed": 44.0, "radius": 18.0, "color": Color(0.4, 0.36, 0.35), "dmg": 15.0, "weight": 4.5},  # (scripts/towers/forge_golem.gd)
 	"wyvern": {"hp": 298.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
+	"burrower": {"hp": 34.0, "speed": 110.0, "radius": 13.0, "color": Color(0.78, 0.62, 0.38), "dmg": 13.0, "weight": 1.5},  # (scripts/towers/burrower.gd)
 	"manticore": {"hp": 326.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
@@ -88,7 +90,7 @@ const WEAKNESS := {
 	"bat": "parry the swoop", "thunderling": "step out of the ring", "lurker": "strike while it's up",
 	"shellback": "strike from behind", "cinder": "parry the ember back", "smith": "the opening after the hammer",
 	"scorpling": "parry the sting", "ram": "let it charge into a wall", "wisp": "parry the dart",
-	"bloomcap": "it can't move: get close", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
+	"bloomcap": "it can't move: get close", "golem": "quench it, or strike while it cools", "burrower": "lure it onto stone", "thornhound": "parry the leap", "mongrel": "parry, then riposte",
 	"gryphon": "the landing's long opening", "kraken": "the recovery after a slam", "wyvern": "stay close, away from its breath",
 	"manticore": "roll through the roar", "firebird": "it rises once: save something", "chimera": "let the goat hit a wall",
 	"mirror": "a finisher or a blow from behind breaks its guard",
@@ -96,6 +98,16 @@ const WEAKNESS := {
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
 const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird"]
+## Kinds with a script of their own (a tower's creature): spawn them with make().
+const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "res://scripts/towers/burrower.gd"}
+
+
+## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call
+## setup(kind, main) on it as usual.
+static func make(kind: String):
+	return load(String(SUBKINDS.get(kind, "res://scripts/enemy.gd"))).new()
+
+
 ## What each beast calls when it's half dead.
 const FLOCK := {"gryphon": "bat", "kraken": "lurker", "wyvern": "cinder", "manticore": "scorpling", "firebird": "wisp", "chimera": "thornhound"}
 const BITE_REACH := 70.0  # a thornhound's leap
@@ -482,7 +494,8 @@ func _physics_process(delta: float) -> void:
 			sees = main.clear_line(global_position, p.global_position) if aware or dist < 460.0 else false
 		var seen := sees
 		if not aware:
-			if (seen and dist < 460.0) or dist < 110.0:
+			var sk: float = main.sight_k()  # (the Manticore's sun and shade)
+			if (seen and dist < 460.0 * sk) or dist < 110.0 * minf(sk, 1.0):
 				wake()
 			else:
 				# Asleep: nothing to work out; only a shove moves it.
@@ -2127,6 +2140,11 @@ func _act(_delta: float, _dir: Vector2, _dist: float, _p) -> void:
 	velocity = Vector2.ZERO
 
 
+## The body of a kind with a script of its own (SUBKINDS), into the pen.
+func _draw_own(_p, _t: float, _f: Vector2) -> void:
+	pass
+
+
 ## More telegraphs over the darkness, for a kind drawn elsewhere (mirror.gd).
 func _overlay_extra(_o) -> void:
 	pass
@@ -2299,6 +2317,8 @@ func _draw() -> void:
 			_draw_chimera(p, t, f)
 		"familiar":
 			_draw_wisp(p, t, f)
+		_:
+			_draw_own(p, t, f)  # (a kind with a script of its own: SUBKINDS)
 	if shade:
 		_fade_to_shade(p)
 		_fade_to_shade(_glow)

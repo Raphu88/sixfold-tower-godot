@@ -257,6 +257,7 @@ var objective  # the floor's one task: its pieces, the HUD's line and arrow, the
 var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
+var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
 var noticed: Array = []
@@ -622,16 +623,24 @@ func is_solid(pos: Vector2) -> bool:
 	if not layout_on:
 		return false
 	var t := _tile_of(pos)
+	return _is_solid_tile(t.x, t.y) or (tower_floor != null and tower_floor.blocks_walking(t))  # (the Wyvern's molten metal: no one walks there)
+
+
+## Walls only (sight and shots pass over the Wyvern's molten metal).
+func wall_at(pos: Vector2) -> bool:
+	if not layout_on:
+		return false
+	var t := _tile_of(pos)
 	return _is_solid_tile(t.x, t.y)
 
 
-## Nothing solid between two points.
+## Nothing solid between two points (walls: you see and shoot over molten metal).
 func clear_line(a: Vector2, b: Vector2) -> bool:
 	if not layout_on:
 		return true
 	var steps := int(a.distance_to(b) / 16.0) + 1
 	for i in steps + 1:
-		if is_solid(a.lerp(b, float(i) / steps)):
+		if wall_at(a.lerp(b, float(i) / steps)):
 			return false
 	return true
 
@@ -1094,6 +1103,7 @@ func _start_floor(n: int) -> void:
 	# before the fog and the first drawing (their closed tiles are solid).
 	wings.setup(plan)
 	cracks.setup(plan)  # (cracked walls: solid until broken, their alcoves rock)
+	_setup_tower_floor(plan if not in_camp else {})  # (before the scenarios: a tower's scenario lives in it)
 	scenarios.setup(plan if not in_camp else {})
 	room_rewards.setup(plan if not in_camp else {})
 	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
@@ -1157,7 +1167,7 @@ func _start_floor(n: int) -> void:
 	var tough := Floors.toughness(n)
 	var spawned: Array = []
 	for m in plan["monsters"]:
-		var e = EnemyScript.new()
+		var e = EnemyScript.make(m[0])
 		e.setup(m[0], self)
 		e.max_hp *= tough.x
 		e.hp = e.max_hp
@@ -3391,7 +3401,7 @@ func targets() -> Array:
 
 
 func spawn_enemy(kind: String, pos: Vector2):
-	var e = EnemyScript.new()
+	var e = EnemyScript.make(kind)
 	e.setup(kind, self)
 	var tough := Floors.toughness(floor_num)
 	e.max_hp *= tough.x
@@ -3657,6 +3667,7 @@ const GRAFT_PART := {
 	"slime": "heart", "archer": "brow", "knight": "hand", "bat": "legs", "thunderling": "throat",
 	"lurker": "back", "shellback": "heart", "cinder": "throat", "smith": "hand", "scorpling": "back",
 	"ram": "legs", "wisp": "legs", "bloomcap": "throat", "thornhound": "legs", "mongrel": "hand",
+	"golem": "heart", "burrower": "back",
 }
 
 
@@ -3830,7 +3841,30 @@ func in_water(pos: Vector2) -> bool:
 
 ## Water slows you (unless you're Waterborn).
 func water_slow(pos: Vector2, waterborn := false) -> float:
-	return 1.0 if waterborn or not in_water(pos) else 0.6
+	var k := 1.0 if tower_floor == null or waterborn else float(tower_floor.slow_at(pos))  # (the Manticore's sand)
+	return k if waterborn or not in_water(pos) else 0.6 * k
+
+
+## How far monsters notice the climber from, as a share (enemy.gd): the
+## Manticore's sun gives you away from farther; its shade hides you.
+func sight_k() -> float:
+	return 1.0 if tower_floor == null else float(tower_floor.sight_k())
+
+
+## The tower's own floor (floor_styles.gd "module"): a node of its script,
+## made fresh for each floor that has one (plan["tower_floor"]).
+func _setup_tower_floor(plan: Dictionary) -> void:
+	if tower_floor != null and is_instance_valid(tower_floor):
+		tower_floor.clear()
+		tower_floor.queue_free()
+	tower_floor = null
+	var spec: Dictionary = plan.get("tower_floor", {})
+	if spec.is_empty() or not spec.has("module"):
+		return
+	tower_floor = load(String(spec["module"])).new()
+	tower_floor.main = self
+	add_child(tower_floor)
+	tower_floor.setup(plan)
 
 
 func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:

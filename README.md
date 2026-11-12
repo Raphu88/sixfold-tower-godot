@@ -632,8 +632,8 @@ Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each
 | --- | --- | --- | --- |
 | The Gryphon's Tower | Air | archers, bats and thunderlings; the Gryphon on floor 12 | cold, blue stone and pale torches |
 | The Kraken's Tower | Water | slimes, lurkers and shellbacks; the Kraken on floor 12 | damp, teal stone and green-white torches |
-| The Wyvern's Tower | Iron | knights, cinders and smiths; the Wyvern on floor 12 (the hardest) | hot forge-red stone and orange torches |
-| The Manticore's Tower | Stone | scorplings and rams; the Manticore on floor 12 | sun-baked sandstone and warm torches |
+| The Wyvern's Tower | Iron | knights, cinders, smiths and forge golems; the Wyvern on floor 12 (the hardest) | a forge: workshop halls, molten channels, grated corridors, furnaces (see below) |
+| The Manticore's Tower | Stone | scorplings, rams and burrowers; the Manticore on floor 12 | sun-baked sandstone: courts in the sun, shaded alleys, sand (see below) |
 | The Firebird's Tower | Fire | wisps and bloomcaps, and chasms to jump; the Firebird on floor 12 | pale, sunlit stone and gold torches |
 | The Chimera's Tower | Blade | thornhounds and mongrels; the Chimera on floor 12 | the Thornwild: mossy green stone and pale green torches |
 
@@ -664,6 +664,38 @@ Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each
 **The Gryphon's monsters:** the **bat** circles you, then glints and swoops straight through where you stood (parryable). The **thunderling** walks up, stops and sparks, then bursts into a ring of lightning: it can't be parried, so step out of the ring or roll through it.
 
 Every kill also yields 1.5 essence of the tower's own kind, so the tower you choose is how you steer which bonds you'll form. The tower's beast is the one who regards you at the top of your first climb.
+
+### The Wyvern's tower: the forge
+
+Its floors (`scripts/towers/wyvern_floor.gd`, named as the tower's `module` in `scripts/floor_styles.gd`) are a forge: long workshop halls in a grid (more ways between rooms than most towers), carved in its own shapes: **workshops** with benches and anvils in rows and a clear aisle down the middle, **forge halls** with machine columns along both walls, and long plain halls (hand-made rooms turn up about a third as often, so the forge's own shapes win). Every corridor is an **iron grate** over the forge's fires.
+
+- **Molten channels** run right across many halls, and **gutters** of molten metal line the walls of others (never by a doorway). Nothing crosses the metal: walk into it and you stop at its edge, and monsters can't path over it, but you see across it and arrows and thrown embers fly over it (some spells' bolts stop at its edge). Every channel has a **bridge**: a chain bridge of planks laid across. From floor 3, now and then a bridge is **hauled up** (its outline dashed on the metal, its leaf standing on the near bank): strike its **crank** on the side you came in by and it comes down for good. The game proves the stair and the task can always be reached with the channels as rock and a raised bridge as a lever's door (`scripts/reach.gd`), and traps never sit on the metal (trap rooms keep their whole floor for their set pieces: no channels there).
+- **Heat.** Furnaces stand in some halls, their bellows breathing: a warning glow, then a hot spell (a ring of heat around the furnace). Linger in the heat and it builds up on you (a ring at your feet fills, "Too hot!"); full, it burns: 3 health every half second until you step out and cool, or the climber's **Burning** state when monsters may give you states (`reactions.gd` `CLIMBER` "enabled").
+- **Water barrels** stand by the fires. Strike one and it bursts: the heat around it is **quenched** for 10 seconds (the furnaces go dark), you're cooled at once, foes in the splash are **soaked**, and a forge golem caught in it is quenched. A barrel fills again after a while.
+
+**Its task: Stoke the Furnaces.** Two or three cold furnaces stand in different halls. Strike each one's bellows until it roars (four strikes; it cools back if you dawdle). A waking furnace throws its heat at whoever stands at its mouth, so don't linger.
+
+**Its creature: the forge golem** (from floor 4; `scripts/towers/forge_golem.gd`). A lump of iron with a glowing belly-grate that heats up as it fights: every moment it's after you, every blow it swings and every blow it takes (the seams in its plates glow from dull red to white; a ring at its feet shows how hot). Hot, it hardens (your blows do half), walks faster, its slam (parryable) leaves the floor burning, and now and then it **flares**: a ring of heat bursts out around it (can't be parried: get out of the ring or roll). Full, it must **vent**: it slumps, steaming, for a few seconds and takes double. Water does the same at once: soak a warm golem (a barrel, a pool, a water spell) and it's **quenched**. It carries iron essence.
+
+**Its scenario: Hold the Forge.** Three furnaces burn in the hall; step onto the mark and the doors shut. The fires die down by themselves, and faster with a foe beside them, and waves of the forge's creatures go for them: strike a furnace's bellows to stoke it (or relight it). After 40 seconds: gold if none went out, silver if one did, bronze otherwise; all three out at once ends it.
+
+Every number and word is in the script's `RULES`, `HEAT`, `BARREL`, `FURNACE`, `FORGE` and `TEXT`, and the golem's `GOLEM` (the Data editor's "Towers: the Wyvern's forge and the Manticore's sands").
+
+### The Manticore's tower: sun and sand
+
+Its floors (`scripts/towers/manticore_floor.gd`) are sun-baked sandstone: wide **courts** open to the sky, ringed by a colonnade; **colonnades** (a long nave between two rows of pillars, with side aisles); and **alleys**, mazes of low walls with narrow ways winding between them (again more ways between rooms, and fewer hand-made rooms).
+
+- **Sun.** A shaft of sunlight lies across every court and nave and drifts slowly back and forth across it (about half a minute each way), and the courts lie in a warm open light. Standing in the sun (a small sun shows at your feet) monsters notice you from farther (1.4 times as far).
+- **Shade.** The walks under the colonnades, the aisles and the alleys are deep shade (a shade sign at your feet). There monsters notice you only from under half as far, and one that's after you loses track of you (the **Unseen** state, which Unseen Strike and Ambush use) while you stay in the shade more than a few steps away from it.
+- **Shifting sand.** Soft **drifts** of sand in the courts slow you a little; a burrower swims in them. **Sand pits** (from floor 3) pull you slowly toward the sink in their middle: reach it and the sand **swallows** you (it hurts) and spits you out at the edge. **Cracked flagstones** crumble into sand after you cross them. None of it ever walls anything off (Sandshaper's Rooted Stance keeps you out of a pit's pull, and fliers aren't slowed).
+
+**Its task: Wake the Sun Seals.** In two or three rooms a polished stone stands under a skylight, its seal set in the floor a few steps off. Strike the stone to turn it (an eighth of a turn a blow). When the drifting patch of sunlight crosses the stone, it throws the light the way it faces: face it at its seal and the seal drinks the light and wakes.
+
+**Its creature: the burrower** (from floor 3; `scripts/towers/burrower.gd`). A sand-coloured, many-legged digger that swims under the sand, seen only as a moving mound and ripples, and can't be struck there. When you stand on sand near it, it marks the spot under you (a ring) and **erupts** out of it (can't be parried: step or roll off the ring), then stays up a moment: your chance. It can only swim in sand: stand on stone and it must come up to reach you, **exposed** ("Exposed!"): slow, taking half again from every blow, only able to bite (parryable). So lure it onto the stone. It carries stone essence.
+
+**Its scenario: the Sinking Court.** Step onto the mark and the court's floor starts giving way to quicksand behind you, rolling toward the far gate. Only the old stones hold: a winding path of them, and a few more. Quicksand slows you and drags you under: stand in it too long and it swallows you (a hit, and you're thrown onto the nearest stone). Reach the far gate: gold for no hits and a quick crossing, silver for one hit, bronze otherwise; leaving the court ends it.
+
+Every number and word is in the script's `SUN`, `SHADE`, `SAND`, `SEAL`, `SINK` and `TEXT`, and the burrower's `BURROWER`.
 
 ## Marks, essence and the Regard
 
@@ -1007,13 +1039,14 @@ Solving the floor's puzzle lifts the ward ("THE STAIR IS UNSEALED"), opens the s
 
 ## Scenario rooms
 
-Some rooms are short set pieces you play through, and how you do is **noticed** (`scripts/scenarios.gd`, where every number and word lives; their names and rules are the `scn_` rooms in `themes.gd`). Most floors from 2 have one (in a dead end first), and higher floors sometimes two. Each waits on a glowing gilt **mark** in its room: nothing starts until you step onto it, so you can walk past. Six kinds:
+Some rooms are short set pieces you play through, and how you do is **noticed** (`scripts/scenarios.gd`, where every number and word lives; their names and rules are the `scn_` rooms in `themes.gd`). Most floors from 2 have one (in a dead end first), and higher floors sometimes two. Each waits on a glowing gilt **mark** in its room: nothing starts until you step onto it, so you can walk past. Six shared kinds, and the towers' own:
 - **The Last Camp:** a fallen climber's camp is still burning. Keep the monsters off it for 30 seconds: they go for the fire unless you come close.
 - **The Falling Hall:** the roof comes down. Run for the far end, watching the rings where rocks will land.
 - **The Champion's Circle** (from floor 3): the doors shut and a champion of the tower fights you, fairly and alone.
 - **The Watchful Hall:** lanterns sweep the hall. Cross to the far end without their light falling on you; walls and cover hide you, and each time you're seen a monster comes.
 - **The Caged Cub** (from floor 3): a small grey creature whimpers in a cage. Break it open, then lead it to the door while the monsters go for it.
 - **The Gauntlet:** the doors shut; beat every wave, and be quick.
+- **Hold the Forge** (the Wyvern's tower, from floor 3) and **the Sinking Court** (the Manticore's tower): the towers' own scenarios, described with their towers above. A tower's own scenario turns up only in its tower, three times as often as one of the shared ones (`towers` and `weight` in `SCENARIOS`), and its tower's floor script runs it.
 
 Each ends with a **grade**: gold, silver, bronze or none (a fall, leaving the room, the camp or the cub lost). A grade pays essence and **renown** (`Renown.earn`), feeds the Makers' interest (`Makers.feed(main, "scenario")`), and goes on the climb's tally of what the beast noticed (`main.noticed`, with `main.beast_noticed_count()`, for the summit or the Regard to read later), with a banner: **THE GRYPHON NOTICED**. Their status shows under the task's line at the top of the screen.
 
@@ -1151,7 +1184,11 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/slots.gd` | Climber slots: each climber's save file, the shared settings file, the slot played last, deleting, and moving an old single save into slot 1 |
 | `scripts/climbers_page.gd` | The Climbers page (the climber picker) and its words, the title's Climbers button and the Start over words |
 | `scripts/floors.gd` | Plans each floor: the grid, spine, branches and kept cells, loops, corridors, doors, the rooms' jobs and payoffs (chests, rest rooms, traders, strongrooms), monster groups, toughness |
-| `scripts/floor_styles.gd` | How each tower builds its floors: extra room shapes, gallery shapes, loops, cracked walls, scenario, rest and trader chances (the hook for per-tower layouts) |
+| `scripts/floor_styles.gd` | How each tower builds its floors: extra room shapes, gallery shapes, loops, cracked walls, scenario, rest and trader chances, how often hand-made rooms turn up, and the tower's own floor script (`module`) |
+| `scripts/towers/wyvern_floor.gd` | The Wyvern's forge: its room shapes, molten channels, gutters, bridges and cranks, furnaces' heat, water barrels; Stoke the Furnaces; Hold the Forge |
+| `scripts/towers/forge_golem.gd` | The forge golem (the Wyvern's creature): heats up as it fights, hardens, flares, vents; quenched by water |
+| `scripts/towers/manticore_floor.gd` | The Manticore's sands: its room shapes, sun shafts, shade, sand drifts, pits and crumbling floor; Wake the Sun Seals; the Sinking Court |
+| `scripts/towers/burrower.gd` | The burrower (the Manticore's creature): swims under sand, erupts beneath you, exposed on stone |
 | `scripts/objectives.gd` | The floor's one task: the kinds (braziers, runes, levers, orb, Keeper, wardstone, shards, motes, and the puzzles), their words, counts and timings, picking one per floor (no repeats in a climb) and placing its pieces |
 | `scripts/objective.gd` | The task in play: its pieces, the HUD's line and arrow, lifting the ward, the stair's gold light, essence and reliquary |
 | `scripts/scenarios.gd` | Scenario rooms: the mark, the six set pieces (defend, collapse, duel, unseen, rescue, gauntlet), grades, and what's noticed (renown, the Makers, `main.noticed`) |
@@ -1278,6 +1315,8 @@ The floor bot (`tests/parts/floor_bot.gd` plays four floors in the parts run, at
 godot --headless --fixed-fps 60 -s tests/floor_bot_sweep.gd -- 2      # 2 floors per tower and depth (108 floors)
 godot --headless --fixed-fps 60 -s tests/floor_bot_sweep.gd -- 3 kind=runes tower=kraken
 ```
+
+The bot also turns every Wyvern crank it can reach while its bridge is up (its floor script's `bot_step`), keeps clear of furnaces' heat and sand pits when it can (`bot_grid`), and does the towers' own tasks (`bot_task`: strikes the bellows; turns each sun stone to its seal and waits for the sun). A tower's own task kind is only forced in its own tower. `tests/parts/towers_wyvern_manticore.gd` covers the Wyvern's and the Manticore's floors: their shapes, their systems, their tasks, creatures and scenarios, reachability over thirty floors of each, and the bot doing their tasks.
 
 ## Rebuilding the sounds
 

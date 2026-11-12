@@ -349,6 +349,11 @@ func _task_step() -> Dictionary:
 		for y in ice.rows_n:
 			for x in ice.cols:
 				avoid[_tile(ice.center(Vector2i(x, y)))] = true
+	# The tower's own floor first: a crank whose bridge is still up.
+	if main.get("tower_floor") != null:
+		var own: Dictionary = main.tower_floor.bot_step(self)
+		if not own.is_empty():
+			return own
 	if not main.ward or ob.kind == "" or ob.done:
 		# The stair (the reliquary first if it's right there: it's on the way).
 		if not ob.reliquary.is_empty() and not ob.reliquary["taken"] and pos.distance_to(ob.reliquary["pos"]) < 260.0:
@@ -392,6 +397,8 @@ func _task_step() -> Dictionary:
 			var over: Vector2 = (pc["pos"] - pos).normalized() * 24.0 if pos.distance_to(pc["pos"]) < 160.0 else Vector2.ZERO
 			var want: Vector2 = main.walkable_point(pc["pos"], pc["pos"] + over, 10.0)  # (run through it: it flees)
 			return {"pos": want, "act": "chase", "r": 4.0, "why": "a mote"}
+	if ob.own_kind and main.get("tower_floor") != null:
+		return main.tower_floor.bot_task(self)  # (a tower's own kind: its floor script knows the way)
 	return {}
 
 
@@ -561,6 +568,9 @@ func _build_grid() -> void:
 		var t := _tile(tr["pos"])
 		if astar.region.has_point(t) and not astar.is_point_solid(t):
 			astar.set_point_weight_scale(t, 3.0)
+	# The tower's own floor: its heat, its pits (a detour costs less than they do).
+	if main.get("tower_floor") != null:
+		main.tower_floor.bot_grid(astar, self)
 	for t in avoid:
 		if astar.region.has_point(t):
 			astar.set_point_solid(t, true)
