@@ -289,7 +289,7 @@ static var BONDS := {
 				"steps": {4: {"cost": 14.0, "windup": 0.3, "duration": 6.0, "damage": 3.0, "radius": 48.0}, 5: {"damage": 4.0}}},
 			{"id": "thousand_edges", "name": "Thousand Edges", "type": "edges", "learn": 5,
 				"desc": "a storm of conjured blades fans out toward your aim; the blades leave edges on the floor that cut foes crossing them",
-				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0, "edges": 3, "edge_reach": 0.5, "edge_damage": 3.0, "edge_time": 4.0, "edge_radius": 16.0}}},
+				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0, "edges": 3, "edge_reach": 0.5, "edge_damage": 2.0, "edge_time": 4.0, "edge_radius": 16.0}}},
 		],
 	},
 	"flameblade": {
