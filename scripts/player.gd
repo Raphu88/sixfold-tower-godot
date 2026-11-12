@@ -12,6 +12,7 @@ const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
+const Essence := preload("res://scripts/essence.gd")
 
 ## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
 ## "The climber's core numbers"); these read them, so a change shows at once.
@@ -85,7 +86,12 @@ var pack: Array = []
 var gear_fx := {}
 ## Health before gear (set by the room from your Vitality).
 var base_hp := MAX_HP
-var reload_t := 0.0  # a crossbow reloading after a shot (can't be skipped)
+var reload_t := 0.0  # a crossbow reloading after a shot (can't be skipped), or a pistol reloading (a roll breaks it off)
+## A pistol's loaded shots (weapons.gd "shots"), for the piece in your
+## ranged slot (ammo_for: its code; another piece there starts loaded).
+var ammo := 0
+var ammo_for := "-"
+var refill_t := 0.0  # an enchanted pistol: toward its next chamber filling itself
 var roll_t := 0.0
 var roll_cd := 0.0
 var roll_dir := Vector2.ZERO
@@ -232,7 +238,7 @@ func wdata() -> Dictionary:
 	return Weapons.WEAPONS[weapon]
 
 
-## "melee", "bow" or "crossbow": what the weapon in hand does.
+## "melee", "bow", "crossbow" or "gun": what the weapon in hand does.
 func wkind() -> String:
 	return wdata()["kind"]
 
@@ -250,6 +256,50 @@ func gear_id(slot: String) -> String:
 ## The weapon in each of the three slots: fists, melee, ranged ("" if empty).
 func slots() -> Array:
 	return ["fists", gear_id("melee"), gear_id("ranged")]
+
+
+## The pistol in your ranged slot: how many shots it holds (0 for no pistol).
+func gun_shots() -> int:
+	var id := gear_id("ranged")
+	return int(Weapons.WEAPONS[id]["shots"]) if Weapons.is_gun(id) else 0
+
+
+## The essence your ranged slot's pistol fires (gear.gd shot_kind), "" for lead.
+func gun_magic() -> String:
+	return Gear.shot_kind(gear.get("ranged", {}))
+
+
+## Shots loaded in your ranged slot's pistol (a newly carried one is loaded).
+func ammo_left() -> int:
+	var code := Gear.code(gear.get("ranged", {}))
+	if code != ammo_for:
+		ammo_for = code
+		ammo = gun_shots()
+		refill_t = 0.0
+		if weapon != "fists" and weapon == gear_id("ranged"):
+			reload_t = 0.0
+	return ammo
+
+
+## Seconds a pistol's reload takes (faster with of the Quick Draw and the like).
+func gun_reload_time() -> float:
+	return float(wdata().get("reload", 1.0)) / (1.0 + gfx("draw"))
+
+
+## Seconds an enchanted pistol's chamber takes to fill itself.
+func gun_refill_time() -> float:
+	var id := gear_id("ranged")
+	if not Weapons.is_gun(id):
+		return 1.0
+	var t := float(Weapons.WEAPONS[id]["refill"]) * float(Weapons.essence_shot(gun_magic()).get("refill", 1.0))
+	return t / (1.0 + gfx("draw"))
+
+
+## Starts reloading the pistol in hand (an ordinary one, empty).
+func _start_reload() -> void:
+	reload_t = gun_reload_time()
+	var w := wdata()
+	main.sfx(String(w["reload_sound"]), float(w.get("reload_pitch", 1.0)), -2.0, 0.03)
 
 
 ## Starts the climb with your heirlooms in their slots (from the profile),
@@ -590,7 +640,7 @@ func _physics_process(delta: float) -> void:
 			_tick_draw(delta)
 		elif attack_cd > 0.0:
 			spd *= 0.35  # committed to the swing
-		elif reload_t > 0.0 and wkind() == "crossbow":
+		elif reload_t > 0.0 and wkind() in ["crossbow", "gun"]:
 			spd *= wdata()["reload_move"]  # you can walk while you reload
 		spd *= attr_speed * armor()["walk"] * (1.0 + gfx("walk"))  # heavy armor slows you a little; boots
 		if rune_gear == "swiftness":
@@ -829,6 +879,8 @@ func _equip(id: String) -> void:
 	pending_weapon = ""
 	if id == weapon:
 		return
+	if Weapons.is_gun(weapon) or Weapons.is_gun(id):
+		reload_t = 0.0  # (putting a pistol away breaks off its reload; drawing one starts afresh)
 	weapon = id
 	combo = 0
 	combo_t = 0.0
@@ -876,7 +928,9 @@ func _tick_timers(delta: float) -> void:
 	hurt_t -= delta
 	dodge_cd -= delta
 	buffer_t -= delta
-	sta_delay -= delta
+	sta_delay -= delta * (1.0 + gfx("quick_breath"))  # (an Iron Band: stamina starts back sooner)
+	if salts_t > 0.0:
+		sta_delay = minf(sta_delay, 0.0)  # Second Wind Salts: your stamina never waits
 	edge_t -= delta
 	ward_oil_t -= delta
 	haste_t -= delta
@@ -906,6 +960,14 @@ func _tick_timers(delta: float) -> void:
 		if reload_t <= 0.0 and weapon in Weapons.WEAPONS and wkind() == "crossbow":
 			main.sfx("crossbow_load")
 			main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 14.0, 0.2, 2.0)
+		if reload_t <= 0.0 and wkind() == "gun":
+			# Every chamber loaded at once.
+			ammo_left()
+			ammo = gun_shots()
+			var gw := wdata()
+			main.sfx(String(gw["load_sound"]), float(gw.get("load_pitch", 1.0)), -2.0, 0.03)
+			main.fx_ring(global_position + aim * (radius + 8.0), Color(1.0, 0.9, 0.6), 14.0, 0.2, 2.0)
+	_tick_gun(delta)
 	squash = move_toward(squash, 0.0, 5.0 * delta)
 	knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	_tick_healing(delta)
@@ -916,6 +978,31 @@ func _tick_timers(delta: float) -> void:
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
 		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+
+
+## Pistols between shots: an enchanted one's chambers fill themselves one
+## at a time (in hand or not, and through rolls); an ordinary one in hand
+## starts reloading once it's empty (again after a roll that broke it off).
+func _tick_gun(delta: float) -> void:
+	var shots := gun_shots()
+	if shots <= 0 or dead:
+		return
+	var have := ammo_left()
+	if gun_magic() != "":
+		if have >= shots:
+			refill_t = 0.0
+			return
+		if attack_cd > 0.0 and weapon == gear_id("ranged"):
+			return  # (not while the shot still kicks)
+		refill_t += delta
+		if refill_t >= gun_refill_time():
+			refill_t = 0.0
+			ammo = mini(shots, ammo + 1)
+			if weapon == gear_id("ranged"):
+				main.sfx("crossbow_load", 1.6, -12.0, 0.05)
+		return
+	if have <= 0 and reload_t <= 0.0 and roll_t <= 0.0 and wkind() == "gun" and weapon == gear_id("ranged"):
+		_start_reload()
 
 
 func _winded() -> void:
@@ -1021,6 +1108,9 @@ func _try_roll(input: Vector2) -> bool:
 	ghost_t = 0.0
 	squash = 0.6
 	drawing = false  # rolling drops a drawn arrow
+	if reload_t > 0.0 and wkind() == "gun":
+		reload_t = 0.0  # rolling breaks off a pistol's reload (it starts again after the roll)
+		main.fx_text(global_position + Vector2(0, -34), Weapons.GUN_TEXT["broken_off"], Color(0.75, 0.72, 0.8))
 	main.sfx("roll")
 	if wind:
 		main.sfx("gust", 1.3, -6.0)
@@ -1040,6 +1130,11 @@ func _try_attack() -> bool:
 		if reload_t > 0.0:
 			return false  # still reloading: it can't be skipped
 		_fire_bolt()
+		return true
+	if wkind() == "gun":
+		if ammo_left() <= 0 or reload_t > 0.0:
+			return false  # empty: wait for the reload (or a chamber to fill itself)
+		_fire_gun()
 		return true
 	if wkind() == "bow":
 		drawing = true
@@ -1079,6 +1174,10 @@ func _melee() -> bool:
 	main.sfx(snd, float(w.get("pitch", 1.0)) * (1.0 + 0.06 * combo))
 
 	var dmg: float = STRIKE_DAMAGE * swing["dmg"] * attr_strength * (1.0 + gfx("strike"))  # gloves and rings
+	if heavy:
+		dmg *= 1.0 + gfx("finisher")  # Leather Gloves
+	if weapon == "fists":
+		dmg *= 1.0 + gfx("fist")  # Grip Wraps, Studded Gloves: the body's own blows
 	if weapon != "fists" and weapon == gear_id("melee"):
 		dmg *= Gear.weapon_power(gear["melee"])  # its rarity; a badly worn weapon hits softer
 	if edge_t > 0.0:
@@ -1103,8 +1202,11 @@ func _melee() -> bool:
 			continue
 		if absf(aim.angle_to(to)) > deg_to_rad(swing["arc"]):
 			continue
-		_strike(e, dmg, to.normalized(), swing["knock"], heavy, w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
+		var blade: bool = swing.get("blade", false)
+		_strike(e, dmg, to.normalized(), swing["knock"], heavy, String(w.get("blade_sound", w["hit_sound"])) if blade else w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
 		_melee_rules(e, heavy)
+		if blade and rule("draw_venom") > 0.0 and not e.dead:
+			e.add_venom(int(rule("draw_venom")))  # Quietsteel: the drawn blade poisons
 		hits += 1
 	# The floor's puzzle: strikes light eyes and pull levers.
 	if main.puzzle != null:
@@ -1124,6 +1226,10 @@ func _melee() -> bool:
 	if hits > 0:
 		_strikes_landed(hits)
 		wear_gear("strike")  # a landed swing wears the weapon and gloves (Commons)
+		if heavy and float(w.get("finisher_sta", 0.0)) > 0.0:
+			sta = minf(max_sta, sta + float(w["finisher_sta"]))  # the sword: a landed finisher gives breath back
+	if swing.get("blade", false):
+		main.sfx("equip_sword", 1.25, -6.0)  # the sword-cane's blade comes out
 	return true
 
 
@@ -1235,10 +1341,57 @@ func _fire_bolt() -> void:
 	main.shake(2.5)
 
 
+## A pistol: one shot of lead, or of its enchantment's essence (weapons.gd
+## ESSENCE_SHOT). An ordinary pistol starts reloading once it's empty
+## (_tick_gun); an enchanted one's chambers fill themselves.
+func _fire_gun() -> void:
+	var w := wdata()
+	var magic := gun_magic()
+	var es: Dictionary = Weapons.essence_shot(magic) if magic != "" else {}
+	ammo_left()
+	ammo -= 1
+	refill_t = 0.0
+	attack_cd = w["recover"]
+	sta = maxf(0.0, sta - w["sta"])
+	sta_delay = float(Combat.CLIMBER["strike_wait"])
+	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
+	if ammo <= 0 and rule("last_shot") > 0.0:
+		dmg *= 1.0 + rule("last_shot")  # Lastbell Revolver: the last shot in the cylinder
+	wear_gear("shot")
+	var hand = bonds.get("hand")
+	if hand != null and hand.burned:
+		dmg *= 0.6
+	var speed: float = float(w["speed"]) * float(es.get("speed", 1.0))
+	var life: float = float(w["life"]) * float(es.get("life", 1.0))
+	var muzzle: Vector2 = global_position + aim * (radius + 10.0)
+	var tint: Color = Essence.color(magic) if magic != "" else Color(1.0, 0.85, 0.55)
+	var shards := int(es.get("shards", 1))
+	for i in shards:
+		var off := 0.0 if shards <= 1 else lerpf(-1.0, 1.0, float(i) / float(shards - 1)) * float(es.get("fan", 0.15))
+		var share := 1.0 if shards <= 1 else float(es.get("share", 0.5))
+		var shot = main.spawn_player_arrow(muzzle, aim.rotated(off) * speed, dmg * share, float(w["knock"]) * share, bool(w.get("pierce", false)) or es.has("pierce"))
+		shot.weapon = true
+		shot.life = life
+		shot.heavy = bool(w.get("heavy", false)) or es.has("stagger")
+		shot.style = "essence" if magic != "" else "shot"
+		shot.tint = tint
+		shot.shot = magic
+		shot.fills = magic == ""  # an essence shot is the pistol's essence, not your hand's
+	# The shot: a flash and a crack, and the kick of it.
+	main.sfx(String(w["shot_sound"]), float(w.get("shot_pitch", 1.0)), -3.0, 0.04)
+	main.sfx(String(w["crack"]), float(w.get("crack_pitch", 1.0)), -4.0, 0.04)
+	main.fx_burst(muzzle, aim, tint, 8, 260.0)
+	main.light_flash(muzzle, tint, 0.9, 1.6, 0.12)
+	knock = -aim * float(w.get("kick", 40.0))
+	main.shake(4.0 if bool(w.get("heavy", false)) else 1.6)
+
+
 ## Called by your arrows when they hit a monster.
-## `weapon`: the climber's own bow or crossbow shot. Only those fill the
-## hand's mark and carry the weapon's rules (a spell's shot is just a hit).
-func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon := false) -> void:
+## `weapon`: the climber's own bow, crossbow or pistol shot. Those carry the
+## weapon's rules, and (`fills`) fill the hand's mark; a spell's shot is just
+## a hit, and an enchanted pistol's essence shot doesn't fill the hand.
+## `shot`: an essence shot's essence (weapons.gd ESSENCE_SHOT), "" for none.
+func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon := false, shot := "", fills := true) -> void:
 	# Hunter's Hawk's Eye: every arrow strikes a weak point.
 	if hawk_t > 0.0:
 		dmg *= 2.0
@@ -1246,7 +1399,14 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon :
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	if not weapon:
 		return
-	_part_action("hand", 0.5, 6.0)
+	if fills:
+		_part_action("hand", 0.5, 6.0)
+	if shot != "":
+		_essence_shot_hit(e, dmg, dir, shot)
+	# of Embers on a bow or pistol: a hit may set the foe burning.
+	var ember := gfx("embers")
+	if ember > 0.0 and not e.dead and randf() < ember:
+		e.ignite(Gear.EMBER_BURN["dmg"], Gear.EMBER_BURN["time"])
 	# Stormstring: a full draw arcs on to one more foe (Stormtalon: two).
 	var arc := rule("arc")
 	if heavy and arc > 0.0 and wkind() == "bow":
@@ -1275,6 +1435,26 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon :
 		var hand = bonds.get("hand")
 		if hand != null:
 			hand.essence = minf(hand.capacity(), hand.essence + rule("draw_mark"))
+
+
+## What an essence shot does when it strikes (weapons.gd ESSENCE_SHOT):
+## stone staggers, water chills, fire bursts over the foes around.
+func _essence_shot_hit(e, dmg: float, dir: Vector2, kind: String) -> void:
+	var es := Weapons.essence_shot(kind)
+	var col := Essence.color(kind)
+	if es.has("stagger") and not e.dead:
+		e.stagger(float(es["stagger"]) * (0.5 if e.is_boss() else 1.0))
+	if es.has("chill") and not e.dead:
+		e.chill_t = maxf(e.chill_t, float(es["chill"]))
+	if es.has("radius"):
+		var r := float(es["radius"])
+		main.fx_ring(e.global_position, col, r, 0.3, 4.0)
+		main.fx_burst(e.global_position, dir, col, 10, 240.0)
+		main.light_flash(e.global_position, col, 1.0, 1.4, 0.2)
+		main.sfx("burn", 1.4, -8.0, 0.05)
+		for o in main.targets():
+			if o != e and not o.dead and o.global_position.distance_to(e.global_position) < r + o.radius:
+				o.take_hit(dmg * float(es.get("share", 0.5)), (o.global_position - e.global_position).normalized(), 120.0)
 
 
 ## `rock`: the blow breaks poise like a heavy one (maces, hammers);
@@ -1411,6 +1591,12 @@ func _beast_rules(e, head: int, heavy: bool) -> void:
 ## A foe fell to your weapon: what your gear does then (a Sunsteel Blade's
 ## and a Reaver's healing, Quickhand Gloves' and a Pearl Ring's essence).
 func _on_kill() -> void:
+	if gfx("kill_sta") > 0.0:
+		sta = minf(max_sta, sta + gfx("kill_sta"))  # a Garnet Ring
+	if rule("kill_load") > 0.0 and wkind() == "gun":
+		ammo_left()
+		ammo = gun_shots()  # Emberlock: a kill fills its chamber
+		reload_t = 0.0
 	var heal := (rule("kill_heal") + gfx("kill_heal")) * heal_mult()  # (of Mending, a Heartroot)
 	if heal > 0.0 and hp < max_health():
 		hp = minf(max_health(), hp + heal)
@@ -1438,7 +1624,8 @@ func _try_parry() -> bool:
 	attack_cd = 0.0
 	lunge_t = 0.0
 	drawing = false
-	parry_window = PARRY_WINDOW * (0.6 if _burned("brow") else 1.0) * (1.0 + 0.25 * graft("brow")) * (1.0 + gfx("parry"))  # gauntlets shorten it
+	var cane := float(wdata().get("parry", 0.0)) if wkind() == "melee" else 0.0  # a cane in hand
+	parry_window = PARRY_WINDOW * (0.6 if _burned("brow") else 1.0) * (1.0 + 0.25 * graft("brow")) * (1.0 + gfx("parry") + cane)  # gauntlets shorten it
 	parry_t = parry_window
 	parry_cd = float(Combat.CLIMBER["parry_cooldown"])
 	var threat := _nearest_threat()
@@ -2106,6 +2293,15 @@ func _on_parry(source, perfect := false) -> void:
 		for e in main.targets():
 			if e.global_position.distance_to(at) < 70.0 + e.radius:
 				e.take_hit(searing_dmg, (e.global_position - global_position).normalized(), 200.0, true)
+	# A Silver Ring: a perfect parry heals a little.
+	if perfect and gfx("parry_heal") > 0.0 and hp < max_health():
+		hp = minf(max_health(), hp + gfx("parry_heal") * heal_mult())
+	# Ashgrove Cane: a perfect parry staggers every foe near you.
+	if perfect and rule("quell") > 0.0:
+		main.fx_ring(global_position, Color(0.86, 0.8, 0.66), 120.0, 0.4, 5.0)
+		for e in main.targets():
+			if not e.dead and e.global_position.distance_to(global_position) < 120.0 + e.radius:
+				e.stagger(rule("quell") * (0.5 if e.is_boss() else 1.0))
 	# Watcher's Helm: the foe you parried takes more from you for a while.
 	if gfx("watch") > 0.0 and source is Node and is_instance_valid(source):
 		source.set_meta("watched", Time.get_ticks_msec() * 0.001 + 3.0)
@@ -2592,9 +2788,50 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 				grip = along * 10.0
 			var length: float = float(w.get("length", 24.0)) + (2.0 if swing.get("heavy", false) else 0.0)
 			var glint := 1.0 if swing_t > 0.0 else 0.0
-			draw_weapon = func(): _draw_swung(b, weapon, grip, along, length, glint)
-			hands.append([sh_w, grip - along * 3.0, 3.0])
-			hands.append([sh_o, grip + along * 1.5 if two_hands else free, 2.8])
+			if weapon in ["cane", "sword_cane"]:
+				# A cane; the sword-cane's blade is out for its finisher (and its recovery).
+				var bare: bool = swing.get("blade", false) and (swing_t > 0.0 or attack_cd > 0.0)
+				var wood := Gear.color(weapon_rec())
+				draw_weapon = func(): GearLook.tower_cane(b, weapon, grip, along, length, glint, _light, bare, wood)
+				if bare:
+					# The empty cane, its sheath, stays in the other hand.
+					var sheath_at := free + _at(2.0, 0.0)
+					var sheath_dir := dir.rotated(-0.6)
+					var draw_blade := draw_weapon
+					draw_weapon = func():
+						GearLook.tower_cane(b, "cane_sheath", sheath_at, sheath_dir, length - 6.0, 0.0, _light, false, wood)
+						draw_blade.call()
+					hands.append([sh_w, grip - along * 3.0, 3.0])
+					hands.append([sh_o, sheath_at, 2.8])
+				else:
+					hands.append([sh_w, grip - along * 3.0, 3.0])
+					hands.append([sh_o, free, 2.8])
+			else:
+				draw_weapon = func(): _draw_swung(b, weapon, grip, along, length, glint)
+			if not (weapon in ["cane", "sword_cane"]):
+				hands.append([sh_w, grip - along * 3.0, 3.0])
+				hands.append([sh_o, grip + along * 1.5 if two_hands else free, 2.8])
+		"gun":
+			# A pistol held out along your aim; it kicks up when it fires. Reloading,
+			# it comes back to the chest: a revolver's cylinder swings out, a
+			# flintlock tips up for the powder and ball.
+			var ggrip := dir * (radius + 3.0) + side * 2.0
+			var gdir := dir
+			var open := 0.0
+			var reloading := reload_t > 0.0
+			if reloading:
+				var rk := 1.0 - clampf(reload_t / maxf(gun_reload_time(), 0.01), 0.0, 1.0)
+				ggrip = dir * (radius * 0.55) + side * (radius * 0.35)
+				gdir = dir.rotated(0.9 if weapon == "flintlock" else 0.5).normalized()
+				open = sin(PI * clampf(rk * 1.15, 0.0, 1.0))
+			elif attack_cd > 0.0:
+				var kk := clampf(attack_cd / maxf(float(w["recover"]), 0.01), 0.0, 1.0)
+				ggrip -= dir * 4.0 * kk
+				gdir = dir.rotated(-0.35 * kk)
+			var gcol := Gear.color(weapon_rec())
+			draw_weapon = func(): GearLook.tower_gun(b, weapon, ggrip, gdir, _light, open, gcol)
+			hands.append([sh_w, ggrip, 3.0])
+			hands.append([sh_o, ggrip + gdir * 6.0 + side * 2.0 if reloading else free, 2.8])
 		"stab", "thrust":
 			# Daggers and spears: held point-first, driven straight out on a thrust.
 			var length2: float = float(w.get("length", 14.0))

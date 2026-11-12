@@ -25,7 +25,9 @@ var cluster := 0  # Cluster Blast: splits into this many explosions
 var return_to = null  # Recall: blades that come back to this node
 var out_t := 0.0  # how long before a recalled blade turns back
 var returning := false
-var weapon := false  # the climber's own bow or crossbow shot (spells' shots don't fill the hand or carry the weapon's rules)
+var weapon := false  # the climber's own bow, crossbow or pistol shot (spells' shots don't fill the hand or carry the weapon's rules)
+var fills := true  # a weapon shot fills the hand's mark (an enchanted pistol's essence shot doesn't)
+var shot := ""  # an enchanted pistol's essence shot: its essence (weapons.gd ESSENCE_SHOT)
 var splice := {}  # the Developer's Splice: a spliced spell's shot carries its behaviour (secret_tools.gd)
 
 
@@ -98,7 +100,7 @@ func _physics_process(delta: float) -> void:
 					_burst()
 					queue_free()
 					return
-				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy, weapon)
+				main.player.ranged_hit(e, dmg, vel.normalized(), force, pierce or reflected or heavy, weapon, shot, fills)
 				if not pierce:
 					queue_free()
 					return
@@ -220,6 +222,16 @@ func _draw_into(c) -> void:
 		c.draw_colored_polygon(blade, Color(tint, 0.9))
 		c.draw_line(-dir * 5.0, dir * 9.0, Color(1, 1, 1, 0.9), 1.0)
 		c.draw_circle(Vector2.ZERO, 6.0, Color(tint, 0.2))
+		return
+	if style == "shot":
+		# A pistol's lead ball: small, hot and fast, with a short bright streak.
+		c.draw_line(-dir * 26.0, Vector2.ZERO, Color(1.0, 0.86, 0.55, 0.28), 3.5)
+		c.draw_line(-dir * 10.0, Vector2.ZERO, Color(1.0, 0.94, 0.75, 0.7), 2.0)
+		c.draw_circle(Vector2.ZERO, 2.8, Color(0.06, 0.05, 0.07))
+		c.draw_circle(Vector2.ZERO, 2.0, Color(0.62, 0.62, 0.66))
+		c.draw_circle(Vector2(-0.6, -0.6), 0.8, Color(1, 1, 1, 0.7))
+		if not friendly:
+			c.draw_circle(Vector2.ZERO, 6.0, Color(1.0, 0.35, 0.3, 0.25))  # (a monster's shot glows red, as its arrows do)
 		return
 	if style == "bolt":
 		# A crossbow bolt: short, thick and fast, with a long streak.

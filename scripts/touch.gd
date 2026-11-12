@@ -366,7 +366,7 @@ func _signature() -> Array:
 		main.choosing_tower, main.camp_choosing, main.overlay_showing(), main.menu_open(),
 		main.secret_tools != null and main.secret_tools.ring_ready()]
 	if p != null:
-		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05),
+		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05), p.ammo_left(), snappedf(p.refill_t, 0.05),
 			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0])
 		for part in p.bonds:
 			var b = p.bonds[part]
@@ -422,6 +422,14 @@ func _draw() -> void:
 					# Reloading: the ring fills as the crossbow is wound.
 					fill = 1.0 - clampf(p.reload_t / float(p.wdata()["reload"]), 0.0, 1.0)
 					col = Color(0.7, 0.7, 0.75)
+				elif p != null and p.wkind() == "gun":
+					# A pistol: its shots left under its name; the ring fills as it reloads.
+					label += "  %d/%d" % [p.ammo_left(), p.gun_shots()]
+					if p.reload_t > 0.0:
+						fill = 1.0 - clampf(p.reload_t / maxf(p.gun_reload_time(), 0.01), 0.0, 1.0)
+						col = Color(0.7, 0.7, 0.75)
+					elif p.gun_magic() != "" and p.ammo_left() < p.gun_shots():
+						fill = clampf(p.refill_t / maxf(p.gun_refill_time(), 0.01), 0.0, 1.0)
 			"roll":
 				label = "Roll"
 			"jump":

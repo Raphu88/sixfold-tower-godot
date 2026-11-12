@@ -290,6 +290,15 @@ static func tower_back(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 			b.line(c + Vector2.from_angle((-f).angle() - 1.1) * 9.5, c + Vector2.from_angle((-f).angle() + 1.1) * 9.5, Color(0.9, 0.88, 0.8, 0.6), 0.6)
 		elif kind == "crossbow":
 			b.stroke(lx + _q(f, sd, -9.0, -5.0), lx + _q(f, sd, -6.0, 6.0), col.darkened(0.2), 1.6)
+		elif kind == "gun":
+			# A pistol in its holster at the hip: dark leather, the grip showing.
+			var hip := lx + _q(f, sd, -1.0, -8.5)
+			b.stroke(hip + _q(f, sd, 2.5, 0.0), hip + _q(f, sd, -3.0, 0.0), Color(0.3, 0.2, 0.14), 2.6)
+			b.stroke(hip + _q(f, sd, -3.0, 0.0), hip + _q(f, sd, -4.5, 2.2), col.darkened(0.15), 1.6)
+		elif slung in ["cane", "sword_cane"]:
+			# A cane across the back, its knob over the shoulder.
+			b.stroke(lx + _q(f, sd, -9.5, 7.0), lx + _q(f, sd, -2.5, -7.0), Palette.WOOD.darkened(0.25), 1.4)
+			b.dot(lx + _q(f, sd, -2.5, -7.0), 1.5, Palette.STEEL if slung == "sword_cane" else Palette.WOOD.lightened(0.15))
 		else:
 			# A melee weapon on your back: its hilt over the shoulder.
 			b.stroke(lx + _q(f, sd, -9.5, 6.5), lx + _q(f, sd, -2.0, -6.0), col.darkened(0.25), 1.4)
@@ -444,7 +453,9 @@ static func front_behind(b, lk: Dictionary) -> void:
 	var hand: String = lk.get("in_hand", "")
 	if slung != "" and Weapons.WEAPONS.has(slung) and String(Weapons.WEAPONS[slung]["kind"]) != "melee":
 		var col: Color = lk.get("slung_col", Palette.WOOD)
-		if String(Weapons.WEAPONS[slung]["kind"]) == "bow":
+		if String(Weapons.WEAPONS[slung]["kind"]) == "gun":
+			pass  # (a holstered pistol is worn at the hip, in front: front_arms)
+		elif String(Weapons.WEAPONS[slung]["kind"]) == "bow":
 			var pts := PackedVector2Array()
 			for i in 11:
 				var u := float(i) / 10.0
@@ -460,6 +471,10 @@ static func front_behind(b, lk: Dictionary) -> void:
 		else:
 			b.poly(_p([22, -112, 30, -108, 0, -40, -8, -44]), col.darkened(0.2), 1.4)
 			b.poly(_p([10, -112, 44, -98, 42, -92, 8, -106]), Palette.STEEL.darkened(0.25), 1.2)  # its prod over the shoulder
+	elif slung in ["cane", "sword_cane"] and hand != slung:
+		# A cane across your back, its handle over the right shoulder.
+		b.stroke(Vector2(30, -118), Vector2(-20, 10), lk.get("slung_col", Palette.WOOD).darkened(0.1), 3.4)
+		b.dot(Vector2(30, -120), 3.4, Palette.STEEL if slung == "sword_cane" else lk.get("slung_col", Palette.WOOD))
 	elif slung != "" and Weapons.WEAPONS.has(slung) and hand != slung:
 		# A melee weapon on your back: its hilt over the right shoulder.
 		b.stroke(Vector2(30, -118), Vector2(-20, 10), Palette.STEEL.darkened(0.1), 4.0)
@@ -606,6 +621,7 @@ static func front_chest(b, lk: Dictionary) -> void:
 ## hands (wraps, leather, gauntlets, bracers, studs), vambraces on plate,
 ## mail sleeves, and rings.
 static func front_arms(b, lk: Dictionary) -> void:
+	_front_holster(b, lk)
 	var wx: float = lk.get("wx", 1.0)
 	var thick := 1.0 + (wx - 1.0) * 0.6
 	var w: String = lk.get("armor_w", "")
@@ -749,6 +765,10 @@ static func _front_weapon(b, lk: Dictionary) -> void:
 			b.path(pts, Palette.OUTLINE, 6.0)
 			b.path(pts, col.darkened(0.05), 3.6)
 			b.line(pts[0], pts[12], Color(0.92, 0.9, 0.82, 0.8), 1.0)
+		"cane", "sword_cane":
+			_front_cane(b, id, hand, col, glow)
+		"flintlock", "revolver":
+			_front_gun(b, id, hand, col, glow)
 		"crossbow":
 			var stock := _p([hand.x - 4, hand.y - 4, hand.x + 4, hand.y - 4, hand.x + 3, hand.y + 40, hand.x - 3, hand.y + 40])
 			b.poly(stock, col.darkened(0.15), 1.3)
@@ -757,6 +777,116 @@ static func _front_weapon(b, lk: Dictionary) -> void:
 			b.line(Vector2(hand.x - 23, hand.y + 30), Vector2(hand.x + 23, hand.y + 30), Color(0.92, 0.9, 0.82, 0.8), 1.0)
 	if named > 0:
 		UI.glow_into(b, hand + Vector2(1, -10), 7.0, edge if edge.a > 0.0 else UI.GOLD, 0.6 + 0.3 * named)
+
+
+## A cane in the tower, seen from above, lying along `along` from the grip:
+## a dark wooden shaft with a steel tip and a hooked handle (a sword-cane's
+## round silver knob and collar). `bare`: the sword-cane's blade is out,
+## drawn as a slim blade from the knob. `col` tints a named one's wood.
+static func tower_cane(b, id: String, grip: Vector2, along: Vector2, length: float, glint: float, light: Vector2, bare := false, col := Color(0, 0, 0, 0)) -> void:
+	var side := along.orthogonal()
+	var wood: Color = col if col.a > 0.0 else Palette.WOOD.darkened(0.25)
+	if bare:
+		# The drawn blade: thin and bright, no crossguard, the knob for a pommel.
+		var tip := grip + along * (length + 2.0)
+		b.line(grip + along * 1.5, tip, Palette.OUTLINE, 3.6)
+		b.line(grip + along * 1.5, tip, Palette.STEEL.lightened(0.1), 1.8)
+		b.line(grip + along * 3.0 + side * 0.4, tip - along * 2.0, Color(1, 1, 1, 0.45 + 0.45 * glint), 0.8)
+		b.ball(grip - along * 2.5, 2.2, Palette.STEEL.lightened(0.15), true, light)
+		return
+	b.stroke(grip - along * 2.0, grip + along * length, wood, 2.2)
+	b.dot(grip + along * length, 1.5, Palette.STEEL.darkened(0.15))  # the ferrule
+	if id == "cane_sheath":
+		b.stroke(grip - along * 2.0, grip - along * 0.4, Palette.STEEL, 2.6)  # the empty cane: its silver mouth
+		return
+	if id == "sword_cane":
+		b.stroke(grip + along * 1.0, grip + along * 2.6, Palette.STEEL, 2.6)  # the collar where the blade parts
+		b.ball(grip - along * 3.0, 2.4, Palette.STEEL.lightened(0.15), true, light)
+	else:
+		# The crook: a short hook behind the hand.
+		var hook := PackedVector2Array([grip - along * 2.0, grip - along * 4.6 + side * 0.8, grip - along * 5.4 + side * 3.2, grip - along * 4.2 + side * 5.0])
+		b.path(hook, Palette.OUTLINE, 4.6)
+		b.path(hook, wood.lightened(0.1), 2.2)
+
+
+## A pistol in the tower, seen from above, held at `grip` pointing along
+## `dir`: a wooden grip, the lock, and the barrel (a flintlock's long
+## barrel on a full stock with its hammer; a revolver's cylinder). `open`
+## (0 to 1) swings a revolver's cylinder out to load it. `col` tints a
+## named one's wood.
+static func tower_gun(b, id: String, grip: Vector2, dir: Vector2, light: Vector2, open := 0.0, col := Color(0, 0, 0, 0)) -> void:
+	var side := dir.orthogonal()
+	var wood: Color = col if col.a > 0.0 else Palette.WOOD.darkened(0.1)
+	var steel: Color = Palette.STEEL.darkened(0.2)
+	if id == "flintlock":
+		var muzzle := grip + dir * 16.0
+		b.stroke(grip - dir * 3.5 - side * 1.6, grip + dir * 11.0, wood, 3.0)  # the stock, its butt curving down
+		b.stroke(grip + dir * 1.0, muzzle, steel, 1.8)  # the barrel
+		b.dot(muzzle, 1.4, Palette.OUTLINE)
+		b.stroke(grip + dir * 0.5 + side * 1.4, grip - dir * 1.2 + side * 3.0, steel.darkened(0.2), 1.0)  # the hammer
+		b.dot(grip - dir * 4.0 - side * 1.6, 1.4, UI.GOLD.darkened(0.2))  # the butt cap
+	else:
+		var muzzle2 := grip + dir * 12.0
+		b.stroke(grip - dir * 2.5 - side * 1.8, grip + dir * 1.0, wood, 3.0)  # the grip
+		b.stroke(grip + dir * 2.0, muzzle2, steel, 1.8)  # the barrel
+		b.dot(muzzle2, 1.3, Palette.OUTLINE)
+		var cyl := grip + dir * 3.2 + side * (3.6 * open)
+		b.ball(cyl, 2.4, Palette.STEEL.darkened(0.05), true, light)  # the cylinder
+		if open > 0.0:
+			b.dot(cyl, 1.0, Palette.OUTLINE)  # its empty chambers
+
+
+## A pistol in the front figure's hand, pointing down: a flintlock's long
+## barrel on its wooden stock, or a revolver's cylinder and short barrel.
+static func _front_gun(b, id: String, hand: Vector2, col: Color, glow: Color) -> void:
+	var wood: Color = col
+	var steel: Color = Palette.STEEL.darkened(0.15)
+	if id == "flintlock":
+		var muzzle := hand + Vector2(-4, 58)
+		if glow.a > 0.0: b.line(hand + Vector2(0, 6), muzzle, Color(glow, 0.35), 10.0)
+		b.poly(_p([hand.x - 4, hand.y - 12, hand.x + 6, hand.y - 6, hand.x + 4, hand.y + 40, hand.x - 3, hand.y + 40]), wood, 1.3)  # the stock
+		b.poly(_p([hand.x - 2.5, hand.y + 4, hand.x + 2.5, hand.y + 4, muzzle.x + 2.2, muzzle.y, muzzle.x - 2.2, muzzle.y]), steel, 1.2)  # the barrel
+		b.line(hand + Vector2(-1, 8), muzzle + Vector2(-0.6, -4), Color(1, 1, 1, 0.4), 1.0)
+		b.poly(_p([hand.x + 3, hand.y - 2, hand.x + 10, hand.y - 8, hand.x + 11, hand.y - 4, hand.x + 5, hand.y + 3]), steel.darkened(0.2), 1.0)  # the hammer
+		b.dot(hand + Vector2(-1, -12), 3.2, UI.GOLD.darkened(0.2))  # the butt cap
+	else:
+		var muzzle2 := hand + Vector2(-3, 44)
+		if glow.a > 0.0: b.line(hand + Vector2(0, 6), muzzle2, Color(glow, 0.35), 10.0)
+		b.poly(_p([hand.x - 4, hand.y - 12, hand.x + 5, hand.y - 10, hand.x + 4, hand.y + 6, hand.x - 3, hand.y + 6]), wood, 1.3)  # the grip
+		b.poly(_p([hand.x - 2, hand.y + 18, hand.x + 2, hand.y + 18, muzzle2.x + 2, muzzle2.y, muzzle2.x - 2, muzzle2.y]), steel, 1.2)  # the barrel
+		b.poly(_p([hand.x - 5.5, hand.y + 6, hand.x + 5.5, hand.y + 6, hand.x + 5, hand.y + 19, hand.x - 5, hand.y + 19]), Palette.STEEL.darkened(0.05), 1.2)  # the cylinder
+		for k in [-2.5, 0.0, 2.5]:
+			b.line(Vector2(hand.x + k, hand.y + 8), Vector2(hand.x + k, hand.y + 17), Color(0, 0, 0, 0.35), 0.8)
+		b.line(hand + Vector2(-0.5, 20), muzzle2 + Vector2(-0.5, -3), Color(1, 1, 1, 0.4), 1.0)
+
+
+## A pistol not in hand, in its holster at the hip (over the armour, under
+## the arms), the grip out.
+static func _front_holster(b, lk: Dictionary) -> void:
+	var slung: String = lk.get("slung", "")
+	if not Weapons.is_gun(slung) or lk.get("in_hand", "") == slung:
+		return
+	var col: Color = lk.get("slung_col", Palette.WOOD)
+	b.poly(_p([26, 2, 38, 0, 40, 38, 30, 40]), Color(0.3, 0.2, 0.14), 1.4)
+	b.poly(_p([28, 2, 36, 0, 42, -16, 34, -18]), col.darkened(0.05), 1.2)
+	b.line(Vector2(27, 8), Vector2(39, 6), Color(0.86, 0.7, 0.44, 0.8), 1.2)  # its strap
+
+
+## A cane in the front figure's hand, its tip to the ground: a dark shaft,
+## a hooked handle (a sword-cane's silver knob and collar).
+static func _front_cane(b, id: String, hand: Vector2, col: Color, glow: Color) -> void:
+	var wood: Color = col
+	var foot := Vector2(-60, 132)
+	if glow.a > 0.0: b.line(hand + Vector2(0, 6), foot, Color(glow, 0.3), 9.0)
+	b.stroke(hand + Vector2(0, -6), foot, wood, 4.0)
+	b.dot(foot, 2.6, Palette.STEEL.darkened(0.15))
+	if id == "sword_cane":
+		b.stroke(hand + Vector2(-0.4, 8), hand + Vector2(-0.6, 13), Palette.STEEL, 5.0)
+		b.ball(hand + Vector2(0.5, -12), 5.0, Palette.STEEL.lightened(0.1), true)
+	else:
+		var hook := _p([hand.x, hand.y - 6, hand.x + 2, hand.y - 13, hand.x + 8, hand.y - 16, hand.x + 13, hand.y - 12, hand.x + 13, hand.y - 6])
+		b.path(hook, Palette.OUTLINE, 7.4)
+		b.path(hook, wood.lightened(0.1), 4.4)
 
 
 ## Over the mantle: pauldrons (plate, mail, leather), and the amulet on its chain.

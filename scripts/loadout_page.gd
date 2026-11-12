@@ -46,7 +46,7 @@ static var TEXT := {
 	"stash_some": "In your stash (newest first)",
 	"stash_none": "Your stash is empty. Pieces you keep there are safe on the train.",
 	"belt_head": "Belt  ·  supplies packed for your next climb",
-	"belt_none": "Nothing packed yet: the Outfitter's Car sells supplies and the bench brews them. Every climb starts with a Healing Draught.",
+	"belt_none": "Nothing packed yet: the Outfitter's Car sells supplies and the bench brews them. Every climb starts with a Healing and a Stamina Draught.",
 	"open_stash": "Open the stash",
 	"goes_up": "Going up the tower: what you wear, your pack and your belt. Fall, and the pack and belt are lost. Survive, and your pack comes back down; what you wore stays in the tower unless you keep it as an heirloom.",
 	"goes_up_short": "Up the tower: what you wear, your pack, your belt. Only the pack comes back down.",
