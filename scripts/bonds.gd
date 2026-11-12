@@ -278,7 +278,7 @@ static var BONDS := {
 			{"id": "thousand_edges", "name": "Thousand Edges", "type": "edges", "learn": 5,
 				"desc": "a storm of conjured blades fans out toward your aim",
 				"apex": "the blades leave edges on the floor that cut foes crossing them",
-				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0, "edges": 2, "edge_damage": 2.0, "edge_time": 4.0, "edge_radius": 14.0}}},
+				"steps": {5: {"cost": 20.0, "windup": 0.45, "count": 14, "damage": 9.0, "spread": 70.0, "edges": 3, "edge_reach": 0.5, "edge_damage": 3.0, "edge_time": 4.0, "edge_radius": 16.0}}},
 		],
 	},
 	"flameblade": {
@@ -331,7 +331,7 @@ static var BONDS := {
 				"steps": {
 					1: {"cost": 8.0, "windup": 0.35, "damage": 16.0, "blast": 60.0, "linked": false},
 					2: {"damage": 18.0},
-					3: {"linked": true, "link_damage": 14.0, "link_width": 20.0, "link_fire": 3.0},
+					3: {"linked": true, "link_damage": 30.0, "link_width": 22.0, "link_fire": 5.0},
 					4: {"damage": 22.0},
 					5: {"damage": 26.0},
 				}},
@@ -365,7 +365,7 @@ static var BONDS := {
 				"steps": {
 					1: {"cost": 11.0, "windup": 0.35, "damage": 10.0, "radius": 95.0, "ring": false, "shards": 0.0},
 					2: {"damage": 12.0},
-					3: {"shards": 5.0, "shard_damage": 0.3, "shard_every": 1.0},
+					3: {"shards": 5.0, "shard_damage": 0.25, "shard_every": 1.0},
 					4: {"damage": 15.0},
 					5: {"damage": 18.0},
 				}},
@@ -430,9 +430,9 @@ static var BONDS := {
 				"changes": {3: "Ember Smoke: the smoke burns the foes inside it"},
 				"steps": {
 					1: {"cost": 9.0, "windup": 0.25, "duration": 6.0, "radius": 85.0, "embers": false, "damage": 0.0},
-					3: {"embers": true, "damage": 3.0},
-					4: {"damage": 3.5},
-					5: {"damage": 4.0},
+					3: {"embers": true, "damage": 2.0},
+					4: {"damage": 2.5},
+					5: {"damage": 3.0},
 				}},
 			{"id": "afterimage", "name": "Afterimage", "type": "decoy", "learn": 2,
 				"desc": "leave an ash copy of yourself; nearby foes go after it instead",
@@ -443,7 +443,7 @@ static var BONDS := {
 			{"id": "ashfall", "name": "Ashfall", "type": "ashfall", "learn": 5,
 				"desc": "ash blankets the room for 10 seconds; foes lose track of you once you're out of reach",
 				"apex": "an unseen strike while it falls leaps to a second foe",
-				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0, "leap": 160.0, "leap_share": 1.0}}},
+				"steps": {5: {"cost": 16.0, "windup": 0.5, "duration": 10.0, "leap": 160.0, "leap_share": 0.75}}},
 		],
 	},
 	# --- the Firebird's tower (Fire) ---------------------------------------------

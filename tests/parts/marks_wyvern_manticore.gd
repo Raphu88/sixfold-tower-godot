@@ -345,7 +345,7 @@ func _flameblade() -> void:
 	_check(e.has_meta("brand"), "...a kindled strike brands the foe")
 	p.heat = 50.0
 	var hp0: float = e.hp
-	var want: float = (_first(hb, "brand_damage") + 50.0 * _first(hb, "brand_heat")) * hb.spell_power(hb.data()["spells"][0])
+	var want: float = (_first(hb, "brand_damage") + 50.0 * _first(hb, "brand_heat")) * hb.spell_power(hb.data()["spells"][0]) + _first(hb, "brand_kindle") * hb.spell_damage(hb.data()["spells"][0])
 	await _cast_by_key()
 	_check(hp0 - e.hp >= want - 0.5 and not e.has_meta("brand") and p.heat == 0.0 and p.kindle_t > 0.0, "...casting Kindle Blade again releases the heat: the branded foe ignites (%.0f of %.0f) and the blade is lit again" % [hp0 - e.hp, want])
 	p.attack_cd = 0.0

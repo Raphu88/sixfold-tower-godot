@@ -84,7 +84,7 @@ static var FORKS := {
 			}},
 		3: {"id": "ring_of_embers", "name": "Brand",
 			"desc": "kindled strikes brand foes; when the kindling goes out, or you cast Kindle Blade again or Overheat, your heat is released and every branded foe ignites",
-			"steps": {3: {"heat_cap": 100.0, "brand": 8.0, "brand_damage": 8.0, "brand_heat": 0.2, "brand_radius": 40.0}}},
+			"steps": {3: {"heat_cap": 100.0, "brand": 8.0, "brand_damage": 8.0, "brand_heat": 0.3, "brand_kindle": 2.0, "brand_radius": 55.0}}},
 		4: {"id": "blazing_lunge", "name": "Blazing Lunge", "type": "blazing_lunge", "learn": 4,
 			"desc": "you lunge along your aim through foes, untouchable, burning each one you pass; your weapon heats up",
 			"steps": {
@@ -103,7 +103,7 @@ static var FORKS := {
 			}},
 		3: {"id": "afterglow", "name": "Creeping Runes",
 			"desc": "your runes crawl toward the nearest foe, and burst wider and harder",
-			"steps": {3: {"linked": false, "creep": 70.0, "creep_reach": 300.0, "blast": 75.0, "creep_power": 1.4}}},
+			"steps": {3: {"linked": false, "creep": 70.0, "creep_reach": 300.0, "blast": 75.0, "creep_power": 1.7}}},
 		4: {"id": "binding_circle", "name": "Binding Circle", "type": "binding_circle", "learn": 4,
 			"desc": "a rune circle at your aim holds every foe in it: they can walk in but not out for 4 seconds",
 			"steps": {4: {"cost": 14.0, "windup": 0.35, "duration": 4.0, "radius": 72.0, "range": 120.0}}},
@@ -647,9 +647,9 @@ static func strike_landed(p) -> void:
 	p.main.sfx("equip_sword", 1.5, -6.0)
 
 
-## Thousand Edges' Apex: each blade leaves `edges` edges along its path, on
-## the floor for `edge_time` seconds; a foe crossing one is cut (struck and
-## bleeding) every half second.
+## Thousand Edges' Apex: each blade leaves `edges` edges along the first
+## `edge_reach` of its path, on the floor for `edge_time` seconds; a foe on
+## one is cut (struck and bleeding) every half second.
 static func edges(bond, p, blades: Array) -> void:
 	var n := int(bond.stat("edges") if bond.stat("edges") != null else 0)
 	if n <= 0 or blades.is_empty():
@@ -660,8 +660,9 @@ static func edges(bond, p, blades: Array) -> void:
 	for b in blades:
 		var from: Vector2 = b.position
 		var end: Vector2 = main.walkable_point(from, from + b.vel * float(b.life), 10.0)
+		var reach := float(bond.stat("edge_reach")) if bond.stat("edge_reach") != null else 1.0
 		for i in n:
-			pts.append(from.lerp(end, (float(i) + 1.0) / float(n + 1)))
+			pts.append(from.lerp(end, reach * (float(i) + 1.0) / float(n)))
 	var dmg: float = float(bond.stat("edge_damage")) * bond.power() * bond.flow_power
 	var r := float(bond.stat("edge_radius"))
 	var st := {"tick": 0.0}
@@ -744,16 +745,17 @@ static func brand(p, e) -> void:
 
 
 ## Brand: your heat is released (the kindling went out, Kindle Blade was cast
-## again, or Overheat): every branded foe ignites, struck for `brand_damage`
-## plus `brand_heat` for each point of heat and set burning, and the foes
-## touching it take half. The heat is spent if anything ignited. Returns how many.
+## again, or Overheat): every branded foe ignites, struck for `brand_damage`,
+## plus `brand_heat` for each point of heat, plus `brand_kindle` times Kindle
+## Blade's damage, and set burning; the foes within `brand_radius` take half. The heat is spent if anything ignited. Returns how many.
 static func release_heat(p) -> int:
 	var b = _held(p, "flameblade")
 	if b == null:
 		return 0
 	var main = p.main
 	var first: Dictionary = b.data()["spells"][0]
-	var dmg: float = (float(_first(b, "brand_damage", 0.0)) + float(p.heat) * float(_first(b, "brand_heat", 0.0))) * b.spell_power(first) * b.flow_power
+	var dmg: float = (float(_first(b, "brand_damage", 0.0)) + float(p.heat) * float(_first(b, "brand_heat", 0.0))) * b.spell_power(first) * b.flow_power \
+		+ float(_first(b, "brand_kindle", 0.0)) * b.spell_damage(first)
 	var r := float(_first(b, "brand_radius", 40.0))
 	var col: Color = b.color()
 	var lit: Array = []
@@ -855,7 +857,7 @@ static func runes_fired(main, went: Array) -> void:
 		for sg in segs:
 			var n := maxi(1, int(Vector2(sg[0]).distance_to(sg[1]) / 26.0))
 			for i in n + 1:
-				main.add_flame(Vector2(sg[0]).lerp(sg[1], float(i) / float(n)), 14.0, fire, true)
+				main.add_flame(Vector2(sg[0]).lerp(sg[1], float(i) / float(n)), 16.0, fire, true)
 	var struck := {}
 	for sg in segs:
 		for e in main.targets():
