@@ -641,6 +641,11 @@ func is_molten(pos: Vector2) -> bool:
 	return molten.has(grid_tile(pos))
 
 
+
+## main.is_solid: the metal (a raised bridge too) is no ground to stand on.
+func blocks_walking(t: Vector2i) -> bool:
+	return molten.has(t)
+
 ## No sand here: nothing slows you (main.water_slow).
 func slow_at(_pos: Vector2) -> float:
 	return 1.0

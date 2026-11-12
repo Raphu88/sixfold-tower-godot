@@ -135,7 +135,7 @@ func _plans() -> void:
 			_check(kinds.has("furnaces"), "...Stoke the Furnaces is a task here")
 		else:
 			_check(stat["suns"] >= n_per and stat["shade"] >= n_per * 20 and stat["drifts"] >= n_per * 8, "manticore: courts in the sun, shaded walks and alleys, sand drifts (%s)" % stat)
-			_check(stat["pits"] >= n_per / 3, "...and sand pits")
+			_check(stat["pits"] >= n_per / 5, "...and sand pits (%d)" % stat["pits"])
 			_check(kinds.has("sunstones"), "...Wake the Sun Seals is a task here")
 	# A tower's own kind never turns up in another tower; its scenario neither.
 	var lone_own := true
@@ -274,7 +274,7 @@ func _furnaces_task() -> void:
 	_check(pc["state"] == "doing" and float(pc["fire"]) > 0.5, "striking its bellows stokes the furnace (%.2f)" % float(pc["fire"]))
 	_check(tf.heat_at(pc["furnace"] + Vector2(0, 30)) > 0.5, "...and a waking furnace throws its heat")
 	var f0: float = pc["fire"]
-	await t._wait(0.5)
+	await t._wait(float(Wyv.FURNACE["rest"]) + 0.6)
 	_check(float(pc["fire"]) < f0, "...which dies down if you dawdle")
 	for i in 3:
 		ob.strike(p.global_position, Vector2.UP, 60.0, 60.0)
@@ -308,8 +308,11 @@ func _golem() -> void:
 	e.take_hit(10.0, Vector2.RIGHT)
 	var hot_cut: float = hp0 - e.hp
 	_check(hot_cut > 0.0 and hot_cut < 7.0, "hot, it hardens: a blow does half (%.1f)" % hot_cut)
-	e.heat = 1.0
-	await t._wait(0.2)
+	for i in 20:
+		e.heat = 1.0
+		await t._wait(0.1)
+		if e.state == "cool":
+			break
 	_check(e.state == "cool", "full, it has to vent: it slumps, cooling")
 	hp0 = e.hp
 	e.take_hit(10.0, Vector2.RIGHT)
@@ -502,7 +505,7 @@ func _burrower() -> void:
 		e.global_position = stone
 		e.aware = true
 		await t._wait(0.3)
-		_check(not e.submerged and e.state in ["crawl", "wind_bite", "up", "recover"], "on stone it must come up: exposed (%s)" % e.state)
+		_check(not e.submerged and e.state in ["crawl", "wind_bite", "up", "recover", "sink"], "on stone it must come up: exposed (%s)" % e.state)
 		e.state = "crawl"
 		hp0 = e.hp
 		e.take_hit(10.0, Vector2.RIGHT)

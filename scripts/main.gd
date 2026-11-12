@@ -623,16 +623,24 @@ func is_solid(pos: Vector2) -> bool:
 	if not layout_on:
 		return false
 	var t := _tile_of(pos)
+	return _is_solid_tile(t.x, t.y) or (tower_floor != null and tower_floor.blocks_walking(t))  # (the Wyvern's molten metal: no one walks there)
+
+
+## Walls only (sight and shots pass over the Wyvern's molten metal).
+func wall_at(pos: Vector2) -> bool:
+	if not layout_on:
+		return false
+	var t := _tile_of(pos)
 	return _is_solid_tile(t.x, t.y)
 
 
-## Nothing solid between two points.
+## Nothing solid between two points (walls: you see and shoot over molten metal).
 func clear_line(a: Vector2, b: Vector2) -> bool:
 	if not layout_on:
 		return true
 	var steps := int(a.distance_to(b) / 16.0) + 1
 	for i in steps + 1:
-		if is_solid(a.lerp(b, float(i) / steps)):
+		if wall_at(a.lerp(b, float(i) / steps)):
 			return false
 	return true
 

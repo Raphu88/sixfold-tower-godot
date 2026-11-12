@@ -131,6 +131,13 @@ func _act(delta: float, dir: Vector2, dist: float, p) -> void:
 			state = "sub" if _sand(global_position) else "crawl"
 
 
+## Lost track of you (shade, smoke): it wanders, and comes up off the sand all the same.
+func _wander(delta: float) -> void:
+	if submerged and not _sand(global_position):
+		_surface()
+	super._wander(delta)
+
+
 func _surface() -> void:
 	state = "crawl"
 	submerged = false

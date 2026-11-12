@@ -613,6 +613,11 @@ func pit_at(pos: Vector2) -> Dictionary:
 	return {}
 
 
+
+## main.is_solid: sand is walked on like stone.
+func blocks_walking(_t: Vector2i) -> bool:
+	return false
+
 ## Sand slows you (main.water_slow): a drift a little, a pit and quicksand more.
 func slow_at(pos: Vector2) -> float:
 	var t := grid_tile(pos)
