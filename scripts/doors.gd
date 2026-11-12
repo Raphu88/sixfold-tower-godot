@@ -64,7 +64,9 @@ static var LOCK_TEXT := {
 	"hint_key": "Locked. Its key lies somewhere on this floor.",
 	"hint_carried": "Locked. One of this floor's monsters carries its key.",
 	"hint_lever": "Barred. A lever somewhere on this floor lifts the bars.",
-	"hint_puzzle": "Warded. Solving this floor's puzzle opens it.",
+	"hint_puzzle": "Warded. It opens when the stair's ward lifts.",
+	"hint_oneway": "Barred from the other side.",
+	"oneway_open": "The bar lifts: a way back",
 	"locked": "Locked",
 	"key_found": "+ A key",
 	"key_turns": "The key turns",
@@ -84,7 +86,7 @@ static var LOCK_TEXT := {
 }
 ## Which rooms lock you in (by theme, or by role), and how often; the stair
 ## landing only from a higher floor. Checked a few times a second.
-const LOCK_IN := {"den": 0.75, "crypt": 0.9, "mirror": 1.0, "guard": 0.3, "landing": 0.6, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
+const LOCK_IN := {"den": 0.75, "crypt": 0.9, "mirror": 1.0, "guard": 0.3, "landing": 0.0, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
 const KEY_GOLD := Color(1.0, 0.82, 0.38)
 const WARD := Color(0.75, 0.55, 1.0)
 
@@ -187,6 +189,8 @@ func _hang(def: Dictionary, themes: Array) -> Dictionary:
 	var d := {"tiles": tiles, "rect": rect, "horiz": def["horiz"], "out": def["out"], "room": def["room"],
 		"open": false, "t": 0.0, "body": null, "fixed": def.get("style", ""),
 		"lock": String(def.get("lock", "")), "lock_id": int(def.get("lock_id", 0))}
+	if d["lock"] == "oneway":
+		d["lock_side"] = def.get("lock_side", [])  # (the tiles on the side it opens from)
 	_style(d, themes)
 	if d["lock"] in ["key", "lever"] and def.has("lock_pos"):
 		var item := {"pos": def["lock_pos"], "lock_id": d["lock_id"], "taken": false, "pulled": false}
@@ -328,7 +332,31 @@ func unlock_puzzle() -> bool:
 
 
 func locked_count() -> int:
-	return list.filter(func(d): return d["lock"] != "").size()
+	return list.filter(func(d): return d["lock"] != "" and d["lock"] != "oneway").size()
+
+
+## A door barred from one side (a loop, floors.gd): from its open side the
+## bar lifts and it opens; from the other it stays shut.
+func _try_oneway(d: Dictionary, pos: Vector2) -> void:
+	var side: Array = d.get("lock_side", [])
+	if side.is_empty():
+		return
+	var open_pt := Vector2.ZERO
+	for t in side:
+		open_pt += main.room.position + (Vector2(t) + Vector2(0.5, 0.5)) * main.Floors.CELL
+	open_pt /= side.size()
+	var c: Vector2 = d["rect"].get_center()
+	if (pos - c).dot(open_pt - c) > 0.0:
+		d["lock"] = ""
+		main.fx_text(c + Vector2(0, -30), LOCK_TEXT["oneway_open"], Color(0.95, 0.85, 0.6))
+		main.sfx("crossbow_reload", 0.7, -4.0, 0.0)
+		open_door(d)
+		return
+	if bump_t > 0.0:
+		return
+	bump_t = 1.6
+	main.fx_text(c + Vector2(0, -30), LOCK_TEXT["hint_oneway"], Color(0.9, 0.75, 0.55))
+	main.sfx("hit_armor", 0.6, -6.0, 0.0)
 
 
 ## The climber bumps a locked door: it says it's locked, and how it opens;
@@ -575,7 +603,9 @@ func _process(delta: float) -> void:
 	if not p.dead:
 		for d in list:
 			if not d["open"] and _touches(d, p.global_position, p.radius) and float(d.get("held", 0.0)) <= 0.0:
-				if d["lock"] != "":
+				if d["lock"] == "oneway":
+					_try_oneway(d, p.global_position)
+				elif d["lock"] != "":
 					_bump(d)
 				else:
 					open_door(d)
@@ -693,6 +723,15 @@ func _draw_lock(b, d: Dictionary) -> void:
 			pass  # (the Proving's doors: they open when chosen)
 		"lever", "proving_shut":
 			_draw_bars(b, r, Palette.DOOR_IRON.lightened(0.15))
+		"oneway":
+			# A heavy wooden bar across it, on brackets.
+			var horiz: bool = r.size.x >= r.size.y
+			var bar := Rect2(r.position.x - 2.0, c.y - 4.0, r.size.x + 4.0, 8.0) if horiz else Rect2(c.x - 4.0, r.position.y - 2.0, 8.0, r.size.y + 4.0)
+			b.rect(bar.grow(1.5), Palette.OUTLINE)
+			b.rect(bar, Palette.DOOR_WOOD.lightened(0.15))
+			for k in [0.2, 0.8]:
+				var q: Vector2 = r.position + r.size * (Vector2(k, 0.5) if horiz else Vector2(0.5, k))
+				b.rect(Rect2(q - Vector2(3, 3), Vector2(6, 6)), Palette.DOOR_IRON)
 		"puzzle":
 			b.circle(c, 11.0, Palette.OUTLINE)
 			b.circle(c, 9.5, Color(WARD, 0.85))

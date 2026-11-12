@@ -1063,9 +1063,12 @@ func _plan_tests() -> void:
 		if fl >= 2:
 			ok_kept = ok_kept and plan["wings"].size() + roles.get("branch", 0) >= 2
 		sizes[fl] = maxf(float(sizes.get(fl, 0.0)), plan["arena"].size.x * plan["arena"].size.y)
-		# The puzzle lives in the gallery.
+		# A puzzle lives in the gallery (always when it's the floor's task).
 		var gal: Dictionary = infos.filter(func(ri): return ri["role"] == "gallery")[0]
-		ok_theme_fixed = ok_theme_fixed and not plan["puzzle"].is_empty() and gal["rect"] == plan["puzzle"]["room"]
+		if plan["objective"].get("puzzle", false):
+			ok_theme_fixed = ok_theme_fixed and not plan["puzzle"].is_empty() and plan["puzzle"]["type"] == plan["objective"]["kind"]
+		if not plan["puzzle"].is_empty():
+			ok_theme_fixed = ok_theme_fixed and gal["rect"] == plan["puzzle"]["room"]
 		# Corridors run between rooms, never through one, and meet them only at their walls.
 		for c in plan["corridors"]:
 			ok_corr = ok_corr and (c.size.x == 80.0 or c.size.y == 80.0)
@@ -1085,7 +1088,10 @@ func _plan_tests() -> void:
 				"stair":
 					ok_theme_fixed = ok_theme_fixed and th == "landing"
 				"gallery":
-					ok_theme_fixed = ok_theme_fixed and th == "puzzle_" + plan["puzzle"]["type"]
+					if not plan["puzzle"].is_empty():
+						ok_theme_fixed = ok_theme_fixed and th == "puzzle_" + plan["puzzle"]["type"]
+					elif plan["objective"]["kind"] in ["runes", "wardstone"]:
+						ok_theme_fixed = ok_theme_fixed and th == "hall_" + plan["objective"]["kind"]
 			var kind: String = T.get_theme(th)["kind"]
 			kinds[kind] = true
 			if kind == "bad":
@@ -1108,7 +1114,7 @@ func _plan_tests() -> void:
 	_check(ok_branch and ok_kept, "branch rooms hang off the spine, and cells are kept for sealed wings")
 	_check(sizes[11] > sizes[3] and F.arena_for(11).size.x > F.arena_for(3).size.x, "floors grow with height (%d vs %d px²)" % [sizes[11], sizes[3]])
 	_check(ok_corr and ok_edges, "corridors are two tiles wide and meet rooms at their walls, never cutting through them")
-	_check(ok_theme_fixed, "the start is the Arrival Hall, the stair room the Landing, and the gallery holds the floor's puzzle")
+	_check(ok_theme_fixed, "the start is the Arrival Hall, the stair room the Landing, and the gallery holds the floor's puzzle (or the task's hall)")
 	_check(ok_den and ok_first_good, "every floor has a good room and a den")
 	_check(ok_no_repeat and ok_cap, "no bad theme twice a floor, bad rooms capped, other towers' themes kept out")
 	_check(kinds.has("good") and kinds.has("bad") and kinds.has("mixed"), "good, bad and mixed rooms all turn up")
@@ -2020,8 +2026,9 @@ func _puzzle_tests() -> void:
 	var ok_all := true
 	for n in 12:
 		var plan: Dictionary = F.rooms_floor(2 + n % 4, main.Towers.TOWERS[main.Towers.ORDER[n % 6]])
-		ok_all = ok_all and not plan.get("puzzle", {}).is_empty()
-	_check(ok_all, "every floor of rooms has a puzzle room")
+		var obj: Dictionary = plan.get("objective", {})
+		ok_all = ok_all and not obj.is_empty() and (not obj.get("puzzle", false) or not plan.get("puzzle", {}).is_empty())
+	_check(ok_all, "every floor of rooms has one task, and when it's a puzzle, its puzzle room")
 	# Which kind: every kind turns up; each tower leans to its own.
 	var picks := {}
 	var sig := {}
@@ -2063,7 +2070,7 @@ func _puzzle_tests() -> void:
 	for e in main.enemies():
 		e.set_physics_process(false)
 	await _frames(2)
-	_check(main.ward and pz.active(), "a floor of rooms starts with its stair warded")
+	_check(main.ward and (pz.active() or main.objective.active()), "a floor of rooms starts with its stair warded (by its task: %s)" % main.objective.kind)
 	# The stair stays shut however many monsters fall.
 	for e in main.enemies():
 		_slay(e)
@@ -7724,7 +7731,7 @@ func _lock_tests() -> void:
 		if not plan["locks"].is_empty():
 			floors_locked += 1
 		for d in plan["doors"]:
-			if d.get("lock", "") != "":
+			if not (String(d.get("lock", "")) in ["", "oneway"]):  # (a door barred from one side isn't a lock)
 				kinds[d["lock"]] = true
 				ok_off = ok_off and infos[d["room"]]["role"] == "branch"
 		for l in plan["locks"]:
@@ -7746,7 +7753,7 @@ func _lock_tests() -> void:
 		main._start_floor(3 + n % 8)
 		await _frames(1)
 		for d in main.door_view.list:
-			if d["lock"] == "" and not d["open"]:
+			if d["lock"] in ["", "oneway"] and not d["open"]:  # (a door barred from one side opens from its far side)
 				main.door_view.open_door(d, true)
 		var from: Vector2i = main._tile_of(main.player_start)
 		var goals: Array = [main.stair_pos]
@@ -8414,7 +8421,7 @@ func _entity_tests() -> void:
 	await _frames(2)
 	_check(prof.count("floors") == floors0 + 1 and int(prof.record["best"].get(main.tower, 0)) == main.floor_num, "...floors climbed and the best floor of each tower")
 	main.lift_ward()
-	_check(prof.count("puzzles") >= 1, "...puzzles solved")
+	_check(prof.count("puzzles") + prof.count("tasks") >= 1, "...puzzles solved and floors' tasks done")
 	main.dev_beast("gryphon")
 	await _frames(2)
 	Guide.queue.clear()
@@ -11410,7 +11417,7 @@ func _secret_deep_tests() -> void:
 		var c2: Vector2 = info["rect"].get_center()
 		p.global_position = c2 + Vector2(-2.5 * Tr.C, 0)
 		p.aim = Vector2.RIGHT
-		if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty():
+		if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
 			spot2 = p.global_position
 			break
 	_check(spot2 != Vector2.ZERO, "an open room to build in")

@@ -10,21 +10,21 @@ extends RefCounted
 ## it first appears on.
 static var MONSTERS := {
 	"slime": {"cost": 1.0, "weight": 1.0, "from": 1},
-	"archer": {"cost": 1.5, "weight": 0.8, "from": 2},
-	"knight": {"cost": 2.5, "weight": 0.6, "from": 2},
+	"archer": {"cost": 1.5, "weight": 0.8, "from": 3},
+	"knight": {"cost": 2.5, "weight": 0.6, "from": 4},
 	# Tower monsters: only appear where the tower's mix lists them.
 	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
-	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
-	"shellback": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"shellback": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
-	"smith": {"cost": 3.0, "weight": 1.0, "from": 2, "only": true},
+	"smith": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
-	"ram": {"cost": 3.0, "weight": 1.0, "from": 2, "only": true},
+	"ram": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
-	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
-	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 2, "only": true},
+	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 3, "only": true},
 }
 const MAX_MONSTERS := 9
 ## How the climb gets harder with height (the Data editor's "Monsters"):
@@ -67,6 +67,10 @@ const LAYOUTS := [
 const Themes := preload("res://scripts/themes.gd")
 const Mirror := preload("res://scripts/mirror.gd")
 const Catalog := preload("res://scripts/puzzles/catalog.gd")
+const Objectives := preload("res://scripts/objectives.gd")
+const Cracks := preload("res://scripts/cracks.gd")
+const Styles := preload("res://scripts/floor_styles.gd")
+const Scenarios := preload("res://scripts/scenarios.gd")
 
 ## The grid's tiles start here (world px), CELL px each.
 const ORIGIN := Vector2(80, 100)
@@ -91,6 +95,7 @@ const ROOM_SIZE := {
 	"guard": [9, 13, 8, 11],
 	"stair": [10, 13, 8, 10],
 	"branch": [7, 10, 6, 9],
+	"gallery": [11, 14, 9, 12],
 }
 ## How often a room of each role is a hand-made one (rooms.gd) instead of a
 ## shape carved in the tower's style. The gallery is always a puzzle room.
@@ -133,7 +138,7 @@ static func rooms_floor(floor_num: int, tower: Dictionary, check := true) -> Dic
 	var fallback := {}
 	for attempt in 60:
 		plan = plan_floor(floor_num, tower)
-		if not plan.is_empty() and not plan.get("puzzle", {}).is_empty():
+		if not plan.is_empty() and plan.get("ok", false):
 			if not check or load("res://scripts/reach.gd").plan_check(plan)["ok"]:
 				return plan
 			if fallback.is_empty():
@@ -145,12 +150,22 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	var cfg := plan_for(floor_num)
 	var grid: Vector2i = cfg["grid"]
 	var tid: String = tower.get("beast_kind", "")
+	var style := Styles.for_tower(tid)
 	var spine := _spine(grid, _roll(cfg["spine"]))
 	var infos: Array = []
 	var used_ids: Array = []
-	# The gallery's puzzle (puzzles/catalog.gd): hand-made rooms hold the
-	# eyes and plates (tier 2 at most); the others lay themselves out.
-	var pz_kind := Catalog.pick(floor_num, tid)
+	# The floor's one task (objectives.gd): a puzzle kind puts that puzzle in
+	# the gallery; otherwise the gallery holds the task's own set piece (the
+	# rune path, the wardstone), now and then a puzzle with a vault for the
+	# one who solves it, or is simply the floor's biggest room.
+	var obj_kind := Objectives.pick(floor_num, tid)
+	var pz_kind := ""
+	var pz_optional := false
+	if Objectives.is_puzzle(obj_kind):
+		pz_kind = obj_kind
+	elif not Objectives.wants_gallery(obj_kind) and randf() < float(OPTIONAL_PUZZLE["chance"]):
+		pz_kind = Catalog.pick(floor_num, tid)
+		pz_optional = true
 	var tier_cap := mini(Catalog.tier_for(floor_num), 2)
 	var gallery_at: int = spine.size() / 2
 	for i in spine.size():
@@ -161,7 +176,7 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			role = "stair"
 		elif i == gallery_at:
 			role = "gallery"
-		var info := _place(role, spine[i], i - 1, infos, floor_num, tower, used_ids, tier_cap, pz_kind)
+		var info := _place(role, spine[i], i - 1, infos, floor_num, tower, used_ids, tier_cap, pz_kind, style)
 		if info.is_empty():
 			return {}
 		infos.append(info)
@@ -184,7 +199,7 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 	for s in side:
 		var cell: Vector2i = s[0]
 		if branches < n_branch:
-			var info := _place("branch", cell, s[1], infos, floor_num, tower, used_ids, tier_cap)
+			var info := _place("branch", cell, s[1], infos, floor_num, tower, used_ids, tier_cap, "", style)
 			if not info.is_empty():
 				infos.append(info)
 				branches += 1
@@ -194,19 +209,25 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 			wings.append(keep)
 		elif secrets.is_empty() and randf() < float(cfg["secret"]):
 			secrets.append(keep)
-	_crop(infos, wings, secrets)
+	# Loops: extra ways between rooms in neighbouring cells, so the floor
+	# isn't a tree (some are doors barred from one side: shortcuts back).
+	var loops := _loops(infos, floor_num, style)
+	_crop(infos, wings, secrets, loops)
 	# Now and then a branch room is a mirror room (mirror.gd): its theme is
 	# fixed before the others are handed out.
 	var mi := Mirror.pick_room(infos, floor_num)
 	if mi >= 0:
 		infos[mi]["fixed"] = Mirror.THEME
+	# Rooms with jobs of their own: the task's hall, scenarios, a rest room,
+	# a trader; and the first room after the start is a kind one.
+	_fix_themes(infos, obj_kind, pz_optional, floor_num, tid, tower, style)
 	# What each room is.
 	var themes := Themes.assign(infos, floor_num, tid, tower)
 	if tower.get("chasms", false) and not ("chasm" in themes):
 		# Towers with chasms always have a chasm room: the first free room that takes it.
 		var order: Array = []
 		for i in infos.size():
-			if infos[i]["role"] in ["guard", "branch"]:
+			if infos[i]["role"] in ["guard", "branch"] and not infos[i].has("fixed") and not infos[i].get("kind_first", false):
 				order.append(i)
 		order.sort_custom(func(a, b): return _chasm_rank(infos[a]["theme"]) < _chasm_rank(infos[b]["theme"]))
 		for i in order:
@@ -214,12 +235,111 @@ static func plan_floor(floor_num: int, tower: Dictionary) -> Dictionary:
 				infos[i]["theme"] = "chasm"
 				themes[i] = "chasm"
 				break
-	return _build(infos, themes, floor_num, tower, cfg, wings, secrets)
+	return _build(infos, themes, floor_num, tower, cfg, wings, secrets, loops, {"kind": obj_kind, "optional": pz_optional, "style": style})
+
+
+## An optional puzzle in the gallery (when the floor's task is something
+## else): how often. Its vault gives a vault's cards (wings.gd).
+static var OPTIONAL_PUZZLE := {"chance": 0.45}
+
+
+## Extra ways between rooms in neighbouring cells that aren't joined yet:
+## [{a, b, link, kind}], `a` the room whose wall holds the doorway (as
+## _link gives it for p = b, c = a). kind "open" (a plain doorway, maybe a
+## door) or "oneway" (a door barred from one side, opened from the far side).
+static func _loops(infos: Array, floor_num: int, style: Dictionary) -> Array:
+	var want := _roll(style["loops_high"] if floor_num >= int(style["loops_high_from"]) else style["loops"])
+	var pairs: Array = []
+	for i in infos.size():
+		for j in infos.size():
+			if j <= i:
+				continue
+			var d: Vector2i = infos[j]["cell"] - infos[i]["cell"]
+			if absi(d.x) + absi(d.y) != 1:
+				continue
+			if int(infos[i]["parent"]) == j or int(infos[j]["parent"]) == i:
+				continue
+			pairs.append([i, j])
+	pairs.shuffle()
+	var out: Array = []
+	for pr in pairs:
+		if out.size() >= want:
+			break
+		# Never into the start room or the stair room (each keeps its one way in).
+		if pr[0] == 0 or pr[1] == 0 or infos[pr[0]]["role"] == "stair" or infos[pr[1]]["role"] == "stair":
+			continue
+		var a: int = pr[1]
+		var b: int = pr[0]
+		var link := _link(infos[b], infos[a])
+		if link.is_empty():
+			a = pr[0]
+			b = pr[1]
+			link = _link(infos[b], infos[a])
+		if link.is_empty():
+			continue
+		out.append({"a": a, "b": b, "link": link, "kind": "oneway" if randf() < float(style["oneway"]) else "open"})
+	return out
+
+
+## Themes fixed before the rest are handed out (themes.gd assign keeps a
+## room's "fixed"): the task's own hall in the gallery, scenario rooms (in
+## dead ends first), a rest room, a trader; the first room after the start
+## is marked to be a kind one. Rooms that may not hold a piece of the task
+## are marked "no_piece".
+static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor_num: int, tid: String, tower: Dictionary, style: Dictionary) -> void:
+	var gal := _index_of_role(infos, "gallery")
+	if Objectives.wants_gallery(obj_kind):
+		infos[gal]["fixed"] = "hall_" + obj_kind
+	elif infos[gal].get("puzzle", "") != "":
+		infos[gal]["optional"] = pz_optional
+	for info in infos:
+		if String(info.get("fixed", "")) == Mirror.THEME:
+			info["no_piece"] = true
+	if style.get("kind_first", true) and infos.size() > 1 and infos[1]["role"] == "guard" and not infos[1].has("fixed"):
+		infos[1]["kind_first"] = true
+		if Rooms.clear_spot(infos[1]["rows"], 3) == Vector2i(-1, -1):
+			# (no room in it for a spring or a camp: a plain room of the same size, its doorways as they were)
+			infos[1]["rows"] = Rooms.prepare(Rooms.carve("rect", infos[1]["size"]))
+			infos[1]["shape"] = "rect"
+			infos[1]["prefab"] = false
+	if floor_num < 2:
+		return
+	# Scenarios: in branch rooms (dead ends) first, then guard rooms.
+	var n_scn := 1 if randf() < float(style["scenario"]) else 0
+	if floor_num >= int(style["scenario2_from"]) and randf() < float(style["scenario2"]):
+		n_scn += 1
+	var spots: Array = []
+	for i in infos.size():
+		var info: Dictionary = infos[i]
+		if info.has("fixed") or info.get("kind_first", false) or info["role"] in ["entrance", "stair", "gallery"]:
+			continue
+		spots.append(i)
+	spots.shuffle()
+	spots.sort_custom(func(x, y): return (0 if infos[x]["role"] == "branch" else 1) < (0 if infos[y]["role"] == "branch" else 1))
+	var kinds: Array = Scenarios.kinds_for(floor_num, tid)
+	kinds.shuffle()
+	for i in spots:
+		if n_scn <= 0 or kinds.is_empty() or spots.filter(func(j): return not infos[j].has("fixed")).size() <= 2:  # (two rooms stay free: a den and another)
+			break
+		for k in kinds:
+			if Themes.fits("scn_" + k, infos[i], tid, tower):
+				infos[i]["fixed"] = "scn_" + k
+				infos[i]["no_piece"] = true
+				kinds.erase(k)
+				n_scn -= 1
+				break
+	# A calm rest room and a wandering trader, now and then (in a free room).
+	var free: Array = spots.filter(func(i): return not infos[i].has("fixed"))
+	free.shuffle()
+	if free.size() >= 3 and randf() < float(style["rest"]) and Themes.fits("rest", infos[free[0]], tid, tower):
+		infos[free.pop_front()]["fixed"] = "rest"
+	if free.size() >= 3 and floor_num >= int(style["trader_from"]) and randf() < float(style["trader"]) and Themes.fits("trader", infos[free[0]], tid, tower):
+		infos[free.pop_front()]["fixed"] = "trader"
 
 
 ## Moves the plan so its used cells (rooms and kept cells) start at the
 ## grid's corner: the floor's area is only as big as what's on it.
-static func _crop(infos: Array, wings: Array, secrets: Array) -> void:
+static func _crop(infos: Array, wings: Array, secrets: Array, loops: Array = []) -> void:
 	var lo := Vector2i(999, 999)
 	for info in infos:
 		lo = lo.min(info["cell"])
@@ -239,6 +359,11 @@ static func _crop(infos: Array, wings: Array, secrets: Array) -> void:
 	for k in wings + secrets:
 		k["cell"] -= lo
 		k["area"] = _cell_rect(k["cell"])
+	for l in loops:
+		var link: Dictionary = l["link"]
+		var cr: Rect2i = link["corridor"]
+		link["corridor"] = Rect2i(cr.position - tiles, cr.size)
+		link["door"] = link["door"].map(func(t): return t - tiles)
 
 
 ## The cells a plan uses, as a grid size (from the corner).
@@ -252,16 +377,18 @@ static func _used_grid(infos: Array, wings: Array, secrets: Array) -> Vector2i:
 
 
 static func _chasm_rank(theme: String) -> int:
-	return {"quiet": 0, "pillars": 1, "crypt": 2}.get(theme, 3 if Themes.get_theme(theme)["kind"] == "bad" else 4)
+	return {"quiet": 0, "post": 0, "pillars": 1, "crypt": 2}.get(theme, 3 if Themes.get_theme(theme)["kind"] == "bad" else 4)
 
 
 ## Turns the placed rooms into the floor: walkable areas, corridors, the
 ## rooms' features, the themes' set pieces, monsters and doors.
-static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionary, cfg: Dictionary, wings: Array, secrets: Array) -> Dictionary:
+static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionary, cfg: Dictionary, wings: Array, secrets: Array, loops: Array = [], obj := {}) -> Dictionary:
 	var rooms: Array = []
 	var walk: Array = []
 	var corridors: Array = []
 	var room_info: Array = []
+	var ok := true
+	var style: Dictionary = obj.get("style", {})
 	for info in infos:
 		var rect := Rect2(ORIGIN + Vector2(info["pos"]) * CELL, Vector2(info["size"]) * CELL)
 		info["rect"] = rect
@@ -269,18 +396,17 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		info["reserved"] = {}  # local tiles nothing else may use
 		rooms.append(rect)
 		walk.append_array(info["walk"])
-	# Corridors, and the tiles just inside each doorway kept clear.
-	for i in infos.size():
-		var info: Dictionary = infos[i]
-		if not info.has("link"):
-			continue
-		var link: Dictionary = info["link"]
+	# Corridors (the rooms' own and the loops'), and the tiles just inside
+	# each doorway kept clear.
+	var links := _links(infos, loops)
+	for l in links:
+		var link: Dictionary = l["link"]
 		var cr: Rect2i = link["corridor"]
 		link["rect"] = Rect2(ORIGIN + Vector2(cr.position) * CELL, Vector2(cr.size) * CELL)
 		corridors.append(link["rect"])
 		for t in link["door"]:
-			_reserve_door(info, t)
-			_reserve_door(infos[info["parent"]], t)  # (clamped into the parent: the tile inside its end)
+			_reserve_door(infos[l["c"]], t)
+			_reserve_door(infos[l["p"]], t)  # (clamped into the parent: the tile inside its end)
 	walk.append_array(corridors)
 	# The kept cells: sealed wings and secret rooms (see "sealed wings" below).
 	var kept_walk: Array = []
@@ -291,10 +417,8 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	walk.append_array(kept_walk)
 	# Both ends of every corridor: doorways, kept clear of traps.
 	var doorways: Array = kept_doorways.duplicate()
-	for info in infos:
-		if not info.has("link"):
-			continue
-		var link: Dictionary = info["link"]
+	for l in links:
+		var link: Dictionary = l["link"]
 		var d0: Vector2i = link["door"][0]
 		var door_r := Rect2(ORIGIN + Vector2(d0) * CELL, (Vector2(1, 2) if not link["horiz"] else Vector2(2, 1)) * CELL)
 		doorways.append(door_r)
@@ -325,8 +449,13 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	for i in infos.size():
 		var info: Dictionary = infos[i]
 		var f: Dictionary = Rooms.features(info["rows"], info["rect"].position, CELL, tower)
-		if info["role"] == "gallery":
-			puzzle = _puzzle_spec(info, f, floor_num, tower, _entrances(infos, i))
+		if info["role"] == "gallery" and info.get("puzzle", "") != "":
+			var optional: bool = info.get("optional", false)
+			puzzle = _puzzle_spec(info, f, floor_num, tower, [] if optional else _entrances(infos, i, loops))
+			if puzzle.is_empty():
+				ok = false  # (the puzzle wouldn't fit: plan again)
+			else:
+				puzzle["optional"] = optional
 			for t in puzzle.get("reserve", []):
 				info["reserved"][t] = true
 		blocks.append_array(f["blocks"])
@@ -340,15 +469,18 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	var camps: Array = []
 	var cache := {}
 	var cache_room := Rect2()
+	var rests: Array = []  # calm rest rooms: {pos, room}
+	var traders: Array = []  # wandering traders: {pos, room}
+	var scenarios: Array = []  # scenario rooms (scenarios.gd plans each)
 	for i in infos.size():
 		var info: Dictionary = infos[i]
 		var th: Dictionary = Themes.get_theme(info["theme"])
 		match String(th["feature"]):
-			"spring", "cache", "camp":
+			"spring", "cache", "camp", "rest", "trader":
 				var spot := Rooms.clear_spot(info["rows"], 3)
 				if spot == Vector2i(-1, -1):
-					info["theme"] = "quiet"
-					themes[i] = "quiet"
+					info["theme"] = "post"
+					themes[i] = "post"
 					continue
 				_reserve_box(info, spot + Vector2i(1, 1), 1)
 				var pos: Vector2 = info["rect"].position + (Vector2(spot) + Vector2(1.5, 1.5)) * CELL
@@ -356,14 +488,27 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 					springs.append({"pos": pos, "r": float(SPRING["r"]), "left": float(SPRING["heal"]), "room": i})
 				elif th["feature"] == "camp":
 					camps.append({"pos": pos, "item": pos + Vector2(CELL * 1.1, CELL * 0.5), "room": i})
+				elif th["feature"] == "rest":
+					rests.append({"pos": pos, "room": i, "rect": info["rect"]})
+				elif th["feature"] == "trader":
+					traders.append({"pos": pos, "room": i})
 				else:
 					cache = {"pos": pos, "amount": cache_amount(floor_num)}
 					cache_room = info["rect"]
+			"scenario":
+				var sc: Dictionary = Scenarios.plan(String(info["theme"]).substr(4), info, _gates(infos, i, wings, loops), floor_num, CELL)
+				if sc.is_empty():
+					info["theme"] = "post"
+					themes[i] = "post"
+				else:
+					sc["room"] = i
+					blocks.append_array(sc.get("blocks", []))  # (the Watchful Hall's cover)
+					scenarios.append(sc)
 			"chasm":
-				var band := _chasm_band(i, infos)
+				var band := _chasm_band(i, infos, loops)
 				if band.is_empty():
-					info["theme"] = "quiet"
-					themes[i] = "quiet"
+					info["theme"] = "post"
+					themes[i] = "post"
 				else:
 					chasms.append_array(band)
 			"ambush":
@@ -375,60 +520,179 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		if band.has_area():
 			chasms.append(band)
 	var monsters := _monsters(infos, spots, floor_num, tower, pillars)
-	# Doors: likelier on rooms where danger waits, never into the start room.
+	# The floor's one task (objectives.gd): its pieces spread over the rooms.
+	var objective := {}
+	if not obj.is_empty():
+		var adj := _adjacency(infos, loops)
+		var tw: Dictionary = tower.get("weights", {})
+		var pick_m := func() -> String:
+			var k := _pick(floor_num, 3.0, 99, tw)
+			return k if k != "" else "slime"
+		objective = Objectives.place(String(obj["kind"]), infos, adj, monsters, stair, floor_num, tower.get("beast_kind", ""), puzzle, CELL, pick_m)
+		if objective.is_empty():
+			ok = false
+		for p in objective.get("pieces", []):
+			infos[int(p["room"])]["piece"] = true
+		if objective.has("tablet"):
+			infos[int(objective["tablet"]["room"])]["piece"] = true
+	# Doors: likelier on rooms where danger waits, never into the start room;
+	# a loop barred from one side always has its door.
 	var doors: Array = []
-	for i in infos.size():
-		var info: Dictionary = infos[i]
-		if not info.has("link") or i == 0:
+	for l in links:
+		var i: int = l["c"]
+		if i == 0:
 			continue
-		if randf() < Themes.door_chance(info["theme"]):
-			var link: Dictionary = info["link"]
-			var on_chasm := false
-			for t in link["door"]:
-				var c := ORIGIN + (Vector2(t) + Vector2(0.5, 0.5)) * CELL
-				for ch in chasms:
-					on_chasm = on_chasm or ch.grow(CELL * 0.5).has_point(c)
-			if not on_chasm:
-				doors.append({"tiles": link["door"].duplicate(), "horiz": link["horiz"], "out": link["out"], "room": i})
+		var link: Dictionary = l["link"]
+		var oneway: bool = String(l.get("kind", "")) == "oneway"
+		if not oneway and randf() >= Themes.door_chance(infos[i]["theme"]):
+			continue
+		var on_chasm := false
+		for t in link["door"]:
+			var c := ORIGIN + (Vector2(t) + Vector2(0.5, 0.5)) * CELL
+			for ch in chasms:
+				on_chasm = on_chasm or ch.grow(CELL * 0.5).has_point(c)
+		if on_chasm:
+			continue
+		var d := {"tiles": link["door"].duplicate(), "horiz": link["horiz"], "out": link["out"], "room": i}
+		if l.has("kind"):
+			d["loop"] = true
+		if oneway:
+			# Barred from the side nearer the start: opened from the far side,
+			# it's a shortcut back.
+			var dist := Objectives._graph_dist(_adjacency(infos, []), 0)
+			var open_into := i if int(dist[i]) > int(dist[l["p"]]) else int(l["p"])
+			d["lock"] = "oneway"
+			d["lock_id"] = 100 + doors.size()
+			# The tile on the open side, just past the door.
+			var step := Vector2i(link["out"]) if open_into == int(l["p"]) else -Vector2i(link["out"])
+			d["lock_side"] = link["door"].map(func(t): return t + step)
+			d["open_room"] = open_into
+		doors.append(d)
 	var ids: Array = []
 	var safe_rooms: Array = []
 	var hazard_rooms: Array = []
 	var wet_rooms: Array = []
+	# Some doors are locked, their key or lever elsewhere; what's behind a
+	# lock is always worth it (see "locked doors" below).
+	var locks := _locks(infos, themes, doors, monsters, wings, floor_num)
+	for l in locks:
+		if l.has("pos"):
+			doorways.append(Rect2(l["pos"] - Vector2(CELL, CELL) * 0.5, Vector2(CELL, CELL)))  # (traps keep clear of keys and levers)
+	# Strongrooms (behind a lock): a pedestal with a vault's cards.
+	var vaults: Array = []
+	for i in infos.size():
+		if infos[i]["theme"] == "strongroom" and infos[i].get("vault_at", Vector2.INF) != Vector2.INF:
+			vaults.append({"pos": infos[i]["vault_at"], "room": i})
+	# Every room pays off: rooms with nothing of their own get a chest (opened
+	# once the room's monsters are down, or when reached).
+	var chests := _chests(infos, monsters, objective, scenarios)
 	for i in infos.size():
 		var info: Dictionary = infos[i]
 		ids.append(info["id"])
 		var th: Dictionary = Themes.get_theme(info["theme"])
-		if th["kind"] == "good" or info["theme"] == "arrival" or th["feature"] == "mirror":
-			safe_rooms.append(info["rect"])  # (a mirror room holds its own test)
+		if th["kind"] in ["good", "calm", "scenario"] or info["theme"] == "arrival" or th["feature"] in ["mirror", "vault", "trader"]:
+			safe_rooms.append(info["rect"])  # (a mirror room holds its own test; scenarios theirs)
 		elif info["role"] != "gallery":
 			wet_rooms.append(info["rect"])
 		if th["feature"] == "trap":
 			hazard_rooms.append(i)
 		room_info.append({"rect": info["rect"], "role": info["role"], "theme": info["theme"], "shape": info["shape"],
-			"id": info["id"], "cell": info["cell"], "walk": info["walk"], "rows": info["rows"],
-			"parent": info["parent"], "ambush": info.get("ambush", []), "gates": _gates(infos, i, wings)})
+			"id": info["id"], "cell": info["cell"], "walk": info["walk"], "rows": info["rows"], "size": info["size"],
+			"parent": info["parent"], "ambush": info.get("ambush", []), "gates": _gates(infos, i, wings, loops)})
 	for k in wings + secrets:
 		safe_rooms.append(k["rect"])  # (no traps in a wing or a secret room: they hold their own tests)
-	# Some doors are locked, their key or lever elsewhere (see "locked doors" below).
-	var locks := _locks(infos, doors, monsters, wings, floor_num)
-	for l in locks:
-		if l.has("pos"):
-			doorways.append(Rect2(l["pos"] - Vector2(CELL, CELL) * 0.5, Vector2(CELL, CELL)))  # (traps keep clear of keys and levers)
-	var torches := _torches(infos, wings + secrets)
+	var torches := _torches(infos, wings + secrets, loops)
 	if not puzzle.is_empty():
 		puzzle = Catalog.finish(puzzle, infos, _index_of_role(infos, "gallery"), torches, doors)
+		if puzzle.is_empty() and Objectives.is_puzzle(String(obj.get("kind", ""))):
+			ok = false
 	var used := _used_grid(infos, wings, secrets)
 	var arena := Rect2(ORIGIN, Vector2(used.x * CELL_TILES.x, used.y * CELL_TILES.y) * CELL)
+	# Cracked walls (cracks.gd): into rock nothing else uses, inside the arena.
+	var cracks: Array = []
+	if not style.is_empty():
+		cracks = Cracks.plan(infos, loops, walk, wings + secrets, arena, floor_num, style, doors)
+		for c in cracks:
+			walk.append_array(c["walk"])
+	# What must stay clear and reachable (traps, chasms and cover keep off it).
+	var keep: Array = Objectives.targets(objective)
+	for c in chests:
+		keep.append(c["pos"])
+	for r in rests + traders + vaults:
+		keep.append(r["pos"])
+	for sc in scenarios:
+		keep.append_array(sc.get("keep", []))
 	var plan := {"arena": arena, "grid": used, "rooms": rooms, "walk": walk,
 		"corridors": corridors, "start": start, "stair": stair, "pillars": pillars, "monsters": monsters,
 		"chasms": chasms, "blocks": blocks, "pools": pools, "room_ids": ids, "puzzle": puzzle,
 		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors) + kept_posts,
 		"torches": torches + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
-		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks}
+		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks,
+		"objective": objective, "chests": chests, "cracks": cracks, "rests": rests, "traders": traders, "scenarios": scenarios, "vaults": vaults,
+		"loops": loops.size(), "keep": keep, "ok": ok, "bridges": infos.filter(func(x): return x.has("bridge")).map(func(x): return x["bridge"])}
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
 	return plan
+
+
+## Every corridor of the floor: [{c (the room whose wall holds its door),
+## p (the room at its far end), link, kind (loops only)}].
+static func _links(infos: Array, loops: Array = []) -> Array:
+	var out: Array = []
+	for i in infos.size():
+		if infos[i].has("link"):
+			out.append({"c": i, "p": int(infos[i]["parent"]), "link": infos[i]["link"]})
+	for l in loops:
+		out.append({"c": int(l["a"]), "p": int(l["b"]), "link": l["link"], "kind": l["kind"]})
+	return out
+
+
+## Each room's neighbours (by corridor).
+static func _adjacency(infos: Array, loops: Array) -> Array:
+	var adj: Array = []
+	for i in infos.size():
+		adj.append([])
+	for l in _links(infos, loops):
+		adj[l["c"]].append(l["p"])
+		adj[l["p"]].append(l["c"])
+	return adj
+
+
+## Chests for the rooms that would pay nothing otherwise (the start room
+## aside): danger rooms' spoils, opened once the monsters that wait in the
+## room are down (or straight away if none do). [{pos, room, rich}]
+static func _chests(infos: Array, monsters: Array, objective: Dictionary, scenarios: Array) -> Array:
+	var out: Array = []
+	var scn_rooms: Array = scenarios.map(func(s): return int(s["room"]))
+	for i in infos.size():
+		var info: Dictionary = infos[i]
+		if i == 0 or info["role"] == "stair" or i in scn_rooms:
+			continue
+		var th: Dictionary = Themes.get_theme(info["theme"])
+		if th["feature"] in PAYOFF_FEATURES:
+			continue
+		if info["role"] == "gallery" and info.get("puzzle", "") != "":
+			continue  # (its puzzle pays: the ward, or its vault)
+		if info.get("piece", false) and th["kind"] != "bad":
+			continue  # (a piece of the task is its reason to be)
+		var spot := Objectives._spot(info, monsters, 1, false)
+		if spot == Vector2.INF:
+			spot = Objectives._spot(info, [], 0, false, [], 0.0)  # (a crowded room: anywhere open)
+		if spot == Vector2.INF:
+			for t in Rooms.open_tiles(info["rows"], 0):
+				if not info["reserved"].has(t):
+					spot = Vector2(info["rect"].position) + (Vector2(t) + Vector2(0.5, 0.5)) * CELL
+					info["reserved"][t] = true
+					break
+		if spot == Vector2.INF:
+			continue
+		out.append({"pos": spot, "room": i, "rich": info["role"] == "branch"})
+	return out
+
+
+## Theme features that are a room's payoff on their own.
+const PAYOFF_FEATURES := ["spring", "cache", "camp", "rest", "trader", "scenario", "vault", "mirror", "puzzle", "objective", "start", "stair"]
 
 
 ## What cover (a room's "#" blocks) must never wall off from the start
@@ -450,6 +714,8 @@ static func cover_targets(plan: Dictionary) -> Array:
 		out.append(c["item"])
 	for s in plan.get("springs", []):
 		out.append(s["pos"])
+	# The task's pieces, chests, rest rooms, traders, scenarios' marks.
+	out.append_array(plan.get("keep", []))
 	return out
 
 
@@ -516,9 +782,9 @@ static func _index_of_role(infos: Array, role: String) -> int:
 
 ## A room for `role` placed in `cell`, joined to room `parent` (an index into
 ## `infos`, or -1) by a corridor; {} if no room would join up.
-static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "") -> Dictionary:
+static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "", style := {}) -> Dictionary:
 	for design_try in 8:
-		var d := _design(role, floor_num, tower, used_ids, tier_cap, pz_kind)
+		var d := _design(role, floor_num, tower, used_ids, tier_cap, pz_kind, style)
 		var size: Vector2i = d["size"]
 		var x0 := cell.x * CELL_TILES.x + 1
 		var y0 := cell.y * CELL_TILES.y + 1
@@ -545,10 +811,17 @@ static func _place(role: String, cell: Vector2i, parent: int, infos: Array, floo
 
 ## What a room looks like: a hand-made room (rooms.gd) or a shape carved in
 ## the tower's style. {id, prefab, rows, size, shape (, puzzle, tier)}
-static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "") -> Dictionary:
+static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: Array, tier_cap: int, pz_kind := "", style := {}) -> Dictionary:
 	var prefab_role: String = {"entrance": "start", "guard": "combat", "branch": "combat", "stair": "stair", "gallery": "puzzle"}[role]
 	if role == "gallery" and pz_kind != "" and not (pz_kind in Catalog.PREFAB):
 		return _puzzle_hall(pz_kind)
+	if role == "gallery" and pz_kind == "":
+		# No puzzle here: the floor's big room, carved in one of its gallery shapes.
+		var gshapes: Array = style.get("gallery", ["rect", "round"]) if not style.is_empty() else ["rect", "round"]
+		var gl: Array = ROOM_SIZE["gallery"]
+		var gsize := Vector2i(mini(randi_range(int(gl[0]), int(gl[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(gl[2]), int(gl[3])), Rooms.MAX_SIZE.y))
+		var gshape: String = gshapes[randi() % gshapes.size()]
+		return {"id": "carved_" + gshape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(gshape, gsize)), "size": gsize, "shape": gshape}
 	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)):
 		var fits: Array = Rooms.for_role(prefab_role, floor_num, tower.get("beast_kind", "")).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
 		if role == "gallery" and pz_kind != "":
@@ -569,7 +842,9 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 				out["tier"] = int(def.get("tier", 1))
 			return out
 	var lim: Array = ROOM_SIZE.get(role, ROOM_SIZE["guard"])
-	var shapes: Array = tower.get("shapes", ["rect", "open", "round"])
+	var shapes: Array = tower.get("shapes", ["rect", "open", "round"]).duplicate()
+	if role != "entrance":
+		shapes.append_array(style.get("shapes", []))  # (floor_styles.gd: the newer shapes)
 	var shape: String = shapes[randi() % shapes.size()]
 	var w := randi_range(int(lim[0]), int(lim[1]))
 	var h := randi_range(int(lim[2]), int(lim[3]))
@@ -768,17 +1043,16 @@ static func _nearest_open(rows: Array, want: Vector2i) -> Vector2i:
 
 ## A band of chasm right across a room (between its doorways when it has
 ## them on facing walls), its ends left open where a doorway meets it.
-static func _chasm_band(idx: int, infos: Array) -> Array:
+static func _chasm_band(idx: int, infos: Array, loops: Array = []) -> Array:
 	var info: Dictionary = infos[idx]
 	var rows: Array = info["rows"]
 	var size: Vector2i = info["size"]
 	var sides := {}
 	var door_tiles: Array = []  # local
-	for j in infos.size():
-		var other: Dictionary = infos[j]
-		if other.has("link") and (j == idx or int(other["parent"]) == idx):
-			var link: Dictionary = other["link"]
-			sides[link["side_c"] if j == idx else link["side_p"]] = true
+	for l in _links(infos, loops):
+		if int(l["c"]) == idx or int(l["p"]) == idx:
+			var link: Dictionary = l["link"]
+			sides[link["side_c"] if int(l["c"]) == idx else link["side_p"]] = true
 			for t in link["door"]:
 				door_tiles.append(Vector2i(t) - Vector2i(info["pos"]))
 	var vertical := size.x >= size.y  # a band running north-south
@@ -805,13 +1079,28 @@ static func _chasm_band(idx: int, infos: Array) -> Array:
 			tiles.append(t)
 		if tiles.size() < length - 3:
 			continue
+		# Now and then a narrow bridge crosses it (two tiles of floor left in
+		# the band, drawn as planks): walk it, or jump the chasm anywhere else.
+		var bridge: Array = []
+		if randf() < float(BRIDGE["chance"]) and tiles.size() >= 6:
+			var k: int = randi_range(2, tiles.size() - 4)
+			bridge = [tiles[k], tiles[k + 1]]
 		for t in tiles:
 			info["reserved"][t] = true
 			for d in DIRS:
 				info["reserved"][t + d] = true
+			if t in bridge:
+				continue
 			band.append(Rect2(info["rect"].position + Vector2(t) * CELL, Vector2(CELL, CELL)))
+		if not bridge.is_empty():
+			var a: Rect2 = Rect2(info["rect"].position + Vector2(bridge[0]) * CELL, Vector2(CELL, CELL))
+			info["bridge"] = {"rect": a.merge(Rect2(info["rect"].position + Vector2(bridge[1]) * CELL, Vector2(CELL, CELL))), "vertical": vertical}
 		return band
 	return []
+
+
+## How often a chasm room gets a narrow bridge across its band.
+static var BRIDGE := {"chance": 0.5}
 
 
 ## A one-tile band across the longest corridor (four tiles long at least),
@@ -908,8 +1197,10 @@ static func _monsters(infos: Array, spots: Array, floor_num: int, tower: Diction
 
 static func _room_weight(info: Dictionary, spots: Array, floor_num: int) -> int:
 	var th: Dictionary = Themes.get_theme(info["theme"])
-	if info["role"] == "entrance" or th["kind"] == "good" or th["feature"] in ["ambush", "mirror"]:
+	if info["role"] == "entrance" or th["kind"] in ["good", "calm", "scenario"] or th["feature"] in ["ambush", "mirror", "trader", "rest"]:
 		return 0
+	if info["role"] == "stair":
+		return 1 if floor_num < 6 else 2  # (a destination, lightly guarded)
 	if info["role"] == "gallery":
 		# Guards for the puzzle (a carved hall has no marked spots).
 		return mini(spots.size(), 2) if info.get("prefab", false) else (1 if floor_num < 4 else 2)
@@ -946,7 +1237,7 @@ static func _monster_spot(info: Dictionary, free_spots: Array, placed: Array, pi
 ## One torch per room, on its north wall: over the middle unless a doorway
 ## or the room's outline is in the way. As narrow rects for room.gd, which
 ## hangs a torch over the middle of each.
-static func _torches(infos: Array, kept: Array = []) -> Array:
+static func _torches(infos: Array, kept: Array = [], loops: Array = []) -> Array:
 	var out: Array = []
 	for i in infos.size():
 		var info: Dictionary = infos[i]
@@ -959,13 +1250,11 @@ static func _torches(infos: Array, kept: Array = []) -> Array:
 			if int(k["parent"]) == i and Vector2(k["into"]) == Vector2.UP:
 				for t in k["mouth"]:
 					north.append(t.x - info["pos"].x)
-		for j in infos.size():
-			var other: Dictionary = infos[j]
-			if other.has("link"):
-				var link: Dictionary = other["link"]
-				if (j == i and link["side_c"] == 0) or (int(other["parent"]) == i and link["side_p"] == 0):
-					for t in link["door"]:
-						north.append(t.x - info["pos"].x)
+		for l in _links(infos, loops):
+			var link: Dictionary = l["link"]
+			if (int(l["c"]) == i and link["side_c"] == 0) or (int(l["p"]) == i and link["side_p"] == 0):
+				for t in link["door"]:
+					north.append(t.x - info["pos"].x)
 		var col := w / 2
 		for c in [w / 2, w / 2 - 2, w / 2 + 2, w / 4, w * 3 / 4, 1, w - 2]:
 			var ok: bool = c >= 1 and c <= w - 2 and String(rows[0])[c] != "X"
@@ -990,16 +1279,15 @@ static func _puzzle_spec(info: Dictionary, f: Dictionary, floor_num: int, tower:
 
 ## The corridor tiles right outside a room's doorways (world rects): a
 ## sealed puzzle room closes these.
-static func _entrances(infos: Array, gi: int) -> Array:
+static func _entrances(infos: Array, gi: int, loops: Array = []) -> Array:
 	var g: Dictionary = infos[gi]
 	var lo: Vector2i = g["pos"]
 	var hi: Vector2i = lo + Vector2i(g["size"])
 	var out: Array = []
-	for j in infos.size():
-		var other: Dictionary = infos[j]
-		if not other.has("link") or (j != gi and int(other["parent"]) != gi):
+	for l in _links(infos, loops):
+		if int(l["c"]) != gi and int(l["p"]) != gi:
 			continue
-		var cr: Rect2i = other["link"]["corridor"]
+		var cr: Rect2i = l["link"]["corridor"]
 		for y in range(cr.position.y, cr.end.y):
 			for x in range(cr.position.x, cr.end.x):
 				var t := Vector2i(x, y)
@@ -1232,7 +1520,11 @@ static func _carve_one(infos: Array, keep: Dictionary, lim: Array, alcove: bool,
 ##   key      a key lying in a spine room;
 ##   carried  a key carried by one of a spine room's monsters (it drops it);
 ##   lever    a lever in a spine room: strike it;
-##   puzzle   solving the floor's puzzle.
+##   puzzle   the stair's ward: it opens when the floor's task is done.
+## A locked branch room becomes a STRONGROOM (a vault's cards on a pedestal,
+## themes.gd): what's behind a lock is always worth it. A door barred from
+## one side (a loop's "oneway", lock id 100 and up) isn't a lock: it opens
+## from its far side, and isn't listed here.
 ## Each lock is written on its door (plan["doors"], or a wing's "lock") as
 ## lock (the kind), lock_id, and pos (a key's or lever's spot) or carrier
 ## (an index into plan["monsters"]); plan["locks"] lists them all.
@@ -1251,16 +1543,15 @@ const LOCKS := {
 
 ## The doorways in room `i`'s walls: its own (where its corridor arrives)
 ## and those of the rooms and wings that hang off it, each as its tiles.
-static func _gates(infos: Array, i: int, wings: Array) -> Array:
+static func _gates(infos: Array, i: int, wings: Array, loops: Array = []) -> Array:
 	var out: Array = []
-	var info: Dictionary = infos[i]
-	if info.has("link"):
-		out.append(info["link"]["door"].duplicate())
-	for j in infos.size():
-		var other: Dictionary = infos[j]
-		if j == i or int(other.get("parent", -1)) != i or not other.has("link"):
+	for l in _links(infos, loops):
+		if int(l["c"]) == i:
+			out.append(l["link"]["door"].duplicate())
+	for l in _links(infos, loops):
+		if int(l["p"]) != i:
 			continue
-		var link: Dictionary = other["link"]
+		var link: Dictionary = l["link"]
 		var cr: Rect2i = link["corridor"]
 		var tiles: Array = []
 		for t in link["door"]:
@@ -1282,18 +1573,24 @@ static func _gates(infos: Array, i: int, wings: Array) -> Array:
 	return out
 
 
-static func _locks(infos: Array, doors: Array, monsters: Array, wings: Array, floor_num: int) -> Array:
+static func _locks(infos: Array, themes: Array, doors: Array, monsters: Array, wings: Array, floor_num: int) -> Array:
 	var out: Array = []
 	if floor_num < int(LOCKS["from"]) or randf() >= float(LOCKS["chance"]):
 		return out
 	var count := 1
 	if floor_num >= int(LOCKS["second_from"]) and randf() < float(LOCKS["second"]):
 		count = 2
-	# What may be locked: branch rooms' doors, and wings' doors.
+	# What may be locked: the doors of branch rooms that hold nothing the
+	# floor needs (no piece of its task, no scenario, trader or rest), which
+	# become strongrooms; and wings' doors (a wing holds a vault already).
 	var cands: Array = []
 	for d in doors:
-		if infos[d["room"]]["role"] == "branch":
-			cands.append(d)
+		var info: Dictionary = infos[d["room"]]
+		if d.get("loop", false) or String(d.get("lock", "")) != "" or info["role"] != "branch" or info.get("piece", false):
+			continue
+		if Themes.get_theme(info["theme"])["feature"] in ["scenario", "trader", "rest", "mirror", "den"]:
+			continue
+		cands.append(d)
 	for w in wings:
 		cands.append(w)
 	cands.shuffle()
@@ -1303,6 +1600,23 @@ static func _locks(infos: Array, doors: Array, monsters: Array, wings: Array, fl
 		if infos[i]["role"] in ["guard", "stair", "entrance"]:
 			hosts.append(i)
 	for c in cands.slice(0, count):
+		if c.has("room"):
+			# A locked room is a strongroom: worth the trouble, lightly guarded.
+			var ri: int = c["room"]
+			infos[ri]["theme"] = "strongroom"
+			themes[ri] = "strongroom"
+			var kept: Array = []
+			var guards := 0
+			for m in monsters:
+				if infos[ri]["rect"].has_point(m[1]):
+					guards += 1
+					if guards > 1:
+						continue
+				kept.append(m)
+			monsters.clear()
+			monsters.append_array(kept)
+			if not infos[ri].has("vault_at"):
+				infos[ri]["vault_at"] = Objectives._spot(infos[ri], monsters, 1, true)
 		var kind := _weighted(LOCKS["kinds"])
 		var lock := {"kind": kind, "id": out.size() + 1}
 		if kind == "carried":
