@@ -535,14 +535,18 @@ func _catch_edge() -> void:
 	# (a strike's little step forward never carries you over either)
 	if p.lunge_t > 0.0 and is_void(p.global_position + p.aim * (p.lunge_speed * p.lunge_t + 6.0)):
 		p.lunge_t = 0.0
-	if p.dead or p.knock.length() < 20.0 or gust_state == "blow" or Time.get_ticks_msec() < int(p.get_meta("thrown_until", 0)):
+	if p.dead or p.knock.length() < 20.0 or Time.get_ticks_msec() < int(p.get_meta("thrown_until", 0)):
 		return
-	var k: Vector2 = p.knock
+	# (in a gust the wind's own shove is left alone: only the rest is caught)
+	var wind := Vector2.ZERO
+	if gust_state == "blow":
+		wind = gust_dir * clampf(p.knock.dot(gust_dir), 0.0, float(forced.get("force", gust_force)))
+	var k: Vector2 = p.knock - wind
 	var reach: float = k.length_squared() / 1800.0 + float(p.radius) * 0.5  # (how far the knock carries, as it wears off)
 	for part in [Vector2(k.x, 0.0), Vector2(0.0, k.y)]:
 		if part.length() > 1.0 and is_void(p.global_position + part.normalized() * minf(reach, CELL * 2.0)):
 			k -= part
-	p.knock = k
+	p.knock = k + wind
 
 
 ## The wind: calm, then streaks (warn), then a shove (blow) at whoever
