@@ -143,6 +143,21 @@ static func plan(kind: String, info: Dictionary, gates: Array, _floor_num: int, 
 				face = 0.0 if k % 2 == 0 else PI
 			sentries.append({"pos": p, "face": face, "phase": randf() * TAU})
 		out["sentries"] = sentries
+		# Low walls to hide behind along the way (between the lanterns and the line across).
+		var cover: Array = []
+		for f in [0.3, 0.55, 0.8]:
+			var q: Vector2 = start.lerp(end, f)
+			var near_s: Dictionary = sentries[0]
+			for sn in sentries:
+				if q.distance_to(sn["pos"]) < q.distance_to(near_s["pos"]):
+					near_s = sn
+			var toward: Vector2 = (near_s["pos"] - q).normalized()
+			var c: Vector2 = q + toward * cell * 1.2
+			var t := Vector2i(((c - rect.position) / cell).floor())
+			if Rooms.open_at(rows, t.x, t.y) and not info["reserved"].has(t) and at.call(t).distance_to(start) > cell * 1.5 and at.call(t).distance_to(end) > cell * 1.5:
+				cover.append(Rect2(rect.position + Vector2(t) * cell, Vector2(cell, cell)))
+				info["reserved"][t] = true
+		out["blocks"] = cover
 	if kind == "rescue":
 		out["cage"] = end
 		out["keep"].append(end)

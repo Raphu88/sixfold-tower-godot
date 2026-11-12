@@ -10,21 +10,21 @@ extends RefCounted
 ## it first appears on.
 static var MONSTERS := {
 	"slime": {"cost": 1.0, "weight": 1.0, "from": 1},
-	"archer": {"cost": 1.5, "weight": 0.8, "from": 2},
-	"knight": {"cost": 2.5, "weight": 0.6, "from": 2},
+	"archer": {"cost": 1.5, "weight": 0.8, "from": 3},
+	"knight": {"cost": 2.5, "weight": 0.6, "from": 4},
 	# Tower monsters: only appear where the tower's mix lists them.
 	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
-	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
-	"shellback": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"shellback": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
-	"smith": {"cost": 3.0, "weight": 1.0, "from": 2, "only": true},
+	"smith": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
-	"ram": {"cost": 3.0, "weight": 1.0, "from": 2, "only": true},
+	"ram": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
-	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 2, "only": true},
+	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
-	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 2, "only": true},
+	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 3, "only": true},
 }
 const MAX_MONSTERS := 9
 ## How the climb gets harder with height (the Data editor's "Monsters"):
@@ -497,6 +497,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 					themes[i] = "post"
 				else:
 					sc["room"] = i
+					blocks.append_array(sc.get("blocks", []))  # (the Watchful Hall's cover)
 					scenarios.append(sc)
 			"chasm":
 				var band := _chasm_band(i, infos, loops)

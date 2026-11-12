@@ -377,6 +377,15 @@ func _process(delta: float) -> void:
 					main.fx_burst(q + Vector2(randf_range(-10, 10), -14), Vector2.DOWN, Color(0.62, 0.57, 0.5), 5, 40.0)
 		elif c.has("reward") and not c["taken"] and not p.dead and pos.distance_to(c["reward"]["pos"]) < float(RULES["reach"]) + p.radius:
 			_take(c)
+	# A reward waiting behind a broken wall glows: redrawn now and then.
+	redraw_t -= delta
+	if redraw_t <= 0.0:
+		redraw_t = 1.0 / 12.0
+		if list.any(func(c): return c["broken"] and c.has("reward") and not c["taken"]):
+			queue_redraw()
+
+
+var redraw_t := 0.0
 
 
 func _take(c: Dictionary) -> void:
@@ -443,21 +452,24 @@ func _draw() -> void:
 func _draw_crack(rect: Rect2, out: Vector2, seed_i: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_i
-	var c := rect.get_center() + out * CELL * 0.18
-	var dark := Color(0.03, 0.025, 0.035, 0.95)
-	var lit := Color(0.75, 0.68, 0.58, 0.55)
-	for b in 4:
+	var c := rect.get_center() + out * CELL * 0.12
+	var dark := Color(0.02, 0.015, 0.025, 1.0)
+	var lit := Color(0.85, 0.78, 0.66, 0.7)
+	# A paler, broken block among the dark wall, so it reads from a distance.
+	draw_rect(rect.grow(-3.0), Color(0.62, 0.58, 0.54, 0.18))
+	draw_rect(rect.grow(-3.0), Color(0.05, 0.04, 0.05, 0.6), false, 1.5)
+	for b in 5:
 		var a := rng.randf() * TAU
 		var p := c
 		var pts := PackedVector2Array([p])
-		for s in 4:
-			a += rng.randf_range(-0.7, 0.7)
-			p += Vector2.from_angle(a) * rng.randf_range(4.0, 7.0)
+		for s in 5:
+			a += rng.randf_range(-0.6, 0.6)
+			p += Vector2.from_angle(a) * rng.randf_range(4.5, 8.0)
 			p = p.clamp(rect.position + Vector2(2, 2), rect.end - Vector2(2, 2))
 			pts.append(p)
-		draw_polyline(pts, lit, 3.0)
-		draw_polyline(pts, dark, 1.6)
-	draw_circle(c, 2.6, dark)
+		draw_polyline(pts, lit, 4.0)
+		draw_polyline(pts, dark, 2.2)
+	draw_circle(c, 3.4, dark)
 	# Chips at its foot, on the floor side.
 	for k in 3:
 		var q := rect.get_center() + out * CELL * 0.62 + out.orthogonal() * rng.randf_range(-12, 12)

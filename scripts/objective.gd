@@ -587,7 +587,7 @@ func _complete() -> void:
 ## light, its essence and the reliquary beside it.
 func reward() -> void:
 	if main.lighting != null and stair_light < 0:
-		stair_light = main.lighting.add_light(main.stair_pos + Vector2(0, -10), float(Objectives.REWARD["light"]), GOLD, 0.95, 0.6)
+		stair_light = main.lighting.add_light(main.stair_pos + Vector2(0, -6), float(Objectives.REWARD["light"]), GOLD, 0.55, 0.18)
 	var kind_e: String = main.tower_data().get("essence", "air")
 	var amount: float = float(Objectives.REWARD["essence"]) + float(Objectives.REWARD["per_floor"]) * main.floor_num
 	main.gather_essence(kind_e, amount, main.stair_pos)
@@ -596,7 +596,7 @@ func reward() -> void:
 		at = main.clear_spot(main.stair_pos + Vector2(-70.0, 60.0), 16.0)
 	reliquary = {"pos": at, "taken": false}
 	if main.lighting != null:
-		reliquary["light"] = main.lighting.add_light(at, 100.0, GOLD, 0.7, 0.3)
+		reliquary["light"] = main.lighting.add_light(at, 90.0, GOLD, 0.45, 0.12)
 	main.fx_ring(main.stair_pos, GOLD, 90.0, 0.7, 5.0)
 	main.fx_burst(main.stair_pos, Vector2.UP, GOLD, 24, 220.0)
 	main.light_flash(main.stair_pos, GOLD, 2.4, 2.0, 0.6)

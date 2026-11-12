@@ -252,6 +252,9 @@ var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
 var noticed: Array = []
+## How fast the game runs (1 always in play; the floor bot's tests run it
+## faster: tests/parts/floor_bot.gd).
+static var test_speed := 1.0
 var puddles: Array = []  # standing water (the Kraken's tower): {pos, r}
 var flames: Array = []  # burning floor (the Wyvern's tower): {pos, r, t}
 var meteors: Array = []  # Flame Contractor's Meteors, falling: {pos, r, dmg, t, color}
@@ -723,7 +726,7 @@ func _process(delta: float) -> void:
 	_frame_us = now_us
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
-		Engine.time_scale = RING_TIME if slowmo else 1.0
+		Engine.time_scale = RING_TIME if slowmo else test_speed
 	if on_train:
 		return  # (the train's menu takes the keys)
 	if choosing_tower:
@@ -1170,7 +1173,7 @@ func _update_room_looks(camps: Array) -> void:
 	var looks: Array = []
 	for i in room_info.size():
 		var th: Dictionary = Themes.get_theme(room_themes[i])
-		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", "")})
+		looks.append({"walk": room_info[i]["walk"], "rect": room_info[i]["rect"], "rows": room_info[i]["rows"], "tint": th["tint"], "decor": th.get("decor", ""), "shape": room_info[i].get("shape", "")})
 	room_view.set_looks(looks, springs, camps)
 
 
@@ -3828,6 +3831,8 @@ func on_enemy_killed(e) -> void:
 ## Hit-pause: freeze the action for a moment so impacts land.
 ## Overlapping calls keep the longest freeze.
 func hitstop(seconds: float) -> void:
+	if test_speed != 1.0:
+		return  # (the floor bot runs the game faster: no freezes)
 	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
 	if until > hitstop_until:
 		hitstop_until = until
@@ -3839,7 +3844,7 @@ func hitstop(seconds: float) -> void:
 func set_slowmo(on: bool) -> void:
 	slowmo = on
 	if hitstop_until == 0:
-		Engine.time_scale = RING_TIME if on else 1.0
+		Engine.time_scale = RING_TIME if on else test_speed
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
