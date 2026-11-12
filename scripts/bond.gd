@@ -132,6 +132,11 @@ func passive_name() -> String:
 	return data()["passive"]["name"]
 
 
+## The passive's rank at this mark's step (1; II from step 3; III at step 5).
+func passive_rank() -> int:
+	return Bonds.passive_rank(step)
+
+
 func color() -> Color:
 	return data()["color"]
 
@@ -222,6 +227,8 @@ func cast(p) -> void:
 	var alt := alt_change() if is_changed_spell(sp) else {}
 	if not alt.is_empty():
 		Library.cast_mark_variation(self, sp, p, alt)  # (a step-3 variation: the tower's way, or the library's)
+	elif step >= 3 and is_changed_spell(sp) and Library.cast_mark_change(self, sp, p):
+		pass  # (step 3's first side, a Transformation the tower's file runs)
 	else:
 		_cast_type(p)
 	Library.on_cast(p, {"by": "bond", "bond": self, "part": part, "at": at, "spell": sp})  # (content files may answer)
@@ -1277,7 +1284,8 @@ func _ashfall(p) -> void:
 
 # --- Flame Contractor -----------------------------------------------------------------
 
-func _fireball(p, split: int) -> void:
+## Throws a fireball (returned: Sunfire and Seeker Flame shape it further, firebird.gd).
+func _fireball(p, split: int) -> Node2D:
 	var main = p.main
 	var b = main.spawn_player_arrow(p.global_position + p.aim * (p.radius + 6.0), p.aim * 420.0, damage(), 80.0, false)
 	b.style = "fireball"
@@ -1287,6 +1295,7 @@ func _fireball(p, split: int) -> void:
 	b.cluster = split
 	b.life = 0.15 if _overdrawn() else 1.0  # an overdrawn fireball bursts early, close to you
 	main.sfx("burn", 1.2, -4.0)
+	return b
 
 
 func _firewall(p) -> void:
@@ -1302,6 +1311,10 @@ func _meteor(p) -> void:
 	var at: Vector2 = target.global_position if target != null else p.global_position + p.aim * 180.0
 	p.main.meteors.append({"pos": at, "r": stat("radius"), "dmg": damage(), "t": 0.6, "color": color()})
 	p.main.sfx("charge", 0.4)
+	# Apex: it leaves a burning crater where it lands (firebird.gd).
+	var crater = stat("crater")
+	if crater != null and float(crater) > 0.0:
+		load("res://scripts/spells/firebird.gd").crater(self, p, at, float(stat("radius")), float(crater), 0.6)
 
 
 # --- Flamewing -----------------------------------------------------------------------
@@ -1318,6 +1331,10 @@ func _aura(p) -> void:
 	p.aura_r = stat("radius")
 	p.aura_drain = stat("drain")
 	p.aura_grows = bool(stat("grows"))
+	# Furnace (step 3's first side): the heat builds over `ramp` seconds, `heat` times as fast, and slows.
+	p.aura_ramp = float(stat("ramp")) if stat("ramp") != null else 10.0
+	p.aura_heat_mult = float(stat("heat")) if stat("heat") != null else 1.0
+	p.aura_slow = stat("slow") == true
 	p.aura_color = color()
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.35, 3.0)
 	p.main.sfx("burn", 1.0, -4.0)
@@ -1354,6 +1371,7 @@ func _warmth(p) -> void:
 
 func _firebird_form(p) -> void:
 	p.firebird_t = stat("duration")
+	p.firebird_fly = stat("flight") == true  # Apex: you fly over chasms and hazards (player.gd flying)
 	if p.aura_part == "":
 		# Turn the aura on too, from whichever mark knows it.
 		for b in p.bonds.values():
@@ -1380,6 +1398,10 @@ func _rekindle(p) -> void:
 	p.rekindle_fought = false
 	p.rekindle_spread = bool(stat("spread"))
 	p.rekindle_tick = 0.0
+	p.rekindle_per = 0.0  # (Bonfire and Cauterize set their own after: firebird.gd)
+	p.rekindle_most = 0
+	p.rekindle_shield = 0.0
+	p.rekindle_burned.clear()
 	p.main.fx_ring(p.global_position, color(), 30.0, 0.3, 3.0)
 	p.main.sfx("burn", 1.0)
 
@@ -1399,6 +1421,9 @@ func _pyre(p) -> void:
 
 func _phoenix(p) -> void:
 	p.phoenix_t = stat("duration")
+	# Apex: at its end you regain (this share of) the health it held back (player.gd).
+	p.phoenix_regain = float(stat("regain")) if stat("regain") != null else 0.0
+	p.phoenix_held = 0.0
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 4.0)
 	p.main.light_flash(p.global_position, color(), 1.8, 1.8, 0.4)
 	p.main.sfx("crit", 0.7)
@@ -1410,7 +1435,7 @@ const MAX_OUT := 3  # never more than three creatures out at once
 
 
 ## Aimed at a monster below a quarter of its health: binds its kind into the
-## pact book (kept between climbs). Otherwise calls the next creature of
+## kin book (kept between climbs). Otherwise calls the next creature of
 ## your retinue (the first three kinds in the book; a spirit familiar until
 ## you've bound one).
 func _call(p) -> void:
@@ -1429,7 +1454,7 @@ func _call(p) -> void:
 	var retinue: Array = main.profile.pacts.slice(0, 3)
 	if retinue.is_empty():
 		retinue = ["familiar"]
-	var seconds: float = stat("duration") * (0.5 if _overdrawn() else 1.0)  # half-bound
+	var seconds: float = stat("duration") * (0.5 if _overdrawn() else 1.0) * _stay()  # half-bound
 	for i in int(stat("count")):
 		if main.allies().size() >= MAX_OUT:
 			break
@@ -1478,11 +1503,25 @@ func _grand_call(p) -> void:
 	var kinds: Array = main.profile.pacts.slice(0, 6)
 	if kinds.is_empty():
 		kinds = ["familiar", "familiar"]
+	# Apex: they arrive empowered (`might`), and it drains the whole mark only if `drains`.
+	var might: float = float(stat("might")) if stat("might") != null else 1.0
 	for i in kinds.size():
-		main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, step, stat("duration"))
-	essence = 0.0  # drains the whole mark
+		var a = main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, step, float(stat("duration")) * _stay())
+		if might != 1.0:
+			a.max_hp *= might
+			a.hp = a.max_hp
+			a.dmg *= might
+			a.scale = Vector2.ONE * 1.15
+			a.set_meta("empowered", true)
+	if stat("drains") != false:
+		essence = 0.0  # drains the whole mark
 	main.light_flash(p.global_position, color(), 2.4, 2.0, 0.5)
 	main.sfx("crit", 0.6)
+
+
+## Kinship from rank II: your creatures stay longer (bonds.gd passive "stay").
+func _stay() -> float:
+	return Bonds.passive_num(id, "stay", 1.0) if id == "covenant" and passive_rank() >= 2 else 1.0
 
 
 # --- Grafter -----------------------------------------------------------------------
@@ -1608,6 +1647,9 @@ func _chimera_form(p) -> void:
 	p.chimera_t = stat("duration")
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 5.0)
 	p.main.sfx("crit", 0.7)
+	# Apex: your grafts' powers fire on their own while it lasts (chimera.gd).
+	if stat("every") != null and float(stat("every")) > 0.0:
+		load("res://scripts/spells/chimera.gd").grafts_awake(self, p)
 
 
 # --- Surgeon -----------------------------------------------------------------------
@@ -1624,7 +1666,9 @@ func _sever(p) -> void:
 		return
 	# The cut bleeds (reactions.gd), and slows it while it's crippled;
 	# Toxic Precision (Venomist and Surgeon) adds poison.
-	Reactions.apply(main, t, "bleeding", float(stat("duration")), self, maxf(1.0, damage() * 0.15))
+	# (Arterial Cut, step 3's second side, bleeds harder: its own "bleed" share.)
+	var bleed: float = float(stat("bleed")) if stat("bleed") != null else 0.15
+	Reactions.apply(main, t, "bleeding", float(stat("duration")), self, maxf(1.0, damage() * bleed))
 	Reactions.apply(main, t, "slowed", float(stat("duration")), self)
 	if Pacts.has(p, "toxic_precision") and not t.dead:
 		t.add_venom(int(Pacts.num("toxic_precision", "stacks")))
@@ -1638,12 +1682,32 @@ func _sever(p) -> void:
 	else:
 		t.cripple_t = stat("duration")
 		main.fx_text(t.global_position + Vector2(0, -t.radius - 30.0), "Crippled", color())
+	# Vivisect (step 3's first side): a weak point; your next hits on it are critical (player.gd _strike).
+	if stat("crits") != null and int(stat("crits")) > 0:
+		load("res://scripts/spells/chimera.gd").weak_point(self, p, t)
 	main.sfx("swing", 1.6)
+
+
+## Diagnosis from rank III: Mend and Bloodletting heal this much more (1 + a
+## share for each bleeding foe near you).
+static func bleeding_near_mult(p) -> float:
+	var rank := 0
+	for b in p.bonds.values():
+		if b.id == "surgeon":
+			rank = b.passive_rank()
+	if rank < 3:
+		return 1.0
+	var reach := Bonds.passive_num("surgeon", "mend_reach", 220.0)
+	var n := 0
+	for e in p.main.targets():
+		if not e.dead and Reactions.has(e, "bleeding") and e.global_position.distance_to(p.global_position) < reach + e.radius:
+			n += 1
+	return 1.0 + Bonds.passive_num("surgeon", "mend_per", 0.2) * n
 
 
 func _mend(p) -> void:
 	var main = p.main
-	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult()  # Steady Hands; Life's flow
+	var amount: float = float(stat("heal")) * (1.3 if p.has_bond("surgeon") else 1.0) * p.heal_mult() * bleeding_near_mult(p)  # Steady Hands; Life's flow; Diagnosis III
 	p.hp = minf(p.max_health(), p.hp + amount)
 	p.poison_t = 0.0
 	p.fire_t = 0.0
@@ -1682,7 +1746,8 @@ func _transfer(p) -> void:
 func _amputate(p) -> void:
 	var main = p.main
 	var t = _target_in_aim(p, 130.0)
-	if t == null or t.hp > t.max_hp * 0.5:
+	var below: float = float(stat("below")) if stat("below") != null else 0.5  # (its Apex: up to three quarters)
+	if t == null or t.hp > t.max_hp * below:
 		main.fx_text(p.global_position + Vector2(0, -40), "not wounded enough", color())
 		return
 	t.cripple_t = 9999.0

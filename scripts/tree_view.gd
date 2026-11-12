@@ -42,6 +42,7 @@ const GrimoireCard := preload("res://scripts/grimoire_card.gd")
 const Controls := preload("res://scripts/controls.gd")
 
 static var TEXT := {
+	"passive_rank": "%s grows to %s: %s.",
 	"head_mark": "%s  ·  %s  ·  step %d of %d",
 	"head_faint": "%s  ·  %s  ·  faint",
 	"head_unbound": "%s  ·  level %d of 10",
@@ -383,6 +384,12 @@ static func card_entry(main, prof, part: String, node: Dictionary, opt: Dictiona
 		does = does.left(1).to_upper() + does.substr(1) + "."
 	elif does != "":
 		does = does.left(1).to_upper() + does.substr(1)
+	# A mark's step that grows its passive a rank (bonds.gd PASSIVE_STEPS) says so too.
+	if node.get("path", "") == "mark" and int(node.get("at", 0)) in Bonds.PASSIVE_STEPS and opt.get("kind", "") != "later":
+		var rank := Bonds.passive_rank(int(node["at"]))
+		var line := Bonds.passive_line(String(node["bond"]), rank)
+		if line != "":
+			does += " " + TEXT["passive_rank"] % [String(Bonds.BONDS[node["bond"]]["passive"]["name"]), Bonds.RANK_NAMES[rank], line]
 	var e := {"id": opt["id"], "kind": opt.get("kind", ""), "part": part, "name": opt["name"], "color": opt.get("color", UI.GILT),
 		"does": does, "tag": tag, "tag_color": UI.GOLD if st in ["available", "in_use", "learnable"] else (UI.GOOD if st == "owned" else UI.FAINT),
 		"state": st, "locked": st == "locked"}

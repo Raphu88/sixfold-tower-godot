@@ -71,7 +71,10 @@ extends RefCounted
 ##      steps), the other side of the step-2 fork.
 ##   3: a VARIATION choice: {"id", "variation": a VARIATIONS id, "name",
 ##      "desc", "steps": {3: {key: value}}} — the step-3 values replace
-##      today's change's on the bond's first spell.
+##      today's change's on the bond's first spell. Or a TRANSFORMATION
+##      ("transform": true, no "variation"): the file's cast_variation runs
+##      it, and the first side ("change") may run in its cast_change
+##      (cast_mark_change below); the tree shows "change"'s "says" for it.
 ##   4: a SPELL, the other side of the step-4 fork (learn: 4).
 ##   Any of them with "placeholder": true (a name and a line, nothing to
 ##   run) shows as "Coming later" and can't be chosen; today's spell stays.
@@ -426,6 +429,15 @@ static func cast_mark_variation(bond, sp: Dictionary, p, alt: Dictionary) -> voi
 	if s != null and s.has_method("cast_variation") and bool(s.cast_variation(bond, sp, p, alt)):
 		return
 	run_mark_variation(bond, p, String(alt.get("variation", "")))
+
+
+## Step 3's first side (today's change, now a Transformation) on a bond's first
+## spell, from step 3 until the other side is chosen: the tower's own way, if
+## its file has `static func cast_change(bond, sp, p) -> bool` and it returns
+## true; false lets bond.gd cast the spell as its numbers say.
+static func cast_mark_change(bond, sp: Dictionary, p) -> bool:
+	var s = _bond_src.get(String(bond.id))
+	return s != null and s.has_method("cast_change") and bool(s.cast_change(bond, sp, p))
 
 
 ## The generic variations on a bond's spell: Split, Mirrored, Echo and

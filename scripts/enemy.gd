@@ -279,7 +279,7 @@ func setup(k: String, room) -> void:
 		state = "rest"
 	if kind in BOSSES:
 		state_t = 1.6
-	# Covenant's Kinship: a kind in your pact book is slower to notice you.
+	# Covenant's Kinship: a kind in your kin book is slower to notice you.
 	if main != null and main.profile != null and kind in main.profile.pacts and main.player != null and main.player.has_bond("covenant"):
 		state_t *= 2.0
 		notice_t = state_t
@@ -1719,7 +1719,13 @@ func _ally_ai(delta: float) -> void:
 				go = main.path_dir(global_position, target.global_position) * speed * pace
 		elif ally_cd <= 0.0:
 			ally_cd = 0.9
-			target.take_hit(Pacts.ally_strike(main, self, target, dmg), to.normalized(), 120.0)
+			var blow: float = Pacts.ally_strike(main, self, target, dmg)
+			if has_meta("ally_strike"):  # (Covenant's Pack Call: the pack hits harder; chimera.gd)
+				blow = float((get_meta("ally_strike") as Callable).call(self, target, blow))
+			var struck = target
+			struck.take_hit(blow, to.normalized(), 120.0)
+			if struck.dead and has_meta("ally_kill"):  # (Champion Bond: it grows with each kill)
+				(get_meta("ally_kill") as Callable).call(self, struck)
 			main.fx_burst(target.global_position - to.normalized() * target.radius, to.normalized(), Color(0.7, 1.0, 0.8), 5, 200.0)
 			main.sfx("hit", 1.2, -6.0)
 	elif p != null and global_position.distance_to(p.global_position) > 60.0:
@@ -1753,6 +1759,8 @@ func receive_attack(amount: float, _source, _unblockable := false) -> void:
 	main.fx_text(global_position + Vector2(0, -radius - 10.0), str(int(round(amount))), Color(1.0, 0.6, 0.55))
 	if hp <= 0.0:
 		main.fx_text(global_position + Vector2(0, -radius - 22.0), "your %s falls" % kind, Color(0.8, 0.8, 0.8))
+		if main.player != null and main.player.has_method("creature_fell"):
+			main.player.creature_fell(self)  # (Kinship III: it heals you as it falls)
 		_fade_ally()
 
 

@@ -199,6 +199,9 @@ static func _mark_option(bond_id: String, step: int, which: String) -> Dictionar
 			var first := base_spell(bond_id, 1)
 			var ch: Dictionary = Library.MARK_FORKS.get(bond_id, {}).get("change", {})
 			var says := String(first.get("changes", {}).get(3, ""))
+			# (A Transformation, the step-3 choice of the marks growth: its own words, not "today's change".)
+			if bool(fork_alt(bond_id, 3).get("transform", false)) and String(ch.get("says", "")) != "":
+				says = ""
 			return {"id": CHANGE, "kind": "variation", "name": String(ch.get("name", "%s, changed" % first.get("name", ""))),
 				"says": TEXT["change_says"] % [first.get("name", ""), says] if says != "" else String(ch.get("says", "")),
 				"built": true, "default": true, "spell": first, "color": data["color"]}

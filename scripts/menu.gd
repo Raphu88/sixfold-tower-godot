@@ -1912,7 +1912,7 @@ func _climber_record(prof) -> void:
 	_pair(r, "Best floor", "%d" % prof.best_floor)
 	_pair(r, "Marks", "%d of 6" % prof.bonds.size())
 	if not prof.pacts.is_empty():
-		_pair(r, "Pacts", "%d bound" % prof.pacts.size())
+		_pair(r, "Kin", "%d bound" % prof.pacts.size())
 	_record_counts(prof, r, left)
 	_section("Heirlooms", right)
 	# Only the slots holding one (there are eleven), two to a row.
@@ -2300,7 +2300,7 @@ func _mark_bond(info: Dictionary) -> void:
 	row.add_theme_constant_override("separation", 10)
 	box.add_child(row)
 	_effect_panel(row, "Body", data["body"], col)
-	_effect_panel(row, "Passive", data["passive"], col)
+	_effect_panel(row, "Passive", Bonds.passive_shown(String(info["id"]), step), col)  # (with its rank: bonds.gd)
 	_section("Spells")
 	_rich(_cast_line(), 12, DIM)
 	var i := 0

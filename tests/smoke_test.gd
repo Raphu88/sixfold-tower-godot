@@ -3178,7 +3178,7 @@ func _chimera_bond_tests() -> void:
 
 	# Covenant.
 	_cast("hand", "bind_and_call")
-	_check(main.allies().size() == 2 and main.allies()[0].kind == "familiar", "Call with an empty pact book brings spirit familiars (two at step 3+)")
+	_check(main.allies().size() == 2 and main.allies()[0].kind == "familiar", "Call with an empty kin book brings spirit familiars (two at step 3+)")
 	for a in main.allies():
 		a.queue_free()
 	await _frames(2)
@@ -3186,7 +3186,7 @@ func _chimera_bond_tests() -> void:
 	weak.hp = weak.max_hp * 0.2
 	_cast("hand", "bind_and_call")
 	await _frames(2)
-	_check("knight" in main.profile.pacts and (not is_instance_valid(weak) or weak.dead), "Bind: a monster below a quarter of its health joins your pact book")
+	_check("knight" in main.profile.pacts and (not is_instance_valid(weak) or weak.dead), "Bind: a monster below a quarter of its health joins your kin book")
 	_cast("hand", "bind_and_call")
 	await _frames(1)
 	_check(main.allies().size() == 2 and main.allies()[0].kind == "knight", "...and Call brings your bound creatures")
