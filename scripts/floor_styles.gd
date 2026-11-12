@@ -21,7 +21,8 @@ extends RefCounted
 ##   trader        the chance of a wandering trader, from floor `trader_from`
 ##   kind_first    the first room after the start is a kind one (no danger)
 ##   prefab        how likely hand-made rooms are, as a share of the usual
-##                 (a tower whose rooms are grown or broken, not built, has fewer)
+##                 (a tower whose rooms are grown or broken, not built, has
+##                 fewer; its stair landing is then always a built one)
 ##   builder       a script that lays the tower's own floor features last
 ##                 (after_build: the Firebird's updrafts and burning bridges,
 ##                 the Thornwild's thorns, brambles and spore pods)

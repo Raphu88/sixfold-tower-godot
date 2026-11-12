@@ -830,9 +830,12 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 		var gsize := Vector2i(mini(randi_range(int(gl[0]), int(gl[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(gl[2]), int(gl[3])), Rooms.MAX_SIZE.y))
 		var gshape: String = gshapes[randi() % gshapes.size()]
 		return {"id": "carved_" + gshape, "prefab": false, "rows": Rooms.prepare(carve(gshape, gsize)), "size": gsize, "shape": gshape}
-	# (floor_styles.gd "prefab": a tower whose rooms are grown or broken, not built, has fewer hand-made ones)
-	var prefab_k: float = 1.0 if role == "stair" else float(style.get("prefab", 1.0))
-	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)) * prefab_k:
+	# (floor_styles.gd "prefab": a tower whose rooms are grown or broken, not
+	# built, has fewer hand-made ones; its stair landing is always built)
+	var chance := float(PREFAB_CHANCE.get(role, 0.0)) * float(style.get("prefab", 1.0))
+	if role == "stair" and style.has("prefab"):
+		chance = 1.0
+	if role == "gallery" or randf() < chance:
 		var fits: Array = Rooms.for_role(prefab_role, floor_num, tower.get("beast_kind", "")).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
 		if role == "gallery" and pz_kind != "":
 			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
