@@ -22,11 +22,20 @@ extends RefCounted
 ## it, for crystal essence (skipped_cost): the Unbound can come to own both.
 ##
 ## STATE (saved with the climber: profile.tree, state() fills it in):
-##   "v"        1 (a save from before the tree is migrated: migrate())
+##   "v"        VERSION (a save from before the tree is migrated: migrate();
+##              one from version 1 is offered its step-3 re-pick: REPICK)
 ##   "marks"    bond id -> {step: option id}  (step 3: "change" is today's)
 ##   "unbound"  part -> {level: variation id}
 ##   "learned"  part -> ["level:variation id", ...]  (passed sides learned later)
 ##   "echoes"   spell ids an Unbound's technique has been found to echo
+##   "repick"   bond id -> true: a step-3 choice made before the step-3
+##              Transformations, which may be chosen again once, for free
+##
+## REPICK: the step-3 choice became a choice of two Transformations (version
+## 2). Every mark whose save had already recorded a step-3 side keeps it (the
+## same ids: today's side is side A, the other side B), and the book's Marks
+## tab offers each of them one free re-pick (repick_offers, repick,
+## repick_keep), until the climber chooses or keeps what they have.
 ##
 ## Functions take the profile; TreeRules.new(prof) gives the same as methods
 ## (available(node), choose(node, option), learn_skipped(node), owned(),
@@ -47,6 +56,8 @@ const SKIP_AFTER := 1
 static var SKIP_COST := [20.0, 10.0]
 ## The option id of today's step-3 change.
 const CHANGE := "change"
+## The tree's state version: 2 since the step-3 Transformations (REPICK).
+const VERSION := 2
 
 static var TEXT := {
 	"step": "Step %d",
@@ -63,7 +74,14 @@ static var TEXT := {
 	"capstone": "Capstone",
 	"effects_need": "%d %s pooled in your body",
 	"cost": "%d crystal essence",
-	"change_says": "Today's change to %s: %s.",
+	"change_says": "%s, transformed: %s.",
+	"passive_also": "%s. At this step %s: %s",
+	"repick_head": "Your marks have changed",
+	"repick_says": "%s's step 3 is now a choice of two Transformations. You chose before they changed, so you may choose again, once, for free.",
+	"repick_now": "yours now",
+	"repick_take": "Take %s",
+	"repick_keep": "Keep %s",
+	"repick_done": "%s: %s is yours.",
 }
 
 
@@ -82,12 +100,19 @@ static func state(p) -> Dictionary:
 		st = {}
 		p.set("tree", st)
 	if not st.has("v"):
-		st["v"] = 1
-	for k in ["marks", "unbound", "learned"]:
+		st["v"] = VERSION
+	for k in ["marks", "unbound", "learned", "repick"]:
 		if not (st.get(k) is Dictionary):
 			st[k] = {}
 	if not (st.get("echoes") is Array):
 		st["echoes"] = []
+	if int(st["v"]) < 2:
+		# (REPICK: every step-3 choice made before the Transformations may be chosen again, once)
+		for bond_id in st["marks"]:
+			var m = st["marks"][bond_id]
+			if m is Dictionary and (m.has(3) or m.has("3")):
+				st["repick"][String(bond_id)] = true
+		st["v"] = VERSION
 	return st
 
 
@@ -101,7 +126,7 @@ static func migrate(p) -> void:
 		for s in FORK_STEPS:
 			if step >= s and mark_choice(p, String(info["id"]), s) == "":
 				_record_mark(p, String(info["id"]), s, default_option(String(info["id"]), s))
-	st["v"] = 1
+	st["v"] = 1  # (a version-1 tree: state() offers its step-3 re-pick, REPICK)
 
 
 static func _record_mark(p, bond_id: String, step: int, option: String) -> void:
@@ -199,9 +224,6 @@ static func _mark_option(bond_id: String, step: int, which: String) -> Dictionar
 			var first := base_spell(bond_id, 1)
 			var ch: Dictionary = Library.MARK_FORKS.get(bond_id, {}).get("change", {})
 			var says := String(first.get("changes", {}).get(3, ""))
-			# (A Transformation, the step-3 choice of the marks growth: its own words, not "today's change".)
-			if bool(fork_alt(bond_id, 3).get("transform", false)) and String(ch.get("says", "")) != "":
-				says = ""
 			return {"id": CHANGE, "kind": "variation", "name": String(ch.get("name", "%s, changed" % first.get("name", ""))),
 				"says": TEXT["change_says"] % [first.get("name", ""), says] if says != "" else String(ch.get("says", "")),
 				"built": true, "default": true, "spell": first, "color": data["color"]}
@@ -215,6 +237,18 @@ static func _mark_option(bond_id: String, step: int, which: String) -> Dictionar
 		"name": name if name != "" else Library.TEXT["coming"], "says": String(alt.get("desc", alt.get("says", ""))) if built or String(alt.get("desc", "")) != "" else Library.TEXT["coming_says"],
 		"built": built, "default": false, "spell": alt if step != 3 else base_spell(bond_id, 1), "variation": String(alt.get("variation", "")),
 		"alt": alt, "color": data["color"]}
+
+
+## At a step where the passive grows a rank (bonds.gd passive_rank), each
+## option's words say so too.
+static func _passive_says(bond_id: String, step: int, opts: Array) -> void:
+	var rank: int = Bonds.passive_rank(step)
+	if rank <= Bonds.passive_rank(step - 1) or Bonds.passive_line(bond_id, rank) == "":
+		return
+	var pname := String(Bonds.passive_at(bond_id, step)["name"])
+	for o in opts:
+		if bool(o.get("built", false)) and String(o.get("says", "")) != "":
+			o["says"] = TEXT["passive_also"] % [String(o["says"]).trim_suffix("."), pname, Bonds.passive_line(bond_id, rank)]
 
 
 ## A marked part's nodes (none for an unmarked part).
@@ -240,6 +274,7 @@ static func mark_nodes(p, part: String) -> Array:
 			n["kind"] = "spell"
 			var o := _mark_option(bond_id, s, "base")
 			o["state"] = "owned" if step >= s else "locked"
+			_passive_says(bond_id, s, [o])
 			n["options"] = [o]
 			n["state"] = "owned" if step >= s else "locked"
 			out.append(n)
@@ -247,6 +282,7 @@ static func mark_nodes(p, part: String) -> Array:
 		n["kind"] = "fork"
 		var a := _mark_option(bond_id, s, "base")
 		var b := _mark_option(bond_id, s, "alt")
+		_passive_says(bond_id, s, [a, b])
 		var c := mark_choice(p, bond_id, s)
 		n["chosen"] = c
 		if step < s:
@@ -268,6 +304,45 @@ static func mark_nodes(p, part: String) -> Array:
 		n["options"] = [a, b]
 		out.append(n)
 	return out
+
+
+## The marks whose step-3 choice may be chosen again, once, for free
+## (REPICK): held on the body, at step 3 or more, with both sides written.
+static func repick_offers(p) -> Array:
+	var out: Array = []
+	if Unbound.is_on(p):
+		return out
+	var flags: Dictionary = state(p)["repick"]
+	for part in Bonds.PARTS:
+		if not p.bonds.has(part):
+			continue
+		var bond_id := String(p.bonds[part]["id"])
+		if flags.has(bond_id) and p.step_for_xp(float(p.bonds[part].get("xp", 0.0))) >= 3 and Library.built(fork_alt(bond_id, 3)):
+			out.append(bond_id)
+	return out
+
+
+## The two sides of a mark's step-3 choice, as the tree's options ({id,
+## name, says, ...}: side A first).
+static func repick_sides(bond_id: String) -> Array:
+	return [_mark_option(bond_id, 3, "base"), _mark_option(bond_id, 3, "alt")]
+
+
+## Uses a mark's free re-pick: `option` (CHANGE or the other side's id)
+## becomes its step-3 choice, and the offer is gone. False if it can't.
+static func repick(p, bond_id: String, option: String) -> bool:
+	if not bond_id in repick_offers(p):
+		return false
+	if not option in repick_sides(bond_id).map(func(o): return String(o["id"])):
+		return false
+	_record_mark(p, bond_id, 3, option)
+	state(p)["repick"].erase(bond_id)
+	return true
+
+
+## Keeps a mark's step-3 choice as it is: the offer is gone.
+static func repick_keep(p, bond_id: String) -> void:
+	state(p)["repick"].erase(bond_id)
 
 
 # --- the Unbound ---------------------------------------------------------------------------

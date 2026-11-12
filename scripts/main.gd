@@ -242,6 +242,9 @@ var rains: Array = []  # Rain of Arrows: {pos, r, t, tick, damage, color}
 var track_t := 0.0  # Track: foes revealed
 var waves: Array = []  # Tidecaller's travelling waves: {pos, dir, width, left, dmg, push, carry, hit, color}
 var maelstroms: Array = []  # Maelstrom whirlpools: {pos, r, t, damage, tick, color}
+## What the blows landing now are ("lightning", "frost" or ""): set while a
+## spell strikes (bond.gd HIT_KINDS); a foe drenched by the Maelstrom takes double.
+var hit_kind := ""
 var fog  # line-of-sight fog on floors of rooms (fog.gd)
 var puzzle  # the floor's puzzle, whose solving lifts the stair's ward (puzzle.gd)
 var ward := false  # the stair is warded until the floor's puzzle is solved
@@ -861,6 +864,7 @@ func _update_spell_fields(delta: float) -> void:
 	walls = walls.filter(func(w): return w["t"] > 0.0)
 	for c in cyclones:
 		c["t"] -= delta
+		BondScript.gryphon().steer_cyclone(self, c, delta)  # (Eye of the Storm's Apex: you steer it)
 		for e in enemies():
 			var to: Vector2 = c["pos"] - e.global_position
 			if to.length() < c["r"] + e.radius:
@@ -878,6 +882,8 @@ func _update_spell_fields(delta: float) -> void:
 			var to: Vector2 = m["pos"] - e.global_position
 			if to.length() < m["r"] + e.radius:
 				e.knock = to.normalized() * minf(to.length() * 4.0, 260.0)
+				if float(m.get("drench", 0.0)) > 0.0:
+					BondScript.kraken().drench(e, float(m["drench"]), float(m.get("linger", 2.0)))  # (its Apex)
 				if hurt:
 					e.take_hit(m["damage"], Vector2.ZERO, 0.0)
 					Reactions.apply(self, e, "soaked", float(Reactions.STATES["soaked"]["seconds"]), "maelstrom")
@@ -885,6 +891,7 @@ func _update_spell_fields(delta: float) -> void:
 	for r in rains:
 		r["t"] -= delta
 		r["tick"] -= delta
+		BondScript.gryphon().follow_quarry(self, r, delta)  # (Rain of Arrows' Apex: it follows your Quarry)
 		if r["tick"] <= 0.0:
 			r["tick"] = 0.12
 			# Each volley: one arrow at random, one at a foe caught in the area.
@@ -3625,14 +3632,14 @@ func _update_flames(delta: float) -> void:
 	# Kindled II (Flame Contractor): your burning ground slowly spreads.
 	var spread := 0.0
 	if player != null and player.passive_rank("flame_contractor") >= 2:
-		spread = BondScript.Bonds.passive_num("flame_contractor", "spread", 4.0)
+		spread = BondScript.Bonds.passive_num("flame_contractor", 2, "spread", 4.0)
 	for f in flames:
 		f["t"] -= delta
 		if f.get("friendly", false):
 			if spread > 0.0:
 				if not f.has("r0"):
 					f["r0"] = f["r"]
-				f["r"] = minf(float(f["r0"]) * BondScript.Bonds.passive_num("flame_contractor", "spread_most", 1.6), float(f["r"]) + spread * delta)
+				f["r"] = minf(float(f["r0"]) * BondScript.Bonds.passive_num("flame_contractor", 2, "spread_most", 1.6), float(f["r"]) + spread * delta)
 			f["tick"] -= delta
 			if f["tick"] <= 0.0:
 				f["tick"] = 0.5
@@ -3723,7 +3730,7 @@ func _kindled(e) -> void:
 			e.set_meta("kindled_refund", true)
 			for b in player.bonds.values():
 				if b.id == "flame_contractor":
-					b.essence = minf(b.capacity(), b.essence + BondScript.Bonds.passive_num("flame_contractor", "refund", 2.0))
+					b.essence = minf(b.capacity(), b.essence + BondScript.Bonds.passive_num("flame_contractor", 3, "refund", 2.0))
 
 
 func in_water(pos: Vector2) -> bool:
@@ -3762,6 +3769,7 @@ func on_enemy_killed(e) -> void:
 		arena.on_enemy_killed(e)  # (the station's arena: no drops, essence or record)
 		return
 	profile.note("slain")
+	BondScript.on_kill(self, e)  # (marks' passive ranks: bond.gd)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)

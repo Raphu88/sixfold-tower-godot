@@ -42,6 +42,9 @@ extends RefCounted
 ##   static func cast_variation(bond, sp: Dictionary, p, alt: Dictionary) -> bool
 ##       optional: your own way to run a step-3 variation (true if handled;
 ##       false falls back to the library's generic one, run_mark_variation()).
+##   static func cast_change(bond, sp: Dictionary, p) -> bool
+##       optional: your own way to run today's side of the step 3 choice
+##       (a Transformation's side A) from step 3 on; false casts it as before.
 ##   static func cast_form(form_id: String, t: Dictionary, p, power: float, run, sh: Dictionary, w: Dictionary) -> int
 ##       a new Unbound form: returns how many foes it touched, or -1 if it isn't yours.
 ##   static func hit_effect(effect_id: String, p, e, share: float, power: float, run) -> bool
@@ -431,10 +434,8 @@ static func cast_mark_variation(bond, sp: Dictionary, p, alt: Dictionary) -> voi
 	run_mark_variation(bond, p, String(alt.get("variation", "")))
 
 
-## Step 3's first side (today's change, now a Transformation) on a bond's first
-## spell, from step 3 until the other side is chosen: the tower's own way, if
-## its file has `static func cast_change(bond, sp, p) -> bool` and it returns
-## true; false lets bond.gd cast the spell as its numbers say.
+## Today's side of the step-3 choice from step 3 on: the tower's own way
+## (a Transformation's side A), if it has one. False: cast it as before.
 static func cast_mark_change(bond, sp: Dictionary, p) -> bool:
 	var s = _bond_src.get(String(bond.id))
 	return s != null and s.has_method("cast_change") and bool(s.cast_change(bond, sp, p))

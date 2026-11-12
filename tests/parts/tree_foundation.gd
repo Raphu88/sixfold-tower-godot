@@ -91,7 +91,8 @@ func _library_parity() -> void:
 	var plain: Array = B.BONDS["stormcaller"]["spells"].filter(func(sp): return int(sp["learn"]) <= hb.step)
 	_check(hb.spells().map(func(sp): return sp["id"]) == plain.map(func(sp): return sp["id"]), "a mark with no choices knows today's spells (%s)" % [hb.spells().map(func(sp): return sp["id"])])
 	hb.select(0)
-	_check(int(hb.stat("leaps")) == 6 and float(hb.stat("stun")) == 0.4, "...and today's step-3 change (6 leaps that stun)")
+	var a3: Dictionary = B.BONDS["stormcaller"]["spells"][0]["steps"][3]
+	_check(int(hb.stat("most")) == int(a3["most"]) and float(hb.stat("boost")) == float(a3["boost"]), "...and today's step-3 side (Branching Storm: up to %d foes)" % int(a3["most"]))
 
 
 func _tree_rules() -> void:
@@ -126,11 +127,12 @@ func _tree_rules() -> void:
 	var ids: Array = hb.spells().map(func(sp): return sp["id"])
 	_check("ball_lightning" in ids and not "overcharge" in ids, "the mark casts Ball Lightning now, not Overcharge (%s)" % [ids])
 	_check("ball_lightning" in TR.owned(prof) and "chain_lightning" in TR.owned(prof), "owned() lists what's yours")
-	_check(TR.choose(prof, "mark:stormcaller:3", "lingering"), "choosing Lingering at step 3")
+	_check(TR.choose(prof, "mark:stormcaller:3", "lingering"), "choosing Living Bolt at step 3")
 	main._give_bonds()
 	hb = main.player.bonds["hand"]
 	hb.select(0)
-	_check(int(hb.stat("leaps")) == 4 and float(hb.stat("stun")) == 0.0 and float(hb.stat("patch")) == 3.0, "...Chain Lightning loses today's change and gains Lingering's patch (%s leaps)" % hb.stat("leaps"))
+	var b3: Dictionary = TR.fork_alt("stormcaller", 3)["steps"][3]
+	_check(int(hb.stat("leaps")) == 4 and hb.stat("most") == null and float(hb.stat("live")) == float(b3["live"]), "...Chain Lightning loses today's side and gains Living Bolt's (%s leaps)" % hb.stat("leaps"))
 	_check(not TR.is_fork_ready(prof, "hand"), "nothing more to choose at step 3")
 	# Marks never go back: choosing again, or forgetting, through the rules, can't.
 	_check(not TR.choose(prof, "mark:stormcaller:3", "change"), "a mark's choice never goes back")
@@ -408,7 +410,7 @@ func _ball_lightning() -> void:
 	_check(slime.hp < hp0 and slime.charged > 0.0, "it sparks the foe it passes and charges it (%.0f -> %.0f)" % [hp0, slime.hp])
 	await t._wait(2.0)
 	_check(fx.orbs.is_empty(), "...then it's gone")
-	# Lingering: the last leap leaves a charged patch.
+	# Living Bolt: the bolt stays alive where the chain ended.
 	TR.choose(main.profile, "mark:stormcaller:3", "lingering")
 	main._give_bonds()
 	hb = p.bonds["hand"]
@@ -416,7 +418,7 @@ func _ball_lightning() -> void:
 	hb.essence = hb.capacity()
 	p.global_position = slime.global_position - Vector2(120, 0)
 	hb.cast(p)
-	_check(fx.fields.size() == 1 and fx.fields[0]["pos"].distance_to(slime.global_position) < 200.0, "Lingering: Chain Lightning's last leap leaves a charged patch")
+	_check(fx.lastings.size() >= 1, "Living Bolt: the bolt stays alive where Chain Lightning ended")
 	main._start_floor(main.floor_num)
 	await t._frames(2)
 	_check(not fx.busy() if is_instance_valid(fx) else true, "a new floor clears what spells left behind")

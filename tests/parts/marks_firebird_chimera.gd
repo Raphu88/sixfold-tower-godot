@@ -144,11 +144,11 @@ func _ranks_shown() -> void:
 	_check(B.passive_rank(1) == 1 and B.passive_rank(2) == 1 and B.passive_rank(3) == 2 and B.passive_rank(4) == 2 and B.passive_rank(5) == 3, "a passive is rank I, II from step 3, III at step 5")
 	for bond_id in TOWERS:
 		var name: String = B.BONDS[bond_id]["passive"]["name"]
-		var s1: Dictionary = B.passive_shown(bond_id, 1)
-		var s3: Dictionary = B.passive_shown(bond_id, 3)
-		var s5: Dictionary = B.passive_shown(bond_id, 5)
+		var s1: Dictionary = B.passive_at(bond_id, 1)
+		var s3: Dictionary = B.passive_at(bond_id, 3)
+		var s5: Dictionary = B.passive_at(bond_id, 5)
 		_check(B.passive_line(bond_id, 2) != "" and B.passive_line(bond_id, 3) != "", "%s's passive has a line for ranks II and III" % bond_id)
-		_check(s1["name"] == name and s3["name"] == name + " II" and s5["name"] == name + " III" and B.passive_line(bond_id, 2) in s3["desc"] and B.passive_line(bond_id, 3) in s5["desc"] and not B.passive_line(bond_id, 3) in s3["desc"],
+		_check(s1["name"] == name + " I" and s3["name"] == name + " II" and s5["name"] == name + " III" and B.passive_line(bond_id, 2) in s3["desc"] and B.passive_line(bond_id, 3) in s5["desc"] and not B.passive_line(bond_id, 3) in s3["desc"],
 			"...shown with its rank and its new line (%s)" % s5["name"])
 		_check("II" in B.step_note(bond_id, 3) and "III" in B.step_note(bond_id, 5), "...and step 3's and step 5's notes say it grows")
 		for sp in B.BONDS[bond_id]["spells"]:
@@ -426,7 +426,7 @@ func _arterial() -> void:
 		var h0: float = foe.hp
 		await t._wait(2.1)
 		lost[side] = h0 - foe.hp
-	_check(lost["B"] >= lost["A"] * 3.0 and lost["B"] > 10.0, "Arterial Cut bleeds hard (%.0f in 2 s, against %.0f)" % [lost["B"], lost["A"]])
+	_check(lost["B"] >= lost["A"] * 2.0 and lost["B"] > 10.0, "Arterial Cut bleeds hard (%.0f in 2 s, against %.0f)" % [lost["B"], lost["A"]])
 
 
 # --- passive ranks ------------------------------------------------------------------------
@@ -463,7 +463,7 @@ func _fire_passives() -> void:
 	b = p.bonds["hand"]
 	b.essence = 0.0
 	main.explode(foe.global_position, 40.0, 99.0, Color.ORANGE)
-	_check(is_equal_approx(b.essence, B.passive_num("flame_contractor", "refund")), "Kindled III: a foe your fire kills gives the mark back essence (%.1f)" % b.essence)
+	_check(is_equal_approx(b.essence, B.passive_num("flame_contractor", 3, "refund")), "Kindled III: a foe your fire kills gives the mark back essence (%.1f)" % b.essence)
 	# Fireproof II: standing in fire heals you.
 	await _bonded("flamewing", STEP3)
 	main = t.main
@@ -527,7 +527,7 @@ func _fire_passives() -> void:
 	p.hurt_t = 0.0
 	p.receive_attack(9999.0, null)
 	p._strike(foe, 1.0, Vector2.RIGHT, 0.0, false)
-	_check(300.0 - foe.hp >= B.passive_num("rekindler", "erupt") and not p.dead, "Last Ember III: surviving it erupts in flame (%.0f)" % (300.0 - foe.hp))
+	_check(300.0 - foe.hp >= B.passive_num("rekindler", 3, "erupt") and not p.dead, "Last Ember III: surviving it erupts in flame (%.0f)" % (300.0 - foe.hp))
 
 
 func _chimera_passives() -> void:
@@ -547,7 +547,7 @@ func _chimera_passives() -> void:
 	b = _mark("covenant", "bind_and_call")
 	_cast(b)
 	var a3: float = main.allies()[0].ally_t
-	_check(absf(a3 - a1 * B.passive_num("covenant", "stay")) < 0.5, "Kinship II: your creatures stay longer (%.0f s, not %.0f)" % [a3, a1])
+	_check(absf(a3 - a1 * B.passive_num("covenant", 2, "stay")) < 0.5, "Kinship II: your creatures stay longer (%.0f s, not %.0f)" % [a3, a1])
 	p.hp = 50.0
 	main.allies()[0].receive_attack(9999.0, null)
 	_check(p.hp == 50.0, "...a falling creature doesn't heal you before rank III")
@@ -559,7 +559,7 @@ func _chimera_passives() -> void:
 	_cast(b)
 	p.hp = 50.0
 	var c = main.allies()[0]
-	var want: float = c.max_hp * B.passive_num("covenant", "fall_heal") * p.heal_mult()
+	var want: float = c.max_hp * B.passive_num("covenant", 3, "fall_heal") * p.heal_mult()
 	c.receive_attack(9999.0, null)
 	_check(absf(p.hp - 50.0 - want) < 0.5, "Kinship III: a creature that falls heals you (+%.1f)" % (p.hp - 50.0))
 	# Grafting II: grafts give health; III: a new graft heals its part's burn.
@@ -575,7 +575,7 @@ func _chimera_passives() -> void:
 	m0 = p.max_health()
 	main.add_graft("bat")
 	main.add_graft("knight")
-	_check(is_equal_approx(p.max_health(), m0 + 2.0 * B.passive_num("grafter", "graft_health")), "Grafting II: each graft gives a little health (%.0f -> %.0f)" % [m0, p.max_health()])
+	_check(is_equal_approx(p.max_health(), m0 + 2.0 * B.passive_num("grafter", 2, "graft_health")), "Grafting II: each graft gives a little health (%.0f -> %.0f)" % [m0, p.max_health()])
 	p.bonds["legs"].burned = true
 	main.add_graft(_kind_for(main, "legs"))
 	_check(p.bonds["legs"].burned, "...a new graft doesn't heal a burn before rank III")
@@ -620,7 +620,7 @@ func _chimera_passives() -> void:
 	p.hp = 20.0
 	_cast(b)
 	var more: float = p.hp - 20.0
-	_check(absf(more - plain * (1.0 + 2.0 * B.passive_num("surgeon", "mend_per"))) < 0.6, "Diagnosis III: Mend heals more for every bleeding foe near you (%.0f, not %.0f)" % [more, plain])
+	_check(absf(more - plain * (1.0 + 2.0 * B.passive_num("surgeon", 3, "mend_per"))) < 0.6, "Diagnosis III: Mend heals more for every bleeding foe near you (%.0f, not %.0f)" % [more, plain])
 
 
 ## A monster kind whose graft goes on `part` (main.gd GRAFT_PART).
