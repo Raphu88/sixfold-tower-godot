@@ -21,8 +21,24 @@ env:
   GODOT_VERSION: "4.3"
 
 jobs:
-  build:
+  # The smoke test, split across machines that run side by side: "core" is
+  # everything in tests/smoke_test.gd but the part files, and the part files
+  # (tests/parts) are dealt out over the shards. Every test still runs before
+  # anything is published; the build just waits for the slowest machine
+  # instead of for all of them one after another.
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tests:
+          - "core"
+          - "parts shard=0/5"
+          - "parts shard=1/5"
+          - "parts shard=2/5"
+          - "parts shard=3/5"
+          - "parts shard=4/5"
+    name: test (${{ matrix.tests }})
     steps:
       - uses: actions/checkout@v4
 
@@ -58,11 +74,44 @@ jobs:
           # Some checks build random floors and can rarely draw an unlucky layout.
           # A real bug fails every time, so one failed run gets one more try; the
           # first run's failures stay in the log.
-          # (the suite plays whole floors with a bot now: it needs well over 25 minutes here)
-          if ! timeout 3000 $godot --headless -s tests/smoke_test.gd; then
-            echo "::warning::The smoke test failed once; running it again"
-            timeout 3000 $godot --headless -s tests/smoke_test.gd
+          if ! timeout 2400 $godot --headless -s tests/smoke_test.gd -- ${{ matrix.tests }}; then
+            echo "::warning::The smoke test (${{ matrix.tests }}) failed once; running it again"
+            timeout 2400 $godot --headless -s tests/smoke_test.gd -- ${{ matrix.tests }}
           fi
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot and web export templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-web
+
+      - name: Install Godot and web export templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot
+          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          dest=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p "$dest"
+          unzip -q -j /tmp/templates.tpz 'templates/web_nothreads_*' -d "$dest"
+          echo "${GODOT_VERSION}.stable" > "$dest/version.txt"
+          rm /tmp/templates.tpz
+
+      - name: Import assets
+        run: |
+          godot=~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64
+          timeout 300 $godot --headless --import || true
+          timeout 300 $godot --headless --editor --quit || true
 
       - name: Export for web
         run: |
@@ -76,7 +125,7 @@ jobs:
           path: build/web
 
   deploy:
-    needs: build
+    needs: [test, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

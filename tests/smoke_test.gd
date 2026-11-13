@@ -7378,7 +7378,8 @@ func _run() -> void:
 	await _arrange_tests()
 	await _interface_size_tests()
 	await _abilities_tests()
-	await _part_tests()
+	if not ("core" in OS.get_cmdline_user_args()):  # (`-- core`: everything but tests/parts, for runs split across machines)
+		await _part_tests()
 
 	print("\n%s (%d failures)" % ["PASSED" if failures == 0 else "FAILED", failures])
 	for f in failed:
@@ -7398,7 +7399,7 @@ func _run() -> void:
 ## `-- parts stations` (only the files whose names hold "stations").
 func _part_tests() -> void:
 	var files: Array = Array(DirAccess.get_files_at("res://tests/parts")).filter(func(f): return f.ends_with(".gd"))
-	var only: Array = Array(OS.get_cmdline_user_args()).filter(func(a): return a != "parts" and not String(a).begins_with("part="))
+	var only: Array = Array(OS.get_cmdline_user_args()).filter(func(a): return a != "parts" and a != "core" and not String(a).begins_with("part=") and not String(a).begins_with("shard="))
 	if not only.is_empty():
 		files = files.filter(func(f): return only.any(func(o): return String(f).contains(o)))
 	files.sort()
@@ -7406,6 +7407,20 @@ func _part_tests() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("part="):
 			files = files.filter(func(f): return a.trim_prefix("part=") in f)
+	# `-- parts shard=1/4` runs every fourth file, starting at the second: the
+	# web build splits the parts across machines this way, and a new file
+	# always lands in one of them.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("shard="):
+			var bits: PackedStringArray = a.trim_prefix("shard=").split("/")
+			var n := maxi(1, int(bits[1])) if bits.size() == 2 else 1
+			var k := int(bits[0]) % n
+			var mine: Array = []
+			for i in files.size():
+				if i % n == k:
+					mine.append(files[i])
+			files = mine
+			print("parts shard %d of %d: %s" % [k, n, files])
 	for f in files:
 		var s = load("res://tests/parts/" + f)
 		_check(s is GDScript and s.can_instantiate(), "tests/parts/%s loads" % f)
