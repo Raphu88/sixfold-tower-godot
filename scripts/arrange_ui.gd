@@ -3,6 +3,11 @@ extends RefCounted
 ## train's furniture, which are built from Godot's own controls (laid out by
 ## containers) rather than drawn at a fixed place like the HUD (layout.gd).
 ##
+## Arrange mode shows them a level at a time (arrange.gd): parent_of() says
+## which block a block sits in, friendly() what it's called (NAMES, or a name
+## made from its kind and the first words on it) and offered() whether it's
+## worth showing at all.
+##
 ## Nothing here needs each page to know about it. After a page is built
 ## (menu.gd open), tag_page() walks it and tags what can be arranged, each
 ## with a stable name made of the page and the element:
@@ -64,8 +69,35 @@ const FURNISH_NAMES := {
 	"bench": "The bench", "outfitter": "The outfitter", "speech": "Speech", "sign": "Sign", "piece": "Piece",
 }
 const RAIL_NAMES := {
-	"rail.box": "Left rail (edge: width; wheel: text size)", "rail.ident": "Rail: who you are",
-	"rail.list": "Rail: pages and cars (bottom edge: spacing)", "rail.foot": "Rail: bottom buttons",
+	"rail.box": "Left rail", "rail.ident": "Who you are", "rail.list": "List of pages or cars", "rail.foot": "Bottom buttons",
+}
+## Friendly names for blocks, by id: what Arrange mode's list, labels and
+## breadcrumb call them. A key starting with "*" names every block whose id
+## ends that way ("*.title": each page's title). A block without one is named
+## from its kind and the first words on it (_auto_name), so new pages get
+## names too; add a line here to give one a better name.
+const NAMES := {
+	"*.title": "Title",
+	"*.tabs": "Tabs",
+	"*.ribbons": "Tab ribbons",
+	"menu.inventory.row1.column1": "Left side: worn and carried",
+	"menu.inventory.row1.column2": "Right side: crystals and details",
+	"menu.inventory.row1.column2.card1": "Item details card",
+	"menu.pause.grid1": "Main buttons",
+	"menu.pause.grid2": "Restart button",
+	"menu.appearance.row1.column1": "Left side: the preview",
+	"menu.appearance.row1.column1.card1": "Preview of your climber",
+	"menu.appearance.row1.column2": "Right side: the choices",
+	"menu.controls.grid1": "List of controls",
+	"menu.climbers.grid1": "Climber cards",
+	"menu.settings.settings.row1": "The Entity's words",
+	"menu.climbers.row1": "The Entity's words",
+}
+## What's special about arranging a block, said under its name when it's chosen.
+const HOW := {
+	"rail.box": "It stays at the left edge. Pull the blue bar on its right edge to change its width; the wheel (or [ and ]) changes its text size.",
+	"rail.list": "Pull the blue bar on its bottom edge to spread the list out or close it up.",
+	"*.panel": "Pull a blue bar on its side to make the page wider or narrower.",
 }
 ## A card: a panel or a drawn piece at least this big (px).
 const CARD_MIN := Vector2(90, 56)
@@ -86,10 +118,13 @@ static var _page: Array = []  # ids on the page showing, in order (tag_page)
 ## scale works inside it: the box keeps its size), "via" (its parent is
 ## moved instead: the page's panel moves its CenterContainer). `frame`: the
 ## control it's kept inside (null: the screen).
-static func tag(c: Control, id: String, name: String, caps := {}, frame: Control = null, group := "") -> void:
+## `name`: its friendly name (NAMES can give a better one); `kind`: what kind
+## of thing it is (KIND_NAMES, FURNISH_NAMES); `where`: the page or car it's
+## on, for its full name.
+static func tag(c: Control, id: String, name: String, caps := {}, frame: Control = null, group := "", kind := "", where := "") -> void:
 	if not enabled or c == null:
 		return
-	var d := {"id": id, "name": name, "caps": caps, "frame": frame, "group": group}
+	var d := {"id": id, "name": name, "caps": caps, "frame": frame, "group": group, "kind": kind, "where": where}
 	var had: bool = c.has_meta("arr") and String(c.get_meta("arr")["id"]) == id
 	c.set_meta("arr", d)
 	_index[id] = weakref(c)
@@ -152,8 +187,70 @@ static func info(id: String) -> Dictionary:
 	return c.get_meta("arr") if c != null else {}
 
 
+## The full name: where it is, then what it is ("Inventory: Title").
 static func display_name(id: String) -> String:
-	return String(info(id).get("name", id))
+	var where := String(info(id).get("where", ""))
+	return friendly(id) if where == "" else "%s: %s" % [where, friendly(id)]
+
+
+## The friendly name: NAMES' (by id, or by the id's ending), else the one it
+## was tagged with.
+static func friendly(id: String) -> String:
+	var n := _lookup(NAMES, id)
+	return n if n != "" else String(info(id).get("name", id))
+
+
+## What's special about arranging it (HOW), or "".
+static func how(id: String) -> String:
+	return _lookup(HOW, id)
+
+
+static func _lookup(table: Dictionary, id: String) -> String:
+	if table.has(id):
+		return String(table[id])
+	var cut := id.rfind(".")
+	if cut > 0 and table.has("*" + id.substr(cut)):
+		return String(table["*" + id.substr(cut)])
+	return ""
+
+
+static func kind_of(id: String) -> String:
+	return String(info(id).get("kind", ""))
+
+
+## The block a block sits in: the nearest tagged thing around it (one of
+## `among`, if given), or "" if it stands on the screen itself.
+static func parent_of(id: String, among := {}) -> String:
+	var c := node(id)
+	if c == null:
+		return ""
+	var p := c.get_parent()
+	while p != null:
+		if p is Control and p.has_meta("arr"):
+			var pid := String(p.get_meta("arr")["id"])
+			if node(pid) == p and (among.is_empty() or among.has(pid)):
+				return pid
+		p = p.get_parent()
+	return ""
+
+
+## Worth offering in Arrange mode: big enough to grab and, on a page that
+## scrolls, not scrolled out of sight (something already arranged is always
+## offered, so it can be put back).
+static func offered(id: String) -> bool:
+	var c := node(id)
+	if c == null:
+		return false
+	var r := rect(id)
+	if r.size.x < 12.0 or r.size.y < 10.0:
+		return false
+	if override(id) != null:
+		return true
+	var f = c.get_meta("arr")["frame"]
+	if f is ScrollContainer and is_instance_valid(f) and f.is_inside_tree() and f.clip_contents and f.is_ancestor_of(c):
+		var seen: Rect2 = r.intersection(f.get_global_rect())
+		return seen.get_area() >= r.get_area() * 0.5
+	return true
 
 
 static func cap(id: String, what: String) -> bool:
@@ -489,21 +586,25 @@ static func tag_page(m) -> void:
 		return
 	var pk := page_key(m)
 	var pn := page_name(m)
-	tag(m.panel, "menu.%s.panel" % m.page, PAGE_NAMES.get(String(m.page), String(m.page).capitalize()) + ": page panel",
-		{"x": true, "via": true, "resize": func(_c): m._layout()}, null, "menu." + pk)
+	var page_n: String = PAGE_NAMES.get(String(m.page), String(m.page).capitalize())
+	tag(m.panel, "menu.%s.panel" % m.page, page_n if page_n.ends_with("page") else page_n + " page",
+		{"x": true, "via": true, "resize": func(_c): m._layout()}, null, "menu." + pk, "panel")
 	# (what's on the page stays on the screen, or across within the page if
 	# it scrolls (and clips); a row fills the page's width,
 	# so keeping it inside the page would keep it from moving across at all)
 	var counts := {}
 	m.scroll.set_meta("arr_page", true)
+	var heading := ""  # (the section heading just above, to name what follows it)
 	for ctl in m.box.get_children():
-		_tag_menu_part(m, ctl, "menu." + pk, pn, counts, 0, m.scroll)
+		_tag_menu_part(m, ctl, "menu." + pk, pn, counts, 0, m.scroll, heading)
+		if ctl is Control and ctl.visible and not _spacer(ctl):
+			heading = String(ctl.text).strip_edges() if _is_heading(ctl) else ""
 	for ctl in m.foot.get_children():
 		_tag_menu_part(m, ctl, "menu." + pk, pn, counts, 0, null)
 	after_layout(m)
 
 
-static func _tag_menu_part(m, ctl, prefix: String, pn: String, counts: Dictionary, depth: int, frame: Control) -> void:
+static func _tag_menu_part(m, ctl, prefix: String, pn: String, counts: Dictionary, depth: int, frame: Control, heading := "") -> void:
 	if not (ctl is Control) or not ctl.visible or ctl.is_queued_for_deletion() or _page.size() >= MAX_PER_PAGE:
 		return
 	if _spacer(ctl):
@@ -513,7 +614,7 @@ static func _tag_menu_part(m, ctl, prefix: String, pn: String, counts: Dictionar
 	var id := "%s.%s%d" % [prefix, kind, counts[kind]]
 	if kind in ["title", "tabs", "ribbons"] and counts[kind] == 1:
 		id = "%s.%s" % [prefix, kind]
-	tag(ctl, id, "%s: %s" % [pn, _describe(ctl, kind)], {}, frame, prefix)
+	tag(ctl, id, _auto_name(ctl, kind, int(counts[kind]), heading), {}, frame, prefix, kind, pn)
 	# A row of columns: each column too (one level down).
 	if depth == 0 and (ctl is HBoxContainer or ctl is HFlowContainer) and not (kind in ["title", "tabs", "ribbons", "footer"]):
 		var cols: Array = ctl.get_children().filter(func(k): return k is Control and k.visible and not _spacer(k))
@@ -533,7 +634,7 @@ static func _find_cards(m, n: Node, prefix: String, pn: String, counts: Dictiona
 			continue
 		if _is_card(k):
 			counts["card"] = int(counts.get("card", 0)) + 1
-			tag(k, "%s.card%d" % [prefix, counts["card"]], "%s: %s" % [pn, _describe(k, "card")], {}, frame, prefix)
+			tag(k, "%s.card%d" % [prefix, counts["card"]], _auto_name(k, "card", int(counts["card"])), {}, frame, prefix, "card", pn)
 			continue
 		_find_cards(m, k, prefix, pn, counts, frame)
 
@@ -572,15 +673,36 @@ static func _kind(c: Control) -> String:
 	return "part"
 
 
-## A name for an element: its kind and the first words on it.
-static func _describe(c: Control, kind: String) -> String:
-	var n: String = KIND_NAMES.get(kind, kind.capitalize())
+## A section's heading (menu.gd _section): a short label on one line.
+static func _is_heading(c) -> bool:
+	return c is Label and c.autowrap_mode == TextServer.AUTOWRAP_OFF and String(c.text).strip_edges().length() in range(1, 41)
+
+
+## A name for an element nobody named (NAMES): its kind and the first words
+## on it ("Row “Music”"), the heading just above it ("Gear and Items: grid"),
+## or its kind and number ("Grid 3").
+static func _auto_name(c: Control, kind: String, n: int, heading := "") -> String:
+	var k: String = KIND_NAMES.get(kind, kind.capitalize())
+	if kind in ["title", "tabs", "ribbons", "panel"]:
+		return k
+	if kind == "text" and _is_heading(c):
+		return "Heading “%s”" % String(c.text).strip_edges()
 	var words := _first_words(c)
-	if words != "" and kind != "title":
-		n += " “" + words + "”"
-	elif words != "" and kind == "title":
-		n += " (" + words + ")"
-	return n
+	if not _has_letters(words):
+		words = ""
+	if heading != "" and (kind in ["grid", "part"] or words == ""):
+		return "%s: %s" % [heading, k.to_lower()]
+	if words != "":
+		return "%s “%s”" % [k, words]
+	return "%s %d" % [k, n]
+
+
+static func _has_letters(t: String) -> bool:
+	for i in t.length():
+		var ch := t.unicode_at(i)
+		if (ch >= 48 and ch <= 57) or (ch >= 65 and ch <= 90) or (ch >= 97 and ch <= 122) or ch > 191:
+			return true
+	return false
 
 
 static func _first_words(n: Node) -> String:
@@ -648,18 +770,18 @@ static func _tag_rail(m) -> void:
 	if not rail.visible and not m.rail_showing():
 		return
 	tag(rail, "rail.box", RAIL_NAMES["rail.box"], {"move": false, "x": true, "inside": true, "self": true,
-		"apply": _apply_rail, "resize": func(_c): refresh(m)}, null, "rail")
+		"apply": _apply_rail, "resize": func(_c): refresh(m)}, null, "rail", "rail")
 	var base_w: float = rail.NARROW if rail.narrow else rail.WIDE
 	note_extra(rail, Rect2(Vector2.ZERO, Vector2(rail.size.x - base_w, 0.0)) if rail.size.x > 0.0 else Rect2())
 	if rail.ident != null and is_instance_valid(rail.ident):
-		tag(rail.ident, "rail.ident", RAIL_NAMES["rail.ident"], {}, rail, "rail")
+		tag(rail.ident, "rail.ident", RAIL_NAMES["rail.ident"], {}, rail, "rail", "rail", RAIL_NAMES["rail.box"])
 	if rail.list != null and is_instance_valid(rail.list):
 		if not rail.list.has_meta("arr_sep"):
 			rail.list.set_meta("arr_sep", rail.list.get_theme_constant("separation"))
-		tag(rail.list, "rail.list", RAIL_NAMES["rail.list"], {"y": true, "resize": _list_spacing}, rail, "rail")
+		tag(rail.list, "rail.list", RAIL_NAMES["rail.list"], {"y": true, "resize": _list_spacing}, rail, "rail", "rail", RAIL_NAMES["rail.box"])
 		_list_spacing(rail.list)
 	if rail.foot_box != null and is_instance_valid(rail.foot_box):
-		tag(rail.foot_box, "rail.foot", RAIL_NAMES["rail.foot"], {}, rail, "rail")
+		tag(rail.foot_box, "rail.foot", RAIL_NAMES["rail.foot"], {}, rail, "rail", "rail", RAIL_NAMES["rail.box"])
 
 
 ## The rail: its width is the menu's to lay out (rail.gd width_for), the
@@ -754,4 +876,4 @@ static func _tag_car(root: Control, n: Node, prefix: String, cn: String, counts:
 			var w := _first_words(k)
 			if w != "":
 				nm += " “" + w + "”"
-		tag(k, id, "%s: %s" % [cn, nm], {}, root.get_parent() if root.get_parent() is ScrollContainer else root, prefix)  # (kept in the car, where it shows)
+		tag(k, id, nm, {}, root.get_parent() if root.get_parent() is ScrollContainer else root, prefix, kind, cn)  # (kept in the car, where it shows)
