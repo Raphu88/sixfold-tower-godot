@@ -8387,6 +8387,9 @@ func _entity_tests() -> void:
 	await _until_bubble()
 	_check(main.entity.current.get("id", "") == "bank", "the third tip shows")
 	await _wait(0.4)  # (once it has slid in)
+	# (said in the top lane, it waits its turn behind a banner that's showing)
+	await _until(func(): return main.entity.rect.has_area(), 5.0)
+	await _wait(0.3)
 	var r: Rect2 = main.entity.rect
 	main.touch._layout()
 	var covers := false

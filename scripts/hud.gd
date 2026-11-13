@@ -1244,7 +1244,10 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	b.flush(self)
 	var label: String = goal[1]
 	var lw := UI.font("display").get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-	UI.draw_label(self, at - d * 28.0 + Vector2(-lw * 0.5, 4), label, 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
+	# (beside the arrow, never under it: a long name steps farther in from a side edge)
+	var lc := at - d * (28.0 + lw * 0.5 * absf(d.x))
+	lc.x = clampf(lc.x, lw * 0.5 + 6.0, size.x - lw * 0.5 - 6.0)
+	UI.draw_label(self, lc + Vector2(-lw * 0.5, 4), label, 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
 
 
 ## Where the stair arrow sits and which way it points ([at, dir]) for a
@@ -1264,9 +1267,19 @@ func stair_arrow_spot(size: Vector2, sp: Vector2) -> Array:
 	var at := center + d * minf(reach_x / maxf(absf(d.x), 0.001), reach_y / maxf(absf(d.y), 0.001))
 	# Clear of the touch buttons, and of the floor task's line at the top.
 	var keep: Array = touch_keep_out(size) if main.touch_active else []
-	if goal_rect.has_area():
-		for k in 4:
-			keep.append([goal_rect.position + Vector2(goal_rect.size.x * (k + 0.5) / 4.0, goal_rect.size.y * 0.5), goal_rect.size.y * 0.5 + 6.0])
+	# (...and of the top lane's stack, and the Entity's sphere and bubble)
+	var off: Array = [goal_rect]
+	if main.get("entity") != null and main.entity != null:
+		off.append_array([main.entity.rect, main.entity.orb_rect, main.entity.panel_rect])
+	for r in off:
+		if r.has_area():
+			# (a row of circles along its longer side)
+			var wide: bool = r.size.x >= r.size.y
+			var thick := maxf(minf(r.size.x, r.size.y), 20.0)
+			var n := maxi(1, ceili(maxf(r.size.x, r.size.y) / thick))
+			for k in n:
+				var c: Vector2 = r.position + (Vector2(r.size.x * (k + 0.5) / n, r.size.y * 0.5) if wide else Vector2(r.size.x * 0.5, r.size.y * (k + 0.5) / n))
+				keep.append([c, thick * 0.5 + 6.0])
 	if keep.is_empty():
 		return [at, d]
 	if _arrow_clear(at, d, keep):
