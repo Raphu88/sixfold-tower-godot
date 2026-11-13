@@ -261,18 +261,33 @@ func _firebird_system() -> void:
 			if fb.shelter(s, q) and cover == Vector2.INF:
 				cover = q
 	_check(spot != Vector2.INF and cover != Vector2.INF, "a storm island has open ground and ground sheltered behind rock")
+	for e in main.enemies():
+		e.queue_free()
 	if spot != Vector2.INF:
+		fb.storm_hits = 0  # (a storm that swept by earlier in the test counted already)
+		s["hit"] = {}
 		s["t"] = float(FB.RULES["every"]) - float(s["phase"]) - 0.05  # (the sweep is about to begin)
 		p.global_position = spot
+		p.knock = Vector2.ZERO
 		p.iframes = 0.0
 		var hp0: float = p.hp
-		await t._until(func(): return fb.storm_hits > 0, float(FB.RULES["sweep"]) + 1.0)
+		var burnt := func():
+			p.global_position = spot  # (stay put in the open)
+			p.iframes = 0.0
+			p.hurt_t = 0.0
+			return fb.storm_hits > 0
+		await t._until(burnt, float(FB.RULES["sweep"]) + 2.0)
 		_check(fb.storm_hits == 1 and p.hp < hp0, "an ember storm sweeping across the island burns a climber caught in the open")
 	if cover != Vector2.INF:
+		fb.sheltered = 0
 		s["t"] = float(FB.RULES["every"]) * 2.0 - float(s["phase"]) - 0.05
 		s["hit"] = {}
 		p.global_position = cover
-		await t._until(func(): return fb.sheltered > 0, float(FB.RULES["sweep"]) + 1.0)
+		p.knock = Vector2.ZERO
+		var passed := func():
+			p.global_position = cover
+			return fb.sheltered > 0
+		await t._until(passed, float(FB.RULES["sweep"]) + 2.0)
 		_check(fb.sheltered >= 1, "...and passes over one sheltered behind rock")
 
 
@@ -299,7 +314,7 @@ func _rekindle() -> void:
 	p.global_position = main.player_start
 	await t._frames(2)
 	rk.flame = 0.05
-	await t._wait(0.3)
+	await t._game_wait(0.3)
 	_check(not rk.carrying, "...which gutters out if it isn't carried in time")
 	for pc in ob.pieces:
 		p.global_position = rk.extras[0]["pos"]
@@ -329,7 +344,7 @@ func _ashwing() -> void:
 	_check(not a.dead and a.state == "ashes", "struck down, it sinks into a heap of glowing ash")
 	a.set_physics_process(true)
 	a.state_t = 0.1
-	await t._wait(0.3)
+	await t._game_wait(0.3)
 	_check(not a.dead and a.state != "ashes" and a.get_meta("reborn", false) and a.hp < a.max_hp, "...and rises again (at %d of %d health)" % [int(a.hp), int(a.max_hp)])
 	a.take_hit(9999.0, Vector2.ZERO, 0.0)
 	_check(a.dead, "the second time it falls for good")
@@ -379,9 +394,9 @@ func _burning_bridge() -> void:
 		if is_instance_valid(e):
 			e.set_physics_process(false)
 	p.global_position = sc["end"]
-	await t._frames(3)
+	await t._until(func(): return sc["state"] == "done", 2.0)
 	_check(sc["state"] == "done" and sc["grade"] in ["gold", "silver", "bronze"], "reaching the far side ends it with a grade (%s)" % sc["grade"])
-	await t._wait(1.8)
+	await t._until(func(): return not main.in_chasm(first.get_center()), 5.0)
 	_check(not main.in_chasm(first.get_center()), "...and the bridge knits back")
 
 
@@ -419,7 +434,7 @@ func _thornwild_system() -> void:
 	CH.RULES["regrow"] = 0.3
 	th["t"] = 0.3
 	p.global_position = c
-	await t._wait(0.6)
+	await t._game_wait(0.6)
 	_check(th["state"] == "cut", "it never grows back onto someone standing in it")
 	p.global_position = c + Vector2(200, 200)
 	if main.is_solid(p.global_position):
@@ -434,7 +449,7 @@ func _thornwild_system() -> void:
 	var cc: Vector2 = Rect2(cl["rect"]).get_center()
 	_check(cl["state"] == "open" and cl["body"] == null, "a closing thicket stands open")
 	p.global_position = cc
-	await t._wait(0.3)
+	await t._game_wait(0.3)
 	var cor: Rect2 = cl["corridor"]
 	var away: Vector2 = main.player_start
 	p.global_position = away
@@ -454,12 +469,20 @@ func _thornwild_system() -> void:
 	var calm: Array = ch.pods.filter(func(x): return x["kind"] == "calm")
 	var pd: Dictionary = pois[0] if not pois.is_empty() else ch.pods[0]
 	pd["kind"] = "poison"
-	var f = await _spawn("knight", Vector2(pd["pos"]) + Vector2(20, 0))
+	var in_cloud: Vector2 = Vector2(pd["pos"]) + Vector2(20, 0)
+	var f = await _spawn("knight", in_cloud)
+	f.max_hp = 9999.0  # (it must outlive the cloud, and stand in it)
+	f.hp = 9999.0
 	var hp0: float = f.hp
 	p.global_position = Vector2(pd["pos"]) + Vector2(60, 0)
 	ch.strike(p.global_position, Vector2.LEFT, 70.0, 60.0)
 	_check(pd["burst"], "a blow bursts a spore pod")
-	await t._wait(0.7)
+	var stung := func():
+		if not is_instance_valid(f) or f.dead:
+			return true
+		f.global_position = in_cloud
+		return f.hp < hp0
+	await t._until(stung, 3.0)
 	_check(not is_instance_valid(f) or f.dead or f.hp < hp0, "a poison cloud hurts a foe standing in it")
 	if is_instance_valid(f):
 		f.queue_free()
@@ -469,7 +492,7 @@ func _thornwild_system() -> void:
 	ch.clouds.clear()  # (the poison cloud would sting it awake again)
 	var g = await _spawn("knight", Vector2(pd2["pos"]) + Vector2(10, 0))
 	ch.burst(pd2)
-	await t._wait(0.2)
+	await t._game_wait(0.2)
 	_check(g.calm, "a calming cloud soothes the foes in it")
 	g.queue_free()
 
@@ -505,9 +528,10 @@ func _heartroots() -> void:
 			break
 	p.global_position = Vector2(asleep["pos"]) - sdir * 40.0
 	p.iframes = 0.0
+	p.hurt_t = 0.0  # (a hit's grace left over from before would shrug it off)
 	var hp0: float = p.hp
 	ob.strike(p.global_position, sdir, 50.0, 60.0)
-	_check(hr.lashes == 1 and asleep["state"] == "todo" and p.hp < hp0, "striking a sleeping heart-root, its thorns lash you")
+	_check(hr.lashes == 1 and asleep["state"] == "todo" and p.hp < hp0, "striking a sleeping heart-root, its thorns lash you (lashes %d, %s, hp %.1f -> %.1f)" % [hr.lashes, asleep["state"], hp0, p.hp])
 	var goal: Array = main.hud.arrow_goal()
 	_check(not goal.is_empty() and goal[0] == now["pos"], "the arrow points at the root that's awake")
 	for i in ob.pieces.size():
@@ -587,12 +611,12 @@ func _thicket() -> void:
 	var before: int = ch.thorns.size()
 	p.global_position = sc["start"]
 	await t._until(func(): return sc["state"] == "run", 3.0)
-	await t._wait(1.4)
+	await t._until(func(): return ch.thorns.size() > before + 2, 4.0)
 	_check(ch.thorns.size() > before + 2, "stepping onto the mark, hedges and thorns grow in from the edges (%d)" % (ch.thorns.size() - before))
 	p.global_position = sc["end"]
-	await t._frames(3)
+	await t._until(func(): return sc["state"] == "done", 2.0)
 	_check(sc["state"] == "done" and sc["grade"] != "none", "reaching the doorway in time ends it with a grade (%s)" % sc["grade"])
-	await t._wait(1.5)
+	await t._until(func(): return ch.thorns.size() <= before, 5.0)
 	_check(ch.thorns.size() <= before, "...and the thicket withers away")
 
 

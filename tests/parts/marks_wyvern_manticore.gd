@@ -107,11 +107,9 @@ func _cast_by_key() -> void:
 		await t._frames(1)
 
 
-## Waits until `cond` holds, or `seconds` pass.
+## Waits until `cond` holds, or `seconds` of game time pass (smoke_test.gd _until).
 func _until(cond: Callable, seconds: float) -> void:
-	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
-	while not cond.call() and Time.get_ticks_msec() < end:
-		await t._frames(1)
+	await t._until(cond, seconds)
 
 
 ## A number of the hand's first spell at its step, or 0 (heat_cap: how far past 100).
