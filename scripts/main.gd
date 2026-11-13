@@ -2099,7 +2099,7 @@ func bring_pack_home() -> String:
 		player.pack = []
 		lines.append(Train.TEXT["home"] % [n, "piece" if n == 1 else "pieces"])
 	profile.save()
-	return "  ".join(lines)
+	return " · ".join(lines)
 
 
 ## What you wear comes home on you: every worn piece that isn't already your
