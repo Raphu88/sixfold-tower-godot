@@ -8393,7 +8393,11 @@ func _entity_tests() -> void:
 	for b in main.touch.buttons:
 		if not (b["id"] in main.touch.TOP_BAR) and r.grow(4.0).intersects(Rect2(b["c"] - Vector2(b["r"], b["r"]), Vector2(b["r"], b["r"]) * 2.0)):
 			covers = true
-	_check(not covers and r.position.y > 50.0, "on a phone the bubble sits under the menu buttons, clear of the action buttons")
+	# (beside the Entity's sphere under the menu buttons where there's room;
+	# with no room between the buttons, in the top-middle lane: tests/parts/hud_lanes.gd)
+	var top_bar: Array = main.touch.buttons.filter(func(b): return b["id"] in main.touch.TOP_BAR)
+	var over_bar: bool = top_bar.any(func(b): return r.intersects(Rect2(b["c"] - Vector2(b["r"], b["r"]), Vector2(b["r"], b["r"]) * 2.0)))
+	_check(r.has_area() and not covers and not over_bar and (r.position.y > 50.0 or main.entity.lane), "on a phone the bubble sits under the menu buttons or in the top lane, clear of the action buttons and the menu buttons")
 	var vs: Vector2 = main.entity.get_viewport_rect().size
 	_check(r.end.x <= vs.x and r.position.x >= vs.x * 0.3, "...on the right, away from the joystick (%s in %s)" % [r, vs])
 	await _tap_at(r.get_center())

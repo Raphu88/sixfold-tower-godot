@@ -113,6 +113,7 @@ var lane := false  # the bubble showing is said in the top lane (no room beside 
 var _lane_b := {}
 var _fresh_seen := 0
 var _idle_t := 0.0
+var _buttons_frame := -1
 var _open_drawn := false
 
 
@@ -600,7 +601,7 @@ func _input(event: InputEvent) -> void:
 	if at.x < 0.0:
 		return
 	var took := false
-	if orb_on() and (orb_rect.has_point(at) or (open and panel_rect.has_point(at))):
+	if orb_on() and (_on_orb(at) or (open and panel_rect.has_point(at))):
 		# The sphere: its panel opens and closes (a tap on the open panel closes it).
 		set_open(not open)
 		took = true
@@ -614,19 +615,37 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## True if a click or tap at `at` is on the sphere, where it sits this
+## instant (worked out afresh: a cast or Take button may have just appeared
+## where it was drawn a moment ago). A touch button always keeps its own tap.
+func _on_orb(at: Vector2) -> bool:
+	if open and main.touch_active:
+		return orb_rect.has_point(at)  # (in the open panel's corner)
+	for b in _buttons():
+		if at.distance_to(b["c"]) <= float(b["r"]):
+			return false
+	var c := orb_spot()
+	var reach := _orb_reach()
+	var r := Layout.xform("hud.entity", get_viewport_rect().size) * Rect2(c - Vector2(reach, reach), Vector2(reach, reach) * 2.0)
+	return r.has_point(at)
+
+
 # --- where they sit ----------------------------------------------------------------------
 
 ## Half the sphere's hit box: big enough for a finger on a phone.
 func _orb_reach() -> float:
 	if main.touch_active:
-		return maxf(ORB_R + 3.0, 22.0 / maxf(UI.device_px(get_viewport()), 0.01))
+		return clampf(22.0 / maxf(UI.device_px(get_viewport()), 0.01), ORB_R + 3.0, ORB_R + 12.0)
 	return ORB_R + 4.0
 
 
+## The touch buttons on screen now (laid out afresh: they come and go with
+## your marks and the gear at your feet).
 func _buttons() -> Array:
 	if not main.touch_active or main.touch == null:
 		return []
-	if main.touch.buttons.is_empty():
+	if _buttons_frame != Engine.get_process_frames():  # (once a frame is enough)
+		_buttons_frame = Engine.get_process_frames()
 		main.touch._layout()
 	return main.touch.buttons
 
