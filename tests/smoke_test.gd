@@ -102,6 +102,15 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+## Waits `n` physics ticks, then a frame. (Frames can run many times between
+## two ticks: what the game does each tick, such as noticing where you
+## stand, may not have happened after a few frames.)
+func _ticks(n: int) -> void:
+	for i in n:
+		await physics_frame
+	await process_frame
+
+
 ## Kill a monster outright (a lurker is pulled up from the water first).
 func _slay(e) -> void:
 	e.submerged = false

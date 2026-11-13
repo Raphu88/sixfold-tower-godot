@@ -158,7 +158,7 @@ func _wyvern_floor(want_crank := true, kind := ""):
 	Objectives.forced = kind
 	for n in 40:
 		main._start_floor(3 + n % 6)
-		await t._frames(1)
+		await t._ticks(1)
 		var tf = main.tower_floor
 		if tf == null:
 			continue
@@ -167,7 +167,7 @@ func _wyvern_floor(want_crank := true, kind := ""):
 	Objectives.forced = ""
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(2)
+	await t._ticks(2)
 	main.banner = {}
 	return main.tower_floor
 
@@ -204,10 +204,10 @@ func _wyvern_system() -> void:
 				side = side * sg
 				found = true
 	p.global_position = from
-	await t._frames(2)
+	await t._ticks(2)
 	for i in 30:
 		p.move_and_collide(side * 6.0)
-	await t._frames(1)
+	await t._ticks(1)
 	_check(not tf.is_molten(p.global_position), "walking into a molten channel, you stop at its edge")
 	# The live check (reach.gd) sees the raised bridge as a lever's door.
 	var solid: PackedByteArray = main.solid.duplicate()
@@ -218,7 +218,7 @@ func _wyvern_system() -> void:
 	# Strike the crank: the bridge comes down.
 	p.global_position = ch["crank"] + Vector2(0, 30)
 	tf.strike(p.global_position, Vector2.UP, 60.0, 60.0)
-	await t._frames(2)
+	await t._ticks(2)
 	_check(ch["lowered"] and not main.astar.is_point_solid(bt) and not tf.is_molten(Wyv._world(bt)), "striking its crank lowers the bridge: now it can be crossed")
 	# Heat: stand in a furnace's blast and it builds; full, it hurts.
 	if tf.furnaces.is_empty():
@@ -262,15 +262,15 @@ func _wyvern_system() -> void:
 	b["full"] = true
 	f["pos"] = b["pos"] + Vector2(40, 0)
 	var foe = main.spawn_enemy("knight", main.walkable_point(b["pos"], b["pos"] + Vector2(30, 0), 10.0))
-	await t._frames(2)
+	await t._ticks(2)
 	tf.heat = 0.9
 	p.global_position = main.walkable_point(b["pos"], b["pos"] + Vector2(0, 30), 10.0)
 	tf.strike(p.global_position, (b["pos"] - p.global_position).normalized(), 60.0, 60.0)
-	await t._frames(1)
+	await t._ticks(1)
 	_check(not b["full"] and tf.heat == 0.0 and f["quench"] > 0.0 and tf.heat_at(f["pos"]) == 0.0, "striking a water barrel quenches the furnace's heat and cools you")
 	_check(foe.soaked > 0.0, "...and soaks the foes in its splash")
 	foe.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 
 
 func _furnaces_task() -> void:
@@ -308,7 +308,7 @@ func _furnaces_task() -> void:
 			if q["state"] == "done":
 				break
 			await stroke.call(qi)
-	await t._frames(3)
+	await t._ticks(3)
 	_check(ob.done and not main.ward, "all of them lit: the stair's ward lifts")
 
 
@@ -319,7 +319,7 @@ func _golem() -> void:
 	var e = main.spawn_enemy("golem", main.walkable_point(p.global_position, p.global_position + Vector2(140, 0), 14.0))
 	e.max_hp = 9999.0  # (the checks strike it many times: it must outlive them)
 	e.hp = 9999.0
-	await t._frames(2)
+	await t._ticks(2)
 	_check(e.get_script() == load("res://scripts/towers/forge_golem.gd"), "a golem is spawned with its own script (enemy.gd SUBKINDS)")
 	e.aware = true
 	var h0: float = e.heat
@@ -348,7 +348,7 @@ func _golem() -> void:
 	var drop: Array = main.Essence.drop_for("golem", 5)
 	_check(drop[0] == "iron" and float(drop[1]) > 0.0 and main.Floors.MONSTERS.has("golem") and Towers.TOWERS["wyvern"]["weights"].has("golem"), "it carries iron essence and joins the Wyvern's monsters")
 	t._slay(e)
-	await t._frames(2)
+	await t._ticks(2)
 
 
 func _forge_scenario() -> void:
@@ -358,7 +358,7 @@ func _forge_scenario() -> void:
 	var s := {}
 	for n in 60:
 		main._start_floor(3 + n % 7)
-		await t._frames(1)
+		await t._ticks(1)
 		for ss in main.scenarios.list:
 			if ss["kind"] == "forge":
 				s = ss
@@ -369,10 +369,10 @@ func _forge_scenario() -> void:
 		return
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 	var p = main.player
 	p.global_position = s["start"]
-	await t._frames(3)
+	await t._ticks(3)
 	var tf = main.tower_floor
 	_check(main.scenarios.running() and not tf.forge.is_empty() and s["furnaces"].size() == 3, "stepping onto its mark lights three furnaces and shuts the doors")
 	await t._until(func(): return float(tf.forge["fires"][0]) < 1.0, 6.0)  # (past its opening banner)
@@ -400,14 +400,14 @@ func _manticore_floor(kind := ""):
 	Objectives.forced = kind
 	for n in 40:
 		main._start_floor(3 + n % 6)
-		await t._frames(1)
+		await t._ticks(1)
 		var tf = main.tower_floor
 		if tf != null and not tf.pits.is_empty() and not tf.suns.is_empty() and not tf.crumbles.is_empty():
 			break
 	Objectives.forced = ""
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(2)
+	await t._ticks(2)
 	main.banner = {}
 	return main.tower_floor
 
@@ -456,7 +456,7 @@ func _manticore_system() -> void:
 	var pit: Dictionary = tf.pits[0]
 	p.global_position = pit["pos"] + Vector2(pit["r"] - 16.0, 0)
 	tf.last_out = pit["pos"] + Vector2(pit["r"] + 30.0, 0)
-	await t._frames(2)
+	await t._ticks(2)
 	var d0: float = p.global_position.distance_to(pit["pos"])
 	await t._game_wait(0.3)
 	_check(p.global_position.distance_to(pit["pos"]) < d0, "a sand pit pulls you toward its sink")
@@ -465,12 +465,12 @@ func _manticore_system() -> void:
 	p.iframes = 0.0
 	tf.swallow_cd = 0.0
 	p.global_position = pit["pos"] + Vector2(4, 0)
-	await t._frames(3)
+	await t._ticks(3)
 	_check(p.hp < p.max_health() and p.global_position.distance_to(pit["pos"]) > float(pit["r"]), "the sink swallows you: it hurts, and spits you out at the edge")
 	# Cracked flagstones give way after you cross.
 	var cr: Vector2i = tf.crumbles.keys()[0]
 	p.global_position = Man._world(cr)
-	await t._frames(3)
+	await t._ticks(3)
 	p.global_position = Man._world(cr) + Vector2(0, 80) if not main.is_solid(Man._world(cr) + Vector2(0, 80)) else Man._world(cr) + Vector2(0, -80)
 	await t._until(func(): return float(tf.crumbles[cr]) < 0.0 and tf.is_sand(Man._world(cr)), float(Man.SAND["crumble_t"]) + 3.0)
 	_check(float(tf.crumbles[cr]) < 0.0 and tf.is_sand(Man._world(cr)), "a cracked flagstone crumbles into sand once you've crossed it")
@@ -529,7 +529,7 @@ func _burrower() -> void:
 	e.max_hp = 9999.0  # (the checks strike it many times: it must outlive them)
 	e.hp = 9999.0
 	e.global_position = Man._world(dr)
-	await t._frames(2)
+	await t._ticks(2)
 	_check(e.get_script() == load("res://scripts/towers/burrower.gd") and e.submerged, "a burrower waits under the sand, out of reach")
 	var hp0: float = e.hp
 	e.take_hit(10.0, Vector2.RIGHT)
@@ -573,7 +573,7 @@ func _burrower() -> void:
 	_check(erupted or not tf_sand, "standing on sand near it, it marks the spot and erupts beneath you (%s)" % e.state)
 	_check(main.Essence.drop_for("burrower", 5)[0] == "stone" and Towers.TOWERS["manticore"]["weights"].has("burrower"), "it carries stone essence and joins the Manticore's monsters")
 	t._slay(e)
-	await t._frames(2)
+	await t._ticks(2)
 
 
 func _sinking_scenario() -> void:
@@ -583,7 +583,7 @@ func _sinking_scenario() -> void:
 	var s := {}
 	for n in 60:
 		main._start_floor(2 + n % 8)
-		await t._frames(1)
+		await t._ticks(1)
 		for ss in main.scenarios.list:
 			if ss["kind"] == "sinking":
 				s = ss
@@ -594,11 +594,11 @@ func _sinking_scenario() -> void:
 		return
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 	var p = main.player
 	var tf = main.tower_floor
 	p.global_position = s["start"]
-	await t._frames(3)
+	await t._ticks(3)
 	_check(main.scenarios.running() and not tf.sink.is_empty(), "stepping onto its mark starts the floor giving way")
 	await t._until(func(): return not tf.sink["sunk"].is_empty(), float(Man.SINK["grace"]) + 6.0)  # (its opening banner, then the grace)
 	var sunk: Dictionary = tf.sink["sunk"]

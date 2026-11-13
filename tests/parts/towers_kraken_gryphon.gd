@@ -64,7 +64,7 @@ func _floor_with(tid: String, fl: int, kind: String, want: Callable) -> bool:
 		Objectives.climb_used.clear()
 		main._start_floor(fl + n % 4)
 		Objectives.forced = ""
-		await t._frames(1)
+		await t._ticks(1)
 		if want.call(main):
 			for e in main.enemies():
 				e.set_physics_process(false)
@@ -290,7 +290,7 @@ func _deepfin() -> void:
 	var tf = main.tower_floor
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 	var pool: Dictionary = tf.basins.filter(func(b): return b["kind"] == "pool")[0]
 	var at: Vector2 = Grid.centre(pool["tiles"][0])
 	var e = main.spawn_enemy("deepfin", at)
@@ -298,7 +298,7 @@ func _deepfin() -> void:
 	e.hp = 9999.0
 	e.aware = true
 	e.notice_t = 0.0
-	await t._frames(2)
+	await t._ticks(2)
 	_check(e.submerged and not main.targets().has(e), "under the water a deepfin can't be struck or aimed at")
 	var p = main.player
 	p.global_position = tf._nearest_dry(at, int(pool["id"]))
@@ -315,7 +315,7 @@ func _deepfin() -> void:
 	e.state = "stranded"
 	e.state_t = 2.0
 	e.submerged = false
-	await t._frames(3)
+	await t._ticks(3)
 	_check(not e.submerged and main.targets().has(e) and main.Reactions.has(e, "soaked"), "out of the water it's soaked through (lightning arcs through it)")
 	var hp0: float = e.hp
 	e.take_hit(10.0, Vector2.ZERO, 0.0)
@@ -324,10 +324,10 @@ func _deepfin() -> void:
 	# With no deep water to live in, it keeps to the shallows as a lurker.
 	main.tower = "wyvern"
 	main._start_floor(3)
-	await t._frames(1)
+	await t._ticks(1)
 	var f = main.spawn_enemy("deepfin", main.player.global_position + Vector2(120, 0))
 	f.aware = true
-	await t._frames(3)
+	await t._ticks(3)
 	_check(f.kind == "lurker", "without deep water it lives as a lurker does")
 	f.queue_free()
 	_check(load("res://scripts/essence.gd").DROPS.has("deepfin") and main.Floors.MONSTERS.has("deepfin") and Towers.TOWERS["kraken"]["weights"].has("deepfin"), "it drops water essence and spawns in the Kraken's tower")
@@ -352,7 +352,7 @@ func _flood_room() -> void:
 		e.queue_free()
 	var p = main.player
 	p.global_position = s["start"]
-	await t._frames(3)
+	await t._ticks(3)
 	_check(main.scenarios.running() and main.tower_floor.scn_basin >= 0, "stepping onto its mark begins it: the water comes in")
 	await t._until(func(): return float(main.tower_floor.basins[main.tower_floor.scn_basin]["level"]) > 0.0, 5.0)
 	var lvl: float = main.tower_floor.basins[main.tower_floor.scn_basin]["level"]
@@ -402,14 +402,14 @@ func _voids() -> void:
 	p.knock = Vector2.ZERO
 	# An airborne foe over a drop falls.
 	var slime = main.spawn_enemy("slime", Grid.centre(ex))
-	await t._frames(1)
+	await t._ticks(1)
 	var fell_before: int = main.floor_total
 	slime.airborne = 0.5
 	slime.global_position = Grid.centre(vt)
 	tf._tick_falls()
 	slime.airborne = 0.0
 	tf._tick_falls()
-	await t._frames(1)
+	await t._ticks(1)
 	_check(not is_instance_valid(slime) or slime.dead, "a foe thrown into the air comes down over a drop and falls")
 	# The climber falls to the floor below.
 	var fl0: int = main.floor_num
@@ -424,7 +424,7 @@ func _voids() -> void:
 		if not main.climbing and main.fade <= 0.0:
 			break
 		await t._game_wait(0.05)
-	await t._frames(2)
+	await t._ticks(2)
 
 
 func _vanes() -> void:
@@ -446,7 +446,7 @@ func _vanes() -> void:
 		p.global_position = pc["pos"] + Vector2(0, 40)
 		for k in int(Objectives.KINDS["vanes"]["strikes"]):
 			ob.strike(p.global_position, Vector2.UP, 60.0, 60.0)
-	await t._frames(3)
+	await t._ticks(3)
 	_check(ob.done and not main.ward, "striking every vane round does the task")
 	_check(tf.span_open and not main.in_chasm(Grid.centre(st)) and not main.astar.is_point_solid(main._tile_of(Grid.centre(st))), "...and the wind blows across the gap: you can walk it")
 
@@ -461,7 +461,7 @@ func _harrier() -> void:
 	var tf = main.tower_floor
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 	var p = main.player
 	p.global_position = Grid.centre(tf.exposed.keys()[0])
 	var stand: Vector2 = p.global_position
@@ -478,7 +478,7 @@ func _harrier() -> void:
 	var e = main.spawn_enemy("harrier", in_sight.call())
 	e.aware = true
 	e.notice_t = 0.0
-	await t._frames(2)
+	await t._ticks(2)
 	_check(float(e.get_meta("h", 0.0)) > 20.0 and e.kind in e.FLIERS, "a harrier soars high over the halls")
 	var states := {}
 	p.hp = p.max_hp
@@ -507,7 +507,7 @@ func _harrier() -> void:
 	e.global_position = tf._nearest_floor(Grid.centre(tf.voids.keys()[0]))
 	_check(tf.near_void(e.global_position, 75.0), "it stands on a ledge")
 	e.on_parried(false)
-	await t._frames(1)
+	await t._ticks(1)
 	_check(not is_instance_valid(e) or e.dead, "parried on a ledge, it tumbles over the edge and falls")
 	_check(load("res://scripts/essence.gd").DROPS.has("harrier") and Towers.TOWERS["gryphon"]["weights"].has("harrier"), "it drops air essence and spawns in the Gryphon's tower")
 
@@ -536,7 +536,7 @@ func _long_bridge() -> void:
 		e.queue_free()
 	var p = main.player
 	p.global_position = s["start"]
-	await t._frames(3)
+	await t._ticks(3)
 	_check(main.scenarios.running(), "stepping onto its mark begins it")
 	await t._until(func(): return main.enemies().any(func(x): return x.kind == "harrier"), 8.0)  # (its intro, then the first raptor)
 	var raptors: int = main.enemies().filter(func(x): return x.kind == "harrier").size()

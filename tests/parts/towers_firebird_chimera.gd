@@ -50,7 +50,7 @@ func _floor(tid: String, n: int, kind := "") -> void:
 	Objectives.forced = kind
 	main._start_floor(n)
 	Objectives.forced = ""
-	await t._frames(2)
+	await t._ticks(2)
 	main.banner = {}
 	for e in main.enemies():
 		e.set_physics_process(false)
@@ -88,7 +88,7 @@ func _spawn(kind: String, pos: Vector2):
 	e.setup(kind, main)
 	e.position = pos
 	main.add_child(e)
-	await t._frames(1)
+	await t._ticks(1)
 	e.set_physics_process(false)
 	return e
 
@@ -212,7 +212,7 @@ func _firebird_system() -> void:
 	p.global_position = Rect2(v["rect"]).get_center()
 	await t._until(func(): return fb.carries > 0, 1.0)
 	await t._until(func(): return p.jump_t <= 0.0, 3.0)
-	await t._frames(3)
+	await t._ticks(3)
 	_check(fb.carries == 1 and main.floor_num == floor0 and p.global_position.distance_to(v["to"]) < 30.0 and not Rect2(g["rect"]).has_point(p.global_position),
 		"stepping onto a vent, the updraft carries you across the gap (%s from the landing)" % str(p.global_position.distance_to(v["to"])))
 	# A bridge burns behind you once you've crossed, and regrows.
@@ -220,11 +220,11 @@ func _firebird_system() -> void:
 	var keep_regrow: float = FB.RULES["regrow"]
 	FB.RULES["regrow"] = 1.0
 	p.global_position = b["a"]
-	await t._frames(3)
+	await t._ticks(3)
 	p.global_position = Rect2(b["slice"]).get_center()
-	await t._frames(3)
+	await t._ticks(3)
 	p.global_position = b["b"]
-	await t._frames(3)
+	await t._ticks(3)
 	# Step off the far end onto firm ground (an island's edge can be rock or abyss straight ahead).
 	var along: Vector2 = (Vector2(b["b"]) - Vector2(b["a"])).normalized()
 	var far: Vector2 = Vector2(b["b"]) + along * 50.0
@@ -239,7 +239,7 @@ func _firebird_system() -> void:
 		if picked:
 			break
 	p.global_position = far
-	await t._frames(3)
+	await t._ticks(3)
 	_check(b["state"] == "smoulder", "crossing a burning bridge sets it smouldering behind you")
 	await t._until(func(): return b["state"] == "burnt", 3.0)
 	var gone: bool = main.in_chasm(Rect2(b["slice"]).get_center())
@@ -296,7 +296,7 @@ func _rekindle() -> void:
 	var main = t.main
 	await _floor("firebird", 5, "rekindle")
 	var ob = main.objective
-	await t._frames(2)
+	await t._ticks(2)
 	var rk = _sys("firebird").rk if _sys("firebird") != null else null
 	_check(ob.kind == "rekindle" and ob.own_kind and rk != null and main.ward, "the Firebird's task can be Rekindle the Beacons")
 	if rk == null:
@@ -306,22 +306,22 @@ func _rekindle() -> void:
 	p.max_hp = 999.0
 	p.hp = 999.0
 	p.global_position = ob.pieces[0]["pos"]
-	await t._frames(3)
+	await t._ticks(3)
 	_check(ob.pieces[0]["state"] == "todo", "a beacon won't light without a flame")
 	p.global_position = rk.extras[0]["pos"]
-	await t._frames(3)
+	await t._ticks(3)
 	_check(rk.carrying, "walking up to the hearth takes a flame")
 	p.global_position = main.player_start
-	await t._frames(2)
+	await t._ticks(2)
 	rk.flame = 0.05
 	await t._game_wait(0.3)
 	_check(not rk.carrying, "...which gutters out if it isn't carried in time")
 	for pc in ob.pieces:
 		p.global_position = rk.extras[0]["pos"]
-		await t._frames(2)
+		await t._ticks(2)
 		p.global_position = pc["pos"]
-		await t._frames(3)
-	await t._frames(2)
+		await t._ticks(3)
+	await t._ticks(2)
 	_check(ob.done and not main.ward, "carrying the flame to every beacon lifts the ward")
 	var b2 := FB.new()
 	_check(load("res://scripts/towers/rekindle.gd").burn_time([Vector2.ZERO], [Vector2(2000, 0)], 10) > 30.0, "the flame always lasts the longest leg (a far beacon gets more time)")
@@ -334,13 +334,13 @@ func _ashwing() -> void:
 	await _floor("firebird", 4, "shards")
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(2)
+	await t._ticks(2)
 	var p = main.player
 	var at: Vector2 = p.global_position + Vector2(0, -60)
 	var a = await _spawn("ashwing", at)
 	_check(a.kind in a.FLIERS and Creatures.has("ashwing") and main.Floors.MONSTERS.has("ashwing") and Towers.TOWERS["firebird"]["weights"].has("ashwing"), "the ashwing is the Firebird's, a flier, in its tower's mix")
 	a.take_hit(9999.0, Vector2.ZERO, 0.0)
-	await t._frames(1)
+	await t._ticks(1)
 	_check(not a.dead and a.state == "ashes", "struck down, it sinks into a heap of glowing ash")
 	a.set_physics_process(true)
 	a.state_t = 0.1
@@ -356,7 +356,7 @@ func _ashwing() -> void:
 	c.take_hit(9999.0, Vector2.ZERO, 0.0)
 	c.soaked = 2.0
 	c.set_physics_process(true)
-	await t._frames(3)
+	await t._ticks(3)
 	_check(not is_instance_valid(c) or c.dead, "soaked ash won't rise either")
 
 
@@ -380,7 +380,7 @@ func _burning_bridge() -> void:
 		return
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 	var p = main.player
 	p.max_hp = 999.0
 	p.hp = 999.0
@@ -503,7 +503,7 @@ func _heartroots() -> void:
 	await _floor("chimera", 5, "heartroots")
 	var ch = _sys("chimera")
 	var ob = main.objective
-	await t._frames(2)
+	await t._ticks(2)
 	var hr = ch.hr if ch != null else null
 	_check(ob.kind == "heartroots" and ob.own_kind and hr != null and main.ward and ob.pieces.size() >= 3, "the Chimera's task can be the Hungry Grove")
 	if hr == null:
@@ -541,8 +541,8 @@ func _heartroots() -> void:
 		for k in 3:
 			p.global_position = Vector2(r["pos"]) + Vector2(-40, 0)
 			ob.strike(p.global_position, Vector2.RIGHT, 50.0, 60.0)
-		await t._frames(2)
-	await t._frames(3)
+		await t._ticks(2)
+	await t._ticks(3)
 	_check(ob.done and not main.ward and hr.step == ob.pieces.size(), "cutting each as it wakes, in turn, lifts the ward")
 	_check(ch.withered and ch.grown().is_empty(), "...and every thorn on the floor withers")
 
@@ -553,7 +553,7 @@ func _briar() -> void:
 	await _floor("chimera", 4, "shards")
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(2)
+	await t._ticks(2)
 	var p = main.player
 	p.max_hp = 999.0
 	p.hp = 999.0
@@ -571,9 +571,9 @@ func _briar() -> void:
 	await t._until(func(): return b.state == "grab" or b.state == "rooted", 2.0)
 	_check(b.state == "grab" and main.trap_view.root_t > 0.0, "come close and it lashes out and grabs you")
 	p.roll_t = 0.3
-	await t._frames(3)
+	await t._ticks(3)
 	p.roll_t = 0.0
-	await t._frames(3)
+	await t._ticks(3)
 	_check(b.state != "grab", "...a roll breaks free")
 	b.queue_free()
 	p.global_position = at + Vector2(0, 300) if not main.is_solid(at + Vector2(0, 300)) else at + Vector2(300, 0)
@@ -604,7 +604,7 @@ func _thicket() -> void:
 		return
 	for e in main.enemies():
 		e.queue_free()
-	await t._frames(1)
+	await t._ticks(1)
 	var p = main.player
 	p.max_hp = 999.0
 	p.hp = 999.0
