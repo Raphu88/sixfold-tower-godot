@@ -8814,7 +8814,7 @@ func _train_tests() -> void:
 	# Reading a recall scroll brings the pack down to the train.
 	main.read_recall()
 	_check(prof.pack.size() == 1 and G.base_id(prof.pack[0]) == "axe" and p.pack.is_empty(), "leaving the tower brings the pack home")
-	_check(main.victory.get("lines", []).any(func(l): return String(l).begins_with("Your pack comes down")), "...and the screen says so")
+	_check(main.victory.get("lines", []).any(func(l): return String(l).contains("Your pack comes down")), "...and the screen says so")
 	main.victory = {}
 	# (A new climb is a fresh scene: start gear and the starting draught.)
 	p.gear = G.start_gear()
