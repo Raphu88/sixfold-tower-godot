@@ -89,12 +89,16 @@ const ELEMENTS := {
 	"hud.marks": {"name": "Marks", "space": "hud", "anchor": "tl", "pos": Vector2(96, 44), "size": Vector2(204, 34)},
 	"hud.essence": {"name": "Unbanked essence", "space": "hud", "anchor": "tl", "pos": Vector2(16, 86), "size": Vector2(300, 22)},
 	"hud.hints": {"name": "Key hints", "space": "hud", "anchor": "tr", "pos": Vector2(-16, 12), "size": Vector2(330, 26), "sets": ["desktop"]},
-	"hud.floor": {"name": "Floor title", "space": "screen", "anchor": "t", "pos": Vector2(0, 4), "size": Vector2(420, 72)},
-	"hud.banner": {"name": "New floor banner", "space": "screen", "anchor": Vector2(0.5, 0.3), "pivot": Vector2(0.5, 0.0), "pos": Vector2(0, -46), "size": Vector2(640, 128)},
-	"hud.beast": {"name": "Beast's health", "space": "screen", "anchor": "t", "pos": Vector2(0, 52), "size": Vector2(600, 60)},
-	"hud.plates": {"name": "Shut door and challenge", "space": "screen", "anchor": "t", "pos": Vector2(0, 67), "size": Vector2(400, 90)},
+	# The play screen's notifications (notices.gd): the top-middle lane (one
+	# banner at a time), the status chips under it (the task, "doors shut", a
+	# beast's health) and the left feed (pickups and news). Unarranged, the
+	# lane and its chips centre themselves between the corner's bars and the
+	# top-right buttons; arranged, they stay where they're put.
+	"hud.lane": {"name": "Announcements (top middle)", "space": "hud", "anchor": "t", "pos": Vector2(0, 6), "size": Vector2(440, 50)},
+	"hud.status": {"name": "Status lines (under the announcements)", "space": "hud", "anchor": "t", "pos": Vector2(0, 60), "size": Vector2(300, 74)},
+	"hud.feed": {"name": "Feed (pickups and news)", "space": "hud", "anchor": "tl", "pos": Vector2(16, 114), "size": Vector2(270, 74)},
 	"hud.stair": {"name": "Stair arrow's ring", "space": "screen", "anchor": "c", "pos": Vector2(0, 32), "size": Vector2(-80, -144), "fill": Vector2(1, 1)},
-	"hud.entity": {"name": "The Entity's bubble", "space": "screen", "anchor": "tr", "pos": Vector2(-16, 46), "size": Vector2(330, 66),
+	"hud.entity": {"name": "The Entity (its sphere and bubble)", "space": "screen", "anchor": "tr", "pos": Vector2(-16, 46), "size": Vector2(330, 66),
 		"touch": {"pos": Vector2(-12, 64), "size": Vector2(300, 66)}},
 	"touch.stick": {"name": "Joystick zone", "space": "screen", "anchor": "tl", "pos": Vector2.ZERO, "size": Vector2.ZERO, "fill": Vector2(0.5, 1.0), "sets": ["touch"]},
 }
@@ -125,6 +129,12 @@ const TOUCH := [
 	["mark_5", "Mark button 5", "br", Vector2(-160, -400), 34.0],
 	["mark_6", "Mark button 6", "br", Vector2(-395, -265), 34.0],
 ]
+
+## Elements that are gone: the floor title, the centre banner, the beast's
+## bar and the shut-door plate all moved into the top-middle lane ("hud.lane",
+## "hud.status"). An arrangement saved for one of these is dropped when it's
+## read, so an old file never holds a dead entry.
+const DROPPED := ["hud.floor", "hud.banner", "hud.beast", "hud.plates"]
 
 const TestRun := preload("res://scripts/test_run.gd")
 ## Where the arrangements are kept (tests point these elsewhere).
@@ -448,6 +458,8 @@ static func parse(text: String):
 			var ov = set_d[id]
 			if not (ov is Dictionary):
 				return null
+			if String(id) in DROPPED:
+				continue
 			if bool(ov.get("reset", false)):
 				out[s][id] = {"reset": true}
 				continue
@@ -521,7 +533,7 @@ static func load_all(with_user := true) -> void:
 					continue
 				for id in mine:
 					var ov = mine[id]
-					if not (ov is Dictionary):
+					if not (ov is Dictionary) or String(id) in DROPPED:
 						continue
 					if bool(ov.get("reset", false)):
 						over[s].erase(id)

@@ -274,6 +274,8 @@ func _begin(s: Dictionary) -> void:
 		_seal(s)
 	var th: Dictionary = main.Themes.get_theme("scn_" + String(s["kind"]))
 	main.banner = {"title": String(th["name"]).to_upper(), "lines": [TEXT.get(s["kind"], status_title(s))], "t": 2.2}
+	main.note_event("scenario", String(main.notices.TEXT["scenario_start"]) % String(th["name"]), null, false)
+	main.remark("scenario:" + String(s["kind"]))
 	main.sfx("ready", 0.9, -2.0)
 	main.shake(3.0)
 
@@ -509,20 +511,26 @@ func _finish(s: Dictionary, grade: String, why := "") -> void:
 	var g: Dictionary = GRADES[grade]
 	if grade == "none":
 		main.banner = {"title": String(th["name"]).to_upper(), "lines": [why if why != "" else TEXT["failed"]], "t": 2.5}
+		main.note_event("scenario", String(main.notices.TEXT["scenario_failed"]) % String(th["name"]), null, false)
 		main.sfx("puzzle_fail", 1.0, -4.0)
 		return
 	var kind: String = main.tower_data().get("essence", "air")
 	var amount: float = float(g["essence"]) + float(g["per_floor"]) * main.floor_num
 	main.gather_essence(kind, amount, main.player.global_position)
 	var lines: Array = [TEXT["noticed_line"] % [th["name"], g["name"]]]
+	# The lane says the beast noticed; the feed and the Entity's log keep
+	# the grade and the renown.
+	main.note_event("noticed", String(main.notices.TEXT["noticed"]) % [main.beast_name().capitalize(), th["name"], g["name"]], null, false)
 	if main.profile != null and int(g["renown"]) > 0:
 		var r: Dictionary = Renown.earn(main.profile, int(g["renown"]), "%s (%s)" % [th["name"], g["name"]])
 		lines.append(TEXT["renown"] % ("+%d" % int(g["renown"])))
+		main.note_event("renown", String(lines[-1]), null, false)
 		if String(r.get("rank_up", "")) != "":
 			lines.append(String(r["rank_up"]))
+			main.note_event("renown", String(lines[-1]), null, false)
 	Makers.feed(main, "scenario", {"gold": 3.0, "silver": 2.0, "bronze": 1.0}[grade])
 	main.note_noticed(String(s["kind"]), grade)
-	main.banner = {"title": TEXT["noticed"] % main.beast_name().to_upper(), "lines": lines, "t": 3.0}
+	main.banner = {"title": TEXT["noticed"] % main.beast_name().to_upper(), "lines": lines, "t": 3.0, "show": 1, "logged": true, "kinds": {lines[-1]: "renown"}}
 	main.sfx("puzzle_solve", 1.0, -2.0)
 	main.fx_ring(main.player.global_position, Color(1.0, 0.85, 0.5), 80.0, 0.6, 4.0)
 

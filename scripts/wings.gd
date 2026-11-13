@@ -394,6 +394,8 @@ func _try_seal(w: Dictionary) -> void:
 	main.sfx("slam", 0.55, 0.0, 0.0)
 	main.sfx("step_plate", 0.45, -4.0, 0.0)
 	main.banner = {"title": TEXT["sealed_title"], "lines": [TEXT["sealed"]], "t": 3.5}
+	main.note_event("doors", main.notices.TEXT["doors_shut"], null, false)
+	main.remark("wing")
 	main.tip("door_sealed")
 	dirty = true
 
@@ -683,7 +685,7 @@ func _take_drop(w: Dictionary) -> void:
 	main.profile.add_crystal(d["kind"], d["amount"])
 	main.profile.save()
 	var name: String = Items.CRYSTAL["name"] % Essence.display(d["kind"])
-	main.fx_text(main.player.global_position + Vector2(0, -44), TEXT["crystal_taken"] % name, Essence.color(d["kind"]))
+	main.note_event("crystal", TEXT["crystal_taken"] % name, Essence.color(d["kind"]))
 	main.sfx("pickup", 0.9, -2.0, 0.0)
 	dirty = true
 
@@ -799,6 +801,7 @@ func _open_secret(s: Dictionary) -> void:
 	if s["content"] == "tithe":
 		s["light"] = main.lighting.add_spot(s["seal_pos"] - Vector2(s["vault_dir"]) * 22.0, -Vector2(s["vault_dir"]), 130.0, 130.0, Color(0.7, 0.85, 1.0), 0.6, 0.15)
 	main.banner = {"title": TEXT["secret_title"], "lines": [], "t": 2.0}
+	main.note_event("secret", main.notices.TEXT["secret"], null, false)
 	dirty = true
 
 
@@ -808,7 +811,7 @@ func _take_cache(s: Dictionary) -> void:
 	var amount: float = main.Floors.cache_amount(main.floor_num) * float(SECRET["cache_mult"])
 	var pos: Vector2 = s["rect"].get_center()
 	main.gather_essence(kind, amount, pos)
-	main.fx_text(pos + Vector2(0, -36), TEXT["cache"] % int(amount), Essence.color(kind))
+	main.notices.feed(TEXT["cache"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
 	if randf() < float(SECRET["gear_chance"]):
 		main.drop_gear(pos + Vector2(0, 18), main.find_gear("", 1), true)
 	main.fx_ring(pos, Essence.color(kind), 70.0, 0.5, 4.0)

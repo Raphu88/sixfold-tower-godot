@@ -257,7 +257,8 @@ static func capture(main, kind: String, amount: float, from: Vector2) -> float:
 	curl.z_index = 10
 	main.add_child(curl)
 	curl.rise(from, clampi(int(ceil(took)), 5, 14))
-	main.fx_text(p.global_position + Vector2(0, -58), TEXT["captured"] % [int(round(took)), Secret.display(kind), int(floor(float(v["amount"]))), int(CAPACITY)], Color(col, 0.95))
+	main.notices.feed(TEXT["captured"] % [int(round(took)), Secret.display(kind), int(floor(float(v["amount"]))), int(CAPACITY)], Color(col, 0.95), "essence")
+	main.notices.note_essence("vessel:" + kind, took, Secret.display(kind), Color(col, 0.95))
 	main.sfx("vessel_fill", 1.0, 0.0, 0.0)
 	main.tip("vessel_capture")
 	if is_full(v):
