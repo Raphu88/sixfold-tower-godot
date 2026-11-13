@@ -107,9 +107,13 @@ func _cast_by_key() -> void:
 		await t._frames(1)
 
 
-## Waits until `cond` holds, or `seconds` of game time pass (smoke_test.gd _until).
+## Waits until `cond` holds, or `seconds` of game time pass: frame by frame
+## (these checks free nodes after: never from inside a physics step), with the
+## deadline in physics ticks, not on the clock (a busy machine ticks slower).
 func _until(cond: Callable, seconds: float) -> void:
-	await t._until(cond, seconds)
+	var end := Engine.get_physics_frames() + ceili(seconds * Engine.physics_ticks_per_second)
+	while not cond.call() and Engine.get_physics_frames() < end:
+		await t._frames(1)
 
 
 ## A number of the hand's first spell at its step, or 0 (heat_cap: how far past 100).
