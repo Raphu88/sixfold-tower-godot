@@ -87,9 +87,9 @@ func _banners() -> void:
 	main.banner = {}
 	await t._frames(2)
 	_check(NS.current.is_empty() and not NS.busy(), "an empty lane to start with")
-	main.banner = {"title": "FIRST", "lines": ["One."], "t": 0.5}
+	main.banner = {"title": "FIRST", "lines": ["One."], "t": 1.2}
 	_check(NS.current.get("title", "") == "FIRST" and main.banner.get("title", "") == "FIRST", "a banner goes to the top lane at once")
-	await t._frames(4)
+	await t._until(func(): return main.hud.lane_rects()["banner"].has_area(), 0.8)  # (once it's drawn and has begun to fade in)
 	var r: Rect2 = main.hud.lane_rects()["banner"]
 	var view: Vector2 = main.hud.get_viewport_rect().size
 	_check(r.has_area() and r.end.y < view.y * 0.2 and absf(r.get_center().x - view.x * 0.5) < view.x * 0.12, "...at the top, in the middle (%s)" % r)
@@ -639,7 +639,7 @@ func _puzzle_notes() -> void:
 		var want: String = String(pz.cur.riddles[0]) if kind == "lock" else String(pz.cur.TEXT["rule"][0])
 		_check(b.get("note", false) and b.get("title", "") == pz.display_name().to_upper() and want in b.get("lines", []), "%s: stepping in says its rule in the top lane (%s)" % [pz.display_name(), want])
 		_check(pz.plaques.size() == 1 and pz.room.has_point(pz.plaques[0]), "...and leaves a small ? plaque in the room")
-		await t._frames(4)
+		await t._until(func(): return main.hud.lane_rects()["banner"].has_area(), 1.0)
 		var r: Rect2 = main.hud.lane_rects()["banner"]
 		var view: Vector2 = main.hud.get_viewport_rect().size
 		_check(r.has_area() and r.end.y < view.y * 0.3, "...the words at the top of the screen, not over the puzzle (%s)" % r)

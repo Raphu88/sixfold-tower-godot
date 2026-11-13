@@ -8402,7 +8402,8 @@ func _entity_tests() -> void:
 	var over_bar: bool = top_bar.any(func(b): return r.intersects(Rect2(b["c"] - Vector2(b["r"], b["r"]), Vector2(b["r"], b["r"]) * 2.0)))
 	_check(r.has_area() and not covers and not over_bar and (r.position.y > 50.0 or main.entity.lane), "on a phone the bubble sits under the menu buttons or in the top lane, clear of the action buttons and the menu buttons")
 	var vs: Vector2 = main.entity.get_viewport_rect().size
-	_check(r.end.x <= vs.x and r.position.x >= vs.x * 0.3, "...on the right, away from the joystick (%s in %s)" % [r, vs])
+	# (on the very tightest screens the top lane itself sits on the left, under the bars: notices.gd left_mode)
+	_check(r.end.x <= vs.x and (r.position.x >= vs.x * 0.3 or main.notices.left_mode), "...on the right or in the top lane, away from the joystick (%s in %s)" % [r, vs])
 	await _tap_at(r.get_center())
 	await _until_no_bubble()
 	_check(not main.entity.showing() and main.touch.held.is_empty() and main.touch.stick_touch < 0, "a tap dismisses it (and the touch controls don't take it)")

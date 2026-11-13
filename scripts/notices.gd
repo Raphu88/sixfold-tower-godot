@@ -63,7 +63,7 @@ const QUEUE_MAX := 3
 ## screen it may take.
 const LANE_TOP := 6.0
 const LANE_W := 440.0
-const LANE_MIN := 150.0
+const LANE_MIN := 140.0
 const LANE_SHARE := 0.36
 const NOTE_W := 520.0  # (a note, words to read, may be this wide)
 ## Type sizes: a banner's title and line, a chip, a feed line.
