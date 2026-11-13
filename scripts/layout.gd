@@ -81,6 +81,8 @@ const KEEP_ON := 24.0
 ##   sets    which layout sets have it (default both)
 ##   touch   fields that differ in the touch set
 ##   button  a touch button: kept on screen and at least MIN_TOUCH across
+##   zone    it covers much of the screen: Arrange mode lists it, and only
+##           outlines it while it's chosen (it would lie under everything else)
 const ELEMENTS := {
 	"hud.bars": {"name": "Health and stamina", "space": "hud", "anchor": "tl", "pos": Vector2(12, 10), "size": Vector2(218, 32)},
 	"hud.gem": {"name": "Path gem and vessel", "space": "hud", "anchor": "tl", "pos": Vector2(234, 6), "size": Vector2(58, 36)},
@@ -94,13 +96,32 @@ const ELEMENTS := {
 	# beast's health) and the left feed (pickups and news). Unarranged, the
 	# lane and its chips centre themselves between the corner's bars and the
 	# top-right buttons; arranged, they stay where they're put.
-	"hud.lane": {"name": "Announcements (top middle)", "space": "hud", "anchor": "t", "pos": Vector2(0, 6), "size": Vector2(440, 50)},
-	"hud.status": {"name": "Status lines (under the announcements)", "space": "hud", "anchor": "t", "pos": Vector2(0, 60), "size": Vector2(300, 74)},
-	"hud.feed": {"name": "Feed (pickups and news)", "space": "hud", "anchor": "tl", "pos": Vector2(16, 114), "size": Vector2(270, 74)},
-	"hud.stair": {"name": "Stair arrow's ring", "space": "screen", "anchor": "c", "pos": Vector2(0, 32), "size": Vector2(-80, -144), "fill": Vector2(1, 1)},
-	"hud.entity": {"name": "The Entity (its sphere and bubble)", "space": "screen", "anchor": "tr", "pos": Vector2(-16, 46), "size": Vector2(330, 66),
+	"hud.lane": {"name": "Announcements", "space": "hud", "anchor": "t", "pos": Vector2(0, 6), "size": Vector2(440, 50)},
+	"hud.status": {"name": "Status lines", "space": "hud", "anchor": "t", "pos": Vector2(0, 60), "size": Vector2(300, 74)},
+	"hud.feed": {"name": "Pickups and news", "space": "hud", "anchor": "tl", "pos": Vector2(16, 114), "size": Vector2(270, 74)},
+	"hud.stair": {"name": "Stair arrow's ring", "space": "screen", "anchor": "c", "pos": Vector2(0, 32), "size": Vector2(-80, -144), "fill": Vector2(1, 1), "zone": true},
+	"hud.entity": {"name": "The Entity", "space": "screen", "anchor": "tr", "pos": Vector2(-16, 46), "size": Vector2(330, 66),
 		"touch": {"pos": Vector2(-12, 64), "size": Vector2(300, 66)}},
-	"touch.stick": {"name": "Joystick zone", "space": "screen", "anchor": "tl", "pos": Vector2.ZERO, "size": Vector2.ZERO, "fill": Vector2(0.5, 1.0), "sets": ["touch"]},
+	"touch.stick": {"name": "Joystick zone", "space": "screen", "anchor": "tl", "pos": Vector2.ZERO, "size": Vector2.ZERO, "fill": Vector2(0.5, 1.0), "sets": ["touch"], "zone": true},
+}
+
+## Arrange mode's blocks: things that sit together are arranged as one
+## block first ("Go inside" a block to arrange its parts one by one). A
+## block is only a way of choosing its parts together: moving or scaling it
+## moves or scales each part, and what's saved is still each part's own
+## arrangement, under its own name. `of`: its parts, in order; `name`: what
+## Arrange mode calls it; `sets`: which layout sets have it (default both);
+## `loose`: its parts are scattered among other things (the phone's action
+## buttons), so it's outlined part by part rather than with one box around
+## them all (until it's chosen).
+const GROUPS := {
+	"group.status": {"name": "Status corner", "of": ["hud.bars", "hud.gem", "hud.weapon", "hud.item", "hud.marks", "hud.essence"]},
+	# (the top-middle lane: one banner at a time, and the status lines under it)
+	"group.notices": {"name": "Top notices", "of": ["hud.lane", "hud.status"]},
+	"group.touch_actions": {"name": "Action buttons", "sets": ["touch"], "loose": true,
+		"of": ["touch.attack", "touch.roll", "touch.jump", "touch.parry", "touch.weapon", "touch.item", "touch.item_next", "touch.take", "touch.tools",
+			"touch.mark_1", "touch.mark_2", "touch.mark_3", "touch.mark_4", "touch.mark_5", "touch.mark_6"]},
+	"group.touch_menu": {"name": "Menu buttons", "sets": ["touch"], "of": ["touch.inventory", "touch.climber", "touch.menu", "touch.fullscreen"]},
 }
 
 ## The touch buttons (touch.gd), laid out for the phone view: [id, name,
@@ -178,7 +199,7 @@ static func _ensure_defs() -> void:
 static func _add(id: String, d: Dictionary) -> void:
 	var n := {
 		"id": id, "name": String(d.get("name", id)), "space": String(d.get("space", "screen")),
-		"sets": d.get("sets", SETS), "button": bool(d.get("button", false)),
+		"sets": d.get("sets", SETS), "button": bool(d.get("button", false)), "zone": bool(d.get("zone", false)),
 	}
 	for s in SETS:
 		var src: Dictionary = d.duplicate()
@@ -212,6 +233,8 @@ static func def(id: String) -> Dictionary:
 
 
 static func display_name(id: String) -> String:
+	if GROUPS.has(id):
+		return String(GROUPS[id]["name"])
 	return String(def(id).get("name", id))
 
 
@@ -224,6 +247,38 @@ static func ids(set_name := "") -> Array:
 
 static func is_button(id: String) -> bool:
 	return bool(def(id).get("button", false))
+
+
+## It covers much of the screen (the stair arrow's ring, the joystick zone).
+static func is_zone(id: String) -> bool:
+	return bool(def(id).get("zone", false))
+
+
+## A block of elements arranged together (GROUPS).
+static func is_group(id: String) -> bool:
+	return GROUPS.has(id)
+
+
+## A block whose parts are scattered among other things (outlined part by part).
+static func is_loose(id: String) -> bool:
+	return bool(GROUPS.get(id, {}).get("loose", false))
+
+
+## A block's parts in the set in use, in order.
+static func group_members(id: String) -> Array:
+	var g: Dictionary = GROUPS.get(id, {})
+	if g.is_empty() or not (active_set in g.get("sets", SETS)):
+		return []
+	var have := ids()
+	return (g["of"] as Array).filter(func(m): return m in have)
+
+
+## The block an element belongs to ("" if it stands on its own).
+static func group_of(id: String) -> String:
+	for g in GROUPS:
+		if id in GROUPS[g]["of"] and active_set in GROUPS[g].get("sets", SETS):
+			return g
+	return ""
 
 
 static func space(id: String) -> String:
