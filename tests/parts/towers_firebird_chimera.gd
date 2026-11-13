@@ -122,7 +122,7 @@ func _shapes() -> void:
 
 func _plans() -> void:
 	print("towers (firebird, chimera): floor plans and reachability")
-	var fb := {"gaps": 0, "burning": 0, "storms": 0, "spires": 0, "organic": 0, "rooms": 0, "bad": [], "floors": 0}
+	var fb := {"gaps": 0, "burning": 0, "storms": 0, "crags": 0, "organic": 0, "rooms": 0, "bad": [], "floors": 0}
 	var ch := {"thorns": 0, "closing": 0, "brambles": 0, "pods": 0, "organic": 0, "rooms": 0, "bad": [], "floors": 0, "on_way": 0}
 	for k in 4:
 		for fl in [2, 3, 4, 5, 7, 8, 9, 10, 11]:
@@ -136,7 +136,7 @@ func _plans() -> void:
 			fb["burning"] += d.get("burning", []).size()
 			fb["storms"] += d.get("storms", []).size()
 			for s in d.get("storms", []):
-				fb["spires"] += int(s.get("spires", 0))
+				fb["crags"] += int(s.get("crags", 0))
 			for ri in plan.get("room_info", []):
 				fb["rooms"] += 1
 				if Organic.is_shape(String(ri["shape"])):
@@ -168,8 +168,8 @@ func _plans() -> void:
 	_check(fb["bad"].is_empty(), "the Firebird's floors: the stair, every room and the task are always reachable (%d floors) %s" % [fb["floors"], fb["bad"]])
 	_check(ch["bad"].is_empty(), "the Thornwild's floors: the stair, every room and the task are always reachable (%d floors) %s" % [ch["floors"], ch["bad"]])
 	_check(fb["organic"] * 2 >= fb["rooms"] and ch["organic"] * 2 >= ch["rooms"], "most rooms are grown or broken, not boxes (Firebird %d of %d, Thornwild %d of %d)" % [fb["organic"], fb["rooms"], ch["organic"], ch["rooms"]])
-	_check(fb["gaps"] >= 18 and fb.get("ok_gap", false) and fb["burning"] >= 18 and fb["storms"] >= 20 and fb["spires"] >= 20,
-		"the Firebird lays updraft gaps, burning bridges and ember storms with rock to shelter behind (%d, %d, %d, %d spires)" % [fb["gaps"], fb["burning"], fb["storms"], fb["spires"]])
+	_check(fb["gaps"] >= 18 and fb.get("ok_gap", false) and fb["burning"] >= 18 and fb["storms"] >= 20 and fb["crags"] >= 20,
+		"the Firebird lays updraft gaps, burning bridges and ember storms with rock to shelter behind (%d, %d, %d, %d crags)" % [fb["gaps"], fb["burning"], fb["storms"], fb["crags"]])
 	_check(ch["thorns"] >= 50 and ch["closing"] >= 12 and ch["brambles"] >= 30 and ch["pods"] >= 60 and ch["on_way"] > 0,
 		"the Thornwild lays thorn walls, closing thickets, brambles and spore pods (%d, %d, %d, %d)" % [ch["thorns"], ch["closing"], ch["brambles"], ch["pods"]])
 	# The towers' own kinds stay home.
@@ -225,7 +225,19 @@ func _firebird_system() -> void:
 	await t._frames(3)
 	p.global_position = b["b"]
 	await t._frames(3)
-	var far: Vector2 = b["b"] + (Vector2(b["b"]) - Vector2(b["a"])).normalized() * 50.0
+	# Step off the far end onto firm ground (an island's edge can be rock or abyss straight ahead).
+	var along: Vector2 = (Vector2(b["b"]) - Vector2(b["a"])).normalized()
+	var far: Vector2 = Vector2(b["b"]) + along * 50.0
+	for dist in [50.0, 40.0, 60.0, 30.0, 80.0]:
+		var picked := false
+		for k in 7:
+			var q: Vector2 = Vector2(b["b"]) + along.rotated(floorf((k + 1) / 2.0) * 0.35 * (1 - 2 * (k % 2))) * dist
+			if not main.is_solid(q) and not main.in_chasm(q) and not Rect2(b["corridor"]).grow(main.player.radius).has_point(q):
+				far = q
+				picked = true
+				break
+		if picked:
+			break
 	p.global_position = far
 	await t._frames(3)
 	_check(b["state"] == "smoulder", "crossing a burning bridge sets it smouldering behind you")
@@ -477,11 +489,24 @@ func _heartroots() -> void:
 	p.max_hp = 999.0
 	p.hp = 999.0
 	var now: Dictionary = hr.awake()
+	# A sleeping root and a side to strike it from where the blow can't also reach the awake one.
 	var asleep: Dictionary = ob.pieces.filter(func(x): return x != now)[0]
-	p.global_position = Vector2(asleep["pos"]) + Vector2(-40, 0)
+	var sdir := Vector2.RIGHT
+	for pc in ob.pieces.filter(func(x): return x != now):
+		var found := false
+		for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:
+			var to_now: Vector2 = Vector2(now["pos"]) - (Vector2(pc["pos"]) - d * 40.0)
+			if to_now.length() > 50.0 + 30.0 or absf(d.angle_to(to_now)) > deg_to_rad(60.0 + 30.0):
+				asleep = pc
+				sdir = d
+				found = true
+				break
+		if found:
+			break
+	p.global_position = Vector2(asleep["pos"]) - sdir * 40.0
 	p.iframes = 0.0
 	var hp0: float = p.hp
-	ob.strike(p.global_position, Vector2.RIGHT, 50.0, 60.0)
+	ob.strike(p.global_position, sdir, 50.0, 60.0)
 	_check(hr.lashes == 1 and asleep["state"] == "todo" and p.hp < hp0, "striking a sleeping heart-root, its thorns lash you")
 	var goal: Array = main.hud.arrow_goal()
 	_check(not goal.is_empty() and goal[0] == now["pos"], "the arrow points at the root that's awake")

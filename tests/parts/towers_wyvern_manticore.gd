@@ -520,6 +520,11 @@ func _burrower() -> void:
 			stone = q
 			break
 	if stone != Vector2.INF:
+		# (start from under the sand: if you stood on sand near it, it may already be winding up an eruption)
+		e.state = "sub"
+		e.submerged = true
+		e.state_t = 0.0
+		main.release_attack(e)
 		e.global_position = stone
 		e.aware = true
 		await t._wait(0.3)

@@ -2,7 +2,7 @@ extends RefCounted
 ## Room shapes that aren't boxes, for the towers whose floors are grown or
 ## broken rather than built (floor_styles.gd "shapes"; floors.gd asks here
 ## for any shape rooms.gd doesn't know). Carved as rows with rooms.gd's
-## legend (". floor, X rock, # a low wall or rock spire, C a chasm"):
+## legend (". floor, X rock, # a low wall or rock crag, C a chasm"):
 ##   island   a ragged island of rock: the Firebird's rooms float over the abyss
 ##   atoll    an island ringed round a hole in its middle (C: a real chasm
 ##            in the Firebird's tower, so mind your footing)
@@ -193,7 +193,7 @@ static func _tidy(g: Array, w: int, h: int) -> void:
 					g[y][x] = "X"
 
 
-## Rock spires or root clumps (low walls: cover), off the edges and the mouths.
+## Rock crags or root clumps (low walls: cover), off the edges and the mouths.
 static func _spires(g: Array, w: int, h: int, n: int) -> void:
 	var placed: Array = []
 	for tries in 40:

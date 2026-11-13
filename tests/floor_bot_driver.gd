@@ -403,6 +403,8 @@ func _task_step() -> Dictionary:
 	match k:
 		"braziers":
 			var pc := _nearest(ob.pieces.filter(func(x): return x["state"] != "done"))
+			if pc.is_empty():
+				return {"pos": pos, "act": "stand", "r": 999.0, "why": "the braziers"}
 			return {"pos": pc["pos"] + Vector2(0, 26), "act": "stand", "r": 12.0, "why": "a brazier"}
 		"runes":
 			if not ob.tablet["read"]:
@@ -414,6 +416,8 @@ func _task_step() -> Dictionary:
 			return {"pos": nxt["pos"], "act": "walk", "r": 6.0, "why": "rune %s" % nxt.get("glyph", "")}
 		"levers":
 			var pc := _nearest(ob.pieces.filter(func(x): return x["state"] != "done"))
+			if pc.is_empty():  # (every lever up: the task finishes in a moment)
+				return {"pos": pos, "act": "stand", "r": 999.0, "why": "the levers"}
 			return {"pos": pc["pos"], "act": "strike", "why": "a lever"}
 		"orb":
 			if ob.carried:

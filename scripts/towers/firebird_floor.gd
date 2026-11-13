@@ -13,7 +13,7 @@ extends "res://scripts/towers/tower_floor.gd"
 ##              always comes again
 ##   storms     ember storms sweep across some islands on a beat: a warning
 ##              haze on the windward side, then a front of burning wind
-##              across the island; stand behind rock (a spire, a pillar, the
+##              across the island; stand behind rock (a crag, a pillar, the
 ##              island's edge) and it passes over you. Firebird Form's own
 ##              fire doesn't burn you. It burns monsters too (not the fiery ones).
 ## This is the tower's floor script (floor_styles.gd "module", the hooks of
@@ -42,13 +42,13 @@ const CELL := 40.0
 ## seconds from crossing to the fall, regrow: seconds until it's back;
 ## storms: [[up to floor, islands]], every / warn / sweep: the beat
 ## (seconds), dmg (+ per_floor), shelter: how far rock upwind shelters you
-## (px), spires: [least, most] rock spires laid on a storm island.
+## (px), crags: [least, most] rock crags laid on a storm island.
 static var RULES := {
 	"gap_len": 8, "gap": 2, "gap_wide": 10, "gaps": [[3, 1], [7, 2], [99, 2]],
 	"carry": 250.0, "fly": 1.6,
 	"burning": [[2, 0], [6, 1], [99, 2]], "burn_wait": 1.3, "regrow": 9.0,
 	"storms": [[2, 0], [5, 1], [99, 2]], "every": 8.0, "warn": 1.8, "sweep": 1.3, "dmg": 9.0, "per_floor": 1.0,
-	"shelter": 110.0, "spires": [2, 3], "storm_from": 3,
+	"shelter": 110.0, "crags": [2, 3], "storm_from": 3,
 }
 static var TEXT := {
 	"updraft": "Carried on the updraft",
@@ -93,7 +93,7 @@ static func step_for(table: Array, floor_num: int) -> int:
 
 
 ## Lays the tower's own features on a planned floor: gaps with updrafts and
-## burning bridges in the corridors, ember storms (with rock spires to
+## burning bridges in the corridors, ember storms (with rock crags to
 ## shelter behind) on some islands. Writes plan["firebird"].
 ## The tower's room shapes (floor_styles.gd SHAPE_MODULES): islands, atolls.
 static func carve(shape: String, size: Vector2i) -> Array:
@@ -102,7 +102,7 @@ static func carve(shape: String, size: Vector2i) -> Array:
 
 ## Lays the tower's own features over a planned floor (floors.gd): gaps with
 ## updrafts and burning bridges in the corridors, ember storms (with rock
-## spires to shelter behind) on some islands. Writes plan["firebird"] and
+## crags to shelter behind) on some islands. Writes plan["firebird"] and
 ## plan["tower_floor"].
 static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: int, _tower: Dictionary) -> void:
 	plan["tower_floor"] = {"module": PATH}
@@ -158,7 +158,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 			"a": _span(cr, ew, 0, 1).get_center(), "b": _span(cr, ew, n - 1, n).get_center()})
 		plan["doorways"].append(link["rect"])
 		used[link] = true
-	# Ember storms on some islands, with rock spires to shelter behind.
+	# Ember storms on some islands, with rock crags to shelter behind.
 	want = step_for(RULES["storms"], floor_num) if floor_num >= int(RULES["storm_from"]) else 0
 	var order: Array = range(1, infos.size())
 	order.shuffle()
@@ -176,11 +176,11 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 			continue
 		var dirs := [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]
 		var storm := {"room": i, "rect": info["rect"], "dir": dirs[randi() % 4], "phase": randf() * float(RULES["every"])}
-		# Rock spires (cover: main.gd keeps only those that wall nothing off).
+		# Rock crags (cover: main.gd keeps only those that wall nothing off).
 		var spots: Array = Rooms.open_tiles(info["rows"], 2).filter(func(t): return not info["reserved"].has(t))
 		spots.shuffle()
 		var placed: Array = []
-		var n_sp := randi_range(int(RULES["spires"][0]), int(RULES["spires"][1]))
+		var n_sp := randi_range(int(RULES["crags"][0]), int(RULES["crags"][1]))
 		for t in spots:
 			if placed.size() >= n_sp:
 				break
@@ -192,7 +192,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 			placed.append(t)
 			info["reserved"][t] = true
 			plan["blocks"].append(Rect2(Vector2(info["rect"].position) + Vector2(t) * CELL, Vector2(CELL, CELL)))
-		storm["spires"] = placed.size()
+		storm["crags"] = placed.size()
 		out["storms"].append(storm)
 	plan["firebird"] = out
 
@@ -457,7 +457,7 @@ func _front(s: Dictionary, k: float) -> float:
 	return (absf(r.size.dot(d)) + 60.0) * k - 30.0
 
 
-## Rock upwind (a wall, a spire, a pillar) within reach shelters a spot.
+## Rock upwind (a wall, a crag, a pillar) within reach shelters a spot.
 func shelter(s: Dictionary, pos: Vector2) -> bool:
 	var d: Vector2 = s["dir"]
 	var n := int(float(RULES["shelter"]) / 14.0)
@@ -725,7 +725,7 @@ func _point(r: Rect2, d: Vector2, along: float, across: float) -> Vector2:
 
 
 ## Paints the abyss round the islands, the cliffs under their edges, the
-## bridges, and rock spires (room.gd calls it while it draws the floor).
+## bridges, and rock crags (room.gd calls it while it draws the floor).
 func paint(rv, batch) -> bool:
 	if not on or rv.grid == Vector2i.ZERO:
 		return false
@@ -795,7 +795,7 @@ func paint(rv, batch) -> bool:
 			var a: Vector2 = tile.position + side * T * k
 			var b: Vector2 = a + (Vector2(T, 0) if horiz else Vector2(0, T))
 			batch.line(a, b, Color(0.62, 0.52, 0.36), 2.0)
-	# Rock spires (cover): a jagged column of the island's rock.
+	# Rock crags (cover): a jagged column of the island's rock.
 	for b in rv.blocks:
 		var r: Rect2 = b
 		batch.circle(r.get_center() + Vector2(4, r.size.y * 0.35), r.size.x * 0.42, Color(0, 0, 0, 0.3))
