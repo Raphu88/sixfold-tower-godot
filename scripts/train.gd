@@ -39,11 +39,10 @@ const CARS := [["engine", "Engine"], ["store", "Outfitter's Car"], ["personal", 
 	["library", "Library"], ["settings", "Settings & Controls Car"]]
 const HOME := "personal"
 
-## Your stash (the storage chest in your car): pieces kept safe between
-## climbs. (It held 8 before the stash screen; old saves load as they are.)
+## Your stash (the one stash, kept in your car: profile.chest): pieces kept
+## safe between climbs. (It held 8 before the stash screen; old saves load as
+## they are.) Every screen shows it through storage_view.gd.
 static var CHEST_SIZE := 40
-## How many stash spaces your car shows before the stash screen (Open the stash).
-const CAR_STASH := 8
 ## Selling (or breaking down at the bench, bench.gd) gives back this share of
 ## a thing's price, as a crystal of its kind. A worn Common piece fetches
 ## less, down to WORN_SELL of that.
@@ -146,16 +145,9 @@ static var TEXT := {
 	"bought": "Bought: %s",
 	"cant": "Can't buy: %s",
 	# Your car
-	"personal_sub": "Your heirlooms, and a chest for what you want to keep.",
-	"chest": "Stash  ·  %d of %d",
-	"pack": "Your pack  ·  %d of %d",
+	"personal_sub": "Your heirlooms, your pack, and your stash for what you want to keep.",
 	"heirlooms": "Heirlooms",
-	"view_chest": "Chest",
 	"view_heirlooms": "Heirlooms",
-	"chest_empty": "An empty space in your stash. Pieces kept here are safe between climbs, and never wear.",
-	"pack_empty": "An empty space in your pack. Your pack goes up the tower with you: fall, and what's in it is lost.",
-	"in_chest": "In your stash: safe on the train. It doesn't go up the tower.",
-	"in_pack": "In your pack: it goes up the tower with you as a spare. If nothing is worn in its slot, you put it on as you set off.",
 	"to_chest": "Into the stash",
 	"to_pack": "Into your pack",
 	"moved_chest": "Into the stash: %s",
@@ -200,7 +192,6 @@ static var TEXT := {
 	"loadout_short": "Loadout",
 	"stash": "Stash",  # the stash screen (stash_page.gd)
 	"stash_short": "Stash",
-	"open_stash": "Open the stash (%d)",
 	"buy_pack": "Buy: into your pack",
 	"buy_chest": "Buy: into your stash",
 	"buy_wear": "Buy and wear it",

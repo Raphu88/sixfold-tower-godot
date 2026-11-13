@@ -717,7 +717,7 @@ static func draw_key(ci: CanvasItem, at: Vector2, key: String, size := 11, col :
 	var w := maxf(mono.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 8.0, size + 5.0)
 	var r := Rect2(at, Vector2(w, size + 5.0))
 	ci.draw_style_box(_key_box(), r)
-	ci.draw_string(mono, Vector2(r.position.x, r.end.y - 4.0), key, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
+	draw_text(ci, mono, Vector2(r.position.x, r.end.y - 4.0), key, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
 	return r.size
 
 
@@ -874,12 +874,184 @@ static func draw_divider(ci: CanvasItem, from: Vector2, to: Vector2, col := GOLD
 		ci.draw_circle(c + Vector2(8, 0), 1.0, Color(col, col.a * 0.6))
 
 
+# --- drawn text (and the layout audit) ---------------------------------------
+# Text drawn in code (a slot's tag, a card's lines, the rail) goes through
+# draw_text / draw_text_lines: CanvasItem.draw_string and
+# draw_multiline_string with the same arguments. While the layout audit
+# watches (tests/layout_audit_driver.gd sets text_notes to a list), each
+# string also notes where it went and how wide it wanted to be, so the audit
+# can tell a line cut short, or two lines on top of each other, without
+# rendering anything. In play text_notes is null and nothing is noted.
+
+## The layout audit's notes: null, or a list of {"ci", "text", "rect" (in the
+## canvas item's own space), "need" (the width the words want), "room" (the
+## width they were given, -1 for no limit), "cut" (lines that didn't fit)}.
+static var text_notes = null
+
+
+## Draws one line of text, as CanvasItem.draw_string does; given a `width`
+## the words don't fit, they are drawn smaller (no smaller than FIT_FLOOR)
+## before any are cut.
+static func draw_text(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, col := Color.WHITE) -> void:
+	if width > 0.0:
+		size = fit_floor(f, text, size, width)
+	ci.draw_string(f, at, text, align, width, size, col)
+	if text_notes != null:
+		note_text(ci, f, at, text, align, width, size)
+
+
+## How tall `text` is wrapped into `width` (for a drawn control that grows
+## with its words).
+static func text_height(f: Font, text: String, width: float, size: int) -> float:
+	return f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, maxf(width, 20.0), size).y
+
+
+## Draws wrapped text, as CanvasItem.draw_multiline_string does.
+static func draw_text_lines(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, max_lines := -1, col := Color.WHITE) -> void:
+	ci.draw_multiline_string(f, at, text, align, width, size, max_lines, col)
+	if text_notes != null:
+		note_text(ci, f, at, text, align, width, size, max_lines, true)
+
+
+## Notes a drawn string for the layout audit (see text_notes).
+static func note_text(ci: CanvasItem, f: Font, at: Vector2, text: String, align: int, width: float, size: int, max_lines := -1, wrapped := false) -> void:
+	if text_notes == null or text.strip_edges() == "":
+		return
+	var need := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var shown := need
+	var h := f.get_height(size)
+	var cut := 0
+	if wrapped and width > 0.0:
+		var all := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, width, size)
+		var lines := maxi(1, int(round(all.y / maxf(h, 1.0))))
+		if max_lines > 0 and lines > max_lines:
+			cut = lines - max_lines
+			lines = max_lines
+		shown = minf(all.x, width)
+		need = shown  # (it wraps: the width is never the trouble)
+		h *= lines
+	elif width >= 0.0:
+		shown = minf(need, width)
+	var x := at.x
+	if width >= 0.0 and align == HORIZONTAL_ALIGNMENT_CENTER:
+		x += (width - shown) * 0.5
+	elif width >= 0.0 and align == HORIZONTAL_ALIGNMENT_RIGHT:
+		x += width - shown
+	text_notes.append({"ci": ci, "text": text, "rect": Rect2(x, at.y - f.get_ascent(size), shown, h), "need": need, "room": width, "cut": cut})
+
+
+## The smallest (view px) a drawn line shrinks to before it's cut: on a
+## phone the view is drawn 1.5 to 2.5 times bigger, so this is still 14 to
+## 22 px on the glass.
+const FIT_FLOOR := 9
+
+
+## Draws one line of text shrunk to fit `width` if it must (no smaller than
+## `floor_size`): a long name in a narrow card keeps all its letters. Returns
+## the size it was drawn at.
+static func draw_text_fit(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, col := Color.WHITE, floor_size := FIT_FLOOR) -> int:
+	var fs := fit_floor(f, text, size, width, floor_size)
+	draw_text(ci, f, at, text, align, width, fs, col)
+	return fs
+
+
+## The size a line can be drawn at to fit `width`, no smaller than `floor_size`.
+static func fit_floor(f: Font, text: String, size: int, width: float, floor_size := FIT_FLOOR) -> int:
+	if width <= 0.0:
+		return size
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	if w <= width:
+		return size
+	var fs := clampi(int(floor(size * width / w)), mini(floor_size, size), size)
+	while fs > floor_size and f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width:
+		fs -= 1
+	return fs
+
+
+## Notes for the layout audit that a string was shortened by hand before
+## it was drawn (its end swapped for "..."): `text` whole, the `width` it had.
+static func note_cut(ci: CanvasItem, f: Font, text: String, width: float, size: int) -> void:
+	if text_notes != null:
+		text_notes.append({"ci": ci, "text": text, "rect": Rect2(), "need": f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, "room": width, "cut": 0})
+
+
+# --- words kept whole ---------------------------------------------------------
+
+## Keeps a button's or a label's words whole in whatever width it's given
+## (a narrow phone, a big Interface size): when they don't fit, the letters
+## shrink, no smaller than `floor_size`; if they still don't fit, they wrap
+## onto more lines (and the button or label grows taller). Call it once the
+## control has its font size; it follows the control's size from then on.
+static func keep_text(c: Control, floor_size := 10) -> void:
+	c.set_meta("keep_floor", floor_size)
+	c.clip_text = true  # (it can be made narrower than its words: then they shrink or wrap)
+	if not c.resized.is_connected(_keep_text):
+		c.resized.connect(_keep_text.bind(c))
+	if c.is_inside_tree():
+		_keep_text.call_deferred(c)
+	else:
+		c.ready.connect(_keep_text.bind(c), CONNECT_ONE_SHOT)
+
+
+static func _keep_text(c: Control) -> void:
+	if not is_instance_valid(c) or c.size.x < 1.0:
+		return
+	var floor_size := int(c.get_meta("keep_floor", 10))
+	var base := int(c.get_meta("keep_base", 0))
+	if base <= 0:
+		base = c.get_theme_font_size("font_size")
+		c.set_meta("keep_base", base)
+	var f: Font = c.get_theme_font("font")
+	var room: float = c.size.x
+	if c is Button:
+		var sb: StyleBox = c.get_theme_stylebox("normal")
+		room -= sb.get_minimum_size().x if sb != null else 0.0
+		if c.icon != null:
+			room -= c.icon.get_width() + c.get_theme_constant("h_separation")
+		if c is CheckButton or c is CheckBox:
+			var ic: Texture2D = c.get_theme_icon("checked")
+			room -= (ic.get_width() if ic != null else 0.0) + c.get_theme_constant("h_separation")
+	var text: String = c.text
+	if c is Label and c.uppercase:
+		text = text.to_upper()
+	var fs := base
+	var need := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var wrap := false
+	if need > room and room > 0.0:
+		fs = clampi(int(floor(base * room / need)), mini(floor_size, base), base)
+		while fs > floor_size and f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room:
+			fs -= 1
+		wrap = f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room
+	if c.get_theme_font_size("font_size") != fs:
+		c.add_theme_font_size_override("font_size", fs)
+	var mode := TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
+	if c.autowrap_mode != mode:
+		c.autowrap_mode = mode
+	if c is Button:
+		# (a button doesn't always grow for its wrapped lines by itself: make room)
+		var base_h := float(c.get_meta("keep_h", -1.0))
+		if base_h < 0.0:
+			base_h = c.custom_minimum_size.y
+			c.set_meta("keep_h", base_h)
+		var want_h := base_h
+		if wrap:
+			var sbh: StyleBox = c.get_theme_stylebox("normal")
+			want_h = maxf(base_h, ceilf(f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, room, fs).y + (sbh.get_minimum_size().y if sbh != null else 0.0) + 2.0))
+		if not is_equal_approx(c.custom_minimum_size.y, want_h):
+			c.custom_minimum_size.y = want_h
+	if c is Label:
+		# (a wrapping label must not clip, or it asks for no height at all)
+		if c.clip_text == wrap:
+			c.clip_text = not wrap
+		c.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+
+
 ## A small gothic label (an eyebrow over a title, a section's name), in
 ## mixed case (titled()). Returns its width.
 static func draw_eyebrow(ci: CanvasItem, at: Vector2, text: String, col := GOLD, size := SIZE_EYEBROW, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0) -> float:
 	var f := font("eyebrow")
 	var t := titled(text)
-	ci.draw_string(f, at, t, align, width, size, col)
+	draw_text(ci, f, at, t, align, width, size, col)
 	return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 
 
@@ -892,7 +1064,7 @@ static func draw_title(ci: CanvasItem, at: Vector2, text: String, size: int, col
 	if halo > 0.0:
 		ci.draw_string_outline(f, at + Vector2(0, 2), text, align, width, size, maxi(4, size / 5), Color(0, 0, 0, halo * 0.6))
 		ci.draw_string_outline(f, at, text, align, width, size, 3, Color(0.12, 0.07, 0.03, halo))
-	ci.draw_string(f, at, text, align, width, size, col)
+	draw_text(ci, f, at, text, align, width, size, col)
 
 
 ## A label or name in the display face, drawn plainly (or with an outline
@@ -904,19 +1076,14 @@ static func draw_label(ci: CanvasItem, at: Vector2, text: String, size: int, col
 	size = fit_size(f, text, size, width)
 	if outline > 0:
 		ci.draw_string_outline(f, at, text, align, width, size, outline, outline_col)
-	ci.draw_string(f, at, text, align, width, size, col)
+	draw_text(ci, f, at, text, align, width, size, col)
 
 
-## The size a line can be drawn at to fit `width` (no narrower than 72% of
-## `size`, below which it's clipped as before): a long name on a narrow card
-## shrinks a little instead of losing its end.
+## The size a line can be drawn at to fit `width`: a long name on a narrow
+## card shrinks instead of losing its end, no smaller than FIT_FLOOR (or 60%
+## of `size`, for big lettering).
 static func fit_size(f: Font, text: String, size: int, width: float) -> int:
-	if width <= 0.0:
-		return size
-	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-	if w <= width:
-		return size
-	return maxi(int(size * width / w), int(ceil(size * 0.72)))
+	return fit_floor(f, text, size, width, maxi(FIT_FLOOR, int(ceil(size * 0.6))) if size > 18 else FIT_FLOOR)
 
 
 ## Words written in the world or quoted, in the fine italic (`outline` px
@@ -925,7 +1092,7 @@ static func draw_inscription(ci: CanvasItem, at: Vector2, text: String, size: in
 	var f := font("inscription")
 	if outline > 0:
 		ci.draw_string_outline(f, at, text, align, width, size, outline, outline_col)
-	ci.draw_string(f, at, text, align, width, size, col)
+	draw_text(ci, f, at, text, align, width, size, col)
 
 
 ## Gothic titles read best in mixed case (blackletter capitals run
@@ -1471,14 +1638,14 @@ static func draw_wheel(ci: CanvasItem, c: Vector2, ring_r: float, opts: Array, s
 		var at: Vector2 = w[0]
 		if w[4] == "num":
 			ci.draw_string_outline(f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], 3, Color(0, 0, 0, 0.9))
-			ci.draw_string(f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], w[2])
+			draw_text(ci, f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], w[2])
 			continue
 		var wid := 40.0 if w[4] == "badge" else 84.0
 		if w[4] == "name":  # (names in the gothic face, like every label)
 			draw_label(ci, at - Vector2(wid * 0.5, 0), w[1], w[3] + 2, w[2], HORIZONTAL_ALIGNMENT_CENTER, wid, 3, Color(0, 0, 0, 0.9))
 			continue
 		ci.draw_string_outline(f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], 3, Color(0, 0, 0, 0.9))
-		ci.draw_string(f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], w[2])
+		draw_text(ci, f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], w[2])
 
 
 ## Under a wheel: the pointed-at option's name in the display face between
@@ -1493,4 +1660,4 @@ static func draw_wheel_caption(ci: CanvasItem, cx: float, top: float, w: float, 
 	if text != "":
 		var body := font("body")
 		ci.draw_multiline_string_outline(body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, 4, Color(0, 0, 0, 0.85))
-		ci.draw_multiline_string(body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, TEXT)
+		draw_text_lines(ci, body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, TEXT)

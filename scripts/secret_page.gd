@@ -422,4 +422,4 @@ class Drain extends Control:
 			b.dot(pos, 2.2 - ph, Color(col.lightened(0.3), a))
 		b.flush(self)
 		if t < 4.0:
-			draw_string(ThemeDB.fallback_font, Vector2(0, 14), SB.TEXT["path_done"] % Secret.display(path), HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(col, clampf(2.0 - t / 2.0, 0.3, 1.0)))
+			UI.draw_text(self, ThemeDB.fallback_font, Vector2(0, 14), SB.TEXT["path_done"] % Secret.display(path), HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, Color(col, clampf(2.0 - t / 2.0, 0.3, 1.0)))

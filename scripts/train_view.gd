@@ -2193,7 +2193,7 @@ class Volume extends Button:
 		var cw := UI.font("mono").get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 6.0 if count != "" else 0.0
 		UI.draw_label(self, Vector2(lab.position.x + 4.0, lab.get_center().y + fs * 0.33), text, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, lab.size.x - 7.0 - cw)
 		if count != "":
-			draw_string(UI.font("mono"), Vector2(lab.position.x, lab.get_center().y + 4.0), count, HORIZONTAL_ALIGNMENT_RIGHT, lab.size.x - 4.0, 10, Color(tc, 0.7))
+			UI.draw_text(self, UI.font("mono"), Vector2(lab.position.x, lab.get_center().y + 4.0), count, HORIZONTAL_ALIGNMENT_RIGHT, lab.size.x - 4.0, 10, Color(tc, 0.7))
 		if on:
 			# Open on the lectern: a gilt ribbon hanging from it.
 			draw_rect(Rect2(r.end.x - 22.0, r.end.y - 1.0, 4.0, 6.0), Color(0.85, 0.2, 0.15))
@@ -2420,7 +2420,7 @@ class Lever extends Button:
 		b.flush(self)
 		UI.draw_label(self, Vector2(0, plate.end.y + 20.0), word, 18, UI.GOLD if not disabled else UI.FAINT, HORIZONTAL_ALIGNMENT_CENTER, w)
 		if sub != "":
-			draw_string(font, Vector2(0, plate.end.y + 35.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 12, Color(UI.TEXT, 0.85))
+			UI.draw_text(self, font, Vector2(0, plate.end.y + 35.0), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 12, Color(UI.TEXT, 0.85))
 
 
 ## The brass band along the bottom (your crystals): riveted brass over dark

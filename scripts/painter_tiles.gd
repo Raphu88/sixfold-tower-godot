@@ -98,8 +98,8 @@ static func draw(ci: CanvasItem, ch: String, r: Rect2, lk: Dictionary, at := Vec
 			var f := UI.font("display")
 			var fs := int(s * 0.62)
 			var w := f.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			ci.draw_string(f, Vector2(c.x - w * 0.5 + 1, c.y + fs * 0.32 + 1), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.6))
-			ci.draw_string(f, Vector2(c.x - w * 0.5, c.y + fs * 0.32), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GOLD)
+			UI.draw_text(ci, f, Vector2(c.x - w * 0.5 + 1, c.y + fs * 0.32 + 1), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.6))
+			UI.draw_text(ci, f, Vector2(c.x - w * 0.5, c.y + fs * 0.32), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.GOLD)
 		"=":
 			var y := c.y
 			ci.draw_rect(Rect2(r.position.x, y - s * 0.09, s, s * 0.18), Palette.OUTLINE)

@@ -126,7 +126,7 @@ func _draw() -> void:
 		sb.rect(sr.grow(1.0), Art.GILT.darkened(0.2))
 		Art.vgrad(sb, sr.grow(-1.0), Color(0.1, 0.16, 0.15), Color(0.06, 0.1, 0.1))
 		sb.flush(self)
-		draw_string(font, Vector2(sr.position.x, sr.end.y - 9.0), title, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, fs, Art.GILT_HI)
+		UI.draw_text(self, font, Vector2(sr.position.x, sr.end.y - 9.0), title, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, fs, Art.GILT_HI)
 
 
 ## The stop's things on the walls at both edges (the page covers the middle).
@@ -282,12 +282,44 @@ class Tile extends Button:
 	var lit := false  # (a won challenge, a worn title)
 	var touch := false  # (a phone: no focus ring)
 
+	var base_h := 0.0  # its height with one line under the name (set as it's built)
+
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
 		clip_text = true
 		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "font_disabled_color"]:
 			add_theme_color_override(c, Color(0, 0, 0, 0))
+		base_h = custom_minimum_size.y
+		resized.connect(_fit_height)
 		restyle()
+
+	func _small() -> bool:
+		return (base_h if base_h > 0.0 else size.y) < 50.0
+
+	## Where the words go: [x, width].
+	func _words() -> Array:
+		var small := _small()
+		var x := (20.0 if small else 24.0) + (16.0 if small else 20.0)
+		var right := 12.0
+		if medal >= 0 or locked:
+			right = 34.0
+		elif pips_of > 0:
+			right = 10.0 + pips_of * 13.0
+		return [x, size.x - x - right]
+
+	## A line that doesn't fit beside the icon wraps, and the tile grows to hold it.
+	func _line_h() -> float:
+		if line == "":
+			return 0.0
+		return UI.text_height(UI.font("body"), line, _words()[1], 12 if _small() else 13)
+
+	func _fit_height() -> void:
+		if base_h <= 0.0 or size.x < 1.0:
+			return
+		var one: float = UI.font("body").get_height(12 if _small() else 13)
+		var want := base_h + maxf(_line_h() - one, 0.0)
+		if not is_equal_approx(custom_minimum_size.y, want):
+			custom_minimum_size.y = want
 
 	func restyle() -> void:
 		for state in ["normal", "hover", "pressed"]:
@@ -299,22 +331,21 @@ class Tile extends Button:
 		queue_redraw()
 
 	func _draw() -> void:
-		var small := size.y < 50.0
+		var small := _small()
 		var a := 0.55 if locked else 1.0
 		var ic := Vector2(20.0 if small else 24.0, size.y * 0.5)
 		if not load("res://scripts/station_view.gd").icon(self, icon_id, ic, 7.0 if small else 8.5, Color(tint, a), 1.6):
 			UI.draw_icon(self, icon_id, ic, 7.0 if small else 8.5, Color(tint, a), 1.6)
-		var x := ic.x + (16.0 if small else 20.0)
-		var right := 12.0
-		if medal >= 0 or locked:
-			right = 34.0
-		elif pips_of > 0:
-			right = 10.0 + pips_of * 13.0
-		var w := size.x - x - right
+		var x: float = _words()[0]
+		var w: float = _words()[1]
 		var hc: Color = UI.GILT_HI if chosen or lit else UI.TEXT
-		UI.draw_label(self, Vector2(x, size.y * 0.5 - (1.0 if line != "" else -6.0)), head, 15 if small else 17, Color(hc, a), HORIZONTAL_ALIGNMENT_LEFT, w)
+		# (the name and its line, centred together however many lines the line takes)
+		var fs := 12 if small else 13
+		var one: float = UI.font("body").get_height(fs)
+		var top := size.y * 0.5 - maxf(_line_h() - one, 0.0) * 0.5
+		UI.draw_label(self, Vector2(x, top - (1.0 if line != "" else -6.0)), head, 15 if small else 17, Color(hc, a), HORIZONTAL_ALIGNMENT_LEFT, w)
 		if line != "":
-			draw_string(UI.font("body"), Vector2(x, size.y * 0.5 + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 12 if small else 13, Color(UI.DIM, 0.9 * a))
+			UI.draw_text_lines(self, UI.font("body"), Vector2(x, top + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, fs, -1, Color(UI.DIM, 0.9 * a))
 		if locked:
 			UI.draw_lock(self, Vector2(size.x - 18.0, size.y * 0.5), 10.0, Color(UI.DIM, 0.9))
 		elif medal >= 0:
@@ -348,7 +379,7 @@ class RenownBar extends Control:
 		var font := UI.font("body")
 		var left := "%s  ·  %s" % [Renown.TEXT["points"] % pts, Renown.rank_name(rk)]
 		UI.draw_label(self, Vector2(0, 16.0 if small else 18.0), left, 16 if small else 18, UI.GILT_HI)
-		draw_string(font, Vector2(0, 16.0 if small else 18.0), Renown.next_text(profile), HORIZONTAL_ALIGNMENT_RIGHT, size.x, 13, UI.DIM)
+		UI.draw_text(self, font, Vector2(0, 16.0 if small else 18.0), Renown.next_text(profile), HORIZONTAL_ALIGNMENT_RIGHT, size.x, 13, UI.DIM)
 		var gr := Rect2(0, size.y - (9.0 if small else 11.0), size.x, 6.0 if small else 7.0)
 		var b := UI.Draw.Batch.new()
 		UI.gauge_into(b, gr, Renown.progress(profile), UI.GILT, -1.0, Color(1, 1, 1, 0), 0)
@@ -374,5 +405,5 @@ class StationCard extends Button:
 		var lamp: Color = station.get("lamp", Color(1.0, 0.78, 0.45))
 		draw_rect(Rect2(Vector2(4, 4), Vector2(size.x - 8, 4)), Color(lamp, 0.8))
 		load("res://scripts/station_view.gd").icon(self, "clock", Vector2(20, size.y * 0.5 + 3.0), 8.0, lamp, 1.6)
-		draw_string(UI.font("display"), Vector2(36, 28 if small else 34), String(station.get("short", station.get("name", ""))), HORIZONTAL_ALIGNMENT_LEFT, size.x - 44.0, 21 if small else 23, UI.GILT_HI if chosen else UI.TEXT)
-		draw_string(UI.font("body"), Vector2(36, (28 if small else 34) + 16.0), String(station.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, size.x - 44.0, 13, UI.DIM)
+		UI.draw_text(self, UI.font("display"), Vector2(36, 28 if small else 34), String(station.get("short", station.get("name", ""))), HORIZONTAL_ALIGNMENT_LEFT, size.x - 44.0, 21 if small else 23, UI.GILT_HI if chosen else UI.TEXT)
+		UI.draw_text(self, UI.font("body"), Vector2(36, (28 if small else 34) + 16.0), String(station.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, size.x - 44.0, 13, UI.DIM)

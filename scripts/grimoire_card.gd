@@ -120,8 +120,7 @@ func _build() -> void:
 	mid.add_child(top)
 	var n := _l(entry.get("name", ""), "display", 18 if small else 20, col.lightened(0.2) if not dim else UI.DIM)
 	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	n.clip_text = true
-	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(n)  # (its words whole: smaller, then wrapped, never cut)
 	top.add_child(n)
 	var tag: String = entry.get("tag", "")
 	if tag != "":
@@ -456,7 +455,7 @@ class Drawing extends Control:
 			if glyph != "":
 				draw_glyph(self, glyph, c, r * 0.5, Color(col, 0.45))
 			else:
-				draw_string(UI.font("display"), c + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, int(r), Color(col, 0.5))
+				UI.draw_text(self, UI.font("display"), c + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, int(r), Color(col, 0.5))
 		elif not locked and not empty and glyph != "":
 			draw_glyph(self, glyph, c, r * 0.6, col.lightened(0.5))
 			if affinity != "":

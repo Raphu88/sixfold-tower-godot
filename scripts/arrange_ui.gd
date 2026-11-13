@@ -62,7 +62,7 @@ const KIND_NAMES := {
 }
 ## The train's furniture (train_view.gd Furnish kinds) and pieces.
 const FURNISH_NAMES := {
-	"rack": "Heirloom wardrobe", "pack": "Pack", "chest": "Storage chest", "shelf": "Shelves",
+	"rack": "Heirloom wardrobe", "pack": "Pack", "chest": "Stash", "shelf": "Shelves",
 	"rail": "Outfit rail", "case": "Glass case", "board": "Tower board", "drawers": "Bench drawers",
 	"placard": "Placard", "plain": "Panel", "bookcase": "Bookcase", "lectern": "Lectern",
 	"signal": "Signal panel", "brake": "Emergency brake", "book": "Book on its cushion",

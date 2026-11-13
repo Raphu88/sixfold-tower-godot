@@ -32,6 +32,7 @@ const UI := preload("res://scripts/ui.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const VesselPage := preload("res://scripts/vessel_page.gd")
+const StorageView := preload("res://scripts/storage_view.gd")
 
 static var TEXT := {
 	"title": "Loadout",
@@ -40,14 +41,12 @@ static var TEXT := {
 	"tab_loadout": "Loadout",
 	"tab_stash": "Stash",
 	"wear_head": "What you'll wear",
-	"pack_head": "Your pack  ·  goes up the tower  ·  %d of %d",
-	"stash_head": "Stash  ·  stays on the train  ·  %d of %d",
-	"stash_best": "Better than what you wear, in your stash",
-	"stash_some": "In your stash (newest first)",
+	"pack_note": "Goes up the tower with you.",
+	"stash_note": "Stays on the train.",
+	"stash_best": "Stays on the train. Better than what you wear, first.",
 	"stash_none": "Your stash is empty. Pieces you keep there are safe on the train.",
 	"belt_head": "Belt  ·  supplies packed for your next climb",
 	"belt_none": "Nothing packed yet: the Outfitter's Car sells supplies and the bench brews them. Every climb starts with a Healing and a Stamina Draught.",
-	"open_stash": "Open the stash",
 	"goes_up": "Going up the tower: what you wear, your pack and your belt. Fall, and what you found, your pack and your belt are lost (heirlooms are always safe). Get out alive, by the stair at the top or a recall scroll, and what you wear and your pack come home with you.",
 	"goes_up_short": "Up the tower: what you wear, your pack, your belt. Get out alive and what you wear and your pack come home.",
 	"from_heir": "Your heirloom: every climb begins with it.",
@@ -202,11 +201,7 @@ func finish(keys: Array) -> void:
 
 
 func _head_label(parent: Node, text: String) -> Label:
-	var l := Label.new()
-	l.text = text
-	UI.style_label(l, "eyebrow", UI.SIZE_EYEBROW + (0 if _small() else 1), Color(UI.GOLD, 0.85))
-	parent.add_child(l)
-	return l
+	return StorageView.head(parent, text, _small())  # (the same heading as over the pack and the stash)
 
 
 ## A doll cell: what you'll wear in a slot, tagged by where it comes from.
@@ -233,23 +228,16 @@ func _worn_cell(parent: Node, slot: String, so: Dictionary):
 	return s
 
 
-## A cell for a piece in your pack or stash (or an empty space), its arrow
-## saying whether it beats what you'd wear.
-func piece_cell(parent: Node, where: String, i: int, side := 0.0):
-	var list: Array = _prof().chest if where == "chest" else _prof().pack
-	var g = list[i] if i < list.size() else null
-	var s = m._slot(parent, "%s:%d" % [where, i], side if side > 0.0 else _cell(), "")
-	s.kind = "gear"
-	s.id = Gear.base_id(g) if g != null else ""
-	s.rec = g
-	s.empty = g == null
-	s.tint = Gear.color(g) if g != null else UI.FAINT
-	s.wear = Gear.condition(g) if g != null and Gear.wears(g) else -1.0
-	if g != null:
-		s.better = signi(Train.versus(_prof(), _player(), g))
-		if where == "pack" and _auto_worn(i):
-			s.tag = TEXT["tag_pack"]
-	return s
+## A small dim line under a heading (where the pack goes, where the stash stays).
+func _sub_label(parent: Node, text: String, before: Node = null) -> Label:
+	var l: Label = m._label(text, 0.0, UI.DIM)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 160.0
+	l.add_theme_font_size_override("font_size", 13)
+	parent.add_child(l)
+	if before != null:
+		parent.move_child(l, before.get_index())
+	return l
 
 
 ## Is this pack piece one you'll put on as you set off (nothing else worn there)?
@@ -260,19 +248,12 @@ func _auto_worn(i: int) -> bool:
 	return false
 
 
-## Your pack: its spaces (how many it holds), heading saying it goes up.
+## Your pack: its spaces (storage_view.gd: the one look for the pack).
 func pack_strip(parent: Node) -> Array:
-	var prof = _prof()
-	var size: int = _player().pack_size()
-	_head_label(parent, TEXT["pack_head"] % [prof.pack.size(), size])
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	row.set_meta("layout", "loadout.pack")
-	parent.add_child(row)
-	var keys: Array = []
-	for i in maxi(size, prof.pack.size()):
-		keys.append(piece_cell(row, "pack", i).get_meta("slot"))
-	return keys
+	var res := StorageView.build(self, parent, "pack", {"layout": "loadout.pack"})
+	if not _small():
+		_sub_label(parent, TEXT["pack_note"], res["grid"])
+	return res["keys"]
 
 
 ## The belt: supplies packed for the climb (each a slot; its card can put one back).
@@ -299,41 +280,20 @@ func _belt_strip(parent: Node) -> Array:
 	return keys
 
 
-## The stash's best: pieces better than what you'd wear (else the newest),
-## and the button to the stash screen.
+## The stash's first row (storage_view.gd: the same grid as the Stash tab),
+## the pieces better than what you'd wear first, and the button to the tab.
 func _stash_strip(parent: Node) -> Array:
 	var prof = _prof()
-	var keys: Array = []
-	_head_label(parent, TEXT["stash_head"] % [prof.chest.size(), Train.CHEST_SIZE])
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	row.set_meta("layout", "loadout.stash")
-	parent.add_child(row)
-	var idx: Array = []
-	for i in prof.chest.size():
-		if Train.versus(prof, _player(), prof.chest[i]) > 0:
-			idx.append(i)
-	idx.sort_custom(func(a, b): return Train.versus(prof, _player(), prof.chest[a]) > Train.versus(prof, _player(), prof.chest[b]))
-	var label: String = TEXT["stash_best"]
-	if idx.is_empty():
-		idx = Train.sorted_indices(prof.chest, "newest")
-		label = TEXT["stash_some"]
-	var show := mini(idx.size(), 5)
-	if prof.chest.is_empty():
-		var l: Label = m._label(TEXT["stash_none"], 0.0, UI.DIM)
-		l.add_theme_font_size_override("font_size", 14)
-		row.add_child(l)
-	else:
-		var tip: Label = m._label(label, 0.0, UI.DIM)
-		tip.add_theme_font_size_override("font_size", 13)
-		parent.add_child(tip)
-		parent.move_child(tip, row.get_index())
-		for k in show:
-			keys.append(piece_cell(row, "chest", idx[k]).get_meta("slot"))
-	var b: Button = m._button(TEXT["open_stash"], func(): m.open("stash", m.opened_direct), row)
-	b.custom_minimum_size = Vector2(0, _cell())
-	b.set_meta("open_stash", true)
-	return keys
+	var order: Array = StorageView.stash_order(self)
+	var best: Array = order.filter(func(i): return Train.versus(prof, _player(), prof.chest[i]) > 0)
+	best.sort_custom(func(x, y): return Train.versus(prof, _player(), prof.chest[x]) > Train.versus(prof, _player(), prof.chest[y]))
+	var rest: Array = order.filter(func(i): return not (i in best))
+	var res := StorageView.build(self, parent, "chest", {"indices": best + rest, "empties": true, "rows": 1, "layout": "loadout.stash"})
+	var note: String = TEXT["stash_none"] if prof.chest.is_empty() else (TEXT["stash_best"] if not best.is_empty() else TEXT["stash_note"])
+	if not _small() or prof.chest.is_empty():
+		_sub_label(parent, note, res["grid"])
+	StorageView.open_button(self, parent, res["hidden"], func(): m.open("stash", m.opened_direct))
+	return res["keys"]
 
 
 # --- the cards ----------------------------------------------------------------------
@@ -363,7 +323,7 @@ func _head(kind: String, id, title: String, col: Color) -> void:
 func _btn(text: String, action: Callable, meta: String = "", val = null) -> Button:
 	var b: Button = m._button(text, action, m.details)
 	b.custom_minimum_size.y = 36 if _small() else 40
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	if meta != "":
 		b.set_meta(meta, val)
 	return b
@@ -422,7 +382,7 @@ func _worn_card(slot: String) -> void:
 		var b: Button = m._button(name, _equip.bind(f[0], f[1], slot), row)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size.y = 34
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.set_meta("equip", "%s:%d" % [f[0], f[1]])
 		if f[2] != 0:
 			var ar = m.CompareArrow.new()
@@ -440,7 +400,7 @@ func piece_card(where: String, i: int) -> void:
 	var p = _player()
 	var list: Array = prof.chest if where == "chest" else prof.pack
 	if i >= list.size():
-		_head("empty", "", "Empty space", UI.DIM)
+		_head("empty", "", StorageView.TEXT["empty_space"], UI.DIM)
 		m._detail_text(TEXT["empty_chest"] if where == "chest" else TEXT["empty_pack"], UI.DIM)
 		return
 	var g = list[i]
@@ -572,6 +532,8 @@ func _sell(where: String, i: int) -> void:
 	var got := Train.sell(prof, where, i)
 	if got != "":
 		Train.dress(prof, _player())  # (a sold Climber's Pack: the pack's room)
+		if m.page == "train" and m.train_car == "store":
+			m.train_say = Train.line("sold")  # (the outfitter has something to say about it)
 		_done(Train.TEXT["sold"] % [name, got], "", "sell")
 
 

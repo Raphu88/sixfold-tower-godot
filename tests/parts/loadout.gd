@@ -10,6 +10,7 @@ extends RefCounted
 
 const G := preload("res://scripts/gear.gd")
 const Train := preload("res://scripts/train.gd")
+const Storage := preload("res://scripts/storage_view.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Weapons := preload("res://scripts/weapons.gd")
@@ -32,6 +33,7 @@ func run(smoke) -> void:
 	_drawing()
 	await _screens()
 	await _store_screen()
+	await _one_look()
 	await _fits()
 	var menu = _main().menu
 	menu.close()
@@ -343,7 +345,7 @@ func _screens() -> void:
 	var packs: Array = menu.box.find_children("*", "Button", true, false).filter(func(b): return String(b.get_meta("slot", "")).begins_with("pack:"))
 	_check(packs.size() == p.pack_size(), "the pack shows its %d spaces" % p.pack_size())
 	var labels: Array = t._all_labels(menu.box).map(func(l): return l.text)
-	_check(labels.any(func(s): return s.to_lower() == (menu.loadout_page.TEXT["pack_head"] % [2, p.pack_size()]).to_lower()), "...under a heading that says it goes up the tower")
+	_check(labels.has(Storage.heading("pack", 2, p.pack_size())) and labels.has(menu.loadout_page.TEXT["pack_note"]), "...under its heading (Pack · 2 of %d) and a line that says it goes up the tower" % p.pack_size())
 	# Choose a stash helm and wear it from its card.
 	var helm = _box_slot("chest:0")
 	_check(helm != null and helm.better > 0, "the stash's Rare helm shows a green arrow (better than what you wear)")
@@ -503,6 +505,124 @@ func _store_screen() -> void:
 	menu.train_car = "personal"
 	menu.close()
 	await t._frames(2)
+
+
+## The slots of a pack or the stash under `root` (keys "pack:1", "chest:3", or
+## the bench's "bench:chest:3"), and the headings over them.
+func _storage_slots(root: Node, where: String) -> Array:
+	return t._all_buttons(root).filter(func(b): return b.is_visible_in_tree() and (String(b.get_meta("slot", "")).begins_with(where + ":") or String(b.get_meta("slot", "")).begins_with("bench:" + where + ":")))
+
+
+func _storage_heads(root: Node) -> Array:
+	return t._all_labels(root).filter(func(l): return l.is_visible_in_tree() and l.has_meta("storage_head")).map(func(l): return l.text)
+
+
+func _one_look() -> void:
+	print("one stash, one look: the pack and the stash are the same wherever they show")
+	var m = _main()
+	var prof = m.profile
+	var p = m.player
+	var menu = m.menu
+	_reset()
+	prof.pack = [G.make("axe"), G.make("leather_gloves", "fine", ["edges"])]
+	for i in 21:
+		prof.chest.append(G.make(["plate", "leather_cap", "garnet_ring", "longbow", "chain_leggings"][i % 5], "rare" if i == 20 else "common"))
+	var side: float = Storage.cell(menu.compact())
+	var pack_head: String = Storage.heading("pack", 2, p.pack_size())
+	var stash_head: String = Storage.heading("chest", 21, Train.CHEST_SIZE)
+	_check(stash_head == "Stash  ·  21 of 40" and pack_head.begins_with("Pack  ·  2 of "), "the headings' words: '%s', '%s'" % [stash_head, pack_head])
+	# Each place: [name, how to open it, where its things are].
+	var seen := {}
+	var places: Array = ["your car", "the Stash tab", "the Loadout", "the outfitter's Sell counter", "the bench (Break down)"]
+	for place in places:
+		var root: Node = null
+		match place:
+			"your car":
+				menu.train_car = "personal"
+				menu.train_store = "shop"
+				menu.open("train")
+				await t._frames(3)
+				root = menu.train_page.roots["personal"]
+			"the Stash tab":
+				menu.open("stash", true)
+				await t._frames(3)
+				root = menu.box
+			"the Loadout":
+				menu.open("loadout", true)
+				await t._frames(3)
+				root = menu.box
+			"the outfitter's Sell counter":
+				menu.close()
+				await t._frames(1)
+				menu.train_car = "store"
+				menu.train_store = "sell"
+				menu.train_page.sell_from = "all"
+				menu.train_page.sell_slot = "all"
+				menu.open("train")
+				await t._frames(3)
+				root = menu.train_page.roots["store"]
+			"the bench (Break down)":
+				menu.train_car = "workshop"
+				menu.train_bench = "break"
+				menu.open("train")
+				await t._frames(3)
+				root = menu.train_page.roots["workshop"]
+		var heads: Array = _storage_heads(root)
+		var stash: Array = _storage_slots(root, "chest")
+		var pack: Array = _storage_slots(root, "pack")
+		var sizes_ok: bool = (stash + pack).all(func(b): return b.custom_minimum_size == Vector2(side, side))
+		_check(heads.has(stash_head) and heads.has(pack_head), "%s: the same headings (%s)" % [place, heads])
+		_check(not stash.is_empty() and not pack.is_empty() and sizes_ok, "%s: the same slots, the same size (%d stash, %d pack)" % [place, stash.size(), pack.size()])
+		var rare: Array = stash.filter(func(b): return String(b.get_meta("slot", "")).ends_with("chest:20"))
+		seen[place] = stash.size()
+		if place == "the Stash tab":
+			_check(stash.size() == Train.CHEST_SIZE and rare.size() == 1 and rare[0].better != 0, "the Stash tab shows every space, a piece's arrow against what you wear")
+		if place == "your car":
+			var open_b: Array = t._car_buttons("car_page", "stash")
+			var cols: int = stash[0].get_parent().get_parent().columns
+			_check(stash.size() == menu.train_page.CAR_ROWS * cols and open_b.size() == 1 and open_b[0].text == Storage.TEXT["open_stash_more"] % (21 - stash.size()),
+				"your car shows the first %d rows of the Stash tab's grid (%d spaces), and Open the stash says how many more (%s)" % [menu.train_page.CAR_ROWS, stash.size(), open_b[0].text if open_b.size() == 1 else "?"])
+			_check(String(stash[0].get_meta("slot")) == "chest:20", "...in the Stash tab's order (the newest first)")
+	# One card: wear it, move it, sell it, at the Sell counter as in your car.
+	menu.train_car = "store"
+	menu.train_store = "sell"
+	menu.inv_sel = "chest:0"
+	menu.open("train")
+	await t._frames(3)
+	var store_card: Array = [t._car_buttons("equip", "chest:0").size(), t._car_buttons("move", "chest:0").size(), t._car_buttons("sell", "chest:0").size()]
+	menu.train_car = "personal"
+	menu.train_store = "shop"
+	menu.inv_sel = "chest:20"
+	menu.open("train")
+	await t._frames(3)
+	var car_card: Array = [t._car_buttons("equip", "chest:20").size(), t._car_buttons("move", "chest:20").size(), t._car_buttons("sell", "chest:20").size()]
+	_check(store_card == [1, 1, 1] and car_card == [1, 1, 1], "a stash piece's card is the same at the Sell counter and in your car: wear it, move it, sell it (%s, %s)" % [store_card, car_card])
+	# A second press moves a piece across, in your car as on the Stash tab.
+	menu._slot_pressed("chest:20")
+	menu._slot_pressed("chest:20")
+	await t._frames(3)
+	_check(prof.pack.size() == 3 and prof.chest.size() == 20 and G.rarity(prof.pack[2]) == "rare", "in your car, pressing a chosen stash piece again moves it into your pack")
+	# Nowhere do the words say "chest" for the stash.
+	var wrong: Array = []
+	var re := RegEx.new()
+	re.compile("(?i)\\b(your|the|storage|my) chest\\b(?! piece)")
+	var tables := {"train": Train.TEXT, "bench": load("res://scripts/bench.gd").TEXT, "vessel": load("res://scripts/vessel.gd").TEXT,
+		"loadout": menu.loadout_page.TEXT, "stash": menu.stash_page.STASH_TEXT, "storage": Storage.TEXT, "secret bonds": load("res://scripts/secret_bonds.gd").TEXT}
+	for name in tables:
+		for k in tables[name]:
+			if re.search(str(tables[name][k])) != null:
+				wrong.append("%s/%s" % [name, k])
+	var tips: Dictionary = load("res://scripts/entity.gd").TIPS
+	for id in tips:
+		for k in ["tip", "more"]:
+			if re.search(str(tips[id].get(k, ""))) != null:
+				wrong.append("tip %s/%s" % [id, k])
+	_check(wrong.is_empty(), "no words call the stash a chest (%s)" % [wrong])
+	menu.train_bench = "brew"
+	menu.train_car = "personal"
+	menu.close()
+	await t._frames(2)
+	_reset()
 
 
 func _fits() -> void:

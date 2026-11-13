@@ -59,30 +59,26 @@ func build() -> void:
 	var left := VBoxContainer.new()
 	left.add_theme_constant_override("separation", 4)
 	row.add_child(left)
-	_head_label(left, TEXT["stash_head"] % [prof.chest.size(), Train.CHEST_SIZE])
 	var idx := Train.sorted_indices(prof.chest, SORT, SLOT, KIND)
 	var filtered: bool = SLOT != "all" or KIND != "all"
+	# The stash (storage_view.gd: the one look for it, here in full).
+	var res := StorageView.build(self, left, "chest", {"indices": idx, "empties": not filtered, "layout": "stash.grid"})
+	var grid: GridContainer = res["grid"]
+	keys.append_array(res["keys"])
 	if filtered:
 		var l: Label = m._label(STASH_TEXT["shown"] % [idx.size(), prof.chest.size()] if not idx.is_empty() else STASH_TEXT["none_match"], 0.0, UI.DIM)
 		l.add_theme_font_size_override("font_size", 14)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 160.0
 		left.add_child(l)
-	var grid := GridContainer.new()
-	grid.columns = 6 if _small() else 8
-	grid.add_theme_constant_override("h_separation", 5)
-	grid.add_theme_constant_override("v_separation", 5)
-	grid.set_meta("layout", "stash.grid")
-	left.add_child(grid)
-	var cell := 46.0 if _small() else 52.0
-	for i in idx:
-		keys.append(piece_cell(grid, "chest", i, cell).get_meta("slot"))
-	if not filtered:
-		# The empty spaces after the pieces (how much room is left).
-		for i in range(prof.chest.size(), Train.CHEST_SIZE):
-			keys.append(piece_cell(grid, "chest", i, cell).get_meta("slot"))
+		left.move_child(l, grid.get_index())
+	var cell := StorageView.cell(_small())
 	if not prof.vessels.is_empty():
-		_head_label(left, STASH_TEXT["vessels"])
+		StorageView.head(left, STASH_TEXT["vessels"], _small())
 		var vg := GridContainer.new()
 		vg.columns = grid.columns
+		vg.add_theme_constant_override("h_separation", StorageView.GAP)
+		vg.add_theme_constant_override("v_separation", StorageView.GAP)
 		left.add_child(vg)
 		for i in prof.vessels.size():
 			keys.append(VesselPage.slot(self, vg, "vessel:%d" % i, prof.vessels[i], cell).get_meta("slot"))
@@ -139,7 +135,7 @@ class Cycler extends Button:
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
 		text = "<   " + fmt % _name() + "   >"
-		clip_text = true
+		UI.keep_text(self, 11)  # (its words whole: smaller, then wrapped, never cut)
 		pressed.connect(func(): change(1))
 
 	func _name() -> String:

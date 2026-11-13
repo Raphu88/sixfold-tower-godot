@@ -347,6 +347,7 @@ func _board(left: Node) -> void:
 	for i in Renown.RANKS.size():
 		var col: Color = UI.GILT_HI if i == rk else (UI.TEXT if i < rk else UI.FAINT)
 		var l := _line(rg, "%s  ·  %d" % [Renown.rank_name(i), Renown.needed(i)], col)
+		l.autowrap_mode = TextServer.AUTOWRAP_OFF  # (a short line, as wide as its words: two to a row, or one where the screen is narrow: reflow.gd)
 		l.custom_minimum_size.x = 0.0
 
 
@@ -453,7 +454,7 @@ func _button(text: String, action: Callable, meta: String) -> Button:
 	var b: Button = m._button(text, action, card)
 	b.custom_minimum_size.y = 40
 	b.set_meta("station_do", meta)
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	m.train_page._brass(b, true)
 	return b
 
