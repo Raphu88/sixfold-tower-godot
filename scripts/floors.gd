@@ -18,7 +18,9 @@ static var MONSTERS := {
 	"harrier": {"cost": 1.4, "weight": 1.0, "from": 3, "only": true},  # (dives from the open sky: scripts/towers/harrier.gd)
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
 	"shellback": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
-	"deepfin": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (lives in deep water: scripts/towers/kraken_floor.gd puts it in a pool)
+	"deepfin": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},
+	"ashwing": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (rises from its ashes: scripts/towers/ashwing.gd)
+	"briar": {"cost": 1.8, "weight": 1.0, "from": 3, "only": true},  # (hides as a bush: scripts/towers/briar.gd)  # (lives in deep water: scripts/towers/kraken_floor.gd puts it in a pool)
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
 	"smith": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},

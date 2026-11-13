@@ -562,8 +562,9 @@ func _go(at: Vector2, r := 12.0, chase := false) -> void:
 		return
 	var d := _steer(pos, at)
 	# A chasm ahead: jump it (never an open drop: scripts/towers/gryphon_floor.gd).
+	# (taking off close to the lip: a jump carries about 69 px, a chasm tile is 40)
 	var drop_ahead: bool = main.tower_floor != null and main.tower_floor.is_void(pos + d.normalized() * 30.0)
-	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 30.0) and not main.in_chasm(pos) and not p.in_air() and not drop_ahead:
+	if d != Vector2.ZERO and main.in_chasm(pos + d.normalized() * 16.0) and not main.in_chasm(pos) and not p.in_air() and not drop_ahead:
 		_move(d)
 		_tap("jump")
 		return
@@ -1330,7 +1331,7 @@ func _plates_step() -> Dictionary:
 	for e in main.enemies():
 		if e.kind in main.EnemyScript.FLIERS or e.dead or not room.has_point(e.global_position) or no_lure.has(e):
 			continue
-		if e.kind in ["archer", "bloomcap", "thunderling", "lurker"]:
+		if e.kind in ["archer", "bloomcap", "thunderling", "lurker", "briar"]:
 			continue  # (they keep their distance, or sink: no good on a plate)
 		var dm: float = e.global_position.distance_to(plate2["pos"])
 		if dm < best_m:

@@ -64,8 +64,15 @@ static var STYLES := {
 	# low-walled alleys between them.
 	"manticore": {"shapes": ["court", "alleys", "colonnade", "court"], "gallery": ["court", "colonnade", "court"],
 		"loops": [2, 3], "prefab": 0.35, "module": "res://scripts/towers/manticore_floor.gd"},
-	"firebird": {"shapes": ["circle", "ring", "split", "circle"]},
-	"chimera": {"shapes": ["cover", "circle", "gallery", "split"]},
+	# The Firebird's islands of rock over the abyss, joined by bridges: few
+	# ways round, updrafts across gaps, bridges that burn behind you, storms.
+	"firebird": {"shapes": ["island", "atoll", "island", "island", "circle"], "own_shapes": ["island", "atoll", "island", "round"],
+		"gallery": ["island", "atoll", "island"], "loops": [0, 1], "loops_high": [1, 2], "prefab": 0.25, "module": "res://scripts/towers/firebird_floor.gd"},
+	# The Thornwild: grown caves and dens, tangled ways through (more loops,
+	# some through thorns), brambles, spore pods.
+	"chimera": {"shapes": ["cave", "den", "grotto", "cave", "den"], "own_shapes": ["cave", "den", "cave", "round"],
+		"gallery": ["cave", "den", "grotto"], "loops": [2, 3], "loops_high": [2, 4], "cracks": [0, 1], "prefab": 0.25,
+		"module": "res://scripts/towers/chimera_floor.gd"},
 }
 
 ## Carved room shapes that belong to a tower's own script (rooms.gd carve
@@ -74,6 +81,8 @@ const SHAPE_MODULES := {
 	"workshop": "res://scripts/towers/wyvern_floor.gd", "forgehall": "res://scripts/towers/wyvern_floor.gd",
 	"court": "res://scripts/towers/manticore_floor.gd", "alleys": "res://scripts/towers/manticore_floor.gd",
 	"colonnade": "res://scripts/towers/manticore_floor.gd",
+	"island": "res://scripts/towers/firebird_floor.gd", "atoll": "res://scripts/towers/firebird_floor.gd",
+	"cave": "res://scripts/towers/chimera_floor.gd", "den": "res://scripts/towers/chimera_floor.gd", "grotto": "res://scripts/towers/chimera_floor.gd",
 }
 
 

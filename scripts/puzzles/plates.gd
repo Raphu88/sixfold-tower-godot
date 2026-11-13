@@ -17,7 +17,7 @@ static var TEXT := {
 ## room can never be left without an answer.
 const SEND_AFTER := 8.0
 ## Monsters that keep their distance (or sink): they never stand on a plate.
-const KEEP_AWAY := ["archer", "bloomcap", "thunderling", "lurker"]
+const KEEP_AWAY := ["archer", "bloomcap", "thunderling", "lurker", "briar"]
 var send_t := 0.0
 const BREAKS := {"sandshaper": "Rooted Stance: you're heavy enough to hold a plate down yourself."}
 const SEAL_FROM := 99
