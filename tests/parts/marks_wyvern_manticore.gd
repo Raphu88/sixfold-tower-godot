@@ -107,10 +107,12 @@ func _cast_by_key() -> void:
 		await t._frames(1)
 
 
-## Waits until `cond` holds, or `seconds` pass.
+## Waits until `cond` holds, or `seconds` of game time pass: frame by frame
+## (these checks free nodes after: never from inside a physics step), with the
+## deadline in physics ticks, not on the clock (a busy machine ticks slower).
 func _until(cond: Callable, seconds: float) -> void:
-	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
-	while not cond.call() and Time.get_ticks_msec() < end:
+	var end := Engine.get_physics_frames() + ceili(seconds * Engine.physics_ticks_per_second)
+	while not cond.call() and Engine.get_physics_frames() < end:
 		await t._frames(1)
 
 

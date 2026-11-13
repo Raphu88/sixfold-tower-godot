@@ -40,6 +40,8 @@ static var DROPS := {
 	"chimera": ["blade", 30.0],
 	"deepfin": ["water", 5.0],  # (the Kraken's tower: scripts/towers/deepfin.gd)
 	"harrier": ["air", 4.0],  # (the Gryphon's tower: scripts/towers/harrier.gd)
+	"ashwing": ["fire", 4.5],  # (the Firebird's tower: scripts/towers/ashwing.gd)
+	"briar": ["blade", 5.0],  # (the Chimera's tower: scripts/towers/briar.gd)
 }
 
 

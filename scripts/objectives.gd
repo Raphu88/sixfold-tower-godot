@@ -79,6 +79,13 @@ static var KINDS := {
 		"status": "Vanes turned %d of %d", "piece": "Vane", "count": [[4, 2], [99, 3]], "weight": 1.6,
 		"towers": ["gryphon"], "module": "res://scripts/towers/gryphon_floor.gd",
 		"strikes": 2},
+	"rekindle": {"name": "Rekindle the Beacons", "hint": "Take a flame from the hearth and carry it to each beacon before it gutters. Braziers and lit beacons relight it.",
+		"status": "Beacons lit %d of %d", "piece": "Beacon", "hearth": "Hearth", "brazier": "Brazier", "count": [[3, 2], [7, 3], [99, 4]], "weight": 1.6,
+		"burn_base": 22.0, "burn_min": 14.0, "burn_per_floor": 0.6, "walk_share": 1.7, "hit_loss": 0.25, "braziers": [[4, 1], [99, 2]],
+		"towers": ["firebird"], "module": "res://scripts/towers/firebird_floor.gd"},
+	"heartroots": {"name": "The Hungry Grove", "hint": "Heart-roots feed the thorns on the stair. Cut each as it wakes, in turn, and the thorns recede.",
+		"status": "Heart-roots cut %d of %d", "piece": "Heart-root", "count": [[3, 3], [99, 4]], "weight": 1.6, "hp": 3, "lash": 6.0, "lash_cd": 1.2,
+		"towers": ["chimera"], "module": "res://scripts/towers/chimera_floor.gd"},
 	# The towers' own kinds.
 	"furnaces": {"name": "Stoke the Furnaces", "hint": "Strike each cold furnace's bellows until it roars. Don't linger in its heat.",
 		"status": "Furnaces lit %d of %d", "piece": "Furnace", "count": [[5, 2], [99, 3]], "weight": 1.6,
@@ -109,6 +116,13 @@ static var TEXT := {
 	"stone_wakes": "The wardstone wakes",
 	"keeper_falls": "The Keeper drops the stair's key",
 	"optional_vault": "The puzzle's vault opens",
+	"guttered": "The flame gutters out",
+	"kindled": "The flame catches",
+	"relit": "Flame renewed",
+	"flicker": "The flame flickers",
+	"asleep": "It sleeps. Cut the one that's awake",
+	"wakes": "Another heart-root wakes",
+	"recede": "The thorns recede from the stair",
 }
 ## When it's done: essence at the stair (this, plus this much a floor).
 static var REWARD := {"essence": 6.0, "per_floor": 2.0, "light": 230.0}

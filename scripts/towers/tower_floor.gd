@@ -52,6 +52,8 @@ extends Node2D
 ##                                        for reach.gd's safety net
 ##   open_gates()                         the dev tool's Open all doors
 ##   strike(from, dir, reach, arc)        every melee swing
+##   blast(pos, r)                        a burst of fire (main.explode: bombs,
+##                                        exploding spells)
 ##   task_tick(ob, delta, p, hurt) / task_strike(ob, from, dir, reach, arc)
 ##                                        the tower's own task kind
 ##   scenario_begin(s, host) / scenario_tick(s, delta, p, host) (calls
@@ -137,6 +139,10 @@ func open_gates() -> void:
 
 
 func strike(_from: Vector2, _dir: Vector2, _reach: float, _arc_deg: float) -> void:
+	pass
+
+
+func blast(_pos: Vector2, _r: float) -> void:
 	pass
 
 

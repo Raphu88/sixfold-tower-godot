@@ -102,6 +102,15 @@ func _frames(n: int) -> void:
 		await process_frame
 
 
+## Waits `n` physics ticks, then a frame. (Frames can run many times between
+## two ticks: what the game does each tick, such as noticing where you
+## stand, may not have happened after a few frames.)
+func _ticks(n: int) -> void:
+	for i in n:
+		await physics_frame
+	await process_frame
+
+
 ## Kill a monster outright (a lurker is pulled up from the water first).
 func _slay(e) -> void:
 	e.submerged = false
@@ -2612,10 +2621,13 @@ func _ice_tests() -> void:
 	main.ward = false
 
 
-## Waits (in physics ticks) until `cond` holds, at most `seconds`.
+## Waits (in physics ticks) until `cond` holds, at most `seconds` of game time.
+## (Counted in ticks, not on the clock: on a busy machine the game runs fewer
+## ticks a second, and a clock deadline would give up before the game got there.)
 func _until(cond: Callable, seconds: float) -> void:
-	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
-	while not cond.call() and Time.get_ticks_msec() < until:
+	var ticks := ceili(seconds * Engine.physics_ticks_per_second)
+	while not cond.call() and ticks > 0:
+		ticks -= 1
 		await physics_frame
 
 
@@ -6915,6 +6927,15 @@ func _drag(index: int, pos: Vector2) -> void:
 ## Waits in real time (headless frames can run much faster than 60 fps).
 func _wait(seconds: float) -> void:
 	await create_timer(seconds, true, false, true).timeout
+
+
+## Waits `seconds` of the game's own time: that many physics ticks, then a
+## frame. (A timer runs on the clock; on a busy machine the game can tick
+## fewer times than the clock says, and a check right after would come early.)
+func _game_wait(seconds: float) -> void:
+	for i in ceili(seconds * Engine.physics_ticks_per_second):
+		await physics_frame
+	await process_frame
 
 
 func _settle() -> void:

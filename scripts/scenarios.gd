@@ -52,6 +52,8 @@ static var SCENARIOS := {
 	"gauntlet": {"from": 2, "waves": 3, "budget": 2.6, "budget_per_floor": 0.35, "par": 14.0, "par_per_wave": 7.0, "silver_k": 1.5},
 	"flood": {"from": 2, "towers": ["kraken"], "module": "res://scripts/towers/kraken_floor.gd", "seal": true, "weight": 3, "fill": 34.0, "fill_per_floor": -0.8, "fill_min": 24.0, "turn": 4.0,
 		"wave_every": 6.0, "per_wave": 1, "gold_hits": 1, "silver_hits": 3, "gold_level": 0.5, "slow": 0.45},
+	"burning_bridge": {"from": 2, "towers": ["firebird"], "module": "res://scripts/towers/firebird_floor.gd", "weight": 3, "delay": 1.6, "step": 0.55, "foes": 2, "gold_hits": 0, "silver_hits": 2},
+	"thicket": {"from": 2, "towers": ["chimera"], "module": "res://scripts/towers/chimera_floor.gd", "weight": 3, "ring_every": 1.5, "hedges": [0.35, 0.68], "per_tile": 0.9, "base": 7.0, "per_hedge": 0.9, "gold_hits": 0},
 	"bridge": {"from": 2, "towers": ["gryphon"], "module": "res://scripts/towers/gryphon_floor.gd", "weight": 3, "gust_every": 2.6, "gust": 150.0, "raptors": 2, "raptors_per_floors": 5,
 		"dive_every": 4.0, "gold_hits": 0, "silver_hits": 2, "slack": 2.6},
 	"forge": {"from": 3, "towers": ["wyvern"], "module": "res://scripts/towers/wyvern_floor.gd", "seal": true, "weight": 3},
@@ -91,6 +93,11 @@ static var TEXT := {
 	"flood_line": "Water %d%%  ·  wheel %d%%",
 	"flood_full": "The water closes over you",
 	"bridge": "Cross the long bridge",
+	"burning_bridge": "Cross before it burns",
+	"burning_bridge_line": "Hits %d  ·  %d s",
+	"thicket": "Cut your way out",
+	"thicket_line": "%d s before it seals",
+	"thicket_shut": "The thicket seals the way, then withers",
 	"bridge_line": "Hits %d  ·  %d s",
 }
 

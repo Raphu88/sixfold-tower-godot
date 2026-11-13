@@ -262,6 +262,12 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	plan["bridged_corridors"] = links.filter(func(l): return not l["link"].get("flank", []).is_empty()).size()  # (corridors that became bridges: the tests count them)
 	plan["tower_floor"] = {"module": PATH}
 	plan["floor_num"] = floor_num
+	# The last word is reach.gd's own check: the cut checks above miss a drop
+	# laid on a tile the stair's ward needs (the Long Bridge's drop under a
+	# mural) and a drop that cuts off a one-way door's open side. Rare (about
+	# 1 floor in 400): plan the floor again.
+	if not load("res://scripts/reach.gd").plan_check(plan)["ok"]:
+		plan["ok"] = false
 
 
 static func _design_order() -> Array:

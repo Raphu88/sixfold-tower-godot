@@ -100,7 +100,8 @@ static var RULES := {"per_step": 0.15, "depth": 4, "word": 17.0, "word_time": 1.
 static var CLIMBER := {
 	"enabled": false, "seconds": 3.0, "damage": 6.0, "burn": 1.0, "bleed": 1.0,
 	"from": {"thunderling": "charged", "gryphon": "charged", "lurker": "soaked", "kraken": "soaked", "cinder": "burning", "wyvern": "burning",
-		"firebird": "burning", "scorpling": "poisoned", "manticore": "poisoned", "bloomcap": "poisoned", "thornhound": "bleeding", "mongrel": "bleeding"},
+		"firebird": "burning", "scorpling": "poisoned", "manticore": "poisoned", "bloomcap": "poisoned", "thornhound": "bleeding", "mongrel": "bleeding",
+		"ashwing": "burning", "briar": "bleeding"},
 }
 
 ## How many times each reaction has fired (the tests read it).

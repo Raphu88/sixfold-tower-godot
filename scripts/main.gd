@@ -3670,6 +3670,7 @@ const GRAFT_PART := {
 	"lurker": "back", "shellback": "heart", "cinder": "throat", "smith": "hand", "scorpling": "back",
 	"ram": "legs", "wisp": "legs", "bloomcap": "throat", "thornhound": "legs", "mongrel": "hand",
 	"golem": "heart", "burrower": "back",
+	"ashwing": "back", "briar": "hand",
 }
 
 
@@ -3808,6 +3809,8 @@ func in_chasm(pos: Vector2) -> bool:
 func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 	if cracks != null:
 		cracks.blast(pos, r)  # (a burst breaks a cracked wall)
+	if tower_floor != null:
+		tower_floor.blast(pos, r)  # (a tower's own ground: the Thornwild's thorns burn)
 	for e in targets():
 		var to: Vector2 = e.global_position - pos
 		if to.length() < r + e.radius:
