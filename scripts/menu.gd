@@ -2934,7 +2934,7 @@ func _show_details(key: String) -> void:
 			var i := int(arg)
 			if i >= p.pack.size():
 				_detail_head("empty", "", "Empty pack space", DIM)
-				_detail_text("Your pack carries %d spare pieces (a Climber's Pack holds more). Swap gear and your old piece goes in here while there's room. Survive the climb, or read a recall scroll, and your pack comes down to the train with you; fall, and it's lost." % p.pack_size(), DIM)
+				_detail_text("Your pack carries %d spare pieces (a Climber's Pack holds more). Swap gear and your old piece goes in here while there's room. Survive the climb, or read a recall scroll, and your pack and what you wear come down to the train with you; fall, and they're lost." % p.pack_size(), DIM)
 				return
 			var pg = p.pack[i]
 			var pslot := Gear.slot_of(pg)
