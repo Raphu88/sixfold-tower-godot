@@ -486,7 +486,7 @@ class TabRow extends Button:
 				draw_style_box(UI.box(Color(UI.GOLD, 0.16 if on else 0.1), Color(UI.GOLD, 0.85 if on else 0.5), 5, 1 if not on else 2), r)
 			var fs := UI.fit_size(font, String(t[1]), 16, r.size.x - 6.0)
 			var col: Color = UI.GOLD if chosen and on else (UI.TEXT if chosen else UI.DIM)
-			draw_string(font, Vector2(r.position.x, h * 0.5 + fs * 0.32), String(t[1]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, col)
+			UI.draw_text(self, font, Vector2(r.position.x, h * 0.5 + fs * 0.32), String(t[1]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, col)
 			if _changed(t, page):
 				draw_circle(Vector2(r.get_center().x, h - 7.0), 1.8, Color(UI.GOLD, 0.8) if chosen else UI.FAINT)
 		if on:  # the arrows that change it, at either end
@@ -575,10 +575,10 @@ class OptionRow extends Button:
 		var colors := Appearance.has_colors(key)
 		# The option's name (and, for swatches, the choice's name under it).
 		if colors:
-			draw_string(font, Vector2(12, h * 0.5 - 2.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 16, UI.TEXT if on else UI.DIM)
-			draw_string(font, Vector2(12, h * 0.5 + 13.0), name, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 13, UI.GOLD if on else UI.FAINT)
+			UI.draw_text(self, font, Vector2(12, h * 0.5 - 2.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 16, UI.TEXT if on else UI.DIM)
+			UI.draw_text(self, font, Vector2(12, h * 0.5 + 13.0), name, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 13, UI.GOLD if on else UI.FAINT)
 		else:
-			draw_string(font, Vector2(12, h * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 16, UI.TEXT if on else UI.DIM)
+			UI.draw_text(self, font, Vector2(12, h * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, lx - 14.0, 16, UI.TEXT if on else UI.DIM)
 		# The arrows.
 		for side in [-1.0, 1.0]:
 			var r := Rect2(lx, 4.0, ARROW, h - 8.0) if side < 0.0 else Rect2(size.x - ARROW - 6.0, 4.0, ARROW, h - 8.0)
@@ -609,7 +609,7 @@ class OptionRow extends Button:
 					draw_arc(at, rad, 0.0, TAU, 20, UI.DIM, 1.4, true)
 					draw_line(at + Vector2(-rad * 0.7, rad * 0.7), at + Vector2(rad * 0.7, -rad * 0.7), UI.DIM, 1.4, true)
 		else:
-			draw_string(font, Vector2(mid.position.x, h * 0.5 + 2.0), name, HORIZONTAL_ALIGNMENT_CENTER, mid.size.x, 17, UI.GOLD if on else UI.TEXT)
+			UI.draw_text(self, font, Vector2(mid.position.x, h * 0.5 + 2.0), name, HORIZONTAL_ALIGNMENT_CENTER, mid.size.x, 17, UI.GOLD if on else UI.TEXT)
 			var list2: Array = Appearance.OPTIONS[key]
 			var n := list2.size()
 			for i in n:

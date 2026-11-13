@@ -10,6 +10,7 @@ extends RefCounted
 
 const G := preload("res://scripts/gear.gd")
 const Train := preload("res://scripts/train.gd")
+const Storage := preload("res://scripts/storage_view.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Weapons := preload("res://scripts/weapons.gd")
@@ -343,7 +344,7 @@ func _screens() -> void:
 	var packs: Array = menu.box.find_children("*", "Button", true, false).filter(func(b): return String(b.get_meta("slot", "")).begins_with("pack:"))
 	_check(packs.size() == p.pack_size(), "the pack shows its %d spaces" % p.pack_size())
 	var labels: Array = t._all_labels(menu.box).map(func(l): return l.text)
-	_check(labels.any(func(s): return s.to_lower() == (menu.loadout_page.TEXT["pack_head"] % [2, p.pack_size()]).to_lower()), "...under a heading that says it goes up the tower")
+	_check(labels.has(Storage.heading("pack", 2, p.pack_size())) and labels.has(menu.loadout_page.TEXT["pack_note"]), "...under its heading (Pack · 2 of %d) and a line that says it goes up the tower" % p.pack_size())
 	# Choose a stash helm and wear it from its card.
 	var helm = _box_slot("chest:0")
 	_check(helm != null and helm.better > 0, "the stash's Rare helm shows a green arrow (better than what you wear)")

@@ -15,6 +15,7 @@ const Train := preload("res://scripts/train.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Secret := preload("res://scripts/secret.gd")
+const StorageView := preload("res://scripts/storage_view.gd")
 const UI := preload("res://scripts/ui.gd")
 
 static var V := Vessel.TEXT
@@ -22,7 +23,7 @@ static var V := Vessel.TEXT
 
 ## A slot for a vessel in a grid (key "vessel:<i>", or the bench's own keys).
 static func slot(tp, parent: Node, key: String, v: Dictionary, side := 0.0):
-	var s = tp.m._slot(parent, key, side if side > 0.0 else tp._cell(), "")
+	var s = tp.m._slot(parent, key, side if side > 0.0 else StorageView.cell(tp._small()), "")  # (a stash slot's size)
 	s.kind = "vessel"
 	s.id = Vessel.code(v)
 	s.tint = Vessel.color(v)

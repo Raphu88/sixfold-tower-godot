@@ -293,7 +293,7 @@ class Card extends Button:
 				y += sizes[i - 1] + gaps[i - 1]
 			if String(lines[i]) != "":
 				var f: Font = UI.font("display") if i == 0 else font  # (the name in the display face)
-				draw_string(f, Vector2(x, y), _fit(f, lines[i], w, sizes[i]), HORIZONTAL_ALIGNMENT_LEFT, -1, sizes[i], cols[i])
+				UI.draw_text(self, f, Vector2(x, y), _fit(f, lines[i], w, sizes[i]), HORIZONTAL_ALIGNMENT_LEFT, -1, sizes[i], cols[i])
 		# Their marks as small medallions along the bottom (a computer's card).
 		if not small and prof.regarded and not prof.bonds.is_empty():
 			var mb := UI.Draw.Batch.new()
@@ -326,11 +326,11 @@ class Card extends Button:
 		var fs := 14 if small else 17
 		var t: String = lines[0] if lines.size() > 0 else ""
 		var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(font, Vector2((size.x - tw) * 0.5, c.y + r + fs + 4.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.DIM)
+		UI.draw_text(self, font, Vector2((size.x - tw) * 0.5, c.y + r + fs + 4.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UI.DIM)
 		if not small:
 			var s: String = lines[1] if lines.size() > 1 else ""
 			var sw := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
-			draw_string(font, Vector2((size.x - sw) * 0.5, c.y + r + fs + 20.0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.FAINT)
+			UI.draw_text(self, font, Vector2((size.x - sw) * 0.5, c.y + r + fs + 20.0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.FAINT)
 
 	static func _fit(font: Font, t: String, w: float, fs: int) -> String:
 		if font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:

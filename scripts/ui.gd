@@ -717,7 +717,7 @@ static func draw_key(ci: CanvasItem, at: Vector2, key: String, size := 11, col :
 	var w := maxf(mono.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 8.0, size + 5.0)
 	var r := Rect2(at, Vector2(w, size + 5.0))
 	ci.draw_style_box(_key_box(), r)
-	ci.draw_string(mono, Vector2(r.position.x, r.end.y - 4.0), key, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
+	draw_text(ci, mono, Vector2(r.position.x, r.end.y - 4.0), key, HORIZONTAL_ALIGNMENT_CENTER, w, size, col)
 	return r.size
 
 
@@ -874,12 +874,68 @@ static func draw_divider(ci: CanvasItem, from: Vector2, to: Vector2, col := GOLD
 		ci.draw_circle(c + Vector2(8, 0), 1.0, Color(col, col.a * 0.6))
 
 
+# --- drawn text (and the layout audit) ---------------------------------------
+# Text drawn in code (a slot's tag, a card's lines, the rail) goes through
+# draw_text / draw_text_lines: CanvasItem.draw_string and
+# draw_multiline_string with the same arguments. While the layout audit
+# watches (tests/layout_audit_driver.gd sets text_notes to a list), each
+# string also notes where it went and how wide it wanted to be, so the audit
+# can tell a line cut short, or two lines on top of each other, without
+# rendering anything. In play text_notes is null and nothing is noted.
+
+## The layout audit's notes: null, or a list of {"ci", "text", "rect" (in the
+## canvas item's own space), "need" (the width the words want), "room" (the
+## width they were given, -1 for no limit), "cut" (lines that didn't fit)}.
+static var text_notes = null
+
+
+## Draws one line of text, as CanvasItem.draw_string does.
+static func draw_text(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, col := Color.WHITE) -> void:
+	ci.draw_string(f, at, text, align, width, size, col)
+	if text_notes != null:
+		note_text(ci, f, at, text, align, width, size)
+
+
+## Draws wrapped text, as CanvasItem.draw_multiline_string does.
+static func draw_text_lines(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, max_lines := -1, col := Color.WHITE) -> void:
+	ci.draw_multiline_string(f, at, text, align, width, size, max_lines, col)
+	if text_notes != null:
+		note_text(ci, f, at, text, align, width, size, max_lines, true)
+
+
+## Notes a drawn string for the layout audit (see text_notes).
+static func note_text(ci: CanvasItem, f: Font, at: Vector2, text: String, align: int, width: float, size: int, max_lines := -1, wrapped := false) -> void:
+	if text_notes == null or text.strip_edges() == "":
+		return
+	var need := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var shown := need
+	var h := f.get_height(size)
+	var cut := 0
+	if wrapped and width > 0.0:
+		var all := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, width, size)
+		var lines := maxi(1, int(round(all.y / maxf(h, 1.0))))
+		if max_lines > 0 and lines > max_lines:
+			cut = lines - max_lines
+			lines = max_lines
+		shown = minf(all.x, width)
+		need = shown  # (it wraps: the width is never the trouble)
+		h *= lines
+	elif width >= 0.0:
+		shown = minf(need, width)
+	var x := at.x
+	if width >= 0.0 and align == HORIZONTAL_ALIGNMENT_CENTER:
+		x += (width - shown) * 0.5
+	elif width >= 0.0 and align == HORIZONTAL_ALIGNMENT_RIGHT:
+		x += width - shown
+	text_notes.append({"ci": ci, "text": text, "rect": Rect2(x, at.y - f.get_ascent(size), shown, h), "need": need, "room": width, "cut": cut})
+
+
 ## A small gothic label (an eyebrow over a title, a section's name), in
 ## mixed case (titled()). Returns its width.
 static func draw_eyebrow(ci: CanvasItem, at: Vector2, text: String, col := GOLD, size := SIZE_EYEBROW, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0) -> float:
 	var f := font("eyebrow")
 	var t := titled(text)
-	ci.draw_string(f, at, t, align, width, size, col)
+	draw_text(ci, f, at, t, align, width, size, col)
 	return f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 
 
@@ -892,7 +948,7 @@ static func draw_title(ci: CanvasItem, at: Vector2, text: String, size: int, col
 	if halo > 0.0:
 		ci.draw_string_outline(f, at + Vector2(0, 2), text, align, width, size, maxi(4, size / 5), Color(0, 0, 0, halo * 0.6))
 		ci.draw_string_outline(f, at, text, align, width, size, 3, Color(0.12, 0.07, 0.03, halo))
-	ci.draw_string(f, at, text, align, width, size, col)
+	draw_text(ci, f, at, text, align, width, size, col)
 
 
 ## A label or name in the display face, drawn plainly (or with an outline
@@ -904,7 +960,7 @@ static func draw_label(ci: CanvasItem, at: Vector2, text: String, size: int, col
 	size = fit_size(f, text, size, width)
 	if outline > 0:
 		ci.draw_string_outline(f, at, text, align, width, size, outline, outline_col)
-	ci.draw_string(f, at, text, align, width, size, col)
+	draw_text(ci, f, at, text, align, width, size, col)
 
 
 ## The size a line can be drawn at to fit `width` (no narrower than 72% of
@@ -925,7 +981,7 @@ static func draw_inscription(ci: CanvasItem, at: Vector2, text: String, size: in
 	var f := font("inscription")
 	if outline > 0:
 		ci.draw_string_outline(f, at, text, align, width, size, outline, outline_col)
-	ci.draw_string(f, at, text, align, width, size, col)
+	draw_text(ci, f, at, text, align, width, size, col)
 
 
 ## Gothic titles read best in mixed case (blackletter capitals run
@@ -1471,14 +1527,14 @@ static func draw_wheel(ci: CanvasItem, c: Vector2, ring_r: float, opts: Array, s
 		var at: Vector2 = w[0]
 		if w[4] == "num":
 			ci.draw_string_outline(f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], 3, Color(0, 0, 0, 0.9))
-			ci.draw_string(f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], w[2])
+			draw_text(ci, f, at, w[1], HORIZONTAL_ALIGNMENT_LEFT, -1, w[3], w[2])
 			continue
 		var wid := 40.0 if w[4] == "badge" else 84.0
 		if w[4] == "name":  # (names in the gothic face, like every label)
 			draw_label(ci, at - Vector2(wid * 0.5, 0), w[1], w[3] + 2, w[2], HORIZONTAL_ALIGNMENT_CENTER, wid, 3, Color(0, 0, 0, 0.9))
 			continue
 		ci.draw_string_outline(f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], 3, Color(0, 0, 0, 0.9))
-		ci.draw_string(f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], w[2])
+		draw_text(ci, f, at - Vector2(wid * 0.5, 0), w[1], HORIZONTAL_ALIGNMENT_CENTER, wid, w[3], w[2])
 
 
 ## Under a wheel: the pointed-at option's name in the display face between
@@ -1493,4 +1549,4 @@ static func draw_wheel_caption(ci: CanvasItem, cx: float, top: float, w: float, 
 	if text != "":
 		var body := font("body")
 		ci.draw_multiline_string_outline(body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, 4, Color(0, 0, 0, 0.85))
-		ci.draw_multiline_string(body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, TEXT)
+		draw_text_lines(ci, body, Vector2(x, top + 18.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, text_size, lines, TEXT)

@@ -456,7 +456,7 @@ class Drawing extends Control:
 			if glyph != "":
 				draw_glyph(self, glyph, c, r * 0.5, Color(col, 0.45))
 			else:
-				draw_string(UI.font("display"), c + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, int(r), Color(col, 0.5))
+				UI.draw_text(self, UI.font("display"), c + Vector2(-4, 6), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, int(r), Color(col, 0.5))
 		elif not locked and not empty and glyph != "":
 			draw_glyph(self, glyph, c, r * 0.6, col.lightened(0.5))
 			if affinity != "":

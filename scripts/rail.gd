@@ -784,10 +784,10 @@ class RailItem extends Button:
 			UI.draw_label(self, Vector2(x, size.y * 0.5 + fs * 0.32), label, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, w)
 		else:
 			UI.draw_label(self, Vector2(x, size.y * 0.5 - 1.0), label, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, w)
-			draw_string(UI.font("body"), Vector2(x, size.y * 0.5 + 14.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, Color(UI.DIM, 0.85 if lit else 0.7))
+			UI.draw_text(self, UI.font("body"), Vector2(x, size.y * 0.5 + 14.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, Color(UI.DIM, 0.85 if lit else 0.7))
 		if key_hint != "" and not narrow:
 			var mono := UI.font("mono")
-			draw_string(mono, Vector2(0, size.y * 0.5 - (1.0 if sub != "" and not small and size.y >= 40.0 else -4.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 11, Color(UI.FAINT, 0.95))
+			UI.draw_text(self, mono, Vector2(0, size.y * 0.5 - (1.0 if sub != "" and not small and size.y >= 40.0 else -4.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 11, Color(UI.FAINT, 0.95))
 
 	## The train on end: this car, seen from the side and stood on its end
 	## (its wheels on the track down the left, its roof down the right): a
@@ -871,7 +871,7 @@ class RailItem extends Button:
 			UI.draw_label(self, Vector2(x, cy + fs * 0.32), label, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, w, 3, Color(0, 0, 0, 0.55))
 		else:
 			UI.draw_label(self, Vector2(x, cy - 1.0), label, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, w, 3, Color(0, 0, 0, 0.55))
-			draw_string(UI.font("body"), Vector2(x, cy + 13.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 12, Color(0.85, 0.78, 0.66, 0.85 if lit else 0.65))
+			UI.draw_text(self, UI.font("body"), Vector2(x, cy + 13.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 12, Color(0.85, 0.78, 0.66, 0.85 if lit else 0.65))
 
 	## A wheel on the track: iron, a bright tyre, red spokes and a brass hub.
 	func _wheel(b, c: Vector2, r: float) -> void:
@@ -1128,7 +1128,7 @@ class RailIdent extends Button:
 			y += es + 2.0
 			UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), UI.titled(place), w - (30.0 if key_hint != "" else 0.0), es), place_col, es)
 		if key_hint != "" and not narrow:
-			draw_string(UI.font("mono"), Vector2(0, (y if eyebrow else 14.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 11, Color(UI.FAINT, 0.95))
+			UI.draw_text(self, UI.font("mono"), Vector2(0, (y if eyebrow else 14.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 11, Color(UI.FAINT, 0.95))
 		var ns := 18 if narrow else 30
 		y += ns * (0.95 if narrow else 1.0) + 2.0
 		var nc: Color = UI.GILT_HI if (on or hot or focus) else UI.GOLD
@@ -1138,7 +1138,7 @@ class RailIdent extends Button:
 		if worn != "":
 			var tsz := 12 if narrow else 17
 			y += tsz + (1.0 if narrow else 3.0)
-			draw_string(UI.font("italic"), Vector2(x, y), _fit(UI.font("italic"), worn, w, tsz), HORIZONTAL_ALIGNMENT_LEFT, w, tsz, Color(UI.GILT_HI if (on or hot or focus) else UI.GOLD, 0.92))
+			UI.draw_text(self, UI.font("italic"), Vector2(x, y), _fit(UI.font("italic"), worn, w, tsz), HORIZONTAL_ALIGNMENT_LEFT, w, tsz, Color(UI.GILT_HI if (on or hot or focus) else UI.GOLD, 0.92))
 		# The six marks.
 		var r := 6.5 if narrow else 10.0
 		if rail.on_end and narrow:
@@ -1161,7 +1161,7 @@ class RailIdent extends Button:
 		b.flush(self)
 		if not narrow and not rail.on_end:
 			var line := "%d of 6 marks  ·  best floor %d" % [prof.bonds.size(), prof.best_floor]
-			draw_string(UI.font("body"), Vector2(x, cy + r + 18.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
+			UI.draw_text(self, UI.font("body"), Vector2(x, cy + r + 18.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
 	static func _fit(f: Font, t: String, w: float, fs: int) -> String:
 		if f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:

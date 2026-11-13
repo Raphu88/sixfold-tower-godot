@@ -530,7 +530,7 @@ static var TEXT := {
 	"bribe_crystals": "Offer %d crystal essence",
 	"bribe_gear": "Offer %s",
 	"bribe_vessel": "Offer a full vessel (%s)",
-	"bribe_vessel_none": "A full vessel (none in your chest)",
+	"bribe_vessel_none": "A full vessel (none in your stash)",
 	"bribe_yes": "It accepts the offering: it counts for depth %d.",
 	"bribe_no": "It refuses.",
 	"bribe_done": "Accepted for depth %d.",

@@ -2251,7 +2251,7 @@ class TileButton extends Button:
 		Tiles.draw(self, ch, r, Tiles.look(p.view_tower if p != null else ""), Vector2i(3, 2), false, false)
 		var f := UI.font("body")
 		var fs := 12 if size.y < 34.0 else 14
-		draw_string(f, Vector2(r.end.x + 6, size.y * 0.5 + fs * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - r.end.x - 8, fs, UI.GOLD if lit else UI.TEXT)
+		UI.draw_text(self, f, Vector2(r.end.x + 6, size.y * 0.5 + fs * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - r.end.x - 8, fs, UI.GOLD if lit else UI.TEXT)
 
 
 ## A tool: an icon drawn in code with its name under it; gilt when in hand.
@@ -2312,4 +2312,4 @@ class ToolButton extends Button:
 					draw_line(c + Vector2(-u * 0.15, -u * 0.45), c + Vector2(-u * 0.15, u * 0.15), col, w)
 		var f := UI.font("body")
 		var tw := f.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(f, Vector2((size.x - tw) * 0.5, size.y - 4.0), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		UI.draw_text(self, f, Vector2((size.x - tw) * 0.5, size.y - 4.0), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

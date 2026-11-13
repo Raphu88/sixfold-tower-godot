@@ -259,20 +259,20 @@ func _draw() -> void:
 		ly += 6.0
 		for line in result.get("lines", []):
 			draw_string_outline(font, Vector2(0, ly + 14.0), line, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 14 if not small else 12, 4, Color(0, 0, 0, 0.8))
-			draw_string(font, Vector2(0, ly + 14.0), line, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 14 if not small else 12, UI.TEXT)
+			UI.draw_text(self, font, Vector2(0, ly + 14.0), line, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 14 if not small else 12, UI.TEXT)
 			ly += 20.0 if not small else 17.0
 		var gains: Dictionary = result.get("gains", {})
 		if not gains.is_empty() and makers.hooks != null and (makers.hooks.has_method("gain_secret") or makers.hooks.has_method("rise_secret")):
 			var bits: Array = []
 			for k in gains:
 				bits.append(Makers.TEXT["secret_gain"] % [int(gains[k]), String(k).capitalize()])
-			draw_string(font, Vector2(0, ly + 14.0), "   ".join(bits), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, UI.GOLD)
+			UI.draw_text(self, font, Vector2(0, ly + 14.0), "   ".join(bits), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, UI.GOLD)
 	if stage == "answer":
 		_draw_cards(vs, font, col)
 	elif can_advance() and stage != "rise":
 		var pulse := 0.5 + 0.5 * sin(clock * 4.0)
 		var prompt: String = _say("Press Enter or click", "Press {a}", "Tap") + " " + Makers.TEXT["go_on"]
-		draw_string(font, Vector2(0, vs.y - 16.0), prompt, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, Color(UI.DIM, 0.5 + 0.5 * pulse))
+		UI.draw_text(self, font, Vector2(0, vs.y - 16.0), prompt, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, Color(UI.DIM, 0.5 + 0.5 * pulse))
 
 
 func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:
@@ -289,15 +289,15 @@ func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:
 		if not main.touch_active and i == focus:
 			draw_rect(r.grow(3.0), Color(UI.GOLD, 0.95), false, 2.0)
 		var mid := r.position.y + r.size.y * (0.4 if not plea else 0.3)
-		draw_multiline_string(font, Vector2(r.position.x + 6, mid), o["text"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 15 if r.size.x > 150 else 13, 2, cc.lightened(0.35))
+		UI.draw_text_lines(self, font, Vector2(r.position.x + 6, mid), o["text"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 15 if r.size.x > 150 else 13, 2, cc.lightened(0.35))
 		if plea:
-			draw_multiline_string(font, Vector2(r.position.x + 6, mid + 18.0), String(o.get("desc", Makers.PLEA["desc"])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 12, 3, UI.DIM)
+			UI.draw_text_lines(self, font, Vector2(r.position.x + 6, mid + 18.0), String(o.get("desc", Makers.PLEA["desc"])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 12.0, 12, 3, UI.DIM)
 			if o["id"] == "plea_vessel" and main.player != null:
 				var V = load("res://scripts/vessel.gd")
 				V.draw_icon(self, Vector2(r.end.x - 15.0, r.position.y + 20.0), 10.0, V.carried(main.player), appear)
 		elif o.get("placeholder", false):
-			draw_string(font, Vector2(r.position.x, mid + 20.0), Makers.TEXT["placeholder"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(UI.FAINT, 0.9))
-		draw_string(font, Vector2(r.position.x, r.end.y - 10.0), _hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, UI.GOLD)
+			UI.draw_text(self, font, Vector2(r.position.x, mid + 20.0), Makers.TEXT["placeholder"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(UI.FAINT, 0.9))
+		UI.draw_text(self, font, Vector2(r.position.x, r.end.y - 10.0), _hint(i), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, UI.GOLD)
 
 
 func _hint(i: int) -> String:
