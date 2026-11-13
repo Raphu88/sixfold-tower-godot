@@ -41,6 +41,7 @@ func run(smoke) -> void:
 	await _inside_and_out()
 	await _the_list()
 	await _names()
+	await _views_and_scrolling()
 	await _handles_and_readout()
 	await _overlaps_undo_redo()
 	await _old_layout()
@@ -407,6 +408,54 @@ func _names() -> void:
 	ar.close()
 	await t._frames(4)
 	t.main.menu.close()
+	await t._frames(3)
+
+
+## Switching between the menu and the HUD, and the computer's and the
+## phone's layouts, starts at the top level each time; a long level scrolls
+## in the list.
+func _views_and_scrolling() -> void:
+	var ar = t.main.arrange
+	var was: Vector2i = t.root.size
+	t.root.size = Vector2i(1280, 720)  # (a view the Settings page's rows don't all fit the list on)
+	await t._frames(3)
+	await _open("settings")
+	await _arrange_open()
+	ar.enter("menu.settings.panel")
+	var n: int = ar.level_blocks().size()
+	var lp: Dictionary = ar.list_panel()
+	_check(n > lp["rows"].size() and lp["down"] != null and lp["up"] == null, "a level with more blocks than the list has room for scrolls (%d of %d rows showing)" % [lp["rows"].size(), n])
+	_check((lp["rows"] as Array).all(func(r): return (lp["view"] as Rect2).grow(1.0).encloses(r[1])) and (lp["box"] as Rect2).encloses(lp["detail"]), "...its rows inside its window")
+	ar.choose(ar.level_blocks()[n - 1])
+	await t._frames(2)
+	lp = ar.list_panel()
+	_check((lp["rows"] as Array).any(func(r): return r[0] == ar.sel) and lp["up"] != null, "choosing the last block scrolls its row into sight")
+	await _click((lp["up"] as Rect2).get_center())
+	lp = ar.list_panel()
+	_check(lp["rows"][0][0] == ar.level_blocks()[0], "the list's arrow scrolls back up")
+	# The HUD from over a menu, and back.
+	ar.press("view")
+	await t._frames(3)
+	_check(not ar.menu_mode and ar.path.is_empty() and ar.level_blocks().has("group.status") and ar.sel == "group.status" and not t.main.menu.visible, "Arrange the HUD: the HUD's top level (the menu hidden)")
+	ar.press("view")
+	await t._frames(3)
+	_check(ar.menu_mode and ar.path.is_empty() and ar.level_blocks() == ["menu.settings.panel", "rail.box"] and t.main.menu.visible, "Arrange the menu: the menu's top level again")
+	# The phone's layout of the menu, and back.
+	ar.enter("menu.settings.panel")
+	ar.switch_set()
+	await t._frames(4)
+	_check(L.active_set == "touch" and ar.is_open and ar.path == ["menu.settings.panel"] and not ar.level_blocks().is_empty() and ar.level_blocks().has(ar.sel),
+		"the phone's layout of the menu: still inside the page, a block of it chosen (%s)" % ar.sel)
+	var view := Rect2(Vector2.ZERO, ar.get_viewport_rect().size)
+	_check(view.encloses(ar.toolbar()["bar"]) and (not ar.list_panel()["on"] or view.encloses(ar.list_panel()["box"])), "...the toolbar (and the list, if it shows) on the smaller view")
+	ar.switch_set()
+	await t._frames(4)
+	_check(L.active_set == "desktop" and ar.path == ["menu.settings.panel"], "...and the computer's again")
+	ar.close()
+	await t._frames(4)
+	t.main.touch._set_active(false)
+	t.main.menu.close()
+	t.root.size = was
 	await t._frames(3)
 
 

@@ -979,8 +979,10 @@ func _dock() -> Dictionary:
 	var out := {"tall": false, "bar_w": wide, "bar_x": (view.x - wide) * 0.5, "list_w": lw, "list_x": view.x - lw - 8.0, "list_y": 8.0, "above_bar": false}
 	var col := _column()
 	if col != 0:
-		var x := 8.0 if col < 0 else view.x - COL_W - 8.0
-		out.merge({"tall": true, "bar_w": COL_W, "bar_x": x, "list_w": COL_W, "list_x": x, "above_bar": true}, true)
+		# (as wide as the rail it stands over, so nothing beside the rail is covered)
+		var cw := clampf(float(main.menu.rail.size.x) - 4.0, 220.0, COL_W)
+		var x := 2.0 if col < 0 else view.x - cw - 2.0
+		out.merge({"tall": true, "bar_w": cw, "bar_x": x, "list_w": cw, "list_x": x, "above_bar": true}, true)
 	elif not menu_mode and Layout.active_set == "touch":
 		# The phone's layout: its buttons are at the right, so both at the left.
 		if view.x >= 840.0 and view.y >= 470.0:
