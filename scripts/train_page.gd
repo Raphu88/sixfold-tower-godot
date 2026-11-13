@@ -44,6 +44,7 @@ const EssenceBench := preload("res://scripts/essence_bench.gd")
 const Stations := preload("res://scripts/stations.gd")
 const StationView := preload("res://scripts/station_view.gd")
 const Renown := preload("res://scripts/renown.gd")
+const StorageView := preload("res://scripts/storage_view.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -745,7 +746,10 @@ func _personal(root: Node) -> void:
 	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(col)
-	keys.append_array(_pack_and_chest(col))
+	# (beside them: the wardrobe, the placard and the gaps between)
+	var rack_w: float = 3.0 * _cell() + 12.0 + 28.0 * (0.75 if _small() else 1.0)
+	var gap := 14.0 if _small() else 26.0
+	keys.append_array(_pack_and_chest(col, false, rack_w + (320.0 if _small() else 380.0) + gap * 2.0 + 6.0))
 	# Your book lying on its cushion (the climber screen: book.gd), the trunk
 	# (the inventory) and how you look.
 	var furniture := HBoxContainer.new()
@@ -773,7 +777,7 @@ func _personal(root: Node) -> void:
 		b.custom_minimum_size.y = 40
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.set_meta("car_page", f[1])
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		_brass(b)
 		b.add_theme_font_size_override("font_size", 15 if _small() else 16)
 	if m.Unbound.is_on(prof):
@@ -785,42 +789,57 @@ func _personal(root: Node) -> void:
 	_card(row, keys, "pack:0" if not prof.pack.is_empty() else "chest:0")
 
 
-## Your pack's spaces and your stash's, 4 to a row (each piece's arrow says
-## whether it beats what you'd wear). Your car shows the first spaces of the
-## stash and a button to the stash screen; selling (`filled_only`) shows
-## what's there, filtered by where it is and its slot, and sorted
-## (sell_from, sell_slot, sell_sort). Returns their keys.
-func _pack_and_chest(parent: Node, filled_only := false) -> Array:
+## Your pack and your stash, each on its piece of furniture, through
+## storage_view.gd: the one look they have everywhere. Your car shows the
+## pack whole and the stash's first rows (the same grid as the Stash tab, in
+## its order) with the button to the tab; selling (`filled_only`) shows what
+## is there, filtered by where it is and its slot, and sorted (sell_from,
+## sell_slot, sell_sort). Returns their keys.
+func _pack_and_chest(parent: Node, filled_only := false, beside := 0.0) -> Array:
 	var prof = _prof()
 	var keys: Array = []
-	var size: int = _player().pack_size()
-	var lp = m.loadout_page
+	var cols := _storage_columns(beside)
 	if not filled_only or (not prof.pack.is_empty() and sell_from != "chest"):
 		var pk := _furnish(parent, "pack")
-		_tag(pk, T["pack"] % [prof.pack.size(), size])
-		var pg := _grid(pk, 4)
-		var order: Array = Train.sorted_indices(prof.pack, sell_sort, sell_slot) if filled_only else range(maxi(size, prof.pack.size()))
-		for i in order:
-			keys.append(lp.piece_cell(pg, "pack", i, _cell()).get_meta("slot"))
+		var opts := {"columns": cols}
+		if filled_only:
+			opts["indices"] = Train.sorted_indices(prof.pack, sell_sort, sell_slot)
+		var res := StorageView.build(self, pk, "pack", opts)
+		pk.get_parent().follow(res["grid"])
+		keys.append_array(res["keys"])
 	if not filled_only or ((not prof.chest.is_empty() or not prof.vessels.is_empty()) and sell_from != "pack"):
 		var ch := _furnish(parent, "chest")
-		_tag(ch, T["chest"] % [prof.chest.size(), Train.CHEST_SIZE])
-		var cg := _grid(ch, 4)
+		var opts := {"rows": CAR_ROWS, "columns": cols}
 		if filled_only:
-			for i in Train.sorted_indices(prof.chest, sell_sort, sell_slot):
-				keys.append(lp.piece_cell(cg, "chest", i, _cell()).get_meta("slot"))
-		else:
-			for i in mini(Train.CAR_STASH, maxi(Train.CAR_STASH, prof.chest.size())):
-				keys.append(lp.piece_cell(cg, "chest", i, _cell()).get_meta("slot"))
+			opts = {"indices": Train.sorted_indices(prof.chest, sell_sort, sell_slot), "columns": cols}
+		var res := StorageView.build(self, ch, "chest", opts)
+		var cg: GridContainer = res["grid"]
+		ch.get_parent().follow(cg)
+		keys.append_array(res["keys"])
 		keys.append_array(VesselPage.chest_slots(self, cg))  # (vessels, after the pieces)
 		if not filled_only:
-			# The stash screen: every piece, sorted and filtered.
-			var sb: Button = m._button(T["open_stash"] % prof.chest.size(), m.open.bind("stash", true), ch)
-			sb.custom_minimum_size.y = 36
+			# The Stash tab: every space, sorted and filtered.
+			var sb := StorageView.open_button(self, ch, res["hidden"], m.open.bind("stash", true))
 			sb.set_meta("car_page", "stash")
-			sb.clip_text = true
 			_brass(sb)
 	return keys
+
+
+## Your car shows this many rows of the stash's grid (the Stash tab has them all).
+const CAR_ROWS := 2
+
+
+## How many slots across the pack's and the stash's grids get in a car: as
+## many as fit beside what else stands in the row (`beside` px: the
+## wardrobe, the placard, the gaps), up to the usual number
+## (storage_view.gd columns()). Where not even a few fit, the row wraps
+## anyway (reflow.gd), so they get the usual number.
+func _storage_columns(beside: float) -> int:
+	var most := StorageView.columns(_small())
+	var side := StorageView.cell(_small()) + StorageView.GAP
+	var frame := 34.0 * (0.75 if _small() else 1.0)  # (the furniture's own edges)
+	var n := int((_area_w() - beside - frame + StorageView.GAP) / side)
+	return most if n < 4 else mini(n, most)
 
 
 # --- the store car ----------------------------------------------------------------
@@ -855,7 +874,7 @@ func _store(root: Node) -> void:
 	var sign: Button = m._button(sign_text, _set_store.bind("shop" if selling else "sell"), oc)
 	sign.custom_minimum_size.y = 40
 	sign.set_meta("store_tab", "shop" if selling else "sell")
-	sign.clip_text = true
+	UI.keep_text(sign)  # (its words whole: smaller, then wrapped, never cut)
 	_brass(sign)
 	if not selling:
 		# His upgrades (renown unlocks them): a placard's card shows them all.
@@ -863,7 +882,7 @@ func _store(root: Node) -> void:
 		up.custom_minimum_size.y = 36
 		up.set_meta("slot", "upgrades")
 		up.focus_entered.connect(m._show_details.bind("upgrades"))
-		up.clip_text = true
+		UI.keep_text(up)  # (its words whole: smaller, then wrapped, never cut)
 		_brass(up, m.inv_sel == "upgrades")
 		if not small:
 			var nx := Train.next_upgrade(prof)
@@ -894,7 +913,8 @@ func _store(root: Node) -> void:
 			_store_cycler(bar, "slot", Train.SLOT_FILTERS, sell_slot, "%s")
 			for c in bar.get_children():
 				c.custom_minimum_size.x = 120.0 if small else 140.0
-			keys.append_array(_pack_and_chest(goods, true))
+			# (beside them: the outfitter, the placard and the gaps between)
+			keys.append_array(_pack_and_chest(goods, true, (150.0 if small else 200.0) + (320.0 if small else 380.0) + (14.0 if small else 26.0) * 2.0 + 6.0))
 	else:
 		var shelf := _furnish(goods, "shelf")
 		_tag(shelf, T["shelves"])
@@ -1174,7 +1194,9 @@ func _set_bench(id: String) -> void:
 
 
 ## The pieces a counter can work on, in sections (your heirlooms, pack and
-## chest), filtered by `fits` (a record -> bool). Returns their keys.
+## stash), filtered by `fits` (a record -> bool). The pack and the stash are
+## shown as they are everywhere (storage_view.gd), with only the pieces the
+## counter takes; a counter's price sits on each. Returns their keys.
 func _bench_pieces(parent: Node, fits: Callable, heirlooms := true) -> Array:
 	var prof = _prof()
 	var keys: Array = []
@@ -1183,25 +1205,38 @@ func _bench_pieces(parent: Node, fits: Callable, heirlooms := true) -> Array:
 		var g := Bench.piece(prof, ref)
 		if fits.call(g):
 			groups[ref.get_slice(":", 0)].append(ref)
-	for where in ["heir", "pack", "chest"]:
-		if groups[where].is_empty():
-			continue
-		_tag(parent, {"heir": B["heirlooms"], "pack": B["pack"], "chest": B["chest"]}[where])
-		var grid := _grid(parent, 4, false)
-		for ref in groups[where]:
+	if not groups["heir"].is_empty():
+		StorageView.head(parent, B["heirlooms"], _small())
+		var grid := _grid(parent, StorageView.columns(_small()), false)
+		grid.add_theme_constant_override("h_separation", StorageView.GAP)
+		grid.add_theme_constant_override("v_separation", StorageView.GAP)
+		for ref in groups["heir"]:
 			var g := Bench.piece(prof, ref)
 			var s = _gear_slot(grid, "bench:" + ref, g, "")
-			s.kept = where == "heir"
-			match m.train_bench:
-				"temper":
-					var cost := Bench.temper_cost(g)
-					if not cost.is_empty():
-						_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
-				"break":
-					var v := Bench.break_value(prof, ref)
-					_price_on(s, v[0], v[1], true)
+			s.custom_minimum_size = Vector2.ONE * StorageView.cell(_small())
+			s.kept = true
+			_bench_price(s, ref)
 			keys.append(s.get_meta("slot"))
+	for where in ["pack", "chest"]:
+		if groups[where].is_empty():
+			continue
+		var idx: Array = groups[where].map(func(ref): return int(String(ref).get_slice(":", 1)))
+		var res := StorageView.build(self, parent, where, {"indices": idx, "key": "bench:" + where,
+			"decor": func(s, i): _bench_price(s, "%s:%d" % [where, i])})
+		keys.append_array(res["keys"])
 	return keys
+
+
+## A counter's price drawn on a piece's slot (Temper's cost, what Break down gives).
+func _bench_price(s, ref: String) -> void:
+	match m.train_bench:
+		"temper":
+			var cost := Bench.temper_cost(Bench.piece(_prof(), ref))
+			if not cost.is_empty():
+				_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
+		"break":
+			var v := Bench.break_value(_prof(), ref)
+			_price_on(s, v[0], v[1], true)
 
 
 # --- over the cars: your crystals ---------------------------------------------------
@@ -1730,7 +1765,7 @@ func _ask_button(parent: Node, text: String, again: String, ask: String, why: St
 	b.custom_minimum_size.y = 40
 	b.disabled = why != ""
 	b.set_meta(meta, meta_val)
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	if asking and why == "":
 		m._primary(b)
 	return b
@@ -2010,10 +2045,7 @@ func details(key: String) -> void:
 		"worn":
 			m.loadout_page.details(key)  # (what you'll wear: loadout_page.gd)
 		"pack", "chest":
-			if m.train_car == "personal":
-				m.loadout_page.piece_card(kind, int(arg))  # (wear it, move it, sell it)
-			else:
-				_piece_card(kind, int(arg))
+			m.loadout_page.piece_card(kind, int(arg))  # (the one card for a pack or stash piece: wear it, move it, sell it)
 		"supply":
 			_supply_card(arg)
 		"outfit":
@@ -2072,46 +2104,6 @@ func _price_line(kind: String, amount: int, label := "") -> String:
 	return why
 
 
-func _piece_card(where: String, i: int) -> void:
-	var prof = _prof()
-	var list: Array = prof.chest if where == "chest" else prof.pack
-	if i >= list.size():
-		_head("empty", "", "Empty space", UI.DIM)
-		m._detail_text(T["chest_empty"] if where == "chest" else T["pack_empty"], UI.DIM)
-		return
-	var g = list[i]
-	_head("gear", g, Gear.display(g), Gear.color(g))
-	var selling: bool = m.train_car == "store"
-	if not selling:
-		m._detail_text(T["in_chest"] if where == "chest" else T["in_pack"], UI.DIM)
-	var kind := Train.gear_kind(g)
-	var got := Train.gear_sell(g)
-	_price_line(kind, got, "Sells for")
-	var key := "%s:%d" % [where, i]
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	m.details.add_child(row)
-	var to_other: String = T["to_pack"] if where == "chest" else T["to_chest"]
-	var full: bool = Train.pack_room(prof, _player()) <= 0 if where == "chest" else prof.chest.size() >= Train.CHEST_SIZE
-	var mv: Button = m._button(to_other, _move.bind(where, i), row)
-	mv.custom_minimum_size = Vector2(0, 40)
-	mv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mv.disabled = full
-	var sell: Button = m._button(m.Nav.fill(T["sell_ask"] % [got, Essence.display(kind)], m.main) if m.sell_ask == key else T["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), row)
-	sell.custom_minimum_size = Vector2(0, 40)
-	sell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sell.set_meta("sell", key)
-	if m.sell_ask == key:
-		m._primary(sell)
-	if full:
-		var said: String = T["chest_full"] if where == "pack" else T["pack_full"]
-		m._detail_text(said.left(1).to_upper() + said.substr(1) + ".", UI.DIM)
-	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
-	var against = Train.worn_against(prof, _player(), g)
-	if not (Gear.is_gear(against) and Gear.same(against, g)):
-		m._detail_stats(g, against)  # (set against what you'd wear)
-
-
 func _supply_card(id: String) -> void:
 	var prof = _prof()
 	var p = _player()
@@ -2165,7 +2157,7 @@ func _offer_card(i: int) -> void:
 		var room := Train.buy_room(prof, _player(), g, to[0])
 		var b: Button = m._button(to[1], _buy_gear.bind(i, to[0]), m.details)
 		b.custom_minimum_size.y = 36 if _small() else 40
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.disabled = why != "" or room != ""
 		b.set_meta("buy", meta if to[0] == "pack" else meta + ":" + to[0])
 		if why == "" and room != "":
@@ -2175,7 +2167,7 @@ func _offer_card(i: int) -> void:
 	if i != -2 and Train.upgraded(prof, "order") and Train.order(prof).is_empty():
 		var hb: Button = m._button(T["hold"], _hold.bind(i), m.details)
 		hb.custom_minimum_size.y = 36 if _small() else 40
-		hb.clip_text = true
+		UI.keep_text(hb)  # (its words whole: smaller, then wrapped, never cut)
 		hb.set_meta("buy", meta + ":hold")
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
 	var against = Train.worn_against(prof, _player(), g)
@@ -2251,41 +2243,6 @@ func _upgrades_card() -> void:
 	m._detail_text(T["upgrade_next"] % [nx["name"], Renown.rank_name(int(nx["rank"]))] if not nx.is_empty() else T["upgrade_all"], UI.GOLD)
 
 
-func _move(where: String, i: int) -> void:
-	var prof = _prof()
-	var list: Array = prof.chest if where == "chest" else prof.pack
-	if i >= list.size():
-		return
-	var name := Gear.display(list[i])
-	var why := Train.move(prof, _player(), where, i)
-	if why == "":
-		var to := "pack" if where == "chest" else "chest"
-		m.inv_sel = "%s:%d" % [to, (prof.pack.size() if to == "pack" else prof.chest.size()) - 1]
-		_done((T["moved_pack"] if to == "pack" else T["moved_chest"]) % name, "", "ui_confirm")
-	else:
-		_done(T["cant"] % why, "", "ui_back")
-
-
-## Selling asks once: the button says "Press again to sell" (or "Tap again"), and a second
-## press sells.
-func _sell(where: String, i: int) -> void:
-	var key := "%s:%d" % [where, i]
-	if m.sell_ask != key:
-		m.sell_ask = key
-		m.toast = ""
-		m.open("train")
-		return
-	m.sell_ask = ""
-	var prof = _prof()
-	var list: Array = prof.chest if where == "chest" else prof.pack
-	if i >= list.size():
-		return
-	var name := Gear.display(list[i])
-	var got := Train.sell(prof, where, i)
-	if got != "":
-		_done(T["sold"] % [name, got], Train.line("sold"), "sell")
-
-
 
 # --- drawn parts --------------------------------------------------------------------------
 
@@ -2294,6 +2251,8 @@ func _sell(where: String, i: int) -> void:
 class Purse extends Control:
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
+	## The kinds' names are drawn no smaller than this.
+	const NAME_MIN := 12
 	var profile
 
 	func _ready() -> void:
@@ -2310,15 +2269,26 @@ class Purse extends Control:
 			var have: float = profile.crystal_total(kinds[i])
 			UI.gem_into(b, c, 7.0, Color(Essence.color(kinds[i]), 1.0 if have > 0.0 else 0.3))
 		b.flush(self)
+		# The amounts, and each kind's name beside its amount where every
+		# name fits whole (the letters shrink a little first, no smaller than
+		# NAME_MIN; on a screen too narrow even for that, the gems' colours
+		# say which is which).
+		var mono := UI.font("mono")
+		var gothic := UI.font("display")
+		var ns := 15  # the amounts' size
+		while ns > 11 and kinds.any(func(k): return mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x > w - 24.0):
+			ns -= 1
+		var fs := 15  # the names' size (0: no room for them)
+		while fs >= NAME_MIN and kinds.any(func(k): return gothic.get_string_size(Essence.display(k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 38.0 - mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x):
+			fs -= 1
 		for i in kinds.size():
 			var have: float = profile.crystal_total(kinds[i])
 			var x := w * i + 23.0
 			var col := UI.TEXT if have > 0.0 else UI.FAINT
-			var mono := UI.font("mono")
-			draw_string(mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 15, col)
-			if size.x > 430.0:
-				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-				draw_string(UI.font("display"), Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, 15, UI.DIM)
+			UI.draw_text(self, mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, ns, col)
+			if fs >= NAME_MIN:
+				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
+				UI.draw_text(self, gothic, Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 36.0 - nw, fs, UI.DIM)
 
 
 ## A price: a gem of its kind, the amount and the kind's name (red if you
@@ -2342,7 +2312,7 @@ class PriceTag extends Control:
 		else:
 			UI.gem_into(b, Vector2(8, size.y * 0.5), 6.5, Essence.color(kind))
 		b.flush(self)
-		draw_string(font, Vector2(20, size.y * 0.5 + 5.0), t, HORIZONTAL_ALIGNMENT_LEFT, size.x - 20.0, 16, UI.TEXT if ok else UI.BAD)
+		UI.draw_text(self, font, Vector2(20, size.y * 0.5 + 5.0), t, HORIZONTAL_ALIGNMENT_LEFT, size.x - 20.0, 16, UI.TEXT if ok else UI.BAD)
 
 
 ## A tower's plaque on the engine's destination board: enamel in a brass
@@ -2372,7 +2342,7 @@ class TowerCard extends Button:
 		draw_rect(Rect2(Vector2(4, 4), Vector2(size.x - 8, 4)), Color(t["torch"], 0.8))
 		var small := size.y < 64.0
 		var name: String = t["short"]
-		draw_string(UI.font("display"), Vector2(12, 28 if small else 34), name, HORIZONTAL_ALIGNMENT_LEFT, size.x - 24.0, 21 if small else 23, UI.GILT_HI if chosen else UI.TEXT)
+		UI.draw_text(self, UI.font("display"), Vector2(12, 28 if small else 34), name, HORIZONTAL_ALIGNMENT_LEFT, size.x - 24.0, 21 if small else 23, UI.GILT_HI if chosen else UI.TEXT)
 		var b := UI.Draw.Batch.new()
 		var gy := 43.0 if small else 54.0
 		UI.gem_into(b, Vector2(17, gy), 5.0, Essence.color(t["essence"]))
@@ -2382,4 +2352,4 @@ class TowerCard extends Button:
 			sub += "  ·  floor %d" % best
 		if last and not small:
 			sub += "  ·  last climbed"
-		draw_string(font, Vector2(27, gy + 4.0), sub, HORIZONTAL_ALIGNMENT_LEFT, size.x - 34.0, 13, UI.DIM)
+		UI.draw_text(self, font, Vector2(27, gy + 4.0), sub, HORIZONTAL_ALIGNMENT_LEFT, size.x - 34.0, 13, UI.DIM)

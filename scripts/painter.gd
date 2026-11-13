@@ -274,12 +274,10 @@ func _build() -> void:
 	tcol.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(tcol)
 	title_l = Label.new()
-	title_l.clip_text = true
-	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(title_l)  # (its words whole: smaller, then wrapped, never cut)
 	tcol.add_child(title_l)
 	status_l = Label.new()
-	status_l.clip_text = true
-	status_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(status_l)  # (its words whole: smaller, then wrapped, never cut)
 	tcol.add_child(status_l)
 	top_buttons["rooms"] = _btn(TEXT["rooms"], open_panel.bind("rooms"), top)
 	top_buttons["room"] = _btn(TEXT["room"], open_panel.bind("settings"), top)
@@ -321,8 +319,7 @@ func _build() -> void:
 	mid.add_child(grid_view)
 	hint_l = Label.new()
 	hint_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_l.clip_text = true
-	hint_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(hint_l)  # (its words whole: smaller, then wrapped, never cut)
 	mid.add_child(hint_l)
 	side = VBoxContainer.new()
 	side.add_theme_constant_override("separation", 4)
@@ -1802,14 +1799,13 @@ func _room_row(r: Dictionary, is_builtin: bool) -> void:
 	row.add_child(info)
 	var current: bool = r["id"] == room.get("id", "")
 	var nl := _lbl(String(r["name"]), info, 15 if small() else 17, UI.GOLD if current else UI.TEXT, false)
-	nl.clip_text = true
-	nl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(nl)  # (its words whole: smaller, then wrapped, never cut)
 	var sz := Rooms.size_of(r)
 	var bits: Array = [TEXT["job_short"][r["role"]], "%d x %d" % [sz.x, sz.y]]
 	if not is_builtin:
 		bits.append(TEXT["ready"] if not Check.ok_towers(r).is_empty() else TEXT["draft"])
 	var sl := _lbl("   ".join(PackedStringArray(bits)), info, 12 if small() else 13, UI.DIM, false)
-	sl.clip_text = true
+	UI.keep_text(sl)  # (its words whole: smaller, then wrapped, never cut)
 	var id: String = r["id"]
 	_small_btn(TEXT["open"], _list_open.bind(id), row, "open_" + id)
 	_small_btn(TEXT["copy"], copy_room.bind(id), row, "copy_" + id)
@@ -1859,7 +1855,7 @@ func _page_settings() -> void:
 	_key_lbl(TEXT["name"], name_row)
 	var nl := _lbl(String(room["name"]), name_row, UI.SIZE_BODY + 1, UI.TEXT, false)
 	nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	nl.clip_text = true
+	UI.keep_text(nl)  # (its words whole: smaller, then wrapped, never cut)
 	var rb := _small_btn(TEXT["rename"], open_panel.bind("rename"), name_row, "rename")
 	rb.disabled = builtin
 	# Job.
@@ -2251,7 +2247,7 @@ class TileButton extends Button:
 		Tiles.draw(self, ch, r, Tiles.look(p.view_tower if p != null else ""), Vector2i(3, 2), false, false)
 		var f := UI.font("body")
 		var fs := 12 if size.y < 34.0 else 14
-		draw_string(f, Vector2(r.end.x + 6, size.y * 0.5 + fs * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - r.end.x - 8, fs, UI.GOLD if lit else UI.TEXT)
+		UI.draw_text(self, f, Vector2(r.end.x + 6, size.y * 0.5 + fs * 0.36), label, HORIZONTAL_ALIGNMENT_LEFT, size.x - r.end.x - 8, fs, UI.GOLD if lit else UI.TEXT)
 
 
 ## A tool: an icon drawn in code with its name under it; gilt when in hand.
@@ -2312,4 +2308,4 @@ class ToolButton extends Button:
 					draw_line(c + Vector2(-u * 0.15, -u * 0.45), c + Vector2(-u * 0.15, u * 0.15), col, w)
 		var f := UI.font("body")
 		var tw := f.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(f, Vector2((size.x - tw) * 0.5, size.y - 4.0), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		UI.draw_text(self, f, Vector2((size.x - tw) * 0.5, size.y - 4.0), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

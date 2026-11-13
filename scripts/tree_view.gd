@@ -655,8 +655,7 @@ class TreeMap extends Control:
 		head = Label.new()
 		head.text = head_text
 		UI.style_label(head, "display", 19 if small else 22, col.lightened(0.2))
-		head.clip_text = true
-		head.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		UI.keep_text(head)  # (its words whole: smaller, then wrapped, never cut)
 		head.set_meta("tree_head", part)
 		add_child(head)
 		if note_text != "":
@@ -1072,10 +1071,10 @@ class TreeMap extends Control:
 			var num := String(rows[ri].get("span", str(int(rows[ri].get("at", ri + 1)))))
 			var fsz := 11 if num.length() < 2 else 9
 			var tc: Color = UI.TEXT if st == "owned" else (UI.GILT_HI if st == "ready" else Color(UI.FAINT, 0.9))
-			ci.draw_string(nf, d + Vector2(-dr, fsz * 0.36), num, HORIZONTAL_ALIGNMENT_CENTER, dr * 2.0, fsz, tc)
+			UI.draw_text(ci, nf, d + Vector2(-dr, fsz * 0.36), num, HORIZONTAL_ALIGNMENT_CENTER, dr * 2.0, fsz, tc)
 			if lay["rows"][ri]["fork"]:
 				var bx: float = lay["root"].x + 34.0
-				ci.draw_string(bf, Vector2(bx - 15.0, d.y + 4.0), View.TEXT["or"], HORIZONTAL_ALIGNMENT_CENTER, 18, 11, Color(UI.FAINT, 0.9))
+				UI.draw_text(ci, bf, Vector2(bx - 15.0, d.y + 4.0), View.TEXT["or"], HORIZONTAL_ALIGNMENT_CENTER, 18, 11, Color(UI.FAINT, 0.9))
 		if lay.has("fx_head"):
 			var at: Vector2 = lay["fx_head"]
 			UI.draw_eyebrow(ci, at, View.TEXT["effects"], Color(UI.GOLD, 0.8))
@@ -1229,15 +1228,20 @@ class TreeMap extends Control:
 			var tiny := k < 0.8
 			var ns := 15 if tiny else 16
 			var ss := 13 if tiny else 14
+			# (a name longer than the room between the figure and the map's
+			# edge is drawn smaller, so it never runs off the side)
+			var room: float = (size.x - col_x if side > 0.0 else col_x) - 7.0
+			ns = UI.fit_floor(font, name, ns, room)
+			ss = UI.fit_floor(sf, sub, ss, room)
 			var w1 := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
 			var w2 := sf.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss).x
 			var x1 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w1
 			var x2 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w2
 			var nc: Color = UI.GILT_HI if chosen else (UI.TEXT if not info.is_empty() or unbound else UI.DIM)
 			ci.draw_string_outline(font, Vector2(x1, ly + 3.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns, 4, Color(0, 0, 0, 0.75))
-			ci.draw_string(font, Vector2(x1, ly + 3.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns, nc)
+			UI.draw_text(ci, font, Vector2(x1, ly + 3.0), name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns, nc)
 			ci.draw_string_outline(sf, Vector2(x2, ly + (15.0 if tiny else 18.0)), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss, 4, Color(0, 0, 0, 0.7))
-			ci.draw_string(sf, Vector2(x2, ly + (15.0 if tiny else 18.0)), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss, sub_col)
+			UI.draw_text(ci, sf, Vector2(x2, ly + (15.0 if tiny else 18.0)), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss, sub_col)
 
 	# --- drawn each frame ---------------------------------------------------------------
 
@@ -1475,7 +1479,7 @@ class Bud extends Button:
 			var bf: Font = UI.font("body")
 			aw = minf(bf.get_string_size(aux, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x, r.size.x * 0.45)
 			var ac: Color = UI.GILT if st == "in_use" else (UI.VIOLET if st == "learnable" else Color(UI.FAINT, 0.95))
-			draw_string(bf, Vector2(r.end.x - rad * 0.6 - aw, r.get_center().y + 4.0), aux, HORIZONTAL_ALIGNMENT_RIGHT, aw, 12, ac)
+			UI.draw_text(self, bf, Vector2(r.end.x - rad * 0.6 - aw, r.get_center().y + 4.0), aux, HORIZONTAL_ALIGNMENT_RIGHT, aw, 12, ac)
 		UI.draw_label(self, Vector2(tx, r.get_center().y + fs * 0.33), text, fs, Color(tc, tc.a * fade), HORIZONTAL_ALIGNMENT_LEFT, r.end.x - tx - rad * 0.6 - (aw + 8.0 if aw > 0.0 else 0.0))
 		if st == "passed":
 			draw_line(Vector2(tx - 2.0, r.get_center().y), Vector2(r.end.x - rad * 0.7, r.get_center().y), Color(UI.FAINT, 0.6), 1.0)
@@ -1538,8 +1542,8 @@ class MapLink extends Button:
 		var l1 := " ".join(words.slice(0, cut))
 		var l2 := " ".join(words.slice(cut))
 		var y := c.y + 12.0 + fs
-		draw_string(f, Vector2(r.position.x, y), l1, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, UI.DIM if not hot else UI.TEXT)
-		draw_string(f, Vector2(r.position.x, y + fs + 1.0), l2, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, UI.GOLD if hot else Color(UI.GOLD, 0.85))
+		UI.draw_text(self, f, Vector2(r.position.x, y), l1, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, UI.DIM if not hot else UI.TEXT)
+		UI.draw_text(self, f, Vector2(r.position.x, y + fs + 1.0), l2, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, UI.GOLD if hot else Color(UI.GOLD, 0.85))
 		if has_focus() and not touching:
 			var ring := UI.rounded(r.grow(1.5), 9.5)
 			ring.append(ring[0])

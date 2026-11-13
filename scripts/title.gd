@@ -111,7 +111,8 @@ func _ready() -> void:
 ## Where the menu's buttons go: the column left of the tower, under the title.
 func menu_rect(s: Vector2) -> Rect2:
 	var top := _title_y(s) + _title_size(s) * 0.85 + 24.0
-	return Rect2(Vector2(0, top), Vector2(s.x * 0.58, minf(menu_h, s.y * 0.94 - top)))
+	# (it ends above the line of small print along the bottom, however short the screen)
+	return Rect2(Vector2(0, top), Vector2(s.x * 0.58, minf(menu_h, minf(s.y * 0.94, s.y - 28.0) - top)))
 
 
 func _title_size(s: Vector2) -> int:
@@ -312,7 +313,7 @@ func _draw_front(c: CanvasItem) -> void:
 		_glow(c, mp, Vector2.ONE * r * 11.0, Color(col, 0.4 * a))
 		c.draw_circle(mp, r * 0.75, Color(col.lightened(0.35), a))
 
-	c.draw_string(font, Vector2(16, s.y - 10), TEXT["footer"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(DIM, 0.7))
+	UI.draw_text(c, font, Vector2(16, s.y - 10), TEXT["footer"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(DIM, 0.7))
 	if not show_name:
 		return
 	# The name, a small ornament and the tagline (an inscription: the fine italic).
@@ -324,9 +325,9 @@ func _draw_front(c: CanvasItem) -> void:
 	_glow(c, Vector2(col_w * 0.5, ty - ns * 0.3), Vector2(minf(col_w * 0.9, ns * 9.0), ns * 2.2), Color(UI.GILT, 0.1))
 	c.draw_string_outline(title_font, Vector2(0, ty + 4.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, 12, Color(0, 0, 0, 0.5))
 	c.draw_string_outline(title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, 4, Color(0.22, 0.12, 0.04, 0.95))
-	c.draw_string(title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, UI.GILT)
+	UI.draw_text(c, title_font, Vector2(0, ty), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, UI.GILT)
 	# A lit upper edge: the name again, a shade lighter, a pixel up.
-	c.draw_string(title_font, Vector2(0, ty - 1.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, Color(UI.GILT_HI, 0.35))
+	UI.draw_text(c, title_font, Vector2(0, ty - 1.0), name, HORIZONTAL_ALIGNMENT_CENTER, col_w, ns, Color(UI.GILT_HI, 0.35))
 	var ts := int(clampf(fs * 0.38, 17.0, 26.0))
 	var half := minf(col_w * 0.3, 180.0)
 	var d := ty + fs * 0.3
@@ -334,7 +335,7 @@ func _draw_front(c: CanvasItem) -> void:
 	var tag_y := d + ts + 8.0
 	var it := UI.font("inscription")
 	c.draw_string_outline(it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, 4, Color(0, 0, 0, 0.6))
-	c.draw_string(it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, Color(UI.TEXT, 0.88))
+	UI.draw_text(c, it, Vector2(0, tag_y), TEXT["tagline"], HORIZONTAL_ALIGNMENT_CENTER, col_w, ts, Color(UI.TEXT, 0.88))
 
 
 ## A soft blob of light (or shadow) of a size and colour.
