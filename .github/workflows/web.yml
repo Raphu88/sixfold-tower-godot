@@ -58,9 +58,10 @@ jobs:
           # Some checks build random floors and can rarely draw an unlucky layout.
           # A real bug fails every time, so one failed run gets one more try; the
           # first run's failures stay in the log.
-          if ! timeout 1500 $godot --headless -s tests/smoke_test.gd; then
+          # (the suite plays whole floors with a bot now: it needs well over 25 minutes here)
+          if ! timeout 3000 $godot --headless -s tests/smoke_test.gd; then
             echo "::warning::The smoke test failed once; running it again"
-            timeout 1500 $godot --headless -s tests/smoke_test.gd
+            timeout 3000 $godot --headless -s tests/smoke_test.gd
           fi
 
       - name: Export for web
