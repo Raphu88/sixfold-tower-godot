@@ -402,7 +402,8 @@ static func climber(menu, grid: GridContainer) -> void:
 		var b := Button.new()
 		b.text = "\n".join(lines)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.custom_minimum_size = Vector2(0, 70.0 if small else 96.0)
+		# (wide enough to read: on a narrow screen the cards go under the figure: reflow.gd)
+		b.custom_minimum_size = Vector2(196.0 if small else 230.0, 70.0 if small else 96.0)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 13 if small else 14)
 		b.add_theme_color_override("font_color", col.lightened(0.25))

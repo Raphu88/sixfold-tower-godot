@@ -347,6 +347,7 @@ func _board(left: Node) -> void:
 	for i in Renown.RANKS.size():
 		var col: Color = UI.GILT_HI if i == rk else (UI.TEXT if i < rk else UI.FAINT)
 		var l := _line(rg, "%s  ·  %d" % [Renown.rank_name(i), Renown.needed(i)], col)
+		l.autowrap_mode = TextServer.AUTOWRAP_OFF  # (a short line, as wide as its words: two to a row, or one where the screen is narrow: reflow.gd)
 		l.custom_minimum_size.x = 0.0
 
 

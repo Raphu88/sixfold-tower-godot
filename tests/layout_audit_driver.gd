@@ -12,7 +12,8 @@ extends RefCounted
 ##            other, and not marked as stacked on purpose: the meta
 ##            "layout_stack" on either, or on something they sit in)
 ##   cut      text cut short by its own control (a button or label too
-##            narrow: the words end in "..."; a label with lines hidden)
+##            narrow: the words end in "..."; a label with lines hidden),
+##            or squeezed into a sliver (wrapped a word or less to a line)
 ##   clipped  text cut off by something it sits in that doesn't scroll
 ##   off      text partly off the screen, with nothing to scroll it back
 ##   under    text under the rail, or under a touch button
@@ -35,6 +36,9 @@ const Unbound := preload("res://scripts/unbound.gd")
 ## Text may share this much of its line box with a neighbour (the gothic
 ## face's lines are taller than its letters: headings sit close on purpose).
 const LINE_INSET := 0.2
+## Wrapped text narrower than this many times its letters' size, on four
+## lines or more, is squeezed: a word or less to a line.
+const SLIVER := 4.5
 ## Two pieces of text overlap when they share more than this (view px) both ways.
 const OVER_MIN := 2.0
 ## Screen sizes: a computer, and three phones (touch on).
@@ -201,6 +205,8 @@ static func _label(l: Label) -> Dictionary:
 		problems.append("is cut short (%.0f px of words in %.0f)" % [need, l.size.x])
 	if shown < lines:
 		problems.append("shows %d of its %d lines" % [shown, lines])
+	if wrap and lines >= 4 and l.size.x < fs * SLIVER:
+		problems.append("is squeezed into %.0f px across (%d lines)" % [l.size.x, lines])
 	var w: float = minf(need, l.size.x) if (wrap or cuts) else need
 	var h: float = lh * maxi(shown, 1)
 	var x := 0.0
@@ -240,6 +246,8 @@ static func _button(b: Button) -> Dictionary:
 		size = f.get_multiline_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, maxf(room, 1.0), fs)
 		if size.y > b.size.y - pad.y + 2.0:
 			problems.append("wraps to %.0f px tall in %.0f" % [size.y, b.size.y - pad.y])
+		if room < fs * SLIVER and size.y > f.get_height(fs) * 3.5:
+			problems.append("is squeezed into %.0f px across" % room)
 		size.x = minf(size.x, room)
 	elif need > room + 1.0:
 		problems.append("is cut short (%.0f px of words in %.0f)" % [need, room])
@@ -586,7 +594,7 @@ class Sweep:
 				await frames(1)
 				if pg != "title":
 					menu.open(pg)
-				await look(pg, [menu.painter] if pg == "painter" and menu.get("painter") != null else [menu.panel])
+				await look(pg, [menu.painter] if pg == "painter" and menu.get("painter") != null else [menu.panel, menu.backdrop])
 			menu.close()
 			await frames(1)
 

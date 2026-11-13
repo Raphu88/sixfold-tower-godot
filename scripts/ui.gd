@@ -1027,6 +1027,18 @@ static func _keep_text(c: Control) -> void:
 	var mode := TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
 	if c.autowrap_mode != mode:
 		c.autowrap_mode = mode
+	if c is Button:
+		# (a button doesn't always grow for its wrapped lines by itself: make room)
+		var base_h := float(c.get_meta("keep_h", -1.0))
+		if base_h < 0.0:
+			base_h = c.custom_minimum_size.y
+			c.set_meta("keep_h", base_h)
+		var want_h := base_h
+		if wrap:
+			var sbh: StyleBox = c.get_theme_stylebox("normal")
+			want_h = maxf(base_h, ceilf(f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, room, fs).y + (sbh.get_minimum_size().y if sbh != null else 0.0) + 2.0))
+		if not is_equal_approx(c.custom_minimum_size.y, want_h):
+			c.custom_minimum_size.y = want_h
 	if c is Label:
 		# (a wrapping label must not clip, or it asks for no height at all)
 		if c.clip_text == wrap:

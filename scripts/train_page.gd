@@ -2279,7 +2279,7 @@ class Purse extends Control:
 		while ns > 11 and kinds.any(func(k): return mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x > w - 24.0):
 			ns -= 1
 		var fs := 15  # the names' size (0: no room for them)
-		while fs >= NAME_MIN and kinds.any(func(k): return gothic.get_string_size(Essence.display(k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 30.0 - mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x):
+		while fs >= NAME_MIN and kinds.any(func(k): return gothic.get_string_size(Essence.display(k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 38.0 - mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x):
 			fs -= 1
 		for i in kinds.size():
 			var have: float = profile.crystal_total(kinds[i])
@@ -2288,7 +2288,7 @@ class Purse extends Control:
 			UI.draw_text(self, mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, ns, col)
 			if fs >= NAME_MIN:
 				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
-				UI.draw_text(self, gothic, Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, fs, UI.DIM)
+				UI.draw_text(self, gothic, Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 36.0 - nw, fs, UI.DIM)
 
 
 ## A price: a gem of its kind, the amount and the kind's name (red if you

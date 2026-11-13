@@ -111,7 +111,8 @@ func _ready() -> void:
 ## Where the menu's buttons go: the column left of the tower, under the title.
 func menu_rect(s: Vector2) -> Rect2:
 	var top := _title_y(s) + _title_size(s) * 0.85 + 24.0
-	return Rect2(Vector2(0, top), Vector2(s.x * 0.58, minf(menu_h, s.y * 0.94 - top)))
+	# (it ends above the line of small print along the bottom, however short the screen)
+	return Rect2(Vector2(0, top), Vector2(s.x * 0.58, minf(menu_h, minf(s.y * 0.94, s.y - 28.0) - top)))
 
 
 func _title_size(s: Vector2) -> int:
