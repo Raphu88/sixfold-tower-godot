@@ -304,7 +304,8 @@ func _everywhere() -> void:
 		e.set_physics_process(false)
 	var side := {}
 	# (the last: the tightest of all, a phone at the biggest Interface size AND the biggest HUD)
-	for cfg in [["a computer", Vector2i(1280, 720), false, 1.0], ["a phone", Vector2i(915, 412), true, 1.0], ["a computer with a large HUD", Vector2i(1280, 720), false, 1.2],
+	for cfg in [["a computer", Vector2i(1280, 720), false, 1.0], ["a phone", Vector2i(915, 412), true, 1.0], ["a smaller phone", Vector2i(800, 400), true, 1.0],
+			["the smallest phone", Vector2i(740, 360), true, 1.0], ["a computer with a large HUD", Vector2i(1280, 720), false, 1.2],
 			["a phone with a large HUD", Vector2i(915, 412), true, 1.2]]:
 		for ui in UI.UI_SIZE_ORDER:
 			hud.hud_scale = cfg[3]

@@ -1371,7 +1371,10 @@ func lanes_on() -> bool:
 
 ## Where the top right begins (HUD units): the phone's Bag, Climber, Menu and
 ## fullscreen buttons, or a computer's key hints. The lane stays left of it.
-func top_right_edge(view: Vector2) -> float:
+## `band`: how far down the lane reaches there (HUD units). On a phone any
+## button on the right whose top is above that counts too (Swap, a cast
+## button), so nothing in the lane ever lies under one.
+func top_right_edge(view: Vector2, band := LANE_BANNER_BAND) -> float:
 	var hs := hud_scale
 	if main.touch_active:
 		var x := view.x
@@ -1380,10 +1383,25 @@ func top_right_edge(view: Vector2) -> float:
 			if t.buttons.is_empty():
 				t._layout()
 			for b in t.buttons:
-				if b["id"] in t.TOP_BAR:
-					x = minf(x, (float(b["c"].x) - float(b["r"])) / hs)
+				var c: Vector2 = b["c"]
+				if b["id"] in t.TOP_BAR or (c.x > view.x * hs * 0.5 and c.y - float(b["r"]) < band * hs):
+					x = minf(x, (c.x - float(b["r"])) / hs)
 		return x
 	return Layout.box("hud.hints", view).position.x
+
+
+## How far down the lane's banner reaches (HUD units), and its status chips
+## under it: what bounds each on the right (top_right_edge).
+const LANE_BANNER_BAND := 64.0
+const LANE_CHIPS_BAND := 136.0
+
+
+## Where the lane may begin (HUD units): right of the corner's bars, slots
+## and marks, and of the essence counter under them.
+func lane_left(real_size: Vector2) -> float:
+	var hs := hud_scale
+	var e := Layout.box("hud.essence", real_size / hs)
+	return maxf(_corner_box(real_size).end.x / hs, e.end.x)
 
 
 ## The status chips, most pressing first: single lines under the banner
@@ -1473,14 +1491,45 @@ func _draw_lanes(real_size: Vector2, feed_top: float) -> void:
 	if not lanes_on():
 		N.rects = {"banner": Rect2(), "chips": [], "feed": [], "column": Rect2()}
 		return
-	var corner := _corner_box(real_size)
 	# (with no room at the top, the lane goes on the left, under the essence counter's row)
-	var col: Rect2 = N.column(view, corner.end.x / hs, top_right_edge(view), feed_top - 6.0)
+	var col: Rect2 = N.column(view, lane_left(real_size), top_right_edge(view), feed_top - 6.0)
+	N.chip_right = top_right_edge(view, LANE_CHIPS_BAND) - 10.0  # (the chips, lower down, keep left of Swap and the cast buttons)
 	var foot: float = N.draw_lane(self, unit, view, col, status_chips())
 	goal_rect = N.rects["column"]
 	# With the lane under the corner (no room at the top) the feed goes under it.
 	var top := maxf(feed_top, foot + 4.0) if N.left_mode else feed_top
 	N.draw_feed(self, unit, view, Vector2(BAR_X, top))
+
+
+## Where the top lane sits on this screen (view px), `tall` HUD units of it:
+## between the corner's bars and the top-right buttons (the layout audit
+## checks it against both: tests/layout_audit_driver.gd).
+func lane_box(tall := LANE_BANNER_BAND - 8.0) -> Rect2:
+	var real := get_viewport_rect().size
+	var hs := hud_scale
+	var col: Rect2 = main.notices.column(real / hs, lane_left(real), top_right_edge(real / hs), ROW_Y + SLOT + 30.0)
+	return Rect2(col.position * hs, Vector2(col.size.x, tall) * hs)
+
+
+## Where the status chips under the banner go (view px): the lane's column,
+## no farther right than the buttons that reach down beside them.
+func chips_box() -> Rect2:
+	var real := get_viewport_rect().size
+	var hs := hud_scale
+	var lane := lane_box()
+	var right := minf(lane.end.x, (top_right_edge(real / hs, LANE_CHIPS_BAND) - 10.0) * hs)
+	if main.notices.left_mode:
+		right = lane.end.x
+	return Rect2(lane.position.x, lane.end.y + 4.0 * hs, maxf(right - lane.position.x, 0.0), (LANE_CHIPS_BAND - LANE_BANNER_BAND) * hs)
+
+
+## Where the left feed's lines go (view px): under the essence counter's row.
+func feed_box() -> Rect2:
+	var hs := hud_scale
+	var view := get_viewport_rect().size / hs
+	var b := Layout.box("hud.feed", view)
+	var w: float = minf(main.notices.FEED_W, view.x * 0.3 - b.position.x - 6.0)
+	return Rect2(b.position * hs, Vector2(w, main.notices.FEED_H * main.notices.FEED_MAX) * hs)
 
 
 ## Where the lanes' parts are on screen now (view px; tests): the banner,

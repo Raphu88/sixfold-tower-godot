@@ -165,6 +165,7 @@ var fresh := 0  # log lines added since the Entity last looked (its sphere pulse
 ## line, and the lane's whole column.
 var rects := {"banner": Rect2(), "chips": [], "feed": [], "column": Rect2()}
 var lane_w := LANE_W  # the lane's width as last laid out (HUD units)
+var chip_right := INF  # the chips keep left of this (HUD units): a phone's Swap or cast button beside them
 var left_mode := false  # no room at the top: the lane sits under the corner
 var _shift := 0.0  # how far the chips have slid down for a banner (0..1)
 var _banner_h := 0.0
@@ -567,7 +568,13 @@ func _draw_chip(ci: CanvasItem, c: Dictionary, cx: float, y: float, col: Rect2) 
 	var tall: bool = c.get("tall", false)
 	var fs := CHIP_SIZE + (3 if tall else 0)
 	var max_w := col.size.x
-	var text := clip(font, UI.title_case(String(c["text"])), fs, max_w - 34.0)
+	if not left_mode and chip_right < col.end.x:
+		# A button reaches down beside the chips: they keep to its left.
+		max_w = maxf(chip_right - col.position.x, 90.0)
+		cx = col.position.x + max_w * 0.5
+	var words := UI.title_case(String(c["text"]))
+	fs = UI.fit_floor(font, words, fs, max_w - 34.0, 11)  # (smaller before any of it is lost)
+	var text := clip(font, words, fs, max_w - 34.0)
 	var tw := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var has_gauge: bool = c.has("gauge")
 	var w := minf(maxf(tw + 34.0, 170.0 if has_gauge else 0.0), max_w)
