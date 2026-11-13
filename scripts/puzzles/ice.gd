@@ -8,8 +8,11 @@ extends "res://scripts/puzzles/base.gd"
 ## The generator scatters rocks at random, then searches every slide from
 ## every way onto the ice (moves below) to find how many slides each resting
 ## place needs; the dais goes on one needing NEED to NEED+3 (the most it
-## can). It also makes sure no resting place is a dead end: from anywhere you
-## can stop, some line of slides leads off the ice, so you can never be stuck.
+## can). It also makes sure no tile of the ice is a dead end: from EVERY
+## tile that isn't rock (not only where a slide stops: a monster in your
+## lane, a blink or the end of a flight can leave you anywhere), some line
+## of slides leads off the ice, so you can never be stuck. No tile is ever
+## boxed in by rocks on all four sides.
 ##   tier 1: the dais needs 2+ slides
 ##   tier 2: 3+ slides
 ##   tier 3: 4+ slides
@@ -101,7 +104,7 @@ static func make(rect: Rect2, _floor_num: int, tier: int, ctx: Dictionary) -> Di
 		for i in n_rocks:
 			rk[all[i]] = true
 		var dist := moves(c, r, rk)
-		if dist.is_empty() or not escapable(c, r, rk, dist):
+		if dist.is_empty() or not all_free(c, r, rk):
 			continue
 		var best := -1
 		var picks: Array = []
@@ -199,6 +202,44 @@ static func escapable(c: int, r: int, rk: Dictionary, dist: Dictionary) -> bool:
 					changed = true
 					break
 	return free.size() == dist.size()
+
+
+## Whether EVERY tile of the ice that isn't rock can slide its way off
+## (wherever the climber comes to rest: the end of a slide, a monster in
+## the lane, a blink, the end of a flight). A search backward from the
+## edge: a tile is free once one of its slides runs off or stops on a free
+## tile.
+static func all_free(c: int, r: int, rk: Dictionary) -> bool:
+	return stuck_tiles(c, r, rk).is_empty()
+
+
+## The tiles (not rock) with no line of slides off the ice (see all_free).
+static func stuck_tiles(c: int, r: int, rk: Dictionary) -> Array:
+	var free := {}
+	var left: Array = []
+	for y in r:
+		for x in c:
+			var t := Vector2i(x, y)
+			if not rk.has(t):
+				left.append(t)
+	var changed := true
+	while changed:
+		changed = false
+		var still: Array = []
+		for t in left:
+			var ok := false
+			for d in DIRS:
+				var s := slide_from(t, d, c, r, rk)
+				if s == EXIT or (s != t and free.has(s)):
+					ok = true
+					break
+			if ok:
+				free[t] = true
+				changed = true
+			else:
+				still.append(t)
+		left = still
+	return left
 
 
 ## A shortest line of slides to the dais: [way on (tile off the ice), dir,
@@ -385,6 +426,10 @@ func _slide(p, delta: float) -> void:
 			slides = 0
 		return
 	var perp: Vector2 = to - dv * along
+	if perp.length() > CELL * 0.6:
+		slide_dir = Vector2i.ZERO  # (moved off the slide's line: a blink, a flight's end)
+		p.velocity = Vector2.ZERO
+		return
 	var fix: Vector2 = Vector2.ZERO if perp.length() < 0.5 else perp.normalized() * minf(SNAP, perp.length() / delta)
 	p.velocity = dv * SLIDE + fix
 	# Blocked (a monster in the lane): stop on the tile you're on.
