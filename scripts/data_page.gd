@@ -159,8 +159,7 @@ func build() -> void:
 	status_label = m._label("", 0.0, UI.DIM)
 	UI.style_label(status_label, "body", 13 if small else 14, UI.DIM)
 	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	status_label.clip_text = true
-	status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(status_label)  # (its words whole: smaller, then wrapped, never cut)
 	status_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if small:
 		m.box.add_child(status_label)
@@ -239,7 +238,7 @@ func _section_list() -> void:
 			text += "  ·  " + TEXT["count"] % changed
 		var b: Button = m._button(text, open_section.bind(sec["id"]), grid)
 		b.set_meta("data_section", sec["id"])
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		if changed > 0:
 			b.add_theme_color_override("font_color", UI.GOLD)
@@ -256,7 +255,7 @@ func _section_fields() -> void:
 	UI.style_label(nl, "display", 18, UI.GOLD)
 	nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	nl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	nl.clip_text = true
+	UI.keep_text(nl)  # (its words whole: smaller, then wrapped, never cut)
 	top.add_child(nl)
 	var when: String = Reg.WHEN.get(sec.get("when", "live"), "")
 	if when != "":
@@ -301,8 +300,7 @@ func _field_row(parent: Node, path: String, wide_label: bool, under_table := fal
 	UI.style_label(name, "display", 15 if small else 16, UI.TEXT)
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	name.clip_text = true
-	name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(name)  # (its words whole: smaller, then wrapped, never cut)
 	name.tooltip_text = path
 	top.add_child(name)
 	var when := Reg.when(path)
@@ -321,7 +319,7 @@ func _field_row(parent: Node, path: String, wide_label: bool, under_table := fal
 	if not small:
 		var pl: Label = m._label(path, 0.0, UI.FAINT)
 		UI.style_label(pl, "mono", 11, Color(UI.FAINT, 0.8))
-		pl.clip_text = true
+		UI.keep_text(pl)  # (its words whole: smaller, then wrapped, never cut)
 		col.add_child(pl)
 	var r := {"name": name, "reset": reset}
 	match f["kind"]:

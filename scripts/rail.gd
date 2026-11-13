@@ -1126,19 +1126,23 @@ class RailIdent extends Button:
 				place_col = Essence.color(ess).lerp(UI.TEXT, 0.25)
 		if eyebrow:
 			y += es + 2.0
-			UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), UI.titled(place), w - (30.0 if key_hint != "" else 0.0), es), place_col, es)
+			UI.draw_eyebrow(self, Vector2(x, y), _fit(UI.font("eyebrow"), UI.titled(place), w - (30.0 if key_hint != "" else 0.0), es, self), place_col, es)
 		if key_hint != "" and not narrow:
 			UI.draw_text(self, UI.font("mono"), Vector2(0, (y if eyebrow else 14.0)), key_hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 8.0, 11, Color(UI.FAINT, 0.95))
 		var ns := 18 if narrow else 30
 		y += ns * (0.95 if narrow else 1.0) + 2.0
 		var nc: Color = UI.GILT_HI if (on or hot or focus) else UI.GOLD
-		UI.draw_title(self, Vector2(x, y), _fit(UI.font("display"), name, w, ns), ns, nc, HORIZONTAL_ALIGNMENT_LEFT, -1, 0.0)
+		# (a long name is drawn smaller, down to NAME_MIN, before it loses its end)
+		var nfs := ns
+		while nfs > NAME_MIN[0 if narrow else 1] and UI.font("display").get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs).x > w:
+			nfs -= 1
+		UI.draw_title(self, Vector2(x, y), _fit(UI.font("display"), name, w, nfs, self), nfs, nc, HORIZONTAL_ALIGNMENT_LEFT, -1, 0.0)
 		# The title worn (renown.gd), under the name.
 		var worn: String = load("res://scripts/renown.gd").worn_title(prof)
 		if worn != "":
 			var tsz := 12 if narrow else 17
 			y += tsz + (1.0 if narrow else 3.0)
-			UI.draw_text(self, UI.font("italic"), Vector2(x, y), _fit(UI.font("italic"), worn, w, tsz), HORIZONTAL_ALIGNMENT_LEFT, w, tsz, Color(UI.GILT_HI if (on or hot or focus) else UI.GOLD, 0.92))
+			UI.draw_text(self, UI.font("italic"), Vector2(x, y), _fit(UI.font("italic"), worn, w, tsz, self), HORIZONTAL_ALIGNMENT_LEFT, w, tsz, Color(UI.GILT_HI if (on or hot or focus) else UI.GOLD, 0.92))
 		# The six marks.
 		var r := 6.5 if narrow else 10.0
 		if rail.on_end and narrow:
@@ -1163,9 +1167,14 @@ class RailIdent extends Button:
 			var line := "%d of 6 marks  ·  best floor %d" % [prof.bonds.size(), prof.best_floor]
 			UI.draw_text(self, UI.font("body"), Vector2(x, cy + r + 18.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
-	static func _fit(f: Font, t: String, w: float, fs: int) -> String:
+	## The smallest a climber's name is drawn before it's shortened: [phone, computer].
+	const NAME_MIN := [12, 18]
+
+	static func _fit(f: Font, t: String, w: float, fs: int, ci: CanvasItem = null) -> String:
 		if f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:
 			return t
+		if ci != null:
+			UI.note_cut(ci, f, t, w, fs)  # (the layout audit: this one lost its end)
 		while t.length() > 3 and f.get_string_size(t + "...", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w:
 			t = t.left(t.length() - 1)
 		return t + "..."

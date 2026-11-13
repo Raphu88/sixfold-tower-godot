@@ -453,7 +453,7 @@ func _button(text: String, action: Callable, meta: String) -> Button:
 	var b: Button = m._button(text, action, card)
 	b.custom_minimum_size.y = 40
 	b.set_meta("station_do", meta)
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	m.train_page._brass(b, true)
 	return b
 

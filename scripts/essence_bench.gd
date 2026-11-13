@@ -421,7 +421,7 @@ static func build(tp, row: Node) -> void:
 		var label: String = Tech.title(t) if Tech.valid(t) else TEXT["slot_empty"]
 		var b: Button = m._button(TEXT["slot"] % [key, label] if key != "" else label, _pick_slot.bind(tp, i), slots)
 		b.custom_minimum_size = Vector2(64.0 if small else 116.0, 34.0 if small else 36.0)
-		b.clip_text = true
+		UI.keep_text(b, 9)  # (its words whole: smaller, then wrapped, never cut)
 		b.add_theme_font_size_override("font_size", 12 if small else 13)
 		b.set_meta("bench_slot", i)
 		tp._brass(b, can and i == sel)

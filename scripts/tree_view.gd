@@ -655,8 +655,7 @@ class TreeMap extends Control:
 		head = Label.new()
 		head.text = head_text
 		UI.style_label(head, "display", 19 if small else 22, col.lightened(0.2))
-		head.clip_text = true
-		head.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		UI.keep_text(head)  # (its words whole: smaller, then wrapped, never cut)
 		head.set_meta("tree_head", part)
 		add_child(head)
 		if note_text != "":
@@ -1229,6 +1228,11 @@ class TreeMap extends Control:
 			var tiny := k < 0.8
 			var ns := 15 if tiny else 16
 			var ss := 13 if tiny else 14
+			# (a name longer than the room between the figure and the map's
+			# edge is drawn smaller, so it never runs off the side)
+			var room: float = (size.x - col_x if side > 0.0 else col_x) - 7.0
+			ns = UI.fit_floor(font, name, ns, room)
+			ss = UI.fit_floor(sf, sub, ss, room)
 			var w1 := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
 			var w2 := sf.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, ss).x
 			var x1 := col_x + 4.0 if side > 0.0 else col_x - 4.0 - w1

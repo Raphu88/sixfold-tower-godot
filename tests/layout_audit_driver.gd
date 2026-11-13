@@ -59,6 +59,8 @@ static func scan(where: String, tops: Array, view: Rect2, opts := {}) -> Array:
 	for h in hs:
 		for p in h["problems"]:
 			_add(out, seen, "%s: cut: %s %s" % [where, h["what"], p])
+		if h.get("nowhere", false):
+			continue
 		var ink: Rect2 = h["ink"]
 		# What it sits in: anything that clips, with or without a scroll.
 		var vis := ink
@@ -168,6 +170,12 @@ static func holders(tops: Array, notes: Array) -> Array:
 		if int(nt["cut"]) > 0:
 			problems.append("loses %d line(s)" % nt["cut"])
 		var r: Rect2 = nt["rect"]
+		if r.size == Vector2.ZERO:
+			# (shortened by hand before drawing: only that is known)
+			for p in problems:
+				out.append({"node": ci, "drawn": true, "text": String(nt["text"]), "what": "drawn '%s' (%s)" % [String(nt["text"]).left(28), _name(ci)],
+					"ink": Rect2(), "problems": [p], "nowhere": true})
+			continue
 		out.append({"node": ci, "drawn": true, "text": String(nt["text"]), "what": "drawn '%s' (%s)" % [String(nt["text"]).left(28), _name(ci)],
 			"ink": _global(ci, _inset(r, r.size.y)), "problems": problems})
 	return out
@@ -211,8 +219,8 @@ static func _label(l: Label) -> Dictionary:
 
 
 static func _button(b: Button) -> Dictionary:
-	if b.text.strip_edges() == "":
-		return {}
+	if b.text.strip_edges() == "" or b.get_theme_color("font_color").a < 0.05:
+		return {}  # (no words, or words it draws itself: the rail's items)
 	var f: Font = b.get_theme_font("font")
 	var fs: int = b.get_theme_font_size("font_size")
 	var sb: StyleBox = b.get_theme_stylebox("normal")
@@ -341,6 +349,63 @@ static func _r(r: Rect2) -> String:
 	return "%.0f,%.0f %.0fx%.0f" % [r.position.x, r.position.y, r.size.x, r.size.y]
 
 
+# --- the HUD and the card screens (reported, not failed) ---------------------------
+
+## The HUD in play and the card screens (choosing a tower, a camp's cards, a
+## vault's, the heirloom, the path): their boxes on screen, apart from each
+## other and from the touch buttons. The HUD draws through its own layout
+## (layout.gd), so this looks at its boxes rather than each word; it is
+## listed for whoever works on the HUD, and never fails the audit.
+static func hud_problems(main, where: String) -> Array:
+	var out: Array = []
+	var L = load("res://scripts/layout.gd")
+	var hud = main.hud
+	var view: Vector2 = hud.get_viewport_rect().size
+	var hs: float = hud.hud_scale
+	var screen := Rect2(Vector2.ZERO, view).grow(0.5)
+	var boxes := {}
+	for id in ["hud.bars", "hud.gem", "hud.weapon", "hud.item", "hud.marks", "hud.essence", "hud.floor"]:
+		var b: Rect2 = L.box(id, view / hs)
+		boxes[id] = Rect2(b.position * hs, b.size * hs)
+		if not screen.encloses(boxes[id]):
+			out.append("%s: hud: %s is partly off the screen (%s on %.0fx%.0f)" % [where, id, _r(boxes[id]), view.x, view.y])
+	var ids: Array = boxes.keys()
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			if _shared(boxes[ids[i]], boxes[ids[j]]):
+				out.append("%s: hud: %s and %s are on top of each other (%s, %s)" % [where, ids[i], ids[j], _r(boxes[ids[i]]), _r(boxes[ids[j]])])
+	if main.touch_active:
+		main.touch._layout()
+		for b in main.touch.buttons:
+			var r := Rect2(b["c"] - Vector2.ONE * b["r"], Vector2.ONE * b["r"] * 2.0)
+			if not screen.encloses(r):
+				out.append("%s: hud: touch button %s is partly off the screen" % [where, b["id"]])
+			for id in ids:
+				if _shared(boxes[id], r.grow(-1.0)):
+					out.append("%s: hud: touch button %s is over %s" % [where, b["id"], id])
+	# The card screens.
+	var keep: Dictionary = main.camp
+	var sets := {"tower choice": []}
+	for i in main.Towers.ORDER.size():
+		sets["tower choice"].append(hud.tower_card_rect(i, view))
+	for kind in [["camp", 4], ["vault", 3], ["heirloom", 6], ["path", 2]]:
+		main.camp = {"choices": range(kind[1]).map(func(i): return "x%d" % i), "stage": kind[0]}
+		var cards: Array = []
+		for i in kind[1]:
+			cards.append(hud.path_card_rect(i, view) if kind[0] == "path" else hud.camp_card_rect(i, view))
+		sets[kind[0]] = cards
+	main.camp = keep
+	for name in sets:
+		var cards: Array = sets[name]
+		for i in cards.size():
+			if not screen.encloses(cards[i]):
+				out.append("%s: hud: %s card %d is partly off the screen (%s on %.0fx%.0f)" % [where, name, i + 1, _r(cards[i]), view.x, view.y])
+			for j in range(i + 1, cards.size()):
+				if _shared(cards[i], cards[j]):
+					out.append("%s: hud: %s cards %d and %d are on top of each other" % [where, name, i + 1, j + 1])
+	return out
+
+
 # --- opening the screens ---------------------------------------------------------
 
 ## A climber with enough of everything that every screen has something to show:
@@ -430,9 +495,12 @@ class Sweep:
 
 	func run() -> void:
 		main.on_train = false
+		main.choosing_tower = false
 		if menu.is_open():
 			menu.close()
 		await frames(2)
+		if wants("hud") and not light:
+			found.call("hud (reported only)", A.hud_problems(main, tag + " hud"))
 		await pages()
 		await train()
 		await stations()
@@ -474,6 +542,38 @@ class Sweep:
 			else:
 				menu.open(pg[0])
 			await look(name, page_tops())
+		if not light:
+			# The inventory's other cards: an item, a crystal, an heirloom, the fists.
+			for sel in ["item:draught", "crystal:air", "gear:fists", "gear:armor", "gear:offhand"]:
+				var nm := "inventory card %s" % sel
+				if not wants(nm):
+					continue
+				menu.inv_view = "worn"
+				menu.inv_sel = sel
+				menu.open("inventory")
+				await look(nm, page_tops())
+			# The Library with a subject open.
+			if wants("library open"):
+				var Guide = load("res://scripts/guide.gd")
+				var told: Dictionary = Guide.state.get("told", {})
+				for id in ["gear", "train", "chest"]:
+					told[id] = true  # (heard, so the Archive has them to open)
+				Guide.state["told"] = told
+				menu.archive_open = "chest"
+				menu.open("library")
+				await look("library open", page_tops())
+				menu.archive_open = ""
+			# The Data editor: each of its tabs, and a section open.
+			var dp = menu.data_page
+			for g in load("res://scripts/data_registry.gd").GROUPS:
+				var nm := "data %s" % g[0]
+				if not wants(nm):
+					continue
+				dp.tab = g[0]
+				dp.section = ""
+				menu.open("data")
+				await look(nm, page_tops())
+			dp.tab = "words"
 		if menu.is_open():
 			menu.close()
 		await frames(1)
@@ -530,6 +630,22 @@ class Sweep:
 			await settle()
 			var room: Control = menu.train_view.rooms[car]
 			await look(name, [room, menu.train_view.chrome, menu.rail])
+		if not light:
+			# The store's other cards (a supply, today's piece, his upgrades) and
+			# your car's (what you wear, a pack piece, an empty space).
+			for v in [["store", "supply:draught"], ["store", "today"], ["store", "upgrades"], ["personal", "worn:armor"], ["personal", "pack:1"], ["personal", "chest:39"]]:
+				var nm := "train %s card %s" % [v[0], v[1]]
+				if not wants(nm):
+					continue
+				menu.train_car = v[0]
+				menu.train_store = "shop"
+				menu.train_sel[v[0]] = v[1]
+				menu.inv_sel = v[1]
+				menu.open("train")
+				await frames(2)
+				tp.go_to(tp._index(v[0]))
+				await settle()
+				await look(nm, [menu.train_view.rooms[v[0]], menu.train_view.chrome, menu.rail])
 		menu.train_store = "shop"
 		menu.train_bench = "brew"
 		menu.train_board = "towers"

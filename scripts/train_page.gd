@@ -777,7 +777,7 @@ func _personal(root: Node) -> void:
 		b.custom_minimum_size.y = 40
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.set_meta("car_page", f[1])
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		_brass(b)
 		b.add_theme_font_size_override("font_size", 15 if _small() else 16)
 	if m.Unbound.is_on(prof):
@@ -874,7 +874,7 @@ func _store(root: Node) -> void:
 	var sign: Button = m._button(sign_text, _set_store.bind("shop" if selling else "sell"), oc)
 	sign.custom_minimum_size.y = 40
 	sign.set_meta("store_tab", "shop" if selling else "sell")
-	sign.clip_text = true
+	UI.keep_text(sign)  # (its words whole: smaller, then wrapped, never cut)
 	_brass(sign)
 	if not selling:
 		# His upgrades (renown unlocks them): a placard's card shows them all.
@@ -882,7 +882,7 @@ func _store(root: Node) -> void:
 		up.custom_minimum_size.y = 36
 		up.set_meta("slot", "upgrades")
 		up.focus_entered.connect(m._show_details.bind("upgrades"))
-		up.clip_text = true
+		UI.keep_text(up)  # (its words whole: smaller, then wrapped, never cut)
 		_brass(up, m.inv_sel == "upgrades")
 		if not small:
 			var nx := Train.next_upgrade(prof)
@@ -1765,7 +1765,7 @@ func _ask_button(parent: Node, text: String, again: String, ask: String, why: St
 	b.custom_minimum_size.y = 40
 	b.disabled = why != ""
 	b.set_meta(meta, meta_val)
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	if asking and why == "":
 		m._primary(b)
 	return b
@@ -2157,7 +2157,7 @@ func _offer_card(i: int) -> void:
 		var room := Train.buy_room(prof, _player(), g, to[0])
 		var b: Button = m._button(to[1], _buy_gear.bind(i, to[0]), m.details)
 		b.custom_minimum_size.y = 36 if _small() else 40
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.disabled = why != "" or room != ""
 		b.set_meta("buy", meta if to[0] == "pack" else meta + ":" + to[0])
 		if why == "" and room != "":
@@ -2167,7 +2167,7 @@ func _offer_card(i: int) -> void:
 	if i != -2 and Train.upgraded(prof, "order") and Train.order(prof).is_empty():
 		var hb: Button = m._button(T["hold"], _hold.bind(i), m.details)
 		hb.custom_minimum_size.y = 36 if _small() else 40
-		hb.clip_text = true
+		UI.keep_text(hb)  # (its words whole: smaller, then wrapped, never cut)
 		hb.set_meta("buy", meta + ":hold")
 	m._detail_lines(g, Gear.SLOT_NAMES.get(Gear.slot_of(g), ""))
 	var against = Train.worn_against(prof, _player(), g)
@@ -2251,6 +2251,8 @@ func _upgrades_card() -> void:
 class Purse extends Control:
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
+	## The kinds' names are drawn no smaller than this.
+	const NAME_MIN := 12
 	var profile
 
 	func _ready() -> void:
@@ -2267,15 +2269,26 @@ class Purse extends Control:
 			var have: float = profile.crystal_total(kinds[i])
 			UI.gem_into(b, c, 7.0, Color(Essence.color(kinds[i]), 1.0 if have > 0.0 else 0.3))
 		b.flush(self)
+		# The amounts, and each kind's name beside its amount where every
+		# name fits whole (the letters shrink a little first, no smaller than
+		# NAME_MIN; on a screen too narrow even for that, the gems' colours
+		# say which is which).
+		var mono := UI.font("mono")
+		var gothic := UI.font("display")
+		var ns := 15  # the amounts' size
+		while ns > 11 and kinds.any(func(k): return mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x > w - 24.0):
+			ns -= 1
+		var fs := 15  # the names' size (0: no room for them)
+		while fs >= NAME_MIN and kinds.any(func(k): return gothic.get_string_size(Essence.display(k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 30.0 - mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x):
+			fs -= 1
 		for i in kinds.size():
 			var have: float = profile.crystal_total(kinds[i])
 			var x := w * i + 23.0
 			var col := UI.TEXT if have > 0.0 else UI.FAINT
-			var mono := UI.font("mono")
-			UI.draw_text(self, mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 15, col)
-			if size.x > 430.0:
-				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-				UI.draw_text(self, UI.font("display"), Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, 15, UI.DIM)
+			UI.draw_text(self, mono, Vector2(x, size.y * 0.5 + 5.0), str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, ns, col)
+			if fs >= NAME_MIN:
+				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
+				UI.draw_text(self, gothic, Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 28.0 - nw, fs, UI.DIM)
 
 
 ## A price: a gem of its kind, the amount and the kind's name (red if you

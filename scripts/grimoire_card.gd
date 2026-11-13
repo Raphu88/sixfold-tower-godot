@@ -120,8 +120,7 @@ func _build() -> void:
 	mid.add_child(top)
 	var n := _l(entry.get("name", ""), "display", 18 if small else 20, col.lightened(0.2) if not dim else UI.DIM)
 	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	n.clip_text = true
-	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	UI.keep_text(n)  # (its words whole: smaller, then wrapped, never cut)
 	top.add_child(n)
 	var tag: String = entry.get("tag", "")
 	if tag != "":

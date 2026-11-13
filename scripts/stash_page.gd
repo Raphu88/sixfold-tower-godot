@@ -135,7 +135,7 @@ class Cycler extends Button:
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
 		text = "<   " + fmt % _name() + "   >"
-		clip_text = true
+		UI.keep_text(self, 11)  # (its words whole: smaller, then wrapped, never cut)
 		pressed.connect(func(): change(1))
 
 	func _name() -> String:

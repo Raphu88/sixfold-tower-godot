@@ -98,7 +98,7 @@ static func build(menu) -> void:
 		var key := _key(menu, i)
 		var label: String = (Tech.title(t) if Tech.valid(t) else TEXT["slot_empty"])
 		var b: Button = menu._button(("%s  %s" % [key, label]) if key != "" else label, _pick_slot.bind(menu, i), grid)
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.custom_minimum_size.x = 0
 		b.set_meta("tech_slot", i)
 		if Tech.valid(t):
@@ -196,7 +196,7 @@ static func build(menu) -> void:
 	for id in Tech.RECIPES:
 		var r: Dictionary = Tech.RECIPES[id]
 		var rb: Button = menu._button("%s  ·  %s" % [r["name"], Unbound.PART_NAMES[r["part"]]], _use_recipe.bind(menu, sel, id), rg)
-		rb.clip_text = true
+		UI.keep_text(rb)  # (its words whole: smaller, then wrapped, never cut)
 		rb.add_theme_color_override("font_color", Tech.color(r["kinds"][0]).lightened(0.2))
 	if not t.is_empty():
 		menu._button(TEXT["clear"], _clear.bind(menu, sel), rg)
@@ -407,7 +407,7 @@ static func climber(menu, grid: GridContainer) -> void:
 		b.add_theme_font_size_override("font_size", 13 if small else 14)
 		b.add_theme_color_override("font_color", col.lightened(0.25))
 		b.set_meta("part", part)
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		grid.add_child(b)
 
 
@@ -466,10 +466,10 @@ static func dev_section(menu) -> void:
 	var g: GridContainer = menu._grid(6, 4)
 	for part in Unbound.PARTS:
 		var b: Button = menu._button("%s +60" % Unbound.PART_NAMES[part], _dev_density.bind(menu, part), g)
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	for part in Unbound.PARTS:
 		var b2: Button = menu._button("strain +40", _dev_strain.bind(menu, part), g)
-		b2.clip_text = true
+		UI.keep_text(b2)  # (its words whole: smaller, then wrapped, never cut)
 		b2.disabled = not st["on"]
 
 

@@ -889,11 +889,21 @@ static func draw_divider(ci: CanvasItem, from: Vector2, to: Vector2, col := GOLD
 static var text_notes = null
 
 
-## Draws one line of text, as CanvasItem.draw_string does.
+## Draws one line of text, as CanvasItem.draw_string does; given a `width`
+## the words don't fit, they are drawn smaller (no smaller than FIT_FLOOR)
+## before any are cut.
 static func draw_text(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, col := Color.WHITE) -> void:
+	if width > 0.0:
+		size = fit_floor(f, text, size, width)
 	ci.draw_string(f, at, text, align, width, size, col)
 	if text_notes != null:
 		note_text(ci, f, at, text, align, width, size)
+
+
+## How tall `text` is wrapped into `width` (for a drawn control that grows
+## with its words).
+static func text_height(f: Font, text: String, width: float, size: int) -> float:
+	return f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, maxf(width, 20.0), size).y
 
 
 ## Draws wrapped text, as CanvasItem.draw_multiline_string does.
@@ -930,6 +940,100 @@ static func note_text(ci: CanvasItem, f: Font, at: Vector2, text: String, align:
 	text_notes.append({"ci": ci, "text": text, "rect": Rect2(x, at.y - f.get_ascent(size), shown, h), "need": need, "room": width, "cut": cut})
 
 
+## The smallest (view px) a drawn line shrinks to before it's cut: on a
+## phone the view is drawn 1.5 to 2.5 times bigger, so this is still 14 to
+## 22 px on the glass.
+const FIT_FLOOR := 9
+
+
+## Draws one line of text shrunk to fit `width` if it must (no smaller than
+## `floor_size`): a long name in a narrow card keeps all its letters. Returns
+## the size it was drawn at.
+static func draw_text_fit(ci: CanvasItem, f: Font, at: Vector2, text: String, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0, size := 16, col := Color.WHITE, floor_size := FIT_FLOOR) -> int:
+	var fs := fit_floor(f, text, size, width, floor_size)
+	draw_text(ci, f, at, text, align, width, fs, col)
+	return fs
+
+
+## The size a line can be drawn at to fit `width`, no smaller than `floor_size`.
+static func fit_floor(f: Font, text: String, size: int, width: float, floor_size := FIT_FLOOR) -> int:
+	if width <= 0.0:
+		return size
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	if w <= width:
+		return size
+	var fs := clampi(int(floor(size * width / w)), mini(floor_size, size), size)
+	while fs > floor_size and f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width:
+		fs -= 1
+	return fs
+
+
+## Notes for the layout audit that a string was shortened by hand before
+## it was drawn (its end swapped for "..."): `text` whole, the `width` it had.
+static func note_cut(ci: CanvasItem, f: Font, text: String, width: float, size: int) -> void:
+	if text_notes != null:
+		text_notes.append({"ci": ci, "text": text, "rect": Rect2(), "need": f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, "room": width, "cut": 0})
+
+
+# --- words kept whole ---------------------------------------------------------
+
+## Keeps a button's or a label's words whole in whatever width it's given
+## (a narrow phone, a big Interface size): when they don't fit, the letters
+## shrink, no smaller than `floor_size`; if they still don't fit, they wrap
+## onto more lines (and the button or label grows taller). Call it once the
+## control has its font size; it follows the control's size from then on.
+static func keep_text(c: Control, floor_size := 10) -> void:
+	c.set_meta("keep_floor", floor_size)
+	c.clip_text = true  # (it can be made narrower than its words: then they shrink or wrap)
+	if not c.resized.is_connected(_keep_text):
+		c.resized.connect(_keep_text.bind(c))
+	if c.is_inside_tree():
+		_keep_text.call_deferred(c)
+	else:
+		c.ready.connect(_keep_text.bind(c), CONNECT_ONE_SHOT)
+
+
+static func _keep_text(c: Control) -> void:
+	if not is_instance_valid(c) or c.size.x < 1.0:
+		return
+	var floor_size := int(c.get_meta("keep_floor", 10))
+	var base := int(c.get_meta("keep_base", 0))
+	if base <= 0:
+		base = c.get_theme_font_size("font_size")
+		c.set_meta("keep_base", base)
+	var f: Font = c.get_theme_font("font")
+	var room: float = c.size.x
+	if c is Button:
+		var sb: StyleBox = c.get_theme_stylebox("normal")
+		room -= sb.get_minimum_size().x if sb != null else 0.0
+		if c.icon != null:
+			room -= c.icon.get_width() + c.get_theme_constant("h_separation")
+		if c is CheckButton or c is CheckBox:
+			var ic: Texture2D = c.get_theme_icon("checked")
+			room -= (ic.get_width() if ic != null else 0.0) + c.get_theme_constant("h_separation")
+	var text: String = c.text
+	if c is Label and c.uppercase:
+		text = text.to_upper()
+	var fs := base
+	var need := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var wrap := false
+	if need > room and room > 0.0:
+		fs = clampi(int(floor(base * room / need)), mini(floor_size, base), base)
+		while fs > floor_size and f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room:
+			fs -= 1
+		wrap = f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > room
+	if c.get_theme_font_size("font_size") != fs:
+		c.add_theme_font_size_override("font_size", fs)
+	var mode := TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
+	if c.autowrap_mode != mode:
+		c.autowrap_mode = mode
+	if c is Label:
+		# (a wrapping label must not clip, or it asks for no height at all)
+		if c.clip_text == wrap:
+			c.clip_text = not wrap
+		c.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+
+
 ## A small gothic label (an eyebrow over a title, a section's name), in
 ## mixed case (titled()). Returns its width.
 static func draw_eyebrow(ci: CanvasItem, at: Vector2, text: String, col := GOLD, size := SIZE_EYEBROW, align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0) -> float:
@@ -963,16 +1067,11 @@ static func draw_label(ci: CanvasItem, at: Vector2, text: String, size: int, col
 	draw_text(ci, f, at, text, align, width, size, col)
 
 
-## The size a line can be drawn at to fit `width` (no narrower than 72% of
-## `size`, below which it's clipped as before): a long name on a narrow card
-## shrinks a little instead of losing its end.
+## The size a line can be drawn at to fit `width`: a long name on a narrow
+## card shrinks instead of losing its end, no smaller than FIT_FLOOR (or 60%
+## of `size`, for big lettering).
 static func fit_size(f: Font, text: String, size: int, width: float) -> int:
-	if width <= 0.0:
-		return size
-	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-	if w <= width:
-		return size
-	return maxi(int(size * width / w), int(ceil(size * 0.72)))
+	return fit_floor(f, text, size, width, maxi(FIT_FLOOR, int(ceil(size * 0.6))) if size > 18 else FIT_FLOOR)
 
 
 ## Words written in the world or quoted, in the fine italic (`outline` px

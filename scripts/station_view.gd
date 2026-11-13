@@ -282,12 +282,44 @@ class Tile extends Button:
 	var lit := false  # (a won challenge, a worn title)
 	var touch := false  # (a phone: no focus ring)
 
+	var base_h := 0.0  # its height with one line under the name (set as it's built)
+
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
 		clip_text = true
 		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "font_disabled_color"]:
 			add_theme_color_override(c, Color(0, 0, 0, 0))
+		base_h = custom_minimum_size.y
+		resized.connect(_fit_height)
 		restyle()
+
+	func _small() -> bool:
+		return (base_h if base_h > 0.0 else size.y) < 50.0
+
+	## Where the words go: [x, width].
+	func _words() -> Array:
+		var small := _small()
+		var x := (20.0 if small else 24.0) + (16.0 if small else 20.0)
+		var right := 12.0
+		if medal >= 0 or locked:
+			right = 34.0
+		elif pips_of > 0:
+			right = 10.0 + pips_of * 13.0
+		return [x, size.x - x - right]
+
+	## A line that doesn't fit beside the icon wraps, and the tile grows to hold it.
+	func _line_h() -> float:
+		if line == "":
+			return 0.0
+		return UI.text_height(UI.font("body"), line, _words()[1], 12 if _small() else 13)
+
+	func _fit_height() -> void:
+		if base_h <= 0.0 or size.x < 1.0:
+			return
+		var one: float = UI.font("body").get_height(12 if _small() else 13)
+		var want := base_h + maxf(_line_h() - one, 0.0)
+		if not is_equal_approx(custom_minimum_size.y, want):
+			custom_minimum_size.y = want
 
 	func restyle() -> void:
 		for state in ["normal", "hover", "pressed"]:
@@ -299,22 +331,21 @@ class Tile extends Button:
 		queue_redraw()
 
 	func _draw() -> void:
-		var small := size.y < 50.0
+		var small := _small()
 		var a := 0.55 if locked else 1.0
 		var ic := Vector2(20.0 if small else 24.0, size.y * 0.5)
 		if not load("res://scripts/station_view.gd").icon(self, icon_id, ic, 7.0 if small else 8.5, Color(tint, a), 1.6):
 			UI.draw_icon(self, icon_id, ic, 7.0 if small else 8.5, Color(tint, a), 1.6)
-		var x := ic.x + (16.0 if small else 20.0)
-		var right := 12.0
-		if medal >= 0 or locked:
-			right = 34.0
-		elif pips_of > 0:
-			right = 10.0 + pips_of * 13.0
-		var w := size.x - x - right
+		var x: float = _words()[0]
+		var w: float = _words()[1]
 		var hc: Color = UI.GILT_HI if chosen or lit else UI.TEXT
-		UI.draw_label(self, Vector2(x, size.y * 0.5 - (1.0 if line != "" else -6.0)), head, 15 if small else 17, Color(hc, a), HORIZONTAL_ALIGNMENT_LEFT, w)
+		# (the name and its line, centred together however many lines the line takes)
+		var fs := 12 if small else 13
+		var one: float = UI.font("body").get_height(fs)
+		var top := size.y * 0.5 - maxf(_line_h() - one, 0.0) * 0.5
+		UI.draw_label(self, Vector2(x, top - (1.0 if line != "" else -6.0)), head, 15 if small else 17, Color(hc, a), HORIZONTAL_ALIGNMENT_LEFT, w)
 		if line != "":
-			UI.draw_text(self, UI.font("body"), Vector2(x, size.y * 0.5 + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 12 if small else 13, Color(UI.DIM, 0.9 * a))
+			UI.draw_text_lines(self, UI.font("body"), Vector2(x, top + 14.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, fs, -1, Color(UI.DIM, 0.9 * a))
 		if locked:
 			UI.draw_lock(self, Vector2(size.x - 18.0, size.y * 0.5), 10.0, Color(UI.DIM, 0.9))
 		elif medal >= 0:

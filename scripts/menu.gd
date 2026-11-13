@@ -735,6 +735,14 @@ func _layout() -> void:
 	ArrangeUI.after_layout(self)  # (what Arrange mode moved, on top: arrange_ui.gd)
 
 
+## How wide the page's panel is across (view px): its own width (WIDTHS), or
+## what the screen has left beside the rail.
+func _page_width() -> float:
+	var s := get_viewport_rect().size
+	var rw: float = RailScript.width_for(compact()) if rail_showing() else 0.0
+	return minf(float(WIDTHS.get(page, 560.0)), s.x - rw - (12.0 if compact() else 32.0) - (24.0 if compact() else 44.0))
+
+
 ## Between climbs, on the train (main.gd on_train).
 func _on_train() -> bool:
 	return main != null and main.on_train
@@ -1821,7 +1829,9 @@ func _climber_marks(prof) -> void:
 		card.main = main
 		card.part = part
 		card.set_meta("part", part)
-		card.custom_minimum_size = Vector2(0, 76.0 if small else 104.0)
+		# (wide enough for its words: on a narrow screen the cards go under
+		# the figure, one to a row if they must: reflow.gd)
+		card.custom_minimum_size = Vector2(196.0 if small else 230.0, 76.0 if small else 104.0)
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.pressed.connect(open_mark.bind(part))
 		grid.add_child(card)
@@ -2786,7 +2796,7 @@ func _slot(parent: Node, key: String, side: float, caption: String) -> Slot:
 	var l := Label.new()
 	l.text = caption
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.clip_text = true
+	UI.keep_text(l)  # (its words whole: smaller, then wrapped, never cut)
 	l.custom_minimum_size.x = side + 10.0
 	UI.style_label(l, "display", 14, DIM)  # (what's in it, by name: a label)
 	cell.add_child(l)
@@ -3776,11 +3786,19 @@ func _header(text: String, sub: String, eyebrow := "") -> void:
 		if sub != "":
 			var s := _label(sub, 0.0, DIM)
 			UI.style_label(s, "body", 14, DIM)
-			s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			s.clip_text = true
-			s.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-			line.add_child(s)
+			# Beside the title while it fits there on one line; on a narrower
+			# screen under it, wrapped, so no words are lost.
+			var closes: bool = rail_showing() and page in RAIL_ROOTS
+			var room: float = _page_width() - l.get_minimum_size().x - 14.0 - (88.0 + 14.0 + 30.0 if closes else 0.0)
+			if s.get_minimum_size().x <= room:
+				s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				line.add_child(s)
+			else:
+				s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				s.custom_minimum_size.x = 120.0
+				col.add_theme_constant_override("separation", -2)
+				col.add_child(s)
 	else:
 		col.add_child(l)
 		if sub != "":
@@ -3925,7 +3943,7 @@ func _footer() -> void:
 		next = _button(_part_title(order[(i + 1) % order.size()]) + "   >", _cycle.bind(1), row)
 		for x in [prev, next]:
 			x.custom_minimum_size.x = 150.0
-			x.clip_text = true
+			UI.keep_text(x)  # (its words whole: smaller, then wrapped, never cut)
 			x.add_theme_color_override("font_color", DIM)
 	var hint := ""
 	if main != null and not main.touch_active:
@@ -4492,7 +4510,7 @@ class MarkCard extends Button:
 			var b := UI.Draw.Batch.new()
 			UI.socket_into(b, mc, r * 0.78, main.soak_fraction(part) if lead == part else 0.0)
 			b.flush(self)
-			UI.draw_label(self, Vector2(x, h * 0.5 - 4.0), name, 19, UI.DIM)
+			UI.draw_label(self, Vector2(x, h * 0.5 - 4.0), name, 19, UI.DIM, HORIZONTAL_ALIGNMENT_LEFT, w)
 			# How much it has soaked up (on the first climb, against the part
 			# you've used most); the leader is where the next mark forms.
 			var soak: float = main.soak_fraction(part)
@@ -4501,14 +4519,14 @@ class MarkCard extends Button:
 			var bar_y := h * 0.5 + 20.0
 			if lead == part:
 				var forming := "your mark is forming" if main.first_climb else "your next mark is forming"
-				UI.draw_text(self, font, Vector2(x, h * 0.5 + 13.0), forming, HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 13, UI.GOLD)
+				UI.draw_text_fit(self, font, Vector2(x, h * 0.5 + 13.0), forming, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.GOLD)
 				var bid: String = main.predicted_bond()
 				if bid != "" and tall:
 					var bi: Dictionary = Bonds.BONDS[bid]
-					UI.draw_text(self, font, Vector2(x, h * 0.5 + 28.0), "would be %s" % bi["name"], HORIZONTAL_ALIGNMENT_LEFT, w + 10.0, 13, bi["color"])
+					UI.draw_text_fit(self, font, Vector2(x, h * 0.5 + 28.0), "would be %s" % bi["name"], HORIZONTAL_ALIGNMENT_LEFT, w, 13, bi["color"])
 					bar_y = h * 0.5 + 34.0
 			else:
-				UI.draw_text(self, font, Vector2(x, h * 0.5 + 13.0), "unmarked", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.FAINT)
+				UI.draw_text_fit(self, font, Vector2(x, h * 0.5 + 13.0), "unmarked", HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.FAINT)
 			if main.player != null:
 				UI.draw_bar(self, Rect2(Vector2(x, bar_y), Vector2(w, 6)), soak, UI.GOLD if lead == part else Color(0.6, 0.57, 0.66))
 			return
@@ -4527,17 +4545,20 @@ class MarkCard extends Button:
 			var hi: float = ProfileScript.STEP_XP[step]
 			k = clampf((xp - lo) / maxf(hi - lo, 1.0), 0.0, 1.0)
 			grow = "%d / %d to step %d" % [int(xp - lo), int(hi - lo), step + 1]
-		grow = _fit(font, grow, w, 13)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
 		UI.draw_label(self, Vector2(x, y + 17.0), data["name"], 20, col.lightened(0.12), HORIZONTAL_ALIGNMENT_LEFT, w)
 		var sub := "%s  ·  %s  ·  %s" % [name, "faint" if faint else "step %d" % step, Bonds.passive_at(String(info["id"]), step)["name"]]  # (its passive and rank)
-		UI.draw_text(self, font, Vector2(x, y + 31.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
+		UI.draw_text_fit(self, font, Vector2(x, y + 31.0), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 		UI.draw_bar(self, Rect2(Vector2(x, y + 38.0), Vector2(w, 6.0)), k, col)
-		UI.draw_text(self, font, Vector2(x, y + 57.0), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.FAINT if not faint else Color(UI.BAD, 0.85))
+		UI.draw_text_fit(self, font, Vector2(x, y + 57.0), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.FAINT if not faint else Color(UI.BAD, 0.85))
 		if tall:
 			var known: Array = data["spells"].filter(func(sp): return int(sp["learn"]) <= step).map(func(sp): return sp["name"])
 			var line := "%d of %d spells: %s" % [known.size(), data["spells"].size(), ", ".join(known)]
-			UI.draw_text(self, font, Vector2(x, y + 75.0), _fit(font, line, w, 13), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.DIM)
+			# (the spells' names while they fit, a little smaller if they must be;
+			# else how many: the mark's own page names them all)
+			if font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x > w:
+				line = "%d of %d spells" % [known.size(), data["spells"].size()]
+			UI.draw_text_fit(self, font, Vector2(x, y + 75.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
 	static func _fit(font: Font, t: String, w: float, fs: int) -> String:
 		if font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= w:
@@ -4724,54 +4745,101 @@ class EssenceView extends Control:
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
 	const KINDS := ["air", "blade", "stone", "iron", "fire", "water"]
+	## Narrower than this the two halves stand one over the other, and each
+	## kind's bar and bonus go on a line of their own under its name.
+	const SIDE_BY_SIDE := 640.0
 	var main
 
 	static func height(small: bool) -> float:
 		return 230.0 if small else 300.0
 
+	func _ready() -> void:
+		resized.connect(_fit_height)
+		_fit_height()
+
+	## Stacked (a narrow screen) it needs more height: everything it draws, measured.
+	func _fit_height() -> void:
+		var want := 0.0
+		if size.x > 1.0 and size.x < SIDE_BY_SIDE:
+			want = _lay(false)
+		if has_meta("wide_h"):
+			want = maxf(want, float(get_meta("wide_h")))
+		elif custom_minimum_size.y > 0.0:
+			set_meta("wide_h", custom_minimum_size.y)
+			want = maxf(want, custom_minimum_size.y)
+		if not is_equal_approx(custom_minimum_size.y, want) and want > 0.0:
+			custom_minimum_size.y = want
+
 	func _draw() -> void:
+		_lay(true)
+
+	## Lays the view out, drawing it if `paint`. Returns how tall it is.
+	func _lay(paint: bool) -> float:
 		var font := ThemeDB.fallback_font
 		var prof = main.profile
-		var small := size.y < 260.0
+		var stacked := size.x < SIDE_BY_SIDE
+		var small := size.y < 260.0 or stacked
 		var row_h := 32.0 if small else 42.0
-		var left_w := floorf(size.x * 0.58)
+		var left_w := size.x if stacked else floorf(size.x * 0.58)
 		var b := UI.Draw.Batch.new()
-		var texts: Array = []  # [pos, text, size, colour, align width, font (default body)]
+		var texts: Array = []  # [pos, text, size, colour, width (right-aligned in it; negative: left, shrunk to fit), font (default body)]
 		var gothic := UI.font("display")  # (heads and names)
 		var mono := UI.font("mono")  # (numbers)
 		var head_col := Color(UI.GOLD, 0.7)
-		texts.append([Vector2(0, 12), "Density and Attributes", 15, head_col, -1.0, gothic])
+		texts.append([Vector2(0, 12), "Density and Attributes", 15, head_col, -size.x, gothic])
 		var y := 22.0
 		for kind in KINDS:
 			var attr: Dictionary = prof.ATTRIBUTES[kind]
 			var col := Essence.color(kind)
 			var bonus: float = prof.attribute(kind)
+			var bt := "+%.1f%% %s" % [bonus * 100.0, attr["bonus"]]
+			var bcol: Color = UI.GOLD if bonus > 0.001 else UI.FAINT
+			if stacked:
+				# Two lines: the kind, its attribute and density; then its bar and bonus.
+				var r2 := Rect2(Vector2(0, y), Vector2(left_w, row_h + 14.0))
+				b.rect(r2, Color(1, 1, 1, 0.025))
+				b.rect(Rect2(r2.position, Vector2(2.0, r2.size.y)), Color(col, 0.6))
+				var c1 := y + 14.0
+				UI.gem_into(b, Vector2(16, c1), 7.0, col)
+				texts.append([Vector2(30, c1 + 5), Essence.display(kind), 17, col, -52.0, gothic])
+				texts.append([Vector2(86, c1 + 5), attr["name"], 14, UI.TEXT, -(left_w - 86.0 - 50.0)])
+				texts.append([Vector2(left_w - 48.0, c1 + 5), "%d" % int(prof.density.get(kind, 0.0)), 14, UI.DIM, 44.0, mono])
+				var c2 := y + 34.0
+				var bw2 := clampf(left_w * 0.3, 40.0, 220.0)
+				UI.bar_into(b, Rect2(Vector2(30, c2 - 3.5), Vector2(bw2, 7.0)), clampf(bonus / prof.ATTRIBUTE_CAP, 0.0, 1.0), col)
+				texts.append([Vector2(30 + bw2 + 10.0, c2 + 4), bt, 12, bcol, -(left_w - 44.0 - bw2)])
+				y += row_h + 18.0
+				continue
 			var r := Rect2(Vector2(0, y), Vector2(left_w, row_h - 4.0))
 			b.rect(r, Color(1, 1, 1, 0.025))
 			b.rect(Rect2(r.position, Vector2(2.0, r.size.y)), Color(col, 0.6))
 			var cy := y + (row_h - 4.0) * 0.5
 			UI.gem_into(b, Vector2(18, cy), 7.5, col)
-			texts.append([Vector2(34, cy + 5), Essence.display(kind), 18, col, -1.0, gothic])
-			texts.append([Vector2(88, cy + 5), attr["name"], 14, UI.TEXT, -1.0])
+			texts.append([Vector2(34, cy + 5), Essence.display(kind), 18, col, -52.0, gothic])
+			texts.append([Vector2(88, cy + 5), attr["name"], 14, UI.TEXT, -62.0])
 			texts.append([Vector2(150, cy + 5), "%d" % int(prof.density.get(kind, 0.0)), 14, UI.DIM, 44.0, mono])
 			var bx := 206.0
 			var bw := maxf(left_w - bx - 150.0, 60.0)
 			UI.bar_into(b, Rect2(Vector2(bx, cy - 3.5), Vector2(bw, 7.0)), clampf(bonus / prof.ATTRIBUTE_CAP, 0.0, 1.0), col)
-			var bt := "+%.1f%% %s" % [bonus * 100.0, attr["bonus"]]
-			texts.append([Vector2(bx + bw + 10.0, cy + 5), bt, 12, UI.GOLD if bonus > 0.001 else UI.FAINT, -1.0])
+			texts.append([Vector2(bx + bw + 10.0, cy + 5), bt, 12, bcol, -(left_w - bx - bw - 12.0)])
 			y += row_h
-		# Right: settled in the body, and unbanked.
-		var rx := left_w + 22.0
+		# Settled in the body, and unbanked: on the right, or underneath.
+		var rx := 0.0 if stacked else left_w + 22.0
 		var rw := size.x - rx
-		texts.append([Vector2(rx, 12), "Settled in Your Body", 15, head_col, -1.0, gothic])
+		var top := y + 14.0 if stacked else 0.0
+		texts.append([Vector2(rx, top + 12), "Settled in Your Body", 15, head_col, -rw, gothic])
 		var most := 1.0
 		for part in Bonds.PARTS:
 			most = maxf(most, _total(prof, part))
-		var py := 26.0
+		var py := top + 26.0
 		var step := 20.0 if small else 24.0
+		var name_w := 56.0
 		for part in Bonds.PARTS:
-			texts.append([Vector2(rx, py + 11), Bonds.PART_NAMES[part], 15, UI.TEXT if prof.bonds.has(part) else UI.DIM, -1.0, gothic])
-			var bar := Rect2(Vector2(rx + 56, py + 3), Vector2(rw - 96.0, 8))
+			name_w = maxf(name_w, gothic.get_string_size(Bonds.PART_NAMES[part], HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 8.0)
+		name_w = minf(name_w, rw * 0.4)
+		for part in Bonds.PARTS:
+			texts.append([Vector2(rx, py + 11), Bonds.PART_NAMES[part], 15, UI.TEXT if prof.bonds.has(part) else UI.DIM, -(name_w - 4.0), gothic])
+			var bar := Rect2(Vector2(rx + name_w, py + 3), Vector2(maxf(rw - name_w - 40.0, 10.0), 8))
 			UI.capsule(b, bar.position.x - 1.4, bar.end.x + 1.4, bar.get_center().y, 5.4, UI.OUTLINE)
 			UI.capsule(b, bar.position.x, bar.end.x, bar.get_center().y, 4.0, Color(0.14, 0.13, 0.17))
 			var pd: Dictionary = prof.part_density.get(part, {})
@@ -4785,7 +4853,7 @@ class EssenceView extends Control:
 			texts.append([Vector2(bar.end.x + 4, py + 11), "%d" % int(_total(prof, part)), 13, UI.DIM, 34.0, mono])
 			py += step
 		py += 10.0
-		texts.append([Vector2(rx, py + 10), "Unbanked This Climb", 15, head_col, -1.0, gothic])
+		texts.append([Vector2(rx, py + 10), "Unbanked This Climb", 15, head_col, -rw, gothic])
 		py += 30.0
 		var x := rx
 		var any := false
@@ -4795,22 +4863,24 @@ class EssenceView extends Control:
 				continue
 			any = true
 			UI.gem_into(b, Vector2(x + 7, py - 4), 6.5, Essence.color(kind))
-			texts.append([Vector2(x + 18, py + 1), "%d %s" % [int(amt), Essence.display(kind)], 14, UI.TEXT, -1.0])
+			texts.append([Vector2(x + 18, py + 1), "%d %s" % [int(amt), Essence.display(kind)], 14, UI.TEXT, -72.0])
 			x += 92.0
 			if x + 80.0 > size.x:
 				x = rx
 				py += 20.0
-		b.flush(self)
-		for tx in texts:
-			var f: Font = tx[5] if tx.size() > 5 else font
-			if tx[4] > 0.0:
-				UI.draw_text(self, f, tx[0], tx[1], HORIZONTAL_ALIGNMENT_RIGHT, tx[4], tx[2], tx[3])
-			else:
-				UI.draw_text(self, f, tx[0], tx[1], HORIZONTAL_ALIGNMENT_LEFT, -1, tx[2], tx[3])
-		if not any:
-			UI.draw_text_lines(self, font, Vector2(rx, py + 1), "None yet: slain monsters leave essence; bank it at the stair.", HORIZONTAL_ALIGNMENT_LEFT, rw, 14, -1, UI.FAINT)
-		else:
-			UI.draw_text(self, font, Vector2(rx, py + 22), "lost if you fall before the stair", HORIZONTAL_ALIGNMENT_LEFT, rw, 13, UI.FAINT)
+		var note := "lost if you fall before the stair" if any else "None yet: slain monsters leave essence; bank it at the stair."
+		var note_at := Vector2(rx, py + (22 if any else 1))
+		var note_h: float = font.get_multiline_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, maxf(rw, 40.0), 13 if any else 14).y
+		if paint:
+			b.flush(self)
+			for tx in texts:
+				var f: Font = tx[5] if tx.size() > 5 else font
+				if tx[4] > 0.0:
+					UI.draw_text(self, f, tx[0], tx[1], HORIZONTAL_ALIGNMENT_RIGHT, tx[4], UI.fit_floor(f, tx[1], tx[2], tx[4]), tx[3])
+				else:
+					UI.draw_text_fit(self, f, tx[0], tx[1], HORIZONTAL_ALIGNMENT_LEFT, -tx[4], tx[2], tx[3])
+			UI.draw_text_lines(self, font, note_at, note, HORIZONTAL_ALIGNMENT_LEFT, rw, 13 if any else 14, -1, UI.FAINT)
+		return maxf(y, note_at.y + note_h) + 6.0
 
 	func _total(prof, part: String) -> float:
 		var t := 0.0

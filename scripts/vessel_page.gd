@@ -105,7 +105,7 @@ static func _trade_button(tp, parent: Node, i: int, choice: String, text: String
 	var asking: bool = m.sell_ask == ask
 	var b: Button = m._button(m.Nav.fill(V["trade_ask"] % text, m.main) if asking else text, _do_trade.bind(tp, i, choice), parent)
 	b.custom_minimum_size.y = 38
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	b.set_meta("vessel_trade", choice)
 	if asking:
 		m._primary(b)

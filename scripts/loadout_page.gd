@@ -323,7 +323,7 @@ func _head(kind: String, id, title: String, col: Color) -> void:
 func _btn(text: String, action: Callable, meta: String = "", val = null) -> Button:
 	var b: Button = m._button(text, action, m.details)
 	b.custom_minimum_size.y = 36 if _small() else 40
-	b.clip_text = true
+	UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 	if meta != "":
 		b.set_meta(meta, val)
 	return b
@@ -382,7 +382,7 @@ func _worn_card(slot: String) -> void:
 		var b: Button = m._button(name, _equip.bind(f[0], f[1], slot), row)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size.y = 34
-		b.clip_text = true
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.set_meta("equip", "%s:%d" % [f[0], f[1]])
 		if f[2] != 0:
 			var ar = m.CompareArrow.new()
