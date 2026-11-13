@@ -256,7 +256,7 @@ static var ITEMS := {
 	"scroll": {
 		"name": "Recall Scroll",
 		"short": "Scroll",
-		"desc": "read it to leave the tower safely, keeping everything: your unbanked essence becomes essence crystals",
+		"desc": "read it to leave the tower safely, keeping what you wear and your pack: your unbanked essence becomes essence crystals",
 		"color": Color(0.95, 0.82, 0.5),
 		"drop_weight": 0,
 		"max": 1,
@@ -281,7 +281,7 @@ static var ITEMS := {
 static var RECALL := {
 	"confirm": 3.0,
 	"ask_title": "READ THE RECALL SCROLL?",
-	"ask": "Use it again within 3 seconds to leave the tower, keeping everything.",
+	"ask": "Use it again within 3 seconds to leave the tower, keeping what you wear and your pack.",
 	"ask_menu": "Press Read again to leave the tower now.",
 	"first_climb": "The scroll's words won't come. The beast has not yet regarded you.",
 	"title": "YOU LEAVE THE TOWER",

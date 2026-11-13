@@ -1935,7 +1935,7 @@ func recall_pressed() -> bool:
 	return false
 
 
-## Reads a recall scroll: you leave the tower safely, keeping everything.
+## Reads a recall scroll: you leave the tower safely, keeping what you wear and your pack.
 ## Unbanked essence settles into essence crystals (one per kind) and this
 ## floor's soak is banked; there's no heirloom choice (the climb wasn't won).
 ## Then on to the next climb's tower choice.
@@ -2082,17 +2082,58 @@ func pay_climb() -> String:
 	return pay_line
 
 
-## The end of a survived climb (or a recall scroll): your pack comes down
-## to the train, to sell or keep in your chest. Returns the line to show.
+## The end of a survived climb (or a recall scroll): what you wear and your
+## pack come down to the train with you (the owner's rule: get out alive and
+## you keep them; fall and they're lost). Returns the lines for the summary.
 func bring_pack_home() -> String:
-	if player == null or player.pack.is_empty():
+	if player == null:
 		return ""
-	var n: int = player.pack.size()
-	for g in player.pack:
-		profile.pack.append(Gear.rec(g))
-	player.pack = []
+	var lines: Array = []
+	var worn := bring_worn_home()
+	if worn != "":
+		lines.append(worn)
+	if not player.pack.is_empty():
+		var n: int = player.pack.size()
+		for g in player.pack:
+			profile.pack.append(Gear.rec(g))
+		player.pack = []
+		lines.append(Train.TEXT["home"] % [n, "piece" if n == 1 else "pieces"])
 	profile.save()
-	return Train.TEXT["home"] % [n, "piece" if n == 1 else "pieces"]
+	return " · ".join(lines)
+
+
+## What you wear comes home on you: every worn piece that isn't already your
+## heirloom for its slot, nor the sword or bow every climb starts with,
+## becomes what you'll wear on the train (profile.wear, the Loadout's "Set":
+## take it off there into your pack or stash, or set off in it again).
+func bring_worn_home() -> String:
+	if player == null:
+		return ""
+	var starts := {"melee": Gear.make(Gear.Weapons.START_MELEE), "ranged": Gear.make(Gear.Weapons.START_RANGED)}
+	var heir_left := {}  # heirloom slot -> its pieces not yet matched (two rings, one heirloom ring: only one is the heirloom)
+	var wear := {}
+	for slot in Train.WEAR_SLOTS:
+		var r: Dictionary = Gear.rec(player.gear.get(slot, {}))
+		if r.is_empty():
+			continue
+		if starts.has(slot) and Gear.same(r, starts[slot]):
+			continue
+		var hs: String = Gear.heirloom_slot_for_carry(slot)
+		if not heir_left.has(hs):
+			heir_left[hs] = Gear.heirloom_pieces(profile.heirlooms, hs).duplicate()
+		var hit := -1
+		for i in heir_left[hs].size():
+			if Gear.same(heir_left[hs][i], r):
+				hit = i
+				break
+		if hit >= 0:
+			heir_left[hs].remove_at(hit)
+			continue
+		wear[slot] = r
+	profile.wear = wear
+	if wear.is_empty():
+		return ""
+	return Train.TEXT["home_worn"] % [wear.size(), "piece" if wear.size() == 1 else "pieces"]
 
 
 ## Leaves a piece of gear (a record or an id) on the floor. A `fresh` find
@@ -2849,6 +2890,11 @@ func keep_heirloom(id: String) -> void:
 		profile.heirlooms[Gear.heirloom_slot(id)] = Gear.heirloom_copy(id)
 		kept = true
 	if kept:
+		# (it's your heirloom now: it doesn't also come home as a worn piece)
+		for slot in profile.wear.keys():
+			var hs: String = Gear.heirloom_slot_for_carry(slot)
+			if Gear.heirloom_pieces(profile.heirlooms, hs).any(func(h): return Gear.same(h, profile.wear[slot])):
+				profile.wear.erase(slot)
 		profile.note("heirlooms")
 		profile.save()
 		sfx("heirloom", 1.0, 0.0, 0.0)
