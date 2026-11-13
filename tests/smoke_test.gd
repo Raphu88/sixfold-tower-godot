@@ -14007,8 +14007,10 @@ func _arrange_tests() -> void:
 		ab.pressed.emit()
 	await _frames(3)
 	_check(ar.is_open and paused and not main.menu_open() and not menu.visible, "Arrange layout opens Arrange mode, pauses the game and hides the menu")
-	_check(ar.redraws > 0 and ar.sel != "" and ar.toolbar()["buttons"].size() == 10, "it outlines the elements and shows its toolbar (with Arrange the menu: it was opened over one)")
-	# Drag by mouse: snaps to the grid.
+	_check(ar.redraws > 0 and ar.sel != "" and ar.toolbar()["buttons"].size() == 14, "it outlines the blocks and shows its toolbar (with Arrange the menu: it was opened over one)")
+	# Drag by mouse: snaps to the grid. (The weapon slot is a part of the
+	# status corner: gone inside first, tests/parts/arrange3.gd.)
+	_check(ar.enter("group.status"), "the status corner can be gone inside")
 	ar.sel = ""
 	var wr: Rect2 = ar.screen_rect("hud.weapon")
 	var from := wr.get_center()
@@ -14051,6 +14053,7 @@ func _arrange_tests() -> void:
 	ar.switch_set()
 	await _frames(3)
 	_check(main.touch_active and L.active_set == "touch" and paused, "the toolbar switches to editing the phone's layout (still paused)")
+	_check(ar.enter("group.touch_actions"), "the phone's action buttons can be gone inside")
 	var rr: Rect2 = ar.screen_rect("touch.roll")
 	_touch(0, rr.get_center(), true)
 	await _frames(2)
@@ -14082,7 +14085,7 @@ func _arrange_tests() -> void:
 	await _frames(3)
 	_check(ar.screen_rect(ar.sel).size.x > after.size.x * 1.1, "the right stick scales it")
 	# Done with unsaved changes asks; Don't save goes back to the last save.
-	await _pad_tap(JOY_BUTTON_A)
+	await _pad_tap(JOY_BUTTON_START)
 	_check(ar.is_open and ar.asking, "finishing with unsaved changes asks whether to save")
 	await _pad_tap(JOY_BUTTON_DPAD_RIGHT)
 	await _pad_tap(JOY_BUTTON_A)
