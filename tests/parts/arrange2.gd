@@ -172,11 +172,16 @@ func _menu_element() -> void:
 	var title: Control = AUI.node(id)
 	var r0: Rect2 = ar.screen_rect(id)
 	var g0: Rect2 = title.get_global_rect()
-	# Hovering lights it with its name.
+	# At first only the page and the rail show; the title is inside the page.
 	var at := r0.position + Vector2(40, 20)
 	t._mouse_drag_to(at)
 	await t._frames(2)
-	_check(ar.hover_el == id, "the element under the pointer lights up (%s)" % ar.hover_el)
+	_check(ar.hover_el == "menu.inventory.panel", "at the top level the page itself lights up under the pointer (%s)" % ar.hover_el)
+	_check(ar.enter("menu.inventory.panel"), "the page can be gone inside")
+	# Hovering lights it with its name.
+	t._mouse_drag_to(at + Vector2(1, 0))
+	await t._frames(2)
+	_check(ar.hover_el == id, "inside the page, the title under the pointer lights up (%s)" % ar.hover_el)
 	await _drag(at, at + Vector2(37, 23))
 	var g1: Rect2 = title.get_global_rect()
 	_check(ar.sel == id and _near(g1.position, g0.position + Vector2(37, 23), 1.5), "dragging the inventory's title moves it (%s -> %s)" % [g0.position, g1.position])
@@ -186,13 +191,10 @@ func _menu_element() -> void:
 	await _wheel(g1.get_center(), true)
 	await t._frames(2)
 	_check(absf(AUI.scale_of(id) - 1.1) < 0.001 and is_equal_approx(title.scale.x, 1.1), "the wheel scales it (%.2f)" % AUI.scale_of(id))
-	# A second click on it picks the bigger thing around it.
-	var c: Vector2 = ar.screen_rect(id).get_center()
-	t._mouse_button(c, MOUSE_BUTTON_LEFT, true)
-	await t._frames(1)
-	t._mouse_button(c, MOUSE_BUTTON_LEFT, false)
+	# Esc backs out to the page, which is chosen again.
+	await t._key_tap(KEY_ESCAPE)
 	await t._frames(2)
-	_check(ar.sel == "menu.inventory.panel", "clicking again picks the bigger thing around it (%s)" % ar.sel)
+	_check(ar.is_open and ar.path.is_empty() and ar.sel == "menu.inventory.panel", "Esc backs out to the page (%s)" % ar.sel)
 	# The panel: moved, scaled, made wider by its side handle.
 	var pid := "menu.inventory.panel"
 	var p0: Rect2 = m.panel.get_global_rect()
