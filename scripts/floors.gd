@@ -838,7 +838,8 @@ static func _design(role: String, floor_num: int, tower: Dictionary, used_ids: A
 		var gsize := Vector2i(mini(randi_range(int(gl[0]), int(gl[1])), Rooms.MAX_SIZE.x), mini(randi_range(int(gl[2]), int(gl[3])), Rooms.MAX_SIZE.y))
 		var gshape: String = gshapes[randi() % gshapes.size()]
 		return {"id": "carved_" + gshape, "prefab": false, "rows": Rooms.prepare(Rooms.carve(gshape, gsize)), "size": gsize, "shape": gshape}
-	if role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)) * float(style.get("prefab", 1.0)):  # (floor_styles.gd "prefab": a tower may favour its own shapes)
+	var built: bool = role == "stair" and style.get("built_stair", false)  # (floor_styles.gd: a grown tower's stair landing is still a built room)
+	if built or role == "gallery" or randf() < float(PREFAB_CHANCE.get(role, 0.0)) * float(style.get("prefab", 1.0)):  # (floor_styles.gd "prefab": a tower may favour its own shapes)
 		var fits: Array = Rooms.for_role(prefab_role, floor_num, tower.get("beast_kind", "")).filter(func(r): return int(r.get("tier", 1)) <= tier_cap)
 		if role == "gallery" and pz_kind != "":
 			var kind_fits: Array = fits.filter(func(r): return r.get("puzzle", "") == pz_kind)
@@ -1280,6 +1281,13 @@ static func _torches(infos: Array, kept: Array = [], loops: Array = []) -> Array
 			if ok:
 				col = c
 				break
+		# (no open column clear of the doorways: a grown room's top edge is mostly
+		# rock; then any column clear of them, on the rock of its outline)
+		if north.any(func(nx): return absi(int(nx) - col) <= 1):
+			for c in range(1, w - 1):
+				if north.all(func(nx): return absi(int(nx) - c) > 1):
+					col = c
+					break
 		var x: float = info["rect"].position.x + (col + 0.5) * CELL
 		out.append(Rect2(x - CELL, info["rect"].position.y, CELL * 2.0, info["rect"].size.y))
 	return out

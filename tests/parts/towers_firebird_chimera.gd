@@ -448,8 +448,9 @@ func _thornwild_system() -> void:
 	ch.strike(p.global_position, Vector2.LEFT, 70.0, 60.0)
 	_check(pd["burst"], "a blow bursts a spore pod")
 	await t._wait(0.7)
-	_check(f.hp < hp0, "a poison cloud hurts a foe standing in it")
-	f.queue_free()
+	_check(not is_instance_valid(f) or f.dead or f.hp < hp0, "a poison cloud hurts a foe standing in it")
+	if is_instance_valid(f):
+		f.queue_free()
 	var fresh: Array = ch.pods.filter(func(x): return not x["burst"])
 	var pd2: Dictionary = fresh[0] if not fresh.is_empty() else {"pos": main.player_start, "kind": "calm", "burst": false}
 	pd2["kind"] = "calm"

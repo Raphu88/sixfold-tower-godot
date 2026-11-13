@@ -190,12 +190,19 @@ func _wyvern_system() -> void:
 	var bt: Vector2i = ch["bridge"][0]
 	_check(main.astar.is_point_solid(bt) and tf.is_molten(Wyv._world(bt)), "a raised bridge's tiles are metal: no path over them")
 	# Walk into the metal: it stops you.
+	# (a channel tile with firm floor beside it, off the metal, to walk in from)
 	var mt: Vector2i = ch["tiles"].filter(func(x): return not (x in ch["bridge"]))[0]
 	var side := Vector2(1, 0) if ch["vertical"] else Vector2(0, 1)
 	var from: Vector2 = Wyv._world(mt) - side * 60.0
-	if main.is_solid(from):
-		from = Wyv._world(mt) + side * 60.0
-		side = -side
+	var found := false
+	for cand in ch["tiles"].filter(func(x): return not (x in ch["bridge"])):
+		for sg in [1.0, -1.0]:
+			var q: Vector2 = Wyv._world(cand) - side * 60.0 * sg
+			if not main.is_solid(q) and not tf.is_molten(q) and not main.is_solid(q + side * 20.0 * sg) and not found:
+				mt = cand
+				from = q
+				side = side * sg
+				found = true
 	p.global_position = from
 	await t._frames(2)
 	for i in 30:

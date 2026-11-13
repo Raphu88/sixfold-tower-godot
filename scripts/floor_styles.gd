@@ -28,6 +28,8 @@ extends RefCounted
 ##                 PREFAB_CHANCE (a tower that favours its own shapes: less)
 ##   corridor      how corridors run: "straight", or the tower's own (its
 ##                 module's shape_corridors: "winding", "bridges")
+##   built_stair   the stair landing is always a hand-made (built) room, even
+##                 in a tower whose other rooms are grown (prefab low)
 ##   module        (a tower's own) the script that gives the tower its own
 ##                 floors, scripts/towers/<tower>_floor.gd, extending
 ##                 scripts/towers/tower_floor.gd (the hooks and what each is
@@ -67,11 +69,11 @@ static var STYLES := {
 	# The Firebird's islands of rock over the abyss, joined by bridges: few
 	# ways round, updrafts across gaps, bridges that burn behind you, storms.
 	"firebird": {"shapes": ["island", "atoll", "island", "island", "circle"], "own_shapes": ["island", "atoll", "island", "round"],
-		"gallery": ["island", "atoll", "island"], "loops": [0, 1], "loops_high": [1, 2], "prefab": 0.25, "module": "res://scripts/towers/firebird_floor.gd"},
+		"gallery": ["island", "atoll", "island"], "loops": [0, 1], "loops_high": [1, 2], "prefab": 0.25, "built_stair": true, "module": "res://scripts/towers/firebird_floor.gd"},
 	# The Thornwild: grown caves and dens, tangled ways through (more loops,
 	# some through thorns), brambles, spore pods.
 	"chimera": {"shapes": ["cave", "den", "grotto", "cave", "den"], "own_shapes": ["cave", "den", "cave", "round"],
-		"gallery": ["cave", "den", "grotto"], "loops": [2, 3], "loops_high": [2, 4], "cracks": [0, 1], "prefab": 0.25,
+		"gallery": ["cave", "den", "grotto"], "loops": [2, 3], "loops_high": [2, 4], "cracks": [0, 1], "prefab": 0.25, "built_stair": true,
 		"module": "res://scripts/towers/chimera_floor.gd"},
 }
 

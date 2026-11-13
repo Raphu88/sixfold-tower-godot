@@ -451,7 +451,14 @@ func _harrier() -> void:
 	await t._frames(1)
 	var p = main.player
 	p.global_position = Grid.centre(tf.exposed.keys()[0])
-	var e = main.spawn_enemy("harrier", main.walkable_point(p.global_position, p.global_position + Vector2(140, 0), 14.0))  # (in sight: it dives only at what it sees)
+	# (in sight: it dives only at what it sees; a spot round the climber with a clear line)
+	var in_sight := func() -> Vector2:
+		for k in 8:
+			var q: Vector2 = main.walkable_point(p.global_position, p.global_position + Vector2(140, 0).rotated(k * TAU / 8.0), 14.0)
+			if q.distance_to(p.global_position) > 60.0 and main.clear_line(q, p.global_position):
+				return q
+		return main.walkable_point(p.global_position, p.global_position + Vector2(140, 0), 14.0)
+	var e = main.spawn_enemy("harrier", in_sight.call())
 	e.aware = true
 	e.notice_t = 0.0
 	await t._frames(2)
@@ -467,6 +474,8 @@ func _harrier() -> void:
 			hit = true
 			break
 		e.state_t = minf(e.state_t, 0.3) if e.state == "soar" else e.state_t
+		if i % 240 == 239 and e.state == "soar" and not main.clear_line(e.global_position, p.global_position):
+			e.global_position = in_sight.call()  # (circling, it slipped behind a wall: it can't dive at what it can't see)
 		await t.physics_frame
 	_check(states.has("wind_dive") and states.has("dive"), "it dives at you with a glint (%s; %d px, can attack %s, aware %s, lost %s, state_t %.2f, script %s)" % [states.keys(), int(e.global_position.distance_to(p.global_position)), main.can_attack(), e.aware, e.is_lost(), e.state_t, e.get_script().resource_path])
 	_check(hit and p.knock.length() > 150.0, "its strike throws you the way it flew")
