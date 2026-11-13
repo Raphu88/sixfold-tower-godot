@@ -8,9 +8,16 @@ extends Node2D
 ##
 ## Fading in and out when they matter (this node): the essence you've
 ## gathered since the last stair, a popup of your weapons when you swap, the
-## floor's title on arrival, the open stair, the keys for the menus, banners,
-## and the big overlays (the Regard, choosing a tower, camps). This layer is
-## only redrawn while something on it is showing.
+## keys for the menus, and the big overlays (the Regard, choosing a tower,
+## camps). This layer is only redrawn while something on it is showing.
+##
+## What the game tells you in play (notices.gd keeps it, this node draws
+## it; nothing waits in the middle of the screen):
+##   top middle  the announcement lane: one compact banner at a time, and
+##               under it the status chips (status_chips: a beast's health,
+##               "doors shut", a scenario, the task, the open stair)
+##   left        the feed, under the bars and slots: pickups and news
+## The Entity keeps the right side (guide.gd).
 ##
 ## The rest lives in the Climber screen (Tab) and the Inventory (I): every
 ## weapon slot and the armor, attributes, and where your next mark is forming.
@@ -821,8 +828,9 @@ func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 	var traits: Array = Gear.trait_lines(id)
 	var w := 330.0
 	var h := 86.0 + 17.0 * rows.size() + 14.0 * traits.size()
-	# Bottom centre; on a phone, bottom left of centre, clear of the buttons.
-	var r := Rect2(Vector2((size.x - w) / 2.0, size.y - h - 24.0), Vector2(w, h))
+	# Bottom left (the middle of the screen is the fight's); on a phone,
+	# bottom left of centre, clear of the buttons.
+	var r := Rect2(Vector2(BAR_X, size.y - h - 24.0), Vector2(w, h))
 	if main.touch_active:
 		r.position = Vector2(clampf(size.x * 0.5 - w - 10.0, 110.0, size.x), size.y - h - 12.0)
 	draw_style_box(card_box, r)
@@ -1414,13 +1422,13 @@ func status_chips() -> Array:
 	# Shut in a lock-in room (doors.gd): how many foes are left.
 	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
 	if not ls.is_empty():
-		out.append({"id": "doors", "text": String(N["status"]) % [main.door_view.LOCK_TEXT["status"], main.door_view.LOCK_TEXT["left"] % int(ls["left"])],
+		out.append({"id": "doors", "text": String(N["status"]) % [UI.title_case(String(main.door_view.LOCK_TEXT["status"])), main.door_view.LOCK_TEXT["left"] % int(ls["left"])],
 			"color": Color(0.95, 0.62, 0.5), "edge": UI.BLOOD})
 	# A scenario's own line (scenarios.gd).
 	if main.get("scenarios") != null:
 		var sc: Dictionary = main.scenarios.status()
 		if not sc.is_empty():
-			out.append({"id": "scenario", "text": String(N["status"]) % [sc["title"], sc["line"]], "color": Color(0.95, 0.9, 0.8), "edge": UI.GILT})
+			out.append({"id": "scenario", "text": String(N["status"]) % [UI.title_case(String(sc["title"])), sc["line"]], "color": Color(0.95, 0.9, 0.8), "edge": UI.GILT})
 	# A puzzle whose wrong answer brought hunters (puzzle.gd).
 	if main.puzzle != null and main.puzzle.get("locked") and main.puzzle._near():
 		out.append({"id": "puzzle", "text": String(main.puzzle.TEXT["locked"]), "color": UI.BAD, "edge": UI.BLOOD})
@@ -1453,7 +1461,8 @@ func _draw_lanes(real_size: Vector2, feed_top: float) -> void:
 		N.rects = {"banner": Rect2(), "chips": [], "feed": [], "column": Rect2()}
 		return
 	var corner := _corner_box(real_size)
-	var col: Rect2 = N.column(view, corner.end.x / hs, top_right_edge(view), corner.end.y / hs)
+	# (with no room at the top, the lane goes on the left, under the essence counter's row)
+	var col: Rect2 = N.column(view, corner.end.x / hs, top_right_edge(view), feed_top - 6.0)
 	var foot: float = N.draw_lane(self, unit, view, col, status_chips())
 	goal_rect = N.rects["column"]
 	# With the lane under the corner (no room at the top) the feed goes under it.

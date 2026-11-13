@@ -92,7 +92,7 @@ var _drawn_state := []
 var _labels_on := false
 ## The rule's words leave a small "?" plaque in the room; standing this
 ## close to it says them again in the top lane, for as long as you stand there.
-const PLAQUE_REACH := 58.0
+const PLAQUE_REACH := 72.0
 var plaques: Array = []  # where the "?" plaques are now (world)
 var _rule_said := false  # the rule was announced as you first stepped in
 

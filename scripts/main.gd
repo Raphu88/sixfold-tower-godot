@@ -1623,6 +1623,7 @@ func _arrive() -> void:
 		var said: Array = objective.banner_lines() if objective != null and objective.kind != "" else [PuzzleScript.TEXT["warded"]]
 		banner["lines"] = banner.get("lines", []) + said
 		banner["line"] = Objectives.TEXT["announce"] % said if said.size() == 2 else String(said[0])
+		banner["shown"] = said  # (said by that one line: not repeated in the feed)
 		banner["long"] = true
 		banner["t"] = maxf(float(banner.get("t", 0.0)), 4.5)
 		tip("ward")
@@ -2585,7 +2586,7 @@ func _greet() -> void:
 	if first_climb:
 		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0, "long": true}
 	else:
-		banner = {"title": tower_data()["name"].to_upper(), "lines": [], "t": 2.5}
+		banner = {"title": tower_data()["name"].to_upper(), "lines": ["%s  ·  best %d" % [UI.title_case(_floor_title()), best_floor]], "t": 2.5}
 
 
 ## Each tower's stone, light and torches.

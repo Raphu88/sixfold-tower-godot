@@ -29,6 +29,7 @@ extends RefCounted
 ##   who     "entity": the Entity speaking in the lane (a phone with no room
 ##           beside its sphere)
 ##   show    how many leading lines the lane may show (the rest go to the feed)
+##   shown   lines that `line` already says (never repeated in the feed)
 ##   kinds   {line: an event kind} for the lines that go to the feed
 ##   logged  the caller put those lines in the log itself: the feed only
 ##
@@ -310,8 +311,9 @@ func _split(b: Dictionary) -> Array:
 			rows = r
 	var fed: Dictionary = b.get("_fed", {})
 	var kinds: Dictionary = b.get("kinds", {})
+	var shown_lines: Array = b.get("shown", [])
 	for l in over:
-		if String(l) != "" and not fed.has(l):
+		if String(l) != "" and not fed.has(l) and not (l in shown_lines):
 			fed[l] = true
 			var kind := String(kinds.get(l, "news"))
 			if b.get("logged", false):  # (its caller logged them: the feed only)
@@ -461,7 +463,7 @@ func column(view: Vector2, left: float, right: float, under: float) -> Rect2:
 	var room := right - left - 20.0
 	if room < LANE_MIN:
 		left_mode = true
-		lane_w = clampf(view.x * 0.3 - 16.0, 120.0, 240.0)
+		lane_w = clampf(view.x * 0.3 - 18.0, 120.0, 240.0)
 		return Rect2(16.0, under + 6.0, lane_w, 0.0)
 	w = minf(w, room)
 	lane_w = w
@@ -602,6 +604,8 @@ func draw_feed(ci: CanvasItem, unit: Transform2D, view: Vector2, at: Vector2) ->
 	var batch := Draw.Batch.new()
 	var words: Array = []
 	for f in feed_lines:
+		if y + FEED_H > view.y - 6.0:
+			break  # (a short screen with the lane on the left: no farther than its foot)
 		var a := clampf(minf(float(f["t"]) / 0.5, (FEED_SHOW - float(f["t"])) / 0.2), 0.0, 1.0)
 		var text: String = log_text(f)
 		var rows: Array = wrap_text(font, text, FEED_SIZE, w - 22.0)

@@ -444,6 +444,13 @@ func _process(delta: float) -> void:
 				set_open(not open)
 	if not current.is_empty():
 		if can_show():
+			if lane and leaving <= 0.0 and not _lane_showing() and not main.notices.queue.has(_lane_b):
+				# Its words were pushed out of the lane (a question that couldn't
+				# wait, a new floor): a tip asks again, a tidbit lets it go.
+				if current["kind"] == "bit":
+					leaving = 0.01
+				else:
+					_lane_say()
 			if not (lane and not _lane_showing()):
 				shown_t += delta  # (said in the top lane: its time starts when its turn comes)
 			if Input.is_action_just_pressed("dismiss_tip") and _keys_free() and current["kind"] != "bit":
@@ -651,9 +658,11 @@ func orb_spot() -> Vector2:
 		var d := Layout.default_box("hud.entity", size)
 		return Vector2(d.end.x - ORB_R, d.position.y + ORB_R + 2.0)
 	if not main.touch_active:
-		var y := TOP
+		# Under the key hints, or the whole controls list (both grow with the HUD size).
+		var hs: float = main.hud.hud_scale if main.hud != null else 1.0
+		var y := maxf(TOP, Layout.box("hud.hints", size / hs).end.y * hs + 8.0)
 		if main.hud != null and main.hud.show_help:
-			y = 14.0 + 20.0 + Controls.HELP.size() * 17.0 + 10.0
+			y = (14.0 + 20.0 + Controls.HELP.size() * 17.0) * hs + 10.0
 		return Vector2(size.x - 16.0 - ORB_R, y + ORB_R + 2.0)
 	var foot := 0.0
 	for b in _buttons():
@@ -687,7 +696,7 @@ func side_rect(w_most: float, w_least: float, text_h: Callable, under := false) 
 	var size := get_viewport_rect().size
 	var orb := orb_spot()
 	var edge := _lane_edge() if not Layout.moved("hud.entity") else 8.0
-	var right := orb.x - ORB_R - 8.0
+	var right := orb.x - _orb_reach() - 4.0  # (clear of the sphere's own hit box)
 	var w := minf(w_most, right - edge)
 	# (narrower, and so taller, until it's clear of the buttons)
 	while w >= w_least:

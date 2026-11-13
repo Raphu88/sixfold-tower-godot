@@ -102,7 +102,7 @@ static var TIDBITS := {
 	"creature:deepfin": ["A deepfin leaps from deep water. Parry the leap, then hit it while it's stranded."],
 	"creature:cinder": ["A cinder spits a burning ember. Parry it and the ember turns back."],
 	"creature:smith": ["A smith's hammer can be parried, but it hits hard. The floor burns where it lands."],
-	"creature:forge_golem": ["A hot golem takes half from your blows. Soak it, or wait for it to vent."],
+	"creature:golem": ["A hot golem takes half from your blows. Soak it, or wait for it to vent."],
 	"creature:scorpling": ["A scorpling's sting poisons you for a few seconds. It can be parried."],
 	"creature:ram": ["A ram charges in a straight line. Let it hit a wall or a pillar and it's stunned."],
 	"creature:burrower": ["A burrower marks the sand under you before it erupts. Step off the ring."],
