@@ -30,6 +30,8 @@ const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Boons := preload("res://scripts/boons.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
+const Towers := preload("res://scripts/towers.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -108,14 +110,18 @@ static var SUPPLY_PRICE := {"draught": 3, "stamina": 3}
 const ANY := "any"
 static var ANY_PRICE := {"scroll": 60}
 
-## Condensing (at every stair, the first climb's too): this share of the
-## essence you bank becomes essence crystals instead of soaking into you,
-## per kind and in proportion (whole essence only: a kind with too little
-## for one whole essence is banked in full). Crystals are the train's money.
-## Settings changes the share (CONDENSE_CHOICES, in percent); it's kept with
-## the settings (menu.gd), so a new climber keeps it.
-const CONDENSE_DEFAULT := "20"
-const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["35", "35%"], ["50", "50%"]]
+## Condensing (at every stair, the first climb's too): the crystals' part of
+## the split (essence_flow.gd SPLIT): this share of the essence you bank
+## becomes essence crystals, per kind and in proportion (whole essence only:
+## a kind with too little for one whole essence goes to your body and marks
+## in full), and your body and your marks share the rest. Crystals are the
+## train's money. Settings changes the share (CONDENSE_CHOICES, in percent);
+## it's kept with the settings (menu.gd), so a new climber keeps it. (Before
+## the split the default was 20%: a settings file from then that still held
+## it moves to the new default once, menu.gd load_settings_from.)
+const CONDENSE_DEFAULT := "30"
+const CONDENSE_OLD_DEFAULT := "20"
+const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["30", "30%"], ["40", "40%"], ["50", "50%"]]
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
 ## every floor past your best in that tower before the climb.
@@ -232,7 +238,7 @@ static var TEXT := {
 	"banked": "Banked %d essence",
 	"condensed": "%d condensed into crystals",
 	"condense_setting": "To crystals",
-	"condense_note": "At each stair this share of the essence you bank condenses into crystals (the train's money) instead of growing your marks.",
+	"condense_note": "At each stair the essence you bank splits three ways: this share condenses into crystals (the train's money), and your body and your marks share the rest.",
 	"pay": "The outfitter pays for your climb: +%s",
 	# The Library: the Entity's Archive on its shelves, read at the lectern
 	"bookcase": "The Entity's Archive  ·  %s",
@@ -379,9 +385,32 @@ static func climb_pay(reached: int, best_before: int) -> int:
 ## The consumables the store sells: always the same shelf, the cheap staples
 ## first, then the rest in Items.ORDER (the recall scroll among them, always
 ## there; only the outfit rail and today's piece change between visits).
-static func supplies() -> Array:
-	var all: Array = Items.ORDER.filter(func(id): return not Items.ITEMS[id].get("value", {}).is_empty())
-	return all.filter(func(id): return Items.is_staple(id)) + all.filter(func(id): return not Items.is_staple(id))
+## Tinctures (essence_flow.gd) aren't on the fixed shelf: with a `profile`,
+## the two kinds he stocks this visit come last (store_tinctures).
+static func supplies(profile = null) -> Array:
+	var all: Array = Items.ORDER.filter(func(id): return not Items.ITEMS[id].get("value", {}).is_empty() and not Flow.is_tincture(id))
+	var out: Array = all.filter(func(id): return Items.is_staple(id)) + all.filter(func(id): return not Items.is_staple(id))
+	if profile != null:
+		out.append_array(store_tinctures(profile).map(func(k): return Flow.tincture_id(String(k))))
+	return out
+
+
+## The tinctures the outfitter stocks this visit: Flow.TINCTURE "store_kinds"
+## kinds, the tower you last climbed first, the rest by chance (kept with
+## the visit's stock; a store stocked before tinctures rolls them now).
+static func store_tinctures(profile) -> Array:
+	if profile == null:
+		return []
+	var have = profile.store.get("tinctures", null) if profile.store is Dictionary else null
+	if have is Array and not have.is_empty():
+		return have.filter(func(k): return Essence.KINDS.has(String(k)))
+	var first := String(Towers.TOWERS.get(String(profile.last_tower), {}).get("essence", "air"))
+	var rest: Array = Essence.KINDS.keys().filter(func(k): return k != first)
+	rest.shuffle()
+	var kinds: Array = ([first] + rest).slice(0, maxi(0, int(Flow.TINCTURE.get("store_kinds", 2))))
+	if not profile.store.is_empty():
+		profile.store["tinctures"] = kinds
+	return kinds
 
 
 ## Why a price can't be paid, in words ("needs 12 more Fire"), or "" if it
@@ -418,6 +447,7 @@ static func stock(profile) -> void:
 	if not profile.store.is_empty():
 		return
 	profile.store = {"outfit": roll_outfit(profile).map(func(g): return Gear.code(g)), "today": Gear.code(roll_today(profile))}
+	store_tinctures(profile)  # (the tinctures he stocks this visit)
 
 
 # --- the outfitter's upgrades (renown) ------------------------------------------------------

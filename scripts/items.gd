@@ -30,7 +30,9 @@ const STEADY_TIME := 0.6
 
 const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
 	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "wardbreaker", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
-	"scroll", "vessel"]
+	"scroll", "vessel",
+	# Tinctures (essence_flow.gd): one of each essence.
+	"tincture_air", "tincture_water", "tincture_iron", "tincture_fire", "tincture_stone", "tincture_blade"]
 
 ## Each item: name, short name, what it does, colour and its numbers; also
 ##   kind         its essence (the belt breaks it into this kind of crystal)
@@ -274,6 +276,61 @@ static var ITEMS := {
 		"drop_weight": 0, "drop": false,
 		"max": 1,
 	},
+	# --- tinctures (essence_flow.gd: their strength, crafting, drops) ---
+	# The only way the marked steer essence: drink one and choose a mark or
+	# an unmarked body part (the crystals page, pour_page.gd). Never dropped
+	# by the item table or offered at a camp ("drop_weight" 0): vaults, secret
+	# rooms and rare monster drops hold them (essence_flow.gd TINCTURE); the
+	# outfitter sells two kinds a visit at their worth ("value"); the
+	# Workshop crafts them from crystals of their kind.
+	"tincture_air": {
+		"name": "Air Tincture",
+		"short": "Air Tinct.",
+		"desc": "a stoppered vial of Air essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.78, 0.9, 1.0),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "air", "value": {"air": 60},
+	},
+	"tincture_water": {
+		"name": "Water Tincture",
+		"short": "Water Tinct.",
+		"desc": "a stoppered vial of Water essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.37, 0.72, 0.85),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "water", "value": {"water": 60},
+	},
+	"tincture_iron": {
+		"name": "Iron Tincture",
+		"short": "Iron Tinct.",
+		"desc": "a stoppered vial of Iron essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.8, 0.82, 0.88),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "iron", "value": {"iron": 60},
+	},
+	"tincture_fire": {
+		"name": "Fire Tincture",
+		"short": "Fire Tinct.",
+		"desc": "a stoppered vial of Fire essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(1.0, 0.55, 0.25),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "fire", "value": {"fire": 60},
+	},
+	"tincture_stone": {
+		"name": "Stone Tincture",
+		"short": "Stone Tinct.",
+		"desc": "a stoppered vial of Stone essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.82, 0.68, 0.45),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "stone", "value": {"stone": 60},
+	},
+	"tincture_blade": {
+		"name": "Blade Tincture",
+		"short": "Blade Tinct.",
+		"desc": "a stoppered vial of Blade essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.88, 0.36, 0.4),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "blade", "value": {"blade": 60},
+	},
 }
 
 ## Reading the recall scroll (main.gd read_recall). It asks first: use it
@@ -419,7 +476,8 @@ static func camp_choices(marked := true) -> Array:
 const USE_SOUNDS := {"draught": "drink", "stamina": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
 	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready",
 	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw", "wardbreaker": "use_ward",
-	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime"}
+	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime",
+	"tincture_air": "drink", "tincture_water": "drink", "tincture_iron": "drink", "tincture_fire": "drink", "tincture_stone": "drink", "tincture_blade": "drink"}
 
 
 ## Uses an item on the climber. Returns false (and says why) if it would do
@@ -437,6 +495,11 @@ static func use(id: String, p) -> bool:
 		return main.recall_pressed()
 	if id == "vessel":
 		return load("res://scripts/vessel.gd").use(p)  # (it says what it holds; never used up)
+	if bool(data.get("tincture", false)):
+		# (a tincture asks where it goes: the crystals page, which drinks it from the belt)
+		if main.has_method("open_pour"):
+			main.open_pour(id)
+		return false
 	match id:
 		"draught":
 			if p.hp >= p.max_health() - 0.5:
@@ -630,6 +693,9 @@ static func _item_art(b, id: String, s: float) -> void:
 	var u := Art.unit(s)
 	var lod := Art.detail(s)
 	Art.ground(b, s, 9.2, 6.4, 0.36)  # (it sits in its slot)
+	if bool(ITEMS.get(id, {}).get("tincture", false)):
+		_tincture_art(b, col, s)
+		return
 	match id:
 		"draught":
 			# A round flask: the red cure two-thirds up, a cork.
@@ -929,6 +995,19 @@ static func _item_art(b, id: String, s: float) -> void:
 			Art.orb(b, Vector2(2.6, 4.6) * u, 1.8 * u, Color(0.3, 0.46, 0.86), s, "gem")
 		_:
 			Art.orb(b, c, s * 0.5, col, s)
+
+
+## A tincture: a round-bellied vial of glowing essence, stoppered with a
+## little cut crystal of the same kind.
+static func _tincture_art(b, col: Color, s: float) -> void:
+	var u := Art.unit(s)
+	var bc := Vector2(0, 3.2) * u
+	var r := 6.0 * u
+	Art.soft(b, bc, 8.0 * u, Color(col, 0.35))
+	Art.glass(b, _flask(bc, r, Rect2(Vector2(-1.6, -5.4) * u, Vector2(3.2, 3.2) * u)), s, col, bc.y - r * 0.5, 0.9)
+	_facets_item(b, Vector2(0, -7.4) * u, 2.6 * u, col.lightened(0.25), s, 6)
+	Art.spark(b, bc + Vector2(0.8, 1.0) * u, 2.0 * u, Color(1, 1, 1, 0.85))
+	Art.shine(b, bc + Vector2(-2.8, -2.0) * u, 0.8 * u, 1.8 * u)
 
 
 ## A cut stone seen face on, for an item (a lodestone's band).
