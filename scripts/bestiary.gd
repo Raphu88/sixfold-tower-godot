@@ -173,7 +173,8 @@ static var TEXT := {
 	"lifts": "It can be thrown into the air and can lose track of you.",
 	"beast_states": "Too heavy to throw into the air (that only staggers it); it never loses track of you, and never flinches.",
 	"under": "While it's under, blows miss it and burning or bleeding don't hurt it.",
-	"gives": "Its blows would leave you %s.",
+	"gives": "Its blows leave you %s: %s.",
+	"gives_cure": "Its blows leave you %s: %s. %s cures it.",
 	"calls": "At half health it calls two %s for help.",
 	"champion": "Champions: a larger one ringed in gold, with %s times the health and %s times the damage. Every few seconds near you it slams the ground around it: roll out of the ring.",
 	"kin": "Bound in your kin book: your Covenant can call it to fight beside you.",
@@ -522,8 +523,8 @@ static func lines(prof, kind: String) -> Array:
 
 
 ## How a kind takes states: what every monster (or every beast) shares,
-## then its own (BESTIARY "states"), then what its blows would leave on you
-## if the owner switches that on (reactions.gd CLIMBER).
+## then its own (BESTIARY "states"), then what its blows leave on you
+## (reactions.gd CLIMBER: what it does to you and what cures it).
 static func state_lines(kind: String) -> Array:
 	var out: Array = [TEXT["beast_states"] if kind in Enemy.BOSSES else TEXT["lifts"]]
 	if kind in HIDERS:
@@ -533,7 +534,9 @@ static func state_lines(kind: String) -> Array:
 		out.append(own)
 	var gives = Reactions.CLIMBER.get("from", {}).get(kind, "")
 	if bool(Reactions.CLIMBER.get("enabled", false)) and Reactions.STATES.has(gives):
-		out.append(TEXT["gives"] % String(Reactions.STATES[gives]["name"]).to_lower())
+		var cure: String = Reactions.cure_names(gives)
+		var st_name := String(Reactions.STATES[gives]["name"]).to_lower()
+		out.append(TEXT["gives_cure"] % [st_name, Reactions.climber_does(gives), cure] if cure != "" else TEXT["gives"] % [st_name, Reactions.climber_does(gives)])
 	return out
 
 
