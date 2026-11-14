@@ -129,7 +129,7 @@ const SECTIONS := [
 	{"id": "stations_words", "group": "words", "name": "Stations, renown, titles and boons", "when": "page",
 		"tables": ["stations/STATIONS", "stations/STOPS", "stations/DRILLS", "stations/TIERS", "stations/CHALLENGES", "stations/RULES", "stations/MEDALS", "stations/TEXT",
 			"renown/RANKS", "renown/TITLES", "renown/TEXT", "boons/BOONS", "boons/TEXT", "train/UPGRADES"], "kinds": ["text"],
-		"skip": ["rule", "tower", "stops", "waves", "rules", "foes", "start_item"],
+		"skip": ["rule", "of", "tower", "stops", "waves", "rules", "foes", "start_item"],
 		"names": {"STATIONS": "Stations", "STOPS": "A station's stops", "DRILLS": "The gym's drills", "TIERS": "The tournament's tiers and bouts", "CHALLENGES": "Challenges",
 			"RULES": "Bout rules", "MEDALS": "Medals", "RANKS": "Renown ranks", "TITLES": "Titles", "BOONS": "Boons", "UPGRADES": "The outfitter's upgrades"}},
 	# --- numbers ---

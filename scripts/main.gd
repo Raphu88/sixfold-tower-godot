@@ -65,6 +65,7 @@ const Objectives := preload("res://scripts/objectives.gd")
 const CracksScript := preload("res://scripts/cracks.gd")
 const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
+const RivalsScript := preload("res://scripts/rivals.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -276,6 +277,7 @@ var objective  # the floor's one task: its pieces, the HUD's line and arrow, the
 var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
+var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
 var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
@@ -371,6 +373,9 @@ func _ready() -> void:
 	room_rewards = RoomRewardsScript.new()
 	room_rewards.main = self
 	add_child(room_rewards)
+	rivals = RivalsScript.new()
+	rivals.main = self
+	add_child(rivals)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
@@ -1078,6 +1083,8 @@ func _start_floor(n: int) -> void:
 			secret_tools.before_build(n)  # (the Designer's Reroll: the puzzle and rooms chosen for this floor)
 		if n <= 1:
 			Objectives.climb_used.clear()  # (a new climb: every kind of task is fresh)
+			RivalsScript.climb_met = 0  # (and no other climber met yet)
+		RivalsScript.climb_ok = not first_climb  # (no rivals on the bondless first climb)
 		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
 		if not plan.get("objective", {}).is_empty():
 			Objectives.climb_used.append(String(plan["objective"]["kind"]))
@@ -1085,6 +1092,8 @@ func _start_floor(n: int) -> void:
 			secret_tools.after_build(plan)
 		if MirrorScript.THEME in plan.get("themes", []):
 			MirrorScript.force = false  # (the dev tool's forced mirror room is here)
+		if not plan.get("rivals", []).is_empty():
+			RivalsScript.force = false  # (the dev tool's forced rival is here)
 	floor_plan = plan
 	_set_arena(plan.get("arena", OPEN_ROOM))
 	layout_rooms = plan.get("rooms", [])
@@ -1128,6 +1137,7 @@ func _start_floor(n: int) -> void:
 	_setup_tower_floor(plan if not in_camp else {})  # (before the scenarios: a tower's scenario lives in it)
 	scenarios.setup(plan if not in_camp else {})
 	room_rewards.setup(plan if not in_camp else {})
+	rivals.setup(plan if not in_camp else {})  # (the one beside you parts at the stair; this floor's rivals)
 	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
 	# The traps (traps.gd): laid before the pillars and chasms are made, since
 	# placing them may add shelter pillars, move monsters off trap tiles and
@@ -1841,6 +1851,8 @@ func _camp_card(i: int) -> Dictionary:
 		return secret_tools.card(pick)  # a secret bond tool's choice (secret_tools.gd)
 	if pick.begins_with("trade:"):
 		return room_rewards.card(pick)  # a wandering trader's wares (room_rewards.gd)
+	if pick.begins_with("rv:"):
+		return rivals.card(pick)  # another climber's exchange (rivals.gd)
 	if pick.begins_with("path:"):
 		var k := pick.substr(5)
 		return {"name": Secret.display(k), "desc": Secret.KINDS[k]["motto"], "color": Secret.color(k), "item": "", "secret": k,
@@ -1925,6 +1937,9 @@ func choose_camp(i: int) -> void:
 		return
 	if camp["stage"] == "secret":
 		secret_tools.take_card(i)
+		return
+	if camp["stage"] == "rival":
+		rivals.choose(i)
 		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
@@ -2850,6 +2865,8 @@ func predicted_bond() -> String:
 
 
 func gather_essence(kind: String, amount: float, from: Vector2) -> void:
+	if rivals != null:
+		amount *= rivals.share()  # (teamed up with a rival: what you gather is shared)
 	run_essence[kind] = float(run_essence.get(kind, 0.0)) + amount
 	climb_essence[kind] = float(climb_essence.get(kind, 0.0)) + amount
 	notices.note_essence(kind, amount)
@@ -3536,6 +3553,8 @@ func end_try() -> void:
 func proving_spare() -> bool:
 	if arena != null and arena.spare():
 		return true  # (the station's arena: a fall loses the event, never the climber)
+	if rivals != null and rivals.spare():
+		return true  # (a duel with a rival: knocked down, never killed: rivals.gd)
 	return proving != null and proving.spare()
 
 
@@ -4123,12 +4142,13 @@ func on_enemy_killed(e) -> void:
 	if player != null and player.has_bond("grafter") and not e.is_boss() and randf() < graft_chance(grafts.size()):
 		BondScript.graft_drop(self, e.global_position, e.kind)
 	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
-	if not e.is_boss() and randf() < gear_drop_chance:
+	var share: float = rivals.drop_mult() if rivals != null else 1.0  # (teamed up with a rival: finds are shared)
+	if not e.is_boss() and randf() < gear_drop_chance * share:
 		drop_gear(e.global_position + Vector2(0, 10), find_gear(e.kind), true)
 	# Now and then a slain monster leaves an item (its size by the floor), or
 	# a little more essence instead (items.gd DROPS).
 	if not e.is_boss():
-		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance)
+		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share)
 		if left.has("item"):
 			item_drops.append({"pos": e.global_position, "id": left["item"], "size": int(left["size"]), "t": Items.DROP_LIFE})
 		elif left.has("essence") and tower_data().has("essence"):

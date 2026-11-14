@@ -259,7 +259,12 @@ static func climber_look(pl) -> Dictionary:
 func _ready() -> void:
 	super._ready()
 	if main != null and main.lighting != null:
-		_light = main.lighting.add_light(global_position, 70.0, LOOK["glow"], 0.35, 0.15, self)
+		_light = main.lighting.add_light(global_position, 70.0, _glow_color(), 0.35, 0.15, self)
+
+
+## The colour of the faint light it carries (rival.gd: a climber's own).
+func _glow_color() -> Color:
+	return LOOK["glow"]
 
 
 func _exit_tree() -> void:
@@ -917,7 +922,6 @@ static func _swung(b, id: String, grip: Vector2, along: Vector2, length: float, 
 ## glassy rim at its feet so it reads in the dark.
 func _overlay_extra(o) -> void:
 	var now := Time.get_ticks_msec() * 0.001
-	var danger := Palette.DANGER
 	var rim: Color = LOOK["rim"]
 	var br := 0.65 + 0.35 * sin(now * 2.6)
 	o.arc(Vector2(0, radius * 0.7), radius + 5.0, 0.0, TAU, 1.4, Color(rim, 0.4 * br), 30)
@@ -927,6 +931,12 @@ func _overlay_extra(o) -> void:
 		var tw := 0.5 + 0.5 * sin(now * 5.0 + i * 2.0)
 		o.quad(sp - Vector2(2.5, 0) * tw, sp + Vector2(2.5, 0) * tw, 1.0, Color(rim, 0.7 * tw))
 		o.quad(sp - Vector2(0, 2.5) * tw, sp + Vector2(0, 2.5) * tw, 1.0, Color(rim, 0.7 * tw))
+	_telegraphs(o)
+
+
+## Its attacks' telegraphs (rival.gd draws them too, without the glass rim).
+func _telegraphs(o) -> void:
+	var danger := Palette.DANGER
 	match state:
 		"wind_swing":
 			if not chain.is_empty():

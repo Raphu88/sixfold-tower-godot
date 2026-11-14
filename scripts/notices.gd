@@ -118,6 +118,7 @@ static var KINDS := {
 	"reaction": {"name": "A reaction", "color": Color(0.75, 0.9, 1.0), "sign": "ring", "feed": false},
 	"fall": {"name": "A fall", "color": Color(0.85, 0.7, 0.6), "sign": "down", "feed": false},
 	"news": {"name": "News", "color": Color(0.925, 0.89, 0.81), "sign": "dot", "feed": true},
+	"rival": {"name": "Another climber", "color": Color(0.95, 0.82, 0.62), "sign": "diamond", "feed": true},
 }
 
 ## Words (all of them here, for the Data editor).

@@ -96,6 +96,12 @@ static var REACTIONS := {
 ## of the word that rises.
 static var RULES := {"per_step": 0.15, "depth": 4, "word": 17.0, "word_time": 1.1}
 
+## A reaction set off by two climbers together (a rival fighting beside you,
+## rivals.gd): one state was theirs and the other yours. Under the word, a
+## second line names them ("with": their name), smaller ("word_k" of its
+## size), and the feed and the Entity's log say so too ("feed").
+static var SHARED := {"with": "with %s", "feed": "%s, with %s", "word_k": 0.75}
+
 ## Monsters giving the climber states (on: "enabled"; false switches it all
 ## off). "from": which state each monster's landed blow leaves; "seconds":
 ## how long each lasts on you (a new blow refreshes it, never longer);
@@ -132,8 +138,10 @@ static var CLIMBER_TEXT := {
 	},
 }
 
-## How many times each reaction has fired (the tests read it).
+## How many times each reaction has fired (the tests read it), and how many
+## of those were shared with a rival climber.
 static var FIRED := {}
+static var SHARED_FIRED := {}
 ## The reactions fired since the outermost apply() began (what it returns).
 static var _log: Array = []
 static var _sources: Array = []  # the source of each apply() on the stack
@@ -157,6 +165,7 @@ static func apply(main, foe, state: String, seconds: float, source = null, amoun
 	var st: Dictionary = STATES[state]
 	var start := _log.size()
 	_sources.push_back(source)
+	_note_giver(foe, state, source, seconds if seconds > 0.0 else float(st.get("seconds", 2.0)))
 	if bool(st.get("event", false)):
 		landed(main, foe, state)
 	else:
@@ -271,7 +280,7 @@ static func landed(main, foe, state: String) -> void:
 			continue
 		if _cooling(foe, id, r):
 			continue
-		_fire(main, foe, id)
+		_fire(main, foe, id, state)
 		if not is_instance_valid(foe) or foe.dead:
 			return
 
@@ -294,10 +303,48 @@ static func scale(main) -> float:
 	return 1.0 + float(RULES["per_step"]) * float(best - 1)
 
 
-static func _fire(main, foe, id: String) -> void:
+## Who gave a foe a state, when a rival climber did (their name, and until
+## when it counts), so a reaction set off by two climbers can be told.
+static func _note_giver(foe, state: String, source, seconds: float) -> void:
+	if not ("reacted" in foe):
+		return
+	if source is Object and is_instance_valid(source) and "rival_name" in source and String(source.rival_name) != "":
+		foe.reacted["by:" + state] = [String(source.rival_name), Time.get_ticks_msec() + int((seconds + 0.5) * 1000.0)]
+	else:
+		foe.reacted.erase("by:" + state)
+
+
+## The rival climber who gave a foe a state (their name), or "" for you.
+static func giver(foe, state: String) -> String:
+	if foe == null or not is_instance_valid(foe) or not ("reacted" in foe):
+		return ""
+	var g = foe.reacted.get("by:" + state)
+	if g is Array and g.size() == 2 and Time.get_ticks_msec() <= int(g[1]):
+		return String(g[0])
+	return ""
+
+
+## The climber a reaction was shared with: one of its states theirs, the
+## other yours ("" if both came from the same climber).
+static func partner(foe, id: String, landing: String) -> String:
+	var pair: Array = REACTIONS[id]["states"]
+	if landing == "" or not landing in pair:
+		return ""
+	var other: String = pair[1] if pair[0] == landing else pair[0]
+	var a := giver(foe, landing)
+	var b := giver(foe, other)
+	if a != "" and b == "":
+		return a
+	if b != "" and a == "":
+		return b
+	return ""
+
+
+static func _fire(main, foe, id: String, landing := "") -> void:
 	var r: Dictionary = REACTIONS[id]
 	foe.reacted[id] = Time.get_ticks_msec()
 	var source = _sources.back() if not _sources.is_empty() else null
+	var shared := partner(foe, id, landing)
 	var at: Vector2 = foe.global_position
 	var col: Color = r["color"]
 	var held_before := held(foe)
@@ -332,6 +379,8 @@ static func _fire(main, foe, id: String) -> void:
 	if now - int(foe.reacted.get("shown:" + id, -999999)) > 700:
 		foe.reacted["shown:" + id] = now
 		word(main, at + Vector2(0, -float(foe.radius) - 30.0), String(r["name"]), col)
+		if shared != "":
+			word(main, at + Vector2(0, -float(foe.radius) - 12.0), String(SHARED["with"]) % shared, col.lerp(Color(1, 1, 1), 0.35), float(SHARED["word_k"]))
 		if main.has_method("note_event"):
 			# (the Entity's log: the first of each reaction on a floor)
 			main.note_event("reaction", String(main.notices.TEXT["reaction"]) % String(r["name"]), col, false, "reaction:" + id)
@@ -339,6 +388,12 @@ static func _fire(main, foe, id: String) -> void:
 		main.sfx(String(r["sound"]), float(r.get("pitch", 1.0)), -2.0)
 		main.light_flash(at, col, 1.2, 1.4, 0.3)
 	FIRED[id] = int(FIRED.get(id, 0)) + 1
+	if shared != "":
+		SHARED_FIRED[id] = int(SHARED_FIRED.get(id, 0)) + 1
+		if main.get("rivals") != null:
+			main.rivals.on_shared_reaction(id, shared)
+		if main.has_method("note_event"):
+			main.note_event("rival", String(SHARED["feed"]) % [String(r["name"]), shared], col, true)
 	if not _sources.is_empty():
 		_log.append(id)
 	_depth -= 1
@@ -501,8 +556,8 @@ static func _arc(main, a: Vector2, b: Vector2, col: Color, secs: float, width :=
 
 
 ## The word that rises over a reaction: large, in its colour, outlined.
-static func word(main, at: Vector2, text: String, col: Color) -> void:
-	var size := int(RULES["word"])
+static func word(main, at: Vector2, text: String, col: Color, k := 1.0) -> void:
+	var size := int(float(RULES["word"]) * k)
 	SpellFx.lasting(main, float(RULES["word_time"]), Callable(), func(n):
 		var a: float = n.fade(0.4)
 		var f: Font = UI.font("display")

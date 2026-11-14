@@ -74,6 +74,8 @@ static var THEMES := {
 		"tint": Color(0.55, 0.75, 1.0, 0.07), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "rest"},
 	"trader": {"name": "Wandering Trader", "kind": "calm", "sub": "A cloaked trader with a laden pack. They take unbanked essence.",
 		"tint": Color(1.0, 0.8, 0.5, 0.07), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "trader"},
+	"rival": {"name": "Another Climber", "kind": "calm", "sub": "Someone else is climbing this tower. They want a word.",
+		"tint": Color(0.95, 0.82, 0.62, 0.06), "door": "warm", "min_size": Vector2i(6, 5), "towers": [], "feature": "rival"},
 	"strongroom": {"name": "Strongroom", "kind": "mixed", "sub": "Locked away, and worth the trouble.",
 		"tint": Color(1.0, 0.8, 0.4, 0.08), "door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": "vault"},
 	"post": {"name": "Guard Post", "kind": "mixed", "sub": "Someone set guards here, and a strongbox to keep.",
@@ -219,7 +221,7 @@ static func fits(id: String, info: Dictionary, tid: String, tower: Dictionary) -
 		return false
 	var rows: Array = info["rows"]
 	match th["feature"]:
-		"spring", "cache", "camp", "rest", "trader":
+		"spring", "cache", "camp", "rest", "trader", "rival":
 			return Rooms.clear_spot(rows, 3) != Vector2i(-1, -1)
 		"pillars":
 			var n := 0
@@ -335,7 +337,7 @@ static func _pick_kind(kind: String, info: Dictionary, tid: String, tower: Dicti
 	var total := 0.0
 	for id in THEMES:
 		var th: Dictionary = THEMES[id]
-		if th["kind"] != kind or used.has(id) or th["feature"] in ["start", "stair", "puzzle", "objective", "scenario", "vault", "rest", "trader", "post"]:
+		if th["kind"] != kind or used.has(id) or th["feature"] in ["start", "stair", "puzzle", "objective", "scenario", "vault", "rest", "trader", "rival", "post"]:
 			continue
 		if th["feature"] == "cache" and caches > 0:
 			continue
