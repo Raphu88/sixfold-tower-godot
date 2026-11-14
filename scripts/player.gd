@@ -16,6 +16,7 @@ const GearLook := preload("res://scripts/gear_look.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Bestiary := preload("res://scripts/bestiary.gd")
 
 ## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
 ## "The climber's core numbers"); these read them, so a change shows at once.
@@ -2304,6 +2305,7 @@ func _burn_floor(delta: float) -> void:
 func receive_attack(dmg: float, source, unblockable := false) -> void:
 	if dead:
 		return
+	var from = source  # (who struck: the Bestiary's, kept when an unblockable blow drops it)
 	if iframes > 0.0:
 		on_dodge()
 		return
@@ -2372,6 +2374,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	var raw := dmg
 	dmg *= 1.0 - protection()
 	hp -= dmg
+	Bestiary.hurt_by(main, from)
 	_thorns(source)
 	Reactions.from_monster(main, self, source)  # (off unless reactions.gd CLIMBER "enabled")
 	if gfx("grasp") > 0.0 and source is Node and is_instance_valid(source) and "chill_t" in source \

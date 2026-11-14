@@ -52,6 +52,7 @@ const ArenaScript := preload("res://scripts/arena.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
+const Bestiary := preload("res://scripts/bestiary.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
@@ -375,6 +376,7 @@ func _ready() -> void:
 		profile.load_save()
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
+	Bestiary.attach(self)  # (the Bestiary hears every blow that lands on a monster)
 	unbound = UnboundRun.new()
 	unbound.main = self
 	add_child(unbound)
@@ -866,6 +868,7 @@ func _physics_process(delta: float) -> void:
 	_separate_bodies()
 	_update_spell_fields(delta)
 	_track_player()
+	Bestiary.watch(self, delta)  # (monsters coming on screen: seen)
 
 
 ## Notes where the climber stands this tick, for the camera. A jump too big to
@@ -2714,6 +2717,7 @@ func on_player_died() -> void:
 		arena.spare()
 		return
 	profile.note("deaths")
+	Bestiary.fell(self)  # (the monster that last hurt you felled you)
 	if run_flow > 0.0 and profile.path != "":
 		run_flow = 0.0  # the flow you carried is lost (what's banked stays)
 	if not first_climb:
@@ -3947,6 +3951,7 @@ func on_enemy_killed(e) -> void:
 		arena.on_enemy_killed(e)  # (the station's arena: no drops, essence or record)
 		return
 	profile.note("slain")
+	Bestiary.slain(self, e)
 	BondScript.on_kill(self, e)  # (marks' passive ranks: bond.gd)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
