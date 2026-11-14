@@ -116,6 +116,9 @@ const SECTIONS := [
 		"skip": ["states", "consume", "bonds", "from", "event", "lands"],
 		"names": {"STATES": "States (what a foe holds)", "REACTIONS": "Reactions (two states meet)", "PACTS": "Named pacts (two marks)",
 			"GRAFT_POWER": "Menagerie: what each graft gives your creatures", "TEXT": "Words"}},
+	{"id": "bestiary_words", "group": "words", "name": "The Bestiary", "when": "page",
+		"tables": ["bestiary/BESTIARY", "bestiary/TEXT"], "kinds": ["text"],
+		"names": {"BESTIARY": "Monsters' entries (name, how it fights, states, lore)", "TEXT": "Words"}},
 	{"id": "menu_words", "group": "words", "name": "Title, climbers and appearance", "when": "page",
 		"tables": ["title/TEXT", "climbers_page/TEXT", "appearance/TEXT", "appearance/NAMES", "essence/KINDS"], "kinds": ["text"],
 		"names": {"NAMES": "Names the dice offers", "KINDS": "Essences"}},
@@ -148,6 +151,9 @@ const SECTIONS := [
 	{"id": "monsters", "group": "numbers", "name": "Monsters", "when": "floor",
 		"tables": ["enemy/TYPES", "enemy/CHAMPION", "floors/MONSTERS", "floors/CURVE"], "kinds": ["number"], "skip": ["radius", "size", "from"],
 		"names": {"TYPES": "Health, speed, damage", "CHAMPION": "Champions (times)", "MONSTERS": "How often they come", "CURVE": "Harder with height (per floor)"}},
+	{"id": "bestiary_numbers", "group": "numbers", "name": "The Bestiary", "when": "page",
+		"tables": ["bestiary/TIERS"], "kinds": ["number"],
+		"names": {"TIERS": "Slayings for each tier (monsters, beasts): health, weakness, states"}},
 	{"id": "items_numbers", "group": "numbers", "name": "Items and camps", "when": "live",
 		"tables": ["items/ITEMS", "items/BELT", "items/CAMP", "items/CRYSTAL", "items/RECALL", "lost/WEAPON_CHANCE", "lost/CACHE_CHANCE", "vessel/CAPACITY", "vessel/VAULT_CHANCE"], "kinds": ["number"]},
 	{"id": "gear_numbers", "group": "numbers", "name": "Gear and drops", "when": "live",
@@ -779,8 +785,8 @@ static func _walk(sec: Dictionary, path: String, v, skip: Array) -> void:
 			_walk(sec, path + "/" + str(i), v[i], skip)
 		return
 	var kind := kind_of(v)
-	if v is String and path.ends_with("/history"):
-		kind = "text"  # (a relic's history starts blank, for the owner to write)
+	if v is String and (path.ends_with("/history") or path.ends_with("/lore") or (path.begins_with("bestiary/BESTIARY/") and path.ends_with("/states"))):
+		kind = "text"  # (a relic's history and a monster's lore start blank, for the owner to write)
 	if kind == "" or not kind in sec["kinds"] or _by_path.has(path):
 		return
 	var f := {"path": path, "section": sec["id"], "kind": kind}
