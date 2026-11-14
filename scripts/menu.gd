@@ -48,6 +48,9 @@ const TreeView := preload("res://scripts/tree_view.gd")
 const StationPage := preload("res://scripts/station_page.gd")
 const StationView := preload("res://scripts/station_view.gd")
 const Stations := preload("res://scripts/stations.gd")
+const EntityHelper := preload("res://scripts/entity_helper.gd")
+const EntityTalk := preload("res://scripts/entity_talk.gd")
+const EntityHelp := preload("res://scripts/entity_help.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -62,7 +65,8 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
-	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0}
+	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0,
+	"talk": 620.0}
 ## The climber screen is the book (book.gd): its sections, [id, name], each
 ## a ribbon. Abilities (abilities.gd) comes first: what you can cast and
 ## how; the Tree (tree_view.gd) is the body map, where you choose how you
@@ -86,9 +90,10 @@ const COMPACT_H := 600.0
 ## Interface size (ui.gd UI_SIZES: a phone's Normal is bigger than it used
 ## to be; a save from before the setting has none, so it starts on Normal);
 ## "world_zoom": the camera (ui.gd WORLD_ZOOMS); "hud_scale": the HUD size,
-## on top of the interface's.
+## on top of the interface's. "entity_help": the Entity explains the train's
+## buttons as you point at them, or hold them on a phone (entity_helper.gd).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "",
-	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false}
+	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true}
 static var settings_loaded := false
 
 var main
@@ -146,6 +151,12 @@ var look_from := ""
 # Dev tools -> Edit game data (data_page.gd): the Data editor, kept so its
 # tab, section and search stay put while its page is rebuilt.
 var data_page = preload("res://scripts/data_page.gd").new(self)
+## The Entity on the train (entity_helper.gd: its sphere, which explains the
+## button you point at), and talking with it (entity_talk.gd, the "talk"
+## page). `talk_from`: the page the talk was opened from ("" from play).
+var helper
+var talk = EntityTalk.new()
+var talk_from := ""
 # The left rail (rail.gd) the in-game pages share: who you are, the pages,
 # Start over and Exit. RAIL_PAGES show it; RAIL_ROOTS are the pages it
 # opens (the others are pages within them: a mark, controller setup, the
@@ -208,6 +219,9 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
+	helper = EntityHelper.new()  # (over the page and the rail)
+	helper.menu = self
+	add_child(helper)
 	panel = PanelContainer.new()
 	center.add_child(panel)
 	scroll = ScrollContainer.new()
@@ -268,6 +282,11 @@ func _input(event: InputEvent) -> void:
 			_leave_field()
 			_back_frame = Engine.get_process_frames()
 			get_viewport().set_input_as_handled()
+		return
+	# The Entity on the train: a click or tap on its sphere, a finger held
+	# on a button for its explanation (entity_helper.gd).
+	if helper != null and helper.input(event):
+		get_viewport().set_input_as_handled()
 		return
 	# The mouse moving over a button moves the focus there.
 	if Nav.mouse_moved(event):
@@ -610,6 +629,9 @@ func _can_open() -> bool:
 
 ## Esc, B or the Back button: back a page, or out of the menu.
 func go_back() -> void:
+	if page == "talk":
+		leave_talk()
+		return
 	# In a slot's card: back to the slot (in a car on the train too).
 	var on: Control = get_viewport().gui_get_focus_owner() if is_inside_tree() else null
 	if on != null and details != null and is_instance_valid(details) and details.is_ancestor_of(on):
@@ -2020,13 +2042,14 @@ func _climber_archive() -> void:
 ## The Archive's tools: Replay the tips, and the tips on or off.
 func archive_tools() -> void:
 	var row := _grid(2)
-	_button(Entity.TEXT["replay"], _replay_tips, row)
+	_button(Entity.TEXT["replay"], _replay_tips, row).set_meta("help", "help:replay")
 	var tog := CheckButton.new()
 	tog.text = "Guide tips"
 	tog.button_pressed = Guide.tips_on()
 	tog.custom_minimum_size.y = 38
 	tog.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tog.toggled.connect(_set_tips)
+	tog.set_meta("help", "help:tips")
 	row.add_child(tog)
 
 
@@ -2213,7 +2236,8 @@ func _archive_toggle(id: String) -> void:
 	open(page if page == "train" else "library", opened_direct)
 
 
-## Settings: the Entity's tips on or off, and Replay.
+## Settings: the Entity's tips on or off, its explanations of the train's
+## buttons on or off, and Replay.
 func _guide_settings() -> void:
 	var tog := CheckButton.new()
 	tog.text = Entity.TEXT["tips_setting"]
@@ -2222,7 +2246,8 @@ func _guide_settings() -> void:
 	tog.toggled.connect(_set_tips)
 	tog.set_meta("setting", "tips")
 	box.add_child(tog)
-	_button(Entity.TEXT["replay"], _replay_tips)
+	_toggle(EntityHelp.TEXT["setting"], "entity_help")
+	_button(Entity.TEXT["replay"], _replay_tips).set_meta("help", "help:replay")
 
 
 func _set_tips(on: bool) -> void:
@@ -3198,6 +3223,77 @@ func _page_station() -> void:
 	station_page.build()
 
 
+# --- talking with the Entity (entity_talk.gd) ---------------------------------------
+
+## Opens a talk with the Entity: from the train (its sphere, L or the right
+## stick) or a climb (its panel's Talk). Leaving goes back where it began.
+func open_talk() -> void:
+	if page == "talk" or page == "title" or (main != null and main.profile == null):
+		return
+	talk_from = page
+	talk.begin(main)
+	if main != null:
+		main.sfx("tip_chime", 1.1, -3.0, 0.03)
+	open("talk", page == "")
+
+
+## Goodbye, Esc or B: back to the page the talk began on (or the climb).
+func leave_talk() -> void:
+	var back := talk_from
+	talk_from = ""
+	if main != null:
+		main.sfx("ui_back")
+	if back == "" or back == "talk":
+		close()
+		return
+	_returning = true
+	open(back)
+	_returning = false
+
+
+## The talk: the Entity's line, then the choices (3 to 5 at a time) as
+## buttons; Goodbye (or Esc, B) leaves.
+func _page_talk() -> void:
+	var small := compact()
+	var said := Entity.says(talk.line, 38.0 if small else 52.0)
+	said.set_meta("talk_line", talk.line)
+	box.add_child(said)
+	_gap(2 if small else 6)
+	var list: Array = talk.choices(main)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4 if small else 6)
+	col.set_meta("arrange", "talk_choices")
+	box.add_child(col)
+	for i in list.size():
+		var c: Dictionary = list[i]
+		var b := _button(c["ask"], _talk_choose.bind(i), col)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size.y = 34 if small else 38
+		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
+		b.set_meta("talk", String(c["id"]))
+		if bool(EntityTalk.DIALOGUE.get(String(c["id"]), {}).get("leave", false)):
+			b.add_theme_color_override("font_color", DIM)
+	if main != null and not main.touch_active:
+		var l := _label(String(EntityTalk.TEXT["leave_key"]) % (Controls.pad_text("{b}", main.pad_ps) if main.pad_active else "Esc"), 0.0, FAINT)
+		UI.style_label(l, "mono", 11, FAINT)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		box.add_child(l)
+
+
+## A choice: the Entity answers it (the page is built again, the keys on
+## the first new choice), or the talk ends.
+func _talk_choose(i: int) -> void:
+	if not talk.choose(main, i):
+		leave_talk()
+		return
+	var list: Array = talk.choices(main)
+	if not list.is_empty():
+		_want_focus = {"meta": "talk", "value": String(list[0]["id"])}
+	if main != null:
+		main.sfx("tip_chime", 1.2, -8.0, 0.03)
+	open("talk")
+
+
 ## True while you're at a station (between climbs, its page or one opened from it).
 func at_station() -> bool:
 	return station_page != null and station_page.station != "" and _on_train()
@@ -4072,6 +4168,7 @@ func _slider(text: String, key: String) -> void:
 	s.scrollable = false  # (the mouse wheel scrolls the page, not the volume)
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.value_changed.connect(func(v): _set_setting(key, v))
+	s.set_meta("setting", key)  # (the Entity's explanation of it: entity_help.gd)
 	row.add_child(s)
 
 
@@ -4081,6 +4178,7 @@ func _toggle(text: String, key: String) -> void:
 	b.button_pressed = bool(settings[key])
 	b.custom_minimum_size.y = 38
 	b.toggled.connect(func(on): _set_setting(key, on))
+	b.set_meta("setting", key)  # (the Entity's explanation of it: entity_help.gd)
 	box.add_child(b)
 
 
