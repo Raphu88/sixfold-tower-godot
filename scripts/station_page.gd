@@ -19,6 +19,11 @@ extends RefCounted
 const Stations := preload("res://scripts/stations.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Boons := preload("res://scripts/boons.gd")
+const Shop := preload("res://scripts/shop.gd")
+const Train := preload("res://scripts/train.gd")
+const Entity := preload("res://scripts/entity.gd")
+const Items := preload("res://scripts/items.gd")
+const Gear := preload("res://scripts/gear.gd")
 const StationView := preload("res://scripts/station_view.gd")
 const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -138,6 +143,8 @@ func build() -> void:
 			_board(left)
 		"shrine":
 			_shrine(left)
+		"market":
+			_market(left)
 	var keys: Array = tiles.map(func(tl): return String(tl.get_meta("pick")))
 	var pk := String(picks.get(stop, ""))
 	if not keys.has(pk):
@@ -365,6 +372,33 @@ func _shrine(left: Node) -> void:
 		tl.pips_of = int(b.get("levels", 1))
 
 
+## The pedlar's stall: a tile for each ware, or (below his rank) one closed tile.
+func _market(left: Node) -> void:
+	var prof = _prof()
+	if not Shop.merchant_open(prof):
+		var tl = _tile(left, "closed:0", Shop.TEXT["closed_tile"], Shop.TEXT["locked"] % Shop.merchant_rank_name(), "market", UI.FAINT)
+		tl.locked = true
+		return
+	var market := Shop.station_market(prof, m.train_tower)
+	var said: String = m.main.tip_now("merchant") if m.main != null else ""  # (the first time: the Entity explains him)
+	if said != "":
+		left.add_child(Entity.says(said, 28.0 if _small() else 34.0))
+	_section(left, "%s  ·  %s" % [String(Shop.MERCHANT["name"]).capitalize(), Shop.TEXT["theme"] % String(market.get("name", ""))])
+	var wares: Array = market.get("wares", [])
+	if wares.is_empty():
+		_line(left, Shop.TEXT["theme_none"], UI.DIM)
+	for i in wares.size():
+		var w: Dictionary = wares[i]
+		var sold := bool(w.get("sold", false))
+		var p := Shop.ware_price(prof, w)
+		var gear := Shop.ware_gear(w)
+		var col: Color = Gear.color(gear) if not gear.is_empty() else Items.color(String(w.get("id", "")))
+		var line: String = Shop.TEXT["sold"] if sold else Train.price_text(p[0], int(p[1]))
+		var tl = _tile(left, "ware:%d" % i, Shop.ware_name(w), line, "market", col)
+		tl.locked = false
+		tl.lit = sold
+
+
 func _line(parent: Node, text: String, col: Color) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -398,6 +432,10 @@ func _card() -> void:
 			_title_card(id)
 		"boon":
 			_boon_card(id)
+		"ware":
+			_ware_card(int(id))
+		"closed":
+			_closed_card()
 	if _small():
 		# A short screen: the card's button (and why it's off) right under its
 		# name, where it shows without scrolling.
@@ -477,6 +515,46 @@ func _price(kind: String, amount: int, ok: bool, label := "") -> void:
 	if kind == "any":
 		tag.text_override = "%d of any kind" % amount
 	row.add_child(tag)
+
+
+func _closed_card() -> void:
+	_head(String(Shop.MERCHANT["name"]).capitalize(), "market", UI.FAINT, Stations.stop_name("market"))
+	_text(Shop.TEXT["locked_card"] % Shop.merchant_rank_name(), UI.TEXT)
+
+
+## One of the pedlar's wares: what it is, its price, and Buy.
+func _ware_card(i: int) -> void:
+	var prof = _prof()
+	var market := Shop.station_market(prof, m.train_tower)
+	var wares: Array = market.get("wares", [])
+	if i < 0 or i >= wares.size():
+		return
+	var w: Dictionary = wares[i]
+	var gear := Shop.ware_gear(w)
+	var col: Color = Gear.color(gear) if not gear.is_empty() else Items.color(String(w.get("id", "")))
+	_head(Shop.ware_name(w), "market", col, Stations.stop_name("market"))
+	if bool(w.get("sold", false)):
+		_text(Shop.TEXT["sold"], UI.DIM)
+		return
+	if not gear.is_empty():
+		_text(m.main.gear_card_desc(gear), UI.TEXT)
+		var vs := Train.versus(prof, m.main.player, gear)
+		_text(m.loadout_page.TEXT["versus_better"] if vs > 0 else (m.loadout_page.TEXT["versus_worse"] if vs < 0 else m.loadout_page.TEXT["versus_even"]), UI.GOOD if vs > 0 else (UI.BAD if vs < 0 else UI.DIM))
+	else:
+		var id := String(w["id"])
+		_text(String(Items.ITEMS[id]["desc"]).left(1).to_upper() + String(Items.ITEMS[id]["desc"]).substr(1) + ".", UI.TEXT)
+		var note := Items.size_note(id, int(w.get("size", Items.STANDARD)))
+		if note != "":
+			_text(note, UI.GILT_HI)
+	var p := Shop.ware_price(prof, w)
+	var why := Shop.short_of(prof, w)
+	_price(p[0], int(p[1]), why == "")
+	var btn := _button(Shop.TEXT["buy"], _buy_ware.bind(i), "buy")
+	btn.disabled = why != ""
+	if why != "":
+		_text(Shop.TEXT["cant"] % why, UI.BAD)
+	if not _small():
+		_text(Shop.TEXT["station_note"], UI.FAINT, 13)
 
 
 func _drill_card(id: String) -> void:
@@ -628,7 +706,7 @@ func _again(key: String, said: Array, sound: String) -> void:
 	lines = said
 	lines_for = key
 	picks[stop] = key
-	m._want_focus = {"meta": "station_do", "value": "buy" if key.begins_with("boon:") else ("wear" if key.begins_with("title:") else "begin")}
+	m._want_focus = {"meta": "station_do", "value": "buy" if key.begins_with("boon:") or key.begins_with("ware:") else ("wear" if key.begins_with("title:") else "begin")}
 	if m.main != null:
 		m.main.sfx(sound, 1.0, -4.0, 0.0)
 	m.open("station")
@@ -648,6 +726,20 @@ func _wear(id: String) -> void:
 		if m.rail.ident != null:
 			m.rail.ident.queue_redraw()
 	_again("title:" + (id if id != "" else String(picks.get(stop, "")).get_slice(":", 1)), [T["worn_now"] % Renown.title_name(id) if id != "" else T["unworn_now"]], "ui_confirm")
+
+
+func _buy_ware(i: int) -> void:
+	var prof = _prof()
+	var market := Shop.station_market(prof, m.train_tower)
+	var w: Dictionary = market["wares"][i]
+	var name := Shop.ware_name(w)
+	var why := Shop.buy_station(prof, m.main.player, market, i)
+	if why == "":
+		prof.renown["market"] = market  # (kept: the stall as it is now)
+		prof.save()
+		_again("ware:%d" % i, [Shop.TEXT["bought"] % name], "buy")
+	else:
+		_again("ware:%d" % i, [Shop.TEXT["cant"] % why], "ui_back")
 
 
 func _buy(id: String) -> void:

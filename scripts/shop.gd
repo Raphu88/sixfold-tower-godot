@@ -445,6 +445,14 @@ static func roll_merchant(profile, where: String, n: int, tower := "", floor_num
 		"said": String(line_list[posmod(n, line_list.size())])}
 
 
+## The name of the theme the pedlar has on a visit (a card's note).
+static func theme_name(profile, _where: String, n: int) -> String:
+	var open := themes_open(profile)
+	if open.is_empty():
+		return ""
+	return String(THEMES[open[posmod(n, open.size())]]["name"])
+
+
 ## An item for sale: its price at its size, over the outfitter's by the markup.
 static func item_ware(_profile, id: String, size: int) -> Dictionary:
 	var p := item_price_of(id)

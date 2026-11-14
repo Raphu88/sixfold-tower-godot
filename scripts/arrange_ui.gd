@@ -133,6 +133,8 @@ const NAMES := {
 	"train.store.shelf.grid": "Supplies",
 	"train.store.rail.title": "Rail's sign",
 	"train.store.rail.button": "What the rail shows",
+	"train.store.rail.text": "Your title's line on the rail",
+	"train.store.rail.button2": "Rail page",
 	"train.store.rail.grid": "Pieces on the rail",
 	"train.store.case.title": "Case's sign",
 	"train.store.case.slot": "Today's piece",

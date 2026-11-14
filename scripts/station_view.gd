@@ -171,6 +171,18 @@ func _dress(b, w: float, h: float, roof: float, deck: float, t: float) -> void:
 					b.circle(pr.position + Vector2(16, 3), 2.2, Color(0.75, 0.2, 0.18), 8)
 					for ln in 3:
 						b.rect(Rect2(pr.position + Vector2(4, 9 + ln * 6), Vector2(24 - ln * 4, 1.2)), Color(0.2, 0.15, 0.1, 0.7))
+			"market":  # a striped awning over a counter of small goods, a lantern swinging
+				var aw := Rect2(c.x - 40, deck - 78, 80, 18)
+				for i in 8:
+					b.rect(Rect2(aw.position.x + i * 10.0, aw.position.y, 10.0, aw.size.y), Color(0.75, 0.2, 0.18) if i % 2 == 0 else Color(0.9, 0.82, 0.62))
+				b.line(Vector2(aw.position.x + 4, aw.end.y), Vector2(aw.position.x + 4, deck - 24), Art.WALNUT, 3.0)
+				b.line(Vector2(aw.end.x - 4, aw.end.y), Vector2(aw.end.x - 4, deck - 24), Art.WALNUT, 3.0)
+				b.rect(Rect2(c.x - 40, deck - 30, 80, 6), Art.WALNUT)
+				for i in 4:
+					b.circle(Vector2(c.x - 27.0 + i * 18.0, deck - 36), 5.0 + Art.rnd(i + k * 3) * 2.0, Art.GILT.darkened(0.15 * i), 10)
+				var sway := sin(t * 2.4) * 3.0
+				b.line(Vector2(c.x, aw.end.y), Vector2(c.x + sway, aw.end.y + 12.0), Art.OUTLINE, 1.5)
+				Art.light(b, Vector2(c.x + sway, aw.end.y + 16.0), Vector2(26, 26), Color(1.0, 0.7, 0.35, 0.3))
 			"shrine":  # candles on a ledge, flickering
 				b.rect(Rect2(c.x - 40, deck - 30, 80, 6), Color(0.5, 0.46, 0.44))
 				for i in 4:
@@ -213,6 +225,12 @@ static func icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color, w
 			ci.draw_rect(Rect2(P.call(-3, -2), Vector2(6, 10) * u), col, false, w)
 			ci.draw_line(P.call(-7, 8), P.call(7, 8), col, w, true)
 			ci.draw_colored_polygon(PackedVector2Array([P.call(-2, -4), P.call(2, -4), P.call(0, -10)]), col)
+		"market":  # a stall: an awning over a counter
+			ci.draw_colored_polygon(PackedVector2Array([P.call(-9, -3), P.call(9, -3), P.call(7, -8), P.call(-7, -8)]), Color(col, 0.55))
+			ci.draw_polyline(PackedVector2Array([P.call(-9, -3), P.call(9, -3), P.call(7, -8), P.call(-7, -8), P.call(-9, -3)]), col, w, true)
+			ci.draw_line(P.call(-7, -3), P.call(-7, 8), col, w, true)
+			ci.draw_line(P.call(7, -3), P.call(7, 8), col, w, true)
+			ci.draw_line(P.call(-9, 3), P.call(9, 3), col, w, true)
 		"clock":  # a platform clock on its post
 			ci.draw_arc(P.call(0, -3), 6.0 * u, 0, TAU, 18, col, w, true)
 			ci.draw_line(P.call(0, -3), P.call(0, -6.5), col, w, true)

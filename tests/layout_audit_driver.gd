@@ -32,6 +32,8 @@ const Stations := preload("res://scripts/stations.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const EssenceBench := preload("res://scripts/essence_bench.gd")
 const Unbound := preload("res://scripts/unbound.gd")
+const Renown := preload("res://scripts/renown.gd")
+const Shop := preload("res://scripts/shop.gd")
 
 ## Text may share this much of its line box with a neighbour (the gothic
 ## face's lines are taller than its letters: headings sit close on purpose).
@@ -408,7 +410,7 @@ static func hud_problems(main, where: String) -> Array:
 	var sets := {"tower choice": []}
 	for i in main.Towers.ORDER.size():
 		sets["tower choice"].append(hud.tower_card_rect(i, view))
-	for kind in [["camp", 4], ["vault", 3], ["heirloom", 6], ["path", 2]]:
+	for kind in [["camp", 4], ["pedlar", 5], ["vault", 3], ["heirloom", 6], ["path", 2]]:
 		main.camp = {"choices": range(kind[1]).map(func(i): return "x%d" % i), "stage": kind[0]}
 		var cards: Array = []
 		for i in kind[1]:
@@ -683,6 +685,36 @@ class Sweep:
 			await settle()
 			var room: Control = menu.train_view.rooms[car]
 			await look(name, [room, menu.train_view.chrome, menu.rail])
+		if not light and wants("train store shop top"):
+			# The store at the top rank, wearing a title (shop.gd): the longest rail in
+			# pages, the fullest shelf, the title's line; then its second page.
+			var prof = main.profile
+			var points: int = int(Renown.state(prof)["points"])
+			var worn: String = String(Renown.state(prof)["worn"])
+			var titles: Array = Renown.state(prof)["titles"].duplicate()
+			Renown.state(prof)["points"] = Renown.needed(Renown.RANKS.size() - 1)
+			Renown.state(prof)["titles"] = ["contender"]
+			Renown.state(prof)["worn"] = "contender"
+			prof.store = {}
+			Train.stock(prof)
+			for pg in 2:
+				var nm := "train store shop top%s" % ("" if pg == 0 else " page 2")
+				menu.train_car = "store"
+				menu.train_store = "shop"
+				menu.train_page.rack_page = pg
+				menu.train_sel["store"] = "outfit:%d" % (0 if pg == 0 else 12)
+				menu.inv_sel = menu.train_sel["store"]
+				menu.open("train")
+				await frames(2)
+				tp.go_to(tp._index("store"))
+				await settle()
+				await look(nm, [menu.train_view.rooms["store"], menu.train_view.chrome, menu.rail])
+			menu.train_page.rack_page = 0
+			Renown.state(prof)["points"] = points
+			Renown.state(prof)["worn"] = worn
+			Renown.state(prof)["titles"] = titles
+			prof.store = {}
+			Train.stock(prof)
 		if not light:
 			# The store's other cards (a supply, today's piece, his upgrades) and
 			# your car's (what you wear, a pack piece, an empty space).
@@ -769,6 +801,16 @@ class Sweep:
 				continue
 			menu.go_station(id, stop)
 			await look(name, page_tops())
+		if not light and wants("station market open"):
+			# The pedlar's stall, once his rank has opened it (shop.gd).
+			var prof = main.profile
+			var points: int = int(Renown.state(prof)["points"])
+			Renown.state(prof)["points"] = Renown.needed(int(Shop.MERCHANT["rank"]))
+			Renown.state(prof)["market"] = {}
+			menu.go_station(id, "market")
+			await look("station market open", page_tops())
+			Renown.state(prof)["points"] = points
+			Renown.state(prof)["market"] = {}
 		if menu.at_station():
 			menu.leave_station()
 		await frames(2)

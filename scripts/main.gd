@@ -37,6 +37,7 @@ const GuideScript := preload("res://scripts/guide.gd")
 const Slots := preload("res://scripts/slots.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Train := preload("res://scripts/train.gd")
+const Shop := preload("res://scripts/shop.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Charms := preload("res://scripts/charms.gd")
@@ -1793,6 +1794,9 @@ func _enter_camp(lines: Array) -> void:
 	# row higher (the floor 9 camp's is Rare).
 	choices.append("crystal:%s:%d" % [String(tower_data().get("essence", "air")), roundi(wings.crystal_amount() * 0.6) if wings != null else 10])
 	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else "common")))
+	if Shop.merchant_open(profile):
+		choices.append("pedlar:")  # (the pedlar's stall by the fire: shop.gd)
+		tip("merchant")
 	camp = {"stage": "item", "choices": choices, "lines": said, "sizes": _card_sizes(choices)}
 	_note_new_slots(choices)
 	camp_choosing = true
@@ -1837,6 +1841,8 @@ func camp_card(i: int) -> Dictionary:
 
 func _camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
+	if pick.begins_with("pedlar:") or pick.begins_with("ware:") or pick.begins_with("back:"):
+		return _pedlar_card(pick)
 	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
 		return unbound.card(pick)
 	if pick.begins_with("sb:"):
@@ -1928,6 +1934,12 @@ func choose_camp(i: int) -> void:
 	if camp["stage"] == "secret":
 		secret_tools.take_card(i)
 		return
+	if camp["stage"] == "pedlar":
+		_pedlar_pick(pick)
+		return
+	if pick.begins_with("pedlar:"):
+		_open_pedlar()
+		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
 		if pick.begins_with("gear:"):
@@ -1968,6 +1980,92 @@ func choose_camp(i: int) -> void:
 		note_event("camp", String(notices.TEXT["camp"]) % String(l), null, false)
 	taken.append(Items.CAMP["leave"])
 	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0, "logged": true}
+	sfx("pickup", 0.95, -2.0, 0.0)
+
+
+# --- the pedlar at a camp (shop.gd) -------------------------------------------------
+
+## What a pedlar card shows (his stall among the camp's choices, a ware, the way back).
+func _pedlar_card(pick: String) -> Dictionary:
+	if pick.begins_with("pedlar:"):
+		return {"name": String(Shop.MERCHANT["name"]).capitalize(), "desc": Shop.TEXT["camp_desc"], "color": Color(0.95, 0.78, 0.4), "item": "", "pedlar": true,
+			"note": Shop.TEXT["theme"] % Shop.theme_name(profile, "camp", _pedlar_visit())}
+	if pick.begins_with("back:"):
+		return {"name": Shop.TEXT["camp_back"], "desc": Shop.TEXT["camp_back_desc"], "color": Color(0.6, 0.58, 0.66), "item": "", "pedlar": true}
+	var w: Dictionary = camp.get("market", {}).get("wares", [])[int(pick.get_slice(":", 1))]
+	if bool(w.get("sold", false)):
+		return {"name": Shop.TEXT["sold"], "desc": "", "color": Color(0.5, 0.48, 0.55), "item": "", "pedlar": true}
+	var price := Shop.ware_price(profile, w)
+	var held := int(profile.crystal_total(price[0])) + int(float(run_essence.get(price[0], 0.0)))
+	var note := Train.price_text(price[0], int(price[1]))
+	var g := Shop.ware_gear(w)
+	if not g.is_empty():
+		return {"name": Gear.display(g), "desc": gear_card_desc(g), "color": Gear.color(g), "item": "", "gear": g, "rim": Gear.rarity_color(g),
+			"note": note, "pedlar": true, "short": held < int(price[1])}
+	var id := String(w["id"])
+	var size := int(w.get("size", Items.STANDARD))
+	var d := Items.info(id)
+	return {"name": Items.sized_name(id, size), "desc": String(d["desc"]), "color": d["color"], "item": id, "size": size, "belt": true, "note": note,
+		"pedlar": true, "short": held < int(price[1])}
+
+
+## Which visit this is (the theme is taken in turn by it).
+func _pedlar_visit() -> int:
+	return profile.climbs * 3 + camps_done.size()
+
+
+## Sets his stall out by the fire: his wares as cards, and a way back.
+func _open_pedlar() -> void:
+	var market: Dictionary = camp.get("market", {})
+	if market.is_empty():
+		market = Shop.roll_merchant(profile, "camp", _pedlar_visit(), tower, floor_num)
+	var back: Dictionary = camp.duplicate()
+	back["market"] = market
+	var choices: Array = []
+	for k in market.get("wares", []).size():
+		choices.append("ware:%d" % k)
+	choices.append("back:")
+	camp = {"stage": "pedlar", "choices": choices, "lines": [String(market.get("said", "")), Shop.TEXT["camp_note"]], "market": market,
+		"title": "%s  ·  %s" % [String(Shop.MERCHANT["name"]), String(market.get("name", ""))], "back": back}
+	card_focus = 0
+	sfx("ready", 0.9, -4.0, 0.0)
+
+
+func _pedlar_pick(pick: String) -> void:
+	if pick.begins_with("back:"):
+		var back: Dictionary = camp.get("back", {})
+		back["market"] = camp.get("market", {})
+		camp = back
+		card_focus = 0
+		sfx("ui_back", 1.0, -4.0, 0.0)
+		return
+	var market: Dictionary = camp["market"]
+	var i := int(pick.get_slice(":", 1))
+	var w: Dictionary = market["wares"][i]
+	if bool(w.get("sold", false)):
+		return
+	var why := Shop.short_of(profile, w, run_essence)
+	if why != "":
+		camp["lines"] = [Shop.TEXT["cant"] % why, Shop.TEXT["camp_note"]]
+		sfx("ui_back", 1.0, -4.0, 0.0)
+		return
+	var price := Shop.ware_price(profile, w)
+	var got := Shop.pay(profile, price[0], int(price[1]), run_essence)
+	if got.is_empty():
+		return
+	var said := ""
+	if String(w["kind"]) == "gear":
+		said = _take_gear(Shop.ware_gear(w))
+	else:
+		said = _take_item(String(w["id"]), "Bought", int(w.get("size", Items.STANDARD)))
+	w["sold"] = true
+	profile.save()
+	var lines: Array = [said]
+	if int(got["carried"]) > 0:
+		lines.append(Shop.TEXT["paid_carried"] % int(got["carried"]))
+	lines.append(String(Shop.LINES["bought"][i % Shop.LINES["bought"].size()]))
+	camp["lines"] = lines
+	note_event("camp", String(notices.TEXT["camp"]) % said, null, false)
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 

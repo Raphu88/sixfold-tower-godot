@@ -30,6 +30,7 @@ const Bench := preload("res://scripts/bench.gd")
 const TrainView := preload("res://scripts/train_view.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
+const Shop := preload("res://scripts/shop.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Towers := preload("res://scripts/towers.gd")
@@ -331,7 +332,7 @@ func enter() -> void:
 func _speech(root: Node, car: String, here: bool) -> void:
 	if here and not tips.has(car):
 		var said: String = m.main.tip_now("train")
-		for id in CAR_TIPS.get(car, []):
+		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []):
 			var own: String = m.main.tip_now(id)
 			said = own if said == "" else (said + "\n" + own if own != "" else said)
 		tips[car] = said
@@ -390,6 +391,18 @@ func _main_row(root: Node) -> HBoxContainer:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(row)
 	return row
+
+
+## The Entity's extra tips in the store: the shelf has grown with a rank,
+## and a worn title tilts the rail (the first time each).
+func _shop_tips() -> Array:
+	var out: Array = []
+	var prof = _prof()
+	if Renown.rank(prof) >= 1:
+		out.append("shop_grows")
+	if Shop.title_line(prof) != "":
+		out.append("shop_title")
+	return out
 
 
 ## A piece of furniture (train_view.gd Furnish) holding a column of things.
@@ -932,12 +945,15 @@ func _store(root: Node) -> void:
 		var shelf := _furnish(goods, "shelf")
 		_tag(shelf, T["shelves"])
 		var sg := _grid(shelf, 6)
-		for id in Train.supplies():
-			var price := Train.supply_price(prof, id)
+		for key in Train.shelf(prof):
+			var id := Shop.key_id(String(key))
+			var size := Shop.key_size(String(key))
+			var price := Train.supply_price(prof, id, size)
 			var packed := int(prof.supplies.get(id, 0))
-			var s = m._slot(sg, "supply:" + id, _cell(), "")
+			var s = m._slot(sg, "supply:" + String(key), _cell(), "")
 			s.kind = "item"
 			s.id = id
+			s.item_size = size  # (Minor and Greater ones show their pips)
 			s.count = packed if packed > 0 else -1
 			_price_on(s, price[0], price[1], true)
 			keys.append(s.get_meta("slot"))
@@ -947,12 +963,29 @@ func _store(root: Node) -> void:
 		goods.add_child(low)
 		var rail := _furnish(low, "rail")
 		_tag(rail, T["rail"])
+		var tline := Shop.title_line(prof)
+		if tline != "":
+			# (your worn title tilts the rail: which line comes from it)
+			var tl := _note(rail, tline, 10.0)
+			tl.add_theme_font_size_override("font_size", 12 if small else 13)
+			tl.add_theme_color_override("font_color", UI.GILT_HI)
+			tl.set_meta("store_note", "title")
 		_store_cycler(rail, "rack", Train.RACK_FILTERS, rack_filter, T["show"])
+		var rack := Train.outfit(prof)
+		var pages := Shop.pages(rack.size())
+		var per := Shop.page_size(rack.size())
+		rack_page = clampi(rack_page, 0, pages - 1)
+		if pages > 1:
+			var choices: Array = []
+			for pg in pages:
+				choices.append([str(pg), Shop.TEXT["page"] % [pg + 1, pages]])
+			_store_cycler(rail, "page", choices, str(rack_page), "%s")
 		var rg := _grid(rail, 4)
 		rg.add_theme_constant_override("v_separation", 16)
 		rail.add_theme_constant_override("separation", 14 if rack_filter == "all" else 8)
-		var rack := Train.outfit(prof)
 		for i in rack.size():
+			if pages > 1 and i / per != rack_page:
+				continue
 			var g: Dictionary = rack[i]
 			if not Train.rack_shows(prof, _player(), g, rack_filter):
 				continue
@@ -1001,6 +1034,7 @@ func _set_store(id: String) -> void:
 ## The store's filters: the outfit rail's (what it shows) and selling's
 ## (where from, which slot, the order). Kept while the game runs.
 var rack_filter := "all"
+var rack_page := 0
 var sell_from := "all"
 var sell_slot := "all"
 var sell_sort := "newest"
@@ -1025,6 +1059,8 @@ func _set_store_filter(value: String, which: String) -> void:
 	match which:
 		"rack":
 			rack_filter = value
+		"page":
+			rack_page = int(value)
 		"from":
 			sell_from = value
 		"slot":
@@ -2256,16 +2292,21 @@ func _price_line(kind: String, amount: int, label := "") -> String:
 	return why
 
 
-func _supply_card(id: String) -> void:
+func _supply_card(key: String) -> void:
 	var prof = _prof()
 	var p = _player()
+	var id := Shop.key_id(key)
+	var size := Shop.key_size(key)
 	var data: Dictionary = Items.ITEMS[id]
-	_head("item", id, data["name"], Items.color(id))
+	_head("item", id, Items.sized_name(id, size), Items.color(id))
+	var note := Items.size_note(id, size)
+	if note != "":
+		m._detail_text(note, UI.GILT_HI)
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
 	var handy := _handy_line(id)  # (where it's handy: the tower chosen at the engine first, tower_needs.gd)
 	if handy != "":
 		m._detail_text(handy, UI.GILT_HI)
-	var price := Train.supply_price(prof, id)
+	var price := Train.supply_price(prof, id, size)
 	var why := _price_line(price[0], price[1])
 	if price[0] == Train.ANY:
 		m._detail_text(T["any_note"], UI.DIM)
@@ -2273,10 +2314,10 @@ func _supply_card(id: String) -> void:
 	m._detail_text(T["packed"] % [packed, p.max_stack(id)], UI.DIM)
 	if why == "" and Train.supply_room(prof, p, id) <= 0:
 		why = T["belt_full"]
-	var buy: Button = m._button(T["buy"], _buy_supply.bind(id), m.details)
+	var buy: Button = m._button(T["buy"], _buy_supply.bind(key), m.details)
 	buy.custom_minimum_size.y = 40
 	buy.disabled = why != ""
-	buy.set_meta("buy", id)
+	buy.set_meta("buy", key)
 	if why != "":
 		m._detail_text(T["cant"] % why, UI.BAD)
 	if packed > 0:
@@ -2356,10 +2397,11 @@ func _done(text: String, say: String, sound: String) -> void:
 	m.open("train")
 
 
-func _buy_supply(id: String) -> void:
-	var why := Train.buy_supply(_prof(), _player(), id)
+func _buy_supply(key: String) -> void:
+	var id := Shop.key_id(key)
+	var why := Train.buy_supply(_prof(), _player(), id, Shop.key_size(key))
 	if why == "":
-		var said: String = T["bought"] % Items.ITEMS[id]["name"]
+		var said: String = T["bought"] % Items.sized_name(id, Shop.key_size(key))
 		if Train.item_price(id)[0] == Train.ANY:
 			said += "  ·  " + T["paid_with"] % Train.paid_text(Train.last_paid(_prof(), id))  # (which crystals it took)
 		_done(said, Train.line("bought"), "buy")

@@ -135,6 +135,10 @@ const SECTIONS := [
 		"skip": ["rule", "tower", "stops", "waves", "rules", "foes", "start_item"],
 		"names": {"STATIONS": "Stations", "STOPS": "A station's stops", "DRILLS": "The gym's drills", "TIERS": "The tournament's tiers and bouts", "CHALLENGES": "Challenges",
 			"RULES": "Bout rules", "MEDALS": "Medals", "RANKS": "Renown ranks", "TITLES": "Titles", "BOONS": "Boons", "UPGRADES": "The outfitter's upgrades"}},
+	{"id": "shop_words", "group": "words", "name": "The shop's variety and the Pedlar", "when": "page",
+		"tables": ["shop/TEXT", "shop/LINES", "shop/MERCHANT", "shop/THEMES", "shop/TITLE_STOCK"], "kinds": ["text"],
+		"skip": ["tilt", "item", "kind", "pool", "rank", "markup", "wares", "camp_wares", "count", "discount", "short"],
+		"names": {"TEXT": "Words", "LINES": "What he says", "MERCHANT": "The Pedlar", "THEMES": "His themes", "TITLE_STOCK": "Titles that flavour the stock (the line on the rail)"}},
 	# --- numbers ---
 	{"id": "prices", "group": "numbers", "name": "Store prices", "when": "live",
 		"tables": ["train/BASE_PRICE", "train/RARITY_PRICE", "train/SUPPLY_PRICE", "train/ANY_PRICE", "train/DEFAULT_PRICE", "train/SELL_SHARE", "train/WORN_SELL", "train/TODAY_ODDS"], "kinds": ["number"],
@@ -226,6 +230,12 @@ const SECTIONS := [
 			"RELIC_CHANCE": "A repeat tier win gives a relic (chance)", "REPEAT": "A repeat win pays (share)", "RANKS": "Renown for each rank", "CLIMB": "Renown a climb earns",
 			"TITLES": "Titles: deeds' numbers", "BOONS": "Boons: prices, levels, ranks", "UPGRADES": "The outfitter's upgrades: ranks", "UPGRADE_FX": "The outfitter's upgrades: numbers",
 			"STOCK_ODDS": "Better stock: today's piece odds"}},
+	{"id": "shop_numbers", "group": "numbers", "name": "The shop's variety and the Pedlar", "when": "page",
+		"tables": ["shop/RANK_STOCK", "shop/SHELF_RANK", "shop/SIZE_RANK", "shop/WEAPON_RANK", "shop/MERCHANT", "shop/THEMES", "shop/TITLE_STOCK"], "kinds": ["number"],
+		"skip": ["name", "short", "line", "kind", "pool", "weight", "slots", "groups", "ids", "tilt", "item"],
+		"names": {"RANK_STOCK": "Stock for each rank (rail spaces, charms, chances, kinds, sizes)", "SHELF_RANK": "The rank that opens each supply", "SIZE_RANK": "The rank that opens Minor and Greater",
+			"WEAPON_RANK": "The rank a weapon starts to hang on the rail", "MERCHANT": "The Pedlar: rank, prices, wares", "THEMES": "His themes: rank and how many wares",
+			"TITLE_STOCK": "Titles that flavour the stock: discount"}},
 	# --- colours ---
 	{"id": "essence_colours", "group": "colours", "name": "Essences", "when": "live", "hook": "icons",
 		"tables": ["essence/KINDS", "secret/KINDS"], "kinds": ["colour"]},
