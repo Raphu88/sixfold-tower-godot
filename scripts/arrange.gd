@@ -33,6 +33,12 @@ extends Control
 ##   - Controller: the d-pad or LB / RB pick the next block, A goes inside,
 ##     B backs out, the left stick moves it, the right stick scales it, X
 ##     undoes, Y saves, View is the grid, and Start finishes.
+##   - A phone (no F2): Settings & Controls' "Arrange this screen" (on the
+##     train, the Settings car's "Arrange the train") opens it. On a short
+##     view the toolbar is one strip (More shows the rest) and the list
+##     stands over the rail; both step aside from the chosen block. On the
+##     train, ‹ Car and Car › move along it; dragging empty space scrolls
+##     the page or the car; a small block's corner handles stand off it.
 ## Finishing with unsaved changes asks whether to save them. The Entity
 ## explains it all (entity.gd's creator tips "arrange", "arrange_sets",
 ## "arrange_save" and "arrange_menus") in a card of this screen's own, the
@@ -1456,6 +1462,11 @@ func list_panel() -> Dictionary:
 		most = view.y - at.y - 8.0
 		if dock["above_bar"] and bar_at.x < 0.0:
 			most = (toolbar()["bar"] as Rect2).position.y - 8.0 - at.y
+		if dock.get("compact", false) and _exists(sel):
+			# (a block as wide as the screen near the bottom, the crystal bar: the list ends above it)
+			var sr := screen_rect(sel).abs()
+			if sr.intersects(Rect2(at, Vector2(w, most))) and sr.position.y - at.y > 160.0:
+				most = minf(most, sr.position.y - 6.0 - at.y)
 	# (the chosen block's lines: fewer when the rows need the room)
 	var detail_h := 104.0
 	if most - top_h - intro_h - detail_h - 8.0 < blocks.size() * row_h:
@@ -2817,7 +2828,10 @@ func detail_lines(id: String) -> Array:
 		out.append([TEXT["hidden"], "note"])
 	var n := kids(id).size()
 	if n > 0:
-		out.append([TEXT["inside_1"] if n == 1 else TEXT["inside_n"] % n, "note"])
+		var said: String = TEXT["inside_1"] if n == 1 else TEXT["inside_n"] % n
+		if main.touch_active:
+			said = said.replace("double-click", "double-tap")
+		out.append([said, "note"])
 		if arranged_inside(id) and not is_group(id):
 			out.append([TEXT["inside_moved"], "note"])
 	if is_live(id):
