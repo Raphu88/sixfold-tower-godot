@@ -10,7 +10,7 @@ const Train := preload("res://scripts/train.gd")
 const Bench := preload("res://scripts/bench.gd")
 const D := preload("res://scripts/draw_util.gd")
 
-const NEW_ITEMS := ["antidote", "heartroot", "net", "lodestone", "briar_tonic", "wardbreaker", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll"]
+const NEW_ITEMS := ["antidote", "heartroot", "net", "lodestone", "briar_tonic", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll"]
 const NEW_PIECES := ["feathered_cap", "miners_helm", "archers_bracers", "studded_gloves", "ranger_breeches", "plated_greaves", "wading_boots", "feather_cape",
 	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier"]
 const NEW_STORIED := ["hollowmoon_bow", "rootbound_greaves", "wayfinders_pendant", "duelists_ring"]
@@ -172,7 +172,7 @@ func _new_items() -> void:
 		var d: Dictionary = I.ITEMS.get(id, {})
 		data_ok = data_ok and id in I.ORDER and d.has("name") and d.has("desc") and d.has("kind") and not d.get("value", {}).is_empty() \
 			and Bench.BREW.has(id) and Train.item_price(id)[1] > 0 and id in Train.supplies()
-	_check(data_ok, "ten new items, each with a name, a line, an essence, a worth, a store price and a bench recipe")
+	_check(data_ok, "the new items (the Wardbreaker is a charm now), each with a name, a line, an essence, a worth, a store price and a bench recipe")
 	var drop_kinds := {}
 	for i in 3000:
 		drop_kinds[I.random_item(true, [], true)] = true
@@ -200,8 +200,9 @@ func _new_items() -> void:
 	p.item_sel = "heartroot"
 	_check(p.use_item() and p.heal_left > 0.0 and absf(p.gfx("kill_heal") - 4.0) < 0.01, "Heartroot heals and makes kills heal")
 	p.buffs.clear()
-	# Briar Tonic, Wardbreaker, Lantern Oil, Scroll of Seeing
-	for id in ["briar_tonic", "wardbreaker", "lantern_oil", "seeing_scroll"]:
+	# Briar Tonic, Lantern Oil, Scroll of Seeing (and the Wardbreaker Charm, worn: charms.gd)
+	p.take_gear(G.make("wardbreaker"))
+	for id in ["briar_tonic", "lantern_oil", "seeing_scroll"]:
 		p.items = {id: 1}
 		p.item_sel = id
 		p.use_item()
@@ -218,8 +219,10 @@ func _new_items() -> void:
 	shell.face = Vector2.LEFT
 	var shp: float = shell.hp
 	p._strike(shell, 20.0, Vector2.RIGHT, 0.0, false)
-	_check(shp - shell.hp > 15.0, "a Wardbreaker Charm: a shellback's shell no longer turns your blow (%.1f)" % (shp - shell.hp))
+	_check(shp - shell.hp > 15.0, "a Wardbreaker Charm (worn): its charge snaps the shellback's shell, which no longer turns your blow (%.1f)" % (shp - shell.hp))
 	shell.queue_free()
+	p.gear["charm"] = {}
+	p.refresh_gear()
 	_check(p.gfx("light") >= 0.6 - 0.001 and m.lighting.player_reach() > m.lighting.PLAYER_REACH * 1.55, "Lantern Oil: your light reaches farther")
 	_check(m.flare_reveals(p.global_position + Vector2(2000, 0)), "a Scroll of Seeing: hidden things glint anywhere on the floor")
 	p.buffs.clear()

@@ -41,6 +41,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Makers := preload("res://scripts/makers.gd")
+const Charms := preload("res://scripts/charms.gd")
 
 ## Every line the wings say, in one place.
 static var TEXT := {
@@ -654,6 +655,8 @@ func vault_choices(lesser: bool) -> Array:
 			out.append("scroll")
 		_:
 			out.append(Items.random_item(marked))
+	if not main.first_climb and randf() < charm_chance("vault"):
+		out[2] = "gear:" + Gear.code(Charms.roll(main.floor_num))  # (now and then a charm instead: charms.gd LOOT)
 	load("res://scripts/vessel.gd").vault_card(main, out)  # (very rarely, a vessel instead)
 	return out
 
@@ -828,7 +831,17 @@ func hidden_crystals() -> Array:
 	var kinds: Array = Essence.KINDS.keys()
 	kinds.shuffle()
 	var amt := roundi(crystal_amount() * float(REWARD["hidden"]))
-	return kinds.slice(0, 3).map(func(k): return "crystal:%s:%d" % [k, amt])
+	var out: Array = kinds.slice(0, 3).map(func(k): return "crystal:%s:%d" % [k, amt])
+	if not main.first_climb and randf() < charm_chance("secret"):
+		out.append("gear:" + Gear.code(Charms.roll(main.floor_num)))  # (now and then a charm too: charms.gd LOOT)
+	return out
+
+
+## How often a vault or a secret room holds a charm (charms.gd LOOT; tests
+## set charm_odds to be sure).
+var charm_odds := 0.0 if Engine.has_meta("sixfold_test") else -1.0
+func charm_chance(where: String) -> float:
+	return charm_odds if charm_odds >= 0.0 else float(Charms.LOOT[where])
 
 
 ## A Tithe Door: say what it asks once, then lean on it to pay.
