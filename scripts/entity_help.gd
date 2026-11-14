@@ -123,6 +123,7 @@ static var HELP := {
 	"bench_tab:inscribe": "Inscribe: a lasting rune on one piece.{locked}",
 	"bench_tab:recall": "Recall scroll: bind one to leave a climb safely.{locked}",
 	"bench_tab:vessel": "Vessel: brew one, or work a full one into a piece.{locked}",
+	"bench_tab:charm": "Charms: refill a charm's spent charge with crystals of its kind, or (a Rune Artist) craft a new charm.",
 	"bench_tab": "{counter}.{locked}",
 	"bench_drawer:essence": "The essence bench: build your techniques.{locked}",
 	"bench_drawer:brew": "Back to the bench's counters.",
@@ -130,6 +131,11 @@ static var HELP := {
 	"slot:bench:supply": "{piece}, packed on your belt. It can be broken down for crystals.",
 	"slot:bench": "{piece}: {counter} it here.",
 	"slot:bench:empty": "Nothing here to work on.",
+	"slot:bench:craft": "{piece}, a charm a Rune Artist can craft for {price}: {desc}.",
+	"slot:bench:charm": "{piece}: a charm you own. Choose it to see its charge, and refill it with crystals of its kind.",
+	"bench_do:refill": "Refills {piece}'s charge with crystals of its kind. Press it twice.",
+	"bench_do:craft": "Crafts {piece}: it goes into your stash. Press it twice.",
+	"feed_charm": "Feeds your charm essence you haven't banked yet: its charge is full again.",
 	"brew": "Brews {piece} for {price}. It goes on your belt.",
 	"bench_do:temper": "Raises {piece} a rank. Press it twice.",
 	"bench_do:break": "Breaks {piece} down into crystals. Press it twice.",
@@ -283,7 +289,7 @@ static func key_for(b: Control) -> String:
 				var key := "slot:" + head
 				if head == "bench":
 					var sub := s.get_slice(":", 1)
-					key = "slot:bench:" + sub if sub in ["item", "supply"] else "slot:bench"
+					key = "slot:bench:" + sub if sub in ["item", "supply", "craft"] else "slot:bench"
 				if b.get("empty") == true and HELP.has(key + ":empty"):
 					key += ":empty"
 				return key
@@ -425,6 +431,8 @@ static func _subject(m, b: Control, key: String):
 	var sel := String(m.inv_sel)
 	if sel.begins_with("bench:"):
 		var ref := sel.substr(6)
+		if ref.begins_with("craft:"):
+			return Gear.make(ref.substr(6))  # (a charm a Rune Artist could craft)
 		if not ref.begins_with("item:") and not ref.begins_with("supply:"):
 			return Bench.piece(prof, ref)
 	return _from_ref(prof, sel)
@@ -466,6 +474,8 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			f["price"] = Train.price_text(p[0], int(p[1]))
 		if s.begins_with("bench:item:") and prof != null:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
+		if s.begins_with("bench:craft:"):
+			f["price"] = Train.paid_text(Bench.craft_cost(s.get_slice(":", 2)))
 		if (s.begins_with("outfit:") or s == "today" or s == "order") and prof != null and Gear.is_gear(b.get("rec")):
 			f["price"] = Train.price_text(Train.gear_kind(b.get("rec")), Train.buy_price(prof, b.get("rec")))
 		if s == "upgrades" and prof != null:

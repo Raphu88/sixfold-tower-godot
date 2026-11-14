@@ -1483,6 +1483,10 @@ func status_chips() -> Array:
 		out.append({"id": "arena", "text": main.arena.hud_text(), "color": GOLD, "edge": UI.GILT})
 	if main.practice != null and main.practice.on:
 		out.append({"id": "practice", "text": Abilities.fill(main, main.practice.TEXT["hint"]), "color": GOLD, "edge": UI.GILT})
+	# A big bag nearly full slows you (gear.gd BAG): a small, quiet line.
+	if p.bag_slow() > 0.0:
+		out.append({"id": "heavy", "text": String(N["heavy"]) % [p.pack.size(), p.pack_size()],
+			"color": Color(0.95, 0.72, 0.55), "edge": Color(0.6, 0.42, 0.3), "alpha": 0.85})
 	# The floor's task (objective.gd).
 	var line := goal_line()
 	if line != "":

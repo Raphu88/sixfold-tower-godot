@@ -21,6 +21,7 @@ extends RefCounted
 const Train := preload("res://scripts/train.gd")
 const Gear := preload("res://scripts/gear.gd")
 const UI := preload("res://scripts/ui.gd")
+const Charms := preload("res://scripts/charms.gd")
 
 static var TEXT := {
 	"pack": "Pack  ·  %d of %d",
@@ -29,6 +30,7 @@ static var TEXT := {
 	"open_stash_more": "Open the stash  ·  %d more",
 	"tag_pack": "Pack",
 	"empty_space": "Empty space",
+	"heavy": "%s  ·  heavy",
 }
 
 ## The gap between slots.
@@ -45,9 +47,16 @@ static func columns(small: bool) -> int:
 	return 6 if small else 8
 
 
-## The heading's words: "Stash · 12 of 40".
-static func heading(where: String, have: int, room: int) -> String:
-	return TEXT["stash" if where == "chest" else "pack"] % [have, room]
+## The heading's words: "Stash · 12 of 40"; a big bag nearly full says so
+## ("Pack · 5 of 6 · heavy": it slows you, gear.gd BAG).
+static func heading(where: String, have: int, room: int, heavy := false) -> String:
+	var t: String = TEXT["stash" if where == "chest" else "pack"] % [have, room]
+	return TEXT["heavy"] % t if heavy and where != "chest" else t
+
+
+## Is a pack of `have` pieces heavy on this climber (their worn bag)?
+static func pack_heavy(player, have: int, room: int) -> bool:
+	return player != null and Gear.bag_slow(player.gear_fx, have, room) > 0.0
 
 
 ## A heading over a grid (a small gilt label, outlined so it reads on the
@@ -98,7 +107,10 @@ static func build(page, parent: Node, where: String, opts := {}) -> Dictionary:
 	var side := cell(small)
 	var out := {"keys": [], "grid": null, "head": null, "hidden": 0, "shown": 0}
 	if opts.get("head", true):
-		out["head"] = head(parent, opts.get("head_text", heading(where, list.size(), room)), small)
+		var heavy: bool = not stash and pack_heavy(page._player(), list.size(), room)
+		out["head"] = head(parent, opts.get("head_text", heading(where, list.size(), room, heavy)), small)
+		if heavy:
+			out["head"].add_theme_color_override("font_color", UI.BAD.lerp(UI.GOLD, 0.35))
 	var grid := GridContainer.new()
 	grid.columns = cols
 	grid.add_theme_constant_override("h_separation", GAP)
@@ -119,6 +131,7 @@ static func build(page, parent: Node, where: String, opts := {}) -> Dictionary:
 	if rows > 0:
 		most = mini(most, rows * cols)
 	var prefix: String = opts.get("key", where)
+	var safe: bool = not stash and Charms.safe_pocket(page._player())
 	# Pack pieces you'll put on as you set off (nothing else worn there) say so.
 	var auto := {}
 	if not stash and not opts.has("list"):
@@ -139,6 +152,8 @@ static func build(page, parent: Node, where: String, opts := {}) -> Dictionary:
 			s.better = signi(opts["versus"].call(g) if opts.has("versus") else Train.versus(prof, page._player(), g))
 			if auto.has(i):
 				s.tag = TEXT["tag_pack"]
+			if safe and i == 0:
+				s.tag = Charms.TEXT["safe"]  # (a Keeper's Purse: the first piece is kept even on a fall)
 			if opts.has("decor"):
 				opts["decor"].call(s, i)
 			out["shown"] += 1

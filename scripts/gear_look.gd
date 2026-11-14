@@ -219,6 +219,10 @@ static func extras(look: Dictionary, gear: Dictionary, in_hand := "") -> void:
 	look["pack"] = PACK_LOOK.get(Gear.base_id(bp), "pack" if Gear.is_gear(bp) else "")
 	look["pack_col"] = Gear.color(bp) if Gear.is_gear(bp) else Color.WHITE
 	_mark(look, "backpack", bp)
+	var ch = gear.get("charm", {})
+	look["charm"] = Gear.is_gear(ch)
+	look["charm_col"] = Gear.color(ch) if Gear.is_gear(ch) else Color.WHITE
+	_mark(look, "charm", ch)
 	var am = gear.get("amulet", {})
 	look["amulet"] = Gear.is_gear(am)
 	look["amulet_col"] = Gear.color(am) if Gear.is_gear(am) else Color.WHITE
@@ -614,6 +618,17 @@ static func front_chest(b, lk: Dictionary) -> void:
 				var u := float(i + 1) / 6.0
 				var p := Vector2(-22 * wx, -66).lerp(Vector2(22 * wx, 12), u)
 				b.rect(Rect2(p - Vector2(2.5, 3), Vector2(5, 6)), pc.lightened(0.2))
+	# The charm (charms.gd): hung on a short cord from the belt, at the hip.
+	if lk.get("charm", false):
+		var cc: Color = lk.get("charm_col", Color.WHITE)
+		var at := Vector2(-14 * wx, 22)
+		b.line(Vector2(-13 * wx, 9), at, Color(0.86, 0.78, 0.6), 1.4)
+		b.circle(at + Vector2(0, 3), 4.6, Palette.OUTLINE)
+		b.circle(at + Vector2(0, 3), 3.4, cc)
+		b.circle(at + Vector2(-1, 2), 1.2, cc.lightened(0.45))
+		var edge := _edge(lk, "charm")
+		if edge.a > 0.0:
+			b.arc(at + Vector2(0, 3), 5.2, 0.0, TAU, 12, Color(edge, 0.8), 1.0)
 
 
 ## The arms: the weapon in hand (held at your side, a greatsword's point to

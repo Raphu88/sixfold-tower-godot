@@ -39,28 +39,39 @@ const PROTECTION_CAP := 0.5
 const HEAVY_ROLL := 0.03
 ## A blow this light (before protection) can't knock you back in Hobnail Boots.
 const LIGHT_BLOW := 14.0
-## The pack: spare pieces carried besides what you wear (a Climber's Pack
-## holds more: its "pack" number). Survive a climb (or read a recall
-## scroll) and the pack comes home to the train, to sell or keep in your
-## chest; fall and it's lost.
+## The pack: spare pieces carried besides what you wear. How many it holds
+## comes from the bag in your backpack slot (its "bag" number: a Satchel 4,
+## a Pack 6, a Great Pack 8), else BAG["none"]; a charm can add a space
+## ("pack"). Survive a climb (or read a recall scroll) and the pack comes
+## home to the train, to sell or keep in your stash; fall and it's lost.
+## (PACK_SIZE is what the pack held before bags had sizes: old saves.)
 const PACK_SIZE := 4
+## Bags (the backpack slot): with no bag the pack holds "none" pieces. A big
+## bag (a piece with "slow") weighs on you only once it's nearly full: at
+## "heavy_at" of its spaces or more you walk slower and roll less far, by
+## its "slow". Small bags never slow you.
+static var BAG := {"none": 2, "heavy_at": 0.75}
 
 ## The carried slots, in the order the inventory and the save list them.
 ## "offhand" is kept for later (always empty for now).
-const SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "offhand"]
+const SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "charm", "offhand"]
 ## The slots added by worn pieces (PIECES), besides weapons and the chest.
-const PIECE_SLOTS := ["helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack"]
+## The charm slot holds one charm (charms.gd): never used up, a passive that
+## is always on and, on some, a charge refilled by feeding it essence.
+const PIECE_SLOTS := ["helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm"]
 static var SLOT_NAMES := {
 	"fists": "Fists", "melee": "Melee", "ranged": "Ranged", "armor": "Chest", "helm": "Helm", "gloves": "Gloves",
 	"legs": "Legs", "boots": "Boots", "cloak": "Cloak", "amulet": "Amulet", "ring": "Ring", "ring1": "Ring",
-	"ring2": "Ring", "backpack": "Backpack", "offhand": "Off-hand",
+	"ring2": "Ring", "backpack": "Backpack", "charm": "Charm", "offhand": "Off-hand",
 }
-## The inventory's paper doll: what you wear, laid out like a body.
+## The inventory's paper doll: what you wear, laid out like a body, and the
+## charm on a row of its own under it ("" is a gap).
 const DOLL := [
 	["helm", "amulet", "cloak"],
 	["melee", "armor", "ranged"],
 	["ring1", "gloves", "ring2"],
 	["backpack", "legs", "boots"],
+	["", "charm", ""],
 ]
 
 ## Rarities, from plain to the tower's own notice. Better pieces carry
@@ -338,6 +349,7 @@ const HEIRLOOM_SLOTS := [
 	{"id": "amulet", "name": "Amulet", "gear": "amulet"},
 	{"id": "rings", "name": "Rings", "gear": "ring"},
 	{"id": "backpack", "name": "Backpack", "gear": "backpack"},
+	{"id": "charm", "name": "Charm", "gear": "charm"},
 	{"id": "offhand", "name": "Off-hand", "planned": true},
 ]
 static var HEIRLOOM_TEXT := {
@@ -462,7 +474,15 @@ static var ARMOR := {
 ##   ailment   poison wears off and burning floor hurts this much less
 ##   stack     carry this many more of each item (not the recall scroll)
 ##   belt      more kinds of item on the belt
-##   pack      room for this many more spare pieces in your pack (PACK_SIZE)
+##   bag       a bag (the backpack slot): your pack holds this many pieces
+##   slow      a big bag nearly full (BAG "heavy_at") slows your walk and
+##             rolls by this much
+##   pack      room for this many more spare pieces in your pack (a charm)
+##   roll_recover  you can roll again this much sooner (a charm)
+##   first_ward    the first blow in each room is cut by this much (a charm)
+##   tide_shield   a shield this strong that grows back out of a fight (a charm)
+##   safe_pocket   the first piece in your pack is kept even on a fall (a charm)
+##   charge    a charm's charged effect (charms.gd CHARGES)
 ##   jump      jumps carry this much farther; free_jump: jumps cost no stamina
 ##   ranged    bows and crossbows hit this much harder
 ##   draw      bows draw and crossbows reload this much faster
@@ -492,7 +512,9 @@ const PIECE_ORDER := [
 	"travel_cloak", "dusk_cloak", "satchel", "belt_pouch", "bone_charm", "ember_charm", "iron_band", "garnet_ring",
 	"tide_locket", "pearl_ring", "overdrawn_ring", "climbers_pack",
 	"feathered_cap", "miners_helm", "archers_bracers", "studded_gloves", "ranger_breeches", "plated_greaves", "wading_boots", "feather_cape",
-	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier",
+	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier", "pack", "great_pack",
+	"lucky_knot", "pocket_clasp", "belt_hook", "feather_token", "iron_brooch", "ward_stone", "tide_shell", "wardbreaker", "mending_bead",
+	"keepers_purse", "ashen_knot", "gale_charm", "bulwark_stone",
 ]
 static var PIECES := {
 	"cloth_hood": {"slot": "helm", "name": "Cloth Hood", "short": "Hood", "desc": "a deep hood of plain cloth: your light reaches 10% farther, and it hides your face (monsters notice you 8% later)",
@@ -523,14 +545,12 @@ static var PIECES := {
 		"ailment": 0.25, "color": Color(0.5, 0.42, 0.3), "drop_weight": 3, "look": "travel"},
 	"dusk_cloak": {"slot": "cloak", "name": "Dusk Cloak", "short": "Dusk", "desc": "a cloak the colour of dusk: monsters notice you 20% later",
 		"notice": 0.2, "color": Color(0.32, 0.27, 0.42), "drop_weight": 2, "look": "dusk"},
-	"satchel": {"slot": "backpack", "name": "Satchel", "short": "Satchel", "desc": "a roomy satchel: carry 4 of each item instead of 3",
-		"stack": 1, "color": Color(0.56, 0.4, 0.24), "drop_weight": 2},
-	"belt_pouch": {"slot": "backpack", "name": "Belt Pouch", "short": "Pouch", "desc": "a pouch on your belt: room for one more kind of item",
-		"belt": 1, "color": Color(0.45, 0.33, 0.22), "drop_weight": 2},
-	"bone_charm": {"kind": "stone", "slot": "amulet", "name": "Bone Charm", "short": "Bone", "desc": "a carved bone on a cord: +10 health",
+	"satchel": {"slot": "backpack", "name": "Satchel", "short": "Satchel", "desc": "a roomy satchel at the hip: your pack holds 4 pieces, and it never slows you",
+		"bag": 4, "color": Color(0.56, 0.4, 0.24), "drop_weight": 2},
+	"belt_pouch": {"slot": "backpack", "name": "Belt Pouch", "short": "Pouch", "desc": "a pouch on your belt: room for one more kind of item; your pack holds 3 pieces",
+		"bag": 3, "belt": 1, "color": Color(0.45, 0.33, 0.22), "drop_weight": 2},
+	"bone_charm": {"kind": "stone", "slot": "amulet", "name": "Bone Amulet", "short": "Bone", "desc": "a carved bone on a cord: +10 health",
 		"health": 10.0, "rarity": "fine", "color": Color(0.88, 0.84, 0.72), "drop_weight": 1},
-	"ember_charm": {"kind": "fire", "slot": "amulet", "name": "Ember Charm", "short": "Ember", "desc": "a warm red stone on a chain: spells hit 6% harder, and its glow carries your light 10% farther",
-		"spell": 0.06, "light": 0.10, "rarity": "fine", "color": Color(0.9, 0.42, 0.25), "drop_weight": 1},
 	"iron_band": {"kind": "iron", "slot": "ring", "name": "Iron Band", "short": "Iron", "desc": "a plain iron ring: stamina refills 5% faster, and starts refilling 25% sooner after you act",
 		"regen": 0.05, "quick_breath": 0.25, "rarity": "fine", "color": Color(0.66, 0.68, 0.74), "drop_weight": 1},
 	"garnet_ring": {"kind": "blade", "slot": "ring", "name": "Garnet Ring", "short": "Garnet", "desc": "a gold ring set with a garnet: strikes hit 4% harder, and each kill gives back 6 stamina",
@@ -542,8 +562,8 @@ static var PIECES := {
 		"kill_essence": 2.0, "rarity": "rare", "color": Color(0.86, 0.86, 0.92), "drop_weight": 1},
 	"overdrawn_ring": {"kind": "fire", "slot": "ring", "name": "Ring of the Overdrawn", "short": "Overdrawn", "desc": "a scorched ring: your first overdraw each floor doesn't burn the body part",
 		"overdraw_guard": 1.0, "rarity": "rare", "color": Color(0.95, 0.5, 0.3), "drop_weight": 1},
-	"climbers_pack": {"slot": "backpack", "name": "Climber's Pack", "short": "Pack", "desc": "a well-worn pack with many pockets: one more kind of item on the belt, 4 of each, and room for 2 more spare pieces",
-		"belt": 1, "stack": 1, "pack": 2, "rarity": "rare", "color": Color(0.4, 0.46, 0.3), "drop_weight": 1},
+	"climbers_pack": {"slot": "backpack", "name": "Climber's Pack", "short": "Climber's", "desc": "a well-worn pack with many pockets: your pack holds 6 pieces and never slows you; one more kind of item on the belt, and 4 of each",
+		"bag": 6, "belt": 1, "stack": 1, "rarity": "rare", "color": Color(0.4, 0.46, 0.3), "drop_weight": 1},
 	# More choice for every slot.
 	"feathered_cap": {"slot": "helm", "name": "Feathered Cap", "short": "Feathered", "desc": "a soft cap with a hawk's feather: bows and crossbows hit 6% harder",
 		"ranged": 0.06, "color": Color(0.36, 0.52, 0.36), "drop_weight": 3, "look": "cap"},
@@ -561,8 +581,8 @@ static var PIECES := {
 		"wade": true, "footing": 0.10, "color": Color(0.3, 0.44, 0.46), "drop_weight": 2},
 	"feather_cape": {"slot": "cloak", "name": "Feather Cape", "short": "Feather", "desc": "a short cape of grey feathers: jumps carry 15% farther and rolls 4% farther",
 		"jump": 0.15, "roll_dist": 0.04, "color": Color(0.64, 0.56, 0.48), "drop_weight": 2},
-	"herb_pouch": {"slot": "backpack", "name": "Herb Pouch", "short": "Herbs", "desc": "a pouch of dried healing herbs: healing items heal 25% more",
-		"item_heal": 0.25, "color": Color(0.52, 0.58, 0.32), "drop_weight": 2},
+	"herb_pouch": {"slot": "backpack", "name": "Herb Pouch", "short": "Herbs", "desc": "a pouch of dried healing herbs: healing items heal 25% more; your pack holds 3 pieces",
+		"bag": 3, "item_heal": 0.25, "color": Color(0.52, 0.58, 0.32), "drop_weight": 2},
 	"wolf_tooth": {"kind": "blade", "slot": "amulet", "name": "Wolf-Tooth Necklace", "short": "Wolf-Tooth", "desc": "a wolf's fang on a leather thong: ripostes and backstabs hit 12% harder",
 		"riposte": 0.12, "rarity": "fine", "color": Color(0.93, 0.89, 0.78), "drop_weight": 1},
 	"sunstone_pendant": {"kind": "fire", "slot": "amulet", "name": "Sunstone Pendant", "short": "Sunstone", "desc": "a stone that keeps the day's light: your light reaches 20% farther; spells hit 3% harder",
@@ -573,8 +593,47 @@ static var PIECES := {
 		"stamina": 12.0, "rarity": "fine", "color": Color(0.34, 0.76, 0.52), "drop_weight": 1},
 	"viper_ring": {"kind": "stone", "slot": "ring", "name": "Viper Ring", "short": "Viper", "desc": "a coiled serpent with emerald eyes: hits have a 12% chance to poison the foe",
 		"venom_chance": 0.12, "rarity": "rare", "color": Color(0.44, 0.72, 0.32), "drop_weight": 1},
-	"bandolier": {"slot": "backpack", "name": "Bandolier", "short": "Bandolier", "desc": "a crossed belt of loops and pockets: two more kinds of item on the belt",
-		"belt": 2, "rarity": "rare", "color": Color(0.46, 0.3, 0.2), "drop_weight": 1},
+	"bandolier": {"slot": "backpack", "name": "Bandolier", "short": "Bandolier", "desc": "a crossed belt of loops and pockets: two more kinds of item on the belt; your pack holds 3 pieces",
+		"bag": 3, "belt": 2, "rarity": "rare", "color": Color(0.46, 0.3, 0.2), "drop_weight": 1},
+	# Bigger bags: more room, but nearly full they slow you ("slow"; BAG).
+	"pack": {"slot": "backpack", "name": "Pack", "short": "Pack", "desc": "a plain canvas pack: your pack holds 6 pieces, but nearly full it slows you a little",
+		"bag": 6, "slow": 0.05, "color": Color(0.5, 0.44, 0.32), "drop_weight": 2},
+	"great_pack": {"slot": "backpack", "name": "Great Pack", "short": "Great Pack", "desc": "a big framed pack: your pack holds 8 pieces, but nearly full it slows you",
+		"bag": 8, "slow": 0.1, "color": Color(0.42, 0.36, 0.3), "drop_weight": 1},
+	# Charms (the charm slot; charms.gd): never used up. A passive that is
+	# always on, and on some a charge ("charge": charms.gd CHARGES) that once
+	# spent is refilled only by feeding it essence. Found only as charms
+	# (drop_weight 0: never a plain drop; charms.gd LOOT), crafted by a Rune
+	# Artist and sold by the outfitter. Ordinary charms are Common; enchanted
+	# ones are Fine or Rare by nature, in their "kind".
+	"lucky_knot": {"slot": "charm", "name": "Lucky Knot", "short": "Knot", "desc": "a knot of red cord tied for luck: +12 max stamina",
+		"stamina": 12.0, "color": Color(0.82, 0.3, 0.3), "drop_weight": 0},
+	"pocket_clasp": {"slot": "charm", "name": "Pocket Clasp", "short": "Clasp", "desc": "a brass clasp that holds one more thing to your pack: one more pack space",
+		"pack": 1, "color": Color(0.84, 0.66, 0.32), "drop_weight": 0},
+	"belt_hook": {"slot": "charm", "name": "Belt Hook", "short": "Hook", "desc": "an iron hook for your belt: room for one more kind of item",
+		"belt": 1, "color": Color(0.6, 0.62, 0.66), "drop_weight": 0},
+	"ember_charm": {"kind": "fire", "slot": "charm", "name": "Ember Charm", "short": "Ember", "desc": "a warm red stone: spells hit 6% harder, and its glow carries your light 10% farther",
+		"spell": 0.06, "light": 0.10, "rarity": "fine", "color": Color(0.9, 0.42, 0.25), "drop_weight": 0},
+	"feather_token": {"kind": "air", "slot": "charm", "name": "Feather Token", "short": "Feather", "desc": "a grey feather bound in wire: you're ready to roll again 20% sooner, and rolls carry 5% farther",
+		"roll_recover": 0.2, "roll_dist": 0.05, "rarity": "fine", "color": Color(0.74, 0.8, 0.86), "drop_weight": 0},
+	"iron_brooch": {"kind": "iron", "slot": "charm", "name": "Iron Brooch", "short": "Brooch", "desc": "a heavy iron brooch: +8 max stamina, and stamina starts refilling 30% sooner after you act",
+		"stamina": 8.0, "quick_breath": 0.3, "rarity": "fine", "color": Color(0.62, 0.64, 0.7), "drop_weight": 0},
+	"ward_stone": {"kind": "stone", "slot": "charm", "name": "Ward Stone", "short": "Ward", "desc": "a smooth stone with a hole worn through: the first blow that lands on you in each room hurts half as much",
+		"first_ward": 0.5, "rarity": "fine", "color": Color(0.72, 0.66, 0.56), "drop_weight": 0},
+	"tide_shell": {"kind": "water", "slot": "charm", "name": "Tide Shell", "short": "Tide", "desc": "a shell that hums like the sea: a 12-point shield, which grows back once you've gone 6 seconds without being hit",
+		"tide_shield": 12.0, "rarity": "fine", "color": Color(0.42, 0.74, 0.86), "drop_weight": 0},
+	"wardbreaker": {"kind": "blade", "slot": "charm", "name": "Wardbreaker Charm", "short": "Wardbreaker", "desc": "a red charm on a cord, cracked with light: strikes hit 4% harder",
+		"strike": 0.04, "charge": "wardbreak", "rarity": "fine", "color": Color(0.9, 0.42, 0.5), "drop_weight": 0},
+	"mending_bead": {"kind": "water", "slot": "charm", "name": "Mending Bead", "short": "Mending", "desc": "a green glass bead, warm to the touch: healing items heal 10% more",
+		"item_heal": 0.1, "charge": "mend", "rarity": "fine", "color": Color(0.45, 0.82, 0.55), "drop_weight": 0},
+	"keepers_purse": {"kind": "iron", "slot": "charm", "name": "Keeper's Purse", "short": "Purse", "desc": "a small purse sewn shut with iron thread: one more pack space, and a safe pocket (the first piece in your pack comes home with you even if you fall, and so does the purse)",
+		"pack": 1, "safe_pocket": 1.0, "rarity": "rare", "color": Color(0.58, 0.46, 0.32), "drop_weight": 0},
+	"ashen_knot": {"kind": "fire", "slot": "charm", "name": "Ashen Knot", "short": "Ashen", "desc": "a knot of cord that smells of smoke: poison and burning floor hurt 15% less",
+		"ailment": 0.15, "charge": "rally", "rarity": "rare", "color": Color(0.62, 0.4, 0.34), "drop_weight": 0},
+	"gale_charm": {"kind": "air", "slot": "charm", "name": "Gale Charm", "short": "Gale", "desc": "a bone whistle that never stops sighing: you walk 4% faster",
+		"walk": 0.04, "charge": "gust", "rarity": "rare", "color": Color(0.66, 0.86, 0.96), "drop_weight": 0},
+	"bulwark_stone": {"kind": "stone", "slot": "charm", "name": "Bulwark Stone", "short": "Bulwark", "desc": "a heavy grey stone, banded in bronze: +15 health and 4% damage taken off",
+		"health": 15.0, "reduce": 0.04, "rarity": "rare", "color": Color(0.6, 0.58, 0.54), "drop_weight": 0},
 }
 ## The numbers effects() adds up, and how the inventory names them:
 ## [key, label, as a share (%) or a count, higher is better, (shown as a
@@ -592,10 +651,12 @@ const EFFECT_ROWS := [
 	["venom_chance", "Poison chance", true, true], ["item_heal", "Item healing", true, true], ["parry_sta", "Stamina a parry", false, true],
 	["finisher", "Finishers", true, true], ["fist", "Fists", true, true], ["kill_sta", "Stamina a kill", false, true],
 	["quick_breath", "Stamina wait", true, true, true], ["parry_heal", "Heal a perfect parry", false, true],
+	["bag", "Bag spaces", false, true], ["slow", "Slowed when nearly full", true, false], ["roll_recover", "Roll again sooner", true, true],
+	["first_ward", "First blow a room", true, true, true], ["tide_shield", "Tide shield", false, true],
 ]
 ## Only these numbers halve on a badly worn piece (the rest are penalties or switches).
 const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dist", "light", "regen", "spell", "notice", "ailment", "jump",
-	"ranged", "draw", "thorns", "footing", "finisher", "fist", "roll_cost", "kill_sta", "quick_breath", "parry_heal"]
+	"ranged", "draw", "thorns", "footing", "finisher", "fist", "roll_cost", "kill_sta", "quick_breath", "parry_heal", "roll_recover"]
 
 ## How common each weapon is as a drop (fists are always carried).
 static var WEAPON_DROP_WEIGHT := {
@@ -646,8 +707,8 @@ static func make(base: String, rarity := "", traits: Array = [], rank := 0, name
 		g["named"] = named
 	if LASTING_RUNES.has(rune):
 		g["rune"] = rune
-	if bool(RARITIES[r]["wears"]) and keep.is_empty() and not g.has("named"):
-		g["wear"] = 1.0
+	if bool(RARITIES[r]["wears"]) and keep.is_empty() and not g.has("named") and String(PIECES.get(base, {}).get("slot", "")) != "charm":
+		g["wear"] = 1.0  # (a charm never wears: it's never used up)
 	return g
 
 
@@ -678,6 +739,8 @@ static func rec(g) -> Dictionary:
 		var out := make(String(g["base"]), String(g.get("rarity", "")), g.get("traits", []), int(g.get("rank", 0)), String(g.get("named", "")), String(g.get("rune", "")))
 		if out.has("wear"):
 			out["wear"] = clampf(float(g.get("wear", 1.0)), 0.0, 1.0)
+		if g.has("charge") and PIECES.get(out["base"], {}).has("charge"):
+			out["charge"] = maxi(0, int(g["charge"]))  # (a charm's charges left: charms.gd; none noted is full)
 		return out
 	if g is String or g is StringName:
 		var s := String(g)
@@ -1105,7 +1168,7 @@ static func effects(g) -> Dictionary:
 	if not d.is_empty():
 		var f := factor(g) if g is Dictionary else 1.0
 		for k in d:
-			if k in ["slot", "name", "short", "desc", "color", "drop_weight", "look", "rarity", "kind", "history", "enchanted"]:
+			if k in ["slot", "name", "short", "desc", "color", "drop_weight", "look", "rarity", "kind", "history", "enchanted", "charge"]:
 				continue
 			var v = d[k]
 			if (v is float or v is int) and k in BONUS_KEYS:
@@ -1202,6 +1265,28 @@ static func total_effects(gear: Dictionary, raw := false) -> Dictionary:
 			if t.has(k):
 				t[k] = minf(float(t[k]), float(CAPS[k]))
 	return t
+
+
+## How many pieces the pack holds with these numbers (total_effects): the
+## worn bag's "bag" (else BAG "none"), plus any charm's "pack".
+static func pack_capacity(fx: Dictionary) -> int:
+	var bag := int(fx.get("bag", 0))
+	return (bag if bag > 0 else int(BAG["none"])) + int(fx.get("pack", 0))
+
+
+## How many pieces make a big bag heavy (nearly full: BAG "heavy_at" of
+## `cap`); 0 for a bag that never slows you.
+static func heavy_from(fx: Dictionary, cap: int) -> int:
+	if float(fx.get("slow", 0.0)) <= 0.0 or cap <= 0:
+		return 0
+	return maxi(1, ceili(float(cap) * float(BAG["heavy_at"]) - 0.001))
+
+
+## How much a nearly full big bag slows you (0 when it doesn't): `count`
+## pieces in a pack of `cap`.
+static func bag_slow(fx: Dictionary, count: int, cap: int) -> float:
+	var from := heavy_from(fx, cap)
+	return float(fx.get("slow", 0.0)) if from > 0 and count >= from else 0.0
 
 
 ## The numbers (CAPS keys) your gear has pushed to their caps.
@@ -1434,7 +1519,16 @@ static func trait_lines(g) -> Array:
 			out.append([trait_text(t, r["rarity"], int(r.get("rank", 0))), Essence.color(TRAITS[t]["kind"])])
 	if r.has("rune"):
 		out.append([rune_text(r["rune"]), LASTING_RUNES[r["rune"]]["color"]])
+	if PIECES.get(base_id(r), {}).has("charge"):
+		# A charm's charge (charms.gd): how many are left, what it does, how it refills.
+		var lines: Array = load(CHARMS).charge_lines(r)
+		var full: bool = load(CHARMS).missing(r) <= 0
+		for i in lines.size():
+			out.append([lines[i], (Color(1.0, 0.86, 0.36) if full else Color(0.95, 0.55, 0.42)) if i != 1 else color(r).lightened(0.25)])
 	return out
+
+
+const CHARMS := "res://scripts/charms.gd"  # (loaded when needed: charms.gd preloads this)
 
 
 ## A random piece of gear (its id), weighted by how common each is. A
@@ -1553,10 +1647,14 @@ static func load_heirlooms(raw) -> Dictionary:
 	var out := {}
 	if not (raw is Dictionary):
 		return out
+	var moved: Array = []  # (a piece whose slot changed since it was kept: the Ember Charm was an amulet)
 	for hs in raw:
 		var want := gear_slot_for(String(hs))
 		if want == "":
 			continue
+		for r in heirloom_pieces(raw, hs):
+			if slot_of(r) != want and slot_of(r) == "charm":
+				moved.append(r)
 		var pieces: Array = heirloom_pieces(raw, hs).filter(func(r): return slot_of(r) == want)
 		if pieces.is_empty():
 			continue
@@ -1564,6 +1662,8 @@ static func load_heirlooms(raw) -> Dictionary:
 			out[hs] = pieces.slice(0, 2)
 		else:
 			out[hs] = pieces[0]
+	if not moved.is_empty() and not out.has("charm"):
+		out["charm"] = moved[0]
 	return out
 
 
@@ -2390,8 +2490,112 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 				Art.orb(b, c + Vector2(0, -0.6) * u, 1.1 * u, Art.GOLD, s, "gold")
 		"ring":
 			_ring(b, id, c, u, s, lod, base_col, named)
+		"charm":
+			_charm_icon(b, id, c, u, s, lod, base_col)
 		_:
 			Art.orb(b, c, s * 0.5, base_col, s)
+
+
+## The charms (charms.gd), each told apart by its shape, hung from a short
+## loop of cord: a knot, a clasp, a hook, a stone, a feather, a brooch, a
+## holed stone, a shell, a cracked red charm, a bead, a purse, a smoky knot,
+## a whistle and a banded stone.
+static func _charm_icon(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
+	var P := func(arr: Array) -> PackedVector2Array: return Art.pts(c, u, arr)
+	var cord := Color(0.9, 0.8, 0.6) if id != "ashen_knot" else Color(0.5, 0.42, 0.38)
+	var w := maxf(0.7, 0.6 * u)
+	# The loop it hangs from.
+	b.arc(c + Vector2(0, -6.6) * u, 2.4 * u, 0.0, TAU, 14, Art.INK, w + Art.ol(s) + 0.4)
+	b.arc(c + Vector2(0, -6.6) * u, 2.4 * u, 0.0, TAU, 14, cord, w)
+	match id:
+		"lucky_knot", "ashen_knot":
+			for sx in [-1.0, 1.0]:
+				var loop := Art.oval(c + Vector2(sx * 3.2, 0.6) * u, Vector2(3.6, 2.8) * u, sx * 0.5, 16)
+				Art.shape(b, loop, col, s, "cloth")
+				b.polygon(Art.oval(c + Vector2(sx * 3.2, 0.6) * u, Vector2(1.6, 1.0) * u, sx * 0.5, 10), Art.INK)
+			Art.orb(b, c + Vector2(0, 0.6) * u, 2.0 * u, col.darkened(0.15), s, "cloth")
+			for sx in [-1.0, 1.0]:
+				Art.rod(b, c + Vector2(sx * 0.8, 2.2) * u, c + Vector2(sx * 2.4, 8.6) * u, 1.1 * u, col, s, "cloth")
+			if id == "ashen_knot":
+				for v in [Vector2(-5.6, -3.0), Vector2(5.2, -2.0), Vector2(1.6, 6.0)]:
+					b.circle(c + v * u, 0.9 * u, Color(1.0, 0.55, 0.25, 0.9), 8)
+				Art.soft(b, c + Vector2(0, 1.0) * u, 6.0 * u, Color(1.0, 0.45, 0.2, 0.25))
+		"pocket_clasp":
+			var clasp := Art.rrect(Rect2(c + Vector2(-6.0, -3.6) * u, Vector2(12.0, 9.0) * u), 2.4 * u, 4)
+			Art.shape(b, clasp, col, s, "gold")
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-4.0, -1.6) * u, Vector2(8.0, 5.0) * u), 1.2 * u, 3), col.darkened(0.35), s, "gold", Art.THIN | Art.NO_RIM)
+			Art.orb(b, c + Vector2(0, 5.8) * u, 1.4 * u, Art.GOLD, s, "gold")
+			b.line(c + Vector2(-6.0, 0.9) * u, c + Vector2(6.0, 0.9) * u, Color(Art.INK, 0.7), w)
+		"belt_hook":
+			Art.arc_rod(b, c + Vector2(0.6, 3.2) * u, 4.2 * u, -0.2, PI * 1.05, 1.8 * u, col, s, "metal")
+			Art.rod(b, c + Vector2(4.8, 2.4) * u, c + Vector2(4.4, -4.4) * u, 1.8 * u, col, s, "metal")
+			Art.orb(b, c + Vector2(-3.6, 3.0) * u, 1.3 * u, col.lightened(0.2), s, "metal")
+		"ember_charm":
+			Art.soft(b, c + Vector2(0, 1.6) * u, 7.4 * u, Color(col, 0.45))
+			Art.orb(b, c + Vector2(0, 1.6) * u, 4.8 * u, Art.GOLD, s, "gold")
+			Art.orb(b, c + Vector2(0, 1.6) * u, 3.5 * u, col, s, "gem", false)
+			Art.shine(b, c + Vector2(-1.3, 0.2) * u, 0.6 * u, 1.1 * u, -0.6, 0.7)
+		"feather_token":
+			Art.feather(b, c + Vector2(-1.6, 8.8) * u, c + Vector2(2.2, -4.0) * u, 3.4 * u, col, s)
+			for y in [3.6, 5.0]:
+				b.line(c + Vector2(-2.6, y) * u, c + Vector2(0.6, y - 0.6) * u, Art.GOLD, maxf(0.6, 0.55 * u))
+		"iron_brooch":
+			Art.orb(b, c + Vector2(0, 1.6) * u, 5.6 * u, col, s, "metal")
+			Art.orb(b, c + Vector2(0, 1.6) * u, 3.0 * u, col.darkened(0.25), s, "metal", false)
+			Art.rod(b, c + Vector2(-7.2, 4.6) * u, c + Vector2(7.2, -1.4) * u, 0.7 * u, Art.STEEL, s, "metal")
+			for i in 6:
+				var a := TAU * i / 6.0
+				Art.rivet(b, c + Vector2(0, 1.6) * u + Vector2.from_angle(a) * 4.3 * u, 0.55 * u, col.lightened(0.3))
+		"ward_stone":
+			var stone := Art.smooth(P.call([Vector2(0, -3.6), Vector2(5.4, -1.6), Vector2(6.2, 3.6), Vector2(2.4, 7.6), Vector2(-3.4, 7.2), Vector2(-6.0, 2.6), Vector2(-4.6, -2.0)]), 3)
+			Art.shape(b, stone, col, s, "stone")
+			b.polygon(Art.oval(c + Vector2(0.2, 2.0) * u, Vector2(1.8, 1.5) * u), Color(0.08, 0.06, 0.1))
+			if lod > 0:
+				Art.soft(b, c + Vector2(0.2, 2.0) * u, 5.0 * u, Color(0.7, 0.8, 1.0, 0.25))
+		"tide_shell":
+			var shell := PackedVector2Array([c + Vector2(0, 8.4) * u])
+			for i in 9:
+				var a := PI * 1.08 + i * PI * 0.105
+				shell.append(c + Vector2(0, 8.4) * u + Vector2.from_angle(a) * 10.4 * u)
+			Art.shape(b, shell, col, s, "gem")
+			for i in 5:
+				var a := PI * 1.2 + i * PI * 0.15
+				b.line(c + Vector2(0, 8.4) * u, c + Vector2(0, 8.4) * u + Vector2.from_angle(a) * 9.2 * u, Color(col.darkened(0.35), 0.8), maxf(0.5, 0.45 * u))
+			Art.shine(b, c + Vector2(-2.2, 0.6) * u, 0.6 * u, 1.4 * u, -0.6, 0.6)
+		"wardbreaker":
+			# A red charm, split across by a crack of light.
+			var cc := Vector2(0, 2.4) * u
+			var shield := Art.pts(c + cc, u, [Vector2(-4.8, -4.6), Vector2(4.8, -4.6), Vector2(4.4, 0.8), Vector2(0, 5.0), Vector2(-4.4, 0.8)])
+			Art.shape(b, shield, col, s, "gem")
+			Art.shape(b, Art.pts(c + cc, u, [Vector2(-3.4, -3.4), Vector2(3.4, -3.4), Vector2(3.1, 0.4), Vector2(0, 3.5), Vector2(-3.1, 0.4)]), col.darkened(0.2), s, "gem", Art.NO_OUTLINE | Art.NO_RIM)
+			var crack := Art.pts(c + cc, u, [Vector2(-1.0, -4.6), Vector2(0.6, -2.0), Vector2(-0.6, 0.0), Vector2(1.0, 2.2), Vector2(0, 5.0)])
+			Art.soft(b, c + cc, 4.0 * u, Color(1.0, 0.9, 0.7, 0.45))
+			for i in crack.size() - 1:
+				b.line(crack[i], crack[i + 1], Color(1.0, 0.95, 0.8), w)
+			if lod > 0:
+				for v in [Vector2(-5.8, -1.0), Vector2(5.6, 5.2)]:
+					Art.spark(b, c + v * u, 1.3 * u, Color(1.0, 0.92, 0.75, 0.9))
+		"mending_bead":
+			var bead := Art.oval(c + Vector2(0, 2.0) * u, Vector2(4.8, 5.2) * u)
+			Art.glass(b, bead, s, col, c.y + 0.6 * u, 0.3)
+			Art.shine(b, c + Vector2(-1.6, 0.0) * u, 0.7 * u, 1.4 * u, -0.6, 0.8)
+			b.line(c + Vector2(0, -3.4) * u, c + Vector2(0, -4.4) * u, cord, w)
+		"keepers_purse":
+			var purse := Art.smooth(P.call([Vector2(-3.0, -3.0), Vector2(3.0, -3.0), Vector2(6.4, 3.0), Vector2(5.0, 8.6), Vector2(-5.0, 8.6), Vector2(-6.4, 3.0)]), 3)
+			Art.shape(b, purse, col, s, "leather")
+			Art.rod(b, c + Vector2(-3.4, -2.6) * u, c + Vector2(3.4, -2.6) * u, 1.4 * u, Art.STEEL, s, "metal")  # its iron-stitched neck
+			Art.stitches(b, c + Vector2(-4.6, 3.6) * u, c + Vector2(4.6, 3.6) * u, 5, Art.STEEL, maxf(0.5, 0.5 * u))
+		"gale_charm":
+			Art.rod(b, c + Vector2(-5.6, 4.6) * u, c + Vector2(4.4, -1.6) * u, 3.2 * u, col.lightened(0.15), s, "bone")
+			b.circle(c + Vector2(0.2, 1.6) * u, 0.9 * u, Art.INK, 8)
+			for i in 3:
+				var y := -4.0 + i * 2.6
+				b.line(c + Vector2(3.6, y) * u, c + Vector2(8.6, y - 1.2) * u, Color(0.85, 0.95, 1.0, 0.75), maxf(0.5, 0.5 * u))
+		"bulwark_stone":
+			Art.orb(b, c + Vector2(0, 2.0) * u, 6.2 * u, col, s, "stone")
+			Art.rod(b, c + Vector2(-6.0, 1.0) * u, c + Vector2(6.0, 3.0) * u, 1.8 * u, Color(0.78, 0.55, 0.3), s, "gold")
+		_:
+			Art.orb(b, c + Vector2(0, 1.6) * u, 4.6 * u, col, s)
 
 
 ## The three leggings, told apart by shape: baggy quilted trousers with
@@ -2668,10 +2872,19 @@ static func _bandolier(b, c: Vector2, u: float, s: float, lod: int, col: Color) 
 ## The bags: a satchel on a long strap, a small pouch on a belt, and the
 ## climber's pack with a bedroll strapped on top.
 static func _bag(b, id: String, c: Vector2, u: float, s: float, lod: int, col: Color) -> void:
-	var big := id in ["satchel", "climbers_pack"]
-	var hw := 7.6 if big else 5.4
-	var top := -4.0 if big else -1.6
-	if id == "satchel":
+	var big := id in ["satchel", "climbers_pack", "pack", "great_pack"]
+	var hw := (8.8 if id == "great_pack" else 7.6) if big else 5.4
+	var top := (-6.4 if id == "great_pack" else -4.0) if big else -1.6
+	if id == "great_pack":
+		# A framed pack: two wooden rails standing over it, a rolled blanket on top.
+		for sx in [-1.0, 1.0]:
+			Art.rod(b, c + Vector2(sx * (hw - 1.2), top - 3.4) * u, c + Vector2(sx * (hw - 1.2), 9.4) * u, 0.9 * u, Art.WOOD, s, "wood")
+		Art.rod(b, c + Vector2(-hw + 1.6, top - 2.0) * u, c + Vector2(hw - 1.6, top - 2.0) * u, 3.2 * u, Color(0.36, 0.44, 0.58), s, "cloth")
+	elif id == "pack":
+		for sx in [-3.6, 3.6]:
+			b.arc(c + Vector2(sx, top) * u, 2.4 * u, PI, TAU, 10, Art.INK, 1.4 * u + Art.ol(s))
+			b.arc(c + Vector2(sx, top) * u, 2.4 * u, PI, TAU, 10, col.darkened(0.3), 0.9 * u)  # the shoulder straps
+	elif id == "satchel":
 		b.arc(c + Vector2(0, top) * u, 6.6 * u, PI, TAU, 20, Art.INK, 1.9 * u + Art.ol(s))
 		b.arc(c + Vector2(0, top) * u, 6.6 * u, PI, TAU, 20, col.darkened(0.3), 1.3 * u)  # the long strap
 	elif id == "climbers_pack":
@@ -2683,7 +2896,7 @@ static func _bag(b, id: String, c: Vector2, u: float, s: float, lod: int, col: C
 		b.arc(c + Vector2(0, top) * u, 3.8 * u, PI, TAU, 14, col.darkened(0.3), 1.0 * u)
 	var bag := Art.rrect(Rect2(c + Vector2(-hw, top) * u, Vector2(hw * 2.0, 9.0 - top) * u), 1.6 * u, 4)
 	Art.shape(b, bag, col, s, "leather")
-	if id == "climbers_pack":
+	if id in ["climbers_pack", "great_pack"]:
 		for sx in [-1.0, 1.0]:
 			var pk := Art.rrect(Rect2(c + Vector2(sx * hw - (2.2 if sx > 0 else 0.6), 2.6) * u, Vector2(2.8, 5.0) * u), 0.6 * u, 2)
 			Art.shape(b, pk, col.darkened(0.12), s, "leather", Art.THIN | Art.NO_RIM)

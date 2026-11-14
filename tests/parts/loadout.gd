@@ -341,7 +341,7 @@ func _screens() -> void:
 		await t._frames(3)
 	_check(menu.page == "loadout" and menu.rail.visible, "the Loadout opens beside the rail")
 	var doll: Array = menu.box.find_children("*", "Button", true, false).filter(func(b): return String(b.get_meta("slot", "")).begins_with("worn:"))
-	_check(doll.size() == 12, "a paper doll of every slot (%d)" % doll.size())
+	_check(doll.size() == 13, "a paper doll of every slot, the charm's too (%d)" % doll.size())
 	var packs: Array = menu.box.find_children("*", "Button", true, false).filter(func(b): return String(b.get_meta("slot", "")).begins_with("pack:"))
 	_check(packs.size() == p.pack_size(), "the pack shows its %d spaces" % p.pack_size())
 	var labels: Array = t._all_labels(menu.box).map(func(l): return l.text)
@@ -524,6 +524,8 @@ func _one_look() -> void:
 	var p = m.player
 	var menu = m.menu
 	_reset()
+	prof.wear["backpack"] = G.make("satchel")  # (a bag: the pack holds 4)
+	Train.dress(prof, p)
 	prof.pack = [G.make("axe"), G.make("leather_gloves", "fine", ["edges"])]
 	for i in 21:
 		prof.chest.append(G.make(["plate", "leather_cap", "garnet_ring", "longbow", "chain_leggings"][i % 5], "rare" if i == 20 else "common"))

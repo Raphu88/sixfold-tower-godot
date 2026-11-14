@@ -50,6 +50,11 @@ const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
 const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["bench", "enchant"]}
+## The wardrobe's slots on a phone (smaller than elsewhere, so the doll's
+## five rows, the charm's included, fit the car).
+const WARDROBE_PHONE := 41.0
+## The bench's Charms counter: charms across (a computer, a phone: room for the card).
+const CHARM_COLS := [6, 4]
 static var B := Bench.TEXT
 ## A touch or drag this far is a swipe, not a tap.
 const SWIPE := 14.0
@@ -60,6 +65,7 @@ const WHEEL_GAP := 220  # ms between cars on the mouse wheel (a trackpad sends m
 
 var m  # the menu (menu.gd)
 var tips := {}  # car -> the Entity's tip said there this visit (kept while the page rebuilds)
+var charm_tip := ""  # the Entity's first line about charms, said at the bench's Charms counter this visit
 var view  # the drawn train (m.train_view)
 var roots := {}  # car -> its things (a VBoxContainer in its room)
 var cards := {}  # car -> its placard's contents (m.details while you're in that car)
@@ -738,9 +744,15 @@ func _personal(root: Node) -> void:
 	var grid := _grid(doll, 3, false)
 	grid.add_theme_constant_override("v_separation", 4)
 	var so := Train.setoff(prof, _player())
+	var cell_w := WARDROBE_PHONE if _small() else 0.0  # (a phone: smaller, so the charm's row fits too)
 	for r in Gear.DOLL:
 		for slot in r:
+			if slot == "":
+				m.loadout_page.gap(grid, cell_w if cell_w > 0.0 else m.loadout_page._cell())
+				continue
 			var s = m.loadout_page._worn_cell(grid, slot, so)
+			if cell_w > 0.0:
+				s.custom_minimum_size = Vector2(cell_w, cell_w)
 			keys.append(s.get_meta("slot"))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8 if _small() else 14)
@@ -1154,6 +1166,8 @@ func _workshop(root: Node) -> void:
 			keys = _bench_pieces(left, func(g): return Bench.joinable(g))
 		"vessel":
 			keys = VesselPage.bench_list(self, left)
+		"charm":
+			keys = _charm_counter(left)
 		_:
 			keys = _bench_pieces(left, func(_g): return true)
 	if keys.is_empty():
@@ -1226,6 +1240,108 @@ func _bench_pieces(parent: Node, fits: Callable, heirlooms := true) -> Array:
 			"decor": func(s, i): _bench_price(s, "%s:%d" % [where, i])})
 		keys.append_array(res["keys"])
 	return keys
+
+
+## The Charms counter: your charms that hold a charge (the one you'll wear,
+## your heirloom, your pack and stash), each with what refilling it costs,
+## then the charms a Rune Artist can craft, each with its price.
+func _charm_counter(parent: Node) -> Array:
+	var prof = _prof()
+	var keys: Array = []
+	var C: Dictionary = Bench.Charms.TEXT
+	if not _small():  # (a phone has no room here: the tower and the Library say it there)
+		var first: String = m.main.tip_now("charm")  # (the first time here: the Entity explains charms)
+		if first != "":
+			charm_tip = first
+		if charm_tip != "":
+			_note(parent, Entity.fill_keys(charm_tip, "keys", false)).set_meta("entity", "charm")
+	var refs: Array = Bench.charm_refs(prof)
+	if refs.is_empty():
+		_tag(parent, C["refill_head"])
+		_note(parent, C["nothing_spent"])
+	else:
+		StorageView.head(parent, C["refill_head"], _small())
+		var grid := _grid(parent, CHARM_COLS[1 if _small() else 0], false)
+		grid.add_theme_constant_override("h_separation", StorageView.GAP)
+		grid.add_theme_constant_override("v_separation", StorageView.GAP)
+		for ref in refs:
+			var g := Bench.piece(prof, ref)
+			var s = _gear_slot(grid, "bench:" + ref, g, "")
+			s.custom_minimum_size = Vector2.ONE * StorageView.cell(_small())
+			s.kept = ref.begins_with("heir:")
+			s.count = Bench.Charms.charges(g)
+			s.set_meta("help", "slot:bench:charm")  # (the Entity's line for it: entity_help.gd)
+			var cost := Bench.refill_cost(g)
+			if not cost.is_empty():
+				_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
+			keys.append(s.get_meta("slot"))
+	StorageView.head(parent, C["craft_head"], _small())
+	var cg := _grid(parent, CHARM_COLS[1 if _small() else 0], false)
+	cg.add_theme_constant_override("h_separation", StorageView.GAP)
+	cg.add_theme_constant_override("v_separation", StorageView.GAP)
+	for id in Bench.Charms.craftable():
+		var s = _gear_slot(cg, "bench:craft:" + id, Gear.make(id), "")
+		s.custom_minimum_size = Vector2.ONE * StorageView.cell(_small())
+		var cost := Bench.craft_cost(id)
+		_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
+		keys.append(s.get_meta("slot"))
+	return keys
+
+
+## A charm's card at the bench: what it does, its charge, and Refill (anyone).
+func _charm_refill_card(ref: String) -> void:
+	var prof = _prof()
+	var g := Bench.piece(prof, ref)
+	if g.is_empty():
+		_head("empty", "", "Empty space", UI.DIM)
+		return
+	_head("gear", g, Gear.display(g), Gear.color(g))
+	var where := ref.get_slice(":", 0)
+	var line: String = B["where_heir"] if where == "heir" else (B["where_wear"] if where == "wear" else (B["where_pack"] if where == "pack" else B["where_chest"]))
+	m._detail_text(line + "  ·  " + Gear.rarity_name(g), UI.DIM)
+	m._detail_text(Gear.desc(g).left(1).to_upper() + Gear.desc(g).substr(1) + ".", UI.TEXT)
+	_charge_lines(g)
+	var cost := Bench.refill_cost(g)
+	if cost.is_empty():
+		return
+	var why := _cost_lines(cost, B["cost"])
+	var C: Dictionary = Bench.Charms.TEXT
+	var text: String = C["refill"] % Bench.cost_text(cost)
+	_ask_button(m.details, text, C["refill_ask"] % Bench.cost_text(cost), "refill", why, "bench_do", "refill")
+	_why_line(why)
+
+
+## A charm's charge on a card: how many are left, what it does, and how it refills.
+func _charge_lines(g) -> void:
+	var lines: Array = Bench.Charms.charge_lines(g)
+	if lines.is_empty():
+		m._detail_text(Bench.Charms.TEXT["never_used"], UI.DIM)
+		return
+	var full: bool = Bench.Charms.missing(g) <= 0
+	m._detail_text(lines[0], UI.GOLD if full else UI.BAD.lerp(UI.GOLD, 0.4))
+	m._detail_text(lines[1], Color(Gear.color(g), 0.95))
+	m._detail_text(lines[2], UI.DIM)
+
+
+## A charm a Rune Artist can craft: what it does, its charge, the cost, and
+## Craft it (into your stash).
+func _charm_craft_card(id: String) -> void:
+	var prof = _prof()
+	var g := Gear.make(id)
+	_head("gear", g, Gear.display(g), Gear.color(g))
+	m._detail_text(Gear.rarity_name(g) + "  ·  " + Gear.SLOT_NAMES["charm"], UI.DIM)
+	if not Bench.rune_artist(prof):
+		m._detail_text(Bench.Charms.TEXT["needs_rune_artist"], Color(0.72, 0.74, 1.0))
+	m._detail_text(Gear.desc(g).left(1).to_upper() + Gear.desc(g).substr(1) + ".", UI.TEXT)
+	_charge_lines(g)
+	var why := _cost_lines(Bench.craft_cost(id), B["cost"])
+	var lock := Bench.craft_why(prof, id)
+	if lock != "":
+		why = lock
+	var C: Dictionary = Bench.Charms.TEXT
+	_ask_button(m.details, C["craft"], C["craft_ask"], "craft:" + id, why, "bench_do", "craft")
+	if lock != Bench.Charms.TEXT["needs_rune_artist"]:
+		_why_line(why)
 
 
 ## A counter's price drawn on a piece's slot (Temper's cost, what Break down gives).
@@ -1720,6 +1836,11 @@ func _bench_card(arg: String) -> void:
 		_break_card(arg)
 		return
 	match counter:
+		"charm":
+			if arg.begins_with("craft:"):
+				_charm_craft_card(arg.substr(6))
+			else:
+				_charm_refill_card(arg)
 		"vessel":
 			VesselPage.bench_card(self, arg)
 		"temper":
@@ -2013,10 +2134,20 @@ func _pick_trait(i: int) -> void:
 func _bench_do(thing: String, ask: String) -> void:
 	var prof = _prof()
 	var what := ask.get_slice(":", 0)
-	var before := Gear.display(Bench.piece(prof, thing)) if not thing.begins_with("supply:") else ""
+	var before := Gear.display(Bench.piece(prof, thing)) if not thing.begins_with("supply:") and not thing.begins_with("craft:") else ""
 	var why := ""
 	var said := ""
 	match what:
+		"refill":
+			why = Bench.refill(prof, thing)
+			said = Bench.Charms.TEXT["refilled"] % before
+		"craft":
+			var id := ask.get_slice(":", 1)
+			var to := Bench.craft(prof, id)
+			if to.begins_with("!"):
+				why = to.substr(1)
+			else:
+				said = Bench.Charms.TEXT["crafted" if to == "chest" else "crafted_pack"] % Gear.display(Gear.make(id))
 		"temper":
 			why = Bench.temper(prof, thing)
 			said = B["tempered"] % Gear.display(Bench.piece(prof, thing))

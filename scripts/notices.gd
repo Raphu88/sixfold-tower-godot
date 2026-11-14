@@ -123,6 +123,7 @@ static var KINDS := {
 
 ## Words (all of them here, for the Data editor).
 static var TEXT := {
+	"heavy": "Heavy pack: %d of %d, you're slower",  # a big bag nearly full (a status chip)
 	"essence": "+%d %s",  # a burst of essence, batched: amount, its kind
 	"again": "%s  x%d",  # the same thing more than once
 	"room": "Entered %s",
