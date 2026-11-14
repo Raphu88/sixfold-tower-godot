@@ -32,7 +32,7 @@ func run(smoke) -> void:
 	await _menagerie()
 	await _unbound()
 	await _saves()
-	await _climber_off()
+	await _climber_on()
 	await _pages()
 	await _data()
 
@@ -561,12 +561,15 @@ func _saves() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
-func _climber_off() -> void:
-	print("states: the climber side stays off")
+## (Was "the climber side stays off": the owner switched monsters' states
+## on the climber on, so this now checks it's on, and that the switch still
+## turns it all off.)
+func _climber_on() -> void:
+	print("states: the climber side is on (and its switch still works)")
 	await _marked({"hand": "stormcaller"})
 	var main = t.main
 	var p = main.player
-	_check(R.CLIMBER["enabled"] == false, "monsters giving the climber states is off by default")
+	_check(R.CLIMBER["enabled"] == true, "monsters giving the climber states is on (the owner said yes)")
 	main.puddles = []  # (no pool underfoot: fire on a soaked climber would turn to Steam)
 	p.states.clear()
 	p.barrier_hp = 0.0
@@ -574,9 +577,10 @@ func _climber_off() -> void:
 	p.hurt_t = 0.0
 	p.hp = p.max_health()
 	var th = _foe(p.global_position + dir * 40.0, 50.0, "cinder")
+	# Switched off (in the Data editor), a cinder's blow leaves nothing.
+	R.CLIMBER["enabled"] = false
 	p.receive_attack(2.0, th)
-	_check(p.states.is_empty() and R.apply(main, p, "burning", 3.0, th).is_empty(), "...a cinder's blow leaves nothing, and nothing can be put on the climber")
-	# Switched on (the owner's choice, in the Data editor), it would.
+	_check(p.states.is_empty() and R.apply(main, p, "burning", 3.0, th).is_empty(), "...switched off, a cinder's blow leaves nothing, and nothing can be put on the climber")
 	R.CLIMBER["enabled"] = true
 	p.hurt_t = 0.0
 	p.iframes = 0.0  # (the first blow's grace must not swallow this one)
@@ -590,7 +594,8 @@ func _climber_off() -> void:
 	p.set_physics_process(true)  # (an earlier screen may have left the climber still; the clearing runs in its physics step)
 	t.paused = false
 	await t._until(func(): return p.states.is_empty(), 1.0)
-	_check(on and p.states.is_empty(), "...switched on, a cinder's blow would set you burning; switched off again, it's gone (%s; after %s)" % [why, p.states])
+	_check(on and p.states.is_empty(), "...on, a cinder's blow sets you burning; switched off, it's gone (%s; after %s)" % [why, p.states])
+	R.CLIMBER["enabled"] = true
 	p.iframes = 999.0
 
 

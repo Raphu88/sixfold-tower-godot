@@ -604,10 +604,11 @@ static func climber_held(p) -> Array:
 ## "Antivenom or Cleansing Tonic" ("" if none).
 static func cure_names(state: String) -> String:
 	var Items = load("res://scripts/items.gd")
-	var names: Array = []
-	for id in Items.ORDER:
-		if state in Items.ITEMS[id].get("cures", []):
-			names.append(String(Items.ITEMS[id]["name"]))
+	var ids: Array = Items.ORDER.filter(func(id): return state in Items.ITEMS[id].get("cures", []))
+	# (the items made for it first, the cure-alls last)
+	ids.sort_custom(func(a, b): return Items.ITEMS[a]["cures"].size() < Items.ITEMS[b]["cures"].size()
+		or (Items.ITEMS[a]["cures"].size() == Items.ITEMS[b]["cures"].size() and Items.ORDER.find(a) < Items.ORDER.find(b)))
+	var names: Array = ids.map(func(id): return String(Items.ITEMS[id]["name"]))
 	if names.size() < 2:
 		return "".join(names)
 	return ", ".join(names.slice(0, names.size() - 1)) + String(CLIMBER_TEXT["or"]) + String(names[-1])

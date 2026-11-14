@@ -183,7 +183,10 @@ var quarry  # Hunter's Quarry: the last foe you struck
 var quarry_fresh := false  # (a foe struck the first time isn't your Quarry yet: bond.gd taken_mult)
 var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
-var items := Items.START.duplicate()  # item id -> count
+var items := Items.START.duplicate():  # item id -> count
+	set(v):
+		items = v
+		item_sizes = {}  # (a whole new belt: its stacks are standard until noted)
 ## The sizes in each stack (items.gd SIZES), biggest first: item id -> [size...].
 ## A stack with none listed (or fewer than its count) holds standard ones:
 ## code that only changes `items` keeps working (item_sizes_of mends it).
