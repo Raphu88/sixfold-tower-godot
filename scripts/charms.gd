@@ -217,7 +217,9 @@ static func refill_unbanked(main, g: Dictionary) -> String:
 		return TEXT["short_run"] % [int(amount), int(held)]
 	for k in main.run_essence.keys():
 		main.run_essence[k] = maxf(0.0, float(main.run_essence[k]) - amount * float(main.run_essence[k]) / held)
+	var was := charges(g)
 	g["charge"] = charge_max(g)
+	keep_heirloom(main, g, was)
 	return ""
 
 
@@ -237,11 +239,27 @@ static func fire(p, id: String) -> bool:
 	var g := worn(p)
 	if g.is_empty() or charge_id(g) != id or not spend(g):
 		return false
+	keep_heirloom(p.main, g, charges(g) + 1)
 	if p.main != null:
 		var col := Gear.color(g)
 		p.main.fx_text(p.global_position + Vector2(0, -52), TEXT["spent"] % [Gear.display(g), CHARGES[id]["name"]], col)
 		p.main.fx_ring(p.global_position, col, 50.0, 0.4, 3.0)
 	return true
+
+
+## A charm kept as an heirloom starts every climb as the heirloom is: so a
+## charge spent (or refilled) on the climb is noted on the heirloom too,
+## or it would come back full on its own. `was`: its charges before.
+static func keep_heirloom(main, g: Dictionary, was: int) -> void:
+	if main == null or main.profile == null:
+		return
+	var h = main.profile.heirlooms.get("charm", null)
+	if not (h is Dictionary) or Gear.base_id(h) != Gear.base_id(g) or charges(h) != was:
+		return
+	if not Gear.same(h, g):
+		return
+	h["charge"] = charges(g)
+	main.profile.save()
 
 
 # --- the safe pocket ----------------------------------------------------------------------

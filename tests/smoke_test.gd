@@ -5665,6 +5665,8 @@ func _gear_slot_tests() -> void:
 		var all_there := true
 		for row in G.DOLL:
 			for sl in row:
+				if sl == "":
+					continue  # (a gap in the doll)
 				var c = _slot("gear:" + sl)
 				all_there = all_there and c != null
 				if c != null:
@@ -8035,7 +8037,7 @@ func _screen_tests() -> void:
 			heir_cells += 1
 			if b.locked:
 				planned += 1
-	_check(heir_cells == 13 and planned == 1 and not _slot("heir:melee").locked, "...and the Heirlooms view: every slot on the doll, only the off-hand locked (%d cells)" % heir_cells)
+	_check(heir_cells == 14 and planned == 1 and not _slot("heir:melee").locked, "...and the Heirlooms view: every slot on the doll (the charm's too), only the off-hand locked (%d cells)" % heir_cells)
 	menu._inv_view("worn")
 	await _frames(2)
 	_check(_slot("rune") == null, "no rune slot without a camp rune")
@@ -9333,7 +9335,7 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
-	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel")
+	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel", "charm"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel, charms")
 	var brew: Array = bench_buttons.call("brew", "draught")
 	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Draught")
 	if brew.size() == 1:

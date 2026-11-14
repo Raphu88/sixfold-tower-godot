@@ -210,6 +210,14 @@ func _charges() -> void:
 	_check(C.charges(p.gear["charm"]) == 2 and (not is_instance_valid(foe) or foe.knock.length() > 50.0 or foe.global_position.x > x0 + 4.0), "a Gale Charm: a blow that lands on you hurls the foes around you back (one charge spent)")
 	if is_instance_valid(foe):
 		foe.queue_free()
+	# A charm kept as an heirloom: what the climb spends stays spent on the heirloom.
+	prof.heirlooms["charm"] = G.make("gale_charm")
+	p.take_gear(G.heirloom_copy(prof.heirlooms["charm"]))
+	p.hurt_t = 0.0
+	p.iframes = 0.0
+	p.receive_attack(4.0, null, true)
+	_check(C.charges(p.gear["charm"]) == 2 and C.charges(prof.heirlooms["charm"]) == 2, "a charm kept as an heirloom: a charge spent on the climb stays spent on the heirloom (it won't come back full by itself) (%d, %d)" % [C.charges(p.gear["charm"]), C.charges(prof.heirlooms["charm"])])
+	prof.heirlooms.erase("charm")
 	p.gear["charm"] = {}
 	p.refresh_gear()
 

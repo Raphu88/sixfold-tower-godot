@@ -2666,6 +2666,8 @@ func _page_inventory() -> void:
 			"versus": _pack_versus.bind(p)})["keys"])
 	else:
 		for r in Gear.DOLL:
+			if "charm" in r:
+				continue  # (the charm goes beside the doll here, under the off-hand: room on a phone)
 			for slot in r:
 				if slot == "":
 					loadout_page.gap(grid, cell)
@@ -2673,7 +2675,7 @@ func _page_inventory() -> void:
 				var s := _heir_cell(grid, slot, cell, caption) if heirs else _worn_cell(grid, p, slot, cell, caption)
 				keys.append(s.get_meta("slot"))
 	# Beside the doll: fists (weapon slot 1), the off-hand (kept for later),
-	# gear at your feet and a camp's rune.
+	# the charm, gear at your feet and a camp's rune.
 	var side := VBoxContainer.new()
 	side.add_theme_constant_override("separation", 4)
 	doll.add_child(side)
@@ -2691,6 +2693,8 @@ func _page_inventory() -> void:
 		off.locked = true
 		off.slot_name = Gear.SLOT_NAMES["offhand"]
 		keys.append(off.get_meta("slot"))
+		var ch := _heir_cell(side, "charm", cell, caption) if heirs else _worn_cell(side, p, "charm", cell, caption)
+		keys.append(ch.get_meta("slot"))
 	if not heirs and not main.gear_here.is_empty():
 		# Gear at your feet: set against what you wear in its slot.
 		var fl := _slot(side, "floor", cell, "At your feet" if caption else "")
