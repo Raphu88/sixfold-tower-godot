@@ -574,7 +574,22 @@ static func shelf(m, width: float, small: bool) -> void:
 				b.pressed.connect(func(): pass)
 			grid.add_child(b)
 		if m.bestiary_open in g[2] and level(prof, m.bestiary_open) > 0:
-			m.box.add_child(card(prof, m.bestiary_open, width, small))
+			var cd := card(prof, m.bestiary_open, width, small)
+			m.box.add_child(cd)
+			if cd.is_inside_tree():
+				cd.get_tree().create_timer(0.12).timeout.connect(_reveal.bind(cd))
+
+
+## An entry just opened: scrolled into sight (its tile's focus comes first).
+static func _reveal(c: Control) -> void:
+	if not is_instance_valid(c) or not c.is_inside_tree():
+		return
+	var n := c.get_parent()
+	while n != null:
+		if n is ScrollContainer:
+			n.ensure_control_visible(c)
+			return
+		n = n.get_parent()
 
 
 ## An open entry: its picture beside its name, how far it's known, and the
