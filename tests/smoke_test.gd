@@ -4662,13 +4662,14 @@ func _camp_tests() -> void:
 	_check(main.enemies().is_empty(), "the camp is safe: no monsters")
 	_check(main.campfire != null and is_instance_valid(main.campfire), "the camp has a campfire")
 	_check(p.hp == p.max_health() and not p.bonds["hand"].burned, "a full rest by the fire")
-	var item_cards: Array = main.camp["choices"].filter(func(c): return not String(c).begins_with("gear:"))
-	_check(item_cards.size() == Items.CAMP_CHOICES, "three items to choose from")
-	_check(main.camp["choices"].size() == Items.CAMP_CHOICES + 1, "...and a piece of gear")
+	# (two items now, not three, and a crystal of the tower's essence: fewer consumables, tests/parts/consumables.gd)
+	var item_cards: Array = main.camp["choices"].filter(func(c): return not String(c).begins_with("gear:") and not String(c).begins_with("crystal:"))
+	_check(item_cards.size() == Items.CAMP_CHOICES, "two items to choose from")
+	_check(main.camp["choices"].size() == Items.CAMP_CHOICES + 2 and main.camp["choices"].any(func(c): return String(c).begins_with("crystal:")), "...a crystal of the tower's essence and a piece of gear")
 	var distinct := {}
 	for c in main.camp["choices"]:
 		distinct[c] = true
-	_check(distinct.size() == Items.CAMP_CHOICES + 1, "...all different")
+	_check(distinct.size() == Items.CAMP_CHOICES + 2, "...all different")
 	var pick: String = main.camp["choices"][1]
 	var had: int = p.item_count(pick)
 	Input.action_press("weapon_2")

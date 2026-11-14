@@ -484,14 +484,14 @@ static func roll_size(id: String, floor_num: int) -> int:
 
 
 ## The small pips on a sized item's icon (I, II or III gilt strokes in the
-## icon's top-left corner): any list that draws an item with its size shows
-## them (icon_into's `size`).
+## icon's top-right corner, clear of a key badge and the count): any list
+## that draws an item with its size shows them (icon_into's `size`).
 static func pips_into(b, c: Vector2, s: float, size: int) -> void:
 	var k := s / 10.0
-	var at := c + Vector2(-s * 0.98, -s * 0.98)
 	var w := 2.2 * k
 	var h := 6.0 * k
 	var gap := 1.4 * k
+	var at := c + Vector2(s * 0.98 - (size * w + (size - 1) * gap), -s * 0.98)
 	var back := Rect2(at - Vector2(1.2, 1.2) * k, Vector2(size * w + (size - 1) * gap + 2.4 * k, h + 2.4 * k))
 	b.rect(back, Color(0.07, 0.05, 0.1, 0.85))
 	for i in size:
