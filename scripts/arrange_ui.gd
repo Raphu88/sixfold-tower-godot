@@ -161,6 +161,8 @@ const NAMES := {
 	"menu.talk.text1": "How to leave",
 	"menu.library.bestiary.text1": "Bestiary: how many met",
 	"menu.library.bestiary.card1": "Bestiary: the open entry",
+	# The play screen's wheel (layout.gd "hud.wheel"): hold the belt button or a mark's button.
+	"hud.wheel": "Item and spell wheel",
 }
 ## What's special about arranging a block, said under its name when it's chosen.
 const HOW := {

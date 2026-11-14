@@ -4,9 +4,10 @@ extends Node2D
 ## THE TOOL RING: hold B (LB + LT on a controller, the Tools button on a
 ## phone) and past RING_HOLD a ring of the bond's unlocked tools opens while
 ## time stops; point at one (the mouse, a stick, or slide your finger) and
-## let go to use it. A tap uses the last tool again (or closes an open panel).
-## The ring shows each tool's cost as essence gems. Targeted tools aim where
-## you were aiming when the ring opened (that target is outlined).
+## let go to choose it (choosing never uses it). A tap uses the chosen tool
+## (or closes an open panel).
+## The ring shows each tool's cost as essence gems; while it's open, what each
+## targeted tool would work on is outlined (a tap aims where you aim then).
 ##
 ## While a tool is used, or its overlay is open, a faint wireframe of the
 ## workings is drawn in its Maker's colour: the floor's tile grid, trap lanes
@@ -175,15 +176,17 @@ func _read_input(real: float) -> void:
 		if ring_open:
 			_aim_ring()
 		return
-	# Let go: use what the ring points at; a tap uses the last tool (or closes a panel).
+	# Let go: the tool the ring points at becomes the one a tap uses (choosing
+	# never uses it); a tap uses that tool (or closes a panel).
 	holding = false
 	if ring_open:
 		_aim_ring()
 		var list := tools()
-		var id: String = list[clampi(ring_index, 0, list.size() - 1)]
-		var target = locked.get(id)
+		last_tool = list[clampi(ring_index, 0, list.size() - 1)]
 		_close_ring()
-		use(id, target)
+		var p = main.player
+		main.fx_text(p.global_position + Vector2(0, -40), String(SB.TOOLS[last_tool]["name"]), ESSENCE_GEM)
+		main.sfx("ui_confirm", 1.0, -6.0, 0.02)
 	elif panel != "":
 		panel = ""
 	else:
@@ -1146,12 +1149,13 @@ func _draw_pick_numbers(font: Font, view: Vector2) -> void:
 		return
 	var known: Array = bd.spells()
 	var sp: Dictionary = known[clampi(p.pick_index if p.pick_index >= 0 else bd.selected, 0, known.size() - 1)]
-	var c: Vector2 = main.pick_anchor if main.touch_active else p.get_global_transform_with_canvas().origin
+	var spot: Array = main.hud.wheel_spot()  # (where the spell wheel is: hud.gd)
+	var c: Vector2 = spot[0]
 	var nums: Array = SB.spell_numbers(bd, sp, 0.7 if p.has_bond("rune_artist") else 1.0)
 	var line := "  ·  ".join(nums.map(func(r): return "%s %s" % [r[0], r[1]]))
 	var w := minf(view.x - 24.0, 520.0)
 	var x := clampf(c.x - w * 0.5, 12.0, view.x - w - 12.0)
-	var y := maxf(c.y - 78.0 - 52.0, 18.0)
+	var y := maxf(c.y - (main.hud.WHEEL_R + main.hud.WHEEL_RIM) * float(spot[1]) - 28.0, 18.0)
 	var col := SB.color(bond())
 	screen.draw_multiline_string_outline(font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 2, 4, Color(0, 0, 0, 0.9))
 	screen.draw_multiline_string(font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 2, col.lightened(0.35))

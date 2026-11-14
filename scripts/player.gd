@@ -22,6 +22,7 @@ const Charms := preload("res://scripts/charms.gd")
 ## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
 ## "The climber's core numbers"); these read them, so a change shows at once.
 const Combat := preload("res://scripts/combat.gd")
+const Wheel := preload("res://scripts/wheel.gd")
 ## Damage multiplier for striking a foe from behind.
 var BACKSTAB_MULT: float:
 	get: return float(Combat.CLIMBER["backstab"])
@@ -164,13 +165,14 @@ var squash := 0.0
 var buffered := ""
 var buffer_t := 0.0
 var step_t := 0.0
-# Hold to pick: holding a mark's key opens a ring of its spells.
-const PICK_HOLD := 0.25
+# Hold to choose: holding a mark's key opens the wheel of its spells
+# (wheel.gd); letting go puts the pointed one on the button, never casts.
 var pick_part := ""
 var pick_t := 0.0
 var pick_open := false
 var pick_index := -1
 var pick_dir_override := Vector2.ZERO  # touch: finger offset from the button
+var pick_spent := false  # chosen already (a click or a number key) while the key is still held
 ## A phone: holding a cast button that opens no ring (one spell, or a
 ## technique) this long shows its card instead (ability_hints.gd), and
 ## letting go casts nothing.
@@ -197,13 +199,18 @@ var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
 var heal_left := 0.0
 var heal_rate := 0.0
-# Hold to pick an item: holding the item button (or the d-pad down) opens a
-# ring of your belt items; a short press uses the quick item (or picks the next).
+# Hold to choose an item: holding the item button (or the d-pad down) opens
+# the belt wheel (wheel.gd); letting go makes the pointed item the current
+# one and never uses it. A short press uses the current item (or picks the next).
 var item_hold_src := ""  # the action being held: "use_item" or "item_next"
 var item_hold_t := 0.0
-var ring_open := false
-var ring_index := -1
+var ring_open := false  # the belt wheel is open
+var ring_index := -1  # the item it points at
 var item_dir_override := Vector2.ZERO  # touch: finger offset from the Item button
+var item_spent := false  # chosen already (a click or a number key) while the button is still held
+var _wheel_mouse0 := Vector2.INF  # where the mouse was when a wheel opened: it points once it moves
+var _wheel_keys := {}  # number keys down last frame (1 to 9 choose while a wheel is open)
+var wheel_click := false  # a click (attack) this frame while a wheel was open: it chooses
 # What the newer items are doing (items.gd), in seconds left.
 var edge_t := 0.0  # Edge Oil: strikes hit harder
 var ward_oil_t := 0.0  # Warding Oil: traps can't hurt you while its barrier holds
@@ -659,6 +666,8 @@ func _physics_process(delta: float) -> void:
 	if not states.is_empty():
 		Reactions.tick_climber(self, delta)  # (monsters' states on you: reactions.gd CLIMBER)
 	if dead:
+		if wheel_open() or item_hold_src != "" or pick_part != "":
+			cancel_wheels()  # (a fall closes a wheel, using nothing)
 		velocity = knock
 		knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
 		move_and_slide()
@@ -781,75 +790,114 @@ func _auto_aim() -> void:
 	aim = aim.slerp(target, 0.35).normalized()
 
 
-## Hold to pick: while a mark's key is held past PICK_HOLD, a ring of its
-## spells opens (time stops) and the direction you point picks one; letting
-## go casts it. A quick tap just casts the selected spell.
+## Hold to choose a spell: while a mark's key is held past Wheel.hold(), the
+## wheel of its spells opens (the game slows: wheel.gd) and the direction you
+## point picks one; letting go (or a click, or a number key) puts it on the
+## button. Choosing never casts: a tap of the key casts the spell on it.
 func _update_pick(delta: float) -> void:
 	if pick_part == "":
 		return
 	var b = bonds.get(pick_part)
 	if b == null:
-		pick_part = ""
+		_reset_pick()
 		return
-	if Input.is_action_pressed("cast_" + pick_part):
+	if dead or _wheel_blocked():
+		cancel_wheels()
+		return
+	var held := Input.is_action_pressed("cast_" + pick_part)
+	if pick_spent:
+		# Chosen while still held: letting go now does nothing more.
+		if not held:
+			_reset_pick()
+		return
+	if held:
 		pick_t += delta / maxf(Engine.time_scale, 0.01)
-		if not pick_open and pick_t >= PICK_HOLD and b.spells().size() > 1:
+		if not pick_open and pick_t >= Wheel.hold() and b.spells().size() > 1:
 			pick_open = true
 			pick_index = b.selected
-			main.set_slowmo(true)
+			_wheel_opened()
+			main.tip("spell_wheel")
 		elif not pick_open and not pick_peeked and pick_t >= PEEK_HOLD and main.touch_active and main.hints != null:
 			pick_peeked = true
 			main.hints.show_card(pick_part)
 		if pick_open:
 			_aim_pick(b)
+			var n := _wheel_pick_now(b.spells().size())
+			if n >= 0:
+				pick_index = n
+				_choose_spell(b)
+				pick_spent = true
 		return
 	if pick_peeked:
 		# Let go after the card showed: nothing is cast.
 		pick_peeked = false
 		main.hints.release_card()
-		pick_dir_override = Vector2.ZERO
-		pick_part = ""
+		_reset_pick()
 		return
-	# Released: pick (if the ring was open) and cast.
 	if pick_open:
-		_aim_pick(b)  # read the direction one last time (a quick slide-and-release)
-		b.select(pick_index)
-		main.set_slowmo(false)
+		# Let go with the wheel open: choose the pointed spell, cast nothing.
+		_aim_pick(b)  # (read the direction one last time: a quick slide-and-release)
+		_choose_spell(b)
+	else:
+		# A tap (or a hold of a mark with one spell): cast.
+		buffered = "cast_" + pick_part
+		buffer_t = BUFFER_TIME
+	_reset_pick()
+
+
+## Puts the pointed spell on its mark's button and closes the wheel.
+func _choose_spell(b) -> void:
+	var was: int = b.selected
+	b.select(pick_index)
+	_wheel_closed(b.selected != was)
 	pick_open = false
+	main.fx_text(global_position + Vector2(0, -40), String(Wheel.TEXT["spell_chosen"]) % b.spell_name(), b.color())
+
+
+func _reset_pick() -> void:
+	if pick_open:
+		_wheel_closed(false)
+	pick_open = false
+	pick_spent = false
 	pick_dir_override = Vector2.ZERO
-	buffered = "cast_" + pick_part
-	buffer_t = BUFFER_TIME
 	pick_part = ""
 
 
-## Hold to pick an item: past Items.RING_HOLD the ring of belt items opens
-## (time stops) and the direction you point picks one; letting go uses it.
-## A short press uses the quick item (or, from the d-pad down or T, picks
+## Hold to choose an item: past Wheel.hold() the belt wheel opens (the game
+## slows) and the direction you point picks one; letting go (or a click, or
+## a number key) makes it your current item. Choosing never uses it: a
+## short press uses the current item (or, from the d-pad down or T, picks
 ## the next one).
 func _update_item_hold(delta: float) -> void:
 	if item_hold_src == "":
 		return
-	if dead:
-		_close_ring()
+	if dead or _wheel_blocked():
+		cancel_wheels()
 		return
-	if Input.is_action_pressed(item_hold_src):
+	var held := Input.is_action_pressed(item_hold_src)
+	if item_spent:
+		if not held:
+			_close_ring()
+		return
+	if held:
 		item_hold_t += delta / maxf(Engine.time_scale, 0.01)
-		if not ring_open and item_hold_t >= Items.RING_HOLD and carried().size() >= 2:
+		if not ring_open and item_hold_t >= Wheel.hold() and carried().size() >= 2:
 			ring_open = true
 			ring_index = carried().find(selected_item())
-			main.set_slowmo(true)
-			main.tip("item_ring")
+			_wheel_opened()
 		if ring_open:
 			_aim_ring()
+			var n := _wheel_pick_now(carried().size())
+			if n >= 0:
+				ring_index = n
+				_choose_item()
+				item_spent = true
 		return
-	# Let go: use what the ring points at, or the quick item for a tap.
+	# Let go: choose what the wheel points at; a tap uses the current item
+	# (or, from the next-item button, picks the next).
 	if ring_open:
 		_aim_ring()
-		var have := carried()
-		if ring_index >= 0 and ring_index < have.size():
-			item_sel = have[ring_index]
-		buffered = "item"
-		buffer_t = BUFFER_TIME
+		_choose_item()
 	elif item_hold_src == "use_item":
 		buffered = "item"
 		buffer_t = BUFFER_TIME
@@ -858,45 +906,127 @@ func _update_item_hold(delta: float) -> void:
 	_close_ring()
 
 
+## Makes the pointed item the current one and closes the wheel (nothing is used).
+func _choose_item() -> void:
+	var have := carried()
+	var was := selected_item()
+	if ring_index >= 0 and ring_index < have.size():
+		item_sel = have[ring_index]
+	_wheel_closed(selected_item() != was)
+	ring_open = false
+	var id := selected_item()
+	if id != "":
+		main.fx_text(global_position + Vector2(0, -40), String(Wheel.TEXT["item_chosen"]) % String(belt_entry(id)["name"]), Items.color(id))
+
+
 func _close_ring() -> void:
 	if ring_open:
-		main.set_slowmo(false)
+		_wheel_closed(false)
 	ring_open = false
+	item_spent = false
 	item_hold_src = ""
 	item_hold_t = 0.0
 	item_dir_override = Vector2.ZERO
 
 
-## Points into the open item ring: the item in that direction is highlighted.
+## Closes any open wheel and forgets any held item or cast button, using and
+## casting nothing (a menu opens, the climber falls, a card screen comes up).
+## The button has to be pressed afresh afterwards.
+func cancel_wheels() -> void:
+	if pick_peeked and main.hints != null:
+		main.hints.release_card()
+	pick_peeked = false
+	_reset_pick()
+	_close_ring()
+
+
+## True while a wheel is open.
+func wheel_open() -> bool:
+	return ring_open or pick_open
+
+
+## Something else has the screen: no wheel opens (and an open one closes).
+func _wheel_blocked() -> bool:
+	return main.menu_open() or main.camp_choosing or main.choosing_tower or main.overlay_showing()
+
+
+func _wheel_opened() -> void:
+	main.set_slowmo(true, Wheel.slow())
+	main.sfx("ui_open", 1.0, -6.0, 0.02)
+	_wheel_mouse0 = main.hud.get_local_mouse_position() if main.hud != null else Vector2.INF
+	_wheel_keys = {}
+	wheel_click = false
+
+
+func _wheel_closed(changed: bool) -> void:
+	main.set_slowmo(false)
+	main.sfx("ui_confirm" if changed else "ui_close", 1.0, -6.0, 0.02)
+
+
+## A direct choice while a wheel is open: a click (or the attack button),
+## or a number key 1 to 9 (the n-th option). The option's index, else -1.
+func _wheel_pick_now(n: int) -> int:
+	var now := {}
+	var pick := -1
+	for k in mini(n, 9):
+		if Input.is_physical_key_pressed(KEY_1 + k):
+			now[k] = true
+			if not _wheel_keys.has(k):
+				pick = k
+	_wheel_keys = now
+	if pick >= 0:
+		return pick
+	if wheel_click:
+		wheel_click = false
+		return ring_index if ring_open else pick_index
+	return -1
+
+
+## Where the pointing comes from, as a direction from the open wheel's
+## centre (or ZERO: nothing points yet, the option stays as it is). A phone:
+## the finger once it slides off its button, measured from the wheel's
+## centre (slide onto an option). A controller: the right stick. The
+## mouse: once it moves, from the wheel's centre.
+func _wheel_dir(override: Vector2) -> Vector2:
+	if override != Vector2.ZERO:
+		if main.touch_active and main.hud != null:
+			if override.length() < 18.0:
+				return Vector2.ZERO
+			return main.pick_anchor + override - main.hud.wheel_spot()[0]
+		return override  # (a direction already: tests)
+	if stick_aim:
+		# (the right stick only: the left one keeps walking, the game only slows)
+		return Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down") * 100.0
+	if touch_aim or main.hud == null:
+		return Vector2.ZERO
+	var m: Vector2 = main.hud.get_local_mouse_position()
+	if _wheel_mouse0 != Vector2.INF and m.distance_to(_wheel_mouse0) < 12.0:
+		return Vector2.ZERO  # (the mouse hasn't moved since the wheel opened)
+	_wheel_mouse0 = Vector2.INF
+	return m - main.hud.wheel_spot()[0]
+
+
+## The option a direction points at, of `n` (the first at the top, clockwise), or `keep`.
+static func wheel_index(dir: Vector2, n: int, keep: int) -> int:
+	if dir.length() <= 18.0 or n <= 0:
+		return keep
+	return posmod(int(round((dir.angle() + PI / 2.0) / (TAU / float(n)))), n)
+
+
+## Points into the open belt wheel: the item in that direction is highlighted.
 func _aim_ring() -> void:
-	var dir := item_dir_override
-	if dir == Vector2.ZERO and stick_aim:
-		dir = Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
-		if dir == Vector2.ZERO:
-			dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		dir *= 100.0
-	elif dir == Vector2.ZERO and not touch_aim:
-		dir = get_global_mouse_position() - global_position
-	var n := carried().size()
-	if dir.length() > 18.0 and n > 0:
-		ring_index = posmod(int(round((dir.angle() + PI / 2.0) / (TAU / float(n)))), n)
+	var was := ring_index
+	ring_index = wheel_index(_wheel_dir(item_dir_override), carried().size(), ring_index)
+	if ring_index != was:
+		main.sfx("ui_move", 1.0, -10.0, 0.02)
 
 
-## Points into the open ring: the spell in that direction is highlighted.
+## Points into the open spell wheel: the spell in that direction is highlighted.
 func _aim_pick(b) -> void:
-	var dir := pick_dir_override
-	if dir == Vector2.ZERO and stick_aim:
-		# A controller points with the right stick (or the left one).
-		dir = Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
-		if dir == Vector2.ZERO:
-			dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		dir *= 100.0
-	elif dir == Vector2.ZERO and not touch_aim:
-		dir = get_global_mouse_position() - global_position
-	if dir.length() > 18.0:
-		var n: int = b.spells().size()
-		var step_a := TAU / float(n)
-		pick_index = posmod(int(round((dir.angle() + PI / 2.0) / step_a)), n)
+	var was := pick_index
+	pick_index = wheel_index(_wheel_dir(pick_dir_override), b.spells().size(), pick_index)
+	if pick_index != was:
+		main.sfx("ui_move", 1.0, -10.0, 0.02)
 
 
 func _footsteps(delta: float, speed: float) -> void:
@@ -914,6 +1044,9 @@ func _footsteps(delta: float, speed: float) -> void:
 
 
 func _read_buffer() -> void:
+	if wheel_open():
+		_read_wheel_buffer()
+		return
 	var have := slots()
 	for i in have.size():
 		if Input.is_action_just_pressed("weapon_%d" % (i + 1)) and have[i] != "":
@@ -941,14 +1074,15 @@ func _read_buffer() -> void:
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
 	# The item button and the d-pad down: tap to use (or pick the next),
-	# hold to open the ring of belt items (see _update_item_hold).
+	# hold to open the belt wheel and choose (see _update_item_hold).
 	for src in ["use_item", "item_next"]:
 		if Input.is_action_just_pressed(src) and item_hold_src == "":
 			item_hold_src = src
 			item_hold_t = 0.0
 			ring_open = false
-	# A mark's key: tap to cast its selected spell, hold to pick another
-	# (see _update_pick). The cast is buffered when the key is released.
+	# A mark's key: tap to cast its selected spell, hold to choose another
+	# (see _update_pick: choosing never casts). A tap's cast is buffered
+	# when the key is released.
 	for part in BondScript.Bonds.PARTS:
 		if Input.is_action_just_pressed("cast_" + part) and bonds.has(part):
 			pick_part = part
@@ -959,6 +1093,24 @@ func _read_buffer() -> void:
 		buffered = pressed
 		buffer_t = BUFFER_TIME
 	elif buffer_t <= 0.0:
+		buffered = ""
+
+
+## While a wheel is open it has the buttons: a click (or the attack
+## button) chooses the pointed option, the mouse wheel (or the weapon
+## buttons) steps the pointer round, and nothing else is pressed (no roll,
+## no strike, no other wheel). Moving still works.
+func _read_wheel_buffer() -> void:
+	if Input.is_action_just_pressed("attack"):
+		wheel_click = true
+	var step := (1 if Input.is_action_just_pressed("weapon_next") else 0) - (1 if Input.is_action_just_pressed("weapon_prev") else 0)
+	if step != 0:
+		if ring_open:
+			ring_index = posmod(ring_index + step, maxi(1, carried().size()))
+		elif pick_open and bonds.has(pick_part):
+			pick_index = posmod(pick_index + step, maxi(1, bonds[pick_part].spells().size()))
+		main.sfx("ui_move", 1.0, -10.0, 0.02)
+	if buffer_t <= 0.0:
 		buffered = ""
 
 
@@ -3385,7 +3537,11 @@ func _draw_swung(b, id: String, grip: Vector2, along: Vector2, length: float, gl
 
 ## The items you carry, in their usual order.
 func carried() -> Array:
-	return Items.ORDER.filter(func(id): return int(items.get(id, 0)) > 0)
+	var out: Array = Items.ORDER.filter(func(id): return int(items.get(id, 0)) > 0)
+	for id in items:  # (anything else on the belt, after them: the wheel shows whatever it holds)
+		if int(items[id]) > 0 and not (id in out) and Items.ITEMS.has(id):
+			out.append(id)
+	return out
 
 
 func item_count(id: String) -> int:
@@ -3423,7 +3579,7 @@ func next_size(id: String) -> int:
 
 
 ## A belt entry, as any list of the belt shows it (the HUD's slot, the
-## item ring, the inventory): {id, size (the next use's), name (with its
+## belt wheel, the inventory): {id, size (the next use's), name (with its
 ## size: "Greater Healing Draught"), short, count, sizes (biggest first)}.
 ## Draw its icon with Items.icon_into(b, id, c, s, size) for the size's pips.
 func belt_entry(id: String) -> Dictionary:

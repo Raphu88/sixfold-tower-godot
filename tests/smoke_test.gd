@@ -258,16 +258,18 @@ func _gryphon_tests() -> void:
 	_mark("brow", "hunter", 5)
 	_check(p.bonds["hand"].spells().size() == 4 and p.bonds["legs"].spells().size() == 4 and p.bonds["brow"].spells().size() == 4, "at step 5 each Gryphon bond knows four spells")
 	_check(main.ProfileScript.Bonds.step_note("windwalker", 2).begins_with("learns Crosswind"), "growing a step names the spell learned")
-	# Hold to pick: holding the key opens the ring (time stops); pointing picks.
+	# Hold to choose: holding the key opens the wheel (the game slows); pointing picks.
+	var legs_essence: float = p.bonds["legs"].essence
+	var casts0: int = p.spells_cast
 	Input.action_press("cast_legs")
 	await _wait(0.4)
-	_check(p.pick_open and main.slowmo and Engine.time_scale == 0.0, "holding a mark's key opens its spell ring and stops time (%.2f)" % Engine.time_scale)
+	_check(p.pick_open and main.slowmo and absf(Engine.time_scale - load("res://scripts/wheel.gd").slow()) < 0.01, "holding a mark's key opens its spell wheel and slows the game (%.2f)" % Engine.time_scale)
 	p.pick_dir_override = Vector2(1, 0) * 60.0  # points at the second spell (of four, from the top, clockwise)
 	await _wait(0.1)
 	Input.action_release("cast_legs")
 	await _frames(3)
 	_check(p.bonds["legs"].selected == 1 and p.bonds["legs"].spell_name() == "Crosswind", "pointing right picks Crosswind: %s" % p.bonds["legs"].spell_name())
-	_check(not main.slowmo and Engine.time_scale == 1.0, "letting go closes the ring, and time runs again")
+	_check(not main.slowmo and Engine.time_scale == 1.0 and is_equal_approx(p.bonds["legs"].essence, legs_essence) and p.spells_cast == casts0 and p.cast_t <= 0.0 and p.buffered != "cast_legs", "letting go closes the wheel, casts nothing, and time runs again (essence %.0f, was %.0f)" % [p.bonds["legs"].essence, legs_essence])
 	main.set_slowmo(false)
 	Engine.time_scale = 1.0
 	await _settle()
@@ -6177,7 +6179,7 @@ func _belt_tests() -> void:
 	p.use_item()
 	_check(absf(main.smokes.back()["t"] - Items.ITEMS["smoke"]["duration"] * 2.0) < 0.1, "Ashwalker: Smoke Bombs last twice as long")
 
-	print("the item ring")
+	print("the belt wheel")
 	await _fresh_main()
 	p = main.player
 	for e in main.enemies():
@@ -6188,31 +6190,34 @@ func _belt_tests() -> void:
 		p.add_item(id)
 	p.item_sel = "draught"
 	p.hp = 60.0
-	# A tap uses the quick item and never opens the ring.
+	# A tap uses the current item and never opens the wheel.
 	Input.action_press("use_item")
 	await physics_frame
 	await physics_frame
 	Input.action_release("use_item")
 	await physics_frame
 	await physics_frame
-	_check(p.item_count("draught") == 0 and not p.ring_open and Engine.time_scale == 1.0, "a tap of G uses the quick item; the ring stays shut")
+	_check(p.item_count("draught") == 0 and not p.ring_open and Engine.time_scale == 1.0, "a tap of G uses the current item; the wheel stays shut")
 	p.add_item("draught")
 	p.heal_left = 0.0
-	# A hold opens the ring (time stops); pointing picks; letting go uses it.
+	# A hold opens the wheel (the game slows); pointing picks; letting go
+	# chooses it (choosing never uses: tests/parts/wheel.gd has the rest).
 	p.mouse_aim = false
 	Input.action_press("use_item")
 	await _wait(0.4)
-	_check(p.ring_open and main.slowmo and Engine.time_scale == 0.0, "holding G opens the ring of belt items, and time stops")
+	_check(p.ring_open and main.slowmo and Engine.time_scale > 0.0 and Engine.time_scale < 1.0, "holding G opens the belt wheel, and the game slows")
 	var have: Array = p.carried()
 	var target := have.find("haste")
 	p.item_dir_override = Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 60.0
 	await physics_frame
 	await physics_frame
-	_check(p.ring_index == target, "pointing picks an item in the ring (%d)" % p.ring_index)
+	_check(p.ring_index == target, "pointing picks an item on the wheel (%d)" % p.ring_index)
 	Input.action_release("use_item")
 	await physics_frame
 	await physics_frame
-	_check(p.item_count("haste") == 0 and p.haste_t > 0.0 and not p.ring_open and not main.slowmo and p.item_count("draught") == 1, "letting go uses that item, the ring closes and time runs again")
+	_check(p.item_count("haste") == 1 and p.haste_t <= 0.0 and p.selected_item() == "haste" and not p.ring_open and not main.slowmo and p.item_count("draught") == 1, "letting go makes that item current without using it, the wheel closes and time runs again")
+	p.items["haste"] = 0
+	p.items.erase("haste")
 	# The d-pad down (T): a tap picks the next item; a hold opens the ring.
 	p.add_item("haste")
 	p.item_sel = "draught"
@@ -6225,7 +6230,7 @@ func _belt_tests() -> void:
 	_check(p.selected_item() != "draught" and p.item_count("draught") == 1 and not p.ring_open, "a tap of the d-pad down picks the next item (%s)" % p.selected_item())
 	Input.action_press("item_next")
 	await _wait(0.4)
-	_check(p.ring_open, "holding the d-pad down opens the ring too")
+	_check(p.ring_open, "holding the d-pad down opens the wheel too")
 	Input.action_release("item_next")
 	await physics_frame
 	await physics_frame
@@ -6240,21 +6245,22 @@ func _belt_tests() -> void:
 	var btn: Dictionary = main.touch.buttons.filter(func(b): return b["id"] == "item")[0]
 	_touch(6, btn["c"], true)
 	await _wait(0.4)
-	_check(p.ring_open, "holding the phone's Item button opens the ring")
+	_check(p.ring_open, "holding the phone's Item button opens the wheel")
 	have = p.carried()
 	target = have.find("haste")
-	_drag(6, btn["c"] + Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 50.0)
+	var onto: Vector2 = main.hud.wheel_option_pos(target, have.size())
+	_drag(6, onto)
 	await physics_frame
 	await physics_frame
-	_touch(6, btn["c"] + Vector2.from_angle(-PI / 2.0 + TAU * target / have.size()) * 50.0, false)
+	_touch(6, onto, false)
 	await physics_frame
 	await physics_frame
-	_check(p.item_count("haste") == 0 and p.item_count("draught") == 1 and not p.ring_open, "sliding to an item and letting go uses it")
+	_check(p.item_count("haste") == 1 and p.selected_item() == "haste" and p.item_count("draught") == 1 and not p.ring_open, "sliding onto an item and letting go chooses it, using nothing")
 	main.touch._set_active(false)
 	await _frames(2)
 	# The Entity explains the belt and the ring.
 	var Entity = load("res://scripts/entity.gd")
-	_check(Entity.TIPS.has("rarity") and Entity.TIPS.has("belt") and Entity.TIPS.has("item_ring"), "the Entity has tips for rarities, the belt and the item ring")
+	_check(Entity.TIPS.has("rarity") and Entity.TIPS.has("belt") and Entity.TIPS.has("belt_wheel"), "the Entity has tips for rarities, the belt and the belt wheel")
 
 	print("the belt at the end of a climb")
 	await _fresh_main()
@@ -10435,7 +10441,7 @@ func _secret_bond_tests() -> void:
 	_check(T.ring_ready() and main.menu.climber_tabs().any(func(t): return t[0] == "core"), "with a secret bond: the tools and a Core tab")
 	main.touch._layout()
 	_check(main.touch.buttons.any(func(b): return b["id"] == "tools" and b["action"] == "tool_ring"), "...and a Tools button on a phone")
-	# Hold to open the ring (time stops), point, let go to use.
+	# Hold to open the ring (time stops), point, let go to choose (never use).
 	Input.action_press("tool_ring")
 	await _until(func(): return T.ring_open, 1.0)
 	_check(T.ring_open and main.slowmo and Engine.time_scale == 0.0, "holding the tool button opens the ring; time stops")
@@ -10444,7 +10450,13 @@ func _secret_bond_tests() -> void:
 	T.dir_override = Vector2(0, -60)  # (pointing up: the first tool)
 	Input.action_release("tool_ring")
 	await _until(func(): return not T.ring_open, 1.0)
-	_check(not T.ring_open and not main.slowmo and T.message != "", "letting go uses the pointed tool (here: nothing to aim at: %s)" % T.message)
+	_check(not T.ring_open and not main.slowmo and T.message == "" and T.last_tool == SB.ring_tools(prof)[0], "letting go chooses the pointed tool and uses nothing (%s)" % T.last_tool)
+	# A tap uses the chosen tool.
+	Input.action_press("tool_ring")
+	await _frames(2)
+	Input.action_release("tool_ring")
+	await _frames(3)
+	_check(not T.ring_open and T.message != "", "a tap uses the chosen tool (here: nothing to aim at: %s)" % T.message)
 	# A controller: LB + LT holds the ring (not parry).
 	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
 	_pad_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)
@@ -12938,10 +12950,10 @@ func _nav_tests() -> void:
 	p.add_item("draught")
 	Input.action_press("use_item")
 	await _until(func(): return p.ring_open, 1.5)
-	_check(p.ring_open and Engine.time_scale == 0.0, "an open ring stops time completely (%.2f)" % Engine.time_scale)
+	_check(p.ring_open and absf(Engine.time_scale - load("res://scripts/wheel.gd").slow()) < 0.01, "an open belt wheel slows the game to its set speed (%.2f)" % Engine.time_scale)
 	Input.action_release("use_item")
 	await _until(func(): return not p.ring_open, 1.5)
-	_check(not p.ring_open and Engine.time_scale == 1.0, "...and letting go starts it again")
+	_check(not p.ring_open and Engine.time_scale == 1.0, "...and letting go runs it at full speed again")
 
 
 func _climber_slot_tests() -> void:

@@ -306,8 +306,9 @@ var clouds: Array = []  # Venomist's Toxic Clouds: {pos, r, t, tick, color}
 var smokes: Array = []  # Ashwalker's Smoke Veils: {pos, r, t}
 var decoys: Array = []  # Ashwalker's Afterimages: {pos, t, aim}
 var ashfall_t := 0.0  # Ashfall: foes lose track of you once out of reach
-var slowmo := false  # time stops while a ring is open (spells, items, tools)
-const RING_TIME := 0.0  # the time scale while a ring is open: stopped
+var slowmo := false  # time stops or slows while a ring is open (spells, items, tools)
+const RING_TIME := 0.0  # the time scale while the tool ring is open: stopped
+var slowmo_scale := RING_TIME  # the time scale while it's open (the belt and spell wheels slow: wheel.gd RULES "slow")
 var pick_anchor := Vector2.ZERO  # touch: where the held mark button is on screen  # a first press asks; a second within this time confirms
 
 # The monster lists, remembered for the frame (enemies(), targets()).
@@ -767,7 +768,7 @@ func _process(delta: float) -> void:
 	_frame_us = now_us
 	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
 		hitstop_until = 0
-		Engine.time_scale = RING_TIME if slowmo else test_speed
+		Engine.time_scale = slowmo_scale if slowmo else test_speed
 	if on_train:
 		return  # (the train's menu takes the keys)
 	if choosing_tower:
@@ -1156,6 +1157,11 @@ func _start_floor(n: int) -> void:
 		banner = {"title": "%s AWAITS" % beast_name().to_upper(), "lines": [tower_data().get("beast_hint", "Watch for the glint.")], "t": 3.0}
 		tip("beast")
 		sfx_kind("roar", str(tower_data().get("beast_kind", "")), "warn_knight", 1.0, -2.0)  # (the beast takes notice: its roar)
+	# Two kinds on the belt (every climb starts with two staples): the Entity
+	# explains the belt wheel, once (not on the very first floor of the first
+	# climb, which has enough to say).
+	if player != null and player.carried().size() >= 2 and not (first_climb and n <= 1):
+		tip("belt_wheel")
 	pillars = plan["pillars"]
 	for p in pillars:
 		var body := StaticBody2D.new()
@@ -2215,7 +2221,7 @@ func _note_size(id: String, size: int) -> void:
 		tip("item_sizes")
 
 
-## The Entity explains the belt once it's full, and the item ring once
+## The Entity explains the belt once it's full, and the belt wheel once
 ## there's more than one kind to choose from.
 func _note_belt() -> void:
 	if player == null:
@@ -2223,7 +2229,7 @@ func _note_belt() -> void:
 	if player.carried().size() >= player.belt_kinds():
 		tip("belt")
 	if player.carried().size() >= 2:
-		tip("item_ring")
+		tip("belt_wheel")
 
 
 ## Takes a piece of gear (a record or an id) into its slot (`into` picks a
@@ -4279,12 +4285,14 @@ func hitstop(seconds: float) -> void:
 	Engine.time_scale = 0.02
 
 
-## Time stops while a ring is open (a mark's spells, the belt's items, a
-## secret bond's tools, the Unbound's techniques), and runs again when it closes.
-func set_slowmo(on: bool) -> void:
+## Time stops while the tool ring is open (a secret bond's tools), and slows
+## while a wheel is (the belt's items, a mark's spells: `time_scale` is
+## wheel.gd's slow()); it runs again when it closes.
+func set_slowmo(on: bool, time_scale := RING_TIME) -> void:
 	slowmo = on
+	slowmo_scale = time_scale
 	if hitstop_until == 0:
-		Engine.time_scale = RING_TIME if on else test_speed
+		Engine.time_scale = slowmo_scale if on else test_speed
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.06) -> void:
