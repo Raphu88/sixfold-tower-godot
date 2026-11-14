@@ -30,7 +30,9 @@ extends RefCounted
 ##   hurt_by(main, source)     player.gd receive_attack: a monster's blow landed
 ##   slain(main, foe)          main.gd on_enemy_killed
 ##   fell(main)                main.gd on_player_died: the last monster to hurt you
-## and it says so in play through notify() (the one place a notice is sent).
+## and it says so in play through notify() (the one place a notice is sent:
+## the shared event call, main.note_event, into the left feed and the
+## Entity's log, at most once per kind per floor).
 ##
 ## The picture of each monster is its own drawing: a real monster of that
 ## kind is made, posed and drawn once into its pen (enemy.gd _draw), and
@@ -445,28 +447,17 @@ static func _foe_of(main, source):
 
 ## Says in play that the Bestiary learned something: once per kind per floor.
 static func _tell(main, kind: String, before: int, after: int) -> void:
-	var key := "%s/%d/%d" % [String(main.get("tower")), int(main.get("floor_num")), int(main.profile.climbs)]
-	var told: Dictionary = main.get_meta("bestiary_told", {})
-	if String(told.get("floor", "")) != key:
-		told = {"floor": key, "kinds": {}}
-	if told["kinds"].has(kind):
-		return
 	var text: String = TEXT["new"] % name_of(kind) if before == 0 else TEXT[RISE.get(after, "rise_fought")] % name_of(kind)
-	if not notify(main, text):
-		return  # (another notice showing: told on the next thing learned)
-	told["kinds"][kind] = true
-	main.set_meta("bestiary_told", told)
+	notify(main, kind, text)
 
 
-## THE notice: the one place the Bestiary speaks in play (the HUD's notice
-## at the top middle, where a rare find shows). False if a find's notice is
-## showing (it isn't covered).
-static func notify(main, text: String) -> bool:
-	var n = main.get("loot_notice")
-	if n is Dictionary and not n.is_empty() and not bool(n.get("bestiary", false)) and float(n.get("t", 0.0)) > 0.5:
-		return false
-	main.loot_notice = {"text": text, "color": UI.GILT_HI, "t": 3.5, "bestiary": true}
-	return true
+## THE notice: the one place the Bestiary speaks in play. The game's shared
+## event call (main.note_event, notices.gd): a line in the left feed, kept in
+## the Entity's "This climb" log; its `once` key keeps it to one line per
+## kind per floor.
+static func notify(main, kind: String, text: String) -> void:
+	if main.has_method("note_event"):
+		main.note_event("news", text, UI.GILT_HI, true, "bestiary " + kind)
 
 
 # --- what an entry says -----------------------------------------------------------------
