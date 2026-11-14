@@ -550,6 +550,8 @@ class Sweep:
 		for id in ["draught", "stamina", "warding_oil", "salts", "wardbreaker", "seeing_scroll"]:
 			p.items[id] = 3
 		p.item_sel = "warding_oil"
+		var keep_sizes: Dictionary = p.item_sizes.duplicate(true)
+		p.item_sizes = {"draught": [3, 1, 1]}  # (a mixed stack: the longest words under the wheel)
 		if main.touch_active:
 			main.touch._layout()
 			for b in main.touch.buttons:
@@ -564,6 +566,7 @@ class Sweep:
 		p.ring_open = false
 		p.items = keep_items
 		p.item_sel = keep_sel
+		p.item_sizes = keep_sizes
 		for part in p.bonds:
 			var b = p.bonds[part]
 			if b.spells().size() < 2:
