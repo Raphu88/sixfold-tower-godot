@@ -874,6 +874,8 @@ func _showing(id: String) -> bool:
 			return main.stair_open
 		"hud.entity":  # (its sphere lingers while you play)
 			return main.entity != null and (main.entity.showing() or main.entity.orb_on())
+		"hud.wheel":  # (only while a wheel is open: hud.gd wheel_spot)
+			return p != null and p.wheel_open()
 	if id.begins_with("touch.") and id != "touch.stick" and main.touch != null:
 		main.touch._layout()
 		for b in main.touch.buttons:
@@ -963,11 +965,11 @@ func _clashes(blocks: Array, rects: Dictionary) -> Dictionary:
 	var defs := {}
 	for i in blocks.size():
 		var a: String = blocks[i]
-		if is_zone(a) or Layout.is_loose(a):
+		if is_zone(a) or Layout.is_loose(a) or Layout.is_over(a):
 			continue
 		for j in range(i + 1, blocks.size()):
 			var b: String = blocks[j]
-			if is_zone(b) or Layout.is_loose(b) or not (arranged(a) or arranged(b)):
+			if is_zone(b) or Layout.is_loose(b) or Layout.is_over(b) or not (arranged(a) or arranged(b)):
 				continue
 			var now: Rect2 = (rects[a] as Rect2).intersection(rects[b])
 			if now.size.x < 3.0 or now.size.y < 3.0:

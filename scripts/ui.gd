@@ -1539,15 +1539,17 @@ static func button_into(b, c: Vector2, r: float, col: Color, pressed := false, r
 ## lifted and glowing, its cost as gems on a pendant. `opts` holds, for
 ## each option: "name", "col" (its colour), "icon" (a Callable(batch,
 ## centre, size, colour)), and optionally "badge" (a count), "gems"
-## ([[colour, amount], ...]), "note" (a word in place of the cost) and
-## "off" (it can't be used now: greyed). `view` is the screen's size.
+## ([[colour, amount], ...]), "note" (a word in place of the cost), "off"
+## (it can't be used now: greyed) and "cur" (it's the current one: a gilt
+## pin over its medallion). `view` is the screen's size (`ci` may be moved
+## and scaled: the dimming still covers the screen).
 static func draw_wheel(ci: CanvasItem, c: Vector2, ring_r: float, opts: Array, sel: int, accent: Color, view: Vector2) -> void:
 	var n := opts.size()
 	if n == 0:
 		return
 	var R := ring_r + 36.0
 	var b := Draw.Batch.new()
-	b.rect(Rect2(Vector2.ZERO, view), Color(VOID, 0.4))
+	b.rect(ci.get_global_transform().affine_inverse() * Rect2(Vector2.ZERO, view), Color(VOID, 0.4))
 	glow_into(b, c, R * 1.25, Color(0, 0, 0), 2.2)
 	# The disc: clear at the centre (the climber shows through), dark at the rim.
 	fan_into(b, c, R - 3.0, Color(0.06, 0.05, 0.09, 0.32), Color(0.06, 0.05, 0.09, 0.9), 48)
@@ -1605,6 +1607,13 @@ static func draw_wheel(ci: CanvasItem, c: Vector2, ring_r: float, opts: Array, s
 		ring_into(b, at, mr + 1.0, 1.0, Color(col.lightened(0.5), 0.9) if on else Color(GILT_HI, 0.55 if not off else 0.25), PI * 1.05, PI * 1.95)
 		fan_into(b, at, mr - 0.4, col.darkened(0.55 if on else 0.75), Color(0.035, 0.03, 0.05), 28)
 		ring_into(b, at, mr - 2.6, 1.0, Color(col, 0.35 if on else 0.18))
+		if o.get("cur", false):
+			# The current one: a gilt pin over its medallion, and a fine gilt ring round it.
+			ring_into(b, at, mr + 4.6, 1.2, Color(GILT_HI, 0.75))
+			var pin := at + Vector2(0, -mr - 6.5)
+			diamond_into(b, pin, 5.4, Color(OUTLINE, 0.95))
+			diamond_into(b, pin, 4.0, GILT)
+			diamond_into(b, pin + Vector2(0, -0.8), 1.8, GILT_HI)
 		var icon = o.get("icon")
 		if icon is Callable and icon.is_valid():
 			icon.call(b, at + Vector2(0, -1.0), mr * (0.5 if on else 0.46), Color(col.lightened(0.25 if on else 0.0), 1.0 if not off else 0.6))

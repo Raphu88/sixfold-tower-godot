@@ -69,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
 	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
 		"choices": ["how_marks", "how", "bye"]},
@@ -87,7 +87,10 @@ static var DIALOGUE := {
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
 		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch or a Climber's Pack adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. What you buy or brew on the train goes on it."],
-		"choices": ["how_fall", "how", "bye"]},
+		"choices": ["how_wheel", "how_fall", "how", "bye"]},
+	"how_wheel": {"ask": "How does the belt wheel work?", "fact": "wheel",
+		"lines": ["Tap {item} and you use your current item, the one beside your weapon. Hold {item} and the wheel opens, and the world slows to {slow} of its speed. Point at an item with {point} and let go: it becomes your current item. Nothing is used until you tap {item} again. A mark's button works the same way: hold it to choose a spell, tap it to cast. Choosing never uses anything. I find that restful."],
+		"choices": ["how_belt", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -262,6 +265,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_climb(main)
 		"rules":
 			f = _fact_rules()
+		"wheel":
+			f = _fact_wheel(main)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -507,6 +512,19 @@ static func _fact_rules() -> Dictionary:
 	f["bestiary_slain"] = _and(Best.TIERS.get("slain", []))
 	f["bestiary_beast"] = _and(Best.TIERS.get("beast", []))
 	return f
+
+
+## The wheels (wheel.gd): how slow the world goes, and the buttons in use.
+static func _fact_wheel(main) -> Dictionary:
+	var Wheel = load("res://scripts/wheel.gd")
+	var mode := "keys"
+	if main != null and bool(main.get("touch_active")):
+		mode = "touch"
+	elif main != null and bool(main.get("pad_active")):
+		mode = "pad"
+	var ps: bool = main != null and bool(main.get("pad_ps"))
+	var point: String = String(Wheel.TEXT.get("point_" + mode, ""))
+	return {"slow": "%d%%" % int(round(Wheel.slow() * 100.0)), "item": Entity.fill_keys("{item}", mode, ps), "point": point}
 
 
 ## [1, 5, 15] -> "1, 5 and 15".
