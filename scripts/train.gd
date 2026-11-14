@@ -534,7 +534,7 @@ static func roll_outfit(profile = null) -> Array:
 	pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
 	# A climber with no bag at all always finds a Satchel on the rail (a
 	# first bag should be easy to get: gear.gd BAG).
-	if profile != null and not has_bag(profile) and not pick.any(func(id): return Gear.slot_of(id) == "backpack"):
+	if profile != null and not has_bag(profile) and not pick.has(FIRST_BAG):
 		pick[pick.size() - 1] = FIRST_BAG
 		pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
 	var fine := upgraded(profile, "stock")
