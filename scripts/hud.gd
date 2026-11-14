@@ -1100,12 +1100,15 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 # --- the wheels: hold to choose, tap to use (wheel.gd) ------------------------------
 
 ## The wheel's size (view px at full size): its options sit on a circle this
-## big, the disc's rim WHEEL_RIM further out; under it, the pointed option's
-## name, what it does (two lines, one on a short screen) and the hint.
+## big, the disc's rim WHEEL_RIM further out; under it (WHEEL_CAPTION tall,
+## WHEEL_CAPTION_W wide), the pointed option's name, what it does (up to
+## three lines, its letters smaller for a long one) and the hint.
 const WHEEL_R := 78.0
 const WHEEL_RIM := 36.0
-const WHEEL_CAPTION := 80.0  # (two lines of words; one line: 16 less)
-const WHEEL_CAPTION_W := 340.0
+const WHEEL_CAPTION := 96.0
+const WHEEL_CAPTION_W := 400.0
+const WHEEL_TEXT_SIZES := [14, 13, 12, 11]
+const WHEEL_TEXT_LINES := 3
 
 ## The open wheel (if any), on its own node over the touch buttons. The
 ## node sits at the wheel's centre, scaled to fit the screen (so the layout
@@ -1121,16 +1124,14 @@ func _draw_rings() -> void:
 
 
 ## Where the open wheel sits and how big it's drawn: [centre (screen px),
-## scale, lines of words under it]. Arranged (Arrange mode's "Item and spell
-## wheel", layout.gd "hud.wheel"), at its box and its size; else around the
-## climber, or on a phone beside the thumb that holds its button (never
-## under it). Always on screen: on a short screen it's drawn smaller, with
-## one line of words under it.
+## scale]. Arranged (Arrange mode's "Item and spell wheel", layout.gd
+## "hud.wheel"), at its box and its size; else around the climber, or on a
+## phone beside the thumb that holds its button (never under it). Always on
+## screen with its words: on a short screen it's drawn smaller.
 func wheel_spot() -> Array:
 	var view := get_viewport_rect().size
 	var outer := WHEEL_R + WHEEL_RIM
-	var lines := 2 if view.y >= 2.0 * outer + WHEEL_CAPTION + 16.0 else 1
-	var cap := WHEEL_CAPTION - (0.0 if lines == 2 else 16.0)
+	var cap := WHEEL_CAPTION
 	var fit := minf(1.0, minf((view.y - 16.0) / (2.0 * outer + cap), (view.x - 16.0) / maxf(2.0 * outer, WHEEL_CAPTION_W)))
 	var k := fit
 	var c: Vector2
@@ -1147,7 +1148,7 @@ func wheel_spot() -> Array:
 	var lo := Vector2(maxf(outer, WHEEL_CAPTION_W * 0.5) * k + 8.0, outer * k + 8.0)
 	var hi := Vector2(view.x - lo.x, view.y - (outer + cap) * k - 8.0)
 	c = Vector2(clampf(c.x, lo.x, maxf(lo.x, hi.x)), clampf(c.y, lo.y, maxf(lo.y, hi.y)))
-	return [c, k, lines]
+	return [c, k]
 
 
 ## Where an option of the open wheel is on screen (`i` of `n`: the first at
@@ -1157,12 +1158,11 @@ func wheel_option_pos(i: int, n: int) -> Vector2:
 	return Vector2(spot[0]) + Vector2.from_angle(-PI / 2.0 + TAU * i / maxf(1.0, n)) * WHEEL_R * float(spot[1])
 
 
-## Puts the rings node at the wheel's centre and scale; returns the lines of words.
-func _place_wheel() -> int:
+## Puts the rings node at the wheel's centre and scale.
+func _place_wheel() -> void:
 	var spot := wheel_spot()
 	rings.position = spot[0]
 	rings.scale = Vector2.ONE * float(spot[1])
-	return int(spot[2])
 
 
 ## The wheel of a mark's spells: each spell in a medallion with its bond's
@@ -1173,7 +1173,7 @@ func _draw_spell_ring(p, ci: CanvasItem) -> void:
 	if b == null:
 		return
 	var known: Array = b.spells()
-	var lines := _place_wheel()
+	_place_wheel()
 	var col: Color = b.color()
 	var aff: String = b.data()["affinity"]
 	var opts: Array = []
@@ -1186,7 +1186,7 @@ func _draw_spell_ring(p, ci: CanvasItem) -> void:
 	if p.pick_index >= 0 and p.pick_index < known.size():
 		var sp: Dictionary = known[p.pick_index]
 		var desc := String(sp["desc"])
-		_wheel_caption(ci, sp["name"], desc.left(1).to_upper() + desc.substr(1), col, Wheel.hint("spell", p.pick_index == b.selected), lines)
+		_wheel_caption(ci, sp["name"], desc.left(1).to_upper() + desc.substr(1), col, Wheel.hint("spell", p.pick_index == b.selected))
 
 
 ## The belt wheel: every item on the belt (whatever it holds) in a medallion
@@ -1196,7 +1196,7 @@ func _draw_item_ring(p, ci: CanvasItem) -> void:
 	var have: Array = p.carried()
 	if have.is_empty():
 		return
-	var lines := _place_wheel()
+	_place_wheel()
 	var cur: String = p.selected_item()
 	var opts: Array = []
 	for id in have:
@@ -1207,19 +1207,29 @@ func _draw_item_ring(p, ci: CanvasItem) -> void:
 	if p.ring_index >= 0 and p.ring_index < have.size():
 		var id: String = have[p.ring_index]
 		var d: Dictionary = Items.info(id)
-		_wheel_caption(ci, String(d.get("name", id)), _sentence(String(d.get("desc", ""))), Items.color(id), Wheel.hint("item", id == cur), lines)
+		_wheel_caption(ci, String(d.get("name", id)), _sentence(String(d.get("desc", ""))), Items.color(id), Wheel.hint("item", id == cur))
 
 
 ## Under the wheel: the pointed option's name and words, then the hint
 ## ("Let go to choose it...") with the keys in use.
-func _wheel_caption(ci: CanvasItem, title: String, text: String, col: Color, hint: String, lines: int) -> void:
+func _wheel_caption(ci: CanvasItem, title: String, text: String, col: Color, hint: String) -> void:
 	var top := WHEEL_R + WHEEL_RIM + 20.0
-	UI.draw_wheel_caption(ci, 0.0, top, WHEEL_CAPTION_W, title, text, col, 14, lines)
+	var body := UI.font("body")
+	# (the biggest letters that fit it in three lines)
+	var size: int = WHEEL_TEXT_SIZES[-1]
+	var lines := WHEEL_TEXT_LINES
+	for fs in WHEEL_TEXT_SIZES:
+		var n := int(round(body.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, WHEEL_CAPTION_W, fs).y / maxf(body.get_height(fs), 1.0)))
+		if n <= WHEEL_TEXT_LINES:
+			size = fs
+			lines = maxi(n, 1)
+			break
+	UI.draw_wheel_caption(ci, 0.0, top, WHEEL_CAPTION_W, title, text, col, size, WHEEL_TEXT_LINES)
 	if hint == "":
 		return
 	var mode := "touch" if main.touch_active else ("pad" if main.pad_active else "keys")
 	var words := Entity.fill_keys(hint, mode, main.pad_ps)
-	var y := top + 20.0 + 16.0 * lines
+	var y := top + 20.0 + body.get_height(size) * (lines if text != "" else 0) + 2.0
 	var f := UI.font("body")
 	ci.draw_string_outline(f, Vector2(-WHEEL_CAPTION_W * 0.5, y), words, HORIZONTAL_ALIGNMENT_CENTER, WHEEL_CAPTION_W, 13, 4, Color(0, 0, 0, 0.85))
 	UI.draw_text(ci, f, Vector2(-WHEEL_CAPTION_W * 0.5, y), words, HORIZONTAL_ALIGNMENT_CENTER, WHEEL_CAPTION_W, 13, Color(UI.GILT_HI, 0.92))

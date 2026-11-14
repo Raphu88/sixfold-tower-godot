@@ -529,6 +529,8 @@ class Sweep:
 		await frames(2)
 		if wants("hud") and not light:
 			found.call("hud (reported only)", A.hud_problems(main, tag + " hud"))
+		if wants("wheel"):
+			await wheels()
 		await pages()
 		await train()
 		await stations()
@@ -536,6 +538,51 @@ class Sweep:
 			menu.close()
 		main.on_train = false
 		await frames(2)
+
+	# The open wheels (hud.gd wheel_spot): the belt wheel with a full belt of
+	# long-named items, and a mark's spell wheel; on a phone, by the thumb on
+	# its button. Their words must fit, sit apart and stay on the screen.
+	func wheels() -> void:
+		var p = main.player
+		var keep_items: Dictionary = p.items.duplicate()
+		var keep_sel: String = p.item_sel
+		p.items = {}
+		for id in ["draught", "stamina", "warding_oil", "salts", "wardbreaker", "seeing_scroll"]:
+			p.items[id] = 3
+		p.item_sel = "warding_oil"
+		if main.touch_active:
+			main.touch._layout()
+			for b in main.touch.buttons:
+				if b["id"] == "item":
+					main.pick_anchor = b["c"]
+		var have: Array = p.carried()
+		for i in [0, have.find("seeing_scroll")]:
+			p.ring_open = true
+			p.ring_index = i
+			main.hud.rings.queue_redraw()
+			await look("wheel (belt) %d" % i, [main.hud.rings])
+		p.ring_open = false
+		p.items = keep_items
+		p.item_sel = keep_sel
+		for part in p.bonds:
+			var b = p.bonds[part]
+			if b.spells().size() < 2:
+				continue
+			if main.touch_active:
+				main.touch._layout()
+				for tb in main.touch.buttons:
+					if tb["id"] == "cast_" + part:
+						main.pick_anchor = tb["c"]
+			p.pick_part = part
+			p.pick_open = true
+			p.pick_index = b.spells().size() - 1
+			main.hud.rings.queue_redraw()
+			await look("wheel (spells)", [main.hud.rings])
+			p.pick_open = false
+			p.pick_part = ""
+			break
+		main.hud.rings.queue_redraw()
+		await frames(1)
 
 	# The menu's pages, opened in play (the pause menu's rail beside them).
 	func pages() -> void:
