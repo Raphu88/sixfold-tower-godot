@@ -24,6 +24,7 @@ func run(smoke) -> void:
 	_saves()
 	await _pages()
 	await _phone()
+	await _arrange()
 
 
 func _check(cond: bool, what: String) -> void:
@@ -310,3 +311,37 @@ func _phone() -> void:
 	main.touch._set_active(false)
 	main.apply_view_scale()
 	await t._frames(3)
+
+
+## Arrange mode over the Bestiary's page: its blocks have friendly names.
+func _arrange() -> void:
+	print("the Bestiary: Arrange mode")
+	await _fresh()
+	var main = t.main
+	var menu = main.menu
+	main.profile.bestiary = {"slime": {"seen": true, "fought": true, "slain": 2, "fell": 0, "tower": "kraken", "floor": 1}}
+	menu.library_tab = "bestiary"
+	menu.bestiary_open = "slime"
+	menu.open("library")
+	await t._frames(4)
+	await t._wait(0.5)
+	var ar = main.arrange
+	ar.open("")
+	await t._frames(3)
+	if not ar.card.is_empty():
+		ar.card_next(true)
+	ar.intro = -1
+	await t._frames(1)
+	var entered: bool = ar.enter("menu.library.panel")
+	await t._frames(2)
+	var blocks: Array = ar.level_blocks()
+	var names: Array = blocks.map(func(id): return ar.label_of(id))
+	print("    ", blocks, " ", names)
+	_check(entered and not blocks.is_empty() and blocks.size() <= 24, "inside the Bestiary's page: a handful of blocks (%s)" % [blocks])
+	_check(blocks.all(func(id): return ar.label_of(id) != "" and not String(ar.label_of(id)).begins_with("menu.") and ar.label_of(id) != id), "...each with a friendly name (%s)" % [names])
+	ar.close()
+	await t._frames(3)
+	menu.close()
+	menu.library_tab = "archive"
+	menu.bestiary_open = ""
+	await t._frames(2)
