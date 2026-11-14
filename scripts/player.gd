@@ -955,8 +955,8 @@ func _wheel_pick_now(n: int) -> int:
 ## Where the pointing comes from, as a direction from the open wheel's
 ## centre (or ZERO: nothing points yet, the option stays as it is). A phone:
 ## the finger once it slides off its button, measured from the wheel's
-## centre (slide onto an option). A controller: the right stick (or the
-## left one). The mouse: once it moves, from the wheel's centre.
+## centre (slide onto an option). A controller: the right stick. The
+## mouse: once it moves, from the wheel's centre.
 func _wheel_dir(override: Vector2) -> Vector2:
 	if override != Vector2.ZERO:
 		if main.touch_active and main.hud != null:
@@ -965,10 +965,8 @@ func _wheel_dir(override: Vector2) -> Vector2:
 			return main.pick_anchor + override - main.hud.wheel_spot()[0]
 		return override  # (a direction already: tests)
 	if stick_aim:
-		var dir := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
-		if dir == Vector2.ZERO:
-			dir = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		return dir * 100.0
+		# (the right stick only: the left one keeps walking, the game only slows)
+		return Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down") * 100.0
 	if touch_aim or main.hud == null:
 		return Vector2.ZERO
 	var m: Vector2 = main.hud.get_local_mouse_position()

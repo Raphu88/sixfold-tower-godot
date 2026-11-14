@@ -1149,12 +1149,13 @@ func _draw_pick_numbers(font: Font, view: Vector2) -> void:
 		return
 	var known: Array = bd.spells()
 	var sp: Dictionary = known[clampi(p.pick_index if p.pick_index >= 0 else bd.selected, 0, known.size() - 1)]
-	var c: Vector2 = main.pick_anchor if main.touch_active else p.get_global_transform_with_canvas().origin
+	var spot: Array = main.hud.wheel_spot()  # (where the spell wheel is: hud.gd)
+	var c: Vector2 = spot[0]
 	var nums: Array = SB.spell_numbers(bd, sp, 0.7 if p.has_bond("rune_artist") else 1.0)
 	var line := "  ·  ".join(nums.map(func(r): return "%s %s" % [r[0], r[1]]))
 	var w := minf(view.x - 24.0, 520.0)
 	var x := clampf(c.x - w * 0.5, 12.0, view.x - w - 12.0)
-	var y := maxf(c.y - 78.0 - 52.0, 18.0)
+	var y := maxf(c.y - (main.hud.WHEEL_R + main.hud.WHEEL_RIM) * float(spot[1]) - 28.0, 18.0)
 	var col := SB.color(bond())
 	screen.draw_multiline_string_outline(font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 2, 4, Color(0, 0, 0, 0.9))
 	screen.draw_multiline_string(font, Vector2(x, y), line, HORIZONTAL_ALIGNMENT_CENTER, w, 11, 2, col.lightened(0.35))
