@@ -86,7 +86,7 @@ const TEXT := {
 	"hint_short": "Drag a block to move it · corners: size · double-click: go inside · Esc: back out",
 	"hint_keys": "Drag a block to move it · corners: size · double-click or Enter: go inside · Esc: back out · arrows: nudge · Shift: no snapping",
 	"hint_pad": "D-pad or {lb} {rb}: next · {a}: go inside · {b}: back out · left stick: move · right stick: size · {x}: undo · {y}: save · {start}: done",
-	"hint_touch": "Tap a block, drag it to move it · pull a corner to size it · double-tap: go inside · drag this bar to move the toolbar",
+	"hint_touch": "Tap a block, drag it to move it · pull a corner to size it · double-tap: go inside · drag empty space to scroll · drag this bar to move the toolbar",
 	"step": "Step %d of %d: %s",
 	"intro_done": "That's all there is to it",
 	"saved": "Saved",
@@ -105,6 +105,10 @@ const TEXT := {
 	"ask_note": "They're used now either way; unsaved, they're gone after a restart.",
 	"ask_save": "Save", "ask_discard": "Don't save", "ask_stay": "Keep arranging",
 	"help": "?", "next": "Next", "page": "%d of %d",
+	# A phone (a short view): the toolbar's one strip, More for the rest, and the cars.
+	"more_btn": "More", "less": "Less", "car_prev": "‹ Car", "car_next": "Car ›",
+	"car_now": "Now arranging %s",
+	"hint_compact": "Tap a block · drag it · pull a corner · double-tap: inside · drag empty space: scroll",
 }
 
 ## Snapping: the grid's step, and how close (px) an edge must come to a line to stick.
@@ -137,6 +141,12 @@ const LIST_MIN := Vector2(700, 400)
 ## stays clear.
 const COL_W := 272.0
 const COL_MIN := Vector2(900, 600)
+## A view shorter than this (a phone, in view px) gets the compact toolbar:
+## one strip of the main buttons (More shows the rest), the list over the
+## rail, and both step aside from the chosen block (_dock, toolbar).
+const COMPACT_H := 520.0
+## How far a finger must move on the list's rows (px) before they scroll.
+const ROWS_DRAG := 8.0
 
 var main
 var is_open := false
@@ -170,6 +180,7 @@ var intro := -1  # the Entity's three steps: the one to do next (-1: not showing
 var redraws := 0  # (tests)
 var menu_mode := false  # arranging the menu showing (not the HUD)
 var hover_el := ""  # the block under the mouse, or of the list's row under it (lit up)
+var more := false  # the compact toolbar's second row (More) is showing
 
 var _menu_page := ""  # the menu page it was opened from (reopened on Done)
 var _was_paused := false
@@ -230,6 +241,9 @@ static func dev_section(menu) -> void:
 	b.disabled = menu.main == null or menu.main.arrange == null
 	var bm: Button = menu._button(DEV["menus"], _dev_open.bind(menu, "menu"), row)
 	bm.disabled = b.disabled
+	if menu.main != null and menu.main.on_train:
+		var bt: Button = menu._button(DEV["train"], _dev_train.bind(menu), row)
+		bt.disabled = b.disabled
 	menu._note(DEV["note"])
 
 
@@ -242,8 +256,35 @@ const DEV := {
 	"section": "Layout",
 	"button": "Arrange layout",
 	"menus": "Arrange menus",
+	"train": "Arrange the train",
+	"screen": "Arrange this screen",
 	"note": "Arrange layout moves and scales the HUD and the touch buttons (F2 in play); Arrange menus does the same for this page, and F2 with any menu open (or on the train) for that one. It shows a few big blocks at a time, with a list of them at the side: pick one, drag it, and Go inside it for its parts. Save keeps it; run from the Godot editor, Save also writes data/layout.json for GitHub Desktop.",
 }
+
+
+## Settings (the Settings page, and the Settings car on the train): the
+## button that opens Arrange mode on the screen showing, so a phone (no F2)
+## can get to it. Settings & Controls' body is menu.gd settings_body.
+static func settings_button(menu) -> void:
+	var on_train: bool = menu.page == "train"
+	var b: Button = menu._button(DEV["train"] if on_train else DEV["screen"], _open_later.bind(menu, "menu"))
+	b.set_meta("setting", "arrange")
+	b.disabled = menu.main == null or menu.main.arrange == null
+	UI.keep_text(b)
+
+
+## Opens Arrange mode once the press that asked for it is over.
+static func _open_later(menu, want: String) -> void:
+	if menu.main != null and menu.main.arrange != null:
+		menu.main.arrange.open.call_deferred(want)
+
+
+## Dev tools on the train: back to the train, then Arrange mode over it.
+static func _dev_train(menu) -> void:
+	if menu.main == null or menu.main.arrange == null:
+		return
+	menu.open("train")
+	menu.main.arrange.open.call_deferred("menu")
 
 
 ## Not over the title screen, a new climber's look or a name being typed.
@@ -448,6 +489,14 @@ func tree() -> Dictionary:
 	if menu_mode and main.menu != null:
 		var ids: Array = ArrangeUI.ids_on_screen(main.menu).filter(func(id): return ArrangeUI.offered(id))
 		var among := {}
+		for id in ids:
+			among[id] = true
+		# (a piece of train furniture scrolled out of sight takes its parts with it:
+		# they aren't offered on their own at the level above)
+		ids = ids.filter(func(id):
+			var real := ArrangeUI.parent_of(id)
+			return not String(id).begins_with("train.") or real == "" or among.has(real))
+		among = {}
 		for id in ids:
 			among[id] = true
 		var up := {}
@@ -937,6 +986,12 @@ func _button_label(id: String) -> String:
 			return TEXT["list_on"] if list_showing() else TEXT["list_off"]
 		"reset_all", "reset_page":
 			return TEXT["sure"] if armed == id else TEXT[id]
+		"set":
+			return TEXT["switch"][Layout.active_set]
+		"view":
+			return TEXT["view_hud"] if menu_mode else TEXT["view_menu"]
+		"more":
+			return TEXT["less"] if more else TEXT["more_btn"]
 	return TEXT[id]
 
 
@@ -953,6 +1008,12 @@ func _button_live(id: String) -> bool:
 			return not redo.is_empty()
 		"reset_one":
 			return _exists(sel) and (arranged(sel) or arranged_inside(sel))
+		"car_prev", "car_next":
+			if not _on_train():
+				return false
+			var tp = main.menu.train_page
+			var i: int = tp._index(String(main.menu.train_car)) + (-1 if id == "car_prev" else 1)
+			return i >= 0 and i < tp._ids().size()
 	return true
 
 
@@ -977,6 +1038,8 @@ func _dock() -> Dictionary:
 	var lw := minf(clampf(view.x * 0.21, 204.0, COL_W), view.x - 16.0)
 	var wide := minf(700.0, view.x - 16.0)
 	var out := {"tall": false, "bar_w": wide, "bar_x": (view.x - wide) * 0.5, "list_w": lw, "list_x": view.x - lw - 8.0, "list_y": 8.0, "above_bar": false}
+	if _compact():
+		return _compact_dock(view)
 	var col := _column()
 	if col != 0:
 		# (as wide as the rail it stands over, so nothing beside the rail is covered)
@@ -999,11 +1062,92 @@ func _dock() -> Dictionary:
 	return out
 
 
+## A short view (a phone): the compact toolbar and the list.
+func _compact() -> bool:
+	return _view().y < COMPACT_H
+
+
+## The compact dock: the list down one side (over the rail, at the left,
+## when there is one: the rail is seldom what's being moved), from the top
+## to the bottom, and the toolbar's strip beside it. The list steps to the
+## other side when the chosen block lies under it (the rail itself, say).
+func _compact_dock(view: Vector2) -> Dictionary:
+	var rail_w := 0.0
+	if menu_mode and main.menu != null and main.menu.rail_showing():
+		rail_w = float(main.menu.rail.size.x)
+	var lw := minf(clampf(rail_w + 50.0, 176.0, 212.0), view.x * 0.4)
+	var left := rail_w > 0.0
+	if left and _exists(sel):
+		var r := screen_rect(sel).abs()
+		var at_left := Rect2(2.0, 0.0, lw, view.y)
+		var at_right := Rect2(view.x - lw - 2.0, 0.0, lw, view.y)
+		if sel.begins_with("rail.") or level().begins_with("rail.") or r.intersection(at_left).get_area() > r.intersection(at_right).get_area():
+			left = false
+	var lx := 2.0 if left else view.x - lw - 2.0
+	var out := {"tall": false, "compact": true, "list_w": lw, "list_x": lx, "list_y": 2.0, "above_bar": false}
+	if list_showing() and list_at.x < 0.0:
+		out["bar_x"] = lx + lw + 4.0 if left else 4.0
+		out["bar_w"] = view.x - lw - 10.0
+	else:
+		out["bar_x"] = 4.0
+		out["bar_w"] = view.x - 8.0
+	return out
+
+
+## The compact toolbar: a line saying where you are and what's chosen (its
+## grip), the main buttons in one strip and, with More, the rest in a strip
+## above them. It stands at the bottom, or at the top while the chosen
+## block lies under it (until it's dragged somewhere).
+func _compact_bar(view: Vector2, dock: Dictionary) -> Dictionary:
+	var w: float = dock["bar_w"]
+	var main_ids := ["back", "inside", "undo", "reset_one", "list", "more", "save", "done"]
+	if _on_train():
+		main_ids = ["car_prev", "car_next"] + main_ids
+	var extra := ["redo", "reset_all", "grid", "copy", "set", "help"]
+	if menu_mode:
+		extra.insert(1, "reset_page")
+	if _menu_page != "" and not (_menu_page in ArrangeUI.SKIP_PAGES):
+		extra.insert(extra.size() - 1, "view")
+	var rows: Array = [main_ids]
+	if more:
+		rows.push_front(extra)
+	var line := 18.0
+	var h := 4.0 + line + rows.size() * 32.0 + 2.0
+	var at := bar_at
+	if at.x < 0.0:
+		var low := Rect2(Vector2(float(dock["bar_x"]), view.y - h - 2.0), Vector2(w, h))
+		var high := Rect2(Vector2(float(dock["bar_x"]), 2.0), Vector2(w, h))
+		at = low.position
+		if _exists(sel):
+			var r := screen_rect(sel).abs()
+			if r.intersection(low).get_area() > r.intersection(high).get_area():
+				at = high.position
+	at.x = clampf(at.x, 0.0, maxf(view.x - w, 0.0))
+	at.y = clampf(at.y, 0.0, maxf(view.y - h, 0.0))
+	var out: Array = []
+	var gap := 4.0
+	for ri in rows.size():
+		var ids: Array = rows[ri]
+		var narrow := ids.filter(func(i): return i in ["car_prev", "car_next", "help"]).size()
+		var nw := 44.0
+		var bw := (w - 12.0 - gap * (ids.size() - 1) - narrow * nw) / maxf(ids.size() - narrow, 1)
+		var x := 6.0
+		var y := 4.0 + line + ri * 32.0
+		for id in ids:
+			var bwid := nw if id in ["car_prev", "car_next", "help"] else bw
+			out.append([id, Rect2(at + Vector2(x, y), Vector2(bwid, 28.0)), _button_label(id)])
+			x += bwid + gap
+	return {"bar": Rect2(at, Vector2(w, h)), "title": Rect2(at, Vector2(w, line + 4.0)), "buttons": out, "tall": false, "compact": true,
+		"text": Rect2(at + Vector2(24.0, 3.0), Vector2(w - 30.0, line))}
+
+
 ## The toolbar's rect and its buttons: {"bar": Rect2, "title": Rect2,
 ## "buttons": [[id, Rect2, label]], "text": where its words go, "tall"}.
 func toolbar() -> Dictionary:
 	var view := _view()
 	var dock := _dock()
+	if dock.get("compact", false):
+		return _compact_bar(view, dock)
 	var tall: bool = dock["tall"]
 	var w: float = dock["bar_w"]
 	var display := UI.font("display")
@@ -1116,8 +1260,46 @@ func press(id: String) -> void:
 		"help":
 			show_card(MENU_HELP if menu_mode else HELP)
 			intro = 0
+		"more":
+			more = not more
+		"car_prev":
+			switch_car(-1)
+		"car_next":
+			switch_car(1)
 	if main.has_method("sfx"):
 		main.sfx("ui_confirm")
+	_changed()
+
+
+## Arranging the train (its cars' furniture).
+func _on_train() -> bool:
+	return menu_mode and main != null and main.menu != null and main.menu.page == "train" and main.menu.train_page != null
+
+
+## On the train: the next car along (-1: the one before), without leaving
+## Arrange mode (on a phone there's no F2 to come back with). The train
+## moves there at once; the top level of that car shows.
+func switch_car(by: int) -> void:
+	if not _on_train():
+		return
+	var m = main.menu
+	var tp = m.train_page
+	var i: int = tp._index(String(m.train_car)) + by
+	if i < 0 or i >= tp._ids().size():
+		return
+	var car: String = tp._ids()[i]
+	if not tp.tips.has(car):
+		tp.tips[car] = ""  # (no first-visit build while arranging: the Entity's tip waits for the next visit)
+	drag = {}
+	guides.clear()
+	tp.go_to(i)
+	m.train_view.go(i, false)
+	m.process_mode = Node.PROCESS_MODE_DISABLED
+	get_viewport().gui_release_focus.call_deferred()
+	hover_el = ""
+	hover_row = ""
+	_to_top()
+	_say(TEXT["car_now"] % ArrangeUI._car_name(car))
 	_changed()
 
 
@@ -1244,6 +1426,8 @@ func _say(text: String) -> void:
 func list_showing() -> bool:
 	if list_user >= 0:
 		return list_user == 1
+	if _compact() and menu_mode and main != null and main.menu != null and main.menu.rail_showing():
+		return true  # (a phone over a menu or the train: the list stands over the rail)
 	var view := _view()
 	return view.x >= LIST_MIN.x and view.y >= LIST_MIN.y
 
@@ -1573,6 +1757,10 @@ func _input(event: InputEvent) -> void:
 				# (over the chosen block: its size)
 				_push_undo()
 				nudge_scale(0.05 if up else -0.05)
+			elif blocks_at(event.position).is_empty() and not (toolbar()["bar"] as Rect2).has_point(event.position) and _pan_scroll() != null:
+				# (over empty space: the page or the car scrolls)
+				var sc := _pan_scroll()
+				_pan_to(sc, sc.scroll_vertical + (-48.0 if up else 48.0))
 		elif event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 			if asking:
 				asking = false
@@ -1800,6 +1988,8 @@ func pointer_down(ptr: int, pos: Vector2, _free := false) -> void:
 				enter(lid)
 			else:
 				choose(lid)
+			# (a finger that then moves up or down scrolls the rows)
+			drag = {"kind": "rows", "ptr": ptr, "from": pos, "scroll": list_scroll, "moved": false}
 		else:
 			drag = {"kind": "list", "ptr": ptr, "from": pos, "at": (lp["box"] as Rect2).position}
 		queue_redraw()
@@ -1810,9 +2000,13 @@ func pointer_down(ptr: int, pos: Vector2, _free := false) -> void:
 		var grab := GRAB_TOUCH if ptr >= 0 else GRAB
 		if _corner_handles(sel):
 			var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+			var points := _handle_points(r)
+			# (a finger well inside the block moves it: a small block's handles stand off its corners)
+			var deep: bool = ptr >= 0 and r.abs().grow(-minf(10.0, minf(r.abs().size.x, r.abs().size.y) * 0.22)).has_point(pos)
 			for ci in 4:
-				if pos.distance_to(corners[ci]) <= grab:
-					drag = {"kind": "scale", "ptr": ptr, "from": pos, "rect": r, "corner": ci, "scale": r.size.x / maxf(_default_size(sel).x, 0.001)}
+				if pos.distance_to(points[ci]) <= grab and not deep:
+					drag = {"kind": "scale", "ptr": ptr, "from": pos, "rect": r, "corner": ci, "scale": r.size.x / maxf(_default_size(sel).x, 0.001),
+						"off": (points[ci] as Vector2) - (corners[ci] as Vector2)}
 					_drag_group()
 					queue_redraw()
 					return
@@ -1841,7 +2035,39 @@ func pointer_down(ptr: int, pos: Vector2, _free := false) -> void:
 		_last_tap = ["out" if out_of else "", now, pos]
 		if out_of and twice:
 			back_out()
+		else:
+			# Empty space dragged: the page (or the car) scrolls, as it would
+			# with a finger, so what's below can be reached.
+			var sc := _pan_scroll()
+			if sc != null:
+				drag = {"kind": "pan", "ptr": ptr, "from": pos, "sc": sc, "start": sc.scroll_vertical}
 	queue_redraw()
+
+
+## What scrolls on the screen being arranged (the car's pane, the page), if
+## it has more than shows; else null.
+func _pan_scroll() -> ScrollContainer:
+	if not menu_mode or main.menu == null:
+		return null
+	var m = main.menu
+	var sc: ScrollContainer = null
+	if m.page == "train" and m.train_page != null:
+		sc = m.train_page.car_scrolls.get(String(m.train_car))
+	else:
+		sc = m.scroll
+	if sc == null or not is_instance_valid(sc):
+		return null
+	var bar := sc.get_v_scroll_bar()
+	return sc if bar.max_value - bar.page > 1.0 else null
+
+
+## Scrolls it to `y` (the blocks scrolled into sight are offered).
+func _pan_to(sc: ScrollContainer, y: float) -> void:
+	sc.scroll_vertical = int(y)
+	if main.menu != null and main.menu.page == "train" and main.menu.train_page != null:
+		main.menu.train_page.pane_at[String(main.menu.train_car)] = sc.scroll_vertical
+	_tree = {}
+	_changed()
 
 
 ## A drag of a group: where it and its parts are as it begins.
@@ -1856,6 +2082,22 @@ func _drag_changes() -> void:
 	if not drag.get("kept", false):
 		drag["kept"] = true
 		_push_undo()
+
+
+## Where the chosen block's corner handles are: on its corners, or (a block
+## too small for a finger to hold between them, on a phone) standing off
+## them diagonally, so its body is left to drag.
+func _handle_points(r: Rect2) -> Array:
+	r = r.abs()
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+	if main == null or not main.touch_active or minf(r.size.x, r.size.y) >= GRAB_TOUCH * 3.0:
+		return corners
+	var out := GRAB_TOUCH * 0.6
+	var dirs := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
+	var pts: Array = []
+	for i in 4:
+		pts.append((corners[i] as Vector2) + (dirs[i] as Vector2) * out)
+	return pts
 
 
 ## Whether the chosen block has corner handles (it scales with its box).
@@ -1892,6 +2134,17 @@ func pointer_move(ptr: int, pos: Vector2, free := false) -> void:
 		"list":
 			list_at = (drag["at"] + d).max(Vector2.ZERO)
 			queue_redraw()
+		"rows":
+			if drag["moved"] or absf(d.y) > ROWS_DRAG:
+				drag["moved"] = true
+				var row_h := ROW_TOUCH if main.touch_active else ROW_H
+				var rows_h: float = (list_panel()["view"] as Rect2).size.y
+				list_scroll = clampf(float(drag["scroll"]) - d.y, 0.0, maxf(level_blocks().size() * row_h - rows_h, 0.0))
+				queue_redraw()
+		"pan":
+			var sc: ScrollContainer = drag["sc"]
+			if is_instance_valid(sc):
+				_pan_to(sc, float(drag["start"]) - d.y)
 		"move":
 			if not can_move(sel):
 				return
@@ -1957,6 +2210,7 @@ func _resize_drag(pos: Vector2, free: bool) -> void:
 
 ## Pulling a corner: the opposite corner stays put and the block keeps its shape.
 func _scale_drag(pos: Vector2, free: bool) -> void:
+	pos -= drag.get("off", Vector2.ZERO)  # (a handle standing off its corner)
 	var r: Rect2 = drag["rect"]
 	var ci: int = drag["corner"]
 	var right := ci == 1 or ci == 2
@@ -2330,8 +2584,15 @@ func _draw_block(id: String, r: Rect2, state: String, chip: Dictionary, clash: b
 	if can_move(id) and r.size.x >= 70.0 and r.size.y >= 56.0:
 		_draw_move_mark(r.get_center())
 	if _corner_handles(id):
-		for c in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
-			var hr := Rect2(c - Vector2(HANDLE, HANDLE) * 0.5, Vector2(HANDLE, HANDLE))
+		var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+		var points := _handle_points(r)
+		var hs := HANDLE * (1.3 if main.touch_active else 1.0)
+		for ci in 4:
+			var c: Vector2 = points[ci]
+			if c != corners[ci]:
+				draw_line(corners[ci], c, Color(0, 0, 0, 0.85), 4.0)
+				draw_line(corners[ci], c, UI.GILT_HI, 2.0)
+			var hr := Rect2(c - Vector2(hs, hs) * 0.5, Vector2(hs, hs))
 			draw_rect(hr.grow(2.0), Color(0, 0, 0, 0.85))
 			draw_rect(hr, UI.GILT_HI)
 	for sh in side_handles(id):
@@ -2512,6 +2773,33 @@ func _draw_list(body: Font, mono: Font, _display: Font) -> void:
 		y += lh + 1.0
 
 
+## The compact toolbar: its grip and line (where you are, what's chosen),
+## then its buttons.
+func _draw_compact_bar(tb: Dictionary, mono: Font, display: Font) -> void:
+	var title: Rect2 = tb["title"]
+	draw_rect(title, Color(UI.GILT, 0.08))
+	for i in 3:
+		draw_circle(title.position + Vector2(9.0, 6.0 + i * 4.5), 1.2, Color(UI.GILT, 0.6))
+		draw_circle(title.position + Vector2(13.0, 6.0 + i * 4.5), 1.2, Color(UI.GILT, 0.6))
+	var line: String = String(TEXT["crumb"]).join(crumbs())
+	var bad := false
+	if _exists(sel):
+		var ro := readout(sel)
+		line += TEXT["crumb"] + label_of(sel) + "  —  " + ro[0] + TEXT["dot"] + ro[1]
+		var hit := clashes(sel)
+		if not hit.is_empty():
+			bad = true
+			line += TEXT["dot"] + TEXT["overlaps"] % label_of(hit[0])
+	elif not list_showing():
+		line = TEXT["hint_compact"]
+	var tr: Rect2 = tb["text"]
+	line = _fit_left(mono, line, 11, tr.size.x)
+	draw_string(mono, tr.position + Vector2(0.0, 12.0), line, HORIZONTAL_ALIGNMENT_LEFT, tr.size.x, 11, UI.BAD if bad else UI.TEXT)
+	for b in tb["buttons"]:
+		var primary: bool = b[0] == "done" or (b[0] == "save" and Layout.dirty())
+		_draw_button(b[1], b[2], primary or b[0] == armed or (b[0] == "more" and more), display, b[0] == hover, not _button_live(b[0]))
+
+
 ## What the list says under the chosen block's name: [[words, "main" /
 ## "bad" / "note"]]: how far it moved, its size, what it overlaps, and
 ## anything worth knowing about it.
@@ -2546,6 +2834,9 @@ func _draw_toolbar(body: Font, mono: Font, display: Font) -> void:
 	var bar: Rect2 = tb["bar"]
 	draw_style_box(UI.panel(), bar)
 	draw_rect(bar, Color(UI.GILT, 0.55), false, 1.0)
+	if tb.get("compact", false):
+		_draw_compact_bar(tb, mono, display)
+		return
 	# The title bar (its grip: a few dots), and which layout is being edited.
 	var title: Rect2 = tb["title"]
 	draw_rect(title, Color(UI.GILT, 0.08))
