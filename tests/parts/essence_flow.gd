@@ -262,6 +262,11 @@ func _found_bought_crafted() -> void:
 	var hidden: Array = W.hidden_crystals()
 	Flow.TINCTURE["hidden_chance"] = keep_h
 	_check(Flow.is_tincture(String(hidden[2])), "a hidden cache can hold one (%s)" % [hidden])
+	var keep_e := float(Items.DROPS["essence_chance"])
+	Items.DROPS["essence_chance"] = 0.0  # (the drop table: no item, no essence, then the tincture's chance)
+	_check(Items.kill_drop(5, true, "", 0.0, 1.0).has("tincture") and Items.kill_drop(5, true, "", 0.0, 0.0).is_empty() and float(Items.DROPS.get("tincture_chance", 0.0)) > 0.0,
+		"the kill drop table holds the tincture's chance (DROPS tincture_chance)")
+	_check(not Items.is_sized("tincture_fire"), "tinctures come in one size")
 	main.tincture_drop_chance = 1.0
 	main.item_drop_chance = 0.0
 	main.gear_drop_chance = 0.0
@@ -272,7 +277,8 @@ func _found_bought_crafted() -> void:
 		t._slay(e)
 	await t._frames(3)
 	_check(main.item_drops.any(func(d): return String(d["id"]) == "tincture_water"), "a slain monster can leave one of its essence (%s)" % [main.item_drops.map(func(d): return d["id"])])
-	main.tincture_drop_chance = 0.0
+	main.tincture_drop_chance = -1.0
+	Items.DROPS["essence_chance"] = keep_e
 	# A tincture left on the belt comes home packed.
 	prof.supplies = {}
 	p.items["tincture_iron"] = 2
@@ -409,7 +415,7 @@ func _entity() -> void:
 	Guide.forget()
 	# The talk: the new topics, with live numbers.
 	var how: Array = Talk.DIALOGUE["how"]["choices"]
-	_check(how.has("how_flow") and how.has("how_tinctures") and how.has("how_new_mark") and String(Talk.DIALOGUE["how_new_mark"]["ask"]) == "How do I earn a new mark?",
+	_check(how.has("how_essence") and Talk.DIALOGUE["how_essence"]["choices"].has("how_flow") and Talk.DIALOGUE["how_essence"]["choices"].has("how_tinctures") and how.has("how_new_mark") and String(Talk.DIALOGUE["how_new_mark"]["ask"]) == "How do I earn a new mark?",
 		"the Entity can say how essence flows, what tinctures are and how to earn a new mark")
 	var flow_line: String = Talk.line_for(main, "how_flow")
 	var sh: Dictionary = Flow.shares(Train.condense_share(M.settings))

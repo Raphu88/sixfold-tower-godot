@@ -44,12 +44,12 @@ static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 30.0}
 ## costs at the Workshop (crystals of its kind; a Rune Artist pays
 ## bench.gd RUNE_ARTIST_BREW of it); how many kinds the outfitter stocks each
 ## visit (the tower you last climbed half the time; more kinds make his
-## shelf a row taller); the chance a slain monster
-## leaves one (of its essence), that a vault's third card is one, and that a
-## hidden crystal cache holds one in place of a crystal. (The outfitter's
-## price is the tincture's worth in items.gd.)
+## shelf a row taller); the chance a vault's third card is one, and that a
+## hidden crystal cache holds one in place of a crystal. (A slain monster's
+## tincture is in the drop table: items.gd DROPS "tincture_chance". The
+## outfitter's price is the tincture's worth in items.gd.)
 static var TINCTURE := {"essence": 40.0, "soak_rate": 2.0, "craft": 40, "store_kinds": 1,
-	"drop_chance": 0.012, "vault_chance": 0.2, "hidden_chance": 0.3}
+	"vault_chance": 0.2, "hidden_chance": 0.3}
 
 ## Earned marks: a sealed wing beaten with its rule kept on this floor or
 ## lower can bring a new mark (the Maker in "maker" grants it). The Entity

@@ -2190,6 +2190,9 @@ func _supply_card(id: String) -> void:
 	var data: Dictionary = Items.ITEMS[id]
 	_head("item", id, data["name"], Items.color(id))
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
+	var handy := _handy_line(id)  # (where it's handy: the tower chosen at the engine first, tower_needs.gd)
+	if handy != "":
+		m._detail_text(handy, UI.GILT_HI)
 	var price := Train.supply_price(prof, id)
 	var why := _price_line(price[0], price[1])
 	if price[0] == Train.ANY:
@@ -2210,6 +2213,17 @@ func _supply_card(id: String) -> void:
 		back.set_meta("put_back", id)
 	if not m.compact():
 		m._detail_text(T["supplies_note"], UI.FAINT)
+
+
+## Where a supply is handy (tower_needs.gd): "Handy in the Kraken's Tower:
+## why" for the tower chosen at the engine, else the towers it suits ("").
+func _handy_line(id: String) -> String:
+	var Needs = load("res://scripts/tower_needs.gd")
+	if id in Needs.handy(m.train_tower):
+		var tn := String(Towers.TOWERS[m.train_tower]["name"])
+		return String(Needs.TEXT["shelf_why"]) % [tn, Needs.why(m.train_tower, id)]
+	var where: Array = Needs.towers_for(id, Towers.ORDER).map(func(t): return String(Towers.TOWERS[t]["name"]))
+	return String(Needs.TEXT["shelf"]) % ", ".join(where) if not where.is_empty() else ""
 
 
 ## A piece on the rack (i), today's piece (i = -1), or the special order (i = -2).

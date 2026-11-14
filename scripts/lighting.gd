@@ -314,8 +314,24 @@ func set_tower_look(tower: String) -> void:
 	_apply_look()
 
 
+## How far the climber's light reaches on this floor (1, or a dark floor's
+## share: tower_needs.gd DARK) and how dark its unlit places are (its "fog";
+## 0 keeps the tower's own).
+var floor_reach := 1.0
+var floor_fog := 0.0
+
+
+func set_floor_dark(reach: float, fog: float) -> void:
+	floor_reach = reach
+	floor_fog = fog
+	_apply_look()
+
+
 func _apply_look() -> void:
-	mat.set_shader_parameter("dark_color", dark_color)
+	var dc := dark_color
+	if floor_fog > 0.0:
+		dc.a = maxf(dc.a, floor_fog)
+	mat.set_shader_parameter("dark_color", dc)
 	var fc: Color = Palette.FOG_UNSEEN
 	mat.set_shader_parameter("fog_color", Vector3(fc.r, fc.g, fc.b))
 	mat.set_shader_parameter("vignette", Palette.VIGNETTE)
@@ -419,7 +435,7 @@ func player_reach() -> float:
 	if p == null:
 		return PLAYER_REACH
 	var r := PLAYER_REACH_KEEN if p.has_bond("hunter") or p.has_bond("ashwalker") else PLAYER_REACH
-	return r * (1.0 + p.gfx("light"))
+	return r * (1.0 + p.gfx("light")) * floor_reach  # (a dark floor: tower_needs.gd DARK; Lantern Oil's light answers it)
 
 
 # --- each frame ----------------------------------------------------------------
