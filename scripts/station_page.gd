@@ -145,6 +145,9 @@ func build() -> void:
 	if not keys.has(pk):
 		pk = keys[0] if not keys.is_empty() else ""
 		if stop == "board":
+			var titles: Array = keys.filter(func(k): return String(k).begins_with("title:"))
+			if not titles.is_empty():
+				pk = titles[0]  # (the board opens on its titles; a climber met shows when chosen)
 			var worn := String(Renown.state(prof)["worn"])
 			if worn != "" and keys.has("title:" + worn):
 				pk = "title:" + worn
@@ -325,6 +328,13 @@ func _board(left: Node) -> void:
 	for d in deeds.slice(0, 4 if _small() else 6):
 		var amount := int(d.get("amount", 0))
 		_line(left, String(d.get("text", "")) + (("   " + Renown.TEXT["earned"] % amount) if amount > 0 else ""), UI.TEXT if amount > 0 else UI.GOLD)
+	# The climbers you've met in the towers (rivals.gd), the most recent first.
+	_section(left, Rivals.TEXT["board"])
+	var met: Array = Rivals.met_list(prof)
+	if met.is_empty():
+		_line(left, Rivals.TEXT["board_none"], UI.DIM)
+	for rec in met.slice(0, 6 if _small() else 8):
+		_tile(left, "rival:" + String(rec.get("id", "")), String(rec.get("name", "")), Rivals.marks_text(rec), "arena", Rivals.color_of(rec))
 	_section(left, T["titles"])
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -340,13 +350,6 @@ func _board(left: Node) -> void:
 		tl.locked = not earned
 		tl.lit = String(r["worn"]) == id
 		tl.custom_minimum_size.x = minf(150.0 if _small() else 180.0, _avail() * 0.5 - 4.0)
-	# The climbers you've met in the towers (rivals.gd), the most recent first.
-	_section(left, Rivals.TEXT["board"])
-	var met: Array = Rivals.met_list(prof)
-	if met.is_empty():
-		_line(left, Rivals.TEXT["board_none"], UI.DIM)
-	for rec in met.slice(0, 6 if _small() else 8):
-		_tile(left, "rival:" + String(rec.get("id", "")), String(rec.get("name", "")), Rivals.marks_text(rec), "arena", Rivals.color_of(rec))
 	_section(left, T["ranks"])
 	var rk := Renown.rank(prof)
 	var rg := GridContainer.new()

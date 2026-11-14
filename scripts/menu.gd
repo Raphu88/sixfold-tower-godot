@@ -3471,6 +3471,13 @@ func _page_dev() -> void:
 	var mb := _button("Mirror room on the next floor", _dev_mirror_room, irow)
 	mb.disabled = main.MirrorScript.force
 
+	_section("Rival climbers (rivals.gd): one beside you")
+	var rrow := _grid(3, 6)
+	for k in [["trade", "Trade"], ["duel", "Duel"], ["team", "Team up"], ["rescue", "Wounded"]]:
+		_button(k[1], _dev_rival.bind(k[0]), rrow)
+	var rb := _button("Next floor", _dev_rival_floor, rrow)
+	rb.disabled = main.RivalsScript.force
+
 	_section("Gear (give yourself any weapon, armor or piece)")
 	var ggrid := _grid(4, 6)
 	var worn: Array = p.carried_gear()
@@ -3728,6 +3735,21 @@ func _dev_puzzle(kind: String) -> void:
 func _dev_spawn(kind: String) -> void:
 	main.dev_spawn(kind)
 	_say("Spawned: %s" % kind.capitalize())
+
+
+## A rival climber beside you, wanting `kind` (rivals.gd MEETINGS).
+func _dev_rival(kind: String) -> void:
+	var p = main.player
+	if p == null or main.rivals == null:
+		return
+	var at: Vector2 = main.walkable_point(p.global_position, p.global_position + Vector2(90, 0), 20.0)
+	var enc: Dictionary = main.rivals.add(at, -1, kind)
+	_say("%s waits beside you" % enc["rival"]["name"])
+
+
+func _dev_rival_floor() -> void:
+	main.RivalsScript.force = true
+	_say("The next floor of rooms will hold another climber")
 
 
 func _dev_mirror_room() -> void:

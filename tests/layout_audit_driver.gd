@@ -453,6 +453,11 @@ static func dress(main) -> void:
 		"bat": {"seen": true, "fought": false, "slain": 0, "fell": 0, "tower": "gryphon", "floor": 1},
 		"gryphon": {"seen": true, "fought": true, "slain": 3, "fell": 1, "tower": "gryphon", "floor": 12},
 		"golem": {"seen": true, "fought": true, "slain": 16, "fell": 0, "tower": "wyvern", "floor": 5}}
+	# Climbers met (rivals.gd): two on the Renown Board.
+	prof.rivals = {"mara_1": {"id": "mara_1", "name": "Mara", "bonds": [["tidecaller", "brow", 3], ["stormcaller", "hand", 2]], "met": 3, "duels_won": 1,
+			"duels_lost": 1, "teamed": 1, "shared": 2, "traded": 1, "tower": "kraken", "floor": 7, "seen": 2, "owed": true},
+		"brannoc_2": {"id": "brannoc_2", "name": "Brannoc", "bonds": [["flameblade", "hand", 2], ["venomist", "back", 1], ["warden", "heart", 1]], "met": 1, "robbed": 1,
+			"tower": "wyvern", "floor": 4, "seen": 1}}
 	Train.dress(prof, main.player)
 
 

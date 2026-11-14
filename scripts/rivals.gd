@@ -156,6 +156,7 @@ static var TEXT := {
 	"team_desc": "They fight beside you to the stair. Essence and finds are shared: you keep half.",
 	"trade_name": "Their %s",
 	"trade_desc": "For your %s",
+	"trade_what": "%s.  Theirs: %s",
 	"trade_crystal": "%d %s crystal",
 	"trade_essence": "%d unbanked essence",
 	"trade_short": "You don't carry that",
@@ -670,18 +671,23 @@ func card(pick: String) -> Dictionary:
 			var o: Dictionary = offers[i]
 			var give: Dictionary = o["give"]
 			var c := {"name": TEXT["trade_name"] % thing_name(give), "desc": TEXT["trade_desc"] % thing_name(o["want"]), "color": col, "item": ""}
+			var what := ""
 			match String(give["type"]):
 				"item":
 					c["item"] = String(give["id"])
 					c["color"] = Items.color(String(give["id"]))
 					c["size"] = int(give.get("size", Items.STANDARD))
+					what = String(Items.info(String(give["id"])).get("desc", ""))
 				"gear":
 					c["gear"] = give["rec"]
 					c["color"] = Gear.color(give["rec"])
 					c["rim"] = Gear.rarity_color(give["rec"])
+					what = Gear.desc(give["rec"])
 				"crystal":
 					c["crystal"] = String(give["kind"])
 					c["color"] = Essence.color(String(give["kind"]))
+			if what != "":
+				c["desc"] = String(TEXT["trade_what"]) % [String(c["desc"]), what]
 			if not can_pay(o["want"]):
 				c["note"] = TEXT["trade_short"]
 			return c
