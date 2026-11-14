@@ -56,6 +56,8 @@ static var TEXT := {
 	"heir_waits": "Wear something else here and your heirloom waits on the train this climb (it stays yours).",
 	"heir_away": "Your heirloom, %s, waits on the train this climb (it stays yours).",
 	"empty_slot": "Nothing worn here. Choose a piece from your pack or stash to wear, or buy one in the Outfitter's Car.",
+	"empty_charm": "Your charm slot: one charm, never used up. Its passive stays on while you wear it, and some hold a charge you refill with essence at the workshop bench. The Outfitter's Car sells charms, and a Rune Artist crafts them.",
+	"empty_bag": "No bag: your pack holds 2 spare pieces. A bag here holds more (a Satchel 4, a Pack 6, a Great Pack 8); the Outfitter's Car always has one if you own none.",
 	"no_armor": "No armour",
 	"empty": "Empty",
 	"take_off_pack": "Take it off: into your pack",
@@ -156,6 +158,9 @@ func build() -> void:
 	var so := Train.setoff(prof, _player())
 	for r in Gear.DOLL:
 		for slot in r:
+			if slot == "":
+				gap(grid, _cell())
+				continue
 			keys.append(_worn_cell(grid, slot, so).get_meta("slot"))
 	# Under them: the pack, the belt, the stash.
 	keys.append_array(pack_strip(col))
@@ -226,6 +231,15 @@ func _worn_cell(parent: Node, slot: String, so: Dictionary):
 		"wear":
 			s.tag = TEXT["tag_wear"]
 	return s
+
+
+## A gap in the paper doll (gear.gd DOLL ""): an empty space a slot wide.
+static func gap(grid: Node, side: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(side, 1.0)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grid.add_child(c)
+	return c
 
 
 ## A small dim line under a heading (where the pack goes, where the stash stays).
@@ -338,7 +352,7 @@ func _worn_card(slot: String) -> void:
 	var g = e.get("rec", null)
 	if g == null:
 		_head("empty", "", TEXT["no_armor"] if slot == "armor" else "%s: %s" % [Gear.SLOT_NAMES.get(slot, slot), TEXT["empty"]], UI.DIM)
-		m._detail_text(TEXT["empty_slot"], UI.DIM)
+		m._detail_text(TEXT["empty_charm"] if slot == "charm" else (TEXT["empty_bag"] if slot == "backpack" else TEXT["empty_slot"]), UI.DIM)
 	else:
 		_head("gear", g, Gear.display(g), Gear.color(g))
 		var from := String(e.get("from", ""))

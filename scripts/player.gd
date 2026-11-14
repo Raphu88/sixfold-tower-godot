@@ -17,6 +17,7 @@ const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
+const Charms := preload("res://scripts/charms.gd")
 
 ## The climber's core numbers live in combat.gd CLIMBER (the Data editor's
 ## "The climber's core numbers"); these read them, so a change shows at once.
@@ -220,6 +221,13 @@ var buffs := {}  # items that add to your numbers for a while (items.gd "buff"):
 # Rules of named gear (gear.gd NAMED) and traits.
 var dodge_haste_t := 0.0  # Phantom Treads: a dodge quickens your walk
 var still_t := 0.0  # Heartstone: toward the next health while unnoticed
+## Charms (charms.gd): the Tide Shell's shield (it grows back once you've
+## gone a while unhit: charm_calm counts that), the room where the Ward
+## Stone last blunted a blow, and whether a heavy bag has been explained.
+var charm_shield := 0.0
+var charm_calm := 0.0
+var ward_room := ""
+var bag_told := false
 var spells_cast := 0  # Spellweave Ring: every third spell is free
 var guard_floor := {}  # once-a-floor rules used: rule -> the floor
 var triune_n := 0  # Triune Fang: which head strikes next
@@ -403,6 +411,8 @@ func take_gear(g, into := "") -> Dictionary:
 	else:
 		main.fx_text(global_position + Vector2(0, -30), Gear.display(r), Gear.color(r))
 		main.sfx("armor_on", 1.0 if gs == "armor" else 1.2, -2.0 if gs == "armor" else -6.0)
+		if gs == "charm" and main.player == self:
+			main.tip("charm")  # (the first charm: the Entity explains them)
 	refresh_gear()
 	return old
 
@@ -489,9 +499,15 @@ func belt_kinds() -> int:
 	return Items.BELT_KINDS + int(gfx("belt"))
 
 
-## How many spare pieces your pack holds (a Climber's Pack holds more).
+## How many spare pieces your pack holds: your bag's size (no bag: 2), and
+## a charm's extra space (gear.gd pack_capacity).
 func pack_size() -> int:
-	return Gear.PACK_SIZE + int(gfx("pack"))
+	return Gear.pack_capacity(gear_fx)
+
+
+## How much a big bag, nearly full, slows your walk and rolls (0 if not).
+func bag_slow() -> float:
+	return Gear.bag_slow(gear_fx, pack.size(), pack_size())
 
 
 ## True if your pack has room for another piece.
@@ -717,6 +733,12 @@ func _physics_process(delta: float) -> void:
 		elif reload_t > 0.0 and wkind() in ["crossbow", "gun"]:
 			spd *= wdata()["reload_move"]  # you can walk while you reload
 		spd *= attr_speed * armor()["walk"] * (1.0 + gfx("walk"))  # heavy armor slows you a little; boots
+		var laden := bag_slow()
+		if laden > 0.0:
+			spd *= 1.0 - laden  # a big bag nearly full (gear.gd BAG)
+			if not bag_told and input != Vector2.ZERO and main.player == self and not main.on_train:
+				bag_told = true
+				main.tip("bag_heavy")
 		if has_rune("swiftness"):
 			spd *= 1.15
 		if haste_t > 0.0:
@@ -1139,6 +1161,7 @@ func _tick_timers(delta: float) -> void:
 	parry_t -= delta
 	parry_cd -= delta
 	parry_flash -= delta
+	_tick_charm(delta)
 	_tick_bond_effects(delta)
 	thunderhead_t -= delta
 	hawk_t -= delta
@@ -1315,7 +1338,7 @@ func _try_roll(input: Vector2) -> bool:
 	cost *= 1.0 - gfx("roll_cost")  # of Rolling
 	if haste_t > 0.0:
 		cost *= 1.0 - float(Items.ITEMS["haste"]["roll"])  # Haste Draught
-	dist_mult *= armor()["roll_dist"] * (1.0 + gfx("roll_dist"))
+	dist_mult *= armor()["roll_dist"] * (1.0 + gfx("roll_dist")) * (1.0 - bag_slow())  # (a big bag nearly full)
 	if _burned("legs"):
 		cost *= 1.5
 		dist_mult = 0.7
@@ -1330,6 +1353,7 @@ func _try_roll(input: Vector2) -> bool:
 	roll_t = duration
 	iframes = duration * float(Combat.CLIMBER["roll_iframes"]) + gfx("iframe")  # Phantom Treads
 	roll_cd = (duration + float(Combat.CLIMBER["roll_cooldown"])) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
+	roll_cd = maxf(duration + 0.02, roll_cd * (1.0 - clampf(gfx("roll_recover"), 0.0, 0.5)))  # (a Feather Token: never before the roll ends)
 	attack_cd = 0.0
 	combo = 0
 	ghost_t = 0.0
@@ -1848,6 +1872,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	var weak_spot: bool = backstab or e.open_t > 0.0  # (Diagnosis II: where it's weak)
 	if hit_sound != "arrow_hit" and rule("chill") > 0.0:
 		main.hit_kind = "frost"  # (a chilling blow: a drenched foe takes double, bond.gd taken_mult)
+	_charm_wardbreak(e)
 	var oiled: bool = edge_t > 0.0 and e.kind in Items.ITEMS["edge_oil"].get("cracks", [])  # (Edge Oil: lands as a heavy blow on a shell or a guard)
 	e.take_hit(dmg, dir, force, heavy or crit or rock or oiled, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
 	if unseen:
@@ -2206,6 +2231,10 @@ func _defy_death() -> bool:
 	if gfx("rebirth") > 0.0 and not rebirth_used:
 		_rebirth()
 		return true
+	if Charms.fire(self, "rally"):  # (an Ashen Knot's charge: you stay standing)
+		hp = maxf(hp, max_health() * Charms.num("rally", "health", 0.3))
+		main.light_flash(global_position, Gear.PIECES["ashen_knot"]["color"], 1.2, 1.6, 0.4)
+		return true
 	return main.proving_spare()  # the ordinary Proving casts you down instead
 
 
@@ -2526,6 +2555,10 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 			return
 	if has_rune("warding"):
 		dmg *= 0.75
+	dmg = _charm_guard(dmg)  # (a Tide Shell's shield, a Ward Stone's first blow in a room)
+	if dmg <= 0.0:
+		main.sfx("hit_armor", 1.3, -4.0)
+		return
 	dmg *= BondScript.manticore().hardened(self)  # (Shifting Sands III: standing still)
 	dmg *= 1.0 - 0.15 * graft("heart")
 	if gfx("still_guard") > 0.0 and velocity.length() < 12.0 and roll_t <= 0.0:
@@ -2575,6 +2608,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 		# The heart fills when you take a hit and survive.
 		_part_action("heart", 4.0, 8.0)
 		_low_health_rules()
+		_charm_struck()  # (a Gale Charm's gust)
 
 
 ## Thorns (a trait, Barnacle Mail): a foe that strikes you up close takes some back.
@@ -2588,9 +2622,73 @@ func _thorns(source) -> void:
 	main.fx_burst(source.global_position, (source.global_position - global_position).normalized(), Color(0.75, 0.8, 0.6), 5, 200.0)
 
 
+## The charm's auras over time: the Tide Shell's shield grows back once
+## you've gone a while without being hit (charms.gd AURA).
+func _tick_charm(delta: float) -> void:
+	charm_calm += delta
+	var most := gfx("tide_shield")
+	if most <= 0.0:
+		charm_shield = 0.0
+		return
+	if charm_calm >= float(Charms.AURA["tide_wait"]) and charm_shield < most:
+		charm_shield = minf(most, charm_shield + float(Charms.AURA["tide_rate"]) * delta)
+		queue_redraw()
+
+
+## A blow that reaches you, before armour: the charm's auras take their
+## share (the Tide Shell's shield soaks it, the Ward Stone blunts the first
+## blow in each room). Returns what's left of it.
+func _charm_guard(dmg: float) -> float:
+	charm_calm = 0.0
+	if charm_shield > 0.0 and dmg > 0.0:
+		var take := minf(charm_shield, dmg)
+		charm_shield -= take
+		dmg -= take
+		main.fx_ring(global_position, Gear.PIECES["tide_shell"]["color"], radius + 8.0, 0.2, 2.0)
+	var ward := gfx("first_ward")
+	var here := "%d:%d" % [main.floor_num, main.room_at]
+	if ward > 0.0 and dmg > 0.0 and ward_room != here:
+		ward_room = here
+		dmg *= 1.0 - clampf(ward, 0.0, 0.9)
+		main.fx_text(global_position + Vector2(0, -40), Charms.TEXT["spent"] % [Gear.PIECES["ward_stone"]["name"], "blunted"], Gear.PIECES["ward_stone"]["color"])
+	return dmg
+
+
+## Striking a foe with a shell or guard (charms.gd CHARGES "wardbreak"
+## "foes"): a Wardbreaker Charm's charge snaps its ward, and for a while
+## your blows and arrows go through shells and guards.
+func _charm_wardbreak(e) -> void:
+	if e == null or not is_instance_valid(e) or gfx("guardbreak") > 0.0:
+		return
+	if not (String(e.get("kind")) in Charms.CHARGES["wardbreak"]["foes"]):
+		return
+	if Charms.fire(self, "wardbreak"):
+		add_buff("wardbreaker", Charms.num("wardbreak", "duration", 20.0), {"guardbreak": 1.0})
+		main.sfx("use_ward", 1.0, -2.0, 0.0)
+
+
+## A blow landed on you: the Gale Charm's charge hurls the foes around you
+## back (as a Gale Feather does).
+func _charm_struck() -> void:
+	if dead or not Charms.fire(self, "gust"):
+		return
+	var r := Charms.num("gust", "radius", 120.0)
+	for e in main.enemies():
+		if e.dead or e.global_position.distance_to(global_position) > r:
+			continue
+		var dir: Vector2 = (e.global_position - global_position).normalized()
+		e.take_hit(Charms.num("gust", "dmg", 4.0), dir, 60.0 if e.is_boss() else Charms.num("gust", "push", 560.0))
+	main.fx_ring(global_position, Gear.PIECES["gale_charm"]["color"], r, 0.35, 3.0)
+
+
 ## Once a floor, low on health: an Emberkin Mantle heals, Bastion Plate
 ## raises a barrier.
 func _low_health_rules() -> void:
+	# A Mending Bead's charge: below a third of your health it heals you.
+	if hp < max_health() * Charms.num("mend", "below", 0.34) and heal_left <= 0.0 and Charms.fire(self, "mend"):
+		var mh := Charms.num("mend", "heal", 25.0)
+		heal_left += mh
+		heal_rate = maxf(heal_rate, mh / maxf(Charms.num("mend", "time", 2.0), 0.1))
 	var mend := gfx("ember_mend")
 	if mend > 0.0 and hp < max_health() * 0.2 and once_a_floor("ember_mend"):
 		heal_left += mend
@@ -3158,6 +3256,10 @@ func _draw_overlay() -> void:
 		var pa := aim.angle()
 		c.draw_arc(Vector2.ZERO, radius + 10.0, pa - 1.0, pa + 1.0, 14, Color(1.0, 0.89, 0.63), 4.0)
 		c.draw_arc(Vector2.ZERO, radius + 14.0, pa - 0.8, pa + 0.8, 14, Color(1.0, 0.89, 0.63, 0.4), 2.0)
+	if charm_shield > 0.5:
+		# A Tide Shell's shield: a faint ring of water, fuller as it grows back.
+		var full := clampf(charm_shield / maxf(gfx("tide_shield"), 1.0), 0.0, 1.0)
+		c.draw_arc(Vector2.ZERO, radius + 7.0, -PI * 0.5, -PI * 0.5 + TAU * full, 28, Color(0.5, 0.82, 0.95, 0.55), 1.5, true)
 	if barrier_hp > 0.0:
 		# The barrier: a dome of facets that dims as it's spent.
 		var tw := Time.get_ticks_msec() * 0.0015
