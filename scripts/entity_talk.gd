@@ -69,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_states", "how_handy", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_states", "how_handy", "how_charms", "how_bags", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
 	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
 		"choices": ["how_marks", "how", "bye"]},
@@ -83,10 +83,10 @@ static var DIALOGUE := {
 		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from drills, bouts and challenges at the stations. Ranks: {ranks}. Ranks open the outfitter's upgrades, the tournament's tiers, drills, challenges and boons. Boons themselves cost crystals, at a station's shrine."],
 		"choices": ["how_fall", "how", "bye"]},
 	"how_fall": {"ask": "What comes home: a fall, a recall, a summit?", "fact": "rules",
-		"lines": ["A fall: your pack and your belt are lost, unbanked essence too, and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
+		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
-		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch or a Climber's Pack adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. Most items come Minor, standard or Greater: the pips on the icon. Sizes share a stack, and a use takes the biggest first. What you buy or brew on the train goes on it, standard size."],
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. Most items come Minor, standard or Greater: the pips on the icon. Sizes share a stack, and a use takes the biggest first. What you buy or brew on the train goes on it, standard size."],
 		"choices": ["how_states", "how_fall", "how", "bye"]},
 	"how_states": {"ask": "What are states, and how do I cure them?", "fact": "states",
 		"lines": ["Some monsters' blows leave a state on you when they land: {states}. Each lasts a few seconds, and none of them stuns. The line at the top counts it down and names its cure. A Cleansing Tonic takes off any of them; {wards} keep one off for a while. The stair's rest clears them all."],
@@ -94,6 +94,12 @@ static var DIALOGUE := {
 	"how_handy": {"ask": "What's handy in this tower?", "fact": "handy",
 		"lines": ["{handy} They turn up more often there, and the outfitter's shelf says where each is handy."],
 		"choices": ["how_states", "tower", "how", "bye"]},
+	"how_charms": {"ask": "How do charms work?", "fact": "rules",
+		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. A Rune Artist crafts them; the outfitter sells {charm_shop}; vaults and secret rooms sometimes hold one."],
+		"choices": ["how_bags", "how", "bye"]},
+	"how_bags": {"ask": "How do bags work?", "fact": "rules",
+		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
+		"choices": ["how_charms", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -567,6 +573,17 @@ static func _fact_rules() -> Dictionary:
 		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),
 		"kinds": Items.BELT_KINDS, "stack": Items.MAX_STACK,
 	})
+	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
+	var Charms = load("res://scripts/charms.gd")
+	var n := int(Charms.SHOP["rack"])
+	f["charm_shop"] = ("one on his rail" if n == 1 else "%d on his rail" % n)
+	f["bag_none"] = int(Gear.BAG["none"])
+	var sizes: Array = []
+	for id in ["satchel", "pack", "great_pack"]:
+		if Gear.PIECES.has(id):
+			sizes.append("a %s %d" % [Gear.PIECES[id]["name"], int(Gear.PIECES[id].get("bag", 0))])
+	f["bag_sizes"] = ", ".join(sizes)
+	f["heavy_at"] = "%d%%" % int(round(float(Gear.BAG["heavy_at"]) * 100.0))
 	var Best = load("res://scripts/bestiary.gd")
 	f["bestiary_slain"] = _and(Best.TIERS.get("slain", []))
 	f["bestiary_beast"] = _and(Best.TIERS.get("beast", []))
