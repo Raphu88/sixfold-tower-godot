@@ -27,8 +27,29 @@ func _ready() -> void:
 	add_child(labels)
 
 
+## Floating words in the world (damage numbers, "Parried", a reaction's
+## name): short-lived, and at most TEXT_MAX at once. In a big fight the oldest
+## give way to the newest, so the screen never fills with them. The same
+## word twice in the same spot at the same moment shows once.
+const TEXT_LIFE := 0.9
+const TEXT_MAX := 8
+const TEXT_FADE := 0.12
+
+
 func text(pos: Vector2, s: String, color: Color) -> void:
-	texts.append({"pos": pos + Vector2(randf_range(-6.0, 6.0), 0), "text": s, "color": color, "t": 0.9})
+	var number := s != "" and s[0] in "0123456789+-"  # (two hits for the same damage are two numbers)
+	for t in texts:
+		if not number and t["text"] == s and float(t["t"]) > TEXT_LIFE - 0.12 and t["pos"].distance_to(pos) < 14.0:
+			return
+	var live: Array = texts.filter(func(t): return float(t["t"]) > TEXT_FADE)
+	for i in maxi(0, live.size() - TEXT_MAX + 1):
+		live[i]["t"] = TEXT_FADE  # (the oldest fade at once to make room)
+	texts.append({"pos": pos + Vector2(randf_range(-6.0, 6.0), 0), "text": s, "color": color, "t": TEXT_LIFE})
+
+
+## How many floating words are fully showing (the fading ones don't count).
+func text_count() -> int:
+	return texts.filter(func(t): return float(t["t"]) > TEXT_FADE).size()
 
 
 func bolt(points: Array, color: Color) -> void:

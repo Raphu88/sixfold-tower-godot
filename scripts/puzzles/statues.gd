@@ -15,6 +15,7 @@ extends "res://scripts/puzzles/base.gd"
 const NAME := "Three Statues"
 static var NAMES := {"manticore": "The Riddling Statues"}
 static var TEXT := {
+	"speaks": "THE STATUE SPEAKS",  # over a statue's own line, in the top lane, while you stand by it
 	"rule": ["One of us always speaks true. The other two always lie.", "Stand on the plate behind the true way."],
 	"rule_alt": ["One of us always speaks true, one always lies, and one speaks once true and once false.", "Stand on the plate behind the true way."],
 	"plaque": "The plaque reads:",
@@ -339,7 +340,7 @@ func panels() -> Array:
 	if best >= 0:
 		var lie: bool = keen and best in liars
 		out.append({"pos": statues[best] + Vector2(0, 22.0 if south else -32.0), "below": south,
-			"lines": lines[best], "width": 170.0, "tone": "bad" if lie else ""})
+			"lines": lines[best], "width": 170.0, "tone": "bad" if lie else "", "say": true, "title": TEXT["speaks"]})
 	return out
 
 

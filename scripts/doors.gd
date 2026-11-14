@@ -368,6 +368,7 @@ func _bump(d: Dictionary) -> void:
 		held.erase(d["lock_id"])
 		unlock(int(d["lock_id"]))
 		main.fx_text(d["rect"].get_center() + Vector2(0, -30), LOCK_TEXT["key_turns"], KEY_GOLD)
+		main.note_event("lock", main.notices.TEXT["lock"], null, false)
 		main.sfx("crossbow_load", 0.8, -4.0, 0.0)
 		open_door(d)
 		return
@@ -376,7 +377,8 @@ func _bump(d: Dictionary) -> void:
 	bump_t = 1.6
 	bumps += 1
 	main.fx_text(d["rect"].get_center() + Vector2(0, -30), LOCK_TEXT["locked"], Color(0.9, 0.75, 0.55))
-	main.banner = {"title": String(LOCK_TEXT["locked"]).to_upper(), "lines": [LOCK_TEXT["hint_" + String(d["lock"])]], "t": 2.2}
+	main.banner = {"title": String(LOCK_TEXT["locked"]).to_upper(), "lines": [LOCK_TEXT["hint_" + String(d["lock"])]], "t": 2.2, "pri": 2}
+	main.remark("lock:" + String(d["lock"]))
 	main.tip("door_locked")
 	main.sfx("hit_armor", 0.55, -4.0, 0.0)
 	main.sfx("step_chain", 0.7, -8.0, 0.0)
@@ -400,6 +402,7 @@ func pull(l: Dictionary) -> void:
 	unlock(int(l["lock_id"]))
 	main.fx_text(l["pos"] + Vector2(0, -30), LOCK_TEXT["lever_pulled"], Color(0.8, 0.85, 1.0))
 	main.banner = {"title": LOCK_TEXT["lever_title"], "lines": [LOCK_TEXT["lever_line"]], "t": 2.5}
+	main.note_event("lock", main.notices.TEXT["lever"], null, false)
 	main.sfx("crossbow_reload", 0.6, -2.0, 0.0)
 	main.sfx("slam", 1.4, -10.0, 0.0)
 	main.shake(4.0)
@@ -413,7 +416,7 @@ func _take_key(k: Dictionary) -> void:
 	if k.has("light"):
 		main.lighting.remove_light(k["light"])
 		k.erase("light")
-	main.fx_text(main.player.global_position + Vector2(0, -44), LOCK_TEXT["key_found"], KEY_GOLD)
+	main.note_event("key", LOCK_TEXT["key_found"], KEY_GOLD)
 	main.sfx("pickup", 1.1, -2.0, 0.0)
 	_redraw()
 
@@ -520,6 +523,8 @@ func _shut(lr: Dictionary, mobs: Array) -> void:
 	main.sfx("slam", 0.6, 0.0, 0.0)
 	main.sfx("step_chain", 0.5, -4.0, 0.0)
 	main.banner = {"title": LOCK_TEXT["shut_title"], "lines": [LOCK_TEXT["shut"]], "t": 2.6}
+	main.note_event("doors", main.notices.TEXT["doors_shut"], null, false)
+	main.remark("doors")
 	_redraw()
 
 
@@ -537,6 +542,7 @@ func _reopen(lr: Dictionary) -> void:
 		main.fog.set("last_tile", Vector2i(-999, -999))
 	main.sfx("slam", 0.9, -6.0, 0.0)
 	main.banner = {"title": LOCK_TEXT["open_title"], "lines": [], "t": 1.8}
+	main.note_event("doors", main.notices.TEXT["doors_open"], null, false)
 	_redraw()
 
 

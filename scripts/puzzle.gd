@@ -17,7 +17,9 @@ extends Node2D
 ##                you out: it only uses what every climber has (strikes, a bow,
 ##                rolls, jumps, parries, walking), and it's always solvable.
 ##   AUTO-AIM     aim_point: what a phone's auto-aim turns to when no foe is near
-##   RULE TEXT    framed panels in the world, drawn over the darkness
+##   RULE TEXT    said in the top-middle lane (notices.gd), never over the
+##                puzzle: once as you step in, then whenever you stand by
+##                the small "?" plaque it leaves in the room
 ##
 ## The host also draws rails and gates (hand-made rooms):
 ##   rails  low walls: block walking, but not sight or shots
@@ -41,6 +43,7 @@ static var TEXT := {
 	"locked": "Survive the hunters, and the test begins again.",
 	"again": "The test begins again",
 	"watch": "The beast is watching.",
+	"reread": "Stand by the ? to read the rule again.",
 	"shortcut": "Your bond: %s",
 }
 ## Essence in the reward: this, plus this much per floor.
@@ -87,6 +90,11 @@ var over: Node2D  # glow drawn over the darkness (the beam's core, lit stones)
 var labels: Node2D  # the rule text, over the darkness
 var _drawn_state := []
 var _labels_on := false
+## The rule's words leave a small "?" plaque in the room; standing this
+## close to it says them again in the top lane, for as long as you stand there.
+const PLAQUE_REACH := 72.0
+var plaques: Array = []  # where the "?" plaques are now (world)
+var _rule_said := false  # the rule was announced as you first stepped in
 
 
 func _ready() -> void:
@@ -173,6 +181,8 @@ func clear() -> void:
 	rewards.clear()
 	ward_glow = 0.0
 	_labels_on = false
+	_rule_said = false
+	plaques = []
 	queue_redraw_all()
 
 
@@ -263,6 +273,7 @@ func solve() -> void:
 	else:
 		main.lift_ward()
 	main.fx_text(room.get_center() + Vector2(0, -50), TEXT["solved"] % display_name(), Color(1.0, 0.89, 0.63))
+	main.note_event("puzzle", String(main.notices.TEXT["puzzle"]) % display_name(), null, false)
 	main.shake(4.0)
 	main.sfx("puzzle_solve", 1.0, 0.0, 0.0)
 	queue_redraw_all()
@@ -276,7 +287,8 @@ func fail(msg: String) -> void:
 	locked = true
 	lock_t = 0.0
 	_unseal()  # (you may run, or fight)
-	main.banner = {"title": display_name().to_upper(), "lines": [msg, TEXT["ambush"]], "t": 3.0}
+	main.banner = {"title": display_name().to_upper(), "lines": [msg, TEXT["ambush"]], "t": 3.0, "logged": true}
+	main.note_event("puzzle_fail", String(main.notices.TEXT["puzzle_fail"]) % display_name(), null, false)
 	main.shake(6.0)
 	main.sfx("puzzle_fail", 1.0, 0.0, 0.0)
 	var n: int = AMBUSH.x + main.floor_num / AMBUSH.y
@@ -459,14 +471,72 @@ func _near() -> bool:
 	return main.player != null and room.grow(Floors.CELL).has_point(main.player.global_position)
 
 
-## Rule panels show while the climber is in the room (redrawn at 30 Hz so
-## they stay on screen as the camera moves), then one redraw to clear them.
+## The puzzle's words: its rule (and a riddle), each statue's line. They're
+## said in the top-middle lane, so they never cover the puzzle or anything
+## you need to pick up: the rule once as you first step in, and again for
+## as long as you stand by its "?" plaque; a statue's line while you stand
+## by the statue. Each is {at (its plaque, in the room), title, lines, say
+## (spoken where you stand, with no plaque)}.
+func notes() -> Array:
+	var out: Array = []
+	if cur == null or solved or locked or not _near():
+		return out
+	var list: Array = cur.panels()
+	var foot: Array = []
+	if not awake:
+		foot.append(String(cur.TEXT.get("quiet", TEXT["quiet"])))
+	elif mode == "pressure":
+		foot.append(TEXT["pressure"])
+	for id in cur.BREAKS:
+		if main.player.has_bond(id):
+			foot.append(TEXT["shortcut"] % cur.BREAKS[id])
+	var inner := room.grow(-26.0)
+	for i in list.size():
+		var p: Dictionary = list[i]
+		var at: Vector2 = p["pos"]
+		at = at.clamp(inner.position, inner.end)
+		var lines: Array = p.get("lines", []).duplicate()
+		var spoken: bool = bool(p.get("say", false)) or String(p.get("title", "")) == ""
+		if i == 0 and not spoken:
+			lines.append_array(foot)
+		out.append({"at": at, "title": String(p.get("title", display_name().to_upper())), "lines": lines, "say": spoken, "tone": p.get("tone", "")})
+	if out.is_empty() and not foot.is_empty():
+		out.append({"at": room.get_center().clamp(inner.position, inner.end), "title": display_name().to_upper(), "lines": foot, "say": false, "tone": ""})
+	return out
+
+
 func _labels_tick() -> void:
 	var on := _near() and not solved
-	if on != _labels_on:
+	var spots: Array = []
+	if on and main.get("notices") != null:
+		var list := notes()
+		for i in list.size():
+			var n: Dictionary = list[i]
+			if n["say"]:
+				_say_note(n, "puzzle_say", 0.7)  # (a statue speaks while you stand by it)
+				continue
+			spots.append(n["at"])
+			if not _rule_said:
+				_rule_said = true
+				_say_note(n, "puzzle_rule%d" % i, 20.0)  # (held by its length: notices.gd)
+				main.notices.feed(TEXT["reread"], UI.DIM)
+				main.remark("puzzle:" + kind)
+			elif main.player.global_position.distance_to(n["at"]) <= PLAQUE_REACH:
+				_say_note(n, "puzzle_rule%d" % i, 0.7)
+	if on != _labels_on or spots != plaques:
+		plaques = spots
 		labels.queue_redraw()
 		over.queue_redraw()
 	_labels_on = on
+
+
+## Says a note in the top lane: for `t` seconds, or longer if it's already
+## showing (so standing by a plaque keeps it up, and leaving lets it fade).
+func _say_note(n: Dictionary, key: String, t: float) -> void:
+	var cur_b: Dictionary = main.notices.current
+	if cur_b.get("door", "") == key:
+		t = maxf(t, float(cur_b.get("t", 0.0)))
+	main.banner = {"title": n["title"], "lines": n["lines"], "t": t, "note": true, "inscribed": true, "door": key, "tone": n["tone"]}
 
 
 # --- what strikes and arrows hit ------------------------------------------------
@@ -604,117 +674,17 @@ func _draw_over() -> void:
 	cur.draw_over(over, Time.get_ticks_msec() * 0.001)
 
 
-## The rule text: the puzzle's own panels, and the host's word on its state.
+## The "?" plaques: a small stone tablet where each rule was written, lit
+## when you're close enough to read it.
 func _draw_labels() -> void:
 	if cur == null or solved or not _near():
 		return
-	if not main.banner.is_empty():
-		return  # (a banner's big title would sit on top of it: wait till it fades)
-	var list: Array = []
-	if locked:
-		list.append({"pos": room.get_center(), "lines": [TEXT["locked"]], "tone": "bad"})
-	else:
-		list = cur.panels()
-		var foot: Array = []
-		if not awake:
-			foot.append(String(cur.TEXT.get("quiet", TEXT["quiet"])))
-		elif mode == "pressure":
-			foot.append(TEXT["pressure"])
-		for id in cur.BREAKS:
-			if main.player.has_bond(id):
-				foot.append(TEXT["shortcut"] % cur.BREAKS[id])
-		if not list.is_empty():
-			var first: Dictionary = list[0].duplicate()
-			first["lines"] = first["lines"] + foot
-			first["foot"] = TEXT["watch"]
-			list[0] = first
-		elif not foot.is_empty():
-			list.append({"pos": room.get_center(), "lines": foot})
-	for p in list:
-		_panel(p)
-
-
-## A framed panel of words in the world (the web version's puzSay): `pos` is
-## its bottom middle (top middle with "below"), kept on screen. Its title is
-## a label (the gothic face), its lines are written in the world (the fine
-## italic of inscriptions) and its foot is a plain note.
-func _panel(p: Dictionary) -> void:
-	var ins := UI.font("inscription")
-	var max_w: float = p.get("width", 250.0) * 1.16  # (the italic runs wider than plain text)
-	var rows: Array = []  # [text, colour, size, font, line height]
-	if p.get("title", "") != "":
-		rows.append([UI.title_case(p["title"]), UI.GOLD, 15, UI.font("display"), 19.0])
-	var body_col: Color = UI.BAD if p.get("tone", "") == "bad" else Color(0.95, 0.91, 0.83)
-	for line in p.get("lines", []):
-		for w in _wrap_even(ins, String(line), 15, max_w):
-			rows.append([w, body_col, 15, ins, 17.0])
-	if p.get("foot", "") != "":
-		rows.append([p["foot"], UI.DIM, 12, UI.font("body"), 16.0])
-	var wide := 0.0
-	var tall := 0.0
-	for r in rows:
-		wide = maxf(wide, r[3].get_string_size(r[0], HORIZONTAL_ALIGNMENT_LEFT, -1, r[2]).x)
-		tall += r[4]
-	var pad := Vector2(9, 5)
-	var box_size := Vector2(wide + pad.x * 2.0, tall + pad.y * 2.0)
-	var at: Vector2 = p["pos"]
-	var top_left := Vector2(at.x - box_size.x * 0.5, at.y if p.get("below", false) else at.y - box_size.y)
-	# Kept on screen.
-	var cam = main.camera
-	if cam != null:
-		var view: Vector2 = get_viewport_rect().size / cam.zoom
-		var c: Vector2 = cam.get_screen_center_position()
-		var lo: Vector2 = c - view * 0.5 + Vector2(8, 70)
-		var hi: Vector2 = c + view * 0.5 - Vector2(8, 90) - box_size
-		top_left = top_left.clamp(lo, hi.max(lo))
-	var box := Rect2(top_left, box_size)
-	labels.draw_rect(box, Color(0.055, 0.043, 0.075, 0.88))
-	labels.draw_rect(box, Color(UI.GOLD, 0.5), false, 1.0)
-	var y := box.position.y + pad.y
-	for r in rows:
-		y += r[4]
-		labels.draw_string(r[3], Vector2(box.position.x, y - r[4] * 0.24), r[0], HORIZONTAL_ALIGNMENT_CENTER, box.size.x, r[2], r[1])
-
-
-## Each panel line's even wrapping, kept (panels are drawn every frame).
-static var _even_cache := {}
-
-
-## _wrap, with the lines evened out: the narrowest width that still takes
-## as few lines, so a riddle's last word isn't left alone on its own line.
-static func _wrap_even(font: Font, text: String, size: int, max_w: float) -> Array:
-	var key := "%d|%d|%s" % [size, int(max_w), text]
-	if _even_cache.has(key):
-		return _even_cache[key]
-	if _even_cache.size() > 64:
-		_even_cache.clear()
-	var out := _wrap(font, text, size, max_w)
-	if out.size() < 2:
-		_even_cache[key] = out
-		return out
-	var lo := max_w / out.size()
-	var hi := max_w
-	for i in 6:
-		var mid := (lo + hi) * 0.5
-		if _wrap(font, text, size, mid).size() > out.size():
-			lo = mid
-		else:
-			hi = mid
-	out = _wrap(font, text, size, hi)
-	_even_cache[key] = out
-	return out
-
-
-static func _wrap(font: Font, text: String, size: int, max_w: float) -> Array:
-	var out: Array = []
-	var line := ""
-	for word in text.split(" "):
-		var test := word if line == "" else line + " " + word
-		if line != "" and font.get_string_size(test, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > max_w:
-			out.append(line)
-			line = word
-		else:
-			line = test
-	if line != "":
-		out.append(line)
-	return out
+	var font: Font = UI.font("display")
+	var mark: String = main.notices.TEXT["plaque"] if main.get("notices") != null else "?"
+	for at in plaques:
+		var near: bool = main.player != null and main.player.global_position.distance_to(at) <= PLAQUE_REACH
+		var r := Rect2(at - Vector2(7, 9), Vector2(14, 17))
+		labels.draw_rect(r.grow(1.5), Color(0.03, 0.025, 0.04, 0.85))
+		labels.draw_rect(r, Color(0.3, 0.27, 0.34) if not near else Color(0.4, 0.34, 0.26))
+		labels.draw_rect(Rect2(r.position, Vector2(r.size.x, 2.0)), Color(UI.GILT, 0.9 if near else 0.55))
+		labels.draw_string(font, Vector2(r.position.x, r.end.y - 3.5), mark, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, UI.GILT_HI if near else Color(UI.GOLD, 0.8))
