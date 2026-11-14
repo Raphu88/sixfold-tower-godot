@@ -415,6 +415,35 @@ func _choice(id: String) -> Control:
 	return null
 
 
+## A choice on the page, paging on through "Something else..." to find it.
+func _reach(id: String) -> Control:
+	for i in 4:
+		var b := _choice(id)
+		if b != null:
+			return b
+		var more := _choice("+more")
+		if more == null:
+			return null
+		more.pressed.emit()
+		await t._frames(3)
+	return _choice(id)
+
+
+## Every choice at the node the talk is at, on all its pages.
+func _all_ids(main) -> Array:
+	var tk = Talk.new()
+	tk.node = _menu().talk.node
+	var ids: Array = []
+	for i in 5:
+		var list: Array = tk.choices(main)
+		ids += list.map(func(c): return c["id"])
+		var at: int = list.map(func(c): return c["id"]).find("+more")
+		if at < 0:
+			break
+		tk.choose(main, at)
+	return ids
+
+
 func _talk() -> void:
 	var menu = _menu()
 	var h = _helper()
@@ -451,7 +480,7 @@ func _talk() -> void:
 	await t._frames(3)
 	_check(menu.page == "talk" and menu.talk.node == "start", "...Enter chooses (back to the first questions)")
 	# The tower: its own words.
-	var tb: Control = _choice("tower")
+	var tb: Control = await _reach("tower")
 	if tb != null:
 		tb.pressed.emit()
 		await t._frames(3)
@@ -474,11 +503,33 @@ func _talk() -> void:
 	menu.open("talk")
 	await t._frames(3)
 	# Marks: from the climber's own marks.
-	var mk: Control = _choice("marks")
+	var mk: Control = await _reach("marks")
 	if mk != null:
 		mk.pressed.emit()
 		await t._frames(3)
 	_check(menu.talk.node == "marks" and menu.talk.line.contains("Stormcaller") and menu.talk.line.contains("step 1"), "What do my marks do: each mark and its next step (%s)" % menu.talk.line)
+	# How things work: the game's rules, its numbers from its own tables.
+	menu.talk.begin(main)
+	menu.open("talk")
+	await t._frames(3)
+	var how: Control = await _reach("how")
+	if how != null:
+		how.pressed.emit()
+		await t._frames(3)
+	var topics: Array = _all_ids(main).filter(func(id): return String(id).begins_with("how_"))
+	_check(menu.talk.node == "how" and topics.size() >= 5, "How do things work here: a topic for each part of the game (%s)" % [topics])
+	var lines := {}
+	for id in topics:
+		lines[id] = Talk.line_for(main, String(id))
+	var Lost = load("res://scripts/lost.gd")
+	var R = load("res://scripts/renown.gd")
+	_check(String(lines.get("how_fall", "")).contains("%d%%" % int(round(Lost.WEAPON_CHANCE * 100.0))) and String(lines.get("how_renown", "")).contains("Noticed at %d" % int(R.RANKS[1][2]))
+		and String(lines.get("how_new_mark", "")).contains(str(int(load("res://scripts/profile.gd").FAINT_DEBT))) and lines.values().all(func(l): return l != "" and not l.contains("{")),
+		"...its numbers read from the game's own tables (%s)" % lines.get("how_renown", ""))
+	var keep_w: float = Lost.WEAPON_CHANCE
+	Lost.WEAPON_CHANCE = 0.5
+	_check(Talk.line_for(main, "how_fall").contains("50%"), "...and a changed number shows at once")
+	Lost.WEAPON_CHANCE = keep_w
 	# A story slot, once written, shows (and reads its words).
 	var keep: Array = Talk.DIALOGUE["who"]["lines"].duplicate()
 	Talk.DIALOGUE["who"]["lines"] = ["A test answer."]
@@ -553,7 +604,8 @@ func _talk_in_play() -> void:
 	await t._click_at(g.talk_rect.get_center())
 	await t._frames(3)
 	_check(menu.page == "talk" and t.paused and g.talks >= 1, "...a click on it talks (the game waits)")
-	_check(menu.talk.choices(main).any(func(c): return c["id"] == "this_climb") and not menu.talk.choices(main).any(func(c): return c["id"] == "train"), "...in a climb it asks about this climb, not the train")
+	var ids: Array = _all_ids(main)
+	_check(ids.has("this_climb") and not ids.has("train") and not ids.has("climb"), "...in a climb it asks about this climb, not the train (%s)" % [ids])
 	await t._key_tap(KEY_ESCAPE)
 	await t._frames(3)
 	_check(menu.page == "" and not t.paused, "...Esc leaves, back to the climb")

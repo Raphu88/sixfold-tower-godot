@@ -56,7 +56,7 @@ static var DIALOGUE := {
 			"You want something. Go on.",
 			"Questions. Good. I have a few answers.",
 		],
-		"choices": ["next", "tower", "marks", "body", "climb", "this_climb", "train", "who", "why", "bye"]},
+		"choices": ["next", "how", "tower", "marks", "body", "climb", "this_climb", "train", "who", "why", "bye"]},
 	# --- what to do ---------------------------------------------------------------------
 	"next": {"ask": "What should I do next?", "fact": "next",
 		"lines": ["{hint}"],
@@ -64,6 +64,36 @@ static var DIALOGUE := {
 	"next_more": {"ask": "Anything else?", "fact": "next_more",
 		"lines": ["{hint}"],
 		"choices": ["start", "bye"]},
+	# --- how things work (the game's own rules; numbers from its tables) --------------------
+	# A new topic: add a node here with "fact": "rules" (or none), and its id
+	# to "how"'s choices.
+	"how": {"ask": "How do things work here?",
+		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "start", "bye"]},
+	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
+		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
+		"choices": ["how_marks", "how", "bye"]},
+	"how_marks": {"ask": "How do marks grow?", "fact": "rules",
+		"lines": ["Across climbs, never during one: from essence banked at stairs. A mark's own kind counts {own}x, every other kind {other}x. Each has {steps} steps, and each step brings a spell or makes one stronger. The Proving, on floor six, can raise one a step too."],
+		"choices": ["how_new_mark", "how", "bye"]},
+	"how_new_mark": {"ask": "How does a new mark form?", "fact": "rules",
+		"lines": ["Banked essence also soaks into your unmarked parts, slowly, and slower the more marks you carry. A part {full} full is ready, and only a summit marks it: one new mark a climb, at most. The first mark comes at the Regard. Fall on that first climb and it's faint: {faint} more banked essence before it grows."],
+		"choices": ["how_marks", "how", "bye"]},
+	"how_renown": {"ask": "What is renown for?", "fact": "rules",
+		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from drills, bouts and challenges at the stations. Ranks: {ranks}. Ranks open the outfitter's upgrades, the tournament's tiers, drills, challenges and boons. Boons themselves cost crystals, at a station's shrine."],
+		"choices": ["how_fall", "how", "bye"]},
+	"how_fall": {"ask": "What comes home: a fall, a recall, a summit?", "fact": "rules",
+		"lines": ["A fall: your pack and your belt are lost, unbanked essence too, and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
+		"choices": ["how_belt", "how", "bye"]},
+	"how_belt": {"ask": "The belt?", "fact": "rules",
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch or a Climber's Pack adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. What you buy or brew on the train goes on it."],
+		"choices": ["how_fall", "how", "bye"]},
+	"how_ward": {"ask": "Why won't the stair open?",
+		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
+		"choices": ["how_secret", "how", "bye"]},
+	"how_secret": {"ask": "Cracked walls and secret rooms?",
+		"lines": ["Dust falls from a cracked wall. A finishing blow breaks it: a way through, hidden essence, sometimes a vault. A secret room hides behind plain wall: lean into the wall and it opens. Flare Powder and the Scroll of Seeing make secret walls glint."],
+		"choices": ["how_ward", "how", "bye"]},
 	# --- the tower ----------------------------------------------------------------------
 	"tower": {"ask": "What is {tower} like?", "fact": "tower",
 		"lines": ["{blurb} Its essence is {essence}. {best_line}"],
@@ -227,6 +257,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_next_more(main)
 		"climb":
 			f = _fact_climb(main)
+		"rules":
+			f = _fact_rules()
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -449,6 +481,30 @@ static func _fact_money(main) -> Dictionary:
 	var M = load("res://scripts/menu.gd")
 	var share := Train.condense_share(M.settings)
 	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0))}
+
+
+## The game's rules in numbers, read from its own tables (for "How do things work here?").
+static func _fact_rules() -> Dictionary:
+	var R = load("res://scripts/renown.gd")
+	var Lost = load("res://scripts/lost.gd")
+	var Items = load("res://scripts/items.gd")
+	var ranks: Array = []
+	for r in R.RANKS:
+		if int(r[2]) > 0:
+			ranks.append("%s at %d" % [r[1], int(r[2])])
+	var f := _fact_money(null)
+	f.merge({
+		"own": _num(ProfileScript.AFFINITY_WEIGHT), "other": _num(ProfileScript.OTHER_WEIGHT), "steps": ProfileScript.STEP_XP.size(),
+		"full": "%d%%" % int(round(ProfileScript.MARK_FULL * 100.0)), "faint": int(ProfileScript.FAINT_DEBT),
+		"per_floor": int(R.CLIMB.get("floor", 0)), "per_best": int(R.CLIMB.get("best", 0)), "beast": int(R.CLIMB.get("beast", 0)),
+		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),
+		"kinds": Items.BELT_KINDS, "stack": Items.MAX_STACK,
+	})
+	return f
+
+
+static func _num(v: float) -> String:
+	return str(int(v)) if is_equal_approx(v, round(v)) else str(snappedf(v, 0.01))
 
 
 ## What to do next: every hint that applies now, best first.
