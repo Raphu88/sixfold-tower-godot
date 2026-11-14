@@ -2135,6 +2135,7 @@ func _supply_card(id: String) -> void:
 	if packed > 0:
 		var back: Button = m._button(T["put_back"], _put_back.bind(id), m.details)
 		back.custom_minimum_size.y = 40
+		back.set_meta("put_back", id)
 	if not m.compact():
 		m._detail_text(T["supplies_note"], UI.FAINT)
 

@@ -433,6 +433,7 @@ static func build(menu) -> void:
 	elif not prof.bonds.is_empty() and not Unbound.is_on(prof):
 		var sb: Button = menu._button(TEXT["steps"], menu._set_climber_tab.bind("marks"), row)
 		sb.custom_minimum_size.x = 180.0
+		sb.set_meta("help", "steps")  # (the Entity's explanation of it: entity_help.gd)
 	if row.get_child_count() > 0:
 		menu._gap(2)
 		menu.box.add_child(row)
