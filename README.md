@@ -1436,7 +1436,9 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/rift.gd` | The Designer's rift: where it runs, tearing it (walls, paths, collision, doors, vaults, secret rooms, traps, cover, drawing) and its torn-rock look |
 | `scripts/secret_page.gd` | The climber screen's Core tab (tools, growth, the Developer's numbers, Tune, Edit, moving marks, the bribe and change of path) and the dev tools' secret bond section |
 | `scripts/secret.gd` | The secret essences, Life and Unmaking: which great foes leave them, the path, the flow's steps and what each does, all their words, and the climber's shadow that holds them |
-| `scripts/profile.gd` | What carries over between climbs: marks, growth, soak, the save |
+| `scripts/profile.gd` | What carries over between climbs: marks, growth, soak, the save; how banked essence pours in (`pour`: the split) and a tincture is drunk (`drink`) |
+| `scripts/essence_flow.gd` | How banked essence flows: the split at a stair (body, marks, crystals), tinctures (strength, crafting, drops), earned marks (a Maker's grant for a sealed wing won early, a faint mark in a fall), and their words |
+| `scripts/pour_page.gd` | Crystals and tinctures: the page where you eat crystals and drink tinctures into the mark or body part you choose (from the book, the Loadout, the Workshop or a tincture on the belt) |
 | `scripts/slots.gd` | Climber slots: each climber's save file, the shared settings file, the slot played last, deleting, and moving an old single save into slot 1 |
 | `scripts/climbers_page.gd` | The Climbers page (the climber picker) and its words, the title's Climbers button and the Start over words |
 | `scripts/floors.gd` | Plans each floor: the grid, spine, branches and kept cells, loops, corridors, doors, the rooms' jobs and payoffs (chests, rest rooms, traders, strongrooms), monster groups, toughness |
@@ -1555,6 +1557,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `tests/smoke_test.gd` | Headless test that drives every action |
 | `tests/reach_sweep.gd` | A heavier sweep of the floor planner: thousands of floors checked for a way out |
 | `tests/floor_bot_driver.gd` | The floor bot: plays a floor through the same inputs a controller gives (walks by path, opens doors by walking, fights, does the task, solves the puzzle, takes the stair) |
+| `tests/essence_measure.gd` | A measure, not a check: the floor bot plays floors of one tower and it prints the essence gathered and each body part's soak per floor, for tuning the split and the soak rate |
 | `tests/floor_bot_sweep.gd` | The floor bot's heavy sweep: many floors per tower and depth, with the completion rate, time per floor, failures and what the floors hold |
 | `tests/layout_audit_driver.gd` | The layout audit: opens the screens and flags text on text, cut short, cut off, off screen or under the rail |
 | `tests/layout_sweep.gd` | The layout audit's full sweep: every screen at every Interface size, on a computer and three phones |

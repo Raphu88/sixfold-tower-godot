@@ -543,12 +543,13 @@ class Sweep:
 			["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"],
 			["mark", "hand"], ["mark", "legs"], ["mark", "brow"], ["mark", "heart"], ["mark", "throat"], ["mark", "back"],
 			["library", ""], ["library", "bestiary"], ["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"],
-			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["techniques", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"]]
+			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["techniques", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"],
+			["pour", "crystal"], ["pour", "tincture"]]
 		for t in Appearance.TABS:
 			list.append(["appearance", t[0]])
 		if light:
 			list = [["pause", ""], ["settings", "settings"], ["climber", "abilities"], ["climber", "marks"], ["climber", "record"], ["mark", "hand"],
-				["inventory", "worn"], ["library", ""], ["library", "bestiary"], ["appearance", Appearance.TABS[0][0]], ["talk", "marks"]]
+				["inventory", "worn"], ["library", ""], ["library", "bestiary"], ["appearance", Appearance.TABS[0][0]], ["talk", "marks"], ["pour", "tincture"]]
 		for pg in list:
 			var name := ("%s %s" % [pg[0], pg[1]]).strip_edges()
 			if not wants(name):
@@ -570,6 +571,16 @@ class Sweep:
 				menu.open_mark(pg[1])
 			elif pg[0] == "appearance":
 				menu.open_appearance("climber")
+			elif pg[0] == "pour":
+				# Crystals and tinctures (pour_page.gd): a crystal's card, or a
+				# tincture's with its six body parts.
+				if pg[1] == "tincture":
+					main.player.items["tincture_fire"] = 2
+				main.profile.add_crystal("air", 30.0)
+				menu.open_pour("tincture_fire" if pg[1] == "tincture" else "")
+				if pg[1] == "crystal":
+					menu.inv_sel = "crystal:air"
+					menu.open("pour", true)
 			elif pg[0] == "talk":
 				# Talking with the Entity (entity_talk.gd): its line and choices, at a node.
 				menu.talk.begin(main)

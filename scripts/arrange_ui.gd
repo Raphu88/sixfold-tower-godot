@@ -55,7 +55,7 @@ const PAGE_NAMES := {
 	"inventory": "Inventory", "mark": "Mark page", "library": "Library", "dev": "Dev tools",
 	"data": "Edit game data", "appearance": "Appearance", "techniques": "Techniques",
 	"climbers": "Climbers", "confirm_new": "Start over", "padsetup": "Controller setup", "train": "Train", "station": "Station",
-	"talk": "Talking with the Entity",
+	"talk": "Talking with the Entity", "pour": "Crystals and tinctures",
 }
 ## Pages never arranged (the title has its own picture; the painter and a
 ## new climber's look have their own screens).
@@ -90,6 +90,12 @@ const NAMES := {
 	"menu.inventory.row1.column1": "Left side: what you carry",
 	"menu.inventory.row1.column2": "Right side: the details",
 	"menu.inventory.row1.column2.card1": "Item details card",
+	"menu.pour.row1": "Crystals, tinctures and the card",
+	"menu.pour.row1.column1": "Left side: your crystals and tinctures",
+	"menu.pour.row1.card1": "The chosen one's card",
+	"menu.pour.row2": "Crystals, tinctures and the card",
+	"menu.pour.row2.column1": "Left side: your crystals and tinctures",
+	"menu.pour.row2.card1": "The chosen one's card",
 	"menu.pause.grid1": "Main buttons",
 	"menu.pause.grid2": "Restart button",
 	"menu.appearance.row1.column1": "Left side: the preview",
