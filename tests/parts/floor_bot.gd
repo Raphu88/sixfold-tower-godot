@@ -192,7 +192,7 @@ func _scenario() -> void:
 	print("floors: scenario rooms")
 	var main = t.main
 	var s := {}
-	for n in 40:
+	for n in 150:  # (it stops at the first gauntlet; 40 tries now and then found none by bad luck)
 		main._start_floor(3 + n % 6)
 		await t._frames(1)
 		for ss in main.scenarios.list:
