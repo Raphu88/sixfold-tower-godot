@@ -33,6 +33,7 @@ Screenshots can be rendered with `xvfb-run -a -s "-screen 0 1280x720x24" godot -
 - The first climb is bondless and ends in the Regard: the tower's beast takes notice and the most-used body part takes its first mark. Dying on the first climb still grants a mark, but a faint one that needs extra essence before it grows.
 - Bonds grow across climbs from essence banked at stairs, not within a run. Marks spreading on the body replace the old game's "shroud".
 - Story and the purpose of the towers are still to be written by the owner; keep names and text in data so they're easy to change.
+- The game is mechanically dense: every new mechanic or screen should come with the Entity explaining it (a first-time moment, a "How does it work?" dialogue topic, and hover/hold help for its buttons), and navigation should be easy to understand without reading the README.
 
 ## Project
 - Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd` (world) and `scripts/ui.gd` (menus and HUD).

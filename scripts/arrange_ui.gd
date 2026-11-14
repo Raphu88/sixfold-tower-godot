@@ -150,6 +150,8 @@ const NAMES := {
 	"train.settings.brake.title": "Brake's sign",
 	"train.settings.brake.button": "Start over button",
 	"train.settings.brake.text": "Brake's note",
+	"menu.library.bestiary.text1": "Bestiary: how many met",
+	"menu.library.bestiary.card1": "Bestiary: the open entry",
 }
 ## What's special about arranging a block, said under its name when it's chosen.
 const HOW := {
@@ -651,6 +653,8 @@ static func page_key(m) -> String:
 			return "climber." + String(m.climber_tab)
 		"settings":
 			return "settings." + String(m.settings_tab)
+		"library":
+			return "library.bestiary" if String(m.library_tab) == "bestiary" else "library"  # (the Archive keeps its old ids)
 		"station":
 			return "station." + String(m.station_page.stop)
 	return String(m.page)
@@ -660,6 +664,8 @@ static func page_name(m) -> String:
 	var n: String = PAGE_NAMES.get(String(m.page), String(m.page).capitalize())
 	if m.page == "climber":
 		n += " (" + String(m.climber_tab).capitalize() + ")"
+	elif m.page == "library" and String(m.library_tab) == "bestiary":
+		n += " (Bestiary)"
 	return n
 
 
