@@ -258,7 +258,7 @@ const DEV := {
 	"menus": "Arrange menus",
 	"train": "Arrange the train",
 	"screen": "Arrange this screen",
-	"note": "Arrange layout moves and scales the HUD and the touch buttons (F2 in play); Arrange menus does the same for this page, and F2 with any menu open (or on the train) for that one. It shows a few big blocks at a time, with a list of them at the side: pick one, drag it, and Go inside it for its parts. Save keeps it; run from the Godot editor, Save also writes data/layout.json for GitHub Desktop.",
+	"note": "Arrange layout moves and scales the HUD and the touch buttons (F2 in play); Arrange menus does the same for this page, and F2 with any menu open (or on the train) for that one; Arrange the train (on the train) goes back to the train and arranges its cars (Settings & Controls has the same button, for a phone). It shows a few big blocks at a time, with a list of them at the side: pick one, drag it, and Go inside it for its parts. Save keeps it; run from the Godot editor, Save also writes data/layout.json for GitHub Desktop.",
 }
 
 

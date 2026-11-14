@@ -15,6 +15,7 @@ const AUI := preload("res://scripts/arrange_ui.gd")
 const DrawnParts := preload("res://scripts/drawn_parts.gd")
 const Train := preload("res://scripts/train.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Stations := preload("res://scripts/stations.gd")
 
 var t
 var keep := []
@@ -50,6 +51,7 @@ func run(smoke) -> void:
 	await _move_save_reload()
 	await _taps_still_work()
 	await _reset()
+	await _station()
 	await _phone_touch()
 	# Tidy up.
 	L.clear_state()
@@ -306,6 +308,44 @@ func _reset() -> void:
 	_check(not L.snapshot()["desktop"].keys().any(func(k): return String(k).begins_with("train.")), "Reset all puts every car back")
 	await _close()
 	L.clear_state()
+
+
+## A station's page: its list and its card can be gone inside (the card's
+## heading, lines and button), and a part moved and kept.
+func _station() -> void:
+	var ar = t.main.arrange
+	var m = t.main.menu
+	L.clear_state()
+	m.go_station(String(Stations.STATIONS[0]["id"]), "gym")
+	await t._frames(4)
+	await t._wait(0.5)
+	_check(m.page == "station", "at a station")
+	await _arrange_open()
+	ar.enter("menu.station.panel")
+	var card := ""
+	for id in ar.level_blocks():
+		for k in ar.kids(id):
+			if String(k).contains(".card") and ar.can_enter(k):
+				card = k
+	_check(card != "", "the station's card is a block with parts (%s)" % [ar.tree().keys()])
+	if card != "":
+		ar.enter(card)
+		var parts: Array = ar.level_blocks()
+		_check(parts.size() >= 2 and parts.all(func(k): return String(k).begins_with(card + ".") and ar.label_of(k) != k), "inside the card: its heading, lines and buttons, named (%s)" % [parts.map(func(k): return ar.label_of(k))])
+		var p0: String = parts[0]
+		ar.sel = p0
+		var r: Rect2 = ar.screen_rect(p0)
+		ar._apply(p0, Rect2(r.position + Vector2(16, 8), r.size))
+		await t._frames(2)
+		_check(AUI.override(p0) != null and ar.screen_rect(p0).position.distance_to(r.position + Vector2(16, 8)) < 3.0, "a part of the card moves (%s)" % p0)
+		ar.press("reset_one")
+		await t._frames(2)
+		_check(AUI.override(p0) == null, "...and Reset this puts it back")
+	await _close()
+	m.rail_pressed("leave_station")
+	await t._frames(4)
+	L.clear_state()
+	await _to_train()
 
 
 func _tap(pos: Vector2) -> void:

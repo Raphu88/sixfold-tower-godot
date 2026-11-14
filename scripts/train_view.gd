@@ -2454,7 +2454,9 @@ class Band extends Control:
 ## and a hanging lamp's light, a pegboard of tools, a shelf of bottles in the
 ## six essences' colours catching the light, the workbench with a vice and a
 ## flask steaming over a small flame, and the Rune Artist's slate, its runes
-## glowing when you carry the Rune Artist's mark (`lit`).
+## glowing when you carry the Rune Artist's mark (`lit`). In Arrange mode
+## each of those is a part of its own (PARTS, drawn_parts.gd): each is drawn
+## through its move.
 class Bench extends Control:
 	const UI := preload("res://scripts/ui.gd")
 	const Art := preload("res://scripts/train_art.gd")

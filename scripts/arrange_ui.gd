@@ -710,6 +710,11 @@ static func _tag_menu_part(m, ctl, prefix: String, pn: String, counts: Dictionar
 	if kind in ["title", "tabs", "ribbons"] and counts[kind] == 1:
 		id = "%s.%s" % [prefix, kind]
 	tag(ctl, id, _auto_name(ctl, kind, int(counts[kind]), heading), {}, frame, prefix, kind, pn)
+	if m.page == "station" and depth == 1:
+		# A station's list and its card: their own parts, one level in (its
+		# tiles; the card's heading, lines and buttons), as a train car's furniture.
+		_tag_inside(ctl, id, pn, frame, prefix, 1, {"n": 0})
+		return
 	# A row of columns: each column too (one level down).
 	if depth == 0 and (ctl is HBoxContainer or ctl is HFlowContainer) and not (kind in ["title", "tabs", "ribbons", "footer"]):
 		var cols: Array = ctl.get_children().filter(func(k): return k is Control and k.visible and not _spacer(k))
