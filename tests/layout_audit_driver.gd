@@ -679,8 +679,8 @@ class Sweep:
 		menu.settings_tab = "settings"
 		# The Entity explaining a button (entity_helper.gd): its bubble beside
 		# a stash piece, the Loadout button and a rail entry.
-		for v in [["personal", "slot", "chest:0"], ["personal", "car_page", "loadout"], ["engine", "rail", "store"]]:
-			var nm := "train %s bubble %s" % [v[0], v[2]]
+		for v in [["personal", "slot", "chest:*"], ["personal", "car_page", "loadout"], ["engine", "rail", "store"]]:
+			var nm := "train %s bubble %s" % [v[0], v[2].trim_suffix(":*")]
 			if not wants(nm) or (light and v[1] != "car_page"):
 				continue
 			menu.train_car = v[0]
@@ -692,12 +692,12 @@ class Sweep:
 			var h = menu.helper
 			var b: Control = null
 			for c in h.buttons():
-				if c.get_meta(v[1], null) == v[2]:
+				if c.has_meta(v[1]) and (c.get_meta(v[1]) == v[2] or (v[2].ends_with("*") and str(c.get_meta(v[1])).begins_with(v[2].trim_suffix("*")) and b == null)):
 					b = c
 			if b == null:
 				continue
-			menu.nav_keys = not main.touch_active
-			if not main.touch_active:
+			menu.nav_keys = not main.touch_active and v[1] != "rail"  # (the focus on a rail entry would move the train)
+			if menu.nav_keys:
 				b.grab_focus()
 			h.show_for(b)
 			h.pending = b
