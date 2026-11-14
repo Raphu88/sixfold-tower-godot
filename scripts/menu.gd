@@ -1136,7 +1136,7 @@ func _first_focus(which: String, list: Array) -> int:
 				first = maxi(first, list.map(func(b): return b.get_meta("part", "")).find(focus_part))
 		elif which == "mark":
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
-		elif which == "inventory" or which == "loadout" or which == "stash":
+		elif which == "inventory" or which == "loadout" or which == "stash" or which == "pour":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
 		elif which == "settings" and settings_tab == "settings":
 			first = maxi(0, list.map(func(b): return b is HSlider).find(true))  # (on the music slider)

@@ -2482,7 +2482,7 @@ func break_belt(skip: Array = []) -> String:
 		if Flow.is_tincture(id) and not (id in skip) and int(player.items[id]) > 0:
 			# (a tincture comes home whole: packed again for your next climb)
 			for n in int(player.items[id]):
-				Train.pack_supply(profile, id, {})
+				Train.pack_supply(profile, id, {Flow.tincture_kind(id): 0})  # (found: putting it back gives nothing for it)
 			continue
 		if not (id in skip) and id != Vessel.ID and int(player.items[id]) > 0:  # (a vessel comes home whole: Vessel.bring_home)
 			carried[id] = int(player.items[id])
