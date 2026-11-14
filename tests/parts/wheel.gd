@@ -145,6 +145,27 @@ func _belt_keys() -> void:
 	Input.action_release("item_next")
 	await _phys()
 	_check(p.selected_item() == "tonic" and _counts(p) == before, "...and letting go chooses without using")
+	# Sizes show on the wheel: the next one's name ("Greater ...") and pips,
+	# and under it what the size changes and a mixed stack's sizes.
+	var Items = load("res://scripts/items.gd")
+	p.items = {"tonic": 2}
+	p.item_sizes = {}
+	p.add_item("draught", Items.STANDARD + 1)
+	p.add_item("draught", Items.STANDARD - 1)
+	p.item_sel = "draught"
+	var greater: String = Items.sized_name("draught", Items.STANDARD + 1)
+	var UIs = load("res://scripts/ui.gd")
+	Input.action_press("use_item")
+	await t._wait(0.45)
+	UIs.text_notes = []
+	main.hud.rings.queue_redraw()
+	await t._frames(2)
+	var drawn: Array = UIs.text_notes.map(func(n): return String(n["text"]))
+	UIs.text_notes = null
+	_check(p.ring_open and greater != Items.ITEMS["draught"]["name"] and drawn.any(func(w): return w == greater) and drawn.any(func(w): return w.contains(Items.sized_name("draught", Items.STANDARD - 1, true))),
+		"the wheel names an item by its next size (%s) and lists a mixed stack's sizes" % greater)
+	Input.action_release("use_item")
+	await _phys()
 	# One kind on the belt: no wheel; a hold still just uses it.
 	p.items = {"draught": 2}
 	p.item_sel = "draught"
