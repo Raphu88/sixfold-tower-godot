@@ -348,13 +348,14 @@ static var RECALL := {
 }
 
 ## Essence crystals (kept in the profile between climbs; crystals of a kind
-## combine into one). Consuming banks up to "step" essence at a time.
+## combine into one). Eating one pours up to "step" essence into you at a
+## time, the natural way (essence_flow.gd: body and marks share it).
 static var CRYSTAL := {
 	"name": "%s Crystal",
-	"desc": "holds %d %s essence outside you; consume it to bank that essence into you",
+	"desc": "holds %d %s essence outside you; eat it and that essence flows into you the natural way",
 	"step": 10,
-	"consume": "Consume %d",
-	"consumed": "Consumed: %d %s essence banked into you",
+	"consume": "Eat %d",
+	"consumed": "Ate %d %s essence",
 	"held": "%d essence  ·  the train's money  ·  kept between climbs",
 	"none": "No crystals of this kind yet. Each stair condenses a share of what you bank into crystals, the outfitter pays for every climb, and vaults and secret rooms may hold them.",
 }

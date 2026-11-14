@@ -39,7 +39,7 @@ static var STEP_RATE := 0.25
 ## mark at a summit, or earlier from a Maker for a sealed wing won early
 ## (essence_flow.gd EARNED); at most one new mark a climb (main.gd).
 static var NEW_MARK_SOAK := 250.0
-static var SOAK_RATE := 1.25
+static var SOAK_RATE := 1.6
 static var MARK_FULL := 0.9
 static var BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
 

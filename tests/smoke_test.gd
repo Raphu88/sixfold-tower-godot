@@ -157,7 +157,7 @@ func _regard_tests() -> void:
 	# A faint mark owes essence before it grows.
 	var lines: Array = main.profile.bank({"water": 30.0}, {})
 	_check(main.profile.bonds["brow"]["faint"] and main.profile.bonds["brow"]["xp"] == 0.0, "a faint mark doesn't grow until it catches up")
-	lines = main.profile.bank({"water": 40.0}, {})
+	lines = main.profile.bank({"water": 60.0}, {})  # (only the marks' share pays the debt: essence_flow.gd)
 	_check(not main.profile.bonds["brow"]["faint"], "enough essence and the mark is no longer faint")
 	_check(main.profile.bonds["brow"]["xp"] > 0.0, "the overflow starts it growing")
 	await _wait(3.2)
@@ -216,11 +216,11 @@ func _regard_tests() -> void:
 	main.player.set_physics_process(true)
 	# A battery: the fuller a part, and the more marks you carry, the slower it fills.
 	main.profile.soak = {"back": 0.0, "throat": PS.NEW_MARK_SOAK * 0.5}
-	main.profile.bank({}, {"back": 100.0, "throat": 100.0})
+	main.profile.bank({"iron": 100.0}, {"back": 1.0, "throat": 1.0})  # (the body's share soaks in, by what each part did: essence_flow.gd)
 	var empty_gain: float = main.profile.soak["back"]
 	var half_gain: float = main.profile.soak["throat"] - PS.NEW_MARK_SOAK * 0.5
 	_check(empty_gain > 0.0 and half_gain < empty_gain * 0.6, "a half-full part fills slower than an empty one (%.1f vs %.1f)" % [half_gain, empty_gain])
-	_check(empty_gain <= 100.0 * PS.SOAK_RATE + 0.01, "a part soaks up only part of what it does")
+	_check(empty_gain < 100.0 * 0.5 * PS.SOAK_RATE, "a part soaks up only its part of the body's share")
 	# The Proving's gift: one mark grows a step.
 	var before_step: int = PS.step_for_xp(float(main.profile.bonds["legs"]["xp"]))
 	main.climb_soak["legs"] = 999.0
@@ -7650,7 +7650,7 @@ func _wing_tests() -> void:
 	var xp0: float = main.profile.bonds["hand"]["xp"]
 	var lines: Array = main.consume_crystal("air")
 	var step := float(main.Items.CRYSTAL["step"])
-	_check(main.profile.crystal_total("air") == 40.0 - step and main.profile.bonds["hand"]["xp"] > xp0 and not lines.is_empty(), "consuming banks a step of a crystal's essence into your marks (%s)" % [lines])
+	_check(main.profile.crystal_total("air") == 40.0 - step and main.profile.bonds["hand"]["xp"] > xp0 and not lines.is_empty(), "eating a step of a crystal flows its essence into you, your marks among it (%s)" % [lines])
 	for i in 10:
 		main.consume_crystal("air")
 	_check(main.profile.crystal_count("air") == 0 and main.consume_crystal("air").is_empty(), "(all of it consumed: none left, nothing happens)")
@@ -8575,7 +8575,7 @@ func _economy_tests() -> void:
 	# Condensing at a stair: the set share, per kind; only the rest is banked.
 	M.settings["condense"] = T.CONDENSE_DEFAULT
 	var share: float = T.condense_share(M.settings)
-	_check(is_equal_approx(share, 0.2), "condensing starts at 20%")
+	_check(is_equal_approx(share, 0.3), "condensing starts at 30% (the split's crystals: essence_flow.gd)")
 	prof.crystals = []
 	var twin = PS.new()
 	twin.saving = false
@@ -8588,10 +8588,11 @@ func _economy_tests() -> void:
 	var cw := floorf(50.0 * share)
 	var ca := floorf(7.0 * share)
 	_check(prof.crystal_total("water") == cw and prof.crystal_total("air") == ca and prof.crystal_count("water") == 1, "a stair condenses %d%% of each kind into crystals (%s)" % [int(share * 100.0), prof.crystals])
-	_check(is_equal_approx(float(prof.density.get("water", 0.0)) - dens0, 50.0 - cw), "...and banks only the rest")
+	_check(is_equal_approx(float(prof.density.get("water", 0.0)) - dens0, (50.0 - cw) * 3.0 / 7.0), "...and of the rest only the body's share settles as density")
 	twin.bank({"water": 50.0 - cw, "air": 7.0 - ca}, {})
 	_check(is_equal_approx(prof.bonds["hand"]["xp"], twin.bonds["hand"]["xp"]) and is_equal_approx(prof.bonds["legs"]["xp"], twin.bonds["legs"]["xp"]) and prof.bonds["legs"]["xp"] > 0.0, "marks grow from the banked part only")
-	var want: String = T.TEXT["banked"] % int(57.0 - cw - ca) + "  ·  " + T.TEXT["condensed"] % int(cw + ca)
+	var m_share := roundi((57.0 - cw - ca) * 4.0 / 7.0)
+	var want: String = main.Flow.TEXT["split"] % [57, 57 - m_share - int(cw + ca), m_share, int(cw + ca)]
 	_check(main.banner.get("lines", []).has(want), "the stair's banner says so: %s" % want)
 	# The Unbound: the share is taken before essence pools raw in a part.
 	var ub = PS.new()
@@ -8606,17 +8607,17 @@ func _economy_tests() -> void:
 	await _frames(2)
 	var row: Array = _all_buttons(menu).filter(func(b): return b.get_meta("choice_key", "") == "condense")
 	_check(row.size() == T.CONDENSE_CHOICES.size(), "Settings has a row for the share (%d choices)" % row.size())
-	var b35: Array = row.filter(func(b): return b.get_meta("choice", "") == "35")
+	var b35: Array = row.filter(func(b): return b.get_meta("choice", "") == "40")
 	if b35.size() == 1:
 		b35[0].pressed.emit()
 		await _frames(2)
-	_check(M.settings["condense"] == "35" and is_equal_approx(T.condense_share(M.settings), 0.35), "choosing 35% changes the share")
+	_check(M.settings["condense"] == "40" and is_equal_approx(T.condense_share(M.settings), 0.4), "choosing 40% changes the share")
 	menu.close()
 	var path := TestRun.path("user://smoke_condense_test.cfg")
 	M.save_settings_to(path)
 	M.settings["condense"] = "20"
 	M.load_settings_from(path)
-	_check(M.settings["condense"] == "35", "...and it's saved with the settings")
+	_check(M.settings["condense"] == "40", "...and it's saved with the settings")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	M.settings["condense"] = "0"
 	prof.crystals = []
