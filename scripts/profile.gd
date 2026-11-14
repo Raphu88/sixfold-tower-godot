@@ -295,6 +295,7 @@ func load_save() -> void:
 		for id in paid:
 			if supplies.has(String(id)) and paid[id] is Array:
 				supply_paid[String(id)] = paid[id].filter(func(c): return c is Dictionary).slice(0, int(supplies[String(id)]))
+	load("res://scripts/charms.gd").old_supplies(self)  # (consumables that became charms: what was paid comes back)
 	store = cfg.get_value("train", "store", {})
 	if not (store is Dictionary):
 		store = {}
@@ -396,6 +397,8 @@ static func _worn_set(raw) -> Dictionary:
 			var r := Gear.rec(raw[slot])
 			if not r.is_empty() and String(slot) in Gear.carry_slots(Gear.slot_of(r)):
 				out[String(slot)] = r
+			elif not r.is_empty() and Gear.slot_of(r) == "charm" and not raw.has("charm"):
+				out["charm"] = r  # (a piece that became a charm since: the Ember Charm was an amulet)
 	return out
 
 

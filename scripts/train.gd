@@ -32,6 +32,7 @@ const Renown := preload("res://scripts/renown.gd")
 const Boons := preload("res://scripts/boons.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Towers := preload("res://scripts/towers.gd")
+const Charms := preload("res://scripts/charms.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -89,7 +90,10 @@ static var BASE_PRICE := {
 	"overdrawn_ring": 12, "climbers_pack": 12,
 	"feathered_cap": 10, "miners_helm": 12, "archers_bracers": 10, "studded_gloves": 12, "ranger_breeches": 10, "plated_greaves": 15,
 	"wading_boots": 11, "feather_cape": 11, "herb_pouch": 12, "wolf_tooth": 12, "sunstone_pendant": 12, "silver_ring": 12, "jade_ring": 12,
-	"viper_ring": 12, "bandolier": 14,
+	"viper_ring": 12, "bandolier": 14, "pack": 14, "great_pack": 20,
+	# Charms (charms.gd): Commons cost half this, Fine twice it, Rare four times.
+	"lucky_knot": 12, "pocket_clasp": 14, "belt_hook": 14, "feather_token": 14, "iron_brooch": 14, "ward_stone": 15, "tide_shell": 16,
+	"wardbreaker": 14, "mending_bead": 15, "keepers_purse": 18, "ashen_knot": 18, "gale_charm": 16, "bulwark_stone": 16,
 }
 static var DEFAULT_PRICE := 10
 ## Commons are the everyday buy, at half their base price (the owner's call:
@@ -130,7 +134,7 @@ static var CLIMB_PAY := {"per_floor": 2, "per_best": 3}
 ## name) to say: by its slot.
 const SLOT_KIND := {
 	"armor": "stone", "helm": "stone", "gloves": "blade", "melee": "blade", "legs": "iron", "ranged": "iron",
-	"boots": "air", "cloak": "air", "amulet": "fire", "ring": "water", "backpack": "iron",
+	"boots": "air", "cloak": "air", "amulet": "fire", "ring": "water", "backpack": "iron", "charm": "water",
 }
 
 ## The words of the train's pages.
@@ -309,6 +313,8 @@ static func gear_kind(g) -> String:
 	for t in r.get("traits", []):
 		if Gear.TRAITS.has(String(t)):
 			return String(Gear.TRAITS[t]["kind"])
+	if Gear.slot_of(r) == "charm" and String(Gear.PIECES.get(r.get("base", ""), {}).get("kind", "")) != "":
+		return String(Gear.PIECES[r["base"]]["kind"])  # (an enchanted charm: its own essence, charms.gd kind)
 	return String(SLOT_KIND.get(Gear.slot_of(r), "iron"))
 
 
@@ -555,11 +561,31 @@ static func common_pool() -> Array:
 static func roll_outfit(profile = null) -> Array:
 	var pool := common_pool()
 	pool.shuffle()
-	var pick: Array = pool.slice(0, rack_size(profile))
+	var pick: Array = pool.slice(0, maxi(1, rack_size(profile) - int(Charms.SHOP["rack"])))  # (the rail's last spaces hold charms)
 	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
 	pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
+	# A climber with no bag at all always finds a Satchel on the rail (a
+	# first bag should be easy to get: gear.gd BAG).
+	if profile != null and not has_bag(profile) and not pick.has(FIRST_BAG):
+		pick[pick.size() - 1] = FIRST_BAG
+		pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
 	var fine := upgraded(profile, "stock")
-	return pick.map(func(id): return Gear.make(id, "fine", Gear.roll_traits(id, "fine")) if fine and randi() % 100 < int(UPGRADE_FX["rack_fine"]) else Gear.make(id))
+	var out: Array = pick.map(func(id): return Gear.make(id, "fine", Gear.roll_traits(id, "fine")) \
+		if fine and not Gear.traits_for(Gear.trait_slot(id)).is_empty() and randi() % 100 < int(UPGRADE_FX["rack_fine"]) else Gear.make(id))
+	out.append_array(Charms.shop_stock())  # (a charm or two in the rail's last spaces: charms.gd SHOP)
+	return out
+
+
+## The bag a climber with none always finds on the rail.
+const FIRST_BAG := "satchel"
+
+
+## Does the climber own a bag anywhere (worn, kept, in the pack or stash)?
+static func has_bag(profile) -> bool:
+	for g in [profile.wear.get("backpack", {})] + Gear.heirloom_pieces(profile.heirlooms, "backpack") + profile.pack + profile.chest:
+		if Gear.is_gear(g) and Gear.slot_of(g) == "backpack":
+			return true
+	return false
 
 
 ## Today's piece: Fine or Rare (TODAY_ODDS; STOCK_ODDS with better stock), with its traits.
@@ -729,7 +755,7 @@ static func buy_room(profile, player, g, to := "pack") -> String:
 		var after: Dictionary = profile.wear.duplicate()
 		after[slot] = Gear.rec(g)
 		var old = profile.wear.get(slot, null)
-		if pack_size_with(profile, after) < profile.pack.size() + (1 if old != null else 0):
+		if pack_too_small(profile, after, profile.pack.size() + (1 if old != null else 0)):
 			return TEXT["pack_shrinks"]
 	return ""
 
@@ -820,19 +846,19 @@ static func pack_up(profile, player) -> void:
 # the figure show it.
 
 ## The slots you can wear something in (not the off-hand: kept for later).
-const WEAR_SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack"]
+const WEAR_SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "charm"]
 
 ## The sorts and filters of the stash screen (stash_page.gd): [id, name].
 ## A slot filter is "all" or a slot (Gear.slot_of); an essence filter "all"
 ## or a kind.
 static var STASH_SORTS := [["newest", "Newest"], ["rarity", "Rarity"], ["slot", "Slot"], ["kind", "Essence"], ["price", "Price"]]
 static var SLOT_FILTERS := [["all", "All slots"], ["melee", "Melee"], ["ranged", "Ranged"], ["armor", "Chest"], ["helm", "Helm"], ["gloves", "Gloves"],
-	["legs", "Legs"], ["boots", "Boots"], ["cloak", "Cloak"], ["amulet", "Amulet"], ["ring", "Rings"], ["backpack", "Backpack"]]
+	["legs", "Legs"], ["boots", "Boots"], ["cloak", "Cloak"], ["amulet", "Amulet"], ["ring", "Rings"], ["backpack", "Backpack"], ["charm", "Charms"]]
 ## The outfit rail's filter, and where selling shows pieces from: [id, name].
-static var RACK_FILTERS := [["all", "Everything"], ["better", "Better than yours"], ["weapons", "Weapons"], ["armour", "Armour"], ["more", "Cloaks and packs"]]
+static var RACK_FILTERS := [["all", "Everything"], ["better", "Better than yours"], ["weapons", "Weapons"], ["armour", "Armour"], ["more", "Cloaks, packs, charms"]]
 static var SELL_FROM := [["all", "Pack and stash"], ["pack", "Your pack"], ["chest", "Your stash"]]
-const RACK_GROUPS := {"weapons": ["melee", "ranged"], "armour": ["armor", "helm", "gloves", "legs", "boots"], "more": ["cloak", "backpack", "amulet", "ring"]}
-const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack"]
+const RACK_GROUPS := {"weapons": ["melee", "ranged"], "armour": ["armor", "helm", "gloves", "legs", "boots"], "more": ["cloak", "backpack", "amulet", "ring", "charm"]}
+const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm"]
 
 
 ## What you'd wear with these chosen pieces (`wear`, else profile.wear):
@@ -905,10 +931,20 @@ static func setoff_gear(profile, player = null) -> Dictionary:
 	return g
 
 
-## How many pieces your pack holds with these chosen pieces worn (a
-## Climber's Pack holds more).
+## How many pieces your pack holds with these chosen pieces worn (your
+## bag's size, and a charm's extra space: gear.gd pack_capacity).
 static func pack_size_with(profile, wear: Dictionary) -> int:
-	return Gear.PACK_SIZE + int(Gear.total_effects(dressed(profile, wear)).get("pack", 0))
+	return Gear.pack_capacity(Gear.total_effects(dressed(profile, wear)))
+
+
+## True if wearing `after` would leave the pack holding more than it can
+## (`pack_after` pieces): only a change that makes the pack smaller is
+## refused, so an old save whose pack holds more than its bag (packs held
+## 4 before bags had sizes) can still change what it wears; nothing is
+## ever thrown away, you just can't add until it's under.
+static func pack_too_small(profile, after: Dictionary, pack_after: int) -> bool:
+	var cap := pack_size_with(profile, after)
+	return cap < pack_after and cap < pack_size_with(profile, profile.wear)
 
 
 ## The slot a piece goes in when you choose to wear it: its own; for a ring
@@ -944,7 +980,7 @@ static func equip(profile, player, where: String, i: int, into := "") -> String:
 	var after: Dictionary = profile.wear.duplicate()
 	after[slot] = g
 	var pack_after: int = profile.pack.size() - (1 if where == "pack" else 0) + (1 if old != null and where == "pack" else 0)
-	if pack_size_with(profile, after) < pack_after:
+	if pack_too_small(profile, after, pack_after):
 		return TEXT["pack_shrinks"]
 	from.remove_at(i)
 	if old != null:
@@ -971,7 +1007,7 @@ static func unequip(profile, player, slot: String, to := "") -> String:
 	if to == "chest":
 		if profile.chest.size() >= CHEST_SIZE:
 			return TEXT["chest_full"]
-		if profile.pack.size() > cap:
+		if pack_too_small(profile, after, profile.pack.size()):
 			return TEXT["pack_shrinks"]
 		profile.chest.append(profile.wear[slot])
 	else:

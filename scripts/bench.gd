@@ -15,6 +15,8 @@ extends RefCounted
 ##   tincture  craft a tincture from crystals of its kind (anyone; a Rune
 ##             Artist for less), packed for your next climb, or drink one
 ##             (essence_flow.gd; its own section below)
+##   charm     refill a charm's spent charge with crystals of its kind
+##             (anyone), or craft a new charm (Rune Artist; charms.gd CRAFT)
 ## The Rune Artist is the master crafter: given the essence and the skill,
 ## they can make pretty much anything. Without that bond the enchanting
 ## counters stay greyed, and say a Rune Artist could do it.
@@ -32,6 +34,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Train := preload("res://scripts/train.gd")
+const Charms := preload("res://scripts/charms.gd")
 
 ## The bond that enchants (bonds.gd).
 const RUNE_ARTIST := "rune_artist"
@@ -39,7 +42,7 @@ const RUNE_ARTIST := "rune_artist"
 const COUNTERS := [
 	["brew", "Brew", "Brew"], ["temper", "Temper", "Temper"], ["retrait", "Retrait", "Retrait"], ["join", "Join", "Join"],
 	["break", "Break down", "Break"], ["inscribe", "Inscribe", "Inscribe"], ["recall", "Recall scroll", "Recall"],
-	["vessel", "Vessel", "Vessel"], ["tincture", "Tinctures", "Tinct."],
+	["vessel", "Vessel", "Vessel"], ["tincture", "Tinctures", "Tinct."], ["charm", "Charms", "Charms"],
 ]
 ## Counters only a Rune Artist can use. (The vessel's counter: brewing one,
 ## and working a full one into a piece; vessel.gd holds its rules.)
@@ -53,7 +56,7 @@ static var BREW := {
 	"fire_flask": {"fire": 10}, "edge_oil": {"blade": 12}, "warding_oil": {"iron": 12}, "haste": {"air": 10},
 	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
 	"antidote": {"stone": 6}, "heartroot": {"water": 13}, "net": {"water": 8}, "lodestone": {"iron": 10}, "briar_tonic": {"blade": 8},
-	"wardbreaker": {"blade": 10}, "lantern_oil": {"fire": 5}, "unmaking_ash": {"fire": 13}, "gale_feather": {"air": 8}, "seeing_scroll": {"air": 11},
+	"lantern_oil": {"fire": 5}, "unmaking_ash": {"fire": 13}, "gale_feather": {"air": 8}, "seeing_scroll": {"air": 11},
 	"scroll": {"air": 30, "water": 30},
 }
 ## A Rune Artist brews for this share of the cost.
@@ -78,7 +81,7 @@ static var TEXT := {
 	"title": "The bench",
 	"rune_artist": "Rune Artist",
 	"needs_rune_artist": "Only a Rune Artist can %s. A Rune Artist could do it here, given the essence.",
-	"verbs": {"temper": "temper a piece", "retrait": "swap a trait", "join": "join two pieces", "inscribe": "inscribe a lasting rune", "recall": "bind a recall scroll", "vessel": "brew a vessel or work a full one into a piece"},
+	"verbs": {"temper": "temper a piece", "retrait": "swap a trait", "join": "join two pieces", "inscribe": "inscribe a lasting rune", "recall": "bind a recall scroll", "vessel": "brew a vessel or work a full one into a piece", "charm": "craft a charm"},
 	"notes": {
 		"brew": "Anyone can brew. What you make is packed onto your belt for your next climb.",
 		"temper": "Raise a piece's rank, +1 to +3. Each rank makes its traits 25% stronger (of their base), and a weapon hit 4% harder.",
@@ -89,7 +92,9 @@ static var TEXT := {
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
 		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
+		"charm": "Refill a charm's spent charge with crystals of its kind (anyone). A Rune Artist can also craft new charms here.",
 	},
+	"where_wear": "You'll wear it when you set off.",
 	"heirlooms": "Heirlooms",
 	"packed_items": "Packed for your next climb",
 	"where_heir": "Your heirloom: every climb begins with it.",
@@ -211,6 +216,8 @@ static func pieces(profile, heirlooms := true) -> Array:
 static func piece(profile, ref: String) -> Dictionary:
 	var where := ref.get_slice(":", 0)
 	match where:
+		"wear":
+			return Gear.rec(profile.wear.get(ref.get_slice(":", 1), {}))
 		"heir":
 			var list := Gear.heirloom_pieces(profile.heirlooms, ref.get_slice(":", 1))
 			var i := int(ref.get_slice(":", 2)) if ref.get_slice_count(":") > 2 else 0
@@ -225,6 +232,10 @@ static func piece(profile, ref: String) -> Dictionary:
 ## Puts a changed piece back where the ref names.
 static func put(profile, ref: String, g: Dictionary) -> void:
 	var where := ref.get_slice(":", 0)
+	if where == "wear":
+		if profile.wear.has(ref.get_slice(":", 1)):
+			profile.wear[ref.get_slice(":", 1)] = g
+		return
 	if where == "heir":
 		var hs := ref.get_slice(":", 1)
 		if hs == "rings":
@@ -590,3 +601,75 @@ static func craft_tincture(profile, player, id: String) -> String:
 	Train.pack_supply(profile, id, cost)
 	profile.save()
 	return ""
+
+
+# --- charms ---------------------------------------------------------------------------------------
+
+## The charms you own that hold a charge (refs): the one you'll wear, your
+## heirloom, then your pack and stash.
+static func charm_refs(profile) -> Array:
+	var out: Array = []
+	if Charms.charge_max(profile.wear.get("charm", {})) > 0:
+		out.append("wear:charm")
+	for ref in pieces(profile):
+		if Charms.charge_max(piece(profile, ref)) > 0:
+			out.append(ref)
+	return out
+
+
+## What refilling a charm costs ({kind: amount}; {} when it's full).
+static func refill_cost(g) -> Dictionary:
+	var amount := Charms.refill_amount(g)
+	return {Charms.kind(g): amount} if amount > 0 else {}
+
+
+static func refill_why(profile, ref: String) -> String:
+	var g := piece(profile, ref)
+	if Charms.charge_max(g) <= 0 or Charms.missing(g) <= 0:
+		return Charms.TEXT["charge_full"]
+	return short_of(profile, refill_cost(g))
+
+
+## Refills a charm's spent charges with crystals of its kind (anyone can).
+## "" if done, else why not.
+static func refill(profile, ref: String) -> String:
+	var why := refill_why(profile, ref)
+	if why != "":
+		return why
+	var g := piece(profile, ref)
+	why = Charms.refill_crystals(profile, g)
+	if why != "":
+		return why
+	put(profile, ref, g)
+	profile.save()
+	return ""
+
+
+## What crafting a charm costs (charms.gd CRAFT).
+static func craft_cost(id: String) -> Dictionary:
+	return Charms.CRAFT.get(id, {})
+
+
+## Why a charm can't be crafted now, or "".
+static func craft_why(profile, id: String) -> String:
+	if not rune_artist(profile):
+		return Charms.TEXT["needs_rune_artist"]
+	if not Charms.CRAFT.has(id):
+		return TEXT["nothing"]
+	if profile.chest.size() >= Train.CHEST_SIZE and profile.pack.size() >= Train.pack_size_with(profile, profile.wear):
+		return Charms.TEXT["no_room"]
+	return short_of(profile, craft_cost(id))
+
+
+## A Rune Artist crafts a charm: into the stash (the pack if the stash is
+## full). Returns "chest" or "pack" (where it went), or why not ("!why").
+static func craft(profile, id: String) -> String:
+	var why := craft_why(profile, id)
+	if why != "":
+		return "!" + why
+	pay(profile, craft_cost(id))
+	var g := Gear.make(id)
+	var to := "chest" if profile.chest.size() < Train.CHEST_SIZE else "pack"
+	(profile.chest if to == "chest" else profile.pack).append(g)
+	profile.save()
+	return to
