@@ -28,7 +28,7 @@ extends RefCounted
 ## visit); crafted at the Workshop from crystals of their kind.
 ##
 ## EARNED MARKS. A fully soaked part can take a new mark before the summit
-## only by breaking into a sealed wing early (floor EARNED.floor or lower),
+## only by breaking into a sealed wing early (floor EARNED.last_floor or lower),
 ## keeping its rule and beating it: the Maker of Marks grants it (makers.gd
 ## grant_mark). At most one new mark a climb. A fall with a fully soaked part
 ## has a small chance (FALL_MARK) to leave a faint mark on it.
@@ -48,12 +48,12 @@ static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 30.0}
 ## hidden crystal cache holds one in place of a crystal. (The outfitter's
 ## price is the tincture's worth in items.gd.)
 static var TINCTURE := {"essence": 40.0, "soak_rate": 0.6, "craft": 40, "store_kinds": 2,
-	"drop": 0.012, "vault": 0.2, "hidden": 0.3}
+	"drop_chance": 0.012, "vault_chance": 0.2, "hidden_chance": 0.3}
 
 ## Earned marks: a sealed wing beaten with its rule kept on this floor or
 ## lower can bring a new mark (the Maker in "maker" grants it). The Entity
 ## hints at it once a part is "near" full (of what a mark needs).
-static var EARNED := {"floor": 6, "maker": "marks", "near": 0.75}
+static var EARNED := {"last_floor": 6, "maker": "marks", "near": 0.75}
 
 ## A fall with a fully soaked part: the chance it takes a faint mark.
 static var FALL_MARK := {"chance": 0.12}

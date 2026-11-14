@@ -217,7 +217,7 @@ var overlay_closed_frame := -1  # (so the Start that closed it doesn't also open
 # Items and camps (items.gd)
 var item_drops: Array = []  # items lying on the floor: {pos, id, t, hold (wait until you step off)}
 var item_drop_chance := Items.DROP_CHANCE
-var tincture_drop_chance: float = 0.0 if Engine.has_meta("sixfold_test") else float(Flow.TINCTURE["drop"])  # (tests set it when they want one)
+var tincture_drop_chance: float = 0.0 if Engine.has_meta("sixfold_test") else float(Flow.TINCTURE["drop_chance"])  # (tests set it when they want one)
 var flasks: Array = []  # Fire Flasks in the air: {from, to, t, total, dmg, r}
 var flare_t := 0.0  # Flare Powder: the room is lit and hidden things nearby glint
 var flare_pos := Vector2.ZERO
@@ -2781,7 +2781,7 @@ func form_mark(part: String, faint: bool) -> String:
 ## (Flow.EARNED "floor" or lower), with a fully soaked part and no mark taken
 ## yet this climb, a Maker grants the mark (makers.gd grant_mark). True if it did.
 func try_earned_mark(_wing: Dictionary = {}) -> bool:
-	if floor_num > int(Flow.EARNED["floor"]) or practice_or_arena():
+	if floor_num > int(Flow.EARNED["last_floor"]) or practice_or_arena():
 		return false
 	var part := mark_ready_part()
 	if part == "":

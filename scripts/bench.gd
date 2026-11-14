@@ -12,6 +12,9 @@ extends RefCounted
 ##   recall    bind a recall scroll (Rune Artist; carry 1)
 ##   vessel    brew a vessel, or work a full one into a piece (Rune Artist;
 ##             vessel.gd, vessel_page.gd)
+##   tincture  craft a tincture from crystals of its kind (anyone; a Rune
+##             Artist for less), packed for your next climb, or drink one
+##             (essence_flow.gd; its own section below)
 ## The Rune Artist is the master crafter: given the essence and the skill,
 ## they can make pretty much anything. Without that bond the enchanting
 ## counters stay greyed, and say a Rune Artist could do it.
@@ -36,7 +39,7 @@ const RUNE_ARTIST := "rune_artist"
 const COUNTERS := [
 	["brew", "Brew", "Brew"], ["temper", "Temper", "Temper"], ["retrait", "Retrait", "Retrait"], ["join", "Join", "Join"],
 	["break", "Break down", "Break"], ["inscribe", "Inscribe", "Inscribe"], ["recall", "Recall scroll", "Recall"],
-	["vessel", "Vessel", "Vessel"],
+	["vessel", "Vessel", "Vessel"], ["tincture", "Tinctures", "Tinct."],
 ]
 ## Counters only a Rune Artist can use. (The vessel's counter: brewing one,
 ## and working a full one into a piece; vessel.gd holds its rules.)
@@ -85,6 +88,7 @@ static var TEXT := {
 		"inscribe": "A lasting rune on one piece: it stays on it, at half the strength of the Inscribe spell.",
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
 		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
+		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
 	},
 	"heirlooms": "Heirlooms",
 	"packed_items": "Packed for your next climb",
@@ -548,5 +552,41 @@ static func inscribe(profile, ref: String, rune: String) -> String:
 	pay(profile, INSCRIBE)
 	g["rune"] = rune
 	put(profile, ref, g)
+	profile.save()
+	return ""
+
+
+# --- tinctures (essence_flow.gd) -------------------------------------------------------------
+# Crafted from crystals of the tincture's own kind (Flow.TINCTURE "craft";
+# a Rune Artist pays RUNE_ARTIST_BREW of it), packed for your next climb.
+
+const Flow := preload("res://scripts/essence_flow.gd")
+
+
+## The tinctures the bench crafts, in the kinds' order.
+static func tinctures() -> Array:
+	return Flow.tinctures().filter(func(id): return Items.ITEMS.has(id))
+
+
+## What crafting a tincture costs you ({kind: amount}).
+static func tincture_cost(profile, id: String) -> Dictionary:
+	var kind := Flow.tincture_kind(id)
+	if kind == "":
+		return {}
+	var k := RUNE_ARTIST_BREW if rune_artist(profile) else 1.0
+	return {kind: maxi(1, int(round(float(Flow.TINCTURE["craft"]) * k)))}
+
+
+## Crafts one tincture, packed for your next climb. "" if crafted, else why not.
+static func craft_tincture(profile, player, id: String) -> String:
+	var cost := tincture_cost(profile, id)
+	if cost.is_empty():
+		return TEXT["belt_full"]
+	if Train.supply_room(profile, player, id) <= 0:
+		return TEXT["belt_full"]
+	var why := pay(profile, cost)
+	if why != "":
+		return why
+	Train.pack_supply(profile, id, cost)
 	profile.save()
 	return ""

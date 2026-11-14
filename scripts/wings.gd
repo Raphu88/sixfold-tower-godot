@@ -126,7 +126,7 @@ var _hint_t := 0.0  # (how often to look whether a sealed door is in sight)
 ## The first time a marked climber sees a sealed door on an early floor, the
 ## Entity hints that breaking in can bring rewards (entity.gd "wing_watch").
 func _hint_seen() -> void:
-	if main.first_climb or main.floor_num > int(main.Flow.EARNED["floor"]) or main.UnboundRun.Unbound.is_on(main.profile) or main.profile.bonds.is_empty():
+	if main.first_climb or main.floor_num > int(main.Flow.EARNED["last_floor"]) or main.UnboundRun.Unbound.is_on(main.profile) or main.profile.bonds.is_empty():
 		return
 	var view := _view_rect()
 	for w in wings:
@@ -672,7 +672,7 @@ func vault_choices(lesser: bool) -> Array:
 	if can_take_scroll():
 		table["scroll"] = float(REWARD["scroll"])
 	if not main.first_climb:
-		table["tincture"] = float(main.Flow.TINCTURE["vault"])
+		table["tincture"] = float(main.Flow.TINCTURE["vault_chance"])
 	match main.Floors._weighted(table):
 		"gear":
 			out.append("gear:" + better_gear())
@@ -857,7 +857,7 @@ func hidden_crystals() -> Array:
 	kinds.shuffle()
 	var amt := roundi(crystal_amount() * float(REWARD["hidden"]))
 	var out: Array = kinds.slice(0, 3).map(func(k): return "crystal:%s:%d" % [k, amt])
-	if not main.first_climb and randf() < float(main.Flow.TINCTURE["hidden"]):
+	if not main.first_climb and randf() < float(main.Flow.TINCTURE["hidden_chance"]):
 		out[2] = main.Flow.tincture_id(String(kinds[2]))  # (now and then a tincture in place of a crystal)
 	return out
 

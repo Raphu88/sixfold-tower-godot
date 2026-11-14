@@ -42,6 +42,7 @@ const Boons := preload("res://scripts/boons.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Notices := preload("res://scripts/notices.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 
 ## A line that starts with this is a story slot not written yet (hidden).
 const STORY_TAG := "[Yours to write]"
@@ -69,16 +70,25 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
+		"choices": ["how_essence", "how_flow", "how_marks", "how_new_mark", "how_earn_mark", "how_tinctures", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
 	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
-		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
-		"choices": ["how_marks", "how", "bye"]},
+		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
+		"choices": ["how_flow", "how_marks", "how", "bye"]},
+	"how_flow": {"ask": "How does essence flow?", "fact": "rules",
+		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks, each kind to the marks of that kind; a kind none of them is made of spreads thinly over all. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
+		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
+	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
+		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, the outfitter sells {store_kinds} kinds each visit, and the Workshop crafts one from {craft} crystals of its kind."],
+		"choices": ["how_flow", "how_earn_mark", "how", "bye"]},
 	"how_marks": {"ask": "How do marks grow?", "fact": "rules",
-		"lines": ["Across climbs, never during one: from essence banked at stairs. A mark's own kind counts {own}x, every other kind {other}x. Each has {steps} steps, and each step brings a spell or makes one stronger. The Proving, on floor six, can raise one a step too."],
+		"lines": ["Across climbs, never during one: from your marks' share of what you bank, {marks} of it. Each kind goes to the marks of that kind and counts {own}x; a kind none of them is made of counts {other}x, spread over all. The more marks you carry, the slower each grows. Each has {steps} steps, and each step brings a spell or makes one stronger. A tincture steers essence into one mark, and the Proving, on floor six, can raise one a step."],
 		"choices": ["how_new_mark", "how", "bye"]},
 	"how_new_mark": {"ask": "How does a new mark form?", "fact": "rules",
-		"lines": ["Banked essence also soaks into your unmarked parts, slowly, and slower the more marks you carry. A part {full} full is ready, and only a summit marks it: one new mark a climb, at most. The first mark comes at the Regard. Fall on that first climb and it's faint: {faint} more banked essence before it grows."],
-		"choices": ["how_marks", "how", "bye"]},
+		"lines": ["Your body's share of what you bank soaks into your unmarked parts, by what each does, and slower the more marks you carry. A part {full} full is ready. A summit marks it, or sooner a sealed wing won early. One new mark a climb, at most. The first mark comes at the Regard. Fall on that first climb and it's faint: {faint} more banked essence before it grows."],
+		"choices": ["how_earn_mark", "how_marks", "how", "bye"]},
+	"how_earn_mark": {"ask": "How do I earn a new mark?", "fact": "rules",
+		"lines": ["First a part must be full: {full} of what a mark needs. Then reach a summit and the beast marks it. Or prove yourself sooner: break into a sealed wing on floor {early} or below, keep its rule and beat it, and the Maker of Marks may mark you there. Fall with a full part and there's a {fall_chance} chance it takes a faint mark anyway. One new mark a climb, at most."],
+		"choices": ["how_new_mark", "how_tinctures", "how", "bye"]},
 	"how_renown": {"ask": "What is renown for?", "fact": "rules",
 		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from drills, bouts and challenges at the stations. Ranks: {ranks}. Ranks open the outfitter's upgrades, the tournament's tiers, drills, challenges and boons. Boons themselves cost crystals, at a station's shrine."],
 		"choices": ["how_fall", "how", "bye"]},
@@ -112,7 +122,7 @@ static var DIALOGUE := {
 		"lines": ["As I have them. {marks}"],
 		"choices": ["marks_grow", "marks_new", "start", "bye"]},
 	"marks_grow": {"ask": "How do marks grow?", "fact": "money",
-		"lines": ["From essence you bank at a stair. Never in the middle of a climb. A mark's own kind counts most. {condense} of what you bank becomes crystals instead: To crystals, in Settings."],
+		"lines": ["From essence you bank at a stair, never in the middle of a climb: {marks} of it goes to your marks, each kind to the marks of that kind. {condense} becomes crystals: To crystals, in Settings. A tincture puts its essence into the one mark you choose."],
 		"choices": ["marks_new", "start", "bye"]},
 	"marks_new": {"ask": "Will I get another mark?", "fact": "soak",
 		"lines": ["{soak}"],
@@ -135,7 +145,7 @@ static var DIALOGUE := {
 		"lines": ["Six cars. The Engine takes you to a tower. The outfitter buys and sells. Your car holds what you'll wear, your pack and your stash. The Workshop works on gear, the Library keeps my words, and the last car holds the settings."],
 		"choices": ["train_money", "train_carry", "start", "bye"]},
 	"train_money": {"ask": "How do I pay for things?", "fact": "money",
-		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and the outfitter pays for every climb, fall or not."],
+		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and the outfitter pays for every climb, fall or not. Spend them, craft tinctures from them, or eat them: your book's Crystals and tinctures."],
 		"choices": ["train_carry", "start", "bye"]},
 	"train_carry": {"ask": "What goes up the tower with me?",
 		"lines": ["What you wear, your pack and your belt. The stash never leaves the train. A fall takes your pack and your belt, and sometimes the weapon in your hand. Never an heirloom."],
@@ -158,7 +168,7 @@ static var HINTS := {
 	"unbanked": "You carry {amount} unbanked essence. Find the stair before something finds you.",
 	"low_health": "You're low. A draught, a spring, or the stair.",
 	"faint": "Your mark is faint. It needs {amount} more banked essence before it grows.",
-	"mark_ready": "Your {part} is full of essence. Reach a summit and it takes a mark.",
+	"mark_ready": "Your {part} is full of essence. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"better_stash": "Something you keep beats what you'd wear: {piece}. The Loadout puts it on.",
 	"belt_empty": "Your belt is empty. The outfitter sells draughts. The Workshop brews them cheaper.",
 	"afford_rack": "You can afford {piece} on the outfitter's rack, and it beats yours.",
@@ -187,10 +197,10 @@ static var TEXT := {
 	"mark_brings": ", which brings {spell}",
 	"mark_top": "It has grown as far as it goes.",
 	"mark_faint": "It's faint: {debt} more banked essence before it grows.",
-	"soak_part": "Your {part} is {pct}% full. When a part is full, a summit can mark it. One new mark a climb, at most.",
-	"soak_ready": "Your {part} is full. Reach a summit and it takes a mark.",
+	"soak_part": "Your {part} is {pct}% full. When a part is full, a summit can mark it, or a sealed wing won early. One new mark a climb, at most.",
+	"soak_ready": "Your {part} is full. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"soak_none": "Every part already carries a mark.",
-	"soak_empty": "Not yet. Essence you bank soaks into your unmarked parts. A full one can be marked at a summit.",
+	"soak_empty": "Not yet. Your body's share of what you bank soaks into your unmarked parts. A full one can be marked at a summit.",
 	"summary": "{Tower}: you reached floor {floor}. {gathered}{finds}{banked}{pay}",
 	"gathered": "{n} essence gathered. ",
 	"finds": "{n} finds. ",
@@ -483,7 +493,9 @@ static func _fact_money(main) -> Dictionary:
 	var prof = main.profile if main != null else null
 	var M = load("res://scripts/menu.gd")
 	var share := Train.condense_share(M.settings)
-	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0))}
+	var sh: Dictionary = Flow.shares(share)
+	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0)),
+		"body": "%d%%" % int(round(float(sh["body"]) * 100.0)), "marks": "%d%%" % int(round(float(sh["marks"]) * 100.0))}
 
 
 ## The game's rules in numbers, read from its own tables (for "How do things work here?").
@@ -502,6 +514,8 @@ static func _fact_rules() -> Dictionary:
 		"per_floor": int(R.CLIMB.get("floor", 0)), "per_best": int(R.CLIMB.get("best", 0)), "beast": int(R.CLIMB.get("beast", 0)),
 		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),
 		"kinds": Items.BELT_KINDS, "stack": Items.MAX_STACK,
+		"tincture": int(Flow.TINCTURE["essence"]), "craft": int(Flow.TINCTURE["craft"]), "store_kinds": int(Flow.TINCTURE["store_kinds"]),
+		"early": int(Flow.EARNED["last_floor"]), "fall_chance": "%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0)),
 	})
 	var Best = load("res://scripts/bestiary.gd")
 	f["bestiary_slain"] = _and(Best.TIERS.get("slain", []))

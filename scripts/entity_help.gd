@@ -123,6 +123,7 @@ static var HELP := {
 	"bench_tab:inscribe": "Inscribe: a lasting rune on one piece.{locked}",
 	"bench_tab:recall": "Recall scroll: bind one to leave a climb safely.{locked}",
 	"bench_tab:vessel": "Vessel: brew one, or work a full one into a piece.{locked}",
+	"bench_tab:tincture": "Tinctures: craft one from crystals of its kind, or drink one you've packed.",
 	"bench_tab": "{counter}.{locked}",
 	"bench_drawer:essence": "The essence bench: build your techniques.{locked}",
 	"bench_drawer:brew": "Back to the bench's counters.",
@@ -130,6 +131,17 @@ static var HELP := {
 	"slot:bench:supply": "{piece}, packed on your belt. It can be broken down for crystals.",
 	"slot:bench": "{piece}: {counter} it here.",
 	"slot:bench:empty": "Nothing here to work on.",
+	"slot:bench:tincture": "{piece}, {price} to craft. Drink it and you choose where its essence goes.",
+	# --- tinctures and crystals (essence_flow.gd, pour_page.gd) ---
+	"tincture_craft": "Crafts {piece} from crystals of its kind. It's packed for your next climb.",
+	"tincture_drink": "Opens your crystals and tinctures, where you choose the mark or body part {piece} goes into.",
+	"pour:open": "Your crystals and tinctures: eat a crystal and it flows the natural way; drink a tincture and you choose where.",
+	"pour:eat": "Eats {piece}: your body and your marks share its essence the natural way. You can't steer it.",
+	"pour:mark": "Pours {piece} into {part}: it grows. Its own kind counts fully, any other a little.",
+	"pour:part": "Pours {piece} into your {part}: it soaks toward a new mark there, and leans that mark toward its kind.",
+	"slot:crystal": "{piece}: {count} essence. Choose it to eat some.",
+	"slot:crystal:empty": "{piece}: none yet. Stairs condense crystals, and the outfitter pays for every climb.",
+	"slot:tincture": "{piece}: choose it, then choose where it goes.",
 	"brew": "Brews {piece} for {price}. It goes on your belt.",
 	"bench_do:temper": "Raises {piece} a rank. Press it twice.",
 	"bench_do:break": "Breaks {piece} down into crystals. Press it twice.",
@@ -282,7 +294,7 @@ static func key_for(b: Control) -> String:
 				var key := "slot:" + head
 				if head == "bench":
 					var sub := s.get_slice(":", 1)
-					key = "slot:bench:" + sub if sub in ["item", "supply"] else "slot:bench"
+					key = "slot:bench:" + sub if sub in ["item", "supply", "tincture"] else "slot:bench"
 				if b.get("empty") == true and HELP.has(key + ":empty"):
 					key += ":empty"
 				return key
@@ -489,6 +501,25 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		_item_facts(id, f)
 		var p: Array = Train.supply_price(prof, id)
 		f["price"] = Train.price_text(p[0], int(p[1]))
+	# Tinctures and crystals (pour_page.gd, the Workshop's tincture counter).
+	if head in ["tincture_craft", "tincture_drink", "pour"] or (b.has_meta("slot") and String(b.get_meta("slot")).begins_with("bench:tincture:")):
+		var sel := String(m.inv_sel) if m != null else ""
+		var tid := sel.substr(sel.find("tincture_")) if sel.contains("tincture_") else ""
+		if tid != "":
+			_item_facts(tid, f)
+		elif sel.begins_with("crystal:"):
+			f["piece"] = String(Items.CRYSTAL["name"]) % Essence.display(sel.get_slice(":", 1))
+		if b.has_meta("pour_part") and prof != null:
+			var part := str(b.get_meta("pour_part"))
+			var info: Dictionary = prof.bonds.get(part, {})
+			var B = load("res://scripts/bonds.gd")
+			f["part"] = String(B.BONDS.get(String(info.get("id", "")), {}).get("name", "")) if not info.is_empty() else String(B.PART_NAMES.get(part, part)).to_lower()
+		if b.has_meta("slot") and String(b.get_meta("slot")).begins_with("bench:tincture:") and prof != null:
+			f["price"] = Train.paid_text(Bench.tincture_cost(prof, String(b.get_meta("slot")).get_slice(":", 2)))
+	if b.has_meta("slot") and String(b.get_meta("slot")).begins_with("crystal:") and prof != null:
+		var ck := String(b.get_meta("slot")).get_slice(":", 1)
+		f["piece"] = String(Items.CRYSTAL["name"]) % Essence.display(ck)
+		f["count"] = str(int(prof.crystal_total(ck)))
 	if head in ["brew", "put_back"] and prof != null:
 		var id := str(b.get_meta(head))
 		_item_facts(id, f)

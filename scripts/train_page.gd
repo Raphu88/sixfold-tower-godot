@@ -46,6 +46,7 @@ const StationView := preload("res://scripts/station_view.gd")
 const Renown := preload("res://scripts/renown.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
 const ArrangeUI := preload("res://scripts/arrange_ui.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -920,7 +921,7 @@ func _store(root: Node) -> void:
 		var shelf := _furnish(goods, "shelf")
 		_tag(shelf, T["shelves"])
 		var sg := _grid(shelf, 6)
-		for id in Train.supplies():
+		for id in Train.supplies(prof):
 			var price := Train.supply_price(prof, id)
 			var packed := int(prof.supplies.get(id, 0))
 			var s = m._slot(sg, "supply:" + id, _cell(), "")
@@ -1154,6 +1155,20 @@ func _workshop(root: Node) -> void:
 			keys = _bench_pieces(left, func(g): return Bench.joinable(g))
 		"vessel":
 			keys = VesselPage.bench_list(self, left)
+		"tincture":
+			# Tinctures (bench.gd, its own section): one of each kind, its
+			# crafting cost on it, how many are packed.
+			var grid := _grid(left, 3)
+			for id in Bench.tinctures():
+				var cost := Bench.tincture_cost(prof, id)
+				var s = m._slot(grid, "bench:tincture:" + id, _cell(), "")
+				s.kind = "item"
+				s.id = id
+				var packed := int(prof.supplies.get(id, 0))
+				s.count = packed if packed > 0 else -1
+				var kind: String = cost.keys()[0]
+				_price_on(s, kind, int(cost[kind]), true)
+				keys.append(s.get_meta("slot"))
 		_:
 			keys = _bench_pieces(left, func(_g): return true)
 	if keys.is_empty():
@@ -1719,6 +1734,9 @@ func _bench_card(arg: String) -> void:
 	if arg.begins_with("supply:"):
 		_break_card(arg)
 		return
+	if arg.begins_with("tincture:"):
+		_tincture_card(arg.substr(9))
+		return
 	match counter:
 		"vessel":
 			VesselPage.bench_card(self, arg)
@@ -1986,6 +2004,47 @@ func _break_card(thing: String) -> void:
 
 
 # --- the bench's actions -------------------------------------------------------------------
+
+## A tincture at the Workshop's counter (bench.gd tinctures): what it does,
+## what crafting one costs, Craft, and Drink one (the crystals page,
+## pour_page.gd) once one is packed; Put one back returns what it cost.
+func _tincture_card(id: String) -> void:
+	var prof = _prof()
+	var p = _player()
+	if not Items.ITEMS.has(id):
+		return
+	var data: Dictionary = Items.ITEMS[id]
+	_head("item", id, data["name"], Items.color(id))
+	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
+	m._detail_text(Flow.TEXT["craft_note"] % int(Flow.TINCTURE["essence"]), UI.DIM)
+	var why := _cost_lines(Bench.tincture_cost(prof, id), B["cost"])
+	if Bench.rune_artist(prof):
+		m._detail_text(B["rune_artist_less"] % int(round((1.0 - Bench.RUNE_ARTIST_BREW) * 100.0)), UI.GOOD)
+	var packed := int(prof.supplies.get(id, 0))
+	m._detail_text(B["packed"] % [packed, p.max_stack(id)], UI.DIM)
+	if why == "" and Train.supply_room(prof, p, id) <= 0:
+		why = B["belt_full"]
+	var b: Button = m._button(Flow.TEXT["craft"], _craft_tincture.bind(id), m.details)
+	b.custom_minimum_size.y = 40
+	b.disabled = why != ""
+	b.set_meta("help", "tincture_craft")
+	_why_line(why)
+	if packed > 0:
+		var drink: Button = m._button(Flow.TEXT["drink_from_bench"], m.open_pour.bind(id), m.details)
+		drink.custom_minimum_size.y = 40
+		drink.set_meta("help", "tincture_drink")
+		var back: Button = m._button(B["put_back"], _unbrew.bind(id), m.details)
+		back.custom_minimum_size.y = 40
+		back.set_meta("put_back", id)
+
+
+func _craft_tincture(id: String) -> void:
+	var why := Bench.craft_tincture(_prof(), _player(), id)
+	if why == "":
+		_done(Flow.TEXT["crafted"] % Items.ITEMS[id]["name"], "", "brew")
+	else:
+		_done(B["cant"] % why, "", "ui_back")
+
 
 func _brew(id: String) -> void:
 	var why := Bench.brew(_prof(), _player(), id)
