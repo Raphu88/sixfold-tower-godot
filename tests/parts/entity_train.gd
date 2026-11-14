@@ -147,6 +147,10 @@ func _everywhere() -> void:
 	for pg in ["loadout", "stash", "climber"]:
 		where.append("page " + pg)
 	var view := Rect2(Vector2.ZERO, Vector2(t.root.size))
+	# Nothing pointed at: the mouse off the window and no key focus (an earlier
+	# test can leave the pointer resting on a rail button, which rightly calls it over).
+	t._mouse_move(Vector2(-40, -40))
+	menu.nav_keys = false
 	for w in where:
 		if w.begins_with("page "):
 			menu.open(w.trim_prefix("page "), true)
