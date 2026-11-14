@@ -148,7 +148,8 @@ var drink_dmg := 0.0
 var drink_tick := 0.0
 var drink_jump := 0.0  # its Apex: on a kill the drain jumps to a foe this near (kraken.gd drink_jump)
 var drink_at := Vector2.ZERO  # where the foe it drinks from was
-## States on the climber (reactions.gd): only while CLIMBER "enabled" (off).
+## States on the climber (reactions.gd CLIMBER): state -> seconds left. Monsters' blows
+## leave them; items cure them (items.gd "cures") and keep them off ("ward").
 var states := {}
 var is_climber := true
 var rune_cd := 0.0  # Forge Runes: when the next kindled strike may leave a rune
@@ -183,7 +184,14 @@ var quarry  # Hunter's Quarry: the last foe you struck
 var quarry_fresh := false  # (a foe struck the first time isn't your Quarry yet: bond.gd taken_mult)
 var overlay: Node2D  # over the darkness: swing trails and rings
 # Items (items.gd): what you carry, and healing that is still working.
-var items := Items.START.duplicate()  # item id -> count
+var items := Items.START.duplicate():  # item id -> count
+	set(v):
+		items = v
+		item_sizes = {}  # (a whole new belt: its stacks are standard until noted)
+## The sizes in each stack (items.gd SIZES), biggest first: item id -> [size...].
+## A stack with none listed (or fewer than its count) holds standard ones:
+## code that only changes `items` keeps working (item_sizes_of mends it).
+var item_sizes := {}
 var vessel := {}  # the vessel on the belt (vessel.gd): {kind, amount}, while items has "vessel"
 var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
@@ -649,7 +657,7 @@ func creature_fell(a) -> void:
 
 func _physics_process(delta: float) -> void:
 	if not states.is_empty():
-		Reactions.tick_climber(self, delta)  # (monsters' states on you: off unless reactions.gd CLIMBER "enabled")
+		Reactions.tick_climber(self, delta)  # (monsters' states on you: reactions.gd CLIMBER)
 	if dead:
 		velocity = knock
 		knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
@@ -735,7 +743,7 @@ func _physics_process(delta: float) -> void:
 				if a.global_position.distance_to(global_position) < 130.0:
 					spd *= 1.15
 					break
-		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper") or gear_fx.get("wade", false) or flying()) * trap_slow
+		velocity = input * spd * main.water_slow(global_position, has_bond("tidecaller") or has_bond("sandshaper") or gear_fx.get("wade", false) or flying()) * trap_slow * Reactions.climber_walk(self)  # (soaked: reactions.gd CLIMBER)
 		_footsteps(delta, spd if input != Vector2.ZERO else 0.0)
 		if buffered != "" and _try_action(buffered, input):
 			buffered = ""
@@ -1057,7 +1065,7 @@ func _tick_timers(delta: float) -> void:
 	_tick_erode(delta)
 	hp = minf(hp, max_health())
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)))  # Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)) * Reactions.climber_regen(self))  # (charged: reactions.gd CLIMBER); Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 ## Pistols between shots: an enchanted one's chambers fill themselves one
@@ -1713,7 +1721,8 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	if hit_sound != "arrow_hit" and rule("chill") > 0.0:
 		main.hit_kind = "frost"  # (a chilling blow: a drenched foe takes double, bond.gd taken_mult)
 	_charm_wardbreak(e)
-	e.take_hit(dmg, dir, force, heavy or crit or rock, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
+	var oiled: bool = edge_t > 0.0 and e.kind in Items.ITEMS["edge_oil"].get("cracks", [])  # (Edge Oil: lands as a heavy blow on a shell or a guard)
+	e.take_hit(dmg, dir, force, heavy or crit or rock or oiled, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
 	if unseen:
 		BondScript.manticore().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
 	if main.hit_kind == "frost":
@@ -2409,7 +2418,7 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	hp -= dmg
 	Bestiary.hurt_by(main, from)
 	_thorns(source)
-	Reactions.from_monster(main, self, source)  # (off unless reactions.gd CLIMBER "enabled")
+	Reactions.from_monster(main, self, source)  # (its state, if it leaves one: reactions.gd CLIMBER)
 	if gfx("grasp") > 0.0 and source is Node and is_instance_valid(source) and "chill_t" in source \
 			and source.global_position.distance_to(global_position) < Gear.THORNS_REACH + float(source.get("radius")):
 		source.chill_t = maxf(source.chill_t, gfx("grasp"))  # Deepcoil Coat: gripped
@@ -3391,11 +3400,48 @@ func selected_item() -> String:
 	return have[0] if not have.is_empty() else ""
 
 
-## Picks up an item. False if you already carry as many as you can.
-func add_item(id: String) -> bool:
+## The sizes in a stack, biggest first, one per item carried (standard
+## where none was noted: old saves, the store's supplies).
+func item_sizes_of(id: String) -> Array:
+	var n := item_count(id)
+	var list: Array = Array(item_sizes.get(id, [])).slice(0, n)
+	while list.size() < n:
+		list.append(Items.STANDARD)
+	list.sort()
+	list.reverse()
+	if n > 0:
+		item_sizes[id] = list
+	else:
+		item_sizes.erase(id)
+	return list
+
+
+## The size the next use of an item takes: the biggest in its stack.
+func next_size(id: String) -> int:
+	var list := item_sizes_of(id)
+	return int(list[0]) if not list.is_empty() else Items.STANDARD
+
+
+## A belt entry, as any list of the belt shows it (the HUD's slot, the
+## item ring, the inventory): {id, size (the next use's), name (with its
+## size: "Greater Healing Draught"), short, count, sizes (biggest first)}.
+## Draw its icon with Items.icon_into(b, id, c, s, size) for the size's pips.
+func belt_entry(id: String) -> Dictionary:
+	var size := next_size(id)
+	return {"id": id, "size": size, "name": Items.sized_name(id, size), "short": Items.sized_name(id, size, true),
+		"count": item_count(id), "sizes": item_sizes_of(id)}
+
+
+## Picks up an item (at a size: items.gd SIZES). False if you already carry
+## as many as you can.
+func add_item(id: String, size := Items.STANDARD) -> bool:
 	if item_room(id) != "":
 		return false
+	var list := item_sizes_of(id)
 	items[id] = item_count(id) + 1
+	list.append(Items.clamp_size(id, size))
+	item_sizes[id] = list
+	item_sizes_of(id)  # (sorted, biggest first)
 	if item_count(item_sel) <= 0:
 		# (a recall scroll or a vessel never takes the quick item from another item)
 		item_sel = selected_item() if id == "scroll" or id == "vessel" else id
@@ -3409,7 +3455,7 @@ func cycle_item() -> void:
 		return
 	var i := have.find(selected_item())
 	item_sel = have[(i + 1) % have.size()]
-	main.fx_text(global_position + Vector2(0, -40), Items.ITEMS[item_sel]["name"], Items.color(item_sel))
+	main.fx_text(global_position + Vector2(0, -40), Items.sized_name(item_sel, next_size(item_sel)), Items.color(item_sel))
 	main.sfx("step", 1.4, -6.0)
 
 
@@ -3421,15 +3467,41 @@ func use_item() -> bool:
 	if id == "":
 		main.fx_text(global_position + Vector2(0, -40), "No items", Color(0.7, 0.68, 0.75))
 		return false
-	if not Items.use(id, self):
+	var size := next_size(id)
+	if not Items.use(id, self, size):
 		return false
 	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
 		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
+	var list := item_sizes_of(id)
+	if not list.is_empty():
+		list.pop_front()  # (the biggest, which was used)
 	items[id] = item_count(id) - 1
+	item_sizes[id] = list
 	if item_count(id) <= 0:
 		items.erase(id)
+		item_sizes.erase(id)
 		item_sel = selected_item()
 	return true
+
+
+## The smallest size in a stack (0 if you carry none).
+func smallest_size(id: String) -> int:
+	var list := item_sizes_of(id)
+	return int(list[-1]) if not list.is_empty() else 0
+
+
+## A bigger one for a full stack: your smallest is swapped out for it.
+## Returns the size swapped out (0 if the new one isn't bigger).
+func swap_smaller(id: String, size: int) -> int:
+	var list := item_sizes_of(id)
+	size = Items.clamp_size(id, size)
+	if list.is_empty() or size <= int(list[-1]):
+		return 0
+	var out := int(list.pop_back())
+	list.append(size)
+	item_sizes[id] = list
+	item_sizes_of(id)
+	return out
 
 
 ## Healing items heal over a moment, not all at once.

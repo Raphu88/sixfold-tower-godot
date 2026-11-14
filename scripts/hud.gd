@@ -36,6 +36,7 @@ const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Abilities := preload("res://scripts/abilities.gd")
+const Reactions := preload("res://scripts/reactions.gd")
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
 const Layout := preload("res://scripts/layout.gd")
@@ -268,7 +269,7 @@ func _core_signature() -> Array:
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
-		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
+		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0, p.item_sizes_of(p.selected_item()) if p.selected_item() != "" else [],
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
 		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
 	for part in BondScript.Bonds.PARTS:
@@ -291,7 +292,8 @@ func _top_live() -> bool:
 		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
 		or (main.door_view != null and not main.door_view.lock_status().is_empty()) \
 		or (main.get("objective") != null and main.objective.active() and not main.climbing) \
-		or (main.get("scenarios") != null and main.scenarios.running())
+		or (main.get("scenarios") != null and main.scenarios.running()) \
+		or not Reactions.climber_held(p).is_empty()
 
 
 ## What this layer shows that doesn't move: it's redrawn when this changes.
@@ -430,13 +432,21 @@ func _draw_core() -> void:
 		var ib := Draw.Batch.new()
 		var ir := Rect2(x, ROW_Y, SLOT, SLOT)
 		UI.slot_into(ib, ir, false, Color(Items.color(sel), 0.6))
-		Items.icon_into(ib, sel, ir.get_center() + Vector2(0, -1), 10.5)
+		var entry: Dictionary = p.belt_entry(sel)
+		Items.icon_into(ib, sel, ir.get_center() + Vector2(0, -1), 10.5, int(entry["size"]))  # (its next size's pips)
 		# Its count on a small gilt-ringed coin at the corner.
 		ib.dot(ir.end - Vector2(3, 3), 7.2, UI.OUTLINE)
 		ib.dot(ir.end - Vector2(3, 3), 6.0, UI.STONE)
 		UI.ring_into(ib, ir.end - Vector2(3, 3), 6.0, 1.0, Color(UI.GILT, 0.8))
-		tips.append([ix * ir, Items.ITEMS[sel]["name"], [_sentence(Items.ITEMS[sel]["desc"]),
-			"Carrying %d  ·  %s to use it%s" % [p.item_count(sel), _use_key(), "" if p.carried().size() < 2 else "  ·  %s picks another" % _next_key()]]])
+		var item_lines: Array = [_sentence(Items.ITEMS[sel]["desc"])]
+		if Items.is_sized(sel):
+			var note := Items.size_note(sel, int(entry["size"]))
+			if note != "":
+				item_lines.append(note)
+			if p.item_count(sel) > 1:
+				item_lines.append(Items.SIZE_TEXT["stack"] % ", ".join(Array(entry["sizes"]).map(func(z): return Items.sized_name(sel, int(z), true))))
+		item_lines.append("Carrying %d  ·  %s to use it%s" % [p.item_count(sel), _use_key(), "" if p.carried().size() < 2 else "  ·  %s picks another" % _next_key()])
+		tips.append([ix * ir, entry["name"], item_lines])
 		c.draw_set_transform_matrix(unit * ix)
 		ib.flush(c)
 		c.draw_string(mono, ir.end + Vector2(-9, 0.5), str(p.item_count(sel)), HORIZONTAL_ALIGNMENT_CENTER, 12, 10, UI.GILT_HI)
@@ -1164,12 +1174,14 @@ func _draw_item_ring(p, font: Font, ci: CanvasItem) -> void:
 func _paint_item_ring(ci: CanvasItem, p, have: Array, c: Vector2, ring_r: float) -> void:
 	var opts: Array = []
 	for id in have:
-		opts.append({"name": Items.info(id)["name"], "col": Items.color(id), "badge": str(p.item_count(id)),
-			"icon": func(bt, at: Vector2, s: float, _ic: Color): Items.icon_into(bt, id, at, s * 1.05)})
+		var en: Dictionary = p.belt_entry(id)  # (its size in its name and pips: player.gd belt_entry)
+		opts.append({"name": en["name"], "col": Items.color(id), "badge": str(p.item_count(id)),
+			"icon": func(bt, at: Vector2, s: float, _ic: Color): Items.icon_into(bt, id, at, s * 1.05, int(en["size"]))})
 	UI.draw_wheel(ci, c, ring_r, opts, p.ring_index, UI.GILT, get_viewport_rect().size)
 	if p.ring_index >= 0 and p.ring_index < have.size():
 		var d: Dictionary = Items.info(have[p.ring_index])
-		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, d["name"], _sentence(String(d["desc"])), d["color"])
+		var en: Dictionary = p.belt_entry(have[p.ring_index])
+		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, en["name"], _sentence(String(d["desc"])), d["color"])
 
 
 ## Hunter's Quarry: the last foe you struck is always marked, and an arrow at
@@ -1433,6 +1445,7 @@ func status_chips() -> Array:
 			"gauge_color": Color(0.62, 0.42, 0.9) if e.shade else Color(0.86, 0.26, 0.2),
 			"color": Color(0.85, 0.78, 1.0) if e.shade else UI.GILT_HI, "edge": UI.GILT})
 		break
+	out.append_array(state_chips())
 	# A sealed wing's question (wings.gd): its champion's health, its rule
 	# kept or broken, the wave and the clock.
 	if main.wings != null:
@@ -1481,6 +1494,26 @@ func status_chips() -> Array:
 		var left: int = main.enemies().size()
 		var said: String = String(N["stair"]) if left <= 0 else String(N["stair_left"]) % [left, N["foe"] if left == 1 else N["foes"]]
 		out.append({"id": "stair", "text": said, "color": Color(1.0, 0.88, 0.6), "edge": UI.GILT, "alpha": _fade(stair_t, STAIR_SHOW)})
+	return out
+
+
+## The climber's states (reactions.gd CLIMBER), one chip each: its sign,
+## its name and seconds left, and what cures it; its gauge runs down.
+func state_chips() -> Array:
+	var out: Array = []
+	var p = main.player
+	if p == null:
+		return out
+	var T: Dictionary = Reactions.CLIMBER_TEXT
+	for row in Reactions.climber_held(p):
+		var st: String = row[0]
+		var left: float = row[1]
+		var col: Color = Reactions.STATES[st]["color"]
+		var name := String(Reactions.STATES[st]["name"])
+		var cure := Reactions.cure_names(st)
+		var text: String = String(T["chip_cure"]) % [name, int(ceil(left)), cure] if cure != "" else String(T["chip"]) % [name, int(ceil(left))]
+		out.append({"id": "state:" + st, "text": text, "color": col.lightened(0.25), "edge": col, "glyph": st,
+			"gauge": clampf(left / maxf(Reactions.climber_seconds(st), left), 0.0, 1.0), "gauge_color": col})
 	return out
 
 
@@ -1776,7 +1809,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		elif card.has("crystal"):
 			Items.draw_crystal_icon(self, col, ic, ir)
 		elif card["item"] != "":
-			Items.draw_icon(self, card["item"], ic, ir)
+			Items.draw_icon(self, card["item"], ic, ir, 1.0, int(card.get("size", 0)))  # (a sized one: its pips)
 		else:
 			Items.draw_rune_icon(self, col, ic, ir)
 		var y := r.position.y + (58.0 if small else 100.0)

@@ -603,6 +603,8 @@ func _draw_chip(ci: CanvasItem, c: Dictionary, cx: float, y: float, col: Rect2) 
 		UI.gauge_into(batch, gr, clampf(float(c["gauge"]), 0.0, 1.0), c.get("gauge_color", UI.HEALTH), float(c.get("trail", -1.0)), Color(1.0, 0.82, 0.55, 0.9), 4 if tall else 0, a)
 	else:
 		UI.cartouche_into(batch, r, Color(edge, 0.7 * pulse), a)
+	if c.has("glyph"):  # (a state on the climber: its sign at the chip's start, reactions.gd glyph_into)
+		load("res://scripts/reactions.gd").glyph_into(batch, String(c["glyph"]), Vector2(r.position.x + 10.0, r.position.y + CHIP_H * 0.5), 5.0, a)
 	batch.flush(ci)
 	var tc: Color = c.get("color", UI.GOLD)
 	UI.draw_label(ci, Vector2(r.position.x, r.position.y + CHIP_H * 0.5 + fs * 0.36), text, fs, Color(tc, a), HORIZONTAL_ALIGNMENT_CENTER, w, 3, Color(0, 0, 0, 0.7 * a))

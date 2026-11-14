@@ -18,8 +18,42 @@ const BREAK_SHARE := 0.5
 ## What every climb starts with: one of each staple.
 const START := {"draught": 1, "stamina": 1}
 ## The chance that a slain monster (not a beast) leaves an item (most often
-## a staple: a Healing or Stamina Draught).
+## a staple: a Healing or Stamina Draught, whose weights were raised so the
+## rarer things come less often; a kill that leaves no item may leave essence
+## instead: DROPS). Caches and fallen climbers' camps hold far fewer items
+## than before (room_rewards.gd RULES "item_chance", DROPS "fallen_item").
 const DROP_CHANCE := 0.1
+## What drops instead of items, and how a tower steers what's found:
+##   essence_chance     the chance a slain monster that left no item leaves
+##                      a little more essence of the tower's kind (unbanked,
+##                      as every kill's essence)
+##   essence_base, essence_per_floor   how much (more higher up)
+##   fallen_item        the chance a fallen climber's camp still holds an
+##                      item; otherwise their pack holds essence (a cache)
+##   handy_weight       a tower's handy items (tower_needs.gd) are this many
+##                      times as likely among what's found there
+static var DROPS := {"essence_chance": 0.06, "essence_base": 3.0, "essence_per_floor": 0.4, "fallen_item": 0.5, "handy_weight": 3.0}
+
+## Sizes (as in the old game): Minor, standard and Greater. A sized item
+## ("scale" in ITEMS: the numbers that grow with its size) is stronger or
+## weaker by "mult", and worth "worth" times as much. One kind on the belt
+## holds mixed sizes, and a use takes the biggest first (the HUD's pips and
+## the item's name say which comes next). Items without "scale" are always
+## standard. Keys are the size: 1 Minor, 2 standard, 3 Greater.
+static var SIZES := {
+	"1": {"name": "Minor %s", "short": "%s I", "mult": 0.6, "worth": 0.6},
+	"2": {"name": "%s", "short": "%s", "mult": 1.0, "worth": 1.0},
+	"3": {"name": "Greater %s", "short": "%s III", "mult": 1.5, "worth": 1.6},
+}
+## The standard size (old saves' items, the store's supplies, the start).
+const STANDARD := 2
+## What size a find rolls, by floor ("to": up to that floor): weights for
+## Minor, standard and Greater.
+static var SIZE_ODDS := [
+	{"to": 3, "odds": [50, 50, 0]},
+	{"to": 7, "odds": [25, 60, 15]},
+	{"to": 99, "odds": [10, 55, 35]},
+]
 ## Items lying on the floor fade after this many seconds.
 const DROP_LIFE := 40.0
 
@@ -48,6 +82,13 @@ const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "e
 ##   thrown       thrown where you aim, like the Fire Flask ("range",
 ##                "radius", "flight"): it bursts there (burst())
 ##   secret       the secret essence it draws on (its look and words only)
+##   scale        the numbers that grow with the item's size (SIZES): an item
+##                with none is always standard ("buff" scales its amounts)
+##   cures        the states on the climber it takes away (reactions.gd
+##                CLIMBER); the HUD's state line names these items
+##   ward         buff keys that stop a state taking hold while it lasts:
+##                antivenom (poisoned), fireward (burning), bleedward
+##                (bleeding), grounded (charged): reactions.gd CLIMBER "wards"
 
 static var ITEMS := {
 	"draught": {
@@ -57,7 +98,7 @@ static var ITEMS := {
 		"color": Color(0.9, 0.3, 0.32),
 		"heal": 40.0,
 		"time": 1.5,
-		"drop_weight": 12, "staple": true,
+		"drop_weight": 18, "staple": true, "scale": ["heal"],
 		"kind": "stone", "value": {"stone": 6},
 	},
 	"stamina": {
@@ -66,17 +107,17 @@ static var ITEMS := {
 		"desc": "a quick, bitter swallow: 50 stamina back at once, and stamina refills 40% faster for 5 seconds",
 		"color": Color(0.95, 0.78, 0.3),
 		"stamina": 50.0, "regen": 0.4, "duration": 5.0,
-		"drop_weight": 10, "staple": true,
+		"drop_weight": 14, "staple": true, "scale": ["stamina", "duration"],
 		"kind": "iron", "value": {"iron": 6},
 	},
 	"tonic": {
 		"name": "Cleansing Tonic",
 		"short": "Tonic",
-		"desc": "cures poison, heals every burned body part and a little health",
+		"desc": "cures every state on you (poison, burning, bleeding, soaked, charged), heals every burned body part and a little health",
 		"color": Color(0.45, 0.85, 0.5),
 		"heal": 10.0,
 		"time": 0.5,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["heal"], "cures": ["poisoned", "burning", "bleeding", "soaked", "charged", "slowed"],
 		"kind": "water", "value": {"water": 14},
 	},
 	"vial": {
@@ -95,7 +136,7 @@ static var ITEMS := {
 		"color": Color(0.68, 0.66, 0.7),
 		"radius": 95.0,
 		"duration": 5.0,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["duration"],
 		"kind": "fire", "value": {"fire": 14},
 	},
 	"fire_flask": {
@@ -104,25 +145,25 @@ static var ITEMS := {
 		"desc": "thrown where you aim: it bursts in flame and leaves the floor burning for 3 seconds (it burns foes, not you)",
 		"color": Color(1.0, 0.5, 0.18),
 		"dmg": 30.0, "per_floor": 0.1, "radius": 46.0, "range": 160.0, "burn": 3.0, "flight": 0.35,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["dmg"],
 		"kind": "fire", "value": {"fire": 16},
 	},
 	"edge_oil": {
 		"name": "Edge Oil",
 		"short": "Edge Oil",
-		"desc": "rubbed on your weapon: strikes hit 25% harder for 20 seconds",
+		"desc": "rubbed on your weapon: for 20 seconds strikes hit 25% harder and land like heavy blows on shells and guards (a shellback's shell cracks, a knight is rocked)",
 		"color": Color(0.88, 0.42, 0.45),
-		"mult": 1.25, "duration": 20.0,
-		"drop_weight": 1,
+		"mult": 1.25, "duration": 20.0, "cracks": ["shellback", "knight"],
+		"drop_weight": 1, "scale": ["duration"],
 		"kind": "blade", "value": {"blade": 18},
 	},
 	"warding_oil": {
 		"name": "Warding Oil",
 		"short": "Ward Oil",
-		"desc": "a 25-point barrier for 15 seconds; traps can't hurt you while it holds",
+		"desc": "a 25-point barrier for 15 seconds; traps can't hurt you while it holds, and it puts out burning and keeps it off you",
 		"color": Color(0.72, 0.78, 0.95),
 		"shield": 25.0, "duration": 15.0,
-		"drop_weight": 1, "drop": false,
+		"drop_weight": 1, "scale": ["shield", "duration"], "cures": ["burning"], "ward": ["fireward"],
 		"kind": "iron", "value": {"iron": 18},
 	},
 	"haste": {
@@ -131,16 +172,16 @@ static var ITEMS := {
 		"desc": "for 10 seconds you walk 25% faster and rolls cost 30% less stamina",
 		"color": Color(0.75, 0.95, 0.55),
 		"walk": 0.25, "roll": 0.3, "duration": 10.0,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["duration"],
 		"kind": "air", "value": {"air": 15},
 	},
 	"stoneskin": {
 		"name": "Stoneskin Draught",
 		"short": "Stoneskin",
-		"desc": "for 12 seconds blows hurt 20% less and can't knock you back (protection still stops at half a blow)",
+		"desc": "for 12 seconds blows hurt 20% less and can't knock you back (protection still stops at half a blow), and stone grounds you: no charge holds on you",
 		"color": Color(0.7, 0.62, 0.5),
 		"reduce": 0.2, "duration": 12.0,
-		"drop_weight": 1, "drop": false,
+		"drop_weight": 1, "scale": ["duration"], "cures": ["charged"], "ward": ["grounded"],
 		"kind": "stone", "value": {"stone": 16},
 	},
 	"salts": {
@@ -158,7 +199,7 @@ static var ITEMS := {
 		"desc": "lights the room for 20 seconds; hidden traps and secret walls nearby glint",
 		"color": Color(1.0, 0.85, 0.45),
 		"duration": 20.0, "radius": 420.0, "reveal": 360.0,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["duration"],
 		"kind": "air", "value": {"air": 12},
 	},
 	"antidote": {
@@ -167,25 +208,25 @@ static var ITEMS := {
 		"desc": "cures poison, and no poison takes hold of you for 30 seconds",
 		"color": Color(0.62, 0.86, 0.36),
 		"duration": 30.0, "buff": {"antivenom": 1.0},
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["duration"], "cures": ["poisoned"], "ward": ["antivenom"],
 		"kind": "stone", "value": {"stone": 12},
 	},
 	"heartroot": {
 		"name": "Heartroot",
 		"short": "Heartroot",
-		"desc": "a living root, chewed: heals 20 health, and for 30 seconds every kill heals you 4 more",
+		"desc": "a living root, chewed: heals 20 health and stops bleeding, and for 30 seconds every kill heals you 4 more",
 		"color": Color(0.82, 0.32, 0.4),
 		"heal": 20.0, "time": 0.5, "duration": 30.0, "buff": {"kill_heal": 4.0},
-		"drop_weight": 1, "drop": false, "secret": "life",
+		"drop_weight": 1, "drop": false, "secret": "life", "scale": ["heal", "buff"], "cures": ["bleeding"],
 		"kind": "water", "value": {"water": 20},
 	},
 	"net": {
 		"name": "Throwing Net",
 		"short": "Net",
-		"desc": "thrown where you aim: the foes it lands on are tangled for a moment and slowed for 4 seconds (a beast only slowed)",
+		"desc": "thrown where you aim: the foes it lands on are tangled for a moment and slowed for 4 seconds; a flier is brought down and held for 2.5 seconds (a beast only slowed)",
 		"color": Color(0.84, 0.76, 0.56),
-		"thrown": true, "range": 150.0, "radius": 52.0, "flight": 0.4, "tangle": 1.0, "slow": 4.0,
-		"drop_weight": 1,
+		"thrown": true, "range": 150.0, "radius": 52.0, "flight": 0.4, "tangle": 1.0, "slow": 4.0, "flier_tangle": 2.5,
+		"drop_weight": 1, "scale": ["tangle", "slow", "flier_tangle"],
 		"kind": "water", "value": {"water": 14},
 	},
 	"lodestone": {
@@ -194,16 +235,16 @@ static var ITEMS := {
 		"desc": "thrown where you aim: it bursts and drags the foes around it together, with a jolt of 8 (a beast barely moves)",
 		"color": Color(0.5, 0.56, 0.78),
 		"thrown": true, "range": 170.0, "radius": 95.0, "flight": 0.35, "dmg": 8.0, "pull": 430.0,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["radius", "dmg"],
 		"kind": "iron", "value": {"iron": 16},
 	},
 	"briar_tonic": {
 		"name": "Briar Tonic",
 		"short": "Briar",
-		"desc": "a bitter green draught: for 25 seconds, foes that strike you up close take 8",
+		"desc": "a bitter green draught: for 25 seconds, foes that strike you up close take 8, and no bleeding takes hold of you (it stops a bleed, too)",
 		"color": Color(0.4, 0.66, 0.3),
-		"duration": 25.0, "buff": {"thorns": 8.0},
-		"drop_weight": 1,
+		"duration": 25.0, "buff": {"thorns": 8.0, "bleedward": 1.0},
+		"drop_weight": 1, "scale": ["duration"], "cures": ["bleeding"], "ward": ["bleedward"],
 		"kind": "blade", "value": {"blade": 14},
 	},
 	"lantern_oil": {
@@ -212,7 +253,7 @@ static var ITEMS := {
 		"desc": "a flask of clear oil for your light: it reaches 60% farther for two minutes",
 		"color": Color(1.0, 0.78, 0.36),
 		"duration": 120.0, "buff": {"light": 0.6},
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["duration"],
 		"kind": "fire", "value": {"fire": 10},
 	},
 	"unmaking_ash": {
@@ -230,7 +271,7 @@ static var ITEMS := {
 		"desc": "blown from your palm: a gust hurls the foes around you back (a beast only staggers a step)",
 		"color": Color(0.7, 0.88, 0.98),
 		"radius": 120.0, "push": 560.0, "dmg": 4.0,
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["radius", "push"],
 		"kind": "air", "value": {"air": 14},
 	},
 	"seeing_scroll": {
@@ -239,7 +280,7 @@ static var ITEMS := {
 		"desc": "read aloud: for a minute every hidden trap and secret wall on the floor glints, wherever it is",
 		"color": Color(0.62, 0.78, 0.98),
 		"duration": 60.0, "buff": {"seek": 6000.0},
-		"drop_weight": 1,
+		"drop_weight": 1, "scale": ["duration"],
 		"kind": "air", "value": {"air": 16},
 	},
 	# From vaults (wings.gd), and always on the train's store shelf, priced
@@ -319,13 +360,147 @@ static func max_stack(id: String) -> int:
 
 
 ## What a belt of items breaks into: {kind: essence} at BREAK_SHARE of
-## their worth. `items` is {id: count}.
-static func break_value(items: Dictionary) -> Dictionary:
+## their worth. `items` is {id: count}; `sizes` (optional) {id: [size...]}
+## counts a Greater one for more and a Minor one for less.
+static func break_value(items: Dictionary, sizes: Dictionary = {}) -> Dictionary:
 	var out := {}
 	for id in items:
+		var n := int(items[id])
+		var worth := float(n)
+		if sizes.has(id):
+			worth = 0.0
+			var list: Array = sizes[id]
+			for i in n:
+				worth += size_worth(int(list[i]) if i < list.size() else STANDARD)
 		for k in ITEMS.get(id, {}).get("value", {}):
-			out[k] = float(out.get(k, 0.0)) + float(ITEMS[id]["value"][k]) * BREAK_SHARE * int(items[id])
+			out[k] = float(out.get(k, 0.0)) + float(ITEMS[id]["value"][k]) * BREAK_SHARE * worth
 	return out
+
+
+# --- sizes -------------------------------------------------------------------------
+
+## True if the item comes in sizes (it has numbers that "scale").
+static func is_sized(id: String) -> bool:
+	return not Array(ITEMS.get(id, {}).get("scale", [])).is_empty()
+
+
+## A size kept in bounds (1 Minor, 2 standard, 3 Greater); an unsized item is standard.
+static func clamp_size(id: String, size: int) -> int:
+	return clampi(size, 1, 3) if is_sized(id) else STANDARD
+
+
+static func _size_row(size: int) -> Dictionary:
+	return SIZES.get(str(size), SIZES[str(STANDARD)])
+
+
+## How strong a size is (1 for standard).
+static func size_mult(size: int) -> float:
+	return float(_size_row(size)["mult"])
+
+
+static func size_worth(size: int) -> float:
+	return float(_size_row(size)["worth"])
+
+
+## The item's numbers at a size: a copy with its "scale" keys (and its buff's
+## amounts, when "buff" is among them) multiplied.
+static func sized(id: String, size := STANDARD) -> Dictionary:
+	var data: Dictionary = info(id)
+	size = clamp_size(id, size)
+	if size == STANDARD or data.is_empty():
+		return data
+	var out := data.duplicate(true)
+	var k := size_mult(size)
+	for key in data.get("scale", []):
+		if key == "buff" and out.has("buff"):
+			for b in out["buff"]:
+				out["buff"][b] = float(out["buff"][b]) * k
+		elif out.has(key) and (out[key] is float or out[key] is int):
+			out[key] = float(out[key]) * k
+	return out
+
+
+## An item's name at a size: "Greater Healing Draught", "Minor Antivenom".
+## The name every list, card and ring shows (`short` for the short name:
+## "Draught III").
+static func sized_name(id: String, size := STANDARD, short := false) -> String:
+	var d: Dictionary = info(id)
+	var base := String(d.get("short" if short else "name", id))
+	return String(_size_row(clamp_size(id, size))["short" if short else "name"]) % base
+
+
+## A line saying how a size differs ("" for standard): for tooltips and cards.
+static func size_note(id: String, size: int) -> String:
+	size = clamp_size(id, size)
+	if size == STANDARD:
+		return ""
+	var pct := int(round(absf(size_mult(size) - 1.0) * 100.0))
+	return String(SIZE_TEXT["stronger" if size > STANDARD else "weaker"]) % pct
+
+
+## What a net says over the foes it lands on.
+static var NET_TEXT := {"tangled": "Tangled", "down": "Brought down"}
+
+
+## Words about sizes (cards, tooltips, the Entity).
+static var SIZE_TEXT := {
+	"stronger": "Greater: %d%% stronger",
+	"weaker": "Minor: %d%% weaker",
+	"next": "Next: %s",
+	"stack": "Your stack: %s (the biggest is used first)",
+	"swapped": "%s taken; your %s is at your feet",
+}
+
+
+## The size a find rolls on this floor (SIZE_ODDS); an unsized item is standard.
+static func roll_size(id: String, floor_num: int) -> int:
+	if not is_sized(id):
+		return STANDARD
+	var odds: Array = SIZE_ODDS[-1]["odds"]
+	for row in SIZE_ODDS:
+		if floor_num <= int(row["to"]):
+			odds = row["odds"]
+			break
+	var total := 0
+	for w in odds:
+		total += int(w)
+	if total <= 0:
+		return STANDARD
+	var roll := randi() % total
+	for i in odds.size():
+		roll -= int(odds[i])
+		if roll < 0:
+			return i + 1
+	return STANDARD
+
+
+## The small pips on a sized item's icon (I, II or III gilt strokes in the
+## icon's top-right corner, clear of a key badge and the count): any list
+## that draws an item with its size shows them (icon_into's `size`).
+static func pips_into(b, c: Vector2, s: float, size: int) -> void:
+	var k := s / 10.0
+	var w := 2.2 * k
+	var h := 6.0 * k
+	var gap := 1.4 * k
+	var at := c + Vector2(s * 0.98 - (size * w + (size - 1) * gap), -s * 0.98)
+	var back := Rect2(at - Vector2(1.2, 1.2) * k, Vector2(size * w + (size - 1) * gap + 2.4 * k, h + 2.4 * k))
+	b.rect(back, Color(0.07, 0.05, 0.1, 0.85))
+	for i in size:
+		b.rect(Rect2(at + Vector2(i * (w + gap), 0), Vector2(w, h)), Color(1.0, 0.86, 0.5) if size >= 3 else (Color(0.92, 0.9, 0.84) if size == 2 else Color(0.72, 0.68, 0.64)))
+
+
+# --- what's found -------------------------------------------------------------------
+
+## What a slain monster leaves (main.gd on_enemy_killed): {"item", "size"},
+## {"essence": amount} (more of the tower's essence), or {} (nothing more).
+static func kill_drop(floor_num: int, marked := true, tower := "", chance := DROP_CHANCE) -> Dictionary:
+	var roll := randf()
+	if roll < chance:
+		var id := random_item(marked, [], true, tower)
+		return {"item": id, "size": roll_size(id, floor_num)}
+	if roll < chance + float(DROPS["essence_chance"]):
+		return {"essence": float(DROPS["essence_base"]) + float(DROPS["essence_per_floor"]) * floor_num}
+	return {}
 
 # --- camps ---------------------------------------------------------------------
 
@@ -334,8 +509,9 @@ static func break_value(items: Dictionary) -> Dictionary:
 ## item to take. (Camps aren't floors: the next floor is still the next one.)
 const CAMP_AFTER := [3, 9]
 const CAMP_MIN_FLOORS := 5
-## How many item cards a camp offers.
-const CAMP_CHOICES := 3
+## How many item cards a camp offers (beside a crystal of the tower's essence
+## and a piece of gear: main.gd _enter_camp).
+const CAMP_CHOICES := 2
 
 static var CAMP := {
 	"title": "CAMP",
@@ -369,28 +545,31 @@ static func color(id: String) -> Color:
 ## essence vial would do nothing, so `marked` false leaves those out;
 ## `dropped` (a slain monster's) leaves out the items never dropped, and is
 ## the only way to find a staple: camps, vaults and caches offer the rarer
-## things (a camp's rest heals you anyway).
-static func random_item(marked := true, exclude: Array = [], dropped := false) -> String:
-	var total := 0
+## things (a camp's rest heals you anyway). In a `tower`, its handy items
+## (tower_needs.gd) are DROPS "handy_weight" times as likely, and found
+## there even if monsters elsewhere never leave them.
+static func random_item(marked := true, exclude: Array = [], dropped := false, tower := "") -> String:
+	var handy: Array = load("res://scripts/tower_needs.gd").handy(tower) if tower != "" else []
+	var weights := {}
+	var total := 0.0
 	for id in ORDER:
-		if _skip(id, marked, exclude, dropped):
+		if _skip(id, marked, exclude, dropped, id in handy):
 			continue
-		total += int(ITEMS[id]["drop_weight"])
-	if total <= 0:
+		weights[id] = float(ITEMS[id]["drop_weight"]) * (float(DROPS["handy_weight"]) if id in handy else 1.0)
+		total += weights[id]
+	if total <= 0.0:
 		return "draught"
-	var roll := randi() % total
-	for id in ORDER:
-		if _skip(id, marked, exclude, dropped):
-			continue
-		roll -= int(ITEMS[id]["drop_weight"])
-		if roll < 0:
+	var roll := randf() * total
+	for id in weights:
+		roll -= weights[id]
+		if roll < 0.0:
 			return id
-	return "draught"
+	return weights.keys()[-1]
 
 
-static func _skip(id: String, marked: bool, exclude: Array, dropped: bool) -> bool:
+static func _skip(id: String, marked: bool, exclude: Array, dropped: bool, handy := false) -> bool:
 	return id in exclude or int(ITEMS[id]["drop_weight"]) <= 0 or (not marked and ITEMS[id].get("needs_mark", false)) \
-		or (dropped and not ITEMS[id].get("drop", true)) or (not dropped and ITEMS[id].get("staple", false))
+		or (dropped and not handy and not ITEMS[id].get("drop", true)) or (not dropped and ITEMS[id].get("staple", false))
 
 
 ## True for the cheap everyday draughts (ITEMS "staple").
@@ -398,11 +577,12 @@ static func is_staple(id: String) -> bool:
 	return bool(ITEMS.get(id, {}).get("staple", false))
 
 
-## Three different items for a camp's cards.
-static func camp_choices(marked := true) -> Array:
+## Different items for a camp's cards (CAMP_CHOICES of them; in a `tower`,
+## its handy items are likelier).
+static func camp_choices(marked := true, tower := "") -> Array:
 	var out: Array = []
 	for i in CAMP_CHOICES:
-		out.append(random_item(marked, out))
+		out.append(random_item(marked, out, false, tower))
 	return out
 
 
@@ -413,10 +593,12 @@ const USE_SOUNDS := {"draught": "drink", "stamina": "drink", "tonic": "drink", "
 	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime"}
 
 
-## Uses an item on the climber. Returns false (and says why) if it would do
-## nothing, so it isn't wasted.
-static func use(id: String, p) -> bool:
-	var data := info(id)
+## Uses an item on the climber, at a size (SIZES: its numbers scale).
+## Returns false (and says why) if it would do nothing, so it isn't wasted.
+## Its "cures" take those states off the climber, and its "ward" keeps them
+## off while it lasts (reactions.gd CLIMBER).
+static func use(id: String, p, size := STANDARD) -> bool:
+	var data := sized(id, size)
 	if data.is_empty():
 		return false
 	var main = p.main
@@ -446,7 +628,7 @@ static func use(id: String, p) -> bool:
 			var burned := false
 			for b in p.bonds.values():
 				burned = burned or b.burned
-			if not burned and p.poison_t <= 0.0 and p.hp >= p.max_health() - 0.5:
+			if not burned and not _curable(p, data) and p.hp >= p.max_health() - 0.5:
 				main.fx_text(above, "Nothing to cleanse", Color(0.8, 0.78, 0.85))
 				return false
 			for b in p.bonds.values():
@@ -471,7 +653,7 @@ static func use(id: String, p) -> bool:
 			main.smokes.append({"pos": p.global_position, "r": float(data["radius"]), "t": last})
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 18, 160.0)
 		"fire_flask", "net", "lodestone":
-			main.throw_flask(p, id)
+			main.throw_flask(p, id, clamp_size(id, size))
 		"edge_oil":
 			p.edge_t = float(data["duration"])
 			main.fx_text(above, "Edge oiled", col)
@@ -479,6 +661,7 @@ static func use(id: String, p) -> bool:
 		"warding_oil":
 			p.raise_barrier(float(data["shield"]), float(data["duration"]), false, col)
 			p.ward_oil_t = float(data["duration"])
+			p.add_buff(id, float(data["duration"]), _wards(data))
 			main.fx_text(above, "Warded", col)
 		"haste":
 			p.haste_t = float(data["duration"])
@@ -486,6 +669,7 @@ static func use(id: String, p) -> bool:
 			main.sfx("gust", 1.4, -6.0)
 		"stoneskin":
 			p.stone_t = float(data["duration"])
+			p.add_buff(id, float(data["duration"]), _wards(data))
 			main.fx_text(above, "Stoneskin", col)
 			main.sfx("hit_armor", 0.8, -6.0)
 		"salts":
@@ -500,7 +684,7 @@ static func use(id: String, p) -> bool:
 			main.light_flare(p.global_position, lasts)
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 22, 260.0)
 		"antidote":
-			if p.poison_t <= 0.0 and p.buff_left(id) > 1.0:
+			if p.poison_t <= 0.0 and not _curable(p, data) and p.buff_left(id) > 1.0:
 				main.fx_text(above, "Already proof against poison", Color(0.8, 0.78, 0.85))
 				return false
 			p.poison_t = 0.0
@@ -540,9 +724,40 @@ static func use(id: String, p) -> bool:
 			main.fx_ring(p.global_position, col, float(data["radius"]), 0.35, 5.0)
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 20, 360.0)
 			main.sfx("gust", 1.0, -3.0)
+	if _cure(p, data):
+		main.fx_text(above + Vector2(0, -30), String(load("res://scripts/reactions.gd").CLIMBER_TEXT["cured"]), col)
 	main.fx_ring(p.global_position, col, 34.0, 0.3, 3.0)
 	main.sfx(USE_SOUNDS.get(id, "ready"), 1.0, -3.0)
 	return true
+
+
+## True if the item would take a state off the climber now (its "cures").
+static func _curable(p, data: Dictionary) -> bool:
+	for st in data.get("cures", []):
+		if float(p.states.get(String(st), 0.0)) > 0.0 or (st == "poisoned" and p.poison_t > 0.0):
+			return true
+	return false
+
+
+## Takes the item's "cures" off the climber. True if any was there.
+static func _cure(p, data: Dictionary) -> bool:
+	var any := false
+	for st in data.get("cures", []):
+		var s := String(st)
+		if float(p.states.get(s, 0.0)) > 0.0 or (s == "poisoned" and p.poison_t > 0.0):
+			any = true
+		p.states.erase(s)
+		if s == "poisoned":
+			p.poison_t = 0.0
+	return any
+
+
+## The item's wards as a buff ({key: 1}): no such state takes hold while it lasts.
+static func _wards(data: Dictionary) -> Dictionary:
+	var out := {}
+	for w in data.get("ward", []):
+		out[String(w)] = 1.0
+	return out
 
 
 ## Healing items heal over a short time. Steady Hands heals more, faster.
@@ -555,10 +770,10 @@ static func _heal_over_time(p, data: Dictionary, steady: bool) -> void:
 
 
 ## A thrown item bursts where it lands (main.gd _update_flasks; the Fire
-## Flask's burst is main.gd's own): `f` is {to, r, id}.
+## Flask's burst is main.gd's own): `f` is {to, r, id, size}.
 static func burst(main, f: Dictionary) -> void:
 	var id := String(f.get("id", ""))
-	var data := info(id)
+	var data := sized(id, int(f.get("size", STANDARD)))
 	var col: Color = data.get("color", Color.WHITE)
 	var pos: Vector2 = f["to"]
 	match id:
@@ -567,9 +782,11 @@ static func burst(main, f: Dictionary) -> void:
 				if e.dead or e.global_position.distance_to(pos) > float(f["r"]) + e.radius:
 					continue
 				e.chill_t = maxf(e.chill_t, float(data["slow"]) * (0.5 if e.is_boss() else 1.0))
+				var flier: bool = e.kind in e.FLIERS
 				if not e.is_boss():
-					e.stagger(float(data["tangle"]))
-				main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), "Tangled", col)
+					# (a flier is brought down: held longer, the job nets do best: tower_needs.gd)
+					e.stagger(float(data["flier_tangle"] if flier else data["tangle"]))
+				main.fx_text(e.global_position + Vector2(0, -e.radius - 22.0), String(NET_TEXT["down"] if flier and not e.is_boss() else NET_TEXT["tangled"]), col)
 			main.sfx("swing", 0.6, -4.0)
 		"lodestone":
 			for e in main.targets():
@@ -597,21 +814,25 @@ const Art := preload("res://scripts/icon_art.gd")
 
 ## An item's icon, drawn in code, centred on `c` (about 2*s across).
 ## `alpha` fades it (empty slots, items fading on the floor).
-static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, alpha := 1.0) -> void:
+## `size` (1 to 3; 0 for none) adds a sized item's pips (pips_into).
+static func draw_icon(ci: CanvasItem, id: String, c: Vector2, s: float, alpha := 1.0, size := 0) -> void:
 	var b := Draw.Batch.new()
-	icon_into(b, id, c, s)
+	icon_into(b, id, c, s, size)
 	if alpha < 0.999:
 		for i in b.cols.size():
 			b.cols[i].a *= alpha
 	b.flush(ci)
 
 
-static func icon_into(b, id: String, c: Vector2, s: float) -> void:
+static func icon_into(b, id: String, c: Vector2, s: float, size := 0) -> void:
 	if id == "vessel":
 		load("res://scripts/vessel.gd").belt_into(b, c, s)  # (filled as the belt's vessel is)
 		return
+	var raw := s
 	s = Art.size_step(s)
 	Art.cached(b, "item|%s|%.2f" % [id, s], c, func(nb): _item_art(nb, id, s))
+	if size > 0 and is_sized(id):
+		pips_into(b, c, raw, clamp_size(id, size))
 
 
 ## An item's icon around (0, 0): the art itself.
