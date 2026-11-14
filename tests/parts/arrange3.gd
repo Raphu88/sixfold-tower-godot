@@ -216,8 +216,8 @@ func _menu_levels() -> void:
 		await t._wait(0.4)
 		await _arrange_open()
 		var top: Array = ar.level_blocks()
-		_check(top.has("rail.box") and top.size() >= 2 and top.all(func(id): return id == "rail.box" or String(id).begins_with("train.%s." % car)), "the %s car: its furniture and the rail (%s)" % [car, top])
-		await _level_ok("the %s car" % car)
+		_check(top.has("rail.box") and top.size() >= 2 and top.all(func(id): return id == "rail.box" or id == "train.crystals" or String(id).begins_with("train.%s." % car)), "the %s car: its furniture, the crystal bar and the rail (%s)" % [car, top])
+		await _level_ok("the %s car" % car, 12)
 		ar.close()
 		await t._frames(4)
 	# A station's page.

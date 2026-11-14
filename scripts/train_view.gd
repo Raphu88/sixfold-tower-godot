@@ -2454,7 +2454,9 @@ class Band extends Control:
 ## and a hanging lamp's light, a pegboard of tools, a shelf of bottles in the
 ## six essences' colours catching the light, the workbench with a vice and a
 ## flask steaming over a small flame, and the Rune Artist's slate, its runes
-## glowing when you carry the Rune Artist's mark (`lit`).
+## glowing when you carry the Rune Artist's mark (`lit`). In Arrange mode
+## each of those is a part of its own (PARTS, drawn_parts.gd): each is drawn
+## through its move.
 class Bench extends Control:
 	const UI := preload("res://scripts/ui.gd")
 	const Art := preload("res://scripts/train_art.gd")
@@ -2463,12 +2465,27 @@ class Bench extends Control:
 	const WOOD := Color(0.42, 0.27, 0.16)
 	const SLATE := Color(0.15, 0.16, 0.2)
 	const RUNE := Color(0.62, 0.66, 1.0)  # the Rune Artist's colour (bonds.gd)
+	const DrawnParts := preload("res://scripts/drawn_parts.gd")
+	## Its parts in Arrange mode (drawn_parts.gd): [key, name, share of its size].
+	const PARTS := [
+		["lamp", "Hanging lamp", Rect2(0.07, 0.0, 0.18, 0.26)],
+		["tools", "Pegboard of tools", Rect2(0.29, 0.07, 0.28, 0.39)],
+		["bottles", "Shelf of bottles", Rect2(0.29, 0.37, 0.32, 0.2)],
+		["workbench", "Workbench and flask", Rect2(0.03, 0.5, 0.6, 0.5)],
+		["slate", "Rune slate", Rect2(0.64, 0.03, 0.35, 0.86)],
+	]
 	var lit := false
 	var t := 0.0
 	var _acc := 0.0
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		DrawnParts.add(self, PARTS)
+
+	## What's drawn so far goes out; the next part is drawn where Arrange mode put it.
+	func _part(b, key: String) -> void:
+		b.flush(self)
+		draw_set_transform_matrix(DrawnParts.xform(self, key))
 
 	func _process(delta: float) -> void:
 		t += delta
@@ -2500,6 +2517,7 @@ class Bench extends Control:
 			x += bw
 			i += 1
 		# The lamp's warm light from the top left.
+		_part(b, "lamp")
 		var lamp := Vector2(w * 0.16, 10.0 * u)
 		Art.light(b, lamp + Vector2(0, 14.0 * u), Vector2(70.0, 60.0) * u, Color(Art.LAMP, 0.22))
 		b.line(Vector2(lamp.x, 1.5), lamp + Vector2(0, -3.0 * u), Art.GILT_LO, 1.0 * u)
@@ -2508,6 +2526,7 @@ class Bench extends Control:
 		b.dot(lamp + Vector2(0, 4.5 * u), 3.4 * u, Color(1.0, 0.9, 0.65))
 		Art.light(b, lamp + Vector2(0, 4.5 * u), Vector2(12.0, 12.0) * u, Color(1.0, 0.85, 0.5, 0.5))
 		# A pegboard of tools: a hammer, tongs and a file.
+		_part(b, "tools")
 		var peg := Rect2(w * 0.3, 7.0 * u, w * 0.26, h * 0.36)
 		b.rect(peg.grow(1.2 * u), UI.OUTLINE)
 		Art.vgrad(b, peg, WOOD.darkened(0.3), WOOD.darkened(0.5))
@@ -2526,6 +2545,7 @@ class Bench extends Control:
 		b.line(Vector2(fx, peg.position.y + 4.0 * u), Vector2(fx, peg.end.y - 4.0 * u), Art.COPPER, 1.8 * u)
 		b.line(Vector2(fx - 0.5 * u, peg.position.y + 4.0 * u), Vector2(fx - 0.5 * u, peg.end.y - 4.0 * u), Color(1, 0.8, 0.6, 0.4), 0.6 * u)
 		# A shelf of bottles, one for each essence, catching the light.
+		_part(b, "bottles")
 		var shelf_y := h * 0.52
 		var kinds: Array = Essence.KINDS.keys()
 		for k in kinds.size():
@@ -2536,6 +2556,7 @@ class Bench extends Control:
 		Art.vgrad(b, Rect2(w * 0.3, shelf_y + 2.0 * u, w * 0.3, 4.0 * u), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0))
 		# The workbench: a thick grained top with a brass edge, legs and a
 		# stretcher, a vice at the left.
+		_part(b, "workbench")
 		var top := Rect2(5.0 * u, h * 0.62, w * 0.6, 7.0 * u)
 		for lx in [top.position.x + 4.0 * u, top.end.x - 9.0 * u]:
 			b.rect(Rect2(lx - 0.8 * u, top.end.y, 6.6 * u, h - top.end.y - 2.2 * u), UI.OUTLINE)
@@ -2567,6 +2588,7 @@ class Bench extends Control:
 			b.dot(fl + Vector2(2.0 * u + p * 3.0 * u, -10.0 * u - p * 10.0 * u), (1.4 + p * 2.6) * u, Color(0.78, 0.75, 0.84, 0.4 * (1.0 - p)))
 		# The Rune Artist's corner: a slate on the wall with three runes,
 		# glowing (and breathing) when the mark is yours; dark otherwise.
+		_part(b, "slate")
 		var slate := Rect2(w * 0.66, 6.0 * u, w * 0.31, h * 0.74)
 		b.rect(slate.grow(3.0 * u), UI.OUTLINE)
 		Art.bevel(b, slate.grow(2.4 * u), Art.WALNUT, 1.4 * u)
@@ -2587,6 +2609,7 @@ class Bench extends Control:
 		Art.vgrad(b, Rect2(slate.position.x - 0.5 * u, slate.end.y + 2.4 * u, slate.size.x + 1.0 * u, 1.8 * u), Art.WALNUT.lightened(0.2), Art.WALNUT.darkened(0.2))
 		b.rect(Rect2(slate.position.x + slate.size.x * 0.6, slate.end.y + 0.6 * u, 5.0 * u, 1.8 * u), Color(0.92, 0.92, 0.88))
 		b.flush(self)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 ## The window's new star (see _place_star): a bright four-pointed star that

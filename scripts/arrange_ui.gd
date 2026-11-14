@@ -18,6 +18,10 @@ extends RefCounted
 ##   menu.<page>.row1.column2.card1 a card (a panel or a big drawn piece) inside it
 ##   rail.box / rail.ident / rail.list / rail.foot   the left rail (rail.gd)
 ##   train.<car>.<kind><n>          a car's furniture and placards (train_page.gd)
+##   train.<car>.<kind><n>.<part><n>  what's on it: its heading, grid, buttons,
+##                                  notes; inside a grid its slots (train.personal.chest.grid.slot3)
+##   train.<car>.bench.<part>       a drawn piece's parts (drawn_parts.gd: the workshop's wall)
+##   train.crystals[.<kind>]        the band of crystals along the bottom, and each kind's
 ## so every page, a new one too, gets its boxes.
 ##
 ## An element's built-in place is wherever its container puts it. Its
@@ -40,6 +44,7 @@ const Layout := preload("res://scripts/layout.gd")
 const TrainView := preload("res://scripts/train_view.gd")
 const Book := preload("res://scripts/book.gd")
 const Train := preload("res://scripts/train.gd")
+const DrawnParts := preload("res://scripts/drawn_parts.gd")
 
 ## Off: nothing is tagged (tests build a page without it to compare).
 static var enabled := true
@@ -59,7 +64,8 @@ const SKIP_PAGES := ["title", "painter", "create"]
 const KIND_NAMES := {
 	"panel": "Page panel", "title": "Title", "tabs": "Tabs", "ribbons": "Ribbons", "footer": "Back button",
 	"row": "Row", "grid": "Grid", "column": "Column", "text": "Text", "card": "Card", "button": "Button",
-	"part": "Piece", "foot": "Bottom row",
+	"part": "Piece", "foot": "Bottom row", "slot": "Space", "list": "List", "drawn": "Part", "note": "Note",
+	"crystals": "Crystal bar",
 }
 ## The train's furniture (train_view.gd Furnish kinds) and pieces.
 const FURNISH_NAMES := {
@@ -93,6 +99,58 @@ const NAMES := {
 	"menu.climbers.grid1": "Climber cards",
 	"menu.settings.settings.row1": "The Entity's words",
 	"menu.climbers.row1": "The Entity's words",
+	# The train's furniture, one level in (a key "*.a.b" names every block
+	# whose id ends ".a.b", in every car).
+	"train.crystals": "Crystal bar",
+	"*.placard.row": "Placard's heading",
+	"*.placard.text": "Placard's first line",
+	"*.placard.button": "Placard's button",
+	"*.placard.button2": "Placard's second button",
+	"*.speech.piece": "Face",
+	"*.speech.card": "Speech bubble",
+	"*.card.title": "Who speaks",
+	"*.card.text": "Words",
+	"*.speech.title": "Who speaks",
+	"*.speech.text": "Words",
+	"*.row.piece": "Icon",
+	"*.rack.title": "Wardrobe's name",
+	"*.rack.grid": "What you'll wear",
+	"*.pack.title": "Pack's heading",
+	"*.pack.grid": "Pack spaces",
+	"*.chest.title": "Stash's heading",
+	"*.chest.grid": "Stash spaces",
+	"*.chest.button": "Open the stash",
+	"train.engine.board.row": "Board's top line",
+	"train.engine.board.text": "Board's note",
+	"train.engine.board.grid": "Tower plaques",
+	"*.board.row.title": "Board's name",
+	"*.board.row.button": "Towers or stations sign",
+	"train.engine.placard.title": "Placard's heading",
+	"train.engine.placard.text": "Where you're going",
+	"train.engine.placard.row": "Its essence and your best",
+	"train.engine.placard.button": "The lever",
+	"train.store.shelf.title": "Shelf's sign",
+	"train.store.shelf.grid": "Supplies",
+	"train.store.rail.title": "Rail's sign",
+	"train.store.rail.button": "What the rail shows",
+	"train.store.rail.grid": "Pieces on the rail",
+	"train.store.case.title": "Case's sign",
+	"train.store.case.slot": "Today's piece",
+	"train.store.case.title2": "Special order's sign",
+	"train.store.case.slot2": "Special order",
+	"train.store.note": "Next upgrade",
+	"train.store.plain.title": "Selling's sign",
+	"train.store.plain.row": "Where from and which slot",
+	"train.workshop.plain.grid": "What you can work on",
+	"train.library.bookcase.title": "Bookcase's name",
+	"train.library.bookcase.grid": "Shelves",
+	"train.library.lectern.title": "Lectern's heading",
+	"train.library.lectern.list": "What it says",
+	"train.settings.signal.row": "Settings and Controls tabs",
+	"train.settings.signal.list": "Settings list",
+	"train.settings.brake.title": "Brake's sign",
+	"train.settings.brake.button": "Start over button",
+	"train.settings.brake.text": "Brake's note",
 	"menu.talk.row1": "The Entity's words",
 	"menu.talk.row1.part1": "The Entity's face",
 	"menu.talk.row1.card1": "What the Entity says",
@@ -117,6 +175,12 @@ const MAX_FACTOR := 2.0
 
 static var _index := {}  # id -> WeakRef of the Control
 static var _page: Array = []  # ids on the page showing, in order (tag_page)
+static var _on_page := {}  # the same, to look up
+## How many levels down a piece of train furniture's parts are offered: its
+## own parts (a heading, a grid, a button), then theirs (a grid's slots).
+const PART_DEPTH := 2
+## At most this many elements in one car.
+const MAX_PER_CAR := 180
 
 
 # --- tagging ---------------------------------------------------------------------
@@ -139,7 +203,16 @@ static func tag(c: Control, id: String, name: String, caps := {}, frame: Control
 	if not had or not c.has_meta("arr_base"):
 		c.set_meta("arr_base", Rect2(c.position, c.size))
 	_hook(c)
-	_page.append(id)
+	if not c.tree_entered.is_connected(_rehook):
+		c.tree_entered.connect(_rehook.bind(c))  # (moved into another container: reflow.gd wraps a row)
+	if not _on_page.has(id):
+		_on_page[id] = true
+		_page.append(id)
+
+
+static func _rehook(c: Control) -> void:
+	if is_instance_valid(c) and c.has_meta("arr"):
+		_hook(c)
 
 
 static func untag(c: Control) -> void:
@@ -166,6 +239,11 @@ static func _hook(c: Control) -> void:
 
 ## A container laid out its children: their built-in places, then the arrangement on top.
 static func _sorted(p: Container) -> void:
+	if p.has_meta("arr_parts") and enabled:
+		# (what's in it was built again (a placard's card for a new choice): its parts are tagged afresh)
+		if p.get_children().any(func(k): return k is Control and k.visible and not k.has_meta("arr") and not _spacer(k) and DrawnParts.of(p) != k):
+			var a: Array = p.get_meta("arr_parts")
+			_tag_level(p, a[0], a[1], a[2], a[3], a[4])
 	for c in p.get_children():
 		if c is Control and c.has_meta("arr"):
 			c.set_meta("arr_base", Rect2(c.position, c.size))
@@ -217,8 +295,13 @@ static func _lookup(table: Dictionary, id: String) -> String:
 	if table.has(id):
 		return String(table[id])
 	var cut := id.rfind(".")
-	if cut > 0 and table.has("*" + id.substr(cut)):
-		return String(table["*" + id.substr(cut)])
+	if cut > 0:
+		# ("*.placard.button": its last two names; then "*.title": its last)
+		var cut2 := id.rfind(".", cut - 1)
+		if cut2 > 0 and table.has("*" + id.substr(cut2)):
+			return String(table["*" + id.substr(cut2)])
+		if table.has("*" + id.substr(cut)):
+			return String(table["*" + id.substr(cut)])
 	return ""
 
 
@@ -452,6 +535,17 @@ static func refresh(m) -> void:
 			for r in m.train_view.rooms.values():
 				r.fit()
 	apply_all()
+	if m.page == "train" and m.train_view != null:
+		# (the furniture's drawings follow their slots, the drawn pieces their parts)
+		var places: Array = [m.train_view.chrome]
+		if m.train_page != null:
+			places.append_array(m.train_page.roots.values())
+		for place in places:
+			if place == null or not is_instance_valid(place):
+				continue
+			for n in place.find_children("*", "Control", true, false):
+				if n.get_script() != null:
+					n.queue_redraw()
 
 
 ## Arranges an element to fill this box (on the screen) as closely as it
@@ -585,6 +679,7 @@ static func page_name(m) -> String:
 ## panel, what's in it, the rail, and on the train every car's furniture.
 static func tag_page(m) -> void:
 	_page.clear()
+	_on_page.clear()
 	if not enabled:
 		return
 	untag(m.panel)
@@ -627,6 +722,11 @@ static func _tag_menu_part(m, ctl, prefix: String, pn: String, counts: Dictionar
 	if kind in ["title", "tabs", "ribbons"] and counts[kind] == 1:
 		id = "%s.%s" % [prefix, kind]
 	tag(ctl, id, _auto_name(ctl, kind, int(counts[kind]), heading), {}, frame, prefix, kind, pn)
+	if m.page == "station" and depth == 1:
+		# A station's list and its card: their own parts, one level in (its
+		# tiles; the card's heading, lines and buttons), as a train car's furniture.
+		_tag_inside(ctl, id, pn, frame, prefix, 1, {"n": 0})
+		return
 	# A row of columns: each column too (one level down).
 	if depth == 0 and (ctl is HBoxContainer or ctl is HFlowContainer) and not (kind in ["title", "tabs", "ribbons", "footer"]):
 		var cols: Array = ctl.get_children().filter(func(k): return k is Control and k.visible and not _spacer(k))
@@ -853,14 +953,19 @@ static func _tag_train(m) -> void:
 		if root == null or not is_instance_valid(root):
 			continue
 		var counts := {}
-		_tag_car(root, root, "train." + String(car), _car_name(String(car)), counts)
+		_tag_car(root, root, "train." + String(car), _car_name(String(car)), counts, {"n": 0})
+	if m.train_view != null and m.train_view.chrome != null:
+		for b in m.train_view.chrome.find_children("*", "Control", true, false):
+			if b.has_meta("crystal_band"):
+				tag_band(b)
 
 
-## A car's furniture: its pieces of furniture and placards (what's in them
-## moves with them), the book, the bench, the outfitter, signs and speech.
-static func _tag_car(root: Control, n: Node, prefix: String, cn: String, counts: Dictionary) -> void:
+## A car's furniture: its pieces of furniture and placards, the book, the
+## bench, the outfitter, signs, notes and speech; then what's on each of
+## them (_tag_inside), one level at a time.
+static func _tag_car(root: Control, n: Node, prefix: String, cn: String, counts: Dictionary, budget: Dictionary) -> void:
 	for k in n.get_children():
-		if not (k is Control) or not k.visible or _page.size() >= MAX_PER_PAGE * 2:
+		if not (k is Control) or not k.visible or int(budget["n"]) >= MAX_PER_CAR:
 			continue
 		var kind := ""
 		var s = k.get_script()
@@ -876,16 +981,167 @@ static func _tag_car(root: Control, n: Node, prefix: String, cn: String, counts:
 			kind = "outfitter"
 		elif k is BaseButton and not (n is GridContainer):
 			kind = "sign"
+		elif k is Label and n != root and String(k.text).strip_edges() != "":
+			kind = "note"  # (words standing on their own: the outfitter's next upgrade)
 		elif s != null and not (n is GridContainer) and k.get_combined_minimum_size().x >= CARD_MIN.x and not (k is BaseButton):
 			kind = "piece"
 		if kind == "":
-			_tag_car(root, k, prefix, cn, counts)
+			_tag_car(root, k, prefix, cn, counts, budget)
 			continue
 		counts[kind] = int(counts.get(kind, 0)) + 1
 		var id := "%s.%s%s" % [prefix, kind, "" if counts[kind] == 1 else str(counts[kind])]
 		var nm: String = FURNISH_NAMES.get(kind, kind.capitalize())
-		if kind == "sign":
+		if kind in ["sign", "note"]:
 			var w := _first_words(k)
 			if w != "":
 				nm += " “" + w + "”"
-		tag(k, id, nm, {}, root.get_parent() if root.get_parent() is ScrollContainer else root, prefix, kind, cn)  # (kept in the car, where it shows)
+		var frame: Control = root.get_parent() if root.get_parent() is ScrollContainer else root  # (kept in the car, where it shows)
+		tag(k, id, nm, {}, frame, prefix, kind, cn)
+		budget["n"] = int(budget["n"]) + 1
+		_tag_inside(k, id, cn, frame, prefix, 1, budget)
+
+
+## What's on a piece of furniture, `depth` levels down from it (at most
+## PART_DEPTH): its heading, grid, rows, buttons, notes and cards; inside
+## those, a grid's slots and a row's pieces. A drawn piece's parts are its
+## drawn_parts.gd (the workshop's wall). Each part's id is its piece's and
+## its kind and number ("train.personal.chest.grid.slot3"); it's kept in
+## the car (in the box that scrolls, if it's in one: a placard's card).
+static func _tag_inside(holder: Control, hid: String, cn: String, frame: Control, group: String, depth: int, budget := {}) -> void:
+	var dp = DrawnParts.of(holder)
+	if dp != null:
+		for c in dp.get_children():
+			if c is Control:
+				tag(c, "%s.%s" % [hid, c.name], String(c.get_meta("part_name", c.name)), {}, holder, group, "drawn", cn)
+		return
+	if depth > PART_DEPTH or holder is BaseButton or holder is ScrollBar or holder is Range:
+		return
+	var at := _content(holder, frame)
+	if at[0] == null or at[0] == holder and holder.get_child_count() == 0:
+		return
+	_tag_level(at[0], hid, cn, at[1], group, depth, budget)
+
+
+## The box whose children are the parts: down through a panel's or a
+## column's only child and into what a scroll holds. [box, frame].
+static func _content(holder: Control, frame: Control) -> Array:
+	var c: Control = holder
+	for i in 6:
+		var kids: Array = c.get_children().filter(func(k): return k is Control and k.visible and not k.is_queued_for_deletion() and not _spacer(k) and not (k is ScrollBar) and DrawnParts.of(c) != k)
+		if c is ScrollContainer:
+			if kids.is_empty():
+				return [null, frame]
+			frame = c  # (what's in a scroll stays in it, where it shows)
+			c = kids[0]
+			continue
+		if kids.size() == 1 and kids[0] is Container and not _is_slot(kids[0]) and (c is PanelContainer or c is MarginContainer or c is BoxContainer or c is ScrollContainer):
+			c = kids[0]
+			continue
+		break
+	return [c, frame]
+
+
+## Tags the parts in `box` (and theirs, a level down). It remembers how, so
+## a box built again (a placard's card for a new choice) is tagged afresh
+## (_sorted).
+static func _tag_level(box: Control, hid: String, cn: String, frame: Control, group: String, depth: int, budget := {}) -> void:
+	box.set_meta("arr_parts", [hid, cn, frame, group, depth])
+	var counts := {}
+	for k in box.get_children():
+		if not (k is Control) or not k.visible or k.is_queued_for_deletion() or _spacer(k) or k is ScrollBar or DrawnParts.of(box) == k:
+			continue
+		if not budget.is_empty() and int(budget["n"]) >= MAX_PER_CAR:
+			return
+		var kind := _part_kind(k)
+		counts[kind] = int(counts.get(kind, 0)) + 1
+		var n: int = counts[kind]
+		var id := "%s.%s%s" % [hid, kind, "" if n == 1 else str(n)]
+		tag(k, id, _part_name(k, kind, n), {}, frame, group, kind, cn)
+		if not budget.is_empty():
+			budget["n"] = int(budget["n"]) + 1
+		if not (kind in ["slot", "button", "text", "title"]):
+			_tag_inside(k, id, cn, frame, group, depth + 1, budget)
+	_hook_box(box)
+
+
+## A box tagged by _tag_level listens for being laid out even before any
+## of its parts is tagged (so a card built empty and filled later is found).
+static func _hook_box(box: Control) -> void:
+	if box is Container and int(box.get_meta("arr_box_hooked", 0)) != box.get_instance_id():
+		box.set_meta("arr_box_hooked", box.get_instance_id())
+		var cont: Container = box
+		if int(cont.get_meta("arr_hooked", 0)) != cont.get_instance_id():
+			cont.set_meta("arr_hooked", cont.get_instance_id())
+			cont.sort_children.connect(func(): _sorted(cont))
+
+
+## A slot's cell (menu.gd _slot: a column holding the slot button).
+static func _is_slot(k: Node) -> bool:
+	if k.has_meta("slot") and k is BaseButton:
+		return true
+	return k is BoxContainer and k.get_child_count() > 0 and k.get_child(0).has_meta("slot")
+
+
+## What kind of part a control on a piece of furniture is.
+static func _part_kind(k: Control) -> String:
+	if _is_slot(k):
+		return "slot"
+	if k is Label or k is RichTextLabel:
+		return "title" if (k is Label and (_is_heading(k) or k.has_meta("storage_head")) and k.autowrap_mode == TextServer.AUTOWRAP_OFF) else "text"
+	if k is BaseButton:
+		return "button"
+	if k is GridContainer:
+		return "grid"
+	if k is HBoxContainer or k is HFlowContainer:
+		return "row"
+	if k is VBoxContainer:
+		return "column"
+	if k is ScrollContainer:
+		return "list"
+	if k is PanelContainer:
+		return "card"
+	return "piece" if k.get_script() != null else "part"
+
+
+## A part's name: a slot by what it holds or where it is ("Stash space 4",
+## "Slot “Helm”"), the rest by kind and their first words.
+static func _part_name(k: Control, kind: String, n: int) -> String:
+	if kind == "slot":
+		var s: Node = k if k.has_meta("slot") else k.get_child(0)
+		var key := String(s.get_meta("slot", ""))
+		var where := key.get_slice(":", 0)
+		var i := key.get_slice(":", 1)
+		var label := ""
+		for c in k.get_children():
+			if c is Label and String(c.text).strip_edges() != "":
+				label = String(c.text).strip_edges()
+		if label != "":
+			return "Slot “%s”" % label
+		match where:
+			"pack":
+				return "Pack space %d" % (int(i) + 1)
+			"chest":
+				return "Stash space %d" % (int(i) + 1)
+			"today":
+				return "Today's piece"
+			"order":
+				return "Special order"
+		return "Space %d" % n
+	if k.has_meta("tower"):
+		return "Plaque “%s”" % String(k.get_meta("tower")).capitalize()
+	return _auto_name(k, kind, n)
+
+
+## The band of crystals along the bottom of the train (train_page.gd
+## _chrome): a block of its own in every car, each kind's crystals a part.
+static func tag_band(band: Control) -> void:
+	if band == null or not enabled:
+		return
+	var frame: Control = band.get_parent().get_parent() if band.get_parent() != null else null
+	tag(band, "train.crystals", KIND_NAMES["crystals"], {}, frame, "train", "crystals", "")
+	for p in band.find_children("*", "Control", true, false):
+		var dp = DrawnParts.of(p)
+		if dp != null:
+			for c in dp.get_children():
+				if c is Control:
+					tag(c, "train.crystals.%s" % c.name, String(c.get_meta("part_name", c.name)), {}, band, "train", "drawn", "")

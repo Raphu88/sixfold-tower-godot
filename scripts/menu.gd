@@ -1645,6 +1645,7 @@ func settings_body() -> void:
 	_note(Train.TEXT["condense_note"])
 	_guide_settings()
 	_pad_settings()
+	load("res://scripts/arrange.gd").settings_button(self)  # Arrange this screen (the train) yourself: the way in on a phone
 
 
 ## Start over this climber, set apart under a rule: a red-edged button that

@@ -45,6 +45,7 @@ const Stations := preload("res://scripts/stations.gd")
 const StationView := preload("res://scripts/station_view.gd")
 const Renown := preload("res://scripts/renown.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
+const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -1250,23 +1251,35 @@ func _chrome() -> void:
 		ch.remove_child(c)
 		c.queue_free()
 	var mg: Vector3 = view.margins()
+	# The band stands at the bottom of a column (so Arrange mode can move it
+	# and its crystals: arrange_ui.gd), the crystals on it.
+	var hold := VBoxContainer.new()
+	hold.add_theme_constant_override("separation", 0)
+	hold.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ch.add_child(hold)
+	var fill := Control.new()
+	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hold.add_child(fill)
 	var bottom := TrainView.Band.new()
-	bottom.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	bottom.offset_top = -mg.y
-	ch.add_child(bottom)
+	bottom.custom_minimum_size.y = mg.y
+	bottom.set_meta("crystal_band", true)
+	hold.add_child(bottom)
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 10)
-	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	foot.offset_top = -mg.y + 5.0
+	foot.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	foot.offset_top = 5.0
 	foot.offset_bottom = -4.0
 	foot.offset_left = 16.0
 	foot.offset_right = -16.0
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ch.add_child(foot)
+	bottom.add_child(foot)
 	var purse := Purse.new()
 	purse.profile = _prof()
 	purse.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot.add_child(purse)
+	ArrangeUI.tag_band(bottom)
 
 
 # --- moving along: swipes, drags, the wheel and the keys ---------------------------------
@@ -2260,6 +2273,7 @@ func _upgrades_card() -> void:
 class Purse extends Control:
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
+	const DrawnParts := preload("res://scripts/drawn_parts.gd")
 	## The kinds' names are drawn no smaller than this.
 	const NAME_MIN := 12
 	var profile
@@ -2267,17 +2281,25 @@ class Purse extends Control:
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		resized.connect(queue_redraw)
+		# Each kind's crystals are a part of their own in Arrange mode (drawn_parts.gd).
+		var kinds: Array = Essence.KINDS.keys()
+		var parts: Array = []
+		for i in kinds.size():
+			parts.append([String(kinds[i]), "%s crystals" % Essence.display(kinds[i]), Rect2(float(i) / kinds.size(), 0.0, 1.0 / kinds.size(), 1.0)])
+		DrawnParts.add(self, parts)
 
 	func _draw() -> void:
 		var font := ThemeDB.fallback_font
 		var kinds: Array = Essence.KINDS.keys()
 		var w := size.x / kinds.size()
-		var b := UI.Draw.Batch.new()
 		for i in kinds.size():
+			var b := UI.Draw.Batch.new()
 			var c := Vector2(w * i + 12.0, size.y * 0.5)
 			var have: float = profile.crystal_total(kinds[i])
 			UI.gem_into(b, c, 7.0, Color(Essence.color(kinds[i]), 1.0 if have > 0.0 else 0.3))
-		b.flush(self)
+			draw_set_transform_matrix(DrawnParts.xform(self, String(kinds[i])))
+			b.flush(self)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
 		# The amounts, and each kind's name beside its amount where every
 		# name fits whole (the letters shrink a little first, no smaller than
 		# NAME_MIN; on a screen too narrow even for that, the gems' colours
@@ -2291,6 +2313,7 @@ class Purse extends Control:
 		while fs >= NAME_MIN and kinds.any(func(k): return gothic.get_string_size(Essence.display(k), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w - 38.0 - mono.get_string_size(str(int(profile.crystal_total(k))), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x):
 			fs -= 1
 		for i in kinds.size():
+			draw_set_transform_matrix(DrawnParts.xform(self, String(kinds[i])))
 			var have: float = profile.crystal_total(kinds[i])
 			var x := w * i + 23.0
 			var col := UI.TEXT if have > 0.0 else UI.FAINT
@@ -2298,6 +2321,7 @@ class Purse extends Control:
 			if fs >= NAME_MIN:
 				var nw := mono.get_string_size(str(int(have)), HORIZONTAL_ALIGNMENT_LEFT, -1, ns).x
 				UI.draw_text(self, gothic, Vector2(x + nw + 4.0, size.y * 0.5 + 5.0), Essence.display(kinds[i]), HORIZONTAL_ALIGNMENT_LEFT, w - 36.0 - nw, fs, UI.DIM)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 ## A price: a gem of its kind, the amount and the kind's name (red if you
