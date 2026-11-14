@@ -83,7 +83,7 @@ static var OLD_ITEMS := {"wardbreaker": {"refund": {"blade": 10}}}
 static var TEXT := {
 	"charge": "Charge  ·  %d of %d",
 	"charge_line": "%s: %s",
-	"charge_empty": "Spent: feed it essence to refill it. Nothing refills it on its own.",
+	"charge_empty": "Spent: feed it essence to refill it, at the workshop bench or from the inventory in a tower. Nothing refills it on its own.",
 	"charge_full": "Charged.",
 	"never_used": "A charm is never used up. Its passive is always on while you wear it.",
 	"refill": "Refill: %s",

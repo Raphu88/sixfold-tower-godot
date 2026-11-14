@@ -53,6 +53,8 @@ const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["benc
 ## The wardrobe's slots on a phone (smaller than elsewhere, so the doll's
 ## five rows, the charm's included, fit the car).
 const WARDROBE_PHONE := 41.0
+## The bench's Charms counter: charms across (a computer, a phone: room for the card).
+const CHARM_COLS := [6, 4]
 static var B := Bench.TEXT
 ## A touch or drag this far is a swipe, not a tap.
 const SWIPE := 14.0
@@ -1247,18 +1249,19 @@ func _charm_counter(parent: Node) -> Array:
 	var prof = _prof()
 	var keys: Array = []
 	var C: Dictionary = Bench.Charms.TEXT
-	var first: String = m.main.tip_now("charm")  # (the first time here: the Entity explains charms)
-	if first != "":
-		charm_tip = first
-	if charm_tip != "":
-		_note(parent, Entity.fill_keys(charm_tip, "keys", false)).set_meta("entity", "charm")
+	if not _small():  # (a phone has no room here: the tower and the Library say it there)
+		var first: String = m.main.tip_now("charm")  # (the first time here: the Entity explains charms)
+		if first != "":
+			charm_tip = first
+		if charm_tip != "":
+			_note(parent, Entity.fill_keys(charm_tip, "keys", false)).set_meta("entity", "charm")
 	var refs: Array = Bench.charm_refs(prof)
 	if refs.is_empty():
 		_tag(parent, C["refill_head"])
 		_note(parent, C["nothing_spent"])
 	else:
 		StorageView.head(parent, C["refill_head"], _small())
-		var grid := _grid(parent, StorageView.columns(_small()), false)
+		var grid := _grid(parent, CHARM_COLS[1 if _small() else 0], false)
 		grid.add_theme_constant_override("h_separation", StorageView.GAP)
 		grid.add_theme_constant_override("v_separation", StorageView.GAP)
 		for ref in refs:
@@ -1273,7 +1276,7 @@ func _charm_counter(parent: Node) -> Array:
 				_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
 			keys.append(s.get_meta("slot"))
 	StorageView.head(parent, C["craft_head"], _small())
-	var cg := _grid(parent, StorageView.columns(_small()), false)
+	var cg := _grid(parent, CHARM_COLS[1 if _small() else 0], false)
 	cg.add_theme_constant_override("h_separation", StorageView.GAP)
 	cg.add_theme_constant_override("v_separation", StorageView.GAP)
 	for id in Bench.Charms.craftable():

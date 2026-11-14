@@ -529,7 +529,7 @@ static func common_pool() -> Array:
 static func roll_outfit(profile = null) -> Array:
 	var pool := common_pool()
 	pool.shuffle()
-	var pick: Array = pool.slice(0, rack_size(profile))
+	var pick: Array = pool.slice(0, maxi(1, rack_size(profile) - int(Charms.SHOP["rack"])))  # (the rail's last spaces hold charms)
 	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
 	pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
 	# A climber with no bag at all always finds a Satchel on the rail (a
@@ -540,7 +540,7 @@ static func roll_outfit(profile = null) -> Array:
 	var fine := upgraded(profile, "stock")
 	var out: Array = pick.map(func(id): return Gear.make(id, "fine", Gear.roll_traits(id, "fine")) \
 		if fine and not Gear.traits_for(Gear.trait_slot(id)).is_empty() and randi() % 100 < int(UPGRADE_FX["rack_fine"]) else Gear.make(id))
-	out.append_array(Charms.shop_stock())  # (and a charm or two at the end of the rail: charms.gd SHOP)
+	out.append_array(Charms.shop_stock())  # (a charm or two in the rail's last spaces: charms.gd SHOP)
 	return out
 
 
