@@ -38,9 +38,12 @@ extends RefCounted
 ## `e.lift(s)` throws it up, `e.lose_track(s, null)` makes you unseen,
 ## `e.chill_t = s` slows it; e.soak(s) and e.bleed(dps, s) are new.
 ##
-## The climber: whether monsters can give YOU states is the owner's open
-## question. It is built (CLIMBER) but off: with "enabled" false, nothing
-## lands on the climber at all.
+## The climber: monsters' blows that land leave their state on YOU too (the
+## owner said yes: CLIMBER "enabled"). Each is short, shown on the HUD with
+## its seconds and what cures it, and none of them stuns: burning and
+## bleeding hurt a little (never past 1 health), poison is the climber's own
+## poison, soaked slows your walk and charged slows your stamina. Items take
+## them off ("cures" in items.gd) or keep them off ("ward").
 
 const SpellFx := preload("res://scripts/spell_fx.gd")
 const UI := preload("res://scripts/ui.gd")
@@ -93,15 +96,40 @@ static var REACTIONS := {
 ## of the word that rises.
 static var RULES := {"per_step": 0.15, "depth": 4, "word": 17.0, "word_time": 1.1}
 
-## Monsters giving the climber states (an open question): off unless
-## "enabled". "from": which state each monster's blows would leave, for
-## "seconds"; a reaction on the climber deals "damage" and "burn"/"bleed"
-## hurt each half second.
+## Monsters giving the climber states (on: "enabled"; false switches it all
+## off). "from": which state each monster's landed blow leaves; "seconds":
+## how long each lasts on you (a new blow refreshes it, never longer);
+## "burn"/"bleed": health lost each half second (never below 1); "soak_walk":
+## soaked, you walk this much as fast; "charge_regen": charged, stamina
+## refills this much as fast; "damage": two of your states meeting (a
+## reaction on you) costs this much (never below 1); "wards": the item buff
+## (items.gd "ward") that keeps each state off while it lasts.
 static var CLIMBER := {
-	"enabled": false, "seconds": 3.0, "damage": 6.0, "burn": 1.0, "bleed": 1.0,
+	"enabled": true, "damage": 6.0, "burn": 1.5, "bleed": 1.5, "soak_walk": 0.8, "charge_regen": 0.5,
+	"seconds": {"poisoned": 4.0, "burning": 3.0, "bleeding": 4.0, "soaked": 5.0, "charged": 4.0, "slowed": 2.0},
+	"wards": {"poisoned": "antivenom", "burning": "fireward", "bleeding": "bleedward", "charged": "grounded"},
 	"from": {"thunderling": "charged", "gryphon": "charged", "lurker": "soaked", "kraken": "soaked", "cinder": "burning", "wyvern": "burning",
 		"firebird": "burning", "scorpling": "poisoned", "manticore": "poisoned", "bloomcap": "poisoned", "thornhound": "bleeding", "mongrel": "bleeding",
 		"ashwing": "burning", "briar": "bleeding"},
+}
+
+## The climber's states in words: the HUD's line for each ("chip": its name,
+## its seconds and what cures it), what each does to you ("does": the
+## Entity and the Bestiary say it), and the rest.
+static var CLIMBER_TEXT := {
+	"chip": "%s %ds",
+	"chip_cure": "%s %ds  ·  %s",
+	"or": " or ",
+	"cured": "Cured",
+	"warded": "Kept off",
+	"does": {
+		"poisoned": "a little health lost every half second; it can kill",
+		"burning": "a little health lost every half second, never your last",
+		"bleeding": "a little health lost every half second, never your last",
+		"soaked": "you walk slower; lightning on you would jump (Conduct)",
+		"charged": "your stamina refills at half speed",
+		"slowed": "you walk slower",
+	},
 }
 
 ## How many times each reaction has fired (the tests read it).
@@ -484,25 +512,47 @@ static func word(main, at: Vector2, text: String, col: Color) -> void:
 		n.draw_string(f, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 160.0, pop, Color(col.lightened(0.15), a)), {}, {"z": 60})
 
 
-# --- the climber (off unless CLIMBER "enabled") -----------------------------------
+# --- the climber (CLIMBER "enabled": on) ---------------------------------------------
 
-## A monster's blow reaching the climber may leave its state (player.gd receive_attack).
+## A monster's blow reaching the climber may leave its state (player.gd
+## receive_attack: only a blow that landed, after parries, rolls and grace).
 static func from_monster(main, p, source) -> void:
 	if not bool(CLIMBER["enabled"]) or source == null or not is_instance_valid(source) or not ("kind" in source):
 		return
 	var st := String(CLIMBER["from"].get(String(source.kind), ""))
 	if st != "":
-		apply(main, p, st, float(CLIMBER["seconds"]), source)
+		apply(main, p, st, climber_seconds(st), source)
+
+
+## How long a state lasts on the climber (CLIMBER "seconds"; a number there
+## counts for every state).
+static func climber_seconds(state: String) -> float:
+	var secs = CLIMBER.get("seconds", 3.0)
+	if secs is Dictionary:
+		return float(secs.get(state, 3.0))
+	return float(secs)
+
+
+## True while one of the climber's items keeps a state off (CLIMBER "wards").
+static func warded(p, state: String) -> bool:
+	var ward := String(CLIMBER.get("wards", {}).get(state, ""))
+	return ward != "" and p.has_method("gfx") and float(p.gfx(ward)) > 0.0
 
 
 static func _apply_climber(main, p, state: String, seconds: float, source) -> Array:
 	if not bool(CLIMBER["enabled"]) or p.dead or bool(STATES[state].get("event", false)):
 		return []
-	var secs := seconds if seconds > 0.0 else float(STATES[state].get("seconds", 2.0))
+	if warded(p, state):
+		return []  # (an Antivenom, Warding Oil, Briar Tonic or Stoneskin keeps it off)
+	var secs := seconds if seconds > 0.0 else climber_seconds(state)
+	if p.has_method("gfx"):
+		secs *= 1.0 - clampf(float(p.gfx("ailment")), 0.0, 0.8)  # (a Travel Cloak: ailments wear off sooner)
 	var was := float(p.states.get(state, 0.0))
-	p.states[state] = maxf(was, secs)
+	p.states[state] = maxf(was, secs)  # (a new blow refreshes it; it never stacks longer)
 	if state == "poisoned" and p.has_method("poison"):
 		p.poison(secs)
+	if was <= 0.0:
+		landed_on_climber(main, p, state)
 	var out: Array = []
 	for id in REACTIONS:
 		var pair: Array = REACTIONS[id]["states"]
@@ -521,20 +571,128 @@ static func _apply_climber(main, p, state: String, seconds: float, source) -> Ar
 	return out
 
 
-## The climber's states run down; burning and bleeding hurt (only while enabled).
+## A state just landed on the climber: its name rises over you, and the
+## first time the Entity says what it is and what cures it (main.gd tip).
+static func landed_on_climber(main, p, state: String) -> void:
+	if main == null or not is_instance_valid(main):
+		return
+	if state != "poisoned" and main.has_method("fx_text"):  # (poison says so itself: player.gd poison)
+		main.fx_text(p.global_position + Vector2(0, -40), String(STATES[state]["name"]), STATES[state]["color"])
+	if main.has_method("tip"):
+		main.tip("climber_states")
+		main.tip("state_" + state)
+
+
+## The climber's states with their seconds left, in STATES order (poison
+## counts the climber's own poison too): [[state, seconds]].
+static func climber_held(p) -> Array:
+	var out: Array = []
+	if p == null:
+		return out
+	for s in STATES:
+		if bool(STATES[s].get("event", false)):
+			continue
+		var left := float(p.states.get(s, 0.0))
+		if s == "poisoned" and "poison_t" in p:
+			left = maxf(left, float(p.poison_t))
+		if left > 0.0:
+			out.append([s, left])
+	return out
+
+
+## The items that take a state off the climber (items.gd "cures"), by name:
+## "Antivenom or Cleansing Tonic" ("" if none).
+static func cure_names(state: String) -> String:
+	var Items = load("res://scripts/items.gd")
+	# (the items made for it first, the cure-alls last; else in the items' order)
+	var ids: Array = []
+	for n in range(1, 10):
+		for id in Items.ORDER:
+			var cures: Array = Items.ITEMS[id].get("cures", [])
+			if state in cures and (cures.size() == n or (n == 9 and cures.size() >= 9)):
+				ids.append(id)
+	var names: Array = ids.map(func(id): return String(Items.ITEMS[id]["name"]))
+	if names.size() < 2:
+		return "".join(names)
+	return ", ".join(names.slice(0, names.size() - 1)) + String(CLIMBER_TEXT["or"]) + String(names[-1])
+
+
+## What a state does to the climber, in words (CLIMBER_TEXT "does").
+static func climber_does(state: String) -> String:
+	return String(CLIMBER_TEXT["does"].get(state, STATES.get(state, {}).get("says", "")))
+
+
+## The climber's states run down; burning and bleeding hurt every half
+## second (never below 1 health: they can't kill you); poison is the
+## climber's own (player.gd), which can.
 static func tick_climber(p, delta: float) -> void:
 	if p.states.is_empty():
 		return
 	if not bool(CLIMBER["enabled"]):
 		p.states.clear()
 		return
-	var half_before := int(Time.get_ticks_msec() / 500)
 	for s in p.states.keys():
 		p.states[s] = float(p.states[s]) - delta
 		if float(p.states[s]) <= 0.0:
 			p.states.erase(s)
-	if half_before != int((Time.get_ticks_msec() + int(delta * 1000.0)) / 500):
+	if not (p.states.has("burning") or p.states.has("bleeding")):
+		p.set_meta("state_tick", 0.0)
+		return
+	var tick := float(p.get_meta("state_tick", 0.0)) + delta
+	if tick >= 0.5:
+		tick -= 0.5
+		var hurt := 0.0
 		if p.states.has("burning"):
-			p.hp = maxf(1.0, p.hp - float(CLIMBER["burn"]))
+			hurt += float(CLIMBER["burn"])
 		if p.states.has("bleeding"):
-			p.hp = maxf(1.0, p.hp - float(CLIMBER["bleed"]))
+			hurt += float(CLIMBER["bleed"])
+		if hurt > 0.0 and p.hp > 1.0:
+			p.hp = maxf(1.0, p.hp - hurt)
+			if p.main != null:
+				p.main.fx_text(p.global_position + Vector2(0, -24), "-%s" % str(snappedf(hurt, 0.1)).trim_suffix(".0"),
+					STATES["burning" if p.states.has("burning") else "bleeding"]["color"])
+	p.set_meta("state_tick", tick)
+
+
+## How a state slows the climber's walk (soaked) and stamina (charged): the
+## multipliers player.gd applies (1 when it isn't held).
+static func climber_walk(p) -> float:
+	return float(CLIMBER["soak_walk"]) if bool(CLIMBER["enabled"]) and (float(p.states.get("soaked", 0.0)) > 0.0 or float(p.states.get("slowed", 0.0)) > 0.0) else 1.0
+
+
+static func climber_regen(p) -> float:
+	return float(CLIMBER["charge_regen"]) if bool(CLIMBER["enabled"]) and float(p.states.get("charged", 0.0)) > 0.0 else 1.0
+
+
+## A state's small sign (the HUD's state chips; the Bestiary may use it):
+## a drop of poison, a flame, a drop of blood, a wave, a bolt; `r` across
+## (half), into a draw batch (draw_util.gd Batch).
+static func glyph_into(b, state: String, c: Vector2, r: float, alpha := 1.0) -> void:
+	var col: Color = STATES.get(state, {}).get("color", Color.WHITE)
+	col.a *= alpha
+	var ink := Color(0.06, 0.04, 0.08, 0.9 * alpha)
+	b.circle(c, r * 1.25, ink, 16)
+	match state:
+		"poisoned", "bleeding":
+			var drop := PackedVector2Array([c + Vector2(0, -r)])
+			for i in 9:
+				var a := -PI / 6.0 + (PI * 4.0 / 3.0) * i / 8.0
+				drop.append(c + Vector2(0, r * 0.3) + Vector2(cos(a), sin(a)) * r * 0.6)
+			b.polygon(drop, col)
+			b.circle(c + Vector2(-r * 0.2, r * 0.15), r * 0.16, Color(1, 1, 1, 0.55 * alpha), 8)
+		"burning":
+			b.polygon(PackedVector2Array([c + Vector2(0, -r), c + Vector2(r * 0.6, r * 0.1), c + Vector2(r * 0.4, r * 0.75), c + Vector2(-r * 0.4, r * 0.75),
+				c + Vector2(-r * 0.6, r * 0.1), c + Vector2(-r * 0.2, -r * 0.2)]), col)
+			b.polygon(PackedVector2Array([c + Vector2(0, -r * 0.2), c + Vector2(r * 0.3, r * 0.4), c + Vector2(0, r * 0.7), c + Vector2(-r * 0.3, r * 0.4)]), Color(1.0, 0.9, 0.5, alpha))
+		"soaked", "slowed":
+			for k in 2:
+				var y := -r * 0.25 + k * r * 0.55
+				var pts := PackedVector2Array()
+				for i in 7:
+					pts.append(c + Vector2(-r * 0.75 + r * 1.5 * i / 6.0, y + sin(i * PI / 3.0) * r * 0.18))
+				b.polyline(pts, col, maxf(1.2, r * 0.22))
+		"charged":
+			b.polygon(PackedVector2Array([c + Vector2(r * 0.2, -r), c + Vector2(r * 0.45, -r * 0.05), c + Vector2(0.0, -r * 0.05), c + Vector2(r * 0.15, r)]), col)
+			b.polygon(PackedVector2Array([c + Vector2(r * 0.2, -r), c + Vector2(-r * 0.45, r * 0.1), c + Vector2(0.0, r * 0.1), c + Vector2(r * 0.15, r)]), col)
+		_:
+			b.circle(c, r * 0.6, col, 12)

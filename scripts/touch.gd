@@ -367,7 +367,7 @@ func _signature() -> Array:
 		main.secret_tools != null and main.secret_tools.ring_ready()]
 	if p != null:
 		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05), p.ammo_left(), snappedf(p.refill_t, 0.05),
-			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0])
+			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0, p.next_size(p.selected_item()) if p.selected_item() != "" else 0])
 		for part in p.bonds:
 			var b = p.bonds[part]
 			s.append_array([part, b.id, snappedf(b.essence / b.capacity(), 0.01), b.essence >= b.cost(), b.selected])
@@ -485,7 +485,7 @@ func _draw() -> void:
 			UI.emblem_into(bt, c + Vector2(0, -r * (0.42 if two else 0.24)), r * (0.24 if two else 0.32), bond_aff, Color(col, 0.9), 0.0)
 		bt.flush(self)
 		if item_icon != "":
-			Items.draw_icon(self, item_icon, c + Vector2(0, -5), r * 0.42)
+			Items.draw_icon(self, item_icon, c + Vector2(0, -5), r * 0.42, 1.0, p.next_size(item_icon) if p != null else 0)  # (a sized one: its pips)
 		var fsize := 16 if r > 30.0 else 13
 		if b["id"] == "climber" or b["id"] == "inventory":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))

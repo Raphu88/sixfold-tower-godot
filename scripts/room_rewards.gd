@@ -30,9 +30,10 @@ static var TEXT := {
 	"bought": "Bought: %s",
 	"rested": "Rested",
 }
-## chest: essence (base, per floor, a dead end's times); item / gear chance;
+## chest: essence (base, per floor, a dead end's times); item chance (fewer than
+## before: one with no item holds "no_item" times the essence) and gear chance;
 ## rest: health a second; trader: what an item costs (base, per floor).
-static var RULES := {"chest_base": 4.0, "chest_per_floor": 1.5, "chest_rich": 1.6, "item_chance": 0.35, "gear_chance": 0.12, "gear_rich": 0.25,
+static var RULES := {"chest_base": 4.0, "chest_per_floor": 1.5, "chest_rich": 1.6, "item_chance": 0.12, "no_item": 1.2, "gear_chance": 0.12, "gear_rich": 0.25,
 	"rest_heal": 3.0, "trade_base": 10.0, "trade_per_floor": 2.0, "reach": 28.0, "check": 0.3}
 
 var main
@@ -61,6 +62,13 @@ func setup(plan: Dictionary) -> void:
 		traders.append({"pos": t["pos"], "room": t["room"], "used": false})
 	bridges = plan.get("bridges", []).duplicate()
 	check_t = 0.0
+	queue_redraw()
+
+
+## A fallen climber's pack that holds essence instead of an item (main.gd
+## _start_floor): a small cache where it lies, open at once.
+func add_cache(pos: Vector2) -> void:
+	chests.append({"pos": pos, "room": 1 << 20, "rich": false, "open": true, "taken": false})
 	queue_redraw()
 
 
@@ -122,10 +130,15 @@ func _take_chest(c: Dictionary) -> void:
 	c["taken"] = true
 	var kind: String = main.tower_data().get("essence", "air")
 	var amount: float = (float(RULES["chest_base"]) + float(RULES["chest_per_floor"]) * main.floor_num) * (float(RULES["chest_rich"]) if c["rich"] else 1.0)
+	# (fewer caches hold an item than before; one that doesn't holds more essence: "no_item")
+	var with_item := randf() < float(RULES["item_chance"])
+	if not with_item:
+		amount *= float(RULES["no_item"])
 	main.gather_essence(kind, amount, c["pos"])
 	main.notices.feed(TEXT["chest"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
-	if randf() < float(RULES["item_chance"]):
-		main.item_drops.append({"pos": c["pos"] + Vector2(18, 10), "id": Items.random_item(not main.player.bonds.is_empty()), "t": 1e9})
+	if with_item:
+		var id := Items.random_item(not main.player.bonds.is_empty(), [], false, String(main.tower))
+		main.item_drops.append({"pos": c["pos"] + Vector2(18, 10), "id": id, "size": Items.roll_size(id, main.floor_num), "t": 1e9})
 	if randf() < float(RULES["gear_rich"] if c["rich"] else RULES["gear_chance"]):
 		var g = main.find_gear("", 0)
 		if not g.is_empty():
@@ -171,7 +184,7 @@ func card(pick: String) -> Dictionary:
 
 ## A trader's card taken (main.gd _take_vault_pick): pay and take it, or walk on.
 ## Returns what to say.
-func take(pick: String) -> String:
+func take(pick: String, size := 2) -> String:
 	if pick == "trade:leave":
 		for t in traders:
 			t["rearm"] = true  # (step away and come back to trade again)
@@ -185,7 +198,7 @@ func take(pick: String) -> String:
 		return TEXT["trade_short"] % int(cost)
 	for k in main.run_essence.keys():
 		main.run_essence[k] = maxf(0.0, float(main.run_essence[k]) - cost * float(main.run_essence[k]) / held)
-	return main._take_item(id, "Bought")
+	return main._take_item(id, "Bought", size)
 
 
 func _draw() -> void:

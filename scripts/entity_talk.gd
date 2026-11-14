@@ -69,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_states", "how_handy", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
 	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
 		"choices": ["how_marks", "how", "bye"]},
@@ -86,8 +86,14 @@ static var DIALOGUE := {
 		"lines": ["A fall: your pack and your belt are lost, unbanked essence too, and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
-		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch or a Climber's Pack adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. What you buy or brew on the train goes on it."],
-		"choices": ["how_fall", "how", "bye"]},
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch or a Climber's Pack adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. Most items come Minor, standard or Greater: the pips on the icon. Sizes share a stack, and a use takes the biggest first. What you buy or brew on the train goes on it, standard size."],
+		"choices": ["how_states", "how_fall", "how", "bye"]},
+	"how_states": {"ask": "What are states, and how do I cure them?", "fact": "states",
+		"lines": ["Some monsters' blows leave a state on you when they land: {states}. Each lasts a few seconds, and none of them stuns. The line at the top counts it down and names its cure. A Cleansing Tonic takes off any of them; {wards} keep one off for a while. The stair's rest clears them all."],
+		"choices": ["how_handy", "how_belt", "how", "bye"]},
+	"how_handy": {"ask": "What's handy in this tower?", "fact": "handy",
+		"lines": ["{handy} They turn up more often there, and the outfitter's shelf says where each is handy."],
+		"choices": ["how_states", "tower", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -100,7 +106,7 @@ static var DIALOGUE := {
 	# --- the tower ----------------------------------------------------------------------
 	"tower": {"ask": "What is {tower} like?", "fact": "tower",
 		"lines": ["{blurb} Its essence is {essence}. {best_line}"],
-		"choices": ["tower_beast", "tower_hazards", "start", "bye"]},
+		"choices": ["tower_beast", "tower_hazards", "how_handy", "start", "bye"]},
 	"tower_beast": {"ask": "And its beast?", "fact": "tower",
 		"lines": ["{Beast} waits at the top. {beast_hint} {slain_line}"],
 		"choices": ["tower_hazards", "start", "bye"]},
@@ -262,6 +268,10 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_climb(main)
 		"rules":
 			f = _fact_rules()
+		"states":
+			f = _fact_states()
+		"handy":
+			f = _fact_handy(main)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -484,6 +494,60 @@ static func _fact_money(main) -> Dictionary:
 	var M = load("res://scripts/menu.gd")
 	var share := Train.condense_share(M.settings)
 	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0))}
+
+
+## The climber's states (reactions.gd CLIMBER) and their cures (items.gd
+## "cures", "ward"), read from the tables: "poison from scorplings and the
+## Manticore (Antivenom or Cleansing Tonic)".
+static func _fact_states() -> Dictionary:
+	var R = load("res://scripts/reactions.gd")
+	var Items = load("res://scripts/items.gd")
+	var Enemy = load("res://scripts/enemy.gd")
+	var by := {}
+	for kind in R.CLIMBER.get("from", {}):
+		var st := String(R.CLIMBER["from"][kind])
+		if not by.has(st):
+			by[st] = []
+		by[st].append(_foe_name(Enemy, String(kind)))
+	var parts: Array = []
+	for st in R.STATES:
+		if not by.has(st):
+			continue
+		var cure: String = R.cure_names(st)
+		parts.append("%s from %s (%s)" % [String(R.STATES[st]["name"]).to_lower(), _and_words(by[st]), cure])
+	var wards: Array = []
+	for id in Items.ORDER:
+		if not Array(Items.ITEMS[id].get("ward", [])).is_empty():
+			wards.append(String(Items.ITEMS[id]["name"]))
+	return {"states": "; ".join(parts), "wards": _and_words(wards)}
+
+
+## A monster's name for a sentence: "scorplings", "the Manticore".
+static func _foe_name(Enemy, kind: String) -> String:
+	if kind in Enemy.BOSSES:
+		return "the " + kind.capitalize()
+	return kind + "s"
+
+
+static func _and_words(list: Array) -> String:
+	var s: Array = list.map(func(x): return String(x))
+	if s.size() < 2:
+		return "".join(s)
+	return ", ".join(s.slice(0, s.size() - 1)) + " and " + String(s[-1])
+
+
+## What's handy in the tower talked about (tower_needs.gd), with why.
+static func _fact_handy(main) -> Dictionary:
+	var Needs = load("res://scripts/tower_needs.gd")
+	var Items = load("res://scripts/items.gd")
+	var id := tower_id(main)
+	var f := _fact_tower(main)
+	var bits: Array = []
+	for item in Needs.handy(id):
+		if Items.ITEMS.has(item):
+			bits.append("%s: %s" % [String(Items.ITEMS[item]["name"]), Needs.why(id, item)])
+	f["handy"] = String(Needs.TEXT["talk"]) % [f["tower"], "; ".join(bits)] if not bits.is_empty() else String(Needs.TEXT["none"])
+	return f
 
 
 ## The game's rules in numbers, read from its own tables (for "How do things work here?").
