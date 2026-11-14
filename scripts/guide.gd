@@ -25,6 +25,10 @@ extends Node2D
 ## things that happened, newest first, never damage). The same again, Esc,
 ## or a tap on the panel closes it. The game goes on meanwhile.
 ##
+## TALK. The panel's Talk button (a click or tap), Enter while it's open,
+## or holding L / the right stick: a talk with the Entity (entity_talk.gd,
+## the menu's "talk" page; the game waits while you talk).
+##
 ## With no room beside the sphere (a phone with many cast buttons), a bubble
 ## is said in the top-middle lane instead, in the Entity's colours.
 ##
@@ -94,6 +98,10 @@ const BIT_W := 270.0
 const PANEL_W := 300.0
 const NOW_ROWS := 5
 const ROW_H := {"quip": 16.0, "gap": 5.0, "head": 21.0, "text": 15.0, "log": 15.0}
+## The panel's Talk button: its height, and how long L or the right stick
+## is held to talk.
+const TALK_H := 22.0
+const TALK_HOLD := 0.5
 
 var top: Node2D  # the sphere and its panel, drawn over the bubble
 var open := false  # the panel is open (its log, the last tip in full)
@@ -115,6 +123,9 @@ var _fresh_seen := 0
 var _idle_t := 0.0
 var _buttons_frame := -1
 var _open_drawn := false
+var talk_rect := Rect2()  # the open panel's Talk button on screen
+var _held_t := 0.0  # how long L or the right stick has been held
+var talks := 0  # talks opened from the panel (tests)
 
 
 # --- the registry ------------------------------------------------------------------
@@ -443,6 +454,17 @@ func _process(delta: float) -> void:
 			var tip_takes: bool = not current.is_empty() and current["kind"] != "bit" and leaving <= 0.0 and Input.is_action_just_pressed("dismiss_tip")
 			if not tip_takes:
 				set_open(not open)
+		# Talk: held L or the right stick (it opens the panel, then talks), or
+		# Enter while the panel is open and no tip is waiting for it.
+		_held_t = _held_t + delta if Input.is_action_pressed("entity") else 0.0
+		if _held_t >= TALK_HOLD:
+			_held_t = -INF  # (once a hold)
+			talk()
+			return
+		if open and Input.is_action_just_pressed("dismiss_tip") and (Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER)) \
+				and (current.is_empty() or current["kind"] == "bit"):
+			talk()
+			return
 	if not current.is_empty():
 		if can_show():
 			if lane and leaving <= 0.0 and not _lane_showing() and not main.notices.queue.has(_lane_b):
@@ -578,6 +600,17 @@ func set_open(on: bool) -> void:
 		main.sfx("ui_back", 1.2, -10.0, 0.0)
 
 
+## Talks with the Entity (the menu's "talk" page; menu.gd open_talk). The
+## panel closes; the game waits while you talk.
+func talk() -> void:
+	if main == null or main.get("menu") == null or main.menu == null:
+		return
+	open = false
+	open_t = 0.0
+	talks += 1
+	main.menu.open_talk()
+
+
 var ate_at := -100000  # when a click or tap on the bubble was taken (msec)
 
 
@@ -601,7 +634,10 @@ func _input(event: InputEvent) -> void:
 	if at.x < 0.0:
 		return
 	var took := false
-	if orb_on() and (_on_orb(at) or (open and panel_rect.has_point(at))):
+	if orb_on() and open and open_t > 0.85 and talk_rect.has_point(at):
+		talk()  # (its Talk button)
+		took = true
+	elif orb_on() and (_on_orb(at) or (open and panel_rect.has_point(at))):
 		# The sphere: its panel opens and closes (a tap on the open panel closes it).
 		set_open(not open)
 		took = true
@@ -867,6 +903,7 @@ func open_key() -> String:
 func _draw_top() -> void:
 	orb_rect = Rect2()
 	panel_rect = Rect2()
+	talk_rect = Rect2()
 	if not orb_on():
 		return
 	var size := get_viewport_rect().size
@@ -929,10 +966,10 @@ func _draw_panel(xf: Transform2D) -> void:
 	var used := pad
 	for r in rows:
 		used += ROW_H[r[0]]
-	var room := int(floor((box.size.y - used - pad - 14.0) / ROW_H["log"]))
+	var room := int(floor((box.size.y - used - pad - 14.0 - TALK_H) / ROW_H["log"]))
 	var list: Array = N.recent(clampi(room, 0, N.LOG_SHOWN))
 	log_shown = list.size()
-	var h: float = used + maxf(1.0, list.size()) * float(ROW_H["log"]) + pad + 14.0
+	var h: float = used + maxf(1.0, list.size()) * float(ROW_H["log"]) + pad + 14.0 + TALK_H
 	if not touch:
 		box.size.y = minf(box.size.y, h)
 	panel_rect = xf * box
@@ -975,3 +1012,12 @@ func _draw_panel(xf: Transform2D) -> void:
 	var key := open_key()
 	var how: String = String(Notes.TEXT["close_tap"]) if key == "" else String(Notes.TEXT["close"]) % key
 	top.draw_string(mono, Vector2(box.position.x, box.end.y - 7.0), how, HORIZONTAL_ALIGNMENT_RIGHT, box.size.x - pad, 10, UI.FAINT)
+	# Talk: a small button at the foot (and on a computer, the key held for it).
+	var label := String(Notes.TEXT["talk"])
+	var talk_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 24.0
+	var tr := Rect2(box.position.x + pad, box.end.y - 6.0 - TALK_H, talk_w, TALK_H - 2.0)
+	top.draw_style_box(UI.box(Color(UI.PERIWINKLE, 0.16), Color(UI.PERIWINKLE, 0.6), 9), tr)
+	top.draw_string(font, Vector2(tr.position.x, tr.position.y + tr.size.y * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_CENTER, tr.size.x, 13, Entity.GLOW.lerp(Color.WHITE, 0.6))
+	if key != "":
+		top.draw_string(mono, Vector2(tr.end.x + 6.0, tr.position.y + tr.size.y * 0.5 + 4.0), String(Notes.TEXT["talk_key"]) % key, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, UI.FAINT)
+	talk_rect = xf * tr.grow(4.0)

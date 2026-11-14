@@ -50,6 +50,7 @@ const PAGE_NAMES := {
 	"inventory": "Inventory", "mark": "Mark page", "library": "Library", "dev": "Dev tools",
 	"data": "Edit game data", "appearance": "Appearance", "techniques": "Techniques",
 	"climbers": "Climbers", "confirm_new": "Start over", "padsetup": "Controller setup", "train": "Train", "station": "Station",
+	"talk": "Talking with the Entity",
 }
 ## Pages never arranged (the title has its own picture; the painter and a
 ## new climber's look have their own screens).
@@ -92,6 +93,11 @@ const NAMES := {
 	"menu.climbers.grid1": "Climber cards",
 	"menu.settings.settings.row1": "The Entity's words",
 	"menu.climbers.row1": "The Entity's words",
+	"menu.talk.row1": "The Entity's words",
+	"menu.talk.row1.part1": "The Entity's face",
+	"menu.talk.row1.card1": "What the Entity says",
+	"menu.talk.talk_choices1": "Your questions",
+	"menu.talk.text1": "How to leave",
 }
 ## What's special about arranging a block, said under its name when it's chosen.
 const HOW := {

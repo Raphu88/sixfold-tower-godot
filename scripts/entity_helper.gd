@@ -74,6 +74,7 @@ var _eaten := false  # a touch on the sphere: its release is eaten too
 var _mouse_eaten := false
 var _key := ""  # the page (and car) it was last on
 var _rest_t := 0.0
+var _since_key := 0.0  # seconds since the page (or car) changed
 var _drawn := false
 var _target_rect := Rect2()
 var _style: StyleBox
@@ -195,15 +196,19 @@ func _process(delta: float) -> void:
 	# A new page or car: back to its corner at once (no flying across).
 	var key := "%s|%s|%s|%s" % [menu.page, menu.train_car, get_viewport_rect().size, menu.climber_tab]
 	_rest_t -= delta
+	_since_key += delta
 	if key != _key or _rest_t <= 0.0:
-		_rest_t = 0.5
+		# (often while a new page settles, then twice a second)
+		_rest_t = 0.1 if _since_key < 0.8 else 0.5
 		rest = rest_spot()
 		if key != _key:
 			_key = key
+			_since_key = 0.0
 			target = null
 			pending = null
 			appear = 0.0
-			pos = rest
+		if _since_key < 0.8 and target == null:
+			pos = rest  # (the page settling: it sits there at once, no gliding)
 	# The Entity talks: L, or the right stick (a click or tap on it: input).
 	if Input.is_action_just_pressed("entity") and not menu._typing():
 		menu.open_talk()
@@ -342,6 +347,9 @@ func place(r: Rect2, words: String) -> Dictionary:
 	var screen := Rect2(Vector2(4, 4), view - Vector2(8, 8))
 	var rail := _rail_rect()
 	var others := _neighbours(r)
+	if rail.size.x > 0.0 and rail.grow(1.0).encloses(r):
+		# A rail entry: beside the rail, level with it (the rest of the rail stays clear).
+		r = Rect2(r.position, Vector2(rail.end.x - r.position.x, r.size.y))
 	var widest := BUBBLE_W_TOUCH if touch() or menu.compact() else BUBBLE_W
 	var one_line := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size()).x + PAD.x * 2.0 + 2.0
 	widest = minf(widest, maxf(one_line, BUBBLE_MIN))
