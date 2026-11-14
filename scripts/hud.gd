@@ -36,6 +36,7 @@ const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Abilities := preload("res://scripts/abilities.gd")
+const Wheel := preload("res://scripts/wheel.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
@@ -445,7 +446,7 @@ func _draw_core() -> void:
 				item_lines.append(note)
 			if p.item_count(sel) > 1:
 				item_lines.append(Items.SIZE_TEXT["stack"] % ", ".join(Array(entry["sizes"]).map(func(z): return Items.sized_name(sel, int(z), true))))
-		item_lines.append("Carrying %d  ·  %s to use it%s" % [p.item_count(sel), _use_key(), "" if p.carried().size() < 2 else "  ·  %s picks another" % _next_key()])
+		item_lines.append(String(Wheel.TEXT["hud_tip"]) % [p.item_count(sel), _use_key()] + ("" if p.carried().size() < 2 else String(Wheel.TEXT["hud_tip_more"]) % [_use_key(), _next_key()]))
 		tips.append([ix * ir, entry["name"], item_lines])
 		c.draw_set_transform_matrix(unit * ix)
 		ib.flush(c)
@@ -484,7 +485,7 @@ func _draw_core() -> void:
 		tips.append([mr, "%s  (%s)" % [bd.display_name(), BondScript.PART_NAMES[part]],
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
 			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
-			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, ", hold it to pick a spell" if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
+			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, String(Wheel.TEXT["mark_tip_more"]) if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
 			Abilities.fill(main, Abilities.TEXT["tip_all"])]])
 		mx += MARK_R * 2.0 + 8.0
 	c.draw_set_transform_matrix(unit * mkx)
@@ -1106,82 +1107,151 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 		draw_string(font, Vector2(r.position.x, r.end.y - 14.0), hint, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 15, GOLD if last or focused else DIM_TEXT)
 
 
-# --- hold to pick ----------------------------------------------------------------
+# --- the wheels: hold to choose, tap to use (wheel.gd) ------------------------------
 
-## The open ring (if any), on its own node over the touch buttons.
+## The wheel's size (view px at full size): its options sit on a circle this
+## big, the disc's rim WHEEL_RIM further out; under it (WHEEL_CAPTION tall,
+## WHEEL_CAPTION_W wide), the pointed option's name, what it does (up to
+## three lines, its letters smaller for a long one) and the hint.
+const WHEEL_R := 78.0
+const WHEEL_RIM := 36.0
+const WHEEL_CAPTION := 96.0
+const WHEEL_CAPTION_W := 400.0
+const WHEEL_TEXT_SIZES := [14, 13, 12, 11]
+const WHEEL_TEXT_LINES := 3
+
+## The open wheel (if any), on its own node over the touch buttons. The
+## node sits at the wheel's centre, scaled to fit the screen (so the layout
+## audit sees its words where they are).
 func _draw_rings() -> void:
 	var p = main.player
 	if p == null or main.title_showing():
 		return
-	var font := ThemeDB.fallback_font
 	if p.pick_open:
-		_draw_spell_ring(p, font, rings)
+		_draw_spell_ring(p, rings)
 	if p.ring_open:
-		_draw_item_ring(p, font, rings)
+		_draw_item_ring(p, rings)
 
 
-## The ring of a mark's spells, around the climber (or, on a phone, beside
-## the thumb on its button). The highlighted one is cast when you let go.
-func _draw_spell_ring(p, font: Font, ci: CanvasItem) -> void:
+## Where the open wheel sits and how big it's drawn: [centre (screen px),
+## scale]. Arranged (Arrange mode's "Item and spell wheel", layout.gd
+## "hud.wheel"), at its box and its size; else around the climber, or on a
+## phone beside the thumb that holds its button (never under it). Always on
+## screen with its words: on a short screen it's drawn smaller.
+func wheel_spot() -> Array:
+	var view := get_viewport_rect().size
+	var outer := WHEEL_R + WHEEL_RIM
+	var cap := WHEEL_CAPTION
+	var fit := minf(1.0, minf((view.y - 16.0) / (2.0 * outer + cap), (view.x - 16.0) / maxf(2.0 * outer, WHEEL_CAPTION_W)))
+	var k := fit
+	var c: Vector2
+	if Layout.moved("hud.wheel"):
+		var box := Layout.box("hud.wheel", view)
+		k = minf(box.size.x / (2.0 * outer), fit)
+		c = box.get_center()
+	elif main.touch_active:
+		c = Nav.ring_center(main.pick_anchor, outer * k, view, RING_THUMB, cap * k)
+	else:
+		var p = main.player
+		c = p.get_global_transform_with_canvas().origin if p != null else view * 0.5
+	# (wholly on screen, the words under it included)
+	var lo := Vector2(maxf(outer, WHEEL_CAPTION_W * 0.5) * k + 8.0, outer * k + 8.0)
+	var hi := Vector2(view.x - lo.x, view.y - (outer + cap) * k - 8.0)
+	c = Vector2(clampf(c.x, lo.x, maxf(lo.x, hi.x)), clampf(c.y, lo.y, maxf(lo.y, hi.y)))
+	return [c, k]
+
+
+## Where an option of the open wheel is on screen (`i` of `n`: the first at
+## the top, clockwise): what a finger slides onto.
+func wheel_option_pos(i: int, n: int) -> Vector2:
+	var spot := wheel_spot()
+	return Vector2(spot[0]) + Vector2.from_angle(-PI / 2.0 + TAU * i / maxf(1.0, n)) * WHEEL_R * float(spot[1])
+
+
+## Puts the rings node at the wheel's centre and scale.
+func _place_wheel() -> void:
+	var spot := wheel_spot()
+	rings.position = spot[0]
+	rings.scale = Vector2.ONE * float(spot[1])
+
+
+## The wheel of a mark's spells: each spell in a medallion with its bond's
+## emblem and its name, its cost as a gem; the one on the button pinned;
+## the pointed one named and described under the wheel, with the hint.
+func _draw_spell_ring(p, ci: CanvasItem) -> void:
 	var b = p.bonds.get(p.pick_part)
 	if b == null:
 		return
 	var known: Array = b.spells()
-	var ring_r := 78.0
-	var c: Vector2 = p.get_global_transform_with_canvas().origin
-	if main.touch_active:
-		c = Nav.ring_center(main.pick_anchor, ring_r + 34.0, get_viewport_rect().size, RING_THUMB, RING_TEXT)  # (beside the thumb, never under it)
-	_paint_spell_ring(ci, p, b, known, c, ring_r)
-
-
-## The spell ring's look (ui.gd draw_wheel): each spell in a medallion with
-## its bond's emblem and its name, its cost as a gem; the pointed-at one
-## named and described under the wheel.
-func _paint_spell_ring(ci: CanvasItem, p, b, known: Array, c: Vector2, ring_r: float) -> void:
+	_place_wheel()
 	var col: Color = b.color()
 	var aff: String = b.data()["affinity"]
 	var opts: Array = []
-	for sp in known:
+	for i in known.size():
+		var sp: Dictionary = known[i]
 		var cost := int(round(b.spell_cost(sp)))
-		opts.append({"name": sp["name"], "col": col, "gems": [[col, cost]] if cost > 0 else [],
+		opts.append({"name": sp["name"], "col": col, "gems": [[col, cost]] if cost > 0 else [], "cur": i == b.selected,
 			"icon": func(bt, at: Vector2, s: float, ic: Color): UI.emblem_into(bt, at, s, aff, ic, 1.0)})
-	UI.draw_wheel(ci, c, ring_r, opts, p.pick_index, col, get_viewport_rect().size)
+	UI.draw_wheel(ci, Vector2.ZERO, WHEEL_R, opts, p.pick_index, col, get_viewport_rect().size)
 	if p.pick_index >= 0 and p.pick_index < known.size():
 		var sp: Dictionary = known[p.pick_index]
-		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, sp["name"], sp["desc"], col)
+		var desc := String(sp["desc"])
+		_wheel_caption(ci, sp["name"], desc.left(1).to_upper() + desc.substr(1), col, Wheel.hint("spell", p.pick_index == b.selected))
 
 
-## The ring of belt items, around the climber (or, on a phone, beside the
-## thumb on the Item button). The highlighted one is used when you let go.
-func _draw_item_ring(p, font: Font, ci: CanvasItem) -> void:
+## The belt wheel: every item on the belt (whatever it holds) in a medallion
+## with its icon, its name and how many you carry; the current one pinned;
+## the pointed one named and described under the wheel, with the hint.
+func _draw_item_ring(p, ci: CanvasItem) -> void:
 	var have: Array = p.carried()
 	if have.is_empty():
 		return
-	var c: Vector2 = p.get_global_transform_with_canvas().origin
-	var ring_r := 78.0
-	var view := get_viewport_rect().size
-	c = Vector2(clampf(c.x, ring_r + 40.0, view.x - ring_r - 40.0), clampf(c.y, ring_r + 40.0, view.y - ring_r - 100.0))
-	if main.touch_active:
-		# On a phone the ring sits beside your thumb on the Item button (never
-		# under it); you point by sliding from the button.
-		c = Nav.ring_center(main.pick_anchor, ring_r + 34.0, view, RING_THUMB, RING_TEXT)
-	_paint_item_ring(ci, p, have, c, ring_r)
-
-
-## The item ring's look (ui.gd draw_wheel): each item in a medallion with
-## its icon, its name and how many you carry; the pointed-at one named and
-## described under the wheel.
-func _paint_item_ring(ci: CanvasItem, p, have: Array, c: Vector2, ring_r: float) -> void:
+	_place_wheel()
+	var cur: String = p.selected_item()
 	var opts: Array = []
 	for id in have:
 		var en: Dictionary = p.belt_entry(id)  # (its size in its name and pips: player.gd belt_entry)
-		opts.append({"name": en["name"], "col": Items.color(id), "badge": str(p.item_count(id)),
+		opts.append({"name": String(en["name"]), "col": Items.color(id), "badge": str(p.item_count(id)), "cur": id == cur,
 			"icon": func(bt, at: Vector2, s: float, _ic: Color): Items.icon_into(bt, id, at, s * 1.05, int(en["size"]))})
-	UI.draw_wheel(ci, c, ring_r, opts, p.ring_index, UI.GILT, get_viewport_rect().size)
+	UI.draw_wheel(ci, Vector2.ZERO, WHEEL_R, opts, p.ring_index, UI.GILT, get_viewport_rect().size)
 	if p.ring_index >= 0 and p.ring_index < have.size():
-		var d: Dictionary = Items.info(have[p.ring_index])
-		var en: Dictionary = p.belt_entry(have[p.ring_index])
-		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, en["name"], _sentence(String(d["desc"])), d["color"])
+		var id: String = have[p.ring_index]
+		var d: Dictionary = Items.info(id)
+		var en: Dictionary = p.belt_entry(id)
+		# (what it does; then, for a Minor or Greater one, how it differs, and a mixed stack's sizes)
+		var words := _sentence(String(d.get("desc", "")))
+		if Items.is_sized(id):
+			var note := Items.size_note(id, int(en["size"]))
+			if note != "":
+				words += " " + _sentence(note)
+			if Array(en["sizes"]).any(func(z): return int(z) != int(en["size"])):
+				words += " " + _sentence(String(Items.SIZE_TEXT["stack"]) % ", ".join(Array(en["sizes"]).map(func(z): return Items.sized_name(id, int(z), true))))
+		_wheel_caption(ci, String(en["name"]), words, Items.color(id), Wheel.hint("item", id == cur))
+
+
+## Under the wheel: the pointed option's name and words, then the hint
+## ("Let go to choose it...") with the keys in use.
+func _wheel_caption(ci: CanvasItem, title: String, text: String, col: Color, hint: String) -> void:
+	var top := WHEEL_R + WHEEL_RIM + 20.0
+	var body := UI.font("body")
+	# (the biggest letters that fit it in three lines)
+	var size: int = WHEEL_TEXT_SIZES[-1]
+	var lines := WHEEL_TEXT_LINES
+	for fs in WHEEL_TEXT_SIZES:
+		var n := int(round(body.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, WHEEL_CAPTION_W, fs).y / maxf(body.get_height(fs), 1.0)))
+		if n <= WHEEL_TEXT_LINES:
+			size = fs
+			lines = maxi(n, 1)
+			break
+	UI.draw_wheel_caption(ci, 0.0, top, WHEEL_CAPTION_W, title, text, col, size, WHEEL_TEXT_LINES)
+	if hint == "":
+		return
+	var mode := "touch" if main.touch_active else ("pad" if main.pad_active else "keys")
+	var words := Entity.fill_keys(hint, mode, main.pad_ps)
+	var y := top + 20.0 + body.get_height(size) * (lines if text != "" else 0) + 2.0
+	var f := UI.font("body")
+	ci.draw_string_outline(f, Vector2(-WHEEL_CAPTION_W * 0.5, y), words, HORIZONTAL_ALIGNMENT_CENTER, WHEEL_CAPTION_W, 13, 4, Color(0, 0, 0, 0.85))
+	UI.draw_text(ci, f, Vector2(-WHEEL_CAPTION_W * 0.5, y), words, HORIZONTAL_ALIGNMENT_CENTER, WHEEL_CAPTION_W, 13, Color(UI.GILT_HI, 0.92))
 
 
 ## Hunter's Quarry: the last foe you struck is always marked, and an arrow at

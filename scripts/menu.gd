@@ -1053,6 +1053,8 @@ func open(which: String, direct := false) -> void:
 	else:
 		panel.remove_theme_stylebox_override("panel")
 	get_tree().paused = true
+	if main != null and main.player != null and is_instance_valid(main.player):
+		main.player.cancel_wheels()  # (an open wheel closes, using and casting nothing)
 	if main != null and main.touch != null:
 		main.touch.release_all()
 	if main != null and main.pad != null:
@@ -2976,7 +2978,7 @@ func _show_details(key: String) -> void:
 		"belt":
 			_detail_head("empty", "", "Empty belt slot", DIM)
 			_detail_text("Your belt holds %d kinds of item, up to %d of each (the recall scroll is one). A Belt Pouch, a Climber's Pack or a Belt Hook charm holds one more kind; a Climber's Pack one more of each." % [p.belt_kinds(), p.max_stack("draught")], DIM)
-			_detail_text("Hold %s to open a ring of your belt items: time stops; point at one and let go to use it." % _item_key(), DIM)
+			_detail_text("Hold %s to open the belt wheel: the world slows; point at an item and let go to make it your current item (choosing never uses it). A tap uses the current item." % _item_key(), DIM)
 		"item":
 			var n: int = p.item_count(arg)
 			var data: Dictionary = Items.ITEMS[arg]
@@ -2991,7 +2993,7 @@ func _show_details(key: String) -> void:
 				var V = load("res://scripts/vessel.gd")
 				_detail_text(V.TEXT["desc_state"] % V.state_text(V.carried(p)), V.color(V.carried(p)).lightened(0.3))
 				_detail_text(V.TEXT["hud_lines"][1], DIM)
-			_detail_text("Carrying %d of %d%s" % [n, p.max_stack(arg), "  ·  your quick item" if arg == p.selected_item() and n > 0 else ""], DIM)
+			_detail_text("Carrying %d of %d%s" % [n, p.max_stack(arg), "  ·  your current item" if arg == p.selected_item() and n > 0 else ""], DIM)
 			if data.has("kind"):
 				_detail_text("%s essence  ·  unused at the end of a survived climb, it breaks into a crystal" % Essence.display(data["kind"]), Color(Essence.color(data["kind"]), 0.9))
 			if arg == "vessel":
@@ -2999,7 +3001,7 @@ func _show_details(key: String) -> void:
 			var use := _button("Read it" if arg == "scroll" else "Use", _use_item.bind(arg), details)
 			use.disabled = n <= 0 or p.dead
 			if n > 0 and arg != p.selected_item():
-				_button("Make it your quick item", _pick_item.bind(arg), details)
+				_button("Make it your current item", _pick_item.bind(arg), details)
 		"heir":
 			var pieces: Array = Gear.heirloom_pieces(main.profile.heirlooms, arg)
 			var idx := int(key.get_slice(":", 2)) if key.get_slice_count(":") > 2 else 0

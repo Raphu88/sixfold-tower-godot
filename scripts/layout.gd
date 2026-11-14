@@ -83,11 +83,13 @@ const KEEP_ON := 24.0
 ##   button  a touch button: kept on screen and at least MIN_TOUCH across
 ##   zone    it covers much of the screen: Arrange mode lists it, and only
 ##           outlines it while it's chosen (it would lie under everything else)
+##   over    it shows only for a moment, over everything (the wheel): never
+##           flagged as overlapping what it sits on
 const ELEMENTS := {
 	"hud.bars": {"name": "Health and stamina", "space": "hud", "anchor": "tl", "pos": Vector2(12, 10), "size": Vector2(218, 32)},
 	"hud.gem": {"name": "Path gem and vessel", "space": "hud", "anchor": "tl", "pos": Vector2(234, 6), "size": Vector2(58, 36)},
 	"hud.weapon": {"name": "Weapon", "space": "hud", "anchor": "tl", "pos": Vector2(16, 44), "size": Vector2(34, 34)},
-	"hud.item": {"name": "Quick item", "space": "hud", "anchor": "tl", "pos": Vector2(56, 44), "size": Vector2(34, 34)},
+	"hud.item": {"name": "Current item", "space": "hud", "anchor": "tl", "pos": Vector2(56, 44), "size": Vector2(34, 34)},
 	"hud.marks": {"name": "Marks", "space": "hud", "anchor": "tl", "pos": Vector2(96, 44), "size": Vector2(204, 34)},
 	"hud.essence": {"name": "Unbanked essence", "space": "hud", "anchor": "tl", "pos": Vector2(16, 86), "size": Vector2(300, 22)},
 	"hud.hints": {"name": "Key hints", "space": "hud", "anchor": "tr", "pos": Vector2(-16, 12), "size": Vector2(330, 26), "sets": ["desktop"]},
@@ -102,6 +104,9 @@ const ELEMENTS := {
 	"hud.stair": {"name": "Stair arrow's ring", "space": "screen", "anchor": "c", "pos": Vector2(0, 32), "size": Vector2(-80, -144), "fill": Vector2(1, 1), "zone": true},
 	"hud.entity": {"name": "The Entity", "space": "screen", "anchor": "tr", "pos": Vector2(-16, 46), "size": Vector2(330, 66),
 		"touch": {"pos": Vector2(-12, 64), "size": Vector2(300, 66)}},
+	# The belt wheel and the spell wheel (hud.gd wheel_spot): unarranged, it
+	# opens around the climber (on a phone beside the thumb); arranged, here.
+	"hud.wheel": {"name": "Item and spell wheel", "space": "screen", "anchor": "c", "pos": Vector2(0, -46), "size": Vector2(228, 228), "over": true},
 	"touch.stick": {"name": "Joystick zone", "space": "screen", "anchor": "tl", "pos": Vector2.ZERO, "size": Vector2.ZERO, "fill": Vector2(0.5, 1.0), "sets": ["touch"], "zone": true},
 }
 
@@ -200,6 +205,7 @@ static func _add(id: String, d: Dictionary) -> void:
 	var n := {
 		"id": id, "name": String(d.get("name", id)), "space": String(d.get("space", "screen")),
 		"sets": d.get("sets", SETS), "button": bool(d.get("button", false)), "zone": bool(d.get("zone", false)),
+		"over": bool(d.get("over", false)),
 	}
 	for s in SETS:
 		var src: Dictionary = d.duplicate()
@@ -252,6 +258,11 @@ static func is_button(id: String) -> bool:
 ## It covers much of the screen (the stair arrow's ring, the joystick zone).
 static func is_zone(id: String) -> bool:
 	return bool(def(id).get("zone", false))
+
+
+## It shows only for a moment, over everything (ELEMENTS "over").
+static func is_over(id: String) -> bool:
+	return bool(def(id).get("over", false))
 
 
 ## A block of elements arranged together (GROUPS).
