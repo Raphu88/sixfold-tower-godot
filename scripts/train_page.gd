@@ -63,6 +63,7 @@ const WHEEL_GAP := 220  # ms between cars on the mouse wheel (a trackpad sends m
 
 var m  # the menu (menu.gd)
 var tips := {}  # car -> the Entity's tip said there this visit (kept while the page rebuilds)
+var charm_tip := ""  # the Entity's first line about charms, said at the bench's Charms counter this visit
 var view  # the drawn train (m.train_view)
 var roots := {}  # car -> its things (a VBoxContainer in its room)
 var cards := {}  # car -> its placard's contents (m.details while you're in that car)
@@ -1246,6 +1247,11 @@ func _charm_counter(parent: Node) -> Array:
 	var prof = _prof()
 	var keys: Array = []
 	var C: Dictionary = Bench.Charms.TEXT
+	var first: String = m.main.tip_now("charm")  # (the first time here: the Entity explains charms)
+	if first != "":
+		charm_tip = first
+	if charm_tip != "":
+		_note(parent, Entity.fill_keys(charm_tip, "keys", false)).set_meta("entity", "charm")
 	var refs: Array = Bench.charm_refs(prof)
 	if refs.is_empty():
 		_tag(parent, C["refill_head"])

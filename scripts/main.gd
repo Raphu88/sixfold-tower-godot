@@ -2203,7 +2203,9 @@ func drop_gear(pos: Vector2, g, fresh := false) -> void:
 	if r.is_empty():
 		return
 	gear_drops.append({"pos": pos, "id": r["base"], "rec": r})
-	if Gear.is_new_slot(r):
+	if Charms.is_charm(r):
+		tip("charm")  # (the first charm: the Entity explains them)
+	elif Gear.is_new_slot(r):
 		tip("gear_slots")
 	if fresh and Gear.rarity(r) != "common":
 		tip("rarity")
@@ -2247,6 +2249,9 @@ func find_gear(kind := "", higher := 0, at_least := "common") -> Dictionary:
 ## ring...): the Entity explains them, the first time.
 func _note_new_slots(choices: Array) -> void:
 	for c in choices:
+		if String(c).begins_with("gear:") and Charms.is_charm(String(c).substr(5)):
+			tip("charm")
+			return
 		if String(c).begins_with("gear:") and Gear.is_new_slot(String(c).substr(5)):
 			tip("gear_slots")
 			return

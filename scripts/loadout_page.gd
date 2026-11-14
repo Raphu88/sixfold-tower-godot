@@ -56,6 +56,8 @@ static var TEXT := {
 	"heir_waits": "Wear something else here and your heirloom waits on the train this climb (it stays yours).",
 	"heir_away": "Your heirloom, %s, waits on the train this climb (it stays yours).",
 	"empty_slot": "Nothing worn here. Choose a piece from your pack or stash to wear, or buy one in the Outfitter's Car.",
+	"empty_charm": "Your charm slot: one charm, never used up. Its passive stays on while you wear it, and some hold a charge you refill with essence at the workshop bench. The Outfitter's Car sells charms, and a Rune Artist crafts them.",
+	"empty_bag": "No bag: your pack holds 2 spare pieces. A bag here holds more (a Satchel 4, a Pack 6, a Great Pack 8); the Outfitter's Car always has one if you own none.",
 	"no_armor": "No armour",
 	"empty": "Empty",
 	"take_off_pack": "Take it off: into your pack",
@@ -350,7 +352,7 @@ func _worn_card(slot: String) -> void:
 	var g = e.get("rec", null)
 	if g == null:
 		_head("empty", "", TEXT["no_armor"] if slot == "armor" else "%s: %s" % [Gear.SLOT_NAMES.get(slot, slot), TEXT["empty"]], UI.DIM)
-		m._detail_text(TEXT["empty_slot"], UI.DIM)
+		m._detail_text(TEXT["empty_charm"] if slot == "charm" else (TEXT["empty_bag"] if slot == "backpack" else TEXT["empty_slot"]), UI.DIM)
 	else:
 		_head("gear", g, Gear.display(g), Gear.color(g))
 		var from := String(e.get("from", ""))

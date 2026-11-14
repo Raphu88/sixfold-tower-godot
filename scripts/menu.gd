@@ -2970,7 +2970,7 @@ func _show_details(key: String) -> void:
 					_detail_text(pl.replace("Compared with yours", "Against %s" % Gear.display(other).to_lower()), DIM)
 		"belt":
 			_detail_head("empty", "", "Empty belt slot", DIM)
-			_detail_text("Your belt holds %d kinds of item, up to %d of each (the recall scroll is one). A Belt Pouch or a Climber's Pack holds one more kind; a Satchel one more of each." % [p.belt_kinds(), p.max_stack("draught")], DIM)
+			_detail_text("Your belt holds %d kinds of item, up to %d of each (the recall scroll is one). A Belt Pouch, a Climber's Pack or a Belt Hook charm holds one more kind; a Climber's Pack one more of each." % [p.belt_kinds(), p.max_stack("draught")], DIM)
 			_detail_text("Hold %s to open a ring of your belt items: time stops; point at one and let go to use it." % _item_key(), DIM)
 		"item":
 			var n: int = p.item_count(arg)
@@ -3038,7 +3038,7 @@ func _show_details(key: String) -> void:
 			var i := int(arg)
 			if i >= p.pack.size():
 				_detail_head("empty", "", "Empty pack space", DIM)
-				_detail_text("Your pack carries %d spare pieces (a Climber's Pack holds more). Swap gear and your old piece goes in here while there's room. Survive the climb, or read a recall scroll, and your pack and what you wear come down to the train with you; fall, and they're lost." % p.pack_size(), DIM)
+				_detail_text("Your pack holds %d spare pieces: your bag (the backpack slot) sets how many, 2 with none, and a big bag nearly full slows you. Swap gear and your old piece goes in here while there's room. Survive the climb, or read a recall scroll, and your pack and what you wear come down to the train with you; fall, and they're lost." % p.pack_size(), DIM)
 				return
 			var pg = p.pack[i]
 			var pslot := Gear.slot_of(pg)

@@ -5217,7 +5217,7 @@ func _heirloom_tests() -> void:
 	var p = main.player
 	var G = main.Gear
 	var slots: Array = G.HEIRLOOM_SLOTS.map(func(s): return s["id"])
-	for want in ["melee", "ranged", "chest", "boots", "gloves", "helm", "legs", "rings", "amulet", "cloak", "backpack", "offhand"]:
+	for want in ["melee", "ranged", "chest", "boots", "gloves", "helm", "legs", "rings", "amulet", "cloak", "backpack", "charm", "offhand"]:
 		_check(want in slots, "heirloom slot: %s" % want)
 	_check(G.heirloom_slot("plate") == "chest" and G.heirloom_slot("axe") == "melee" and G.heirloom_slot("crossbow") == "ranged", "armor is a chest heirloom, weapons melee or ranged")
 	_check(G.heirloom_slot("iron_helm") == "helm" and G.heirloom_slot("garnet_ring") == "rings" and G.heirloom_slot("satchel") == "backpack", "a helm is a helm heirloom, a ring a Rings heirloom")
@@ -5347,7 +5347,7 @@ func _gear_slot_tests() -> void:
 	q.free()
 
 	print("the worn slots")
-	_check(G.DOLL.size() == 4 and G.DOLL[0] == ["helm", "amulet", "cloak"] and G.DOLL[1] == ["melee", "armor", "ranged"] and G.DOLL[2] == ["ring1", "gloves", "ring2"] and G.DOLL[3] == ["backpack", "legs", "boots"], "the doll: helm amulet cloak / melee chest ranged / ring gloves ring / backpack legs boots")
+	_check(G.DOLL.size() == 5 and G.DOLL[0] == ["helm", "amulet", "cloak"] and G.DOLL[1] == ["melee", "armor", "ranged"] and G.DOLL[2] == ["ring1", "gloves", "ring2"] and G.DOLL[3] == ["backpack", "legs", "boots"] and G.DOLL[4] == ["", "charm", ""], "the doll: helm amulet cloak / melee chest ranged / ring gloves ring / backpack legs boots / the charm")
 	var pieces_by_slot := {}
 	for id in G.PIECES:
 		var sl: String = G.PIECES[id]["slot"]
@@ -5357,7 +5357,7 @@ func _gear_slot_tests() -> void:
 	for id in G.PIECES:
 		if G.PIECES[id].get("rarity", "common") == "common":
 			common += 1
-	_check(common == 25, "the twenty-five Common pieces (%d)" % common)
+	_check(common == 30, "the thirty Common pieces, the bags and the ordinary charms among them (%d)" % common)
 	var words := ""
 	for id in G.PIECES:
 		words += " " + String(G.PIECES[id]["name"]) + " " + String(G.PIECES[id]["desc"])
@@ -5502,9 +5502,9 @@ func _gear_slot_tests() -> void:
 	p.take_gear("cloth_hood")
 	_check(absf(main.lighting.player_reach() / reach0 - 1.1) < 0.001, "a Cloth Hood: your light reaches 10% farther")
 	main.dev_give_gear("-helm")
-	# The Satchel: one more of each item (the recall scroll stays one).
-	p.take_gear("satchel")
-	_check(p.max_stack("draught") == 4 and p.max_stack("scroll") == 1, "a Satchel: carry 4 of each item (the scroll stays one)")
+	# The Climber's Pack: one more of each item (the recall scroll stays one).
+	p.take_gear(G.make("climbers_pack"))
+	_check(p.max_stack("draught") == 4 and p.max_stack("scroll") == 1, "a Climber's Pack: carry 4 of each item (the scroll stays one)")
 	for i in 5:
 		p.add_item("tonic")
 	_check(p.item_count("tonic") == 4, "...and you can (%d tonics)" % p.item_count("tonic"))
@@ -5979,7 +5979,7 @@ func _belt_tests() -> void:
 		p.add_item("tonic")
 	_check(p.item_count("tonic") == 3 and p.item_room("tonic") == "stack", "...and a stack stops at 3")
 	p.take_gear("satchel")
-	_check(p.max_stack("tonic") == 4 and p.max_stack("scroll") == 1 and p.belt_kinds() == 4, "a Satchel: 4 of each (the recall scroll stays one)")
+	_check(p.max_stack("tonic") == 3 and p.belt_kinds() == 4 and p.pack_size() == 4, "a Satchel: a bag, the pack holds 4 (no more of each item now)")
 	p.take_gear("belt_pouch")
 	_check(p.belt_kinds() == 5 and p.max_stack("tonic") == 3 and p.add_item("edge_oil"), "a Belt Pouch: a fifth kind")
 	p.take_gear(G.make("climbers_pack"))
@@ -8801,15 +8801,15 @@ func _train_tests() -> void:
 	main.choosing_tower = false
 	main.grant_test_bonds()
 	p.set_physics_process(true)
-	# The pack: 4 spare pieces; a swap puts your old piece in it.
-	_check(p.pack_size() == 4 and p.pack.is_empty(), "the climber carries a pack of 4 spare pieces")
+	# The pack: 2 spare pieces with no bag; a swap puts your old piece in it.
+	_check(p.pack_size() == 2 and p.pack.is_empty(), "with no bag, the climber's pack holds 2 spare pieces")
 	main.drop_gear(p.global_position, G.make("axe"))
 	main._update_gear_drops()
 	_check(not main.gear_here.is_empty(), "standing on an axe with a sword in hand...")
 	main.take_gear_here()
 	_check(p.gear_id("melee") == "axe" and p.pack.size() == 1 and G.base_id(p.pack[0]) == "sword", "...taking it puts the old sword in your pack")
 	p.take_gear(G.make("climbers_pack"))
-	_check(p.pack_size() == 6, "a Climber's Pack holds two more")
+	_check(p.pack_size() == 6, "a Climber's Pack holds 6")
 	# The inventory's Pack view shows it; a pack piece can be worn again.
 	menu.inv_view = "pack"
 	menu.open("inventory")
@@ -9232,6 +9232,7 @@ func _lost_tests() -> void:
 	p.hp = p.max_hp
 	p.set_physics_process(true)
 	p.pack = []
+	p.take_gear(G.make("satchel"))  # (a bag: room for the three pieces)
 	main.lost_cache_chance = 1.0
 	main._start_floor(4)
 	await _clear_foes()
