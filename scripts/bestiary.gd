@@ -549,7 +549,7 @@ static func _num(x: float) -> String:
 static func shelf(m, width: float, small: bool) -> void:
 	var prof = m.main.profile if m.main != null else null
 	var c := counts(prof)
-	var head := m._label(TEXT["count"] % c, 0.0, UI.DIM)
+	var head: Label = m._label(TEXT["count"] % c, 0.0, UI.DIM)
 	head.set_meta("bestiary_count", c)
 	m.box.add_child(head)
 	var tile := Tile.size_for(small)
@@ -748,6 +748,12 @@ static func shape(kind: String) -> Dictionary:
 		for p in out["glow"]:
 			b = b.expand(p)
 		out["bounds"] = b
+	# The silhouette: the body's solid shapes (not its shadow, ripples or haze).
+	var solid := PackedVector2Array()
+	for i in range(n, pts.size() - 2, 3):
+		if cols[i].a >= 0.5:
+			solid.append_array([pts[i], pts[i + 1], pts[i + 2]])
+	out["solid"] = solid
 	_shapes[key] = out
 	return out
 
@@ -766,7 +772,6 @@ static func paint(ci: CanvasItem, kind: String, rect: Rect2, known: bool) -> voi
 	fit *= lerpf(0.72, 0.95, clampf((r - 9.0) / 17.0, 0.0, 1.0))
 	var at := rect.get_center() - b.get_center() * fit
 	var item := ci.get_canvas_item()
-	var n: int = s["shadow"]
 	if known:
 		ci.draw_set_transform(at, 0.0, Vector2(fit, fit))
 		RenderingServer.canvas_item_add_triangle_array(item, PackedInt32Array(), pts, s["cols"])
@@ -774,7 +779,7 @@ static func paint(ci: CanvasItem, kind: String, rect: Rect2, known: bool) -> voi
 		if not glow.is_empty():
 			RenderingServer.canvas_item_add_triangle_array(item, PackedInt32Array(), glow, s["glow_cols"])
 	else:
-		var body := pts.slice(n)
+		var body: PackedVector2Array = s.get("solid", PackedVector2Array())
 		if body.is_empty():
 			return
 		var rim := PackedColorArray()

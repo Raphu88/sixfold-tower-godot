@@ -445,6 +445,14 @@ static func dress(main) -> void:
 	prof.wear = {"armor": Gear.make("plate"), "backpack": Gear.make("climbers_pack"), "helm": Gear.make("iron_helm", "fine", ["vigor"])}
 	prof.supplies = {"draught": 2, "flare": 1, "tonic": 1}
 	prof.climbs = maxi(prof.climbs, 6)
+	# The Bestiary: some met, at every tier (bestiary.gd), the rest unmet.
+	prof.bestiary = {"slime": {"seen": true, "fought": true, "slain": 20, "fell": 1, "tower": "kraken", "floor": 1},
+		"archer": {"seen": true, "fought": true, "slain": 6, "fell": 0, "tower": "gryphon", "floor": 3},
+		"knight": {"seen": true, "fought": true, "slain": 1, "fell": 2, "tower": "wyvern", "floor": 4},
+		"lurker": {"seen": true, "fought": true, "slain": 0, "fell": 0, "tower": "kraken", "floor": 2},
+		"bat": {"seen": true, "fought": false, "slain": 0, "fell": 0, "tower": "gryphon", "floor": 1},
+		"gryphon": {"seen": true, "fought": true, "slain": 3, "fell": 1, "tower": "gryphon", "floor": 12},
+		"golem": {"seen": true, "fought": true, "slain": 16, "fell": 0, "tower": "wyvern", "floor": 5}}
 	Train.dress(prof, main.player)
 
 
@@ -534,13 +542,13 @@ class Sweep:
 		var list: Array = [["pause", ""], ["settings", "settings"], ["settings", "controls"], ["controls", ""], ["padsetup", ""],
 			["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"],
 			["mark", "hand"], ["mark", "legs"], ["mark", "brow"], ["mark", "heart"], ["mark", "throat"], ["mark", "back"],
-			["library", ""], ["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"],
+			["library", ""], ["library", "bestiary"], ["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"],
 			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["techniques", ""]]
 		for t in Appearance.TABS:
 			list.append(["appearance", t[0]])
 		if light:
 			list = [["pause", ""], ["settings", "settings"], ["climber", "abilities"], ["climber", "marks"], ["climber", "record"], ["mark", "hand"],
-				["inventory", "worn"], ["library", ""], ["appearance", Appearance.TABS[0][0]]]
+				["inventory", "worn"], ["library", ""], ["library", "bestiary"], ["appearance", Appearance.TABS[0][0]]]
 		for pg in list:
 			var name := ("%s %s" % [pg[0], pg[1]]).strip_edges()
 			if not wants(name):
@@ -555,6 +563,9 @@ class Sweep:
 					menu.settings_tab = pg[1]
 				"appearance":
 					menu.look_page.tab = pg[1]
+				"library":
+					menu.library_tab = "bestiary" if pg[1] == "bestiary" else "archive"
+					menu.bestiary_open = "slime"  # (an entry open, at its last tier: bestiary.gd)
 			if pg[0] == "mark":
 				menu.open_mark(pg[1])
 			elif pg[0] == "appearance":
@@ -580,9 +591,21 @@ class Sweep:
 					told[id] = true  # (heard, so the Archive has them to open)
 				Guide.state["told"] = told
 				menu.archive_open = "chest"
+				menu.library_tab = "archive"
 				menu.open("library")
 				await look("library open", page_tops())
 				menu.archive_open = ""
+			# The Bestiary with a beast's entry open, and one only seen.
+			for k in ["gryphon", "bat"]:
+				var nm := "library bestiary %s" % k
+				if not wants(nm):
+					continue
+				menu.library_tab = "bestiary"
+				menu.bestiary_open = k
+				menu.open("library")
+				await look(nm, page_tops())
+			menu.library_tab = "archive"
+			menu.bestiary_open = ""
 			# The Data editor: each of its tabs, and a section open.
 			var dp = menu.data_page
 			for g in load("res://scripts/data_registry.gd").GROUPS:
@@ -615,12 +638,12 @@ class Sweep:
 		main.await_tower()
 		main.open_train()
 		await frames(3)
-		var views: Array = [["engine", "towers"], ["engine", "stations"], ["store", "shop"], ["store", "sell"], ["personal", ""], ["library", ""], ["settings", "settings"], ["settings", "controls"]]
+		var views: Array = [["engine", "towers"], ["engine", "stations"], ["store", "shop"], ["store", "sell"], ["personal", ""], ["library", ""], ["library", "bestiary"], ["settings", "settings"], ["settings", "controls"]]
 		for c in Bench.COUNTERS:
 			views.append(["workshop", c[0]])
 		views.append(["workshop", EssenceBench.COUNTER])
 		if light:
-			views = [["engine", "towers"], ["store", "shop"], ["store", "sell"], ["personal", ""], ["workshop", "brew"], ["workshop", "temper"], ["settings", "settings"]]
+			views = [["engine", "towers"], ["store", "shop"], ["store", "sell"], ["personal", ""], ["workshop", "brew"], ["workshop", "temper"], ["settings", "settings"], ["library", "bestiary"]]
 		var tp = menu.train_page
 		for v in views:
 			var name := ("train %s %s" % [v[0], v[1]]).strip_edges()
@@ -644,6 +667,9 @@ class Sweep:
 					menu.inv_sel = ""
 				"settings":
 					menu.settings_tab = v[1]
+				"library":
+					menu.library_shelf = v[1]
+					menu.bestiary_open = "slime" if v[1] == "bestiary" else ""
 			menu.open("train")
 			await frames(2)
 			tp.go_to(tp._index(car))
