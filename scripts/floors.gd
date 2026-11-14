@@ -340,7 +340,7 @@ static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor
 	var free: Array = spots.filter(func(i): return not infos[i].has("fixed"))
 	free.shuffle()
 	# Another climber, now and then (rivals.gd): a calm room of their own, a dead end first.
-	if free.size() >= 3 and Rivals.wants_room(floor_num):
+	if (free.size() >= 3 or (Rivals.force and not free.is_empty())) and Rivals.wants_room(floor_num):
 		free.sort_custom(func(x, y): return (0 if infos[x]["role"] == "branch" else 1) < (0 if infos[y]["role"] == "branch" else 1))
 		for k in free.size():
 			if Themes.fits("rival", infos[free[k]], tid, tower):

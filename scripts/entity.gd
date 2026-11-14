@@ -246,6 +246,27 @@ static var TIPS := {
 	"mirror": {"group": "tower", "name": "Mirror images",
 		"tip": "Your weapon, your armor, your marks' spells, turned on you. It rolls and guards the way you do.",
 		"more": "Now and then, from floor 4, a Hall of Glass lies off the way to the stair, behind a door bearing a figure in a mirror. Walk in and a mirror image of you steps out of the glass, and the doors shut until it falls. It carries the weapon in your hand (its reach, its chain, its finisher; or your bow), wears your armor (your blows land a little softer) and casts a simpler form of up to two of your marks' spells: a volley of bolts, a circle where you stand, a cone or a ring. Every attack is telegraphed and glints like any monster's. It sometimes rolls clear of a blow, and after attacking it may raise its guard (a silver arc): light blows from the front are turned aside and it answers at once, but a finisher or a blow from behind breaks through. It is a great foe: it leaves mostly Unmaking and some Life, an essence crystal of the tower's kind, and sometimes a piece of gear."},
+	"rivals": {"group": "tower", "name": "Other climbers",
+		"tip": "Another climber. Each wants something: a trade, a duel for the floor, company to the stair. Some need help. Walk on if you like.",
+		"more": "Now and then, from floor 2, another climber waits in a room of their own: about one floor in four, once a climb. Each carries their own marks (the dots on their body; their names show when you talk) and wants one thing. A trade: two or three swaps of their gear, items or crystals for something you carry of about the same worth. A duel for the floor: the doors shut, and the first to yield gives up the floor; win and you get crystals, renown and the stair's ward lifts, lose and you are knocked down, never killed, and they take a toll. Teaming up: they fight beside you until the stair, and you keep half the essence and finds while they do; their marks react with yours. A wounded climber beside a hoard: help them, or take it. Walk on leaves; you can come back. Climbers you meet are kept on the Renown Board, and some come back, stronger."},
+	"rival_trade": {"group": "tower", "name": "Trading with a climber",
+		"tip": "Each card is a swap: theirs for something of yours worth about the same. You give it up as you take theirs.",
+		"more": "A climber who wants to trade offers two or three swaps. Each card names what they give and, under it, what they want from you: an item from your belt, a piece from your pack, crystals, or unbanked essence when you have nothing else of that worth. Worth is the outfitter's own prices. A card you can't pay says so. Take one, then step away and come back to take another."},
+	"rival_duel": {"group": "tower", "name": "A duel for the floor",
+		"tip": "A duel can't kill you. Lose and you're knocked down and pay a toll. Win and the floor is yours.",
+		"more": "Accept a duel and the room's doors shut behind you. They fight as a climber does: their weapon's swings with a glint before each, rolls, a guard, and a spell for each of up to two marks, telegraphed in red. Their spells leave their mark's state on you. They yield when badly hurt: you win crystals, renown, sometimes a piece of their gear, and the stair's ward lifts (or a bigger prize if it already has). If a blow would fell you, you're knocked down instead, left with a little health, and they take a share of your unbanked essence or a piece from your pack."},
+	"rival_team": {"group": "tower", "name": "Teaming up",
+		"tip": "They fight beside you to the stair. You keep half of what you gather while they do. Mix your marks with theirs.",
+		"more": "A climber you team up with follows you and fights the floor's monsters until you take the stair: they swing, and cast their marks' spells, each leaving its state on the foes it hits. While they're with you, you keep half the essence you gather and finds drop half as often. Their states meet yours: a reaction one of you set off with the other shows their name under its word. A pact one of whose marks is theirs holds while they're beside you. Monsters strike them too, and badly hurt they fall back. Reaching the stair together earns renown."},
+	"rival_rescue": {"group": "tower", "name": "A wounded climber",
+		"tip": "Hurt, beside a hoard. Help them and they'll remember. Take it and they'll remember that too.",
+		"more": "From floor 3 you may find a wounded climber slumped beside a hoard. Help them up with a Healing Draught (or some of your own health if you carry none): you earn renown and they owe you, so if you meet them again they bring a gift. Or take the hoard: essence and a finer piece of gear, but you lose a little renown (never a rank), the Makers take note, and if you meet them again they want a duel. Walk on and nothing happens."},
+	"rival_gift": {"group": "tower", "name": "A climber's thanks",
+		"tip": "Someone you helped. They don't forget.",
+		"more": "A climber you helped up once may meet you again on a later climb. They bring crystals of the tower's essence and an item, and offer to climb with you to the stair."},
+	"rival_reaction": {"group": "tower", "name": "Marks together",
+		"tip": "Their mark and yours, together. One state was theirs, one yours: a reaction neither of you set off alone.",
+		"more": "A climber fighting beside you leaves their marks' states on the foes they hit: charged, soaked, burning, poisoned and the rest. When one of your states meets one of theirs, the reaction fires as if you carried both marks, and its word rises with their name under it (\"with\" and the name). It's the way to see what your mark does with marks you don't carry yet."},
 	"doors": {"group": "tower", "name": "Doors",
 		"tip": "A door's face hints at what waits behind it. Never at the reward.",
 		"more": "Walk up to a closed door and it swings open; awake monsters open doors too. A closed door blocks the way, shots and sight, so a room behind one stays dark until you open it. Plain planks mean an ordinary room; iron bands and claw marks a den; an engraved sigil a trap room; a stone door with an emblem the puzzle room; warm light under the door a good room; chains and a red glow danger."},
@@ -520,7 +541,7 @@ static var TIPS := {
 ## Room features (themes.gd) -> the tip for walking into one.
 static var ROOM_TIPS := {
 	"trap": "trap_room", "den": "den", "ambush": "crypt", "spring": "good_room", "cache": "good_room",
-	"camp": "good_room", "chasm": "jump", "mirror": "mirror",
+	"camp": "good_room", "chasm": "jump", "mirror": "mirror", "rival": "rivals",
 }
 
 ## Words for {move}, {attack}... in tips: [keys, controller, touch]. The

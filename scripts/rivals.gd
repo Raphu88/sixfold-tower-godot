@@ -203,7 +203,7 @@ static var TEXT := {
 	"board_line": "%s  ·  %s",
 	"history_met": "Met %d %s",
 	"history_duels": "duels won %d, lost %d",
-	"history_team": "teamed up %d",
+	"history_teamed": "teamed up %d",
 	"history_rescued": "helped %d",
 	"history_robbed": "robbed %d",
 	"history_traded": "traded %d",
