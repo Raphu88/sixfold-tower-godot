@@ -242,8 +242,8 @@ func _has(thing: Dictionary) -> float:
 	var main = t.main
 	var p = main.player
 	match String(thing["type"]):
-		"item":
-			return float(p.item_count(String(thing["id"])))
+		"item":  # (on the belt, or at your feet when the belt is full)
+			return float(p.item_count(String(thing["id"])) + main.item_drops.filter(func(d): return String(d["id"]) == String(thing["id"])).size())
 		"gear":
 			var n := 0.0
 			for r in p.pack:
@@ -384,6 +384,12 @@ func _team() -> void:
 	main._start_floor(5)
 	await t._frames(2)
 	_check(not main.rivals.team_on() and Renown.points(main.profile) > renown0, "they head on alone at the stair, and climbing to it together earns renown")
+	var enc3: Dictionary = main.rivals.add(p.global_position - dir * 60.0, -1, "team")
+	main.rivals.start_team(enc3)
+	var renown1 := Renown.points(main.profile)
+	main._start_floor(1)
+	await t._frames(2)
+	_check(not main.rivals.team_on() and Renown.points(main.profile) == renown1 and not ("team_stair" in main.rivals.results), "...but a climb begun again (a fall) ends the team with nothing")
 	_check(not main.profile.bestiary.has("rival"), "...and they never join the Bestiary")
 	main.gear_drop_chance = main.Gear.DROP_CHANCE
 	main.item_drop_chance = main.Items.DROP_CHANCE

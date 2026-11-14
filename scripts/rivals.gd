@@ -233,6 +233,7 @@ var duel_enc := {}
 var duel_t := 0.0
 var team = null  # the rival's body fighting beside you
 var team_enc := {}
+var team_floor := 0  # the floor you teamed up on (a stair above it, or a camp, ends it with renown)
 var redraw_t := 0.0
 var results: Array = []  # what happened this floor (tests): "duel_won", "duel_lost", "rescued"...
 
@@ -357,13 +358,13 @@ static func renown_cost(prof, amount: int, reason: String) -> int:
 ## A new floor (main.gd _start_floor): the one who fought beside you heads on
 ## alone at the stair; this floor's rivals stand where the plan put them.
 func setup(plan: Dictionary) -> void:
+	results.clear()
 	_end_team(true)
 	if duel != null and is_instance_valid(duel):
 		duel.queue_free()
 	duel = null
 	duel_enc = {}
 	list.clear()
-	results.clear()
 	for r in plan.get("rivals", []):
 		add(r["pos"], int(r.get("room", -1)))
 	queue_redraw()
@@ -1101,6 +1102,7 @@ func start_team(enc: Dictionary) -> void:
 	enc["state"] = "team"
 	team = spawn_body(enc, true)
 	team_enc = enc
+	team_floor = int(main.floor_num)
 	_bump(enc, "teamed")
 	results.append("teamed")
 	var rec: Dictionary = enc["rival"]
@@ -1179,6 +1181,8 @@ func _end_team(stair: bool) -> void:
 		team.stand_down()
 	team = null
 	team_enc = {}
+	# (a fall, a restart or a drop through a chasm ends it with nothing)
+	stair = stair and main != null and (main.in_camp or int(main.floor_num) > team_floor) and main.player != null and not main.player.dead
 	if stair and main != null and main.profile != null:
 		var got: Dictionary = Renown.earn(main.profile, int(RULES["team_renown"]), TEXT["deed_team"] % rec["name"])
 		_titles(got)
