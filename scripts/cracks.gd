@@ -351,6 +351,7 @@ func crumble(c: Dictionary) -> void:
 	main.sfx("slam", 0.75, -2.0)
 	main.sfx("hit_heavy", 0.6, -4.0)
 	main.fx_text(_centre(c["tiles"][0]) + Vector2(0, -30), TEXT["loop"] if c["kind"] == "loop" else TEXT["crumble"], Color(0.95, 0.88, 0.7))
+	main.note_event("crack", main.notices.TEXT["crack"], null, false)
 	if main.fog != null:
 		main.fog.set("last_tile", Vector2i(-999, -999))  # look again: there's more to see
 	if main.room_view != null:
@@ -374,6 +375,7 @@ func _process(delta: float) -> void:
 				c["dust_t"] = randf_range(RULES["dust_every"][0], RULES["dust_every"][1])
 				var q := _near_face(c, pos)
 				if q.distance_to(pos) < float(RULES["dust_near"]):
+					main.remark("crack")
 					main.fx_burst(q + Vector2(randf_range(-10, 10), -14), Vector2.DOWN, Color(0.62, 0.57, 0.5), 5, 40.0)
 		elif c.has("reward") and not c["taken"] and not p.dead and pos.distance_to(c["reward"]["pos"]) < float(RULES["reach"]) + p.radius:
 			_take(c)
@@ -400,12 +402,12 @@ func _take(c: Dictionary) -> void:
 		var kind: String = main.tower_data().get("essence", "air")
 		var amount: float = float(RULES["cache_base"]) + float(RULES["cache_per_floor"]) * main.floor_num
 		main.gather_essence(kind, amount, at)
-		main.fx_text(at + Vector2(0, -36), TEXT["cache"] % int(amount), Essence.color(kind))
+		main.notices.feed(TEXT["cache"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
 		if randf() < float(RULES["gear_chance"]):
 			var g = main.find_gear("", 1)
 			if not g.is_empty():
 				main.drop_gear(at + Vector2(0, 14), g, true)
-				main.fx_text(at + Vector2(0, -54), TEXT["gear"] % Gear.display(g), Gear.color(g))
+				main.notices.feed(TEXT["gear"] % Gear.display(g), Gear.color(g), "gear")
 	main.fx_ring(at, Color(1.0, 0.85, 0.5), 60.0, 0.5, 3.0)
 	main.sfx("glint", 1.2, -2.0)
 	queue_redraw()

@@ -8,9 +8,16 @@ extends Node2D
 ##
 ## Fading in and out when they matter (this node): the essence you've
 ## gathered since the last stair, a popup of your weapons when you swap, the
-## floor's title on arrival, the open stair, the keys for the menus, banners,
-## and the big overlays (the Regard, choosing a tower, camps). This layer is
-## only redrawn while something on it is showing.
+## keys for the menus, and the big overlays (the Regard, choosing a tower,
+## camps). This layer is only redrawn while something on it is showing.
+##
+## What the game tells you in play (notices.gd keeps it, this node draws
+## it; nothing waits in the middle of the screen):
+##   top middle  the announcement lane: one compact banner at a time, and
+##               under it the status chips (status_chips: a beast's health,
+##               "doors shut", a scenario, the task, the open stair)
+##   left        the feed, under the bars and slots: pickups and news
+## The Entity keeps the right side (guide.gd).
 ##
 ## The rest lives in the Climber screen (Tab) and the Inventory (I): every
 ## weapon slot and the armor, attributes, and where your next mark is forming.
@@ -222,10 +229,24 @@ func _notice_changes(p) -> void:
 		_last_floor = fk
 		floor_t = FLOOR_SHOW
 		hints_t = HINTS_SHOW
+		# Where you are, said in the lane, unless the arrival already says it
+		# (a stair's banner, a tower's name).
+		if not main.notices.busy() and lanes_on() and not main.title_showing():
+			main.banner = {"title": main._floor_title(), "lines": [floor_sub()], "t": 2.2, "pri": 0}
 	var st: bool = main.stair_open and not main.climbing
 	if st and not _last_stair:
 		stair_t = STAIR_SHOW
 	_last_stair = st
+
+
+## The line under a floor's title: the tower and your best floor there (or
+## where else you are: the practice room, a station's arena).
+func floor_sub() -> String:
+	if main.practice != null and main.practice.on:
+		return String(main.practice.TEXT["sub"])  # (the practice room: no tower, no floor)
+	if main.get("arena") != null and main.arena.on:
+		return String(main.arena.ev.get("name", ""))  # (the station's arena: arena.gd)
+	return "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
 
 
 ## The corner's bars, gem, weapon, item and marks, together (in view px).
@@ -262,10 +283,11 @@ func _top_live() -> bool:
 	var p = main.player
 	if p == null:
 		return false
-	return main.fade > 0.0 or main.hurt_flash > 0.0 or not main.banner.is_empty() \
+	var N = main.notices
+	return main.fade > 0.0 or main.hurt_flash > 0.0 or N.busy() or not N.feed_lines.is_empty() or (N._shift > 0.0 and N._shift < 1.0) \
 		or essence_t > 0.0 or swap_t > 0.0 or floor_t > 0.0 or stair_t > 0.0 or (hints_t > 0.0 and not main.touch_active) \
 		or not main.regard.is_empty() or not main.victory.is_empty() or main.choosing_tower or main.camp_choosing or (p.dead and not main.first_climb) \
-		or p.pick_open or p.ring_open or not main.loot_notice.is_empty() or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
+		or p.pick_open or p.ring_open or (main.stair_open and not main.climbing) or _tip_over >= 0 or _boss_alive() \
 		or (p.has_bond("hunter") and p.quarry != null) or (main.wings != null and main.wings.challenge_live()) \
 		or (main.door_view != null and not main.door_view.lock_status().is_empty()) \
 		or (main.get("objective") != null and main.objective.active() and not main.climbing) \
@@ -278,7 +300,7 @@ func _top_signature() -> Array:
 	return [show_help, main.pad_active, main.pad_ps, main.touch_active, hud_scale, get_viewport_rect().size, Layout.version,
 		main.gear_here.get("id", ""), p.gear_signature() if p != null else [], p != null and p.dead,
 		main.title_showing(), main.menu_open(), main.overlay_showing(), show_perf, main.fall_note.size(), main.pay_line,
-		goal_line()]
+		status_chips().map(func(c): return c["text"])]
 
 
 func _boss_alive() -> bool:
@@ -566,6 +588,8 @@ func _draw() -> void:
 	if essence_t > 0.0:
 		draw_set_transform_matrix(unit * Layout.xform("hud.essence", size))
 		_draw_essence(Vector2(BAR_X, y), font, _fade(essence_t, ESSENCE_SHOW))
+	# The feed starts under the essence counter's row (kept free for it).
+	var feed_top := y + (0.0 if own_place else 28.0)
 
 	# Controls, top right.
 	draw_set_transform_matrix(unit * Layout.xform("hud.hints", size))
@@ -584,74 +608,11 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	size = real_size
 
-	# The floor's title on arrival, top centre, fading out (a narrow screen,
-	# where it would run into the corner's bars: under the corner instead).
-	var corner := _corner_box(size)
-	var floor_text: String = main._floor_title() if floor_t > 0.0 or stair_t > 0.0 else ""
-	var tw := UI.font("display").get_string_size(UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
-	var bars := Layout.box("hud.bars", size / hud_scale)
-	var below := size.x * 0.5 - (tw * 0.5 + 76.0) < bars.end.x * hud_scale  # (its rules would cross the bars)
-	draw_set_transform_matrix(Transform2D(0.0, Vector2.ONE, 0.0, Vector2(0.0, corner.end.y if below else 0.0)) * Layout.xform("hud.floor", size))
-	# (moved under the corner, it gives way to the cards and to a new floor's banner)
-	if (floor_t > 0.0 or stair_t > 0.0) and not (below and (main.camp_choosing or main.choosing_tower or not main.banner.is_empty())):
-		var fa := _fade(maxf(floor_t, stair_t), FLOOR_SHOW)
-		# A soft band between gilt rules behind it, rules flanking the title.
-		var fb := Draw.Batch.new()
-		var bw := minf(size.x, maxf(tw + 260.0, 420.0))
-		UI.band_into(fb, Rect2((size.x - bw) * 0.5, 4.0, bw, 52.0), fa * 0.8, UI.GILT, 0.5)
-		UI.flank_into(fb, size.x * 0.5, 21.0, tw * 0.5 + 12.0, 64.0, Color(UI.GILT, 0.75 * fa))
-		fb.flush(self)
-		draw_string_outline(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, 5, Color(0, 0, 0, 0.8 * fa))
-		draw_string(UI.font("display"), Vector2(0, 30), UI.title_case(floor_text), HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(GOLD, fa))
-		var sub_text := "%s  ·  best %d" % [main.tower_data()["short"], main.best_floor]
-		if main.practice != null and main.practice.on:
-			sub_text = main.practice.TEXT["sub"]  # (the practice room: no tower, no floor)
-		if main.get("arena") != null and main.arena.on:
-			sub_text = String(main.arena.ev.get("name", ""))  # (the station's arena: arena.gd)
-		draw_string_outline(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 3, Color(0, 0, 0, 0.6 * fa))
-		draw_string(font, Vector2(0, 48), sub_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(DIM_TEXT, fa))
-	if stair_t > 0.0 and main.stair_open and not main.climbing:
-		var sa := _fade(stair_t, STAIR_SHOW)
-		var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.005)
-		var left: int = main.enemies().size()
-		var stair_text := "The stair is open"
-		if left > 0:
-			stair_text += "  ·  %d %s left" % [left, "foe" if left == 1 else "foes"]
-		var sw := UI.font("display").get_string_size(stair_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x + 44.0
-		var sb := Draw.Batch.new()
-		UI.cartouche_into(sb, Rect2((size.x - sw) * 0.5, 53.0, sw, 23.0), Color(UI.GILT, 0.55 + 0.3 * pulse), sa)
-		sb.flush(self)
-		UI.draw_label(self, Vector2(0, 69), stair_text, 19, Color(1.0, 0.88, 0.6, pulse * sa), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.7 * sa))
+	# The top-middle lane (one banner at a time, the status chips under it)
+	# and the left feed (notices.gd). Nothing waits in the middle of the screen.
+	_draw_lanes(real_size, feed_top)
 
-	# A new floor: its number and what changed, fading out.
-	draw_set_transform_matrix(Layout.xform("hud.banner", size))
-	if not main.banner.is_empty():
-		var bn: Dictionary = main.banner
-		var a: float = clampf(bn["t"] / 0.6, 0.0, 1.0)
-		var top := maxf(size.y * 0.3, corner.end.y + 50.0)  # (a short screen: under the corner's bars)
-		# A soft band between gilt rules, fading to both sides.
-		var bb := Draw.Batch.new()
-		var bw2 := minf(size.x, 820.0)
-		UI.band_into(bb, Rect2((size.x - bw2) * 0.5, top - 46.0, bw2, 62.0 + 22.0 * bn["lines"].size()), a, UI.GILT, 0.62)
-		bb.flush(self)
-		draw_string_outline(UI.font("display"), Vector2(0, top), UI.title_case(bn["title"]), HORIZONTAL_ALIGNMENT_CENTER, size.x, 46, 7, Color(0, 0, 0, 0.8 * a))
-		draw_string(UI.font("display"), Vector2(0, top), UI.title_case(bn["title"]), HORIZONTAL_ALIGNMENT_CENTER, size.x, 46, Color(GOLD, a))
-		var ly := top + 30.0
-		# Words written in the world (a room's rule, a door's ask: the banner's
-		# "inscribed", true or its first so many lines) in the fine italic of
-		# inscriptions; anything else as plain text.
-		var ins = bn.get("inscribed", 0)
-		var ins_n: int = (99 if ins else 0) if ins is bool else int(ins)
-		for li in bn["lines"].size():
-			var line: String = bn["lines"][li]
-			var lf: Font = UI.font("inscription") if li < ins_n else font
-			var ls := 20 if li < ins_n else 17
-			draw_string_outline(lf, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, ls, 4, Color(0, 0, 0, 0.8 * a))
-			draw_string(lf, Vector2(0, ly), line, HORIZONTAL_ALIGNMENT_CENTER, size.x, ls, Color(TEXT, a))
-			ly += 23.0
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-
-	# Messages: a banner across the middle.
+	# A fall: its words across the middle (the end of a climb is a full-screen moment).
 	var msg := ""
 	var sub := ""
 	if p.dead and not main.first_climb:
@@ -690,9 +651,6 @@ func _draw() -> void:
 	if main.fade > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, main.fade))
 
-	_draw_boss_bar(size, font)
-	_draw_goal(size, font)
-	_draw_wing_status(size, font)
 	if not main.regard.is_empty():
 		_draw_regard(size, font)
 	if not main.victory.is_empty():
@@ -704,7 +662,6 @@ func _draw() -> void:
 	_draw_quarry(p, size, font)
 	_draw_stair_arrow(size, font)
 	rings.queue_redraw()  # (the rings: _draw_rings, over the touch buttons)
-	_draw_loot_notice(size, font)
 
 
 ## Swapping weapons: the three slots for a moment, the one in hand lit and named.
@@ -871,8 +828,9 @@ func _draw_gear_prompt(p, id, size: Vector2, font: Font) -> void:
 	var traits: Array = Gear.trait_lines(id)
 	var w := 330.0
 	var h := 86.0 + 17.0 * rows.size() + 14.0 * traits.size()
-	# Bottom centre; on a phone, bottom left of centre, clear of the buttons.
-	var r := Rect2(Vector2((size.x - w) / 2.0, size.y - h - 24.0), Vector2(w, h))
+	# Bottom left (the middle of the screen is the fight's); on a phone,
+	# bottom left of centre, clear of the buttons.
+	var r := Rect2(Vector2(BAR_X, size.y - h - 24.0), Vector2(w, h))
 	if main.touch_active:
 		r.position = Vector2(clampf(size.x * 0.5 - w - 10.0, 110.0, size.x), size.y - h - 12.0)
 	draw_style_box(card_box, r)
@@ -1214,21 +1172,6 @@ func _paint_item_ring(ci: CanvasItem, p, have: Array, c: Vector2, ring_r: float)
 		UI.draw_wheel_caption(ci, c.x, c.y + ring_r + 56.0, 340.0, d["name"], _sentence(String(d["desc"])), d["color"])
 
 
-## A Rare (or better) find: a short notice fades in under the floor title.
-func _draw_loot_notice(size: Vector2, font: Font) -> void:
-	var n: Dictionary = main.loot_notice
-	if n.is_empty():
-		return
-	var a := _fade(float(n["t"]), 3.5)
-	var col: Color = n["color"]
-	var y := 96.0
-	var w := UI.font("display").get_string_size(UI.title_case(n["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x + 36.0
-	var r := Rect2(Vector2((size.x - w) / 2.0, y - 18.0), Vector2(w, 26.0))
-	draw_rect(r, Color(0.03, 0.025, 0.05, 0.7 * a))
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 2.0)), Color(col, 0.9 * a))
-	UI.draw_label(self, Vector2(0, y), n["text"], 19, Color(col.lightened(0.2), a), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.8 * a))
-
-
 ## Hunter's Quarry: the last foe you struck is always marked, and an arrow at
 ## the screen edge points to it when it's out of sight.
 func _draw_quarry(p, size: Vector2, font: Font) -> void:
@@ -1259,33 +1202,7 @@ func goal_line() -> String:
 	return main.objective.status_line()
 
 
-var goal_rect := Rect2()  # where the task's line was drawn (screen px)
-
-
-## The task's line, top centre in a small cartouche (under the corner's bars
-## on a narrow screen); it gives way to the floor's title while that shows.
-func _draw_goal(size: Vector2, font: Font) -> void:
-	var line := goal_line()
-	goal_rect = Rect2()
-	if line == "" or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing or floor_t > 0.0 or stair_t > 0.0:
-		return
-	var w := UI.font("display").get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 44.0
-	var corner := _corner_box(size)
-	var y := 26.0
-	if size.x * 0.5 - w * 0.5 < corner.end.x + 8.0:
-		y = corner.end.y + 22.0  # (a narrow screen: under the corner)
-	var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.004)
-	var gb := Draw.Batch.new()
-	goal_rect = Rect2((size.x - w) * 0.5, y - 18.0, w, 48.0)  # (the line and a scenario's under it: the arrow keeps off)
-	UI.cartouche_into(gb, Rect2((size.x - w) * 0.5, y - 16.0, w, 23.0), Color(UI.GILT, 0.6 * pulse))
-	gb.flush(self)
-	UI.draw_label(self, Vector2(0, y), line, 18, Color(1.0, 0.88, 0.6), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4, Color(0, 0, 0, 0.7))
-	# A scenario's own line under it.
-	if main.get("scenarios") != null:
-		var st: Dictionary = main.scenarios.status()
-		if not st.is_empty():
-			var sline: String = "%s  ·  %s" % [st["title"], st["line"]]
-			UI.draw_label(self, Vector2(0, y + 22.0), sline, 15, Color(0.95, 0.9, 0.8), HORIZONTAL_ALIGNMENT_CENTER, size.x, 3, Color(0, 0, 0, 0.7))
+var goal_rect := Rect2()  # the top lane's stack as last drawn (screen px): the stair arrow keeps off it
 
 
 ## Where the arrow at the screen's edge points: the floor's task's nearest
@@ -1327,7 +1244,10 @@ func _draw_stair_arrow(size: Vector2, font: Font) -> void:
 	b.flush(self)
 	var label: String = goal[1]
 	var lw := UI.font("display").get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-	UI.draw_label(self, at - d * 28.0 + Vector2(-lw * 0.5, 4), label, 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
+	# (beside the arrow, never under it: a long name steps farther in from a side edge)
+	var lc := at - d * (28.0 + lw * 0.5 * absf(d.x))
+	lc.x = clampf(lc.x, lw * 0.5 + 6.0, size.x - lw * 0.5 - 6.0)
+	UI.draw_label(self, lc + Vector2(-lw * 0.5, 4), label, 16, Color(1.0, 0.85, 0.5, pulse), HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color(0, 0, 0, 0.7))
 
 
 ## Where the stair arrow sits and which way it points ([at, dir]) for a
@@ -1347,9 +1267,19 @@ func stair_arrow_spot(size: Vector2, sp: Vector2) -> Array:
 	var at := center + d * minf(reach_x / maxf(absf(d.x), 0.001), reach_y / maxf(absf(d.y), 0.001))
 	# Clear of the touch buttons, and of the floor task's line at the top.
 	var keep: Array = touch_keep_out(size) if main.touch_active else []
-	if goal_rect.has_area():
-		for k in 4:
-			keep.append([goal_rect.position + Vector2(goal_rect.size.x * (k + 0.5) / 4.0, goal_rect.size.y * 0.5), goal_rect.size.y * 0.5 + 6.0])
+	# (...and of the top lane's stack, and the Entity's sphere and bubble)
+	var off: Array = [goal_rect]
+	if main.get("entity") != null and main.entity != null:
+		off.append_array([main.entity.rect, main.entity.orb_rect, main.entity.panel_rect])
+	for r in off:
+		if r.has_area():
+			# (a row of circles along its longer side)
+			var wide: bool = r.size.x >= r.size.y
+			var thick := maxf(minf(r.size.x, r.size.y), 20.0)
+			var n := maxi(1, ceili(maxf(r.size.x, r.size.y) / thick))
+			for k in n:
+				var c: Vector2 = r.position + (Vector2(r.size.x * (k + 0.5) / n, r.size.y * 0.5) if wide else Vector2(r.size.x * 0.5, r.size.y * (k + 0.5) / n))
+				keep.append([c, thick * 0.5 + 6.0])
 	if keep.is_empty():
 		return [at, d]
 	if _arrow_clear(at, d, keep):
@@ -1425,12 +1355,68 @@ func _ring_param(ring: Rect2, at: Vector2) -> float:
 	return 2.0 * w + h + ring.end.y - at.y
 
 
-func _draw_boss_bar(size: Vector2, font: Font) -> void:
+# --- the top-middle lane and the left feed (notices.gd) ---------------------------------
+
+var _boss_trail := 1.0  # the beast bar's lingering chunk
+var _boss_seen = null
+var _boss_t := 0
+
+
+## True while the lane and the feed may show: in play, not under a card
+## screen, the Regard or the black between floors.
+func lanes_on() -> bool:
+	return main.player != null and not main.overlay_showing() and not main.camp_choosing \
+		and not (main.choosing_tower and not main.on_train) and not (main.player.dead and not main.first_climb)
+
+
+## Where the top right begins (HUD units): the phone's Bag, Climber, Menu and
+## fullscreen buttons, or a computer's key hints. The lane stays left of it.
+## `band`: how far down the lane reaches there (HUD units). On a phone any
+## button on the right whose top is above that counts too (Swap, a cast
+## button), so nothing in the lane ever lies under one.
+func top_right_edge(view: Vector2, band := LANE_BANNER_BAND) -> float:
+	var hs := hud_scale
+	if main.touch_active:
+		var x := view.x
+		var t = main.get("touch")
+		if t != null:
+			if t.buttons.is_empty():
+				t._layout()
+			for b in t.buttons:
+				var c: Vector2 = b["c"]
+				if b["id"] in t.TOP_BAR or (c.x > view.x * hs * 0.5 and c.y - float(b["r"]) < band * hs):
+					x = minf(x, (c.x - float(b["r"])) / hs)
+		return x
+	return Layout.box("hud.hints", view).position.x
+
+
+## How far down the lane's banner reaches (HUD units), and its status chips
+## under it: what bounds each on the right (top_right_edge).
+const LANE_BANNER_BAND := 64.0
+const LANE_CHIPS_BAND := 136.0
+
+
+## Where the lane may begin (HUD units): right of the corner's bars, slots
+## and marks, and of the essence counter under them.
+func lane_left(real_size: Vector2) -> float:
+	var hs := hud_scale
+	var e := Layout.box("hud.essence", real_size / hs)
+	return maxf(_corner_box(real_size).end.x / hs, e.end.x)
+
+
+## The status chips, most pressing first: single lines under the banner
+## (notices.gd draws the first few). Each is {id, text, color, edge} and
+## maybe {gauge, gauge_color, trail, tall, pulse, alpha}.
+func status_chips() -> Array:
+	var out: Array = []
+	var p = main.player
+	if p == null or main.fade > 0.0 or not lanes_on():
+		return out
+	var N: Dictionary = main.notices.TEXT
+	# A beast: its name and its health.
 	for e in main.enemies():
 		if not e.is_boss():
 			continue
-		var w := minf(460.0, size.x - 120.0)
-		var r := Rect2(Vector2((size.x - w) / 2.0, 86), Vector2(w, 12))
 		var name: String = UI.titled(main.beast_name())
 		if e.shade:  # the Proving's shadow of the beast
 			name = UI.titled(String(main.proving.TEXT["shadow_bar"]) % main.beast_name())
@@ -1443,90 +1429,113 @@ func _draw_boss_bar(size: Vector2, font: Font) -> void:
 			_boss_seen = e
 			_boss_trail = k
 		_boss_trail = k if _boss_trail < k else move_toward(_boss_trail, k, dt * 0.35)
-		var col := Color(0.62, 0.42, 0.9) if e.shade else Color(0.86, 0.26, 0.2)
-		draw_set_transform_matrix(Layout.xform("hud.beast", size))
-		var b := Draw.Batch.new()
-		# A dark band behind, the name between gilt rules, the bar in a gilt
-		# frame with horned finials and studs at the quarters.
-		UI.band_into(b, Rect2(r.position.x - 70.0, 52.0, w + 140.0, 60.0), 1.0, UI.GILT, 0.7)
-		var tw := UI.font("display").get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
-		UI.flank_into(b, size.x * 0.5, 70.0, tw * 0.5 + 12.0, minf(110.0, w * 0.5 - tw * 0.5 - 16.0), Color(UI.GILT, 0.8))
-		for side in [-1.0, 1.0]:
-			var tip := Vector2(r.get_center().x + side * (w * 0.5 + 22.0), r.get_center().y)
-			var base := Vector2(r.get_center().x + side * (w * 0.5 + 3.0), r.get_center().y)
-			var horn := PackedVector2Array([base + Vector2(0, -8.5), tip, base + Vector2(0, 8.5), base + Vector2(side * 5.0, 0)])
-			b.poly(horn, UI.GILT_DEEP.lerp(UI.GILT, 0.5), 1.2)
-			b.polygon(PackedVector2Array([base + Vector2(0, -8.5), tip, base + Vector2(side * 5.0, 0)]), UI.GILT_HI)
-			UI.diamond_into(b, tip + Vector2(side * 5.0, 0), 2.6, UI.GILT_HI)
-		UI.gauge_into(b, r, k, col, _boss_trail, Color(1.0, 0.82, 0.55, 0.9), 4)
-		for i in range(1, 4):
-			var sx := r.position.x + w * i / 4.0
-			UI.diamond_into(b, Vector2(sx, r.position.y - 2.6), 2.4, UI.OUTLINE)
-			UI.diamond_into(b, Vector2(sx, r.position.y - 2.6), 1.5, UI.GILT_HI)
-		b.flush(self)
-		UI.draw_title(self, Vector2(0, 79), name, 26, UI.GILT_HI if not e.shade else Color(0.85, 0.78, 1.0), HORIZONTAL_ALIGNMENT_CENTER, size.x, 0.8)
-		draw_set_transform_matrix(Transform2D.IDENTITY)
-		return
-
-
-var _boss_trail := 1.0  # the beast bar's lingering chunk
-var _boss_seen = null
-var _boss_t := 0
-
-
-## A sealed wing's question (wings.gd): its condition, kept or broken, the
-## wave and the clock; and a champion's health bar.
-func _draw_wing_status(size: Vector2, font: Font) -> void:
-	if main.wings == null or main.fade > 0.0 or main.overlay_showing() or main.camp_choosing:
-		return
-	draw_set_transform_matrix(Layout.xform("hud.plates", size))
-	_draw_plates(size, font)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-
-
-## The lock-in room's plate and a challenge's (in the default layout's places).
-func _draw_plates(size: Vector2, font: Font) -> void:
-	# Shut in a lock-in room (doors.gd): say so, and how many foes are left.
+		out.append({"id": "beast", "text": name, "tall": true, "gauge": k, "trail": _boss_trail,
+			"gauge_color": Color(0.62, 0.42, 0.9) if e.shade else Color(0.86, 0.26, 0.2),
+			"color": Color(0.85, 0.78, 1.0) if e.shade else UI.GILT_HI, "edge": UI.GILT})
+		break
+	# A sealed wing's question (wings.gd): its champion's health, its rule
+	# kept or broken, the wave and the clock.
+	if main.wings != null:
+		var st: Dictionary = main.wings.status()
+		if not st.is_empty():
+			var champ = st.get("champ")
+			if champ != null:
+				out.append({"id": "champion", "text": String(main.wings.TEXT["champion"]), "gauge": clampf(champ.hp / champ.max_hp, 0.0, 1.0),
+					"gauge_color": Color(0.95, 0.72, 0.3), "color": GOLD, "edge": UI.GILT})
+			if not (champ != null and st["line"] == ""):
+				var head: String = UI.title_case(st["title"])
+				if not st["ok"]:
+					head = String(N["broken"]) % head
+				if st["line"] != "":
+					head = String(N["status"]) % [head, st["line"]]
+				var wc := GOLD if st["ok"] else Color(0.95, 0.5, 0.42)
+				out.append({"id": "wing", "text": head, "color": wc, "edge": wc})
+	# Shut in a lock-in room (doors.gd): how many foes are left.
 	var ls: Dictionary = main.door_view.lock_status() if main.door_view != null else {}
-	var y := 84.0
-	if not ls.is_empty() and not _boss_alive():  # (a beast's shadow has its own bar there)
-		var t1: String = main.door_view.LOCK_TEXT["status"]
-		var t2: String = main.door_view.LOCK_TEXT["left"] % int(ls["left"])
-		var lw := maxf(UI.font("display").get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, font.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x) + 56.0
-		var lb := Draw.Batch.new()
-		UI.cartouche_into(lb, Rect2((size.x - lw) * 0.5, 67.0, lw, 42.0), Color(UI.BLOOD, 0.85))
-		lb.flush(self)
-		UI.draw_label(self, Vector2(0, 84), t1, 20, Color(0.9, 0.55, 0.45), HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
-		draw_string_outline(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 3, Color(0, 0, 0, 0.7))
-		draw_string(font, Vector2(0, 102), t2, HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
-		y += 48.0  # (a challenge's words go under it)
-	var st: Dictionary = main.wings.status()
-	if st.is_empty():
+	if not ls.is_empty():
+		out.append({"id": "doors", "text": String(N["status"]) % [UI.title_case(String(main.door_view.LOCK_TEXT["status"])), main.door_view.LOCK_TEXT["left"] % int(ls["left"])],
+			"color": Color(0.95, 0.62, 0.5), "edge": UI.BLOOD})
+	# A scenario's own line (scenarios.gd).
+	if main.get("scenarios") != null:
+		var sc: Dictionary = main.scenarios.status()
+		if not sc.is_empty():
+			out.append({"id": "scenario", "text": String(N["status"]) % [UI.title_case(String(sc["title"])), sc["line"]], "color": Color(0.95, 0.9, 0.8), "edge": UI.GILT})
+	# A puzzle whose wrong answer brought hunters (puzzle.gd).
+	if main.puzzle != null and main.puzzle.get("locked") and main.puzzle._near():
+		out.append({"id": "puzzle", "text": String(main.puzzle.TEXT["locked"]), "color": UI.BAD, "edge": UI.BLOOD})
+	# A station's drill or bout (arena.gd), and the practice room's hint.
+	if main.get("arena") != null and main.arena.on:
+		out.append({"id": "arena", "text": main.arena.hud_text(), "color": GOLD, "edge": UI.GILT})
+	if main.practice != null and main.practice.on:
+		out.append({"id": "practice", "text": Abilities.fill(main, main.practice.TEXT["hint"]), "color": GOLD, "edge": UI.GILT})
+	# The floor's task (objective.gd).
+	var line := goal_line()
+	if line != "":
+		out.append({"id": "task", "text": line, "color": Color(1.0, 0.88, 0.6), "edge": UI.GILT, "pulse": true})
+	# The stair has just opened: said for a moment.
+	if stair_t > 0.0 and main.stair_open and not main.climbing:
+		var left: int = main.enemies().size()
+		var said: String = String(N["stair"]) if left <= 0 else String(N["stair_left"]) % [left, N["foe"] if left == 1 else N["foes"]]
+		out.append({"id": "stair", "text": said, "color": Color(1.0, 0.88, 0.6), "edge": UI.GILT, "alpha": _fade(stair_t, STAIR_SHOW)})
+	return out
+
+
+## Draws the lane (banner and chips) and the feed. `feed_top`: where the
+## feed starts, in HUD units, under the corner.
+func _draw_lanes(real_size: Vector2, feed_top: float) -> void:
+	var N = main.notices
+	var hs := hud_scale
+	var view := real_size / hs
+	var unit := Transform2D(0.0, Vector2(hs, hs), 0.0, Vector2.ZERO)
+	goal_rect = Rect2()
+	if not lanes_on():
+		N.rects = {"banner": Rect2(), "chips": [], "feed": [], "column": Rect2()}
 		return
-	var champ = st.get("champ")
-	if champ != null:
-		var w := minf(360.0, size.x - 140.0)
-		var r := Rect2(Vector2((size.x - w) / 2.0, y + 8.0), Vector2(w, 8))
-		var name: String = UI.titled(String(main.wings.TEXT["champion"]))
-		var cb := Draw.Batch.new()
-		var nw := UI.font("display").get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
-		UI.flank_into(cb, size.x * 0.5, y - 6.0, nw * 0.5 + 10.0, 60.0, Color(UI.GILT, 0.7))
-		UI.gauge_into(cb, r, clampf(champ.hp / champ.max_hp, 0.0, 1.0), Color(0.95, 0.72, 0.3), -1.0, Color(), 4)
-		cb.flush(self)
-		UI.draw_label(self, Vector2(0, y), name, 19, GOLD, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
-		y += 40.0
-	if champ != null and st["line"] == "":
-		return
-	var col := GOLD if st["ok"] else Color(0.9, 0.42, 0.35)
-	var head: String = UI.title_case(st["title"]) + ("" if st["ok"] else "  ·  broken")
-	var hw := maxf(UI.font("display").get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, font.get_string_size(st["line"], HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x if st["line"] != "" else 0.0) + 56.0
-	var wb := Draw.Batch.new()
-	UI.cartouche_into(wb, Rect2((size.x - hw) * 0.5, y - 17.0, hw, 42.0 if st["line"] != "" else 25.0), Color(col, 0.85))
-	wb.flush(self)
-	UI.draw_label(self, Vector2(0, y), head, 20, col, HORIZONTAL_ALIGNMENT_CENTER, size.x, 4)
-	if st["line"] != "":
-		draw_string_outline(font, Vector2(0, y + 19.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, 3, Color(0, 0, 0, 0.7))
-		draw_string(font, Vector2(0, y + 19.0), st["line"], HORIZONTAL_ALIGNMENT_CENTER, size.x, 15, TEXT)
+	# (with no room at the top, the lane goes on the left, under the essence counter's row)
+	var col: Rect2 = N.column(view, lane_left(real_size), top_right_edge(view), feed_top - 6.0)
+	N.chip_right = top_right_edge(view, LANE_CHIPS_BAND) - 10.0  # (the chips, lower down, keep left of Swap and the cast buttons)
+	var foot: float = N.draw_lane(self, unit, view, col, status_chips())
+	goal_rect = N.rects["column"]
+	# With the lane under the corner (no room at the top) the feed goes under it.
+	var top := maxf(feed_top, foot + 4.0) if N.left_mode else feed_top
+	N.draw_feed(self, unit, view, Vector2(BAR_X, top))
+
+
+## Where the top lane sits on this screen (view px), `tall` HUD units of it:
+## between the corner's bars and the top-right buttons (the layout audit
+## checks it against both: tests/layout_audit_driver.gd).
+func lane_box(tall := LANE_BANNER_BAND - 8.0) -> Rect2:
+	var real := get_viewport_rect().size
+	var hs := hud_scale
+	var col: Rect2 = main.notices.column(real / hs, lane_left(real), top_right_edge(real / hs), ROW_Y + SLOT + 30.0)
+	return Rect2(col.position * hs, Vector2(col.size.x, tall) * hs)
+
+
+## Where the status chips under the banner go (view px): the lane's column,
+## no farther right than the buttons that reach down beside them.
+func chips_box() -> Rect2:
+	var real := get_viewport_rect().size
+	var hs := hud_scale
+	var lane := lane_box()
+	var right := minf(lane.end.x, (top_right_edge(real / hs, LANE_CHIPS_BAND) - 10.0) * hs)
+	if main.notices.left_mode:
+		right = lane.end.x
+	return Rect2(lane.position.x, lane.end.y + 4.0 * hs, maxf(right - lane.position.x, 0.0), (LANE_CHIPS_BAND - LANE_BANNER_BAND) * hs)
+
+
+## Where the left feed's lines go (view px): under the essence counter's row.
+func feed_box() -> Rect2:
+	var hs := hud_scale
+	var view := get_viewport_rect().size / hs
+	var b := Layout.box("hud.feed", view)
+	var w: float = minf(main.notices.FEED_W, view.x * 0.3 - b.position.x - 6.0)
+	return Rect2(b.position * hs, Vector2(w, main.notices.FEED_H * main.notices.FEED_MAX) * hs)
+
+
+## Where the lanes' parts are on screen now (view px; tests): the banner,
+## each chip and each feed line.
+func lane_rects() -> Dictionary:
+	return main.notices.rects
 
 
 ## How dark the Regard's or the victory's backdrop is. One that begins while

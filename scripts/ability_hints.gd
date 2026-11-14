@@ -5,13 +5,15 @@ extends Node2D
 ##     fills enough to cast, its spell's name fades in under its medallion
 ##     on the HUD (hud.gd mark_spots), then fades out.
 ##   FIRST CASTS: the first time a climber casts each spell or technique, a
-##     one-line toast names it and says what it does ("Ember Bolt: a bolt
-##     thrown where you aim; it burns what it hits"). Once per spell per
-##     climber (guide.gd first_cast), and quiet with the Entity's tips off.
+##     banner in the top-middle lane (notices.gd) names it and says what it
+##     does ("Ember Bolt: a bolt thrown where you aim; it burns what it
+##     hits"). Once per spell per climber (guide.gd first_cast), and quiet
+##     with the Entity's tips off.
 ##   THE LONG-PRESS CARD (a phone): holding a cast button that opens no ring
 ##     (a technique, or a mark with one spell) shows a small card with its
 ##     name, what it does and its numbers, and casts nothing (player.gd).
-##   PRACTICE: a line at the top while in the practice room (practice.gd).
+##   PRACTICE: the practice room's line is a status chip in the top lane
+##     (hud.gd status_chips; the words are practice.gd's).
 ## The words are in abilities.gd (and practice.gd).
 
 const Abilities := preload("res://scripts/abilities.gd")
@@ -65,11 +67,13 @@ func _process(delta: float) -> void:
 		toast = toasts.pop_front()
 		toast["t"] = 0.0
 		shown_toasts += 1
+		# Said in the top-middle lane, where it waits its turn like any banner.
+		main.banner = {"title": String(toast["name"]), "lines": [String(toast["does"])], "t": TOAST_TIME, "pri": 0, "accent": toast["color"]}
 	if not card.is_empty() and not bool(card.get("held", false)):
 		card["t"] += real
 		if float(card["t"]) >= CARD_AFTER:
 			card = {}
-	var live := not labels.is_empty() or not toast.is_empty() or not card.is_empty() or _practicing()
+	var live := not labels.is_empty() or not card.is_empty()
 	if live or _live:
 		queue_redraw()
 	_live = live
@@ -147,12 +151,8 @@ func _draw() -> void:
 	if main == null or main.player == null or main.menu_open() or main.title_showing():
 		return
 	var size := get_viewport_rect().size
-	if _practicing() and not main.overlay_showing():
-		_draw_practice(size)
 	if not main.touch_active and main.hud != null:
 		_draw_labels()
-	if not toast.is_empty():
-		_draw_toast(size)
 	if not card.is_empty():
 		_draw_card(size)
 
@@ -188,35 +188,6 @@ func _draw_labels() -> void:
 		draw_string_outline(font, Vector2(r.position.x, y + 5.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, 3, Color(0, 0, 0, 0.7 * a))
 		draw_string(font, Vector2(r.position.x, y + 5.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, Color(col.lightened(0.35), a))
 	draw_set_transform_matrix(Transform2D.IDENTITY)
-
-
-func _draw_toast(size: Vector2) -> void:
-	var t: float = toast["t"]
-	var a := clampf(minf(t / 0.25, (TOAST_TIME - t) / 0.5), 0.0, 1.0)
-	var title := UI.font("display")
-	var body := UI.font("body")
-	var name := UI.title_case(String(toast["name"]))
-	var does: String = String(toast["does"])
-	var ts := 19
-	var bs := 15
-	var nw := title.get_string_size(name + ":", HORIZONTAL_ALIGNMENT_LEFT, -1, ts).x
-	var dw := body.get_string_size(does, HORIZONTAL_ALIGNMENT_LEFT, -1, bs).x
-	var maxw := size.x - 40.0
-	if nw + 8.0 + dw > maxw - 30.0:
-		dw = maxw - 30.0 - nw - 8.0
-	var w := nw + 8.0 + dw + 30.0
-	var y := 128.0 if not main.touch_active else 112.0
-	var r := Rect2(Vector2((size.x - w) * 0.5, y - 17.0), Vector2(w, 26.0))
-	var col: Color = toast["color"]
-	var b := Draw.Batch.new()
-	UI.band_into(b, r.grow_individual(60.0, 0.0, 60.0, 0.0), a, col, 0.75)
-	b.flush(self)
-	var x := r.position.x + 15.0
-	draw_string_outline(title, Vector2(x, y + 2.0), name + ":", HORIZONTAL_ALIGNMENT_LEFT, -1, ts, 4, Color(0, 0, 0, 0.8 * a))
-	draw_string(title, Vector2(x, y + 2.0), name + ":", HORIZONTAL_ALIGNMENT_LEFT, -1, ts, Color(col.lightened(0.3), a))
-	x += nw + 8.0
-	draw_string_outline(body, Vector2(x, y + 1.0), does, HORIZONTAL_ALIGNMENT_LEFT, dw, bs, 4, Color(0, 0, 0, 0.8 * a))
-	draw_string(body, Vector2(x, y + 1.0), does, HORIZONTAL_ALIGNMENT_LEFT, dw, bs, Color(UI.TEXT, a))
 
 
 ## Where the card goes: beside its button where the layout puts it
@@ -259,18 +230,3 @@ func _draw_card(size: Vector2) -> void:
 	var mono := UI.font("mono")
 	draw_string(mono, Vector2(x, r.end.y - 22.0), String(lines[2]), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 12, Color(UI.GOLD, a))
 	draw_string(body, Vector2(x, r.end.y - 8.0), String(lines[3]), HORIZONTAL_ALIGNMENT_LEFT, w - 24.0, 12, Color(UI.DIM, a))
-
-
-func _draw_practice(size: Vector2) -> void:
-	var text: String = Abilities.fill(main, Practice.TEXT["hint"])
-	var font := UI.font("body")
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 30.0
-	var y := size.y - 18.0 if not main.touch_active else 62.0
-	var x := (size.x - w) * 0.5
-	if main.touch_active:
-		x = size.x * 0.5 - w * 0.5
-	var r := Rect2(Vector2(x, y - 13.0), Vector2(w, 20.0))
-	var b := Draw.Batch.new()
-	UI.cartouche_into(b, r, Color(UI.GILT, 0.7), 0.9)
-	b.flush(self)
-	draw_string(font, Vector2(r.position.x, y + 2.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, 14, UI.GOLD)

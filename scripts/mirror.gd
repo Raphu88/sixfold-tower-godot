@@ -595,7 +595,7 @@ func _prize() -> void:
 	if main.profile != null:
 		main.profile.add_crystal(ek, amt)
 		main.profile.save()
-		main.fx_text(at + Vector2(0, -96), TEXT["crystal"] % [main.Items.CRYSTAL["name"] % main.Essence.display(ek), int(amt)], main.Essence.color(ek))
+		main.note_event("crystal", TEXT["crystal"] % [main.Items.CRYSTAL["name"] % main.Essence.display(ek), int(amt)], main.Essence.color(ek))
 	if randf() < float(PRIZE["gear"]):
 		main.drop_gear(at + Vector2(0, 12), main.find_gear("", 1), true)
 
