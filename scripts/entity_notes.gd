@@ -236,6 +236,8 @@ static var TEXT := {
 	"close_tap": "tap to close",
 	"reaction": "%s: %s.",  # a reaction with no tidbit of its own: its name, what it does
 	"idle": "Nothing to add. For now.",
+	"talk": "Talk",  # the panel's button: a talk with the Entity (entity_talk.gd)
+	"talk_key": "or hold %s",  # beside it: the key held to talk
 }
 
 

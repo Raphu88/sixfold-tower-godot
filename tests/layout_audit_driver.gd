@@ -543,12 +543,12 @@ class Sweep:
 			["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"],
 			["mark", "hand"], ["mark", "legs"], ["mark", "brow"], ["mark", "heart"], ["mark", "throat"], ["mark", "back"],
 			["library", ""], ["library", "bestiary"], ["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"],
-			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["techniques", ""]]
+			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["techniques", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"]]
 		for t in Appearance.TABS:
 			list.append(["appearance", t[0]])
 		if light:
 			list = [["pause", ""], ["settings", "settings"], ["climber", "abilities"], ["climber", "marks"], ["climber", "record"], ["mark", "hand"],
-				["inventory", "worn"], ["library", ""], ["library", "bestiary"], ["appearance", Appearance.TABS[0][0]]]
+				["inventory", "worn"], ["library", ""], ["library", "bestiary"], ["appearance", Appearance.TABS[0][0]], ["talk", "marks"]]
 		for pg in list:
 			var name := ("%s %s" % [pg[0], pg[1]]).strip_edges()
 			if not wants(name):
@@ -570,6 +570,13 @@ class Sweep:
 				menu.open_mark(pg[1])
 			elif pg[0] == "appearance":
 				menu.open_appearance("climber")
+			elif pg[0] == "talk":
+				# Talking with the Entity (entity_talk.gd): its line and choices, at a node.
+				menu.talk.begin(main)
+				menu.talk.node = pg[1]
+				menu.talk.say(main)
+				menu.talk_from = ""
+				menu.open("talk")
 			else:
 				menu.open(pg[0])
 			await look(name, page_tops())
@@ -696,6 +703,35 @@ class Sweep:
 		menu.train_bench = "brew"
 		menu.train_board = "towers"
 		menu.settings_tab = "settings"
+		# The Entity explaining a button (entity_helper.gd): its bubble beside
+		# a stash piece, the Loadout button and a rail entry.
+		for v in [["personal", "slot", "chest:*"], ["personal", "car_page", "loadout"], ["engine", "rail", "store"]]:
+			var nm := "train %s bubble %s" % [v[0], v[2].trim_suffix(":*")]
+			if not wants(nm) or (light and v[1] != "car_page"):
+				continue
+			menu.train_car = v[0]
+			menu.inv_sel = ""
+			menu.open("train")
+			await frames(2)
+			tp.go_to(tp._index(v[0]))
+			await settle()
+			var h = menu.helper
+			var b: Control = null
+			for c in h.buttons():
+				if c.has_meta(v[1]) and (c.get_meta(v[1]) == v[2] or (v[2].ends_with("*") and str(c.get_meta(v[1])).begins_with(v[2].trim_suffix("*")) and b == null)):
+					b = c
+			if b == null:
+				continue
+			menu.nav_keys = not main.touch_active and v[1] != "rail"  # (the focus on a rail entry would move the train)
+			if menu.nav_keys:
+				b.grab_focus()
+			h.show_for(b)
+			h.pending = b
+			h.linger = 30.0
+			h.pos = h.orb_at
+			h.appear = 1.0
+			await look(nm, [menu.train_view.rooms[v[0]], menu.train_view.chrome, menu.rail, h])
+			menu.nav_keys = false
 		menu.train_car = Train.HOME
 		menu.open("train")
 		await frames(2)

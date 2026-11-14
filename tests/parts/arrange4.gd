@@ -353,9 +353,11 @@ func _tap(pos: Vector2) -> void:
 	await t._frames(1)
 
 
-func _finger_drag(from: Vector2, to: Vector2) -> void:
+func _finger_drag(from: Vector2, to: Vector2, hold := 0.0) -> void:
 	t._touch(0, from, true)
 	await t._frames(2)
+	if hold > 0.0:
+		await t._wait(hold)  # (a press held as long as the Entity's explanation would need on the train)
 	for i in 4:
 		t._drag(0, from.lerp(to, (i + 1) / 4.0))
 		await t._frames(1)
@@ -449,9 +451,14 @@ func _phone_touch() -> void:
 	_check(ar.path == ["train.personal.chest", "train.personal.chest.grid"] and String(ar.sel).begins_with("train.personal.chest.grid.slot"), "a double tap goes inside the grid (%s, %s)" % [ar.path, ar.sel])
 	var slot: String = ar.sel
 	var r0: Rect2 = ar.screen_rect(slot)
-	# Drag it with a finger, from its middle.
+	# Drag it with a finger, from its middle, after holding it still a moment:
+	# the Entity's sphere (entity_helper.gd) is away while arranging, so a
+	# held press starts a drag, never an explanation.
 	await t._wait(0.5)
-	await _finger_drag(r0.get_center(), r0.get_center() + Vector2(48, -40))
+	var helper = m.get("helper")
+	_check(helper == null or not helper.active(), "the Entity's sphere is away while arranging")
+	await _finger_drag(r0.get_center(), r0.get_center() + Vector2(48, -40), 0.7)
+	_check(helper == null or (helper.target == null and not helper.active()), "...a held press explains nothing")
 	var r1: Rect2 = ar.screen_rect(slot)
 	_check(r1.get_center().distance_to(r0.get_center() + Vector2(48, -40)) < 12.0 and ar.sel == slot, "a finger drags the space (%s -> %s)" % [r0, r1])
 	tb = ar.toolbar()

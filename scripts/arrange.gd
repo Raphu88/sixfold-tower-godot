@@ -250,6 +250,7 @@ static func dev_section(menu) -> void:
 	if menu.main != null and menu.main.on_train:
 		var bt: Button = menu._button(DEV["train"], _dev_train.bind(menu), row)
 		bt.disabled = b.disabled
+		bt.set_meta("setting", "arrange_train")  # (the Entity's explanation: entity_help.gd)
 	menu._note(DEV["note"])
 
 

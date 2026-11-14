@@ -58,9 +58,11 @@ const SECTIONS := [
 	# --- words ---
 	{"id": "entity", "group": "words", "name": "The Entity's words", "when": "live",
 		"tables": ["entity/TEXT", "entity/LINES", "entity/TIPS", "entity/ROOM_TIPS", "entity_notes/TIDBITS", "entity_notes/LORE", "entity_notes/QUIPS", "entity_notes/TEXT",
-			"notices/TEXT", "notices/KINDS"], "kinds": ["text"], "skip": ["sign"],
+			"notices/TEXT", "notices/KINDS", "entity_help/HELP", "entity_help/TEXT", "entity_talk/DIALOGUE", "entity_talk/HINTS", "entity_talk/TEXT"],
+		"kinds": ["text"], "skip": ["sign", "choices", "fact", "if"],
 		"names": {"TEXT": "Its name and labels", "LINES": "Lines", "TIPS": "Tips", "ROOM_TIPS": "Room tips", "TIDBITS": "Tidbits (a short true line when something happens)",
-			"LORE": "Each tower's story lines (empty: yours to write)", "QUIPS": "Quips (as its panel opens)", "KINDS": "The log's kinds of event"}},
+			"LORE": "Each tower's story lines (empty: yours to write)", "QUIPS": "Quips (as its panel opens)", "KINDS": "The log's kinds of event",
+			"HELP": "Explaining the train's buttons", "DIALOGUE": "Talking: its questions and answers", "HINTS": "Talking: what to do next"}},
 	{"id": "makers", "group": "words", "name": "The Makers", "when": "live",
 		"tables": ["makers/MAKERS", "makers/TEXT", "makers/ANSWERS", "makers/PLEA", "makers/VESSEL_PLEA", "makers/SECRET_BONDS"], "kinds": ["text"],
 		"names": {"MAKERS": "The Makers", "TEXT": "Words", "PLEA": "The plea", "VESSEL_PLEA": "The vessel plea"}},

@@ -153,6 +153,12 @@ static var TEXT := {
 	"plaque": "?",  # the small marker a rule's words leave at the puzzle
 }
 
+## The climb's log as it was last written (its events, and the tower), kept
+## after the climb ends (a fall or a summit starts the scene again): the
+## Entity answers "How did my last climb go?" from it on the train
+## (entity_talk.gd). Not saved: after the game restarts it has the record only.
+static var climb_log := {}
+
 var main
 var current := {}  # the banner showing
 var queue: Array = []  # banners waiting
@@ -394,6 +400,8 @@ func _log(kind: String, text: String, col: Color) -> Dictionary:
 		return log[-1]
 	var e := {"kind": kind, "text": text, "color": col, "floor": fl, "n": 1}
 	log.append(e)
+	if not is_same(climb_log.get("log"), log):
+		climb_log = {"log": log, "tower": String(main.tower) if main != null else ""}
 	while log.size() > LOG_KEEP:
 		log.pop_front()
 	fresh += 1
@@ -439,6 +447,8 @@ func new_floor() -> void:
 
 ## A new climb: an empty log and feed.
 func new_climb() -> void:
+	if is_same(climb_log.get("log"), log):
+		climb_log = {"log": log.duplicate(), "tower": climb_log.get("tower", "")}  # (the last climb's, kept)
 	log.clear()
 	feed_lines.clear()
 	fresh = 0
