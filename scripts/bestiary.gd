@@ -587,7 +587,13 @@ static func _reveal(c) -> void:
 	var n: Node = c.get_parent()
 	while n != null:
 		if n is ScrollContainer:
-			n.ensure_control_visible(c)
+			var sc: ScrollContainer = n
+			var r: Rect2 = c.get_global_rect()
+			var view: Rect2 = sc.get_global_rect()
+			if r.size.y > view.size.y:
+				sc.scroll_vertical += int(r.position.y - view.position.y - 4.0)  # (taller than the view: its top at the top)
+			else:
+				sc.ensure_control_visible(c)
 			return
 		n = n.get_parent()
 
@@ -601,13 +607,19 @@ static func card(prof, kind: String, width: float, small: bool) -> PanelContaine
 	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pc.set_meta("bestiary_card", kind)
 	pc.set_meta("bestiary_level", lv)
+	# (narrow, as on a phone's lectern: the picture beside the name only, the
+	# lines under both at full width)
+	var narrow := width < 400.0
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 4)
+	pc.add_child(outer)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10 if small else 14)
-	pc.add_child(row)
+	outer.add_child(row)
 	var pic := Picture.new()
 	pic.kind = kind
 	pic.known = true
-	var ps := 72.0 if small else 104.0
+	var ps := (56.0 if narrow else 72.0) if small else 104.0
 	pic.custom_minimum_size = Vector2(ps, ps)
 	pic.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	row.add_child(pic)
@@ -615,7 +627,7 @@ static func card(prof, kind: String, width: float, small: bool) -> PanelContaine
 	col.add_theme_constant_override("separation", 2 if small else 4)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(col)
-	var wrap_w := maxf(120.0, width - ps - 50.0)
+	var wrap_w := maxf(120.0, width - (30.0 if narrow else ps + 50.0))
 	var title := Label.new()
 	title.text = name_of(kind)
 	UI.style_label(title, "display", 19 if small else 22, UI.GOLD)
@@ -627,6 +639,10 @@ static func card(prof, kind: String, width: float, small: bool) -> PanelContaine
 	UI.style_label(tl, "eyebrow", UI.SIZE_EYEBROW, Color(UI.GOLD, 0.7))
 	tl.set_meta("bestiary_tier", lv)
 	col.add_child(tl)
+	if narrow:
+		pic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		col = outer
 	for ln in lines(prof, kind):
 		var l := Label.new()
 		l.text = String(ln[1])
