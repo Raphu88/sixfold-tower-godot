@@ -154,6 +154,11 @@ static var HELP := {
 	"tech_slot": "A mark button and the technique it casts.",
 	# --- the library ------------------------------------------------------------------------------
 	"shelf": "{shelf}: {heard} of {total} heard. It opens on the lectern.",
+	"shelf:bestiary": "The Bestiary: every monster you've met, and what you've learned of it ({count} met). It opens on the lectern.",
+	"tab:archive": "The Archive: everything I've told you, by subject.",
+	"tab:bestiary": "The Bestiary: every monster you've met, and what you've learned of it.",
+	"bestiary": "{name}: its entry, with all you've learned of it so far.",
+	"bestiary_locked": "Not met yet. Its entry starts once you've seen one.",
 	"archive": "{archive}: what I said, and a fuller account.",
 	"help:replay": "I'll tell you every tip again. The Archive keeps what it has.",
 	"help:tips": "My tips on or off. The Archive fills in either way.",
@@ -229,7 +234,7 @@ const TAGS := [
 	["vessel_pack", ""], ["vessel_trade", ""], ["vessel_brew", ""],
 	["bench_vial", ""], ["bench_mould", ""], ["bench_fx", ""], ["bench_fitting", ""], ["bench_slot", ""], ["bench_save", ""],
 	["bench_name", ""], ["bench_from", ""], ["bench_draft", ""], ["tech_slot", ""],
-	["shelf", ""], ["archive", ""], ["panel_tab", "v"], ["ribbon", "tabbed"], ["tab", "v"], ["choice_key", "setting"], ["setting", "setting"],
+	["shelf", "shelf"], ["archive", ""], ["bestiary", ""], ["bestiary_locked", ""], ["panel_tab", "v"], ["ribbon", "tabbed"], ["tab", "v"], ["choice_key", "setting"], ["setting", "setting"],
 	["over", ""], ["car_page", "v"], ["open_stash", ""], ["cycler", "v"], ["pick", "head"], ["station_do", "v"],
 	["map_link", ""], ["ability", ""], ["try_abilities", ""], ["change_techniques", ""], ["part", ""], ["bud", ""], ["tree_act", "v"], ["back", ""], ["close", ""],
 ]
@@ -262,6 +267,8 @@ static func key_for(b: Control) -> String:
 				return "tab:" + s if HELP.has("tab:" + s) else "ribbon"
 			"move":
 				return "move:chest" if s.begins_with("pack") else "move:pack"
+			"shelf":
+				return "shelf:bestiary" if s == "bestiary" else "shelf"
 			"buy":
 				var bits := s.split(":")
 				if bits.size() == 1 and Items.ITEMS.has(s):
@@ -509,6 +516,12 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		f["shelf"] = words(b)
 		f["heard"] = str(ids.filter(func(k): return Guide.known(k)).size())
 		f["total"] = str(ids.size())
+	if head == "bestiary" or key == "shelf:bestiary":
+		var Best = load("res://scripts/bestiary.gd")
+		if head == "bestiary":
+			f["name"] = Best.name_of(str(b.get_meta("bestiary")))
+		var c: Array = Best.counts(prof)
+		f["count"] = String(TEXT["counted"]) % [int(c[0]), int(c[1])]
 	if head == "archive":
 		f["archive"] = String(Entity.TIPS.get(str(b.get_meta("archive")), {}).get("name", words(b)))
 	# Settings: the choice under the pointer.

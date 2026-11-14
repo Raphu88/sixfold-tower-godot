@@ -4336,6 +4336,7 @@ func _slim_hud_tests() -> void:
 	hud.stair_t = 0.0
 	hud.essence_t = 0.0
 	main.banner = {}
+	main.notices.feed_lines.clear()  # (a line in the left feed fades too: the Bestiary's first sight of a monster puts one there)
 	await _frames(3)
 	var top: int = hud.top_redraws
 	await _frames(10)

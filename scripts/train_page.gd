@@ -1553,6 +1553,8 @@ func _library(root: Node) -> void:
 		v.count = s[2]
 		v.leather = TrainView.Volume.LEATHER[i % TrainView.Volume.LEATHER.size()] if s[0] != "forbidden" else Color(0.1, 0.08, 0.1)
 		v.forbidden = s[0] == "forbidden"
+		if s[0] == "bestiary":
+			v.leather = Color(0.24, 0.17, 0.09)  # (the Bestiary: a plain hide binding)
 		v.on = s[0] == shelf
 		v.custom_minimum_size = Vector2(150.0, 38.0) if small else Vector2(172.0, 44.0)
 		v.set_meta("shelf", s[0])
@@ -1578,12 +1580,15 @@ func _library(root: Node) -> void:
 	m.box = col
 	if shelf == "forbidden":
 		m._maker_shelves(mode, ps, 1)
+	elif shelf == "bestiary":
+		m.Bestiary.shelf(m, lec.custom_minimum_size.x - (40.0 if small else 56.0), small)  # (bestiary.gd)
 	else:
 		m.archive_group(shelf, mode, ps, 1 if small else 2)
 		if shelf == "essence":
 			m.pact_shelf(1 if small else 2)  # (the named pacts you've formed: pacts.gd)
-	m._gap(4)
-	m.archive_tools()
+	if shelf != "bestiary":
+		m._gap(4)
+		m.archive_tools()
 	m.box = keep
 	if small:
 		for b in col.find_children("*", "BaseButton", true, false):
@@ -1605,6 +1610,8 @@ func library_shelves() -> Array:
 	var forbidden: Array = Entity.ordered("forbidden").filter(func(k): return m.Guide.known(k))
 	if makers_shown or not forbidden.is_empty():
 		out.append(["forbidden", m.Makers.TEXT["shelf"], "%d" % forbidden.size()])
+	var met: Array = m.Bestiary.counts(prof)
+	out.append(["bestiary", m.Bestiary.TEXT["shelf"], "%d/%d" % [met[0], met[1]]])  # (the Bestiary: bestiary.gd)
 	return out
 
 
@@ -1625,6 +1632,7 @@ func _set_shelf(id: String) -> void:
 		return
 	m.library_shelf = id
 	m.archive_open = ""
+	m.bestiary_open = ""
 	m.open("train")
 
 

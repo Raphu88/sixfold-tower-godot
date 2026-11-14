@@ -69,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
 	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
 		"choices": ["how_marks", "how", "bye"]},
@@ -94,6 +94,9 @@ static var DIALOGUE := {
 	"how_secret": {"ask": "Cracked walls and secret rooms?",
 		"lines": ["Dust falls from a cracked wall. A finishing blow breaks it: a way through, hidden essence, sometimes a vault. A secret room hides behind plain wall: lean into the wall and it opens. Flare Powder and the Scroll of Seeing make secret walls glint."],
 		"choices": ["how_ward", "how", "bye"]},
+	"how_bestiary": {"ask": "What is the Bestiary?", "fact": "rules",
+		"lines": ["My notes on every monster, in the Library. An entry starts when you see one and grows when you fight it. Slay it {bestiary_slain} times and it adds its health, then what it's weak to, then how it takes states. A beast takes {bestiary_beast}."],
+		"choices": ["how_secret", "how", "bye"]},
 	# --- the tower ----------------------------------------------------------------------
 	"tower": {"ask": "What is {tower} like?", "fact": "tower",
 		"lines": ["{blurb} Its essence is {essence}. {best_line}"],
@@ -500,7 +503,18 @@ static func _fact_rules() -> Dictionary:
 		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),
 		"kinds": Items.BELT_KINDS, "stack": Items.MAX_STACK,
 	})
+	var Best = load("res://scripts/bestiary.gd")
+	f["bestiary_slain"] = _and(Best.TIERS.get("slain", []))
+	f["bestiary_beast"] = _and(Best.TIERS.get("beast", []))
 	return f
+
+
+## [1, 5, 15] -> "1, 5 and 15".
+static func _and(list: Array) -> String:
+	var s: Array = list.map(func(x): return str(int(x)))
+	if s.size() < 2:
+		return "".join(s)
+	return ", ".join(s.slice(0, s.size() - 1)) + " and " + String(s[-1])
 
 
 static func _num(v: float) -> String:

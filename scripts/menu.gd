@@ -51,6 +51,7 @@ const Stations := preload("res://scripts/stations.gd")
 const EntityHelper := preload("res://scripts/entity_helper.gd")
 const EntityTalk := preload("res://scripts/entity_talk.gd")
 const EntityHelp := preload("res://scripts/entity_help.gd")
+const Bestiary := preload("res://scripts/bestiary.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -121,6 +122,8 @@ var inv_sel := ""  # the inventory slot whose details show ("gear:melee", "item:
 var inv_view := "worn"  # the inventory's doll: what you wear ("worn") or your "heirlooms"
 var details: VBoxContainer  # the inventory's details pane
 var archive_open := ""  # the Archive entry shown open (a tip id)
+var library_tab := "archive"  # the Library page's tab: the Archive or the Bestiary
+var bestiary_open := ""  # the Bestiary entry shown open (a monster kind)
 var library_shelf := ""  # the Library car: the shelf (an Archive group) on the lectern
 var settings_tab := "settings"  # Settings & Controls: its tab
 # The train (train_view.gd draws its cars; train_page.gd puts their things in them).
@@ -568,6 +571,13 @@ func _cycle(by: int) -> bool:
 		if not rail.has_focus_inside():
 			_want_focus = {"meta": "tab", "value": id}  # (the focus follows onto the new tab)
 		_set_climber_tab(id)
+		return true
+	if page == "library":
+		var lids: Array = library_tabs().map(func(t): return t[0])
+		var lid: String = lids[(lids.find(library_tab) + by + lids.size()) % lids.size()]
+		if not rail.has_focus_inside():
+			_want_focus = {"meta": "tab", "value": lid}
+		_set_library_tab(lid)
 		return true
 	if page == "settings":
 		var sids: Array = SETTINGS_TABS.map(func(t): return t[0])
@@ -2008,11 +2018,44 @@ func open_archive() -> void:
 	open("library")
 
 
-## The Library in a climb: the whole Archive on one page.
+## The Bestiary (bestiary.gd): the Library's Bestiary tab; on the train,
+## its volume on the Library car's lectern.
+func open_bestiary(kind := "") -> void:
+	bestiary_open = kind
+	library_tab = "bestiary"
+	library_shelf = "bestiary"
+	if _on_train() and not opened_from_title:
+		_go_car("library", false)
+		return
+	open("library")
+
+
+## The Library in a climb: its two tabs, the whole Archive on one page and
+## the Bestiary (bestiary.gd).
 func _page_library() -> void:
 	_header(Train.CARS.filter(func(c): return c[0] == "library")[0][1], "", "Menu")
-	_climber_archive()
+	_tabs(library_tabs(), library_tab, _set_library_tab)
+	if library_tab == "bestiary":
+		Bestiary.shelf(self, _page_width() - (24.0 if compact() else 44.0), compact())
+	else:
+		_climber_archive()
 	_footer()
+
+
+func library_tabs() -> Array:
+	return [["archive", Bestiary.TEXT["archive_tab"]], ["bestiary", Bestiary.TEXT["tab"]]]
+
+
+func _set_library_tab(id: String) -> void:
+	library_tab = id
+	open("library", opened_direct)
+
+
+## A Bestiary entry opened or closed (the page, or the train's lectern).
+func _bestiary_toggle(kind: String) -> void:
+	bestiary_open = "" if bestiary_open == kind else kind
+	_want_focus = {"meta": "bestiary", "value": kind}
+	open(page if page == "train" else "library", opened_direct)
 
 
 ## The Archive: everything the Entity has told you, by subject. Each entry

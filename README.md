@@ -696,6 +696,19 @@ The options, their names and colours, the tabs, the builds' sizes, the small thi
 
 **Hooking up a new system.** Call `main.tip("id")` the first time the climber meets it (one line; it's cheap and safe to call every frame) and add an entry for `"id"` to `TIPS` in `entity.gd`. An id with no entry of its own falls back to the part before its last `_` (a new puzzle kind `"puzzle_mirrors"` gets the general `"puzzle"` tip, `"door_iron"` gets `"door"`). Moments use `GuideScript.say("key", {...})` or `GuideScript.moment("tip", "key")`. The bubble, the queue and what's been said live in `scripts/guide.gd`. Tests keep the Entity quiet unless they set the `sixfold_tips` meta on `Engine`. Hovering a HUD slot on a computer shows its tooltip with the Entity's small face in the corner.
 
+## The Bestiary
+
+**What it is.** A book of every monster in the game, kept in the **Library**: in a climb, open **Library** on the pause rail and choose the **Bestiary** tab (or press **E** / **RB** on the Library page); on the train, go to the **Library** car and choose the **Bestiary** volume on the bookcase. Every monster has a tile, grouped by tower (the ones found in every tower first, each tower's beast at the end of its group). A monster you haven't met yet is a dark silhouette marked **???**, so you can see how many are left. Click or tap a tile (or move to it and press Enter / A) to open its entry. The pictures are the monsters' own drawings, the same ones you see in the towers.
+
+**How entries fill in.** An entry grows as you meet the monster:
+- **Seen** (it came on screen near you): its name, its picture and where you first met it (tower and floor).
+- **Fought** (you hit it, or it hit you): how it fights and what to watch for, whether it flies or swims, and a note on champions (and on calling it to your side, once it's in a Covenant's kin book).
+- **Slain once**: its health and damage, and your tallies (times slain, times it felled you). **Slain 5 times**: what it's weak to. **Slain 15 times**: how it takes states. (A beast needs 1, 2 and 3.)
+
+The first time you meet a monster, a line says **"New in the Bestiary: Lurker"** in the left feed and the Entity's "This climb" log; a new tier says so too, but never more than once for the same monster on a floor. What each climber has met is saved with that climber (Start over begins a new Bestiary).
+
+**Where its words live.** All of it is in `scripts/bestiary.gd`: `BESTIARY` holds each monster's `name`, `desc` (how it fights), `states` (anything special about how it takes states) and **`lore`, left blank for you to write** (it shows once one has been slain); `TEXT` holds the page's words and the notices; `TIERS` holds how many slayings each tier needs. You can change all of these in the game too: Dev tools → Edit game data → Words → **The Bestiary**, and Numbers → **The Bestiary**. The numbers an entry shows (health, damage, weakness, flying or swimming) are read from the monsters' own tables, so they always match the game. The record is `bestiary` in `profile.gd`; the game tells the Bestiary what happens through a handful of one-line calls (`attach`, `watch`, `hurt_by`, `slain`, `fell`), and it speaks only through `notify()` (`main.note_event`). Tests: `tests/parts/bestiary.gd`.
+
 ## Towers
 
 Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each tower has its own beast, essence, monster mix and look (`scripts/towers.gd`):
@@ -1424,6 +1437,7 @@ Part of the Regard too: the beast tests you with your own likeness. Every word a
 | `scripts/reach.gd` | Can the climber get out? Walks a floor plan, or the floor being played, the way doors, locks and keys allow (the planner's last check and the game's safety net) |
 | `scripts/unbound.gd` | The Unbound: their profile state, natural parts and routing, levels, gifts, stages, becoming Unbound and the Developer's way back, and their words |
 | `scripts/technique.gd` | The Unbound's techniques: fill, boost, strain, recipes, plain-words descriptions, casting and the variations on a cast (shapes and kinds come from the library) |
+| `scripts/bestiary.gd` | The Bestiary: every monster's entry in data (name, how it fights, blank lore), the tiers, the per-climber record's calls, the page and the monsters' pictures |
 | `scripts/library.gd` | The shared library: forms, effects, variations and echoes in data, the content contract, and loading the content files |
 | `scripts/spells/` | The content files: each tower's forks and their spells (`gryphon.gd` ... `chimera.gd`), the Unbound's new forms and tree layout (`unbound_forms.gd`) and effects (`unbound_effects.gd`) |
 | `scripts/spell_fx.gd` | What spells leave in the world for a while: timed casts, fields, orbs and warning rings |

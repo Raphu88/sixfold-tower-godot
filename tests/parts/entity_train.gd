@@ -360,7 +360,7 @@ func _missing() -> void:
 	var views: Array = [["engine", {"train_board": "towers"}], ["engine", {"train_board": "stations"}], ["store", {"train_store": "shop", "inv_sel": "outfit:0"}],
 		["store", {"train_store": "shop", "inv_sel": "supply:draught"}], ["store", {"train_store": "shop", "inv_sel": "today"}],
 		["store", {"train_store": "shop", "inv_sel": "upgrades"}], ["store", {"train_store": "sell", "inv_sel": "pack:0"}],
-		["personal", {"inv_sel": "worn:melee"}], ["personal", {"inv_sel": "chest:0"}], ["library", {}],
+		["personal", {"inv_sel": "worn:melee"}], ["personal", {"inv_sel": "chest:0"}], ["library", {}], ["library", {"library_shelf": "bestiary"}],
 		["settings", {"settings_tab": "settings"}], ["settings", {"settings_tab": "controls"}]]
 	for c in Bench.COUNTERS:
 		views.append(["workshop", {"train_bench": c[0], "inv_sel": ""}])
@@ -526,6 +526,9 @@ func _talk() -> void:
 	_check(String(lines.get("how_fall", "")).contains("%d%%" % int(round(Lost.WEAPON_CHANCE * 100.0))) and String(lines.get("how_renown", "")).contains("Noticed at %d" % int(R.RANKS[1][2]))
 		and String(lines.get("how_new_mark", "")).contains(str(int(load("res://scripts/profile.gd").FAINT_DEBT))) and lines.values().all(func(l): return l != "" and not l.contains("{")),
 		"...its numbers read from the game's own tables (%s)" % lines.get("how_renown", ""))
+	var Best = load("res://scripts/bestiary.gd")
+	var tiers: Array = Best.TIERS["slain"]
+	_check(String(lines.get("how_bestiary", "")).contains("%d, %d and %d" % [tiers[0], tiers[1], tiers[2]]), "...What is the Bestiary: its tiers from the Bestiary's own table (%s)" % lines.get("how_bestiary", ""))
 	var keep_w: float = Lost.WEAPON_CHANCE
 	Lost.WEAPON_CHANCE = 0.5
 	_check(Talk.line_for(main, "how_fall").contains("50%"), "...and a changed number shows at once")
