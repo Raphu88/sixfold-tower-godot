@@ -19,6 +19,7 @@ const Entity := preload("res://scripts/entity.gd")
 const Towers := preload("res://scripts/towers.gd")
 const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Bestiary := preload("res://scripts/bestiary.gd")
 const BANNED := ["attunement", "spire", "trial", "judgment", "mana"]
 
 var t
@@ -202,9 +203,12 @@ func _feed_and_log() -> void:
 		"the feed stacks down the left side, under the bars and slots")
 	await t._until(func(): return NS.feed_lines.is_empty(), N.FEED_SHOW + 2.0)
 	_check(NS.feed_lines.is_empty() and NS.log.size() == 3, "feed lines fade after a few seconds; the log keeps them")
-	# Damage is never an event.
-	NS.new_climb()
+	# Damage is never an event. (The foe is already known in the Bestiary,
+	# so its "you know more" line doesn't land here: that is news, not damage.)
 	var foes: Array = main.enemies()
+	for f in foes:
+		Bestiary.meet(main, String(f.kind), "fought")
+	NS.new_climb()
 	if not foes.is_empty():
 		foes[0].take_hit(3.0, Vector2.RIGHT, 0.0)
 	p.iframes = 0.0
