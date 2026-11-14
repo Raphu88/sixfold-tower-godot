@@ -24,7 +24,7 @@ extends RefCounted
 ## steer essence: drink one and choose a mark (its xp; its own kind counts
 ## fully, profile.gd AFFINITY_WEIGHT) or an unmarked body part (its soak,
 ## toward a new mark, and the next mark's kind). Found in vaults, secret
-## rooms and, rarely, on a fallen monster; sold at the outfitter (two kinds a
+## rooms and, rarely, on a fallen monster; sold at the outfitter (one kind a
 ## visit); crafted at the Workshop from crystals of their kind.
 ##
 ## EARNED MARKS. A fully soaked part can take a new mark before the summit
@@ -43,11 +43,12 @@ static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 30.0}
 ## part (the body share soaks at profile.gd SOAK_RATE); what crafting one
 ## costs at the Workshop (crystals of its kind; a Rune Artist pays
 ## bench.gd RUNE_ARTIST_BREW of it); how many kinds the outfitter stocks each
-## visit (the tower you last climbed first); the chance a slain monster
+## visit (the tower you last climbed half the time; more kinds make his
+## shelf a row taller); the chance a slain monster
 ## leaves one (of its essence), that a vault's third card is one, and that a
 ## hidden crystal cache holds one in place of a crystal. (The outfitter's
 ## price is the tincture's worth in items.gd.)
-static var TINCTURE := {"essence": 40.0, "soak_rate": 2.0, "craft": 40, "store_kinds": 2,
+static var TINCTURE := {"essence": 40.0, "soak_rate": 2.0, "craft": 40, "store_kinds": 1,
 	"drop_chance": 0.012, "vault_chance": 0.2, "hidden_chance": 0.3}
 
 ## Earned marks: a sealed wing beaten with its rule kept on this floor or
@@ -80,7 +81,7 @@ static var TEXT := {
 	"open": "Crystals and tinctures",
 	"crystals_head": "Crystals  ·  eat one: it flows the natural way",
 	"tinctures_head": "Tinctures  ·  drink one: you choose where",
-	"tinctures_none": "No tinctures. Vaults and secret rooms hold them, the outfitter sells two kinds each visit, and the Workshop crafts them from crystals.",
+	"tinctures_none": "No tinctures. Vaults and secret rooms hold them, the outfitter sells one kind each visit, and the Workshop crafts them from crystals.",
 	"tinctures_none_play": "No tinctures on your belt. Vaults and secret rooms hold them, and now and then a monster leaves one.",
 	"crystal_card": "%d %s essence in your crystal.",
 	"crystal_flow": "Eaten, %d flows the natural way: %d%% to your body, %d%% to your marks. You can't steer it.",

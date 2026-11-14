@@ -121,7 +121,7 @@ static var ANY_PRICE := {"scroll": 60}
 ## it moves to the new default once, menu.gd load_settings_from.)
 const CONDENSE_DEFAULT := "30"
 const CONDENSE_OLD_DEFAULT := "20"
-const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["30", "30%"], ["40", "40%"], ["50", "50%"]]
+const CONDENSE_CHOICES := [["0", "0%"], ["10", "10%"], ["20", "20%"], ["30", "30%"], ["50", "50%"]]
 ## The outfitter's pay for a climb, however it ends (a fall too): crystals of
 ## the tower's kind, PER_FLOOR for every floor reached and PER_BEST more for
 ## every floor past your best in that tower before the climb.
@@ -386,7 +386,7 @@ static func climb_pay(reached: int, best_before: int) -> int:
 ## first, then the rest in Items.ORDER (the recall scroll among them, always
 ## there; only the outfit rail and today's piece change between visits).
 ## Tinctures (essence_flow.gd) aren't on the fixed shelf: with a `profile`,
-## the two kinds he stocks this visit come last (store_tinctures).
+## the kinds he stocks this visit come last (store_tinctures).
 static func supplies(profile = null) -> Array:
 	var all: Array = Items.ORDER.filter(func(id): return not Items.ITEMS[id].get("value", {}).is_empty() and not Flow.is_tincture(id))
 	var out: Array = all.filter(func(id): return Items.is_staple(id)) + all.filter(func(id): return not Items.is_staple(id))
@@ -396,18 +396,20 @@ static func supplies(profile = null) -> Array:
 
 
 ## The tinctures the outfitter stocks this visit: Flow.TINCTURE "store_kinds"
-## kinds, the tower you last climbed first, the rest by chance (kept with
-## the visit's stock; a store stocked before tinctures rolls them now).
+## kinds, the first the tower you last climbed half the time (else any other),
+## the rest by chance (kept with the visit's stock; a store stocked before
+## tinctures rolls them now).
 static func store_tinctures(profile) -> Array:
 	if profile == null:
 		return []
 	var have = profile.store.get("tinctures", null) if profile.store is Dictionary else null
 	if have is Array and not have.is_empty():
 		return have.filter(func(k): return Essence.KINDS.has(String(k)))
-	var first := String(Towers.TOWERS.get(String(profile.last_tower), {}).get("essence", "air"))
-	var rest: Array = Essence.KINDS.keys().filter(func(k): return k != first)
+	var home := String(Towers.TOWERS.get(String(profile.last_tower), {}).get("essence", "air"))
+	var rest: Array = Essence.KINDS.keys().filter(func(k): return k != home)
 	rest.shuffle()
-	var kinds: Array = ([first] + rest).slice(0, maxi(0, int(Flow.TINCTURE.get("store_kinds", 2))))
+	var order: Array = ([home] + rest) if randf() < 0.5 else (rest + [home])
+	var kinds: Array = order.slice(0, maxi(0, int(Flow.TINCTURE.get("store_kinds", 1))))
 	if not profile.store.is_empty():
 		profile.store["tinctures"] = kinds
 	return kinds

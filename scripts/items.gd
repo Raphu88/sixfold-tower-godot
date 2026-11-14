@@ -281,7 +281,7 @@ static var ITEMS := {
 	# an unmarked body part (the crystals page, pour_page.gd). Never dropped
 	# by the item table or offered at a camp ("drop_weight" 0): vaults, secret
 	# rooms and rare monster drops hold them (essence_flow.gd TINCTURE); the
-	# outfitter sells two kinds a visit at their worth ("value"); the
+	# outfitter sells one kind a visit at their worth ("value"); the
 	# Workshop crafts them from crystals of their kind.
 	"tincture_air": {
 		"name": "Air Tincture",

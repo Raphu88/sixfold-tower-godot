@@ -183,14 +183,14 @@ func _tincture_card(id: String) -> void:
 	m._detail_text(Flow.TEXT["tincture_card"] % [int(Flow.TINCTURE["essence"]), Essence.display(kind)], UI.TEXT)
 	m._detail_text(Flow.TEXT["tincture_have"] % [n, Flow.TEXT["packed" if m.main.on_train else "on_belt"]], UI.DIM)
 	var grid := GridContainer.new()
-	grid.columns = 1 if _small() else 1
-	grid.add_theme_constant_override("v_separation", 4)
+	grid.columns = 1
+	grid.add_theme_constant_override("v_separation", 2 if _small() else 4)
 	m.details.add_child(grid)
 	for part in Bonds.PARTS:
 		var b: Button = m._button(target_text(part, kind), _drink.bind(id, part), grid)
 		b.set_meta("help", "pour:mark" if prof.bonds.has(part) and not Unbound.is_on(prof) else "pour:part")
 		b.set_meta("pour_part", part)
-		b.custom_minimum_size.y = 34.0 if _small() else 36.0
+		b.custom_minimum_size.y = 28.0 if _small() else 36.0
 		b.disabled = n <= 0
 		UI.keep_text(b)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -250,6 +250,8 @@ func back() -> void:
 			m.open("climber", m.opened_direct)
 		"loadout":
 			m.open("loadout", true)
+		"inventory":
+			m.open("inventory", m.opened_direct)
 		"train":
 			m.open("train")
 		_:

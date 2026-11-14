@@ -409,16 +409,17 @@ func _entity() -> void:
 	Guide.forget()
 	# The talk: the new topics, with live numbers.
 	var how: Array = Talk.DIALOGUE["how"]["choices"]
-	_check(how.has("how_flow") and how.has("how_tinctures") and how.has("how_earn_mark"), "the Entity can say how essence flows, what tinctures are and how to earn a new mark")
+	_check(how.has("how_flow") and how.has("how_tinctures") and how.has("how_new_mark") and String(Talk.DIALOGUE["how_new_mark"]["ask"]) == "How do I earn a new mark?",
+		"the Entity can say how essence flows, what tinctures are and how to earn a new mark")
 	var flow_line: String = Talk.line_for(main, "how_flow")
 	var sh: Dictionary = Flow.shares(Train.condense_share(M.settings))
 	_check(flow_line.contains("%d%%" % int(round(float(sh["body"]) * 100.0))) and flow_line.contains("%d%%" % int(round(float(sh["marks"]) * 100.0))) and not flow_line.contains("{"),
 		"its numbers come from the tables: %s" % flow_line)
-	var earn: String = Talk.line_for(main, "how_earn_mark")
+	var earn: String = Talk.line_for(main, "how_new_mark")
 	_check(earn.contains("floor %d" % int(Flow.EARNED["last_floor"])) and earn.contains("%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0))), "how to earn a mark: %s" % earn)
 	var tinct: String = Talk.line_for(main, "how_tinctures")
 	_check(tinct.contains(str(int(Flow.TINCTURE["essence"]))) and tinct.contains(str(int(Flow.TINCTURE["craft"]))), "what tinctures are: %s" % tinct)
-	for id in ["how_essence", "how_flow", "how_marks", "how_new_mark", "how_earn_mark", "how_tinctures", "marks_grow", "train_money"]:
+	for id in ["how_essence", "how_flow", "how_marks", "how_new_mark", "how_tinctures", "marks_grow", "train_money"]:
 		var l: String = Talk.line_for(main, id).to_lower()
 		_check(not BANNED.any(func(w): return l.contains(w)) and not l.contains("{"), "%s reads whole" % id)
 

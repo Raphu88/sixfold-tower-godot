@@ -8607,17 +8607,17 @@ func _economy_tests() -> void:
 	await _frames(2)
 	var row: Array = _all_buttons(menu).filter(func(b): return b.get_meta("choice_key", "") == "condense")
 	_check(row.size() == T.CONDENSE_CHOICES.size(), "Settings has a row for the share (%d choices)" % row.size())
-	var b35: Array = row.filter(func(b): return b.get_meta("choice", "") == "40")
+	var b35: Array = row.filter(func(b): return b.get_meta("choice", "") == "50")
 	if b35.size() == 1:
 		b35[0].pressed.emit()
 		await _frames(2)
-	_check(M.settings["condense"] == "40" and is_equal_approx(T.condense_share(M.settings), 0.4), "choosing 40% changes the share")
+	_check(M.settings["condense"] == "50" and is_equal_approx(T.condense_share(M.settings), 0.5), "choosing 50% changes the share")
 	menu.close()
 	var path := TestRun.path("user://smoke_condense_test.cfg")
 	M.save_settings_to(path)
 	M.settings["condense"] = "20"
 	M.load_settings_from(path)
-	_check(M.settings["condense"] == "40", "...and it's saved with the settings")
+	_check(M.settings["condense"] == "50", "...and it's saved with the settings")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	M.settings["condense"] = "0"
 	prof.crystals = []
