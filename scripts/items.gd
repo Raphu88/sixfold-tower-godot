@@ -29,7 +29,7 @@ const STEADY_HEAL := 1.3
 const STEADY_TIME := 0.6
 
 const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
-	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "wardbreaker", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
+	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
 	"scroll", "vessel"]
 
 ## Each item: name, short name, what it does, colour and its numbers; also
@@ -205,15 +205,6 @@ static var ITEMS := {
 		"duration": 25.0, "buff": {"thorns": 8.0},
 		"drop_weight": 1,
 		"kind": "blade", "value": {"blade": 14},
-	},
-	"wardbreaker": {
-		"name": "Wardbreaker Charm",
-		"short": "Wardbreaker",
-		"desc": "snap the charm: for 20 seconds your blows and arrows go through shells and guards",
-		"color": Color(0.9, 0.42, 0.5),
-		"duration": 20.0, "buff": {"guardbreak": 1.0},
-		"drop_weight": 1,
-		"kind": "blade", "value": {"blade": 16},
 	},
 	"lantern_oil": {
 		"name": "Lantern Oil",
@@ -418,7 +409,7 @@ static func camp_choices(marked := true) -> Array:
 ## The sound of using each item (sound_bank.gd); one not listed plays "ready".
 const USE_SOUNDS := {"draught": "drink", "stamina": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
 	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready",
-	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw", "wardbreaker": "use_ward",
+	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw",
 	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime"}
 
 
@@ -519,9 +510,9 @@ static func use(id: String, p) -> bool:
 			_heal_over_time(p, data, steady)
 			p.add_buff(id, float(data["duration"]), data["buff"])
 			main.fx_burst(p.global_position, Vector2.UP, col, 14, 160.0)
-		"briar_tonic", "wardbreaker", "lantern_oil", "seeing_scroll":
+		"briar_tonic", "lantern_oil", "seeing_scroll":
 			p.add_buff(id, float(data["duration"]), data["buff"])
-			main.fx_text(above, {"briar_tonic": "Briars", "wardbreaker": "Wards break", "lantern_oil": "Your light grows",
+			main.fx_text(above, {"briar_tonic": "Briars", "lantern_oil": "Your light grows",
 				"seeing_scroll": "The hidden shows itself"}[id], col)
 			if id == "lantern_oil":
 				main.light_flash(p.global_position, col, 1.6, 2.0, 0.4)
@@ -860,21 +851,6 @@ static func _item_art(b, id: String, s: float) -> void:
 					b.polygon(PackedVector2Array([at + Vector2(0, -0.5) * u, at + out * 1.8 * u, at + Vector2(0, 0.5) * u]), vine.lightened(0.3))
 				prev = at
 			Art.shine(b, Vector2(-2.4, -0.4) * u, 0.45 * u, 1.8 * u, 0.0, 0.45)
-		"wardbreaker":
-			# A red charm on a cord, split across by a crack of light.
-			b.arc(Vector2(0, -2.0) * u, 6.0 * u, PI * 1.08, TAU - PI * 0.08, 20, Art.INK, maxf(1.1, 0.75 * u) + 1.0)
-			b.arc(Vector2(0, -2.0) * u, 6.0 * u, PI * 1.08, TAU - PI * 0.08, 20, Color(0.88, 0.8, 0.6), maxf(0.7, 0.6 * u))
-			var cc := Vector2(0, 4.2) * u
-			var shield := Art.pts(cc, u, [Vector2(-4.8, -4.6), Vector2(4.8, -4.6), Vector2(4.4, 0.8), Vector2(0, 5.0), Vector2(-4.4, 0.8)])
-			Art.shape(b, shield, col, s, "gem")
-			Art.shape(b, Art.pts(cc, u, [Vector2(-3.4, -3.4), Vector2(3.4, -3.4), Vector2(3.1, 0.4), Vector2(0, 3.5), Vector2(-3.1, 0.4)]), col.darkened(0.2), s, "gem", Art.NO_OUTLINE | Art.NO_RIM)
-			var crack := Art.pts(cc, u, [Vector2(-1.0, -4.6), Vector2(0.6, -2.0), Vector2(-0.6, 0.0), Vector2(1.0, 2.2), Vector2(0, 5.0)])
-			Art.soft(b, cc, 4.0 * u, Color(1.0, 0.9, 0.7, 0.45))
-			for i in crack.size() - 1:
-				b.line(crack[i], crack[i + 1], Color(1.0, 0.95, 0.8), maxf(0.6, 0.6 * u))
-			Art.orb(b, Vector2(0, -0.8) * u, 1.0 * u, Art.GOLD, s, "gold")
-			for v in [Vector2(-5.8, 1.0), Vector2(5.6, 6.2)]:
-				Art.spark(b, v * u, 1.3 * u, Color(1.0, 0.92, 0.75, 0.9))
 		"lantern_oil":
 			# A small tin oil can with a long spout, a drop of clear oil at its tip, the light it feeds.
 			var can := Art.rrect(Rect2(Vector2(-6.0, -2.2) * u, Vector2(9.6, 11.0) * u), 1.6 * u, 3)

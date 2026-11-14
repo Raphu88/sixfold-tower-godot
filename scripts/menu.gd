@@ -52,6 +52,7 @@ const EntityHelper := preload("res://scripts/entity_helper.gd")
 const EntityTalk := preload("res://scripts/entity_talk.gd")
 const EntityHelp := preload("res://scripts/entity_help.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
+const Charms := preload("res://scripts/charms.gd")
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -2666,6 +2667,9 @@ func _page_inventory() -> void:
 	else:
 		for r in Gear.DOLL:
 			for slot in r:
+				if slot == "":
+					loadout_page.gap(grid, cell)
+					continue
 				var s := _heir_cell(grid, slot, cell, caption) if heirs else _worn_cell(grid, p, slot, cell, caption)
 				keys.append(s.get_meta("slot"))
 	# Beside the doll: fists (weapon slot 1), the off-hand (kept for later),
@@ -2948,6 +2952,14 @@ func _show_details(key: String) -> void:
 					return
 			elif arg != "fists":
 				_detail_lines(g, "" if weaponish else WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)))
+			if arg == "charm" and has and Charms.missing(g) > 0 and not _on_train():
+				# A spent charge: feed it essence you haven't banked yet (charms.gd).
+				var amount := Charms.refill_amount(g)
+				var held := int(Charms.unbanked(main))
+				var fb := _button(Charms.TEXT["refill_run"] % amount, _feed_charm, details)
+				fb.disabled = p.dead or held < amount
+				fb.set_meta("help", "feed_charm")
+				_detail_text(Charms.TEXT["run_note"] if held >= amount else Charms.TEXT["short_run"] % [amount, held], DIM)
 			var other = _compare_with(p, arg, g)
 			_detail_stats(g if has else "", other)
 			if arg in ["armor", "helm", "legs"] and p.protection() > 0.0:
@@ -3239,6 +3251,20 @@ func _wear_pack(i: int, into: String) -> void:
 
 func _drop_pack(i: int) -> void:
 	main.drop_from_pack(i)
+	open("inventory", opened_direct)
+
+
+## Feeds the charm you wear essence you haven't banked yet, refilling its
+## charge (charms.gd refill_unbanked).
+func _feed_charm() -> void:
+	var g: Dictionary = Charms.worn(main.player)
+	if g.is_empty():
+		return
+	if Charms.refill_unbanked(main, g) == "":
+		main.player.refresh_gear()
+		main.sfx("craft", 1.1, -4.0, 0.0)
+		main.note_event("gear", Charms.TEXT["refilled"] % Gear.display(g), Gear.color(g))
+	inv_sel = "gear:charm"
 	open("inventory", opened_direct)
 
 

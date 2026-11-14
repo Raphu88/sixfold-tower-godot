@@ -156,6 +156,9 @@ func build() -> void:
 	var so := Train.setoff(prof, _player())
 	for r in Gear.DOLL:
 		for slot in r:
+			if slot == "":
+				gap(grid, _cell())
+				continue
 			keys.append(_worn_cell(grid, slot, so).get_meta("slot"))
 	# Under them: the pack, the belt, the stash.
 	keys.append_array(pack_strip(col))
@@ -226,6 +229,15 @@ func _worn_cell(parent: Node, slot: String, so: Dictionary):
 		"wear":
 			s.tag = TEXT["tag_wear"]
 	return s
+
+
+## A gap in the paper doll (gear.gd DOLL ""): an empty space a slot wide.
+static func gap(grid: Node, side: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(side, 1.0)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grid.add_child(c)
+	return c
 
 
 ## A small dim line under a heading (where the pack goes, where the stash stays).

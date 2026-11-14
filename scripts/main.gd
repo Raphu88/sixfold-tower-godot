@@ -38,6 +38,7 @@ const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Train := preload("res://scripts/train.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Lost := preload("res://scripts/lost.gd")
+const Charms := preload("res://scripts/charms.gd")
 const Vessel := preload("res://scripts/vessel.gd")
 const ProvingScript := preload("res://scripts/proving.gd")
 const Secret := preload("res://scripts/secret.gd")
@@ -235,6 +236,7 @@ var pay_line := ""  # what he paid, for the end-of-climb screens ("" before)
 # Gear (gear.gd): pieces lying on the floor, and the one you stand on.
 var gear_drops: Array = []  # {pos, id (its base id), rec (the gear record)}
 var gear_drop_chance := Gear.DROP_CHANCE
+var charm_drop_chance := 0.0 if Engine.has_meta("sixfold_test") else float(Charms.LOOT["monster"])  # (tests set it when they want one)
 var gear_cache_chance := Gear.CACHE_CHANCE
 var gear_here := {}  # the drop under you that needs Y (or Take) to swap for
 var in_camp := false  # resting at a camp between floors (floor_num stays the floor below)
@@ -2783,8 +2785,9 @@ func on_player_died() -> void:
 	if not first_climb:
 		# Your pack and belt are lost, maybe your weapon too (lost.gd); the
 		# pieces are remembered, and may turn up again on a later climb.
+		var kept: Array = Charms.keep_on_fall(profile, player)  # (a Keeper's Purse: its safe pocket comes home)
 		var loss := Lost.fall(profile, player, tower, floor_num, weapon_loss_chance)
-		fall_note = loss["lines"]
+		fall_note = kept + loss["lines"]
 		fall_note.append_array(Vessel.on_fall(self))  # (a vessel and what it held go with the belt)
 		if not fall_note.is_empty():
 			tip("fall_loss")
@@ -4037,6 +4040,8 @@ func on_enemy_killed(e) -> void:
 	# Rarely a slain monster leaves a piece of gear, likelier one that suits it.
 	if not e.is_boss() and randf() < gear_drop_chance:
 		drop_gear(e.global_position + Vector2(0, 10), find_gear(e.kind), true)
+	elif not e.is_boss() and not first_climb and randf() < charm_drop_chance:
+		drop_gear(e.global_position + Vector2(0, 10), Charms.roll(floor_num), true)  # (very rarely, a charm: charms.gd LOOT)
 	# Now and then a slain monster leaves an item.
 	if not e.is_boss() and randf() < item_drop_chance:
 		item_drops.append({"pos": e.global_position, "id": Items.random_item(player != null and not player.bonds.is_empty(), [], true), "t": Items.DROP_LIFE})
