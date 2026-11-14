@@ -581,10 +581,10 @@ static func shelf(m, width: float, small: bool) -> void:
 
 
 ## An entry just opened: scrolled into sight (its tile's focus comes first).
-static func _reveal(c: Control) -> void:
+static func _reveal(c) -> void:
 	if not is_instance_valid(c) or not c.is_inside_tree():
 		return
-	var n := c.get_parent()
+	var n: Node = c.get_parent()
 	while n != null:
 		if n is ScrollContainer:
 			n.ensure_control_visible(c)
