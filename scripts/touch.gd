@@ -23,7 +23,8 @@ const HIT_PAD := 12.0
 const HIT_MIN := 44.0
 const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory"]
 ## Held buttons a quick tap still has to reach the game with: let go a
-## moment later (Item: a tap uses the quick item, a hold opens the ring).
+## moment later (Item: a tap uses the current item, a hold opens the belt
+## wheel to choose one).
 const HOLD_TAP := ["item", "tools"]
 ## The top bar: always there, also while fallen.
 const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]

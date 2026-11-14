@@ -35,6 +35,12 @@ static var TEXT := {
 	# Floating over the climber when something is chosen.
 	"item_chosen": "Current item: %s",
 	"spell_chosen": "On the button: %s",
+	# The current item's tooltip on the HUD (hover it): the count and the key;
+	# then, with two kinds or more, the key again and the next-item key.
+	"hud_tip": "Carrying %d  ·  tap %s to use it",
+	"hud_tip_more": "  ·  hold %s (or tap %s) to choose another",
+	# A mark's tooltip on the HUD, after "Press Q to cast" (a mark with two spells or more).
+	"mark_tip_more": ", hold it to choose a spell (choosing never casts)",
 	# How you point, for the Entity's answer ("How does the belt wheel work?").
 	"point_keys": "the mouse",
 	"point_pad": "the right stick",

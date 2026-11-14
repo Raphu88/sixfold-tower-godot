@@ -437,7 +437,7 @@ func _draw_core() -> void:
 		ib.dot(ir.end - Vector2(3, 3), 6.0, UI.STONE)
 		UI.ring_into(ib, ir.end - Vector2(3, 3), 6.0, 1.0, Color(UI.GILT, 0.8))
 		tips.append([ix * ir, Items.ITEMS[sel]["name"], [_sentence(Items.ITEMS[sel]["desc"]),
-			"Carrying %d  ·  %s to use it%s" % [p.item_count(sel), _use_key(), "" if p.carried().size() < 2 else "  ·  %s picks another" % _next_key()]]])
+			String(Wheel.TEXT["hud_tip"]) % [p.item_count(sel), _use_key()] + ("" if p.carried().size() < 2 else String(Wheel.TEXT["hud_tip_more"]) % [_use_key(), _next_key()])]])
 		c.draw_set_transform_matrix(unit * ix)
 		ib.flush(c)
 		c.draw_string(mono, ir.end + Vector2(-9, 0.5), str(p.item_count(sel)), HORIZONTAL_ALIGNMENT_CENTER, 12, 10, UI.GILT_HI)
@@ -475,7 +475,7 @@ func _draw_core() -> void:
 		tips.append([mr, "%s  (%s)" % [bd.display_name(), BondScript.PART_NAMES[part]],
 			["%s: %s" % [bd.spell_name(), bd.spell_desc()],
 			"Essence %d / %d  ·  costs %d" % [int(bd.essence), int(bd.capacity()), int(round(bd.cost()))],
-			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, ", hold it to pick a spell" if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
+			("%s burned: overdraw again and it tears (costs health)" % BondScript.PART_NAMES[part]) if bd.burned else ("Press %s to cast%s" % [key, String(Wheel.TEXT["mark_tip_more"]) if bd.spells().size() > 1 else ""] if not main.touch_active else "Its button is on the right"),
 			Abilities.fill(main, Abilities.TEXT["tip_all"])]])
 		mx += MARK_R * 2.0 + 8.0
 	c.draw_set_transform_matrix(unit * mkx)
