@@ -627,9 +627,8 @@ func grant_mark(maker: String, part: String, id: String) -> void:
 	main.fx_ring(at, col, 90.0, 0.9, 3.0)
 	main.sfx("maker_fragment", 0.8, 0.0, 0.0)
 	var mark_line: String = Flow.TEXT["granted"] % [String(Bonds.PART_NAMES.get(part, part)).to_lower(), Bonds.BONDS[id]["name"]]
-	main.banner = {"title": TEXT["grant_title"] % String(MAKERS[maker]["Name"]).to_upper(), "lines": [_line(MAKERS[maker].get("grant", [""])), mark_line], "t": 4.5, "long": true}
-	main.note_event("mark", mark_line, col)
-	queue_redraw()
+	main.banner = {"title": TEXT["grant_title"] % String(MAKERS[maker]["Name"]).to_upper(), "lines": [_line(MAKERS[maker].get("grant", [""])), mark_line], "t": 4.5, "long": true, "pri": 2}
+	queue_redraw()  # (the banner's second line goes to the feed and the log)
 	over.queue_redraw()
 
 

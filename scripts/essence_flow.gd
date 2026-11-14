@@ -47,7 +47,7 @@ static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 30.0}
 ## leaves one (of its essence), that a vault's third card is one, and that a
 ## hidden crystal cache holds one in place of a crystal. (The outfitter's
 ## price is the tincture's worth in items.gd.)
-static var TINCTURE := {"essence": 40.0, "soak_rate": 0.6, "craft": 40, "store_kinds": 2,
+static var TINCTURE := {"essence": 40.0, "soak_rate": 2.0, "craft": 40, "store_kinds": 2,
 	"drop_chance": 0.012, "vault_chance": 0.2, "hidden_chance": 0.3}
 
 ## Earned marks: a sealed wing beaten with its rule kept on this floor or
