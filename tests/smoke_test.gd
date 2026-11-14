@@ -259,6 +259,8 @@ func _gryphon_tests() -> void:
 	_check(p.bonds["hand"].spells().size() == 4 and p.bonds["legs"].spells().size() == 4 and p.bonds["brow"].spells().size() == 4, "at step 5 each Gryphon bond knows four spells")
 	_check(main.ProfileScript.Bonds.step_note("windwalker", 2).begins_with("learns Crosswind"), "growing a step names the spell learned")
 	# Hold to choose: holding the key opens the wheel (the game slows); pointing picks.
+	var legs_essence: float = p.bonds["legs"].essence
+	var casts0: int = p.spells_cast
 	Input.action_press("cast_legs")
 	await _wait(0.4)
 	_check(p.pick_open and main.slowmo and absf(Engine.time_scale - load("res://scripts/wheel.gd").slow()) < 0.01, "holding a mark's key opens its spell wheel and slows the game (%.2f)" % Engine.time_scale)
@@ -267,7 +269,7 @@ func _gryphon_tests() -> void:
 	Input.action_release("cast_legs")
 	await _frames(3)
 	_check(p.bonds["legs"].selected == 1 and p.bonds["legs"].spell_name() == "Crosswind", "pointing right picks Crosswind: %s" % p.bonds["legs"].spell_name())
-	_check(not main.slowmo and Engine.time_scale == 1.0 and p.bonds["legs"].essence >= 999.0 and p.buffered != "cast_legs", "letting go closes the wheel, casts nothing, and time runs again")
+	_check(not main.slowmo and Engine.time_scale == 1.0 and is_equal_approx(p.bonds["legs"].essence, legs_essence) and p.spells_cast == casts0 and p.cast_t <= 0.0 and p.buffered != "cast_legs", "letting go closes the wheel, casts nothing, and time runs again (essence %.0f, was %.0f)" % [p.bonds["legs"].essence, legs_essence])
 	main.set_slowmo(false)
 	Engine.time_scale = 1.0
 	await _settle()
