@@ -88,7 +88,7 @@ const STEPS := [
 	{"id": "right", "kind": "dpad", "say": "Press right on the d-pad", "name": "D-pad right", "hint": "The next weapon."},
 	{"id": "start", "kind": "button", "for": "the pause menu", "name": "Menu (Start)", "hint": "Start, Menu or Options: the small button on the right."},
 	{"id": "back", "kind": "button", "for": "the climber screen", "name": "Climber (View)", "hint": "View or Share: the small button on the left. Holding it restarts a climb."},
-	{"id": "rs", "kind": "button", "say": "Click the aiming stick in", "name": "Dismiss tip (RS)", "hint": "RS / R3: dismisses the Entity's tips."},
+	{"id": "rs", "kind": "button", "say": "Click the aiming stick in", "name": "Dismiss tip (RS)", "hint": "RS / R3: dismisses the Entity's tips, and opens its log."},
 ]
 
 ## How far an axis must move from where it rests to count, and how close it

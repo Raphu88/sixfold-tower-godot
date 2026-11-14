@@ -808,16 +808,16 @@ func _showing(id: String) -> bool:
 			return p != null and not p.bonds.is_empty()
 		"hud.essence":
 			return main.hud != null and main.hud.essence_t > 0.0
-		"hud.banner":
+		"hud.lane":  # (the top-middle lane's banner: notices.gd)
 			return not main.banner.is_empty()
-		"hud.beast":
-			return main.hud != null and main.hud._boss_alive()
-		"hud.plates":
-			return main.wings != null and (main.wings.challenge_live() or (main.door_view != null and not main.door_view.lock_status().is_empty()))
+		"hud.status":  # (the status lines under it: hud.gd status_chips)
+			return main.hud != null and not main.hud.status_chips().is_empty()
+		"hud.feed":  # (the left feed: pickups and news)
+			return not main.notices.feed_lines.is_empty()
 		"hud.stair":
 			return main.stair_open
-		"hud.entity":
-			return main.entity != null and main.entity.showing()
+		"hud.entity":  # (its sphere lingers while you play)
+			return main.entity != null and (main.entity.showing() or main.entity.orb_on())
 	if id.begins_with("touch.") and id != "touch.stick" and main.touch != null:
 		main.touch._layout()
 		for b in main.touch.buttons:

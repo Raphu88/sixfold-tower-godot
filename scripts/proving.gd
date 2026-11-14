@@ -332,7 +332,8 @@ func arrival_banner(lines: Array) -> Dictionary:
 		said.append(TEXT["harder"])
 	if lethal_open():
 		main.tip("proving_lethal")
-	return {"title": String(Towers.PROVING["name"]).to_upper(), "lines": said + lines, "t": 4.5}
+	# (words to read, on a plate; the stair's own lines go to the left feed)
+	return {"title": String(Towers.PROVING["name"]).to_upper(), "lines": said + lines, "t": 4.5, "long": true, "show": said.size()}
 
 
 ## Wins in this tower, and what they make of this climb's Proving.
@@ -386,6 +387,7 @@ func _say(b: Dictionary, key: String) -> void:
 	if main.banner.get("door", "") == key:
 		return
 	b["door"] = key
+	b["pri"] = 2  # (a door answering a push: said at once)
 	main.banner = b
 	main.sfx("hit_armor", 0.55, -6.0, 0.0)
 
@@ -594,7 +596,7 @@ func on_enemy_killed(e) -> void:
 		main.profile.add_crystal(kind, amount)
 		main.profile.save()
 		var name: String = Items.CRYSTAL["name"] % Essence.display(kind)
-		main.fx_text(e.global_position + Vector2(0, -50), TEXT["crystal"] % name, Essence.color(kind))
+		main.note_event("crystal", TEXT["crystal"] % name, Essence.color(kind))
 	if e == shadow:
 		_win()
 

@@ -304,6 +304,10 @@ static func _fire(main, foe, id: String) -> void:
 	if now - int(foe.reacted.get("shown:" + id, -999999)) > 700:
 		foe.reacted["shown:" + id] = now
 		word(main, at + Vector2(0, -float(foe.radius) - 30.0), String(r["name"]), col)
+		if main.has_method("note_event"):
+			# (the Entity's log: the first of each reaction on a floor)
+			main.note_event("reaction", String(main.notices.TEXT["reaction"]) % String(r["name"]), col, false, "reaction:" + id)
+			main.remark("reaction:" + id)
 		main.sfx(String(r["sound"]), float(r.get("pitch", 1.0)), -2.0)
 		main.light_flash(at, col, 1.2, 1.4, 0.3)
 	FIRED[id] = int(FIRED.get(id, 0)) + 1

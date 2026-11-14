@@ -123,7 +123,7 @@ func _take_chest(c: Dictionary) -> void:
 	var kind: String = main.tower_data().get("essence", "air")
 	var amount: float = (float(RULES["chest_base"]) + float(RULES["chest_per_floor"]) * main.floor_num) * (float(RULES["chest_rich"]) if c["rich"] else 1.0)
 	main.gather_essence(kind, amount, c["pos"])
-	main.fx_text(c["pos"] + Vector2(0, -34), TEXT["chest"] % int(amount), Essence.color(kind))
+	main.notices.feed(TEXT["chest"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
 	if randf() < float(RULES["item_chance"]):
 		main.item_drops.append({"pos": c["pos"] + Vector2(18, 10), "id": Items.random_item(not main.player.bonds.is_empty()), "t": 1e9})
 	if randf() < float(RULES["gear_rich"] if c["rich"] else RULES["gear_chance"]):

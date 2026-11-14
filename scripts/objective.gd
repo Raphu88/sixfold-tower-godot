@@ -341,7 +341,7 @@ func _tick(delta: float, p, hurt: bool) -> void:
 			if not tablet["read"] and pos.distance_to(tablet["pos"]) < 34.0 + p.radius:
 				tablet["read"] = true
 				var names: Array = spec["order"].map(func(i): return pieces[i]["glyph"])
-				main.banner = {"title": String(k["tablet"]).to_upper(), "lines": [Objectives.TEXT["read"] % ", ".join(names)], "t": 3.5, "inscribed": true}
+				main.banner = {"title": String(k["tablet"]).to_upper(), "lines": [Objectives.TEXT["read"] % ", ".join(names)], "t": 6.0, "inscribed": true, "note": true}
 				main.sfx("glint", 1.1, -4.0)
 			for i in pieces.size():
 				var pc: Dictionary = pieces[i]

@@ -8,6 +8,7 @@ const EnemyScript := preload("res://scripts/enemy.gd")
 const ProjectileScript := preload("res://scripts/projectile.gd")
 const FxScript := preload("res://scripts/fx.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const NoticesScript := preload("res://scripts/notices.gd")
 const AudioScript := preload("res://scripts/audio.gd")
 const RoomScript := preload("res://scripts/room.gd")
 const Palette := preload("res://scripts/palette.gd")
@@ -145,7 +146,17 @@ var stair_open := false
 var stair_pos := Vector2.ZERO
 var climbing := false
 var fade := 0.0  # black screen between floors, 0..1
-var banner := {}  # {title, lines, t}: shown when a floor starts
+## The latest announcement: {title, lines, t} (and more: notices.gd). Setting
+## it hands it to the top-middle lane (notices.gd), where banners take turns;
+## {} clears the lane. It reads as the last one set until the lane is empty.
+var banner := {}:
+	set(v):
+		banner = v
+		if notices != null:
+			notices.announce(v)
+## What the game tells you in play: the top-middle lane, the left feed and
+## the Entity's log (notices.gd; hud.gd and guide.gd draw them).
+var notices := NoticesScript.new()
 var room_view
 var player_start := Vector2.ZERO
 
@@ -209,7 +220,13 @@ var flasks: Array = []  # Fire Flasks in the air: {from, to, t, total, dmg, r}
 var flare_t := 0.0  # Flare Powder: the room is lit and hidden things nearby glint
 var flare_pos := Vector2.ZERO
 var flare_light := -1
-var loot_notice := {}  # a Rare (or better) find, fading in on the HUD: {text, color, t}
+## A Rare (or better) find: {text, color, t}. It shows as a line in the left
+## feed and is kept in the Entity's log (notices.gd).
+var loot_notice := {}:
+	set(v):
+		loot_notice = v
+		if not v.is_empty():
+			note_event("gear", String(v.get("text", "")), v.get("color"))
 var belt_broken := false  # this climb's belt has broken into crystals
 # The outfitter's pay for a climb (train.gd CLIMB_PAY), once, however it ends.
 var climb_best0 := 0  # this tower's best floor before the climb (set as it starts)
@@ -304,6 +321,7 @@ func _ready() -> void:
 	# Run after the bodies have moved, so the shove-apart pass sees this frame.
 	process_physics_priority = 10
 	randomize()
+	notices.main = self
 	Engine.time_scale = 1.0  # in case we restarted mid hit-pause
 	Controls.setup()
 	RoomStore.startup()  # (the room painter's rooms: room_store.gd, before any floor is planned)
@@ -798,7 +816,7 @@ func _process(delta: float) -> void:
 			return
 		new_climber_t = 3.0
 		var CT: Dictionary = ClimbersPage.TEXT
-		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), CT["over_lost"]], "t": 3.0}
+		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), CT["over_lost"]], "t": 3.0, "pri": 2}
 		sfx("warn_knight", 1.2, -6.0, 0.0)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
@@ -826,10 +844,9 @@ func _process(delta: float) -> void:
 	if not lost_cache.is_empty() and not lost_cache["taken"] and not climbing and not player.dead \
 			and player.global_position.distance_to(lost_cache["pos"]) < Lost.REACH + player.radius:
 		_open_lost_cache()
-	if not banner.is_empty():
-		banner["t"] -= delta
-		if banner["t"] <= 0.0:
-			banner = {}
+	notices.tick(delta)
+	if not banner.is_empty() and not notices.busy():
+		banner = {}
 	if layout_on and not climbing:
 		_check_rooms()
 		_update_springs(delta)
@@ -978,6 +995,7 @@ func _separate_bodies() -> void:
 
 func _start_floor(n: int) -> void:
 	floor_num = n
+	notices.new_floor()
 	cleared = false
 	stair_open = false
 	room_view.stair_open = false
@@ -1255,6 +1273,8 @@ func _room_banner(i: int) -> void:
 	var th: Dictionary = Themes.get_theme(room_themes[i])
 	tip("rooms")
 	banner = {"title": String(th["name"]).to_upper(), "lines": [th["sub"]], "t": 2.8, "room": true, "inscribed": true}
+	note_event("room", String(notices.TEXT["room"]) % th["name"])
+	remark("theme:" + String(room_themes[i]))
 	sfx("glint", 0.6 if th["kind"] == "bad" else 1.1, -12.0, 0.0)
 
 
@@ -1311,10 +1331,10 @@ func _open_cache() -> void:
 	var amount: float = cache["amount"]
 	gather_essence(cache["kind"], amount, pos)
 	var col: Color = Essence.color(cache["kind"])
-	fx_text(pos + Vector2(0, -36), "%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col)
+	notices.feed("%s: +%d essence" % [Floors.CACHE["name"], int(amount)], col, "essence")  # (the log has it with the essence)
 	if cache.has("gear"):
 		drop_gear(pos, cache["gear"], true)
-		fx_text(pos + Vector2(0, -54), Gear.TEXT["cache"] % Gear.display(cache["gear"]), Gear.color(cache["gear"]))
+		notices.feed(Gear.TEXT["cache"] % Gear.display(cache["gear"]), Gear.color(cache["gear"]), "gear")
 	fx_ring(pos, col, 70.0, 0.5, 4.0)
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
@@ -1357,9 +1377,9 @@ func _open_lost_cache() -> void:
 	Lost.forget(profile, lost_cache["entries"])
 	profile.save()
 	tip("lost_cache")
-	fx_text(pos + Vector2(0, -40), Lost.TEXT["found"] % ", ".join(names), Lost.LIGHT_COLOR)
+	note_event("gear", Lost.TEXT["found"] % ", ".join(names), Lost.LIGHT_COLOR)
 	if not left.is_empty():
-		fx_text(pos + Vector2(0, -58), Lost.TEXT["at_feet"] % ", ".join(left), Color(0.85, 0.82, 0.9))
+		notices.feed(Lost.TEXT["at_feet"] % ", ".join(left), Color(0.85, 0.82, 0.9), "gear")
 	fx_ring(pos, Lost.LIGHT_COLOR, 60.0, 0.5, 3.0)
 	light_flash(pos, Lost.LIGHT_COLOR, 1.4, 1.2, 0.4)
 	sfx("heirloom", 0.9, -4.0, 0.0)
@@ -1394,6 +1414,7 @@ func _land_below(to: int) -> void:
 		to = floor_num  # (trying a room: back into it)
 	_start_floor(to)
 	banner = {"title": FALL_TEXT["title"], "lines": [FALL_TEXT["line"] % to], "t": 3.0}
+	note_event("fall", String(notices.TEXT["fall"]) % to)
 	player.set_physics_process(true)
 	sfx("hurt", 0.7, -6.0, 0.0)
 
@@ -1444,6 +1465,8 @@ func lift_ward() -> void:
 		MakersScript.feed(self, "objective")
 	tip("stair")
 	banner = {"title": Objectives.TEXT["done_title"], "lines": [Objectives.TEXT["done"]], "t": 2.8}
+	if not was_puzzle:  # (a puzzle says so itself: puzzle.gd solve)
+		note_event("task_done", String(notices.TEXT["task_done"]) % String(objective.spec.get("name", "")))
 	if objective != null and objective.kind != "":
 		objective.done = true
 		objective.reward()
@@ -1492,6 +1515,7 @@ func _arrive() -> void:
 		burned = burned or b.burned
 		b.burned = false
 	player.poison_t = 0.0  # the rest at the stair cures poison too
+	var kinds := {}  # each line's kind of event (notices.gd KINDS)
 	lines.append_array(proving.on_stair())  # (the Proving's wound heals a stair at a time)
 	var healed := minf(player.max_health() - player.hp, player.max_hp * (0.45 if player.has_bond("surgeon") else 0.35))  # Steady Hands
 	player.hp += healed
@@ -1516,13 +1540,26 @@ func _arrive() -> void:
 		if condensed >= 1.0:
 			said += "  ·  " + Train.TEXT["condensed"] % int(condensed)
 		lines.append(said)
+		kinds[said] = "banked"
 		profile.note("essence", banked)
 		tip("bank")
-	lines.append_array(SecretBonds.on_bank(profile, keep, run_flow, profile.path))  # (a secret bond grows from what's banked)
-	lines.append_array(profile.bank(keep, run_soak))
+	for l in lines:
+		if not kinds.has(l):
+			kinds[l] = "rest"
+	var grew: Array = SecretBonds.on_bank(profile, keep, run_flow, profile.path)  # (a secret bond grows from what's banked)
+	grew.append_array(profile.bank(keep, run_soak))
+	for l in grew:
+		kinds[l] = "mark"
+	lines.append_array(grew)
 	run_essence = {}
 	run_soak = {}
-	lines.append_array(_bank_flow())
+	for l in _bank_flow():
+		kinds[l] = "banked"
+		lines.append(l)
+	# Kept in the Entity's log now, whatever the stair leads to; the feed
+	# shows them as the next floor's banner comes up.
+	for l in lines:
+		note_event(String(kinds[l]), String(l), null, false)
 	# (New marks come only at a summit now: summit_mark below.)
 	_give_bonds()
 	profile.save()
@@ -1567,23 +1604,36 @@ func _arrive() -> void:
 		best_floor = floor_num
 		profile.best_floor = best_floor
 		profile.save()
+	# The lane's banner says where you are and the floor's task; the stair's
+	# own lines (rested, banked, a mark's step) go to the left feed.
 	if banner.get("title", "").ends_with("AWAITS"):
+		banner["line"] = String(banner["lines"][0]) if not banner["lines"].is_empty() else ""
 		banner["lines"] = lines + banner["lines"]
 	elif proving.on:
 		banner = proving.arrival_banner(lines)  # halfway up: the Proving
 		GuideScript.moment("proving", "proving")
 	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb:
 		# (the Proving switched off, as in most tests: a floor with its banner)
-		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5}
+		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5, "show": 2}
 		GuideScript.moment("proving", "proving")
 	else:
-		banner = {"title": _floor_title(), "lines": lines, "t": 3.0}
+		banner = {"title": _floor_title(), "lines": lines, "t": 3.0, "line": hud.floor_sub() if hud != null else ""}
+	banner["kinds"] = kinds
+	banner["logged"] = true
+	note_event("floor", String(notices.TEXT["floor"]) % UI.title_case(_floor_title()))
 	if ward and not proving.on:
 		# The floor's one task, announced: its name and how.
 		var said: Array = objective.banner_lines() if objective != null and objective.kind != "" else [PuzzleScript.TEXT["warded"]]
 		banner["lines"] = banner.get("lines", []) + said
+		banner["line"] = Objectives.TEXT["announce"] % said if said.size() == 2 else String(said[0])
+		banner["shown"] = said  # (said by that one line: not repeated in the feed)
+		banner["long"] = true
 		banner["t"] = maxf(float(banner.get("t", 0.0)), 4.5)
 		tip("ward")
+		if objective != null and objective.kind != "":
+			note_event("task", String(notices.TEXT["task"]) % String(said[0]))
+			remark("task:" + String(objective.kind))
+	remark_arrival()
 	if layout_on:
 		tip("fog")
 	player.set_physics_process(true)
@@ -1702,7 +1752,7 @@ func _restart_held(delta: float) -> bool:
 	# (Only once it's clearly held: a short press of View opens the climber screen.)
 	if restart_t >= RESTART_ASK:
 		var key := "Keep holding %s" % (Controls.pad_name("back", pad_ps) if pad_active else "R")
-		banner = {"title": "RESTART?", "lines": ["%s to start this climb again." % key], "t": 0.6}
+		banner = {"title": "RESTART?", "lines": ["%s to start this climb again." % key], "t": 0.6, "pri": 2}
 	return false
 
 
@@ -1857,8 +1907,10 @@ func choose_camp(i: int) -> void:
 		taken.append(_take_item(pick.substr(6), "Crafted"))
 	camp_choosing = false
 	player.set_physics_process(true)
+	for l in taken:
+		note_event("camp", String(notices.TEXT["camp"]) % String(l), null, false)
 	taken.append(Items.CAMP["leave"])
-	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0}
+	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0, "logged": true}
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
@@ -1899,7 +1951,7 @@ func _take_vault_pick(pick: String) -> void:
 	player.set_physics_process(true)
 	if wings != null:
 		wings.unfreeze()
-	fx_text(player.global_position + Vector2(0, -44), said, col)
+	note_event("crystal" if pick.begins_with("crystal:") else ("item" if not pick.begins_with("gear:") and not pick.begins_with("trade:") else "gear"), said, col)
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
@@ -1933,7 +1985,7 @@ func recall_pressed() -> bool:
 		read_recall()
 		return true
 	recall_ask_t = float(Items.RECALL["confirm"])
-	banner = {"title": Items.RECALL["ask_title"], "lines": [Items.RECALL["ask"]], "t": float(Items.RECALL["confirm"])}
+	banner = {"title": Items.RECALL["ask_title"], "lines": [Items.RECALL["ask"]], "t": float(Items.RECALL["confirm"]), "pri": 2, "hold": true}
 	sfx("warn_knight", 1.3, -8.0, 0.0)
 	return false
 
@@ -2029,7 +2081,7 @@ func pack_gear_here() -> bool:
 	gear_drops.erase(d)
 	gear_here = {}
 	player.pack.append(d["rec"])
-	fx_text(player.global_position + Vector2(0, -44), Gear.TEXT["packed"] % Gear.display(d["rec"]), Gear.color(d["rec"]))
+	note_event("gear", Gear.TEXT["packed"] % Gear.display(d["rec"]), Gear.color(d["rec"]))
 	sfx("pickup", 1.1, -6.0)
 	return true
 
@@ -2064,6 +2116,9 @@ func _note_climb_start() -> void:
 	climb_paid = false
 	pay_line = ""
 	noticed = []
+	notices.new_climb()  # (the feed and the Entity's log start empty)
+	if entity != null:
+		entity.new_climb()
 
 
 ## The end of a climb, however it ends (a fall, the summit, a recall scroll,
@@ -2225,7 +2280,7 @@ func _update_gear_drops() -> void:
 		gear_drops.erase(gear_here)
 		gear_here = {}
 		player.take_gear(g)
-		fx_text(player.global_position + Vector2(0, -44), "+ " + Gear.display(g), Gear.color(g))
+		note_event("gear", "+ " + Gear.display(g), Gear.color(g))
 
 
 ## Y or the Take button: swap what you carry for the gear you stand on (your
@@ -2237,7 +2292,7 @@ func take_gear_here(into := "") -> bool:
 	gear_drops.erase(d)
 	gear_here = {}
 	var msg := _take_gear(d["rec"], into)
-	fx_text(player.global_position + Vector2(0, -44), msg, Gear.color(d["rec"]))
+	note_event("gear", msg, Gear.color(d["rec"]))
 	return true
 
 
@@ -2279,14 +2334,15 @@ func _update_item_drops(delta: float) -> void:
 			return
 		if player.add_item(d["id"]):
 			d["t"] = 0.0
-			fx_text(player.global_position + Vector2(0, -44), "+ " + name, Items.color(d["id"]))
+			note_event("item", "+ " + name, Items.color(d["id"]))
 			sfx("pickup")
 			tip("items")
 			tip("inventory")
 			_note_belt()
 		elif not d.get("told", false):
 			d["told"] = true
-			fx_text(player.global_position + Vector2(0, -44), "No room for another " + name, Color(0.8, 0.78, 0.85))
+			notices.feed("No room for another " + name, Color(0.8, 0.78, 0.85), "item")
+			remark("belt_full")
 	item_drops = item_drops.filter(func(d): return d["t"] > 0.0)
 
 
@@ -2336,7 +2392,10 @@ func _take_belt_pick(pick: String) -> void:
 	player.set_physics_process(true)
 	if wings != null:
 		wings.unfreeze()
-	fx_text(player.global_position + Vector2(0, -44), said, col)
+	if out == "" or d.is_empty():
+		notices.feed(said, col, "item")
+	else:
+		note_event("item", said, col)
 
 
 ## The end of a survived climb (or a recall scroll): unused belt items
@@ -2528,9 +2587,9 @@ func _greet() -> void:
 	if not first_climb:
 		tip("climber")
 	if first_climb:
-		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0}
+		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0, "long": true}
 	else:
-		banner = {"title": tower_data()["name"].to_upper(), "lines": [], "t": 2.5}
+		banner = {"title": tower_data()["name"].to_upper(), "lines": ["%s  ·  best %d" % [UI.title_case(_floor_title()), best_floor]], "t": 2.5}
 
 
 ## Each tower's stone, light and torches.
@@ -2705,6 +2764,7 @@ func predicted_bond() -> String:
 func gather_essence(kind: String, amount: float, from: Vector2) -> void:
 	run_essence[kind] = float(run_essence.get(kind, 0.0)) + amount
 	climb_essence[kind] = float(climb_essence.get(kind, 0.0)) + amount
+	notices.note_essence(kind, amount)
 	tip("essence")
 	if fx != null:
 		fx.motes(from, Essence.color(kind), int(ceil(amount)), player)
@@ -3129,6 +3189,7 @@ func rise_secret(kind: String, amount: float, from: Vector2) -> void:
 		if fx != null:
 			fx.secret_motes(from, Secret.color(kind), int(ceil(amount)), player, false)
 		fx_text(from + Vector2(0, -64), Secret.TEXT["gather"] % [int(round(amount)), Secret.display(kind)], Secret.KINDS[kind]["light"])
+		notices.note_essence(kind, amount, Secret.display(kind), Secret.KINDS[kind]["light"])
 		light_flash(from, Secret.color(kind), 1.6, 1.6, 0.6)
 		sfx("secret_life" if kind == "life" else "secret_unmaking", 1.0, -2.0, 0.0)
 	else:
@@ -4069,6 +4130,27 @@ func fx_ghost(pos: Vector2, radius: float, color: Color) -> void:
 func fx_text(pos: Vector2, s: String, color: Color) -> void:
 	if fx != null:
 		fx.text(pos, s, color)
+
+
+## The Entity may have a word about this (guide.gd remark: a tidbit about
+## the tower, a room, a creature, a task...; entity_notes.gd TIDBITS).
+func remark(key: String) -> void:
+	if entity != null:
+		entity.remark(key)
+
+
+## A new floor: the Entity's word about the tower or what's on this floor.
+func remark_arrival() -> void:
+	if entity != null:
+		entity.remark_arrival()
+
+
+## Something happened worth a line: `kind` is one of notices.gd KINDS (an
+## item, gear, a room, a task, a pact...). It shows in the left feed if its
+## kind does (or `to_feed` says so) and is kept in the Entity's log. Never
+## damage. `once`: a key noted only once a floor.
+func note_event(kind: String, text: String, color = null, to_feed = null, once := "") -> void:
+	notices.note(kind, text, color, to_feed, once)
 
 
 func fx_bolt(points: Array, color: Color) -> void:

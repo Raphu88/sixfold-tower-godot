@@ -116,7 +116,11 @@ static func announce(main) -> Array:
 	var at: Vector2 = main.player.global_position
 	for i in fresh.size():
 		var id: String = fresh[i]
-		Reactions.word(main, at + Vector2(0, -70.0 - 26.0 * i), TEXT["formed"] % PACTS[id]["name"], PACTS[id]["color"])
+		if main.has_method("note_event"):  # (the left feed and the Entity's log)
+			main.note_event("pact", TEXT["formed"] % PACTS[id]["name"], PACTS[id]["color"])
+			main.remark("pact")
+		else:
+			Reactions.word(main, at + Vector2(0, -70.0 - 26.0 * i), TEXT["formed"] % PACTS[id]["name"], PACTS[id]["color"])
 		main.fx_ring(at, PACTS[id]["color"], 60.0, 0.5, 3.0)
 	main.sfx("heirloom", 1.0, -6.0)
 	main.tip("pacts")

@@ -372,9 +372,21 @@ static func hud_problems(main, where: String) -> Array:
 	var hs: float = hud.hud_scale
 	var screen := Rect2(Vector2.ZERO, view).grow(0.5)
 	var boxes := {}
-	for id in ["hud.bars", "hud.gem", "hud.weapon", "hud.item", "hud.marks", "hud.essence", "hud.floor"]:
+	for id in ["hud.bars", "hud.gem", "hud.weapon", "hud.item", "hud.marks", "hud.essence"]:
 		var b: Rect2 = L.box(id, view / hs)
 		boxes[id] = Rect2(b.position * hs, b.size * hs)
+	# What the game tells you in play (notices.gd, guide.gd), where it sits on
+	# this screen: the top-middle lane (it fits itself between the corner and
+	# the top-right buttons; on the tightest screens it goes under the corner,
+	# and the feed then follows it), the left feed and the Entity's sphere.
+	boxes["the top lane"] = hud.lane_box()
+	boxes["the status lines"] = hud.chips_box()
+	if not main.notices.left_mode:
+		boxes["the feed"] = hud.feed_box()
+	if main.entity != null:
+		var c: Vector2 = main.entity.orb_spot()
+		boxes["the Entity's sphere"] = Rect2(c - Vector2.ONE * main.entity.ORB_R, Vector2.ONE * main.entity.ORB_R * 2.0)
+	for id in boxes:
 		if not screen.encloses(boxes[id]):
 			out.append("%s: hud: %s is partly off the screen (%s on %.0fx%.0f)" % [where, id, _r(boxes[id]), view.x, view.y])
 	var ids: Array = boxes.keys()

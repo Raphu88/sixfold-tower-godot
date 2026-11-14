@@ -402,7 +402,7 @@ func finish(res: Dictionary) -> void:
 		title = (Stations.TEXT["result_win"] if won else Stations.TEXT["result_loss"]) % String(ev.get("name", ""))
 		line = "" if won else String(result.get("why", ""))
 		main.sfx("clear" if won else "ui_back", 1.0, -2.0, 0.0)
-	main.banner = {"title": title.to_upper(), "lines": [line] if line != "" else [], "t": RESULT_WAIT + 0.5}
+	main.banner = {"title": title.to_upper(), "lines": [line] if line != "" else [], "t": RESULT_WAIT + 0.5, "hold": true, "pri": 2}
 
 
 ## Gives up (the pause menu): lost, back to the station at once.
@@ -546,17 +546,8 @@ class ArenaLine extends Control:
 	func _draw() -> void:
 		if arena == null or not arena.on or arena.main == null:
 			return
-		var text: String = arena.hud_text()
-		var font := UI.font("body")
-		var fs := 15
-		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 36.0
-		w = minf(w, size.x - 24.0)
-		var y := 84.0 if arena.main.touch_active else 80.0
-		var r := Rect2(Vector2((size.x - w) * 0.5, y - 14.0), Vector2(w, 24.0))
-		var b := UI.Draw.Batch.new()
-		UI.cartouche_into(b, r, Color(UI.GILT, 0.75), 0.92)
-		b.flush(self)
-		draw_string(font, Vector2(r.position.x, y + 3.0), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, UI.GOLD)
+		# (Its line, what you're doing and how it's going, is a status chip in
+		# the HUD's top lane: hud.gd status_chips.)
 		# A run's next post, off the screen: an arrow at the edge toward it.
 		if arena.post < arena.posts.size():
 			var sp: Vector2 = arena.get_global_transform_with_canvas() * arena.posts[arena.post]

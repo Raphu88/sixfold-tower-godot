@@ -1988,6 +1988,8 @@ func wake() -> void:
 	if aware:
 		return
 	aware = true
+	if main != null and main.has_method("remark"):
+		main.remark("creature:" + kind)  # (the Entity's word on it, once a climb)
 	for e in main.enemies():
 		if not e.aware and e.global_position.distance_to(global_position) < 240.0:
 			e.wake()
