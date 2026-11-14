@@ -289,14 +289,19 @@ static func extras(profile) -> Array:
 	return out
 
 
-## The rail's pages: how many, and how many spaces on each (a long rail is
-## split evenly, ten or fewer to a page).
-static func pages(total: int) -> int:
-	return maxi(1, int(ceil(float(total) / 10.0)))
+## A long list is shown in pages: how many, and how many to a page (split
+## evenly, `limit` or fewer to a page). The rail's limit is 10, the shelf's
+## SHELF_PAGE.
+static func pages(total: int, limit := 10) -> int:
+	return maxi(1, int(ceil(float(total) / float(maxi(limit, 1)))))
 
 
-static func page_size(total: int) -> int:
-	return int(ceil(float(total) / float(pages(total))))
+static func page_size(total: int, limit := 10) -> int:
+	return int(ceil(float(total) / float(pages(total, limit))))
+
+
+## How many supplies show on a shelf page.
+const SHELF_PAGE := 12
 
 
 # --- the shelf -----------------------------------------------------------------------------

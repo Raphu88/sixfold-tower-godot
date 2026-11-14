@@ -702,6 +702,7 @@ class Sweep:
 				menu.train_car = "store"
 				menu.train_store = "shop"
 				menu.train_page.rack_page = pg
+				menu.train_page.shelf_page = 0 if pg == 0 else 2
 				menu.train_sel["store"] = "outfit:%d" % (0 if pg == 0 else 12)
 				menu.inv_sel = menu.train_sel["store"]
 				menu.open("train")
@@ -710,6 +711,7 @@ class Sweep:
 				await settle()
 				await look(nm, [menu.train_view.rooms["store"], menu.train_view.chrome, menu.rail])
 			menu.train_page.rack_page = 0
+			menu.train_page.shelf_page = 0
 			Renown.state(prof)["points"] = points
 			Renown.state(prof)["worn"] = worn
 			Renown.state(prof)["titles"] = titles

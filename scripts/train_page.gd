@@ -883,6 +883,8 @@ func _store(root: Node) -> void:
 	var oc := VBoxContainer.new()
 	oc.add_theme_constant_override("separation", 4)
 	oc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if not selling and Train.shelf(prof).size() > Shop.SHELF_PAGE + 2 and small:
+		oc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN  # (a tall store on a phone: his signs stay at the top, where the Sell sign is always in reach)
 	oc.custom_minimum_size.x = 150.0 if small else 200.0
 	oc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(oc)
@@ -944,8 +946,20 @@ func _store(root: Node) -> void:
 	else:
 		var shelf := _furnish(goods, "shelf")
 		_tag(shelf, T["shelves"])
+		var shelf_keys: Array = Train.shelf(prof)
+		var shelf_pages := Shop.pages(shelf_keys.size(), Shop.SHELF_PAGE)
+		var shelf_per := Shop.page_size(shelf_keys.size(), Shop.SHELF_PAGE)
+		shelf_page = clampi(shelf_page, 0, shelf_pages - 1)
+		if shelf_pages > 1:
+			var sch: Array = []
+			for pg in shelf_pages:
+				sch.append([str(pg), Shop.TEXT["page"] % [pg + 1, shelf_pages]])
+			_store_cycler(shelf, "shelf", sch, str(shelf_page), "%s")
 		var sg := _grid(shelf, 6)
-		for key in Train.shelf(prof):
+		for si in shelf_keys.size():
+			if shelf_pages > 1 and si / shelf_per != shelf_page:
+				continue
+			var key = shelf_keys[si]
 			var id := Shop.key_id(String(key))
 			var size := Shop.key_size(String(key))
 			var price := Train.supply_price(prof, id, size)
@@ -1035,6 +1049,7 @@ func _set_store(id: String) -> void:
 ## (where from, which slot, the order). Kept while the game runs.
 var rack_filter := "all"
 var rack_page := 0
+var shelf_page := 0
 var sell_from := "all"
 var sell_slot := "all"
 var sell_sort := "newest"
@@ -1061,6 +1076,8 @@ func _set_store_filter(value: String, which: String) -> void:
 			rack_filter = value
 		"page":
 			rack_page = int(value)
+		"shelf":
+			shelf_page = int(value)
 		"from":
 			sell_from = value
 		"slot":

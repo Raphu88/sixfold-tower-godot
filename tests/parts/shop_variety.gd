@@ -42,6 +42,7 @@ func run(smoke) -> void:
 	for e in main.enemies():
 		e.queue_free()
 	await _store_ui(main)
+	await _phone_sell(main)
 	await _station(main)
 	await _camp(main)
 	await _taps(main)
@@ -309,9 +310,17 @@ func _store_ui(main) -> void:
 	var sell: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_tab", "") == "sell")
 	var view: Rect2 = menu.get_viewport_rect()
 	t._check(sell.size() == 1 and sell[0].is_visible_in_tree() and view.encloses(sell[0].get_global_rect()), "the Sell sign is on the screen, whatever the rail holds (%s in %s)" % [sell[0].get_global_rect() if sell.size() == 1 else "", view])
+	var shelf_pages := Shop.pages(Train.shelf(prof).size(), Shop.SHELF_PAGE)
+	var shelf_btn: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_filter", "") == "shelf")
 	var slots: Array = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("supply:"))
+	t._check(shelf_pages >= 2 and shelf_btn.size() == 1 and slots.size() <= Shop.SHELF_PAGE and slots.size() >= 6, "the fuller shelf is in %d pages with a page button (%d on this one, of %d kinds)" % [shelf_pages, slots.size(), Train.shelf(prof).size()])
+	menu.train_page.shelf_page = shelf_pages - 1
+	menu.open("train")
+	await t._frames(3)
+	root = menu.train_page.roots["store"]
+	slots = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("supply:"))
 	var sized: Array = slots.filter(func(b): return String(b.get_meta("slot")).contains("@3"))
-	t._check(slots.size() >= 16 and not sized.is_empty(), "the shelf shows %d supplies at the top rank, Greater ones among them" % slots.size())
+	t._check(not sized.is_empty(), "Greater supplies are on the shelf at the top rank (last page)")
 	# A Greater supply can be bought, and goes up the tower at its size.
 	prof.add_crystal("stone", 800.0)
 	prof.add_crystal("water", 800.0)
@@ -332,6 +341,45 @@ func _store_ui(main) -> void:
 	t._check(int(prof.supplies.get(id, 0)) == 1 and Train.supply_sizes(prof, id) == [3], "a Greater %s is packed" % id)
 	Train.pack_up(prof, main.player)
 	t._check(main.player.item_count(id) >= 1 and main.player.item_sizes_of(id).has(3), "...and it goes on your belt as a Greater one")
+	main.open_train()
+	await t._frames(2)
+
+
+## On a phone, at the lowest and the highest rank, the Sell sign and the
+## Upgrades sign are in reach without scrolling (a past attempt pushed Sell off the screen).
+func _phone_sell(main) -> void:
+	var menu = main.menu
+	var prof = main.profile
+	var was: Vector2i = t.root.size
+	t.root.size = Vector2i(915, 412)
+	main.touch._set_active(true)
+	main.apply_view_scale()
+	for top in [false, true]:
+		Renown.state(prof)["points"] = Renown.needed(Renown.RANKS.size() - 1) if top else 0
+		prof.store = {}
+		Train.stock(prof)
+		menu.train_car = "store"
+		menu.train_store = "shop"
+		menu.train_page.shelf_page = 0
+		menu.train_page.rack_page = 0
+		menu.inv_sel = ""
+		menu.open("train")
+		await t._frames(4)
+		var pane = menu.train_page.car_scrolls.get("store")
+		if pane != null:
+			pane.scroll_vertical = 0
+			await t._frames(2)
+		var view: Rect2 = menu.get_viewport_rect()
+		var root = menu.train_page.roots["store"]
+		var sell: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_tab", "") == "sell")
+		var up: Array = t._all_buttons(root).filter(func(b): return b.get_meta("slot", "") == "upgrades")
+		var ok: bool = sell.size() == 1 and up.size() == 1 and view.encloses(sell[0].get_global_rect()) and view.encloses(up[0].get_global_rect())
+		t._check(ok, "on a phone at %s rank the Sell and Upgrades signs are on the screen (%s, %s in %s)" % ["the top" if top else "the first", sell[0].get_global_rect() if sell.size() == 1 else "", up[0].get_global_rect() if up.size() == 1 else "", view])
+	main.touch._set_active(false)
+	main.apply_view_scale()
+	t.root.size = was
+	menu.close()
+	await t._frames(2)
 	main.open_train()
 	await t._frames(2)
 

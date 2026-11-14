@@ -130,6 +130,7 @@ const NAMES := {
 	"train.engine.placard.row": "Its essence and your best",
 	"train.engine.placard.button": "The lever",
 	"train.store.shelf.title": "Shelf's sign",
+	"train.store.shelf.button": "Shelf page",
 	"train.store.shelf.grid": "Supplies",
 	"train.store.rail.title": "Rail's sign",
 	"train.store.rail.button": "What the rail shows",

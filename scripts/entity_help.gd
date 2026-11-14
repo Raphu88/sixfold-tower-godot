@@ -77,6 +77,7 @@ static var HELP := {
 	"store_filter:rack": "Filters the rack: everything, what beats yours, weapons, armour, cloaks and packs.",
 	"store_filter:from": "Where to sell from: pack and stash, only your pack, or only your stash.",
 	"store_filter:slot": "Shows only the pieces for one slot.",
+	"store_filter:shelf": "Turns the shelf's page: a fuller shelf, which comes with a higher rank, is shown in pages.",
 	"store_filter:page": "Turns the rail's page: a long rail, which comes with a higher rank, is shown in pages.",
 	"slot:upgrades": "The outfitter's upgrades: {count} of 5 so far. Renown unlocks the rest.",
 	"slot:supply": "{piece}, {price}: {desc}. It goes on your belt for your next climb.",

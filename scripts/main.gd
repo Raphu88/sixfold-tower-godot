@@ -2026,7 +2026,7 @@ func _open_pedlar() -> void:
 		choices.append("ware:%d" % k)
 	choices.append("back:")
 	camp = {"stage": "pedlar", "choices": choices, "lines": [String(market.get("said", "")), Shop.TEXT["camp_note"]], "market": market,
-		"title": "%s  ·  %s" % [String(Shop.MERCHANT["name"]), String(market.get("name", ""))], "back": back}
+		"title": "%s  ·  %s" % [String(Shop.MERCHANT["name"]).capitalize(), String(market.get("name", ""))], "back": back}
 	card_focus = 0
 	sfx("ready", 0.9, -4.0, 0.0)
 

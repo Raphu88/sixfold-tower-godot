@@ -32,7 +32,7 @@ func run(smoke) -> void:
 	t.root.size = Vector2i(915, 412)
 	main.touch._set_active(true)
 	main.apply_view_scale()
-	for which in ["shop", "sell", "top:0", "top:1"]:
+	for which in ["shop", "sell", "top:0:0", "top:1:0", "top:2:0", "top:0:1"]:
 		var store: String = which.get_slice(":", 0)
 		if store == "top":
 			# (the top rank: the longest rail in pages, the fullest shelf with Minor and Greater sizes, a title's line)
@@ -42,7 +42,8 @@ func run(smoke) -> void:
 				Renown.state(prof)["worn"] = "contender"
 				prof.store = {}
 				Train.stock(prof)
-			menu.train_page.rack_page = int(which.get_slice(":", 1))
+			menu.train_page.shelf_page = int(which.get_slice(":", 1))
+			menu.train_page.rack_page = int(which.get_slice(":", 2))
 			store = "shop"
 		menu.train_car = "store"
 		menu.train_store = store
@@ -78,7 +79,7 @@ func run(smoke) -> void:
 				missed.append(k)
 			if Time.get_ticks_msec() - t0 > 2000:
 				slow.append(k)
-		t._check(keys.size() > (14 if which == "shop" else (10 if which == "sell" else 24)) and missed.is_empty(), "a tap on every %s slot shows its card (%d slots; missed %s)" % [which, keys.size(), missed])
+		t._check(keys.size() > (14 if which == "shop" else (10 if which == "sell" else 17)) and missed.is_empty(), "a tap on every %s slot shows its card (%d slots; missed %s)" % [which, keys.size(), missed])
 		t._check(slow.is_empty(), "...each at once (%s)" % [slow])
 	main.touch._set_active(false)
 	main.apply_view_scale()
