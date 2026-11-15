@@ -150,6 +150,10 @@ var renown := {}
 ## the climber, like the record ({} for an old save, and after Start over).
 var bestiary := {}
 
+## Other climbers met in the towers (rivals.gd): id -> their record (name,
+## look, gear, marks, and your history with them). {} for an old save.
+var rivals := {}
+
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
 	"blade": {"name": "Strength", "bonus": "strike damage"},
@@ -253,6 +257,7 @@ func reset() -> void:
 	tree = {}
 	renown = {}
 	bestiary = {}
+	rivals = {}
 	save()
 
 
@@ -331,6 +336,8 @@ func load_save() -> void:
 	var rn = cfg.get_value("renown", "state", {})
 	renown = rn if rn is Dictionary else {}
 	bestiary = load("res://scripts/bestiary.gd").load_records(cfg.get_value("bestiary", "met", {}))
+	var rv = cfg.get_value("rivals", "met", {})
+	rivals = rv if rv is Dictionary else {}
 	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
 	if tr is Dictionary:
 		tree = tr
@@ -383,6 +390,7 @@ func save() -> void:
 	cfg.set_value("tree", "state", tree)
 	cfg.set_value("renown", "state", renown)
 	cfg.set_value("bestiary", "met", bestiary)
+	cfg.set_value("rivals", "met", rivals)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 

@@ -204,7 +204,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 		if info["role"] == "gallery" and info.get("puzzle", "") != "":
 			continue
 		var th: Dictionary = load("res://scripts/themes.gd").get_theme(String(info["theme"]))
-		if String(th["kind"]) in ["scenario", "good"] or String(th["feature"]) in ["mirror", "trap", "ambush", "rest", "trader", "vault"]:
+		if String(th["kind"]) in ["scenario", "good"] or String(th["feature"]) in ["mirror", "trap", "ambush", "rest", "trader", "rival", "vault"]:
 			continue
 		if mini(info["size"].x, info["size"].y) < 7:
 			continue

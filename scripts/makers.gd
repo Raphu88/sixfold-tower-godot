@@ -209,6 +209,7 @@ const WEIGHTS := {
 	"champion": {"creatures": 8.0},
 	"beast": {"creatures": 12.0, "marks": 3.0, "towers": 3.0},
 	"spared": {"creatures": 6.0},
+	"greed": {"towers": 4.0, "creatures": 3.0},  # (a wounded climber's hoard taken: rivals.gd)
 	"wound": {"marks": 2.0, "towers": 2.0, "creatures": 4.0},
 	"flow_life": {"creatures": 3.0, "marks": 1.0, "towers": 0.5},
 	"flow_unmaking": {"towers": 3.0, "marks": 1.0, "creatures": 0.5},

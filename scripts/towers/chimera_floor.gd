@@ -201,7 +201,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 				break
 			var info: Dictionary = infos[i]
 			var th: Dictionary = Themes.get_theme(String(info["theme"]))
-			if th["kind"] in ["scenario", "mirror"] or th["feature"] in ["puzzle", "trader"] or (info["role"] == "gallery" and info.get("puzzle", "") != ""):
+			if th["kind"] in ["scenario", "mirror"] or th["feature"] in ["puzzle", "trader", "rival"] or (info["role"] == "gallery" and info.get("puzzle", "") != ""):
 				continue
 			var opens: Array = Rooms.open_tiles(info["rows"], 1).filter(func(t): return not info["reserved"].has(t))
 			opens.shuffle()

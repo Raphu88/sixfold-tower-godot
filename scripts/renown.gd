@@ -49,6 +49,8 @@ static var CLIMB := {"floor": 1, "best": 2, "beast": 20}
 ##   unfallen    climbs in a row without falling, at least n
 ##   challenges  challenges won: n of them, or every one (n = 0)
 ##   mirror      your mirror image beaten in the arena, at least n times
+##   rivals      deeds with other climbers (rivals.gd), at least n: "of" says
+##               which ("duels_won", "teamed", "rescued", "traded"...)
 static var TITLES := {
 	"newcomer": {"name": "the Newcomer", "deed": "Stop at a station.", "rule": "visits", "n": 1},
 	"trainee": {"name": "the Trainee", "deed": "Clear a drill at the training gym.", "rule": "drills", "n": 1},
@@ -63,9 +65,12 @@ static var TITLES := {
 	"daring": {"name": "the Daring", "deed": "Win a challenge.", "rule": "challenges", "n": 1},
 	"unbowed": {"name": "the Unbowed", "deed": "Win every challenge.", "rule": "challenges", "n": 0},
 	"talked_of": {"name": "the Talked-of", "deed": "Reach the rank of Renowned.", "rule": "renown", "n": 320},
+	"duelist": {"name": "the Duelist", "deed": "Win 3 duels with other climbers.", "rule": "rivals", "of": "duels_won", "n": 3},
+	"shieldmate": {"name": "Shieldmate", "deed": "Team up with another climber.", "rule": "rivals", "of": "teamed", "n": 1},
+	"helping_hand": {"name": "the Helping Hand", "deed": "Help a wounded climber back to their feet.", "rule": "rivals", "of": "rescued", "n": 1},
 }
 ## The order titles are listed in on the board.
-static var TITLE_ORDER := ["newcomer", "trainee", "beastfeller", "stairworn", "surefoot", "goldhand", "contender", "ironclad", "champion", "glassbreaker", "daring", "unbowed", "talked_of"]
+static var TITLE_ORDER := ["newcomer", "trainee", "beastfeller", "stairworn", "surefoot", "goldhand", "contender", "ironclad", "champion", "glassbreaker", "daring", "unbowed", "talked_of", "duelist", "shieldmate", "helping_hand"]
 
 ## How many recent deeds the board remembers.
 const DEEDS_KEPT := 10
@@ -268,6 +273,8 @@ static func deed_done(profile, t: Dictionary) -> bool:
 			return every > 0 and won >= every
 		"mirror":
 			return int(r["mirrors"]) >= n
+		"rivals":
+			return load("res://scripts/rivals.gd").count(profile, String(t.get("of", "met"))) >= maxi(n, 1)
 	return false
 
 
