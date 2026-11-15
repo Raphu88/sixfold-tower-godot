@@ -42,7 +42,7 @@ const TreeView := preload("res://scripts/tree_view.gd")
 const TEXT := {
 	"tab": "Abilities",
 	"title": "Abilities",
-	"intro_marks": "Each mark's button casts its chosen spell. Hold the button to pick another spell from its ring.",
+	"intro_marks": "Each mark's button casts its chosen spell. Hold the button to pick another from its wheel: picking never casts.",
 	"intro_unbound": "Six techniques, one on each mark button. Each fills as its part does its work; a full one casts for nothing. Cast one early and it strains that part.",
 	"intro_none": "No marks yet. Your first climb is bondless: at its top the tower's beast takes notice, and the body part you used most takes your first mark.",
 	"peek": "During a climb, {abilities} to look at this page; let go to return.",
@@ -59,7 +59,7 @@ const TEXT := {
 	"hold": ["hold %s", "hold %s + %s", "hold, slide"],
 	"press_caption": "to cast",
 	"hold_caption": "to pick it",
-	"ring_note": "hold for the ring",
+	"ring_note": "hold for the wheel",
 	"selected": "on the button",
 	"learned": "learned  ·  step %d",
 	"locked": "learned at step %d",
