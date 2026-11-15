@@ -9337,7 +9337,7 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
-	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel", "charm"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel, charms")
+	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel", "tincture", "charm"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel, tinctures, charms")
 	var brew: Array = bench_buttons.call("brew", "draught")
 	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Draught")
 	if brew.size() == 1:

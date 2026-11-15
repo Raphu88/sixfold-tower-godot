@@ -254,7 +254,7 @@ func _contents() -> void:
 		p.global_position = s["rect"].get_center()
 		await t._frames(3)
 		var choices: Array = main.camp.get("choices", [])
-		_check(main.camp_choosing and choices.size() == 3 and choices.all(func(c): return String(c).begins_with("crystal:")), "a crystal pedestal offers three crystals (%s)" % [choices])
+		_check(main.camp_choosing and choices.size() == 3 and choices.all(func(c): return String(c).begins_with("crystal:") or String(c).begins_with("tincture_")), "a crystal pedestal offers three crystals, now and then a tincture in place of one (%s)" % [choices])
 		var before: float = t._purse(main.profile)
 		main.choose_camp(0)
 		_check(not main.camp_choosing and t._purse(main.profile) > before, "...and one taken is kept")
