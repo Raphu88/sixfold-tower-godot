@@ -1935,7 +1935,11 @@ func _climber_essence(prof) -> void:
 		box.add_child(fv)
 	var pour := _button(PourPage.Flow.TEXT["open"], open_pour.bind(""))
 	pour.set_meta("help", "pour:open")
-	pour.custom_minimum_size = Vector2(0, 38)
+	# (keep_text lets words shrink, which drops the button's own minimum width:
+	# give it room for its words, or a centred button would close to nothing)
+	var pf: Font = pour.get_theme_font("font")
+	var pw: float = pf.get_string_size(pour.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pour.get_theme_font_size("font_size")).x if pf != null else 180.0
+	pour.custom_minimum_size = Vector2(pw + 40.0, 38)
 	pour.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	UI.keep_text(pour)
 	if not compact():
