@@ -64,6 +64,7 @@ func setup_rival(room, data: Dictionary, as_ally: bool, host_node) -> void:
 		wd = Weapons.info("fists")
 	ranged = String(wd["kind"]) != "melee"
 	chain = [] if ranged else (wd["combo"] as Array).slice(0, int(SWING["links"]))
+	w_enchant = String(data.get("enchant", ""))
 	armor = clampf(float(data.get("armor_k", 0.2)), 0.0, 0.8)
 	armor_id = String(data.get("armor", ""))
 	look = data.get("look", {})

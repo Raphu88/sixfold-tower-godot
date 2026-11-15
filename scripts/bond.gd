@@ -10,6 +10,7 @@ const TreeRules := preload("res://scripts/tree.gd")
 ## States and reactions (what a spell leaves on a foe), and named pacts.
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
+const Particles := preload("res://scripts/particles.gd")
 ## The Gryphon's and the Kraken's content files run their marks' passive
 ## ranks and Apex upgrades (taken_mult, on_kill, the great spells): loaded
 ## when needed, never preloaded (library.gd loads them as it starts).
@@ -268,6 +269,7 @@ func cast(p) -> void:
 		_cast_type(p)
 	if kind != "":
 		p.main.hit_kind = ""
+	Particles.on_bond_cast(p.main, p, self, sp)  # (a flash of light at you, and the spell's sparks: particles.gd)
 	Library.on_cast(p, {"by": "bond", "bond": self, "part": part, "at": at, "spell": sp})  # (content files may answer)
 
 

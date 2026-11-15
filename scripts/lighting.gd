@@ -567,7 +567,7 @@ func _gather(view: Rect2) -> void:
 				continue
 			l["pos"] = node.global_position + l["offset"]
 		var before := n
-		n = _put(n, view, l["pos"], l["r"], l["color"], l["k"], l["glow"], l.get("spot", OMNI), true, l)
+		n = _put(n, view, l["pos"], l["r"], l["color"], l["k"], l["glow"], l.get("spot", OMNI), not l.get("noshadow", false), l)
 		if n > before:
 			if l.has("bloom"):
 				_bloom(l["pos"], l["bloom"][0], l["color"], l["bloom"][1])

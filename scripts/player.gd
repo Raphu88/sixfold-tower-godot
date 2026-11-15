@@ -13,6 +13,7 @@ const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
+const Particles := preload("res://scripts/particles.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -185,6 +186,8 @@ var hawk_t := 0.0  # Hunter's Hawk's Eye
 var quarry  # Hunter's Quarry: the last foe you struck
 var quarry_fresh := false  # (a foe struck the first time isn't your Quarry yet: bond.gd taken_mult)
 var overlay: Node2D  # over the darkness: swing trails and rings
+var _wep_seg := [Vector2.ZERO, Vector2.ZERO]  # the weapon in hand, grip to tip, as last drawn (the body's own space)
+var _wep_xf := Transform2D.IDENTITY  # ...and how that space sits on the room (particles.gd lights it)
 # Items (items.gd): what you carry, and healing that is still working.
 var items := Items.START.duplicate():  # item id -> count
 	set(v):
@@ -281,6 +284,12 @@ func _ready() -> void:
 
 func wdata() -> Dictionary:
 	return Weapons.WEAPONS[weapon]
+
+
+## The weapon in hand, grip to tip, in the room (particles.gd: an enchanted
+## weapon's glow, light and sparks ride it).
+func weapon_segment() -> Array:
+	return [global_position + _wep_xf * (_wep_seg[0] as Vector2), global_position + _wep_xf * (_wep_seg[1] as Vector2)]
 
 
 ## "melee", "bow", "crossbow" or "gun": what the weapon in hand does.
@@ -1850,6 +1859,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		if head == 0:
 			dmg *= 1.0 + rule("triune")
 	var contact: Vector2 = e.global_position - dir * e.radius
+	Particles.on_strike(main, contact, dir, crit, heavy, hit_sound == "arrow_hit")  # (a burst: bigger on crits; an enchanted weapon's own)
 	if crit:
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 26.0), "Weak point!" if weak_hit else "Riposte!", Color(1.0, 0.85, 0.4))
 		main.fx_ring(contact, Color(1.0, 0.85, 0.4), 40.0, 0.3, 4.0)
@@ -2971,6 +2981,7 @@ func _draw() -> void:
 	# Squash along the facing: stretched when rolling, flattened when hit.
 	var sq_dir := roll_dir if roll_t > 0.0 else aim
 	draw_set_transform(Vector2(0, -lift), sq_dir.angle(), Vector2(1.0 + squash * 0.25, 1.0 - squash * 0.2))
+	_wep_xf = Transform2D(sq_dir.angle(), Vector2(0, -lift))
 	var body := Transform2D(sq_dir.angle(), Vector2.ZERO).affine_inverse()
 	_f = body.basis_xform(aim)
 	_sd = body.basis_xform(side)
@@ -3207,6 +3218,8 @@ func _mark_anchor(part: String, side: Vector2) -> Vector2:
 ## Swing trails, parry and cast rings: drawn unlit so they read in the dark.
 func _draw_overlay() -> void:
 	var c := overlay
+	if main != null and main.particles != null:
+		main.particles.draw_weapon_glow(self, c)  # (an enchanted weapon shows its essence)
 	if main != null and main.unbound != null and main.unbound.on:
 		main.unbound.glow_into(c, self)
 	elif not bonds.is_empty():
@@ -3360,6 +3373,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 				grip = along * 10.0
 			var length: float = float(w.get("length", 24.0)) + (2.0 if swing.get("heavy", false) else 0.0)
 			var glint := 1.0 if swing_t > 0.0 else 0.0
+			_wep_seg = [grip, grip + along * length]
 			if weapon in ["cane", "sword_cane"]:
 				# A cane; the sword-cane's blade is out for its finisher (and its recovery).
 				var bare: bool = swing.get("blade", false) and (swing_t > 0.0 or attack_cd > 0.0)
@@ -3401,6 +3415,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 				ggrip -= dir * 4.0 * kk
 				gdir = dir.rotated(-0.35 * kk)
 			var gcol := Gear.color(weapon_rec())
+			_wep_seg = [ggrip, ggrip + gdir * 12.0]
 			draw_weapon = func(): GearLook.tower_gun(b, weapon, ggrip, gdir, _light, open, gcol)
 			hands.append([sh_w, ggrip, 3.0])
 			hands.append([sh_o, ggrip + gdir * 6.0 + side * 2.0 if reloading else free, 2.8])
@@ -3417,6 +3432,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 			var reach: float = float(swing.get("range", 40.0)) - length2 - radius * 0.3
 			var grip2 := rest.lerp(dir * maxf(reach, 6.0) + side * 2.0, ext)
 			var glint2 := 1.0 if swing_t > 0.0 else 0.0
+			_wep_seg = [grip2, grip2 + dir * length2]
 			if weapon == "spear":
 				grip2 -= dir * 10.0  # held back along the shaft
 				draw_weapon = func():
@@ -3453,6 +3469,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 			var tip_b := bgrip - dir * (5.0 + 2.0 * kd) - side * limb * (1.0 - 0.06 * kd)
 			var nock := bgrip - dir * (5.0 + 12.0 * kd)
 			var wood: Color = Palette.WOOD.darkened(0.15) if limb > 16.0 else Palette.WOOD
+			_wep_seg = [tip_a, tip_b]
 			draw_weapon = func():
 				var bow := PackedVector2Array([tip_a, bgrip + side * limb * 0.5 - dir * kd, bgrip, bgrip - side * limb * 0.5 - dir * kd, tip_b])
 				b.path(bow, Color(Palette.OUTLINE, Draw.FEATHER_ALPHA), 7.0)
@@ -3475,6 +3492,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 			var front := back + dir * 22.0
 			var loaded := 1.0 if reload_t <= 0.0 else 1.0 - clampf(reload_t / float(w["reload"]), 0.0, 1.0)
 			var catch_at := front - dir * lerpf(4.0, 14.0, loaded)
+			_wep_seg = [front + side * 11.0 - dir * 3.0, front - side * 11.0 - dir * 3.0]
 			draw_weapon = func():
 				b.stroke(back, front, Palette.WOOD, 3.4)
 				var la := front - dir * 3.0 + side * 11.0

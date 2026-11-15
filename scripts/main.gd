@@ -30,6 +30,7 @@ const PuzzleScript := preload("res://scripts/puzzle.gd")
 const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 const LightingScript := preload("res://scripts/lighting.gd")
+const ParticlesScript := preload("res://scripts/particles.gd")
 const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
@@ -123,6 +124,7 @@ var recall_ask_t := 0.0  # a recall scroll asked to be read: use it again before
 var floor_plan := {}  # this floor's plan, as floors.gd made it (rooms, themes, doorways...)
 var player
 var fx
+var particles  # sparks, embers and glints of enchanted weapons and spells (particles.gd)
 var camera: Camera2D
 # The climber's position at the last two physics ticks: the camera follows
 # the point between them, as the drawing does (physics interpolation), so it
@@ -432,6 +434,9 @@ func _ready() -> void:
 	fx.main = self
 	fx.z_index = 10
 	add_child(fx)
+	particles = ParticlesScript.new()
+	particles.main = self
+	add_child(particles)
 
 	# The camera follows the climber, zoomed in, but never past the walls.
 	camera = Camera2D.new()
@@ -1022,6 +1027,7 @@ func _start_floor(n: int) -> void:
 	attackers.clear()
 	rod = {}
 	SpellFxScript.clear(self)  # (orbs, fields and timed casts from the library's spells)
+	ParticlesScript.clear(self)  # (sparks, embers and the little lights of spells)
 	walls.clear()
 	cyclones.clear()
 	waves.clear()
@@ -4190,6 +4196,7 @@ func on_enemy_killed(e) -> void:
 	fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)
 	if fx != null:
 		fx.debris(e.global_position, e.color, int(e.radius * 0.8))
+	ParticlesScript.kill(self, e.global_position, e.color, e.radius, e.is_boss())
 	var kill_sound: String = "kill_" + e.kind
 	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
@@ -4288,6 +4295,7 @@ func note_event(kind: String, text: String, color = null, to_feed = null, once :
 func fx_bolt(points: Array, color: Color) -> void:
 	if fx != null:
 		fx.bolt(points, color)
+	ParticlesScript.along(self, points, color)  # (crackle along the arc)
 
 
 func fx_cone(origin: Vector2, dir: Vector2, reach: float, half: float, color: Color) -> void:
