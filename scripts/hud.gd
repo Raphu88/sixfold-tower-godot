@@ -1851,7 +1851,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
 	if main.camp["stage"] == "heirloom":
 		title = Gear.HEIRLOOM_TEXT["title"]
-	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret", "rival"]:
+	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret", "rival", "pedlar"]:
 		title = main.camp.get("title", "")
 	draw_string_outline(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, 6, Color(0, 0, 0, 0.8))
 	draw_string(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, GOLD)
@@ -1891,7 +1891,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		var lines := 4 if not small else clampi(int((r.end.y - 46.0 - dy) / 16.0) + 1, 1, 4)
 		draw_multiline_string(font, Vector2(r.position.x + 8, dy), card["desc"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 16.0, 13 if small else 14, lines, TEXT)
 		if card.has("note"):
-			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UI.fit_size(font, card["note"], 13, r.size.x - 8.0), DIM_TEXT)
+			draw_string(font, Vector2(r.position.x, r.end.y - 34.0), card["note"], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, UI.fit_size(font, card["note"], 13, r.size.x - 8.0), Color(1.0, 0.5, 0.4) if card.get("short", false) else DIM_TEXT)
 		if card["item"] != "" and p != null and not card.has("belt"):
 			var n: int = p.item_count(card["item"])
 			var have := "carrying %d of %d" % [n, p.max_stack(card["item"])]

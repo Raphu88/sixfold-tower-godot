@@ -43,6 +43,7 @@ const Nav := preload("res://scripts/nav.gd")
 const Reflow := preload("res://scripts/reflow.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Book := preload("res://scripts/book.gd")
+const PourPage := preload("res://scripts/pour_page.gd")
 const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 const TreeView := preload("res://scripts/tree_view.gd")
 const StationPage := preload("res://scripts/station_page.gd")
@@ -68,7 +69,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
 	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0,
-	"talk": 620.0}
+	"talk": 620.0, "pour": 860.0}
 ## The climber screen is the book (book.gd): its sections, [id, name], each
 ## a ribbon. Abilities (abilities.gd) comes first: what you can cast and
 ## how; the Tree (tree_view.gd) is the body map, where you choose how you
@@ -85,7 +86,9 @@ const COMPACT_H := 600.0
 
 ## Settings, kept between sessions (in the settings file, shared by every climber: slots.gd).
 ## "condense": the share of banked essence that condenses into crystals at a
-## stair, in percent (train.gd CONDENSE_CHOICES). "train_rail": the train's
+## stair, in percent (train.gd CONDENSE_CHOICES; your body and your marks share
+## the rest: essence_flow.gd). "split": saved since the split (a file without
+## it, still at the old default share, moves to the new default once). "train_rail": the train's
 ## rail as a menu ("menu") or drawn as the train on end ("end"), a dev-tools
 ## mock-up (rail.gd). "abilities_tab": the climber screen has opened on its
 ## Abilities tab once (saves from before it start there). "ui_size": the
@@ -95,7 +98,7 @@ const COMPACT_H := 600.0
 ## on top of the interface's. "entity_help": the Entity explains the train's
 ## buttons as you point at them, or hold them on a phone (entity_helper.gd).
 static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "",
-	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true}
+	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true, "split": true}
 static var settings_loaded := false
 
 var main
@@ -134,6 +137,8 @@ var train_page  # builds the train's cars (train_page.gd)
 ## (loadout_page.gd, stash_page.gd: pages of their own, built there).
 var loadout_page = preload("res://scripts/loadout_page.gd").new(self)
 var stash_page = preload("res://scripts/stash_page.gd").new(self)
+## Crystals and tinctures: eating crystals, drinking tinctures (pour_page.gd, essence_flow.gd).
+var pour_page = preload("res://scripts/pour_page.gd").new(self)
 var train_car := Train.HOME  # the car you're in
 var train_sel := {}  # car -> the slot whose card shows there
 var train_store := "shop"  # the store car: its shelves ("shop") or selling ("sell")
@@ -704,6 +709,8 @@ func _go_back() -> void:
 		open("climber", opened_direct)
 	elif page == "create":
 		return  # (Begin is the way on)
+	elif page == "pour":
+		pour_page.back()
 	elif page == "appearance" and look_from == "climber":
 		open("climber", opened_direct)
 	elif page == "pause" or page == "":
@@ -1132,7 +1139,7 @@ func _first_focus(which: String, list: Array) -> int:
 				first = maxi(first, list.map(func(b): return b.get_meta("part", "")).find(focus_part))
 		elif which == "mark":
 			first = maxi(0, list.map(func(b): return b.get_meta("back", false)).find(true))
-		elif which == "inventory" or which == "loadout" or which == "stash":
+		elif which == "inventory" or which == "loadout" or which == "stash" or which == "pour":
 			first = maxi(0, list.map(func(b): return b.get_meta("slot", "")).find(inv_sel))
 		elif which == "settings" and settings_tab == "settings":
 			first = maxi(0, list.map(func(b): return b is HSlider).find(true))  # (on the music slider)
@@ -1926,8 +1933,17 @@ func _climber_essence(prof) -> void:
 		fv.main = main
 		fv.custom_minimum_size = Vector2(0, FlowView.height(prof.flow_step(), compact()))
 		box.add_child(fv)
+	var pour := _button(PourPage.Flow.TEXT["open"], open_pour.bind(""))
+	pour.set_meta("help", "pour:open")
+	# (keep_text lets words shrink, which drops the button's own minimum width:
+	# give it room for its words, or a centred button would close to nothing)
+	var pf: Font = pour.get_theme_font("font")
+	var pw: float = pf.get_string_size(pour.text, HORIZONTAL_ALIGNMENT_LEFT, -1, pour.get_theme_font_size("font_size")).x if pf != null else 180.0
+	pour.custom_minimum_size = Vector2(pw + 40.0, 38)
+	pour.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	UI.keep_text(pour)
 	if not compact():
-		_note("Every bit of essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus that grows ever slower, up to %d%%." % int(round(prof.ATTRIBUTE_CAP * 100.0)))
+		_note("Your body's share of the essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus that grows ever slower, up to %d%%." % int(round(prof.ATTRIBUTE_CAP * 100.0)))
 
 
 ## Record: the climb you're on and your record on the left, your heirlooms
@@ -2935,6 +2951,9 @@ func _show_details(key: String) -> void:
 	if page == "loadout" or page == "stash":
 		(loadout_page if page == "loadout" else stash_page).details(key)
 		return
+	if page == "pour":
+		pour_page.details(key)
+		return
 	match kind:
 		"gear":
 			if arg == "offhand":
@@ -3293,6 +3312,21 @@ func _page_loadout() -> void:
 
 func _page_stash() -> void:
 	stash_page.build()
+
+
+## Crystals and tinctures (pour_page.gd): opened from the book, the Loadout,
+## the Workshop, the Inventory or a tincture used from the belt (`id`: that
+## tincture's card first). Back returns where it was opened from.
+func open_pour(id := "") -> void:
+	pour_page.from = page if page in ["climber", "loadout", "train", "inventory"] else "play"
+	pour_page.said = ""
+	inv_sel = "tincture:" + id if id != "" else ""
+	toast = ""
+	open("pour", page == "" or opened_direct)
+
+
+func _page_pour() -> void:
+	pour_page.build()
 
 
 # --- the train ---------------------------------------------------------------------
@@ -3906,6 +3940,9 @@ static func load_settings_from(path: String) -> void:
 	if not UI.WORLD_ZOOMS.has(str(settings["world_zoom"])):
 		settings["world_zoom"] = "normal"
 	settings["condense"] = str(settings["condense"])
+	if not cfg.has_section_key("settings", "split") and settings["condense"] == Train.CONDENSE_OLD_DEFAULT:
+		settings["condense"] = Train.CONDENSE_DEFAULT  # (saved before the split, at the old default: the new default, once)
+	settings["split"] = true
 	if not Train.CONDENSE_CHOICES.any(func(c): return c[0] == settings["condense"]):
 		settings["condense"] = Train.CONDENSE_DEFAULT  # (an old or broken save: the default share)
 	if not bool(settings["abilities_tab"]):

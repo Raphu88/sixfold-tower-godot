@@ -32,7 +32,10 @@ const DROP_CHANCE := 0.1
 ##                      item; otherwise their pack holds essence (a cache)
 ##   handy_weight       a tower's handy items (tower_needs.gd) are this many
 ##                      times as likely among what's found there
-static var DROPS := {"essence_chance": 0.06, "essence_base": 3.0, "essence_per_floor": 0.4, "fallen_item": 0.5, "handy_weight": 3.0}
+##   tincture_chance    the chance a kill that left neither leaves a tincture
+##                      of its essence instead (essence_flow.gd; never on the
+##                      bondless first climb)
+static var DROPS := {"essence_chance": 0.06, "essence_base": 3.0, "essence_per_floor": 0.4, "fallen_item": 0.5, "handy_weight": 3.0, "tincture_chance": 0.012}
 
 ## Sizes (as in the old game): Minor, standard and Greater. A sized item
 ## ("scale" in ITEMS: the numbers that grow with its size) is stronger or
@@ -64,7 +67,9 @@ const STEADY_TIME := 0.6
 
 const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
 	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
-	"scroll", "vessel"]
+	"scroll", "vessel",
+	# Tinctures (essence_flow.gd): one of each essence.
+	"tincture_air", "tincture_water", "tincture_iron", "tincture_fire", "tincture_stone", "tincture_blade"]
 
 ## Each item: name, short name, what it does, colour and its numbers; also
 ##   kind         its essence (the belt breaks it into this kind of crystal)
@@ -306,6 +311,61 @@ static var ITEMS := {
 		"drop_weight": 0, "drop": false,
 		"max": 1,
 	},
+	# --- tinctures (essence_flow.gd: their strength, crafting, drops) ---
+	# The only way the marked steer essence: drink one and choose a mark or
+	# an unmarked body part (the crystals page, pour_page.gd). Never dropped
+	# by the item table or offered at a camp ("drop_weight" 0): vaults, secret
+	# rooms and rare monster drops hold them (essence_flow.gd TINCTURE); the
+	# outfitter sells one kind a visit at their worth ("value"); the
+	# Workshop crafts them from crystals of their kind.
+	"tincture_air": {
+		"name": "Air Tincture",
+		"short": "Air Tinct.",
+		"desc": "a stoppered vial of Air essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.78, 0.9, 1.0),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "air", "value": {"air": 60},
+	},
+	"tincture_water": {
+		"name": "Water Tincture",
+		"short": "Water Tinct.",
+		"desc": "a stoppered vial of Water essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.37, 0.72, 0.85),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "water", "value": {"water": 60},
+	},
+	"tincture_iron": {
+		"name": "Iron Tincture",
+		"short": "Iron Tinct.",
+		"desc": "a stoppered vial of Iron essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.8, 0.82, 0.88),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "iron", "value": {"iron": 60},
+	},
+	"tincture_fire": {
+		"name": "Fire Tincture",
+		"short": "Fire Tinct.",
+		"desc": "a stoppered vial of Fire essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(1.0, 0.55, 0.25),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "fire", "value": {"fire": 60},
+	},
+	"tincture_stone": {
+		"name": "Stone Tincture",
+		"short": "Stone Tinct.",
+		"desc": "a stoppered vial of Stone essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.82, 0.68, 0.45),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "stone", "value": {"stone": 60},
+	},
+	"tincture_blade": {
+		"name": "Blade Tincture",
+		"short": "Blade Tinct.",
+		"desc": "a stoppered vial of Blade essence: drink it and choose where it goes, into one of your marks or an unmarked body part",
+		"color": Color(0.88, 0.36, 0.4),
+		"drop_weight": 0, "drop": false, "tincture": true,
+		"kind": "blade", "value": {"blade": 60},
+	},
 }
 
 ## Reading the recall scroll (main.gd read_recall). It asks first: use it
@@ -323,13 +383,14 @@ static var RECALL := {
 }
 
 ## Essence crystals (kept in the profile between climbs; crystals of a kind
-## combine into one). Consuming banks up to "step" essence at a time.
+## combine into one). Eating one pours up to "step" essence into you at a
+## time, the natural way (essence_flow.gd: body and marks share it).
 static var CRYSTAL := {
 	"name": "%s Crystal",
-	"desc": "holds %d %s essence outside you; consume it to bank that essence into you",
+	"desc": "holds %d %s essence outside you; eat it and that essence flows into you the natural way",
 	"step": 10,
-	"consume": "Consume %d",
-	"consumed": "Consumed: %d %s essence banked into you",
+	"consume": "Eat %d",
+	"consumed": "Ate %d %s essence",
 	"held": "%d essence  ·  the train's money  ·  kept between climbs",
 	"none": "No crystals of this kind yet. Each stair condenses a share of what you bank into crystals, the outfitter pays for every climb, and vaults and secret rooms may hold them.",
 }
@@ -493,13 +554,19 @@ static func pips_into(b, c: Vector2, s: float, size: int) -> void:
 
 ## What a slain monster leaves (main.gd on_enemy_killed): {"item", "size"},
 ## {"essence": amount} (more of the tower's essence), or {} (nothing more).
-static func kill_drop(floor_num: int, marked := true, tower := "", chance := DROP_CHANCE) -> Dictionary:
+static func kill_drop(floor_num: int, marked := true, tower := "", chance := DROP_CHANCE, tincture := -1.0) -> Dictionary:
 	var roll := randf()
 	if roll < chance:
 		var id := random_item(marked, [], true, tower)
 		return {"item": id, "size": roll_size(id, floor_num)}
 	if roll < chance + float(DROPS["essence_chance"]):
 		return {"essence": float(DROPS["essence_base"]) + float(DROPS["essence_per_floor"]) * floor_num}
+	# Rarely a tincture instead (essence_flow.gd; its kind is the monster's
+	# essence: main.gd). `tincture` < 0: DROPS "tincture_chance" (none in tests).
+	if tincture < 0.0:
+		tincture = 0.0 if Engine.has_meta("sixfold_test") else float(DROPS.get("tincture_chance", 0.0))
+	if roll < chance + float(DROPS["essence_chance"]) + tincture:
+		return {"tincture": true}
 	return {}
 
 # --- camps ---------------------------------------------------------------------
@@ -590,7 +657,8 @@ static func camp_choices(marked := true, tower := "") -> Array:
 const USE_SOUNDS := {"draught": "drink", "stamina": "drink", "tonic": "drink", "vial": "use_vial", "smoke": "use_smoke", "fire_flask": "throw",
 	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready",
 	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw",
-	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime"}
+	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime",
+	"tincture_air": "drink", "tincture_water": "drink", "tincture_iron": "drink", "tincture_fire": "drink", "tincture_stone": "drink", "tincture_blade": "drink"}
 
 
 ## Uses an item on the climber, at a size (SIZES: its numbers scale).
@@ -610,6 +678,11 @@ static func use(id: String, p, size := STANDARD) -> bool:
 		return main.recall_pressed()
 	if id == "vessel":
 		return load("res://scripts/vessel.gd").use(p)  # (it says what it holds; never used up)
+	if bool(data.get("tincture", false)):
+		# (a tincture asks where it goes: the crystals page, which drinks it from the belt)
+		if main.has_method("open_pour"):
+			main.open_pour(id)
+		return false
 	match id:
 		"draught":
 			if p.hp >= p.max_health() - 0.5:
@@ -842,6 +915,9 @@ static func _item_art(b, id: String, s: float) -> void:
 	var u := Art.unit(s)
 	var lod := Art.detail(s)
 	Art.ground(b, s, 9.2, 6.4, 0.36)  # (it sits in its slot)
+	if bool(ITEMS.get(id, {}).get("tincture", false)):
+		_tincture_art(b, col, s)
+		return
 	match id:
 		"draught":
 			# A round flask: the red cure two-thirds up, a cork.
@@ -1126,6 +1202,19 @@ static func _item_art(b, id: String, s: float) -> void:
 			Art.orb(b, Vector2(2.6, 4.6) * u, 1.8 * u, Color(0.3, 0.46, 0.86), s, "gem")
 		_:
 			Art.orb(b, c, s * 0.5, col, s)
+
+
+## A tincture: a round-bellied vial of glowing essence, stoppered with a
+## little cut crystal of the same kind.
+static func _tincture_art(b, col: Color, s: float) -> void:
+	var u := Art.unit(s)
+	var bc := Vector2(0, 3.2) * u
+	var r := 6.0 * u
+	Art.soft(b, bc, 8.0 * u, Color(col, 0.35))
+	Art.glass(b, _flask(bc, r, Rect2(Vector2(-1.6, -5.4) * u, Vector2(3.2, 3.2) * u)), s, col, bc.y - r * 0.5, 0.9)
+	_facets_item(b, Vector2(0, -7.4) * u, 2.6 * u, col.lightened(0.25), s, 6)
+	Art.spark(b, bc + Vector2(0.8, 1.0) * u, 2.0 * u, Color(1, 1, 1, 0.85))
+	Art.shine(b, bc + Vector2(-2.8, -2.0) * u, 0.8 * u, 1.8 * u)
 
 
 ## A cut stone seen face on, for an item (a lodestone's band).

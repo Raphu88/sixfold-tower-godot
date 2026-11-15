@@ -384,7 +384,7 @@ func _outfitter(main) -> void:
 	t._check(Train.upgrades_done(prof) == Train.UPGRADES.size() and Train.next_upgrade(prof).is_empty(), "the top rank unlocks every upgrade")
 	prof.store = {}
 	Train.stock(prof)
-	t._check(Train.outfit(prof).size() == Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]), "a wider rack: more pieces on it")
+	t._check(Train.outfit(prof).size() == Train.rack_size(prof) and Train.rack_size(prof) >= Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]), "a wider rack: more pieces on it (and more still at the top rank: shop.gd)")
 	var d := float(Train.UPGRADE_FX["discount"])
 	t._check(Train.supply_price(prof, "scroll")[1] == int(round(float(Train.UPGRADE_FX["scroll_price"]) * (1.0 - d))), "the scroll kept aside costs less (with the discount)")
 	var g: Dictionary = Train.outfit(prof)[1]

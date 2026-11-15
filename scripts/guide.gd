@@ -292,6 +292,20 @@ static func first_cast(key: String) -> bool:
 	return true
 
 
+## Marks a tip as said without saying it (another tip just said the same
+## thing), and keeps it in the Archive.
+static func also_told(id: String) -> void:
+	if not live():
+		return
+	var r := Entity.resolve(id)
+	if r == "":
+		return
+	load_state()
+	state["told"][r] = true
+	state["known"][r] = true
+	save_state()
+
+
 ## A short line for a moment (entity.gd LINES), ahead of any tips waiting.
 static func say(key: String, fill := {}) -> void:
 	if not live() or not tips_on():
