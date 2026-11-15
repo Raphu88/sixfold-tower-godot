@@ -60,7 +60,7 @@ static var TEXT := {
 
 ## The enchanted weapon's light: how far it reaches, how strong, and the
 ## halo round it (radius, strength). Small: it helps a little in the dark.
-static var WEAPON_LIGHT := {"reach": 64.0, "strength": 0.3, "bloom": [13.0, 0.45], "glow_width": 4.0, "glow_alpha": 0.3}
+static var WEAPON_LIGHT := {"reach": 64.0, "strength": 0.3, "bloom": [13.0, 0.45], "glow_width": 4.0, "glow_alpha": 0.38}
 ## A spell's light as it flies or lasts: reach at least, strength.
 static var SPELL_LIGHT := {"reach": 78.0, "strength": 0.42, "orb": 2.6, "zone": 1.1, "zone_strength": 0.3}
 ## The flash at the caster when a spell goes off: size, energy, seconds.
@@ -85,7 +85,7 @@ static var PRESETS := {
 	"grit": {"color": Color(0.82, 0.68, 0.45), "count": 6, "speed": 130.0, "life": 0.5, "size": 2.0, "gravity": 300.0, "drag": 2.0, "spread": 1.3, "blend": "mix", "shape": "grit"},
 	"mote": {"color": Color(0.9, 0.9, 1.0), "count": 4, "speed": 80.0, "life": 0.6, "size": 2.4, "gravity": -20.0, "drag": 2.0, "spread": 3.14, "blend": "add", "shape": "dot"},
 	# --- an enchanted weapon's streams ---
-	"ember": {"color": Color(1.0, 0.55, 0.25), "count": 1, "speed": 16.0, "life": 0.9, "size": 2.2, "gravity": -34.0, "drag": 1.2, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 7.0, "jitter": 2.0},
+	"ember": {"color": Color(1.0, 0.55, 0.25), "count": 1, "speed": 16.0, "life": 0.9, "size": 2.2, "gravity": -34.0, "drag": 1.2, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 9.0, "jitter": 2.0},
 	"drip": {"color": Color(0.45, 0.78, 0.9), "count": 1, "speed": 5.0, "life": 0.65, "size": 1.9, "gravity": 190.0, "drag": 0.4, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.0, "jitter": 2.0},
 	"wisp": {"color": Color(0.8, 0.92, 1.0), "count": 1, "speed": 20.0, "life": 1.1, "size": 3.0, "gravity": -6.0, "drag": 1.4, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 5.0, "jitter": 3.0},
 	"shimmer": {"color": Color(0.9, 0.4, 0.45), "count": 1, "speed": 5.0, "life": 0.3, "size": 1.8, "drag": 2.0, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 70.0, "jitter": 1.0},
