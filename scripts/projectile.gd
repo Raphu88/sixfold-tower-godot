@@ -4,6 +4,7 @@ extends Node2D
 
 const Draw := preload("res://scripts/draw_util.gd")
 const Pacts := preload("res://scripts/pacts.gd")
+const Particles := preload("res://scripts/particles.gd")
 
 var main
 var vel := Vector2.ZERO
@@ -34,9 +35,13 @@ var splice := {}  # the Developer's Splice: a spliced spell's shot carries its b
 ## fn(shot, where) once when it ends (on a foe, a wall, or at the end of its flight).
 var on_strike: Array = []
 var on_end: Array = []
+var _lit := false  # its light and trail are on (particles.gd carry)
 
 
 func _physics_process(delta: float) -> void:
+	if not _lit:
+		_lit = true
+		Particles.carry(main, self)  # (a spell's shot carries a little light and a trail; an enchanted weapon's too)
 	position += vel * delta
 	life -= delta
 	if return_to != null and is_instance_valid(return_to):

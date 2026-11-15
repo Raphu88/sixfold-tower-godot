@@ -114,6 +114,7 @@ var wind_dur := 0.6
 var armor := 0.0
 var look := {}  # the climber's colours and the worn pieces that show
 var armor_id := ""
+var w_enchant := ""  # the essence of an enchanted weapon in hand ("": ordinary); particles.gd gives it light, glow and sparks
 var marks: Array = []  # [part, colour, step]
 var spells: Array = []  # {bond, name, shape, color, step}
 var spell_i := 0
@@ -223,6 +224,7 @@ func copy_from(pl) -> void:
 		w_id = "fists"
 		wd = Weapons.info("fists")
 	ranged = String(wd["kind"]) != "melee"
+	w_enchant = preload("res://scripts/gear.gd").enchant_kind(pl.weapon_rec()) if w_id != "fists" else ""
 	chain = [] if ranged else (wd["combo"] as Array).slice(0, int(SWING["links"]))
 	armor = clampf(float(pl.protection()) * float(STATS["armor"]), 0.0, 0.8)
 	armor_id = String(pl.gear_id("armor"))
@@ -482,6 +484,7 @@ func _release_spell(p) -> void:
 	var sp: Dictionary = spells[spell_i]
 	var shape: Dictionary = SHAPES[sp["shape"]]
 	var col: Color = sp["color"]
+	preload("res://scripts/particles.gd").on_foe_cast(main, global_position, lunge_dir, String(sp["bond"]), col)  # (its mark's sparks)
 	var amount := spell_damage(sp)
 	spell_i = (spell_i + 1) % spells.size()
 	var ev: Array = SPELL["every"]

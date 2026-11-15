@@ -38,6 +38,7 @@ const Secret := preload("res://scripts/secret.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
+const Particles := preload("res://scripts/particles.gd")
 
 const HOT := 70.0
 const ERUPT := 100.0
@@ -188,6 +189,7 @@ func cast(b, p) -> void:
 	if missing > 0.5:
 		main.fx_text(p.global_position + Vector2(0, -60), Tech.TEXT["not_full"], Color(0.85, 0.8, 0.95))
 	Tech.cast(t, p, power, self)
+	Particles.on_technique_cast(main, p, Tech.lead(t), String(t.get("shape", "")), Tech.color(Tech.lead(t)))  # (a flash and the lead essence's sparks)
 	if TreeRules.note_echo(prof, t):
 		# The first time a technique comes close to a bond's spell (library.gd ECHOES).
 		main.fx_text(p.global_position + Vector2(0, -78), Library.TEXT["echoes"] % Library.echo_of(t)["name"], Color(0.79, 0.65, 1.0))

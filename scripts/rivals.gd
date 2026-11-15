@@ -973,9 +973,14 @@ func spawn_body(enc: Dictionary, as_ally: bool):
 ## What the body is built from.
 func body_data(rec: Dictionary) -> Dictionary:
 	var steps := 0
+	var enchant := ""  # (a weapon piece of theirs that is enchanted shows its essence: particles.gd)
+	for slot in ["melee", "ranged"]:
+		var wp = gear_of(rec).get(slot)
+		if wp != null and Gear.base_id(wp) == String(rec.get("weapon", "sword")):
+			enchant = Gear.enchant_kind(wp)
 	for b in rec.get("bonds", []):
 		steps += int(b[2])
-	return {"name": String(rec.get("name", "")), "look": look_of(rec), "weapon": String(rec.get("weapon", "sword")), "armor": armor_id(rec),
+	return {"name": String(rec.get("name", "")), "look": look_of(rec), "weapon": String(rec.get("weapon", "sword")), "enchant": enchant, "armor": armor_id(rec),
 		"bonds": rec.get("bonds", []).duplicate(true), "hp": float(RULES["hp"]) + float(RULES["hp_per_step"]) * steps,
 		"armor_k": float(RULES["armor"]), "states": BOND_STATE, "state_seconds": float(RULES["state_seconds"]),
 		"yield": float(RULES["duel_yield"]), "taken": float(RULES["ally_taken"]), "leave": float(RULES["ally_leave"])}

@@ -41,6 +41,7 @@ const Slots := preload("res://scripts/slots.gd")
 const RailScript := preload("res://scripts/rail.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Reflow := preload("res://scripts/reflow.gd")
+const Particles := preload("res://scripts/particles.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Book := preload("res://scripts/book.gd")
 const PourPage := preload("res://scripts/pour_page.gd")
@@ -97,7 +98,7 @@ const COMPACT_H := 600.0
 ## "world_zoom": the camera (ui.gd WORLD_ZOOMS); "hud_scale": the HUD size,
 ## on top of the interface's. "entity_help": the Entity explains the train's
 ## buttons as you point at them, or hold them on a phone (entity_helper.gd).
-static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "",
+static var settings := {"music": 0.8, "sounds": 1.0, "shake": true, "help": false, "ui_size": "normal", "world_zoom": "normal", "hud_scale": "normal", "climber_tab": "abilities", "lighting": "", "effects": "medium",
 	"condense": Train.CONDENSE_DEFAULT, "train_rail": "menu", "abilities_tab": false, "entity_help": true, "split": true}
 static var settings_loaded := false
 
@@ -1651,6 +1652,7 @@ func settings_body() -> void:
 	_toggle("Controls list on screen (H)", "help")
 	_choice("HUD size", "hud_scale", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]])
 	_choice("Lighting", "lighting", [["low", "Low"], ["medium", "Medium"], ["high", "High"]])
+	_choice(Particles.TEXT["setting"], "effects", Particles.LEVEL_ORDER.map(func(k): return [k, Particles.EFFECTS[k]["name"]]))
 	_choice(Train.TEXT["condense_setting"], "condense", Train.CONDENSE_CHOICES)
 	_note(Train.TEXT["condense_note"])
 	_guide_settings()
@@ -3979,6 +3981,7 @@ func apply_settings() -> void:
 		if not main.lighting.QUALITY.has(str(settings["lighting"])):
 			settings["lighting"] = main.lighting.default_quality()
 		main.lighting.set_quality(str(settings["lighting"]))
+	Particles.set_level(str(settings["effects"]))  # (sparks, embers and glints: Low, Medium or High)
 
 
 func _set_setting(key: String, value) -> void:

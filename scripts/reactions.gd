@@ -47,6 +47,7 @@ extends RefCounted
 
 const SpellFx := preload("res://scripts/spell_fx.gd")
 const UI := preload("res://scripts/ui.gd")
+const Particles := preload("res://scripts/particles.gd")
 
 ## The states. "seconds": how long one lasts when a spell doesn't say;
 ## "dps": burning or bleeding damage each half second; "stacks": poison;
@@ -348,6 +349,7 @@ static func _fire(main, foe, id: String, landing := "") -> void:
 	var at: Vector2 = foe.global_position
 	var col: Color = r["color"]
 	var held_before := held(foe)
+	Particles.reaction(main, at, id, col)  # (its own burst of specks)
 	_depth += 1
 	for s in r.get("consume", []):
 		clear(foe, String(s))

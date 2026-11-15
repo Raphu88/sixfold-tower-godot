@@ -70,7 +70,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_glows", "start", "bye"]},
 	"how_essence": {"ask": "Essence, banking it, and tinctures?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
@@ -128,6 +128,9 @@ static var DIALOGUE := {
 	"how_rivals_more": {"ask": "What do I get from them?", "fact": "rivals",
 		"lines": ["A duel can't kill you: lose and they take a toll, win and the stair's ward lifts. Teamed up, you keep {rival_share} of what you gather, but their marks react with yours. Help the hurt and they remember; rob them and so do they. The Renown Board keeps them all."],
 		"choices": ["how_rivals", "how", "bye"]},
+	"how_glows": {"ask": "What are the glows and sparks?",
+		"lines": ["A Fine or Rare weapon is enchanted: it glows in its essence, carries a small light, and throws specks that suit it. Embers for fire, drips for water, wisps for air; sparks on a blow for iron, grit for stone, a shimmer on a swing for blade. A Common one stays plain. Spells flash a light where you cast and carry some as they fly. Foes that burn, bleed or crackle show it. Settings has Effects: Low keeps the lights and little else."],
+		"choices": ["how_wheel", "how", "bye"]},
 	# --- the tower ----------------------------------------------------------------------
 	"tower": {"ask": "What is {tower} like?", "fact": "tower",
 		"lines": ["{blurb} Its essence is {essence}. {best_line}"],

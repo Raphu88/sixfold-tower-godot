@@ -21,6 +21,7 @@ extends Node2D
 
 const NAME := "SpellFx"
 const DrawUtil := preload("res://scripts/draw_util.gd")
+const Particles := preload("res://scripts/particles.gd")
 
 var timers: Array = []  # {t, fn}
 var fields: Array = []  # {pos, radius, t, tick, every, col, fn, age}
@@ -75,6 +76,11 @@ static func mark(main, pos: Vector2, seconds: float, col: Color) -> void:
 static func clear(main) -> void:
 	var n = main.get_node_or_null(NAME) if main != null else null
 	if n != null:
+		for f in n.fields:
+			f["t"] = 0.0
+			Particles.field_tick(main, f, 0.0)
+		for o in n.orbs:
+			Particles.orb_end(main, o)
 		n.timers.clear()
 		n.fields.clear()
 		n.orbs.clear()
@@ -112,7 +118,9 @@ func _process(delta: float) -> void:
 					inside.append(e)
 			if (f["fn"] as Callable).is_valid():
 				f["fn"].call(inside)
+		Particles.field_tick(main, f, delta)  # (motes and a little light while it lasts)
 		if f["t"] <= 0.0:
+			Particles.field_tick(main, f, 0.0)
 			fields.erase(f)
 	for o in orbs.duplicate():
 		o["t"] -= delta
@@ -124,7 +132,9 @@ func _process(delta: float) -> void:
 			o["pos"] = next
 		if (o["fn"] as Callable).is_valid() and not o["done"]:
 			o["fn"].call(o, delta)
+		Particles.orb_tick(main, o, delta)  # (its light and trail)
 		if o["t"] <= 0.0 or o["done"]:
+			Particles.orb_end(main, o)
 			orbs.erase(o)
 			if main.has_method("fx_burst"):
 				main.fx_burst(o["pos"], Vector2.ZERO, o["col"], 10, 160.0)
