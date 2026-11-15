@@ -465,6 +465,9 @@ func _belt_card(id: String) -> void:
 	_head("item", id, data["name"], Items.color(id))
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
 	m._detail_text(TEXT["supply_card"] % int(prof.supplies.get(id, 0)), UI.DIM)
+	if int(prof.supplies.get(id, 0)) > 0 and bool(data.get("tincture", false)):
+		# (a tincture can be drunk here: the crystals page, essence_flow.gd)
+		_btn(load("res://scripts/essence_flow.gd").TEXT["drink_from_loadout"], m.open_pour.bind(id), "help", "tincture_drink")
 	if int(prof.supplies.get(id, 0)) > 0:
 		_btn(TEXT["put_back"], _put_back.bind(id), "put_back", id)
 

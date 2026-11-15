@@ -6,6 +6,7 @@ extends RefCounted
 
 const Gear := preload("res://scripts/gear.gd")
 const Train := preload("res://scripts/train.gd")
+const Renown := preload("res://scripts/renown.gd")
 
 var t
 
@@ -31,7 +32,19 @@ func run(smoke) -> void:
 	t.root.size = Vector2i(915, 412)
 	main.touch._set_active(true)
 	main.apply_view_scale()
-	for store in ["shop", "sell"]:
+	for which in ["shop", "sell", "top:0:0", "top:1:0", "top:2:0", "top:0:1"]:
+		var store: String = which.get_slice(":", 0)
+		if store == "top":
+			# (the top rank: the longest rail in pages, the fullest shelf with Minor and Greater sizes, a title's line)
+			if Renown.rank(prof) < Renown.RANKS.size() - 1:
+				Renown.earn(prof, Renown.needed(Renown.RANKS.size() - 1), "")
+				Renown.state(prof)["titles"] = ["contender"]
+				Renown.state(prof)["worn"] = "contender"
+				prof.store = {}
+				Train.stock(prof)
+			menu.train_page.shelf_page = int(which.get_slice(":", 1))
+			menu.train_page.rack_page = int(which.get_slice(":", 2))
+			store = "shop"
 		menu.train_car = "store"
 		menu.train_store = store
 		menu.inv_sel = ""
@@ -66,7 +79,7 @@ func run(smoke) -> void:
 				missed.append(k)
 			if Time.get_ticks_msec() - t0 > 2000:
 				slow.append(k)
-		t._check(keys.size() > (20 if store == "shop" else 10) and missed.is_empty(), "a tap on every %s slot shows its card (%d slots; missed %s)" % [store, keys.size(), missed])
+		t._check(keys.size() > (14 if which == "shop" else (10 if which == "sell" else 17)) and missed.is_empty(), "a tap on every %s slot shows its card (%d slots; missed %s)" % [which, keys.size(), missed])
 		t._check(slow.is_empty(), "...each at once (%s)" % [slow])
 	main.touch._set_active(false)
 	main.apply_view_scale()

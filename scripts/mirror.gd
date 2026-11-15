@@ -484,6 +484,7 @@ func _release_spell(p) -> void:
 	var sp: Dictionary = spells[spell_i]
 	var shape: Dictionary = SHAPES[sp["shape"]]
 	var col: Color = sp["color"]
+	preload("res://scripts/particles.gd").on_foe_cast(main, global_position, lunge_dir, String(sp["bond"]), col)  # (its mark's sparks)
 	var amount := spell_damage(sp)
 	spell_i = (spell_i + 1) % spells.size()
 	var ev: Array = SPELL["every"]

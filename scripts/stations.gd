@@ -14,6 +14,7 @@ extends RefCounted
 ##   board       the renown board: your renown, rank, recent deeds and the
 ##               titles you've earned (one can be worn: renown.gd)
 ##   shrine      the boon shrine: boons bought with crystals (boons.gd)
+##   market      the pedlar's stall, once your rank opens it (shop.gd)
 ## Drills, tiers and challenges unlock as your renown rank grows.
 ##
 ## Every name, number and word is here (and in the Data editor). The names
@@ -31,7 +32,7 @@ static var STATIONS := [
 	{"id": "first", "name": "First Station", "short": "Station",
 		"sub": "A platform between the towers, with a gym, an arena and a shrine.",
 		"blurb": "Train, fight in the tournament, take on challenges and spend your renown.",
-		"stops": ["gym", "arena", "challenges", "board", "shrine"], "lamp": Color(1.0, 0.78, 0.45)},
+		"stops": ["gym", "arena", "challenges", "board", "shrine", "market"], "lamp": Color(1.0, 0.78, 0.45)},
 ]
 
 ## The stops a station can have: their names (a phone's short name), the
@@ -42,6 +43,7 @@ static var STOPS := {
 	"challenges": {"name": "Challenges", "short": "Challenge", "line": "Harder, with a twist", "sub": "One-off events with a twist. Each pays out the first time you win it."},
 	"board": {"name": "Renown Board", "short": "Renown", "line": "Rank, deeds, titles", "sub": "What the climbers say about you, and the titles you can wear."},
 	"shrine": {"name": "Boon Shrine", "short": "Shrine", "line": "Lasting boons", "sub": "Boons bought here go with you on every climb."},
+	"market": {"name": "The Pedlar's Stall", "short": "Pedlar", "line": "Wares on a theme", "sub": "A small stock that changes every visit, paid for in crystals."},
 }
 
 ## Medals, from none to gold: [name, colour].

@@ -121,6 +121,22 @@ var anim_t := 0.0
 var dirty := false
 var last_tile := Vector2i(-999, -999)
 var frozen: Array = []  # monsters held still while a vault's cards show
+var _hint_t := 0.0  # (how often to look whether a sealed door is in sight)
+
+
+## The first time a marked climber sees a sealed door on an early floor, the
+## Entity hints that breaking in can bring rewards (entity.gd "wing_watch").
+func _hint_seen() -> void:
+	if main.first_climb or main.floor_num > int(main.Flow.EARNED["last_floor"]) or main.UnboundRun.Unbound.is_on(main.profile) or main.profile.bonds.is_empty():
+		return
+	var view := _view_rect()
+	for w in wings:
+		if w["state"] != "idle" or w["door"].is_empty():
+			continue
+		var at := _tile_center(w["door"][0])
+		if view.has_point(at) and _seen(at):
+			main.tip("wing_watch")
+			return
 
 
 func _ready() -> void:
@@ -298,6 +314,10 @@ func _process(delta: float) -> void:
 			_take_drop(w)
 	for s in secrets:
 		_tick_secret(s, delta, p)
+	_hint_t -= delta
+	if _hint_t <= 0.0:
+		_hint_t = 0.5
+		_hint_seen()
 	# Animated bits on screen: 30 redraws a second; otherwise only on a change.
 	anim_t -= delta
 	if dirty or (anim_t <= 0.0 and _anim_on_screen()):
@@ -600,6 +620,10 @@ func _finish(w: Dictionary, vault: String, why: String) -> void:
 	if active == w:
 		active = {}
 	dirty = true
+	# Its rule kept on an early floor, with a part full: a Maker may grant
+	# the mark (main.gd try_earned_mark, essence_flow.gd EARNED).
+	if vault == "open" and not bool(w.get("broken", false)) and main.has_method("try_earned_mark"):
+		main.try_earned_mark(w)
 
 
 ## The puzzle host's answer for a wing it claimed.
@@ -648,11 +672,15 @@ func vault_choices(lesser: bool) -> Array:
 	var table := {"gear": float(REWARD["gear"]), "item": float(REWARD["item"])}
 	if can_take_scroll():
 		table["scroll"] = float(REWARD["scroll"])
+	if not main.first_climb:
+		table["tincture"] = float(main.Flow.TINCTURE["vault_chance"])
 	match main.Floors._weighted(table):
 		"gear":
 			out.append("gear:" + better_gear())
 		"scroll":
 			out.append("scroll")
+		"tincture":
+			out.append(main.Flow.tincture_id(tk if randf() < 0.5 else String(others[1])))
 		_:
 			out.append(Items.random_item(marked))
 	if not main.first_climb and randf() < charm_chance("vault"):
@@ -832,6 +860,8 @@ func hidden_crystals() -> Array:
 	kinds.shuffle()
 	var amt := roundi(crystal_amount() * float(REWARD["hidden"]))
 	var out: Array = kinds.slice(0, 3).map(func(k): return "crystal:%s:%d" % [k, amt])
+	if not main.first_climb and randf() < float(main.Flow.TINCTURE["hidden_chance"]):
+		out[2] = main.Flow.tincture_id(String(kinds[2]))  # (now and then a tincture in place of a crystal)
 	if not main.first_climb and randf() < charm_chance("secret"):
 		out.append("gear:" + Gear.code(Charms.roll(main.floor_num)))  # (now and then a charm too: charms.gd LOOT)
 	return out

@@ -42,6 +42,7 @@ const Boons := preload("res://scripts/boons.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Notices := preload("res://scripts/notices.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 
 ## A line that starts with this is a story slot not written yet (hidden).
 const STORY_TAG := "[Yours to write]"
@@ -69,16 +70,22 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_glows", "start", "bye"]},
-	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
-		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
-		"choices": ["how_marks", "how", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_glows", "start", "bye"]},
+	"how_essence": {"ask": "Essence, banking it, and tinctures?", "fact": "rules",
+		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
+		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
+	"how_flow": {"ask": "How does essence flow?", "fact": "rules",
+		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks, each kind to the marks of that kind; a kind none of them is made of spreads thinly over all. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
+		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
+	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
+		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, the outfitter stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
+		"choices": ["how_flow", "how_new_mark", "how", "bye"]},
 	"how_marks": {"ask": "How do marks grow?", "fact": "rules",
-		"lines": ["Across climbs, never during one: from essence banked at stairs. A mark's own kind counts {own}x, every other kind {other}x. Each has {steps} steps, and each step brings a spell or makes one stronger. The Proving, on floor six, can raise one a step too."],
+		"lines": ["Across climbs, never during one: from your marks' share of what you bank, {marks} of it. Each kind goes to the marks of that kind and counts {own}x; a kind none of them is made of counts {other}x, spread over all. The more marks you carry, the slower each grows. Each has {steps} steps, and each step brings a spell or makes one stronger. A tincture steers essence into one mark, and the Proving, on floor six, can raise one a step."],
 		"choices": ["how_new_mark", "how", "bye"]},
-	"how_new_mark": {"ask": "How does a new mark form?", "fact": "rules",
-		"lines": ["Banked essence also soaks into your unmarked parts, slowly, and slower the more marks you carry. A part {full} full is ready, and only a summit marks it: one new mark a climb, at most. The first mark comes at the Regard. Fall on that first climb and it's faint: {faint} more banked essence before it grows."],
-		"choices": ["how_marks", "how", "bye"]},
+	"how_new_mark": {"ask": "How do I earn a new mark?", "fact": "rules",
+		"lines": ["Your body's share of what you bank soaks into your unmarked parts, by what each does, slower the more marks you carry. A part {full} full is ready. Reach a summit and the beast marks it. Or prove yourself sooner: break into a sealed wing on floor {early} or below, keep its rule and beat it, and the Maker of Marks may mark you there. Fall with a full part and there's a {fall_chance} chance it takes a faint mark anyway. One new mark a climb, at most. The first comes at the Regard; fall on that first climb and it's faint: {faint} more banked essence before it grows."],
+		"choices": ["how_marks", "how_tinctures", "how", "bye"]},
 	"how_renown": {"ask": "What is renown for?", "fact": "rules",
 		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from drills, bouts and challenges at the stations. Ranks: {ranks}. Ranks open the outfitter's upgrades, the tournament's tiers, drills, challenges and boons. Boons themselves cost crystals, at a station's shrine."],
 		"choices": ["how_fall", "how", "bye"]},
@@ -102,7 +109,10 @@ static var DIALOGUE := {
 		"choices": ["how_bags", "how", "bye"]},
 	"how_bags": {"ask": "How do bags work?", "fact": "rules",
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
-		"choices": ["how_charms", "how", "bye"]},
+		"choices": ["how_shop", "how_charms", "how", "bye"]},
+	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
+		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), Minor bottles from {minor_rank} and Greater ones from {greater_rank}, more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
+		"choices": ["how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -136,7 +146,7 @@ static var DIALOGUE := {
 		"lines": ["As I have them. {marks}"],
 		"choices": ["marks_grow", "marks_new", "start", "bye"]},
 	"marks_grow": {"ask": "How do marks grow?", "fact": "money",
-		"lines": ["From essence you bank at a stair. Never in the middle of a climb. A mark's own kind counts most. {condense} of what you bank becomes crystals instead: To crystals, in Settings."],
+		"lines": ["From essence you bank at a stair, never in the middle of a climb: {marks} of it goes to your marks, each kind to the marks of that kind. {condense} becomes crystals: To crystals, in Settings. A tincture puts its essence into the one mark you choose."],
 		"choices": ["marks_new", "start", "bye"]},
 	"marks_new": {"ask": "Will I get another mark?", "fact": "soak",
 		"lines": ["{soak}"],
@@ -159,7 +169,7 @@ static var DIALOGUE := {
 		"lines": ["Six cars. The Engine takes you to a tower. The outfitter buys and sells. Your car holds what you'll wear, your pack and your stash. The Workshop works on gear, the Library keeps my words, and the last car holds the settings."],
 		"choices": ["train_money", "train_carry", "start", "bye"]},
 	"train_money": {"ask": "How do I pay for things?", "fact": "money",
-		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and the outfitter pays for every climb, fall or not."],
+		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and the outfitter pays for every climb, fall or not. Spend them, craft tinctures from them, or eat them: your book's Crystals and tinctures."],
 		"choices": ["train_carry", "start", "bye"]},
 	"train_carry": {"ask": "What goes up the tower with me?",
 		"lines": ["What you wear, your pack and your belt. The stash never leaves the train. A fall takes your pack and your belt, and sometimes the weapon in your hand. Never an heirloom."],
@@ -182,7 +192,7 @@ static var HINTS := {
 	"unbanked": "You carry {amount} unbanked essence. Find the stair before something finds you.",
 	"low_health": "You're low. A draught, a spring, or the stair.",
 	"faint": "Your mark is faint. It needs {amount} more banked essence before it grows.",
-	"mark_ready": "Your {part} is full of essence. Reach a summit and it takes a mark.",
+	"mark_ready": "Your {part} is full of essence. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"better_stash": "Something you keep beats what you'd wear: {piece}. The Loadout puts it on.",
 	"belt_empty": "Your belt is empty. The outfitter sells draughts. The Workshop brews them cheaper.",
 	"afford_rack": "You can afford {piece} on the outfitter's rack, and it beats yours.",
@@ -213,10 +223,10 @@ static var TEXT := {
 	"mark_brings": ", which brings {spell}",
 	"mark_top": "It has grown as far as it goes.",
 	"mark_faint": "It's faint: {debt} more banked essence before it grows.",
-	"soak_part": "Your {part} is {pct}% full. When a part is full, a summit can mark it. One new mark a climb, at most.",
-	"soak_ready": "Your {part} is full. Reach a summit and it takes a mark.",
+	"soak_part": "Your {part} is {pct}% full. When a part is full, a summit can mark it, or a sealed wing won early. One new mark a climb, at most.",
+	"soak_ready": "Your {part} is full. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"soak_none": "Every part already carries a mark.",
-	"soak_empty": "Not yet. Essence you bank soaks into your unmarked parts. A full one can be marked at a summit.",
+	"soak_empty": "Not yet. Your body's share of what you bank soaks into your unmarked parts. A full one can be marked at a summit.",
 	"summary": "{Tower}: you reached floor {floor}. {gathered}{finds}{banked}{pay}",
 	"gathered": "{n} essence gathered. ",
 	"finds": "{n} finds. ",
@@ -517,7 +527,9 @@ static func _fact_money(main) -> Dictionary:
 	var prof = main.profile if main != null else null
 	var M = load("res://scripts/menu.gd")
 	var share := Train.condense_share(M.settings)
-	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0))}
+	var sh: Dictionary = Flow.shares(share)
+	return {"crystals": int(prof.crystals_held()) if prof != null else 0, "condense": "%d%%" % int(round(share * 100.0)),
+		"body": "%d%%" % int(round(float(sh["body"]) * 100.0)), "marks": "%d%%" % int(round(float(sh["marks"]) * 100.0))}
 
 
 ## The climber's states (reactions.gd CLIMBER) and their cures (items.gd
@@ -590,8 +602,18 @@ static func _fact_rules() -> Dictionary:
 		"per_floor": int(R.CLIMB.get("floor", 0)), "per_best": int(R.CLIMB.get("best", 0)), "beast": int(R.CLIMB.get("beast", 0)),
 		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),
 		"kinds": Items.BELT_KINDS, "stack": Items.MAX_STACK,
+		"tincture": int(Flow.TINCTURE["essence"]), "craft": int(Flow.TINCTURE["craft"]), "store_kinds": "one kind" if int(Flow.TINCTURE["store_kinds"]) == 1 else "%d kinds" % int(Flow.TINCTURE["store_kinds"]),
+		"early": int(Flow.EARNED["last_floor"]), "fall_chance": "%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0)),
 	})
 	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
+	var Shop = load("res://scripts/shop.gd")
+	var last: Dictionary = Shop.RANK_STOCK[-1]
+	f["rail_most"] = Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]) + int(last["rail"])
+	f["kinds_most"] = int(last["kinds"])
+	f["minor_rank"] = R.rank_name(int(Shop.SIZE_RANK["1"]))
+	f["greater_rank"] = R.rank_name(int(Shop.SIZE_RANK["3"]))
+	f["gun_rank"] = R.rank_name(int(Shop.WEAPON_RANK.get("flintlock", 0)))
+	f["pedlar"] = "From %s, %s sets up a stall at every station and at each camp: a few wares on a theme, new each time, paid for in crystals (at a camp, essence you carry will do)." % [R.rank_name(int(Shop.MERCHANT["rank"])), Shop.MERCHANT["name"]]
 	var Charms = load("res://scripts/charms.gd")
 	var n := int(Charms.SHOP["rack"])
 	f["charm_shop"] = ("one on his rail" if n == 1 else "%d on his rail" % n)

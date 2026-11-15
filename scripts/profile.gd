@@ -14,28 +14,32 @@ const Gear := preload("res://scripts/gear.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Appearance := preload("res://scripts/appearance.gd")
 const Unbound := preload("res://scripts/unbound.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 ## Slot 1's file (main.gd points save_path at the current slot's: slots.gd).
 const SAVE_PATH := "user://climber_1.cfg"
 
 const FIRST_CLIMB_FLOORS := 3
 static var FAINT_DEBT := 80.0
-## Banked essence needed to reach each step (index = step - 1). A bond grows
-## from its own essence (AFFINITY_WEIGHT) and a little from the rest
-## (OTHER_WEIGHT), slowed by STEP_RATE and by how many marks the body already
-## carries (BODY_DRAG). The Proving (floor 6) can raise a mark a step too.
+## Growth needed to reach each step (index = step - 1). Only the marks' share
+## of what you bank grows marks (essence_flow.gd SPLIT): each kind goes to the
+## marks of that kind and counts AFFINITY_WEIGHT; a kind no mark is made of
+## spreads over every mark and counts OTHER_WEIGHT. Then STEP_RATE, slowed by
+## how many marks the body already carries (BODY_DRAG). The Proving (floor 6)
+## can raise a mark a step too, and tinctures steer essence into one mark.
 static var STEP_XP := [0.0, 150.0, 450.0, 1000.0, 1800.0]
 static var AFFINITY_WEIGHT := 2.0
 static var OTHER_WEIGHT := 0.25
 static var STEP_RATE := 0.25
-## Marks after the first: an unmarked body part fills like a battery. It
-## soaks up only SOAK_RATE of what it does, and the fuller it is the slower it
-## fills (gain x (1 - fill)); a body that carries more marks fills every part
-## slower still (BODY_DRAG, by marks carried). A part is full (ready for a
-## mark) at MARK_FULL of NEW_MARK_SOAK. New marks come only at a summit, at
-## most one a climb (main.gd). Numbers are first guesses: aim, 20+ climbs
-## for all six marks.
+## Marks after the first: an unmarked body part fills like a battery. The
+## body's share of what you bank spreads over the parts by what each did,
+## and an unmarked part soaks SOAK_RATE of its portion; the fuller it is the
+## slower it fills (gain x (1 - fill)); a body that carries more marks fills
+## every part slower still (BODY_DRAG, by marks carried). A part is full
+## (ready for a mark) at MARK_FULL of NEW_MARK_SOAK. A full part takes a new
+## mark at a summit, or earlier from a Maker for a sealed wing won early
+## (essence_flow.gd EARNED); at most one new mark a climb (main.gd).
 static var NEW_MARK_SOAK := 250.0
-static var SOAK_RATE := 0.4
+static var SOAK_RATE := 1.6
 static var MARK_FULL := 0.9
 static var BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
 
@@ -48,7 +52,7 @@ var best_floor := 1
 var last_tower := "kraken"
 var pacts: Array = []  # Covenant's kin book: monster kinds bound, kept between climbs
 var pacts_formed: Array = []  # named pacts (pacts.gd) formed at least once: announced once, listed in the book
-## Essence density: everything you've banked, by essence type, and how it
+## Essence density: the body's share of everything you've banked, by essence type, and how it
 ## settled in your body parts (by what each part did). Each type is an
 ## attribute and gives a small passive bonus (see attribute()).
 var density := {}  # kind -> amount
@@ -59,7 +63,7 @@ var part_density := {}  # part -> {kind -> amount}
 var heirlooms := {}
 ## Essence crystals: essence held outside you, kept between climbs: the
 ## train's money. Every stair condenses a share of what you bank into them
-## (train.gd CONDENSE_*), the outfitter pays some for every climb
+## (essence_flow.gd, the setting train.gd CONDENSE_*), the outfitter pays some for every climb
 ## (CLIMB_PAY), a vault or a secret room may hold some, and reading a recall
 ## scroll turns unbanked essence into them; consuming one banks its essence
 ## into you (main.gd consume_crystal). Each is {"kind", "amount"}; crystals
@@ -160,7 +164,7 @@ static var ATTRIBUTES := {
 }
 ## The bonuses are small: they grow with diminishing returns toward the cap.
 static var ATTRIBUTE_CAP := 0.12
-static var ATTRIBUTE_HALF := 600.0  # density at which a bonus is half the cap
+static var ATTRIBUTE_HALF := 400.0  # density at which a bonus is half the cap (density is the body's share of what you bank)
 var saving := true
 ## Where the profile is saved: its own slot's file, kept from when it was
 ## loaded, so this climber never writes over another (tests point it elsewhere).
@@ -594,57 +598,197 @@ func add_bond(part: String, id: String, faint: bool) -> void:
 	tally = {}
 
 
-## Banks a stair's worth of essence and soak. Returns lines describing what
-## changed (steps gained, faint marks strengthened).
+## Banks essence the natural way, with no crystal share (eating a crystal:
+## main.gd consume_crystal): body and marks share it. `run_soak` is what each
+## body part did (it spreads the body's share); empty, the way your body has
+## always taken it (natural_style). Returns lines (steps gained, faint marks
+## strengthened).
 func bank(essence: Dictionary, run_soak: Dictionary) -> Array:
-	var lines: Array = []
-	var total := 0.0
-	var soaked := 0.0
-	for part in run_soak:
-		soaked += float(run_soak[part])
+	return pour(essence, run_soak, 0.0)["lines"]
+
+
+## Pours banked essence into you, split three ways (essence_flow.gd): a share
+## (`crystal_share`, whole essence only) condenses into crystals, and body and
+## marks divide the rest. Returns {"lines", "made" (kind -> crystals), "keep"
+## (kind -> what went into you), "body", "marks", "crystals", "total"}.
+func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Dictionary:
+	var sh: Dictionary = Flow.shares(crystal_share)
+	var unbound := Unbound.is_on(self)
+	var marked := not bonds.is_empty() and not unbound
+	var out := {"lines": [], "made": {}, "keep": {}, "body": 0.0, "marks": 0.0, "crystals": 0.0, "total": 0.0}
+	var to_body := {}
+	var to_marks := {}
+	var bm := float(sh["body"]) + float(sh["marks"])
 	for kind in essence:
-		total += float(essence[kind])
-		tally[kind] = float(tally.get(kind, 0.0)) + float(essence[kind])
-		# Density: the essence settles in your body, by type and by part.
-		density[kind] = float(density.get(kind, 0.0)) + float(essence[kind])
-		if Unbound.is_on(self):
-			Unbound.settle(self, kind, float(essence[kind]))  # (the Unbound: raw, in its part)
-		elif soaked > 0.0:
-			for part in run_soak:
-				var pd: Dictionary = part_density.get(part, {})
-				pd[kind] = float(pd.get(kind, 0.0)) + float(essence[kind]) * float(run_soak[part]) / soaked
-				part_density[part] = pd
-	for part in run_soak:
-		if not bonds.has(part) and not Unbound.is_on(self):
-			# A battery: the fuller the part (and the more marks the body carries), the slower it fills.
-			var have := float(soak.get(part, 0.0))
-			var fill := clampf(have / NEW_MARK_SOAK, 0.0, 1.0)
-			var gain_soak: float = float(run_soak[part]) * SOAK_RATE * (1.0 - fill) * body_drag()
-			soak[part] = minf(NEW_MARK_SOAK, have + gain_soak)
-	for part in bonds:
-		var b: Dictionary = bonds[part]
-		var info: Dictionary = Bonds.BONDS[b["id"]]
-		# Its own kind counts most; the rest a little.
-		var own := float(essence.get(info["affinity"], 0.0))
-		var gain := own * AFFINITY_WEIGHT + (total - own) * OTHER_WEIGHT
-		if gain <= 0.0:
+		var amount := float(essence[kind])
+		if amount <= 0.0:
 			continue
-		if b["faint"]:
-			b["debt"] = float(b["debt"]) - gain
-			if b["debt"] <= 0.0:
-				gain = -float(b["debt"])
-				b["debt"] = 0.0
-				b["faint"] = false
-				lines.append("Your %s mark is no longer faint" % info["name"])
-			else:
+		out["total"] += amount
+		var c := floorf(amount * float(sh["crystals"]))
+		if c >= 1.0:
+			add_crystal(kind, c)
+			out["made"][kind] = c
+			out["crystals"] += c
+		else:
+			c = 0.0
+		var rest := amount - c
+		out["keep"][kind] = rest
+		tally[kind] = float(tally.get(kind, 0.0)) + rest
+		var m := rest * float(sh["marks"]) / bm if marked and bm > 0.0 else 0.0
+		to_marks[kind] = m
+		to_body[kind] = rest - m
+		out["marks"] += m
+		out["body"] += rest - m
+	# The body's share: density, settled in the parts that did the work, and
+	# the unmarked parts' soak (batteries filling toward a new mark).
+	var style := natural_style(run_soak)
+	var style_total := 0.0
+	for part in style:
+		style_total += maxf(0.0, float(style[part]))
+	for kind in to_body:
+		var b := float(to_body[kind])
+		if b <= 0.0:
+			continue
+		density[kind] = float(density.get(kind, 0.0)) + b
+		if unbound:
+			Unbound.settle(self, kind, b)  # (the Unbound: raw, in its part)
+		elif style_total > 0.0:
+			for part in style:
+				var pd: Dictionary = part_density.get(part, {})
+				pd[kind] = float(pd.get(kind, 0.0)) + b * maxf(0.0, float(style[part])) / style_total
+				part_density[part] = pd
+	if not unbound and style_total > 0.0 and float(out["body"]) > 0.0:
+		for part in style:
+			if bonds.has(part) or not part in Bonds.PARTS:
 				continue
-		var before := step_for_xp(float(b["xp"]))
-		b["xp"] = minf(float(STEP_XP[STEP_XP.size() - 1]), float(b["xp"]) + gain * STEP_RATE * body_drag())
-		var after := step_for_xp(float(b["xp"]))
-		if after > before:
-			var note: String = Bonds.step_note(b["id"], after)
-			lines.append("%s grows to step %d%s" % [info["name"], after, (": " + note) if note != "" else ""])
+			var gain := soak_gain(part, float(out["body"]) * maxf(0.0, float(style[part])) / style_total)
+			soak[part] = minf(NEW_MARK_SOAK, float(soak.get(part, 0.0)) + gain)
+	if marked:
+		out["lines"] = feed_marks(to_marks)
+	return out
+
+
+## How a stair spreads the body's share (`style`: what each part did); with
+## nothing done, the way your body has always taken it (where essence has
+## settled before), or all six parts alike.
+func natural_style(style: Dictionary) -> Dictionary:
+	var total := 0.0
+	for part in style:
+		total += maxf(0.0, float(style[part]))
+	if total > 0.0:
+		return style
+	var out := {}
+	for part in part_density:
+		var t := 0.0
+		for k in part_density[part]:
+			t += float(part_density[part][k])
+		if t > 0.0 and part in Bonds.PARTS:
+			out[part] = t
+	if out.is_empty():
+		for part in Bonds.PARTS:
+			out[part] = 1.0
+	return out
+
+
+## What `amount` of the body's essence adds to an unmarked part's soak: a
+## battery (the fuller it is, and the more marks the body carries, the
+## slower it fills), at SOAK_RATE (`rate` for a tincture).
+func soak_gain(part: String, amount: float, rate := -1.0) -> float:
+	if bonds.has(part) or amount <= 0.0:
+		return 0.0
+	var have := float(soak.get(part, 0.0))
+	var fill := clampf(have / NEW_MARK_SOAK, 0.0, 1.0)
+	return amount * (SOAK_RATE if rate < 0.0 else rate) * (1.0 - fill) * body_drag()
+
+
+## The marks' share, by kind: each kind goes to the marks of that kind
+## (shared between them, counting AFFINITY_WEIGHT), and a kind no mark is made
+## of spreads over every mark (counting OTHER_WEIGHT). Returns lines.
+func feed_marks(per_kind: Dictionary) -> Array:
+	var gains := {}
+	for kind in per_kind:
+		var amount := float(per_kind[kind])
+		if amount <= 0.0 or bonds.is_empty():
+			continue
+		var own: Array = bonds.keys().filter(func(pt): return String(Bonds.BONDS.get(String(bonds[pt]["id"]), {}).get("affinity", "")) == String(kind))
+		if own.is_empty():
+			for part in bonds:
+				gains[part] = float(gains.get(part, 0.0)) + amount / float(bonds.size()) * OTHER_WEIGHT
+		else:
+			for part in own:
+				gains[part] = float(gains.get(part, 0.0)) + amount / float(own.size()) * AFFINITY_WEIGHT
+	var lines: Array = []
+	for part in Bonds.PARTS:
+		if gains.has(part):
+			lines.append_array(grow_mark(part, float(gains[part])))
 	return lines
+
+
+## A mark takes `gain` (essence already weighted by kind): a faint mark pays
+## its debt first; the rest grows it (STEP_RATE, slowed by BODY_DRAG). Lines.
+func grow_mark(part: String, gain: float) -> Array:
+	var lines: Array = []
+	if not bonds.has(part) or gain <= 0.0:
+		return lines
+	var b: Dictionary = bonds[part]
+	var info: Dictionary = Bonds.BONDS[b["id"]]
+	if b["faint"]:
+		b["debt"] = float(b["debt"]) - gain
+		if b["debt"] <= 0.0:
+			gain = -float(b["debt"])
+			b["debt"] = 0.0
+			b["faint"] = false
+			lines.append("Your %s mark is no longer faint" % info["name"])
+		else:
+			return lines
+	var before := step_for_xp(float(b["xp"]))
+	b["xp"] = minf(float(STEP_XP[STEP_XP.size() - 1]), float(b["xp"]) + gain * STEP_RATE * body_drag())
+	var after := step_for_xp(float(b["xp"]))
+	if after > before:
+		var note: String = Bonds.step_note(b["id"], after)
+		lines.append("%s grows to step %d%s" % [info["name"], after, (": " + note) if note != "" else ""])
+	return lines
+
+
+## Drinks a tincture (`amount` of `kind`) into one body part, steered: a
+## mark's growth (its own kind counts AFFINITY_WEIGHT, any other OTHER_WEIGHT),
+## or an unmarked part's soak (Flow.TINCTURE soak_rate), which also counts
+## toward the next mark's kind; the Unbound's raw density there. Returns
+## {"lines", "said"} (said: what it did, in a few words).
+func drink(kind: String, amount: float, part: String) -> Dictionary:
+	var lines: Array = []
+	var said := ""
+	if amount <= 0.0 or not part in Bonds.PARTS:
+		return {"lines": lines, "said": said}
+	if Unbound.is_on(self):
+		var upd: Dictionary = part_density.get(part, {})
+		upd[kind] = float(upd.get(kind, 0.0)) + amount
+		part_density[part] = upd
+		density[kind] = float(density.get(kind, 0.0)) + amount
+		said = String(Flow.TEXT["to_raw"]) % String(Bonds.PART_NAMES[part]).to_lower()
+	elif bonds.has(part):
+		var info: Dictionary = Bonds.BONDS[bonds[part]["id"]]
+		var gain := amount * (AFFINITY_WEIGHT if String(info["affinity"]) == kind else OTHER_WEIGHT)
+		var faint := bool(bonds[part]["faint"])
+		var xp0 := float(bonds[part]["xp"])
+		lines = grow_mark(part, gain)
+		var grown := float(bonds[part]["xp"]) - xp0
+		said = String(Flow.TEXT["faint_paid"]) if faint and grown <= 0.0 else String(Flow.TEXT["to_mark"]) % [int(round(grown)), info["name"]]
+	else:
+		var gain := soak_gain(part, amount, float(Flow.TINCTURE["soak_rate"]))
+		soak[part] = minf(NEW_MARK_SOAK, float(soak.get(part, 0.0)) + gain)
+		tally[kind] = float(tally.get(kind, 0.0)) + amount
+		density[kind] = float(density.get(kind, 0.0)) + amount
+		var pd: Dictionary = part_density.get(part, {})
+		pd[kind] = float(pd.get(kind, 0.0)) + amount
+		part_density[part] = pd
+		said = String(Flow.TEXT["to_soak"]) % [String(Bonds.PART_NAMES[part]).to_lower(), soak_pct(part)]
+	return {"lines": lines, "said": said}
+
+
+## How full an unmarked part is, in percent of what a mark needs (0 to 100).
+func soak_pct(part: String) -> int:
+	return clampi(int(floor(float(soak.get(part, 0.0)) / maxf(NEW_MARK_SOAK * MARK_FULL, 1.0) * 100.0)), 0, 100)
 
 
 ## Banks the path's essence carried up a stair into the flow. Returns lines

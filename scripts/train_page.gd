@@ -30,6 +30,7 @@ const Bench := preload("res://scripts/bench.gd")
 const TrainView := preload("res://scripts/train_view.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
+const Shop := preload("res://scripts/shop.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Towers := preload("res://scripts/towers.gd")
@@ -46,6 +47,7 @@ const StationView := preload("res://scripts/station_view.gd")
 const Renown := preload("res://scripts/renown.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
 const ArrangeUI := preload("res://scripts/arrange_ui.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -331,7 +333,7 @@ func enter() -> void:
 func _speech(root: Node, car: String, here: bool) -> void:
 	if here and not tips.has(car):
 		var said: String = m.main.tip_now("train")
-		for id in CAR_TIPS.get(car, []):
+		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []):
 			var own: String = m.main.tip_now(id)
 			said = own if said == "" else (said + "\n" + own if own != "" else said)
 		tips[car] = said
@@ -390,6 +392,18 @@ func _main_row(root: Node) -> HBoxContainer:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(row)
 	return row
+
+
+## The Entity's extra tips in the store: the shelf has grown with a rank,
+## and a worn title tilts the rail (the first time each).
+func _shop_tips() -> Array:
+	var out: Array = []
+	var prof = _prof()
+	if Renown.rank(prof) >= 1:
+		out.append("shop_grows")
+	if Shop.title_line(prof) != "":
+		out.append("shop_title")
+	return out
 
 
 ## A piece of furniture (train_view.gd Furnish) holding a column of things.
@@ -870,6 +884,8 @@ func _store(root: Node) -> void:
 	var oc := VBoxContainer.new()
 	oc.add_theme_constant_override("separation", 4)
 	oc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if not selling and Train.shelf(prof).size() > Shop.SHELF_PAGE + 2 and small:
+		oc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN  # (a tall store on a phone: his signs stay at the top, where the Sell sign is always in reach)
 	oc.custom_minimum_size.x = 150.0 if small else 200.0
 	oc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(oc)
@@ -931,13 +947,28 @@ func _store(root: Node) -> void:
 	else:
 		var shelf := _furnish(goods, "shelf")
 		_tag(shelf, T["shelves"])
+		var shelf_keys: Array = Train.shelf(prof)
+		var shelf_pages := Shop.pages(shelf_keys.size(), Shop.SHELF_PAGE)
+		var shelf_per := Shop.page_size(shelf_keys.size(), Shop.SHELF_PAGE)
+		shelf_page = clampi(shelf_page, 0, shelf_pages - 1)
+		if shelf_pages > 1:
+			var sch: Array = []
+			for pg in shelf_pages:
+				sch.append([str(pg), Shop.TEXT["page"] % [pg + 1, shelf_pages]])
+			_store_cycler(shelf, "shelf", sch, str(shelf_page), "%s")
 		var sg := _grid(shelf, 6)
-		for id in Train.supplies():
-			var price := Train.supply_price(prof, id)
+		for si in shelf_keys.size():
+			if shelf_pages > 1 and si / shelf_per != shelf_page:
+				continue
+			var key = shelf_keys[si]
+			var id := Shop.key_id(String(key))
+			var size := Shop.key_size(String(key))
+			var price := Train.supply_price(prof, id, size)
 			var packed := int(prof.supplies.get(id, 0))
-			var s = m._slot(sg, "supply:" + id, _cell(), "")
+			var s = m._slot(sg, "supply:" + String(key), _cell(), "")
 			s.kind = "item"
 			s.id = id
+			s.item_size = size  # (Minor and Greater ones show their pips)
 			s.count = packed if packed > 0 else -1
 			_price_on(s, price[0], price[1], true)
 			keys.append(s.get_meta("slot"))
@@ -947,12 +978,29 @@ func _store(root: Node) -> void:
 		goods.add_child(low)
 		var rail := _furnish(low, "rail")
 		_tag(rail, T["rail"])
+		var tline := Shop.title_line(prof)
+		if tline != "":
+			# (your worn title tilts the rail: which line comes from it)
+			var tl := _note(rail, tline, 10.0)
+			tl.add_theme_font_size_override("font_size", 12 if small else 13)
+			tl.add_theme_color_override("font_color", UI.GILT_HI)
+			tl.set_meta("store_note", "title")
 		_store_cycler(rail, "rack", Train.RACK_FILTERS, rack_filter, T["show"])
+		var rack := Train.outfit(prof)
+		var pages := Shop.pages(rack.size())
+		var per := Shop.page_size(rack.size())
+		rack_page = clampi(rack_page, 0, pages - 1)
+		if pages > 1:
+			var choices: Array = []
+			for pg in pages:
+				choices.append([str(pg), Shop.TEXT["page"] % [pg + 1, pages]])
+			_store_cycler(rail, "page", choices, str(rack_page), "%s")
 		var rg := _grid(rail, 4)
 		rg.add_theme_constant_override("v_separation", 16)
 		rail.add_theme_constant_override("separation", 14 if rack_filter == "all" else 8)
-		var rack := Train.outfit(prof)
 		for i in rack.size():
+			if pages > 1 and i / per != rack_page:
+				continue
 			var g: Dictionary = rack[i]
 			if not Train.rack_shows(prof, _player(), g, rack_filter):
 				continue
@@ -1001,6 +1049,8 @@ func _set_store(id: String) -> void:
 ## The store's filters: the outfit rail's (what it shows) and selling's
 ## (where from, which slot, the order). Kept while the game runs.
 var rack_filter := "all"
+var rack_page := 0
+var shelf_page := 0
 var sell_from := "all"
 var sell_slot := "all"
 var sell_sort := "newest"
@@ -1025,6 +1075,10 @@ func _set_store_filter(value: String, which: String) -> void:
 	match which:
 		"rack":
 			rack_filter = value
+		"page":
+			rack_page = int(value)
+		"shelf":
+			shelf_page = int(value)
 		"from":
 			sell_from = value
 		"slot":
@@ -1166,6 +1220,20 @@ func _workshop(root: Node) -> void:
 			keys = _bench_pieces(left, func(g): return Bench.joinable(g))
 		"vessel":
 			keys = VesselPage.bench_list(self, left)
+		"tincture":
+			# Tinctures (bench.gd, its own section): one of each kind, its
+			# crafting cost on it, how many are packed.
+			var grid := _grid(left, 3)
+			for id in Bench.tinctures():
+				var cost := Bench.tincture_cost(prof, id)
+				var s = m._slot(grid, "bench:tincture:" + id, _cell(), "")
+				s.kind = "item"
+				s.id = id
+				var packed := int(prof.supplies.get(id, 0))
+				s.count = packed if packed > 0 else -1
+				var kind: String = cost.keys()[0]
+				_price_on(s, kind, int(cost[kind]), true)
+				keys.append(s.get_meta("slot"))
 		"charm":
 			keys = _charm_counter(left)
 		_:
@@ -1835,6 +1903,9 @@ func _bench_card(arg: String) -> void:
 	if arg.begins_with("supply:"):
 		_break_card(arg)
 		return
+	if arg.begins_with("tincture:"):
+		_tincture_card(arg.substr(9))
+		return
 	match counter:
 		"charm":
 			if arg.begins_with("craft:"):
@@ -2108,6 +2179,47 @@ func _break_card(thing: String) -> void:
 
 # --- the bench's actions -------------------------------------------------------------------
 
+## A tincture at the Workshop's counter (bench.gd tinctures): what it does,
+## what crafting one costs, Craft, and Drink one (the crystals page,
+## pour_page.gd) once one is packed; Put one back returns what it cost.
+func _tincture_card(id: String) -> void:
+	var prof = _prof()
+	var p = _player()
+	if not Items.ITEMS.has(id):
+		return
+	var data: Dictionary = Items.ITEMS[id]
+	_head("item", id, data["name"], Items.color(id))
+	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
+	m._detail_text(Flow.TEXT["craft_note"] % int(Flow.TINCTURE["essence"]), UI.DIM)
+	var why := _cost_lines(Bench.tincture_cost(prof, id), B["cost"])
+	if Bench.rune_artist(prof):
+		m._detail_text(B["rune_artist_less"] % int(round((1.0 - Bench.RUNE_ARTIST_BREW) * 100.0)), UI.GOOD)
+	var packed := int(prof.supplies.get(id, 0))
+	m._detail_text(B["packed"] % [packed, p.max_stack(id)], UI.DIM)
+	if why == "" and Train.supply_room(prof, p, id) <= 0:
+		why = B["belt_full"]
+	var b: Button = m._button(Flow.TEXT["craft"], _craft_tincture.bind(id), m.details)
+	b.custom_minimum_size.y = 40
+	b.disabled = why != ""
+	b.set_meta("help", "tincture_craft")
+	_why_line(why)
+	if packed > 0:
+		var drink: Button = m._button(Flow.TEXT["drink_from_bench"], m.open_pour.bind(id), m.details)
+		drink.custom_minimum_size.y = 40
+		drink.set_meta("help", "tincture_drink")
+		var back: Button = m._button(B["put_back"], _unbrew.bind(id), m.details)
+		back.custom_minimum_size.y = 40
+		back.set_meta("put_back", id)
+
+
+func _craft_tincture(id: String) -> void:
+	var why := Bench.craft_tincture(_prof(), _player(), id)
+	if why == "":
+		_done(Flow.TEXT["crafted"] % Items.ITEMS[id]["name"], "", "brew")
+	else:
+		_done(B["cant"] % why, "", "ui_back")
+
+
 func _brew(id: String) -> void:
 	var why := Bench.brew(_prof(), _player(), id)
 	if why == "":
@@ -2256,16 +2368,21 @@ func _price_line(kind: String, amount: int, label := "") -> String:
 	return why
 
 
-func _supply_card(id: String) -> void:
+func _supply_card(key: String) -> void:
 	var prof = _prof()
 	var p = _player()
+	var id := Shop.key_id(key)
+	var size := Shop.key_size(key)
 	var data: Dictionary = Items.ITEMS[id]
-	_head("item", id, data["name"], Items.color(id))
+	_head("item", id, Items.sized_name(id, size), Items.color(id))
+	var note := Items.size_note(id, size)
+	if note != "":
+		m._detail_text(note, UI.GILT_HI)
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
 	var handy := _handy_line(id)  # (where it's handy: the tower chosen at the engine first, tower_needs.gd)
 	if handy != "":
 		m._detail_text(handy, UI.GILT_HI)
-	var price := Train.supply_price(prof, id)
+	var price := Train.supply_price(prof, id, size)
 	var why := _price_line(price[0], price[1])
 	if price[0] == Train.ANY:
 		m._detail_text(T["any_note"], UI.DIM)
@@ -2273,10 +2390,10 @@ func _supply_card(id: String) -> void:
 	m._detail_text(T["packed"] % [packed, p.max_stack(id)], UI.DIM)
 	if why == "" and Train.supply_room(prof, p, id) <= 0:
 		why = T["belt_full"]
-	var buy: Button = m._button(T["buy"], _buy_supply.bind(id), m.details)
+	var buy: Button = m._button(T["buy"], _buy_supply.bind(key), m.details)
 	buy.custom_minimum_size.y = 40
 	buy.disabled = why != ""
-	buy.set_meta("buy", id)
+	buy.set_meta("buy", key)
 	if why != "":
 		m._detail_text(T["cant"] % why, UI.BAD)
 	if packed > 0:
@@ -2356,10 +2473,11 @@ func _done(text: String, say: String, sound: String) -> void:
 	m.open("train")
 
 
-func _buy_supply(id: String) -> void:
-	var why := Train.buy_supply(_prof(), _player(), id)
+func _buy_supply(key: String) -> void:
+	var id := Shop.key_id(key)
+	var why := Train.buy_supply(_prof(), _player(), id, Shop.key_size(key))
 	if why == "":
-		var said: String = T["bought"] % Items.ITEMS[id]["name"]
+		var said: String = T["bought"] % Items.sized_name(id, Shop.key_size(key))
 		if Train.item_price(id)[0] == Train.ANY:
 			said += "  ·  " + T["paid_with"] % Train.paid_text(Train.last_paid(_prof(), id))  # (which crystals it took)
 		_done(said, Train.line("bought"), "buy")

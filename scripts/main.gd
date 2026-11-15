@@ -38,6 +38,7 @@ const GuideScript := preload("res://scripts/guide.gd")
 const Slots := preload("res://scripts/slots.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Train := preload("res://scripts/train.gd")
+const Shop := preload("res://scripts/shop.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Charms := preload("res://scripts/charms.gd")
@@ -67,6 +68,7 @@ const Objectives := preload("res://scripts/objectives.gd")
 const CracksScript := preload("res://scripts/cracks.gd")
 const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
@@ -221,6 +223,7 @@ var overlay_closed_frame := -1  # (so the Start that closed it doesn't also open
 # Items and camps (items.gd)
 var item_drops: Array = []  # items lying on the floor: {pos, id, t, hold (wait until you step off)}
 var item_drop_chance := Items.DROP_CHANCE
+var tincture_drop_chance := -1.0  # tests: the chance a kill leaves a tincture (-1: items.gd DROPS "tincture_chance", 0 in tests)
 var flasks: Array = []  # Fire Flasks in the air: {from, to, t, total, dmg, r}
 var flare_t := 0.0  # Flare Powder: the room is lit and hidden things nearby glint
 var flare_pos := Vector2.ZERO
@@ -253,6 +256,7 @@ var weapon_loss_chance := Lost.WEAPON_CHANCE  # a fall also takes the weapon in 
 var lost_cache_chance := 0.0 if Engine.has_meta("sixfold_test") else Lost.CACHE_CHANCE  # (tests set it when they want one)
 var lost_cache := {}  # this floor's lost cache: {pos, entries (profile.lost entries), taken}
 var fall_note: Array = []  # what the fall took, for the fall screen
+var fall_mark_roll := -1.0  # tests: stands in for the chance a fall leaves a faint mark (main.fall_mark)
 ## After the Regard, a fall shows what it took for a moment, then you're back
 ## on the train: on your own after FALL_WAIT seconds, or at once on a tap, a
 ## confirm key, R or the controller's View (not in the first FALL_GRACE
@@ -1559,30 +1563,29 @@ func _arrive() -> void:
 		lines.append("Your burns heal")
 	if healed >= 1.0:
 		lines.append("Rested: +%d health" % int(healed))
-	# Bank the essence gathered on this floor: it strengthens your marks. A
-	# share of it condenses into crystals first (train.gd CONDENSE_*, the
-	# setting): only the rest is banked, and only that grows anything.
-	var cond: Dictionary = profile.condense(run_essence, Train.condense_share(MenuScript.settings))
-	var keep: Dictionary = cond["keep"]
-	var banked := 0.0
-	var condensed := 0.0
-	for k in keep:
-		banked += float(keep[k])
-	for k in cond["made"]:
-		condensed += float(cond["made"][k])
-	if banked + condensed > 0.0:
-		var said: String = Train.TEXT["banked"] % int(round(banked))
-		if condensed >= 1.0:
-			said += "  ·  " + Train.TEXT["condensed"] % int(condensed)
+	# Bank the essence gathered on this floor, split three ways
+	# (essence_flow.gd): your body, your marks, and crystals (the setting,
+	# train.gd CONDENSE_*). The stair's line says how much went where.
+	var poured: Dictionary = profile.pour(run_essence, run_soak, Train.condense_share(MenuScript.settings))
+	var keep: Dictionary = poured["keep"]
+	var banked := float(poured["body"]) + float(poured["marks"])
+	if float(poured["total"]) > 0.0:
+		var said := split_line(poured)
 		lines.append(said)
 		kinds[said] = "banked"
 		profile.note("essence", banked)
-		tip("bank")
+		if not GuideScript.told("bank"):
+			if tip("bank"):
+				GuideScript.also_told("split")  # (the first stair's tip already says how it splits)
+		else:
+			tip("split")  # (a climber from before the split hears how it works now)
 	for l in lines:
 		if not kinds.has(l):
 			kinds[l] = "rest"
 	var grew: Array = SecretBonds.on_bank(profile, keep, run_flow, profile.path)  # (a secret bond grows from what's banked)
-	grew.append_array(profile.bank(keep, run_soak))
+	grew.append_array(poured["lines"])
+	if _near_full_part() != "" and not first_climb and not UnboundRun.Unbound.is_on(profile):
+		tip("earned_mark")  # (a part nearly full: the Entity hints at the sealed wings)
 	for l in grew:
 		kinds[l] = "mark"
 	lines.append_array(grew)
@@ -1815,6 +1818,9 @@ func _enter_camp(lines: Array) -> void:
 	# row higher (the floor 9 camp's is Rare).
 	choices.append("crystal:%s:%d" % [String(tower_data().get("essence", "air")), roundi(wings.crystal_amount() * 0.6) if wings != null else 10])
 	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else "common")))
+	if Shop.merchant_open(profile):
+		choices.append("pedlar:")  # (the pedlar's stall by the fire: shop.gd)
+		tip("merchant")
 	camp = {"stage": "item", "choices": choices, "lines": said, "sizes": _card_sizes(choices)}
 	_note_new_slots(choices)
 	camp_choosing = true
@@ -1859,6 +1865,8 @@ func camp_card(i: int) -> Dictionary:
 
 func _camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
+	if pick.begins_with("pedlar:") or pick.begins_with("ware:") or pick.begins_with("back:"):
+		return _pedlar_card(pick)
 	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
 		return unbound.card(pick)
 	if pick.begins_with("sb:"):
@@ -1955,6 +1963,12 @@ func choose_camp(i: int) -> void:
 	if camp["stage"] == "rival":
 		rivals.choose(i)
 		return
+	if camp["stage"] == "pedlar":
+		_pedlar_pick(pick)
+		return
+	if pick.begins_with("pedlar:"):
+		_open_pedlar()
+		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
 		if pick.begins_with("gear:"):
@@ -1995,6 +2009,92 @@ func choose_camp(i: int) -> void:
 		note_event("camp", String(notices.TEXT["camp"]) % String(l), null, false)
 	taken.append(Items.CAMP["leave"])
 	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0, "logged": true}
+	sfx("pickup", 0.95, -2.0, 0.0)
+
+
+# --- the pedlar at a camp (shop.gd) -------------------------------------------------
+
+## What a pedlar card shows (his stall among the camp's choices, a ware, the way back).
+func _pedlar_card(pick: String) -> Dictionary:
+	if pick.begins_with("pedlar:"):
+		return {"name": String(Shop.MERCHANT["name"]).capitalize(), "desc": Shop.TEXT["camp_desc"], "color": Color(0.95, 0.78, 0.4), "item": "", "pedlar": true,
+			"note": Shop.TEXT["theme"] % Shop.theme_name(profile, "camp", _pedlar_visit())}
+	if pick.begins_with("back:"):
+		return {"name": Shop.TEXT["camp_back"], "desc": Shop.TEXT["camp_back_desc"], "color": Color(0.6, 0.58, 0.66), "item": "", "pedlar": true}
+	var w: Dictionary = camp.get("market", {}).get("wares", [])[int(pick.get_slice(":", 1))]
+	if bool(w.get("sold", false)):
+		return {"name": Shop.TEXT["sold"], "desc": "", "color": Color(0.5, 0.48, 0.55), "item": "", "pedlar": true}
+	var price := Shop.ware_price(profile, w)
+	var held := int(profile.crystal_total(price[0])) + int(float(run_essence.get(price[0], 0.0)))
+	var note := Train.price_text(price[0], int(price[1]))
+	var g := Shop.ware_gear(w)
+	if not g.is_empty():
+		return {"name": Gear.display(g), "desc": gear_card_desc(g), "color": Gear.color(g), "item": "", "gear": g, "rim": Gear.rarity_color(g),
+			"note": note, "pedlar": true, "short": held < int(price[1])}
+	var id := String(w["id"])
+	var size := int(w.get("size", Items.STANDARD))
+	var d := Items.info(id)
+	return {"name": Items.sized_name(id, size), "desc": String(d["desc"]), "color": d["color"], "item": id, "size": size, "belt": true, "note": note,
+		"pedlar": true, "short": held < int(price[1])}
+
+
+## Which visit this is (the theme is taken in turn by it).
+func _pedlar_visit() -> int:
+	return profile.climbs * 3 + camps_done.size()
+
+
+## Sets his stall out by the fire: his wares as cards, and a way back.
+func _open_pedlar() -> void:
+	var market: Dictionary = camp.get("market", {})
+	if market.is_empty():
+		market = Shop.roll_merchant(profile, "camp", _pedlar_visit(), tower, floor_num)
+	var back: Dictionary = camp.duplicate()
+	back["market"] = market
+	var choices: Array = []
+	for k in market.get("wares", []).size():
+		choices.append("ware:%d" % k)
+	choices.append("back:")
+	camp = {"stage": "pedlar", "choices": choices, "lines": [String(market.get("said", "")), Shop.TEXT["camp_note"]], "market": market,
+		"title": "%s  ·  %s" % [String(Shop.MERCHANT["name"]).capitalize(), String(market.get("name", ""))], "back": back}
+	card_focus = 0
+	sfx("ready", 0.9, -4.0, 0.0)
+
+
+func _pedlar_pick(pick: String) -> void:
+	if pick.begins_with("back:"):
+		var back: Dictionary = camp.get("back", {})
+		back["market"] = camp.get("market", {})
+		camp = back
+		card_focus = 0
+		sfx("ui_back", 1.0, -4.0, 0.0)
+		return
+	var market: Dictionary = camp["market"]
+	var i := int(pick.get_slice(":", 1))
+	var w: Dictionary = market["wares"][i]
+	if bool(w.get("sold", false)):
+		return
+	var why := Shop.short_of(profile, w, run_essence)
+	if why != "":
+		camp["lines"] = [Shop.TEXT["cant"] % why, Shop.TEXT["camp_note"]]
+		sfx("ui_back", 1.0, -4.0, 0.0)
+		return
+	var price := Shop.ware_price(profile, w)
+	var got := Shop.pay(profile, price[0], int(price[1]), run_essence)
+	if got.is_empty():
+		return
+	var said := ""
+	if String(w["kind"]) == "gear":
+		said = _take_gear(Shop.ware_gear(w))
+	else:
+		said = _take_item(String(w["id"]), "Bought", int(w.get("size", Items.STANDARD)))
+	w["sold"] = true
+	profile.save()
+	var lines: Array = [said]
+	if int(got["carried"]) > 0:
+		lines.append(Shop.TEXT["paid_carried"] % int(got["carried"]))
+	lines.append(String(Shop.LINES["bought"][i % Shop.LINES["bought"].size()]))
+	camp["lines"] = lines
+	note_event("camp", String(notices.TEXT["camp"]) % said, null, false)
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
@@ -2039,23 +2139,92 @@ func _take_vault_pick(pick: String, size := Items.STANDARD) -> void:
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
-## Consumes some of your essence crystal of a kind (up to Items.CRYSTAL
-## "step"): that essence is banked into you, as at a stair (none of it
-## condenses). Returns what changed (empty if you hold none).
+## Eats some of your essence crystal of a kind (up to Items.CRYSTAL "step"):
+## its essence flows into you the natural way (essence_flow.gd), body and
+## marks sharing it as at a stair, with no crystal share and no steering.
+## Returns what changed (empty if you hold none).
 func consume_crystal(kind: String) -> Array:
 	var amount: float = profile.take_crystal(kind, float(Items.CRYSTAL["step"]))
 	if amount <= 0.0:
 		return []
-	var lines: Array = [Items.CRYSTAL["consumed"] % [int(amount), Essence.display(kind).to_lower()]]
-	lines.append_array(profile.bank({kind: amount}, {}))
+	var poured: Dictionary = profile.pour({kind: amount}, {}, 0.0)
+	var name := Essence.display(kind).to_lower()
+	var lines: Array = []
+	if UnboundRun.Unbound.is_on(profile):
+		lines.append(Flow.TEXT["ate_raw"] % [int(amount), name, String(UnboundRun.Unbound.PART_NAMES.get(UnboundRun.Unbound.part_for(profile, kind), "")).to_lower()])
+	elif float(poured["marks"]) > 0.0:
+		lines.append(Flow.TEXT["ate"] % [int(amount), name, int(round(float(poured["body"]))), int(round(float(poured["marks"])))])
+	else:
+		lines.append(Flow.TEXT["ate_body"] % [int(amount), name])
+	lines.append_array(poured["lines"])
 	_give_bonds()
 	profile.save()
-	if player != null:
+	if player != null and is_instance_valid(player) and player.is_inside_tree():
 		var col: Color = Essence.color(kind)
 		fx_ring(player.global_position, col, 40.0, 0.4, 3.0)
 		light_flash(player.global_position, col, 1.2, 1.4, 0.3)
 	sfx("glint", 1.2, -4.0, 0.0)
+	tip("crystal_eat")
 	return lines
+
+
+## A tincture asks where it goes: the crystals page (pour_page.gd), on its
+## card, from play or the train.
+func open_pour(id := "") -> void:
+	if menu == null:
+		return
+	menu.open_pour(id)
+
+
+## Where your tinctures are: on your belt in a climb, packed for the next
+## climb on the train. How many of one you hold there.
+func tincture_count(id: String) -> int:
+	if on_train:
+		return int(profile.supplies.get(id, 0))
+	return player.item_count(id) if player != null else 0
+
+
+## Drinks one tincture into a body part (a mark's growth, or an unmarked
+## part's soak: profile.gd drink). Taken from your belt in a climb, from
+## what's packed on the train. Returns the lines to show (empty if you
+## hold none).
+func drink_tincture(id: String, part: String) -> Array:
+	var kind := Flow.tincture_kind(id)
+	if kind == "" or tincture_count(id) <= 0 or not part in BondScript.Bonds.PARTS:
+		return []
+	if on_train:
+		Train.unpack_supply(profile, id)
+	else:
+		player.items[id] = player.item_count(id) - 1
+		if player.item_count(id) <= 0:
+			player.items.erase(id)
+			player.item_sel = player.selected_item()
+	var amount := float(Flow.TINCTURE["essence"])
+	var res: Dictionary = profile.drink(kind, amount, part)
+	var lines: Array = [Flow.TEXT["drank"] % [Items.ITEMS[id]["name"], res["said"]]]
+	lines.append_array(res["lines"])
+	_give_bonds()
+	profile.save()
+	if player != null and is_instance_valid(player) and player.is_inside_tree():
+		var col: Color = Essence.color(kind)
+		fx_ring(player.global_position, col, 46.0, 0.45, 3.0)
+		light_flash(player.global_position, col, 1.4, 1.6, 0.35)
+	sfx("drink", 1.0, -4.0, 0.0)
+	sfx("glint", 1.3, -8.0, 0.0)
+	tip("tincture")
+	return lines
+
+
+## The stair's line: what was banked, and how it split (essence_flow.gd).
+func split_line(poured: Dictionary) -> String:
+	var total := int(round(float(poured["total"])))
+	var c := int(round(float(poured["crystals"])))
+	if UnboundRun.Unbound.is_on(profile):
+		return Flow.TEXT["split_raw"] % [total, int(round(float(poured["body"]))), c]
+	if profile.bonds.is_empty():
+		return Flow.TEXT["split_body"] % [total, int(round(float(poured["body"]))), c]
+	var m := int(round(float(poured["marks"])))
+	return Flow.TEXT["split"] % [total, total - m - c, m, c]
 
 
 ## The recall scroll's item use (items.gd): the first use asks, a second
@@ -2075,8 +2244,9 @@ func recall_pressed() -> bool:
 
 
 ## Reads a recall scroll: you leave the tower safely, keeping what you wear and your pack.
-## Unbanked essence settles into essence crystals (one per kind) and this
-## floor's soak is banked; there's no heirloom choice (the climb wasn't won).
+## Unbanked essence settles into essence crystals (one per kind; none of it
+## flows into you, so this floor's soak goes with it); there's no heirloom
+## choice (the climb wasn't won).
 ## Then on to the next climb's tower choice.
 func read_recall() -> void:
 	var made: Array = []
@@ -2085,7 +2255,6 @@ func read_recall() -> void:
 		if amount >= 1.0:
 			profile.add_crystal(k, amount)
 			made.append("%d %s" % [int(round(amount)), Essence.display(k).to_lower()])
-	profile.bank({}, run_soak)
 	run_essence = {}
 	run_soak = {}
 	# The flow you carried is lost (the owner's call): a scroll keeps crystals, not the flow.
@@ -2525,6 +2694,11 @@ func break_belt(skip: Array = []) -> String:
 	var carried := {}
 	var sizes := {}
 	for id in player.items:
+		if Flow.is_tincture(id) and not (id in skip) and int(player.items[id]) > 0:
+			# (a tincture comes home whole: packed again for your next climb)
+			for n in int(player.items[id]):
+				Train.pack_supply(profile, id, {Flow.tincture_kind(id): 0})  # (found: putting it back gives nothing for it)
+			continue
 		if not (id in skip) and id != Vessel.ID and int(player.items[id]) > 0:  # (a vessel comes home whole: Vessel.bring_home)
 			carried[id] = int(player.items[id])
 			sizes[id] = player.item_sizes_of(id)
@@ -2537,6 +2711,9 @@ func break_belt(skip: Array = []) -> String:
 			made.append("%d %s" % [int(round(amount)), Essence.display(k).to_lower()])
 	for id in carried:
 		player.items.erase(id)
+	for id in player.items.keys():
+		if Flow.is_tincture(id) and not (id in skip):
+			player.items.erase(id)
 	if made.is_empty():
 		return ""
 	profile.save()
@@ -2787,21 +2964,76 @@ var marked_this_climb := false
 
 
 func summit_mark() -> Array:
-	if first_climb or marked_this_climb:
-		return []
-	var part: String = profile.ready_for_mark()
+	var part := mark_ready_part()
 	if part == "":
 		return []
-	var id: String = profile.choose_bond(profile.tally, climb_soak)
+	var id := form_mark(part, false)
 	if id == "":
 		return []
-	profile.add_bond(part, id, false)
-	marked_this_climb = true
+	return ["The beast takes notice. Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]]]
+
+
+## The fully soaked part that could take a new mark now ("" if none, on the
+## first climb, for the Unbound, or once a mark has been taken this climb).
+func mark_ready_part() -> String:
+	if first_climb or marked_this_climb or UnboundRun.Unbound.is_on(profile):
+		return ""
+	return profile.ready_for_mark()
+
+
+## A full part takes a new mark (faint if `faint`): its bond chosen by the
+## essence banked since your last mark and how you fought. The usual new-mark
+## sound and the Entity's moment. Returns the bond's id ("" if none could form).
+func form_mark(part: String, faint: bool) -> String:
+	var id: String = profile.choose_bond(profile.tally, climb_soak)
+	if id == "":
+		return ""
+	profile.add_bond(part, id, faint)
+	marked_this_climb = true  # (the Makers count new marks themselves: makers.gd sync_body)
 	GuideScript.moment("new_mark", "new_mark", {"mark": BondScript.Bonds.BONDS[id]["name"]})
 	sfx("crit", 0.7, -4.0)
 	_give_bonds()
 	profile.save()
-	return ["The beast takes notice. Essence takes hold in your %s: the %s mark" % [BondScript.PART_NAMES[part], BondScript.Bonds.BONDS[id]["name"]]]
+	return id
+
+
+## A sealed wing (wings.gd) beaten with its rule kept: on an early floor
+## (Flow.EARNED "floor" or lower), with a fully soaked part and no mark taken
+## yet this climb, a Maker grants the mark (makers.gd grant_mark). True if it did.
+func try_earned_mark(_wing: Dictionary = {}) -> bool:
+	if floor_num > int(Flow.EARNED["last_floor"]) or practice_or_arena():
+		return false
+	var part := mark_ready_part()
+	if part == "":
+		return false
+	var id := form_mark(part, false)
+	if id == "":
+		return false
+	if makers != null:
+		makers.grant_mark(String(Flow.EARNED["maker"]), part, id)
+	tip("maker_mark")
+	return true
+
+
+## True in the practice room or the arena (no marks are earned there).
+func practice_or_arena() -> bool:
+	return (practice != null and practice.on) or (arena != null and arena.on)
+
+
+## A fall with a fully soaked part: a small chance (Flow.FALL_MARK) it takes
+## a faint mark, like the first climb's. `roll` (0..1) stands in for chance
+## (tests). Returns the line to show ("" if none formed).
+func fall_mark(roll := -1.0) -> String:
+	var part := mark_ready_part()
+	if part == "":
+		return ""
+	if (randf() if roll < 0.0 else roll) >= float(Flow.FALL_MARK["chance"]):
+		return ""
+	var id := form_mark(part, true)
+	if id == "":
+		return ""
+	tip("fall_mark")
+	return Flow.TEXT["fall_mark"] % [String(BondScript.PART_NAMES[part]).to_lower(), BondScript.Bonds.BONDS[id]["name"]]
 
 
 ## The summit's victory screen, with the stair's lines.
@@ -2843,9 +3075,35 @@ func soak_fraction(part: String) -> float:
 		return clampf(float(climb_soak.get(part, 0.0)) / most, 0.0, 1.0)
 	var need: float = ProfileScript.NEW_MARK_SOAK * ProfileScript.MARK_FULL
 	var have := float(profile.soak.get(part, 0.0))
-	var fill := clampf(have / ProfileScript.NEW_MARK_SOAK, 0.0, 1.0)
-	var coming: float = float(run_soak.get(part, 0.0)) * ProfileScript.SOAK_RATE * (1.0 - fill) * profile.body_drag()
-	return clampf((have + coming) / need, 0.0, 1.0)
+	return clampf((have + soak_coming(part)) / need, 0.0, 1.0)
+
+
+## What this floor's essence would add to an unmarked part's soak if it were
+## banked now: the body's share (essence_flow.gd), spread by what each part did.
+func soak_coming(part: String) -> float:
+	if profile.bonds.has(part):
+		return 0.0
+	var carried := 0.0
+	for k in run_essence:
+		carried += float(run_essence[k])
+	var sh: Dictionary = Flow.shares(Train.condense_share(MenuScript.settings))
+	var body: float = float(sh["body"]) + (0.0 if not profile.bonds.is_empty() else float(sh["marks"]))
+	var style: Dictionary = profile.natural_style(run_soak)
+	var total := 0.0
+	for pt in style:
+		total += maxf(0.0, float(style[pt]))
+	if total <= 0.0:
+		return 0.0
+	return profile.soak_gain(part, carried * body * maxf(0.0, float(style.get(part, 0.0))) / total)
+
+
+## An unmarked part at least Flow.EARNED "near" of the way to a mark ("" if none).
+func _near_full_part() -> String:
+	var need: float = ProfileScript.NEW_MARK_SOAK * ProfileScript.MARK_FULL * float(Flow.EARNED["near"])
+	for pt in BondScript.Bonds.PARTS:
+		if not profile.bonds.has(pt) and float(profile.soak.get(pt, 0.0)) >= need:
+			return pt
+	return ""
 
 
 ## How much each unmarked body part has soaked: this climb on the first
@@ -2913,6 +3171,9 @@ func on_player_died() -> void:
 		fall_note.append_array(Vessel.on_fall(self))  # (a vessel and what it held go with the belt)
 		if not fall_note.is_empty():
 			tip("fall_loss")
+		var faint := fall_mark(fall_mark_roll)  # (a full part may take a faint mark as you fall)
+		if faint != "":
+			fall_note.append(faint)
 		pay_climb()  # (the outfitter pays for the floors all the same: shown on the fall screen)
 	profile.save()
 	GuideScript.moment("death", "death", {"floor": floor_num, "beast": beast_name()})
@@ -4169,11 +4430,14 @@ func on_enemy_killed(e) -> void:
 	if not e.is_boss() and not first_climb and randf() < charm_drop_chance:
 		drop_gear(e.global_position + Vector2(0, 10), Charms.roll(floor_num), true)
 	# Now and then a slain monster leaves an item (its size by the floor), or
-	# a little more essence instead (items.gd DROPS).
+	# a little more essence instead, or rarely a tincture of its essence
+	# (items.gd DROPS; tinctures only once you're marked or Unbound).
 	if not e.is_boss():
-		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share)
+		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share, 0.0 if first_climb else tincture_drop_chance * share)
 		if left.has("item"):
 			item_drops.append({"pos": e.global_position, "id": left["item"], "size": int(left["size"]), "t": Items.DROP_LIFE})
+		elif left.has("tincture"):
+			item_drops.append({"pos": e.global_position, "id": Flow.tincture_id(String(Essence.drop_for(e.kind, floor_num)[0])), "t": Items.DROP_LIFE})
 		elif left.has("essence") and tower_data().has("essence"):
 			gather_essence(tower_data()["essence"], float(left["essence"]), e.global_position + Vector2(0, 8))
 	if wings != null:

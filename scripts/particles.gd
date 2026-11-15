@@ -823,6 +823,17 @@ static func on_technique_cast(m, p, lead: String, shape: String, color: Color) -
 		pf.make(p.global_position, String(fx["also"]), 0.6, Vector2.ZERO)
 
 
+## A rival's or mirror image's spell: its mark's sparks (their own flash is in mirror.gd).
+static func on_foe_cast(m, pos: Vector2, dir: Vector2, bond_id: String, color: Color) -> void:
+	var pf = of(m)
+	if pf == null:
+		return
+	var kind := String(Bonds.BONDS.get(bond_id, {}).get("affinity", "air"))
+	var bf: Dictionary = BOND_FX.get(bond_id, {})
+	var ef: Dictionary = ESSENCE_FX.get(kind, ESSENCE_FX["air"])
+	pf.style_burst(pos, dir, String(bf.get("p", ef["cast"])), String(bf.get("style", "cone")), color, 0.8)
+
+
 func flash_at(pos: Vector2, color: Color, k: float) -> void:
 	if main != null:
 		main.light_flash(pos, color, float(CAST_FLASH["size"]) * k, float(CAST_FLASH["energy"]), float(CAST_FLASH["dur"]))

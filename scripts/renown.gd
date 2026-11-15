@@ -105,6 +105,7 @@ static var TEXT := {
 ##   challenges  challenge id -> won
 ##   boons       boon id -> level bought (boons.gd)
 ##   order       the outfitter's special order: a gear code ("" for none)
+##   market      the pedlar's stall at the station this visit (shop.gd)
 ##   streak      climbs in a row without falling; best_streak the most
 ##   mirrors     mirror images beaten in the arena
 ##   visits      stops made at a station
@@ -113,7 +114,7 @@ static func state(profile) -> Dictionary:
 		profile.renown = {}
 	var r: Dictionary = profile.renown
 	var defaults := {"points": 0, "deeds": [], "titles": [], "worn": "", "drills": {}, "best": {}, "bouts": {}, "tiers": {},
-		"challenges": {}, "boons": {}, "order": "", "streak": 0, "best_streak": 0, "mirrors": 0, "visits": 0}
+		"challenges": {}, "boons": {}, "order": "", "market": {}, "streak": 0, "best_streak": 0, "mirrors": 0, "visits": 0}
 	for k in defaults:
 		if not r.has(k) or typeof(r[k]) != typeof(defaults[k]):
 			r[k] = defaults[k].duplicate() if defaults[k] is Dictionary or defaults[k] is Array else defaults[k]

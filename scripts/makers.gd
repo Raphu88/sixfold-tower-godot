@@ -34,6 +34,7 @@ const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
+const Flow := preload("res://scripts/essence_flow.gd")
 
 ## The redaction mark: a word is a run of these (its length is the bar's).
 const R := "▇"
@@ -64,6 +65,9 @@ static var MAKERS := {
 		"plea_no": ["No. What took root in you belongs there. Grow around it."],
 		"interrupt": ["Careful. That one is already written in my hand.", "Say nothing to it you would not say to me."],
 		"entity": ["The first of my siblings counts everything. It counted me once."],
+		# When it grants a mark for a sealed wing won early (main.gd try_earned_mark):
+		# a placeholder line, the owner's to rewrite (essence_flow.gd EARNED).
+		"grant": ["You kept the rule when no one made you. I wrote this one for you."],
 		"fragments": [
 			"A mark is a door left open. What walks through it is up to you.",
 			"Essence does not choose a body. It chooses a habit.",
@@ -236,6 +240,7 @@ static var TEXT := {
 	"contradict": "%s speaks over it, then falls silent.",
 	"listen": "%s stays, and listens.",
 	"secret_gain": "+%d %s",
+	"grant_title": "%s WATCHED",
 	"placeholder": "placeholder",
 	"go_on": "to go on",
 	"choose": "Answer",
@@ -266,6 +271,7 @@ var seen_spells := {}  # spells cast this climb (variety)
 var over: Node2D  # drawn over the darkness: the fragment's words while they show
 var redraw_t := 0.0
 var _over_on := false  # the words over the fragment are drawn (cleared once they're done)
+var grant := {}  # a Maker granting a mark: {maker, t, part} while its sign shows (grant_mark)
 
 
 func _ready() -> void:
@@ -601,6 +607,32 @@ func read_fragment() -> void:
 	queue_redraw()
 
 
+## A Maker grants a mark (main.gd try_earned_mark: a sealed wing won early
+## with its rule kept): its line, the light shifting in its colour around the
+## climber, its sign over them for a moment, and the Entity quiet a while.
+## The mark itself is already formed (main.gd form_mark).
+func grant_mark(maker: String, part: String, id: String) -> void:
+	if not MAKERS.has(maker) or main == null or main.player == null:
+		return
+	var col := color(maker)
+	var at: Vector2 = main.player.global_position
+	grant = {"maker": maker, "t": float(FRAGMENT["moment"]) + 1.0, "part": part}
+	shift_col = col
+	shift_t = float(FRAGMENT["shift_time"])
+	quiet_t = maxf(quiet_t, float(FRAGMENT["quiet"]))
+	if main.lighting != null:
+		if shift_light >= 0:
+			main.lighting.remove_light(shift_light)
+		shift_light = main.lighting.add_light(at, 260.0, col, 0.0, 0.25)
+	main.light_flash(at, col, 2.4, 2.0, 0.9)
+	main.fx_ring(at, col, 90.0, 0.9, 3.0)
+	main.sfx("maker_fragment", 0.8, 0.0, 0.0)
+	var mark_line: String = Flow.TEXT["granted"] % [String(Bonds.PART_NAMES.get(part, part)).to_lower(), Bonds.BONDS[id]["name"]]
+	main.banner = {"title": TEXT["grant_title"] % String(MAKERS[maker]["Name"]).to_upper(), "lines": [_line(MAKERS[maker].get("grant", [""])), mark_line], "t": 4.5, "long": true, "pri": 2}
+	queue_redraw()  # (the banner's second line goes to the feed and the log)
+	over.queue_redraw()
+
+
 ## (fragment_own goes only to the fragment's own Maker.)
 func _feed_own(m: String) -> void:
 	var w: Dictionary = WEIGHTS.get("fragment_own", {})
@@ -668,6 +700,11 @@ func _process(delta: float) -> void:
 	if moment_t > 0.0 or _over_on:
 		moment_t -= delta
 		_over_on = moment_t > 0.0
+		over.queue_redraw()
+	if not grant.is_empty():
+		grant["t"] -= delta
+		if grant["t"] <= 0.0:
+			grant = {}
 		over.queue_redraw()
 	if not glimpse.is_empty():
 		glimpse["t"] -= delta
@@ -1050,6 +1087,17 @@ func _shadow_into(b, t: float) -> void:
 ## Over the darkness: the fragment's words floating above it for a moment
 ## after it's read (redacted bars in its Maker's colour).
 func _draw_over() -> void:
+	if not grant.is_empty() and main != null and main.player != null:
+		# A Maker granting a mark: its sign over the climber, rising and fading.
+		var total := float(FRAGMENT["moment"]) + 1.0
+		var gt := float(grant["t"])
+		var ga := clampf((total - gt) / 0.5, 0.0, 1.0) * clampf(gt / 0.9, 0.0, 1.0)
+		var gcol := color(String(grant["maker"]))
+		var gc: Vector2 = main.player.global_position + Vector2(0, -58.0 - (total - gt) * 4.0)
+		var gb := Draw.Batch.new()
+		UI.glow_into(gb, gc, 30.0, gcol, 0.5 * ga)
+		draw_sign(gb, gc, 13.0, String(MAKERS[grant["maker"]]["sign"]), Color(gcol.lightened(0.3), 0.95 * ga), 1.8)
+		gb.flush(over)
 	if moment_t <= 0.0 or fragment.is_empty():
 		return
 	var total := float(FRAGMENT["moment"])
