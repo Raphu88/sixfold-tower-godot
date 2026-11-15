@@ -33,6 +33,7 @@ const Train := preload("res://scripts/train.gd")
 const Bench := preload("res://scripts/bench.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
+const Shop := preload("res://scripts/shop.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Stations := preload("res://scripts/stations.gd")
@@ -60,6 +61,7 @@ static var HELP := {
 	"rail:challenges": "Challenges: one-off fights with a twist. Each pays the first time you win it.",
 	"rail:board": "The Renown Board: your renown, your rank, and titles to wear.",
 	"rail:shrine": "The Boon Shrine: boons that go with you on every climb.",
+	"rail:market": "The Pedlar's Stall: a few wares on a theme, new at every station. He sets up once your rank is high enough.",
 	"rail:resume": "Back to the climb.",
 	"rail:inventory": "Your gear, items and heirlooms.",
 	# --- the engine -------------------------------------------------------------------------
@@ -75,6 +77,8 @@ static var HELP := {
 	"store_filter:rack": "Filters the rack: everything, what beats yours, weapons, armour, cloaks and packs.",
 	"store_filter:from": "Where to sell from: pack and stash, only your pack, or only your stash.",
 	"store_filter:slot": "Shows only the pieces for one slot.",
+	"store_filter:shelf": "Turns the shelf's page: a fuller shelf, which comes with a higher rank, is shown in pages.",
+	"store_filter:page": "Turns the rail's page: a long rail, which comes with a higher rank, is shown in pages.",
 	"slot:upgrades": "The outfitter's upgrades: {count} of 5 so far. Renown unlocks the rest.",
 	"slot:supply": "{piece}, {price}: {desc}. It goes on your belt for your next climb.",
 	"slot:outfit": "{piece} on the rack, {price}. {versus}",
@@ -224,9 +228,11 @@ static var HELP := {
 	"pick:title": "{name}: {desc}",
 	"pick:boon": "{name}: {desc}",
 	"pick:rival": "{name}, a climber you met: {desc}",
+	"pick:ware": "{name}: one of the Pedlar's wares today. Its card shows the price and Buy.",
+	"pick:closed": "The Pedlar hasn't set up yet. His card says which rank opens him.",
 	"station_do:begin": "Begins it. A fall here costs nothing but the try.",
 	"station_do:wear": "Wears this title on your book and the rail.",
-	"station_do:buy": "Buys the boon's next level.",
+	"station_do:buy": "Buys what the card shows: a boon's next level, or the Pedlar's ware (paid in crystals).",
 	# --- anywhere ----------------------------------------------------------------------------------------
 	"back": "Back where you came from.",
 	"close": "Closes this page.",
@@ -292,7 +298,7 @@ static func key_for(b: Control) -> String:
 				return "shelf:bestiary" if s == "bestiary" else "shelf"
 			"buy":
 				var bits := s.split(":")
-				if bits.size() == 1 and Items.ITEMS.has(s):
+				if bits.size() == 1 and Items.ITEMS.has(Shop.key_id(s)):
 					return "buy:supply"
 				var last: String = bits[bits.size() - 1]
 				return "buy:" + last if last in ["chest", "wear", "hold"] else "buy"
@@ -482,7 +488,9 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			if e.get("rec", null) != null:
 				f["piece"] = Gear.display(e["rec"])
 		if s.begins_with("supply:") and prof != null:
-			var p: Array = Train.supply_price(prof, s.get_slice(":", 1))
+			var sk := s.get_slice(":", 1)
+			var p: Array = Train.supply_price(prof, Shop.key_id(sk), Shop.key_size(sk))
+			f["piece"] = Items.sized_name(Shop.key_id(sk), Shop.key_size(sk))
 			f["price"] = Train.price_text(p[0], int(p[1]))
 		if s.begins_with("bench:item:") and prof != null:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
@@ -508,9 +516,11 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		elif head == "bench_do" and String(m.inv_sel).begins_with("bench:supply:"):
 			_item_facts(String(m.inv_sel).get_slice(":", 2), f)
 	if key == "buy:supply" and prof != null:
-		var id := str(b.get_meta("buy"))
+		var bk := str(b.get_meta("buy"))
+		var id := Shop.key_id(bk)
 		_item_facts(id, f)
-		var p: Array = Train.supply_price(prof, id)
+		f["piece"] = Items.sized_name(id, Shop.key_size(bk))
+		var p: Array = Train.supply_price(prof, id, Shop.key_size(bk))
 		f["price"] = Train.price_text(p[0], int(p[1]))
 	# Tinctures and crystals (pour_page.gd, the Workshop's tincture counter).
 	if head in ["tincture_craft", "tincture_drink", "pour"] or (b.has_meta("slot") and String(b.get_meta("slot")).begins_with("bench:tincture:")):
@@ -623,3 +633,8 @@ static func _pick_facts(m, pick: String, f: Dictionary) -> void:
 			var rec: Dictionary = Rv.state(m.main.profile if m != null and m.main != null else null).get(id, {})
 			f["name"] = String(rec.get("name", id))
 			f["desc"] = Rv.marks_text(rec) + ". " + Rv.history_text(rec) + "."
+		"ware":
+			var market: Dictionary = Renown.state(m.main.profile).get("market", {}) if m != null and m.main != null else {}
+			var wl: Array = market.get("wares", [])
+			if int(id) >= 0 and int(id) < wl.size():
+				f["name"] = Shop.ware_name(wl[int(id)])

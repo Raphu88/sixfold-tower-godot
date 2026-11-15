@@ -33,6 +33,7 @@ const Boons := preload("res://scripts/boons.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Charms := preload("res://scripts/charms.gd")
+const Shop := preload("res://scripts/shop.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -391,6 +392,24 @@ static func climb_pay(reached: int, best_before: int) -> int:
 ## The consumables the store sells: always the same shelf, the cheap staples
 ## first, then the rest in Items.ORDER (the recall scroll among them, always
 ## there; only the outfit rail and today's piece change between visits).
+## The shelf this visit: shelf keys ("draught", "draught@3": shop.gd), kept
+## with the visit's stock (an old save's store has none: the whole shelf of
+## what your rank has opened).
+static func shelf(profile) -> Array:
+	var keys: Array = profile.store.get("shelf", []) if profile != null else []
+	if keys.is_empty():
+		keys = Shop.shelf_pool(profile) if profile != null else supplies()
+		if not keys.has("scroll") and Items.ITEMS.has("scroll"):
+			keys = keys + ["scroll"]
+	keys = keys.filter(func(k): return Items.ITEMS.has(Shop.key_id(String(k))))
+	if profile != null:  # (the tinctures he stocks this visit: essence_flow.gd, store_tinctures)
+		for k in store_tinctures(profile):
+			var tid := Flow.tincture_id(String(k))
+			if Items.ITEMS.has(tid) and not keys.has(tid):
+				keys = keys + [tid]
+	return keys
+
+
 ## Tinctures (essence_flow.gd) aren't on the fixed shelf: with a `profile`,
 ## the kinds he stocks this visit come last (store_tinctures).
 static func supplies(profile = null) -> Array:
@@ -452,9 +471,14 @@ static func paid_text(paid: Dictionary) -> String:
 ## of Common pieces and today's piece. Departing clears it, so the next
 ## visit has new stock.
 static func stock(profile) -> void:
-	if not profile.store.is_empty():
+	if profile.store.has("outfit"):
 		return
-	profile.store = {"outfit": roll_outfit(profile).map(func(g): return Gear.code(g)), "today": Gear.code(roll_today(profile))}
+	# (a brewed supply may have started the store's notes already: its sizes)
+	profile.store["outfit"] = roll_outfit(profile).map(func(g): return Gear.code(g))
+	profile.store["today"] = Gear.code(roll_today(profile))
+	profile.store["shelf"] = Shop.roll_shelf(profile)  # (shop.gd: the supplies for this visit, by your rank)
+	profile.store["title"] = String(Renown.state(profile).get("worn", ""))
+	profile.store.erase("tinctures")
 	store_tinctures(profile)  # (the tinctures he stocks this visit)
 
 
@@ -485,7 +509,7 @@ static func next_upgrade(profile) -> Dictionary:
 
 ## How many pieces hang on the outfit rail.
 static func rack_size(profile) -> int:
-	return RACK_SIZE + (int(UPGRADE_FX["rack_extra"]) if upgraded(profile, "wide_rack") else 0)
+	return RACK_SIZE + (int(UPGRADE_FX["rack_extra"]) if upgraded(profile, "wide_rack") else 0) + Shop.rail_extra(profile)
 
 
 ## What the outfitter takes off his prices (0 to 1): his upgrade and your boons.
@@ -493,7 +517,7 @@ static func discount(profile) -> float:
 	if profile == null:
 		return 0.0
 	var d := float(UPGRADE_FX["discount"]) if upgraded(profile, "discount") else 0.0
-	return clampf(d + Boons.discount(profile), 0.0, 0.9)
+	return clampf(d + Boons.discount(profile) + Shop.title_discount(profile), 0.0, 0.9)
 
 
 ## What a piece costs you at the store (gear_price, less his discount).
@@ -506,13 +530,14 @@ static func buy_price(profile, g) -> int:
 
 ## What a consumable costs you at the store: [kind, amount] (item_price, the
 ## scroll kept aside, less his discount).
-static func supply_price(profile, id: String) -> Array:
+static func supply_price(profile, id: String, size := Items.STANDARD) -> Array:
 	var price := item_price(id)
 	if int(price[1]) <= 0:
 		return price
 	var amount := int(price[1])
 	if id == "scroll" and price[0] == ANY and upgraded(profile, "scroll"):
 		amount = mini(amount, int(UPGRADE_FX["scroll_price"]))
+	amount = Shop.sized_amount(amount, size)  # (a Minor one costs less, a Greater one more)
 	return [price[0], maxi(1, int(round(float(amount) * (1.0 - discount(profile)))))]
 
 
@@ -545,8 +570,8 @@ static func hold(profile, i: int) -> String:
 
 ## The Common pieces anyone can buy: weapons, armor and worn pieces that
 ## are Common by nature.
-static func common_pool() -> Array:
-	var out: Array = Gear.WEAPON_DROP_WEIGHT.keys()
+static func common_pool(profile = null) -> Array:
+	var out: Array = Gear.WEAPON_DROP_WEIGHT.keys().filter(func(id): return profile == null or Shop.piece_open(profile, id))  # (pistols and crossbows hang later: shop.gd WEAPON_RANK)
 	for id in Gear.ARMOR_ORDER:
 		if id != "":
 			out.append(id)
@@ -556,12 +581,17 @@ static func common_pool() -> Array:
 	return out
 
 
-## RACK_SIZE different Common pieces (more with the wider rack), in the
-## order the inventory lists slots. With better stock some come Fine.
+## The rail's pieces: different Common pieces for the spaces (more with the
+## wider rack and with rank), in the order the inventory lists slots. Rank
+## and the worn title shape them (shop.gd): some come Fine or Rare, the
+## title's kind of piece is likelier, and at high ranks a named piece or a
+## relic hangs among them; charms fill the last spaces.
 static func roll_outfit(profile = null) -> Array:
-	var pool := common_pool()
-	pool.shuffle()
-	var pick: Array = pool.slice(0, maxi(1, rack_size(profile) - int(Charms.SHOP["rack"])))  # (the rail's last spaces hold charms)
+	var pool := common_pool(profile)
+	var charms := Shop.charm_count(profile) if profile != null else int(Charms.SHOP["rack"])
+	var extras: Array = Shop.extras(profile) if profile != null else []
+	var spaces := maxi(1, rack_size(profile) - charms - extras.size())
+	var pick: Array = Shop.pick(profile, pool, spaces)
 	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
 	pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
 	# A climber with no bag at all always finds a Satchel on the rail (a
@@ -569,10 +599,10 @@ static func roll_outfit(profile = null) -> Array:
 	if profile != null and not has_bag(profile) and not pick.has(FIRST_BAG):
 		pick[pick.size() - 1] = FIRST_BAG
 		pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
-	var fine := upgraded(profile, "stock")
-	var out: Array = pick.map(func(id): return Gear.make(id, "fine", Gear.roll_traits(id, "fine")) \
-		if fine and not Gear.traits_for(Gear.trait_slot(id)).is_empty() and randi() % 100 < int(UPGRADE_FX["rack_fine"]) else Gear.make(id))
-	out.append_array(Charms.shop_stock())  # (a charm or two in the rail's last spaces: charms.gd SHOP)
+	var floor_fine := int(UPGRADE_FX["rack_fine"]) if upgraded(profile, "stock") else 0
+	var out: Array = pick.map(func(id): return Shop.make_piece(profile, id, floor_fine) if profile != null else Gear.make(id))
+	out.append_array(extras)  # (a named piece or a relic, now and then at high ranks)
+	out.append_array(Charms.shop_stock(charms))  # (charms in the rail's last spaces: charms.gd SHOP)
 	return out
 
 
@@ -643,8 +673,8 @@ static func supply_room(profile, player, id: String) -> int:
 
 
 ## Buys one of a consumable, packed for the next climb. "" if bought, else why not.
-static func buy_supply(profile, player, id: String) -> String:
-	var price := supply_price(profile, id)
+static func buy_supply(profile, player, id: String, size := Items.STANDARD) -> String:
+	var price := supply_price(profile, id, size)
 	if price[1] <= 0:
 		return TEXT["belt_full"]
 	if supply_room(profile, player, id) <= 0:
@@ -657,7 +687,7 @@ static func buy_supply(profile, player, id: String) -> String:
 		paid = profile.spend_any(price[1])  # (from any kinds, the biggest first: noted, for putting it back)
 	else:
 		profile.spend(price[0], price[1])
-	pack_supply(profile, id, paid)
+	pack_supply(profile, id, paid, size)
 	profile.save()
 	return ""
 
@@ -670,11 +700,32 @@ static func last_paid(profile, id: String) -> Dictionary:
 
 ## Packs one of a consumable for the next climb, noting what it cost
 ## ({kind: amount}) so putting it back returns that.
-static func pack_supply(profile, id: String, paid: Dictionary) -> void:
+static func pack_supply(profile, id: String, paid: Dictionary, size := Items.STANDARD) -> void:
+	var sizes := supply_sizes(profile, id)  # (before this one is counted)
 	profile.supplies[id] = int(profile.supplies.get(id, 0)) + 1
 	var list: Array = profile.supply_paid.get(id, [])
 	list.append(paid)
 	profile.supply_paid[id] = list
+	sizes.append(Items.clamp_size(id, size))
+	_sizes_book(profile)[id] = sizes
+
+
+## The sizes of what's packed of an item, in the order packed (one per
+## packed one; standard where none was noted: old saves, the bench's brews).
+## They're kept in the store's notes (profile.store["sizes"]), which end
+## when the climb starts, as the packed supplies do.
+static func supply_sizes(profile, id: String) -> Array:
+	var n := int(profile.supplies.get(id, 0))
+	var sizes: Array = Array(_sizes_book(profile).get(id, [])).slice(0, n)
+	while sizes.size() < n:
+		sizes.append(Items.STANDARD)
+	return sizes
+
+
+static func _sizes_book(profile) -> Dictionary:
+	if not (profile.store.get("sizes", null) is Dictionary):
+		profile.store["sizes"] = {}
+	return profile.store["sizes"]
 
 
 ## Takes one packed consumable out again; what was paid for it ({kind:
@@ -683,6 +734,9 @@ static func pack_supply(profile, id: String, paid: Dictionary) -> void:
 static func unpack_supply(profile, id: String) -> Dictionary:
 	if int(profile.supplies.get(id, 0)) <= 0:
 		return {}
+	var sizes := supply_sizes(profile, id)
+	sizes.pop_back()
+	_sizes_book(profile)[id] = sizes
 	profile.supplies[id] = int(profile.supplies[id]) - 1
 	var list: Array = profile.supply_paid.get(id, [])
 	var paid: Dictionary = list.pop_back() if not list.is_empty() else {}
@@ -822,8 +876,9 @@ static func pack_up(profile, player) -> void:
 	profile.wear = {}  # (it's on you now: worn pieces, like any you find)
 	load(VESSEL).pack_up(profile, player)  # (a vessel packed from the chest goes on the belt)
 	for id in profile.supplies.keys():
+		var sizes := supply_sizes(profile, id)
 		for k in int(profile.supplies[id]):
-			if not player.add_item(id):
+			if not player.add_item(id, int(sizes[k]) if k < sizes.size() else Items.STANDARD):
 				var paid: Array = profile.supply_paid.get(id, [])
 				var back: Dictionary = paid.pop_back() if not paid.is_empty() else item_refund(id)
 				for kind in back:

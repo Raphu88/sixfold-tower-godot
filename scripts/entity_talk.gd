@@ -70,7 +70,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_ward", "how_secret", "how_bestiary", "how_rivals", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "start", "bye"]},
 	"how_essence": {"ask": "Essence, banking it, and tinctures?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
@@ -109,7 +109,10 @@ static var DIALOGUE := {
 		"choices": ["how_bags", "how", "bye"]},
 	"how_bags": {"ask": "How do bags work?", "fact": "rules",
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
-		"choices": ["how_charms", "how", "bye"]},
+		"choices": ["how_shop", "how_charms", "how", "bye"]},
+	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
+		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), Minor bottles from {minor_rank} and Greater ones from {greater_rank}, more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
+		"choices": ["how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -600,6 +603,14 @@ static func _fact_rules() -> Dictionary:
 		"early": int(Flow.EARNED["last_floor"]), "fall_chance": "%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0)),
 	})
 	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
+	var Shop = load("res://scripts/shop.gd")
+	var last: Dictionary = Shop.RANK_STOCK[-1]
+	f["rail_most"] = Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]) + int(last["rail"])
+	f["kinds_most"] = int(last["kinds"])
+	f["minor_rank"] = R.rank_name(int(Shop.SIZE_RANK["1"]))
+	f["greater_rank"] = R.rank_name(int(Shop.SIZE_RANK["3"]))
+	f["gun_rank"] = R.rank_name(int(Shop.WEAPON_RANK.get("flintlock", 0)))
+	f["pedlar"] = "From %s, %s sets up a stall at every station and at each camp: a few wares on a theme, new each time, paid for in crystals (at a camp, essence you carry will do)." % [R.rank_name(int(Shop.MERCHANT["rank"])), Shop.MERCHANT["name"]]
 	var Charms = load("res://scripts/charms.gd")
 	var n := int(Charms.SHOP["rack"])
 	f["charm_shop"] = ("one on his rail" if n == 1 else "%d on his rail" % n)
