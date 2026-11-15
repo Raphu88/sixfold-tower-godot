@@ -7651,7 +7651,7 @@ func _wing_tests() -> void:
 	_check(not offered, "...so a vault doesn't offer another while you carry one")
 	_check(p.selected_item() != "scroll", "(a scroll never takes the quick item from another)")
 	var hidden: Array = W.hidden_crystals()
-	_check(hidden.size() == 3 and hidden.all(func(c): return String(c).begins_with("crystal:")), "a hidden crystal choice offers three kinds")
+	_check(hidden.size() == 3 and hidden.all(func(c): return String(c).begins_with("crystal:") or String(c).begins_with("tincture_")), "a hidden crystal choice offers three kinds (now and then a tincture in place of one)")
 
 	# Consuming a crystal banks its essence into you.
 	main.profile.crystals = []
