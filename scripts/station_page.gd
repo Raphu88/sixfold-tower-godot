@@ -8,8 +8,9 @@ extends RefCounted
 ##   arena       the tournament's tiers and their bouts: foes, rules, fee,
 ##               what a win pays, Enter
 ##   challenges  the challenges: the twist, foes, what the first win pays
-##   board       your renown and rank, recent deeds, the ranks, and the
-##               titles (choose one to wear)
+##   board       your renown and rank, recent deeds, the ranks, the
+##               titles (choose one to wear) and the climbers you've met
+##               (rivals.gd: their marks and your history with them)
 ##   shrine      the boons: what each does, its level and price, Buy
 ## Focusing a tile (the keys, the mouse) shows its card; pressing it (or a
 ## tap) does too, and with the keys puts the focus on the card's button.
@@ -24,6 +25,7 @@ const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
+const Rivals := preload("res://scripts/rivals.gd")
 
 static var T := Stations.TEXT
 
@@ -143,6 +145,9 @@ func build() -> void:
 	if not keys.has(pk):
 		pk = keys[0] if not keys.is_empty() else ""
 		if stop == "board":
+			var titles: Array = keys.filter(func(k): return String(k).begins_with("title:"))
+			if not titles.is_empty():
+				pk = titles[0]  # (the board opens on its titles; a climber met shows when chosen)
 			var worn := String(Renown.state(prof)["worn"])
 			if worn != "" and keys.has("title:" + worn):
 				pk = "title:" + worn
@@ -323,6 +328,13 @@ func _board(left: Node) -> void:
 	for d in deeds.slice(0, 4 if _small() else 6):
 		var amount := int(d.get("amount", 0))
 		_line(left, String(d.get("text", "")) + (("   " + Renown.TEXT["earned"] % amount) if amount > 0 else ""), UI.TEXT if amount > 0 else UI.GOLD)
+	# The climbers you've met in the towers (rivals.gd), the most recent first.
+	_section(left, Rivals.TEXT["board"])
+	var met: Array = Rivals.met_list(prof)
+	if met.is_empty():
+		_line(left, Rivals.TEXT["board_none"], UI.DIM)
+	for rec in met.slice(0, 6 if _small() else 8):
+		_tile(left, "rival:" + String(rec.get("id", "")), String(rec.get("name", "")), Rivals.marks_text(rec), "arena", Rivals.color_of(rec))
 	_section(left, T["titles"])
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -398,6 +410,8 @@ func _card() -> void:
 			_title_card(id)
 		"boon":
 			_boon_card(id)
+		"rival":
+			_rival_card(id)
 	if _small():
 		# A short screen: the card's button (and why it's off) right under its
 		# name, where it shows without scrolling.
@@ -596,6 +610,26 @@ func _title_card(id: String) -> void:
 		_text(T["title_locked"], UI.FAINT)
 	if not _small():
 		_text(T["title_shows"], UI.FAINT, 13)
+
+
+## A climber you've met: their marks, one to a line in its colour, and your
+## history with them.
+func _rival_card(id: String) -> void:
+	var rec: Dictionary = Rivals.state(_prof()).get(id, {})
+	if rec.is_empty():
+		return
+	_head(String(rec.get("name", "")), "arena", Rivals.color_of(rec), Rivals.TEXT["board"])
+	for b in rec.get("bonds", []):
+		var one := {"bonds": [b]}
+		_text(Rivals.marks_text(one), Rivals.bond_color(String(b[0])).lerp(UI.TEXT, 0.25))
+	_text(Rivals.history_text(rec), UI.TEXT)
+	var tw: Dictionary = Towers.TOWERS.get(String(rec.get("tower", "")), {})
+	if not tw.is_empty():
+		_text(Rivals.TEXT["last"] % [String(tw.get("name", "")), int(rec.get("floor", 1))], UI.DIM)
+	if bool(rec.get("owed", false)):
+		_text(Rivals.TEXT["owed"], UI.GOOD)
+	elif int(rec.get("robbed", 0)) > 0:
+		_text(Rivals.TEXT["grudge"], UI.BAD)
 
 
 func _boon_card(id: String) -> void:

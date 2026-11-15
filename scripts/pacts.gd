@@ -68,13 +68,45 @@ static var TEXT := {
 }
 
 
+## True while the climber holds the pact: both its marks, or one of them
+## while a rival climber beside you carries the other (rivals.gd: a shared
+## pact, for as long as they fight with you).
 static func has(p, id: String) -> bool:
+	if own(p, id):
+		return true
+	return shared(p, id)
+
+
+## Both marks the climber's own.
+static func own(p, id: String) -> bool:
 	if p == null or not is_instance_valid(p) or not PACTS.has(id) or not p.has_method("has_bond"):
 		return false
 	for b in PACTS[id]["bonds"]:
 		if not p.has_bond(String(b)):
 			return false
 	return true
+
+
+## One mark yours, the other the rival's beside you (rivals.gd ally_bonds).
+static func shared(p, id: String) -> bool:
+	if p == null or not is_instance_valid(p) or not PACTS.has(id) or not p.has_method("has_bond"):
+		return false
+	var m = p.get("main")
+	if m == null or not is_instance_valid(m):
+		return false
+	var rv = m.get("rivals")
+	if rv == null or not rv.has_method("ally_bonds"):
+		return false
+	var theirs: Array = rv.ally_bonds()
+	if theirs.is_empty():
+		return false
+	var mine := 0
+	for b in PACTS[id]["bonds"]:
+		if p.has_bond(String(b)):
+			mine += 1
+		elif not String(b) in theirs:
+			return false
+	return mine >= 1
 
 
 static func held(p) -> Array:
@@ -107,6 +139,8 @@ static func announce(main) -> Array:
 		return []
 	var fresh: Array = []
 	for id in held(main.player):
+		if not own(main.player, id):
+			continue  # (a pact shared with a rival is said when you team up: rivals.gd)
 		if not id in main.profile.pacts_formed:
 			main.profile.pacts_formed.append(id)
 			fresh.append(id)

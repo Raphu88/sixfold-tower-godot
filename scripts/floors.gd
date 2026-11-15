@@ -77,6 +77,7 @@ const Objectives := preload("res://scripts/objectives.gd")
 const Cracks := preload("res://scripts/cracks.gd")
 const Styles := preload("res://scripts/floor_styles.gd")
 const Scenarios := preload("res://scripts/scenarios.gd")
+const Rivals := preload("res://scripts/rivals.gd")
 
 ## The grid's tiles start here (world px), CELL px each.
 const ORIGIN := Vector2(80, 100)
@@ -338,6 +339,16 @@ static func _fix_themes(infos: Array, obj_kind: String, pz_optional: bool, floor
 	# A calm rest room and a wandering trader, now and then (in a free room).
 	var free: Array = spots.filter(func(i): return not infos[i].has("fixed"))
 	free.shuffle()
+	# Another climber, now and then (rivals.gd): a calm room of their own, a dead end first.
+	if (free.size() >= 3 or (Rivals.force and not free.is_empty())) and Rivals.wants_room(floor_num):
+		free.sort_custom(func(x, y): return (0 if infos[x]["role"] == "branch" else 1) < (0 if infos[y]["role"] == "branch" else 1))
+		for k in free.size():
+			if Themes.fits("rival", infos[free[k]], tid, tower):
+				infos[free[k]]["fixed"] = "rival"
+				infos[free[k]]["no_piece"] = true
+				free.remove_at(k)
+				break
+		free.shuffle()
 	if free.size() >= 3 and randf() < float(style["rest"]) and Themes.fits("rest", infos[free[0]], tid, tower):
 		infos[free.pop_front()]["fixed"] = "rest"
 	if free.size() >= 3 and floor_num >= int(style["trader_from"]) and randf() < float(style["trader"]) and Themes.fits("trader", infos[free[0]], tid, tower):
@@ -483,12 +494,13 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	var cache_room := Rect2()
 	var rests: Array = []  # calm rest rooms: {pos, room}
 	var traders: Array = []  # wandering traders: {pos, room}
+	var rivals: Array = []  # another climber (rivals.gd): {pos, room}
 	var scenarios: Array = []  # scenario rooms (scenarios.gd plans each)
 	for i in infos.size():
 		var info: Dictionary = infos[i]
 		var th: Dictionary = Themes.get_theme(info["theme"])
 		match String(th["feature"]):
-			"spring", "cache", "camp", "rest", "trader":
+			"spring", "cache", "camp", "rest", "trader", "rival":
 				var spot := Rooms.clear_spot(info["rows"], 3)
 				if spot == Vector2i(-1, -1):
 					info["theme"] = "post"
@@ -504,6 +516,8 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 					rests.append({"pos": pos, "room": i, "rect": info["rect"]})
 				elif th["feature"] == "trader":
 					traders.append({"pos": pos, "room": i})
+				elif th["feature"] == "rival":
+					rivals.append({"pos": pos, "room": i})
 				else:
 					cache = {"pos": pos, "amount": cache_amount(floor_num)}
 					cache_room = info["rect"]
@@ -602,7 +616,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		var info: Dictionary = infos[i]
 		ids.append(info["id"])
 		var th: Dictionary = Themes.get_theme(info["theme"])
-		if th["kind"] in ["good", "calm", "scenario"] or info["theme"] == "arrival" or th["feature"] in ["mirror", "vault", "trader"]:
+		if th["kind"] in ["good", "calm", "scenario"] or info["theme"] == "arrival" or th["feature"] in ["mirror", "vault", "trader", "rival"]:
 			safe_rooms.append(info["rect"])  # (a mirror room holds its own test; scenarios theirs)
 		elif info["role"] != "gallery":
 			wet_rooms.append(info["rect"])
@@ -632,6 +646,9 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		keep.append(c["pos"])
 	for r in rests + traders + vaults:
 		keep.append(r["pos"])
+	for r in rivals:
+		keep.append(r["pos"])
+		keep.append(r["pos"] + Vector2(34, 8))  # (a wounded climber's hoard, beside them)
 	for sc in scenarios:
 		keep.append_array(sc.get("keep", []))
 	var plan := {"arena": arena, "grid": used, "rooms": rooms, "walk": walk,
@@ -640,7 +657,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		"room_info": room_info, "themes": themes, "doors": doors, "posts": doorways(rooms, corridors) + kept_posts,
 		"torches": torches + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
 		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks,
-		"objective": objective, "chests": chests, "cracks": cracks, "rests": rests, "traders": traders, "scenarios": scenarios, "vaults": vaults,
+		"objective": objective, "chests": chests, "cracks": cracks, "rests": rests, "traders": traders, "rivals": rivals, "scenarios": scenarios, "vaults": vaults,
 		"loops": loops.size(), "keep": keep, "ok": ok, "bridges": infos.filter(func(x): return x.has("bridge")).map(func(x): return x["bridge"])}
 	if not cache.is_empty():
 		plan["cache"] = cache
@@ -708,7 +725,7 @@ static func _chests(infos: Array, monsters: Array, objective: Dictionary, scenar
 
 
 ## Theme features that are a room's payoff on their own.
-const PAYOFF_FEATURES := ["spring", "cache", "camp", "rest", "trader", "scenario", "vault", "mirror", "puzzle", "objective", "start", "stair"]
+const PAYOFF_FEATURES := ["spring", "cache", "camp", "rest", "trader", "rival", "scenario", "vault", "mirror", "puzzle", "objective", "start", "stair"]
 
 
 ## What cover (a room's "#" blocks) must never wall off from the start
@@ -1215,7 +1232,7 @@ static func _monsters(infos: Array, spots: Array, floor_num: int, tower: Diction
 
 static func _room_weight(info: Dictionary, spots: Array, floor_num: int) -> int:
 	var th: Dictionary = Themes.get_theme(info["theme"])
-	if info["role"] == "entrance" or th["kind"] in ["good", "calm", "scenario"] or th["feature"] in ["ambush", "mirror", "trader", "rest"]:
+	if info["role"] == "entrance" or th["kind"] in ["good", "calm", "scenario"] or th["feature"] in ["ambush", "mirror", "trader", "rest", "rival"]:
 		return 0
 	if info["role"] == "stair":
 		return 1 if floor_num < 6 else 2  # (a destination, lightly guarded)
@@ -1613,7 +1630,7 @@ static func _locks(infos: Array, themes: Array, doors: Array, monsters: Array, w
 		var info: Dictionary = infos[d["room"]]
 		if d.get("loop", false) or String(d.get("lock", "")) != "" or info["role"] != "branch" or info.get("piece", false):
 			continue
-		if Themes.get_theme(info["theme"])["feature"] in ["scenario", "trader", "rest", "mirror", "den"]:
+		if Themes.get_theme(info["theme"])["feature"] in ["scenario", "trader", "rest", "rival", "mirror", "den"]:
 			continue
 		cands.append(d)
 	for w in wings:

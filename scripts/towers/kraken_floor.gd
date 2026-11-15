@@ -291,7 +291,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 		if info["role"] == "gallery" and info.get("puzzle", "") != "":
 			continue
 		var th: Dictionary = load("res://scripts/themes.gd").get_theme(String(info["theme"]))
-		if String(th["kind"]) == "scenario" or String(th["feature"]) in ["mirror", "trap", "ambush"]:
+		if String(th["kind"]) == "scenario" or String(th["feature"]) in ["mirror", "trap", "ambush", "rival"]:  # (a rival waits in a dry room)
 			continue
 		var r: Rect2 = info["rect"]
 		var rx: float = r.size.x * 0.5 - float(W["pool_margin"]) * CELL

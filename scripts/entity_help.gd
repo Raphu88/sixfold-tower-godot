@@ -211,6 +211,7 @@ static var HELP := {
 	"pick:challenge": "{name}: {desc}",
 	"pick:title": "{name}: {desc}",
 	"pick:boon": "{name}: {desc}",
+	"pick:rival": "{name}, a climber you met: {desc}",
 	"station_do:begin": "Begins it. A fall here costs nothing but the try.",
 	"station_do:wear": "Wears this title on your book and the rail.",
 	"station_do:buy": "Buys the boon's next level.",
@@ -586,3 +587,8 @@ static func _pick_facts(m, pick: String, f: Dictionary) -> void:
 			var bn: Dictionary = Boons.BOONS.get(id, {})
 			f["name"] = String(bn.get("name", id))
 			f["desc"] = String(bn.get("desc", ""))
+		"rival":
+			var Rv = load("res://scripts/rivals.gd")
+			var rec: Dictionary = Rv.state(m.main.profile if m != null and m.main != null else null).get(id, {})
+			f["name"] = String(rec.get("name", id))
+			f["desc"] = Rv.marks_text(rec) + ". " + Rv.history_text(rec) + "."

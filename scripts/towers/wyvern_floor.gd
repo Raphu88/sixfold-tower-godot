@@ -299,7 +299,7 @@ static func _fits(info: Dictionary, theme: String, calm_only: bool) -> bool:
 	if calm_only and String(th["kind"]) in ["good", "calm"]:
 		return false  # (no furnace's heat in a kind room)
 	# (trap rooms keep their whole floor for their set pieces)
-	return not (String(th["feature"]) in ["trap", "vault", "rest", "trader", "spring", "mirror", "puzzle", "objective", "chasm", "ambush", "scenario"])
+	return not (String(th["feature"]) in ["trap", "vault", "rest", "trader", "rival", "spring", "mirror", "puzzle", "objective", "chasm", "ambush", "scenario"])
 
 
 ## A channel across room `i`: {room, tiles (grid), bridge (grid), vertical,

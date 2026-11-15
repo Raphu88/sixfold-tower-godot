@@ -69,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_ward", "how_secret", "how_bestiary", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_ward", "how_secret", "how_bestiary", "how_rivals", "start", "bye"]},
 	"how_essence": {"ask": "Essence, and banking it?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair, {condense} of it condenses into crystals, the train's money. The rest stays in you: it grows your marks and settles in your body."],
 		"choices": ["how_marks", "how", "bye"]},
@@ -112,6 +112,12 @@ static var DIALOGUE := {
 	"how_bestiary": {"ask": "What is the Bestiary?", "fact": "rules",
 		"lines": ["My notes on every monster, in the Library. An entry starts when you see one and grows when you fight it. Slay it {bestiary_slain} times and it adds its health, then what it's weak to, then how it takes states. A beast takes {bestiary_beast}."],
 		"choices": ["how_secret", "how", "bye"]},
+	"how_rivals": {"ask": "Who are the other climbers?", "fact": "rivals",
+		"lines": ["Climbers like you, with marks of their own. From floor {rival_from}, about {rival_chance} of floors hold one, {rival_per} a climb. Each wants one thing: a trade, a duel for the floor, company to the stair. Some lie hurt beside a hoard. {rival_met}"],
+		"choices": ["how_rivals_more", "how", "bye"]},
+	"how_rivals_more": {"ask": "What do I get from them?", "fact": "rivals",
+		"lines": ["A duel can't kill you: lose and they take a toll, win and the stair's ward lifts. Teamed up, you keep {rival_share} of what you gather, but their marks react with yours. Help the hurt and they remember; rob them and so do they. The Renown Board keeps them all."],
+		"choices": ["how_rivals", "how", "bye"]},
 	# --- the tower ----------------------------------------------------------------------
 	"tower": {"ask": "What is {tower} like?", "fact": "tower",
 		"lines": ["{blurb} Its essence is {essence}. {best_line}"],
@@ -188,6 +194,8 @@ static var HINTS := {
 ## The rest of its words in a talk.
 static var TEXT := {
 	"more": "Something else...",
+	"rivals_none": "You haven't met one yet.",
+	"rivals_met": "You've met %d. The last was %s.",
 	"leave_key": "%s to leave",
 	"more_line": "There's more. Pick one.",
 	"back": "Back.",
@@ -283,6 +291,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_states()
 		"handy":
 			f = _fact_handy(main)
+		"rivals":
+			f = _fact_rivals(main)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -592,6 +602,17 @@ static func _fact_rules() -> Dictionary:
 	var Best = load("res://scripts/bestiary.gd")
 	f["bestiary_slain"] = _and(Best.TIERS.get("slain", []))
 	f["bestiary_beast"] = _and(Best.TIERS.get("beast", []))
+	return f
+
+
+## The other climbers: how often, and who you've met.
+static func _fact_rivals(main) -> Dictionary:
+	var Rv = load("res://scripts/rivals.gd")
+	var met: Array = Rv.met_list(main.profile) if main != null and main.profile != null else []
+	var per := int(Rv.RULES["per_climb"])
+	var f := {"rival_from": int(Rv.RULES["from"]), "rival_chance": "%d%%" % int(round(float(Rv.RULES["chance"]) * 100.0)),
+		"rival_per": "once" if per == 1 else "%d times" % per, "rival_share": "%d%%" % int(round(float(Rv.RULES["team_share"]) * 100.0))}
+	f["rival_met"] = String(TEXT.get("rivals_none", "")) if met.is_empty() else String(TEXT.get("rivals_met", "")) % [met.size(), String(met[0].get("name", ""))]
 	return f
 
 
