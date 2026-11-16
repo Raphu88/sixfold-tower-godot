@@ -72,7 +72,7 @@ const FURNISH_NAMES := {
 	"rack": "Heirloom wardrobe", "pack": "Pack", "chest": "Stash", "shelf": "Shelves",
 	"rail": "Outfit rail", "case": "Glass case", "board": "Tower board", "drawers": "Bench drawers",
 	"placard": "Placard", "plain": "Panel", "bookcase": "Bookcase", "lectern": "Lectern",
-	"signal": "Signal panel", "brake": "Emergency brake", "book": "Book on its cushion",
+	"signal": "Signal panel", "brake": "Emergency brake", "book": "Book on its cushion", "tables": "Tables",
 	"bench": "The bench", "outfitter": "The outfitter", "speech": "Speech", "sign": "Sign", "piece": "Piece",
 }
 const RAIL_NAMES := {
@@ -185,6 +185,10 @@ const NAMES := {
 	"train.settings.brake.title": "Brake's sign",
 	"train.settings.brake.button": "Start over button",
 	"train.settings.brake.text": "Brake's note",
+	"train.dining.tables.title": "Tables' sign",
+	"train.dining.tables.grid": "Climbers at the tables",
+	"train.dining.tables.text": "The tables' note",
+	"train.dining.placard.list": "The talk",
 	"menu.talk.row1": "The Entity's words",
 	"menu.talk.row1.part1": "The Entity's face",
 	"menu.talk.row1.card1": "What the Entity says",

@@ -20,6 +20,11 @@ extends Node2D
 ##             climbers do, with marks, and yield instead of dying; one
 ##             round may be your own reflection), the tournament master's
 ##             word between rounds; health and marks are made whole between
+##   duel      (from the Dining car: dining.gd) one climber, rival.gd's
+##             fighter, in the Arena car (arena_car.gd, laid over the room);
+##             first to yield loses, nobody dies; the stake and your history
+##             are written by dining.gd apply_duel, and you come back to the
+##             Dining car
 ## A fall never ends anything here: the arena spares you (main.gd
 ## proving_spare) and the event is lost. The pause menu can give up. Words
 ## and numbers are in stations.gd (TEXT).
@@ -32,6 +37,8 @@ const UI := preload("res://scripts/ui.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Bonds := preload("res://scripts/bonds.gd")
+const Dining := preload("res://scripts/dining.gd")
+const ArenaCar := preload("res://scripts/arena_car.gd")
 
 ## How long the result shows before going back (real seconds), and the gap
 ## between rounds.
@@ -85,6 +92,8 @@ var opp_name := ""
 var round_wait := 0.0
 var _was_saving := true
 var _view: Control
+var duel_body = null  # a duel from the Dining car: the climber you're fighting (rival.gd)
+var car_view = null  # ...and the Arena car round the room (arena_car.gd)
 
 
 ## Begins an event (stations.gd event): the fee is paid first (kept even if
@@ -95,10 +104,11 @@ func start(e: Dictionary) -> String:
 		return "?"
 	var prof = main.profile
 	var type := String(e.get("type", ""))
-	var why := Stations.why_not(prof, type, String(e.get("id", "")))
+	var duel := type == "duel"  # (a duel from the Dining car: no fee, nothing to unlock)
+	var why := Stations.why_not(prof, type, String(e.get("id", ""))) if not duel else ""
 	if why != "":
 		return why
-	var fee := Stations.fee(prof, type, String(e["id"]))
+	var fee := Stations.fee(prof, type, String(e["id"])) if not duel else 0
 	if fee > 0:
 		var paid: Dictionary = prof.spend_any(float(fee))
 		if paid.is_empty():
@@ -153,6 +163,15 @@ func start(e: Dictionary) -> String:
 	spells0 = p.spells_cast
 	if not p.on_parry.is_connected(_on_parry):
 		p.on_parry.connect(_on_parry)
+	if duel:
+		_setup_duel()
+		main.banner = {"title": String(Dining.TEXT["arena_banner"]), "lines": [String(Dining.TEXT["arena_line"]) % String(ev.get("rival", {}).get("name", ""))], "t": 3.0}
+		main.sfx("warn_knight", 1.1, -2.0, 0.0)
+		main.tip("arena_car")
+		z_index = 2
+		_add_view()
+		queue_redraw()
+		return ""
 	var line := ""
 	match type:
 		"lesson":
@@ -309,6 +328,9 @@ func _physics_process(delta: float) -> void:
 			_drill(delta, p)
 		"tourney":
 			_tourney(delta, p)
+		"duel":
+			if t >= float(Dining.RULES["duel_time"]):
+				finish({"won": false, "draw": true})
 	if _view != null:
 		_view.queue_redraw()
 
@@ -472,10 +494,37 @@ func _send_round(p) -> void:
 	main.sfx("warn_knight", 1.1, -6.0, 0.0)
 
 
-## A rival climber yielded (rival.gd: the arena is its host): the round is
-## won (_tourney sees it gone).
-func on_yield(_body) -> void:
-	pass
+## A duel from the Dining car: the Arena car round the room, and the climber
+## you challenged (rival.gd), as tough as the duel's floor, yielding at
+## dining.gd RULES "duel_yield".
+func _setup_duel() -> void:
+	var room: Rect2 = main.OPEN_ROOM
+	car_view = ArenaCar.new()
+	car_view.main = main
+	main.add_child(car_view)
+	var rec: Dictionary = ev.get("rival", {})
+	var data: Dictionary = main.rivals.body_data(rec) if main.get("rivals") != null else {}
+	data["yield"] = float(Dining.RULES["duel_yield"])
+	var body = load(Dining.Rivals.BODY).new()
+	body.setup_rival(main, data, false, self)
+	var tough: Vector2 = Floors.toughness(int(ev.get("floor", 1)))
+	var base: Vector2 = Floors.toughness(maxi(1, int(main.floor_num)))
+	body.max_hp = body.max_hp / maxf(base.x, 0.01) * tough.x
+	body.hp = body.max_hp
+	body.dmg = body.dmg / maxf(base.y, 0.01) * tough.y
+	body.position = room.get_center() + Vector2(0, -110)
+	if main.player != null:
+		body.face = (main.player.global_position - body.position).normalized()
+	main.add_child(body)
+	duel_body = body
+
+
+## A rival climber yielded (rival.gd: the arena is its host): a bracket's
+## round is won (_tourney sees it gone); a duel from the Dining car is won.
+func on_yield(body) -> void:
+	if on and not done and String(ev.get("type", "")) == "duel" and body == duel_body:
+		duel_body = null
+		finish({"won": true})
 
 
 func on_spent(_body) -> void:
@@ -588,6 +637,13 @@ func finish(res: Dictionary) -> void:
 			title = Stations.medal_name(medal)
 			line = Stations.score_text(String(ev["id"]), score) if score >= 0.0 else String(result.get("why", ""))
 			main.sfx("clear" if medal > 0 else "ui_back", 1.0, -2.0, 0.0)
+		"duel":
+			var dwon: bool = result.get("won", false)
+			title = String(Dining.TEXT["result_draw" if result.get("draw", false) else ("result_won" if dwon else "result_lost")])
+			line = String(ev.get("name", ""))
+			main.sfx("clear" if dwon else "ui_back", 1.0, -2.0, 0.0)
+			if duel_body != null and is_instance_valid(duel_body) and not dwon:
+				duel_body.stand_down()  # (they stand down: nobody dies)
 		_:
 			var won: bool = result.get("won", false)
 			title = (Stations.TEXT["result_win"] % String(ev.get("name", ""))) if won else (Stations.TEXT["result_loss"] % [String(ev.get("name", "")), rounds_won + 1])
@@ -623,17 +679,29 @@ func leave() -> void:
 		var fresh = load("res://scripts/profile.gd").new()
 		fresh.save_path = prof.save_path
 		fresh.load_save()
-		var shown := Stations.apply_result(fresh, res)
-		reopen = {"station": station_id, "stop": stop, "pick": pick, "lines": shown["lines"]}
+		if String(ev["type"]) == "duel":
+			reopen = {"car": String(ev.get("car", "dining")), "lines": Dining.apply_duel(fresh, res, ev)["lines"]}  # (back to the Dining car: dining.gd)
+		else:
+			var shown := Stations.apply_result(fresh, res)
+			reopen = {"station": station_id, "stop": stop, "pick": pick, "lines": shown["lines"]}
 		on = false
 		main.get_tree().paused = false
 		main.get_tree().reload_current_scene()
 		return
 	# (Tests run the room outside a scene: the result goes on this profile,
 	# then clear up and open the station here.)
-	var shown := Stations.apply_result(prof, res)
-	reopen = {"station": station_id, "stop": stop, "pick": pick, "lines": shown["lines"]}
+	if String(ev["type"]) == "duel":
+		reopen = {"car": String(ev.get("car", "dining")), "lines": Dining.apply_duel(prof, res, ev)["lines"]}
+	else:
+		var shown := Stations.apply_result(prof, res)
+		reopen = {"station": station_id, "stop": stop, "pick": pick, "lines": shown["lines"]}
 	on = false
+	if duel_body != null and is_instance_valid(duel_body):
+		duel_body.stand_down()
+	duel_body = null
+	if car_view != null and is_instance_valid(car_view):
+		car_view.queue_free()
+	car_view = null
 	for e in main.get_tree().get_nodes_in_group("enemies"):
 		e.queue_free()
 		e.remove_from_group("enemies")
@@ -667,6 +735,12 @@ static func after_train(m) -> void:
 		return
 	var r := reopen
 	reopen = {}
+	if r.has("car"):
+		# Back from the Arena car: the Dining car, with what the duel did.
+		m.menu.train_car = String(r["car"])
+		m.menu.train_page.dining.lines = r.get("lines", [])
+		m.menu.open("train")
+		return
 	m.menu.go_station(String(r.get("station", "")), String(r.get("stop", "")), String(r.get("pick", "")), r.get("lines", []))
 
 
@@ -712,6 +786,9 @@ func _add_view() -> void:
 ## The line at the top: what you're doing, how it's going, the time left.
 func hud_text() -> String:
 	var T: Dictionary = Stations.TEXT
+	if ev.get("type", "") == "duel":
+		var dl: String = String(Dining.TEXT["duel_hud"]) % [String(ev.get("rival", {}).get("name", "")), String(ev.get("stake", {}).get("label", ""))]
+		return dl + "  ·  " + T["hud_time"] % maxi(0, ceili(float(Dining.RULES["duel_time"]) - t))
 	var parts: Array = [String(ev.get("name", ""))]
 	var need := int(ev.get("need", 1))
 	match String(ev.get("type", "")):

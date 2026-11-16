@@ -66,6 +66,7 @@ const TRAIN_CARS := {
 	"store": ["Outfitter", "Supplies, outfit, selling", "scales"],
 	"personal": ["Your Car", "Loadout, pack, stash", "bed"],
 	"workshop": ["Workshop", "The bench", "anvil"],
+	"dining": ["Dining", "Climbers, rumors, wagers", "cup"],
 	"library": ["Library", "What the Entity told you", "book"],
 	"settings": ["Settings", "Sound, screen, every key", "lever"],
 }
@@ -237,7 +238,7 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	list = VBoxContainer.new()
 	list.add_theme_constant_override("separation", 1 if narrow else 3)
 	if on_end:
-		list.add_theme_constant_override("separation", 8 if narrow else 12)  # (the couplings between cars)
+		list.add_theme_constant_override("separation", 5 if narrow else 12)  # (the couplings between cars; short on a phone, for seven cars)
 		list.sort_children.connect(queue_redraw)
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(list)
@@ -293,13 +294,13 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 				b.custom_minimum_size.y = 40.0
 	else:
 		var sep := RailRule.new()
-		sep.custom_minimum_size.y = 6.0 if narrow else 9.0
+		sep.custom_minimum_size.y = (4.0 if on_train else 6.0) if narrow else 9.0
 		foot_box.add_child(sep)
 		for it in foot_items:
 			var b := _item(foot_box, it, "")
 			b.small = true
 			if on_train:
-				b.custom_minimum_size.y = 36.0 if narrow else 32.0
+				b.custom_minimum_size.y = 32.0 if narrow else 32.0  # (a phone: room for the seven cars' rows above)
 	hint = null
 	if not narrow and not touch:
 		hint = Label.new()
@@ -392,13 +393,13 @@ func _train_items(parent: Node, touch: bool, pad: bool, ps: bool) -> void:
 	if on_end:
 		return
 	var sep := RailRule.new()
-	sep.custom_minimum_size.y = 6.0 if narrow else 12.0
+	sep.custom_minimum_size.y = 4.0 if narrow else 12.0
 	parent.add_child(sep)
 	for id in TRAIN_PAGES:
 		for it in ITEMS:
 			if it[0] == id:
 				var b := _item(parent, it, _key_for(id, touch, pad, ps))
-				b.custom_minimum_size.y = 36.0 if narrow else 40.0
+				b.custom_minimum_size.y = 32.0 if narrow else 40.0
 
 
 ## True for a car's item on the train's rail.
@@ -411,6 +412,8 @@ func place_text(main) -> String:
 	if main.on_train:
 		return TEXT["on_train"] if not on_end else TEXT["station"]
 	if main.get("arena") != null and main.arena.on:
+		if String(main.arena.ev.get("type", "")) == "duel":
+			return String(load("res://scripts/dining.gd").TEXT["arena_car"])  # (a duel from the Dining car: the Arena car)
 		return Stations.stop_name(String(main.arena.ev.get("stop", "arena")))
 	if main.get("practice") != null and main.practice.on:
 		return TEXT["practice"]
@@ -648,6 +651,13 @@ static func car_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Colo
 			ci.draw_line(P.call(7, -1), P.call(9.5, -1), col, w, true)
 			ci.draw_line(P.call(9.5, -2.5), P.call(9.5, 0.5), col, w, true)
 			ci.draw_polyline(PackedVector2Array([P.call(2, 9), P.call(2, 12), P.call(3.2, 10.8), P.call(4.4, 12), P.call(4.4, 9)]), Color(col, 0.8), maxf(1.0, w * 0.7), true)
+		"cup":  # a cup on its saucer, steam rising: the Dining car
+			ci.draw_polyline(PackedVector2Array([P.call(-7, -2), P.call(-6, 4), P.call(-3, 6.5), P.call(3, 6.5), P.call(6, 4), P.call(7, -2), P.call(-7, -2)]), col, w, true)
+			ci.draw_arc(P.call(8.3, 1.2), 2.6 * u, -PI * 0.55, PI * 0.55, 10, col, w, true)
+			ci.draw_line(P.call(-10, 9), P.call(10, 9), col, w, true)
+			ci.draw_colored_polygon(PackedVector2Array([P.call(-6.5, 0), P.call(6.5, 0), P.call(5.6, 3.6), P.call(-5.6, 3.6)]), Color(col, 0.4))
+			for sx in [-2.5, 2.0]:
+				ci.draw_polyline(PackedVector2Array([P.call(sx, -5), P.call(sx + 1.3, -7.5), P.call(sx, -10), P.call(sx + 1.3, -12)]), Color(col, 0.7), maxf(1.0, w * 0.7), true)
 		"lever":  # a signal lever in its quadrant: the toothed arc, the lever leaning, its handle and latch
 			ci.draw_arc(P.call(0, 8), 9.0 * u, PI * 1.15, PI * 1.85, 14, col, w, true)
 			for k in 5:
@@ -710,6 +720,7 @@ class RailItem extends Button:
 	const PAINT := {
 		"engine": Color(0.1, 0.19, 0.17), "store": Color(0.09, 0.2, 0.16), "personal": Color(0.32, 0.09, 0.15),
 		"workshop": Color(0.33, 0.2, 0.12), "library": Color(0.15, 0.11, 0.25), "settings": Color(0.08, 0.17, 0.23),
+		"dining": Color(0.3, 0.06, 0.08),
 	}
 	var rail
 	var id := ""

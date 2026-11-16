@@ -37,6 +37,8 @@ const COPPER := Color(0.74, 0.42, 0.25)
 const IRON := Color(0.12, 0.11, 0.13)
 const LEATHER := Color(0.37, 0.22, 0.13)
 const VELVET_DARK := Color(0.11, 0.05, 0.08)  # inside the wardrobe and the case
+const WINE := Color(0.24, 0.05, 0.07)  # the Dining car's flocked walls
+const MAHOGANY := Color(0.3, 0.12, 0.08)  # its panelling and booths
 
 
 # --- helpers ----------------------------------------------------------------------

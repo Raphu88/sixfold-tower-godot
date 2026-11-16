@@ -69,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_glows", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "start", "bye"]},
 	"how_essence": {"ask": "Essence, banking it, and tinctures?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
@@ -136,6 +136,15 @@ static var DIALOGUE := {
 	"how_rivals_more": {"ask": "What do I get from them?", "fact": "rivals",
 		"lines": ["A duel can't kill you: lose and they take a toll, win and the stair's ward lifts. Teamed up, you keep {rival_share} of what you gather, but their marks react with yours. Help the hurt and they remember; rob them and so do they. The Renown Board keeps them all."],
 		"choices": ["how_rivals", "how", "bye"]},
+	"how_dining": {"ask": "What's the Dining car?", "fact": "dining",
+		"lines": ["A car of other climbers, {dine_seats} a visit: mostly ones you've met, a new face or two. Tap one and pick a line: a rumor (always true), a wager, a trade, a duel. They remember what you did up there. Robbed them? They're cold. Helped them? A small gift, better odds. {dine_met}"],
+		"choices": ["how_bets", "how_duels", "how_rivals", "how", "bye"]},
+	"how_bets": {"ask": "How do bets work?", "fact": "dining",
+		"lines": ["A climber offers two wagers on your next climb, in the tower on the Engine's board. Stake {dine_stakes} crystals, your biggest first; up to {dine_bets} at once. When the climb ends, however it ends, a win pays the stake times the odds, {dine_odds}, in the tower's essence. Climb somewhere else and it's off: your stake comes back. {dine_open}"],
+		"choices": ["how_duels", "how_dining", "how", "bye"]},
+	"how_duels": {"ask": "How do duels work?", "fact": "dining",
+		"lines": ["Challenge a climber in the Dining car and name the stake: {dine_crystals} crystals, a piece of gear against one of theirs, or {dine_renown} renown. It's fought in the Arena car, the only way in. First to yield loses; nobody dies. Win and you take their stake and {dine_win} renown, and it counts for the Duelist. Lose and they take yours. Then back to your table."],
+		"choices": ["how_bets", "how_dining", "how", "bye"]},
 	"how_glows": {"ask": "What are the glows and sparks?",
 		"lines": ["A Fine or Rare weapon is enchanted: it glows in its essence, carries a small light, and throws specks that suit it. Embers for fire, drips for water, wisps for air; sparks on a blow for iron, grit for stone, a shimmer on a swing for blade. A Common one stays plain. Spells flash a light where you cast and carry some as they fly. Foes that burn, bleed or crackle show it. Settings has Effects: Low keeps the lights and little else."],
 		"choices": ["how_wheel", "how", "bye"]},
@@ -217,6 +226,9 @@ static var HINTS := {
 static var TEXT := {
 	"more": "Something else...",
 	"rivals_none": "You haven't met one yet.",
+	"dining_met": "You've met {n} so far.",
+	"dining_open": "You have {n} open now.",
+	"dining_none": "You have none open.",
 	"rivals_met": "You've met %d. The last was %s.",
 	"leave_key": "%s to leave",
 	"more_line": "There's more. Pick one.",
@@ -317,6 +329,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_rivals(main)
 		"titles":
 			f = _fact_titles(main)
+		"dining":
+			f = _fact_dining(main)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -673,6 +687,22 @@ static func _fact_rivals(main) -> Dictionary:
 		"rival_per": "once" if per == 1 else ("twice" if per == 2 else "%d times" % per), "rival_sure": int(Rv.RULES.get("sure_by", 3)), "rival_share": "%d%%" % int(round(float(Rv.RULES["team_share"]) * 100.0))}
 	f["rival_met"] = String(TEXT.get("rivals_none", "")) if met.is_empty() else String(TEXT.get("rivals_met", "")) % [met.size(), String(met[0].get("name", ""))]
 	return f
+
+
+## The Dining car (dining.gd): its numbers, and your wagers and acquaintances.
+static func _fact_dining(main) -> Dictionary:
+	var D = load("res://scripts/dining.gd")
+	var R: Dictionary = D.RULES
+	var prof = main.profile if main != null else null
+	var lo: float = minf(float(R["odds_slay_low"]), float(R["odds_floor_1"]))
+	var hi: float = maxf(float(R["odds_beast"]), float(R["odds_floor_3"]))
+	var open: int = (D.state(prof).get("bets", []) as Array).size() if prof != null else 0
+	var met: int = load("res://scripts/rivals.gd").met_list(prof).size() if prof != null else 0
+	return {"dine_seats": "%d to %d" % [int(R["seats_min"]), int(R["seats_max"])], "dine_stakes": "/".join(D.stakes().map(func(x): return str(x))),
+		"dine_bets": int(R["max_bets"]), "dine_odds": "%sx to %sx" % [_num(lo), _num(hi)], "dine_crystals": int(R["duel_crystals"]),
+		"dine_renown": int(R["duel_renown"]), "dine_win": int(R["duel_win_renown"]),
+		"dine_open": String(TEXT["dining_open"]).replace("{n}", str(open)) if open > 0 else String(TEXT["dining_none"]),
+		"dine_met": String(TEXT["dining_met"]).replace("{n}", str(met))}
 
 
 ## The wheels (wheel.gd): how slow the world goes, and the buttons in use.

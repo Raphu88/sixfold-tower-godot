@@ -169,6 +169,7 @@ static var TEXT := {
 	"health_beast": "Health %d  ·  its blows %d on the summit",
 	"tally": "Slain %d  ·  felled you %d",
 	"weak": "Weak to: %s",
+	"told_weak": "Weak to: %s (a climber told you)",
 	"states": "States: %s",
 	"lifts": "It can be thrown into the air and can lose track of you.",
 	"beast_states": "Too heavy to throw into the air (that only staggers it); it never loses track of you, and never flinches.",
@@ -312,6 +313,8 @@ static func load_records(raw) -> Dictionary:
 		out[String(k)] = {"seen": bool(r.get("seen", false)), "fought": bool(r.get("fought", false)),
 			"slain": maxi(0, int(r.get("slain", 0))), "fell": maxi(0, int(r.get("fell", 0))),
 			"tower": String(r.get("tower", "")), "floor": maxi(0, int(r.get("floor", 0)))}
+		if bool(r.get("told", false)):
+			out[String(k)]["told"] = true  # (a climber in the Dining car told you its weakness: dining.gd)
 	return out
 
 
@@ -353,8 +356,11 @@ static func meet(main, kind: String, how: String) -> void:
 	var prof = main.profile
 	var before := level(prof, kind)
 	var r := record(prof, kind).duplicate()
-	if r.is_empty():
+	if r.is_empty() or not bool(r.get("seen", false)):
+		var told := bool(r.get("told", false))  # (a rumor heard before it was met: dining.gd)
 		r = {"seen": true, "fought": false, "slain": 0, "fell": 0, "tower": String(main.get("tower") if main.get("tower") != null else ""), "floor": int(main.get("floor_num") if main.get("floor_num") != null else 0)}
+		if told:
+			r["told"] = true
 	r["seen"] = true
 	match how:
 		"fought":
@@ -472,14 +478,19 @@ static func lines(prof, kind: String) -> Array:
 	var lv := level(prof, kind)
 	var e := entry(kind)
 	var r := record(prof, kind)
+	var told: bool = bool(r.get("told", false)) and Enemy.WEAKNESS.has(kind)  # (a rumor in the Dining car: dining.gd)
 	if lv <= 0:
 		out.append(["learn", TEXT["unmet"]])
+		if told:
+			out.append(["weak", TEXT["told_weak"] % String(Enemy.WEAKNESS[kind])])
 		return out
 	var tw: String = String(r.get("tower", ""))
 	if Towers.TOWERS.has(tw) and int(r.get("floor", 0)) > 0:
 		out.append(["first", TEXT["first"] % [Towers.TOWERS[tw]["name"], int(r["floor"])]])
 	if lv < 2:
 		out.append(["learn", TEXT["learn_fight"]])
+		if told:
+			out.append(["weak", TEXT["told_weak"] % String(Enemy.WEAKNESS[kind])])
 		return out
 	out.append(["desc", String(e.get("desc", ""))])
 	if kind in Enemy.FLIERS:
@@ -497,6 +508,8 @@ static func lines(prof, kind: String) -> Array:
 	var slain := int(r.get("slain", 0))
 	if lv < 3:
 		out.append(["learn", TEXT["learn_slay"]])
+		if told:
+			out.append(["weak", TEXT["told_weak"] % String(Enemy.WEAKNESS[kind])])
 		return out
 	var t: Dictionary = Enemy.TYPES.get(kind, {})
 	if kind in Enemy.BOSSES:
@@ -509,7 +522,9 @@ static func lines(prof, kind: String) -> Array:
 	if String(e.get("lore", "")).strip_edges() != "":
 		out.append(["lore", String(e["lore"])])
 	if lv < 4:
-		if steps.size() > 1:
+		if told:
+			out.append(["weak", TEXT["told_weak"] % String(Enemy.WEAKNESS[kind])])
+		elif steps.size() > 1:
 			out.append(["learn", TEXT["learn_weak"] % [int(steps[1]), slain]])
 		return out
 	if Enemy.WEAKNESS.has(kind):

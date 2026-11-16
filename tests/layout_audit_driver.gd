@@ -541,10 +541,69 @@ class Sweep:
 		await pages()
 		await train()
 		await stations()
+		await dining()
 		if menu.is_open():
 			menu.close()
 		main.on_train = false
 		await frames(2)
+
+	# The Dining car (dining_page.gd): the tables, a talk, a wager being
+	# chosen, a trade; then the Arena car (arena.gd, a duel): its pause page
+	# and, reported only, the HUD's line.
+	func dining() -> void:
+		if not main.on_train:
+			main.await_tower()
+			main.open_train()
+			await frames(2)
+		var tp = menu.train_page
+		var dp = tp.dining
+		var D = load("res://scripts/dining.gd")
+		var people: Array = D.seated(main.profile, menu.train_tower)
+		var who := ""
+		for r in people:
+			if D.attitude(main.profile, r) != "cold":
+				who = String(r.get("id", ""))
+		var views: Array = [["", -1], ["talk", -1], ["bets", 0], ["trade", -1], ["duel", 0]]
+		if light:
+			views = [["", -1], ["talk", -1], ["bets", 0]]
+		for v in views:
+			var name := ("train dining %s" % ({"": "", "talk": "talk", "bets": "bet", "trade": "trade", "duel": "duel"}[v[0]])).strip_edges()
+			if not wants(name) or (v[0] != "" and who == ""):
+				continue
+			dp._reset()
+			if v[0] != "":
+				dp.who = who
+				dp.node = v[0]
+				dp.pick = v[1]
+				dp.said = D.greeting(main.profile, D.find(main.profile, who))
+			menu.train_car = "dining"
+			menu.open("train")
+			await frames(2)
+			tp.go_to(tp._index("dining"))
+			await settle()
+			await look(name, [menu.train_view.rooms["dining"], menu.train_view.chrome, menu.rail])
+		dp._reset()
+		if not wants("arena car") or who == "":
+			return
+		var rec: Dictionary = D.find(main.profile, who)
+		var stakes: Array = D.duel_stakes(main.profile, rec)
+		var why: String = main.arena.start(D.duel_event(main.profile, rec, stakes[stakes.size() - 1]))
+		if why != "":
+			return
+		await frames(3)
+		for e in main.enemies():
+			e.set_physics_process(false)
+		if not light:
+			found.call("hud arena car (reported only)", A.hud_problems(main, tag + " hud arena car"))
+		menu.open("pause")
+		await look("arena car pause", page_tops())
+		menu.close()
+		await frames(1)
+		main.arena.give_up()
+		await frames(3)
+		if menu.is_open():
+			menu.close()
+		await frames(1)
 
 	# The open wheels (hud.gd wheel_spot): the belt wheel with a full belt of
 	# long-named items, and a mark's spell wheel; on a phone, by the thumb on

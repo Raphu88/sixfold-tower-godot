@@ -679,6 +679,24 @@ func _wall(b, r: Room) -> void:
 			for win in r.wins:
 				for x in [win["rect"].position.x - 14.0 * u, win["rect"].end.x + 8.0 * u]:
 					Art.post(b, Rect2(x, r.ceil_y, 6.0 * u, r.wain - r.ceil_y), Art.WALNUT.lightened(0.05))
+		"dining":
+			# Wine-red flocked paper: a gilt fleur in a lattice, faint stripes.
+			Art.vgrad(b, wall, Art.WINE.lightened(0.06), Art.WINE.darkened(0.25))
+			var gap := 30.0 * u
+			var row := 0
+			var y := r.ceil_y + gap * 0.6
+			while y < r.wain - 8.0 * u:
+				var x := gap * 0.5 * (row % 2)
+				while x < s.x + gap:
+					var p := Vector2(x, y)
+					if not skip.call(p):
+						var d := 4.5 * u
+						b.polygon(PackedVector2Array([p + Vector2(0, -d * 1.5), p + Vector2(d, 0), p + Vector2(0, d * 1.5), p + Vector2(-d, 0)]), Color(Art.GILT, 0.1))
+						b.circle(p + Vector2(0, -d * 1.9), 1.1 * u, Color(Art.GILT, 0.16), 6)
+					x += gap
+				y += gap * 0.7
+				row += 1
+			_bays(b, r, Art.MAHOGANY)
 		"settings":
 			# The signal room: painted tongue-and-groove boards in deep teal,
 			# a brass line every few boards.
@@ -759,7 +777,7 @@ func _panelling(b, r: Room) -> void:
 	var s := r.size
 	var u := r.u
 	var wood: Color = {"engine": Art.IRON.lightened(0.06), "personal": Art.WALNUT, "store": Art.OAK.darkened(0.25), "workshop": Art.WALNUT.darkened(0.15),
-		"library": Art.WALNUT.darkened(0.1), "settings": Color(0.2, 0.12, 0.08)}.get(r.car, Art.WALNUT)
+		"library": Art.WALNUT.darkened(0.1), "settings": Color(0.2, 0.12, 0.08), "dining": Art.MAHOGANY}.get(r.car, Art.WALNUT)
 	var band := Rect2(0, r.wain, s.x, r.floor_y - r.wain)
 	Art.vgrad(b, band, wood.darkened(0.1), wood.darkened(0.3))
 	if r.car != "engine":
@@ -844,7 +862,7 @@ func _floor(b, r: Room) -> void:
 				# The runner: deep wine, gilt borders and a diamond along it.
 				var ry := r.floor_y + 9.0 * u
 				var run := Rect2(0, ry, s.x, s.y - ry)
-				var col: Color = {"personal": Art.RUNNER, "library": Color(0.05, 0.12, 0.1)}.get(r.car, Color(0.1, 0.09, 0.17))
+				var col: Color = {"personal": Art.RUNNER, "library": Color(0.05, 0.12, 0.1), "dining": Color(0.2, 0.05, 0.05)}.get(r.car, Color(0.1, 0.09, 0.17))
 				Art.vgrad(b, run, col.darkened(0.15), col)
 				b.rect(Rect2(0, ry, s.x, 1.5 * u), Color(0, 0, 0, 0.5))
 				b.rect(Rect2(0, ry + 3.0 * u, s.x, 1.5 * u), Color(Art.GILT, 0.5))
@@ -1087,6 +1105,8 @@ func paint_front(r: Room) -> void:
 			_library(b, r)
 		"settings":
 			_signal_room(b, r)
+		"dining":
+			_dining(b, r)
 	for h in r.lamps:
 		b.circle(h, 5.0 * r.u, Art.OUTLINE, 14)
 		b.circle(h, 4.0 * r.u, Art.GILT.darkened(0.3), 14)
@@ -1547,6 +1567,56 @@ func _library(b, r: Room) -> void:
 	b.arc(gc, 24.0 * u, PI * 0.6, PI * 2.4, 24, Art.GILT.darkened(0.15), 2.0 * u)
 
 
+## The Dining car: a sideboard by the far end with decanters and a bell,
+## a slate of tonight's fare in the first bay, and a brass coat rail.
+func _dining(b, r: Room) -> void:
+	var s := r.size
+	var u := r.u
+	# The sideboard: a mahogany cabinet on the floor, decanters on its top.
+	var sw := 130.0 * u
+	var sb := Rect2(s.x - sw - 24.0 * u, r.floor_y - 62.0 * u, sw, 62.0 * u)
+	b.rect(sb.grow(1.0 * u), Art.OUTLINE)
+	Art.vgrad(b, sb, Art.MAHOGANY.lightened(0.1), Art.MAHOGANY.darkened(0.35))
+	Art.grain(b, sb.grow(-2.0 * u), Art.MAHOGANY, 41, u, false, false)
+	for k in 2:
+		var door := Rect2(sb.position.x + 8.0 * u + k * (sw * 0.5 - 4.0 * u), sb.position.y + 14.0 * u, sw * 0.5 - 12.0 * u, sb.size.y - 20.0 * u)
+		Art.bevel(b, door, Art.MAHOGANY.darkened(0.05), 2.0 * u)
+		b.circle(Vector2(door.end.x - 6.0 * u if k == 0 else door.position.x + 6.0 * u, door.get_center().y), 1.8 * u, Art.GILT, 8)
+	var top := Rect2(sb.position.x - 4.0 * u, sb.position.y - 5.0 * u, sw + 8.0 * u, 6.0 * u)
+	b.rect(top.grow(0.8 * u), Art.OUTLINE)
+	Art.vgrad(b, top, Art.MAHOGANY.lightened(0.25), Art.MAHOGANY.darkened(0.1))
+	var cols := [Color(0.5, 0.12, 0.14, 0.85), Color(0.75, 0.55, 0.2, 0.8), Color(0.25, 0.4, 0.3, 0.8)]
+	for k in 3:
+		Art.bottle(b, Vector2(top.position.x + 22.0 * u + k * 30.0 * u, top.position.y), (9.0 + 3.0 * (k % 2)) * u, (26.0 + 6.0 * (k % 2)) * u, cols[k], u)
+	# A brass service bell on the sideboard.
+	var bell := Vector2(top.end.x - 14.0 * u, top.position.y)
+	b.polygon(Art.oval(bell + Vector2(0, -1.0 * u), Vector2(7.0, 2.0) * u, 12), Art.GILT.darkened(0.3))
+	var dome := PackedVector2Array()
+	for k in 13:
+		dome.append(bell + Vector2.from_angle(PI + PI * k / 12.0) * 6.0 * u + Vector2(0, -1.5 * u))
+	b.polygon(dome, Art.GILT)
+	b.circle(bell + Vector2(0, -9.0 * u), 1.4 * u, Art.GILT_HI, 6)
+	# A slate of tonight's fare, in a gilt frame, in the first bay.
+	if r.wins.size() >= 2:
+		var bx: float = (r.wins[0]["rect"].end.x + r.wins[1]["rect"].position.x) * 0.5
+		var slate := Rect2(bx - 26.0 * u, r.top + 30.0 * u, 52.0 * u, 66.0 * u)
+		b.rect(slate.grow(4.0 * u), Art.OUTLINE)
+		b.rect(slate.grow(3.0 * u), Art.GILT.darkened(0.25))
+		Art.vgrad(b, slate, Color(0.1, 0.12, 0.11), Color(0.06, 0.07, 0.07))
+		for k in 6:
+			var ly := slate.position.y + 10.0 * u + k * 9.0 * u
+			var lw := slate.size.x * (0.5 + 0.35 * Art.rnd(k * 3 + 7))
+			b.rect(Rect2(slate.position.x + 6.0 * u, ly, lw, 1.4 * u), Color(0.9, 0.9, 0.85, 0.35))
+	# The coat rail along the cornice, a hat on one hook.
+	var ry := r.ceil_y + 12.0 * u
+	b.rect(Rect2(0, ry - 2.0 * u, s.x, 4.0 * u).grow(0.8 * u), Art.OUTLINE)
+	Art.bar(b, Rect2(0, ry - 2.0 * u, s.x, 4.0 * u))
+	var hx := s.x * 0.08
+	b.polygon(Art.oval(Vector2(hx, ry + 10.0 * u), Vector2(11.0, 2.5) * u, 14), Color(0.08, 0.06, 0.06))
+	b.rect(Rect2(hx - 6.0 * u, ry + 1.0 * u, 12.0 * u, 9.0 * u), Color(0.1, 0.08, 0.07))
+	b.rect(Rect2(hx - 6.0 * u, ry + 7.0 * u, 12.0 * u, 1.6 * u), Color(0.45, 0.12, 0.1))
+
+
 ## The signal room: a clock and the block instrument's dial in the bays
 ## (their hands move: paint_live), a frame of tall levers along the
 ## panelling with red, blue, yellow and black handles (some pulled over), and
@@ -1779,6 +1849,7 @@ class Furnish extends PanelContainer:
 		"rail": [12, 8, 12, 10], "case": [14, 16, 14, 18], "board": [16, 12, 16, 14], "drawers": [8, 8, 8, 10],
 		"placard": [14, 12, 14, 12], "plain": [10, 8, 10, 8],
 		"bookcase": [16, 14, 16, 16], "lectern": [16, 14, 16, 22], "signal": [16, 16, 16, 16], "brake": [16, 40, 16, 16],
+		"tables": [14, 12, 14, 14],
 	}
 	var kind := "plain"
 	var watch: Control = null  # the grid whose rows (or slots) the drawing follows
@@ -2116,6 +2187,28 @@ class Furnish extends PanelContainer:
 				b.circle(Vector2(r.position.x + 22.0, r.position.y + 24.0), 5.0, Art.OUTLINE, 12)
 				b.circle(Vector2(r.position.x + 22.0, r.position.y + 24.0), 4.0, Color(1.0, 0.45, 0.25), 12)
 				Art.light(b, Vector2(r.position.x + 22.0, r.position.y + 24.0), Vector2(18, 18), Color(1.0, 0.4, 0.2, 0.3))
+			"tables":
+				# The Dining car's booths: a mahogany partition with a buttoned
+				# wine velvet back, a brass rail along its top.
+				_shadow(b, r)
+				b.rect(r, Art.OUTLINE)
+				Art.vgrad(b, r.grow(-1.5), Art.MAHOGANY.lightened(0.08), Art.MAHOGANY.darkened(0.3))
+				var back := r.grow(-7.0)
+				b.rect(back.grow(1.0), Color(0, 0, 0, 0.5))
+				Art.vgrad(b, back, Art.WINE.lightened(0.08), Art.WINE.darkened(0.3))
+				var bx := back.position.x + 14.0
+				var by := back.position.y + 30.0
+				var row := 0
+				while by < back.end.y - 6.0:
+					bx = back.position.x + 14.0 + (11.0 if row % 2 == 1 else 0.0)
+					while bx < back.end.x - 6.0:
+						b.circle(Vector2(bx, by), 1.8, Art.WINE.darkened(0.55), 6)
+						b.circle(Vector2(bx - 0.4, by - 0.4), 0.8, Color(Art.GILT, 0.5), 4)
+						bx += 22.0
+					by += 20.0
+					row += 1
+				var rail := Rect2(r.position.x + 2.0, r.position.y + 2.0, r.size.x - 4.0, 4.0)
+				Art.bar(b, rail)
 			_:
 				b.rect(r, Color(0.08, 0.06, 0.05, 0.75))
 		b.flush(self)

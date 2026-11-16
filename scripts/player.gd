@@ -3648,6 +3648,7 @@ func use_item() -> bool:
 		return false
 	if not Items.use(id, self):
 		return false
+	main.Dining.on_item(main, id)  # (a Healing Draught breaks a dry wager: dining.gd)
 	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
 		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
 	take_one(id)

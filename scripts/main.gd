@@ -55,6 +55,7 @@ const UnboundRun := preload("res://scripts/unbound_run.gd")
 const RoomStore := preload("res://scripts/room_store.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
 const ArenaScript := preload("res://scripts/arena.gd")
+const Dining := preload("res://scripts/dining.gd")
 const Renown := preload("res://scripts/renown.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
@@ -2284,6 +2285,7 @@ func pay_climb() -> String:
 		return pay_line
 	climb_paid = true
 	Renown.on_climb_end(profile, tower_data()["name"], floor_num, climb_best0, player != null and player.dead)  # (renown for the floors: renown.gd)
+	Dining.settle(self)  # (wagers made in the Dining car are paid or lost: dining.gd)
 	if contracts != null:
 		contracts.on_climb_end(player != null and player.dead)  # (a thing carried out is safe; a fall drops it: contracts.gd)
 	var kind: String = tower_data()["essence"]
@@ -2740,6 +2742,7 @@ func depart(id: String) -> void:
 func choose_tower(id: String) -> void:
 	if not choosing_tower or not Towers.TOWERS.has(id):
 		return
+	var from_train := on_train
 	if on_train:
 		# Leaving the train (Depart, or the dev tools): your pack and supplies come too.
 		Train.pack_up(profile, player)
@@ -2751,6 +2754,8 @@ func choose_tower(id: String) -> void:
 	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
+	if from_train:
+		Dining.on_depart(self)  # (wagers from the Dining car run on this climb: dining.gd)
 	player.set_physics_process(true)
 	sfx("equip_sword", 0.8, -2.0, 0.0)
 	_greet()
@@ -4293,6 +4298,7 @@ func on_enemy_killed(e) -> void:
 		return
 	profile.note("slain")
 	Bestiary.slain(self, e)
+	Dining.on_kill(self, e)  # (a wager on slaying counts it: dining.gd)
 	BondScript.on_kill(self, e)  # (marks' passive ranks: bond.gd)
 	if contracts != null:
 		contracts.on_kill(String(e.kind))  # (a slay contract counts it: contracts.gd)
