@@ -133,16 +133,16 @@ static var PRESETS := {
 	"ward_motes": {"color": Color(1.0, 0.84, 0.45), "count": 5, "speed": 40.0, "life": 0.7, "size": 2.0, "drag": 0.0, "spread": 3.14, "blend": "add", "shape": "dot", "inward": true, "radius": 30.0},
 	# Ambient life per tower: low, slow and faint, behind the action. Streams the
 	# level's "rate" scales (Low has none); "angle" is the way they drift.
-	"amb_drip": {"color": Color(0.6, 0.85, 0.95, 0.7), "count": 1, "speed": 3.0, "life": 0.8, "size": 1.5, "gravity": 240.0, "drag": 0.3, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.0},
-	"amb_bubble": {"color": Color(0.75, 0.93, 1.0, 0.5), "count": 1, "speed": 8.0, "life": 1.8, "size": 2.4, "gravity": -22.0, "drag": 0.8, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 3.0},
-	"amb_wind": {"color": Color(0.9, 0.97, 1.0, 0.5), "count": 1, "speed": 230.0, "life": 0.9, "size": 1.3, "drag": 0.1, "spread": 0.12, "angle": 0.1, "blend": "add", "shape": "streak", "rate": 3.0},
-	"amb_feather": {"color": Color(0.94, 0.95, 1.0, 0.7), "count": 1, "speed": 28.0, "life": 3.2, "size": 2.8, "gravity": 12.0, "drag": 0.6, "spread": 0.5, "angle": 0.5, "blend": "mix", "shape": "shard", "rate": 1.0},
-	"amb_ash": {"color": Color(0.32, 0.28, 0.28, 0.6), "count": 1, "speed": 12.0, "life": 2.6, "size": 2.0, "gravity": -9.0, "drag": 0.5, "spread": 3.14, "blend": "mix", "shape": "dot", "rate": 4.0},
-	"amb_heat": {"color": Color(1.0, 0.5, 0.2, 0.14), "count": 1, "speed": 6.0, "life": 1.4, "size": 7.0, "gravity": -34.0, "drag": 0.6, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 2.5},
-	"amb_sand": {"color": Color(0.88, 0.74, 0.5, 0.5), "count": 1, "speed": 120.0, "life": 1.5, "size": 1.5, "drag": 0.3, "spread": 0.2, "angle": 0.15, "blend": "mix", "shape": "streak", "rate": 4.0},
-	"amb_ember": {"color": Color(1.0, 0.55, 0.25, 0.8), "count": 1, "speed": 14.0, "life": 2.2, "size": 2.0, "gravity": -24.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.0},
-	"amb_leaf": {"color": Color(0.46, 0.7, 0.3, 0.75), "count": 1, "speed": 22.0, "life": 3.0, "size": 2.8, "gravity": 15.0, "drag": 0.6, "spread": 0.5, "angle": 0.4, "blend": "mix", "shape": "shard", "rate": 1.6},
-	"amb_spore": {"color": Color(0.72, 1.0, 0.55, 0.6), "count": 1, "speed": 6.0, "life": 2.6, "size": 2.0, "gravity": -9.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 3.0},
+	"amb_drip": {"color": Color(0.6, 0.85, 0.95, 0.7), "count": 1, "speed": 3.0, "life": 0.8, "size": 1.5, "gravity": 240.0, "drag": 0.3, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 8.0},
+	"amb_bubble": {"color": Color(0.75, 0.93, 1.0, 0.5), "count": 1, "speed": 8.0, "life": 1.8, "size": 2.4, "gravity": -22.0, "drag": 0.8, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 5.0},
+	"amb_wind": {"color": Color(0.9, 0.97, 1.0, 0.8), "count": 1, "speed": 230.0, "life": 0.9, "size": 1.7, "drag": 0.1, "spread": 0.12, "angle": 0.1, "blend": "add", "shape": "streak", "rate": 6.0},
+	"amb_feather": {"color": Color(0.94, 0.95, 1.0, 0.7), "count": 1, "speed": 28.0, "life": 3.2, "size": 3.6, "gravity": 12.0, "drag": 0.6, "spread": 0.5, "angle": 0.5, "blend": "mix", "shape": "shard", "rate": 2.2},
+	"amb_ash": {"color": Color(0.32, 0.28, 0.28, 0.8), "count": 1, "speed": 12.0, "life": 2.6, "size": 2.5, "gravity": -9.0, "drag": 0.5, "spread": 3.14, "blend": "mix", "shape": "dot", "rate": 8.0},
+	"amb_heat": {"color": Color(1.0, 0.5, 0.2, 0.2), "count": 1, "speed": 6.0, "life": 1.4, "size": 7.0, "gravity": -34.0, "drag": 0.6, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.5},
+	"amb_sand": {"color": Color(0.88, 0.74, 0.5, 0.7), "count": 1, "speed": 120.0, "life": 1.5, "size": 1.5, "drag": 0.3, "spread": 0.2, "angle": 0.15, "blend": "mix", "shape": "streak", "rate": 8.0},
+	"amb_ember": {"color": Color(1.0, 0.55, 0.25, 0.8), "count": 1, "speed": 14.0, "life": 2.2, "size": 2.5, "gravity": -24.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 7.0},
+	"amb_leaf": {"color": Color(0.46, 0.7, 0.3, 0.75), "count": 1, "speed": 22.0, "life": 3.0, "size": 3.4, "gravity": 15.0, "drag": 0.6, "spread": 0.5, "angle": 0.4, "blend": "mix", "shape": "shard", "rate": 3.2},
+	"amb_spore": {"color": Color(0.72, 1.0, 0.55, 0.6), "count": 1, "speed": 6.0, "life": 2.6, "size": 2.0, "gravity": -9.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 5.5},
 }
 
 ## Each essence's way: "cast" (what flies off a caster), "trail" (what a
