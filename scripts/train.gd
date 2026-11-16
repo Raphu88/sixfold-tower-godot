@@ -102,11 +102,11 @@ static var DEFAULT_PRICE := 10
 ## piece costs 4x its Common and finds still sell well. A beast's Regarded
 ## piece is the dearest of all (it sells for the most).
 static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 14.0}
-## The staples (items.gd "staple": Healing and Stamina Draughts) cost half
-## their small worth (items.gd "value") at the store: cheap enough for every
-## climber. Everything else is rarer and costs its full worth. (A belt left
+## The staples (items.gd "staple": the Healing and Stamina Draughts and the
+## Essence Vial) cost half their small worth (items.gd "value") at the
+## store: cheap enough for every climber. Everything else is rarer and costs its full worth. (A belt left
 ## over at the end of a climb still breaks into crystals at half its worth.)
-static var SUPPLY_PRICE := {"draught": 3, "stamina": 3}
+static var SUPPLY_PRICE := {"draught": 3, "stamina": 3, "vial": 4}
 ## Supplies priced in crystal essence of ANY kind (the owner's call: "recall
 ## scrolls should take any kind of essence and always be available"). The
 ## recall scroll is always on the shelf, and buying one never empties it
@@ -392,16 +392,21 @@ static func climb_pay(reached: int, best_before: int) -> int:
 ## The consumables the store sells: always the same shelf, the cheap staples
 ## first, then the rest in Items.ORDER (the recall scroll among them, always
 ## there; only the outfit rail and today's piece change between visits).
-## The shelf this visit: shelf keys ("draught", "draught@3": shop.gd), kept
-## with the visit's stock (an old save's store has none: the whole shelf of
-## what your rank has opened).
+## The shelf this visit: item ids, kept with the visit's stock (an old
+## save's store has none: the whole shelf of what your rank has opened; an
+## old save's sized keys, "draught@3", are simply the item, once).
 static func shelf(profile) -> Array:
 	var keys: Array = profile.store.get("shelf", []) if profile != null else []
 	if keys.is_empty():
 		keys = Shop.shelf_pool(profile) if profile != null else supplies()
 		if not keys.has("scroll") and Items.ITEMS.has("scroll"):
 			keys = keys + ["scroll"]
-	keys = keys.filter(func(k): return Items.ITEMS.has(Shop.key_id(String(k))))
+	var plain: Array = []
+	for k in keys:
+		var id := Items.old_id(String(k))
+		if Items.ITEMS.has(id) and not plain.has(id):
+			plain.append(id)
+	keys = plain
 	if profile != null:  # (the tinctures he stocks this visit: essence_flow.gd, store_tinctures)
 		for k in store_tinctures(profile):
 			var tid := Flow.tincture_id(String(k))
@@ -473,7 +478,6 @@ static func paid_text(paid: Dictionary) -> String:
 static func stock(profile) -> void:
 	if profile.store.has("outfit"):
 		return
-	# (a brewed supply may have started the store's notes already: its sizes)
 	profile.store["outfit"] = roll_outfit(profile).map(func(g): return Gear.code(g))
 	profile.store["today"] = Gear.code(roll_today(profile))
 	profile.store["shelf"] = Shop.roll_shelf(profile)  # (shop.gd: the supplies for this visit, by your rank)
@@ -530,14 +534,13 @@ static func buy_price(profile, g) -> int:
 
 ## What a consumable costs you at the store: [kind, amount] (item_price, the
 ## scroll kept aside, less his discount).
-static func supply_price(profile, id: String, size := Items.STANDARD) -> Array:
+static func supply_price(profile, id: String) -> Array:
 	var price := item_price(id)
 	if int(price[1]) <= 0:
 		return price
 	var amount := int(price[1])
 	if id == "scroll" and price[0] == ANY and upgraded(profile, "scroll"):
 		amount = mini(amount, int(UPGRADE_FX["scroll_price"]))
-	amount = Shop.sized_amount(amount, size)  # (a Minor one costs less, a Greater one more)
 	return [price[0], maxi(1, int(round(float(amount) * (1.0 - discount(profile)))))]
 
 
@@ -673,8 +676,8 @@ static func supply_room(profile, player, id: String) -> int:
 
 
 ## Buys one of a consumable, packed for the next climb. "" if bought, else why not.
-static func buy_supply(profile, player, id: String, size := Items.STANDARD) -> String:
-	var price := supply_price(profile, id, size)
+static func buy_supply(profile, player, id: String) -> String:
+	var price := supply_price(profile, id)
 	if price[1] <= 0:
 		return TEXT["belt_full"]
 	if supply_room(profile, player, id) <= 0:
@@ -687,7 +690,7 @@ static func buy_supply(profile, player, id: String, size := Items.STANDARD) -> S
 		paid = profile.spend_any(price[1])  # (from any kinds, the biggest first: noted, for putting it back)
 	else:
 		profile.spend(price[0], price[1])
-	pack_supply(profile, id, paid, size)
+	pack_supply(profile, id, paid)
 	profile.save()
 	return ""
 
@@ -700,32 +703,11 @@ static func last_paid(profile, id: String) -> Dictionary:
 
 ## Packs one of a consumable for the next climb, noting what it cost
 ## ({kind: amount}) so putting it back returns that.
-static func pack_supply(profile, id: String, paid: Dictionary, size := Items.STANDARD) -> void:
-	var sizes := supply_sizes(profile, id)  # (before this one is counted)
+static func pack_supply(profile, id: String, paid: Dictionary) -> void:
 	profile.supplies[id] = int(profile.supplies.get(id, 0)) + 1
 	var list: Array = profile.supply_paid.get(id, [])
 	list.append(paid)
 	profile.supply_paid[id] = list
-	sizes.append(Items.clamp_size(id, size))
-	_sizes_book(profile)[id] = sizes
-
-
-## The sizes of what's packed of an item, in the order packed (one per
-## packed one; standard where none was noted: old saves, the bench's brews).
-## They're kept in the store's notes (profile.store["sizes"]), which end
-## when the climb starts, as the packed supplies do.
-static func supply_sizes(profile, id: String) -> Array:
-	var n := int(profile.supplies.get(id, 0))
-	var sizes: Array = Array(_sizes_book(profile).get(id, [])).slice(0, n)
-	while sizes.size() < n:
-		sizes.append(Items.STANDARD)
-	return sizes
-
-
-static func _sizes_book(profile) -> Dictionary:
-	if not (profile.store.get("sizes", null) is Dictionary):
-		profile.store["sizes"] = {}
-	return profile.store["sizes"]
 
 
 ## Takes one packed consumable out again; what was paid for it ({kind:
@@ -734,9 +716,6 @@ static func _sizes_book(profile) -> Dictionary:
 static func unpack_supply(profile, id: String) -> Dictionary:
 	if int(profile.supplies.get(id, 0)) <= 0:
 		return {}
-	var sizes := supply_sizes(profile, id)
-	sizes.pop_back()
-	_sizes_book(profile)[id] = sizes
 	profile.supplies[id] = int(profile.supplies[id]) - 1
 	var list: Array = profile.supply_paid.get(id, [])
 	var paid: Dictionary = list.pop_back() if not list.is_empty() else {}
@@ -876,9 +855,8 @@ static func pack_up(profile, player) -> void:
 	profile.wear = {}  # (it's on you now: worn pieces, like any you find)
 	load(VESSEL).pack_up(profile, player)  # (a vessel packed from the chest goes on the belt)
 	for id in profile.supplies.keys():
-		var sizes := supply_sizes(profile, id)
 		for k in int(profile.supplies[id]):
-			if not player.add_item(id, int(sizes[k]) if k < sizes.size() else Items.STANDARD):
+			if not player.add_item(id):
 				var paid: Array = profile.supply_paid.get(id, [])
 				var back: Dictionary = paid.pop_back() if not paid.is_empty() else item_refund(id)
 				for kind in back:

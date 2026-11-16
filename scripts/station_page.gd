@@ -555,11 +555,8 @@ func _ware_card(i: int) -> void:
 		var vs := Train.versus(prof, m.main.player, gear)
 		_text(m.loadout_page.TEXT["versus_better"] if vs > 0 else (m.loadout_page.TEXT["versus_worse"] if vs < 0 else m.loadout_page.TEXT["versus_even"]), UI.GOOD if vs > 0 else (UI.BAD if vs < 0 else UI.DIM))
 	else:
-		var id := String(w["id"])
+		var id := Items.old_id(String(w["id"]))
 		_text(String(Items.ITEMS[id]["desc"]).left(1).to_upper() + String(Items.ITEMS[id]["desc"]).substr(1) + ".", UI.TEXT)
-		var note := Items.size_note(id, int(w.get("size", Items.STANDARD)))
-		if note != "":
-			_text(note, UI.GILT_HI)
 	var p := Shop.ware_price(prof, w)
 	var why := Shop.short_of(prof, w)
 	_price(p[0], int(p[1]), why == "")

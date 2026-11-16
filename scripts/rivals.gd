@@ -677,7 +677,6 @@ func card(pick: String) -> Dictionary:
 				"item":
 					c["item"] = String(give["id"])
 					c["color"] = Items.color(String(give["id"]))
-					c["size"] = int(give.get("size", Items.STANDARD))
 					what = String(Items.info(String(give["id"])).get("desc", ""))
 				"gear":
 					c["gear"] = give["rec"]
@@ -748,7 +747,7 @@ func _close() -> void:
 func thing_name(t: Dictionary) -> String:
 	match String(t.get("type", "")):
 		"item":
-			return Items.sized_name(String(t["id"]), int(t.get("size", Items.STANDARD)))
+			return Items.item_name(String(t["id"]))
 		"gear":
 			return Gear.display(t["rec"])
 		"crystal":
@@ -764,11 +763,7 @@ static func worth(t: Dictionary) -> float:
 	match String(t.get("type", "")):
 		"item":
 			var pr: Array = Train.item_price(String(t["id"]))
-			var size_k := 1.0
-			var sz := int(t.get("size", Items.STANDARD))
-			if sz != Items.STANDARD and Items.is_sized(String(t["id"])):
-				size_k = 0.6 if sz < Items.STANDARD else 1.5
-			return maxf(4.0, float(pr[1])) * size_k
+			return maxf(4.0, float(pr[1]))
 		"gear":
 			return float(Train.gear_price(t["rec"]))
 		"crystal", "essence":
@@ -785,7 +780,7 @@ func make_offers() -> Array:
 	if Gear.is_gear(g):
 		gives.append({"type": "gear", "rec": g})
 	var id := Items.random_item(main.player != null and not main.player.bonds.is_empty(), ["scroll", "vessel"], false, String(main.tower))
-	gives.append({"type": "item", "id": id, "size": Items.roll_size(id, fl)})
+	gives.append({"type": "item", "id": id})
 	var kind := String(color_kind(enc_tower()))
 	gives.append({"type": "crystal", "kind": kind, "amount": roundf(float(RULES["trade_crystals"]) + float(RULES["trade_per_floor"]) * fl)})
 	gives.shuffle()
@@ -819,7 +814,7 @@ func _want_for(give: Dictionary, asked: Array) -> Dictionary:
 		for id in p.carried():
 			if id in ["scroll", "vessel"]:
 				continue
-			cands.append({"type": "item", "id": id, "size": p.smallest_size(id)})
+			cands.append({"type": "item", "id": id})
 		for r in p.pack:
 			if Gear.is_gear(r):
 				cands.append({"type": "gear", "rec": r})
@@ -900,20 +895,9 @@ func pay(want: Dictionary) -> bool:
 	return true
 
 
-## Takes one of an item from the belt (the smallest of its stack).
+## Takes one of an item from the belt.
 static func take_item(p, id: String) -> void:
-	var n: int = p.item_count(id)
-	if n <= 0:
-		return
-	var list: Array = p.item_sizes_of(id)
-	if not list.is_empty():
-		list.pop_back()
-	p.items[id] = n - 1
-	p.item_sizes[id] = list
-	if p.item_count(id) <= 0:
-		p.items.erase(id)
-		p.item_sizes.erase(id)
-		p.item_sel = p.selected_item()
+	p.take_one(id)
 
 
 ## Takes unbanked essence, spread over its kinds; what was taken.
@@ -931,7 +915,7 @@ func take_essence(amount: float) -> float:
 func give(t: Dictionary) -> String:
 	match String(t["type"]):
 		"item":
-			return main._take_item(String(t["id"]), "Traded", int(t.get("size", Items.STANDARD)))
+			return main._take_item(String(t["id"]), "Traded")
 		"gear":
 			return main._take_gear(t["rec"])
 		"crystal":

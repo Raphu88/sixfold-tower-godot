@@ -93,7 +93,7 @@ static var DIALOGUE := {
 		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
-		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. Most items come Minor, standard or Greater: the pips on the icon. Sizes share a stack, and a use takes the biggest first. What you buy or brew on the train goes on it, standard size."],
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Draught, the Stamina Draught and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; the outfitter sells them if you want one on purpose. What you buy or brew on the train goes on it."],
 		"choices": ["how_wheel", "how_states", "how_fall", "how", "bye"]},
 	"how_wheel": {"ask": "How does the belt wheel work?", "fact": "wheel",
 		"lines": ["Tap {item} and you use your current item, the one beside your weapon. Hold {item} and the wheel opens, and the world slows to {slow} of its speed. Point at an item with {point} and let go: it becomes your current item. Nothing is used until you tap {item} again. A mark's button works the same way: hold it to choose a spell, tap it to cast. Choosing never uses anything. I find that restful."],
@@ -111,7 +111,7 @@ static var DIALOGUE := {
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
 		"choices": ["how_shop", "how_charms", "how", "bye"]},
 	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
-		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), Minor bottles from {minor_rank} and Greater ones from {greater_rank}, more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
+		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
 		"choices": ["how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
@@ -610,8 +610,6 @@ static func _fact_rules() -> Dictionary:
 	var last: Dictionary = Shop.RANK_STOCK[-1]
 	f["rail_most"] = Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]) + int(last["rail"])
 	f["kinds_most"] = int(last["kinds"])
-	f["minor_rank"] = R.rank_name(int(Shop.SIZE_RANK["1"]))
-	f["greater_rank"] = R.rank_name(int(Shop.SIZE_RANK["3"]))
 	f["gun_rank"] = R.rank_name(int(Shop.WEAPON_RANK.get("flintlock", 0)))
 	f["pedlar"] = "From %s, %s sets up a stall at every station and at each camp: a few wares on a theme, new each time, paid for in crystals (at a camp, essence you carry will do)." % [R.rank_name(int(Shop.MERCHANT["rank"])), Shop.MERCHANT["name"]]
 	var Charms = load("res://scripts/charms.gd")
