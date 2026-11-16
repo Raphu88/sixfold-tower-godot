@@ -1562,7 +1562,8 @@ func _page_pause() -> void:
 	if _on_train():
 		_header(Train.TEXT["title"], "", "Menu")
 	elif fighting:
-		_header(String(main.arena.ev.get("name", "")), Stations.TEXT["pause_note"], Stations.TEXT["paused"])
+		var duel: bool = String(main.arena.ev.get("type", "")) == "duel"  # (a duel from the Dining car: dining.gd)
+		_header(String(main.arena.ev.get("name", "")), String(main.Dining.TEXT["pause_note"]) if duel else Stations.TEXT["pause_note"], Stations.TEXT["paused"])
 	elif practicing:
 		_header(main.practice.TEXT["paused"], main.practice.TEXT["pause_note"], "Paused")
 	else:
@@ -1590,7 +1591,7 @@ func _page_pause() -> void:
 	_gap(4)
 	var row := _grid(2)
 	if fighting:
-		var gb := _button(Stations.TEXT["give_up"], main.arena.give_up, row)
+		var gb := _button(String(main.Dining.TEXT["give_up"]) if String(main.arena.ev.get("type", "")) == "duel" else Stations.TEXT["give_up"], main.arena.give_up, row)
 		gb.set_meta("give_up", true)
 		_primary(gb)
 	elif practicing:

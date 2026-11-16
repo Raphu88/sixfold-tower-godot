@@ -192,6 +192,8 @@ static var TEXT := {
 	"duel_deed": "Won a duel with %s in the Arena car",
 	"duel_deed_lost": "Lost a duel with %s (%d renown)",
 	"arena_car": "The Arena car",
+	"give_up": "Yield, back to the Dining car",
+	"pause_note": "Yielding loses the duel and its stake. Nobody dies here.",
 	"result_won": "They yield",
 	"result_lost": "You yield",
 	"result_draw": "A draw",
