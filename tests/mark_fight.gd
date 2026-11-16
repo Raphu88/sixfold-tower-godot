@@ -22,6 +22,8 @@ const WAVES := 2
 const WAVE_AT := 2
 ## The climber's health, times the usual.
 const HEALTH := 6.0
+## Seconds after the room is clear in which health still counts.
+const SETTLE := 5.5
 ## The foes: kind and where, from the room's middle.
 const FOES := [["slime", Vector2(150, -60)], ["slime", Vector2(170, 70)], ["archer", Vector2(230, -110)],
 	["archer", Vector2(240, 110)], ["knight", Vector2(200, 0)], ["bat", Vector2(120, -120)], ["bat", Vector2(120, 120)]]
@@ -63,6 +65,20 @@ var turn := 0  # the next spell in turn
 var last_cast := {}  # spell id -> seconds when cast
 var swing_cd := 0.0
 var waves_left := WAVES
+var mine: Array = []  # the foes this fight spawned
+var settle_t := -1.0  # seconds since the room was cleared (-1 while fighting)
+
+
+## This fight's foes still standing; any other monster (one the floor wakes
+## later, a room's own) is sent away, so every fight is the same fight.
+func _ours() -> Array:
+	var out: Array = []
+	for e in main.enemies():
+		if e in mine:
+			out.append(e)
+		elif not e.is_queued_for_deletion():
+			e.queue_free()
+	return out
 
 
 ## Sets up the climber and the room: one mark on the hand at `step` (today's
@@ -119,6 +135,7 @@ func _wave(side: float) -> void:
 	for f in FOES:
 		var off: Vector2 = Vector2(f[1]) * Vector2(0.9 * side, 0.9)
 		var e = main.spawn_enemy(String(f[0]), main.walkable_point(c, c + off, 14.0))
+		mine.append(e)
 		e.aware = true
 		e.notice_t = 0.0
 
@@ -135,7 +152,6 @@ func _on_hit(foe, dmg: float, source: String) -> void:
 func _physics_process(delta: float) -> void:
 	if done or main == null:
 		return
-	t += delta
 	var p = main.player
 	# Health lost and regained.
 	if p.hp < last_hp:
@@ -143,7 +159,15 @@ func _physics_process(delta: float) -> void:
 	elif p.hp > last_hp:
 		healed += p.hp - last_hp
 	last_hp = p.hp
-	var foes: Array = main.enemies()
+	# The room is clear: a few seconds more for what pays back later (Rekindle,
+	# Phoenix Heart's Apex), not counted in the time.
+	if settle_t >= 0.0:
+		settle_t += delta
+		if settle_t >= SETTLE or p.dead:
+			_finish(true, p.dead)
+		return
+	t += delta
+	var foes: Array = _ours()
 	for e in foes:
 		if e.stun > 0.0 or e.airborne > 0.0 or e.has_meta("asleep"):
 			cc += delta
@@ -151,9 +175,13 @@ func _physics_process(delta: float) -> void:
 			cc += delta * 0.5
 	if foes.size() <= WAVE_AT and waves_left > 0:
 		_wave(-1.0 if waves_left % 2 == 0 else 1.0)
-		foes = main.enemies()
-	if foes.is_empty() or p.dead or t >= LIMIT:
-		_finish(foes.is_empty(), p.dead)
+		foes = _ours()
+	if foes.is_empty() and not p.dead:
+		settle_t = 0.0
+		_release_moves()
+		return
+	if p.dead or t >= LIMIT:
+		_finish(false, p.dead)
 		return
 	var target = _nearest(foes, p.global_position)
 	var to: Vector2 = target.global_position - p.global_position
@@ -183,9 +211,9 @@ func _try_spell(p, foes: Array, dist: float) -> bool:
 		var i := turn % known.size()
 		var sp: Dictionary = known[i]
 		var why = _sensible(p, b, sp, foes, dist)
-		if why == "wait":
+		if why is String and why == "wait":
 			return false  # (its turn: save up for it)
-		if why == "skip":
+		if why is String and why == "skip":
 			turn += 1
 			continue
 		b.select(i)
@@ -266,6 +294,8 @@ func _finish(cleared: bool, died: bool) -> void:
 	Engine.time_scale = 1.0
 	_release_moves()
 	result = {"mark": bond_id, "step": step, "time": t, "cleared": cleared, "died": died, "dealt": dealt, "weapon": weapon,
-		"spell": maxf(0.0, dealt - weapon), "taken": taken, "healed": healed, "cc": cc, "casts": casts}
+		"spell": maxf(0.0, dealt - weapon), "taken": taken, "healed": healed, "cc": cc, "casts": casts,
+		"left": _ours().map(func(e): return "%s at %s (%d hp, %s)" % [e.kind, e.global_position.round(), int(e.hp), e.state]),
+		"at": main.player.global_position.round(), "room": main.room}
 	if main.on_hit.is_connected(_on_hit):
 		main.on_hit.disconnect(_on_hit)
