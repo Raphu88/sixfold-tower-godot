@@ -83,7 +83,8 @@ func build(root: Node) -> void:
 	col.add_theme_constant_override("separation", 4 if small else 6)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(col)
-	col.minimum_size_changed.connect(tp._fit_card.bind(m.train_car), CONNECT_DEFERRED)
+	# (fitted to what it says by the view's fit frames after each build, not on
+	# every change of its size: its wrapped lines would feed back into it)
 	var rec: Dictionary = {}
 	for r in people:
 		if String(r.get("id", "")) == who:
