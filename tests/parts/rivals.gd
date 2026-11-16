@@ -528,11 +528,14 @@ func _remembered() -> void:
 	menu.close()
 	await t._frames(2)
 	# Titles and renown.
+	# (Titles are granted by the Noble now, once their rank is reached too:
+	# a deed makes one ready at the Noble, tests/parts/stations.gd grants one.)
 	rec["duels_won"] = 3
 	rec["rescued"] = 1
+	Renown.state(main.profile)["points"] = maxi(Renown.points(main.profile), Renown.needed(2))
 	Renown.check_titles(main.profile)
-	var got: Array = Renown.titles(main.profile)
-	_check(got.has("duelist") and got.has("helping_hand") and got.has("shieldmate"), "deeds with other climbers earn titles (%s)" % [got])
+	var got: Array = Renown.state(main.profile)["ready"]
+	_check(got.has("duelist") and got.has("helping_hand") and got.has("shieldmate") and Renown.on_offer(main.profile).has("duelist"), "deeds with other climbers make titles ready at the Noble (%s)" % [got])
 
 
 # --- the Entity ------------------------------------------------------------------------------------
