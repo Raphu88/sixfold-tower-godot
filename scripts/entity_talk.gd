@@ -93,7 +93,7 @@ static var DIALOGUE := {
 		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
-		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. Most items come Minor, standard or Greater: the pips on the icon. Sizes share a stack, and a use takes the biggest first. What you buy or brew on the train goes on it, standard size."],
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Draught, the Stamina Draught and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; the outfitter sells them if you want one on purpose. What you buy or brew on the train goes on it."],
 		"choices": ["how_wheel", "how_states", "how_fall", "how", "bye"]},
 	"how_wheel": {"ask": "How does the belt wheel work?", "fact": "wheel",
 		"lines": ["Tap {item} and you use your current item, the one beside your weapon. Hold {item} and the wheel opens, and the world slows to {slow} of its speed. Point at an item with {point} and let go: it becomes your current item. Nothing is used until you tap {item} again. A mark's button works the same way: hold it to choose a spell, tap it to cast. Choosing never uses anything. I find that restful."],
@@ -102,7 +102,7 @@ static var DIALOGUE := {
 		"lines": ["Some monsters' blows leave a state on you when they land: {states}. Each lasts a few seconds, and none of them stuns. The line at the top counts it down and names its cure. A Cleansing Tonic takes off any of them; {wards} keep one off for a while. The stair's rest clears them all."],
 		"choices": ["how_handy", "how_belt", "how", "bye"]},
 	"how_handy": {"ask": "What's handy in this tower?", "fact": "handy",
-		"lines": ["{handy} They turn up more often there, and the outfitter's shelf says where each is handy."],
+		"lines": ["{handy} They turn up more often there, though like every item but the staples they're still a rare find; the outfitter's shelf says where each is handy, if you'd rather bring one."],
 		"choices": ["how_states", "tower", "how", "bye"]},
 	"how_charms": {"ask": "How do charms work?", "fact": "rules",
 		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. A Rune Artist crafts them; the outfitter sells {charm_shop}; vaults and secret rooms sometimes hold one."],
@@ -111,7 +111,7 @@ static var DIALOGUE := {
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
 		"choices": ["how_shop", "how_charms", "how", "bye"]},
 	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
-		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), Minor bottles from {minor_rank} and Greater ones from {greater_rank}, more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
+		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
 		"choices": ["how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
@@ -123,7 +123,7 @@ static var DIALOGUE := {
 		"lines": ["My notes on every monster, in the Library. An entry starts when you see one and grows when you fight it. Slay it {bestiary_slain} times and it adds its health, then what it's weak to, then how it takes states. A beast takes {bestiary_beast}."],
 		"choices": ["how_secret", "how", "bye"]},
 	"how_rivals": {"ask": "Who are the other climbers?", "fact": "rivals",
-		"lines": ["Climbers like you, with marks of their own. From floor {rival_from}, about {rival_chance} of floors hold one, {rival_per} a climb. Each wants one thing: a trade, a duel for the floor, company to the stair. Some lie hurt beside a hoard. {rival_met}"],
+		"lines": ["Climbers like you, with marks of their own. From floor {rival_from}, about {rival_chance} of floors hold one, up to {rival_per} a climb, never the same one twice in a climb; if you've never met one, you will by floor {rival_sure}. Each wants one thing: a trade, a duel for the floor, company to the stair. Some lie hurt beside a hoard. {rival_met}"],
 		"choices": ["how_rivals_more", "how", "bye"]},
 	"how_rivals_more": {"ask": "What do I get from them?", "fact": "rivals",
 		"lines": ["A duel can't kill you: lose and they take a toll, win and the stair's ward lifts. Teamed up, you keep {rival_share} of what you gather, but their marks react with yours. Help the hurt and they remember; rob them and so do they. The Renown Board keeps them all."],
@@ -624,8 +624,6 @@ static func _fact_rules() -> Dictionary:
 	var last: Dictionary = Shop.RANK_STOCK[-1]
 	f["rail_most"] = Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]) + int(last["rail"])
 	f["kinds_most"] = int(last["kinds"])
-	f["minor_rank"] = R.rank_name(int(Shop.SIZE_RANK["1"]))
-	f["greater_rank"] = R.rank_name(int(Shop.SIZE_RANK["3"]))
 	f["gun_rank"] = R.rank_name(int(Shop.WEAPON_RANK.get("flintlock", 0)))
 	f["pedlar"] = "From %s, %s sets up a stall at every station and at each camp: a few wares on a theme, new each time, paid for in crystals (at a camp, essence you carry will do)." % [R.rank_name(int(Shop.MERCHANT["rank"])), Shop.MERCHANT["name"]]
 	var Charms = load("res://scripts/charms.gd")
@@ -650,7 +648,7 @@ static func _fact_rivals(main) -> Dictionary:
 	var met: Array = Rv.met_list(main.profile) if main != null and main.profile != null else []
 	var per := int(Rv.RULES["per_climb"])
 	var f := {"rival_from": int(Rv.RULES["from"]), "rival_chance": "%d%%" % int(round(float(Rv.RULES["chance"]) * 100.0)),
-		"rival_per": "once" if per == 1 else "%d times" % per, "rival_share": "%d%%" % int(round(float(Rv.RULES["team_share"]) * 100.0))}
+		"rival_per": "once" if per == 1 else ("twice" if per == 2 else "%d times" % per), "rival_sure": int(Rv.RULES.get("sure_by", 3)), "rival_share": "%d%%" % int(round(float(Rv.RULES["team_share"]) * 100.0))}
 	f["rival_met"] = String(TEXT.get("rivals_none", "")) if met.is_empty() else String(TEXT.get("rivals_met", "")) % [met.size(), String(met[0].get("name", ""))]
 	return f
 

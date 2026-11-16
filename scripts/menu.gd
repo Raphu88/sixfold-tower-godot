@@ -2742,11 +2742,10 @@ func _page_inventory() -> void:
 	for i in maxi(kinds, have.size()):
 		if i < have.size():
 			var id: String = have[i]
-			var s := _slot(item_row, "item:" + id, cell, p.belt_entry(id)["short"] if caption else "")
+			var s := _slot(item_row, "item:" + id, cell, Items.item_name(id, true) if caption else "")
 			s.kind = "item"
 			s.id = id
 			s.count = p.item_count(id)
-			s.item_size = p.next_size(id)
 			s.on = id == sel
 			keys.append(s.get_meta("slot"))
 		else:
@@ -3004,13 +3003,8 @@ func _show_details(key: String) -> void:
 		"item":
 			var n: int = p.item_count(arg)
 			var data: Dictionary = Items.ITEMS[arg]
-			_detail_head("item", arg, p.belt_entry(arg)["name"] if n > 0 else data["name"], Items.color(arg))
+			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
-			if Items.is_sized(arg) and n > 0:  # (its sizes: the biggest is used first)
-				var note := Items.size_note(arg, p.next_size(arg))
-				if note != "":
-					_detail_text(note, Color(1.0, 0.86, 0.5))
-				_detail_text(Items.SIZE_TEXT["stack"] % ", ".join(p.item_sizes_of(arg).map(func(z): return Items.sized_name(arg, int(z)))), DIM)
 			if arg == "vessel":  # (what it holds, and that it comes home whole)
 				var V = load("res://scripts/vessel.gd")
 				_detail_text(V.TEXT["desc_state"] % V.state_text(V.carried(p)), V.color(V.carried(p)).lightened(0.3))
@@ -3244,7 +3238,7 @@ func _use_item(id: String) -> void:
 		return
 	var before: String = p.item_sel
 	p.item_sel = id
-	var used_name := Items.sized_name(id, p.next_size(id))
+	var used_name := Items.item_name(id)
 	if p.use_item():
 		toast = "Used: %s" % used_name
 	else:
@@ -4357,7 +4351,6 @@ class Slot extends Button:
 	var empty := false
 	var locked := false
 	var count := -1
-	var item_size := 0  # (an item: the size its next use takes, for its pips: items.gd SIZES)
 	var tint := Color.WHITE
 	var corner := ""  # a small label in the top left (the weapon key)
 	var rec = null  # gear: the record, so wear shows (cracks and a condition bar)
@@ -4433,7 +4426,7 @@ class Slot extends Button:
 					UI.gem_into(kb, Vector2(size.x - 8, 8), 3.5, UI.GOLD)
 					kb.flush(self)
 			"item":
-				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0 if count > 0 else 0.22, item_size)
+				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0 if count > 0 else 0.22)
 				if count >= 0:
 					var t := str(count)
 					var fs := 16

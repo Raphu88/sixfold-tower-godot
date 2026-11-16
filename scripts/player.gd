@@ -193,14 +193,7 @@ var overlay: Node2D  # over the darkness: swing trails and rings
 var _wep_seg := [Vector2.ZERO, Vector2.ZERO]  # the weapon in hand, grip to tip, as last drawn (the body's own space)
 var _wep_xf := Transform2D.IDENTITY  # ...and how that space sits on the room (particles.gd lights it)
 # Items (items.gd): what you carry, and healing that is still working.
-var items := Items.START.duplicate():  # item id -> count
-	set(v):
-		items = v
-		item_sizes = {}  # (a whole new belt: its stacks are standard until noted)
-## The sizes in each stack (items.gd SIZES), biggest first: item id -> [size...].
-## A stack with none listed (or fewer than its count) holds standard ones:
-## code that only changes `items` keeps working (item_sizes_of mends it).
-var item_sizes := {}
+var items := Items.START.duplicate()  # item id -> count (every item one size)
 var vessel := {}  # the vessel on the belt (vessel.gd): {kind, amount}, while items has "vessel"
 var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
@@ -931,7 +924,7 @@ func _choose_item() -> void:
 	ring_open = false
 	var id := selected_item()
 	if id != "":
-		main.fx_text(global_position + Vector2(0, -40), String(Wheel.TEXT["item_chosen"]) % String(belt_entry(id)["name"]), Items.color(id))
+		main.fx_text(global_position + Vector2(0, -40), String(Wheel.TEXT["item_chosen"]) % Items.item_name(id), Items.color(id))
 
 
 func _close_ring() -> void:
@@ -3602,48 +3595,11 @@ func selected_item() -> String:
 	return have[0] if not have.is_empty() else ""
 
 
-## The sizes in a stack, biggest first, one per item carried (standard
-## where none was noted: old saves, the store's supplies).
-func item_sizes_of(id: String) -> Array:
-	var n := item_count(id)
-	var list: Array = Array(item_sizes.get(id, [])).slice(0, n)
-	while list.size() < n:
-		list.append(Items.STANDARD)
-	list.sort()
-	list.reverse()
-	if n > 0:
-		item_sizes[id] = list
-	else:
-		item_sizes.erase(id)
-	return list
-
-
-## The size the next use of an item takes: the biggest in its stack.
-func next_size(id: String) -> int:
-	var list := item_sizes_of(id)
-	return int(list[0]) if not list.is_empty() else Items.STANDARD
-
-
-## A belt entry, as any list of the belt shows it (the HUD's slot, the
-## belt wheel, the inventory): {id, size (the next use's), name (with its
-## size: "Greater Healing Draught"), short, count, sizes (biggest first)}.
-## Draw its icon with Items.icon_into(b, id, c, s, size) for the size's pips.
-func belt_entry(id: String) -> Dictionary:
-	var size := next_size(id)
-	return {"id": id, "size": size, "name": Items.sized_name(id, size), "short": Items.sized_name(id, size, true),
-		"count": item_count(id), "sizes": item_sizes_of(id)}
-
-
-## Picks up an item (at a size: items.gd SIZES). False if you already carry
-## as many as you can.
-func add_item(id: String, size := Items.STANDARD) -> bool:
+## Picks up an item. False if you already carry as many as you can.
+func add_item(id: String) -> bool:
 	if item_room(id) != "":
 		return false
-	var list := item_sizes_of(id)
 	items[id] = item_count(id) + 1
-	list.append(Items.clamp_size(id, size))
-	item_sizes[id] = list
-	item_sizes_of(id)  # (sorted, biggest first)
 	if item_count(item_sel) <= 0:
 		# (a recall scroll or a vessel never takes the quick item from another item)
 		item_sel = selected_item() if id == "scroll" or id == "vessel" else id
@@ -3657,7 +3613,7 @@ func cycle_item() -> void:
 		return
 	var i := have.find(selected_item())
 	item_sel = have[(i + 1) % have.size()]
-	main.fx_text(global_position + Vector2(0, -40), Items.sized_name(item_sel, next_size(item_sel)), Items.color(item_sel))
+	main.fx_text(global_position + Vector2(0, -40), Items.item_name(item_sel), Items.color(item_sel))
 	main.sfx("step", 1.4, -6.0)
 
 
@@ -3669,42 +3625,24 @@ func use_item() -> bool:
 	if id == "":
 		main.fx_text(global_position + Vector2(0, -40), "No items", Color(0.7, 0.68, 0.75))
 		return false
-	var size := next_size(id)
-	if not Items.use(id, self, size):
+	if not Items.use(id, self):
 		return false
 	main.Dining.on_item(main, id)  # (a Healing Draught breaks a dry wager: dining.gd)
 	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
 		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
-	var list := item_sizes_of(id)
-	if not list.is_empty():
-		list.pop_front()  # (the biggest, which was used)
-	items[id] = item_count(id) - 1
-	item_sizes[id] = list
-	if item_count(id) <= 0:
-		items.erase(id)
-		item_sizes.erase(id)
-		item_sel = selected_item()
+	take_one(id)
 	return true
 
 
-## The smallest size in a stack (0 if you carry none).
-func smallest_size(id: String) -> int:
-	var list := item_sizes_of(id)
-	return int(list[-1]) if not list.is_empty() else 0
-
-
-## A bigger one for a full stack: your smallest is swapped out for it.
-## Returns the size swapped out (0 if the new one isn't bigger).
-func swap_smaller(id: String, size: int) -> int:
-	var list := item_sizes_of(id)
-	size = Items.clamp_size(id, size)
-	if list.is_empty() or size <= int(list[-1]):
-		return 0
-	var out := int(list.pop_back())
-	list.append(size)
-	item_sizes[id] = list
-	item_sizes_of(id)
-	return out
+## Takes one of an item off the belt (used, traded or given away).
+func take_one(id: String) -> void:
+	var n := item_count(id)
+	if n <= 0:
+		return
+	items[id] = n - 1
+	if item_count(id) <= 0:
+		items.erase(id)
+		item_sel = selected_item()
 
 
 ## Healing items heal over a moment, not all at once.

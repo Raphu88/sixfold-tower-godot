@@ -1,7 +1,7 @@
 extends RefCounted
 ## Shop variety (shop.gd): the outfitter's stock grows with your renown rank
 ## (more rail spaces, more supplies, Fine and Rare pieces, more weapon kinds,
-## named pieces and relics, Minor and Greater sizes), a worn title tilts the
+## named pieces and relics; every supply one size), a worn title tilts the
 ## rail and says so, and the Pedlar sets up at stations and at camps once
 ## your rank reaches his. Buying works at both; every visit differs; every
 ## new slot is tapped at phone size (tests/parts/store_taps.gd does the rest
@@ -66,11 +66,11 @@ func _at(rank: int, worn := ""):
 func _kinds(keys: Array) -> int:
 	var seen := {}
 	for k in keys:
-		seen[Shop.key_id(String(k))] = true
+		seen[String(k)] = true
 	return seen.size()
 
 
-## More spaces, kinds, rarities and sizes as the rank rises; the weapons open
+## More spaces, kinds and rarities as the rank rises; the weapons open
 ## in turn; named pieces and relics only high up.
 func _stock_by_rank() -> void:
 	var sizes: Array = []
@@ -99,25 +99,14 @@ func _stock_by_rank() -> void:
 		for id in Shop.SHELF_ALWAYS:
 			always = always and sh.has(id)
 	t._check(always, "the draughts, tonic, vial and recall scroll are always on the shelf")
-	# Sizes: no Greater low down, and Greater ones at the top; Minor from the rank of Noticed.
-	var greater_low := false
-	var minor_zero := false
-	var greater_top := false
-	var minor_one := false
-	for i in 40:
-		for k in Shop.roll_shelf(_at(0)):
-			minor_zero = minor_zero or Shop.key_size(String(k)) == 1
-		for k in Shop.roll_shelf(_at(int(Shop.SIZE_RANK["3"]) - 1)):
-			greater_low = greater_low or Shop.key_size(String(k)) == 3
-		for k in Shop.roll_shelf(_at(Renown.RANKS.size() - 1)):
-			greater_top = greater_top or Shop.key_size(String(k)) == 3
-		for k in Shop.roll_shelf(_at(int(Shop.SIZE_RANK["1"]))):
-			minor_one = minor_one or Shop.key_size(String(k)) == 1
-	t._check(not greater_low and not minor_zero and greater_top and minor_one, "Greater sizes only from rank %d, Minor from %d" % [int(Shop.SIZE_RANK["3"]), int(Shop.SIZE_RANK["1"])])
-	# A sized item costs more or less by its size.
-	var top = _at(Renown.RANKS.size() - 1)
-	var std: int = Train.supply_price(top, "tonic")[1]
-	t._check(Train.supply_price(top, "tonic", 3)[1] > std and Train.supply_price(top, "tonic", 1)[1] < std, "a Greater tonic costs more than a standard one, a Minor one less (%d)" % std)
+	# One size: every shelf key is a plain item, at every rank, never twice.
+	var plain := true
+	for r in Renown.RANKS.size():
+		for i in 6:
+			var sh: Array = Shop.roll_shelf(_at(r))
+			plain = plain and sh.all(func(k): return Items.ITEMS.has(String(k)) and sh.count(k) == 1)
+	t._check(plain, "every supply on the shelf is one item, one size, at every rank")
+	t._check(int(Shop.RANK_STOCK[-1]["kinds"]) <= 14, "the top shelf holds at most 14 kinds (it was padded to 18 kinds and 7 sizes)")
 	# Rarities: nothing finer than Common at the start, Fine and Rare higher up.
 	var fine_low := 0
 	var rare_low := 0
@@ -223,7 +212,8 @@ func _merchant_data() -> void:
 	t._check(themes.size() >= 4, "the theme rotates (%s)" % [themes.keys()])
 	t._check(differ.size() >= 10, "no two visits hold the same wares (%d of 12)" % differ.size())
 	var handy: Dictionary = Shop.roll_merchant(_at(rank), "station", Shop.THEME_ORDER.find("handy"), "kraken")
-	t._check(handy["theme"] == "handy" and handy["wares"].any(func(w): return int(w.get("size", 2)) == 3), "a handy theme sells the tower ahead's items in Greater sizes")
+	t._check(handy["theme"] == "handy" and handy["wares"].any(func(w): return String(w.get("id", "")) in ["lantern_oil", "edge_oil"]) and handy["wares"].all(func(w): return not w.has("size") and not Items.is_staple(String(w.get("id", "")))),
+		"a handy theme sells the tower ahead's items (and other rare ones), never a staple (%s)" % [handy["wares"].map(func(w): return w.get("id", ""))])
 	var arms: Dictionary = Shop.roll_merchant(_at(rank), "station", Shop.themes_open(_at(rank)).find("arms"), "")
 	t._check(arms["theme"] == "arms" and arms["wares"].all(func(w): return Gear.base_id(Shop.ware_gear(w)) in Shop.THEMES["arms"]["pool"]), "the weapon-smith's theme: pistols, crossbows and canes")
 	var charms: Dictionary = Shop.roll_merchant(_at(rank), "camp", Shop.themes_open(_at(rank)).find("charms"), "")
@@ -235,7 +225,7 @@ func _merchant_data() -> void:
 	var p = _at(rank)
 	p.add_crystal("stone", 10.0)
 	var run := {"stone": 7.0}
-	var ware := {"kind": "item", "id": "tonic", "size": 2, "price": ["stone", 14], "sold": false}
+	var ware := {"kind": "item", "id": "tonic", "price": ["stone", 14], "sold": false}
 	t._check(Shop.short_of(p, ware) != "" and Shop.short_of(p, ware, run) == "" , "short in crystals, but carried essence makes it up at a camp")
 	var paid := Shop.pay(p, "stone", 14, run)
 	t._check(not paid.is_empty() and p.crystal_total("stone") == 0.0 and int(paid["carried"]) == 4 and is_equal_approx(float(run["stone"]), 3.0), "paid 10 from crystals and 4 from the essence carried")
@@ -256,17 +246,14 @@ func _old_saves() -> void:
 	t._check(shelf.has("draught") and shelf.has("scroll") and Train.supply_price(p, "draught")[1] > 0, "an old save's store (no shelf noted) still shows a shelf")
 	Train.stock(p)
 	t._check(p.store.has("shelf") or p.store.has("outfit"), "...and restocks")
-	t._check(Train.supply_sizes(p, "draught") == [2, 2] and Shop.station_market(p).get("wares", []).size() >= 0, "old packed supplies are standard size; no stall noted loads fine")
+	t._check(int(p.supplies.get("draught", 0)) == 2 and Shop.station_market(p).get("wares", []).size() >= 0, "old packed supplies keep their count; no stall noted loads fine")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	# Packed sizes follow a supply up the tower.
+	# Packing and putting back count plain items.
 	var q = _at(Renown.RANKS.size() - 1)
-	q.add_crystal("water", 500.0)
-	q.add_crystal("stone", 500.0)
-	Train.pack_supply(q, "tonic", {"water": 5}, 3)
-	Train.pack_supply(q, "tonic", {"water": 5}, 1)
-	t._check(Train.supply_sizes(q, "tonic") == [3, 1], "packed sizes are noted in order")
-	Train.unpack_supply(q, "tonic")
-	t._check(Train.supply_sizes(q, "tonic") == [3], "putting one back takes its size with it")
+	Train.pack_supply(q, "tonic", {"water": 5})
+	Train.pack_supply(q, "tonic", {"water": 5})
+	t._check(int(q.supplies.get("tonic", 0)) == 2 and not q.store.has("sizes"), "packed supplies are counted, with no sizes noted")
+	t._check(Train.unpack_supply(q, "tonic") == {"water": 5} and int(q.supplies.get("tonic", 0)) == 1, "putting one back returns what it cost")
 
 
 ## Every word the shop adds is in data, in the Data editor, with no banned words.
@@ -319,17 +306,21 @@ func _store_ui(main) -> void:
 	await t._frames(3)
 	root = menu.train_page.roots["store"]
 	slots = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("supply:"))
-	var sized: Array = slots.filter(func(b): return String(b.get_meta("slot")).contains("@3"))
-	t._check(not sized.is_empty(), "Greater supplies are on the shelf at the top rank (last page)")
-	# A Greater supply can be bought, and goes up the tower at its size.
+	var rare: Array = []
+	for b in slots:
+		var sk := String(b.get_meta("slot")).substr(7)
+		if Items.ITEMS.has(sk) and not Items.is_staple(sk) and sk != "scroll" and not sk.begins_with("tincture_"):
+			rare.append(b)
+	t._check(not rare.is_empty() and not slots.any(func(b): return String(b.get_meta("slot")).contains("@")), "rarer supplies are on the shelf's last page, each one plain item")
+	# A rarer supply can be bought, and goes up the tower.
 	prof.add_crystal("stone", 800.0)
 	prof.add_crystal("water", 800.0)
 	prof.add_crystal("fire", 800.0)
 	prof.add_crystal("air", 800.0)
 	prof.add_crystal("iron", 800.0)
 	prof.add_crystal("blade", 800.0)
-	var key: String = String(sized[0].get_meta("slot")).substr(7)
-	var id := Shop.key_id(key)
+	var key: String = String(rare[0].get_meta("slot")).substr(7) if not rare.is_empty() else "tonic"
+	var id := key
 	menu.inv_sel = "supply:" + key
 	menu.open("train")
 	await t._frames(3)
@@ -338,9 +329,9 @@ func _store_ui(main) -> void:
 	if buy.size() == 1:
 		buy[0].pressed.emit()
 		await t._frames(3)
-	t._check(int(prof.supplies.get(id, 0)) == 1 and Train.supply_sizes(prof, id) == [3], "a Greater %s is packed" % id)
+	t._check(int(prof.supplies.get(id, 0)) == 1, "a %s is packed" % id)
 	Train.pack_up(prof, main.player)
-	t._check(main.player.item_count(id) >= 1 and main.player.item_sizes_of(id).has(3), "...and it goes on your belt as a Greater one")
+	t._check(main.player.item_count(id) >= 1, "...and it goes on your belt")
 	main.open_train()
 	await t._frames(2)
 

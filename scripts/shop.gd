@@ -15,8 +15,8 @@ extends RefCounted
 ##             rail, and that one Storied relic does
 ##   kinds     how many kinds of supplies the shelf holds this visit (the
 ##             ones in SHELF_ALWAYS are always there; the rest are picked
-##             from what your rank has opened, new every visit)
-##   minor, greater   how many Minor / Greater sizes the shelf adds
+##             from what your rank has opened, new every visit). Every item
+##             comes in one size.
 ## SHELF_RANK says which rank opens each supply, WEAPON_RANK which rank a
 ## weapon starts hanging on the rail (a pistol or a crossbow later than a
 ## dagger).
@@ -41,13 +41,13 @@ const TRAIN := "res://scripts/train.gd"  # (loaded when needed: the train preloa
 
 ## One row per renown rank, Unknown first.
 static var RANK_STOCK := [
-	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 6, "minor": 0, "greater": 0},
-	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8, "minor": 1, "greater": 0},
-	{"rail": 1, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10, "minor": 2, "greater": 0},
-	{"rail": 2, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 12, "minor": 2, "greater": 0},
-	{"rail": 4, "charms": 1, "fine": 30, "rare": 6, "named": 8, "relic": 0, "kinds": 14, "minor": 2, "greater": 2},
-	{"rail": 6, "charms": 2, "fine": 35, "rare": 10, "named": 12, "relic": 8, "kinds": 16, "minor": 2, "greater": 3},
-	{"rail": 8, "charms": 2, "fine": 40, "rare": 14, "named": 18, "relic": 16, "kinds": 18, "minor": 3, "greater": 4},
+	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 6},
+	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8},
+	{"rail": 1, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10},
+	{"rail": 2, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 11},
+	{"rail": 4, "charms": 1, "fine": 30, "rare": 6, "named": 8, "relic": 0, "kinds": 12},
+	{"rail": 6, "charms": 2, "fine": 35, "rare": 10, "named": 12, "relic": 8, "kinds": 13},
+	{"rail": 8, "charms": 2, "fine": 40, "rare": 14, "named": 18, "relic": 16, "kinds": 14},
 ]
 
 ## The supplies that are always on his shelf.
@@ -66,10 +66,6 @@ static var SHELF_RANK := {
 	"lantern_oil": 5, "gale_feather": 5,
 	"unmaking_ash": 6, "seeing_scroll": 6,
 }
-
-## The rank each size opens on the shelf (Minor, Greater): the table above
-## says how many of each a visit holds.
-static var SIZE_RANK := {"1": 1, "3": 4}
 
 ## The rank a weapon starts to hang on the rail at (not listed: from the start).
 static var WEAPON_RANK := {
@@ -117,15 +113,15 @@ static var MERCHANT := {
 
 ## The themes his wares follow, taken in turn from one visit to the next
 ## (THEME_ORDER). "kind":
-##   handy   the tower ahead's handy items (tower_needs.gd), Greater when it can be
+##   handy   the tower ahead's handy items (tower_needs.gd), and more from the shelf
 ##   charms  charms, Fine or Rare
 ##   arms    weapons from "pool", Fine or Rare
-##   tinctures  every tincture (item ids starting "tincture_"), Greater when it can be
+##   tinctures  every tincture (item ids starting "tincture_")
 ##   relics  Storied relics
 ## "count": how many wares; "rank": the rank it opens at.
 static var THEME_ORDER := ["handy", "charms", "arms", "tinctures", "relics"]
 static var THEMES := {
-	"handy": {"name": "Wares for the climb", "line": "Bigger bottles of what the tower ahead asks for.", "kind": "handy", "count": 4, "rank": 3},
+	"handy": {"name": "Wares for the climb", "line": "What the tower ahead asks for, and a few things it doesn't.", "kind": "handy", "count": 4, "rank": 3},
 	"charms": {"name": "Charms and trinkets", "line": "Small things that keep a climber safe.", "kind": "charms", "count": 3, "rank": 3},
 	"arms": {"name": "The weapon-smith's bench", "line": "Pistols, crossbows and canes, well kept.", "kind": "arms", "count": 3, "rank": 3,
 		"pool": ["flintlock", "revolver", "crossbow", "sword_cane", "cane", "longbow"]},
@@ -160,7 +156,6 @@ static var TEXT := {
 	"empty": "Nothing left on his stall. He has more at the next stop.",
 	"title_line": "For %s",
 	"shelf_title": "For %s: %s",
-	"minor": "Minor", "greater": "Greater",
 	"theme_none": "He has nothing to show today.",
 }
 
@@ -306,19 +301,6 @@ const SHELF_PAGE := 12
 
 # --- the shelf -----------------------------------------------------------------------------
 
-## A shelf key: "draught" (standard), "draught@1" (Minor), "draught@3" (Greater).
-static func key_id(key: String) -> String:
-	return key.get_slice("@", 0)
-
-
-static func key_size(key: String) -> int:
-	return int(key.get_slice("@", 1)) if key.contains("@") else Items.STANDARD
-
-
-static func make_key(id: String, size: int) -> String:
-	return id if size == Items.STANDARD else "%s@%d" % [id, size]
-
-
 ## Supplies the shelf may hold at your rank, in the order the game lists items.
 static func shelf_pool(profile) -> Array:
 	var rank := Renown.rank(profile) if profile != null else 0
@@ -333,8 +315,8 @@ static func shelf_pool(profile) -> Array:
 
 
 ## The shelf for a visit: the always-there supplies, the title's own, then
-## rotating ones up to the rank's number of kinds, then Minor and Greater
-## sizes of some of them. Keys (make_key), in the order the shelf shows.
+## rotating ones up to the rank's number of kinds: item ids, in the order
+## the shelf shows.
 static func roll_shelf(profile) -> Array:
 	var r := row(profile)
 	var pool := shelf_pool(profile)
@@ -347,30 +329,12 @@ static func roll_shelf(profile) -> Array:
 	var more := maxi(0, int(r["kinds"]) - kinds.size())
 	kinds.append_array(rest.slice(0, more))
 	kinds.sort_custom(func(a, b): return _order(a) < _order(b))
-	var keys: Array = kinds.duplicate()
-	var rank := Renown.rank(profile) if profile != null else 0
-	for size in [1, 3]:
-		var n := int(r["minor" if size == 1 else "greater"])
-		if n <= 0 or rank < int(SIZE_RANK[str(size)]):
-			continue
-		var sized: Array = kinds.filter(func(id): return Items.is_sized(id) and id != "scroll")
-		sized.shuffle()
-		for id in sized.slice(0, n):
-			keys.append(make_key(id, size))
-	return keys
+	return kinds
 
 
 static func _order(id: String) -> int:
 	var i := Items.ORDER.find(id)
 	return i if i >= 0 else 999
-
-
-## A size's price: the item's price times its size's worth (a Minor one is
-## cheaper, a Greater one dearer).
-static func sized_amount(amount: int, size: int) -> int:
-	if size == Items.STANDARD or amount <= 0:
-		return amount
-	return maxi(1, int(round(float(amount) * Items.size_worth(size))))
 
 
 # --- the pedlar --------------------------------------------------------------------------------
@@ -402,7 +366,7 @@ static func _tinctures() -> Array:
 ## A wares list for one visit. `where` is "station" or "camp"; `n` the visit
 ## (the theme is taken in turn by it); `tower` the tower ahead ("" for none).
 ## Returns {theme, name, line, wares: [ware...], where, n}; a ware is
-## {kind: "item" (id, size) or "gear" (code), price: [kind, amount], sold}.
+## {kind: "item" (id) or "gear" (code), price: [kind, amount], sold}.
 static func roll_merchant(profile, where: String, n: int, tower := "", floor_num := 1) -> Dictionary:
 	var open := themes_open(profile)
 	if open.is_empty():
@@ -416,16 +380,17 @@ static func roll_merchant(profile, where: String, n: int, tower := "", floor_num
 		"handy":
 			var ids: Array = Needs.handy(tower) if tower != "" else []
 			ids = ids.filter(func(id): return Items.ITEMS.has(id) and item_price_of(id)[1] > 0)
-			var extra: Array = shelf_pool(profile).filter(func(id): return not ids.has(id) and Items.is_sized(id) and item_price_of(id)[0] != "any")
+			var extra: Array = shelf_pool(profile).filter(func(id): return not ids.has(id) and not Items.is_staple(id) and not String(id).begins_with("tincture_") \
+				and item_price_of(id)[0] != "any")
 			extra.shuffle()
 			ids.shuffle()
 			for id in (ids + extra).slice(0, count):
-				wares.append(item_ware(profile, id, 3 if Items.is_sized(id) else Items.STANDARD))
+				wares.append(item_ware(profile, id))
 		"tinctures":
 			var tl := _tinctures()
 			tl.shuffle()
 			for id in tl.slice(0, count):
-				wares.append(item_ware(profile, id, 3 if Items.is_sized(id) and randi() % 3 == 0 else Items.STANDARD))
+				wares.append(item_ware(profile, id))
 		"charms":
 			var cs: Array = Charms.all()
 			cs.shuffle()
@@ -458,11 +423,11 @@ static func theme_name(profile, _where: String, n: int) -> String:
 	return String(THEMES[open[posmod(n, open.size())]]["name"])
 
 
-## An item for sale: its price at its size, over the outfitter's by the markup.
-static func item_ware(_profile, id: String, size: int) -> Dictionary:
+## An item for sale: its price over the outfitter's by the markup.
+static func item_ware(_profile, id: String) -> Dictionary:
 	var p := item_price_of(id)
-	var amount := maxi(1, int(round(float(sized_amount(int(p[1]), size)) * float(MERCHANT["markup"]))))
-	return {"kind": "item", "id": id, "size": size, "price": [String(p[0]), amount], "sold": false}
+	var amount := maxi(1, int(round(float(p[1]) * float(MERCHANT["markup"]))))
+	return {"kind": "item", "id": id, "price": [String(p[0]), amount], "sold": false}
 
 
 static func gear_ware(profile, g: Dictionary) -> Dictionary:
@@ -489,7 +454,7 @@ static func ware_gear(ware: Dictionary) -> Dictionary:
 static func ware_name(ware: Dictionary) -> String:
 	if String(ware.get("kind", "")) == "gear":
 		return Gear.display(ware_gear(ware))
-	return Items.sized_name(String(ware.get("id", "")), int(ware.get("size", Items.STANDARD)))
+	return Items.item_name(String(ware.get("id", "")))
 
 
 ## Pays a price in crystals of its kind; at a camp (`carried`: the climb's
@@ -534,14 +499,14 @@ static func buy_station(profile, player, market: Dictionary, i: int) -> String:
 	if why != "":
 		return why
 	if String(w["kind"]) == "item":
-		var id := String(w["id"])
+		var id := Items.old_id(String(w["id"]))
 		if T.supply_room(profile, player, id) <= 0:
 			return String(TEXT["belt_full"])
 		var p := ware_price(profile, w)
 		var got := pay(profile, p[0], int(p[1]))
 		if got.is_empty():
 			return short_of(profile, w)
-		T.pack_supply(profile, id, got["paid"], int(w.get("size", Items.STANDARD)))
+		T.pack_supply(profile, id, got["paid"])
 	else:
 		var g := ware_gear(w)
 		if T.pack_room(profile, player) <= 0 and profile.chest.size() >= T.CHEST_SIZE:

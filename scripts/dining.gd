@@ -912,7 +912,7 @@ static func trade_offers(prof, rec: Dictionary) -> Array:
 static func thing_name(t: Dictionary) -> String:
 	match String(t.get("type", "")):
 		"item":
-			return Items.sized_name(String(t["id"]), int(t.get("size", Items.STANDARD)))
+			return String(Items.info(String(t["id"])).get("name", String(t["id"])))
 		"gear":
 			return Gear.display(t["rec"])
 	return "?"
