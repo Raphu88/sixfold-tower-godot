@@ -222,11 +222,12 @@ func _regard_tests() -> void:
 	var half_gain: float = main.profile.soak["throat"] - PS.NEW_MARK_SOAK * 0.5
 	_check(empty_gain > 0.0 and half_gain < empty_gain * 0.6, "a half-full part fills slower than an empty one (%.1f vs %.1f)" % [half_gain, empty_gain])
 	_check(empty_gain < 100.0 * 0.5 * PS.SOAK_RATE, "a part soaks up only its part of the body's share")
-	# The Proving's gift: one mark grows a step.
-	var before_step: int = PS.step_for_xp(float(main.profile.bonds["legs"]["xp"]))
+	# The Proving's gift: the mark you used most grows PROVING_GROWTH.
+	var before_xp := float(main.profile.bonds["legs"]["xp"])
 	main.climb_soak["legs"] = 999.0
 	var raised: String = main.proving_raise()
-	_check(raised != "" and PS.step_for_xp(float(main.profile.bonds["legs"]["xp"])) == before_step + 1, "winning the Proving raises a mark a step (%s)" % raised)
+	var grown := float(main.profile.bonds["legs"]["xp"]) - before_xp
+	_check(raised != "" and is_equal_approx(grown, minf(PS.PROVING_GROWTH, float(PS.STEP_XP[PS.STEP_XP.size() - 1]) - before_xp)), "winning the Proving grows the mark you used most by %d (%s)" % [int(PS.PROVING_GROWTH), raised])
 
 
 ## Gives the test climber a mark at a given step.

@@ -825,6 +825,9 @@ static func on_kill(main, e) -> void:
 	if p == null or not is_instance_valid(p) or p.dead or not p.has_method("passive_rank"):
 		return
 	manticore().on_killed(main, e)  # (Toxin Build II: its poison passes on)
+	# Pyre Oath: while it lasts, a foe you slay bursts into flame around it.
+	if p.pyre_t > 0.0 and p.pyre_burst > 0.0:
+		main.explode(e.global_position, p.pyre_burst_r, p.pyre_burst, Color(1.0, 0.45, 0.22))
 	if Reactions.has(e, "charged") and p.passive_rank("stormcaller") >= 3:
 		for b in p.bonds.values():
 			if b.id == "stormcaller" and not b.refund:
@@ -1231,6 +1234,7 @@ func _sigil(p) -> void:
 	var sig := {"pos": p.global_position, "r": stat("radius"), "t": stat("duration"), "color": color()}
 	p.main.sigils.append(sig)
 	wyvern().follow_sigil(self, p, sig)  # (its Apex: it moves with you a while)
+	wyvern().sigil_pulse(self, p, sig)  # (it sears the foes inside it)
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.5, 5.0)
 	p.main.light_flash(p.global_position, color(), 1.6, 2.0, 0.5)
 	p.main.sfx("crit", 0.6, -4.0)
@@ -1507,6 +1511,9 @@ func _warmth(p) -> void:
 
 func _firebird_form(p) -> void:
 	p.firebird_t = stat("duration")
+	p.firebird_free_every = float(stat("free_every")) if stat("free_every") != null else 0.0
+	p.firebird_free_cd = 0.0
+	p.firebird_aura = float(stat("aura")) if stat("aura") != null else 1.5
 	p.firebird_fly = stat("flight") == true  # Apex: you fly over chasms and hazards (player.gd flying)
 	if p.aura_part == "":
 		# Turn the aura on too, from whichever mark knows it.
@@ -1533,6 +1540,8 @@ func _rekindle(p) -> void:
 	p.rekindle_lost = 0.0
 	p.rekindle_fought = false
 	p.rekindle_spread = bool(stat("spread"))
+	p.rekindle_burn = float(stat("burn")) * power() if stat("burn") != null else 3.0
+	p.rekindle_r = float(stat("radius")) if stat("radius") != null else 60.0
 	p.rekindle_tick = 0.0
 	p.rekindle_per = 0.0  # (Bonfire and Cauterize set their own after: firebird.gd)
 	p.rekindle_most = 0
@@ -1544,6 +1553,12 @@ func _rekindle(p) -> void:
 
 func _desperation(p) -> void:
 	p.desperate_t = stat("duration")
+	# At full health a little harder and faster; far more as your health runs out (player.gd desperate_mult).
+	p.desperate_power = float(stat("power")) if stat("power") != null else 0.0
+	p.desperate_power_low = float(stat("power_low")) if stat("power_low") != null else 1.5
+	p.desperate_speed = float(stat("speed")) if stat("speed") != null else 0.0
+	p.desperate_speed_low = float(stat("speed_low")) if stat("speed_low") != null else 0.4
+	p.main.fx_text(p.global_position + Vector2(0, -44), spell_name(), color())
 	p.main.fx_ring(p.global_position, color(), 34.0, 0.3, 3.0)
 	p.main.sfx("warn_knight", 1.3, -4.0)
 
@@ -1551,6 +1566,9 @@ func _desperation(p) -> void:
 func _pyre(p) -> void:
 	p.pyre_t = stat("duration")
 	p.pyre_dmg = damage()
+	# While it lasts, every foe you slay bursts into flame around it (on_kill).
+	p.pyre_burst = float(stat("burst")) * power() if stat("burst") != null else 0.0
+	p.pyre_burst_r = float(stat("burst_radius")) if stat("burst_radius") != null else 80.0
 	p.main.fx_ring(p.global_position, color(), 40.0, 0.35, 3.0)
 	p.main.sfx("charge", 0.8)
 
@@ -1560,6 +1578,10 @@ func _phoenix(p) -> void:
 	# Apex: at its end you regain (this share of) the health it held back (player.gd).
 	p.phoenix_regain = float(stat("regain")) if stat("regain") != null else 0.0
 	p.phoenix_held = 0.0
+	# You rise in a burst of flame that burns the foes around you.
+	if stat("damage") != null:
+		p.main.explode(p.global_position, float(stat("radius")) if stat("radius") != null else 110.0, damage(), color())
+		p.rekindle_fought = true
 	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 4.0)
 	p.main.light_flash(p.global_position, color(), 1.8, 1.8, 0.4)
 	p.main.sfx("crit", 0.7)
@@ -1864,6 +1886,16 @@ func _transfer(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -40), "no one to take it", color())
 		return
 	var moved := 0
+	# Your wounds go with it: it takes a share of the health you're missing, and you heal half of what it takes.
+	if stat("share") != null:
+		var missing: float = maxf(0.0, p.max_health() - p.hp)
+		var dmg: float = damage() + minf(missing * float(stat("share")), float(stat("most"))) * spell_power(spell())
+		var before: float = t.hp
+		t.take_hit(dmg, (t.global_position - p.global_position).normalized(), 80.0)
+		var heal: float = p.mend_by(minf(dmg, maxf(0.0, before)) * float(stat("heal")) * p.heal_mult())
+		if heal >= 1.0:
+			main.fx_text(p.global_position + Vector2(0, -44), "+%d" % int(round(heal)), Color(0.6, 1.0, 0.7))
+		moved += 1
 	for b in p.bonds.values():
 		if b.burned:
 			b.burned = false
@@ -1883,6 +1915,11 @@ func _amputate(p) -> void:
 	var main = p.main
 	var t = _target_in_aim(p, 130.0)
 	var below: float = float(stat("below")) if stat("below") != null else 0.5  # (its Apex: up to three quarters)
+	if t != null and damage() > 0.0:
+		t.take_hit(damage(), (t.global_position - p.global_position).normalized(), 80.0)  # (a deep cut first: it may be what leaves the foe wounded enough)
+		if t.dead:
+			main.sfx("swing", 1.6)
+			return
 	if t == null or t.hp > t.max_hp * below:
 		main.fx_text(p.global_position + Vector2(0, -40), "not wounded enough", color())
 		return

@@ -206,6 +206,7 @@ var practice  # the practice room, from the train's Abilities page (practice.gd)
 var arena  # the station's drills, bouts and challenges (arena.gd)
 var hints  # names in play: ready labels, first casts, the long-press card (ability_hints.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
+var weapon_blow := false  # while a weapon's blow lands (player.gd _strike): main.on_hit's blows are the weapon's
 var cast_hits := 0
 var new_climber_t := 0.0
 ## How the climber looks, worked out from profile.appearance once per change
@@ -2928,8 +2929,9 @@ func show_victory(lines: Array) -> void:
 	sfx("summit_win", 1.0, 0.0, 0.0)
 
 
-## Winning the Proving (proving.gd): one of your marks grows a step, the
-## one whose body part you used most this climb (not past step 5). Returns a line.
+## Winning the Proving (proving.gd): one of your marks grows (profile.gd
+## PROVING_GROWTH), the one whose body part you used most this climb (not
+## past step 5). Returns a line.
 func proving_raise() -> String:
 	var best := ""
 	var most := -1.0
@@ -2942,12 +2944,17 @@ func proving_raise() -> String:
 			best = part
 	if best == "":
 		return ""
-	var step: int = profile.raise_step(best)
-	if step <= 0:
+	var got: Dictionary = profile.proving_gift(best)
+	if got.is_empty():
 		return ""
 	_give_bonds()
 	profile.save()
-	return "The tower has taken your measure: %s grows to step %d" % [BondScript.Bonds.BONDS[profile.bonds[best]["id"]]["name"], step]
+	var name: String = BondScript.Bonds.BONDS[profile.bonds[best]["id"]]["name"]
+	if bool(got["up"]):
+		return ProvingScript.TEXT["gift_step"] % [name, int(got["step"])]
+	if float(got["grown"]) <= 0.0:
+		return ProvingScript.TEXT["gift_faint"] % name
+	return ProvingScript.TEXT["gift"] % [name, int(round(float(got["grown"])))]
 
 
 ## How close an unmarked body part is to taking a mark, 0..1 (for drawing).
