@@ -64,6 +64,12 @@ static var CRAFT := {
 	"keepers_purse": {"iron": 70}, "ashen_knot": {"fire": 70}, "gale_charm": {"air": 65}, "bulwark_stone": {"stone": 65},
 }
 
+## Recipes a Rune Artist must LEARN before crafting (the rest are known
+## from the start): a renown rank teaches some (renown.gd RANK_OPENS
+## "recipe"), and a noble's contract now and then teaches one (contracts.gd).
+## Learned ones are kept with the climber (renown.gd state "recipes").
+static var LOCKED := ["mending_bead", "keepers_purse", "tide_shell", "bulwark_stone", "gale_charm", "ashen_knot"]
+
 ## The outfitter's rail (train.gd roll_outfit): "rack" charms hang on it
 ## every visit, Common by nature, or a Fine charm "fine" times in 100.
 static var SHOP := {"rack": 1, "fine": 30}
@@ -110,6 +116,9 @@ static var TEXT := {
 	"nothing_spent": "Every charm you own is charged.",
 	"note": "Refill a charm's charge with crystals of its kind (anyone). A Rune Artist can also craft new charms here.",
 	"old_refund": "%s became a charm: what you paid came back (%s)",
+	"recipe_locked": "A recipe not yet learned. Your renown rank teaches it (%s), or a noble's contract may.",
+	"recipe_contract": "A recipe not yet learned. A noble's contract may teach it.",
+	"refill_cut": "Your renown makes refills %d%% cheaper.",
 }
 
 
@@ -158,10 +167,64 @@ static func spend(g: Dictionary) -> bool:
 	return true
 
 
-## What refilling every spent charge costs, in essence.
-static func refill_amount(g) -> int:
+## What refilling every spent charge costs, in essence (less your renown's
+## cut, refill_cut, given the climber).
+static func refill_amount(g, profile = null) -> int:
 	var id := charge_id(g)
-	return int(CHARGES[id]["refill"]) * missing(g) if id != "" else 0
+	if id == "" or missing(g) <= 0:
+		return 0
+	var full := int(CHARGES[id]["refill"]) * missing(g)
+	return maxi(1, int(round(float(full) * (1.0 - refill_cut(profile)))))
+
+
+## The share your renown rank takes off a charm's refill (RANK_OPENS "refill").
+static func refill_cut(profile) -> float:
+	if profile == null:
+		return 0.0
+	var cut := 0.0
+	for e in load("res://scripts/renown.gd").opened(profile, "refill"):
+		cut = maxf(cut, float(e.get("cut", 0.0)))
+	return clampf(cut, 0.0, 0.9)
+
+
+# --- recipes -------------------------------------------------------------------------------
+
+## Does the climber know how to craft this charm (not LOCKED, learned, or
+## taught by their rank)?
+static func recipe_known(profile, id: String) -> bool:
+	if not LOCKED.has(id):
+		return true
+	if profile == null:
+		return false
+	var R = load("res://scripts/renown.gd")
+	if R.state(profile)["recipes"].has(id):
+		return true
+	for e in R.opened(profile, "recipe"):
+		if String(e.get("id", "")) == id:
+			return true
+	return false
+
+
+## Learns a recipe (a contract's reward). True if it was new.
+static func learn(profile, id: String) -> bool:
+	if recipe_known(profile, id) or not CRAFT.has(id):
+		return false
+	load("res://scripts/renown.gd").state(profile)["recipes"].append(id)
+	profile.save()
+	return true
+
+
+static func recipe_name(id: String) -> String:
+	return String(Gear.PIECES.get(id, {}).get("name", id))
+
+
+## Why a recipe isn't known yet, in words ("" if it is).
+static func recipe_why(profile, id: String) -> String:
+	if recipe_known(profile, id):
+		return ""
+	var R = load("res://scripts/renown.gd")
+	var at: int = R.rank_opening("recipe", id)
+	return TEXT["recipe_locked"] % R.rank_name(at) if at >= 0 else TEXT["recipe_contract"]
 
 
 ## The crystal kind a charm is refilled (and priced) with: its own essence;
@@ -186,7 +249,7 @@ static func charge_lines(g) -> Array:
 ## Refills a charm (a record, in place) with crystals of its kind (the
 ## bench). "" if done, else why not.
 static func refill_crystals(profile, g: Dictionary) -> String:
-	var amount := refill_amount(g)
+	var amount := refill_amount(g, profile)
 	if amount <= 0:
 		return TEXT["charge_full"]
 	var k := kind(g)
@@ -209,7 +272,7 @@ static func unbanked(main) -> float:
 ## Refills the charm you wear in the tower from unbanked essence (each kind
 ## in its share, as a Tithe Door takes it). "" if done, else why not.
 static func refill_unbanked(main, g: Dictionary) -> String:
-	var amount := float(refill_amount(g))
+	var amount := float(refill_amount(g, main.profile if main != null else null))
 	if amount <= 0.0:
 		return TEXT["charge_full"]
 	var held := unbanked(main)

@@ -617,9 +617,10 @@ static func charm_refs(profile) -> Array:
 	return out
 
 
-## What refilling a charm costs ({kind: amount}; {} when it's full).
-static func refill_cost(g) -> Dictionary:
-	var amount := Charms.refill_amount(g)
+## What refilling a charm costs ({kind: amount}; {} when it's full), less
+## the climber's renown cut (charms.gd refill_cut) given the climber.
+static func refill_cost(g, profile = null) -> Dictionary:
+	var amount := Charms.refill_amount(g, profile)
 	return {Charms.kind(g): amount} if amount > 0 else {}
 
 
@@ -627,7 +628,7 @@ static func refill_why(profile, ref: String) -> String:
 	var g := piece(profile, ref)
 	if Charms.charge_max(g) <= 0 or Charms.missing(g) <= 0:
 		return Charms.TEXT["charge_full"]
-	return short_of(profile, refill_cost(g))
+	return short_of(profile, refill_cost(g, profile))
 
 
 ## Refills a charm's spent charges with crystals of its kind (anyone can).
@@ -656,6 +657,8 @@ static func craft_why(profile, id: String) -> String:
 		return Charms.TEXT["needs_rune_artist"]
 	if not Charms.CRAFT.has(id):
 		return TEXT["nothing"]
+	if not Charms.recipe_known(profile, id):
+		return Charms.recipe_why(profile, id)  # (a recipe your rank or a contract teaches: charms.gd LOCKED)
 	if profile.chest.size() >= Train.CHEST_SIZE and profile.pack.size() >= Train.pack_size_with(profile, profile.wear):
 		return Charms.TEXT["no_room"]
 	return short_of(profile, craft_cost(id))

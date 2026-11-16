@@ -4,27 +4,28 @@ extends RefCounted
 ## the train"; the stop you're at fills the rest, over the station drawn
 ## behind it (station_view.gd). Each stop is a list on the left and a card
 ## on the right (the card goes under the list on a narrow screen):
-##   gym         the drills: each one's goal, medals, your best, Begin
-##   arena       the tournament's tiers and their bouts: foes, rules, fee,
-##               what a win pays, Enter
-##   challenges  the challenges: the twist, foes, what the first win pays
-##   board       your renown and rank, recent deeds, the ranks, the
-##               titles (choose one to wear) and the climbers you've met
-##               (rivals.gd: their marks and your history with them)
-##   shrine      the boons: what each does, its level and price, Buy
-## Focusing a tile (the keys, the mouse) shows its card; pressing it (or a
-## tap) does too, and with the keys puts the focus on the card's button.
-## Q / E (LB / RB) move between stops. The words are in stations.gd,
-## renown.gd and boons.gd.
+##   gym     Training: the basics (lessons with the Entity: Begin, Skip) and
+##           the medal drills (goal, medals, fee, Begin)
+##   arena   the Tournament: its master's word and the brackets (rounds,
+##           fee, prize, Enter)
+##   noble   the Noble: titles (what each needs, what it gives; Be named,
+##           Wear) and contracts (held and on offer; Take, Give it up)
+##   board   the Renown Board: what the next rank opens, every rank (a tile
+##           each; its card says what it opens), recent deeds, the climbers
+##           you've met (rivals.gd)
+## Every stop starts with a gauge of your renown and rank; a rank newly
+## reached is said at the top once, with what it opens. Focusing a tile
+## (the keys, the mouse) shows its card; pressing it (or a tap) does too,
+## and with the keys puts the focus on the card's button. Q / E (LB / RB)
+## move between stops. The words are in stations.gd, renown.gd, titles.gd,
+## noble.gd and contracts.gd.
 
 const Stations := preload("res://scripts/stations.gd")
 const Renown := preload("res://scripts/renown.gd")
-const Boons := preload("res://scripts/boons.gd")
-const Shop := preload("res://scripts/shop.gd")
-const Train := preload("res://scripts/train.gd")
+const Titles := preload("res://scripts/titles.gd")
+const Noble := preload("res://scripts/noble.gd")
+const Contracts := preload("res://scripts/contracts.gd")
 const Entity := preload("res://scripts/entity.gd")
-const Items := preload("res://scripts/items.gd")
-const Gear := preload("res://scripts/gear.gd")
 const StationView := preload("res://scripts/station_view.gd")
 const UI := preload("res://scripts/ui.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -33,15 +34,18 @@ const TrainPage := preload("res://scripts/train_page.gd")
 const Rivals := preload("res://scripts/rivals.gd")
 
 static var T := Stations.TEXT
+static var N := Noble.TEXT
 
 var m  # the menu
 var station := ""  # the station you're at ("" when not at one)
 var stop := "gym"
-var picks := {}  # stop -> the key whose card shows ("drill:parry", "bout:copper_1", "title:x"...)
+var picks := {}  # stop -> the key whose card shows ("lesson:move", "bracket:novice", "title:x"...)
 var lines: Array = []  # the last result or answer, shown on its card
 var lines_for := ""  # ...the key it belongs to
 var card: VBoxContainer
 var tiles: Array = []
+var said := {}  # stop -> the Entity's (or the Noble's) word at its top this visit
+var rank_said := ""  # a rank newly reached, said at the top this visit
 
 
 func _init(menu) -> void:
@@ -70,15 +74,19 @@ func stop_ids() -> Array:
 
 
 ## Arriving (from the engine's lever, or back from the arena).
-func arrive(id: String, at := "", pick := "", said: Array = []) -> void:
-	if station == "" and said.is_empty() and m.main != null and m.main.profile != null:
-		Renown.on_visit(m.main.profile)  # (a stop counted: the Newcomer's title)
+func arrive(id: String, at := "", pick := "", words: Array = []) -> void:
+	var arriving := station == ""
+	if arriving and words.is_empty() and m.main != null and m.main.profile != null:
+		Renown.on_visit(m.main.profile)  # (a stop counted: the Newcomer's title, the Noble's new offers)
+	if arriving:
+		said = {}
+		rank_said = ""
 	station = id if Stations.station_ids().has(id) else String(Stations.STATIONS[0]["id"])
 	var ids := stop_ids()
 	stop = at if ids.has(at) else (ids[0] if not ids.is_empty() else "gym")
 	if pick != "":
 		picks[stop] = pick
-	lines = said
+	lines = words
 	lines_for = pick if pick != "" else ""
 
 
@@ -113,6 +121,7 @@ func build() -> void:
 	bar.custom_minimum_size = Vector2(minf(280.0, _avail()), 34 if small else 40)
 	bar.set_meta("renown_bar", true)
 	m.box.add_child(bar)
+	_top_words(prof)
 	m._gap(2 if small else 6)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12 if small else 18)
@@ -139,28 +148,79 @@ func build() -> void:
 			_gym(left)
 		"arena":
 			_arena(left)
-		"challenges":
-			_challenges(left)
+		"noble":
+			_noble(left)
 		"board":
 			_board(left)
-		"shrine":
-			_shrine(left)
-		"market":
-			_market(left)
 	var keys: Array = tiles.map(func(tl): return String(tl.get_meta("pick")))
 	var pk := String(picks.get(stop, ""))
 	if not keys.has(pk):
-		pk = keys[0] if not keys.is_empty() else ""
-		if stop == "board":
-			var titles: Array = keys.filter(func(k): return String(k).begins_with("title:"))
-			if not titles.is_empty():
-				pk = titles[0]  # (the board opens on its titles; a climber met shows when chosen)
-			var worn := String(Renown.state(prof)["worn"])
-			if worn != "" and keys.has("title:" + worn):
-				pk = "title:" + worn
+		pk = _default_pick(keys)
 	picks[stop] = pk
 	_mark_chosen()
 	_card()
+
+
+## The tile a stop opens on: the next lesson, the first open bracket, a
+## title ready to grant (else the one worn), the next rank.
+func _default_pick(keys: Array) -> String:
+	var prof = _prof()
+	var want := ""
+	match stop:
+		"gym":
+			var left := Stations.lessons_left(prof)
+			want = "lesson:" + String(left[0]) if not left.is_empty() else ""
+		"noble":
+			var offer := Renown.on_offer(prof)
+			if not offer.is_empty():
+				want = "title:" + String(offer[0])
+			elif Renown.worn_id(prof) != "":
+				want = "title:" + Renown.worn_id(prof)
+		"board":
+			want = "rank:%d" % mini(Renown.rank(prof) + 1, Renown.RANKS.size() - 1)
+	if keys.has(want):
+		return want
+	return keys[0] if not keys.is_empty() else ""
+
+
+## What's said at the top of a stop: a rank newly reached (once, with what
+## it opens), the Entity's first-time word for the stop, the refund of an
+## old save's boons.
+func _top_words(prof) -> void:
+	var main = m.main
+	if main == null:
+		return
+	var ru := Renown.unseen_rank(prof, true)
+	if ru >= 0:
+		var words := Renown.rank_words(ru)
+		rank_said = "%s %s" % [Entity.line("rank_up", -1, {"rank": Renown.rank_name(ru)}), String(words[1])]
+		main.GuideScript.also_told("rank_up")
+		main.sfx("clear", 1.25, -4.0, 0.0)
+	if rank_said != "":
+		var r1 := Entity.says(rank_said, 28.0 if _small() else 34.0, String(Renown.rank_words(Renown.rank(prof))[0]))
+		r1.set_meta("entity", "rank")
+		m.box.add_child(r1)
+	if not said.has(stop):
+		var bits: Array = []
+		var refund := String(Renown.state(prof).get("refund", ""))
+		if refund != "":
+			bits.append(refund)
+			Renown.state(prof).erase("refund")
+			prof.save()
+		for id in STOP_TIPS.get(stop, []):
+			var one: String = main.tip_now(id)
+			if one != "":
+				bits.append(one)
+		said[stop] = "\n".join(bits)
+	if String(said[stop]) != "":
+		var mode := "touch" if main.touch_active else ("pad" if main.pad_active else "keys")
+		var row := Entity.says(Entity.fill_keys(String(said[stop]), mode, main.pad_ps), 28.0 if _small() else 34.0)
+		row.set_meta("entity", stop)
+		m.box.add_child(row)
+
+
+## The Entity's first-time tips for each stop (entity.gd TIPS).
+const STOP_TIPS := {"gym": ["station", "training"], "arena": ["tournament"], "noble": ["noble", "titles_social", "contracts"], "board": ["renown_board"]}
 
 
 ## Where the keys start: the chosen tile.
@@ -230,7 +290,7 @@ func _mark_chosen() -> void:
 			tl.restyle()
 
 
-## The card's first button (Begin, Buy, Wear...), or null.
+## The card's first button (Begin, Be named, Take...), or null.
 func _card_first() -> Button:
 	if card == null:
 		return null
@@ -257,16 +317,32 @@ func back() -> void:
 
 # --- the stops -------------------------------------------------------------------------
 
+## Training: the basics, then the medal drills.
 func _gym(left: Node) -> void:
 	var prof = _prof()
 	var r := Renown.state(prof)
+	var done_n := Stations.LESSON_ORDER.size() - Stations.lessons_left(prof).size()
+	_section(left, "%s  ·  %s" % [T["lessons"], T["lessons_count"] % [done_n, Stations.LESSON_ORDER.size()]])
+	if not _small():
+		_line(left, T["lessons_all"] if Stations.lessons_done(prof) else T["lessons_note"] % Stations.LESSON_REWARD, UI.DIM)
+	for id in Stations.LESSON_ORDER:
+		if not Stations.LESSONS.has(id):
+			continue
+		var st := Stations.lesson_state(prof, id)
+		var line: String = T["lesson_done"] if st == 1 else (T["lesson_skipped"] if st == 2 else Stations.lesson_goal(id))
+		var tl = _tile(left, "lesson:" + id, String(Stations.LESSONS[id]["name"]), line, "lesson", UI.GILT if st > 0 else Color(0.62, 0.78, 1.0))
+		tl.lit = st == 1
+		tl.medal = 3 if st == 1 else -1
+	_section(left, T["drills"])
 	for id in Stations.DRILL_ORDER:
 		if not Stations.DRILLS.has(id):
 			continue
 		var d: Dictionary = Stations.DRILLS[id]
 		var open := Stations.drill_unlocked(prof, id)
 		var line := ""
-		if not open:
+		if bool(d.get("extra", false)) and not open:
+			line = T["extra"]
+		elif not open:
 			line = T["locked_short"] % Renown.rank_name(int(d.get("rank", 0)))
 		elif r["best"].has(id):
 			line = T["best"] % Stations.score_text(id, float(r["best"][id]))
@@ -277,56 +353,105 @@ func _gym(left: Node) -> void:
 		tl.medal = -1 if not open else int(r["drills"].get(id, 0))
 
 
+## The tournament: its master's word, then the brackets.
 func _arena(left: Node) -> void:
 	var prof = _prof()
-	for t in Stations.TIERS.size():
-		var tier: Dictionary = Stations.TIERS[t]
-		var open := Stations.tier_unlocked(prof, t)
-		var head: String = tier["name"]
+	_section(left, String(Stations.MASTER["name"]).capitalize())
+	if not said.has("master"):
+		said["master"] = Stations.master_line("greet")
+	_line(left, String(said["master"]), UI.GOLD)
+	for b in Stations.BRACKETS:
+		var id := String(b["id"])
+		var open := Stations.bracket_open(prof, id)
+		var line := ""
 		if not open:
-			head += "  ·  " + T["locked_short"] % Renown.rank_name(int(tier.get("rank", 0)))
-		elif bool(Renown.state(prof)["tiers"].get(str(t + 1), false)):
-			head += "  ·  " + T["won"]
-		_section(left, head)
-		var tw: Dictionary = Towers.TOWERS.get(String(tier.get("tower", "")), {})
-		var tint: Color = Color(tw.get("torch", UI.TRAIN_BRASS))
-		for bt in tier["bouts"]:
-			var id := String(bt["id"])
-			var wins := Stations.bout_wins(prof, id)
-			var bo := Stations.bout_open(prof, id)
-			var line := ""
-			if not open:
-				line = T["locked_short"] % Renown.rank_name(int(tier.get("rank", 0)))
-			elif not bo:
-				line = T["ladder_next"]
-			elif wins > 0:
-				line = Stations.wins_text(wins)
-			else:
-				var rl := Stations.rule_lines(Stations.event("bout", id))
-				line = rl[0] if not rl.is_empty() else T["no_rules"]
-			var tl = _tile(left, "bout:" + id, String(bt["name"]), line, "arena", tint)
-			tl.locked = not bo
-			tl.lit = wins > 0
-
-
-func _challenges(left: Node) -> void:
-	var prof = _prof()
-	for id in Stations.CHALLENGE_ORDER:
-		if not Stations.CHALLENGES.has(id):
-			continue
-		var c: Dictionary = Stations.CHALLENGES[id]
-		var open := Stations.challenge_unlocked(prof, id)
-		var won := Stations.challenge_won(prof, id)
-		var line: String = T["won"] if won else (String(c.get("twist", "")) if open else T["locked_short"] % Renown.rank_name(int(c.get("rank", 0))))
-		var tl = _tile(left, "challenge:" + id, String(c["name"]), line, "challenges", Color(0.9, 0.42, 0.34))
+			line = T["locked_short"] % Renown.rank_name(int(b.get("rank", 0)))
+		elif Stations.bracket_won(prof, id):
+			line = T["won"] + "  ·  " + Stations.wins_text(Stations.bracket_wins(prof, id))
+		elif Stations.best_rounds(prof, id) > 0:
+			line = T["best_rounds"] % [Stations.best_rounds(prof, id), (b["rounds"] as Array).size()]
+		else:
+			line = T["never"]
+		var tw: Dictionary = Towers.TOWERS.get(String(b.get("tower", "")), {})
+		var tl = _tile(left, "bracket:" + id, String(b["name"]), line, "arena", Color(tw.get("torch", UI.TRAIN_BRASS)))
 		tl.locked = not open
-		tl.lit = won
-		tl.medal = 3 if won else -1
+		tl.lit = Stations.bracket_won(prof, id)
+		tl.medal = 3 if Stations.bracket_won(prof, id) else -1
 
 
+## The Noble: a word, the titles, the contracts.
+func _noble(left: Node) -> void:
+	var prof = _prof()
+	_section(left, Noble.name_of())
+	if not said.has("noble_line"):
+		said["noble_line"] = Noble.line("greet")
+	_line(left, String(said["noble_line"]), UI.GOLD)
+	_section(left, N["titles"])
+	if not _small():
+		_line(left, N["titles_note"], UI.DIM)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	left.add_child(grid)
+	for id in Renown.TITLE_ORDER:
+		if not Renown.TITLES.has(id):
+			continue
+		var tl = _tile(grid, "title:" + id, Renown.title_name(id), _title_line(prof, id), "title", _title_tint(prof, id))
+		tl.locked = not Renown.has_title(prof, id) and not Renown.grantable(prof, id)
+		tl.lit = Renown.worn_id(prof) == id or Renown.grantable(prof, id)
+		tl.custom_minimum_size.x = minf(150.0 if _small() else 180.0, _avail() * 0.5 - 4.0)
+	_section(left, N["contracts"])
+	if not _small():
+		_line(left, N["contracts_note"] % Contracts.most(prof), UI.DIM)
+	var held: Array = Contracts.active(prof)
+	if not held.is_empty():
+		_line(left, N["held"], UI.GILT)
+	for o in held:
+		var tl = _tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.status_of(o), "contract", Contracts.KINDS_COLOR)
+		tl.lit = true
+	var offers: Array = Contracts.offers(prof)
+	_line(left, N["on_offer"] if not offers.is_empty() else N["none_offered"], UI.GILT if not offers.is_empty() else UI.DIM)
+	for o in offers:
+		_tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.reward_text(o), "contract", Color(0.78, 0.7, 0.86))
+
+
+func _title_line(prof, id: String) -> String:
+	if Renown.worn_id(prof) == id:
+		return N["tile_worn"]
+	if Renown.has_title(prof, id):
+		return N["tile_have"]
+	if Renown.grantable(prof, id):
+		return N["tile_ready"]
+	var need := int(Renown.TITLES[id].get("rank", 0))
+	if Renown.rank(prof) < need:
+		return N["tile_needs"] % Renown.rank_name(need)
+	return String(Renown.TITLES[id].get("deed", ""))
+
+
+func _title_tint(prof, id: String) -> Color:
+	if Renown.has_title(prof, id) or Renown.grantable(prof, id):
+		return UI.GILT
+	return UI.FAINT
+
+
+## The Renown Board: what the next rank opens, every rank, deeds, climbers met.
 func _board(left: Node) -> void:
 	var prof = _prof()
 	var r := Renown.state(prof)
+	var rk := Renown.rank(prof)
+	if rk < Renown.RANKS.size() - 1:
+		_section(left, T["next_rank"] % Renown.next_text(prof))
+		_line(left, T["next_opens"] % Renown.rank_name(rk + 1) + " " + ", ".join(Renown.opens(rk + 1)), UI.TEXT)
+	else:
+		_section(left, T["top_rank"])
+	_section(left, T["ranks"])
+	for i in Renown.RANKS.size():
+		var reached := i <= rk
+		var line := "%d  ·  %s" % [Renown.needed(i), ", ".join(Renown.opens(i))]
+		var tl = _tile(left, "rank:%d" % i, Renown.rank_name(i), line, "board", UI.GILT if reached else (UI.GILT_HI if i == rk + 1 else UI.FAINT))
+		tl.lit = i == rk
+		tl.medal = 3 if reached else -1
 	_section(left, T["deeds"])
 	var deeds: Array = (r["deeds"] as Array).duplicate()
 	deeds.reverse()
@@ -342,73 +467,6 @@ func _board(left: Node) -> void:
 		_line(left, Rivals.TEXT["board_none"], UI.DIM)
 	for rec in met.slice(0, 6 if _small() else 8):
 		_tile(left, "rival:" + String(rec.get("id", "")), String(rec.get("name", "")), Rivals.marks_text(rec), "arena", Rivals.color_of(rec))
-	_section(left, T["titles"])
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	left.add_child(grid)
-	var have: Array = r["titles"]
-	for id in Renown.TITLE_ORDER:
-		if not Renown.TITLES.has(id):
-			continue
-		var earned: bool = have.has(id)
-		var tl = _tile(grid, "title:" + id, Renown.title_name(id), T["title_worn"] if String(r["worn"]) == id else (T["earned"] if earned else String(Renown.TITLES[id].get("deed", ""))), "title", UI.GILT if earned else UI.FAINT)
-		tl.locked = not earned
-		tl.lit = String(r["worn"]) == id
-		tl.custom_minimum_size.x = minf(150.0 if _small() else 180.0, _avail() * 0.5 - 4.0)
-	_section(left, T["ranks"])
-	var rk := Renown.rank(prof)
-	var rg := GridContainer.new()
-	rg.columns = 2
-	rg.add_theme_constant_override("h_separation", 18)
-	left.add_child(rg)
-	for i in Renown.RANKS.size():
-		var col: Color = UI.GILT_HI if i == rk else (UI.TEXT if i < rk else UI.FAINT)
-		var l := _line(rg, "%s  ·  %d" % [Renown.rank_name(i), Renown.needed(i)], col)
-		l.autowrap_mode = TextServer.AUTOWRAP_OFF  # (a short line, as wide as its words: two to a row, or one where the screen is narrow: reflow.gd)
-		l.custom_minimum_size.x = 0.0
-
-
-func _shrine(left: Node) -> void:
-	var prof = _prof()
-	for id in Boons.ORDER:
-		if not Boons.BOONS.has(id):
-			continue
-		var b: Dictionary = Boons.BOONS[id]
-		var open := Boons.unlocked(prof, id)
-		var line: String = String(b.get("desc", "")) if open else Boons.TEXT["locked"] % Renown.rank_name(int(b.get("rank", 0)))
-		var tl = _tile(left, "boon:" + id, String(b["name"]), line, "boon", Essence.color(String(b.get("kind", "stone"))))
-		tl.locked = not open
-		tl.pips = Boons.level(prof, id)
-		tl.pips_of = int(b.get("levels", 1))
-
-
-## The pedlar's stall: a tile for each ware, or (below his rank) one closed tile.
-func _market(left: Node) -> void:
-	var prof = _prof()
-	if not Shop.merchant_open(prof):
-		var tl = _tile(left, "closed:0", Shop.TEXT["closed_tile"], Shop.TEXT["locked"] % Shop.merchant_rank_name(), "market", UI.FAINT)
-		tl.locked = true
-		return
-	var market := Shop.station_market(prof, m.train_tower)
-	var said: String = m.main.tip_now("merchant") if m.main != null else ""  # (the first time: the Entity explains him)
-	if said != "":
-		left.add_child(Entity.says(said, 28.0 if _small() else 34.0))
-	_section(left, "%s  ·  %s" % [String(Shop.MERCHANT["name"]).capitalize(), Shop.TEXT["theme"] % String(market.get("name", ""))])
-	var wares: Array = market.get("wares", [])
-	if wares.is_empty():
-		_line(left, Shop.TEXT["theme_none"], UI.DIM)
-	for i in wares.size():
-		var w: Dictionary = wares[i]
-		var sold := bool(w.get("sold", false))
-		var p := Shop.ware_price(prof, w)
-		var gear := Shop.ware_gear(w)
-		var col: Color = Gear.color(gear) if not gear.is_empty() else Items.color(String(w.get("id", "")))
-		var line: String = Shop.TEXT["sold"] if sold else Train.price_text(p[0], int(p[1]))
-		var tl = _tile(left, "ware:%d" % i, Shop.ware_name(w), line, "market", col)
-		tl.locked = false
-		tl.lit = sold
 
 
 func _line(parent: Node, text: String, col: Color) -> Label:
@@ -434,22 +492,20 @@ func _card() -> void:
 	var kind := key.get_slice(":", 0)
 	var id := key.get_slice(":", 1)
 	match kind:
+		"lesson":
+			_lesson_card(id)
 		"drill":
 			_drill_card(id)
-		"bout":
-			_bout_card(id)
-		"challenge":
-			_challenge_card(id)
+		"bracket":
+			_bracket_card(id)
 		"title":
 			_title_card(id)
-		"boon":
-			_boon_card(id)
+		"contract":
+			_contract_card(id)
+		"rank":
+			_rank_card(int(id))
 		"rival":
 			_rival_card(id)
-		"ware":
-			_ware_card(int(id))
-		"closed":
-			_closed_card()
 	if _small():
 		# A short screen: the card's button (and why it's off) right under its
 		# name, where it shows without scrolling.
@@ -531,44 +587,34 @@ func _price(kind: String, amount: int, ok: bool, label := "") -> void:
 	row.add_child(tag)
 
 
-func _closed_card() -> void:
-	_head(String(Shop.MERCHANT["name"]).capitalize(), "market", UI.FAINT, Stations.stop_name("market"))
-	_text(Shop.TEXT["locked_card"] % Shop.merchant_rank_name(), UI.TEXT)
-
-
-## One of the pedlar's wares: what it is, its price, and Buy.
-func _ware_card(i: int) -> void:
+## A fee's price line (or "No fee"), and the worn title's cut.
+func _fee(type: String, id: String, base: int, cut: float) -> void:
 	var prof = _prof()
-	var market := Shop.station_market(prof, m.train_tower)
-	var wares: Array = market.get("wares", [])
-	if i < 0 or i >= wares.size():
-		return
-	var w: Dictionary = wares[i]
-	var gear := Shop.ware_gear(w)
-	var col: Color = Gear.color(gear) if not gear.is_empty() else Items.color(String(w.get("id", "")))
-	_head(Shop.ware_name(w), "market", col, Stations.stop_name("market"))
-	if bool(w.get("sold", false)):
-		_text(Shop.TEXT["sold"], UI.DIM)
-		return
-	if not gear.is_empty():
-		_text(m.main.gear_card_desc(gear), UI.TEXT)
-		var vs := Train.versus(prof, m.main.player, gear)
-		_text(m.loadout_page.TEXT["versus_better"] if vs > 0 else (m.loadout_page.TEXT["versus_worse"] if vs < 0 else m.loadout_page.TEXT["versus_even"]), UI.GOOD if vs > 0 else (UI.BAD if vs < 0 else UI.DIM))
+	var f := Stations.fee(prof, type, id)
+	if f > 0:
+		_price("any", f, int(prof.crystals_held()) >= f, T["fee"])
 	else:
-		var id := String(w["id"])
-		_text(String(Items.ITEMS[id]["desc"]).left(1).to_upper() + String(Items.ITEMS[id]["desc"]).substr(1) + ".", UI.TEXT)
-		var note := Items.size_note(id, int(w.get("size", Items.STANDARD)))
-		if note != "":
-			_text(note, UI.GILT_HI)
-	var p := Shop.ware_price(prof, w)
-	var why := Shop.short_of(prof, w)
-	_price(p[0], int(p[1]), why == "")
-	var btn := _button(Shop.TEXT["buy"], _buy_ware.bind(i), "buy")
-	btn.disabled = why != ""
-	if why != "":
-		_text(Shop.TEXT["cant"] % why, UI.BAD)
+		_text(T["free"], UI.DIM)
+	if base > 0 and cut > 0.0:
+		_text(T["fee_cut"] % int(round(minf(cut, 1.0) * 100.0)), UI.GOOD)
+
+
+func _lesson_card(id: String) -> void:
+	var prof = _prof()
+	var d: Dictionary = Stations.LESSONS.get(id, {})
+	if d.is_empty():
+		return
+	var st := Stations.lesson_state(prof, id)
+	_head(String(d["name"]), "lesson", Color(0.62, 0.78, 1.0) if st == 0 else UI.GILT, T["lessons"])
+	_text(Stations.lesson_goal(id), UI.TEXT)
+	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
+	_text(Entity.fill_keys(String(d.get("say", "")), mode, m.main.pad_ps), Color(0.78, 0.82, 1.0))
+	_text(T["lesson_done"] if st == 1 else (T["lesson_skipped"] if st == 2 else T["lesson_todo"]), UI.GILT if st == 1 else UI.DIM)
+	_button(T["lesson_again"] if st == 1 else T["lesson_begin"], _begin.bind("lesson", id), "begin")
+	if st == 0:
+		_button(T["lesson_skip"], _skip.bind(id), "skip")
 	if not _small():
-		_text(Shop.TEXT["station_note"], UI.FAINT, 13)
+		_text(T["lessons_note"] % Stations.LESSON_REWARD, UI.FAINT, 13)
 
 
 func _drill_card(id: String) -> void:
@@ -578,8 +624,10 @@ func _drill_card(id: String) -> void:
 		return
 	var r := Renown.state(prof)
 	var medal := int(r["drills"].get(id, 0))
-	_head(String(d["name"]), "gym", UI.GILT, Stations.stop_name("gym"))
+	_head(String(d["name"]), "gym", UI.GILT, T["drills"])
 	_text(Stations.drill_goal(id), UI.TEXT)
+	if bool(d.get("extra", false)):
+		_text(T["extra_open"] if Stations.drill_unlocked(prof, id) else T["extra"], UI.GILT_HI)
 	_section(card, T["medals"])
 	var marks: Array = d["medals"]
 	var lower: bool = d.get("lower", false)
@@ -593,6 +641,7 @@ func _drill_card(id: String) -> void:
 		still.append("%s %s" % [Stations.medal_name(i + 1), Renown.TEXT["earned"] % int(rn[i])])
 	if not still.is_empty():
 		_text(T["drill_rewards"] + ": " + ",  ".join(still), UI.GOOD)
+	_fee("drill", id, int(d.get("fee", 0)), Titles.num(prof, "gym", "fee_cut"))
 	var why := Stations.why_not(prof, "drill", id)
 	var b := _button(T["begin"], _begin.bind("drill", id), "begin")
 	b.disabled = why != ""
@@ -600,94 +649,120 @@ func _drill_card(id: String) -> void:
 		_text(why, UI.BAD)
 
 
-func _bout_card(id: String) -> void:
+func _bracket_card(id: String) -> void:
 	var prof = _prof()
-	var at := Stations.find_bout(id)
-	if at[0] < 0:
+	var b := Stations.bracket(id)
+	if b.is_empty():
 		return
-	var tier: Dictionary = Stations.TIERS[at[0]]
-	var ev := Stations.event("bout", id)
-	var tw: Dictionary = Towers.TOWERS.get(String(tier.get("tower", "")), {})
-	_head(String(ev.get("name", "")), "arena", Color(tw.get("torch", UI.GILT)).lerp(UI.GILT, 0.5), String(tier["name"]))
-	_section(card, T["foes"])
-	for ln in Stations.wave_lines(ev):
-		_text(ln, UI.TEXT)
-	_section(card, T["rules"])
-	var rl := Stations.rule_lines(ev)
-	_text(",  ".join(rl) if not rl.is_empty() else T["no_rules"], UI.TEXT if not rl.is_empty() else UI.DIM)
-	var fee := Stations.fee("bout", id)
-	_price("any", fee, int(prof.crystals_held()) >= fee, T["fee"])
+	var tw: Dictionary = Towers.TOWERS.get(String(b.get("tower", "")), {})
+	_head(String(b["name"]), "arena", Color(tw.get("torch", UI.GILT)).lerp(UI.GILT, 0.5), Stations.stop_name("arena"))
+	if Stations.bracket_early(prof, id):
+		_text(T["early"], UI.GOOD)
+	_section(card, T["rounds"])
+	var rounds: Array = b.get("rounds", [])
+	for i in rounds.size():
+		_text(T["round"] % [i + 1, Stations.round_text(rounds[i])], UI.TEXT)
+	_fee("tourney", id, int(b.get("fee", 0)), Titles.num(prof, "tourney", "fee_cut"))
+	var pz := Stations.prize(prof, id)
+	var pays: Array = [Renown.TEXT["earned"] % int(pz["renown"]), T["crystals"] % [int(pz["crystals"]), Essence.display(String(pz["kind"]))]]
+	if String(pz["relic"]) == "yes":
+		pays.append(T["relic"])
+	elif String(pz["relic"]) == "maybe":
+		pays.append(T["relic_maybe"])
+	_text((T["rewards"] if pz["first"] else T["rewards_repeat"]) + ": " + ",  ".join(pays), UI.GOOD)
+	var num := Stations.bracket_number(id)
+	for tid in Renown.TITLE_ORDER:
+		var t: Dictionary = Renown.TITLES[tid]
+		if String(t.get("rule", "")) == "tier" and int(t.get("n", 0)) == num and not Renown.has_title(prof, tid):
+			_text(T["title_for"] % Renown.title_name(tid), UI.GILT_HI)
+	var more := Titles.num(prof, "tourney", "prize")
+	if more > 0.0:
+		_text(T["prize_more"] % int(round(more * 100.0)), UI.GOOD)
+	_text(T["rounds_pay"] % int(b.get("round_renown", 0)), UI.DIM)
+	if Stations.best_rounds(prof, id) > 0:
+		_text(T["best_rounds"] % [Stations.best_rounds(prof, id), rounds.size()], UI.DIM)
+	var why := Stations.why_not(prof, "tourney", id)
+	var btn := _button(T["enter"], _begin.bind("tourney", id), "begin")
+	btn.disabled = why != ""
+	if why != "":
+		_text(why, UI.BAD)
 	if not _small():
 		_text(T["fee_note"], UI.FAINT, 13)
-	var wins := Stations.bout_wins(prof, id)
-	var first := wins == 0
-	var kind := String(tw.get("essence", "stone"))
-	var renown := maxi(1, int(round(float(ev.get("renown", 0)) * (1.0 if first else float(Stations.REPEAT["renown"])))))
-	var cr := maxi(1, int(round(float(tier.get("crystals", 0)) * (1.0 if first else float(Stations.REPEAT["crystals"])))))
-	var pays: Array = [Renown.TEXT["earned"] % renown, T["crystals"] % [cr, Essence.display(kind)]]
-	if ev.get("last", false):
-		pays.append(T["relic"] if not bool(Renown.state(prof)["tiers"].get(str(at[0] + 1), false)) else T["relic_maybe"])
-	_text((T["rewards"] if first else T["rewards_repeat"]) + ": " + ",  ".join(pays), UI.GOOD)
-	if wins > 0:
-		_text(Stations.wins_text(wins), UI.DIM)
-	var why := Stations.why_not(prof, "bout", id)
-	var b := _button(T["enter"], _begin.bind("bout", id), "begin")
-	b.disabled = why != ""
-	if why != "":
-		_text(why, UI.BAD)
-
-
-func _challenge_card(id: String) -> void:
-	var prof = _prof()
-	var c: Dictionary = Stations.CHALLENGES.get(id, {})
-	if c.is_empty():
-		return
-	var ev := Stations.event("challenge", id)
-	_head(String(c["name"]), "challenges", Color(0.95, 0.55, 0.45), Stations.stop_name("challenges"))
-	_text(String(c.get("twist", "")), UI.TEXT)
-	_section(card, T["foes"])
-	for ln in Stations.wave_lines(ev):
-		_text(ln, UI.TEXT)
-	var rl := Stations.rule_lines(ev)
-	if not rl.is_empty():
-		_section(card, T["rules"])
-		_text(",  ".join(rl), UI.TEXT)
-	if Stations.challenge_won(prof, id):
-		_text(T["won_once"], UI.GILT)
-	else:
-		var kind := String(Towers.TOWERS.get(String(c.get("tower", "")), {}).get("essence", "stone"))
-		var pays: Array = [Renown.TEXT["earned"] % int(c.get("renown", 0)), T["crystals"] % [int(c.get("crystals", 0)), Essence.display(kind)]]
-		if c.get("relic", false):
-			pays.append(T["relic"])
-		_text(T["rewards"] + ": " + ",  ".join(pays), UI.GOOD)
-	_text(T["free"], UI.DIM)
-	var why := Stations.why_not(prof, "challenge", id)
-	var b := _button(T["take"], _begin.bind("challenge", id), "begin")
-	b.disabled = why != ""
-	if why != "":
-		_text(why, UI.BAD)
 
 
 func _title_card(id: String) -> void:
 	var prof = _prof()
-	var r := Renown.state(prof)
 	var t: Dictionary = Renown.TITLES.get(id, {})
 	if t.is_empty():
 		return
-	var earned: bool = r["titles"].has(id)
-	_head(Renown.title_name(id) if earned else Renown.title_name(id), "title", UI.GILT if earned else UI.FAINT, T["titles"])
-	_text(String(t.get("deed", "")), UI.TEXT)
+	var have := Renown.has_title(prof, id)
+	var ready := Renown.grantable(prof, id)
+	_head(Renown.title_name(id), "title", UI.GILT if have or ready else UI.FAINT, N["titles"])
+	# What it needs: its rank and its deed, each done or not.
+	_section(card, N["requires"])
+	var need := int(t.get("rank", 0))
+	var rank_ok := Renown.rank(prof) >= need
+	_text("%s  ·  %s" % [N["req_rank"] % Renown.rank_name(need), N["done"] if rank_ok or have else N["not_done"]], UI.GOOD if rank_ok or have else UI.DIM)
+	if String(t.get("rule", "")) != "none":
+		var deed_ok: bool = have or Renown.deed_done(prof, t)
+		_text("%s  ·  %s" % [N["req_deed"] % String(t.get("deed", "")), N["done"] if deed_ok else N["not_done"]], UI.GOOD if deed_ok else UI.DIM)
+	# What it gives: its social benefits.
+	_section(card, Titles.TEXT["benefits"])
+	var gives := Titles.lines(id)
+	if gives.is_empty():
+		_text(Titles.TEXT["none"], UI.DIM)
+	for ln in gives:
+		_text(String(ln), UI.TEXT)
 	var worn := Renown.worn_title(prof)
-	_text(T["worn_now"] % worn if worn != "" else T["unworn_now"], UI.DIM)
-	if earned:
-		if String(r["worn"]) == id:
-			_button(T["unwear"], _wear.bind(""), "wear")
+	_text(N["worn_now"] % worn if worn != "" else N["unworn_now"], UI.DIM)
+	if ready:
+		_button(N["grant"] % Renown.title_name(id), _grant.bind(id), "grant")
+	elif have:
+		if Renown.worn_id(prof) == id:
+			_button(N["unwear"], _wear.bind(""), "wear")
 		else:
-			_button(T["wear"], _wear.bind(id), "wear")
-	else:
-		_text(T["title_locked"], UI.FAINT)
+			_button(N["wear"], _wear.bind(id), "wear")
 	if not _small():
-		_text(T["title_shows"], UI.FAINT, 13)
+		_text(Titles.TEXT["worn_only"] + " " + N["title_shows"], UI.FAINT, 13)
+
+
+func _contract_card(id: String) -> void:
+	var prof = _prof()
+	var o := Contracts.find(prof, id)
+	if o.is_empty():
+		return
+	var held := Contracts.is_held(prof, id)
+	_head(Contracts.name_of(o), "contract", Contracts.KINDS_COLOR, N["held"] if held else N["on_offer"])
+	_text(Contracts.goal_of(o), UI.TEXT)
+	if held:
+		_text(N["progress"] % Contracts.status_of(o), UI.GILT)
+	_text(Contracts.reward_text(o), UI.GOOD)
+	if held:
+		_button(N["drop"], _drop.bind(id), "drop")
+	else:
+		var full := Contracts.active(prof).size() >= Contracts.most(prof)
+		var b := _button(N["take"], _take.bind(id), "take")
+		b.disabled = full
+		if full:
+			_text(Contracts.TEXT["full"] % Contracts.most(prof), UI.BAD)
+	if not _small():
+		_text(N["contracts_note"] % Contracts.most(prof), UI.FAINT, 13)
+
+
+func _rank_card(i: int) -> void:
+	var prof = _prof()
+	if i < 0 or i >= Renown.RANKS.size():
+		return
+	var rk := Renown.rank(prof)
+	_head(Renown.rank_name(i), "board", UI.GILT if i <= rk else UI.FAINT, T["ranks"])
+	_text(Renown.TEXT["points"] % Renown.needed(i), UI.DIM)
+	if i <= rk:
+		_text(T["rank_reached"], UI.GOOD)
+	elif i == rk + 1:
+		_text(Renown.next_text(prof), UI.GILT_HI)
+	_section(card, T["next_opens"] % Renown.rank_name(i))
+	for ln in Renown.opens(i):
+		_text(String(ln).left(1).to_upper() + String(ln).substr(1), UI.TEXT)
 
 
 ## A climber you've met: their marks, one to a line in its colour, and your
@@ -710,37 +785,14 @@ func _rival_card(id: String) -> void:
 		_text(Rivals.TEXT["grudge"], UI.BAD)
 
 
-func _boon_card(id: String) -> void:
-	var prof = _prof()
-	var b: Dictionary = Boons.BOONS.get(id, {})
-	if b.is_empty():
-		return
-	var lv := Boons.level(prof, id)
-	var most := int(b.get("levels", 1))
-	_head(String(b["name"]), "boon", Essence.color(String(b.get("kind", "stone"))).lerp(UI.TEXT, 0.25), Stations.stop_name("shrine"))
-	_text(String(b.get("desc", "")), UI.TEXT)
-	_text(Boons.TEXT["level"] % [lv, most] if lv > 0 else Boons.TEXT["none"], UI.GILT if lv > 0 else UI.DIM)
-	var why := Boons.why_not(prof, id)
-	if lv < most:
-		var p := Boons.price(prof, id)
-		_price(String(p[0]), int(p[1]), int(prof.crystal_total(p[0])) >= int(p[1]))
-		var btn := _button(Boons.TEXT["buy"] % (lv + 1), _buy.bind(id), "buy")
-		btn.disabled = why != ""
-	if why != "" and why != Boons.TEXT["max"]:
-		_text(why, UI.BAD)
-	elif lv >= most:
-		_text(Boons.TEXT["max"], UI.GILT)
-	if not _small():
-		_text(T["shrine_note"], UI.FAINT, 13)
-
-
 # --- actions -----------------------------------------------------------------------------
 
-func _again(key: String, said: Array, sound: String) -> void:
-	lines = said
+func _again(key: String, words: Array, sound: String, focus := "") -> void:
+	lines = words
 	lines_for = key
 	picks[stop] = key
-	m._want_focus = {"meta": "station_do", "value": "buy" if key.begins_with("boon:") or key.begins_with("ware:") else ("wear" if key.begins_with("title:") else "begin")}
+	if focus != "":
+		m._want_focus = {"meta": "station_do", "value": focus}
 	if m.main != null:
 		m.main.sfx(sound, 1.0, -4.0, 0.0)
 	m.open("station")
@@ -750,36 +802,49 @@ func _begin(type: String, id: String) -> void:
 	var ev := Stations.event(type, id, station)
 	var why: String = m.main.arena.start(ev) if m.main != null and m.main.arena != null else "?"
 	if why != "":
-		_again("%s:%s" % [type, id], [T["cant"] % why], "ui_back")
+		_again("%s:%s" % ["bracket" if type == "tourney" else type, id], [T["cant"] % why], "ui_back", "begin")
 
 
-func _wear(id: String) -> void:
-	Renown.wear(_prof(), id)
+func _skip(id: String) -> void:
+	var words: Array = [T["lesson_skipped"] + ": " + String(Stations.LESSONS.get(id, {}).get("name", id))]
+	words.append_array(Stations.skip_lesson(_prof(), id))
+	var left := Stations.lessons_left(_prof())
+	_again("lesson:" + (String(left[0]) if not left.is_empty() else id), words, "ui_confirm", "begin")
+
+
+func _redraw_rail() -> void:
 	if m.rail != null:
 		m.rail.queue_redraw()
 		if m.rail.ident != null:
 			m.rail.ident.queue_redraw()
-	_again("title:" + (id if id != "" else String(picks.get(stop, "")).get_slice(":", 1)), [T["worn_now"] % Renown.title_name(id) if id != "" else T["unworn_now"]], "ui_confirm")
 
 
-func _buy_ware(i: int) -> void:
-	var prof = _prof()
-	var market := Shop.station_market(prof, m.train_tower)
-	var w: Dictionary = market["wares"][i]
-	var name := Shop.ware_name(w)
-	var why := Shop.buy_station(prof, m.main.player, market, i)
+func _grant(id: String) -> void:
+	if not Renown.grant(_prof(), id):
+		return
+	_redraw_rail()
+	if m.main != null:
+		m.main.tip("titles_social")
+	_again("title:" + id, [N["granted_now"] % Renown.title_name(id), Noble.line("granted")], "clear", "wear")
+
+
+func _wear(id: String) -> void:
+	Renown.wear(_prof(), id)
+	_redraw_rail()
+	_again("title:" + (id if id != "" else String(picks.get(stop, "")).get_slice(":", 1)), [N["worn_now"] % Renown.title_name(id) if id != "" else N["unworn_now"]], "ui_confirm", "wear")
+
+
+func _take(id: String) -> void:
+	var o := Contracts.find(_prof(), id)
+	var why := Contracts.take(_prof(), id)
 	if why == "":
-		prof.renown["market"] = market  # (kept: the stall as it is now)
-		prof.save()
-		_again("ware:%d" % i, [Shop.TEXT["bought"] % name], "buy")
+		_again("contract:" + id, [N["taken_now"] % Contracts.name_of(o), Noble.line("taken")], "ui_confirm", "drop")
 	else:
-		_again("ware:%d" % i, [Shop.TEXT["cant"] % why], "ui_back")
+		_again("contract:" + id, [T["cant"] % why], "ui_back", "take")
 
 
-func _buy(id: String) -> void:
-	var why := Boons.buy(_prof(), id)
-	if why == "":
-		Boons.apply(_prof(), m.main.player)
-		_again("boon:" + id, [Boons.TEXT["bought"] % [Boons.BOONS[id]["name"], Boons.level(_prof(), id)]], "buy")
-	else:
-		_again("boon:" + id, [T["cant"] % why], "ui_back")
+func _drop(id: String) -> void:
+	var o := Contracts.find(_prof(), id)
+	Contracts.drop(_prof(), id)
+	var offers: Array = Contracts.offers(_prof())
+	_again("contract:" + (String(offers[0]["id"]) if not offers.is_empty() else ""), [N["dropped_now"] % Contracts.name_of(o), Noble.line("dropped")], "ui_back", "take")
