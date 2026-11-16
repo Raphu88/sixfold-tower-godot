@@ -266,7 +266,7 @@ func _found_bought_crafted() -> void:
 	Items.DROPS["essence_chance"] = 0.0  # (the drop table: no item, no essence, then the tincture's chance)
 	_check(Items.kill_drop(5, true, "", 0.0, 1.0).has("tincture") and Items.kill_drop(5, true, "", 0.0, 0.0).is_empty() and float(Items.DROPS.get("tincture_chance", 0.0)) > 0.0,
 		"the kill drop table holds the tincture's chance (DROPS tincture_chance)")
-	_check(not Items.is_sized("tincture_fire"), "tinctures come in one size")
+	_check(not Items.ITEMS["tincture_fire"].has("scale"), "tinctures come in one size, as every item does")
 	main.tincture_drop_chance = 1.0
 	main.item_drop_chance = 0.0
 	main.gear_drop_chance = 0.0

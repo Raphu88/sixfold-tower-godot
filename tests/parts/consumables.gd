@@ -2,8 +2,9 @@ extends RefCounted
 ## Consumables with a job: fewer of them found (essence instead), monsters'
 ## states on the climber (shown on the HUD, each cured by its item), what
 ## each tower asks for (a net brings a flier down, Edge Oil cracks a shell,
-## Lantern Oil carries your light on a dark floor...), item sizes (Minor,
-## standard, Greater), old saves, the Entity's words and no banned words.
+## Lantern Oil carries your light on a dark floor...), one size of every
+## item (sizes were taken out), old saves (sized ones load as plain items),
+## the Entity's words and no banned words.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
 const I := preload("res://scripts/items.gd")
@@ -28,7 +29,7 @@ func run(smoke) -> void:
 	_drops()
 	await _states()
 	await _towers()
-	await _sizes()
+	await _one_size()
 	_saves()
 	_words()
 
@@ -84,44 +85,70 @@ func _hit(p, e, dmg := 1.0) -> void:
 
 # --- fewer drops ------------------------------------------------------------------------
 
-## The old rules (before this change), for the comparison: a kill's item chance
-## 0.1 with Healing 12 and Stamina 10 against every other droppable item at 1,
-## a cache's 0.35, a fallen climber's camp always one, three camp item cards.
+## The owner: "Still lots of consumables... just go with regular health,
+## stamina and essence, as well as the other utility items." The staples
+## (Healing, Stamina, the Essence Vial) stay common from kills; every other
+## item is rare: a few in a whole climb (before this change, about 11 rarer
+## items a climb were found outright, plus four camp item cards).
 func _drops() -> void:
-	print("consumables: fewer drops, essence instead")
+	print("consumables: staples common, every other item rare")
+	_check(I.is_staple("draught") and I.is_staple("stamina") and I.is_staple("vial") and not I.is_staple("tonic") and not I.is_staple("net"),
+		"the staples are the Healing Draught, the Stamina Draught and the Essence Vial")
+	var Train = load("res://scripts/train.gd")
+	_check(int(Train.item_price("vial")[1]) <= 5 and int(Train.item_price("draught")[1]) <= 5 and int(Train.item_price("tonic")[1]) >= 10,
+		"staples are cheap at the store (vial %d), the rest cost their worth" % int(Train.item_price("vial")[1]))
 	seed(4242)
-	var n := 20000
+	var n := 30000
 	var items := 0
 	var staples := 0
 	var essence := 0
+	var by_id := {}
 	for i in n:
 		var d: Dictionary = I.kill_drop(5, true, "gryphon")
 		if d.has("item"):
 			items += 1
+			by_id[d["item"]] = int(by_id.get(d["item"], 0)) + 1
 			if I.is_staple(d["item"]):
 				staples += 1
 		elif d.has("essence"):
 			essence += 1
-	var droppable := 0
-	for id in I.ORDER:
-		if int(I.ITEMS[id]["drop_weight"]) > 0 and not I.is_staple(id) and id != "scroll" and id != "vessel" and not id in ["warding_oil", "stoneskin", "heartroot", "unmaking_ash"]:
-			droppable += 1
-	var old_rare_per_kill := 0.1 * float(droppable) / float(droppable + 22)
-	var old_staple_per_kill := 0.1 * 22.0 / float(droppable + 22)
 	var rare_per_kill := float(items - staples) / n
 	var staple_per_kill := float(staples) / n
-	_check(staple_per_kill > old_staple_per_kill * 0.9, "Healing and Stamina Draughts are as common from kills as before (%.3f a kill; was %.3f)" % [staple_per_kill, old_staple_per_kill])
-	_check(rare_per_kill < old_rare_per_kill, "the rarer items come less often from kills (%.3f a kill; was %.3f)" % [rare_per_kill, old_rare_per_kill])
-	_check(essence > n * 0.04, "a kill that leaves no item sometimes leaves essence instead (%d of %d)" % [essence, n])
-	# A typical climb, by the same model the report used: ~88 kills, ~36 caches, ~5 fallen camps.
-	var kills := 88.0
-	var caches := 36.0
-	var fallen := 5.4
-	var before := kills * 0.1 + caches * 0.35 + fallen * 1.0
-	var after := kills * float(items) / n + caches * float(RR.RULES["item_chance"]) + fallen * float(I.DROPS["fallen_item"])
-	_check(after <= before * 0.65 and after >= before * 0.45, "about 40-50%% fewer consumables a climb (%.1f, was %.1f)" % [after, before])
-	_check(float(RR.RULES["no_item"]) > 1.0, "a cache with no item holds more essence instead")
-	_check(I.CAMP_CHOICES == 2, "a camp offers two items (and a crystal and gear), not three")
+	_check(staple_per_kill > 0.06 and int(by_id.get("draught", 0)) > int(by_id.get("stamina", 0)) and int(by_id.get("vial", 0)) > 0,
+		"staples stay common from kills (%.3f a kill: %s)" % [staple_per_kill, by_id])
+	_check(rare_per_kill < 0.02 and staples > (items - staples) * 4, "every other item is rare from kills (%.3f a kill)" % rare_per_kill)
+	_check(essence > n * 0.06, "a kill that leaves no item sometimes leaves essence instead (%d of %d)" % [essence, n])
+	# A whole typical climb, rolled: floors 1 to 11 of every tower as the
+	# planner lays them out (its kills, caches and fallen climbers' camps),
+	# each rolled as the game rolls it, plus the camps' item cards.
+	var Floors = load("res://scripts/floors.gd")
+	var climbs := 0
+	var found_staples := 0.0
+	var found_other := 0.0
+	for tid in Towers.ORDER:
+		climbs += 1
+		for f in range(1, 12):
+			var plan: Dictionary = Floors.rooms_floor(f, Towers.TOWERS[tid], false)
+			for r in 6:
+				for k in plan.get("monsters", []).size():
+					var got: Dictionary = I.kill_drop(f, true, tid)
+					if got.has("item"):
+						if I.is_staple(got["item"]):
+							found_staples += 1.0 / 6.0
+						else:
+							found_other += 1.0 / 6.0
+				for k in plan.get("chests", []).size():
+					found_other += (1.0 if randf() < float(RR.RULES["item_chance"]) else 0.0) / 6.0
+				for k in plan.get("camps", []).size():
+					found_other += (1.0 if randf() < float(I.DROPS["fallen_item"]) else 0.0) / 6.0
+	found_staples /= climbs
+	found_other /= climbs
+	var camp_cards := float(I.CAMP_CHOICES * I.CAMP_AFTER.size())
+	_check(found_other >= 2.0 and found_other <= 5.0, "a typical climb finds only a few of the rarer items outright (%.1f; it was about 11)" % found_other)
+	_check(found_other + camp_cards <= 6.5, "...a handful even with every camp's item card taken (%.1f)" % (found_other + camp_cards))
+	_check(found_staples >= 4.0, "...while staples stay common (%.1f a climb)" % found_staples)
+	_check(float(RR.RULES["no_item"]) > 1.0 and float(RR.RULES["item_chance"]) <= 0.06, "a cache seldom holds an item, and one without holds more essence instead")
+	_check(I.CAMP_CHOICES == 1, "a camp offers one item (and two crystals and gear)")
 	seed(Time.get_ticks_usec())
 
 
@@ -289,90 +316,89 @@ func _towers() -> void:
 	_check(String(f.get("handy", "")).contains("Briar Tonic") and String(f.get("handy", "")).contains("Heartroot"), "\"What's handy in this tower?\" reads the tower's needs: %s" % String(f.get("handy", "")).left(80))
 
 
-# --- sizes ---------------------------------------------------------------------------
+# --- one size -----------------------------------------------------------------------
 
-func _sizes() -> void:
-	print("consumables: Minor, standard and Greater")
-	_check(is_equal_approx(float(I.sized("draught", 1)["heal"]), 24.0) and is_equal_approx(float(I.sized("draught", 2)["heal"]), 40.0)
-		and is_equal_approx(float(I.sized("draught", 3)["heal"]), 60.0), "a Minor, standard and Greater Healing Draught heal 24, 40 and 60")
-	_check(float(I.sized("antidote", 3)["duration"]) > float(I.sized("antidote", 1)["duration"]), "a Greater Antivenom lasts longer than a Minor one")
-	_check(not I.is_sized("vial") and I.clamp_size("vial", 3) == I.STANDARD and I.is_sized("stamina") and I.is_sized("net"), "staples and the main items come in sizes; an Essence Vial doesn't")
-	_check(I.sized_name("draught", 3) == "Greater Healing Draught" and I.sized_name("draught", 1) == "Minor Healing Draught" and I.sized_name("draught", 2) == "Healing Draught",
-		"their names say the size")
+## Sizes (Minor, standard, Greater) were taken out: every item is one size.
+func _one_size() -> void:
+	print("consumables: every item is one size")
+	var sized: Array = I.ITEMS.keys().filter(func(id): return I.ITEMS[id].has("scale"))
+	var named: Array = I.ITEMS.keys().filter(func(id): return String(I.ITEMS[id]["name"]).begins_with("Minor ") or String(I.ITEMS[id]["name"]).begins_with("Greater "))
+	_check(sized.is_empty() and named.is_empty() and I.item_name("draught") == "Healing Draught" and I.item_name("draught", true) == "Draught",
+		"no item has a size (%s %s)" % [sized, named])
+	# Nothing in the game still sizes an item.
+	var left: Array = []
+	var re := RegEx.create_from_string("SIZE_ODDS|sized_name|size_note|roll_size|item_sizes|belt_entry|next_size|swap_smaller|supply_sizes|SIZE_RANK|key_size|\\b(Minor|Greater) (Healing|Stamina|Draught|Antivenom|bottles|%s)")
+	for dir in ["res://scripts", "res://scripts/towers"]:
+		for f in DirAccess.get_files_at(dir):
+			if f.ends_with(".gd") and re.search(FileAccess.get_file_as_string(dir + "/" + f)) != null:
+				left.append(f)
+	_check(left.is_empty(), "no script still gives items sizes (%s)" % [left])
 	var p = await _fresh()
 	var m = t.main
+	_check(not ("item_sizes" in p) and not p.has_method("belt_entry") and not p.has_method("next_size"), "the belt keeps counts only")
 	p.items = {}
-	_check(p.add_item("draught", 1) and p.add_item("draught", 3) and p.item_count("draught") == 2 and p.carried().size() == 1, "two sizes share one belt kind")
-	var en: Dictionary = p.belt_entry("draught")
-	_check(en["size"] == 3 and en["name"] == "Greater Healing Draught" and en["sizes"] == [3, 1], "a stack uses its biggest first, and its entry says so (%s)" % [en])
+	_check(p.add_item("draught") and p.add_item("draught") and p.item_count("draught") == 2 and p.carried().size() == 1, "two of an item share one belt kind")
 	p.hp = 10.0
 	p.heal_left = 0.0
 	p.item_sel = "draught"
 	p.use_item()
-	var greater: float = p.heal_left
+	var first: float = p.heal_left
 	p.heal_left = 0.0
 	p.hp = 10.0
 	p.use_item()
-	var minor: float = p.heal_left
-	_check(greater > minor * 2.0 and p.item_count("draught") == 0, "the Greater one healed more (%.0f) than the Minor (%.0f)" % [greater, minor])
+	var second: float = p.heal_left
+	_check(is_equal_approx(first, second) and is_equal_approx(first, float(I.ITEMS["draught"]["heal"])) and p.item_count("draught") == 0,
+		"every Healing Draught heals the same (%.0f, %.0f)" % [first, second])
 	p.heal_left = 0.0
 	p.hp = p.max_health()
-	# A sized net holds longer.
+	# A net holds as its numbers say.
 	var a = _foe("slime", p.global_position + Vector2(90, 0))
-	var b = _foe("slime", p.global_position + Vector2(-90, 0))
-	I.burst(m, {"id": "net", "to": a.global_position, "r": 40.0, "size": 3})
-	I.burst(m, {"id": "net", "to": b.global_position, "r": 40.0, "size": 1})
-	_check(a.stun > b.stun and a.chill_t > b.chill_t, "a Greater net holds longer than a Minor one")
+	I.burst(m, {"id": "net", "to": a.global_position, "r": 40.0})
+	_check(a.chill_t >= float(I.ITEMS["net"]["slow"]) - 0.01, "a net slows for its full time")
 	a.queue_free()
-	b.queue_free()
-	# A full stack: a bigger one swaps out the smallest (left at your feet).
+	# A full stack: another one stays on the floor (nothing is swapped).
 	p.items = {}
 	for i in p.max_stack("antidote"):
-		p.add_item("antidote", 1)
+		p.add_item("antidote")
 	m.item_drops.clear()
-	m.item_drops.append({"pos": p.global_position, "id": "antidote", "size": 3, "t": 30.0})
+	m.item_drops.append({"pos": p.global_position, "id": "antidote", "t": 30.0})
 	await t._frames(3)
-	_check(p.belt_entry("antidote")["size"] == 3 and p.item_count("antidote") == p.max_stack("antidote")
-		and m.item_drops.any(func(d): return d["id"] == "antidote" and int(d.get("size", 0)) == 1), "a Greater one swaps out your smallest from a full stack (it waits at your feet)")
-	# Pips: the icon shows the size.
-	var plain := Draw.Batch.new()
-	I.icon_into(plain, "draught", Vector2.ZERO, 10.0)
-	var pipped := Draw.Batch.new()
-	I.icon_into(pipped, "draught", Vector2.ZERO, 10.0, 3)
-	_check(pipped.size() > plain.size(), "a sized icon carries its pips")
-	# Drops roll sizes by depth.
-	seed(7)
-	var low := {1: 0, 2: 0, 3: 0}
-	var high := {1: 0, 2: 0, 3: 0}
-	for i in 3000:
-		low[I.roll_size("draught", 1)] += 1
-		high[I.roll_size("draught", 11)] += 1
-	seed(Time.get_ticks_usec())
-	_check(low[3] == 0 and high[3] > 600 and high[1] < low[1], "low floors give Minor and standard ones, high floors Greater ones too (%s, %s)" % [low, high])
-	# A Greater one is worth more crystals at the end.
-	var w1: Dictionary = I.break_value({"draught": 1}, {"draught": [3]})
-	var w2: Dictionary = I.break_value({"draught": 1})
-	_check(float(w1.get("stone", 0.0)) > float(w2.get("stone", 0.0)), "a Greater one breaks into more crystal")
-	_check(Entity.TIPS.has("item_sizes") and Entity.TIPS["belt"]["more"].contains("biggest first"), "the Entity explains sizes, and the belt's explanation mentions them")
+	_check(p.item_count("antidote") == p.max_stack("antidote") and m.item_drops.size() == 1, "a full stack leaves another one on the floor")
+	m.item_drops.clear()
+	p.items = {}
+	var w: Dictionary = I.break_value({"draught": 2})
+	_check(is_equal_approx(float(w.get("stone", 0.0)), float(I.ITEMS["draught"]["value"]["stone"]) * I.BREAK_SHARE * 2.0), "a belt breaks into crystal by count")
+	_check(not Entity.TIPS.has("item_sizes") and not String(Entity.TIPS["belt"]["more"]).contains("Greater") and String(Entity.TIPS["items"]["more"]).contains("Essence Vial")
+		and String(Talk.DIALOGUE["how_belt"]["lines"][0]).contains("Essence Vial"), "the Entity no longer speaks of sizes, and names the three staples")
 
 
 # --- old saves -------------------------------------------------------------------------
 
 func _saves() -> void:
-	print("consumables: old saves load")
+	print("consumables: old saves load, sized items as plain ones")
 	var path := TestRun.path("user://consumables_test.cfg")
 	var cfg := ConfigFile.new()
-	cfg.set_value("train", "supplies", {"draught": 2, "antidote": 1, "salts": 1})
+	cfg.set_value("train", "supplies", {"draught": 2, "antidote": 1, "salts": 1, "tonic@3": 1})
+	cfg.set_value("train", "store", {"sizes": {"draught": [3, 1], "antidote": [1]}, "shelf": ["draught", "draught@3", "stamina@1", "tonic", "net@3"], "outfit": []})
 	cfg.save(path)
 	var prof = P.new()
 	prof.save_path = path
 	prof.load_save()
-	_check(int(prof.supplies.get("draught", 0)) == 2 and int(prof.supplies.get("antidote", 0)) == 1, "an old save's packed supplies load")
+	_check(int(prof.supplies.get("draught", 0)) == 2 and int(prof.supplies.get("antidote", 0)) == 1 and int(prof.supplies.get("tonic", 0)) == 1
+		and not prof.supplies.keys().any(func(k): return String(k).contains("@")), "an old save's packed supplies load, a sized one as the plain item (%s)" % [prof.supplies])
+	_check(not prof.store.has("sizes"), "the old size notes are dropped")
+	var Train = load("res://scripts/train.gd")
+	var shelf: Array = Train.shelf(prof)
+	var dupes := shelf.size() != shelf.filter(func(k): return shelf.count(k) == 1).size()
+	_check(shelf.has("draught") and shelf.has("stamina") and shelf.has("net") and not dupes and not shelf.any(func(k): return String(k).contains("@")),
+		"an old shelf's sized keys show once, as the plain items (%s)" % [shelf])
+	var Shop = load("res://scripts/shop.gd")
+	_check(Shop.ware_name({"kind": "item", "id": "draught", "size": 3}) == "Healing Draught", "an old Pedlar's Greater ware is the plain item")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	var p = t.main.player
 	p.items = {"draught": 2, "antidote": 1}
-	_check(p.next_size("draught") == I.STANDARD and p.item_sizes_of("draught") == [2, 2] and p.belt_entry("antidote")["name"] == "Antivenom",
-		"items with no size noted (an old belt, the store's supplies) are standard")
+	_check(p.item_count("draught") == 2 and I.item_name("antidote") == "Antivenom" and I.item_name("draught@3") == "Healing Draught",
+		"a belt is counts of plain items")
 
 
 # --- words -----------------------------------------------------------------------------
@@ -380,10 +406,10 @@ func _saves() -> void:
 func _words() -> void:
 	print("consumables: no banned words")
 	var texts: Array = [FileAccess.get_file_as_string("res://scripts/tower_needs.gd")]
-	texts.append(JSON.stringify(I.SIZES) + JSON.stringify(I.SIZE_TEXT) + JSON.stringify(I.NET_TEXT) + JSON.stringify(R.CLIMBER_TEXT))
+	texts.append(JSON.stringify(I.NET_TEXT) + JSON.stringify(R.CLIMBER_TEXT) + JSON.stringify(I.BELT))
 	for id in I.ORDER:
 		texts.append(String(I.ITEMS[id].get("desc", "")))
-	for k in ["state_burning", "state_bleeding", "state_soaked", "state_charged", "climber_states", "poison", "item_sizes", "tower_handy", "dark_floor", "items", "belt"]:
+	for k in ["state_burning", "state_bleeding", "state_soaked", "state_charged", "climber_states", "poison", "tower_handy", "dark_floor", "items", "belt"]:
 		texts.append(JSON.stringify(Entity.TIPS.get(k, {})))
 	for k in ["how_states", "how_handy", "how_belt"]:
 		texts.append(JSON.stringify(Talk.DIALOGUE.get(k, {})))

@@ -3,7 +3,9 @@ extends Node2D
 ## impact rings, sparks and roll afterimages.
 
 const Draw := preload("res://scripts/draw_util.gd")
+const Anim := preload("res://scripts/anim.gd")
 
+var crit_until := 0  # real msec: the next damage number is a critical blow's (player.gd marks it)
 var texts: Array = []
 var bolts: Array = []
 var cones: Array = []
@@ -44,7 +46,16 @@ func text(pos: Vector2, s: String, color: Color) -> void:
 	var live: Array = texts.filter(func(t): return float(t["t"]) > TEXT_FADE)
 	for i in maxi(0, live.size() - TEXT_MAX + 1):
 		live[i]["t"] = TEXT_FADE  # (the oldest fade at once to make room)
-	texts.append({"pos": pos + Vector2(randf_range(-6.0, 6.0), 0), "text": s, "color": color, "t": TEXT_LIFE})
+	# A number pops up and arcs away to one side, then drifts up; a critical
+	# blow's is bigger and gold (anim.gd "text"). Other words rise as ever.
+	var item := {"pos": pos + Vector2(randf_range(-6.0, 6.0), 0), "text": s, "color": color, "t": TEXT_LIFE}
+	if number:
+		item["vel"] = Vector2(randf_range(-1.0, 1.0) * Anim.num("text", "drift"), -Anim.num("text", "pop"))
+		if Time.get_ticks_msec() < crit_until:
+			crit_until = 0
+			item["crit"] = true
+			item["color"] = Anim.DATA["text"]["crit_color"]
+	texts.append(item)
 
 
 ## How many floating words are fully showing (the fading ones don't count).
@@ -128,7 +139,14 @@ func ghost(pos: Vector2, radius: float, color: Color) -> void:
 func _process(delta: float) -> void:
 	for item in texts:
 		item["t"] -= delta
-		item["pos"] += Vector2(0, -30.0 * delta)
+		if item.has("vel"):
+			var v: Vector2 = item["vel"]
+			item["pos"] += v * delta
+			v.y = move_toward(v.y, -Anim.num("text", "settle"), Anim.num("text", "pull") * delta)
+			v.x = move_toward(v.x, 0.0, 60.0 * delta)
+			item["vel"] = v
+		else:
+			item["pos"] += Vector2(0, -30.0 * delta)
 	for item in bolts:
 		item["t"] -= delta
 	for item in cones:
@@ -219,7 +237,7 @@ func _draw_labels() -> void:
 		col.a = a
 		# Numbers pop in big, then settle.
 		var age: float = 0.9 - t["t"]
-		var fsize := int(14.0 + 8.0 * maxf(0.0, 1.0 - age / 0.12))
+		var fsize := int((14.0 + 8.0 * maxf(0.0, 1.0 - age / 0.12)) * (Anim.num("text", "crit_scale") if t.get("crit", false) else 1.0))
 		labels.draw_string_outline(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, 4, Color(0, 0, 0, 0.75 * a))
 		labels.draw_string(font, pos - Vector2(60, 0), t["text"], HORIZONTAL_ALIGNMENT_CENTER, 120, fsize, col)
 	if main == null:
@@ -399,7 +417,7 @@ func _draw_fields() -> void:
 		var ia: float = clampf(it["t"] / 3.0, 0.0, 1.0)
 		draw_circle(it["pos"] + Vector2(0, 6), 9.0, Color(0, 0, 0, 0.3 * ia))
 		draw_arc(ip, 13.0 + sin(t * 5.0), 0.0, TAU, 20, Color(ic, 0.45 * ia), 1.5)
-		main.Items.draw_icon(self, it["id"], ip, 9.0, ia, int(it.get("size", 0)))  # (a sized one shows its pips)
+		main.Items.draw_icon(self, it["id"], ip, 9.0, ia)
 	# Gear on the floor: its icon on a little glowing plinth in its rarity's
 	# colour (its name and glint are in _draw_labels).
 	for g in main.gear_drops:

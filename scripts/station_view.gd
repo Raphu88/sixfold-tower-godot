@@ -4,14 +4,14 @@ extends Control
 ## towers on the horizon with a window lit in each one's essence, iron
 ## columns holding up a canopy with a scalloped valance, lamps glowing under
 ## it, the station's sign, and on the walls either side something of the
-## stop you're at (the gym's rings and weights, the arena's banners, the
-## challenges' red pennants, the renown board's pinned notices, the shrine's
-## candles). Everything is drawn in code.
+## stop you're at (Training's rings and weights, the tournament's banners,
+## the Noble's curtains and crest, the renown board's pinned notices).
+## Everything is drawn in code.
 ##
 ## The small pieces the page is built from live here too: StopIcon (each
 ## stop's icon, also on the rail: rail.gd car_icon asks icon()), Tile (a
-## drill, bout, challenge, title or boon: its icon, name, a line, a medal or
-## pips, a lock), RenownBar (renown, rank and how far to the next) and
+## lesson, drill, bracket, title, contract or rank: its icon, name, a line,
+## a medal or pips, a lock), RenownBar (renown, rank and how far to the next) and
 ## StationCard (a station's plaque on the engine's board).
 
 const UI := preload("res://scripts/ui.gd")
@@ -152,14 +152,16 @@ func _dress(b, w: float, h: float, roof: float, deck: float, t: float) -> void:
 				var sx := bn.get_center()
 				b.line(sx + Vector2(-14, -14), sx + Vector2(14, 14), Art.GILT_HI, 3.0)
 				b.line(sx + Vector2(14, -14), sx + Vector2(-14, 14), Art.GILT_HI, 3.0)
-			"challenges":  # red pennants on a line
-				var y0 := roof + 26.0
-				b.line(Vector2(c.x - 50, y0), Vector2(c.x + 50, y0 + 6.0), Art.OUTLINE, 1.5)
-				for i in 5:
-					var px := c.x - 44.0 + i * 22.0
-					var py := y0 + i * 1.2
-					var sway := sin(t * 2.0 + i) * 2.0
-					b.polygon(PackedVector2Array([Vector2(px, py), Vector2(px + 16, py), Vector2(px + 8 + sway, py + 22)]), Color(0.75, 0.16, 0.14) if i % 2 == 0 else Color(0.86, 0.66, 0.24))
+			"noble":  # heavy curtains drawn back from a crest on a shield
+				var top := roof + 14.0
+				for sx in [-1.0, 1.0]:
+					b.polygon(PackedVector2Array([Vector2(c.x + sx * 6.0, top), Vector2(c.x + sx * 48.0, top), Vector2(c.x + sx * 54.0, deck - 10.0), Vector2(c.x + sx * 30.0, deck - 10.0), Vector2(c.x + sx * 14.0, c.y)]), Color(0.36, 0.08, 0.16))
+					b.line(Vector2(c.x + sx * 14.0, c.y), Vector2(c.x + sx * 34.0, c.y + 4.0), Art.GILT, 2.0)
+				b.rect(Rect2(c.x - 54, top - 4, 108, 6), Art.GILT.darkened(0.2))
+				var sh := Vector2(c.x, c.y - 30.0)
+				b.polygon(PackedVector2Array([sh + Vector2(-16, -18), sh + Vector2(16, -18), sh + Vector2(16, 2), sh + Vector2(0, 20), sh + Vector2(-16, 2)]), Art.GILT.darkened(0.25))
+				b.polygon(PackedVector2Array([sh + Vector2(-12, -14), sh + Vector2(12, -14), sh + Vector2(12, 1), sh + Vector2(0, 15), sh + Vector2(-12, 1)]), Color(0.18, 0.12, 0.3))
+				b.circle(sh + Vector2(0, -2), 4.5, Art.GILT_HI, 10)
 			"board":  # a notice board with pinned papers
 				var nb := Rect2(c.x - 46, c.y - 60, 92, 110)
 				b.rect(nb.grow(3.0), Art.OUTLINE)
@@ -171,27 +173,6 @@ func _dress(b, w: float, h: float, roof: float, deck: float, t: float) -> void:
 					b.circle(pr.position + Vector2(16, 3), 2.2, Color(0.75, 0.2, 0.18), 8)
 					for ln in 3:
 						b.rect(Rect2(pr.position + Vector2(4, 9 + ln * 6), Vector2(24 - ln * 4, 1.2)), Color(0.2, 0.15, 0.1, 0.7))
-			"market":  # a striped awning over a counter of small goods, a lantern swinging
-				var aw := Rect2(c.x - 40, deck - 78, 80, 18)
-				for i in 8:
-					b.rect(Rect2(aw.position.x + i * 10.0, aw.position.y, 10.0, aw.size.y), Color(0.75, 0.2, 0.18) if i % 2 == 0 else Color(0.9, 0.82, 0.62))
-				b.line(Vector2(aw.position.x + 4, aw.end.y), Vector2(aw.position.x + 4, deck - 24), Art.WALNUT, 3.0)
-				b.line(Vector2(aw.end.x - 4, aw.end.y), Vector2(aw.end.x - 4, deck - 24), Art.WALNUT, 3.0)
-				b.rect(Rect2(c.x - 40, deck - 30, 80, 6), Art.WALNUT)
-				for i in 4:
-					b.circle(Vector2(c.x - 27.0 + i * 18.0, deck - 36), 5.0 + Art.rnd(i + k * 3) * 2.0, Art.GILT.darkened(0.15 * i), 10)
-				var sway := sin(t * 2.4) * 3.0
-				b.line(Vector2(c.x, aw.end.y), Vector2(c.x + sway, aw.end.y + 12.0), Art.OUTLINE, 1.5)
-				Art.light(b, Vector2(c.x + sway, aw.end.y + 16.0), Vector2(26, 26), Color(1.0, 0.7, 0.35, 0.3))
-			"shrine":  # candles on a ledge, flickering
-				b.rect(Rect2(c.x - 40, deck - 30, 80, 6), Color(0.5, 0.46, 0.44))
-				for i in 4:
-					var cx := c.x - 27.0 + i * 18.0
-					var chh := 16.0 + 6.0 * Art.rnd(i + k * 5)
-					b.rect(Rect2(cx - 3, deck - 30 - chh, 6, chh), Color(0.92, 0.86, 0.72))
-					var fl := 0.85 + 0.15 * sin(t * 9.0 + i * 2.1)
-					Art.light(b, Vector2(cx, deck - 36 - chh), Vector2(30, 30), Color(1.0, 0.7, 0.35, 0.28 * fl))
-					b.polygon(PackedVector2Array([Vector2(cx - 2.5, deck - 31 - chh), Vector2(cx + 2.5, deck - 31 - chh), Vector2(cx, deck - 40 - chh - 2.0 * fl)]), Color(1.0, 0.75, 0.3))
 
 
 # --- icons ---------------------------------------------------------------------------
@@ -212,25 +193,26 @@ static func icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color, w
 			ci.draw_line(P.call(8, -8), P.call(-7, 7), col, w, true)
 			ci.draw_line(P.call(3, 7), P.call(7, 3), col, w, true)
 			ci.draw_line(P.call(-3, 7), P.call(-7, 3), col, w, true)
-		"challenges":  # a pennant on a pole
-			ci.draw_line(P.call(-6, -9), P.call(-6, 9), col, w, true)
-			ci.draw_colored_polygon(PackedVector2Array([P.call(-6, -9), P.call(8, -5), P.call(-6, -1)]), Color(col, 0.55))
-			ci.draw_polyline(PackedVector2Array([P.call(-6, -9), P.call(8, -5), P.call(-6, -1)]), col, w, true)
 		"board":  # a notice board with a pinned paper
 			ci.draw_rect(Rect2(P.call(-9, -7), Vector2(18, 13) * u), col, false, w)
 			ci.draw_rect(Rect2(P.call(-5, -4), Vector2(7, 7) * u), Color(col, 0.55))
 			ci.draw_line(P.call(-6, 6), P.call(-7, 10), col, w, true)
 			ci.draw_line(P.call(6, 6), P.call(7, 10), col, w, true)
-		"shrine":  # a candle and its flame
-			ci.draw_rect(Rect2(P.call(-3, -2), Vector2(6, 10) * u), col, false, w)
-			ci.draw_line(P.call(-7, 8), P.call(7, 8), col, w, true)
-			ci.draw_colored_polygon(PackedVector2Array([P.call(-2, -4), P.call(2, -4), P.call(0, -10)]), col)
-		"market":  # a stall: an awning over a counter
-			ci.draw_colored_polygon(PackedVector2Array([P.call(-9, -3), P.call(9, -3), P.call(7, -8), P.call(-7, -8)]), Color(col, 0.55))
-			ci.draw_polyline(PackedVector2Array([P.call(-9, -3), P.call(9, -3), P.call(7, -8), P.call(-7, -8), P.call(-9, -3)]), col, w, true)
-			ci.draw_line(P.call(-7, -3), P.call(-7, 8), col, w, true)
-			ci.draw_line(P.call(7, -3), P.call(7, 8), col, w, true)
-			ci.draw_line(P.call(-9, 3), P.call(9, 3), col, w, true)
+		"noble":  # a crown: a band and three points
+			ci.draw_colored_polygon(PackedVector2Array([P.call(-8, 5), P.call(-9, -5), P.call(-4, 0), P.call(0, -8), P.call(4, 0), P.call(9, -5), P.call(8, 5)]), Color(col, 0.55))
+			ci.draw_polyline(PackedVector2Array([P.call(-8, 5), P.call(-9, -5), P.call(-4, 0), P.call(0, -8), P.call(4, 0), P.call(9, -5), P.call(8, 5), P.call(-8, 5)]), col, w, true)
+			ci.draw_line(P.call(-8, 8), P.call(8, 8), col, w, true)
+		"lesson":  # a target: rings and a dot
+			ci.draw_arc(c, 8.0 * u, 0, TAU, 20, col, w, true)
+			ci.draw_arc(c, 4.5 * u, 0, TAU, 16, col, w, true)
+			ci.draw_circle(c, 1.8 * u, col)
+		"contract":  # a rolled scroll with a seal
+			ci.draw_rect(Rect2(P.call(-7, -8), Vector2(14, 15) * u), col, false, w)
+			ci.draw_line(P.call(-9, -8), P.call(9, -8), col, w, true)
+			ci.draw_line(P.call(-9, 7), P.call(9, 7), col, w, true)
+			ci.draw_line(P.call(-4, -4), P.call(4, -4), Color(col, 0.7), w * 0.8, true)
+			ci.draw_line(P.call(-4, -1), P.call(3, -1), Color(col, 0.7), w * 0.8, true)
+			ci.draw_circle(P.call(3, 4), 2.6 * u, Color(0.8, 0.25, 0.25))
 		"clock":  # a platform clock on its post
 			ci.draw_arc(P.call(0, -3), 6.0 * u, 0, TAU, 18, col, w, true)
 			ci.draw_line(P.call(0, -3), P.call(0, -6.5), col, w, true)
@@ -251,11 +233,6 @@ static func icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color, w
 					var out: Vector2 = Vector2(cos(a), sin(a)) * 2.6 * u + Vector2(-sin(a), cos(a)) * sx * -2.0 * u
 					ci.draw_colored_polygon(PackedVector2Array([at, at + out + out.orthogonal() * 0.35, at + out * 1.6, at + out - out.orthogonal() * 0.35]), col)
 			ci.draw_line(P.call(-2, 9), P.call(2, 9), col, w, true)
-		"boon":  # a sun-burst
-			ci.draw_arc(c, 3.5 * u, 0, TAU, 14, col, w, true)
-			for i in 8:
-				var a := TAU * i / 8.0
-				ci.draw_line(c + Vector2.from_angle(a) * 5.5 * u, c + Vector2.from_angle(a) * 8.5 * u, col, w, true)
 		_:
 			return false
 	return true

@@ -314,6 +314,16 @@ static func say(key: String, fill := {}) -> void:
 	queue.push_front({"kind": "say", "id": "", "key": key, "text": Entity.line(key, -1, fill)})
 
 
+## A line of its own, said now ahead of any tips waiting (a station's
+## lesson, a rank reached): {move}, {roll}... become your keys as it shows.
+## Said even with tips off when `always` (a lesson asked for its words).
+static func say_text(text: String, always := false) -> void:
+	if not live() or text == "" or (not tips_on() and not always):
+		return
+	queue = queue.filter(func(q): return q["kind"] != "say")
+	queue.push_front({"kind": "say", "id": "", "key": "", "text": text})
+
+
 ## A moment: its tip the first time, a short line after that.
 static func moment(tip_id: String, line_key: String, fill := {}) -> void:
 	if told(tip_id) or not tips_on():

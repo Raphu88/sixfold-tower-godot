@@ -14,6 +14,7 @@ const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Particles := preload("res://scripts/particles.gd")
+const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -85,8 +86,6 @@ var pending_weapon := ""
 ## cloak, amulet, two rings and a backpack. Kept on the player, so a new
 ## climb (a scene reload) starts afresh.
 var gear := Gear.start_gear()
-## The station's boons bought (boons.gd fx): added to what the gear adds.
-var boon_fx := {}
 ## Spare pieces carried besides what you wear (gear records), up to
 ## pack_size(). They come home to the train if you survive.
 var pack: Array = []
@@ -163,6 +162,9 @@ var dodge_cd := 0.0
 var knock := Vector2.ZERO
 var trap_slow := 1.0  # a thorn snare holds you, a sluice's water slows you (traps.gd)
 var squash := 0.0
+var _roll_len := 0.22  # how long this roll lasts (for its stretch: anim.gd)
+var _dead_age := 0.0  # how long it has lain fallen (the fold: anim.gd)
+var _heal_state := [0.0]  # the sparkle's timer while a drink mends you (anim.gd)
 var buffered := ""
 var buffer_t := 0.0
 var step_t := 0.0
@@ -189,14 +191,7 @@ var overlay: Node2D  # over the darkness: swing trails and rings
 var _wep_seg := [Vector2.ZERO, Vector2.ZERO]  # the weapon in hand, grip to tip, as last drawn (the body's own space)
 var _wep_xf := Transform2D.IDENTITY  # ...and how that space sits on the room (particles.gd lights it)
 # Items (items.gd): what you carry, and healing that is still working.
-var items := Items.START.duplicate():  # item id -> count
-	set(v):
-		items = v
-		item_sizes = {}  # (a whole new belt: its stacks are standard until noted)
-## The sizes in each stack (items.gd SIZES), biggest first: item id -> [size...].
-## A stack with none listed (or fewer than its count) holds standard ones:
-## code that only changes `items` keeps working (item_sizes_of mends it).
-var item_sizes := {}
+var items := Items.START.duplicate()  # item id -> count (every item one size)
 var vessel := {}  # the vessel on the belt (vessel.gd): {kind, amount}, while items has "vessel"
 var hits_taken := 0  # blows that landed on you (not poison or fire), this climb
 var item_sel := ""  # the item G uses
@@ -430,8 +425,6 @@ func take_gear(g, into := "") -> Dictionary:
 ## speed and the rest; Gear.total_effects), after any gear changes.
 func refresh_gear() -> void:
 	gear_fx = Gear.total_effects(gear)
-	for k in boon_fx:  # (the station's boons: boons.gd)
-		gear_fx[k] = float(gear_fx.get(k, 0.0)) + float(boon_fx[k])
 	max_sta = MAX_STA + float(gear_fx.get("stamina", 0.0))
 	sta = minf(sta, max_sta)
 	var was := max_hp
@@ -717,6 +710,8 @@ func _physics_process(delta: float) -> void:
 			_release_cast()
 	elif roll_t > 0.0:
 		roll_t -= delta
+		if roll_t <= 0.0:
+			Anim.land(main, global_position, Anim.num("roll", "land"))  # (a puff as the roll ends)
 		velocity = roll_dir * roll_speed
 		# Afterimages show exactly when you are untouchable.
 		if iframes > 0.0:
@@ -925,7 +920,7 @@ func _choose_item() -> void:
 	ring_open = false
 	var id := selected_item()
 	if id != "":
-		main.fx_text(global_position + Vector2(0, -40), String(Wheel.TEXT["item_chosen"]) % String(belt_entry(id)["name"]), Items.color(id))
+		main.fx_text(global_position + Vector2(0, -40), String(Wheel.TEXT["item_chosen"]) % Items.item_name(id), Items.color(id))
 
 
 func _close_ring() -> void:
@@ -1292,6 +1287,7 @@ func _tick_jump(delta: float) -> void:
 	if jump_t <= 0.0:
 		jump_t = 0.0
 		squash = 0.5
+		Anim.land(main, global_position, Anim.num("jump", "land"))  # (a puff where you land)
 		main.sfx("step", 0.8, -4.0)
 
 
@@ -1360,6 +1356,9 @@ func _try_roll(input: Vector2) -> bool:
 	var duration := float(Combat.CLIMBER["dash_time" if wind else "roll_time"])
 	roll_speed = float(Combat.CLIMBER["dash_speed" if wind else "roll_speed"]) * dist_mult * (1.0 + 0.15 * graft("legs"))
 	roll_t = duration
+	_roll_len = duration
+	if main != null:
+		Anim.roll_start(main, global_position, roll_dir)  # (dust kicked up behind you)
 	iframes = duration * float(Combat.CLIMBER["roll_iframes"]) + gfx("iframe")  # Phantom Treads
 	roll_cd = (duration + float(Combat.CLIMBER["roll_cooldown"])) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	roll_cd = maxf(duration + 0.02, roll_cd * (1.0 - clampf(gfx("roll_recover"), 0.0, 0.5)))  # (a Feather Token: never before the roll ends)
@@ -1429,6 +1428,7 @@ func _melee() -> bool:
 		attack_cd *= 1.0 - lerpf(desperate_speed, desperate_speed_low, clampf(1.0 - hp / max_hp, 0.0, 1.0))  # Desperation
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
+	Anim.swing(main, global_position, aim, float(swing["range"]), deg_to_rad(float(swing["arc"])), float(swing["side"]), String(w["style"]), heavy)  # (sparks along the swing's path)
 	lunge_t = 0.08
 	lunge_speed = swing["lunge"]
 	var snd: String = w["sound"]
@@ -1874,6 +1874,8 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.light_flash(contact, Color(1.0, 0.85, 0.5), 1.0, 1.5, 0.2)
 		main.hitstop(0.14)
 		main.shake(9.0)
+		if main.fx != null:
+			main.fx.crit_until = Time.get_ticks_msec() + 50  # (its number is gold and big: fx.gd)
 	else:
 		main.fx_burst(contact, dir, Color(1.0, 0.95, 0.85), 8 if heavy else 5)
 		main.sfx("hit_heavy" if heavy else hit_sound)
@@ -2860,6 +2862,7 @@ func _on_parry(source, perfect := false) -> void:
 	parry_t = 0.0
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
+	Anim.parry(main, global_position, aim, perfect)  # (glints at the blade)
 	# Steadfast II (Warden): a parry while shielded restores the barrier.
 	if barrier_hp > 0.0 and passive_rank("warden") >= 2:
 		barrier_hp = maxf(barrier_hp, minf(barrier_max, barrier_hp + barrier_max * BondScript.Bonds.passive_num("warden", 2, "restore")))
@@ -3001,12 +3004,18 @@ func _draw() -> void:
 	_cloak_drift = _cloak_drift.lerp(-lv * 4.0 if not dead else Vector2.ZERO, 1.0 - exp(-dt * 8.0))
 
 	_draw_shadow(t, dt)
-	var lift := jump_height()
+	# Motion (anim.gd, all for the eye): each step lifts the body a little, a
+	# roll stretches it, a hit makes it shiver, a fall folds it as it drops.
+	var lift := jump_height() + (Anim.bob(_walk_phase, _walk_amp) if not dead and roll_t <= 0.0 and jump_t <= 0.0 else 0.0)
+	_dead_age = _dead_age + dt if dead else 0.0
+	var shiver := Anim.shiver(hurt_t, float(Combat.CLIMBER["grace"]), t) if not dead and main != null else Vector2.ZERO
 	var side := aim.orthogonal()
 	# Squash along the facing: stretched when rolling, flattened when hit.
 	var sq_dir := roll_dir if roll_t > 0.0 else aim
-	draw_set_transform(Vector2(0, -lift), sq_dir.angle(), Vector2(1.0 + squash * 0.25, 1.0 - squash * 0.2))
-	_wep_xf = Transform2D(sq_dir.angle(), Vector2(0, -lift))
+	var stretch := Anim.roll_stretch(1.0 - roll_t / maxf(_roll_len, 0.05)) if roll_t > 0.0 else 0.0
+	var fold := Anim.crumple(_dead_age) * Anim.num("death", "crumple") if dead and main != null else 0.0
+	draw_set_transform(Vector2(0, -lift) + shiver + Vector2(0, fold * 4.0), sq_dir.angle(), Vector2(1.0 + squash * 0.25 + stretch - fold * 0.5, 1.0 - squash * 0.2 - stretch * 0.5 + fold * 0.45))
+	_wep_xf = Transform2D(sq_dir.angle(), Vector2(0, -lift) + shiver)
 	var body := Transform2D(sq_dir.angle(), Vector2.ZERO).affine_inverse()
 	_f = body.basis_xform(aim)
 	_sd = body.basis_xform(side)
@@ -3019,7 +3028,7 @@ func _draw() -> void:
 	else:
 		_draw_standing(b, look, t)
 	b.flush(self)
-	draw_set_transform(Vector2(0, -lift), 0.0, Vector2.ONE)
+	draw_set_transform(Vector2(0, -lift) + shiver, 0.0, Vector2.ONE)
 	if main != null:  # (a doll has no marks)
 		Makers.draw_core_world(self, main.profile, side, t)  # (a core mark, beneath the marks)
 		_draw_marks(side, t)
@@ -3326,6 +3335,8 @@ func _draw_overlay() -> void:
 		c.draw_line(Vector2.ZERO, to_d, Color(0.6, 0.85, 1.0, 0.9), 2.0)
 	if parry_flash > 0.0:
 		c.draw_circle(Vector2.ZERO, radius + 6.0, Color(1.0, 0.95, 0.8, 0.5 * parry_flash / 0.25))
+	if heal_left > 0.0 and not dead:  # a soft green glow while a drink mends you
+		c.draw_circle(Vector2.ZERO, radius + 7.0, Color(0.5, 1.0, 0.55, Anim.num("heal", "glow") * (0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.012))))
 	if cast_t > 0.0:
 		var b = bonds[cast_part]
 		var k3 := 1.0 - cast_t / maxf(cast_total, 0.001)
@@ -3361,6 +3372,12 @@ func _draw_swing_trail(c: Node2D) -> void:
 			for i in 5:
 				var rr := reach - i * 3.0
 				c.draw_arc(Vector2.ZERO, rr, minf(from, to), maxf(from, to), 20, Color(col, (0.75 - i * 0.14) * (1.0 - k * 0.5)), thick)
+			# A bright leading edge where the blade is now; a finisher also
+			# throws wider, heavier outer arcs (anim.gd).
+			c.draw_line(Vector2.from_angle(to) * (reach - 12.0), Vector2.from_angle(to) * (reach + 3.0), Color(1, 1, 1, 0.7 * (1.0 - k)), thick)
+			if heavy:
+				for j in int(Anim.num("swing", "heavy_arcs")):
+					c.draw_arc(Vector2.ZERO, reach + 3.0 + j * 4.0, minf(from, to), maxf(from, to), 20, Color(col.lightened(0.3), (0.5 - j * 0.15) * (1.0 - k * 0.7)), thick * Anim.num("swing", "heavy_width"))
 		"stab", "thrust":
 			var ext := sin(PI * minf(1.0, k * 1.3))
 			var tip := aim * reach * (0.6 + 0.4 * ext)
@@ -3599,48 +3616,11 @@ func selected_item() -> String:
 	return have[0] if not have.is_empty() else ""
 
 
-## The sizes in a stack, biggest first, one per item carried (standard
-## where none was noted: old saves, the store's supplies).
-func item_sizes_of(id: String) -> Array:
-	var n := item_count(id)
-	var list: Array = Array(item_sizes.get(id, [])).slice(0, n)
-	while list.size() < n:
-		list.append(Items.STANDARD)
-	list.sort()
-	list.reverse()
-	if n > 0:
-		item_sizes[id] = list
-	else:
-		item_sizes.erase(id)
-	return list
-
-
-## The size the next use of an item takes: the biggest in its stack.
-func next_size(id: String) -> int:
-	var list := item_sizes_of(id)
-	return int(list[0]) if not list.is_empty() else Items.STANDARD
-
-
-## A belt entry, as any list of the belt shows it (the HUD's slot, the
-## belt wheel, the inventory): {id, size (the next use's), name (with its
-## size: "Greater Healing Draught"), short, count, sizes (biggest first)}.
-## Draw its icon with Items.icon_into(b, id, c, s, size) for the size's pips.
-func belt_entry(id: String) -> Dictionary:
-	var size := next_size(id)
-	return {"id": id, "size": size, "name": Items.sized_name(id, size), "short": Items.sized_name(id, size, true),
-		"count": item_count(id), "sizes": item_sizes_of(id)}
-
-
-## Picks up an item (at a size: items.gd SIZES). False if you already carry
-## as many as you can.
-func add_item(id: String, size := Items.STANDARD) -> bool:
+## Picks up an item. False if you already carry as many as you can.
+func add_item(id: String) -> bool:
 	if item_room(id) != "":
 		return false
-	var list := item_sizes_of(id)
 	items[id] = item_count(id) + 1
-	list.append(Items.clamp_size(id, size))
-	item_sizes[id] = list
-	item_sizes_of(id)  # (sorted, biggest first)
 	if item_count(item_sel) <= 0:
 		# (a recall scroll or a vessel never takes the quick item from another item)
 		item_sel = selected_item() if id == "scroll" or id == "vessel" else id
@@ -3654,7 +3634,7 @@ func cycle_item() -> void:
 		return
 	var i := have.find(selected_item())
 	item_sel = have[(i + 1) % have.size()]
-	main.fx_text(global_position + Vector2(0, -40), Items.sized_name(item_sel, next_size(item_sel)), Items.color(item_sel))
+	main.fx_text(global_position + Vector2(0, -40), Items.item_name(item_sel), Items.color(item_sel))
 	main.sfx("step", 1.4, -6.0)
 
 
@@ -3666,41 +3646,23 @@ func use_item() -> bool:
 	if id == "":
 		main.fx_text(global_position + Vector2(0, -40), "No items", Color(0.7, 0.68, 0.75))
 		return false
-	var size := next_size(id)
-	if not Items.use(id, self, size):
+	if not Items.use(id, self):
 		return false
 	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
 		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
-	var list := item_sizes_of(id)
-	if not list.is_empty():
-		list.pop_front()  # (the biggest, which was used)
-	items[id] = item_count(id) - 1
-	item_sizes[id] = list
-	if item_count(id) <= 0:
-		items.erase(id)
-		item_sizes.erase(id)
-		item_sel = selected_item()
+	take_one(id)
 	return true
 
 
-## The smallest size in a stack (0 if you carry none).
-func smallest_size(id: String) -> int:
-	var list := item_sizes_of(id)
-	return int(list[-1]) if not list.is_empty() else 0
-
-
-## A bigger one for a full stack: your smallest is swapped out for it.
-## Returns the size swapped out (0 if the new one isn't bigger).
-func swap_smaller(id: String, size: int) -> int:
-	var list := item_sizes_of(id)
-	size = Items.clamp_size(id, size)
-	if list.is_empty() or size <= int(list[-1]):
-		return 0
-	var out := int(list.pop_back())
-	list.append(size)
-	item_sizes[id] = list
-	item_sizes_of(id)
-	return out
+## Takes one of an item off the belt (used, traded or given away).
+func take_one(id: String) -> void:
+	var n := item_count(id)
+	if n <= 0:
+		return
+	items[id] = n - 1
+	if item_count(id) <= 0:
+		items.erase(id)
+		item_sel = selected_item()
 
 
 ## Healing items heal over a moment, not all at once.
@@ -3709,5 +3671,6 @@ func _tick_healing(delta: float) -> void:
 		heal_left = 0.0
 		return
 	var h := minf(heal_left, heal_rate * delta)
+	Anim.heal_tick(main, global_position, _heal_state, delta)  # (a green sparkle rising while it mends)
 	hp = minf(max_health(), hp + h)
 	heal_left -= h

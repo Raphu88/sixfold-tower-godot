@@ -31,6 +31,7 @@ const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 const LightingScript := preload("res://scripts/lighting.gd")
 const ParticlesScript := preload("res://scripts/particles.gd")
+const AnimScript := preload("res://scripts/anim.gd")
 const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
@@ -55,7 +56,6 @@ const RoomStore := preload("res://scripts/room_store.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
 const ArenaScript := preload("res://scripts/arena.gd")
 const Renown := preload("res://scripts/renown.gd")
-const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Reactions := preload("res://scripts/reactions.gd")
@@ -70,6 +70,7 @@ const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
+const ContractsScript := preload("res://scripts/contracts.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -138,6 +139,8 @@ var shake_amount := 0.0
 var shake_ms := 0  # when the shake offset last changed
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
+var beat_until := 0  # real-time msec when a beast's slow beat ends (anim.gd slow_beat), after the freeze
+var beat_scale := 0.35  # the time scale during it
 var hurt_flash := 0.0
 var lighting  # the darkness layer and its lights (lighting.gd)
 var touch_active := false  # on-screen controls in use
@@ -287,6 +290,7 @@ var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
 var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
+var contracts  # the Noble's contracts in play: tracked, a thing to retrieve, paid when done (contracts.gd)
 var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
@@ -386,6 +390,10 @@ func _ready() -> void:
 	rivals = RivalsScript.new()
 	rivals.main = self
 	add_child(rivals)
+	contracts = ContractsScript.new()
+	contracts.main = self
+	add_child(contracts)
+	Renown.heard = on_renown  # (every renown gain is said, and a rank-up is a moment: on_renown)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
@@ -421,7 +429,6 @@ func _ready() -> void:
 	arena.main = self
 	add_child(arena)
 	_give_bonds()
-	player.boon_fx = Boons.fx(profile)  # (the station's boons, every climb: boons.gd)
 	player.use_heirlooms(profile.heirlooms)
 	if not profile.wear.is_empty():
 		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
@@ -780,8 +787,12 @@ func _process(delta: float) -> void:
 	if _frame_us > 0:
 		frame_ms = lerpf(frame_ms, (now_us - _frame_us) / 1000.0, 0.1)
 	_frame_us = now_us
-	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
+	var now_real := Time.get_ticks_msec()
+	if hitstop_until > 0 and now_real >= hitstop_until:
 		hitstop_until = 0
+		Engine.time_scale = slowmo_scale if slowmo else (beat_scale if beat_until > now_real else test_speed)
+	elif beat_until > 0 and hitstop_until == 0 and now_real >= beat_until:
+		beat_until = 0
 		Engine.time_scale = slowmo_scale if slowmo else test_speed
 	if on_train:
 		return  # (the train's menu takes the keys)
@@ -1033,6 +1044,8 @@ func _start_floor(n: int) -> void:
 	rod = {}
 	SpellFxScript.clear(self)  # (orbs, fields and timed casts from the library's spells)
 	ParticlesScript.clear(self)  # (sparks, embers and the little lights of spells)
+	beat_until = 0
+	AnimScript.start_ambient(self)  # (the tower's own drips, wind, ash, sand, embers or leaves)
 	walls.clear()
 	cyclones.clear()
 	waves.clear()
@@ -1097,7 +1110,7 @@ func _start_floor(n: int) -> void:
 			secret_tools.before_build(n)  # (the Designer's Reroll: the puzzle and rooms chosen for this floor)
 		if n <= 1:
 			Objectives.climb_used.clear()  # (a new climb: every kind of task is fresh)
-			RivalsScript.climb_met = 0  # (and no other climber met yet)
+			RivalsScript.new_climb(profile, first_climb)  # (and no other climber met yet; one is sure by floor 3 for a climber who never met one)
 		RivalsScript.climb_ok = not first_climb  # (no rivals on the bondless first climb)
 		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
 		if not plan.get("objective", {}).is_empty():
@@ -1132,6 +1145,10 @@ func _start_floor(n: int) -> void:
 	targets.append(stair_pos)
 	if not lost_cache.is_empty():
 		targets.append(lost_cache["pos"])
+	if contracts != null:
+		var cspot: Vector2 = contracts.plan_spot(plan, n, lost_cache.get("pos", Vector2.INF))  # (a contract's thing to retrieve: a safe patch, like the lost cache)
+		if cspot != Vector2.INF:
+			targets.append(cspot)
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
 	# Door frames, only where the wall beside an opening is really there.
 	room_view.set_doors(plan.get("posts", []).filter(func(r): return is_solid(r.get_center())))
@@ -1165,7 +1182,7 @@ func _start_floor(n: int) -> void:
 	for cp in plan.get("camps", []):
 		if randf() < float(Items.DROPS["fallen_item"]) or room_rewards == null:
 			var fid := Items.random_item(player != null and not player.bonds.is_empty(), [], false, tower)
-			item_drops.append({"pos": cp["item"], "id": fid, "size": Items.roll_size(fid, n), "t": 1e9})
+			item_drops.append({"pos": cp["item"], "id": fid, "t": 1e9})
 		else:
 			room_rewards.add_cache(cp["item"])
 	# A dark floor (tower_needs.gd DARK): your light reaches less far.
@@ -1246,6 +1263,8 @@ func _start_floor(n: int) -> void:
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
+	if contracts != null:
+		contracts.on_floor(n)  # (a reach contract done, a thing carried up the stair safe, a thing to retrieve here: contracts.gd)
 	if fog != null:
 		fog.reset()
 	cam_prev = start
@@ -1377,6 +1396,7 @@ func _open_cache() -> void:
 	fx_ring(pos, col, 70.0, 0.5, 4.0)
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
+	AnimScript.chest(self, pos, col)  # (it pops open)
 	sfx("glint", 1.3, -2.0, 0.0)
 
 
@@ -1514,6 +1534,7 @@ func lift_ward() -> void:
 	sfx("clear", 0.9, -2.0, 0.0)
 	shake(5.0)
 	fx_ring(stair_pos, Color(1.0, 0.84, 0.45), 80.0, 0.6, 4.0)
+	AnimScript.ward_lift(self)  # (the stair bursts open in gold)
 
 
 ## A scenario's grade, noticed by the beast (scenarios.gd).
@@ -1814,15 +1835,16 @@ func _enter_camp(lines: Array) -> void:
 	var said: Array = [Items.CAMP["sub"]]
 	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
 	var choices: Array = Items.camp_choices(not player.bonds.is_empty(), tower)
-	# A crystal of the tower's essence instead of a third item (fewer items,
-	# more essence: items.gd CAMP_CHOICES), and a piece of gear, one rarity
-	# row higher (the floor 9 camp's is Rare).
-	choices.append("crystal:%s:%d" % [String(tower_data().get("essence", "air")), roundi(wings.crystal_amount() * 0.6) if wings != null else 10])
+	# A crystal of the tower's essence and a smaller one of another kind
+	# instead of more items (the rarer items are rare: items.gd CAMP_CHOICES),
+	# and a piece of gear, one rarity row higher (the floor 9 camp's is Rare).
+	var camp_kind := String(tower_data().get("essence", "air"))
+	var camp_amount: int = roundi(wings.crystal_amount() * 0.6) if wings != null else 10
+	choices.append("crystal:%s:%d" % [camp_kind, camp_amount])
+	var other_kinds: Array = Essence.KINDS.keys().filter(func(k): return k != camp_kind)
+	choices.append("crystal:%s:%d" % [String(other_kinds[randi() % other_kinds.size()]), maxi(1, roundi(camp_amount * 0.6))])
 	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else "common")))
-	if Shop.merchant_open(profile):
-		choices.append("pedlar:")  # (the pedlar's stall by the fire: shop.gd)
-		tip("merchant")
-	camp = {"stage": "item", "choices": choices, "lines": said, "sizes": _card_sizes(choices)}
+	camp = {"stage": "item", "choices": choices, "lines": said}
 	_note_new_slots(choices)
 	camp_choosing = true
 	tip("camp")
@@ -1832,42 +1854,13 @@ func _enter_camp(lines: Array) -> void:
 	sfx("ready", 0.7, -4.0, 0.0)
 
 
-## The size of each item card (items.gd roll_size, by the floor): 0 for a
-## card that isn't an item.
-func _card_sizes(choices: Array) -> Array:
-	var out: Array = []
-	for c in choices:
-		var id := String(c)
-		if id.begins_with("craft:"):
-			id = id.substr(6)
-		elif id.begins_with("trade:"):
-			id = id.get_slice(":", 1)
-		out.append(Items.roll_size(id, floor_num) if Items.ITEMS.has(id) and Items.is_sized(id) else 0)
-	return out
-
-
-## A card's item size (camp["sizes"]), standard if none was rolled.
-func card_size(i: int) -> int:
-	var sz: Array = camp.get("sizes", [])
-	return int(sz[i]) if i >= 0 and i < sz.size() and int(sz[i]) > 0 else Items.STANDARD
-
-
 ## What a camp card shows: {name, desc, color, item} (item is "" for a rune).
 func camp_card(i: int) -> Dictionary:
-	var c := _camp_card(i)
-	var size := card_size(i)
-	if String(c.get("item", "")) != "" and not c.get("belt", false) and size != Items.STANDARD and Items.is_sized(String(c["item"])):
-		c["size"] = size
-		var base := String(Items.ITEMS[c["item"]]["name"])
-		c["name"] = String(c["name"]).replace(base, Items.sized_name(String(c["item"]), size))
-		c["note"] = Items.size_note(String(c["item"]), size) if String(c.get("note", "")) == "" else String(c["note"]) + "  ·  " + Items.size_note(String(c["item"]), size)
-	return c
+	return _camp_card(i)
 
 
 func _camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
-	if pick.begins_with("pedlar:") or pick.begins_with("ware:") or pick.begins_with("back:"):
-		return _pedlar_card(pick)
 	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
 		return unbound.card(pick)
 	if pick.begins_with("sb:"):
@@ -1953,7 +1946,7 @@ func choose_camp(i: int) -> void:
 		keep_heirloom(pick.substr(5))
 		return
 	if camp["stage"] == "vault":
-		_take_vault_pick(pick, card_size(i))
+		_take_vault_pick(pick)
 		return
 	if camp["stage"] == "belt":
 		_take_belt_pick(pick)
@@ -1963,12 +1956,6 @@ func choose_camp(i: int) -> void:
 		return
 	if camp["stage"] == "rival":
 		rivals.choose(i)
-		return
-	if camp["stage"] == "pedlar":
-		_pedlar_pick(pick)
-		return
-	if pick.begins_with("pedlar:"):
-		_open_pedlar()
 		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
@@ -1980,7 +1967,7 @@ func choose_camp(i: int) -> void:
 			profile.save()
 			taken.append("+ " + Items.CRYSTAL["name"] % Essence.display(ck))
 		else:
-			taken.append(_take_item(pick, "Took", card_size(i)))
+			taken.append(_take_item(pick, "Took"))
 		if player.has_bond("rune_artist"):
 			var choices: Array = Items.CAMP_RUNES.keys().map(func(r): return "rune:" + r)
 			choices.append("craft:" + Items.random_item(true))
@@ -2003,7 +1990,7 @@ func choose_camp(i: int) -> void:
 			card_focus = 0
 			return
 	else:
-		taken.append(_take_item(pick.substr(6), "Crafted", card_size(i)))
+		taken.append(_take_item(pick.substr(6), "Crafted"))
 	camp_choosing = false
 	player.set_physics_process(true)
 	for l in taken:
@@ -2013,98 +2000,12 @@ func choose_camp(i: int) -> void:
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
-# --- the pedlar at a camp (shop.gd) -------------------------------------------------
-
-## What a pedlar card shows (his stall among the camp's choices, a ware, the way back).
-func _pedlar_card(pick: String) -> Dictionary:
-	if pick.begins_with("pedlar:"):
-		return {"name": String(Shop.MERCHANT["name"]).capitalize(), "desc": Shop.TEXT["camp_desc"], "color": Color(0.95, 0.78, 0.4), "item": "", "pedlar": true,
-			"note": Shop.TEXT["theme"] % Shop.theme_name(profile, "camp", _pedlar_visit())}
-	if pick.begins_with("back:"):
-		return {"name": Shop.TEXT["camp_back"], "desc": Shop.TEXT["camp_back_desc"], "color": Color(0.6, 0.58, 0.66), "item": "", "pedlar": true}
-	var w: Dictionary = camp.get("market", {}).get("wares", [])[int(pick.get_slice(":", 1))]
-	if bool(w.get("sold", false)):
-		return {"name": Shop.TEXT["sold"], "desc": "", "color": Color(0.5, 0.48, 0.55), "item": "", "pedlar": true}
-	var price := Shop.ware_price(profile, w)
-	var held := int(profile.crystal_total(price[0])) + int(float(run_essence.get(price[0], 0.0)))
-	var note := Train.price_text(price[0], int(price[1]))
-	var g := Shop.ware_gear(w)
-	if not g.is_empty():
-		return {"name": Gear.display(g), "desc": gear_card_desc(g), "color": Gear.color(g), "item": "", "gear": g, "rim": Gear.rarity_color(g),
-			"note": note, "pedlar": true, "short": held < int(price[1])}
-	var id := String(w["id"])
-	var size := int(w.get("size", Items.STANDARD))
-	var d := Items.info(id)
-	return {"name": Items.sized_name(id, size), "desc": String(d["desc"]), "color": d["color"], "item": id, "size": size, "belt": true, "note": note,
-		"pedlar": true, "short": held < int(price[1])}
-
-
-## Which visit this is (the theme is taken in turn by it).
-func _pedlar_visit() -> int:
-	return profile.climbs * 3 + camps_done.size()
-
-
-## Sets his stall out by the fire: his wares as cards, and a way back.
-func _open_pedlar() -> void:
-	var market: Dictionary = camp.get("market", {})
-	if market.is_empty():
-		market = Shop.roll_merchant(profile, "camp", _pedlar_visit(), tower, floor_num)
-	var back: Dictionary = camp.duplicate()
-	back["market"] = market
-	var choices: Array = []
-	for k in market.get("wares", []).size():
-		choices.append("ware:%d" % k)
-	choices.append("back:")
-	camp = {"stage": "pedlar", "choices": choices, "lines": [String(market.get("said", "")), Shop.TEXT["camp_note"]], "market": market,
-		"title": "%s  ·  %s" % [String(Shop.MERCHANT["name"]).capitalize(), String(market.get("name", ""))], "back": back}
-	card_focus = 0
-	sfx("ready", 0.9, -4.0, 0.0)
-
-
-func _pedlar_pick(pick: String) -> void:
-	if pick.begins_with("back:"):
-		var back: Dictionary = camp.get("back", {})
-		back["market"] = camp.get("market", {})
-		camp = back
-		card_focus = 0
-		sfx("ui_back", 1.0, -4.0, 0.0)
-		return
-	var market: Dictionary = camp["market"]
-	var i := int(pick.get_slice(":", 1))
-	var w: Dictionary = market["wares"][i]
-	if bool(w.get("sold", false)):
-		return
-	var why := Shop.short_of(profile, w, run_essence)
-	if why != "":
-		camp["lines"] = [Shop.TEXT["cant"] % why, Shop.TEXT["camp_note"]]
-		sfx("ui_back", 1.0, -4.0, 0.0)
-		return
-	var price := Shop.ware_price(profile, w)
-	var got := Shop.pay(profile, price[0], int(price[1]), run_essence)
-	if got.is_empty():
-		return
-	var said := ""
-	if String(w["kind"]) == "gear":
-		said = _take_gear(Shop.ware_gear(w))
-	else:
-		said = _take_item(String(w["id"]), "Bought", int(w.get("size", Items.STANDARD)))
-	w["sold"] = true
-	profile.save()
-	var lines: Array = [said]
-	if int(got["carried"]) > 0:
-		lines.append(Shop.TEXT["paid_carried"] % int(got["carried"]))
-	lines.append(String(Shop.LINES["bought"][i % Shop.LINES["bought"].size()]))
-	camp["lines"] = lines
-	note_event("camp", String(notices.TEXT["camp"]) % said, null, false)
-	sfx("pickup", 0.95, -2.0, 0.0)
-
-
 # --- vaults, essence crystals and the recall scroll -------------------------------
 
 ## A vault's pedestal (wings.gd): its cards, on the camp's card screen. The
 ## monsters wait while you choose.
 func offer_vault(choices: Array, title: String, lines: Array) -> void:
-	camp = {"stage": "vault", "choices": choices, "lines": lines, "title": title, "sizes": _card_sizes(choices)}
+	camp = {"stage": "vault", "choices": choices, "lines": lines, "title": title}
 	_note_new_slots(choices)
 	camp_choosing = true
 	card_focus = 0
@@ -2114,7 +2015,7 @@ func offer_vault(choices: Array, title: String, lines: Array) -> void:
 	sfx("ready", 0.9, -4.0, 0.0)
 
 
-func _take_vault_pick(pick: String, size := Items.STANDARD) -> void:
+func _take_vault_pick(pick: String) -> void:
 	var said := ""
 	var col := Color(0.95, 0.8, 0.5)
 	if pick.begins_with("crystal:"):
@@ -2127,9 +2028,9 @@ func _take_vault_pick(pick: String, size := Items.STANDARD) -> void:
 		said = _take_gear(Gear.rec(pick.substr(5)))
 		col = Gear.color(pick.substr(5))
 	elif pick.begins_with("trade:"):
-		said = room_rewards.take(pick, size)
+		said = room_rewards.take(pick)
 	else:
-		said = _take_item(pick, "Took", size)
+		said = _take_item(pick, "Took")
 		col = Items.color(pick)
 	camp_choosing = false
 	camp = {}
@@ -2289,29 +2190,17 @@ func read_recall() -> void:
 	light_flash(player.global_position, Color(0.95, 0.82, 0.5), 2.0, 1.8, 0.6)
 
 
-func _take_item(id: String, verb: String, size := Items.STANDARD) -> String:
-	var name: String = Items.sized_name(id, size)
+func _take_item(id: String, verb: String) -> String:
+	var name: String = Items.item_name(id)
 	if player.item_room(id) == "belt":
 		# A full belt: it waits at your feet (walk off and back on to swap).
-		item_drops.append({"pos": player.global_position + Vector2(18, 10), "id": id, "size": size, "t": 1e9, "hold": true})
+		item_drops.append({"pos": player.global_position + Vector2(18, 10), "id": id, "t": 1e9, "hold": true})
 		tip("belt")
 		return Items.BELT["left"] % name
-	if player.add_item(id, size):
+	if player.add_item(id):
 		_note_belt()
-		_note_size(id, size)
 		return "%s: %s" % [verb, name]
-	var out: int = player.swap_smaller(id, size)
-	if out > 0:
-		item_drops.append({"pos": player.global_position + Vector2(18, 10), "id": id, "size": out, "t": 1e9, "hold": true})
-		_note_size(id, size)
-		return Items.SIZE_TEXT["swapped"] % [name, Items.sized_name(id, out).to_lower()]
 	return "No room for another %s" % name
-
-
-## The first sized item you take (not standard): the Entity explains sizes.
-func _note_size(id: String, size: int) -> void:
-	if Items.is_sized(id) and size != Items.STANDARD:
-		tip("item_sizes")
 
 
 ## The Entity explains the belt once it's full, and the belt wheel once
@@ -2395,6 +2284,8 @@ func pay_climb() -> String:
 		return pay_line
 	climb_paid = true
 	Renown.on_climb_end(profile, tower_data()["name"], floor_num, climb_best0, player != null and player.dead)  # (renown for the floors: renown.gd)
+	if contracts != null:
+		contracts.on_climb_end(player != null and player.dead)  # (a thing carried out is safe; a fall drops it: contracts.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -2598,29 +2489,19 @@ func _update_item_drops(delta: float) -> void:
 			d.erase("hold")  # stepped off: it can be picked up again
 		if dist > 26.0 or d.get("hold", false):
 			continue
-		var size := int(d.get("size", Items.STANDARD))
-		var name: String = Items.sized_name(d["id"], size)
+		var name: String = Items.item_name(d["id"])
 		var room: String = player.item_room(d["id"])
 		if room == "belt":
 			offer_belt_swap(d)
 			return
-		if player.add_item(d["id"], size):
+		if player.add_item(d["id"]):
 			d["t"] = 0.0
+			AnimScript.pickup(self, d["pos"], Items.color(d["id"]))  # (a small arc of sparks)
 			note_event("item", "+ " + name, Items.color(d["id"]))
 			sfx("pickup")
 			tip("items")
 			tip("inventory")
 			_note_belt()
-			_note_size(d["id"], size)
-		elif room == "stack" and size > player.smallest_size(d["id"]) and player.item_count(d["id"]) > 0:
-			# A bigger one for a full stack: your smallest stays here instead.
-			var out: int = player.swap_smaller(d["id"], size)
-			d["size"] = out
-			d["hold"] = true
-			d["t"] = maxf(float(d["t"]), Items.DROP_LIFE)
-			note_event("item", Items.SIZE_TEXT["swapped"] % [name, Items.sized_name(d["id"], out).to_lower()], Items.color(d["id"]))
-			sfx("pickup")
-			_note_size(d["id"], size)
 		elif not d.get("told", false):
 			d["told"] = true
 			notices.feed("No room for another " + name, Color(0.8, 0.78, 0.85), "item")
@@ -2658,16 +2539,12 @@ func _take_belt_pick(pick: String) -> void:
 		said = Items.BELT["leave_name"]
 	else:
 		var n: int = player.item_count(out)
-		var sizes: Array = player.item_sizes_of(out)
 		player.items.erase(out)
-		player.item_sizes.erase(out)
 		for i in n:
-			item_drops.append({"pos": player.global_position + Vector2(-10 + 7 * i, 12), "id": out, "size": int(sizes[i]) if i < sizes.size() else Items.STANDARD,
-				"t": Items.DROP_LIFE, "hold": true})
-		var size := int(d.get("size", Items.STANDARD))
-		player.add_item(d["id"], size)
+			item_drops.append({"pos": player.global_position + Vector2(-10 + 7 * i, 12), "id": out, "t": Items.DROP_LIFE, "hold": true})
+		player.add_item(d["id"])
 		d["t"] = 0.0
-		said = "+ " + Items.sized_name(d["id"], size)
+		said = "+ " + Items.item_name(d["id"])
 		col = Items.color(d["id"])
 		if player.item_sel == out or player.item_count(player.item_sel) <= 0:
 			player.item_sel = d["id"]
@@ -2693,7 +2570,6 @@ func break_belt(skip: Array = []) -> String:
 		return ""
 	belt_broken = true
 	var carried := {}
-	var sizes := {}
 	for id in player.items:
 		if Flow.is_tincture(id) and not (id in skip) and int(player.items[id]) > 0:
 			# (a tincture comes home whole: packed again for your next climb)
@@ -2702,8 +2578,7 @@ func break_belt(skip: Array = []) -> String:
 			continue
 		if not (id in skip) and id != Vessel.ID and int(player.items[id]) > 0:  # (a vessel comes home whole: Vessel.bring_home)
 			carried[id] = int(player.items[id])
-			sizes[id] = player.item_sizes_of(id)
-	var worth: Dictionary = Items.break_value(carried, sizes)
+	var worth: Dictionary = Items.break_value(carried)
 	var made: Array = []
 	for k in Essence.KINDS:
 		var amount := float(worth.get(k, 0.0))
@@ -2723,8 +2598,8 @@ func break_belt(skip: Array = []) -> String:
 
 ## Throws a Fire Flask (or another thrown item: a net, a lodestone bomb)
 ## where you aim, short of a wall: it bursts a moment later.
-func throw_flask(p, id := "fire_flask", size := Items.STANDARD) -> void:
-	var data: Dictionary = Items.sized(id, size)
+func throw_flask(p, id := "fire_flask") -> void:
+	var data: Dictionary = Items.info(id)
 	var from: Vector2 = p.global_position
 	var to := from
 	var step := 8.0
@@ -2737,7 +2612,7 @@ func throw_flask(p, id := "fire_flask", size := Items.STANDARD) -> void:
 		dist += step
 	var r: float = float(data["radius"]) * (Items.CONTRACTOR_FLASK if p.has_bond("flame_contractor") and id == "fire_flask" else 1.0)
 	var dmg: float = float(data.get("dmg", 0.0)) * (1.0 + float(data.get("per_floor", 0.0)) * maxf(0.0, floor_num - 1))
-	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r, "id": id, "size": size})
+	flasks.append({"from": from, "to": to, "t": 0.0, "total": float(data["flight"]), "dmg": dmg, "r": r, "id": id})
 
 
 func _update_flasks(delta: float) -> void:
@@ -2834,7 +2709,20 @@ func open_train() -> void:
 	Train.stock(profile)
 	profile.save()
 	menu.train_car = Train.HOME  # (it opens on your own car)
+	_rank_on_train()
 	menu.open("train")
+
+
+## A rank reached on the climb just ended (or at a station's result) whose
+## moment hasn't shown: the Entity says it at the top of your car, what it
+## opens with it, once (renown.gd unseen_rank).
+func _rank_on_train() -> void:
+	if menu == null or menu.train_page == null or Renown.unseen_rank(profile) < 0 or not ArenaScript.reopen.is_empty():  # (going on to the station: its page says it)
+		return
+	var i := Renown.unseen_rank(profile, true)
+	var words := Renown.rank_words(i)
+	menu.train_page.tips[Train.HOME] = "%s %s" % [load("res://scripts/entity.gd").line("rank_up", -1, {"rank": Renown.rank_name(i)}), String(words[1])]
+	GuideScript.also_told("rank_up")
 
 
 ## Leaves the train for a tower: your pack and packed supplies come with
@@ -2852,7 +2740,6 @@ func depart(id: String) -> void:
 func choose_tower(id: String) -> void:
 	if not choosing_tower or not Towers.TOWERS.has(id):
 		return
-	var from_train := on_train
 	if on_train:
 		# Leaving the train (Depart, or the dev tools): your pack and supplies come too.
 		Train.pack_up(profile, player)
@@ -2864,8 +2751,6 @@ func choose_tower(id: String) -> void:
 	_note_climb_start()
 	_apply_tower_look()
 	_start_floor(1)
-	if from_train:
-		Boons.on_depart(self)  # (a boon's draught on the belt, a Keen Eye's piece: boons.gd)
 	player.set_physics_process(true)
 	sfx("equip_sword", 0.8, -2.0, 0.0)
 	_greet()
@@ -4328,7 +4213,7 @@ func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 	fx_burst(pos, Vector2.ZERO, color, 18, 300.0)
 	light_flash(pos, color, 1.0 + r / 60.0, 2.0, 0.35)
 	sfx("hit_heavy", 0.7)
-	shake(4.0)
+	shake(4.0 + AnimScript.num("shake", "blast") * clampf(r / 120.0, 0.0, 1.0))
 
 
 ## Flame Contractor's Kindled: a foe your fire kills leaves burning ground.
@@ -4409,6 +4294,8 @@ func on_enemy_killed(e) -> void:
 	profile.note("slain")
 	Bestiary.slain(self, e)
 	BondScript.on_kill(self, e)  # (marks' passive ranks: bond.gd)
+	if contracts != null:
+		contracts.on_kill(String(e.kind))  # (a slay contract counts it: contracts.gd)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
@@ -4436,13 +4323,13 @@ func on_enemy_killed(e) -> void:
 	# Very rarely a slain monster leaves a charm (charms.gd LOOT).
 	if not e.is_boss() and not first_climb and randf() < charm_drop_chance:
 		drop_gear(e.global_position + Vector2(0, 10), Charms.roll(floor_num), true)
-	# Now and then a slain monster leaves an item (its size by the floor), or
+	# Now and then a slain monster leaves an item, or
 	# a little more essence instead, or rarely a tincture of its essence
 	# (items.gd DROPS; tinctures only once you're marked or Unbound).
 	if not e.is_boss():
 		var left: Dictionary = Items.kill_drop(floor_num, player != null and not player.bonds.is_empty(), tower, item_drop_chance * share, 0.0 if first_climb else tincture_drop_chance * share)
 		if left.has("item"):
-			item_drops.append({"pos": e.global_position, "id": left["item"], "size": int(left["size"]), "t": Items.DROP_LIFE})
+			item_drops.append({"pos": e.global_position, "id": left["item"], "t": Items.DROP_LIFE})
 		elif left.has("tincture"):
 			item_drops.append({"pos": e.global_position, "id": Flow.tincture_id(String(Essence.drop_for(e.kind, floor_num)[0])), "t": Items.DROP_LIFE})
 		elif left.has("essence") and tower_data().has("essence"):
@@ -4468,10 +4355,13 @@ func on_enemy_killed(e) -> void:
 	if fx != null:
 		fx.debris(e.global_position, e.color, int(e.radius * 0.8))
 	ParticlesScript.kill(self, e.global_position, e.color, e.radius, e.is_boss())
+	AnimScript.dissolve(self, e)  # (it comes apart into motes that drift to you)
 	var kill_sound: String = "kill_" + e.kind
 	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
 	shake(6.0)
+	if e.is_boss() and not e.shade:
+		AnimScript.slow_beat(self)  # (a beast falls: a beat of slow time)
 
 
 ## Hit-pause: freeze the action for a moment so impacts land.
@@ -4555,6 +4445,39 @@ func remark_arrival() -> void:
 		entity.remark_arrival()
 
 
+## Renown was earned (renown.gd earn, through Renown.heard): the line says
+## what for ("+6 renown: won a duel with Bryn"), a title made ready is said,
+## and a new rank is a moment: a banner saying what it opens, and the
+## Entity's word. On the train or at a station the moment waits for the
+## page (station_page.gd and open_train show it: rank_moment).
+func on_renown(prof, out: Dictionary) -> void:
+	if prof != profile or notices == null:
+		return
+	if String(out.get("line", "")) != "":
+		note_event("renown", String(out["line"]))
+		if player != null and not on_train and not menu_open():
+			fx_text(player.global_position + Vector2(0, -62), Renown.TEXT["earned"] % int(out["amount"]), Color(0.95, 0.8, 0.5))
+	for tid in out.get("titles", []):
+		note_event("renown", Renown.TEXT["title_up"] % Renown.title_name(String(tid)), Color(0.98, 0.86, 0.5))
+	if int(out.get("rank", -1)) >= 0 and not on_train:
+		rank_moment()
+
+
+## A rank reached and not yet marked: its banner (what it opens) and the
+## Entity's word, once. Returns the words said ([] if none was waiting).
+func rank_moment() -> Array:
+	var i := Renown.unseen_rank(profile, true)
+	if i < 0:
+		return []
+	var words := Renown.rank_words(i)
+	banner = {"title": String(words[0]), "lines": [String(words[1])], "t": 4.5, "pri": 2, "logged": true}
+	note_event("renown", String(words[1]))
+	GuideScript.say("rank_up", {"rank": Renown.rank_name(i)})
+	tip("rank_up")
+	sfx("clear", 1.25, -2.0, 0.0)
+	return words
+
+
 ## Something happened worth a line: `kind` is one of notices.gd KINDS (an
 ## item, gear, a room, a task, a pact...). It shows in the left feed if its
 ## kind does (or `to_feed` says so) and is kept in the Entity's log. Never
@@ -4577,7 +4500,7 @@ func fx_cone(origin: Vector2, dir: Vector2, reach: float, half: float, color: Co
 func shake(amount: float) -> void:
 	if not MenuScript.settings["shake"]:
 		return
-	shake_amount = maxf(shake_amount, amount)
+	shake_amount = maxf(shake_amount, amount * AnimScript.num("shake", "mult"))
 
 
 ## A brief burst of light: lightning, parries, crits, burns. It feeds the

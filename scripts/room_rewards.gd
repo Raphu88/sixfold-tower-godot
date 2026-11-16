@@ -30,10 +30,10 @@ static var TEXT := {
 	"bought": "Bought: %s",
 	"rested": "Rested",
 }
-## chest: essence (base, per floor, a dead end's times); item chance (fewer than
-## before: one with no item holds "no_item" times the essence) and gear chance;
+## chest: essence (base, per floor, a dead end's times); item chance (seldom:
+## one with no item holds "no_item" times the essence) and gear chance;
 ## rest: health a second; trader: what an item costs (base, per floor).
-static var RULES := {"chest_base": 4.0, "chest_per_floor": 1.5, "chest_rich": 1.6, "item_chance": 0.12, "no_item": 1.2, "gear_chance": 0.12, "gear_rich": 0.25,
+static var RULES := {"chest_base": 4.0, "chest_per_floor": 1.5, "chest_rich": 1.6, "item_chance": 0.04, "no_item": 1.25, "gear_chance": 0.12, "gear_rich": 0.25,
 	"rest_heal": 3.0, "trade_base": 10.0, "trade_per_floor": 2.0, "reach": 28.0, "check": 0.3}
 
 var main
@@ -138,7 +138,7 @@ func _take_chest(c: Dictionary) -> void:
 	main.notices.feed(TEXT["chest"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
 	if with_item:
 		var id := Items.random_item(not main.player.bonds.is_empty(), [], false, String(main.tower))
-		main.item_drops.append({"pos": c["pos"] + Vector2(18, 10), "id": id, "size": Items.roll_size(id, main.floor_num), "t": 1e9})
+		main.item_drops.append({"pos": c["pos"] + Vector2(18, 10), "id": id, "t": 1e9})
 	if randf() < float(RULES["gear_rich"] if c["rich"] else RULES["gear_chance"]):
 		var g = main.find_gear("", 0)
 		if not g.is_empty():
@@ -184,7 +184,7 @@ func card(pick: String) -> Dictionary:
 
 ## A trader's card taken (main.gd _take_vault_pick): pay and take it, or walk on.
 ## Returns what to say.
-func take(pick: String, size := 2) -> String:
+func take(pick: String) -> String:
 	if pick == "trade:leave":
 		for t in traders:
 			t["rearm"] = true  # (step away and come back to trade again)
@@ -198,7 +198,7 @@ func take(pick: String, size := 2) -> String:
 		return TEXT["trade_short"] % int(cost)
 	for k in main.run_essence.keys():
 		main.run_essence[k] = maxf(0.0, float(main.run_essence[k]) - cost * float(main.run_essence[k]) / held)
-	return main._take_item(id, "Bought", size)
+	return main._take_item(id, "Bought")
 
 
 func _draw() -> void:

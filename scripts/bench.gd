@@ -52,7 +52,7 @@ const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall", "v
 ## store asks: you do the work; the basic supplies follow the store's
 ## halved prices, train.gd SUPPLY_PRICE). The recall scroll is only for a Rune Artist.
 static var BREW := {
-	"draught": {"stone": 2}, "stamina": {"iron": 2}, "tonic": {"water": 4}, "vial": {"water": 16}, "smoke": {"fire": 4},
+	"draught": {"stone": 2}, "stamina": {"iron": 2}, "tonic": {"water": 4}, "vial": {"water": 3}, "smoke": {"fire": 4},
 	"fire_flask": {"fire": 10}, "edge_oil": {"blade": 12}, "warding_oil": {"iron": 12}, "haste": {"air": 10},
 	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
 	"antidote": {"stone": 6}, "heartroot": {"water": 13}, "net": {"water": 8}, "lodestone": {"iron": 10}, "briar_tonic": {"blade": 8},
@@ -617,9 +617,10 @@ static func charm_refs(profile) -> Array:
 	return out
 
 
-## What refilling a charm costs ({kind: amount}; {} when it's full).
-static func refill_cost(g) -> Dictionary:
-	var amount := Charms.refill_amount(g)
+## What refilling a charm costs ({kind: amount}; {} when it's full), less
+## the climber's renown cut (charms.gd refill_cut) given the climber.
+static func refill_cost(g, profile = null) -> Dictionary:
+	var amount := Charms.refill_amount(g, profile)
 	return {Charms.kind(g): amount} if amount > 0 else {}
 
 
@@ -627,7 +628,7 @@ static func refill_why(profile, ref: String) -> String:
 	var g := piece(profile, ref)
 	if Charms.charge_max(g) <= 0 or Charms.missing(g) <= 0:
 		return Charms.TEXT["charge_full"]
-	return short_of(profile, refill_cost(g))
+	return short_of(profile, refill_cost(g, profile))
 
 
 ## Refills a charm's spent charges with crystals of its kind (anyone can).
@@ -656,6 +657,8 @@ static func craft_why(profile, id: String) -> String:
 		return Charms.TEXT["needs_rune_artist"]
 	if not Charms.CRAFT.has(id):
 		return TEXT["nothing"]
+	if not Charms.recipe_known(profile, id):
+		return Charms.recipe_why(profile, id)  # (a recipe your rank or a contract teaches: charms.gd LOCKED)
 	if profile.chest.size() >= Train.CHEST_SIZE and profile.pack.size() >= Train.pack_size_with(profile, profile.wear):
 		return Charms.TEXT["no_room"]
 	return short_of(profile, craft_cost(id))

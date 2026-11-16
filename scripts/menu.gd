@@ -2741,11 +2741,10 @@ func _page_inventory() -> void:
 	for i in maxi(kinds, have.size()):
 		if i < have.size():
 			var id: String = have[i]
-			var s := _slot(item_row, "item:" + id, cell, p.belt_entry(id)["short"] if caption else "")
+			var s := _slot(item_row, "item:" + id, cell, Items.item_name(id, true) if caption else "")
 			s.kind = "item"
 			s.id = id
 			s.count = p.item_count(id)
-			s.item_size = p.next_size(id)
 			s.on = id == sel
 			keys.append(s.get_meta("slot"))
 		else:
@@ -2982,7 +2981,7 @@ func _show_details(key: String) -> void:
 				_detail_lines(g, "" if weaponish else WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)))
 			if arg == "charm" and has and Charms.missing(g) > 0 and not _on_train():
 				# A spent charge: feed it essence you haven't banked yet (charms.gd).
-				var amount := Charms.refill_amount(g)
+				var amount := Charms.refill_amount(g, main.profile)
 				var held := int(Charms.unbanked(main))
 				var fb := _button(Charms.TEXT["refill_run"] % amount, _feed_charm, details)
 				fb.disabled = p.dead or held < amount
@@ -3003,13 +3002,8 @@ func _show_details(key: String) -> void:
 		"item":
 			var n: int = p.item_count(arg)
 			var data: Dictionary = Items.ITEMS[arg]
-			_detail_head("item", arg, p.belt_entry(arg)["name"] if n > 0 else data["name"], Items.color(arg))
+			_detail_head("item", arg, data["name"], Items.color(arg))
 			_detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", TEXT)
-			if Items.is_sized(arg) and n > 0:  # (its sizes: the biggest is used first)
-				var note := Items.size_note(arg, p.next_size(arg))
-				if note != "":
-					_detail_text(note, Color(1.0, 0.86, 0.5))
-				_detail_text(Items.SIZE_TEXT["stack"] % ", ".join(p.item_sizes_of(arg).map(func(z): return Items.sized_name(arg, int(z)))), DIM)
 			if arg == "vessel":  # (what it holds, and that it comes home whole)
 				var V = load("res://scripts/vessel.gd")
 				_detail_text(V.TEXT["desc_state"] % V.state_text(V.carried(p)), V.color(V.carried(p)).lightened(0.3))
@@ -3243,7 +3237,7 @@ func _use_item(id: String) -> void:
 		return
 	var before: String = p.item_sel
 	p.item_sel = id
-	var used_name := Items.sized_name(id, p.next_size(id))
+	var used_name := Items.item_name(id)
 	if p.use_item():
 		toast = "Used: %s" % used_name
 	else:
@@ -4356,7 +4350,6 @@ class Slot extends Button:
 	var empty := false
 	var locked := false
 	var count := -1
-	var item_size := 0  # (an item: the size its next use takes, for its pips: items.gd SIZES)
 	var tint := Color.WHITE
 	var corner := ""  # a small label in the top left (the weapon key)
 	var rec = null  # gear: the record, so wear shows (cracks and a condition bar)
@@ -4432,7 +4425,7 @@ class Slot extends Button:
 					UI.gem_into(kb, Vector2(size.x - 8, 8), 3.5, UI.GOLD)
 					kb.flush(self)
 			"item":
-				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0 if count > 0 else 0.22, item_size)
+				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0 if count > 0 else 0.22)
 				if count >= 0:
 					var t := str(count)
 					var fs := 16
@@ -4551,6 +4544,7 @@ class BodyView extends Control:
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
 	const Palette := preload("res://scripts/palette.gd")
+	const AnimRef := preload("res://scripts/anim.gd")
 	var main
 
 	const ORDER := ["brow", "throat", "heart", "back", "hand", "legs"]  # top to bottom, as on the body
@@ -4564,6 +4558,43 @@ class BodyView extends Control:
 
 	func _process(_delta: float) -> void:
 		queue_redraw()  # the marks glow and pulse
+
+	## A mark that has grown a step since last seen (essence drunk, a tincture, a
+	## stair's banking) flares: a ring swelling out and rays turning (anim.gd "grow").
+	var _steps := {}  # part -> the step its mark was last seen at
+	var _grown := {}  # part -> when (msec) it last grew
+
+	func _note_growth() -> void:
+		var prof = main.profile
+		var now := Time.get_ticks_msec()
+		for part in prof.bonds:
+			var st: int = prof.step_for_xp(float(prof.bonds[part]["xp"]))
+			if _steps.has(part) and st > int(_steps[part]):
+				_grown[part] = now
+			_steps[part] = st
+
+	func _flourish(k: float, c: Vector2) -> void:
+		_note_growth()
+		if _grown.is_empty():
+			return
+		var now := Time.get_ticks_msec()
+		var span: float = AnimRef.num("grow", "time") * 1000.0
+		for part in _grown.keys():
+			var age := float(now - int(_grown[part]))
+			if age > span or not main.profile.bonds.has(part):
+				_grown.erase(part)
+				continue
+			var e := age / span
+			var at: Vector2 = c + SPOTS[part] * k
+			var col: Color = Bonds.BONDS[main.profile.bonds[part]["id"]]["color"]
+			var reach: float = AnimRef.num("grow", "reach") * k * (1.0 - (1.0 - e) * (1.0 - e))
+			var fade := 1.0 - e
+			draw_arc(at, reach, 0.0, TAU, 32, Color(col.lightened(0.4), 0.8 * fade), 2.5 * k + 1.0, true)
+			draw_arc(at, reach * 0.6, 0.0, TAU, 24, Color(col.lightened(0.6), 0.5 * fade), 1.5, true)
+			for i in int(AnimRef.num("grow", "rays")):
+				var a := TAU * float(i) / AnimRef.num("grow", "rays") + e * 1.5
+				draw_line(at + Vector2.from_angle(a) * reach * 0.5, at + Vector2.from_angle(a) * reach * (0.9 + 0.3 * e), Color(1.0, 0.95, 0.8, 0.8 * fade), 1.5, true)
+			draw_circle(at, 8.0 * k * (1.0 + e), Color(col.lightened(0.5), 0.35 * fade))
 
 	func _draw() -> void:
 		var font := UI.font("display")
@@ -4582,6 +4613,7 @@ class BodyView extends Control:
 			else:
 				_mark(b, part, t)
 		b.flush(self)
+		_flourish(k, c)  # (a mark that has just grown: a ring and rays)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# Names beside the marks, on leader lines.
 		var prof = main.profile

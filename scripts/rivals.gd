@@ -7,7 +7,12 @@ extends Node2D
 ##
 ## WHERE: from floor RULES "from", each floor of rooms rolls RULES "chance"
 ## until RULES "per_climb" have been met this climb (never on the bondless
-## first climb, the Proving's floor or the summit). floors.gd fixes a calm
+## first climb, the Proving's floor or the summit). A climber who has never
+## met one (the first climb after the Regard, or an older save that never
+## did) is sure to by floor RULES "sure_by" (climb_owed). A second one in a
+## climb is someone else, at a different meeting where one is left (the
+## owner: "rival climbers weren't encountered, so I think more often would
+## give the towers more life and variety"). floors.gd fixes a calm
 ## room for them (themes.gd "rival": no monsters, no piece of the task, no
 ## traps) and asks wants_room; plan["rivals"] holds {pos, room}. main.gd
 ## sets each floor up through setup().
@@ -60,6 +65,9 @@ const BODY := "res://scripts/rival.gd"
 ## The numbers.
 ##   chance / from / per_climb   how often a floor holds one, from which
 ##                               floor, and at most how many a climb
+##   sure_by                     a climber who has never met one meets one
+##                               by this floor (the next floor that can
+##                               hold one, if a floor has no room for them)
 ##   return_chance               a met rival comes back (stronger: each mark
 ##                               return_steps higher, maybe a new mark: grow_mark)
 ##   second_from, second, third_from, third   how many marks: a second from
@@ -93,7 +101,7 @@ const BODY := "res://scripts/rival.gd"
 ##   trade_crystals, trade_per_floor     crystals they offer in a swap
 ##   kept                        how many met rivals the climber remembers
 static var RULES := {
-	"chance": 0.25, "from": 2, "per_climb": 1, "return_chance": 0.35, "return_steps": 1, "grow_mark": 0.3,
+	"chance": 0.45, "from": 2, "per_climb": 2, "sure_by": 3, "return_chance": 0.35, "return_steps": 1, "grow_mark": 0.3,
 	"second_from": 4, "second": 0.5, "third_from": 8, "third": 0.4, "step_floors": 4.0, "step_spread": 1,
 	"reach": 34.0, "hp": 110.0, "hp_per_step": 10.0, "armor": 0.2, "pair_bias": 0.75, "state_seconds": 4.0,
 	"duel_yield": 0.12, "duel_left": 0.2, "duel_toll": 0.25, "duel_toll_min": 5.0, "duel_crystals": 10.0, "duel_per_floor": 2.0,
@@ -217,10 +225,15 @@ static var TEXT := {
 }
 
 ## The encounters this climb has had (main.gd counts each as a floor sets
-## it up); false on the bondless first climb; the dev tool's and tests'
+## it up); false on the bondless first climb; true while the climber has
+## never met one (main.gd, as a climb starts: RULES "sure_by"); who and
+## which meetings this climb has had ({climb, names, kinds}: a second rival
+## is someone else, at another meeting); the dev tool's and tests'
 ## switches: the next floor of rooms holds one, and which meeting.
 static var climb_met := 0
 static var climb_ok := true
+static var climb_owed := false
+static var climb_seen := {}
 static var force := false
 static var force_kind := ""
 ## Tests: a met rival always returns (1), never (0), or as RULES says (-1).
@@ -252,7 +265,23 @@ static func wants_room(floor_num: int) -> bool:
 		return true
 	if not climb_ok or floor_num < int(RULES["from"]) or climb_met >= int(RULES["per_climb"]):
 		return false
-	return randf() < float(RULES["chance"])
+	return sure(floor_num) or randf() < float(RULES["chance"])
+
+
+## True when this floor must hold one: the climber has never met a rival,
+## none has been met this climb, and it's floor RULES "sure_by" or later.
+static func sure(floor_num: int) -> bool:
+	return climb_ok and climb_owed and climb_met == 0 and floor_num >= maxi(int(RULES["sure_by"]), int(RULES["from"])) \
+		and floor_num != int(Towers.PROVING["floor"]) and floor_num < int(Towers.SUMMIT)
+
+
+## A new climb (main.gd, floor 1): none met yet; `prof` (the climber) is
+## owed a meeting if they have never met one.
+static func new_climb(prof, first_climb: bool) -> void:
+	climb_met = 0
+	climb_seen = {}
+	climb_ok = not first_climb
+	climb_owed = not first_climb and met_list(prof).is_empty()
 
 
 # --- the climber's record of them (profile.gd `rivals`) -------------------------------
@@ -376,6 +405,9 @@ func add(pos: Vector2, room := -1, kind := "") -> Dictionary:
 	climb_met += 1
 	var rec := _choose_rival()
 	var k := kind if kind != "" else (force_kind if force_kind != "" else _meeting(rec))
+	var seen := _seen()
+	seen["names"].append(String(rec.get("name", "")))
+	seen["kinds"].append(k)
 	if k == "team":
 		_pair_with_climber(rec)
 	var enc := {"pos": pos, "room": room, "kind": k, "rival": rec, "state": "wait", "face": Vector2.DOWN, "offers": [], "fade": 1.0,
@@ -395,12 +427,22 @@ func _line(k: String, rec: Dictionary) -> String:
 	return said
 
 
-## A met rival returns (stronger), or a new one is made.
+## Who and which meetings this climb has had: {climb, names, kinds} (a
+## new climb, or a profile's next climb, starts it afresh).
+func _seen() -> Dictionary:
+	if climb_seen.is_empty() or int(climb_seen.get("climb", -1)) != _climb_id():
+		climb_seen = {"climb": _climb_id(), "names": [], "kinds": []}
+	return climb_seen
+
+
+## A met rival returns (stronger), or a new one is made; never one already
+## met this climb.
 func _choose_rival() -> Dictionary:
 	var prof = main.profile if main != null else null
 	var pool: Array = []
+	var met_now: Array = _seen()["names"]
 	for r in state(prof).values():
-		if r is Dictionary and r.has("name") and int(r.get("climb", -1)) != _climb_id():
+		if r is Dictionary and r.has("name") and int(r.get("climb", -1)) != _climb_id() and not String(r["name"]) in met_now:
 			pool.append(r)
 	var back := randf() < float(RULES["return_chance"]) if force_return < 0 else force_return == 1
 	if not pool.is_empty() and back:
@@ -432,6 +474,7 @@ func _climb_id() -> int:
 ## A new rival for a floor of a tower: a name, a look, gear and marks.
 func new_rival(floor_num: int, tid: String) -> Dictionary:
 	var used: Array = state(main.profile if main != null else null).values().map(func(r): return String(r.get("name", "")) if r is Dictionary else "")
+	used.append_array(_seen()["names"] if main != null else [])
 	var names: Array = NAMES.filter(func(n): return not n in used)
 	if names.is_empty():
 		names = NAMES
@@ -475,25 +518,40 @@ static func roll_bonds(floor_num: int, tid: String) -> Array:
 	return out
 
 
-## The meeting: a grudge wants a duel, a debt brings a gift, else the weights.
+## The meeting: a grudge wants a duel, a debt brings a gift, else the
+## weights, among the meetings this climb hasn't had yet (where one is left).
 func _meeting(rec: Dictionary) -> String:
 	if rec.get("returning", false) and int(rec.get("robbed", 0)) > 0:
 		return "duel"
 	if rec.get("returning", false) and rec.get("owed", false):
 		return "gift"
 	var fl: int = main.floor_num if main != null else 2
+	var open: Array = MEETINGS.keys().filter(func(k): return fl >= int(MEETINGS[k].get("from", 1)))
+	var had: Array = _seen()["kinds"] if main != null else []
+	var fresh: Array = open.filter(func(k): return not k in had)
+	if not fresh.is_empty():
+		open = fresh
 	var total := 0.0
-	for k in MEETINGS:
-		if fl >= int(MEETINGS[k].get("from", 1)):
-			total += float(MEETINGS[k].get("weight", 1.0))
+	for k in open:
+		total += _weight(k)
 	var roll := randf() * total
-	for k in MEETINGS:
-		if fl < int(MEETINGS[k].get("from", 1)):
-			continue
-		roll -= float(MEETINGS[k].get("weight", 1.0))
+	for k in open:
+		roll -= _weight(k)
 		if roll <= 0.0:
 			return k
-	return "trade"
+	return String(open[-1]) if not open.is_empty() else "trade"
+
+
+## A meeting's weight: MEETINGS', and a worn title may make teaming up likelier.
+func _weight(k: String) -> float:
+	var w := float(MEETINGS[k].get("weight", 1.0))
+	return w * float(terms()["team"]) if k == "team" else w
+
+
+## How climbers treat you, from the title you wear (titles.gd rival_terms:
+## friendlier trades, more offers to team up, a smaller toll, bets).
+func terms() -> Dictionary:
+	return load("res://scripts/titles.gd").rival_terms(main.profile if main != null else null)
 
 
 ## One who offers to team up often carries a mark whose state reacts with a
@@ -677,7 +735,6 @@ func card(pick: String) -> Dictionary:
 				"item":
 					c["item"] = String(give["id"])
 					c["color"] = Items.color(String(give["id"]))
-					c["size"] = int(give.get("size", Items.STANDARD))
 					what = String(Items.info(String(give["id"])).get("desc", ""))
 				"gear":
 					c["gear"] = give["rec"]
@@ -748,7 +805,7 @@ func _close() -> void:
 func thing_name(t: Dictionary) -> String:
 	match String(t.get("type", "")):
 		"item":
-			return Items.sized_name(String(t["id"]), int(t.get("size", Items.STANDARD)))
+			return Items.item_name(String(t["id"]))
 		"gear":
 			return Gear.display(t["rec"])
 		"crystal":
@@ -764,11 +821,7 @@ static func worth(t: Dictionary) -> float:
 	match String(t.get("type", "")):
 		"item":
 			var pr: Array = Train.item_price(String(t["id"]))
-			var size_k := 1.0
-			var sz := int(t.get("size", Items.STANDARD))
-			if sz != Items.STANDARD and Items.is_sized(String(t["id"])):
-				size_k = 0.6 if sz < Items.STANDARD else 1.5
-			return maxf(4.0, float(pr[1])) * size_k
+			return maxf(4.0, float(pr[1]))
 		"gear":
 			return float(Train.gear_price(t["rec"]))
 		"crystal", "essence":
@@ -785,7 +838,7 @@ func make_offers() -> Array:
 	if Gear.is_gear(g):
 		gives.append({"type": "gear", "rec": g})
 	var id := Items.random_item(main.player != null and not main.player.bonds.is_empty(), ["scroll", "vessel"], false, String(main.tower))
-	gives.append({"type": "item", "id": id, "size": Items.roll_size(id, fl)})
+	gives.append({"type": "item", "id": id})
 	var kind := String(color_kind(enc_tower()))
 	gives.append({"type": "crystal", "kind": kind, "amount": roundf(float(RULES["trade_crystals"]) + float(RULES["trade_per_floor"]) * fl)})
 	gives.shuffle()
@@ -810,7 +863,7 @@ static func color_kind(tid: String) -> String:
 ## fair_low and fair_high of it), else that worth in crystals of a kind you
 ## hold, else in unbanked essence.
 func _want_for(give: Dictionary, asked: Array) -> Dictionary:
-	var v := worth(give)
+	var v := worth(give) * float(terms()["trade_ask"])  # (a worn title can make them ask less: titles.gd rival_terms)
 	var p = main.player
 	var best := {}
 	var best_d := INF
@@ -819,7 +872,7 @@ func _want_for(give: Dictionary, asked: Array) -> Dictionary:
 		for id in p.carried():
 			if id in ["scroll", "vessel"]:
 				continue
-			cands.append({"type": "item", "id": id, "size": p.smallest_size(id)})
+			cands.append({"type": "item", "id": id})
 		for r in p.pack:
 			if Gear.is_gear(r):
 				cands.append({"type": "gear", "rec": r})
@@ -900,20 +953,9 @@ func pay(want: Dictionary) -> bool:
 	return true
 
 
-## Takes one of an item from the belt (the smallest of its stack).
+## Takes one of an item from the belt.
 static func take_item(p, id: String) -> void:
-	var n: int = p.item_count(id)
-	if n <= 0:
-		return
-	var list: Array = p.item_sizes_of(id)
-	if not list.is_empty():
-		list.pop_back()
-	p.items[id] = n - 1
-	p.item_sizes[id] = list
-	if p.item_count(id) <= 0:
-		p.items.erase(id)
-		p.item_sizes.erase(id)
-		p.item_sel = p.selected_item()
+	p.take_one(id)
 
 
 ## Takes unbanked essence, spread over its kinds; what was taken.
@@ -931,7 +973,7 @@ func take_essence(amount: float) -> float:
 func give(t: Dictionary) -> String:
 	match String(t["type"]):
 		"item":
-			return main._take_item(String(t["id"]), "Traded", int(t.get("size", Items.STANDARD)))
+			return main._take_item(String(t["id"]), "Traded")
 		"gear":
 			return main._take_gear(t["rec"])
 		"crystal":
@@ -1075,7 +1117,7 @@ func spare() -> bool:
 	p.iframes = maxf(p.iframes, 2.0)
 	# The toll: a share of your unbanked essence, else a piece from your pack.
 	var toll: String = TEXT["toll_none"]
-	var share := roundf(purse() * float(RULES["duel_toll"]))
+	var share := roundf(purse() * float(RULES["duel_toll"]) * float(terms()["toll"]))  # (a worn title may halve it: titles.gd)
 	if share >= float(RULES["duel_toll_min"]):
 		toll = TEXT["toll_essence"] % int(take_essence(share))
 	elif not p.pack.is_empty():
@@ -1285,9 +1327,9 @@ func take_gift(enc: Dictionary) -> void:
 	main.note_event("rival", TEXT["gift_taken"] % rec["name"] + ": " + got, color_of(rec))
 
 
-func _titles(got: Dictionary) -> void:
-	for tid in got.get("titles", []):
-		main.note_event("renown", Renown.TEXT["title_up"] % Renown.title_name(String(tid)), UI.GILT)
+## (A title a deed made ready is said by main.gd on_renown, as every gain is.)
+func _titles(_got: Dictionary) -> void:
+	pass
 
 
 # --- the HUD ----------------------------------------------------------------------------------

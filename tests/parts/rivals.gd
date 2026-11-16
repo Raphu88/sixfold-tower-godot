@@ -1,6 +1,8 @@
 extends RefCounted
-## Rival climbers (rivals.gd, rival.gd): how often floors hold one, and that
-## they never block the way; the four meetings (a fair trade; a duel won and
+## Rival climbers (rivals.gd, rival.gd): how often floors hold one (about
+## one floor in three, up to two a climb, and sure by floor 3 for a climber
+## who never met one), that a second is someone else at another meeting,
+## and that they never block the way; the four meetings (a fair trade; a duel won and
 ## lost without dying; teaming up, which shares essence and finds and lets a
 ## one-mark climber's spell react with the rival's; helping a wounded
 ## climber or taking their hoard); the climber's record of them, the Renown
@@ -31,6 +33,7 @@ var dir := Vector2.RIGHT
 func run(smoke) -> void:
 	t = smoke
 	_placement()
+	await _variety()
 	await _live_floor()
 	await _trade()
 	await _duel()
@@ -109,12 +112,14 @@ func _placement() -> void:
 	print("rivals: how often, and where")
 	Rv.climb_ok = true
 	Rv.force = false
+	Rv.climb_owed = false
+	seed(2468)
 	var with := 0
 	var total := 0
 	var bad: Array = []
 	var floors := [2, 3, 4, 5, 7, 8, 9, 10, 11]
 	for tid in Towers.ORDER:
-		for k in 45:
+		for k in 60:
 			var n: int = floors[k % floors.size()]
 			Rv.climb_met = 0
 			var plan := Floors.rooms_floor(n, Towers.TOWERS[tid])
@@ -135,14 +140,52 @@ func _placement() -> void:
 			if not Reach.plan_check(plan)["ok"]:
 				bad.append("%s %d: the floor can't be crossed" % [tid, n])
 	var rate := float(with) / float(maxi(total, 1))
-	_check(rate > 0.14 and rate < 0.34, "about one floor in four holds another climber (%d of %d plans: %.2f)" % [with, total, rate])
+	_check(rate > 0.24 and rate < 0.52, "about one floor in three holds another climber (%d of %d plans: %.2f; it was one in five)" % [with, total, rate])
 	_check(bad.is_empty(), "...in a calm room of their own (not the start, stair or gallery), with no monsters or task piece there, and every floor can still be crossed (%s)" % [bad])
-	# At most one a climb, never on the bondless first climb or floors 1, 6 and the summit.
+	# Up to two a climb, never on the bondless first climb or floors 1, 6 and the summit.
+	_check(int(Rv.RULES["per_climb"]) == 2 and float(Rv.RULES["chance"]) >= 0.4, "up to two a climb, at a chance of %.2f a floor" % float(Rv.RULES["chance"]))
 	Rv.climb_met = 1
+	var second := 0
+	for k in 60:
+		second += Floors.rooms_floor(2 + k % 4, Towers.TOWERS["gryphon"]).get("rivals", []).size()
+	Rv.climb_met = 2
 	var after := 0
 	for k in 60:
 		after += Floors.rooms_floor(2 + k % 4, Towers.TOWERS["gryphon"]).get("rivals", []).size()
-	_check(after == 0, "once a climb has met one, no more that climb")
+	_check(second > 5 and after == 0, "after one, a second can come (%d in 60 floors); after two, no more that climb" % second)
+	# Whole climbs: most meet two, nearly every one meets at least one.
+	var per := {0: 0, 1: 0, 2: 0}
+	for c in 36:
+		Rv.climb_met = 0
+		var ctid: String = Towers.ORDER[c % Towers.ORDER.size()]
+		for f in [2, 3, 4, 5, 7, 8, 9, 10, 11]:
+			Rv.climb_met += Floors.rooms_floor(f, Towers.TOWERS[ctid]).get("rivals", []).size()
+		per[mini(Rv.climb_met, 2)] += 1
+	_check(per[0] <= 3 and per[2] >= 18, "a climb meets other climbers as a regular part of it (climbs with 0/1/2: %s)" % [per])
+	# Sure by floor 3 for a climber who has never met one.
+	Rv.climb_owed = true
+	var owed_ok := 0
+	for k in 24:
+		Rv.climb_met = 0
+		owed_ok += mini(1, Floors.rooms_floor(3, Towers.TOWERS[Towers.ORDER[k % Towers.ORDER.size()]]).get("rivals", []).size())
+	_check(owed_ok == 24 and Rv.sure(3) and not Rv.sure(2), "a climber who never met one is sure to by floor 3 (%d of 24 floor-3 plans)" % owed_ok)
+	Rv.climb_met = 1
+	_check(not Rv.sure(4), "...once one is met, the floors roll as usual")
+	Rv.climb_met = 0
+	Rv.climb_ok = false
+	_check(not Rv.sure(3), "...never on the bondless first climb")
+	Rv.climb_ok = true
+	var fresh = P.new()
+	Rv.new_climb(fresh, false)
+	_check(Rv.climb_owed and Rv.climb_met == 0, "the first climb after the Regard (no rival met yet) is owed one")
+	fresh.rivals = {"aldo_1": {"id": "aldo_1", "name": "Aldo"}}
+	Rv.new_climb(fresh, false)
+	_check(not Rv.climb_owed, "...and a climber who has met one is not")
+	Rv.new_climb(fresh, true)
+	_check(not Rv.climb_ok and not Rv.climb_owed, "...nor the bondless first climb")
+	Rv.climb_owed = false
+	Rv.climb_ok = true
+	seed(Time.get_ticks_usec())
 	Rv.climb_met = 0
 	Rv.climb_ok = false
 	var first := 0
@@ -154,6 +197,37 @@ func _placement() -> void:
 	Rv.force = true
 	_check(Rv.wants_room(3), "the switch makes the next floor hold one")
 	Rv.force = false
+
+
+## Two in one climb: someone else, at another meeting.
+func _variety() -> void:
+	print("rivals: a second in a climb is someone else")
+	await _marked({"hand": "stormcaller"})
+	var main = t.main
+	var p = main.player
+	main.floor_num = 4
+	var diff_name := 0
+	var diff_kind := 0
+	var kinds := {}
+	for k in 24:
+		main.profile.climbs += 1  # (a new climb each time)
+		Rv.force_return = 1 if k % 2 == 0 else 0
+		var a: Dictionary = main.rivals.add(p.global_position + dir * 120.0, -1)
+		var b: Dictionary = main.rivals.add(p.global_position + dir * 160.0, -1)
+		if String(a["rival"]["name"]) != String(b["rival"]["name"]):
+			diff_name += 1
+		var forced: bool = b["rival"].get("returning", false) and (int(b["rival"].get("robbed", 0)) > 0 or bool(b["rival"].get("owed", false)))  # (a grudge or a debt picks its own meeting)
+		if String(a["kind"]) != String(b["kind"]) or forced:
+			diff_kind += 1
+		kinds[a["kind"]] = true
+		kinds[b["kind"]] = true
+		main.rivals._remember(a)
+		main.rivals.list.clear()
+	Rv.force_return = -1
+	_check(diff_name == 24, "the second rival of a climb is never the first one again (%d of 24)" % diff_name)
+	_check(diff_kind == 24, "...and meets you another way (%d of 24)" % diff_kind)
+	_check(kinds.has("trade") and kinds.has("duel") and kinds.has("team") and kinds.has("rescue"), "all four meetings turn up (%s)" % [kinds.keys()])
+	main.rivals.list.clear()
 
 
 ## A floor as the game builds it, a rival forced onto it: they stand there,
@@ -528,11 +602,14 @@ func _remembered() -> void:
 	menu.close()
 	await t._frames(2)
 	# Titles and renown.
+	# (Titles are granted by the Noble now, once their rank is reached too:
+	# a deed makes one ready at the Noble, tests/parts/stations.gd grants one.)
 	rec["duels_won"] = 3
 	rec["rescued"] = 1
+	Renown.state(main.profile)["points"] = maxi(Renown.points(main.profile), Renown.needed(2))
 	Renown.check_titles(main.profile)
-	var got: Array = Renown.titles(main.profile)
-	_check(got.has("duelist") and got.has("helping_hand") and got.has("shieldmate"), "deeds with other climbers earn titles (%s)" % [got])
+	var got: Array = Renown.state(main.profile)["ready"]
+	_check(got.has("duelist") and got.has("helping_hand") and got.has("shieldmate") and Renown.on_offer(main.profile).has("duelist"), "deeds with other climbers make titles ready at the Noble (%s)" % [got])
 
 
 # --- the Entity ------------------------------------------------------------------------------------
@@ -569,7 +646,7 @@ func _first_time() -> void:
 	_check(Entity.ROOM_TIPS.get("rival", "") == "rivals", "...and walking into their room says it too")
 	_check("how_rivals" in Talk.DIALOGUE["how"]["choices"] and Talk.shows(main, "how_rivals") and Talk.shows(main, "how_rivals_more"), "\"Who are the other climbers?\" under \"How do things work here?\"")
 	var said := Talk.fill(String(Talk.DIALOGUE["how_rivals"]["lines"][0]), Talk.facts(main, Talk.DIALOGUE["how_rivals"]))
-	_check(said.contains("25%") and not said.contains("{"), "...answered from the game's own numbers (%s)" % said)
+	_check(said.contains("%d%%" % int(round(float(Rv.RULES["chance"]) * 100.0))) and said.contains("twice") and not said.contains("{"), "...answered from the game's own numbers (%s)" % said)
 
 
 func _saves() -> void:

@@ -45,6 +45,7 @@ const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Layout := preload("res://scripts/layout.gd")
 const Essence := preload("res://scripts/essence.gd")
+const Anim := preload("res://scripts/anim.gd")
 
 ## A banner fades in and out over these (seconds), and holds at most this
 ## long (a task or a note a little longer; a note by its length).
@@ -119,6 +120,7 @@ static var KINDS := {
 	"fall": {"name": "A fall", "color": Color(0.85, 0.7, 0.6), "sign": "down", "feed": false},
 	"news": {"name": "News", "color": Color(0.925, 0.89, 0.81), "sign": "dot", "feed": true},
 	"rival": {"name": "Another climber", "color": Color(0.95, 0.82, 0.62), "sign": "diamond", "feed": true},
+	"contract": {"name": "A contract", "color": Color(0.92, 0.8, 0.98), "sign": "diamond", "feed": true},
 }
 
 ## Words (all of them here, for the Data editor).
@@ -636,6 +638,9 @@ func draw_feed(ci: CanvasItem, unit: Transform2D, view: Vector2, at: Vector2) ->
 		for row in rows:
 			tw = maxf(tw, font.get_string_size(String(row), HORIZONTAL_ALIGNMENT_LEFT, -1, FEED_SIZE).x)
 		var r := Rect2(at.x, y, tw + 26.0, FEED_H * rows.size())
+		# A new line slides in from the edge (never off the screen), quickly.
+		var born := clampf((FEED_SHOW - float(f["t"])) / maxf(Anim.num("ui", "feed_in"), 0.01), 0.0, 1.0)
+		r.position.x -= (1.0 - born) * (1.0 - born) * minf(Anim.num("ui", "feed_slide"), at.x)
 		UI.hgrad_into(batch, Rect2(r.position, Vector2(r.size.x * 0.7, r.size.y - 1.0)), Color(UI.VOID, 0.62 * a), Color(UI.VOID, 0.5 * a))
 		UI.hgrad_into(batch, Rect2(r.position + Vector2(r.size.x * 0.7, 0), Vector2(r.size.x * 0.3 + 14.0, r.size.y - 1.0)), Color(UI.VOID, 0.5 * a), Color(UI.VOID, 0.0))
 		sign_into(batch, String(KINDS.get(f["kind"], KINDS["news"])["sign"]), r.position + Vector2(8.0, FEED_H * 0.5 - 0.5), 3.6, Color(f["color"], a))

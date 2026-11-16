@@ -38,7 +38,8 @@ const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Stations := preload("res://scripts/stations.gd")
 const Renown := preload("res://scripts/renown.gd")
-const Boons := preload("res://scripts/boons.gd")
+const Titles := preload("res://scripts/titles.gd")
+const Contracts := preload("res://scripts/contracts.gd")
 const Entity := preload("res://scripts/entity.gd")
 const Guide := preload("res://scripts/guide.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
@@ -56,18 +57,16 @@ static var HELP := {
 	"rail:exit": "Back to the title screen. Your climber is saved as they are.",
 	"rail:quit": "Closes the game. Your climber is saved as they are.",
 	"rail:leave_station": "Back to the train. The station stays where it is.",
-	"rail:gym": "The Training Gym: drills with a goal and a medal.",
-	"rail:arena": "The Tournament Arena: bouts for renown and crystals. A loss costs only the fee.",
-	"rail:challenges": "Challenges: one-off fights with a twist. Each pays the first time you win it.",
-	"rail:board": "The Renown Board: your renown, your rank, and titles to wear.",
-	"rail:shrine": "The Boon Shrine: boons that go with you on every climb.",
-	"rail:market": "The Pedlar's Stall: a few wares on a theme, new at every station. He sets up once your rank is high enough.",
+	"rail:gym": "Training: short lessons on the basics, with me talking you through, and medal drills.",
+	"rail:arena": "The Tournament: brackets of three rounds against other climbers. Nobody dies; a loss costs only the fee.",
+	"rail:noble": "The Noble: titles granted by renown (each helps with someone), and contracts for the towers.",
+	"rail:board": "The Renown Board: your rank, what the next one opens, every rank, your deeds and the climbers you've met.",
 	"rail:resume": "Back to the climb.",
 	"rail:inventory": "Your gear, items and heirlooms.",
 	# --- the engine -------------------------------------------------------------------------
 	"tower": "{Tower}: {essence} essence, and {beast} at the top. {best_line}",
 	"depart": "Pull it and the train leaves for {tower}. Your pack and your belt go with you.",
-	"board:stations": "Turns the board to the stations: drills, bouts and boons between towers.",
+	"board:stations": "Turns the board to the stations: Training, tournaments and the Noble, between towers.",
 	"board:towers": "Turns the board back to the six towers.",
 	"station": "{station}: a stop between towers. Choose it, then pull its lever.",
 	"go_station": "Stops the train at {station}.",
@@ -194,7 +193,7 @@ static var HELP := {
 	"setting:world_zoom": "How close the camera sits in the tower. This one: {choice}.",
 	"setting:music": "How loud the music is.",
 	"setting:sounds": "How loud everything else is.",
-	"setting:shake": "The screen shakes on heavy hits.",
+	"setting:shake": "The screen shakes on heavy hits, blasts and a beast's blows. Turn it off and the picture stays still.",
 	"setting:help": "Keeps the list of controls on screen while you play (H).",
 	"setting:hud_scale": "How big the bars and slots are in play. This one: {choice}.",
 	"setting:lighting": "Lighting quality. Lower is kinder to a phone. This one: {choice}.",
@@ -223,17 +222,19 @@ static var HELP := {
 	"tree_act:choose": "Chooses this for good.",
 	"tree_act:learn": "Learns this.",
 	# --- a station ---------------------------------------------------------------------------------------
+	"pick:lesson": "{name}: a short lesson. {desc}",
 	"pick:drill": "{name}: {desc}",
-	"pick:bout": "{name}: a bout. Its card shows the foes, the fee and the pay.",
-	"pick:challenge": "{name}: {desc}",
+	"pick:bracket": "{name}: three rounds against climbers. Its card shows them, the fee and the prize.",
 	"pick:title": "{name}: {desc}",
-	"pick:boon": "{name}: {desc}",
+	"pick:contract": "{name}: {desc}",
+	"pick:rank": "{name}: {desc}",
 	"pick:rival": "{name}, a climber you met: {desc}",
-	"pick:ware": "{name}: one of the Pedlar's wares today. Its card shows the price and Buy.",
-	"pick:closed": "The Pedlar hasn't set up yet. His card says which rank opens him.",
-	"station_do:begin": "Begins it. A fall here costs nothing but the try.",
-	"station_do:wear": "Wears this title on your book and the rail.",
-	"station_do:buy": "Buys what the card shows: a boon's next level, or the Pedlar's ware (paid in crystals).",
+	"station_do:begin": "Begins it in the station's arena. A fall here costs nothing but the try.",
+	"station_do:skip": "Marks this lesson as known without playing it. It still counts toward the set.",
+	"station_do:grant": "Asks the Noble to grant this title. You'll wear it at once; its benefits apply while you do.",
+	"station_do:wear": "Wears this title (or takes it off). Only the worn title gives its benefits.",
+	"station_do:take": "Takes this contract. It's tracked at the top of the screen while you climb.",
+	"station_do:drop": "Gives this contract up. The Noble has others.",
 	# --- anywhere ----------------------------------------------------------------------------------------
 	"back": "Back where you came from.",
 	"close": "Closes this page.",
@@ -299,7 +300,7 @@ static func key_for(b: Control) -> String:
 				return "shelf:bestiary" if s == "bestiary" else "shelf"
 			"buy":
 				var bits := s.split(":")
-				if bits.size() == 1 and Items.ITEMS.has(Shop.key_id(s)):
+				if bits.size() == 1 and Items.ITEMS.has(Items.old_id(s)):
 					return "buy:supply"
 				var last: String = bits[bits.size() - 1]
 				return "buy:" + last if last in ["chest", "wear", "hold"] else "buy"
@@ -490,8 +491,8 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 				f["piece"] = Gear.display(e["rec"])
 		if s.begins_with("supply:") and prof != null:
 			var sk := s.get_slice(":", 1)
-			var p: Array = Train.supply_price(prof, Shop.key_id(sk), Shop.key_size(sk))
-			f["piece"] = Items.sized_name(Shop.key_id(sk), Shop.key_size(sk))
+			var p: Array = Train.supply_price(prof, Items.old_id(sk))
+			f["piece"] = Items.item_name(sk)
 			f["price"] = Train.price_text(p[0], int(p[1]))
 		if s.begins_with("bench:item:") and prof != null:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
@@ -518,10 +519,10 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			_item_facts(String(m.inv_sel).get_slice(":", 2), f)
 	if key == "buy:supply" and prof != null:
 		var bk := str(b.get_meta("buy"))
-		var id := Shop.key_id(bk)
+		var id := Items.old_id(bk)
 		_item_facts(id, f)
-		f["piece"] = Items.sized_name(id, Shop.key_size(bk))
-		var p: Array = Train.supply_price(prof, id, Shop.key_size(bk))
+		f["piece"] = Items.item_name(id)
+		var p: Array = Train.supply_price(prof, id)
 		f["price"] = Train.price_text(p[0], int(p[1]))
 	# Tinctures and crystals (pour_page.gd, the Workshop's tincture counter).
 	if head in ["tincture_craft", "tincture_drink", "pour"] or (b.has_meta("slot") and String(b.get_meta("slot")).begins_with("bench:tincture:")):
@@ -615,27 +616,25 @@ static func _pick_facts(m, pick: String, f: Dictionary) -> void:
 		"drill":
 			f["name"] = String(Stations.DRILLS.get(id, {}).get("name", id))
 			f["desc"] = Stations.drill_goal(id)
-		"bout":
-			f["name"] = String(Stations.bout(id).get("name", id))
-		"challenge":
-			var c: Dictionary = Stations.CHALLENGES.get(id, {})
-			f["name"] = String(c.get("name", id))
-			f["desc"] = String(c.get("twist", ""))
+		"lesson":
+			f["name"] = String(Stations.LESSONS.get(id, {}).get("name", id))
+			f["desc"] = Stations.lesson_goal(id)
+		"bracket":
+			f["name"] = String(Stations.bracket(id).get("name", id))
 		"title":
 			var t: Dictionary = Renown.TITLES.get(id, {})
 			f["name"] = _sentence(String(t.get("name", id))).trim_suffix(".")
-			f["desc"] = String(t.get("deed", ""))
-		"boon":
-			var bn: Dictionary = Boons.BOONS.get(id, {})
-			f["name"] = String(bn.get("name", id))
-			f["desc"] = String(bn.get("desc", ""))
+			var gives: Array = Titles.lines(id)
+			f["desc"] = String(t.get("deed", "")) + (" Gives: " + String(gives[0]) + "." if not gives.is_empty() else "")
+		"contract":
+			var o: Dictionary = Contracts.find(m.main.profile, id) if m != null and m.main != null else {}
+			f["name"] = Contracts.name_of(o) if not o.is_empty() else id
+			f["desc"] = Contracts.goal_of(o) if not o.is_empty() else ""
+		"rank":
+			f["name"] = Renown.rank_name(int(id))
+			f["desc"] = "it opens " + ", ".join(Renown.opens(int(id))) + "."
 		"rival":
 			var Rv = load("res://scripts/rivals.gd")
 			var rec: Dictionary = Rv.state(m.main.profile if m != null and m.main != null else null).get(id, {})
 			f["name"] = String(rec.get("name", id))
 			f["desc"] = Rv.marks_text(rec) + ". " + Rv.history_text(rec) + "."
-		"ware":
-			var market: Dictionary = Renown.state(m.main.profile).get("market", {}) if m != null and m.main != null else {}
-			var wl: Array = market.get("wares", [])
-			if int(id) >= 0 and int(id) < wl.size():
-				f["name"] = Shop.ware_name(wl[int(id)])

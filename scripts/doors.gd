@@ -31,6 +31,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Themes := preload("res://scripts/themes.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Mirror := preload("res://scripts/mirror.gd")
+const Anim := preload("res://scripts/anim.gd")
 
 ## A door opens when a body's edge comes this close to it (px).
 const REACH := 24.0
@@ -573,6 +574,7 @@ func open_door(d: Dictionary, quiet := false) -> void:
 		d["t"] = 1.0
 		_redraw()
 		return
+	Anim.door(main, d["rect"].get_center(), d["out"])  # (dust from its edges as it swings)
 	animating = true
 	var dust := Color(0.55, 0.45, 0.33)
 	main.fx_burst(d["rect"].get_center(), d["out"], dust, 10, 90.0)

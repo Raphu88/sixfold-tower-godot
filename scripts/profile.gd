@@ -298,7 +298,8 @@ func load_save() -> void:
 	if sup is Dictionary:
 		for id in sup:
 			if int(sup[id]) > 0:
-				supplies[String(id)] = int(sup[id])
+				var plain := String(id).get_slice("@", 0)  # (an old sized key is the plain item)
+				supplies[plain] = int(supplies.get(plain, 0)) + int(sup[id])
 	supply_paid = {}
 	var paid = cfg.get_value("train", "supply_paid", {})
 	if paid is Dictionary:
@@ -309,6 +310,7 @@ func load_save() -> void:
 	store = cfg.get_value("train", "store", {})
 	if not (store is Dictionary):
 		store = {}
+	store.erase("sizes")  # (an old save's item sizes: every item is one size now, its count kept)
 	vessels = load("res://scripts/vessel.gd").load_list(cfg.get_value("train", "vessels", []))
 	lost = load("res://scripts/lost.gd").load_list(cfg.get_value("profile", "lost", []))
 	provings = {}
@@ -340,6 +342,7 @@ func load_save() -> void:
 	core_edit = ce if ce is Dictionary else {}
 	var rn = cfg.get_value("renown", "state", {})
 	renown = rn if rn is Dictionary else {}
+	load("res://scripts/renown.gd").retire_boons(self)  # (the Boon Shrine is gone: an old save's boons give their crystals back)
 	bestiary = load("res://scripts/bestiary.gd").load_records(cfg.get_value("bestiary", "met", {}))
 	var rv = cfg.get_value("rivals", "met", {})
 	rivals = rv if rv is Dictionary else {}

@@ -722,6 +722,11 @@ func _station_placard(row: Node) -> void:
 	var stops: Array = Stations.stops(String(st.get("id", ""))).map(func(s): return Stations.stop_name(s))
 	var sl := _note(col, ",  ".join(stops), 10.0)
 	sl.add_theme_color_override("font_color", UI.TEXT)
+	if not Stations.lessons_done(_prof()):
+		# (Training is offered plainly: the lever opens on it, and this says how far you are)
+		var left := Stations.lessons_left(_prof()).size()
+		var tl := _note(col, Stations.TEXT["placard_lessons"] % [Stations.LESSON_ORDER.size() - left, Stations.LESSON_ORDER.size()], 10.0)
+		tl.add_theme_color_override("font_color", Color(0.62, 0.78, 1.0))
 	_note(col, Stations.TEXT["safe"], 10.0)
 	var lever := TrainView.Lever.new()
 	lever.word = T["lever"]
@@ -884,7 +889,7 @@ func _store(root: Node) -> void:
 	var oc := VBoxContainer.new()
 	oc.add_theme_constant_override("separation", 4)
 	oc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if not selling and Train.shelf(prof).size() > Shop.SHELF_PAGE + 2 and small:
+	if not selling and (Train.shelf(prof).size() > 10 or Train.rack_size(prof) > 10) and small:
 		oc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN  # (a tall store on a phone: his signs stay at the top, where the Sell sign is always in reach)
 	oc.custom_minimum_size.x = 150.0 if small else 200.0
 	oc.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -961,14 +966,12 @@ func _store(root: Node) -> void:
 			if shelf_pages > 1 and si / shelf_per != shelf_page:
 				continue
 			var key = shelf_keys[si]
-			var id := Shop.key_id(String(key))
-			var size := Shop.key_size(String(key))
-			var price := Train.supply_price(prof, id, size)
+			var id := String(key)
+			var price := Train.supply_price(prof, id)
 			var packed := int(prof.supplies.get(id, 0))
 			var s = m._slot(sg, "supply:" + String(key), _cell(), "")
 			s.kind = "item"
 			s.id = id
-			s.item_size = size  # (Minor and Greater ones show their pips)
 			s.count = packed if packed > 0 else -1
 			_price_on(s, price[0], price[1], true)
 			keys.append(s.get_meta("slot"))
@@ -1339,7 +1342,7 @@ func _charm_counter(parent: Node) -> Array:
 			s.kept = ref.begins_with("heir:")
 			s.count = Bench.Charms.charges(g)
 			s.set_meta("help", "slot:bench:charm")  # (the Entity's line for it: entity_help.gd)
-			var cost := Bench.refill_cost(g)
+			var cost := Bench.refill_cost(g, prof)
 			if not cost.is_empty():
 				_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
 			keys.append(s.get_meta("slot"))
@@ -1369,7 +1372,7 @@ func _charm_refill_card(ref: String) -> void:
 	m._detail_text(line + "  ·  " + Gear.rarity_name(g), UI.DIM)
 	m._detail_text(Gear.desc(g).left(1).to_upper() + Gear.desc(g).substr(1) + ".", UI.TEXT)
 	_charge_lines(g)
-	var cost := Bench.refill_cost(g)
+	var cost := Bench.refill_cost(g, prof)
 	if cost.is_empty():
 		return
 	var why := _cost_lines(cost, B["cost"])
@@ -2371,18 +2374,14 @@ func _price_line(kind: String, amount: int, label := "") -> String:
 func _supply_card(key: String) -> void:
 	var prof = _prof()
 	var p = _player()
-	var id := Shop.key_id(key)
-	var size := Shop.key_size(key)
+	var id := Items.old_id(key)
 	var data: Dictionary = Items.ITEMS[id]
-	_head("item", id, Items.sized_name(id, size), Items.color(id))
-	var note := Items.size_note(id, size)
-	if note != "":
-		m._detail_text(note, UI.GILT_HI)
+	_head("item", id, Items.item_name(id), Items.color(id))
 	m._detail_text(String(data["desc"]).left(1).to_upper() + String(data["desc"]).substr(1) + ".", UI.TEXT)
 	var handy := _handy_line(id)  # (where it's handy: the tower chosen at the engine first, tower_needs.gd)
 	if handy != "":
 		m._detail_text(handy, UI.GILT_HI)
-	var price := Train.supply_price(prof, id, size)
+	var price := Train.supply_price(prof, id)
 	var why := _price_line(price[0], price[1])
 	if price[0] == Train.ANY:
 		m._detail_text(T["any_note"], UI.DIM)
@@ -2474,10 +2473,10 @@ func _done(text: String, say: String, sound: String) -> void:
 
 
 func _buy_supply(key: String) -> void:
-	var id := Shop.key_id(key)
-	var why := Train.buy_supply(_prof(), _player(), id, Shop.key_size(key))
+	var id := Items.old_id(key)
+	var why := Train.buy_supply(_prof(), _player(), id)
 	if why == "":
-		var said: String = T["bought"] % Items.sized_name(id, Shop.key_size(key))
+		var said: String = T["bought"] % Items.item_name(id)
 		if Train.item_price(id)[0] == Train.ANY:
 			said += "  ·  " + T["paid_with"] % Train.paid_text(Train.last_paid(_prof(), id))  # (which crystals it took)
 		_done(said, Train.line("bought"), "buy")

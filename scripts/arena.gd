@@ -1,24 +1,28 @@
 extends Node2D
-## The station's arena (main.gd owns one: `main.arena`): where the training
-## gym's drills, the tournament's bouts and the challenges are fought
-## (stations.gd holds what each one is). It works like the practice room
-## (practice.gd): the climber steps off the train into an open room of the
-## event's tower, and nothing done there is kept (profile.saving is off)
+## The station's arena (main.gd owns one: `main.arena`): where the
+## Training's lessons and medal drills and the tournament's brackets are
+## fought (stations.gd holds what each one is). It works like the practice
+## room (practice.gd): the climber steps off the train into an open room of
+## the event's tower, and nothing done there is kept (profile.saving is off)
 ## except the result, which is written to the save as the climber goes back
 ## (stations.gd apply_result) before the scene starts afresh on the train,
 ## with the station's page open on the stop it was begun from.
 ##
-##   drills       a goal and a score (parries, kills against the clock, hits
-##                taken among archers, posts touched in order, the most
-##                dummies one cast hits); foes are kept topped up and hit
-##                softly; the score earns a medal
-##   bouts and    waves of foes (champions, your mirror image, a beast's
-##   challenges   shadow), with rules (no healing, stamina halved, fierce
-##                foes, one hit fells you, silent marks) and maybe a time
-##                limit: fell every wave to win
+##   lessons   the basics, hands on, with the Entity's word as each begins:
+##             posts to walk to, rolls, parries on the glint, an item used
+##             from the belt, a spell on a dummy, a state cured, a cracked
+##             wall broken, the floor's task (braziers) done
+##   drills    a goal and a score (parries, kills against the clock, hits
+##             taken among archers, posts touched in order, the most
+##             dummies one cast hits); foes are kept topped up and hit
+##             softly; the score earns a medal
+##   brackets  three rounds against other climbers (rival.gd: they fight as
+##             climbers do, with marks, and yield instead of dying; one
+##             round may be your own reflection), the tournament master's
+##             word between rounds; health and marks are made whole between
 ## A fall never ends anything here: the arena spares you (main.gd
 ## proving_spare) and the event is lost. The pause menu can give up. Words
-## and numbers are in stations.gd (TEXT, RULE_FX).
+## and numbers are in stations.gd (TEXT).
 
 const Stations := preload("res://scripts/stations.gd")
 const Dummy := preload("res://scripts/dummy.gd")
@@ -26,16 +30,23 @@ const Floors := preload("res://scripts/floors.gd")
 const Towers := preload("res://scripts/towers.gd")
 const UI := preload("res://scripts/ui.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
+const Reactions := preload("res://scripts/reactions.gd")
+const Bonds := preload("res://scripts/bonds.gd")
 
 ## How long the result shows before going back (real seconds), and the gap
-## between waves.
+## between rounds.
 const RESULT_WAIT := 2.4
-const WAVE_GAP := 1.2
+const ROUND_GAP := 2.2
 ## A post is touched within this distance; a cast's hits count for this long.
 const POST_REACH := 30.0
 const CAST_WINDOW := 1.0
 ## A drill's fallen foe is replaced after this long.
 const REFILL := 0.9
+## The cracked wall lesson's room: the grid cell of the crack (the hall's
+## top wall), and the open floor below it (cells): a low hall, so the crack
+## is in sight from where you start, on a phone too.
+const WALL_CELL := Vector2i(14, 5)
+const WALL_FLOOR := Rect2i(2, 6, 24, 6)
 
 ## Going back: the station's page opens on this once the scene starts
 ## afresh ({station, stop, pick, lines}).
@@ -45,8 +56,6 @@ var main
 var on := false
 var ev := {}  # the event (stations.gd event)
 var t := 0.0  # seconds since it began
-var wave := 0  # waves sent so far
-var wave_wait := 0.0
 var done := false
 var done_at := 0  # msec the result began showing
 var result := {}  # what's written to the save (stations.gd apply_result)
@@ -63,7 +72,17 @@ var cast_hits := {}  # dummy -> hits_taken when the window opened
 var spells0 := 0
 var dummies: Array = []
 var refill_t := 0.0
-var hp_cap := 0.0
+var rolls := 0
+var rolling := false
+var items0 := 0
+var used := 0
+# The tournament: the round being fought, its opponent, rounds won.
+var round_i := 0
+var rounds_won := 0
+var opponents: Array = []  # a rival record per round ({} for your reflection)
+var opp = null
+var opp_name := ""
+var round_wait := 0.0
 var _was_saving := true
 var _view: Control
 
@@ -75,20 +94,19 @@ func start(e: Dictionary) -> String:
 	if on or main == null or main.player == null or main.profile == null:
 		return "?"
 	var prof = main.profile
-	var why := Stations.why_not(prof, String(e.get("type", "")), String(e.get("id", "")))
+	var type := String(e.get("type", ""))
+	var why := Stations.why_not(prof, type, String(e.get("id", "")))
 	if why != "":
 		return why
-	var fee := Stations.fee(String(e["type"]), String(e["id"]))
+	var fee := Stations.fee(prof, type, String(e["id"]))
 	if fee > 0:
 		var paid: Dictionary = prof.spend_any(float(fee))
 		if paid.is_empty():
-			return "needs %d more essence, of any kind" % fee
+			return Stations.TEXT["needs_fee"] % fee
 		prof.save()
 	on = true
 	ev = e
 	t = 0.0
-	wave = 0
-	wave_wait = 0.8
 	done = false
 	result = {}
 	parries = 0
@@ -99,6 +117,15 @@ func start(e: Dictionary) -> String:
 	cast_left = 0.0
 	cast_seen = {}
 	refill_t = 0.0
+	rolls = 0
+	rolling = false
+	used = 0
+	round_i = 0
+	rounds_won = 0
+	opponents = []
+	opp = null
+	opp_name = ""
+	round_wait = 1.0
 	_was_saving = prof.saving
 	prof.saving = false  # (nothing done in here is kept but the result)
 	var m = main.menu
@@ -111,7 +138,7 @@ func start(e: Dictionary) -> String:
 	main.tower = tw if Towers.TOWERS.has(tw) else Towers.ORDER[0]
 	main._apply_tower_look()
 	main._start_floor(1)  # (with this room's plan: plan())
-	main.cleared = true  # (no gong between waves)
+	main.cleared = true  # (no gong between rounds)
 	main.ward = true  # (and the stair never opens)
 	main.stair_open = false
 	main.room_view.stair_open = false
@@ -121,23 +148,25 @@ func start(e: Dictionary) -> String:
 	p.sta = p.max_sta
 	p.poison_t = 0.0
 	p.set_physics_process(true)
-	for b in p.bonds.values():
-		b.essence = b.capacity()
-		b.burned = false
+	_fill_marks(p)
 	hits0 = p.hits_taken
 	spells0 = p.spells_cast
-	hp_cap = p.hp
 	if not p.on_parry.is_connected(_on_parry):
 		p.on_parry.connect(_on_parry)
-	if ev["type"] == "drill":
-		_setup_drill()
-	var lines: Array = []
-	if ev["type"] == "drill":
-		lines.append(Stations.drill_goal(String(ev["id"])))
-	else:
-		lines.append(String(ev.get("twist", "")) if ev["type"] == "challenge" else ", ".join(Stations.rule_lines(ev)) if not ev.get("rules", []).is_empty() else Stations.TEXT["no_rules"])
-	var eyebrow: String = Stations.TEXT["start_" + String(ev["type"])]
-	main.banner = {"title": String(ev.get("name", "")).to_upper(), "lines": [eyebrow + "  ·  " + String(lines[0])], "t": 3.0}
+	var line := ""
+	match type:
+		"lesson":
+			_setup_lesson()
+			line = Stations.lesson_goal(String(ev["id"]))
+			main.GuideScript.say_text(String(ev.get("say", "")), true)  # (the Entity says how, as it begins)
+		"drill":
+			_setup_drill()
+			line = Stations.drill_goal(String(ev["id"]))
+		"tourney":
+			_setup_tourney()
+			line = Stations.master_line("greet")
+	var eyebrow: String = Stations.TEXT["start_" + type]
+	main.banner = {"title": String(ev.get("name", "")).to_upper(), "lines": [eyebrow + "  ·  " + line], "t": 3.0}
 	main.sfx("ready", 0.9, -4.0, 0.0)
 	z_index = 2
 	_add_view()
@@ -145,11 +174,76 @@ func start(e: Dictionary) -> String:
 	return ""
 
 
-## The room: open floor, no monsters (they come in waves), the stair out of reach.
+func _fill_marks(p) -> void:
+	for b in p.bonds.values():
+		b.essence = b.capacity()
+		b.burned = false
+
+
+## The room: open floor, no monsters (they come as the event sends them),
+## the stair out of reach. The cracked wall lesson has a wall with a crack
+## in it; the ward lesson has braziers to light (objective.gd).
 func plan() -> Dictionary:
 	var room: Rect2 = main.OPEN_ROOM
-	return {"monsters": [], "pillars": [], "start": room.get_center() + Vector2(0, 150),
+	var out := {"monsters": [], "pillars": [], "start": room.get_center() + Vector2(0, 150),
 		"stair": Vector2(room.get_center().x, room.position.y - 4000.0), "practice": true}
+	if String(ev.get("type", "")) != "lesson":
+		return out
+	var c := float(Floors.CELL)
+	match String(ev.get("kind", "")):
+		"wall":
+			out["walk"] = [Rect2(room.position + Vector2(WALL_FLOOR.position) * c, Vector2(WALL_FLOOR.size) * c)]
+			out["cracks"] = [{"kind": "alcove", "tiles": [WALL_CELL], "faces": [{"tile": WALL_CELL, "out": Vector2i(0, 1)}],
+				"alcove": Rect2(room.position + Vector2(WALL_CELL.x - 1, WALL_CELL.y - 2) * c, Vector2(3, 2) * c), "walk": []}]
+			out["start"] = room.position + (Vector2(WALL_CELL) + Vector2(0.5, 4.5)) * c
+		"ward":
+			var n := clampi(int(ev.get("pieces", 2)), 1, 4)
+			var pieces: Array = []
+			for i in n:
+				var x := room.position.x + room.size.x * (float(i) + 1.0) / float(n + 1)
+				pieces.append({"pos": Vector2(x, room.position.y + 150.0), "room": -1})
+			out["objective"] = {"kind": "braziers", "name": String(load("res://scripts/objectives.gd").KINDS["braziers"]["name"]), "pieces": pieces}
+	return out
+
+
+func _setup_lesson() -> void:
+	var room: Rect2 = main.OPEN_ROOM
+	var c := room.get_center()
+	var p = main.player
+	posts.clear()
+	dummies.clear()
+	match String(ev.get("kind", "")):
+		"run":
+			var spots := [Vector2(room.position.x + 220, room.position.y + 140), Vector2(room.end.x - 220, room.position.y + 140), Vector2(c.x, room.position.y + 110)]
+			posts = spots.slice(0, clampi(int(ev.get("posts", 3)), 1, spots.size()))
+		"cast":
+			var n := int(ev.get("dummies", 3))
+			for i in n:
+				var d = Dummy.new()
+				d.setup_dummy(main)
+				d.position = c + Vector2(0, -70) + Vector2.from_angle(TAU * i / float(n)) * 46.0
+				main.add_child(d)
+				dummies.append(d)
+		"cure":
+			Reactions.apply(main, p, String(ev.get("state", "soaked")), float(ev.get("seconds", 25.0)))
+	for id in ev.get("give", []):
+		if p.has_method("add_item"):
+			p.add_item(String(id))
+	if float(ev.get("hurt", 0.0)) > 0.0:
+		p.hp = p.max_health() * float(ev["hurt"])
+		if ev.get("give", []).size() > 0 and "item_sel" in p:
+			p.item_sel = String(ev["give"][0])
+	items0 = _items_held(p)
+	for k in ev.get("foes", []):
+		_spawn(String(k), _spot(), true)
+
+
+func _items_held(p) -> int:
+	var n := 0
+	if p != null and "items" in p:
+		for id in p.items:
+			n += int(p.items[id])
+	return n
 
 
 func _setup_drill() -> void:
@@ -174,6 +268,29 @@ func _setup_drill() -> void:
 		_spawn(String(k), _spot(), true)
 
 
+## The bracket's opponents, one a round: a climber with marks (rivals.gd's
+## record), or your reflection.
+func _setup_tourney() -> void:
+	opponents.clear()
+	for rd in ev.get("rounds", []):
+		opponents.append({} if bool(rd.get("mirror", false)) else _opponent(rd))
+
+
+func _opponent(rd: Dictionary) -> Dictionary:
+	var fl := int(ev.get("floor", 2))
+	var rec: Dictionary = main.rivals.new_rival(fl, String(ev.get("tower", ""))) if main.get("rivals") != null else {"name": "?", "bonds": []}
+	var n := clampi(int(rd.get("marks", 1)), 1, 3)
+	var ids: Array = Bonds.BONDS.keys()
+	ids.shuffle()
+	var parts: Array = Bonds.PARTS.duplicate()
+	parts.shuffle()
+	var bl: Array = []
+	for k in mini(n, mini(ids.size(), parts.size())):
+		bl.append([ids[k], parts[k], clampi(int(rd.get("step", 1)) - k, 1, 5)])
+	rec["bonds"] = bl
+	return rec
+
+
 # --- each frame ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
@@ -185,30 +302,64 @@ func _physics_process(delta: float) -> void:
 		return
 	var p = main.player
 	t += delta
-	_rules(p)
-	if ev["type"] == "drill":
-		_drill(delta, p)
-	else:
-		_waves(delta)
+	match String(ev.get("type", "")):
+		"lesson":
+			_lesson(delta, p)
+		"drill":
+			_drill(delta, p)
+		"tourney":
+			_tourney(delta, p)
 	if _view != null:
 		_view.queue_redraw()
 
 
-## The event's rules, held every frame.
-func _rules(p) -> void:
-	var rules: Array = ev.get("rules", [])
-	if "one_hit" in rules:
-		p.hp = minf(p.hp, 1.0)
-	if "no_heal" in rules or "one_hit" in rules:
-		p.heal_left = 0.0
-		if p.hp > hp_cap:
-			p.hp = hp_cap
-		hp_cap = p.hp
-	if "half_stamina" in rules:
-		p.sta = minf(p.sta, p.max_sta * float(Stations.RULE_FX["half_stamina"]))
-	if "no_marks" in rules:
-		for b in p.bonds.values():
-			b.essence = 0.0
+func _lesson(delta: float, p) -> void:
+	var limit := float(ev.get("time", 60))
+	var need := int(ev.get("need", 1))
+	var want: Array = ev.get("foes", [])
+	if not want.is_empty() and main.enemies().size() < want.size():
+		refill_t -= delta
+		if refill_t <= 0.0:
+			refill_t = REFILL
+			_spawn(String(want[main.enemies().size() % want.size()]), _spot(), true)
+	var ok := false
+	match String(ev.get("kind", "")):
+		"run":
+			_touch_posts(p)
+			ok = post >= posts.size()
+		"roll":
+			var now: bool = float(p.roll_t) > 0.0
+			if now and not rolling:
+				rolls += 1
+			rolling = now
+			ok = rolls >= need
+		"parry":
+			ok = parries >= need
+		"belt":
+			used = maxi(used, items0 - _items_held(p))
+			ok = used >= need
+		"cast":
+			_watch_casts(delta, p)
+			ok = best_cast >= need
+		"cure":
+			ok = t > 0.3 and float(p.states.get(String(ev.get("state", "soaked")), 0.0)) <= 0.0
+		"wall":
+			ok = main.cracks != null and main.cracks.broken_count > 0
+		"ward":
+			var ob = main.objective
+			ok = ob != null and ob.kind != "" and ob.done_count() >= ob.pieces.size() and not ob.pieces.is_empty()
+	if ok:
+		finish({"done": true})
+	elif t >= limit:
+		finish({"done": false, "why": Stations.TEXT["result_time"]})
+
+
+func _touch_posts(p) -> void:
+	if post < posts.size() and p.global_position.distance_to(posts[post]) <= POST_REACH:
+		main.fx_ring(posts[post], UI.GILT, 40.0, 0.35, 3.0)
+		main.sfx("glint", 1.2, -6.0, 0.0)
+		post += 1
+		queue_redraw()
 
 
 func _drill(delta: float, p) -> void:
@@ -234,11 +385,7 @@ func _drill(delta: float, p) -> void:
 			if t >= limit:
 				finish({"score": float(p.hits_taken - hits0)})
 		"run":
-			if post < posts.size() and p.global_position.distance_to(posts[post]) <= POST_REACH:
-				main.fx_ring(posts[post], UI.GILT, 40.0, 0.35, 3.0)
-				main.sfx("glint", 1.2, -6.0, 0.0)
-				post += 1
-				queue_redraw()
+			_touch_posts(p)
 			if post >= posts.size():
 				finish({"score": snappedf(t, 0.1)})
 			elif t >= limit:
@@ -249,7 +396,7 @@ func _drill(delta: float, p) -> void:
 				finish({"score": float(best_cast)})
 
 
-## Through the Pack: a cast opens a short window; the dummies struck in it count.
+## A cast opens a short window; the dummies struck in it count.
 func _watch_casts(delta: float, p) -> void:
 	if p.spells_cast > spells0:
 		spells0 = p.spells_cast
@@ -266,25 +413,73 @@ func _watch_casts(delta: float, p) -> void:
 		best_cast = maxi(best_cast, cast_seen.size())
 
 
-func _waves(delta: float) -> void:
-	var waves: Array = ev.get("waves", [])
-	var limit := float(ev.get("time", 0))
-	if limit > 0.0 and t >= limit:
-		finish({"won": false, "why": Stations.TEXT["result_time"]})
+## A bracket: each round's opponent steps up after a pause; when they yield
+## (or your reflection falls) the round is won, health and marks are made
+## whole, and the next one comes; the last won wins the bracket.
+func _tourney(delta: float, p) -> void:
+	var total := opponents.size()
+	if opp == null:
+		round_wait -= delta
+		if round_wait <= 0.0 and round_i < total:
+			_send_round(p)
 		return
-	wave_wait -= delta
-	if wave_wait > 0.0 or not main.enemies().is_empty():
+	var gone: bool = not is_instance_valid(opp) or bool(opp.get("dead")) or bool(opp.get("standing")) or main.enemies().is_empty()
+	if not gone:
 		return
-	if wave >= waves.size():
-		finish({"won": true})
+	opp = null
+	rounds_won += 1
+	round_i += 1
+	if rounds_won >= total:
+		finish({"won": true, "rounds": rounds_won})
 		return
-	for k in waves[wave]:
-		_spawn(String(k), _spot(), false)
-	wave += 1
-	wave_wait = WAVE_GAP
-	if wave > 1:
-		main.banner = {"title": Stations.TEXT["hud_wave"] % [wave, waves.size()], "lines": [], "t": 1.4}
-		main.sfx("warn_knight", 1.1, -6.0, 0.0)
+	p.hp = p.max_health()
+	p.sta = p.max_sta
+	p.states.clear()
+	p.poison_t = 0.0
+	_fill_marks(p)
+	round_wait = ROUND_GAP
+	var key := "final" if round_i == total - 1 else "round"
+	main.banner = {"title": Stations.TEXT["result_round"] % rounds_won, "lines": [Stations.master_line(key)], "t": ROUND_GAP}
+	main.sfx("clear", 1.2, -6.0, 0.0)
+
+
+func _send_round(p) -> void:
+	var rec: Dictionary = opponents[round_i]
+	var room: Rect2 = main.OPEN_ROOM
+	var at := Vector2(room.get_center().x, room.position.y + 150.0)
+	var tough: Vector2 = Floors.toughness(int(ev.get("floor", 1)))
+	var base: Vector2 = Floors.toughness(maxi(1, int(main.floor_num)))
+	var rd: Dictionary = ev.get("rounds", [])[round_i]
+	if rec.is_empty():
+		opp = load("res://scripts/mirror.gd").spawn(main, at)
+		opp_name = Stations.TEXT["mirror"]
+	else:
+		opp = load("res://scripts/rival.gd").new()
+		opp.setup_rival(main, main.rivals.body_data(rec), false, self)
+		opp.position = main.clear_spot(at, opp.radius, [])
+		opp.face = (p.global_position - opp.position).normalized()
+		main.add_child(opp)
+		opp.max_hp *= tough.x / maxf(base.x, 0.01) * float(rd.get("hp", 1.0))
+		opp.hp = opp.max_hp
+		opp.dmg *= tough.y / maxf(base.y, 0.01)
+		opp_name = String(rec.get("name", ""))
+	if opp == null:
+		return
+	opp.aware = true
+	opp.notice_t = 0.0
+	main.fx_ring(opp.global_position, Color(1.0, 0.8, 0.5), 44.0, 0.4, 3.0)
+	main.banner = {"title": (Stations.TEXT["hud_round"] % [round_i + 1, opponents.size()]).to_upper(), "lines": [Stations.TEXT["vs"] % opp_name, Stations.round_text(rd)], "t": 2.4}
+	main.sfx("warn_knight", 1.1, -6.0, 0.0)
+
+
+## A rival climber yielded (rival.gd: the arena is its host): the round is
+## won (_tourney sees it gone).
+func on_yield(_body) -> void:
+	pass
+
+
+func on_spent(_body) -> void:
+	pass
 
 
 ## Somewhere in the upper half of the room, clear of the climber.
@@ -298,19 +493,12 @@ func _spot() -> Vector2:
 	return Vector2(room.get_center().x, room.position.y + 100.0)
 
 
-## A foe: "kind", "kind*" (a champion), "mirror" or "shadow:beast". A drill's
-## foes hit softly (its "weak"); a bout's are as tough as its tier's floor,
-## and fiercer under "fierce".
-func _spawn(k: String, at: Vector2, drill: bool):
+## A foe: "kind", "kind*" (a champion) or "mirror". A lesson's or drill's
+## foes hit softly (its "weak").
+func _spawn(k: String, at: Vector2, soft: bool):
 	var e = null
 	if k == "mirror":
 		e = load("res://scripts/mirror.gd").spawn(main, at)
-	elif k.begins_with("shadow:"):
-		if main.proving == null:
-			return null
-		e = main.proving.make_shadow(k.substr(7), {"shadow_hp": 0.55, "shadow_dmg": 0.6})
-		e.position = main.clear_spot(at, e.radius, main.enemies().map(func(o): return o.global_position))
-		main.add_child(e)
 	elif k.ends_with("*"):
 		e = EnemyScript.new()
 		e.setup(k.trim_suffix("*"), main)
@@ -321,17 +509,8 @@ func _spawn(k: String, at: Vector2, drill: bool):
 		e = main.spawn_enemy(k, at)
 	if e == null:
 		return null
-	if drill:
+	if soft:
 		e.dmg *= float(ev.get("weak", 1.0))
-	else:
-		var tough: Vector2 = Floors.toughness(int(ev.get("floor", 1)))
-		var fierce: bool = "fierce" in ev.get("rules", [])
-		if not k.begins_with("shadow:"):
-			e.max_hp *= tough.x * (float(Stations.RULE_FX["fierce_hp"]) if fierce else 1.0)
-			e.dmg *= tough.y
-		if fierce:
-			e.dmg *= float(Stations.RULE_FX["fierce_dmg"])
-		e.hp = e.max_hp
 	e.aware = true
 	e.notice_t = 0.0
 	main.fx_ring(e.global_position, e.color, 36.0, 0.35, 3.0)
@@ -349,7 +528,7 @@ func _on_parry(_source, _perfect: bool) -> void:
 ## drops, essence or record in the arena).
 func on_enemy_killed(e) -> void:
 	kills += 1
-	if e.get("mirror") == true:
+	if e.get("mirror") == true and String(e.get("kind")) != "rival":
 		mirrors += 1
 	main.fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	main.fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
@@ -361,15 +540,18 @@ func on_enemy_killed(e) -> void:
 
 
 ## A blow that would fell the climber (main.gd proving_spare): they stay
-## standing, and the event is lost.
+## standing, and the event is lost (a bracket: you yield).
 func spare() -> bool:
 	if not on:
 		return false
 	if not done:
-		if ev["type"] == "drill":
-			finish.call_deferred({"score": -1.0, "why": Stations.TEXT["result_fell"]})
-		else:
-			finish.call_deferred({"won": false, "why": Stations.TEXT["result_fell"]})
+		match String(ev.get("type", "")):
+			"lesson":
+				finish.call_deferred({"done": false, "why": Stations.TEXT["result_fell"]})
+			"drill":
+				finish.call_deferred({"score": -1.0, "why": Stations.TEXT["result_fell"]})
+			_:
+				finish.call_deferred({"won": false, "rounds": rounds_won, "why": Stations.TEXT["result_fell"]})
 	return true
 
 
@@ -391,17 +573,26 @@ func finish(res: Dictionary) -> void:
 		e.set_physics_process(false)
 	var title := ""
 	var line := ""
-	if ev["type"] == "drill":
-		var score := float(result.get("score", -1.0))
-		var medal := Stations.medal_for(String(ev["id"]), score)
-		title = Stations.medal_name(medal)
-		line = Stations.score_text(String(ev["id"]), score) if score >= 0.0 else String(result.get("why", ""))
-		main.sfx("clear" if medal > 0 else "ui_back", 1.0, -2.0, 0.0)
-	else:
-		var won: bool = result.get("won", false)
-		title = (Stations.TEXT["result_win"] if won else Stations.TEXT["result_loss"]) % String(ev.get("name", ""))
-		line = "" if won else String(result.get("why", ""))
-		main.sfx("clear" if won else "ui_back", 1.0, -2.0, 0.0)
+	match String(ev["type"]):
+		"lesson":
+			var ok: bool = result.get("done", false)
+			title = (Stations.TEXT["lesson_done"] if ok else Stations.TEXT["lesson_todo"])
+			line = String(ev.get("name", "")) if ok else String(result.get("why", ""))
+			if ok:
+				for tid in ev.get("tips", []):
+					main.GuideScript.also_told(String(tid))  # (the lesson taught it: the Entity won't repeat it as a first-time tip)
+			main.sfx("clear" if ok else "ui_back", 1.0, -2.0, 0.0)
+		"drill":
+			var score := float(result.get("score", -1.0))
+			var medal := Stations.medal_for(String(ev["id"]), score)
+			title = Stations.medal_name(medal)
+			line = Stations.score_text(String(ev["id"]), score) if score >= 0.0 else String(result.get("why", ""))
+			main.sfx("clear" if medal > 0 else "ui_back", 1.0, -2.0, 0.0)
+		_:
+			var won: bool = result.get("won", false)
+			title = (Stations.TEXT["result_win"] % String(ev.get("name", ""))) if won else (Stations.TEXT["result_loss"] % [String(ev.get("name", "")), rounds_won + 1])
+			line = Stations.master_line("won" if won else "lost")
+			main.sfx("clear" if won else "ui_back", 1.0, -2.0, 0.0)
 	main.banner = {"title": title.to_upper(), "lines": [line] if line != "" else [], "t": RESULT_WAIT + 0.5, "hold": true, "pri": 2}
 
 
@@ -411,7 +602,7 @@ func give_up() -> void:
 		return
 	if not done:
 		done = true
-		result = {"type": ev["type"], "id": ev["id"], "won": false, "score": -1.0, "why": Stations.TEXT["result_quit"], "mirrors": 0}
+		result = {"type": ev["type"], "id": ev["id"], "won": false, "done": false, "rounds": rounds_won, "score": -1.0, "why": Stations.TEXT["result_quit"], "mirrors": 0}
 	leave()
 
 
@@ -422,7 +613,7 @@ func leave() -> void:
 		return
 	var prof = main.profile
 	prof.saving = _was_saving
-	var res := result if not result.is_empty() else {"type": ev["type"], "id": ev["id"], "won": false, "score": -1.0}
+	var res := result if not result.is_empty() else {"type": ev["type"], "id": ev["id"], "won": false, "done": false, "rounds": rounds_won, "score": -1.0}
 	var stop := String(ev.get("stop", "gym"))
 	var pick := "%s:%s" % [ev["type"], ev["id"]]
 	var station_id := String(ev.get("station", ""))
@@ -452,6 +643,9 @@ func leave() -> void:
 			d.queue_free()
 	dummies.clear()
 	posts.clear()
+	opp = null
+	if main.player != null:
+		main.player.states.clear()
 	if _view != null and is_instance_valid(_view):
 		_view.queue_free()
 	_view = null
@@ -519,20 +713,43 @@ func _add_view() -> void:
 func hud_text() -> String:
 	var T: Dictionary = Stations.TEXT
 	var parts: Array = [String(ev.get("name", ""))]
-	if ev.get("type", "") == "drill":
-		match String(ev.get("kind", "")):
-			"parry":
-				parts.append(T["hud_parry"] % parries)
-			"kills":
-				parts.append(T["hud_kills"] % [mini(kills, int(ev.get("need", 5))), int(ev.get("need", 5))])
-			"dodge":
-				parts.append(T["hud_hits"] % (main.player.hits_taken - hits0 if main.player != null else 0))
-			"run":
-				parts.append(T["hud_post"] % [mini(post + 1, posts.size()), posts.size()])
-			"cast":
-				parts.append(T["hud_cast"] % best_cast)
-	else:
-		parts.append(T["hud_wave"] % [maxi(wave, 1), (ev.get("waves", []) as Array).size()])
+	var need := int(ev.get("need", 1))
+	match String(ev.get("type", "")):
+		"lesson":
+			match String(ev.get("kind", "")):
+				"run":
+					parts.append(T["hud_post"] % [mini(post + 1, posts.size()), posts.size()])
+				"roll":
+					parts.append(T["hud_rolls"] % [mini(rolls, need), need])
+				"parry":
+					parts.append(T["hud_parry"] % parries)
+				"belt":
+					parts.append(T["hud_items"] % [mini(used, need), need])
+				"cast":
+					parts.append(T["hud_hit"] % [mini(best_cast, need), need])
+				"cure":
+					parts.append(T["hud_cure"])
+				"wall":
+					parts.append(T["hud_wall"])
+				"ward":
+					var ob = main.objective
+					parts.append(T["hud_ward"] % [ob.done_count() if ob != null else 0, int(ev.get("pieces", 2))])
+		"drill":
+			match String(ev.get("kind", "")):
+				"parry":
+					parts.append(T["hud_parry"] % parries)
+				"kills":
+					parts.append(T["hud_kills"] % [mini(kills, int(ev.get("need", 5))), int(ev.get("need", 5))])
+				"dodge":
+					parts.append(T["hud_hits"] % (main.player.hits_taken - hits0 if main.player != null else 0))
+				"run":
+					parts.append(T["hud_post"] % [mini(post + 1, posts.size()), posts.size()])
+				"cast":
+					parts.append(T["hud_cast"] % best_cast)
+		_:
+			parts.append(T["hud_round"] % [mini(round_i + 1, opponents.size()), opponents.size()])
+			if opp_name != "" and opp != null:
+				parts.append(opp_name)
 	var limit := float(ev.get("time", 0))
 	if limit > 0.0:
 		parts.append(T["hud_time"] % maxi(0, ceili(limit - t)))
