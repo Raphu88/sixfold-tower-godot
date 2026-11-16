@@ -193,7 +193,7 @@ static var HELP := {
 	"setting:world_zoom": "How close the camera sits in the tower. This one: {choice}.",
 	"setting:music": "How loud the music is.",
 	"setting:sounds": "How loud everything else is.",
-	"setting:shake": "The screen shakes on heavy hits.",
+	"setting:shake": "The screen shakes on heavy hits, blasts and a beast's blows. Turn it off and the picture stays still.",
 	"setting:help": "Keeps the list of controls on screen while you play (H).",
 	"setting:hud_scale": "How big the bars and slots are in play. This one: {choice}.",
 	"setting:lighting": "Lighting quality. Lower is kinder to a phone. This one: {choice}.",
