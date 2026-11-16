@@ -203,6 +203,7 @@ var practice  # the practice room, from the train's Abilities page (practice.gd)
 var arena  # the station's drills, bouts and challenges (arena.gd)
 var hints  # names in play: ready labels, first casts, the long-press card (ability_hints.gd)
 var counting_hits := false  # while a spell is cast: count the foes it hits
+var weapon_blow := false  # while a weapon's blow lands (player.gd _strike): main.on_hit's blows are the weapon's
 var cast_hits := 0
 var new_climber_t := 0.0
 ## How the climber looks, worked out from profile.appearance once per change

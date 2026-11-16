@@ -1884,7 +1884,9 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.hit_kind = "frost"  # (a chilling blow: a drenched foe takes double, bond.gd taken_mult)
 	_charm_wardbreak(e)
 	var oiled: bool = edge_t > 0.0 and e.kind in Items.ITEMS["edge_oil"].get("cracks", [])  # (Edge Oil: lands as a heavy blow on a shell or a guard)
+	main.weapon_blow = true  # (what's a weapon's blow and what's a spell's: tests/mark_measure.gd counts them apart)
 	e.take_hit(dmg, dir, force, heavy or crit or rock or oiled, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
+	main.weapon_blow = false
 	if unseen:
 		BondScript.manticore().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
 	if main.hit_kind == "frost":
