@@ -337,6 +337,7 @@ func load_save() -> void:
 	core_edit = ce if ce is Dictionary else {}
 	var rn = cfg.get_value("renown", "state", {})
 	renown = rn if rn is Dictionary else {}
+	load("res://scripts/renown.gd").retire_boons(self)  # (the Boon Shrine is gone: an old save's boons give their crystals back)
 	bestiary = load("res://scripts/bestiary.gd").load_records(cfg.get_value("bestiary", "met", {}))
 	var rv = cfg.get_value("rivals", "met", {})
 	rivals = rv if rv is Dictionary else {}

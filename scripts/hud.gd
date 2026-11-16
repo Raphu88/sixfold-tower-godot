@@ -1514,6 +1514,8 @@ func status_chips() -> Array:
 	out.append_array(state_chips())
 	if main.rivals != null:
 		out.append_array(main.rivals.chips())  # (a rival in a duel, or the one beside you: rivals.gd)
+	if main.get("contracts") != null:
+		out.append_array(main.contracts.chips())  # (the Noble's contracts held, how each is going: contracts.gd)
 	# A sealed wing's question (wings.gd): its champion's health, its rule
 	# kept or broken, the wave and the clock.
 	if main.wings != null:
@@ -1847,7 +1849,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
 	if main.camp["stage"] == "heirloom":
 		title = Gear.HEIRLOOM_TEXT["title"]
-	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret", "rival", "pedlar"]:
+	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret", "rival"]:
 		title = main.camp.get("title", "")
 	draw_string_outline(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, 6, Color(0, 0, 0, 0.8))
 	draw_string(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, GOLD)

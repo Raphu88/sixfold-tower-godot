@@ -38,7 +38,6 @@ const Entity := preload("res://scripts/entity.gd")
 const Notes := preload("res://scripts/entity_notes.gd")
 const Train := preload("res://scripts/train.gd")
 const Gear := preload("res://scripts/gear.gd")
-const Boons := preload("res://scripts/boons.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Notices := preload("res://scripts/notices.gd")
@@ -70,7 +69,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_glows", "start", "bye"]},
+		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_glows", "start", "bye"]},
 	"how_essence": {"ask": "Essence, banking it, and tinctures?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
@@ -87,8 +86,17 @@ static var DIALOGUE := {
 		"lines": ["Your body's share of what you bank soaks into your unmarked parts, by what each does, slower the more marks you carry. A part {full} full is ready. Reach a summit and the beast marks it. Or prove yourself sooner: break into a sealed wing on floor {early} or below, keep its rule and beat it, and the Maker of Marks may mark you there. Fall with a full part and there's a {fall_chance} chance it takes a faint mark anyway. One new mark a climb, at most. The first comes at the Regard; fall on that first climb and it's faint: {faint} more banked essence before it grows."],
 		"choices": ["how_marks", "how_tinctures", "how", "bye"]},
 	"how_renown": {"ask": "What is renown for?", "fact": "rules",
-		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from drills, bouts and challenges at the stations. Ranks: {ranks}. Ranks open the outfitter's upgrades, the tournament's tiers, drills, challenges and boons. Boons themselves cost crystals, at a station's shrine."],
-		"choices": ["how_fall", "how", "bye"]},
+		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from tournaments, the Noble's contracts, Training and deeds with other climbers. Every gain says what it was for. Ranks: {ranks}. Each opens something to do: a higher bracket, more contracts, new titles, a charm recipe, cheaper refills. A station's Renown Board says what your next rank opens."],
+		"choices": ["how_titles", "how_contracts", "how_tourney", "how", "bye"]},
+	"how_titles": {"ask": "How do titles work?", "fact": "titles",
+		"lines": ["The Noble at a station grants them. Each needs a rank and a deed; when both are done, ask to be named. Wear one at a time: only the worn one counts. Each helps with someone: other climbers trade kinder or team up more, Training costs less, tournament masters open brackets sooner, the outfitter takes some off. {title_line}"],
+		"choices": ["how_contracts", "how_renown", "how", "bye"]},
+	"how_contracts": {"ask": "What are contracts?", "fact": "titles",
+		"lines": ["Tasks the Noble gives: reach a floor of a named tower, slay so many of one monster, or retrieve a thing from a floor and take the stair with it. Hold {contracts_most} at once. The line at the top of the screen tracks each while you climb; I note them too. Done, they pay renown, crystals, and sometimes a charm recipe. They never hold up a floor. {contract_line}"],
+		"choices": ["how_titles", "how_tourney", "how", "bye"]},
+	"how_tourney": {"ask": "How do tournaments work?", "fact": "titles",
+		"lines": ["Brackets of three rounds against other climbers, at a station. Nobody dies: knocked down, you yield. Health and marks are made whole between rounds. A fee to enter; renown for each round past your best; winning pays renown, crystals, a title from the Noble, and in the higher brackets a relic. Brackets open with rank: {brackets}."],
+		"choices": ["how_titles", "how_renown", "how", "bye"]},
 	"how_fall": {"ask": "What comes home: a fall, a recall, a summit?", "fact": "rules",
 		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
@@ -111,7 +119,7 @@ static var DIALOGUE := {
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
 		"choices": ["how_shop", "how_charms", "how", "bye"]},
 	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
-		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item or a little off. {pedlar}"],
+		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item, take a little off or keep a Fine piece for you."],
 		"choices": ["how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
@@ -197,7 +205,8 @@ static var HINTS := {
 	"belt_empty": "Your belt is empty. The outfitter sells draughts. The Workshop brews them cheaper.",
 	"afford_rack": "You can afford {piece} on the outfitter's rack, and it beats yours.",
 	"stash_full": "Your stash is full. Sell to the outfitter, or break pieces down at the Workshop.",
-	"boon": "You could buy {boon} at a station's Boon Shrine. It goes with you on every climb.",
+	"title_ready": "The Noble at a station would grant you a title: {title}. Read what it gives.",
+	"lessons": "A station's Training has {n} short lessons you haven't done. Each is a minute, and I talk you through it.",
 	"mark_close": "{mark} is {pct}% of the way to step {step}. Bank its essence at a stair.",
 	"climb": "Choose a tower at the Engine and pull the lever. Your best: floor {best}, in {tower}.",
 	"climb_play": "Up. The stair is somewhere on this floor.",
@@ -306,6 +315,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_handy(main)
 		"rivals":
 			f = _fact_rivals(main)
+		"titles":
+			f = _fact_titles(main)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -611,7 +622,6 @@ static func _fact_rules() -> Dictionary:
 	f["rail_most"] = Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]) + int(last["rail"])
 	f["kinds_most"] = int(last["kinds"])
 	f["gun_rank"] = R.rank_name(int(Shop.WEAPON_RANK.get("flintlock", 0)))
-	f["pedlar"] = "From %s, %s sets up a stall at every station and at each camp: a few wares on a theme, new each time, paid for in crystals (at a camp, essence you carry will do)." % [R.rank_name(int(Shop.MERCHANT["rank"])), Shop.MERCHANT["name"]]
 	var Charms = load("res://scripts/charms.gd")
 	var n := int(Charms.SHOP["rack"])
 	f["charm_shop"] = ("one on his rail" if n == 1 else "%d on his rail" % n)
@@ -625,6 +635,32 @@ static func _fact_rules() -> Dictionary:
 	var Best = load("res://scripts/bestiary.gd")
 	f["bestiary_slain"] = _and(Best.TIERS.get("slain", []))
 	f["bestiary_beast"] = _and(Best.TIERS.get("beast", []))
+	return f
+
+
+## Titles, contracts and brackets: what the climber has now, and what's open.
+static func _fact_titles(main) -> Dictionary:
+	var R = load("res://scripts/renown.gd")
+	var S = load("res://scripts/stations.gd")
+	var C = load("res://scripts/contracts.gd")
+	var prof = main.profile if main != null else null
+	var f := {"contracts_most": "one" if prof == null or C.most(prof) <= 1 else str(C.most(prof))}
+	var bits: Array = []
+	for b in S.BRACKETS:
+		bits.append("%s at %s" % [b["name"], R.rank_name(int(b.get("rank", 0)))])
+	f["brackets"] = ", ".join(bits)
+	f["title_line"] = ""
+	f["contract_line"] = ""
+	if prof != null:
+		var worn: String = R.worn_title(prof)
+		var offer: Array = R.on_offer(prof)
+		if not offer.is_empty():
+			f["title_line"] = "The Noble would grant you %s now." % R.title_name(String(offer[0]))
+		elif worn != "":
+			f["title_line"] = "You wear %s." % worn
+		var held: Array = C.active(prof)
+		if not held.is_empty():
+			f["contract_line"] = "You hold: %s." % C.name_of(held[0])
 	return f
 
 
@@ -707,10 +743,13 @@ static func hints(main) -> Array:
 				break
 		if prof.chest.size() >= Train.CHEST_SIZE:
 			out.append(String(HINTS["stash_full"]))
-		for id in Boons.BOONS:
-			if Boons.why_not(prof, String(id)) == "":
-				out.append(fill(String(HINTS["boon"]), {"boon": String(Boons.BOONS[id]["name"])}))
-				break
+		var R = load("res://scripts/renown.gd")
+		var offer: Array = R.on_offer(prof)
+		if not offer.is_empty():
+			out.append(fill(String(HINTS["title_ready"]), {"title": R.title_name(String(offer[0]))}))
+		var left: Array = load("res://scripts/stations.gd").lessons_left(prof)
+		if not left.is_empty() and int(prof.climbs) >= 1:
+			out.append(fill(String(HINTS["lessons"]), {"n": left.size()}))
 	# The mark nearest its next step.
 	var close := {}
 	for part in prof.bonds:

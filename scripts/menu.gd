@@ -2981,7 +2981,7 @@ func _show_details(key: String) -> void:
 				_detail_lines(g, "" if weaponish else WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)))
 			if arg == "charm" and has and Charms.missing(g) > 0 and not _on_train():
 				# A spent charge: feed it essence you haven't banked yet (charms.gd).
-				var amount := Charms.refill_amount(g)
+				var amount := Charms.refill_amount(g, main.profile)
 				var held := int(Charms.unbanked(main))
 				var fb := _button(Charms.TEXT["refill_run"] % amount, _feed_charm, details)
 				fb.disabled = p.dead or held < amount

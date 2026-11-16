@@ -522,12 +522,10 @@ func _finish(s: Dictionary, grade: String, why := "") -> void:
 	# the grade and the renown.
 	main.note_event("noticed", String(main.notices.TEXT["noticed"]) % [main.beast_name().capitalize(), th["name"], g["name"]], null, false)
 	if main.profile != null and int(g["renown"]) > 0:
-		var r: Dictionary = Renown.earn(main.profile, int(g["renown"]), "%s (%s)" % [th["name"], g["name"]])
+		var r: Dictionary = Renown.earn(main.profile, int(g["renown"]), "%s (%s)" % [th["name"], g["name"]])  # (the feed and the Entity's log say it: main.gd on_renown)
 		lines.append(TEXT["renown"] % ("+%d" % int(g["renown"])))
-		main.note_event("renown", String(lines[-1]), null, false)
 		if String(r.get("rank_up", "")) != "":
 			lines.append(String(r["rank_up"]))
-			main.note_event("renown", String(lines[-1]), null, false)
 	Makers.feed(main, "scenario", {"gold": 3.0, "silver": 2.0, "bronze": 1.0}[grade])
 	main.note_noticed(String(s["kind"]), grade)
 	main.banner = {"title": TEXT["noticed"] % main.beast_name().to_upper(), "lines": lines, "t": 3.0, "show": 1, "logged": true, "kinds": {lines[-1]: "renown"}}

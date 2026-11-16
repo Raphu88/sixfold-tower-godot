@@ -722,6 +722,11 @@ func _station_placard(row: Node) -> void:
 	var stops: Array = Stations.stops(String(st.get("id", ""))).map(func(s): return Stations.stop_name(s))
 	var sl := _note(col, ",  ".join(stops), 10.0)
 	sl.add_theme_color_override("font_color", UI.TEXT)
+	if not Stations.lessons_done(_prof()):
+		# (Training is offered plainly: the lever opens on it, and this says how far you are)
+		var left := Stations.lessons_left(_prof()).size()
+		var tl := _note(col, Stations.TEXT["placard_lessons"] % [Stations.LESSON_ORDER.size() - left, Stations.LESSON_ORDER.size()], 10.0)
+		tl.add_theme_color_override("font_color", Color(0.62, 0.78, 1.0))
 	_note(col, Stations.TEXT["safe"], 10.0)
 	var lever := TrainView.Lever.new()
 	lever.word = T["lever"]
@@ -1337,7 +1342,7 @@ func _charm_counter(parent: Node) -> Array:
 			s.kept = ref.begins_with("heir:")
 			s.count = Bench.Charms.charges(g)
 			s.set_meta("help", "slot:bench:charm")  # (the Entity's line for it: entity_help.gd)
-			var cost := Bench.refill_cost(g)
+			var cost := Bench.refill_cost(g, prof)
 			if not cost.is_empty():
 				_price_on(s, cost.keys()[0], int(cost.values()[0]), true)
 			keys.append(s.get_meta("slot"))
@@ -1367,7 +1372,7 @@ func _charm_refill_card(ref: String) -> void:
 	m._detail_text(line + "  ·  " + Gear.rarity_name(g), UI.DIM)
 	m._detail_text(Gear.desc(g).left(1).to_upper() + Gear.desc(g).substr(1) + ".", UI.TEXT)
 	_charge_lines(g)
-	var cost := Bench.refill_cost(g)
+	var cost := Bench.refill_cost(g, prof)
 	if cost.is_empty():
 		return
 	var why := _cost_lines(cost, B["cost"])

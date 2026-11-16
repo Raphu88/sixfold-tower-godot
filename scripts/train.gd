@@ -29,7 +29,6 @@ const Gear := preload("res://scripts/gear.gd")
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Renown := preload("res://scripts/renown.gd")
-const Boons := preload("res://scripts/boons.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Charms := preload("res://scripts/charms.gd")
@@ -64,7 +63,7 @@ static var TODAY_ODDS := {"fine": 75, "rare": 25}
 ##   scroll     the recall scroll he always stocks costs less (scroll_price)
 ##   stock      rack pieces may come Fine (rack_fine, in percent) and
 ##              today's piece rolls on STOCK_ODDS
-##   discount   everything he sells costs less (discount; boons.gd adds more)
+##   discount   everything he sells costs less (discount; a worn title's outfitter benefit adds more)
 ##   order      a special order: he holds one piece you choose (from the
 ##              rack or the case) until you buy it, on any later visit
 static var UPGRADES := [
@@ -516,12 +515,12 @@ static func rack_size(profile) -> int:
 	return RACK_SIZE + (int(UPGRADE_FX["rack_extra"]) if upgraded(profile, "wide_rack") else 0) + Shop.rail_extra(profile)
 
 
-## What the outfitter takes off his prices (0 to 1): his upgrade and your boons.
+## What the outfitter takes off his prices (0 to 1): his upgrade and your worn title.
 static func discount(profile) -> float:
 	if profile == null:
 		return 0.0
 	var d := float(UPGRADE_FX["discount"]) if upgraded(profile, "discount") else 0.0
-	return clampf(d + Boons.discount(profile) + Shop.title_discount(profile), 0.0, 0.9)
+	return clampf(d + Shop.title_discount(profile), 0.0, 0.9)
 
 
 ## What a piece costs you at the store (gear_price, less his discount).
@@ -593,6 +592,11 @@ static func roll_outfit(profile = null) -> Array:
 	var pool := common_pool(profile)
 	var charms := Shop.charm_count(profile) if profile != null else int(Charms.SHOP["rack"])
 	var extras: Array = Shop.extras(profile) if profile != null else []
+	if profile != null:
+		for i in Shop.title_first_look(profile):  # (the worn title's first look: a Fine-or-better piece kept for you, titles.gd)
+			var fid: String = Gear.random_gear("", [], true, "fine")
+			if not Gear.traits_for(Gear.trait_slot(fid)).is_empty():
+				extras.append(Gear.make(fid, "fine", Gear.roll_traits(fid, "fine")))
 	var spaces := maxi(1, rack_size(profile) - charms - extras.size())
 	var pick: Array = Shop.pick(profile, pool, spaces)
 	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
@@ -634,6 +638,8 @@ static func roll_today(profile = null) -> Dictionary:
 		if roll < 0:
 			rar = r
 			break
+	if profile != null and Shop.title_today(profile):  # (the worn title: a rarity higher, titles.gd)
+		rar = "rare" if rar == "fine" else ("storied" if rar == "rare" else rar)
 	var base := Gear.random_gear("", [], true, rar)
 	for i in 12:
 		if not Gear.traits_for(Gear.trait_slot(base)).is_empty():
