@@ -339,7 +339,7 @@ func _place(stake: int) -> void:
 	if why == "":
 		got = String(Dining.TEXT["bet_placed"]) % [String(rec.get("name", "")), Dining.bet_name(offer, true)]
 		pick = -1
-		m.main.sfx("coin" if m.main.audio != null and m.main.audio.has_sound("coin") else "pickup", 1.0, -4.0, 0.0)
+		m.main.sfx("pickup", 1.0, -4.0, 0.0)
 	else:
 		got = why
 	m.open("train")

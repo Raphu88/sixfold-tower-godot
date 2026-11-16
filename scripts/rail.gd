@@ -238,7 +238,7 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 	list = VBoxContainer.new()
 	list.add_theme_constant_override("separation", 1 if narrow else 3)
 	if on_end:
-		list.add_theme_constant_override("separation", 8 if narrow else 12)  # (the couplings between cars)
+		list.add_theme_constant_override("separation", 5 if narrow else 12)  # (the couplings between cars; short on a phone, for seven cars)
 		list.sort_children.connect(queue_redraw)
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(list)
@@ -294,13 +294,13 @@ func _build(touch: bool, pad: bool, ps: bool) -> void:
 				b.custom_minimum_size.y = 40.0
 	else:
 		var sep := RailRule.new()
-		sep.custom_minimum_size.y = 6.0 if narrow else 9.0
+		sep.custom_minimum_size.y = (4.0 if on_train else 6.0) if narrow else 9.0
 		foot_box.add_child(sep)
 		for it in foot_items:
 			var b := _item(foot_box, it, "")
 			b.small = true
 			if on_train:
-				b.custom_minimum_size.y = 36.0 if narrow else 32.0
+				b.custom_minimum_size.y = 32.0 if narrow else 32.0  # (a phone: room for the seven cars' rows above)
 	hint = null
 	if not narrow and not touch:
 		hint = Label.new()
@@ -393,13 +393,13 @@ func _train_items(parent: Node, touch: bool, pad: bool, ps: bool) -> void:
 	if on_end:
 		return
 	var sep := RailRule.new()
-	sep.custom_minimum_size.y = 6.0 if narrow else 12.0
+	sep.custom_minimum_size.y = 4.0 if narrow else 12.0
 	parent.add_child(sep)
 	for id in TRAIN_PAGES:
 		for it in ITEMS:
 			if it[0] == id:
 				var b := _item(parent, it, _key_for(id, touch, pad, ps))
-				b.custom_minimum_size.y = 36.0 if narrow else 40.0
+				b.custom_minimum_size.y = 32.0 if narrow else 40.0
 
 
 ## True for a car's item on the train's rail.

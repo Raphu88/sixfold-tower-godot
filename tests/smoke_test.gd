@@ -8854,7 +8854,7 @@ func _train_tests() -> void:
 	var R = load("res://scripts/rail.gd")
 	var rail_ids: Array = rail.buttons.map(func(b): return b.id)
 	_check(rail.visible and rail_ids.slice(0, 8) == ["climber", "engine", "store", "personal", "workshop", "dining", "library", "settings"], "the rail shows on the train: who you are, then the seven cars front to back (%s)" % [rail_ids])
-	_check(rail_ids.slice(7) == (["dev", "exit", "quit"] if menu.can_quit() else ["dev", "exit"]) and rail.button("resume") == null, "...then Dev Tools, Exit to Title Station and (on a computer) Quit game (%s)" % [rail_ids.slice(7)])
+	_check(rail_ids.slice(8) == (["dev", "exit", "quit"] if menu.can_quit() else ["dev", "exit"]) and rail.button("resume") == null, "...then Dev Tools, Exit to Title Station and (on a computer) Quit game (%s)" % [rail_ids.slice(8)])
 	_check(rail.current == "personal" and rail.button("personal").on, "...your car lit")
 	_check(view.get_global_rect().position.x >= rail.size.x - 0.5 and absf(view.get_global_rect().end.x - menu.get_viewport_rect().size.x) < 1.0, "the cars fill the screen right of the rail")
 	var top_things: Array = _all_buttons(view.chrome).filter(func(b): return b.has_meta("car") or b.has_meta("arrow") or b.has_meta("menu"))
@@ -12350,18 +12350,18 @@ func _train_rail_tests() -> void:
 	await _frames(3)
 	_check(M.settings["train_rail"] == "end" and rail.on_end and menu.page == "train", "...switched to the train on end")
 	ids = rail.buttons.map(func(b): return b.id)
-	_check(ids.slice(0, 9) == ["climber"] + order + ["dev", "exit"], "...the same items in the same order (%s)" % [ids])
+	_check(ids.slice(0, 10) == ["climber"] + order + ["dev", "exit"], "...the same items in the same order (%s)" % [ids])
 	var cars: Array = rail.buttons.filter(func(b): return b.car)
 	var stacked := true
 	for i in cars.size() - 1:
 		stacked = stacked and cars[i].get_global_rect().end.y <= cars[i + 1].get_global_rect().position.y
-	_check(cars.size() == 6 and stacked and rail.button("engine").size.y > rail.button("store").size.y, "...the cars stacked under each other, the engine at the top and taller")
+	_check(cars.size() == 7 and stacked and rail.button("engine").size.y > rail.button("store").size.y, "...the cars stacked under each other, the engine at the top and taller")
 	rail.focus_current()
 	await _frames(1)
 	await _key_tap(KEY_DOWN)
 	_check(menu.train_car == "workshop" and rail.button("workshop").has_focus(), "...Down on it moves to the next car")
 	await _key_tap(KEY_E)
-	_check(menu.train_car == "library" and rail.current == "library", "...E too, the light following")
+	_check(menu.train_car == "dining" and rail.current == "dining", "...E too, the light following")
 	menu.nav_keys = false
 	rail.button("engine").pressed.emit()
 	await _frames(2)
