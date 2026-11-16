@@ -4544,6 +4544,7 @@ class BodyView extends Control:
 	const Essence := preload("res://scripts/essence.gd")
 	const UI := preload("res://scripts/ui.gd")
 	const Palette := preload("res://scripts/palette.gd")
+	const AnimRef := preload("res://scripts/anim.gd")
 	var main
 
 	const ORDER := ["brow", "throat", "heart", "back", "hand", "legs"]  # top to bottom, as on the body
@@ -4557,6 +4558,43 @@ class BodyView extends Control:
 
 	func _process(_delta: float) -> void:
 		queue_redraw()  # the marks glow and pulse
+
+	## A mark that has grown a step since last seen (essence drunk, a tincture, a
+	## stair's banking) flares: a ring swelling out and rays turning (anim.gd "grow").
+	var _steps := {}  # part -> the step its mark was last seen at
+	var _grown := {}  # part -> when (msec) it last grew
+
+	func _note_growth() -> void:
+		var prof = main.profile
+		var now := Time.get_ticks_msec()
+		for part in prof.bonds:
+			var st: int = prof.step_for_xp(float(prof.bonds[part]["xp"]))
+			if _steps.has(part) and st > int(_steps[part]):
+				_grown[part] = now
+			_steps[part] = st
+
+	func _flourish(k: float, c: Vector2) -> void:
+		_note_growth()
+		if _grown.is_empty():
+			return
+		var now := Time.get_ticks_msec()
+		var span: float = AnimRef.num("grow", "time") * 1000.0
+		for part in _grown.keys():
+			var age := float(now - int(_grown[part]))
+			if age > span or not main.profile.bonds.has(part):
+				_grown.erase(part)
+				continue
+			var e := age / span
+			var at: Vector2 = c + SPOTS[part] * k
+			var col: Color = Bonds.BONDS[main.profile.bonds[part]["id"]]["color"]
+			var reach: float = AnimRef.num("grow", "reach") * k * (1.0 - (1.0 - e) * (1.0 - e))
+			var fade := 1.0 - e
+			draw_arc(at, reach, 0.0, TAU, 32, Color(col.lightened(0.4), 0.8 * fade), 2.5 * k + 1.0, true)
+			draw_arc(at, reach * 0.6, 0.0, TAU, 24, Color(col.lightened(0.6), 0.5 * fade), 1.5, true)
+			for i in int(AnimRef.num("grow", "rays")):
+				var a := TAU * float(i) / AnimRef.num("grow", "rays") + e * 1.5
+				draw_line(at + Vector2.from_angle(a) * reach * 0.5, at + Vector2.from_angle(a) * reach * (0.9 + 0.3 * e), Color(1.0, 0.95, 0.8, 0.8 * fade), 1.5, true)
+			draw_circle(at, 8.0 * k * (1.0 + e), Color(col.lightened(0.5), 0.35 * fade))
 
 	func _draw() -> void:
 		var font := UI.font("display")
@@ -4575,6 +4613,7 @@ class BodyView extends Control:
 			else:
 				_mark(b, part, t)
 		b.flush(self)
+		_flourish(k, c)  # (a mark that has just grown: a ring and rays)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		# Names beside the marks, on leader lines.
 		var prof = main.profile

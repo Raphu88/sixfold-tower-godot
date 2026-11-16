@@ -14,6 +14,7 @@ const Appearance := preload("res://scripts/appearance.gd")
 const Makers := preload("res://scripts/makers.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Particles := preload("res://scripts/particles.gd")
+const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -163,6 +164,9 @@ var dodge_cd := 0.0
 var knock := Vector2.ZERO
 var trap_slow := 1.0  # a thorn snare holds you, a sluice's water slows you (traps.gd)
 var squash := 0.0
+var _roll_len := 0.22  # how long this roll lasts (for its stretch: anim.gd)
+var _dead_age := 0.0  # how long it has lain fallen (the fold: anim.gd)
+var _heal_state := [0.0]  # the sparkle's timer while a drink mends you (anim.gd)
 var buffered := ""
 var buffer_t := 0.0
 var step_t := 0.0
@@ -710,6 +714,8 @@ func _physics_process(delta: float) -> void:
 			_release_cast()
 	elif roll_t > 0.0:
 		roll_t -= delta
+		if roll_t <= 0.0:
+			Anim.land(main, global_position, Anim.num("roll", "land"))  # (a puff as the roll ends)
 		velocity = roll_dir * roll_speed
 		# Afterimages show exactly when you are untouchable.
 		if iframes > 0.0:
@@ -1285,6 +1291,7 @@ func _tick_jump(delta: float) -> void:
 	if jump_t <= 0.0:
 		jump_t = 0.0
 		squash = 0.5
+		Anim.land(main, global_position, Anim.num("jump", "land"))  # (a puff where you land)
 		main.sfx("step", 0.8, -4.0)
 
 
@@ -1353,6 +1360,9 @@ func _try_roll(input: Vector2) -> bool:
 	var duration := float(Combat.CLIMBER["dash_time" if wind else "roll_time"])
 	roll_speed = float(Combat.CLIMBER["dash_speed" if wind else "roll_speed"]) * dist_mult * (1.0 + 0.15 * graft("legs"))
 	roll_t = duration
+	_roll_len = duration
+	if main != null:
+		Anim.roll_start(main, global_position, roll_dir)  # (dust kicked up behind you)
 	iframes = duration * float(Combat.CLIMBER["roll_iframes"]) + gfx("iframe")  # Phantom Treads
 	roll_cd = (duration + float(Combat.CLIMBER["roll_cooldown"])) * (0.85 if has_bond("stormcaller") else 1.0)  # Quick Nerves
 	roll_cd = maxf(duration + 0.02, roll_cd * (1.0 - clampf(gfx("roll_recover"), 0.0, 0.5)))  # (a Feather Token: never before the roll ends)
@@ -1422,6 +1432,7 @@ func _melee() -> bool:
 		attack_cd *= 1.0 - 0.4 * (1.0 - hp / max_hp)
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
+	Anim.swing(main, global_position, aim, float(swing["range"]), deg_to_rad(float(swing["arc"])), float(swing["side"]), String(w["style"]), heavy)  # (sparks along the swing's path)
 	lunge_t = 0.08
 	lunge_speed = swing["lunge"]
 	var snd: String = w["sound"]
@@ -1861,6 +1872,8 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.light_flash(contact, Color(1.0, 0.85, 0.5), 1.0, 1.5, 0.2)
 		main.hitstop(0.14)
 		main.shake(9.0)
+		if main.fx != null:
+			main.fx.crit_until = Time.get_ticks_msec() + 50  # (its number is gold and big: fx.gd)
 	else:
 		main.fx_burst(contact, dir, Color(1.0, 0.95, 0.85), 8 if heavy else 5)
 		main.sfx("hit_heavy" if heavy else hit_sound)
@@ -2828,6 +2841,7 @@ func _on_parry(source, perfect := false) -> void:
 	parry_t = 0.0
 	parry_cd = 0.0  # a clean parry lets you act again at once
 	parry_flash = 0.35 if perfect else 0.25
+	Anim.parry(main, global_position, aim, perfect)  # (glints at the blade)
 	# Steadfast II (Warden): a parry while shielded restores the barrier.
 	if barrier_hp > 0.0 and passive_rank("warden") >= 2:
 		barrier_hp = maxf(barrier_hp, minf(barrier_max, barrier_hp + barrier_max * BondScript.Bonds.passive_num("warden", 2, "restore")))
@@ -2969,12 +2983,18 @@ func _draw() -> void:
 	_cloak_drift = _cloak_drift.lerp(-lv * 4.0 if not dead else Vector2.ZERO, 1.0 - exp(-dt * 8.0))
 
 	_draw_shadow(t, dt)
-	var lift := jump_height()
+	# Motion (anim.gd, all for the eye): each step lifts the body a little, a
+	# roll stretches it, a hit makes it shiver, a fall folds it as it drops.
+	var lift := jump_height() + (Anim.bob(_walk_phase, _walk_amp) if not dead and roll_t <= 0.0 and jump_t <= 0.0 else 0.0)
+	_dead_age = _dead_age + dt if dead else 0.0
+	var shiver := Anim.shiver(hurt_t, float(Combat.CLIMBER["grace"]), t) if not dead and main != null else Vector2.ZERO
 	var side := aim.orthogonal()
 	# Squash along the facing: stretched when rolling, flattened when hit.
 	var sq_dir := roll_dir if roll_t > 0.0 else aim
-	draw_set_transform(Vector2(0, -lift), sq_dir.angle(), Vector2(1.0 + squash * 0.25, 1.0 - squash * 0.2))
-	_wep_xf = Transform2D(sq_dir.angle(), Vector2(0, -lift))
+	var stretch := Anim.roll_stretch(1.0 - roll_t / maxf(_roll_len, 0.05)) if roll_t > 0.0 else 0.0
+	var fold := Anim.crumple(_dead_age) * Anim.num("death", "crumple") if dead and main != null else 0.0
+	draw_set_transform(Vector2(0, -lift) + shiver + Vector2(0, fold * 4.0), sq_dir.angle(), Vector2(1.0 + squash * 0.25 + stretch - fold * 0.5, 1.0 - squash * 0.2 - stretch * 0.5 + fold * 0.45))
+	_wep_xf = Transform2D(sq_dir.angle(), Vector2(0, -lift) + shiver)
 	var body := Transform2D(sq_dir.angle(), Vector2.ZERO).affine_inverse()
 	_f = body.basis_xform(aim)
 	_sd = body.basis_xform(side)
@@ -2987,7 +3007,7 @@ func _draw() -> void:
 	else:
 		_draw_standing(b, look, t)
 	b.flush(self)
-	draw_set_transform(Vector2(0, -lift), 0.0, Vector2.ONE)
+	draw_set_transform(Vector2(0, -lift) + shiver, 0.0, Vector2.ONE)
 	if main != null:  # (a doll has no marks)
 		Makers.draw_core_world(self, main.profile, side, t)  # (a core mark, beneath the marks)
 		_draw_marks(side, t)
@@ -3294,6 +3314,8 @@ func _draw_overlay() -> void:
 		c.draw_line(Vector2.ZERO, to_d, Color(0.6, 0.85, 1.0, 0.9), 2.0)
 	if parry_flash > 0.0:
 		c.draw_circle(Vector2.ZERO, radius + 6.0, Color(1.0, 0.95, 0.8, 0.5 * parry_flash / 0.25))
+	if heal_left > 0.0 and not dead:  # a soft green glow while a drink mends you
+		c.draw_circle(Vector2.ZERO, radius + 7.0, Color(0.5, 1.0, 0.55, Anim.num("heal", "glow") * (0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.012))))
 	if cast_t > 0.0:
 		var b = bonds[cast_part]
 		var k3 := 1.0 - cast_t / maxf(cast_total, 0.001)
@@ -3329,6 +3351,12 @@ func _draw_swing_trail(c: Node2D) -> void:
 			for i in 5:
 				var rr := reach - i * 3.0
 				c.draw_arc(Vector2.ZERO, rr, minf(from, to), maxf(from, to), 20, Color(col, (0.75 - i * 0.14) * (1.0 - k * 0.5)), thick)
+			# A bright leading edge where the blade is now; a finisher also
+			# throws wider, heavier outer arcs (anim.gd).
+			c.draw_line(Vector2.from_angle(to) * (reach - 12.0), Vector2.from_angle(to) * (reach + 3.0), Color(1, 1, 1, 0.7 * (1.0 - k)), thick)
+			if heavy:
+				for j in int(Anim.num("swing", "heavy_arcs")):
+					c.draw_arc(Vector2.ZERO, reach + 3.0 + j * 4.0, minf(from, to), maxf(from, to), 20, Color(col.lightened(0.3), (0.5 - j * 0.15) * (1.0 - k * 0.7)), thick * Anim.num("swing", "heavy_width"))
 		"stab", "thrust":
 			var ext := sin(PI * minf(1.0, k * 1.3))
 			var tip := aim * reach * (0.6 + 0.4 * ext)
@@ -3622,5 +3650,6 @@ func _tick_healing(delta: float) -> void:
 		heal_left = 0.0
 		return
 	var h := minf(heal_left, heal_rate * delta)
+	Anim.heal_tick(main, global_position, _heal_state, delta)  # (a green sparkle rising while it mends)
 	hp = minf(max_health(), hp + h)
 	heal_left -= h

@@ -37,6 +37,7 @@ const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Wheel := preload("res://scripts/wheel.gd")
+const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
@@ -1106,6 +1107,8 @@ func _draw_tower_choice(size: Vector2, font: Font) -> void:
 ## big, the disc's rim WHEEL_RIM further out; under it (WHEEL_CAPTION tall,
 ## WHEEL_CAPTION_W wide), the pointed option's name, what it does (up to
 ## three lines, its letters smaller for a long one) and the hint.
+var _wheel_shown := false  # the wheel is open (its bloom counts from when it opened: anim.gd "ui")
+var _wheel_ms := 0
 const WHEEL_R := 78.0
 const WHEEL_RIM := 36.0
 const WHEEL_CAPTION := 96.0
@@ -1120,6 +1123,8 @@ func _draw_rings() -> void:
 	var p = main.player
 	if p == null or main.title_showing():
 		return
+	if not (p.pick_open or p.ring_open):
+		_wheel_shown = false
 	if p.pick_open:
 		_draw_spell_ring(p, rings)
 	if p.ring_open:
@@ -1165,7 +1170,14 @@ func wheel_option_pos(i: int, n: int) -> Vector2:
 func _place_wheel() -> void:
 	var spot := wheel_spot()
 	rings.position = spot[0]
-	rings.scale = Vector2.ONE * float(spot[1])
+	# It blooms open: a quick swell from a little smaller (real time: the game slows while it's open).
+	var now := Time.get_ticks_msec()
+	if not _wheel_shown:
+		_wheel_shown = true
+		_wheel_ms = now
+	var k := clampf(float(now - _wheel_ms) / 1000.0 / maxf(Anim.num("ui", "wheel_bloom"), 0.01), 0.0, 1.0)
+	k = 1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k)
+	rings.scale = Vector2.ONE * float(spot[1]) * lerpf(Anim.num("ui", "wheel_from"), 1.0, k)
 
 
 ## The wheel of a mark's spells: each spell in a medallion with its bond's
