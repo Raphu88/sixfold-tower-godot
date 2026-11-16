@@ -952,6 +952,31 @@ static func follow_sigil(bond, p, sig: Dictionary) -> void:
 	_add(p.main, float(sig["t"]) * float(f), tick, Callable(), false)
 
 
+## Grand Sigil: every `pulse_every` seconds while it lasts, the foes inside
+## it are seared for `pulse`.
+static func sigil_pulse(bond, p, sig: Dictionary) -> void:
+	var dmg = bond.stat("pulse")
+	if dmg == null or float(dmg) <= 0.0:
+		return
+	var every := float(bond.stat("pulse_every")) if bond.stat("pulse_every") != null else 1.0
+	var hit: float = float(dmg) * bond.power()
+	var col: Color = bond.color()
+	var tick := func(it: Dictionary, delta: float):
+		if not is_instance_valid(p) or float(sig["t"]) <= 0.0:
+			it["done"] = true
+			return
+		it["wait"] = float(it.get("wait", every)) - delta
+		if float(it["wait"]) > 0.0:
+			return
+		it["wait"] = every
+		var main = p.main
+		for e in main.targets():
+			if e.global_position.distance_to(sig["pos"]) < float(sig["r"]) + e.radius:
+				e.take_hit(hit, Vector2.ZERO, 0.0)
+		main.fx_ring(sig["pos"], col, float(sig["r"]), 0.3, 3.0)
+	_add(p.main, float(sig["t"]), tick, Callable(), false)
+
+
 # --- helpers ------------------------------------------------------------------------------
 
 ## The foe nearest where you aim, within reach (or null), as bond.gd picks one.

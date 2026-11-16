@@ -504,9 +504,10 @@ func _warden() -> void:
 	var p = main.player
 	var src = _foe(p.global_position + dir * 40.0)
 	var paid := await _cast()
-	_check(paid == 12.0 and is_equal_approx(p.barrier_hp, 30.0) and p.barrier_burst, "Barrier still costs 12 and rises (30), bursting when it breaks")
+	var sh := float(load("res://scripts/bonds.gd").BONDS["warden"]["spells"][0]["steps"][2]["shield"])  # (step 3 keeps step 2's shield)
+	_check(paid == 12.0 and is_equal_approx(p.barrier_hp, sh) and p.barrier_burst, "Barrier still costs 12 and rises (%d), bursting when it breaks" % int(sh))
 	_blow(10.0, src)
-	_check(is_equal_approx(p.barrier_hp, 30.0 - 10.0 + 10.0 * float(_a("warden", "grow"))), "it grows back from every blow it blocks (%.1f)" % p.barrier_hp)
+	_check(is_equal_approx(p.barrier_hp, sh - 10.0 + 10.0 * float(_a("warden", "grow"))), "it grows back from every blow it blocks (%.1f)" % p.barrier_hp)
 	for i in 8:
 		_blow(10.0, src)
 	_check(p.barrier_hp <= 0.0 and src.hp < src.max_hp, "...and bursts outward when it breaks (%.0f)" % (src.max_hp - src.hp))

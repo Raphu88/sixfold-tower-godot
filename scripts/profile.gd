@@ -24,12 +24,17 @@ static var FAINT_DEBT := 80.0
 ## of what you bank grows marks (essence_flow.gd SPLIT): each kind goes to the
 ## marks of that kind and counts AFFINITY_WEIGHT; a kind no mark is made of
 ## spreads over every mark and counts OTHER_WEIGHT. Then STEP_RATE, slowed by
-## how many marks the body already carries (BODY_DRAG). The Proving (floor 6)
-## can raise a mark a step too, and tinctures steer essence into one mark.
-static var STEP_XP := [0.0, 150.0, 450.0, 1000.0, 1800.0]
+## how many marks the body already carries (BODY_DRAG). Winning the Proving
+## (floor 6) grows the mark you used most by PROVING_GROWTH, and tinctures
+## steer essence into one mark (essence_flow.gd TINCTURE "mark_boost": a
+## tincture's essence is concentrated). The pace is measured in climbs by
+## tests/progression_measure.gd (a mark is a long companion: step 2 after
+## about 3 climbs, step 3 about 9, step 4 about 18, step 5 about 30).
+static var STEP_XP := [0.0, 150.0, 450.0, 900.0, 1500.0]
 static var AFFINITY_WEIGHT := 2.0
 static var OTHER_WEIGHT := 0.25
-static var STEP_RATE := 0.25
+static var STEP_RATE := 0.075
+static var PROVING_GROWTH := 35.0
 ## Marks after the first: an unmarked body part fills like a battery. The
 ## body's share of what you bank spreads over the parts by what each did,
 ## and an unmarked part soaks SOAK_RATE of its portion; the fuller it is the
@@ -39,7 +44,7 @@ static var STEP_RATE := 0.25
 ## mark at a summit, or earlier from a Maker for a sealed wing won early
 ## (essence_flow.gd EARNED); at most one new mark a climb (main.gd).
 static var NEW_MARK_SOAK := 250.0
-static var SOAK_RATE := 1.6
+static var SOAK_RATE := 1.2
 static var MARK_FULL := 0.9
 static var BODY_DRAG := [1.0, 1.0, 0.7, 0.5, 0.35, 0.25, 0.2]
 
@@ -761,7 +766,8 @@ func grow_mark(part: String, gain: float) -> Array:
 
 
 ## Drinks a tincture (`amount` of `kind`) into one body part, steered: a
-## mark's growth (its own kind counts AFFINITY_WEIGHT, any other OTHER_WEIGHT),
+## mark's growth (its own kind counts AFFINITY_WEIGHT, any other OTHER_WEIGHT,
+## then Flow.TINCTURE "mark_boost": a tincture's essence is concentrated),
 ## or an unmarked part's soak (Flow.TINCTURE soak_rate), which also counts
 ## toward the next mark's kind; the Unbound's raw density there. Returns
 ## {"lines", "said"} (said: what it did, in a few words).
@@ -778,7 +784,7 @@ func drink(kind: String, amount: float, part: String) -> Dictionary:
 		said = String(Flow.TEXT["to_raw"]) % String(Bonds.PART_NAMES[part]).to_lower()
 	elif bonds.has(part):
 		var info: Dictionary = Bonds.BONDS[bonds[part]["id"]]
-		var gain := amount * (AFFINITY_WEIGHT if String(info["affinity"]) == kind else OTHER_WEIGHT)
+		var gain := amount * (AFFINITY_WEIGHT if String(info["affinity"]) == kind else OTHER_WEIGHT) * float(Flow.TINCTURE.get("mark_boost", 1.0))
 		var faint := bool(bonds[part]["faint"])
 		var xp0 := float(bonds[part]["xp"])
 		lines = grow_mark(part, gain)
@@ -831,7 +837,34 @@ func body_drag() -> float:
 	return float(BODY_DRAG[clampi(bonds.size(), 0, BODY_DRAG.size() - 1)])
 
 
-## A mark goes up one step (the Proving's gift): returns its new step, or 0.
+## The Proving's gift: a mark grows PROVING_GROWTH (not past step 5, and
+## not slowed by the marks you carry; a faint mark pays its debt first).
+## Returns {"grown": growth added, "step": its step after, "up": true if it
+## reached a new step}; {} with no such mark or one grown as far as it goes.
+func proving_gift(part: String) -> Dictionary:
+	if not bonds.has(part):
+		return {}
+	var b: Dictionary = bonds[part]
+	var top := float(STEP_XP[STEP_XP.size() - 1])
+	if float(b["xp"]) >= top:
+		return {}
+	var gain := PROVING_GROWTH
+	if b["faint"]:
+		b["debt"] = float(b["debt"]) - gain
+		if float(b["debt"]) > 0.0:
+			return {"grown": 0.0, "step": step_for_xp(float(b["xp"])), "up": false}
+		gain = -float(b["debt"])
+		b["debt"] = 0.0
+		b["faint"] = false
+	var before := step_for_xp(float(b["xp"]))
+	var xp0 := float(b["xp"])
+	b["xp"] = minf(top, xp0 + gain)
+	var after := step_for_xp(float(b["xp"]))
+	return {"grown": float(b["xp"]) - xp0, "step": after, "up": after > before}
+
+
+## A mark goes up one step (the dev tools; the Proving grows a mark by
+## PROVING_GROWTH instead): returns its new step, or 0.
 func raise_step(part: String) -> int:
 	if not bonds.has(part):
 		return 0

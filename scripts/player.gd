@@ -1425,7 +1425,7 @@ func _melee() -> bool:
 	if _stubborn():
 		attack_cd *= 0.8
 	if desperate_t > 0.0:
-		attack_cd *= 1.0 - 0.4 * (1.0 - hp / max_hp)
+		attack_cd *= 1.0 - lerpf(desperate_speed, desperate_speed_low, clampf(1.0 - hp / max_hp, 0.0, 1.0))  # Desperation
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
 	Anim.swing(main, global_position, aim, float(swing["range"]), deg_to_rad(float(swing["arc"])), float(swing["side"]), String(w["style"]), heavy)  # (sparks along the swing's path)
@@ -1455,7 +1455,7 @@ func _melee() -> bool:
 	if kindle_t > 0.0:
 		dmg += kindle_dmg
 	if desperate_t > 0.0:
-		dmg *= 1.0 + 1.5 * (1.0 - hp / max_hp)  # Desperation
+		dmg *= 1.0 + lerpf(desperate_power, desperate_power_low, clampf(1.0 - hp / max_hp, 0.0, 1.0))  # Desperation
 	BondScript.wyvern().swing_fire(self)  # (Heat II: at full heat your swings throw fire)
 	dmg *= 1.0 + 0.2 * graft("hand")
 	var reach: float = swing["range"] * (1.25 if has_bond("blade_forger") else 1.0)  # Long Edge
@@ -1688,6 +1688,9 @@ func _fire_gun() -> void:
 ## weapon's rules, and (`fills`) fill the hand's mark; a spell's shot is just
 ## a hit, and an enchanted pistol's essence shot doesn't fill the hand.
 ## `shot`: an essence shot's essence (weapons.gd ESSENCE_SHOT), "" for none.
+var spell_shot := false  # (ranged_hit: a spell's shot, not the weapon's)
+
+
 func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon := false, shot := "", fills := true) -> void:
 	# Hunter's Hawk's Eye: every arrow strikes a weak point.
 	# Ambusher (Hunter and Ashwalker): a shot it never saw coming does too.
@@ -1697,7 +1700,9 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon :
 	elif Pacts.has(self, "ambusher") and Reactions.has(e, "unseen"):
 		dmg *= Pacts.num("ambusher", "mult")
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Pacts.PACTS["ambusher"]["color"])
+	spell_shot = not weapon  # (a spell's shot lands through _strike too: not a weapon's blow)
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
+	spell_shot = false
 	if not weapon:
 		return
 	if fills:
@@ -1804,6 +1809,7 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 			rekindle_burned.append(e.get_instance_id())
 	if ember_t > 0.0:
 		ember_t = 0.0
+		hp = maxf(hp, max_health() * float(Bonds.BONDS["rekindler"]["passive"].get("rise", 0.0)))  # (you rise again with a share of your health)
 		main.fx_text(global_position + Vector2(0, -44), "Rekindled", Color(1.0, 0.6, 0.3))
 		main.light_flash(global_position, Color(1.0, 0.5, 0.25), 1.6, 1.8, 0.4)
 		main.sfx("crit", 0.8)
@@ -1886,7 +1892,9 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 		main.hit_kind = "frost"  # (a chilling blow: a drenched foe takes double, bond.gd taken_mult)
 	_charm_wardbreak(e)
 	var oiled: bool = edge_t > 0.0 and e.kind in Items.ITEMS["edge_oil"].get("cracks", [])  # (Edge Oil: lands as a heavy blow on a shell or a guard)
+	main.weapon_blow = not spell_shot  # (what's a weapon's blow and what's a spell's: tests/mark_measure.gd counts them apart)
 	e.take_hit(dmg, dir, force, heavy or crit or rock or oiled, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
+	main.weapon_blow = false
 	if unseen:
 		BondScript.manticore().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
 	if main.hit_kind == "frost":
@@ -2038,7 +2046,9 @@ func _try_cast(part: String) -> bool:
 func _release_cast() -> void:
 	var b = bonds[cast_part]
 	# Firebird Form: a spell marked "free_in_form" (Wingburst, Cinder Dive) costs nothing.
-	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)))
+	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)) and firebird_free_cd <= 0.0)
+	if firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)) and firebird_free_cd <= 0.0 and not main.in_sigil(global_position):
+		firebird_free_cd = firebird_free_every  # (free again only after a moment: bond.gd _firebird_form)
 	# Spellweave Ring: every third spell costs nothing.
 	spells_cast += 1
 	Makers.feed(main, "cast", 1.0, b.id + ":" + String(b.spell()["name"]))
@@ -2177,6 +2187,17 @@ var rekindle_shield_t := 10.0  # (lasting this long)
 var desperate_t := 0.0
 var pyre_t := 0.0
 var pyre_dmg := 30.0
+var firebird_free_cd := 0.0  # Firebird Form: a free Wingburst waits this long for the next
+var firebird_free_every := 0.0
+var firebird_aura := 1.5  # Firebird Form: the aura's reach, times its own (bond.gd _firebird_form)
+var pyre_burst := 0.0  # Pyre Oath: a foe you slay while it lasts bursts for this (bond.gd on_kill)
+var pyre_burst_r := 80.0
+var rekindle_burn := 3.0  # Rekindle: what its flames deal to the foes near you every half second
+var rekindle_r := 60.0  # (and how far they reach)
+var desperate_power := 0.0  # Desperation: how much harder at full health...
+var desperate_power_low := 1.5  # ...and as your health runs out
+var desperate_speed := 0.0  # how much faster at full health...
+var desperate_speed_low := 0.4  # ...and as your health runs out
 var phoenix_t := 0.0
 var phoenix_regain := 0.0  # its Apex: at its end you regain this share of what it held back
 var phoenix_held := 0.0  # (the health it kept you from losing)
@@ -2330,6 +2351,7 @@ func _tick_fire_bonds(delta: float) -> void:
 	chimera_t -= delta
 	warmth_t -= delta
 	firebird_t -= delta
+	firebird_free_cd -= delta
 	desperate_t -= delta
 	pyre_t -= delta
 	phoenix_t -= delta
@@ -2366,7 +2388,7 @@ func _tick_fire_bonds(delta: float) -> void:
 				hp = minf(max_health(), hp + warmth_heal * heal_mult() * delta)
 			if aura_tick <= 0.0:
 				aura_tick = 0.5
-				var r := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
+				var r := aura_r * (firebird_aura if firebird_t > 0.0 else 1.0)
 				var dmg := aura_dmg * (1.0 + minf(aura_time / maxf(aura_ramp, 0.1), 1.0) * aura_peak if aura_grows else 1.0)
 				for e in main.targets():
 					if e.global_position.distance_to(global_position) < r + e.radius:
@@ -2386,10 +2408,13 @@ func _tick_fire_bonds(delta: float) -> void:
 			if hp - loss > 1.0:
 				hp -= loss
 				rekindle_lost += loss
-			if rekindle_spread:
+			if rekindle_spread:  # (its flames burn the foes near you; a foe burned counts as fighting)
 				for e in main.targets():
-					if e.global_position.distance_to(global_position) < 60.0 + e.radius:
-						e.take_hit(3.0, Vector2.ZERO, 0.0)
+					if e.global_position.distance_to(global_position) < rekindle_r + e.radius:
+						e.take_hit(rekindle_burn, Vector2.ZERO, 0.0)
+						rekindle_fought = true
+						if not e.dead:
+							Reactions.apply(main, e, "burning", 1.0, "rekindle", maxf(1.0, rekindle_burn * 0.25))
 		if rekindle_t <= 0.0:
 			# Bonfire: the payback grows with each foe you set burning.
 			var back := rekindle_lost * (2.0 + rekindle_per * rekindle_burned.size())
@@ -3244,7 +3269,7 @@ func _draw_overlay() -> void:
 			glow.dot(at, 4.0, Color(gc, 0.25 * gc.a * pulse))
 		glow.flush(c)
 	if aura_part != "":
-		var ar := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
+		var ar := aura_r * (firebird_aura if firebird_t > 0.0 else 1.0)
 		var tt2 := Time.get_ticks_msec() * 0.001
 		c.draw_circle(Vector2.ZERO, ar, Color(aura_color, 0.07 + 0.05 * sin(tt2 * 6.0)))
 		c.draw_arc(Vector2.ZERO, ar, 0.0, TAU, 40, Color(aura_color, 0.35), 2.0)
