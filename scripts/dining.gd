@@ -115,7 +115,7 @@ static var RUMORS := [
 	{"id": "rival_mark", "fact": "rival_mark", "lines": ["\"If you meet {name} up there: {mark} on the {part}, step {step}.\""]},
 	{"id": "dark", "fact": "dark", "lines": ["\"In {tower}, from floor {floor} the halls go dark. {item} carries your light.\""]},
 	{"id": "wing", "fact": "wing", "lines": ["\"From floor {floor}, a sealed wing may ask this: {rule}\""]},
-	{"id": "slay_odds", "fact": "best_bet", "lines": ["\"Wagers? The best odds on the train tonight are {odds} for {bet}.\""]},
+	{"id": "best_bet", "fact": "best_bet", "lines": ["\"Wagers? The best odds on the train tonight are {odds} for {bet}.\""]},
 ]
 
 ## The wagers: what you bet will happen on your next climb (in the tower
