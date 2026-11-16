@@ -631,6 +631,8 @@ func _contracts(main) -> void:
 	var live := Reach.live_check(main, main.player_start)
 	t._check(not live.get("checked", false) or (live["stair"] and Reach.near_reached(live["reach"], live["size"], it["pos"])), "...somewhere you can walk to, and the stair is still in reach")
 	var renown0 := Renown.points(prof)
+	main.camp_choosing = false
+	main.rivals.list.clear()  # (nobody to talk to on the way)
 	main.player.global_position = it["pos"]
 	await t._until(func(): return main.contracts.item.is_empty(), 1.0)
 	t._check(bool(Contracts.find(prof, String(ret["id"])).get("carried", false)) and main.notices.log.any(func(e): return String(e.get("kind", "")) == "contract"), "walking onto it picks it up, said in the log")
@@ -673,6 +675,8 @@ func _contracts(main) -> void:
 			var lc := Reach.live_check(main, main.player_start)
 			if item.is_empty():
 				bad.append("%s %d: no item" % [tw, n])
+			elif main.in_chasm(item["pos"]) or main.traps.any(func(tr): return Vector2(tr.get("pos", Vector2.INF)).distance_to(item["pos"]) < 30.0):
+				bad.append("%s %d: on a chasm or a trap" % [tw, n])
 			elif lc.get("checked", false) and not (lc["stair"] and Reach.near_reached(lc["reach"], lc["size"], item["pos"])):
 				bad.append("%s %d" % [tw, n])
 			for e in main.enemies():

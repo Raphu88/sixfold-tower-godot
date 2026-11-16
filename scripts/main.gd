@@ -1144,6 +1144,10 @@ func _start_floor(n: int) -> void:
 	targets.append(stair_pos)
 	if not lost_cache.is_empty():
 		targets.append(lost_cache["pos"])
+	if contracts != null:
+		var cspot: Vector2 = contracts.plan_spot(plan, n, lost_cache.get("pos", Vector2.INF))  # (a contract's thing to retrieve: a safe patch, like the lost cache)
+		if cspot != Vector2.INF:
+			targets.append(cspot)
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
 	# Door frames, only where the wall beside an opening is really there.
 	room_view.set_doors(plan.get("posts", []).filter(func(r): return is_solid(r.get_center())))

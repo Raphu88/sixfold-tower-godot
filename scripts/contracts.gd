@@ -87,6 +87,7 @@ static var TEXT := {
 
 var main
 var item := {}  # the thing to retrieve on this floor: {"pos", "id", "name", "taken"}
+var planned := Vector2.INF  # where it waits, chosen as the floor was planned (plan_spot)
 var glow := -1
 var t := 0.0
 
@@ -349,6 +350,41 @@ func _live() -> bool:
 	return not main.first_climb
 
 
+## A floor being planned (main.gd _start_floor, beside the lost cache, before
+## the walls, traps, chasms and the tower's own ground are laid): if a thing
+## to retrieve waits here, its spot is chosen now in an ordinary room
+## (lost.gd spot: never a puzzle hall, a sealed wing or a trap room), and
+## kept clear like the lost cache (a safe patch: no traps or chasms on it,
+## cover never walls it off). Returns the spot (INF if none waits here).
+func plan_spot(plan: Dictionary, n: int, avoid := Vector2.INF) -> Vector2:
+	planned = Vector2.INF
+	if not _live() or not plan.has("room_info") or plan.has("try_room"):
+		return planned
+	var o := _due_here(n)
+	if o.is_empty():
+		return planned
+	var Lost = load("res://scripts/lost.gd")
+	for i in 6:
+		var at: Vector2 = Lost.spot(plan)
+		if at == Vector2.INF:
+			break
+		if avoid == Vector2.INF or at.distance_to(avoid) > 90.0:
+			planned = at
+			break
+	if planned != Vector2.INF:
+		var half := Vector2(40.0, 40.0) * 1.5
+		plan["safe_rooms"] = plan.get("safe_rooms", []) + [Rect2(planned - half, half * 2.0)]
+	return planned
+
+
+## The retrieve contract whose thing waits on this floor of this tower ({} if none).
+func _due_here(n: int) -> Dictionary:
+	for o in active(main.profile):
+		if String(o["kind"]) == "retrieve" and not bool(o.get("carried", false)) and String(main.tower) == String(o["tower"]) and n == int(o["floor"]):
+			return o
+	return {}
+
+
 ## A new floor (main.gd _start_floor, after the floor is built): a reach
 ## contract may be done; a thing carried up the stair is safe; the thing to
 ## retrieve may wait here.
@@ -375,6 +411,9 @@ func on_floor(n: int) -> void:
 ## Puts the thing to retrieve somewhere you can walk to, away from the start.
 func _place(o: Dictionary) -> void:
 	var start: Vector2 = main.player_start
+	if planned != Vector2.INF and _safe(planned):
+		_put(o, planned)
+		return
 	var spots: Array = []
 	var info: Array = main.room_info if main.get("room_info") != null else []
 	for ri in info:
@@ -393,7 +432,7 @@ func _place(o: Dictionary) -> void:
 			continue
 		if not reach.is_empty() and reach.get("checked", false) and not Reach.near_reached(reach["reach"], reach["size"], at):
 			continue
-		if at.distance_to(main.stair_pos) < 60.0:
+		if at.distance_to(main.stair_pos) < 60.0 or not _safe(at):
 			continue
 		var d := at.distance_to(start)
 		if d < float(RULES["near_start"]) and best != Vector2.INF:
@@ -403,6 +442,17 @@ func _place(o: Dictionary) -> void:
 			best = at
 	if best == Vector2.INF:
 		best = main.walkable_point(start, start + Vector2(0, -160))
+	_put(o, best)
+
+
+## Not over a chasm (a tower's own gaps are laid after the plan) or by a trap.
+func _safe(at: Vector2) -> bool:
+	if main.has_method("in_chasm") and main.in_chasm(at):
+		return false
+	return not main.traps.any(func(tr): return Vector2(tr.get("pos", Vector2.INF)).distance_to(at) < 50.0)
+
+
+func _put(o: Dictionary, best: Vector2) -> void:
 	item = {"pos": best, "id": String(o["id"]), "name": String(o["item"]), "taken": false}
 	if main.lighting != null:
 		glow = main.lighting.add_light(best, 90.0, KINDS_COLOR, 0.5, 0.2)
