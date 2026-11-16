@@ -10,7 +10,8 @@ extends Node
 ## regained, foes held helpless (stunned, airborne, asleep: seconds, and half
 ## for slowed or blinded), casts.
 ##
-## Add it under the tree with `begin(main, bond_id, step)`; `done` is set when
+## Add it under the tree with `begin(main, bond_id, step)` (and fewer waves,
+## or a faster game, for a quick check); `done` is set when
 ## the room is clear, the climber falls, or LIMIT seconds pass; `result` holds
 ## the counts.
 
@@ -30,7 +31,7 @@ const FOES := [["slime", Vector2(150, -60)], ["slime", Vector2(170, 70)], ["arch
 ## share; "low": a foe below this share of its health, aimed at).
 const POLICY := {
 	"kindle": {"buff": true, "near": 140.0}, "searing": {"buff": true, "near": 140.0}, "hawkeye": {"buff": true, "near": 300.0},
-	"thunderhead": {"buff": true, "near": 220.0}, "inscribe": {"buff": true, "near": 300.0}, "sigil": {"buff": true, "near": 200.0},
+	"thunderhead": {"buff": true, "near": 220.0}, "sigil": {"buff": true, "near": 200.0},
 	"vanish": {"buff": true, "near": 160.0}, "ashfall": {"buff": true, "near": 200.0}, "veil": {"buff": true, "near": 160.0},
 	"warmth": {"buff": true, "near": 200.0}, "firebirdform": {"buff": true, "near": 200.0}, "rekindle": {"buff": true, "near": 120.0},
 	"desperation": {"buff": true, "near": 140.0}, "pyre": {"buff": true, "near": 140.0}, "phoenix": {"buff": true, "near": 140.0, "hurt": 0.6},
@@ -39,7 +40,8 @@ const POLICY := {
 	"track": {"buff": true, "near": 400.0}, "mend": {"hurt": 0.75}, "chimeraform": {"buff": true, "near": 200.0},
 	"overheat": {"heat": 70.0, "near": 100.0}, "wingburst": {"near": 110.0, "aura_heat": true},
 	"call": {"low": 0.25}, "grandcall": {"buff": true, "near": 300.0}, "command": {"near": 260.0},
-	"ward": {"near": 120.0}, "trap": {"near": 220.0}, "neuro": {"buff": true, "near": 140.0}, "drink": {"buff": true, "near": 220.0},
+	"ward": {"near": 120.0, "hurt": 0.5}, "trap": {"near": 220.0, "runes": 3}, "neuro": {"buff": true, "near": 140.0, "venom": 1}, "drink": {"buff": true, "near": 220.0},
+	"inscribe": {"once": true}, "crosswind": {"ranged": true}, "sandwall": {"ranged": true}, "virulence": {"venom": 4, "near": 240.0}, "amputate": {"low": 0.75, "near": 130.0},
 	"siphon": {"near": 220.0}, "exchange": {"near": 300.0}, "transfer": {"near": 200.0}, "sinkhole": {"near": 260.0},
 }
 
@@ -66,8 +68,9 @@ var waves_left := WAVES
 ## Sets up the climber and the room: one mark on the hand at `step` (today's
 ## side of every fork), full essence, the foes spawned. `cast`: false fights
 ## with the weapon alone (the passive and body still work).
-func begin(m, id: String, at_step: int, cast := true) -> void:
+func begin(m, id: String, at_step: int, cast := true, waves := WAVES, speed := 1.000001) -> void:
 	main = m
+	waves_left = waves
 	bond_id = id
 	step = at_step
 	cast_on = cast
@@ -97,7 +100,8 @@ func begin(m, id: String, at_step: int, cast := true) -> void:
 	p.aim = Vector2.RIGHT
 	if p.bonds.has("hand"):
 		p.bonds["hand"].essence = p.bonds["hand"].capacity()
-	main.test_speed = 1.000001  # (no hit-pause: it would freeze the clock this fight is timed by)
+	main.test_speed = speed  # (never exactly 1: no hit-pause, which would freeze the clock this fight is timed by; more runs it faster, coarser)
+	Engine.time_scale = speed
 	_wave(1.0)
 	last_hp = p.hp
 	if not main.on_hit.is_connected(_on_hit):
@@ -115,9 +119,10 @@ func _wave(side: float) -> void:
 		e.notice_t = 0.0
 
 
-func _on_hit(_foe, dmg: float, source: String) -> void:
-	if done:
-		return
+func _on_hit(foe, dmg: float, source: String) -> void:
+	if done or foe == null or not is_instance_valid(foe) or not foe.is_in_group("enemies"):
+		return  # (a creature of yours taking a blow isn't damage dealt)
+	dmg = minf(dmg, maxf(0.0, foe.hp + dmg))  # (never more than the health it had: a swallowed foe, a killing blow)
 	dealt += dmg
 	if main.weapon_blow and source == "blow":
 		weapon += dmg
@@ -206,7 +211,13 @@ func _sensible(p, b, sp: Dictionary, foes: Array, dist: float):
 		var dur = b.spell_stat(sp, "duration")
 		if last_cast.has(sp["id"]) and t - float(last_cast[sp["id"]]) < (float(dur) if dur != null else 4.0):
 			return "skip"
-	if bool(pol.get("once", false)) and p.aura_part != "":
+	if bool(pol.get("once", false)) and (p.aura_part != "" or last_cast.has(sp["id"])):
+		return "skip"  # (a toggle left on; Inscribe once a fight: its first rune is Sharpness)
+	if pol.has("runes") and main.runes.size() >= int(pol["runes"]):
+		return "skip"  # (three runes down already: another only replaces one)
+	if bool(pol.get("ranged", false)) and not foes.any(func(e): return e.kind == "archer"):
+		return "skip"  # (a wall against shots: only with an archer about)
+	if pol.has("venom") and not foes.any(func(e): return int(e.venom) >= int(pol["venom"]) and e.global_position.distance_to(p.global_position) < float(pol.get("near", 260.0))):
 		return "skip"
 	if pol.has("heat") and p.heat < float(pol["heat"]):
 		return "skip"
@@ -214,8 +225,10 @@ func _sensible(p, b, sp: Dictionary, foes: Array, dist: float):
 		return "skip"
 	if pol.has("low"):
 		for e in foes:
-			if e.hp < e.max_hp * float(pol["low"]):
+			if e.hp < e.max_hp * float(pol["low"]) and e.global_position.distance_to(p.global_position) < float(pol.get("near", 240.0)):
 				return e.global_position
+		if pol.has("near"):
+			return "skip"
 		if dist > 260.0:
 			return "skip"
 	return "go"
@@ -244,6 +257,7 @@ func _release_moves() -> void:
 func _finish(cleared: bool, died: bool) -> void:
 	done = true
 	main.test_speed = 1.0
+	Engine.time_scale = 1.0
 	_release_moves()
 	result = {"mark": bond_id, "step": step, "time": t, "cleared": cleared, "died": died, "dealt": dealt, "weapon": weapon,
 		"spell": maxf(0.0, dealt - weapon), "taken": taken, "healed": healed, "cc": cc, "casts": casts}

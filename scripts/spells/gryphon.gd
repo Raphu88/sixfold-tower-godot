@@ -6,7 +6,7 @@ extends RefCounted
 ##   Step 2: Overcharge (today's) or Ball Lightning: a slow orb that sparks
 ##     each foe it passes, and every second lightning leaps from it.
 ##   Step 3, a Transformation of Chain Lightning: Branching Storm (every
-##     leap splits in two, up to 8 foes) or Living Bolt (the chain doesn't
+##     leap splits in two, up to 6 foes) or Living Bolt (the chain doesn't
 ##     end: it keeps leaping between charged foes for 3 seconds).
 ##   Step 4: Lightning Rod (today's) or Thunderclap: a clap of thunder around
 ##     you stuns every charged foe in reach and spends its charge.
@@ -43,7 +43,7 @@ const BOSS_SHARE := 0.5
 
 static var FORKS := {
 	"stormcaller": {
-		"change": {"name": "Branching Storm", "says": "every leap splits in two, up to 8 foes, all left charged"},
+		"change": {"name": "Branching Storm", "says": "every leap splits in two, up to 6 foes, all left charged"},
 		2: {"id": "ball_lightning", "name": "Ball Lightning", "type": "ball_lightning", "learn": 2,
 			"desc": "a slow orb of lightning drifts where you aim, sparking each foe it passes; every second lightning leaps from it",
 			"steps": {

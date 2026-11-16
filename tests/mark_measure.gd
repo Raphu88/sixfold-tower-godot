@@ -34,7 +34,7 @@ func _run() -> void:
 		elif a.begins_with("steps="):
 			steps = Array(a.trim_prefix("steps=").split(",")).map(func(x): return int(x))
 	var rows: Array = []
-	var base := await fights(self, "", 1, seeds)
+	var base := await fights(self, "", 1, seeds * 3)  # (the yardstick: more seeds)
 	print("BASE %s" % [base])
 	for id in marks:
 		for st in steps:
@@ -55,13 +55,25 @@ func _run() -> void:
 
 ## `seeds` fights of one mark at one step ("" for no mark): the averages.
 static func fights(tree: SceneTree, id: String, st: int, seeds: int) -> Dictionary:
-	var sum := {"time": 0.0, "spell": 0.0, "weapon": 0.0, "taken": 0.0, "healed": 0.0, "cc": 0.0, "casts": 0.0, "died": 0.0, "cleared": 0.0}
+	var keys := ["time", "spell", "weapon", "taken", "healed", "cc", "casts", "died", "cleared"]
+	var lists := {}
+	for k in keys:
+		lists[k] = []
 	for s in seeds:
 		var r := await one(tree, id, st, 1000 + s)
-		for k in sum:
-			sum[k] += float(r[k]) if not (r[k] is bool) else (1.0 if r[k] else 0.0)
-	for k in sum:
-		sum[k] /= float(seeds)
+		for k in keys:
+			lists[k].append(float(r[k]) if not (r[k] is bool) else (1.0 if r[k] else 0.0))
+	# The median fight's time and health (one fight that goes astray doesn't
+	# swing the mark), the average of the rest.
+	var sum := {}
+	for k in keys:
+		if k in ["time", "taken", "healed"]:
+			sum[k] = median(lists[k])
+		else:
+			var tot := 0.0
+			for v in lists[k]:
+				tot += v
+			sum[k] = tot / float(seeds)
 	sum["mark"] = id
 	sum["step"] = st
 	return sum
