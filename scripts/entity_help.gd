@@ -300,7 +300,7 @@ static func key_for(b: Control) -> String:
 				return "shelf:bestiary" if s == "bestiary" else "shelf"
 			"buy":
 				var bits := s.split(":")
-				if bits.size() == 1 and Items.ITEMS.has(Shop.key_id(s)):
+				if bits.size() == 1 and Items.ITEMS.has(Items.old_id(s)):
 					return "buy:supply"
 				var last: String = bits[bits.size() - 1]
 				return "buy:" + last if last in ["chest", "wear", "hold"] else "buy"
@@ -491,8 +491,8 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 				f["piece"] = Gear.display(e["rec"])
 		if s.begins_with("supply:") and prof != null:
 			var sk := s.get_slice(":", 1)
-			var p: Array = Train.supply_price(prof, Shop.key_id(sk), Shop.key_size(sk))
-			f["piece"] = Items.sized_name(Shop.key_id(sk), Shop.key_size(sk))
+			var p: Array = Train.supply_price(prof, Items.old_id(sk))
+			f["piece"] = Items.item_name(sk)
 			f["price"] = Train.price_text(p[0], int(p[1]))
 		if s.begins_with("bench:item:") and prof != null:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
@@ -519,10 +519,10 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			_item_facts(String(m.inv_sel).get_slice(":", 2), f)
 	if key == "buy:supply" and prof != null:
 		var bk := str(b.get_meta("buy"))
-		var id := Shop.key_id(bk)
+		var id := Items.old_id(bk)
 		_item_facts(id, f)
-		f["piece"] = Items.sized_name(id, Shop.key_size(bk))
-		var p: Array = Train.supply_price(prof, id, Shop.key_size(bk))
+		f["piece"] = Items.item_name(id)
+		var p: Array = Train.supply_price(prof, id)
 		f["price"] = Train.price_text(p[0], int(p[1]))
 	# Tinctures and crystals (pour_page.gd, the Workshop's tincture counter).
 	if head in ["tincture_craft", "tincture_drink", "pour"] or (b.has_meta("slot") and String(b.get_meta("slot")).begins_with("bench:tincture:")):

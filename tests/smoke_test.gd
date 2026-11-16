@@ -4665,21 +4665,23 @@ func _camp_tests() -> void:
 	_check(main.enemies().is_empty(), "the camp is safe: no monsters")
 	_check(main.campfire != null and is_instance_valid(main.campfire), "the camp has a campfire")
 	_check(p.hp == p.max_health() and not p.bonds["hand"].burned, "a full rest by the fire")
-	# (two items now, not three, and a crystal of the tower's essence: fewer consumables, tests/parts/consumables.gd)
+	# (one item now, and two crystals: the rarer items are rare, tests/parts/consumables.gd)
 	var item_cards: Array = main.camp["choices"].filter(func(c): return not String(c).begins_with("gear:") and not String(c).begins_with("crystal:"))
-	_check(item_cards.size() == Items.CAMP_CHOICES, "two items to choose from")
-	_check(main.camp["choices"].size() == Items.CAMP_CHOICES + 2 and main.camp["choices"].any(func(c): return String(c).begins_with("crystal:")), "...a crystal of the tower's essence and a piece of gear")
+	var crystal_cards: Array = main.camp["choices"].filter(func(c): return String(c).begins_with("crystal:"))
+	_check(item_cards.size() == Items.CAMP_CHOICES, "one item to choose")
+	_check(main.camp["choices"].size() == Items.CAMP_CHOICES + 3 and crystal_cards.size() == 2 and String(crystal_cards[0]).get_slice(":", 1) != String(crystal_cards[1]).get_slice(":", 1),
+		"...a crystal of the tower's essence, a smaller one of another kind and a piece of gear")
 	var distinct := {}
 	for c in main.camp["choices"]:
 		distinct[c] = true
-	_check(distinct.size() == Items.CAMP_CHOICES + 2, "...all different")
-	var pick: String = main.camp["choices"][1]
+	_check(distinct.size() == Items.CAMP_CHOICES + 3, "...all different")
+	var pick: String = main.camp["choices"][0]
 	var had: int = p.item_count(pick)
-	Input.action_press("weapon_2")
+	Input.action_press("weapon_1")
 	await _frames(2)
-	Input.action_release("weapon_2")
+	Input.action_release("weapon_1")
 	await _frames(2)
-	_check(p.item_count(pick) == had + 1 and not main.camp_choosing, "pressing 2 takes the second item (%s)" % pick)
+	_check(p.item_count(pick) == had + 1 and not main.camp_choosing, "pressing 1 takes the item (%s)" % pick)
 	_check(p.is_physics_processing(), "then you're free to walk")
 	await _frames(3)
 	_check(main.stair_open, "the camp's stair is open")
@@ -8706,7 +8708,7 @@ func _economy_tests() -> void:
 		var worth := int(main.Items.ITEMS[id]["value"][main.Items.ITEMS[id]["kind"]])
 		basic = basic and T.item_price(id)[1] == int(round(worth / 2.0)) and int(load("res://scripts/bench.gd").BREW[id].values()[0]) < T.item_price(id)[1]
 	_check(basic, "basic supplies cost half their worth, and the bench brews them a little cheaper still")
-	_check(T.item_price("vial")[1] == int(main.Items.ITEMS["vial"]["value"]["water"]), "rarer brews keep their price")
+	_check(T.item_price("tonic")[1] == int(main.Items.ITEMS["tonic"]["value"]["water"]), "rarer brews keep their price")
 	# The recall scroll: always on the shelf, paid in crystals of any kind.
 	prof.regarded = true
 	main.first_climb = false
@@ -9007,8 +9009,9 @@ func _train_tests() -> void:
 	await _frames(2)
 	labels = _all_labels(menu).map(func(l): return l.text)
 	buy = _car_buttons("buy", "vial")
-	_check(buy.size() == 1 and buy[0].disabled and labels.any(func(t): return t.contains("needs 20 more Water")), "a price you can't pay says why: needs 20 more Water")
-	_check(T.buy_supply(prof, p, "vial") == "needs 20 more Water" and not prof.supplies.has("vial"), "...and buying it does nothing")
+	var vneed := "needs %d more Water" % int(T.supply_price(prof, "vial")[1])
+	_check(buy.size() == 1 and buy[0].disabled and labels.any(func(t): return t.contains(vneed)), "a price you can't pay says why: %s" % vneed)
+	_check(T.buy_supply(prof, p, "vial") == "needs %d more Water" % int(T.supply_price(prof, "vial")[1]) and not prof.supplies.has("vial"), "...and buying it does nothing")
 	# The belt's room: the starting draught plus what's packed, up to 3.
 	_check(T.supply_room(prof, p, "draught") == 1, "the belt holds 3 draughts: 1 to start, 1 packed, room for 1")
 	_check(T.put_back(prof, "draught") and prof.crystal_total("stone") == 55.0 and not prof.supplies.has("draught"), "putting it back returns the full price")

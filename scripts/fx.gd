@@ -417,7 +417,7 @@ func _draw_fields() -> void:
 		var ia: float = clampf(it["t"] / 3.0, 0.0, 1.0)
 		draw_circle(it["pos"] + Vector2(0, 6), 9.0, Color(0, 0, 0, 0.3 * ia))
 		draw_arc(ip, 13.0 + sin(t * 5.0), 0.0, TAU, 20, Color(ic, 0.45 * ia), 1.5)
-		main.Items.draw_icon(self, it["id"], ip, 9.0, ia, int(it.get("size", 0)))  # (a sized one shows its pips)
+		main.Items.draw_icon(self, it["id"], ip, 9.0, ia)
 	# Gear on the floor: its icon on a little glowing plinth in its rarity's
 	# colour (its name and glint are in _draw_labels).
 	for g in main.gear_drops:

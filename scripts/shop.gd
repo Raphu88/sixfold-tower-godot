@@ -14,8 +14,8 @@ extends RefCounted
 ##             rail, and that one Storied relic does
 ##   kinds     how many kinds of supplies the shelf holds this visit (the
 ##             ones in SHELF_ALWAYS are always there; the rest are picked
-##             from what your rank has opened, new every visit)
-##   minor, greater   how many Minor / Greater sizes the shelf adds
+##             from what your rank has opened, new every visit). Every item
+##             comes in one size.
 ## SHELF_RANK says which rank opens each supply, WEAPON_RANK which rank a
 ## weapon starts hanging on the rail (a pistol or a crossbow later than a
 ## dagger).
@@ -38,13 +38,13 @@ const TRAIN := "res://scripts/train.gd"  # (loaded when needed: the train preloa
 
 ## One row per renown rank, Unknown first.
 static var RANK_STOCK := [
-	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 6, "minor": 0, "greater": 0},
-	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8, "minor": 1, "greater": 0},
-	{"rail": 1, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10, "minor": 2, "greater": 0},
-	{"rail": 2, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 12, "minor": 2, "greater": 0},
-	{"rail": 4, "charms": 1, "fine": 30, "rare": 6, "named": 8, "relic": 0, "kinds": 14, "minor": 2, "greater": 2},
-	{"rail": 6, "charms": 2, "fine": 35, "rare": 10, "named": 12, "relic": 8, "kinds": 16, "minor": 2, "greater": 3},
-	{"rail": 8, "charms": 2, "fine": 40, "rare": 14, "named": 18, "relic": 16, "kinds": 18, "minor": 3, "greater": 4},
+	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 6},
+	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8},
+	{"rail": 1, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10},
+	{"rail": 2, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 11},
+	{"rail": 4, "charms": 1, "fine": 30, "rare": 6, "named": 8, "relic": 0, "kinds": 12},
+	{"rail": 6, "charms": 2, "fine": 35, "rare": 10, "named": 12, "relic": 8, "kinds": 13},
+	{"rail": 8, "charms": 2, "fine": 40, "rare": 14, "named": 18, "relic": 16, "kinds": 14},
 ]
 
 ## The supplies that are always on his shelf.
@@ -63,10 +63,6 @@ static var SHELF_RANK := {
 	"lantern_oil": 5, "gale_feather": 5,
 	"unmaking_ash": 6, "seeing_scroll": 6,
 }
-
-## The rank each size opens on the shelf (Minor, Greater): the table above
-## says how many of each a visit holds.
-static var SIZE_RANK := {"1": 1, "3": 4}
 
 ## The rank a weapon starts to hang on the rail at (not listed: from the start).
 static var WEAPON_RANK := {
@@ -114,7 +110,6 @@ static var TEXT := {
 	"page": "Page %d of %d",
 	"title_line": "For %s",
 	"shelf_title": "For %s: %s",
-	"minor": "Minor", "greater": "Greater",
 }
 
 # --- rank and title ------------------------------------------------------------------
@@ -261,19 +256,6 @@ const SHELF_PAGE := 12
 
 # --- the shelf -----------------------------------------------------------------------------
 
-## A shelf key: "draught" (standard), "draught@1" (Minor), "draught@3" (Greater).
-static func key_id(key: String) -> String:
-	return key.get_slice("@", 0)
-
-
-static func key_size(key: String) -> int:
-	return int(key.get_slice("@", 1)) if key.contains("@") else Items.STANDARD
-
-
-static func make_key(id: String, size: int) -> String:
-	return id if size == Items.STANDARD else "%s@%d" % [id, size]
-
-
 ## Supplies the shelf may hold at your rank, in the order the game lists items.
 static func shelf_pool(profile) -> Array:
 	var rank := Renown.rank(profile) if profile != null else 0
@@ -288,8 +270,8 @@ static func shelf_pool(profile) -> Array:
 
 
 ## The shelf for a visit: the always-there supplies, the title's own, then
-## rotating ones up to the rank's number of kinds, then Minor and Greater
-## sizes of some of them. Keys (make_key), in the order the shelf shows.
+## rotating ones up to the rank's number of kinds: item ids, in the order
+## the shelf shows.
 static func roll_shelf(profile) -> Array:
 	var r := row(profile)
 	var pool := shelf_pool(profile)
@@ -302,17 +284,7 @@ static func roll_shelf(profile) -> Array:
 	var more := maxi(0, int(r["kinds"]) - kinds.size())
 	kinds.append_array(rest.slice(0, more))
 	kinds.sort_custom(func(a, b): return _order(a) < _order(b))
-	var keys: Array = kinds.duplicate()
-	var rank := Renown.rank(profile) if profile != null else 0
-	for size in [1, 3]:
-		var n := int(r["minor" if size == 1 else "greater"])
-		if n <= 0 or rank < int(SIZE_RANK[str(size)]):
-			continue
-		var sized: Array = kinds.filter(func(id): return Items.is_sized(id) and id != "scroll")
-		sized.shuffle()
-		for id in sized.slice(0, n):
-			keys.append(make_key(id, size))
-	return keys
+	return kinds
 
 
 static func _order(id: String) -> int:
@@ -320,9 +292,3 @@ static func _order(id: String) -> int:
 	return i if i >= 0 else 999
 
 
-## A size's price: the item's price times its size's worth (a Minor one is
-## cheaper, a Greater one dearer).
-static func sized_amount(amount: int, size: int) -> int:
-	if size == Items.STANDARD or amount <= 0:
-		return amount
-	return maxi(1, int(round(float(amount) * Items.size_worth(size))))
