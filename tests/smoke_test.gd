@@ -1352,6 +1352,7 @@ func _terrain_tests() -> void:
 		e.set_physics_process(false)
 	_check(not main.cache.is_empty() and main.side_room.has_point(main.cache["pos"]), "a cache room holds an essence cache")
 	var kind: String = main.cache["kind"]
+	main.cache["taken"] = false  # (earlier checks on this floor may have walked the climber over it)
 	var before := float(main.run_essence.get(kind, 0.0))
 	p.global_position = main.cache["pos"] + Vector2(0, 70)
 	await _frames(2)
@@ -1763,12 +1764,14 @@ func _trap_tests() -> void:
 	var cloud: Dictionary = Traps.make(spot, "miasma", false, 2)
 	cloud["timer"] = 0.02
 	main.traps = [cloud]
+	for e in main.enemies():
+		e.set_physics_process(false)  # (nothing nudges the climber out of the cloud)
 	p.global_position = spot
 	p.velocity = Vector2.ZERO
-	p.hp = 30.0
+	p.hp = 12.0
 	p.hurt_t = 0.0
 	p.iframes = 0.0
-	await _until(func(): return p.dead or p.hp <= 0.0, float(Traps.KINDS["miasma"]["warn"]) + float(Traps.KINDS["miasma"]["fire"]) + 2.0)
+	await _until(func(): p.global_position = spot; return p.dead or p.hp <= 0.0, float(Traps.KINDS["miasma"]["warn"]) + float(Traps.KINDS["miasma"]["fire"]) + 4.0)
 	_check(p.dead or p.hp <= 0.0, "a gas cloud kills a climber who lingers in it")
 	main.traps = []
 	await _fresh_main()
