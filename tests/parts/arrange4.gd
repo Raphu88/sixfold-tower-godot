@@ -421,7 +421,7 @@ func _phone_touch() -> void:
 	_check(tb.get("compact", false) and screen.encloses(tb["bar"]) and (tb["bar"] as Rect2).size.y <= view.y * 0.25, "the toolbar is one short strip on the screen (%s)" % tb["bar"])
 	_check(lp["on"] and screen.encloses(lp["box"]) and not (lp["box"] as Rect2).intersects(tb["bar"]), "the list shows beside it, over the rail (%s)" % lp["box"])
 	# The cars, from the toolbar: back to Your Car.
-	for i in 3:
+	for i in m.train_page._index("settings") - m.train_page._index("personal"):
 		await _tap(_button(ar, "car_prev").get_center())
 		await t._frames(2)
 	_check(m.train_car == "personal" and ar.is_open and ar.level_blocks().has("train.personal.chest"), "the toolbar's ‹ Car goes back along the train to Your Car (%s)" % m.train_car)
