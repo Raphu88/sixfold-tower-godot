@@ -32,6 +32,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 
+
 const NONE := Color(0, 0, 0, 0)
 const POOL := 640  # the most the arrays hold (the cap below is lower)
 const F_ADD := 1
@@ -118,6 +119,30 @@ static var PRESETS := {
 	"state_soaked": {"color": Color(0.4, 0.7, 0.96), "count": 1, "speed": 6.0, "life": 0.6, "size": 1.9, "gravity": 150.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 6.0, "jitter": 7.0},
 	"state_charged": {"color": Color(0.95, 0.89, 0.42), "count": 1, "speed": 50.0, "life": 0.14, "size": 2.0, "drag": 2.0, "spread": 3.14, "blend": "add", "shape": "shard", "rate": 8.0, "jitter": 8.0},
 	"state_airborne": {"color": Color(0.82, 0.93, 1.0), "count": 1, "speed": 30.0, "life": 0.5, "size": 2.0, "drag": 2.0, "spread": 3.14, "blend": "add", "shape": "streak", "rate": 6.0, "jitter": 8.0},
+	# --- motion and life (anim.gd): swings, dust, dissolves, flourishes, torches ---
+	"swing_spark": {"color": Color(1.0, 0.95, 0.8), "count": 3, "speed": 120.0, "life": 0.18, "size": 1.6, "drag": 7.0, "spread": 0.6, "blend": "add", "shape": "streak"},
+	"swing_heavy": {"color": Color(1.0, 0.82, 0.5), "count": 5, "speed": 170.0, "life": 0.26, "size": 2.0, "drag": 6.0, "spread": 0.7, "blend": "add", "shape": "streak", "key": true},
+	"roll_dust": {"color": Color(0.8, 0.72, 0.6, 0.55), "count": 5, "speed": 60.0, "life": 0.4, "size": 3.0, "gravity": -6.0, "drag": 4.0, "spread": 1.0, "blend": "mix", "shape": "dot", "key": true},
+	"land_dust": {"color": Color(0.8, 0.72, 0.6, 0.55), "count": 6, "speed": 70.0, "life": 0.35, "size": 2.8, "drag": 4.0, "spread": 3.14, "blend": "mix", "shape": "dot", "key": true},
+	"dissolve": {"color": Color(1.0, 0.9, 0.7), "count": 10, "speed": 46.0, "life": 0.9, "size": 2.4, "gravity": -14.0, "drag": 1.2, "spread": 3.14, "jitter": 8.0, "blend": "add", "shape": "dot", "key": true},
+	"dissolve_drift": {"color": Color(1.0, 0.9, 0.7), "count": 6, "speed": 75.0, "life": 1.0, "size": 2.2, "drag": 0.8, "spread": 0.7, "jitter": 6.0, "blend": "add", "shape": "dot", "key": true},
+	"flourish": {"color": Color(1.0, 0.85, 0.5), "count": 18, "speed": 210.0, "life": 0.6, "size": 2.6, "drag": 3.0, "spread": 3.14, "blend": "add", "shape": "streak", "key": true},
+	"pop": {"color": Color(1.0, 0.92, 0.65), "count": 6, "speed": 90.0, "life": 0.5, "size": 2.2, "gravity": 240.0, "drag": 2.0, "spread": 1.0, "blend": "add", "shape": "dot", "key": true},
+	"chips": {"color": Color(0.62, 0.58, 0.52), "count": 10, "speed": 150.0, "life": 0.6, "size": 2.4, "gravity": 320.0, "drag": 2.0, "spread": 3.14, "blend": "mix", "shape": "grit", "key": true},
+	"torch_spark": {"color": Color(1.0, 0.7, 0.35), "count": 1, "speed": 22.0, "life": 0.8, "size": 1.6, "gravity": -30.0, "drag": 1.0, "spread": 1.2, "blend": "add", "shape": "dot", "rate": 3.0, "jitter": 3.0},
+	"ward_motes": {"color": Color(1.0, 0.84, 0.45), "count": 5, "speed": 40.0, "life": 0.7, "size": 2.0, "drag": 0.0, "spread": 3.14, "blend": "add", "shape": "dot", "inward": true, "radius": 30.0},
+	# Ambient life per tower: low, slow and faint, behind the action. Streams the
+	# level's "rate" scales (Low has none); "angle" is the way they drift.
+	"amb_drip": {"color": Color(0.6, 0.85, 0.95, 0.7), "count": 1, "speed": 3.0, "life": 0.8, "size": 1.5, "gravity": 240.0, "drag": 0.3, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.0},
+	"amb_bubble": {"color": Color(0.75, 0.93, 1.0, 0.5), "count": 1, "speed": 8.0, "life": 1.8, "size": 2.4, "gravity": -22.0, "drag": 0.8, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 3.0},
+	"amb_wind": {"color": Color(0.9, 0.97, 1.0, 0.5), "count": 1, "speed": 230.0, "life": 0.9, "size": 1.3, "drag": 0.1, "spread": 0.12, "angle": 0.1, "blend": "add", "shape": "streak", "rate": 3.0},
+	"amb_feather": {"color": Color(0.94, 0.95, 1.0, 0.7), "count": 1, "speed": 28.0, "life": 3.2, "size": 2.8, "gravity": 12.0, "drag": 0.6, "spread": 0.5, "angle": 0.5, "blend": "mix", "shape": "shard", "rate": 1.0},
+	"amb_ash": {"color": Color(0.32, 0.28, 0.28, 0.6), "count": 1, "speed": 12.0, "life": 2.6, "size": 2.0, "gravity": -9.0, "drag": 0.5, "spread": 3.14, "blend": "mix", "shape": "dot", "rate": 4.0},
+	"amb_heat": {"color": Color(1.0, 0.5, 0.2, 0.14), "count": 1, "speed": 6.0, "life": 1.4, "size": 7.0, "gravity": -34.0, "drag": 0.6, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 2.5},
+	"amb_sand": {"color": Color(0.88, 0.74, 0.5, 0.5), "count": 1, "speed": 120.0, "life": 1.5, "size": 1.5, "drag": 0.3, "spread": 0.2, "angle": 0.15, "blend": "mix", "shape": "streak", "rate": 4.0},
+	"amb_ember": {"color": Color(1.0, 0.55, 0.25, 0.8), "count": 1, "speed": 14.0, "life": 2.2, "size": 2.0, "gravity": -24.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 4.0},
+	"amb_leaf": {"color": Color(0.46, 0.7, 0.3, 0.75), "count": 1, "speed": 22.0, "life": 3.0, "size": 2.8, "gravity": 15.0, "drag": 0.6, "spread": 0.5, "angle": 0.4, "blend": "mix", "shape": "shard", "rate": 1.6},
+	"amb_spore": {"color": Color(0.72, 1.0, 0.55, 0.6), "count": 1, "speed": 6.0, "life": 2.6, "size": 2.0, "gravity": -9.0, "drag": 0.5, "spread": 3.14, "blend": "add", "shape": "dot", "rate": 3.0},
 }
 
 ## Each essence's way: "cast" (what flies off a caster), "trail" (what a
@@ -242,6 +267,8 @@ var _col := PackedColorArray()
 var _flg := PackedInt32Array()
 var _view := Rect2(-1e9, -1e9, 2e9, 2e9)
 var _scan_t := 0.0
+var _anim := {}  # anim.gd's own timers (torch sparks, the ward's pulse)
+var _anim_script = load("res://scripts/anim.gd")  # (loaded, not preloaded: anim.gd preloads this)
 var _wield := {}  # node instance id -> {kind, light, em, node}
 var _carried := {}  # a light id -> true (a spell's shot or zone carries it)
 var _zone_lights: Array = []  # [dict, light id]
@@ -259,6 +286,8 @@ class Emitter extends RefCounted:
 	var scale := 1.0
 	var acc := 0.0
 	var live := true
+	var tag := ""  # what it is for ("ambient": anim.gd's life of the tower)
+	var spread_view := false  # it makes its specks anywhere in view (the tower's ambient life), not at one spot
 	var along = null  # a body whose weapon this stream rides (particles.gd works out where)
 	var owner_node = null
 
@@ -437,6 +466,8 @@ func _emit(d: Dictionary, pos: Vector2, dir: Vector2, color: Color) -> bool:
 		col.a = d["color"].a
 	var spread := float(d.get("spread", 3.14))
 	var ang := randf() * TAU if (dir == Vector2.ZERO or spread >= 3.1) else dir.angle() + randf_range(-spread, spread)
+	if d.has("angle") and dir == Vector2.ZERO:
+		ang = float(d["angle"]) + randf_range(-spread, spread)  # (a stream that drifts one way: wind, falling leaves)
 	var sp := float(d.get("speed", 100.0)) * randf_range(0.5, 1.1)
 	var at := pos
 	var v := Vector2.from_angle(ang) * sp
@@ -498,6 +529,7 @@ func _process(delta: float) -> void:
 		_scan_others()
 		_scan_states()
 		_scan_zones()
+	_anim_script.tick(self, delta, _anim)
 	_step(delta)
 	if _n > 0 or _was_drawing:
 		_was_drawing = _n > 0
@@ -595,12 +627,17 @@ func _run_emitters(delta: float) -> void:
 		var d: Dictionary = PRESETS.get(e.preset, {})
 		if d.is_empty():
 			continue
-		if not visible_at(pos):
+		if not e.spread_view and not visible_at(pos):
 			continue
 		e.acc += float(d.get("rate", 6.0)) * rate_k * crowd * e.scale * delta
 		while e.acc >= 1.0:
 			e.acc -= 1.0
-			_emit(d, pos, Vector2.ZERO, e.color)
+			if e.spread_view:
+				var at := _view.position + Vector2(randf(), randf()) * _view.size
+				if visible_at(at):
+					_emit(d, at, Vector2.ZERO, e.color)
+			else:
+				_emit(d, pos, Vector2.ZERO, e.color)
 		e.acc = minf(e.acc, 2.0)
 	emitters = keep
 

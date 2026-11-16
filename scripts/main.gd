@@ -31,6 +31,7 @@ const CampfireScript := preload("res://scripts/campfire.gd")
 const Traps := preload("res://scripts/traps.gd")
 const LightingScript := preload("res://scripts/lighting.gd")
 const ParticlesScript := preload("res://scripts/particles.gd")
+const AnimScript := preload("res://scripts/anim.gd")
 const DoorsScript := preload("res://scripts/doors.gd")
 const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
@@ -138,6 +139,8 @@ var shake_amount := 0.0
 var shake_ms := 0  # when the shake offset last changed
 var audio
 var hitstop_until := 0  # real-time msec when the freeze ends
+var beat_until := 0  # real-time msec when a beast's slow beat ends (anim.gd slow_beat), after the freeze
+var beat_scale := 0.35  # the time scale during it
 var hurt_flash := 0.0
 var lighting  # the darkness layer and its lights (lighting.gd)
 var touch_active := false  # on-screen controls in use
@@ -779,8 +782,12 @@ func _process(delta: float) -> void:
 	if _frame_us > 0:
 		frame_ms = lerpf(frame_ms, (now_us - _frame_us) / 1000.0, 0.1)
 	_frame_us = now_us
-	if hitstop_until > 0 and Time.get_ticks_msec() >= hitstop_until:
+	var now_real := Time.get_ticks_msec()
+	if hitstop_until > 0 and now_real >= hitstop_until:
 		hitstop_until = 0
+		Engine.time_scale = slowmo_scale if slowmo else (beat_scale if beat_until > now_real else test_speed)
+	elif beat_until > 0 and hitstop_until == 0 and now_real >= beat_until:
+		beat_until = 0
 		Engine.time_scale = slowmo_scale if slowmo else test_speed
 	if on_train:
 		return  # (the train's menu takes the keys)
@@ -1032,6 +1039,8 @@ func _start_floor(n: int) -> void:
 	rod = {}
 	SpellFxScript.clear(self)  # (orbs, fields and timed casts from the library's spells)
 	ParticlesScript.clear(self)  # (sparks, embers and the little lights of spells)
+	beat_until = 0
+	AnimScript.start_ambient(self)  # (the tower's own drips, wind, ash, sand, embers or leaves)
 	walls.clear()
 	cyclones.clear()
 	waves.clear()
@@ -1376,6 +1385,7 @@ func _open_cache() -> void:
 	fx_ring(pos, col, 70.0, 0.5, 4.0)
 	fx_burst(pos, Vector2.ZERO, col, 18, 220.0)
 	light_flash(pos, col, 1.8, 1.8, 0.4)
+	AnimScript.chest(self, pos, col)  # (it pops open)
 	sfx("glint", 1.3, -2.0, 0.0)
 
 
@@ -1513,6 +1523,7 @@ func lift_ward() -> void:
 	sfx("clear", 0.9, -2.0, 0.0)
 	shake(5.0)
 	fx_ring(stair_pos, Color(1.0, 0.84, 0.45), 80.0, 0.6, 4.0)
+	AnimScript.ward_lift(self)  # (the stair bursts open in gold)
 
 
 ## A scenario's grade, noticed by the beast (scenarios.gd).
@@ -2605,6 +2616,7 @@ func _update_item_drops(delta: float) -> void:
 			return
 		if player.add_item(d["id"], size):
 			d["t"] = 0.0
+			AnimScript.pickup(self, d["pos"], Items.color(d["id"]))  # (a small arc of sparks)
 			note_event("item", "+ " + name, Items.color(d["id"]))
 			sfx("pickup")
 			tip("items")
@@ -4321,7 +4333,7 @@ func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 	fx_burst(pos, Vector2.ZERO, color, 18, 300.0)
 	light_flash(pos, color, 1.0 + r / 60.0, 2.0, 0.35)
 	sfx("hit_heavy", 0.7)
-	shake(4.0)
+	shake(4.0 + AnimScript.num("shake", "blast") * clampf(r / 120.0, 0.0, 1.0))
 
 
 ## Flame Contractor's Kindled: a foe your fire kills leaves burning ground.
@@ -4461,10 +4473,13 @@ func on_enemy_killed(e) -> void:
 	if fx != null:
 		fx.debris(e.global_position, e.color, int(e.radius * 0.8))
 	ParticlesScript.kill(self, e.global_position, e.color, e.radius, e.is_boss())
+	AnimScript.dissolve(self, e)  # (it comes apart into motes that drift to you)
 	var kill_sound: String = "kill_" + e.kind
 	sfx(kill_sound if audio != null and audio.has_sound(kill_sound) else "kill")
 	hitstop(0.09)
 	shake(6.0)
+	if e.is_boss() and not e.shade:
+		AnimScript.slow_beat(self)  # (a beast falls: a beat of slow time)
 
 
 ## Hit-pause: freeze the action for a moment so impacts land.
@@ -4570,7 +4585,7 @@ func fx_cone(origin: Vector2, dir: Vector2, reach: float, half: float, color: Co
 func shake(amount: float) -> void:
 	if not MenuScript.settings["shake"]:
 		return
-	shake_amount = maxf(shake_amount, amount)
+	shake_amount = maxf(shake_amount, amount * AnimScript.num("shake", "mult"))
 
 
 ## A brief burst of light: lightning, parries, crits, burns. It feeds the
