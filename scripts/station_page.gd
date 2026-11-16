@@ -199,6 +199,7 @@ func _top_words(prof) -> void:
 	if rank_said != "":
 		var r1 := Entity.says(rank_said, 28.0 if _small() else 34.0, String(Renown.rank_words(Renown.rank(prof))[0]))
 		r1.set_meta("entity", "rank")
+		r1.set_meta("arrange", "note")  # (Arrange mode: a note, so the list's row keeps its name)
 		m.box.add_child(r1)
 	if not said.has(stop):
 		var bits: Array = []
@@ -216,6 +217,7 @@ func _top_words(prof) -> void:
 		var mode := "touch" if main.touch_active else ("pad" if main.pad_active else "keys")
 		var row := Entity.says(Entity.fill_keys(String(said[stop]), mode, main.pad_ps), 28.0 if _small() else 34.0)
 		row.set_meta("entity", stop)
+		row.set_meta("arrange", "note")
 		m.box.add_child(row)
 
 
