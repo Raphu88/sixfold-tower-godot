@@ -35,7 +35,7 @@ func run(smoke) -> void:
 	for which in ["shop", "sell", "top:0:0", "top:1:0", "top:2:0", "top:0:1"]:
 		var store: String = which.get_slice(":", 0)
 		if store == "top":
-			# (the top rank: the longest rail in pages, the fullest shelf with Minor and Greater sizes, a title's line)
+			# (the top rank: the longest rail in pages, the fullest shelf, a title's line)
 			if Renown.rank(prof) < Renown.RANKS.size() - 1:
 				Renown.earn(prof, Renown.needed(Renown.RANKS.size() - 1), "")
 				Renown.state(prof)["titles"] = ["contender"]

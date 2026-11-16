@@ -271,7 +271,7 @@ func _core_signature() -> Array:
 		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
-		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0, p.item_sizes_of(p.selected_item()) if p.selected_item() != "" else [],
+		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
 		main.profile.path, main.profile.flow_step(), int(main.profile.flow),
 		int(p.vessel.get("amount", 0.0)) if p.item_count("vessel") > 0 else -1]  # (the vessel's gauge)
 	for part in BondScript.Bonds.PARTS:
@@ -434,21 +434,14 @@ func _draw_core() -> void:
 		var ib := Draw.Batch.new()
 		var ir := Rect2(x, ROW_Y, SLOT, SLOT)
 		UI.slot_into(ib, ir, false, Color(Items.color(sel), 0.6))
-		var entry: Dictionary = p.belt_entry(sel)
-		Items.icon_into(ib, sel, ir.get_center() + Vector2(0, -1), 10.5, int(entry["size"]))  # (its next size's pips)
+		Items.icon_into(ib, sel, ir.get_center() + Vector2(0, -1), 10.5)
 		# Its count on a small gilt-ringed coin at the corner.
 		ib.dot(ir.end - Vector2(3, 3), 7.2, UI.OUTLINE)
 		ib.dot(ir.end - Vector2(3, 3), 6.0, UI.STONE)
 		UI.ring_into(ib, ir.end - Vector2(3, 3), 6.0, 1.0, Color(UI.GILT, 0.8))
 		var item_lines: Array = [_sentence(Items.ITEMS[sel]["desc"])]
-		if Items.is_sized(sel):
-			var note := Items.size_note(sel, int(entry["size"]))
-			if note != "":
-				item_lines.append(note)
-			if p.item_count(sel) > 1:
-				item_lines.append(Items.SIZE_TEXT["stack"] % ", ".join(Array(entry["sizes"]).map(func(z): return Items.sized_name(sel, int(z), true))))
 		item_lines.append(String(Wheel.TEXT["hud_tip"]) % [p.item_count(sel), _use_key()] + ("" if p.carried().size() < 2 else String(Wheel.TEXT["hud_tip_more"]) % [_use_key(), _next_key()]))
-		tips.append([ix * ir, entry["name"], item_lines])
+		tips.append([ix * ir, Items.item_name(sel), item_lines])
 		c.draw_set_transform_matrix(unit * ix)
 		ib.flush(c)
 		c.draw_string(mono, ir.end + Vector2(-9, 0.5), str(p.item_count(sel)), HORIZONTAL_ALIGNMENT_CENTER, 12, 10, UI.GILT_HI)
@@ -1222,23 +1215,14 @@ func _draw_item_ring(p, ci: CanvasItem) -> void:
 	var cur: String = p.selected_item()
 	var opts: Array = []
 	for id in have:
-		var en: Dictionary = p.belt_entry(id)  # (its size in its name and pips: player.gd belt_entry)
-		opts.append({"name": String(en["name"]), "col": Items.color(id), "badge": str(p.item_count(id)), "cur": id == cur,
-			"icon": func(bt, at: Vector2, s: float, _ic: Color): Items.icon_into(bt, id, at, s * 1.05, int(en["size"]))})
+		opts.append({"name": Items.item_name(id), "col": Items.color(id), "badge": str(p.item_count(id)), "cur": id == cur,
+			"icon": func(bt, at: Vector2, s: float, _ic: Color): Items.icon_into(bt, id, at, s * 1.05)})
 	UI.draw_wheel(ci, Vector2.ZERO, WHEEL_R, opts, p.ring_index, UI.GILT, get_viewport_rect().size)
 	if p.ring_index >= 0 and p.ring_index < have.size():
 		var id: String = have[p.ring_index]
 		var d: Dictionary = Items.info(id)
-		var en: Dictionary = p.belt_entry(id)
-		# (what it does; then, for a Minor or Greater one, how it differs, and a mixed stack's sizes)
 		var words := _sentence(String(d.get("desc", "")))
-		if Items.is_sized(id):
-			var note := Items.size_note(id, int(en["size"]))
-			if note != "":
-				words += " " + _sentence(note)
-			if Array(en["sizes"]).any(func(z): return int(z) != int(en["size"])):
-				words += " " + _sentence(String(Items.SIZE_TEXT["stack"]) % ", ".join(Array(en["sizes"]).map(func(z): return Items.sized_name(id, int(z), true))))
-		_wheel_caption(ci, String(en["name"]), words, Items.color(id), Wheel.hint("item", id == cur))
+		_wheel_caption(ci, Items.item_name(id), words, Items.color(id), Wheel.hint("item", id == cur))
 
 
 ## Under the wheel: the pointed option's name and words, then the hint
@@ -1893,7 +1877,7 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 		elif card.has("crystal"):
 			Items.draw_crystal_icon(self, col, ic, ir)
 		elif card["item"] != "":
-			Items.draw_icon(self, card["item"], ic, ir, 1.0, int(card.get("size", 0)))  # (a sized one: its pips)
+			Items.draw_icon(self, card["item"], ic, ir)
 		else:
 			Items.draw_rune_icon(self, col, ic, ir)
 		var y := r.position.y + (58.0 if small else 100.0)
