@@ -57,7 +57,6 @@ const PracticeScript := preload("res://scripts/practice.gd")
 const ArenaScript := preload("res://scripts/arena.gd")
 const Dining := preload("res://scripts/dining.gd")
 const Renown := preload("res://scripts/renown.gd")
-const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Reactions := preload("res://scripts/reactions.gd")
@@ -72,6 +71,7 @@ const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
+const ContractsScript := preload("res://scripts/contracts.gd")
 ## The camera's zoom (world px to view px) at World zoom Normal: on a
 ## computer, and on a phone (whose view used to be drawn 1.5x, at 1.1).
 ## The view's own scale (the Interface size) is taken back out, so the
@@ -290,6 +290,7 @@ var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
 var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
+var contracts  # the Noble's contracts in play: tracked, a thing to retrieve, paid when done (contracts.gd)
 var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
 ## What the beast noticed this climb (scenarios.gd): [{floor, kind, grade}],
 ## for the summit or the Regard to read.
@@ -389,6 +390,10 @@ func _ready() -> void:
 	rivals = RivalsScript.new()
 	rivals.main = self
 	add_child(rivals)
+	contracts = ContractsScript.new()
+	contracts.main = self
+	add_child(contracts)
+	Renown.heard = on_renown  # (every renown gain is said, and a rank-up is a moment: on_renown)
 	fog = FogScript.new()
 	fog.main = self
 	add_child(fog)
@@ -424,7 +429,6 @@ func _ready() -> void:
 	arena.main = self
 	add_child(arena)
 	_give_bonds()
-	player.boon_fx = Boons.fx(profile)  # (the station's boons, every climb: boons.gd)
 	player.use_heirlooms(profile.heirlooms)
 	if not profile.wear.is_empty():
 		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
@@ -1141,6 +1145,10 @@ func _start_floor(n: int) -> void:
 	targets.append(stair_pos)
 	if not lost_cache.is_empty():
 		targets.append(lost_cache["pos"])
+	if contracts != null:
+		var cspot: Vector2 = contracts.plan_spot(plan, n, lost_cache.get("pos", Vector2.INF))  # (a contract's thing to retrieve: a safe patch, like the lost cache)
+		if cspot != Vector2.INF:
+			targets.append(cspot)
 	_build_layout(plan.get("walk", []), plan.get("blocks", []), start, targets)
 	# Door frames, only where the wall beside an opening is really there.
 	room_view.set_doors(plan.get("posts", []).filter(func(r): return is_solid(r.get_center())))
@@ -1255,6 +1263,8 @@ func _start_floor(n: int) -> void:
 	player.position = start
 	player.last_safe = start
 	player.reset_physics_interpolation()
+	if contracts != null:
+		contracts.on_floor(n)  # (a reach contract done, a thing carried up the stair safe, a thing to retrieve here: contracts.gd)
 	if fog != null:
 		fog.reset()
 	cam_prev = start
@@ -1834,9 +1844,6 @@ func _enter_camp(lines: Array) -> void:
 	var other_kinds: Array = Essence.KINDS.keys().filter(func(k): return k != camp_kind)
 	choices.append("crystal:%s:%d" % [String(other_kinds[randi() % other_kinds.size()]), maxi(1, roundi(camp_amount * 0.6))])
 	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else "common")))
-	if Shop.merchant_open(profile):
-		choices.append("pedlar:")  # (the pedlar's stall by the fire: shop.gd)
-		tip("merchant")
 	camp = {"stage": "item", "choices": choices, "lines": said}
 	_note_new_slots(choices)
 	camp_choosing = true
@@ -1854,8 +1861,6 @@ func camp_card(i: int) -> Dictionary:
 
 func _camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
-	if pick.begins_with("pedlar:") or pick.begins_with("ware:") or pick.begins_with("back:"):
-		return _pedlar_card(pick)
 	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
 		return unbound.card(pick)
 	if pick.begins_with("sb:"):
@@ -1952,12 +1957,6 @@ func choose_camp(i: int) -> void:
 	if camp["stage"] == "rival":
 		rivals.choose(i)
 		return
-	if camp["stage"] == "pedlar":
-		_pedlar_pick(pick)
-		return
-	if pick.begins_with("pedlar:"):
-		_open_pedlar()
-		return
 	var taken: Array = camp.get("taken", [])
 	if camp["stage"] == "item":
 		if pick.begins_with("gear:"):
@@ -1998,91 +1997,6 @@ func choose_camp(i: int) -> void:
 		note_event("camp", String(notices.TEXT["camp"]) % String(l), null, false)
 	taken.append(Items.CAMP["leave"])
 	banner = {"title": Items.CAMP["title"], "lines": taken, "t": 3.0, "logged": true}
-	sfx("pickup", 0.95, -2.0, 0.0)
-
-
-# --- the pedlar at a camp (shop.gd) -------------------------------------------------
-
-## What a pedlar card shows (his stall among the camp's choices, a ware, the way back).
-func _pedlar_card(pick: String) -> Dictionary:
-	if pick.begins_with("pedlar:"):
-		return {"name": String(Shop.MERCHANT["name"]).capitalize(), "desc": Shop.TEXT["camp_desc"], "color": Color(0.95, 0.78, 0.4), "item": "", "pedlar": true,
-			"note": Shop.TEXT["theme"] % Shop.theme_name(profile, "camp", _pedlar_visit())}
-	if pick.begins_with("back:"):
-		return {"name": Shop.TEXT["camp_back"], "desc": Shop.TEXT["camp_back_desc"], "color": Color(0.6, 0.58, 0.66), "item": "", "pedlar": true}
-	var w: Dictionary = camp.get("market", {}).get("wares", [])[int(pick.get_slice(":", 1))]
-	if bool(w.get("sold", false)):
-		return {"name": Shop.TEXT["sold"], "desc": "", "color": Color(0.5, 0.48, 0.55), "item": "", "pedlar": true}
-	var price := Shop.ware_price(profile, w)
-	var held := int(profile.crystal_total(price[0])) + int(float(run_essence.get(price[0], 0.0)))
-	var note := Train.price_text(price[0], int(price[1]))
-	var g := Shop.ware_gear(w)
-	if not g.is_empty():
-		return {"name": Gear.display(g), "desc": gear_card_desc(g), "color": Gear.color(g), "item": "", "gear": g, "rim": Gear.rarity_color(g),
-			"note": note, "pedlar": true, "short": held < int(price[1])}
-	var id := String(w["id"])
-	var d := Items.info(id)
-	return {"name": Items.item_name(id), "desc": String(d["desc"]), "color": d["color"], "item": id, "belt": true, "note": note,
-		"pedlar": true, "short": held < int(price[1])}
-
-
-## Which visit this is (the theme is taken in turn by it).
-func _pedlar_visit() -> int:
-	return profile.climbs * 3 + camps_done.size()
-
-
-## Sets his stall out by the fire: his wares as cards, and a way back.
-func _open_pedlar() -> void:
-	var market: Dictionary = camp.get("market", {})
-	if market.is_empty():
-		market = Shop.roll_merchant(profile, "camp", _pedlar_visit(), tower, floor_num)
-	var back: Dictionary = camp.duplicate()
-	back["market"] = market
-	var choices: Array = []
-	for k in market.get("wares", []).size():
-		choices.append("ware:%d" % k)
-	choices.append("back:")
-	camp = {"stage": "pedlar", "choices": choices, "lines": [String(market.get("said", "")), Shop.TEXT["camp_note"]], "market": market,
-		"title": "%s  ·  %s" % [String(Shop.MERCHANT["name"]).capitalize(), String(market.get("name", ""))], "back": back}
-	card_focus = 0
-	sfx("ready", 0.9, -4.0, 0.0)
-
-
-func _pedlar_pick(pick: String) -> void:
-	if pick.begins_with("back:"):
-		var back: Dictionary = camp.get("back", {})
-		back["market"] = camp.get("market", {})
-		camp = back
-		card_focus = 0
-		sfx("ui_back", 1.0, -4.0, 0.0)
-		return
-	var market: Dictionary = camp["market"]
-	var i := int(pick.get_slice(":", 1))
-	var w: Dictionary = market["wares"][i]
-	if bool(w.get("sold", false)):
-		return
-	var why := Shop.short_of(profile, w, run_essence)
-	if why != "":
-		camp["lines"] = [Shop.TEXT["cant"] % why, Shop.TEXT["camp_note"]]
-		sfx("ui_back", 1.0, -4.0, 0.0)
-		return
-	var price := Shop.ware_price(profile, w)
-	var got := Shop.pay(profile, price[0], int(price[1]), run_essence)
-	if got.is_empty():
-		return
-	var said := ""
-	if String(w["kind"]) == "gear":
-		said = _take_gear(Shop.ware_gear(w))
-	else:
-		said = _take_item(Items.old_id(String(w["id"])), "Bought")
-	w["sold"] = true
-	profile.save()
-	var lines: Array = [said]
-	if int(got["carried"]) > 0:
-		lines.append(Shop.TEXT["paid_carried"] % int(got["carried"]))
-	lines.append(String(Shop.LINES["bought"][i % Shop.LINES["bought"].size()]))
-	camp["lines"] = lines
-	note_event("camp", String(notices.TEXT["camp"]) % said, null, false)
 	sfx("pickup", 0.95, -2.0, 0.0)
 
 
@@ -2371,6 +2285,8 @@ func pay_climb() -> String:
 	climb_paid = true
 	Renown.on_climb_end(profile, tower_data()["name"], floor_num, climb_best0, player != null and player.dead)  # (renown for the floors: renown.gd)
 	Dining.settle(self)  # (wagers made in the Dining car are paid or lost: dining.gd)
+	if contracts != null:
+		contracts.on_climb_end(player != null and player.dead)  # (a thing carried out is safe; a fall drops it: contracts.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -2794,7 +2710,20 @@ func open_train() -> void:
 	Train.stock(profile)
 	profile.save()
 	menu.train_car = Train.HOME  # (it opens on your own car)
+	_rank_on_train()
 	menu.open("train")
+
+
+## A rank reached on the climb just ended (or at a station's result) whose
+## moment hasn't shown: the Entity says it at the top of your car, what it
+## opens with it, once (renown.gd unseen_rank).
+func _rank_on_train() -> void:
+	if menu == null or menu.train_page == null or Renown.unseen_rank(profile) < 0 or not ArenaScript.reopen.is_empty():  # (going on to the station: its page says it)
+		return
+	var i := Renown.unseen_rank(profile, true)
+	var words := Renown.rank_words(i)
+	menu.train_page.tips[Train.HOME] = "%s %s" % [load("res://scripts/entity.gd").line("rank_up", -1, {"rank": Renown.rank_name(i)}), String(words[1])]
+	GuideScript.also_told("rank_up")
 
 
 ## Leaves the train for a tower: your pack and packed supplies come with
@@ -2825,7 +2754,6 @@ func choose_tower(id: String) -> void:
 	_apply_tower_look()
 	_start_floor(1)
 	if from_train:
-		Boons.on_depart(self)  # (a boon's draught on the belt, a Keen Eye's piece: boons.gd)
 		Dining.on_depart(self)  # (wagers from the Dining car run on this climb: dining.gd)
 	player.set_physics_process(true)
 	sfx("equip_sword", 0.8, -2.0, 0.0)
@@ -4365,6 +4293,8 @@ func on_enemy_killed(e) -> void:
 	Bestiary.slain(self, e)
 	Dining.on_kill(self, e)  # (a wager on slaying counts it: dining.gd)
 	BondScript.on_kill(self, e)  # (marks' passive ranks: bond.gd)
+	if contracts != null:
+		contracts.on_kill(String(e.kind))  # (a slay contract counts it: contracts.gd)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
 		profile.note_beast(tower)
@@ -4512,6 +4442,39 @@ func remark(key: String) -> void:
 func remark_arrival() -> void:
 	if entity != null:
 		entity.remark_arrival()
+
+
+## Renown was earned (renown.gd earn, through Renown.heard): the line says
+## what for ("+6 renown: won a duel with Bryn"), a title made ready is said,
+## and a new rank is a moment: a banner saying what it opens, and the
+## Entity's word. On the train or at a station the moment waits for the
+## page (station_page.gd and open_train show it: rank_moment).
+func on_renown(prof, out: Dictionary) -> void:
+	if prof != profile or notices == null:
+		return
+	if String(out.get("line", "")) != "":
+		note_event("renown", String(out["line"]))
+		if player != null and not on_train and not menu_open():
+			fx_text(player.global_position + Vector2(0, -62), Renown.TEXT["earned"] % int(out["amount"]), Color(0.95, 0.8, 0.5))
+	for tid in out.get("titles", []):
+		note_event("renown", Renown.TEXT["title_up"] % Renown.title_name(String(tid)), Color(0.98, 0.86, 0.5))
+	if int(out.get("rank", -1)) >= 0 and not on_train:
+		rank_moment()
+
+
+## A rank reached and not yet marked: its banner (what it opens) and the
+## Entity's word, once. Returns the words said ([] if none was waiting).
+func rank_moment() -> Array:
+	var i := Renown.unseen_rank(profile, true)
+	if i < 0:
+		return []
+	var words := Renown.rank_words(i)
+	banner = {"title": String(words[0]), "lines": [String(words[1])], "t": 4.5, "pri": 2, "logged": true}
+	note_event("renown", String(words[1]))
+	GuideScript.say("rank_up", {"rank": Renown.rank_name(i)})
+	tip("rank_up")
+	sfx("clear", 1.25, -2.0, 0.0)
+	return words
 
 
 ## Something happened worth a line: `kind` is one of notices.gd KINDS (an

@@ -533,13 +533,25 @@ func _meeting(rec: Dictionary) -> String:
 		open = fresh
 	var total := 0.0
 	for k in open:
-		total += float(MEETINGS[k].get("weight", 1.0))
+		total += _weight(k)
 	var roll := randf() * total
 	for k in open:
-		roll -= float(MEETINGS[k].get("weight", 1.0))
+		roll -= _weight(k)
 		if roll <= 0.0:
 			return k
 	return String(open[-1]) if not open.is_empty() else "trade"
+
+
+## A meeting's weight: MEETINGS', and a worn title may make teaming up likelier.
+func _weight(k: String) -> float:
+	var w := float(MEETINGS[k].get("weight", 1.0))
+	return w * float(terms()["team"]) if k == "team" else w
+
+
+## How climbers treat you, from the title you wear (titles.gd rival_terms:
+## friendlier trades, more offers to team up, a smaller toll, bets).
+func terms() -> Dictionary:
+	return load("res://scripts/titles.gd").rival_terms(main.profile if main != null else null)
 
 
 ## One who offers to team up often carries a mark whose state reacts with a
@@ -851,7 +863,7 @@ static func color_kind(tid: String) -> String:
 ## fair_low and fair_high of it), else that worth in crystals of a kind you
 ## hold, else in unbanked essence.
 func _want_for(give: Dictionary, asked: Array) -> Dictionary:
-	var v := worth(give)
+	var v := worth(give) * float(terms()["trade_ask"])  # (a worn title can make them ask less: titles.gd rival_terms)
 	var p = main.player
 	var best := {}
 	var best_d := INF
@@ -1105,7 +1117,7 @@ func spare() -> bool:
 	p.iframes = maxf(p.iframes, 2.0)
 	# The toll: a share of your unbanked essence, else a piece from your pack.
 	var toll: String = TEXT["toll_none"]
-	var share := roundf(purse() * float(RULES["duel_toll"]))
+	var share := roundf(purse() * float(RULES["duel_toll"]) * float(terms()["toll"]))  # (a worn title may halve it: titles.gd)
 	if share >= float(RULES["duel_toll_min"]):
 		toll = TEXT["toll_essence"] % int(take_essence(share))
 	elif not p.pack.is_empty():
@@ -1315,9 +1327,9 @@ func take_gift(enc: Dictionary) -> void:
 	main.note_event("rival", TEXT["gift_taken"] % rec["name"] + ": " + got, color_of(rec))
 
 
-func _titles(got: Dictionary) -> void:
-	for tid in got.get("titles", []):
-		main.note_event("renown", Renown.TEXT["title_up"] % Renown.title_name(String(tid)), UI.GILT)
+## (A title a deed made ready is said by main.gd on_renown, as every gain is.)
+func _titles(_got: Dictionary) -> void:
+	pass
 
 
 # --- the HUD ----------------------------------------------------------------------------------

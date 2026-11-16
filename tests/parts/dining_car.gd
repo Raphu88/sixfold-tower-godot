@@ -345,8 +345,19 @@ func _bets() -> void:
 	var prof = main.profile
 	var plain: Dictionary = _by_name("Plainone")
 	var helped: Dictionary = _by_name("Helpedone")
+	# Without a title that takes bets, a plain climber offers one small wager.
+	var r := Renown.state(prof)
+	r["worn"] = ""
+	var small_offers: Array = D.bet_offers(prof, plain, "kraken")
+	_check(small_offers.size() == 1 and D.stakes(prof, plain) == [int(D.RULES["stake_low"])] and D.place_bet(prof, plain, small_offers[0], int(D.RULES["stake_mid"])) != "", "a plain climber takes one small wager from a stranger to titles")
+	# Wearing a title whose terms take bets (titles.gd rival_terms): both offers, every stake, better odds.
+	D.state(prof)["offers"] = {}
+	r["titles"] = (r["titles"] as Array) + ["contender"]
+	r["worn"] = "contender"
+	var T = load("res://scripts/titles.gd")
+	_check(bool(T.rival_terms(prof)["bets"]) and bool(D.perks(prof)["bets"]), "the worn title's terms say climbers take your bets")
 	var offers: Array = D.bet_offers(prof, plain, "kraken")
-	_check(offers.size() == 2 and offers.all(func(o): return float(o["odds"]) > 1.0 and String(o["tower"]) == "kraken"), "a climber offers two wagers on your next climb, with odds")
+	_check(offers.size() == 2 and offers.all(func(o): return float(o["odds"]) > 1.0 and String(o["tower"]) == "kraken") and D.stakes(prof, plain).size() == 3, "...then a climber offers two wagers on your next climb, every stake, with odds")
 	var warm_odds: Array = D.bet_offers(prof, helped, "kraken")
 	_check(warm_odds.all(func(o): return D.BETS.has(String(o["kind"]))), "...from the table of wagers")
 	# Odds by difficulty: a floor further past your best pays more.
@@ -511,7 +522,7 @@ func _duels() -> void:
 	_check(absf(prof.crystal_total(kind) - (have + float(stake["amount"]))) < 0.5, "...the stake is yours (+%d %s)" % [int(stake["amount"]), kind])
 	var rec: Dictionary = Rv.state(prof)[plain["id"]]
 	_check(int(rec.get("duels_won", 0)) == 3 and Renown.points(prof) > renown0, "...the win is remembered, with renown")
-	_check("duelist" in Renown.titles(prof), "...and counts for the Duelist title")
+	_check(Renown.deed_done(prof, Renown.TITLES["duelist"]), "...and counts for the Duelist title's deed")
 	_check(not dp.lines.is_empty() and _tp().roots["dining"].find_children("*", "Label", true, false).any(func(l): return String(l.text) == String(dp.lines[0])), "...and the car says what the duel did (%s)" % [dp.lines])
 	# A loss, for a piece of gear: you yield, never die, and they take it.
 	var helped: Dictionary = _by_name("Helpedone")
@@ -548,6 +559,15 @@ func _duels() -> void:
 	var pts: int = int(r["points"])
 	var lines: Array = D.apply_duel(prof, {"won": false}, D.duel_event(prof, plain, {"type": "renown", "amount": 6, "label": "6 renown"}))["lines"]
 	_check(Renown.points(prof) >= Renown.needed(Renown.rank_for(pts)) and Renown.points(prof) <= pts and not lines.is_empty(), "a renown stake lost takes renown, never a rank")
+	# A title that halves the toll (titles.gd: "toll"): a lost crystal stake costs half.
+	var rn := Renown.state(prof)
+	rn["titles"] = (rn["titles"] as Array) + ["duelist"]
+	rn["worn"] = "duelist"
+	var ck := String(stake["kind"])
+	var before_toll: float = prof.crystal_total(ck)
+	D.apply_duel(prof, {"won": false}, D.duel_event(prof, plain, stake))
+	_check(absf(before_toll - prof.crystal_total(ck) - roundf(float(stake["amount"]) * 0.5)) < 0.5, "wearing a title that halves the toll, a lost duel costs half the stake (%d of %d)" % [int(before_toll - prof.crystal_total(ck)), int(stake["amount"])])
+	rn["worn"] = ""
 	var drawn: Array = D.apply_duel(prof, {"won": false, "draw": true}, D.duel_event(prof, plain, stake))["lines"]
 	_check(drawn.size() == 1 and String(drawn[0]) == String(D.TEXT["duel_draw"]), "a duel that runs out of time is a draw: nothing changes hands")
 

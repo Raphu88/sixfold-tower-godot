@@ -410,7 +410,7 @@ static func hud_problems(main, where: String) -> Array:
 	var sets := {"tower choice": []}
 	for i in main.Towers.ORDER.size():
 		sets["tower choice"].append(hud.tower_card_rect(i, view))
-	for kind in [["camp", 4], ["pedlar", 5], ["vault", 3], ["heirloom", 6], ["path", 2]]:
+	for kind in [["camp", 4], ["vault", 3], ["heirloom", 6], ["path", 2]]:
 		main.camp = {"choices": range(kind[1]).map(func(i): return "x%d" % i), "stage": kind[0]}
 		var cards: Array = []
 		for i in kind[1]:
@@ -925,16 +925,32 @@ class Sweep:
 				continue
 			menu.go_station(id, stop)
 			await look(name, page_tops())
-		if not light and wants("station market open"):
-			# The pedlar's stall, once his rank has opened it (shop.gd).
+		if not light and wants("station noble busy"):
+			# The Noble with a title ready to grant, a title worn and a contract
+			# held (noble.gd, contracts.gd), and a rank newly reached said at the top.
 			var prof = main.profile
-			var points: int = int(Renown.state(prof)["points"])
-			Renown.state(prof)["points"] = Renown.needed(int(Shop.MERCHANT["rank"]))
-			Renown.state(prof)["market"] = {}
-			menu.go_station(id, "market")
-			await look("station market open", page_tops())
-			Renown.state(prof)["points"] = points
-			Renown.state(prof)["market"] = {}
+			var keep: Dictionary = Renown.state(prof).duplicate(true)
+			var r := Renown.state(prof)
+			r["points"] = Renown.needed(3)
+			r["rank_seen"] = 2
+			r["visits"] = maxi(1, int(r["visits"]))
+			r["titles"] = ["newcomer"]
+			r["worn"] = "newcomer"
+			r["lessons"] = {}
+			for lid in Stations.LESSON_ORDER:
+				r["lessons"][lid] = 1
+			var C = load("res://scripts/contracts.gd")
+			C.data(prof)["visit"] = -1
+			var offers: Array = C.offers(prof)
+			if not offers.is_empty():
+				C.take(prof, String(offers[0]["id"]))
+			menu.go_station(id, "noble")
+			await look("station noble busy", page_tops())
+			for k in ["gym", "arena", "board"]:
+				if wants("station %s busy" % k):
+					menu.go_station(id, k)
+					await look("station %s busy" % k, page_tops())
+			prof.renown = keep
 		if menu.at_station():
 			menu.leave_station()
 		await frames(2)

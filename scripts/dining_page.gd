@@ -207,6 +207,10 @@ func _bets(col: VBoxContainer, rec: Dictionary) -> void:
 	var offers: Array = Dining.bet_offers(prof, rec, _tower())
 	var tw: String = String(Towers.TOWERS.get(Dining._tower_or_last(prof, _tower()), {}).get("name", ""))
 	_label(col, String(Dining.TEXT["bet_tower"]) % tw, UI.DIM, _small_size())
+	if not Dining.full_bets(prof, rec):
+		_label(col, String(Dining.TEXT["bet_small"]) % int(Dining.RULES["stake_low"]), UI.DIM, _small_size())
+	elif bool(Dining.perks(prof)["bets"]):
+		_label(col, String(Dining.TEXT["title_bets"]) % String(Dining.perks(prof)["name"]), UI.GOOD, _small_size())
 	for i in offers.size():
 		var b: Button = _choice(col, String(Dining.TEXT["bet_pick"]) % [Dining.bet_name(offers[i]), Dining._num(float(offers[i]["odds"]))], "dine:bet", _pick.bind(i))
 		if i == pick:
@@ -217,7 +221,7 @@ func _bets(col: VBoxContainer, rec: Dictionary) -> void:
 		var stakes := HBoxContainer.new()
 		stakes.add_theme_constant_override("separation", 6)
 		col.add_child(stakes)
-		for s in Dining.stakes():
+		for s in Dining.stakes(prof, rec):
 			var sb: Button = m._button(String(Dining.TEXT["stake"]) % int(s), _place.bind(int(s)), stakes)
 			sb.set_meta("help", "dine:stake")
 			sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL

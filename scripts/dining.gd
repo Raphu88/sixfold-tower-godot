@@ -59,6 +59,7 @@ const WINGS := "res://scripts/wings.gd"
 ##                          (a floor without a Healing Draught), slay_low /
 ##                          slay_high (slay slay_few / slay_many of a kind)
 ##   warm_odds              a warm climber's odds are this much better
+##   title_odds             ...and a title that takes bets (titles.gd) this much
 ##   warm_off               ...and they take this share off their goods
 ##   gift                   a warm climber's gift each visit (crystals of
 ##                          their mark's kind)
@@ -77,7 +78,7 @@ static var RULES := {
 	"stake_low": 10, "stake_mid": 20, "stake_high": 40,
 	"odds_floor_1": 1.6, "odds_floor_2": 2.2, "odds_floor_3": 3.0, "odds_beast": 3.5, "odds_beast_again": 2.2,
 	"odds_dry": 1.8, "odds_slay_low": 1.5, "odds_slay_high": 2.2, "slay_few": 5, "slay_many": 10,
-	"warm_odds": 0.25, "warm_off": 0.1, "gift": 8, "buy_share": 0.6,
+	"warm_odds": 0.25, "warm_off": 0.1, "title_odds": 0.2, "gift": 8, "buy_share": 0.6,
 	"duel_crystals": 20, "duel_renown": 6, "duel_win_renown": 4, "duel_floor": 3, "duel_floor_most": 9,
 	"duel_time": 120.0, "duel_yield": 0.15, "duel_left": 0.2,
 }
@@ -143,6 +144,7 @@ static var TEXT := {
 	"cold": "They're cold to you.",
 	"plain": "",
 	"title_warm": "Your title warms them: %s.",
+	"title_bets": "Your title, %s: they take your bets, at better odds.",
 	"marks": "Marks: %s",
 	"ask_rumor": "Heard anything useful?",
 	"ask_bet": "Fancy a wager on my next climb?",
@@ -161,6 +163,7 @@ static var TEXT := {
 	"stake_note": "Crystals of any kind, your biggest first. A win pays the stake times the odds, in %s.",
 	"bet_placed": "Wager placed with %s: %s.",
 	"bet_short": "needs %d more essence, of any kind",
+	"bet_small": "Only small stakes with strangers: %d. A title that takes bets, or a climber you've helped, takes more.",
 	"bet_tower": "On your next climb, in %s (the Engine's choice).",
 	"bet_won": "Won your wager with %s: %s. +%s",
 	"bet_lost": "Lost your wager with %s: %s.",
@@ -250,43 +253,36 @@ static func fill_in(text: String, fill: Dictionary) -> String:
 
 # --- title perks: the one place they're read ------------------------------------------
 
-## The worn title's perks with other climbers: {"warm": bool (plain climbers
-## treat you as warm), "odds": extra odds, "off": a share off their goods,
-## "name": the title's name}. Read from the title's own table (renown.gd
-## TITLES: a title's "perks" -> "rivals" entry, or a PERKS table keyed by
-## title id) when it has one; a title without one gives none.
+## The worn title's terms with other climbers (titles.gd rival_terms, the
+## one hook for rival-climber perks), as the Dining car uses them:
+##   warm   ("friendly") plain climbers treat you as warm: better odds, a
+##          little off (gifts stay for the ones you helped)
+##   off    (1 - "trade_ask") a share off their goods
+##   bets   ("bets") every climber takes a full wager: both offers, every
+##          stake, and RULES "title_odds" better odds (without it a plain
+##          climber offers one wager, at the smallest stake)
+##   toll   ("toll") a duel lost costs this share of a crystal or renown stake
+##   name   the worn title's name
 static func perks(prof) -> Dictionary:
-	var out := {"warm": false, "odds": 0.0, "off": 0.0, "name": ""}
+	var out := {"warm": false, "odds": 0.0, "off": 0.0, "bets": false, "toll": 1.0, "name": ""}
 	if prof == null:
 		return out
-	var r := Renown.state(prof)
-	var id := String(r.get("worn", ""))
-	if id == "" or not (r.get("titles", []) as Array).has(id):
-		return out
-	var row: Dictionary = _perk_row(id)
-	if row.is_empty():
-		return out
-	out["name"] = Renown.title_name(id)
-	out["warm"] = bool(row.get("warm", row.get("friendly", false)))
-	out["odds"] = float(row.get("odds", 0.0))
-	out["off"] = float(row.get("off", row.get("trade", 0.0)))
+	var terms: Dictionary = load("res://scripts/titles.gd").rival_terms(prof)
+	out["warm"] = bool(terms.get("friendly", false))
+	out["off"] = clampf(1.0 - float(terms.get("trade_ask", 1.0)), 0.0, 0.7)
+	out["bets"] = bool(terms.get("bets", false))
+	out["odds"] = float(RULES["title_odds"]) if out["bets"] else 0.0
+	out["toll"] = clampf(float(terms.get("toll", 1.0)), 0.0, 1.0)
+	out["name"] = Renown.worn_title(prof)
 	return out
 
 
-## The rival-climber perks of a title, from wherever the game keeps them ({} for none).
-static func _perk_row(id: String) -> Dictionary:
-	var t: Dictionary = Renown.TITLES.get(id, {})
-	var p = t.get("perks", {})
-	if p is Dictionary and p.get("rivals", null) is Dictionary:
-		return p["rivals"]
-	var R = load("res://scripts/renown.gd")
-	for table in ["PERKS", "TITLE_PERKS"]:
-		if table in R:
-			var all = R.get(table)
-			if all is Dictionary and all.get(id, null) is Dictionary:
-				var row: Dictionary = all[id]
-				return row.get("rivals", row) if row.get("rivals", null) is Dictionary else row
-	return {}
+## Whether a climber takes a full wager (both offers, every stake): one you
+## helped or climbed with, or anyone while your title has "bets".
+static func full_bets(prof, rec: Dictionary) -> bool:
+	if bool(perks(prof)["bets"]):
+		return true
+	return int(rec.get("rescued", 0)) > 0 or int(rec.get("teamed", 0)) > 0 or bool(rec.get("owed", false))
 
 
 # --- who sits in the car ----------------------------------------------------------------
@@ -675,7 +671,7 @@ static func bet_offers(prof, rec: Dictionary, tower: String) -> Array:
 		all.append({"kind": "slay", "tower": tw, "monster": String(kinds[randi() % kinds.size()]), "count": int(RULES["slay_many" if many else "slay_few"]),
 			"odds": float(RULES["odds_slay_high" if many else "odds_slay_low"])})
 	all.shuffle()
-	var out: Array = all.slice(0, 2)
+	var out: Array = all.slice(0, 2 if full_bets(prof, rec) else 1)  # (a plain climber: one wager, unless your title takes bets)
 	var bonus := (float(RULES["warm_odds"]) if attitude(prof, rec) == "warm" else 0.0) + float(perks(prof)["odds"])
 	for b in out:
 		b["odds"] = snappedf(float(b["odds"]) + bonus, 0.05)
@@ -700,8 +696,13 @@ static func bet_name(b: Dictionary, tower := false) -> String:
 	return text
 
 
-static func stakes() -> Array:
-	return [int(RULES["stake_low"]), int(RULES["stake_mid"]), int(RULES["stake_high"])]
+## The stakes on offer (all three; a plain climber without a title that
+## takes bets: only the smallest).
+static func stakes(prof = null, rec := {}) -> Array:
+	var all := [int(RULES["stake_low"]), int(RULES["stake_mid"]), int(RULES["stake_high"])]
+	if prof != null and not rec.is_empty() and not full_bets(prof, rec):
+		return all.slice(0, 1)
+	return all
 
 
 ## What a wager pays if it's won (stake times odds, in the tower's essence).
@@ -716,6 +717,8 @@ static func bet_why_not(prof, rec: Dictionary, stake: int) -> String:
 		return say("cold_bet")
 	if (st["bets"] as Array).size() >= int(RULES["max_bets"]):
 		return String(TEXT["bets_full"]) % (st["bets"] as Array).size()
+	if not stakes(prof, rec).has(stake):
+		return String(TEXT["bet_small"]) % int(RULES["stake_low"])
 	if prof.crystals_held() < float(stake):
 		return String(TEXT["bet_short"]) % int(ceil(float(stake) - prof.crystals_held()))
 	return ""
@@ -1058,7 +1061,7 @@ static func apply_duel(prof, res: Dictionary, ev: Dictionary) -> Dictionary:
 				prof.add_crystal(k, float(amt))
 				lines.append(String(TEXT["duel_won"]) % [who, price_text(k, amt)])
 			else:
-				var took: float = minf(float(amt), prof.crystal_total(k))
+				var took: float = minf(roundf(float(amt) * float(perks(prof)["toll"])), prof.crystal_total(k))  # (a worn title can halve the toll: titles.gd)
 				prof.spend(k, took)
 				lines.append(String(TEXT["duel_lost"]) % [who, String(TEXT["duel_lost_takes"]) % price_text(k, int(took))])
 		"gear":
@@ -1084,7 +1087,8 @@ static func apply_duel(prof, res: Dictionary, ev: Dictionary) -> Dictionary:
 				var got: Dictionary = Renown.earn(prof, n, String(TEXT["duel_deed"]) % who)
 				lines.append(String(TEXT["duel_won"]) % [who, Renown.TEXT["earned"] % int(got["amount"])])
 			else:
-				var lost: int = Rivals.renown_cost(prof, n, String(TEXT["duel_deed_lost"]) % [who, n])
+				var toll := int(round(float(n) * float(perks(prof)["toll"])))
+				var lost: int = Rivals.renown_cost(prof, toll, String(TEXT["duel_deed_lost"]) % [who, toll])
 				lines.append(String(TEXT["duel_lost"]) % [who, String(TEXT["duel_lost_takes"]) % (String(TEXT["duel_renown"]) % lost)])
 	if won:
 		r["duels_won"] = int(r.get("duels_won", 0)) + 1
