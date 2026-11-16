@@ -34,8 +34,8 @@ static var DATA := {
 	"foe": {"breath": 0.03, "breath_rate": 2.3, "pull": 3.2, "hit_tint": 0.85, "dissolve": 1.0, "dissolve_beast": 2.4, "drift": 1.0},
 	# The six beasts.
 	"beast": {"entrance": 1.0, "phase": 1.0, "phase_at": 0.5, "slow_scale": 0.35, "slow_seconds": 0.8, "slow": true},
-	# Screen shake: the setting turns it all off; this scales it, and adds a little for a beast's blows and a blast.
-	"shake": {"mult": 1.0, "blast": 3.0, "beast_blow": 3.0},
+	# Screen shake: Settings -> Screen shake turns it all off; "mult" scales every shake, "blast" is what a big explosion adds.
+	"shake": {"mult": 1.0, "blast": 3.0},
 	# Numbers in the world: a pop, an arc, a crit's size.
 	"text": {"pop": 110.0, "settle": 16.0, "pull": 340.0, "drift": 34.0, "crit_scale": 1.5, "crit_color": Color(1.0, 0.82, 0.35)},
 	# Menus and the HUD.
