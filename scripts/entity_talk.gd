@@ -102,7 +102,7 @@ static var DIALOGUE := {
 		"lines": ["Some monsters' blows leave a state on you when they land: {states}. Each lasts a few seconds, and none of them stuns. The line at the top counts it down and names its cure. A Cleansing Tonic takes off any of them; {wards} keep one off for a while. The stair's rest clears them all."],
 		"choices": ["how_handy", "how_belt", "how", "bye"]},
 	"how_handy": {"ask": "What's handy in this tower?", "fact": "handy",
-		"lines": ["{handy} They turn up more often there, and the outfitter's shelf says where each is handy."],
+		"lines": ["{handy} They turn up more often there, though like every item but the staples they're still a rare find; the outfitter's shelf says where each is handy, if you'd rather bring one."],
 		"choices": ["how_states", "tower", "how", "bye"]},
 	"how_charms": {"ask": "How do charms work?", "fact": "rules",
 		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. A Rune Artist crafts them; the outfitter sells {charm_shop}; vaults and secret rooms sometimes hold one."],
@@ -123,7 +123,7 @@ static var DIALOGUE := {
 		"lines": ["My notes on every monster, in the Library. An entry starts when you see one and grows when you fight it. Slay it {bestiary_slain} times and it adds its health, then what it's weak to, then how it takes states. A beast takes {bestiary_beast}."],
 		"choices": ["how_secret", "how", "bye"]},
 	"how_rivals": {"ask": "Who are the other climbers?", "fact": "rivals",
-		"lines": ["Climbers like you, with marks of their own. From floor {rival_from}, about {rival_chance} of floors hold one, {rival_per} a climb. Each wants one thing: a trade, a duel for the floor, company to the stair. Some lie hurt beside a hoard. {rival_met}"],
+		"lines": ["Climbers like you, with marks of their own. From floor {rival_from}, about {rival_chance} of floors hold one, up to {rival_per} a climb, never the same one twice in a climb; if you've never met one, you will by floor {rival_sure}. Each wants one thing: a trade, a duel for the floor, company to the stair. Some lie hurt beside a hoard. {rival_met}"],
 		"choices": ["how_rivals_more", "how", "bye"]},
 	"how_rivals_more": {"ask": "What do I get from them?", "fact": "rivals",
 		"lines": ["A duel can't kill you: lose and they take a toll, win and the stair's ward lifts. Teamed up, you keep {rival_share} of what you gather, but their marks react with yours. Help the hurt and they remember; rob them and so do they. The Renown Board keeps them all."],
@@ -634,7 +634,7 @@ static func _fact_rivals(main) -> Dictionary:
 	var met: Array = Rv.met_list(main.profile) if main != null and main.profile != null else []
 	var per := int(Rv.RULES["per_climb"])
 	var f := {"rival_from": int(Rv.RULES["from"]), "rival_chance": "%d%%" % int(round(float(Rv.RULES["chance"]) * 100.0)),
-		"rival_per": "once" if per == 1 else "%d times" % per, "rival_share": "%d%%" % int(round(float(Rv.RULES["team_share"]) * 100.0))}
+		"rival_per": "once" if per == 1 else ("twice" if per == 2 else "%d times" % per), "rival_sure": int(Rv.RULES.get("sure_by", 3)), "rival_share": "%d%%" % int(round(float(Rv.RULES["team_share"]) * 100.0))}
 	f["rival_met"] = String(TEXT.get("rivals_none", "")) if met.is_empty() else String(TEXT.get("rivals_met", "")) % [met.size(), String(met[0].get("name", ""))]
 	return f
 

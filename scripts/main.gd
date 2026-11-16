@@ -1096,7 +1096,7 @@ func _start_floor(n: int) -> void:
 			secret_tools.before_build(n)  # (the Designer's Reroll: the puzzle and rooms chosen for this floor)
 		if n <= 1:
 			Objectives.climb_used.clear()  # (a new climb: every kind of task is fresh)
-			RivalsScript.climb_met = 0  # (and no other climber met yet)
+			RivalsScript.new_climb(profile, first_climb)  # (and no other climber met yet; one is sure by floor 3 for a climber who never met one)
 		RivalsScript.climb_ok = not first_climb  # (no rivals on the bondless first climb)
 		plan = Floors.build(n, OPEN_ROOM, start, Towers.TOWERS[tower])
 		if not plan.get("objective", {}).is_empty():
