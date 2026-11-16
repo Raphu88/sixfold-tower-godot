@@ -51,7 +51,7 @@ static var SPLIT := {"body": 30.0, "marks": 40.0, "crystals": 30.0}
 ## tincture's essence is concentrated: drunk into a mark it grows it this many
 ## times what the same banked essence would (profile.gd drink).
 static var TINCTURE := {"essence": 40.0, "soak_rate": 2.0, "craft": 40, "store_kinds": 1,
-	"vault_chance": 0.2, "hidden_chance": 0.3, "mark_boost": 3.0}
+	"vault_chance": 0.2, "hidden_chance": 0.3, "mark_boost": 3.2}
 
 ## Earned marks: a sealed wing beaten with its rule kept on this floor or
 ## lower can bring a new mark (the Maker in "maker" grants it). The Entity

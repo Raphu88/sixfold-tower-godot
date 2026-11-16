@@ -20,17 +20,17 @@ const Towers := preload("res://scripts/towers.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 
 ## Essence banked at each floor's stair, floors 1 to 12 (12: the beast).
-const ESSENCE := [49.0, 60.0, 66.0, 72.0, 94.0, 71.0, 121.0, 138.0, 155.0, 192.0, 197.0, 65.0]
+const ESSENCE := [52.0, 62.0, 65.0, 79.0, 89.0, 71.0, 125.0, 137.0, 157.0, 193.0, 217.0, 65.0]
 ## Monsters slain per floor (each may leave a tincture: items.gd DROPS).
-const KILLS := [6.3, 7.2, 6.1, 6.1, 7.1, 4.0, 8.5, 9.1, 9.6, 9.6, 10.3, 1.0]
+const KILLS := [6.3, 7.2, 6.2, 6.2, 6.8, 4.0, 8.1, 8.7, 9.8, 9.8, 10.2, 1.0]
 ## Each tower's essence by kind (its monsters are not all of its kind).
 const MIX := {
-	"gryphon": {"air": 0.90, "water": 0.05, "iron": 0.05},
-	"kraken": {"water": 0.80, "iron": 0.16, "air": 0.04},
-	"wyvern": {"iron": 0.54, "fire": 0.38, "water": 0.04, "air": 0.04},
-	"manticore": {"stone": 0.89, "water": 0.03, "air": 0.05, "iron": 0.03},
-	"firebird": {"fire": 0.87, "water": 0.04, "air": 0.05, "iron": 0.04},
-	"chimera": {"blade": 0.78, "water": 0.13, "iron": 0.06, "air": 0.03},
+	"gryphon": {"air": 0.91, "water": 0.05, "iron": 0.04},
+	"kraken": {"water": 0.75, "iron": 0.20, "air": 0.05},
+	"wyvern": {"iron": 0.52, "fire": 0.41, "water": 0.04, "air": 0.03},
+	"manticore": {"stone": 0.85, "water": 0.04, "air": 0.07, "iron": 0.04},
+	"firebird": {"fire": 0.88, "water": 0.03, "air": 0.05, "iron": 0.04},
+	"chimera": {"blade": 0.80, "water": 0.12, "iron": 0.04, "air": 0.04},
 }
 ## What a typical climber's body parts do (strikes most, then takes hits,
 ## rolls, backstabs, parries, cleaves): it spreads the body's share. The

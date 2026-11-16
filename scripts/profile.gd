@@ -33,7 +33,7 @@ static var FAINT_DEBT := 80.0
 static var STEP_XP := [0.0, 150.0, 450.0, 900.0, 1500.0]
 static var AFFINITY_WEIGHT := 2.0
 static var OTHER_WEIGHT := 0.25
-static var STEP_RATE := 0.08
+static var STEP_RATE := 0.075
 static var PROVING_GROWTH := 35.0
 ## Marks after the first: an unmarked body part fills like a battery. The
 ## body's share of what you bank spreads over the parts by what each did,
