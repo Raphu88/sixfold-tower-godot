@@ -884,7 +884,7 @@ func _store(root: Node) -> void:
 	var oc := VBoxContainer.new()
 	oc.add_theme_constant_override("separation", 4)
 	oc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if not selling and Train.shelf(prof).size() > Shop.SHELF_PAGE + 2 and small:
+	if not selling and (Train.shelf(prof).size() > 10 or Train.rack_size(prof) > 10) and small:
 		oc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN  # (a tall store on a phone: his signs stay at the top, where the Sell sign is always in reach)
 	oc.custom_minimum_size.x = 150.0 if small else 200.0
 	oc.mouse_filter = Control.MOUSE_FILTER_IGNORE
