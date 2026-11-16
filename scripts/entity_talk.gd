@@ -78,10 +78,10 @@ static var DIALOGUE := {
 		"lines": ["Divided, never copied. Of what you bank at a stair, {body} soaks into your body, spread by what each part did: unmarked parts fill toward a new mark. {marks} goes to your marks, each kind to the marks of that kind; a kind none of them is made of spreads thinly over all. {condense} becomes crystals; To crystals, in Settings, sets that share, and body and marks share the rest. Eat a crystal and it flows the same way, without the crystals' share. Only a tincture lets you steer."],
 		"choices": ["how_tinctures", "how_marks", "how", "bye"]},
 	"how_tinctures": {"ask": "What are tinctures?", "fact": "rules",
-		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, the outfitter stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
+		"lines": ["A vial of {tincture} essence of one kind. Drink it and you choose where it goes: one mark, where its own kind counts {own}x and any other {other}x, and it's concentrated, {boost}x what banked essence gives, or one unmarked part, toward a new mark there. Vaults and secret rooms hold them, now and then a monster drops one, the outfitter stocks {store_kinds} each visit, and the Workshop crafts one from {craft} crystals of its kind."],
 		"choices": ["how_flow", "how_new_mark", "how", "bye"]},
 	"how_marks": {"ask": "How do marks grow?", "fact": "rules",
-		"lines": ["Across climbs, never during one: from your marks' share of what you bank, {marks} of it. Each kind goes to the marks of that kind and counts {own}x; a kind none of them is made of counts {other}x, spread over all. The more marks you carry, the slower each grows. Each has {steps} steps, and each step brings a spell or makes one stronger. A tincture steers essence into one mark, and the Proving, on floor six, can raise one a step."],
+		"lines": ["Across climbs, never during one: from your marks' share of what you bank, {marks} of it. Each kind goes to the marks of that kind and counts {own}x; a kind none of them is made of counts {other}x, spread over all. The more marks you carry, the slower each grows. Each has {steps} steps, and each step brings a spell or makes one stronger. It's slow on purpose: a mark keeps you company for many climbs. A tincture steers essence into one mark, {boost}x as strong as banked essence, and winning the Proving, on floor six, grows the mark you used most by {proving}."],
 		"choices": ["how_new_mark", "how", "bye"]},
 	"how_new_mark": {"ask": "How do I earn a new mark?", "fact": "rules",
 		"lines": ["Your body's share of what you bank soaks into your unmarked parts, by what each does, slower the more marks you carry. A part {full} full is ready. Reach a summit and the beast marks it. Or prove yourself sooner: break into a sealed wing on floor {early} or below, keep its rule and beat it, and the Maker of Marks may mark you there. Fall with a full part and there's a {fall_chance} chance it takes a faint mark anyway. One new mark a climb, at most. The first comes at the Regard; fall on that first climb and it's faint: {faint} more banked essence before it grows."],
@@ -597,7 +597,7 @@ static func _fact_rules() -> Dictionary:
 			ranks.append("%s at %d" % [r[1], int(r[2])])
 	var f := _fact_money(null)
 	f.merge({
-		"own": _num(ProfileScript.AFFINITY_WEIGHT), "other": _num(ProfileScript.OTHER_WEIGHT), "steps": ProfileScript.STEP_XP.size(),
+		"own": _num(ProfileScript.AFFINITY_WEIGHT), "other": _num(ProfileScript.OTHER_WEIGHT), "boost": _num(float(Flow.TINCTURE.get("mark_boost", 1.0))), "proving": int(ProfileScript.PROVING_GROWTH), "steps": ProfileScript.STEP_XP.size(),
 		"full": "%d%%" % int(round(ProfileScript.MARK_FULL * 100.0)), "faint": int(ProfileScript.FAINT_DEBT),
 		"per_floor": int(R.CLIMB.get("floor", 0)), "per_best": int(R.CLIMB.get("best", 0)), "beast": int(R.CLIMB.get("beast", 0)),
 		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),

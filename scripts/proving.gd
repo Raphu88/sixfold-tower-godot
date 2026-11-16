@@ -79,6 +79,10 @@ static var TEXT := {
 	"shadow_bar": "Shadow of %s",
 	"won_title": "PROVEN",
 	"won": "The tower has seen enough. Claim your prize; the stair is open.",
+	# The win's gift to the mark you used most (main.gd proving_raise; profile.gd PROVING_GROWTH).
+	"gift": "The tower has taken your measure: %s grows (+%d)",
+	"gift_step": "The tower has taken your measure: %s grows to step %d",
+	"gift_faint": "The tower has taken your measure: your faint %s mark strengthens",
 	"prize_title": "THE PROVING'S PRIZE",
 	"prize_sub": "Choose one to take.",
 	"crystal": "The sentinel leaves %s",
@@ -618,7 +622,7 @@ func _win() -> void:
 	prize["state"] = "ready"
 	lights.append(main.lighting.add_light(prize["pos"], 120.0, GOLD, 0.75, 0.25))
 	var won_lines: Array = [TEXT["won"]]
-	var raised: String = main.proving_raise()  # (one of your marks grows a step)
+	var raised: String = main.proving_raise()  # (one of your marks grows: profile.gd PROVING_GROWTH)
 	if raised != "":
 		won_lines.append(raised)
 	_reopen("shadow", {"title": TEXT["won_title"], "lines": won_lines, "t": 3.5})

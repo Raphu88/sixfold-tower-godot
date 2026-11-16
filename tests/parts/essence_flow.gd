@@ -202,7 +202,7 @@ func _tinctures() -> void:
 	var hand0 := float(prof.bonds["hand"]["xp"])
 	var legs0 := float(prof.bonds["legs"]["xp"])
 	var lines: Array = main.drink_tincture("tincture_air", "legs")
-	var want: float = float(Flow.TINCTURE["essence"]) * PS.AFFINITY_WEIGHT * PS.STEP_RATE * prof.body_drag()
+	var want: float = float(Flow.TINCTURE["essence"]) * PS.AFFINITY_WEIGHT * float(Flow.TINCTURE["mark_boost"]) * PS.STEP_RATE * prof.body_drag()  # (concentrated: "mark_boost")
 	_check(absf(float(prof.bonds["legs"]["xp"]) - legs0 - want) < 0.01 and float(prof.bonds["hand"]["xp"]) == hand0,
 		"a tincture goes only to the chosen mark, its own kind counting fully (+%.1f; the other mark +%.1f)" % [float(prof.bonds["legs"]["xp"]) - legs0, float(prof.bonds["hand"]["xp"]) - hand0])
 	_check(prof.soak.is_empty() and prof.density.is_empty() and p.item_count("tincture_air") == 1, "...nothing else gets any, and one is used up")
@@ -210,7 +210,7 @@ func _tinctures() -> void:
 	p.items["tincture_fire"] = 1
 	hand0 = float(prof.bonds["hand"]["xp"])
 	main.drink_tincture("tincture_fire", "hand")
-	var other: float = float(Flow.TINCTURE["essence"]) * PS.OTHER_WEIGHT * PS.STEP_RATE * prof.body_drag()
+	var other: float = float(Flow.TINCTURE["essence"]) * PS.OTHER_WEIGHT * float(Flow.TINCTURE["mark_boost"]) * PS.STEP_RATE * prof.body_drag()
 	_check(absf(float(prof.bonds["hand"]["xp"]) - hand0 - other) < 0.01, "another kind counts only a little in a mark (+%.2f)" % (float(prof.bonds["hand"]["xp"]) - hand0))
 	_check(main.drink_tincture("tincture_fire", "hand").is_empty(), "none left: nothing happens")
 	p.items["tincture_stone"] = 1

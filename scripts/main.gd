@@ -3043,8 +3043,9 @@ func show_victory(lines: Array) -> void:
 	sfx("summit_win", 1.0, 0.0, 0.0)
 
 
-## Winning the Proving (proving.gd): one of your marks grows a step, the
-## one whose body part you used most this climb (not past step 5). Returns a line.
+## Winning the Proving (proving.gd): one of your marks grows (profile.gd
+## PROVING_GROWTH), the one whose body part you used most this climb (not
+## past step 5). Returns a line.
 func proving_raise() -> String:
 	var best := ""
 	var most := -1.0
@@ -3057,12 +3058,17 @@ func proving_raise() -> String:
 			best = part
 	if best == "":
 		return ""
-	var step: int = profile.raise_step(best)
-	if step <= 0:
+	var got: Dictionary = profile.proving_gift(best)
+	if got.is_empty():
 		return ""
 	_give_bonds()
 	profile.save()
-	return "The tower has taken your measure: %s grows to step %d" % [BondScript.Bonds.BONDS[profile.bonds[best]["id"]]["name"], step]
+	var name: String = BondScript.Bonds.BONDS[profile.bonds[best]["id"]]["name"]
+	if bool(got["up"]):
+		return ProvingScript.TEXT["gift_step"] % [name, int(got["step"])]
+	if float(got["grown"]) <= 0.0:
+		return ProvingScript.TEXT["gift_faint"] % name
+	return ProvingScript.TEXT["gift"] % [name, int(round(float(got["grown"])))]
 
 
 ## How close an unmarked body part is to taking a mark, 0..1 (for drawing).
