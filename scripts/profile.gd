@@ -153,6 +153,9 @@ var bestiary := {}
 ## Other climbers met in the towers (rivals.gd): id -> their record (name,
 ## look, gear, marks, and your history with them). {} for an old save.
 var rivals := {}
+## The Dining car (dining.gd): who sits there this visit, your open
+## wagers, what's been offered. {} for an old save.
+var dining := {}
 
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -258,6 +261,7 @@ func reset() -> void:
 	renown = {}
 	bestiary = {}
 	rivals = {}
+	dining = {}
 	save()
 
 
@@ -338,6 +342,8 @@ func load_save() -> void:
 	bestiary = load("res://scripts/bestiary.gd").load_records(cfg.get_value("bestiary", "met", {}))
 	var rv = cfg.get_value("rivals", "met", {})
 	rivals = rv if rv is Dictionary else {}
+	var dn = cfg.get_value("dining", "state", {})
+	dining = dn if dn is Dictionary else {}
 	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
 	if tr is Dictionary:
 		tree = tr
@@ -391,6 +397,7 @@ func save() -> void:
 	cfg.set_value("renown", "state", renown)
 	cfg.set_value("bestiary", "met", bestiary)
 	cfg.set_value("rivals", "met", rivals)
+	cfg.set_value("dining", "state", dining)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 

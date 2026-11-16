@@ -8851,7 +8851,7 @@ func _train_tests() -> void:
 	var rail = menu.rail
 	var R = load("res://scripts/rail.gd")
 	var rail_ids: Array = rail.buttons.map(func(b): return b.id)
-	_check(rail.visible and rail_ids.slice(0, 7) == ["climber", "engine", "store", "personal", "workshop", "library", "settings"], "the rail shows on the train: who you are, then the six cars front to back (%s)" % [rail_ids])
+	_check(rail.visible and rail_ids.slice(0, 8) == ["climber", "engine", "store", "personal", "workshop", "dining", "library", "settings"], "the rail shows on the train: who you are, then the seven cars front to back (%s)" % [rail_ids])
 	_check(rail_ids.slice(7) == (["dev", "exit", "quit"] if menu.can_quit() else ["dev", "exit"]) and rail.button("resume") == null, "...then Dev Tools, Exit to Title Station and (on a computer) Quit game (%s)" % [rail_ids.slice(7)])
 	_check(rail.current == "personal" and rail.button("personal").on, "...your car lit")
 	_check(view.get_global_rect().position.x >= rail.size.x - 0.5 and absf(view.get_global_rect().end.x - menu.get_viewport_rect().size.x) < 1.0, "the cars fill the screen right of the rail")
@@ -9086,10 +9086,10 @@ func _train_tests() -> void:
 	# screen, the cars in the rest, and everything in a car inside it.
 	var vis: Rect2 = menu.get_viewport_rect()
 	var off_rail: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < rail.row_min() - 0.5)
-	_check(rail.narrow and off_rail.is_empty() and rail.buttons.size() == 1 + 6 + R.TRAIN_PAGES.size() + R.TRAIN_FOOT.size() + (1 if menu.can_quit() else 0), "on a phone (800 x 400) the narrow rail fits who you are, its six cars, Dev Tools and its foot: %s" % [off_rail.map(func(b): return b.id)])
+	_check(rail.narrow and off_rail.is_empty() and rail.buttons.size() == 1 + 7 + R.TRAIN_PAGES.size() + R.TRAIN_FOOT.size() + (1 if menu.can_quit() else 0), "on a phone (800 x 400) the narrow rail fits who you are, its seven cars, Dev Tools and its foot: %s" % [off_rail.map(func(b): return b.id)])
 	_check(rail.size.x <= vis.size.x * 0.18 and absf(view.get_global_rect().position.x - rail.size.x) < 1.0, "...and the cars fill the rest (%.0f of %.0f)" % [rail.size.x, vis.size.x])
 	var outside: Array = []
-	for car in ["engine", "store", "personal", "workshop", "library", "settings"]:
+	for car in ["engine", "store", "personal", "workshop", "dining", "library", "settings"]:
 		menu.train_page.go_to(menu.train_page._index(car))
 		await _train_settled()
 		await _frames(2)
@@ -12148,10 +12148,10 @@ func _train_rail_tests() -> void:
 	var rail = menu.rail
 	var view = menu.train_view
 	var tp = menu.train_page
-	var order := ["engine", "store", "personal", "workshop", "library", "settings"]
-	_check(T.CARS.map(func(c): return c[0]) == order and T.CARS.map(func(c): return c[1]) == ["Engine", "Outfitter's Car", "Your Car", "Workshop", "Library", "Settings & Controls Car"], "the train's cars, front to back: Engine, Outfitter's Car, Your Car, Workshop, Library, Settings & Controls Car")
+	var order := ["engine", "store", "personal", "workshop", "dining", "library", "settings"]
+	_check(T.CARS.map(func(c): return c[0]) == order and T.CARS.map(func(c): return c[1]) == ["Engine", "Outfitter's Car", "Your Car", "Workshop", "Dining Car", "Library", "Settings & Controls Car"], "the train's cars, front to back: Engine, Outfitter's Car, Your Car, Workshop, Dining Car, Library, Settings & Controls Car")
 	var ids: Array = rail.buttons.map(func(b): return b.id)
-	_check(ids.slice(0, 9) == ["climber"] + order + ["dev", "exit"], "the rail: who you are, the six cars, Dev Tools, Exit to Title Station (%s)" % [ids])
+	_check(ids.slice(0, 10) == ["climber"] + order + ["dev", "exit"], "the rail: who you are, the seven cars, Dev Tools, Exit to Title Station (%s)" % [ids])
 	_check(rail.button("exit").text == "Exit to Title Station" and rail.button("dev").text == "Dev Tools", "...named Exit to Title Station and Dev Tools")
 	_check(rail.button("quit") != null if menu.can_quit() else rail.button("quit") == null, "Quit game only where the game can be quit (a computer: %s)" % menu.can_quit())
 	_check(menu.can_quit() == not (OS.has_feature("web") or OS.has_feature("mobile")), "...never in a browser or on a phone")
@@ -12168,21 +12168,21 @@ func _train_rail_tests() -> void:
 	_check(menu.page == "climber", "a click on it does too")
 	menu.close()
 	await _frames(2)
-	# Q / E pass through all six cars in order, and back.
+	# Q / E pass through all seven cars in order, and back.
 	menu.train_car = "engine"
 	menu.open("train")
 	await _frames(2)
 	var seen: Array = [menu.train_car]
-	for i in 5:
+	for i in 6:
 		await _key_tap(KEY_E)
 		seen.append(menu.train_car)
 	await _key_tap(KEY_E)
-	_check(seen == order and menu.train_car == "settings", "E goes through all six cars in order, and stops at the last (%s)" % [seen])
+	_check(seen == order and menu.train_car == "settings", "E goes through all seven cars in order, and stops at the last (%s)" % [seen])
 	var back: Array = [menu.train_car]
-	for i in 5:
+	for i in 6:
 		await _key_tap(KEY_Q)
 		back.append(menu.train_car)
-	_check(back == ["settings", "library", "workshop", "personal", "store", "engine"], "...and Q back through them (%s)" % [back])
+	_check(back == ["settings", "library", "dining", "workshop", "personal", "store", "engine"], "...and Q back through them (%s)" % [back])
 	# Swipes too, on a phone (800 x 400).
 	var was_size: Vector2i = root.size
 	root.size = Vector2i(800, 400)
@@ -12194,15 +12194,15 @@ func _train_rail_tests() -> void:
 	await _train_settled()
 	var mid: float = view.size.y * 0.5
 	var swiped: Array = [menu.train_car]
-	for i in 5:
+	for i in 6:
 		await _swipe(Vector2(view.global_position.x + view.size.x * 0.62, mid), Vector2(view.global_position.x + view.size.x * 0.3, mid))
 		await _train_settled()
 		swiped.append(menu.train_car)
-	_check(swiped == order, "swiping left goes through all six cars in order (%s)" % [swiped])
+	_check(swiped == order, "swiping left goes through all seven cars in order (%s)" % [swiped])
 	# It fits: the narrow rail, every item on screen and big enough to tap.
 	var vis: Rect2 = menu.get_viewport_rect()
 	var off: Array = rail.buttons.filter(func(b): return not vis.encloses(b.get_global_rect().grow(-0.5)) or b.get_global_rect().size.y < 29.5)
-	_check(rail.narrow and off.is_empty(), "at 800 x 400 the rail fits who you are, the six cars, Dev and Station: %s" % [off.map(func(b): return b.id)])
+	_check(rail.narrow and off.is_empty(), "at 800 x 400 the rail fits who you are, the seven cars, Dev and Station: %s" % [off.map(func(b): return b.id)])
 	_check(R.TRAIN_CARS["store"][0] == "Outfitter" and R.TRAIN_CARS["settings"][0] == "Settings" and R.TRAIN_FOOT[0][2] == "Station", "...with short names: Outfitter, Your Car, Library, Settings, Dev, Station")
 	var outside: Array = []
 	for car in ["library", "settings"]:
@@ -14829,7 +14829,7 @@ func _pages_fit(tag: String) -> Array:
 	main.await_tower()
 	main.open_train()
 	await _frames(3)
-	for car in ["engine", "store", "personal", "workshop", "library", "settings"]:
+	for car in ["engine", "store", "personal", "workshop", "dining", "library", "settings"]:
 		menu.train_car = car
 		menu.open("train")
 		await _frames(2)

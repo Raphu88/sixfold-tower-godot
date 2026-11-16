@@ -1563,6 +1563,10 @@ func status_chips() -> Array:
 	# A station's drill or bout (arena.gd), and the practice room's hint.
 	if main.get("arena") != null and main.arena.on:
 		out.append({"id": "arena", "text": main.arena.hud_text(), "color": GOLD, "edge": UI.GILT})
+	# Wagers from the Dining car (dining.gd): a small, quiet line each.
+	if main.get("profile") != null and not main.on_train and not (main.get("arena") != null and main.arena.on):
+		for w in main.Dining.hud_lines(main.profile):
+			out.append({"id": "wager", "text": String(w), "color": Color(1.0, 0.86, 0.6), "edge": UI.GILT, "alpha": 0.85})
 	if main.practice != null and main.practice.on:
 		out.append({"id": "practice", "text": Abilities.fill(main, main.practice.TEXT["hint"]), "color": GOLD, "edge": UI.GILT})
 	# A big bag nearly full slows you (gear.gd BAG): a small, quiet line.

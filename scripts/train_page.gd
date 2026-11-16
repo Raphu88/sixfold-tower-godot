@@ -48,10 +48,11 @@ const Renown := preload("res://scripts/renown.gd")
 const StorageView := preload("res://scripts/storage_view.gd")
 const ArrangeUI := preload("res://scripts/arrange_ui.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
+const DiningPage := preload("res://scripts/dining_page.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
-const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["bench", "enchant"]}
+const CAR_TIPS := {"personal": ["chest"], "store": ["store"], "workshop": ["bench", "enchant"], "dining": ["dining"]}
 ## The wardrobe's slots on a phone (smaller than elsewhere, so the doll's
 ## five rows, the charm's included, fit the car).
 const WARDROBE_PHONE := 41.0
@@ -90,8 +91,12 @@ var touch_slider: HSlider = null  # a finger (or the mouse) on a slider in the c
 var wheel_at := 0
 
 
+var dining  # the Dining car's things (dining_page.gd), kept while the train shows
+
+
 func _init(menu) -> void:
 	m = menu
+	dining = DiningPage.new(self)
 
 
 func _prof():
@@ -195,6 +200,8 @@ func build() -> void:
 				_library(root)
 			"settings":
 				_settings_car(root)
+			"dining":
+				dining.build(root)  # (dining_page.gd)
 			_:
 				_personal(root)
 		m.train_sel[c] = m.inv_sel

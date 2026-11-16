@@ -55,6 +55,7 @@ const UnboundRun := preload("res://scripts/unbound_run.gd")
 const RoomStore := preload("res://scripts/room_store.gd")
 const PracticeScript := preload("res://scripts/practice.gd")
 const ArenaScript := preload("res://scripts/arena.gd")
+const Dining := preload("res://scripts/dining.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Boons := preload("res://scripts/boons.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
@@ -2405,6 +2406,7 @@ func pay_climb() -> String:
 		return pay_line
 	climb_paid = true
 	Renown.on_climb_end(profile, tower_data()["name"], floor_num, climb_best0, player != null and player.dead)  # (renown for the floors: renown.gd)
+	Dining.settle(self)  # (wagers made in the Dining car are paid or lost: dining.gd)
 	var kind: String = tower_data()["essence"]
 	var amount: int = Train.climb_pay(floor_num, climb_best0)
 	if amount < 1:
@@ -2877,6 +2879,7 @@ func choose_tower(id: String) -> void:
 	_start_floor(1)
 	if from_train:
 		Boons.on_depart(self)  # (a boon's draught on the belt, a Keen Eye's piece: boons.gd)
+		Dining.on_depart(self)  # (wagers from the Dining car run on this climb: dining.gd)
 	player.set_physics_process(true)
 	sfx("equip_sword", 0.8, -2.0, 0.0)
 	_greet()
@@ -4413,6 +4416,7 @@ func on_enemy_killed(e) -> void:
 		return
 	profile.note("slain")
 	Bestiary.slain(self, e)
+	Dining.on_kill(self, e)  # (a wager on slaying counts it: dining.gd)
 	BondScript.on_kill(self, e)  # (marks' passive ranks: bond.gd)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)

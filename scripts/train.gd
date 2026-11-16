@@ -14,6 +14,9 @@ extends RefCounted
 ##             your pack and your stash (the storage chest, stash_page.gd)
 ##   workshop  the workshop car: the bench (bench.gd): brewing for anyone,
 ##             enchanting for a Rune Artist, and breaking things down
+##   dining    the Dining car: other climbers at its tables (dining.gd,
+##             dining_page.gd): rumors, wagers, trades, and duels fought
+##             in the Arena car (reached only through a duel: arena_car.gd)
 ##   library   the Library: the Entity's Archive on its shelves, read at a
 ##             lectern (and the Makers' forbidden shelf)
 ##   settings  the Settings & Controls Car: a signal room whose panel holds
@@ -40,7 +43,10 @@ const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd prel
 ## names on a phone, and the line under each on a computer, are rail.gd
 ## TRAIN_CARS.)
 const CARS := [["engine", "Engine"], ["store", "Outfitter's Car"], ["personal", "Your Car"], ["workshop", "Workshop"],
-	["library", "Library"], ["settings", "Settings & Controls Car"]]
+	["dining", "Dining Car"], ["library", "Library"], ["settings", "Settings & Controls Car"]]
+## The Arena car: coupled behind the Dining car but reached only through a
+## duel there (dining.gd, arena.gd type "duel"), so it's never on the rail.
+const ARENA_CAR := "arena_car"
 const HOME := "personal"
 
 ## Your stash (the one stash, kept in your car: profile.chest): pieces kept
