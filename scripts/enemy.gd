@@ -12,6 +12,7 @@ extends CharacterBody2D
 const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime"}
 
 const Palette := preload("res://scripts/palette.gd")
+const Anim := preload("res://scripts/anim.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 
 ## It lost health: `source` is "blow" (take_hit), "burn" or "venom". main.gd
@@ -422,6 +423,8 @@ func _ready() -> void:
 	overlay.z_index = 45
 	overlay.draw.connect(_draw_overlay)
 	add_child(overlay)
+	if is_boss() and not shade and not ally and not mirror and main != null:
+		Anim.entrance.call_deferred(main, self)  # (a beast arrives: a ring, a flare and a light)
 
 
 func _physics_process(delta: float) -> void:
@@ -2088,6 +2091,9 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 	_was_hit(amount, "blow")
 	flash = 0.12
 	squash = 1.0
+	if not _phased and hp > 0.0 and hp <= max_hp * Anim.num("beast", "phase_at") and is_boss() and not shade and not ally:
+		_phased = true
+		Anim.phase(main, self)  # (a beast at half health flares: a ring, a flourish)
 	if dir != Vector2.ZERO:
 		squash_dir = dir
 		# The knight is heavy and the beast is heavier: they barely budge.
@@ -2247,6 +2253,8 @@ var _lift := 0.0  # height off the floor (eased)
 var _flap := 0.0  # wing cycle
 var _spin := 0.0  # a thunderling's spin
 var _eased := {}
+var _wind_age := 0.0  # how long it has wound up for (the pull-back before a blow: anim.gd)
+var _phased := false  # a beast has flared at half health
 
 
 ## Eases a pose value toward `want` (frame-rate independent), so a pose
@@ -2290,11 +2298,20 @@ func _draw() -> void:
 	var a := squash_dir.angle()
 	var sq := Vector2(1.0 - squash * 0.35, 1.0 + squash * 0.25)
 	p.xf = Transform2D(0.0, Vector2(0, lift_y)) * Transform2D(a, sq, 0.0, Vector2.ZERO) * Transform2D(-a, Vector2.ZERO)
+	# Life (anim.gd): it breathes when it stands, and pulls back as it winds
+	# up (the glint and its timing are unchanged: this is only the pose).
+	var winding := state.begins_with("wind")
+	_wind_age = _wind_age + _dt if winding else 0.0
+	var breath := sin(t * Anim.num("foe", "breath_rate")) * Anim.num("foe", "breath") * (1.0 - _move) * (0.0 if dead else 1.0)
+	var pull := clampf(_wind_age / 0.35, 0.0, 1.0)
+	if breath != 0.0 or pull > 0.0:
+		var back: Vector2 = -face * Anim.num("foe", "pull") * pull if face.length() > 0.1 else Vector2.ZERO
+		p.xf = Transform2D(0.0, Vector2(1.0 - breath * 0.5 + pull * 0.04, 1.0 + breath - pull * 0.03), 0.0, back) * p.xf
 	if champion:
 		var cs := float(CHAMPION["size"])
 		p.xf = Transform2D(0.0, Vector2(cs, cs), 0.0, Vector2.ZERO) * p.xf
 	_glow.xf = p.xf
-	p.tint = clampf(flash / 0.12, 0.0, 1.0) * 0.6
+	p.tint = clampf(flash / 0.12, 0.0, 1.0) * Anim.num("foe", "hit_tint")  # (a white flash on a hit)
 	var f := face
 	match kind:
 		"slime":

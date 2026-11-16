@@ -17,6 +17,7 @@ func _init() -> void:
 	# overrides, rooms, layout), set before anything loads: two test runs at
 	# once never trip each other up (scripts/test_run.gd).
 	TestRun.begin()
+	load("res://scripts/anim.gd").ambient_on = false  # (the towers' ambient specks would show up in every count of particles: tests/parts/animation.gd turns them on for itself)
 	_run.call_deferred()
 
 

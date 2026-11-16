@@ -17,6 +17,7 @@ const Rooms := preload("res://scripts/rooms.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Gear := preload("res://scripts/gear.gd")
+const Anim := preload("res://scripts/anim.gd")
 
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
 const CELL := 40.0
@@ -347,6 +348,7 @@ func crumble(c: Dictionary) -> void:
 		main.fx_burst(p, Vector2.UP, Color(0.55, 0.5, 0.45), 10, 80.0)
 		for k in 3:
 			rubble.append({"pos": p + Vector2(randf_range(-14, 14), randf_range(-14, 14)), "r": randf_range(3.5, 7.0), "rot": randf() * TAU})
+		Anim.wall(main, p)  # (chips and dust as it comes down)
 	main.shake(6.0)
 	main.sfx("slam", 0.75, -2.0)
 	main.sfx("hit_heavy", 0.6, -4.0)

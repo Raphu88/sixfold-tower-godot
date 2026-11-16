@@ -58,6 +58,7 @@ static var AMBIENT := {
 }
 
 static var force_beat := false  # tests: the slow beat runs even without a screen
+static var ambient_on := true  # the world's own life (streams, torch sparks, the ward's pulse); tests of other things turn it off
 
 
 static func num(group: String, key: String) -> float:
@@ -189,6 +190,8 @@ static func slow_beat(m) -> void:
 	var extra := maxi(0, int(m.hitstop_until) - now)
 	m.beat_scale = clampf(num("beast", "slow_scale"), 0.05, 1.0)
 	m.beat_until = now + extra + int(num("beast", "slow_seconds") * 1000.0)
+	if extra == 0 and not m.slowmo:
+		Engine.time_scale = m.beat_scale  # (no hit-pause under it: slow at once)
 
 
 # --- the world -----------------------------------------------------------------
@@ -197,7 +200,7 @@ static func slow_beat(m) -> void:
 ## ends every stream on a new floor, so main calls this right after it.
 static func start_ambient(m) -> int:
 	var pf = Particles.of(m)
-	if pf == null:
+	if pf == null or not ambient_on:
 		return 0
 	var list: Array = AMBIENT.get(String(m.tower), [])
 	var made := 0
@@ -221,7 +224,7 @@ static func ambient_count(m) -> int:
 ## warded stair pulses.
 static func tick(pf, delta: float, st: Dictionary) -> void:
 	var m = pf.main
-	if m == null or m.player == null or m.on_train or m.title_showing():
+	if not ambient_on or m == null or m.player == null or m.on_train or m.title_showing():
 		return
 	var rate_k: float = Particles.lv()["rate"]
 	st["torch"] = float(st.get("torch", 0.0)) - delta
