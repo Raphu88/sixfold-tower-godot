@@ -309,14 +309,17 @@ static func seated(prof, tower := "") -> Array:
 	return out
 
 
-## Seats a new visit's climbers: mostly rivals you've met (the most recently
-## met likelier), and RULES "new_faces" new ones (more while you've met few).
+## Seats a new visit's climbers: mostly rivals you've met (the one met last
+## always, then others of the most recently met), and RULES "new_faces" new
+## ones (more while you've met few).
 static func seat(prof, tower := "") -> void:
 	var st := state(prof)
 	var n := randi_range(int(RULES["seats_min"]), maxi(int(RULES["seats_min"]), int(RULES["seats_max"])))
 	var met: Array = Rivals.met_list(prof)
-	var known: Array = met.slice(0, 8)
+	var known: Array = met.slice(1, 8)
 	known.shuffle()
+	if not met.is_empty():
+		known.push_front(met[0])  # (the one you met last always sits down: met on the climb just gone, here they are)
 	var fresh := clampi(maxi(int(RULES["new_faces"]), n - known.size()), 0, n)
 	var seats: Array = []
 	for r in known.slice(0, n - fresh):
