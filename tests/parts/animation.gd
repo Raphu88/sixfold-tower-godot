@@ -179,8 +179,11 @@ func _foes() -> void:
 	for k in main.run_essence:
 		before[k] = float(main.run_essence[k])
 	var spawned0: int = pf.spawned
+	var keep_e := float(main.Items.DROPS["essence_chance"])
+	main.Items.DROPS["essence_chance"] = 0.0  # (no chance extra essence from the kill drop: items.gd DROPS)
 	t._slay(foe)
 	await t._frames(1)
+	main.Items.DROPS["essence_chance"] = keep_e
 	var gained := {}
 	for k in main.run_essence:
 		gained[k] = float(main.run_essence[k]) - float(before.get(k, 0.0))
