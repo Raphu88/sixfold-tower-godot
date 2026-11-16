@@ -41,7 +41,7 @@ const POLICY := {
 	"overheat": {"heat": 70.0, "near": 100.0}, "wingburst": {"near": 110.0, "aura_heat": true},
 	"call": {"low": 0.25}, "grandcall": {"buff": true, "near": 300.0}, "command": {"near": 260.0},
 	"ward": {"near": 120.0, "hurt": 0.5}, "trap": {"near": 220.0, "runes": 3}, "neuro": {"buff": true, "near": 140.0, "venom": 1}, "drink": {"buff": true, "near": 220.0},
-	"inscribe": {"once": true}, "crosswind": {"ranged": true}, "sandwall": {"ranged": true}, "virulence": {"venom": 4, "near": 240.0}, "amputate": {"low": 0.75, "near": 130.0},
+	"inscribe": {"per_fight": true}, "crosswind": {"ranged": true}, "sandwall": {"ranged": true}, "virulence": {"venom": 4, "near": 240.0}, "amputate": {"low": 0.75, "near": 130.0},
 	"siphon": {"near": 220.0}, "exchange": {"near": 300.0}, "transfer": {"near": 200.0}, "sinkhole": {"near": 260.0},
 }
 
@@ -68,7 +68,7 @@ var waves_left := WAVES
 ## Sets up the climber and the room: one mark on the hand at `step` (today's
 ## side of every fork), full essence, the foes spawned. `cast`: false fights
 ## with the weapon alone (the passive and body still work).
-func begin(m, id: String, at_step: int, cast := true, waves := WAVES, speed := 1.000001) -> void:
+func begin(m, id: String, at_step: int, cast := true, waves := WAVES, speed := 1.000001, alts: Array = []) -> void:
 	main = m
 	waves_left = waves
 	bond_id = id
@@ -82,6 +82,10 @@ func begin(m, id: String, at_step: int, cast := true, waves := WAVES, speed := 1
 	if id != "":
 		main.profile.add_bond("hand", id, false)
 		main.profile.bonds["hand"]["xp"] = float(P.STEP_XP[at_step - 1])
+		var TR = load("res://scripts/tree.gd")
+		for st in alts:  # (the other side of these forks: 2 and 4 the tower's other spell, 3 the second Transformation)
+			if int(st) <= at_step and not TR.fork_alt(id, int(st)).is_empty():
+				TR.choose(main.profile, "mark:%s:%d" % [id, int(st)], String(TR.fork_alt(id, int(st))["id"]))
 	main._give_bonds()
 	for e in main.enemies():
 		e.queue_free()
@@ -211,8 +215,10 @@ func _sensible(p, b, sp: Dictionary, foes: Array, dist: float):
 		var dur = b.spell_stat(sp, "duration")
 		if last_cast.has(sp["id"]) and t - float(last_cast[sp["id"]]) < (float(dur) if dur != null else 4.0):
 			return "skip"
-	if bool(pol.get("once", false)) and (p.aura_part != "" or last_cast.has(sp["id"])):
-		return "skip"  # (a toggle left on; Inscribe once a fight: its first rune is Sharpness)
+	if bool(pol.get("once", false)) and p.aura_part != "":
+		return "skip"  # (a toggle left on)
+	if bool(pol.get("per_fight", false)) and last_cast.has(sp["id"]):
+		return "skip"  # (Inscribe once a fight: its first rune is Sharpness)
 	if pol.has("runes") and main.runes.size() >= int(pol["runes"]):
 		return "skip"  # (three runes down already: another only replaces one)
 	if bool(pol.get("ranged", false)) and not foes.any(func(e): return e.kind == "archer"):

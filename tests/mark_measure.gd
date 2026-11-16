@@ -8,6 +8,7 @@ extends SceneTree
 ##
 ## Run: godot --headless --fixed-fps 60 -s tests/mark_measure.gd -- seeds=4
 ##   marks=stormcaller,warden  steps=1,3,5  (narrow it down)
+##   alts=3  (the other side of these forks: alts=2,3,4 for every second side)
 
 const Fight := preload("res://tests/mark_fight.gd")
 const Bonds := preload("res://scripts/bonds.gd")
@@ -26,11 +27,14 @@ func _run() -> void:
 	var seeds := 3
 	var marks: Array = Bonds.BONDS.keys()
 	var steps: Array = [1, 3, 5]
+	var alts: Array = []
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("seeds="):
 			seeds = int(a.trim_prefix("seeds="))
 		elif a.begins_with("marks="):
 			marks = Array(a.trim_prefix("marks=").split(","))
+		elif a.begins_with("alts="):
+			alts = Array(a.trim_prefix("alts=").split(",")).map(func(x): return int(x))
 		elif a.begins_with("steps="):
 			steps = Array(a.trim_prefix("steps=").split(",")).map(func(x): return int(x))
 	var rows: Array = []
@@ -38,7 +42,7 @@ func _run() -> void:
 	print("BASE %s" % [base])
 	for id in marks:
 		for st in steps:
-			var r := await fights(self, String(id), st, seeds)
+			var r := await fights(self, String(id), st, seeds, alts)
 			r["score"] = score(r, base)
 			rows.append(r)
 			print("ROW %-17s step %d  score %.2f  time %5.1f  spell %5.0f  weapon %5.0f  taken %4.0f  healed %4.0f  cc %5.1f  casts %4.1f  died %d" % [
@@ -54,13 +58,13 @@ func _run() -> void:
 
 
 ## `seeds` fights of one mark at one step ("" for no mark): the averages.
-static func fights(tree: SceneTree, id: String, st: int, seeds: int) -> Dictionary:
+static func fights(tree: SceneTree, id: String, st: int, seeds: int, alts: Array = []) -> Dictionary:
 	var keys := ["time", "spell", "weapon", "taken", "healed", "cc", "casts", "died", "cleared"]
 	var lists := {}
 	for k in keys:
 		lists[k] = []
 	for s in seeds:
-		var r := await one(tree, id, st, 1000 + s)
+		var r := await one(tree, id, st, 1000 + s, alts)
 		for k in keys:
 			lists[k].append(float(r[k]) if not (r[k] is bool) else (1.0 if r[k] else 0.0))
 	# The median fight's time and health (one fight that goes astray doesn't
@@ -80,7 +84,7 @@ static func fights(tree: SceneTree, id: String, st: int, seeds: int) -> Dictiona
 
 
 ## One fight on a fresh room.
-static func one(tree: SceneTree, id: String, st: int, s: int) -> Dictionary:
+static func one(tree: SceneTree, id: String, st: int, s: int, alts: Array = []) -> Dictionary:
 	for n in tree.root.get_children():
 		if n.name == "Main" or n.has_method("_give_bonds"):
 			n.queue_free()
@@ -95,7 +99,7 @@ static func one(tree: SceneTree, id: String, st: int, s: int) -> Dictionary:
 	m.player.mouse_aim = false
 	var f = Fight.new()
 	tree.root.add_child(f)
-	f.begin(m, id, st)
+	f.begin(m, id, st, true, Fight.WAVES, 1.000001, alts)
 	while not f.done:
 		await tree.physics_frame
 	var r: Dictionary = f.result

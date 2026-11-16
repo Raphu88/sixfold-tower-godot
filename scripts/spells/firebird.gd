@@ -253,7 +253,7 @@ static func ember_wings(bond, p) -> void:
 			return false
 		n.data["at"] = p.global_position
 		n.data["aim"] = p.aim
-		var r: float = p.aura_r * (2.0 if p.firebird_t > 0.0 else 1.0)
+		var r: float = p.aura_r * (p.firebird_aura if p.firebird_t > 0.0 else 1.0)
 		n.data["r"] = r
 		n.data["tick"] -= d
 		if n.data["tick"] > 0.0:
@@ -509,7 +509,7 @@ static func _heat_haze(bond, p) -> void:
 		n.data["puffs"] = n.data["puffs"].filter(func(pf): return pf["t"] > 0.0)
 		if p.aura_part == "":
 			return true  # (the aura is off: the haze waits)
-		var r: float = p.aura_r * (2.0 if p.firebird_t > 0.0 else 1.0)
+		var r: float = p.aura_r * (p.firebird_aura if p.firebird_t > 0.0 else 1.0)
 		n.data["r"] = r
 		for c in main.get_children():
 			if "reflected" in c and not c.friendly and not c.is_queued_for_deletion() and c.global_position.distance_to(p.global_position) < r:

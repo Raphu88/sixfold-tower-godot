@@ -1234,6 +1234,7 @@ func _sigil(p) -> void:
 	var sig := {"pos": p.global_position, "r": stat("radius"), "t": stat("duration"), "color": color()}
 	p.main.sigils.append(sig)
 	wyvern().follow_sigil(self, p, sig)  # (its Apex: it moves with you a while)
+	wyvern().sigil_pulse(self, p, sig)  # (it sears the foes inside it)
 	p.main.fx_ring(p.global_position, color(), stat("radius"), 0.5, 5.0)
 	p.main.light_flash(p.global_position, color(), 1.6, 2.0, 0.5)
 	p.main.sfx("crit", 0.6, -4.0)
@@ -1510,6 +1511,9 @@ func _warmth(p) -> void:
 
 func _firebird_form(p) -> void:
 	p.firebird_t = stat("duration")
+	p.firebird_free_every = float(stat("free_every")) if stat("free_every") != null else 0.0
+	p.firebird_free_cd = 0.0
+	p.firebird_aura = float(stat("aura")) if stat("aura") != null else 1.5
 	p.firebird_fly = stat("flight") == true  # Apex: you fly over chasms and hazards (player.gd flying)
 	if p.aura_part == "":
 		# Turn the aura on too, from whichever mark knows it.

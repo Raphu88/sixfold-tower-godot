@@ -2044,7 +2044,9 @@ func _try_cast(part: String) -> bool:
 func _release_cast() -> void:
 	var b = bonds[cast_part]
 	# Firebird Form: a spell marked "free_in_form" (Wingburst, Cinder Dive) costs nothing.
-	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)))
+	var free: bool = main.in_sigil(global_position) or (firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)) and firebird_free_cd <= 0.0)
+	if firebird_t > 0.0 and bool(b.spell().get("free_in_form", false)) and firebird_free_cd <= 0.0 and not main.in_sigil(global_position):
+		firebird_free_cd = firebird_free_every  # (free again only after a moment: bond.gd _firebird_form)
 	# Spellweave Ring: every third spell costs nothing.
 	spells_cast += 1
 	Makers.feed(main, "cast", 1.0, b.id + ":" + String(b.spell()["name"]))
@@ -2183,6 +2185,9 @@ var rekindle_shield_t := 10.0  # (lasting this long)
 var desperate_t := 0.0
 var pyre_t := 0.0
 var pyre_dmg := 30.0
+var firebird_free_cd := 0.0  # Firebird Form: a free Wingburst waits this long for the next
+var firebird_free_every := 0.0
+var firebird_aura := 1.5  # Firebird Form: the aura's reach, times its own (bond.gd _firebird_form)
 var pyre_burst := 0.0  # Pyre Oath: a foe you slay while it lasts bursts for this (bond.gd on_kill)
 var pyre_burst_r := 80.0
 var rekindle_burn := 3.0  # Rekindle: what its flames deal to the foes near you every half second
@@ -2344,6 +2349,7 @@ func _tick_fire_bonds(delta: float) -> void:
 	chimera_t -= delta
 	warmth_t -= delta
 	firebird_t -= delta
+	firebird_free_cd -= delta
 	desperate_t -= delta
 	pyre_t -= delta
 	phoenix_t -= delta
@@ -2380,7 +2386,7 @@ func _tick_fire_bonds(delta: float) -> void:
 				hp = minf(max_health(), hp + warmth_heal * heal_mult() * delta)
 			if aura_tick <= 0.0:
 				aura_tick = 0.5
-				var r := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
+				var r := aura_r * (firebird_aura if firebird_t > 0.0 else 1.0)
 				var dmg := aura_dmg * (1.0 + minf(aura_time / maxf(aura_ramp, 0.1), 1.0) * aura_peak if aura_grows else 1.0)
 				for e in main.targets():
 					if e.global_position.distance_to(global_position) < r + e.radius:
@@ -3254,7 +3260,7 @@ func _draw_overlay() -> void:
 			glow.dot(at, 4.0, Color(gc, 0.25 * gc.a * pulse))
 		glow.flush(c)
 	if aura_part != "":
-		var ar := aura_r * (2.0 if firebird_t > 0.0 else 1.0)
+		var ar := aura_r * (firebird_aura if firebird_t > 0.0 else 1.0)
 		var tt2 := Time.get_ticks_msec() * 0.001
 		c.draw_circle(Vector2.ZERO, ar, Color(aura_color, 0.07 + 0.05 * sin(tt2 * 6.0)))
 		c.draw_arc(Vector2.ZERO, ar, 0.0, TAU, 40, Color(aura_color, 0.35), 2.0)
