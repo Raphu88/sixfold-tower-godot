@@ -32,6 +32,7 @@ var dir := Vector2.RIGHT
 
 func run(smoke) -> void:
 	t = smoke
+	Rv.in_tests = true  # (rivals stay out of other tests' floors)
 	_placement()
 	await _variety()
 	await _live_floor()
@@ -46,6 +47,7 @@ func run(smoke) -> void:
 	Rv.force = false
 	Rv.force_kind = ""
 	Rv.force_return = -1
+	Rv.in_tests = false
 
 
 func _check(cond: bool, what: String) -> void:
