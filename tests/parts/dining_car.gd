@@ -571,12 +571,8 @@ func _recurring() -> void:
 	main.await_tower()
 	main.open_train()
 	await t._frames(2)
-	D.RULES["seats_min"] = 8
-	D.RULES["seats_max"] = 8
 	var ids: Array = D.seated(prof, "kraken").map(func(r): return String(r["id"]))
-	D.RULES["seats_min"] = keep_rules["seats_min"]
-	D.RULES["seats_max"] = keep_rules["seats_max"]
-	_check(tower_id in ids, "...and sits in the Dining car on the next visit")
+	_check(tower_id in ids, "...and sits in the Dining car on the next visit (the one met last always does)")
 	# A Dining-car acquaintance turns up in a tower, and their record grows there.
 	var st := D.state(prof)
 	var face_id := ""
