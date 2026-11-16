@@ -235,6 +235,11 @@ static var climb_ok := true
 static var climb_owed := false
 static var climb_seen := {}
 static var force := false
+## Test runs leave rivals out of floors unless a test asks for them
+## (tests/parts/rivals.gd sets this): a climber who has never met one is
+## owed one by floor 3, which would otherwise put a rival's room into the
+## floors that other checks build and read.
+static var in_tests := false
 static var force_kind := ""
 ## Tests: a met rival always returns (1), never (0), or as RULES says (-1).
 static var force_return := -1
@@ -263,6 +268,8 @@ static func wants_room(floor_num: int) -> bool:
 		return false
 	if force:
 		return true
+	if Engine.has_meta("sixfold_test") and not in_tests:
+		return false
 	if not climb_ok or floor_num < int(RULES["from"]) or climb_met >= int(RULES["per_climb"]):
 		return false
 	return sure(floor_num) or randf() < float(RULES["chance"])
