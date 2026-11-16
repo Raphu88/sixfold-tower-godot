@@ -42,10 +42,11 @@ const POST_REACH := 30.0
 const CAST_WINDOW := 1.0
 ## A drill's fallen foe is replaced after this long.
 const REFILL := 0.9
-## The cracked wall lesson's room: the grid cell of the crack (the room's
-## top wall), and the open floor below it (cells).
-const WALL_CELL := Vector2i(14, 2)
-const WALL_FLOOR := Rect2i(1, 3, 26, 9)
+## The cracked wall lesson's room: the grid cell of the crack (the hall's
+## top wall), and the open floor below it (cells): a low hall, so the crack
+## is in sight from where you start, on a phone too.
+const WALL_CELL := Vector2i(14, 5)
+const WALL_FLOOR := Rect2i(2, 6, 24, 6)
 
 ## Going back: the station's page opens on this once the scene starts
 ## afresh ({station, stop, pick, lines}).
@@ -193,7 +194,8 @@ func plan() -> Dictionary:
 		"wall":
 			out["walk"] = [Rect2(room.position + Vector2(WALL_FLOOR.position) * c, Vector2(WALL_FLOOR.size) * c)]
 			out["cracks"] = [{"kind": "alcove", "tiles": [WALL_CELL], "faces": [{"tile": WALL_CELL, "out": Vector2i(0, 1)}],
-				"alcove": Rect2(room.position + Vector2(WALL_CELL.x - 1, 0) * c, Vector2(3, 2) * c), "walk": []}]
+				"alcove": Rect2(room.position + Vector2(WALL_CELL.x - 1, WALL_CELL.y - 2) * c, Vector2(3, 2) * c), "walk": []}]
+			out["start"] = room.position + (Vector2(WALL_CELL) + Vector2(0.5, 4.5)) * c
 		"ward":
 			var n := clampi(int(ev.get("pieces", 2)), 1, 4)
 			var pieces: Array = []

@@ -27,7 +27,7 @@ static var TEXT := {
 	"titles": "Titles",
 	"titles_note": "Titles are granted by renown. Each needs a rank and a deed, and gives something with the people around the towers. Wear one at a time.",
 	"contracts": "Contracts",
-	"contracts_note": "Tasks for the towers. Hold up to %d at once; each is tracked in play and pays when done.",
+	"contracts_note": "Tasks for the towers. You can hold %d at a time; each is tracked in play and pays when done.",
 	"held": "Contracts you hold",
 	"on_offer": "On offer",
 	"none_offered": "Nothing on offer. New contracts come with your next visit.",

@@ -69,6 +69,10 @@ static var TEXT := {
 	"lost": "%s fell with you. It waits on its floor again.",
 	"secured": "%s, safe at the stair",
 	"progress": "%s: %d of %d",
+	"prog_reach": "Not reached yet",
+	"prog_slay": "%d of %d slain",
+	"prog_find": "Not found yet",
+	"prog_carried": "Found: take the stair with it",
 	"reward": "Pays: %s",
 	"reward_renown": "+%d renown",
 	"reward_crystals": "%d %s",
@@ -272,6 +276,18 @@ static func status_of(o: Dictionary) -> String:
 			if bool(o.get("carried", false)):
 				return String(k["status_held"]) % String(o["item"])
 			return String(k["status"]) % [String(o["item"]), int(o["floor"])]
+	return ""
+
+
+## How far along it is, for its tile and card: "3 of 8 slain", "Not found yet"...
+static func progress_of(o: Dictionary) -> String:
+	match String(o.get("kind", "")):
+		"reach":
+			return TEXT["prog_reach"]
+		"slay":
+			return TEXT["prog_slay"] % [mini(int(o["have"]), int(o["need"])), int(o["need"])]
+		"retrieve":
+			return TEXT["prog_carried"] if bool(o.get("carried", false)) else TEXT["prog_find"]
 	return ""
 
 

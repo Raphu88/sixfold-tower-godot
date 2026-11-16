@@ -388,6 +388,19 @@ func _noble(left: Node) -> void:
 	if not said.has("noble_line"):
 		said["noble_line"] = Noble.line("greet")
 	_line(left, String(said["noble_line"]), UI.GOLD)
+	_section(left, N["contracts"])
+	if not _small():
+		_line(left, N["contracts_note"] % Contracts.most(prof), UI.DIM)
+	var held: Array = Contracts.active(prof)
+	if not held.is_empty():
+		_line(left, N["held"], UI.GILT)
+	for o in held:
+		var tl = _tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.progress_of(o), "contract", Contracts.KINDS_COLOR)
+		tl.lit = true
+	var offers: Array = Contracts.offers(prof)
+	_line(left, N["on_offer"] if not offers.is_empty() else N["none_offered"], UI.GILT if not offers.is_empty() else UI.DIM)
+	for o in offers:
+		_tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.reward_text(o), "contract", Color(0.78, 0.7, 0.86))
 	_section(left, N["titles"])
 	if not _small():
 		_line(left, N["titles_note"], UI.DIM)
@@ -403,19 +416,6 @@ func _noble(left: Node) -> void:
 		tl.locked = not Renown.has_title(prof, id) and not Renown.grantable(prof, id)
 		tl.lit = Renown.worn_id(prof) == id or Renown.grantable(prof, id)
 		tl.custom_minimum_size.x = minf(150.0 if _small() else 180.0, _avail() * 0.5 - 4.0)
-	_section(left, N["contracts"])
-	if not _small():
-		_line(left, N["contracts_note"] % Contracts.most(prof), UI.DIM)
-	var held: Array = Contracts.active(prof)
-	if not held.is_empty():
-		_line(left, N["held"], UI.GILT)
-	for o in held:
-		var tl = _tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.status_of(o), "contract", Contracts.KINDS_COLOR)
-		tl.lit = true
-	var offers: Array = Contracts.offers(prof)
-	_line(left, N["on_offer"] if not offers.is_empty() else N["none_offered"], UI.GILT if not offers.is_empty() else UI.DIM)
-	for o in offers:
-		_tile(left, "contract:" + String(o["id"]), Contracts.name_of(o), Contracts.reward_text(o), "contract", Color(0.78, 0.7, 0.86))
 
 
 func _title_line(prof, id: String) -> String:
@@ -737,7 +737,7 @@ func _contract_card(id: String) -> void:
 	_head(Contracts.name_of(o), "contract", Contracts.KINDS_COLOR, N["held"] if held else N["on_offer"])
 	_text(Contracts.goal_of(o), UI.TEXT)
 	if held:
-		_text(N["progress"] % Contracts.status_of(o), UI.GILT)
+		_text(N["progress"] % Contracts.progress_of(o), UI.GILT)
 	_text(Contracts.reward_text(o), UI.GOOD)
 	if held:
 		_button(N["drop"], _drop.bind(id), "drop")
