@@ -211,7 +211,19 @@ SOUNDS = {
     "charge": {"variants": [v((R + "spell_01.ogg", 0, 0, 0.9))], "level": -9},
     "zap": {"variants": [v((R + "spell_02.ogg", 0, 0, 1.2), (A + "battle/magic1.wav", -6, 0, 1.4)), v((R + "spell_02.ogg", 0, 0, 1.35), (A + "battle/magic1.wav", -6, 0, 1.5))], "level": -5, "lp": 9000},
     "gust": {"variants": [v(("synth:wind", 0, 0, 1.0), (W + "swish-7.wav", -4, 0, 0.6))], "level": -6},
-    "burn": {"variants": [v((R + "spell_fire_06.ogg", 0, 0, 0.9), (S + "slam_04.ogg", -8, 0, 0.7))], "level": -4, "lp": 8000},
+    # Fire catching and burning: a soft crackle of a real fire (short takes
+    # of a crackling fire, a pan's sizzle under some, a breath of flame under
+    # others), five takes a little apart in pitch so quick repeats never
+    # match. No ringing or clanking layer: it plays often (a Flameblade's
+    # swings at full heat, standing in fire, fire spells), and audio.gd keeps
+    # it at most once in GAP_MS["burn"].
+    "burn": {"variants": [
+        v(("firecrackle/fire-1.wav@0.40+0.42", 0, 0, 1.0), ("boil/cooking_without_cover_01.ogg@4.45+0.4", -9, 30, 1.0)),
+        v(("firecrackle/fire-1.wav@0.76+0.40", 0, 0, 1.06), ("flame/flame.ogg", -12, 0, 1.1)),
+        v(("firecrackle/fire-1.wav@1.08+0.40", 0, 0, 0.94), ("boil/cooking_without_cover_01.ogg@5.05+0.4", -9, 20, 1.05)),
+        v(("firecrackle/fire-1.wav@1.57+0.42", 0, 0, 1.03), ("flame/flame.ogg", -13, 0, 0.95)),
+        v(("firecrackle/fire-1.wav@2.26+0.45", 0, 0, 0.97), ("boil/cooking_without_cover_01.ogg@6.05+0.4", -10, 40, 0.95)),
+    ], "level": -6, "verb": -20, "lp": 6000, "hp": 380},
     # Gas escaping a vent: a compressed-air spray slowed and darkened into
     # a soft hiss (raw, it's a piercing whistle).
     "hiss": {"variants": [

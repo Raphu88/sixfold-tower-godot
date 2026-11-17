@@ -1785,3 +1785,7 @@ tools/fetch_audio_sources.sh
 ```bash
 python3 tools/build_audio.py
 ```
+
+To rebuild only some of them (and leave every other file as it is), name them: `python3 tools/build_audio.py .audio_sources --only=music,burn` (a sound from `SOUNDS`, `music` or `ambience` from `MUSIC`, or an ambience loop by its file name, such as `ambience_kraken`). `MUSIC` also sets each track's **tempo**: the music plays at `0.85`, 85% of its recorded speed at the same pitch (a time-stretch, so it's longer, not lower); change the number and rebuild `music` to try another speed.
+
+**Fire's crackle** (`burn`) is played from many places at once (a Flameblade's swings at full heat, standing in fire, burning ground, every fire spell), so it's a soft crackle of a real fire in five takes a little apart in pitch, and `scripts/audio.gd` plays it at most once a quarter second (`GAP_MS`). It used to be a magic whoosh with a ringing shimmer over a metal slam's clank, which, many times a second, sounded like a slot machine. Tests: `tests/parts/sound_fixes.gd`.
