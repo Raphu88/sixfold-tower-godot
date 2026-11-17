@@ -19,6 +19,8 @@ const Renown := preload("res://scripts/renown.gd")
 ## Each branch's colour (and the trunk's): ui.gd OUTFIT_TREE.
 const TINT := UI.OUTFIT_TREE
 const ROWS := 7
+## A node's button is at least this big (view px), for a finger; its medallion may be drawn smaller.
+const TOUCH := 36.0
 
 var m  # the menu (menu.gd)
 var prof
@@ -39,7 +41,7 @@ func setup(menu, profile, width: float, height: float, small := false) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	head_h = 18.0 if small else 22.0
 	col_w = maxf(width / 5.0, 40.0)
-	row_h = clampf((height - head_h) / float(ROWS), 36.0 if small else 40.0, 68.0)
+	row_h = clampf((height - head_h) / float(ROWS), TOUCH + 2.0, 68.0)
 	d = clampf(minf(col_w * 0.74, row_h * 0.78), 28.0, 46.0)
 	custom_minimum_size = Vector2(col_w * 5.0, head_h + row_h * ROWS)
 	for id in Outfitter.all_ids():
@@ -55,9 +57,11 @@ func setup(menu, profile, width: float, height: float, small := false) -> void:
 		b.titled = String(Outfitter.NODES.get(id, {}).get("title", "")) != ""
 		b.here = Outfitter.is_trunk(id) and Outfitter.trunk_rank(id) == Renown.rank(prof)
 		b.picked = String(m.inv_sel) == "tree:" + id
-		b.size = Vector2(d, d)
-		b.custom_minimum_size = Vector2(d, d)
-		b.position = centers[id] - Vector2(d, d) * 0.5
+		var hit := minf(maxf(d, TOUCH), minf(col_w, row_h) - 2.0)
+		b.size = Vector2(hit, hit)
+		b.custom_minimum_size = Vector2(hit, hit)
+		b.position = centers[id] - Vector2(hit, hit) * 0.5
+		b.radius = d * 0.5
 		b.set_meta("slot", "tree:" + id)
 		b.tooltip_text = ""
 		add_child(b)
@@ -146,6 +150,7 @@ class TreeNode extends Button:
 	var here := false  # the trunk node of your rank
 	var picked := false
 	var tint := Color.WHITE
+	var radius := 0.0  # the medallion's (its button may be bigger, for a finger)
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -162,7 +167,7 @@ class TreeNode extends Button:
 		mouse_exited.connect(queue_redraw)
 
 	func _draw() -> void:
-		medal(self, size / 2.0, minf(size.x, size.y) * 0.5, branch, state, tint, afford, titled, here, picked, is_hovered())
+		medal(self, size / 2.0, radius if radius > 0.0 else minf(size.x, size.y) * 0.5, branch, state, tint, afford, titled, here, picked, is_hovered())
 
 	## Draws a node's medallion on `ci` (the tree's button, a card's heading: Medal).
 	static func medal(ci: CanvasItem, c: Vector2, r: float, branch: String, state: String, tint: Color, afford := false, titled := false, here := false, picked := false, hover := false) -> void:

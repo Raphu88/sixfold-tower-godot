@@ -41,7 +41,7 @@ const GAP := [16.0, 10.0]
 const SIDE := [190.0, 140.0]  # the outfitter's column, with the tree in its own view
 const TREE := [250.0, 330.0]  # the tree beside the goods: at least, at most
 const GOODS_MIN := 330.0  # the goods beside the tree: at least this wide
-const ROW_H := [34.0, 32.0]  # a list's rows
+const ROW_H := [36.0, 36.0]  # a list's rows (big enough for a finger)
 ## Room kept spare across the car (the car's own scroll bar, if a tall card brings it).
 const SLACK := 18.0
 

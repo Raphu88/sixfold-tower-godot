@@ -439,6 +439,8 @@ func _phone(main) -> void:
 	await _open_store(main)
 	var sp = menu.train_page.store
 	t._check(sp.listed and not sp.tree_beside, "on a phone the goods are a list, and the tree is its own view")
+	var small_btns: Array = t._all_buttons(menu.train_page.roots["store"]).filter(func(b): return b.is_visible_in_tree() and b.size.y < 36.0)
+	t._check(small_btns.is_empty(), "...every row and button in the store big enough for a finger (%s)" % [small_btns.map(func(b): return String(b.get_meta("slot", b.text)))])
 	var sign: Array = t._car_buttons("store_tab", "tree")
 	var view: Rect2 = menu.get_viewport_rect()
 	t._check(sign.size() == 1 and view.encloses(sign[0].get_global_rect()), "...behind the Upgrade tree sign, on the screen")
@@ -447,6 +449,7 @@ func _phone(main) -> void:
 		await t._frames(3)
 	var nodes: Array = t._all_buttons(menu.train_page.roots["store"]).filter(func(b): return String(b.get_meta("slot", "")).begins_with("tree:") and b.is_visible_in_tree())
 	t._check(menu.train_store == "tree" and nodes.size() == Out.all_ids().size(), "a tap shows the tree (%d nodes)" % nodes.size())
+	t._check(nodes.all(func(b): return b.size.y >= 36.0 and b.size.x >= 36.0), "...every node big enough for a finger (36 or more)")
 	var node = nodes.filter(func(b): return b.get_meta("slot") == "tree:wide_rack")
 	if not node.is_empty():
 		await t._tap_at(node[0].get_global_transform_with_canvas() * (node[0].size / 2.0))
