@@ -321,6 +321,7 @@ static var COMMENTS := {
 	"part": ["Every mark is a story your body tells. Read it."],
 	"bud": ["Choices on the Tree are for good. Look before you choose.", "One branch closes as another opens."],
 	"tree": ["For good, mind. The Tree doesn't forget."],
+	"tree_buy": ["He doesn't sell these twice. Neither does he refund them.", "Crystals now, for something every visit after.", "A regular is made, not born. Usually with crystals."],
 	"dine": ["They talk more over a meal. Most do.", "Listen closely. Some of them mean it.", "A climber at rest is a climber with stories."],
 	"furnish": ["Brass, velvet and old wood. Someone cared, once.", "The train keeps everything in its place. I like that about it.", "Look closer. Everything here has a use."],
 	"back": ["Back, then. Nothing's lost.", "Retreat is a kind of plan."],
