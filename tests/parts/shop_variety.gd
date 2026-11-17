@@ -8,6 +8,9 @@ extends RefCounted
 ## the Entity explains it; no banned words. (The Pedlar, at stations and
 ## camps, is gone: the Noble took his place, tests/parts/stations.gd. Its
 ## checks here were removed: _merchant_data, _station, _camp, _taps.)
+## (The store is one page now, with no pages or filter: _store_ui checks the
+## long rail and the full shelf show at once, and _phone_sell the Upgrade
+## tree sign on a phone; tests/parts/outfitter.gd has the rest.)
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
 const Shop := preload("res://scripts/shop.gd")
@@ -222,8 +225,8 @@ func _words() -> void:
 	var all := JSON.stringify([Shop.TEXT, Shop.TITLE_STOCK, Entity.TIPS["shop_grows"], Entity.TIPS["shop_title"], Talk.DIALOGUE["how_shop"]]).to_lower()
 	var bad: Array = BANNED.filter(func(w): return all.contains(w))
 	t._check(bad.is_empty(), "no banned words in the shop's words (%s)" % [bad])
-	t._check(Talk.DIALOGUE["how"]["choices"].has("how_shop") and Help.HELP.has("store_filter:page"),
-		"the Entity: a 'How does the shop change?' topic, and help for the new buttons")
+	t._check(Talk.DIALOGUE["how"]["choices"].has("how_shop") and Help.HELP.has("store_tab:tree") and not Help.HELP.has("store_filter:page"),
+		"the Entity: a 'How does the shop change?' topic, and help for the new buttons (no page buttons)")
 	t._check(not Entity.TIPS.has("merchant") and not Help.HELP.has("rail:market") and not Help.HELP.has("pick:ware") and not ("MERCHANT" in Shop) and not all.contains("pedlar"),
 		"the Pedlar is gone: no tip, no help, no data")
 
@@ -246,26 +249,16 @@ func _store_ui(main) -> void:
 	Train.stock(prof)
 	menu.train_car = "store"
 	menu.train_store = "shop"
-	menu.train_page.rack_page = 0
 	menu.open("train")
 	await t._frames(4)
 	var root = menu.train_page.roots["store"]
 	var notes: Array = root.find_children("*", "Label", true, false).filter(func(l): return l.has_meta("store_note") and l.get_meta("store_note") == "title")
 	t._check(notes.size() == 1 and String(notes[0].text).begins_with("For the Contender"), "the store says which line comes from your title (%s)" % [notes.map(func(l): return l.text)])
-	var pages: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_filter", "") == "page")
-	t._check(pages.size() == 1 and Shop.pages(Train.outfit(prof).size()) == 2, "a long rail has a page button (%d spaces in 2 pages)" % Train.outfit(prof).size())
-	var sell: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_tab", "") == "sell")
-	var view: Rect2 = menu.get_viewport_rect()
-	t._check(sell.size() == 1 and sell[0].is_visible_in_tree() and view.encloses(sell[0].get_global_rect()), "the Sell sign is on the screen, whatever the rail holds (%s in %s)" % [sell[0].get_global_rect() if sell.size() == 1 else "", view])
-	var shelf_pages := Shop.pages(Train.shelf(prof).size(), Shop.SHELF_PAGE)
-	var shelf_btn: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_filter", "") == "shelf")
+	var rail: Array = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("outfit:"))
+	t._check(Train.outfit(prof).size() > 10 and rail.size() == Train.outfit(prof).size() and t._all_buttons(root).filter(func(b): return b.has_meta("store_filter")).is_empty(),
+		"a long rail shows every piece at once, with no page button or filter (%d of %d)" % [rail.size(), Train.outfit(prof).size()])
 	var slots: Array = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("supply:"))
-	t._check(shelf_pages >= 2 and shelf_btn.size() == 1 and slots.size() <= Shop.SHELF_PAGE and slots.size() >= 6, "the fuller shelf is in %d pages with a page button (%d on this one, of %d kinds)" % [shelf_pages, slots.size(), Train.shelf(prof).size()])
-	menu.train_page.shelf_page = shelf_pages - 1
-	menu.open("train")
-	await t._frames(3)
-	root = menu.train_page.roots["store"]
-	slots = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("supply:"))
+	t._check(slots.size() == Train.shelf(prof).size() and slots.size() > 12, "the fuller shelf shows every kind at once (%d of %d)" % [slots.size(), Train.shelf(prof).size()])
 	var rare: Array = []
 	for b in slots:
 		var sk := String(b.get_meta("slot")).substr(7)
@@ -296,8 +289,8 @@ func _store_ui(main) -> void:
 	await t._frames(2)
 
 
-## On a phone, at the lowest and the highest rank, the Sell sign and the
-## Upgrades sign are in reach without scrolling (a past attempt pushed Sell off the screen).
+## On a phone, at the lowest and the highest rank, the Upgrade tree sign is
+## in reach without scrolling, and the Sell section is on the store's page.
 func _phone_sell(main) -> void:
 	var menu = main.menu
 	var prof = main.profile
@@ -311,8 +304,6 @@ func _phone_sell(main) -> void:
 		Train.stock(prof)
 		menu.train_car = "store"
 		menu.train_store = "shop"
-		menu.train_page.shelf_page = 0
-		menu.train_page.rack_page = 0
 		menu.inv_sel = ""
 		menu.open("train")
 		await t._frames(4)
@@ -322,10 +313,10 @@ func _phone_sell(main) -> void:
 			await t._frames(2)
 		var view: Rect2 = menu.get_viewport_rect()
 		var root = menu.train_page.roots["store"]
-		var sell: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_tab", "") == "sell")
-		var up: Array = t._all_buttons(root).filter(func(b): return b.get_meta("slot", "") == "upgrades")
-		var ok: bool = sell.size() == 1 and up.size() == 1 and view.encloses(sell[0].get_global_rect()) and view.encloses(up[0].get_global_rect())
-		t._check(ok, "on a phone at %s rank the Sell and Upgrades signs are on the screen (%s, %s in %s)" % ["the top" if top else "the first", sell[0].get_global_rect() if sell.size() == 1 else "", up[0].get_global_rect() if up.size() == 1 else "", view])
+		var up: Array = t._all_buttons(root).filter(func(b): return b.get_meta("store_tab", "") == "tree")
+		var sell: Array = t._all_buttons(root).filter(func(b): return String(b.get_meta("slot", "")).begins_with("pack:") or String(b.get_meta("slot", "")).begins_with("chest:"))
+		var ok: bool = up.size() == 1 and view.encloses(up[0].get_global_rect()) and (prof.pack.is_empty() and prof.chest.is_empty() or not sell.is_empty())
+		t._check(ok, "on a phone at %s rank the Upgrade tree sign is on the screen, and the Sell section on the page (%s in %s; %d to sell)" % ["the top" if top else "the first", up[0].get_global_rect() if up.size() == 1 else "", view, sell.size()])
 	main.touch._set_active(false)
 	main.apply_view_scale()
 	t.root.size = was

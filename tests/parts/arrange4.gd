@@ -250,16 +250,33 @@ func _taps_still_work() -> void:
 	await t._tap_at(cell.get_global_rect().get_center())
 	await t._frames(3)
 	_check(m.inv_sel == key, "a tap on a moved stash space chooses it (%s, %s)" % [m.inv_sel, key])
-	# The store: the Sell sign and the placard's Buy button, moved.
+	# The store: the Upgrade tree sign (a narrow car) or the tree's board
+	# beside the goods (a wide one), and the placard's Buy button, moved.
 	await _go("store")
-	L.set_override("train.store.sign", {"anchor": "own", "x": 0.03, "y": -0.04, "scale": 1.1})
-	AUI.apply_all()
-	await t._frames(3)
-	var sign: Control = AUI.node("train.store.sign")
-	_check(sign != null and sign.scale.x > 1.05, "the Sell sign is moved and grown")
-	await t._tap_at(sign.get_global_rect().get_center())
-	await t._frames(6)
-	_check(m.train_store == "sell", "a tap on the moved Sell sign opens the Sell counter (%s)" % m.train_store)
+	if AUI.node("train.store.sign") != null:
+		L.set_override("train.store.sign", {"anchor": "own", "x": 0.03, "y": -0.04, "scale": 1.1})
+		AUI.apply_all()
+		await t._frames(3)
+		var sign: Control = AUI.node("train.store.sign")
+		_check(sign != null and sign.scale.x > 1.05, "the Upgrade tree sign is moved and grown")
+		await t._tap_at(sign.get_global_rect().get_center())
+		await t._frames(6)
+		_check(m.train_store == "tree", "a tap on the moved Upgrade tree sign shows the tree (%s)" % m.train_store)
+	else:
+		L.set_override("train.store.ledger", {"anchor": "own", "x": 0.01, "y": 0.0, "scale": 1.05})
+		AUI.apply_all()
+		await t._frames(3)
+		var board: Control = AUI.node("train.store.ledger")
+		_check(board != null and board.scale.x > 1.02, "the upgrade tree's board is moved and grown")
+		var node: Control = null
+		if board != null:
+			for b in board.find_children("*", "Button", true, false):
+				if String(b.get_meta("slot", "")).begins_with("tree:rank") and node == null:
+					node = b
+		if node != null:
+			await t._tap_at(node.get_global_transform_with_canvas() * (node.size / 2.0))
+			await t._frames(6)
+		_check(node != null and m.inv_sel == String(node.get_meta("slot")), "a tap on a node of the moved tree shows its card (%s)" % m.inv_sel)
 	m.train_page._set_store("shop")
 	await t._frames(6)
 	prof.add_crystal("stone", 400.0)

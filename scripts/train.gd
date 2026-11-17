@@ -36,6 +36,7 @@ const Flow := preload("res://scripts/essence_flow.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Charms := preload("res://scripts/charms.gd")
 const Shop := preload("res://scripts/shop.gd")
+const Outfitter := preload("res://scripts/outfitter.gd")
 const VESSEL := "res://scripts/vessel.gd"  # (loaded when needed: vessel.gd preloads the bench, which preloads this)
 
 ## The cars, front to back: [id, name]. The train opens on HOME. (Their short
@@ -62,25 +63,10 @@ const RACK_SIZE := 8
 ## Today's piece: one Fine or Rare piece, new after every climb.
 static var TODAY_ODDS := {"fine": 75, "rare": 25}
 
-## The outfitter's upgrades: your renown rank (renown.gd RANKS) unlocks
-## each one, for good. The Outfitter's Car shows them on a placard (the next
-## one, and what unlocks it). Their numbers are UPGRADE_FX.
-##   wide_rack  more pieces on the outfit rail (rack_extra)
-##   scroll     the recall scroll he always stocks costs less (scroll_price)
-##   stock      rack pieces may come Fine (rack_fine, in percent) and
-##              today's piece rolls on STOCK_ODDS
-##   discount   everything he sells costs less (discount; a worn title's outfitter benefit adds more)
-##   order      a special order: he holds one piece you choose (from the
-##              rack or the case) until you buy it, on any later visit
-static var UPGRADES := [
-	{"id": "wide_rack", "rank": 1, "name": "A wider rack", "desc": "Two more pieces hang on the outfit rail."},
-	{"id": "scroll", "rank": 2, "name": "A scroll kept aside", "desc": "The recall scroll he always stocks costs 40 of any kind, not 60."},
-	{"id": "stock", "rank": 3, "name": "Better stock", "desc": "Rack pieces may come Fine, and today's piece is likelier Rare, now and then Storied."},
-	{"id": "discount", "rank": 4, "name": "A regular's discount", "desc": "Everything he sells costs 10% less."},
-	{"id": "order", "rank": 5, "name": "Special order", "desc": "He holds one piece you choose, from the rack or the case, until you come back for it."},
-]
-static var UPGRADE_FX := {"rack_extra": 2, "scroll_price": 40, "rack_fine": 25, "discount": 0.1}
-static var STOCK_ODDS := {"fine": 50, "rare": 45, "storied": 5}
+## The outfitter's upgrades are his upgrade tree now (outfitter.gd): its
+## trunk is your rank (shop.gd RANK_STOCK), its branches are bought with
+## crystals. (The five upgrades a rank used to unlock, UPGRADES, are its
+## nodes: outfitter.gd OLD_UPGRADES.)
 
 ## A piece's base price: what it costs at the store (and sells from) is this
 ## times its rarity's RARITY_PRICE. Rings, amulets and the Climber's Pack are
@@ -188,14 +174,7 @@ static var TEXT := {
 	"sell_note": "What you brought down in your pack, and what's in your stash. Each sells for a crystal of its kind, at %d%% of its price.",
 	"nothing_to_sell": "Nothing to sell. Bring finds home in your pack: survive a climb, or read a recall scroll.",
 	"against": "Against what you'd start with",
-	"shelves": "Supplies",
-	"rail": "Outfit",
 	"case": "Today's piece",
-	"sell_sign": "Sell to the outfitter",
-	"sell_short": "Sell",
-	"sell_title": "What you brought down",
-	"back_to_shelves": "Back to the shelves",
-	"back_short": "The shelves",
 	# Your car: the mirror (the climber screen) and the travelling trunk (the inventory)
 	"mirror": "Climber",
 	"mirror_short": "Climber",
@@ -212,20 +191,20 @@ static var TEXT := {
 	"buy_chest": "Buy: into your stash",
 	"buy_wear": "Buy and wear it",
 	"afford": "You can afford it.",
-	"show": "Show: %s",
 	"sort_by": "Sort: %s",
 	"wear_tag": "You'll wear",
-	# The outfitter's upgrades (UPGRADES) and the special order
-	"upgrades": "Upgrades  ·  %d of %d",
-	"upgrades_short": "Upgrades",
-	"upgrades_title": "The outfitter's upgrades",
-	"upgrades_note": "Your renown unlocks them: %s. Win renown on climbs and at a station.",
-	"upgrade_on": "%s: %s",
-	"upgrade_off": "%s: at the rank of %s (%d renown)",
-	"upgrade_next": "Next: %s, at the rank of %s",
-	"upgrade_all": "Every upgrade is yours.",
+	# The store's sections, the upgrade tree's sign, and the special order
+	"consumables": "Consumables",
+	"weapons": "Weapons & armour",
+	"charms": "Charms",
+	"sell": "Sell",
+	"sell_how": "Choose a piece, then Sell on its card: he pays %d%% of its price, as a crystal of its kind.",
+	"tree_sign": "Upgrade tree",
+	"tree_short": "Upgrades",
+	"goods_sign": "Back to the goods",
+	"goods_short": "Goods",
 	"order": "Special order",
-	"order_empty": "Nothing held. Choose a piece on the rack or in the case and ask him to hold it.",
+	"order_empty": "Nothing held. Choose a piece on the rail or in the case and ask him to hold it.",
 	"order_note": "Held for you until you buy it.",
 	"hold": "Hold it for me (special order)",
 	"held": "Held for you: %s",
@@ -332,14 +311,16 @@ static func gear_price(g) -> int:
 	return maxi(1, int(round(float(BASE_PRICE.get(r["base"], DEFAULT_PRICE)) * float(RARITY_PRICE.get(r["rarity"], 1.0)))))
 
 
-## What a piece sells for: SELL_SHARE of its price (less for a worn Common
+## What a piece sells for: SELL_SHARE of its price (with a `profile`, his
+## tree's better share: outfitter.gd sell_share; less for a worn Common
 ## piece), at least 1.
-static func gear_sell(g) -> int:
+static func gear_sell(g, profile = null) -> int:
 	var r := Gear.rec(g)
 	if r.is_empty():
 		return 0
 	var k := maxf(Gear.condition(r), WORN_SELL)
-	return maxi(1, int(round(float(gear_price(r)) * SELL_SHARE * k)))
+	var share := Outfitter.sell_share(profile) if profile != null else SELL_SHARE
+	return maxi(1, int(round(float(gear_price(r)) * share * k)))
 
 
 ## A consumable's price: [kind, amount] (its worth in items.gd, or a basic
@@ -483,50 +464,36 @@ static func paid_text(paid: Dictionary) -> String:
 static func stock(profile) -> void:
 	if profile.store.has("outfit"):
 		return
-	profile.store["outfit"] = roll_outfit(profile).map(func(g): return Gear.code(g))
+	var rolled := roll_outfit(profile)
+	profile.store["outfit"] = rolled.map(func(g): return Gear.code(g))
+	profile.store["kinds"] = rolled.map(func(g): return "charm" if Gear.is_gear(g) and Gear.slot_of(g) == "charm" else "gear")  # (which section each shows in, sold or not: store_page.gd)
 	profile.store["today"] = Gear.code(roll_today(profile))
 	profile.store["shelf"] = Shop.roll_shelf(profile)  # (shop.gd: the supplies for this visit, by your rank)
 	profile.store["title"] = String(Renown.state(profile).get("worn", ""))
 	profile.store.erase("tinctures")
 	store_tinctures(profile)  # (the tinctures he stocks this visit)
+	profile.store["word"] = Outfitter.on_visit(profile)  # (his tree's gifts and word, once a visit)
 
 
-# --- the outfitter's upgrades (renown) ------------------------------------------------------
+# --- the outfitter's upgrade tree (outfitter.gd) -------------------------------------------
 
-## True once your renown rank has unlocked this upgrade (UPGRADES).
+## True once you own this node of his tree (an old upgrade's id, UPGRADES
+## before the tree, names the node that does the same).
 static func upgraded(profile, id: String) -> bool:
-	if profile == null:
-		return false
-	for u in UPGRADES:
-		if String(u["id"]) == id:
-			return Renown.rank(profile) >= int(u["rank"])
-	return false
+	if Outfitter.OLD_UPGRADES.has(id):
+		id = String(Outfitter.OLD_UPGRADES[id][0])
+	return Outfitter.owns(profile, id)
 
 
-## How many upgrades are unlocked.
-static func upgrades_done(profile) -> int:
-	return UPGRADES.filter(func(u): return upgraded(profile, String(u["id"]))).size()
-
-
-## The next upgrade still locked ({} once they're all yours).
-static func next_upgrade(profile) -> Dictionary:
-	for u in UPGRADES:
-		if not upgraded(profile, String(u["id"])):
-			return u
-	return {}
-
-
-## How many pieces hang on the outfit rail.
+## How many pieces hang on the outfit rail: the rack, your rank's spaces and a wider rack.
 static func rack_size(profile) -> int:
-	return RACK_SIZE + (int(UPGRADE_FX["rack_extra"]) if upgraded(profile, "wide_rack") else 0) + Shop.rail_extra(profile)
+	return RACK_SIZE + Outfitter.rack_extra(profile) + Shop.rail_extra(profile)
 
 
-## What the outfitter takes off his prices (0 to 1): his upgrade and your worn title.
+## What the outfitter takes off his prices (0 to 1): his tree's price nodes
+## and your worn title, together no more than outfitter.gd FX "discount_cap".
 static func discount(profile) -> float:
-	if profile == null:
-		return 0.0
-	var d := float(UPGRADE_FX["discount"]) if upgraded(profile, "discount") else 0.0
-	return clampf(d + Shop.title_discount(profile), 0.0, 0.9)
+	return Outfitter.discount(profile)
 
 
 ## What a piece costs you at the store (gear_price, less his discount).
@@ -544,8 +511,8 @@ static func supply_price(profile, id: String) -> Array:
 	if int(price[1]) <= 0:
 		return price
 	var amount := int(price[1])
-	if id == "scroll" and price[0] == ANY and upgraded(profile, "scroll"):
-		amount = mini(amount, int(UPGRADE_FX["scroll_price"]))
+	if id == "scroll" and price[0] == ANY and Outfitter.scroll_price(profile) > 0:
+		amount = mini(amount, Outfitter.scroll_price(profile))
 	return [price[0], maxi(1, int(round(float(amount) * (1.0 - discount(profile)))))]
 
 
@@ -559,7 +526,7 @@ static func order(profile) -> Dictionary:
 ## Asks him to hold a piece off the rack (`i`) or today's piece (i = -1):
 ## it leaves the rack and waits as your special order. "" if done, else why not.
 static func hold(profile, i: int) -> String:
-	if not upgraded(profile, "order"):
+	if not Outfitter.owns(profile, "special_order"):
 		return "?"
 	if not order(profile).is_empty():
 		return TEXT["hold_full"]
@@ -612,8 +579,17 @@ static func roll_outfit(profile = null) -> Array:
 	if profile != null and not has_bag(profile) and not pick.has(FIRST_BAG):
 		pick[pick.size() - 1] = FIRST_BAG
 		pick.sort_custom(func(a, b): return slots.find(Gear.slot_of(a)) < slots.find(Gear.slot_of(b)))
-	var floor_fine := int(UPGRADE_FX["rack_fine"]) if upgraded(profile, "stock") else 0
+	var floor_fine := Outfitter.fine_floor(profile)
 	var out: Array = pick.map(func(id): return Shop.make_piece(profile, id, floor_fine) if profile != null else Gear.make(id))
+	# A Rare on the hook (his tree): the first plain piece that can be Rare is.
+	var rares := Outfitter.rare_count(profile) - out.filter(func(g): return Gear.rarity(g) == "rare").size()
+	for i in out.size():
+		if rares <= 0:
+			break
+		var base := Gear.base_id(out[i])
+		if Gear.rarity(out[i]) != "rare" and not Gear.traits_for(Gear.trait_slot(base)).is_empty():
+			out[i] = Gear.make(base, "rare", Gear.roll_traits(base, "rare"))
+			rares -= 1
 	out.append_array(extras)  # (a named piece or a relic, now and then at high ranks)
 	out.append_array(Charms.shop_stock(charms))  # (charms in the rail's last spaces: charms.gd SHOP)
 	return out
@@ -631,9 +607,9 @@ static func has_bag(profile) -> bool:
 	return false
 
 
-## Today's piece: Fine or Rare (TODAY_ODDS; STOCK_ODDS with better stock), with its traits.
+## Today's piece: Fine or Rare (TODAY_ODDS; outfitter.gd STOCK_ODDS with better stock), with its traits.
 static func roll_today(profile = null) -> Dictionary:
-	var odds: Dictionary = STOCK_ODDS if upgraded(profile, "stock") else TODAY_ODDS
+	var odds: Dictionary = Outfitter.today_odds(profile, TODAY_ODDS)
 	var total := 0
 	for r in odds:
 		total += int(odds[r])
@@ -755,12 +731,25 @@ static func pack_room(profile, player) -> int:
 	return maxi(0, int(player.pack_size()) - profile.pack.size())
 
 
+## A piece he offers: on the rail (`i`), today's piece (-1), the special
+## order (-2) or the relic offered once (-3); {} if sold or none.
+static func offer(profile, i: int) -> Dictionary:
+	match i:
+		-3:
+			return Outfitter.unique(profile)
+		-2:
+			return order(profile)
+		-1:
+			return today(profile)
+	return outfit(profile)[i] if i >= 0 and i < outfit(profile).size() else {}
+
+
 ## Buys a piece off the rack (`i`) or today's piece (i = -1) into your pack
 ## (`to` "pack"), your stash ("chest"), or straight onto you ("wear": into
 ## your pack, then worn, what you wore there going back into the pack).
 ## "" if bought, else why not.
 static func buy_gear(profile, player, i: int, to := "pack") -> String:
-	var g: Dictionary = order(profile) if i == -2 else (today(profile) if i < 0 else (outfit(profile)[i] if i < outfit(profile).size() else {}))
+	var g: Dictionary = offer(profile, i)
 	if g.is_empty():
 		return TEXT["today_sold"]
 	var why := buy_room(profile, player, g, to)
@@ -776,7 +765,9 @@ static func buy_gear(profile, player, i: int, to := "pack") -> String:
 		profile.chest.append(g)
 	else:
 		profile.pack.append(g)
-	if i == -2:
+	if i == -3:
+		Outfitter.state(profile)["unique"] = ""  # (the relic offered once, bought)
+	elif i == -2:
 		Renown.state(profile)["order"] = ""  # (the special order, collected)
 	elif i < 0:
 		profile.store["today"] = ""
@@ -836,7 +827,7 @@ static func sell(profile, where: String, i: int) -> String:
 		return ""
 	var g = from[i]
 	var kind := gear_kind(g)
-	var got := gear_sell(g)
+	var got := gear_sell(g, profile)
 	from.remove_at(i)
 	profile.add_crystal(kind, got)
 	profile.save()
@@ -875,6 +866,8 @@ static func pack_up(profile, player) -> void:
 					profile.add_crystal(kind, float(back[kind]))  # (no room after all: what it cost back)
 	profile.supplies = {}
 	profile.supply_paid = {}
+	for id in Outfitter.belt_gifts(profile):
+		player.add_item(id)  # (his tree's gifts for the road, if the belt has room)
 	profile.store = {}
 	profile.last_pay = {}  # (the outfitter's greeting about the last climb's pay is said)
 	profile.save()
@@ -900,9 +893,6 @@ static var STASH_SORTS := [["newest", "Newest"], ["rarity", "Rarity"], ["slot", 
 static var SLOT_FILTERS := [["all", "All slots"], ["melee", "Melee"], ["ranged", "Ranged"], ["armor", "Chest"], ["helm", "Helm"], ["gloves", "Gloves"],
 	["legs", "Legs"], ["boots", "Boots"], ["cloak", "Cloak"], ["amulet", "Amulet"], ["ring", "Rings"], ["backpack", "Backpack"], ["charm", "Charms"]]
 ## The outfit rail's filter, and where selling shows pieces from: [id, name].
-static var RACK_FILTERS := [["all", "Everything"], ["better", "Better than yours"], ["weapons", "Weapons"], ["armour", "Armour"], ["more", "Cloaks, packs, charms"]]
-static var SELL_FROM := [["all", "Pack and stash"], ["pack", "Your pack"], ["chest", "Your stash"]]
-const RACK_GROUPS := {"weapons": ["melee", "ranged"], "armour": ["armor", "helm", "gloves", "legs", "boots"], "more": ["cloak", "backpack", "amulet", "ring", "charm"]}
 const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm"]
 
 
@@ -1140,16 +1130,3 @@ static func _key_kind(g, i: int) -> float:
 
 static func _key_price(g, i: int) -> float:
 	return gear_sell(g) * 1000.0 + Gear.rarity_rank(Gear.rarity(g)) + i * 0.0001
-
-
-
-## Does the outfit rail show this piece under a filter (RACK_FILTERS)? A
-## sold space shows only with "all".
-static func rack_shows(profile, player, g, filter: String) -> bool:
-	if filter == "all":
-		return true
-	if not Gear.is_gear(g):
-		return false
-	if filter == "better":
-		return versus(profile, player, g) > 0
-	return Gear.slot_of(g) in RACK_GROUPS.get(filter, [])

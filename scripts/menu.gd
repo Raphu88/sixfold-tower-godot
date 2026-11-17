@@ -4383,6 +4383,7 @@ class Slot extends Button:
 	var price_ok := true  # false: you can't pay it (the number is red)
 	var better := 0  # the Loadout and store: +1 beats what you'd wear (a green up arrow), -1 worse (red, down)
 	var tag := ""  # a small tag in the bottom left ("Pack", "Set": where a worn piece comes from)
+	var line := ""  # a row of a list (the store's, store_page.gd): its name, drawn beside the icon, the price and arrow at its right
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -4407,6 +4408,9 @@ class Slot extends Button:
 		add_theme_stylebox_override("focus", f)
 
 	func _draw() -> void:
+		if line != "":
+			_draw_row()
+			return
 		# A slot's name is a label (the gothic face); counts and prices are
 		# numbers (tabular figures).
 		var font := UI.font("mono")
@@ -4502,6 +4506,75 @@ class Slot extends Button:
 			var pt := str(price)
 			draw_string_outline(font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.9))
 			UI.draw_text(self, font, Vector2(16, 14), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.TEXT if price_ok else UI.BAD)
+
+
+	## A row of a list: the icon in a square at the left (its count over
+	## it), the name, then a tag ("Handy", "Best"), the price and the
+	## better-or-worse arrow at the right.
+	func _draw_row() -> void:
+		var font := UI.font("mono")
+		var label := UI.font("display")
+		var h := size.y
+		var c := Vector2(h * 0.5, h * 0.5)
+		var s := h * 0.32
+		var fancy: bool = rec != null and kind == "gear" and Gear.rarity(rec) != "common"
+		var b := UI.Draw.Batch.new()
+		if not empty:
+			Art.soft(b, c, h * 0.45, Color(tint if kind != "item" else Items.color(id), 0.2))
+		b.flush(self)
+		if picked:
+			draw_rect(Rect2(Vector2(4, h - 3), Vector2(size.x - 8, 2)), Color(UI.GOLD, 0.85))
+		if fancy:
+			draw_rect(Rect2(Vector2(2, 2), Vector2(h - 4, h - 4)), Color(Gear.rarity_color(rec), 0.45), false, 1.0)
+		match kind:
+			"gear":
+				if not empty:
+					Gear.draw_icon(self, rec if rec != null else id, c, s, tint)
+				else:
+					draw_arc(c, s * 0.55, 0.0, TAU, 20, Color(UI.FAINT, 0.45), 1.5, true)
+			"item":
+				Items.draw_icon(self, id, c + Vector2(0, -1), s, 1.0)
+				if count > 0:
+					var t := str(count)
+					var at := Vector2(h - 4.0 - font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x, h - 4.0)
+					draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.9))
+					UI.draw_text(self, font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD)
+		var right := size.x - 6.0
+		var mid := h * 0.5
+		if better != 0 and not empty:
+			var ab := UI.Draw.Batch.new()
+			UI.arrow_into(ab, Vector2(right - 6.0, mid), 5.0, better > 0, UI.GOOD if better > 0 else UI.BAD)
+			ab.flush(self)
+			right -= 16.0
+		if price > 0:
+			var pt := str(price)
+			var pw := font.get_string_size(pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+			UI.draw_text(self, font, Vector2(right - pw, mid + 5.0), pt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UI.TEXT if price_ok else UI.BAD)
+			right -= pw + 4.0
+			var gb := UI.Draw.Batch.new()
+			if price_kind == "any":
+				UI.gem_into(gb, Vector2(right - 9.0, mid + 2.0), 2.6, Essence.color("fire"))
+				UI.gem_into(gb, Vector2(right - 3.0, mid + 2.0), 2.6, Essence.color("water"))
+				UI.gem_into(gb, Vector2(right - 6.0, mid - 2.0), 3.6, UI.GOLD)
+			else:
+				UI.gem_into(gb, Vector2(right - 5.0, mid), 4.2, Essence.color(price_kind))
+			gb.flush(self)
+			right -= 14.0
+		if tag != "":
+			var tw := label.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 8.0
+			var trect := Rect2(Vector2(right - tw, mid - 7.0), Vector2(tw, 13.0))
+			draw_style_box(UI.box(Color(UI.VOID, 0.85), Color(UI.GILT, 0.6), 3), trect)
+			UI.draw_text(self, label, Vector2(trect.position.x + 4.0, trect.end.y - 3.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, UI.GILT_HI)
+			right -= tw + 4.0
+		var x := h + 4.0
+		var room := maxf(right - x - 2.0, 20.0)
+		var col: Color = UI.FAINT if empty else (Gear.rarity_color(rec).lightened(0.25) if fancy else UI.TEXT)
+		var body := UI.font("body")
+		var fs := UI.fit_floor(body, line, 15, room, 11)
+		if body.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= room:
+			UI.draw_text(self, body, Vector2(x, mid + 5.0), line, HORIZONTAL_ALIGNMENT_LEFT, room, fs, col)
+		else:
+			UI.draw_text_lines(self, body, Vector2(x, mid - 2.0), line, HORIZONTAL_ALIGNMENT_LEFT, room, 12, 2, col)
 
 
 ## The big icon at the top of the inventory's details (and the record's heirlooms).

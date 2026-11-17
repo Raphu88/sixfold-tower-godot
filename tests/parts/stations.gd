@@ -3,7 +3,8 @@ extends RefCounted
 ## station_view.gd, arena.gd), renown you can see (renown.gd), titles with
 ## social benefits (titles.gd), the Noble and contracts (noble.gd,
 ## contracts.gd), charm rewards for rank (charms.gd), and the outfitter's
-## upgrades (train.gd): travelling to the station and back; every Training
+## upgrade tree opening with rank (outfitter.gd; tests/parts/outfitter.gd
+## has the rest): travelling to the station and back; every Training
 ## lesson run, remembered and skippable, with its set reward; a medal drill
 ## with its fee; a tournament bracket won and lost without dying; the Noble
 ## granting a title when renown allows and showing its benefits; titles'
@@ -150,7 +151,7 @@ func _words() -> void:
 		t._check(tables.has(tb), "%s is registered" % tb)
 	var all := JSON.stringify([Stations.STATIONS, Stations.STOPS, Stations.LESSONS, Stations.DRILLS, Stations.BRACKETS, Stations.MASTER, Stations.MASTER_LINES, Stations.TEXT,
 		Renown.RANKS, Renown.TITLES, Renown.TEXT, Titles.SOCIAL, Titles.GROUPS, Titles.TEXT, Noble.NOBLE, Noble.LINES, Noble.TEXT, Contracts.KINDS, Contracts.ITEMS, Contracts.TEXT,
-		Charms.TEXT, Train.UPGRADES]).to_lower()
+		Charms.TEXT, Train.Outfitter.NODES]).to_lower()
 	for id in ["station", "training", "tournament", "noble", "titles_social", "contracts", "contract_done", "rank_up", "renown_board"]:
 		all += JSON.stringify(Entity.TIPS.get(id, {})).to_lower()
 	for id in ["how_renown", "how_titles", "how_contracts", "how_tourney"]:
@@ -689,21 +690,18 @@ func _contracts(main) -> void:
 	await t._frames(2)
 
 
-## The outfitter's upgrades, unlocked by renown (the rank-based stock stays, second).
+## The outfitter's upgrade tree opens with renown (outfitter.gd: its nodes
+## are bought; tests/parts/outfitter.gd has the rest).
 func _outfitter(main) -> void:
 	var prof = main.profile
+	var O = Train.Outfitter
 	var low = ProfileScript.new()
 	low.saving = false
 	t._check(Train.rack_size(low) == Train.RACK_SIZE and Train.supply_price(low, "scroll")[1] == int(Train.ANY_PRICE["scroll"]), "with no renown: the rack and the scroll as they were")
+	t._check(O.ORDER.all(func(id): return O.status(low, id) == "locked"), "with no renown, every node of his tree is locked")
 	Renown.state(prof)["worn"] = ""
 	Renown.earn(prof, Renown.needed(Renown.RANKS.size() - 1), "")
-	t._check(Train.upgrades_done(prof) == Train.UPGRADES.size() and Train.next_upgrade(prof).is_empty(), "the top rank unlocks every upgrade")
-	prof.store = {}
-	Train.stock(prof)
-	var d := float(Train.UPGRADE_FX["discount"])
-	t._check(Train.supply_price(prof, "scroll")[1] == int(round(float(Train.UPGRADE_FX["scroll_price"]) * (1.0 - d))), "the scroll kept aside costs less (with the discount)")
-	var g: Dictionary = Train.outfit(prof)[1]
-	t._check(Train.buy_price(prof, g) == maxi(1, int(round(Train.gear_price(g) * (1.0 - d)))), "a regular's discount off a piece")
+	t._check(O.ORDER.filter(func(id): return O.status(prof, id) == "open").size() == O.BRANCHES.size(), "the top rank opens each branch's first node (the rest follow in turn)")
 	await t._frames(1)
 
 

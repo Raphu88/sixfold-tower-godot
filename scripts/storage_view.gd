@@ -1,6 +1,6 @@
 extends RefCounted
 ## One look for your pack and your stash, wherever they show: the Stash tab,
-## the Loadout, your car on the train, the outfitter's Sell counter, the
+## the Loadout, your car on the train, the outfitter's Sell section, the
 ## workshop bench's pickers and the inventory's Pack view in the tower.
 ##
 ## There is one stash (profile.chest, Train.CHEST_SIZE spaces) and one pack,

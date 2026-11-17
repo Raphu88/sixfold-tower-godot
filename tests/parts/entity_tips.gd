@@ -353,7 +353,7 @@ func _highlight_touch() -> void:
 		h.send_away(l)  # (the car's first-time tips, so its tabs are in view on a short screen)
 	menu.open("train")
 	await t._frames(3)
-	var sell_tab: Control = _find("store_tab", "sell")
+	var sell_tab: Control = _find("store_tab", "tree")  # (on a phone: the sign to the outfitter's upgrade tree; the store's Sell is a section of its one page now)
 	var at: Vector2 = sell_tab.get_global_rect().get_center()
 	t._touch(0, at, true)
 	await t._wait(Helper.HOLD + 0.2)
@@ -374,9 +374,12 @@ func _highlight_touch() -> void:
 	await t._wait(Helper.HOLD + 0.2)
 	t._touch(0, at, false)
 	await t._frames(2)
+	# (once the sphere has settled beside it: on its way there from its
+	# corner it can pass over the Upgrade tree sign, and a tap on it talks)
+	await t._until(func(): return h.pos.distance_to(h.goal) < 10.0, 1.5)
 	await t._tap_at(at)
 	await t._frames(2)
-	_check(h.target == null and menu.train_store == "sell", "...a tap anywhere else does what it always does")
+	_check(h.target == null and menu.train_store == "tree","...a tap anywhere else does what it always does")
 	menu.train_store = "shop"
 	Entity.gone.clear()
 	main.touch._set_active(false)

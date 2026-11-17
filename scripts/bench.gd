@@ -520,7 +520,7 @@ static func break_value(profile, thing: String) -> Array:
 	if thing.begins_with("supply:"):
 		return Train.item_sell(thing.substr(7))
 	var g := piece(profile, thing)
-	return [Train.gear_kind(g), Train.gear_sell(g)] if not g.is_empty() else ["", 0]
+	return [Train.gear_kind(g), Train.gear_sell(g, profile)] if not g.is_empty() else ["", 0]
 
 
 ## Breaks down a piece from your pack or chest ("pack:0") or a packed item

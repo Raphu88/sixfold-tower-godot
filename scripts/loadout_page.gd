@@ -442,7 +442,7 @@ func piece_card(where: String, i: int) -> void:
 	var mv := _btn(to_other, _move.bind(where, i), "move", "%s:%d" % [where, i])
 	mv.disabled = full
 	var kind := Train.gear_kind(g)
-	var got := Train.gear_sell(g)
+	var got := Train.gear_sell(g, prof)
 	var key := "%s:%d" % [where, i]
 	var sell := _btn(m.Nav.fill(Train.TEXT["sell_ask"] % [got, Essence.display(kind)], m.main) if m.sell_ask == key else Train.TEXT["sell_for"] % [got, Essence.display(kind)], _sell.bind(where, i), "sell", key)
 	if m.sell_ask == key:
