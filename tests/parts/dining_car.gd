@@ -674,11 +674,14 @@ func _entity() -> void:
 	dp._go("duel")
 	var first_duel: String = dp.tip_line
 	dp._go("rumor")
+	var kept: String = dp.tip_line  # (not sent away yet: it's said again)
+	Guide.release(Entity.fill_keys(first_rumor, "keys"))  # (as a click on it does: entity_helper.gd send_away)
+	dp._go("rumor")
 	var again: String = dp.tip_line
 	Engine.remove_meta("sixfold_tips")
 	Guide.forget()
 	_check(first_rumor == String(Entity.TIPS["dining_rumor"]["tip"]) and first_bet == String(Entity.TIPS["dining_bet"]["tip"]) and first_duel == String(Entity.TIPS["dining_duel"]["tip"]), "the first rumor, wager and duel: the Entity explains each")
-	_check(again == "", "...once")
+	_check(kept == first_rumor and again == "", "...said again until it's sent away, then not again")
 	# Every button in the car has the Entity's own words.
 	var lacking := {}
 	var seen := 0

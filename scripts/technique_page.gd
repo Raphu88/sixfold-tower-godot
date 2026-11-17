@@ -88,7 +88,7 @@ static func build(menu) -> void:
 	menu._header(TEXT["title"], TEXT["sub"])
 	var told: String = main.tip_now("unbound_techniques")
 	if told != "":
-		menu._text(told, menu.GOLD.lightened(0.2), true)
+		menu.box.add_child(menu.Entity.says(told, 30.0 if menu.compact() else 38.0))
 	var techs: Array = st["techs"]
 	var sel := _slot(menu)
 	# The six slots.

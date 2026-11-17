@@ -10,7 +10,7 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) | rubberduck | spells, slime, creature sounds, arrow thunks, rubble |
 | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | slams, metal clangs, wood, gong |
 | [37 hits/punches](https://opengameart.org/content/37-hitspunches) | Independent.nu | punch and hit bodies |
-| [Evil temple Ambiance loop](https://opengameart.org/content/evil-temple-ambiance-loop) | HaelDB | background music |
+| [Evil temple Ambiance loop](https://opengameart.org/content/evil-temple-ambiance-loop) | HaelDB | background music (slowed to 85%, same pitch) |
 | [Dark Cavern Ambient](https://opengameart.org/content/dark-cavern-ambient) | Paul Wortmann | tower ambience |
 | [Medieval Sound Effects: Weapon Textures](https://opengameart.org/content/medieval-sound-effects-weapon-textures) | Still North Media (posted by MedicineStorm) | bow draw, nock and release, crossbow shot, reload and bolt, dagger and spear swings, blade draws |
 | [Fantasy Sound Effects (Tinysized SFX)](https://opengameart.org/content/fantasy-sound-effects-tinysized-sfx) | Vehicle (Jan Schupke) | dagger draw, pouch (pick-ups, inventory), spike trap scrape, gas hiss |
@@ -30,7 +30,7 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [Bat Screeches](https://opengameart.org/content/bat-screeches) | AntumDeluge | bats |
 | [Bear Growls](https://opengameart.org/content/bear-growls) | AntumDeluge | the Manticore's roar |
 | [Sheep Baa](https://opengameart.org/content/sheep-baa) | AntumDeluge | rams, the Chimera's goat head |
-| [Fire Crackling](https://opengameart.org/content/fire-crackling) | AntumDeluge | cinders, the flare, the forge and the heights' ambience |
+| [Fire Crackling](https://opengameart.org/content/fire-crackling) | AntumDeluge | fire catching and burning (the crackle), cinders, the flare, the forge and the heights' ambience |
 | [Evil Screech 1](https://opengameart.org/content/evil-screech-1) | Nocturnal_Vanguard | the Gryphon |
 | [Peacock scream](https://opengameart.org/content/peacock-scream) | qubodup | the Firebird |
 | [T-rex Calls](https://opengameart.org/content/t-rex-calls) | CaveboyTup | the Wyvern |
@@ -44,8 +44,8 @@ All sound effects and music are **CC0** (public domain) from [OpenGameArt.org](h
 | [Hammer on Anvil](https://opengameart.org/content/hammer-on-anvil) | themightyglider | crafting at the bench |
 | [Blacksmith's Hammer](https://opengameart.org/content/blacksmiths-hammer) | VishwaJai | crafting, the smith, iron spells, the forge |
 | [Dragon Flap](https://opengameart.org/content/dragon-flap-0) | VishwaJai | wingbeats (the Gryphon) |
-| [Catching fire](https://opengameart.org/content/catching-fire) | themightyglider | fire spells, the flare, pedestals |
-| [boiling water loops](https://opengameart.org/content/boiling-water-loops) | TinyWorlds | brewing |
+| [Catching fire](https://opengameart.org/content/catching-fire) | themightyglider | fire spells, the crackle of burning, the flare, pedestals |
+| [boiling water loops](https://opengameart.org/content/boiling-water-loops) | TinyWorlds | brewing, the sizzle under the crackle of burning |
 | [Liquid Bottle Drink Set](https://opengameart.org/content/liquid-bottle-drink-set) | qubodup | drinking draughts, tonics and vials |
 | [Fantasy Accessory SFX Library](https://opengameart.org/content/fantasy-accessory-sfx-library) | Vehicle (Jan Schupke) | coins (buying, selling), the lock's key, vials and oils |
 | [150 Combat Sound Effects](https://opengameart.org/content/150-combat-sound-effects) | untamedpixels (spell impacts by lentikula, zaps by CoMiGo, all CC0) | bond spells by family: lightning, wind, water, frost, fire, stone, life; the Unbound's bolts and shells |

@@ -1328,7 +1328,7 @@ func _charm_counter(parent: Node) -> Array:
 	var keys: Array = []
 	var C: Dictionary = Bench.Charms.TEXT
 	if not _small():  # (a phone has no room here: the tower and the Library say it there)
-		var first: String = m.main.tip_now("charm")  # (the first time here: the Entity explains charms)
+		var first: String = m.main.tip_now("charm", false)  # (the first time here: the Entity explains charms)
 		if first != "":
 			charm_tip = first
 		if charm_tip != "":
@@ -1737,8 +1737,8 @@ func _library(root: Node) -> void:
 	var small := _small()
 	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
 	var ps: bool = m.main.pad_ps
-	if m.toast != "":
-		root.add_child(Entity.says(m.toast, 30.0 if small else 40.0))
+	if m.entity_toast() != "":
+		root.add_child(Entity.says(m.entity_toast(), 30.0 if small else 40.0))
 	var shelves: Array = library_shelves()
 	var shelf: String = m.library_shelf
 	if not shelves.any(func(s): return s[0] == shelf):
@@ -1853,8 +1853,8 @@ func _set_shelf(id: String) -> void:
 ## does on the page.
 func _settings_car(root: Node) -> void:
 	var small := _small()
-	if m.toast != "":
-		root.add_child(Entity.says(m.toast, 30.0 if small else 40.0))
+	if m.entity_toast() != "":
+		root.add_child(Entity.says(m.entity_toast(), 30.0 if small else 40.0))
 	var row := _main_row(root)
 	var panel := TrainView.Furnish.new("signal", small)
 	panel.custom_minimum_size.x = minf(470.0 if small else 600.0, _area_w() - 12.0)  # (a narrow screen: as wide as the car)

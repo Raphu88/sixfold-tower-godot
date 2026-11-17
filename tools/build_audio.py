@@ -3,6 +3,7 @@
 
     tools/fetch_audio_sources.sh .audio_sources
     python3 tools/build_audio.py .audio_sources
+    python3 tools/build_audio.py .audio_sources --only=music,burn   (only these)
 
 Each game sound is one or more variants (one is picked at random when it
 plays). Each variant layers recorded clips, optionally with a synthesised
@@ -210,7 +211,19 @@ SOUNDS = {
     "charge": {"variants": [v((R + "spell_01.ogg", 0, 0, 0.9))], "level": -9},
     "zap": {"variants": [v((R + "spell_02.ogg", 0, 0, 1.2), (A + "battle/magic1.wav", -6, 0, 1.4)), v((R + "spell_02.ogg", 0, 0, 1.35), (A + "battle/magic1.wav", -6, 0, 1.5))], "level": -5, "lp": 9000},
     "gust": {"variants": [v(("synth:wind", 0, 0, 1.0), (W + "swish-7.wav", -4, 0, 0.6))], "level": -6},
-    "burn": {"variants": [v((R + "spell_fire_06.ogg", 0, 0, 0.9), (S + "slam_04.ogg", -8, 0, 0.7))], "level": -4, "lp": 8000},
+    # Fire catching and burning: a soft crackle of a real fire (short takes
+    # of a crackling fire, a pan's sizzle under some, a breath of flame under
+    # others), five takes a little apart in pitch so quick repeats never
+    # match. No ringing or clanking layer: it plays often (a Flameblade's
+    # swings at full heat, standing in fire, fire spells), and audio.gd keeps
+    # it at most once in GAP_MS["burn"].
+    "burn": {"variants": [
+        v(("firecrackle/fire-1.wav@0.40+0.42", 0, 0, 1.0), ("boil/cooking_without_cover_01.ogg@4.45+0.4", -9, 30, 1.0)),
+        v(("firecrackle/fire-1.wav@0.76+0.40", 0, 0, 1.06), ("flame/flame.ogg", -12, 0, 1.1)),
+        v(("firecrackle/fire-1.wav@1.08+0.40", 0, 0, 0.94), ("boil/cooking_without_cover_01.ogg@5.05+0.4", -9, 20, 1.05)),
+        v(("firecrackle/fire-1.wav@1.57+0.42", 0, 0, 1.03), ("flame/flame.ogg", -13, 0, 0.95)),
+        v(("firecrackle/fire-1.wav@2.26+0.45", 0, 0, 0.97), ("boil/cooking_without_cover_01.ogg@6.05+0.4", -10, 40, 0.95)),
+    ], "level": -6, "verb": -20, "lp": 6000, "hp": 380},
     # Gas escaping a vent: a compressed-air spray slowed and darkened into
     # a soft hiss (raw, it's a piercing whistle).
     "hiss": {"variants": [
@@ -488,9 +501,11 @@ AMBIENCE = {
 }
 
 MUSIC = {
-    # name: (source, crossfade seconds)
-    "music": ("music/evil_temple.ogg", 4.0),
-    "ambience": ("music/dark_cavern_ambient_001.ogg", 6.0),
+    # name: source, crossfade (seconds), and tempo: 1.0 as recorded, below 1
+    # slower (0.85 plays at 85% speed, so 1/0.85 longer), at the same pitch
+    # (a time-stretch, not a slowed tape).
+    "music": {"src": "music/evil_temple.ogg", "fade": 4.0, "tempo": 0.85},
+    "ambience": {"src": "music/dark_cavern_ambient_001.ogg", "fade": 6.0, "tempo": 1.0},
 }
 
 
@@ -695,11 +710,30 @@ def write_wav(path, x):
         open(imp, "w").write('[remap]\n\nimporter="wav"\ntype="AudioStreamWAV"\n\n[params]\n\ncompress/mode=2\n')
 
 
-def build_music(src_root, name, src, fade):
-    """Crossfades the end into the start so the track loops without a seam."""
+def stretch(path, sr, channels, tempo):
+    """The recording at another tempo and the same pitch (a time-stretch:
+    ffmpeg's rubberband filter if it has it, else its atempo)."""
+    filters = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    if " rubberband " in filters:
+        af = "rubberband=tempo=%g:pitchq=quality:transients=mixed:window=standard" % tempo
+    else:
+        af = "atempo=%g" % tempo
+    out = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path, "-af", af, "-ac", str(channels), "-ar", str(sr), "-f", "f32le", "-"],
+        capture_output=True, check=True).stdout
+    x = np.frombuffer(out, dtype=np.float32).astype(np.float64)
+    return x.reshape(-1, channels) if channels > 1 else x
+
+
+def build_music(src_root, name, spec):
+    """Crossfades the end into the start so the track loops without a seam.
+    At another tempo the crossfade is stretched with it, so the loop is
+    exactly 1/tempo as long."""
     sr = 44100
-    x = decode(os.path.join(src_root, src), sr, 2)
-    n = int(fade * sr)
+    tempo = float(spec.get("tempo", 1.0))
+    path = os.path.join(src_root, spec["src"])
+    x = decode(path, sr, 2) if tempo == 1.0 else stretch(path, sr, 2, tempo)
+    n = int(spec["fade"] / tempo * sr)
     head, body, tail = x[:n], x[n:-n], x[-n:]
     ramp = np.linspace(0, 1, n)[:, None]
     looped = np.concatenate([body, tail * (1 - ramp) + head * ramp])
@@ -774,9 +808,82 @@ def build_ambience(src_root, name, spec):
     return "res://assets/audio/music/ambience_%s.ogg" % name
 
 
+def update_bank(sfx, music):
+    """Puts the rebuilt entries into the sound bank as it stands, line by line
+    (everything else in it, its comments and the aliases added by hand, stays
+    as it is); a new entry goes at the end of its table."""
+    lines = open(BANK).read().split("\n")
+    todo = {"SFX": dict(sfx), "MUSIC": dict(music)}
+    part = None
+    out = []
+    for line in lines:
+        if line.startswith("const SFX"):
+            part = "SFX"
+        elif line.startswith("const MUSIC"):
+            part = "MUSIC"
+        elif part and line.startswith("}"):
+            for name, val in todo[part].items():
+                out.append(_bank_line(name, val))
+            todo[part] = {}
+            part = None
+        elif part and line.startswith('\t"') and line.split('"')[1] in todo[part]:
+            name = line.split('"')[1]
+            line = _bank_line(name, todo[part].pop(name))
+        out.append(line)
+    open(BANK, "w").write("\n".join(out))
+
+
+def _bank_line(name, val):
+    if isinstance(val, list):
+        return '\t"%s": [%s],' % (name, ", ".join('"%s"' % p for p in val))
+    return '\t"%s": "%s",' % (name, val)
+
+
+def write_bank(bank, music):
+    with open(BANK, "w") as f:
+        f.write("extends RefCounted\n## Generated by tools/build_audio.py. Do not edit by hand.\n\n")
+        f.write("const SFX := {\n")
+        for name, paths in bank.items():
+            f.write('\t"%s": [%s],\n' % (name, ", ".join('"%s"' % p for p in paths)))
+        f.write("}\n\nconst MUSIC := {\n")
+        for name, path in music.items():
+            f.write('\t"%s": "%s",\n' % (name, path))
+        f.write("}\n")
+
+
+def build_only(src_root, names):
+    """Rebuilds only the named sounds, music and ambience loops (ambience by
+    its file name: "ambience_kraken"); everything else is left as it is."""
+    bank, music = {}, {}
+    for name in names:
+        if name in SOUNDS:
+            spec = SOUNDS[name]
+            paths = []
+            for i, layers in enumerate(spec["variants"]):
+                level = spec.get("level", -6) + (spec["vtrim"][i] if "vtrim" in spec else 0)
+                x = build_variant(src_root, layers, level, spec.get("verb", -16), spec.get("lp"), spec.get("hp"))
+                fname = "%s_%d.wav" % (name, i)
+                write_wav(os.path.join(OUT_SFX, fname), x)
+                paths.append("res://assets/audio/sfx/" + fname)
+            bank[name] = paths
+        elif name in MUSIC:
+            music[name] = build_music(src_root, name, MUSIC[name])
+        elif name.startswith("ambience_") and name[9:] in AMBIENCE:
+            music[name] = build_ambience(src_root, name[9:], AMBIENCE[name[9:]])
+        else:
+            sys.exit("no sound, music or ambience called %r" % name)
+        print("built", name)
+    update_bank(bank, music)
+
+
 def main():
-    src_root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, ".audio_sources")
+    args = [a for a in sys.argv[1:] if not a.startswith("--only=")]
+    only = [n for a in sys.argv[1:] if a.startswith("--only=") for n in a[7:].split(",") if n]
+    src_root = args[0] if args else os.path.join(ROOT, ".audio_sources")
     np.random.seed(11)
+    if only:
+        build_only(src_root, only)
+        return
     os.makedirs(OUT_SFX, exist_ok=True)
     os.makedirs(OUT_MUSIC, exist_ok=True)
     for f in os.listdir(OUT_SFX):
@@ -793,21 +900,13 @@ def main():
             paths.append("res://assets/audio/sfx/" + fname)
         bank[name] = paths
         print("built", name, len(paths))
-    music = {name: build_music(src_root, name, src, fade) for name, (src, fade) in MUSIC.items()}
+    music = {name: build_music(src_root, name, spec) for name, spec in MUSIC.items()}
     for name, spec in AMBIENCE.items():
         music["ambience_" + name] = build_ambience(src_root, name, spec)
     for name in music:
         print("built", name)
 
-    with open(BANK, "w") as f:
-        f.write("extends RefCounted\n## Generated by tools/build_audio.py. Do not edit by hand.\n\n")
-        f.write("const SFX := {\n")
-        for name, paths in bank.items():
-            f.write('\t"%s": [%s],\n' % (name, ", ".join('"%s"' % p for p in paths)))
-        f.write("}\n\nconst MUSIC := {\n")
-        for name, path in music.items():
-            f.write('\t"%s": "%s",\n' % (name, path))
-        f.write("}\n")
+    write_bank(bank, music)
 
 
 if __name__ == "__main__":
