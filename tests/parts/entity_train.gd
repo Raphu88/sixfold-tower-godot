@@ -268,23 +268,26 @@ func _phone() -> void:
 	menu.train_store = "shop"
 	menu.open("train")
 	await t._frames(3)
-	var sell_tab: Control = _find("store_tab", "sell")
+	var sell_tab: Control = _find("store_tab", "tree")  # (on a phone: the sign to the outfitter's upgrade tree)
 	var at: Vector2 = sell_tab.get_global_rect().get_center()
 	# Held: the explanation, and letting go doesn't press it.
 	t._touch(0, at, true)
 	await t._wait(Helper.HOLD + 0.2)
 	await t._frames(2)
-	_check(h.target == sell_tab and h.text == String(Help.HELP["store_tab:sell"]), "a finger held on a button: the Entity explains it (%s)" % h.text)
+	_check(h.target == sell_tab and h.text == String(Help.HELP["store_tab:tree"]), "a finger held on a button: the Entity explains it (%s)" % h.text)
 	t._touch(0, at, false)
 	await t._frames(3)
 	_check(menu.train_store == "shop", "...and letting go doesn't press it")
 	await t._frames(2)
 	var view := Rect2(Vector2.ZERO, Vector2(t.root.size))
 	_check(view.encloses(h.bubble) and not h.bubble.intersects(sell_tab.get_global_rect()), "...its bubble on a phone's screen, off the button")
-	# A tap still presses at once.
+	# A tap still presses at once. (Once the sphere has settled beside it: on
+	# its way there from its corner it can pass over the Upgrade tree sign,
+	# and a tap on the sphere talks.)
+	await t._until(func(): return h.pos.distance_to(h.goal) < 10.0, 1.5)
 	await t._tap_at(at)
 	await t._frames(2)
-	_check(menu.train_store == "sell", "a tap still presses the button at once")
+	_check(menu.train_store == "tree", "a tap still presses the button at once")
 	menu.train_store = "shop"
 	# A finger that moves is a swipe, not a hold.
 	await _car("personal")
@@ -363,7 +366,7 @@ func _missing() -> void:
 	var seen := 0
 	var views: Array = [["engine", {"train_board": "towers"}], ["engine", {"train_board": "stations"}], ["store", {"train_store": "shop", "inv_sel": "outfit:0"}],
 		["store", {"train_store": "shop", "inv_sel": "supply:draught"}], ["store", {"train_store": "shop", "inv_sel": "today"}],
-		["store", {"train_store": "shop", "inv_sel": "upgrades"}], ["store", {"train_store": "sell", "inv_sel": "pack:0"}],
+		["store", {"train_store": "shop", "inv_sel": "tree:fair_price"}], ["store", {"train_store": "tree", "inv_sel": "tree:rank0"}], ["store", {"train_store": "sell", "inv_sel": "pack:0"}],
 		["personal", {"inv_sel": "worn:melee"}], ["personal", {"inv_sel": "chest:0"}], ["library", {}], ["library", {"library_shelf": "bestiary"}],
 		["settings", {"settings_tab": "settings"}], ["settings", {"settings_tab": "controls"}]]
 	for c in Bench.COUNTERS:

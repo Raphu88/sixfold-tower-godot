@@ -16,11 +16,8 @@ const UI := preload("res://scripts/ui.gd")
 const Outfitter := preload("res://scripts/outfitter.gd")
 const Renown := preload("res://scripts/renown.gd")
 
-## Each branch's colour (and the trunk's).
-const TINT := {
-	"prices": Color(0.95, 0.76, 0.36), "stock": Color(0.74, 0.6, 1.0), "gifts": Color(0.93, 0.45, 0.38),
-	"info": Color(0.45, 0.8, 0.84), "trunk": Color(0.58, 0.8, 0.46),
-}
+## Each branch's colour (and the trunk's): ui.gd OUTFIT_TREE.
+const TINT := UI.OUTFIT_TREE
 const ROWS := 7
 
 var m  # the menu (menu.gd)

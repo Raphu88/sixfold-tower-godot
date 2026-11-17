@@ -38,10 +38,12 @@ const StorageView := preload("res://scripts/storage_view.gd")
 ## Sizes on a computer and on a phone ([computer, phone], view px).
 const PLACARD := [340.0, 290.0]
 const GAP := [16.0, 10.0]
-const SIDE := [190.0, 118.0]  # the outfitter's column, with the tree in its own view
+const SIDE := [190.0, 140.0]  # the outfitter's column, with the tree in its own view
 const TREE := [250.0, 330.0]  # the tree beside the goods: at least, at most
 const GOODS_MIN := 330.0  # the goods beside the tree: at least this wide
 const ROW_H := [34.0, 32.0]  # a list's rows
+## Room kept spare across the car (the car's own scroll bar, if a tall card brings it).
+const SLACK := 18.0
 
 var tp  # the train's page (train_page.gd)
 var m  # the menu
@@ -74,7 +76,7 @@ func _area() -> Vector2:
 func tree_fits() -> bool:
 	if tp._small():
 		return false
-	return _area().x >= TREE[0] + GOODS_MIN + PLACARD[0] + GAP[0] * 2.0 + 8.0
+	return _area().x >= TREE[0] + GOODS_MIN + PLACARD[0] + GAP[0] * 2.0 + SLACK
 
 
 # --- the page ------------------------------------------------------------------------------
@@ -89,8 +91,7 @@ func build(root: Node) -> void:
 	var plac := _i(PLACARD)
 	tree_beside = tree_fits()
 	var view: String = "shop" if tree_beside else m.train_store
-	var side := clampf(area.x - GOODS_MIN - plac - gap * 2.0 - 8.0, TREE[0], TREE[1]) if tree_beside else _i(SIDE)
-	var goods_w := maxf(area.x - side - plac - gap * 2.0 - 8.0, 220.0)
+	var side := clampf(area.x - GOODS_MIN - plac - gap * 2.0 - SLACK, TREE[0], TREE[1]) if tree_beside else _i(SIDE)
 	var tall := area.y - (70.0 if String(tp.tips.get("store", "")) != "" else 0.0) - 8.0
 	var row: HBoxContainer = tp._main_row(root)
 	row.add_theme_constant_override("separation", int(gap))
@@ -131,7 +132,9 @@ func build(root: Node) -> void:
 			var nl: Label = tp._note(oc, Outfitter.TEXT["count"] % [Outfitter.bought_count(prof), Outfitter.ORDER.size()], side)
 			nl.add_theme_font_size_override("font_size", 13)
 			nl.set_meta("store_note", "tree")
-	# The goods, or the tree in its own view.
+	# The goods, or the tree in its own view: what's left of the room's width
+	# beside the outfitter's column (as wide as its words need) and the placard.
+	var goods_w := maxf(area.x - maxf(side, oc.get_combined_minimum_size().x) - plac - gap * 2.0 - SLACK, 220.0)
 	if view == "tree":
 		keys.append_array(_tree(row, goods_w, tall))
 	else:
@@ -140,6 +143,9 @@ func build(root: Node) -> void:
 		m.details = null
 		return
 	tp._card(row, keys, _first(keys, view), plac)
+	var csc: ScrollContainer = tp.card_scrolls.get("store")
+	if csc != null:
+		csc.set_meta("max_h", maxf(tall - 24.0, 120.0))  # (a long card scrolls in its placard, never makes the car taller)
 
 
 ## What he says: a line of yours just now, his pay for the last climb, or a greeting.
@@ -155,7 +161,10 @@ func _line(prof) -> String:
 ## view the first node you could buy (else your rank's).
 func _first(keys: Array, view: String) -> String:
 	if view != "tree":
-		return keys[0] if not keys.is_empty() and not String(keys[0]).begins_with("tree:") else (keys.filter(func(k): return not String(k).begins_with("tree:")) + [""])[0]
+		for k in keys:
+			if not String(k).begins_with("tree:"):
+				return k
+		return ""
 	var prof = tp._prof()
 	for id in Outfitter.ORDER:
 		if Outfitter.status(prof, id) == "open":
@@ -233,7 +242,6 @@ func _grid_height(prof, supplies: int, pieces: int, charms: int, cols: int, widt
 		sh += head + frame + ceilf(float(prof.chest.size() + prof.vessels.size()) / sell_cols) * (StorageView.cell(small) + StorageView.GAP)
 	h += sh
 	return h + (6.0 if small else 10.0) * 4.0
-
 
 
 ## A section's furniture and its sign.

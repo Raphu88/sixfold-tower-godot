@@ -247,7 +247,7 @@ func _store_rules() -> void:
 	_check(Train.sell(prof, "chest", 0) != "" and prof.chest.is_empty() and prof.crystal_total("stone") == stone + got_c, "selling from the stash: a crystal of its kind (%d Stone)" % got_c)
 	var got_p := Train.gear_sell(prof.pack[0])
 	_check(Train.sell(prof, "pack", 0) != "" and prof.pack.is_empty() and prof.crystal_total("stone") == stone + got_c + got_p, "...and from the pack")
-	_check(Train.rack_shows(prof, p, G.make("axe"), "weapons") and not Train.rack_shows(prof, p, G.make("axe"), "armour") and Train.rack_shows(prof, p, G.make("plate"), "armour"), "the rack's filter shows weapons, or armour")
+	_check(not ("RACK_FILTERS" in Train) and not ("RACK_GROUPS" in Train), "the rack has no filter: everything shows at once (tests/parts/outfitter.gd)")
 	_reset()
 
 
@@ -470,26 +470,14 @@ func _store_screen() -> void:
 	_check(prof.chest.size() == 1 and G.same(prof.chest[0], g0), "Buy: into your stash")
 	var labels: Array = t._all_labels(menu).map(func(l): return l.text)
 	_check(labels.any(func(s): return s.contains(Train.TEXT["moved_chest"] % G.display(g0))), "...and the card says where it went")
-	var rack_f: Array = t._car_buttons("store_filter", "rack")
-	_check(rack_f.size() == 1, "the rack's filter")
-	if rack_f.size() == 1:
-		rack_f[0].change(2)  # (to Weapons)
-		await t._frames(3)
 	var shown: Array = t._all_buttons(menu.train_page.roots["store"]).filter(func(b): return String(b.get_meta("slot", "")).begins_with("outfit:"))
-	_check(menu.train_page.rack_filter == "weapons" and shown.all(func(b): return b.rec != null and G.slot_of(b.rec) in ["melee", "ranged"]), "...Weapons shows only weapons (%d)" % shown.size())
-	menu.train_page.rack_filter = "all"
-	# Selling: from the pack or the stash.
+	_check(shown.size() == Train.outfit(prof).size() and t._car_buttons("store_filter", "rack").is_empty(), "every rack piece shows at once, no filter (%d)" % shown.size())
+	# Selling: from the pack or the stash, on the same page.
 	prof.pack = [G.make("leather_cap")]
-	menu.train_store = "sell"
 	menu.inv_sel = ""
 	menu.open("train")
 	await t._frames(3)
-	var from: Array = t._car_buttons("store_filter", "from")
-	_check(from.size() == 1 and t._car_buttons("slot", "pack:0").size() == 1 and t._car_buttons("slot", "chest:0").size() == 1, "selling shows your pack and your stash, with where to sell from")
-	if from.size() == 1:
-		from[0].change(2)  # (Your stash)
-		await t._frames(3)
-	_check(menu.train_page.sell_from == "chest" and t._car_buttons("slot", "pack:0").is_empty() and t._car_buttons("slot", "chest:0").size() == 1, "...only the stash")
+	_check(t._car_buttons("slot", "pack:0").size() == 1 and t._car_buttons("slot", "chest:0").size() == 1, "the store's Sell section shows your pack and your stash")
 	menu.inv_sel = "chest:0"
 	menu.open("train")
 	await t._frames(2)
@@ -500,7 +488,6 @@ func _store_screen() -> void:
 			await t._frames(3)
 			sell = t._car_buttons("sell", "chest:0")
 	_check(prof.chest.is_empty(), "a stash piece sells (asking once first)")
-	menu.train_page.sell_from = "all"
 	menu.train_store = "shop"
 	menu.train_car = "personal"
 	menu.close()
@@ -557,9 +544,7 @@ func _one_look() -> void:
 				menu.close()
 				await t._frames(1)
 				menu.train_car = "store"
-				menu.train_store = "sell"
-				menu.train_page.sell_from = "all"
-				menu.train_page.sell_slot = "all"
+				menu.train_store = "shop"  # (the Sell section of the store's one page)
 				menu.open("train")
 				await t._frames(3)
 				root = menu.train_page.roots["store"]

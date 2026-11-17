@@ -769,12 +769,12 @@ class Sweep:
 		main.await_tower()
 		main.open_train()
 		await frames(3)
-		var views: Array = [["engine", "towers"], ["engine", "stations"], ["store", "shop"], ["store", "sell"], ["personal", ""], ["library", ""], ["library", "bestiary"], ["settings", "settings"], ["settings", "controls"]]
+		var views: Array = [["engine", "towers"], ["engine", "stations"], ["store", "shop"], ["store", "sell"], ["store", "tree"], ["personal", ""], ["library", ""], ["library", "bestiary"], ["settings", "settings"], ["settings", "controls"]]
 		for c in Bench.COUNTERS:
 			views.append(["workshop", c[0]])
 		views.append(["workshop", EssenceBench.COUNTER])
 		if light:
-			views = [["engine", "towers"], ["store", "shop"], ["store", "sell"], ["personal", ""], ["workshop", "brew"], ["workshop", "temper"], ["settings", "settings"], ["library", "bestiary"]]
+			views = [["engine", "towers"], ["store", "shop"], ["store", "tree"], ["personal", ""], ["workshop", "brew"], ["workshop", "temper"], ["settings", "settings"], ["library", "bestiary"]]
 		var tp = menu.train_page
 		for v in views:
 			var name := ("train %s %s" % [v[0], v[1]]).strip_edges()
@@ -787,7 +787,7 @@ class Sweep:
 					menu.train_board = v[1]
 				"store":
 					menu.train_store = v[1]
-					menu.train_sel["store"] = "pack:1" if v[1] == "sell" else "outfit:0"
+					menu.train_sel["store"] = "pack:1" if v[1] == "sell" else ("tree:fair_price" if v[1] == "tree" else "outfit:0")
 					menu.inv_sel = menu.train_sel["store"]
 				"personal":
 					menu.train_sel["personal"] = "chest:1"
@@ -807,9 +807,10 @@ class Sweep:
 			await settle()
 			var room: Control = menu.train_view.rooms[car]
 			await look(name, [room, menu.train_view.chrome, menu.rail])
-		if not light and wants("train store shop top"):
-			# The store at the top rank, wearing a title (shop.gd): the longest rail in
-			# pages, the fullest shelf, the title's line; then its second page.
+		if wants("train store shop top") or wants("train store tree top"):
+			# The store at the top rank, wearing a title (shop.gd): the longest rail,
+			# the fullest shelf and the title's line, all on one page (a list that
+			# scrolls where it doesn't fit); then the upgrade tree with nodes bought.
 			var prof = main.profile
 			var points: int = int(Renown.state(prof)["points"])
 			var worn: String = String(Renown.state(prof)["worn"])
@@ -817,23 +818,26 @@ class Sweep:
 			Renown.state(prof)["points"] = Renown.needed(Renown.RANKS.size() - 1)
 			Renown.state(prof)["titles"] = ["contender"]
 			Renown.state(prof)["worn"] = "contender"
+			var O = load("res://scripts/outfitter.gd")
+			var tree: Dictionary = O.state(prof).duplicate(true)
+			O.state(prof)["bought"] = ["fair_price", "scroll_aside", "wide_rack", "charm_tray", "better_stock", "rare_hook", "special_order", "staple_gift", "tower_tip", "best_buy"]
 			prof.store = {}
 			Train.stock(prof)
-			for pg in 2:
-				var nm := "train store shop top%s" % ("" if pg == 0 else " page 2")
+			for v in [["shop", "outfit:12"], ["tree", "tree:regular"]]:
+				var nm := "train store %s top" % v[0]
+				if not wants(nm) or (light and v[0] == "tree"):
+					continue
 				menu.train_car = "store"
-				menu.train_store = "shop"
-				menu.train_page.rack_page = pg
-				menu.train_page.shelf_page = 0 if pg == 0 else 2
-				menu.train_sel["store"] = "outfit:%d" % (0 if pg == 0 else 12)
+				menu.train_store = v[0]
+				menu.train_sel["store"] = v[1]
 				menu.inv_sel = menu.train_sel["store"]
 				menu.open("train")
 				await frames(2)
 				tp.go_to(tp._index("store"))
 				await settle()
 				await look(nm, [menu.train_view.rooms["store"], menu.train_view.chrome, menu.rail])
-			menu.train_page.rack_page = 0
-			menu.train_page.shelf_page = 0
+			menu.train_store = "shop"
+			prof.renown["outfitter"] = tree
 			Renown.state(prof)["points"] = points
 			Renown.state(prof)["worn"] = worn
 			Renown.state(prof)["titles"] = titles
@@ -842,7 +846,7 @@ class Sweep:
 		if not light:
 			# The store's other cards (a supply, today's piece, his upgrades) and
 			# your car's (what you wear, a pack piece, an empty space).
-			for v in [["store", "supply:draught"], ["store", "today"], ["store", "upgrades"], ["personal", "worn:armor"], ["personal", "pack:1"], ["personal", "chest:39"]]:
+			for v in [["store", "supply:draught"], ["store", "today"], ["store", "tree:special_order"], ["store", "tree:rank3"], ["personal", "worn:armor"], ["personal", "pack:1"], ["personal", "chest:39"]]:
 				var nm := "train %s card %s" % [v[0], v[1]]
 				if not wants(nm):
 					continue

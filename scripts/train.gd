@@ -464,7 +464,9 @@ static func paid_text(paid: Dictionary) -> String:
 static func stock(profile) -> void:
 	if profile.store.has("outfit"):
 		return
-	profile.store["outfit"] = roll_outfit(profile).map(func(g): return Gear.code(g))
+	var rolled := roll_outfit(profile)
+	profile.store["outfit"] = rolled.map(func(g): return Gear.code(g))
+	profile.store["kinds"] = rolled.map(func(g): return "charm" if Gear.is_gear(g) and Gear.slot_of(g) == "charm" else "gear")  # (which section each shows in, sold or not: store_page.gd)
 	profile.store["today"] = Gear.code(roll_today(profile))
 	profile.store["shelf"] = Shop.roll_shelf(profile)  # (shop.gd: the supplies for this visit, by your rank)
 	profile.store["title"] = String(Renown.state(profile).get("worn", ""))

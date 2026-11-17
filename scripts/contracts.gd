@@ -89,6 +89,7 @@ var main
 var item := {}  # the thing to retrieve on this floor: {"pos", "id", "name", "taken"}
 var planned := Vector2.INF  # where it waits, chosen as the floor was planned (plan_spot)
 var glow := -1
+var hint := ""  # the outfitter's word on which way the thing lies (his tree's "Where it lies"), "" for none
 var t := 0.0
 
 
@@ -457,6 +458,10 @@ func _put(o: Dictionary, best: Vector2) -> void:
 	if main.lighting != null:
 		glow = main.lighting.add_light(best, 90.0, KINDS_COLOR, 0.5, 0.2)
 	main.note_event("contract", status_of(o), KINDS_COLOR, false)
+	var Out = load("res://scripts/outfitter.gd")
+	if main.profile != null and Out.owns(main.profile, "contract_hint"):
+		hint = Out.hint_line(String(o["item"]), main.player_start, best)  # (his upgrade tree's word: which way it lies)
+		main.note_event("contract", hint, KINDS_COLOR, false)
 	queue_redraw()
 
 
@@ -465,6 +470,7 @@ func _clear_item() -> void:
 		main.lighting.remove_light(glow)
 	glow = -1
 	item = {}
+	hint = ""
 	queue_redraw()
 
 

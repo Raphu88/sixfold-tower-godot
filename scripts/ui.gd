@@ -68,6 +68,11 @@ const TRAIN_WINDOW := Color(1.0, 0.76, 0.42)
 const TRAIN_SMOKE := Color(0.72, 0.68, 0.74)
 const TRAIN_SKY := [Color(0.05, 0.04, 0.09), Color(0.17, 0.1, 0.17), Color(0.46, 0.25, 0.2)]
 const TRAIN_GROUND := Color(0.07, 0.06, 0.07)
+## The outfitter's upgrade tree (outfit_tree.gd): each branch's colour, and the trunk's.
+const OUTFIT_TREE := {
+	"prices": Color(0.95, 0.76, 0.36), "stock": Color(0.74, 0.6, 1.0), "gifts": Color(0.93, 0.45, 0.38),
+	"info": Color(0.45, 0.8, 0.84), "trunk": Color(0.58, 0.8, 0.46),
+}
 
 ## Text sizes (at the desktop scale; phones draw everything 1.5x bigger).
 ## Grenze is narrow for its size, so text can sit a point above what a

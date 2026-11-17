@@ -9032,12 +9032,11 @@ func _train_tests() -> void:
 	var cap_sell := maxi(1, int(round(round(float(T.BASE_PRICE["leather_cap"]) * T.RARITY_PRICE["common"]) * T.SELL_SHARE)))
 	_check(T.gear_kind(prof.pack[0]) == "stone" and T.gear_sell(prof.pack[0]) == cap_sell, "a Leather Cap sells for %d Stone" % cap_sell)
 	_check(T.gear_kind(prof.pack[1]) == "stone" and T.gear_price(prof.pack[1]) == 56 and T.gear_sell(prof.pack[1]) == 22, "a Rare Iron Helm of Vigor: 56 Stone, sells for 22")
-	var sign: Array = _car_buttons("store_tab", "sell")
-	_check(sign.size() == 1, "the outfitter's sign: sell to him")
-	if sign.size() == 1:
-		sign[0].pressed.emit()
-		await _frames(2)
-	_check(menu.train_store == "sell", "...shows what you brought down")
+	# (one page: what you brought down is the store's Sell section, beside what he sells)
+	menu.inv_sel = ""
+	menu.open("train")
+	await _frames(2)
+	_check(_car_buttons("slot", "pack:0").size() == 1 and _car_buttons("slot", "outfit:0").size() == 1, "the store shows what you brought down beside what he sells")
 	menu.inv_sel = "pack:0"
 	menu.open("train")
 	await _frames(2)

@@ -498,7 +498,17 @@ func _fit_card(car: String) -> void:
 	if row.get_parent() != root:
 		row = sc.get_parent().get_parent()
 	var want: float = sc.get_child(0).get_combined_minimum_size().y
-	var room := maxf(row.size.y - 30.0 - extra, 80.0)
+	var room := minf(maxf(row.size.y - 30.0 - extra, 80.0), float(sc.get_meta("max_h", INF)))
+	if sc.has_meta("max_h"):
+		# (the store's placard: a little room to spare, or its bar shown for
+		# good once it must scroll, so a wrapped line that comes out a line
+		# taller at one width than the next can't flick its bar on and off,
+		# each time narrowing what it holds, without end)
+		var spare := 24.0
+		var scrolls: bool = want + spare > room
+		sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS if scrolls else ScrollContainer.SCROLL_MODE_AUTO
+		sc.custom_minimum_size.y = clampf(room if scrolls else want + spare, 60.0, room)
+		return
 	sc.custom_minimum_size.y = clampf(want, 60.0, room)
 
 
