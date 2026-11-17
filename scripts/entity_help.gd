@@ -14,10 +14,16 @@ extends RefCounted
 ##                        for an empty one
 ##   buy, buy:chest, sell, equip, move:pack, put_back, brew, depart, tower...
 ##   bench_tab:<counter>, setting:<setting>, tab:<tab>, pick:<kind>...
+##   furnish:<kind>       a piece of the train's furniture (not a button: the
+##                        pointer on it, or a finger held on it)
 ## A key with no entry of its own falls back to the part before its last ":"
 ## ("bench_tab:vessel" -> "bench_tab"). A button with no entry at all says
 ## its own words (tests/parts/entity_train.gd lists any train button that
 ## has none, so none is forgotten).
+##
+## COMMENTS: under the explanation, a short comment in the Entity's own voice,
+## by the kind of thing (the part of the key before ":" or "_", else "any").
+## One is picked for each button and stays the same for it.
 ##
 ## In the words, {name} is filled in from the game as it is now (facts
 ## below): {piece} (the piece or item), {desc} (what it does, from its own
@@ -248,9 +254,78 @@ static var HELP := {
 	"dine:trade_buy": "{words}. Your piece leaves your stash; their crystals are yours.",
 	"dine:duel_stake": "Fights for this: {words}. Win and you take theirs; lose and they take yours.",
 	"dine:duel_go": "Into the Arena car. First to yield loses; nobody dies. Back here after.",
+	# --- the train's furniture (not buttons: the pointer resting on it) ---------------------------------
+	"furnish:board": "The Engine's board: the six towers, or the stations between them. Choose one, then pull the lever.",
+	"furnish:rack": "What you'll wear on your next climb, piece by piece. Choose a slot to change it.",
+	"furnish:pack": "Your pack: what's in it goes up the tower with you, and can be lost there.",
+	"furnish:chest": "Your stash: what's in it stays safe on the train.",
+	"furnish:shelf": "The outfitter's shelf: supplies for your belt.",
+	"furnish:rail": "The outfitter's rack: pieces to wear. It fills again after every climb.",
+	"furnish:case": "The glass case: today's piece, a new one after every climb.",
+	"furnish:drawers": "The bench's drawers: each opens one kind of work.",
+	"furnish:bookcase": "The Library's shelves: everything I've told you, by subject, and the Bestiary.",
+	"furnish:lectern": "The lectern: the volume you chose, open at the subject you chose.",
+	"furnish:signal": "The settings panel: sound, screen, sizes, my words, and every key.",
+	"furnish:brake": "The emergency brake: Start over this climber. It asks first.",
+	"furnish:tables": "The Dining Car's tables: climbers resting between towers. Choose one to talk.",
+	"furnish:placard": "The car's placard: what this car is for.",
 	# --- anywhere ----------------------------------------------------------------------------------------
 	"back": "Back where you came from.",
 	"close": "Closes this page.",
+}
+
+## The Entity's comment under an explanation, by the kind of thing (the
+## part of its key before ":" or "_"; "any" for everything else). Short,
+## dry, in its own voice; never the story.
+static var COMMENTS := {
+	"rail": ["Every door on this train leads somewhere. Most of them lead back here.", "I've walked this rail more often than you have.", "Choose a car. The train won't mind."],
+	"slot": ["A small thing. Small things matter up there.", "I'd keep an eye on that one.", "Everything you carry tells me something about you.", "Weigh it well. The tower will."],
+	"buy": ["The outfitter remembers who pays.", "Crystals spent are crystals that can't be lost. Some comfort.", "A fair price, by his reckoning."],
+	"sell": ["What came down the tower can go to someone else.", "He'll find a use for it. He always does.", "Lighter pockets, heavier purse."],
+	"put": ["Second thoughts are allowed. Here, at least."],
+	"tower": ["Each of them is waiting. Patiently.", "I know every stair in there. You'll learn them.", "Its beast is listening. It usually is."],
+	"depart": ["The lever is the easy part.", "Pull it when you're ready. Or a little before.", "Off you go, then. I'll be watching."],
+	"station": ["A stop between towers. A breath, nothing more.", "Other climbers wait there. Some of them are worth meeting."],
+	"go": ["A stop between towers. A breath, nothing more."],
+	"board": ["The board knows where the rails go. I know a little more."],
+	"store": ["He sorts his goods better than he sorts his thoughts.", "Look twice. He prices things once."],
+	"equip": ["It suits you. Mostly.", "Wear it well. The tower notices."],
+	"move": ["Up the tower, or safe on the train. Choose what you can lose.", "Sorting is a kind of planning."],
+	"unequip": ["Off it comes. It'll keep."],
+	"brew": ["Bubbles, steam, a smell I won't describe. Useful, though."],
+	"bench": ["The bench has seen worse ideas than yours. Not many.", "Patient work. The tower rewards it, eventually.", "Mind your fingers."],
+	"retrait": ["Change one thing and the rest follow. Sometimes."],
+	"join": ["Two become one. It's tidier that way."],
+	"inscribe": ["A rune is a promise you can't take back."],
+	"vessel": ["It holds what the tower would rather keep."],
+	"tech": ["Six buttons, six habits. Choose good ones."],
+	"shelf": ["I wrote all of it down. You may as well read it.", "Some of these I said more than once. You're welcome."],
+	"archive": ["I don't mind repeating myself. Much.", "Every word as I said it. Nothing is lost here."],
+	"bestiary": ["Know what bites. It helps.", "They learn you as you learn them. Remember that."],
+	"help": ["I could stay quiet. I don't think you'd like it."],
+	"panel": ["Adjust what you must. The tower won't."],
+	"tab": ["Another page. There's always another page.", "Turn it. I'll wait."],
+	"ribbon": ["Your book keeps what you are. I keep what you did."],
+	"setting": ["Change what you like. The tower won't.", "Quieter, louder, bigger. I'll wait.", "Your comfort matters. To one of us, anyway."],
+	"choice": ["Change what you like. The tower won't."],
+	"over": ["Some climbers start over. Not many come back the same.", "Think on it. I'll remember either way."],
+	"car": ["Your car, your things. I only look.", "Everything here is yours. For now."],
+	"open": ["Everything you keep, in one place. Tidy."],
+	"cycler": ["Order helps. A little."],
+	"pick": ["Choose. Then live with it, mostly.", "I've seen that go well. And badly."],
+	"ability": ["Know what you can do before the tower asks.", "Practice beats hope. Usually."],
+	"map": ["Your body keeps score. The map shows it."],
+	"try": ["Dummies don't hit back. Enjoy it."],
+	"steps": ["Each step costs essence. Each step is worth it, mostly."],
+	"change": ["Six buttons, six habits. Choose good ones."],
+	"part": ["Every mark is a story your body tells. Read it."],
+	"bud": ["Choices on the Tree are for good. Look before you choose.", "One branch closes as another opens."],
+	"tree": ["For good, mind. The Tree doesn't forget."],
+	"dine": ["They talk more over a meal. Most do.", "Listen closely. Some of them mean it.", "A climber at rest is a climber with stories."],
+	"furnish": ["Brass, velvet and old wood. Someone cared, once.", "The train keeps everything in its place. I like that about it.", "Look closer. Everything here has a use."],
+	"back": ["Back, then. Nothing's lost.", "Retreat is a kind of plan."],
+	"close": ["Done here? I'll keep it as it is."],
+	"any": ["I'd press it. Eventually.", "Simple enough. Mostly.", "You'll see. I already have.", "Go on. I'm watching."],
 }
 
 ## Small words the explanations are made with (and the Settings switch).
@@ -279,6 +354,7 @@ const TAGS := [
 	["shelf", "shelf"], ["archive", ""], ["bestiary", ""], ["bestiary_locked", ""], ["panel_tab", "v"], ["ribbon", "tabbed"], ["tab", "v"], ["choice_key", "setting"], ["setting", "setting"],
 	["over", ""], ["car_page", "v"], ["open_stash", ""], ["cycler", "v"], ["pick", "head"], ["station_do", "v"],
 	["map_link", ""], ["ability", ""], ["try_abilities", ""], ["change_techniques", ""], ["part", ""], ["bud", ""], ["tree_act", "v"], ["back", ""], ["close", ""],
+	["furnish", "v"],
 ]
 
 
@@ -360,6 +436,28 @@ static func explain(m, b: Control) -> String:
 		if text == "" and f.has("piece"):
 			text = "{piece}"
 	return tidy(Entity.fill_words(text, f))
+
+
+## The Entity's comment on a button (COMMENTS, by its kind): the same one for
+## the same button each time; "" for none.
+static func comment(b: Control) -> String:
+	if b == null or not is_instance_valid(b):
+		return ""
+	var key := key_for(b)
+	var list: Array = COMMENTS.get(comment_kind(key), COMMENTS.get("any", []))
+	if list.is_empty():
+		return ""
+	return String(list[posmod(hash(key + "|" + words(b)), list.size())])
+
+
+## The COMMENTS kind for a key: the part before ":" ("slot:pack" -> "slot"),
+## else before "_" ("bench_tab:brew" -> "bench"), else "any".
+static func comment_kind(key: String) -> String:
+	var head := key.get_slice(":", 0)
+	if COMMENTS.has(head):
+		return head
+	head = head.get_slice("_", 0)
+	return head if COMMENTS.has(head) and head != "" else "any"
 
 
 ## Drops any blank left unfilled and the spaces around it.

@@ -20,14 +20,11 @@ extends RefCounted
 ## apart, so the Entity never chatters. Everything here is in the Data
 ## editor ("The Entity's words").
 
-## Seconds: between two tidbits, before the same key speaks again, how long
-## a one-line bubble stays (plus PER_CHAR for each letter), and how long one
-## may wait for its turn before it's dropped as stale.
+## Seconds: between two tidbits, and before the same key speaks again. How
+## long a one-line bubble stays, and how long one may wait for its turn
+## before it's dropped as stale, are in entity.gd TIMING.
 const GAP := 7.0
 const COOLDOWN := 45.0
-const LIFE := 3.6
-const LIFE_PER_CHAR := 0.035
-const STALE := 9.0
 
 ## Each tower's own systems (their "system:" keys): one of these, or one of
 ## the tower's own lines, is said on arriving at a floor there.
@@ -210,6 +207,16 @@ static var LORE := {
 }
 
 ## What the Entity says when you open its panel.
+## Its comment under a HUD slot's card in play (the mouse resting on a
+## slot, a bar or a mark): one per thing, picked by the card's first word.
+static var HOVER := [
+	"Know what you carry. The tower already does.",
+	"Look all you like. The fight won't wait long.",
+	"I keep count of these too.",
+	"Small numbers, big consequences.",
+	"Worth a glance. Then back to it.",
+]
+
 static var QUIPS := [
 	"Yes? I was counting.",
 	"You rang.",

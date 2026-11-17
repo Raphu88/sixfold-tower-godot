@@ -992,7 +992,7 @@ func _show_said() -> void:
 			var e: Dictionary = Entity.TIPS.get(id, {})
 			if e.is_empty():
 				continue
-			var row := Entity.says(Entity.fill_keys(e["tip"], _key_mode(), ps), face, String(e["name"]).to_upper())
+			var row := Entity.says(Entity.fill_keys(e["tip"], _key_mode(), ps), face, String(e["name"]).to_upper(), false)
 			row.set_meta("entity", id)
 			said_box.add_child(row)
 			var more: Label = m._label(Entity.fill_keys(e["more"], _key_mode(), ps), 0.0, UI.DIM)

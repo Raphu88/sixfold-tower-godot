@@ -3423,9 +3423,13 @@ func tip(id: String) -> bool:
 
 
 ## The same, inside a menu (the train): the tip's line to show there and
-## then the first time, else "" (guide.gd tell).
-func tip_now(id: String) -> String:
-	return GuideScript.tell(id)
+## then the first time, else "" (guide.gd tell). Shown as the Entity's line
+## on a page (entity.gd says), it stays until it's sent away: until then
+## the page built again gets it again (`hold`; false where it isn't shown
+## as such a line).
+func tip_now(id: String, hold := true) -> String:
+	var said: String = GuideScript.tell(id)
+	return said if said != "" or not hold else GuideScript.still(id)
 
 
 func menu_open() -> bool:

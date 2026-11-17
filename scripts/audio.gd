@@ -13,6 +13,11 @@ const NO_STACK_MS := 40  # the same sound twice at once only gets louder
 const UI_GAP_MS := 70  # menu sounds share one gap, so opening a page doesn't click twice
 const VOICES := 24  # sounds that can play at once
 const MAX_SAME := 4  # copies of one sound at once; a fifth replaces the oldest
+## Sounds that play often from many places, kept to at most one every this
+## many msec (the rest are skipped): fire's crackle comes from a Flameblade's
+## swings at full heat, standing in fire, burning ground and every fire
+## spell, and a crackle on each of them at once turned into a rattle.
+const GAP_MS := {"burn": 250}
 
 ## Per-sound trim in dB, on top of the levels baked in by the build tool.
 const TRIM := {}
@@ -123,7 +128,7 @@ func play(sound: String, pitch := 1.0, volume_db := 0.0, variance := 0.05) -> vo
 		return
 	var now := Time.get_ticks_msec()
 	var key := "ui" if sound.begins_with("ui_") else sound
-	if now - int(last_played.get(key, -100000)) < (UI_GAP_MS if key == "ui" else NO_STACK_MS):
+	if now - int(last_played.get(key, -100000)) < (UI_GAP_MS if key == "ui" else int(GAP_MS.get(key, NO_STACK_MS))):
 		return
 	last_played[key] = now
 	var list: Array = streams[sound]

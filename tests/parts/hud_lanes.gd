@@ -594,7 +594,7 @@ func _tidbits() -> void:
 	await t._wait(0.4)
 	_check(en.current.get("kind", "") == "bit" and en.current["text"] == Notes.TIDBITS["stair"][0] and en.bits == bits0 + 1 and en.rect.has_area() and en.rect.size.y < 70.0,
 		"it shows as one short line beside the sphere (%s)" % en.rect)
-	_check(en.life < Guide.LIFE_MIN, "...for a few seconds, less than a first-time tip")
+	_check(en.life < Guide.tip_life(String(en.current["text"])) and en.life >= 2.0 * (3.6 + String(en.current["text"]).length() * 0.035) - 0.01, "...for a while (twice what it was), less than a first-time tip of the same length")
 	en.shown_t = en.life
 	await t._until_no_bubble()
 	_check(not en.showing() and en.last_note.get("text", "") == Notes.TIDBITS["stair"][0], "it goes by itself; the panel keeps it as the last thing said")

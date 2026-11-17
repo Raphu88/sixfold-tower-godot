@@ -182,7 +182,7 @@ static func _edit(menu, spell_id: String, aspect: String, delta: int) -> void:
 		main.profile.save()
 		main._give_bonds()
 		main.sfx("glint", 1.1, -4.0, 0.0)
-		var told: String = main.tip_now("tool_edit_developer")
+		var told: String = main.tip_now("tool_edit_developer", false)
 		if told != "":
 			menu.toast = told
 	menu.open("climber", menu.opened_direct)
@@ -232,7 +232,7 @@ static func _move(menu, from: String, to: String) -> void:
 		main._give_bonds()
 		menu.toast = SB.TEXT["move_done"] % [main.BondScript.Bonds.BONDS[id]["name"], main.BondScript.PART_NAMES[to]]
 		main.sfx("glint", 0.9, -4.0, 0.0)
-		var told: String = main.tip_now("tool_write")
+		var told: String = main.tip_now("tool_write", false)
 		if told != "":
 			menu.toast += "  " + told
 	menu.open("climber", menu.opened_direct)
@@ -299,7 +299,7 @@ static func _tune(menu, spell_id: String, mode: String) -> void:
 		main.profile.save()
 		main._give_bonds()
 		main.sfx("glint", 1.1, -4.0, 0.0)
-		var told: String = main.tip_now("tool_tune")
+		var told: String = main.tip_now("tool_tune", false)
 		if told != "":
 			menu.toast = told
 	menu.open("climber", menu.opened_direct)
@@ -327,7 +327,7 @@ static func _path(menu) -> void:
 	main.reset_path()
 	menu.set_meta("path_drain", {"path": was, "step": step, "t0": Time.get_ticks_msec()})
 	menu.toast = SB.TEXT["path_done"] % Secret.display(was)
-	var told: String = main.tip_now("tool_path")
+	var told: String = main.tip_now("tool_path", false)
 	if told != "":
 		menu.toast += "  " + told
 	menu.toast_t = 4.0

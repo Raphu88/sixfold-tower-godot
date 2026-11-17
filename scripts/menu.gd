@@ -113,6 +113,11 @@ const PINNED_FOOTER := ["climber", "inventory", "mark", "train"]
 const FOOT_H := 54.0
 var toast := ""
 var toast_t := 0.0
+## A toast the Entity said on a page (its answer to a choice there): it
+## stays on that page until it's sent away (entity_helper.gd send_away), with
+## no timer; another page lets it go.
+var said_toast := ""
+var _said_toast_on := ""
 var confirm_back := ""  # the page "Cancel" returns to
 var backdrop: Control  # the title screen's drawing (title.gd), behind the title and its pages
 var shade: ColorRect
@@ -1074,6 +1079,9 @@ func open(which: String, direct := false) -> void:
 	if (keep < 0 or which == "mark") and not _quiet:
 		scroll.scroll_vertical = 0  # (another mark starts at its top)
 	if main != null and which != "title" and keep < 0 and not _quiet: main.sfx(("ui_bag" if which == "inventory" else "ui_open") if was_closed else "ui_confirm")
+	# (how its lines on the page are sent away, for the device in use: entity.gd says)
+	Entity.away_how = String(Entity.TEXT["away_touch"]) if main != null and main.touch_active else \
+		((("R3" if main.pad_ps else "RS") if main != null and main.pad_active else String(Entity.TEXT["away_keys"])))
 	call("_page_" + which)
 	_prompts_for = _input_mode()  # (input_changed: written for the input in use)
 	var list := focusables()
@@ -2027,10 +2035,23 @@ func _climber_record(prof) -> void:
 func _entity_says(key: String, heading := "") -> void:
 	var seed: int = 0 if main == null else main.floor_num + main.profile.climbs * 7
 	# (Just after a choice here, it answers that instead.)
-	var said := Entity.says(toast if toast != "" else Entity.line(key, seed), 34.0 if compact() else 44.0, heading)
+	var answer := entity_toast()
+	var said := Entity.says(answer if answer != "" else Entity.line(key, seed), 34.0 if compact() else 44.0, heading)
 	said.set_meta("entity", key)
 	box.add_child(said)
 	_gap(0 if compact() else 2)
+
+
+## The toast for the Entity to say on this page: a new one, or the last one
+## it said here and hasn't been sent away ("" for none).
+func entity_toast() -> String:
+	var here := "%s|%s|%s" % [page, train_car, climber_tab]
+	if toast != "":
+		said_toast = toast
+		_said_toast_on = here
+	elif _said_toast_on != here:
+		said_toast = ""
+	return said_toast
 
 
 ## The Library: the Entity's Archive. On the train, its own car; in a climb, a page beside the rail.
@@ -2148,7 +2169,7 @@ func archive_group(gid: String, mode: String, ps: bool, columns := 2) -> void:
 				_primary(b)
 		if archive_open != "" and archive_open in ids:
 			var e: Dictionary = Entity.TIPS[archive_open]
-			var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper())
+			var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper(), false)
 			said.set_meta("archive_open", archive_open)
 			box.add_child(said)
 			_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
@@ -2268,7 +2289,7 @@ func _maker_shelves(mode: String, ps: bool, columns := 2) -> void:
 			_primary(b)
 	if archive_open in known:
 		var e: Dictionary = Entity.TIPS[archive_open]
-		var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper())
+		var said := Entity.says(Entity.fill_keys(e["tip"], mode, ps), 30.0, String(e["name"]).to_upper(), false)
 		said.set_meta("archive_open", archive_open)
 		box.add_child(said)
 		_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
@@ -3369,7 +3390,7 @@ func leave_talk() -> void:
 ## buttons; Goodbye (or Esc, B) leaves.
 func _page_talk() -> void:
 	var small := compact()
-	var said := Entity.says(talk.line, 38.0 if small else 52.0)
+	var said := Entity.says(talk.line, 38.0 if small else 52.0, "", false)
 	said.set_meta("talk_line", talk.line)
 	box.add_child(said)
 	_gap(2 if small else 6)

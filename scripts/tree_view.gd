@@ -100,7 +100,7 @@ static func build(menu) -> void:
 	if TreeRules.is_fork_ready(prof):
 		var told: String = main.tip_now("tree_fork")
 		if told != "":
-			menu._text(told, menu.GOLD.lightened(0.2), true)
+			menu.box.add_child(menu.Entity.says(told, 30.0 if small else 38.0))
 	var sel := _selected(menu, nodes)
 	var map := TreeMap.new()
 	map.menu = menu

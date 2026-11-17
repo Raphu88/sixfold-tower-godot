@@ -457,7 +457,16 @@ func _talk() -> void:
 	var main = t.main
 	await _car("personal")
 	await t._wait(0.9)
-	# A click on the sphere.
+	# A click on the sphere: its line on the car is sent away first (it stays
+	# until it is: entity_helper.gd send_away), then a click talks.
+	var on_car: Array = h.lines_up()
+	if not on_car.is_empty():
+		t._mouse_move(h.pos)
+		await t._frames(1)
+		await t._click_at(h.pos)
+		await t._frames(3)
+		_check(menu.page == "train" and not on_car[0].visible and h.lines_up().is_empty(), "a click on the sphere first sends its line on the car away")
+		load("res://scripts/entity.gd").gone.clear()  # (the line may say its piece again in later tests)
 	t._mouse_move(h.pos)
 	await t._frames(1)
 	await t._click_at(h.pos)
@@ -559,8 +568,13 @@ func _talk() -> void:
 	await t._key_tap(KEY_ESCAPE)
 	await t._frames(3)
 	_check(menu.page == "train" and menu.train_car == "personal", "Esc leaves the talk, back on the car")
-	# L opens it from the train; Goodbye leaves.
+	# L opens it from the train (its line on the car is sent away first); Goodbye leaves.
 	menu.nav_keys = true
+	if not h.lines_up().is_empty():
+		await t._key_tap(KEY_L)
+		await t._frames(3)
+		_check(menu.page == "train" and h.lines_up().is_empty(), "L first sends the Entity's line on the car away")
+		load("res://scripts/entity.gd").gone.clear()
 	await t._key_tap(KEY_L)
 	await t._frames(3)
 	_check(menu.page == "talk", "L talks with the Entity on the train")

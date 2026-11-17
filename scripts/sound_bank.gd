@@ -48,7 +48,7 @@ const SFX := {
 	"charge": ["res://assets/audio/sfx/charge_0.wav"],
 	"zap": ["res://assets/audio/sfx/zap_0.wav", "res://assets/audio/sfx/zap_1.wav"],
 	"gust": ["res://assets/audio/sfx/gust_0.wav"],
-	"burn": ["res://assets/audio/sfx/burn_0.wav"],
+	"burn": ["res://assets/audio/sfx/burn_0.wav", "res://assets/audio/sfx/burn_1.wav", "res://assets/audio/sfx/burn_2.wav", "res://assets/audio/sfx/burn_3.wav", "res://assets/audio/sfx/burn_4.wav"],
 	"hiss": ["res://assets/audio/sfx/hiss_0.wav", "res://assets/audio/sfx/hiss_1.wav"],
 	"glint": ["res://assets/audio/sfx/glint_0.wav"],
 	"warn_knight": ["res://assets/audio/sfx/warn_knight_0.wav"],

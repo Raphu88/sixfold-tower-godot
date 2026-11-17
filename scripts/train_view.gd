@@ -1857,6 +1857,7 @@ class Furnish extends PanelContainer:
 	func _init(k := "plain", small := false) -> void:
 		kind = k
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_meta("furnish", k)  # (the Entity says what it is when it's pointed at: entity_help.gd furnish:)
 		var st := StyleBoxEmpty.new()
 		var m: Array = MARGINS.get(k, MARGINS["plain"])
 		var f := 0.75 if small else 1.0
