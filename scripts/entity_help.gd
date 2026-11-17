@@ -72,17 +72,15 @@ static var HELP := {
 	"station": "{station}: a stop between towers. Choose it, then pull its lever.",
 	"go_station": "Stops the train at {station}.",
 	# --- the outfitter's car ------------------------------------------------------------------
-	"store_tab:sell": "The outfitter buys what you brought down: pieces from your pack and stash.",
-	"store_tab:shop": "Back to the shelves: supplies, the rack and today's piece.",
-	"store_filter:rack": "Filters the rack: everything, what beats yours, weapons, armour, cloaks and packs.",
-	"store_filter:from": "Where to sell from: pack and stash, only your pack, or only your stash.",
-	"store_filter:slot": "Shows only the pieces for one slot.",
-	"store_filter:shelf": "Turns the shelf's page: a fuller shelf, which comes with a higher rank, is shown in pages.",
-	"store_filter:page": "Turns the rail's page: a long rail, which comes with a higher rank, is shown in pages.",
-	"slot:upgrades": "The outfitter's upgrades: {count} of 5 so far. Renown unlocks the rest.",
+	"store_tab:tree": "Shows the outfitter's upgrade tree: your rank is its trunk, and you buy its nodes with crystals.",
+	"store_tab:shop": "Back to the goods: consumables, weapons and armour, charms, and selling.",
+	"slot:tree": "{piece}: {desc} {state}",
+	"tree_buy": "Buys {piece} for {price}, for good: {desc}",
+	"slot:unique": "{piece}, {price}: a relic he brought out for you, once. {versus}",
+	"slot:unique:empty": "Nothing waits here.",
 	"slot:supply": "{piece}, {price}: {desc}. It goes on your belt for your next climb.",
-	"slot:outfit": "{piece} on the rack, {price}. {versus}",
-	"slot:outfit:empty": "Sold. The rack fills again after your next climb.",
+	"slot:outfit": "{piece} on his rail, {price}. {versus}",
+	"slot:outfit:empty": "Sold. The rail fills again after your next climb.",
 	"slot:today": "Today's piece: {piece}, {price}. A new one after every climb. {versus}",
 	"slot:today:empty": "Today's piece is sold. A new one after your next climb.",
 	"slot:order": "{piece}: the outfitter is holding it for you.",
@@ -272,7 +270,7 @@ static var TEXT := {
 ## the tag alone; the rest are worked out in key_for.
 const TAGS := [
 	["help", "raw"], ["rail", "v"], ["slot", "slot"], ["buy", "buy"], ["tower", ""], ["depart", ""], ["go_station", ""], ["station", ""],
-	["board", "v"], ["store_tab", "v"], ["store_filter", "v"], ["put_back", ""], ["sell", ""],
+	["board", "v"], ["store_tab", "v"], ["tree_buy", ""], ["put_back", ""], ["sell", ""],
 	["equip", ""], ["move", "move"], ["unequip", "tail"], ["brew", ""], ["bench_tab", "v"], ["bench_drawer", "v"],
 	["bench_do", "v"], ["retrait", ""], ["retrait_pick", ""], ["join", ""], ["inscribe", ""],
 	["vessel_pack", ""], ["vessel_trade", ""], ["vessel_brew", ""],
@@ -513,10 +511,10 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
 		if s.begins_with("bench:craft:"):
 			f["price"] = Train.paid_text(Bench.craft_cost(s.get_slice(":", 2)))
-		if (s.begins_with("outfit:") or s == "today" or s == "order") and prof != null and Gear.is_gear(b.get("rec")):
+		if (s.begins_with("outfit:") or s == "today" or s == "order" or s == "unique") and prof != null and Gear.is_gear(b.get("rec")):
 			f["price"] = Train.price_text(Train.gear_kind(b.get("rec")), Train.buy_price(prof, b.get("rec")))
-		if s == "upgrades" and prof != null:
-			f["count"] = str(Train.upgrades_done(prof))
+		if s.begins_with("tree:") and prof != null:
+			_tree_facts(prof, s.substr(5), f)
 		if s.begins_with("chest:") and prof != null:
 			f["count"] = String(TEXT["counted"]) % [prof.chest.size(), Train.CHEST_SIZE]
 		if s.begins_with("bench:"):
@@ -527,11 +525,13 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		if Gear.is_gear(g):
 			_piece_facts(m, g, f)
 			if head == "sell":
-				f["price"] = Train.price_text(Train.gear_kind(g), Train.gear_sell(g))
+				f["price"] = Train.price_text(Train.gear_kind(g), Train.gear_sell(g, prof))
 			elif head == "buy" and prof != null:
 				f["price"] = Train.price_text(Train.gear_kind(g), Train.buy_price(prof, g))
 		elif head == "bench_do" and String(m.inv_sel).begins_with("bench:supply:"):
 			_item_facts(String(m.inv_sel).get_slice(":", 2), f)
+	if head == "tree_buy" and prof != null:
+		_tree_facts(prof, str(b.get_meta("tree_buy")), f)
 	if key == "buy:supply" and prof != null:
 		var bk := str(b.get_meta("buy"))
 		var id := Items.old_id(bk)
@@ -605,6 +605,24 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 	if head == "pick":
 		_pick_facts(m, str(b.get_meta("pick")), f)
 	return f
+
+
+## A node of the outfitter's upgrade tree (outfitter.gd): its name, what it
+## does, its price, and whether it's yours, open or what it still needs.
+static func _tree_facts(prof, id: String, f: Dictionary) -> void:
+	var O = load("res://scripts/outfitter.gd")
+	if not O.exists(id):
+		return
+	f["piece"] = O.node_name(id)
+	f["desc"] = O.node_desc(id)
+	f["price"] = Train.price_text(Train.ANY, O.cost(id))
+	var st: String = O.status(prof, id)
+	if O.is_trunk(id):
+		f["state"] = String(O.TEXT["reached"] if st == "bought" else O.TEXT["to_reach"] % [Renown.rank_name(O.trunk_rank(id)), Renown.needed(O.trunk_rank(id))])
+	elif st == "locked":
+		f["state"] = String(O.TEXT["needs"]) % ", ".join(O.locks(prof, id))
+	else:
+		f["state"] = String(O.TEXT["bought"] if st == "bought" else O.TEXT["ready"])
 
 
 static func _counter_name(id: String) -> String:

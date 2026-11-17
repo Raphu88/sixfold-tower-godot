@@ -119,8 +119,11 @@ static var DIALOGUE := {
 		"lines": ["Your bag sets how many spare pieces your pack holds: {bag_none} with none, {bag_sizes}. Small bags never slow you. A big one does once it's nearly full, {heavy_at} of its spaces or more, and the pack's heading says \"heavy\". Lighten it and you're quick again."],
 		"choices": ["how_shop", "how_charms", "how", "bye"]},
 	"how_shop": {"ask": "How does the shop change?", "fact": "rules",
-		"lines": ["The outfitter's stock follows your rank. Higher up: more spaces on his rail (up to {rail_most}, in pages), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, and now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail toward pieces that suit it, and his rail says so; some titles also add an item, take a little off or keep a Fine piece for you."],
-		"choices": ["how_renown", "how", "bye"]},
+		"lines": ["His stock follows your rank: that's the trunk of his upgrade tree. Higher up: more on his rail (up to {rail_most}, all shown at once), more kinds on the shelf (up to {kinds_most}), more Fine and Rare pieces, pistols and crossbows from {gun_rank}, now and then a named piece or a relic. It's new every visit. The title you wear tilts his rail, and some titles take a little off. The rest you buy on his tree."],
+		"choices": ["how_shop_tree", "how_renown", "how", "bye"]},
+	"how_shop_tree": {"ask": "How does his upgrade tree work?", "fact": "rules",
+		"lines": ["Your rank is the trunk; four branches grow from it: Prices, Stock, Gifts, Info. A node opens at its rank once the one below it is yours; {tree_titled} also need a title from the Noble. Buy it with crystals of any kind and it's yours for good; there are {tree_total} in all. Discounts from the tree and your worn title stop at {tree_cap} off. Choose a node and its card says what it does."],
+		"choices": ["how_shop", "how_renown", "how", "bye"]},
 	"how_ward": {"ask": "Why won't the stair open?",
 		"lines": ["Most floors have one task, and the stair is warded until it's done: braziers, levers, runes, an orb, a puzzle. The banner names it, a line under it counts it, and an arrow points at what's left. Done, the stair opens, and a reliquary beside it offers one of three."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -633,7 +636,12 @@ static func _fact_rules() -> Dictionary:
 	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
 	var Shop = load("res://scripts/shop.gd")
 	var last: Dictionary = Shop.RANK_STOCK[-1]
-	f["rail_most"] = Train.RACK_SIZE + int(Train.UPGRADE_FX["rack_extra"]) + int(last["rail"])
+	var Out = load("res://scripts/outfitter.gd")
+	f["rail_most"] = Train.RACK_SIZE + int(Out.FX["rack_extra"]) + int(last["rail"])
+	var titled: int = Out.ORDER.filter(func(id): return String(Out.NODES[id].get("title", "")) != "").size()
+	f["tree_titled"] = "%d of them" % titled
+	f["tree_total"] = Out.ORDER.size()
+	f["tree_cap"] = "%d%%" % int(round(float(Out.FX["discount_cap"]) * 100.0))
 	f["kinds_most"] = int(last["kinds"])
 	f["gun_rank"] = R.rank_name(int(Shop.WEAPON_RANK.get("flintlock", 0)))
 	var Charms = load("res://scripts/charms.gd")

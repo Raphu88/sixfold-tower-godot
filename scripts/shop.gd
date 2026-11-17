@@ -4,9 +4,11 @@ extends RefCounted
 ## easy to change. No story: the owner writes that.
 ##
 ## The outfitter's stock grows with your renown rank (RANK_STOCK, one row
-## per rank in renown.gd RANKS):
-##   rail      more spaces on the outfit rail (on top of his "wide rack"
-##             upgrade); a long rail is shown in pages of about ten
+## per rank in renown.gd RANKS). This is the TRUNK of his upgrade tree
+## (outfitter.gd): free, each rank; the tree's branches add more on top
+## (a wider rack, a charm tray, better stock, a Rare on the hook).
+##   rail      more spaces on the outfit rail (on top of a wider rack);
+##             every piece shows at once, on one page (store_page.gd)
 ##   charms    more charms among the rail's pieces (charms.gd SHOP says the
 ##             first one)
 ##   fine, rare, named, relic   the chances (in 100) that a rail piece is
@@ -39,9 +41,9 @@ const TRAIN := "res://scripts/train.gd"  # (loaded when needed: the train preloa
 ## One row per renown rank, Unknown first.
 static var RANK_STOCK := [
 	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 6},
-	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8},
-	{"rail": 1, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10},
-	{"rail": 2, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 11},
+	{"rail": 1, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8},
+	{"rail": 2, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10},
+	{"rail": 3, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 11},
 	{"rail": 4, "charms": 1, "fine": 30, "rare": 6, "named": 8, "relic": 0, "kinds": 12},
 	{"rail": 6, "charms": 2, "fine": 35, "rare": 10, "named": 12, "relic": 8, "kinds": 13},
 	{"rail": 8, "charms": 2, "fine": 40, "rare": 14, "named": 18, "relic": 16, "kinds": 14},
@@ -107,7 +109,6 @@ static var TITLE_STOCK := {
 
 static var TEXT := {
 	"rail_title": "Rail",
-	"page": "Page %d of %d",
 	"title_line": "For %s",
 	"shelf_title": "For %s: %s",
 }
@@ -161,9 +162,11 @@ static func rail_extra(profile) -> int:
 	return int(row(profile)["rail"])
 
 
-## How many charms hang on the rail (charms.gd SHOP says the first).
+## How many charms he offers (charms.gd SHOP says the first; his tree's
+## charm tray adds one).
 static func charm_count(profile) -> int:
-	return int(Charms.SHOP["rack"]) + int(row(profile)["charms"])
+	var tray: int = load("res://scripts/outfitter.gd").charm_extra(profile) if profile != null else 0
+	return int(Charms.SHOP["rack"]) + int(row(profile)["charms"]) + tray
 
 
 # --- the rail ----------------------------------------------------------------------------
@@ -237,21 +240,6 @@ static func extras(profile) -> Array:
 		if not pool2.is_empty():
 			out.append(Gear.make_named(pool2[randi() % pool2.size()]))
 	return out
-
-
-## A long list is shown in pages: how many, and how many to a page (split
-## evenly, `limit` or fewer to a page). The rail's limit is 10, the shelf's
-## SHELF_PAGE.
-static func pages(total: int, limit := 10) -> int:
-	return maxi(1, int(ceil(float(total) / float(maxi(limit, 1)))))
-
-
-static func page_size(total: int, limit := 10) -> int:
-	return int(ceil(float(total) / float(pages(total, limit))))
-
-
-## How many supplies show on a shelf page.
-const SHELF_PAGE := 12
 
 
 # --- the shelf -----------------------------------------------------------------------------

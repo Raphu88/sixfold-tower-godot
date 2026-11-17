@@ -21,7 +21,8 @@ extends RefCounted
 ## (RANK_OPENS): a higher tournament bracket, more of the Noble's contracts,
 ## a new tier of titles, a charm recipe, cheaper charm refills. The Renown
 ## Board shows what the next rank opens. The outfitter's stock grows with
-## rank too (shop.gd, train.gd UPGRADES), but that comes second.
+## rank too, and his upgrade tree is opened by rank and titles (shop.gd,
+## outfitter.gd), but that comes second.
 ##
 ## TITLES: each has a rank (its tier: the Noble grants it no sooner) and a
 ## deed. Once both are done, the Noble at a station offers it (noble.gd);
@@ -157,6 +158,7 @@ static var TEXT := {
 ##   recipes     charm recipes learned from contracts (charms.gd LOCKED)
 ##   contracts   the Noble's contracts taken (contracts.gd), offers and done
 ##   order       the outfitter's special order: a gear code ("" for none)
+##   outfitter   his upgrade tree: the nodes bought (outfitter.gd state)
 ##   streak      climbs in a row without falling; best_streak the most
 ##   mirrors     your reflection beaten in a tournament
 ##   visits      stops made at a station
@@ -167,7 +169,7 @@ static func state(profile) -> Dictionary:
 		profile.renown = {}
 	var r: Dictionary = profile.renown
 	var defaults := {"points": 0, "deeds": [], "titles": [], "ready": [], "worn": "", "rank_seen": -1, "lessons": {}, "drills": {}, "best": {},
-		"tiers": {}, "rounds": {}, "recipes": [], "contracts": {}, "order": "", "streak": 0, "best_streak": 0, "mirrors": 0, "visits": 0}
+		"tiers": {}, "rounds": {}, "recipes": [], "contracts": {}, "order": "", "streak": 0, "best_streak": 0, "mirrors": 0, "visits": 0, "outfitter": {}}
 	for k in defaults:
 		if not r.has(k) or typeof(r[k]) != typeof(defaults[k]):
 			r[k] = defaults[k].duplicate() if defaults[k] is Dictionary or defaults[k] is Array else defaults[k]

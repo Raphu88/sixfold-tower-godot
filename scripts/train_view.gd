@@ -1849,7 +1849,7 @@ class Furnish extends PanelContainer:
 		"rail": [12, 8, 12, 10], "case": [14, 16, 14, 18], "board": [16, 12, 16, 14], "drawers": [8, 8, 8, 10],
 		"placard": [14, 12, 14, 12], "plain": [10, 8, 10, 8],
 		"bookcase": [16, 14, 16, 16], "lectern": [16, 14, 16, 22], "signal": [16, 16, 16, 16], "brake": [16, 40, 16, 16],
-		"tables": [14, 12, 14, 14],
+		"tables": [14, 12, 14, 14], "ledger": [14, 10, 14, 12], "tray": [12, 8, 12, 12],
 	}
 	var kind := "plain"
 	var watch: Control = null  # the grid whose rows (or slots) the drawing follows
@@ -2081,6 +2081,32 @@ class Furnish extends PanelContainer:
 				for cx in [r.position.x + 7, r.end.x - 7]:
 					for cy in [r.position.y + 7, r.end.y - 7]:
 						b.dot(Vector2(cx, cy), 2.2, BR.lightened(0.1))
+			"ledger":
+				# The outfitter's upgrade tree: a baize board in a walnut
+				# frame, a brass rail along its top, riveted at the corners.
+				_shadow(b, r)
+				b.rect(r, Art.OUTLINE)
+				Art.bevel(b, r.grow(-1.0), WAL.darkened(0.05), 4.0)
+				var baize := r.grow(-6.0)
+				b.rect(baize.grow(1.0), Color(0, 0, 0, 0.6))
+				Art.vgrad(b, baize, Color(0.1, 0.17, 0.12), Color(0.05, 0.09, 0.07))
+				Art.light(b, Vector2(baize.get_center().x, baize.position.y), Vector2(baize.size.x * 0.7, baize.size.y * 0.5), Color(Art.LAMP, 0.06))
+				b.rect(Rect2(r.position.x + 4.0, r.position.y + 2.0, r.size.x - 8.0, 3.0), Color(BR, 0.7))
+				for cx in [r.position.x + 8, r.end.x - 8]:
+					for cy in [r.position.y + 8, r.end.y - 8]:
+						Art.rivet(b, Vector2(cx, cy), 2.2)
+			"tray":
+				# A charm tray: a velvet bed in a shallow walnut box, a little
+				# lamplight on it.
+				_shadow(b, r)
+				b.rect(r, Art.OUTLINE)
+				var box := r.grow(-1.5)
+				Art.vgrad(b, box, WAL.lightened(0.1), WAL.darkened(0.3))
+				var bed := r.grow(-5.0)
+				b.rect(bed.grow(1.0), Color(0, 0, 0, 0.5))
+				Art.vgrad(b, bed, Art.VELVET_DARK.lightened(0.18), Art.VELVET_DARK.darkened(0.2))
+				Art.light(b, Vector2(bed.get_center().x, bed.position.y), Vector2(bed.size.x * 0.6, bed.size.y * 0.7), Color(Art.LAMP, 0.08))
+				b.rect(Rect2(box.position, Vector2(box.size.x, 1.4)), Color(BR, 0.6))
 			"bookcase":
 				# A walnut bookcase: a carved crown, fluted pilasters at its
 				# sides, a shelf under each row of volumes on brass brackets.
