@@ -32,6 +32,7 @@ const Controls := preload("res://scripts/controls.gd")
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Entity := preload("res://scripts/entity.gd")
+const EntityNotes := preload("res://scripts/entity_notes.gd")  # (its comment under a slot's card)
 const Lost := preload("res://scripts/lost.gd")
 const Secret := preload("res://scripts/secret.gd")
 const Nav := preload("res://scripts/nav.gd")
@@ -803,11 +804,16 @@ func _draw_tip(font: Font) -> void:
 		if not r.has_point(m):
 			continue
 		var lines: Array = t[2]
+		# The Entity's comment on it, under its lines (the same for the same thing).
+		var say := ""
+		if not EntityNotes.HOVER.is_empty():
+			say = String(EntityNotes.HOVER[posmod(hash(String(t[1]).get_slice(" ", 0)), EntityNotes.HOVER.size())])
 		var w := UI.font("display").get_string_size(UI.title_case(t[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 17).x
 		for l in lines:
 			w = maxf(w, font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
+		w = maxf(w, font.get_string_size(say, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x)
 		var size := get_viewport_rect().size / hud_scale
-		var box := Rect2(m + Vector2(16, 14), Vector2(w + 40.0, 26.0 + 16.0 * lines.size()))
+		var box := Rect2(m + Vector2(16, 14), Vector2(w + 40.0, 26.0 + 16.0 * lines.size() + (17.0 if say != "" else 0.0)))
 		box.position.x = minf(box.position.x, size.x - box.size.x - 6.0)
 		if box.end.y > size.y - 6.0:
 			box.position.y = m.y - box.size.y - 10.0
@@ -820,6 +826,8 @@ func _draw_tip(font: Font) -> void:
 		draw_polyline_colors(PackedVector2Array([box.position + Vector2(12, 27), box.position + Vector2(box.size.x - 30.0, 27)]), PackedColorArray([Color(UI.GILT, 0.7), Color(UI.GILT, 0.0)]), 1.0)
 		for i in lines.size():
 			draw_string(font, box.position + Vector2(12, 42 + 16 * i), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
+		if say != "":
+			draw_string(font, box.position + Vector2(12, 44 + 16 * lines.size()), say, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(Entity.GLOW, 0.85))
 		return
 
 

@@ -9,15 +9,17 @@ extends Node2D
 ## TIPS. The first time the climber meets something (the glint, essence, a
 ## ward, a trap, a door...), code calls main.tip("id") and the Entity says
 ## its line in a bubble beside the sphere. One bubble at a time; the rest
-## wait in a queue. A tip never stops the game: it fades after a few
-## seconds, and a tap or click on it, Enter, or a press of the right stick
-## (RS / R3) dismisses it at once.
+## wait in a queue. A tip never stops the game: it fades after a while (by
+## its length: entity.gd TIMING), and a tap or click on it or on the
+## sphere, Enter, L, or a press of the right stick (RS / R3) dismisses it
+## at once.
 ##
 ## TIDBITS. When something relevant happens (a floor, a named room, a task,
 ## a creature's first notice, a reaction, a lock...), code calls
 ## main.remark("key") and the Entity says ONE short, true line about it
-## (entity_notes.gd TIDBITS), gone by itself in a few seconds. Never twice
-## in a climb, never crowding (remark below).
+## (entity_notes.gd TIDBITS), gone by itself after a while (entity.gd
+## TIMING; a tap on it or the sphere sends it sooner). Never twice in a
+## climb, never crowding (remark below).
 ##
 ## THE PANEL. L, the right stick (when no tip wants it), or a click or tap
 ## on the sphere: it says a quip and its panel opens, with the last tip or
@@ -49,13 +51,10 @@ const Slots := preload("res://scripts/slots.gd")
 const Layout := preload("res://scripts/layout.gd")  # (the Entity's place: "hud.entity")
 const Notes := preload("res://scripts/entity_notes.gd")  # (its tidbits, quips and the panel's words)
 
-## Seconds between one bubble and the next, and to fade in or out.
+## Seconds between one bubble and the next, and to fade in or out. How
+## long a bubble stays is in entity.gd TIMING (tip_life, bit_life below).
 const GAP := 0.6
 const FADE := 0.25
-## How long a bubble stays: this long at least, at most, and per letter.
-const LIFE_MIN := 6.0
-const LIFE_MAX := 12.0
-const LIFE_PER_CHAR := 0.055
 ## The bubble's width (desktop, phone) and its top edge.
 const WIDTH := 330.0
 const WIDTH_TOUCH := 300.0
@@ -72,6 +71,23 @@ static var loaded_from := ""
 ## Bubbles waiting their turn: {kind: "tip" or "say", id, text}. Kept across
 ## a restart (a scene reload), so a tip queued just before isn't lost.
 static var queue: Array = []
+## Tips said in a menu (tell) that haven't been sent away yet: a page built
+## again says them again (still), until a click or tap sends them away
+## (release). This session only.
+static var held := {}
+
+
+## How long a first-time tip stays in a climb (entity.gd TIMING): longer
+## for a longer tip, between tip_min and tip_max.
+static func tip_life(text: String) -> float:
+	var T: Dictionary = Entity.TIMING
+	return clampf(float(T["tip_base"]) + text.length() * float(T["tip_per_char"]), float(T["tip_min"]), float(T["tip_max"]))
+
+
+## How long a tidbit (one short line) stays in a climb.
+static func bit_life(text: String) -> float:
+	var T: Dictionary = Entity.TIMING
+	return float(T["bit_base"]) + text.length() * float(T["bit_per_char"])
 
 var main
 var current := {}  # the bubble showing: {kind, id, name, text}
@@ -196,6 +212,8 @@ static func unload() -> void:
 	state["told"] = {}
 	state["cast"] = {}
 	queue.clear()
+	held.clear()
+	Entity.gone.clear()
 
 
 ## False in tests (unless they ask for the Entity): it does nothing at all.
@@ -273,8 +291,35 @@ static func tell(id: String) -> String:
 	queue = queue.filter(func(q): return q.get("id", "") != r)
 	state["told"][r] = true
 	state["known"][r] = true
+	held[r] = true
 	save_state()
 	return String(Entity.entry(r)["tip"])
+
+
+## A tip said in a menu that hasn't been sent away yet: its line again (a
+## page built again keeps showing it), else "".
+static func still(id: String) -> String:
+	var r := Entity.resolve(id)
+	if r == "" or not held.has(r) or not live():
+		return ""
+	return String(Entity.entry(r).get("tip", ""))
+
+
+## A menu line was sent away (a click or tap on it, or L): the held tips it
+## said are let go, and the words stay away while this session lasts.
+static func release(text: String) -> void:
+	if text == "":
+		return
+	Entity.gone[text] = true
+	var re := RegEx.create_from_string("\\{[a-z_]+\\}")
+	for r in held.keys():
+		var tip := String(Entity.entry(r).get("tip", ""))
+		# (its longest stretch of plain words: the {keys} are filled in on the page)
+		var bits: Array = Array(re.sub(tip, "\n", true).split("\n"))
+		bits.sort_custom(func(a, b): return String(a).length() > String(b).length())
+		var piece := String(bits[0]).strip_edges() if not bits.is_empty() else ""
+		if piece.length() > 1 and piece.substr(1) != "" and text.contains(piece.substr(1)):
+			held.erase(r)  # (the first letter may have been raised: fill_keys)
 
 
 ## The first time this climber casts a spell or technique (`key`:
@@ -337,6 +382,8 @@ static func replay() -> void:
 	state["told"] = {}
 	state["cast"] = {}
 	queue.clear()
+	held.clear()
+	Entity.gone.clear()
 	save_state()
 
 
@@ -344,6 +391,8 @@ static func replay() -> void:
 static func forget() -> void:
 	state = {"on": true, "known": {}, "told": {}, "cast": {}}
 	queue.clear()
+	held.clear()
+	Entity.gone.clear()
 
 
 # --- tidbits ---------------------------------------------------------------------------
@@ -475,8 +524,10 @@ func _process(delta: float) -> void:
 			set_open(false)
 			main.overlay_closed_frame = Engine.get_process_frames()  # (so this Esc doesn't open the menu too)
 		elif Input.is_action_just_pressed("entity"):
-			var tip_takes: bool = not current.is_empty() and current["kind"] != "bit" and leaving <= 0.0 and Input.is_action_just_pressed("dismiss_tip")
-			if not tip_takes:
+			# A tip showing: L or the right stick sends it away first.
+			if tip_up():
+				dismiss()
+			else:
 				set_open(not open)
 		# Talk: held L or the right stick (it opens the panel, then talks), or
 		# Enter while the panel is open and no tip is waiting for it.
@@ -533,10 +584,10 @@ func _process(delta: float) -> void:
 func _next() -> void:
 	var now := Time.get_ticks_msec()
 	for q in queue:
-		if q["kind"] == "bit" and now - int(q.get("at", now)) > int(Notes.STALE * 1000.0):
+		if q["kind"] == "bit" and now - int(q.get("at", now)) > int(float(Entity.TIMING["bit_stale"]) * 1000.0):
 			said.erase(q["text"])  # (never said: it may come up again)
 			key_at.erase(q.get("key", ""))
-	queue = queue.filter(func(q): return q["kind"] != "bit" or now - int(q.get("at", now)) <= int(Notes.STALE * 1000.0))
+	queue = queue.filter(func(q): return q["kind"] != "bit" or now - int(q.get("at", now)) <= int(float(Entity.TIMING["bit_stale"]) * 1000.0))
 	for i in queue.size():
 		var q: Dictionary = queue[i]
 		if q["kind"] == "bit" and (now - bit_at < int(Notes.GAP * 1000.0) or not orb_on() or open):
@@ -587,19 +638,25 @@ func _show(q: Dictionary) -> void:
 	_lane_b = {}
 	if q["kind"] == "bit":
 		# A tidbit: one short line, gone by itself.
-		life = Notes.LIFE + text.length() * Notes.LIFE_PER_CHAR
+		life = bit_life(text)
 		bit_at = Time.get_ticks_msec()
 		bits += 1
 		main.sfx("tip_chime", 1.25, -9.0, 0.03)
 	else:
-		life = clampf(3.0 + text.length() * LIFE_PER_CHAR, LIFE_MIN, LIFE_MAX)
+		life = tip_life(text)
 		main.sfx("tip_chime", 1.0, 0.0, 0.03)
 	last_note = {"name": name, "text": current["text"]}
 	pulse = PULSE
 	shown += 1
 
 
-## Lets the bubble go now (a tap, a click, Enter or the right stick).
+## A first-time tip or a moment's line is showing (not a tidbit), not yet leaving.
+func tip_up() -> bool:
+	return not current.is_empty() and current["kind"] != "bit" and leaving <= 0.0
+
+
+## Lets the bubble go now (a tap or click on it or the sphere, Enter, L or
+## the right stick).
 func dismiss() -> bool:
 	if current.is_empty() or leaving > 0.0:
 		return false
@@ -660,6 +717,9 @@ func _input(event: InputEvent) -> void:
 	var took := false
 	if orb_on() and open and open_t > 0.85 and talk_rect.has_point(at):
 		talk()  # (its Talk button)
+		took = true
+	elif orb_on() and not open and tip_up() and _on_orb(at):
+		dismiss()  # (a tip showing: a tap on the sphere sends it away first)
 		took = true
 	elif orb_on() and (_on_orb(at) or (open and panel_rect.has_point(at))):
 		# The sphere: its panel opens and closes (a tap on the open panel closes it).

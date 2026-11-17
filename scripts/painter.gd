@@ -516,12 +516,12 @@ func enter() -> void:
 	_relayout()
 	_refresh()
 	if first:
-		var said: String = main.tip_now("painter") if main != null else ""
+		var said: String = main.tip_now("painter", false) if main != null else ""
 		if said != "":
 			show_tip(said)
 		if tried:
 			tried = false
-			var t: String = main.tip_now("painter_try") if main != null else ""
+			var t: String = main.tip_now("painter_try", false) if main != null else ""
 			if t != "":
 				show_tip(t)
 
@@ -1281,7 +1281,7 @@ func toggle_climbs() -> void:
 	if main != null:
 		main.sfx("ui_confirm")
 	if room["on"]:
-		var said: String = main.tip_now("painter_climbs") if main != null else ""
+		var said: String = main.tip_now("painter_climbs", false) if main != null else ""
 		if said != "":
 			show_tip(said)
 	if panel != "":
@@ -1507,7 +1507,7 @@ func show_tip(text: String) -> void:
 func _tip_checks() -> void:
 	if main == null or not problems.any(func(p): return p["level"] == "error"):
 		return
-	var said: String = main.tip_now("painter_checks")
+	var said: String = main.tip_now("painter_checks", false)
 	if said != "":
 		show_tip(said)
 
@@ -1515,7 +1515,7 @@ func _tip_checks() -> void:
 func _tip_save() -> void:
 	if main == null:
 		return
-	var said: String = main.tip_now("painter_save")
+	var said: String = main.tip_now("painter_save", false)
 	if said != "":
 		show_tip(said)
 

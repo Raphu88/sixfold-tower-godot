@@ -1,28 +1,41 @@
 extends Control
-## The Entity on the train: its sphere on every car and station screen (and
-## the pages reached from the train: the Loadout, the stash, the climber's
-## book...), drawn as in play (entity.gd draw_face). The menu (menu.gd) owns
-## one, on top of everything else on the page.
+## The Entity in the menus: its sphere on every car and station screen, the
+## pages reached from the train (the Loadout, the stash, the climber's
+## book...) and the pages of the pause menu in a climb (the inventory, the
+## book, the Library and Bestiary, Settings...), drawn as in play (entity.gd
+## draw_face). The menu (menu.gd) owns one, on top of everything else on
+## the page.
 ##
 ## IDLE it rests in a corner that covers nothing (rest_spot: a spot clear of
 ## every button and word on the screen).
 ##
-## EXPLAINING: it glides beside the button you point at and says what it
-## does or where it goes, in a small bubble (the words: entity_help.gd):
+## EXPLAINING: it glides beside the button (or object: a piece of furniture
+## on the train) you point at and says what it does or where it goes, then
+## a short comment of its own on a second line, in a small bubble (the
+## words: entity_help.gd HELP and COMMENTS). It stays for as long as the thing
+## is highlighted, with no timer:
 ##   mouse       hover a button (it waits DELAY first, so sweeping the mouse
 ##               across the screen doesn't make it fly about; it goes back
 ##               LEAVE after the pointer leaves)
 ##   keys, pad   move onto a button (the focus)
 ##   touch       press and hold a button for HOLD seconds: the explanation,
 ##               and letting go then does NOT press it (a normal tap still
-##               presses at once)
+##               presses at once). It stays after you let go, until your
+##               next tap (a tap on the bubble or the sphere only sends it
+##               away; a tap anywhere else does what it always does)
 ## The bubble and the sphere never cover the button, stay on the screen and
 ## keep off the rail; of the places beside the button, it takes the one that
 ## covers the fewest neighbours (place). Settings: "The Entity explains
 ## buttons" off, and it only rests.
 ##
+## ITS LINES ON A PAGE (entity.gd says: a first-time tip, a page's line, an
+## answer to a choice) have no timer either: each stays until it's sent
+## away, by a click or tap on it, a click or tap on the sphere, or L / the
+## right stick (send_away).
+##
 ## TALKING: click or tap the sphere (or press L, or the right stick on a
-## controller) and it talks with you (entity_talk.gd; menu.gd open_talk).
+## controller), with no line of its waiting to be sent away, and it talks
+## with you (entity_talk.gd; menu.gd open_talk).
 
 const Entity := preload("res://scripts/entity.gd")
 const UI := preload("res://scripts/ui.gd")
@@ -30,17 +43,18 @@ const Nav := preload("res://scripts/nav.gd")
 const Help := preload("res://scripts/entity_help.gd")
 const Guide := preload("res://scripts/guide.gd")
 
-## The pages it shows on (between climbs).
-const PAGES := ["train", "station", "loadout", "stash", "climber", "mark", "library", "settings", "controls", "techniques"]
+## The pages it shows on: the train's and the pause menu's (not the title,
+## the dev tools' editors, the controller setup, which listens to every
+## button, or a talk with it).
+const PAGES := ["train", "station", "loadout", "stash", "climber", "mark", "library", "settings", "controls", "techniques",
+	"pause", "inventory", "pour", "appearance", "confirm_new", "dev"]
 ## Seconds: a hover waits this long before the sphere moves (keys a little
-## less), goes back this long after the pointer leaves, a finger is held
-## this long for an explanation, and the bubble stays this long after the
-## finger lets go.
+## less), goes back this long after the pointer leaves, and a finger is
+## held this long for an explanation (it then stays until the next tap).
 const DELAY := 0.35
 const DELAY_KEYS := 0.18
 const LEAVE := 0.6
 const HOLD := 0.4
-const LINGER := 2.5
 ## A finger moving this far is a drag, not a hold.
 const SLIP := 14.0
 ## The sphere's radius (as in play), and its gap from the button.
@@ -54,6 +68,9 @@ const BUBBLE_MIN := 130.0
 const FONT_SIZE := 14
 const FONT_SIZE_TOUCH := 13
 const PAD := Vector2(11.0, 7.0)
+## Its comment under the explanation: the gap above it and how much smaller.
+const COMMENT_GAP := 4.0
+const COMMENT_SMALLER := 1
 
 var menu  # menu.gd
 var t := 0.0
@@ -62,6 +79,7 @@ var goal := Vector2.ZERO
 var rest := Vector2.ZERO  # its corner while idle
 var target: Control = null  # the button it's explaining
 var text := ""  # what it says about it
+var comment := ""  # and its own comment on it (a second line)
 var orb_at := Vector2.ZERO  # beside the target
 var bubble := Rect2()  # the bubble beside the target
 var pending: Control = null  # the button under the pointer, waiting out DELAY
@@ -79,6 +97,7 @@ var _drawn := false
 var _target_rect := Rect2()
 var _style: StyleBox
 var orb: Control  # the sphere, on its own layer (the bubble's fade never dims it)
+var sent := 0  # its lines sent away (tests)
 
 
 func _ready() -> void:
@@ -94,12 +113,13 @@ func _ready() -> void:
 	add_child(orb)
 
 
-## On a page between climbs (not the title's, nor while arranging).
+## On a menu page: the train's, a station's, or the pause menu's in a climb
+## (not the title's or a page opened from it, nor while arranging).
 func active() -> bool:
 	if menu == null or menu.main == null or not menu.visible:
 		return false
 	var main = menu.main
-	if not bool(main.on_train) or menu.opened_from_title or not (String(menu.page) in PAGES):
+	if main.profile == null or menu.opened_from_title or not (String(menu.page) in PAGES):
 		return false
 	if main.get("arrange") != null and main.arrange != null and bool(main.arrange.is_open):
 		return false
@@ -127,23 +147,51 @@ func input(event: InputEvent) -> bool:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and _mouse_eaten:
 		_mouse_eaten = false
 		return true
+	# A click or tap on one of its lines sends it away (on any page with one).
+	var press := Vector2(-1, -1)
+	if event is InputEventScreenTouch and event.index == 0 and event.pressed:
+		press = event.position
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not touch():
+		press = event.position
+	if press.x >= 0.0 and menu != null and menu.visible:
+		var line := line_at(press)
+		if line != null:
+			send_away(line)
+			if event is InputEventScreenTouch:
+				_eaten = true
+			else:
+				_mouse_eaten = true
+			hold = {}
+			return true
 	if not active():
 		hold = {}
 		return false
 	if event is InputEventScreenTouch and event.index == 0:
 		if event.pressed:
 			hold = {}
+			var was := target != null and linger > 0.0
+			if was:
+				# An explanation stays after a hold until the next tap: this one.
+				linger = 0.0
+				show_for(null)
+				pending = null
+				if on_orb(event.position) or bubble.grow(4.0).has_point(event.position):
+					_eaten = true
+					return true  # (a tap on the bubble or the sphere only sends it away)
 			if on_orb(event.position):
 				_eaten = true
-				menu.open_talk()
+				_orb_pressed()
 				return true
 			if help_on():
-				hold = {"at": event.position, "ms": Time.get_ticks_msec(), "button": button_at(event.position), "fired": false}
+				var b: Control = button_at(event.position)
+				if b == null:
+					b = object_at(event.position)
+				hold = {"at": event.position, "ms": Time.get_ticks_msec(), "button": b, "fired": false}
 			return false
 		var fired: bool = bool(hold.get("fired", false))
 		hold = {}
 		if fired:
-			linger = LINGER
+			linger = INF  # (it stays until the next tap)
 			return true  # (held for its explanation: letting go doesn't press it)
 		return false
 	if event is InputEventScreenDrag and event.index == 0 and not hold.is_empty() and not bool(hold["fired"]):
@@ -153,9 +201,74 @@ func input(event: InputEvent) -> bool:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not touch():
 		if on_orb(event.position):
 			_mouse_eaten = true
-			menu.open_talk()
+			_orb_pressed()
 			return true
 	return false
+
+
+## The sphere clicked or tapped (or L, the right stick): a line of its on
+## the page is sent away first; with none, it talks.
+func _orb_pressed() -> void:
+	var lines := lines_up()
+	if not lines.is_empty():
+		send_away(lines[0])
+		return
+	menu.open_talk()
+
+
+# --- its lines on the page ---------------------------------------------------------------
+
+## Its lines on the page that can be sent away (entity.gd says), showing and
+## on the screen, top first (on the train, in the car you're in; not a car
+## behind a page opened from it).
+func lines_up() -> Array:
+	if menu == null or not menu.visible:
+		return []
+	var view := get_viewport_rect()
+	var out: Array = []
+	var found: Array = []
+	for top in _tops():
+		found.append_array(top.find_children("*", "HBoxContainer", true, false))
+	for c in found:
+		if not c.has_meta("entity_away") or c.is_queued_for_deletion() or not c.is_visible_in_tree():
+			continue
+		var r: Rect2 = c.get_global_rect()
+		var sc := Nav.scroll_of(c)
+		if sc != null:
+			r = r.intersection(sc.get_global_rect())
+		r = r.intersection(view)
+		if r.size.x > 2.0 and r.size.y > 2.0:
+			out.append(c)
+	out.sort_custom(func(a, b): return a.get_global_rect().position.y < b.get_global_rect().position.y)
+	return out
+
+
+## Its line under a point, or null.
+func line_at(at: Vector2) -> Control:
+	for c in lines_up():
+		var r: Rect2 = c.get_global_rect()
+		var sc := Nav.scroll_of(c)
+		if sc != null:
+			r = r.intersection(sc.get_global_rect())
+		if r.has_point(at):
+			return c
+	return null
+
+
+## Sends a line away: it goes, and a page built again leaves it out (a tip
+## held over for the next build is let go: guide.gd release).
+func send_away(line: Control) -> void:
+	if line == null or not is_instance_valid(line):
+		return
+	var said := String(line.get_meta("entity_line", ""))
+	Guide.release(said)
+	if menu.get("said_toast") != null and String(menu.said_toast) != "" and said == String(menu.said_toast):
+		menu.said_toast = ""
+	line.hide()
+	sent += 1
+	if menu.main != null:
+		menu.main.sfx("ui_back", 1.2, -8.0, 0.0)
+	menu._layout()
 
 
 ## True if a point is on the sphere (a finger's width on a phone).
@@ -183,6 +296,10 @@ func button_at(at: Vector2) -> Control:
 
 func _process(delta: float) -> void:
 	if not active():
+		if menu != null and menu.visible and menu.page != "painter" and Input.is_action_just_pressed("entity") and not menu._typing():
+			var lines := lines_up()
+			if not lines.is_empty():
+				send_away(lines[0])
 		if _drawn:
 			_drawn = false
 			queue_redraw()
@@ -209,9 +326,10 @@ func _process(delta: float) -> void:
 			appear = 0.0
 		if _since_key < 0.8 and target == null:
 			pos = rest  # (the page settling: it sits there at once, no gliding)
-	# The Entity talks: L, or the right stick (a click or tap on it: input).
+	# The Entity talks: L, or the right stick (a click or tap on it: input);
+	# a line of its on the page is sent away first.
 	if Input.is_action_just_pressed("entity") and not menu._typing():
-		menu.open_talk()
+		_orb_pressed()
 		return
 	var wait := DELAY_KEYS if menu.nav_keys else DELAY
 	if target != null and (not is_instance_valid(target) or not target.is_visible_in_tree()):
@@ -245,7 +363,7 @@ func _process(delta: float) -> void:
 		if b != null and is_instance_valid(b) and b.is_visible_in_tree():
 			pending = b
 			show_for(b)
-			linger = LINGER
+			linger = INF  # (until the next tap)
 	if target != null:
 		var r := target.get_global_rect()
 		if r != _target_rect:
@@ -277,17 +395,33 @@ func _candidate() -> Control:
 	var at := get_local_mouse_position()
 	if target != null and (on_orb(at) or (appear > 0.5 and bubble.has_point(at))):
 		return target  # (the pointer went to the sphere or its words: it stays)
-	return button_at(at)
+	var b := button_at(at)
+	return b if b != null else object_at(at)
 
 
-## Explains a button now (null: back to the corner).
+## The object under a point that isn't a button but has something to say
+## (a piece of the train's furniture: train_view.gd Furnish), or null.
+func object_at(at: Vector2) -> Control:
+	var found: Control = null
+	for top in _tops():
+		for c in top.find_children("*", "PanelContainer", true, false):
+			if c.has_meta("furnish") and c.is_visible_in_tree() and c.get_global_rect().has_point(at) and Help.entry(Help.key_for(c)) != "":
+				found = c  # (the innermost wins)
+	return found
+
+
+## Explains a button now (null: back to the corner): its explanation, and
+## its own comment on a second line.
 func show_for(b: Control) -> void:
 	target = b
 	text = ""
+	comment = ""
 	if b != null:
 		text = Help.explain(menu, b)
 		if text == "":
 			target = null
+		else:
+			comment = Help.comment(b)
 	if target != null:
 		explained += 1
 		_place_for(b.get_global_rect())
@@ -297,7 +431,7 @@ func show_for(b: Control) -> void:
 
 func _place_for(r: Rect2) -> void:
 	_target_rect = r
-	var p := place(r, text)
+	var p := place(r, text, comment)
 	orb_at = p["orb"]
 	bubble = p["bubble"]
 
@@ -312,9 +446,12 @@ func _font_size() -> int:
 	return FONT_SIZE_TOUCH if touch() or menu.compact() else FONT_SIZE
 
 
-## How tall the bubble is at width `w`.
-func bubble_h(w: float, words: String) -> float:
-	return UI.text_height(_font(), words, w - PAD.x * 2.0, _font_size()) + PAD.y * 2.0
+## How tall the bubble is at width `w` (with its comment under the words).
+func bubble_h(w: float, words: String, extra := "") -> float:
+	var h := UI.text_height(_font(), words, w - PAD.x * 2.0, _font_size()) + PAD.y * 2.0
+	if extra != "":
+		h += COMMENT_GAP + UI.text_height(_font(), extra, w - PAD.x * 2.0, _font_size() - COMMENT_SMALLER)
+	return h
 
 
 ## The rail's box, if it's showing (nothing goes under it).
@@ -342,7 +479,7 @@ func _neighbours(r: Rect2) -> Array:
 ## bubble}. Never over the button, always on the screen and off the rail;
 ## of the places that fit, the one over the fewest neighbours (right, left,
 ## under, over, in that order when it's a tie).
-func place(r: Rect2, words: String) -> Dictionary:
+func place(r: Rect2, words: String, extra := "") -> Dictionary:
 	var view := get_viewport_rect().size
 	var screen := Rect2(Vector2(4, 4), view - Vector2(8, 8))
 	var rail := _rail_rect()
@@ -351,12 +488,13 @@ func place(r: Rect2, words: String) -> Dictionary:
 		# A rail entry: beside the rail, level with it (the rest of the rail stays clear).
 		r = Rect2(r.position, Vector2(rail.end.x - r.position.x, r.size.y))
 	var widest := BUBBLE_W_TOUCH if touch() or menu.compact() else BUBBLE_W
-	var one_line := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size()).x + PAD.x * 2.0 + 2.0
+	var one_line := maxf(_font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size()).x,
+		_font().get_string_size(extra, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size() - COMMENT_SMALLER).x) + PAD.x * 2.0 + 2.0
 	widest = minf(widest, maxf(one_line, BUBBLE_MIN))
 	var best := {}
 	var best_score := INF
 	for w in [widest, widest * 0.8, maxf(BUBBLE_MIN, widest * 0.62)]:
-		var h := bubble_h(w, words)
+		var h := bubble_h(w, words, extra)
 		for side in [["right", 0.0], ["left", 30.0], ["below", 60.0], ["above", 90.0]]:
 			for c in _spots(side[0], r, w, h, view):
 				var area: Rect2 = c["bubble"].merge(Rect2(c["orb"] - Vector2(ORB_R, ORB_R), Vector2(ORB_R, ORB_R) * 2.0))
@@ -376,7 +514,7 @@ func place(r: Rect2, words: String) -> Dictionary:
 		return best
 	# Nowhere beside it: the half of the screen away from it, across the top or the foot.
 	var w2 := minf(widest, view.x - rail.size.x - 16.0 - ORB_R * 2.0)
-	var h2 := bubble_h(w2, words)
+	var h2 := bubble_h(w2, words, extra)
 	var left := maxf(rail.end.x, 0.0) + 8.0
 	var y := 6.0 if r.get_center().y > view.y * 0.5 else view.y - 6.0 - h2
 	var x := clampf(r.get_center().x - w2 * 0.5, left + ORB_R * 2.0 + 4.0, view.x - 6.0 - w2)
@@ -462,8 +600,14 @@ func _draw() -> void:
 	r.position.x += (1.0 - appear) * (6.0 if orb_at.x < r.position.x else -6.0)
 	draw_style_box(_style, r)
 	var fs := _font_size()
+	var tw := r.size.x - PAD.x * 2.0
 	UI.draw_text_lines(self, _font(), Vector2(r.position.x + PAD.x, r.position.y + PAD.y + _font().get_ascent(fs)), text,
-		HORIZONTAL_ALIGNMENT_LEFT, r.size.x - PAD.x * 2.0, fs, -1, Entity.GLOW.lerp(Color.WHITE, 0.62))
+		HORIZONTAL_ALIGNMENT_LEFT, tw, fs, -1, Entity.GLOW.lerp(Color.WHITE, 0.62))
+	if comment != "":
+		# Its own comment, under the explanation: smaller, in its glow.
+		var y := r.position.y + PAD.y + UI.text_height(_font(), text, tw, fs) + COMMENT_GAP
+		UI.draw_text_lines(self, _font(), Vector2(r.position.x + PAD.x, y + _font().get_ascent(fs - COMMENT_SMALLER)), comment,
+			HORIZONTAL_ALIGNMENT_LEFT, tw, fs - COMMENT_SMALLER, -1, Color(Entity.GLOW, 0.82))
 
 
 func _draw_orb() -> void:

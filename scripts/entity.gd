@@ -31,6 +31,22 @@ static var TEXT := {
 	"replay": "Replay the Entity's tips",
 	"tips_setting": "Guide tips from the Entity",
 	"record_title": "The Entity's record",
+	"away": "%s to send away",  # under a tip in a menu (it stays until sent away)
+	"away_touch": "tap",
+	"away_keys": "click or L",
+}
+
+## How long the Entity's words stay on screen in a climb, in seconds. A
+## first-time tip: tip_base, plus tip_per_char for each letter, kept between
+## tip_min and tip_max. A tidbit (one short line): bit_base plus
+## bit_per_char a letter. A tidbit kept waiting for its turn longer than
+## bit_stale is dropped. None of it stops the game, and a tap or click on
+## the bubble or the sphere sends it away sooner. In menus and on the train
+## there is no timer: a tip stays until it's sent away (a click or tap on
+## it, or L / the right stick).
+static var TIMING := {
+	"tip_base": 6.0, "tip_per_char": 0.11, "tip_min": 12.0, "tip_max": 24.0,
+	"bit_base": 7.2, "bit_per_char": 0.07, "bit_stale": 18.0,
 }
 
 ## Short lines for moments and pages. One is picked (they're said in the
@@ -658,6 +674,13 @@ const KEYS := {
 	"cars": ["Q and E, the mouse wheel, or a car on the rail at the left", "{lb} and {rb}, or up and down on the rail at the left", "swipe, or tap a car on the rail at the left"],
 }
 
+## Menu lines sent away this session (by their words): a page built again
+## leaves them out. guide.gd clears it when the tips are replayed.
+static var gone := {}
+## How a menu line is sent away, for the device in use ("tap", "click or
+## L", "RS"): the menu sets it as it builds a page.
+static var away_how := ""
+
 ## The Entity's colours (the interface's other colours are in ui.gd).
 const GLOW := Color(0.79, 0.75, 1.0)
 const DEEP := Color(0.42, 0.36, 0.84)
@@ -800,10 +823,18 @@ class Face extends Control:
 
 ## The Entity says something (menus): its face, then a bubble with its tag
 ## and the line. `face` is the face's size; `heading` replaces the tag.
-static func says(text: String, face := 46.0, heading := "") -> HBoxContainer:
+## A line it says by itself (a first-time tip, a page's line, an answer to
+## a choice) stays until it's sent away: a click or tap on it (or the
+## sphere), or L / the right stick (entity_helper.gd send_away); `away`
+## false for words the player chose to read (the Archive, a talk). A line
+## sent away this session comes back hidden.
+static func says(text: String, face := 46.0, heading := "", away := true) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 0)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if away:
+		row.set_meta("entity_away", true)
+		row.visible = not gone.has(text)
 	var f := Face.new()
 	f.custom_minimum_size = Vector2(face + 12.0, face)
 	f.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -819,7 +850,22 @@ static func says(text: String, face := 46.0, heading := "") -> HBoxContainer:
 	var tag := Label.new()
 	tag.text = heading if heading != "" else TEXT["tag"]
 	UI.style_label(tag, "eyebrow", 14, Color(UI.PERIWINKLE, 0.95))  # (its name tag)
-	col.add_child(tag)
+	if away and away_how != "":
+		# Its name tag, and on the right how to send it away.
+		var head := HBoxContainer.new()
+		head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_theme_constant_override("separation", 10)
+		tag.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(tag)
+		var how := Label.new()
+		how.text = String(TEXT["away"]) % away_how
+		UI.style_label(how, "mono", 10, Color(UI.FAINT, 0.9))
+		how.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		how.set_meta("entity_away_hint", true)
+		head.add_child(how)
+		col.add_child(head)
+	else:
+		col.add_child(tag)
 	var l := Label.new()
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
