@@ -117,7 +117,7 @@ func build(root: Node) -> void:
 	if tree_beside:
 		keys.append_array(_tree(oc, side, tall - said_h - 8.0))
 	else:
-		if not small or tall > 300.0:
+		if not small or (tall > 300.0 and Array(prof.store.get("word", [])).is_empty()):  # (a phone: his bust only where his words leave room)
 			var bust := TrainView.Outfitter.new()
 			bust.custom_minimum_size = Vector2(0, 96.0 if small else 140.0)
 			oc.add_child(bust)

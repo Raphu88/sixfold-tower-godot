@@ -25,6 +25,9 @@ extends RefCounted
 ##                discount   a share off everything he sells
 ##                today      true: today's piece comes a rarity higher
 ##                first_look more Fine-or-better pieces on his rail, kept for you
+##              (his upgrade tree, outfitter.gd, is his own: some of its nodes
+##              need a title granted; a worn title's discount and the tree's
+##              add up to its "discount_cap" at most, never more)
 ## A title not listed has no benefits. Every word and number is here (and in
 ## the Data editor: "Titles' benefits").
 
@@ -107,6 +110,7 @@ static var TEXT := {
 	"none": "No benefits: a name and nothing more.",
 	"line": "%s: %s",
 	"worn_only": "Only the title you wear gives its benefits.",
+	"tree": "The outfitter's upgrade tree: once granted (worn or not), it opens %s.",
 }
 
 
@@ -138,6 +142,11 @@ static func lines(id: String) -> Array:
 		var d := of(id, String(g[0]))
 		if not d.is_empty():
 			out.append(TEXT["line"] % [g[1], String(d.get("text", ""))])
+	# The outfitter's upgrade tree nodes it opens (outfitter.gd: granted is enough).
+	var O = load("res://scripts/outfitter.gd")
+	var opens: Array = O.ORDER.filter(func(n): return String(O.NODES[n].get("title", "")) == id).map(func(n): return String(O.node_name(n)).left(1).to_lower() + String(O.node_name(n)).substr(1))
+	if not opens.is_empty():
+		out.append(TEXT["tree"] % ", ".join(opens))
 	return out
 
 

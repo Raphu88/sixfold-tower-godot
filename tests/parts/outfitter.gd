@@ -140,6 +140,7 @@ func _opening() -> void:
 	_own(q, ["fair_price", "scroll_aside", "better_share", "regular"])
 	t._check(Out.status(q, "old_friend") == "locked" and Out.locks(q, "old_friend").size() == 1 and String(Out.locks(q, "old_friend")[0]).contains(Renown.title_name("goldhand")),
 		"a node that needs a title says which (%s)" % [Out.locks(q, "old_friend")])
+	t._check(Titles.lines("goldhand").any(func(l): return String(l).to_lower().contains(Out.node_name("old_friend").to_lower())), "the title's card at the Noble names the node it opens (%s)" % [Titles.lines("goldhand")])
 	Renown.state(q)["titles"] = ["goldhand"]
 	t._check(Out.status(q, "old_friend") == "open" and Out.buy(q, "old_friend") == "", "...and opens once the Noble has granted it (wearing it isn't needed)")
 
@@ -258,7 +259,7 @@ func _gifts_and_word() -> void:
 	q.store = {}
 	Train.stock(q)
 	var told: Array = q.bestiary.keys().filter(func(k): return bool(q.bestiary[k].get("told", false)))
-	t._check(told.size() == 1 and Array(q.store["word"]).any(func(w): return String(w).contains("weak to")), "climbers' talk: a monster's weakness each visit, in your Bestiary (%s)" % [told])
+	t._check(told.size() == 1 and Array(q.store["word"]).any(func(w): return String(w).contains("Bestiary") and String(w).to_lower().contains(String(load("res://scripts/enemy.gd").WEAKNESS[String(told[0])]).to_lower() if not told.is_empty() else "?")),"climbers' talk: a monster's weakness each visit, in your Bestiary (%s)" % [told])
 	t._check(Out.tower_line("kraken", Train.shelf(q)).contains(String(Towers.TOWERS["kraken"]["name"])), "word on the tower names it and what to pack (%s)" % Out.tower_line("kraken", Train.shelf(q)))
 	t._check(Out.hint_line("the Locket", Vector2.ZERO, Vector2(100, -100)).contains("north-east") and Out.hint_line("x", Vector2.ZERO, Vector2(-50, 0)).contains("west"), "where it lies: the way from where you start")
 
@@ -390,6 +391,9 @@ func _tree_ui(main) -> void:
 	var tv = menu.train_page.store.tree_view
 	t._check(tv != null and tv.buttons["wide_rack"].state == "bought" and tv.buttons["charm_tray"].state == "open" and tv.buttons["better_stock"].state == "locked" and tv.buttons["rank2"].state == "bought" and tv.buttons["rank3"].state == "locked",
 		"the tree marks a node bought, open or locked")
+	var up: Control = tv.buttons["charm_tray"].find_valid_focus_neighbor(SIDE_TOP) if tv != null else null
+	var across: Control = tv.buttons["charm_tray"].find_valid_focus_neighbor(SIDE_RIGHT) if tv != null else null
+	t._check(up == tv.buttons["better_stock"] and across != null and String(across.get_meta("slot", "")).begins_with("tree:"), "the keys and a controller step from node to node (up: %s)" % (up.get_meta("slot", "") if up != null else "none"))
 	var labels: Array = t._all_labels(menu.details).map(func(l): return l.text)
 	t._check(labels.has(Out.node_desc("charm_tray")) and labels.any(func(s): return s.contains(Renown.rank_name(2))) and labels.any(func(s): return s.contains(Out.node_name("wide_rack"))),
 		"its card says what it does and what opens it (%s)" % [labels])

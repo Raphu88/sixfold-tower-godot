@@ -195,9 +195,9 @@ static var TEXT := {
 	"gift_visit": "For coming by: %s.",
 	"gift_rank": "For your new rank of %s: %s.",
 	"gift_rank_crystals": "For your new rank of %s: %s (your stash is full).",
-	"told": "Climbers' talk: %s are weak to %s. It's in your Bestiary.",
-	"tower_tip": "For the %s he'd pack: %s.",
-	"tower_tip_none": "For the %s: nothing special to pack.",
+	"told": "Climbers' talk on %s: %s. It's in your Bestiary.",
+	"tower_tip": "For %s he'd pack: %s.",
+	"tower_tip_none": "For %s: nothing special to pack.",
 	"best": "His pick for you: %s.",
 	"belt_gift": "His gift as you leave: %s on your belt.",
 	"hint": "The outfitter's hint: %s lies to the %s of where you start.",
@@ -547,7 +547,7 @@ static func on_visit(profile) -> Array:
 		var f: Dictionary = D.fact_weakness(profile, String(profile.last_tower))
 		if not f.is_empty():
 			D.tell_weakness(profile, String(f["kind"]))
-			out.append(TEXT["told"] % [String(f["monster"]), String(f["weak"]).to_lower()])
+			out.append(TEXT["told"] % [String(f["monster"]), String(f["weak"])])
 	return out
 
 
