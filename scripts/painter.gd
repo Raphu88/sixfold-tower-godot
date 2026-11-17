@@ -1994,7 +1994,7 @@ func _page_help() -> void:
 func _page_tip(text: String) -> void:
 	sheet_title.text = TEXT["eyebrow"]
 	var mode := "touch" if main != null and main.touch_active else ("pad" if main != null and main.pad_active else "keys")
-	sheet_box.add_child(Entity.says(Entity.fill_keys(text, mode, main != null and main.pad_ps), 40.0 if small() else 48.0))
+	sheet_box.add_child(Entity.says(Entity.fill_keys(text, mode, main != null and main.pad_ps), 40.0 if small() else 48.0, "", false))  # (its own sheet closes it)
 
 
 func _page_rename() -> void:

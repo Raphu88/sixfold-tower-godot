@@ -553,6 +553,9 @@ func _process(delta: float) -> void:
 				shown_t += delta  # (said in the top lane: its time starts when its turn comes)
 			if Input.is_action_just_pressed("dismiss_tip") and _keys_free() and current["kind"] != "bit":
 				dismiss()
+			if lane and leaving <= 0.0 and shown_t >= life * 0.5 and _lane_showing() \
+					and main.notices.queue.any(func(q): return main.notices.pri(q) >= main.notices.pri(_lane_b)):
+				leaving = FADE  # (said in the shared top lane: past half its time it gives way to a banner waiting there)
 			if leaving > 0.0:
 				leaving -= delta
 				if leaving <= 0.0:

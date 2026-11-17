@@ -153,7 +153,7 @@ func input(event: InputEvent) -> bool:
 		press = event.position
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not touch():
 		press = event.position
-	if press.x >= 0.0 and menu != null and menu.visible:
+	if press.x >= 0.0 and menu != null and menu.visible and not _button_under(press):
 		var line := line_at(press)
 		if line != null:
 			send_away(line)
@@ -203,6 +203,20 @@ func input(event: InputEvent) -> bool:
 			_mouse_eaten = true
 			_orb_pressed()
 			return true
+	return false
+
+
+## True if a button is under a point (it keeps its own click or tap, even
+## where it's drawn over one of the Entity's lines): the page's, the rail's,
+## or one drawn with the train (the star in Your Car's window).
+func _button_under(at: Vector2) -> bool:
+	if button_at(at) != null:
+		return true
+	var tv = menu.get("train_view")
+	if menu.page == "train" and tv != null and tv.visible and tv.chrome != null:
+		for c in tv.chrome.find_children("*", "BaseButton", true, false):
+			if c.is_visible_in_tree() and c.get_global_rect().has_point(at):
+				return true
 	return false
 
 
