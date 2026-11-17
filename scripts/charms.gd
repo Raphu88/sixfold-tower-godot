@@ -382,8 +382,11 @@ static func roll(floor_num: int, higher := -1) -> Dictionary:
 static func shop_stock(count := -1) -> Array:
 	var out: Array = []
 	for i in (int(SHOP["rack"]) if count < 0 else count):
-		var pool := of_rarity("fine" if randi() % 100 < int(SHOP["fine"]) else "common")
+		var fine: bool = randi() % 100 < int(SHOP["fine"])
+		var pool := of_rarity("fine" if fine else "common")
 		pool = pool.filter(func(id): return not out.any(func(o): return o["base"] == id))
+		if pool.is_empty():  # (every charm of that rarity is out already: one of the other, so the tray holds as many as it should)
+			pool = of_rarity("common" if fine else "fine").filter(func(id): return not out.any(func(o): return o["base"] == id))
 		if not pool.is_empty():
 			out.append(Gear.make(pool[randi() % pool.size()]))
 	return out
