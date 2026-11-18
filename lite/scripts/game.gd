@@ -8,6 +8,7 @@ const AudioScript := preload("res://scripts/audio.gd")
 const Save := preload("res://scripts/save.gd")
 const Home := preload("res://scripts/home.gd")
 const Climb := preload("res://scripts/climb.gd")
+const ClimberScreen := preload("res://scripts/climber_screen.gd")
 const Data := preload("res://scripts/data.gd")
 
 var audio
@@ -53,6 +54,14 @@ func go_home(celebrate := "") -> void:
 	_show(h)
 
 
+## The climber screen (marks, weapons, look).
+func open_climber(tab := "marks") -> void:
+	save.save()
+	var s = ClimberScreen.new()
+	s.setup(self, tab)
+	_show(s)
+
+
 func start_climb(tower: String) -> void:
 	var c = Climb.new()
 	c.setup(self, tower)
@@ -64,6 +73,8 @@ func start_climb(tower: String) -> void:
 func say(text: String) -> void:
 	if not Data.SPEAK or text == "" or not DisplayServer.has_feature(DisplayServer.FEATURE_TEXT_TO_SPEECH):
 		return
+	if OS.get_name() == "Linux":
+		return  # (a Linux desktop often has no voice, and asking for one only logs errors)
 	var voices := DisplayServer.tts_get_voices_for_language("en")
 	if voices.is_empty():
 		voices = DisplayServer.tts_get_voices_for_language(OS.get_locale_language())

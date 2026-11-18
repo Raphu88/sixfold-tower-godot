@@ -1,12 +1,13 @@
 extends SceneTree
 ## Draws Six Towers LITE's icon (icon.png: the home screen's app icon and the
 ## loading screen) with the game's own drawings: a tower in the night with
-## the Gryphon in its round window, and a mark glowing over it. Run from the
+## the Gryphon in its round window (drawn as in the full game, creatures.gd), and a mark glowing over it. Run from the
 ## lite folder:
 ##   xvfb-run -a godot --rendering-driver opengl3 -s tools/make_icon.gd
 
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/data.gd")
+const Creatures := preload("res://scripts/creatures.gd")
 const SIZE := 512
 
 
@@ -48,6 +49,6 @@ func _draw_icon(c: Node2D) -> void:
 	var fr := s * 0.2
 	c.draw_circle(face, fr + 8, Art.OUT)
 	c.draw_circle(face, fr, col.darkened(0.55))
-	Art.beast(c, face + Vector2(0, fr * 0.75), "gryphon", 0.6, 0.0, 0.0, false, fr / 85.0)
+	Creatures.draw(c, "gryphon", face, {"t": 0.6, "face": Vector2.DOWN, "state": "idle", "scale": fr / (Creatures.radius("gryphon") * 2.4)})
 	Art.glow(c, Vector2(s / 2, s * 0.13), 70, Color(1.0, 0.85, 0.4), 1.6)
 	Art.star(c, Vector2(s / 2, s * 0.13), 34, Color(1.0, 0.85, 0.35))

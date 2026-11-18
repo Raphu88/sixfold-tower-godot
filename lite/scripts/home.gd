@@ -11,6 +11,9 @@ extends Node2D
 
 const Data := preload("res://scripts/data.gd")
 const Art := preload("res://scripts/art.gd")
+const UI := preload("res://scripts/ui.gd")
+const Creatures := preload("res://scripts/creatures.gd")
+const ClimberArt := preload("res://scripts/climber_art.gd")
 
 var game
 var t := 0.0
@@ -19,6 +22,7 @@ var picked := ""  # a tower tapped: it bounces, then the climb starts
 var picked_t := 0.0
 var celebrate := ""  # a tower whose beast was just beaten
 var confetti: Array = []
+var beast_mem := {}  # tower -> creatures.gd's smoothed pose
 ## The bubble is read aloud once a session (and after every win).
 static var greeted := false
 
@@ -90,6 +94,10 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		p = event.position
 	if p != null:
+		if p.distance_to(you_center()) < 50.0 or climber_rect().has_point(p):
+			game.sfx("ui_open")
+			game.open_climber()
+			return
 		if p.distance_to(bubble_center()) < 110.0:
 			game.say(bubble_text())
 			return
@@ -154,8 +162,13 @@ func _draw() -> void:
 	for i in Data.ORDER.size():
 		_draw_tower(i, Data.ORDER[i] == sug)
 	_draw_climber(vs)
-	var head := Vector2(vs.x / 2.0, vs.y - 24.0 - 64.0 * clampf(vs.y / 720.0 * 2.9, 2.2, 4.0))
+	var head := Vector2(vs.x / 2.0, vs.y - 24.0 - ClimberArt.front_height(climber_scale()))
 	Art.bubble(self, bubble_center(), bubble_text(), head, 34)
+	# You: the climber screen (marks, weapons, look).
+	var yc := you_center()
+	UI.button(self, yc, 34.0, UI.GILT)
+	Art.person_icon(self, yc + Vector2(0, -6), 24.0)
+	Art.words(self, yc + Vector2(0, 48), Data.TEXT["climber"], 22, UI.TEXT)
 	# The guide floats over the tower to try next (or the one picked with keys).
 	var gi := selected
 	var gr := card_rect(gi)
@@ -204,7 +217,9 @@ func _draw_tower(i: int, suggested_here: bool) -> void:
 	var fr := body.size.x * 0.4
 	draw_circle(face, fr + 4.0, Art.OUT)
 	draw_circle(face, fr, col.darkened(0.55))
-	Art.beast_badge(self, face + Vector2(0, fr * 0.45), tw, t + float(i), fr / 95.0)
+	if not beast_mem.has(tw):
+		beast_mem[tw] = {}
+	Creatures.draw(self, tw, face, {"t": t + float(i), "face": Vector2.DOWN, "state": "idle", "scale": fr / (Creatures.radius(tw) * 2.5), "mem": beast_mem[tw]})
 	# Beaten: a crown on top, and the magic it gave.
 	if game.save.beaten.has(tw):
 		Art.crown(self, Vector2(r.get_center().x, r.position.y - 2.0 + 3.0 * sin(t * 2.0 + float(i))), 22.0)
@@ -219,8 +234,23 @@ func _draw_tower(i: int, suggested_here: bool) -> void:
 		draw_arc(mp, 22.0, 0.0, TAU, 32, Color(col, 0.6), 3.0)
 
 
+func climber_scale() -> float:
+	return clampf(get_viewport_rect().size.y / 720.0 * 2.9, 2.2, 4.0)
+
+
+func you_center() -> Vector2:
+	return Vector2(52, 52)
+
+
+## Where the climber stands (tapping them opens the climber screen too).
+func climber_rect() -> Rect2:
+	var vs := get_viewport_rect().size
+	var h := ClimberArt.front_height(climber_scale())
+	return Rect2(Vector2(vs.x / 2.0 - h * 0.3, vs.y - 24.0 - h), Vector2(h * 0.6, h))
+
+
 func _draw_climber(vs: Vector2) -> void:
-	var s := clampf(vs.y / 720.0 * 2.9, 2.2, 4.0)
+	var s := climber_scale()
 	var center := Vector2(vs.x / 2.0, vs.y - 24.0)
 	var marks := {}
 	var stars := {}
@@ -228,12 +258,12 @@ func _draw_climber(vs: Vector2) -> void:
 		var part: String = game.save.marks[e]["part"]
 		marks[part] = Data.color(e)
 		stars[part] = game.save.star(e)
-	Art.climber(self, center, s, false, marks, stars, t)
+	ClimberArt.draw_front(self, center, game.save.app, s, marks, stars, t)
 	# A badge beside the climber for each mark: its magic and stars.
 	var k := 0
 	for e in game.save.marks:
 		var part: String = game.save.marks[e]["part"]
-		var spot: Vector2 = center + Art.PART_SPOT[part] * s
+		var spot: Vector2 = ClimberArt.front_spot(center, s, part)
 		var left := k % 2 == 0
 		var bp := Vector2(vs.x / 2.0 + (-1.0 if left else 1.0) * (130.0 + 120.0 * float(k / 2)), center.y - 150.0 + 70.0 * float(k / 2))
 		var col := Data.color(e)
