@@ -38,7 +38,7 @@ To open it in Godot: in the project manager choose **Import**, pick `lite/projec
 
 ## Looking like the full game
 
-LITE copies the full game's drawing code, adapted (no gear, no lighting, no game systems), so it looks the same, only bigger (characters are drawn 2.2 times the full game's size, beasts 1.6) and a little brighter:
+LITE copies the full game's drawing code, adapted (no gear, no lighting, no game systems), so it looks like the full game, only bigger (characters are drawn 2.2 times the full game's size, beasts 1.6), brighter and a little more cartoony: every colour is made more saturated and brighter (the dark outlines stay dark) and the outlines are drawn 1.6 times as thick. Those are four numbers at the end of `scripts/palette.gd` (`TOON_SAT`, `TOON_BRIGHT`, `TOON_LIFT`, `TOON_LINE`; all at 1.0 and 0 it would look just like the full game), and the rooms' extra lightness is `BRIGHTER` in `scripts/room_art.gd`.
 
 | LITE file | Copied from the full game's |
 | --- | --- |

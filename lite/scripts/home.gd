@@ -153,11 +153,11 @@ func _pick(i: int) -> void:
 func _draw() -> void:
 	var vs := get_viewport_rect().size
 	# A night sky over the towers.
-	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.07, 0.06, 0.12))
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.12, 0.11, 0.21))
 	for k in 60:
 		var sp := Vector2(fmod(float(k) * 211.7, vs.x), fmod(float(k) * 97.3, vs.y * 0.7))
 		draw_circle(sp, 1.5 + float(k % 3) * 0.5, Color(1, 1, 1, 0.25 + 0.25 * sin(t * 1.5 + float(k))))
-	draw_rect(Rect2(0, vs.y * 0.62, vs.x, vs.y * 0.38), Color(0.1, 0.09, 0.14))
+	draw_rect(Rect2(0, vs.y * 0.62, vs.x, vs.y * 0.38), Color(0.17, 0.15, 0.22))
 	var sug := suggested()
 	for i in Data.ORDER.size():
 		_draw_tower(i, Data.ORDER[i] == sug)

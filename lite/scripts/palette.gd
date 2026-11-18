@@ -58,3 +58,27 @@ const ARCHER := Color(0.62, 0.5, 0.3)
 const KNIGHT := Color(0.66, 0.7, 0.8)
 const PLUME := Color(0.75, 0.2, 0.18)
 static var DANGER := Color(1.0, 0.3, 0.25)
+
+# --- LITE: a little brighter and more cartoony than the full game ---------------
+## Every colour the characters, rooms and buttons are drawn in passes through
+## toon() (draw_util.gd Batch, creatures.gd Pen): more saturated and brighter,
+## while the dark outlines stay dark. And outlines are drawn TOON_LINE times as
+## thick as the full game's. (1.0 everywhere would look just like the full game.)
+static var TOON_SAT := 1.25
+static var TOON_BRIGHT := 1.14
+static var TOON_LIFT := 0.04
+static var TOON_LINE := 1.6
+static var _toon_cache := {}
+
+
+static func toon(c: Color) -> Color:
+	if _toon_cache.has(c):
+		return _toon_cache[c]
+	var k := clampf((c.v - 0.08) / 0.12, 0.0, 1.0)  # (outlines and deep shadows stay as they are)
+	var out := c
+	if k > 0.0:
+		out = c.lerp(Color.from_hsv(c.h, minf(1.0, c.s * TOON_SAT), minf(1.0, c.v * TOON_BRIGHT + TOON_LIFT), c.a), k)
+	if _toon_cache.size() > 6000:
+		_toon_cache.clear()
+	_toon_cache[c] = out
+	return out

@@ -1300,6 +1300,7 @@ class Pen:
 		return clampi(int(r * 0.85) + 7, 8, 32)
 
 	func _fill(col: Color, n: int) -> void:
+		col = Pal.toon(col)  # (LITE's brighter, more cartoony colours: palette.gd)
 		if danger > 0.0:
 			# Toward red, less on the dark outlines so the shapes still read.
 			var k := danger * 0.6 * clampf(col.get_luminance() * 2.5, 0.25, 1.0)
@@ -1327,8 +1328,8 @@ class Pen:
 	func ball(at: Vector2, r: float, col: Color, outline := true) -> void:
 		if outline:
 			if r >= 6.0:  # the soft rim; small balls don't need it
-				circle(at, r + 2.5, Color(Pal.OUTLINE, 0.3))
-			circle(at, r + 1.6, Pal.OUTLINE)
+				circle(at, r + 1.6 * Pal.TOON_LINE + 0.9, Color(Pal.OUTLINE, 0.3))
+			circle(at, r + 1.6 * Pal.TOON_LINE, Pal.OUTLINE)
 		circle(at, r, col.darkened(0.35))
 		circle(at + Vector2(-r * 0.12, -r * 0.14), r * 0.86, col)
 		circle(at + Vector2(-r * 0.32, -r * 0.36), r * 0.34, Color(col.lightened(0.45), 0.55))
@@ -1336,8 +1337,8 @@ class Pen:
 	## An oval ball (bodies), lit the same way.
 	func egg(at: Vector2, rad: Vector2, angle: float, col: Color, outline := true) -> void:
 		if outline:
-			oval(at, rad + Vector2(2.5, 2.5), angle, Color(Pal.OUTLINE, 0.3))
-			oval(at, rad + Vector2(1.6, 1.6), angle, Pal.OUTLINE)
+			oval(at, rad + Vector2.ONE * (1.6 * Pal.TOON_LINE + 0.9), angle, Color(Pal.OUTLINE, 0.3))
+			oval(at, rad + Vector2.ONE * 1.6 * Pal.TOON_LINE, angle, Pal.OUTLINE)
 		var m := minf(rad.x, rad.y)
 		oval(at, rad, angle, col.darkened(0.35))
 		oval(at + Vector2(-m * 0.12, -m * 0.14), rad * 0.86, angle, col)
@@ -1361,7 +1362,7 @@ class Pen:
 	## A thick outlined stroke with round ends (limbs, handles).
 	func limb(a: Vector2, b: Vector2, col: Color, w: float, outline := true) -> void:
 		if outline:
-			var ow := w + 3.2
+			var ow := w + 3.2 * Pal.TOON_LINE
 			quad(a, b, ow, Pal.OUTLINE)
 			circle(a, ow * 0.5, Pal.OUTLINE, 8)
 			circle(b, ow * 0.5, Pal.OUTLINE, 8)
@@ -1380,9 +1381,9 @@ class Pen:
 		for i in n:
 			nrm[i] = (p[mini(i + 1, n - 1)] - p[maxi(i - 1, 0)]).normalized().orthogonal()
 		if outline:
-			_strip(p, nrm, w, 1.0, 3.2, Pal.OUTLINE, 0.0)
-			circle(p[0], w[0] * 0.5 + 1.6, Pal.OUTLINE, 10)
-			circle(p[n - 1], w[n - 1] * 0.5 + 1.6, Pal.OUTLINE, 10)
+			_strip(p, nrm, w, 1.0, 3.2 * Pal.TOON_LINE, Pal.OUTLINE, 0.0)
+			circle(p[0], w[0] * 0.5 + 1.6 * Pal.TOON_LINE, Pal.OUTLINE, 10)
+			circle(p[n - 1], w[n - 1] * 0.5 + 1.6 * Pal.TOON_LINE, Pal.OUTLINE, 10)
 		var base := col.darkened(0.3) if shade else col
 		_strip(p, nrm, w, 1.0, 0.0, base, 0.0)
 		circle(p[0], w[0] * 0.5, base, 10)
@@ -1420,6 +1421,7 @@ class Pen:
 
 	## A filled polygon with a soft outline grown around it.
 	func poly(p: PackedVector2Array, col: Color, outline := 1.6) -> void:
+		outline *= Pal.TOON_LINE
 		if outline > 0.0:
 			if outline >= 1.3:  # the soft rim (thin details go without)
 				fill_poly(grow(p, outline + 0.9), Color(Pal.OUTLINE, 0.3))
