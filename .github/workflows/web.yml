@@ -1,5 +1,7 @@
 # Builds the web version of the game and publishes it to GitHub Pages
 # every time main changes. Play it at https://raphu88.github.io/sixfold-tower-godot/
+# Six Towers LITE (the lite/ folder, its own Godot project) is built beside it
+# and published at https://raphu88.github.io/sixfold-tower-godot/lite/
 # One-time setup: repo Settings > Pages > Source: "GitHub Actions".
 name: Web build
 
@@ -79,6 +81,43 @@ jobs:
             timeout 2400 $godot --headless -s tests/smoke_test.gd -- ${{ matrix.tests }}
           fi
 
+  # Six Towers LITE's own test (lite/tests/test.gd), in its own project.
+  test-lite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot and web export templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-web
+
+      - name: Install Godot and web export templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot
+          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          dest=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p "$dest"
+          unzip -q -j /tmp/templates.tpz 'templates/web_nothreads_*' -d "$dest"
+          echo "${GODOT_VERSION}.stable" > "$dest/version.txt"
+          rm /tmp/templates.tpz
+
+      - name: Import and run the LITE test
+        working-directory: lite
+        run: |
+          godot=~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64
+          timeout 300 $godot --headless --import || true
+          timeout 300 $godot --headless --editor --quit || true
+          timeout 600 $godot --headless -s tests/test.gd
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -120,12 +159,22 @@ jobs:
           timeout 300 $godot --headless --export-release "Web" build/web/index.html
           test -f build/web/index.wasm
 
+      - name: Export Six Towers LITE for web (into lite/)
+        working-directory: lite
+        run: |
+          godot=~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64
+          timeout 300 $godot --headless --import || true
+          timeout 300 $godot --headless --editor --quit || true
+          mkdir -p ../build/web/lite
+          timeout 300 $godot --headless --export-release "Web" ../build/web/lite/index.html
+          test -f ../build/web/lite/index.wasm
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
 
   deploy:
-    needs: [test, build]
+    needs: [test, test-lite, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

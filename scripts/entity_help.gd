@@ -186,7 +186,6 @@ static var HELP := {
 	"bestiary": "{name}: its entry, with all you've learned of it so far.",
 	"bestiary_locked": "Not met yet. Its entry starts once you've seen one.",
 	"archive": "{archive}: what I said, and a fuller account.",
-	"kids": "A simpler game for young children who can't read yet: big buttons, gentle fights, one magic per mark. It opens every time until you hold the gear on its home screen for two seconds.",
 	"help:replay": "I'll tell you every tip again. The Archive keeps what it has.",
 	"help:tips": "My tips on or off. The Archive fills in either way.",
 	"setting:tips": "My tips on or off. The Archive fills in either way.",
