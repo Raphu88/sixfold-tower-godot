@@ -8,6 +8,7 @@ const AudioScript := preload("res://scripts/audio.gd")
 const Save := preload("res://scripts/save.gd")
 const Home := preload("res://scripts/home.gd")
 const Climb := preload("res://scripts/climb.gd")
+const Data := preload("res://scripts/data.gd")
 
 var audio
 var save
@@ -56,6 +57,20 @@ func start_climb(tower: String) -> void:
 	var c = Climb.new()
 	c.setup(self, tower)
 	_show(c)
+
+
+## Reads words aloud (Data.SPEAK), if the device has a voice: a child hears
+## each word while seeing it. A new line cuts off the one before.
+func say(text: String) -> void:
+	if not Data.SPEAK or text == "" or not DisplayServer.has_feature(DisplayServer.FEATURE_TEXT_TO_SPEECH):
+		return
+	var voices := DisplayServer.tts_get_voices_for_language("en")
+	if voices.is_empty():
+		voices = DisplayServer.tts_get_voices_for_language(OS.get_locale_language())
+	if voices.is_empty():
+		return
+	DisplayServer.tts_stop()
+	DisplayServer.tts_speak(text, voices[0], 80, 1.0, 0.85)
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0) -> void:

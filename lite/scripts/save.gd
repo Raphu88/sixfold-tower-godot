@@ -69,10 +69,11 @@ func star(essence: String) -> int:
 
 
 ## The beast of `tower` marks the climber (or grows its mark if it's there).
-## Returns true for a new mark.
-func regard(tower: String) -> bool:
+## `beat`: it was beaten (its crown); false for the first climb's Regard,
+## when it only takes notice. Returns true for a new mark.
+func regard(tower: String, beat := true) -> bool:
 	var e: String = Data.TOWERS[tower]["essence"]
-	if not beaten.has(tower):
+	if beat and not beaten.has(tower):
 		beaten.append(tower)
 	if marks.has(e):
 		marks[e]["grown"] = float(marks[e]["grown"]) + Data.BEAST_GROWTH

@@ -1,12 +1,15 @@
 extends RefCounted
 ## Six Towers LITE's data: towers, monsters, magic and every number, in one
 ## place so they're easy to change. Nothing here needs reading in the game:
-## the names are only for the people who change it.
+## the names are only for the people who change it. The words the game does
+## show are in TEXT: short and simple, to help a child learning to read.
 ##
 ## Based on the full Sixfold Tower (its towers, bonds and essence), much simpler:
 ## - Six towers, each with its beast and its essence (colour).
-## - The first climb has no magic. Beat a tower's beast and it marks your body
-##   (the Regard): the mark is that essence's one magic power.
+## - A climb is six floors, the beast at the top. The first climb starts with
+##   no magic: on floor 3 the tower's beast takes notice and marks your body
+##   (the Regard). Each mark is one magic power; beating a beast gives its
+##   mark too (or grows it).
 ## - Monsters leave sparkles of essence. You carry them up and, at each stair,
 ##   they pour into your marks (a mark's own colour counts most). Marks grow
 ##   from 1 to 3 stars across climbs.
@@ -57,8 +60,11 @@ static var MONSTERS := {
 	"briar": {"kind": "shooter", "look": "hooded", "hp": 3, "speed": 45.0},
 }
 
-## Each floor of a climb: how many monsters. The last floor is the beast's.
-const FLOORS := [4, 6]
+## Each floor of a climb: how many monsters. The floor after these (the
+## sixth) is the beast's.
+const FLOORS := [3, 4, 4, 5, 5]
+## On the first climb (no mark yet), the beast's Regard comes after this floor.
+const REGARD_FLOOR := 3
 const BEAST_HP := 26
 const BEAST_SPEED := 70.0
 ## The beast calls this many of its monsters when it drops to half health.
@@ -92,15 +98,39 @@ const STAR_AT := [0, 60, 180]
 const BEAST_GROWTH := 30
 
 ## The magic: one for each essence, each based on a bond of the full game
-## (its bonds.gd). "recharge" in seconds; the numbers grow with the mark's stars.
+## (its bonds.gd). "word" is the easy name the game shows on the magic button;
+## "recharge" in seconds; the numbers grow with the mark's stars.
 static var MAGIC := {
-	"air": {"name": "Chain Lightning", "bond": "Stormcaller", "sound": "spell_lightning", "recharge": 5.0, "damage": [2, 3, 4], "targets": [3, 4, 6]},
-	"water": {"name": "Tidal Surge", "bond": "Tidecaller", "sound": "spell_water", "recharge": 5.0, "damage": [2, 3, 4], "radius": [170.0, 210.0, 260.0]},
-	"iron": {"name": "Barrier", "bond": "Warden", "sound": "spell_iron", "recharge": 8.0, "time": [4.0, 5.5, 7.0]},
-	"stone": {"name": "Quake", "bond": "Sandshaper", "sound": "spell_stone", "recharge": 6.0, "damage": [2, 3, 4], "radius": [190.0, 230.0, 280.0], "stun": [2.0, 2.5, 3.0]},
-	"fire": {"name": "Fireball", "bond": "Flamewing", "sound": "spell_fire", "recharge": 4.0, "damage": [4, 6, 8], "radius": [90.0, 110.0, 140.0]},
-	"blade": {"name": "Conjured Blades", "bond": "Blade Forger", "sound": "spell_blade", "recharge": 7.0, "damage": [1, 1, 2], "blades": [3, 4, 6], "time": [4.0, 5.0, 6.0]},
+	"air": {"word": "Zap", "name": "Chain Lightning", "bond": "Stormcaller", "sound": "spell_lightning", "recharge": 5.0, "damage": [2, 3, 4], "targets": [3, 4, 6]},
+	"water": {"word": "Wave", "name": "Tidal Surge", "bond": "Tidecaller", "sound": "spell_water", "recharge": 5.0, "damage": [2, 3, 4], "radius": [170.0, 210.0, 260.0]},
+	"iron": {"word": "Shield", "name": "Barrier", "bond": "Warden", "sound": "spell_iron", "recharge": 8.0, "time": [4.0, 5.5, 7.0]},
+	"stone": {"word": "Stomp", "name": "Quake", "bond": "Sandshaper", "sound": "spell_stone", "recharge": 6.0, "damage": [2, 3, 4], "radius": [190.0, 230.0, 280.0], "stun": [2.0, 2.5, 3.0]},
+	"fire": {"word": "Fire", "name": "Fireball", "bond": "Flamewing", "sound": "spell_fire", "recharge": 4.0, "damage": [4, 6, 8], "radius": [90.0, 110.0, 140.0]},
+	"blade": {"word": "Blades", "name": "Conjured Blades", "bond": "Blade Forger", "sound": "spell_blade", "recharge": 7.0, "damage": [1, 1, 2], "blades": [3, 4, 6], "time": [4.0, 5.0, 6.0]},
 }
+
+
+## The words on screen: short and simple, for a child learning to read. %s
+## is a beast's name (TOWERS "name") or a floor's number.
+static var TEXT := {
+	"pick": "Pick a tower!",
+	"hooray": "Hooray!",
+	"floor": "Floor %s",
+	"beast": "The %s!",
+	"go_up": "Go up!",
+	"oops": "Oops! Try again!",
+	"grows": "Your magic grows!",
+	"sees_you": "The %s sees you!",
+	"you_beat": "You beat the %s!",
+	"new_mark": "You got a mark!",
+	"hit": "Hit",
+	"home": "Home",
+	"play": "Play",
+	"ok": "OK",
+}
+## Read the words aloud as they show (on devices with a voice), so a child
+## hears each word while seeing it.
+const SPEAK := true
 
 
 static func color(essence: String) -> Color:
