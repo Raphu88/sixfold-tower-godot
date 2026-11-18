@@ -103,7 +103,7 @@ func _spot(r: Rect2, what: Callable) -> void:
 func _draw() -> void:
 	spots.clear()
 	var vs := get_viewport_rect().size
-	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.05, 0.045, 0.08))
+	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.11, 0.1, 0.17))
 	var pg := page()
 	# The tabs, above the page.
 	var tw := 200.0

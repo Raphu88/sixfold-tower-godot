@@ -12,7 +12,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const TILE := 40.0
 const FACE := 34.0  # the north wall's brick face
 ## How much lighter than the full game's stone (0: the same).
-const BRIGHTER := 0.12
+const BRIGHTER := 0.2
 
 
 static func _hash(x: int, y: int, salt := 0) -> float:

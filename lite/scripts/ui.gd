@@ -12,8 +12,8 @@ static var GILT_HI := Color(0.97, 0.85, 0.58)
 static var TEXT := Color(0.925, 0.89, 0.81)
 const OUTLINE := Color(0.03, 0.025, 0.04)
 ## The book's page and its edge (the full game's Climber's Book).
-static var PAGE_TOP := Color(0.2, 0.16, 0.13)
-static var PAGE_BOTTOM := Color(0.12, 0.095, 0.08)
+static var PAGE_TOP := Color(0.28, 0.22, 0.17)
+static var PAGE_BOTTOM := Color(0.19, 0.15, 0.12)
 static var LEATHER := Color(0.36, 0.22, 0.12)
 
 

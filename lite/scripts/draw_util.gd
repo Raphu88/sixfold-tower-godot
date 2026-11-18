@@ -1,5 +1,7 @@
 extends RefCounted
-## (A copy of the full game's scripts/draw_util.gd, so LITE draws like it.)
+## (A copy of the full game's scripts/draw_util.gd, so LITE draws like it,
+## with LITE's cartoon look added: Batch colours pass through Palette.toon()
+## and outlines are Palette.TOON_LINE times as thick.)
 ## Shared drawing helpers for the code-drawn characters: outlined, shaded
 ## shapes and soft shadows. Every function draws onto the CanvasItem passed in.
 ##
@@ -176,7 +178,7 @@ class Batch:
 	func _color(col: Color, n: int) -> void:
 		var c := PackedColorArray()
 		c.resize(n)
-		c.fill(col)
+		c.fill(Palette.toon(col))
 		cols.append_array(c)
 
 	## Like draw_rect (filled).
@@ -234,8 +236,8 @@ class Batch:
 	## an unrotated canvas item).
 	func ball(pos: Vector2, r: float, col: Color, outline := true, light := LIGHT_DIR) -> void:
 		if outline:
-			dot(pos, r + 2.4, Color(Palette.OUTLINE, FEATHER_ALPHA))
-			dot(pos, r + 1.6, Palette.OUTLINE)
+			dot(pos, r + 1.6 * Palette.TOON_LINE + 0.8, Color(Palette.OUTLINE, FEATHER_ALPHA))
+			dot(pos, r + 1.6 * Palette.TOON_LINE, Palette.OUTLINE)
 		var l := light.normalized()
 		dot(pos, r, col.darkened(0.35))
 		dot(pos + l * r * 0.18, r * 0.86, col)
@@ -243,7 +245,7 @@ class Batch:
 
 	## A thick outlined line with round ends, for blades, shafts and limbs.
 	func stroke(a: Vector2, b: Vector2, col: Color, width: float) -> void:
-		var o := width + 2.4
+		var o := width + 2.4 * Palette.TOON_LINE
 		line(a, b, Color(Palette.OUTLINE, FEATHER_ALPHA), o + 1.6)
 		dot(a, (o + 1.6) * 0.5, Color(Palette.OUTLINE, FEATHER_ALPHA))
 		dot(b, (o + 1.6) * 0.5, Color(Palette.OUTLINE, FEATHER_ALPHA))
@@ -273,6 +275,7 @@ class Batch:
 
 	## An outlined polygon with a flat fill (outline 0 for none).
 	func poly(points: PackedVector2Array, col: Color, outline := 1.6) -> void:
+		outline *= Palette.TOON_LINE
 		if outline > 0.0:
 			path(points, Color(Palette.OUTLINE, FEATHER_ALPHA), outline * 2.0 + 1.6, true)
 			path(points, Palette.OUTLINE, outline * 2.0, true)
