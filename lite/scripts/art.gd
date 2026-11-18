@@ -13,6 +13,11 @@ const TUNIC := Color(0.42, 0.34, 0.27)
 const HAIR := Color(0.36, 0.22, 0.14)
 const BOOT := Color(0.24, 0.17, 0.13)
 
+## The words' font: Andika, made by SIL for children learning to read (its
+## letters are drawn the way they're taught, like a single-storey a and g).
+const FONT_PATH := "res://assets/fonts/andika/Andika-Bold.ttf"
+static var _font: Font
+
 ## Where each body part's mark glows on the climber, in its own units
 ## (the figure is about 60 tall, its feet at 0).
 const PART_SPOT := {
@@ -59,6 +64,45 @@ static func glow(c: CanvasItem, p: Vector2, r: float, col: Color, strength := 1.
 	for i in 4:
 		var f := 1.0 - float(i) / 4.0
 		c.draw_circle(p, r * f, Color(col, 0.12 * strength))
+
+
+# --- words ---------------------------------------------------------------------
+
+static func font() -> Font:
+	if _font == null:
+		_font = load(FONT_PATH) if ResourceLoader.exists(FONT_PATH) else ThemeDB.fallback_font
+	return _font
+
+
+## Words centred on `p` (their middle), big and outlined so they read on
+## anything behind them. `pop` (0 to 1) grows them in as they appear.
+static func words(c: CanvasItem, p: Vector2, text: String, size := 40, col := Color(1.0, 0.97, 0.88), pop := 1.0) -> void:
+	if text == "" or pop <= 0.0:
+		return
+	var f := font()
+	var sz := maxi(1, int(round(float(size) * (0.6 + 0.4 * clampf(pop, 0.0, 1.0)))))
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+	var base := p + Vector2(-w / 2.0, f.get_ascent(sz) * 0.5 - f.get_descent(sz) * 0.3)
+	var a := clampf(pop * 2.0, 0.0, 1.0)
+	c.draw_string_outline(f, base, text, HORIZONTAL_ALIGNMENT_LEFT, -1, sz, maxi(4, sz / 6), Color(OUT, a))
+	c.draw_string(f, base, text, HORIZONTAL_ALIGNMENT_LEFT, -1, sz, Color(col, a))
+
+
+## A speech bubble with words in it, its tail pointing down to `tail`.
+static func bubble(c: CanvasItem, p: Vector2, text: String, tail: Vector2, size := 34) -> void:
+	var f := font()
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 40.0
+	var h := float(size) * 1.6
+	var r := Rect2(p - Vector2(w, h) / 2.0, Vector2(w, h))
+	_poly(c, PackedVector2Array([Vector2(p.x - 14, r.end.y - 2), tail, Vector2(p.x + 14, r.end.y - 2)]), Color(1, 1, 1))
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(1, 1, 1)
+	box.border_color = OUT
+	box.set_border_width_all(4)
+	box.set_corner_radius_all(int(h / 2.0))
+	box.draw(c.get_canvas_item(), r)
+	c.draw_colored_polygon(PackedVector2Array([Vector2(p.x - 10, r.end.y - 5), tail + Vector2(0, -6), Vector2(p.x + 10, r.end.y - 5)]), Color(1, 1, 1))
+	words(c, p, text, size, Color(0.12, 0.1, 0.16))
 
 
 # --- the climber ---------------------------------------------------------------

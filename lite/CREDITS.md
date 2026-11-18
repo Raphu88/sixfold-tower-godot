@@ -64,4 +64,6 @@ Six Towers LITE uses copies of a few of the full Sixfold Tower's sounds. All of 
 | [Forest bird sounds](https://opengameart.org/content/forest-bird-sounds) | pauliuw | the Thornwild's ambience |
 | [Dripping water loop](https://opengameart.org/content/dripping-water-loop) | qubodup | the flooded halls' ambience |
 
-LITE has no fonts: it uses no words.
+## Font
+
+The words are in **[Andika](https://software.sil.org/andika/)** Bold by SIL International, made for children learning to read. It's under the **SIL Open Font License 1.1** (free to use, embed and share with the game); the licence travels with it in `assets/fonts/andika/OFL.txt`. The file is unmodified, from [Google Fonts](https://fonts.google.com/specimen/Andika).

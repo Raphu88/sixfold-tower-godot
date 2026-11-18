@@ -7,6 +7,7 @@ extends SceneTree
 
 const Data := preload("res://scripts/data.gd")
 const Save := preload("res://scripts/save.gd")
+const Art := preload("res://scripts/art.gd")
 
 var g
 var failures := 0
@@ -80,28 +81,70 @@ func _climb_test() -> void:
 	g.start_climb("gryphon")
 	await _frames(2)
 	var c = g.screen
+	_check(Data.FLOORS.size() + 1 == 6 and Data.REGARD_FLOOR == 3, "a climb is six floors; the first climb's Regard comes on floor 3")
 	_check(c.floor_i == 0 and c.monsters.size() == Data.FLOORS[0] and c.hearts == Data.HEARTS, "a climb starts on floor 1 with its monsters and every heart")
-	_check(c.pad.magics.is_empty() or g.save.marks.is_empty(), "the first climb has no magic")
+	_check(c.banner == Data.TEXT["floor"] % "1", "big words say which floor (\"%s\")" % c.banner)
+	_check(g.save.marks.is_empty(), "the first climb has no magic")
 	await _drive(c, 3000, func(): return c.phase == "clear")
 	_check(c.phase == "clear" and c.carried() > 0.0, "the bot clears floor 1, and the monsters' sparkles fly into the climber")
+	_check(c.banner == Data.TEXT["go_up"], "a cleared room says \"%s\"" % Data.TEXT["go_up"])
 	await _drive(c, 600, func(): return c.floor_i == 1)
 	_check(c.floor_i == 1 and c.carried() == 0.0 and g.save.spare > 0.0, "the stair banks the sparkles (with no mark yet they wait for the first) and climbs on")
-	await _drive(c, 4000, func(): return c.beast_floor())
-	_check(c.beast_floor() and c.monsters.size() == 1 and c.monsters[0]["beast"], "floor 3 is the beast's")
-	await _drive(c, 6000, func(): return c.phase == "clear")
-	_check(c.phase == "clear" and c.monsters.is_empty(), "the bot beats the Gryphon")
-	_check(c.beast_called, "at half health the beast called its monsters")
+	await _drive(c, 8000, func(): return c.phase == "regard")
+	_check(c.phase == "regard" and c.floor_i == 2 and not c.regard_beat and c.regard_new, "after floor 3, the Gryphon takes notice: the Regard")
+	_check(g.save.marks.has("air") and g.save.marks["air"]["part"] == "legs" and float(g.save.marks["air"]["grown"]) > 0.0, "it marks the legs with Air, grown by what was banked")
+	_check(not g.save.beaten.has("gryphon"), "...but it isn't beaten yet (no crown)")
+	c.phase_t = 3.0
+	var tap := InputEventMouseButton.new()
+	tap.button_index = MOUSE_BUTTON_LEFT
+	tap.pressed = true
+	c._input(tap)
+	_check(c.floor_i == 3 and c.phase == "fight" and c.chosen == "air", "OK goes on to floor 4, with the new magic ready")
+	await _drive(c, 12000, func(): return c.beast_floor())
+	_check(c.beast_floor() and c.floor_i == 5 and c.monsters.size() == 1 and c.monsters[0]["beast"], "floor 6 is the beast's")
+	_check(c.banner == Data.TEXT["beast"] % "Gryphon", "...and says so (\"%s\")" % c.banner)
+	var before := float(g.save.marks["air"]["grown"])
+	await _drive(c, 8000, func(): return c.phase == "clear")
+	_check(c.phase == "clear" and c.monsters.is_empty() and c.beast_called, "the bot beats the Gryphon (it called its monsters at half health)")
 	await _drive(c, 800, func(): return c.phase == "regard")
-	_check(c.phase == "regard" and c.regard_new, "its stair brings the Regard")
-	_check(g.save.marks.has("air") and g.save.marks["air"]["part"] == "legs" and float(g.save.marks["air"]["grown"]) > 0.0, "the Gryphon marks the legs with Air, grown by what was banked")
-	_check(g.save.beaten.has("gryphon"), "the Gryphon counts as beaten (its crown on the home screen)")
+	_check(c.phase == "regard" and c.regard_beat and not c.regard_new, "its stair: the beast beaten")
+	_check(g.save.beaten.has("gryphon") and float(g.save.marks["air"]["grown"]) >= before + Data.BEAST_GROWTH, "the Gryphon counts as beaten (its crown) and its mark grows")
 	_check(g.save.seen.get("move", false) and g.save.seen.get("attack", false), "the first-time pointers for walking and swinging are done with")
 	g.go_home("gryphon")
 	await _frames(2)
 	_check(g.screen.suggested() == "kraken" and not g.screen.confetti.is_empty(), "back home with confetti; the guide moves on to the next tower")
-	# A beast beaten again grows its mark instead.
-	var before := float(g.save.marks["air"]["grown"])
-	_check(not g.save.regard("gryphon") and float(g.save.marks["air"]["grown"]) == before + Data.BEAST_GROWTH, "beating a beast again grows its mark")
+	_check(g.screen.bubble_text() == Data.TEXT["hooray"], "the climber says \"%s\"" % Data.TEXT["hooray"])
+	# A later climb: no Regard on floor 3; the beast at the top gives its mark.
+	g.start_climb("kraken")
+	await _frames(2)
+	c = g.screen
+	c.floor_i = 2
+	_check(not c.regard_due(), "with a mark already, floor 3 has no Regard")
+	c._start_floor(5)
+	for m in c.monsters:
+		m["hp"] = 1
+		m["state"] = "walk"
+	c.set_process(false)
+	c.pos = c.monsters[0]["pos"] + Vector2(0, 60)
+	c._swing()
+	_check(c.monsters.is_empty(), "the Kraken falls")
+	c.sparks.clear()
+	c._step(0.05)
+	c.pos = c.STAIR
+	await _drive(c, 200, func(): return c.phase == "regard")
+	_check(c.regard_beat and c.regard_new and g.save.marks.has("water") and g.save.marks["water"]["part"] == "heart", "beating a new beast gives its mark (the Kraken's Water, on the heart)")
+	g.go_home()
+	await _frames(1)
+	_check(g.screen.bubble_text() == Data.TEXT["pick"], "home says \"%s\"" % Data.TEXT["pick"])
+	# Beating a beast again grows its mark.
+	var w := float(g.save.marks["water"]["grown"])
+	_check(not g.save.regard("kraken") and float(g.save.marks["water"]["grown"]) == w + Data.BEAST_GROWTH, "beating a beast again grows its mark")
+	_check(not g.save.regard("chimera", false) or not g.save.beaten.has("chimera"), "a Regard without a fight gives no crown")
+	for k in Data.TEXT:
+		_check(String(Data.TEXT[k]).split(" ").size() <= 5, "the words stay short: \"%s\"" % Data.TEXT[k])
+	for e in Data.MAGIC:
+		_check(String(Data.MAGIC[e].get("word", "")).length() in range(2, 8), "%s's button says \"%s\"" % [e, Data.MAGIC[e].get("word", "")])
+	_check(Art.font() != null and Art.font() != ThemeDB.fallback_font, "the words use Andika, the reading font")
 
 
 func _magic_test() -> void:

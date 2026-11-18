@@ -1,13 +1,15 @@
 extends Node2D
-## A climb: three floors of one tower, each a single room.
-## Floors 1 and 2 hold the tower's monsters; floor 3 holds its beast. Clear a
-## room and a stair appears; step on it and the sparkles of essence you carry
-## pour into your marks. Beat the beast, take its stair, and the beast marks
-## you (the Regard) or grows the mark it gave you before.
+## A climb: six floors of one tower, each a single room. Floors 1 to 5 hold
+## the tower's monsters; floor 6 holds its beast. Clear a room and a stair
+## appears; step on it and the sparkles of essence you carry pour into your
+## marks. On the first climb (no mark yet) the beast takes notice after floor
+## 3 (the Regard) and marks you, and the climb goes on. Beat the beast, take
+## its stair, and it gives you its mark (or grows the one it gave before).
 ##
 ## Kind on purpose: monsters flash before they attack, hearts refill on each
 ## floor, and losing every heart just starts the room again (nothing is lost).
-## No words anywhere: hearts, dots for floors, a glowing guide and pictures.
+## Pictures first (hearts, dots for floors, a glowing guide), with a few
+## short words (Data.TEXT) shown big and read aloud, to help with reading.
 
 const Data := preload("res://scripts/data.gd")
 const Art := preload("res://scripts/art.gd")
@@ -24,7 +26,7 @@ const STAIR := Vector2(640, 175)
 
 var game  # game.gd
 var tower := "gryphon"
-var floor_i := 0  # 0 and 1: monsters; 2: the beast (FLOORS.size())
+var floor_i := 0  # 0 to 4: monsters; 5: the beast (FLOORS.size())
 var phase := "fight"  # fight, clear, fallen, bank, regard
 var phase_t := 0.0
 var t := 0.0
@@ -63,6 +65,9 @@ var shake := 0.0
 var beast_called := false
 var bank_bag := {}  # what pours in at the stair
 var regard_new := false
+var regard_beat := true  # the Regard after beating the beast (false: floor 3's)
+var banner := ""  # big words across the screen (and read aloud)
+var banner_at := -100.0
 var used := {}  # first-time hints met on this climb: move, attack, magic
 
 
@@ -79,6 +84,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.draw.connect(_draw_hud)
 	pad = Pad.new()
+	pad.hit_word = Data.TEXT["hit"]
 	for e in game.save.marks:
 		recharge[e] = 0.0
 	chosen = game.save.chosen if game.save.marks.has(game.save.chosen) else (game.save.marks.keys()[0] if not game.save.marks.is_empty() else "")
@@ -130,6 +136,23 @@ func _start_floor(i: int) -> void:
 		b["t"] = 1.4
 		game.sfx("roar_" + tower)
 		shake = 8.0
+	_say(Data.TEXT["beast"] % beast_name() if beast_floor() else Data.TEXT["floor"] % str(i + 1))
+
+
+func beast_name() -> String:
+	return Data.TOWERS[tower]["name"]
+
+
+## Big words across the screen for a moment, read aloud too.
+func _say(text: String) -> void:
+	banner = text
+	banner_at = t
+	game.say(text)
+
+
+## Is the first climb's Regard due once this floor is done?
+func regard_due() -> bool:
+	return game.save.marks.is_empty() and floor_i + 1 == Data.REGARD_FLOOR
 
 
 func _spawn_spot() -> Vector2:
@@ -192,6 +215,7 @@ func _step(delta: float) -> void:
 				phase_t = 0.0
 				orbs.clear()  # (a throw still flying can't hurt once the room is won)
 				game.sfx("clear")
+				_say(Data.TEXT["go_up"])
 			elif phase == "clear" and pos.distance_to(STAIR) < 46.0 and sparks.is_empty():
 				_begin_bank()
 		"fallen":
@@ -201,7 +225,9 @@ func _step(delta: float) -> void:
 		"bank":
 			if phase_t >= (2.6 if not bank_bag.is_empty() else 1.0):
 				if beast_floor():
-					_begin_regard()
+					_begin_regard(true)
+				elif regard_due():
+					_begin_regard(false)
 				else:
 					_start_floor(floor_i + 1)
 					game.sfx("step")
@@ -225,7 +251,12 @@ func _input(event: InputEvent) -> void:
 		return
 	if phase == "regard":
 		if phase_t > 2.6 and (_tap(event) != null or _key_go(event)):
-			game.go_home(tower)
+			if regard_beat:
+				game.go_home(tower)
+			else:
+				# Floor 3's Regard: the climb goes on, with the new magic.
+				game.audio.set_ambience(tower)
+				_start_floor(floor_i + 1)
 		return
 	pad.handle(event)
 	if pad.home_pressed:
@@ -412,6 +443,7 @@ func _hurt_player(from: Vector2) -> void:
 		orbs.clear()
 		fireballs.clear()
 		game.sfx("winded")
+		_say(Data.TEXT["oops"])
 		fx.append({"type": "puff", "pos": pos, "t": 0.0, "dur": 0.9, "col": Color(1, 1, 1), "r": 70.0})
 
 
@@ -696,18 +728,36 @@ func _begin_bank() -> void:
 		game.save.seen[k] = true
 	game.save.save()
 	game.sfx("vessel_fill" if not bank_bag.is_empty() else "step")
+	if not bank_bag.is_empty() and not game.save.marks.is_empty():
+		_say(Data.TEXT["grows"])
 
 
-func _begin_regard() -> void:
+## The beast marks you (or grows its mark). `beat`: after beating it on the
+## top floor; false for the first climb's Regard on floor 3.
+func _begin_regard(beat: bool) -> void:
 	phase = "regard"
 	phase_t = 0.0
-	regard_new = game.save.regard(tower)
+	regard_beat = beat
+	regard_new = game.save.regard(tower, beat)
 	game.save.save()
+	var e := essence()
+	recharge[e] = 0.0
+	if regard_new:
+		chosen = e
+	_say(Data.TEXT["you_beat" if beat else "sees_you"] % beast_name())
+	var line2: String = Data.TEXT["new_mark"] if regard_new else Data.TEXT["grows"]
+	get_tree().create_timer(2.2).timeout.connect(_say_in_regard.bind(line2))
 	game.sfx("regard")
 	game.audio.set_ambience("train")
 	var tw := create_tween()
 	tw.tween_interval(1.6)
 	tw.tween_callback(game.sfx.bind("summit_win"))
+
+
+## Reads the Regard's second line once the mark has landed (if it's still up).
+func _say_in_regard(text: String) -> void:
+	if phase == "regard":
+		game.say(text)
 
 
 ## The bag's total.
@@ -924,6 +974,8 @@ func _draw_hud() -> void:
 		else:
 			c.draw_circle(dp, 18.0 + (3.0 * sin(t * 5.0) if here else 0.0), Art.OUT)
 			c.draw_circle(dp, 14.0 + (3.0 * sin(t * 5.0) if here else 0.0), Color(1.0, 0.85, 0.4) if done else (Data.tower_color(tower) if here else Color(0.3, 0.28, 0.34)))
+		if k == Data.REGARD_FLOOR - 1 and game.save.marks.is_empty() and not done:
+			Art.star(c, dp, 9.0, Color(1, 1, 1))  # (the Regard comes here)
 		if k < total - 1:
 			c.draw_line(dp + Vector2(22, 0), dp + Vector2(48, 0), Color(1, 1, 1, 0.3), 4.0)
 	# The beast's health: a long bar under the dots.
@@ -936,6 +988,10 @@ func _draw_hud() -> void:
 			c.draw_rect(Rect2(r.position, Vector2(w * float(m["hp"]) / float(m["max"]), 20)), Data.tower_color(tower))
 	if phase == "fight" or phase == "clear":
 		pad.draw(c, t, _hints())
+	# The banner: big words for a moment.
+	var age := t - banner_at
+	if banner != "" and age < 2.6 and (phase == "fight" or phase == "clear" or phase == "fallen"):
+		Art.words(c, Vector2(vs.x / 2.0, 160), banner, 56, Color(1.0, 0.95, 0.75), minf(1.0, age * 5.0) * clampf((2.6 - age) * 2.0, 0.0, 1.0))
 	match phase:
 		"bank":
 			_draw_bank(c, vs)
@@ -978,6 +1034,8 @@ func _draw_bank(c: CanvasItem, vs: Vector2) -> void:
 	Art.climber(c, center, s, false, marks, stars, t)
 	if bank_bag.is_empty():
 		return
+	if not marks.is_empty():
+		Art.words(c, Vector2(vs.x / 2.0, vs.y * 0.14), Data.TEXT["grows"], 52, Color(1.0, 0.95, 0.75), minf(1.0, phase_t * 3.0))
 	var spots: Array = []
 	for part in marks:
 		spots.append(center + Art.PART_SPOT[part] * s)
@@ -1006,6 +1064,7 @@ func _draw_regard(c: CanvasItem, vs: Vector2) -> void:
 	var cp := Vector2(vs.x * 0.66, vs.y * 0.86)
 	var s := 4.2
 	Art.beast(c, bp, tower, t, 0.0, 0.0, false, 2.1)
+	Art.words(c, Vector2(bp.x, vs.y * 0.12), Data.TEXT["you_beat" if regard_beat else "sees_you"] % beast_name(), 46, Color(1.0, 0.95, 0.75), minf(1.0, phase_t * 3.0))
 	var part: String = game.save.marks[e]["part"] if game.save.marks.has(e) else "heart"
 	var spot: Vector2 = cp + Art.PART_SPOT[part] * s
 	var landed := phase_t > 1.6
@@ -1035,10 +1094,14 @@ func _draw_regard(c: CanvasItem, vs: Vector2) -> void:
 		var st: int = game.save.star(e)
 		for k in 3:
 			Art.star(c, ic + Vector2(-56 + 56 * k, 92), 20.0, Color(1.0, 0.85, 0.3), k < st)
+		var pop := minf(1.0, (phase_t - 1.6) * 3.0)
+		Art.words(c, ic + Vector2(0, 140), String(Data.MAGIC[e]["word"]) + "!", 44, col.lightened(0.4), pop)
+		Art.words(c, Vector2(bp.x, vs.y * 0.12 + 58), Data.TEXT["new_mark"] if regard_new else Data.TEXT["grows"], 38, Color(1, 1, 1), pop)
 	if phase_t > 2.6:
 		var gp := Vector2(vs.x - 110, vs.y - 110)
 		c.draw_circle(gp, 70.0 + 5.0 * sin(t * 5.0), Color(0.2, 0.5, 0.25))
-		Art.check(c, gp, 70.0)
+		Art.check(c, gp + Vector2(0, -10), 56.0)
+		Art.words(c, gp + Vector2(0, 40), Data.TEXT["ok"], 28)
 		Art.finger(c, gp + Vector2(20, 20), 44.0, t)
 
 
@@ -1047,6 +1110,8 @@ func _draw_pause(c: CanvasItem, vs: Vector2) -> void:
 	var hp := Vector2(vs.x * 0.36, vs.y * 0.55)
 	var pp := Vector2(vs.x * 0.64, vs.y * 0.55)
 	c.draw_circle(hp, 100.0, Color(0.35, 0.3, 0.45))
-	Art.house(c, hp, 80.0)
+	Art.house(c, hp + Vector2(0, -14), 70.0)
+	Art.words(c, hp + Vector2(0, 62), Data.TEXT["home"], 34)
 	c.draw_circle(pp, 100.0 + 5.0 * sin(t * 4.0), Color(0.2, 0.5, 0.25))
-	Art.play(c, pp + Vector2(8, 0), 70.0)
+	Art.play(c, pp + Vector2(8, -14), 60.0)
+	Art.words(c, pp + Vector2(0, 62), Data.TEXT["play"], 34)

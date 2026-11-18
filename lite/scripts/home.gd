@@ -4,6 +4,9 @@ extends Node2D
 ## beast you've beaten. Below, your climber, big, with every mark glowing on
 ## its body and a badge beside it for each magic (its picture and stars).
 ## The guide (the Entity, without words) floats over the tower to try next.
+## Each tower's name is written under it, and the climber says "Pick a
+## tower!" in a speech bubble (Data.TEXT). Words are read aloud too: the
+## bubble when it appears or is tapped, a tower's name when it's picked.
 ## Keys or a controller: left and right pick a tower, Enter or A climbs it.
 
 const Data := preload("res://scripts/data.gd")
@@ -16,6 +19,8 @@ var picked := ""  # a tower tapped: it bounces, then the climb starts
 var picked_t := 0.0
 var celebrate := ""  # a tower whose beast was just beaten
 var confetti: Array = []
+## The bubble is read aloud once a session (and after every win).
+static var greeted := false
 
 
 func setup(g, celebrate_tower := "") -> void:
@@ -30,6 +35,9 @@ func _ready() -> void:
 		selected = maxi(0, Data.ORDER.find(celebrate))
 		for k in 80:
 			confetti.append({"pos": Vector2(randf_range(0, 1), randf_range(-0.6, 0.0)), "vel": randf_range(0.15, 0.35), "col": Color.from_hsv(randf(), 0.6, 1.0), "spin": randf() * TAU})
+	if celebrate != "" or not greeted:
+		greeted = true
+		game.say(bubble_text())
 
 
 ## The tower to try next: the first whose beast you haven't beaten.
@@ -46,7 +54,17 @@ func card_rect(i: int) -> Rect2:
 	var w := minf(200.0, (vs.x - 40.0 - gap * 5.0) / 6.0)
 	var total := w * 6.0 + gap * 5.0
 	var x0 := (vs.x - total) / 2.0
-	return Rect2(Vector2(x0 + float(i) * (w + gap), 70), Vector2(w, minf(300.0, vs.y * 0.42)))
+	return Rect2(Vector2(x0 + float(i) * (w + gap), 70), Vector2(w, minf(270.0, vs.y * 0.37)))
+
+
+## What the climber's speech bubble says.
+func bubble_text() -> String:
+	return Data.TEXT["hooray" if celebrate != "" and confetti.size() > 0 else "pick"]
+
+
+func bubble_center() -> Vector2:
+	var vs := get_viewport_rect().size
+	return Vector2(vs.x / 2.0, card_rect(0).end.y + 120.0)
 
 
 func _process(delta: float) -> void:
@@ -72,8 +90,13 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		p = event.position
 	if p != null:
+		if p.distance_to(bubble_center()) < 110.0:
+			game.say(bubble_text())
+			return
 		for i in Data.ORDER.size():
-			if card_rect(i).grow(6.0).has_point(p):
+			var hit := card_rect(i).grow(6.0)
+			hit.size.y += 50.0  # (its name under it counts too)
+			if hit.has_point(p):
 				_pick(i)
 				return
 		return
@@ -113,6 +136,7 @@ func _pick(i: int) -> void:
 	picked = Data.ORDER[i]
 	picked_t = 0.0
 	game.sfx("ui_confirm")
+	game.say(String(Data.TOWERS[picked]["name"]))
 	game.sfx("roar_" + picked, 1.0, -4.0)
 
 
@@ -130,6 +154,8 @@ func _draw() -> void:
 	for i in Data.ORDER.size():
 		_draw_tower(i, Data.ORDER[i] == sug)
 	_draw_climber(vs)
+	var head := Vector2(vs.x / 2.0, vs.y - 24.0 - 64.0 * clampf(vs.y / 720.0 * 2.9, 2.2, 4.0))
+	Art.bubble(self, bubble_center(), bubble_text(), head, 34)
 	# The guide floats over the tower to try next (or the one picked with keys).
 	var gi := selected
 	var gr := card_rect(gi)
@@ -183,7 +209,8 @@ func _draw_tower(i: int, suggested_here: bool) -> void:
 	if game.save.beaten.has(tw):
 		Art.crown(self, Vector2(r.get_center().x, r.position.y - 2.0 + 3.0 * sin(t * 2.0 + float(i))), 22.0)
 	var e: String = Data.TOWERS[tw]["essence"]
-	var mp := Vector2(r.get_center().x, r.end.y + 34.0)
+	Art.words(self, Vector2(r.get_center().x, r.end.y + 22.0), String(Data.TOWERS[tw]["name"]), 24 if r.size.x > 150.0 else 19, col.lightened(0.45))
+	var mp := Vector2(r.get_center().x, r.end.y + 66.0)
 	if game.save.marks.has(e):
 		draw_circle(mp, 26.0, col.darkened(0.2))
 		Art.magic_icon(self, mp, 17.0, e)
@@ -193,7 +220,7 @@ func _draw_tower(i: int, suggested_here: bool) -> void:
 
 
 func _draw_climber(vs: Vector2) -> void:
-	var s := clampf(vs.y / 720.0 * 3.4, 2.4, 4.2)
+	var s := clampf(vs.y / 720.0 * 2.9, 2.2, 4.0)
 	var center := Vector2(vs.x / 2.0, vs.y - 24.0)
 	var marks := {}
 	var stars := {}

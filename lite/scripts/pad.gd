@@ -18,6 +18,8 @@ const MAGIC_R := 80.0
 const GEM_R := 36.0
 const TOP_R := 36.0
 const MOUSE := 100  # the mouse acts as one more finger
+## The word on the sword button.
+var hit_word := "Hit"
 
 var size := Vector2(1280, 720)
 var touch_used := false
@@ -246,7 +248,8 @@ func draw(c: CanvasItem, t: float, hints := {}) -> void:
 	var ac := attack_center()
 	var pulse := 1.0 + (0.06 * sin(t * 6.0) if hints.has("attack") else 0.0)
 	_button(c, ac, ATTACK_R * pulse, Color(0.85, 0.35, 0.3), attack_held)
-	Art.sword(c, ac, ATTACK_R * 0.62)
+	Art.sword(c, ac + Vector2(0, -14), ATTACK_R * 0.5)
+	Art.words(c, ac + Vector2(0, 58), hit_word, 30)
 	if hints.has("attack"):
 		c.draw_arc(ac, ATTACK_R + 14.0 + 8.0 * sin(t * 6.0), 0.0, TAU, 48, Color(1, 1, 0.7, 0.8), 6.0)
 		Art.finger(c, ac + Vector2(20, 20), 50.0, t)
@@ -262,7 +265,8 @@ func draw(c: CanvasItem, t: float, hints := {}) -> void:
 			c.draw_arc(mc, MAGIC_R - 10.0, -PI / 2.0, -PI / 2.0 + TAU * ch, 40, col, 12.0)
 		else:
 			Art.glow(c, mc, MAGIC_R * 1.5, col, 0.6 + 0.4 * sin(t * 4.0))
-		Art.magic_icon(c, mc, MAGIC_R * 0.6, chosen)
+		Art.magic_icon(c, mc + Vector2(0, -12), MAGIC_R * 0.45, chosen)
+		Art.words(c, mc + Vector2(0, 44), String(Data.MAGIC[chosen].get("word", "")), 26)
 		if hints.has("magic"):
 			c.draw_arc(mc, MAGIC_R + 14.0 + 8.0 * sin(t * 6.0), 0.0, TAU, 48, Color(1, 1, 0.7, 0.8), 6.0)
 			Art.finger(c, mc + Vector2(16, 16), 46.0, t)
