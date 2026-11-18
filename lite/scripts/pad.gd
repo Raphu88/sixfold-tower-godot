@@ -1,29 +1,35 @@
 extends RefCounted
-## The controls: big and few.
+## The controls: few, with pictures, in the full game's glassy style (ui.gd).
 ##
 ## Touch: put a thumb anywhere on the left side and slide it to walk (a
-## floating joystick). Right side: a huge sword button (hold it to keep
-## swinging) and, once you have a mark, the magic button with a gem for each
-## mark above it to pick which magic. Top right: home and fullscreen.
-## Keyboard: arrows or WASD walk; Space, J or Enter swing; K or E cast; 1-6
-## pick a magic. Controller: left stick walks, A swings, X or B casts, the
-## shoulder buttons pick a magic.
+## floating joystick). Right side, round the attack button: Roll, Parry,
+## the magic button (once you have a mark) with a gem for each mark above it
+## to pick which magic, and Swap (the next weapon). Each button shows a
+## picture with a short word under it. Top right: fullscreen and home.
+## Keyboard: arrows or WASD walk; Space, J or Enter attack (hold to keep
+## going); L or Ctrl roll; K or Q parry; E cast; Tab or X swap; 1-6 pick a
+## magic. Controller: left stick walks, A attacks, B rolls, the left trigger
+## parries, Y casts, X swaps, the shoulder buttons pick a magic.
 
 const Art := preload("res://scripts/art.gd")
 const Data := preload("res://scripts/data.gd")
+const UI := preload("res://scripts/ui.gd")
 
-const STICK_R := 85.0
-const ATTACK_R := 105.0
-const MAGIC_R := 80.0
-const GEM_R := 36.0
-const TOP_R := 36.0
+## Sizes (radius, virtual px). Smaller than before so the room stays in view
+## in fullscreen; a touch still counts a little way outside each (HIT_PAD).
+const STICK_R := 62.0
+const ATTACK_R := 58.0
+const SMALL_R := 40.0  # Roll, Parry
+const MAGIC_R := 44.0
+const SWAP_R := 32.0
+const GEM_R := 24.0
+const TOP_R := 26.0
+const HIT_PAD := 16.0
 const MOUSE := 100  # the mouse acts as one more finger
-## The word on the sword button.
-var hit_word := "Hit"
 
 var size := Vector2(1280, 720)
 var touch_used := false
-## index -> what it holds: "stick", "attack", "magic", "home", "full", "gem"
+## index -> what it holds: "stick", "attack", "roll", "parry", "magic", "swap", "home", "full", "gem:<essence>"
 var held := {}
 var stick_index := -1
 var stick_origin := Vector2.ZERO
@@ -32,61 +38,83 @@ var stick_pos := Vector2.ZERO
 var move := Vector2.ZERO
 var attack_held := false
 var attack_pressed := false
+var roll_pressed := false
+var parry_pressed := false
 var magic_pressed := false
+var swap_pressed := false
 var home_pressed := false
 var choose := ""  # an essence chosen this frame
 var cycle := 0  # +1 / -1: the controller's shoulder buttons
 var _key_attack := false
 
-## Set by the climb each frame: the marks (essences), the chosen one, and
-## each one's charge (0 to 1).
-var magics: Array = []
+## Set by the climb each frame.
+var magics: Array = []  # the marks (essences)
 var chosen := ""
-var charge := {}
+var charge := {}  # essence -> 0..1
+var weapon := "sword"
+var roll_ready := 1.0  # 0..1
+var parry_ready := 1.0
+## The words under the buttons (Data.TEXT).
+var words := {}
 
 
 func attack_center() -> Vector2:
-	return size - Vector2(150, 150)
+	return size - Vector2(108, 108)
+
+
+func roll_center() -> Vector2:
+	return attack_center() + Vector2(-128, 34)
+
+
+func parry_center() -> Vector2:
+	return attack_center() + Vector2(10, -128)
 
 
 func magic_center() -> Vector2:
-	return size - Vector2(345, 120)
+	return attack_center() + Vector2(-112, -104)
+
+
+func swap_center() -> Vector2:
+	return attack_center() + Vector2(-232, 56)
 
 
 func gem_center(i: int) -> Vector2:
-	return Vector2(size.x - 90.0 - 82.0 * float(i), size.y - 305.0)
+	return Vector2(size.x - 52.0 - 56.0 * float(i), size.y - 340.0)
 
 
 func home_center() -> Vector2:
-	return Vector2(size.x - 60, 60)
+	return Vector2(size.x - 44, 44)
 
 
 func full_center() -> Vector2:
-	return Vector2(size.x - 150, 60)
+	return Vector2(size.x - 108, 44)
 
 
 func stick_home() -> Vector2:
-	return Vector2(190, size.y - 170)
+	return Vector2(150, size.y - 140)
 
 
 ## What a press at `p` lands on.
 func _hit(p: Vector2) -> String:
-	if p.distance_to(home_center()) <= TOP_R + 14.0:
-		return "home"
-	if p.distance_to(full_center()) <= TOP_R + 14.0:
-		return "full"
-	if p.distance_to(attack_center()) <= ATTACK_R + 30.0:
-		return "attack"
+	var spots := [["home", home_center(), TOP_R], ["full", full_center(), TOP_R], ["attack", attack_center(), ATTACK_R],
+		["roll", roll_center(), SMALL_R], ["parry", parry_center(), SMALL_R], ["swap", swap_center(), SWAP_R]]
 	if not magics.is_empty():
-		if p.distance_to(magic_center()) <= MAGIC_R + 24.0:
-			return "magic"
+		spots.append(["magic", magic_center(), MAGIC_R])
 		if magics.size() > 1:
 			for i in magics.size():
-				if p.distance_to(gem_center(i)) <= GEM_R + 14.0:
-					return "gem:" + String(magics[i])
+				spots.append(["gem:" + String(magics[i]), gem_center(i), GEM_R])
+	var best := ""
+	var best_d := INF
+	for s in spots:
+		var d: float = p.distance_to(s[1]) - s[2]
+		if d <= HIT_PAD and d < best_d:
+			best_d = d
+			best = s[0]
+	if best != "":
+		return best
 	if p.x < size.x * 0.5:
 		return "stick"
-	return "attack"  # (anywhere else on the right swings: big target)
+	return ""
 
 
 ## Feed every input event here. Returns true if it was used.
@@ -103,8 +131,14 @@ func handle(event: InputEvent) -> bool:
 	if event is InputEventKey and event.pressed and not event.echo:
 		touch_used = false
 		var k: int = event.physical_keycode
-		if k == KEY_K or k == KEY_E or k == KEY_SHIFT:
+		if k == KEY_E or k == KEY_SHIFT:
 			magic_pressed = true
+		elif k == KEY_L or k == KEY_CTRL:
+			roll_pressed = true
+		elif k == KEY_K or k == KEY_Q:
+			parry_pressed = true
+		elif k == KEY_TAB or k == KEY_X:
+			swap_pressed = true
 		elif k >= KEY_1 and k <= KEY_6:
 			var i := k - KEY_1
 			if i < magics.size():
@@ -115,14 +149,20 @@ func handle(event: InputEvent) -> bool:
 	if event is InputEventJoypadButton and event.pressed:
 		touch_used = false
 		match event.button_index:
-			JOY_BUTTON_X, JOY_BUTTON_B, JOY_BUTTON_Y:
+			JOY_BUTTON_B:
+				roll_pressed = true
+			JOY_BUTTON_Y:
 				magic_pressed = true
+			JOY_BUTTON_X:
+				swap_pressed = true
 			JOY_BUTTON_RIGHT_SHOULDER:
 				cycle = 1
 			JOY_BUTTON_LEFT_SHOULDER:
 				cycle = -1
 			JOY_BUTTON_START:
 				home_pressed = true
+	if event is InputEventJoypadMotion and event.axis == JOY_AXIS_TRIGGER_LEFT and event.axis_value > 0.6:
+		parry_pressed = true
 	return false
 
 
@@ -134,6 +174,8 @@ func _press(index: int, p: Vector2, down: bool) -> bool:
 			stick_index = -1
 		return what != ""
 	var what := _hit(p)
+	if what == "":
+		return false
 	held[index] = what
 	match what:
 		"stick":
@@ -142,8 +184,14 @@ func _press(index: int, p: Vector2, down: bool) -> bool:
 			stick_pos = p
 		"attack":
 			attack_pressed = true
+		"roll":
+			roll_pressed = true
+		"parry":
+			parry_pressed = true
 		"magic":
 			magic_pressed = true
+		"swap":
+			swap_pressed = true
 		"home":
 			home_pressed = true
 		"full":
@@ -204,7 +252,10 @@ func update() -> void:
 ## Clears this frame's presses (after the climb has read them).
 func consume() -> void:
 	attack_pressed = false
+	roll_pressed = false
+	parry_pressed = false
 	magic_pressed = false
+	swap_pressed = false
 	home_pressed = false
 	choose = ""
 
@@ -219,75 +270,74 @@ func release_all() -> void:
 
 # --- drawing -------------------------------------------------------------------
 
-func _button(c: CanvasItem, p: Vector2, r: float, col: Color, down: bool) -> void:
-	c.draw_circle(p + Vector2(0, 5), r, Color(0, 0, 0, 0.35))
-	c.draw_circle(p, r + 4.0, Color(0.06, 0.05, 0.08, 0.8))
-	c.draw_circle(p, r, col.darkened(0.25) if down else col)
-	c.draw_arc(p, r - 6.0, PI * 1.1, PI * 1.9, 20, Color(1, 1, 1, 0.25), 5.0)
+## A button: the glass, its picture (drawn by `icon`) and its word under it.
+func _button(c: CanvasItem, at: Vector2, r: float, id: String, col: Color, word: String, icon: Callable, ready := false, fill := 0.0, hint := false, t := 0.0) -> void:
+	var down := held.values().has(id)
+	UI.button(c, at, r, col, down, ready, fill)
+	icon.call(at + Vector2(0, -r * 0.14), r * 0.62)
+	if word != "":
+		Art.words(c, at + Vector2(0, r * 0.56), word, clampi(int(r * 0.36), 12, 20), UI.TEXT)
+	if hint:
+		c.draw_arc(at, r + 10.0 + 5.0 * sin(t * 6.0), 0.0, TAU, 48, Color(1, 1, 0.7, 0.85), 4.0)
+		Art.finger(c, at + Vector2(r * 0.3, r * 0.3), r * 0.8, t)
 
 
-## Draws the controls. `hints`: "move", "attack", "magic", "gems": a
-## pointing finger and a pulse on that control (the first time).
+## Swap's picture: the next weapon, with arrows going round it.
+func _swap_icon(c: CanvasItem, p: Vector2, r: float) -> void:
+	var nxt: String = Data.WEAPON_ORDER[(Data.WEAPON_ORDER.find(weapon) + 1) % Data.WEAPON_ORDER.size()]
+	Art.weapon_icon(c, p, r * 0.9, nxt)
+	Art.swap_arrows(c, p, r * 1.15)
+
+
+## Draws the controls. `hints`: "move", "attack", "roll", "parry", "magic",
+## "gems", "swap": a pointing finger and a pulse on that control (the first time).
 func draw(c: CanvasItem, t: float, hints := {}) -> void:
-	# Joystick: a faint ring where it waits; under the thumb when held.
+	# Joystick: a dark well in a thin gilt ring (the full game's), shown
+	# where it waits once touch is in use, or under the thumb.
 	var base := stick_origin if stick_index >= 0 else stick_home()
 	var knob := stick_pos if stick_index >= 0 else stick_home()
 	if stick_index >= 0:
-		var d := knob - base
-		if d.length() > STICK_R:
-			knob = base + d.normalized() * STICK_R
+		knob = base + (knob - base).limit_length(STICK_R)
 	elif hints.has("move"):
 		knob = base + Vector2(cos(t * 2.0), sin(t * 2.0) * 0.6) * STICK_R * 0.6
 	if touch_used or stick_index >= 0 or hints.has("move"):
-		c.draw_circle(base, STICK_R + 10.0, Color(1, 1, 1, 0.08))
-		c.draw_arc(base, STICK_R + 10.0, 0.0, TAU, 40, Color(1, 1, 1, 0.3), 4.0)
-		c.draw_circle(knob, 42.0, Color(1, 1, 1, 0.45 if stick_index >= 0 else 0.3))
+		c.draw_circle(base, STICK_R, Color(0, 0, 0, 0.3))
+		c.draw_arc(base, STICK_R, 0.0, TAU, 48, Color(UI.GILT, 0.5), 2.0)
+		UI.button(c, knob, 26.0, UI.GILT, stick_index >= 0)
 		if hints.has("move") and stick_index < 0:
-			Art.finger(c, knob + Vector2(10, 10), 40.0, t)
-	# Sword
-	var ac := attack_center()
-	var pulse := 1.0 + (0.06 * sin(t * 6.0) if hints.has("attack") else 0.0)
-	_button(c, ac, ATTACK_R * pulse, Color(0.85, 0.35, 0.3), attack_held)
-	Art.sword(c, ac + Vector2(0, -14), ATTACK_R * 0.5)
-	Art.words(c, ac + Vector2(0, 58), hit_word, 30)
-	if hints.has("attack"):
-		c.draw_arc(ac, ATTACK_R + 14.0 + 8.0 * sin(t * 6.0), 0.0, TAU, 48, Color(1, 1, 0.7, 0.8), 6.0)
-		Art.finger(c, ac + Vector2(20, 20), 50.0, t)
-	# Magic
+			Art.finger(c, knob + Vector2(8, 8), 34.0, t)
+	var w: Dictionary = Data.WEAPONS.get(weapon, Data.WEAPONS["sword"])
+	_button(c, attack_center(), ATTACK_R, "attack", Color(0.9, 0.4, 0.32), String(w.get("word", "")),
+		func(p, r): Art.weapon_icon(c, p, r * 1.1, weapon), false, 0.0, hints.has("attack"), t)
+	_button(c, roll_center(), SMALL_R, "roll", Color(0.6, 0.85, 1.0), String(words.get("roll", "")),
+		func(p, r): Art.roll_icon(c, p, r), roll_ready >= 1.0, 0.0 if roll_ready >= 1.0 else roll_ready, hints.has("roll"), t)
+	_button(c, parry_center(), SMALL_R, "parry", Color(1.0, 0.85, 0.45), String(words.get("parry", "")),
+		func(p, r): Art.parry_icon(c, p, r), parry_ready >= 1.0, 0.0 if parry_ready >= 1.0 else parry_ready, hints.has("parry"), t)
+	_button(c, swap_center(), SWAP_R, "swap", UI.GILT, String(words.get("swap", "")),
+		func(p, r): _swap_icon(c, p, r), false, 0.0, hints.has("swap"), t)
+	# Magic: lights up in its colour when it's ready; a ring fills as it recharges.
 	if not magics.is_empty() and chosen != "":
-		var mc := magic_center()
 		var col := Data.color(chosen)
 		var ch := float(charge.get(chosen, 1.0))
-		var ready := ch >= 1.0
-		_button(c, mc, MAGIC_R, col.darkened(0.1) if ready else Color(0.25, 0.23, 0.3), held.values().has("magic"))
-		if not ready:
-			# The recharge fills up like a clock.
-			c.draw_arc(mc, MAGIC_R - 10.0, -PI / 2.0, -PI / 2.0 + TAU * ch, 40, col, 12.0)
-		else:
-			Art.glow(c, mc, MAGIC_R * 1.5, col, 0.6 + 0.4 * sin(t * 4.0))
-		Art.magic_icon(c, mc + Vector2(0, -12), MAGIC_R * 0.45, chosen)
-		Art.words(c, mc + Vector2(0, 44), String(Data.MAGIC[chosen].get("word", "")), 26)
-		if hints.has("magic"):
-			c.draw_arc(mc, MAGIC_R + 14.0 + 8.0 * sin(t * 6.0), 0.0, TAU, 48, Color(1, 1, 0.7, 0.8), 6.0)
-			Art.finger(c, mc + Vector2(16, 16), 46.0, t)
+		_button(c, magic_center(), MAGIC_R, "magic", col, String(Data.MAGIC[chosen].get("word", "")),
+			func(p, r): Art.magic_icon(c, p, r * 0.95, chosen), ch >= 1.0, 0.0 if ch >= 1.0 else ch, hints.has("magic"), t)
 		if magics.size() > 1:
 			for i in magics.size():
 				var e: String = magics[i]
 				var gp := gem_center(i)
-				var sel := e == chosen
-				if sel:
-					c.draw_circle(gp, GEM_R + 9.0, Color(1, 1, 0.8, 0.85))
-				_button(c, gp, GEM_R, Data.color(e).darkened(0.1 if float(charge.get(e, 1.0)) >= 1.0 else 0.55), false)
+				if e == chosen:
+					c.draw_circle(gp, GEM_R + 6.0, Color(UI.GILT_HI, 0.8))
+				UI.button(c, gp, GEM_R, Data.color(e), false, float(charge.get(e, 1.0)) >= 1.0)
 				Art.magic_icon(c, gp, GEM_R * 0.6, e)
 			if hints.has("gems"):
-				Art.finger(c, gem_center(magics.size() - 1) + Vector2(10, 10), 36.0, t)
+				Art.finger(c, gem_center(magics.size() - 1) + Vector2(8, 8), 30.0, t)
 	# Top: fullscreen and home.
-	_button(c, full_center(), TOP_R * 0.85, Color(0.3, 0.3, 0.38), false)
 	var fc := full_center()
+	UI.button(c, fc, TOP_R, UI.GILT, held.values().has("full"))
 	for sx in [-1.0, 1.0]:
 		for sy in [-1.0, 1.0]:
-			var corner := fc + Vector2(sx, sy) * 13.0
-			c.draw_line(corner, corner - Vector2(sx * 8.0, 0), Color.WHITE, 3.0)
-			c.draw_line(corner, corner - Vector2(0, sy * 8.0), Color.WHITE, 3.0)
-	_button(c, home_center(), TOP_R, Color(0.3, 0.3, 0.38), false)
-	Art.house(c, home_center(), TOP_R * 0.75)
+			var corner := fc + Vector2(sx, sy) * 9.0
+			c.draw_line(corner, corner - Vector2(sx * 6.0, 0), UI.TEXT, 2.5)
+			c.draw_line(corner, corner - Vector2(0, sy * 6.0), UI.TEXT, 2.5)
+	UI.button(c, home_center(), TOP_R, UI.GILT, held.values().has("home"))
+	Art.house(c, home_center(), TOP_R * 0.7)

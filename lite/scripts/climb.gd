@@ -14,14 +14,25 @@ extends Node2D
 const Data := preload("res://scripts/data.gd")
 const Art := preload("res://scripts/art.gd")
 const Pad := preload("res://scripts/pad.gd")
+const Creatures := preload("res://scripts/creatures.gd")
+const ClimberArt := preload("res://scripts/climber_art.gd")
+const RoomArt := preload("res://scripts/room_art.gd")
 
 const ROOM := Vector2(1280, 720)
 const WALL := 46.0
 const PLAYER_R := 22.0
-## Characters are drawn this much bigger than the full game's, to be easy to follow.
-const BIG := 1.3
+## Characters are drawn this much bigger than the full game's (its own
+## drawings: climber_art.gd, creatures.gd), to be easy for a child to follow.
+const CLIMBER_SCALE := 2.2
+const MON_SCALE := 2.2
+const BEAST_SCALE := 1.6
 const PILLAR_R := 34.0
 const START := Vector2(640, 610)
+## Where a body's middle is, from its position (throws aim here). The
+## full game's drawings are centred on their position, seen from above.
+const BODY := Vector2(0, -6)
+## Where the torches hang on the north wall (x).
+const TORCHES := [250.0, 640.0, 1030.0]
 const STAIR := Vector2(640, 175)
 
 var game  # game.gd
@@ -33,6 +44,7 @@ var t := 0.0
 var paused := false
 
 var world: Node2D
+var room_layer: Node2D  # (under the world's bodies: redrawn only when a floor starts)
 var hud: Node2D
 var pad
 
@@ -47,6 +59,13 @@ var swing_dir := Vector2.UP
 var walk_t := 0.0
 var knock := Vector2.ZERO
 var barrier_t := 0.0
+var roll_t := 0.0  # time left in a roll (you can't be hurt)
+var roll_cd := 0.0
+var roll_dir := Vector2.UP
+var parry_t := 0.0  # time left in a parry's window
+var parry_cd := 0.0
+var weapon := "sword"
+var arrows: Array = []  # the bow's: {pos, vel, life}
 var blades_t := 0.0
 var blade_n := 3
 var blade_dmg := 1
@@ -55,7 +74,9 @@ var monsters: Array = []
 var orbs: Array = []  # monsters' throws: {pos, vel, life}
 var fireballs: Array = []
 var sparks: Array = []  # essence flying to you: {pos, vel, essence, t}
-var pickups: Array = []  # hearts: {pos, t}
+var pickups: Array = []
+var player_mem := {}
+var regard_mem := {}  # (climber_art.gd's smoothed pose, between frames)  # hearts: {pos, t}
 var fx: Array = []
 var pillars: Array = []
 var bag := {}  # essence carried, not yet banked
@@ -80,11 +101,16 @@ func _ready() -> void:
 	world = Node2D.new()
 	add_child(world)
 	world.draw.connect(_draw_world)
+	room_layer = Node2D.new()
+	room_layer.z_index = -1
+	world.add_child(room_layer)
+	room_layer.draw.connect(_draw_room)
 	hud = Node2D.new()
 	add_child(hud)
 	hud.draw.connect(_draw_hud)
 	pad = Pad.new()
-	pad.hit_word = Data.TEXT["hit"]
+	pad.words = Data.TEXT
+	weapon = game.save.weapon
 	for e in game.save.marks:
 		recharge[e] = 0.0
 	chosen = game.save.chosen if game.save.marks.has(game.save.chosen) else (game.save.marks.keys()[0] if not game.save.marks.is_empty() else "")
@@ -115,8 +141,13 @@ func _start_floor(i: int) -> void:
 	safe_t = 1.0
 	barrier_t = 0.0
 	blades_t = 0.0
+	roll_t = 0.0
+	parry_t = 0.0
+	arrows.clear()
 	beast_called = false
 	pillars.clear()
+	if room_layer != null:
+		room_layer.queue_redraw()
 	if not beast_floor():
 		var spots := [Vector2(330, 380), Vector2(950, 380), Vector2(470, 260), Vector2(810, 260)]
 		spots.shuffle()
@@ -131,7 +162,7 @@ func _start_floor(i: int) -> void:
 		b["kind"] = "beast"
 		b["hp"] = Data.BEAST_HP
 		b["max"] = Data.BEAST_HP
-		b["r"] = 54.0
+		b["r"] = Creatures.radius(tower) * BEAST_SCALE * 0.9
 		b["speed"] = Data.BEAST_SPEED
 		b["t"] = 1.4
 		game.sfx("roar_" + tower)
@@ -165,9 +196,14 @@ func _spawn_spot() -> Vector2:
 
 func _spawn(id: String, at: Vector2) -> Dictionary:
 	var info: Dictionary = Data.MONSTERS.get(id, {"kind": "walker", "look": "blob", "hp": 3, "speed": 60.0})
-	var m := {"id": id, "kind": info["kind"], "look": info["look"], "pos": at, "hp": info["hp"], "max": info["hp"],
+	# Higher floors: more health, faster, quicker to strike (Data.HARDER).
+	var k := float(mini(floor_i, Data.FLOORS.size() - 1))
+	var hp := int(round(float(info["hp"]) * (1.0 + Data.HARDER["hp"] * k)))
+	var m := {"id": id, "kind": info["kind"], "look": info["look"], "pos": at, "hp": hp, "max": hp,
+		"windup": Data.WINDUP * (1.0 - Data.HARDER["windup"] * k), "rest_k": 1.0 - Data.HARDER["rest"] * k,
+		"orb": Data.ORB_SPEED * (1.0 + Data.HARDER["orb"] * k),
 		"state": "appear", "t": 0.7, "dir": Vector2.DOWN, "hurt": 0.0, "stun": 0.0, "kv": Vector2.ZERO,
-		"cd": randf_range(1.2, 2.6), "beast": false, "r": 25.0, "speed": info["speed"], "blade_cd": 0.0, "next": "charge"}
+		"cd": randf_range(1.2, 2.6), "beast": false, "r": Creatures.radius(id) * MON_SCALE * 0.9, "mem": {}, "seed": randi() % 1000, "speed": float(info["speed"]) * (1.0 + Data.HARDER["speed"] * k), "blade_cd": 0.0, "next": "charge"}
 	monsters.append(m)
 	fx.append({"type": "puff", "pos": at, "t": 0.0, "dur": 0.6, "col": Data.tower_color(tower), "r": 40.0})
 	return m
@@ -186,6 +222,9 @@ func _process(delta: float) -> void:
 	world.position = (vs - ROOM * sc) / 2.0 + wobble
 	pad.magics = game.save.marks.keys()
 	pad.chosen = chosen
+	pad.weapon = weapon
+	pad.roll_ready = 1.0 - clampf(roll_cd / (Data.ROLL_TIME + Data.ROLL_COOLDOWN), 0.0, 1.0)
+	pad.parry_ready = 1.0 - clampf(parry_cd / Data.PARRY_COOLDOWN, 0.0, 1.0)
 	for e in recharge:
 		pad.charge[e] = 1.0 - recharge[e] / float(Data.MAGIC[e]["recharge"])
 	pad.update()
@@ -296,7 +335,23 @@ func _update_player(delta: float) -> void:
 		used["move"] = true
 	else:
 		walk_t = 0.0
-	pos += mv * Data.SPEED * delta + knock * delta
+	roll_t -= delta
+	roll_cd -= delta
+	parry_t -= delta
+	parry_cd -= delta
+	if pad.roll_pressed and roll_cd <= 0.0:
+		_roll(mv)
+	if pad.parry_pressed and parry_cd <= 0.0:
+		parry_t = Data.PARRY_WINDOW
+		parry_cd = Data.PARRY_COOLDOWN
+		game.sfx("draw")
+	if pad.swap_pressed:
+		swap_weapon()
+	if roll_t > 0.0:
+		pos += roll_dir * Data.ROLL_SPEED * delta  # (a roll carries you; you can't steer it)
+	else:
+		pos += mv * Data.SPEED * delta
+	pos += knock * delta
 	knock = knock.move_toward(Vector2.ZERO, 1400.0 * delta)
 	pos = _collide(pos, PLAYER_R)
 	safe_t -= delta
@@ -306,8 +361,9 @@ func _update_player(delta: float) -> void:
 	blades_t -= delta
 	for e in recharge:
 		recharge[e] = maxf(0.0, recharge[e] - delta)
-	if (pad.attack_pressed or pad.attack_held) and swing_cd <= 0.0:
+	if (pad.attack_pressed or pad.attack_held) and swing_cd <= 0.0 and roll_t <= 0.0:
 		_swing()
+	_update_arrows(delta)
 	if pad.choose != "" and pad.choose != chosen and game.save.marks.has(pad.choose):
 		chosen = pad.choose
 		game.save.chosen = chosen
@@ -342,25 +398,84 @@ func _nearest(reach: float) -> Dictionary:
 	return best
 
 
+func wdata() -> Dictionary:
+	return Data.WEAPONS.get(weapon, Data.WEAPONS["sword"])
+
+
+## A swing of the weapon in hand (or a shot of the bow), aimed at the nearest
+## monster by itself.
 func _swing() -> void:
-	swing_cd = 0.34
+	var w := wdata()
+	swing_cd = float(w["cooldown"])
 	swing_t = Data.SWING_TIME
-	var target := _nearest(Data.SWING_REACH + 70.0)
+	var ranged: bool = w.get("ranged", false)
+	var target := _nearest(900.0 if ranged else float(w["reach"]) + 70.0)
 	swing_dir = (target["pos"] - pos).normalized() if not target.is_empty() else facing
 	facing = swing_dir
-	game.sfx("swing")
+	game.sfx(w["sound"])
+	if ranged:
+		arrows.append({"pos": pos + BODY + swing_dir * 24.0, "vel": swing_dir * float(w["arrow_speed"]), "life": 1.4})
+		used["attack"] = true
+		return
 	var hit := false
 	for m in monsters.duplicate():
 		if m["state"] == "appear":
 			continue
 		var d: Vector2 = m["pos"] - pos
-		var close: bool = d.length() <= Data.SWING_REACH + m["r"] and absf(angle_difference(swing_dir.angle(), d.angle())) <= Data.SWING_ARC / 2.0
+		var close: bool = d.length() <= float(w["reach"]) + m["r"] and absf(angle_difference(swing_dir.angle(), d.angle())) <= float(w["arc"]) / 2.0
 		if close or d.length() < m["r"] + PLAYER_R + 12.0:
 			hit = true
-			_damage(m, Data.SWING_DAMAGE, swing_dir * 260.0)
+			_strike(m, swing_dir)
 	if hit:
-		game.sfx("hit")
+		game.sfx(w["hit_sound"])
 		used["attack"] = true
+
+
+## The weapon in hand strikes a monster: its damage, push and stun.
+func _strike(m: Dictionary, dir: Vector2) -> void:
+	var w := wdata()
+	if float(w["stun"]) > 0.0:
+		m["stun"] = maxf(float(m["stun"]), float(w["stun"]) * (0.4 if m["beast"] else 1.0))
+	_damage(m, int(w["damage"]), dir * float(w["push"]))
+
+
+func _update_arrows(delta: float) -> void:
+	for a in arrows.duplicate():
+		a["pos"] += a["vel"] * delta
+		a["life"] -= delta
+		var p: Vector2 = a["pos"]
+		var gone: bool = a["life"] <= 0.0 or p.x < WALL or p.y < WALL or p.x > ROOM.x - WALL or p.y > ROOM.y - WALL
+		if pillars.any(func(pl): return p.distance_to(pl) < PILLAR_R):
+			gone = true
+		for m in monsters.duplicate():
+			if not gone and m["state"] != "appear" and p.distance_to(m["pos"] + BODY * 0.5) < m["r"] + 10.0:
+				gone = true
+				_strike(m, a["vel"].normalized())
+				game.sfx(wdata()["hit_sound"])
+		if gone:
+			arrows.erase(a)
+
+
+## A roll: a quick dodge the way you're going (or facing) that nothing can hurt.
+func _roll(mv: Vector2) -> void:
+	roll_dir = mv.normalized() if mv.length() > 0.15 else facing
+	facing = roll_dir
+	roll_t = Data.ROLL_TIME
+	roll_cd = Data.ROLL_TIME + Data.ROLL_COOLDOWN
+	used["roll"] = true
+	game.sfx("roll")
+
+
+## The next weapon (the Swap button), or a given one (the climber screen).
+func swap_weapon(to := "") -> void:
+	if to == "":
+		to = Data.WEAPON_ORDER[(Data.WEAPON_ORDER.find(weapon) + 1) % Data.WEAPON_ORDER.size()]
+	weapon = to
+	game.save.weapon = to
+	swing_cd = 0.2
+	used["swap"] = true
+	game.sfx(wdata()["equip"])
+	_say(String(wdata()["word"]))
 
 
 func _cast() -> void:
@@ -416,7 +531,7 @@ func _cast() -> void:
 		"fire":
 			var target := _nearest(900.0)
 			var dir: Vector2 = (target["pos"] - pos).normalized() if not target.is_empty() else facing
-			fireballs.append({"pos": pos + Vector2(0, -31) + dir * 20.0, "vel": dir * 640.0, "life": 1.3,
+			fireballs.append({"pos": pos + BODY + dir * 20.0, "vel": dir * 640.0, "life": 1.3,
 				"dmg": int(Data.magic_value(e, "damage", st)), "r": float(Data.magic_value(e, "radius", st))})
 		"blade":
 			blades_t = float(Data.magic_value(e, "time", st))
@@ -424,8 +539,18 @@ func _cast() -> void:
 			blade_dmg = int(Data.magic_value(e, "damage", st))
 
 
-func _hurt_player(from: Vector2) -> void:
+## A monster's blow or throw reaches you from `from` (`m`: the monster, for
+## a lunge or charge). A roll dodges it; a parry blocks it and stuns `m`.
+func _hurt_player(from: Vector2, m := {}) -> void:
 	if phase != "fight" and phase != "clear":
+		return
+	if roll_t > 0.0:
+		if safe_t <= 0.0:
+			game.sfx("dodge")
+			safe_t = 0.3
+		return
+	if parry_t > 0.0:
+		_parried(from, m)
 		return
 	if barrier_t > 0.0:
 		game.sfx("hit_armor")
@@ -445,6 +570,22 @@ func _hurt_player(from: Vector2) -> void:
 		game.sfx("winded")
 		_say(Data.TEXT["oops"])
 		fx.append({"type": "puff", "pos": pos, "t": 0.0, "dur": 0.9, "col": Color(1, 1, 1), "r": 70.0})
+
+
+## A blow blocked: the parry's spark and sound; a lunging monster is stunned
+## and thrown back; the parry is ready again at once.
+func _parried(from: Vector2, m: Dictionary) -> void:
+	game.sfx("parry")
+	used["parry"] = true
+	parry_t = 0.0
+	parry_cd = 0.0
+	safe_t = maxf(safe_t, 0.35)
+	fx.append({"type": "spark", "pos": pos.lerp(from, 0.5) + BODY, "t": 0.0, "dur": 0.35, "col": Color(1.0, 0.9, 0.5)})
+	if not m.is_empty() and monsters.has(m):
+		m["stun"] = Data.PARRY_STUN * (0.5 if m["beast"] else 1.0)
+		m["state"] = "rest" if m["beast"] else "walk"
+		m["t"] = 1.0
+		m["kv"] = (m["pos"] - pos).normalized() * (160.0 if m["beast"] else 420.0)
 
 
 # --- monsters ------------------------------------------------------------------
@@ -540,7 +681,7 @@ func _walker(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
 			m["cd"] -= delta
 			if dist < 120.0 and m["cd"] <= 0.0:
 				m["state"] = "windup"
-				m["t"] = Data.WINDUP
+				m["t"] = m["windup"]
 				m["dir"] = dir
 				game.sfx("warn_" + String(m["id"]))
 		"windup":
@@ -551,7 +692,7 @@ func _walker(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
 		"lunge":
 			m["pos"] += m["dir"] * 400.0 * delta
 			if pos.distance_to(m["pos"]) < m["r"] + PLAYER_R + 4.0:
-				_hurt_player(m["pos"])
+				_hurt_player(m["pos"], m)
 			m["t"] -= delta
 			if m["t"] <= 0.0:
 				m["state"] = "rest"
@@ -560,7 +701,7 @@ func _walker(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
 			m["t"] -= delta
 			if m["t"] <= 0.0:
 				m["state"] = "walk"
-				m["cd"] = randf_range(1.0, 2.2)
+				m["cd"] = randf_range(1.0, 2.2) * m["rest_k"]
 
 
 func _shooter(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
@@ -577,19 +718,19 @@ func _shooter(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
 			m["cd"] -= delta
 			if m["cd"] <= 0.0:
 				m["state"] = "windup"
-				m["t"] = Data.WINDUP
+				m["t"] = m["windup"]
 				game.sfx("warn_" + String(m["id"]))
 		"windup":
 			m["t"] -= delta
 			if m["t"] <= 0.0:
-				_throw(m["pos"] + Vector2(0, -20), dir)
+				_throw(m["pos"] + BODY * 0.6, dir, m["orb"])
 				m["state"] = "rest"
 				m["t"] = 0.6
 		"rest":
 			m["t"] -= delta
 			if m["t"] <= 0.0:
 				m["state"] = "walk"
-				m["cd"] = randf_range(2.6, 3.6)
+				m["cd"] = randf_range(2.6, 3.6) * m["rest_k"]
 
 
 func _beast(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
@@ -623,7 +764,7 @@ func _beast(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
 		"charge":
 			m["pos"] += m["dir"] * 460.0 * delta
 			if pos.distance_to(m["pos"]) < m["r"] + PLAYER_R:
-				_hurt_player(m["pos"])
+				_hurt_player(m["pos"], m)
 			m["t"] -= delta
 			if m["t"] <= 0.0:
 				m["state"] = "rest"
@@ -635,8 +776,8 @@ func _beast(m: Dictionary, delta: float, dir: Vector2, dist: float) -> void:
 				m["t"] = randf_range(1.6, 2.6)
 
 
-func _throw(from: Vector2, dir: Vector2) -> void:
-	orbs.append({"pos": from, "vel": dir * Data.ORB_SPEED, "life": 6.0})
+func _throw(from: Vector2, dir: Vector2, speed := Data.ORB_SPEED) -> void:
+	orbs.append({"pos": from, "vel": dir * speed, "life": 6.0, "mine": false})
 	game.sfx("throw")
 
 
@@ -648,10 +789,24 @@ func _update_orbs(delta: float) -> void:
 		var gone: bool = o["life"] <= 0.0 or p.x < WALL or p.y < WALL or p.x > ROOM.x - WALL or p.y > ROOM.y - WALL
 		if pillars.any(func(pl): return p.distance_to(pl) < PILLAR_R):
 			gone = true
-		var to_me := p.distance_to(pos + Vector2(0, -31))
-		if barrier_t > 0.0 and to_me < 68.0:
+		var to_me := p.distance_to(pos + BODY)
+		if o["mine"]:
+			# Sent back by a parry: it hurts the monsters.
+			for m in monsters.duplicate():
+				if not gone and m["state"] != "appear" and p.distance_to(m["pos"] + BODY * 0.5) < m["r"] + 12.0:
+					gone = true
+					_damage(m, Data.REFLECT_DAMAGE, o["vel"].normalized() * 200.0)
+		elif barrier_t > 0.0 and to_me < 68.0:
 			gone = true
 			game.sfx("glint")
+		elif parry_t > 0.0 and to_me < PLAYER_R + 34.0:
+			# Parried: it flies back at the nearest monster.
+			_parried(p, {})
+			var target := _nearest(1200.0)
+			var back: Vector2 = (target["pos"] + BODY * 0.5 - p).normalized() if not target.is_empty() else -o["vel"].normalized()
+			o["vel"] = back * o["vel"].length() * 1.8
+			o["mine"] = true
+			o["life"] = 3.0
 		elif to_me < PLAYER_R + 10.0:
 			gone = true
 			_hurt_player(p)
@@ -682,7 +837,7 @@ func _update_fireballs(delta: float) -> void:
 func _update_sparks(delta: float) -> void:
 	for s in sparks.duplicate():
 		s["t"] += delta
-		var target := pos + Vector2(0, -34)
+		var target := pos + BODY
 		if s["t"] < 0.4:
 			s["vel"] = s["vel"].move_toward(Vector2.ZERO, 600.0 * delta)
 		else:
@@ -702,7 +857,7 @@ func _update_pickups(delta: float) -> void:
 			hearts += 1
 			pickups.erase(h)
 			game.sfx("life_mend")
-			fx.append({"type": "puff", "pos": pos + Vector2(0, -31), "t": 0.0, "dur": 0.5, "col": Color(1.0, 0.4, 0.45), "r": 40.0})
+			fx.append({"type": "puff", "pos": pos + BODY, "t": 0.0, "dur": 0.5, "col": Color(1.0, 0.4, 0.45), "r": 40.0})
 
 
 ## Keeps a body of radius `r` inside the walls and out of the pillars.
@@ -772,31 +927,9 @@ func carried() -> float:
 
 func _draw_world() -> void:
 	var c := world
-	var floor_col: Color = Data.TOWERS[tower]["floor"]
-	var tint := Data.tower_color(tower)
-	c.draw_rect(Rect2(Vector2(-400, -400), ROOM + Vector2(800, 800)), floor_col.darkened(0.75))
-	c.draw_rect(Rect2(Vector2.ZERO, ROOM), floor_col.darkened(0.55))
-	var tile := 80.0
-	for x in int(ROOM.x / tile):
-		for y in int(ROOM.y / tile):
-			var r := Rect2(Vector2(x, y) * tile, Vector2(tile, tile)).grow(-2.0)
-			c.draw_rect(r, floor_col if (x + y) % 2 == 0 else floor_col.darkened(0.08))
-	# walls
-	var wc := floor_col.darkened(0.45)
-	c.draw_rect(Rect2(0, 0, ROOM.x, WALL), wc)
-	c.draw_rect(Rect2(0, ROOM.y - WALL, ROOM.x, WALL), wc)
-	c.draw_rect(Rect2(0, 0, WALL, ROOM.y), wc)
-	c.draw_rect(Rect2(ROOM.x - WALL, 0, WALL, ROOM.y), wc)
-	c.draw_rect(Rect2(WALL, WALL, ROOM.x - WALL * 2.0, 14), floor_col.darkened(0.25))
-	# torches in the tower's colour
-	for tp in [Vector2(WALL * 0.5, 160), Vector2(ROOM.x - WALL * 0.5, 160), Vector2(WALL * 0.5, ROOM.y - 160), Vector2(ROOM.x - WALL * 0.5, ROOM.y - 160)]:
-		Art.glow(c, tp, 60.0 + 6.0 * sin(t * 7.0 + tp.y), tint, 1.2)
-		c.draw_circle(tp, 7.0, tint.lightened(0.5))
-	for pl in pillars:
-		c.draw_circle(pl + Vector2(0, 8), PILLAR_R, Color(0, 0, 0, 0.3))
-		c.draw_circle(pl, PILLAR_R + 3.0, Art.OUT)
-		c.draw_circle(pl, PILLAR_R, floor_col.lightened(0.15))
-		c.draw_circle(pl + Vector2(-8, -8), PILLAR_R * 0.4, floor_col.lightened(0.3))
+	# (the floor, walls and pillars are on room_layer, drawn once a floor)
+	for tx in TORCHES:
+		RoomArt.torch(c, Vector2(tx, WALL - 20.0), t + tx)
 	if phase == "clear" or phase == "bank":
 		_draw_stair(c)
 	for h in pickups:
@@ -814,6 +947,11 @@ func _draw_world() -> void:
 		Art.glow(c, o["pos"], 26.0, Color(1.0, 0.3, 0.45), 1.5)
 		c.draw_circle(o["pos"], 10.0, Color(1.0, 0.35, 0.5))
 		c.draw_circle(o["pos"], 5.0, Color(1, 0.9, 0.95))
+	for a in arrows:
+		var d: Vector2 = a["vel"].normalized()
+		c.draw_line(a["pos"] - d * 26.0, a["pos"], Art.OUT, 6.0)
+		c.draw_line(a["pos"] - d * 25.0, a["pos"], Color(0.75, 0.55, 0.3), 3.0)
+		c.draw_colored_polygon(PackedVector2Array([a["pos"] + d * 9.0, a["pos"] + d.orthogonal() * 5.0, a["pos"] - d.orthogonal() * 5.0]), Color(0.85, 0.88, 0.95))
 	for f in fireballs:
 		Art.glow(c, f["pos"], 34.0, Color(1.0, 0.55, 0.2), 1.6)
 		c.draw_circle(f["pos"], 13.0, Color(1.0, 0.6, 0.25))
@@ -838,45 +976,48 @@ func _draw_world() -> void:
 
 
 func _draw_stair(c: CanvasItem) -> void:
-	var p := STAIR
-	Art.glow(c, p, 110.0 + 10.0 * sin(t * 3.0), Color(1.0, 0.85, 0.5), 1.4)
-	for k in 4:
-		var w := 110.0 - 16.0 * float(k)
-		var r := Rect2(p + Vector2(-w / 2.0, 30.0 - 18.0 * float(k)), Vector2(w, 18))
-		c.draw_rect(r.grow(2.0), Art.OUT)
-		c.draw_rect(r, Color(0.85, 0.78, 0.62).darkened(0.12 * float(k)))
-	var bob := 8.0 * sin(t * 5.0)
-	c.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -70 + bob), p + Vector2(-22, -100 + bob), p + Vector2(22, -100 + bob)]), Color(1.0, 0.92, 0.5))
+	RoomArt.stair(c, STAIR, t, tower)
 
 
+## The room itself (floor, walls, pillars), drawn like the full game's; it
+## only changes when a floor starts.
+func _draw_room() -> void:
+	var floor_rect := Rect2(Vector2(WALL, WALL), ROOM - Vector2(WALL, WALL) * 2.0)
+	RoomArt.draw(room_layer, floor_rect, WALL, tower)
+	for pl in pillars:
+		RoomArt.pillar(room_layer, pl, PILLAR_R, tower)
+
+
+## The climber, drawn like the full game's (climber_art.gd): their look,
+## the weapon in hand, the swing, roll and parry, and their marks.
 func _draw_player(c: CanvasItem) -> void:
-	if phase == "fallen":
-		var a := clampf(phase_t / Data.FALL_WAIT, 0.0, 1.0)
-		for k in 5:
-			var ang := t * 3.0 + TAU * float(k) / 5.0
-			Art.star(c, pos + Vector2(0, -70) + Vector2(cos(ang) * 30.0, sin(ang) * 10.0), 8.0, Color(1.0, 0.9, 0.4))
-		Art.climber(c, pos + Vector2(0, 6.0 * a), BIG, facing.x < 0.0, {}, {}, t)
-		return
-	if safe_t > 0.0 and fmod(t, 0.2) < 0.08:
-		return  # (blinking: you can't be hurt right now)
 	var marks := {}
 	var stars := {}
 	for e in game.save.marks:
 		var part: String = game.save.marks[e]["part"]
 		marks[part] = Data.color(e)
 		stars[part] = game.save.star(e)
-	Art.climber(c, pos, BIG, facing.x < 0.0, marks, stars, t, walk_t)
-	if swing_t > 0.0:
-		var f := 1.0 - swing_t / Data.SWING_TIME
-		var a0 := swing_dir.angle() - Data.SWING_ARC / 2.0
-		var center := pos + Vector2(0, -31)
-		c.draw_arc(center, Data.SWING_REACH * (0.7 + 0.3 * f), a0, a0 + Data.SWING_ARC * minf(1.0, f * 1.6), 24, Color(1, 1, 1, 0.85 * (1.0 - f)), 14.0)
-		Art.sword(c, center + swing_dir.rotated(-Data.SWING_ARC / 2.0 + Data.SWING_ARC * minf(1.0, f * 1.6)) * 46.0, 28.0)
+	if phase == "fallen":
+		for k in 5:
+			var ang := t * 3.0 + TAU * float(k) / 5.0
+			Art.star(c, pos + Vector2(0, -52) + Vector2(cos(ang) * 30.0, sin(ang) * 10.0), 8.0, Color(1.0, 0.9, 0.4))
+		ClimberArt.draw(c, pos, {"app": game.save.app, "t": t, "face": facing, "weapon": weapon, "flash": 0.6,
+			"marks": marks, "stars": stars, "scale": CLIMBER_SCALE, "mem": player_mem})
+		return
+	if safe_t > 0.0 and roll_t <= 0.0 and parry_t <= 0.0 and fmod(t, 0.2) < 0.08:
+		return  # (blinking: you can't be hurt right now)
+	var hurt := clampf((safe_t - (Data.HURT_SAFE - 0.25)) / 0.25, 0.0, 1.0)
+	ClimberArt.draw(c, pos, {
+		"app": game.save.app, "t": t, "face": facing, "move": pad.move.length() if roll_t <= 0.0 else 0.0,
+		"weapon": weapon, "swing": 1.0 - swing_t / Data.SWING_TIME if swing_t > 0.0 else -1.0, "swing_dir": swing_dir,
+		"roll": 1.0 - roll_t / Data.ROLL_TIME if roll_t > 0.0 else -1.0,
+		"parry": 1.0 - parry_t / Data.PARRY_WINDOW if parry_t > 0.0 else -1.0,
+		"flash": hurt, "marks": marks, "stars": stars, "scale": CLIMBER_SCALE, "mem": player_mem})
 	if barrier_t > 0.0:
 		var col := Data.color("iron")
 		var fade := minf(1.0, barrier_t)
-		c.draw_circle(pos + Vector2(0, -34), 66.0, Color(col, 0.18 * fade))
-		c.draw_arc(pos + Vector2(0, -34), 66.0, 0.0, TAU, 40, Color(col.lightened(0.3), 0.8 * fade), 4.0)
+		c.draw_circle(pos + BODY, 58.0, Color(col, 0.18 * fade))
+		c.draw_arc(pos + BODY, 58.0, 0.0, TAU, 40, Color(col.lightened(0.3), 0.8 * fade), 4.0)
 	if blades_t > 0.0:
 		for i in blade_n:
 			var bp := _blade_pos(i)
@@ -884,32 +1025,54 @@ func _draw_player(c: CanvasItem) -> void:
 			Art.magic_icon(c, bp, 13.0, "blade")
 
 
+## A monster or beast, drawn like the full game's (creatures.gd). Before it
+## strikes it turns red (and shows where the blow will land): the warning.
 func _draw_monster(c: CanvasItem, m: Dictionary) -> void:
 	var p: Vector2 = m["pos"]
-	var grow := 1.0
+	var beast: bool = m["beast"]
+	var sc := BEAST_SCALE if beast else MON_SCALE
 	if m["state"] == "appear":
-		grow = clampf(1.0 - m["t"] / 0.7, 0.05, 1.0)
-	var flash := 0.0
-	if m["state"] == "windup":
-		flash = 1.0
-		# Where the attack will land, so it can be seen coming.
-		if m["kind"] == "walker":
-			c.draw_circle(p + m["dir"] * 60.0, 34.0, Color(1.0, 0.2, 0.2, 0.18 + 0.1 * sin(t * 20.0)))
-		elif m["kind"] == "beast" and m["next"] == "charge":
-			var d: Vector2 = m["dir"]
-			var n := Vector2(-d.y, d.x) * 40.0
-			c.draw_colored_polygon(PackedVector2Array([p + n, p + n + d * 280.0, p - n + d * 280.0, p - n]), Color(1.0, 0.2, 0.2, 0.16 + 0.08 * sin(t * 20.0)))
-		elif m["kind"] == "beast":
-			c.draw_arc(p + Vector2(0, -40), 70.0 + 30.0 * (1.0 - m["t"]), 0.0, TAU, 40, Color(1.0, 0.3, 0.4, 0.6), 6.0)
-	var flip: bool = m["dir"].x < 0.0
-	if m["beast"]:
-		Art.beast(c, p, tower, t, flash, m["hurt"], flip, grow * 1.3)
-	else:
-		Art.monster(c, p, m["look"], Data.monster_color(m["id"], tower), t + float(m["max"]), flash, m["hurt"], flip, grow * 1.45)
+		sc *= clampf(1.0 - m["t"] / (1.4 if beast else 0.7), 0.05, 1.0)
+	var state := "walk"
+	var wind := 0.0
+	var danger := 0.0
+	var alt := 0
+	match m["state"]:
+		"appear":
+			state = "idle"
+		"windup":
+			state = "wind"
+			var full: float = 1.1 if beast else float(m.get("windup", Data.WINDUP))
+			wind = clampf(1.0 - m["t"] / full, 0.0, 1.0)
+			danger = 0.35 + 0.65 * wind
+			# Where the attack will land, so it can be seen coming.
+			if m["kind"] == "walker":
+				c.draw_circle(p + m["dir"] * 70.0, 36.0, Color(1.0, 0.2, 0.2, 0.16 + 0.1 * sin(t * 20.0)))
+			elif beast and m["next"] == "charge":
+				var d: Vector2 = m["dir"]
+				var n := Vector2(-d.y, d.x) * 44.0
+				c.draw_colored_polygon(PackedVector2Array([p + n, p + n + d * 300.0, p - n + d * 300.0, p - n]), Color(1.0, 0.2, 0.2, 0.16 + 0.08 * sin(t * 20.0)))
+			elif beast:
+				c.draw_arc(p, 80.0 + 30.0 * wind, 0.0, TAU, 40, Color(1.0, 0.3, 0.4, 0.6), 6.0)
+		"lunge", "charge":
+			state = "attack"
+			danger = 0.6
+		"rest":
+			state = "rest"
+	if m["stun"] > 0.0:
+		state = "stun"
+	if beast:
+		# Which of its full-game attacks it shows: the charge, or the ring of throws.
+		var ring: bool = m["state"] == "windup" and m["next"] == "ring"
+		alt = int(Data.BEAST_ALTS.get(tower, {}).get("ring" if ring else "charge", 0))
+	var moving: float = 1.0 if m["state"] == "walk" and m["stun"] <= 0.0 else 0.0
+	Creatures.draw(c, String(m["id"]), p, {"t": t, "seed": int(m["seed"]), "face": m["dir"], "state": state,
+		"wind": wind, "move": moving, "flash": m["hurt"], "danger": danger, "scale": sc, "alt": alt,
+		"lift": 16.0, "mem": m["mem"]})
 	if m["stun"] > 0.0:
 		for k in 3:
 			var ang := t * 4.0 + TAU * float(k) / 3.0
-			Art.star(c, p + Vector2(0, -80 if not m["beast"] else -150) + Vector2(cos(ang) * 22.0, sin(ang) * 7.0), 7.0)
+			Art.star(c, p + Vector2(0, -m["r"] - 24.0) + Vector2(cos(ang) * 22.0, sin(ang) * 7.0), 7.0)
 
 
 func _draw_fx(c: CanvasItem) -> void:
@@ -991,7 +1154,7 @@ func _draw_hud() -> void:
 	# The banner: big words for a moment.
 	var age := t - banner_at
 	if banner != "" and age < 2.6 and (phase == "fight" or phase == "clear" or phase == "fallen"):
-		Art.words(c, Vector2(vs.x / 2.0, 160), banner, 56, Color(1.0, 0.95, 0.75), minf(1.0, age * 5.0) * clampf((2.6 - age) * 2.0, 0.0, 1.0))
+		Art.words(c, Vector2(vs.x / 2.0, vs.y * 0.42), banner, 56, Color(1.0, 0.95, 0.75), minf(1.0, age * 5.0) * clampf((2.6 - age) * 2.0, 0.0, 1.0))
 	match phase:
 		"bank":
 			_draw_bank(c, vs)
@@ -1009,11 +1172,29 @@ func _hints() -> Dictionary:
 		h["move"] = true
 	elif not seen.get("attack", false) and not used.get("attack", false) and not monsters.is_empty():
 		h["attack"] = true
+	elif not seen.get("roll", false) and not used.get("roll", false) and _danger_near():
+		h["roll"] = true
+	elif seen.get("roll", false) and not seen.get("parry", false) and not used.get("parry", false) and _danger_near():
+		h["parry"] = true
+	elif floor_i >= 1 and not seen.get("swap", false) and not used.get("swap", false):
+		h["swap"] = true
 	elif not game.save.marks.is_empty() and not seen.get("magic", false) and not used.get("magic", false) and not monsters.is_empty():
 		h["magic"] = true
 	elif game.save.marks.size() > 1 and not seen.get("gems", false):
 		h["gems"] = true
 	return h
+
+
+## Is a monster about to strike nearby (or a throw coming)? The time to show
+## Roll and Parry.
+func _danger_near() -> bool:
+	for m in monsters:
+		if m["state"] == "windup" and pos.distance_to(m["pos"]) < 320.0:
+			return true
+	for o in orbs:
+		if not o["mine"] and pos.distance_to(o["pos"]) < 260.0:
+			return true
+	return false
 
 
 func _shade(c: CanvasItem, vs: Vector2, a: float) -> void:
@@ -1024,23 +1205,23 @@ func _shade(c: CanvasItem, vs: Vector2, a: float) -> void:
 func _draw_bank(c: CanvasItem, vs: Vector2) -> void:
 	_shade(c, vs, minf(0.75, phase_t * 2.0))
 	var center := Vector2(vs.x / 2.0, vs.y * 0.82)
-	var s := 4.0
+	var s := 3.6
 	var marks := {}
 	var stars := {}
 	for e in game.save.marks:
 		var part: String = game.save.marks[e]["part"]
 		marks[part] = Data.color(e)
 		stars[part] = game.save.star(e)
-	Art.climber(c, center, s, false, marks, stars, t)
+	ClimberArt.draw_front(c, center, game.save.app, s, marks, stars, t)
 	if bank_bag.is_empty():
 		return
 	if not marks.is_empty():
 		Art.words(c, Vector2(vs.x / 2.0, vs.y * 0.14), Data.TEXT["grows"], 52, Color(1.0, 0.95, 0.75), minf(1.0, phase_t * 3.0))
 	var spots: Array = []
 	for part in marks:
-		spots.append(center + Art.PART_SPOT[part] * s)
+		spots.append(ClimberArt.front_spot(center, s, part))
 	if spots.is_empty():
-		spots.append(center + Vector2(0, -27) * s)  # (no mark yet: into your heart)
+		spots.append(ClimberArt.front_spot(center, s, "heart"))  # (no mark yet: into your heart)
 	var e: String = bank_bag.keys()[0]
 	for k in 26:
 		var f := fmod(phase_t * 0.9 + float(k) / 26.0, 1.0)
@@ -1062,11 +1243,11 @@ func _draw_regard(c: CanvasItem, vs: Vector2) -> void:
 	var col := Data.color(e)
 	var bp := Vector2(vs.x * 0.3, vs.y * 0.68)
 	var cp := Vector2(vs.x * 0.66, vs.y * 0.86)
-	var s := 4.2
-	Art.beast(c, bp, tower, t, 0.0, 0.0, false, 2.1)
+	var s := 3.8
+	Creatures.draw(c, tower, bp + Vector2(0, -70), {"t": t, "face": Vector2.DOWN, "state": "idle", "scale": 2.6, "mem": regard_mem})
 	Art.words(c, Vector2(bp.x, vs.y * 0.12), Data.TEXT["you_beat" if regard_beat else "sees_you"] % beast_name(), 46, Color(1.0, 0.95, 0.75), minf(1.0, phase_t * 3.0))
 	var part: String = game.save.marks[e]["part"] if game.save.marks.has(e) else "heart"
-	var spot: Vector2 = cp + Art.PART_SPOT[part] * s
+	var spot: Vector2 = ClimberArt.front_spot(cp, s, part)
 	var landed := phase_t > 1.6
 	var marks := {}
 	var stars := {}
@@ -1075,10 +1256,10 @@ func _draw_regard(c: CanvasItem, vs: Vector2) -> void:
 			continue
 		marks[game.save.marks[k]["part"]] = Data.color(k)
 		stars[game.save.marks[k]["part"]] = game.save.star(k)
-	Art.climber(c, cp, s, true, marks, stars, t)
+	ClimberArt.draw_front(c, cp, game.save.app, s, marks, stars, t)
 	if not landed and phase_t > 0.5:
 		var f := clampf((phase_t - 0.5) / 1.1, 0.0, 1.0)
-		var from := bp + Vector2(10, -140)
+		var from := bp + Vector2(0, -90)
 		var p := from.lerp(spot, f) + Vector2(0, -120.0 * sin(f * PI))
 		Art.glow(c, p, 60.0, col, 2.0)
 		Art.magic_icon(c, p, 22.0, e)

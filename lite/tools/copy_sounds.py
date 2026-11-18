@@ -5,7 +5,7 @@ lite/scripts/sounds.gd (the list audio.gd loads).
 LITE is its own Godot project, so it can't reach the full game's files: it
 keeps copies of only the sounds it uses. Which ones is worked out from LITE's
 own scripts: every sfx("name") in them, each monster's and beast's cries
-(hurt_, kill_, warn_ and the beasts' roar_), each magic's "sound", and the
+(hurt_, kill_, warn_ and the beasts' roar_), each magic's and weapon's sounds, and the
 music and ambiences in MUSIC below. Run it again after changing which sounds
 LITE plays, or after rebuilding the full game's sounds (tools/build_audio.py):
 
@@ -43,7 +43,8 @@ def wanted():
         names.update(["hurt_" + id, "kill_" + id, "warn_" + id])
     for t in towers:
         names.add("roar_" + t)
-    names.update(re.findall(r'"sound": "([a-z_]+)"', data))
+    # Each magic's and weapon's sounds ("sound", "hit_sound", "equip").
+    names.update(re.findall(r'"(?:sound|hit_sound|equip)": "([a-z_]+)"', data))
     return sorted(names)
 
 

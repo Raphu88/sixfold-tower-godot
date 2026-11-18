@@ -66,6 +66,12 @@ const FLOORS := [3, 4, 4, 5, 5]
 ## On the first climb (no mark yet), the beast's Regard comes after this floor.
 const REGARD_FLOOR := 3
 const BEAST_HP := 26
+## Which of each beast's full-game attack poses (creatures.gd "alt") goes
+## with LITE's two beast attacks: the charge and the ring of throws.
+static var BEAST_ALTS := {
+	"gryphon": {"charge": 0, "ring": 1}, "kraken": {"charge": 1, "ring": 2}, "wyvern": {"charge": 1, "ring": 2},
+	"manticore": {"charge": 0, "ring": 2}, "firebird": {"charge": 1, "ring": 0}, "chimera": {"charge": 1, "ring": 3},
+}
 const BEAST_SPEED := 70.0
 ## The beast calls this many of its monsters when it drops to half health.
 const BEAST_HELPERS := 2
@@ -75,11 +81,42 @@ const HEARTS := 5
 const SPEED := 230.0
 const HURT_SAFE := 1.4  # seconds you can't be hurt again after a hit
 const FALL_WAIT := 2.0  # seconds before you pop back after losing every heart
-## The sword: auto-aims at the nearest monster in reach.
-const SWING_REACH := 105.0
-const SWING_ARC := 2.6  # radians (wide)
+## How long a swing's trail shows (seconds).
 const SWING_TIME := 0.28
-const SWING_DAMAGE := 1
+
+## The weapons, swapped with the weapon button (or picked on the climber
+## screen), after the full game's (its weapons.gd: their sounds too). Every
+## swing aims at the nearest monster by itself. "reach" in px, "arc" in
+## radians, "cooldown" seconds between swings, "push" how far a hit knocks a
+## monster back, "stun" seconds a hit stuns it. The bow shoots arrows instead.
+const WEAPON_ORDER := ["sword", "dagger", "hammer", "bow"]
+static var WEAPONS := {
+	"sword": {"word": "Sword", "reach": 105.0, "arc": 2.6, "damage": 1, "cooldown": 0.34, "push": 260.0, "stun": 0.0,
+		"sound": "swing", "hit_sound": "hit", "equip": "equip_sword"},
+	"dagger": {"word": "Dagger", "reach": 82.0, "arc": 1.7, "damage": 1, "cooldown": 0.18, "push": 120.0, "stun": 0.0,
+		"sound": "swing_light", "hit_sound": "hit_stab", "equip": "equip_dagger"},
+	"hammer": {"word": "Hammer", "reach": 118.0, "arc": 2.9, "damage": 2, "cooldown": 0.75, "push": 460.0, "stun": 0.7,
+		"sound": "swing_blunt_heavy", "hit_sound": "hit_blunt", "equip": "equip_blunt"},
+	"bow": {"word": "Bow", "ranged": true, "damage": 1, "cooldown": 0.42, "arrow_speed": 720.0, "push": 140.0, "stun": 0.0,
+		"sound": "bow", "hit_sound": "arrow_hit", "equip": "equip_bow"},
+}
+
+## Roll: a quick dodge you can't be hurt in (the full game's roll, kinder).
+const ROLL_TIME := 0.32
+const ROLL_SPEED := 560.0
+const ROLL_COOLDOWN := 0.45  # after a roll ends, before the next
+## Parry: for a moment after the press, a hit is blocked instead. A blocked
+## lunge stuns the monster; a blocked throw flies back and hurts them. The
+## window is much wider than the full game's (0.32 s) so a child can time it.
+const PARRY_WINDOW := 0.5
+const PARRY_COOLDOWN := 0.6  # (a block resets it)
+const PARRY_STUN := 1.4  # a beast is stunned half as long
+const REFLECT_DAMAGE := 2
+
+## Monsters grow harder as you climb: each floor above the first adds this
+## share to their health and speed and takes it off their wind-up and rest.
+## (Floor 5's monsters: about 70% more health, 25% faster, 20% quicker to strike.)
+static var HARDER := {"hp": 0.18, "speed": 0.06, "windup": 0.05, "rest": 0.06, "orb": 0.05}
 const HEART_DROP := 0.25  # chance a monster leaves a heart
 
 ## Monsters: how long they flash before a lunge or a throw (long, to be fair).
@@ -124,9 +161,30 @@ static var TEXT := {
 	"you_beat": "You beat the %s!",
 	"new_mark": "You got a mark!",
 	"hit": "Hit",
+	"roll": "Roll",
+	"parry": "Parry",
+	"swap": "Swap",
+	"magic": "Magic",
+	"marks": "Marks",
+	"weapons": "Weapons",
+	"look": "Look",
+	"climber": "You",
+	"back": "Back",
 	"home": "Home",
 	"play": "Play",
 	"ok": "OK",
+}
+## The body parts' words on the climber screen (simple ones for a child).
+static var PART_WORDS := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Head", "throat": "Neck", "back": "Back"}
+## The climber screen's Look tab: a word for each group of choices (look.gd
+## TABS) and each choice (look.gd option keys).
+static var LOOK_GROUP_WORDS := {"face": "Face", "hair": "Hair", "body": "Body", "cloak": "Cloak", "extras": "More"}
+static var LOOK_WORDS := {
+	"skin": "Skin", "eyes": "Eyes", "eye_shape": "Eye shape", "face": "Face",
+	"hair": "Hair", "hair_color": "Hair color", "beard": "Beard",
+	"build": "Body", "tunic": "Shirt", "trousers": "Pants", "boots": "Boots",
+	"cloak": "Cloak", "cloak_style": "Cloak shape", "trim": "Trim", "pattern": "Pattern", "hood": "Hood",
+	"belt": "Belt", "neck": "Neck", "accessory": "Extra",
 }
 ## Read the words aloud as they show (on devices with a voice), so a child
 ## hears each word while seeing it.

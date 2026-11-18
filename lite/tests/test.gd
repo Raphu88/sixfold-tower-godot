@@ -8,6 +8,8 @@ extends SceneTree
 const Data := preload("res://scripts/data.gd")
 const Save := preload("res://scripts/save.gd")
 const Art := preload("res://scripts/art.gd")
+const Creatures := preload("res://scripts/creatures.gd")
+const Look := preload("res://scripts/look.gd")
 
 var g
 var failures := 0
@@ -43,6 +45,8 @@ func _run() -> void:
 	await _climb_test()
 	await _magic_test()
 	await _fall_test()
+	await _combat_test()
+	await _climber_screen_test()
 	_save_test()
 	_sound_test()
 	g.queue_free()
@@ -225,6 +229,138 @@ func _fall_test() -> void:
 	c._step(0.0)
 	_check(c.paused, "the home button pauses (house to go home, play to go on)")
 	c.paused = false
+
+
+## A walker of the room, lunging right at the climber (frozen in place).
+func _lunger(c) -> Dictionary:
+	var m: Dictionary = c.monsters[0]
+	m["state"] = "lunge"
+	m["t"] = 0.2
+	m["stun"] = 0.0
+	m["kind"] = "walker"
+	m["pos"] = c.pos + Vector2(0, -(m["r"] + c.PLAYER_R))
+	m["dir"] = Vector2.DOWN
+	return m
+
+
+func _combat_test() -> void:
+	g.start_climb("wyvern")
+	await _frames(2)
+	var c = g.screen
+	c.set_process(false)
+	for m in c.monsters:
+		m["state"] = "walk"
+	# Roll: a dodge nothing can hurt.
+	c.safe_t = 0.0
+	c.pad.roll_pressed = true
+	c._update_player(0.01)
+	c.pad.consume()
+	_check(c.roll_t > 0.0, "Roll starts a roll")
+	var h: int = c.hearts
+	c._hurt_player(c.pos + Vector2(10, 0))
+	_check(c.hearts == h, "...and a hit during a roll is dodged")
+	c.roll_t = 0.0
+	# Parry: a lunge blocked stuns the monster.
+	c.safe_t = 0.0
+	c.pad.parry_pressed = true
+	c._update_player(0.01)
+	c.pad.consume()
+	_check(c.parry_t > 0.0 and Data.PARRY_WINDOW > 0.32, "Parry opens a window (wider than the full game's)")
+	var m := _lunger(c)
+	c._walker(m, 0.01, Vector2.DOWN, 10.0)
+	_check(c.hearts == h and m["stun"] > 0.0, "a lunge into a parry is blocked, and the monster is stunned")
+	_check(c.parry_cd <= 0.0, "...and the parry is ready again at once")
+	# Parry a throw: it flies back and hurts the monsters.
+	c.safe_t = 0.0
+	c.parry_t = Data.PARRY_WINDOW
+	c.orbs.clear()
+	c._throw(c.pos + c.BODY + Vector2(0, -20), Vector2.DOWN)
+	c._update_orbs(0.01)
+	_check(c.orbs.size() == 1 and c.orbs[0]["mine"] and c.hearts == h, "a parried throw turns back")
+	var target: Dictionary = c.monsters[0]
+	target["pos"] = c.orbs[0]["pos"] + c.orbs[0]["vel"].normalized() * 30.0 - c.BODY * 0.5
+	target["state"] = "walk"
+	var hp: int = target["hp"]
+	for k in 10:
+		c._update_orbs(0.02)
+	_check(int(target["hp"]) < hp or not c.monsters.has(target), "...and hurts the monster it hits")
+	# Without a parry or a roll, a lunge hurts.
+	c.parry_t = 0.0
+	c.parry_cd = 0.0
+	c.safe_t = 0.0
+	m = _lunger(c)
+	c._walker(m, 0.01, Vector2.DOWN, 10.0)
+	_check(c.hearts == h - 1, "a lunge that isn't parried or rolled away costs a heart")
+	# Weapons: Swap goes round all four; each is the save's.
+	c.swap_weapon("sword")
+	var seen := []
+	for k in Data.WEAPON_ORDER.size():
+		seen.append(c.weapon)
+		c.swap_weapon()
+	_check(seen == Data.WEAPON_ORDER and c.weapon == "sword", "Swap goes round the weapons: %s" % [seen])
+	c.swap_weapon("hammer")
+	_check(g.save.weapon == "hammer" and c.banner == "Hammer", "the weapon in hand is saved, and its name shows")
+	c.safe_t = 5.0
+	m = c.monsters[0]
+	m["state"] = "walk"
+	m["stun"] = 0.0
+	m["hp"] = 99
+	m["pos"] = c.pos + Vector2(0, -60)
+	c.swing_cd = 0.0
+	c._swing()
+	_check(int(m["hp"]) == 99 - int(Data.WEAPONS["hammer"]["damage"]) and m["stun"] > 0.0, "the hammer hits hard and stuns")
+	c.swap_weapon("bow")
+	m["pos"] = c.pos + Vector2(0, -400)
+	m["kv"] = Vector2.ZERO
+	var before: int = m["hp"]
+	c.swing_cd = 0.0
+	c._swing()
+	_check(c.arrows.size() == 1, "the bow shoots an arrow at the nearest monster")
+	for k in 40:
+		c._update_arrows(0.02)
+	_check(int(m["hp"]) < before and c.arrows.is_empty(), "...that hits it from afar")
+	c.swap_weapon("sword")
+	# Higher floors: harder monsters.
+	c._start_floor(0)
+	var low: Dictionary = c.monsters[0]
+	c._start_floor(4)
+	var high: Dictionary = c.monsters[0]
+	_check(int(high["hp"]) > int(low["hp"]) and float(high["speed"]) > float(low["speed"]) and float(high["windup"]) < float(low["windup"]), "monsters on floor 5 have more health, are faster and strike sooner (hp %d/%d)" % [low["hp"], high["hp"]])
+	_check(float(high["windup"]) >= 0.6, "...but still give a fair warning (%.2f s)" % float(high["windup"]))
+	g.go_home()
+	await _frames(1)
+
+
+func _climber_screen_test() -> void:
+	g.open_climber()
+	await _frames(3)
+	var s = g.screen
+	_check(s.has_method("_tab") and s.tab == "marks", "the climber screen opens on Marks")
+	s._tab("weapons")
+	s._pick_weapon("dagger")
+	_check(s.tab == "weapons" and g.save.weapon == "dagger", "Weapons: tapping one holds it")
+	s._tab("look")
+	s._group("hair")
+	var app: Dictionary = Look.normalized(g.save.app).duplicate()
+	s._step_look("hair_color", 1)
+	_check(String(g.save.app["hair_color"]) != String(app["hair_color"]), "Look: the arrows change the hair colour")
+	s._random_look()
+	_check(not g.save.app.is_empty(), "...and the die picks a whole new look")
+	await _frames(3)
+	var loaded = Save.load_save()
+	_check(loaded.weapon == "dagger" and String(loaded.app.get("hair_color", "")) == String(g.save.app["hair_color"]), "the weapon and the look are saved")
+	for row in Look.kid_rows():
+		_check(Data.LOOK_WORDS.has(row["key"]), "the Look choice %s has a word" % row["key"])
+	for part in Data.PARTS:
+		_check(Data.PART_WORDS.has(part), "the %s has a word on the Marks page" % part)
+	s._back()
+	await _frames(1)
+	_check(g.screen.has_method("suggested"), "Back goes home")
+	# The full game's drawings: every monster and beast LITE uses.
+	for tw in Data.ORDER:
+		_check(Creatures.is_beast(tw) and Creatures.radius(tw) > 20.0, "the %s is drawn as in the full game" % tw)
+	for id in Data.MONSTERS:
+		_check(Creatures.KINDS.has(id), "the %s is drawn as in the full game" % id)
 
 
 func _save_test() -> void:

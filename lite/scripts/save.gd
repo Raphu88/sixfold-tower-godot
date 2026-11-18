@@ -17,6 +17,10 @@ var spare := 0.0
 var seen := {}
 ## The magic chosen last (an essence).
 var chosen := ""
+## The weapon in hand (Data.WEAPON_ORDER).
+var weapon := "sword"
+## How the climber looks: option ids (look.gd), chosen on the climber screen.
+var app := {}
 
 
 static func load_save():
@@ -41,6 +45,12 @@ static func load_save():
 	if typeof(seen) == TYPE_DICTIONARY:
 		s.seen = seen
 	s.chosen = String(parsed.get("chosen", ""))
+	s.weapon = String(parsed.get("weapon", "sword"))
+	if not Data.WEAPONS.has(s.weapon):
+		s.weapon = "sword"
+	var app = parsed.get("app", {})
+	if typeof(app) == TYPE_DICTIONARY:
+		s.app = app
 	return s
 
 
@@ -48,7 +58,7 @@ func save() -> void:
 	var f := FileAccess.open(path(), FileAccess.WRITE)
 	if f == null:
 		return
-	f.store_string(JSON.stringify({"marks": marks, "beaten": beaten, "spare": spare, "seen": seen, "chosen": chosen}))
+	f.store_string(JSON.stringify({"marks": marks, "beaten": beaten, "spare": spare, "seen": seen, "chosen": chosen, "weapon": weapon, "app": app}))
 
 
 ## Where the save lives (its own file in a test run).
