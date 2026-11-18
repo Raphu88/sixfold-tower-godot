@@ -16,27 +16,9 @@ A web version is built automatically every time `main` changes: **https://raphu8
 
 On a touchscreen the whole game is drawn bigger so it reads on a small screen (how much is the **Interface size** setting: see Settings below; a phone's Normal is 1.25x what it used to be), and on-screen controls appear as soon as you touch it: a joystick under your left thumb (past a light tilt you walk at full speed; there is no sprint), and buttons on the right for attack (hold to draw a bow), roll, parry, your marks' spells and weapon swap, a **Take** button that appears only while you stand on gear you could swap for, a **Tools** button that appears only while you hold a secret bond (tap for the last tool, hold and slide for the tool ring), an **Item** button at the bottom (it shows your current item and how many you have; tap it to use that item, or hold it to open the **belt wheel** (it opens beside your thumb, over the buttons, so nothing hides it, and the game slows), slide your finger onto an item and let go to make it your current item: choosing never uses it; the small arrow beside it picks the next item), and small **Bag** (inventory), **Climber** and **Menu** buttons at the top right. Aiming is automatic: you face the nearest monster in reach, or the way you're moving.
 
-## The kids version
+## Six Towers LITE (for young children)
 
-A much simpler Sixfold Tower for young children who can't read yet. On the title screen choose **Kids version**, or open the web link with `?kids` on the end: **https://raphu88.github.io/sixfold-tower-godot/?kids** (save that one to the phone's home screen). Once picked, the game opens in the kids version every time. To go back to the full game, **hold the gear in the top left of its home screen for two seconds** (a ring fills up as you hold, so a child's quick tap does nothing), or open the link with `?full`.
-
-- **No reading.** Everything is pictures, colours and sounds. The home screen is the only menu: six towers, each showing its beast; tap one to climb it. A crown sits on each tower whose beast you've beaten, and the magic it gave you shows under it. The climber stands below, big, with every mark glowing on its body and a badge beside it for each magic (its picture, its stars, and a little bar toward the next star).
-- **The guide.** The Entity, without words: a small glowing light that floats to what to do next (the tower to try, then the stair once a room is clear). The first time, a pointing finger shows the joystick, then the sword button, then the magic button, then the gems that pick a magic.
-- **Big, few controls.** A floating joystick anywhere on the left, a huge sword button on the right (hold it to keep swinging; it aims at the nearest monster by itself), and, once you have a mark, a magic button whose ring fills up as it recharges, with a gem for each mark above it to pick which magic. Top right: fullscreen and home (home pauses: the house goes home, the play button carries on). Keyboard: arrows or WASD, Space or J to swing, K or E for magic, 1-6 to pick a magic, Esc for home. A controller works too.
-- **Gentle fights.** Five hearts. Monsters are slow and flash red, with a red patch where the attack will land, before every lunge or throw; their throws are slow glowing orbs. After a hit you blink and can't be hurt for a moment. Monsters sometimes leave a heart. Hearts refill on every floor, and losing them all just starts the room again: nothing is lost.
-- **A climb is three rooms:** two of the tower's monsters, then its beast (which calls two helpers at half health). Dots at the top show the floors and the beast's crown; a bar shows the beast's health.
-- **The magic, based on the full game.** Monsters leave sparkles of essence in their tower's colour that fly into you. Clear a room and a stair appears; step on it and the sparkles pour into your marks (each colour into the mark of that colour; a colour with no mark of its own grows every mark a little). Your first climb has no magic: at the top, the beast takes notice (**the Regard**) and its mark flies onto your body. Sparkles banked before then pour into that first mark. Each mark is one magic, from a bond of the full game, and grows from one star to three across climbs (stronger, bigger, more targets). Beating a beast again grows its mark.
-
-| Tower | Mark on | Magic | Based on |
-| --- | --- | --- | --- |
-| Gryphon (Air) | legs | Chain Lightning: zaps the nearest monsters, one after another | Stormcaller |
-| Kraken (Water) | heart | Tidal Surge: a wave that hurts and pushes back everything near you, and washes away throws | Tidecaller |
-| Wyvern (Iron) | back | Barrier: a bubble that stops every hit for a few seconds | Warden |
-| Manticore (Stone) | throat | Quake: hurts and stuns everything near you, and stops their attacks | Sandshaper |
-| Firebird (Fire) | brow | Fireball: flies at the nearest monster and bursts | Flamewing |
-| Chimera (Blade) | hand | Conjured Blades: blades circle you and cut what they touch | Blade Forger |
-
-Every number, monster, name and colour is in `scripts/kids/kids_data.gd`. Its save is its own (`user://kids.json`), apart from the full game's climbers. Tests: `tests/parts/kids.gd` (a bot plays a whole climb to the Regard; every magic, banking, falling, the save, which version opens, every sound, the title button).
+A much simpler game for young children who can't read yet lives in its own folder, [`lite/`](lite/README.md): a separate small Godot project with its own web link, **https://raphu88.github.io/sixfold-tower-godot/lite/**. It shares nothing with this game but copies of a few sounds.
 
 ## Controls
 
@@ -1630,16 +1612,8 @@ Where it lives: `scripts/anim.gd` holds every amount, duration and strength (`DA
 
 | Path | What it is |
 | --- | --- |
-| `scenes/boot.tscn` | The first scene (`scripts/boot.gd`): opens the full game, or the kids version if it was picked last or the web link ends in `?kids` (`?full` always opens the full game) |
-| `scenes/main.tscn` | The full game; everything is built from `main.gd` |
-| `scenes/kids.tscn` | The kids version (`scripts/kids/kids_game.gd`) |
-| `scripts/kids/kids_game.gd` | The kids version's root: switches between home and a climb, its sounds, leaving for the full game |
-| `scripts/kids/kids_data.gd` | The kids version's data: towers, monsters, magic and every number |
-| `scripts/kids/kids_home.gd` | The kids version's home screen: the six towers, the climber with its marks, the guide, the grown-ups' gear |
-| `scripts/kids/kids_climb.gd` | A kids climb: the rooms, the climber, monsters, beasts, magic, sparkles, the stair and the Regard |
-| `scripts/kids/kids_pad.gd` | The kids version's controls: the joystick, the big buttons, keys and controller |
-| `scripts/kids/kids_art.gd` | The kids version's drawings: the climber with its marks, monsters, beasts and the picture icons |
-| `scripts/kids/kids_save.gd` | The kids version's save: marks, beasts beaten, banking and the Regard |
+| `scenes/main.tscn` | The only scene; everything is built from `main.gd` |
+| `lite/` | Six Towers LITE, the separate game for young children (its own Godot project: see `lite/README.md`) |
 | `scripts/main.gd` | The room, spawning, restart, effects hooks |
 | `scripts/player.gd` | The climber: movement, roll, strike, parry, casting, overdraw |
 | `scripts/combat.gd` | The climber's core numbers (health, stamina, parry window, roll cost, grace after a hit...) and the rules every monster's attack keeps (the glint's lead, the opening after an attack, flinching), all in the Data editor's "The climber's core numbers" |
