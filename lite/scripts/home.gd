@@ -22,7 +22,8 @@ var picked := ""  # a tower tapped: it bounces, then the climb starts
 var picked_t := 0.0
 var celebrate := ""  # a tower whose beast was just beaten
 var confetti: Array = []
-var beast_mem := {}  # tower -> creatures.gd's smoothed pose
+var beast_mem := {}
+var locked_t := 0.0  # a locked tower just tapped: it shakes  # tower -> creatures.gd's smoothed pose
 ## The bubble is read aloud once a session (and after every win).
 static var greeted := false
 
@@ -42,6 +43,7 @@ func _ready() -> void:
 	if celebrate != "" or not greeted:
 		greeted = true
 		game.say(bubble_text())
+	game.show_upgrades.call_deferred()  # (marks that gained a star pick their upgrade)
 
 
 ## The tower to try next: the first whose beast you haven't beaten.
@@ -73,6 +75,7 @@ func bubble_center() -> Vector2:
 
 func _process(delta: float) -> void:
 	t += delta
+	locked_t = maxf(0.0, locked_t - delta)
 	if picked != "":
 		picked_t += delta
 		if picked_t > 0.7:
@@ -139,7 +142,18 @@ func _input(event: InputEvent) -> void:
 		game.sfx("ui_move")
 
 
+## A tower opens once the one before it is beaten (the first is always open).
+func unlocked(i: int) -> bool:
+	return i == 0 or game.save.beaten.has(Data.ORDER[i - 1])
+
+
 func _pick(i: int) -> void:
+	if not unlocked(i):
+		selected = i
+		game.sfx("ui_back")
+		game.say(Data.TEXT["locked"] % String(Data.TOWERS[Data.ORDER[i - 1]]["name"]))
+		locked_t = 0.6
+		return
 	selected = i
 	picked = Data.ORDER[i]
 	picked_t = 0.0
@@ -194,6 +208,8 @@ func _draw_tower(i: int, suggested_here: bool) -> void:
 	elif i == selected:
 		bounce = -4.0 * absf(sin(t * 3.0))
 	r.position.y += bounce
+	if i == selected and locked_t > 0.0:
+		r.position.x += sin(locked_t * 40.0) * 6.0 * locked_t
 	if i == selected or suggested_here:
 		Art.glow(self, r.get_center(), r.size.y * 0.7, col, 0.9 + 0.3 * sin(t * 3.0))
 	# The tower: a tall stone shape with battlements, windows and a door.
@@ -232,6 +248,10 @@ func _draw_tower(i: int, suggested_here: bool) -> void:
 	else:
 		draw_circle(mp, 22.0, Color(col, 0.25))
 		draw_arc(mp, 22.0, 0.0, TAU, 32, Color(col, 0.6), 3.0)
+	if not unlocked(i):
+		# Locked: dimmed, with a padlock over the beast.
+		draw_rect(r.grow(4.0), Color(0.05, 0.04, 0.08, 0.55))
+		Art.padlock(self, Vector2(r.get_center().x, r.position.y + r.size.y * 0.62), 26.0)
 
 
 func climber_scale() -> float:
@@ -258,7 +278,7 @@ func _draw_climber(vs: Vector2) -> void:
 		var part: String = game.save.marks[e]["part"]
 		marks[part] = Data.color(e)
 		stars[part] = game.save.star(e)
-	ClimberArt.draw_front(self, center, game.save.app, s, marks, stars, t)
+	ClimberArt.draw_front(self, center, game.save.app, s, marks, stars, t, game.worn_gear(), game.save.weapon, game.worn_skin())
 	# A badge beside the climber for each mark: its magic and stars.
 	var k := 0
 	for e in game.save.marks:
@@ -272,10 +292,10 @@ func _draw_climber(vs: Vector2) -> void:
 		draw_circle(bp, 31.0, col.darkened(0.25))
 		Art.magic_icon(self, bp, 20.0, e)
 		var st: int = game.save.star(e)
-		for n in 3:
-			Art.star(self, bp + Vector2(-22 + 22 * n, 46), 9.0, Color(1.0, 0.85, 0.3), n < st)
+		for n in Data.STAR_MAX:
+			Art.star(self, bp + Vector2(-15.0 * (Data.STAR_MAX - 1) / 2.0 + 15.0 * n, 46), 7.0, Color(1.0, 0.85, 0.3), n < st)
 		# How close the next star is: a little bar under the stars.
-		if st < 3:
+		if st < Data.STAR_MAX:
 			var w := 60.0
 			var pr := Data.star_progress(float(game.save.marks[e]["grown"]))
 			draw_rect(Rect2(bp + Vector2(-w / 2.0, 60), Vector2(w, 6)), Color(0, 0, 0, 0.5))

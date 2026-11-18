@@ -61,11 +61,27 @@ static var MONSTERS := {
 }
 
 ## Each floor of a climb: how many monsters. The floor after these (the
-## sixth) is the beast's.
-const FLOORS := [3, 4, 4, 5, 5]
+## sixth) is the beast's. Each floor's room is a layout (floor_map.gd).
+const FLOORS := [4, 5, 6, 7, 8]
+## The chance a layout's cracked wall (its secret way to a treasure room) is there.
+const SECRET_CHANCE := 0.6
+## From this floor (0 = floor 1) one monster of each room is an elite: bigger,
+## much tougher, and it leaves more sparkles.
+const ELITE_FROM := 3
+static var ELITE := {"scale": 1.35, "hp": 2.5, "sparks": 3.0}
+## From this floor (0 = floor 1) throwers throw three at once, in a fan.
+const SPREAD_FROM := 2
 ## On the first climb (no mark yet), the beast's Regard comes after this floor.
 const REGARD_FLOOR := 3
-const BEAST_HP := 26
+## A beast's health: BEAST_HP, plus BEAST_HP_STEP for each tower before
+## its own (they unlock in order, so later beasts are tougher).
+const BEAST_HP := 60
+const BEAST_HP_STEP := 14
+## At half health a beast gets fiercer: faster, quicker to strike, bigger
+## rings of throws, and it calls its monsters.
+static var BEAST_FURY := {"speed": 1.3, "windup": 0.75, "ring": 16}
+## Its leap: it jumps to where you stood (the spot is marked) and lands hard.
+const SLAM_RADIUS := 110.0
 ## Which of each beast's full-game attack poses (creatures.gd "alt") goes
 ## with LITE's two beast attacks: the charge and the ring of throws.
 static var BEAST_ALTS := {
@@ -74,13 +90,15 @@ static var BEAST_ALTS := {
 }
 const BEAST_SPEED := 70.0
 ## The beast calls this many of its monsters when it drops to half health.
-const BEAST_HELPERS := 2
+const BEAST_HELPERS := 3
 
 ## The climber.
 const HEARTS := 5
 const SPEED := 230.0
 const HURT_SAFE := 1.4  # seconds you can't be hurt again after a hit
-const FALL_WAIT := 2.0  # seconds before you pop back after losing every heart
+const FALL_WAIT := 2.6  # seconds before the climb ends after losing every heart
+## Hearts carry from floor to floor; each stair gives back this many.
+const HEARTS_AT_STAIR := 2
 ## How long a swing's trail shows (seconds).
 const SWING_TIME := 0.28
 
@@ -115,9 +133,11 @@ const REFLECT_DAMAGE := 2
 
 ## Monsters grow harder as you climb: each floor above the first adds this
 ## share to their health and speed and takes it off their wind-up and rest.
-## (Floor 5's monsters: about 70% more health, 25% faster, 20% quicker to strike.)
-static var HARDER := {"hp": 0.18, "speed": 0.06, "windup": 0.05, "rest": 0.06, "orb": 0.05}
-const HEART_DROP := 0.25  # chance a monster leaves a heart
+## (Floor 5's monsters: twice the health, a third faster, a quarter quicker
+## to strike; never under MIN_WINDUP of warning.)
+static var HARDER := {"hp": 0.25, "speed": 0.08, "windup": 0.06, "rest": 0.07, "orb": 0.06}
+const MIN_WINDUP := 0.5
+const HEART_DROP := 0.12  # chance a monster leaves a heart
 
 ## Monsters: how long they flash before a lunge or a throw (long, to be fair).
 const WINDUP := 0.85
@@ -129,8 +149,55 @@ const BEAST_SPARKS := 20
 ## At a stair, a mark takes all of its own colour and this much of the others
 ## (shared between your marks).
 const OTHER_SHARE := 0.4
-## Essence a mark needs for 2 stars and for 3 stars.
-const STAR_AT := [0, 60, 180]
+## Essence a mark needs for each star (up to STAR_MAX). Each new star brings
+## an upgrade to pick (UPGRADES).
+const STAR_AT := [0, 90, 240, 480, 800]
+const STAR_MAX := 5
+## Play style: what each body part does fills it with essence. At each stair
+## BODY_SHARE of what's banked goes to the body, split by what each part did
+## on that floor (a marked part grows its mark; an empty one soaks it up, and
+## the next mark goes on the fullest). Hits with a weapon count for that
+## weapon's part, and the favourite weapon (the one used most) counts
+## FAVOURITE_BONUS more.
+static var DEED_PART := {
+	"hit_sword": "hand", "hit_dagger": "back", "hit_hammer": "throat", "hit_bow": "brow",
+	"roll": "legs", "parry": "brow", "hurt": "heart", "magic": "heart",
+}
+const BODY_SHARE := 0.4
+const FAVOURITE_BONUS := 0.5
+
+## Mark upgrades: at each new star (2 to 5) pick one of two. "power", "quick"
+## and "big" work for every magic; each magic has two specials of its own.
+## A pick can come twice ("power" at star 2 and 4): they add up.
+static func upgrade_choices(essence: String, star: int) -> Array:
+	match star:
+		2, 4:
+			return ["power", "quick"]
+		3:
+			return ["big", essence + "_a"]
+		_:
+			return ["big", essence + "_b"]
+
+
+## Each upgrade's word (shown and read aloud) and its badge picture.
+static var UPGRADE_INFO := {
+	"power": {"word": "Stronger!", "badge": "power"},
+	"quick": {"word": "Faster!", "badge": "quick"},
+	"big": {"word": "Bigger!", "badge": "big"},
+	"air_a": {"word": "Zap stuns!", "badge": "special"},
+	"air_b": {"word": "Double zap!", "badge": "special"},
+	"water_a": {"word": "Wave heals!", "badge": "special"},
+	"water_b": {"word": "Freezing wave!", "badge": "special"},
+	"iron_a": {"word": "Bounce back!", "badge": "special"},
+	"iron_b": {"word": "Spiky shield!", "badge": "special"},
+	"stone_a": {"word": "Safe stomp!", "badge": "special"},
+	"stone_b": {"word": "Double stomp!", "badge": "special"},
+	"fire_a": {"word": "Burning fire!", "badge": "special"},
+	"fire_b": {"word": "Triple fire!", "badge": "special"},
+	"blade_a": {"word": "Flying blades!", "badge": "special"},
+	"blade_b": {"word": "Long blades!", "badge": "special"},
+}
+
 ## Beating a beast whose mark you already have grows that mark by this much.
 const BEAST_GROWTH := 30
 
@@ -173,6 +240,27 @@ static var TEXT := {
 	"home": "Home",
 	"play": "Play",
 	"ok": "OK",
+	"hint_move": "Move with your thumb!",
+	"hint_attack": "Tap the sword to hit!",
+	"hint_roll": "Roll away!",
+	"hint_parry": "Parry to block!",
+	"hint_swap": "Tap to swap your weapon!",
+	"hint_magic": "Use your magic!",
+	"hint_gems": "Pick your magic!",
+	"hint_plates": "Step on all the stones!",
+	"hint_lever": "Hit the lever!",
+	"hint_fires": "Light all the fires!",
+	"open": "The door is open!",
+	"portal": "A portal!",
+	"secret": "A secret!",
+	"treasure": "You found a treasure!",
+	"lost": "Oh no! Back home.",
+	"careful": "Careful! One heart left!",
+	"locked": "Beat the %s first!",
+	"pick_one": "Pick one!",
+	"favorite": "Favorite",
+	"next_mark": "Next mark",
+	"treasure_tab": "Treasure",
 }
 ## The body parts' words on the climber screen (simple ones for a child).
 static var PART_WORDS := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Head", "throat": "Neck", "back": "Back"}
@@ -189,6 +277,39 @@ static var LOOK_WORDS := {
 ## Read the words aloud as they show (on devices with a voice), so a child
 ## hears each word while seeing it.
 const SPEAK := true
+
+
+## Every phrase the game can say aloud (tools/make_voice.py records each one
+## with a natural voice into assets/voice: voice.gd). Add new spoken words to
+## TEXT (or the lists below) and they're picked up here.
+static func spoken() -> Array:
+	var out := {}
+	for k in TEXT:
+		var line: String = TEXT[k]
+		if line.contains("%s"):
+			if k == "floor":
+				for n in FLOORS.size() + 1:
+					out[line % str(n + 1)] = true
+			else:
+				for tw in ORDER:
+					out[line % String(TOWERS[tw]["name"])] = true
+		else:
+			out[line] = true
+	for tw in ORDER:
+		out[String(TOWERS[tw]["name"])] = true
+	for id in WEAPONS:
+		out[String(WEAPONS[id]["word"])] = true
+	for e in MAGIC:
+		out[String(MAGIC[e]["word"])] = true
+		out[String(MAGIC[e]["word"]) + "!"] = true
+	for d in [PART_WORDS, LOOK_GROUP_WORDS, LOOK_WORDS]:
+		for k in d:
+			out[String(d[k])] = true
+	for k in UPGRADE_INFO:
+		out[String(UPGRADE_INFO[k]["word"])] = true
+	for k in TREASURES:
+		out[String(TREASURES[k]["word"])] = true
+	return out.keys()
 
 
 static func color(essence: String) -> Color:
@@ -227,3 +348,57 @@ static func star_progress(grown: float) -> float:
 static func magic_value(essence: String, key: String, star: int):
 	var list: Array = MAGIC[essence][key]
 	return list[clampi(star - 1, 0, list.size() - 1)]
+
+
+## Treasures to find: things to wear, drawn like the full game's gear
+## (gear_look.gd pieces) and weapon finishes (gear_look.gd SKINS). Each beast
+## leaves its own the first time it's beaten; the rest are in the chests of
+## secret treasure rooms.
+## id -> {"word": its name on screen, "kind": "gear" or "skin", "piece": a
+## gear_look.gd id or a skin, "from": "secret" (treasure rooms), "beast:<tower>"
+## (that beast's, the first time it's beaten) or "chest"}.
+static var TREASURES := {
+	"leather_cap": {"word": "Cap", "kind": "gear", "piece": "leather_cap", "slot": "head", "from": "secret"},
+	"feathered_cap": {"word": "Feather Hat", "kind": "gear", "piece": "feathered_cap", "slot": "head", "from": "secret"},
+	"iron_helm": {"word": "Iron Helmet", "kind": "gear", "piece": "iron_helm", "slot": "head", "from": "secret"},
+	"miners_helm": {"word": "Lamp Helmet", "kind": "gear", "piece": "miners_helm", "slot": "head", "from": "secret"},
+	"watchers_helm": {"word": "Watcher Helmet", "kind": "gear", "piece": "watchers_helm", "slot": "head", "from": "beast:gryphon"},
+	"leather_armor": {"word": "Leather Vest", "kind": "gear", "piece": "leather_armor", "slot": "chest", "from": "secret"},
+	"chain_mail": {"word": "Chain Shirt", "kind": "gear", "piece": "chain_mail", "slot": "chest", "from": "secret"},
+	"plate_armor": {"word": "Shiny Armor", "kind": "gear", "piece": "plate_armor", "slot": "chest", "from": "secret"},
+	"barnacle_mail": {"word": "Shell Armor", "kind": "gear", "piece": "barnacle_mail", "slot": "chest", "from": "secret"},
+	"wyvern_scaleplate": {"word": "Dragon Armor", "kind": "gear", "piece": "wyvern_scaleplate", "slot": "chest", "from": "beast:wyvern"},
+	"deepcoil_coat": {"word": "Sea Coat", "kind": "gear", "piece": "deepcoil_coat", "slot": "chest", "from": "beast:kraken"},
+	"leather_pauldrons": {"word": "Shoulder Pads", "kind": "gear", "piece": "leather_pauldrons", "slot": "shoulders", "from": "secret"},
+	"mail_pauldrons": {"word": "Chain Shoulders", "kind": "gear", "piece": "mail_pauldrons", "slot": "shoulders", "from": "secret"},
+	"plate_pauldrons": {"word": "Big Shoulders", "kind": "gear", "piece": "plate_pauldrons", "slot": "shoulders", "from": "secret"},
+	"leather_gloves": {"word": "Gloves", "kind": "gear", "piece": "leather_gloves", "slot": "hands", "from": "secret"},
+	"archers_bracers": {"word": "Arm Guards", "kind": "gear", "piece": "archers_bracers", "slot": "hands", "from": "secret"},
+	"gauntlets": {"word": "Iron Gloves", "kind": "gear", "piece": "gauntlets", "slot": "hands", "from": "secret"},
+	"quickhand_gloves": {"word": "Quick Gloves", "kind": "gear", "piece": "quickhand_gloves", "slot": "hands", "from": "secret"},
+	"climbing_boots": {"word": "Boots", "kind": "gear", "piece": "climbing_boots", "slot": "feet", "from": "secret"},
+	"hobnail_boots": {"word": "Stomp Boots", "kind": "gear", "piece": "hobnail_boots", "slot": "feet", "from": "secret"},
+	"wading_boots": {"word": "Tall Boots", "kind": "gear", "piece": "wading_boots", "slot": "feet", "from": "secret"},
+	"phantom_treads": {"word": "Ghost Boots", "kind": "gear", "piece": "phantom_treads", "slot": "feet", "from": "secret"},
+	"sunstone_pendant": {"word": "Sun Stone", "kind": "gear", "piece": "sunstone_pendant", "slot": "neck", "from": "beast:manticore"},
+	"tide_locket": {"word": "Sea Locket", "kind": "gear", "piece": "tide_locket", "slot": "neck", "from": "secret"},
+	"heartstone": {"word": "Heart Stone", "kind": "gear", "piece": "heartstone", "slot": "neck", "from": "secret"},
+	"wayfinders_pendant": {"word": "Star Pendant", "kind": "gear", "piece": "wayfinders_pendant", "slot": "neck", "from": "secret"},
+	"feather_cape": {"word": "Feather Cape", "kind": "gear", "piece": "feather_cape", "slot": "back", "from": "secret"},
+	"climbers_pack": {"word": "Backpack", "kind": "gear", "piece": "climbers_pack", "slot": "back", "from": "secret"},
+	"emberkin_mantle": {"word": "Fire Cape", "kind": "gear", "piece": "emberkin_mantle", "slot": "back", "from": "beast:chimera"},
+	"sunplume_mantle": {"word": "Sun Cape", "kind": "gear", "piece": "sunplume_mantle", "slot": "back", "from": "beast:firebird"},
+	"skin_gold": {"word": "Gold Weapons", "kind": "skin", "piece": "gold", "slot": "skin", "from": "secret"},
+	"skin_crystal": {"word": "Ice Weapons", "kind": "skin", "piece": "crystal", "slot": "skin", "from": "secret"},
+	"skin_flame": {"word": "Fire Weapons", "kind": "skin", "piece": "flame", "slot": "skin", "from": "secret"},
+	"skin_shadow": {"word": "Shadow Weapons", "kind": "skin", "piece": "shadow", "slot": "skin", "from": "secret"},
+}
+
+
+## The treasures that can come from `source` ("secret", "beast:kraken"...).
+static func treasure_for(source: String) -> Array:
+	var out: Array = []
+	for id in TREASURES:
+		if String(TREASURES[id]["from"]) == source:
+			out.append(id)
+	return out

@@ -9,6 +9,9 @@ const Save := preload("res://scripts/save.gd")
 const Home := preload("res://scripts/home.gd")
 const Climb := preload("res://scripts/climb.gd")
 const ClimberScreen := preload("res://scripts/climber_screen.gd")
+const UpgradePick := preload("res://scripts/upgrade_pick.gd")
+## The natural voice's clips (tools/make_voice.py), if they've been made.
+const VOICE_PATH := "res://scripts/voice.gd"
 const Data := preload("res://scripts/data.gd")
 
 var audio
@@ -16,6 +19,10 @@ var save
 var screen: Node
 var fade := 1.0
 var fader: Node2D
+var upgrades: Node  # the upgrade pick, while it's showing (upgrade_pick.gd)
+var voice_clips := {}  # text -> clip path (voice.gd)
+var voice_player: AudioStreamPlayer
+var voice_queue: Array = []
 
 
 func _ready() -> void:
@@ -24,6 +31,12 @@ func _ready() -> void:
 	audio = AudioScript.new()
 	add_child(audio)
 	save = Save.load_save()
+	if ResourceLoader.exists(VOICE_PATH):
+		voice_clips = load(VOICE_PATH).CLIPS
+	voice_player = AudioStreamPlayer.new()
+	voice_player.volume_db = 2.0
+	add_child(voice_player)
+	voice_player.finished.connect(_voice_next)
 	fader = Node2D.new()
 	fader.z_index = 100
 	add_child(fader)
@@ -54,6 +67,37 @@ func go_home(celebrate := "") -> void:
 	_show(h)
 
 
+## What the climber wears, for the drawings: slot -> gear_look.gd piece.
+func worn_gear() -> Dictionary:
+	var out := {}
+	for slot in save.worn:
+		var tr: Dictionary = Data.TREASURES.get(save.worn[slot], {})
+		if slot != "skin" and tr.get("kind", "") == "gear":
+			out[slot] = tr["piece"]
+	return out
+
+
+## The weapons' finish worn (gear_look.gd SKINS), or "".
+func worn_skin() -> String:
+	var tr: Dictionary = Data.TREASURES.get(save.worn.get("skin", ""), {})
+	return String(tr.get("piece", ""))
+
+
+## Shows the upgrade pick over the screen while marks wait for one.
+func show_upgrades() -> void:
+	if upgrades != null or save.pending_ups.is_empty():
+		return
+	upgrades = UpgradePick.new()
+	upgrades.setup(self)
+	add_child(upgrades)
+
+
+func close_upgrades() -> void:
+	if upgrades != null:
+		upgrades.queue_free()
+	upgrades = null
+
+
 ## The climber screen (marks, weapons, look).
 func open_climber(tab := "marks") -> void:
 	save.save()
@@ -68,10 +112,35 @@ func start_climb(tower: String) -> void:
 	_show(c)
 
 
-## Reads words aloud (Data.SPEAK), if the device has a voice: a child hears
-## each word while seeing it. A new line cuts off the one before.
+## Reads words aloud (Data.SPEAK): a child hears each word while seeing it.
+## The natural voice's clip if there is one (voice.gd), else the device's own
+## voice. A new line cuts off the one before.
 func say(text: String) -> void:
-	if not Data.SPEAK or text == "" or not DisplayServer.has_feature(DisplayServer.FEATURE_TEXT_TO_SPEECH):
+	voice_queue.clear()
+	_say_one(text, true)
+
+
+## Reads several lines one after another.
+func say_list(lines: Array) -> void:
+	voice_queue = lines.duplicate()
+	if not voice_queue.is_empty():
+		_say_one(String(voice_queue.pop_front()), true)
+
+
+func _voice_next() -> void:
+	if not voice_queue.is_empty():
+		_say_one(String(voice_queue.pop_front()), false)
+
+
+func _say_one(text: String, interrupt: bool) -> void:
+	if not Data.SPEAK or text == "":
+		return
+	if voice_clips.has(text) and ResourceLoader.exists(voice_clips[text]):
+		DisplayServer.tts_stop() if DisplayServer.has_feature(DisplayServer.FEATURE_TEXT_TO_SPEECH) and OS.get_name() != "Linux" else null
+		voice_player.stream = load(voice_clips[text])
+		voice_player.play()
+		return
+	if not DisplayServer.has_feature(DisplayServer.FEATURE_TEXT_TO_SPEECH):
 		return
 	if OS.get_name() == "Linux":
 		return  # (a Linux desktop often has no voice, and asking for one only logs errors)
@@ -80,8 +149,12 @@ func say(text: String) -> void:
 		voices = DisplayServer.tts_get_voices_for_language(OS.get_locale_language())
 	if voices.is_empty():
 		return
-	DisplayServer.tts_stop()
+	if interrupt:
+		DisplayServer.tts_stop()
+	voice_player.stop()
 	DisplayServer.tts_speak(text, voices[0], 80, 1.0, 0.85)
+	if not voice_queue.is_empty():
+		_voice_next()  # (the device queues its own lines)
 
 
 func sfx(sound: String, pitch := 1.0, volume_db := 0.0) -> void:

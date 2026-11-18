@@ -67,3 +67,7 @@ Six Towers LITE uses copies of a few of the full Sixfold Tower's sounds. All of 
 ## Font
 
 The words are in **[Andika](https://software.sil.org/andika/)** Bold by SIL International, made for children learning to read. It's under the **SIL Open Font License 1.1** (free to use, embed and share with the game); the licence travels with it in `assets/fonts/andika/OFL.txt`. The file is unmodified, from [Google Fonts](https://fonts.google.com/specimen/Andika).
+
+## Voice
+
+The spoken words (`assets/voice`) were recorded with **[Kokoro-82M](https://github.com/hexgrad/kokoro)** by hexgrad, voice "af_heart", under the **Apache License 2.0** (its text is in `assets/voice/LICENSE-Apache-2.0.txt`). The owner approved this one exception to the project's CC0-only rule for sounds. They were made with [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) by thewh1teagle (MIT License), using that project's model-files-v1.0 release, by `tools/make_voice.py`. The tools only make the clips; none of them ship with the game.

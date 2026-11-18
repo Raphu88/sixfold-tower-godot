@@ -7,8 +7,16 @@ extends RefCounted
 ## caller keeps anything that changes across frames in pose["mem"].
 ##
 ##   ClimberArt.draw(self, pos, {"app": save.look, "face": facing, "move": 1.0,
-##       "weapon": "sword", "swing": -1.0, "t": t, "scale": 2.2, "mem": _mem})
-##   ClimberArt.draw_front(self, feet, save.look, 4.0, marks, stars, t)
+##       "weapon": "sword", "swing": -1.0, "t": t, "scale": 2.2, "mem": _mem,
+##       "gear": {"head": "iron_helm", "chest": "plate_armor"}, "skin": "flame"})
+##   ClimberArt.draw_front(self, feet, save.look, 4.0, marks, stars, t,
+##       gear, "sword", "flame")
+##
+## Worn gear (gear_look.gd): pose["gear"] / draw_front's `gear` is slot ->
+## piece id (slots "head", "chest", "shoulders", "hands", "feet", "neck",
+## "back"; ids from GearLook.catalog()). pose["skin"] / `skin` is the weapon
+## in hand's finish (GearLook.SKINS: "gold", "crystal", "flame", "shadow";
+## "" for plain). draw_front shows a weapon in hand only when given one.
 ##
 ## Both end with the canvas item's draw transform reset (Vector2.ZERO, no
 ## rotation, scale 1).
@@ -16,6 +24,7 @@ extends RefCounted
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Look := preload("res://scripts/look.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
 
 const RADIUS := 14.0  # the full game's climber radius (player.gd `radius`)
 const WALK := 165.0  # the full game's walking speed: "move" 1 is this fast
@@ -54,6 +63,7 @@ const SPOTS := {
 }
 
 static var _looks := {}  # hash(app) -> look.gd look(), so it isn't worked out every frame
+static var _dressed := {}  # hash of the appearance, gear, weapon and skin -> a dressed look
 
 
 ## The look for a saved appearance (cached).
@@ -64,6 +74,20 @@ static func look_of(app) -> Dictionary:
 			_looks.clear()
 		_looks[key] = Look.look(app)
 	return _looks[key]
+
+
+## The look for a saved appearance dressed in worn gear (slot -> piece id),
+## with `weapon` (LITE's id) in hand and its `skin` for the front figure
+## (cached). No gear and no weapon: look_of(app).
+static func dressed_of(app, gear: Dictionary, weapon := "", skin := "") -> Dictionary:
+	if gear.is_empty() and (weapon == "" or weapon == "none"):
+		return look_of(app)
+	var key := hash([app, gear, weapon, skin])
+	if not _dressed.has(key):
+		if _dressed.size() > 32:
+			_dressed.clear()
+		_dressed[key] = GearLook.dressed(look_of(app), gear, weapon, skin)
+	return _dressed[key]
 
 
 # --- the tower: seen from above ------------------------------------------------
@@ -108,17 +132,17 @@ static func draw(c: CanvasItem, pos: Vector2, pose: Dictionary) -> void:
 		mem["phase"] = phase
 		mem["drift"] = drift
 	# A hit flushes the clothes red (not the skin).
-	var lk: Dictionary = look_of(pose.get("app", {}))
+	var lk: Dictionary = dressed_of(pose.get("app", {}), pose.get("gear", {}))
 	var hurt := flash * 0.6
 	if hurt > 0.0:
 		lk = lk.duplicate()
 		for k in lk:
-			if lk[k] is Color and k != "skin":
+			if lk[k] is Color and k != "skin" and (lk[k] as Color).a > 0.0:  # (not a clear rarity edge: gear_look.gd)
 				lk[k] = (lk[k] as Color).lerp(HURT_RED, hurt)
 	var st := {
 		"t": t, "aim": aim, "w": w, "swing": swing, "parry": parry, "flash": flash,
 		"heavy": bool(pose.get("heavy", false)), "side": float(pose.get("swing_side", w.get("side", 1.0))),
-		"phase": phase, "amp": amp, "drift": drift,
+		"phase": phase, "amp": amp, "drift": drift, "skin": String(pose.get("skin", "")),
 	}
 
 	# The shadow under the feet.
@@ -176,12 +200,13 @@ static func _draw_standing(b, lk: Dictionary, st: Dictionary) -> void:
 	var sway := sin(float(st["t"]) * 1.7) * 0.8 + cos(phase) * 1.4 * amp
 	Look.draw_legs(b, lx, f, sd, light, lk, s)
 	Look.draw_cloak(b, lx, f, sd, light, lk, sway, d)
+	GearLook.tower_back(b, lx, f, sd, light, lk)  # (a backpack)
 	Look.draw_torso(b, lx, f, sd, light, lk)
+	GearLook.tower_armor(b, lx, f, sd, light, lk)  # (armour on the chest, the shoulders)
+	GearLook.tower_chest(b, lx, f, sd, light, lk, float(st["t"]))  # (an amulet, a fine chest piece's glow)
 	var sh_y: float = lk.get("sh_y", 9.3)  # (wider apart on a broad build)
-	var sh_r: float = float(lk.get("shoulder_r", 4.6)) + float(lk.get("sh_add", 0.0))
-	for sgn in [-1.0, 1.0]:  # the shoulders, in the cloak
-		b.ball(lx + _at(st, 0.3, sgn * sh_y), sh_r, lk["shoulder"], true, light)
 	Look.draw_head(b, lx + _at(st, -0.5, 0.0), f, sd, light, lk, sway, d)
+	GearLook.tower_head(b, lx + _at(st, -0.5, 0.0), f, sd, light, lk, float(st["t"]))  # (a candle, a feather, a helm's crest)
 	var sh_w := lx + _at(st, 0.3 + s * 0.8, sh_y)
 	var sh_o := lx + _at(st, 0.3 - s * 0.8, -sh_y)
 	_draw_weapon(b, sh_w, sh_o, lk, s, st)
@@ -198,6 +223,8 @@ static func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, lk: Dictionary, s: flo
 	var swing: float = st["swing"]
 	var guard: bool = float(st["parry"]) >= 0.0 and swing < 0.0
 	var heavy: bool = st["heavy"]
+	var skin: String = st.get("skin", "")
+	var t: float = st["t"]
 	var radius := RADIUS
 	var free := sh_o + _at(st, 5.0 - s * 3.0, -1.2)  # the off hand, at rest
 	var hands: Array = []  # [shoulder, hand, size]
@@ -220,7 +247,9 @@ static func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, lk: Dictionary, s: flo
 			var length: float = float(w["length"]) + (2.0 if heavy else 0.0)
 			var glint := 1.0 if swing >= 0.0 else 0.0
 			var id: String = w["id"]
-			draw_weapon = func(): _draw_swung(b, id, grip, along, length, glint, light)
+			draw_weapon = func():
+				_draw_swung(b, id, grip, along, length, glint, light, skin)
+				GearLook.tower_glow(b, grip, grip + along * (length + (5.0 if id == "war_hammer" else 0.0)), skin, t)
 			hands.append([sh_w, grip - along * 3.0, 3.0])
 			hands.append([sh_o, grip + along * 1.5 if two_hands else free, 2.8])
 		"stab":
@@ -237,7 +266,9 @@ static func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, lk: Dictionary, s: flo
 				grip2 = dir * 8.0 + side * 5.0
 				dir2 = dir.rotated(1.1)
 			var glint2 := 1.0 if swing >= 0.0 else 0.0
-			draw_weapon = func(): b.sword(grip2, dir2, length2, glint2)
+			draw_weapon = func():
+				GearLook.tower_sword(b, grip2, dir2, length2, glint2, skin)
+				GearLook.tower_glow(b, grip2, grip2 + dir2 * length2, skin, t)
 			hands.append([sh_w, grip2 - dir2 * 2.0, 3.0])
 			hands.append([sh_o, free, 2.8])
 		"jab":
@@ -263,12 +294,13 @@ static func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, lk: Dictionary, s: flo
 			var tip_a := bgrip - dir * (5.0 + 2.0 * kd) + side * limb * (1.0 - 0.06 * kd)
 			var tip_b := bgrip - dir * (5.0 + 2.0 * kd) - side * limb * (1.0 - 0.06 * kd)
 			var nock := bgrip - dir * (5.0 + 12.0 * kd)
-			var wood: Color = Palette.WOOD.darkened(0.15) if limb > 16.0 else Palette.WOOD
+			var wood: Color = GearLook.bow_color(skin, Palette.WOOD.darkened(0.15) if limb > 16.0 else Palette.WOOD)
 			draw_weapon = func():
 				var bow := PackedVector2Array([tip_a, bgrip + side * limb * 0.5 - dir * kd, bgrip, bgrip - side * limb * 0.5 - dir * kd, tip_b])
 				b.path(bow, Color(Palette.OUTLINE, Draw.FEATHER_ALPHA), 7.0)
 				b.path(bow, Palette.OUTLINE, 5.5)
 				b.path(bow, wood, 3.0)
+				GearLook.tower_glow_path(b, bow, skin, t)
 				b.dot(bgrip, 2.0, Palette.WOOD.darkened(0.35))  # the grip's wrap
 				# The string pulls back as you draw.
 				b.path(PackedVector2Array([tip_a, nock, tip_b]), Color(0.92, 0.9, 0.82), 1.0)
@@ -289,18 +321,13 @@ static func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, lk: Dictionary, s: flo
 
 
 ## A swung weapon lying along `along` from the grip: the war hammer, or a
-## sword (player.gd _draw_swung).
-static func _draw_swung(b, id: String, grip: Vector2, along: Vector2, length: float, glint: float, _light: Vector2) -> void:
-	var side := along.orthogonal()
+## sword (player.gd _draw_swung), in its skin (gear_look.gd; "" plain).
+static func _draw_swung(b, id: String, grip: Vector2, along: Vector2, length: float, glint: float, _light: Vector2, skin := "") -> void:
 	match id:
 		"war_hammer":
-			var head2 := grip + along * length
-			b.stroke(grip - along * 6.0, head2, Palette.WOOD.darkened(0.1), 3.0)
-			var pts := PackedVector2Array([head2 - along * 5.0 + side * 9.0, head2 + along * 5.0 + side * 9.0, head2 + along * 5.0 - side * 6.0, head2 - along * 5.0 - side * 6.0])
-			b.poly(pts, Palette.STEEL.darkened(0.15), 1.4)
-			b.line(pts[0] - side * 0.8, pts[1] - side * 0.8, Color(1, 1, 1, 0.45 + 0.4 * glint), 1.2)
+			GearLook.tower_hammer(b, grip, along, length, glint, skin)
 		_:
-			b.sword(grip, along, length, glint)
+			GearLook.tower_sword(b, grip, along, length, glint, skin)
 
 
 ## Curled up in the cloak, tumbling along the roll, head over heels
@@ -370,7 +397,7 @@ static func _draw_effects(c: CanvasItem, st: Dictionary) -> void:
 	var radius := RADIUS
 	if swing >= 0.0:
 		var k := clampf(swing, 0.0, 1.0)
-		var col := TRAIL_HEAVY if heavy else TRAIL
+		var col := GearLook.trail_color(String(st.get("skin", "")), heavy, TRAIL_HEAVY if heavy else TRAIL)
 		match String(w["style"]):
 			"arc":
 				var reach := _blow(w, "range", heavy)
@@ -424,8 +451,10 @@ static func _draw_effects(c: CanvasItem, st: Dictionary) -> void:
 ## Regard), its feet at `pos`. `scale` 1 is about 60 px tall (FRONT_K).
 ## `marks` is body part -> colour, glowing at the part's spot; `stars` is
 ## body part -> 1..3 (a bigger, brighter glow and sign); `t` makes them pulse.
-static func draw_front(c: CanvasItem, pos: Vector2, app: Dictionary, scale: float, marks := {}, stars := {}, t := 0.0) -> void:
-	var lk := look_of(app)
+## `gear` is slot -> piece id (gear_look.gd); `weapon` (LITE's id, "" or
+## "none" for none) shows in the figure's hand, in its `skin`.
+static func draw_front(c: CanvasItem, pos: Vector2, app: Dictionary, scale: float, marks := {}, stars := {}, t := 0.0, gear := {}, weapon := "", skin := "") -> void:
+	var lk := dressed_of(app, gear, weapon, skin)
 	var k := scale * FRONT_K
 	c.draw_set_transform(pos - Vector2(0, FRONT_SOLE) * k, 0.0, Vector2(k, k))
 	var b := Draw.Batch.new()
