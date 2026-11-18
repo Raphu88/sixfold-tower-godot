@@ -33,6 +33,7 @@ Screenshots can be rendered with `xvfb-run -a -s "-screen 0 1280x720x24" godot -
 - The first climb is bondless and ends in the Regard: the tower's beast takes notice and the most-used body part takes its first mark. Dying on the first climb still grants a mark, but a faint one that needs extra essence before it grows.
 - Bonds grow across climbs from essence banked at stairs, not within a run. Marks spreading on the body replace the old game's "shroud".
 - Story and the purpose of the towers are still to be written by the owner; keep names and text in data so they're easy to change.
+- **The kids version** (`scripts/kids`, `scenes/kids.tscn`) is for a six-year-old who can't read: no words on screen (pictures, colours, sounds; the wordless guide and a pointing finger explain new things instead of the Entity's text), big buttons, gentle fights, and a much simpler magic system based on the full game (one magic per mark, marks grow from 1 to 3 stars from essence banked at stairs). Keep it that simple, and keep its touch controls working.
 - The game is mechanically dense: every new mechanic or screen should come with the Entity explaining it (a first-time moment, a "How does it work?" dialogue topic, and hover/hold help for its buttons), and navigation should be easy to understand without reading the README.
 
 ## Project

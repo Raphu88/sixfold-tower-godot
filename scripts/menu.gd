@@ -1508,6 +1508,10 @@ func _page_title() -> void:
 		var cb := _button(ClimbersPage.button_text(prof, Slots.current()), open.bind("climbers"))
 		cb.set_meta("climbers", true)
 		_title_button(cb)
+	# The kids version (scripts/kids): a simpler game for young children.
+	var kb := _button("Kids version", _open_kids)
+	kb.set_meta("help", "kids")
+	_title_button(kb)
 	_title_button(_button("Settings", open.bind("settings")))
 	_title_button(_button("Dev tools", open.bind("dev")))
 	if prof.regarded:
@@ -1517,6 +1521,14 @@ func _page_title() -> void:
 	var l: Label = box.get_child(box.get_child_count() - 1)
 	l.add_theme_font_size_override("font_size", 15)
 	l.custom_minimum_size.x = 0.0
+
+
+## Opens the kids version (scenes/kids.tscn). It stays the game that opens
+## until a grown-up holds the gear on its home screen.
+func _open_kids() -> void:
+	preload("res://scripts/kids/kids_save.gd").set_stay(true)
+	main.get_tree().paused = false
+	main.get_tree().change_scene_to_file.call_deferred("res://scenes/kids.tscn")
 
 
 ## Marks carried and best floor (or a word for a new climber).
