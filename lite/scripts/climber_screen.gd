@@ -17,9 +17,14 @@ const UI := preload("res://scripts/ui.gd")
 const ClimberArt := preload("res://scripts/climber_art.gd")
 const Look := preload("res://scripts/look.gd")
 
-const TABS := ["marks", "weapons", "look"]
+const TABS := ["marks", "weapons", "look", "treasure"]
 ## Each tab's ribbon colour (the full game's red Marks, green and violet tabs).
-const TAB_COLOR := {"marks": Color(0.55, 0.16, 0.16), "weapons": Color(0.22, 0.42, 0.2), "look": Color(0.33, 0.22, 0.48)}
+const TAB_COLOR := {"marks": Color(0.55, 0.16, 0.16), "weapons": Color(0.22, 0.42, 0.2), "look": Color(0.33, 0.22, 0.48), "treasure": Color(0.55, 0.38, 0.1)}
+const RoomArt := preload("res://scripts/room_art.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
+## A treasure's colour by how rare it is (gear_look.gd), and each finish's.
+const RARITY_COL := {"plain": Color(0.78, 0.7, 0.56), "enchanted": Color(0.45, 0.9, 0.6), "relic": Color(1.0, 0.82, 0.3)}
+const SKIN_COL := {"gold": Color(1.0, 0.82, 0.3), "crystal": Color(0.6, 0.86, 1.0), "flame": Color(1.0, 0.5, 0.2), "shadow": Color(0.65, 0.45, 1.0)}
 
 var game
 var t := 0.0
@@ -35,7 +40,7 @@ func setup(g, start_tab := "marks") -> void:
 
 
 func _ready() -> void:
-	game.say(Data.TEXT[tab])
+	game.say(tab_word(tab))
 
 
 func _process(delta: float) -> void:
@@ -91,7 +96,11 @@ func _tab(to: String) -> void:
 		return
 	tab = to
 	game.sfx("ui_move")
-	game.say(Data.TEXT[to])
+	game.say(tab_word(to))
+
+
+func tab_word(id: String) -> String:
+	return Data.TEXT["treasure_tab" if id == "treasure" else id]
 
 
 func _spot(r: Rect2, what: Callable) -> void:
@@ -106,8 +115,8 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.11, 0.1, 0.17))
 	var pg := page()
 	# The tabs, above the page.
-	var tw := 200.0
-	var x0 := pg.get_center().x - tw * 1.5 - 10.0
+	var tw := 196.0
+	var x0 := pg.get_center().x - tw * 2.0 - 15.0
 	for i in TABS.size():
 		var id: String = TABS[i]
 		var r := Rect2(Vector2(x0 + i * (tw + 10.0), pg.position.y - 74.0), Vector2(tw, 62.0))
@@ -121,7 +130,9 @@ func _draw() -> void:
 				Art.weapon_icon(self, ic, 20.0, game.save.weapon)
 			"look":
 				Art.mirror_icon(self, ic, 22.0)
-		Art.words(self, Vector2(r.position.x + 124.0, r.get_center().y + lift), Data.TEXT[id], 26, UI.TEXT)
+			"treasure":
+				RoomArt.chest(self, ic + Vector2(0, 6), false, t)
+		Art.words(self, Vector2(r.position.x + 122.0, r.get_center().y + lift), tab_word(id), 26, UI.TEXT)
 		_spot(r.grow(4.0), _tab.bind(id))
 	UI.panel(self, pg)
 	# Back: top left, a house (the home screen).
@@ -137,6 +148,8 @@ func _draw() -> void:
 			_draw_weapons(pg)
 		"look":
 			_draw_look(pg)
+		"treasure":
+			_draw_treasure(pg)
 
 
 func _figure(at: Vector2, s: float) -> void:
@@ -146,10 +159,40 @@ func _figure(at: Vector2, s: float) -> void:
 		var part: String = game.save.marks[e]["part"]
 		marks[part] = Data.color(e)
 		stars[part] = game.save.star(e)
-	ClimberArt.draw_front(self, at, game.save.app, s, marks, stars, t)
+	ClimberArt.draw_front(self, at, game.save.app, s, marks, stars, t, game.worn_gear(), game.save.weapon, game.worn_skin())
+
+
+var next_part := ""
+
+
+## How full an empty part is from play style, next to the fullest (0 to 1).
+func soak_k(part: String) -> float:
+	var most := 0.0
+	for p in Data.PARTS:
+		if game.save.mark_on(p) == "":
+			most = maxf(most, float(game.save.soak.get(p, 0.0)))
+	return float(game.save.soak.get(part, 0.0)) / most if most > 0.0 else 0.0
+
+
+## The picture of what fills a part (Data.DEED_PART): a weapon, roll, parry or a heart.
+func _deed_icon(at: Vector2, part: String) -> void:
+	match part:
+		"hand":
+			Art.weapon_icon(self, at, 18.0, "sword")
+		"back":
+			Art.weapon_icon(self, at, 18.0, "dagger")
+		"throat":
+			Art.weapon_icon(self, at, 18.0, "hammer")
+		"brow":
+			Art.parry_icon(self, at, 18.0)
+		"legs":
+			Art.roll_icon(self, at, 18.0)
+		_:
+			Art.heart(self, at, 14.0)
 
 
 func _draw_marks(pg: Rect2) -> void:
+	next_part = game.save.next_mark_part("") if not game.save.soak.is_empty() else ""
 	_figure(Vector2(pg.position.x + pg.size.x * 0.22, pg.end.y - 40.0), pg.size.y / 112.0)
 	# A slot for each body part, two columns of three.
 	var x0 := pg.position.x + pg.size.x * 0.44
@@ -164,8 +207,18 @@ func _draw_marks(pg: Rect2) -> void:
 		var ic := Vector2(r.position.x + 52.0, r.get_center().y)
 		Art.words(self, Vector2(r.get_center().x + 30.0, r.position.y + 26.0), Data.PART_WORDS[part], 24, UI.TEXT)
 		if e == "":
+			# How full it is from play style, what fills it, and whether
+			# it's where the next mark will go.
+			var full := soak_k(part)
+			var next: bool = part == next_part
+			if next:
+				Art.glow(self, ic, 52.0, Color(1, 1, 0.8), 0.6 + 0.3 * sin(t * 3.0))
 			draw_arc(ic, 34.0, 0.0, TAU, 40, Color(UI.GILT, 0.35), 2.0)
-			Art.words(self, ic, "?", 30, Color(UI.TEXT, 0.4))
+			if full > 0.0:
+				draw_arc(ic, 34.0, -PI / 2.0, -PI / 2.0 + TAU * full, 40, Color(1.0, 0.9, 0.55), 6.0)
+			_deed_icon(ic, part)
+			if next:
+				Art.words(self, Vector2(r.get_center().x + 30.0, r.get_center().y + 14.0), Data.TEXT["next_mark"], 20, Color(1.0, 0.92, 0.6))
 			continue
 		var col := Data.color(e)
 		Art.glow(self, ic, 54.0, col, 0.8 + 0.2 * sin(t * 3.0 + i))
@@ -174,9 +227,9 @@ func _draw_marks(pg: Rect2) -> void:
 		var st: int = game.save.star(e)
 		var sx := r.get_center().x + 30.0
 		Art.words(self, Vector2(sx, r.get_center().y + 4.0), String(Data.MAGIC[e]["word"]), 26, col.lightened(0.4))
-		for k in 3:
-			Art.star(self, Vector2(sx - 28.0 + 28.0 * k, r.end.y - 30.0), 11.0, Color(1.0, 0.85, 0.3), k < st)
-		if st < 3:
+		for k in Data.STAR_MAX:
+			Art.star(self, Vector2(sx - 22.0 * (Data.STAR_MAX - 1) / 2.0 + 22.0 * k, r.end.y - 30.0), 9.0, Color(1.0, 0.85, 0.3), k < st)
+		if st < Data.STAR_MAX:
 			var w := 90.0
 			var bar := Rect2(Vector2(sx - w / 2.0, r.end.y - 14.0), Vector2(w, 6.0))
 			draw_rect(bar, Color(0, 0, 0, 0.5))
@@ -198,6 +251,10 @@ func _draw_weapons(pg: Rect2) -> void:
 		var ic := Vector2(r.get_center().x, r.position.y + r.size.y * 0.34)
 		Art.weapon_icon(self, ic, minf(r.size.x * 0.32, 70.0), id)
 		Art.words(self, Vector2(r.get_center().x, r.position.y + r.size.y * 0.62), String(w["word"]), 32, UI.TEXT)
+		if id == game.save.favourite():
+			# The favourite (used most): its part fills faster (Data.FAVOURITE_BONUS).
+			Art.heart(self, r.position + Vector2(28, 28), 15.0)
+			Art.words(self, Vector2(r.get_center().x, r.position.y + 28.0), Data.TEXT["favorite"], 18, Color(1.0, 0.7, 0.7))
 		# How strong (stars) and how quick (lightning) it is: pictures, no numbers.
 		var power := clampi(int(w["damage"]) + (1 if float(w["stun"]) > 0.0 else 0), 1, 3)
 		var quick := 3 if float(w["cooldown"]) < 0.25 else (2 if float(w["cooldown"]) < 0.5 else 1)
@@ -306,3 +363,55 @@ func _random_look() -> void:
 	game.save.app = Look.random({})
 	game.save.save()
 	game.sfx("ui_confirm")
+
+
+func _draw_treasure(pg: Rect2) -> void:
+	_figure(Vector2(pg.position.x + pg.size.x * 0.2, pg.end.y - 40.0), pg.size.y / 112.0)
+	var ids: Array = Data.TREASURES.keys()
+	var cat: Dictionary = GearLook.catalog()
+	var x0 := pg.position.x + pg.size.x * 0.4
+	var cols := 7
+	var cw := (pg.end.x - x0 - 30.0) / float(cols)
+	var rows := int(ceil(float(ids.size()) / cols))
+	var chh := minf(cw, (pg.size.y - 110.0) / float(rows))
+	for i in ids.size():
+		var id: String = ids[i]
+		var tr: Dictionary = Data.TREASURES[id]
+		var r := Rect2(Vector2(x0 + float(i % cols) * cw + 4.0, pg.position.y + 24.0 + float(i / cols) * chh + 4.0), Vector2(cw - 8.0, chh - 8.0))
+		var have: bool = game.save.found.has(id)
+		var worn: bool = game.save.worn.values().has(id)
+		draw_rect(r, Color(0, 0, 0, 0.3))
+		draw_rect(r, Color(UI.GILT_HI, 0.95) if worn else Color(UI.GILT, 0.25), false, 3.0 if worn else 1.5)
+		var mid := r.get_center()
+		if not have:
+			Art.words(self, mid, "?", 26, Color(UI.TEXT, 0.3))
+			continue
+		var col: Color = SKIN_COL.get(tr["piece"], Color.WHITE) if tr["kind"] == "skin" else RARITY_COL.get(cat.get(tr["piece"], {}).get("rarity", "plain"), RARITY_COL["plain"])
+		if worn:
+			Art.glow(self, mid, r.size.x * 0.6, col, 0.7)
+		Art.gear_icon(self, mid, minf(r.size.x, r.size.y) * 0.32, String(tr["slot"]), col)
+		if worn:
+			Art.check(self, r.position + Vector2(r.size.x - 14.0, 14.0), 12.0)
+		_spot(r, _toggle_wear.bind(id))
+	# The last one tapped: its name, big.
+	if picked_treasure != "":
+		Art.words(self, Vector2((x0 + pg.end.x) / 2.0, pg.end.y - 44.0), String(Data.TREASURES[picked_treasure]["word"]), 30, UI.TEXT)
+	var have_n: int = game.save.found.size()
+	Art.words(self, Vector2(pg.position.x + pg.size.x * 0.2, pg.position.y + 40.0), "%d / %d" % [have_n, ids.size()], 26, UI.GILT_HI)
+
+
+var picked_treasure := ""
+
+
+## Wears a found treasure, or takes it off if it's worn.
+func _toggle_wear(id: String) -> void:
+	picked_treasure = id
+	var slot: String = game.save.slot_of(id)
+	if game.save.worn.get(slot, "") == id:
+		game.save.worn.erase(slot)
+		game.sfx("ui_back")
+	else:
+		game.save.wear(id)
+		game.sfx("armor_on" if game.save.slot_of(id) != "skin" else "equip_sword")
+	game.save.save()
+	game.say(String(Data.TREASURES[id]["word"]))

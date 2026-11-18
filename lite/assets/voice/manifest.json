@@ -1,0 +1,1635 @@
+{
+ "note": "Made by tools/make_voice.py; lets reruns skip unchanged clips.",
+ "clips": {
+  "Pick a tower!": {
+   "file": "pick_a_tower_fa01ef.ogg",
+   "said": "Pick a tower!",
+   "seconds": 0.935,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hooray!": {
+   "file": "hooray_f58bd8.ogg",
+   "said": "Hurray!",
+   "seconds": 0.775,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Floor 1": {
+   "file": "floor_1_b9649f.ogg",
+   "said": "Floor 1.",
+   "seconds": 0.905,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Floor 2": {
+   "file": "floor_2_e6d1e5.ogg",
+   "said": "Floor 2.",
+   "seconds": 0.935,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Floor 3": {
+   "file": "floor_3_c42847.ogg",
+   "said": "Floor 3.",
+   "seconds": 0.945,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Floor 4": {
+   "file": "floor_4_1055fe.ogg",
+   "said": "Floor 4.",
+   "seconds": 0.935,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Floor 5": {
+   "file": "floor_5_908ff9.ogg",
+   "said": "Floor 5.",
+   "seconds": 0.995,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Floor 6": {
+   "file": "floor_6_a86aa5.ogg",
+   "said": "Floor 6.",
+   "seconds": 0.955,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Gryphon!": {
+   "file": "the_gryphon_b15444.ogg",
+   "said": "The Griffin!",
+   "seconds": 0.925,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Kraken!": {
+   "file": "the_kraken_bf7c17.ogg",
+   "said": "The Kraken!",
+   "seconds": 0.925,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Wyvern!": {
+   "file": "the_wyvern_5ff33c.ogg",
+   "said": "The Wyvern!",
+   "seconds": 0.895,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Manticore!": {
+   "file": "the_manticore_8df856.ogg",
+   "said": "The Manticore!",
+   "seconds": 1.045,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Firebird!": {
+   "file": "the_firebird_891362.ogg",
+   "said": "The Firebird!",
+   "seconds": 1.035,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Chimera!": {
+   "file": "the_chimera_146dd7.ogg",
+   "said": "The Chimera!",
+   "seconds": 0.955,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Go up!": {
+   "file": "go_up_363681.ogg",
+   "said": "Go up!",
+   "seconds": 0.735,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Oops! Try again!": {
+   "file": "oops_try_again_0beea3.ogg",
+   "said": "Oops! Try again!",
+   "seconds": 1.285,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Your magic grows!": {
+   "file": "your_magic_grows_277814.ogg",
+   "said": "Your magic grows!",
+   "seconds": 1.315,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Gryphon sees you!": {
+   "file": "the_gryphon_sees_you_72a84f.ogg",
+   "said": "The Griffin sees you!",
+   "seconds": 1.245,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Kraken sees you!": {
+   "file": "the_kraken_sees_you_f47034.ogg",
+   "said": "The Kraken sees you!",
+   "seconds": 1.305,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Wyvern sees you!": {
+   "file": "the_wyvern_sees_you_6d24b9.ogg",
+   "said": "The Wyvern sees you!",
+   "seconds": 1.275,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Manticore sees you!": {
+   "file": "the_manticore_sees_you_b71fa9.ogg",
+   "said": "The Manticore sees you!",
+   "seconds": 1.445,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Firebird sees you!": {
+   "file": "the_firebird_sees_you_9b70ba.ogg",
+   "said": "The Firebird sees you!",
+   "seconds": 1.415,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The Chimera sees you!": {
+   "file": "the_chimera_sees_you_88664d.ogg",
+   "said": "The Chimera sees you!",
+   "seconds": 1.375,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You beat the Gryphon!": {
+   "file": "you_beat_the_gryphon_53863d.ogg",
+   "said": "You beat the Griffin!",
+   "seconds": 1.305,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You beat the Kraken!": {
+   "file": "you_beat_the_kraken_89a5e5.ogg",
+   "said": "You beat the Kraken!",
+   "seconds": 1.395,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You beat the Wyvern!": {
+   "file": "you_beat_the_wyvern_a0434d.ogg",
+   "said": "You beat the Wyvern!",
+   "seconds": 1.295,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You beat the Manticore!": {
+   "file": "you_beat_the_manticore_27d38c.ogg",
+   "said": "You beat the Manticore!",
+   "seconds": 1.485,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You beat the Firebird!": {
+   "file": "you_beat_the_firebird_283598.ogg",
+   "said": "You beat the Firebird!",
+   "seconds": 1.395,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You beat the Chimera!": {
+   "file": "you_beat_the_chimera_cb226e.ogg",
+   "said": "You beat the Chimera!",
+   "seconds": 1.405,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You got a mark!": {
+   "file": "you_got_a_mark_0abe7c.ogg",
+   "said": "You got a mark!",
+   "seconds": 1.085,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hit": {
+   "file": "hit_ea490a.ogg",
+   "said": "Hit.",
+   "seconds": 0.645,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Roll": {
+   "file": "roll_03d4b0.ogg",
+   "said": "Roll.",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Parry": {
+   "file": "parry_96a04b.ogg",
+   "said": "Parry.",
+   "seconds": 0.685,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Swap": {
+   "file": "swap_210dd6.ogg",
+   "said": "Swap.",
+   "seconds": 0.685,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Magic": {
+   "file": "magic_e6791b.ogg",
+   "said": "Magic.",
+   "seconds": 0.835,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Marks": {
+   "file": "marks_738056.ogg",
+   "said": "Marks.",
+   "seconds": 0.795,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Weapons": {
+   "file": "weapons_f32d06.ogg",
+   "said": "Weapons.",
+   "seconds": 0.835,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Look": {
+   "file": "look_b8db51.ogg",
+   "said": "Look.",
+   "seconds": 0.685,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You": {
+   "file": "you_905cb3.ogg",
+   "said": "You.",
+   "seconds": 0.665,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Back": {
+   "file": "back_b52b36.ogg",
+   "said": "Back.",
+   "seconds": 0.615,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Home": {
+   "file": "home_70f8bb.ogg",
+   "said": "Home.",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Play": {
+   "file": "play_5d12bd.ogg",
+   "said": "Play.",
+   "seconds": 0.675,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "OK": {
+   "file": "ok_9ce3bd.ogg",
+   "said": "OK.",
+   "seconds": 0.805,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Move with your thumb!": {
+   "file": "move_with_your_thumb_de56d8.ogg",
+   "said": "Move with your thumb!",
+   "seconds": 1.205,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Tap the sword to hit!": {
+   "file": "tap_the_sword_to_hit_3f1c0a.ogg",
+   "said": "Tap the sword to hit!",
+   "seconds": 1.365,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Roll away!": {
+   "file": "roll_away_01ac9a.ogg",
+   "said": "Roll away!",
+   "seconds": 0.975,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Parry to block!": {
+   "file": "parry_to_block_ab85a6.ogg",
+   "said": "Parry to block!",
+   "seconds": 1.075,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Tap to swap your weapon!": {
+   "file": "tap_to_swap_your_weapon_9c174c.ogg",
+   "said": "Tap to swap your weapon!",
+   "seconds": 1.505,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Use your magic!": {
+   "file": "use_your_magic_e63858.ogg",
+   "said": "Use your magic!",
+   "seconds": 1.205,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Pick your magic!": {
+   "file": "pick_your_magic_46a074.ogg",
+   "said": "Pick your magic!",
+   "seconds": 1.115,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Step on all the stones!": {
+   "file": "step_on_all_the_stones_be837d.ogg",
+   "said": "Step on all the stones!",
+   "seconds": 1.385,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hit the lever!": {
+   "file": "hit_the_lever_f4b6a3.ogg",
+   "said": "Hit the lever!",
+   "seconds": 1.045,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Light all the fires!": {
+   "file": "light_all_the_fires_2cd252.ogg",
+   "said": "Light all the fires!",
+   "seconds": 1.305,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "The door is open!": {
+   "file": "the_door_is_open_25ff2a.ogg",
+   "said": "The door is open!",
+   "seconds": 1.285,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "A portal!": {
+   "file": "a_portal_35e9b4.ogg",
+   "said": "A portal!",
+   "seconds": 0.845,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "A secret!": {
+   "file": "a_secret_182887.ogg",
+   "said": "A secret!",
+   "seconds": 0.915,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "You found a treasure!": {
+   "file": "you_found_a_treasure_74c200.ogg",
+   "said": "You found a treasure!",
+   "seconds": 1.155,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Oh no! Back home.": {
+   "file": "oh_no_back_home_3b7f4f.ogg",
+   "said": "Oh no! Back home.",
+   "seconds": 1.335,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Careful! One heart left!": {
+   "file": "careful_one_heart_left_87624f.ogg",
+   "said": "Careful! One heart left!",
+   "seconds": 1.665,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beat the Gryphon first!": {
+   "file": "beat_the_gryphon_first_f82fa6.ogg",
+   "said": "Beat the Griffin first!",
+   "seconds": 1.445,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beat the Kraken first!": {
+   "file": "beat_the_kraken_first_097ca8.ogg",
+   "said": "Beat the Kraken first!",
+   "seconds": 1.435,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beat the Wyvern first!": {
+   "file": "beat_the_wyvern_first_c14986.ogg",
+   "said": "Beat the Wyvern first!",
+   "seconds": 1.415,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beat the Manticore first!": {
+   "file": "beat_the_manticore_first_b6e4c9.ogg",
+   "said": "Beat the Manticore first!",
+   "seconds": 1.655,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beat the Firebird first!": {
+   "file": "beat_the_firebird_first_7889a3.ogg",
+   "said": "Beat the Firebird first!",
+   "seconds": 1.605,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beat the Chimera first!": {
+   "file": "beat_the_chimera_first_7beb93.ogg",
+   "said": "Beat the Chimera first!",
+   "seconds": 1.615,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Pick one!": {
+   "file": "pick_one_2c58b2.ogg",
+   "said": "Pick one!",
+   "seconds": 0.815,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Favorite": {
+   "file": "favorite_6b90b6.ogg",
+   "said": "Favorite.",
+   "seconds": 0.815,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Next mark": {
+   "file": "next_mark_479ad8.ogg",
+   "said": "Next mark.",
+   "seconds": 1.055,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Treasure": {
+   "file": "treasure_c40007.ogg",
+   "said": "Treasure.",
+   "seconds": 0.745,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Gryphon": {
+   "file": "gryphon_ec250e.ogg",
+   "said": "Griffin.",
+   "seconds": 0.765,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Kraken": {
+   "file": "kraken_3515dc.ogg",
+   "said": "Kraken.",
+   "seconds": 0.825,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Wyvern": {
+   "file": "wyvern_39e8da.ogg",
+   "said": "Wyvern.",
+   "seconds": 0.805,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Manticore": {
+   "file": "manticore_9a5104.ogg",
+   "said": "Manticore.",
+   "seconds": 1.005,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Firebird": {
+   "file": "firebird_e427d7.ogg",
+   "said": "Firebird.",
+   "seconds": 0.905,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Chimera": {
+   "file": "chimera_6c1161.ogg",
+   "said": "Chimera.",
+   "seconds": 0.835,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Sword": {
+   "file": "sword_4a126f.ogg",
+   "said": "Sword.",
+   "seconds": 0.715,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Dagger": {
+   "file": "dagger_8e0e59.ogg",
+   "said": "Dagger.",
+   "seconds": 0.695,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hammer": {
+   "file": "hammer_ab7b8e.ogg",
+   "said": "Hammer.",
+   "seconds": 0.725,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Bow": {
+   "file": "bow_a17942.ogg",
+   "said": "Bow.",
+   "seconds": 0.625,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Zap": {
+   "file": "zap_d735dc.ogg",
+   "said": "Zap.",
+   "seconds": 0.625,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Zap!": {
+   "file": "zap_b20d28.ogg",
+   "said": "Zap!",
+   "seconds": 0.605,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Wave": {
+   "file": "wave_a24d60.ogg",
+   "said": "Wave.",
+   "seconds": 0.735,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Wave!": {
+   "file": "wave_1abd1e.ogg",
+   "said": "Wave!",
+   "seconds": 0.735,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shield": {
+   "file": "shield_082714.ogg",
+   "said": "Shield.",
+   "seconds": 0.695,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shield!": {
+   "file": "shield_c8ec2c.ogg",
+   "said": "Shield!",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Stomp": {
+   "file": "stomp_d86d58.ogg",
+   "said": "Stomp.",
+   "seconds": 0.695,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Stomp!": {
+   "file": "stomp_c1dd14.ogg",
+   "said": "Stomp!",
+   "seconds": 0.685,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Fire": {
+   "file": "fire_78baeb.ogg",
+   "said": "Fire.",
+   "seconds": 0.735,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Fire!": {
+   "file": "fire_57c033.ogg",
+   "said": "Fire!",
+   "seconds": 0.725,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Blades": {
+   "file": "blades_f252ad.ogg",
+   "said": "Blades.",
+   "seconds": 0.775,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Blades!": {
+   "file": "blades_181bb1.ogg",
+   "said": "Blades!",
+   "seconds": 0.775,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hand": {
+   "file": "hand_c65d48.ogg",
+   "said": "Hand.",
+   "seconds": 0.725,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Legs": {
+   "file": "legs_29518d.ogg",
+   "said": "Legs.",
+   "seconds": 0.785,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Heart": {
+   "file": "heart_2a3733.ogg",
+   "said": "Heart.",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Head": {
+   "file": "head_e5ffd1.ogg",
+   "said": "Head.",
+   "seconds": 0.655,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Neck": {
+   "file": "neck_35a237.ogg",
+   "said": "Neck.",
+   "seconds": 0.695,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Face": {
+   "file": "face_203bc6.ogg",
+   "said": "Face.",
+   "seconds": 0.685,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hair": {
+   "file": "hair_e5be3c.ogg",
+   "said": "Hair.",
+   "seconds": 0.655,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Body": {
+   "file": "body_718a7e.ogg",
+   "said": "Body.",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Cloak": {
+   "file": "cloak_e8e05b.ogg",
+   "said": "Cloak.",
+   "seconds": 0.685,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "More": {
+   "file": "more_4bab2d.ogg",
+   "said": "More.",
+   "seconds": 0.695,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Skin": {
+   "file": "skin_8f57bd.ogg",
+   "said": "Skin.",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Eyes": {
+   "file": "eyes_62be7f.ogg",
+   "said": "Eyes.",
+   "seconds": 0.755,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Eye shape": {
+   "file": "eye_shape_3737ab.ogg",
+   "said": "Eye shape.",
+   "seconds": 0.865,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hair color": {
+   "file": "hair_color_aeb72f.ogg",
+   "said": "Hair color.",
+   "seconds": 0.875,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Beard": {
+   "file": "beard_3e66db.ogg",
+   "said": "Beard.",
+   "seconds": 0.665,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shirt": {
+   "file": "shirt_56cc04.ogg",
+   "said": "Shirt.",
+   "seconds": 0.645,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Pants": {
+   "file": "pants_e18669.ogg",
+   "said": "Pants.",
+   "seconds": 0.745,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Boots": {
+   "file": "boots_eadb83.ogg",
+   "said": "Boots.",
+   "seconds": 0.695,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Cloak shape": {
+   "file": "cloak_shape_75746b.ogg",
+   "said": "Cloak shape.",
+   "seconds": 0.905,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Trim": {
+   "file": "trim_0266ab.ogg",
+   "said": "Trim.",
+   "seconds": 0.705,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Pattern": {
+   "file": "pattern_1fff6a.ogg",
+   "said": "Pattern.",
+   "seconds": 0.745,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Hood": {
+   "file": "hood_0b8a6e.ogg",
+   "said": "Hood.",
+   "seconds": 0.665,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Belt": {
+   "file": "belt_2dbde6.ogg",
+   "said": "Belt.",
+   "seconds": 0.645,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Extra": {
+   "file": "extra_2613fc.ogg",
+   "said": "Extra.",
+   "seconds": 0.795,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Stronger!": {
+   "file": "stronger_983be7.ogg",
+   "said": "Stronger!",
+   "seconds": 0.835,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Faster!": {
+   "file": "faster_248094.ogg",
+   "said": "Faster!",
+   "seconds": 0.775,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Bigger!": {
+   "file": "bigger_a99151.ogg",
+   "said": "Bigger!",
+   "seconds": 0.665,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Zap stuns!": {
+   "file": "zap_stuns_34d4b8.ogg",
+   "said": "Zap stuns!",
+   "seconds": 0.955,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Double zap!": {
+   "file": "double_zap_2ea5a2.ogg",
+   "said": "Double zap!",
+   "seconds": 0.935,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Wave heals!": {
+   "file": "wave_heals_d13af6.ogg",
+   "said": "Wave heals!",
+   "seconds": 1.035,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Freezing wave!": {
+   "file": "freezing_wave_a21d43.ogg",
+   "said": "Freezing wave!",
+   "seconds": 1.145,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Bounce back!": {
+   "file": "bounce_back_f3a153.ogg",
+   "said": "Bounce back!",
+   "seconds": 0.925,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Spiky shield!": {
+   "file": "spiky_shield_b28e1f.ogg",
+   "said": "Spiky shield!",
+   "seconds": 1.115,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Safe stomp!": {
+   "file": "safe_stomp_1f12cb.ogg",
+   "said": "Safe stomp!",
+   "seconds": 0.955,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Double stomp!": {
+   "file": "double_stomp_2e9956.ogg",
+   "said": "Double stomp!",
+   "seconds": 0.995,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Burning fire!": {
+   "file": "burning_fire_ffdcfe.ogg",
+   "said": "Burning fire!",
+   "seconds": 0.965,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Triple fire!": {
+   "file": "triple_fire_b4bcbd.ogg",
+   "said": "Triple fire!",
+   "seconds": 1.045,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Flying blades!": {
+   "file": "flying_blades_917f3e.ogg",
+   "said": "Flying blades!",
+   "seconds": 1.245,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Long blades!": {
+   "file": "long_blades_9e615b.ogg",
+   "said": "Long blades!",
+   "seconds": 1.085,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Cap": {
+   "file": "cap_b38fd9.ogg",
+   "said": "Cap.",
+   "seconds": 0.645,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Feather Hat": {
+   "file": "feather_hat_583953.ogg",
+   "said": "Feather Hat.",
+   "seconds": 0.895,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Iron Helmet": {
+   "file": "iron_helmet_f7a48c.ogg",
+   "said": "Iron Helmet.",
+   "seconds": 1.085,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Lamp Helmet": {
+   "file": "lamp_helmet_cd2f87.ogg",
+   "said": "Lamp Helmet.",
+   "seconds": 1.055,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Watcher Helmet": {
+   "file": "watcher_helmet_3c05d2.ogg",
+   "said": "Watcher Helmet.",
+   "seconds": 1.135,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Leather Vest": {
+   "file": "leather_vest_7909b2.ogg",
+   "said": "Leather Vest.",
+   "seconds": 0.995,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Chain Shirt": {
+   "file": "chain_shirt_13a403.ogg",
+   "said": "Chain Shirt.",
+   "seconds": 0.995,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shiny Armor": {
+   "file": "shiny_armor_cd9393.ogg",
+   "said": "Shiny Armor.",
+   "seconds": 1.025,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shell Armor": {
+   "file": "shell_armor_e6e2d2.ogg",
+   "said": "Shell Armor.",
+   "seconds": 0.905,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Dragon Armor": {
+   "file": "dragon_armor_4f0887.ogg",
+   "said": "Dragon Armor.",
+   "seconds": 1.025,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Sea Coat": {
+   "file": "sea_coat_284930.ogg",
+   "said": "Sea Coat.",
+   "seconds": 0.845,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shoulder Pads": {
+   "file": "shoulder_pads_a2abc0.ogg",
+   "said": "Shoulder Pads.",
+   "seconds": 1.035,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Chain Shoulders": {
+   "file": "chain_shoulders_5117b3.ogg",
+   "said": "Chain Shoulders.",
+   "seconds": 1.155,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Big Shoulders": {
+   "file": "big_shoulders_b02c25.ogg",
+   "said": "Big Shoulders.",
+   "seconds": 1.035,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Gloves": {
+   "file": "gloves_1fb2c1.ogg",
+   "said": "Gloves.",
+   "seconds": 0.775,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Arm Guards": {
+   "file": "arm_guards_1401a1.ogg",
+   "said": "Arm Guards.",
+   "seconds": 1.025,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Iron Gloves": {
+   "file": "iron_gloves_c4fab4.ogg",
+   "said": "Iron Gloves.",
+   "seconds": 1.055,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Quick Gloves": {
+   "file": "quick_gloves_cc5ad7.ogg",
+   "said": "Quick Gloves.",
+   "seconds": 0.925,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Stomp Boots": {
+   "file": "stomp_boots_c9ab5a.ogg",
+   "said": "Stomp Boots.",
+   "seconds": 1.015,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Tall Boots": {
+   "file": "tall_boots_da976e.ogg",
+   "said": "Tall Boots.",
+   "seconds": 0.935,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Ghost Boots": {
+   "file": "ghost_boots_61d533.ogg",
+   "said": "Ghost Boots.",
+   "seconds": 1.035,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Sun Stone": {
+   "file": "sun_stone_6bb26e.ogg",
+   "said": "Sun Stone.",
+   "seconds": 0.905,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Sea Locket": {
+   "file": "sea_locket_b5be90.ogg",
+   "said": "Sea Locket.",
+   "seconds": 0.985,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Heart Stone": {
+   "file": "heart_stone_b0edfa.ogg",
+   "said": "Heart Stone.",
+   "seconds": 1.005,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Star Pendant": {
+   "file": "star_pendant_e6dddc.ogg",
+   "said": "Star Pendant.",
+   "seconds": 1.075,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Feather Cape": {
+   "file": "feather_cape_d78659.ogg",
+   "said": "Feather Cape.",
+   "seconds": 0.875,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Backpack": {
+   "file": "backpack_0ccf90.ogg",
+   "said": "Backpack.",
+   "seconds": 0.805,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Fire Cape": {
+   "file": "fire_cape_3ba60c.ogg",
+   "said": "Fire Cape.",
+   "seconds": 0.955,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Sun Cape": {
+   "file": "sun_cape_d977d5.ogg",
+   "said": "Sun Cape.",
+   "seconds": 0.855,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Gold Weapons": {
+   "file": "gold_weapons_862f49.ogg",
+   "said": "Gold Weapons.",
+   "seconds": 1.095,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Ice Weapons": {
+   "file": "ice_weapons_ff7929.ogg",
+   "said": "Ice Weapons.",
+   "seconds": 1.075,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Fire Weapons": {
+   "file": "fire_weapons_bafaef.ogg",
+   "said": "Fire Weapons.",
+   "seconds": 1.095,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  },
+  "Shadow Weapons": {
+   "file": "shadow_weapons_5624e1.ogg",
+   "said": "Shadow Weapons.",
+   "seconds": 1.145,
+   "voice": "af_heart",
+   "speed": 0.9,
+   "lang": "en-us",
+   "model": "kokoro-v1.0.onnx",
+   "process": 3
+  }
+ }
+}

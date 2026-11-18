@@ -247,6 +247,43 @@ static func magic_icon(c: CanvasItem, p: Vector2, r: float, essence: String) -> 
 				_poly(c, PackedVector2Array([p + d * r * 0.95, p + d * r * 0.2 + n * r * 0.18, p + d * r * 0.1, p + d * r * 0.2 - n * r * 0.18]), col, 1.5)
 
 
+## A treasure's picture by the slot it's worn in, in its colour.
+static func gear_icon(c: CanvasItem, p: Vector2, r: float, slot: String, col: Color) -> void:
+	match slot:
+		"head":
+			_poly(c, PackedVector2Array([p + Vector2(-0.75, 0.35) * r, p + Vector2(-0.7, -0.2) * r, p + Vector2(-0.35, -0.65) * r, p + Vector2(0.35, -0.65) * r, p + Vector2(0.7, -0.2) * r, p + Vector2(0.75, 0.35) * r]), col)
+			c.draw_rect(Rect2(p + Vector2(-0.8, 0.3) * r, Vector2(1.6, 0.25) * r), col.darkened(0.25))
+		"chest":
+			_poly(c, PackedVector2Array([p + Vector2(-0.6, -0.65) * r, p + Vector2(-0.25, -0.75) * r, p + Vector2(0, -0.55) * r, p + Vector2(0.25, -0.75) * r, p + Vector2(0.6, -0.65) * r, p + Vector2(0.55, 0.75) * r, p + Vector2(-0.55, 0.75) * r]), col)
+			c.draw_line(p + Vector2(0, -0.5) * r, p + Vector2(0, 0.7) * r, col.darkened(0.3), 2.0)
+		"shoulders":
+			for sx in [-1.0, 1.0]:
+				_poly(c, _ellipse(p + Vector2(sx * 0.42, 0.0) * r, r * 0.42, r * 0.32), col)
+		"hands":
+			_poly(c, PackedVector2Array([p + Vector2(-0.45, 0.75) * r, p + Vector2(-0.5, -0.2) * r, p + Vector2(-0.3, -0.7) * r, p + Vector2(0.1, -0.75) * r, p + Vector2(0.35, -0.5) * r, p + Vector2(0.7, -0.1) * r, p + Vector2(0.45, 0.1) * r, p + Vector2(0.4, 0.75) * r]), col)
+		"feet":
+			_poly(c, PackedVector2Array([p + Vector2(-0.4, -0.75) * r, p + Vector2(0.15, -0.75) * r, p + Vector2(0.15, 0.25) * r, p + Vector2(0.75, 0.35) * r, p + Vector2(0.75, 0.75) * r, p + Vector2(-0.4, 0.75) * r]), col)
+		"neck":
+			c.draw_arc(p + Vector2(0, -0.35) * r, r * 0.5, 0.2, PI - 0.2, 16, col.darkened(0.2), 2.5)
+			_poly(c, PackedVector2Array([p + Vector2(0, 0.0) * r, p + Vector2(0.32, 0.38) * r, p + Vector2(0, 0.8) * r, p + Vector2(-0.32, 0.38) * r]), col)
+		"back":
+			_poly(c, PackedVector2Array([p + Vector2(-0.35, -0.75) * r, p + Vector2(0.35, -0.75) * r, p + Vector2(0.7, 0.75) * r, p + Vector2(-0.7, 0.75) * r]), col)
+			c.draw_line(p + Vector2(-0.35, -0.6) * r, p + Vector2(0.35, -0.6) * r, col.lightened(0.3), 2.5)
+		_:
+			sword(c, p, r * 0.95, col)
+
+
+## A padlock (a locked tower).
+static func padlock(c: CanvasItem, p: Vector2, r: float) -> void:
+	c.draw_arc(p + Vector2(0, -r * 0.35), r * 0.5, PI, TAU, 16, OUT, r * 0.34)
+	c.draw_arc(p + Vector2(0, -r * 0.35), r * 0.5, PI, TAU, 16, Color(0.75, 0.75, 0.8), r * 0.18)
+	var body := Rect2(p + Vector2(-r * 0.75, -r * 0.4), Vector2(r * 1.5, r * 1.15))
+	c.draw_rect(body.grow(3.0), OUT)
+	c.draw_rect(body, Color(0.95, 0.76, 0.3))
+	c.draw_circle(p + Vector2(0, r * 0.1), r * 0.16, OUT)
+	c.draw_line(p + Vector2(0, r * 0.1), p + Vector2(0, r * 0.42), OUT, r * 0.12)
+
+
 static func house(c: CanvasItem, p: Vector2, r: float) -> void:
 	_poly(c, PackedVector2Array([p + Vector2(-0.6, 0.65) * r, p + Vector2(-0.6, -0.05) * r, p + Vector2(0, -0.6) * r, p + Vector2(0.6, -0.05) * r, p + Vector2(0.6, 0.65) * r]), Color(0.95, 0.9, 0.8))
 	c.draw_rect(Rect2(p + Vector2(-0.15, 0.2) * r, Vector2(0.3, 0.45) * r), Color(0.55, 0.35, 0.22))

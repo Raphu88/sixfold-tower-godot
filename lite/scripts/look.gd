@@ -2,10 +2,11 @@ extends RefCounted
 ## How the climber looks: the options a child chooses from on the
 ## customisation page, their names and colours, all as data (change a name
 ## or colour here and every screen follows). A copy of the full game's
-## scripts/appearance.gd, so LITE's climber looks the same, minus worn gear
-## (LITE has none). The choice is saved as a small dictionary of option ids;
-## DEFAULTS is the look a new climber starts with (an unknown or missing id
-## loads as its default: normalized()).
+## scripts/appearance.gd, so LITE's climber looks the same; worn gear (the
+## treasure a child finds) is gear_look.gd's, slotted in between these
+## layers like the full game's. The choice is saved as a small dictionary of
+## option ids; DEFAULTS is the look a new climber starts with (an unknown or
+## missing id loads as its default: normalized()).
 ##
 ## Drawing: look(app) turns a saved appearance into the colours, sizes and
 ## flags the drawing code reads (work it out once when the appearance
@@ -15,15 +16,22 @@ extends RefCounted
 ##   In the tower (seen from above; climber_art.gd draw()):
 ##     draw_legs   trousers and boots (they show as you stride)
 ##     draw_cloak  the cloak behind, its style, pattern and trim
+##     [gear]      a backpack (gear_look.gd tower_back)
 ##     draw_torso  the chest (by build), the belt, a pendant
-##     (shoulders, then) draw_head: a scarf or torc, the hood or hair, the
-##                 face (eyes, features, beard), earrings, an eyepatch, a feather
+##     [gear]      armour on the chest and the shoulders, an amulet
+##     draw_head   a scarf or torc, the hood or hair, the face (eyes,
+##                 features, beard), headgear, earrings, an eyepatch, a feather
+##     [gear]      a candle, a feather, a helm's crest
 ##     (then climber_art.gd's arms, the weapon and the hands)
 ##   On menus (seen from the front; climber_art.gd draw_front() calls draw_front):
-##     the cloak behind → legs and boots → tunic and belt → arms → the
-##     mantle → draw_front_head.
+##     [gear: a backpack] → the cloak behind → legs and boots → [gear: boots]
+##     → tunic and belt → [gear: body armour, a pack's straps] → arms →
+##     [gear: the weapon, sleeves, gloves] → the mantle → [gear: pauldrons,
+##     the amulet] → draw_front_head → [gear: a cap, helm or coif]. The gear
+##     layers are drawn only for a dressed look (GearLook.dress: "gear_on").
 
 const Palette := preload("res://scripts/palette.gd")
+const GearLook := preload("res://scripts/gear_look.gd")
 
 ## A few colours the full game keeps in its ui.gd: the menus' outline and gilt.
 const OUTLINE := Color(0.03, 0.025, 0.04)
@@ -509,6 +517,8 @@ static func draw_legs(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, l
 		var at: Vector2 = lx + _q(f, sd, 2.0 + sg * s * 4.5, sg * apart)
 		b.stroke(lx + _q(f, sd, 0.5, sg * apart * 0.7), at - f * 1.2, legs.darkened(0.25), 3.2)
 		b.ball(at, boot_r, lk["boot"], true, light)
+		if lk.get("studs", false):  # Hobnail Boots (gear_look.gd)
+			b.dot(at + f * boot_r * 0.7, 0.7, Palette.STEEL)
 
 
 ## The standing cloak's points in the body frame (x forward, y to the side),
@@ -954,12 +964,25 @@ static func draw_fallen_body(b, f: Vector2, sd: Vector2, light: Vector2, lk: Dic
 ## The whole front figure, in layers (see the top of the file), in its
 ## frame: about 290 tall, centred on the waist, the soles at y = 124.
 static func draw_front(b, lk: Dictionary) -> void:
+	var gear: bool = lk.get("gear_on", false)  # (dressed in worn gear: gear_look.gd)
+	if gear:
+		GearLook.front_behind(b, lk)  # gear: a backpack
 	_front_cloak(b, lk)  # the cloak behind
 	_front_legs(b, lk)  # legs in their trousers, boots
+	if gear:
+		GearLook.front_legs(b, lk)  # gear: boots
 	_front_tunic(b, lk)  # the tunic, its skirt, the belt
+	if gear:
+		GearLook.front_chest(b, lk)  # gear: body armour, a pack's straps
 	_front_arms(b, lk)  # arms in their sleeves, hands
+	if gear:
+		GearLook.front_arms(b, lk)  # gear: the weapon in hand, sleeves, gloves
 	_front_mantle(b, lk)  # the cloak's mantle over the shoulders
+	if gear:
+		GearLook.front_shoulders(b, lk)  # gear: pauldrons, the amulet
 	draw_front_head(b, lk)  # the hood or hair, the face, what's at the neck
+	if gear:
+		GearLook.front_head(b, lk)  # gear: a cap, a helm or a mail coif
 
 
 static func _sx(pts: PackedVector2Array, k: float) -> PackedVector2Array:
