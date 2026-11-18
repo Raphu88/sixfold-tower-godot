@@ -190,6 +190,7 @@ func _step(delta: float) -> void:
 			if phase == "fight" and monsters.is_empty():
 				phase = "clear"
 				phase_t = 0.0
+				orbs.clear()  # (a throw still flying can't hurt once the room is won)
 				game.sfx("clear")
 			elif phase == "clear" and pos.distance_to(STAIR) < 46.0 and sparks.is_empty():
 				_begin_bank()
