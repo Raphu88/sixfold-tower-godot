@@ -274,6 +274,8 @@ func _combat_test() -> void:
 	c.safe_t = 0.0
 	c.parry_t = Data.PARRY_WINDOW
 	c.orbs.clear()
+	c.monsters = [c.monsters[0]]  # (one monster, nothing in the way)
+	c.pillars.clear()
 	c._throw(c.pos + c.BODY + Vector2(0, -20), Vector2.DOWN)
 	c._update_orbs(0.01)
 	_check(c.orbs.size() == 1 and c.orbs[0]["mine"] and c.hearts == h, "a parried throw turns back")
@@ -310,6 +312,9 @@ func _combat_test() -> void:
 	c._swing()
 	_check(int(m["hp"]) == 99 - int(Data.WEAPONS["hammer"]["damage"]) and m["stun"] > 0.0, "the hammer hits hard and stuns")
 	c.swap_weapon("bow")
+	# (only this monster, and nothing in the way: the bow aims at the nearest)
+	c.monsters = [m]
+	c.pillars.clear()
 	m["pos"] = c.pos + Vector2(0, -400)
 	m["kv"] = Vector2.ZERO
 	var before: int = m["hp"]
