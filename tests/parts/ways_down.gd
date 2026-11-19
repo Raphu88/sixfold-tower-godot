@@ -62,10 +62,17 @@ func _plans() -> void:
 		var ok_mons := true
 		var ok_basin := true
 		for fl in [2, 3, 4, 5, 6, 7]:
-			seed(4100 + fl * 7 + KINDS.keys().find(tid))  # (fixed floors: a Kraken way down needs a tide room, which not every floor has)
-			var plan := Floors.rooms_floor(fl, Towers.TOWERS[tid])
+			# A way down needs a room that suits it (the Kraken's, a tide room), which
+			# not every floor has: up to three draws of each floor, from fixed seeds.
+			var plan := {}
+			var ways: Array = []
+			for attempt in 3:
+				seed(4100 + fl * 7 + KINDS.keys().find(tid) + attempt * 1009)
+				plan = Floors.rooms_floor(fl, Towers.TOWERS[tid])
+				ways = plan.get("ways_down", [])
+				if not ways.is_empty():
+					break
 			floors += 1
-			var ways: Array = plan.get("ways_down", [])
 			if ways.is_empty():
 				continue
 			with += 1
