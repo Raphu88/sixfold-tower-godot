@@ -2,21 +2,23 @@ extends RefCounted
 ## THE TREE: the rules of how a climber grows, for both paths (the book's
 ## Tree section draws it: tree_view.gd). Every choice is for good.
 ##
-## MARKS: each bond's tree is its steps (1 to 5 today; 6 to 10 show as
-## "Coming later"). Step 1 and step 5 are its spells. Steps 2 and 4 are
+## MARKS: each bond's tree is its steps (1 to 5 today; 6 to 12 show as
+## "Coming soon"). Step 1 and step 5 are its spells. Steps 2 and 4 are
 ## FORKS: today's spell, or the tower's alternative (library.gd MARK_FORKS,
 ## from scripts/spells/<tower>.gd). Step 3 is a fork of VARIATIONS of the
 ## bond's first spell: today's change (named in FORKS "change"), or a
 ## library variation. A fork is READY once the mark reaches its step and
 ## both sides are written; until it's chosen, today's side is the one in use
 ## (so a climber who never chooses plays as before). Once chosen, the other
-## side is gone for good. A side not written yet is a "Coming later" card
+## side is gone for good. A side not written yet is a "Coming soon" card
 ## that can't be chosen; while it is, the fork isn't ready.
 ##
-## THE UNBOUND: one tree per body part, a node per part level (1 to 10):
-## today's forms at 1, a fork of two variations at 2, 6 and 9, a new form at
-## 3 and 7, one more essence to combine at 4 and 8, the gift at 5 and a
-## capstone at 10 (the layout: library.gd TREE, from unbound_forms.gd).
+## THE UNBOUND: one tree per body part, a node at the part levels that
+## bring something (a level is 10 fill, 12 levels: unbound.gd): the minor
+## ability at 3, the gift at 5, today's forms at 6 (half full: techniques
+## open), a fork of two variations at 7, 9 and 11, a new form at 8 and 10,
+## and at 12 (full) the capstone, with the signature of a pure part (the
+## layout: library.gd TREE, from unbound_forms.gd).
 ## Effects open as each essence pools in the body (effect_open). A fork's
 ## passed side can still be learned once the part is SKIP_AFTER levels past
 ## it, for crystal essence (skipped_cost): the Unbound can come to own both.
@@ -48,7 +50,7 @@ const Unbound := preload("res://scripts/unbound.gd")
 const FORK_STEPS := [2, 3, 4]
 ## The highest step a mark reaches today, and the steps the tree shows.
 const MAX_STEP := 5
-const SHOWN_STEPS := 10
+const SHOWN_STEPS := 12
 ## Learning an Unbound fork's passed side: the part must be this many levels
 ## past the node, and it costs SKIP_COST[0] + SKIP_COST[1] x the node's level
 ## crystal essence (of any kinds, the biggest crystal first).
@@ -62,7 +64,7 @@ const VERSION := 2
 static var TEXT := {
 	"step": "Step %d",
 	"level": "Level %d",
-	"later": "Coming later",
+	"later": "Coming soon",
 	"later_says": "Marks will grow past step 5 in a later update.",
 	"needs_step": "at step %d",
 	"needs_level": "at level %d",
@@ -70,6 +72,12 @@ static var TEXT := {
 	"forms_says": "The shapes this part gives: %s.",
 	"kinds": "One more essence",
 	"kinds_says": "Techniques from this part combine %d essences.",
+	"minor": "Minor ability",
+	"minor_lead": "Its lead essence decides what it does: %s",
+	"signature": "Signature: %s",
+	"signature_says": "%s. Only when one essence fills this part all alone (%s).",
+	"signature_none": "A pure part's signature",
+	"signature_none_says": "When one essence alone fills this part, it brings a signature technique.",
 	"gift": "Gift: %s",
 	"capstone": "Capstone",
 	"effects_need": "%d %s pooled in your body",
@@ -373,26 +381,26 @@ static func unbound_nodes(p, part: String) -> Array:
 	var lv: int = Unbound.level(p, part)
 	var lay := _layout(part)
 	var col: Color = Library.color(String(Unbound.PART_KIND.get(part, "fire")))
-	for L in range(1, Unbound.LEVELS.size() + 1):
+	for L in range(1, Unbound.MAX_LEVEL + 1):
 		var n := {"id": "unbound:%s:%d" % [part, L], "path": "unbound", "part": part, "at": L, "title": TEXT["level"] % L,
 			"needs": TEXT["needs_level"] % L, "chosen": "", "options": []}
 		var reached := lv >= L
 		var spec: Dictionary = lay.get(L, lay.get(str(L), {}))
-		if L == 1:
+		if L == Unbound.MINOR_LEVEL:
+			n["kind"] = "minor"
+			n["options"] = [{"id": "minor_" + part, "kind": "kinds", "name": TEXT["minor"], "says": Unbound.minor_text(p, part),
+				"built": true, "state": "owned" if reached else "locked", "color": col}]
+			n["state"] = "owned" if reached else "locked"
+		elif L == Unbound.TECH_LEVEL:
 			n["kind"] = "forms"
 			for f in Library.BASE_FORMS.get(part, []):
 				var fe := Library.form(f)
-				n["options"].append({"id": f, "kind": "form", "form": f, "name": fe["name"], "says": fe["says"], "built": true, "state": "owned", "color": col})
-			n["state"] = "owned"
+				n["options"].append({"id": f, "kind": "form", "form": f, "name": fe["name"], "says": fe["says"], "built": true, "state": "owned" if reached else "locked", "color": col})
+			n["state"] = "owned" if reached else "locked"
 		elif L == Unbound.GIFT_LEVEL:
 			n["kind"] = "gift"
 			var g: Dictionary = Unbound.GIFTS.get(part, {})
 			n["options"] = [{"id": "gift_" + part, "kind": "gift", "name": TEXT["gift"] % g.get("name", ""), "says": String(g.get("desc", "")).left(1).to_upper() + String(g.get("desc", "")).substr(1) + ".",
-				"built": true, "state": "owned" if reached else "locked", "color": col}]
-			n["state"] = "owned" if reached else "locked"
-		elif L in Unbound.KINDS_AT and L > 1:
-			n["kind"] = "kinds"
-			n["options"] = [{"id": "kinds_%d" % L, "kind": "kinds", "name": TEXT["kinds"], "says": TEXT["kinds_says"] % (Unbound.KINDS_AT.find(L) + 1),
 				"built": true, "state": "owned" if reached else "locked", "color": col}]
 			n["state"] = "owned" if reached else "locked"
 		elif spec.has("fork"):
@@ -434,7 +442,7 @@ static func unbound_nodes(p, part: String) -> Array:
 			n["options"] = [{"id": fid, "kind": "form", "form": fid, "name": String(fe.get("name", fid)), "says": String(fe.get("says", "")), "built": built,
 				"state": ("placeholder" if not built else ("owned" if reached else "locked")), "color": col}]
 			n["state"] = "owned" if reached and built else ("locked" if not reached else "later")
-		else:
+		elif spec.has("capstone") or L == Unbound.MAX_LEVEL:
 			n["kind"] = "capstone"
 			var cap: Dictionary = spec.get("capstone", {"placeholder": true})
 			var built := Library.built(cap)
@@ -442,9 +450,32 @@ static func unbound_nodes(p, part: String) -> Array:
 			n["options"] = [{"id": "cap_" + part, "kind": "capstone", "name": cname if cname != "" else Library.TEXT["coming"],
 				"says": String(cap.get("says", "")) if String(cap.get("says", "")) != "" else Library.TEXT["coming_says"], "built": built,
 				"state": ("placeholder" if not built else ("owned" if reached else "locked")), "color": col}]
+			n["options"].append(_signature_option(p, part, col))
 			n["state"] = "later" if not built else ("owned" if reached else "locked")
+		else:
+			continue  # (levels 1, 2 and 4 bring nothing of their own: the part fills on)
 		out.append(n)
 	return out
+
+
+## The signature bud on a part's last node: the signature of the essence
+## that leads it (or its natural one), owned while one essence alone fills it.
+static func _signature_option(p, part: String, col: Color) -> Dictionary:
+	var kind := Unbound.primary(p, part)
+	if kind == "":
+		kind = String(Unbound.PART_KIND.get(part, ""))
+	var sig: Dictionary = Unbound.SIGNATURES.get("%s:%s" % [part, kind], {})
+	if sig.is_empty():
+		return {"id": "sig_" + part, "kind": "capstone", "name": TEXT["signature_none"], "says": TEXT["signature_none_says"], "built": false, "state": "placeholder", "color": col}
+	var fid := String(sig.get("form", ""))
+	var built := fid != "" and Library.built(Library.form(fid))
+	var mine := not Unbound.signature(p, part).is_empty()
+	var o := {"id": "sig_" + part, "kind": "form" if built else "capstone", "name": TEXT["signature"] % String(sig["name"]),
+		"says": TEXT["signature_says"] % [String(sig.get("says", "")), _kind_name(kind)] if built else Library.TEXT["coming_says"],
+		"built": built, "state": ("placeholder" if not built else ("owned" if mine else "locked")), "color": Library.color(kind)}
+	if built:
+		o["form"] = fid
+	return o
 
 
 ## Pooled essence of a kind in the whole body (the six parts' raw density of it).
@@ -504,6 +535,10 @@ static func owned_forms(p, part: String) -> Array:
 		var spec = lay[L]
 		if spec is Dictionary and spec.has("form") and lv >= int(L) and Library.built(Library.form(String(spec["form"]))):
 			out.append(String(spec["form"]))
+	# A pure, full part's signature (unbound.gd SIGNATURES), once it's written.
+	var sig := Unbound.signature(p, part)
+	if sig.has("form") and Library.built(Library.form(String(sig["form"]))) and not String(sig["form"]) in out:
+		out.append(String(sig["form"]))
 	return out
 
 

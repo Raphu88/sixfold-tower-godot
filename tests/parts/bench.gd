@@ -234,7 +234,8 @@ func _echoes() -> void:
 	_check("undertow" in TR.state(main.profile)["echoes"], "a cast that finds an echo records it for the climber")
 
 
-## The bench, through its own rules (the draft, the lead, a fitting, the gauge, a slot).
+## The bench, through its own rules (the draft, a mould, the part's essences
+## shown in its taps, a fitting, an effect, the gauge, a slot).
 func _bench_builds() -> void:
 	print("the essence bench: building a technique")
 	await t._ub_fresh()
@@ -243,8 +244,15 @@ func _bench_builds() -> void:
 	var T = load("res://scripts/technique.gd")
 	var TR = load("res://scripts/tree.gd")
 	var prof = main.profile
-	prof.part_density = {"hand": {"blade": U.LEVELS[4]}, "legs": {"air": 120.0}}
-	TR.choose(prof, "unbound:hand:2", "split")
+	# The hand: Blade leads, a touch of Air (level 9); the legs full of Air.
+	prof.part_density = {}
+	U.state(prof)["primary"] = {}
+	U.put(prof, "hand", "blade", 60.0)
+	U.put(prof, "hand", "air", 30.0)
+	U.put(prof, "legs", "air", 120.0)
+	for pt in ["heart", "brow", "throat", "back"]:
+		U.put(prof, pt, String(U.PART_KIND[pt]), 60.0)
+	TR.choose(prof, "unbound:hand:7", "split")
 	main._give_bonds()
 	main.await_tower()
 	main.open_train()
@@ -252,7 +260,7 @@ func _bench_builds() -> void:
 	var menu = main.menu
 	main.touch._set_active(false)
 	# From Your Car's Techniques page: "Build at the bench".
-	menu.set_meta("tech_slot", 2)
+	menu.set_meta("tech_slot", 0)
 	menu.open("techniques", true)
 	await t._frames(2)
 	var go: Array = t._all_buttons(menu).filter(func(b): return b.has_meta("tech_bench"))
@@ -261,7 +269,7 @@ func _bench_builds() -> void:
 		go[0].pressed.emit()
 		await t._frames(3)
 	_check(menu.page == "train" and menu.train_car == "workshop" and menu.train_bench == EB.COUNTER, "...the Workshop car, the essence bench open")
-	_check(EB.slot(menu) == 2, "...on the slot you were looking at")
+	_check(EB.slot(menu) == 0, "...on the slot you were looking at")
 	var press := func(meta: String, val) -> bool:
 		var bs: Array = t._car_buttons(meta, val)
 		if bs.size() != 1 or bs[0].disabled:
@@ -274,53 +282,54 @@ func _bench_builds() -> void:
 	_check(d["part"] == "hand" and d["shape"] == "bolt", "...its shape is on the bench")
 	var globes: Array = menu.train_page.roots["workshop"].find_children("*", "Control", true, false).filter(func(c): return c is EB.Globe)
 	_check(globes.size() == 1 and globes[0].form == "bolt", "...and in the globe")
-	for k in d["kinds"].duplicate():
-		await press.call("bench_vial", k)
-	_check(EB.draft(menu)["kinds"].is_empty(), "closing every tap empties it")
-	await press.call("bench_vial", "air")
-	await press.call("bench_vial", "fire")
-	d = EB.draft(menu)
-	_check(d["kinds"] == ["air", "fire"], "taps opened in order: the first leads (%s)" % [d["kinds"]])
-	var vial: Array = t._car_buttons("bench_vial", "air")
-	_check(vial.size() == 1 and vial[0].order == 1 and t._car_buttons("bench_vial", "fire")[0].order == 2, "...the vials show their order")
-	globes = menu.train_page.roots["workshop"].find_children("*", "Control", true, false).filter(func(c): return c is EB.Globe)
-	_check(not globes.is_empty() and globes[0].kinds == ["air", "fire"] and globes[0].pour_kind == "fire", "...the lead fills the globe, the second swirls in, and the liquid runs")
-	_check(t._car_buttons("bench_vial", "water")[0].full, "a third waits for a higher level (it says why)")
+	_check(d["kinds"] == ["blade", "air"], "its essences are the hand's own: Blade leads, Air adds its touch (%s)" % [d["kinds"]])
+	var vial: Array = t._car_buttons("bench_vial", "blade")
+	_check(vial.size() == 1 and vial[0].order == 1 and t._car_buttons("bench_vial", "air")[0].order == 2, "...the open taps show their order")
+	_check(not globes.is_empty() and globes[0].kinds == ["blade", "air"], "...the lead fills the globe, the second swirls in")
+	_check(t._car_buttons("bench_vial", "water")[0].full, "an essence not in the hand waits (it says why)")
 	await press.call("bench_vial", "water")
-	_check(EB.draft(menu)["kinds"].size() == 2 and menu.toast.contains("level"), "...and pressing it says so (%s)" % menu.toast)
+	_check(EB.draft(menu)["kinds"] == ["blade", "air"] and menu.toast.contains("Move"), "...and pressing it says how to move it in (%s)" % menu.toast)
+	_check(t._car_buttons("bench_mould", "brow:mark").is_empty() and t._car_buttons("bench_mould", "hand:volley").size() == 1, "only the hand's forms are on the rack, those it has opened among them")
 	_check(await press.call("bench_fitting", "split"), "a fitting screwed on: Split")
 	d = EB.draft(menu)
 	_check(T.variations(d) == ["split"], "...the technique carries it")
 	_check(t._car_buttons("bench_fitting", "chain")[0].disabled, "a fitting not yours sits dark")
 	var gauges: Array = menu.train_page.roots["workshop"].find_children("*", "Control", true, false).filter(func(c): return c is EB.Gauge)
 	_check(gauges.size() == 1 and is_equal_approx(gauges[0].strain, T.strain(d)) and T.strain(d) == 26.0, "the gauge shows the strain one cast adds (%.0f)" % (gauges[0].strain if not gauges.is_empty() else -1.0))
-	# An effect for the lead, now Spark has opened (120 Air pooled).
+	# An effect for the Air, now Spark has opened (Air in the body).
 	_check(await press.call("bench_fx", "air"), "a layer's effect can be changed")
 	_check(T.effect_of(EB.draft(menu), "air") == "spark", "...to Spark (it has opened)")
-	_check(t._car_buttons("bench_mould", "hand:volley").size() == 1 and t._car_buttons("bench_mould", "brow:mark").size() == 1, "every opened form has a mould")
-	var before: Dictionary = U.state(prof)["techs"][2].duplicate(true)
+	var before: Dictionary = U.state(prof)["techs"][0].duplicate(true)
 	_check(EB.dirty(menu) and before.get("shape", "") != "bolt", "the slot is untouched until it's set")
 	_check(await press.call("bench_save", true), "Set in slot")
-	var saved: Dictionary = U.state(prof)["techs"][2]
-	_check(saved["shape"] == "bolt" and saved["kinds"] == ["air", "fire"] and T.variations(saved) == ["split"] and T.effect_of(saved, "air") == "spark", "the technique is saved to the slot: its form, its lead, its fitting and its effect")
+	var saved: Dictionary = U.state(prof)["techs"][0]
+	_check(saved["shape"] == "bolt" and saved["kinds"] == ["blade", "air"] and T.variations(saved) == ["split"] and T.effect_of(saved, "air") == "spark", "the technique is saved to the slot: its form, its fitting and its effect")
 	_check(main.player.bonds.values().any(func(b): return "tech" in b and b.tech.get("shape", "") == "bolt"), "...and carried at once")
 	var names: Array = menu.train_page.roots["workshop"].find_children("*", "Label", true, false).filter(func(l): return l.has_meta("bench_name"))
 	_check(names.size() == 1 and names[0].text == T.title(saved), "the plaque names it (%s)" % (names[0].text if not names.is_empty() else ""))
 	# Another slot.
-	_check(await press.call("bench_slot", 0), "choosing another slot")
-	_check(EB.slot(menu) == 0 and EB.draft(menu)["shape"] == U.state(prof)["techs"][0]["shape"], "...puts its technique on the bench")
-	# An echo found at the bench is remembered.
+	_check(await press.call("bench_slot", 2), "choosing another slot")
+	_check(EB.slot(menu) == 2 and EB.draft(menu)["shape"] == U.state(prof)["techs"][2]["shape"] and EB.draft(menu)["part"] == "heart", "...puts its part's technique on the bench")
+	# An echo found at the bench is remembered (an Air shout with Stone: Gale Lift).
 	TR.state(prof)["echoes"].clear()
-	prof.part_density["throat"] = {"water": U.LEVELS[4]}
+	prof.part_density["throat"] = {}
+	U.state(prof)["primary"].erase("throat")
+	U.put(prof, "throat", "air", 60.0)
+	U.put(prof, "throat", "stone", 30.0)
+	U.state(prof)["techs"][4]["shape"] = "pull"
+	main._give_bonds()
+	await press.call("bench_slot", 4)
 	await press.call("bench_mould", "throat:shout")
-	for k in EB.draft(menu)["kinds"].duplicate():
-		await press.call("bench_vial", k)
-	await press.call("bench_vial", "air")
-	await press.call("bench_vial", "stone")
 	var echo_l: Array = menu.train_page.roots["workshop"].find_children("*", "Label", true, false).filter(func(l): return l.has_meta("bench_echo"))
 	_check(echo_l.size() == 1 and echo_l[0].text.begins_with("Echoes Gale Lift"), "the plaque says \"Echoes Gale Lift\"")
 	await press.call("bench_save", true)
 	_check("gale_lift" in TR.state(prof)["echoes"] and menu.toast.contains("Gale Lift"), "setting it records the echo for the climber")
+	# A part not yet half full: nothing to set.
+	prof.part_density["brow"] = {"fire": 20.0}
+	main._give_bonds()
+	await press.call("bench_slot", 3)
+	var lines: Array = menu.train_page.roots["workshop"].find_children("*", "Label", true, false).filter(func(l): return l.has_meta("bench_line"))
+	_check(not lines.is_empty() and lines[0].text.contains("level 2") and t._car_buttons("bench_save", true)[0].disabled, "a part not yet half full says how far it has to go, and nothing can be set (%s)" % (lines[0].text if not lines.is_empty() else ""))
 	menu.close()
 	await t._frames(2)
 
@@ -346,18 +355,18 @@ func _bench_by_hand() -> void:
 	await t._frames(2)
 	var f: Control = menu.get_viewport().gui_get_focus_owner()
 	_check(f != null and f.has_meta("bench_start"), "into the car with the keys: the first vial")
-	var kinds0: Array = EB.draft(menu)["kinds"].duplicate()
+	menu.toast = ""
 	await t._key_tap(KEY_ENTER)
 	await t._frames(2)
-	_check(EB.draft(menu)["kinds"] != kinds0, "Enter turns its tap")
+	_check(menu.toast.contains("Move"), "Enter presses its tap: Fire isn't in the hand, and it says how to move it in (%s)" % menu.toast)
 	f = menu.get_viewport().gui_get_focus_owner()
 	_check(f != null and f.get_meta("bench_vial", "") == "fire", "...and the focus stays on it")
-	var kinds1: Array = EB.draft(menu)["kinds"].duplicate()
+	menu.toast = ""
 	t._pad_button(JOY_BUTTON_A, true)
 	await t._frames(2)
 	t._pad_button(JOY_BUTTON_A, false)
 	await t._frames(3)
-	_check(EB.draft(menu)["kinds"] != kinds1, "A on a controller turns it back")
+	_check(menu.toast.contains("Move"), "A on a controller presses it too")
 	await t._key_tap(KEY_RIGHT)
 	await t._frames(2)
 	f = menu.get_viewport().gui_get_focus_owner()
@@ -365,9 +374,13 @@ func _bench_by_hand() -> void:
 	main.touch._set_active(true)
 	await t._frames(2)
 	var mould: Array = t._car_buttons("bench_mould", "hand:bolt")
-	if mould.size() == 1:
-		await t._tap_at(mould[0].get_global_rect().get_center())
-		await t._frames(2)
+	_check(mould.size() == 1 and EB.draft(menu)["shape"] == "strike", "(the hand's slot holds a Strike)")
+	var rect: Rect2 = mould[0].get_global_rect() if mould.size() == 1 else Rect2()
+	if mould.size() == 1 and menu.get_viewport().get_visible_rect().encloses(rect):
+		await t._tap_at(rect.get_center())
+	elif mould.size() == 1:
+		mould[0].pressed.emit()  # (scrolled out of sight on this screen: the press a tap gives)
+	await t._frames(2)
 	_check(EB.draft(menu)["shape"] == "bolt", "a tap on a mould chooses it")
 	main.touch._set_active(false)
 	menu.close()
@@ -419,7 +432,7 @@ func _bench_fits() -> void:
 	var prof = main.profile
 	prof.part_density = {"hand": {"blade": 400.0}, "legs": {"air": 300.0}}
 	var TR = load("res://scripts/tree.gd")
-	TR.choose(prof, "unbound:hand:2", "split")
+	TR.choose(prof, "unbound:hand:7", "split")
 	main._give_bonds()
 	main.await_tower()
 	main.open_train()

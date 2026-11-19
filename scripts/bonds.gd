@@ -18,7 +18,7 @@ extends RefCounted
 ## up to step 5. Designs follow the owner's Magic Redesign pages.
 ##
 ## Spell types (the code that runs them lives in bond.gd):
-##   chain, overcharge, rod, thunderhead      (Stormcaller)
+##   call_lightning, chain, rod, thunderhead  (Stormcaller)
 ##   lift, crosswind, downdraft, cyclone      (Windwalker)
 ##   shot, track, hawkeye, rain               (Hunter)
 ##   surge, riptide, carry, maelstrom          (Tidecaller)
@@ -32,7 +32,7 @@ extends RefCounted
 ##   veil, decoy, vanish, ashfall              (Ashwalker)
 ##   fireball, firewall, cluster, meteor       (Flame Contractor)
 ##   aura, wingburst, warmth, firebirdform     (Flamewing)
-##   rekindle, desperation, pyre, phoenix      (Rekindler)
+##   rekindle, desperation, pyre, phoenix      (Rekindler; Phoenix Heart is never cast)
 ##   call, command, exchange, grandcall        (Covenant)
 ##   graftburst, mimic, shed, chimeraform      (Grafter)
 ##   sever, mend, transfer, amputate           (Surgeon)
@@ -70,21 +70,25 @@ static var BONDS := {
 		"body": {"name": "Quick Nerves", "desc": "your strikes and rolls recover faster"},
 		"passive": {"name": "Static", "desc": "foes your lightning hits stay charged; striking a charged foe arcs to another",
 			"ranks": {2: {"says": "charged foes take 20% more from everything", "more": 0.2},
-				3: {"says": "a charged foe's death refunds your next Chain Lightning"}}},
+				3: {"says": "a charged foe's death refunds your next Call Lightning"}}},
 		"spells": [
-			{"id": "chain_lightning", "name": "Chain Lightning", "type": "chain", "learn": 1,
-				"desc": "lightning leaps between up to 4 foes",
-				"changes": {3: "every leap splits in two, up to 6 foes, all left charged"},
+			{"id": "call_lightning", "name": "Call Lightning", "type": "call_lightning", "learn": 1,
+				"desc": "call a bolt down on one foe, striking and charging it; when it dies, lightning leaps from it to every foe nearby",
+				"changes": {3: "the bolt lands, then every leap splits in two, up to 6 foes, all left charged"},
 				"steps": {
-					1: {"cost": 12.0, "windup": 0.45, "leaps": 4, "damage": 8.0, "stun": 0.0, "reach": 280.0, "hop": 170.0},
-					2: {"damage": 10.0},
-					3: {"most": 6, "branch": 2, "boost": 1.25},
-					4: {"damage": 12.0},
-					5: {"damage": 13.0},
+					1: {"cost": 10.0, "windup": 0.35, "strike": 7.0, "duration": 8.0, "damage": 12.0, "radius": 170.0, "reach": 320.0},
+					2: {"strike": 8.0, "damage": 13.0},
+					3: {"most": 6, "branch": 2, "boost": 1.0, "hop": 170.0},
+					4: {"strike": 10.0, "damage": 16.0},
+					5: {"strike": 11.0, "damage": 18.0},
 				}},
-			{"id": "overcharge", "name": "Overcharge", "type": "overcharge", "learn": 2,
-				"desc": "charge one foe; when it dies, lightning leaps from it to every foe nearby",
-				"steps": {2: {"cost": 9.0, "windup": 0.3, "duration": 8.0, "damage": 14.0, "radius": 170.0}, 4: {"damage": 18.0}}},
+			{"id": "chain_lightning", "name": "Chain Lightning", "type": "chain", "learn": 2,
+				"desc": "lightning leaps between up to 5 foes, leaving each one charged",
+				"steps": {
+					2: {"cost": 12.0, "windup": 0.45, "leaps": 5, "damage": 9.0, "stun": 0.0, "reach": 280.0, "hop": 170.0},
+					4: {"damage": 11.0},
+					5: {"damage": 12.0},
+				}},
 			{"id": "lightning_rod", "name": "Lightning Rod", "type": "rod", "learn": 4,
 				"desc": "plant a rod where you aim for 6 seconds: it strikes and charges foes near it every second, your chains leap through it (even around corners), and at its end it draws out their charge in a burst",
 				"steps": {
@@ -295,7 +299,7 @@ static var BONDS := {
 	"flameblade": {
 		"name": "Flameblade",
 		"color": Color(1.0, 0.5, 0.24),
-		"affinity": "fire",
+		"affinity": "iron",
 		"style": ["hand", "heart"],
 		"tower": "wyvern",
 		"body": {"name": "Hot Blood", "desc": "your strike chains never slow down: even the finisher recovers fast"},
@@ -424,7 +428,7 @@ static var BONDS := {
 	"ashwalker": {
 		"name": "Ashwalker",
 		"color": Color(0.78, 0.5, 0.42),
-		"affinity": "fire",
+		"affinity": "stone",
 		"style": ["back", "legs"],
 		"tower": "manticore",
 		"body": {"name": "Smokeborn", "desc": "you see through smoke and darkness: your light reaches farther"},
@@ -532,7 +536,7 @@ static var BONDS := {
 				3: {"says": "surviving Last Ember erupts in flame around you", "erupt": 30.0, "erupt_radius": 110.0}}},
 		"spells": [
 			{"id": "rekindle", "name": "Rekindle", "type": "rekindle", "learn": 1,
-				"desc": "set yourself alight for 5 seconds: you lose a little health while flames around you burn the foes near you, then you regain twice what you lost if you kept fighting",
+				"desc": "burst into flame for 5 seconds: a ring of fire around you sets every foe it touches burning, and they keep burning after it ends. You lose a little health while you burn, and when the flames go out you regain twice what you lost, whatever you did meanwhile",
 				"changes": {3: "foes you strike while you burn catch fire, and the payback grows with each one"},
 				"steps": {
 					1: {"cost": 10.0, "windup": 0.2, "duration": 5.0, "loss": 0.12, "spread": true, "burn": 2.5, "radius": 65.0},
@@ -550,10 +554,13 @@ static var BONDS := {
 					4: {"cost": 12.0, "windup": 0.2, "duration": 10.0, "damage": 30.0, "burst": 14.0, "burst_radius": 80.0},
 					5: {"burst": 18.0},
 				}},
-			{"id": "phoenix_heart", "name": "Phoenix Heart", "type": "phoenix", "learn": 5,
-				"desc": "you rise in a burst of flame, and for 10 seconds you cannot drop below 1 health; at its end you regain the health it held back",
-				"apex": "at its end you regain the health it held back",
-				"steps": {5: {"cost": 16.0, "windup": 0.2, "duration": 10.0, "regain": 1.0, "damage": 24.0, "radius": 120.0}}},
+			# Phoenix Heart is never cast: it waits in the mark (player.gd
+			# phoenix_ready / _phoenix_rise). Its "cost" is shown only; rising
+			# needs the mark's whole charge and spends it.
+			{"id": "phoenix_heart", "name": "Phoenix Heart", "type": "phoenix", "learn": 5, "passive": true,
+				"desc": "on death you rise in a burst of flame with full health, and for 6 seconds you cannot take damage; the burst throws back and burns every foe near you. Once a floor, from a full mark (rising spends it all); Last Ember goes first",
+				"apex": "the burst throws back and burns every foe near you",
+				"steps": {5: {"cost": 0.0, "windup": 0.0, "duration": 6.0, "damage": 24.0, "radius": 120.0, "push": 320.0, "burn": 3.0}}},
 		],
 	},
 	# --- the Chimera's tower (Blade) -------------------------------------------------

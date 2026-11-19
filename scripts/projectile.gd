@@ -3,7 +3,7 @@ extends Node2D
 ## them back. Friendly arrows (yours, or reflected ones) hit monsters instead.
 
 const Draw := preload("res://scripts/draw_util.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 const Particles := preload("res://scripts/particles.gd")
 
 var main
@@ -120,9 +120,12 @@ func _physics_process(delta: float) -> void:
 					if fn.is_valid():
 						fn.call(self, e)
 				# Whirling Steel (Blade Forger and Windwalker): a conjured blade lifts a light foe.
-				if style == "blade" and is_instance_valid(e) and not e.dead and not e.is_boss() and Pacts.has(main.player, "whirling_steel") \
-						and float(e.weight) <= Pacts.num("whirling_steel", "weight") and e.airborne <= 0.0:
-					e.lift(Pacts.num("whirling_steel", "lift"))
+				if style == "blade" and is_instance_valid(e) and not e.dead and not e.is_boss() and Synergies.has(main.player, "whirling_steel") \
+						and float(e.weight) <= Synergies.num("whirling_steel", "weight") and e.airborne <= 0.0:
+					e.lift(Synergies.num("whirling_steel", "lift"))
+				# Lightning Steel (Stormcaller and Blade Forger): the blade conducts to your others.
+				if style == "blade":
+					Synergies.conduct(main, self, e)
 				if not pierce:
 					_ended()
 					queue_free()

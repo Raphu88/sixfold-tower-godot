@@ -13,7 +13,7 @@ extends RefCounted
 ## Buds show what each piece is to you: yours (it glows), in use until you
 ## choose (today's side of a ready fork), a ready choice (pulsing gold),
 ## locked (a lock, and what opens it), passed on (faded, struck through),
-## learnable again (the Unbound, violet), and "Coming later" (faint and
+## learnable again (the Unbound, violet), and "Coming soon" (faint and
 ## dashed: not written yet, it can't be chosen). Every option comes from
 ## the tree's data (tree.gd nodes), never a list here, so new content shows
 ## by itself, each with the glyph its data suggests (grimoire_card.gd glyph_for).
@@ -44,7 +44,7 @@ const Controls := preload("res://scripts/controls.gd")
 static var TEXT := {
 	"head_mark": "%s  ·  %s  ·  step %d of %d",
 	"head_faint": "%s  ·  %s  ·  faint",
-	"head_unbound": "%s  ·  level %d of 10",
+	"head_unbound": "%s  ·  level %d of 12",
 	"head_none": "%s  ·  no mark yet",
 	"none": "No mark here yet. This part %s; once it's full, a summit marks it.",
 	"first": "Your first climb is bondless. At its top the tower's beast takes notice, and the part you used most takes your first mark. Its tree grows here.",
@@ -61,7 +61,7 @@ static var TEXT := {
 	"chosen": "%s chosen. It's yours for good.",
 	"learned": "%s learned.",
 	"state": {"owned": "yours", "in_use": "in use until you choose", "available": "choose one", "passed": "passed on", "learnable": "you can learn it now",
-		"locked": "%s", "placeholder": "Coming later", "later": "Coming later"},
+		"locked": "%s", "placeholder": "Coming soon", "later": "Coming soon"},
 	"in_use_bud": "in use",
 	"opens": "opens %s",
 	"only_train": "Choices are made on the train.",

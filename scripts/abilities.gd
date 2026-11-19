@@ -52,8 +52,8 @@ const TEXT := {
 	"mark_more": "Body: %s, %s.   Passive: %s, %s.",
 	"tech_sub": "%s  ·  %s  ·  %s",
 	"empty": "Empty slot",
-	"empty_does": "Nothing on this button yet. Build a technique on the train: Your car, then Techniques.",
-	"empty_sub": "%s button",
+	"empty_does": "Nothing on this button yet. This body part carries a technique once it is half full (level 6): fill it with essence.",
+	"empty_sub": "%s button  ·  level %d of 12",
 	# The button to press: [keys, controller, touch].
 	"press": ["%s", "%s + %s", "tap"],
 	"hold": ["hold %s", "hold %s + %s", "hold, slide"],
@@ -80,6 +80,7 @@ const TEXT := {
 	"kind_lead": "%s leads: %s",
 	"kind_part": "%s at %s: %s",
 	"share": ["full strength", "half strength", "a third"],
+	"share_pct": "%d%% strength",
 	"more_power": "[color=#%s]Strength[/color]  Your %s is level %d: x%s power.",
 	"more_shape": "[color=#%s]Shape[/color]  %s",
 	# Buttons under the list.
@@ -147,15 +148,14 @@ static func entries(main, menu = null) -> Array:
 	if prof == null:
 		return out
 	if Unbound.is_on(prof):
-		var techs: Array = Unbound.state(prof)["techs"]
 		for i in Unbound.PARTS.size():
 			var button: String = Unbound.PARTS[i]
-			var t = techs[i] if i < techs.size() else {}
+			var t := Unbound.tech_of(prof, i)  # (a part half full carries one)
 			if Tech.valid(t):
 				out.append(_technique(main, button, i, t))
 			else:
 				out.append({"kind": "empty", "part": button, "id": "tech_%d" % i, "name": TEXT["empty"], "color": UI.FAINT, "affinity": "",
-					"sub": TEXT["empty_sub"] % Bonds.PART_NAMES[button], "does": TEXT["empty_does"], "press": press(main, button), "cost": "",
+					"sub": TEXT["empty_sub"] % [Bonds.PART_NAMES[button], Unbound.level(prof, button)], "does": TEXT["empty_does"], "press": press(main, button), "cost": "",
 					"locked": true, "learn": 0, "selected": false, "step": 0, "more": [], "tag": "", "tag_color": UI.DIM})
 		return out
 	for part in Bonds.PARTS:
@@ -230,12 +230,17 @@ static func _technique(main, button: String, i: int, t: Dictionary) -> Dictionar
 	var on: bool = bool(Unbound.state(prof).get("boost", true))
 	more.append(TEXT["more_boost"] % [g, Tech.cost_text(t, prof), int(Tech.BOOST * 100.0), TEXT["boost_on"] if on else TEXT["boost_off"]])
 	var bits: Array = []
-	for n in t["kinds"].size():
-		var k := String(t["kinds"][n])
+	var w: Dictionary = Tech.weights(t)
+	var shown: Array = t["kinds"].duplicate()
+	for k in w:
+		if not k in shown:
+			shown.append(k)  # (the core essence's touch)
+	for n in shown.size():
+		var k := String(shown[n])
 		var phrase := _kind_phrase(t, k)
-		bits.append(TEXT["kind_lead"] % [Tech.display(k), phrase] if n == 0 else TEXT["kind_part"] % [Tech.display(k), TEXT["share"][mini(n, 2)], phrase])
+		bits.append(TEXT["kind_lead"] % [Tech.display(k), phrase] if n == 0 else TEXT["kind_part"] % [Tech.display(k), TEXT["share_pct"] % int(round(100.0 * float(w.get(k, 0.0)))), phrase])
 	more.append(TEXT["more_kinds"] % [g, ";  ".join(bits)])
-	var power: float = Unbound.power(prof, part)
+	var power: float = Unbound.power(prof, part) * Unbound.core_power(prof, part)
 	var sh: Dictionary = Tech.SHAPES[t["shape"]]
 	var nums: Array = ["wind-up %s s" % _num(Tech.windup(t))]
 	for k in SHAPE_WORDS:

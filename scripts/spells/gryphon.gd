@@ -3,11 +3,14 @@ extends RefCounted
 ## that runs them. The content contract is at the top of library.gd.
 ##
 ## WORKED EXAMPLE: Stormcaller.
-##   Step 2: Overcharge (today's) or Ball Lightning: a slow orb that sparks
-##     each foe it passes, and every second lightning leaps from it.
-##   Step 3, a Transformation of Chain Lightning: Branching Storm (every
-##     leap splits in two, up to 6 foes) or Living Bolt (the chain doesn't
-##     end: it keeps leaping between charged foes for 3 seconds).
+##   Step 1: Call Lightning (a bolt from above strikes and charges one foe;
+##     when it dies, lightning leaps from it to every foe nearby).
+##   Step 2: Chain Lightning (today's) or Ball Lightning: a slow orb that
+##     sparks each foe it passes, and every second lightning leaps from it.
+##   Step 3, a Transformation of Call Lightning: Branching Storm (the bolt
+##     lands, then every leap splits in two, up to 6 foes) or Living Bolt
+##     (the bolt doesn't end: it keeps leaping between charged foes for 3
+##     seconds).
 ##   Step 4: Lightning Rod (today's) or Thunderclap: a clap of thunder around
 ##     you stuns every charged foe in reach and spends its charge.
 ## Windwalker (Gale Lift):
@@ -36,14 +39,14 @@ extends RefCounted
 
 const FX := preload("res://scripts/spell_fx.gd")
 const Reactions := preload("res://scripts/reactions.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 
 ## A big beast is held only this much as long by a stun, a snare or a pin.
 const BOSS_SHARE := 0.5
 
 static var FORKS := {
 	"stormcaller": {
-		"change": {"name": "Branching Storm", "says": "every leap splits in two, up to 6 foes, all left charged"},
+		"change": {"name": "Branching Storm", "says": "the bolt lands, then every leap splits in two, up to 6 foes, all left charged"},
 		2: {"id": "ball_lightning", "name": "Ball Lightning", "type": "ball_lightning", "learn": 2,
 			"desc": "a slow orb of lightning drifts where you aim, sparking each foe it passes; every second lightning leaps from it",
 			"steps": {
@@ -51,8 +54,8 @@ static var FORKS := {
 				4: {"damage": 8.0, "leaps": 3},
 			}},
 		3: {"id": "lingering", "name": "Living Bolt",
-			"desc": "the chain doesn't end: it keeps leaping between charged foes for 3 seconds",
-			"steps": {3: {"live": 3.0, "beat": 0.3, "live_power": 0.3, "live_hop": 220.0}}},
+			"desc": "the bolt doesn't end: it keeps leaping between charged foes for 3 seconds",
+			"steps": {3: {"live": 3.0, "beat": 0.3, "live_power": 0.4, "live_hop": 220.0}}},
 		4: {"id": "thunderclap", "name": "Thunderclap", "type": "thunderclap", "learn": 4,
 			"desc": "a clap of thunder around you stuns every charged foe in reach and spends its charge",
 			"steps": {
@@ -104,7 +107,7 @@ static var TEXT := {
 	"pinned": "Pinned",
 	"no_target": "no target",
 	"nothing_lift": "nothing to lift",
-	"refunded": "Chain Lightning refunded",
+	"refunded": "Call Lightning refunded",
 	"quarry": "Quarry",
 	"refilled": "shot refilled",
 	"skybolt": "Bolt",
@@ -540,13 +543,14 @@ static func _nearest_to(main, at: Vector2, reach: float, skip: Array = []):
 	return best
 
 
-## Stormcaller's Branching Storm: the first leap goes to the foe nearest you;
-## from every foe struck the lightning splits, leaping to the `branch`
-## nearest foes not struck yet, until `most` foes are struck (twice as many
-## under Thunderhead). Each is struck at `boost` times the spell's damage
-## and left charged. A planted Lightning Rod is a stop on the way, as for
-## Chain Lightning: a branch with no foe left in reach leaps to it and on
-## from it (even around corners), and the rod beats.
+## Stormcaller's Branching Storm: Call Lightning's bolt lands on the foe in
+## your aim (striking and charging it, to burst when it dies); from it the
+## lightning splits, leaping to the `branch` nearest foes not struck yet,
+## and from each of those again, until `most` foes are struck (twice as many
+## under Thunderhead). Each leap strikes at `boost` times the bolt's strike
+## and leaves its foe charged. A planted Lightning Rod is a stop on the way,
+## as for Chain Lightning: a branch with no foe left in reach leaps to it and
+## on from it (even around corners), and the rod beats.
 static func _branching(bond, sp: Dictionary, p) -> void:
 	var main = p.main
 	var col: Color = bond.color()
@@ -556,18 +560,17 @@ static func _branching(bond, sp: Dictionary, p) -> void:
 	var rod: Dictionary = main.rod
 	var rod_hop := maxf(hop, float(rod.get("reach", 0.0)))
 	var st := {"rod_used": false}
-	var hit: Array = []
+	var range_v = bond.spell_stat(sp, "reach")
+	var first = bond._target_in_aim(p, float(range_v) if range_v != null else 320.0)
+	if first == null:
+		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
+		return
+	var from0: Vector2 = first.global_position
+	bond.last_point = from0
+	bond.call_bolt(p, first, sp)
+	var hit: Array = [first]
 	var legs: Array = []
-	var front: Array = []  # [where it leaps from, how far it reaches]
-	var first = _nearest_to(main, p.global_position, float(bond.spell_stat(sp, "reach")))
-	if first != null:
-		hit.append(first)
-		legs.append([p.global_position, first.global_position])
-		front.append([first.global_position, hop])
-	elif not rod.is_empty() and p.global_position.distance_to(rod["pos"]) < float(rod["link"]):
-		st["rod_used"] = true
-		legs.append([p.global_position, rod["pos"]])
-		front.append([rod["pos"], rod_hop])
+	var front: Array = [[from0, hop]]  # [where it leaps from, how far it reaches]
 	while not front.is_empty() and hit.size() < most:
 		var next: Array = []
 		for f in front:
@@ -589,38 +592,36 @@ static func _branching(bond, sp: Dictionary, p) -> void:
 		front = next
 	if not st["rod_used"] and not rod.is_empty():
 		for e in hit:
-			if e.global_position.distance_to(rod["pos"]) < float(rod["reach"]):
+			if _alive(e) and e.global_position.distance_to(rod["pos"]) < float(rod["reach"]):
 				st["rod_used"] = true
 				legs.append([e.global_position, rod["pos"]])
 				break
 	if st["rod_used"]:
 		bond.rod_beat(main, rod)
-	if hit.is_empty():
-		main.fx_text(p.global_position + Vector2(0, -34), TEXT["no_target"], col)
-		return
-	bond.last_point = hit[-1].global_position
+	if hit.size() > 1 and _alive(hit[-1]):
+		bond.last_point = hit[-1].global_position
 	for leg in legs:
 		main.fx_bolt(leg, col)
 		main.light_flash(leg[1], col, 0.9, 1.3, 0.25)
-	main.sfx("zap")
-	main.sfx("thunder", 1.4, -10.0)
-	main.hitstop(0.07)
-	main.shake(6.0)
-	var dmg: float = bond.spell_damage(sp) * float(bond.spell_stat(sp, "boost"))
-	for e in hit:
+	if not legs.is_empty():
+		main.sfx("zap")
+		main.hitstop(0.07)
+		main.shake(6.0)
+	var dmg: float = bond.call_strike(sp) * float(bond.spell_stat(sp, "boost"))
+	for e in hit.slice(1):
 		if _alive(e):
 			e.charged = maxf(e.charged, 4.0)
 			e.take_hit(dmg, Vector2.ZERO)
-	if bond._overdrawn() and randf() < 0.5:  # (as Chain Lightning: the last leap may jump back to you)
+	if bond._overdrawn() and randf() < 0.5:  # (as Call Lightning: the bolt may jump back to you)
 		main.fx_bolt([bond.last_point, p.global_position], col)
 		p.hp = maxf(1.0, p.hp - 6.0)
 
 
-## Stormcaller's Living Bolt: Chain Lightning as it is, then for `live`
-## seconds the bolt stays alive where it ended: every `beat` it leaps from
-## the foe it holds to the nearest other charged foe within `live_hop`
+## Stormcaller's Living Bolt: Call Lightning as it is, then for `live`
+## seconds the bolt stays alive on the foe it struck: every `beat` it leaps
+## from the foe it holds to the nearest other charged foe within `live_hop`
 ## (never straight back, unless there's nothing else), striking it at
-## `live_power` of the spell's damage and keeping it charged. With no other
+## `live_power` of the bolt's strike and keeping it charged. With no other
 ## charged foe near, it waits on the one it holds.
 static func _living_bolt(bond, sp: Dictionary, p) -> void:
 	var main = p.main
@@ -629,7 +630,7 @@ static func _living_bolt(bond, sp: Dictionary, p) -> void:
 	if bond.last_point == null:
 		return
 	var col: Color = bond.color()
-	var dmg: float = bond.spell_damage(sp) * float(bond.spell_stat(sp, "live_power"))
+	var dmg: float = bond.call_strike(sp) * float(bond.spell_stat(sp, "live_power"))
 	var hop := float(bond.spell_stat(sp, "live_hop"))
 	var beat := float(bond.spell_stat(sp, "beat"))
 	var st := {"on": _nearest_to(main, bond.last_point, 40.0), "prev": null, "beat": beat, "pos": bond.last_point, "flash": 0.0}
@@ -704,7 +705,7 @@ static func _skyward(bond, sp: Dictionary, p) -> void:
 		e.knock = aim * 90.0
 		if e.airborne > 0.0:
 			up.append(e)
-		if Pacts.has(p, "dust_devil"):
+		if Synergies.has(p, "dust_devil"):
 			bond._shards(main, e.global_position)
 	if up.is_empty():
 		main.fx_text(origin + Vector2(0, -34), TEXT["nothing_lift"], col)

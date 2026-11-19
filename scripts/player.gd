@@ -17,7 +17,7 @@ const Particles := preload("res://scripts/particles.gd")
 const Anim := preload("res://scripts/anim.gd")
 const Holes := preload("res://scripts/holes.gd")
 const Reactions := preload("res://scripts/reactions.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Charms := preload("res://scripts/charms.gd")
@@ -1631,8 +1631,8 @@ func _kindled_strike(e) -> void:
 		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "kindle", maxf(1.0, kindle_dmg * 0.3))
 		if kindle_brand > 0.0:
 			BondScript.wyvern().brand(self, e)  # (Brand)
-	if Pacts.has(self, "forge_runes") and rune_cd <= 0.0:
-		var pf: Dictionary = Pacts.PACTS["forge_runes"]
+	if Synergies.has(self, "forge_runes") and rune_cd <= 0.0:
+		var pf: Dictionary = Synergies.SYNERGIES["forge_runes"]
 		rune_cd = float(pf["every"])
 		var mine: Array = main.runes.filter(func(r): return r.get("forge", false))
 		while mine.size() >= int(pf["most"]):
@@ -1799,9 +1799,9 @@ func ranged_hit(e, dmg: float, dir: Vector2, force: float, heavy: bool, weapon :
 	if hawk_t > 0.0:
 		dmg *= 2.0
 		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Color(0.85, 0.63, 0.42))
-	elif Pacts.has(self, "ambusher") and Reactions.has(e, "unseen"):
-		dmg *= Pacts.num("ambusher", "mult")
-		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Pacts.PACTS["ambusher"]["color"])
+	elif Synergies.has(self, "ambusher") and Reactions.has(e, "unseen"):
+		dmg *= Synergies.num("ambusher", "mult")
+		main.fx_text(e.global_position + Vector2(0, -e.radius - 34.0), "weak point", Synergies.SYNERGIES["ambusher"]["color"])
 	spell_shot = not weapon  # (a spell's shot lands through _strike too: not a weapon's blow)
 	_strike(e, dmg, dir, force, heavy, "arrow_hit")
 	spell_shot = false
@@ -2138,6 +2138,9 @@ func _try_cast(part: String) -> bool:
 		return true
 	if attack_cd > 0.0 or drawing:
 		return false
+	if bool(b.spell().get("passive", false)):  # (Phoenix Heart: it waits in the mark, never cast)
+		main.fx_text(global_position + Vector2(0, -40), PHOENIX_TEXT["passive"] if phoenix_ready() else PHOENIX_TEXT["not_ready"], b.color())
+		return true
 	cast_part = part
 	cast_total = b.windup() * (0.7 if has_bond("rune_artist") else 1.0)  # Steady Mind
 	cast_t = cast_total
@@ -2199,7 +2202,7 @@ func _release_cast() -> void:
 	main.cast_hits = 0
 	var sb_cast = main.secret_tools.before_cast(b) if main.secret_tools != null else null  # (the Developer's Splice)
 	main.counting_hits = true
-	b.cast(self)
+	Synergies.cast(main, self, b)  # (the spell, and the traits your other marks lend it: synergies.gd)
 	main.counting_hits = false
 	if main.hints != null:
 		main.hints.cast_done(b)  # (the first cast of each: its name and what it does)
@@ -2305,9 +2308,7 @@ var desperate_power := 0.0  # Desperation: how much harder at full health...
 var desperate_power_low := 1.5  # ...and as your health runs out
 var desperate_speed := 0.0  # how much faster at full health...
 var desperate_speed_low := 0.4  # ...and as your health runs out
-var phoenix_t := 0.0
-var phoenix_regain := 0.0  # its Apex: at its end you regain this share of what it held back
-var phoenix_held := 0.0  # (the health it kept you from losing)
+var phoenix_t := 0.0  # Phoenix Heart: risen, nothing can hurt you until it runs out
 var ember_t := 0.0  # Last Ember: burning at 1 health; strike to stay standing
 var ember_used := false:  # true once Last Ember is spent for the floor (a new floor sets it false)
 	set(v):
@@ -2338,15 +2339,66 @@ func _stubborn() -> bool:
 	return has_bond("rekindler") and hp < max_hp / 3.0
 
 
+## Phoenix Heart (the Rekindler's Apex, never cast): on death you rise
+## with full health, can't be hurt for its `duration`, and the burst throws
+## back (`push`) and burns (`damage`, then `burn` every half second) every
+## foe within `radius`. Once a floor, and only while the mark holds its whole
+## charge: rising spends all of it.
+const PHOENIX_TEXT := {"passive": "Phoenix Heart rises by itself, if you fall", "not_ready": "Phoenix Heart needs a full mark",
+	"rise": "Phoenix Heart"}
+
+
+func _phoenix_bond():
+	for b in bonds.values():
+		if b.id == "rekindler" and b.spells().any(func(sp): return String(sp.get("type", "")) == "phoenix"):
+			return b
+	return null
+
+
+## True while Phoenix Heart would catch a killing blow.
+func phoenix_ready() -> bool:
+	var b = _phoenix_bond()
+	return b != null and b.essence >= b.capacity() - 0.01 and int(guard_floor.get("phoenix_heart", -1)) != main.floor_num
+
+
+func _phoenix_rise() -> bool:
+	if not phoenix_ready():
+		return false
+	var b = _phoenix_bond()
+	var sp: Dictionary = b.spells().filter(func(s): return String(s.get("type", "")) == "phoenix")[0]
+	once_a_floor("phoenix_heart")
+	b.essence = 0.0
+	ember_t = 0.0
+	hp = max_health()
+	phoenix_t = float(b.spell_stat(sp, "duration"))
+	var col: Color = b.color()
+	var r := float(b.spell_stat(sp, "radius"))
+	main.explode(global_position, r, b.spell_damage(sp), col)
+	for e in main.targets().duplicate():
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var to: Vector2 = e.global_position - global_position
+		if to.length() > r + e.radius:
+			continue
+		e.knock = (to.normalized() if to.length() > 0.1 else aim) * float(b.spell_stat(sp, "push")) * (0.25 if e.is_boss() else 1.0)
+		Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "phoenix", float(b.spell_stat(sp, "burn")) * b.spell_power(sp))
+	main.fx_text(global_position + Vector2(0, -44), PHOENIX_TEXT["rise"], col)
+	main.fx_ring(global_position, col, 60.0, 0.45, 4.0)
+	main.fx_burst(global_position, Vector2.UP, Color(1.0, 0.75, 0.4), 22, 260.0)
+	main.light_flash(global_position, col, 2.0, 2.0, 0.5)
+	main.sfx("crit", 0.7)
+	main.shake(8.0)
+	return true
+
+
 ## Something would kill you. True if you stay standing instead (the caller
-## keeps you at 1 health): the dev tool, Phoenix Heart, Pyre Oath, Last Ember.
+## keeps you at 1 health): the dev tool, Pyre Oath, Last Ember, then Phoenix
+## Heart (Last Ember goes first when both are ready).
 func _defy_death() -> bool:
 	if main.dev_no_death:
 		return true
 	if phoenix_t > 0.0:
-		main.fx_text(global_position + Vector2(0, -44), "Phoenix Heart", Color(1.0, 0.6, 0.3))
-		phoenix_held = minf(phoenix_held + 1.0 - hp, max_health())  # (its Apex gives this back at the end)
-		return true
+		return true  # (Phoenix Heart has risen: nothing hurts you yet)
 	if pyre_t > 0.0:
 		pyre_t = 0.0
 		main.explode(global_position, 100.0, pyre_dmg, Color(1.0, 0.4, 0.2))
@@ -2359,12 +2411,14 @@ func _defy_death() -> bool:
 			ember_used = true
 		ember_t = 3.0
 		main.fx_text(global_position + Vector2(0, -44), "Last Ember: strike to stay standing!", Color(1.0, 0.5, 0.25))
-		if Pacts.has(self, "undying"):  # Undying (Warden and Rekindler): a barrier rises too
-			raise_barrier(Pacts.num("undying", "shield"), Pacts.num("undying", "seconds"), false, Pacts.PACTS["undying"]["color"])
+		if Synergies.has(self, "undying"):  # Undying (Warden and Rekindler): a barrier rises too
+			raise_barrier(Synergies.num("undying", "shield"), Synergies.num("undying", "seconds"), false, Synergies.SYNERGIES["undying"]["color"])
 		main.sfx("burn", 0.7)
 		return true
 	if ember_t > 0.0:
 		return true  # still burning on your last ember
+	if _phoenix_rise():
+		return true
 	if flow_refuse and once_a_floor("life_refuse"):
 		_refuse_fall()
 		return true
@@ -2462,21 +2516,11 @@ func _tick_fire_bonds(delta: float) -> void:
 	desperate_t -= delta
 	pyre_t -= delta
 	phoenix_t -= delta
-	# Phoenix Heart's Apex: at its end, the health it held back comes back to you.
-	if phoenix_t <= 0.0 and phoenix_held > 0.0:
-		var back := minf(phoenix_held * phoenix_regain, max_health() - hp)
-		phoenix_held = 0.0
-		if back >= 1.0 and not dead:
-			hp += back
-			main.fx_text(global_position + Vector2(0, -52), "Phoenix Heart +%d" % int(back), Color(1.0, 0.6, 0.3))
-			main.fx_burst(global_position, Vector2.UP, Color(1.0, 0.75, 0.4), 22, 260.0)
-			main.light_flash(global_position, Color(1.0, 0.55, 0.25), 2.0, 2.0, 0.5)
-			main.sfx("ready", 0.7)
 	# Last Ember: burn out unless you land a hit in time.
 	if ember_t > 0.0:
 		ember_t -= delta
 		hp = 1.0
-		if ember_t <= 0.0 and not dead and not main.proving_spare():
+		if ember_t <= 0.0 and not dead and not _phoenix_rise() and not main.proving_spare():
 			hp = 0.0
 			dead = true
 			main.sfx("death", 1.0, 0.0, 0.0)
@@ -2505,7 +2549,7 @@ func _tick_fire_bonds(delta: float) -> void:
 							Reactions.apply(main, e, "burning", 1.5, "aura", maxf(1.0, dmg * 0.3))
 						if aura_slow and not e.dead:  # Furnace: the heat slows them
 							Reactions.apply(main, e, "slowed", 0.8, "aura")
-	# Rekindle: lose health now, regain twice that later if you kept fighting.
+	# Rekindle: lose health now, regain twice that when the flames go out.
 	if rekindle_t > 0.0:
 		rekindle_t -= delta
 		rekindle_tick -= delta
@@ -2515,28 +2559,26 @@ func _tick_fire_bonds(delta: float) -> void:
 			if hp - loss > 1.0:
 				hp -= loss
 				rekindle_lost += loss
-			if rekindle_spread:  # (its flames burn the foes near you; a foe burned counts as fighting)
+			if rekindle_spread:  # (its ring of fire burns the foes it touches and sets them burning: they burn on after)
 				for e in main.targets():
 					if e.global_position.distance_to(global_position) < rekindle_r + e.radius:
 						e.take_hit(rekindle_burn, Vector2.ZERO, 0.0)
 						rekindle_fought = true
 						if not e.dead:
-							Reactions.apply(main, e, "burning", 1.0, "rekindle", maxf(1.0, rekindle_burn * 0.25))
+							Reactions.apply(main, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "rekindle", maxf(1.0, rekindle_burn * 0.25))
 		if rekindle_t <= 0.0:
 			# Bonfire: the payback grows with each foe you set burning.
 			var back := rekindle_lost * (2.0 + rekindle_per * rekindle_burned.size())
-			if rekindle_fought and rekindle_shield > 0.0:
+			if rekindle_shield > 0.0:
 				# Cauterize: the payback comes as a barrier instead.
 				var shield := rekindle_lost * rekindle_shield
 				raise_barrier(shield, rekindle_shield_t, false, Color(1.0, 0.55, 0.3))
 				main.fx_text(global_position + Vector2(0, -44), "Cauterized: shield %d" % int(shield), Color(1.0, 0.6, 0.3))
 				main.sfx("ready", 0.8)
-			elif rekindle_fought:
+			else:  # (the payback comes whatever you did meanwhile)
 				hp = minf(max_health(), hp + back)
 				main.fx_text(global_position + Vector2(0, -44), "Rekindled +%d" % int(back), Color(1.0, 0.6, 0.3))
 				main.sfx("ready", 0.8)
-			else:
-				main.fx_text(global_position + Vector2(0, -44), "the fire goes out", Color(0.7, 0.6, 0.55))
 
 
 ## An overdrawn quake knocks you down: a short stagger of your own.
@@ -2556,7 +2598,7 @@ func poison(seconds: float) -> void:
 
 
 func _tick_poison(delta: float) -> void:
-	if poison_t <= 0.0 or dead:
+	if poison_t <= 0.0 or dead or phoenix_t > 0.0:
 		return
 	poison_t -= delta
 	poison_tick -= delta
@@ -2576,7 +2618,7 @@ func _tick_poison(delta: float) -> void:
 
 ## Standing on burning floor: a small burn every half second (rolling through is free).
 func stand_in_fire(delta: float) -> void:
-	if iframes > 0.0 or dead or in_air() or has_bond("flamewing"):  # Fireproof
+	if iframes > 0.0 or dead or in_air() or has_bond("flamewing") or phoenix_t > 0.0:  # Fireproof; Phoenix Heart
 		return
 	_burn_floor(delta)
 
@@ -2642,6 +2684,9 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 	var from = source  # (who struck: the Bestiary's, kept when an unblockable blow drops it)
 	if iframes > 0.0:
 		on_dodge()
+		return
+	if phoenix_t > 0.0:  # (Phoenix Heart has risen: you cannot take damage)
+		main.fx_text(global_position + Vector2(0, -30), "Phoenix Heart", Color(1.0, 0.6, 0.3))
 		return
 	if unblockable:
 		source = null  # nothing to parry or turn
@@ -2956,7 +3001,7 @@ func _tick_bond_effects(delta: float) -> void:
 				d *= Reactions.num("hemorrhage", "mult")  # (Hemorrhage: a bleeding foe drained)
 			if is_instance_valid(drink_target) and not drink_target.dead:
 				drink_target.take_hit(d, Vector2.ZERO)
-			var heal_k := Pacts.num("bloodletter", "heal") if bled and Pacts.has(self, "bloodletter") else 1.0  # Bloodletter
+			var heal_k := Synergies.num("bloodletter", "heal") if bled and Synergies.has(self, "bloodletter") else 1.0  # Bloodletter
 			hp = minf(max_health(), hp + d * 0.5 * heal_mult() * heal_k)
 
 
@@ -3383,6 +3428,11 @@ func _draw_overlay() -> void:
 	var c := overlay
 	if main != null and main.particles != null:
 		main.particles.draw_weapon_glow(self, c)  # (an enchanted weapon shows its essence)
+	if flow_path != "" and flow_step > 0 and not dead:
+		# The aura: your core essence made visible (secret.gd draw_aura, core.gd).
+		var ab := Draw.Batch.new()
+		Secret.draw_aura(ab, Vector2(0, -jump_height()), radius, flow_path, flow_step, Time.get_ticks_msec() * 0.001)
+		ab.flush(c)
 	if main != null and main.unbound != null and main.unbound.on:
 		main.unbound.glow_into(c, self)
 	elif not bonds.is_empty():

@@ -12,7 +12,7 @@ extends RefCounted
 ## Keys ("kind:id"): tower:<tower>, system:<a tower's own system>,
 ## creature:<monster kind>, task:<objectives.gd kind>, scenario:<scenarios.gd
 ## kind>, theme:<themes.gd id>, puzzle:<kind>, lock:<kind>, and a few by
-## name (doors, wing, crack, low_health, belt_full, pact, stair, proving).
+## name (doors, wing, crack, low_health, belt_full, synergy, stair, proving).
 ## A reaction with no entry of its own says what reactions.gd says it does.
 ##
 ## One line is picked that hasn't been said this climb; a key waits
@@ -193,7 +193,7 @@ static var TIDBITS := {
 		"Low. A healing item, a spring, or the stair.",
 	],
 	"belt_full": ["The belt is full. Walk off the item and back on to swap one out."],
-	"pact": ["A pact holds while you carry both of its marks."],
+	"synergy": ["A named synergy holds while you carry both of its marks. Any two marks lend each other a trait."],
 }
 
 ## Each tower's story lines, for the owner to write. Empty: nothing is said.
