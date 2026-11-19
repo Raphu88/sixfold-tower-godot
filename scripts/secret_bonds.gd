@@ -212,9 +212,9 @@ const SPLICE_FX := {
 const SPLICE_PULSE := 120.0
 
 ## The Developer's Write (depth 5): spells it can't cast for you (forms and
-## toggles that live in a mark, and the pact spells that write to your pact
+## toggles that live in a mark, the kin-book spells that write to your kin
 ## book). Moving a mark to another body part on the train costs MARK_MOVE_COST.
-const WRITE_SKIP := ["aura", "firebirdform", "chimeraform", "mimic", "shed", "call", "command", "exchange", "grandcall"]
+const WRITE_SKIP := ["aura", "firebirdform", "chimeraform", "mimic", "shed", "call", "command", "exchange", "grandcall", "phoenix"]
 const MARK_MOVE_COST := 12.0
 
 ## The Designer's Edit (depth 3). Re-time: a trap room's beat runs RETIME
@@ -1039,7 +1039,7 @@ static func write_bonds(held: Array, step: int, bonds_data: Dictionary) -> Dicti
 	return out
 
 
-## A bond's spells that Write can cast at `step` (learned by then, not a form or a pact spell).
+## A bond's spells that Write can cast at `step` (learned by then, not a form, a kin-book spell or a passive).
 static func write_spells(bond_data: Dictionary, step: int) -> Array:
 	return bond_data["spells"].filter(func(sp): return int(sp["learn"]) <= step and not String(sp["type"]) in WRITE_SKIP)
 

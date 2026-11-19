@@ -34,7 +34,7 @@ static var STEP_XP := [0.0, 150.0, 450.0, 900.0, 1500.0]
 static var AFFINITY_WEIGHT := 2.0
 static var OTHER_WEIGHT := 0.25
 static var STEP_RATE := 0.075
-static var PROVING_GROWTH := 35.0
+static var PROVING_GROWTH := 36.0
 ## Marks after the first: an unmarked body part fills like a battery. The
 ## body's share of what you bank spreads over the parts by what each did,
 ## and an unmarked part soaks SOAK_RATE of its portion; the fuller it is the
@@ -56,7 +56,7 @@ var climbs := 0
 var best_floor := 1
 var last_tower := "kraken"
 var pacts: Array = []  # Covenant's kin book: monster kinds bound, kept between climbs
-var pacts_formed: Array = []  # named pacts (pacts.gd) formed at least once: announced once, listed in the book
+var synergies_formed: Array = []  # named synergies (synergies.gd) formed at least once: announced once, listed in the book ("lent": two marks lent each other traits)
 ## Essence density: the body's share of everything you've banked, by essence type, and how it
 ## settled in your body parts (by what each part did). Each type is an
 ## attribute and gives a small passive bonus (see attribute()).
@@ -235,7 +235,7 @@ func reset() -> void:
 	climbs = 0
 	best_floor = 1
 	pacts = []
-	pacts_formed = []
+	synergies_formed = []
 	density = {}
 	part_density = {}
 	heirlooms = {}
@@ -286,7 +286,7 @@ func load_save() -> void:
 	tally = cfg.get_value("profile", "tally", {})
 	climbs = int(cfg.get_value("profile", "climbs", 0))
 	pacts = cfg.get_value("profile", "pacts", [])
-	pacts_formed = cfg.get_value("profile", "pacts_formed", [])
+	synergies_formed = cfg.get_value("profile", "synergies_formed", [])
 	density = cfg.get_value("profile", "density", {})
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
@@ -374,7 +374,7 @@ func save() -> void:
 	cfg.set_value("profile", "climbs", climbs)
 	cfg.set_value("profile", "last_tower", last_tower)
 	cfg.set_value("profile", "pacts", pacts)
-	cfg.set_value("profile", "pacts_formed", pacts_formed)
+	cfg.set_value("profile", "synergies_formed", synergies_formed)
 	cfg.set_value("profile", "density", density)
 	cfg.set_value("profile", "part_density", part_density)
 	cfg.set_value("profile", "heirlooms", heirlooms)

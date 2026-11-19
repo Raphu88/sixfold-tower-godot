@@ -93,13 +93,27 @@ func _rekindle() -> void:
 	var h0: float = p.hp
 	_cast("rekindle")
 	await t._game_wait(1.2)
-	_check(foes[0].hp < 300.0 and foes[1].hp == 300.0, "Rekindle: flames around you burn the foe beside you (%.0f), not one far off" % (300.0 - foes[0].hp))
-	_check(p.hp < h0 and p.rekindle_fought, "...you lose a little health while you burn, and the flames count as fighting")
+	_check(foes[0].hp < 300.0 and foes[1].hp == 300.0, "Rekindle: its ring of fire burns the foe beside you (%.0f), not one far off" % (300.0 - foes[0].hp))
+	_check(p.hp < h0, "...you lose a little health while you burn")
 	var lost: float = p.rekindle_lost
 	p.rekindle_t = 0.01
 	await t._game_wait(0.1)
 	_check(p.hp > h0 - lost + lost * 1.5, "...and the payback comes without a single strike (+%.0f)" % (p.hp - (h0 - lost)))
+	_check(foes[0].burn_t > 0.5, "...and the foe it touched keeps burning after it ends (%.1f s)" % foes[0].burn_t)
 	_check(bool(B.BONDS["rekindler"]["spells"][0]["steps"][1]["spread"]), "its flames are there from step 1")
+	# With no foe near at all, the payback still comes: whatever you did meanwhile.
+	await _bonded("rekindler", 1)
+	p = t.main.player
+	_foes([])
+	p.iframes = 999.0
+	p.hp = p.max_hp * 0.5
+	h0 = p.hp
+	_cast("rekindle")
+	await t._game_wait(1.2)
+	lost = p.rekindle_lost
+	p.rekindle_t = 0.01
+	await t._game_wait(0.1)
+	_check(lost > 0.0 and absf(p.hp - (h0 + lost)) < 1.0, "Rekindle: with no foe near, you still regain twice what you lost (+%.0f, lost %.0f)" % [p.hp - (h0 - lost), lost])
 
 
 func _desperation() -> void:
@@ -136,10 +150,51 @@ func _pyre() -> void:
 
 func _phoenix() -> void:
 	await _bonded("rekindler", 5)
+	var p = t.main.player
+	var b = p.bonds["back"]
 	var foes := _foes([Vector2(60, 0), Vector2(600, 0)])
-	_cast("phoenix_heart")
-	_check(foes[0].hp < 300.0 and foes[1].hp == 300.0, "Phoenix Heart: you rise in a burst of flame that burns the foes near you (%.0f)" % (300.0 - foes[0].hp))
-	_check(t.main.player.phoenix_t > 0.0, "...and the death-defying part still holds")
+	var sp := _sp("rekindler", "phoenix_heart")
+	_check(bool(sp.get("passive", false)) and float(sp["steps"][5]["duration"]) == 6.0, "Phoenix Heart is never cast: it waits in the mark (6 seconds unhurt)")
+	b.select(b.spells().map(func(s): return s["id"]).find("phoenix_heart"))
+	b.essence = b.capacity()
+	var casts0: int = p.spells_cast
+	p.attack_cd = 0.0
+	p._try_cast("back")
+	_check(p.cast_t <= 0.0 and p.spells_cast == casts0 and b.essence == b.capacity(), "...pressing its button casts nothing and spends nothing")
+	# Last Ember is ready too: it goes first.
+	p.iframes = 0.0
+	p.hurt_t = 0.0
+	p.receive_attack(9999.0, null)
+	_check(not p.dead and p.ember_t > 0.0 and p.phoenix_t <= 0.0 and b.essence == b.capacity(), "with Last Ember ready too, Last Ember goes first")
+	# Last Ember burns out without a hit: Phoenix Heart rises.
+	await t._game_wait(0.4)  # (the blow's hit-pause passes)
+	p.ember_t = 0.01
+	await t._game_wait(0.2)
+	_check(not p.dead and p.phoenix_t > 0.0 and is_equal_approx(p.hp, p.max_health()), "...and if it burns out, Phoenix Heart raises you with full health (%.0f)" % p.hp)
+	_check(b.essence == 0.0, "...spending the mark's whole charge")
+	_check(foes[0].hp < 300.0 and foes[1].hp == 300.0 and foes[0].burn_t > 0.0, "the burst burns the foes near you (%.0f), not one far off" % (300.0 - foes[0].hp))
+	var hp0: float = p.hp
+	p.hurt_t = 0.0
+	p.receive_attack(50.0, null)
+	_check(p.hp == hp0, "while it lasts you cannot take damage")
+	# Once a floor, and only with a full mark.
+	p.phoenix_t = 0.0
+	b.essence = b.capacity()
+	p.ember_used = true
+	p.hurt_t = 0.0
+	p.receive_attack(9999.0, null)
+	_check(p.dead or p.phoenix_t <= 0.0, "it rises once a floor")
+	await _bonded("rekindler", 5)
+	p = t.main.player
+	b = p.bonds["back"]
+	_foes([])
+	p.ember_used = true
+	b.essence = b.capacity() * 0.9
+	p.iframes = 0.0
+	p.hurt_t = 0.0
+	_check(not p.phoenix_ready(), "a mark short of a full charge can't rise")
+	b.essence = b.capacity()
+	_check(p.phoenix_ready(), "...a full one can")
 
 
 func _last_ember() -> void:

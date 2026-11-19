@@ -1613,7 +1613,7 @@ func _library(root: Node) -> void:
 	else:
 		m.archive_group(shelf, mode, ps, 1 if small else 2)
 		if shelf == "essence":
-			m.pact_shelf(1 if small else 2)  # (the named pacts you've formed: pacts.gd)
+			m.synergy_shelf(1 if small else 2)  # (the named synergies you've formed: synergies.gd)
 	if shelf != "bestiary":
 		m._gap(4)
 		m.archive_tools()

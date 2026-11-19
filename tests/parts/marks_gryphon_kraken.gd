@@ -190,7 +190,7 @@ func _old_saves() -> void:
 	})
 	# A version-1 tree: three marks took today's side at step 3, two the other.
 	cfg.set_value("tree", "state", {"v": 1, "marks": {
-		"stormcaller": {2: "overcharge", 3: "change"}, "windwalker": {2: "crosswind", 3: "echoing"}, "hunter": {3: "split_shot"},
+		"stormcaller": {2: "chain_lightning", 3: "change"}, "windwalker": {2: "crosswind", 3: "echoing"}, "hunter": {3: "split_shot"},
 		"tidecaller": {3: "change"}, "warden": {3: "change"}}, "unbound": {}, "learned": {}, "echoes": []})
 	cfg.save(path)
 	var old = P.new()
@@ -252,11 +252,14 @@ func _stormcaller() -> void:
 	var lead = _foe(p.global_position + dir * 120.0)
 	var left = _foe(lead.global_position + dir * 70.0 + side * 90.0)
 	var right = _foe(lead.global_position + dir * 70.0 - side * 90.0)
+	var cost: float = float(B.BONDS["stormcaller"]["spells"][0]["steps"][1]["cost"])
 	var paid := await _cast()
-	var dmg: float = 12.0 * float(_a("stormcaller", "boost"))
-	_check(paid == 12.0, "Chain Lightning still costs 12 (%.1f)" % paid)
+	var strike: float = float(B.BONDS["stormcaller"]["spells"][0]["steps"][2]["strike"])
+	var dmg: float = strike * float(_a("stormcaller", "boost"))
+	_check(B.BONDS["stormcaller"]["spells"][0]["id"] == "call_lightning" and paid == cost, "Branching Storm is Call Lightning transformed, and still costs %d (%.1f)" % [int(cost), paid])
+	_check(lead.overcharge_t > 0.0 and lead.max_hp - lead.hp >= strike - 0.01, "the bolt lands on the foe in your aim, striking it and marking it to burst (%.1f)" % (lead.max_hp - lead.hp))
 	_check([lead, left, right].all(func(e): return e.hp < e.max_hp and e.charged > 0.0), "the lightning splits: both branches of a V are struck and charged")
-	_check(lead.max_hp - lead.hp >= dmg - 0.01, "...each at %d%% of its damage (%.1f)" % [roundi(float(_a("stormcaller", "boost")) * 100.0), lead.max_hp - lead.hp])
+	_check(left.max_hp - left.hp >= dmg - 0.01, "...each leap at %d%% of the bolt's strike (%.1f)" % [roundi(float(_a("stormcaller", "boost")) * 100.0), left.max_hp - left.hp])
 	for e in main.enemies():
 		e.queue_free()
 	await t._frames(2)
@@ -281,11 +284,13 @@ func _stormcaller() -> void:
 	var foes: Array = []
 	for i in 3:
 		foes.append(_foe(p.global_position + dir * (100.0 + 60.0 * i)))
+	foes[1].charged = 4.0  # (charged already: by Static, a teammate, a lent trait...)
+	foes[2].charged = 4.0
 	await _cast()
 	var after_cast: float = foes.reduce(func(s, e): return s + e.max_hp - e.hp, 0.0)
 	await t._wait(1.2)
 	var later: float = foes.reduce(func(s, e): return s + e.max_hp - e.hp, 0.0)
-	_check(later > after_cast + 5.0, "the chain doesn't end: it keeps leaping between the charged foes (%.0f, then %.0f)" % [after_cast, later])
+	_check(later > after_cast + 5.0, "the bolt doesn't end: from the foe Call Lightning struck it keeps leaping between the charged foes (%.0f, then %.0f)" % [after_cast, later])
 	await t._wait(float(_b("stormcaller", "live")))
 	var done: float = foes.reduce(func(s, e): return s + e.max_hp - e.hp, 0.0)
 	await t._wait(0.8)
@@ -306,7 +311,7 @@ func _stormcaller() -> void:
 	doomed.charged = 4.0
 	doomed.take_hit(50.0, Vector2.ZERO, 0.0)
 	await t._frames(1)
-	_check(b.refund, "Static III: a charged foe's death refunds the next Chain Lightning")
+	_check(b.refund, "Static III: a charged foe's death refunds the next Call Lightning")
 	var target = _foe(p.global_position + dir * 120.0)
 	b.select(0)
 	var paid2 := await _cast()

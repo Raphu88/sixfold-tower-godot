@@ -345,7 +345,7 @@ const GLYPHS := {
 	"burn": "flame", "slow": "drop", "reach": "swirl", "stagger": "hex", "pierce": "pierce", "cut": "blade", "heal": "heart", "erode": "crack",
 	"spark": "zig",
 	# bond spell types ("chain" is the variation's zig too)
-	"ball_lightning": "orb", "overcharge": "spark", "rod": "rod", "thunderhead": "storm", "lift": "up", "cyclone": "swirl",
+	"ball_lightning": "orb", "call_lightning": "spark", "rod": "rod", "thunderhead": "storm", "lift": "up", "cyclone": "swirl",
 	"shot": "pierce", "hawkeye": "eye", "track": "target", "rain": "rain", "surge": "wave", "riptide": "swirl", "maelstrom": "swirl",
 	"barrier": "shield", "absorb": "shield", "unbreakable": "shield", "challenge": "target", "drain": "pull", "siphon": "pull", "drink": "drop",
 	"blades": "fan", "recall": "pull", "edges": "burst", "kindle": "flame", "lash": "arc", "trap": "rune", "inscribe": "rune", "ward": "ring",

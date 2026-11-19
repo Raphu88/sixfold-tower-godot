@@ -102,8 +102,9 @@ func _tree_rules() -> void:
 	var prof = main.profile
 	var TR = load("res://scripts/tree.gd")
 	var nodes: Array = TR.nodes(prof, "hand")
-	_check(nodes.size() == 10 and nodes[0]["kind"] == "spell" and nodes[1]["kind"] == "fork" and nodes[2]["kind"] == "fork" and nodes[3]["kind"] == "fork" and nodes[5]["kind"] == "later",
-		"a mark's tree: steps 1 to 5, forks at 2, 3 and 4, and 6 to 10 coming later")
+	_check(nodes.size() == 12 and nodes[0]["kind"] == "spell" and nodes[1]["kind"] == "fork" and nodes[2]["kind"] == "fork" and nodes[3]["kind"] == "fork" and nodes[5]["kind"] == "later" and nodes[11]["kind"] == "later",
+		"a mark's tree: steps 1 to 5, forks at 2, 3 and 4, and 6 to 12 coming soon")
+	_check(nodes[5]["options"][0]["name"] == "Coming soon", "...each of steps 6 to 12 named Coming soon (%s)" % nodes[5]["options"][0]["name"])
 	_check(TR.is_fork_ready(prof, "hand") and TR.ready_forks(prof, "hand") == ["mark:stormcaller:2", "mark:stormcaller:3"], "at step 3 the forks at 2 and 3 are ready (%s)" % [TR.ready_forks(prof, "hand")])
 	_check(not TR.is_fork_ready(prof, "legs"), "...a step-1 mark has none")
 	_check(TR.available(prof, "mark:stormcaller:4").is_empty(), "a fork not reached yet can't be chosen")
@@ -119,20 +120,20 @@ func _tree_rules() -> void:
 	prof.bonds["hand"]["xp"] = 500.0
 	_check(not TR.choose(prof, "mark:stormcaller:2", "nothing"), "an option that isn't there is refused")
 	_check(TR.choose(prof, "mark:stormcaller:2", "ball_lightning"), "choosing Ball Lightning at step 2")
-	_check(not TR.choose(prof, "mark:stormcaller:2", "overcharge") and TR.mark_choice(prof, "stormcaller", 2) == "ball_lightning", "...is for good: the other side can't be chosen after")
+	_check(not TR.choose(prof, "mark:stormcaller:2", "chain_lightning") and TR.mark_choice(prof, "stormcaller", 2) == "ball_lightning", "...is for good: the other side can't be chosen after")
 	var n2: Dictionary = TR.node(prof, "mark:stormcaller:2")
-	_check(n2["state"] == "owned" and n2["options"][0]["state"] == "passed" and n2["options"][1]["state"] == "owned", "...Overcharge is passed on, Ball Lightning yours")
+	_check(n2["state"] == "owned" and n2["options"][0]["state"] == "passed" and n2["options"][1]["state"] == "owned", "...Chain Lightning is passed on, Ball Lightning yours")
 	main._give_bonds()
 	var hb = main.player.bonds["hand"]
 	var ids: Array = hb.spells().map(func(sp): return sp["id"])
-	_check("ball_lightning" in ids and not "overcharge" in ids, "the mark casts Ball Lightning now, not Overcharge (%s)" % [ids])
-	_check("ball_lightning" in TR.owned(prof) and "chain_lightning" in TR.owned(prof), "owned() lists what's yours")
+	_check("ball_lightning" in ids and not "chain_lightning" in ids, "the mark casts Ball Lightning now, not Chain Lightning (%s)" % [ids])
+	_check("ball_lightning" in TR.owned(prof) and "call_lightning" in TR.owned(prof), "owned() lists what's yours")
 	_check(TR.choose(prof, "mark:stormcaller:3", "lingering"), "choosing Living Bolt at step 3")
 	main._give_bonds()
 	hb = main.player.bonds["hand"]
 	hb.select(0)
 	var b3: Dictionary = TR.fork_alt("stormcaller", 3)["steps"][3]
-	_check(int(hb.stat("leaps")) == 4 and hb.stat("most") == null and float(hb.stat("live")) == float(b3["live"]), "...Chain Lightning loses today's side and gains Living Bolt's (%s leaps)" % hb.stat("leaps"))
+	_check(hb.spell()["id"] == "call_lightning" and hb.stat("most") == null and float(hb.stat("live")) == float(b3["live"]), "...Call Lightning loses today's side and gains Living Bolt's (%s)" % hb.stat("live"))
 	_check(not TR.is_fork_ready(prof, "hand"), "nothing more to choose at step 3")
 	# Marks never go back: choosing again, or forgetting, through the rules, can't.
 	_check(not TR.choose(prof, "mark:stormcaller:3", "change"), "a mark's choice never goes back")
@@ -194,7 +195,7 @@ func _saves() -> void:
 	old.saving = false
 	old.save_path = path
 	old.load_save()
-	_check(TR.mark_choice(old, "stormcaller", 2) == "overcharge" and TR.mark_choice(old, "stormcaller", 3) == TR.CHANGE and TR.mark_choice(old, "stormcaller", 4) == "",
+	_check(TR.mark_choice(old, "stormcaller", 2) == "chain_lightning" and TR.mark_choice(old, "stormcaller", 3) == TR.CHANGE and TR.mark_choice(old, "stormcaller", 4) == "",
 		"an old save: the forks a mark passed keep today's side, chosen (and not those ahead)")
 	_check(TR.mark_choice(old, "warden", 4) == "challenge" and TR.mark_choice(old, "windwalker", 2) == "", "...for every mark")
 	_check(not TR.is_fork_ready(old, "hand"), "...so nothing waits to be chosen there")
@@ -328,7 +329,7 @@ func _tree_choice() -> void:
 	var bl: Array = buds.filter(func(b): return String(b.get_meta("bud")).ends_with("|ball_lightning"))
 	_check(bl.size() == 1 and bl[0].get_meta("bud_state") == "available", "Ball Lightning is a bud to choose")
 	_check(buds.any(func(b): return b.get_meta("bud_state") == "placeholder") and buds.any(func(b): return b.get_meta("bud_state") == "locked") and buds.any(func(b): return b.get_meta("bud_state") == "in_use"),
-		"...beside one in use, one locked and one coming later")
+		"...beside one in use, one locked and one coming soon")
 	if bl.size() == 1:
 		bl[0].pressed.emit()
 		await t._frames(2)
@@ -348,7 +349,7 @@ func _tree_choice() -> void:
 	_check(TR.mark_choice(main.profile, "stormcaller", 2) == "ball_lightning", "the second press chooses it")
 	_check("ball_lightning" in main.player.bonds["hand"].spells().map(func(sp): return sp["id"]), "...and the mark casts it at once")
 	buds = menu.find_children("*", "Button", true, false).filter(func(b): return b.has_meta("bud"))
-	_check(buds.any(func(b): return String(b.get_meta("bud")).ends_with("|overcharge") and b.get_meta("bud_state") == "passed"), "Overcharge shows as passed on")
+	_check(buds.any(func(b): return String(b.get_meta("bud")).ends_with("|chain_lightning") and b.get_meta("bud_state") == "passed"), "Chain Lightning shows as passed on")
 	# The Unbound's tree, and learning a passed side.
 	menu.close()
 	await t._ub_fresh()
@@ -410,7 +411,7 @@ func _ball_lightning() -> void:
 	_check(slime.hp < hp0 and slime.charged > 0.0, "it sparks the foe it passes and charges it (%.0f -> %.0f)" % [hp0, slime.hp])
 	await t._wait(2.0)
 	_check(fx.orbs.is_empty(), "...then it's gone")
-	# Living Bolt: the bolt stays alive where the chain ended.
+	# Living Bolt: the bolt stays alive on the foe it struck.
 	TR.choose(main.profile, "mark:stormcaller:3", "lingering")
 	main._give_bonds()
 	hb = p.bonds["hand"]
@@ -418,7 +419,7 @@ func _ball_lightning() -> void:
 	hb.essence = hb.capacity()
 	p.global_position = slime.global_position - Vector2(120, 0)
 	hb.cast(p)
-	_check(fx.lastings.size() >= 1, "Living Bolt: the bolt stays alive where Chain Lightning ended")
+	_check(fx.lastings.size() >= 1, "Living Bolt: the bolt stays alive on the foe Call Lightning struck")
 	main._start_floor(main.floor_num)
 	await t._frames(2)
 	_check(not fx.busy() if is_instance_valid(fx) else true, "a new floor clears what spells left behind")

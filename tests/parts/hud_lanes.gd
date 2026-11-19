@@ -332,7 +332,7 @@ func _everywhere() -> void:
 			main.note_event("item", "+ Healing Vial")
 			main.note_event("gear", "+ Fine Leather Gloves")
 			main.note_event("renown", "Renown: +8")
-			var said: bool = main.entity.remark("pact")
+			var said: bool = main.entity.remark("synergy")
 			await t._until(func(): return main.entity.showing(), 2.0)
 			await t._wait(0.6)
 			var view: Vector2 = hud.get_viewport_rect().size
@@ -607,7 +607,7 @@ func _tidbits() -> void:
 	_check(not en.remark("wing"), "a key that just spoke waits before it speaks again")
 	Guide.state["on"] = false
 	Guide.queue.clear()
-	_check(not en.remark("pact") and Guide.queue.is_empty(), "with the Entity's tips turned off it keeps quiet")
+	_check(not en.remark("synergy") and Guide.queue.is_empty(), "with the Entity's tips turned off it keeps quiet")
 	Guide.state["on"] = true
 	# Triggers in play: a named room, shut doors, a creature's first notice.
 	Guide.queue.clear()
@@ -620,7 +620,7 @@ func _tidbits() -> void:
 	Guide.queue.clear()
 	en.current = {}
 	Engine.remove_meta("sixfold_tips")
-	_check(not en.remark("pact"), "tests that don't ask for the Entity hear nothing")
+	_check(not en.remark("synergy"), "tests that don't ask for the Entity hear nothing")
 	Engine.set_meta("sixfold_tips", true)
 
 

@@ -63,7 +63,7 @@ extends RefCounted
 ##                                      bleeding, slowed, unseen; or a "slam", "drained")
 ##                                      and returns the reactions it set off;
 ##                                      Reactions.has(foe, state); main.on_reaction signal
-##   pacts.gd has(p, id)                 the climber holds a named pact (two marks)
+##   synergies.gd has(p, id)             the climber holds a named synergy (two marks)
 ##   spell_fx.gd lasting(), item(), listen()  what stays a while, drawn in code,
 ##                                      and a signal listened to while it lasts
 ##
