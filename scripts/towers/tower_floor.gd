@@ -47,6 +47,9 @@ extends Node2D
 ##                                        draws the floor's walls, rock, cover
 ##                                        and door posts itself (true), or
 ##                                        leaves them to room.gd (false)
+##   holes_open_to_rock() -> bool         true where the floor's rock is open
+##                                        air (an abyss): a chasm beside it
+##                                        gets no shaft wall there (holes.gd)
 ##   reach_live(solid, size, doors, opens)
 ##                                        the live floor's ground and gates
 ##                                        for reach.gd's safety net
@@ -127,6 +130,10 @@ func sight_open() -> PackedByteArray:
 
 
 func paint_layout(_room_view, _batch) -> bool:
+	return false
+
+
+func holes_open_to_rock() -> bool:
 	return false
 
 

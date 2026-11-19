@@ -31,6 +31,8 @@ extends "res://scripts/towers/tower_floor.gd"
 const Grid := preload("res://scripts/towers/water_wind_grid.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Enemy := preload("res://scripts/enemy.gd")
+const Holes := preload("res://scripts/holes.gd")
+const Draw := preload("res://scripts/draw_util.gd")
 const ORIGIN := Vector2(80, 100)
 const CELL := 40.0
 const PATH := "res://scripts/towers/gryphon_floor.gd"
@@ -70,6 +72,12 @@ static var LOOK := {
 	"wind": Color(0.86, 0.93, 1.0), "vane": Color(0.62, 0.6, 0.66),
 }
 
+## The floor seen through a drop (_draw_floor_below): scale, its halls' size
+## against this floor's (smaller is deeper; they slide with parallax), and
+## light, how much lighter than the palette's floor below it shows (the sky
+## lights it).
+static var LOOK_BELOW := {"scale": 0.74, "light": 0.14}
+
 # (main: the game, set by main.gd: tower_floor.gd)
 var plan := {}
 var voids := {}  # Vector2i -> true: open drop
@@ -82,6 +90,8 @@ var air_set := {}
 var solid_seen := PackedByteArray()  # the rock when the air was worked out
 var air_t := 0.5
 var bridge_tiles: Array = []  # walkways between drops: drawn as planks
+var sky: Node2D  # the open air and the floor below, redrawn as you move (_draw_sky_layer)
+var cuts: Node2D  # the drops' cuts and the planks, drawn once (_draw_cuts)
 var lower: Array = []  # the floor's halls and corridors, for the floors below
 var t := 0.0
 var redraw_t := 0.0
@@ -441,6 +451,16 @@ static func scenario_plan(kind: String, info: Dictionary, gates: Array, _floor_n
 func _ready() -> void:
 	z_index = -3  # (over the floor and its chasm drawing, under the climber)
 	process_physics_priority = -50  # (before the climber moves: a blow's knock is checked first)
+	# Under this node's own drawing (the wind, the vanes): the sky and the
+	# floor below, redrawn as you move, then the cuts and planks, drawn once.
+	sky = Node2D.new()
+	sky.show_behind_parent = true
+	sky.draw.connect(_draw_sky_layer)
+	add_child(sky)
+	cuts = Node2D.new()
+	cuts.show_behind_parent = true
+	cuts.draw.connect(_draw_cuts)
+	add_child(cuts)
 
 
 func setup(p: Dictionary) -> void:
@@ -503,6 +523,8 @@ func _find_air() -> void:
 				air.append(tt)
 				air_set[tt] = true
 	air_rects = Grid.merge(air)
+	if cuts != null:
+		cuts.queue_redraw()
 
 
 func _set_solid(tiles: Array, on: bool) -> void:
@@ -527,6 +549,7 @@ func _process(delta: float) -> void:
 	if redraw_t <= 0.0:
 		redraw_t = 1.0 / 30.0
 		queue_redraw()
+		sky.queue_redraw()
 
 
 func _physics_process(delta: float) -> void:
@@ -876,9 +899,24 @@ func scenario_goal(s: Dictionary) -> Vector2:
 func _draw() -> void:
 	if main == null:
 		return
+	if span_open:
+		_draw_wind_bridge()
+	var ob = main.objective
+	if ob != null and ob.kind == "vanes":
+		for pc in ob.pieces:
+			_draw_vane(pc)
+	var view: Rect2 = main.room_view._view_rect() if main.room_view != null else Rect2(-1e6, -1e6, 2e6, 2e6)
+	_draw_wind(view)
+
+
+## The sky child (redrawn with the floor's wind, 30 times a second): the open
+## air all round, beyond the floor's edge and beyond the halls' walls, and the
+## floor below through every drop, all sliding with parallax.
+func _draw_sky_layer() -> void:
+	if main == null:
+		return
 	var view: Rect2 = main.room_view._view_rect() if main.room_view != null else Rect2(-1e6, -1e6, 2e6, 2e6)
 	var cam: Vector2 = view.get_center()
-	# The open air all round: beyond the floor's edge, and beyond the halls' walls.
 	var ar: Rect2 = main.room
 	var far := ar.grow(420.0)
 	for r in [Rect2(far.position, Vector2(far.size.x, ar.position.y - far.position.y)), Rect2(far.position.x, ar.end.y, far.size.x, far.end.y - ar.end.y),
@@ -891,27 +929,33 @@ func _draw() -> void:
 	for r in void_rects:
 		if view.intersects(r):
 			_draw_sky(r, cam, true)
-	_draw_edges(view)
+
+
+## The cuts child: what doesn't move, drawn once in one batch (again only
+## when the floor's rock changes): the planks of the walkways and bridges,
+## then each drop's cut (holes.gd: its lit rim over a bridge's end too, the
+## shaft's walls going down) and the halls' outer walls dropping into the air.
+func _draw_cuts() -> void:
+	if main == null:
+		return
+	var b := Draw.Batch.new()
 	for tt in bridge_tiles:
-		if view.has_point(Grid.centre(tt)):
-			_draw_plank(tt)
-	_draw_corridor_bridges(view)
-	if span_open:
-		_draw_wind_bridge()
-	var ob = main.objective
-	if ob != null and ob.kind == "vanes":
-		for pc in ob.pieces:
-			_draw_vane(pc)
-	_draw_wind(view)
+		_draw_plank(b, tt)
+	_draw_corridor_bridges(b)
+	_draw_edges(b)
+	b.flush(cuts)
 
 
 ## Open air, and through it the floors below: the floor's own halls drawn
 ## again smaller and dimmer the deeper they are, sliding with parallax as you
 ## move (they shrink toward the middle of the view), with their flagstones,
 ## walls, a torch each and tiny shapes walking them. `drop`: a void you can
-## fall into (a little lighter, and the wind's gap glows once it's bridged).
+## fall into: it shows the floor right below instead (_draw_floor_below).
 func _draw_sky(r: Rect2, cam: Vector2, drop: bool) -> void:
-	draw_rect(r, LOOK["sky"] if not drop else LOOK["sky"].lightened(0.03))
+	if drop:
+		_draw_floor_below(r, cam)
+		return
+	sky.draw_rect(r, LOOK["sky"])
 	for layer in [2, 1]:
 		var s := 0.34 if layer == 2 else 0.55
 		var dim := 0.38 if layer == 2 else 0.66
@@ -925,7 +969,7 @@ func _draw_sky(r: Rect2, cam: Vector2, drop: bool) -> void:
 			var cut := q.intersection(r)
 			if cut.size.x <= 0.5 or cut.size.y <= 0.5:
 				continue
-			draw_rect(cut, floor_col)
+			sky.draw_rect(cut, floor_col)
 			# Flagstones (the nearer floor only).
 			if layer == 1:
 				var step := CELL * s
@@ -949,101 +993,150 @@ func _draw_sky(r: Rect2, cam: Vector2, drop: bool) -> void:
 			# A torch, and tiny shapes walking.
 			var torch := Vector2(q.get_center().x, q.position.y - w)
 			if r.grow(-2.0).has_point(torch):
-				draw_circle(torch, 6.0 * s, Color(1.0, 0.7, 0.35, 0.25 * dim))
-				draw_circle(torch, 2.2 * s + 0.5, Color(1.0, 0.8, 0.45, 0.8 * dim))
+				sky.draw_circle(torch, 6.0 * s, Color(1.0, 0.7, 0.35, 0.25 * dim))
+				sky.draw_circle(torch, 2.2 * s + 0.5, Color(1.0, 0.8, 0.45, 0.8 * dim))
 			for wk in 2:
 				var u := Vector2(0.5 + 0.38 * sin(t * (0.21 + 0.05 * wk) + k * 1.7 + wk * 2.3), 0.5 + 0.38 * cos(t * (0.17 + 0.04 * wk) + k * 2.1 + wk))
 				var at := q.position + q.size * u
 				if r.grow(-1.0).has_point(at):
-					draw_circle(at + Vector2(0, 1.5 * s), 3.0 * s, Color(0, 0, 0, 0.3 * dim))
-					draw_circle(at, 2.4 * s + 0.4, Color(0.12, 0.1, 0.13, dim + 0.2))
+					sky.draw_circle(at + Vector2(0, 1.5 * s), 3.0 * s, Color(0, 0, 0, 0.3 * dim))
+					sky.draw_circle(at, 2.4 * s + 0.4, Color(0.12, 0.1, 0.13, dim + 0.2))
 		# The air between the floors: haze over the deeper one.
-		draw_rect(r, Color(0.45, 0.55, 0.78, 0.09 if layer == 2 else 0.06))
-	if drop and span_open and span.has(Grid.tile(r.get_center())):
-		draw_rect(r, Color(LOOK["wind"], 0.12 + 0.05 * sin(t * 3.0)))
+		sky.draw_rect(r, Color(0.45, 0.55, 0.78, 0.09 if layer == 2 else 0.06))
+
+
+## A drop you can fall into: through it, always the floor right below
+## (holes.gd), never the black of open sky. Its rock, and its halls (the
+## floor's own, a little smaller and sliding with parallax as you move) with
+## their flagstones, walls, a torch each and tiny shapes walking, under the
+## sky's haze, with wind drifting across. (The cut's shaft and lit rim are
+## drawn over it by _draw_edges.) The wind's gap glows once it's bridged.
+func _draw_floor_below(r: Rect2, cam: Vector2) -> void:
+	var tint: Color = main.room_view.self_modulate if main.room_view != null else Color.WHITE
+	var s: float = LOOK_BELOW["scale"]
+	var shift: Vector2 = Holes.LOOK["shift"]
+	var lit: float = LOOK_BELOW["light"]
+	sky.draw_rect(r, (Palette.HOLE_SHAFT_DEEP.lerp(Palette.HOLE_SHAFT, 0.5) * tint).lightened(lit))  # its rock between the halls
+	var stone: Color = (Palette.HOLE_FLOOR_LIGHT * tint).lightened(lit)
+	var joint: Color = Palette.HOLE_GAP * tint
+	var wall: Color = (Palette.HOLE_SHAFT * tint).lightened(lit)
+	var w := 7.0 * s
+	for k in lower.size():
+		var src: Rect2 = lower[k]
+		var q := Rect2(cam + (src.position - cam) * s + shift, src.size * s)
+		if not q.grow(w * 2.5).intersects(r):
+			continue
+		var cut := q.intersection(r)
+		if cut.size.x > 0.5 and cut.size.y > 0.5:
+			sky.draw_rect(cut, stone)
+			var step := CELL * s
+			var x := q.position.x + step
+			while x < q.end.x - 1.0:
+				if x > r.position.x and x < r.end.x:
+					_clip_edge(Rect2(x, q.position.y, 1.0, q.size.y), r, joint)
+				x += step
+			var y := q.position.y + step
+			while y < q.end.y - 1.0:
+				if y > r.position.y and y < r.end.y:
+					_clip_edge(Rect2(q.position.x, y, q.size.x, 1.0), r, joint)
+				y += step
+		# Its walls: a rim all round, the north wall's face lit.
+		_clip_edge(Rect2(q.position - Vector2(w, w * 2.5), Vector2(q.size.x + w * 2.0, w * 2.5)), r, wall.lightened(0.08))
+		_clip_edge(Rect2(q.position - Vector2(w, w * 2.5), Vector2(q.size.x + w * 2.0, 1.5)), r, wall.lightened(0.18))
+		_clip_edge(Rect2(Vector2(q.position.x - w, q.end.y), Vector2(q.size.x + w * 2.0, w)), r, wall)
+		_clip_edge(Rect2(Vector2(q.position.x - w, q.position.y), Vector2(w, q.size.y)), r, wall)
+		_clip_edge(Rect2(Vector2(q.end.x, q.position.y), Vector2(w, q.size.y)), r, wall)
+		_clip_edge(Rect2(q.position, Vector2(q.size.x, 2.0)), r, Color(0, 0, 0, 0.35))
+		# A torch, and tiny shapes walking.
+		var torch := Vector2(q.get_center().x, q.position.y - w)
+		if r.grow(-2.0).has_point(torch):
+			sky.draw_circle(torch, 9.0 * s, Color(1.0, 0.7, 0.35, 0.22))
+			sky.draw_circle(torch, 2.2 * s + 0.6, Color(1.0, 0.8, 0.45, 0.85))
+		for wk in 2:
+			var u := Vector2(0.5 + 0.38 * sin(t * (0.21 + 0.05 * wk) + k * 1.7 + wk * 2.3), 0.5 + 0.38 * cos(t * (0.17 + 0.04 * wk) + k * 2.1 + wk))
+			var at := q.position + q.size * u
+			if r.grow(-1.0).has_point(at):
+				sky.draw_circle(at + Vector2(0, 1.5 * s), 3.0 * s, Color(0, 0, 0, 0.3))
+				sky.draw_circle(at, 2.4 * s + 0.4, Color(0.12, 0.1, 0.13, 0.9))
+	sky.draw_rect(r, Holes.haze("gryphon"))
+	# Wind drifting across the drop (the gust's way while it blows).
+	var dir := gust_dir if gust_state != "calm" else Vector2(1.0, 0.12).normalized()
+	var strength := 0.16 if gust_state == "calm" else 0.3
+	var a := Grid.tile(r.position + Vector2(1, 1))
+	var b := Grid.tile(r.end - Vector2(1, 1))
+	for ty in range(a.y, b.y + 1):
+		for tx in range(a.x, b.x + 1):
+			var h := Holes.hash01(tx, ty, 90)
+			if h > 0.6:
+				continue
+			var ph := fmod(t * (0.22 + 0.2 * h) + h * 3.0, 1.0)
+			var tile_pos := ORIGIN + Vector2(tx, ty) * CELL
+			var at := tile_pos + Vector2(CELL * 0.5, CELL * (0.3 + 0.5 * Holes.hash01(tx, ty, 91))) + dir * (ph - 0.5) * CELL
+			var tip := at + dir * 11.0
+			if r.has_point(at) and r.has_point(tip):
+				sky.draw_line(at, tip, Color(LOOK["wind"], strength * sin(ph * PI)), 1.2)
+	if span_open and span.has(Grid.tile(r.get_center())):
+		sky.draw_rect(r, Color(LOOK["wind"], 0.12 + 0.05 * sin(t * 3.0)))
+
+
+## What's beside a drop's tile, for its cut (holes.gd): more drop, open air
+## (beyond the halls' walls), a wall, or floor.
+func _beside(tt: Vector2i) -> int:
+	if voids.has(tt):
+		return Holes.HOLE
+	if main.is_solid(Grid.centre(tt)):
+		return Holes.OPEN if air_set.has(tt) else Holes.WALL
+	return Holes.FLOOR
 
 
 func _clip_edge(e: Rect2, clip: Rect2, col: Color) -> void:
 	var c := e.intersection(clip)
 	if c.size.x > 0.0 and c.size.y > 0.0:
-		draw_rect(c, col)
+		sky.draw_rect(c, col)
 
 
-## The edges: where a floor stops at a drop, a rim of lit stone and below it
-## the cliff falling away; where the open air meets a hall's wall, the wall's
-## outer face dropping into it.
-func _draw_edges(view: Rect2) -> void:
-	var tiles: Array = voids.keys()
-	for tt in tiles:
-		var c := Grid.centre(tt)
-		if not view.has_point(c):
-			continue
+## The edges: where a floor stops at a drop, the cut of a hole (holes.gd: a
+## lit rim, and the shaft's walls going down to the floor below); where the
+## open air meets a hall's wall, the wall's outer face dropping into it.
+func _draw_edges(c) -> void:
+	var tint: Color = main.room_view.self_modulate if main.room_view != null else Color.WHITE
+	for tt in voids:
 		var r := Rect2(ORIGIN + Vector2(tt) * CELL, Vector2(CELL, CELL))
-		var n: Vector2i = tt + Vector2i.UP
-		if not voids.has(n):
-			# The cliff under the ledge to the north (or the wall above).
-			draw_rect(Rect2(r.position, Vector2(CELL, 18.0)), LOOK["cliff"])
-			for k in 3:
-				draw_rect(Rect2(r.position + Vector2(0, 18.0 + k * 4.0), Vector2(CELL, 4.0)), Color(LOOK["cliff"], 0.5 - k * 0.15))
-			draw_line(r.position + Vector2(0, 6), Vector2(r.end.x, r.position.y + 6), Color(0, 0, 0, 0.35), 1.0)
-			if not main.is_solid(Grid.centre(n)):
-				draw_line(r.position, Vector2(r.end.x, r.position.y), LOOK["rim"].darkened(0.1), 2.0)
-		for d in [Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-			var m: Vector2i = tt + d
-			if voids.has(m):
-				continue
-			match d:
-				Vector2i.DOWN:
-					draw_rect(Rect2(Vector2(r.position.x, r.end.y - 5.0), Vector2(CELL, 5.0)), Color(0, 0, 0, 0.35))
-					if not main.is_solid(Grid.centre(m)):
-						draw_line(Vector2(r.position.x, r.end.y), r.end, LOOK["rim"], 2.5)
-				Vector2i.LEFT:
-					draw_rect(Rect2(r.position, Vector2(6.0, CELL)), Color(0, 0, 0, 0.35))
-					if not main.is_solid(Grid.centre(m)):
-						draw_line(r.position, Vector2(r.position.x, r.end.y), Color(LOOK["rim"], 0.7), 2.0)
-				_:
-					draw_rect(Rect2(Vector2(r.end.x - 6.0, r.position.y), Vector2(6.0, CELL)), Color(0, 0, 0, 0.35))
-					if not main.is_solid(Grid.centre(m)):
-						draw_line(Vector2(r.end.x, r.position.y), r.end, Color(LOOK["rim"], 0.7), 2.0)
+		Holes.draw_cut(c, r, _beside(tt + Vector2i.UP), _beside(tt + Vector2i.DOWN), _beside(tt + Vector2i.LEFT), _beside(tt + Vector2i.RIGHT), tt, tint)
 	# The halls' walls seen from outside: their faces drop into the air below them.
 	for r in air_rects:
-		if not view.intersects(r):
-			continue
 		for tt in Grid.tiles_of(r):
 			if air_set.has(tt + Vector2i.UP) or main._tile_of(Grid.centre(tt)).y <= 0:
 				continue
 			var tr := Rect2(ORIGIN + Vector2(tt) * CELL, Vector2(CELL, CELL))
-			draw_rect(Rect2(tr.position, Vector2(CELL, 22.0)), LOOK["cliff"])
-			draw_rect(Rect2(tr.position + Vector2(0, 22.0), Vector2(CELL, 6.0)), Color(LOOK["cliff"], 0.4))
-			draw_line(tr.position + Vector2(0, 8), Vector2(tr.end.x, tr.position.y + 8), Color(0, 0, 0, 0.3), 1.0)
-
+			c.draw_rect(Rect2(tr.position, Vector2(CELL, 22.0)), LOOK["cliff"])
+			c.draw_rect(Rect2(tr.position + Vector2(0, 22.0), Vector2(CELL, 6.0)), Color(LOOK["cliff"], 0.4))
+			c.draw_line(tr.position + Vector2(0, 8), Vector2(tr.end.x, tr.position.y + 8), Color(0, 0, 0, 0.3), 1.0)
 
 
 ## A walkway tile between drops: planks, with a rope rail at its sides.
-func _draw_plank(tt: Vector2i) -> void:
+func _draw_plank(c, tt: Vector2i) -> void:
 	var r := Rect2(ORIGIN + Vector2(tt) * CELL, Vector2(CELL, CELL))
 	var horiz := voids.has(tt + Vector2i.UP) or voids.has(tt + Vector2i.DOWN)
-	draw_rect(r.grow(-1.0), LOOK["plank"].darkened(0.15))
+	c.draw_rect(r.grow(-1.0), LOOK["plank"].darkened(0.15))
 	for k in 4:
 		if horiz:
 			var x := r.position.x + 2.0 + k * 9.5
-			draw_rect(Rect2(x, r.position.y + 1.0, 8.0, CELL - 2.0), LOOK["plank"].lightened(0.05 * (k % 2)))
+			c.draw_rect(Rect2(x, r.position.y + 1.0, 8.0, CELL - 2.0), LOOK["plank"].lightened(0.05 * (k % 2)))
 		else:
 			var y := r.position.y + 2.0 + k * 9.5
-			draw_rect(Rect2(r.position.x + 1.0, y, CELL - 2.0, 8.0), LOOK["plank"].lightened(0.05 * (k % 2)))
+			c.draw_rect(Rect2(r.position.x + 1.0, y, CELL - 2.0, 8.0), LOOK["plank"].lightened(0.05 * (k % 2)))
 	for d in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		if voids.has(tt + d):
 			var a := r.get_center() + Vector2(d) * (CELL * 0.5 - 2.0) - Vector2(d).orthogonal() * CELL * 0.5
 			var b := r.get_center() + Vector2(d) * (CELL * 0.5 - 2.0) + Vector2(d).orthogonal() * CELL * 0.5
-			draw_line(a, b, LOOK["rope"], 2.0)
+			c.draw_line(a, b, LOOK["rope"], 2.0)
 
 
 ## The bridges the corridors became: planks wherever a corridor tile has
 ## drop beside it.
-func _draw_corridor_bridges(view: Rect2) -> void:
+func _draw_corridor_bridges(c) -> void:
 	for r in plan.get("corridors", []):
-		if not view.intersects(r):
-			continue
 		for tt in Grid.tiles_of(r):
 			if voids.has(tt):
 				continue
@@ -1051,7 +1144,7 @@ func _draw_corridor_bridges(view: Rect2) -> void:
 			for d in Grid.N4:
 				beside = beside or voids.has(tt + d)
 			if beside:
-				_draw_plank(tt)
+				_draw_plank(c, tt)
 
 
 ## The steady wind across the opened gap: streams of light along it.

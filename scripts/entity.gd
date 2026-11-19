@@ -327,7 +327,7 @@ static var TIPS := {
 		"more": "Some rooms close their doors once you're inside and open them again only when what's inside is dealt with."},
 	"jump": {"group": "tower", "name": "Chasms",
 		"tip": "The floor gives way here. Jump it with {jump}. A roll only carries you in.",
-		"more": "In the Firebird's tower the floor has chasms. Jumping ({jump}) carries you across; walking or being knocked in drops you through. Walking monsters can't follow you over a chasm, but fliers cross them."},
+		"more": "In the Firebird's tower the floor has chasms. Jumping ({jump}) carries you across; walking or being knocked in drops you through. Walking monsters can't follow you over a chasm, but fliers cross them. You can tell a chasm from a doorway: a chasm is cut into the floor, with a lit rim, walls going down and the floor below at the bottom (where you'd land); a doorway is a gap in a wall, level with the floor."},
 	"chasm_fall": {"group": "tower", "name": "Falling through",
 		"tip": "Down a floor. No harm done, except to your pride. Your essence came with you.",
 		"more": "Falling into a chasm doesn't hurt: you land on the floor below (never below floor 1) and climb again from there. Your unbanked essence stays with you."},

@@ -11,6 +11,19 @@ static var WALL_TOP := Color(0.17, 0.155, 0.19)
 static var WALL_EDGE := Color(0.3, 0.28, 0.32)
 static var WALL_FACE := Color(0.24, 0.21, 0.24)
 static var TORCH := Color(1.0, 0.68, 0.38)
+# Holes you fall through (holes.gd): the floor below, the shaft's walls, the cut's lit rim
+static var HOLE_FLOOR := Color(0.13, 0.124, 0.146)
+static var HOLE_FLOOR_LIGHT := Color(0.16, 0.152, 0.178)
+static var HOLE_GAP := Color(0.05, 0.046, 0.06)
+static var HOLE_SHAFT := Color(0.21, 0.19, 0.22)
+static var HOLE_SHAFT_DEEP := Color(0.075, 0.068, 0.085)
+static var HOLE_RIM := Color(0.56, 0.53, 0.57)
+## The haze over the floor below, per tower ("other" for the rest).
+static var HOLE_HAZE := {
+	"firebird": Color(1.0, 0.45, 0.2, 0.12),
+	"gryphon": Color(0.55, 0.66, 0.95, 0.08),
+	"other": Color(0.45, 0.5, 0.65, 0.05),
+}
 # Doors (doors.gd)
 static var DOOR_WOOD := Color(0.36, 0.24, 0.15)
 static var DOOR_IRON := Color(0.32, 0.31, 0.35)
