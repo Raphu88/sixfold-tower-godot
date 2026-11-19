@@ -2310,10 +2310,14 @@ class Volume extends Button:
 		var lit := on or hot or has_focus()
 		var tc := Color(1.0, 0.92, 0.7) if lit else Color(0.92, 0.82, 0.6)
 		var fs := 14 if size.y < 42.0 else 16
-		var cw := UI.font("mono").get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 6.0 if count != "" else 0.0
+		var cs := 10  # (the count's size: smaller when a long name needs the room)
+		var cw := UI.font("mono").get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, cs).x + 6.0 if count != "" else 0.0
+		if count != "" and UI.font("display").get_string_size(UI.title_case(text), HORIZONTAL_ALIGNMENT_LEFT, -1, UI.FIT_FLOOR).x > lab.size.x - 7.0 - cw:
+			cs = 8
+			cw = UI.font("mono").get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, cs).x + 3.0
 		UI.draw_label(self, Vector2(lab.position.x + 4.0, lab.get_center().y + fs * 0.33), text, fs, tc, HORIZONTAL_ALIGNMENT_LEFT, lab.size.x - 7.0 - cw)
 		if count != "":
-			UI.draw_text(self, UI.font("mono"), Vector2(lab.position.x, lab.get_center().y + 4.0), count, HORIZONTAL_ALIGNMENT_RIGHT, lab.size.x - 4.0, 10, Color(tc, 0.7))
+			UI.draw_text(self, UI.font("mono"), Vector2(lab.position.x, lab.get_center().y + 4.0), count, HORIZONTAL_ALIGNMENT_RIGHT, lab.size.x - (4.0 if cs == 10 else 2.0), cs, Color(tc, 0.7))
 		if on:
 			# Open on the lectern: a gilt ribbon hanging from it.
 			draw_rect(Rect2(r.end.x - 22.0, r.end.y - 1.0, 4.0, 6.0), Color(0.85, 0.2, 0.15))

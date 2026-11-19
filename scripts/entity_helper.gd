@@ -394,7 +394,26 @@ func _process(delta: float) -> void:
 
 
 ## The button the pointer, the keys or a finger is on (null for none).
+## While the Entity gives its tour (tour.gd), what the tour points at,
+## unless you're on some other button (its bar's own buttons don't count).
 func _candidate() -> Control:
+	var own := _own_candidate()
+	var tt := _tour_target()
+	if tt != null and (own == null or own.has_meta("tour")):
+		return tt
+	return own
+
+
+## The tour's thing to point at now (null for none).
+func _tour_target() -> Control:
+	var tr = menu.get("tour") if menu != null else null
+	if tr == null or not tr.active():
+		return null
+	var c: Control = tr.target()
+	return c if c != null and is_instance_valid(c) and c.is_visible_in_tree() else null
+
+
+func _own_candidate() -> Control:
 	if not help_on():
 		return null
 	if touch():
@@ -430,7 +449,12 @@ func show_for(b: Control) -> void:
 	target = b
 	text = ""
 	comment = ""
-	if b != null:
+	if b != null and b == _tour_target():
+		text = String(menu.tour.point_words())  # (the tour: what it says about the thing it points at)
+		comment = String(menu.tour.count_words())
+		if text == "":
+			target = null
+	elif b != null:
 		text = Help.explain(menu, b)
 		if text == "":
 			target = null

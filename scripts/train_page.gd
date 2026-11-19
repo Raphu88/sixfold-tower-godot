@@ -51,6 +51,8 @@ const DiningPage := preload("res://scripts/dining_page.gd")
 const Outfitter := preload("res://scripts/outfitter.gd")
 const Guide := preload("res://scripts/guide.gd")
 const StorePage := preload("res://scripts/store_page.gd")
+const EnginePage := preload("res://scripts/engine_page.gd")
+const Travel := preload("res://scripts/travel.gd")
 
 static var T := Train.TEXT
 ## The first time each car shows, the Entity's tips for it (entity.gd TIPS).
@@ -95,6 +97,7 @@ var wheel_at := 0
 
 var dining  # the Dining car's things (dining_page.gd), kept while the train shows
 var store  # the Outfitter's Car's things (store_page.gd)
+var engine  # the Engine's things (engine_page.gd): the tower map
 var inner_scrolls := {}  # car -> the boxes in it that scroll on their own (the store's list, its tree): a finger or the wheel scrolls them
 
 
@@ -102,6 +105,7 @@ func _init(menu) -> void:
 	m = menu
 	dining = DiningPage.new(self)
 	store = StorePage.new(self)
+	engine = EnginePage.new(self)
 
 
 func _prof():
@@ -142,6 +146,9 @@ func _cell() -> float:
 func build() -> void:
 	var prof = _prof()
 	Train.stock(prof)
+	if m.tour != null:
+		m.tour.check()  # (the station's tour ends on the train)
+		m.tour.maybe_start("train")  # (the first time the train is chosen: the Entity's tour)
 	view = m.train_view
 	view.set_inset(Rail.width_for(_small()) if m.rail_showing() else 0.0)  # (the rail down the left)
 	view.refresh()
@@ -151,7 +158,7 @@ func build() -> void:
 	if _index(cur) < 0:
 		cur = Train.HOME
 	if not Towers.TOWERS.has(m.train_tower):
-		m.train_tower = prof.last_tower if Towers.TOWERS.has(prof.last_tower) else Towers.ORDER[0]
+		m.train_tower = Travel.tower_of(Travel.current(prof))  # (the tower by the station you're at)
 	m.train_sel[cur] = m.inv_sel
 	if not was_open:
 		pane_at.clear()  # (the train just opened: every car from its top)
@@ -260,6 +267,8 @@ func focusables() -> Array:
 func first_focus(list: Array) -> int:
 	for i in list.size():
 		var b: Control = list[i]
+		if b.has_meta("tour") and String(b.get_meta("tour")) == "next":
+			return i  # (the Entity's tour: on to its next step)
 		if (m.inv_sel != "" and b.get_meta("slot", "") == m.inv_sel) or (m.train_car == "engine" and b.get_meta("tower", "") == m.train_tower):
 			return i
 		if (m.train_car == "library" and b.get_meta("shelf", "") == m.library_shelf) or (m.train_car == "settings" and b.get_meta("panel_tab", "") == m.settings_tab):
@@ -344,9 +353,13 @@ func enter() -> void:
 ## your car the Entity's line (not on a phone, to save room). The outfitter
 ## speaks for himself, behind his counter.
 func _speech(root: Node, car: String, here: bool) -> void:
+	if m.tour != null and m.tour.active() and m.tour.which == "train":
+		if here:
+			m.tour.bar(root, _small())  # (the Entity's tour: its words, Next and Skip; the car's own tips wait)
+		return
 	if here and not tips.has(car):
 		var said: String = m.main.tip_now("train")
-		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []):
+		for id in CAR_TIPS.get(car, []) + (_shop_tips() if car == "store" else []) + (Travel.engine_tips(_prof()) if car == "engine" else []):
 			var own: String = m.main.tip_now(id)
 			said = own if said == "" else (said + "\n" + own if own != "" else said)
 		tips[car] = said
@@ -594,185 +607,11 @@ func _price_on(s, kind: String, amount: int, show: bool) -> void:
 
 # --- the engine ---------------------------------------------------------------------
 
-## The cab: the destination board (a plaque for each tower: its essence and
-## your best floor there), and a placard for the chosen one with what goes
-## with you, what a fall costs, and the lever.
+## The cab: the tower map (the six towers on the loop, the station you're
+## at, fares and the lock) and the placard for the tower chosen, with the
+## lever that departs or rides there (engine_page.gd).
 func _engine(root: Node) -> void:
-	var prof = _prof()
-	var small := _small()
-	var row := _main_row(root)
-	var board := _furnish(row, "board")
-	var stations: bool = m.train_board == "stations"
-	# Its name, and a sign to turn it between the towers and the stations.
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 10)
-	board.add_child(top)
-	var h := Label.new()
-	h.text = UI.title_case(Stations.TEXT["depart_title"] if stations else T["depart_title"])
-	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.style_label(h, "display", 24 if small else 28, UI.GOLD)
-	top.add_child(h)
-	var flip: Button = m._button(Stations.TEXT["to_towers"] if stations else Stations.TEXT["to_stations"], _set_board.bind("towers" if stations else "stations"), top)
-	flip.custom_minimum_size = Vector2(104 if small else 120, 32 if small else 36)
-	flip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	flip.set_meta("board", "towers" if stations else "stations")
-	_brass(flip, false)
-	if not small:
-		var sub := _note(board, Stations.TEXT["depart_sub"] if stations else T["depart_sub"], 10.0)
-		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var grid := _grid(board, 3 if not stations else 2, false)
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	if stations:
-		for st in Stations.STATIONS:
-			var sc = StationView.StationCard.new()
-			sc.station = st
-			sc.chosen = String(st["id"]) == m.train_station
-			sc.custom_minimum_size = Vector2(148.0, 58.0) if small else Vector2(196.0, 74.0)
-			sc.set_meta("station", String(st["id"]))
-			sc.pressed.connect(_choose_station.bind(String(st["id"])))
-			grid.add_child(sc)
-		_station_placard(row)
-		return
-	for id in Towers.ORDER:
-		var b := TowerCard.new()
-		b.tower = id
-		b.last = id == prof.last_tower
-		b.chosen = id == m.train_tower
-		b.best = int(prof.record.get("best", {}).get(id, 0))
-		b.custom_minimum_size = Vector2(148.0, 58.0) if small else Vector2(196.0, 74.0)
-		b.set_meta("tower", id)
-		b.pressed.connect(_choose_tower.bind(id))
-		grid.add_child(b)
-	# The chosen tower's placard, with the lever.
-	var plac := TrainView.Furnish.new("placard", small)
-	plac.custom_minimum_size.x = 270.0 if small else 330.0
-	plac.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(plac)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 3 if small else 6)
-	plac.add_child(col)
-	var tw: Dictionary = Towers.TOWERS[m.train_tower]
-	_tag(col, T["next_climb"])
-	var name := Label.new()
-	name.text = tw["name"]
-	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.style_label(name, "display", 23 if small else 25, Color(tw["torch"]).lerp(UI.TEXT, 0.35))
-	col.add_child(name)
-	var ess := HBoxContainer.new()
-	ess.add_theme_constant_override("separation", 10)
-	col.add_child(ess)
-	var tag := PriceTag.new()
-	tag.kind = tw["essence"]
-	tag.text_override = T["essence"] % Essence.display(tw["essence"])
-	tag.custom_minimum_size = Vector2(ThemeDB.fallback_font.get_string_size(tag.text_override, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 26.0, 20)
-	ess.add_child(tag)
-	var best := int(prof.record.get("best", {}).get(m.train_tower, 0))
-	var bl := Label.new()
-	bl.text = (T["best"] % best) if best > 0 else T["never"]
-	bl.add_theme_font_size_override("font_size", 14)
-	bl.add_theme_color_override("font_color", UI.DIM)
-	ess.add_child(bl)
-	if not small:
-		_note(col, tw.get("blurb", ""), 10.0)
-	var going: Array = prof.pack.map(func(g): return Gear.display(g))
-	var n := 0
-	for id in prof.supplies:
-		n += int(prof.supplies[id])
-	if n > 0:
-		going.append("%d %s" % [n, "supply" if n == 1 else "supplies"])
-	var vi: int = VesselPage.Vessel.packed_index(prof)
-	if vi >= 0:  # (a vessel packed from the chest)
-		going.append(VesselPage.V["going"] % VesselPage.Vessel.state_text(prof.vessels[vi]))
-	var gl := _note(col, T["depart_pack"] % (", ".join(going) if not going.is_empty() else T["depart_none"]), 10.0)
-	gl.add_theme_color_override("font_color", UI.TEXT)
-	_note(col, T["depart_risk"], 10.0)
-	var lever := TrainView.Lever.new()
-	lever.word = T["lever"]
-	lever.sub = T["lever_for"] % tw["short"]
-	lever.custom_minimum_size = Vector2(130, 108) if small else Vector2(150, 140)
-	lever.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	lever.set_meta("depart", m.train_tower)
-	lever.pressed.connect(_depart)
-	col.add_child(lever)
-
-
-func _choose_tower(id: String) -> void:
-	if m.train_tower == id:
-		return
-	m.train_tower = id
-	m.main.sfx("ui_confirm", 1.0, -4.0, 0.0)
-	m.open("train")
-
-
-## The engine's board: the towers, or the stations (stations.gd).
-func _set_board(which: String) -> void:
-	m.train_board = which
-	if which == "stations" and m.train_station == "" and not Stations.STATIONS.is_empty():
-		m.train_station = String(Stations.STATIONS[0]["id"])
-	m._want_focus = {"meta": "board", "value": "towers" if which == "stations" else "stations"}
-	m.main.sfx("ui_confirm", 1.0, -4.0, 0.0)
-	m.open("train")
-
-
-func _choose_station(id: String) -> void:
-	if m.train_station == id:
-		return
-	m.train_station = id
-	m.main.sfx("ui_confirm", 1.0, -4.0, 0.0)
-	m.open("train")
-
-
-## The chosen station's placard: what it is, your renown, and the lever
-## that takes the train there (nothing you carry is at risk).
-func _station_placard(row: Node) -> void:
-	var small := _small()
-	var st := Stations.station(m.train_station)
-	var plac := TrainView.Furnish.new("placard", small)
-	plac.custom_minimum_size.x = 270.0 if small else 330.0
-	plac.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(plac)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 3 if small else 6)
-	plac.add_child(col)
-	_tag(col, Stations.TEXT["station_tag"])
-	var name := Label.new()
-	name.text = String(st.get("name", ""))
-	name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	UI.style_label(name, "display", 23 if small else 25, Color(st.get("lamp", UI.GOLD)).lerp(UI.TEXT, 0.35))
-	col.add_child(name)
-	var rn := _note(col, "%s  ·  %s" % [Renown.TEXT["points"] % Renown.points(_prof()), Renown.rank_name(Renown.rank(_prof()))], 10.0)
-	rn.add_theme_color_override("font_color", UI.GOLD)
-	if not small:
-		_note(col, String(st.get("blurb", "")), 10.0)
-	var stops: Array = Stations.stops(String(st.get("id", ""))).map(func(s): return Stations.stop_name(s))
-	var sl := _note(col, ",  ".join(stops), 10.0)
-	sl.add_theme_color_override("font_color", UI.TEXT)
-	if not Stations.lessons_done(_prof()):
-		# (Training is offered plainly: the lever opens on it, and this says how far you are)
-		var left := Stations.lessons_left(_prof()).size()
-		var tl := _note(col, Stations.TEXT["placard_lessons"] % [Stations.LESSON_ORDER.size() - left, Stations.LESSON_ORDER.size()], 10.0)
-		tl.add_theme_color_override("font_color", Color(0.62, 0.78, 1.0))
-	_note(col, Stations.TEXT["safe"], 10.0)
-	var lever := TrainView.Lever.new()
-	lever.word = T["lever"]
-	lever.sub = Stations.TEXT["lever_for"] % String(st.get("short", ""))
-	lever.custom_minimum_size = Vector2(130, 108) if small else Vector2(150, 140)
-	lever.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	lever.set_meta("go_station", String(st.get("id", "")))
-	lever.pressed.connect(_go_station)
-	col.add_child(lever)
-
-
-func _go_station() -> void:
-	m.main.sfx("ui_confirm", 0.7, 0.0, 0.0)
-	m.go_station(m.train_station)
-
-
-func _depart() -> void:
-	m.main.sfx("ui_confirm", 0.7, 0.0, 0.0)
-	m.main.depart(m.train_tower)
+	engine.build(root)
 
 
 # --- your car ---------------------------------------------------------------------

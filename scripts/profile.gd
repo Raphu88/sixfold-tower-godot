@@ -55,6 +55,10 @@ var tally := {}  # essence kind -> banked since the last mark
 var climbs := 0
 var best_floor := 1
 var last_tower := "kraken"
+## Stations (travel.gd): the tower your home station is near (set when the
+## climber is made), and the station you're at ("" for your home station).
+var home := "gryphon"
+var station := ""
 var pacts: Array = []  # Covenant's kin book: monster kinds bound, kept between climbs
 var synergies_formed: Array = []  # named synergies (synergies.gd) formed at least once: announced once, listed in the book ("lent": two marks lent each other traits)
 ## Essence density: the body's share of everything you've banked, by essence type, and how it
@@ -235,6 +239,8 @@ func reset() -> void:
 	tally = {}
 	climbs = 0
 	best_floor = 1
+	home = "gryphon"
+	station = ""
 	pacts = []
 	synergies_formed = []
 	density = {}
@@ -291,6 +297,8 @@ func load_save() -> void:
 	density = cfg.get_value("profile", "density", {})
 	part_density = cfg.get_value("profile", "part_density", {})
 	last_tower = str(cfg.get_value("profile", "last_tower", "kraken"))
+	home = str(cfg.get_value("profile", "home", "gryphon"))
+	station = str(cfg.get_value("profile", "station", ""))
 	heirlooms = Gear.load_heirlooms(cfg.get_value("profile", "heirlooms", {}))
 	crystals = tidy_crystals(cfg.get_value("profile", "crystals", []))
 	var lp = cfg.get_value("train", "last_pay", {})
@@ -375,6 +383,8 @@ func save() -> void:
 	cfg.set_value("profile", "tally", tally)
 	cfg.set_value("profile", "climbs", climbs)
 	cfg.set_value("profile", "last_tower", last_tower)
+	cfg.set_value("profile", "home", home)
+	cfg.set_value("profile", "station", station)
 	cfg.set_value("profile", "pacts", pacts)
 	cfg.set_value("profile", "synergies_formed", synergies_formed)
 	cfg.set_value("profile", "density", density)

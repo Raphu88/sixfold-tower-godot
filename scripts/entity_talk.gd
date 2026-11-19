@@ -23,6 +23,8 @@ extends RefCounted
 ##   if       when the choice shows: on_train, in_play, marked, unbound,
 ##            climbed (on the train after a climb), logged (events to tell)
 ##   leave    choosing it ends the talk
+##   act      ...and then does this: "tour:station" or "tour:train" (the
+##            Entity's tour, tour.gd)
 ## At most MAX_CHOICES show at once; more go under "Something else".
 ##
 ## STORY SLOTS (the owner's to write): a node whose every line starts with
@@ -57,7 +59,7 @@ static var DIALOGUE := {
 			"You want something. Go on.",
 			"Questions. Good. I have a few answers.",
 		],
-		"choices": ["next", "how", "tower", "marks", "body", "climb", "this_climb", "train", "who", "why", "bye"]},
+		"choices": ["next", "how", "tower", "marks", "body", "climb", "this_climb", "train", "tour", "who", "why", "bye"]},
 	# --- what to do ---------------------------------------------------------------------
 	"next": {"ask": "What should I do next?", "fact": "next",
 		"lines": ["{hint}"],
@@ -70,7 +72,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
+		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
 	"how_stamina": {"ask": "Stamina, and why my bar shrinks?", "fact": "rules",
 		"lines": ["Rolls, strikes, shots and jumps cost stamina, and it refills fast, {sta_regen} a second once you stop for a breath. Act with too little and it still happens, but the missing part comes off your max stamina: fatigue. The bar's lost end goes dark, and it fills only to what's left, never below {sta_floor} of it. A Stamina Vial shakes it all off and fills you up. So does a camp's rest, and every climb starts fresh. The stair's rest doesn't touch it."],
 		"choices": ["how_belt", "how", "bye"]},
@@ -95,6 +97,9 @@ static var DIALOGUE := {
 	"how_renown": {"ask": "What is renown for?", "fact": "rules",
 		"lines": ["Renown comes from climbs ({per_floor} a floor reached, {per_best} more for each floor past your best, {beast} a beast), and from tournaments, the Noble's contracts, Training and deeds with other climbers. Every gain says what it was for. Ranks: {ranks}. Each opens something to do: a higher bracket, more contracts, new titles, a charm recipe, cheaper refills. A station's Renown Board says what your next rank opens."],
 		"choices": ["how_titles", "how_contracts", "how_tourney", "how", "bye"]},
+	"how_travel": {"ask": "Stations and travel?", "fact": "travel",
+		"lines": ["There are {stations} stations on a loop, each in a city near its tower, each with Training, a tournament and its own Noble. Titles are shared by every Noble. You're at {station}; your home is {home}. You climb the tower by the station you're at, so to climb another, ride there first: the Engine's map. A stop costs {fare} crystals of any kind, the shorter way round, so {max_fare} at most. {title_cut} {lock}"],
+		"choices": ["tour", "how_titles", "how", "bye"]},
 	"how_titles": {"ask": "How do titles work?", "fact": "titles",
 		"lines": ["The Noble at a station grants them. Each needs a rank and a deed; when both are done, ask to be named. Wear one at a time: only the worn one counts. Each helps with someone: other climbers trade kinder or team up more, Training costs less, tournament masters open brackets sooner, the outfitter takes some off. {title_line}"],
 		"choices": ["how_contracts", "how_renown", "how", "bye"]},
@@ -210,6 +215,11 @@ static var DIALOGUE := {
 	"train_money": {"ask": "How do I pay for things?", "fact": "money",
 		"lines": ["Crystals. You hold {crystals} essence in them. {condense} of what you bank at a stair condenses into them, and the outfitter pays for every climb, fall or not. Spend them, craft tinctures from them, or eat them: your book's Crystals and tinctures."],
 		"choices": ["train_carry", "start", "bye"]},
+	"tour": {"ask": "Show me around again.", "if": "on_train",
+		"lines": ["Which part? Skip the tour whenever you like.", "The station, or the train? I don't mind repeating myself."],
+		"choices": ["tour_station", "tour_train", "how_travel", "start", "bye"]},
+	"tour_station": {"ask": "The station.", "leave": true, "act": "tour:station"},
+	"tour_train": {"ask": "The train.", "leave": true, "act": "tour:train"},
 	"train_carry": {"ask": "What goes up the tower with me?",
 		"lines": ["What you wear, your pack and your belt. The stash never leaves the train. A fall takes your pack and your belt, and sometimes the weapon in your hand. Never an heirloom."],
 		"choices": ["train_money", "start", "bye"]},
@@ -288,12 +298,14 @@ var node := "start"
 var line := ""  # what the Entity is saying (kept while the page rebuilds)
 var offset := 0  # how far down the choices we've paged ("Something else")
 var said := 0  # lines said (tests)
+var act := ""  # what the last choice asked for as it ended the talk ("tour:station"...: menu.gd does it)
 
 
 ## Starts again at the first question.
 func begin(main) -> void:
 	node = "start"
 	offset = 0
+	act = ""
 	say(main)
 
 
@@ -353,6 +365,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_titles(main)
 		"dining":
 			f = _fact_dining(main)
+		"travel":
+			f = load("res://scripts/travel.gd").talk_facts(main.profile if main != null else null)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -420,6 +434,7 @@ func choose(main, i: int) -> bool:
 			say(main)
 			return true
 	if bool(DIALOGUE.get(id, {}).get("leave", false)):
+		act = String(DIALOGUE[id].get("act", ""))
 		return false
 	node = id
 	offset = 0

@@ -9142,6 +9142,7 @@ func _train_tests() -> void:
 	p.gear = G.start_gear()
 	p.refresh_gear()
 	prof.pack = [G.make("leather_cap"), G.make("dagger"), G.make("chain")]
+	prof.station = "wyvern"  # (you climb the tower by the station you're at: travel.gd)
 	menu.open("train")
 	await _frames(2)
 	var cards: Array = _car_buttons("tower", "wyvern")

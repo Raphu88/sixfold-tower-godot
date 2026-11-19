@@ -5,7 +5,7 @@ extends RefCounted
 ## names, ranks and deeds) are renown.gd TITLES; the Noble grants them
 ## (noble.gd, the station's "noble" stop).
 ##
-## SOCIAL is keyed by title id; each title lists some of four groups, each
+## SOCIAL is keyed by title id; each title lists some of five groups, each
 ## with "text" (what its card says, plainly) and its numbers:
 ##   rivals     other climbers in the towers (rivals.gd), and later the
 ##              Dining car's fellow climbers (rival_terms below is the hook):
@@ -28,13 +28,16 @@ extends RefCounted
 ##              (his upgrade tree, outfitter.gd, is his own: some of its nodes
 ##              need a title granted; a worn title's discount and the tree's
 ##              add up to its "discount_cap" at most, never more)
+##   travel     the train between stations (travel.gd):
+##                fare_cut   a share off the fare for each stop (modest:
+##                           a quarter or a half)
 ## A title not listed has no benefits. Every word and number is here (and in
 ## the Data editor: "Titles' benefits").
 
 const Renown := preload("res://scripts/renown.gd")
 
 ## The groups, in the order a card lists them: [id, name].
-static var GROUPS := [["rivals", "Rival climbers"], ["gym", "Training"], ["tourney", "Tournament masters"], ["outfitter", "The outfitter"]]
+static var GROUPS := [["rivals", "Rival climbers"], ["gym", "Training"], ["tourney", "Tournament masters"], ["outfitter", "The outfitter"], ["travel", "Train fares"]]
 
 static var SOCIAL := {
 	"newcomer": {
@@ -64,6 +67,7 @@ static var SOCIAL := {
 	"stairworn": {
 		"outfitter": {"text": "One more Fine piece hangs on his rail for you.", "first_look": 1},
 		"gym": {"text": "Medal drills cost half.", "fee_cut": 0.5},
+		"travel": {"text": "Fares cost a quarter less.", "fare_cut": 0.25},
 	},
 	"surefoot": {
 		"gym": {"text": "The extra drills open, and medal drills cost half.", "extra": true, "fee_cut": 0.5},
@@ -76,6 +80,7 @@ static var SOCIAL := {
 	"trusted": {
 		"outfitter": {"text": "He takes 5% off everything he sells.", "discount": 0.05},
 		"rivals": {"text": "Climbers trade kinder: they ask a sixth less.", "friendly": true, "trade_ask": 0.85},
+		"travel": {"text": "Fares cost a quarter less.", "fare_cut": 0.25},
 	},
 	"ironclad": {
 		"tourney": {"text": "Brackets open a rank sooner, and prizes are a quarter bigger.", "early": 1, "prize": 0.25},
@@ -96,12 +101,14 @@ static var SOCIAL := {
 	"talked_of": {
 		"rivals": {"text": "Climbers trade kindly (a quarter less), team up half again as often and take your bets.", "friendly": true, "trade_ask": 0.75, "team": 1.5, "bets": true},
 		"outfitter": {"text": "He takes 10% off, and one more Fine piece hangs for you.", "discount": 0.1, "first_look": 1},
+		"travel": {"text": "Fares cost half.", "fare_cut": 0.5},
 	},
 	"paragon": {
 		"rivals": {"text": "Climbers trade kindly, team up twice as often and take your bets.", "friendly": true, "trade_ask": 0.75, "team": 2.0, "bets": true},
 		"gym": {"text": "Medal drills are free, and the extra drills open.", "fee_cut": 1.0, "extra": true},
 		"tourney": {"text": "Entry is free, and prizes are half again as big.", "fee_cut": 1.0, "prize": 0.5},
 		"outfitter": {"text": "He takes 10% off, today's piece comes a rarity higher, and two more Fine pieces hang for you.", "discount": 0.1, "today": true, "first_look": 2},
+		"travel": {"text": "Fares cost half.", "fare_cut": 0.5},
 	},
 }
 
