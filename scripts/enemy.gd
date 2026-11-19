@@ -23,7 +23,7 @@ signal on_hit(foe, dmg: float, source: String)
 signal on_reaction(foe, reaction: String, source)
 
 const Reactions := preload("res://scripts/reactions.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 ## Marks' passive ranks that change what a foe takes (bond.gd taken_mult;
 ## loaded once it's needed: bond.gd loads the library and its content).
 static var _bond_script: Script = null
@@ -1788,7 +1788,7 @@ func _ally_ai(delta: float) -> void:
 				best_d = d
 				target = e
 	var go := Vector2.ZERO
-	var pace: float = Pacts.ally_tick(main, self, delta)  # (Menagerie: your newest graft's power)
+	var pace: float = Synergies.ally_tick(main, self, delta)  # (Menagerie: your newest graft's power)
 	if target != null:
 		var to: Vector2 = target.global_position - global_position
 		var reach: float = radius + target.radius + 10.0
@@ -1799,7 +1799,7 @@ func _ally_ai(delta: float) -> void:
 				go = main.path_dir(global_position, target.global_position) * speed * pace
 		elif ally_cd <= 0.0:
 			ally_cd = 0.9
-			var blow: float = Pacts.ally_strike(main, self, target, dmg)
+			var blow: float = Synergies.ally_strike(main, self, target, dmg)
 			if has_meta("ally_strike"):  # (Covenant's Pack Call: the pack hits harder; chimera.gd)
 				blow = float((get_meta("ally_strike") as Callable).call(self, target, blow))
 			var struck = target

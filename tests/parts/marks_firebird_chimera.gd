@@ -671,23 +671,21 @@ func _fire_apex() -> void:
 	p.iframes = 999.0
 	p.firebird_t = 0.0
 	_check(not p.flying(), "...and you land when it ends")
-	# Phoenix Heart: at its end you regain what it held back.
+	# Phoenix Heart's Apex: the burst as you rise throws back and burns the foes near you.
 	await _bonded("rekindler", STEP5)
 	main = t.main
 	p = main.player
-	_foes([])
+	var near = _foes([Vector2(70, 0)], 300.0)[0]
 	b = _mark("rekindler", "phoenix_heart")
-	_cast(b)
+	p.ember_used = true
 	p.iframes = 0.0
 	p.hurt_t = 0.0
-	p.hp = 20.0
-	p.receive_attack(50.0, null)
-	_check(p.hp == 1.0 and p.phoenix_held > 20.0, "Phoenix Heart keeps you at 1 health and holds back what it stopped (%.0f)" % p.phoenix_held)
-	var held: float = p.phoenix_held
-	p.iframes = 999.0
-	p.phoenix_t = 0.01
-	await t._wait(0.2)
-	_check(absf(p.hp - 1.0 - held) < 0.5 and p.phoenix_held == 0.0, "...and gives it back at its end (+%.0f)" % (p.hp - 1.0))
+	var x0: float = near.global_position.x
+	p.receive_attack(9999.0, null)
+	await t._frames(3)
+	_check(not p.dead and p.phoenix_t > 0.0 and near.hp < 300.0 and near.burn_t > 0.0, "Phoenix Heart: you rise in a burst that burns the foes near you (%.0f)" % (300.0 - near.hp))
+	_check(near.global_position.x > x0 + 4.0 or near.knock.x > 0.0, "...and throws them back (its Apex)")
+	p.phoenix_t = 0.0
 
 
 func _chimera_apex() -> void:

@@ -2,15 +2,15 @@ extends RefCounted
 ## THE TREE: the rules of how a climber grows, for both paths (the book's
 ## Tree section draws it: tree_view.gd). Every choice is for good.
 ##
-## MARKS: each bond's tree is its steps (1 to 5 today; 6 to 10 show as
-## "Coming later"). Step 1 and step 5 are its spells. Steps 2 and 4 are
+## MARKS: each bond's tree is its steps (1 to 5 today; 6 to 12 show as
+## "Coming soon"). Step 1 and step 5 are its spells. Steps 2 and 4 are
 ## FORKS: today's spell, or the tower's alternative (library.gd MARK_FORKS,
 ## from scripts/spells/<tower>.gd). Step 3 is a fork of VARIATIONS of the
 ## bond's first spell: today's change (named in FORKS "change"), or a
 ## library variation. A fork is READY once the mark reaches its step and
 ## both sides are written; until it's chosen, today's side is the one in use
 ## (so a climber who never chooses plays as before). Once chosen, the other
-## side is gone for good. A side not written yet is a "Coming later" card
+## side is gone for good. A side not written yet is a "Coming soon" card
 ## that can't be chosen; while it is, the fork isn't ready.
 ##
 ## THE UNBOUND: one tree per body part, a node per part level (1 to 10):
@@ -48,7 +48,7 @@ const Unbound := preload("res://scripts/unbound.gd")
 const FORK_STEPS := [2, 3, 4]
 ## The highest step a mark reaches today, and the steps the tree shows.
 const MAX_STEP := 5
-const SHOWN_STEPS := 10
+const SHOWN_STEPS := 12
 ## Learning an Unbound fork's passed side: the part must be this many levels
 ## past the node, and it costs SKIP_COST[0] + SKIP_COST[1] x the node's level
 ## crystal essence (of any kinds, the biggest crystal first).
@@ -62,7 +62,7 @@ const VERSION := 2
 static var TEXT := {
 	"step": "Step %d",
 	"level": "Level %d",
-	"later": "Coming later",
+	"later": "Coming soon",
 	"later_says": "Marks will grow past step 5 in a later update.",
 	"needs_step": "at step %d",
 	"needs_level": "at level %d",

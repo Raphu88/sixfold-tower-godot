@@ -186,6 +186,7 @@ static var BOND_FX := {
 ## step-5 Apex are tuned; the rest follow their mark): "p" preset, "style",
 ## "flash" (the caster's light flash, a share of CAST_FLASH), "also" a second preset.
 static var SPELL_FX := {
+	"call_lightning": {"p": "crackle", "style": "up", "flash": 1.1},
 	"chain": {"p": "crackle", "style": "cone", "flash": 1.0},
 	"thunderhead": {"p": "crackle", "style": "ring", "flash": 1.5, "also": "flare"},
 	"lift": {"p": "wind", "style": "up"},

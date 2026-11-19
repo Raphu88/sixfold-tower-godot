@@ -46,3 +46,4 @@ func run(smoke) -> void:
 	# The Proving's gift is a push too, but no longer a whole step.
 	var P = load("res://scripts/profile.gd")
 	t._check(P.PROVING_GROWTH > 0.0 and P.PROVING_GROWTH < float(P.STEP_XP[1]), "winning the Proving grows a mark %d, less than a step" % int(P.PROVING_GROWTH))
+	t._check(is_equal_approx(P.PROVING_GROWTH, 36.0), "...36 essence, the owner's number (by sixes)")

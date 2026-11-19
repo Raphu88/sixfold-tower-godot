@@ -12,7 +12,7 @@ extends RefCounted
 
 const Rv := preload("res://scripts/rivals.gd")
 const R := preload("res://scripts/reactions.gd")
-const PA := preload("res://scripts/pacts.gd")
+const PA := preload("res://scripts/synergies.gd")
 const Floors := preload("res://scripts/floors.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Reach := preload("res://scripts/reach.gd")
@@ -445,14 +445,14 @@ func _team() -> void:
 	_check(int(R.SHARED_FIRED.get("conduct", 0)) > shared0 and ("shared:conduct" in main.rivals.results), "...told as a reaction shared with them (their name under its word)")
 	_check(main.notices.log.any(func(l): return String(l.get("text", "")).contains(ally.rival_name) and String(l.get("text", "")).contains(R.REACTIONS["conduct"]["name"])), "...and in the feed and the Entity's log")
 	_check(int(Rv.state(main.profile)[enc["rival"]["id"]]["shared"]) >= 1, "...and remembered with them")
-	# Their mark is the pact's other half while they're with you.
-	_check(PA.has(p, "tempest") and not PA.own(p, "tempest") and ally.bond_ids().has("tidecaller"), "a pact one of whose marks is theirs holds while they're beside you (Tempest)")
+	# Their mark is the named synergy's other half while they're with you.
+	_check(PA.has(p, "tempest") and not PA.own(p, "tempest") and ally.bond_ids().has("tidecaller"), "a named synergy one of whose marks is theirs holds while they're beside you (Tempest)")
 	_check(main.hud.status_chips().any(func(ch): return String(ch.get("id", "")) == "rival"), "...with their health on a chip at the top")
 	# Monsters strike them; badly hurt, they fall back (never killed).
 	ally.receive_attack(ally.max_hp * 10.0, foe)
 	await t._frames(2)
 	_check(not main.rivals.team_on() and "team_spent" in main.rivals.results, "badly hurt, they fall back and the team is over")
-	_check(not PA.has(p, "tempest") and is_equal_approx(main.rivals.share(), 1.0) and is_equal_approx(main.rivals.drop_mult(), 1.0), "...and the pact, the shared essence and the fewer finds end with it")
+	_check(not PA.has(p, "tempest") and is_equal_approx(main.rivals.share(), 1.0) and is_equal_approx(main.rivals.drop_mult(), 1.0), "...and the synergy, the shared essence and the fewer finds end with it")
 	# Reaching a stair together: renown.
 	var enc2: Dictionary = main.rivals.add(p.global_position - dir * 60.0, -1, "team")
 	main.rivals.start_team(enc2)

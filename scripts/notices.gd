@@ -11,7 +11,7 @@ extends RefCounted
 ##                the status chips: one line each (the task's progress,
 ##                "doors shut: 3 left", a scenario's clock), stacked.
 ##   LEFT         the feed, under the health bar and the slots: what you
-##                picked up, what was banked at a stair, renown, a pact.
+##                picked up, what was banked at a stair, renown, a synergy.
 ##                Short lines, a few at most, each gone in a few seconds.
 ##   RIGHT        the Entity (guide.gd): its sphere, its bubble, and, when
 ##                you open it, its log of what happened this climb.
@@ -102,7 +102,7 @@ static var KINDS := {
 	"rest": {"name": "Rest", "color": Color(0.6, 1.0, 0.7), "sign": "up", "feed": true},
 	"mark": {"name": "A mark grows", "color": Color(0.85, 0.75, 1.0), "sign": "star", "feed": true},
 	"renown": {"name": "Renown", "color": Color(0.95, 0.8, 0.5), "sign": "star", "feed": true},
-	"pact": {"name": "A pact", "color": Color(0.85, 0.75, 1.0), "sign": "ring", "feed": true},
+	"synergy": {"name": "A synergy", "color": Color(0.85, 0.75, 1.0), "sign": "ring", "feed": true},
 	"noticed": {"name": "The beast noticed", "color": Color(1.0, 0.85, 0.5), "sign": "ring", "feed": true},
 	"camp": {"name": "A camp", "color": Color(0.95, 0.75, 0.45), "sign": "up", "feed": true},
 	"room": {"name": "A room", "color": Color(0.8, 0.78, 0.85), "sign": "square", "feed": false},
@@ -144,7 +144,7 @@ static var TEXT := {
 	"crack": "Broke a cracked wall",
 	"secret": "Found a secret room",
 	"reaction": "Reaction: %s",
-	"pact": "Pact formed: %s",
+	"synergy": "Synergy formed: %s",
 	"noticed": "%s noticed: %s (%s)",  # the beast, the scenario, the grade
 	"fall": "Fell to floor %d",
 	"camp": "Camp: %s",

@@ -1,13 +1,14 @@
 extends RefCounted
-## States, reactions and named pacts (reactions.gd, pacts.gd): the old
+## States, reactions and synergies (reactions.gd, synergies.gd): the old
 ## fields are the states; every reaction fires from real casts and does its
-## thing; each pact works; the Unbound's essences leave states and react;
+## thing; each named synergy works, and any two marks lend each other their
+## traits; the Unbound's essences leave states and react;
 ## old saves load; the climber-side switch stays off; the book, the Library
 ## and the Data editor show them. Run by smoke_test.gd (_part_tests).
 
 const TestRun := preload("res://scripts/test_run.gd")
 const R := preload("res://scripts/reactions.gd")
-const PA := preload("res://scripts/pacts.gd")
+const PA := preload("res://scripts/synergies.gd")
 
 var t
 var P = load("res://scripts/profile.gd")
@@ -16,6 +17,10 @@ var dir := Vector2.RIGHT
 
 func run(smoke) -> void:
 	t = smoke
+	# (The reactions on their own first: the traits marks lend each other set
+	# off reactions of their own, which _lent tests.)
+	var lent: Dictionary = PA.TRAITS
+	PA.TRAITS = {}
 	await _states()
 	await _conduct()
 	await _steam()
@@ -25,11 +30,14 @@ func run(smoke) -> void:
 	await _hemorrhage()
 	await _smoulder()
 	await _ambush()
-	await _pacts_tempest_dust_steel()
-	await _pacts_fire()
-	await _pacts_body()
-	await _pacts_hunt()
+	PA.TRAITS = lent
+	await _named_tempest_dust_steel()
+	await _named_fire()
+	await _named_body()
+	await _named_hunt()
 	await _menagerie()
+	await _scald_steel()
+	await _lent()
 	await _unbound()
 	await _saves()
 	await _climber_on()
@@ -168,7 +176,7 @@ func _states() -> void:
 
 func _conduct() -> void:
 	print("reactions: Conduct (Undertow soaks, Chain Lightning charges)")
-	await _marked({"hand": "deepcaller", "legs": "stormcaller"})
+	await _marked({"hand": "deepcaller", "legs": "stormcaller"}, 2)  # (Chain Lightning comes at step 2)
 	var main = t.main
 	var p = main.player
 	var a = _foe(p.global_position + dir * 70.0)
@@ -177,7 +185,6 @@ func _conduct() -> void:
 	await _cast("hand", "undertow")  # (drains the nearest two: both soaked)
 	_check(R.has(a, "soaked") and R.has(b, "soaked") and not R.has(far, "soaked"), "Undertow soaks the foes it drains")
 	var before := _fired("conduct")
-	main.player.bonds["legs"].select(0)
 	R.clear(b, "soaked")
 	b.soak(4.0)
 	far.queue_free()
@@ -255,7 +262,7 @@ func _crater() -> void:
 
 func _skybolt() -> void:
 	print("reactions: Skybolt (Chain Lightning, then Gale Lift)")
-	await _marked({"hand": "stormcaller", "legs": "windwalker"})
+	await _marked({"hand": "stormcaller", "legs": "windwalker"}, 2)  # (Chain Lightning comes at step 2)
 	var main = t.main
 	var p = main.player
 	var a = _foe(p.global_position + dir * 60.0, 999.0)
@@ -328,23 +335,23 @@ func _ambush() -> void:
 	_check(_fired("ambush") == before and R.has(b, "unseen"), "...but smoke on a foe already poisoned is not, and it stays lost")
 
 
-# --- named pacts --------------------------------------------------------------------
+# --- named synergies ----------------------------------------------------------------
 
-func _pacts_tempest_dust_steel() -> void:
-	print("pacts: Tempest, Dust Devil, Whirling Steel")
+func _named_tempest_dust_steel() -> void:
+	print("synergies: Tempest, Dust Devil, Whirling Steel")
 	await _marked({"hand": "tidecaller", "legs": "stormcaller"})
 	var main = t.main
 	var p = main.player
 	_check(PA.held(p) == ["tempest"], "Stormcaller and Tidecaller hold Tempest")
-	_check("tempest" in main.profile.pacts_formed, "...announced and remembered the first time it forms")
+	_check("tempest" in main.profile.synergies_formed, "...announced and remembered the first time it forms")
 	var a = _foe(p.global_position + dir * 50.0, 999.0)
 	var before := _fired("conduct")
 	await _cast("hand", "tidal_surge")
 	_check(R.has(a, "charged"), "Tempest: Tidal Surge leaves the foe charged as well as soaked")
 	_check(_fired("conduct") > before, "...so the wave sets off Conduct")
-	var n0: int = main.profile.pacts_formed.size()
+	var n0: int = main.profile.synergies_formed.size()
 	main._give_bonds()
-	_check(main.profile.pacts_formed.size() == n0, "...and is announced only once")
+	_check(main.profile.synergies_formed.size() == n0, "...and is announced only once")
 	# Dust Devil.
 	await _marked({"hand": "windwalker", "legs": "sandshaper"})
 	main = t.main
@@ -371,8 +378,8 @@ func _pacts_tempest_dust_steel() -> void:
 	_check(not R.has(k, "airborne"), "...but not a heavy one (a knight)")
 
 
-func _pacts_fire() -> void:
-	print("pacts: Forge Runes, Wildfire")
+func _named_fire() -> void:
+	print("synergies: Forge Runes, Wildfire")
 	await _marked({"hand": "flameblade", "legs": "rune_artist"})
 	var main = t.main
 	var p = main.player
@@ -403,8 +410,8 @@ func _pacts_fire() -> void:
 	_check(p.aura_heat > 0.0, "Wildfire: burning ground far from you feeds the aura's heat (%.0f)" % p.aura_heat)
 
 
-func _pacts_body() -> void:
-	print("pacts: Undying, Bloodletter, Toxic Precision")
+func _named_body() -> void:
+	print("synergies: Undying, Bloodletter, Toxic Precision")
 	await _marked({"hand": "warden", "legs": "rekindler"})
 	var main = t.main
 	var p = main.player
@@ -439,8 +446,8 @@ func _pacts_body() -> void:
 	_check(v.venom >= int(PA.num("toxic_precision", "stacks")), "Toxic Precision: Sever adds 3 poison stacks (%d)" % v.venom)
 
 
-func _pacts_hunt() -> void:
-	print("pacts: Ambusher")
+func _named_hunt() -> void:
+	print("synergies: Ambusher")
 	await _marked({"hand": "hunter", "legs": "ashwalker"})
 	var main = t.main
 	var p = main.player
@@ -455,12 +462,12 @@ func _pacts_hunt() -> void:
 	await _cast("hand", "piercing_shot")
 	await t._until(func(): return hid.hp < 9999.0, 1.0)
 	var unseen: float = 9999.0 - hid.hp
-	# (Ashwalker's own Unseen Strike triples it; the pact's weak point doubles that)
+	# (Ashwalker's own Unseen Strike triples it; the synergy's weak point doubles that)
 	_check(unseen >= plain * 3.0 * PA.num("ambusher", "mult") * 0.9, "Ambusher: an unseen shot strikes a weak point (%.0f vs %.0f)" % [unseen, plain])
 
 
 func _menagerie() -> void:
-	print("pacts: Menagerie")
+	print("synergies: Menagerie")
 	await _marked({"hand": "covenant", "legs": "grafter"})
 	var main = t.main
 	var p = main.player
@@ -489,6 +496,81 @@ func _menagerie() -> void:
 	PA.ally_strike(main, ally, target, 1.0)
 	_check(target.venom > v0, "a back graft: their blows poison")
 	ally.queue_free()
+
+
+func _scald_steel() -> void:
+	print("synergies: Scald, Lightning Steel")
+	await _marked({"hand": "tidecaller", "legs": "flame_contractor"})
+	var main = t.main
+	var p = main.player
+	_check(PA.held(p) == ["scald"], "Tidecaller and Flame Contractor hold Scald")
+	var a = _foe(p.global_position + dir * 200.0, 999.0)
+	var b = _foe(p.global_position + dir * 200.0 + dir.orthogonal() * 40.0, 999.0)
+	a.soak(4.0)
+	main.add_flame(a.global_position, 20.0, 3.0, true)
+	await t._until(func(): return R.has(a, "unseen"), 1.5)
+	_check(R.has(a, "unseen") and R.has(b, "unseen") and a.hp < 999.0, "Scald: your burning ground under a soaked foe bursts into steam that blinds it and the foes beside it")
+	_check(not R.has(a, "soaked"), "...and dries it off")
+	# Lightning Steel.
+	await _marked({"hand": "blade_forger", "legs": "stormcaller"})
+	main = t.main
+	p = main.player
+	_check(PA.held(p) == ["lightning_steel"] and PA.lent(p, "blade_forger").is_empty(), "Stormcaller and Blade Forger hold Lightning Steel (and lend no traits: it takes their place)")
+	var s = _foe(p.global_position + dir * 90.0, 999.0)
+	await _cast("hand", "conjured_blades")
+	await t._until(func(): return R.has(s, "charged"), 1.0)
+	_check(R.has(s, "charged"), "Lightning Steel: a conjured blade that strikes leaves its foe charged")
+	await t._wait(1.5)  # (the cast's blades are gone)
+	var side: Vector2 = dir.orthogonal()
+	var at: Vector2 = p.global_position + dir * 160.0
+	var b1 = main.spawn_player_arrow(at, Vector2.ZERO, 0.0, 0.0, false)
+	b1.style = "blade"
+	b1.life = 5.0
+	var b2 = main.spawn_player_arrow(at + side * 150.0, Vector2.ZERO, 0.0, 0.0, false)
+	b2.style = "blade"
+	b2.life = 5.0
+	var mid = _foe(at + side * 75.0, 999.0)
+	var n: int = PA.conduct(main, b1, null)
+	_check(n >= 1 and mid.hp < 999.0 and R.has(mid, "charged"), "...and lightning leaps between your blades, striking and charging the foes along the bolt (%d)" % n)
+	b1.queue_free()
+	b2.queue_free()
+
+
+func _lent() -> void:
+	print("synergies: lent traits")
+	await _marked({"hand": "stormcaller", "legs": "venomist"})
+	var main = t.main
+	var p = main.player
+	_check(PA.held(p).is_empty() and PA.lent(p, "stormcaller") == ["venomist"] and PA.lent(p, "venomist") == ["stormcaller"], "two marks with no named synergy lend each other their traits")
+	_check("lent" in main.profile.synergies_formed, "...and the first time they do, it's remembered (the Entity's first-time tip)")
+	var a = _foe(p.global_position + dir * 80.0, 999.0)
+	await _cast("hand", "call_lightning")
+	_check(a.venom >= int(PA.TRAITS["venomist"]["stacks"]) and a.hp < 999.0, "Venomist lends Venom: Call Lightning's bolt adds a stack of poison (%d)" % a.venom)
+	a.charged = 0.0
+	a.overcharge_t = 0.0
+	await _cast("legs", "venom_spit")
+	await t._until(func(): return R.has(a, "charged"), 1.0)
+	_check(R.has(a, "charged"), "Stormcaller lends Charge: Venom Spit's shot leaves the foe charged")
+	# A kill: Rekindler lends Ember heart.
+	await _marked({"hand": "stormcaller", "legs": "rekindler"})
+	main = t.main
+	p = main.player
+	var weak = _foe(p.global_position + dir * 80.0, 2.0)
+	p.hp = 10.0
+	await _cast("hand", "call_lightning")
+	_check((not is_instance_valid(weak) or weak.dead) and p.hp > 10.0, "Rekindler lends Ember heart: a spell's kill heals you a little (+%.0f)" % (p.hp - 10.0))
+	# A casting trait: Warden lends Guard.
+	await _marked({"hand": "hunter", "legs": "warden"})
+	main = t.main
+	p = main.player
+	p.barrier_hp = 0.0
+	await _cast("hand", "piercing_shot")
+	_check(p.barrier_hp >= float(PA.TRAITS["warden"]["shield"]) * 0.99 or p.barrier_t > 0.0, "Warden lends Guard: casting raises a thin barrier (%.0f)" % p.barrier_hp)
+	# A named pair lends nothing; a third mark lends to both.
+	await _marked({"hand": "stormcaller", "legs": "tidecaller", "heart": "surgeon"})
+	p = t.main.player
+	_check(PA.lent(p, "stormcaller") == ["surgeon"] and PA.lent(p, "surgeon").size() == 2, "a named synergy takes the place of its pair's lent traits; a third mark still lends to both (%s)" % [PA.lent(p, "stormcaller")])
+	_check(PA.TRAITS.values().all(func(tr): return String(tr["says"]) != "" and String(tr["name"]) != ""), "every lent trait has a name and says what it does")
 
 
 # --- the Unbound ----------------------------------------------------------------------
@@ -538,8 +620,8 @@ func _unbound() -> void:
 # --- saves, the climber, pages, data -------------------------------------------------
 
 func _saves() -> void:
-	print("pacts: old saves")
-	var path := TestRun.path("user://smoke_pacts.cfg")
+	print("synergies: old saves")
+	var path := TestRun.path("user://smoke_synergies.cfg")
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
 	cfg.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": 200.0, "faint": false, "debt": 0.0}, "legs": {"id": "tidecaller", "xp": 0.0, "faint": false, "debt": 0.0}})
@@ -549,15 +631,15 @@ func _saves() -> void:
 	old.saving = false
 	old.save_path = path
 	old.load_save()
-	_check(old.pacts_formed == [] and old.pacts == ["slime"] and old.bonds.size() == 2, "an old save loads: no pacts formed yet, Covenant's bound kinds kept")
+	_check(old.synergies_formed == [] and old.pacts == ["slime"] and old.bonds.size() == 2, "an old save loads: no synergies formed yet, Covenant's bound kinds kept")
 	old.saving = true
-	old.pacts_formed = ["tempest"]
+	old.synergies_formed = ["tempest"]
 	old.save()
 	var again = P.new()
 	again.saving = false
 	again.save_path = path
 	again.load_save()
-	_check(again.pacts_formed == ["tempest"], "pacts formed are saved")
+	_check(again.synergies_formed == ["tempest"], "synergies formed are saved")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
@@ -600,27 +682,43 @@ func _climber_on() -> void:
 
 
 func _pages() -> void:
-	print("pacts: the book and the Library")
+	print("synergies: the book and the Library")
 	await _marked({"hand": "hunter", "legs": "ashwalker"})
 	var main = t.main
 	var menu = main.menu
 	menu.climber_tab = "marks"
 	menu.open("climber", true)
 	await t._frames(3)
-	var shown: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("pacts"))
-	_check(not shown.is_empty() and "ambusher" in shown[0].get_meta("pacts"), "the book's Marks section lists the pacts held")
+	var shown: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("synergies"))
+	_check(not shown.is_empty() and "ambusher" in shown[0].get_meta("synergies"), "the book's Marks section lists the named synergies held")
 	menu.close()
 	await t._frames(2)
 	menu.open("library")
 	await t._frames(3)
-	var shelf: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("pact_shelf"))
-	var known: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("pact") and n.get_meta("pact") == "ambusher")
-	var locked: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("pact_locked"))
-	_check(shelf.size() == 1 and known.size() == 1 and locked.size() == PA.PACTS.size() - 1, "the Library lists the pacts formed, the rest as ???")
+	var shelf: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("synergy_shelf"))
+	var known: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("synergy") and n.get_meta("synergy") == "ambusher")
+	var locked: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("synergy_locked"))
+	_check(shelf.size() == 1 and known.size() == 1 and locked.size() == PA.SYNERGIES.size() - 1, "the Library lists the named synergies formed, the rest as ???")
+	# Two marks with no named synergy: the book lists what each lends the other.
+	await _marked({"hand": "stormcaller", "legs": "venomist", "heart": "hunter"})
+	main = t.main
+	menu = main.menu
+	menu.climber_tab = "marks"
+	menu.open("climber", true)
+	await t._frames(3)
+	var lent: Array = menu.find_children("*", "", true, false).filter(func(n): return n.has_meta("lent"))
+	_check(not lent.is_empty() and lent[0].get_meta("lent").size() == 6, "the book's Marks section lists the traits your marks lend each other (%d)" % (lent[0].get_meta("lent").size() if not lent.is_empty() else 0))
+	var words: Array = menu.find_children("*", "Label", true, false).map(func(l): return String(l.text))
+	_check(words.any(func(w): return w.contains("Stormcaller's spells take Venom from Venomist")), "...in words: whose spells take which trait from which mark")
 	menu.close()
 	await t._frames(2)
 	var G = load("res://scripts/guide.gd")
-	_check(load("res://scripts/entity.gd").TIPS.has("pacts") and load("res://scripts/entity.gd").TIPS.has("reactions"), "the Entity has tips for reactions and pacts")
+	var En = load("res://scripts/entity.gd")
+	_check(En.TIPS.has("synergies") and En.TIPS.has("reactions") and not En.TIPS.has("pacts"), "the Entity has tips for reactions and synergies")
+	var said: String = String(En.TIPS["synergies"]["more"])
+	_check(PA.SYNERGIES.values().all(func(d): return said.contains(String(d["name"]))), "...and its synergies tip names all twelve named synergies")
+	var Talk = load("res://scripts/entity_talk.gd")
+	_check("how_synergies" in Talk.DIALOGUE["how"]["choices"] and Talk.shows(main, "how_synergies") and not Talk.line_for(main, "how_synergies").contains("{"), "\"How do synergies work?\" is under \"How do things work here?\"")
 
 
 func _data() -> void:
@@ -629,7 +727,7 @@ func _data() -> void:
 	for sec in ["reactions_words", "reactions_numbers", "reactions_colours"]:
 		_check(not Reg.fields_in(sec).is_empty(), "the Data editor lists %s" % sec)
 	var paths: Array = Reg.fields_in("reactions_numbers").map(func(f): return f["path"])
-	_check("reactions/REACTIONS/conduct/radius" in paths and "reactions/CLIMBER/enabled" in paths and "pacts/PACTS/tempest/charged" in paths, "...a reaction's reach, the climber switch and a pact's number among them")
+	_check("reactions/REACTIONS/conduct/radius" in paths and "reactions/CLIMBER/enabled" in paths and "synergies/SYNERGIES/tempest/charged" in paths and "synergies/TRAITS/venomist/stacks" in paths, "...a reaction's reach, the climber switch, a named synergy's number and a lent trait's among them")
 	var missing: Array = []
 	for id in R.REACTIONS:
 		if not t.main.audio.has_sound(String(R.REACTIONS[id]["sound"])):
@@ -639,13 +737,20 @@ func _data() -> void:
 				missing.append(id + ":" + s)
 	_check(missing.is_empty(), "every reaction's sound is in the bank and its states exist (%s)" % [missing])
 	var bad: Array = []
-	for id in PA.PACTS:
-		for b in PA.PACTS[id]["bonds"]:
+	for id in PA.SYNERGIES:
+		for b in PA.SYNERGIES[id]["bonds"]:
 			if not load("res://scripts/bonds.gd").BONDS.has(b):
 				bad.append(id)
-	_check(bad.is_empty() and PA.PACTS.size() == 10, "ten pacts, each of two real bonds")
+	var pairs := {}
+	for id in PA.SYNERGIES:
+		var pr: Array = PA.SYNERGIES[id]["bonds"].duplicate()
+		pr.sort()
+		pairs[str(pr)] = true
+	_check(bad.is_empty() and PA.SYNERGIES.size() == 12 and pairs.size() == 12, "twelve named synergies, each of two real bonds, no pair twice")
+	var all_bonds: Array = load("res://scripts/bonds.gd").BONDS.keys()
+	_check(PA.TRAITS.size() == 18 and all_bonds.all(func(b): return PA.TRAITS.has(b)), "every one of the 18 marks lends a trait")
 	var words := ""
-	for tbl in [R.STATES, R.REACTIONS, PA.PACTS, PA.TEXT]:
+	for tbl in [R.STATES, R.REACTIONS, PA.SYNERGIES, PA.TRAITS, PA.TEXT]:
 		words += var_to_str(tbl).to_lower()
-	var banned: Array = ["attunement", "spire", "trial", "judgment", "mana"].filter(func(w): return words.contains(w))
-	_check(banned.is_empty(), "no banned words in the states, reactions and pacts")
+	var banned: Array = ["attunement", "spire", "trial", "judgment", "mana", "pact"].filter(func(w): return words.contains(w))
+	_check(banned.is_empty(), "no banned words in the states, reactions and synergies (nor the old word, pact)")

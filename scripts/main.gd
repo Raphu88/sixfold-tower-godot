@@ -60,7 +60,7 @@ const Renown := preload("res://scripts/renown.gd")
 const HintsScript := preload("res://scripts/ability_hints.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Reactions := preload("res://scripts/reactions.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 const DataRegistry := preload("res://scripts/data_registry.gd")
 const UI := preload("res://scripts/ui.gd")
 const Reach := preload("res://scripts/reach.gd")
@@ -2841,7 +2841,7 @@ func _give_bonds() -> void:
 	player.refresh_gear()
 	if unbound != null:
 		unbound.give()  # (the Unbound carry techniques in the marks' places)
-	Pacts.announce(self)  # (two marks that answer each other: a named pact, announced the first time)
+	Synergies.announce(self)  # (two marks that answer each other: a named synergy, announced the first time)
 
 
 # --- essence and the Regard ----------------------------------------------------
@@ -3888,8 +3888,8 @@ func _wave_states(e, w: Dictionary) -> void:
 		return
 	for st in sts:
 		Reactions.apply(self, e, String(st), float(sts[st]), w.get("source"), float(w.get("amount", 0.0)))
-	if sts.has("soaked") and Pacts.has(player, "tempest") and is_instance_valid(e) and not e.dead:
-		Reactions.apply(self, e, "charged", Pacts.num("tempest", "charged"), "tempest")
+	if sts.has("soaked") and Synergies.has(player, "tempest") and is_instance_valid(e) and not e.dead:
+		Reactions.apply(self, e, "charged", Synergies.num("tempest", "charged"), "tempest")
 
 
 ## Carry: foes the wave holds that touch both take its collision hit (each
@@ -4152,10 +4152,12 @@ func _update_flames(delta: float) -> void:
 						e.take_hit(3.0, Vector2.ZERO, 0.0)
 						_kindled(e)
 						if not e.dead:
+							Synergies.scald(self, e)  # (Scald, Tidecaller and Flame Contractor: a soaked foe bursts into steam)
+						if not e.dead:
 							Reactions.apply(self, e, "burning", float(Reactions.STATES["burning"]["seconds"]), "fire ground")
 						# Wildfire (Flame Contractor and Flamewing): burning ground feeds the aura's heat.
-						if player != null and player.aura_part != "" and Pacts.has(player, "wildfire"):
-							player.aura_heat = minf(60.0, player.aura_heat + Pacts.num("wildfire", "heat"))
+						if player != null and player.aura_part != "" and Synergies.has(player, "wildfire"):
+							player.aura_heat = minf(60.0, player.aura_heat + Synergies.num("wildfire", "heat"))
 	flames = flames.filter(func(f): return f["t"] > 0.0)
 	# Meteors land.
 	for m in meteors:
@@ -4493,7 +4495,7 @@ func rank_moment() -> Array:
 
 
 ## Something happened worth a line: `kind` is one of notices.gd KINDS (an
-## item, gear, a room, a task, a pact...). It shows in the left feed if its
+## item, gear, a room, a task, a synergy...). It shows in the left feed if its
 ## kind does (or `to_feed` says so) and is kept in the Entity's log. Never
 ## damage. `once`: a key noted only once a floor.
 func note_event(kind: String, text: String, color = null, to_feed = null, once := "") -> void:

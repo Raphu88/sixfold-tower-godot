@@ -182,8 +182,9 @@ func _regard_tests() -> void:
 	_check(main.profile.choose_bond({"air": 10.0}, {"hand": 10.0}) == "stormcaller", "Air and lots of striking: Stormcaller")
 	_check(main.profile.choose_bond({"iron": 10.0}, dodgy) == "rune_artist", "Iron and lots of dodging: Rune Artist (the essence wins over play style)")
 	_check(main.profile.choose_bond({"iron": 10.0}, {"hand": 10.0}) == "blade_forger", "Iron and lots of striking: Blade Forger")
-	_check(main.profile.choose_bond({"fire": 10.0}, {"hand": 10.0}) == "flameblade", "Fire and lots of striking: Flameblade")
-	_check(main.profile.choose_bond({"fire": 10.0}, dodgy) == "ashwalker", "Fire and lots of dodging: Ashwalker")
+	_check(main.profile.choose_bond({"iron": 10.0}, {"hand": 10.0, "heart": 10.0}) == "flameblade", "Iron, striking and enduring: Flameblade (it feeds on Iron, the Wyvern's essence)")
+	_check(main.profile.choose_bond({"stone": 10.0}, dodgy) == "ashwalker", "Stone and lots of dodging: Ashwalker (it feeds on Stone, the Manticore's essence)")
+	_check(main.profile.choose_bond({"fire": 10.0}, {"hand": 10.0, "heart": 10.0}) != "flameblade" and main.profile.choose_bond({"fire": 10.0}, dodgy) != "ashwalker", "Fire forms only the Firebird's marks")
 	_check(main.profile.choose_bond({"stone": 10.0}, {"heart": 10.0, "throat": 4.0}) == "sandshaper", "Stone and lots of enduring: Sandshaper")
 	main.floor_num = 3
 	for e in main.enemies():
@@ -286,10 +287,10 @@ func _gryphon_tests() -> void:
 	# Stormcaller.
 	var a = await _spawn("slime", p.global_position + Vector2(90, 0))
 	var b2 = await _spawn("slime", p.global_position + Vector2(180, 20))
-	a.hp = 5.0
+	a.hp = 50.0
 	b2.hp = 999.0
-	_cast("hand", "overcharge")
-	_check(a.overcharge_t > 0.0, "Overcharge charges the foe in your aim")
+	_cast("hand", "call_lightning")
+	_check(a.overcharge_t > 0.0 and a.charged > 0.0 and a.hp < 50.0, "Call Lightning strikes and charges the foe in your aim (%.0f)" % (50.0 - a.hp))
 	a.take_hit(99.0, Vector2.ZERO)
 	_check(b2.hp < 999.0, "when it dies, lightning leaps to the foes nearby")
 	b2.hp = 999.0
@@ -656,7 +657,8 @@ func _body_part_tests() -> void:
 	p._strike(k, 10.0, Vector2.RIGHT, 0.0, false)
 	_check(k.dead and main.part_soak("back") > b0, "a finishing blow soaks into the back")
 	# A spell that hits several foes soaks into the throat too.
-	_mark("hand", "stormcaller", 1)
+	_mark("hand", "stormcaller", 2)
+	p.bonds["hand"].select(p.bonds["hand"].spells().map(func(sp): return sp["id"]).find("chain_lightning"))  # (Chain Lightning, step 2: it leaps between foes)
 	for i in 3:
 		var s = await _spawn("slime", p.global_position + Vector2(60 + 30 * i, 0))
 		s.hp = 999.0
@@ -790,7 +792,7 @@ func _wyvern_bond_tests() -> void:
 	p._try_cast("hand")
 	_check(p.cast_total < b.windup(), "Steady Mind: every spell winds up faster")
 	p.cast_t = 0.0
-	main.runes.clear()  # (the small fire runes the kindled strikes above left: Forge Runes, pacts.gd)
+	main.runes.clear()  # (the small fire runes the kindled strikes above left: Forge Runes, synergies.gd)
 	_cast("brow", "rune_trap")
 	p.aim = Vector2.UP
 	_cast("brow", "rune_trap")
@@ -2974,7 +2976,7 @@ func _firebird_bond_tests() -> void:
 	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
 	p.rekindle_t = 0.01
 	await _wait(0.4)
-	_check(p.hp > low, "...then regain more than you lost if you kept fighting")
+	_check(p.hp > low, "...then regain more than you lost when the flames go out")
 	p.hp = 5.0
 	_cast("back", "desperation")
 	var hp_d: float = dummy.hp
@@ -3000,9 +3002,9 @@ func _firebird_bond_tests() -> void:
 	_check(not p.dead and p.hp == 1.0 and dummy.hp < hp_d, "Pyre Oath: a killing blow makes you explode instead")
 	p.hp = p.MAX_HP
 	p.hurt_t = 0.0
-	_cast("back", "phoenix_heart")
+	p.bonds["back"].essence = p.bonds["back"].capacity()
 	p.receive_attack(9999.0, null)
-	_check(not p.dead and p.hp >= 1.0, "Phoenix Heart: you can't drop below 1 health")
+	_check(not p.dead and is_equal_approx(p.hp, p.max_health()) and p.phoenix_t > 0.0 and p.bonds["back"].essence == 0.0, "Phoenix Heart: with Last Ember spent, a killing blow raises you with full health and spends the mark's whole charge")
 	p.phoenix_t = 0.0
 	p.hp = p.MAX_HP
 	p.hurt_t = 0.0
@@ -7061,7 +7063,7 @@ func _run() -> void:
 	await _settle()
 
 	print("casts and overdraw")
-	# (Chain Lightning charges the slime and Gale Lift then lifts it: a Skybolt,
+	# (Call Lightning charges the slime and Gale Lift then lifts it: a Skybolt,
 	# reactions.gd. It must live through that for the checks after.)
 	slime.max_hp = 400.0
 	slime.hp = 400.0
@@ -7316,7 +7318,7 @@ func _run() -> void:
 	main._give_bonds()
 	_check(p.bonds["hand"].step == 3, "enough banked essence grows a mark to step 3")
 	var most3: int = int(main.BondScript.Bonds.BONDS["stormcaller"]["spells"][0]["steps"][3]["most"])
-	_check(int(p.bonds["hand"].stat("most")) == most3, "step 3 Chain Lightning branches to up to %d foes (Branching Storm)" % most3)
+	_check(int(p.bonds["hand"].stat("most")) == most3, "step 3 Call Lightning branches to up to %d foes (Branching Storm)" % most3)
 	var foes5: Array = main.enemies()
 	_check(foes5.size() >= 4, "floor 4 has more monsters (%d)" % foes5.size())
 	_check(foes5[0].max_hp > EnemyHP.get(foes5[0].kind, 0.0), "monsters are tougher higher up")
@@ -10275,7 +10277,7 @@ func _mirror_image_tests() -> void:
 	_check(e.w_id == p.weapon and e.chain.size() == mini(3, p.wdata()["combo"].size()) and not e.ranged, "it carries the weapon in your hand (%s) and its chain" % e.w_id)
 	_check(is_equal_approx(e.armor, p.protection()), "it wears your armor (%.2f)" % e.armor)
 	var names: Array = e.spells.map(func(s): return s["name"])
-	_check(e.spells.size() == 2 and "Chain Lightning" in names and "Gale Lift" in names, "it casts your marks' spells: %s" % ", ".join(names))
+	_check(e.spells.size() == 2 and "Call Lightning" in names and "Gale Lift" in names, "it casts your marks' spells: %s" % ", ".join(names))
 	_check(e.marks.size() == p.bonds.size(), "your marks show on it")
 	_check(e.max_hp > 100.0 and e.max_hp < float(main.EnemyScript.CHAMPION["hp"]) * 48.0 * main.Floors.toughness(5).x, "a mini-boss's health, below a champion's (%d)" % int(e.max_hp))
 	var hp0: float = e.hp
@@ -11307,7 +11309,7 @@ func _secret_deep_tests() -> void:
 	p.aim = Vector2.RIGHT
 	p.cast_part = "hand"
 	p._release_cast()
-	_check(D.splices >= 1 and slime.knock.x > 0.0, "a spliced Chain Lightning also throws back what it strikes (%d, %.0f)" % [D.splices, slime.knock.x])
+	_check(D.splices >= 1 and slime.knock.x > 0.0, "a spliced Call Lightning also throws back what it strikes (%d, %.0f)" % [D.splices, slime.knock.x])
 	T.use("dev_splice")
 	main.choose_camp(_sb_card("hand"))
 	main.choose_camp(_sb_card("legs"))
@@ -13536,8 +13538,8 @@ func _abilities_tests() -> void:
 	_check(kinds == ["mark", "spell", "spell", "spell", "spell", "mark", "spell", "spell", "spell", "spell"], "a marked climber's abilities: each mark, then every spell its bond has (%s)" % [kinds])
 	var spells: Array = list.filter(func(e): return e["kind"] == "spell" and e["part"] == "hand")
 	_check(spells.map(func(e): return e["locked"]) == [false, false, true, true], "...the spells past its step locked")
-	_check(spells[0]["name"] == "Chain Lightning" and spells[0]["press"] == "Q" and spells[1]["press"] == "hold Q" and spells[2]["press"] == "", "...the chosen one cast with its key, another held for the ring, a locked one with none")
-	_check(spells[0]["cost"] == "12 essence" and spells[0]["does"] != "" and not spells[0]["more"].is_empty(), "...each with its cost, what it does and its full numbers")
+	_check(spells[0]["name"] == "Call Lightning" and spells[0]["press"] == "Q" and spells[1]["press"] == "hold Q" and spells[2]["press"] == "", "...the chosen one cast with its key, another held for the ring, a locked one with none")
+	_check(spells[0]["cost"] == "10 essence" and spells[0]["does"] != "" and not spells[0]["more"].is_empty(), "...each with its cost, what it does and its full numbers")
 	_check(list[0]["press"] == "Q" and list[5]["press"] == "F" and list[0]["cost"] == A.TEXT["ring_note"], "...each mark with its key (and 'hold for the ring' once it has two spells)")
 	main.pad_active = true
 	var pad_words: String = A.entries(main)[1]["press"]
@@ -13546,7 +13548,7 @@ func _abilities_tests() -> void:
 	var touch_words: String = A.entries(main)[1]["press"]
 	var touch_head: String = A.entries(main)[0]["press"]
 	main.touch._set_active(false)
-	_check(pad_words.contains("LB") and pad_words.contains("X") and touch_words == "tap" and touch_head == "Chain Lightning", "the button words follow the input: '%s' on a controller, '%s' on a phone (its button shows '%s')" % [pad_words, touch_words, touch_head])
+	_check(pad_words.contains("LB") and pad_words.contains("X") and touch_words == "tap" and touch_head == "Call Lightning", "the button words follow the input: '%s' on a controller, '%s' on a phone (its button shows '%s')" % [pad_words, touch_words, touch_head])
 	menu.open("abilities")
 	await _frames(3)
 	var cards: Array = _all_buttons(menu).filter(func(b): return b.has_meta("ability") and b.is_visible_in_tree())
@@ -13622,14 +13624,14 @@ func _abilities_tests() -> void:
 	main.hud.core.queue_redraw()
 	await _frames(2)
 	var mark_tip: Array = main.hud.tips.filter(func(t): return String(t[1]).begins_with("Stormcaller"))
-	_check(not mark_tip.is_empty() and String(mark_tip[0][2][0]).begins_with("Chain Lightning:") and mark_tip[0][2].any(func(l): return String(l).contains("Press Q to cast")) and mark_tip[0][2].any(func(l): return String(l).contains("hold Tab")), "hovering a mark's medallion names its spell, what it does, how to cast it and where to see them all")
+	_check(not mark_tip.is_empty() and String(mark_tip[0][2][0]).begins_with("Call Lightning:") and mark_tip[0][2].any(func(l): return String(l).contains("Press Q to cast")) and mark_tip[0][2].any(func(l): return String(l).contains("hold Tab")), "hovering a mark's medallion names its spell, what it does, how to cast it and where to see them all")
 	_check(main.hud.mark_spots.has("hand") and main.hud.mark_spots.has("heart"), "the HUD knows where each medallion is")
 	p.bonds["hand"].essence = 0.0
 	await _frames(3)
 	var before: int = hint.shown_ready
 	p.bonds["hand"].essence = p.bonds["hand"].capacity()
 	await _frames(3)
-	_check(hint.shown_ready == before + 1 and hint.labels.any(func(l): return l["part"] == "hand" and l["text"] == "Chain Lightning"), "a mark that fills enough to cast shows its spell's name under its medallion")
+	_check(hint.shown_ready == before + 1 and hint.labels.any(func(l): return l["part"] == "hand" and l["text"] == "Call Lightning"), "a mark that fills enough to cast shows its spell's name under its medallion")
 	var L = load("res://scripts/layout.gd")
 	var hv: Vector2 = main.hud.hud_view()
 	var unit := Transform2D(0.0, Vector2(main.hud.hud_scale, main.hud.hud_scale), 0.0, Vector2.ZERO)
@@ -13672,7 +13674,7 @@ func _abilities_tests() -> void:
 	var toasts0: int = hint.toasts.size()
 	hint.cast_done(hb)
 	hint.cast_done(hb)
-	_check(hint.toasts.size() == toasts0 + 1 and hint.toasts[-1]["name"] == "Chain Lightning" and String(hint.toasts[-1]["does"]).contains("lightning"), "the first cast of a spell names it and says what it does, once")
+	_check(hint.toasts.size() == toasts0 + 1 and hint.toasts[-1]["name"] == "Call Lightning" and String(hint.toasts[-1]["does"]).contains("lightning"), "the first cast of a spell names it and says what it does, once")
 	hint.toasts.clear()
 	hint.toast = {}
 	G.forget()

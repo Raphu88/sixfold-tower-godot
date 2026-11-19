@@ -12,7 +12,7 @@ extends Control
 ## back (and closes the menu from the pause page or a screen opened by key).
 
 const Bonds := preload("res://scripts/bonds.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Towers := preload("res://scripts/towers.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
@@ -1894,7 +1894,7 @@ func _climber_marks(prof) -> void:
 	if core_line != "":
 		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
 	if not Unbound.is_on(prof):
-		_climber_pacts(small)
+		_climber_synergies(small)
 	if small:
 		return
 	if Unbound.is_on(prof):
@@ -1905,29 +1905,49 @@ func _climber_marks(prof) -> void:
 		_note("Bonds grow across climbs from the essence you bank at each stair, up to step 5. Choose a mark to see every spell, what each step brings, and its body and passive effects.")
 
 
-## The named pacts the climber holds (pacts.gd): two marks that answer each
-## other. On a phone, one line.
-func _climber_pacts(small: bool) -> void:
-	var held: Array = Pacts.held(main.player)
-	if held.is_empty():
+## The synergies the climber holds (synergies.gd): the traits their marks
+## lend each other, and the named synergies (two marks that answer each
+## other). On a phone, one line.
+func _climber_synergies(small: bool) -> void:
+	var held: Array = Synergies.held(main.player)
+	var lent: Array = Synergies.lent_pairs(main.player)
+	if held.is_empty() and lent.is_empty():
 		if not main.profile.bonds.is_empty() and not small:
-			_note(Pacts.TEXT["none"])
+			_note(Synergies.TEXT["none"])
 		return
 	if small:
-		var names: Array = held.map(func(id): return String(Pacts.PACTS[id]["name"]))
-		var l := _label(Pacts.TEXT["held"] % ", ".join(names), 0.0, Pacts.PACTS[held[0]]["color"])
-		l.set_meta("pacts", held)
+		var names: Array = held.map(func(id): return String(Synergies.SYNERGIES[id]["name"]))
+		for pr in lent:
+			var tn := String(Synergies.TRAITS[pr[1]]["name"])
+			if not tn in names:
+				names.append(tn)
+		var col: Color = Synergies.SYNERGIES[held[0]]["color"] if not held.is_empty() else Color(Bonds.BONDS[lent[0][1]]["color"])
+		var l := _label(Synergies.TEXT["held"] % ", ".join(names), 0.0, col)
+		l.set_meta("synergies", held)
+		l.set_meta("lent", lent)
 		box.add_child(l)
 		return
-	_section(Pacts.TEXT["section"])
+	_section(Synergies.TEXT["section"])
 	var g := _grid(2, 12, 2)
-	g.set_meta("pacts", held)
+	g.set_meta("synergies", held)
 	for id in held:
-		var pd: Dictionary = Pacts.PACTS[id]
+		var pd: Dictionary = Synergies.SYNERGIES[id]
 		var name_l := UI.style_label(_label(String(pd["name"]), 150.0, pd["color"]), "display", 17, pd["color"])
-		name_l.set_meta("pact", id)
+		name_l.set_meta("synergy", id)
 		g.add_child(name_l)
-		g.add_child(_label("%s  ·  %s" % [Pacts.pair_text(id), String(pd["says"])], 0.0, DIM))
+		g.add_child(_label("%s  ·  %s" % [Synergies.pair_text(id), String(pd["says"])], 0.0, DIM))
+	if lent.is_empty():
+		return
+	var lg := _grid(2, 12, 2)
+	lg.set_meta("lent", lent)
+	for pr in lent:
+		var t: Dictionary = Synergies.TRAITS[pr[1]]
+		var tc := Color(Bonds.BONDS[pr[1]]["color"])
+		lg.add_child(UI.style_label(_label(String(t["name"]), 150.0, tc), "display", 15, tc))
+		var line := _label(Synergies.lent_text(pr[0], pr[1]), 0.0, DIM)
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lg.add_child(line)
 
 
 ## Essence: density by type (each is an attribute with a small bonus), where
@@ -2120,7 +2140,7 @@ func _climber_archive() -> void:
 	for g in Entity.GROUPS:
 		_section(g[1])
 		archive_group(g[0], mode, ps)
-	pact_shelf()
+	synergy_shelf()
 	_maker_shelves(mode, ps)
 	_gap(4)
 	archive_tools()
@@ -2175,29 +2195,29 @@ func archive_group(gid: String, mode: String, ps: bool, columns := 2) -> void:
 			_rich(Entity.fill_keys(e["more"], mode, ps), UI.SIZE_BODY, DIM)
 
 
-## The Library's shelf of named pacts (pacts.gd): each pact this climber
+## The Library's shelf of named synergies (synergies.gd): each one this climber
 ## has formed, with its two marks and what it does; the rest as ???. Nothing
 ## shows before the first is formed.
-func pact_shelf(columns := 2) -> void:
+func synergy_shelf(columns := 2) -> void:
 	var prof = main.profile if main != null else null
-	var formed: Array = Pacts.formed(prof)
+	var formed: Array = Synergies.formed(prof)
 	if formed.is_empty():
 		return
-	_section(Pacts.TEXT["shelf"])
-	_note(Pacts.TEXT["shelf_note"])
+	_section(Synergies.TEXT["shelf"])
+	_note(Synergies.TEXT["shelf_note"])
 	var grid := _grid(columns, 6, 4)
-	grid.set_meta("pact_shelf", true)
-	for id in Pacts.PACTS:
-		var pd: Dictionary = Pacts.PACTS[id]
+	grid.set_meta("synergy_shelf", true)
+	for id in Synergies.SYNERGIES:
+		var pd: Dictionary = Synergies.SYNERGIES[id]
 		if not id in formed:
-			var l := _label(Pacts.TEXT["locked"], 0.0, FAINT)
+			var l := _label(Synergies.TEXT["locked"], 0.0, FAINT)
 			l.custom_minimum_size.y = 32.0
 			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			var st := UI.box(Color(UI.VOID, 0.45), Color(UI.LINE, 0.6), 6)
 			st.content_margin_left = 14.0
 			l.add_theme_stylebox_override("normal", st)
 			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			l.set_meta("pact_locked", id)
+			l.set_meta("synergy_locked", id)
 			grid.add_child(l)
 			continue
 		var pc := PanelContainer.new()
@@ -2207,10 +2227,10 @@ func pact_shelf(columns := 2) -> void:
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 0)
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		v.set_meta("pact", id)
+		v.set_meta("synergy", id)
 		pc.add_child(v)
 		v.add_child(UI.style_label(_label(String(pd["name"]), 0.0, pd["color"]), "display", 17, pd["color"]))
-		var says := _label("%s: %s" % [Pacts.pair_text(id), String(pd["says"])], 0.0, DIM)
+		var says := _label("%s: %s" % [Synergies.pair_text(id), String(pd["says"])], 0.0, DIM)
 		says.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		v.add_child(says)
 

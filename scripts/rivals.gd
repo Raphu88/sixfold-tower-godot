@@ -35,8 +35,8 @@ extends Node2D
 ##           and finds drop RULES "team_drops" as often (main.gd asks share()
 ##           and drop_mult()). Their spells leave their bond's state
 ##           (BOND_STATE) through reactions.gd, so their marks react with
-##           yours ("with <name>" under the reaction's word), and a pact one
-##           of whose marks is theirs holds while they're with you (pacts.gd)
+##           yours ("with <name>" under the reaction's word), and a synergy one
+##           of whose marks is theirs holds while they're with you (synergies.gd)
 ##   rescue  (from MEETINGS "rescue" "from") a wounded climber beside a
 ##           hoard. Help them (a Healing Vial, or some of your health):
 ##           renown, and they owe you (met again, they bring a gift). Take
@@ -199,7 +199,7 @@ static var TEXT := {
 	"greed_noticed": "The Makers took note",
 	"gift_taken": "A gift from %s",
 	"traded": "Traded with %s: %s",
-	"shared_pact": "Shared pact: %s, with %s",
+	"shared_synergy": "Shared synergy: %s, with %s",
 	"chip_duel": "Duel: %s",
 	"chip_team": "%s beside you",
 	"deed_duel": "Won a duel with %s",
@@ -1162,30 +1162,30 @@ func start_team(enc: Dictionary) -> void:
 	var rec: Dictionary = enc["rival"]
 	main.banner = {"title": TEXT["team_title"], "lines": [TEXT["team_line"] % rec["name"]], "t": 3.0}
 	main.note_event("rival", TEXT["team_line"] % rec["name"], color_of(rec), false)
-	_shared_pacts(rec)
+	_shared_synergies(rec)
 	main.sfx("ready", 1.1, -3.0, 0.0)
 
 
-## Pacts one of whose marks is theirs hold while they're beside you (pacts.gd): said once.
-func _shared_pacts(rec: Dictionary) -> void:
+## Synergies one of whose marks is theirs hold while they're beside you (synergies.gd): said once.
+func _shared_synergies(rec: Dictionary) -> void:
 	if main.player == null:
 		return
-	var Pacts = load("res://scripts/pacts.gd")
+	var Synergies = load("res://scripts/synergies.gd")
 	var theirs: Array = rec.get("bonds", []).map(func(b): return String(b[0]))
-	for id in Pacts.PACTS:
-		var pair: Array = Pacts.PACTS[id]["bonds"]
+	for id in Synergies.SYNERGIES:
+		var pair: Array = Synergies.SYNERGIES[id]["bonds"]
 		var mine := pair.filter(func(b): return main.player.has_bond(String(b))).size()
 		var got := pair.filter(func(b): return not main.player.has_bond(String(b)) and String(b) in theirs).size()
 		if mine >= 1 and mine + got == pair.size() and got >= 1:
-			main.note_event("pact", TEXT["shared_pact"] % [Pacts.PACTS[id]["name"], rec["name"]], Pacts.PACTS[id]["color"])
-			main.tip("pacts")
+			main.note_event("synergy", TEXT["shared_synergy"] % [Synergies.SYNERGIES[id]["name"], rec["name"]], Synergies.SYNERGIES[id]["color"])
+			main.tip("synergies")
 
 
 func team_on() -> bool:
 	return team != null and is_instance_valid(team) and not team.dead
 
 
-## The bonds of the rival beside you ([] for none): pacts.gd counts them.
+## The bonds of the rival beside you ([] for none): synergies.gd counts them.
 func ally_bonds() -> Array:
 	if not team_on():
 		return []

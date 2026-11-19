@@ -7,9 +7,9 @@ const Bonds := preload("res://scripts/bonds.gd")
 const SecretBonds := preload("res://scripts/secret_bonds.gd")
 const Library := preload("res://scripts/library.gd")
 const TreeRules := preload("res://scripts/tree.gd")
-## States and reactions (what a spell leaves on a foe), and named pacts.
+## States and reactions (what a spell leaves on a foe), and synergies.
 const Reactions := preload("res://scripts/reactions.gd")
-const Pacts := preload("res://scripts/pacts.gd")
+const Synergies := preload("res://scripts/synergies.gd")
 const Particles := preload("res://scripts/particles.gd")
 ## The Gryphon's and the Kraken's content files run their marks' passive
 ## ranks and Apex upgrades (taken_mult, on_kill, the great spells): loaded
@@ -78,9 +78,9 @@ var selected := 0  # which learned spell the mark's key casts
 var choices := {}
 ## A variation's strength for the cast under way (library.gd run_mark_variation).
 var var_power := 1.0
-## Where the last Chain Lightning's last leap struck (Stormcaller's Living Bolt).
+## Where the last Call Lightning struck, or a chain's last leap (Stormcaller's Living Bolt).
 var last_point = null
-## Static III: a charged foe died, so the next Chain Lightning costs nothing.
+## Static III: a charged foe died, so the next Call Lightning costs nothing.
 var refund := false
 
 
@@ -279,8 +279,8 @@ func _cast_type(p) -> void:
 	match spell()["type"]:
 		"chain":
 			_chain(p)
-		"overcharge":
-			_overcharge(p)
+		"call_lightning":
+			_call_lightning(p)
 		"rod":
 			_rod(p)
 		"thunderhead":
@@ -493,20 +493,50 @@ func _chain(p) -> void:
 		main.fx_text(p.global_position + Vector2(0, -50), "the chain jumps back! -6", Color(1.0, 0.4, 0.3))
 
 
-# Charge one foe; when it dies, lightning leaps from it to every foe nearby.
-func _overcharge(p) -> void:
+# Call Lightning: a bolt from above strikes the foe in your aim and charges
+# it; when it dies, lightning leaps from it to every foe nearby (main.gd, as
+# a foe dies: overcharge_t). Step 3 changes it (gryphon.gd: Branching Storm
+# or Living Bolt).
+func _call_lightning(p) -> void:
 	var main = p.main
-	var target = _target_in_aim(p, 320.0)
+	var target = _target_in_aim(p, float(stat("reach")) if stat("reach") != null else 320.0)
 	if target == null:
 		main.fx_text(p.global_position + Vector2(0, -34), "no target", color())
 		return
-	target.overcharge_t = stat("duration")
-	target.overcharge_dmg = damage()
-	target.overcharge_r = stat("radius")
-	Reactions.apply(main, target, "charged", float(stat("duration")), self)
-	main.fx_bolt([p.global_position, target.global_position], color())
-	main.fx_ring(target.global_position, color(), 30.0, 0.3, 2.0)
-	main.sfx("zap", 0.8, -4.0)
+	last_point = target.global_position
+	call_bolt(p, target, spell())
+	# Overdrawn, the bolt may jump back to you.
+	if _overdrawn() and randf() < 0.5:
+		main.fx_bolt([last_point, p.global_position], color())
+		p.hp = maxf(1.0, p.hp - 6.0)
+		main.fx_text(p.global_position + Vector2(0, -50), "the bolt jumps back! -6", Color(1.0, 0.4, 0.3))
+
+
+## The bolt itself, on `target` (Branching Storm and Living Bolt call it
+## too): the foe is marked to burst when it dies, charged, and struck.
+func call_bolt(p, target, sp: Dictionary) -> void:
+	var main = p.main
+	var dur := float(spell_stat(sp, "duration"))
+	target.overcharge_t = dur
+	target.overcharge_dmg = spell_damage(sp)
+	target.overcharge_r = float(spell_stat(sp, "radius"))
+	Reactions.apply(main, target, "charged", dur, self)
+	var at: Vector2 = target.global_position
+	main.fx_bolt([at + Vector2(randf_range(-30.0, 30.0), -240.0), at + Vector2(0, -40.0), at], color())
+	main.fx_ring(at, color(), 30.0, 0.3, 2.0)
+	main.light_flash(at, color(), 1.2, 1.6, 0.3)
+	main.sfx("zap", 0.8, -2.0)
+	main.sfx("thunder", 1.3, -10.0)
+	main.hitstop(0.05)
+	main.shake(4.0)
+	if is_instance_valid(target) and not target.dead:
+		target.take_hit(call_strike(sp), Vector2.ZERO, 0.0)
+
+
+## What Call Lightning's bolt deals as it lands (its "strike").
+func call_strike(sp: Dictionary) -> float:
+	var s = spell_stat(sp, "strike")
+	return float(s if s != null else 0.0) * spell_power(sp) * flow_power
 
 
 # Plant a rod where you aim. Every `beat` seconds it strikes the nearest
@@ -637,7 +667,7 @@ func _lift(p) -> void:
 		e.knock = aim * 120.0
 		if dmg > 0.0:
 			e.take_hit(dmg, aim, 60.0)
-		if Pacts.has(p, "dust_devil"):
+		if Synergies.has(p, "dust_devil"):
 			_shards(main, e.global_position)
 		lifted += 1
 	if lifted == 0:
@@ -647,7 +677,7 @@ func _lift(p) -> void:
 ## Dust Devil: shards of stone left on the floor that cut what walks over
 ## them (and set it bleeding).
 static func _shards(main, at: Vector2) -> void:
-	var pd: Dictionary = Pacts.PACTS["dust_devil"]
+	var pd: Dictionary = Synergies.SYNERGIES["dust_devil"]
 	var r := float(pd["radius"])
 	var col: Color = pd["color"]
 	var SpellFx = load("res://scripts/spell_fx.gd")
@@ -818,7 +848,7 @@ static func taken_mult(main, e) -> float:
 
 
 ## A foe died (main.gd on_enemy_killed): Static III (a charged foe: the next
-## Chain Lightning is free), Quarry III (your Quarry: the nearest foe
+## Call Lightning is free), Quarry III (your Quarry: the nearest foe
 ## becomes it and a shot comes back) and Pressure III (near you: you heal).
 static func on_kill(main, e) -> void:
 	var p = main.player
@@ -863,8 +893,8 @@ func _soak(main, e, wave := false) -> void:
 	if e == null or not is_instance_valid(e) or e.dead:
 		return
 	Reactions.apply(main, e, "soaked", _soak_time(), self)
-	if wave and Pacts.has(main.player, "tempest") and is_instance_valid(e) and not e.dead:
-		Reactions.apply(main, e, "charged", Pacts.num("tempest", "charged"), "tempest")
+	if wave and Synergies.has(main.player, "tempest") and is_instance_valid(e) and not e.dead:
+		Reactions.apply(main, e, "charged", Synergies.num("tempest", "charged"), "tempest")
 
 
 ## A Deepcaller's drain on one foe: its damage, doubled by Hemorrhage (a
@@ -900,8 +930,8 @@ func _drain(p) -> void:
 			e.take_hit(dmg, Vector2.ZERO)
 			_soak(main, e)
 		total += dmg
-		if bled and Pacts.has(p, "bloodletter"):
-			extra += dmg * (Pacts.num("bloodletter", "heal") - 1.0)
+		if bled and Synergies.has(p, "bloodletter"):
+			extra += dmg * (Synergies.num("bloodletter", "heal") - 1.0)
 	total += extra
 	var heal: float = total * float(stat("heal")) * (1.5 if p.main.tower_data()["essence"] == "water" else 1.0) * p.heal_mult()
 	p.hp = minf(p.max_health(), p.hp + heal)
@@ -1261,8 +1291,8 @@ func _quake(p) -> void:
 			e.take_hit(damage(), to.normalized(), 160.0, true)  # (a heavy blow: a foe in the air is slammed, Crater)
 			if not e.dead and not e.is_boss():
 				e.stagger(0.4)
-				if Pacts.has(p, "dust_devil"):  # Dust Devil (Windwalker and Sandshaper): it's thrown up
-					e.lift(Pacts.num("dust_devil", "lift"))
+				if Synergies.has(p, "dust_devil"):  # Dust Devil (Windwalker and Sandshaper): it's thrown up
+					e.lift(Synergies.num("dust_devil", "lift"))
 			if not e.dead:
 				manticore().upheave(self, e)  # (Upheaval: thrown into the air)
 	main.rubble.append({"pos": p.global_position, "r": r, "t": 4.0})
@@ -1573,18 +1603,10 @@ func _pyre(p) -> void:
 	p.main.sfx("charge", 0.8)
 
 
+## Phoenix Heart is never cast: it waits in the mark and rises by itself
+## when you fall (player.gd _phoenix_rise). Asked to cast it, it says so.
 func _phoenix(p) -> void:
-	p.phoenix_t = stat("duration")
-	# Apex: at its end you regain (this share of) the health it held back (player.gd).
-	p.phoenix_regain = float(stat("regain")) if stat("regain") != null else 0.0
-	p.phoenix_held = 0.0
-	# You rise in a burst of flame that burns the foes around you.
-	if stat("damage") != null:
-		p.main.explode(p.global_position, float(stat("radius")) if stat("radius") != null else 110.0, damage(), color())
-		p.rekindle_fought = true
-	p.main.fx_ring(p.global_position, color(), 60.0, 0.45, 4.0)
-	p.main.light_flash(p.global_position, color(), 1.8, 1.8, 0.4)
-	p.main.sfx("crit", 0.7)
+	p.main.fx_text(p.global_position + Vector2(0, -40), p.PHOENIX_TEXT["passive"], color())
 
 
 # --- Covenant ------------------------------------------------------------------------
@@ -1828,8 +1850,8 @@ func _sever(p) -> void:
 	var bleed: float = float(stat("bleed")) if stat("bleed") != null else 0.15
 	Reactions.apply(main, t, "bleeding", float(stat("duration")), self, maxf(1.0, damage() * bleed))
 	Reactions.apply(main, t, "slowed", float(stat("duration")), self)
-	if Pacts.has(p, "toxic_precision") and not t.dead:
-		t.add_venom(int(Pacts.num("toxic_precision", "stacks")))
+	if Synergies.has(p, "toxic_precision") and not t.dead:
+		t.add_venom(int(Synergies.num("toxic_precision", "stacks")))
 	if t.dead:
 		main.sfx("swing", 1.6)
 		return
