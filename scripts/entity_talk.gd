@@ -42,6 +42,7 @@ const Unbound := preload("res://scripts/unbound.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const Notices := preload("res://scripts/notices.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
+const Combat := preload("res://scripts/combat.gd")
 
 ## A line that starts with this is a story slot not written yet (hidden).
 const STORY_TAG := "[Yours to write]"
@@ -69,7 +70,10 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "start", "bye"]},
+		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "start", "bye"]},
+	"how_stamina": {"ask": "Stamina, and why my bar shrinks?", "fact": "rules",
+		"lines": ["Rolls, strikes, shots and jumps cost stamina, and it refills fast, {sta_regen} a second once you stop for a breath. Act with too little and it still happens, but the missing part comes off your max stamina: fatigue. The bar's lost end goes dark, and it fills only to what's left, never below {sta_floor} of it. A Stamina Vial shakes it all off and fills you up. So does a camp's rest, and every climb starts fresh. The stair's rest doesn't touch it."],
+		"choices": ["how_belt", "how", "bye"]},
 	"how_essence": {"ask": "Essence, banking it, and tinctures?", "fact": "rules",
 		"lines": ["Monsters, caches and finished tasks give essence. You carry it until a stair banks it, and a fall loses what you carry. At a stair it splits three ways: {body} to your body, {marks} to your marks, {condense} into crystals, the train's money."],
 		"choices": ["how_flow", "how_tinctures", "how_marks", "how", "bye"]},
@@ -101,7 +105,7 @@ static var DIALOGUE := {
 		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
 	"how_belt": {"ask": "The belt?", "fact": "rules",
-		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Draught, the Stamina Draught and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; the outfitter sells them if you want one on purpose. What you buy or brew on the train goes on it."],
+		"lines": ["Your belt holds {kinds} kinds of item, {stack} of each (a few stack otherwise; a Belt Pouch, a Climber's Pack or a Belt Hook charm adds a kind). Pick up a new kind with a full belt and you choose a stack to swap out. The staples are the Healing Vial, the Stamina Vial and the Essence Vial: cheap, and common from monsters. Everything else is rare in the tower, a few in a whole climb, so keep it for when it counts; the outfitter sells them if you want one on purpose. What you buy or brew on the train goes on it."],
 		"choices": ["how_wheel", "how_states", "how_fall", "how", "bye"]},
 	"how_wheel": {"ask": "How does the belt wheel work?", "fact": "wheel",
 		"lines": ["Tap {item} and you use your current item, the one beside your weapon. Hold {item} and the wheel opens, and the world slows to {slow} of its speed. Point at an item with {point} and let go: it becomes your current item. Nothing is used until you tap {item} again. A mark's button works the same way: hold it to choose a spell, tap it to cast. Choosing never uses anything. I find that restful."],
@@ -210,11 +214,11 @@ static var DIALOGUE := {
 ## the hint needs.
 static var HINTS := {
 	"unbanked": "You carry {amount} unbanked essence. Find the stair before something finds you.",
-	"low_health": "You're low. A draught, a spring, or the stair.",
+	"low_health": "You're low. A Healing Vial, a spring, or the stair.",
 	"faint": "Your mark is faint. It needs {amount} more banked essence before it grows.",
 	"mark_ready": "Your {part} is full of essence. Reach a summit and it takes a mark, or win a sealed wing early keeping its rule.",
 	"better_stash": "Something you keep beats what you'd wear: {piece}. The Loadout puts it on.",
-	"belt_empty": "Your belt is empty. The outfitter sells draughts. The Workshop brews them cheaper.",
+	"belt_empty": "Your belt is empty. The outfitter sells vials. The Workshop brews them cheaper.",
 	"afford_rack": "You can afford {piece} on the outfitter's rack, and it beats yours.",
 	"stash_full": "Your stash is full. Sell to the outfitter, or break pieces down at the Workshop.",
 	"title_ready": "The Noble at a station would grant you a title: {title}. Read what it gives.",
@@ -630,6 +634,7 @@ static func _fact_rules() -> Dictionary:
 		"per_floor": int(R.CLIMB.get("floor", 0)), "per_best": int(R.CLIMB.get("best", 0)), "beast": int(R.CLIMB.get("beast", 0)),
 		"ranks": ", ".join(ranks), "weapon": "%d%%" % int(round(float(Lost.WEAPON_CHANCE) * 100.0)),
 		"kinds": Items.BELT_KINDS, "stack": Items.MAX_STACK,
+		"sta_regen": int(round(float(Combat.CLIMBER["stamina_regen"]))), "sta_floor": "%d%%" % int(round(float(Combat.CLIMBER["fatigue_floor"]) * 100.0)),
 		"tincture": int(Flow.TINCTURE["essence"]), "craft": int(Flow.TINCTURE["craft"]), "store_kinds": "one kind" if int(Flow.TINCTURE["store_kinds"]) == 1 else "%d kinds" % int(Flow.TINCTURE["store_kinds"]),
 		"early": int(Flow.EARNED["last_floor"]), "fall_chance": "%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0)),
 	})

@@ -12,7 +12,7 @@ extends RefCounted
 ##           a monster's weakness also fills that Bestiary line (bestiary.gd
 ##           "told")
 ##   bet     a wager in crystals on your next climb (BETS: reach a floor, fell
-##           the beast, a floor without a Healing Draught, slay so many of a
+##           the beast, a floor without a Healing Vial, slay so many of a
 ##           kind); odds by difficulty; paid (or lost) when the climb ends
 ##           (settle, called from main.gd pay_climb), shown in play as a
 ##           small line at the top (hud.gd) and in the Entity's log
@@ -56,7 +56,7 @@ const WINGS := "res://scripts/wings.gd"
 ##   odds_*                 what a winning wager pays, times the stake:
 ##                          floor_1..3 (that many floors past your best
 ##                          there), beast (felled before: beast_again), dry
-##                          (a floor without a Healing Draught), slay_low /
+##                          (a floor without a Healing Vial), slay_low /
 ##                          slay_high (slay slay_few / slay_many of a kind)
 ##   warm_odds              a warm climber's odds are this much better
 ##   title_odds             ...and a title that takes bets (titles.gd) this much
@@ -125,7 +125,7 @@ static var RUMORS := [
 static var BETS := {
 	"floor": {"name": "Reach floor {floor}"},
 	"beast": {"name": "Fell {beast}"},
-	"dry": {"name": "Reach floor {floor}, no Healing Draught"},
+	"dry": {"name": "Reach floor {floor}, no Healing Vial"},
 	"slay": {"name": "Slay {count} {monster}"},
 }
 
@@ -787,7 +787,7 @@ static func on_kill(main, e) -> void:
 			b["beast_down"] = true
 
 
-## An item used in a climb (player.gd use_item): a Healing Draught breaks a dry wager.
+## An item used in a climb (player.gd use_item): a Healing Vial breaks a dry wager.
 static func on_item(main, id: String) -> void:
 	if main == null or main.get("profile") == null:
 		return

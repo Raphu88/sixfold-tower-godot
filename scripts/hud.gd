@@ -40,6 +40,7 @@ const Abilities := preload("res://scripts/abilities.gd")
 const Wheel := preload("res://scripts/wheel.gd")
 const Anim := preload("res://scripts/anim.gd")
 const Reactions := preload("res://scripts/reactions.gd")
+const Combat := preload("res://scripts/combat.gd")  # (fatigue's words on the stamina bar)
 ## Where each part sits (Arrange mode moves them): every block below is drawn
 ## where it always was, under its element's transform (layout.gd).
 const Layout := preload("res://scripts/layout.gd")
@@ -269,7 +270,7 @@ func _core_signature() -> Array:
 	if p == null or main.title_showing():
 		return [false]
 	var s := [true, hud_scale, get_viewport_rect().size, Layout.version, main.touch_active, main.pad_active, main.pad_ps,
-		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, p.poison_t > 0.0,
+		int(ceil(p.hp)), int(round(p.max_health())), p.max_hp, int(p.sta), p.max_sta, int(p.fatigue), p.poison_t > 0.0,
 		snappedf(hp_trail, 0.004), snappedf(sta_trail, 0.01), int(ceil(p.barrier_hp)),
 		p.weapon, snappedf(p.reload_t, 0.05) if p.wkind() in ["crossbow", "gun"] else 0.0, p.ammo_left() if p.wkind() == "gun" else -1,
 		p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
@@ -355,6 +356,14 @@ func _draw_core() -> void:
 	var hp_col := UI.HEALTH.lerp(POISONED, 0.6) if p.poison_t > 0.0 else UI.HEALTH
 	UI.gauge_into(b, Rect2(BAR_X, BAR_Y, BAR_W, 12), hp_k, hp_col, hp_trail)
 	UI.gauge_into(b, Rect2(BAR_X, BAR_Y + 18.0, BAR_W * p.max_sta / 100.0, 6), p.sta / p.max_sta, UI.STAMINA, sta_trail, Color(0.95, 0.95, 0.7, 0.7), 0)
+	if p.sta_cap() < p.max_sta - 0.01:
+		# Fatigue (acting past empty) shrinks the bar: the lost end shows
+		# dark and hatched, as a burned heart's part of the health bar.
+		var sw: float = BAR_W * p.max_sta / 100.0
+		var sx: float = BAR_X + sw * p.sta_cap() / p.max_sta
+		var lost := Rect2(Vector2(sx, BAR_Y + 18.0), Vector2(BAR_X + sw - sx, 6))
+		b.rect(lost, Color(0.08, 0.06, 0.1, 0.75))
+		UI.hatch_into(b, lost, Color(0.85, 0.72, 0.42, 0.5))
 	if p.barrier_hp > 0.0:
 		# The Warden's barrier: a band of gilded glass over the health bar.
 		var bw: float = BAR_W * clampf(p.barrier_hp / p.max_hp, 0.0, 1.0)
@@ -379,7 +388,10 @@ func _draw_core() -> void:
 		var tag: String = main.proving.TEXT["wound_tag"]
 		c.draw_string_outline(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 10, 3, Color(0, 0, 0, 0.85))
 		c.draw_string(font, Vector2(BAR_X + BAR_W - 56, BAR_Y + 10), tag, HORIZONTAL_ALIGNMENT_RIGHT, 52, 10, Color(0.82, 0.74, 1.0))
-	tips.append([bx * bars_rect, "Health %s" % hp_text, ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(p.max_sta)]] + ([wound_text] if wound_text != "" else [])])
+	var sta_lines: Array = ["Stamina %d / %d: rolls, strikes and parries use it" % [int(p.sta), int(round(p.sta_cap()))]]
+	if p.fatigue >= 0.5:
+		sta_lines.append(String(Combat.TEXT["hud_fatigue"]) % int(round(p.max_sta - p.sta_cap())))
+	tips.append([bx * bars_rect, "Health %s" % hp_text, sta_lines + ([wound_text] if wound_text != "" else [])])
 	# Your path's gem (secret.gd), once its banked flow reaches the first step,
 	# and the vessel you carry, and how full (vessel.gd).
 	var gx := Layout.xform("hud.gem", view)

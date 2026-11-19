@@ -38,7 +38,7 @@ extends Node2D
 ##           yours ("with <name>" under the reaction's word), and a pact one
 ##           of whose marks is theirs holds while they're with you (pacts.gd)
 ##   rescue  (from MEETINGS "rescue" "from") a wounded climber beside a
-##           hoard. Help them (a Healing Draught, or some of your health):
+##           hoard. Help them (a Healing Vial, or some of your health):
 ##           renown, and they owe you (met again, they bring a gift). Take
 ##           the hoard: essence and a finer piece, but renown lost (never a
 ##           rank) and the Makers notice (makers.gd "greed"); they remember
@@ -169,7 +169,7 @@ static var TEXT := {
 	"trade_essence": "%d unbanked essence",
 	"trade_short": "You don't carry that",
 	"help_name": "Help them",
-	"help_draught": "Give them a Healing Draught. They'll remember.",
+	"help_draught": "Give them a Healing Vial. They'll remember.",
 	"help_blood": "Bind their wounds: it costs you %d health. They'll remember.",
 	"greed_name": "Take the hoard",
 	"greed_desc": "Essence and a finer piece of gear. They'll remember. So will others.",
@@ -808,7 +808,7 @@ func _close() -> void:
 
 # --- trading ----------------------------------------------------------------------------
 
-## A thing in words: "Healing Draught", "Chain Shirt", "12 Air crystal".
+## A thing in words: "Healing Vial", "Chain Shirt", "12 Air crystal".
 func thing_name(t: Dictionary) -> String:
 	match String(t.get("type", "")):
 		"item":

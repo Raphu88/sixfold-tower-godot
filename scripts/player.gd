@@ -70,6 +70,10 @@ var attr_will := 1.0  # Iron: Will
 var max_sta := MAX_STA
 var hp := MAX_HP
 var sta := MAX_STA
+## Fatigue: max stamina lost to acting past empty (spend_sta). Stamina
+## refills only up to sta_cap(). A Stamina Vial, a camp's rest and every new
+## climb take it away (the stair doesn't).
+var fatigue := 0.0
 var sta_delay := 0.0
 var aim := Vector2.RIGHT
 var bonds := {}  # body part -> bond
@@ -421,12 +425,54 @@ func take_gear(g, into := "") -> Dictionary:
 	return old
 
 
+## The most stamina you can hold now: max stamina less fatigue (never
+## below the floor: Combat.CLIMBER "fatigue_floor").
+func sta_cap() -> float:
+	return maxf(max_sta * float(Combat.CLIMBER["fatigue_floor"]), max_sta - fatigue)
+
+
+## How much more max stamina fatigue can still take before the floor.
+func fatigue_room() -> float:
+	return maxf(0.0, max_sta * (1.0 - float(Combat.CLIMBER["fatigue_floor"])) - fatigue)
+
+
+## Pays `cost` stamina for an action. Stamina pays first; what it can't
+## cover is taken off max stamina as fatigue, down to the floor. An action
+## that can't be paid even so isn't done (false, nothing spent); with
+## `partial` (strikes and shots, which always went ahead on any stamina) it
+## goes ahead while any stamina or room is left, and the rest is let off.
+func spend_sta(cost: float, partial := false) -> bool:
+	if cost <= 0.0:
+		return true
+	var short := maxf(0.0, cost - sta)
+	var room := fatigue_room()
+	if short > room + 0.001 and not partial:
+		return false
+	if partial and sta <= 0.0 and room <= 0.0:
+		return false
+	sta = maxf(0.0, sta - cost)
+	if short > 0.0 and room > 0.0:
+		var first := fatigue <= 0.0
+		fatigue += minf(short, room)
+		if first and main != null:
+			main.fx_text(global_position + Vector2(0, -42), String(Combat.TEXT["fatigued"]), Color(0.75, 0.68, 0.5))
+			if main.get("player") == self and main.has_method("tip"):
+				main.tip("fatigue")  # (the first time: the Entity explains it)
+	return true
+
+
+## Fatigue gone: max stamina whole again (a Stamina Vial, a camp's rest, a
+## new climb).
+func rest_fatigue() -> void:
+	fatigue = 0.0
+
+
 ## Adds up what your worn pieces do (max health and stamina, protection,
 ## speed and the rest; Gear.total_effects), after any gear changes.
 func refresh_gear() -> void:
 	gear_fx = Gear.total_effects(gear)
 	max_sta = MAX_STA + float(gear_fx.get("stamina", 0.0))
-	sta = minf(sta, max_sta)
+	sta = minf(sta, sta_cap())
 	var was := max_hp
 	max_hp = base_hp + float(gear_fx.get("health", 0.0))
 	if flow_hp < 1.0:
@@ -1220,8 +1266,9 @@ func _tick_timers(delta: float) -> void:
 		hp = minf(max_health(), hp + flow_regen * delta)
 	_tick_erode(delta)
 	hp = minf(hp, max_health())
+	sta = minf(sta, sta_cap())  # (fatigue: nothing fills past the shrunken bar)
 	if sta_delay <= 0.0 and not drawing:
-		sta = minf(max_sta, sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)) * Reactions.climber_regen(self))  # (charged: reactions.gd CLIMBER); Deep Lungs; a burned throat; Stubborn Heart; a throat graft
+		sta = minf(sta_cap(), sta + STA_REGEN * attr_will * (1.0 + gfx("regen")) * delta * (1.35 if has_bond("deepcaller") else 1.0) * (0.6 if _burned("throat") else 1.0) * (1.3 if _stubborn() else 1.0) * (1.0 + 0.25 * graft("throat")) * armor()["regen"] * (1.0 + (float(Items.ITEMS["salts"]["regen"]) if salts_t > 0.0 else 0.0)) * Reactions.climber_regen(self))  # (charged: reactions.gd CLIMBER); Deep Lungs; a burned throat; Stubborn Heart; a throat graft
 
 
 ## Pistols between shots: an enchanted one's chambers fill themselves one
@@ -1260,10 +1307,9 @@ func _try_jump(input: Vector2) -> bool:
 	if main.puzzle != null and main.puzzle.no_footing(global_position, true):
 		return true  # (no leaping over the Ice Hall's rocks)
 	var cost := 0.0 if gear_fx.get("free_jump", false) else JUMP_COST  # Climbing Boots
-	if sta < cost:
+	if not spend_sta(cost):
 		_winded()
 		return true
-	sta -= cost
 	sta_delay = float(Combat.CLIMBER["jump_wait"])
 	jump_vel = input * WALK * (1.0 + gfx("jump"))
 	wear_gear("roll")
@@ -1347,10 +1393,9 @@ func _try_roll(input: Vector2) -> bool:
 	if _burned("legs"):
 		cost *= 1.5
 		dist_mult = 0.7
-	if sta < cost:
+	if not spend_sta(cost):
 		_winded()
 		return true
-	sta -= cost
 	sta_delay = float(Combat.CLIMBER["roll_wait"])
 	roll_dir = input.normalized() if input != Vector2.ZERO else aim
 	var duration := float(Combat.CLIMBER["dash_time" if wind else "roll_time"])
@@ -1385,8 +1430,8 @@ func _try_attack() -> bool:
 		return false
 	if unbreak_t > 0.0 and unbreak_strike <= 0.0:
 		return true  # Unbreakable: you cannot attack (its Apex lets you: unbreak_strike)
-	if sta <= 0.0:
-		_winded()
+	if sta <= 0.0 and fatigue_room() <= 0.0:
+		_winded()  # (out of stamina and fatigued as far as it goes)
 		return true
 	if wkind() == "crossbow":
 		if reload_t > 0.0:
@@ -1416,7 +1461,7 @@ func _melee() -> bool:
 	swing = chain[combo]
 	var heavy: bool = swing["heavy"]
 	combo = (combo + 1) % chain.size()
-	sta = maxf(0.0, sta - swing["sta"] * (1.0 - gfx("chain")))  # Grip Wraps
+	spend_sta(swing["sta"] * (1.0 - gfx("chain")), true)  # Grip Wraps
 	sta_delay = float(Combat.CLIMBER["strike_wait"])  # stamina waits a moment after you attack: mashing runs you dry
 	var recover: float = swing["recover"]
 	if has_bond("flameblade"):
@@ -1505,7 +1550,7 @@ func _melee() -> bool:
 		BondScript.wyvern().strike_landed(self)  # (Weapon Memory III: every 5th throws a blade)
 		wear_gear("strike")  # a landed swing wears the weapon and gloves (Commons)
 		if heavy and float(w.get("finisher_sta", 0.0)) > 0.0:
-			sta = minf(max_sta, sta + float(w["finisher_sta"]))  # the sword: a landed finisher gives breath back
+			sta = minf(sta_cap(), sta + float(w["finisher_sta"]))  # the sword: a landed finisher gives breath back
 	if swing.get("blade", false):
 		main.sfx("equip_sword", 1.25, -6.0)  # the sword-cane's blade comes out
 	return true
@@ -1584,7 +1629,7 @@ func release_draw() -> void:
 	var full := k >= 1.0
 	drawing = false
 	attack_cd = w["recover"]
-	sta = maxf(0.0, sta - w["sta"])
+	spend_sta(w["sta"], true)
 	sta_delay = float(Combat.CLIMBER["strike_wait"])
 	var dmg: float = lerpf(w["dmg_min"], w["dmg_max"], k * k) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	wear_gear("shot")
@@ -1614,7 +1659,7 @@ func _fire_bolt() -> void:
 	var w := wdata()
 	attack_cd = w["recover"]
 	reload_t = float(w["reload"]) / (1.0 + gfx("draw"))
-	sta = maxf(0.0, sta - w["sta"])
+	spend_sta(w["sta"], true)
 	sta_delay = float(Combat.CLIMBER["strike_wait"])
 	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	wear_gear("shot")
@@ -1649,7 +1694,7 @@ func _fire_gun() -> void:
 	ammo -= 1
 	refill_t = 0.0
 	attack_cd = w["recover"]
-	sta = maxf(0.0, sta - w["sta"])
+	spend_sta(w["sta"], true)
 	sta_delay = float(Combat.CLIMBER["strike_wait"])
 	var dmg: float = float(w["dmg"]) * Gear.weapon_power(gear["ranged"]) * (1.0 + gfx("ranged"))
 	if ammo <= 0 and rule("last_shot") > 0.0:
@@ -1956,7 +2001,7 @@ func _beast_rules(e, head: int, heavy: bool) -> void:
 ## and a Reaver's healing, Quickhand Gloves' and a Pearl Ring's essence).
 func _on_kill() -> void:
 	if gfx("kill_sta") > 0.0:
-		sta = minf(max_sta, sta + gfx("kill_sta"))  # a Garnet Ring
+		sta = minf(sta_cap(), sta + gfx("kill_sta"))  # a Garnet Ring
 	if rule("kill_load") > 0.0 and wkind() == "gun":
 		ammo_left()
 		ammo = gun_shots()  # Emberlock: a kill fills its chamber
@@ -2869,7 +2914,7 @@ func _on_parry(source, perfect := false) -> void:
 		main.fx_ring(global_position, barrier_color, radius + 14.0, 0.25, 3.0)
 	on_parry.emit(source, perfect)
 	BondScript.wyvern().parry_heat(self, perfect)  # (Heat III: parries add heat)
-	sta = minf(max_sta, sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
+	sta = minf(sta_cap(), sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
 	var at: Vector2 = global_position + aim * (radius + 8.0)
 	var gold := Color(1.0, 0.92, 0.7)
 	if perfect:
@@ -3648,7 +3693,7 @@ func use_item() -> bool:
 		return false
 	if not Items.use(id, self):
 		return false
-	main.Dining.on_item(main, id)  # (a Healing Draught breaks a dry wager: dining.gd)
+	main.Dining.on_item(main, id)  # (a Healing Vial breaks a dry wager: dining.gd)
 	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
 		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
 	take_one(id)

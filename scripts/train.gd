@@ -93,7 +93,7 @@ static var DEFAULT_PRICE := 10
 ## piece costs 4x its Common and finds still sell well. A beast's Regarded
 ## piece is the dearest of all (it sells for the most).
 static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 14.0}
-## The staples (items.gd "staple": the Healing and Stamina Draughts and the
+## The staples (items.gd "staple": the Healing and Stamina Vials and the
 ## Essence Vial) cost half their small worth (items.gd "value") at the
 ## store: cheap enough for every climber. Everything else is rarer and costs its full worth. (A belt left
 ## over at the end of a climb still breaks into crystals at half its worth.)
@@ -163,7 +163,7 @@ static var TEXT := {
 	"sold": "Sold: %s for %s",
 	# Store car
 	"store_sub": "Kept by the outfitter. He buys what climbers bring down, and sells it to the next ones up.",
-	"supplies_note": "Supplies are packed onto your belt for your next climb, beside the Healing and Stamina Draughts every climb starts with.",
+	"supplies_note": "Supplies are packed onto your belt for your next climb, beside the Healing and Stamina Vials every climb starts with.",
 	"packed": "Packed for your next climb: %d  ·  your belt holds %d",
 	"belt_full": "your belt can't hold more",
 	"put_back": "Put one back (what you paid comes back)",
@@ -567,9 +567,11 @@ static func roll_outfit(profile = null) -> Array:
 	var extras: Array = Shop.extras(profile) if profile != null else []
 	if profile != null:
 		for i in Shop.title_first_look(profile):  # (the worn title's first look: a Fine-or-better piece kept for you, titles.gd)
-			var fid: String = Gear.random_gear("", [], true, "fine")
-			if not Gear.traits_for(Gear.trait_slot(fid)).is_empty():
-				extras.append(Gear.make(fid, "fine", Gear.roll_traits(fid, "fine")))
+			for attempt in 24:  # (some pieces take no traits, e.g. a bag: draw again so the promised piece always comes)
+				var fid: String = Gear.random_gear("", [], true, "fine")
+				if not Gear.traits_for(Gear.trait_slot(fid)).is_empty():
+					extras.append(Gear.make(fid, "fine", Gear.roll_traits(fid, "fine")))
+					break
 	var spaces := maxi(1, rack_size(profile) - charms - extras.size())
 	var pick: Array = Shop.pick(profile, pool, spaces)
 	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS

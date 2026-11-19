@@ -54,7 +54,7 @@ static var TEXT := {
 	"dark": "The deep floors are dark. Lantern Oil carries your light.",
 	"shelf": "Handy in %s",
 	"shelf_why": "Handy in %s: %s",
-	"none": "Nothing in particular. Healing and Stamina Draughts, as everywhere.",
+	"none": "Nothing in particular. Healing and Stamina Vials, as everywhere.",
 	"talk": "In %s: %s.",
 }
 

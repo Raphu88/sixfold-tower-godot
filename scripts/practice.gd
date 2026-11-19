@@ -62,6 +62,7 @@ func start() -> void:
 	var p = main.player
 	p.dead = false
 	p.hp = p.max_hp
+	p.rest_fatigue()
 	p.sta = p.max_sta
 	p.poison_t = 0.0
 	p.set_physics_process(true)
@@ -148,7 +149,7 @@ func _physics_process(delta: float) -> void:
 		if w <= 0.0:
 			b.essence = minf(b.capacity(), b.essence + b.capacity() * REFILL * delta)
 		b.burned = false
-	p.sta = minf(p.max_sta, p.sta + 30.0 * delta)
+	p.sta = minf(p.sta_cap(), p.sta + 30.0 * delta)
 	if p.hp < p.max_hp:
 		p.hp = minf(p.max_hp, p.hp + 20.0 * delta)
 	p.poison_t = 0.0

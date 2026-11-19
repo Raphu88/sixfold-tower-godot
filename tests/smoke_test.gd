@@ -4504,7 +4504,7 @@ func _item_tests() -> void:
 	await _fresh_main()
 	var p = main.player
 	var Items = main.Items
-	_check(p.item_count("draught") == 1 and p.item_count("stamina") == 1 and p.carried() == ["draught", "stamina"], "every climb starts with one Healing Draught and one Stamina Draught")
+	_check(p.item_count("draught") == 1 and p.item_count("stamina") == 1 and p.carried() == ["draught", "stamina"], "every climb starts with one Healing Vial and one Stamina Vial")
 	p.items = {"draught": 1}  # (the draught alone, for the checks below)
 	_check(InputMap.has_action("use_item") and InputMap.has_action("item_next"), "use item (G) and next item (T) are bound")
 	# The healing draught heals over a moment, not all at once.
@@ -8040,7 +8040,7 @@ func _screen_tests() -> void:
 	_check(_slot("gear:fists") != null and melee != null and melee.id == "axe" and melee.on and _slot("gear:ranged").id == "shortbow" and _slot("gear:armor") != null, "...carried gear in slots: fists, the axe in hand, the bow, armor")
 	var draught = _slot("item:draught")
 	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial") == null, "...the belt's items with their counts")
-	_check(_slot("item:stamina") != null and _slot("belt:3") != null and _slot("belt:4") == null, "...the Stamina Draught every climb starts with, and an empty cell (a belt of 4 kinds)")
+	_check(_slot("item:stamina") != null and _slot("belt:3") != null and _slot("belt:4") == null, "...the Stamina Vial every climb starts with, and an empty cell (a belt of 4 kinds)")
 	_check(_slot("gear:offhand") != null and _slot("gear:offhand").locked, "...the off-hand kept for later, locked")
 	menu._inv_view("heirlooms")
 	await _frames(2)
@@ -8999,14 +8999,14 @@ func _train_tests() -> void:
 	await _frames(2)
 	_check(_car_buttons("slot", "outfit:0").size() == 1 and _car_buttons("slot", "today").size() == 1, "the store car: the outfitter's shelves, the outfit rail and today's piece")
 	var buy: Array = _car_buttons("buy", "draught")
-	_check(buy.size() == 1 and not buy[0].disabled, "a Healing Draught can be bought")
+	_check(buy.size() == 1 and not buy[0].disabled, "a Healing Vial can be bought")
 	if buy.size() == 1:
 		buy[0].pressed.emit()
 		await _frames(2)
 	_check(int(prof.supplies.get("draught", 0)) == 1, "buying packs it for the next climb")
 	_check(prof.crystal_total("stone") == 55.0 - dprice and prof.crystal_count("stone") == 1, "%d Stone paid from your Stone crystal (%s)" % [dprice, prof.crystals])
 	var labels: Array = _all_labels(menu).map(func(l): return l.text)
-	_check(labels.any(func(t): return t.begins_with("Bought: Healing Draught")), "...and the card says so")
+	_check(labels.any(func(t): return t.begins_with("Bought: Healing Vial")), "...and the card says so")
 	# A price you can't pay says why.
 	menu.inv_sel = "supply:vial"
 	menu.open("train")
@@ -9352,7 +9352,7 @@ func _bench_tests() -> void:
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.get_meta("bench_tab", "") != "")
 	_check(tabs.map(func(b): return b.get_meta("bench_tab")) == ["brew", "temper", "retrait", "join", "break", "inscribe", "recall", "vessel", "tincture", "charm"], "the bench's counters: brew, temper, retrait, join, break down, inscribe, recall scroll, vessel, tinctures, charms")
 	var brew: Array = bench_buttons.call("brew", "draught")
-	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Draught")
+	_check(brew.size() == 1 and not brew[0].disabled, "anyone can brew a Healing Vial")
 	if brew.size() == 1:
 		brew[0].pressed.emit()
 		await _frames(2)
@@ -11816,7 +11816,7 @@ func _vessel_tests() -> void:
 	p.vessel = {}
 	# A Rune Artist brews one; nobody else can.
 	prof.vessels = []
-	prof.crystals = []  # (the belt broken above left a little Iron: the Stamina Draught)
+	prof.crystals = []  # (the belt broken above left a little Iron: the Stamina Vial)
 	for k in V.BREW:
 		prof.add_crystal(k, float(V.BREW[k]))
 	_check(V.brew(prof).contains("Rune Artist") and prof.vessels.is_empty(), "only a Rune Artist can brew a vessel")

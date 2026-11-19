@@ -55,7 +55,7 @@ static var STOPS := {
 ##               parry   parry `need` blows (soft `foes` swing at you)
 ##               belt    use `need` items from your belt (`give` are put on it;
 ##                       `hurt`: you start at that share of your health, so a
-##                       Healing Draught has something to mend)
+##                       Healing Vial has something to mend)
 ##               cast    hit `need` of `dummies` dummies with a spell
 ##               cure    a `state` is put on you: cure it before `seconds`
 ##               wall    break the cracked wall

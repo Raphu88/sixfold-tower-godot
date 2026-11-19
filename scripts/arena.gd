@@ -155,6 +155,7 @@ func start(e: Dictionary) -> String:
 	var p = main.player
 	p.dead = false
 	p.hp = p.max_health()
+	p.rest_fatigue()  # (made whole between rounds: fatigue too)
 	p.sta = p.max_sta
 	p.poison_t = 0.0
 	p.set_physics_process(true)
@@ -455,6 +456,7 @@ func _tourney(delta: float, p) -> void:
 		finish({"won": true, "rounds": rounds_won})
 		return
 	p.hp = p.max_health()
+	p.rest_fatigue()  # (made whole between rounds: fatigue too)
 	p.sta = p.max_sta
 	p.states.clear()
 	p.poison_t = 0.0

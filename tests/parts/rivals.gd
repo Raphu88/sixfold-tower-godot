@@ -489,7 +489,7 @@ func _rescue() -> void:
 	main.choose_camp(_card("rv:help"))
 	await t._frames(2)
 	var rec: Dictionary = Rv.state(main.profile)[enc["rival"]["id"]]
-	_check(p.item_count("draught") == draughts - 1, "helping them costs a Healing Draught")
+	_check(p.item_count("draught") == draughts - 1, "helping them costs a Healing Vial")
 	_check(Renown.points(main.profile) > renown0 and int(rec["rescued"]) == 1 and bool(rec["owed"]), "...earns renown, and they owe you")
 	# Met again (a later climb): their gift.
 	main.profile.climbs += 1

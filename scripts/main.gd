@@ -1581,7 +1581,7 @@ func _arrive() -> void:
 	lines.append_array(proving.on_stair())  # (the Proving's wound heals a stair at a time)
 	var healed := minf(player.max_health() - player.hp, player.max_hp * (0.45 if player.has_bond("surgeon") else 0.35))  # Steady Hands
 	player.hp += healed
-	player.sta = player.max_sta
+	player.sta = player.sta_cap()  # (all stamina, but not fatigue: a Stamina Vial or a camp's rest)
 	if burned:
 		lines.append("Your burns heal")
 	if healed >= 1.0:
@@ -1828,6 +1828,7 @@ func _enter_camp(lines: Array) -> void:
 	_start_floor(floor_num)
 	cleared = true  # (no gong: there was nothing to fight)
 	player.hp = player.max_health()
+	player.rest_fatigue()  # (a full rest: fatigue too)
 	player.sta = player.max_sta
 	player.poison_t = 0.0
 	player.states.clear()
@@ -2272,6 +2273,8 @@ func _note_climb_start() -> void:
 	climb_paid = false
 	pay_line = ""
 	noticed = []
+	if player != null:
+		player.rest_fatigue()  # (every climb starts with max stamina whole)
 	notices.new_climb()  # (the feed and the Entity's log start empty)
 	if entity != null:
 		entity.new_climb()
@@ -3659,6 +3662,7 @@ func dev_beast(id: String) -> void:
 	player.dead = false
 	player.set_physics_process(true)
 	player.hp = player.max_hp
+	player.rest_fatigue()
 	player.sta = player.max_sta
 	player.poison_t = 0.0
 	for b in player.bonds.values():
