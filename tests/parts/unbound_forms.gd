@@ -80,7 +80,7 @@ func _written() -> void:
 		if not L.built(L.form(id)) or not L.FORMS.has(id):
 			all_built = false
 			missing.append(id)
-	_check(all_built and F.FORMS.size() == 12, "all twelve new forms are written and in the library (%s)" % [missing])
+	_check(all_built and F.FORMS.size() == 13, "all twelve new forms and Blink (a pure legs' signature) are written and in the library (%s)" % [missing])
 	var caps_ok := true
 	for part in U.PARTS:
 		var cap: Dictionary = F.capstone(part)
@@ -119,24 +119,24 @@ func _opening() -> void:
 			ok = false
 			bad.append(id)
 	_check(ok, "each form is locked a level short and opens at its level (%s)" % [bad])
-	# Capstones: locked until level 10, then yours; no Coming later left on an Unbound tree.
+	# Capstones: locked until level 12 (full), then yours; no Coming later left on an Unbound tree.
 	prof.part_density = {}
 	var later := 0
 	for part in U.PARTS:
-		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[8])}
-	var locked: bool = U.PARTS.all(func(part): return TR.node(prof, "unbound:%s:10" % part)["state"] == "locked" and not F.capstone_on(prof, part))
+		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[10])}
+	var locked: bool = U.PARTS.all(func(part): return TR.node(prof, "unbound:%s:12" % part)["state"] == "locked" and not F.capstone_on(prof, part))
 	for part in U.PARTS:
-		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[9])}
-	var owned: bool = U.PARTS.all(func(part): return TR.node(prof, "unbound:%s:10" % part)["state"] == "owned" and F.capstone_on(prof, part))
+		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[11])}
+	var owned: bool = U.PARTS.all(func(part): return TR.node(prof, "unbound:%s:12" % part)["state"] == "owned" and F.capstone_on(prof, part))
 	for part in U.PARTS:
 		for n in TR.unbound_nodes(prof, part):
 			if n["kind"] in ["form", "capstone"]:
 				for o in n["options"]:
-					if o["state"] == "placeholder":
+					if o["state"] == "placeholder" and not String(o["id"]).begins_with("sig_"):  # (the signatures still to come are their own matter)
 						later += 1
-	_check(locked and owned, "each capstone is locked at level 9 and the climber's at level 10")
+	_check(locked and owned, "each capstone is locked at level 11 and the climber's at level 12 (full)")
 	_check(later == 0, "no form or capstone on an Unbound tree is Coming later any more (%d)" % later)
-	_check(TR.node(prof, "unbound:hand:10")["options"][0]["name"] == "Raw Hands", "...the capstone's name shows on the tree")
+	_check(TR.node(prof, "unbound:hand:12")["options"][0]["name"] == "Raw Hands", "...the capstone's name shows on the tree")
 	_check("cap_hand" in TR.owned(prof) and "brand" in TR.owned(prof), "...and owned() lists capstones and forms")
 
 
@@ -266,7 +266,7 @@ func _casting() -> void:
 	main.floor_num -= 1
 
 
-## Puts every part at level 10 (or 9) and rebuilds the climber.
+## Puts every part at a level (12: full, the capstone) and rebuilds the climber.
 func _levels(level: int) -> void:
 	var prof = t.main.profile
 	prof.part_density = {}
@@ -293,7 +293,7 @@ func _capstones() -> void:
 	var run = main.unbound
 	var at := _spot()
 	# Raw Hands: three foes around you, a bolt for each (not only the one aimed at).
-	await _levels(9)
+	await _levels(11)
 	p.global_position = at
 	var foes: Array = []
 	for d in [Vector2(0, -90), Vector2(0, 90), Vector2(-90, 0)]:
@@ -302,7 +302,7 @@ func _capstones() -> void:
 	await _cast_part("hand")
 	await t._wait(0.6)
 	_check(foes.all(func(e): return e.hp == hp0[foes.find(e)]), "without the capstone, a hand technique only throws its own bolt")
-	await _levels(10)
+	await _levels(12)
 	p.global_position = at
 	p.aim = Vector2.RIGHT
 	hp0 = foes.map(func(e): return e.hp)
@@ -391,21 +391,16 @@ func _old_saves() -> void:
 		techs.append(T.recipe(id))
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
-	cfg.set_value("profile", "part_density", {"hand": {"blade": 130.0}, "legs": {"air": 20.0}})
+	cfg.set_value("profile", "part_density", {"hand": {"blade": 100.0}, "legs": {"air": 20.0}})
 	cfg.set_value("unbound", "state", {"on": true, "found": true, "routes": {}, "techs": techs})
 	cfg.save(path)
 	var old = P.new()
 	old.saving = false
 	old.save_path = path
 	old.load_save()
-	var st: Dictionary = U.state(old)
-	var same := true
-	for i in T.STARTERS.size():
-		var r: Dictionary = T.recipe(T.STARTERS[i])
-		var s: Dictionary = st["techs"][i]
-		if s["shape"] != r["shape"] or s["kinds"] != r["kinds"] or not T.valid(s) or T.strain(s) != float(T.STRAIN[0]) or T.describe(s) != T.describe(r):
-			same = false
-	_check(U.is_on(old) and same, "an old Unbound save keeps its six techniques as they were (shape, essences, strain, words)")
-	_check(TR.owned_forms(old, "hand") == ["strike", "bolt", "volley"] and TR.owned_forms(old, "legs") == ["dash", "leap"], "...and opens only the forms its levels reach")
-	_check(not U.PARTS.any(func(part): return F.capstone_on(old, part)), "...and no capstone before level 10")
+	U.sync_techs(old)
+	var ht: Dictionary = U.tech_of(old, 0)
+	_check(U.is_on(old) and T.valid(ht) and ht["part"] == "hand" and ht["kinds"] == ["blade"] and U.tech_of(old, 1).is_empty(), "an old Unbound save loads: its slots follow their parts (the hand's carries a Blade technique, the legs' waits for half full)")
+	_check(TR.owned_forms(old, "hand") == ["strike", "bolt", "volley", "brand"] and TR.owned_forms(old, "legs") == ["dash", "leap"], "...and opens only the forms its levels reach")
+	_check(not U.PARTS.any(func(part): return F.capstone_on(old, part)), "...and no capstone before level 12")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

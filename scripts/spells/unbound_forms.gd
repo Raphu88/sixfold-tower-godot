@@ -7,9 +7,12 @@ extends RefCounted
 ##   {"fork": [variation id, variation id]}  choose one, for good (the other
 ##                                          can be learned later: tree.gd learn_skipped)
 ##   {"form": form id}                       a new form opens at this level
-##   {"capstone": entry}                     the part's capstone (level 10)
-## Levels 1 (today's forms), 4 and 8 (one more essence to combine) and 5
-## (the gift) are filled in by tree.gd from unbound.gd.
+##   {"capstone": entry}                     the part's capstone (level 12, full)
+## A part levels by fill (unbound.gd: 10 a level, 12 levels). Level 3 (the
+## minor ability), 5 (the gift) and 6 (half full: today's forms, techniques
+## open) are filled in by tree.gd from unbound.gd; forks are at 7, 9 and 11,
+## new forms at 8 and 10. A pure part's signature form (unbound.gd
+## SIGNATURES: Blink) opens at 12 with the capstone.
 ##
 ## FORMS: new forms, as in library.gd FORMS ("part", "class", "says", their
 ## numbers, "strain" added to a technique's strain, "opens" = the level).
@@ -22,15 +25,15 @@ extends RefCounted
 ## Every hit goes through technique.gd hit(), so every essence, chosen effect
 ## and Chain works on it.
 ##
-## CAPSTONES: each part's level-10 node (TREE[part][10]["capstone"]): a name,
-## one plain line and its numbers. They're on for an Unbound whose part is at
-## level 10 (capstone_on) and play out in the climb through this file's node
+## CAPSTONES: each part's level-12 node (TREE[part][12]["capstone"]): a name,
+## one plain line and its numbers. They're on for an Unbound whose part is
+## full (capstone_on) and play out in the climb through this file's node
 ## (Fx, under main) and its on_cast (library.gd calls it after every cast).
 ##
 ## Things that stay a while (beams, rings, trails, signs, pools, cloaks) live
 ## in Fx (one under main, "UnboundForms"; a new floor clears it), which also
 ## draws them, in code, over the darkness.
-## WORKED EXAMPLE: Volley (the hand, level 3): four small bolts in a fan
+## WORKED EXAMPLE: Volley (the hand, level 8): four small bolts in a fan
 ## that bend toward foes (unbound_run.gd add_bolt's "seek"); each that strikes
 ## a foe the same volley already struck hits harder ("focus", adding up).
 
@@ -43,52 +46,55 @@ const CENTRED := ["wake", "hum", "heartbeat", "wellspring"]
 const CENTRED_STEP := 64.0
 
 static var TREE := {
-	"hand": {2: {"fork": ["split", "quick"]}, 3: {"form": "volley"}, 6: {"fork": ["chain", "long"]}, 7: {"form": "brand"}, 9: {"fork": ["echo", "charged"]},
-		10: {"capstone": {"id": "raw_hands", "name": "Raw Hands", "says": "Every hand technique also throws raw bolts at up to three foes near you, five while the hand runs hot",
+	"hand": {7: {"fork": ["split", "quick"]}, 8: {"form": "volley"}, 9: {"fork": ["chain", "long"]}, 10: {"form": "brand"}, 11: {"fork": ["echo", "charged"]},
+		12: {"capstone": {"id": "raw_hands", "name": "Raw Hands", "says": "Every hand technique also throws raw bolts at up to three foes near you, five while the hand runs hot",
 			"bolts": 3, "hot_bolts": 5, "damage": 7.0, "range": 320.0, "speed": 520.0, "share": 0.5}}},
-	"legs": {2: {"fork": ["long", "quick"]}, 3: {"form": "stride"}, 6: {"fork": ["lingering", "mirrored"]}, 7: {"form": "vault"}, 9: {"fork": ["echo", "wide"]},
-		10: {"capstone": {"id": "afterimage", "name": "Afterimage", "says": "Every legs technique leaves an afterimage where you stood that bursts a moment later, harder the hotter your legs run",
+	"legs": {7: {"fork": ["long", "quick"]}, 8: {"form": "stride"}, 9: {"fork": ["lingering", "mirrored"]}, 10: {"form": "vault"}, 11: {"fork": ["echo", "wide"]},
+		12: {"capstone": {"id": "afterimage", "name": "Afterimage", "says": "Every legs technique leaves an afterimage where you stood that bursts a moment later, harder the hotter your legs run",
 			"delay": 0.45, "radius": 72.0, "damage": 14.0, "share": 0.6, "hot": 1.0}}},
-	"heart": {2: {"fork": ["quick", "lingering"]}, 3: {"form": "heartbeat"}, 6: {"fork": ["echo", "wide"]}, 7: {"form": "wellspring"}, 9: {"fork": ["charged", "delayed"]},
-		10: {"capstone": {"id": "second_heart", "name": "Second Heart", "says": "Once a floor, when you fall below a third of your health, a second heart beats: 40% of your health back and every part's strain gone",
+	"heart": {7: {"fork": ["quick", "lingering"]}, 8: {"form": "heartbeat"}, 9: {"fork": ["echo", "wide"]}, 10: {"form": "wellspring"}, 11: {"fork": ["charged", "delayed"]},
+		12: {"capstone": {"id": "second_heart", "name": "Second Heart", "says": "Once a floor, when you fall below a third of your health, a second heart beats: 40% of your health back and every part's strain gone",
 			"below": 0.34, "heal": 0.4}}},
-	"brow": {2: {"fork": ["chain", "quick"]}, 3: {"form": "glare"}, 6: {"fork": ["long", "delayed"]}, 7: {"form": "omen"}, 9: {"fork": ["split", "charged"]},
-		10: {"capstone": {"id": "piercing_gaze", "name": "Piercing Gaze", "says": "Every brow technique also marks every foe near you for 4 seconds (6 while the brow runs hot): they take 50% more damage",
+	"brow": {7: {"fork": ["chain", "quick"]}, 8: {"form": "glare"}, 9: {"fork": ["long", "delayed"]}, 10: {"form": "omen"}, 11: {"fork": ["split", "charged"]},
+		12: {"capstone": {"id": "piercing_gaze", "name": "Piercing Gaze", "says": "Every brow technique also marks every foe near you for 4 seconds (6 while the brow runs hot): they take 50% more damage",
 			"range": 300.0, "duration": 4.0, "hot_duration": 6.0}}},
-	"throat": {2: {"fork": ["wide", "long"]}, 3: {"form": "hum"}, 6: {"fork": ["chain", "delayed"]}, 7: {"form": "call"}, 9: {"fork": ["echo", "split"]},
-		10: {"capstone": {"id": "rallying_cry", "name": "Rallying Cry", "says": "Every throat technique fills your other techniques by a quarter, cools their parts by 10 strain and gives you back your stamina",
+	"throat": {7: {"fork": ["wide", "long"]}, 8: {"form": "hum"}, 9: {"fork": ["chain", "delayed"]}, 10: {"form": "call"}, 11: {"fork": ["echo", "split"]},
+		12: {"capstone": {"id": "rallying_cry", "name": "Rallying Cry", "says": "Every throat technique fills your other techniques by a quarter, cools their parts by 10 strain and gives you back your stamina",
 			"fill": 0.25, "cool": 10.0}}},
-	"back": {2: {"fork": ["wide", "lingering"]}, 3: {"form": "wake"}, 6: {"fork": ["delayed", "charged"]}, 7: {"form": "mantle"}, 9: {"fork": ["echo", "mirrored"]},
-		10: {"capstone": {"id": "unbowed", "name": "Unbowed", "says": "Every back technique also raises a light shell, and while any shell holds you, every part's strain fades, even as you cast",
+	"back": {7: {"fork": ["wide", "lingering"]}, 8: {"form": "wake"}, 9: {"fork": ["delayed", "charged"]}, 10: {"form": "mantle"}, 11: {"fork": ["echo", "mirrored"]},
+		12: {"capstone": {"id": "unbowed", "name": "Unbowed", "says": "Every back technique also raises a light shell, and while any shell holds you, every part's strain fades, even as you cast",
 			"shield": 14.0, "duration": 3.0, "fade": 12.0}}},
 }
 
-## Level 3 forms add 2 strain, level 7 forms 4 (their price: the owner may change it).
+## Level 8 forms add 2 strain, level 10 forms 4 (their price: the owner may
+## change it). "signature": a pure part's own form (unbound.gd SIGNATURES).
 static var FORMS := {
 	"volley": {"name": "Volley", "part": "hand", "class": "hit", "says": "Four small bolts thrown in a fan that bend a little toward foes; each that strikes a foe already struck by the volley hits harder", "damage": 7.0, "speed": 440.0, "range": 300.0,
-		"count": 4, "spread": 13.0, "seek": 2.5, "seek_range": 150.0, "focus": 0.3, "strain": 2.0, "opens": 3, "levels": {}},
+		"count": 4, "spread": 13.0, "seek": 2.5, "seek_range": 150.0, "focus": 0.3, "strain": 2.0, "opens": 8, "levels": {}},
 	"brand": {"name": "Brand", "part": "hand", "class": "hit", "says": "A touch that sets a burst on a foe a moment later", "touch": 4.0, "damage": 22.0, "reach": 60.0, "arc": 55.0,
-		"delay": 0.8, "radius": 60.0, "strain": 4.0, "opens": 7, "levels": {}},
+		"delay": 0.8, "radius": 60.0, "strain": 4.0, "opens": 10, "levels": {}},
 	"stride": {"name": "Stride", "part": "legs", "class": "move", "says": "For a few seconds you leave a trail that carries the effect", "damage": 4.0, "duration": 3.0, "radius": 20.0,
-		"life": 1.6, "tick": 0.5, "strain": 2.0, "opens": 3, "levels": {}},
+		"life": 1.6, "tick": 0.5, "strain": 2.0, "opens": 8, "levels": {}},
 	"vault": {"name": "Vault", "part": "legs", "class": "move", "says": "A hop back, untouchable, with a burst where you stood that stays on the ground and bursts twice more", "damage": 18.0, "dist": 110.0, "radius": 70.0,
-		"untouchable": 0.6, "pulses": 2, "tick": 0.5, "share": 0.4, "strain": 4.0, "opens": 7, "levels": {}},
+		"untouchable": 0.6, "pulses": 2, "tick": 0.5, "share": 0.4, "strain": 4.0, "opens": 10, "levels": {}},
 	"wake": {"name": "Wake", "part": "back", "class": "hit", "says": "A slow ring that rolls outward from you", "damage": 12.0, "radius": 170.0, "speed": 150.0, "force": 200.0,
-		"strain": 2.0, "opens": 3, "levels": {}},
+		"strain": 2.0, "opens": 8, "levels": {}},
 	"mantle": {"name": "Mantle", "part": "back", "class": "shell", "says": "A cloak that answers the next blow you take", "shield": 16.0, "duration": 8.0, "damage": 20.0, "radius": 90.0,
-		"strain": 4.0, "opens": 7, "levels": {}},
+		"strain": 4.0, "opens": 10, "levels": {}},
 	"hum": {"name": "Hum", "part": "throat", "class": "hit", "says": "A field around you that pulses three times", "damage": 6.0, "radius": 95.0, "pulses": 3, "tick": 0.5,
-		"strain": 2.0, "opens": 3, "levels": {}},
+		"strain": 2.0, "opens": 8, "levels": {}},
 	"call": {"name": "Call", "part": "throat", "class": "hit", "says": "A burst at a spot you aim at, far away", "damage": 18.0, "range": 280.0, "radius": 70.0, "travel": 0.22,
-		"strain": 4.0, "opens": 7, "levels": {}},
+		"strain": 4.0, "opens": 10, "levels": {}},
 	"glare": {"name": "Glare", "part": "brow", "class": "hit", "says": "A narrow beam you hold for a second", "damage": 3.5, "length": 300.0, "width": 16.0, "duration": 1.0, "tick": 0.2,
-		"strain": 2.0, "opens": 3, "levels": {}},
+		"strain": 2.0, "opens": 8, "levels": {}},
 	"omen": {"name": "Omen", "part": "brow", "class": "hit", "says": "A sign on the floor that bursts when a foe steps on it", "damage": 28.0, "range": 90.0, "trigger": 26.0, "radius": 80.0,
-		"duration": 10.0, "strain": 4.0, "opens": 7, "levels": {}},
+		"duration": 10.0, "strain": 4.0, "opens": 10, "levels": {}},
 	"heartbeat": {"name": "Heartbeat", "part": "heart", "class": "hit", "says": "The effect beats out around you every second for a while", "damage": 4.5, "radius": 90.0, "beats": 4, "tick": 1.0,
-		"strain": 2.0, "opens": 3, "levels": {}},
+		"strain": 2.0, "opens": 8, "levels": {}},
 	"wellspring": {"name": "Wellspring", "part": "heart", "class": "self", "says": "A pool on the floor that works on you while you stand in it", "radius": 56.0, "duration": 7.0, "tick": 0.5,
-		"hold": 1.5, "strain": 4.0, "opens": 7, "levels": {}},
+		"hold": 1.5, "strain": 4.0, "opens": 10, "levels": {}},
+	"blink": {"name": "Blink", "part": "legs", "class": "move", "says": "You vanish and reappear where you aim, a short way off, untouchable for a moment; the air claps where you were and bursts where you land", "damage": 10.0, "dist": 170.0, "radius": 60.0,
+		"untouchable": 0.5, "strain": 4.0, "opens": 12, "signature": "air", "levels": {}},
 }
 
 ## Words shown over the climber or a foe.
@@ -99,6 +105,7 @@ static var TEXT := {
 	"second_heart": "Second Heart",
 	"rally": "Rally",
 	"gaze": "Marked",
+	"blink": "Blink",
 }
 
 static var _hooked := false
@@ -137,17 +144,17 @@ static func of(main):
 	return n
 
 
-## True once a part's capstone is the climber's: Unbound, the part at level 10.
+## True once a part's capstone is the climber's: Unbound, the part full (level 12).
 static func capstone_on(prof, part: String) -> bool:
 	var U = load("res://scripts/unbound.gd")
 	var L = load("res://scripts/library.gd")
 	if prof == null or not U.is_on(prof):
 		return false
-	return L.built(capstone(part)) and U.level(prof, part) >= U.LEVELS.size()
+	return L.built(capstone(part)) and U.level(prof, part) >= U.MAX_LEVEL
 
 
 static func capstone(part: String) -> Dictionary:
-	var node = TREE.get(part, {}).get(10, {})
+	var node = TREE.get(part, {}).get(12, {})
 	return node.get("capstone", {}) if node is Dictionary else {}
 
 
@@ -284,6 +291,18 @@ static func cast_form(id: String, t: Dictionary, p, power: float, run, sh: Dicti
 				"life": float(sh["life"]), "every": float(sh["tick"]), "dmg": float(sh["damage"]) * power, "last": {}}))
 			main.sfx("gust", 1.4, -5.0)
 			return 0
+		"blink":
+			# A pure Air legs' signature: gone, and back where you aim (short of
+			# a wall), untouchable a moment; foes where you land are struck.
+			var to := _clear_to(main, origin, origin + aim * float(sh["dist"]) * reach_k)
+			main.fx_ghost(origin, p.radius, col)
+			# The air claps shut where you were (half as hard), then bursts where you land.
+			var gone := _burst(p, origin, float(sh["radius"]) * 0.75, float(sh["damage"]) * 0.5 * power, w, power, run, col)
+			p.global_position = to
+			p.iframes = maxf(p.iframes, float(sh.get("untouchable", 0.4)))
+			main.fx_text(to + Vector2(0, -40), TEXT["blink"], col)
+			main.sfx("gust", 1.6, -3.0)
+			return gone + _burst(p, to, float(sh["radius"]), float(sh["damage"]) * power, w, power, run, col)
 		"vault":
 			var dist: float = float(sh["dist"]) * reach_k
 			p.jump_total = 0.32

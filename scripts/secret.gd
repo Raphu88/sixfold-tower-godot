@@ -1,21 +1,24 @@
 extends RefCounted
-## The secret essences: Life and Unmaking. They are not ordinary essence
+## The secret essences, the core essences: Making and Unmaking, the Makers'
+## own (the code's ids: "life" and "unmaking"). They are not ordinary essence
 ## (essence.gd KINDS stays the six tower kinds, so the crystals, the bench,
 ## the store and density never see them): only great foes leave them, never
 ## an ordinary monster.
 ##
 ## The first time a great foe falls and its secret essence rises, the
-## climber chooses a PATH: Life or Unmaking (main.gd offer_path). It's for
+## climber chooses a PATH: Making or Unmaking (main.gd offer_path). It's for
 ## good. From then on only the path's essence soaks in; the other rises
 ## and passes straight through the climber, unbanked, unless a vessel on the
 ## belt captures it (vessel.gd, from main.gd pass_through).
 ##
-## The path's essence never settles in a body part, never takes a mark and
-## never pushes out a bond. It's one measure, the FLOW: carried unbanked
-## during the climb (main.gd run_flow, lost on a fall like other unbanked
-## essence) and banked at the stairs (profile.gd flow). Banked flow reaches
-## STEPS, and each step changes how the climber plays (EFFECTS, player.gd
-## set_flow). It lives in the climber's shadow, which is drawn here.
+## The path's essence never takes a mark and never pushes out a bond. It's
+## carried unbanked during the climb (main.gd run_flow, lost on a fall like
+## other unbanked essence) and banked at the stairs, where it settles in the
+## body as CORE ESSENCE (core.gd: slowly, evenly over the six parts, until
+## the body is saturated; profile.gd flow is the body's total). The core
+## essence shows as the AURA: it reaches STEPS, and each step changes how
+## the climber plays (EFFECTS, player.gd set_flow), for marked climbers and
+## the Unbound alike. It also lives in the climber's shadow; both are drawn here.
 ##
 ## Every word and number is in this file, so it's easy to rename or retune.
 ## Hooks for later: the Makers, fragments, the secret bonds and the Unbound
@@ -25,7 +28,7 @@ extends RefCounted
 const ORDER := ["life", "unmaking"]
 
 static var KINDS := {
-	"life": {"name": "Life", "color": Color(0.5, 0.81, 0.43), "deep": Color(0.07, 0.2, 0.08), "light": Color(0.78, 1.0, 0.62),
+	"life": {"name": "Making", "color": Color(0.5, 0.81, 0.43), "deep": Color(0.07, 0.2, 0.08), "light": Color(0.78, 1.0, 0.62),
 		"motto": "you endure"},
 	"unmaking": {"name": "Unmaking", "color": Color(0.69, 0.44, 0.88), "deep": Color(0.11, 0.03, 0.17), "light": Color(0.9, 0.74, 1.0),
 		"motto": "you take apart"},
@@ -50,11 +53,11 @@ const CHAMPION_KIND := {
 }
 static var GROWTH := 0.1
 
-## Banked flow each step needs (index = step - 1).
-static var STEPS := [25.0, 75.0, 150.0, 300.0]
+## The aura's steps: core essence in the body each needs (index = step - 1).
+static var STEPS := [12.0, 36.0, 72.0, 126.0, 198.0, 300.0]
 
 ## What each step does (index = step - 1).
-##   Life      regen   health regrown a second
+##   Making    regen   health regrown a second
 ##             mend    health back for every kill
 ##             heal    healing (draughts, springs, bond heals, kill heals) times this
 ##             refuse  once a floor, a killing blow leaves you at REFUSE_HEALTH
@@ -66,17 +69,17 @@ static var STEPS := [25.0, 75.0, 150.0, 300.0]
 ##                     (at most UNDO_CAP) to monsters within UNDO_REACH
 const EFFECTS := {
 	"life": {
-		"regen": [0.5, 0.75, 1.0, 1.25],
-		"mend": [0.0, 4.0, 5.0, 6.0],
-		"heal": [1.0, 1.0, 1.5, 1.6],
-		"refuse": [false, false, false, true],
+		"regen": [0.5, 0.65, 0.8, 0.95, 1.1, 1.25],
+		"mend": [0.0, 4.0, 4.5, 5.0, 5.5, 6.0],
+		"heal": [1.0, 1.0, 1.0, 1.5, 1.55, 1.6],
+		"refuse": [false, false, false, false, false, true],
 	},
 	"unmaking": {
-		"damage": [1.12, 1.2, 1.28, 1.36],
-		"health": [0.92, 0.87, 0.82, 0.78],
-		"erode": [0.0, 3.0, 4.0, 5.0],
-		"pierce": [false, false, true, true],
-		"undo": [0.0, 0.0, 0.0, 0.3],
+		"damage": [1.12, 1.16, 1.2, 1.26, 1.31, 1.36],
+		"health": [0.92, 0.9, 0.87, 0.84, 0.81, 0.78],
+		"erode": [0.0, 3.0, 3.5, 4.0, 4.5, 5.0],
+		"pierce": [false, false, false, true, true, true],
+		"undo": [0.0, 0.0, 0.0, 0.0, 0.0, 0.3],
 	},
 }
 static var REFUSE_HEALTH := 0.25
@@ -91,13 +94,17 @@ static var STEP_TEXT := {
 	"life": [
 		"Health slowly regrows",
 		"Every kill mends you a little",
+		"Regrowth and mending grow stronger",
 		"Healing is much stronger",
+		"Everything it gives grows stronger",
 		"Once a floor, a killing blow leaves you standing",
 	],
 	"unmaking": [
 		"More damage, less max health (more of both each step)",
-		"An aura erodes awake monsters beside you",
+		"Your aura erodes awake monsters beside you",
+		"The erosion and your damage grow",
 		"Your strikes ignore armour",
+		"The erosion and your damage grow again",
 		"Slain foes come apart and hurt those beside them",
 	],
 }
@@ -106,10 +113,10 @@ static var STEP_TEXT := {
 static var TEXT := {
 	"choose_title": "CHOOSE YOUR PATH",
 	"choose_lines": [
-		"Two secret essences: Life and Unmaking. Only one can soak into you, and the choice is for good.",
-		"The other will pass through you. Yours gathers in your shadow and grows as you bank it.",
+		"Two core essences: Making and Unmaking, the Makers' own. Only one can soak into you, and the choice is for good.",
+		"The other will pass through you. Yours settles in your body as core essence and shows as your aura.",
 	],
-	"card_sub": "banked at stairs  ·  grows in four steps",
+	"card_sub": "banked at stairs  ·  your aura grows in six steps",
 	"card_steps": "STEPS",
 	"tap_choose": "Tap to choose",
 	"tap_again": "Tap again to let it in",
@@ -118,19 +125,19 @@ static var TEXT := {
 	"pad_choose": "Press {a}",
 	"pad_again": "Press {a} again to let it in",
 	"chosen_title": "%s",
-	"chosen": "It gathers in your shadow. The other will pass through you.",
+	"chosen": "It settles in your body and shows as your aura. The other will pass through you.",
 	"chosen_line": "%s: %s",
 	"gather": "+%d %s",
 	"passes": "%s passes through you",
 	"banked": "Banked %d %s",
-	"step_up": "%s reaches step %d: %s",
-	"refuse": "Life will not let you fall",
+	"step_up": "Your %s aura reaches step %d: %s",
+	"refuse": "Making will not let you fall",
 	"lost": "The %s you carried is lost",
-	"faint_sign": "A faint %s in your shadow. It takes hold at %d banked.",
-	"next": "%d banked  ·  %d more to step %d",
-	"full": "%d banked  ·  every step reached",
+	"faint_sign": "A faint %s about you. Your aura shows at %d core essence.",
+	"next": "%d core essence  ·  %d more to aura step %d",
+	"full": "%d core essence  ·  every aura step reached",
 	"unbanked": "%d unbanked: lost if you fall before the stair",
-	"hud_tip": "%s  ·  step %d",
+	"hud_tip": "%s aura  ·  step %d of %d",
 	"reset": "Your shadow is an ordinary shadow again",
 }
 
@@ -385,6 +392,53 @@ static func _draw_unmaking(b, c: Vector2, r: float, step: int, t: float, a: floa
 		var pos := start + Vector2(4.0 * sin(float(i) * 2.0 + ph * 3.0), -ph * (12.0 + 3.0 * k))
 		var ms := (1.9 - 1.2 * ph) * (1.0 + 0.1 * k)
 		b.rect(Rect2(pos - Vector2(ms, ms) * 0.5, Vector2(ms, ms)), Color(light if i % 3 else col, (1.0 - ph) * 0.9 * a))
+
+
+## The aura: the core essence made visible around the climber, into Batch
+## `b`, centred on `c` (the body), for a body of radius `r`, at aura step
+## `step` (nothing before the first), `t` the time in seconds, `a` its
+## opacity. Making: a living green halo that swells with a heartbeat, spores
+## rising through it; Unmaking: a violet haze that flickers, shards drifting
+## out of it. Both grow with each step, and from step 4 a slow ring of light
+## turns around the climber. Drawn unlit (player.gd's overlay), so it reads
+## in the dark.
+static func draw_aura(b, c: Vector2, r: float, path: String, step: int, t: float, a := 1.0) -> void:
+	if step <= 0 or not KINDS.has(path):
+		return
+	var info: Dictionary = KINDS[path]
+	var col: Color = info["color"]
+	var light: Color = info["light"]
+	var k := float(step)
+	var making := path == "life"
+	var pulse := heartbeat(t) if making else 0.5 + 0.5 * sin(t * 9.0 + sin(t * 3.7) * 2.0)
+	var s := r * (1.45 + 0.12 * k) * (1.0 + (0.06 if making else 0.03) * pulse)
+	var glow := 1.0 if making else 1.5  # (violet on a dark floor needs a little more)
+	# The halo, brightest near the body.
+	fill(b, _oval(c, s * 1.35, s * 1.35, 22), Color(col, (0.025 + 0.008 * k) * a * glow * (0.7 + 0.5 * pulse)))
+	fill(b, _oval(c, s, s, 22), Color(col, (0.04 + 0.012 * k) * a * glow * (0.7 + 0.5 * pulse)))
+	fill(b, _oval(c, s * 0.7, s * 0.7, 18), Color(light, (0.03 + 0.01 * k) * a))
+	# Motes: spores rising (Making), shards drifting out (Unmaking).
+	var motes := 2 + 2 * step
+	for i in motes:
+		var ph := fposmod(t * (0.35 + 0.06 * float(i % 3)) + float(i) * 0.618, 1.0)
+		var ang := TAU * float(i) * 0.382 + 0.3
+		var pos: Vector2
+		var ms := (1.6 + 0.12 * k) * (1.0 - 0.5 * ph)
+		if making:
+			pos = c + Vector2(cos(ang) * s * 0.85 + 3.0 * sin(t * 2.0 + float(i)), r * 0.6 - ph * (r * 2.2 + 4.0 * k))
+			b.dot(pos, ms, Color(light, (1.0 - ph) * 0.8 * a))
+		else:
+			var d := s * (0.55 + 0.75 * ph)
+			pos = c + Vector2(cos(ang + ph * 0.6), sin(ang + ph * 0.6)) * d
+			b.rect(Rect2(pos - Vector2(ms, ms) * 0.5, Vector2(ms, ms)), Color(light if i % 3 else col, (1.0 - ph) * 0.85 * a))
+	# From step 4: a ring of light turning slowly round the climber, in dashes.
+	if step >= 4:
+		var n := 6 + 2 * (step - 4)
+		var rr := s * 1.12
+		for i in n:
+			var a0 := TAU * float(i) / float(n) + t * (0.6 if making else -0.8)
+			var a1 := a0 + TAU / float(n) * 0.45
+			b.line(c + Vector2(cos(a0), sin(a0)) * rr, c + Vector2(cos(a1), sin(a1)) * rr, Color(light, (0.25 + 0.06 * (k - 4.0)) * a), 1.2)
 
 
 ## A climber as a dark hooded silhouette standing at `feet`, `h` tall,

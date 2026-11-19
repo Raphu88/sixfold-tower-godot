@@ -161,7 +161,7 @@ static func title() -> String:
 	return String(Items.ITEMS[ID]["name"])
 
 
-## "empty", "12 of 30 Unmaking", "full of Life".
+## "empty", "12 of 30 Unmaking", "full of Making".
 static func state_text(v) -> String:
 	if fill(v) <= 0.0:
 		return TEXT["empty"]

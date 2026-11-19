@@ -8617,7 +8617,7 @@ func _economy_tests() -> void:
 	var cond: Dictionary = ub.condense({"blade": 40.0}, share)
 	ub.bank(cond["keep"], {})
 	var part: String = U.part_for(ub, "blade")
-	_check(ub.crystal_total("blade") == floorf(40.0 * share) and is_equal_approx(float(ub.part_density.get(part, {}).get("blade", 0.0)), 40.0 - floorf(40.0 * share)), "the Unbound condense the same share; only the rest pools raw in the %s" % part)
+	_check(ub.crystal_total("blade") == floorf(40.0 * share) and is_equal_approx(float(ub.part_density.get(part, {}).get("blade", 0.0)), (40.0 - floorf(40.0 * share)) * U.LEVEL_SIZE / float(U.FILL_COST[0])), "the Unbound condense the same share; only the rest fills the %s (slowly)" % part)
 	# The setting: on the Settings page, saved with the settings.
 	menu.open("settings")
 	await _frames(2)
@@ -9559,8 +9559,9 @@ func _secret_tests() -> void:
 	# Banked at the stair.
 	var carried: float = main.run_flow
 	main._arrive()
-	_check(is_equal_approx(prof.flow, carried) and main.run_flow == 0.0, "the stair banks the flow (%.1f)" % prof.flow)
-	_check(main.banner.get("lines", []).any(func(l): return String(l).begins_with("Banked %d Life" % int(round(carried)))), "...and says so")
+	var Core = load("res://scripts/core.gd")
+	_check(is_equal_approx(prof.flow, carried * Core.RATE) and main.run_flow == 0.0, "the stair banks it: a share settles as core essence (%.1f of %.1f)" % [prof.flow, carried])
+	_check(main.banner.get("lines", []).any(func(l): return String(l).begins_with("Banked %d Making" % int(round(carried)))), "...and says so")
 	await _until(func(): return not main.climbing and main.fade <= 0.0, 5.0)
 	for e in main.enemies():
 		e.queue_free()
@@ -9575,33 +9576,38 @@ func _secret_tests() -> void:
 	p.set_physics_process(true)
 	main.fall_t = -1.0
 	# The HUD gem only from the first step.
-	prof.flow = 10.0
+	prof.flow = 6.0
 	main._give_bonds()
 	await _frames(3)
-	_check(not main.flow_shown() and not hud.tips.any(func(t): return String(t[1]).begins_with("Life")), "no gem on the HUD before the first step")
-	main.dev_add_flow(15.0)
+	_check(not main.flow_shown() and not hud.tips.any(func(t): return String(t[1]).begins_with("Making")), "no gem on the HUD before the aura's first step")
+	main.dev_add_flow(6.0)
 	await _frames(3)
-	_check(main.flow_shown() and p.flow_step == 1 and hud.tips.any(func(t): return String(t[1]).begins_with("Life")), "at 25 banked, Life's gem joins the HUD")
-	# Life, step by step.
-	_check(is_equal_approx(p.flow_regen, S.EFFECTS["life"]["regen"][0]) and p.flow_mend == 0.0 and p.heal_mult() == 1.0 and not p.flow_refuse, "Life step 1: health regrows, nothing more yet")
+	_check(main.flow_shown() and p.flow_step == 1 and hud.tips.any(func(t): return String(t[1]).begins_with("Making aura")), "at 12 core essence, the aura's gem joins the HUD")
+	# Making, step by step (six steps).
+	_check(is_equal_approx(p.flow_regen, S.EFFECTS["life"]["regen"][0]) and p.flow_mend == 0.0 and p.heal_mult() == 1.0 and not p.flow_refuse, "Making step 1: health regrows, nothing more yet")
 	p.hp = 50.0
 	await _until(func(): return p.hp > 50.5, 3.0)
 	_check(p.hp > 50.5, "...and it does regrow")
-	main.dev_add_flow(50.0)
-	_check(p.flow_step == 2 and p.flow_mend > 0.0, "Life step 2 at 75")
+	main.dev_add_flow(24.0)
+	_check(p.flow_step == 2 and p.flow_mend > 0.0, "Making step 2 at 36")
 	p.hp = 40.0
 	var hp_kill: float = p.hp
 	var s2 = await _still("slime", p.global_position + Vector2(120, 0))
 	_slay(s2)
 	_check(p.hp >= hp_kill + p.flow_mend - 0.01, "a kill mends you (+%d)" % int(p.flow_mend))
-	main.dev_add_flow(75.0)
-	_check(p.flow_step == 3 and p.heal_mult() > 1.3, "Life step 3 at 150: healing much stronger")
+	var mend2: float = p.flow_mend
+	main.dev_add_flow(36.0)
+	_check(p.flow_step == 3 and p.flow_mend > mend2 and p.heal_mult() == 1.0, "Making step 3 at 72: mending grows")
+	main.dev_add_flow(54.0)
+	_check(p.flow_step == 4 and p.heal_mult() > 1.3, "Making step 4 at 126: healing much stronger")
 	p.heal_left = 0.0
 	main.Items._heal_over_time(p, main.Items.ITEMS["draught"], false)
 	_check(is_equal_approx(p.heal_left, float(main.Items.ITEMS["draught"]["heal"]) * p.heal_mult()), "...a draught heals %d, not %d" % [int(p.heal_left), int(main.Items.ITEMS["draught"]["heal"])])
 	p.heal_left = 0.0
-	main.dev_add_flow(150.0)
-	_check(p.flow_step == 4 and p.flow_refuse, "Life step 4 at 300")
+	main.dev_add_flow(72.0)
+	_check(p.flow_step == 5 and not p.flow_refuse, "Making step 5 at 198")
+	main.dev_add_flow(102.0)
+	_check(p.flow_step == 6 and p.flow_refuse, "Making step 6 at 300")
 	p.hp = 10.0
 	var near = await _still("slime", p.global_position + Vector2(40, 0))
 	_kill_blow(p)
@@ -9620,7 +9626,7 @@ func _secret_tests() -> void:
 	main.reset_path()
 	_check(prof.path == "" and prof.flow == 0.0 and p.flow_path == "" and is_equal_approx(p.max_hp, plain_hp), "reset_path clears the path and all its flow")
 	main.dev_set_path("unmaking")
-	main.dev_add_flow(25.0)
+	main.dev_add_flow(12.0)
 	_check(p.flow_step == 1 and is_equal_approx(p.max_hp, roundf(plain_hp * S.EFFECTS["unmaking"]["health"][0])) and p.hp <= p.max_health(), "Unmaking step 1: less max health (%d of %d)" % [int(p.max_hp), int(plain_hp)])
 	var dummy = await _still("knight", p.global_position + Vector2(200, 0))
 	dummy.face = Vector2.LEFT  # (facing the climber: no backstab)
@@ -9628,7 +9634,7 @@ func _secret_tests() -> void:
 	p._strike(dummy, 10.0, Vector2.RIGHT, 0.0, false)
 	_check(absf((dh - dummy.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][0]) < 0.05, "...and more damage (%.1f from a 10 blow)" % (dh - dummy.hp))
 	_check(p.bonds["hand"].flow_power == S.EFFECTS["unmaking"]["damage"][0], "...spells too")
-	main.dev_add_flow(50.0)
+	main.dev_add_flow(24.0)
 	_check(p.flow_step == 2 and p.flow_erode > 0.0 and p.max_hp < plain_hp * S.EFFECTS["unmaking"]["health"][0], "Unmaking step 2: the trade grows, and the aura")
 	dummy.global_position = p.global_position + Vector2(30, 0)
 	dummy.aware = true
@@ -9640,21 +9646,25 @@ func _secret_tests() -> void:
 	await _until(func(): return dummy.hp < dh, 3.0)
 	_check(dummy.hp < dh and asleep.hp == sh0, "the aura erodes an awake monster beside you, not a sleeping one")
 	asleep.queue_free()
-	main.dev_add_flow(75.0)
-	_check(p.flow_step == 3 and p.flow_pierce, "Unmaking step 3: strikes ignore armour")
+	main.dev_add_flow(36.0)
+	_check(p.flow_step == 3 and not p.flow_pierce, "Unmaking step 3 at 72: the erosion grows")
+	main.dev_add_flow(54.0)
+	_check(p.flow_step == 4 and p.flow_pierce, "Unmaking step 4 at 126: strikes ignore armour")
 	var shell = await _still("shellback", p.global_position + Vector2(60, 0))
 	shell.face = Vector2.LEFT  # facing the climber: its shell in front
 	var shp: float = shell.hp
 	p._strike(shell, 10.0, Vector2.RIGHT, 0.0, false)
-	_check(absf((shp - shell.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][2]) < 0.05, "a shellback's shell doesn't turn the blow (%.1f)" % (shp - shell.hp))
+	_check(absf((shp - shell.hp) - 10.0 * S.EFFECTS["unmaking"]["damage"][3]) < 0.05, "a shellback's shell doesn't turn the blow (%.1f)" % (shp - shell.hp))
 	dummy.flinch = 0.0
 	dummy.flinch_cd = 0.0
 	dummy.state = "recover"
 	p._strike(dummy, 1.0, Vector2.RIGHT, 0.0, false)
 	_check(dummy.flinch > 0.0, "...and a knight's guard doesn't shrug off a light one")
 	shell.queue_free()
-	main.dev_add_flow(150.0)
-	_check(p.flow_step == 4 and p.flow_undo > 0.0, "Unmaking step 4 at 300")
+	main.dev_add_flow(72.0)
+	_check(p.flow_step == 5 and p.flow_undo == 0.0, "Unmaking step 5 at 198")
+	main.dev_add_flow(102.0)
+	_check(p.flow_step == 6 and p.flow_undo > 0.0, "Unmaking step 6 at 300")
 	var a = await _still("slime", p.global_position + Vector2(150, 0))
 	var b = await _still("knight", p.global_position + Vector2(185, 0))
 	var bh: float = b.hp
@@ -10740,14 +10750,35 @@ func _ub_take(i: int) -> void:
 		main.choose_camp(i)
 
 
-## An Unbound climber on a fresh floor: no monsters, nothing hurting.
+## An Unbound's six parts each half full of a ready-made technique's essence,
+## carrying it (technique.gd STARTERS: Ember Bolt in the hand, and so on).
+func _ub_starters(prof) -> void:
+	var U = load("res://scripts/unbound.gd")
+	var T = load("res://scripts/technique.gd")
+	prof.part_density = {}
+	U.state(prof)["primary"] = {}
+	for i in U.PARTS.size():
+		var r: Dictionary = T.recipe(T.STARTERS[i])
+		U.put(prof, U.PARTS[i], String(r["kinds"][0]), float(U.LEVELS[U.TECH_LEVEL - 1]))
+		U.state(prof)["techs"][i] = r
+
+
+## An Unbound climber on a fresh floor: no monsters, nothing hurting; each
+## body part half full of its natural essence, so each carries a technique
+## (minor abilities kept quiet: they'd add to the numbers measured).
 func _ub_fresh() -> void:
 	await _fresh_main()
 	paused = false  # (a menu left open by an earlier test pauses the tree)
 	var prof = main.profile
-	main.unbound.Unbound.become(prof)
+	var U = main.unbound.Unbound
+	U.become(prof)
 	prof.regarded = true
 	main.first_climb = false
+	prof.part_density = {}
+	U.state(prof)["primary"] = {}
+	for part in U.PARTS:
+		U.put(prof, part, String(U.PART_KIND[part]), float(U.LEVELS[U.TECH_LEVEL - 1]))
+	main.unbound.minor_chance = 0.0
 	main._give_bonds()
 	for e in main.enemies():
 		e.queue_free()
@@ -10781,7 +10812,8 @@ func _unbound_tests() -> void:
 	_check(main.camp_choosing and int(main.camp["armed"]) == 1 and not U.is_on(prof), "the first press only arms the refusal")
 	main.choose_camp(1)
 	_check(U.is_on(prof) and prof.bonds.is_empty() and main.camp.get("stage", "") != "unbind", "refusing makes you Unbound and no mark is taken")
-	_check(p.bonds.size() == 6 and p.bonds.values().all(func(b): return "tech" in b), "an Unbound carries six techniques, one on each mark button")
+	_check(p.bonds.is_empty() and U.state(prof)["techs"].all(func(t): return t.is_empty()), "a new Unbound carries no technique yet: a part must be half full first")
+	_check(U.PARTS.all(func(pt): return U.level(prof, pt) < U.TECH_LEVEL), "...no part is half full yet (what the body had flows into its natural parts)")
 	main.camp_choosing = false
 	main.camp = {}
 	# Accepting changes nothing.
@@ -10854,7 +10886,7 @@ func _unbound_tests() -> void:
 	main.floor_num = 3
 	main._begin_regard(false)
 	_check(main.regard.get("refused", false) and U.is_on(prof) and prof.bonds.is_empty() and prof.regarded, "at the Regard the beast refuses to mark you: no mark, and you are Unbound")
-	_check(p.bonds.size() == 6 and p.bonds.values().all(func(b): return "tech" in b), "...carrying six techniques")
+	_check(p.bonds.is_empty(), "...with no technique yet")
 	main.regard["t"] = 9.0
 	main.end_regard()
 	_check(not (main.camp_choosing and main.camp.get("stage", "") == "unbind"), "...and no choice is offered")
@@ -10920,49 +10952,50 @@ func _unbound_tests() -> void:
 	main.victory = {}
 	U.become(prof)  # (the parts and pages below are an Unbound's)
 
-	print("the Unbound: raw essence in the parts")
+	print("the Unbound: body parts fill like cups")
 	prof.part_density = {}
+	U.state(prof)["primary"] = {}
+	U.state(prof)["core"] = {}
 	prof.path = ""
-	prof.bank({"fire": 10.0, "air": 6.0}, {"hand": 5.0})
-	_check(float(prof.part_density.get("brow", {}).get("fire", 0.0)) == 10.0 and float(prof.part_density.get("legs", {}).get("air", 0.0)) == 6.0, "banked essence pools in its natural part (Fire the brow, Air the legs)")
+	prof.flow = 0.0
+	prof.bank({"fire": 60.0, "air": 30.0}, {"hand": 5.0})
+	_check(is_equal_approx(U.amount(prof, "brow", "fire"), 60.0 * U.LEVEL_SIZE / U.FILL_COST[0]) and U.amount(prof, "legs", "air") > 0.0, "banked essence fills its natural part, slowly (60 Fire: %.1f in the brow)" % U.amount(prof, "brow", "fire"))
 	_check(not prof.part_density.has("hand"), "...not where you used your body")
 	U.route(prof, "fire", "hand")
-	prof.bank({"fire": 10.0}, {})
-	_check(float(prof.part_density["hand"]["fire"]) == 10.0 and float(prof.part_density["brow"]["fire"]) == 10.0, "routing sends a kind to another part from then on")
-	var raw_heart: float = U.raw(prof, "heart")
-	prof.path = "life"
-	prof.flow = 30.0
-	_check(U.PARTS.all(func(pt): return U.raw(prof, pt) >= 30.0) and U.raw(prof, "heart") == raw_heart + 30.0, "the path's essence flows through every part")
-	_check(U.level_for(0.0) == 1 and U.level_for(U.LEVELS[3]) == 4 and U.level_for(99999.0) == 10, "levels 1 to 10 from raw density")
-	prof.part_density = {"hand": {"blade": 3300.0}}
-	prof.flow = 0.0
-	_check(U.stage_name(prof) == "Unbound" and U.stage(prof) == 10, "the stages, by total raw density: the last is Unbound")
+	prof.bank({"fire": 60.0}, {})
+	_check(U.amount(prof, "hand", "fire") > 0.0, "routing sends a kind to another part from then on")
+	U.route(prof, "fire", "brow")
+	_check(U.level_for(0.0) == 0 and U.level_for(30.0) == 3 and U.level_for(99999.0) == 12, "a level every 10, 0 to 12")
+	prof.part_density = {}
+	for pt in U.PARTS:
+		U.put(prof, pt, String(U.PART_KIND[pt]), 120.0)
+	_check(U.stage_name(prof) == "Unbound" and U.stage(prof) == 12, "the stages, by the body's total fill: the last is Unbound")
 	prof.part_density = {}
 	_check(U.stage_name(prof) == "Stir", "...the first is Stir")
-	prof.path = ""
 
-	print("the Unbound: building techniques")
-	var t := {"name": "", "part": "throat", "shape": "shout", "kinds": ["fire", "air"]}
+	print("the Unbound: a part's essence makes its technique")
+	prof.part_density = {}
+	U.state(prof)["primary"] = {}
+	U.put(prof, "throat", "fire", 60.0)
+	U.put(prof, "throat", "air", 30.0)
+	var t := {"name": "", "part": "throat", "shape": "shout"}
+	U.sync_tech(prof, t, "throat")
 	var desc: String = T.describe(t)
-	_check(desc.begins_with("A shout in a cone") and desc.contains("burns") and desc.contains("a little reaches farther"), "a part and essences: the part gives the shape, the first leads, the others flavour (%s)" % desc)
+	_check(t["kinds"] == ["fire", "air"] and is_equal_approx(float(T.weights(t)["air"]), 2.0 * 30.0 / 90.0), "its essences are the part's own, the second by its share (%s)" % str(T.weights(t)))
+	_check(desc.begins_with("A shout in a cone") and desc.contains("burns") and desc.contains("a little reaches farther"), "the part gives the form, the first essence leads, the others add a touch (%s)" % desc)
 	var cost: Dictionary = T.cost(t)
 	_check(is_equal_approx(cost["fire"], T.COST[1] * 2.0 / 3.0) and is_equal_approx(cost["air"], T.COST[1] / 3.0), "a boost is paid in those essences, the lead counting double")
 	_check(T.charge(t) > T.charge({"part": "throat", "shape": "shout", "kinds": ["fire"]}), "more kinds take more filling")
 	_check(T.strain(t) > T.strain({"part": "throat", "shape": "shout", "kinds": ["fire"]}), "every extra kind adds strain")
-	var one := {"name": "", "part": "hand", "shape": "bolt", "kinds": ["fire"]}
-	_check(TP.cycle_gem(prof, one, 1)["kinds"].size() == 1, "at level 1 a part combines one essence")
-	prof.part_density = {"hand": {"blade": U.LEVELS[U.KINDS_AT[1] - 1]}}
-	var two: Dictionary = TP.cycle_gem(prof, one, 1)
-	_check(two["kinds"].size() == 2 and two["kinds"][1] != "fire" and TP.cycle_gem(prof, two, 2)["kinds"].size() == 2, "at level %d two, not yet three" % U.KINDS_AT[1])
-	_check(TP.cycle_gem(prof, one, 0)["kinds"][0] != "fire", "tapping a gem cycles its essence")
-	_check(not ("life" in U.kinds_for(prof)) and not ("unmaking" in U.kinds_for(prof)), "without a path, no secret essence to build with")
+	_check(not ("life" in U.kinds_for(prof)) and not ("unmaking" in U.kinds_for(prof)), "without a path, no core essence in the body")
 	prof.path = "unmaking"
-	_check("unmaking" in U.kinds_for(prof) and not ("life" in U.kinds_for(prof)), "only your own path's secret essence")
+	_check("unmaking" in U.kinds_for(prof) and not ("life" in U.kinds_for(prof)), "only your own path's core essence")
 	prof.path = ""
-	var sh: Dictionary = TP.cycle_shape(prof, one)
-	_check(sh["part"] == "hand" and sh["shape"] == "volley", "after the hand's own shapes come the forms its tree has opened (Volley, at level 3)")
-	sh = TP.cycle_shape(prof, sh)
-	_check(sh["part"] == "legs" and sh["shape"] == "dash" and sh["kinds"].size() == 1, "tapping the part cycles its shape (and part)")
+	var TreeR = load("res://scripts/tree.gd")
+	U.put(prof, "hand", "blade", 70.0)
+	_check(not ("volley" in TreeR.owned_forms(prof, "hand")), "the hand's Volley isn't open at level 7")
+	U.put(prof, "hand", "blade", 10.0)
+	_check("volley" in TreeR.owned_forms(prof, "hand"), "...it opens at level 8")
 
 	print("the Unbound: casting, filling, boosting and strain")
 	await _ub_fresh()
@@ -11004,13 +11037,13 @@ func _unbound_tests() -> void:
 	main.run_essence = {"blade": 10.0}
 	run.cast(p.bonds["hand"], p)
 	var boosted: float = 999.0 - slime.hp
-	_check(run.boosts == 1 and is_equal_approx(float(main.run_essence.get("blade", 0.0)), 10.0 - T.COST[0]) and boosted > cold * 1.3, "carrying its essence, a cast spends it and hits harder (%.0f vs %.0f)" % [boosted, cold])
+	_check(run.boosts == 1 and is_equal_approx(float(main.run_essence.get("blade", 0.0)), 10.0 - float(T.cost(p.bonds["hand"].tech, prof)["blade"])) and boosted > cold * 1.3, "carrying its essence, a cast spends it and hits harder (%.0f vs %.0f)" % [boosted, cold])
 	_check(is_equal_approx(run.strain_of("hand"), T.STRAIN[0]), "...a boost adds no strain")
 	U.state(prof)["boost"] = false
 	run.dots.clear()
 	p.bonds["hand"].essence = p.bonds["hand"].capacity()
 	run.cast(p.bonds["hand"], p)
-	_check(run.boosts == 1 and is_equal_approx(float(main.run_essence.get("blade", 0.0)), 10.0 - T.COST[0]), "switched off, carried essence is kept")
+	_check(run.boosts == 1 and is_equal_approx(float(main.run_essence.get("blade", 0.0)), 10.0 - float(T.cost(p.bonds["hand"].tech, prof)["blade"])), "switched off, carried essence is kept")
 	U.state(prof)["boost"] = true
 	# Cast before it's full: more strain.
 	run.dots.clear()
@@ -11091,7 +11124,7 @@ func _unbound_tests() -> void:
 	_check(not run.barrier_in_reach(p).is_empty(), "the Unbound reach a barrier from a step away")
 	main.run_essence = {"stone": 20.0}
 	var hp2: float = p.hp
-	_check(run.punch(g2) == "crack" and p.hp == hp2 and is_equal_approx(float(main.run_essence.get("stone", 0.0)), 20.0 - run.FISTS["raw_cost"]) and int(run.hits[g2["id"]]) == run.FISTS["raw_blows"], "raw essence: it costs essence, not health, and cracks faster")
+	_check(run.punch(g2) == "crack" and p.hp == hp2 and is_equal_approx(float(main.run_essence.get("stone", 0.0)), 20.0 - run.FISTS["raw_cost"] * (1.0 - U.gift(prof, "cost"))) and int(run.hits[g2["id"]]) == run.FISTS["raw_blows"], "raw essence: it costs essence, not health, and cracks faster")
 	main.door_view.lock_rooms.erase(778)
 	held2.queue_free()
 	main.floor_num = int(main.tower_data().get("summit", 12))
@@ -11099,8 +11132,9 @@ func _unbound_tests() -> void:
 	await _frames(2)
 	_check(main.camp_choosing and main.camp.get("stage", "") == "condense" and main.camp["choices"].size() == 6 and prof.bonds.is_empty(), "at a summit the Unbound take no mark: they choose a part to condense into")
 	var kind: String = main.tower_data().get("essence", "air")
+	var had: float = U.amount(prof, U.PARTS[2], kind)
 	main.choose_camp(2)
-	_check(float(prof.part_density.get(U.PARTS[2], {}).get(kind, 0.0)) == U.CONDENSE and not main.victory.is_empty(), "the tower's essence condenses there, then the victory")
+	_check(is_equal_approx(U.amount(prof, U.PARTS[2], kind), had + U.CONDENSE) and not main.victory.is_empty(), "the tower's essence condenses there, then the victory")
 	main.victory = {}
 
 	print("the Unbound: pages")
@@ -11130,7 +11164,7 @@ func _unbound_tests() -> void:
 		stack.append_array(n.get_children())
 		if n is Label and n.has_meta("tech_gem_label") and String(n.text).begins_with(lead):
 			shows_lead = true
-	_check(gem_labels == U.KINDS_AT.size() and gem_btns == 0 and shows_lead, "the technique page shows the essences (%d gems, the lead %s) with no buttons to change them" % [gem_labels, lead])
+	_check(gem_labels == T.weights(U.state(prof)["techs"][0]).size() and gem_btns == 0 and shows_lead, "the technique page shows the part's essences (%d gems, the lead %s) with no buttons to change them" % [gem_labels, lead])
 	_check(bench_btn != null and not bench_btn.disabled, "...and its button builds at the essence bench")
 	main.menu.open("climber")
 	await _frames(2)
@@ -13683,6 +13717,7 @@ func _abilities_tests() -> void:
 
 	print("abilities: the Unbound")
 	U.become(main.profile)
+	_ub_starters(main.profile)
 	main.profile.regarded = true
 	main.first_climb = false
 	main._give_bonds()
@@ -13690,7 +13725,7 @@ func _abilities_tests() -> void:
 	_check(list.size() == 6 and list.all(func(e): return e["kind"] == "technique"), "an Unbound's abilities: their six techniques")
 	_check(list.map(func(e): return e["name"]) == ["Ember Bolt", "Gale Dash", "Iron Will", "Hunter's Mark", "Tidal Shout", "Stone Shell"] and list.map(func(e): return e["press"]) == ["Q", "E", "F", "C", "X", "V"], "...each with its name and the button that casts it")
 	var eb: Dictionary = list[0]
-	_check(eb["does"] == T.describe(eb["tech"]) and eb["sub"].contains("Hand") and eb["sub"].contains("Bolt") and eb["sub"].contains("Fire") and eb["cost"].contains("20") and eb["cost"].contains("strain"), "...its part, shape and essences, what it does, its fill and strain")
+	_check(eb["does"] == T.describe(eb["tech"]) and eb["sub"].contains("Hand") and eb["sub"].contains("Bolt") and eb["sub"].contains("Fire") and eb["cost"].contains(str(int(round(T.charge(eb["tech"], main.profile))))) and eb["cost"].contains("strain"), "...its part, shape and essences, what it does, its fill and strain")
 	var more_text := "\n".join(eb["more"])
 	_check(more_text.contains("Fills") and more_text.contains("Strain") and more_text.contains("Boost") and more_text.contains("wind-up"), "...and in more: how it fills, its strain, its boost and its numbers")
 	menu.open("abilities")

@@ -408,7 +408,7 @@ func _draw_core() -> void:
 		c.draw_set_transform_matrix(unit * gx)
 		gb.flush(c)
 		if flow_rect.size.x > 0.0:
-			tips.append([gx * flow_rect, Secret.TEXT["hud_tip"] % [Secret.display(main.profile.path), main.profile.flow_step()], _flow_tip_lines()])
+			tips.append([gx * flow_rect, Secret.TEXT["hud_tip"] % [Secret.display(main.profile.path), main.profile.flow_step(), Secret.STEPS.size()], _flow_tip_lines()])
 	# The weapon in hand and the quick item: two small slots.
 	var wx := Layout.xform("hud.weapon", view)
 	var wb := Draw.Batch.new()
@@ -513,8 +513,8 @@ func hud_view() -> Vector2:
 	return get_viewport_rect().size / hud_scale
 
 
-## Your path's gem by the health bar: a glowing gem in its colour, four pips
-## under it for the flow's steps. Returns the rect it covers (for its tooltip).
+## Your path's gem by the health bar: a glowing gem in its colour, a pip
+## under it for each of the aura's steps. Returns the rect it covers (for its tooltip).
 func _flow_gem_into(b, c: Vector2) -> Rect2:
 	var path: String = main.profile.path
 	var st: int = main.profile.flow_step()
@@ -534,13 +534,16 @@ func _flow_gem_into(b, c: Vector2) -> Rect2:
 	UI.frame_into(b, outer, inner, UI.GILT_HI, UI.GILT_DEEP.lerp(UI.GILT, 0.35))
 	UI.vgrad_into(b, inner, UI.STONE_2, UI.VOID)
 	UI.gem_into(b, c, 7.0, col)
-	# Its steps: four small gems on a gilt bar under it, lit as they're reached.
-	b.rect(Rect2(c + Vector2(-11.5, 13.2), Vector2(23, 3.6)), Color(UI.OUTLINE, 0.9))
-	b.rect(Rect2(c + Vector2(-10.5, 14.4), Vector2(21, 1.2)), Color(UI.GILT, 0.55))
-	for i in Secret.STEPS.size():
-		var at := c + Vector2(-8.25 + 5.5 * i, 15.0)
-		UI.diamond_into(b, at, 3.0, UI.OUTLINE)
-		UI.diamond_into(b, at, 2.1, Secret.KINDS[path]["light"] if i < st else Color(col.darkened(0.5), 0.9))
+	# Its steps (the aura's: secret.gd STEPS): small gems on a gilt bar under it, lit as they're reached.
+	var n: int = Secret.STEPS.size()
+	var gap := 4.6
+	var half := gap * float(n - 1) * 0.5
+	b.rect(Rect2(c + Vector2(-half - 3.2, 13.2), Vector2(half * 2.0 + 6.4, 3.6)), Color(UI.OUTLINE, 0.9))
+	b.rect(Rect2(c + Vector2(-half - 2.2, 14.4), Vector2(half * 2.0 + 4.4, 1.2)), Color(UI.GILT, 0.55))
+	for i in n:
+		var at := c + Vector2(-half + gap * i, 15.0)
+		UI.diamond_into(b, at, 2.7, UI.OUTLINE)
+		UI.diamond_into(b, at, 1.9, Secret.KINDS[path]["light"] if i < st else Color(col.darkened(0.5), 0.9))
 	return Rect2(c - Vector2(12, 12), Vector2(24, 30))
 
 

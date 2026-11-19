@@ -49,15 +49,15 @@ func _marked() -> void:
 		e.set_physics_process(false)
 
 
-## An Unbound climber: the hand at level 7 (Split chosen at 2, so Quick can
-## be learned; the level-6 fork ready), the legs at 4, the hand strained hot.
+## An Unbound climber: the hand at level 10 (Split chosen at 7, so Quick can
+## be learned; the level-9 fork ready), the legs at 4, the hand strained hot.
 func _unbound() -> void:
 	await t._ub_fresh()
 	var main = _main()
 	var prof = main.profile
 	var U = load("res://scripts/unbound.gd")
-	prof.part_density = {"hand": {"blade": U.LEVELS[6]}, "legs": {"air": U.LEVELS[3]}}
-	load("res://scripts/tree.gd").choose(prof, "unbound:hand:2", "split")
+	prof.part_density = {"hand": {"blade": U.LEVELS[9]}, "legs": {"air": U.LEVELS[3]}}
+	load("res://scripts/tree.gd").choose(prof, "unbound:hand:7", "split")
 	main._give_bonds()
 	main.touch._set_active(false)
 	main.pad._set_active(false)
@@ -147,7 +147,7 @@ func _drawn() -> void:
 		"buds for every state of an Unbound tree: yours, learnable again, a ready choice, locked, coming later (%s)" % [states.keys()])
 	_check(_buds().any(func(b): return String(b.get_meta("bud")).begins_with("fx:")), "...and its essences' effects")
 	var quick = _bud("|quick")
-	_check(quick != null and quick.aux == TreeView.TEXT["learn_bud"] % TR.skipped_cost(2), "a passed side shows what learning it costs (%s)" % (quick.aux if quick != null else ""))
+	_check(quick != null and quick.aux == TreeView.TEXT["learn_bud"] % TR.skipped_cost(7), "a passed side shows what learning it costs (%s)" % (quick.aux if quick != null else ""))
 	await t._frames(6)  # (the hot vein flickers: drawn without errors)
 	main.unbound.strain["hand"] = 0.0
 
