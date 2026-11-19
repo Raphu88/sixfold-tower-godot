@@ -1,6 +1,8 @@
 extends RefCounted
-## THE NOBLE: someone of standing who keeps rooms at the stations (the
-## station's "noble" stop, station_page.gd). Two things:
+## THE NOBLE: someone of standing at each station, in their estate (the
+## station's "noble" stop, station_page.gd). Each of the six stations has
+## its own Noble (stations.gd STATIONS "noble": placeholder names); the
+## titles they grant are shared by every Noble. Two things:
 ##   TITLES     the Noble grants titles by renown (renown.gd TITLES: each
 ##              has a rank and a deed). The stop lists every title: what it
 ##              needs (its rank, its deed: done or not), what it gives (its
@@ -62,5 +64,11 @@ static func line(key: String) -> String:
 	return String(pool[randi() % pool.size()]) if not pool.is_empty() else ""
 
 
-static func name_of() -> String:
+## The Noble's name: the station's own Noble (stations.gd STATIONS "noble"),
+## else NOBLE's. Every station has its own; the titles they grant are shared.
+static func name_of(station := "") -> String:
+	if station != "":
+		var own := String(load("res://scripts/stations.gd").station(station).get("noble", ""))
+		if own != "":
+			return own
 	return String(NOBLE.get("name", "the Noble"))

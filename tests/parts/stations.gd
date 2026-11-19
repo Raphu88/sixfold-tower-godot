@@ -242,19 +242,13 @@ func _travel(main) -> void:
 	menu.train_car = "engine"
 	menu.open("train")
 	await t._frames(2)
-	var flip: Array = t._car_buttons("board", "stations")
-	t._check(flip.size() == 1, "the engine's board has a sign for the stations")
-	if flip.size() == 1:
-		flip[0].pressed.emit()
-		await t._frames(2)
 	var lever: Array = t._car_buttons("go_station", String(Stations.STATIONS[0]["id"]))
-	var placard: bool = t._all_labels(menu).any(func(l): return l.text.contains("Training:"))
-	t._check(menu.train_board == "stations" and lever.size() == 1 and placard, "...turned, it lists the stations, a lever, and how far Training is")
+	t._check(lever.size() == 1, "the engine has Step off for the station you're at (travel.gd: the home station at first)")
 	var visits := int(Renown.state(main.profile)["visits"])
 	if lever.size() == 1:
 		lever[0].pressed.emit()
 		await t._frames(3)
-	t._check(menu.page == "station" and menu.at_station() and main.on_train and menu.station_view.visible and not menu.train_view.visible, "pulling it stops at the station: its page, drawn behind")
+	t._check(menu.page == "station" and menu.at_station() and main.on_train and menu.station_view.visible and not menu.train_view.visible, "stepping off opens the station: its page, drawn behind")
 	var ids: Array = menu.rail.buttons.map(func(b): return b.id)
 	t._check(Stations.stops(menu.station_page.station).all(func(s): return ids.has(s)) and ids.has("leave_station") and not ids.has("engine"), "the rail lists the station's stops and the way back (%s)" % [ids])
 	t._check(int(Renown.state(main.profile)["visits"]) == visits + 1 and Renown.on_offer(main.profile).has("newcomer"), "the stop is counted (the Newcomer's title is ready at the Noble)")

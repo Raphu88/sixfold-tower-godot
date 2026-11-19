@@ -32,6 +32,7 @@ const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
 const Rivals := preload("res://scripts/rivals.gd")
+const Travel := preload("res://scripts/travel.gd")
 
 static var T := Stations.TEXT
 static var N := Noble.TEXT
@@ -84,6 +85,8 @@ func arrive(id: String, at := "", pick := "", words: Array = []) -> void:
 	station = id if Stations.station_ids().has(id) else String(Stations.STATIONS[0]["id"])
 	var ids := stop_ids()
 	stop = at if ids.has(at) else (ids[0] if not ids.is_empty() else "gym")
+	if arriving and words.is_empty() and m.get("tour") != null:
+		m.tour.maybe_start("station")  # (the first time at a station: the Entity shows you round)
 	if pick != "":
 		picks[stop] = pick
 	lines = words
@@ -115,7 +118,15 @@ func build() -> void:
 	var st := Stations.station(station)
 	var small := _small()
 	var info: Dictionary = Stations.STOPS.get(stop, {})
+	if m.get("tour") != null:
+		m.tour.check()
 	m._header(Stations.stop_name(stop), String(info.get("sub", "")), String(st.get("name", "")))
+	var crest := StationView.Crest.new()
+	crest.station = st
+	crest.home = station == Travel.home(prof)
+	crest.custom_minimum_size = Vector2(minf(420.0, _avail()), 26 if small else 30)
+	crest.set_meta("station_crest", station)
+	m.box.add_child(crest)
 	var bar := StationView.RenownBar.new()
 	bar.profile = prof
 	bar.custom_minimum_size = Vector2(minf(280.0, _avail()), 34 if small else 40)
@@ -201,6 +212,9 @@ func _top_words(prof) -> void:
 		r1.set_meta("entity", "rank")
 		r1.set_meta("arrange", "note")  # (Arrange mode: a note, so the list's row keeps its name)
 		m.box.add_child(r1)
+	if m.get("tour") != null and m.tour.active() and m.tour.which == "station":
+		m.tour.bar(m.box, _small())  # (the Entity's tour: its words, Next and Skip; the stop's own tips wait)
+		return
 	if not said.has(stop):
 		var bits: Array = []
 		var refund := String(Renown.state(prof).get("refund", ""))
@@ -227,6 +241,9 @@ const STOP_TIPS := {"gym": ["station", "training"], "arena": ["tournament"], "no
 
 ## Where the keys start: the chosen tile.
 func first_focus(list: Array) -> int:
+	for j in list.size():
+		if list[j].has_meta("tour") and String(list[j].get_meta("tour")) == "next":
+			return j  # (the Entity's tour: on to its next step)
 	var pk := String(picks.get(stop, ""))
 	var i: int = list.map(func(b): return String(b.get_meta("pick", ""))).find(pk)
 	return maxi(i, 0)
@@ -384,7 +401,7 @@ func _arena(left: Node) -> void:
 ## The Noble: a word, the titles, the contracts.
 func _noble(left: Node) -> void:
 	var prof = _prof()
-	_section(left, Noble.name_of())
+	_section(left, Noble.name_of(station))
 	if not said.has("noble_line"):
 		said["noble_line"] = Noble.line("greet")
 	_line(left, String(said["noble_line"]), UI.GOLD)
@@ -404,6 +421,7 @@ func _noble(left: Node) -> void:
 	_section(left, N["titles"])
 	if not _small():
 		_line(left, N["titles_note"], UI.DIM)
+	_line(left, Travel.TEXT["shared_titles"], UI.DIM)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 6)

@@ -53,7 +53,7 @@ const StorageView := preload("res://scripts/storage_view.gd")
 static var HELP := {
 	# --- the rail -----------------------------------------------------------------------
 	"rail:climber": "Your climber's book: abilities, the tree, marks, essence and your record.",
-	"rail:engine": "Opens the Engine: choose a tower, then pull the lever to depart.",
+	"rail:engine": "Opens the Engine: its map of the six towers. Climb the one by your station, or ride to another.",
 	"rail:store": "Opens the Outfitter's Car: buy supplies and gear, and sell what you found.",
 	"rail:personal": "Opens Your Car: what you'll wear, your pack and your stash.",
 	"rail:workshop": "Opens the Workshop: brew supplies, break pieces down, work on gear.",
@@ -63,7 +63,7 @@ static var HELP := {
 	"rail:dev": "Dev Tools: switches for testing. Not part of the game.",
 	"rail:exit": "Back to the title screen. Your climber is saved as they are.",
 	"rail:quit": "Closes the game. Your climber is saved as they are.",
-	"rail:leave_station": "Back to the train. The station stays where it is.",
+	"rail:leave_station": "Back to the train, waiting at this station: your car, the outfitter, the workshop and the engine.",
 	"rail:gym": "Training: short lessons on the basics, with me talking you through, and medal drills.",
 	"rail:arena": "The Tournament: brackets of three rounds against other climbers. Nobody dies; a loss costs only the fee.",
 	"rail:noble": "The Noble: titles granted by renown (each helps with someone), and contracts for the towers.",
@@ -71,12 +71,16 @@ static var HELP := {
 	"rail:resume": "Back to the climb.",
 	"rail:inventory": "Your gear, items and heirlooms.",
 	# --- the engine -------------------------------------------------------------------------
-	"tower": "{Tower}: {essence} essence, and {beast} at the top. {best_line}",
+	"tower": "{Tower}, by {station}: {essence} essence, and {beast} at the top. {where} {best_line}",
 	"depart": "Pull it and the train leaves for {tower}. Your pack and your belt go with you.",
-	"board:stations": "Turns the board to the stations: Training, tournaments and the Noble, between towers.",
+	"board:stations": "Steps off at the station you're at: Training, the tournament, the Noble and the Renown Board.",
 	"board:towers": "Turns the board back to the six towers.",
 	"station": "{station}: a stop between towers. Choose it, then pull its lever.",
-	"go_station": "Stops the train at {station}.",
+	"go_station": "Steps off at {station}: Training, the tournament, its Noble and the Renown Board. Nothing you carry is at risk there.",
+	"ride": "Pays {price} crystals of any kind and rides {count} to {station}. Its tower is then open to you.",
+	"tour:next": "On to the next part of my tour.",
+	"tour:back": "Back to the last part of my tour.",
+	"tour:skip": "Ends my tour here. Ask me to show you around again any time.",
 	# --- the outfitter's car ------------------------------------------------------------------
 	"store_tab:tree": "Shows the outfitter's upgrade tree: your rank is its trunk, and you buy its nodes with crystals.",
 	"store_tab:shop": "Back to the goods: consumables, weapons and armour, charms, and selling.",
@@ -260,7 +264,9 @@ static var HELP := {
 	"dine:duel_stake": "Fights for this: {words}. Win and you take theirs; lose and they take yours.",
 	"dine:duel_go": "Into the Arena car. First to yield loses; nobody dies. Back here after.",
 	# --- the train's furniture (not buttons: the pointer resting on it) ---------------------------------
-	"furnish:board": "The Engine's board: the six towers, or the stations between them. Choose one, then pull the lever.",
+	"furnish:board": "The Engine's map: the six towers on the loop, a station by each. Climb the one by your station, or ride to another.",
+	"furnish:map": "The loop: six stations in tower order. The small train is where you are; each other station shows its fare.",
+	"furnish:lock": "Locked: travel opens with your first mark, or once you become Unbound.",
 	"furnish:rack": "What you'll wear on your next climb, piece by piece. Choose a slot to change it.",
 	"furnish:pack": "Your pack: what's in it goes up the tower with you, and can be lost there.",
 	"furnish:chest": "Your stash: what's in it stays safe on the train.",
@@ -293,6 +299,9 @@ static var COMMENTS := {
 	"station": ["A stop between towers. A breath, nothing more.", "Other climbers wait there. Some of them are worth meeting."],
 	"go": ["A stop between towers. A breath, nothing more."],
 	"board": ["The board knows where the rails go. I know a little more."],
+	"tower_map": ["Six cities, six towers, one track.", "The loop goes both ways. The fare doesn't care.", "Every station has a Noble. They all know your name."],
+	"ride": ["Sit by the window. The towers look better from a distance.", "A short ride. Mind the change."],
+	"tour": ["I'll keep it short.", "Follow me. I know the way."],
 	"store": ["He sorts his goods better than he sorts his thoughts.", "Look twice. He prices things once."],
 	"equip": ["It suits you. Mostly.", "Wear it well. The tower notices."],
 	"move": ["Up the tower, or safe on the train. Choose what you can lose.", "Sorting is a kind of planning."],
@@ -585,6 +594,8 @@ static func _from_ref(prof, ref: String):
 ## Everything that may fill a button's blanks (cheap: only what its key needs).
 static func facts(m, b: Control, key: String) -> Dictionary:
 	var f := {"words": words(b)}
+	if b.has_meta("help_facts"):
+		f.merge(b.get_meta("help_facts"), true)  # (a button that brings its own facts: the engine's map)
 	var prof = m.main.profile if m != null and m.main != null else null
 	var player = m.main.player if m != null and m.main != null else null
 	var head := key.get_slice(":", 0)
