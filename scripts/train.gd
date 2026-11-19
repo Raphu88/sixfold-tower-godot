@@ -567,9 +567,11 @@ static func roll_outfit(profile = null) -> Array:
 	var extras: Array = Shop.extras(profile) if profile != null else []
 	if profile != null:
 		for i in Shop.title_first_look(profile):  # (the worn title's first look: a Fine-or-better piece kept for you, titles.gd)
-			var fid: String = Gear.random_gear("", [], true, "fine")
-			if not Gear.traits_for(Gear.trait_slot(fid)).is_empty():
-				extras.append(Gear.make(fid, "fine", Gear.roll_traits(fid, "fine")))
+			for attempt in 24:  # (some pieces take no traits, e.g. a bag: draw again so the promised piece always comes)
+				var fid: String = Gear.random_gear("", [], true, "fine")
+				if not Gear.traits_for(Gear.trait_slot(fid)).is_empty():
+					extras.append(Gear.make(fid, "fine", Gear.roll_traits(fid, "fine")))
+					break
 	var spaces := maxi(1, rack_size(profile) - charms - extras.size())
 	var pick: Array = Shop.pick(profile, pool, spaces)
 	var slots: Array = ["melee", "ranged", "armor"] + Gear.PIECE_SLOTS
