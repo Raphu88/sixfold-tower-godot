@@ -38,6 +38,9 @@ const Unbound := preload("res://scripts/unbound.gd")
 const TechniquePage := preload("res://scripts/technique_page.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
+const StartPages := preload("res://scripts/start_pages.gd")  # (a new climber's start: the intro, the name, the questionnaire)
+const NewStart := preload("res://scripts/new_start.gd")
+const Pronouns := preload("res://scripts/pronouns.gd")
 const RailScript := preload("res://scripts/rail.gd")
 const Nav := preload("res://scripts/nav.gd")
 const Reflow := preload("res://scripts/reflow.gd")
@@ -408,6 +411,9 @@ func _tap(pos: Vector2) -> void:
 	if b == null and _control_at(pos, "LineEdit") != null and page in ["create", "appearance"]:
 		look_page.edit_name()  # (the appearance page's name)
 		return
+	if b == null and _control_at(pos, "LineEdit") != null and page == "create_name":
+		StartPages.edit_name(self)  # (a new climber's name)
+		return
 	if b == null and page == "data":
 		var field: Control = _control_at(pos, "LineEdit")
 		if field == null:
@@ -445,8 +451,10 @@ func _process(delta: float) -> void:
 		_layout()
 		return
 	var used := Engine.get_process_frames() == _back_frame  # (Esc or B just left a text box)
-	if page == "create":
-		pass  # a new climber's look: only Begin leaves it (like the title)
+	if page in ["create", "intro", "create_name", "quiz"]:
+		# A new climber's start (start_pages.gd): Esc or B step back, no other shortcuts.
+		if (Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel")) and not used:
+			go_back()
 	elif Input.is_action_just_pressed("pause"):
 		if page == "":
 			# (once the Regard or the victory screen has played, Start moves on instead)
@@ -629,7 +637,7 @@ func toggle(which: String) -> void:
 			train_car = Train.HOME
 			open("train")
 		return
-	if page == "create":
+	if page in ["create", "intro", "create_name", "quiz"]:
 		return
 	if page == which or (page == "mark" and which == "climber"):
 		if opened_from_title:
@@ -714,7 +722,9 @@ func _go_back() -> void:
 		focus_part = mark_part
 		open("climber", opened_direct)
 	elif page == "create":
-		return  # (Begin is the way on)
+		open("create_name")  # (back a step: the name; Next is the way on)
+	elif page in ["intro", "create_name", "quiz"]:
+		StartPages.back(self)  # (a new climber's start: back a step)
 	elif page == "pour":
 		pour_page.back()
 	elif page == "appearance" and look_from == "climber":
@@ -1033,7 +1043,7 @@ func open(which: String, direct := false) -> void:
 		panel.scale = Vector2.ONE
 		panel.modulate.a = 1.0
 	# The title's drawing stays behind the pages opened from it.
-	backdrop.visible = which == "title" or which == "create" or (opened_from_title and which != "pause")
+	backdrop.visible = which in ["title", "create", "create_name", "quiz"] or (opened_from_title and which != "pause" and which != "intro")
 	backdrop.show_name = which == "title"
 	# The train is its own page (its cars fill the screen), and stands behind
 	# the pages opened from it.
@@ -1050,10 +1060,11 @@ func open(which: String, direct := false) -> void:
 		station_view.set_inset(RailScript.width_for(compact()) if rail_showing() else 0.0)
 	center.visible = which != "train"
 	shade.visible = which != "title" and which != "train"
-	shade.color.a = 0.6 if backdrop.visible else (0.62 if train_view.visible else (0.38 if stationed and which == "station" else (0.62 if stationed else UI.SHADE.a)))
+	shade.color = Color.BLACK if which == "intro" else UI.SHADE  # (the introduction: a black screen, start_pages.gd)
+	shade.color.a = 1.0 if which == "intro" else (0.6 if backdrop.visible else (0.62 if train_view.visible else (0.38 if stationed and which == "station" else (0.62 if stationed else UI.SHADE.a))))
 	if (which == "pause" or which == "train") and was_closed:
 		on_rail = true  # (the pause menu starts on the rail, on Resume; the train on its rail, on your car)
-	if which == "title":
+	if which == "title" or which == "intro":
 		panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	elif which == "climber":
 		panel.add_theme_stylebox_override("panel", Book.panel_style(compact()))  # (the climber's book)
@@ -1282,6 +1293,9 @@ func _leave_field() -> void:
 	if page == "create" or page == "appearance":
 		look_page._focus_rows()
 		return
+	if page == "create_name":
+		StartPages.focus_after_name(self)
+		return
 	var n: Control = f.find_valid_focus_neighbor(SIDE_BOTTOM) if f != null else null
 	if n == null or n is LineEdit or not n.is_visible_in_tree():
 		var list := focusables()
@@ -1501,12 +1515,28 @@ func _collect_focus(n: Node, list: Array) -> void:
 ## buttons and a line about the climber.
 func _page_title() -> void:
 	var prof = main.profile
-	var primary := _button("Begin your first climb" if not prof.regarded else "Continue", _leave_title)
-	_title_button(primary, true)
+	# Climbers made before the new start were cleared once (new_start.gd): say why.
+	if NewStart.notice_pending():
+		box.add_child(Entity.says(NewStart.TEXT["cleared"], 30.0, "", false))
+		var ok := _button(NewStart.TEXT["cleared_ok"], func():
+			NewStart.dismiss_notice()
+			open("title"))
+		ok.set_meta("help", "start:cleared")
+		_title_button(ok)
+		_gap(4)
+	# Continue (the current climber) above New Climber, once a climber exists.
+	if prof.created:
+		var cont := _button(NewStart.TEXT["continue"], _leave_title)
+		cont.set_meta("help", "start:continue")
+		_title_button(cont, true)
+	var nc := _button(NewStart.TEXT["new_climber"], StartPages.new_climber.bind(self))
+	nc.set_meta("help", "start:new")
+	_title_button(nc, not prof.created)
 	if Slots.any():
-		# The climber picker (climbers_page.gd), naming the current climber.
+		# The climber picker (climbers_page.gd), naming the current climber: pick, start or delete a slot.
 		var cb := _button(ClimbersPage.button_text(prof, Slots.current()), open.bind("climbers"))
 		cb.set_meta("climbers", true)
+		cb.set_meta("help", "start:climbers")
 		_title_button(cb)
 	_title_button(_button("Settings", open.bind("settings")))
 	_title_button(_button("Dev tools", open.bind("dev")))
@@ -1522,6 +1552,8 @@ func _page_title() -> void:
 ## Marks carried and best floor (or a word for a new climber).
 func _title_status() -> String:
 	var prof = main.profile
+	if not prof.created:
+		return NewStart.TEXT["title_none"] if not Slots.any() else NewStart.TEXT["title_empty"]
 	if not prof.regarded:
 		return "A new climber. You bear no mark yet."
 	var names: Array = []
@@ -3707,7 +3739,7 @@ func _dev_clear_makers() -> void:
 
 func _leave_title() -> void:
 	if not main.profile.created:
-		open("create")  # a new climber chooses a look first
+		StartPages.begin_start(self)  # a new climber: the introduction, the name, the look, the questions
 		return
 	Engine.set_meta("sixfold_title_seen", true)
 	close()
@@ -3738,7 +3770,21 @@ func figure_into(b, look: Dictionary, bonds: Dictionary) -> void:
 		b.dot(BodyView.SPOTS[part], 6.0, Color(col.lightened(0.35), 0.9 * a))
 
 
-## The appearance editor (appearance_page.gd): a new climber's, ending in Begin...
+## A new climber's start (start_pages.gd): the Entity's introduction on a
+## black screen, the name and pronouns, and (after the look) the questionnaire.
+func _page_intro() -> void:
+	StartPages.build_intro(self)
+
+
+func _page_create_name() -> void:
+	StartPages.build_name(self)
+
+
+func _page_quiz() -> void:
+	StartPages.build_quiz(self)
+
+
+## The appearance editor (appearance_page.gd): a new climber's, ending in Next (the questions)...
 func _page_create() -> void:
 	look_from = ""
 	look_page.build("create")
@@ -4259,7 +4305,7 @@ func _section(text: String, parent: Node = null) -> void:
 
 func _text(text: String, color: Color, centered := false) -> void:
 	var l := Label.new()
-	l.text = text
+	l.text = Pronouns.fill(text)  # (a line that speaks of the climber: their pronouns)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = 300.0
 	if centered:

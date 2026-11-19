@@ -37,6 +37,9 @@ const Themes := preload("res://scripts/themes.gd")
 const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
 const Slots := preload("res://scripts/slots.gd")
+const NewStart := preload("res://scripts/new_start.gd")  # (a new climber's start: the questionnaire's results, the one-time clearing)
+const StartPages := preload("res://scripts/start_pages.gd")
+const Pronouns := preload("res://scripts/pronouns.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Train := preload("res://scripts/train.gd")
 const Shop := preload("res://scripts/shop.gd")
@@ -424,6 +427,7 @@ func _ready() -> void:
 	if Engine.has_meta("sixfold_test"):
 		profile.saving = false  # tests never touch the real save
 	else:
+		NewStart.clear_old_once()  # (climbers from before the new start are cleared once; the title says why)
 		# The climber played last (slots.gd; an old single save moves into slot 1 first).
 		profile.save_path = Slots.current_path()
 		profile.load_save()
@@ -441,6 +445,7 @@ func _ready() -> void:
 	add_child(arena)
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
+	NewStart.dress(profile, player)  # (the self made's worn starting gear, until the Regard)
 	if not profile.wear.is_empty():
 		Train.dress(profile, player)  # (on the train: the Loadout you chose to wear)
 	apply_appearance()
@@ -520,8 +525,10 @@ func _ready() -> void:
 	elif not Engine.has_meta("sixfold_test") and not Engine.has_meta("sixfold_title_seen"):
 		menu.open.call_deferred("title")
 	elif not profile.created and not Engine.has_meta("sixfold_test"):
-		# A new climber (a new slot, or Start over) chooses a look first.
-		menu.open.call_deferred("create")
+		# A new climber (a new slot, or Start over): the introduction, then
+		# the name, the look and the questions (start_pages.gd).
+		StartPages.reset()
+		menu.open.call_deferred("intro")
 	elif on_train:
 		menu.open.call_deferred("train")
 		PracticeScript.after_train.call_deferred(self)  # (back from the practice room: its page again)
@@ -857,7 +864,7 @@ func _process(delta: float) -> void:
 			return
 		new_climber_t = 3.0
 		var CT: Dictionary = ClimbersPage.TEXT
-		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), CT["over_lost"]], "t": 3.0, "pri": 2}
+		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), Pronouns.fill(CT["over_lost"])], "t": 3.0, "pri": 2}
 		sfx("warn_knight", 1.2, -6.0, 0.0)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
@@ -3284,7 +3291,7 @@ func switch_climber(slot: int) -> bool:
 		_load_climber()
 		if menu != null:
 			if not profile.created:
-				menu.open("create")
+				StartPages.begin_start(menu)
 			else:
 				menu.close()
 	return true
@@ -3321,6 +3328,7 @@ func _load_climber() -> void:
 	first_climb = not profile.regarded
 	_give_bonds()
 	player.use_heirlooms(profile.heirlooms)
+	NewStart.dress(profile, player)
 	if not profile.wear.is_empty():
 		Train.dress(profile, player)
 	apply_appearance()
@@ -3338,11 +3346,12 @@ func new_climber() -> void:
 		Engine.set_meta("sixfold_title_seen", true)
 		get_tree().reload_current_scene()
 	elif menu != null:
-		menu.open("create")
+		StartPages.begin_start(menu)
 
 
 ## The climber wears profile.appearance: in the tower, and on the climber screen.
 func apply_appearance() -> void:
+	Pronouns.current = Pronouns.of_look(profile.appearance)  # (everyone who speaks of the climber: pronouns.gd)
 	climber_look = Appearance.look(profile.appearance)
 	if player != null:
 		player.set_appearance(profile.appearance)

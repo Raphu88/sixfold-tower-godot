@@ -120,17 +120,28 @@ func _every_option_draws() -> void:
 					continue
 				var app := base.duplicate()
 				app[key] = id
+				# (a beard's colour shows on a beard: compared with the same beard as the hair)
+				var t0: Array = tower0
+				var m0: Array = mirror0
+				var f0: Array = front0
+				if key == "beard_color":
+					var bb := base.duplicate()
+					bb["beard"] = "full"
+					app["beard"] = "full"
+					t0 = _tower(p, _dressed(p, bb))
+					m0 = _mirror(_dressed(p, bb))
+					f0 = _front(A.look(bb))
 				var lk := _dressed(p, app)
 				var tw := _tower(p, lk)
 				var same_dir := 0
 				for i in tw.size():
-					if tw[i] == tower0[i]:
+					if tw[i] == t0[i]:
 						same_dir += 1
 				if same_dir > 0:
 					missing.append("tower %s=%s hood %s (same in %d of 4 directions)" % [key, id, hood, same_dir])
-				if _mirror(lk) == mirror0:
+				if _mirror(lk) == m0:
 					missing.append("mirror %s=%s hood %s" % [key, id, hood])
-				if _front(A.look(app)) == front0:
+				if _front(A.look(app)) == f0:
 					missing.append("front %s=%s hood %s" % [key, id, hood])
 				if key in rolls and _rolling(p, lk) == roll0:
 					missing.append("rolling %s=%s" % [key, id])
@@ -149,7 +160,7 @@ func _every_option_draws() -> void:
 	_check(missing.is_empty(), "every option changes the climber in the tower (4 directions, hood up and down), the mirror image and the front figure, and the cloak, legs and build when rolling or fallen (%d missing): %s" % [missing.size(), missing.slice(0, 8)])
 	# With a helm, a cap or armour on, the new options still draw (and a helm hides the face).
 	var app3 := A.DEFAULTS.duplicate()
-	app3.merge({"beard": "full", "accessory": "feather", "neck": "scarf", "cloak_style": "tattered", "trim": "gold", "pattern": "striped", "build": "broad"}, true)
+	app3.merge({"beard": "full", "accessory": "scarf", "cloak_style": "tattered", "trim": "gold", "pattern": "striped", "build": "broad"}, true)
 	var lk3 := _dressed(p, app3)
 	var ok := true
 	for head in ["helm", "cap", "coif"]:
@@ -208,7 +219,7 @@ func _old_saves() -> void:
 	again.load_save()
 	var app: Dictionary = again.appearance
 	var ok: bool = app["name"] == "Wren" and app["hair"] == "braid" and app["cloak"] == "plum"
-	for key in ["eye_shape", "face", "beard", "build", "trousers", "boots", "cloak_style", "trim", "pattern", "belt", "neck", "accessory"]:
+	for key in ["eye_shape", "face", "beard", "build", "trousers", "boots", "cloak_style", "trim", "pattern", "belt", "accessory", "body", "beard_color", "clothes"]:
 		ok = ok and app.get(key, "") == A.DEFAULTS[key]
 	_check(ok, "a save from before the new options loads with them at today's look, the old choices kept")
 	var lk: Dictionary = A.look(app)
@@ -271,11 +282,9 @@ func _page_by_hand() -> void:
 	await t._pad_tap(JOY_BUTTON_DPAD_LEFT)
 	_check(prof.appearance["accessory"] == A.step({"accessory": acc0}, "accessory", -1), "the d-pad changes a row on the Extras tab")
 	await t._pad_tap(JOY_BUTTON_DPAD_UP)
-	await t._pad_tap(JOY_BUTTON_DPAD_UP)
-	await t._pad_tap(JOY_BUTTON_DPAD_UP)
 	_check(t._focus_now() == page.tabs, "...and Up climbs back to the tabs")
 	await t._pad_tap(JOY_BUTTON_A)
-	_check(t._focus_now() == page.first_focus and page.first_focus == page.rows["belt"], "A on the tabs goes into the tab's first row")
+	_check(t._focus_now() == page.first_focus and page.first_focus == page.rows["accessory"], "A on the tabs goes into the tab's first row")
 	main.pad._set_active(false)
 	# Touch: a tab, then a swatch.
 	main.touch._set_active(true)
@@ -283,14 +292,14 @@ func _page_by_hand() -> void:
 	page = menu.look_page
 	menu.scroll.ensure_control_visible(page.tabs)
 	await t._frames(2)
-	var bi: int = A.TABS.map(func(tb): return tb[0]).find("body")
+	var bi: int = A.TABS.map(func(tb): return tb[0]).find("clothes")
 	await t._tap_at(page.tabs.get_global_transform() * Vector2(page.tabs.size.x / A.TABS.size() * (bi + 0.5), page.tabs.size.y * 0.5))
-	_check(page.tab == "body" and page.rows.has("boots"), "a tap on a tab shows its rows (Body)")
+	_check(page.tab == "clothes" and page.rows.has("boots"), "a tap on a tab shows its rows (Clothes)")
 	var boots = page.rows["boots"]
 	menu.scroll.ensure_control_visible(boots)
 	await t._frames(2)
 	var mid: Rect2 = boots._middle()
-	var n: int = A.OPTIONS["boots"].size()
+	var n: int = A.OPTIONS["boots"].size() + (1 if A.has_wheel("boots") else 0)  # (the colour wheel after the swatches)
 	var oi: int = A.index_of("boots", "tan")
 	await t._tap_at(boots.get_global_transform() * Vector2(mid.position.x + mid.size.x / n * (oi + 0.5), boots.size.y * 0.5))
 	_check(prof.appearance["boots"] == "tan" and main.climber_look["boot"] == A.color_of("boots", "tan") and main.player.appearance_look["boot"] == A.color_of("boots", "tan"), "a tap on a swatch picks it (tan boots), in the tower and on the climber screen")

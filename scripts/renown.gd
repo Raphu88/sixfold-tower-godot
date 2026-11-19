@@ -83,6 +83,8 @@ static var CLIMB := {"floor": 1, "best": 2, "beast": 20}
 ##   mirror      your own reflection beaten in a tournament, at least n times
 ##   rivals      deeds with other climbers (rivals.gd), at least n: "of" says
 ##               which ("duels_won", "teamed", "rescued", "traded"...)
+##   origin      how the climber came to climb (new_start.gd WHY): "of" says
+##               which; given from the start, never earned later
 ## What a worn title does is in titles.gd SOCIAL.
 static var TITLES := {
 	"newcomer": {"name": "the Newcomer", "rank": 0, "deed": "Stop at a station.", "rule": "visits", "n": 1},
@@ -101,9 +103,13 @@ static var TITLES := {
 	"champion": {"name": "the Champion", "rank": 4, "deed": "Win the Masters' Bracket of a tournament.", "rule": "tier", "n": 3},
 	"talked_of": {"name": "the Talked-of", "rank": 5, "deed": "Reach the rank of Renowned.", "rule": "none", "n": 0},
 	"paragon": {"name": "the Paragon", "rank": 6, "deed": "Win the Champions' Bracket of a tournament.", "rule": "tier", "n": 4},
+	# From a new climber's start (new_start.gd WHY): worn from the first climb.
+	# PLACEHOLDER names, the owner's to write.
+	"family": {"name": "[Family title]", "rank": 0, "deed": "Be born into a family of climbers (chosen when the climber was made).", "rule": "origin", "of": "born", "n": 0},
+	"hired": {"name": "[Hired title]", "rank": 0, "deed": "Be hired to climb (chosen when the climber was made).", "rule": "origin", "of": "hired", "n": 0},
 }
 ## The order titles are listed in (by tier).
-static var TITLE_ORDER := ["newcomer", "trainee", "contender", "beastfeller", "shieldmate", "helping_hand", "stairworn", "surefoot", "duelist", "trusted",
+static var TITLE_ORDER := ["family", "hired", "newcomer", "trainee", "contender", "beastfeller", "shieldmate", "helping_hand", "stairworn", "surefoot", "duelist", "trusted",
 	"ironclad", "goldhand", "glassbreaker", "champion", "talked_of", "paragon"]
 
 ## How many recent deeds the board remembers.
@@ -196,6 +202,7 @@ static func earn(profile, amount: int, reason: String) -> Dictionary:
 	var r := state(profile)
 	var before := rank(profile)
 	amount = maxi(amount, 0)
+	amount += load("res://scripts/new_start.gd").renown_bonus(profile, amount)  # (the self made: a quarter more until their first title)
 	r["points"] = int(r["points"]) + amount
 	if amount > 0 or reason != "":
 		_deed(r, reason, amount)
@@ -463,6 +470,8 @@ static func deed_done(profile, t: Dictionary) -> bool:
 			return int(r["mirrors"]) >= n
 		"rivals":
 			return load("res://scripts/rivals.gd").count(profile, String(t.get("of", "met"))) >= maxi(n, 1)
+		"origin":
+			return "origin" in profile and String(profile.origin.get("why", "")) == String(t.get("of", ""))
 	return false
 
 

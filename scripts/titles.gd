@@ -37,6 +37,13 @@ const Renown := preload("res://scripts/renown.gd")
 static var GROUPS := [["rivals", "Rival climbers"], ["gym", "Training"], ["tourney", "Tournament masters"], ["outfitter", "The outfitter"]]
 
 static var SOCIAL := {
+	# The titles from a new climber's start (new_start.gd): small helps.
+	"family": {
+		"outfitter": {"text": "He knows your family: 3% off everything he sells.", "discount": 0.03},
+	},
+	"hired": {
+		"rivals": {"text": "Climbers know who you work for: they ask a tenth less.", "friendly": true, "trade_ask": 0.9},
+	},
 	"newcomer": {
 		"outfitter": {"text": "He takes 3% off everything he sells.", "discount": 0.03},
 		"gym": {"text": "Medal drills cost half.", "fee_cut": 0.5},

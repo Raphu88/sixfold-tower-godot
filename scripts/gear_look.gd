@@ -94,9 +94,10 @@ static func before_armor(look: Dictionary, gear: Dictionary) -> void:
 static func armor_look(look: Dictionary, gear: Dictionary) -> void:
 	var cloak: Color = look["cloak"]
 	look["torso"] = look["tunic"]
-	look["shoulder"] = cloak.darkened(0.12)
+	var cloaked: bool = String(look.get("cloak_style", "long")) != "none"  # (no cloak: the clothes' own shoulders)
+	look["shoulder"] = cloak.darkened(0.12) if cloaked else look["tunic"].darkened(0.1)
 	look["shoulder_r"] = 4.6
-	look["sleeve"] = look["tunic"]
+	look["sleeve"] = look["skin"] if String(look.get("clothes", "")) == "sleeveless" else look["tunic"]  # (appearance.gd: bare arms)
 	look["hand"] = look["skin"]
 	look["hood"] = cloak.darkened(0.22)
 	var a = gear.get("armor", {})

@@ -18,6 +18,7 @@ extends RefCounted
 
 const UI := preload("res://scripts/ui.gd")
 const Controls := preload("res://scripts/controls.gd")
+const Pronouns := preload("res://scripts/pronouns.gd")  # (lines that speak of the climber: {they}, {them}, {their}...)
 
 ## Its name and the words around it.
 static var TEXT := {
@@ -138,6 +139,20 @@ const GROUPS := [
 ## puzzle or door kind still gets a tip until it has its own.
 static var TIPS := {
 	# --- first steps ---
+	# A new climber's start (start_pages.gd, new_start.gd): the slots, the
+	# introduction, the name and the questions.
+	"slots": {"group": "start", "name": "Climbers and slots",
+		"tip": "Six climbers may climb, each in a slot of their own. Continue plays the last one; New Climber begins another.",
+		"more": "The title screen shows Continue (the climber played last) above New Climber once a climber exists. New Climber begins a new climber in an empty slot: there are six, and each keeps its own marks, essence, crystals, train, heirlooms, look, name and record. Climbers, on the title screen, shows every slot: choose a card to play that climber, an empty one to begin a new climber there, or Delete under a card to forget a climber for good (it asks twice). Settings are shared by every climber."},
+	"intro": {"group": "start", "name": "The introduction",
+		"tip": "I'll tell you what you need, a line at a time. Next goes on. On later climbers you may skip me.",
+		"more": "A new climber begins on a black screen, where I say a few lines about the train, the towers, the marks and the other way: one idea each. Next (or a tap, Enter or A) goes to the next line, Back to the one before. The first climber hears them all; once a climber has been made on this device, Skip goes straight to making the next one."},
+	"create_name": {"group": "start", "name": "Name and pronouns",
+		"tip": "A name, if you like, and how others speak of you. The Dice offers a name; the pronouns are used by everyone who mentions you.",
+		"more": "The first step of a new climber: a name (optional; the Dice picks one) and pronouns: he, she or they. Everyone who speaks of you uses them: me, other climbers, the Noble, the Makers, and the notices and logs. The example line shows how they read. Next goes on to your look. Both can be changed later on the Appearance page (the climber screen's Marks tab, or your car on the train)."},
+	"questionnaire": {"group": "start", "name": "Before you climb",
+		"tip": "Three questions. What you did before decides your weapon and armour, where you grew up your first tower and home, and why you climb how hard your start is.",
+		"more": "After your look come three questions. What did you do before? Soldier (sword, chain armour), Hunter (shortbow, dagger, leather armour), Labourer (war hammer, padded armour) or Beggar (a dagger, no armour); these pieces are kept as heirlooms, so every climb begins with them, and every climb also carries the shortbow. Where did you grow up? Near one of the six towers: your first climb is there, and its station is your home. Why climb? Born into it (the easiest: fine gear, 30 crystals of your home's kind, your family's title), Hired by someone (common gear, 15 crystals, your employer's title, a contract from the Noble already in hand) or Self made (the hardest: worn gear until your first mark, nothing else, but renown comes a quarter faster until your first title). Back changes an answer; the summary shows what you'll begin with before Begin. Nothing here decides whether you'll take a mark or refuse it: that waits for the tower."},
 	"entity": {"group": "start", "name": "The Entity",
 		"tip": "You can see me. Good. When something new finds you, I'll say so, and keep every word in the Archive.",
 		"more": "The Entity is the small glowing presence that speaks in the corner of the screen. The first time you meet anything new, it says a line or two about it. Dismiss a tip with {dismiss}, or let it fade; it never stops the game. Everything it has told you is kept here in the Archive (the Library: a car on the train, or {menu}, then Library, in a climb), grouped by subject; subjects you haven't met yet show as ???. Settings & Controls can turn the tips off (the Archive still fills in), and Replay tips makes the Entity tell you everything again."},
@@ -595,7 +610,7 @@ static var TIPS := {
 		"more": "As a mark grows, its tree offers choices: at step 2 and step 4 one spell or another, and at step 3 one way or another to change your first spell. Until you choose, the side you've always had stays in use. A choice takes a second press, because it's for good: a mark never goes back. The Unbound choose too, between two variations at some levels of each part; they keep what they choose, but once that part is a level higher they can still learn the side they passed on, for crystal essence. A side marked Coming soon isn't written yet and can't be chosen, and a mark's steps past 5 show as Coming soon until marks grow further."},
 	"appearance": {"group": "screens", "name": "Appearance",
 		"tip": "How you look is yours to choose. Change each part with {choose}; it changes nothing but your looks.",
-		"more": "The appearance page sets how the climber looks in the towers and on the climber screen: an optional name, then five tabs: Face (skin, eyes, eye shape, features), Hair (style, colour, beard), Body (build, tunic, trousers, boots), Cloak (colour, style, trim, pattern, the hood up or down) and Extras (belt or sash, something at the neck, an accessory). Left and Right on the tabs turn them (or tap one); up and down move between the rows; Left and Right (or the arrows, or a swatch) change one. Randomise rolls a whole new look and keeps the name. Turn spins the preview (Q and E, or LB and RB). A new climber chooses a look before the first climb; change it any time with Appearance on the climber screen's Marks tab, or in your car on the train. Looks never change how you play."},
+		"more": "The appearance page sets how the climber looks in the towers and on the climber screen, in six tabs: Body (masculine, feminine or androgynous, the build, the skin), Face (eye shape, eye colour, features), Hair (style, colour, facial hair and its colour), Clothes (what you wear, its colour, trousers, boots, belt), Cloak (cape or cloak, its colour, trim, texture, the hood up or down) and Extras (an accessory). Every colour row has six swatches and a colour wheel (the rainbow at its end) for a colour of your own: on the wheel, pick a colour, then its brightness and strength, and Done. Left and Right on the tabs turn them (or tap one); up and down move between the rows; Left and Right (or the arrows, or a swatch) change one. Randomise rolls a whole new look and keeps the name. Turn spins the preview (Q and E, or LB and RB). Later, the page also holds your name and pronouns. A new climber chooses a look after the name; change it any time with Appearance on the climber screen's Marks tab, or in your car on the train. Looks never change how you play."},
 	"climbers": {"group": "screens", "name": "Climbers",
 		"tip": "Up to six climbers, each kept apart. Choose one to play; Delete asks twice.",
 		"more": "The Climbers page (from the title screen) holds up to six climbers. Each has their own marks and essence, crystals, train, heirlooms, look and name, record, Makers and everything I have told them; a new climber hears my tips again. Settings, controller setup and tips on or off are shared. Choose a card to play that climber, or an empty slot to begin a new one. Delete under a card asks for a second press, and a deleted climber can't be brought back. Continue on the title plays whoever was played last. Start over only starts the current climber over."},
@@ -782,6 +797,7 @@ static func line(key: String, seed := -1, fill := {}) -> String:
 
 ## Fills {beast}, {floor}... from `fill` (a "Beast" key is made for each "beast").
 static func fill_words(text: String, fill: Dictionary) -> String:
+	text = Pronouns.fill(text)
 	for k in fill:
 		var v := str(fill[k])
 		text = text.replace("{%s}" % k, v)
@@ -793,6 +809,7 @@ static func fill_words(text: String, fill: Dictionary) -> String:
 ## mode "keys", "pad" or "touch"; `ps` for PlayStation button names.
 static func fill_keys(text: String, mode := "keys", ps := false) -> String:
 	var col := 1 if mode == "pad" else (2 if mode == "touch" else 0)
+	text = Pronouns.fill(text)
 	for k in KEYS:
 		var tag := "{%s}" % k
 		if text.contains(tag):
@@ -892,6 +909,7 @@ class Face extends Control:
 ## false for words the player chose to read (the Archive, a talk). A line
 ## sent away this session comes back hidden.
 static func says(text: String, face := 46.0, heading := "", away := true) -> HBoxContainer:
+	text = Pronouns.fill(text)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 0)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
