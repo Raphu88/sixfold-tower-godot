@@ -61,6 +61,7 @@ var step_hp := 0.0
 var fights := 0
 var hits_taken := 0
 var close_calls := 0
+var teeters := 0  # ticks spent wobbling at a hole's edge (it steps back)
 var hp_seen := 0.0
 var last_move := Vector2.ZERO  # (the stick, for a fall's report)
 var last_knock := Vector2.ZERO
@@ -243,6 +244,11 @@ func _physics_process(delta: float) -> void:
 		swing_hold -= 1
 		if swing_hold == 0:
 			Input.action_release("attack")
+	# Wobbling at a hole's edge (player.gd begin_teeter): step back, as a player would.
+	if p.teeter_t > 0.0:
+		teeters += 1
+		_stick(["move_left", "move_right", "move_up", "move_down"], -p.teeter_dir)
+		return
 	_think(delta)
 
 

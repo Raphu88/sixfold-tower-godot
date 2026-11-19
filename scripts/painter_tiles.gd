@@ -8,6 +8,7 @@ extends RefCounted
 const Palette := preload("res://scripts/palette.gd")
 const Towers := preload("res://scripts/towers.gd")
 const UI := preload("res://scripts/ui.gd")
+const Holes := preload("res://scripts/holes.gd")
 
 ## The palette, in order: [character, name, what it does].
 const TILES := [
@@ -79,7 +80,7 @@ static func draw(ci: CanvasItem, ch: String, r: Rect2, lk: Dictionary, at := Vec
 			_pillar(ci, c, s * 0.44, tint)
 		"C":
 			if lk.get("chasms", false):
-				_chasm(ci, r)
+				_chasm(ci, r, tint, at)
 			else:
 				_low_wall(ci, r, tint, at)
 				ci.draw_polyline(PackedVector2Array([r.position + Vector2(s * 0.2, s * 0.3), c + Vector2(-s * 0.05, -s * 0.12), c + Vector2(s * 0.12, s * 0.02), r.position + Vector2(s * 0.8, s * 0.36)]), Color(0, 0, 0, 0.65), maxf(1.0, s * 0.05))
@@ -211,13 +212,15 @@ static func _pillar(ci: CanvasItem, pos: Vector2, r: float, tint: Color) -> void
 	ci.draw_circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color((Palette.WALL_EDGE * tint).lightened(0.2), 0.5))
 
 
-static func _chasm(ci: CanvasItem, r: Rect2) -> void:
-	var s := r.size.x
-	ci.draw_rect(r, Color(0.12, 0.1, 0.1))
-	ci.draw_rect(r.grow(-s * 0.06), Color(0.02, 0.015, 0.03))
-	for i in 3:
-		ci.draw_rect(r.grow(-s * (0.1 + i * 0.08)), Color(0, 0, 0, 0.25), false, maxf(1.0, s * 0.05))
-	ci.draw_line(r.position + Vector2(0, s * 0.06), Vector2(r.end.x, r.position.y + s * 0.06), Color(0.55, 0.5, 0.45, 0.6), maxf(1.0, s * 0.05))
+## A chasm as the game draws it (holes.gd): the floor below at the bottom of
+## a cut with a lit rim, never a black pit (one tile on its own, scaled).
+static func _chasm(ci: CanvasItem, r: Rect2, tint: Color, at: Vector2i) -> void:
+	var k := r.size.x / Holes.TILE
+	ci.draw_set_transform(r.position, 0.0, Vector2(k, k))
+	var t := Rect2(Vector2.ZERO, Vector2(Holes.TILE, Holes.TILE))
+	Holes.draw_floor_below(ci, t, Vector2(-at) * Holes.TILE, "firebird", tint)
+	Holes.draw_cut(ci, t, Holes.FLOOR, Holes.FLOOR, Holes.FLOOR, Holes.FLOOR, at, tint)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## A monster's spot: a dark-red creature waiting, its eyes open.

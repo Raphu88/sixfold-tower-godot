@@ -15,6 +15,7 @@ const Makers := preload("res://scripts/makers.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
 const Particles := preload("res://scripts/particles.gd")
 const Anim := preload("res://scripts/anim.gd")
+const Holes := preload("res://scripts/holes.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Pacts := preload("res://scripts/pacts.gd")
 const Essence := preload("res://scripts/essence.gd")
@@ -754,6 +755,8 @@ func _physics_process(delta: float) -> void:
 			velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * WALK * 0.75
 		if cast_t <= 0.0:
 			_release_cast()
+	elif teeter_t > 0.0:
+		_tick_teeter(delta)
 	elif roll_t > 0.0:
 		roll_t -= delta
 		if roll_t <= 0.0:
@@ -1360,19 +1363,73 @@ func flying() -> bool:
 	return firebird_fly and firebird_t > 0.0 and not dead
 
 
-## Walking (or being knocked) into a chasm: you fall, lose some health,
-## and climb back out where you last stood.
+## Into a chasm: walking onto its edge, you teeter there first (step back
+## in time and you're safe); rolled, shoved or blown in, you fall at once.
 func _check_fall() -> void:
-	if dead or in_air():
+	if dead or in_air() or teeter_t > 0.0:
 		return
 	if not main.in_chasm(global_position):
 		last_safe = global_position
+		return
+	if walked_onto(last_safe) and not main.in_chasm(last_safe):
+		begin_teeter(global_position - last_safe, last_safe)
 		return
 	# A chasm doesn't hurt: you fall through it to a lower floor (main.gd).
 	knock = Vector2.ZERO
 	roll_t = 0.0
 	velocity = Vector2.ZERO
 	main.fall_through()
+
+
+## Whether you just walked from `from` onto a hole's edge (not rolled,
+## lunged, shoved, blown or blinked onto it: those take you straight in).
+func walked_onto(from: Vector2) -> bool:
+	return roll_t <= 0.0 and lunge_t <= 0.0 and knock.length() < 45.0 and from != Vector2.ZERO \
+		and global_position.distance_to(from) <= float(Holes.TEETER["step"]) and not main.climbing
+
+
+## On a hole's lip, wobbling (holes.gd TEETER): `into` is the way the hole
+## lies, `spot` the lip. Step back (or roll away) in time and you're safe;
+## otherwise you tip in. Any hole: main.gd's chasms, the towers' ways down.
+func begin_teeter(into: Vector2, spot: Vector2) -> void:
+	if dead or teeter_t > 0.0:
+		return
+	teeter_t = float(Holes.TEETER["time"])
+	teeter_dir = into.normalized() if into.length() > 0.01 else aim
+	teeter_spot = spot
+	global_position = spot
+	velocity = Vector2.ZERO
+	knock = Vector2.ZERO
+	lunge_t = 0.0
+	main.fx_burst(spot + teeter_dir * (radius + 6.0), teeter_dir, Color(0.55, 0.52, 0.5), 6, 70.0)  # (pebbles crumbling in)
+	main.sfx("stone_slide", 1.6, -11.0, 0.08)
+	main.fx_text(global_position + Vector2(0, -44), "Whoa!", Color(0.95, 0.9, 0.8))
+	main.tip("teeter")
+
+
+func _tick_teeter(delta: float) -> void:
+	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	velocity = Vector2.ZERO
+	knock = Vector2.ZERO
+	global_position = teeter_spot
+	teeter_t -= delta
+	var away := input.length() > 0.2 and input.normalized().dot(teeter_dir) < -float(Holes.TEETER["away"])
+	if away or (buffered == "roll" and input.normalized().dot(teeter_dir) <= 0.0 and input != Vector2.ZERO):
+		# Back from the edge.
+		teeter_t = 0.0
+		knock = -teeter_dir * float(Holes.TEETER["back"])
+		velocity = input * WALK
+		last_safe = teeter_spot
+		main.fx_text(global_position + Vector2(0, -44), "Steady", Color(0.8, 0.95, 0.85))
+		return
+	if fmod(teeter_t, 0.25) < delta:
+		main.fx_burst(teeter_spot + teeter_dir * (radius + 6.0), teeter_dir, Color(0.5, 0.47, 0.45), 2, 40.0)
+	if teeter_t <= 0.0:
+		# Too late: over you go.
+		teeter_t = 0.0
+		global_position = teeter_spot + teeter_dir * (radius + 4.0)
+		roll_t = 0.0
+		main.fall_through()
 
 
 func _try_roll(input: Vector2) -> bool:
@@ -2198,6 +2255,11 @@ var jump_total := 0.0
 var jump_vel := Vector2.ZERO
 var glide_left := 0.0  # Flamewing's Phoenix Glide: extra air time while jump is held
 var last_safe := Vector2.ZERO  # the last solid ground you stood on
+# Teetering at a hole's edge (begin_teeter; holes.gd TEETER): time left to
+# step back, which way the hole lies, and the lip you teeter on.
+var teeter_t := 0.0
+var teeter_dir := Vector2.DOWN
+var teeter_spot := Vector2.ZERO
 
 # The Firebird's bonds.
 var aura_part := ""  # Heat Aura: the mark it burns from ("" when off)
@@ -3058,6 +3120,10 @@ func _draw() -> void:
 	# Squash along the facing: stretched when rolling, flattened when hit.
 	var sq_dir := roll_dir if roll_t > 0.0 else aim
 	var stretch := Anim.roll_stretch(1.0 - roll_t / maxf(_roll_len, 0.05)) if roll_t > 0.0 else 0.0
+	if teeter_t > 0.0 and not dead:
+		# Teetering: leaning out over the hole, rocking on your heels.
+		var wob := sin(t * 17.0) * 0.18
+		shiver += teeter_dir * (3.0 + 1.5 * sin(t * 9.0)) + teeter_dir.orthogonal() * wob * 6.0
 	var fold := Anim.crumple(_dead_age) * Anim.num("death", "crumple") if dead and main != null else 0.0
 	draw_set_transform(Vector2(0, -lift) + shiver + Vector2(0, fold * 4.0), sq_dir.angle(), Vector2(1.0 + squash * 0.25 + stretch - fold * 0.5, 1.0 - squash * 0.2 - stretch * 0.5 + fold * 0.45))
 	_wep_xf = Transform2D(sq_dir.angle(), Vector2(0, -lift) + shiver)
@@ -3161,6 +3227,24 @@ func _draw_standing(b, look: Dictionary, t: float) -> void:
 	var sh_o := lx + _at(0.3 - s * 0.8, -sh_y)
 	# Over the head: arms, the weapon, then the hands that hold it.
 	_draw_weapon(b, sh_w, sh_o, look, s)
+	if teeter_t > 0.0:
+		# Teetering: both arms windmilling to keep your balance.
+		var skin: Color = look.get("skin", Color(0.9, 0.75, 0.6))
+		for k in 2:
+			var sh: Vector2 = sh_w if k == 0 else sh_o
+			var sgn := 1.0 if k == 0 else -1.0
+			var ang := t * 16.0 * sgn + k * PI
+			var out := sh.normalized() if sh.length() > 0.1 else _sd
+			var spin := Vector2.from_angle(ang)
+			var hand: Vector2 = sh + (_f * spin.x * 0.8 + out * (0.55 + 0.45 * spin.y)) * 12.0
+			for j in 4:  # (a blur of where the hand just was)
+				var sp := Vector2.from_angle(ang - sgn * 0.35 * (j + 1))
+				var was: Vector2 = sh + (_f * sp.x * 0.8 + out * (0.55 + 0.45 * sp.y)) * 12.0
+				b.circle(was, 1.8 - j * 0.3, Color(skin, 0.4 - j * 0.09))
+			b.line(sh, hand, Palette.OUTLINE, 3.6)
+			b.line(sh, hand, look.get("torso", skin), 2.2)
+			b.circle(hand, 2.3, Palette.OUTLINE)
+			b.circle(hand, 1.6, skin)
 
 
 ## Armor on the chest, where it shows in front of the head.

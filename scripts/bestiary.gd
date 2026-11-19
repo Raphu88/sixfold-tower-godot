@@ -66,6 +66,9 @@ static var BESTIARY := {
 	"knight": {"name": "Knight",
 		"desc": "Heavy and armoured. Up close it winds up a slash; from further out it lunges. Both glint first. Light blows don't make it flinch and it barely budges when struck, but it stands open after each attack: parry, then riposte.",
 		"states": "", "lore": ""},
+	"mimic": {"name": "Mimic",
+		"desc": "A chest that bites back. It waits among the floor's chests and springs when you walk up to open it, then hops after you. Up close it rears and snaps (it glints: parry it); from a few steps off a red line shows where it will hurl itself, jaws first. Slain, it spills what it swallowed: more than any chest. A lid that breathes, a tooth at the seam: that's the tell.",
+		"states": "", "lore": ""},
 	# --- the Gryphon's tower ---
 	"bat": {"name": "Bat",
 		"desc": "Circles you on the wing, hangs still a moment, then swoops straight through where you stood. The swoop glints first: parry it. After a swoop it circles off to rest.",
@@ -192,7 +195,7 @@ const HIDERS := ["lurker", "deepfin", "burrower", "briar"]
 const NEAR := 460.0
 ## How a monster stands for its picture (the state it's drawn in), and
 ## which way it faces: toward you, a little to the side.
-const POSE := {"lurker": "up", "deepfin": "stranded", "burrower": "up", "briar": "rooted", "ashwing": "rest", "harrier": "perch", "bat": "hover"}
+const POSE := {"lurker": "up", "deepfin": "stranded", "burrower": "up", "briar": "rooted", "ashwing": "rest", "harrier": "perch", "bat": "hover", "mimic": "chase"}
 const FACE := Vector2(0.42, 0.91)
 ## How a level reads (0 not met .. 5 the last tier).
 const LEVEL_NAMES := ["", "tier_seen", "tier_fought", "tier_slain", "tier_slain", "tier_slain"]

@@ -116,6 +116,8 @@ const SFX := {
 	"kill_ashwing": ["res://assets/audio/sfx/kill_wisp_0.wav"],
 	"hurt_briar": ["res://assets/audio/sfx/hurt_bloomcap_0.wav"],
 	"kill_briar": ["res://assets/audio/sfx/kill_bloomcap_0.wav"],
+	"hurt_mimic": ["res://assets/audio/sfx/hurt_slime_0.wav", "res://assets/audio/sfx/hurt_slime_1.wav"],
+	"kill_mimic": ["res://assets/audio/sfx/kill_knight_0.wav"],
 	"warn_shellback": ["res://assets/audio/sfx/warn_shellback_0.wav"],
 	"hurt_shellback": ["res://assets/audio/sfx/hurt_shellback_0.wav", "res://assets/audio/sfx/hurt_shellback_1.wav"],
 	"kill_shellback": ["res://assets/audio/sfx/kill_shellback_0.wav"],

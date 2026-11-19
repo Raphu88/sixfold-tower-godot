@@ -43,6 +43,7 @@ extends "res://scripts/towers/tower_floor.gd"
 ## (the Data editor's "Towers" sections).
 
 const MODULE := "res://scripts/towers/wyvern_floor.gd"
+const WaysDown := preload("res://scripts/ways_down.gd")
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
 const CELL := 40.0  # (floors.gd CELL)
 const Rooms := preload("res://scripts/rooms.gd")
@@ -262,6 +263,17 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	for i in used_rooms:
 		plan["safe_rooms"].append(infos[i]["rect"])  # (no traps by the fires: they're danger enough)
 	plan["tower_floor"] = out
+	# A slag chute (ways_down.gd): clear of the furnaces and the barrels.
+	var busy := {}
+	for f in out.get("furnaces", []) + out.get("barrels", []):
+		var ft := grid_tile(f["pos"])
+		for dy in range(-2, 3):
+			for dx in range(-2, 3):
+				busy[ft + Vector2i(dx, dy)] = true
+	for ch in out["channels"]:
+		if ch.has("crank"):
+			busy[grid_tile(ch["crank"])] = true
+	WaysDown.plan_for(plan, infos, floor_num, "wyvern", {"avoid": busy})
 
 
 ## The plan's "impassable" (the metal, bridges left out) and "gates"
@@ -549,6 +561,7 @@ static func scenario_plan(kind: String, info: Dictionary, gates: Array, floor_nu
 
 # (main: the game, set by main.gd: tower_floor.gd)
 var spec := {}
+var ways = null  # its slag chute (ways_down.gd)
 var channels: Array = []  # the plan's, plus: lowered (bool), body (a raised bridge's)
 var molten := {}  # grid tile -> true: the metal no one crosses (a raised bridge's tiles too)
 var furnaces: Array = []  # {pos, phase, quench}
@@ -622,6 +635,7 @@ func setup(plan: Dictionary) -> void:
 			for b in main.layout_blocks:
 				if rr.encloses(b):
 					workshop_blocks.append(b)
+	ways = WaysDown.make(main, self, plan)
 	queue_redraw()
 
 
@@ -711,6 +725,17 @@ func reach_live(solid: PackedByteArray, size: Vector2i, doors: Array, opens: Dic
 		doors.append({"tiles": ch["bridge"], "lock": "lever", "lock_id": lid})
 		var c := grid_tile(ch["crank"])
 		opens[lid] = {"any": [c, c + Vector2i.RIGHT, c + Vector2i.LEFT, c + Vector2i.DOWN, c + Vector2i.UP]}
+	if ways != null and is_instance_valid(ways):
+		ways.reach_live(solid, size)
+
+
+## A slag chute (the floor bot keeps off it).
+func is_void(pos: Vector2) -> bool:
+	return ways != null and is_instance_valid(ways) and ways.is_void(pos)
+
+
+func bot_avoid() -> Array:
+	return ways.bot_avoid() if ways != null and is_instance_valid(ways) else []
 
 
 # --- each tick --------------------------------------------------------------------------

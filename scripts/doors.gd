@@ -176,6 +176,8 @@ func add_door(def: Dictionary) -> Dictionary:
 		return {}
 	var d := _hang(def, [])
 	_redraw()
+	if main.room_view != null:
+		main.room_view.queue_redraw()  # (floor under its doorway too)
 	return d
 
 
@@ -203,6 +205,8 @@ func _hang(def: Dictionary, themes: Array) -> Dictionary:
 			levers.append(item)
 	for t in tiles:
 		_set_tile(t, true)
+		if main.room_view != null:
+			main.room_view.door_tiles[t] = true  # (the floor is still painted under it: room.gd _paint_map)
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0
@@ -859,6 +863,26 @@ func _draw_open(b, d: Dictionary) -> void:
 	else:
 		b.rect(Rect2(r.position.x + 2.0, r.position.y, r.size.x - 4.0, j), wood.darkened(0.35))
 		b.rect(Rect2(r.position.x + 2.0, r.end.y - j, r.size.x - 4.0, j), wood.darkened(0.35))
+	# A worn stone sill across the threshold, over the floor drawn beneath.
+	var sill := Rect2(r.position.x + j, r.get_center().y - 4.0, r.size.x - j * 2.0, 8.0) if horiz \
+		else Rect2(r.get_center().x - 4.0, r.position.y + j, 8.0, r.size.y - j * 2.0)
+	b.rect(sill, Color(Palette.WALL_EDGE, 0.35))
+	# Swung open: the leaf stands back against one side of the frame, on the
+	# side it opened toward, so an open door still reads as a door.
+	if k >= 1.0:
+		var out: Vector2 = d["out"]
+		var long := r.size.x if horiz else r.size.y
+		var reach := long * 0.7
+		var leaf_r: Rect2
+		if horiz:
+			var y0 := r.position.y if out.y < 0.0 else r.end.y
+			leaf_r = Rect2(r.position.x + 1.0, minf(y0, y0 + out.y * reach), 6.0, reach)
+		else:
+			var x0 := r.position.x if out.x < 0.0 else r.end.x
+			leaf_r = Rect2(minf(x0, x0 + out.x * reach), r.position.y + 1.0, reach, 6.0)
+		b.rect(Rect2(leaf_r.position + Vector2(2, 3), leaf_r.size), Color(0, 0, 0, 0.3))
+		b.rect(leaf_r.grow(1.0), Palette.OUTLINE)
+		b.rect(leaf_r, wood)
 	# While it swings: the leaf folding away to the side.
 	if k < 1.0:
 		var leaf := r.grow(-2.0)

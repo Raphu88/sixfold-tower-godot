@@ -34,6 +34,7 @@ extends "res://scripts/towers/tower_floor.gd"
 const Grid := preload("res://scripts/towers/water_wind_grid.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Enemy := preload("res://scripts/enemy.gd")
+const WaysDown := preload("res://scripts/ways_down.gd")
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
 const CELL := 40.0  # (floors.gd CELL)
 const PATH := "res://scripts/towers/kraken_floor.gd"
@@ -92,6 +93,7 @@ var valves: Array = []  # sunken rooms' wheels: {pos, basin, room, t, done}
 var t := 0.0
 var redraw_t := 0.0
 var scn_basin := -1  # the Filling Room's water while it runs
+var ways = null  # its whirlpools (ways_down.gd)
 
 
 # --- planning (floors.gd) ------------------------------------------------------------
@@ -396,6 +398,19 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	plan["tower_floor"] = {"module": PATH}
 	plan["pools"] = []  # (the old round puddles: this water replaces them)
 	plan["wet_rooms"] = []
+	# Whirlpools (ways_down.gd): over a drain in a tide room's floor.
+	var tide := {}
+	for bi in basins.size():
+		if basins[bi]["kind"] == "tide" and int(basins[bi]["room"]) >= 0:
+			for tt in basins[bi]["tiles"]:
+				tide[tt] = bi
+	var near_wheel := {}
+	for v in valves:
+		var vt := Grid.tile(v["pos"])
+		for dy in range(-2, 3):
+			for dx in range(-2, 3):
+				near_wheel[vt + Vector2i(dx, dy)] = true
+	WaysDown.plan_for(plan, infos, floor_num, "kraken", {"allowed": tide, "avoid": near_wheel})
 
 
 ## A corridor's floor without its two end rows (they stay dry: doorways).
@@ -508,6 +523,7 @@ func setup(p: Dictionary) -> void:
 		vv["done"] = false
 		valves.append(vv)
 	_tick_levels(0.0, true)
+	ways = WaysDown.make(main, self, p)
 	queue_redraw()
 
 
@@ -796,6 +812,8 @@ func reach_live(solid: PackedByteArray, size: Vector2i, doors: Array, opens: Dic
 			var lt: Vector2i = main._tile_of(Grid.centre(tt))
 			if lt.x >= 0 and lt.y >= 0 and lt.x < size.x and lt.y < size.y:
 				solid[lt.y * size.x + lt.x] = 1
+	if ways != null and is_instance_valid(ways):
+		ways.reach_live(solid, size)
 
 
 ## Tiles nobody can walk on right now (the floor bot keeps off them).
@@ -805,11 +823,18 @@ func bot_avoid() -> Array:
 		if b["deep"]:
 			for tt in b["tiles"]:
 				out.append(main._tile_of(Grid.centre(tt)))
+	if ways != null and is_instance_valid(ways):
+		out.append_array(ways.bot_avoid())
 	return out
 
 
-func bot_steer(_pos: Vector2, d: Vector2) -> Vector2:
-	return d
+func bot_steer(pos: Vector2, d: Vector2) -> Vector2:
+	return ways.bot_steer(pos, d) if ways != null and is_instance_valid(ways) else d
+
+
+## A whirlpool's eye (the floor bot keeps off it).
+func is_void(pos: Vector2) -> bool:
+	return ways != null and is_instance_valid(ways) and ways.is_void(pos)
 
 
 ## The floor bot's next step for the task (tests/floor_bot_driver.gd).

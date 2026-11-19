@@ -69,6 +69,8 @@ const Objectives := preload("res://scripts/objectives.gd")
 const CracksScript := preload("res://scripts/cracks.gd")
 const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
+const InscriptionsScript := preload("res://scripts/inscriptions.gd")
+const GlimpsesScript := preload("res://scripts/glimpses.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
 const ContractsScript := preload("res://scripts/contracts.gd")
@@ -290,6 +292,8 @@ var objective  # the floor's one task: its pieces, the HUD's line and arrow, the
 var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
+var inscriptions  # a stone to read on some floors (inscriptions.gd)
+var glimpses  # the tower's beast glimpsed now and then (glimpses.gd)
 var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
 var contracts  # the Noble's contracts in play: tracked, a thing to retrieve, paid when done (contracts.gd)
 var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
@@ -388,6 +392,12 @@ func _ready() -> void:
 	room_rewards = RoomRewardsScript.new()
 	room_rewards.main = self
 	add_child(room_rewards)
+	inscriptions = InscriptionsScript.new()
+	inscriptions.main = self
+	add_child(inscriptions)
+	glimpses = GlimpsesScript.new()
+	glimpses.main = self
+	add_child(glimpses)
 	rivals = RivalsScript.new()
 	rivals.main = self
 	add_child(rivals)
@@ -1169,6 +1179,8 @@ func _start_floor(n: int) -> void:
 	_setup_tower_floor(plan if not in_camp else {})  # (before the scenarios: a tower's scenario lives in it)
 	scenarios.setup(plan if not in_camp else {})
 	room_rewards.setup(plan if not in_camp else {})
+	inscriptions.setup(plan if not in_camp else {})
+	glimpses.setup(plan if not in_camp else {})
 	rivals.setup(plan if not in_camp else {})  # (the one beside you parts at the stair; this floor's rivals)
 	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
 	# The traps (traps.gd): laid before the pillars and chasms are made, since
@@ -4199,6 +4211,7 @@ func set_chasms(list: Array) -> void:
 		body.add_child(shape)
 		add_child(body)
 		chasm_bodies.append(body)
+	room_view.hole_tower = tower  # (holes.gd: the tower's haze over the floor below)
 	room_view.set_chasms(chasms)
 
 

@@ -724,13 +724,18 @@ func _point(r: Rect2, d: Vector2, along: float, across: float) -> Vector2:
 	return Vector2(r.position.x + r.size.x * across, y0 + d.y * along)
 
 
+## The rock between the islands is the abyss: a chasm beside it opens into the air.
+func holes_open_to_rock() -> bool:
+	return on
+
+
 ## Paints the abyss round the islands, the cliffs under their edges, the
 ## bridges, and rock crags (room.gd calls it while it draws the floor).
 func paint(rv, batch) -> bool:
 	if not on or rv.grid == Vector2i.ZERO:
 		return false
 	var grid: Vector2i = rv.grid
-	var solid: PackedByteArray = rv.solid
+	var solid: PackedByteArray = rv.paint_solid  # (doorways count as floor: room.gd _paint_map)
 	var room: Rect2 = rv.room
 	var T := CELL
 	var deep := Color(0.03, 0.02, 0.035)

@@ -9,6 +9,8 @@ const Essence := preload("res://scripts/essence.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Lost := preload("res://scripts/lost.gd")
 const Mirror := preload("res://scripts/mirror.gd")
+const Holes := preload("res://scripts/holes.gd")
+const Particles := preload("res://scripts/particles.gd")
 
 const TILE := 40.0
 const WALL_FACE := 46.0  # height of the north wall's visible front
@@ -21,7 +23,9 @@ var dust: Array = []
 var ambient: Node2D  # redrawn every frame: flames, embers, dust
 var pillars: Array = []  # {pos, r}
 var puddles: Array = []  # {pos, r}
-var chasms: Array = []  # Rect2 gaps in the floor
+var chasms: Array = []  # Rect2 gaps in the floor (holes you fall through: holes.gd draws them)
+var hole_tower := ""  # whose holes they are (holes.gd: the haze over the floor below)
+var hole_spots: Array = []  # each hole tile's centre (the Firebird's embers rise from them)
 var stair_pos := Vector2.ZERO
 var stair_open := false
 var torch_color := Palette.TORCH
@@ -31,6 +35,8 @@ var solid := PackedByteArray()
 var layout_rooms: Array = []
 var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
 var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
+var door_tiles := {}  # every doorway's grid tiles (doors.gd): always painted as floor
+var paint_solid := PackedByteArray()  # (_paint_map(), refreshed each time the floor is drawn)
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
 var cache := {}  # a good room's essence cache: {pos, kind, taken}
 var lost_cache := {}  # your lost things (lost.gd): {pos, taken}
@@ -81,6 +87,7 @@ func reconfigure(r: Rect2) -> void:
 func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Array = []) -> void:
 	grid = size
 	solid = tiles
+	door_tiles.clear()  # (doors.gd hangs this floor's doors next)
 	layout_rooms = rooms
 	blocks = cover
 	block_tiles.clear()
@@ -94,6 +101,20 @@ func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Arr
 
 
 ## Door-frame posts beside the openings where corridors meet rooms.
+## The map the floor is painted from: the live solid map, except that every
+## doorway's tiles count as floor. A closed door makes its tile solid in
+## main.solid, yet the floor (drawn once) must lie under every doorway, open
+## or shut, never a dark wall square (doors.gd draws the door over it).
+func _paint_map() -> PackedByteArray:
+	if door_tiles.is_empty():
+		return solid
+	var s := solid.duplicate()
+	for t in door_tiles:
+		if t.x >= 0 and t.y >= 0 and t.x < grid.x and t.y < grid.y:
+			s[t.y * grid.x + t.x] = 0
+	return s
+
+
 func set_doors(list: Array) -> void:
 	doors = list
 	queue_redraw()
@@ -169,6 +190,9 @@ func set_torch_color(c: Color) -> void:
 
 func set_chasms(list: Array) -> void:
 	chasms = list
+	hole_spots.clear()
+	for t in Holes.tiles_of(chasms, room.position, TILE):
+		hole_spots.append(room.position + (Vector2(t) + Vector2(0.5, 0.5)) * TILE)
 	queue_redraw()
 
 
@@ -209,6 +233,16 @@ func _process(delta: float) -> void:
 				"vel": Vector2(randf_range(-10.0, 10.0), randf_range(-45.0, -25.0)),
 				"t": randf_range(0.6, 1.2),
 			})
+	# ...and, in the Firebird's tower, drift up out of its holes now and then
+	# (the floor below glows). Not on Low effects.
+	if hole_tower == "firebird" and Particles.level != "low":
+		for hs in hole_spots:
+			if randf() < 0.3 * delta and view.has_point(hs):
+				embers.append({
+					"pos": hs + Vector2(randf_range(-14.0, 14.0), randf_range(-6.0, 12.0)),
+					"vel": Vector2(randf_range(-6.0, 6.0), randf_range(-28.0, -16.0)),
+					"t": randf_range(0.8, 1.4),
+				})
 	for e in embers:
 		e["t"] -= delta
 		e["pos"] += e["vel"] * delta
@@ -241,7 +275,7 @@ func _under_wall(gx: int, gy: int, size: Vector2i) -> bool:
 		for dx in size.x:
 			var x := gx + dx
 			var y := gy + dy
-			if x >= grid.x or y >= grid.y or solid[y * grid.x + x] == 0:
+			if x >= grid.x or y >= grid.y or paint_solid[y * grid.x + x] == 0:
 				return false
 	return true
 
@@ -268,6 +302,7 @@ func _outline(r: Rect2, col: Color, width: float) -> void:
 
 func _draw() -> void:
 	_free_chunks()
+	paint_solid = _paint_map()
 	batch = Draw.Chunked.new(room.position, CHUNK)
 	var outer := room.grow(wall)
 	# Beyond the walls: the dark of the tower. (Only around the floor: the
@@ -362,20 +397,7 @@ func _draw_features() -> void:
 		c.circle(pd["pos"], pd["r"] * 0.8, Color(0.14, 0.3, 0.36, 0.6))
 		c.arc(pd["pos"], pd["r"], 0.0, TAU, 40, Color(0.5, 0.75, 0.8, 0.35), 2.0)
 		c.arc(pd["pos"] + Vector2(-pd["r"] * 0.2, -pd["r"] * 0.25), pd["r"] * 0.35, PI * 1.1, PI * 1.6, 10, Color(0.8, 0.95, 1.0, 0.35), 2.0)
-	for ch in chasms:
-		# A gap in the floor: a cracked lip, then darkness falling away.
-		var r: Rect2 = ch
-		c.rect(r.grow(3.0), Color(0.12, 0.1, 0.1))
-		c.rect(r, Color(0.02, 0.015, 0.03))
-		for i in 4:
-			var o := r.grow(-2.0 - i * 3.0)
-			var dark := Color(0.0, 0.0, 0.0, 0.25)
-			c.rect(Rect2(o.position.x - 1.5, o.position.y - 1.5, o.size.x + 3.0, 3.0), dark)
-			c.rect(Rect2(o.position.x - 1.5, o.end.y - 1.5, o.size.x + 3.0, 3.0), dark)
-			c.rect(Rect2(o.position.x - 1.5, o.position.y + 1.5, 3.0, o.size.y - 3.0), dark)
-			c.rect(Rect2(o.end.x - 1.5, o.position.y + 1.5, 3.0, o.size.y - 3.0), dark)
-		c.line(r.position, Vector2(r.end.x, r.position.y), Color(0.55, 0.5, 0.45, 0.6), 2.0)
-		c.line(Vector2(r.position.x, r.end.y), r.end, Color(0.3, 0.27, 0.25, 0.8), 2.0)
+	_draw_holes(c)
 	for p in pillars:
 		_draw_pillar(c, p["pos"], p["r"])
 	c.flush(features)
@@ -383,6 +405,33 @@ func _draw_features() -> void:
 		_draw_spring(features, sp)
 	for cp in camps:
 		_draw_camp(features, cp["pos"])
+
+
+## The chasms: holes cut into the floor (holes.gd), each showing the floor
+## below at the bottom of its shaft, with a lit rim round it. Never a black
+## pit, and nothing like a doorway (a gap in a wall at floor level).
+func _draw_holes(c) -> void:
+	if chasms.is_empty():
+		return
+	var origin := room.position
+	var holes := Holes.tiles_of(chasms, origin, TILE)
+	# (the Firebird's rock is the abyss: a hole beside it opens straight into the air)
+	var open_rock: bool = layout_painter != null and is_instance_valid(layout_painter) and layout_painter.holes_open_to_rock()
+	var kind := func(t: Vector2i) -> int:
+		if holes.has(t):
+			return Holes.HOLE
+		var inside := t.x >= 0 and t.y >= 0 and float(t.x) * TILE < room.size.x and float(t.y) * TILE < room.size.y
+		if not inside:
+			return Holes.OPEN if open_rock else Holes.WALL
+		if grid != Vector2i.ZERO and (t.x >= grid.x or t.y >= grid.y or solid[t.y * grid.x + t.x] != 0):
+			return Holes.OPEN if open_rock and not block_tiles.has(t) else Holes.WALL
+		return Holes.FLOOR
+	for t in holes:
+		Holes.draw_floor_below(c, Rect2(origin + Vector2(t) * TILE, Vector2(TILE, TILE)), origin, hole_tower)
+	for t in holes:
+		var tt: Vector2i = t
+		Holes.draw_cut(c, Rect2(origin + Vector2(tt) * TILE, Vector2(TILE, TILE)),
+			kind.call(tt + Vector2i.UP), kind.call(tt + Vector2i.DOWN), kind.call(tt + Vector2i.LEFT), kind.call(tt + Vector2i.RIGHT), tt)
 
 
 ## Each themed room's floor: a wash of its colour, and marks for some
@@ -545,13 +594,13 @@ func _draw_layout() -> void:
 		return
 	for y in grid.y:
 		for x in grid.x:
-			if solid[y * grid.x + x] == 0 or block_tiles.has(Vector2i(x, y)):
+			if paint_solid[y * grid.x + x] == 0 or block_tiles.has(Vector2i(x, y)):
 				continue
 			var tile :=Rect2(room.position + Vector2(x, y) * TILE, Vector2(TILE, TILE))
-			var open_s := y + 1 < grid.y and solid[(y + 1) * grid.x + x] == 0
-			var open_n := y > 0 and solid[(y - 1) * grid.x + x] == 0
-			var open_w := x > 0 and solid[y * grid.x + x - 1] == 0
-			var open_e := x + 1 < grid.x and solid[y * grid.x + x + 1] == 0
+			var open_s := y + 1 < grid.y and paint_solid[(y + 1) * grid.x + x] == 0
+			var open_n := y > 0 and paint_solid[(y - 1) * grid.x + x] == 0
+			var open_w := x > 0 and paint_solid[y * grid.x + x - 1] == 0
+			var open_e := x + 1 < grid.x and paint_solid[y * grid.x + x + 1] == 0
 			batch.rect(tile, Palette.VOID.lerp(Palette.WALL_TOP, 0.55 if (open_s or open_n or open_w or open_e) else 0.25))
 			if open_s:
 				# The wall's brick face, seen from the floor below it.

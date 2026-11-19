@@ -50,6 +50,7 @@ const Rooms := preload("res://scripts/rooms.gd")
 const Themes := preload("res://scripts/themes.gd")
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const WaysDown := preload("res://scripts/ways_down.gd")
 
 ## The sun: the shaft's width (tiles), how long it takes to cross and come
 ## back (seconds), how much farther monsters notice you in it, how bright
@@ -274,6 +275,16 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	out["shade"] = shade.keys()
 	out["drifts"] = sand.keys()
 	plan["tower_floor"] = out
+	# Sinkholes (ways_down.gd): never in a sand pit or on crumbling flagstones.
+	var busy := {}
+	for t in out["crumbles"]:
+		busy[t] = true
+	for pit in out["pits"]:
+		var pt := grid_tile(pit["pos"])
+		for dy in range(-3, 4):
+			for dx in range(-3, 4):
+				busy[pt + Vector2i(dx, dy)] = true
+	WaysDown.plan_for(plan, infos, floor_num, "manticore", {"avoid": busy})
 
 
 ## Rooms sand may lie in: ordinary rooms and courts, not the start, the stair,
@@ -486,6 +497,7 @@ static func scenario_plan(kind: String, info: Dictionary, gates: Array, floor_nu
 
 # (main: the game, set by main.gd: tower_floor.gd)
 var spec := {}
+var ways = null  # its sinkholes (ways_down.gd)
 var shade := {}  # grid tile -> true
 var sand := {}  # grid tile -> true (drifts, crumbled flagstones, settled quicksand)
 var crumbles := {}  # grid tile -> state: 0 intact, 1 stepped on, then seconds left as it gives way (negative: gone)
@@ -536,6 +548,7 @@ func setup(plan: Dictionary) -> void:
 				sun_lights.append([main.lighting.add_light(pc["pos"], 90.0, C_SUN, 0.6, 0.2), pc, -1])
 	if main.player != null:
 		last_out = main.player.global_position
+	ways = WaysDown.make(main, self, plan)
 	queue_redraw()
 
 
@@ -637,9 +650,19 @@ func sight_k() -> float:
 	return cur_k
 
 
-## reach.gd live_check: nothing here walls anything off.
-func reach_live(_solid: PackedByteArray, _size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
-	pass
+## reach.gd live_check: nothing here walls anything off but a sinkhole.
+func reach_live(solid: PackedByteArray, size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
+	if ways != null and is_instance_valid(ways):
+		ways.reach_live(solid, size)
+
+
+## A sinkhole (the floor bot keeps off it, open or not).
+func is_void(pos: Vector2) -> bool:
+	return ways != null and is_instance_valid(ways) and ways.is_void(pos)
+
+
+func bot_avoid() -> Array:
+	return ways.bot_avoid() if ways != null and is_instance_valid(ways) else []
 
 
 # --- each tick --------------------------------------------------------------------------

@@ -154,7 +154,7 @@ static var THEMES := {
 		"tint": Color(0.6, 0.5, 0.9, 0.08), "door": "chained", "min_size": Vector2i(6, 5), "towers": [], "feature": "ambush", "decor": "bones", "from": 3, "weight": 0.7},
 	"pillars": {"name": "Pillared Hall", "kind": "bad", "sub": "Archers lurk among the pillars. Use them for cover.",
 		"tint": Color(0.8, 0.8, 0.9, 0.04), "door": "den", "min_size": Vector2i(7, 6), "towers": [], "feature": "pillars"},
-	"chasm": {"name": "The Chasm", "kind": "bad", "sub": "The floor falls away into the dark. Jump it, or fall to the floor below.",
+	"chasm": {"name": "The Chasm", "kind": "bad", "sub": "The floor is cut away into a dark pit. Jump it, or fall through. Wobble at the edge? Step back.",
 		"tint": Color(0.1, 0.05, 0.15, 0.10), "door": "hazard", "sigil": "chasm", "min_size": Vector2i(6, 5), "towers": [], "feature": "chasm"},
 	# Trap rooms: each lays its set piece of traps (traps.gd), built out of the
 	# room's own shape. The rule hints at the pattern without spelling it out.

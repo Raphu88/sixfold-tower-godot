@@ -41,6 +41,7 @@ static var TIDBITS := {
 	# --- the towers ---------------------------------------------------------------
 	"tower:gryphon": [
 		"Open drops everywhere here. Step off one and you land on the floor below.",
+		"Look down a drop and you see the floor you'd land on. A doorway shows no such depth.",
 		"Harriers and bats cross the drops. Walking things keep off them.",
 	],
 	"tower:kraken": [
@@ -109,6 +110,7 @@ static var TIDBITS := {
 	"creature:thornhound": ["Thornhounds circle, glint, then leap. The bite can be parried."],
 	"creature:mongrel": ["A mongrel takes turns: a bite up close, then a fan of quills. Both can be parried."],
 	"creature:briar": ["That bush has eyes. If it grabs you, roll to break free."],
+	"creature:mimic": ["A mimic's bite glints like any blow. Parry it, then hit the open maw."],
 	"creature:harrier": ["A harrier's dive throws you the way it flew. Parry it on a ledge and it falls instead."],
 	# --- the floor's task -------------------------------------------------------------
 	"task:braziers": ["A blow puts out the brazier you're lighting. Clear the room first."],
