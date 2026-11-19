@@ -84,7 +84,10 @@ func reconfigure(r: Rect2) -> void:
 ## A rooms floor's solid tiles (an empty grid means an open room).
 func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Array = []) -> void:
 	grid = size
-	solid = tiles
+	# A copy, taken before the doors are hung: a closed door makes its tile
+	# solid in main.solid, and the floor drawn once must still lie under every
+	# doorway (open or shut), never a dark wall square.
+	solid = tiles.duplicate()
 	layout_rooms = rooms
 	blocks = cover
 	block_tiles.clear()
