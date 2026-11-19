@@ -94,7 +94,7 @@ static var TITLE_STOCK := {
 	"contender": {"line": "For the Contender: blades and pistols hang first.", "tilt": {"groups": ["blades", "guns"], "weight": 3.0}, "item": "edge_oil"},
 	"beastfeller": {"line": "For Beastfeller: spears, axes and bows hang first.", "tilt": {"groups": ["heavy", "bows"], "ids": ["spear"], "weight": 3.0}, "item": "fire_flask"},
 	"shieldmate": {"line": "For Shieldmate: armour and packs hang first.", "tilt": {"slots": ["armor", "backpack"], "weight": 2.5}},
-	"helping_hand": {"line": "For the Helping Hand: draughts and pouches first.", "tilt": {"groups": ["trade"], "weight": 2.5}, "item": "draught"},
+	"helping_hand": {"line": "For the Helping Hand: Healing Vials and pouches first.", "tilt": {"groups": ["trade"], "weight": 2.5}, "item": "draught"},
 	"stairworn": {"line": "For the Stairworn: boots, leggings and packs hang first.", "tilt": {"slots": ["boots", "legs", "backpack"], "weight": 3.0}, "item": "stamina"},
 	"surefoot": {"line": "For Surefoot: boots and cloaks hang first.", "tilt": {"slots": ["boots", "cloak"], "weight": 3.0}, "item": "gale_feather"},
 	"duelist": {"line": "For the Duelist: blades hang first.", "tilt": {"groups": ["blades"], "weight": 3.0}, "item": "edge_oil"},

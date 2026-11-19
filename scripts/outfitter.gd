@@ -91,8 +91,8 @@ static var NODES := {
 		"say": "A Beastfeller should see this. I don't show it to many."},
 	# Gifts
 	"staple_gift": {"branch": "gifts", "rank": 1, "cost": 20, "needs": [], "title": "",
-		"name": "A draught for the road", "desc": "A free Healing Draught goes on your belt as you leave for each climb (if your belt has room).",
-		"say": "Take a draught on me. Every time."},
+		"name": "A vial for the road", "desc": "A free Healing Vial goes on your belt as you leave for each climb (if your belt has room).",
+		"say": "Take a vial on me. Every time."},
 	"visit_gift": {"branch": "gifts", "rank": 2, "cost": 30, "needs": ["staple_gift"], "title": "",
 		"name": "Something for coming by", "desc": "Each visit after a climb he gives you 4 crystals of the tower you came from.",
 		"say": "Come back down and there's something waiting."},
@@ -100,7 +100,7 @@ static var NODES := {
 		"name": "A gift for each rank", "desc": "Each time you rise a rank he gives you a Fine piece, into your stash (crystals instead if it's full).",
 		"say": "When word of you grows, I'll mark it."},
 	"kit_gift": {"branch": "gifts", "rank": 4, "cost": 60, "needs": ["rank_gift"], "title": "helping_hand",
-		"name": "A climber's kit", "desc": "A Stamina Draught and a Cleansing Tonic go on your belt too, each climb (if there's room).",
+		"name": "A climber's kit", "desc": "A Stamina Vial and a Cleansing Tonic go on your belt too, each climb (if there's room).",
 		"say": "You help others up. Let me help you."},
 	# Info
 	"tower_tip": {"branch": "info", "rank": 1, "cost": 15, "needs": [], "title": "",

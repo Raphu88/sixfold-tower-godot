@@ -690,7 +690,7 @@ static func _on_cast(n, p, part: String, b, at: Vector2) -> void:
 			for q in run.strain.keys():
 				if q != part:
 					run.strain[q] = maxf(0.0, float(run.strain[q]) - float(cap["cool"]))
-			p.sta = p.max_sta
+			p.sta = p.sta_cap()
 			run._sync()
 			main.fx_text(p.global_position + Vector2(0, -72), TEXT["rally"], col.lightened(0.3))
 			main.fx_ring(p.global_position, RAW, 70.0, 0.4, 3.0)

@@ -694,7 +694,7 @@ static func _lifeline(p, e, drain: float, seconds: float, col: Color) -> void:
 
 static func _stamina(p, amount: float) -> void:
 	var was: float = p.sta
-	p.sta = minf(p.max_sta, p.sta + amount)
+	p.sta = minf(p.sta_cap(), p.sta + amount)
 	if p.sta - was >= 1.0:
 		runner(p.main).decal("wind", p.global_position, 0.5, p.radius + 6.0, _col("second_wind"), {"a": p})
 

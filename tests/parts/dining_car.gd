@@ -382,7 +382,7 @@ func _bets() -> void:
 	var chips: Array = main.hud.status_chips().filter(func(c): return String(c.get("id", "")) == "wager")
 	_check(running and chips.size() == 2, "in the climb the wagers run, each a line at the top (%d)" % chips.size())
 	_check(main.notices.log.any(func(l): return String(l.get("text", "")).contains(D.bet_name(floor_bet, true))), "...and the Entity's log notes them")
-	# Reach floor 3, but drink a Healing Draught: one won, one lost.
+	# Reach floor 3, but drink a Healing Vial: one won, one lost.
 	main.floor_num = 3
 	D.on_item(main, "draught")
 	main.pay_climb()

@@ -71,6 +71,8 @@ const SECTIONS := [
 	{"id": "items_words", "group": "words", "name": "Items and camps", "when": "live",
 		"tables": ["items/ITEMS", "items/RECALL", "items/CRYSTAL", "items/BELT", "items/CAMP", "items/CAMP_RUNES", "items/CRAFT", "items/NET_TEXT"], "kinds": ["text"],
 		"skip": ["cures", "ward", "cracks"], "names": {"NET_TEXT": "A net's words"}},
+	{"id": "climber_words", "group": "words", "name": "Stamina and fatigue", "when": "live",
+		"tables": ["combat/TEXT"], "kinds": ["text"], "names": {"TEXT": "Words"}},
 	{"id": "wheel_words", "group": "words", "name": "The wheels (hold to choose, tap to use)", "when": "live",
 		"tables": ["wheel/TEXT"], "kinds": ["text"], "names": {"TEXT": "Words under the wheel and over the climber"}},
 	{"id": "gear_words", "group": "words", "name": "Gear", "when": "live",

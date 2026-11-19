@@ -46,7 +46,7 @@ static var TEXT := {
 	"stash_best": "Stays on the train. Better than what you wear, first.",
 	"stash_none": "Your stash is empty. Pieces you keep there are safe on the train.",
 	"belt_head": "Belt  ·  supplies packed for your next climb",
-	"belt_none": "Nothing packed yet: the Outfitter's Car sells supplies and the bench brews them. Every climb starts with a Healing and a Stamina Draught.",
+	"belt_none": "Nothing packed yet: the Outfitter's Car sells supplies and the bench brews them. Every climb starts with a Healing and a Stamina Vial.",
 	"goes_up": "Going up the tower: what you wear, your pack and your belt. Fall, and what you found, your pack and your belt are lost (heirlooms are always safe). Get out alive, by the stair at the top or a recall scroll, and what you wear and your pack come home with you.",
 	"goes_up_short": "Up the tower: what you wear, your pack, your belt. Get out alive and what you wear and your pack come home.",
 	"from_heir": "Your heirloom: every climb begins with it.",

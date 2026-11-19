@@ -3916,6 +3916,7 @@ func _dev_offer_path() -> void:
 func _heal() -> void:
 	var p = main.player
 	p.hp = p.max_hp
+	p.rest_fatigue()
 	p.sta = p.max_sta
 	if p.dead:
 		p.dead = false

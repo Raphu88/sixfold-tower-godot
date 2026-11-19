@@ -18,7 +18,7 @@ const BREAK_SHARE := 0.5
 ## What every climb starts with: one of each staple.
 const START := {"draught": 1, "stamina": 1}
 ## The chance that a slain monster (not a beast) leaves an item (most often
-## a staple: a Healing Draught, a Stamina Draught or an Essence Vial; the
+## a staple: a Healing Vial, a Stamina Vial or an Essence Vial; the
 ## other items are rare: DROPS "rare_weight"; a kill that leaves no item may
 ## leave essence instead: DROPS). Caches and fallen climbers' camps seldom
 ## hold an item (room_rewards.gd RULES "item_chance", DROPS "fallen_item"):
@@ -63,7 +63,7 @@ const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "e
 ##   drop_weight  how common it is (0: never found this way)
 ##   drop         false: never left by slain monsters (camps and vaults only)
 ##   staple       a cheap everyday item every climber carries (the Healing
-##                and Stamina Draughts and the Essence Vial): common from
+##                and Stamina Vials and the Essence Vial): common from
 ##                monsters and cheap at the store; camps and vaults offer
 ##                the rarer things instead
 ##   buff         {key: amount} the item adds to your numbers while it lasts
@@ -82,8 +82,8 @@ const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "e
 
 static var ITEMS := {
 	"draught": {
-		"name": "Healing Draught",
-		"short": "Draught",
+		"name": "Healing Vial",
+		"short": "Healing",
 		"desc": "heals 40 health over a second and a half",
 		"color": Color(0.9, 0.3, 0.32),
 		"heal": 40.0,
@@ -92,11 +92,11 @@ static var ITEMS := {
 		"kind": "stone", "value": {"stone": 6},
 	},
 	"stamina": {
-		"name": "Stamina Draught",
+		"name": "Stamina Vial",
 		"short": "Stamina",
-		"desc": "a quick, bitter swallow: 50 stamina back at once, and stamina refills 40% faster for 5 seconds",
+		"desc": "a quick, bitter swallow: shakes off all fatigue (your max stamina is whole again), fills your stamina, and it refills 40% faster for 5 seconds",
 		"color": Color(0.95, 0.78, 0.3),
-		"stamina": 50.0, "regen": 0.4, "duration": 5.0,
+		"regen": 0.4, "duration": 5.0,
 		"drop_weight": 14, "staple": true,
 		"kind": "iron", "value": {"iron": 6},
 	},
@@ -416,7 +416,7 @@ static func break_value(items: Dictionary) -> Dictionary:
 	return out
 
 
-## An item's name ("Healing Draught"; `short` for the short one: "Draught").
+## An item's name ("Healing Vial"; `short` for the short one: "Healing").
 ## Every item comes in one size: an old save's Minor or Greater one is
 ## simply the item (old_id).
 static func item_name(id: String, short := false) -> String:
@@ -524,7 +524,7 @@ static func _skip(id: String, marked: bool, exclude: Array, dropped: bool, handy
 
 
 ## True for the cheap everyday items (ITEMS "staple": the Healing and
-## Stamina Draughts and the Essence Vial).
+## Stamina Vials and the Essence Vial).
 static func is_staple(id: String) -> bool:
 	return bool(ITEMS.get(id, {}).get("staple", false))
 
@@ -575,13 +575,17 @@ static func use(id: String, p) -> bool:
 				return false
 			_heal_over_time(p, data, steady)
 		"stamina":
-			if p.sta >= p.max_sta - 0.5 and p.buff_left(id) > 1.0:
+			# Its job is fatigue (player.gd spend_sta): usable whenever max
+			# stamina is down, even with the bar full.
+			var lost: float = p.fatigue
+			if lost < 0.5 and p.sta >= p.sta_cap() - 0.5:
 				main.fx_text(above, "You're already breathing easy", Color(0.8, 0.78, 0.85))
 				return false
-			p.sta = minf(p.max_sta, p.sta + float(data["stamina"]))
+			p.rest_fatigue()
+			p.sta = p.sta_cap()
 			p.sta_delay = 0.0
 			p.add_buff(id, float(data["duration"]), {"regen": float(data["regen"])})
-			main.fx_text(above, "+%d stamina" % int(data["stamina"]), col)
+			main.fx_text(above, "Fatigue gone: +%d max stamina" % int(round(lost)) if lost >= 0.5 else "Stamina full", col)
 		"tonic":
 			var burned := false
 			for b in p.bonds.values():
@@ -631,10 +635,10 @@ static func use(id: String, p) -> bool:
 			main.fx_text(above, "Stoneskin", col)
 			main.sfx("hit_armor", 0.8, -6.0)
 		"salts":
-			if p.sta >= p.max_sta - 0.5 and p.salts_t > 0.0:
+			if p.sta >= p.sta_cap() - 0.5 and p.salts_t > 0.0:
 				main.fx_text(above, "You're already breathing easy", Color(0.8, 0.78, 0.85))
 				return false
-			p.sta = p.max_sta
+			p.sta = p.sta_cap()  # (fatigue stays: that's the Stamina Vial's)
 			p.salts_t = float(data["duration"])
 			main.fx_text(above, "Second wind", col)
 		"flare":

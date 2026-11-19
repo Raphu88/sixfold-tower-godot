@@ -93,7 +93,7 @@ func _hit(p, e, dmg := 1.0) -> void:
 func _drops() -> void:
 	print("consumables: staples common, every other item rare")
 	_check(I.is_staple("draught") and I.is_staple("stamina") and I.is_staple("vial") and not I.is_staple("tonic") and not I.is_staple("net"),
-		"the staples are the Healing Draught, the Stamina Draught and the Essence Vial")
+		"the staples are the Healing Vial, the Stamina Vial and the Essence Vial")
 	var Train = load("res://scripts/train.gd")
 	_check(int(Train.item_price("vial")[1]) <= 5 and int(Train.item_price("draught")[1]) <= 5 and int(Train.item_price("tonic")[1]) >= 10,
 		"staples are cheap at the store (vial %d), the rest cost their worth" % int(Train.item_price("vial")[1]))
@@ -323,7 +323,7 @@ func _one_size() -> void:
 	print("consumables: every item is one size")
 	var sized: Array = I.ITEMS.keys().filter(func(id): return I.ITEMS[id].has("scale"))
 	var named: Array = I.ITEMS.keys().filter(func(id): return String(I.ITEMS[id]["name"]).begins_with("Minor ") or String(I.ITEMS[id]["name"]).begins_with("Greater "))
-	_check(sized.is_empty() and named.is_empty() and I.item_name("draught") == "Healing Draught" and I.item_name("draught", true) == "Draught",
+	_check(sized.is_empty() and named.is_empty() and I.item_name("draught") == "Healing Vial" and I.item_name("draught", true) == "Healing",
 		"no item has a size (%s %s)" % [sized, named])
 	# Nothing in the game still sizes an item.
 	var left: Array = []
@@ -348,7 +348,7 @@ func _one_size() -> void:
 	p.use_item()
 	var second: float = p.heal_left
 	_check(is_equal_approx(first, second) and is_equal_approx(first, float(I.ITEMS["draught"]["heal"])) and p.item_count("draught") == 0,
-		"every Healing Draught heals the same (%.0f, %.0f)" % [first, second])
+		"every Healing Vial heals the same (%.0f, %.0f)" % [first, second])
 	p.heal_left = 0.0
 	p.hp = p.max_health()
 	# A net holds as its numbers say.
@@ -393,11 +393,11 @@ func _saves() -> void:
 	_check(shelf.has("draught") and shelf.has("stamina") and shelf.has("net") and not dupes and not shelf.any(func(k): return String(k).contains("@")),
 		"an old shelf's sized keys show once, as the plain items (%s)" % [shelf])
 	var Shop = load("res://scripts/shop.gd")
-	_check(Shop.ware_name({"kind": "item", "id": "draught", "size": 3}) == "Healing Draught", "an old Pedlar's Greater ware is the plain item")
+	_check(Shop.ware_name({"kind": "item", "id": "draught", "size": 3}) == "Healing Vial", "an old Pedlar's Greater ware is the plain item")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	var p = t.main.player
 	p.items = {"draught": 2, "antidote": 1}
-	_check(p.item_count("draught") == 2 and I.item_name("antidote") == "Antivenom" and I.item_name("draught@3") == "Healing Draught",
+	_check(p.item_count("draught") == 2 and I.item_name("antidote") == "Antivenom" and I.item_name("draught@3") == "Healing Vial",
 		"a belt is counts of plain items")
 
 

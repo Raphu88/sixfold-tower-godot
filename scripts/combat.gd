@@ -9,6 +9,7 @@ static var CLIMBER := {
 	"health": 140.0,  # max health before Vitality and gear
 	"stamina": 100.0,  # max stamina before gear
 	"stamina_regen": 34.0,  # stamina back a second, once the short wait after acting is over
+	"fatigue_floor": 0.4,  # fatigue: acting past empty takes the missing stamina off max stamina instead, but never below this share of it (a Stamina Vial, a camp's rest or a new climb gives it back)
 	"walk": 165.0,  # walking speed (there's no sprint)
 	"strike_damage": 8.0,  # the base every weapon swing's "dmg" multiplies
 	"backstab": 1.5,  # times the damage of a strike on a foe's back
@@ -32,6 +33,12 @@ static var CLIMBER := {
 	"jump_wait": 0.5,  # seconds stamina waits to come back after a jump
 	"grace": 0.7,  # seconds after a hit before another can hurt you
 	"knockback": 240.0,  # how hard a blow shoves you
+}
+
+## Words for stamina and fatigue (player.gd, hud.gd).
+static var TEXT := {
+	"fatigued": "Fatigued",  # over the climber, the first time an action eats into max stamina
+	"hud_fatigue": "Fatigue: %d max stamina lost to acting past empty. A Stamina Vial or a camp's rest gives it back",  # the stamina bar's hover help
 }
 
 ## Every monster's attack (enemy.gd).

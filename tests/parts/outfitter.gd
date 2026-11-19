@@ -239,7 +239,7 @@ func _gifts_and_word() -> void:
 		"something for coming by: %d crystals of the tower you came from, and he says so" % int(Out.FX["visit_gift"]))
 	Train.stock(p)
 	t._check(float(p.crystal_total("water")) == water + float(Out.FX["visit_gift"]), "...once a visit")
-	t._check(Out.belt_gifts(p) == ["draught"], "a draught for the road")
+	t._check(Out.belt_gifts(p) == ["draught"], "a vial for the road")
 	_own(p, ["rank_gift"])
 	Out.state(p)["gift_rank"] = Renown.rank(p)
 	var stash: int = p.chest.size()

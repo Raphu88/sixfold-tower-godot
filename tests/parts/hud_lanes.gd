@@ -192,7 +192,7 @@ func _feed_and_log() -> void:
 	NS.new_climb()
 	main.note_event("room", "Entered Dart Hall")
 	_check(NS.feed_lines.is_empty() and NS.log.size() == 1, "a room entered goes to the log, not the feed")
-	main.note_event("item", "+ Healing Draught")
+	main.note_event("item", "+ Healing Vial")
 	main.loot_notice = {"text": "RARE: Axe of the Riposte", "color": Color(0.4, 0.6, 1.0), "t": 3.5}
 	_check(NS.feed_lines.size() == 2 and NS.log.size() == 3 and NS.log[-1]["kind"] == "gear", "pickups and a Rare find go to both")
 	main.loot_notice = {}
@@ -329,7 +329,7 @@ func _everywhere() -> void:
 			main.entity.open = false
 			await t._frames(4)
 			main.banner = {"title": "THE DOORS GRIND SHUT", "lines": ["Slay what's inside."], "t": 3.0}
-			main.note_event("item", "+ Healing Draught")
+			main.note_event("item", "+ Healing Vial")
 			main.note_event("gear", "+ Fine Leather Gloves")
 			main.note_event("renown", "Renown: +8")
 			var said: bool = main.entity.remark("pact")

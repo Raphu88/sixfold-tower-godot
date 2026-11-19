@@ -4,7 +4,7 @@ extends RefCounted
 ## off, how they're drawn), enchanted pistols' essence shot, the new
 ## relics, Common pieces being ordinary but useful, Fine and Rare pieces
 ## enchanted (and saying so), relics' blank histories, and the cheap
-## Healing and Stamina Draughts. Run by smoke_test.gd (_part_tests); `t` is
+## Healing and Stamina Vials. Run by smoke_test.gd (_part_tests); `t` is
 ## the smoke test.
 
 const G := preload("res://scripts/gear.gd")
@@ -33,7 +33,7 @@ func run(smoke) -> void:
 	_ordinary_and_enchanted()
 	_history()
 	_staples()
-	await _stamina_draught()
+	await _stamina_vial()
 	await _drawing()
 	_saves()
 
@@ -538,15 +538,15 @@ func _history() -> void:
 	_check(not Reg.field("weapons/WEAPONS/revolver/name").is_empty() and not Reg.field("weapons/WEAPONS/revolver/reload").is_empty()
 		and not Reg.field("weapons/ESSENCE_SHOT/fire/desc").is_empty() and not Reg.field("weapons/ESSENCE_SHOT/fire/radius").is_empty()
 		and Reg.field("weapons/WEAPONS/revolver/shot_sound").is_empty() and not Reg.field("items/ITEMS/stamina/desc").is_empty(),
-		"the new weapons, essence shots and the Stamina Draught are in the Data editor (their sounds aren't: ids)")
+		"the new weapons, essence shots and the Stamina Vial are in the Data editor (their sounds aren't: ids)")
 
 
 # --- consumables -------------------------------------------------------------------
 
 func _staples() -> void:
 	print("items: the staples are cheap and common")
-	_check(I.ITEMS.has("stamina") and I.is_staple("draught") and I.is_staple("stamina") and Bench.BREW.has("stamina"), "a Stamina Draught joins the Healing Draught as a staple (and the bench brews it)")
-	_check(int(I.START.get("draught", 0)) >= 1 and int(I.START.get("stamina", 0)) >= 1, "every climb starts with a Healing and a Stamina Draught")
+	_check(I.ITEMS.has("stamina") and I.is_staple("draught") and I.is_staple("stamina") and Bench.BREW.has("stamina"), "a Stamina Vial joins the Healing Vial as a staple (and the bench brews it)")
+	_check(int(I.START.get("draught", 0)) >= 1 and int(I.START.get("stamina", 0)) >= 1, "every climb starts with a Healing and a Stamina Vial")
 	var dear := 9999
 	var cheapest_other := ""
 	for id in Train.supplies():
@@ -579,18 +579,18 @@ func _staples() -> void:
 	_check(not camp_staple, "camps and vaults offer the rarer things, never a staple")
 
 
-func _stamina_draught() -> void:
-	print("items: the Stamina Draught")
+func _stamina_vial() -> void:
+	print("items: the Stamina Vial")
 	var p = await _fresh()
 	p.items = {"stamina": 2}
 	p.item_sel = "stamina"
 	p.sta = 10.0
 	p.buffs.clear()
 	var regen0: float = p.gfx("regen")
-	_check(p.use_item() and absf(p.sta - 60.0) < 0.5, "a Stamina Draught gives 50 stamina back at once (%.0f)" % p.sta)
+	_check(p.use_item() and absf(p.sta - p.max_sta) < 0.5, "a Stamina Vial fills your stamina at once (%.0f)" % p.sta)
 	_check(p.gfx("regen") > regen0 + 0.3 and p.buff_left("stamina") > 4.0, "...and stamina refills faster for a few seconds")
 	p.sta = p.max_sta
-	_check(not p.use_item() and p.item_count("stamina") == 1, "...not wasted when you're already breathing easy")
+	_check(not p.use_item() and p.item_count("stamina") == 1, "...not wasted when you're already breathing easy (no fatigue, bar full)")
 	p.buffs.clear()
 
 
@@ -611,7 +611,7 @@ func _drawing() -> void:
 			I.icon_into(b, id, Vector2.ZERO, s)
 			if b.pts.is_empty():
 				empty.append("%s@%s" % [id, s])
-	_check(empty.is_empty(), "each new weapon and the Stamina Draught has an icon at every size %s" % [empty])
+	_check(empty.is_empty(), "each new weapon and the Stamina Vial has an icon at every size %s" % [empty])
 	var sizes := {}
 	for id in NEW_WEAPONS:
 		var b = D.Batch.new()
