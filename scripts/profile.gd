@@ -127,11 +127,9 @@ var appearance := Appearance.DEFAULTS.duplicate()
 ## False until a new climber has chosen their look on the creation page
 ## (the very first launch, a new slot, and after Start over): it opens before the first climb.
 var created := true
-## A new climber's start (new_start.gd): the home tower (a tower id from
-## towers.gd: where they grew up, the starting tower and the home station;
-## "" for a climber made before the questionnaire) and the questionnaire's
-## answers {"past", "home", "why"}.
-var home := ""
+## A new climber's start (new_start.gd): the questionnaire's answers
+## {"past", "home", "why"}. (Where they grew up is `home`, above: the starting
+## tower and the home station.)
 var origin := {}
 ## The Makers (makers.gd): fragments found, each Maker's interest, meetings,
 ## the core mark. makers.gd state() fills in its keys.
@@ -268,7 +266,6 @@ func reset() -> void:
 	flow = 0.0
 	appearance = Appearance.DEFAULTS.duplicate()
 	created = false
-	home = ""
 	origin = {}
 	makers = {}
 	core_mark = ""
@@ -294,7 +291,6 @@ func load_save() -> void:
 	# (a save from before there was a choice has a profile, and keeps its look;
 	# a file that holds only settings is still a new climber)
 	created = bool(cfg.get_value("look", "created", cfg.has_section("profile")))
-	home = str(cfg.get_value("start", "home", ""))
 	var og = cfg.get_value("start", "origin", {})
 	origin = og if og is Dictionary else {}
 	best_floor = int(cfg.get_value("climb", "best_floor", 1))
@@ -418,7 +414,6 @@ func save() -> void:
 	cfg.set_value("profile", "flow", flow)
 	cfg.set_value("look", "appearance", appearance)
 	cfg.set_value("look", "created", created)
-	cfg.set_value("start", "home", home)
 	cfg.set_value("start", "origin", origin)
 	cfg.set_value("makers", "state", makers)
 	cfg.set_value("profile", "core_mark", core_mark)
