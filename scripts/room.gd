@@ -31,6 +31,8 @@ var solid := PackedByteArray()
 var layout_rooms: Array = []
 var blocks: Array = []  # low cover walls inside rooms (Rect2, solid tiles)
 var block_tiles := {}  # Vector2i -> true: tiles drawn as cover, not as wall
+var door_tiles := {}  # every doorway's grid tiles (doors.gd): always painted as floor
+var paint_solid := PackedByteArray()  # (_paint_map(), refreshed each time the floor is drawn)
 var doors: Array = []  # door-frame posts beside corridor openings (Rect2 tiles)
 var cache := {}  # a good room's essence cache: {pos, kind, taken}
 var lost_cache := {}  # your lost things (lost.gd): {pos, taken}
@@ -80,10 +82,8 @@ func reconfigure(r: Rect2) -> void:
 ## A rooms floor's solid tiles (an empty grid means an open room).
 func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Array = []) -> void:
 	grid = size
-	# A copy, taken before the doors are hung: a closed door makes its tile
-	# solid in main.solid, and the floor drawn once must still lie under every
-	# doorway (open or shut), never a dark wall square.
-	solid = tiles.duplicate()
+	solid = tiles
+	door_tiles.clear()  # (doors.gd hangs this floor's doors next)
 	layout_rooms = rooms
 	blocks = cover
 	block_tiles.clear()
@@ -97,6 +97,20 @@ func set_layout(size: Vector2i, tiles: PackedByteArray, rooms: Array, cover: Arr
 
 
 ## Door-frame posts beside the openings where corridors meet rooms.
+## The map the floor is painted from: the live solid map, except that every
+## doorway's tiles count as floor. A closed door makes its tile solid in
+## main.solid, yet the floor (drawn once) must lie under every doorway, open
+## or shut, never a dark wall square (doors.gd draws the door over it).
+func _paint_map() -> PackedByteArray:
+	if door_tiles.is_empty():
+		return solid
+	var s := solid.duplicate()
+	for t in door_tiles:
+		if t.x >= 0 and t.y >= 0 and t.x < grid.x and t.y < grid.y:
+			s[t.y * grid.x + t.x] = 0
+	return s
+
+
 func set_doors(list: Array) -> void:
 	doors = list
 	queue_redraw()
@@ -244,7 +258,7 @@ func _under_wall(gx: int, gy: int, size: Vector2i) -> bool:
 		for dx in size.x:
 			var x := gx + dx
 			var y := gy + dy
-			if x >= grid.x or y >= grid.y or solid[y * grid.x + x] == 0:
+			if x >= grid.x or y >= grid.y or paint_solid[y * grid.x + x] == 0:
 				return false
 	return true
 
@@ -271,6 +285,7 @@ func _outline(r: Rect2, col: Color, width: float) -> void:
 
 func _draw() -> void:
 	_free_chunks()
+	paint_solid = _paint_map()
 	batch = Draw.Chunked.new(room.position, CHUNK)
 	var outer := room.grow(wall)
 	# Beyond the walls: the dark of the tower. (Only around the floor: the
@@ -548,13 +563,13 @@ func _draw_layout() -> void:
 		return
 	for y in grid.y:
 		for x in grid.x:
-			if solid[y * grid.x + x] == 0 or block_tiles.has(Vector2i(x, y)):
+			if paint_solid[y * grid.x + x] == 0 or block_tiles.has(Vector2i(x, y)):
 				continue
 			var tile :=Rect2(room.position + Vector2(x, y) * TILE, Vector2(TILE, TILE))
-			var open_s := y + 1 < grid.y and solid[(y + 1) * grid.x + x] == 0
-			var open_n := y > 0 and solid[(y - 1) * grid.x + x] == 0
-			var open_w := x > 0 and solid[y * grid.x + x - 1] == 0
-			var open_e := x + 1 < grid.x and solid[y * grid.x + x + 1] == 0
+			var open_s := y + 1 < grid.y and paint_solid[(y + 1) * grid.x + x] == 0
+			var open_n := y > 0 and paint_solid[(y - 1) * grid.x + x] == 0
+			var open_w := x > 0 and paint_solid[y * grid.x + x - 1] == 0
+			var open_e := x + 1 < grid.x and paint_solid[y * grid.x + x + 1] == 0
 			batch.rect(tile, Palette.VOID.lerp(Palette.WALL_TOP, 0.55 if (open_s or open_n or open_w or open_e) else 0.25))
 			if open_s:
 				# The wall's brick face, seen from the floor below it.

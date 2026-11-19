@@ -2719,6 +2719,7 @@ func _essence_lock_tests() -> void:
 			break
 	p.items[item] = 1
 	p.hp = p.max_health() * 0.5  # (so a healing item has work to do)
+	p.sta = 0.0  # (and a Stamina Vial too: it refuses when you're already breathing easy)
 	p.item_sel = item
 	p.use_item()
 	_check(L.step == 2, "an item of the next essence (%s), used beside it, answers the next" % item)

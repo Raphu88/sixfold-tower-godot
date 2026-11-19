@@ -176,6 +176,8 @@ func add_door(def: Dictionary) -> Dictionary:
 		return {}
 	var d := _hang(def, [])
 	_redraw()
+	if main.room_view != null:
+		main.room_view.queue_redraw()  # (floor under its doorway too)
 	return d
 
 
@@ -203,6 +205,8 @@ func _hang(def: Dictionary, themes: Array) -> Dictionary:
 			levers.append(item)
 	for t in tiles:
 		_set_tile(t, true)
+		if main.room_view != null:
+			main.room_view.door_tiles[t] = true  # (the floor is still painted under it: room.gd _paint_map)
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
 	body.collision_mask = 0

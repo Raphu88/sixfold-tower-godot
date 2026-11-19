@@ -807,7 +807,7 @@ func paint(rv, batch) -> bool:
 	if not on or rv.grid == Vector2i.ZERO:
 		return false
 	var grid: Vector2i = rv.grid
-	var solid: PackedByteArray = rv.solid
+	var solid: PackedByteArray = rv.paint_solid  # (doorways count as floor: room.gd _paint_map)
 	var room: Rect2 = rv.room
 	var T := CELL
 	var earth := Color(0.07, 0.08, 0.055)
