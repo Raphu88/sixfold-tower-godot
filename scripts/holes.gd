@@ -1,18 +1,22 @@
 extends RefCounted
-## Holes in the floor you can fall through (chasms, the Gryphon's drops):
-## a cut in the floor, never a black pit. Seen from above and a little to the
-## south, like the rest of the tower:
-##   the floor below   at the bottom, its flagstones smaller and dimmer than
-##                     the floor you stand on and sitting a little lower on
-##                     screen (the depth), under a faint haze of the tower's
-##                     own colour (warm for the Firebird, sky for the Gryphon)
-##   the shaft         the cut's far wall drops from the north edge down to
-##                     the floor below (courses of stone, darkening as it
-##                     goes down); thinner side walls; shade at the foot
+## Holes in the floor you can fall through (chasms, the Gryphon's drops,
+## the towers' ways down: ways_down.gd): dark pits that read as deep and
+## dangerous, with the floor far below only faintly seen. Seen from above
+## and a little to the south, like the rest of the tower:
+##   the floor below   at the very bottom, its flagstones small and dim and
+##                     sitting a little lower on screen, under a faint haze
+##                     of the tower's own colour and the depth's darkness
+##                     (palette.gd HOLE_DEPTH): you make it out, no more
+##   the shaft         the cut's far wall drops from the north edge and
+##                     falls away into near-black (courses of stone, the
+##                     light gone by the foot); thinner side walls; deep
+##                     shade all round the bottom
 ##   the rim           a lit lip of cut stone round the hole on the floor
 ##                     side, with a dark seam outside it and the odd crack
 ## A doorway is a gap in a wall at floor level; a hole is cut into the floor,
-## with a rim and depth. room.gd draws every chasm this way, once, into its
+## with a lit rim and depth. TEETER: walking onto a hole's edge, you teeter
+## there (player.gd begin_teeter) and may step back; a roll, a dash, a shove
+## or the wind takes you straight in. room.gd draws every chasm this way, once, into its
 ## batched feature layer; the Gryphon (towers/gryphon_floor.gd) draws its own
 ## floor below with parallax and then the same shaft and rim. The colours
 ## are palette.gd's HOLE_* tokens; the sizes are LOOK.
@@ -27,7 +31,13 @@ enum { HOLE, FLOOR, WALL, OPEN }
 ## side walls' width; stone, the floor below's flagstone size; shift, how far
 ## the floor below sits from the floor you stand on (its depth on screen);
 ## shade, the bands of shade round the foot of the shaft.
-static var LOOK := {"shaft": 21.0, "side": 5.0, "stone": 25.0, "shift": Vector2(7.0, 13.0), "shade": 4}
+static var LOOK := {"shaft": 24.0, "side": 5.0, "stone": 19.0, "shift": Vector2(6.0, 15.0), "shade": 6}
+## Teetering at the edge (player.gd): seconds you have to step back before
+## you tip in, how hard you step back (px a second), how sharply the move
+## must point away from the hole (a share: 0 is straight along the lip), and
+## the longest step onto the edge that counts as walking (px a tick: more is
+## a shove, a roll or a blink, which takes you straight in).
+static var TEETER := {"time": 0.75, "back": 110.0, "away": 0.2, "step": 24.0}
 
 
 ## Cheap stable per-tile random number in [0, 1) (as room.gd's).
@@ -82,13 +92,14 @@ static func draw_floor_below(c, r: Rect2, origin: Vector2, tower: String, tint :
 	var hz := haze(tower)
 	if hz.a > 0.0:
 		c.draw_rect(r, hz)
+	c.draw_rect(r, Color(Palette.HOLE_DEPTH * tint, Palette.HOLE_DEPTH.a))  # (the depth: far below, only just made out)
 	# A speck on the floor below now and then: an ember in the Firebird's tower, grit elsewhere.
 	var tx := int(floor(r.position.x / TILE))
 	var ty := int(floor(r.position.y / TILE))
 	if hash01(tx, ty, 62) < 0.45:
 		var at := r.position + Vector2(0.15 + 0.7 * hash01(tx, ty, 63), 0.5 + 0.4 * hash01(tx, ty, 64)) * r.size
-		var speck := Color(1.0, 0.6, 0.3, 0.6) if tower == "firebird" else Color((Palette.HOLE_FLOOR_LIGHT * tint).lightened(0.3), 0.6)
-		c.draw_circle(at, 1.3, speck)
+		var speck := Color(1.0, 0.55, 0.25, 0.55) if tower == "firebird" else Color((Palette.HOLE_FLOOR_LIGHT * tint).lightened(0.2), 0.35)
+		c.draw_circle(at, 1.0, speck)
 
 
 ## The cut round hole tile `r`: the shaft walls going down where the side
@@ -108,8 +119,8 @@ static func draw_cut(c, r: Rect2, n: int, s: int, w: int, e: int, t: Vector2i, t
 	for k in bands:
 		var f := 1.0 - float(k) / float(bands)
 		var d := 4.0 * k
-		var col := Color(0, 0, 0, 0.28 * f)
-		var air := Color(Palette.VOID * tint, 0.3 * f)
+		var col := Color(0, 0, 0, 0.5 * f)
+		var air := Color(Palette.VOID * tint, 0.4 * f)
 		if _walled(n):
 			c.draw_rect(Rect2(r.position.x, y0 + d, r.size.x, 4.0), col)
 		elif n == OPEN:
@@ -133,9 +144,9 @@ static func draw_cut(c, r: Rect2, n: int, s: int, w: int, e: int, t: Vector2i, t
 		c.draw_rect(Rect2(r.end.x - sw, r.position.y, 1.0, r.size.y), Color(top.lightened(0.15), 0.6))
 	# The far wall, dropping from the north edge: courses of stone, darker as they go down.
 	if _walled(n):
-		var steps := 5
+		var steps := 6
 		for k in steps:
-			var f := float(k) / float(steps - 1)
+			var f := pow(float(k) / float(steps - 1), 0.6)  # (the light is gone well before the foot)
 			c.draw_rect(Rect2(r.position.x, r.position.y + sh * k / steps, r.size.x, sh / steps + 0.5), top.lerp(deep, f))
 		var course := sh / 3.0
 		var joint := Color(deep.darkened(0.3), 0.75)
@@ -146,25 +157,29 @@ static func draw_cut(c, r: Rect2, n: int, s: int, w: int, e: int, t: Vector2i, t
 			while x < r.end.x - 1.0:
 				c.draw_rect(Rect2(x, r.position.y + course * row + 1.0, 1.0, course - 1.0), joint)
 				x += 16.0
-		c.draw_rect(Rect2(r.position.x, r.position.y + sh - 1.5, r.size.x, 1.5), Color(0, 0, 0, 0.55))
+		c.draw_rect(Rect2(r.position.x, r.position.y + sh - 1.5, r.size.x, 1.5), Color(0, 0, 0, 0.75))
 	# The near lip: its underside shows as a dark edge over the floor below.
 	if _walled(s):
 		c.draw_rect(Rect2(r.position.x, r.end.y - 2.5, r.size.x, 2.5), Color(deep, 0.95))
 	# The rim: a lit lip of cut stone on the floor side, a dark seam outside it.
 	var rim: Color = Palette.HOLE_RIM * tint
 	var seam := Color(Palette.FLOOR_GAP * tint, 0.9)
+	var lip := Color(0, 0, 0, 0.7)  # (a hard dark line just inside the lit rim: the edge reads at a glance)
 	if n == FLOOR:
 		c.draw_rect(Rect2(r.position.x, r.position.y - 4.5, r.size.x, 1.5), seam)
 		c.draw_rect(Rect2(r.position.x, r.position.y - 3.0, r.size.x, 3.0), rim)
+		c.draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.5), lip)
 	if s == FLOOR:
 		c.draw_rect(Rect2(r.position.x, r.end.y + 2.0, r.size.x, 1.5), seam)
 		c.draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 2.0), Color(rim, 0.8))
 	if w == FLOOR:
 		c.draw_rect(Rect2(r.position.x - 3.5, r.position.y, 1.5, r.size.y), seam)
 		c.draw_rect(Rect2(r.position.x - 2.0, r.position.y, 2.0, r.size.y), Color(rim, 0.85))
+		c.draw_rect(Rect2(r.position.x, r.position.y, 1.5, r.size.y), lip)
 	if e == FLOOR:
 		c.draw_rect(Rect2(r.end.x + 2.0, r.position.y, 1.5, r.size.y), seam)
 		c.draw_rect(Rect2(r.end.x, r.position.y, 2.0, r.size.y), Color(rim, 0.65))
+		c.draw_rect(Rect2(r.end.x - 1.5, r.position.y, 1.5, r.size.y), lip)
 	# The odd crack running from the cut into the floor.
 	var sides := [n, s, w, e]
 	for side in 4:

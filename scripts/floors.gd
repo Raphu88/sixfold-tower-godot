@@ -666,6 +666,9 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	# channels, sand, sun... keeping clear of what matters (it may set ok false).
 	if own != null and ok:
 		own.shape_plan(plan, infos, links, floor_num, tower)
+	if plan.get("ok", false):
+		load("res://scripts/mimic.gd").plan(plan, floor_num)  # (a chest that bites back)
+		load("res://scripts/inscriptions.gd").plan(plan, infos, floor_num, String(tower.get("beast_kind", "")))  # (a stone to read)
 	return plan
 
 

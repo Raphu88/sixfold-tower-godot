@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime", "mimic": "hit_armor"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Anim := preload("res://scripts/anim.gd")
@@ -86,6 +86,8 @@ static var TYPES := {
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
 	"chimera": {"hp": 354.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
+	# Found in every tower: a chest that bites back (scripts/mimic.gd)
+	"mimic": {"hp": 46.0, "speed": 70.0, "radius": 14.0, "color": Color(0.5, 0.34, 0.2), "dmg": 13.0, "weight": 2.5},
 	# Covenant's spirit familiar (only ever on your side)
 	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
 }
@@ -101,6 +103,7 @@ const WEAKNESS := {
 	"mirror": "a finisher or a blow from behind breaks its guard",
 	"deepfin": "lightning when it's out of the water", "harrier": "parry the dive on a ledge",
 	"ashwing": "strike or soak its ash before it rises", "briar": "fire flushes it out of hiding",
+	"mimic": "parry the bite, then strike the open maw",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
@@ -112,7 +115,7 @@ const SWIMMERS := ["lurker", "kraken", "deepfin"]
 ## _overlay_extra, take_hit, on_parried...).
 const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "res://scripts/towers/burrower.gd",
 	"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd",
-	"ashwing": "res://scripts/towers/ashwing.gd", "briar": "res://scripts/towers/briar.gd"}
+	"ashwing": "res://scripts/towers/ashwing.gd", "briar": "res://scripts/towers/briar.gd", "mimic": "res://scripts/mimic.gd"}
 
 
 ## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call

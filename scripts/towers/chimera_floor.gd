@@ -32,6 +32,7 @@ const Heartroots := preload("res://scripts/towers/heartroots.gd")
 const TowerScenarios := preload("res://scripts/towers/tower_scenarios.gd")
 const PATH := "res://scripts/towers/chimera_floor.gd"
 const Palette := preload("res://scripts/palette.gd")
+const WaysDown := preload("res://scripts/ways_down.gd")
 
 const ORIGIN := Vector2(80, 100)  # (floors.gd ORIGIN)
 const CELL := 40.0
@@ -66,6 +67,7 @@ var on := false
 var hr = null  # the floor's Hungry Grove in play (towers/heartroots.gd), when it's the task
 var cleaned := {}  # scenarios already tidied after they ended
 var data := {}
+var ways = null  # its root hollow (ways_down.gd)
 var thorns: Array = []  # {tiles, rect, kind, state ("grown", "cut", "open", "closing", "withered"), hp, t, fire, body, passed}
 var bramble := {}  # Vector2i -> true
 var pods: Array = []  # {pos, kind, burst}
@@ -241,6 +243,21 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 		if best != Vector2.INF and not keep.any(func(k): return Vector2(k).distance_to(best) < CELL):
 			m[1] = best
 	plan["thornwild"] = out
+	# A root hollow (ways_down.gd): clear of the thorns, brambles and pods.
+	var busy := {}
+	for th in out.get("thorns", []):
+		for tt in th["tiles"]:
+			for d in [Vector2i.ZERO, Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+				busy[tt + d] = true
+	for b in out.get("brambles", []):
+		for tt in b["tiles"]:
+			busy[tt] = true
+	for pd in out.get("pods", []):
+		var pt := Vector2i(((Vector2(pd["pos"]) - ORIGIN) / CELL).floor())
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				busy[pt + Vector2i(dx, dy)] = true
+	WaysDown.plan_for(plan, infos, floor_num, "chimera", {"avoid": busy})
 
 
 static func _tiles(r: Rect2) -> Array:
@@ -277,6 +294,7 @@ func setup(plan: Dictionary) -> void:
 		var p: Dictionary = p0.duplicate()
 		p["burst"] = false
 		pods.append(p)
+	ways = WaysDown.make(main, self, plan)
 	queue_redraw()
 
 
@@ -894,3 +912,19 @@ func paint(rv, batch) -> bool:
 				batch.line(c, c + Vector2.from_angle(a) * 8.0, Color(0.28, 0.42, 0.18), 2.0)
 			batch.circle(c, 1.5, Color(0.7, 0.62, 0.42))
 	return true
+
+
+# --- its way down (ways_down.gd) ----------------------------------------------------------
+
+## A root hollow (the floor bot keeps off it).
+func is_void(pos: Vector2) -> bool:
+	return ways != null and is_instance_valid(ways) and ways.is_void(pos)
+
+
+func bot_avoid() -> Array:
+	return ways.bot_avoid() if ways != null and is_instance_valid(ways) else []
+
+
+func reach_live(solid: PackedByteArray, size: Vector2i, _doors: Array, _opens: Dictionary) -> void:
+	if ways != null and is_instance_valid(ways):
+		ways.reach_live(solid, size)

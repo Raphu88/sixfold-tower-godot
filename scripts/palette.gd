@@ -11,18 +11,24 @@ static var WALL_TOP := Color(0.17, 0.155, 0.19)
 static var WALL_EDGE := Color(0.3, 0.28, 0.32)
 static var WALL_FACE := Color(0.24, 0.21, 0.24)
 static var TORCH := Color(1.0, 0.68, 0.38)
-# Holes you fall through (holes.gd): the floor below, the shaft's walls, the cut's lit rim
-static var HOLE_FLOOR := Color(0.13, 0.124, 0.146)
-static var HOLE_FLOOR_LIGHT := Color(0.16, 0.152, 0.178)
-static var HOLE_GAP := Color(0.05, 0.046, 0.06)
-static var HOLE_SHAFT := Color(0.21, 0.19, 0.22)
-static var HOLE_SHAFT_DEEP := Color(0.075, 0.068, 0.085)
-static var HOLE_RIM := Color(0.56, 0.53, 0.57)
+# Holes you fall through (holes.gd): dark pits. The floor far below (faint),
+# the depth over it, the shaft's walls falling away to near-black, the cut's lit rim
+static var HOLE_FLOOR := Color(0.085, 0.08, 0.095)
+static var HOLE_FLOOR_LIGHT := Color(0.105, 0.1, 0.118)
+static var HOLE_GAP := Color(0.012, 0.011, 0.016)
+static var HOLE_DEPTH := Color(0.0, 0.0, 0.012, 0.56)
+static var HOLE_SHAFT := Color(0.17, 0.155, 0.18)
+static var HOLE_SHAFT_DEEP := Color(0.018, 0.016, 0.022)
+static var HOLE_RIM := Color(0.6, 0.57, 0.6)
 ## The haze over the floor below, per tower ("other" for the rest).
 static var HOLE_HAZE := {
-	"firebird": Color(1.0, 0.45, 0.2, 0.12),
-	"gryphon": Color(0.55, 0.66, 0.95, 0.08),
-	"other": Color(0.45, 0.5, 0.65, 0.05),
+	"firebird": Color(1.0, 0.42, 0.18, 0.1),
+	"gryphon": Color(0.55, 0.66, 0.95, 0.06),
+	"kraken": Color(0.3, 0.6, 0.75, 0.07),
+	"manticore": Color(0.95, 0.75, 0.45, 0.06),
+	"wyvern": Color(1.0, 0.45, 0.15, 0.08),
+	"chimera": Color(0.45, 0.8, 0.4, 0.06),
+	"other": Color(0.45, 0.5, 0.65, 0.04),
 }
 # Doors (doors.gd)
 static var DOOR_WOOD := Color(0.36, 0.24, 0.15)

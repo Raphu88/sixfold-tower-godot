@@ -42,6 +42,7 @@ static var DROPS := {
 	"harrier": ["air", 4.0],  # (the Gryphon's tower: scripts/towers/harrier.gd)
 	"ashwing": ["fire", 4.5],  # (the Firebird's tower: scripts/towers/ashwing.gd)
 	"briar": ["blade", 5.0],  # (the Chimera's tower: scripts/towers/briar.gd)
+	"mimic": ["iron", 2.0],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
 }
 
 

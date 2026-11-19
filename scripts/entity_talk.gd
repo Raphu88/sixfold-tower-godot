@@ -70,7 +70,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "start", "bye"]},
+		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
 	"how_stamina": {"ask": "Stamina, and why my bar shrinks?", "fact": "rules",
 		"lines": ["Rolls, strikes, shots and jumps cost stamina, and it refills fast, {sta_regen} a second once you stop for a breath. Act with too little and it still happens, but the missing part comes off your max stamina: fatigue. The bar's lost end goes dark, and it fills only to what's left, never below {sta_floor} of it. A Stamina Vial shakes it all off and fills you up. So does a camp's rest, and every climb starts fresh. The stair's rest doesn't touch it."],
 		"choices": ["how_belt", "how", "bye"]},
@@ -152,6 +152,9 @@ static var DIALOGUE := {
 	"how_duels": {"ask": "How do duels work?", "fact": "dining",
 		"lines": ["Challenge a climber in the Dining car and name the stake: {dine_crystals} crystals, a piece of gear against one of theirs, or {dine_renown} renown. It's fought in the Arena car, the only way in. First to yield loses; nobody dies. Win and you take their stake and {dine_win} renown, and it counts for the Duelist. Lose and they take yours. Then back to your table."],
 		"choices": ["how_bets", "how_dining", "how", "bye"]},
+	"how_ways_down": {"ask": "Holes, whirlpools and other ways down?",
+		"lines": ["Every hole takes you down a floor, unhurt: your unbanked essence comes too, and never below the first floor. Each tower has its own. The Firebird's chasms and the Gryphon's drops; the Kraken's whirlpools, which spin up over a floor drain as the water runs out and pull you in; the Manticore's sinkholes, sand that sags when you stand on it, then opens; the Wyvern's slag chutes, slopes you slide down; the Chimera's root hollows. A hole is a dark pit with a lit rim, never a doorway. Walk onto an edge and you wobble: step back quickly. Roll in, or get thrown, and down you go. A jump carries you over."],
+		"choices": ["how_fall", "how", "bye"]},
 	"how_glows": {"ask": "What are the glows and sparks?",
 		"lines": ["A Fine or Rare weapon is enchanted: it glows in its essence, carries a small light, and throws specks that suit it. Embers for fire, drips for water, wisps for air; sparks on a blow for iron, grit for stone, a shimmer on a swing for blade. A Common one stays plain. Spells flash a light where you cast and carry some as they fly. Foes that burn, bleed or crackle show it. Settings has Effects: Low keeps the lights and little else."],
 		"choices": ["how_wheel", "how", "bye"]},
