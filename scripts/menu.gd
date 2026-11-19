@@ -159,6 +159,7 @@ var train_station := ""  # the engine: a station chosen instead of a tower ("" f
 # draws it behind): while you're at one, the rail lists its stops.
 var station_page
 var station_view: Control
+var tour  # the Entity's tours of the station and the train (tour.gd)
 # The appearance editor (appearance_page.gd): "create" for a new climber,
 # "appearance" later; where Back from "appearance" goes ("climber", else the usual).
 var look_page
@@ -220,6 +221,7 @@ func _ready() -> void:
 	station_view.hide()
 	add_child(station_view)
 	station_page = StationPage.new(self)
+	tour = load("res://scripts/tour.gd").new(self)
 	look_page = AppearancePage.new(self, func(b, lk): BodyView._figure(b, lk))
 	shade = ColorRect.new()
 	shade.color = UI.SHADE
@@ -1047,6 +1049,7 @@ func open(which: String, direct := false) -> void:
 		station_view.stop = station_page.stop if which == "station" else ""
 		station_view.title = String(st.get("name", ""))
 		station_view.lamp = st.get("lamp", station_view.lamp)
+		station_view.look = st  # (each station's own colours and tower)
 		station_view.set_inset(RailScript.width_for(compact()) if rail_showing() else 0.0)
 	center.visible = which != "train"
 	shade.visible = which != "title" and which != "train"
@@ -3440,6 +3443,8 @@ func _page_talk() -> void:
 func _talk_choose(i: int) -> void:
 	if not talk.choose(main, i):
 		leave_talk()
+		if String(talk.act) != "":
+			tour.act(String(talk.act))  # (Show me around again: the Entity's tour)
 		return
 	var list: Array = talk.choices(main)
 	if not list.is_empty():

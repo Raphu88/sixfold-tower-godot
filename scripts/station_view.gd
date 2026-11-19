@@ -6,13 +6,17 @@ extends Control
 ## it, the station's sign, and on the walls either side something of the
 ## stop you're at (Training's rings and weights, the tournament's banners,
 ## the Noble's curtains and crest, the renown board's pinned notices).
+## Each of the six stations looks its own (`look`): its tower stands large
+## and near on the horizon, the sky glows in its colour, its canopy and
+## columns are painted in its trim, pennants in its banner colour hang
+## along the valance, and its sign carries its crest.
 ## Everything is drawn in code.
 ##
 ## The small pieces the page is built from live here too: StopIcon (each
 ## stop's icon, also on the rail: rail.gd car_icon asks icon()), Tile (a
 ## lesson, drill, bracket, title, contract or rank: its icon, name, a line,
 ## a medal or pips, a lock), RenownBar (renown, rank and how far to the next) and
-## StationCard (a station's plaque on the engine's board).
+## Crest (the station's own crest under its page's title).
 
 const UI := preload("res://scripts/ui.gd")
 const Art := preload("res://scripts/train_art.gd")
@@ -23,6 +27,7 @@ var inset := 0.0  # the rail down the left
 var stop := "gym"
 var lamp := Art.LAMP
 var title := ""  # the station's name, on its sign
+var look := {}  # the station (stations.gd STATIONS): its tower, and its colours (lamp, banner, trim, sky)
 
 
 func _ready() -> void:
@@ -51,6 +56,8 @@ func _draw() -> void:
 	Art.vgrad(b, Rect2(0, 0, w, horizon * 0.5), Art.SKY[0], Art.SKY[1])
 	Art.vgrad(b, Rect2(0, horizon * 0.5, w, horizon * 0.35), Art.SKY[1], Art.SKY[2])
 	Art.vgrad(b, Rect2(0, horizon * 0.85, w, horizon * 0.15 + 1.0), Art.SKY[2], Art.SKY[3])
+	var sky: Color = look.get("sky", Art.SKY[3])
+	Art.vgrad(b, Rect2(0, horizon * 0.45, w, horizon * 0.55 + 1.0), Color(sky, 0.0), Color(sky, 0.35))
 	for i in 40:
 		var sp := Vector2(Art.rnd(i * 3 + 1) * w, Art.rnd(i * 7 + 2) * horizon * 0.7)
 		b.rect(Rect2(sp, Vector2(1.5, 1.5)), Color(Art.STAR, 0.25 + 0.4 * Art.rnd(i)))
@@ -67,6 +74,10 @@ func _draw() -> void:
 		var wc: Color = Essence.color(String(Towers.TOWERS[id].get("essence", "air")))
 		Art.light(b, Vector2(x, base - th * 0.7), Vector2(12, 12), Color(wc, 0.35))
 		b.rect(Rect2(x - 2.0, base - th * 0.7 - 3.0, 4.0, 6.0), wc.lightened(0.3))
+	# The station's own tower, near and large, on the right of the horizon.
+	var own := String(look.get("tower", ""))
+	if Towers.TOWERS.has(own):
+		_near_tower(b, Vector2(w * 0.82, horizon + 4.0), h * 0.42, own, t)
 	# The far hills, and the land.
 	var hills := PackedVector2Array([Vector2(0, h)])
 	for i in 13:
@@ -85,22 +96,27 @@ func _draw() -> void:
 	Art.vgrad(b, Rect2(0, wall_top, w, h * 0.22), Color(0.12, 0.08, 0.06, 0.95), Color(0.12, 0.08, 0.06, 0.0))
 	# The canopy: a roof band, its scalloped valance, iron columns.
 	var roof := h * 0.1
-	Art.vgrad(b, Rect2(0, 0, w, roof), Color(0.16, 0.12, 0.13), Color(0.24, 0.18, 0.17))
+	var trim: Color = look.get("trim", Color(0.16, 0.2, 0.2))
+	var banner: Color = look.get("banner", Color(0.3, 0.22, 0.2))
+	Art.vgrad(b, Rect2(0, 0, w, roof), trim.darkened(0.25), trim.lightened(0.05))
 	b.rect(Rect2(0, roof - 3.0, w, 3.0), Color(Art.GILT, 0.55))
 	var sc := 26.0
 	for i in int(w / sc) + 1:
 		var x0 := i * sc
-		b.polygon(PackedVector2Array([Vector2(x0, roof), Vector2(x0 + sc, roof), Vector2(x0 + sc * 0.5, roof + 12.0)]), Color(0.3, 0.22, 0.2))
+		b.polygon(PackedVector2Array([Vector2(x0, roof), Vector2(x0 + sc, roof), Vector2(x0 + sc * 0.5, roof + 12.0)]), banner.darkened(0.35) if i % 2 == 0 else trim.lightened(0.1))
 		b.circle(Vector2(x0 + sc * 0.5, roof + 9.0), 2.0, Color(Art.GILT, 0.45), 8)
 	var gap := 220.0
 	var cols := int(w / gap) + 1
 	for i in cols:
 		var x := 40.0 + i * gap
 		b.rect(Rect2(x - 5.0, roof, 10.0, deck - roof), Art.OUTLINE)
-		b.rect(Rect2(x - 3.5, roof, 7.0, deck - roof), Color(0.16, 0.2, 0.2))
+		b.rect(Rect2(x - 3.5, roof, 7.0, deck - roof), trim)
 		b.rect(Rect2(x - 2.0, roof, 1.5, deck - roof), Color(1, 1, 1, 0.08))
 		# A bracket where it meets the canopy, and its foot.
-		b.polygon(PackedVector2Array([Vector2(x - 26, roof), Vector2(x + 26, roof), Vector2(x + 4, roof + 22), Vector2(x - 4, roof + 22)]), Color(0.16, 0.2, 0.2))
+		b.polygon(PackedVector2Array([Vector2(x - 26, roof), Vector2(x + 26, roof), Vector2(x + 4, roof + 22), Vector2(x - 4, roof + 22)]), trim)
+		# A pennant in the station's colour on every column.
+		b.polygon(PackedVector2Array([Vector2(x + 5, roof + 26), Vector2(x + 30, roof + 34), Vector2(x + 5, roof + 42)]), banner)
+		b.line(Vector2(x + 5, roof + 26), Vector2(x + 30, roof + 34), Color(Art.GILT, 0.5), 1.0)
 		b.rect(Rect2(x - 9.0, deck - 8.0, 18.0, 8.0), Art.OUTLINE)
 		# A lamp hanging between columns.
 		if i < cols - 1:
@@ -124,9 +140,30 @@ func _draw() -> void:
 		sb.line(Vector2(sr.end.x - 16, roof), Vector2(sr.end.x - 16, sr.position.y), Art.OUTLINE, 2.0)
 		sb.rect(sr.grow(2.0), Art.OUTLINE)
 		sb.rect(sr.grow(1.0), Art.GILT.darkened(0.2))
-		Art.vgrad(sb, sr.grow(-1.0), Color(0.1, 0.16, 0.15), Color(0.06, 0.1, 0.1))
+		Art.vgrad(sb, sr.grow(-1.0), banner.darkened(0.55), banner.darkened(0.75))
 		sb.flush(self)
 		UI.draw_text(self, font, Vector2(sr.position.x, sr.end.y - 9.0), title, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, fs, Art.GILT_HI)
+
+
+## The station's own tower, near: a tall silhouette in the dusk, banded,
+## with lit windows in its essence's colour and its torch burning on top.
+func _near_tower(b, base: Vector2, th: float, id: String, t: float) -> void:
+	var tw := th * 0.2
+	var wc: Color = Essence.color(String(Towers.TOWERS[id].get("essence", "air")))
+	var torch: Color = Towers.TOWERS[id].get("torch", wc)
+	var body := Art.FAR.lerp(Color(0.08, 0.07, 0.1), 0.4)
+	b.polygon(PackedVector2Array([Vector2(base.x - tw * 0.6, base.y), Vector2(base.x - tw * 0.42, base.y - th), Vector2(base.x - tw * 0.62, base.y - th - 8.0),
+		Vector2(base.x, base.y - th - tw * 0.9), Vector2(base.x + tw * 0.62, base.y - th - 8.0), Vector2(base.x + tw * 0.42, base.y - th), Vector2(base.x + tw * 0.6, base.y)]), body)
+	for k in 4:
+		var yy := base.y - th * (0.2 + 0.2 * k)
+		b.rect(Rect2(base.x - tw * 0.52, yy, tw * 1.04, 2.0), Color(torch, 0.18))
+		var wy := yy - th * 0.08
+		Art.light(b, Vector2(base.x, wy), Vector2(16, 16), Color(wc, 0.3))
+		b.rect(Rect2(base.x - 2.5, wy - 4.0, 5.0, 8.0), wc.lightened(0.35))
+	var flick := 0.85 + 0.15 * sin(t * 6.0)
+	var top := Vector2(base.x, base.y - th - tw * 0.9 - 6.0)
+	Art.light(b, top, Vector2(60, 60), Color(torch, 0.35 * flick))
+	b.circle(top, 4.0, torch.lightened(0.3), 10)
 
 
 ## The stop's things on the walls at both edges (the page covers the middle).
@@ -381,24 +418,42 @@ class RenownBar extends Control:
 		b.flush(self)
 
 
-## A station's plaque on the engine's destination board.
-class StationCard extends Button:
+## The station's crest under its page's title: a pennant in its banner
+## colour with its tower's shape, its city, the tower it's near, and
+## whether it's your home station. Tells the six stations apart at a glance.
+class Crest extends Control:
 	const UI := preload("res://scripts/ui.gd")
+	const Towers := preload("res://scripts/towers.gd")
 	var station := {}
-	var chosen := false
+	var home := false
 
 	func _ready() -> void:
-		focus_mode = Control.FOCUS_ALL
-		for state in ["normal", "hover", "pressed"]:
-			var bg := Color(0.13, 0.1, 0.08) if state == "normal" else Color(0.18, 0.14, 0.1)
-			if chosen:
-				bg = Color(0.22, 0.17, 0.08) if state == "normal" else Color(0.28, 0.21, 0.1)
-			add_theme_stylebox_override(state, UI.box(bg, Color(UI.GOLD, 0.95) if chosen else Color(UI.TRAIN_BRASS, 0.5 if state == "normal" else 0.85), 5, 2 if chosen else 1))
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
-		var small := size.y < 64.0
-		var lamp: Color = station.get("lamp", Color(1.0, 0.78, 0.45))
-		draw_rect(Rect2(Vector2(4, 4), Vector2(size.x - 8, 4)), Color(lamp, 0.8))
-		load("res://scripts/station_view.gd").icon(self, "clock", Vector2(20, size.y * 0.5 + 3.0), 8.0, lamp, 1.6)
-		UI.draw_text(self, UI.font("display"), Vector2(36, 28 if small else 34), String(station.get("short", station.get("name", ""))), HORIZONTAL_ALIGNMENT_LEFT, size.x - 44.0, 21 if small else 23, UI.GILT_HI if chosen else UI.TEXT)
-		UI.draw_text(self, UI.font("body"), Vector2(36, (28 if small else 34) + 16.0), String(station.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, size.x - 44.0, 13, UI.DIM)
+		var T: Dictionary = load("res://scripts/travel.gd").TEXT
+		var banner: Color = station.get("banner", UI.GILT)
+		var h := size.y
+		var b := UI.Draw.Batch.new()
+		# The pennant, and the tower's shape on it.
+		var pw := h * 0.9
+		b.rect(Rect2(pw * 0.5, 2.0, size.x - pw * 0.5, h - 5.0), Color(banner, 0.22))  # (a band of its colour behind the words)
+		b.polygon(PackedVector2Array([Vector2(0, 0), Vector2(pw, 0), Vector2(pw, h * 0.8), Vector2(pw * 0.5, h), Vector2(0, h * 0.8)]), banner)
+		b.rect(Rect2(0, 0, pw, 2.0), UI.GILT)
+		var c := Vector2(pw * 0.5, h * 0.48)
+		var tw := h * 0.16
+		b.polygon(PackedVector2Array([c + Vector2(-tw, h * 0.3), c + Vector2(-tw * 0.7, -h * 0.18), c + Vector2(0, -h * 0.34), c + Vector2(tw * 0.7, -h * 0.18), c + Vector2(tw, h * 0.3)]), banner.lightened(0.55))
+		# A thin rule in its colour under the words.
+		b.rect(Rect2(pw, h - 4.0, size.x - pw, 3.0), Color(banner.lightened(0.2), 0.85))
+		b.flush(self)
+		var tid := String(station.get("tower", ""))
+		var near: String = load("res://scripts/travel.gd").near(tid) if Towers.TOWERS.has(tid) else ""
+		var tag := String(T["crest_home"] if home else T["crest_visit"])
+		var fs := 14 if h < 28.0 else 16
+		var font := UI.font("display")
+		var name := String(station.get("name", ""))
+		var nw := font.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		UI.draw_text(self, font, Vector2(pw + 8.0, h * 0.5 + fs * 0.35), name, HORIZONTAL_ALIGNMENT_LEFT, size.x - pw - 8.0, fs, banner.lightened(0.5))
+		var rest := "%s  ·  %s" % [near, tag] if near != "" else tag
+		UI.draw_text(self, UI.font("body"), Vector2(pw + 16.0 + nw, h * 0.5 + fs * 0.3), rest, HORIZONTAL_ALIGNMENT_LEFT, maxf(0.0, size.x - pw - 16.0 - nw), fs - 3, UI.GOLD if home else UI.DIM)
+
