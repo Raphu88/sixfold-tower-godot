@@ -47,13 +47,13 @@ static var TEXT := {
 	# Start over (title, pause menu, N twice): this climber only.
 	"over": "Start over",
 	"over_title": "Start over?",
-	"over_text": "Start %s over with no marks. Their marks and growth, essence, crystals, train and heirlooms will be lost. Your other climbers are kept.",
+	"over_text": "Start %s over with no marks. {Their} marks and growth, essence, crystals, train and heirlooms will be lost. Your other climbers are kept.",
 	"over_this": "this climber",
 	"over_banner": "START OVER?",
 	"over_again": "%s within 3 seconds to start this climber over.",
 	"over_key": "Press N again",
 	"over_tap": "Tap New again",
-	"over_lost": "Their marks and all their growth will be lost.",
+	"over_lost": "{Their} marks and all {their} growth will be lost.",
 	"cancel": "Cancel",
 }
 ## How long a Delete stays armed for its second press.

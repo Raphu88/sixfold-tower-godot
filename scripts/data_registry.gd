@@ -145,6 +145,11 @@ const SECTIONS := [
 	{"id": "menu_words", "group": "words", "name": "Title, climbers and appearance", "when": "page",
 		"tables": ["title/TEXT", "climbers_page/TEXT", "appearance/TEXT", "appearance/NAMES", "essence/KINDS"], "kinds": ["text"],
 		"names": {"NAMES": "Names the dice offers", "KINDS": "Essences"}},
+	{"id": "start_words", "group": "words", "name": "A new climber's start: the introduction, the questions, pronouns", "when": "page",
+		"tables": ["new_start/INTRO", "new_start/QUESTIONS", "new_start/TEXT", "pronouns/CHOICES", "pronouns/FORMS"], "kinds": ["text"],
+		"names": {"INTRO": "The Entity's introduction (placeholder lines)", "QUESTIONS": "The questionnaire", "TEXT": "Words", "CHOICES": "Pronoun choices", "FORMS": "Pronoun words (he / she / they)"}},
+	{"id": "start_numbers", "group": "numbers", "name": "A new climber's start: what each answer gives", "when": "page",
+		"tables": ["new_start/WHY"], "kinds": ["number", "bool"], "names": {"WHY": "How you came to climb: crystals, renown boost"}},
 	{"id": "rivals_words", "group": "words", "name": "Rival climbers", "when": "live",
 		"tables": ["rivals/TEXT", "rivals/NAMES", "rivals/LINES", "rival/RIVAL_TEXT"], "kinds": ["text"],
 		"names": {"TEXT": "Words", "NAMES": "Their names", "LINES": "What they say", "RIVAL_TEXT": "Words over them in a fight"}},
@@ -343,7 +348,7 @@ const SECTIONS := [
 		"tables": ["stations/STATIONS", "stations/MEDALS"], "kinds": ["colour"], "names": {"STATIONS": "Stations' lamps", "MEDALS": "Medals"}},
 	# --- appearance ---
 	{"id": "looks", "group": "looks", "name": "Appearance options", "when": "page",
-		"tables": ["appearance/OPTIONS", "appearance/ROWS", "appearance/TABS", "appearance/ACCENTS"], "kinds": ["text", "colour"], "names": {"OPTIONS": "Options", "ROWS": "Row names", "TABS": "Tabs", "ACCENTS": "Small things (scarf, metal, feather, face)"}},
+		"tables": ["appearance/OPTIONS", "appearance/ROWS", "appearance/TABS", "appearance/ACCENTS"], "kinds": ["text", "colour"], "names": {"OPTIONS": "Options", "ROWS": "Row names", "TABS": "Tabs", "ACCENTS": "Small things (scarf, metal, feather, face, headband, fur, runes)"}},
 ]
 
 ## Keys never offered anywhere: ids and names the code looks things up by.

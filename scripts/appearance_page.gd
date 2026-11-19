@@ -34,12 +34,17 @@ var tab := ""  # the chosen tab (appearance.gd TABS; kept while the game runs)
 var tabs: TabRow
 var rows_box: VBoxContainer
 var name_edit: LineEdit
+var pronoun_row: OptionRow  # (the edit page: the pronouns, under the name)
+var wheel_key := ""  # the colour row whose wheel is open ("" for none: the rows show)
+var wheel_pad: WheelPad
+var wheel_rows: Array = []  # the wheel's Brightness and Strength rows, and its Done
 var dice: Button
 var rnd: Button
 var tl: Button
 var tr: Button
 var finish: Button  # Begin or Done
 var first_focus: Control  # where the keys and controller start
+var making := false  # a new climber's look ("create": Next), not a later change ("edit": Done)
 
 
 func _init(menu, draw_figure: Callable) -> void:
@@ -52,7 +57,8 @@ func _init(menu, draw_figure: Callable) -> void:
 func build(mode: String) -> void:
 	var small: bool = m.compact()
 	var creating := mode == "create"
-	draft = Appearance.normalized(m.main.profile.appearance)
+	making = creating
+	draft =Appearance.normalized(m.main.profile.appearance)
 	rows = {}
 	m._header(T["new_title"] if creating else T["edit_title"], T["new_sub"] if creating else T["edit_sub"])
 	if creating and said == "":
@@ -98,7 +104,9 @@ func build(mode: String) -> void:
 	ends.add_theme_constant_override("separation", 6)
 	left.add_child(ends)
 	rnd = m._button(T["randomise"], randomise, ends)
-	finish = m._button(T["begin"] if creating else m._with_key(T["done"], "Esc", "{b}"), begin if creating else m.go_back, ends)
+	finish = m._button(T["next"] if creating else m._with_key(T["done"], "Esc", "{b}"), begin if creating else m.go_back, ends)
+	if creating:
+		finish.set_meta("help", "start:look_next")
 	for b in [rnd, finish]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size.y = 44.0
@@ -113,6 +121,7 @@ func build(mode: String) -> void:
 	var nr := HBoxContainer.new()
 	nr.add_theme_constant_override("separation", 6)
 	right.add_child(nr)
+	nr.visible = not creating  # (a new climber chose a name and pronouns on the step before: start_pages.gd)
 	var nl: Label = m._label(T["name"], 96.0 if small else 112.0, UI.DIM)
 	nl.add_theme_font_size_override("font_size", 16)
 	nr.add_child(nl)
@@ -134,6 +143,19 @@ func build(mode: String) -> void:
 	nr.add_child(name_edit)
 	dice = m._button(T["name_dice"], roll_name, nr)
 	dice.custom_minimum_size = Vector2(64, 40)
+	# The pronouns (pronouns.gd), under the name, when editing.
+	pronoun_row = OptionRow.new()
+	pronoun_row.key = "pronouns"
+	pronoun_row.label = T["pronouns"]
+	pronoun_row.value = String(draft.get("pronouns", "they"))
+	pronoun_row.changed = _set_option
+	pronoun_row.custom_minimum_size = Vector2(0, _row_h())
+	pronoun_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pronoun_row.set_meta("option", "pronouns")
+	pronoun_row.pressed.connect(_focus_rows)
+	pronoun_row.visible = not creating
+	right.add_child(pronoun_row)
+	wheel_key = ""
 	# The tabs, then the chosen tab's rows (room kept for the longest tab,
 	# so nothing below jumps when the tab changes).
 	tabs = TabRow.new()
@@ -171,6 +193,7 @@ func _row_h() -> float:
 ## `sound`: a click as it changes.
 func show_tab(id: String, sound := true) -> void:
 	tab = id
+	wheel_key = ""
 	if view != null and is_instance_valid(view):
 		view.for_tab(id)
 	if tabs != null and is_instance_valid(tabs):
@@ -195,6 +218,7 @@ func show_tab(id: String, sound := true) -> void:
 		orow.label = names.get(key, key)
 		orow.value = draft.get(key, Appearance.DEFAULTS[key])
 		orow.changed = _set_option
+		orow.wheel = open_wheel
 		orow.custom_minimum_size = Vector2(0, _row_h())
 		orow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		orow.set_meta("option", key)
@@ -210,10 +234,13 @@ func show_tab(id: String, sound := true) -> void:
 ## Up and down run through everything in one loop (the tabs and the rows
 ## take Left and Right for themselves).
 func _link_focus() -> void:
-	var order: Array = [name_edit, dice, tabs]
+	var order: Array = [tabs] if making else [name_edit, dice, pronoun_row, tabs]  # (a new climber: no name row here)
 	for c in rows_box.get_children():
 		if rows.values().has(c):
 			order.append(c)
+	if wheel_key != "":
+		order.append(wheel_pad)
+		order.append_array(wheel_rows)
 	order.append_array([rnd, finish, tl, tr])
 	for i in order.size():
 		var c: Control = order[i]
@@ -231,8 +258,86 @@ func _set_option(key: String, id: String) -> void:
 	if rows.has(key) and is_instance_valid(rows[key]) and rows[key].value != id:
 		rows[key].value = id
 		rows[key].queue_redraw()
+	if key == "pronouns" and pronoun_row != null and is_instance_valid(pronoun_row):
+		pronoun_row.value = id
+		pronoun_row.queue_redraw()
 	_apply()
 	m.main.sfx("ui_move")
+
+
+## The colour wheel for a colour row (its last cell): the disc, Brightness,
+## Strength and Done, in place of the tab's rows. Every change is worn at once.
+func open_wheel(key: String) -> void:
+	if rows_box == null or not is_instance_valid(rows_box):
+		return
+	wheel_key = key
+	var start := Appearance.color_of(key, String(draft.get(key, Appearance.DEFAULTS[key])))
+	for c in rows_box.get_children():
+		rows_box.remove_child(c)
+		c.queue_free()
+	rows = {}
+	var names := {}
+	for r in Appearance.ROWS:
+		names[r[0]] = r[1]
+	var title: Label = m._label(T["wheel_title"] % names.get(key, key), 0.0, UI.GOLD)
+	title.add_theme_font_size_override("font_size", 15)
+	rows_box.add_child(title)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	rows_box.add_child(hb)
+	var rh := _row_h()
+	wheel_pad = WheelPad.new()
+	wheel_pad.hue = start.h
+	wheel_pad.sat = start.s
+	wheel_pad.val = maxf(start.v, 0.15)
+	wheel_pad.custom_minimum_size = Vector2(rh * 3.1, rh * 3.1)
+	wheel_pad.changed = _wheel_changed
+	wheel_pad.set_meta("help", "start:wheel")
+	wheel_pad.pressed.connect(_to_finish)
+	hb.add_child(wheel_pad)
+	var vb := VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_theme_constant_override("separation", 6)
+	hb.add_child(vb)
+	var shade := ValueRow.new()
+	shade.label = T["wheel_shade"]
+	shade.value = wheel_pad.val
+	shade.custom_minimum_size = Vector2(0, rh)
+	shade.changed = func(v):
+		wheel_pad.val = maxf(v, 0.05)
+		wheel_pad.queue_redraw()
+		_wheel_changed()
+	vb.add_child(shade)
+	var strength := ValueRow.new()
+	strength.label = T["wheel_strength"]
+	strength.value = wheel_pad.sat
+	strength.custom_minimum_size = Vector2(0, rh)
+	strength.changed = func(v):
+		wheel_pad.sat = v
+		wheel_pad.queue_redraw()
+		_wheel_changed()
+	vb.add_child(strength)
+	var done: Button = m._button(T["wheel_done"], func(): show_tab(tab), vb)
+	done.custom_minimum_size.y = rh
+	done.set_meta("help", "start:wheel_done")
+	wheel_rows = [shade, strength, done]
+	first_focus = wheel_pad
+	_link_focus()
+	_wheel_changed()
+	if not m.main.touch_active:
+		wheel_pad.grab_focus()
+	m.main.sfx("ui_confirm")
+
+
+## The wheel moved: the colour of your own is kept and worn ("#rrggbb").
+func _wheel_changed() -> void:
+	if wheel_key == "" or wheel_pad == null or not is_instance_valid(wheel_pad):
+		return
+	if wheel_rows.size() > 1 and is_instance_valid(wheel_rows[1]) and not is_equal_approx(wheel_rows[1].value, wheel_pad.sat):
+		wheel_rows[1].value = wheel_pad.sat  # (a pick on the disc moves the Strength bar too)
+		wheel_rows[1].queue_redraw()
+	draft[wheel_key] = Appearance.custom_id(wheel_pad.color())
+	_apply()
 
 
 func _name_changed(text: String) -> void:
@@ -286,13 +391,12 @@ func turn(by: int) -> void:
 	m.main.sfx("ui_move")
 
 
-## Begin: the new climber is made, and the first climb waits.
+## Next (a new climber): the look is kept, and on to the questions
+## (start_pages.gd "quiz"); Begin there makes the climber.
 func begin() -> void:
-	m.main.profile.created = true
 	m.main.set_appearance(draft)
 	m.main.sfx("ui_confirm")
-	Engine.set_meta("sixfold_title_seen", true)
-	m.close()
+	m.open("quiz")
 
 
 func _to_finish() -> void:
@@ -509,6 +613,7 @@ class OptionRow extends Button:
 	var label := ""
 	var value := ""
 	var changed: Callable  # (key, id)
+	var wheel: Callable  # (key): the colour wheel cell at the end of a colour row was chosen
 
 	func _ready() -> void:
 		focus_mode = Control.FOCUS_ALL
@@ -535,6 +640,10 @@ class OptionRow extends Button:
 	func tap_at(pos: Vector2) -> void:
 		_hit(get_global_transform().affine_inverse() * pos)
 
+	## How many cells the middle holds: the swatches, and the wheel after them.
+	func _cells() -> int:
+		return Appearance.options_of(key).size() + (1 if Appearance.has_wheel(key) else 0)
+
 	func _hit(p: Vector2) -> void:
 		var lx := _label_w()
 		if p.x >= lx - 4.0 and p.x < lx + ARROW + 2.0:
@@ -542,10 +651,14 @@ class OptionRow extends Button:
 		elif p.x > size.x - ARROW - 8.0:
 			change(1)
 		elif p.x > lx + ARROW and Appearance.has_colors(key):
-			var list: Array = Appearance.OPTIONS[key]
+			var list: Array = Appearance.options_of(key)
 			var mid := _middle()
-			var i := clampi(int((p.x - mid.position.x) / (mid.size.x / list.size())), 0, list.size() - 1)
-			choose(list[i][0])
+			var i := clampi(int((p.x - mid.position.x) / (mid.size.x / _cells())), 0, _cells() - 1)
+			if i >= list.size():
+				if wheel.is_valid():
+					wheel.call(key)  # (the colour wheel: a colour of your own)
+			else:
+				choose(list[i][0])
 		else:
 			change(1)
 
@@ -587,9 +700,9 @@ class OptionRow extends Button:
 			var pts := PackedVector2Array([c + Vector2(-4.0 * side, -6.0), c + Vector2(4.0 * side, 0.0), c + Vector2(-4.0 * side, 6.0)])
 			draw_polyline(pts, UI.GOLD if on else UI.DIM, 2.0, true)
 		var mid := _middle()
+		var list: Array = Appearance.options_of(key)
 		if colors:
-			var list: Array = Appearance.OPTIONS[key]
-			var cell := mid.size.x / list.size()
+			var cell := mid.size.x / _cells()
 			var rad := clampf(cell * 0.3, 5.0, 10.0)
 			for i in list.size():
 				var at := Vector2(mid.position.x + cell * (i + 0.5), h * 0.5)
@@ -608,10 +721,161 @@ class OptionRow extends Button:
 				if blank:  # an empty swatch, struck through
 					draw_arc(at, rad, 0.0, TAU, 20, UI.DIM, 1.4, true)
 					draw_line(at + Vector2(-rad * 0.7, rad * 0.7), at + Vector2(rad * 0.7, -rad * 0.7), UI.DIM, 1.4, true)
+			if Appearance.has_wheel(key):
+				# The colour wheel: a ring of every hue, your own colour in the
+				# middle once chosen (gilt-ringed while it's the one worn).
+				var at2 := Vector2(mid.position.x + cell * (list.size() + 0.5), h * 0.5)
+				var custom := Appearance.is_custom(value)
+				if custom:
+					draw_circle(at2, rad + 4.5, UI.GOLD if on else Color(UI.GOLD, 0.7))
+				draw_circle(at2, rad + 1.6, UI.OUTLINE)
+				var n := 12
+				for k in n:
+					var a0 := TAU * k / n
+					var a1 := TAU * (k + 1) / n
+					draw_colored_polygon(PackedVector2Array([at2, at2 + Vector2.from_angle(a0) * rad, at2 + Vector2.from_angle(a1) * rad]), Color.from_hsv(float(k) / n, 0.75, 0.95))
+				draw_circle(at2, rad * 0.45, Appearance.color_of(key, value) if custom else Color(0.95, 0.95, 0.95))
 		else:
 			UI.draw_text(self, font, Vector2(mid.position.x, h * 0.5 + 2.0), name, HORIZONTAL_ALIGNMENT_CENTER, mid.size.x, 17, UI.GOLD if on else UI.TEXT)
-			var list2: Array = Appearance.OPTIONS[key]
-			var n := list2.size()
+			var n := list.size()
+			var gap := minf(9.0, (mid.size.x - 10.0) / maxf(n, 1.0))
 			for i in n:
-				var at2 := Vector2(mid.get_center().x + (i - (n - 1) * 0.5) * 9.0, h * 0.5 + 11.0)
-				draw_circle(at2, 2.2 if list2[i][0] == value else 1.6, UI.GOLD if list2[i][0] == value else UI.FAINT)
+				var at2 := Vector2(mid.get_center().x + (i - (n - 1) * 0.5) * gap, h * 0.5 + 11.0)
+				draw_circle(at2, 2.2 if list[i][0] == value else 1.6, UI.GOLD if list[i][0] == value else UI.FAINT)
+
+
+# --- the colour wheel -----------------------------------------------------------------
+
+## The colour wheel's disc: every hue round it, paler toward the middle, at
+## the chosen brightness. A click or tap (or a drag) picks a colour; Left and
+## Right (the d-pad or stick) turn the hue.
+class WheelPad extends Button:
+	var hue := 0.0
+	var sat := 0.6
+	var val := 0.8
+	var changed: Callable  # (): the colour moved
+
+	func _ready() -> void:
+		focus_mode = Control.FOCUS_ALL
+		text = ""
+
+	func color() -> Color:
+		return Color.from_hsv(hue, sat, val)
+
+	func _radius() -> float:
+		return minf(size.x, size.y) * 0.5 - 6.0
+
+	func change(by: int) -> void:
+		hue = fposmod(hue + by / 24.0, 1.0)
+		queue_redraw()
+		if changed.is_valid():
+			changed.call()
+
+	func tap_at(pos: Vector2) -> void:
+		grab_focus()
+		_pick(get_global_transform().affine_inverse() * pos)
+
+	func _pick(p: Vector2) -> void:
+		var d := p - size * 0.5
+		hue = fposmod(d.angle() / TAU, 1.0)
+		sat = clampf(d.length() / maxf(_radius(), 1.0), 0.0, 1.0)
+		queue_redraw()
+		if changed.is_valid():
+			changed.call()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				grab_focus()
+				_pick(event.position)
+			accept_event()
+		elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			_pick(event.position)
+			accept_event()
+		elif event.is_action_pressed("ui_left", true):
+			change(-1)
+			accept_event()
+		elif event.is_action_pressed("ui_right", true):
+			change(1)
+			accept_event()
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := _radius()
+		if has_focus():
+			draw_arc(c, r + 4.0, 0.0, TAU, 40, Color(0.95, 0.8, 0.45), 2.0, true)
+		draw_circle(c, r + 1.5, Color(0.05, 0.04, 0.07))
+		var n := 36
+		var rings := 5
+		for j in rings:
+			var r0 := r * float(j) / rings
+			var r1 := r * float(j + 1) / rings
+			for k in n:
+				var a0 := TAU * k / n
+				var a1 := TAU * (k + 1) / n
+				var col := Color.from_hsv((k + 0.5) / n, (j + 0.5) / rings, val)
+				draw_colored_polygon(PackedVector2Array([c + Vector2.from_angle(a0) * r0, c + Vector2.from_angle(a1) * r0, c + Vector2.from_angle(a1) * r1, c + Vector2.from_angle(a0) * r1]), col)
+		var at := c + Vector2.from_angle(hue * TAU) * sat * r
+		draw_circle(at, 7.0, Color(0.05, 0.04, 0.07))
+		draw_circle(at, 5.0, color())
+		draw_arc(at, 7.0, 0.0, TAU, 16, Color(1, 1, 1, 0.85), 1.4, true)
+
+
+## A row of the wheel: its name and a bar (Brightness or Strength). Left and
+## Right (or a click or tap along the bar) change it.
+class ValueRow extends Button:
+	const UI := preload("res://scripts/ui.gd")
+	var label := ""
+	var value := 0.5
+	var changed: Callable  # (value)
+
+	func _ready() -> void:
+		focus_mode = Control.FOCUS_ALL
+		text = ""
+
+	func _bar() -> Rect2:
+		var lx := clampf(size.x * 0.34, 80.0, 120.0)
+		return Rect2(lx, size.y * 0.5 - 5.0, size.x - lx - 12.0, 10.0)
+
+	func change(by: int) -> void:
+		set_value(value + by * 0.05)
+
+	func set_value(v: float) -> void:
+		value = clampf(v, 0.0, 1.0)
+		queue_redraw()
+		if changed.is_valid():
+			changed.call(value)
+
+	func tap_at(pos: Vector2) -> void:
+		grab_focus()
+		var p := get_global_transform().affine_inverse() * pos
+		var b := _bar()
+		set_value((p.x - b.position.x) / maxf(b.size.x, 1.0))
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				grab_focus()
+				var b := _bar()
+				set_value((event.position.x - b.position.x) / maxf(b.size.x, 1.0))
+			accept_event()
+		elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			var b2 := _bar()
+			set_value((event.position.x - b2.position.x) / maxf(b2.size.x, 1.0))
+			accept_event()
+		elif event.is_action_pressed("ui_left", true):
+			change(-1)
+			accept_event()
+		elif event.is_action_pressed("ui_right", true):
+			change(1)
+			accept_event()
+
+	func _draw() -> void:
+		var on := has_focus()
+		var font := get_theme_font("font")
+		draw_style_box(UI.box(Color(1, 1, 1, 0.03), Color(UI.GOLD, 0.35 if on else 0.08), 6), Rect2(Vector2.ZERO, size))
+		UI.draw_text(self, font, Vector2(12, size.y * 0.5 + 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, _bar().position.x - 14.0, 15, UI.TEXT if on else UI.DIM)
+		var b := _bar()
+		draw_rect(b, Color(0.05, 0.04, 0.07))
+		draw_rect(Rect2(b.position, Vector2(b.size.x * value, b.size.y)), Color(UI.GOLD, 0.75 if on else 0.5))
+		draw_circle(Vector2(b.position.x + b.size.x * value, b.get_center().y), 7.0, UI.GOLD if on else UI.DIM)
