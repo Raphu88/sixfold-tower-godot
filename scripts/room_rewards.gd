@@ -4,7 +4,8 @@ extends Node2D
 ##   chests      a danger room's spoils (a guard post's strongbox, a den's
 ##               hoard): shut while the monsters that wait in the room still
 ##               stand, then open to walk up to (essence, sometimes an item
-##               or gear; richer in a dead end)
+##               or gear; richer in a dead end). Now and then one is a mimic
+##               (mimic.gd): walk up to it and it springs, a monster.
 ##   vaults      a strongroom behind a lock: a pedestal with a vault's cards
 ##   rests       a calm rest room: stand in it and your wounds slowly close
 ##   traders     a wandering trader: three things for unbanked essence
@@ -53,7 +54,7 @@ func _ready() -> void:
 func setup(plan: Dictionary) -> void:
 	clear()
 	for c in plan.get("chests", []):
-		chests.append({"pos": c["pos"], "room": c["room"], "rich": c.get("rich", false), "open": false, "taken": false})
+		chests.append({"pos": c["pos"], "room": c["room"], "rich": c.get("rich", false), "open": false, "taken": false, "mimic": c.get("mimic", false)})
 	for v in plan.get("vaults", []):
 		vaults.append({"pos": v["pos"], "room": v["room"], "taken": false})
 	for r in plan.get("rests", []):
@@ -104,7 +105,10 @@ func _process(delta: float) -> void:
 	var reach: float = float(RULES["reach"]) + p.radius
 	for c in chests:
 		if c["open"] and not c["taken"] and pos.distance_to(c["pos"]) < reach:
-			_take_chest(c)
+			if c.get("mimic", false):
+				spring(c)
+			else:
+				_take_chest(c)
 	for v in vaults:
 		if not v["taken"] and pos.distance_to(v["pos"]) < reach:
 			v["taken"] = true
@@ -145,6 +149,25 @@ func _take_chest(c: Dictionary) -> void:
 			main.drop_gear(c["pos"] + Vector2(-18, 10), g, true)
 	main.fx_ring(c["pos"], Color(1.0, 0.85, 0.5), 50.0, 0.4, 3.0)
 	main.sfx("glint", 1.25, -3.0)
+
+
+## A mimic's chest, opened: it springs, a monster where the chest stood
+## (mimic.gd). Returns it.
+func spring(c: Dictionary):
+	c["taken"] = true
+	c["sprung"] = true
+	var e = main.spawn_enemy("mimic", c["pos"])
+	e.global_position = c["pos"]
+	main.floor_total += 1
+	var M = load("res://scripts/mimic.gd")
+	main.fx_text(c["pos"] + Vector2(0, -36), M.TEXT["spring"], Palette.DANGER.lightened(0.25))
+	main.fx_burst(c["pos"], Vector2.UP, Color(0.62, 0.45, 0.3), 12, 160.0)
+	main.sfx("slam", 1.2, -3.0)
+	main.sfx("warn_knight", 0.8, -2.0)
+	main.shake(3.0)
+	main.tip("mimic")
+	queue_redraw()
+	return e
 
 
 ## Unbanked essence the climber holds.
@@ -207,7 +230,12 @@ func _draw() -> void:
 	for br in bridges:
 		_draw_bridge(br["rect"], br["vertical"])
 	for c in chests:
-		_draw_chest(c, pulse)
+		if c.get("sprung", false):
+			continue
+		if c.get("mimic", false):
+			load("res://scripts/mimic.gd").draw_waiting(self, c, pulse, t)
+		else:
+			_draw_chest(c, pulse)
 	for v in vaults:
 		var at: Vector2 = v["pos"]
 		draw_rect(Rect2(at + Vector2(-12, -6), Vector2(24, 18)), Palette.OUTLINE)

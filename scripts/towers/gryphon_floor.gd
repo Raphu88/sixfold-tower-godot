@@ -73,10 +73,11 @@ static var LOOK := {
 }
 
 ## The floor seen through a drop (_draw_floor_below): scale, its halls' size
-## against this floor's (smaller is deeper; they slide with parallax), and
-## light, how much lighter than the palette's floor below it shows (the sky
-## lights it).
-static var LOOK_BELOW := {"scale": 0.74, "light": 0.14}
+## against this floor's (smaller is deeper; they slide with parallax), light,
+## how much lighter than the palette's floor below it shows, and depth, how
+## much of the drop's darkness lies over it (palette.gd HOLE_DEPTH's share:
+## far below, only just made out).
+static var LOOK_BELOW := {"scale": 0.58, "light": 0.03, "depth": 1.15}
 
 # (main: the game, set by main.gd: tower_floor.gd)
 var plan := {}
@@ -1050,8 +1051,8 @@ func _draw_floor_below(r: Rect2, cam: Vector2) -> void:
 		# A torch, and tiny shapes walking.
 		var torch := Vector2(q.get_center().x, q.position.y - w)
 		if r.grow(-2.0).has_point(torch):
-			sky.draw_circle(torch, 9.0 * s, Color(1.0, 0.7, 0.35, 0.22))
-			sky.draw_circle(torch, 2.2 * s + 0.6, Color(1.0, 0.8, 0.45, 0.85))
+			sky.draw_circle(torch, 9.0 * s, Color(1.0, 0.7, 0.35, 0.12))
+			sky.draw_circle(torch, 2.2 * s + 0.6, Color(1.0, 0.8, 0.45, 0.55))
 		for wk in 2:
 			var u := Vector2(0.5 + 0.38 * sin(t * (0.21 + 0.05 * wk) + k * 1.7 + wk * 2.3), 0.5 + 0.38 * cos(t * (0.17 + 0.04 * wk) + k * 2.1 + wk))
 			var at := q.position + q.size * u
@@ -1059,6 +1060,8 @@ func _draw_floor_below(r: Rect2, cam: Vector2) -> void:
 				sky.draw_circle(at + Vector2(0, 1.5 * s), 3.0 * s, Color(0, 0, 0, 0.3))
 				sky.draw_circle(at, 2.4 * s + 0.4, Color(0.12, 0.1, 0.13, 0.9))
 	sky.draw_rect(r, Holes.haze("gryphon"))
+	var depth: Color = Palette.HOLE_DEPTH
+	sky.draw_rect(r, Color(depth * tint, clampf(depth.a * float(LOOK_BELOW.get("depth", 1.0)), 0.0, 0.95)))  # (far below: only just made out)
 	# Wind drifting across the drop (the gust's way while it blows).
 	var dir := gust_dir if gust_state != "calm" else Vector2(1.0, 0.12).normalized()
 	var strength := 0.16 if gust_state == "calm" else 0.3

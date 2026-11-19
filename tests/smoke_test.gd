@@ -1794,6 +1794,8 @@ func _built_theme(theme: String, fl := 6) -> Array:
 			var ri: Dictionary = plan["room_info"][i]
 			if not (ri["role"] in ["guard", "branch"]) or T.get_theme(ri["theme"])["kind"] == "good":
 				continue
+			if plan.get("ways_down", []).any(func(w): return int(w["room"]) == i):
+				continue  # (a way down never shares a room with a trap set piece: ways_down.gd _fits)
 			if not T.fits(theme, {"size": Vector2i(ri["rect"].size / F.CELL), "rows": ri["rows"]}, tid, tower):
 				continue
 			var ctx: Dictionary = Traps.context(plan)
