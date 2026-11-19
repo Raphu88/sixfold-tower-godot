@@ -107,8 +107,9 @@ func _split() -> void:
 	prof = t.main.profile
 	var U = load("res://scripts/unbound.gd")
 	var raw0: float = U.raw(prof, "legs")
+	var cost0: float = float(U.FILL_COST[U.level(prof, "legs")])
 	out = prof.pour({"air": 50.0}, {}, 0.3)
-	_check(is_equal_approx(U.raw(prof, "legs") - raw0, 35.0) and prof.crystal_total("air") >= 15.0, "the Unbound: everything but the crystals pools raw in its part (%.1f)" % (U.raw(prof, "legs") - raw0))
+	_check(is_equal_approx(U.raw(prof, "legs") - raw0, 35.0 * U.LEVEL_SIZE / cost0) and prof.crystal_total("air") >= 15.0, "the Unbound: everything but the crystals fills its part, slowly (%.2f)" % (U.raw(prof, "legs") - raw0))
 
 
 func _stair_line() -> void:

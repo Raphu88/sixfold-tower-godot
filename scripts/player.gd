@@ -3428,6 +3428,11 @@ func _draw_overlay() -> void:
 	var c := overlay
 	if main != null and main.particles != null:
 		main.particles.draw_weapon_glow(self, c)  # (an enchanted weapon shows its essence)
+	if flow_path != "" and flow_step > 0 and not dead:
+		# The aura: your core essence made visible (secret.gd draw_aura, core.gd).
+		var ab := Draw.Batch.new()
+		Secret.draw_aura(ab, Vector2(0, -jump_height()), radius, flow_path, flow_step, Time.get_ticks_msec() * 0.001)
+		ab.flush(c)
 	if main != null and main.unbound != null and main.unbound.on:
 		main.unbound.glow_into(c, self)
 	elif not bonds.is_empty():

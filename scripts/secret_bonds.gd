@@ -41,7 +41,7 @@ static var BONDS := {
 	"designer": {"name": "Designer", "the": "the Designer", "maker": "towers", "maker_name": "the Maker of Towers",
 		"color": Color(1.0, 0.7, 0.32), "what": "tools for the tower", "grows": "Unmaking"},
 	"manipulator": {"name": "Manipulator", "the": "the Manipulator", "maker": "creatures", "maker_name": "the Maker of Creatures",
-		"color": Color(1.0, 0.44, 0.56), "what": "tools for the creatures", "grows": "Life"},
+		"color": Color(1.0, 0.44, 0.56), "what": "tools for the creatures", "grows": "Making"},
 }
 
 ## A tool's cost: `flow` units of secret essence (`flow_kind`: "life",

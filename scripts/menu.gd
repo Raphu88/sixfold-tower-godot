@@ -5071,9 +5071,10 @@ class SpellIcon extends Control:
 
 ## The climber screen's Essence tab: each type's density and bonus (left),
 ## where it has settled in the body and what you carry unbanked (right).
-## The Essence tab's flow (secret.gd): your shadow holding your path's
-## essence, its step, what each step does and how much to the next. Before
-## the first step, only a faint sign.
+## The Essence tab's aura (secret.gd, core.gd): your figure in its aura and
+## shadow, the core essence in your body, the aura's step, what each of its
+## six steps does and how much to the next (and, once the body is saturated,
+## Ascendance: coming soon). Before the first step, only a faint sign.
 class FlowView extends Control:
 	const Secret := preload("res://scripts/secret.gd")
 	const UI := preload("res://scripts/ui.gd")
@@ -5082,7 +5083,7 @@ class FlowView extends Control:
 	static func height(step: int, small: bool) -> float:
 		if step <= 0:
 			return 60.0
-		return 132.0 if small else 150.0
+		return 186.0 if small else 214.0
 
 	func _process(_delta: float) -> void:
 		queue_redraw()  # the shadow lives
@@ -5103,6 +5104,7 @@ class FlowView extends Control:
 		var rr := minf(sw * 0.17, 24.0)
 		Secret.draw_shadow(b, sc + Vector2(0, 18), rr, path, st, t, 1.0 if st > 0 else 0.7)
 		if st > 0:
+			Secret.draw_aura(b, sc + Vector2(0, 18 - rr * 1.3), rr * 0.9, path, st, t)
 			Secret.draw_figure(b, sc + Vector2(0, 18), rr * 2.6, col, t)
 		b.flush(self)
 		var x := sw + 24.0
@@ -5111,11 +5113,11 @@ class FlowView extends Control:
 			UI.draw_text(self, font, Vector2(x, size.y * 0.5 + 5.0), Secret.TEXT["faint_sign"] % [Secret.display(path), int(Secret.STEPS[0])], HORIZONTAL_ALIGNMENT_LEFT, w, 15, Color(col, 0.75))
 			return
 		# The path and its step (a label: gothic), then its motto (an inscription).
-		var head := "%s  ·  Step %d of %d" % [Secret.display(path), st, Secret.STEPS.size()]
+		var head := "%s aura  ·  Step %d of %d" % [Secret.display(path), st, Secret.STEPS.size()]
 		UI.draw_label(self, Vector2(x, 19), head, 18, light, HORIZONTAL_ALIGNMENT_LEFT, w)
 		var hw := UI.font("display").get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 16.0
 		UI.draw_inscription(self, Vector2(x + hw, 19), Secret.KINDS[path]["motto"], 17, Color(col.lightened(0.15), 0.9), HORIZONTAL_ALIGNMENT_LEFT, maxf(w - hw, 10.0))
-		var small := size.y < 140.0
+		var small := size.y < 200.0
 		var y := 38.0
 		var lh := 17.0 if small else 20.0
 		for i in Secret.STEPS.size():
@@ -5129,6 +5131,9 @@ class FlowView extends Control:
 		var line: String = Secret.TEXT["next"] % [int(prof.flow), int(ceil(need - prof.flow)), st + 1] if need > 0.0 else Secret.TEXT["full"] % int(prof.flow)
 		if main.run_flow >= 0.5:
 			line += "  ·  " + Secret.TEXT["unbanked"] % int(main.run_flow)
+		var Core = load("res://scripts/core.gd")
+		if Core.saturated(prof):
+			line += "  ·  " + Core.TEXT["saturated"] + ". " + Core.TEXT["ascendance"]
 		UI.draw_text(self, font, Vector2(x, y + 4.0), line, HORIZONTAL_ALIGNMENT_LEFT, w, 13, UI.DIM)
 
 

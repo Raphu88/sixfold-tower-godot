@@ -70,7 +70,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
+		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
 	"how_stamina": {"ask": "Stamina, and why my bar shrinks?", "fact": "rules",
 		"lines": ["Rolls, strikes, shots and jumps cost stamina, and it refills fast, {sta_regen} a second once you stop for a breath. Act with too little and it still happens, but the missing part comes off your max stamina: fatigue. The bar's lost end goes dark, and it fills only to what's left, never below {sta_floor} of it. A Stamina Vial shakes it all off and fills you up. So does a camp's rest, and every climb starts fresh. The stair's rest doesn't touch it."],
 		"choices": ["how_belt", "how", "bye"]},
@@ -137,6 +137,15 @@ static var DIALOGUE := {
 	"how_secret": {"ask": "Cracked walls and secret rooms?",
 		"lines": ["Dust falls from a cracked wall. A finishing blow breaks it: a way through, hidden essence, sometimes a vault. A secret room hides behind plain wall: lean into the wall and it opens. Flare Powder and the Scroll of Seeing make secret walls glint."],
 		"choices": ["how_ward", "how", "bye"]},
+	"how_aura": {"ask": "Core essence, and my aura?", "fact": "rules",
+		"lines": ["Making and Unmaking are the core essences, the Makers' own. Choose one and, banked at a stair, half of what you carried settles in your body as core essence: slowly, evenly over your six parts, {core_cap} a part at most. It can't be moved. Your aura is that core essence made visible, and it grows in six steps, at {aura_steps}. Marked or Unbound, each step gives you more. Once every part is full your body is saturated, and nothing more settles. What comes after that, I'll tell you when it's time."],
+		"choices": ["how_unbound", "how", "bye"]},
+	"how_unbound": {"ask": "How do the Unbound grow?", "if": "unbound", "fact": "rules",
+		"lines": ["Each of your six parts is a cup that holds {core_cap}. Banked essence flows into its natural part and fills it slowly, slower the fuller it is. Every {ub_level} is a level. Level {ub_minor} wakes a minor ability, level {ub_gift} a gift, level {ub_tech}, half full, a technique on that part's button, and level 12, full, its capstone. The first essence in a part leads it and must stay at least half; two more at most add their touch. On the train you can move essence between parts. A quarter is the price."],
+		"choices": ["how_unbound_words", "how_aura", "how", "bye"]},
+	"how_unbound_words": {"ask": "Forms, effects, techniques?", "if": "unbound",
+		"lines": ["A form is the shape a part gives: the hand strikes or throws a bolt, the legs dash or leap. An effect is what an essence does to what it hits: Fire burns, Stone staggers. A technique is the two together: a strike and a burn, Flame Fist. A variation is a small change on top: Wide, Quick, Chain. Your part's essence chooses the effects. You choose the form, at the essence bench."],
+		"choices": ["how_unbound", "how", "bye"]},
 	"how_bestiary": {"ask": "What is the Bestiary?", "fact": "rules",
 		"lines": ["My notes on every monster, in the Library. An entry starts when you see one and grows when you fight it. Slay it {bestiary_slain} times and it adds its health, then what it's weak to, then how it takes states. A beast takes {bestiary_beast}."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -182,8 +191,8 @@ static var DIALOGUE := {
 		"lines": ["{soak}"],
 		"choices": ["marks_grow", "start", "bye"]},
 	"body": {"ask": "What about my body?", "if": "unbound",
-		"lines": ["You carry no marks. You refused them. Your techniques sit on the mark buttons, and the Techniques page changes them."],
-		"choices": ["start", "bye"]},
+		"lines": ["You carry no marks. You refused them. Your parts fill like cups instead, and a part half full carries a technique on its mark button. Your car's Techniques page shows each part and moves essence between them."],
+		"choices": ["how_unbound", "how_unbound_words", "start", "bye"]},
 	# --- the climb ------------------------------------------------------------------------
 	"climb": {"ask": "How did my last climb go?", "if": "climbed", "fact": "climb",
 		"lines": ["{summary}"],
@@ -643,6 +652,8 @@ static func _fact_rules() -> Dictionary:
 		"sta_regen": int(round(float(Combat.CLIMBER["stamina_regen"]))), "sta_floor": "%d%%" % int(round(float(Combat.CLIMBER["fatigue_floor"]) * 100.0)),
 		"tincture": int(Flow.TINCTURE["essence"]), "craft": int(Flow.TINCTURE["craft"]), "store_kinds": "one kind" if int(Flow.TINCTURE["store_kinds"]) == 1 else "%d kinds" % int(Flow.TINCTURE["store_kinds"]),
 		"early": int(Flow.EARNED["last_floor"]), "fall_chance": "%d%%" % int(round(float(Flow.FALL_MARK["chance"]) * 100.0)),
+		"core_cap": int(Unbound.Core.CAP), "aura_steps": ", ".join(load("res://scripts/secret.gd").STEPS.map(func(v): return str(int(v)))),
+		"ub_level": int(Unbound.LEVEL_SIZE), "ub_minor": Unbound.MINOR_LEVEL, "ub_gift": Unbound.GIFT_LEVEL, "ub_tech": Unbound.TECH_LEVEL,
 	})
 	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
 	var Shop = load("res://scripts/shop.gd")

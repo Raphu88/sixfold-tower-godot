@@ -3523,8 +3523,12 @@ func _bank_flow() -> Array:
 	var lines: Array = profile.bank_flow(run_flow)
 	run_flow = 0.0
 	var after: int = profile.flow_step()
+	if profile.flow > 0.0:
+		tip("core_essence")  # (it settles in your body: core.gd)
 	for st in range(before + 1, after + 1):
-		tip("flow_%d" % st)
+		tip("aura" if st == 1 else "flow_%d" % st)  # (the aura's steps: secret.gd)
+	if load("res://scripts/core.gd").saturated(profile):
+		tip("core_saturated")
 	if after > before and player != null:
 		var col := Secret.color(profile.path)
 		fx_ring(player.global_position, col, 70.0, 0.6, 4.0)
@@ -3628,7 +3632,7 @@ func dev_set_path(kind: String) -> void:
 func dev_add_flow(amount: float) -> void:
 	if profile.path == "":
 		return
-	profile.bank_flow(amount)
+	load("res://scripts/core.gd").add(profile, amount)  # (this much core essence, spread evenly: core.gd)
 	profile.save()
 	_give_bonds()
 

@@ -5,6 +5,12 @@ extends Node2D
 ## the Regard, condensing at a summit). Words and numbers are
 ## here and in unbound.gd / technique.gd.
 ##
+## TECHNIQUES: a part half full (unbound.gd TECH_LEVEL) carries one, on its
+##   mark button; give() brings each up to date with its part's essence
+##   (unbound.gd sync_techs) and says the first time a part fills, wakes,
+##   is half full, full, pure or core-led (the Entity's moments).
+## MINOR ABILITIES: from unbound.gd MINOR_LEVEL, now and then a part's own
+##   action carries a touch of what leads it to the nearest foe (_minor).
 ## FILL: each technique fills from its body part's actions (part_action, from
 ##   player.gd _part_action), like a mark's bond; full, it casts without
 ##   spending anything (technique.gd CHARGE); cast early and the missing
@@ -96,6 +102,9 @@ var broke_rules := false  # a barrier broken on the bondless first climb: the Re
 var waver_chance := WAVER  # (tests set it to 0 or 1)
 var fills := {}  # slot -> each technique's fill (kept while the climber's bonds are rebuilt)
 var boosts := 0  # boosted casts (tests)
+var minor_t := {}  # body part -> seconds before its minor ability can answer again
+var minors := 0  # minor abilities that answered (tests)
+var minor_chance := -1.0  # (tests set it: 1 always answers, 0 never; -1 the data's chance)
 var _floor_key := ""
 
 
@@ -115,10 +124,12 @@ func give() -> void:
 	if not on or p == null:
 		return
 	p.bonds.clear()
-	var techs: Array = Unbound.state(prof)["techs"]
+	var learned: Array = Unbound.sync_techs(prof)
+	_notice(prof, learned)
 	for i in Unbound.PARTS.size():
-		if i < techs.size() and Tech.valid(techs[i]):
-			var b = TechBond.new(techs[i], Unbound.PARTS[i], i, self)
+		var t := Unbound.tech_of(prof, i)
+		if Tech.valid(t):
+			var b = TechBond.new(t, Unbound.PARTS[i], i, self)
 			b.attr_fill = 1.0 + prof.attribute("water")
 			b.essence = minf(float(fills.get(i, 0.0)), b.capacity())
 			p.bonds[Unbound.PARTS[i]] = b
@@ -128,6 +139,31 @@ func give() -> void:
 	p.base_hp *= 1.0 + Unbound.gift(prof, "health")
 	p.refresh_gear()
 	_sync()
+
+
+## The first time a part fills, wakes (its minor ability), is half full (it
+## learns a technique), full, pure or core-led: the Entity says what it means.
+func _notice(prof, learned: Array) -> void:
+	var seen: Dictionary = Unbound.state(prof)["seen"]
+	for part in Unbound.PARTS:
+		var lv := Unbound.level(prof, part)
+		var was := int(seen.get(part, 0))
+		if lv > was:
+			seen[part] = lv
+			if was < 1:
+				main.tip("unbound_fill")
+			if was < Unbound.MINOR_LEVEL and lv >= Unbound.MINOR_LEVEL:
+				main.tip("unbound_minor")
+			if was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
+				main.tip("unbound_half")
+			if was < Unbound.MAX_LEVEL and lv >= Unbound.MAX_LEVEL:
+				main.tip("unbound_full")
+		if Unbound.pure(prof, part):
+			main.tip("unbound_pure")
+		if Unbound.core_led(prof, part):
+			main.tip("unbound_core_led")
+	if not learned.is_empty():
+		main.tip("unbound_learned")
 
 
 func strain_of(part: String) -> float:
@@ -158,6 +194,37 @@ func part_action(part: String, amount: float) -> void:
 		if "tech" in b and b.tech_part() == part:
 			b.fill(amount)
 	_sync()
+	_minor(part)
+
+
+## A part's minor ability: now and then its own action carries a touch of
+## what leads it to the nearest foe (unbound.gd MINOR). True if it answered.
+func _minor(part: String) -> bool:
+	var prof = main.profile
+	var p = main.player
+	if p == null or not Unbound.has_minor(prof, part) or float(minor_t.get(part, 0.0)) > 0.0:
+		return false
+	var chance: float = float(Unbound.MINOR["chance"]) if minor_chance < 0.0 else minor_chance
+	if randf() >= chance:
+		return false
+	var best = null
+	var best_d: float = float(Unbound.MINOR["reach"])
+	for e in main.targets():
+		var d: float = p.global_position.distance_to(e.global_position) - float(e.radius)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best == null:
+		return false
+	minor_t[part] = float(Unbound.MINOR["cd"])
+	minors += 1
+	var k := Unbound.lead(prof, part)
+	var dir: Vector2 = (best.global_position - p.global_position).normalized()
+	var col := Tech.color(k)
+	main.fx_bolt([p.global_position, best.global_position], Color(col, 0.7))
+	main.fx_burst(best.global_position, -dir, col, 6, 120.0)
+	Tech.hit(p, best, float(Unbound.MINOR["damage"]), dir, {k: float(Unbound.MINOR["share"])}, Unbound.power(prof, part), self)
+	return true
 
 
 ## Casts a carried technique (technique_bond.gd cast): it spends its fill
@@ -170,7 +237,7 @@ func cast(b, p) -> void:
 		return
 	var prof = main.profile
 	var at: Vector2 = p.global_position
-	var power: float = Unbound.power(prof, part) * (1.0 + prof.attribute("fire"))
+	var power: float = Unbound.power(prof, part) * Unbound.core_power(prof, part) * (1.0 + prof.attribute("fire"))
 	var hot := strain_of(part) > HOT
 	var need: float = b.capacity()
 	var missing := clampf(need - b.essence, 0.0, need)
@@ -188,6 +255,8 @@ func cast(b, p) -> void:
 			main.fx_text(p.global_position + Vector2(0, -52), TEXT["wavers"], Color(1.0, 0.55, 0.4))
 	if missing > 0.5:
 		main.fx_text(p.global_position + Vector2(0, -60), Tech.TEXT["not_full"], Color(0.85, 0.8, 0.95))
+	if bool(t.get("core", false)):
+		_core_burst(p, part)  # (a core technique: big, unmistakable, in the core's colours)
 	Tech.cast(t, p, power, self)
 	Particles.on_technique_cast(main, p, Tech.lead(t), String(t.get("shape", "")), Tech.color(Tech.lead(t)))  # (a flash and the lead essence's sparks)
 	if TreeRules.note_echo(prof, t):
@@ -196,6 +265,22 @@ func cast(b, p) -> void:
 	add_strain(part, Tech.strain(t) + Tech.EMPTY_STRAIN * missing / maxf(need, 0.01))
 	_sync()
 	Library.on_cast(p, {"by": "technique", "bond": b, "part": part, "at": at, "tech": t})  # (the capstones answer: unbound_forms.gd)
+
+
+## A core technique's cast: a burst of the core's own colours (Making green,
+## Unmaking violet), bigger once the part is full.
+func _core_burst(p, part: String) -> void:
+	var prof = main.profile
+	var col := Secret.color(prof.path)
+	var light: Color = Secret.KINDS.get(prof.path, Secret.KINDS["life"])["light"]
+	var full := Unbound.level(prof, part) >= Unbound.MAX_LEVEL
+	var at: Vector2 = p.global_position
+	main.fx_ring(at, col, 96.0 if full else 70.0, 0.55, 6.0)
+	main.fx_ring(at, light, 60.0 if full else 44.0, 0.4, 3.0)
+	main.fx_burst(at, Vector2.ZERO, col, 26 if full else 16, 260.0)
+	main.fx_burst(at, Vector2.UP, light, 10 if full else 6, 160.0)
+	main.light_flash(at, col, 2.4 if full else 1.8, 2.0, 0.5)
+	main.shake(4.0 if full else 2.5)
 
 
 ## True if you carry all of a technique's boost unbanked (the path's essence
@@ -277,6 +362,10 @@ func _physics_process(delta: float) -> void:
 		_floor_key = key
 		_new_floor()
 	var p = main.player
+	for part in minor_t.keys():
+		minor_t[part] = float(minor_t[part]) - delta
+		if float(minor_t[part]) <= 0.0:
+			minor_t.erase(part)
 	if on:
 		var fade := STRAIN_FADE * maxf(1.0, Unbound.gift(main.profile, "fade"))
 		for part in strain.keys():
@@ -690,10 +779,12 @@ func card(pick: String) -> Dictionary:
 		var part := pick.substr(9)
 		var kind := String(c.get("kind", "air"))
 		var prof = main.profile
-		var now := Unbound.level_for(Unbound.raw(prof, part) + Unbound.CONDENSE)
-		return {"name": Unbound.TEXT["condense_card"] % [int(Unbound.CONDENSE), Unbound.PART_NAMES[part]], "item": "",
-			"desc": Unbound.TEXT["condense_desc"] % [Tech.display(kind), Unbound.PART_NAMES[part].to_lower(), now],
-			"color": part_color(prof, part), "note": Unbound.TEXT["level"] % Unbound.level(prof, part)}
+		var fits := minf(Unbound.CONDENSE, Unbound.take_limit(prof, part, kind))
+		var now := Unbound.level_for(Unbound.fill(prof, part) + fits)
+		var desc: String = Unbound.TEXT["condense_desc"] % [Tech.display(kind), Unbound.PART_NAMES[part].to_lower(), now] if fits > 0.01 \
+			else Unbound.TEXT["condense_full"] % [Unbound.PART_NAMES[part].to_lower(), Tech.display(kind)]
+		return {"name": Unbound.TEXT["condense_card"] % [int(round(fits)), Unbound.PART_NAMES[part]], "item": "",
+			"desc": desc, "color": part_color(prof, part), "note": Unbound.TEXT["level"] % Unbound.level(prof, part)}
 	var part2 := String(c.get("part", "hand"))
 	var id := String(c.get("id", ""))
 	var bname: String = Bonds.BONDS[id]["name"] if Bonds.BONDS.has(id) else "?"
@@ -715,11 +806,12 @@ func choose(i: int) -> void:
 	if pick.begins_with("condense:"):
 		var part := pick.substr(9)
 		var kind := String(c.get("kind", "air"))
-		var pd: Dictionary = prof.part_density.get(part, {})
-		pd[kind] = float(pd.get(kind, 0.0)) + Unbound.CONDENSE
-		prof.part_density[part] = pd
+		var got := Unbound.put(prof, part, kind, Unbound.CONDENSE)
+		Unbound.Core.sync(prof)
 		prof.save()
-		lines.append(Unbound.TEXT["condensed"] % [int(Unbound.CONDENSE), Tech.display(kind), Unbound.PART_NAMES[part].to_lower()])
+		main._give_bonds()
+		if got > 0.01:
+			lines.append(Unbound.TEXT["condensed"] % [int(round(got)), Tech.display(kind), Unbound.PART_NAMES[part].to_lower()])
 		_close_cards()
 		main.fx_ring(main.player.global_position, part_color(prof, part), 60.0, 0.6, 4.0)
 		main.show_victory(lines)
@@ -762,15 +854,12 @@ func _close_cards() -> void:
 
 # --- how it looks -----------------------------------------------------------------------
 
-## A part's main colour: the kind most pooled there (its natural kind if none).
+## A part's main colour: what leads it (the core's colour when it's
+## core-led; its natural kind's while it's empty).
 static func part_color(prof, part: String) -> Color:
-	var pd: Dictionary = prof.part_density.get(part, {})
-	var best: String = Unbound.PART_KIND[part]
-	var most := 0.0
-	for k in pd:
-		if float(pd[k]) > most:
-			most = float(pd[k])
-			best = k
+	var best := Unbound.lead(prof, part)
+	if best == "":
+		best = Unbound.PART_KIND[part]
 	return Tech.color(best)
 
 

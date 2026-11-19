@@ -3,14 +3,16 @@ extends RefCounted
 ## Workshop car (train_page.gd _workshop: its own drawer beside the gear
 ## bench's counters). Everything is drawn in code:
 ##
-##   VIALS     one for each essence you can use, with a brass tap. The liquid
-##             is how much of that essence has pooled in your body (ticks on
-##             the glass mark where its effects open). Open taps in order:
-##             the first leads (its colour fills most of the globe), the
-##             second and third swirl in thinner. Tap an open tap to close it.
-##   MOULDS    the forms your tree has opened (the hand's Strike and Bolt,
-##             Volley at level 3...). Choose one and its shape shows inside
-##             the GLOBE, a brass-bound glass globe.
+##   VIALS     one for each essence you can have, with a brass tap. The liquid
+##             is how much of that essence fills your body (ticks on the glass
+##             mark where its effects open). The taps of the essences in the
+##             chosen slot's body part stand open, in order: what leads the
+##             part (its colour fills most of the globe), then its modifiers,
+##             swirling in thinner. The part's mix decides them (unbound.gd):
+##             a closed tap says how to move that essence into the part.
+##   MOULDS    the forms the slot's part has opened (the hand's Strike and
+##             Bolt, Volley at level 8...). Choose one and its shape shows
+##             inside the GLOBE, a brass-bound glass globe.
 ##   LAYERS    under the globe, each essence poured and its effect: tap to
 ##             change it to another effect that has opened for that essence.
 ##   FITTINGS  the variations, screwed onto the globe's spout (a three-pronged
@@ -21,7 +23,8 @@ extends RefCounted
 ##             "echoes X" when the mix comes close to a bond's spell.
 ## Locked vials, moulds and fittings sit dark. Pouring runs a short stream
 ## of liquid into the globe. "Set in slot" puts what's on the bench into
-## the chosen slot (the six along the top, one per mark button).
+## the chosen slot (the six along the top, one per body part and its mark
+## button). A slot carries a technique once its part is half full.
 ##
 ## The bench works on a DRAFT (menu meta "bench_draft"), loaded from the
 ## chosen slot ("tech_slot", shared with the Techniques page in your car),
@@ -44,8 +47,8 @@ const Secret := preload("res://scripts/secret.gd")
 const COUNTER := "essence"
 ## How long the liquid runs into the globe after a tap opens (seconds).
 const POUR_TIME := 0.9
-## A vial is full at this much pooled (the last effect opens at 600).
-const VIAL_FULL := 700.0
+## A vial is full at this much in the body (the last effect opens at 72).
+const VIAL_FULL := 90.0
 
 static var TEXT := {
 	"drawer": "Essence bench",
@@ -61,8 +64,11 @@ static var TEXT := {
 	"set": "Set in slot %s",
 	"set_short": "Set in slot",
 	"in_slot": "In its slot",
-	"empty": "Open a tap",
-	"empty_line": "Choose a mould, then open a tap: the first essence leads.",
+	"empty": "Not yet",
+	"empty_line": "This part carries a technique once it is half full (level 6). Fill it with essence.",
+	"asleep": "Your %s is level %d: half full (level %d) it carries a technique.",
+	"not_in_part": "Move %s into your %s first (Your car · Techniques)",
+	"other_part": "This slot is your %s's: its forms only",
 	"lead": "leads",
 	"strain": "+%d strain",
 	"fill": "full at %d  ·  %s",
@@ -107,9 +113,12 @@ static func draft(menu) -> Dictionary:
 ## Puts slot `i`'s technique on the bench.
 static func load_slot(menu, i: int) -> void:
 	var prof = menu.main.profile
+	Unbound.sync_techs(prof)
 	var techs: Array = Unbound.state(prof)["techs"]
 	var t = techs[i] if i < techs.size() else {}
 	var d: Dictionary = t.duplicate(true) if Tech.valid(t) else {"name": "", "part": Unbound.PARTS[i], "shape": Library.BASE_FORMS[Unbound.PARTS[i]][0], "kinds": []}
+	if can_use(prof):
+		Unbound.sync_tech(prof, d, Unbound.PARTS[i])  # (its essences are the part's own)
 	menu.set_meta("tech_slot", i)
 	menu.set_meta("bench_draft", d)
 	menu.set_meta("bench_from", i)
@@ -161,30 +170,15 @@ static func vial_lock(prof, d: Dictionary, kind: String) -> String:
 	if kind in d.get("kinds", []):
 		return ""
 	var part := String(d.get("part", "hand"))
-	var most := Unbound.max_kinds(prof, part)
-	if d.get("kinds", []).size() >= most:
-		if most < Unbound.KINDS_AT.size():
-			return TEXT["needs_level"] % [Unbound.PART_NAMES[part], int(Unbound.KINDS_AT[most]), most + 1]
-		return TEXT["more_kinds"] % [Unbound.PART_NAMES[part], most]
-	return ""
+	return TEXT["not_in_part"] % [Tech.display(kind), Unbound.PART_NAMES[part].to_lower()]
 
 
-## A tap pressed: a closed one opens (its essence joins, after those
-## already poured: the first leads); an open one closes (those after it move up).
-static func pour(prof, d: Dictionary, kind: String) -> Dictionary:
+## A tap pressed: the part's mix decides the essences now (unbound.gd), so
+## the draft only follows it (a closed tap says how to move one in).
+static func pour(prof, d: Dictionary, _kind: String) -> Dictionary:
 	var out := d.duplicate(true)
-	var kinds: Array = out.get("kinds", [])
-	var at := kinds.find(kind)
-	if at >= 0:
-		kinds.remove_at(at)
-		if out.get("effects") is Dictionary:
-			out["effects"].erase(kind)
-	elif vial_lock(prof, out, kind) == "":
-		kinds.append(kind)
-	else:
-		return out
-	out["kinds"] = kinds
-	_unname(out)
+	if can_use(prof):
+		Unbound.sync_tech(prof, out, String(out.get("part", "hand")))
 	return out
 
 
@@ -206,7 +200,7 @@ static func moulds(prof) -> Array:
 ## Choose a mould: its part and form (essences past the part's limit drop off).
 static func set_form(prof, d: Dictionary, part: String, form: String) -> Dictionary:
 	var out := d.duplicate(true)
-	if not form in TreeRules.owned_forms(prof, part):
+	if not form in TreeRules.owned_forms(prof, part) or part != String(out.get("part", part)):
 		return out
 	var keep_name := String(out.get("name", "")) != "" and Tech.valid(out) and String(out["name"]) != Tech.auto_name(out)
 	out["part"] = part
@@ -221,6 +215,8 @@ static func set_form(prof, d: Dictionary, part: String, form: String) -> Diction
 	if not keep_name:
 		out["name"] = ""
 	_unname(out)
+	if can_use(prof):
+		Unbound.sync_tech(prof, out, part)
 	return out
 
 
@@ -313,9 +309,9 @@ static func save(menu) -> bool:
 	var main = menu.main
 	var prof = main.profile
 	var d := draft(menu)
-	if not can_use(prof) or not Tech.valid(d):
-		return false
 	var sel := slot(menu)
+	if not can_use(prof) or not Tech.valid(d) or not Unbound.awake(prof, Unbound.PARTS[sel]):
+		return false
 	var t := d.duplicate(true)
 	Unbound.state(prof)["techs"][sel] = t
 	var found := TreeRules.note_echo(prof, t)
@@ -413,12 +409,14 @@ static func build(tp, row: Node) -> void:
 	slots.add_theme_constant_override("separation", 4)
 	slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(slots)
-	var techs: Array = Unbound.state(prof)["techs"]
+	var techs: Array = []
+	for ti in Unbound.PARTS.size():
+		techs.append(Unbound.tech_of(prof, ti) if can else {})
 	var sel := slot(m)
 	for i in Unbound.PARTS.size():
 		var t = techs[i] if i < techs.size() else {}
 		var key := _key_name(m, i)
-		var label: String = Tech.title(t) if Tech.valid(t) else TEXT["slot_empty"]
+		var label: String = Tech.title(t) if Tech.valid(t) else Unbound.PART_NAMES[Unbound.PARTS[i]]
 		var b: Button = m._button(TEXT["slot"] % [key, label] if key != "" else label, _pick_slot.bind(tp, i), slots)
 		b.custom_minimum_size = Vector2(64.0 if small else 116.0, 34.0 if small else 36.0)
 		UI.keep_text(b, 9)  # (its words whole: smaller, then wrapped, never cut)
@@ -476,6 +474,8 @@ static func build(tp, row: Node) -> void:
 	mg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left.add_child(mg)
 	for row_m in moulds(prof):
+		if can and row_m[0] != d["part"]:
+			continue  # (a slot is its part's: only that part's forms)
 		var mo := Mould.new()
 		mo.part = row_m[0]
 		mo.form = row_m[1]
@@ -550,9 +550,13 @@ static func build(tp, row: Node) -> void:
 	nm.set_meta("bench_name", true)
 	pc.add_child(nm)
 	var w := 170.0 if small else 230.0
-	var line := _plaque_line(pc, one_line(d) if can else TEXT["for_unbound"], ink, w, 12 if small else 13)
+	var awake: bool = can and Unbound.awake(prof, String(d["part"]))
+	var says: String = TEXT["for_unbound"]
+	if can:
+		says = one_line(d) if awake else TEXT["asleep"] % [Unbound.PART_NAMES[d["part"]].to_lower(), Unbound.level(prof, d["part"]), Unbound.TECH_LEVEL]
+	var line := _plaque_line(pc, says, ink, w, 12 if small else 13)
 	line.set_meta("bench_line", true)
-	if can and Tech.valid(d):
+	if awake and Tech.valid(d):
 		var echo := echo_line(d)
 		if echo != "":
 			var el := _plaque_line(pc, echo, Color(0.33, 0.14, 0.42), w, 12 if small else 13)
@@ -593,9 +597,9 @@ static func build(tp, row: Node) -> void:
 	var sb: Button = m._button(TEXT["set"] % key if key != "" and not small else TEXT["set_short"], _save.bind(tp), right)
 	sb.custom_minimum_size = Vector2(0, 40)
 	sb.set_meta("bench_save", true)
-	tp._brass(sb, can and Tech.valid(d) and dirty(m))
-	sb.disabled = not can or not Tech.valid(d) or not dirty(m)
-	if can and Tech.valid(d) and not dirty(m):
+	tp._brass(sb, awake and Tech.valid(d) and dirty(m))
+	sb.disabled = not awake or not Tech.valid(d) or not dirty(m)
+	if awake and Tech.valid(d) and not dirty(m):
 		sb.text = TEXT["in_slot"]
 	if m.toast != "":
 		var tl: Label = tp._note(col, m.toast, 380.0 if not small else 300.0)

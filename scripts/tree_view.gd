@@ -44,7 +44,7 @@ const Controls := preload("res://scripts/controls.gd")
 static var TEXT := {
 	"head_mark": "%s  ·  %s  ·  step %d of %d",
 	"head_faint": "%s  ·  %s  ·  faint",
-	"head_unbound": "%s  ·  level %d of 10",
+	"head_unbound": "%s  ·  level %d of 12",
 	"head_none": "%s  ·  no mark yet",
 	"none": "No mark here yet. This part %s; once it's full, a summit marks it.",
 	"first": "Your first climb is bondless. At its top the tower's beast takes notice, and the part you used most takes your first mark. Its tree grows here.",

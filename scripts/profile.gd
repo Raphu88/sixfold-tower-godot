@@ -112,8 +112,9 @@ var record := {}
 ## Climbers before this one in this slot (Start over): the Entity remembers them.
 var former := 0
 ## The secret essences (secret.gd): the path chosen at the first great foe
-## ("" until then, else "life" or "unmaking"; for good) and the flow banked
-## (the path's essence, which lives in the climber's shadow).
+## ("" until then, else "life" (Making) or "unmaking"; for good) and the
+## flow: the core essence settled in the body (core.gd), which shows as the
+## aura and in the climber's shadow.
 var path := ""
 var flow := 0.0
 ## How the climber looks (appearance.gd: option ids, and an optional name).
@@ -342,6 +343,7 @@ func load_save() -> void:
 	core_tune = ct if ct is Dictionary else {}
 	var ub = cfg.get_value("unbound", "state", {})
 	unbound = ub if ub is Dictionary else {}
+	Unbound.tidy(self)  # (an older Unbound's cups made to fit: unbound.gd)
 	var ce = cfg.get_value("profile", "core_edit", {})
 	core_edit = ce if ce is Dictionary else {}
 	var rn = cfg.get_value("renown", "state", {})
@@ -661,13 +663,23 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 	var style_total := 0.0
 	for part in style:
 		style_total += maxf(0.0, float(style[part]))
+	var levels_before := {}
+	if unbound:
+		for part in Unbound.PARTS:
+			levels_before[part] = Unbound.level(self, part)
 	for kind in to_body:
 		var b := float(to_body[kind])
 		if b <= 0.0:
 			continue
 		density[kind] = float(density.get(kind, 0.0)) + b
 		if unbound:
-			Unbound.settle(self, kind, b)  # (the Unbound: raw, in its part)
+			# (the Unbound: it fills its part, slowly; what can't go in condenses)
+			var left := Unbound.settle(self, kind, b)
+			var spill := floorf(left)
+			if spill >= 1.0:
+				add_crystal(kind, spill)
+				out["made"][kind] = float(out["made"].get(kind, 0.0)) + spill
+				out["lines"].append(Unbound.TEXT["spill"] % [String(Bonds.PART_NAMES[Unbound.part_for(self, kind)]).to_lower(), Flow.Essence.display(kind), int(spill)])
 		elif style_total > 0.0:
 			for part in style:
 				var pd: Dictionary = part_density.get(part, {})
@@ -681,7 +693,36 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 			soak[part] = minf(NEW_MARK_SOAK, float(soak.get(part, 0.0)) + gain)
 	if marked:
 		out["lines"] = feed_marks(to_marks)
+	if unbound:
+		out["lines"].append_array(Unbound.absorb(self))
+		out["lines"].append_array(unbound_levels(levels_before))
 	return out
+
+
+## The stair's lines for an Unbound's parts that filled to a new level
+## (`before`: part -> level before): a part waking, half full, full, pure.
+func unbound_levels(before: Dictionary) -> Array:
+	var lines: Array = []
+	var Tech = load("res://scripts/technique.gd")
+	for part in Unbound.PARTS:
+		var was := int(before.get(part, 0))
+		var lv := Unbound.level(self, part)
+		if lv <= was:
+			continue
+		var name := String(Bonds.PART_NAMES[part]).to_lower()
+		if was < Unbound.MAX_LEVEL and lv >= Unbound.MAX_LEVEL:
+			var sig := Unbound.signature(self, part)
+			if not sig.is_empty():
+				lines.append(Unbound.TEXT["pure_up"] % [Tech.display(Unbound.primary(self, part)), name, String(sig["name"])])
+			else:
+				lines.append(Unbound.TEXT["full_up"] % [name, "its capstone wakes"])
+		elif was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
+			lines.append(Unbound.TEXT["tech_up"] % [name, "a technique"])
+		elif was < Unbound.MINOR_LEVEL and lv >= Unbound.MINOR_LEVEL:
+			lines.append(Unbound.TEXT["minor_up"] % [name, Unbound.minor_text(self, part)])
+		else:
+			lines.append(Unbound.TEXT["level_up"] % [name, lv])
+	return lines
 
 
 ## How a stair spreads the body's share (`style`: what each part did); with
@@ -778,10 +819,20 @@ func drink(kind: String, amount: float, part: String) -> Dictionary:
 	if amount <= 0.0 or not part in Bonds.PARTS:
 		return {"lines": lines, "said": said}
 	if Unbound.is_on(self):
-		var upd: Dictionary = part_density.get(part, {})
-		upd[kind] = float(upd.get(kind, 0.0)) + amount
-		part_density[part] = upd
+		# (a tincture's essence is concentrated: it fills the part as much as
+		# more banked essence would, if the part's rules let it in; what
+		# can't go in condenses into crystals)
+		var why := Unbound.why_not(self, part, kind)
+		if why != "":
+			add_crystal(kind, floorf(amount))
+			return {"lines": lines, "said": why}
+		var boost := float(Flow.TINCTURE.get("mark_boost", 1.0))
+		var before := {part: Unbound.level(self, part)}
+		var left := Unbound.settle_into(self, part, kind, amount * boost)
+		if left / boost >= 1.0:
+			add_crystal(kind, floorf(left / boost))
 		density[kind] = float(density.get(kind, 0.0)) + amount
+		lines = unbound_levels(before)
 		said = String(Flow.TEXT["to_raw"]) % String(Bonds.PART_NAMES[part]).to_lower()
 	elif bonds.has(part):
 		var info: Dictionary = Bonds.BONDS[bonds[part]["id"]]
@@ -814,9 +865,8 @@ func bank_flow(amount: float) -> Array:
 	if path == "" or amount <= 0.0:
 		return []
 	var before := Secret.step_for(flow)
-	flow += amount
+	var lines: Array = load("res://scripts/core.gd").bank(self, amount)["lines"]  # (it settles as core essence: core.gd)
 	var after := Secret.step_for(flow)
-	var lines: Array = [Secret.TEXT["banked"] % [int(round(amount)), Secret.display(path)]]
 	for st in range(before + 1, after + 1):
 		lines.append(Secret.TEXT["step_up"] % [Secret.display(path), st, Secret.STEP_TEXT[path][st - 1]])
 	return lines

@@ -1,17 +1,20 @@
 extends RefCounted
-## The Unbound's techniques: their own spells, built from a body part and
-## one to three essences (the first leads). Every word and number is here.
+## The Unbound's techniques: their own spells. Every word and number is here.
 ##
-## A technique is {"name", "part", "shape", "kinds"}, and maybe "vars" (a
-## variation from the library, library.gd VARIATIONS: at most
+## A technique belongs to a body part (slot i is part i's, cast with its
+## mark button) and is {"name", "part", "shape", "kinds"}, and maybe "vars"
+## (a variation from the library, library.gd VARIATIONS: at most
 ## Library.MAX_VARIATIONS) and "effects" ({kind: effect id}: another of that
 ## essence's library effects in place of its base one):
 ##   the PART gives its shape (SHAPES: the hand strikes or throws a bolt, the
 ##   legs dash or leap, the back raises a shell or pushes, the throat shouts
 ##   in a cone or pulls, the brow marks a foe or sees through fog, the heart
-##   works on yourself);
-##   each KIND adds what it does (KINDS); the first leads (full strength),
-##   the others flavour it (FLAVOUR of their strength).
+##   works on yourself); the climber chooses it at the essence bench;
+##   its KINDS are the part's own mix (unbound.gd sync_tech: what leads the
+##   part, then its modifiers), and "w" their weights (the lead at 1, each
+##   modifier by its share, the core essence's touch by its share of the
+##   part); a core-led part's technique is a core technique ("core": true,
+##   unbound.gd CORE_TECHS, CORE_POWER).
 ## Fill: a technique fills from its body part's actions, the way a mark's
 ## bond does (player.gd _part_action: strikes fill the hand, rolls the legs,
 ## parries the brow...). Full at CHARGE (by how many kinds), it casts without
@@ -24,7 +27,8 @@ extends RefCounted
 ## hold on a phone.
 ## Strain: STRAIN by how many kinds (unbound_run.gd adds it, and erupts at
 ## 100). Strength: the part's level (unbound.gd power).
-## A few ready-made recipes (RECIPES) fill an Unbound's six slots at first.
+## A few ready-made recipes (RECIPES) are kept as examples (the tests and
+## the practice room use them); a new Unbound starts with no technique.
 
 const Unbound := preload("res://scripts/unbound.gd")
 const Library := preload("res://scripts/library.gd")
@@ -86,7 +90,13 @@ static var TEXT := {
 	"boosted": "boosted",
 }
 ## Adjectives for a technique's default name, by its lead kind.
-const NAME_WORD := {"fire": "Burning", "water": "Tidal", "air": "Gale", "stone": "Stone", "iron": "Iron", "blade": "Rending", "life": "Living", "unmaking": "Unmaking"}
+const NAME_WORD := {"fire": "Burning", "water": "Tidal", "air": "Gale", "stone": "Stone", "iron": "Iron", "blade": "Rending", "life": "Making", "unmaking": "Unmaking"}
+## A part's first techniques take a name from the form and the essence that
+## leads it (Fire and the fists: Flame Fist). Names for the owner to change.
+static var FIRST_NAMES := {
+	"strike": {"fire": "Flame Fist", "water": "Tide Fist", "air": "Gale Fist", "stone": "Stone Fist", "iron": "Iron Fist", "blade": "Edge Fist"},
+	"bolt": {"fire": "Ember Bolt", "water": "Tide Bolt", "air": "Gale Bolt", "stone": "Stone Bolt", "iron": "Iron Bolt", "blade": "Blade Bolt"},
+}
 
 
 static func color(kind: String) -> Color:
@@ -159,6 +169,11 @@ static func title(t: Dictionary) -> String:
 
 
 static func auto_name(t: Dictionary) -> String:
+	if bool(t.get("core", false)) and String(t.get("core_name", "")) != "":
+		return String(t["core_name"])
+	var own: String = String(FIRST_NAMES.get(String(t["shape"]), {}).get(lead(t), ""))
+	if own != "":
+		return own
 	return "%s %s" % [NAME_WORD.get(lead(t), "Raw"), SHAPES[t["shape"]]["name"]]
 
 
@@ -243,6 +258,10 @@ static func describe(t: Dictionary) -> String:
 			var fe := Library.effect(fx)
 			phrase = String(fe.get("move", fe.get(key, fe.get("hit", phrase))) if cls == "move" else fe.get(key, fe.get("hit", phrase)))
 		bits.append(phrase if i == 0 else "a little " + phrase if key != "self" else "and a little: " + phrase)
+	for k in weights(t):
+		if not k in t["kinds"] and KINDS.has(k):
+			var cp: String = KINDS[k].get(key, KINDS[k].get("hit", ""))
+			bits.append("a little " + cp if key != "self" else "and a little: " + cp)
 	var what: String = sh["says"]
 	var vs := variations(t)
 	if not vs.is_empty():
@@ -262,6 +281,11 @@ static func describe(t: Dictionary) -> String:
 
 ## The weights each kind acts with: {kind: share}, the lead at 1.
 static func weights(t: Dictionary) -> Dictionary:
+	if t.get("w") is Dictionary and not t["w"].is_empty():
+		var w := {}
+		for k in t["w"]:
+			w[String(k)] = float(t["w"][k])
+		return w
 	var out := {}
 	for i in t["kinds"].size():
 		var k := String(t["kinds"][i])
