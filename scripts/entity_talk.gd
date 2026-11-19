@@ -72,7 +72,10 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
+		"choices": ["how_start", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
+	"how_start": {"ask": "How did my start work?", "fact": "start",
+		"lines": ["Three questions made your start. What you did before gave your weapon and armour: Soldier a sword and chain, Hunter a shortbow, a dagger and leather, Labourer a war hammer and padding, Beggar a dagger and nothing. They're heirlooms, so every climb begins with them. Where you grew up chose your first tower and your home station. Why you climb set how hard it was: born into it, fine gear, {born_crystals} crystals and a family title; hired, common gear, {hired_crystals} crystals, a title and a contract; self made, worn gear and nothing else, but renown a quarter faster until a first title. {start_line}"],
+		"choices": ["how_titles", "how_renown", "how", "bye"]},
 	"how_stamina": {"ask": "Stamina, and why my bar shrinks?", "fact": "rules",
 		"lines": ["Rolls, strikes, shots and jumps cost stamina, and it refills fast, {sta_regen} a second once you stop for a breath. Act with too little and it still happens, but the missing part comes off your max stamina: fatigue. The bar's lost end goes dark, and it fills only to what's left, never below {sta_floor} of it. A Stamina Vial shakes it all off and fills you up. So does a camp's rest, and every climb starts fresh. The stair's rest doesn't touch it."],
 		"choices": ["how_belt", "how", "bye"]},
@@ -367,6 +370,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_dining(main)
 		"travel":
 			f = load("res://scripts/travel.gd").talk_facts(main.profile if main != null else null)
+		"start":
+			f = _fact_start(main)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -720,6 +725,18 @@ static func _fact_titles(main) -> Dictionary:
 		var held: Array = C.active(prof)
 		if not held.is_empty():
 			f["contract_line"] = "You hold: %s." % C.name_of(held[0])
+	return f
+
+
+## A new climber's start (new_start.gd): what each answer gives, and yours.
+static func _fact_start(main) -> Dictionary:
+	var NS = load("res://scripts/new_start.gd")
+	var f := {"born_crystals": str(NS.WHY["born"]["crystals"]), "hired_crystals": str(NS.WHY["hired"]["crystals"]), "start_line": ""}
+	var prof = main.profile if main != null else null
+	if prof != null and prof.origin is Dictionary and not prof.origin.is_empty():
+		var lines: Array = NS.summary(prof.origin)
+		if not lines.is_empty():
+			f["start_line"] = "Yours: " + "; ".join(lines.map(func(l): return String(l).left(1).to_lower() + String(l).substr(1))) + "."
 	return f
 
 

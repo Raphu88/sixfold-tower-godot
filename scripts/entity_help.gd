@@ -61,7 +61,7 @@ static var HELP := {
 	"rail:settings": "Opens the Settings & Controls Car: sound, screen, every key, and Start over.",
 	"rail:dining": "Opens the Dining Car: other climbers at its tables. Rumors, wagers, trades and duels.",
 	"rail:dev": "Dev Tools: switches for testing. Not part of the game.",
-	"rail:exit": "Back to the title screen. Your climber is saved as they are.",
+	"rail:exit": "Back to the title screen. Your climber is saved as {they} {are}.",
 	"rail:quit": "Closes the game. Your climber is saved as they are.",
 	"rail:leave_station": "Back to the train, waiting at this station: your car, the outfitter, the workshop and the engine.",
 	"rail:gym": "Training: short lessons on the basics, with me talking you through, and medal drills.",
@@ -219,6 +219,27 @@ static var HELP := {
 	"setting:padsetup": "Teach the game your controller's buttons.",
 	"setting:data": "Change the game's words, numbers and colours.",
 	"over": "Starts this climber over: no marks, the first climb again. It asks first.",
+	# --- a new climber's start (start_pages.gd) -------------------------------------
+	"start:continue": "Plays the climber you played last, where you left them.",
+	"start:new": "Begins a new climber in an empty slot: my introduction, a name, a look, three questions. Your other climbers are kept.",
+	"start:climbers": "All six slots: choose a climber to play, an empty slot to begin one there, or Delete under a card (it asks twice).",
+	"start:cleared": "Puts this notice away. The cleared climbers' files were kept as copies on this device.",
+	"start:intro_next": "My next line. There are six.",
+	"start:intro_back": "My line before this one.",
+	"start:intro_skip": "Skips my introduction and goes straight to making your climber. Offered once you've made one before.",
+	"start:intro_go": "On to making your climber: a name first.",
+	"start:name": "Your climber's name. It's optional.",
+	"start:dice": "Offers a name. Press again for another.",
+	"start:pronoun": "{desc}",
+	"start:name_next": "On to your look: body, face, hair, clothes and cloak.",
+	"start:name_back": "Back to my introduction.",
+	"start:look_next": "On to three questions that decide how you begin.",
+	"start:answer": "{desc}",
+	"start:quiz_back": "Back one question (or to your look).",
+	"start:begin": "Makes your climber with these answers and starts your first climb, near your home tower.",
+	"start:change": "Back to the first question, to answer again.",
+	"start:wheel": "A colour of your own: pick it on the wheel, then its brightness and strength.",
+	"start:wheel_done": "Keeps this colour and goes back to the rows.",
 	# --- the climber's book --------------------------------------------------------------------------
 	"tab:abilities": "Abilities: what you can cast, and how.",
 	"tab:tree": "The Tree: where you choose how each mark grows.",
@@ -596,6 +617,8 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 	var f := {"words": words(b)}
 	if b.has_meta("help_facts"):
 		f.merge(b.get_meta("help_facts"), true)  # (a button that brings its own facts: the engine's map)
+	if b.has_meta("help_desc"):
+		f["desc"] = str(b.get_meta("help_desc"))  # (a button that carries its own explanation: start_pages.gd's answers)
 	var prof = m.main.profile if m != null and m.main != null else null
 	var player = m.main.player if m != null and m.main != null else null
 	var head := key.get_slice(":", 0)

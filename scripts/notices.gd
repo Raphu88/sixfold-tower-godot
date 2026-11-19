@@ -46,6 +46,7 @@ const Draw := preload("res://scripts/draw_util.gd")
 const Layout := preload("res://scripts/layout.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Anim := preload("res://scripts/anim.gd")
+const Pronouns := preload("res://scripts/pronouns.gd")
 
 ## A banner fades in and out over these (seconds), and holds at most this
 ## long (a task or a note a little longer; a note by its length).
@@ -192,6 +193,8 @@ func announce(b: Dictionary) -> void:
 		current = {}
 		queue.clear()
 		return
+	if b.get("lines") is Array:  # (a line that speaks of the climber: their pronouns)
+		b["lines"] = (b["lines"] as Array).map(func(l): return Pronouns.fill(l) if l is String else l)
 	if not current.is_empty() and _same(current, b):
 		# The same words again (a question asked every frame it's held): no
 		# second fade-in, nothing fed twice.
@@ -372,6 +375,7 @@ static func clip(font: Font, text: String, size: int, w: float) -> String:
 func note(kind: String, text: String, color = null, to_feed = null, once := "") -> void:
 	if text == "":
 		return
+	text = Pronouns.fill(text)  # (a line that speaks of the climber: their pronouns)
 	if once != "":
 		if _once.has(once):
 			return
@@ -387,6 +391,7 @@ func note(kind: String, text: String, color = null, to_feed = null, once := "") 
 func feed(text: String, color: Color = UI.TEXT, kind := "news") -> void:
 	if text == "":
 		return
+	text = Pronouns.fill(text)
 	for f in feed_lines:
 		if f["text"] == text:  # (the same again: once, counted)
 			f["n"] += 1

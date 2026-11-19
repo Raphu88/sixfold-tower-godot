@@ -44,36 +44,69 @@ const GearLook := preload("res://scripts/gear_look.gd")
 
 ## The option rows: [key, name]. The editor shows them a tab at a time (TABS).
 static var ROWS := [
-	["skin", "Skin"], ["eyes", "Eyes"], ["eye_shape", "Eye shape"], ["face", "Features"],
-	["hair", "Hair"], ["hair_color", "Hair colour"], ["beard", "Beard"],
-	["build", "Build"], ["tunic", "Tunic"], ["trousers", "Trousers"], ["boots", "Boots"],
-	["cloak", "Cloak"], ["cloak_style", "Cloak style"], ["trim", "Trim"], ["pattern", "Pattern"], ["hood", "Hood"],
-	["belt", "Belt"], ["neck", "Neck"], ["accessory", "Accessory"],
+	["body", "Body"], ["build", "Build"], ["skin", "Skin"],
+	["eye_shape", "Eye shape"], ["eyes", "Eye colour"], ["face", "Features"],
+	["hair", "Hair"], ["hair_color", "Hair colour"], ["beard", "Facial hair"], ["beard_color", "Beard colour"],
+	["clothes", "Clothes"], ["tunic", "Clothes colour"], ["trousers", "Trousers"], ["boots", "Boots"], ["belt", "Belt"],
+	["cloak_style", "Cape or cloak"], ["cloak", "Cloak colour"], ["trim", "Trim"], ["pattern", "Texture"], ["hood", "Hood"],
+	["accessory", "Accessory"],
 ]
 
 ## The editor's tabs, in order: [id, name, the rows on it].
 static var TABS := [
-	["face", "Face", ["skin", "eyes", "eye_shape", "face"]],
-	["hair", "Hair", ["hair", "hair_color", "beard"]],
-	["body", "Body", ["build", "tunic", "trousers", "boots"]],
-	["cloak", "Cloak", ["cloak", "cloak_style", "trim", "pattern", "hood"]],
-	["extras", "Extras", ["belt", "neck", "accessory"]],
+	["body", "Body", ["body", "build", "skin"]],
+	["face", "Face", ["eye_shape", "eyes", "face"]],
+	["hair", "Hair", ["hair", "hair_color", "beard", "beard_color"]],
+	["clothes", "Clothes", ["clothes", "tunic", "trousers", "boots", "belt"]],
+	["cloak", "Cloak", ["cloak_style", "cloak", "trim", "pattern", "hood"]],
+	["extras", "Extras", ["accessory"]],
 ]
 
 ## Each option: [id, name, colour] (colour options, chosen by swatches) or
 ## [id, name] (the rest). A belt's fourth entry is how it's worn ("belt",
-## "sash" or "rope"). The trim's "none" and the trousers' "match" are not
-## colours (no trim; the tunic's colour): their swatch is drawn empty.
-## The first entry is not special; DEFAULTS says which one is today's look.
+## "sash" or "rope"). The trim's "none", the trousers' "match" and the
+## beard colour's "match" are not colours (no trim; the tunic's colour; the
+## hair's colour): their swatch is drawn empty. The first entry is not
+## special; DEFAULTS says which one is today's look. Colour rows have six
+## presets and a colour wheel (WHEEL): a colour from the wheel is kept as
+## "#rrggbb" in place of an id.
 static var OPTIONS := {
+	"body": [
+		["masculine", "Masculine"],
+		["feminine", "Feminine"],
+		["androgynous", "Androgynous"],
+	],
+	"build": [
+		["slight", "Slight"],
+		["lean", "Lean"],
+		["wiry", "Wiry"],
+		["average", "Average"],
+		["athletic", "Athletic"],
+		["broad", "Broad"],
+		["stocky", "Stocky"],
+		["heavy", "Heavy"],
+		["tall", "Tall and lean"],
+		["short", "Short and sturdy"],
+	],
 	"skin": [
 		["porcelain", "Porcelain", Color(0.98, 0.88, 0.8)],
 		["fair", "Fair", Palette.CLIMBER_SKIN],
-		["warm", "Warm", Color(0.86, 0.69, 0.52)],
 		["olive", "Olive", Color(0.76, 0.61, 0.43)],
 		["tan", "Tan", Color(0.66, 0.48, 0.32)],
 		["brown", "Brown", Color(0.5, 0.35, 0.23)],
 		["deep", "Deep", Color(0.36, 0.25, 0.17)],
+	],
+	"eye_shape": [
+		["round", "Round"],
+		["almond", "Almond"],
+		["narrow", "Narrow"],
+		["wide", "Wide-set"],
+		["hooded", "Hooded"],
+		["upturned", "Upturned"],
+		["downturned", "Downturned"],
+		["deep", "Deep-set"],
+		["heavy", "Heavy-lidded"],
+		["sharp", "Sharp"],
 	],
 	"eyes": [
 		["dark", "Dark", Palette.OUTLINE],
@@ -82,13 +115,6 @@ static var OPTIONS := {
 		["green", "Green", Color(0.32, 0.62, 0.34)],
 		["blue", "Blue", Color(0.33, 0.55, 0.88)],
 		["grey", "Grey", Color(0.62, 0.66, 0.7)],
-		["amber", "Amber", Color(0.9, 0.62, 0.2)],
-	],
-	"eye_shape": [
-		["round", "Round"],
-		["almond", "Almond"],
-		["narrow", "Narrow"],
-		["wide", "Wide-set"],
 	],
 	"face": [
 		["clear", "Clear"],
@@ -101,37 +127,59 @@ static var OPTIONS := {
 	"hair": [
 		["none", "Shaved"],
 		["short", "Short"],
+		["cropped", "Cropped"],
 		["long", "Long"],
 		["tied", "Tied up"],
 		["braid", "Braid"],
-		["cropped", "Cropped"],
 		["curls", "Curls"],
 		["tail", "Ponytail"],
 		["twin", "Twin braids"],
 		["crest", "Crest"],
+		["mane", "Wild mane"],
+		["bun", "Bun"],
+		["swept", "Side-swept"],
+		["undercut", "Shaved sides, long top"],
+		["locks", "Locks"],
 	],
 	"hair_color": [
 		["black", "Black", Color(0.11, 0.1, 0.11)],
-		["dark", "Dark brown", Color(0.22, 0.14, 0.09)],
 		["brown", "Brown", Palette.CLIMBER_HAIR],
 		["auburn", "Auburn", Color(0.52, 0.22, 0.11)],
 		["copper", "Copper", Color(0.74, 0.38, 0.17)],
 		["blond", "Blond", Color(0.86, 0.71, 0.42)],
-		["ash", "Ash", Color(0.62, 0.6, 0.56)],
 		["white", "White", Color(0.9, 0.89, 0.86)],
 	],
 	"beard": [
-		["none", "Clean-shaven"],
+		["none", "None"],
 		["stubble", "Stubble"],
 		["moustache", "Moustache"],
+		["goatee", "Goatee"],
 		["short", "Short beard"],
 		["full", "Full beard"],
 		["braided", "Braided beard"],
+		["chops", "Mutton chops"],
+		["long", "Long beard"],
+		["forked", "Forked beard"],
 	],
-	"build": [
-		["slight", "Slight"],
-		["average", "Average"],
-		["broad", "Broad"],
+	"beard_color": [
+		["match", "As the hair", Palette.CLIMBER_HAIR],
+		["black", "Black", Color(0.11, 0.1, 0.11)],
+		["brown", "Brown", Color(0.36, 0.24, 0.15)],
+		["copper", "Copper", Color(0.74, 0.38, 0.17)],
+		["blond", "Blond", Color(0.86, 0.71, 0.42)],
+		["grey", "Grey", Color(0.66, 0.65, 0.63)],
+	],
+	"clothes": [
+		["tunic", "Tunic"],
+		["vest", "Shirt and vest"],
+		["jerkin", "Jerkin"],
+		["gambeson", "Gambeson"],
+		["coat", "Coat"],
+		["longcoat", "Long coat"],
+		["robe", "Robe"],
+		["wrap", "Wrap"],
+		["tabard", "Tabard"],
+		["sleeveless", "Sleeveless tunic"],
 	],
 	"tunic": [
 		["brown", "Brown", Palette.CLIMBER_TUNIC],
@@ -139,19 +187,15 @@ static var OPTIONS := {
 		["olive", "Olive", Color(0.42, 0.42, 0.27)],
 		["oxblood", "Oxblood", Color(0.44, 0.2, 0.2)],
 		["navy", "Navy", Color(0.23, 0.27, 0.42)],
-		["sand", "Sand", Color(0.64, 0.56, 0.43)],
-		["black", "Black", Color(0.19, 0.18, 0.2)],
 		["cream", "Cream", Color(0.78, 0.73, 0.62)],
 	],
 	"trousers": [
-		["match", "As the tunic", Palette.CLIMBER_TUNIC],
+		["match", "As the clothes", Palette.CLIMBER_TUNIC],
 		["brown", "Brown", Color(0.4, 0.29, 0.2)],
 		["grey", "Grey", Color(0.46, 0.46, 0.48)],
 		["black", "Black", Color(0.2, 0.19, 0.21)],
-		["olive", "Olive", Color(0.44, 0.45, 0.28)],
 		["navy", "Navy", Color(0.25, 0.3, 0.46)],
 		["sand", "Sand", Color(0.68, 0.6, 0.46)],
-		["oxblood", "Oxblood", Color(0.48, 0.22, 0.21)],
 	],
 	"boots": [
 		["brown", "Brown", Palette.CLIMBER_BOOT],
@@ -160,45 +204,6 @@ static var OPTIONS := {
 		["grey", "Grey", Color(0.4, 0.4, 0.42)],
 		["oxblood", "Oxblood", Color(0.4, 0.15, 0.14)],
 		["pale", "Pale", Color(0.72, 0.66, 0.54)],
-	],
-	"cloak": [
-		["teal", "Teal", Palette.CLIMBER_CLOAK],
-		["moss", "Moss", Color(0.38, 0.52, 0.3)],
-		["crimson", "Crimson", Color(0.64, 0.2, 0.2)],
-		["rust", "Rust", Color(0.68, 0.38, 0.2)],
-		["ochre", "Ochre", Color(0.74, 0.58, 0.25)],
-		["plum", "Plum", Color(0.46, 0.27, 0.52)],
-		["midnight", "Midnight", Color(0.22, 0.27, 0.48)],
-		["slate", "Slate", Color(0.42, 0.45, 0.5)],
-		["bone", "Bone", Color(0.78, 0.74, 0.64)],
-		["charcoal", "Charcoal", Color(0.22, 0.21, 0.24)],
-	],
-	"cloak_style": [
-		["long", "Long"],
-		["short", "Short"],
-		["tattered", "Tattered"],
-		["mantle", "Mantle"],
-	],
-	"trim": [
-		["none", "No trim", Color(0.5, 0.5, 0.5)],
-		["gold", "Gold", Color(0.88, 0.7, 0.3)],
-		["silver", "Silver", Color(0.8, 0.82, 0.86)],
-		["bone", "Bone", Color(0.88, 0.84, 0.72)],
-		["crimson", "Crimson", Color(0.74, 0.17, 0.17)],
-		["black", "Black", Color(0.1, 0.09, 0.11)],
-		["teal", "Teal", Color(0.26, 0.66, 0.64)],
-		["violet", "Violet", Color(0.58, 0.38, 0.8)],
-	],
-	"pattern": [
-		["plain", "Plain"],
-		["banded", "Banded hem"],
-		["striped", "Striped"],
-		["embroidered", "Embroidered"],
-		["patched", "Patched"],
-	],
-	"hood": [
-		["up", "Hood up"],
-		["down", "Hood down"],
 	],
 	"belt": [
 		["leather", "Leather belt", Color(0.3, 0.2, 0.13), "belt"],
@@ -209,19 +214,72 @@ static var OPTIONS := {
 		["gold", "Gold sash", Color(0.82, 0.64, 0.26), "sash"],
 		["rope", "Rope", Color(0.7, 0.6, 0.4), "rope"],
 	],
-	"neck": [
-		["none", "Nothing"],
-		["scarf", "Scarf"],
-		["pendant", "Pendant"],
-		["torc", "Torc"],
+	"cloak_style": [
+		["long", "Long cloak"],
+		["short", "Short cloak"],
+		["tattered", "Tattered"],
+		["mantle", "Mantle"],
+		["half", "Half cape"],
+		["shawl", "Shawl"],
+		["poncho", "Poncho"],
+		["wrapped", "Wrapped"],
+		["capelet", "Hooded capelet"],
+		["none", "No cloak"],
+	],
+	"cloak": [
+		["teal", "Teal", Palette.CLIMBER_CLOAK],
+		["crimson", "Crimson", Color(0.64, 0.2, 0.2)],
+		["moss", "Moss", Color(0.38, 0.52, 0.3)],
+		["ochre", "Ochre", Color(0.74, 0.58, 0.25)],
+		["plum", "Plum", Color(0.46, 0.27, 0.52)],
+		["charcoal", "Charcoal", Color(0.22, 0.21, 0.24)],
+	],
+	"trim": [
+		["none", "No trim", Color(0.5, 0.5, 0.5)],
+		["gold", "Gold", Color(0.88, 0.7, 0.3)],
+		["silver", "Silver", Color(0.8, 0.82, 0.86)],
+		["crimson", "Crimson", Color(0.74, 0.17, 0.17)],
+		["black", "Black", Color(0.1, 0.09, 0.11)],
+		["teal", "Teal", Color(0.26, 0.66, 0.64)],
+	],
+	"pattern": [
+		["plain", "Plain"],
+		["banded", "Banded hem"],
+		["striped", "Striped"],
+		["embroidered", "Embroidered"],
+		["patched", "Patched"],
+		["checked", "Checked"],
+		["fur", "Fur-lined"],
+		["quilted", "Quilted"],
+		["scaled", "Scaled"],
+		["runed", "Runed"],
+	],
+	"hood": [
+		["up", "Hood up"],
+		["down", "Hood down"],
 	],
 	"accessory": [
 		["none", "None"],
 		["earrings", "Earrings"],
 		["eyepatch", "Eyepatch"],
 		["feather", "Feather"],
+		["scarf", "Scarf"],
+		["pendant", "Pendant"],
+		["torc", "Torc"],
+		["nosering", "Nose ring"],
+		["headband", "Headband"],
+		["spectacles", "Spectacles"],
 	],
 }
+
+## Choices kept with the look that don't change the drawing: the pronouns
+## (pronouns.gd: chosen on the name step, changed on this page's name row).
+static var EXTRA_OPTIONS := {
+	"pronouns": [["he", "He / him"], ["she", "She / her"], ["they", "They / them"]],
+}
+
+## The colour rows that also offer a colour wheel (a colour of your own).
+const WHEEL := ["skin", "eyes", "hair_color", "beard_color", "tunic", "trousers", "boots", "cloak", "trim"]
 
 ## Today's look: what every climber had before there was a choice (old
 ## saves load with it, an option added later with its entry here) and what
@@ -231,13 +289,15 @@ const DEFAULTS := {
 	"cloak": "teal", "tunic": "brown", "hood": "up",
 	"eye_shape": "round", "face": "clear", "beard": "none", "build": "average",
 	"trousers": "match", "boots": "brown", "cloak_style": "long", "trim": "none",
-	"pattern": "plain", "belt": "leather", "neck": "none", "accessory": "none",
+	"pattern": "plain", "belt": "leather", "accessory": "none",
+	"body": "androgynous", "beard_color": "match", "clothes": "tunic", "pronouns": "they",
 }
 
 ## Colours of the small things that aren't chosen by swatch: the scarf (when
 ## the cloak has no trim; with one, the scarf takes the trim's colour),
 ## metal (earrings, a pendant, a torc, buckles), a pendant's stone, the
-## feather and its tip, the eyepatch, and the face's freckles, scar, ink and paint.
+## feather and its tip, the eyepatch, the face's freckles, scar, ink and
+## paint, a headband, the spectacles' rims, a fur lining and runes.
 static var ACCENTS := {
 	"scarf": Color(0.7, 0.32, 0.2),
 	"metal": Color(0.88, 0.72, 0.36),
@@ -249,23 +309,45 @@ static var ACCENTS := {
 	"scar": Color(0.9, 0.62, 0.58),
 	"ink": Color(0.17, 0.25, 0.44),
 	"paint": Color(0.66, 0.16, 0.13),
+	"band": Color(0.62, 0.22, 0.2),
+	"rims": Color(0.3, 0.24, 0.18),
+	"fur": Color(0.78, 0.7, 0.58),
+	"rune": Color(0.55, 0.85, 1.0),
+	"shirt": Color(0.86, 0.82, 0.74),
 }
 
 ## The body's sizes for each build: in the tower the chest's radius, the
 ## shoulders' distance from the middle, how much bigger the shoulders are
 ## and how wide the cloak hangs; on the front figure `wx` widens the chest,
-## shoulders and cloak (the hands stay where the marks expect them).
+## shoulders and cloak (the hands stay where the marks expect them) and
+## `leg_k` lengthens or shortens the legs.
 static var BUILDS := {
-	"slight": {"torso_r": 7.6, "sh_y": 8.5, "sh_add": -0.5, "width": 0.9, "wx": 0.87},
-	"average": {"torso_r": 8.5, "sh_y": 9.3, "sh_add": 0.0, "width": 1.0, "wx": 1.0},
-	"broad": {"torso_r": 9.5, "sh_y": 10.3, "sh_add": 0.7, "width": 1.12, "wx": 1.14},
+	"slight": {"torso_r": 7.6, "sh_y": 8.5, "sh_add": -0.5, "width": 0.9, "wx": 0.87, "leg_k": 1.0},
+	"lean": {"torso_r": 7.9, "sh_y": 8.9, "sh_add": -0.3, "width": 0.94, "wx": 0.92, "leg_k": 1.02},
+	"wiry": {"torso_r": 8.1, "sh_y": 9.0, "sh_add": -0.2, "width": 0.96, "wx": 0.95, "leg_k": 1.0},
+	"average": {"torso_r": 8.5, "sh_y": 9.3, "sh_add": 0.0, "width": 1.0, "wx": 1.0, "leg_k": 1.0},
+	"athletic": {"torso_r": 8.9, "sh_y": 9.9, "sh_add": 0.4, "width": 1.06, "wx": 1.08, "leg_k": 1.0},
+	"broad": {"torso_r": 9.5, "sh_y": 10.3, "sh_add": 0.7, "width": 1.12, "wx": 1.14, "leg_k": 1.0},
+	"stocky": {"torso_r": 9.3, "sh_y": 9.6, "sh_add": 0.5, "width": 1.09, "wx": 1.11, "leg_k": 0.94},
+	"heavy": {"torso_r": 10.0, "sh_y": 10.0, "sh_add": 0.6, "width": 1.16, "wx": 1.2, "leg_k": 0.98},
+	"tall": {"torso_r": 8.0, "sh_y": 9.1, "sh_add": -0.1, "width": 0.92, "wx": 0.9, "leg_k": 1.08},
+	"short": {"torso_r": 9.0, "sh_y": 9.4, "sh_add": 0.3, "width": 1.03, "wx": 1.05, "leg_k": 0.9},
+}
+
+## The body (masculine, feminine, androgynous): added to the build's
+## chest and shoulders, and on the front figure the shoulders' width
+## (`wx`, a share), the hips and the face's shape.
+static var BODIES := {
+	"masculine": {"torso_add": 0.35, "sh_add": 0.35, "wx": 1.05},
+	"feminine": {"torso_add": -0.35, "sh_add": -0.4, "wx": 0.94},
+	"androgynous": {"torso_add": 0.0, "sh_add": 0.0, "wx": 1.0},
 }
 
 ## Randomise: how often an option that can be plain stays plain (its first
 ## choice), so a rolled climber isn't always wearing everything at once.
 static var RANDOM_PLAIN := {
-	"face": 0.45, "beard": 0.5, "trim": 0.35, "pattern": 0.4, "neck": 0.5, "accessory": 0.55,
-	"trousers": 0.3,
+	"face": 0.45, "beard": 0.5, "trim": 0.35, "pattern": 0.4, "accessory": 0.55,
+	"trousers": 0.3, "beard_color": 0.6, "clothes": 0.3,
 }
 
 const NAME_MAX := 14  # letters in a name (it's optional)
@@ -285,27 +367,44 @@ static var TEXT := {
 	"name": "Name",
 	"name_hint": "optional",
 	"name_dice": "Dice",
+	"pronouns": "Pronouns",
 	"turn_left": "<  Turn",
 	"turn_right": "Turn  >",
 	"randomise": "Randomise",
 	"begin": "Begin",
+	"next": "Next",
 	"done": "Done",
 	"button": "Appearance",  # on the climber screen
+	"custom": "Your own",
+	"wheel_title": "%s: your own colour",
+	"wheel_hue": "Colour",
+	"wheel_shade": "Brightness",
+	"wheel_strength": "Strength",
+	"wheel_done": "Done",
 }
 
 const BOOT := Palette.CLIMBER_BOOT
 
 
 ## A saved appearance made whole: every key present and every id known
-## (anything missing or unknown takes today's look). Safe on old saves.
+## (anything missing or unknown takes today's look; a colour from the
+## wheel, "#rrggbb", is kept on the rows that have one). Safe on old saves.
 static func normalized(raw) -> Dictionary:
 	var out := DEFAULTS.duplicate()
 	if not (raw is Dictionary):
 		return out
 	for key in OPTIONS:
 		var id := str(raw.get(key, out[key]))
-		if index_of(key, id) >= 0:
-			out[key] = id
+		if index_of(key, id) >= 0 or (key in WHEEL and is_custom(id)):
+			out[key] = id.to_lower() if is_custom(id) else id
+	for key in EXTRA_OPTIONS:
+		var id2 := str(raw.get(key, out[key]))
+		if index_of(key, id2) >= 0:
+			out[key] = id2
+	# (an old save's neckpiece is an accessory now, when it has none)
+	var neck := str(raw.get("neck", "none"))
+	if neck in ["scarf", "pendant", "torc"] and out["accessory"] == "none":
+		out["accessory"] = neck
 	out["name"] = clean_name(str(raw.get("name", "")))
 	return out
 
@@ -316,27 +415,54 @@ static func clean_name(s: String) -> String:
 	return s.left(NAME_MAX).strip_edges()
 
 
+## The options of a row (a drawn one, or one kept with the look: EXTRA_OPTIONS).
+static func options_of(key: String) -> Array:
+	return OPTIONS.get(key, EXTRA_OPTIONS.get(key, []))
+
+
 static func index_of(key: String, id: String) -> int:
-	var list: Array = OPTIONS.get(key, [])
+	var list: Array = options_of(key)
 	for i in list.size():
 		if list[i][0] == id:
 			return i
 	return -1
 
 
-## The option `by` steps from the current one (wrapping round).
+## A colour from the wheel: "#rrggbb".
+static func is_custom(id: String) -> bool:
+	return id.length() == 7 and id.begins_with("#") and Color.html_is_valid(id)
+
+
+static func custom_id(c: Color) -> String:
+	return "#" + c.to_html(false).to_lower()
+
+
+## True for the rows that offer a colour wheel.
+static func has_wheel(key: String) -> bool:
+	return key in WHEEL
+
+
+## The option `by` steps from the current one (wrapping round; from a
+## colour of your own, the first or last preset).
 static func step(app: Dictionary, key: String, by: int) -> String:
-	var list: Array = OPTIONS[key]
-	var i := maxi(0, index_of(key, str(app.get(key, DEFAULTS[key]))))
+	var list: Array = options_of(key)
+	var cur := str(app.get(key, DEFAULTS[key]))
+	if is_custom(cur):
+		return list[0 if by > 0 else list.size() - 1][0]
+	var i := maxi(0, index_of(key, cur))
 	return list[(i + by + list.size() * 4) % list.size()][0]
 
 
 static func option_name(key: String, id: String) -> String:
+	if is_custom(id):
+		return TEXT["custom"]
 	var i := index_of(key, id)
-	return OPTIONS[key][i][1] if i >= 0 else id
+	return options_of(key)[i][1] if i >= 0 else id
 
 
 static func color_of(key: String, id: String) -> Color:
+	if is_custom(id) and key in WHEEL:
+		return Color.html(id)
 	var i := index_of(key, id)
 	if i < 0:
 		i = index_of(key, DEFAULTS[key])
@@ -345,12 +471,12 @@ static func color_of(key: String, id: String) -> Color:
 
 ## True for the rows chosen by swatches (they have colours).
 static func has_colors(key: String) -> bool:
-	return OPTIONS[key][0].size() > 2
+	return OPTIONS.has(key) and OPTIONS[key][0].size() > 2
 
 
-## A swatch that isn't a colour: no trim, or trousers like the tunic.
+## A swatch that isn't a colour: no trim, or trousers like the tunic, or a beard like the hair.
 static func is_blank(key: String, id: String) -> bool:
-	return (key == "trim" and id == "none") or (key == "trousers" and id == "match")
+	return (key == "trim" and id == "none") or ((key == "trousers" or key == "beard_color") and id == "match")
 
 
 ## The tab a row is on.
@@ -361,7 +487,7 @@ static func tab_of(key: String) -> String:
 	return String(TABS[0][0])
 
 
-## A random look (the name is kept).
+## A random look (the name and pronouns are kept).
 static func random(keep: Dictionary, rng: RandomNumberGenerator = null) -> Dictionary:
 	var out := normalized(keep)
 	for key in OPTIONS:
@@ -385,34 +511,44 @@ static func random_name(not_this: String) -> String:
 static func look(app) -> Dictionary:
 	var a := normalized(app)
 	var tunic := color_of("tunic", a["tunic"])
+	var hair := color_of("hair_color", a["hair_color"])
 	var bi := index_of("belt", a["belt"])
+	var acc: String = a["accessory"]
+	var cloaked: bool = a["cloak_style"] != "none"
 	var lk := {
 		"skin": color_of("skin", a["skin"]),
-		"hair": color_of("hair_color", a["hair_color"]),
+		"hair": hair,
+		"beard_col": hair if a["beard_color"] == "match" else color_of("beard_color", a["beard_color"]),
 		"eyes": color_of("eyes", a["eyes"]),
 		"cloak": color_of("cloak", a["cloak"]),
 		"tunic": tunic,
 		"boot": color_of("boots", a["boots"]),
 		"trousers": tunic if a["trousers"] == "match" else color_of("trousers", a["trousers"]),
 		"hair_style": a["hair"],
-		"hood_up": a["hood"] == "up",
+		"hood_up": a["hood"] == "up" and cloaked,  # (no cloak, no hood)
 		"eye_r": 0.75 if a["eyes"] == DEFAULTS["eyes"] else 0.95,  # (a colour needs a little more room)
 		"eye_shape": a["eye_shape"],
 		"face": a["face"],
 		"beard": a["beard"],
 		"build": a["build"],
+		"body": a["body"],
+		"clothes": a["clothes"],
 		"cloak_style": a["cloak_style"],
 		"trim_on": a["trim"] != "none",
 		"trim": color_of("trim", a["trim"]),
 		"pattern": a["pattern"],
 		"belt": color_of("belt", a["belt"]),
 		"belt_kind": String(OPTIONS["belt"][bi][3]) if bi >= 0 and OPTIONS["belt"][bi].size() > 3 else "belt",
-		"neck": a["neck"],
-		"accessory": a["accessory"],
+		"neck": acc if acc in ["scarf", "pendant", "torc"] else "none",  # (a neckpiece: drawn at the neck)
+		"accessory": acc,
 	}
 	var bd: Dictionary = BUILDS.get(a["build"], BUILDS["average"])
 	for k in bd:
 		lk[k] = float(bd[k])
+	var by: Dictionary = BODIES.get(a["body"], BODIES["androgynous"])
+	lk["torso_r"] = float(lk["torso_r"]) + float(by["torso_add"])
+	lk["sh_add"] = float(lk["sh_add"]) + float(by["sh_add"])
+	lk["wx"] = float(lk["wx"]) * float(by["wx"])
 	return lk
 
 
@@ -495,6 +631,8 @@ static func _styled(base: Array, lk: Dictionary) -> Array:
 	var style: String = lk.get("cloak_style", "long")
 	var w: float = lk.get("width", 1.0)
 	var out: Array = []
+	if style == "none":
+		return out  # (no cloak at all)
 	for p0 in base:
 		var p: Vector2 = p0
 		match style:
@@ -508,6 +646,29 @@ static func _styled(base: Array, lk: Dictionary) -> Array:
 			"tattered":
 				if p.x < -6.0:
 					p.x = -6.0 + (p.x + 6.0) * 1.12
+			"half":  # one shoulder: the far side pulled in
+				if p.y < 0.0:
+					p.y *= 0.3
+				if p.x < -3.0:
+					p.x = -3.0 + (p.x + 3.0) * 0.8
+			"shawl":  # round the shoulders, wide, to the waist
+				if p.x < -2.0:
+					p.x = -2.0 + (p.x + 2.0) * 0.55
+				p.y *= 1.22
+			"poncho":  # wide all round, over the chest too
+				if p.x < -2.0:
+					p.x = -2.0 + (p.x + 2.0) * 0.6
+				else:
+					p.x += 3.5
+				p.y *= 1.3
+			"wrapped":  # long and drawn in close
+				p.y *= 0.78
+				if p.x > 0.0:
+					p.x += 1.5
+			"capelet":  # a small cape to the shoulder blades
+				if p.x < -2.0:
+					p.x = -2.0 + (p.x + 2.0) * 0.3
+				p.y *= 1.05
 		p.y *= w
 		out.append(p)
 	if style != "tattered":
@@ -548,7 +709,9 @@ static func draw_cloak(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 	var style: String = lk.get("cloak_style", "long")
 	var smooth := style != "tattered"
 	var pts := cloak_points(lk, d, sway)
-	var mid := Vector2(-5.0 + d.x * 0.5, d.y * 0.5) if style != "mantle" else Vector2(-1.0, d.y * 0.2)
+	if pts.size() < 5:
+		return  # (no cloak)
+	var mid := Vector2(-5.0 + d.x * 0.5, d.y * 0.5) if not style in ["mantle", "shawl", "capelet", "poncho"] else Vector2(-1.0, d.y * 0.2)
 	b.poly(_cloth(pts, f, sd, lx, Vector2.ZERO, 1.0, smooth), cloak.darkened(0.3), 1.2)
 	b.polygon(_cloth(pts, f, sd, lx + light * 1.2, mid, 0.86, smooth), cloak)
 	b.polygon(_cloth(pts, f, sd, lx + light * 3.0, mid, 0.45, smooth), Color(cloak.lightened(0.3), 0.45))
@@ -582,6 +745,33 @@ static func _tower_pattern(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vecto
 				var sq := PackedVector2Array([c + _q(f, sd, -1.8, -1.6), c + _q(f, sd, 1.6, -1.9), c + _q(f, sd, 1.9, 1.6), c + _q(f, sd, -1.6, 1.8)])
 				b.polygon(sq, patch)
 				b.path(sq, Color(pc, 0.8), 0.6, true)
+		"checked":  # squares in a grid, every other one
+			for i in 4:
+				for j in 3:
+					if (i + j) % 2 == 0:
+						var c2: Vector2 = lx + _q(f, sd, -1.5 + back * 0.2 * (i + 0.5) + d.x * 0.1 * i, (j - 1) * 4.6 * w + d.y * 0.15 * i)
+						b.polygon(PackedVector2Array([c2 + _q(f, sd, -1.1, -1.1), c2 + _q(f, sd, 1.1, -1.1), c2 + _q(f, sd, 1.1, 1.1), c2 + _q(f, sd, -1.1, 1.1)]), Color(pc, 0.75))
+		"fur":  # a thick pale lining showing round the edge, and the collar
+			b.path(_cloth(pts, f, sd, lx + light * 0.2, mid, 0.97, smooth), ACCENTS["fur"].darkened(0.15), 2.6, true)
+			b.path(_cloth(pts, f, sd, lx + light * 0.4, mid, 0.97, smooth), ACCENTS["fur"], 1.6, true)
+			for sg in [-1.0, 1.0]:
+				b.dot(lx + _q(f, sd, 0.5, sg * 8.0 * w), 2.0, ACCENTS["fur"])
+		"quilted":  # diamonds stitched across the back
+			for k in [-1.0, 0.0, 1.0]:
+				b.line(lx + _q(f, sd, -2.5, k * 6.0 * w - 3.0), lx + _q(f, sd, back * 0.85, k * 6.0 * w + 4.0 + d.y * 0.6), Color(pc, 0.6), 0.7)
+				b.line(lx + _q(f, sd, -2.5, k * 6.0 * w + 3.0), lx + _q(f, sd, back * 0.85, k * 6.0 * w - 4.0 + d.y * 0.6), Color(pc, 0.6), 0.7)
+		"scaled":  # rows of little arcs, like a wyrm's hide
+			for i in 3:
+				for j in 4:
+					var c3: Vector2 = lx + _q(f, sd, -2.5 + back * 0.24 * (i + 0.6), (j - 1.5) * 3.6 * w + d.y * 0.2 * i + (1.8 if i % 2 == 1 else 0.0))
+					b.arc(c3, 1.7, f.angle() + PI * 0.5, f.angle() + PI * 1.5, 5, Color(pc, 0.8), 0.7)
+		"runed":  # glowing glyphs down the back
+			var rc: Color = ACCENTS["rune"]
+			for i in 3:
+				var c4: Vector2 = lx + _q(f, sd, -3.0 + back * 0.25 * (i + 1), (i - 1) * 3.0 * w + d.y * 0.25 * i)
+				b.line(c4 + _q(f, sd, -1.4, 0.0), c4 + _q(f, sd, 1.4, 0.0), rc, 0.8)
+				b.line(c4 + _q(f, sd, 0.0, -1.0), c4 + _q(f, sd, 1.0, 1.0), rc, 0.8)
+				b.dot(c4 + _q(f, sd, -1.0, 1.0), 0.5, rc)
 
 
 ## The chest (body), by build, under the belt (clothes) and a pendant.
@@ -589,7 +779,17 @@ static func _tower_pattern(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vecto
 static func draw_torso(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, lk: Dictionary) -> void:
 	var r: float = lk.get("torso_r", 8.5)
 	var c := lx + f * 2.0
-	b.ball(c, r, lk.get("torso", lk.get("tunic", Palette.CLIMBER_TUNIC)), true, light)
+	var tunic: Color = lk.get("tunic", Palette.CLIMBER_TUNIC)
+	var clothes: String = lk.get("clothes", "tunic")
+	# A robe's or a long coat's skirts spread round the legs, under the chest.
+	if clothes == "robe":
+		b.ball(c + f * -0.5, r + 3.2, tunic.darkened(0.12), true, light)
+	elif clothes == "longcoat":
+		for sg in [-1.0, 1.0]:
+			b.poly(PackedVector2Array([c + _q(f, sd, -2.0, sg * 2.0), c + _q(f, sd, -r - 4.5, sg * 4.5), c + _q(f, sd, -r - 3.0, sg * 0.6)]), tunic.darkened(0.2), 0.8)
+	b.ball(c, r, lk.get("torso", tunic), true, light)
+	if lk.get("torso", tunic) == tunic:
+		_tower_clothes(b, c, f, sd, lk, r)
 	# The belt round the waist: its front shows past the head.
 	var col: Color = lk.get("belt", Color(0.3, 0.2, 0.13))
 	var fa := f.angle()
@@ -611,6 +811,51 @@ static func draw_torso(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 	if String(lk.get("neck", "none")) == "pendant":
 		b.dot(c + f * (r - 3.4), 1.3, Palette.OUTLINE)
 		b.dot(c + f * (r - 3.4), 0.9, ACCENTS["stone"])
+
+
+## What the clothes show on the chest from above (not under armour): a
+## vest's edges over a shirt, a jerkin's laces, a gambeson's quilting, a
+## coat's collar and buttons, a robe's open neck, a wrap's crossing, a
+## tabard's panel, bare shoulders without sleeves.
+static func _tower_clothes(b, c: Vector2, f: Vector2, sd: Vector2, lk: Dictionary, r: float) -> void:
+	var tunic: Color = lk.get("tunic", Palette.CLIMBER_TUNIC)
+	var dark := tunic.darkened(0.35)
+	var fa := f.angle()
+	match String(lk.get("clothes", "tunic")):
+		"vest":
+			b.polygon(PackedVector2Array([c + _q(f, sd, r - 0.6, -1.6), c + _q(f, sd, r - 0.6, 1.6), c + _q(f, sd, 0.5, 1.2), c + _q(f, sd, 0.5, -1.2)]), ACCENTS["shirt"])
+			for sg in [-1.0, 1.0]:
+				b.line(c + _q(f, sd, r - 0.8, sg * 1.8), c + _q(f, sd, 0.0, sg * 3.6), dark, 1.0)
+		"jerkin":
+			for i in 3:
+				var at := c + f * (r - 1.6 - i * 2.0)
+				b.line(at + sd * 1.0 + f * 0.6, at - sd * 1.0 - f * 0.6, dark, 0.7)
+				b.line(at - sd * 1.0 + f * 0.6, at + sd * 1.0 - f * 0.6, dark, 0.7)
+		"gambeson":
+			for k in [0.45, 0.72]:
+				b.arc(c, r * k, fa - 1.4, fa + 1.4, 10, Color(0, 0, 0, 0.28), 0.8)
+		"coat":
+			for sg in [-1.0, 1.0]:
+				b.line(c + _q(f, sd, r - 0.4, sg * 0.8), c + _q(f, sd, r - 3.0, sg * 3.4), dark, 1.2)
+			for i in 2:
+				b.dot(c + f * (r - 3.8 - i * 2.2), 0.6, ACCENTS["metal"])
+		"longcoat":
+			for sg in [-1.0, 1.0]:
+				b.line(c + _q(f, sd, r - 0.4, sg * 0.6), c + _q(f, sd, r - 3.6, sg * 4.0), dark, 1.4)
+			b.line(c + f * (r - 0.5), c + f * 1.0, dark, 0.8)
+		"robe":
+			b.polygon(PackedVector2Array([c + _q(f, sd, r - 0.3, -2.0), c + _q(f, sd, r - 0.3, 2.0), c + _q(f, sd, r - 3.4, 0.0)]), lk["skin"].darkened(0.1))
+			b.arc(c, r - 0.8, fa - 0.6, fa + 0.6, 6, dark, 1.0)
+		"wrap":
+			b.line(c + _q(f, sd, r - 0.6, -3.0), c + _q(f, sd, 1.0, 4.5), dark, 1.3)
+			b.dot(c + _q(f, sd, 1.2, 4.6), 1.0, dark)
+		"tabard":
+			var pc := lk["cloak"] as Color
+			b.polygon(PackedVector2Array([c + _q(f, sd, r - 0.2, -2.2), c + _q(f, sd, r - 0.2, 2.2), c + _q(f, sd, -r + 0.4, 2.2), c + _q(f, sd, -r + 0.4, -2.2)]), pc.darkened(0.1))
+			b.dot(c + f * (r - 3.0), 1.0, ACCENTS["metal"])
+		"sleeveless":
+			for sg in [-1.0, 1.0]:
+				b.arc(c, r - 0.6, fa + sg * 1.05 - 0.25, fa + sg * 1.05 + 0.25, 4, lk["skin"], 1.3)
 
 
 ## The climber's head in the tower, seen from above, facing `f` (`sd` is
@@ -646,6 +891,16 @@ static func draw_head(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2, l
 					for i in 2:
 						var k := float(i)
 						b.ball(hd + f * (-6.4 - 2.2 * k + drift.x * 0.3) + sd * (sg * (3.6 + 0.6 * k) + trail * (0.8 + 0.4 * k)), 1.7 - 0.25 * k, hair, true, light)
+			"bun":  # a bun pushing the hood out behind
+				b.ball(hd + f * (-7.6 + drift.x * 0.2), 3.3, hair.darkened(0.08), true, light)
+			"mane":  # wild hair bursting out round the hood
+				for i in 5:
+					var a := f.angle() + PI + (float(i) - 2.0) * 0.55
+					b.dot(hd + Vector2.from_angle(a) * 7.2 + sd * trail * 0.5, 2.1, hair.darkened(0.1) if i % 2 == 0 else hair)
+			"locks":  # locks hanging out from under the hood
+				for sg in [-1.0, 1.0]:
+					for i in 2:
+						b.stroke(hd + f * (-1.0 - i * 2.5) + sd * sg * 5.0, hd + f * (-6.0 - i * 2.5 + drift.x * 0.3) + sd * (sg * 6.4 + trail), hair, 1.2)
 	if head == "hood" or head == "coif":
 		b.poly(PackedVector2Array([hd + f * -2.0 + sd * 4.2, hd + f * (-8.5 + drift.x * 0.3) + sd * trail, hd + f * -2.0 + sd * -4.2]), hood.darkened(0.15), 1.0)
 	if head == "cap":
@@ -674,8 +929,18 @@ static func draw_head(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2, l
 				var fringe := hair
 				if style == "cropped":
 					fringe = hair.lerp(lk["skin"], 0.4)
-				b.dot(hd + f * (2.9 if style != "crest" else 2.4), 3.1 if style != "crest" else 1.8, fringe)
+				match style:
+					"crest":
+						b.dot(hd + f * 2.4, 1.8, fringe)
+					"swept":  # the fringe swept over to one side
+						b.dot(hd + f * 2.9 + sd * 1.3, 3.3, fringe)
+					"undercut":  # a long top falling forward, the sides shaved
+						b.dot(hd + f * 3.2, 2.2, fringe)
+					_:
+						b.dot(hd + f * 2.9, 3.1, fringe)
 			b.dot(hd + f * 4.5, 2.8, lk["skin"])
+			if style == "swept":
+				b.dot(hd + f * 4.2 + sd * 2.3, 1.4, hair)  # (falling over one eye's corner)
 			if head == "hood":
 				if style == "long":
 					for s in [-1.0, 1.0]:  # locks either side of the face
@@ -710,9 +975,21 @@ static func _tower_neck(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2,
 static func _tower_face(b, hd: Vector2, f: Vector2, sd: Vector2, lk: Dictionary, bare: bool) -> void:
 	var c := hd + f * (-0.6 if bare else 0.0)
 	var fa := f.angle()
-	var hair: Color = lk["hair"]
+	var hair: Color = lk.get("beard_col", lk["hair"])
 	# The beard: a crescent of hair at the chin, in front of the eyes.
 	match String(lk.get("beard", "none")):
+		"goatee":
+			b.dot(c + f * 7.4, 1.3, hair)
+		"chops":  # down the cheeks, the chin bare
+			for sg in [-1.0, 1.0]:
+				b.arc(c, 6.9, fa + sg * 0.95 - 0.28, fa + sg * 0.95 + 0.28, 4, hair, 2.0)
+		"long":
+			b.arc(c, 7.2, fa - 1.0, fa + 1.0, 10, hair, 2.6)
+			b.stroke(c + f * 7.6, c + f * 11.5, hair.darkened(0.1), 2.6)
+		"forked":
+			b.arc(c, 7.2, fa - 1.0, fa + 1.0, 10, hair, 2.4)
+			for sg in [-1.0, 1.0]:
+				b.stroke(c + f * 7.8 + sd * sg * 0.8, c + f * 10.6 + sd * sg * 2.2, hair, 1.4)
 		"stubble":
 			b.arc(c, 7.0, fa - 0.75, fa + 0.75, 8, Color(hair.lerp(lk["skin"], 0.35), 0.8), 1.4)
 		"moustache":
@@ -761,6 +1038,21 @@ static func _eyes(b, hd: Vector2, f: Vector2, sd: Vector2, lk: Dictionary) -> vo
 			"almond":
 				b.line(at - sd * 0.6, at + sd * 0.6, col, r * 1.3)
 				b.dot(at, r * 0.8, col)
+			"hooded":  # a heavy fold over each eye
+				b.dot(at, r * 0.85, col)
+				b.line(at - f * 0.6 - sd * 0.8, at - f * 0.6 + sd * 0.8, lk["skin"].darkened(0.35), 0.5)
+			"upturned":
+				b.line(at - sd * s * 0.7 + f * 0.25, at + sd * s * 0.7 - f * 0.25, col, r * 1.1)
+			"downturned":
+				b.line(at - sd * s * 0.7 - f * 0.25, at + sd * s * 0.7 + f * 0.25, col, r * 1.1)
+			"deep":  # set in shadow
+				b.dot(at, r + 0.45, Color(Palette.OUTLINE, 0.35))
+				b.dot(at, r * 0.7, col)
+			"heavy":  # lids half down
+				b.dot(at, r, col)
+				b.line(at - sd * 0.9 - f * 0.3, at + sd * 0.9 - f * 0.3, lk["skin"].darkened(0.15), 0.8)
+			"sharp":
+				b.polygon(PackedVector2Array([at - sd * 0.95, at + f * 0.35 + sd * s * 0.3, at + sd * 0.95, at - f * 0.3]), col)
 			_:
 				b.dot(at, r, col)
 	if patch:  # its strap, over the head
@@ -787,6 +1079,22 @@ static func _tower_extras(b, hd: Vector2, f: Vector2, sd: Vector2, lk: Dictionar
 				to = hd + f * (-11.5 + drift.x * 0.3) + sd * trail
 			b.stroke(from, to, ACCENTS["feather"], 1.5)
 			b.dot(to, 1.1, ACCENTS["feather_tip"])
+		"nosering":
+			if head != "helm":
+				b.dot(hd + f * (6.6 if head == "bare" else 7.0), 0.55, ACCENTS["metal"])
+		"headband":
+			if head != "helm":
+				var rr := 5.9 if head == "bare" else 6.7
+				b.arc(hd, rr, f.angle() - 1.3, f.angle() + 1.3, 10, ACCENTS["band"], 1.2)
+				if head == "bare":
+					b.line(hd + f * -5.6, hd + f * (-8.4 + drift.x * 0.3) + sd * trail, ACCENTS["band"], 0.9)  # (its tails)
+		"spectacles":
+			if head != "helm":
+				var c := hd + f * (5.4 if head == "bare" else 6.0)
+				var gap := 1.85 if String(lk.get("eye_shape", "")) == "wide" else 1.3
+				for s in [-1.0, 1.0]:
+					b.arc(c + sd * s * gap, 1.05, 0.0, TAU, 8, ACCENTS["rims"], 0.4)
+				b.line(c + sd * -0.3, c + sd * 0.3, ACCENTS["rims"], 0.4)
 
 
 ## Hood down: the hood bunched behind the neck, the hair (or the bare scalp)
@@ -795,12 +1103,13 @@ static func _bare_head(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 	var hair: Color = lk["hair"]
 	var skin: Color = lk["skin"]
 	var trail := sway * 0.35 + drift.y * 0.35
-	# The hood, down, in folds on the shoulders behind the head.
-	b.ball(hd + f * -3.6, 5.8, lk["hood"], true, light)
-	b.line(hd + f * -4.0 + sd * 4.2, hd + f * -7.8 + sd * 1.2, lk["hood"].darkened(0.3), 1.1)
-	b.line(hd + f * -4.0 - sd * 4.2, hd + f * -7.8 - sd * 1.2, lk["hood"].darkened(0.3), 1.1)
-	if lk.get("trim_on", false):
-		b.arc(hd + f * -3.6, 6.4, f.angle() + 2.0, f.angle() + TAU - 2.0, 10, lk["trim"], 1.1)
+	# The hood, down, in folds on the shoulders behind the head (none without a cloak).
+	if String(lk.get("cloak_style", "long")) != "none":
+		b.ball(hd + f * -3.6, 5.8, lk["hood"], true, light)
+		b.line(hd + f * -4.0 + sd * 4.2, hd + f * -7.8 + sd * 1.2, lk["hood"].darkened(0.3), 1.1)
+		b.line(hd + f * -4.0 - sd * 4.2, hd + f * -7.8 - sd * 1.2, lk["hood"].darkened(0.3), 1.1)
+		if lk.get("trim_on", false):
+			b.arc(hd + f * -3.6, 6.4, f.angle() + 2.0, f.angle() + TAU - 2.0, 10, lk["trim"], 1.1)
 	match style:
 		"long":  # hair down the back, swaying with the cloak
 			var tip := hd + f * (-11.0 + drift.x * 0.4) + sd * trail
@@ -819,17 +1128,34 @@ static func _bare_head(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 				for i in 3:
 					var k := float(i)
 					b.ball(hd + f * (-4.0 - 2.3 * k + drift.x * 0.3 * k / 2.0) + sd * (sg * (3.4 + 0.5 * k) + trail * k / 2.0), 1.8 - 0.25 * k, hair, true, light)
-	if style != "long":
+		"mane":  # a great wild mass all round the head
+			for i in 9:
+				var a := f.angle() + PI + (float(i) - 4.0) * 0.5
+				b.dot(hd + Vector2.from_angle(a) * 6.2 + sd * trail * 0.4, 2.6, hair.darkened(0.12) if i % 2 == 0 else hair)
+		"locks":  # locks hanging down the back and sides
+			for i in 6:
+				var a := f.angle() + PI + (float(i) - 2.5) * 0.42
+				var from := hd + Vector2.from_angle(a) * 4.5
+				b.stroke(from, from + Vector2.from_angle(a) * 5.0 + f * (drift.x * 0.3) + sd * trail, hair.darkened(0.08 * (i % 2)), 1.4)
+	if style != "long" and style != "mane" and style != "locks":
 		for s in [-1.0, 1.0]:  # ears
 			b.dot(hd + f * 1.0 + sd * (s * 5.6), 1.5, Palette.OUTLINE)
 			b.dot(hd + f * 1.0 + sd * (s * 5.6), 1.0, skin.darkened(0.1))
 	var top := hair
 	match style:
-		"none", "crest":
+		"none", "crest", "undercut":
 			top = skin
 		"cropped":
 			top = hair.lerp(skin, 0.4)
 	b.ball(hd, 5.8, top, true, light)
+	match style:
+		"bun":  # a bun at the crown
+			b.ball(hd + f * -2.4, 2.9, hair.darkened(0.1), true, light)
+			b.line(hd + f * -2.4 + sd * -3.0, hd + f * -2.4 + sd * 3.0, ACCENTS["metal"].darkened(0.2), 0.6)
+		"undercut":  # a wide strip of long hair on top, swept to one side
+			b.poly(PackedVector2Array([hd + f * 3.4 + sd * -2.0, hd + f * 3.4 + sd * 2.4, hd + f * -5.0 + sd * 3.4, hd + f * -5.4 + sd * -1.4]), hair, 0.8)
+		"swept":
+			b.dot(hd + f * 1.0 + sd * 2.2, 3.4, hair.darkened(0.1))
 	if style == "curls":
 		for i in 8:
 			var a := f.angle() + PI + (float(i) - 3.5) * 0.62
@@ -850,10 +1176,33 @@ static func _bare_head(b, hd: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 ## Rolling, curled in the cloak: its trim and pattern show on the ball.
 static func draw_rolled_cloak(b, lk: Dictionary, fwd: Vector2, across: Vector2, spin: float, light: Vector2) -> void:
 	var cloak: Color = lk["cloak"]
-	var r := 12.0 * float({"short": 0.94, "mantle": 0.88}.get(lk.get("cloak_style", "long"), 1.0)) * sqrt(float(lk.get("width", 1.0)))
+	var style: String = lk.get("cloak_style", "long")
+	var r := 12.0 * float(ROLLED.get(style, 1.0)) * sqrt(float(lk.get("width", 1.0)))
+	if style == "none":  # no cloak: curled up in your clothes
+		b.ball(Vector2.ZERO, r, lk.get("tunic", cloak), true, light)
+		b.line(fwd * cos(spin) * r * 0.6 + across * r * 0.6, fwd * cos(spin) * r * 0.6 - across * r * 0.6, lk.get("tunic", cloak).darkened(0.3), 1.6)
+		return
 	b.ball(Vector2.ZERO, r, cloak, true, light)
 	var pc := pattern_color(lk)
 	var pattern: String = lk.get("pattern", "plain")
+	match pattern:
+		"checked":
+			for i in 4:
+				var at := Vector2.from_angle(spin + i * TAU / 4.0) * r * 0.45
+				b.polygon(PackedVector2Array([at + Vector2(-1.4, -1.4), at + Vector2(1.4, -1.4), at + Vector2(1.4, 1.4), at + Vector2(-1.4, 1.4)]), pc)
+		"fur":
+			b.arc(Vector2.ZERO, r - 0.6, 0.0, TAU, 20, ACCENTS["fur"], 2.4)
+		"quilted":
+			b.line(Vector2.from_angle(spin) * r * 0.8, Vector2.from_angle(spin + PI) * r * 0.8, Color(pc, 0.6), 0.8)
+			b.line(Vector2.from_angle(spin + PI * 0.5) * r * 0.8, Vector2.from_angle(spin + PI * 1.5) * r * 0.8, Color(pc, 0.6), 0.8)
+		"scaled":
+			for i in 6:
+				b.arc(Vector2.from_angle(spin + i * TAU / 6.0) * r * 0.55, 1.8, spin, spin + PI, 5, pc, 0.8)
+		"runed":
+			for i in 3:
+				var at2 := Vector2.from_angle(spin + i * TAU / 3.0) * r * 0.5
+				b.line(at2 + Vector2(-1.2, 0), at2 + Vector2(1.2, 0), ACCENTS["rune"], 0.8)
+				b.line(at2 + Vector2(0, -1.2), at2 + Vector2(0.8, 1.2), ACCENTS["rune"], 0.8)
 	# Folds of cloak sweep over the back as it turns.
 	for k in 2:
 		var x: float = cos(spin + k * PI) * r * 0.66
@@ -867,10 +1216,15 @@ static func draw_rolled_cloak(b, lk: Dictionary, fwd: Vector2, across: Vector2, 
 			b.dot(Vector2.from_angle(spin + i * TAU / 5.0) * r * 0.7, 0.9 if pattern == "embroidered" else 1.6, pc)
 	if lk.get("trim_on", false):
 		b.arc(Vector2.ZERO, r - 1.0, 0.0, TAU, 20, lk["trim"], 1.3)
-	if lk.get("cloak_style", "long") == "tattered":
+	if style == "tattered":
 		for i in 4:
 			var a := spin + i * TAU / 4.0
 			b.line(Vector2.from_angle(a) * (r - 0.5), Vector2.from_angle(a) * (r + 2.2), cloak.darkened(0.25), 1.6)
+
+
+## How big the rolled-up cloak is, by style (a share of a long cloak's).
+static var ROLLED := {"long": 1.0, "short": 0.94, "tattered": 1.0, "mantle": 0.88, "half": 0.9, "shawl": 0.92, "poncho": 0.97,
+	"wrapped": 0.86, "capelet": 0.84, "none": 0.8}
 
 
 ## Fallen, face down: the legs and boots out from under the cloak (body),
@@ -884,6 +1238,8 @@ static func draw_fallen_body(b, f: Vector2, sd: Vector2, light: Vector2, lk: Dic
 	var cloak: Color = lk["cloak"]
 	var smooth: bool = lk.get("cloak_style", "long") != "tattered"
 	var shape := fallen_cloak_points(lk)
+	if shape.size() < 3:
+		return  # (no cloak: the clothes show, drawn by the caller)
 	b.poly(_cloth(shape, f, sd, Vector2.ZERO, Vector2.ZERO, 1.0, smooth), cloak.darkened(0.25), 1.2)
 	b.polygon(_cloth(shape, f, sd, light * 1.5, Vector2(-6.0, 0.0), 0.8, smooth), cloak)
 	var pc := pattern_color(lk)
@@ -900,6 +1256,26 @@ static func draw_fallen_body(b, f: Vector2, sd: Vector2, light: Vector2, lk: Dic
 		"patched":
 			b.dot(_q(f, sd, -12.0, 5.0), 2.0, cloak.darkened(0.22))
 			b.dot(_q(f, sd, -9.0, -7.0), 1.7, cloak.lightened(0.15))
+		"checked":
+			for i in 3:
+				for j in 3:
+					if (i + j) % 2 == 0:
+						var c := _q(f, sd, -4.0 - i * 4.0, (j - 1) * 5.0)
+						b.polygon(PackedVector2Array([c + _q(f, sd, -1.3, -1.3), c + _q(f, sd, 1.3, -1.3), c + _q(f, sd, 1.3, 1.3), c + _q(f, sd, -1.3, 1.3)]), Color(pc, 0.75))
+		"fur":
+			b.path(_cloth(shape, f, sd, light * 0.4, Vector2(-6.0, 0.0), 0.95, smooth), ACCENTS["fur"], 2.2, true)
+		"quilted":
+			for k in [-1.0, 1.0]:
+				b.line(_q(f, sd, -3.0, -8.0 * k), _q(f, sd, -15.0, 8.0 * k), Color(pc, 0.6), 0.8)
+		"scaled":
+			for i in 3:
+				for j in 3:
+					b.arc(_q(f, sd, -5.0 - i * 4.0, (j - 1) * 5.0), 1.8, f.angle() + PI * 0.5, f.angle() + PI * 1.5, 5, Color(pc, 0.8), 0.7)
+		"runed":
+			for i in 3:
+				var c2 := _q(f, sd, -5.0 - i * 4.0, (i - 1) * 3.0)
+				b.line(c2 + _q(f, sd, -1.4, 0.0), c2 + _q(f, sd, 1.4, 0.0), ACCENTS["rune"], 0.8)
+				b.line(c2 + _q(f, sd, 0.0, -1.0), c2 + _q(f, sd, 1.0, 1.0), ACCENTS["rune"], 0.8)
 	if lk.get("trim_on", false):
 		b.path(_cloth(shape, f, sd, light * 0.6, Vector2(-6.0, 0.0), 0.92, smooth), lk["trim"], 1.3, true)
 
@@ -954,8 +1330,18 @@ static func _front_cloak_outline(style: String) -> PackedVector2Array:
 			return _p([-30, -68, 30, -68, 46, -20, 52, 22, 54, 40, 40, 46, 22, 42, 0, 45, -22, 42, -40, 46, -54, 40, -52, 22, -46, -20])
 		"tattered":
 			return _p([-30, -68, 30, -68, 46, -20, 56, 40, 66, 96, 59, 106, 52, 93, 44, 112, 35, 98, 25, 114, 14, 100, 4, 115, -6, 100, -16, 113, -26, 98, -36, 111, -44, 94, -53, 108, -60, 94, -67, 101, -56, 40, -46, -20])
-		"mantle":
+		"mantle", "none":
 			return PackedVector2Array()
+		"half":  # hanging from one shoulder
+			return _p([-30, -68, -2, -68, 4, -20, 8, 40, 4, 100, -14, 110, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20])
+		"shawl":  # to the waist
+			return _p([-30, -68, 30, -68, 46, -20, 50, 6, 30, 13, 0, 9, -30, 13, -50, 6, -46, -20])
+		"poncho":  # wide, to the hips
+			return _p([-34, -68, 34, -68, 56, -10, 60, 30, 30, 36, 0, 33, -30, 36, -60, 30, -56, -10])
+		"wrapped":  # long and drawn in close
+			return _p([-26, -68, 26, -68, 38, -20, 44, 40, 48, 104, 30, 110, 0, 106, -30, 110, -48, 104, -44, 40, -38, -20])
+		"capelet":  # to the shoulder blades
+			return _p([-30, -68, 30, -68, 44, -32, 46, -12, 24, -5, 0, -9, -24, -5, -46, -12, -44, -32])
 	return _p([-30, -68, 30, -68, 46, -20, 56, 40, 64, 100, 48, 108, 30, 104, 14, 110, 0, 104, -14, 110, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20])
 
 
@@ -979,15 +1365,23 @@ static func _front_cloak(b, lk: Dictionary) -> void:
 	_fill_in(b, out, _p([-90, -80, -6, -80, -10, 140, -90, 140]), cloak.darkened(0.04))
 	_fill_in(b, out, _sx(_p([38, -36, 90, -36, 90, 140, 46, 140, 44, 40]), wc), cloak.darkened(0.4))
 	_fill_in(b, out, _p([-21, 10, 21, 10, 27, 140, -27, 140]), cloak.darkened(0.58))
-	var short := style == "short"
+	var short := style == "short" or style == "poncho"
+	var small := style == "shawl" or style == "capelet"  # (too short for folds)
 	var folds := [[-40, 0, -46, 38], [-27, 10, -30, 40], [32, 6, 36, 38], [46, 8, 50, 38]] if short else [[-40, 18, -52, 100], [-27, 30, -33, 104], [32, 24, 40, 100], [46, 30, 56, 98]]
+	if style == "half":
+		folds = [[-40, 18, -52, 100], [-27, 30, -33, 104]]
+	elif style == "poncho":
+		folds = [[-40, 0, -46, 30], [46, 8, 50, 30]]
+	if small:
+		folds = []
+	var fk := wc * (0.78 if style == "wrapped" else 1.0)  # (a wrapped cloak hangs closer: its folds too)
 	for fl in folds:
-		b.line(Vector2(fl[0] * wc, fl[1]), Vector2(fl[2] * wc, fl[3]), Color(cloak.darkened(0.5), 0.75), 1.8)
+		b.line(Vector2(fl[0] * fk, fl[1]), Vector2(fl[2] * fk, fl[3]), Color(cloak.darkened(0.5), 0.75), 1.8)
 	if short:
-		b.line(Vector2(-50 * wc, 8), Vector2(-52 * wc, 34), Color(cloak.lightened(0.3), 0.35), 1.4)
-	else:
-		b.line(Vector2(-58 * wc, 50), Vector2(-62 * wc, 98), Color(cloak.lightened(0.3), 0.35), 1.4)
-	_front_pattern(b, lk, out, short)
+		b.line(Vector2(-50 * fk, 8), Vector2(-52 * fk, 28), Color(cloak.lightened(0.3), 0.35), 1.4)
+	elif not small:
+		b.line(Vector2(-58 * fk, 50), Vector2(-62 * fk, 98), Color(cloak.lightened(0.3), 0.35), 1.4)
+	_front_pattern(b, lk, out, short or small)
 	if lk.get("trim_on", false):
 		b.path(out, lk["trim"], 2.4, true)
 
@@ -1024,6 +1418,51 @@ static func _front_pattern(b, lk: Dictionary, out: PackedVector2Array, short: bo
 						var m := p0.lerp(p1, u)
 						var n := (p1 - p0).orthogonal().normalized()
 						b.line(m - n * 1.4, m + n * 1.4, Color(pc, 0.85), 1.0)
+		"checked":
+			var y := -70.0
+			var row := 0
+			while y < 120.0:
+				var x2 := -72.0 + (10.0 if row % 2 == 1 else 0.0)
+				while x2 < 72.0:
+					_fill_in(b, out, _p([x2, y, x2 + 10, y, x2 + 10, y + 10, x2, y + 10]), Color(pc, 0.55))
+					x2 += 20.0
+				y += 10.0
+				row += 1
+		"fur":
+			b.path(out, ACCENTS["fur"].darkened(0.2), 6.0, true)
+			b.path(out, ACCENTS["fur"], 3.6, true)
+		"quilted":
+			var q := -150.0
+			while q <= 150.0:
+				_fill_in(b, out, _p([q - 0.9, -80, q + 0.9, -80, q + 0.9 + 110, 130, q - 0.9 + 110, 130]), Color(pc, 0.55))
+				_fill_in(b, out, _p([q - 0.9, -80, q + 0.9, -80, q + 0.9 - 110, 130, q - 0.9 - 110, 130]), Color(pc, 0.55))
+				q += 16.0
+		"scaled":
+			var sy := -60.0
+			var srow := 0
+			while sy < 120.0:
+				var sx := -66.0 + (4.0 if srow % 2 == 1 else 0.0)
+				while sx < 70.0:
+					var arc := PackedVector2Array()
+					for i in 7:
+						var a := PI * float(i) / 6.0
+						arc.append(Vector2(sx + cos(a) * 4.0, sy + sin(a) * 3.6))
+					for piece in Geometry2D.intersect_polyline_with_polygon(arc, out):
+						b.path(piece, Color(pc, 0.75), 1.0)
+					sx += 9.0
+				sy += 7.0
+				srow += 1
+		"runed":
+			var hem2 := _hem_line(out, -9.0)
+			for i in range(0, hem2.size(), 2):
+				var c2 := hem2[i]
+				b.line(c2 + Vector2(-2.5, -2.5), c2 + Vector2(2.5, 2.5), ACCENTS["rune"], 1.2)
+				b.line(c2 + Vector2(0, -3.5), c2 + Vector2(0, 3.5), ACCENTS["rune"], 1.2)
+				b.dot(c2 + Vector2(3.0, -2.5), 0.9, ACCENTS["rune"])
+			for x3 in [-50.0, 50.0]:  # and up the sides
+				var c3 := Vector2(x3, 10.0 if not short else -10.0)
+				b.line(c3 + Vector2(-2.5, 0), c3 + Vector2(2.5, 0), ACCENTS["rune"], 1.2)
+				b.line(c3 + Vector2(-1.5, -3), c3 + Vector2(1.5, 3), ACCENTS["rune"], 1.2)
 
 
 ## The hem (the lowest points of an outline, left to right), raised by `up`.
@@ -1044,12 +1483,13 @@ static func _front_legs(b, lk: Dictionary) -> void:
 	var legs: Color = lk.get("trousers", lk["tunic"])
 	var boot: Color = lk["boot"]
 	var k := 1.0 + (float(lk.get("wx", 1.0)) - 1.0) * 0.6
+	var dy := (float(lk.get("leg_k", 1.0)) - 1.0) * 60.0  # (the build: longer or shorter legs, the feet lower or higher)
 	for sg in [-1.0, 1.0]:
 		var shade := 0.22 if sg < 0.0 else 0.38
-		b.poly(_sx(_p([sg * 3, 10, sg * 17, 10, sg * 16, 96, sg * 4, 96]), k), legs.darkened(shade), 1.4)
-		b.poly(_sx(_p([sg * 2.5, 92, sg * 17.5, 92, sg * 18, 110, sg * 22, 124, sg * 1, 124, sg * 2, 110]), k), boot if sg < 0.0 else boot.darkened(0.25), 1.4)
-		b.rect(Rect2(Vector2(minf(sg * 2.5, sg * 17.5) * k, 92), Vector2(15 * k, 4)), boot.lightened(0.22))
-		b.line(Vector2(sg * 4 * k, 121), Vector2(sg * 15 * k, 121), Color(boot.lightened(0.3), 0.5), 1.2)
+		b.poly(_sx(_p([sg * 3, 10, sg * 17, 10, sg * 16, 96 + dy, sg * 4, 96 + dy]), k), legs.darkened(shade), 1.4)
+		b.poly(_shift(_sx(_p([sg * 2.5, 92, sg * 17.5, 92, sg * 18, 110, sg * 22, 124, sg * 1, 124, sg * 2, 110]), k), Vector2(0, dy)), boot if sg < 0.0 else boot.darkened(0.25), 1.4)
+		b.rect(Rect2(Vector2(minf(sg * 2.5, sg * 17.5) * k, 92 + dy), Vector2(15 * k, 4)), boot.lightened(0.22))
+		b.line(Vector2(sg * 4 * k, 121 + dy), Vector2(sg * 15 * k, 121 + dy), Color(boot.lightened(0.3), 0.5), 1.2)
 
 
 ## The tunic, a skirt below the belt, and the belt (a leather belt and
@@ -1057,11 +1497,34 @@ static func _front_legs(b, lk: Dictionary) -> void:
 static func _front_tunic(b, lk: Dictionary) -> void:
 	var tunic: Color = lk["tunic"]
 	var wx: float = lk.get("wx", 1.0)
-	b.poly(_sx(_p([-27, -66, 27, -66, 24, -24, 21, 16, -21, 16, -24, -24]), wx), tunic.darkened(0.14), 1.6)
-	b.polygon(_sx(_p([-27, -66, 1, -66, 1, 16, -21, 16, -24, -24]), wx), tunic)
-	b.polygon(_p([-7, -66, 7, -66, 0, -40]), tunic.darkened(0.42))
-	b.poly(_sx(_p([-21, 14, 21, 14, 26, 38, -26, 38]), wx), tunic.darkened(0.16), 1.4)
-	b.polygon(_sx(_p([-21, 14, 0, 14, 0, 38, -26, 38]), wx), tunic.darkened(0.04))
+	var clothes: String = lk.get("clothes", "tunic")
+	var body: String = lk.get("body", "androgynous")
+	# The waist and hips by the body: drawn in at the waist and out at the
+	# hips (feminine), straighter and squarer (masculine).
+	var waist := 21.0 + (-2.5 if body == "feminine" else (1.5 if body == "masculine" else 0.0))
+	var hip := 26.0 + (3.0 if body == "feminine" else (-1.0 if body == "masculine" else 0.0))
+	# The skirts below the belt: to the knees for a long coat, the ankles for a robe.
+	var hem := 38.0
+	match clothes:
+		"coat", "gambeson":
+			hem = 50.0
+		"longcoat":
+			hem = 80.0
+		"robe":
+			hem = 112.0
+		"tabard":
+			hem = 54.0
+	b.poly(_sx(_p([-27, -66, 27, -66, 24, -24, waist, 16, -waist, 16, -24, -24]), wx), tunic.darkened(0.14), 1.6)
+	b.polygon(_sx(_p([-27, -66, 1, -66, 1, 16, -waist, 16, -24, -24]), wx), tunic)
+	if clothes == "vest":  # a pale shirt, the vest open over it
+		b.polygon(_sx(_p([-10, -66, 10, -66, 7, 16, -7, 16]), wx), ACCENTS["shirt"])
+		for sg in [-1.0, 1.0]:
+			b.line(Vector2(sg * 9 * wx, -64), Vector2(sg * 6 * wx, 14), tunic.darkened(0.4), 1.4)
+	else:
+		b.polygon(_p([-7, -66, 7, -66, 0, -40]), tunic.darkened(0.42))
+	b.poly(_sx(_p([-waist, 14, waist, 14, hip + (hem - 38.0) * 0.18, hem, -hip - (hem - 38.0) * 0.18, hem]), wx), tunic.darkened(0.16), 1.4)
+	b.polygon(_sx(_p([-waist, 14, 0, 14, 0, hem, -hip - (hem - 38.0) * 0.18, hem]), wx), tunic.darkened(0.04))
+	_front_clothes(b, lk, clothes, wx, hem)
 	var col: Color = lk.get("belt", Color(0.3, 0.2, 0.13))
 	var hw := 22.0 * wx
 	match String(lk.get("belt_kind", "belt")):
@@ -1095,12 +1558,64 @@ static func _front_tunic(b, lk: Dictionary) -> void:
 			b.rect(Rect2(-1.6, 7.4, 3.2, 6.2), col)
 
 
-## Arms in their sleeves, hands out of the cloak (at the hand mark's spot).
-static func _front_arms(b, lk: Dictionary) -> void:
+## What each kind of clothes adds over the tunic's shape (front): laces,
+## quilting, lapels and buttons, a robe's open neck, a wrap's crossing, a
+## tabard's panel. `hem` is how far down the skirts reach.
+static func _front_clothes(b, lk: Dictionary, clothes: String, wx: float, hem: float) -> void:
 	var tunic: Color = lk["tunic"]
+	var dark := tunic.darkened(0.45)
+	match clothes:
+		"jerkin":
+			for i in 6:
+				var y := -60.0 + i * 11.0
+				b.line(Vector2(-3, y), Vector2(3, y + 5.5), Color(0.85, 0.75, 0.55), 1.2)
+				b.line(Vector2(3, y), Vector2(-3, y + 5.5), Color(0.85, 0.75, 0.55), 1.2)
+			for sg in [-1.0, 1.0]:
+				b.line(Vector2(sg * 4 * wx, -64), Vector2(sg * 4 * wx, 14), dark, 1.2)
+		"gambeson":
+			var y2 := -56.0
+			while y2 < hem:
+				var w2 := (25.0 if y2 < 14.0 else 24.0) * wx
+				b.line(Vector2(-w2, y2), Vector2(w2, y2), Color(dark, 0.55), 1.0)
+				y2 += 9.0
+			b.line(Vector2(-10 * wx, -64), Vector2(-11 * wx, hem), Color(dark, 0.45), 1.0)
+			b.line(Vector2(10 * wx, -64), Vector2(11 * wx, hem), Color(dark, 0.45), 1.0)
+		"coat", "longcoat":
+			for sg in [-1.0, 1.0]:  # lapels
+				b.poly(_p([sg * 4, -66, sg * 16 * wx, -64, sg * 9, -34, sg * 2, -40]), tunic.lightened(0.08) if sg < 0.0 else tunic.darkened(0.2), 1.2)
+			b.line(Vector2(0, 14), Vector2(0, hem), dark, 1.4)  # the skirts open at the front
+			for i in 3:
+				b.dot(Vector2(-4.5, -30 + i * 12), 1.6, ACCENTS["metal"].darkened(0.15))
+			if clothes == "longcoat":
+				for sg in [-1.0, 1.0]:
+					b.line(Vector2(sg * 14 * wx, 30), Vector2(sg * 18 * wx, hem - 4), Color(dark, 0.6), 1.2)
+		"robe":
+			b.polygon(_p([-8, -66, 8, -66, 0, -46]), lk["skin"].darkened(0.08))  # an open neck
+			b.line(Vector2(-8, -66), Vector2(0, -46), dark, 1.2)
+			b.line(Vector2(8, -66), Vector2(0, -46), dark, 1.2)
+			b.line(Vector2(-6, 18), Vector2(-9, hem - 2), Color(dark, 0.6), 1.2)
+			b.line(Vector2(8, 18), Vector2(12, hem - 2), Color(dark, 0.6), 1.2)
+		"wrap":
+			b.polygon(_sx(_p([-24, -64, -10, -66, 22, 8, 21, 16, 10, 16]), wx), tunic.darkened(0.12))
+			b.line(Vector2(-10 * wx, -66), Vector2(22 * wx, 8), dark, 1.6)
+		"tabard":
+			var pc: Color = lk["cloak"]
+			b.poly(_p([-12, -66, 12, -66, 12, hem - 2, 0, hem + 4, -12, hem - 2]), pc.darkened(0.08), 1.4)
+			b.polygon(_p([-12, -66, 0, -66, 0, hem + 4, -12, hem - 2]), pc.lightened(0.06))
+			b.ball(Vector2(0, -30), 5.0, ACCENTS["metal"].darkened(0.1))  # its emblem
+			b.dot(Vector2(0, -30), 2.2, pc.darkened(0.3))
+		"sleeveless":
+			for sg in [-1.0, 1.0]:  # the armholes' edges
+				b.line(Vector2(sg * 27 * wx, -66), Vector2(sg * 24 * wx, -44), dark, 1.6)
+
+
+## Arms in their sleeves (bare without), hands out of the cloak (at the hand mark's spot).
+static func _front_arms(b, lk: Dictionary) -> void:
 	var skin: Color = lk["skin"]
+	var bare: bool = String(lk.get("clothes", "tunic")) == "sleeveless"
+	var tunic: Color = skin.darkened(0.05) if bare else lk["tunic"]
 	var wx: float = lk.get("wx", 1.0)
-	var thick := 1.0 + (wx - 1.0) * 0.6
+	var thick := (1.0 + (wx - 1.0) * 0.6) * (0.85 if bare else 1.0)
 	for sg in [-1.0, 1.0]:
 		var sh := Vector2(sg * 28 * wx, -60)
 		var el := Vector2(sg * (40 + (wx - 1.0) * 26.0), -24)
@@ -1109,7 +1624,8 @@ static func _front_arms(b, lk: Dictionary) -> void:
 		b.stroke(sh, el, col, 13.0 * thick)
 		b.stroke(el, wr, col, 11.0 * thick)
 		b.line(sh + Vector2(-3.5, 1), el + Vector2(-4, 0), Color(col.lightened(0.25), 0.6), 2.0)
-		b.stroke(wr - (wr - el).normalized() * 2.0, wr + (wr - el).normalized() * 1.5, tunic.darkened(0.45), 12.0 * thick)
+		if not bare:
+			b.stroke(wr - (wr - el).normalized() * 2.0, wr + (wr - el).normalized() * 1.5, tunic.darkened(0.45), 12.0 * thick)
 		b.ball(Vector2(sg * 50, 9), 6.8, skin if sg < 0.0 else skin.darkened(0.14))
 
 
@@ -1122,7 +1638,38 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 	var pattern: String = lk.get("pattern", "plain")
 	var edges: Array = []  # outlines, for the trim
 	var hems: Array = []  # lower edges, for a band or embroidery
-	if lk.get("cloak_style", "long") == "mantle":
+	var style: String = lk.get("cloak_style", "long")
+	if style == "none":
+		return  # (no cloak: the clothes' shoulders show)
+	if style == "half":  # over one shoulder, a strap across the chest
+		var hc := _sx(_p([-2, -80, -14, -80, -38, -66, -50, -38, -48, -20, -34, -14, -20, -22, -10, -40, -4, -62]), wx)
+		b.poly(hc, cloak.darkened(0.14), 1.6)
+		b.polygon(_sx(_p([-14, -78, -36, -65, -46, -40, -40, -34, -26, -60]), wx), cloak.lightened(0.06))
+		b.stroke(Vector2(-8 * wx, -66), Vector2(22 * wx, 8), cloak.darkened(0.35), 4.0)
+		b.ball(Vector2(-8 * wx, -66), 3.0, UI.GOLD.darkened(0.15))
+		edges.append(hc)
+		hems.append(_sx(_p([-48, -22, -34, -16, -20, -24, -10, -41]), wx))
+	elif style == "shawl":  # draped round the shoulders, crossing low on the chest
+		var sw := _sx(_p([-46, -50, -36, -70, -14, -80, 14, -80, 36, -70, 46, -50, 42, -28, 22, -36, 0, -18, -22, -36, -42, -28]), wx)
+		b.poly(sw, cloak.darkened(0.12), 1.6)
+		b.polygon(_sx(_p([-46, -50, -36, -70, -14, -80, 0, -80, 0, -18, -22, -36, -42, -28]), wx), cloak.lightened(0.05))
+		b.line(Vector2(-30 * wx, -52), Vector2(-4, -22), Color(cloak.darkened(0.45), 0.7), 1.4)
+		edges.append(sw)
+		hems.append(_sx(_p([-42, -28, -22, -36, 0, -18, 22, -36, 42, -28]), wx))
+	elif style == "poncho":  # over everything, to the hips, a fringe on its hem
+		var pn := _sx(_p([-14, -80, 14, -80, 36, -68, 44, -32, 42, 22, 0, 30, -42, 22, -44, -32, -36, -68]), wx)
+		b.poly(pn, cloak.darkened(0.12), 1.6)
+		b.polygon(_sx(_p([-14, -80, 0, -80, 0, 30, -42, 22, -44, -32, -36, -68]), wx), cloak.lightened(0.04))
+		for i in 13:
+			var u := float(i) / 12.0
+			var at := Vector2(lerpf(-42.0, 42.0, u) * wx, 22.0 + 8.0 * (1.0 - absf(u - 0.5) * 2.0))
+			b.line(at, at + Vector2(0, 5), cloak.darkened(0.3), 1.4)
+		edges.append(pn)
+		hems.append(_sx(_p([-42, 22, 0, 30, 42, 22]), wx))
+		if pattern == "striped":
+			for y in [-40.0, -20.0, 0.0]:
+				_fill_in(b, pn, _p([-60, y - 2, 60, y - 2, 60, y + 2, -60, y + 2]), Color(pc, 0.8))
+	elif style == "mantle":
 		for sg in [-1.0, 1.0]:
 			var half := _sx(_p([-2, -80, -14, -80, -38, -66, -50, -38, -48, -20, -34, -14, -20, -22, -10, -40, -4, -62]), sg * wx)
 			b.poly(half, cloak.darkened(0.14) if sg < 0.0 else cloak.darkened(0.3), 1.6)
@@ -1149,6 +1696,20 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 		if pattern == "striped":
 			for x in [-30.0, -18.0, -6.0, 6.0, 18.0, 30.0]:
 				_fill_in(b, m, _sx(_p([x - 1.8, -84, x + 1.8, -84, x + 1.8, -40, x - 1.8, -40]), wx), Color(pc, 0.8))
+		if style == "capelet":  # a scalloped edge, a little lower
+			for i in 7:
+				b.ball(Vector2((-36 + i * 12) * wx, -44.0 + absf(i - 3) * 1.5), 4.0, cloak.darkened(0.2 if i >= 3 else 0.08))
+		elif style == "wrapped":  # a fold of it wrapped across the body
+			var wr := _sx(_p([-30, -66, -16, -70, 26, 6, 24, 16, 12, 16]), wx)
+			b.poly(wr, cloak.darkened(0.1), 1.4)
+			b.line(Vector2(-22 * wx, -64), Vector2(18 * wx, 10), Color(cloak.lightened(0.25), 0.5), 1.4)
+			edges.append(wr)
+	if style in ["shawl", "poncho", "half"]:
+		match pattern:
+			"checked", "quilted", "scaled", "runed", "fur":
+				var e0: PackedVector2Array = edges[0]
+				var pc2: Color = ACCENTS["fur"] if pattern == "fur" else (ACCENTS["rune"] if pattern == "runed" else pc)
+				b.path(_shift(e0, Vector2(0, 0)), Color(pc2, 0.8), 3.0 if pattern == "fur" else 1.2, true)
 	for hem in hems:
 		match pattern:
 			"banded":
@@ -1163,29 +1724,39 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 
 ## The head on the climber screen's figure, in its frame (about 290 tall,
 ## centred on the waist; lit from the top-left). Drawn after the mantle.
-## Hood up: the face in the hood's shadow, the hair peeking out. Hood down:
-## the face lit, the hood in folds round the neck. Then what's at the neck.
+## Hood up: the face in the hood's shadow, the hair peeking out (the hood
+## sits snug on the head, its peak just above the crown). Hood down (or no
+## cloak): the face lit, the hood in folds round the neck. The face's shape
+## follows the body (a squarer jaw, or a softer one with lashes). Then
+## what's at the neck.
 static func draw_front_head(b, lk: Dictionary) -> void:
 	var cloak: Color = lk.get("hood_front", lk["cloak"])  # (a worn hood or coif: its own colour)
 	var skin: Color = lk["skin"]
 	var hair: Color = lk["hair"]
 	var style: String = lk.get("hair_style", "short")
 	var trim_on: bool = lk.get("trim_on", false)
+	var body: String = lk.get("body", "androgynous")
 	if lk.get("hood_up", true):
 		if style == "tied":  # a knot pushing up the hood behind
-			b.ball(Vector2(7, -143), 7.0, cloak.darkened(0.28))
+			b.ball(Vector2(7, -134), 6.5, cloak.darkened(0.28))
+		elif style == "bun":  # a bigger, rounder bun behind the hood
+			b.ball(Vector2(-6, -133), 8.0, cloak.darkened(0.3))
 		if style == "tail":  # a tail out of the hood, over the shoulder
 			b.poly(_p([13, -92, 19, -88, 22, -72, 19, -60, 15, -64, 16, -78]), hair.darkened(0.3), 1.2)
-		b.poly(_p([0, -147, 13, -141, 23, -127, 27, -106, 23, -88, 12, -79, 0, -77, -12, -79, -23, -88, -27, -106, -23, -127, -13, -141]), cloak.darkened(0.18), 1.6)
-		b.polygon(_p([0, -147, -13, -141, -23, -127, -27, -106, -23, -88, -12, -79, 0, -77, -5, -112]), cloak.darkened(0.0))
-		b.polygon(_p([-19, -131, -9, -141, -3, -140, -13, -127]), Color(cloak.lightened(0.45), 0.5))
+		if style == "mane":  # wild hair spilling out of the hood, over the shoulders
+			for sg in [-1.0, 1.0]:
+				b.poly(_p([sg * 18, -100, sg * 31, -96, sg * 26, -90, sg * 34, -84, sg * 26, -80, sg * 30, -72, sg * 16, -76]), hair.darkened(0.25 if sg > 0.0 else 0.12), 1.2)
+		b.poly(_p([0, -137, 13, -132, 22, -121, 26, -104, 23, -88, 12, -79, 0, -77, -12, -79, -23, -88, -26, -104, -22, -121, -13, -132]), cloak.darkened(0.18), 1.6)
+		b.polygon(_p([0, -137, -13, -132, -22, -121, -26, -104, -23, -88, -12, -79, 0, -77, -5, -110]), cloak.darkened(0.0))
+		b.polygon(_p([-18, -124, -9, -132, -3, -132, -13, -121]), Color(cloak.lightened(0.45), 0.5))
 		b.polygon(_oval(Vector2(0, -103), Vector2(14.5, 18.0), 24), Color(0.04, 0.03, 0.05))
 		if trim_on:
 			b.path(_oval(Vector2(0, -103), Vector2(15.6, 19.2), 24), lk["trim"], 2.2, true)
-		if style == "long":
+		if style == "long" or style == "locks":
 			b.polygon(_p([-13, -110, -10, -86, -5, -84, -8, -106]), hair.darkened(0.35))
 			b.polygon(_p([13, -110, 10, -86, 5, -84, 8, -106]), hair.darkened(0.42))
-		b.polygon(_oval(Vector2(0, -99), Vector2(10.5, 13.0), 24), skin.darkened(0.52))
+		var jaw := Vector2(11.5, 13.0) if body == "masculine" else (Vector2(9.8, 12.6) if body == "feminine" else Vector2(10.5, 13.0))
+		b.polygon(_oval(Vector2(0, -99), jaw, 24), skin.darkened(0.52))
 		b.polygon(_oval(Vector2(-0.6, -94.5), Vector2(8.6, 8.0), 20), skin.darkened(0.3))
 		_front_features(b, lk, 0.32)
 		_front_beard(b, lk, 0.32)
@@ -1199,6 +1770,13 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 					b.dot(Vector2(-9 + i * 4.5, -110.5 + absf(i - 2) * 1.2), 2.8, hair.darkened(0.3 if i % 2 == 0 else 0.4))
 			"crest":
 				b.polygon(_p([-3, -109, 0, -117, 3, -109]), hair.darkened(0.3))
+			"swept":  # the fringe swept across, low over one eye
+				b.polygon(_p([-12, -110, -6, -117, 6, -117, 13, -108, 12, -100, 6, -106, -4, -110]), hair.darkened(0.3))
+			"undercut":  # a long top falling to one side, the sides bare
+				b.polygon(_p([-8, -112, -2, -118, 8, -117, 12, -106, 10, -98, 6, -108, -2, -112]), hair.darkened(0.3))
+			"locks":
+				for i in 4:
+					b.line(Vector2(-9 + i * 6, -114), Vector2(-10 + i * 6.6, -104), hair.darkened(0.3), 2.4)
 			_:
 				b.polygon(_p([-12, -108, -6, -116, 4, -117, 12, -108, 5, -112, -3, -110]), hair.darkened(0.3))
 		_front_eyes(b, lk, 4.2, -100.0, 0.28)
@@ -1206,35 +1784,66 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 			_front_braid(b, hair, Vector2(-15, -82))
 		if style == "twin":
 			_front_braid(b, hair.darkened(0.12), Vector2(15, -82), -1.0)
+		if style == "locks":  # locks down over the chest
+			for sg in [-1.0, 1.0]:
+				for i in 2:
+					var x: float = sg * (12.0 + i * 4.0)
+					b.stroke(Vector2(x, -86), Vector2(x + sg * 2.0, -62 + i * 4), hair.darkened(0.15 + 0.1 * i), 3.0)
 		_front_head_extras(b, lk, true)
 		return
-	# Hood down: the hood in folds round the neck and shoulders, behind the head.
-	b.poly(_p([-30, -78, -24, -92, -10, -97, 10, -97, 24, -92, 30, -78, 16, -72, 0, -74, -16, -72]), cloak.darkened(0.2), 1.6)
-	b.polygon(_p([-30, -78, -24, -92, -10, -97, 0, -97, 0, -74, -16, -72]), cloak.darkened(0.04))
-	b.line(Vector2(-20, -88), Vector2(-8, -80), Color(cloak.darkened(0.45), 0.8), 1.6)
-	b.line(Vector2(20, -88), Vector2(8, -80), Color(cloak.darkened(0.5), 0.8), 1.6)
-	if trim_on:
-		b.path(_p([-30, -78, -24, -92, -10, -97, 10, -97, 24, -92, 30, -78]), lk["trim"], 2.2)
+	# Hood down: the hood in folds round the neck and shoulders, behind the head
+	# (none without a cloak).
+	if String(lk.get("cloak_style", "long")) != "none":
+		b.poly(_p([-30, -78, -24, -92, -10, -97, 10, -97, 24, -92, 30, -78, 16, -72, 0, -74, -16, -72]), cloak.darkened(0.2), 1.6)
+		b.polygon(_p([-30, -78, -24, -92, -10, -97, 0, -97, 0, -74, -16, -72]), cloak.darkened(0.04))
+		b.line(Vector2(-20, -88), Vector2(-8, -80), Color(cloak.darkened(0.45), 0.8), 1.6)
+		b.line(Vector2(20, -88), Vector2(8, -80), Color(cloak.darkened(0.5), 0.8), 1.6)
+		if trim_on:
+			b.path(_p([-30, -78, -24, -92, -10, -97, 10, -97, 24, -92, 30, -78]), lk["trim"], 2.2)
 	match style:
 		"long":  # hair falling behind the shoulders
 			b.poly(_p([-16, -116, -19, -92, -20, -74, -10, -76, 10, -76, 20, -74, 19, -92, 16, -116]), hair.darkened(0.25), 1.4)
 		"tied":  # a knot on top
 			b.ball(Vector2(1, -126), 6.0, hair.darkened(0.06))
 			b.line(Vector2(-4, -121), Vector2(6, -121), lk["tunic"].lightened(0.1), 2.0)
+		"bun":  # a round bun at the back of the crown, a pin through it
+			b.ball(Vector2(-3, -125), 8.2, hair.darkened(0.12))
+			b.line(Vector2(-13, -131), Vector2(8, -121), ACCENTS["metal"], 1.4)
 		"tail":  # a tail behind, swung over to one side
 			b.poly(_p([8, -120, 17, -114, 22, -98, 23, -80, 19, -68, 15, -72, 16, -90, 12, -108]), hair.darkened(0.2), 1.4)
 			b.line(Vector2(13, -113), Vector2(19, -110), lk["tunic"].lightened(0.1), 2.0)
+		"mane":  # a great wild mass round the head, spiking out, down to the shoulders
+			var mane := PackedVector2Array()
+			for i in 19:
+				var a := PI * 0.62 + float(i) * PI * 1.76 / 18.0
+				var r := 27.0 if i % 2 == 0 else 19.0
+				mane.append(Vector2(0, -106) + Vector2(cos(a) * r, sin(a) * r * 1.05))
+			b.poly(mane, hair.darkened(0.18), 1.4)
+			b.polygon(_shift(_sx(_shift(mane, Vector2(0, 106)), 0.8), Vector2(-2, -108)), hair.darkened(0.04))
+		"locks":  # locks hanging to the shoulders
+			for i in 7:
+				var x := -18.0 + i * 6.0
+				b.stroke(Vector2(x * 0.8, -114), Vector2(x, -78 + absf(i - 3) * 2.0), hair.darkened(0.12 + 0.06 * (i % 2)), 4.0)
 	# The neck and head.
 	b.poly(_p([-6, -90, 6, -90, 6, -78, -6, -78]), skin.darkened(0.25), 1.2)
-	if style != "long":
+	if style != "long" and style != "mane":
 		for s in [-1.0, 1.0]:  # ears
 			b.poly(_oval(Vector2(s * 14.0, -101), Vector2(3.0, 4.6), 12), skin.darkened(0.08 if s < 0.0 else 0.2), 1.0)
 	if style == "curls":  # curls round the head, behind it
 		for i in 11:
 			var a := PI + float(i) * PI / 10.0
 			b.ball(Vector2(0, -106) + Vector2(cos(a) * 15.5, sin(a) * 17.0), 4.0, hair.darkened(0.1 if i < 5 else 0.24))
-	b.poly(_oval(Vector2(0, -103), Vector2(14.0, 17.0), 28), skin.darkened(0.12), 1.6)
-	b.polygon(_p([-14, -103, -12, -113, -6, -119, 0, -120, 1, -86, -6, -88, -11, -94]), skin)
+	# The face: squarer for a masculine body, softer and narrower at the chin for a feminine one.
+	match body:
+		"masculine":
+			b.poly(_p([-14.5, -108, -13, -118, -6, -120, 6, -120, 13, -118, 14.5, -108, 14, -96, 10, -88, 4, -86, -4, -86, -10, -88, -14, -96]), skin.darkened(0.12), 1.6)
+			b.polygon(_p([-14.5, -108, -13, -118, -6, -120, 0, -120, 1, -86, -4, -86, -10, -88, -14, -96]), skin)
+		"feminine":
+			b.poly(_oval(Vector2(0, -104), Vector2(13.4, 16.6), 28), skin.darkened(0.12), 1.6)
+			b.polygon(_p([-13.4, -104, -12, -113, -6, -119, 0, -120.5, 1, -87.5, -5, -89, -10, -94]), skin)
+		_:
+			b.poly(_oval(Vector2(0, -103), Vector2(14.0, 17.0), 28), skin.darkened(0.12), 1.6)
+			b.polygon(_p([-14, -103, -12, -113, -6, -119, 0, -120, 1, -86, -6, -88, -11, -94]), skin)
 	match style:
 		"none":
 			b.polygon(_oval(Vector2(-5, -113), Vector2(4.0, 2.6), 12), Color(skin.lightened(0.35), 0.5))
@@ -1243,16 +1852,24 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 			b.polygon(_p([-13, -104, -12, -114, -6, -119, 6, -119, 12, -114, 13, -104, 9, -112, -9, -112]), Color(hair, 0.22))
 			b.poly(_p([-4, -112, -5, -122, -3, -131, 3, -131, 5, -122, 4, -112]), hair, 1.3)
 			b.polygon(_p([0.5, -131, 3, -131, 5, -122, 4, -112, 0.5, -112]), hair.darkened(0.22))
+		"undercut":  # shaved sides, a long top swept over to one side
+			b.polygon(_p([-13, -104, -12, -114, -6, -119, 6, -119, 12, -114, 13, -104, 9, -112, -9, -112]), Color(hair, 0.22))
+			b.poly(_p([-9, -113, -8, -122, -2, -126, 8, -125, 15, -118, 17, -106, 13, -110, 6, -116, -2, -116]), hair, 1.3)
+			b.polygon(_p([8, -125, 15, -118, 17, -106, 13, -110, 6, -116]), hair.darkened(0.22))
 		"cropped":
 			var cr := hair.lerp(skin, 0.4)
 			b.poly(_p([-14.5, -104, -14, -112, -10, -118, -4, -121, 4, -121, 10, -118, 14, -112, 14.5, -104, 11, -110, 4, -114, -4, -114, -11, -110]), cr, 1.2)
 			b.polygon(_p([4, -121, 10, -118, 14, -112, 14.5, -104, 11, -110, 4, -114]), cr.darkened(0.2))
+		"swept":  # the fringe swept across the brow, falling past one eye
+			b.poly(_p([-14.5, -101, -15, -111, -11, -119, -4, -122, 4, -122, 11, -119, 15, -111, 15, -96, 12, -100, 8, -106, 0, -110, -8, -110, -12, -106]), hair, 1.4)
+			b.polygon(_p([4, -122, 11, -119, 15, -111, 15, -96, 12, -100, 8, -106]), hair.darkened(0.22))
+			b.line(Vector2(-10, -114), Vector2(10, -108), Color(hair.lightened(0.35), 0.5), 1.4)
 		_:
 			# The hair on top, a fringe across the brow.
 			b.poly(_p([-14.5, -101, -15, -111, -11, -119, -4, -122, 4, -122, 11, -119, 15, -111, 14.5, -101, 12, -108, 7, -111, 1, -109, -5, -111, -11, -108]), hair, 1.4)
 			b.polygon(_p([4, -122, 11, -119, 15, -111, 14.5, -101, 12, -108, 7, -111]), hair.darkened(0.22))
 			b.line(Vector2(-9, -117), Vector2(-3, -120), Color(hair.lightened(0.4), 0.55), 1.4)
-			if style == "long":  # locks either side of the face
+			if style == "long" or style == "mane":  # locks either side of the face
 				b.polygon(_p([-14.5, -104, -16.5, -84, -12, -86, -12, -101]), hair)
 				b.polygon(_p([14.5, -104, 16.5, -84, 12, -86, 12, -101]), hair.darkened(0.22))
 			elif style == "curls":  # curls along the brow
@@ -1262,11 +1879,14 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 	_front_beard(b, lk, 0.0)
 	_front_eyes(b, lk, 4.6, -101.0, 0.0)
 	var brow := (skin if style == "none" else hair).darkened(0.45)
-	b.line(Vector2(-7, -105.5), Vector2(-2.5, -106), Color(brow, 0.8), 1.3)  # brows
-	b.line(Vector2(2.5, -106), Vector2(7, -105.5), Color(brow, 0.8), 1.3)
+	var bw := 1.8 if body == "masculine" else (1.0 if body == "feminine" else 1.3)
+	var arch := -1.0 if body == "feminine" else 0.0
+	b.line(Vector2(-7, -105.5), Vector2(-2.5, -106 + arch), Color(brow, 0.8), bw)  # brows
+	b.line(Vector2(2.5, -106 + arch), Vector2(7, -105.5), Color(brow, 0.8), bw)
 	b.line(Vector2(0.5, -99), Vector2(1.5, -95.5), Color(skin.darkened(0.3), 0.8), 1.2)  # nose
-	if String(lk.get("beard", "none")) in ["none", "stubble"]:
-		b.line(Vector2(-3.0, -91.5), Vector2(3.0, -91.5), Color(skin.darkened(0.42), 0.9), 1.2)  # mouth
+	if String(lk.get("beard", "none")) in ["none", "stubble", "chops"]:
+		var lips := Color(skin.darkened(0.42), 0.9) if body != "feminine" else Color(skin.darkened(0.3).lerp(Color(0.62, 0.3, 0.3), 0.35), 0.95)
+		b.line(Vector2(-3.0, -91.5), Vector2(3.0, -91.5), lips, 1.2 if body != "feminine" else 1.7)  # mouth
 	if style == "braid" or style == "twin":
 		_front_braid(b, hair, Vector2(-12, -90))
 	if style == "twin":
@@ -1304,11 +1924,27 @@ static func _front_features(b, lk: Dictionary, shade: float) -> void:
 ## The beard (front): stubble on the jaw, a moustache, a short or full beard,
 ## or a full one braided at the chin.
 static func _front_beard(b, lk: Dictionary, shade: float) -> void:
-	var hair: Color = lk["hair"].darkened(shade)
+	var hair: Color = (lk.get("beard_col", lk["hair"]) as Color).darkened(shade)
 	var dy := 1.0 if shade > 0.0 else 0.0
 	var jaw := _p([-13, -101, -11, -93, -6, -88, 0, -86.5, 6, -88, 11, -93, 13, -101, 10, -95, 5, -92.5, 0, -93.5, -5, -92.5, -10, -95])
 	var tache := _p([-6, -91, -3, -93.6, 0, -93, 3, -93.6, 6, -91, 3, -91.8, 0, -91.2, -3, -91.8])
+	var full := _p([-14, -103, -13, -92, -8, -83, 0, -79, 8, -83, 13, -92, 14, -103, 10, -96, 5, -93, 0, -93.5, -5, -93, -10, -96])
 	match String(lk.get("beard", "none")):
+		"goatee":  # a little beard on the chin, with a moustache
+			b.poly(_shift(_p([-4, -90, 4, -90, 3, -84, 0, -81, -3, -84]), Vector2(0, dy)), hair, 0.8)
+			b.polygon(_shift(tache, Vector2(0, dy)), hair.darkened(0.1))
+		"chops":  # down the cheeks to the jaw, the chin bare
+			for sg in [-1.0, 1.0]:
+				b.polygon(_shift(_p([sg * 14, -106, sg * 13.5, -95, sg * 10, -89, sg * 7, -91, sg * 10, -97, sg * 11, -106]), Vector2(0, dy)), hair if sg < 0.0 else hair.darkened(0.15))
+		"long", "forked":  # a full beard grown long, or split in two
+			b.poly(_shift(full, Vector2(0, dy)), hair, 1.0)
+			if String(lk.get("beard", "")) == "long":
+				b.poly(_shift(_p([-9, -86, 9, -86, 7, -66, 0, -58, -7, -66]), Vector2(0, dy)), hair.darkened(0.06), 1.0)
+			else:
+				for sg in [-1.0, 1.0]:
+					b.poly(_shift(_p([sg * 1, -84, sg * 9, -86, sg * 8, -70, sg * 5, -62, sg * 2, -70]), Vector2(0, dy)), hair.darkened(0.04 if sg < 0.0 else 0.16), 1.0)
+			b.polygon(_shift(tache, Vector2(0, dy)), hair.darkened(0.1))
+			b.line(Vector2(-2.5, -90 + dy), Vector2(2.5, -90 + dy), Color(lk["skin"].darkened(0.45 + shade), 0.9), 1.1)
 		"stubble":
 			b.polygon(_shift(jaw, Vector2(0, dy)), Color(hair.lerp(lk["skin"], 0.35), 0.42))
 		"moustache":
@@ -1318,7 +1954,6 @@ static func _front_beard(b, lk: Dictionary, shade: float) -> void:
 			b.polygon(_shift(tache, Vector2(0, dy)), hair.darkened(0.12))
 			b.line(Vector2(-2.5, -90 + dy), Vector2(2.5, -90 + dy), Color(lk["skin"].darkened(0.45 + shade), 0.9), 1.1)
 		"full", "braided":
-			var full := _p([-14, -103, -13, -92, -8, -83, 0, -79, 8, -83, 13, -92, 14, -103, 10, -96, 5, -93, 0, -93.5, -5, -93, -10, -96])
 			b.poly(_shift(full, Vector2(0, dy)), hair, 1.0)
 			b.polygon(_shift(_p([0, -93.5, 5, -93, 10, -96, 14, -103, 13, -92, 8, -83, 0, -79]), Vector2(0, dy)), hair.darkened(0.18))
 			b.polygon(_shift(tache, Vector2(0, dy)), hair.darkened(0.1))
@@ -1359,6 +1994,32 @@ static func _front_eyes(b, lk: Dictionary, x: float, y: float, shade: float) -> 
 				if not dark:
 					b.dot(at + Vector2(0.3, 0.0), 1.0, col.darkened(shade))
 				b.line(at + Vector2(-3.2, -1.4), at + Vector2(3.0, -1.6), Color(lk["skin"].darkened(0.4 + shade), 0.8), 1.0)
+			"upturned", "downturned", "sharp":  # a lens tilted up or down at the outer corner, or pointed
+				# (the outer corner is on the side away from the nose: `s`)
+				var outer := -1.3 if shape == "upturned" else (1.3 if shape == "downturned" else -0.9)
+				var w := 3.7 if shape == "sharp" else 3.2
+				var lens2 := _p([at.x - s * w, at.y - outer * 0.3, at.x - s * 0.4, at.y - (2.2 if shape == "sharp" else 1.6), at.x + s * w, at.y + outer, at.x + s * 0.4, at.y + (0.9 if shape == "sharp" else 1.3)])
+				if dark:
+					b.polygon(_shift(_sx(_shift(lens2, -at), 0.7), at), UI.OUTLINE)
+				else:
+					b.polygon(lens2, white)
+					b.dot(at + Vector2(0.2, 0.0), 1.3, col.darkened(shade))
+					b.dot(at + Vector2(0.2, 0.0), 0.55, UI.OUTLINE)
+				b.path(_p([lens2[0].x, lens2[0].y, lens2[1].x, lens2[1].y, lens2[2].x, lens2[2].y]), Color(UI.OUTLINE, 0.75), 1.0)
+			"hooded", "heavy", "deep":
+				if shape == "deep":  # set in shadow under the brow
+					b.polygon(_oval(at + Vector2(0, -0.6), Vector2(4.0, 3.0), 12), Color(lk["skin"].darkened(0.3 + shade), 0.8))
+				if dark:
+					b.dot(at, 1.5, UI.OUTLINE)
+				else:
+					b.dot(at, 2.3, white)
+					b.dot(at + Vector2(0.2, 0.1), 1.6, col.darkened(shade))
+					b.dot(at + Vector2(0.2, 0.1), 0.7, UI.OUTLINE)
+				if shape == "hooded":  # a fold of skin over the eye
+					b.line(at + Vector2(-3.2, -2.2), at + Vector2(3.4, -1.8), Color(lk["skin"].darkened(0.35 + shade), 0.9), 1.4)
+				elif shape == "heavy":  # lids half down
+					b.polygon(_p([at.x - 2.8, at.y - 0.2, at.x - 2.2, at.y - 2.0, at.x + 2.2, at.y - 2.0, at.x + 2.8, at.y - 0.2]), lk["skin"].darkened(0.12 + shade))
+					b.line(at + Vector2(-2.8, -0.2), at + Vector2(2.8, -0.2), Color(UI.OUTLINE, 0.8), 1.0)
 			_:
 				if dark:
 					b.dot(at, 1.5, UI.OUTLINE)
@@ -1366,6 +2027,8 @@ static func _front_eyes(b, lk: Dictionary, x: float, y: float, shade: float) -> 
 					b.dot(at, 2.3, white)
 					b.dot(at + Vector2(0.2, 0.1), 1.6, col.darkened(shade))
 					b.dot(at + Vector2(0.2, 0.1), 0.7, UI.OUTLINE)
+		if String(lk.get("body", "")) == "feminine":  # lashes at the outer corner
+			b.line(at + Vector2(s * 2.6, -1.2), at + Vector2(s * 4.2, -2.4), Color(UI.OUTLINE, 0.85), 0.9)
 	if patch:
 		var at := Vector2(x, y)
 		var strap := Color(ACCENTS["patch"].lightened(0.1), 0.95)
@@ -1398,6 +2061,27 @@ static func _front_head_extras(b, lk: Dictionary, hood_up: bool) -> void:
 			b.poly(vane, ACCENTS["feather"], 1.0)
 			b.polygon(PackedVector2Array([tip, tip.lerp(base, 0.3) + n * 3.6, tip.lerp(base, 0.3) - n * 3.0]), ACCENTS["feather_tip"])
 			b.line(base - dir * 3.0, tip, Color(ACCENTS["feather"].darkened(0.35), 0.9), 1.0)
+		"nosering":
+			var nr := Vector2(1.2, -94.6 if hood_up else -95.0)
+			b.arc(nr, 1.6, 0.2, PI - 0.2, 8, UI.OUTLINE, 1.6)
+			b.arc(nr, 1.6, 0.2, PI - 0.2, 8, ACCENTS["metal"].darkened(0.25 if hood_up else 0.0), 0.9)
+		"headband":
+			var band: Color = ACCENTS["band"].darkened(0.3 if hood_up else 0.0)
+			var y := -113.0 if hood_up else -112.0
+			var hw := 12.5 if hood_up else 14.8
+			b.poly(_p([-hw, y - 1.5, -hw * 0.5, y - 3.2, hw * 0.5, y - 3.2, hw, y - 1.5, hw, y + 1.8, hw * 0.5, y + 0.2, -hw * 0.5, y + 0.2, -hw, y + 1.8]), band, 1.0)
+			if not hood_up:  # its knot and tails at the side
+				b.ball(Vector2(15, y), 2.4, band)
+				b.line(Vector2(16, y + 1), Vector2(20, y + 10), band, 1.6)
+		"spectacles":
+			var ex := 4.2 if hood_up else 4.6
+			if String(lk.get("eye_shape", "")) == "wide":
+				ex += 1.4
+			var ey := -100.0 if hood_up else -101.0
+			var rim: Color = ACCENTS["rims"].lightened(0.1 if hood_up else 0.25)
+			for s in [-1.0, 1.0]:
+				b.path(_oval(Vector2(s * ex, ey), Vector2(3.4, 3.0), 14), rim, 1.0, true)
+			b.line(Vector2(-ex + 3.4, ey - 0.5), Vector2(ex - 3.4, ey - 0.5), rim, 1.0)
 	var neck: String = lk.get("neck", "none")
 	match neck:
 		"scarf":
@@ -1418,7 +2102,7 @@ static func _front_head_extras(b, lk: Dictionary, hood_up: bool) -> void:
 			b.line(Vector2(-6, -80.5), Vector2(2, -79.5), Color(ACCENTS["metal"].lightened(0.4), 0.7), 1.0)
 			for s in [-1.0, 1.0]:
 				b.ball(Vector2(s * 12.5, -84.5), 2.4, ACCENTS["metal"])
-	if neck != "scarf":
+	if neck != "scarf" and String(lk.get("cloak_style", "long")) not in ["none", "half"] and String(lk.get("beard", "none")) not in ["long", "forked"]:
 		b.ball(Vector2(0, -77), 3.4, UI.GOLD.darkened(0.15))
 
 
