@@ -885,7 +885,7 @@ Every climb starts by choosing a tower (keys 1 to 6, click, or tap a card). Each
 
 **The Chimera's monsters:** the **thornhound** is a fast pack hound that circles, glints and leaps at you with a bite (parryable). The **mongrel** is a patchwork beast that alternates a bite up close (parryable) with a fan of thrown quills (parryable).
 
-**Jumping and chasms.** Everyone can jump (Z): a short hop that costs a little stamina and carries you over chasms and burning floor (it isn't a dodge: attacks still hit you in the air). In the Firebird's tower, floors above the first have **chasms**: walk or get knocked into one and you fall through it: it doesn't hurt, but you land on the floor below and climb again from there (never below floor 1; your unbanked essence stays with you). Walking monsters can't enter chasms; flying ones (bats, cinders, wisps and the beasts that fly) cross them.
+**Jumping and chasms.** Everyone can jump (Z): a short hop that costs a little stamina and carries you over chasms and burning floor (it isn't a dodge: attacks still hit you in the air). In the Firebird's tower, floors above the first have **chasms**: walk or get knocked into one and you fall through it: it doesn't hurt, but you land on the floor below and climb again from there (never below floor 1; your unbanked essence stays with you). Walking monsters can't enter chasms; flying ones (bats, cinders, wisps and the beasts that fly) cross them. A chasm never looks like a black pit or a doorway: it is cut into the floor (`scripts/holes.gd`), with a lit rim of cut stone, the shaft's walls going down, and at the bottom the floor below (smaller, dimmer flagstones sitting a little lower, under a faint warm haze in the Firebird's tower, with embers drifting up). It is drawn once into the floor's feature layer, so it costs nothing per frame; its colours are the `HOLE_*` entries in `scripts/palette.gd` (Data editor: Colours, The world; the haze per tower under Tower tints).
 
 **The Firebird waits atop its tower.** On floor 12, in an open hall, it swoops straight through you (parryable), leaving fire in its wake; calls down a firestorm on four spots, one where you stand (can't be parried: get out of the circles, or jump); and throws a fan of embers (parryable). The first time it falls it burns to ashes, can't be hurt for two seconds, and rises again at 40% health. At half health it calls two wisps.
 
@@ -955,7 +955,7 @@ The Kraken's floors are built by their own script, `scripts/towers/kraken_floor.
 The Gryphon's floors are built by `scripts/towers/gryphon_floor.gd` (the Data editor's "The Kraken's water and the Gryphon's heights": `VOIDS`, `GUST`, `TEXT`, `LOOK`).
 
 - **Layout.** Big open halls with **ledges and balconies over open drops**: a hall may have a round **well** in the middle with a balcony all round it (sometimes a bridge straight across), a **ledge** where one side falls away, or a **span** of drop right across it with one narrow bridge. Long corridors become **bridges**: the rock beside them falls away, so you cross a plank walkway over the drop. Beyond the halls' walls there's no rock to see, only open air: every hall stands like a balcony.
-- **Seeing down.** Through every drop and past every wall you see the floors below, drawn in code: two layers of halls, smaller and dimmer the deeper they are, with their flagstones, walls and torches, sliding with parallax as you move, with tiny shapes walking them.
+- **Seeing down.** Through every drop you see the floor right below, never a black pit: its rock and halls a little smaller, with their flagstones, walls and torches, sliding with parallax as you move, tiny shapes walking them and wind drifting across, at the bottom of the drop's cut (the lit rim and shaft walls every hole has: `scripts/holes.gd`). Past the halls' walls, where you can't step, you see the open air and two layers of halls further down, smaller and dimmer the deeper they are.
 - **Falling.** Step or get knocked off an edge and you fall to the floor below ("YOU FELL", the same as the Firebird's chasms). Walking monsters keep out of the drops; fliers cross them. Drops never cut anything off: they only ever take tiles away (the planner checks every floor).
 - **Wind.** Every few seconds a gust blows across the open spans: streaks of wind show which way a moment before, then it shoves whoever stands near a drop (you and foes) that way. Brace by walking against it. A foe thrown into the air (lifted, or knocked up) is carried over the edge and falls when it comes down; a flier stunned over a drop (a parried bat or harrier) falls too.
 - **The task: Turn the Wind Vanes** (`vanes` in `objectives.gd`, only in this tower). No bridge reaches the stair room: its passage is an open gap. Strike each wind vane round (two blows each); when the last turns, a steady wind blows across the gap and you walk over on it.
@@ -1031,6 +1031,7 @@ Every tower with floors of its own (today all six: the Gryphon, the Kraken, the 
 9. **Data editor:** put its tables in `static var`s and register them in `data_registry.gd`.
 10. **Drawing and sight:**
     - `paint_layout(room_view, batch) -> bool`: draws the floor's walls, rock, cover and door posts itself (`room.gd`).
+    - `holes_open_to_rock() -> bool`: true when the floor's rock is open air (an abyss), so a chasm beside it opens into the air instead of getting a shaft wall (`holes.gd`).
     - `sight_open() -> PackedByteArray`: rock the eye sees across, one byte per grid tile, read as each floor starts (`fog.gd`).
     - Anything else it draws, it draws on its own node (z under the climber), or on a child it adds to `main.room_view` (as the Kraken's water does, under the pillars).
 
@@ -1756,6 +1757,7 @@ Where it lives: `scripts/anim.gd` holds every amount, duration and strength (`DA
 | `scripts/audio.gd` | Plays sound effects (random variants) and music; keeps sounds that come from many places at once (fire's crackle) to one every so often (`GAP_MS`) |
 | `scripts/sound_bank.gd` | Generated list of sound files |
 | `scripts/room.gd` | The room's look: floor, walls, torches, dust |
+| `scripts/holes.gd` | Holes you fall through (chasms, the Gryphon's drops): a cut in the floor with a lit rim, shaft walls going down and the floor below at the bottom, never a black pit |
 | `scripts/palette.gd` | The world's colours (the interface's are in `ui.gd`) |
 | `scripts/draw_util.gd` | Helpers for drawing outlined, shaded shapes |
 | `assets/audio/` | Built sound effects and music |
