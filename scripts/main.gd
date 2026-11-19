@@ -4199,6 +4199,7 @@ func set_chasms(list: Array) -> void:
 		body.add_child(shape)
 		add_child(body)
 		chasm_bodies.append(body)
+	room_view.hole_tower = tower  # (holes.gd: the tower's haze over the floor below)
 	room_view.set_chasms(chasms)
 
 

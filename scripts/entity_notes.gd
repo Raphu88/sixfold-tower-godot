@@ -41,6 +41,7 @@ static var TIDBITS := {
 	# --- the towers ---------------------------------------------------------------
 	"tower:gryphon": [
 		"Open drops everywhere here. Step off one and you land on the floor below.",
+		"Look down a drop and you see the floor you'd land on. A doorway shows no such depth.",
 		"Harriers and bats cross the drops. Walking things keep off them.",
 	],
 	"tower:kraken": [
