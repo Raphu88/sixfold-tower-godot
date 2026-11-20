@@ -72,7 +72,10 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_offhand", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_offhand", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+	"how_controls": {"ask": "What are the controls?", "fact": "controls",
+		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
+		"choices": ["how", "bye"]},
 	"how_start": {"ask": "How did my start work?", "fact": "start",
 		"lines": ["Three questions made your start. What you did before gave your weapon and armour: Soldier a sword and chain, Hunter a shortbow, a dagger and leather, Labourer a war hammer and padding, Beggar a dagger and nothing, Scholar a sword cane and padding, Sailor a flintlock and leather. They're heirlooms, so every climb begins with them. Where you grew up chose your first tower and your home station. Why you climb set how hard it was: born into it, fine gear, {born_crystals} crystals and a family title; hired, common gear, {hired_crystals} crystals, a title and a contract; self made, worn gear and nothing else, but renown a quarter faster until a first title. {start_line}"],
 		"choices": ["how_titles", "how_renown", "how", "bye"]},
@@ -407,6 +410,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = _fact_dining(main)
 		"travel":
 			f = load("res://scripts/travel.gd").talk_facts(main.profile if main != null else null)
+		"controls":
+			f = _fact_controls(main)
 		"start":
 			f = _fact_start(main)
 		"training":
@@ -768,6 +773,22 @@ static func _fact_titles(main) -> Dictionary:
 
 
 ## A new climber's start (new_start.gd): what each answer gives, and yours.
+## The controls for whatever you're playing with (controls.gd HELP).
+static func _fact_controls(main) -> Dictionary:
+	var C = load("res://scripts/controls.gd")
+	var pad: bool = main != null and main.pad_active
+	var touch: bool = main != null and main.touch_active
+	var bits: Array = []
+	for row in C.HELP:
+		var k: String = C.pad_text(row[2], main.pad_ps) if pad else row[1]
+		if k == "-":
+			continue
+		bits.append("%s: %s" % [k, row[0]])
+	var how := "On a phone, the buttons on screen are labelled: hold one and I'll say what it does." if touch \
+		else ("With a controller:" if pad else "On a keyboard and mouse:")
+	return {"controls_how": how, "controls_list": "; ".join(bits) + "."}
+
+
 static func _fact_start(main) -> Dictionary:
 	var NS = load("res://scripts/new_start.gd")
 	var f := {"born_crystals": str(NS.WHY["born"]["crystals"]), "hired_crystals": str(NS.WHY["hired"]["crystals"]), "start_line": ""}
