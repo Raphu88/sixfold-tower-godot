@@ -21,13 +21,13 @@ const PHONE_SCALE := 1.5
 ## HIT_MIN device px across.
 const HIT_PAD := 12.0
 const HIT_MIN := 44.0
-const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory"]
+const ONE_SHOT := ["weapon", "menu", "item_next", "take", "climber", "inventory", "map"]
 ## Held buttons a quick tap still has to reach the game with: let go a
 ## moment later (Item: a tap uses the current item, a hold opens the belt
 ## wheel to choose one).
 const HOLD_TAP := ["item", "tools"]
 ## The top bar: always there, also while fallen.
-const TOP_BAR := ["menu", "fullscreen", "climber", "inventory"]
+const TOP_BAR := ["menu", "fullscreen", "climber", "inventory", "map"]
 const Items := preload("res://scripts/items.gd")
 const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
@@ -50,7 +50,7 @@ var _own := {}  # the actions the touch controls are holding down right now
 ## input state outlives a scene reload).
 const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "attack", "roll", "parry", "jump",
 	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact",
-	"climber", "inventory", "use_item", "item_next", "tool_ring", "offhand"]
+	"climber", "inventory", "use_item", "item_next", "tool_ring", "offhand", "floor_map"]
 
 
 func _ready() -> void:
@@ -69,6 +69,9 @@ func _layout() -> void:
 	buttons = []
 	for row in BUTTONS:
 		buttons.append(_button(row[0], row[1], s))
+	# Map: the floor map (O on a keyboard), on a floor of rooms (portals.gd).
+	if main.portals != null and main.portals.map_ready():
+		buttons.append(_button("map", "floor_map", s))
 	# Take: only while you stand on gear you'd swap for (Y on a keyboard).
 	if not main.gear_here.is_empty():
 		buttons.append(_button("take", "interact", s))
@@ -369,7 +372,7 @@ func _signature() -> Array:
 	var p = main.player
 	var s := [get_viewport_rect().size, Layout.version, held.duplicate(), stick_touch, stick_origin, stick_pos, main.gear_here.is_empty(),
 		main.choosing_tower, main.camp_choosing, main.overlay_showing(), main.menu_open(),
-		main.secret_tools != null and main.secret_tools.ring_ready()]
+		main.secret_tools != null and main.secret_tools.ring_ready(), main.portals != null and main.portals.map_ready()]
 	if p != null:
 		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05), p.ammo_left(), snappedf(p.refill_t, 0.05),
 			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
@@ -473,6 +476,8 @@ func _draw() -> void:
 				label = "Climber"
 			"inventory":
 				label = "Bag"
+			"map":
+				label = "Map"
 			"tools":
 				label = "Tools"
 				col = main.secret_tools.SB.color(main.secret_tools.bond())
@@ -506,7 +511,7 @@ func _draw() -> void:
 			draw_string(font, c + Vector2(-r, r * 0.8), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
 			continue
 		var fsize := 16 if r > 30.0 else 13
-		if b["id"] == "climber" or b["id"] == "inventory":
+		if b["id"] == "climber" or b["id"] == "inventory" or b["id"] == "map":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
 			draw_string(font, c + Vector2(-r, r * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 11, Color(col, 0.9))
 			continue
@@ -527,6 +532,16 @@ func _draw() -> void:
 ## The little pictures on the Climber (a figure) and Bag (a satchel) buttons.
 func _draw_top_icon(id: String, c: Vector2, r: float, col: Color) -> void:
 	var u := r / 20.0
+	if id == "map":
+		# A folded map: three panels, a dotted way across, a portal's ring.
+		var pts := PackedVector2Array([c + Vector2(-7, -5) * u, c + Vector2(-2, -3) * u, c + Vector2(2, -5) * u, c + Vector2(7, -3) * u,
+			c + Vector2(7, 6) * u, c + Vector2(2, 4) * u, c + Vector2(-2, 6) * u, c + Vector2(-7, 4) * u])
+		draw_colored_polygon(pts, Color(col, 0.35))
+		draw_polyline(pts + PackedVector2Array([pts[0]]), col, maxf(1.0, 1.2 * u), true)
+		draw_line(c + Vector2(-2, -3) * u, c + Vector2(-2, 6) * u, col, maxf(1.0, u))
+		draw_line(c + Vector2(2, -5) * u, c + Vector2(2, 4) * u, col, maxf(1.0, u))
+		draw_arc(c + Vector2(4.5, 0.5) * u, 1.8 * u, 0.0, TAU, 10, col, maxf(1.0, u))
+		return
 	if id == "climber":
 		draw_circle(c + Vector2(0, -5) * u, 3.2 * u, col)
 		draw_colored_polygon(PackedVector2Array([c + Vector2(-5, 6) * u, c + Vector2(-3, -1) * u, c + Vector2(3, -1) * u, c + Vector2(5, 6) * u]), col)

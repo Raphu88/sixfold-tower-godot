@@ -70,6 +70,7 @@ static var HELP := {
 	"rail:board": "The Renown Board: your rank, what the next one opens, every rank, your deeds and the climbers you've met.",
 	"rail:resume": "Back to the climb.",
 	"rail:inventory": "Your gear, items and heirlooms.",
+	"floor_map": "Opens the floor map: the rooms you've seen, where you stand, the stair and the portals.",
 	# --- the engine -------------------------------------------------------------------------
 	"tower": "{Tower}, by {station}: {essence} essence, and {beast} at the top. {where} {best_line}",
 	"depart": "Pull it and the train leaves for {tower}. Your pack and your belt go with you.",

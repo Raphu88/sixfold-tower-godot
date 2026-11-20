@@ -1808,6 +1808,8 @@ func _built_theme(theme: String, fl := 6) -> Array:
 				continue
 			if plan.get("ways_down", []).any(func(w): return int(w["room"]) == i):
 				continue  # (a way down never shares a room with a trap set piece: ways_down.gd _fits)
+			if plan.get("portals", []).any(func(pt): return int(pt["room"]) == i):
+				continue  # (nor does a portal: floors.gd _portals keeps out of trap rooms)
 			if not T.fits(theme, {"size": Vector2i(ri["rect"].size / F.CELL), "rows": ri["rows"]}, tid, tower):
 				continue
 			var ctx: Dictionary = Traps.context(plan)
@@ -7711,6 +7713,8 @@ func _wing_tests() -> void:
 	# Secret rooms.
 	_check(await _wing_floor(true, ""), "a floor with a secret room")
 	var s: Dictionary = W.secrets[0]
+	s["content"] = "open"  # (no Keeper rising to knock you about while this looks around)
+	main.VaultsScript.lay_out(s, main.floor_num, false, main.Floors.CELL)
 	var mouth: Vector2i = s["mouth"][0]
 	var mc: Vector2 = W._tile_center(mouth)
 	var into: Vector2 = s["into"]
@@ -7745,19 +7749,25 @@ func _wing_tests() -> void:
 	Input.action_release(key)
 	await _frames(2)
 	_check(not early and s["open"], "leaning into it for a moment grinds it open")
-	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth), "...a passage and a room, open to walk and to the path grid")
-	p.global_position = W._tile_center(s["door"][0]) + into * 30.0
+	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth), "...a portal in the wall, and the pocket dimension beyond open")
+	main.portals.armed = true
+	main.portals._move_player(s["portal_out"])
 	await _frames(4)
-	_check(main.fog.vis[di] == 1, "...and in sight once you step in")
-	# A Tithe Door asks for unbanked essence.
-	if await _wing_floor(true, "tithe"):
+	_check(main.portals.in_pocket() and main.fog.vis[di] == 1, "...and in sight once you step through")
+	main.portals.armed = true
+	main.portals._move_player(s["portal_in"])
+	await _frames(2)
+	# A Tithe Stone asks for unbanked essence.
+	if await _wing_floor(true, ""):
 		s = W.secrets[0]
+		s["content"] = "tithe"
+		main.VaultsScript.lay_out(s, main.floor_num, false, main.Floors.CELL)
 		W._open_secret(s)
-		_check(main.is_solid(s["seal_pos"]), "a Tithe Door stands shut in its secret room")
+		_check(main.is_solid(s["tithe_pos"]) and s["vault"] == "sealed", "a Tithe Stone stands in its pocket, the vault chained")
 		main.run_essence = {"fire": 5.0}
 		_check(not W.pay_tithe(s) and s["vault"] == "sealed", "it won't open for less than it asks (%d)" % int(s["cost"]))
 		main.run_essence = {"fire": float(s["cost"]) * 0.5 + 4.0, "air": float(s["cost"]) * 0.5}
-		_check(W.pay_tithe(s) and s["vault"] == "open" and not main.is_solid(s["seal_pos"]), "paid, it opens")
+		_check(W.pay_tithe(s) and s["vault"] == "open" and not main.is_solid(s["tithe_pos"]), "paid, it opens")
 		var left := 0.0
 		for k2 in main.run_essence:
 			left += main.run_essence[k2]
@@ -11591,12 +11601,15 @@ func _secret_deep_tests() -> void:
 	var spot2 := Vector2.ZERO
 	for info in main.room_info:
 		var c2: Vector2 = info["rect"].get_center()
-		for dir2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:  # (from each side of the middle: a tower's pool or drop may fill it)
-			p.global_position = c2 - dir2 * 2.5 * Tr.C
-			p.aim = dir2
-			if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
-				spot2 = p.global_position
-				break
+		for off2 in [2.5, 1.5, 3.5]:  # (a few distances: what the floor keeps clear, a portal among it, may stand in one)
+			for dir2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:  # (from each side of the middle: a tower's pool or drop may fill it)
+				if spot2 != Vector2.ZERO:
+					break
+				p.global_position = c2 - dir2 * off2 * Tr.C
+				p.aim = dir2
+				if not main.is_solid(p.global_position) and not D._stretch(SB.BUILD_AHEAD, SB.RAISE_LEN, D._trap_ctx()).is_empty() and Tr._free(D._trap_ctx(), D.ahead_tiles(SB.BUILD_AHEAD, 1)[0]):  # (a free tile ahead: chests and the task's pieces keep theirs clear)
+					spot2 = p.global_position
+					break
 		if spot2 != Vector2.ZERO:
 			break
 	_check(spot2 != Vector2.ZERO, "an open room to build in")
@@ -11621,12 +11634,13 @@ func _secret_deep_tests() -> void:
 				gate_ok = D.build("gate") == ""
 	_check(gate_ok and D.gates.size() == 1 and D.gates[0]["body"].collision_layer == 8 and main.astar.is_point_solid(D.gates[0]["tiles"][0]), "a gate: monsters can't pass (and go around); you can")
 	for info in main.room_info:
-		if D.builds >= SB.BUILD_MAX:
-			break
-		p.global_position = info["rect"].get_center() + Vector2(0, Tr.C)
-		p.aim = Vector2.LEFT
-		if not main.is_solid(p.global_position):
-			D.build("wall")
+		for off in [Vector2(0, Tr.C), Vector2(0, -Tr.C), Vector2(0, 2.0 * Tr.C)]:  # (a few spots a room: what the floor keeps clear, a portal among it, may stand in one)
+			if D.builds >= SB.BUILD_MAX:
+				break
+			p.global_position = info["rect"].get_center() + off
+			p.aim = Vector2.LEFT
+			if not main.is_solid(p.global_position):
+				D.build("wall")
 	_check(D.builds == SB.BUILD_MAX and D.build("wall") == SB.TEXT["build_max"], "builds are limited to %d a floor (%d built)" % [SB.BUILD_MAX, D.builds])
 	print("the Designer's rift")
 	var R = D.rift

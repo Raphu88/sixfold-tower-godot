@@ -657,7 +657,7 @@ func toggle(which: String) -> void:
 
 
 func _can_open() -> bool:
-	return main == null or not (main.overlay_done() or main.overlay_closed_frame == Engine.get_process_frames())
+	return main == null or not (main.overlay_done() or main.overlay_closed_frame == Engine.get_process_frames() or (main.portals != null and main.portals.map_open()))
 
 
 ## Esc, B or the Back button: back a page, or out of the menu.
@@ -1643,11 +1643,21 @@ func _page_pause() -> void:
 		lb.set_meta("leave_practice", true)
 		_primary(lb)
 	elif not _on_train():
+		if main.portals != null and main.layout_on and not main.room_info.is_empty() and not main.in_camp:
+			var mb := _button(_with_key("Floor map", "O", ""), _open_floor_map, row)
+			mb.set_meta("help", "floor_map")  # (the Entity explains it: entity_help.gd)
 		_button("Restart this climb", _restart, row)
 	if can_quit():
 		_button("Quit game", _quit_game, row)
 	if row.get_child_count() == 0:
 		row.queue_free()
+
+
+## The floor map (portals.gd, floor_map.gd): the menu closes and the map opens.
+func _open_floor_map() -> void:
+	close()
+	if main != null and main.portals != null:
+		main.portals.call_deferred("open_map")
 
 
 ## A button's name with its key or controller button after it (none on a phone).

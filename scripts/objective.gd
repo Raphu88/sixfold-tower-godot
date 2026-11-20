@@ -584,6 +584,8 @@ func puzzle_solved(host) -> void:
 	main.fx_text(at + Vector2(0, -40), Objectives.TEXT["optional_vault"], GOLD)
 	main.offer_vault(main.wings.vault_choices(false), String(host.display_name()).to_upper(), [Objectives.TEXT["optional_vault"]])
 	main.MakersScript.feed(main, "puzzle")
+	if main.get("portals") != null:
+		main.portals.wake("puzzle")  # (a challenge done: the floor's portals wake)
 
 
 func _complete() -> void:

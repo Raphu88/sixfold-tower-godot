@@ -342,23 +342,19 @@ func _empty_wing(w: Dictionary) -> void:
 	_lose_fragment(w)
 
 
-## A secret room the rift tears into: open, and empty.
+## A secret room (a pocket dimension) the rift tears into: its portal open,
+## and its vault emptied.
 func _empty_secret(s: Dictionary) -> void:
 	var W = main.wings
-	var st: Array = W._secret_tiles(s)
-	W._set_solid(st, false)
-	W._open([s["mouth"][0]], s.get("body"))
-	s["body"] = null
-	if s.get("vault_body") != null:
-		W._open([s["vault_door"]], s["vault_body"])
-		s["vault_body"] = null
-	s["open"] = true
+	W._open_secret(s, true)
+	if s.get("tithe_body") != null:
+		W._open([s["tithe_tile"]], s["tithe_body"])
+		s["tithe_body"] = null
 	s["taken"] = true
 	if s.has("vault"):
 		s["vault"] = "taken"
-	if s.has("light"):
-		main.lighting.remove_light(s["light"])
-		s.erase("light")
+	for c in s.get("chests", []):
+		c["taken"] = true
 	_lose_fragment(s)
 
 

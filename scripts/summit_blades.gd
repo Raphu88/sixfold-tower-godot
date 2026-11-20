@@ -180,7 +180,9 @@ static func has_lead(profile, tower: String) -> bool:
 		return true
 	var leads = profile.get("summit_leads") if profile != null else null
 	if not (leads is Dictionary):
-		return false
+		# (the pocket vaults note a lead in the climber's record: vaults.gd lead_count)
+		var rec = profile.get("record") if profile != null else null
+		return rec is Dictionary and float(rec.get("summit_leads:" + tower, 0.0)) > 0.0
 	var v = leads.get(tower, null)
 	if v is bool:
 		return v
