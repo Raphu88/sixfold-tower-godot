@@ -117,7 +117,8 @@ static var CLIMBER := {
 	"wards": {"poisoned": "antivenom", "burning": "fireward", "bleeding": "bleedward", "charged": "grounded"},
 	"from": {"thunderling": "charged", "gryphon": "charged", "lurker": "soaked", "kraken": "soaked", "cinder": "burning", "wyvern": "burning",
 		"firebird": "burning", "scorpling": "poisoned", "manticore": "poisoned", "bloomcap": "poisoned", "thornhound": "bleeding", "mongrel": "bleeding",
-		"ashwing": "burning", "briar": "bleeding"},
+		"ashwing": "burning", "briar": "bleeding",
+		"drowned": "soaked", "stoker": "burning", "slagworm": "burning"},
 }
 
 ## The climber's states in words: the HUD's line for each ("chip": its name,

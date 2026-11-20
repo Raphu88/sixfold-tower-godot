@@ -69,6 +69,12 @@ static var BESTIARY := {
 	"mimic": {"name": "Mimic",
 		"desc": "A chest that bites back. It waits among the floor's chests and springs when you walk up to open it, then hops after you. Up close it rears and snaps (it glints: parry it); from a few steps off a red line shows where it will hurl itself, jaws first. Slain, it spills what it swallowed: more than any chest. A lid that breathes, a tooth at the seam: that's the tell.",
 		"states": "", "lore": ""},
+	"husk": {"name": "Husk",
+		"desc": "The empty gear of a climber who fell here, still moving. It fights like a climber: a slash up close and a lunge from further off, both glinting first (parry them). It rolls away from your wind-ups (a bow drawn, a spell, a finisher). Strike it three times in one rhythm and it reads you: its blade comes up and it parries the next blow on that beat, then cuts back. Change your timing, or strike from behind.",
+		"states": "", "lore": ""},
+	"bellringer": {"name": "Bellringer",
+		"desc": "A hunched tower servant with a hand bell. It has no blow of its own and runs from you. Every few seconds it lifts its bell (a gold ring shows how far it carries) and rings it: every monster inside is quickened for a while, over its attacks sooner and faster on its feet. Strike it while the bell is up and the ring is lost. Catch it first.",
+		"states": "", "lore": ""},
 	# --- the Gryphon's tower ---
 	"bat": {"name": "Bat",
 		"desc": "Circles you on the wing, hangs still a moment, then swoops straight through where you stood. The swoop glints first: parry it. After a swoop it circles off to rest.",
@@ -79,6 +85,15 @@ static var BESTIARY := {
 	"harrier": {"name": "Harrier",
 		"desc": "Soars high over the halls, where only its shadow shows, then folds its wings and dives at you with a glint. Its strike throws you the way it was flying, over an edge if you stand by one. After a dive it stands on the floor a moment, then climbs back up. Parry the dive near a drop and it tumbles over the edge.",
 		"states": "", "lore": ""},
+	"squall": {"name": "Squall",
+		"desc": "A whirl of wind that drifts over the drops. Whirling, it turns most of every blow. It stops, spins up (streaks run down a lane in front of it) and gusts: the gust can't be parried, so step sideways out of the lane. Caught, you're shoved down it, toward a drop if one is near. After a gust it slows to wind up its next spin: then blows land in full.",
+		"states": "", "lore": ""},
+	"rookery": {"name": "Rookery",
+		"desc": "A nest of twigs on a ledge against a wall. It never moves and never strikes, but once it has seen you an egg rocks, cracks and a bat flies out, now and then, never more than two at once and three in all. Break the nest and no more come.",
+		"states": "", "lore": ""},
+	"stormstone": {"name": "Stormstone",
+		"desc": "A carved standing stone that builds charge: its runes light one by one. Full, a red line picks whoever stands nearest, you or a monster, and lightning arcs to them (it can't be parried: roll, or step back). A monster it strikes takes double and is stunned. Lure them close. With nobody in reach, the charge goes into the ground.",
+		"states": "Its arc leaves whatever it strikes charged: a soaked monster sets off Conduct.", "lore": ""},
 	"gryphon": {"name": "Gryphon",
 		"desc": "Rakes with its talons up close, dives on you from range and lands hard, and throws a fan of five feathers. Every attack glints. The landing can't be parried: roll. It stays down a long moment after landing.",
 		"states": "", "lore": ""},
@@ -92,6 +107,15 @@ static var BESTIARY := {
 	"deepfin": {"name": "Deepfin",
 		"desc": "Lives in deep water: only a fin shows as it shadows you along the bank, and nothing can touch it there. Come near the water and it rises, glints and leaps at you. Landed on stone it thrashes a moment, then drags itself back; out of the water too long, it dries out and weakens. With no deep water on the floor it keeps to the shallows like a lurker.",
 		"states": "Out of the water it is always soaked, so lightning arcs through it, and it takes more from every blow.", "lore": ""},
+	"inkling": {"name": "Inkling",
+		"desc": "A small octopus that keeps a few steps off. It puffs up (a dark ring marks the spot, on you) and sprays: a cloud of ink darkens the floor round you for a few seconds. Then it slips into the cloud and nips from inside: its warning and glint still show over the ink, so parry, or walk out of the cloud. The ink itself doesn't hurt.",
+		"states": "", "lore": ""},
+	"drowned": {"name": "Drowned",
+		"desc": "A waterlogged corpse that lies face down in a puddle, out of reach, until you come near. Then it rises and shambles after you, slowly. Up close it raises both arms, glints and brings them down (parry it). When it falls it swells (a ring shows how far) and bursts, soaking everyone in the ring. Soaked, lightning jumps to you: mind the sparks.",
+		"states": "", "lore": ""},
+	"driftbell": {"name": "Driftbell",
+		"desc": "A drifting jellyfish that floats slowly after you, over deep water too. Its trail crackles where it lies on water: touch it and it stings and leaves you charged. Come close and its tendrils light up, it glints and sparks all round it (it can't be parried: step back or roll). Light on health: strike between sparks, or shoot it.",
+		"states": "", "lore": ""},
 	"kraken": {"name": "Kraken",
 		"desc": "Sweeps a tentacle across a wide arc (parry it), slams three spots, one where you stand (can't be parried: roll), and spits three blobs of ink (parry them). It waits out a recovery after each attack.",
 		"states": "", "lore": ""},
@@ -105,6 +129,15 @@ static var BESTIARY := {
 	"golem": {"name": "Forge golem",
 		"desc": "A walking lump of iron that heats up as it fights: its seams glow from dull red to white. Hot, it shrugs off half of every blow, walks faster, leaves the floor burning where it slams, and now and then flares a ring of heat around it (can't be parried: get out, or roll). When it runs too hot it slumps to cool, and takes double from every blow. Its fist slam can be parried.",
 		"states": "Soaked while it's warm, it is quenched: it slumps to cool at once, open to double damage.", "lore": ""},
+	"stoker": {"name": "Stoker",
+		"desc": "A forge-hand with a coal shovel. From a few steps off it loads glowing coal (red circles mark where it lands: on you, and beside a fire already burning) and flings it, and the floor there burns; coal on a fire makes it bigger. The coal can't be parried: step out or jump. Up close it swings the shovel (parry it). Slay it and its fires die down.",
+		"states": "", "lore": ""},
+	"slagworm": {"name": "Slagworm",
+		"desc": "A molten slug that crawls after you, slowly. Its slag hardens behind it into a low glowing wall that burns whoever stands on it: jump it, or roll through. The slag cools and crumbles after a while, and it never blocks your way. Up close it rears and bites (it glints: parry it).",
+		"states": "", "lore": ""},
+	"riveter": {"name": "Riveter",
+		"desc": "A small flying iron device on two whirring rotors. It hovers at range, a red line shows its aim, it glints and fires three rivets. The first two only glance off a parry; the third glows hot and glints as it flies: parry that one and it flies straight back, knocking the riveter out of the air, open to blows.",
+		"states": "", "lore": ""},
 	"wyvern": {"name": "Wyvern",
 		"desc": "Sweeps its tail up close (parry it), breathes fire down a narrow cone that sets the floor alight (can't be parried: roll or step aside), and sprays five embers (parry them). Stay close, out of its breath.",
 		"states": "", "lore": ""},
@@ -190,12 +223,14 @@ static var TEXT := {
 }
 
 ## Kinds that hide under water, sand or leaves (they can't be struck there).
-const HIDERS := ["lurker", "deepfin", "burrower", "briar"]
+const HIDERS := ["lurker", "deepfin", "burrower", "briar", "drowned"]
 ## A monster this near the climber, and on screen, has been seen (px).
 const NEAR := 460.0
 ## How a monster stands for its picture (the state it's drawn in), and
 ## which way it faces: toward you, a little to the side.
-const POSE := {"lurker": "up", "deepfin": "stranded", "burrower": "up", "briar": "rooted", "ashwing": "rest", "harrier": "perch", "bat": "hover", "mimic": "chase"}
+const POSE := {"lurker": "up", "deepfin": "stranded", "burrower": "up", "briar": "rooted", "ashwing": "rest", "harrier": "perch", "bat": "hover", "mimic": "chase",
+	"husk": "chase", "bellringer": "skulk", "squall": "whirl", "rookery": "nest", "stormstone": "build",
+	"inkling": "swim", "drowned": "shamble", "driftbell": "drift", "stoker": "chase", "slagworm": "crawl", "riveter": "hover"}
 const FACE := Vector2(0.42, 0.91)
 ## How a level reads (0 not met .. 5 the last tier).
 const LEVEL_NAMES := ["", "tier_seen", "tier_fought", "tier_slain", "tier_slain", "tier_slain"]

@@ -9,7 +9,7 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime", "mimic": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime", "mimic": "hit_armor", "husk": "hit_armor", "bellringer": "", "squall": "", "rookery": "", "stormstone": "hit_armor", "inkling": "hit_slime", "drowned": "hit_slime", "driftbell": "hit_slime", "stoker": "", "slagworm": "hit_slime", "riveter": "hit_armor"}
 
 const Palette := preload("res://scripts/palette.gd")
 const Anim := preload("res://scripts/anim.gd")
@@ -61,10 +61,16 @@ static var TYPES := {
 	"thunderling": {"hp": 26.0, "speed": 70.0, "radius": 11.0, "color": Color(0.95, 0.89, 0.42), "dmg": 12.0, "weight": 1.0},
 	"gryphon": {"hp": 280.0, "speed": 78.0, "radius": 26.0, "color": Color(0.88, 0.74, 0.45), "dmg": 18.0, "weight": 30.0, "boss": true},
 	"harrier": {"hp": 24.0, "speed": 105.0, "radius": 12.0, "color": Color(0.58, 0.5, 0.42), "dmg": 10.0, "weight": 0.9},  # (scripts/towers/harrier.gd)
+	"squall": {"hp": 26.0, "speed": 80.0, "radius": 13.0, "color": Color(0.78, 0.88, 0.96), "dmg": 7.0, "weight": 0.8},  # (scripts/foes/squall.gd)
+	"rookery": {"hp": 40.0, "speed": 0.0, "radius": 15.0, "color": Color(0.55, 0.43, 0.3), "dmg": 6.0, "weight": 60.0},  # (scripts/foes/rookery.gd)
+	"stormstone": {"hp": 50.0, "speed": 0.0, "radius": 14.0, "color": Color(0.52, 0.55, 0.62), "dmg": 14.0, "weight": 60.0},  # (scripts/foes/stormstone.gd)
 	# The Kraken's tower
 	"lurker": {"hp": 30.0, "speed": 95.0, "radius": 12.0, "color": Color(0.31, 0.56, 0.66), "dmg": 11.0, "weight": 1.0},
 	"shellback": {"hp": 40.0, "speed": 40.0, "radius": 16.0, "color": Color(0.5, 0.6, 0.66), "dmg": 12.0, "weight": 4.0},
 	"deepfin": {"hp": 34.0, "speed": 120.0, "radius": 13.0, "color": Color(0.22, 0.42, 0.5), "dmg": 13.0, "weight": 1.2},  # (scripts/towers/deepfin.gd)
+	"inkling": {"hp": 18.0, "speed": 95.0, "radius": 10.0, "color": Color(0.46, 0.32, 0.6), "dmg": 8.0, "weight": 0.6},  # (scripts/foes/inkling.gd)
+	"drowned": {"hp": 46.0, "speed": 34.0, "radius": 13.0, "color": Color(0.42, 0.52, 0.5), "dmg": 13.0, "weight": 2.5},  # (scripts/foes/drowned.gd)
+	"driftbell": {"hp": 20.0, "speed": 42.0, "radius": 12.0, "color": Color(0.62, 0.78, 0.95), "dmg": 9.0, "weight": 0.5},  # (scripts/foes/driftbell.gd)
 	"ashwing": {"hp": 24.0, "speed": 105.0, "radius": 11.0, "color": Color(1.0, 0.5, 0.22), "dmg": 9.0, "weight": 0.5},  # (scripts/towers/ashwing.gd)
 	"briar": {"hp": 42.0, "speed": 38.0, "radius": 14.0, "color": Color(0.3, 0.46, 0.22), "dmg": 11.0, "weight": 3.0},  # (scripts/towers/briar.gd)
 	"kraken": {"hp": 316.0, "speed": 35.0, "radius": 34.0, "color": Color(0.6, 0.3, 0.42), "dmg": 18.0, "weight": 40.0, "boss": true},
@@ -72,6 +78,9 @@ static var TYPES := {
 	"cinder": {"hp": 16.0, "speed": 95.0, "radius": 10.0, "color": Color(1.0, 0.55, 0.22), "dmg": 9.0, "weight": 0.5},
 	"smith": {"hp": 60.0, "speed": 45.0, "radius": 16.0, "color": Color(0.45, 0.42, 0.44), "dmg": 18.0, "weight": 4.0},
 	"golem": {"hp": 66.0, "speed": 44.0, "radius": 18.0, "color": Color(0.4, 0.36, 0.35), "dmg": 15.0, "weight": 4.5},  # (scripts/towers/forge_golem.gd)
+	"stoker": {"hp": 40.0, "speed": 50.0, "radius": 14.0, "color": Color(0.24, 0.21, 0.2), "dmg": 11.0, "weight": 2.5},  # (scripts/foes/stoker.gd)
+	"slagworm": {"hp": 38.0, "speed": 40.0, "radius": 13.0, "color": Color(0.3, 0.22, 0.2), "dmg": 11.0, "weight": 3.0},  # (scripts/foes/slagworm.gd)
+	"riveter": {"hp": 20.0, "speed": 90.0, "radius": 10.0, "color": Color(0.5, 0.5, 0.56), "dmg": 6.0, "weight": 0.6},  # (scripts/foes/riveter.gd)
 	"wyvern": {"hp": 298.0, "speed": 72.0, "radius": 28.0, "color": Color(0.72, 0.3, 0.22), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Manticore's tower
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
@@ -88,6 +97,9 @@ static var TYPES := {
 	"chimera": {"hp": 354.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# Found in every tower: a chest that bites back (scripts/mimic.gd)
 	"mimic": {"hp": 46.0, "speed": 70.0, "radius": 14.0, "color": Color(0.5, 0.34, 0.2), "dmg": 13.0, "weight": 2.5},
+	# Found in every tower: a dead climber's empty gear, a bell-ringing servant (scripts/foes/)
+	"husk": {"hp": 44.0, "speed": 72.0, "radius": 13.0, "color": Color(0.5, 0.47, 0.42), "dmg": 12.0, "weight": 1.6},
+	"bellringer": {"hp": 18.0, "speed": 62.0, "radius": 11.0, "color": Color(0.42, 0.36, 0.42), "dmg": 4.0, "weight": 0.8},
 	# Covenant's spirit familiar (only ever on your side)
 	"familiar": {"hp": 20.0, "speed": 130.0, "radius": 9.0, "color": Color(0.6, 0.82, 1.0), "dmg": 5.0, "weight": 0.5},
 }
@@ -104,10 +116,14 @@ const WEAKNESS := {
 	"deepfin": "lightning when it's out of the water", "harrier": "parry the dive on a ledge",
 	"ashwing": "strike or soak its ash before it rises", "briar": "fire flushes it out of hiding",
 	"mimic": "parry the bite, then strike the open maw",
+	"husk": "change your timing, or strike from behind", "bellringer": "catch it first",
+	"squall": "strike while it spins up", "rookery": "break the nest", "stormstone": "let a monster stand nearer",
+	"inkling": "walk out of the ink", "drowned": "step out before it bursts", "driftbell": "strike between sparks",
+	"stoker": "slay it: its fires die down", "slagworm": "jump the slag", "riveter": "parry the hot rivet back",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
-const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier", "ashwing"]
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier", "ashwing", "squall", "driftbell", "riveter"]
 ## Monsters that swim through deep water (the Kraken's tower), where others can't wade.
 const SWIMMERS := ["lurker", "kraken", "deepfin"]
 ## Kinds with a script of their own (a tower's creature): spawn them with make().
@@ -115,7 +131,11 @@ const SWIMMERS := ["lurker", "kraken", "deepfin"]
 ## _overlay_extra, take_hit, on_parried...).
 const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "res://scripts/towers/burrower.gd",
 	"deepfin": "res://scripts/towers/deepfin.gd", "harrier": "res://scripts/towers/harrier.gd",
-	"ashwing": "res://scripts/towers/ashwing.gd", "briar": "res://scripts/towers/briar.gd", "mimic": "res://scripts/mimic.gd"}
+	"ashwing": "res://scripts/towers/ashwing.gd", "briar": "res://scripts/towers/briar.gd", "mimic": "res://scripts/mimic.gd",
+	"husk": "res://scripts/foes/husk.gd", "bellringer": "res://scripts/foes/bellringer.gd",
+	"squall": "res://scripts/foes/squall.gd", "rookery": "res://scripts/foes/rookery.gd", "stormstone": "res://scripts/foes/stormstone.gd",
+	"inkling": "res://scripts/foes/inkling.gd", "drowned": "res://scripts/foes/drowned.gd", "driftbell": "res://scripts/foes/driftbell.gd",
+	"stoker": "res://scripts/foes/stoker.gd", "slagworm": "res://scripts/foes/slagworm.gd", "riveter": "res://scripts/foes/riveter.gd"}
 
 
 ## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call
@@ -297,6 +317,11 @@ var feud = null
 var feud_t := 0.0
 ## The Manipulator's Edit: "half its reach" (it starts attacks only from this share of the distance).
 var reach_k := 1.0
+## A bellringer's ring (foes/bellringer.gd): for haste_t seconds it gets over
+## its attacks haste_k times as fast and moves that much faster (its wind-ups
+## and glints keep their timing).
+var haste_t := 0.0
+var haste_k := 1.0
 
 
 ## Call before adding to the tree.
@@ -459,6 +484,10 @@ func _physics_process(delta: float) -> void:
 	notice_t -= delta
 	lost_t -= delta
 	flinch_cd -= delta
+	if haste_t > 0.0:
+		haste_t -= delta
+		if not is_attacking() and not is_boss():
+			state_t -= delta * (haste_k - 1.0)  # (rung: over its last attack sooner)
 	open_t -= delta
 	cripple_t -= delta
 	chill_t -= delta
@@ -592,6 +621,8 @@ func _physics_process(delta: float) -> void:
 	# A Deepcaller's Pressure slows the badly hurt.
 	if not state in ["lunge", "pounce", "swoop", "dive", "charge"]:
 		velocity *= main.water_slow(global_position, kind in SWIMMERS or kind in FLIERS)
+	if haste_t > 0.0 and not is_attacking():
+		velocity *= haste_k  # (a bellringer's ring)
 	# Wading in water a moment soaks it (fliers and foes in the air stay dry).
 	if not kind in FLIERS and main.in_water(global_position):
 		wade_t += delta
@@ -3479,6 +3510,11 @@ func _draw_overlay() -> void:
 		for i in 3:
 			var a := now * 6.0 + i * TAU / 3.0
 			o.quad(Vector2(0, lift_y) + Vector2.from_angle(a) * (radius + 2.0), Vector2(0, lift_y) + Vector2.from_angle(a + 0.4) * (radius + 6.0), 1.5, Color(0.95, 0.89, 0.42, 0.9))
+	if haste_t > 0.0 and not ally:
+		# Rung by a bellringer: gold ticks turning at its feet.
+		for i in 3:
+			var ha := now * 5.0 + i * TAU / 3.0
+			o.arc(Vector2(0, radius * 0.6), radius + 5.0, ha, ha + 0.6, 2.0, Color(0.95, 0.8, 0.4, 0.8 * clampf(haste_t, 0.0, 1.0)), 6)
 	if stun > 0.0:
 		for i in 3:
 			o.circle(Vector2(0, lift_y - radius - 8.0) + Vector2.from_angle(now * 4.0 + i * TAU / 3.0) * 7.0, 2.0, Color(1.0, 0.89, 0.63), 10)
