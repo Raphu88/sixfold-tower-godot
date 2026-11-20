@@ -19,6 +19,7 @@ var t
 func run(smoke) -> void:
 	t = smoke
 	await _every_option_draws()
+	_neck_joined()
 	_randomise_covers()
 	_old_saves()
 	await _page_by_hand()
@@ -185,6 +186,55 @@ func _every_option_draws() -> void:
 	var lk4: Dictionary = Mirror.climber_look(p)
 	_check(lk4["cloak_style"] == "tattered" and lk4["beard"] == "full" and lk4["trim_on"] and lk4["build"] == "broad", "the mirror image wears the climber's whole look")
 	p.set_appearance(t.main.profile.appearance)
+
+
+## The front figure's head joins its body: with every clothes and every
+## cloak (No cloak too), the hood up, down or pulled low, every build and
+## body, something solid is drawn all the way from the chin down the neck to
+## the shoulders (no gap where the background shows through).
+func _neck_joined() -> void:
+	print("appearance: the front figure's neck and collar leave no gap")
+	var looks: Array = []
+	for cl in A.options_of("clothes"):
+		for ck in A.options_of("cloak_style"):
+			looks.append({"clothes": cl[0], "cloak_style": ck[0], "hood": "down"})
+	for ck in A.options_of("cloak_style"):
+		for hood in ["up", "low"]:
+			looks.append({"cloak_style": ck[0], "hood": hood, "hair": "long"})
+	for bd in A.options_of("body"):
+		for bu in A.options_of("build"):
+			looks.append({"body": bd[0], "build": bu[0], "cloak_style": "none", "hood": "down", "hair": "mane"})
+	var gaps: Array = []
+	for over in looks:
+		var app: Dictionary = A.DEFAULTS.duplicate()
+		app.merge(over, true)
+		var lk := A.look(app)
+		var b = Draw.Batch.new()
+		A.draw_front(b, lk)
+		var nw := A.neck_w(lk) - 1.0
+		var wx := Vector2(float(lk["wx"]), 1.0)  # (the shoulders, by the build)
+		var spots := [Vector2(0, -84), Vector2(0, -80), Vector2(0, -76), Vector2(0, -72), Vector2(0, -68), Vector2(-nw, -82), Vector2(nw, -82),
+			Vector2(-nw, -76), Vector2(nw, -76), Vector2(-15, -72) * wx, Vector2(15, -72) * wx, Vector2(-22, -67) * wx, Vector2(22, -67) * wx]
+		# (only the solid triangles near the neck)
+		var near: Array = []
+		for i in range(0, b.pts.size(), 3):
+			if b.cols[i].a < 0.9:
+				continue
+			var lo: Vector2 = b.pts[i].min(b.pts[i + 1]).min(b.pts[i + 2])
+			var hi: Vector2 = b.pts[i].max(b.pts[i + 1]).max(b.pts[i + 2])
+			if hi.y < -90.0 or lo.y > -62.0 or lo.x > 30.0 or hi.x < -30.0:
+				continue
+			near.append(i)
+		for at in spots:
+			var hit := false
+			for i in near:
+				if Geometry2D.point_is_inside_triangle(at, b.pts[i], b.pts[i + 1], b.pts[i + 2]):
+					hit = true
+					break
+			if not hit:
+				gaps.append("%s at %s" % [over, at])
+				break
+	_check(gaps.is_empty(), "the neck, collar and shoulders are drawn solid from the chin down, for every clothes, cloak (No cloak too), hood, build and body (%d looks): %s" % [looks.size(), gaps.slice(0, 4)])
 
 
 func _randomise_covers() -> void:

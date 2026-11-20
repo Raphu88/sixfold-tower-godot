@@ -708,7 +708,7 @@ static func front_arms(b, lk: Dictionary) -> void:
 		var shade := 0.0 if sg < 0.0 else 0.2
 		match w:
 			"mail":
-				b.stroke(sh, el, col.darkened(0.12 + shade), 12.0 * thick)
+				b.limb(PackedVector2Array([sh, el]), PackedFloat32Array([12.0 * thick]), col.darkened(0.12 + shade))  # (rounded at the shoulder and elbow)
 				_mail(b, _p([sh.x - 5, sh.y, sh.x + 5, sh.y, el.x + 5, el.y, el.x - 5, el.y]), col, 4.5)
 			"plate":
 				b.stroke(el + (wr - el) * 0.15, wr - (wr - el) * 0.1, col.darkened(0.1 + shade), 12.0 * thick)  # vambrace
@@ -1164,6 +1164,9 @@ static func front_head(b, lk: Dictionary) -> void:
 			var hood := _p([0, -147, 13, -141, 23, -127, 27, -106, 23, -88, 12, -79, 0, -77, -12, -79, -23, -88, -27, -106, -23, -127, -13, -141])
 			var face := _oval(Vector2(0, -103), Vector2(15.6, 19.2), 24)
 			var ring := Geometry2D.clip_polygons(hood, face)
+			if String(lk.get("cloak_style", "long")) == "none":  # (no cloak: the coif's drape over the shoulders shows too)
+				var drape := _p([-29, -69, -23, -88, 23, -88, 29, -69, 13, -67, 0, -70, -13, -67])
+				_mail(b, drape, mc.darkened(0.08), 4.6)
 			for piece in ring:
 				_mail(b, piece, mc, 4.6)
 	if head == "hood" and lk.get("helm_id", "") != "":

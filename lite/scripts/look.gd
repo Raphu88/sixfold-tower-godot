@@ -1158,10 +1158,14 @@ static func _front_arms(b, lk: Dictionary) -> void:
 		var el := Vector2(sg * (40 + (wx - 1.0) * 26.0), -24)
 		var wr := Vector2(sg * 48, 1)
 		var col := tunic if sg < 0.0 else tunic.darkened(0.2)
-		b.stroke(sh, el, col, 13.0 * thick)
-		b.stroke(el, wr, col, 11.0 * thick)
+		# One limb through the joints, so the shoulder is round and the
+		# elbow bends without a seam (draw_util.gd limb).
+		b.limb(PackedVector2Array([sh, el, wr]), PackedFloat32Array([13.0 * thick, 11.0 * thick]), col)
 		b.line(sh + Vector2(-3.5, 1), el + Vector2(-4, 0), Color(col.lightened(0.25), 0.6), 2.0)
-		b.stroke(wr - (wr - el).normalized() * 2.0, wr + (wr - el).normalized() * 1.5, tunic.darkened(0.45), 12.0 * thick)
+		# The cuff: an edge where it starts, the hand over its end.
+		var d := (wr - el).normalized()
+		b.line(wr - d * (3.0 + 1.2 * Palette.TOON_LINE), wr + d * 2.0, OUTLINE, 12.0 * thick + 2.4 * Palette.TOON_LINE)
+		b.line(wr - d * 3.0, wr + d * 2.0, col.darkened(0.28), 12.0 * thick)
 		b.ball(Vector2(sg * 50, 9), 6.8, skin if sg < 0.0 else skin.darkened(0.14))
 
 

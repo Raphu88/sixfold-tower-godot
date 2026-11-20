@@ -678,7 +678,7 @@ static func front_arms(b, lk: Dictionary) -> void:
 		var shade := 0.0 if sg < 0.0 else 0.2
 		match w:
 			"chain":
-				b.stroke(sh, el, col.darkened(0.12 + shade), 12.0 * thick)
+				b.limb(PackedVector2Array([sh, el]), PackedFloat32Array([12.0 * thick]), col.darkened(0.12 + shade))  # (rounded at the shoulder and elbow)
 				_mail(b, _p([sh.x - 5, sh.y, sh.x + 5, sh.y, el.x + 5, el.y, el.x - 5, el.y]), col, 4.5)
 			"plate":
 				b.stroke(el + (wr - el) * 0.15, wr - (wr - el) * 0.1, col.darkened(0.1 + shade), 12.0 * thick)  # vambrace
