@@ -8,6 +8,8 @@
 ## Checks
 Godot 4.3 is installed in cloud sessions by the environment setup script.
 
+**Keep testing cheap (the owner pays for every wasted rerun).** The cloud machine has 4 cores, and many checks are timing-based: overloading it makes them fail falsely, and chasing those failures wastes the owner's usage. So: at most one or two subagents/builders at a time; builders run only the test parts for what they changed; run the full smoke test once, on a quiet machine, before merging (GitHub runs it again before deploying); never run several full test runs side by side, and don't investigate a failure that only shows up under heavy load. In this engine build, calling a method on a freed node crashes the engine (signal 11): guard with `is_instance_valid` in tests and game code.
+
 ```bash
 godot --headless --editor --quit
 ```

@@ -29,7 +29,8 @@ extends RefCounted
 ##     front_behind     a backpack and a slung bow, behind everything
 ##     front_legs       leg armour, boots
 ##     front_chest      body armour by weight, a backpack's straps
-##     front_arms       the weapon in hand, gloves, rings
+##     front_arms       the weapon in hand, gloves, rings (under a poncho
+##                      in two parts: front_sleeves under it, front_hands over)
 ##     front_shoulders  pauldrons, the amulet
 ##     front_head       a cap, a helm or a mail coif
 ## Rarity shows as a thin edge in the rarity's colour (Fine and up), and a
@@ -336,11 +337,17 @@ static func tower_back(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 	var edge := _edge(lk, "backpack")
 	match pk:
 		"pack":
-			var at := lx + _q(f, sd, -8.0, 0.0)
+			# The bag behind the shoulders, the bedroll across its top just
+			# behind them (seen from above, on the bag), as wide as the build.
+			var tr: float = lk.get("torso_r", 8.5)
+			var at := lx + _q(f, sd, -tr - 0.5, 0.0)
 			b.ball(at, 5.4, pc, true, light)
-			b.stroke(lx + _q(f, sd, -12.0, -6.5), lx + _q(f, sd, -12.0, 6.5), pc.lightened(0.15), 2.6)  # the bedroll
 			if edge.a > 0.0:
 				b.arc(at, 5.6, 0.0, TAU, 12, Color(edge, 0.7), 0.8)
+			var rw: float = lk.get("sh_y", 9.3) * 0.72
+			b.stroke(lx + _q(f, sd, -tr - 0.4, -rw), lx + _q(f, sd, -tr - 0.4, rw), pc.lightened(0.15), 2.6)  # the bedroll
+			for sg in [-1.0, 1.0]:
+				b.dot(lx + _q(f, sd, -tr - 0.4, sg * rw), 0.6, pc.darkened(0.35))  # its rolled ends
 		"satchel", "herbs":
 			var at2 := lx + _q(f, sd, -3.0, -8.5)
 			b.ball(at2, 3.2, pc, true, light)
@@ -508,15 +515,32 @@ static func front_behind(b, lk: Dictionary) -> void:
 		b.dot(Vector2(32, -122), 3.0, Palette.WOOD.darkened(0.2))
 	var pk: String = lk.get("pack", "")
 	if pk in ["pack"]:
-		var pc: Color = lk.get("pack_col", Palette.WOOD)
-		var bag := _p([-34, -92, 34, -92, 38, -40, -38, -40])
-		b.poly(bag, pc.darkened(0.12), 1.6)
-		b.polygon(_p([-34, -92, 0, -92, 0, -40, -38, -40]), pc)
-		# The bedroll strapped on top.
-		b.poly(_p([-40, -104, 40, -104, 42, -92, -42, -92]), pc.lightened(0.2), 1.4)
-		for x in [-26.0, 26.0]:
-			b.line(Vector2(x, -105), Vector2(x, -91), pc.darkened(0.45), 2.0)
-		_trim(b, lk, "backpack", bag)
+		_front_pack(b, lk)
+
+
+## A pack on your back, seen from the front: the bag behind the shoulders
+## (its top just over them), the bedroll rolled across its top, behind the
+## neck, its rolled ends peeking out over the shoulders. Scaled with the build.
+static func _front_pack(b, lk: Dictionary) -> void:
+	var pc: Color = lk.get("pack_col", Palette.WOOD)
+	var wx: float = lk.get("wx", 1.0)
+	var bag := _sx(_p([-29, -80, 29, -80, 33, -38, -33, -38]), wx)
+	b.poly(bag, pc.darkened(0.12), 1.6)
+	b.polygon(_sx(_p([-29, -80, 0, -80, 0, -38, -33, -38]), wx), pc)
+	_trim(b, lk, "backpack", bag)
+	# The bedroll strapped on top, its two straps, its spiralled ends.
+	var roll := pc.lightened(0.2)
+	var y := -80.0
+	var rl := 36.0 * wx
+	b.stroke(Vector2(-rl, y), Vector2(rl, y), roll, 9.0)
+	b.line(Vector2(-rl, y - 2.2), Vector2(rl, y - 2.2), Color(roll.lightened(0.3), 0.5), 1.4)
+	for x in [-20.0, 20.0]:
+		b.line(Vector2(x * wx, y - 5.4), Vector2(x * wx, y + 5.4), pc.darkened(0.45), 2.2)
+	for sg in [-1.0, 1.0]:
+		var end := Vector2(sg * rl, y)
+		b.dot(end, 4.5, roll.darkened(0.06 if sg < 0.0 else 0.22))
+		b.arc(end, 2.4, 0.0, TAU * 0.85, 9, Color(pc.darkened(0.4), 0.85), 1.0)
+		b.dot(end, 0.9, Color(pc.darkened(0.4), 0.85))
 
 
 ## Over the legs: leg armour (quilted, leather, mail or plated greaves), and
@@ -696,6 +720,13 @@ static func front_chest(b, lk: Dictionary) -> void:
 ## hands (wraps, leather, gauntlets, bracers, studs), vambraces on plate,
 ## mail sleeves, and rings.
 static func front_arms(b, lk: Dictionary) -> void:
+	front_sleeves(b, lk)
+	front_hands(b, lk)
+
+
+## The first part of front_arms: a holster at the hip, armour on the arms
+## (drawn under a poncho: appearance.gd draw_front).
+static func front_sleeves(b, lk: Dictionary) -> void:
 	_front_holster(b, lk)
 	var wx: float = lk.get("wx", 1.0)
 	var thick := 1.0 + (wx - 1.0) * 0.6
@@ -713,6 +744,13 @@ static func front_arms(b, lk: Dictionary) -> void:
 			"plate":
 				b.stroke(el + (wr - el) * 0.15, wr - (wr - el) * 0.1, col.darkened(0.1 + shade), 12.0 * thick)  # vambrace
 				b.ball(el, 5.0, col.darkened(shade), true)  # couter
+
+
+## The rest of front_arms: the weapon in hand, an off-hand piece, gloves and
+## rings (drawn over a poncho, the hands out from under it).
+static func front_hands(b, lk: Dictionary) -> void:
+	var wx: float = lk.get("wx", 1.0)
+	var thick := 1.0 + (wx - 1.0) * 0.6
 	_front_weapon(b, lk)
 	Offhand.front(b, lk, false)  # (an off-hand blade or wand, its grip under the glove)
 	var glove: String = lk.get("glove", "")

@@ -25,8 +25,9 @@ extends RefCounted
 ##     [gear: leg armour, boots] → neck, tunic, collar and belt → [gear: body armour, a
 ##     pack's straps] → arms → [gear: the weapon, gloves, rings] → the
 ##     mantle → [gear: pauldrons, the amulet] → draw_front_head → [gear: a
-##     cap, helm or coif]. The gear layers are gear_look.gd's, drawn only
-##     for a dressed look (GearLook.dress: "gear_on").
+##     cap, helm or coif]. (A Poncho comes before the weapon, gloves and
+##     rings: the hands come out from under it.) The gear layers are
+##     gear_look.gd's, drawn only for a dressed look (GearLook.dress: "gear_on").
 ##
 ## Reusing it (the mirror image, or anything else drawn like the climber):
 ##   var look := Appearance.look(profile.appearance)   # once, when it changes
@@ -1414,9 +1415,18 @@ static func draw_front(b, lk: Dictionary) -> void:
 	if gear:
 		GearLook.front_chest(b, lk)  # gear: body armour, a pack's straps
 	_front_arms(b, lk)  # body: arms in their sleeves, hands
-	if gear:
-		GearLook.front_arms(b, lk)  # gear: the weapon in hand, gloves, rings
-	_front_mantle(b, lk)  # clothes: the cloak's mantle over the shoulders
+	if String(lk.get("cloak_style", "long")) == "poncho":
+		# A poncho over the upper arms, the hands out from under it: what's
+		# on the arms goes under it, what's in (or on) the hands over it.
+		if gear:
+			GearLook.front_sleeves(b, lk)  # gear: armour on the arms, a holster
+		_front_mantle(b, lk)  # clothes: the poncho
+		if gear:
+			GearLook.front_hands(b, lk)  # gear: the weapon in hand, gloves, rings
+	else:
+		if gear:
+			GearLook.front_arms(b, lk)  # gear: the weapon in hand, gloves, rings
+		_front_mantle(b, lk)  # clothes: the cloak's mantle over the shoulders
 	if gear:
 		GearLook.front_shoulders(b, lk)  # gear: pauldrons, the amulet
 	draw_front_head(b, lk)  # head: the hood or hair, the face, what's at the neck
@@ -1451,8 +1461,8 @@ static func _front_cloak_outline(style: String) -> PackedVector2Array:
 			return _p([-30, -68, -2, -68, 4, -20, 8, 40, 4, 100, -14, 110, -30, 104, -48, 108, -64, 100, -56, 40, -46, -20])
 		"shawl":  # to the waist
 			return _p([-30, -68, 30, -68, 46, -20, 50, 6, 30, 13, 0, 9, -30, 13, -50, 6, -46, -20])
-		"poncho":  # wide, to the hips
-			return _p([-34, -68, 34, -68, 56, -10, 60, 30, 30, 36, 0, 33, -30, 36, -60, 30, -56, -10])
+		"poncho":  # (all of it in front: _front_mantle; its back hides behind)
+			return PackedVector2Array()
 		"wrapped":  # long and drawn in close
 			return _p([-26, -68, 26, -68, 38, -20, 44, 40, 48, 104, 30, 110, 0, 106, -30, 110, -48, 104, -44, 40, -38, -20])
 		"capelet":  # to the shoulder blades
@@ -1484,13 +1494,11 @@ static func _front_cloak(b, lk: Dictionary) -> void:
 	_fill_in(b, out, _p([-90, -80, -6, -80, -10, 140, -90, 140]), cloak.darkened(0.04))
 	_fill_in(b, out, _sx(_p([38, -36, 90, -36, 90, 140, 46, 140, 44, 40]), wc), cloak.darkened(0.4))
 	_fill_in(b, out, _p([-21, 10, 21, 10, 27, 140, -27, 140]), cloak.darkened(0.58))
-	var short := style == "short" or style == "poncho"
+	var short := style == "short"
 	var small := style == "shawl" or style == "capelet"  # (too short for folds)
 	var folds := [[-40, 0, -46, 38], [-27, 10, -30, 40], [32, 6, 36, 38], [46, 8, 50, 38]] if short else [[-40, 18, -52, 100], [-27, 30, -33, 104], [32, 24, 40, 100], [46, 30, 56, 98]]
 	if style == "half":
 		folds = [[-40, 18, -52, 100], [-27, 30, -33, 104]]
-	elif style == "poncho":
-		folds = [[-40, 0, -46, 30], [46, 8, 50, 30]]
 	if small:
 		folds = []
 	var fk := wc * (0.78 if style == "wrapped" else 1.0)  # (a wrapped cloak hangs closer: its folds too)
@@ -1616,6 +1624,12 @@ static func _front_legs(b, lk: Dictionary) -> void:
 		b.poly(_shift(_sx(_p([sg * 2.5, 92, sg * 17.5, 92, sg * 18, 110, sg * 22, 124, sg * 1, 124, sg * 2, 110]), k), Vector2(0, dy)), boot if sg < 0.0 else boot.darkened(0.25), 1.4)
 		b.rect(Rect2(Vector2(minf(sg * 2.5, sg * 17.5) * k, 92 + dy), Vector2(15 * k, 4)), boot.lightened(0.22))
 		b.line(Vector2(sg * 4 * k, 121 + dy), Vector2(sg * 15 * k, 121 + dy), Color(boot.lightened(0.3), 0.5), 1.2)
+
+
+## How far out a Poncho's sides reach on the front figure: just past the
+## elbows (which spread with the build), so it covers the upper arms.
+static func poncho_side(wx: float) -> float:
+	return 20.0 + 30.0 * wx
 
 
 ## How wide the neck is (half its width) on the front figure: thicker on a
@@ -1915,19 +1929,37 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 		b.line(Vector2(-30 * wx, -52), Vector2(-4, -22), Color(cloak.darkened(0.45), 0.7), 1.4)
 		edges.append(sw)
 		hems.append(_sx(_p([-42, -28, -22, -36, 0, -18, 22, -36, 42, -28]), wx))
-	elif style == "poncho":  # over everything, to the hips, a fringe on its hem
-		var pn := _sx(_p([-14, -80, 14, -80, 36, -68, 44, -32, 42, 22, 0, 30, -42, 22, -44, -32, -36, -68]), wx)
+	elif style == "poncho":  # over the shoulders and upper arms, pointed to the hips, a fringe on its hem
+		# Its sides fall over the elbows, so the forearms and hands (and
+		# what they hold: draw_front) come out from under it.
+		var s := poncho_side(wx)
+		var half := [Vector2(-14 * wx, -80), Vector2(-(s - 6.0), -62), Vector2(-s, -44), Vector2(-s, -34),
+			Vector2(-(s - 9.0), -27), Vector2(-s * 0.6, -2), Vector2(-s * 0.3, 20), Vector2(0, 30)]
+		var pn := PackedVector2Array(half)
+		for i in range(half.size() - 2, -1, -1):
+			pn.append(Vector2(-half[i].x, half[i].y))
+		var lit := PackedVector2Array(half)
+		lit.append(Vector2(0, -80))
 		b.poly(pn, cloak.darkened(0.12), 1.6)
-		b.polygon(_sx(_p([-14, -80, 0, -80, 0, 30, -42, 22, -44, -32, -36, -68]), wx), cloak.lightened(0.04))
-		for i in 13:
-			var u := float(i) / 12.0
-			var at := Vector2(lerpf(-42.0, 42.0, u) * wx, 22.0 + 8.0 * (1.0 - absf(u - 0.5) * 2.0))
-			b.line(at, at + Vector2(0, 5), cloak.darkened(0.3), 1.4)
+		b.polygon(lit, cloak.lightened(0.04))
+		for sg in [-1.0, 1.0]:  # its folds, falling from the shoulders
+			b.line(Vector2(sg * (s - 18.0), -60), Vector2(sg * s * 0.5, 4), Color(cloak.darkened(0.45), 0.6), 1.4)
+			b.line(Vector2(sg * (s - 8.0), -54), Vector2(sg * (s - 5.0), -34), Color(cloak.darkened(0.45), 0.5), 1.2)
+		var hem := PackedVector2Array()
+		for i in range(3, pn.size() - 3):
+			hem.append(pn[i])
+		var fringe := cloak.darkened(0.3)
+		for i in hem.size() - 1:  # the fringe, every few pixels along the hem
+			var n := int(ceil(hem[i].distance_to(hem[i + 1]) / 6.5))
+			for k in n:
+				var at := hem[i].lerp(hem[i + 1], float(k) / n)
+				b.line(at, at + Vector2(0, 5), fringe, 1.4)
+		b.line(hem[hem.size() - 1], hem[hem.size() - 1] + Vector2(0, 5), fringe, 1.4)
 		edges.append(pn)
-		hems.append(_sx(_p([-42, 22, 0, 30, 42, 22]), wx))
+		hems.append(hem)
 		if pattern == "striped":
 			for y in [-40.0, -20.0, 0.0]:
-				_fill_in(b, pn, _p([-60, y - 2, 60, y - 2, 60, y + 2, -60, y + 2]), Color(pc, 0.8))
+				_fill_in(b, pn, _p([-70, y - 2, 70, y - 2, 70, y + 2, -70, y + 2]), Color(pc, 0.8))
 	elif style == "cowl":  # a deep, soft collar round the neck and over the shoulders
 		var cw := _sx(_p([-48, -54, -40, -72, -20, -86, 20, -86, 40, -72, 48, -54, 36, -44, 18, -52, 0, -49, -18, -52, -36, -44]), wx)
 		b.poly(cw, cloak.darkened(0.12), 1.6)
