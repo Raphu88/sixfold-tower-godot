@@ -110,17 +110,27 @@ func _plans() -> void:
 	var ok_alone := true
 	var ok_stone := true
 	for k in 6:
-		var plan := Floors.rooms_floor(5, Towers.TOWERS[Towers.ORDER[k % Towers.ORDER.size()]])
-		var mc: Array = plan["chests"].filter(func(c): return c.get("mimic", false))
-		if not mc.is_empty():
-			mim += 1
-			ok_alone = ok_alone and mc.size() == 1 and plan["chests"].filter(func(c): return int(c["room"]) == int(mc[0]["room"])).size() == 1
-		if plan.has("inscription"):
-			stones += 1
-			var st: Dictionary = plan["inscription"]
-			ok_stone = ok_stone and Grid.is_open(Grid.grid(plan), Grid.tile(st["pos"])) and st["tower"] == Towers.ORDER[k % Towers.ORDER.size()]
-			for w in plan.get("ways_down", []):
-				ok_stone = ok_stone and Vector2(st["pos"]).distance_to(w["pos"]) > 60.0
+		# (a mimic needs a chest alone in its room, a stone a clear patch of
+		# floor: not every floor has one, so up to three draws, from fixed seeds)
+		var got_mim := false
+		var got_stone := false
+		for attempt in 3:
+			seed(5200 + k * 13 + attempt * 1009)
+			var plan := Floors.rooms_floor(5, Towers.TOWERS[Towers.ORDER[k % Towers.ORDER.size()]])
+			var mc: Array = plan["chests"].filter(func(c): return c.get("mimic", false))
+			if not mc.is_empty() and not got_mim:
+				got_mim = true
+				ok_alone = ok_alone and mc.size() == 1 and plan["chests"].filter(func(c): return int(c["room"]) == int(mc[0]["room"])).size() == 1
+			if plan.has("inscription") and not got_stone:
+				got_stone = true
+				var st: Dictionary = plan["inscription"]
+				ok_stone = ok_stone and Grid.is_open(Grid.grid(plan), Grid.tile(st["pos"])) and st["tower"] == Towers.ORDER[k % Towers.ORDER.size()]
+				for w in plan.get("ways_down", []):
+					ok_stone = ok_stone and Vector2(st["pos"]).distance_to(w["pos"]) > 60.0
+			if got_mim and got_stone:
+				break
+		mim += 1 if got_mim else 0
+		stones += 1 if got_stone else 0
 	Mimic.forced = false
 	Ins.forced = false
 	_check(mim >= 4 and ok_alone, "a mimic is one of the floor's chests, alone in its room (%d of 6 floors)" % mim)
@@ -478,6 +488,7 @@ func _glimpses() -> void:
 	var had := 0
 	Gl.since = 0
 	main.tower = "gryphon"
+	seed(6100)  # (fixed rolls: the count is a rate, not a promise)
 	for k in 60:
 		main.floor_num = 2 + k % 9
 		main.glimpses.setup({"room_info": [1]})
