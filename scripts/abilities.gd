@@ -44,7 +44,7 @@ const TEXT := {
 	"title": "Abilities",
 	"intro_marks": "Each mark's button casts its chosen spell. Hold the button to pick another from its wheel: picking never casts.",
 	"intro_unbound": "Six techniques, one on each mark button. Each fills as its part does its work; a full one casts for nothing. Cast one early and it strains that part.",
-	"intro_none": "No marks yet. Your first climb is bondless: at its top the tower's beast takes notice, and the body part you used most takes your first mark.",
+	"intro_none": "No marks yet. On your first climb, floor 6 opens with the Regard: the tower's guardian takes notice, and the body part you used most takes your first mark.",
 	"peek": "During a climb, {abilities} to look at this page; let go to return.",
 	"mark_sub": "%s mark  ·  %s essence  ·  %s",
 	"mark_step": "step %d of 5",

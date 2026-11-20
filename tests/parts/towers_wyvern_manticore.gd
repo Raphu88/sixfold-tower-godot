@@ -465,7 +465,7 @@ func _manticore_system() -> void:
 	p.iframes = 0.0
 	tf.swallow_cd = 0.0
 	p.global_position = pit["pos"] + Vector2(4, 0)
-	await t._ticks(3)
+	await t._until(func(): return p.hp < p.max_health() and p.global_position.distance_to(pit["pos"]) > float(pit["r"]), 1.0)  # (a few ticks, however busy the machine)
 	_check(p.hp < p.max_health() and p.global_position.distance_to(pit["pos"]) > float(pit["r"]), "the sink swallows you: it hurts, and spits you out at the edge")
 	# Cracked flagstones give way after you cross.
 	var cr: Vector2i = tf.crumbles.keys()[0]

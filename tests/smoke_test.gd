@@ -166,7 +166,7 @@ func _regard_tests() -> void:
 	# A faint mark owes essence before it grows.
 	var lines: Array = main.profile.bank({"water": 30.0}, {})
 	_check(main.profile.bonds["brow"]["faint"] and main.profile.bonds["brow"]["xp"] == 0.0, "a faint mark doesn't grow until it catches up")
-	lines = main.profile.bank({"water": 60.0}, {})  # (only the marks' share pays the debt: essence_flow.gd)
+	lines = main.profile.bank({"water": 160.0}, {})  # (only the marks' share pays the debt: essence_flow.gd; a fall on floor 1 leaves a half-strength mark, its debt doubled: climb_shape.gd)
 	_check(not main.profile.bonds["brow"]["faint"], "enough essence and the mark is no longer faint")
 	_check(main.profile.bonds["brow"]["xp"] > 0.0, "the overflow starts it growing")
 	await _wait(3.2)
@@ -194,17 +194,19 @@ func _regard_tests() -> void:
 	_check(main.profile.choose_bond({"stone": 10.0}, dodgy) == "ashwalker", "Stone and lots of dodging: Ashwalker (it feeds on Stone, the Manticore's essence)")
 	_check(main.profile.choose_bond({"fire": 10.0}, {"hand": 10.0, "heart": 10.0}) != "flameblade" and main.profile.choose_bond({"fire": 10.0}, dodgy) != "ashwalker", "Fire forms only the Firebird's marks")
 	_check(main.profile.choose_bond({"stone": 10.0}, {"heart": 10.0, "throat": 4.0}) == "sandshaper", "Stone and lots of enduring: Sandshaper")
-	main.floor_num = 3
+	main.floor_num = 5
 	for e in main.enemies():
 		_slay(e)
 	await _frames(3)
-	_check(main.stair_open, "floor 3's stair opens")
+	_check(main.stair_open, "floor 5's stair opens")
 	p.global_position = main.stair_pos
 	await _wait(1.0)
-	_check(not main.regard.is_empty() and not main.regard["fell"], "taking the top stair brings the Regard")
+	_check(not main.regard.is_empty() and not main.regard["fell"] and main.floor_num == 6, "the stair to floor 6 brings the Regard (climb_shape.gd)")
 	var legs: Dictionary = main.profile.bonds.get("legs", {})
 	_check(legs.get("id", "") == "windwalker" and not legs.get("faint", true), "a full Windwalker mark on the legs")
 	_check(legs.get("id", "") == predicted, "the Regard grants what the HUD predicted")
+	main.regard = {}
+	main.player.set_physics_process(true)
 
 	print("a second mark")
 	main.first_climb = false
@@ -3062,10 +3064,11 @@ func _proving_tests() -> void:
 		e.queue_free()
 	_check(not pv.enabled, "tests keep floor 6 a planned floor unless they ask for the Proving")
 	pv.enabled = true
-	_check(prof.FIRST_CLIMB_FLOORS < main.Towers.PROVING["floor"], "the bondless first climb ends below the Proving")
+	_check(prof.FIRST_CLIMB_FLOORS == main.Towers.PROVING["floor"], "the first climb's Regard opens the Proving's floor")
 	main.first_climb = true
 	main._start_floor(6)
-	_check(not pv.on and not main.floor_plan.get("proving", false), "floor 6 on the first climb is never the Proving")
+	_check(pv.on and main.floor_plan.get("proving", false), "floor 6 on the first climb is the Proving too (after the Regard: tests/parts/climb_shape.gd)")
+	main.first_climb = false
 	main.first_climb = false
 	# Every tower: the fixed layout, its gauntlet, and a way through it by timing.
 	var ok_layout := true
@@ -3107,6 +3110,7 @@ func _proving_tests() -> void:
 	_check(main.menu._climber_line().contains(pv.TEXT["wound_tag"]), "the climber screen shows the wound")
 	main._arrive()
 	_check(main.floor_num == 6 and pv.on and p.wound > 0.0, "the wound lingers back up on floor 6")
+	main.camps_done.append(6)  # (floor 6's stair leads to a camp: tested in _camp_tests)
 	main._arrive()
 	_check(main.floor_num == 7 and p.wound == 0.0 and pv.wound_text() == "" and is_equal_approx(p.max_health(), p.max_hp), "...and closes on reaching floor 7")
 	await _until(func(): return not main.climbing and main.fade <= 0.0, 5.0)
@@ -4668,7 +4672,7 @@ func _camp_tests() -> void:
 	var p = main.player
 	var Items = main.Items
 	main.floor_num = 3
-	_check(not main._camp_due(), "no camp on the bondless first climb")
+	_check(main._camp_due(), "the first climb has camps too (climb_shape.gd)")
 	_mark("hand", "stormcaller", 1)
 	main.floor_num = 2
 	main._arrive()
@@ -4682,16 +4686,16 @@ func _camp_tests() -> void:
 	_check(main.enemies().is_empty(), "the camp is safe: no monsters")
 	_check(main.campfire != null and is_instance_valid(main.campfire), "the camp has a campfire")
 	_check(p.hp == p.max_health() and not p.bonds["hand"].burned, "a full rest by the fire")
-	# (one item now, and two crystals: the rarer items are rare, tests/parts/consumables.gd)
+	# (one item, one crystal and a piece of gear: three cards, tests/parts/consumables.gd)
 	var item_cards: Array = main.camp["choices"].filter(func(c): return not String(c).begins_with("gear:") and not String(c).begins_with("crystal:"))
 	var crystal_cards: Array = main.camp["choices"].filter(func(c): return String(c).begins_with("crystal:"))
 	_check(item_cards.size() == Items.CAMP_CHOICES, "one item to choose")
-	_check(main.camp["choices"].size() == Items.CAMP_CHOICES + 3 and crystal_cards.size() == 2 and String(crystal_cards[0]).get_slice(":", 1) != String(crystal_cards[1]).get_slice(":", 1),
-		"...a crystal of the tower's essence, a smaller one of another kind and a piece of gear")
+	_check(main.camp["choices"].size() == Items.CAMP_CARDS and crystal_cards.size() == 1 and String(crystal_cards[0]).get_slice(":", 1) == String(main.tower_data()["essence"]),
+		"...a crystal of the tower's essence and a piece of gear: three cards")
 	var distinct := {}
 	for c in main.camp["choices"]:
 		distinct[c] = true
-	_check(distinct.size() == Items.CAMP_CHOICES + 3, "...all different")
+	_check(distinct.size() == Items.CAMP_CARDS, "...all different")
 	var pick: String = main.camp["choices"][0]
 	var had: int = p.item_count(pick)
 	Input.action_press("weapon_1")
@@ -4709,14 +4713,22 @@ func _camp_tests() -> void:
 	main._arrive()
 	_check(main.floor_num == 5 and not main.in_camp, "floor 4 leads straight on to floor 5")
 	_check(main.Towers.SUMMIT == 12 and main.Towers.PROVING["floor"] == 6, "towers are 12 floors tall, with the Proving on floor 6")
-	main.floor_num = 9
+	main.floor_num = 6
 	main._arrive()
 	await _frames(2)
-	_check(main.in_camp and main.camp_choosing, "floor 9's stair leads to a second camp")
+	_check(main.in_camp and main.camp_choosing, "floor 6's stair leads to a second camp")
 	main.choose_camp(0)
 	await _frames(2)
 	main._arrive()
-	_check(main.floor_num == 10 and not main.in_camp, "the second camp's stair leads on to floor 10 (camps aren't floors)")
+	_check(main.floor_num == 7 and not main.in_camp, "...then on to floor 7")
+	main.floor_num = 9
+	main._arrive()
+	await _frames(2)
+	_check(main.in_camp and main.camp_choosing, "floor 9's stair leads to a third camp")
+	main.choose_camp(0)
+	await _frames(2)
+	main._arrive()
+	_check(main.floor_num == 10 and not main.in_camp, "the third camp's stair leads on to floor 10 (camps aren't floors)")
 	main.floor_num = 9
 	main._arrive()
 	_check(main.floor_num == 10 and not main.in_camp, "each camp comes once a climb")
@@ -6293,14 +6305,18 @@ func _belt_tests() -> void:
 	var want_fire: float = float(main.Items.ITEMS["fire_flask"]["value"]["fire"]) * main.Items.BREAK_SHARE
 	_check(absf(main.profile.crystal_total("stone") - stone0 - want_stone) < 0.01 and absf(main.profile.crystal_total("fire") - fire0 - want_fire) < 0.01, "unused belt items break into crystals at half their worth: %s" % line)
 	_check(p.items.is_empty() and main.break_belt() == "", "...once (the belt is empty after)")
-	# Surviving the first climb's Regard breaks it too; falling doesn't.
+	# Leaving at the first climb's Regard breaks it too; falling doesn't.
 	await _fresh_main()
 	p = main.player
 	p.items = {"tonic": 2}
 	var water0: float = main.profile.crystal_total("water")
 	var rpay: float = float(main.Train.climb_pay(main.floor_num, main.climb_best0)) if main.tower_data()["essence"] == "water" else 0.0  # (the outfitter's pay, in the tower's kind)
 	main._begin_regard(false)
-	_check(absf(main.profile.crystal_total("water") - water0 - float(main.Items.ITEMS["tonic"]["value"]["water"]) - rpay) < 0.01, "reaching the Regard alive breaks the belt into crystals")
+	_check(absf(main.profile.crystal_total("water") - water0) < 0.01, "reaching the Regard alive: nothing breaks yet (the guardian offers the exit first)")
+	main.climb_shape.leave_at_regard()
+	_check(absf(main.profile.crystal_total("water") - water0 - float(main.Items.ITEMS["tonic"]["value"]["water"]) - rpay) < 0.01, "leaving with the mark breaks the belt into crystals")
+	main.camp_choosing = false
+	main.camp = {}
 	await _fresh_main()
 	p = main.player
 	p.items = {"tonic": 2}
@@ -8703,11 +8719,15 @@ func _economy_tests() -> void:
 	await _fresh_main()
 	prof = main.profile
 	var fk: String = main.tower_data()["essence"]
-	main.floor_num = PS.FIRST_CLIMB_FLOORS
+	main.floor_num = PS.FIRST_CLIMB_FLOORS - 1
 	main.run_essence = {}
 	main._arrive()
 	await _frames(2)
-	_check(not main.regard.is_empty() and prof.crystal_total(fk) >= T.climb_pay(PS.FIRST_CLIMB_FLOORS, 0) and main.pay_line != "", "the first climb's Regard is paid for: %s" % main.pay_line)
+	_check(not main.regard.is_empty() and main.pay_line == "", "the first climb's Regard on floor 6: not paid while the climb may go on")
+	main.climb_shape.leave_at_regard()
+	_check(prof.crystal_total(fk) >= T.climb_pay(PS.FIRST_CLIMB_FLOORS, 0) and main.pay_line != "", "leaving with the mark, it's paid for: %s" % main.pay_line)
+	main.camp_choosing = false
+	main.camp = {}
 	main.regard = {}
 	# Cheaper commons: about half; Fine stays at its old price (4x the new Common).
 	var halves := true
@@ -10868,35 +10888,10 @@ func _unbound_tests() -> void:
 	var run = main.unbound
 	_check(main.first_climb, "(a first climb)")
 	await _puzzle_floor("plates", 3)
-	_check(main.ward and run.barriers().any(func(b): return b["kind"] == "stair"), "a warded stair is a barrier")
-	var stair: Dictionary = run.barriers().filter(func(b): return b["kind"] == "stair")[0]
+	_check(not run.barriers().any(func(b): return b["kind"] == "stair"), "the stair's own barrier isn't a fists barrier (it's climb_shape.gd's gate or ward)")
 	p.iframes = 9999.0
 	p._equip("fists")
-	p.global_position = main.stair_pos + Vector2(-p.radius - 28.0, 0)
-	p.aim = Vector2.RIGHT
-	await _frames(2)
-	_check(not run.barrier_in_reach(p).is_empty(), "standing at it, facing it, it's in reach")
-	main.run_essence = {"air": 40.0}
-	var puzzles0: int = prof.count("puzzles")
-	Input.action_press("attack")
-	await _until(func(): return U.state(prof)["found"], 2.0)
-	Input.action_release("attack")
-	_check(U.state(prof)["found"] and int(run.hits.get("stair", -1)) == 0 and main.ward and not run.broke_rules, "the first barrier struck (a held strike) only shudders: the warning")
-	await _frames(2)
-	var hp0: float = p.hp
-	_check(run.punch(stair) == "crack", "then each blow cracks it")
-	_check(is_equal_approx(float(main.run_essence.get("air", 0.0)), 40.0 - run.FISTS["drain"]), "each blow drains unbanked essence (%.1f left)" % float(main.run_essence.get("air", 0.0)))
-	_check(p.hp < hp0, "...and hurts your hands")
-	var res := ""
-	for i in 6:
-		res = run.punch(stair)
-		if res == "broke":
-			break
-	_check(res == "broke" and not main.ward and main.stair_open and main.puzzle.solved, "enough blows break it: the stair opens")
-	_check(prof.count("puzzles") == puzzles0, "a punched stair isn't a solved puzzle")
-	_check(float(main.run_essence.get("air", 0.0)) <= 40.0 - run.FISTS["drain"] * run.BLOWS["stair"] + 0.01, "...and gives no puzzle bonus (%.1f essence)" % float(main.run_essence.get("air", 0.0)))
-	_check(run.broke_rules and not U.state(prof).has("broken"), "one barrier broken on the first climb breaks the tower's rules (no count kept)")
-	# A lock-in room's shut doorway.
+	# A lock-in room's shut doorway, just south of the climber.
 	var tile: Vector2i = main._tile_of(p.global_position + Vector2(0, 60))
 	var lr := {"state": "armed", "gates": [[tile]], "bodies": [], "mobs": [], "t": 0.0}
 	main.door_view.lock_rooms[777] = lr
@@ -10904,10 +10899,29 @@ func _unbound_tests() -> void:
 	main.door_view._shut(lr, [held])
 	var gate: Array = run.barriers().filter(func(b): return b["kind"] == "gate")
 	_check(not gate.is_empty(), "a lock-in room's shut doorway is a barrier")
-	main.run_essence = {"water": 20.0}
-	for i in run.BLOWS["gate"]:
+	var gid: String = gate[0]["id"]
+	var grect: Rect2 = gate[0]["rect"]
+	p.global_position = grect.get_center() - Vector2(0, grect.size.y * 0.5 + p.radius + 8.0)
+	p.aim = Vector2.DOWN
+	await _frames(2)
+	_check(not run.barrier_in_reach(p).is_empty(), "standing at it, facing it, it's in reach")
+	main.run_essence = {"air": 40.0}
+	Input.action_press("attack")
+	await _until(func(): return U.state(prof)["found"], 2.0)
+	Input.action_release("attack")
+	_check(U.state(prof)["found"] and int(run.hits.get(gid, -1)) == 0 and lr["state"] == "shut" and not run.broke_rules, "the first barrier struck (a held strike) only shudders: the warning")
+	await _frames(2)
+	var hp0: float = p.hp
+	_check(run.punch(gate[0]) == "crack", "then each blow cracks it")
+	_check(is_equal_approx(float(main.run_essence.get("air", 0.0)), 40.0 - run.FISTS["drain"]), "each blow drains unbanked essence (%.1f left)" % float(main.run_essence.get("air", 0.0)))
+	_check(p.hp < hp0, "...and hurts your hands")
+	var res := ""
+	for i in 6:
 		res = run.punch(gate[0])
-	_check(res == "broke" and lr["state"] == "done", "...and punching through opens it")
+		if res == "broke":
+			break
+	_check(res == "broke" and lr["state"] == "done", "enough blows break it: punching through opens it")
+	_check(run.broke_rules and not U.state(prof).has("broken"), "one barrier broken on the first climb breaks the tower's rules (no count kept)")
 	main.door_view.lock_rooms.erase(777)
 	held.queue_free()
 	# The Regard: refused, no choice.
@@ -10967,11 +10981,18 @@ func _unbound_tests() -> void:
 	run = main.unbound
 	U.state(prof)["found"] = true
 	await _puzzle_floor("plates", 3)
-	var st2: Array = run.barriers().filter(func(b): return b["kind"] == "stair")
+	var tile_m: Vector2i = main._tile_of(p.global_position + Vector2(0, 60))
+	var lr_m := {"state": "armed", "gates": [[tile_m]], "bodies": [], "mobs": [], "t": 0.0}
+	main.door_view.lock_rooms[778] = lr_m
+	var held_m = await _spawn("slime", p.global_position + Vector2(200, 200))
+	main.door_view._shut(lr_m, [held_m])
+	var st2: Array = run.barriers().filter(func(b): return b["kind"] == "gate")
 	res = ""
 	for i in 8:
 		res = run.punch(st2[0]) if not st2.is_empty() else ""
-	_check(res == "holds" and main.ward and not run.broke_rules, "a marked climber's fists only make a barrier shudder: it holds")
+	_check(res == "holds" and lr_m["state"] == "shut" and not run.broke_rules, "a marked climber's fists only make a barrier shudder: it holds")
+	main.door_view.lock_rooms.erase(778)
+	held_m.queue_free()
 	prof.soak["heart"] = prof.NEW_MARK_SOAK
 	main.run_essence = {"iron": 10.0}
 	main.floor_num = int(main.tower_data().get("summit", 12))

@@ -940,21 +940,7 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 		for i in lines:
 			var a := -PI / 2.0 + TAU * float(i) / float(lines)
 			draw_line(mc + Vector2.from_angle(a) * 14.0, mc + Vector2.from_angle(a) * (14.0 + 26.0 * mk), mcol, 3.0)
-	var texts: Array = []
-	if fell:
-		texts = [
-			"You fell, but %s was watching." % main.beast_name(),
-			"Essence takes hold in your %s, faintly." % part_name,
-			"You bear a faint %s mark." % info["name"],
-			"It will grow once it has soaked up more essence.",
-		]
-	else:
-		texts = [
-			"You reached the top. %s has watched you climb." % main.beast_name().capitalize(),
-			"Essence takes hold in your %s." % part_name,
-			"You bear the %s mark." % info["name"],
-			"%s: %s." % [info["spells"][0]["name"], BondScript.PART_FILLS[rg["part"]]],
-		]
+	var texts: Array = main.climb_shape.regard_lines(rg, info, part_name)  # (its words: climb_shape.gd TEXT)
 	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
 	draw_string_outline(UI.font("display"), Vector2(0, size.y * 0.3 - 110), "The Regard", HORIZONTAL_ALIGNMENT_CENTER, size.x, 42, 7, Color(0, 0, 0, 0.8 * title_a))
 	draw_string(UI.font("display"), Vector2(0, size.y * 0.3 - 110), "The Regard", HORIZONTAL_ALIGNMENT_CENTER, size.x, 42, Color(GOLD, title_a))
@@ -967,7 +953,7 @@ func _draw_regard(size: Vector2, font: Font) -> void:
 	_draw_regard_pay(size, font, ty, t - 1.4 - texts.size() * 0.45)
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
-		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
+		var prompt: String = _say("Press Space, Enter or click", "Press {a}", "Tap") + " " + main.climb_shape.regard_prompt(main.regard)
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
@@ -1019,7 +1005,7 @@ func _draw_refused(size: Vector2, font: Font) -> void:
 		for i in 6:
 			var a := float(i) * TAU / 6.0 + t * 0.6
 			draw_circle(mc + Vector2.from_angle(a) * (6.0 + 8.0 * mk), 2.0, Color(RAW_ESSENCE, 0.7 * mk))
-	var lines: Array = UnboundData.TEXT["refused_lines"].duplicate()
+	var lines: Array = Array(rg.get("lines", UnboundData.TEXT["refused_lines"])).duplicate()  # (a slip with no mark has its own: climb_shape.gd)
 	lines[1] = lines[1] % main.beast_name().capitalize()
 	var title: String = UnboundData.TEXT["refused_title"]
 	var title_a := clampf((t - 0.2) / 0.6, 0.0, 1.0)
@@ -1034,7 +1020,7 @@ func _draw_refused(size: Vector2, font: Font) -> void:
 	_draw_regard_pay(size, font, ty, t - 1.4 - lines.size() * 0.45)
 	if main.regard_done():
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
-		var prompt := _say("Press Space, Enter or click", "Press {a}", "Tap") + " to begin your next climb"
+		var prompt: String = _say("Press Space, Enter or click", "Press {a}", "Tap") + " " + main.climb_shape.regard_prompt(main.regard)
 		draw_string(font, Vector2(0, size.y - 40), prompt, HORIZONTAL_ALIGNMENT_CENTER, size.x, 16, Color(DIM_TEXT, 0.5 + 0.5 * pulse))
 
 
@@ -1870,13 +1856,13 @@ func _draw_camp_choice(size: Vector2, font: Font) -> void:
 	if main.camp.get("stage", "") == "path":
 		_draw_path_choice(size, font)
 		return
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.9 if main.camp["stage"] == "unbind" else 0.72))  # (the refusal hides the Regard behind it)
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.03, 0.9 if main.camp["stage"] in ["unbind", "exit"] else 0.72))  # (the refusal and the guardian's exit hide the Regard behind them)
 	var rune: bool = main.camp["stage"] == "rune"
 	var top_y := camp_card_rect(0, size).position.y
 	var title: String = Items.CAMP["rune_title"] if rune else Items.CAMP["choose"]
 	if main.camp["stage"] == "heirloom":
 		title = Gear.HEIRLOOM_TEXT["title"]
-	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret", "rival"]:
+	elif main.camp["stage"] in ["vault", "belt", "unbind", "condense", "secret", "rival", "exit", "lethal_again"]:
 		title = main.camp.get("title", "")
 	draw_string_outline(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, 6, Color(0, 0, 0, 0.8))
 	draw_string(UI.font("display"), Vector2(0, top_y - 62.0), UI.title_case(title), HORIZONTAL_ALIGNMENT_CENTER, size.x, 36, GOLD)

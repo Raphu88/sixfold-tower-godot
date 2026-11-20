@@ -819,14 +819,17 @@ func start_glimpse(maker: String, kind: String) -> void:
 
 ## A Maker shows itself now: the game pauses and maker_view.gd plays the
 ## scene. If you carry another Maker's core mark, that one may interrupt.
-func start_meeting(maker: String) -> void:
+## `confront`: it comes to confront a marked climber who keeps slipping past
+## the stairs' barriers (climb_shape.gd CONFRONT: its words and answers).
+func start_meeting(maker: String, confront := false) -> void:
 	if meeting_live() or not MAKERS.has(maker):
 		return
-	meetings_climb += 1
+	if not confront:
+		meetings_climb += 1
 	var c := core(main.profile)
 	var interrupter := ""
 	var way := ""
-	if c.get("maker", "") != "" and c["maker"] != maker and randf() < interrupt_chance:
+	if not confront and c.get("maker", "") != "" and c["maker"] != maker and randf() < interrupt_chance:
 		interrupter = c["maker"]
 		way = interrupt_way if interrupt_way != "" else _weighted(INTERRUPT["ways"])
 	var layer := CanvasLayer.new()
@@ -839,12 +842,26 @@ func start_meeting(maker: String) -> void:
 	view.maker = maker
 	view.interrupter = interrupter
 	view.way = way
+	view.confront = confront
 	layer.add_child(view)
 	if main.player != null:
 		main.player.velocity = Vector2.ZERO
 	get_tree().paused = true
 	main.sfx("maker_meeting", 1.0, 0.0, 0.0)
 	main.sfx("glint", 0.3, -4.0, 0.0)
+
+
+## A confrontation's answers and what each does (climb_shape.gd CONFRONT).
+func confront_answers() -> Array:
+	return main.climb_shape.CONFRONT["answers"].duplicate()
+
+
+func confront_answer(maker: String, id: String) -> Dictionary:
+	var s := st()
+	s["met"][maker] = int(s["met"].get(maker, 0)) + 1
+	var out: Dictionary = main.climb_shape.confront_answer(id)
+	main.profile.save()
+	return out
 
 
 ## The answers on offer: the placeholders, and the plea once you have a path.

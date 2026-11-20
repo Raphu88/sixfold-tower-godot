@@ -23,8 +23,9 @@ extends Node2D
 ##   cast) and raw essence shows there. Strain fades while you don't cast
 ##   from the part (STRAIN_REST, then STRAIN_FADE a second), and the stair's
 ##   rest clears it.
-## BARRIERS: a warded stair, a vault's seal, a lock-in room's shut doorway
-##   and the Proving's sealed reliquary. Hold a strike against one with bare
+## BARRIERS: a vault's seal, a lock-in room's shut doorway and the Proving's
+##   sealed reliquary. (The stair's own barrier, its gate or ward, is
+##   climb_shape.gd's: anyone may slip past or break it, for a horde.) Hold a strike against one with bare
 ##   fists (FISTS hold): each blow drains unbanked essence, hurts your hands
 ##   and cracks it; BLOWS of them break it, skipping its challenge and
 ##   forfeiting its reward. The very first blow ever only makes it shudder
@@ -515,9 +516,7 @@ func _tick_dots(delta: float) -> void:
 ## The barriers on this floor: [{id, kind, rect, ref}].
 func barriers() -> Array:
 	var out: Array = []
-	var pz = main.puzzle
-	if main.ward and pz != null and String(pz.kind) != "" and not pz.solved and not (main.proving != null and main.proving.on):
-		out.append({"id": "stair", "kind": "stair", "rect": Rect2(main.stair_pos - Vector2(22, 22), Vector2(44, 44)), "ref": pz})
+	# (The stair's barrier is climb_shape.gd's now: its gate or ward.)
 	if main.wings != null:
 		for w in main.wings.wings:
 			if w["vault"] == "sealed":

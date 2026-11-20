@@ -1596,6 +1596,10 @@ func _melee() -> bool:
 	# The tower's own floor: a crank, a water barrel, bellows, a sun stone.
 	if main.get("tower_floor") != null:
 		main.tower_floor.strike(global_position, aim, reach, swing["arc"])
+	# The stair's barrier: a swing at it (one that struck no foe) cracks a
+	# gate, or a ward if the weapon carries the tower's essence (climb_shape.gd).
+	if main.get("climb_shape") != null:
+		main.climb_shape.strike(global_position, aim, reach, swing["arc"], heavy, hits)
 	# The hand fills when your weapon strikes land; the throat when one
 	# swing catches several foes.
 	if hits > 0:
@@ -2210,6 +2214,8 @@ func _release_cast() -> void:
 		main.secret_tools.after_cast(b, sb_cast)
 	if main.puzzle != null:  # (an Essence Lock answers to a spell of its essence)
 		main.puzzle.offer(String(b.data().get("affinity", "")), global_position, "bond")
+	if main.get("climb_shape") != null:  # (and so does the stair's ward, to its tower's own: climb_shape.gd)
+		main.climb_shape.offer(String(b.data().get("affinity", "")), global_position, aim, "bond")
 	b.overdraw_mult = 1.0
 	if main.cast_hits > 1:
 		_part_action("throat", 2.0 * (main.cast_hits - 1), 8.0 * (main.cast_hits - 1))
@@ -3830,6 +3836,8 @@ func use_item() -> bool:
 	main.Dining.on_item(main, id)  # (a Healing Vial breaks a dry wager: dining.gd)
 	if main.puzzle != null:  # (an Essence Lock answers to an item of its essence)
 		main.puzzle.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, "item")
+	if main.get("climb_shape") != null:
+		main.climb_shape.offer(String(Items.ITEMS.get(id, {}).get("kind", "")), global_position, aim, "item")
 	take_one(id)
 	return true
 
