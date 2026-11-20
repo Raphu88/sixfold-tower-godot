@@ -12,13 +12,19 @@ const TYPES := {
 	"ice": preload("res://scripts/puzzles/ice.gd"),
 	"lock": preload("res://scripts/puzzles/lock.gd"),
 	"memory": preload("res://scripts/puzzles/memory.gd"),
+	"lanterns": preload("res://scripts/puzzles/lanterns.gd"),
+	"bells": preload("res://scripts/puzzles/bells.gd"),
+	"crucible": preload("res://scripts/puzzles/crucible.gd"),
+	"pods": preload("res://scripts/puzzles/pods.gd"),
 }
 ## Kinds built into a hand-made room (rooms.gd); the rest make their own
 ## layout in a plain carved room.
 const PREFAB := ["eyes", "plates"]
-## Each tower's favourite test, and how often a floor there gets it.
-const SIGNATURE := {"gryphon": "mirrors", "kraken": "ice", "wyvern": "crumble", "manticore": "statues", "firebird": "memory", "chimera": "lock"}
-const SIGNATURE_CHANCE := 0.5
+## Each tower's two favourite tests (twelve kinds, two a tower), and how
+## often a floor there gets one of them.
+const SIGNATURE := {"gryphon": ["mirrors", "eyes"], "kraken": ["ice", "bells"], "wyvern": ["crumble", "crucible"],
+	"manticore": ["statues", "plates"], "firebird": ["memory", "lanterns"], "chimera": ["lock", "pods"]}
+const SIGNATURE_CHANCE := 0.6
 ## Tiers by floor: [up to floor, tier]. Difficulty rises within a climb.
 const TIERS := [[3, 1], [8, 2], [99, 3]]
 ## From this floor the test is in PRESSURE mode (monsters keep coming while
@@ -50,9 +56,15 @@ static func pick(floor_num: int, tid: String) -> String:
 	if forced != "" and TYPES.has(forced):
 		return forced
 	if SIGNATURE.has(tid) and randf() < SIGNATURE_CHANCE:
-		return SIGNATURE[tid]
+		var own: Array = SIGNATURE[tid]
+		return own[randi() % own.size()]
 	var kinds: Array = TYPES.keys()
 	return kinds[randi() % kinds.size()]
+
+
+## Whether `kind` is one of tower `tid`'s two favourites.
+static func is_signature(kind: String, tid: String) -> bool:
+	return kind in SIGNATURE.get(tid, [])
 
 
 ## A carved gallery for `kind`: [size limits, shapes] (its own, or the usual).

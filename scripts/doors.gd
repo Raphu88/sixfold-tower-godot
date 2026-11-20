@@ -87,7 +87,7 @@ static var LOCK_TEXT := {
 }
 ## Which rooms lock you in (by theme, or by role), and how often; the stair
 ## landing only from a higher floor. Checked a few times a second.
-const LOCK_IN := {"den": 0.75, "crypt": 0.9, "mirror": 1.0, "guard": 0.3, "landing": 0.0, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
+const LOCK_IN := {"den": 0.75, "crypt": 0.9, "mirror": 1.0, "roost": 0.75, "kennel": 0.75, "wreck": 0.9, "tomb": 0.9, "ashcrypt": 0.9, "guard": 0.3, "landing": 0.0, "landing_from": 6, "failsafe": 150.0, "check": 0.25}
 const KEY_GOLD := Color(1.0, 0.82, 0.38)
 const WARD := Color(0.75, 0.55, 1.0)
 
@@ -1070,6 +1070,25 @@ func _draw_closed(b, d: Dictionary) -> void:
 				for gy in 2:
 					for gx in 3:
 						b.rect(Rect2(c + Vector2((gx - 1.5) * s * 0.75, (gy - 1.0) * s * 0.75), Vector2(s * 0.6, s * 0.6)), Color(EMBLEM, 0.75))
+			"lantern":
+				# A lantern's cage with a flame in it.
+				var cage := PackedVector2Array([c + Vector2(-s * 0.55, s * 0.8), c + Vector2(-s * 0.6, -s * 0.5), c + Vector2(0, -s), c + Vector2(s * 0.6, -s * 0.5), c + Vector2(s * 0.55, s * 0.8)])
+				b.polyline(cage + PackedVector2Array([cage[0]]), Color(EMBLEM, 0.8), 1.6)
+				b.circle(c + Vector2(0, s * 0.1), s * 0.3, Color(EMBLEM, 0.9))
+			"bell":
+				# A bell on its beam.
+				b.line(c + Vector2(-s, -s), c + Vector2(s, -s), Color(EMBLEM, 0.7), 1.6)
+				b.polygon(PackedVector2Array([c + Vector2(-s * 0.3, -s * 0.8), c + Vector2(s * 0.3, -s * 0.8), c + Vector2(s * 0.5, s * 0.2), c + Vector2(s * 0.8, s * 0.6), c + Vector2(-s * 0.8, s * 0.6), c + Vector2(-s * 0.5, s * 0.2)]), Color(EMBLEM, 0.85))
+				b.circle(c + Vector2(0, s * 0.8), s * 0.15, Color(EMBLEM, 0.85))
+			"crucible":
+				# A pot over a mould.
+				b.polygon(PackedVector2Array([c + Vector2(-s * 0.8, -s * 0.6), c + Vector2(s * 0.8, -s * 0.6), c + Vector2(s * 0.6, s * 0.3), c + Vector2(-s * 0.6, s * 0.3)]), Color(EMBLEM, 0.85))
+				b.arc(c + Vector2(0, s * 0.75), s * 0.45, 0.0, TAU, 14, Color(EMBLEM, 0.7), 1.4)
+			"pod":
+				# Three heads in a row, the middle one raised.
+				for k in 3:
+					b.circle(c + Vector2((k - 1) * s * 0.75, -s * 0.2 if k == 1 else s * 0.1), s * 0.32, Color(EMBLEM, 0.85))
+				b.line(c + Vector2(-s, s * 0.7), c + Vector2(s, s * 0.7), Color(EMBLEM, 0.7), 1.6)
 			_:
 				b.rect(Rect2(c - Vector2(s, s), Vector2(s, s) * 2.0), Color(EMBLEM, 0.75))
 				b.rect(Rect2(c - Vector2(s, s) * 0.7, Vector2(s, s) * 1.4), wood.lightened(0.08))

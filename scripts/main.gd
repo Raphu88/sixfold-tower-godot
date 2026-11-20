@@ -2432,6 +2432,8 @@ func drop_gear(pos: Vector2, g, fresh := false) -> void:
 		tip("gear_slots")
 	if fresh and Gear.rarity(r) != "common":
 		tip("rarity")
+	if fresh and Gear.rarity(r) == "masterwork":
+		tip("masterwork")  # (the first Masterwork find: the Entity explains it)
 	if fresh and Gear.noticed(r):
 		var name := Gear.display(r).trim_prefix(Gear.rarity_name(r) + " ")  # ("RARE: Axe of the Riposte")
 		loot_notice = {"text": Gear.TEXT["notice"] % [Gear.rarity_name(r).to_upper(), name], "color": Gear.rarity_color(r), "t": 3.5}
@@ -4151,6 +4153,8 @@ const GRAFT_PART := {
 	"ram": "legs", "wisp": "legs", "bloomcap": "throat", "thornhound": "legs", "mongrel": "hand",
 	"golem": "heart", "burrower": "back",
 	"ashwing": "back", "briar": "hand",
+	"carrion": "legs", "basilisk": "brow", "cairn": "heart", "kindler": "throat", "flamemoth": "legs", "salamander": "back",
+	"graftling": "hand", "hydra": "heart", "leafmantis": "back",
 }
 
 
@@ -4385,6 +4389,8 @@ func on_enemy_killed(e) -> void:
 	if arena != null and arena.on:
 		arena.on_enemy_killed(e)  # (the station's arena: no drops, essence or record)
 		return
+	if load("res://scripts/towers/kindler.gd").fallen(self, e):
+		return  # (an ash-risen copy crumbles: it leaves nothing; others may leave ash for a kindler)
 	profile.note("slain")
 	Bestiary.slain(self, e)
 	Dining.on_kill(self, e)  # (a wager on slaying counts it: dining.gd)

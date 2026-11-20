@@ -147,10 +147,24 @@ static var DRILLS := {
 		"time": 40, "foes": ["mirror"], "weak": 0.3, "medals": [3, 5, 8], "lower": false, "rank": 0, "extra": true, "fee": 4, "renown": [8, 5, 10], "tower": "gryphon"},
 	"pace": {"name": "Champion's Pace", "goal": "Fell %d champions as fast as you can.", "kind": "kills", "need": 2,
 		"time": 70, "foes": ["knight*"], "weak": 0.5, "medals": [55, 40, 28], "lower": true, "rank": 0, "extra": true, "fee": 4, "renown": [8, 5, 10], "tower": "chimera"},
+	# Opened by the higher ranks, one at each of the five between the old ones
+	# (renown.gd RANK_OPENS "drill").
+	"bullseye": {"name": "Bullseye", "goal": "Land %d shots on the far dummies with your bow, as fast as you can.", "kind": "shoot", "need": 6, "dummies": 3,
+		"time": 50, "foes": [], "medals": [30, 21, 14], "lower": true, "rank": 3, "fee": 3, "renown": [8, 5, 10], "tower": "firebird"},
+	"shell": {"name": "Shell Breaker", "goal": "Fell %d shellbacks as fast as you can. Their shells turn blows from the front: get behind them.", "kind": "kills", "need": 3,
+		"time": 75, "foes": ["shellback", "shellback"], "weak": 0.5, "medals": [55, 40, 28], "lower": true, "rank": 5, "fee": 4, "renown": [10, 6, 12], "tower": "kraken"},
+	"perfect": {"name": "Perfect Timing", "goal": "Make as many perfect parries as you can in %d seconds: a beat after the glint.", "kind": "parry", "perfect": true,
+		"time": 45, "foes": ["knight", "knight"], "weak": 0.4, "medals": [2, 4, 6], "lower": false, "rank": 7, "fee": 4, "renown": [10, 6, 12], "tower": "wyvern"},
+	"hunted": {"name": "Hunted Run", "goal": "Touch the %d posts in order, as fast as you can, while they hunt you.", "kind": "run", "posts": 6,
+		"time": 60, "foes": ["knight", "bat"], "weak": 0.4, "medals": [36, 27, 20], "lower": true, "rank": 9, "fee": 5, "renown": [12, 7, 14], "tower": "manticore"},
+	"dance": {"name": "The Long Dance", "goal": "Parry as many blows as you can in %d seconds, from three kinds of foe, each with its own rhythm.", "kind": "parry",
+		"time": 60, "foes": ["knight", "smith", "ram"], "weak": 0.35, "medals": [8, 13, 18], "lower": false, "rank": 11, "fee": 6, "renown": [12, 8, 15], "tower": "chimera"},
 }
-static var DRILL_ORDER := ["parry", "rush", "gauntlet", "sprint", "pack", "glass", "pace"]
+## Twelve drills (by sixes): five for the first ranks and the two extras, then
+## the five the higher ranks open.
+static var DRILL_ORDER := ["parry", "rush", "gauntlet", "sprint", "pack", "glass", "pace", "bullseye", "shell", "perfect", "hunted", "dance"]
 ## How a drill's score is written, by its kind.
-static var SCORE_TEXT := {"parry": "%d parried", "kills": "%.1f s", "dodge": "%d hits", "run": "%.1f s", "cast": "%d at once"}
+static var SCORE_TEXT := {"parry": "%d parried", "kills": "%.1f s", "dodge": "%d hits", "run": "%.1f s", "cast": "%d at once", "shoot": "%.1f s"}
 
 ## THE TOURNAMENT: brackets of three rounds against other climbers. Each:
 ##   rank       the renown rank it opens at (a worn title may open it sooner)
@@ -169,9 +183,13 @@ static var BRACKETS := [
 		"rounds": [{"marks": 1, "step": 1, "hp": 0.75}, {"marks": 1, "step": 1, "hp": 0.9}, {"marks": 1, "step": 2, "hp": 1.0}]},
 	{"id": "open", "name": "Open Bracket", "rank": 2, "fee": 10, "floor": 5, "tower": "wyvern", "round_renown": 3, "renown": 24, "crystals": 30,
 		"rounds": [{"marks": 1, "step": 2, "hp": 1.0}, {"marks": 2, "step": 2, "hp": 1.0}, {"marks": 2, "step": 3, "hp": 1.1}]},
-	{"id": "masters", "name": "Masters' Bracket", "rank": 4, "fee": 15, "floor": 8, "tower": "gryphon", "round_renown": 4, "renown": 38, "crystals": 45, "relic": true,
+	{"id": "veterans", "name": "Veterans' Bracket", "rank": 5, "fee": 12, "floor": 6, "tower": "manticore", "round_renown": 3, "renown": 30, "crystals": 36,
+		"rounds": [{"marks": 3, "step": 1, "hp": 1.0}, {"marks": 2, "step": 3, "hp": 1.0}, {"marks": 3, "step": 2, "hp": 1.1}]},
+	{"id": "masters", "name": "Masters' Bracket", "rank": 6, "fee": 15, "floor": 8, "tower": "gryphon", "round_renown": 4, "renown": 38, "crystals": 45, "relic": true,
 		"rounds": [{"marks": 2, "step": 3, "hp": 1.0}, {"marks": 2, "step": 4, "hp": 1.1}, {"mirror": true}]},
-	{"id": "champions", "name": "Champions' Bracket", "rank": 6, "fee": 20, "floor": 11, "tower": "chimera", "round_renown": 5, "renown": 55, "crystals": 60, "relic": true,
+	{"id": "grand", "name": "Grand Bracket", "rank": 9, "fee": 18, "floor": 10, "tower": "firebird", "round_renown": 4, "renown": 46, "crystals": 52, "relic": true,
+		"rounds": [{"marks": 3, "step": 3, "hp": 1.0}, {"mirror": true}, {"marks": 3, "step": 4, "hp": 1.15}]},
+	{"id": "champions", "name": "Champions' Bracket", "rank": 10, "fee": 20, "floor": 11, "tower": "chimera", "round_renown": 5, "renown": 55, "crystals": 60, "relic": true,
 		"rounds": [{"marks": 2, "step": 4, "hp": 1.0}, {"marks": 3, "step": 4, "hp": 1.1}, {"marks": 3, "step": 5, "hp": 1.25}]},
 ]
 static var RELIC_CHANCE := 0.15
@@ -239,7 +257,7 @@ static var TEXT := {
 	"won_times": "Won %d times",
 	"won_once": "Won once",
 	"won": "Won",
-	"early": "Opened a rank sooner by your title",
+	"early": "Opened sooner by your title",
 	"medals": "Medals",
 	"result_medal": "%s  ·  %s",
 	"result_none": "No medal  ·  %s",
@@ -386,7 +404,7 @@ static func drill_goal(id: String) -> String:
 	if not goal.contains("%"):
 		return goal
 	match String(d["kind"]):
-		"kills":
+		"kills", "shoot":
 			return goal % int(d.get("need", 5))
 		"run":
 			return goal % int(d.get("posts", 6))

@@ -255,7 +255,14 @@ func _found_bought_crafted() -> void:
 	var W = main.wings
 	var keep_v := float(Flow.TINCTURE["vault_chance"])
 	Flow.TINCTURE["vault_chance"] = 1000.0
-	var vault: Array = W.vault_choices(false)
+	var keep_first: bool = main.first_climb
+	main.first_climb = false  # (the first climb's vaults offer no tinctures)
+	var vault: Array = []
+	for i in 12:  # (now and then a charm or a vessel takes the third card: draw again)
+		vault = W.vault_choices(false)
+		if vault.any(func(c): return Flow.is_tincture(String(c))):
+			break
+	main.first_climb = keep_first
 	Flow.TINCTURE["vault_chance"] = keep_v
 	_check(vault.any(func(c): return Flow.is_tincture(String(c))), "a vault can offer a tincture (%s)" % [vault])
 	var keep_h := float(Flow.TINCTURE["hidden_chance"])

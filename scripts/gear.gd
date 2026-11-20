@@ -82,28 +82,34 @@ const DOLL := [
 ##   boost   a weapon of this rarity hits this much harder
 ##   named_traits  how many traits a named piece of this rarity carries
 ##           besides its own rule
+## "Masterwork" pieces are a maker's finest plain work: three traits, never a
+## name of their own; found only high in a tower (MASTERWORK_FROM) and seldom
+## (RARITY_ODDS), so they stay a rare find and growth stays slow.
 ## "Regarded" pieces are the beasts' own weapons and armour (NAMED "beast"):
 ## never found as plain pieces, only where a slain beast falls (REGARDED_DROP).
-const RARITY_ORDER := ["common", "fine", "rare", "storied", "regarded"]
+const RARITY_ORDER := ["common", "fine", "rare", "masterwork", "storied", "regarded"]
 static var RARITIES := {
 	"common": {"name": "Common", "color": Color(0.9, 0.86, 0.76), "wears": true, "traits": 0, "boost": 0.0, "named_traits": 0},
 	"fine": {"name": "Fine", "color": Color(0.55, 0.85, 0.5), "wears": false, "traits": 1, "boost": 0.05, "named_traits": 1},
 	"rare": {"name": "Rare", "color": Color(0.45, 0.65, 1.0), "wears": false, "traits": 2, "boost": 0.10, "named_traits": 1},
+	"masterwork": {"name": "Masterwork", "color": Color(0.74, 0.5, 1.0), "wears": false, "traits": 3, "boost": 0.11, "named_traits": 1},
 	"storied": {"name": "Storied", "color": Color(0.95, 0.62, 0.24), "wears": false, "traits": 1, "boost": 0.12, "named_traits": 1},
 	"regarded": {"name": "Regarded", "color": Color(1.0, 0.86, 0.36), "wears": false, "traits": 4, "boost": 0.15, "named_traits": 4},
 }
 
 ## How rare a piece is, by floor (slain monsters). Vaults, caches and camps
 ## roll one row higher (the last row is only reached that way). Storied
-## pieces are only found from STORIED_FROM up; below it they count as Rare.
+## pieces are only found from STORIED_FROM up, Masterwork ones from
+## MASTERWORK_FROM up; below, either counts as Rare.
 static var RARITY_ODDS := [
-	{"to": 3, "odds": {"common": 80, "fine": 20, "rare": 0, "storied": 0}},
-	{"to": 6, "odds": {"common": 60, "fine": 32, "rare": 8, "storied": 0}},
-	{"to": 9, "odds": {"common": 45, "fine": 38, "rare": 15, "storied": 2}},
-	{"to": 12, "odds": {"common": 35, "fine": 40, "rare": 20, "storied": 5}},
-	{"to": 99, "odds": {"common": 25, "fine": 40, "rare": 27, "storied": 8}},
+	{"to": 3, "odds": {"common": 80, "fine": 20, "rare": 0, "masterwork": 0, "storied": 0}},
+	{"to": 6, "odds": {"common": 60, "fine": 32, "rare": 8, "masterwork": 0, "storied": 0}},
+	{"to": 9, "odds": {"common": 45, "fine": 38, "rare": 15, "masterwork": 0, "storied": 2}},
+	{"to": 12, "odds": {"common": 35, "fine": 40, "rare": 19, "masterwork": 1, "storied": 5}},
+	{"to": 99, "odds": {"common": 25, "fine": 40, "rare": 24, "masterwork": 3, "storied": 8}},
 ]
 const STORIED_FROM := 7
+const MASTERWORK_FROM := 10
 ## A Rare find in a tower with its own pieces (NAMED "tower") is one of
 ## them this often.
 static var TOWER_PIECE_CHANCE := 0.3
@@ -118,7 +124,8 @@ const NOTICE_FROM := "rare"
 ## "fine" is its strength on a Fine piece, "rare" on Rare and better. "key"
 ## is the number it adds to (see PIECES and EFFECT_ROWS); "desc" says it.
 const TRAIT_ORDER := ["vigor", "footing", "mending", "venom", "edges", "riposte", "breath", "second_wind", "thorns", "wind", "rolling", "hunt", "quickdraw",
-	"shadows", "striding", "kindling", "embers", "lantern", "well", "calm"]
+	"shadows", "striding", "kindling", "embers", "lantern", "well", "calm",
+	"finishing", "grace", "cleansing", "zeal"]
 static var TRAITS := {
 	"vigor": {"name": "of Vigor", "short": "Vigor", "kind": "stone", "key": "health", "fine": 6.0, "rare": 10.0,
 		"slots": ["helm", "armor", "legs", "cloak", "amulet", "offhand"], "desc": "+%s health"},
@@ -160,6 +167,15 @@ static var TRAITS := {
 		"slots": ["boots", "legs", "cloak"], "desc": "rolls carry %s farther"},
 	"lantern": {"name": "of the Lantern", "short": "Lantern", "kind": "fire", "key": "light", "fine": 0.10, "rare": 0.15,
 		"slots": ["helm", "amulet", "cloak", "armor"], "desc": "your light reaches %s farther"},
+	# Four more, so the traits count by sixes (24).
+	"finishing": {"name": "of Finishing", "short": "Finishing", "kind": "blade", "key": "finisher", "fine": 0.08, "rare": 0.12,
+		"slots": ["melee", "gloves", "ring", "offhand"], "desc": "a chain's finisher hits %s harder"},
+	"grace": {"name": "of Grace", "short": "Grace", "kind": "water", "key": "parry_heal", "fine": 2.0, "rare": 3.0,
+		"slots": ["gloves", "ring", "amulet", "offhand"], "desc": "a perfect parry heals you %s"},
+	"cleansing": {"name": "of Cleansing", "short": "Cleansing", "kind": "water", "key": "ailment", "fine": 0.10, "rare": 0.15,
+		"slots": ["cloak", "armor", "amulet", "boots"], "desc": "poison wears off %s sooner and burning floor hurts that much less"},
+	"zeal": {"name": "of Zeal", "short": "Zeal", "kind": "fire", "key": "kill_sta", "fine": 3.0, "rare": 5.0,
+		"slots": ["melee", "ranged", "ring", "helm"], "desc": "each kill gives back %s stamina"},
 }
 ## Tempering (the bench): each rank adds this share of a trait's base
 ## strength, and makes a weapon hit this much harder.
@@ -199,7 +215,7 @@ const THORNS_REACH := 70.0
 
 ## What gear adds up to at most, so stacking pieces can't break fights.
 ## The inventory shows "(capped)" beside a number that has reached its cap.
-static var CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.12, "spell": 0.20}
+static var CAPS := {"strike": 0.25, "health": 40.0, "stamina": 30.0, "walk": 0.12, "spell": 0.20, "ailment": 0.6}
 
 ## Named pieces keep their own names. Each is a base piece (its look, slot
 ## and, for weapons and armor, how it fights) with its own rule:
@@ -412,7 +428,9 @@ static var TEXT := {
 ##   regen      multiplier on how fast stamina refills
 ##   walk       multiplier on walking speed
 ##   step       a sound layered on each footstep (chain mail and plate jingle)
-const ARMOR_ORDER := ["", "padded", "leather", "chain", "plate"]
+##   fx         numbers it adds besides (as a worn piece's, PIECES): a robe's
+##              spells, scale mail's steady footing
+const ARMOR_ORDER := ["", "padded", "leather", "chain", "plate", "robe", "scale"]
 static var ARMOR := {
 	"": {
 		"name": "No armor",
@@ -454,6 +472,26 @@ static var ARMOR := {
 		"step": "step_plate",
 		"color": Color(0.8, 0.82, 0.88),
 		"drop_weight": 1,
+	},
+	# Two more, so the chest pieces count by sixes (6).
+	"robe": {
+		"name": "Warded Robe",
+		"short": "Robe",
+		"desc": "a long robe stitched with warding thread: very little protection, but spells hit 6% harder and it hardly weighs on you",
+		"reduce": 0.05, "roll_cost": 1.02, "roll_dist": 0.99, "regen": 1.0, "walk": 1.0,
+		"fx": {"spell": 0.06},
+		"color": Color(0.36, 0.34, 0.56),
+		"drop_weight": 3,
+	},
+	"scale": {
+		"name": "Scale Mail",
+		"short": "Scale",
+		"desc": "overlapping steel scales on leather: between mail and plate, and light blows can't knock you back; rolls cost more and you tire faster",
+		"reduce": 0.30, "roll_cost": 1.42, "roll_dist": 0.82, "regen": 0.81, "walk": 0.92,
+		"fx": {"steady": true},
+		"step": "step_chain",
+		"color": Color(0.66, 0.62, 0.52),
+		"drop_weight": 2,
 	},
 }
 
@@ -515,6 +553,8 @@ const PIECE_ORDER := [
 	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier", "pack", "great_pack",
 	"lucky_knot", "pocket_clasp", "belt_hook", "feather_token", "iron_brooch", "ward_stone", "tide_shell", "wardbreaker", "mending_bead",
 	"keepers_purse", "ashen_knot", "gale_charm", "bulwark_stone",
+	"dancers_slippers", "falcon_pendant",
+	"hunters_token", "brass_bellows", "duelists_ribbon", "mist_pearl",
 	"parrying_dagger", "hand_axe", "ember_dirk", "buckler", "kite_shield", "tide_ward",
 	"cairn_wand", "edge_wand", "iron_wand", "gale_wand", "cinder_wand", "tide_wand",
 ]
@@ -602,6 +642,12 @@ static var PIECES := {
 		"bag": 6, "slow": 0.05, "color": Color(0.5, 0.44, 0.32), "drop_weight": 2},
 	"great_pack": {"slot": "backpack", "name": "Great Pack", "short": "Great Pack", "desc": "a big framed pack: your pack holds 8 pieces, but nearly full it slows you",
 		"bag": 8, "slow": 0.1, "color": Color(0.42, 0.36, 0.3), "drop_weight": 1},
+	# Two more, so the worn pieces count by sixes (42, besides the chest,
+	# the charms and the off-hand).
+	"dancers_slippers": {"slot": "boots", "name": "Dancer's Slippers", "short": "Slippers", "desc": "soft slippers for quick feet: the parry window is 6% longer, and you're ready to roll again 12% sooner",
+		"parry": 0.06, "roll_recover": 0.12, "color": Color(0.62, 0.3, 0.36), "drop_weight": 2, "look": "soft"},
+	"falcon_pendant": {"kind": "air", "slot": "amulet", "name": "Falcon Pendant", "short": "Falcon", "desc": "a falcon's head carved in pale stone: bows, crossbows and pistols hit 5% harder, and bows draw and crossbows reload 6% faster",
+		"ranged": 0.05, "draw": 0.06, "rarity": "fine", "color": Color(0.78, 0.82, 0.86), "drop_weight": 1},
 	# Charms (the charm slot; charms.gd): never used up. A passive that is
 	# always on, and on some a charge ("charge": charms.gd CHARGES) that once
 	# spent is refilled only by feeding it essence. Found only as charms
@@ -636,6 +682,15 @@ static var PIECES := {
 		"walk": 0.04, "charge": "gust", "rarity": "rare", "color": Color(0.66, 0.86, 0.96), "drop_weight": 0},
 	"bulwark_stone": {"kind": "stone", "slot": "charm", "name": "Bulwark Stone", "short": "Bulwark", "desc": "a heavy grey stone, banded in bronze: +15 health and 4% damage taken off",
 		"health": 15.0, "reduce": 0.04, "rarity": "rare", "color": Color(0.6, 0.58, 0.54), "drop_weight": 0},
+	# Four more, so the charms count by sixes (18).
+	"hunters_token": {"slot": "charm", "name": "Hunter's Token", "short": "Token", "desc": "a flint arrowhead on a thong: bows, crossbows and pistols hit 5% harder",
+		"ranged": 0.05, "color": Color(0.5, 0.48, 0.46), "drop_weight": 0},
+	"brass_bellows": {"kind": "iron", "slot": "charm", "name": "Brass Bellows", "short": "Bellows", "desc": "a tiny pair of brass bellows that wheeze when you tire: stamina refills 4% faster",
+		"regen": 0.04, "charge": "breath", "rarity": "fine", "color": Color(0.86, 0.64, 0.3), "drop_weight": 0},
+	"duelists_ribbon": {"kind": "blade", "slot": "charm", "name": "Duelist's Ribbon", "short": "Ribbon", "desc": "a red ribbon from a duel long won: ripostes and backstabs hit 15% harder, and the parry window is 5% longer",
+		"riposte": 0.15, "parry": 0.05, "rarity": "rare", "color": Color(0.82, 0.24, 0.3), "drop_weight": 0},
+	"mist_pearl": {"kind": "water", "slot": "charm", "name": "Mist Pearl", "short": "Mist", "desc": "a grey pearl cold as fog: monsters notice you 10% later",
+		"notice": 0.1, "charge": "veil", "rarity": "rare", "color": Color(0.74, 0.8, 0.86), "drop_weight": 0},
 	# The off-hand (offhand.gd, which says what each does in a fight): a
 	# second one-handed weapon (an off-hand strike in your chains), a shield
 	# (hold parry to block) or a wand (the off-hand button: a small power).
@@ -693,18 +748,18 @@ const BONUS_KEYS := ["health", "stamina", "reduce", "strike", "chain", "roll_dis
 ## How common each weapon is as a drop (fists are always carried).
 static var WEAPON_DROP_WEIGHT := {
 	"dagger": 4, "sword": 3, "axe": 4, "mace": 3, "spear": 4, "greatsword": 2, "war_hammer": 2, "cane": 3, "sword_cane": 2,
-	"shortbow": 3, "longbow": 2, "crossbow": 2, "flintlock": 2, "revolver": 2,
+	"shortbow": 3, "longbow": 2, "crossbow": 2, "flintlock": 2, "revolver": 2, "rapier": 2, "flail": 3, "sling": 3,
 }
 
 ## Monsters favour gear that suits them: these are four times as likely.
 const FAVOUR_MULT := 4
 const FAVOUR := {
-	"knight": ["chain", "plate", "sword", "mace", "greatsword", "iron_helm", "gauntlets", "plated_greaves"],
-	"archer": ["shortbow", "longbow", "crossbow", "flintlock", "leather", "leather_cap", "feathered_cap", "archers_bracers"],
+	"knight": ["chain", "plate", "sword", "mace", "greatsword", "iron_helm", "gauntlets", "plated_greaves", "flail", "rapier"],
+	"archer": ["shortbow", "longbow", "crossbow", "flintlock", "leather", "leather_cap", "feathered_cap", "archers_bracers", "sling"],
 	"smith": ["war_hammer", "mace", "chain", "plate", "gauntlets", "hobnail_boots", "revolver", "flintlock"],
 	"golem": ["war_hammer", "mace", "plate", "gauntlets", "iron_helm"],
 	"burrower": ["dagger", "spear", "leather", "climbing_boots"],
-	"shellback": ["mace", "chain", "chain_leggings"],
+	"shellback": ["mace", "chain", "chain_leggings", "flail", "scale"],
 	"ram": ["war_hammer", "axe", "hobnail_boots"],
 	"thornhound": ["dagger", "sword_cane", "leather", "leather_gloves", "studded_gloves"],
 	"mongrel": ["axe", "spear", "cane", "leather", "leather_leggings", "wolf_tooth"],
@@ -712,14 +767,17 @@ const FAVOUR := {
 	"thunderling": ["spear", "chain", "soft_boots"],
 	"lurker": ["spear", "padded", "climbing_boots", "wading_boots"],
 	"slime": ["padded", "dagger", "padded_trousers"],
-	"bat": ["dagger", "shortbow", "dusk_cloak", "feather_cape"],
+	"bat": ["dagger", "shortbow", "dusk_cloak", "feather_cape", "dancers_slippers"],
 	"cinder": ["shortbow", "crossbow", "grip_wraps"],
-	"wisp": ["shortbow", "padded", "cloth_hood", "miners_helm"],
+	"wisp": ["shortbow", "padded", "cloth_hood", "miners_helm", "robe", "falcon_pendant"],
 	"bloomcap": ["padded", "leather", "travel_cloak", "herb_pouch", "ranger_breeches"],
 	"deepfin": ["spear", "wading_boots", "padded"],
-	"harrier": ["shortbow", "feather_cape", "climbing_boots"],
+	"harrier": ["shortbow", "feather_cape", "climbing_boots", "sling"],
 	"ashwing": ["shortbow", "cloth_hood", "feather_cape", "padded"],
 	"briar": ["leather", "travel_cloak", "herb_pouch", "ranger_breeches", "leather_gloves"],
+	"carrion": ["shortbow", "feather_cape", "dusk_cloak"], "basilisk": ["leather", "leather_cap", "viper_ring"], "cairn": ["war_hammer", "mace", "hobnail_boots"],
+	"kindler": ["cloth_hood", "travel_cloak", "padded"], "flamemoth": ["shortbow", "cloth_hood", "padded"], "salamander": ["spear", "leather", "wading_boots"],
+	"graftling": ["axe", "leather", "leather_gloves"], "hydra": ["axe", "greatsword", "leather_leggings"], "leafmantis": ["dagger", "sword_cane", "leather_gloves"],
 }
 
 
@@ -853,7 +911,8 @@ static func rarity_odds(floor_num: int, higher := 0) -> Dictionary:
 
 
 ## A rarity for a find on this floor (at least `at_least`). Storied only
-## from STORIED_FROM up (below, it counts as Rare).
+## from STORIED_FROM up, Masterwork from MASTERWORK_FROM up (below, either
+## counts as Rare).
 static func roll_rarity(floor_num: int, higher := 0, at_least := "common") -> String:
 	var odds := rarity_odds(floor_num, higher)
 	var total := 0
@@ -869,6 +928,8 @@ static func roll_rarity(floor_num: int, higher := 0, at_least := "common") -> St
 			got = r
 			break
 	if got == "storied" and floor_num < STORIED_FROM:
+		got = "rare"
+	if got == "masterwork" and floor_num < MASTERWORK_FROM:
 		got = "rare"
 	if rarity_rank(at_least) > rarity_rank(got):
 		got = at_least
@@ -1194,7 +1255,7 @@ static func effects(g) -> Dictionary:
 	var b := base_id(g)
 	var out := {}
 	var n := named_id(g)
-	var d: Dictionary = PIECES.get(b, {})
+	var d: Dictionary = PIECES.get(b, ARMOR.get(b, {}).get("fx", {}))  # (a chest piece: its own extra numbers, ARMOR "fx")
 	if NAMED.has(n) and not Weapons.WEAPONS.has(b):
 		d = NAMED[n].get("fx", {})
 	if not d.is_empty():
@@ -2120,7 +2181,63 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 					var bt: Vector2 = p.call(-0.6, -1.8 + k * 2.4)
 					Art.rod(b, bt, bt + Vector2(7.6, k * 1.4) * u, 0.6 * u, Color(0.92, 0.84, 0.62), s, "")
 				b.circle(p.call(9.4, -1.8), 0.9 * u, Color(0.55, 0.85, 0.35, 0.9), 10)
-		"", "padded", "leather", "chain", "plate":
+		"rapier":
+			# A long, needle-slim blade, a swept ring of a guard over the
+			# grip, straight quillons and a round pommel.
+			var base: Vector2 = p.call(-3.4, 3.4)
+			var tip: Vector2 = p.call(10.2, -10.2)
+			var grip_end: Vector2 = p.call(-7.6, 7.6)
+			Art.rod(b, base, grip_end, 1.3 * u, Art.LEATHER, s, "leather")
+			if lod > 0:
+				for k in 3:
+					var at := base.lerp(grip_end, 0.25 + k * 0.25)
+					b.line(at + side * 0.7 * u, at - side * 0.7 * u, Art.LEATHER.darkened(0.4), maxf(0.5, 0.35 * u))
+			_blade(b, base, tip, 0.8 * u, steel, s)
+			var lit_sd := side if side.dot(Art.LIGHT) > 0.0 else -side
+			Art.arc_rod(b, base.lerp(grip_end, 0.45), 3.0 * u, (lit_sd).angle() - 1.6, (lit_sd).angle() + 1.6, 0.7 * u, Art.STEEL, s, "metal")  # the swept guard
+			Art.rod(b, base + side * 3.4 * u, base - side * 3.4 * u, 0.9 * u, Art.STEEL, s, "metal")  # the quillons
+			for sg in [1.0, -1.0]:
+				Art.orb(b, base + side * sg * 3.4 * u, 0.6 * u, Art.STEEL.lightened(0.1), s, "metal", false)
+			Art.orb(b, grip_end - d * 1.1 * u, 1.4 * u, Art.STEEL, s, "metal")
+		"flail":
+			# A short wooden handle, a few chain links, and a spiked ball
+			# hanging off to one side.
+			var h0: Vector2 = p.call(-8.4, 8.4)
+			var h1: Vector2 = p.call(-1.2, 1.2)
+			_haft(b, h0, h1, 1.6 * u, s, lod)
+			Art.orb(b, h0, 1.3 * u, Art.LEATHER, s, "leather")
+			Art.rod(b, h1 - d * 0.6 * u, h1 + d * 0.5 * u, 2.0 * u, Art.IRON, s, "metal")  # its iron cap
+			var ball: Vector2 = p.call(6.0, -2.6)
+			for k in 4:
+				var at := (h1 + d * 0.9 * u).lerp(ball, (k + 0.7) / 5.0) + Vector2(0, -sin(PI * (k + 0.7) / 5.0) * 1.6 * u)
+				b.arc(at, 0.95 * u, 0.0, TAU, 10, Art.INK, maxf(0.9, 0.6 * u) + Art.ol(s))
+				b.arc(at, 0.95 * u, 0.0, TAU, 10, Art.IRON.lightened(0.15), maxf(0.6, 0.45 * u))
+			for i in 7:
+				var a := TAU * i / 7.0 + 0.2
+				Art.shape(b, PackedVector2Array([ball + Vector2.from_angle(a - 0.38) * 2.8 * u, ball + Vector2.from_angle(a) * 6.0 * u, ball + Vector2.from_angle(a + 0.38) * 2.8 * u]), Art.IRON, s, "metal", Art.NO_RIM | Art.THIN)
+			Art.orb(b, ball, 3.5 * u, steel, s, "metal")
+			if lod > 0:
+				for i in 3:
+					Art.rivet(b, ball + Vector2.from_angle(PI * 0.8 + i * 0.7) * 2.1 * u, 0.42 * u, Art.IRON)
+		"sling":
+			# Two plaited cords from a finger loop to a leather pouch with
+			# its round stone.
+			var loop: Vector2 = p.call(-6.6, 6.8)
+			var pouch: Vector2 = p.call(4.0, -2.8)
+			var cord := Color(0.86, 0.78, 0.6)
+			for sg in [-1.0, 1.0]:
+				var mid: Vector2 = loop.lerp(pouch, 0.5) + side * sg * 2.6 * u
+				var pa := PackedVector2Array([loop, mid, pouch + side * sg * 2.4 * u])
+				b.polyline(Art.smooth(pa, 4), Art.INK, 1.1 * u + Art.ol(s))
+				b.polyline(Art.smooth(pa, 4), cord, maxf(0.6, 0.7 * u))
+			b.arc(loop + Vector2(-1.2, 1.2) * u, 1.6 * u, 0.0, TAU, 12, Art.INK, 1.0 * u + Art.ol(s))
+			b.arc(loop + Vector2(-1.2, 1.2) * u, 1.6 * u, 0.0, TAU, 12, cord, maxf(0.6, 0.7 * u))  # the finger loop
+			var pp := Art.smooth(PackedVector2Array([pouch + side * 3.4 * u, pouch + d * 2.6 * u, pouch - side * 3.4 * u, pouch - d * 2.2 * u]), 3)
+			Art.shape(b, pp, Art.LEATHER, s, "leather")
+			Art.orb(b, pouch + d * 0.4 * u, 2.2 * u, Color(0.66, 0.64, 0.6), s, "stone")
+			if lod > 0:
+				Art.stitches(b, pouch + side * 2.6 * u - d * 1.2 * u, pouch - side * 2.6 * u - d * 1.2 * u, 3, Color(cord, 0.8), maxf(0.4, 0.3 * u))
+		"", "padded", "leather", "chain", "plate", "robe", "scale":
 			var shape := [Vector2(-7.4, -7.0), Vector2(-3.2, -9.4), Vector2(0, -6.6), Vector2(3.2, -9.4), Vector2(7.4, -7.0),
 				Vector2(6.6, 1.0), Vector2(4.0, 9.0), Vector2(-4.0, 9.0), Vector2(-6.6, 1.0)]
 			var body := Art.pts(c, u, shape)
@@ -2132,7 +2249,11 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 					b.line(a.lerp(bb, 0.15), a.lerp(bb, 0.6), Color(col, 0.6), maxf(0.9, 0.7 * u))
 				return
 			var ac := _readable(col)
-			var kind: String = {"padded": "cloth", "leather": "leather", "chain": "metal", "plate": "metal"}[id]
+			var kind: String = {"padded": "cloth", "leather": "leather", "chain": "metal", "plate": "metal", "robe": "cloth", "scale": "metal"}[id]
+			if id == "robe":
+				# A long robe: the body runs down past the hem of the others.
+				body = Art.pts(c, u, [Vector2(-7.0, -7.0), Vector2(-3.0, -9.4), Vector2(0, -7.0), Vector2(3.0, -9.4), Vector2(7.0, -7.0),
+					Vector2(6.2, 0.6), Vector2(7.6, 9.6), Vector2(-7.6, 9.6), Vector2(-6.2, 0.6)])
 			Art.shape(b, body, ac, s, kind)
 			var dark := ac.darkened(0.42)
 			var thin := maxf(0.55, 0.45 * u)
@@ -2160,6 +2281,26 @@ static func _icon_body(b, g, c: Vector2, s: float, col: Color) -> void:
 								continue
 							b.arc(c + Vector2(x, y) * u, 1.0 * u, PI * 0.9, PI * 2.1, 8, Color(dark, 0.9), maxf(0.5, 0.42 * u))
 							b.circle(c + Vector2(x - 0.3, y - 0.4) * u, 0.4 * u, Color(ac.lightened(0.45), 0.8), 8)
+				"robe":
+					# A sash at the waist, a hem of warding thread, a rune at the breast.
+					Art.shape(b, Art.rrect(Rect2(c + Vector2(-6.4, 0.2) * u, Vector2(12.8, 1.8) * u), 0.4 * u, 2), Color(0.78, 0.62, 0.36), s, "cloth", Art.THIN | Art.NO_RIM)
+					b.line(c + Vector2(0, -7.0) * u, c + Vector2(0, 9.2) * u, Color(dark, 0.7), thin)
+					for x in [-5.6, -2.0, 2.0, 5.6]:
+						b.line(c + Vector2(x, 8.0) * u, c + Vector2(x + 0.9, 8.8) * u, Color(0.92, 0.82, 0.5, 0.85), thin)
+					if lod > 0:
+						rune_into(b, "warded_robe", c + Vector2(-2.8, -3.6) * u, 1.6 * u, Color(0.92, 0.82, 0.5), false)
+				"scale":
+					# Rows of overlapping scales, each lit along its top.
+					var srows := 5 if lod > 0 else 4
+					for row in srows:
+						for k in 6:
+							var x := -5.6 + k * 2.3 + (1.15 if row % 2 == 1 else 0.0)
+							var y := -5.4 + row * (13.0 / srows)
+							if absf(x) > 6.2 - maxf(0.0, y - 2.0) * 0.45:
+								continue
+							b.arc(c + Vector2(x, y) * u, 1.2 * u, PI * 0.0, PI * 1.0, 6, Color(dark, 0.95), maxf(0.55, 0.45 * u))
+							b.circle(c + Vector2(x - 0.2, y + 0.3) * u, 0.45 * u, Color(ac.lightened(0.4), 0.75), 8)
+					Art.shape(b, Art.rrect(Rect2(c + Vector2(-6.2, 6.0) * u, Vector2(12.4, 1.6) * u), 0.3 * u, 2), Color(0.42, 0.28, 0.18), s, "leather", Art.THIN | Art.NO_RIM)
 				"plate":
 					if nm == "wyvern_scaleplate":
 						for row in 5:
@@ -2516,6 +2657,16 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 				var tooth := Art.smooth(P.call([Vector2(-2.8, 1.8), Vector2(2.8, 1.8), Vector2(2.0, 5.6), Vector2(0.6, 9.8), Vector2(-1.6, 6.0)]), 3)
 				Art.shape(b, tooth, base_col, s)
 				Art.orb(b, c + Vector2(0, 1.2) * u, 1.4 * u, Art.GOLD, s, "gold")
+			elif id == "falcon_pendant":
+				# A falcon's head in pale stone: a round crown, a hooked beak, a dark eye.
+				var hc := c + Vector2(0, 4.4) * u
+				var head := Art.smooth(P.call([Vector2(-3.8, 1.0), Vector2(-3.2, 5.0), Vector2(0.6, 8.6), Vector2(3.0, 7.6), Vector2(2.6, 5.2),
+					Vector2(5.0, 4.6), Vector2(5.4, 2.4), Vector2(3.4, 0.4), Vector2(0.4, -0.4)]), 3)
+				Art.shape(b, head, base_col, s, "stone")
+				Art.shape(b, P.call([Vector2(4.4, 2.6), Vector2(7.0, 3.6), Vector2(5.0, 5.6), Vector2(4.6, 4.4)]), Art.GOLD, s, "gold", Art.THIN)  # the beak
+				b.circle(hc + Vector2(1.6, -1.6) * u, 0.75 * u, Color(0.12, 0.1, 0.14), 10)
+				b.line(hc + Vector2(1.0, -0.4) * u, hc + Vector2(0.0, 2.4) * u, Color(base_col.darkened(0.45), 0.8), maxf(0.45, 0.4 * u))  # the eye's dark streak
+				Art.orb(b, c + Vector2(0, -0.6) * u, 1.1 * u, Art.GOLD, s, "gold")
 			elif id == "tide_locket":
 				Art.orb(b, c + Vector2(0, 4.6) * u, 5.0 * u, Art.GOLD, s, "gold")
 				var win := Art.oval(c + Vector2(0, 4.6) * u, Vector2(3.6, 3.6) * u)
@@ -2635,6 +2786,45 @@ static func _charm_icon(b, id: String, c: Vector2, u: float, s: float, lod: int,
 		"bulwark_stone":
 			Art.orb(b, c + Vector2(0, 2.0) * u, 6.2 * u, col, s, "stone")
 			Art.rod(b, c + Vector2(-6.0, 1.0) * u, c + Vector2(6.0, 3.0) * u, 1.8 * u, Color(0.78, 0.55, 0.3), s, "gold")
+		"hunters_token":
+			# A knapped flint arrowhead, bound to its thong with sinew.
+			var head: PackedVector2Array = P.call([Vector2(0, -3.8), Vector2(4.4, 3.4), Vector2(2.2, 3.0), Vector2(2.6, 8.4), Vector2(-2.6, 8.4), Vector2(-2.2, 3.0), Vector2(-4.4, 3.4)])
+			Art.shape(b, head, col, s, "stone")
+			if lod > 0:
+				for v in [[Vector2(-1.6, 0.6), Vector2(0.4, -1.8)], [Vector2(1.4, 1.4), Vector2(-0.6, 3.4)], [Vector2(-1.0, 5.6), Vector2(1.2, 4.0)]]:
+					b.line(c + v[0] * u, c + v[1] * u, Color(col.lightened(0.35), 0.7), maxf(0.45, 0.35 * u))  # the knapped facets
+			Art.shape(b, Art.rrect(Rect2(c + Vector2(-2.8, 6.0) * u, Vector2(5.6, 1.6) * u), 0.4 * u, 2), Color(0.86, 0.78, 0.6), s, "cloth", Art.THIN | Art.NO_RIM)
+			b.line(c + Vector2(0, -4.2) * u, c + Vector2(0, -4.4) * u, cord, w)
+		"brass_bellows":
+			# A tiny pair of bellows: two pear-shaped boards, a leather fold, a brass nozzle.
+			var board := Art.smooth(P.call([Vector2(-4.4, -2.4), Vector2(4.4, -2.4), Vector2(5.2, 3.2), Vector2(2.0, 8.0), Vector2(-2.0, 8.0), Vector2(-5.2, 3.2)]), 3)
+			Art.shape(b, board, Art.WOOD, s, "wood")
+			Art.shape(b, Art.smooth(P.call([Vector2(-3.4, -1.4), Vector2(3.4, -1.4), Vector2(4.0, 3.0), Vector2(1.6, 6.4), Vector2(-1.6, 6.4), Vector2(-4.0, 3.0)]), 3), col, s, "gold", Art.THIN)
+			for y in [1.0, 3.0]:
+				b.line(c + Vector2(-3.6, y) * u, c + Vector2(3.6, y) * u, Color(0.36, 0.22, 0.14, 0.8), maxf(0.5, 0.4 * u))  # the leather folds
+			Art.rod(b, c + Vector2(0, 8.0) * u, c + Vector2(0, 10.4) * u, 1.2 * u, Art.BRASS, s, "gold")  # the nozzle
+			if lod > 0:
+				for v in [Vector2(2.6, 10.0), Vector2(-2.2, 10.6)]:
+					b.circle(c + v * u, 0.6 * u, Color(1, 1, 1, 0.55), 8)  # a puff of air
+		"duelists_ribbon":
+			# A red ribbon tied in a bow, its tails cut in swallowtails, a tiny blade pin.
+			for sx in [-1.0, 1.0]:
+				var loop := Art.oval(c + Vector2(sx * 3.0, 0.0) * u, Vector2(3.2, 2.2) * u, sx * 0.4, 14)
+				Art.shape(b, loop, col, s, "cloth")
+				var tail: PackedVector2Array = P.call([Vector2(sx * 0.8, 1.2), Vector2(sx * 3.6, 8.8), Vector2(sx * 2.4, 7.6), Vector2(sx * 1.6, 9.6), Vector2(sx * -0.4, 2.0)])
+				Art.shape(b, tail, col.darkened(0.12), s, "cloth", Art.THIN)
+			Art.orb(b, c + Vector2(0, 0.4) * u, 1.6 * u, col.darkened(0.2), s, "cloth")
+			if lod > 0:
+				Art.rod(b, c + Vector2(-3.6, -2.6) * u, c + Vector2(3.6, 3.4) * u, 0.5 * u, Art.STEEL, s, "metal")  # the blade pin
+		"mist_pearl":
+			# A grey pearl in a silver cup, wisps of mist curling off it.
+			Art.soft(b, c + Vector2(0, 2.4) * u, 7.0 * u, Color(0.85, 0.9, 1.0, 0.35))
+			Art.shape(b, P.call([Vector2(-4.0, 2.6), Vector2(4.0, 2.6), Vector2(2.8, 6.4), Vector2(-2.8, 6.4)]), Art.STEEL, s, "metal", Art.THIN)
+			Art.orb(b, c + Vector2(0, 1.4) * u, 3.6 * u, col, s, "gem")
+			Art.shine(b, c + Vector2(-1.2, 0.2) * u, 0.6 * u, 1.2 * u, -0.6, 0.8)
+			for k in 3:
+				var cc := c + Vector2(-4.0 + k * 3.6, -2.4 - k * 0.6) * u
+				b.arc(cc, (1.6 + k * 0.3) * u, PI * 0.9, PI * 1.9, 10, Color(0.9, 0.94, 1.0, 0.75 - k * 0.15), maxf(0.5, 0.5 * u))
 		_:
 			Art.orb(b, c + Vector2(0, 1.6) * u, 4.6 * u, col, s)
 
@@ -2769,6 +2959,20 @@ static func _boots(b, id: String, c: Vector2, u: float, s: float, lod: int, col:
 			b.line(c + Vector2(-5.6, 8.6) * u, c + Vector2(8.6, 8.6) * u, Color(dark, 0.9), maxf(0.7, 0.8 * u))
 			if lod > 0:
 				b.line(c + Vector2(-3.0, 1.0) * u, c + Vector2(1.0, 0.4) * u, Color(dark, 0.5), thin)
+		"dancers_slippers":
+			# A low, pointed slipper with a ribbon tied round the ankle.
+			var slip := Art.smooth(Art.pts(c, u, [Vector2(-6.0, 1.6), Vector2(-1.0, 0.4), Vector2(3.6, 2.4), Vector2(9.8, 5.0), Vector2(8.6, 8.4),
+				Vector2(-6.4, 8.6), Vector2(-7.0, 4.6)]), 3)
+			Art.shape(b, slip, col, s, "cloth")
+			b.line(c + Vector2(-6.0, 8.4) * u, c + Vector2(8.6, 8.2) * u, Color(dark, 0.9), maxf(0.7, 0.7 * u))
+			var rib := Color(0.95, 0.86, 0.7)
+			b.polyline(Art.smooth(Art.pts(c, u, [Vector2(-6.2, 1.8), Vector2(-4.0, -3.6), Vector2(-1.0, -6.6), Vector2(1.6, -8.4)]), 3), Art.INK, 1.0 * u + Art.ol(s))
+			b.polyline(Art.smooth(Art.pts(c, u, [Vector2(-6.2, 1.8), Vector2(-4.0, -3.6), Vector2(-1.0, -6.6), Vector2(1.6, -8.4)]), 3), rib, maxf(0.6, 0.8 * u))
+			b.polyline(Art.smooth(Art.pts(c, u, [Vector2(-1.4, 1.0), Vector2(-3.2, -3.0), Vector2(-5.6, -6.4), Vector2(-7.8, -7.6)]), 3), Art.INK, 1.0 * u + Art.ol(s))
+			b.polyline(Art.smooth(Art.pts(c, u, [Vector2(-1.4, 1.0), Vector2(-3.2, -3.0), Vector2(-5.6, -6.4), Vector2(-7.8, -7.6)]), 3), rib, maxf(0.6, 0.8 * u))
+			Art.orb(b, c + Vector2(-3.4, 1.0) * u, 1.2 * u, rib, s, "cloth")  # the bow
+			if lod > 0:
+				b.line(c + Vector2(0.4, 3.4) * u, c + Vector2(6.6, 5.6) * u, Color(lit, 0.5), thin)
 		"climbing_boots":
 			var boot := Art.pts(c, u, [Vector2(-5.8, -8.8), Vector2(1.6, -8.8), Vector2(1.8, 0.6), Vector2(7.2, 2.4), Vector2(9.2, 5.2),
 				Vector2(9.2, 6.8), Vector2(-6.4, 6.8)])

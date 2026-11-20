@@ -59,7 +59,7 @@ static var TEXT := {
 	"singed": "Caught in the storm",
 }
 ## Monsters the storm doesn't burn (they're fire themselves, or fly above it).
-const FIERY := ["wisp", "cinder", "firebird", "ashwing", "bloomcap", "wyvern", "bat", "gryphon"]
+const FIERY := ["wisp", "cinder", "firebird", "ashwing", "bloomcap", "wyvern", "bat", "gryphon", "flamemoth", "salamander"]
 
 var on := false
 var data := {}

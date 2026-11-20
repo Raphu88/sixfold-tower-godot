@@ -1367,7 +1367,14 @@ func _terrain_tests() -> void:
 	var kind: String = main.cache["kind"]
 	main.cache["taken"] = false  # (earlier checks on this floor may have walked the climber over it)
 	var before := float(main.run_essence.get(kind, 0.0))
-	p.global_position = main.cache["pos"] + Vector2(0, 70)
+	# Stand near it on open floor (a spot inside a wall would push you onto it).
+	var near_spot: Vector2 = main.cache["pos"] + Vector2(0, 70)
+	for off in [Vector2(0, 70), Vector2(0, -70), Vector2(70, 0), Vector2(-70, 0), Vector2(50, 50), Vector2(-50, 50), Vector2(50, -50), Vector2(-50, -50)]:
+		var q: Vector2 = main.cache["pos"] + off
+		if not main.is_solid(q) and not main.in_chasm(q) and [Vector2(18, 0), Vector2(-18, 0), Vector2(0, 18), Vector2(0, -18)].all(func(o): return not main.is_solid(q + o)):
+			near_spot = q
+			break
+	p.global_position = near_spot
 	await _frames(2)
 	_check(not main.cache["taken"], "the cache stays shut until you walk onto it")
 	p.global_position = main.cache["pos"]
@@ -2079,11 +2086,11 @@ func _puzzle_tests() -> void:
 		var tid: String = main.Towers.ORDER[n % 6]
 		var k: String = C.pick(2 + n % 10, tid)
 		picks[k] = true
-		if C.SIGNATURE.get(tid, "") == k:
+		if C.is_signature(k, tid):
 			sig[tid] = int(sig.get(tid, 0)) + 1
 	_check(picks.size() == C.TYPES.size(), "every kind of puzzle turns up (%s)" % [picks.keys()])
-	_check(int(sig.get("gryphon", 0)) > 35 and int(sig.get("wyvern", 0)) > 35 and int(sig.get("manticore", 0)) > 35,
-		"the Gryphon favours mirrors, the Wyvern the crumbling path, the Manticore the statues (%s of 100 each)" % [sig])
+	_check(int(sig.get("gryphon", 0)) > 45 and int(sig.get("wyvern", 0)) > 45 and int(sig.get("manticore", 0)) > 45,
+		"each tower favours its own two (the Gryphon mirrors and eyes, the Wyvern the crumbling path and the crucible, the Manticore statues and plates: %s of 100 each)" % [sig])
 	_check(C.tier_for(2) == 1 and C.tier_for(3) == 1 and C.tier_for(4) == 2 and C.tier_for(8) == 2 and C.tier_for(9) == 3 and C.tier_for(11) == 3,
 		"tiers: 1 on floors 2-3, 2 on 4-8, 3 on 9-11")
 	_check(C.mode_for(3) == "quiet" and C.mode_for(C.PRESSURE_FROM) == "pressure", "quiet mode low down, pressure mode higher up")
@@ -2110,6 +2117,11 @@ func _puzzle_tests() -> void:
 	var p = main.player
 	var pz = main.puzzle
 	main._start_floor(3)
+	if main.objective.kind == "marked":
+		var Obj = load("res://scripts/objectives.gd")
+		Obj.forced = "shards"  # (slaying the marked is that task: killing every monster would do it)
+		main._start_floor(3)
+		Obj.forced = ""
 	for e in main.enemies():
 		e.set_physics_process(false)
 	await _frames(2)
@@ -5390,7 +5402,7 @@ func _gear_slot_tests() -> void:
 	for id in G.PIECES:
 		if G.PIECES[id].get("rarity", "common") == "common":
 			common += 1
-	_check(common == 34, "the thirty-four Common pieces, the bags, the ordinary charms and the plain off-hand pieces among them (%d)" % common)
+	_check(common == 36, "the thirty-six Common pieces, the bags, the ordinary charms and the plain off-hand pieces among them (%d)" % common)
 	var words := ""
 	for id in G.PIECES:
 		words += " " + String(G.PIECES[id]["name"]) + " " + String(G.PIECES[id]["desc"])
@@ -5810,7 +5822,7 @@ func _rarity_tests() -> void:
 		trait_ok = trait_ok and Essence.KINDS.has(d["kind"]) and not d["slots"].is_empty() and float(d["rare"]) > float(d["fine"])
 		for sl in d["slots"]:
 			trait_ok = trait_ok and sl in ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "offhand"]
-	_check(trait_ok and G.TRAITS.size() == 20, "twenty traits, each tied to an essence and to the slots it suits")
+	_check(trait_ok and G.TRAITS.size() == 24, "twenty-four traits, each tied to an essence and to the slots it suits")
 	var kinds_seen := {}
 	for t in G.TRAITS:
 		kinds_seen[G.TRAITS[t]["kind"]] = true

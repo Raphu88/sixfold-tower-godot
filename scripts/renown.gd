@@ -34,19 +34,36 @@ extends RefCounted
 ## change. The names are placeholders for the owner to replace.
 
 ## The ranks: [id, name, renown needed]. The first is where everyone starts.
+## Twelve (by sixes), the steps between them widening as you rise, so each
+## comes a little slower than the last. (The seven older ranks kept their
+## thresholds; Recognised, Esteemed, Acclaimed, Lauded and Legendary came in
+## between them and on top: OLD_RANKS below moves an old save across.)
 static var RANKS := [
 	["unknown", "Unknown", 0],
 	["noticed", "Noticed", 25],
 	["known", "Known", 60],
+	["recognised", "Recognised", 90],
 	["respected", "Respected", 120],
+	["esteemed", "Esteemed", 160],
 	["famed", "Famed", 200],
+	["acclaimed", "Acclaimed", 260],
 	["renowned", "Renowned", 320],
+	["lauded", "Lauded", 400],
 	["celebrated", "Celebrated", 480],
+	["legendary", "Legendary", 600],
 ]
+## The ladder before it had twelve ranks: where each old rank stands now
+## (an old save's "rank_seen" and brackets won are moved across once: state).
+const OLD_RANKS := [0, 1, 2, 4, 6, 8, 10]
+const OLD_BRACKETS := ["novice", "open", "masters", "champions"]
+## The ladder's version, kept in the save ("ladder"): an older one is moved across.
+const LADDER := 2
 
 ## What each rank opens, one list per rank (RANKS order). Each entry:
 ##   kind  lessons   the Training basics (stations.gd LESSONS)
 ##         bracket   a tournament bracket (stations.gd BRACKETS, by "id")
+##         drill     a medal drill (stations.gd DRILLS, by "id"; its own
+##                   "rank" says the same)
 ##         titles    a new tier of titles from the Noble
 ##         contracts the Noble's contracts: "n" at once, "kinds" offered
 ##         recipe    a charm recipe for a Rune Artist's bench (charms.gd, "id")
@@ -56,10 +73,15 @@ static var RANK_OPENS := [
 	[{"kind": "lessons"}, {"kind": "bracket", "id": "novice"}, {"kind": "contracts", "n": 1, "kinds": ["reach", "retrieve"]}, {"kind": "titles"}],
 	[{"kind": "titles"}, {"kind": "contracts", "n": 1, "kinds": ["slay"]}, {"kind": "recipe", "id": "mending_bead"}],
 	[{"kind": "bracket", "id": "open"}, {"kind": "refill", "cut": 0.25}, {"kind": "titles"}],
+	[{"kind": "drill", "id": "bullseye"}, {"kind": "refill", "cut": 0.35}],
 	[{"kind": "contracts", "n": 2, "kinds": []}, {"kind": "recipe", "id": "keepers_purse"}, {"kind": "titles"}],
+	[{"kind": "bracket", "id": "veterans"}, {"kind": "drill", "id": "shell"}],
 	[{"kind": "bracket", "id": "masters"}, {"kind": "refill", "cut": 0.5}, {"kind": "titles"}, {"kind": "recipe", "id": "tide_shell"}],
+	[{"kind": "drill", "id": "perfect"}, {"kind": "refill", "cut": 0.55}],
 	[{"kind": "recipe", "id": "bulwark_stone"}, {"kind": "titles"}, {"kind": "refill", "cut": 0.6}],
+	[{"kind": "bracket", "id": "grand"}, {"kind": "drill", "id": "hunted"}],
 	[{"kind": "bracket", "id": "champions"}, {"kind": "recipe", "id": "gale_charm"}, {"kind": "titles"}],
+	[{"kind": "drill", "id": "dance"}, {"kind": "refill", "cut": 0.65}],
 ]
 
 ## What a climb earns: for every floor reached, for every floor past your
@@ -97,12 +119,12 @@ static var TITLES := {
 	"surefoot": {"name": "Surefoot", "rank": 2, "deed": "Finish 3 climbs in a row without falling.", "rule": "unfallen", "n": 3},
 	"duelist": {"name": "the Duelist", "rank": 2, "deed": "Win 3 duels with other climbers.", "rule": "rivals", "of": "duels_won", "n": 3},
 	"trusted": {"name": "the Trusted", "rank": 2, "deed": "Finish 3 of the Noble's contracts.", "rule": "contracts", "n": 3},
-	"ironclad": {"name": "Ironclad", "rank": 3, "deed": "Win the Open Bracket of a tournament.", "rule": "tier", "n": 2},
-	"goldhand": {"name": "Goldhand", "rank": 3, "deed": "Win a gold medal in every medal drill.", "rule": "golds", "n": 0},
-	"glassbreaker": {"name": "Glassbreaker", "rank": 3, "deed": "Beat your own reflection in a tournament.", "rule": "mirror", "n": 1},
-	"champion": {"name": "the Champion", "rank": 4, "deed": "Win the Masters' Bracket of a tournament.", "rule": "tier", "n": 3},
-	"talked_of": {"name": "the Talked-of", "rank": 5, "deed": "Reach the rank of Renowned.", "rule": "none", "n": 0},
-	"paragon": {"name": "the Paragon", "rank": 6, "deed": "Win the Champions' Bracket of a tournament.", "rule": "tier", "n": 4},
+	"ironclad": {"name": "Ironclad", "rank": 4, "deed": "Win the Open Bracket of a tournament.", "rule": "tier", "n": 2},
+	"goldhand": {"name": "Goldhand", "rank": 4, "deed": "Win a gold medal in every medal drill.", "rule": "golds", "n": 0},
+	"glassbreaker": {"name": "Glassbreaker", "rank": 4, "deed": "Beat your own reflection in a tournament.", "rule": "mirror", "n": 1},
+	"champion": {"name": "the Champion", "rank": 6, "deed": "Win the Masters' Bracket of a tournament.", "rule": "tier", "n": 4},
+	"talked_of": {"name": "the Talked-of", "rank": 8, "deed": "Reach the rank of Renowned.", "rule": "none", "n": 0},
+	"paragon": {"name": "the Paragon", "rank": 10, "deed": "Win the Champions' Bracket of a tournament.", "rule": "tier", "n": 6},
 	# From a new climber's start (new_start.gd WHY): worn from the first climb.
 	# PLACEHOLDER names, the owner's to write.
 	"family": {"name": "[Family title]", "rank": 0, "deed": "Be born into a family of climbers (chosen when the climber was made).", "rule": "origin", "of": "born", "n": 0},
@@ -137,6 +159,7 @@ static var TEXT := {
 	"open_lessons": "Training at the stations: the basics, hands on",
 	"open_bracket": "the %s at the tournament",
 	"open_titles": "new titles from the Noble",
+	"open_drill": "a new medal drill: %s",
 	"open_contracts": "the Noble's contracts",
 	"open_contracts_n": "%d of the Noble's contracts at once",
 	"open_contracts_kind": "%s contracts",
@@ -179,9 +202,30 @@ static func state(profile) -> Dictionary:
 	for k in defaults:
 		if not r.has(k) or typeof(r[k]) != typeof(defaults[k]):
 			r[k] = defaults[k].duplicate() if defaults[k] is Dictionary or defaults[k] is Array else defaults[k]
+	if not r.has("ladder"):
+		_new_ladder(r)
 	if int(r["rank_seen"]) < 0:
 		r["rank_seen"] = rank_for(int(r["points"]))  # (an old save: its rank was already reached)
 	return r
+
+
+## A save from the seven-rank ladder (and the four-bracket tournament): the
+## rank whose moment was shown, and the brackets won (by number), moved to
+## where they stand now. Once (a new save has nothing to move).
+static func _new_ladder(r: Dictionary) -> void:
+	var seen := int(r["rank_seen"])
+	if seen >= 0 and seen < OLD_RANKS.size():
+		r["rank_seen"] = int(OLD_RANKS[seen])
+	var S = load("res://scripts/stations.gd")
+	var moved := {}
+	for key in r["tiers"]:
+		var k := String(key)
+		var num := k.trim_suffix("_n")
+		if not num.is_valid_int() or int(num) < 1 or int(num) > OLD_BRACKETS.size():
+			continue
+		moved[str(S.bracket_number(OLD_BRACKETS[int(num) - 1])) + k.substr(num.length())] = r["tiers"][key]
+	r["tiers"] = moved
+	r["ladder"] = LADDER
 
 
 static func points(profile) -> int:
@@ -302,6 +346,9 @@ static func open_text(e: Dictionary) -> String:
 			return TEXT["open_bracket"] % String(b.get("name", e.get("id", "")))
 		"titles":
 			return TEXT["open_titles"]
+		"drill":
+			var d: Dictionary = load("res://scripts/stations.gd").DRILLS.get(String(e.get("id", "")), {})
+			return TEXT["open_drill"] % String(d.get("name", e.get("id", "")))
 		"contracts":
 			var C = load("res://scripts/contracts.gd")
 			var bits: Array = []

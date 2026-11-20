@@ -466,6 +466,8 @@ func spend_sta(cost: float, partial := false) -> bool:
 			main.fx_text(global_position + Vector2(0, -42), String(Combat.TEXT["fatigued"]), Color(0.75, 0.68, 0.5))
 			if main.get("player") == self and main.has_method("tip"):
 				main.tip("fatigue")  # (the first time: the Entity explains it)
+	if sta <= 0.0 and main != null and main.get("player") == self and Charms.fire(self, "breath"):
+		sta = sta_cap() * Charms.num("breath", "share", 0.5)  # (Brass Bellows' charge: a second breath)
 	return true
 
 
@@ -834,6 +836,8 @@ func _auto_aim() -> void:
 	var best = null
 	var best_d := reach
 	for e in main.targets():
+		if e.has_meta("look_away"):
+			continue  # (a basilisk's glare: walking away turns you away from it)
 		var d: float = global_position.distance_to(e.global_position)
 		if d < best_d:
 			best_d = d
@@ -1191,6 +1195,8 @@ func _equip(id: String) -> void:
 		swing = wdata()["combo"][0]
 	main.fx_text(global_position + Vector2(0, -30), wdata()["name"], Color(0.85, 0.82, 0.9))
 	main.sfx(wdata().get("equip", "equip_sword"))
+	if id in ["rapier", "flail", "sling"]:
+		main.tip(id)  # (a weapon with its own way: the Entity explains it, the first time)
 
 
 ## Returns true once the action is spent (done, or refused for a reason
@@ -1323,7 +1329,7 @@ func _try_jump(input: Vector2) -> bool:
 		return false
 	if main.puzzle != null and main.puzzle.no_footing(global_position, true):
 		return true  # (no leaping over the Ice Hall's rocks)
-	var cost := 0.0 if gear_fx.get("free_jump", false) else JUMP_COST  # Climbing Boots
+	var cost := 0.0 if gear_fx.get("free_jump", false) or gfx("free_jump") > 0.0 else JUMP_COST  # Climbing Boots; a Springheel Draught
 	if not spend_sta(cost):
 		_winded()
 		return true
@@ -1519,7 +1525,10 @@ func _try_attack() -> bool:
 		draw_t = 0.0
 		draw_release = false
 		draw_ready = false
-		main.sfx("draw", _bow_pitch(wdata()), 0.0, 0.03)
+		if wdata().get("stone", false):
+			main.sfx("swing_light", 0.6, -8.0, 0.03)  # (a sling starts to whirl)
+		else:
+			main.sfx("draw", _bow_pitch(wdata()), 0.0, 0.03)
 		return true
 	return _melee()
 
@@ -1727,12 +1736,19 @@ func release_draw() -> void:
 		speed *= 1.3
 		force *= rule("gale")
 		dmg *= 1.2
-	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full)
+	var stone: bool = w.get("stone", false)  # a sling: a stone never pierces; a full whirl rocks what it hits
+	var arrow = main.spawn_player_arrow(global_position + aim * (radius + 6.0), aim * speed, dmg, force, full and not stone)
 	arrow.weapon = true
 	arrow.life = float(w.get("life", 1.6))
+	if stone:
+		arrow.style = "stone"
+		arrow.heavy = full
 	main.sfx_fade("draw")  # the creak stops when the string goes
 	# A harder draw looses a louder, sharper shot.
-	main.sfx("bow", _bow_pitch(w) * (0.92 + 0.14 * k), -9.0 + 9.0 * k)
+	if stone:
+		main.sfx("swing_light", 0.8 + 0.3 * k, -8.0 + 6.0 * k)
+	else:
+		main.sfx("bow", _bow_pitch(w) * (0.92 + 0.14 * k), -9.0 + 9.0 * k)
 	knock = -aim * (60.0 if full else 20.0)
 	if full:
 		main.shake(3.0)
@@ -1981,8 +1997,9 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 				Reactions.apply(main, other, "charged", 2.0, "static")  # (the arc charges it)
 				break
 	# of the Riposte: ripostes and backstabs hit harder.
+	var melee_blow: bool = hit_sound != "arrow_hit" and wkind() == "melee"
 	if crit or backstab:
-		dmg *= 1.0 + gfx("riposte")
+		dmg *= 1.0 + gfx("riposte") + (float(wdata().get("riposte", 0.0)) if melee_blow else 0.0)  # (a rapier in hand: weapons.gd)
 	# Watcher's Helm: a foe you parried takes more from you for a while.
 	if gfx("watch") > 0.0 and e.has_meta("watched") and float(e.get_meta("watched")) > Time.get_ticks_msec() * 0.001:
 		dmg *= 1.0 + gfx("watch")
@@ -2023,7 +2040,8 @@ func _strike(e, dmg: float, dir: Vector2, force: float, heavy: bool, hit_sound :
 	_charm_wardbreak(e)
 	var oiled: bool = edge_t > 0.0 and e.kind in Items.ITEMS["edge_oil"].get("cracks", [])  # (Edge Oil: lands as a heavy blow on a shell or a guard)
 	main.weapon_blow = not spell_shot  # (what's a weapon's blow and what's a spell's: tests/mark_measure.gd counts them apart)
-	e.take_hit(dmg, dir, force, heavy or crit or rock or oiled, flow_pierce or gfx("guardbreak") > 0.0)  # (a Wardbreaker Charm: through shells)
+	var through: bool = melee_blow and bool(wdata().get("through", false))  # (a flail: its chain wraps round guards and shells, weapons.gd)
+	e.take_hit(dmg, dir, force, heavy or crit or rock or oiled, flow_pierce or gfx("guardbreak") > 0.0 or through)  # (a Wardbreaker Charm: through shells)
 	main.weapon_blow = false
 	if unseen:
 		BondScript.manticore().unseen_struck(self, e, dmg, dir)  # (Unseen Strike II and III; Ashfall's Apex)
@@ -2895,6 +2913,10 @@ func _charm_wardbreak(e) -> void:
 ## A blow landed on you: the Gale Charm's charge hurls the foes around you
 ## back (as a Gale Feather does).
 func _charm_struck() -> void:
+	# A Mist Pearl's charge: struck while low, mist wraps you and they lose you.
+	if not dead and hp < max_health() * Charms.num("veil", "below", 0.5) and Charms.fire(self, "veil"):
+		main.smokes.append({"pos": global_position, "r": Charms.num("veil", "radius", 90.0), "t": Charms.num("veil", "time", 4.0)})
+		main.fx_burst(global_position, Vector2.ZERO, Gear.PIECES["mist_pearl"]["color"], 16, 150.0)
 	if dead or not Charms.fire(self, "gust"):
 		return
 	var r := Charms.num("gust", "radius", 120.0)
@@ -3350,6 +3372,13 @@ func _draw_armor_detail(b, lx: Vector2, look: Dictionary) -> void:
 				b.dot(c + Vector2.from_angle(a) * 7.2 * tk, 0.8, Color(1, 1, 1, 0.3))
 		"plate":
 			b.line(lx + _at(2.0 + 4.6 * tk, 0.0), lx + _at(2.0 + 8.2 * tk, 0.0), torso.lightened(0.35), 1.2)  # the ridge
+		"robe":
+			b.arc(c, 7.0 * tk, fa + PI * 0.5, fa + PI * 1.5, 8, Color(0.78, 0.62, 0.36), 1.6)  # the sash round the back
+			b.dot(lx + _at(2.0 + 6.0 * tk, 2.0 * tk), 1.1, Color(0.92, 0.82, 0.5))  # its warding rune
+		"scale":
+			for k in 7:  # scales
+				var a := fa + (k - 3) * 0.3
+				b.arc(c + Vector2.from_angle(a) * 6.6 * tk, 1.3, a - 1.2, a + 1.2, 4, Color(0, 0, 0, 0.35), 0.9)
 	var sh_r: float = look["shoulder_r"] + float(look.get("sh_add", 0.0))  # (the build)
 	for sgn in [-1.0, 1.0]:
 		var at := lx + _at(0.3, sgn * float(look.get("sh_y", 9.3)))
@@ -3701,10 +3730,23 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 					b.line(tip - dir * 9.0 + side * 0.8, tip - dir * 1.5, Color(1, 1, 1, 0.5 + 0.4 * glint2), 1.0)
 				hands.append([sh_w, grip2, 3.0])
 				hands.append([sh_o, grip2 - dir * 12.0 - side * 1.5, 2.8])
+			elif weapon == "rapier":
+				draw_weapon = func(): GearLook.tower_rapier(b, grip2, dir, length2, glint2, _light)
+				hands.append([sh_w, grip2 - dir * 2.0, 3.0])
+				hands.append([sh_o, free, 2.8])
 			else:
 				draw_weapon = func(): b.sword(grip2, dir, length2, glint2)
 				hands.append([sh_w, grip2 - dir * 2.0, 3.0])
 				hands.append([sh_o, free, 2.8])
+		"sling":
+			# Held out at your side; drawn, it whirls round over the hand.
+			var kw := clampf(draw_t / float(w["draw_time"]), 0.0, 1.0) if drawing else 0.0
+			var shand := side * (radius * 0.8) + dir * (4.0 + 2.0 * kw)
+			var tnow := Time.get_ticks_msec() * 0.001
+			_wep_seg = [shand, shand + dir * 10.0]
+			draw_weapon = func(): GearLook.tower_sling(b, shand, dir, maxf(kw, 0.05) if drawing else 0.0, tnow, _light)
+			hands.append([sh_w, shand, 3.0])
+			hands.append([sh_o, free, 2.8])
 		"jab":
 			for sgn in [-1.0, 1.0]:
 				var rest2: Vector2 = dir * (radius * 0.7) + side * sgn * radius * 0.75
@@ -3785,6 +3827,8 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 func _draw_swung(b, id: String, grip: Vector2, along: Vector2, length: float, glint: float) -> void:
 	var side := along.orthogonal()
 	match id:
+		"flail":
+			GearLook.tower_flail(b, grip, along, length, glint, _light)
 		"axe":
 			var head := grip + along * (length - 4.0)
 			b.stroke(grip - along * 4.0, head + along * 3.0, Palette.WOOD, 2.6)

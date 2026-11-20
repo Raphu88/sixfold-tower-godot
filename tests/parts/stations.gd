@@ -206,6 +206,7 @@ func _renown(main) -> void:
 	main.pay_climb()
 	var want := int(Renown.CLIMB["floor"]) * 5 + int(Renown.CLIMB["best"]) * 3
 	t._check(Renown.points(prof) == before + want and int(Renown.state(prof)["streak"]) == 1, "a climb's end earns renown for its floors and its new best (+%d)" % want)
+	Renown.state(prof)["points"] = Renown.needed(2)  # (so the beast below stays short of the next rank: that moment would be said in the climb, not in the car)
 	before = Renown.points(prof)
 	Renown.on_beast(prof, "the Kraken")
 	t._check(Renown.points(prof) == before + int(Renown.CLIMB["beast"]), "a beast felled earns renown")
@@ -253,7 +254,7 @@ func _travel(main) -> void:
 	t._check(Stations.stops(menu.station_page.station).all(func(s): return ids.has(s)) and ids.has("leave_station") and not ids.has("engine"), "the rail lists the station's stops and the way back (%s)" % [ids])
 	t._check(int(Renown.state(main.profile)["visits"]) == visits + 1 and Renown.on_offer(main.profile).has("newcomer"), "the stop is counted (the Newcomer's title is ready at the Noble)")
 	t._check(menu.station_page.stop == "gym" and String(menu.station_page.picks.get("gym", "")) == "lesson:" + String(Stations.LESSON_ORDER[0]), "it opens on Training, on the first lesson not yet done")
-	t._check(String(menu.train_page.tips.get(Train.HOME, "")).contains(Renown.opens(2)[0]) and Renown.unseen_rank(main.profile) < 0, "the rank reached on the climb is said at the top of your car, with what it opens")
+	t._check(String(menu.train_page.tips.get(Train.HOME, "")).contains(Renown.opens(Renown.rank(main.profile))[0]) and Renown.unseen_rank(main.profile) < 0, "the rank reached on the climb is said at the top of your car, with what it opens")
 	menu.rail_pressed("arena")
 	await t._frames(2)
 	t._check(menu.station_page.stop == "arena" and menu.rail_item() == "arena", "choosing a stop on the rail shows it")
@@ -266,10 +267,11 @@ func _travel(main) -> void:
 	menu.close()
 	await t._frames(2)
 	t._check(menu.page == "station", "...and closing it goes back to the station")
-	Renown.earn(main.profile, Renown.needed(3) - Renown.points(main.profile), "")
+	var next_rk := Renown.rank(main.profile) + 1
+	Renown.earn(main.profile, Renown.needed(next_rk) - Renown.points(main.profile), "")
 	menu.go_station(menu.station_page.station, "board")
 	await t._frames(2)
-	var rank_row: bool = t._all_labels(menu.box).any(func(l): return l.text.contains(Renown.opens(3)[0]))
+	var rank_row: bool = t._all_labels(menu.box).any(func(l): return l.text.contains(Renown.opens(next_rk)[0]))
 	t._check(rank_row and Renown.unseen_rank(main.profile) < 0, "a rank reached at the station is said at the top of its page, with what it opens")
 	var rk := Renown.rank(main.profile)
 	t._check(String(menu.station_page.picks.get("board", "")) == "rank:%d" % (rk + 1) and t._all_labels(menu.box).any(func(l): return l.text.contains(Renown.opens(rk + 1)[0])),
@@ -529,7 +531,7 @@ func _noble(main) -> void:
 	if tile.size() == 1:
 		tile[0].pressed.emit()
 		await t._frames(1)
-	t._check(_station_buttons(menu, "station_do", "grant").is_empty() and t._all_labels(menu.station_page.card).any(func(l): return l.text.contains(Renown.rank_name(6))), "a title out of reach shows its rank and no grant")
+	t._check(_station_buttons(menu, "station_do", "grant").is_empty() and t._all_labels(menu.station_page.card).any(func(l): return l.text.contains(Renown.rank_name(int(Renown.TITLES["paragon"]["rank"])))), "a title out of reach shows its rank and no grant")
 	t._check(Renown.TITLE_ORDER.all(func(id): return Renown.TITLES.has(id) and Renown.TITLES[id].has("rank") and not Titles.lines(id).is_empty()), "every title has a rank and benefits")
 
 
@@ -556,7 +558,7 @@ func _benefits(main) -> void:
 	var closed := not Stations.bracket_open(prof, "open")
 	Renown.wear(prof, "contender")
 	t._check(closed and Stations.bracket_open(prof, "open") and Stations.bracket_early(prof, "open") and Stations.fee(prof, "tourney", "novice") < int(Stations.bracket("novice")["fee"]),
-		"the Contender: tournament masters open the Open Bracket a rank sooner, and entry costs less")
+		"the Contender: tournament masters open the Open Bracket sooner, and entry costs less")
 	Renown.wear(prof, "duelist")
 	var plain := Stations.prize(prof, "open")
 	t._check(int(plain["renown"]) > int(Stations.bracket("open")["renown"]), "the Duelist: bigger prizes")

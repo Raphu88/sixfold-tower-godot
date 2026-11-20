@@ -22,6 +22,13 @@ extends RefCounted
 ##   backstab     extra backstab multiplier on top of the usual 1.5x (daggers)
 ##   parry        while it's in hand, the parry window is this much longer (canes)
 ##   finisher_sta a landed finisher gives back this much stamina (the sword)
+##   riposte      ripostes and backstabs hit this much harder while it's in
+##                hand (the rapier), on top of gear's "of the Riposte"
+##   through      its blows go through shells and guards (the flail: its
+##                chain wraps round a shield and over a shell)
+##   stone        a bow-kind weapon that flings a stone, not an arrow (the
+##                sling): it never pierces, and a full whirl rocks what it
+##                hits (breaks poise, as a heavy blow)
 ##   color        its wood's colour (canes and pistols; others are steel or bow wood)
 ##
 ## Pistol fields (kind "gun"):
@@ -52,7 +59,7 @@ const BASE := 8.0
 
 ## Every weapon, in the order the dev tools and lists show them.
 const ORDER := ["fists", "dagger", "sword", "axe", "mace", "spear", "greatsword", "war_hammer", "cane", "sword_cane",
-	"shortbow", "longbow", "crossbow", "flintlock", "revolver"]
+	"shortbow", "longbow", "crossbow", "flintlock", "revolver", "rapier", "flail", "sling"]
 
 ## What a new climb starts with in the melee and ranged slots.
 const START_MELEE := "sword"
@@ -386,6 +393,73 @@ static var WEAPONS := {
 		"refill": 0.5,
 		"shot_sound": "crossbow", "shot_pitch": 1.5, "crack": "hit_armor", "crack_pitch": 1.6,
 		"reload_sound": "crossbow_reload", "reload_pitch": 1.4, "load_sound": "lock_turn", "load_pitch": 1.2,
+	},
+	# --- three more, so the weapons count by sixes (18, your fists among them) ---
+	"rapier": {
+		"name": "Rapier",
+		"short": "Rapier",
+		"desc": "a long, slim blade for one hand: quick, reaching thrusts, and ripostes and backstabs bite 40% deeper while it's in hand",
+		"kind": "melee",
+		"slot": "melee",
+		"class": "light",
+		"style": "stab",
+		"length": 22.0,
+		"swing_time": 0.11,
+		"sound": "thrust",
+		"pitch": 1.25,
+		"hit_sound": "hit_stab",
+		"equip": "equip_dagger",
+		"riposte": 0.4,
+		"combo": [
+			{"dmg": 0.75, "range": 58.0, "arc": 18.0, "sta": 10.0, "recover": 0.28, "lunge": 200.0, "knock": 80.0, "heavy": false, "side": 1.0},
+			{"dmg": 0.8, "range": 58.0, "arc": 18.0, "sta": 10.0, "recover": 0.28, "lunge": 200.0, "knock": 90.0, "heavy": false, "side": -1.0},
+			{"dmg": 1.45, "range": 66.0, "arc": 22.0, "sta": 17.0, "recover": 0.5, "lunge": 320.0, "knock": 200.0, "heavy": true, "side": 1.0},
+		],
+	},
+	"flail": {
+		"name": "Flail",
+		"short": "Flail",
+		"desc": "a spiked ball on a chain: its blows wrap round shields and over shells, going through every guard",
+		"kind": "melee",
+		"slot": "melee",
+		"class": "medium",
+		"style": "arc",
+		"length": 18.0,
+		"swing_time": 0.18,
+		"sound": "swing_blunt",
+		"pitch": 0.9,
+		"hit_sound": "hit_blunt",
+		"equip": "equip_blunt",
+		"through": true,
+		"combo": [
+			{"dmg": 1.1, "range": 50.0, "arc": 60.0, "sta": 19.0, "recover": 0.52, "lunge": 170.0, "knock": 170.0, "heavy": false, "side": 1.0},
+			{"dmg": 1.2, "range": 50.0, "arc": 60.0, "sta": 19.0, "recover": 0.54, "lunge": 170.0, "knock": 180.0, "heavy": false, "side": -1.0},
+			{"dmg": 1.9, "range": 56.0, "arc": 80.0, "sta": 28.0, "recover": 0.8, "lunge": 260.0, "knock": 320.0, "heavy": true, "side": 1.0},
+		],
+	},
+	"sling": {
+		"name": "Sling",
+		"short": "Sling",
+		"desc": "hold to whirl, release to let fly: a stone that never pierces, but a full whirl rocks what it hits; light on stamina, and you can walk while it whirls",
+		"kind": "bow",
+		"style": "sling",
+		"slot": "ranged",
+		"class": "light",
+		"equip": "equip_bow",
+		"stone": true,
+		"draw_time": 0.6,
+		"min_draw": 0.12,
+		"dmg_min": 5.0,
+		"dmg_max": 17.0,
+		"speed_min": 360.0,
+		"speed_max": 680.0,
+		"knock_min": 90.0,
+		"knock_max": 280.0,
+		"sta": 8.0,
+		"recover": 0.3,
+		"move_mult": 0.7,
+		"life": 1.3,
+		"limb": 12.0,
 	},
 }
 

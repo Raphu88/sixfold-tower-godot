@@ -44,10 +44,10 @@ const Offhand := preload("res://scripts/offhand.gd")
 
 ## The looks of the chest by weight, and of the other worn slots, by piece.
 ## (Pieces not listed look like their slot's plain kind.)
-const ARMOR_WEIGHT := {"padded": "cloth", "leather": "leather", "chain": "mail", "plate": "plate"}
+const ARMOR_WEIGHT := {"padded": "cloth", "leather": "leather", "chain": "mail", "plate": "plate", "robe": "robe", "scale": "scale"}
 const LEGS_LOOK := {"padded_trousers": "cloth", "leather_leggings": "leather", "ranger_breeches": "leather", "chain_leggings": "mail", "plated_greaves": "plate"}
 const GLOVES_LOOK := {"grip_wraps": "wraps", "leather_gloves": "leather", "gauntlets": "plate", "archers_bracers": "bracers", "studded_gloves": "studded"}
-const BOOTS_LOOK := {"soft_boots": "soft", "climbing_boots": "laced", "hobnail_boots": "hobnail", "wading_boots": "tall"}
+const BOOTS_LOOK := {"soft_boots": "soft", "climbing_boots": "laced", "hobnail_boots": "hobnail", "wading_boots": "tall", "dancers_slippers": "slipper"}
 const PACK_LOOK := {"satchel": "satchel", "belt_pouch": "pouch", "climbers_pack": "pack", "herb_pouch": "herbs", "bandolier": "bandolier"}
 const CLOAK_LOOK := {"feather_cape": "short"}
 ## The candle of a miner's helm, a feathered cap's feather.
@@ -131,6 +131,15 @@ static func armor_look(look: Dictionary, gear: Dictionary) -> void:
 			look["sleeve"] = col.darkened(0.3)
 			look["hand"] = col.darkened(0.25)  # gauntlets
 			look["hood"] = col.darkened(0.1)  # a steel helm
+		"robe":
+			look["torso"] = col
+			look["shoulder"] = col.darkened(0.1)
+			look["sleeve"] = col.darkened(0.08)  # (wide sleeves)
+		"scale":
+			look["torso"] = col.darkened(0.1)
+			look["shoulder"] = col
+			look["shoulder_r"] = 5.8
+			look["sleeve"] = col.darkened(0.25)
 
 
 ## After the chest piece: the head (plate brings a helm, mail a coif; a helm
@@ -294,7 +303,13 @@ static func tower_back(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 	if slung != "" and Weapons.WEAPONS.has(slung):
 		var kind := String(Weapons.WEAPONS[slung]["kind"])
 		var col: Color = lk.get("slung_col", Palette.WOOD)
-		if kind == "bow":
+		if slung == "sling":
+			# A sling coiled at the hip, its pouch hanging.
+			var hip := lx + _q(f, sd, -1.0, -8.5)
+			b.arc(hip, 2.6, 0.0, TAU, 10, Palette.OUTLINE, 2.2)
+			b.arc(hip, 2.6, 0.0, TAU, 10, Color(0.86, 0.78, 0.6), 1.0)
+			b.dot(hip + _q(f, sd, -3.0, -1.0), 1.8, Color(0.46, 0.32, 0.2))
+		elif kind == "bow":
 			var c := lx + _q(f, sd, -5.0, 0.0)
 			b.arc(c, 9.5, (-f).angle() - 1.15, (-f).angle() + 1.15, 10, Palette.OUTLINE, 2.6)
 			b.arc(c, 9.5, (-f).angle() - 1.1, (-f).angle() + 1.1, 10, col.darkened(0.15), 1.4)
@@ -464,8 +479,8 @@ static func front_behind(b, lk: Dictionary) -> void:
 	var hand: String = lk.get("in_hand", "")
 	if slung != "" and Weapons.WEAPONS.has(slung) and String(Weapons.WEAPONS[slung]["kind"]) != "melee":
 		var col: Color = lk.get("slung_col", Palette.WOOD)
-		if String(Weapons.WEAPONS[slung]["kind"]) == "gun":
-			pass  # (a holstered pistol is worn at the hip, in front: front_arms)
+		if String(Weapons.WEAPONS[slung]["kind"]) == "gun" or slung == "sling":
+			pass  # (a holstered pistol, or a coiled sling, is worn at the hip, in front: front_arms)
 		elif String(Weapons.WEAPONS[slung]["kind"]) == "bow":
 			var pts := PackedVector2Array()
 			for i in 11:
@@ -538,6 +553,13 @@ static func front_legs(b, lk: Dictionary) -> void:
 			for sg in [-1.0, 1.0]:
 				for y in [98.0, 104.0, 110.0]:
 					b.line(Vector2(sg * 6 * k, y), Vector2(sg * 14 * k, y + 3.0), Color(0.86, 0.8, 0.66, 0.8), 1.0)
+		"slipper":
+			# Ribbons criss-crossed up the ankle, tied in a bow.
+			for sg in [-1.0, 1.0]:
+				for y in [100.0, 92.0, 84.0]:
+					b.line(Vector2(sg * 5 * k, y + 6.0), Vector2(sg * 15 * k, y), Color(0.95, 0.86, 0.7, 0.9), 1.3)
+					b.line(Vector2(sg * 15 * k, y + 6.0), Vector2(sg * 5 * k, y), Color(0.95, 0.86, 0.7, 0.9), 1.3)
+				b.dot(Vector2(sg * 10 * k, 82), 2.0, Color(0.95, 0.86, 0.7))
 		"tall":
 			for sg in [-1.0, 1.0]:
 				b.poly(_sx(_p([sg * 2.5, 74, sg * 17.5, 74, sg * 17.5, 96, sg * 2.5, 96]), k), boot if sg < 0.0 else boot.darkened(0.25), 1.4)
@@ -558,6 +580,37 @@ static func front_chest(b, lk: Dictionary) -> void:
 	var col: Color = lk.get("armor_col", lk["tunic"])
 	var w: String = lk.get("armor_w", "")
 	match w:
+		"robe":
+			# A long robe to the knees, a sash at the waist, a hem of warding thread.
+			var robe := _sx(_p([-26, -66, 26, -66, 24, -24, 28, 62, -28, 62, -24, -24]), wx)
+			b.poly(robe, col.darkened(0.14), 1.4)
+			b.polygon(_sx(_p([-26, -66, 0, -66, 0, 62, -28, 62, -24, -24]), wx), col)
+			b.line(Vector2(0, -64), Vector2(0, 60), Color(0, 0, 0, 0.25), 1.2)
+			b.poly(_sx(_p([-25, 4, 25, 4, 25, 12, -25, 12]), wx), Color(0.78, 0.62, 0.36), 1.0)  # the sash
+			for i in 9:
+				var x := (-24.0 + i * 6.0) * wx
+				b.line(Vector2(x, 56), Vector2(x + 3.0 * wx, 59), Color(0.92, 0.82, 0.5, 0.85), 1.4)  # warding stitches
+			b.path(_p([-12, -48, -8, -40, -12, -32, -16, -40]), Color(0.92, 0.82, 0.5, 0.8), 1.2, true)  # a rune at the breast
+			_trim(b, lk, "armor", robe, Vector2(0, -30))
+		"scale":
+			# A coat of overlapping scales on leather, a belt over it.
+			var sc := _sx(_p([-26, -64, 26, -64, 23, -24, 22, 30, -22, 30, -23, -24]), wx)
+			b.poly(sc, col.darkened(0.22), 1.6)
+			b.polygon(_sx(_p([-26, -64, 0, -64, 0, 30, -22, 30, -23, -24]), wx), col.darkened(0.06))
+			var y := -60.0
+			var row := 0
+			while y < 26.0:
+				var x := (-22.0 + (3.0 if row % 2 == 1 else 0.0)) * wx
+				while x < 22.0 * wx:
+					var p := Vector2(x, y)
+					if Geometry2D.is_point_in_polygon(p, sc):
+						b.arc(p, 3.2, 0.0, PI, 6, Color(0, 0, 0, 0.4), 1.2)
+						b.arc(p + Vector2(0, -0.8), 2.6, PI * 1.15, PI * 1.85, 4, Color(col.lightened(0.4), 0.6), 1.0)
+					x += 6.0 * wx
+				y += 5.0
+				row += 1
+			b.poly(_sx(_p([-23, 6, 23, 6, 23, 12, -23, 12]), wx), Color(0.42, 0.28, 0.18), 1.0)  # the belt
+			_trim(b, lk, "armor", sc, Vector2(0, -30))
 		"cloth":
 			var vest := _sx(_p([-26, -64, 26, -64, 23, -24, 22, 28, -22, 28, -23, -24]), wx)
 			b.poly(vest, col.darkened(0.14), 1.4)
@@ -791,6 +844,40 @@ static func _front_weapon(b, lk: Dictionary) -> void:
 			b.line(pts[0], pts[12], Color(0.92, 0.9, 0.82, 0.8), 1.0)
 		"cane", "sword_cane":
 			_front_cane(b, id, hand, col, glow)
+		"rapier":
+			# A long slim blade to the ground, a swept ring guard round the hand.
+			var tip4 := hand + Vector2(-12, 112)
+			if glow.a > 0.0: b.line(hand + Vector2(-1, 8), tip4, Color(glow, 0.35), 8.0)
+			b.poly(_p([hand.x - 2.2, hand.y + 8, hand.x + 2.0, hand.y + 8, tip4.x + 0.6, tip4.y - 4, tip4.x, tip4.y, tip4.x - 0.8, tip4.y - 4]), steel, 1.1)
+			b.line(hand + Vector2(-0.4, 10), tip4 + Vector2(0.2, -6), Color(1, 1, 1, 0.5), 0.8)
+			b.path(_p([hand.x - 9, hand.y + 6, hand.x - 10, hand.y - 2, hand.x - 5, hand.y - 9, hand.x + 2, hand.y - 10]), Palette.OUTLINE, 4.0)
+			b.path(_p([hand.x - 9, hand.y + 6, hand.x - 10, hand.y - 2, hand.x - 5, hand.y - 9, hand.x + 2, hand.y - 10]), Palette.STEEL.lightened(0.05), 2.0)  # the swept guard
+			b.stroke(hand + Vector2(-9, 6), hand + Vector2(9, 5), Palette.STEEL.darkened(0.3), 2.2)  # the quillons
+			b.ball(hand + Vector2(1.5, -12), 3.0, Palette.STEEL.darkened(0.15), true)
+		"flail":
+			# A short handle, a hanging chain, a spiked iron ball.
+			var end := hand + Vector2(-3, 26)
+			b.stroke(hand + Vector2(1, -8), end, wood, 4.0)
+			b.dot(end, 3.2, Palette.STEEL.darkened(0.3))
+			var ball := Vector2(-58, 84)
+			for k in 5:
+				var at := end.lerp(ball, (k + 0.7) / 5.6)
+				b.path(_oval(at, Vector2(2.0, 3.0), 10), Palette.OUTLINE, 2.4, true)
+				b.path(_oval(at, Vector2(2.0, 3.0), 10), Palette.STEEL.darkened(0.2), 1.2, true)
+			if glow.a > 0.0: b.dot(ball, 15.0, Color(glow, 0.25))
+			for a in 8:
+				var dd := Vector2.from_angle(a * TAU / 8.0)
+				b.poly(_p([ball.x + dd.x * 7, ball.y + dd.y * 7, ball.x + dd.x * 13 + dd.y * 2, ball.y + dd.y * 13 - dd.x * 2, ball.x + dd.x * 13 - dd.y * 2, ball.y + dd.y * 13 + dd.x * 2]), steel.darkened(0.15), 0.8)
+			b.ball(ball, 8.0, steel, true)
+		"sling":
+			# Two cords hanging from the hand, the leather pouch and its stone.
+			var pouch := hand + Vector2(-4, 52)
+			if glow.a > 0.0: b.dot(pouch, 11.0, Color(glow, 0.3))
+			for sx in [-3.0, 3.0]:
+				b.line(hand + Vector2(sx * 0.4, 4), pouch + Vector2(sx, -4), Palette.OUTLINE, 3.0)
+				b.line(hand + Vector2(sx * 0.4, 4), pouch + Vector2(sx, -4), Color(0.86, 0.78, 0.6), 1.4)
+			b.poly(_oval(pouch, Vector2(6.0, 5.0), 14), Color(0.46, 0.32, 0.2), 1.3)
+			b.ball(pouch + Vector2(0, -1), 3.4, Color(0.7, 0.68, 0.64), true)
 		"flintlock", "revolver":
 			_front_gun(b, id, hand, col, glow)
 		"crossbow":
@@ -831,6 +918,63 @@ static func tower_cane(b, id: String, grip: Vector2, along: Vector2, length: flo
 		var hook := PackedVector2Array([grip - along * 2.0, grip - along * 4.6 + side * 0.8, grip - along * 5.4 + side * 3.2, grip - along * 4.2 + side * 5.0])
 		b.path(hook, Palette.OUTLINE, 4.6)
 		b.path(hook, wood.lightened(0.1), 2.2)
+
+
+## A rapier in the tower, seen from above, held at `grip` pointing along
+## `dir`: a long, slim blade, a swept ring of a guard round the hand and a
+## round pommel.
+static func tower_rapier(b, grip: Vector2, dir: Vector2, length: float, glint: float, light: Vector2) -> void:
+	var side := dir.orthogonal()
+	var tip := grip + dir * length
+	b.stroke(grip - dir * 4.5, grip, Palette.WOOD.darkened(0.3), 2.6)  # the grip
+	b.arc(grip + dir * 1.0, 3.6, (side).angle() - 0.4, (side).angle() + PI * 0.9, 8, Palette.OUTLINE, 2.4)  # the swept guard
+	b.arc(grip + dir * 1.0, 3.6, (side).angle() - 0.4, (side).angle() + PI * 0.9, 8, Palette.STEEL.lightened(0.05), 1.2)
+	b.stroke(grip + side * 4.0, grip - side * 4.0, Palette.STEEL.darkened(0.3), 1.6)  # the quillons
+	b.line(grip + dir * 1.5, tip, Palette.OUTLINE, 3.4)
+	b.line(grip + dir * 1.5, tip, Palette.STEEL.lightened(0.08), 1.6)  # the slim blade
+	b.line(grip + dir * 3.0 + side * 0.4, tip - dir * 2.0, Color(1, 1, 1, 0.45 + 0.45 * glint), 0.7)
+	b.ball(grip - dir * 5.5, 1.9, Palette.STEEL.darkened(0.1), true, light)  # the pommel
+
+
+## A flail in the tower, seen from above: a short wooden handle along
+## `along` from the grip, a few chain links, and a spiked iron ball that
+## trails a little behind the swing.
+static func tower_flail(b, grip: Vector2, along: Vector2, length: float, glint: float, light: Vector2) -> void:
+	var side := along.orthogonal()
+	var end := grip + along * (length * 0.55)
+	b.stroke(grip - along * 4.0, end, Palette.WOOD.darkened(0.15), 2.6)  # the handle
+	b.dot(end, 1.8, Palette.STEEL.darkened(0.25))  # its iron cap and ring
+	var ball := grip + along * (length + 5.0) - side * 3.0
+	for i in 4:  # the chain, sagging a little
+		var u := (i + 0.6) / 4.6
+		b.dot(end.lerp(ball, u) - side * sin(PI * u) * 2.0, 1.15, Palette.STEEL.darkened(0.32))
+	for i in 6:
+		var a := TAU * i / 6.0 + along.angle()
+		b.stroke(ball, ball + Vector2.from_angle(a) * 6.4, Palette.STEEL.darkened(0.3), 1.2)
+	b.ball(ball, 4.3, Palette.STEEL.darkened(0.12), true, light)
+	if glint > 0.0:
+		b.dot(ball + light.normalized() * 1.6, 1.0, Color(1, 1, 1, 0.6 * glint))
+
+
+## A sling in the tower, seen from above, held at `hand`: two cords and the
+## leather pouch with its stone. `whirl` (0 to 1) is how far it's been
+## whirled (0: hanging at rest), `t` the time (it spins round as it whirls).
+static func tower_sling(b, hand: Vector2, dir: Vector2, whirl: float, t: float, light: Vector2) -> void:
+	var side := dir.orthogonal()
+	var cord := Color(0.86, 0.78, 0.6)
+	var pouch: Vector2
+	if whirl > 0.0:
+		var a := t * (10.0 + 10.0 * whirl)
+		pouch = hand + Vector2.from_angle(a) * (9.0 + 3.0 * whirl)
+		b.arc(hand, 9.0 + 3.0 * whirl, a - 1.6, a - 0.2, 8, Color(1, 1, 1, 0.18 + 0.25 * whirl), 2.0)  # its blur
+	else:
+		pouch = hand + dir * 3.0 - side * 9.0
+	b.line(hand, pouch + side * 1.2, Palette.OUTLINE, 2.0)
+	b.line(hand, pouch - side * 1.2, Palette.OUTLINE, 2.0)
+	b.line(hand, pouch + side * 1.2, cord, 0.9)
+	b.line(hand, pouch - side * 1.2, cord, 0.9)
+	b.ball(pouch, 2.6, Color(0.46, 0.32, 0.2), true, light)  # the pouch
+	b.dot(pouch + light.normalized() * 0.6, 1.3, Color(0.7, 0.68, 0.64))  # its stone
 
 
 ## A pistol in the tower, seen from above, held at `grip` pointing along
@@ -888,6 +1032,14 @@ static func _front_gun(b, id: String, hand: Vector2, col: Color, glow: Color) ->
 ## the arms), the grip out.
 static func _front_holster(b, lk: Dictionary) -> void:
 	var slung: String = lk.get("slung", "")
+	if slung == "sling" and lk.get("in_hand", "") != slung:
+		# A sling coiled and tucked into the belt at the hip, its pouch hanging.
+		for k in 3:
+			b.path(_oval(Vector2(33, 8 + k * 2.5), Vector2(7.0 - k, 4.0), 12), Palette.OUTLINE, 3.2, true)
+			b.path(_oval(Vector2(33, 8 + k * 2.5), Vector2(7.0 - k, 4.0), 12), Color(0.86, 0.78, 0.6), 1.6, true)
+		b.line(Vector2(36, 14), Vector2(38, 30), Color(0.86, 0.78, 0.6), 1.6)
+		b.poly(_oval(Vector2(38, 33), Vector2(4.0, 5.0), 12), Color(0.46, 0.32, 0.2), 1.2)
+		return
 	if not Weapons.is_gun(slung) or lk.get("in_hand", "") == slung:
 		return
 	var col: Color = lk.get("slung_col", Palette.WOOD)
@@ -929,6 +1081,13 @@ static func front_shoulders(b, lk: Dictionary) -> void:
 				var pm := _sx(_p([sg * 16, -72, sg * 34, -68, sg * 40, -52, sg * 24, -54]), wx)
 				b.poly(pm, col.darkened(0.1 if sg < 0.0 else 0.3), 1.2)
 				_mail(b, pm, col, 4.5)
+		"scale":
+			for sg in [-1.0, 1.0]:
+				var ps := _sx(_p([sg * 15, -73, sg * 33, -70, sg * 41, -54, sg * 25, -55]), wx)
+				b.poly(ps, col.darkened(0.08 if sg < 0.0 else 0.3), 1.3)
+				for k in 3:
+					var at := Vector2(sg * (22 + k * 5) * wx, -66 + k * 4)
+					b.arc(at, 3.0, 0.0, PI, 6, Color(0, 0, 0, 0.4), 1.1)
 		"leather":
 			for sg in [-1.0, 1.0]:
 				b.poly(_sx(_p([sg * 18, -70, sg * 34, -66, sg * 38, -54, sg * 24, -56]), wx), col.darkened(0.2 if sg < 0.0 else 0.38), 1.2)

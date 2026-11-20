@@ -12,13 +12,21 @@ static var MONSTERS := {
 	"slime": {"cost": 1.0, "weight": 1.0, "from": 1},
 	"archer": {"cost": 1.5, "weight": 0.8, "from": 3},
 	"knight": {"cost": 2.5, "weight": 0.6, "from": 4},
+	"husk": {"cost": 2.2, "weight": 0.35, "from": 4},  # (a dead climber's empty gear: scripts/foes/husk.gd)
+	"bellringer": {"cost": 1.0, "weight": 0.3, "from": 3},  # (rings its bell to quicken the rest: scripts/foes/bellringer.gd)
 	# Tower monsters: only appear where the tower's mix lists them.
 	"bat": {"cost": 0.8, "weight": 1.0, "from": 1, "only": true},
 	"thunderling": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"harrier": {"cost": 1.4, "weight": 1.0, "from": 3, "only": true},  # (dives from the open sky: scripts/towers/harrier.gd)
+	"squall": {"cost": 1.5, "weight": 1.0, "from": 3, "only": true},  # (a whirl of wind: scripts/foes/squall.gd)
+	"rookery": {"cost": 2.0, "weight": 1.0, "from": 4, "only": true},  # (a nest that hatches bats: scripts/foes/rookery.gd)
+	"stormstone": {"cost": 1.8, "weight": 1.0, "from": 3, "only": true},  # (arcs to whoever's nearest: scripts/foes/stormstone.gd)
 	"lurker": {"cost": 1.5, "weight": 1.0, "from": 1, "only": true},
 	"shellback": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"deepfin": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},
+	"inkling": {"cost": 1.2, "weight": 1.0, "from": 2, "only": true},  # (sprays ink, nips from inside it: scripts/foes/inkling.gd)
+	"drowned": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},  # (rises from a puddle, bursts: scripts/foes/drowned.gd)
+	"driftbell": {"cost": 1.5, "weight": 1.0, "from": 4, "only": true},  # (a jellyfish's charged trail: scripts/foes/driftbell.gd)
 	"ashwing": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (rises from its ashes: scripts/towers/ashwing.gd)
 	"briar": {"cost": 1.8, "weight": 1.0, "from": 3, "only": true},  # (hides as a bush: scripts/towers/briar.gd)  # (lives in deep water: scripts/towers/kraken_floor.gd puts it in a pool)
 	"cinder": {"cost": 1.2, "weight": 1.0, "from": 1, "only": true},
@@ -26,11 +34,24 @@ static var MONSTERS := {
 	"scorpling": {"cost": 1.0, "weight": 1.0, "from": 1, "only": true},
 	"ram": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},
 	"golem": {"cost": 3.0, "weight": 1.0, "from": 4, "only": true},  # (the Wyvern's forge golem: scripts/towers/forge_golem.gd)
+	"stoker": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},  # (spreads the fire: scripts/foes/stoker.gd)
+	"slagworm": {"cost": 2.0, "weight": 1.0, "from": 4, "only": true},  # (leaves low slag walls: scripts/foes/slagworm.gd)
+	"riveter": {"cost": 1.4, "weight": 1.0, "from": 2, "only": true},  # (rivets in threes: scripts/foes/riveter.gd)
 	"burrower": {"cost": 1.8, "weight": 1.0, "from": 3, "only": true},  # (the Manticore's burrower: scripts/towers/burrower.gd)
 	"wisp": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 3, "only": true},
+	# The Manticore's, the Firebird's and the Chimera's newer monsters (scripts/towers/brood.gd).
+	"basilisk": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},  # (its glare slows you: scripts/towers/basilisk.gd)
+	"carrion": {"cost": 1.4, "weight": 1.0, "from": 4, "only": true},  # (dives on the badly hurt: scripts/towers/carrion.gd)
+	"cairn": {"cost": 2.6, "weight": 1.0, "from": 5, "only": true},  # (rebuilds itself: scripts/towers/cairn.gd)
+	"flamemoth": {"cost": 1.0, "weight": 1.0, "from": 3, "only": true},  # (drawn to light, fed by fire: scripts/towers/flamemoth.gd)
+	"salamander": {"cost": 1.8, "weight": 1.0, "from": 4, "only": true},  # (swims through burning floor: scripts/towers/salamander.gd)
+	"kindler": {"cost": 2.2, "weight": 1.0, "from": 5, "only": true},  # (rekindles the fallen: scripts/towers/kindler.gd)
+	"leafmantis": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (unseen among leaves: scripts/towers/leafmantis.gd)
+	"graftling": {"cost": 1.8, "weight": 1.0, "from": 4, "only": true},  # (steals a part: scripts/towers/graftling.gd)
+	"hydra": {"cost": 2.6, "weight": 1.0, "from": 5, "only": true},  # (heads grow back: scripts/towers/hydra.gd)
 }
 const MAX_MONSTERS := 9
 ## How the climb gets harder with height (the Data editor's "Monsters"):

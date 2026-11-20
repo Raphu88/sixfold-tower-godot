@@ -57,6 +57,7 @@ static var BREW := {
 	"stoneskin": {"stone": 10}, "salts": {"iron": 4}, "flare": {"air": 3},
 	"antidote": {"stone": 6}, "heartroot": {"water": 13}, "net": {"water": 8}, "lodestone": {"iron": 10}, "briar_tonic": {"blade": 8},
 	"lantern_oil": {"fire": 5}, "unmaking_ash": {"fire": 13}, "gale_feather": {"air": 8}, "seeing_scroll": {"air": 11},
+	"thunder_jar": {"air": 11}, "springheel": {"iron": 8}, "stillwater": {"water": 10},
 	"scroll": {"air": 30, "water": 30},
 }
 ## A Rune Artist brews for this share of the cost.
@@ -66,7 +67,7 @@ const RUNE_ARTIST_BREW := 0.8
 ## times its rarity's TEMPER_RARITY. +2 and +3 also need that much density
 ## of the kind settled in you (profile.gd density).
 static var TEMPER := [20, 45, 80]
-static var TEMPER_RARITY := {"common": 1.0, "fine": 1.0, "rare": 1.5, "storied": 2.0, "regarded": 2.0}
+static var TEMPER_RARITY := {"common": 1.0, "fine": 1.0, "rare": 1.5, "masterwork": 1.75, "storied": 2.0, "regarded": 2.0}
 static var TEMPER_DENSITY := [0, 100, 300]
 ## Retrait: this much of the new trait's kind (times RETRAIT_RARE on Rare and better).
 const RETRAIT := 15
