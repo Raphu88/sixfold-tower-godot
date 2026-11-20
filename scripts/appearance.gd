@@ -22,7 +22,7 @@ extends RefCounted
 ##   On the climber screen, the book, the climber picker and the preview
 ##   (seen from the front; menu.gd BodyView._figure calls draw_front):
 ##     [gear: a backpack, a slung bow] → the cloak behind → legs and boots →
-##     [gear: leg armour, boots] → tunic and belt → [gear: body armour, a
+##     [gear: leg armour, boots] → neck, tunic, collar and belt → [gear: body armour, a
 ##     pack's straps] → arms → [gear: the weapon, gloves, rings] → the
 ##     mantle → [gear: pauldrons, the amulet] → draw_front_head → [gear: a
 ##     cap, helm or coif]. The gear layers are gear_look.gd's, drawn only
@@ -1618,8 +1618,85 @@ static func _front_legs(b, lk: Dictionary) -> void:
 		b.line(Vector2(sg * 4 * k, 121 + dy), Vector2(sg * 15 * k, 121 + dy), Color(boot.lightened(0.3), 0.5), 1.2)
 
 
-## The tunic, a skirt below the belt, and the belt (a leather belt and
-## buckle, a sash knotted at the hip, or a rope).
+## How wide the neck is (half its width) on the front figure: thicker on a
+## broad build or a masculine body, slimmer on a slight or feminine one.
+static func neck_w(lk: Dictionary) -> float:
+	var wx: float = lk.get("wx", 1.0)
+	var add := {"masculine": 0.7, "feminine": -0.6}.get(String(lk.get("body", "")), 0.0) as float
+	return clampf(6.0 * (1.0 + (wx - 1.0) * 0.7) + add, 4.4, 8.8)
+
+
+## The neck, from under the chin (`top`) down into the chest (`bottom`),
+## flaring into the shoulders; lit on the left, a shadow under the jaw. The
+## clothes are drawn over it, so it shows only where the neckline opens.
+static func _front_neck(b, lk: Dictionary, top: float, bottom: float) -> void:
+	var skin: Color = lk["skin"]
+	var nw := neck_w(lk)
+	var dim := 0.18 if lk.get("hood_up", false) else 0.0  # (in the hood's shadow)
+	var neck := _p([-nw, top, nw, top, nw, -82, nw + 5.0, -73, 13, -60, 13, bottom, -13, bottom, -13, -60, -nw - 5.0, -73, -nw, -82])
+	b.poly(neck, skin.darkened(0.22 + dim), 1.2)
+	b.polygon(_p([-nw, top, -1.5, top, -1.5, bottom, -13, bottom, -13, -60, -nw - 5.0, -73, -nw, -82]), skin.darkened(0.08 + dim))
+	b.polygon(_p([-nw, top, nw, top, nw, -84, 0, -82, -nw, -84]), Color(skin.darkened(0.45), 0.55))  # under the jaw
+
+
+## The clothes' neckline, left to right, between the shoulders' tops: round
+## (a tunic), a laced slit (a jerkin), a V (a robe deep, a coat's showing
+## its shirt, a vest's), or a wrap's crossing.
+static func _neckline(lk: Dictionary) -> PackedVector2Array:
+	var nw := neck_w(lk) + 1.5
+	var wx: float = lk.get("wx", 1.0)
+	match String(lk.get("clothes", "tunic")):
+		"robe":
+			return _p([-nw, -77, 0, -47, nw, -77])
+		"coat", "longcoat":
+			return _p([-nw, -77, 0, -55, nw, -77])
+		"vest":
+			return _p([-nw, -77, 0, -64, nw, -77])
+		"wrap":  # the left side crossing over to the right hip
+			var a := Vector2(-nw, -77)
+			var t := 22.0 / 85.0
+			return PackedVector2Array([a, a.lerp(Vector2(22 * wx, 8), t), Vector2(nw, -77)])
+		"jerkin":
+			return _p([-nw, -77, -2.6, -72.5, 0, -63, 2.6, -72.5, nw, -77])
+	return _p([-nw, -77, -nw * 0.55, -73.5, 0, -72.2, nw * 0.55, -73.5, nw, -77])
+
+
+## Over the neckline, by the clothes: a round neckband, a standing collar
+## (a gambeson's padded one, a doublet's), a coat's shirt and its collar
+## points, a vest's shirt collar, a robe's edging.
+static func _front_collar(b, lk: Dictionary, nl: PackedVector2Array) -> void:
+	var tunic: Color = lk["tunic"]
+	var nw := neck_w(lk)
+	var clothes: String = lk.get("clothes", "tunic")
+	match clothes:
+		"gambeson", "doublet":
+			var col := _p([-nw - 1.6, -84, nw + 1.6, -84, nw + 3.4, -75, nw * 0.6, -72.6, 0, -72, -nw * 0.6, -72.6, -nw - 3.4, -75])
+			b.poly(col, tunic.darkened(0.18), 1.4)
+			b.polygon(_p([-nw - 1.6, -84, 0, -84, 0, -72, -nw * 0.6, -72.6, -nw - 3.4, -75]), tunic.darkened(0.02))
+			if clothes == "gambeson":  # quilted
+				for y in [-80.5, -76.5]:
+					b.line(Vector2(-nw - 2.2, y), Vector2(nw + 2.2, y), Color(tunic.darkened(0.45), 0.6), 1.0)
+			else:  # a pale edge
+				b.line(Vector2(-nw - 1.4, -83.2), Vector2(nw + 1.4, -83.2), Color(ACCENTS["shirt"], 0.8), 1.2)
+		"coat", "longcoat":
+			var v := PackedVector2Array(nl)
+			b.polygon(v, ACCENTS["shirt"].darkened(0.06))
+			b.polygon(_p([-nw * 0.95, -80, nw * 0.95, -80, nw * 0.8, -73, 0, -68.5, -nw * 0.8, -73]), lk["skin"].darkened(0.14))  # the throat
+			for sg in [-1.0, 1.0]:  # the shirt's collar points
+				b.poly(_p([sg * (nw + 1.2), -78, sg * (nw - 0.6), -70.5, sg * 1.0, -68.5, sg * (nw * 0.75), -75]), ACCENTS["shirt"] if sg < 0.0 else ACCENTS["shirt"].darkened(0.12), 1.0)
+		"vest":
+			for sg in [-1.0, 1.0]:
+				b.poly(_p([sg * (nw + 1.4), -78, sg * (nw + 0.2), -71.5, sg * 1.2, -64.5, sg * (nw * 0.6), -74.5]), ACCENTS["shirt"] if sg < 0.0 else ACCENTS["shirt"].darkened(0.12), 1.0)
+		"robe", "wrap":
+			b.path(nl, tunic.darkened(0.42), 1.6)
+		_:
+			b.path(nl, Palette.OUTLINE, 4.2)
+			b.path(nl, tunic.darkened(0.3) if clothes != "sleeveless" else tunic.darkened(0.22), 2.2)
+
+
+## The neck, then the tunic over it (shoulders sloping from the neck, its
+## neckline open on the neck), a skirt below the belt, its collar, and the
+## belt (a leather belt and buckle, a sash knotted at the hip, or a rope).
 static func _front_tunic(b, lk: Dictionary) -> void:
 	var tunic: Color = lk["tunic"]
 	var wx: float = lk.get("wx", 1.0)
@@ -1644,17 +1721,30 @@ static func _front_tunic(b, lk: Dictionary) -> void:
 			hem = 44.0
 		"kilt":
 			hem = 62.0
-	b.poly(_sx(_p([-27, -66, 27, -66, 24, -24, waist, 16, -waist, 16, -24, -24]), wx), tunic.darkened(0.14), 1.6)
-	b.polygon(_sx(_p([-27, -66, 1, -66, 1, 16, -waist, 16, -24, -24]), wx), tunic)
+	# The neck first (down into the chest: the neckline shows what it opens on).
+	_front_neck(b, lk, -93.0, -40.0)
+	var nl := _neckline(lk)
+	var nw := neck_w(lk)
+	# The chest: shoulders sloping from the neck, the neckline cut at the top.
+	var chest := _sx(_p([-24, -24, -29, -64, -25, -72.5, -18, -75.5]), wx)
+	chest.append(Vector2(-(nw + 4.0), -77.5))
+	chest.append_array(nl)
+	chest.append(Vector2(nw + 4.0, -77.5))
+	chest.append_array(_sx(_p([18, -75.5, 25, -72.5, 29, -64, 24, -24, waist, 16, -waist, 16]), wx))
+	b.poly(chest, tunic.darkened(0.14), 1.6)
+	_fill_in(b, chest, _p([-90, -100, 1, -100, 1, 20, -90, 20]), tunic)
+	b.line(Vector2(-20 * wx, -73.5), Vector2(-27 * wx, -68), Color(tunic.lightened(0.22), 0.6), 1.6)  # the lit shoulder
 	if clothes == "vest":  # a pale shirt, the vest open over it
-		b.polygon(_sx(_p([-10, -66, 10, -66, 7, 16, -7, 16]), wx), ACCENTS["shirt"])
+		var shirt := PackedVector2Array([Vector2(-(nw + 4.0), -77.5)])
+		shirt.append_array(nl)
+		shirt.append_array(PackedVector2Array([Vector2(nw + 4.0, -77.5), Vector2(10 * wx, -68), Vector2(7 * wx, 16), Vector2(-7 * wx, 16), Vector2(-10 * wx, -68)]))
+		b.polygon(shirt, ACCENTS["shirt"])
 		for sg in [-1.0, 1.0]:
-			b.line(Vector2(sg * 9 * wx, -64), Vector2(sg * 6 * wx, 14), tunic.darkened(0.4), 1.4)
-	else:
-		b.polygon(_p([-7, -66, 7, -66, 0, -40]), tunic.darkened(0.42))
+			b.line(Vector2(sg * (nw + 3.5), -77), Vector2(sg * 6 * wx, 14), tunic.darkened(0.4), 1.4)
 	b.poly(_sx(_p([-waist, 14, waist, 14, hip + (hem - 38.0) * 0.18, hem, -hip - (hem - 38.0) * 0.18, hem]), wx), tunic.darkened(0.16), 1.4)
 	b.polygon(_sx(_p([-waist, 14, 0, 14, 0, hem, -hip - (hem - 38.0) * 0.18, hem]), wx), tunic.darkened(0.04))
 	_front_clothes(b, lk, clothes, wx, hem)
+	_front_collar(b, lk, nl)
 	var col: Color = lk.get("belt", Color(0.3, 0.2, 0.13))
 	var hw := 22.0 * wx
 	match String(lk.get("belt_kind", "belt")):
@@ -1721,18 +1811,19 @@ static func _front_clothes(b, lk: Dictionary, clothes: String, wx: float, hem: f
 				b.line(Vector2(-3, y), Vector2(3, y + 5.5), Color(0.85, 0.75, 0.55), 1.2)
 				b.line(Vector2(3, y), Vector2(-3, y + 5.5), Color(0.85, 0.75, 0.55), 1.2)
 			for sg in [-1.0, 1.0]:
-				b.line(Vector2(sg * 4 * wx, -64), Vector2(sg * 4 * wx, 14), dark, 1.2)
+				b.line(Vector2(sg * 4 * wx, -70), Vector2(sg * 4 * wx, 14), dark, 1.2)
 		"gambeson":
 			var y2 := -56.0
 			while y2 < hem:
 				var w2 := (25.0 if y2 < 14.0 else 24.0) * wx
 				b.line(Vector2(-w2, y2), Vector2(w2, y2), Color(dark, 0.55), 1.0)
 				y2 += 9.0
-			b.line(Vector2(-10 * wx, -64), Vector2(-11 * wx, hem), Color(dark, 0.45), 1.0)
-			b.line(Vector2(10 * wx, -64), Vector2(11 * wx, hem), Color(dark, 0.45), 1.0)
+			b.line(Vector2(-10 * wx, -72), Vector2(-11 * wx, hem), Color(dark, 0.45), 1.0)
+			b.line(Vector2(10 * wx, -72), Vector2(11 * wx, hem), Color(dark, 0.45), 1.0)
 		"coat", "longcoat":
-			for sg in [-1.0, 1.0]:  # lapels
-				b.poly(_p([sg * 4, -66, sg * 16 * wx, -64, sg * 9, -34, sg * 2, -40]), tunic.lightened(0.08) if sg < 0.0 else tunic.darkened(0.2), 1.2)
+			var nw := neck_w(lk) + 1.5
+			for sg in [-1.0, 1.0]:  # lapels, folded back along the neckline
+				b.poly(_p([sg * nw, -77, sg * (nw + 8.0) * wx, -74.5, sg * 11 * wx, -44, sg * 1.5, -38, sg * 0.8, -55]), tunic.lightened(0.08) if sg < 0.0 else tunic.darkened(0.2), 1.2)
 			b.line(Vector2(0, 14), Vector2(0, hem), dark, 1.4)  # the skirts open at the front
 			for i in 3:
 				b.dot(Vector2(-4.5, -30 + i * 12), 1.6, ACCENTS["metal"].darkened(0.15))
@@ -1740,23 +1831,22 @@ static func _front_clothes(b, lk: Dictionary, clothes: String, wx: float, hem: f
 				for sg in [-1.0, 1.0]:
 					b.line(Vector2(sg * 14 * wx, 30), Vector2(sg * 18 * wx, hem - 4), Color(dark, 0.6), 1.2)
 		"robe":
-			b.polygon(_p([-8, -66, 8, -66, 0, -46]), lk["skin"].darkened(0.08))  # an open neck
-			b.line(Vector2(-8, -66), Vector2(0, -46), dark, 1.2)
-			b.line(Vector2(8, -66), Vector2(0, -46), dark, 1.2)
 			b.line(Vector2(-6, 18), Vector2(-9, hem - 2), Color(dark, 0.6), 1.2)
 			b.line(Vector2(8, 18), Vector2(12, hem - 2), Color(dark, 0.6), 1.2)
 		"wrap":
-			b.polygon(_sx(_p([-24, -64, -10, -66, 22, 8, 21, 16, 10, 16]), wx), tunic.darkened(0.12))
-			b.line(Vector2(-10 * wx, -66), Vector2(22 * wx, 8), dark, 1.6)
+			var top := Vector2(-(neck_w(lk) + 1.5), -77)
+			b.polygon(PackedVector2Array([Vector2(-24 * wx, -70), Vector2(-18 * wx, -75), top, Vector2(22 * wx, 8), Vector2(21 * wx, 16), Vector2(10 * wx, 16)]), tunic.darkened(0.12))
+			b.line(top, Vector2(22 * wx, 8), dark, 1.6)
 		"tabard":
 			var pc: Color = lk["cloak"]
-			b.poly(_p([-12, -66, 12, -66, 12, hem - 2, 0, hem + 4, -12, hem - 2]), pc.darkened(0.08), 1.4)
-			b.polygon(_p([-12, -66, 0, -66, 0, hem + 4, -12, hem - 2]), pc.lightened(0.06))
+			var tn := neck_w(lk) + 1.5
+			b.poly(_p([-13, -75.5, -tn, -77, -tn * 0.55, -73.5, 0, -72.2, tn * 0.55, -73.5, tn, -77, 13, -75.5, 12, hem - 2, 0, hem + 4, -12, hem - 2]), pc.darkened(0.08), 1.4)
+			b.polygon(_p([-13, -75.5, -tn, -77, -tn * 0.55, -73.5, 0, -72.2, 0, hem + 4, -12, hem - 2]), pc.lightened(0.06))
 			b.ball(Vector2(0, -30), 5.0, ACCENTS["metal"].darkened(0.1))  # its emblem
 			b.dot(Vector2(0, -30), 2.2, pc.darkened(0.3))
 		"sleeveless":
 			for sg in [-1.0, 1.0]:  # the armholes' edges
-				b.line(Vector2(sg * 27 * wx, -66), Vector2(sg * 24 * wx, -44), dark, 1.6)
+				b.line(Vector2(sg * 23 * wx, -74), Vector2(sg * 24 * wx, -44), dark, 1.6)
 		"doublet":  # puffed shoulders, slashes showing a pale lining, a row of buttons
 			for sg in [-1.0, 1.0]:
 				b.ball(Vector2(sg * 27 * wx, -62), 8.0, tunic.lightened(0.08) if sg < 0.0 else tunic.darkened(0.15))
@@ -1785,11 +1875,14 @@ static func _front_arms(b, lk: Dictionary) -> void:
 		var el := Vector2(sg * (40 + (wx - 1.0) * 26.0), -24)
 		var wr := Vector2(sg * 48, 1)
 		var col := tunic if sg < 0.0 else tunic.darkened(0.2)
-		b.stroke(sh, el, col, 13.0 * thick)
-		b.stroke(el, wr, col, 11.0 * thick)
+		# One limb through the joints, so the shoulder is round and the
+		# elbow bends without a seam (draw_util.gd limb).
+		b.limb(PackedVector2Array([sh, el, wr]), PackedFloat32Array([13.0 * thick, 11.0 * thick]), col)
 		b.line(sh + Vector2(-3.5, 1), el + Vector2(-4, 0), Color(col.lightened(0.25), 0.6), 2.0)
-		if not bare:
-			b.stroke(wr - (wr - el).normalized() * 2.0, wr + (wr - el).normalized() * 1.5, tunic.darkened(0.45), 12.0 * thick)
+		if not bare:  # the cuff: an edge where it starts, the hand over its end
+			var d := (wr - el).normalized()
+			b.line(wr - d * 4.2, wr + d * 2.0, Palette.OUTLINE, 12.0 * thick + 2.4)
+			b.line(wr - d * 3.0, wr + d * 2.0, col.darkened(0.28), 12.0 * thick)
 		b.ball(Vector2(sg * 50, 9), 6.8, skin if sg < 0.0 else skin.darkened(0.14))
 
 
@@ -1807,6 +1900,8 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 		return  # (no cloak: the clothes' shoulders show)
 	if style == "half":  # over one shoulder, a strap across the chest
 		var hc := _sx(_p([-2, -80, -14, -80, -38, -66, -50, -38, -48, -20, -34, -14, -20, -22, -10, -40, -4, -62]), wx)
+		var band := _sx(_p([-6, -81, 12, -81, 25, -75, 31, -67, 21, -67, 11, -73, -4, -73]), wx)  # its collar round the back of the neck, onto the other shoulder
+		b.poly(band, cloak.darkened(0.32), 1.4)
 		b.poly(hc, cloak.darkened(0.14), 1.6)
 		b.polygon(_sx(_p([-14, -78, -36, -65, -46, -40, -40, -34, -26, -60]), wx), cloak.lightened(0.06))
 		b.stroke(Vector2(-8 * wx, -66), Vector2(22 * wx, 8), cloak.darkened(0.35), 4.0)
@@ -1902,6 +1997,10 @@ static func _front_mantle(b, lk: Dictionary) -> void:
 ## cloak): the face lit, the hood in folds round the neck. The face's shape
 ## follows the body (a squarer jaw, or a softer one with lashes). Then
 ## what's at the neck.
+## A hood worn with no cloak drapes onto the shoulders (a coif too: gear_look.gd).
+static var HOOD_DRAPE := _p([-29, -69, -23, -88, 23, -88, 29, -69, 13, -67, 0, -70, -13, -67])
+
+
 static func draw_front_head(b, lk: Dictionary) -> void:
 	var cloak: Color = lk.get("hood_front", lk["cloak"])  # (a worn hood or coif: its own colour)
 	var skin: Color = lk["skin"]
@@ -1922,6 +2021,9 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 		if style == "mane":  # wild hair spilling out of the hood, over the shoulders
 			for sg in [-1.0, 1.0]:
 				b.poly(_p([sg * 18, -100, sg * 31, -96, sg * 26, -90, sg * 34, -84, sg * 26, -80, sg * 30, -72, sg * 16, -76]), hair.darkened(0.25 if sg > 0.0 else 0.12), 1.2)
+		if String(lk.get("cloak_style", "long")) == "none":  # (a worn hood with no cloak: it drapes onto the shoulders)
+			b.poly(HOOD_DRAPE, cloak.darkened(0.3), 1.6)
+			b.polygon(_p([-29, -69, -23, -88, 0, -88, 0, -70, -13, -67]), cloak.darkened(0.12))
 		b.poly(_p([0, -137, 13, -132, 22, -121, 26, -104, 23, -88, 12, -79, 0, -77, -12, -79, -23, -88, -26, -104, -22, -121, -13, -132]), cloak.darkened(0.18), 1.6)
 		b.polygon(_p([0, -137, -13, -132, -22, -121, -26, -104, -23, -88, -12, -79, 0, -77, -5, -110]), cloak.darkened(0.0))
 		b.polygon(_p([-18, -124, -9, -132, -3, -132, -13, -121]), Color(cloak.lightened(0.45), 0.5))
@@ -1983,16 +2085,19 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 		return
 	# Hood down: the hood in folds round the neck and shoulders, behind the head
 	# (none without a cloak).
+	# (The neck, drawn with the clothes, stays in front of the folds and of
+	# hair hanging behind: _behind_neck.)
 	if String(lk.get("cloak_style", "long")) != "none":
-		b.poly(_p([-30, -78, -24, -92, -10, -97, 10, -97, 24, -92, 30, -78, 16, -72, 0, -74, -16, -72]), cloak.darkened(0.2), 1.6)
-		b.polygon(_p([-30, -78, -24, -92, -10, -97, 0, -97, 0, -74, -16, -72]), cloak.darkened(0.04))
-		b.line(Vector2(-20, -88), Vector2(-8, -80), Color(cloak.darkened(0.45), 0.8), 1.6)
-		b.line(Vector2(20, -88), Vector2(8, -80), Color(cloak.darkened(0.5), 0.8), 1.6)
+		var folds := _p([-31, -74, -24, -92, -10, -97, 10, -97, 24, -92, 31, -74, 16, -71, 0, -73, -16, -71])
+		_behind_neck(b, lk, folds, cloak.darkened(0.2), 1.6)
+		_behind_neck(b, lk, _p([-31, -74, -24, -92, -10, -97, 0, -97, 0, -73, -16, -71]), cloak.darkened(0.04), 0.0)
+		b.line(Vector2(-21, -88), Vector2(-11, -79), Color(cloak.darkened(0.45), 0.8), 1.6)
+		b.line(Vector2(21, -88), Vector2(11, -79), Color(cloak.darkened(0.5), 0.8), 1.6)
 		if trim_on:
-			b.path(_p([-30, -78, -24, -92, -10, -97, 10, -97, 24, -92, 30, -78]), lk["trim"], 2.2)
+			b.path(_p([-31, -74, -24, -92, -10, -97, 10, -97, 24, -92, 31, -74]), lk["trim"], 2.2)
 	match style:
 		"long":  # hair falling behind the shoulders
-			b.poly(_p([-16, -116, -19, -92, -20, -74, -10, -76, 10, -76, 20, -74, 19, -92, 16, -116]), hair.darkened(0.25), 1.4)
+			_behind_neck(b, lk, _p([-16, -116, -19, -92, -20, -74, -10, -76, 10, -76, 20, -74, 19, -92, 16, -116]), hair.darkened(0.25), 1.4, false)
 		"tied":  # a knot on top
 			b.ball(Vector2(1, -126), 6.0, hair.darkened(0.06))
 			b.line(Vector2(-4, -121), Vector2(6, -121), lk["tunic"].lightened(0.1), 2.0)
@@ -2017,14 +2122,15 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 				var a := PI * 0.62 + float(i) * PI * 1.76 / 18.0
 				var r := 27.0 if i % 2 == 0 else 19.0
 				mane.append(Vector2(0, -106) + Vector2(cos(a) * r, sin(a) * r * 1.05))
-			b.poly(mane, hair.darkened(0.18), 1.4)
-			b.polygon(_shift(_sx(_shift(mane, Vector2(0, 106)), 0.8), Vector2(-2, -108)), hair.darkened(0.04))
+			_behind_neck(b, lk, mane, hair.darkened(0.18), 1.4, false)
+			_behind_neck(b, lk, _shift(_sx(_shift(mane, Vector2(0, 106)), 0.8), Vector2(-2, -108)), hair.darkened(0.04), 0.0, false)
 		"locks":  # locks hanging to the shoulders
 			for i in 7:
 				var x := -18.0 + i * 6.0
+				if absf(x) < neck_w(lk) + 1.0:
+					continue  # (behind the neck: hidden)
 				b.stroke(Vector2(x * 0.8, -114), Vector2(x, -78 + absf(i - 3) * 2.0), hair.darkened(0.12 + 0.06 * (i % 2)), 4.0)
-	# The neck and head.
-	b.poly(_p([-6, -90, 6, -90, 6, -78, -6, -78]), skin.darkened(0.25), 1.2)
+	# The head (the neck is the clothes' layer's: _front_neck).
 	if not style in ["long", "mane", "afro", "bob"]:
 		for s in [-1.0, 1.0]:  # ears
 			b.poly(_oval(Vector2(s * 14.0, -101), Vector2(3.0, 4.6), 12), skin.darkened(0.08 if s < 0.0 else 0.2), 1.0)
@@ -2098,6 +2204,35 @@ static func draw_front_head(b, lk: Dictionary) -> void:
 	if style == "twin":
 		_front_braid(b, hair.darkened(0.12), Vector2(12, -90), -1.0)
 	_front_head_extras(b, lk, false)
+
+
+## Draws an outlined shape that hangs behind the neck (the hood's folds,
+## long hair) with the neck cut out of it, so the neck drawn earlier with the
+## clothes shows in front.
+static func _behind_neck(b, lk: Dictionary, pts: PackedVector2Array, col: Color, outline: float, shoulders := true) -> void:
+	var nw := neck_w(lk)
+	var neck := _p([-nw, -88, nw, -88, nw, -82, nw + 5.0, -73, 13, -60, -13, -60, -nw - 5.0, -73, -nw, -82])
+	if not shoulders:  # (hair: only the neck itself, the hair lies on the shoulders)
+		neck = _p([-nw, -88, nw, -88, nw, -60, -nw, -60])
+	var pieces := Geometry2D.clip_polygons(pts, neck)
+	# (Clipping can hand back a hole, wound the other way from the outer
+	# pieces; the biggest piece is always an outer one.)
+	var outer_cw := true
+	var big := -1.0
+	for piece in pieces:
+		var r := Rect2(piece[0], Vector2.ZERO)
+		for q in piece:
+			r = r.expand(q)
+		if r.get_area() > big:
+			big = r.get_area()
+			outer_cw = Geometry2D.is_polygon_clockwise(piece)
+	for piece in pieces:
+		if Geometry2D.is_polygon_clockwise(piece) != outer_cw:
+			continue
+		if outline > 0.0:
+			b.poly(piece, col, outline)
+		else:
+			b.polygon(piece, col)
 
 
 ## Freckles, a scar, ink lines, war paint or a beauty spot. `shade` dims
@@ -2309,9 +2444,11 @@ static func _front_head_extras(b, lk: Dictionary, hood_up: bool) -> void:
 				ex += 1.4
 			var ey := -100.0 if hood_up else -101.0
 			var rim: Color = ACCENTS["rims"].lightened(0.1 if hood_up else 0.25)
-			for s in [-1.0, 1.0]:
-				b.path(_oval(Vector2(s * ex, ey), Vector2(3.4, 3.0), 14), rim, 1.0, true)
-			b.line(Vector2(-ex + 3.4, ey - 0.5), Vector2(ex - 3.4, ey - 0.5), rim, 1.0)
+			for s in [-1.0, 1.0]:  # glass with a glint, the rims (thick enough to read at a small size)
+				b.polygon(_oval(Vector2(s * ex, ey), Vector2(3.4, 3.0), 14), Color(0.85, 0.92, 1.0, 0.16))
+				b.line(Vector2(s * ex - 1.8, ey - 0.6), Vector2(s * ex - 0.4, ey - 2.0), Color(1, 1, 1, 0.55), 0.9)
+				b.path(_oval(Vector2(s * ex, ey), Vector2(3.4, 3.0), 14), rim, 1.5, true)
+			b.line(Vector2(-ex + 3.4, ey - 0.5), Vector2(ex - 3.4, ey - 0.5), rim, 1.3)
 	var neck: String = lk.get("neck", "none")
 	match neck:
 		"scarf":

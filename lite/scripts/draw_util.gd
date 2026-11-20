@@ -254,6 +254,24 @@ class Batch:
 		dot(b, o * 0.5, Palette.OUTLINE)
 		line(a, b, col, width)
 
+	## A limb through joints (shoulder, elbow, wrist): like stroke() for each
+	## segment, but outlined all at once and filled after, so the joints are
+	## smooth and round instead of each segment's rim cutting across the
+	## next (the full game's draw_util.gd limb). `widths`: one per segment.
+	func limb(points: PackedVector2Array, widths: PackedFloat32Array, col: Color) -> void:
+		var n := points.size()
+		if n < 2:
+			return
+		var line_w := 2.4 * Palette.TOON_LINE
+		for pass_i in 3:
+			var add: float = [line_w + 1.6, line_w, 0.0][pass_i]
+			var c: Color = [Color(Palette.OUTLINE, FEATHER_ALPHA), Palette.OUTLINE, col][pass_i]
+			for i in n - 1:
+				line(points[i], points[i + 1], c, widths[i] + add)
+			for i in n:
+				var w: float = widths[mini(i, n - 2)] if i == 0 or i == n - 1 else maxf(widths[i - 1], widths[i])
+				dot(points[i], (w + add) * 0.5, c)
+
 	## A polyline with a width, as quads with round joints.
 	func path(points: PackedVector2Array, col: Color, width: float, closed := false) -> void:
 		var n := points.size()
