@@ -54,7 +54,8 @@ func _fire() -> void:
 			plays += 1
 			last = at
 		await t.process_frame
-	_check(calls >= 20 and plays >= 3 and plays <= 5, "called %d times in a second, fire's crackle played %d times (at most once a quarter second)" % [calls, plays])
+	_check(calls >= 6 and plays >= 3 and plays <= 5,  # (a busy machine draws fewer frames in the second: the cap is what counts)
+		 "called %d times in a second, fire's crackle played %d times (at most once a quarter second)" % [calls, plays])
 	# Other sounds aren't held back like that.
 	A.last_played.erase("hit")
 	t.main.sfx("hit")
