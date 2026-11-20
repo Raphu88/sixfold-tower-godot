@@ -4281,7 +4281,11 @@ func _shadow_tests() -> void:
 	main.gather_essence("fire", 120.0, pa + Vector2(30, 0))
 	await _frames(2)
 	_check(lt.blooms.size() <= lt.BLOOM_MAX and lt.blooms.size() > 3, "essence motes glow, within a cap (%d halos)" % lt.blooms.size())
-	_check(lt.get_children() == [lt.glow_layer] and lt.glow_layer.get_child_count() == 0, "the darkness and the glow are two canvas items: two draw calls")
+	_check(lt.get_children() == [lt.glow_layer, lt.finish] and lt.glow_layer.get_child_count() == 0 and lt.finish.get_child_count() == 0, "the darkness, the glow and the finishing pass are three canvas items: three draw calls")
+	lt.set_quality("low")
+	_check(not lt.finish.visible and not lt.Shade.on, "Lighting Low: no finishing pass, shapes drawn flat")
+	lt.set_quality("high")
+	_check(lt.finish.visible and lt.Shade.on and lt.finish.mat.shader == lt.finish._bloom, "Lighting High: the finishing pass with bloom, shapes shaded")
 	lt.remove_light(bright)
 	lt.flashes.clear()
 	# The cap: never more lights than the shader takes, never more shadows than the atlas holds.

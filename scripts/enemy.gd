@@ -2297,8 +2297,8 @@ const C_SUCKER := Color(0.86, 0.62, 0.66)
 const C_FAMILIAR_CORE := Color(0.9, 0.97, 1.0)
 
 var _pen := Pen.new()  # the body (lit)
-var _glow := Pen.new()  # glowing bits (unlit, drawn with the overlay)
-var _ov := Pen.new()  # the overlay: telegraphs and status
+var _glow := Pen.new(false)  # glowing bits (unlit, drawn with the overlay)
+var _ov := Pen.new(false)  # the overlay: telegraphs and status (flat: warnings stay crisp)
 var _dt := 0.016
 var _stride := 0.0  # gait cycle, advanced by how far it walks
 var _move := 0.0  # 0 standing .. 1 walking at full speed (eased)
@@ -2345,8 +2345,8 @@ func _draw() -> void:
 	_glow.reset()
 	# A soft shadow on the floor, smaller the higher it is.
 	var sr := radius * clampf(1.0 + lift_y / 90.0, 0.6, 1.0)
-	p.oval(Vector2(0, radius * 0.7), Vector2(sr * 1.1, sr * 0.5), 0.0, Color(0, 0, 0, 0.17))
-	p.oval(Vector2(0, radius * 0.7), Vector2(sr * 0.85, sr * 0.38), 0.0, Color(0, 0, 0, 0.21))
+	p.soft(Vector2(0, radius * 0.7), Vector2(sr * 1.4, sr * 0.64), Color(0, 0, 0, 0.29))
+	p.soft(Vector2(0, radius * 0.7), Vector2(sr * 0.95, sr * 0.42), Color(0, 0, 0, 0.26))
 	# Squashed along the direction it was hit from; a hit tints it toward white.
 	var a := squash_dir.angle()
 	var sq := Vector2(1.0 - squash * 0.35, 1.0 + squash * 0.25)
@@ -2429,10 +2429,13 @@ func _fade_to_shade(p) -> void:
 	var tint: Color = SHADE["color"]
 	var keep := float(SHADE["keep"])
 	var a := float(SHADE["alpha"])
+	var g := Draw.Shade.GAIN
+	var nu: int = p.uvs.size()
 	for i in p.cols.size():
 		var c: Color = p.cols[i]
-		var l := c.get_luminance()
-		var ghost := Color(tint.r * (0.45 + l), tint.g * (0.45 + l), tint.b * (0.45 + l))
+		var k := g if i < nu and p.uvs[i] != Vector2.ZERO else 1.0  # (a shaded vertex's colour is GAIN times brighter)
+		var l := c.get_luminance() / k
+		var ghost := Color(tint.r * (0.45 + l) * k, tint.g * (0.45 + l) * k, tint.b * (0.45 + l) * k)
 		p.cols[i] = Color(c.lerp(ghost, 1.0 - keep), c.a * a)
 
 
@@ -2440,10 +2443,13 @@ func _fade_to_shade(p) -> void:
 func _fade_to_ash(p) -> void:
 	var tint: Color = ASHEN["color"]
 	var keep := float(ASHEN["keep"])
+	var g := Draw.Shade.GAIN
+	var nu: int = p.uvs.size()
 	for i in p.cols.size():
 		var c: Color = p.cols[i]
-		var l := c.get_luminance()
-		p.cols[i] = Color(c.lerp(Color(tint.r * (0.5 + l), tint.g * (0.5 + l), tint.b * (0.5 + l)), 1.0 - keep), c.a)
+		var k := g if i < nu and p.uvs[i] != Vector2.ZERO else 1.0  # (a shaded vertex's colour is GAIN times brighter)
+		var l := c.get_luminance() / k
+		p.cols[i] = Color(c.lerp(Color(tint.r * (0.5 + l) * k, tint.g * (0.5 + l) * k, tint.b * (0.5 + l) * k), 1.0 - keep), c.a)
 
 
 ## On death the body slumps and fades where it fell (the room's burst and
@@ -2451,17 +2457,17 @@ func _fade_to_ash(p) -> void:
 func _leave_remains() -> void:
 	if main == null or _pen.pts.is_empty() or not is_inside_tree():
 		return
-	_spawn_remains(main, position, _pen.pts, _pen.cols, radius)
+	_spawn_remains(main, position, _pen.pts, _pen.cols, radius, _pen.uvs)
 
 
-static func _spawn_remains(parent: Node, at: Vector2, pts: PackedVector2Array, cols: PackedColorArray, r: float) -> void:
+static func _spawn_remains(parent: Node, at: Vector2, pts: PackedVector2Array, cols: PackedColorArray, r: float, uvs := PackedVector2Array()) -> void:
 	var n := Node2D.new()
 	n.position = at
 	var k := [0.0]
 	n.draw.connect(func() -> void:
 		var e: float = k[0]
 		n.draw_set_transform(Vector2(0, r * 0.45 * e), 0.0, Vector2(1.0 + 0.3 * e, 1.0 - 0.7 * e))
-		RenderingServer.canvas_item_add_triangle_array(n.get_canvas_item(), PackedInt32Array(), pts, cols))
+		Draw.Shade.draw_tris(n.get_canvas_item(), pts, cols, uvs))
 	parent.add_child(n)
 	var tw := n.create_tween()
 	tw.tween_method(func(v: float) -> void:
@@ -3692,21 +3698,52 @@ func _glyph(o: Pen, st: String, c: Vector2, col: Color) -> void:
 ## colour toward white (the hit flash, shaped like the body). Outlines are
 ## filled shapes, never wide lines, so torchlight falls on them evenly.
 class Pen:
+	## Shaded like a Draw.Batch (shade.gd): circles and ovals are spheres,
+	## bands are cylinders, rects and polygons lit faces; outlines, arcs,
+	## wedges and tubes' strips stay flat. A Pen made with Pen.new(false)
+	## draws everything flat (glows, the overlay's warnings).
 	const Pal := preload("res://scripts/palette.gd")
+	const Shade := preload("res://scripts/shade.gd")
 	const LIGHT := Vector2(-0.7, -0.7)  # toward the top-left, where light comes from
 	static var _fans := {}  # sides -> unit circle as triangles
+	static var _quad_uv := {}
 
 	var pts := PackedVector2Array()
 	var cols := PackedColorArray()
+	var uvs := PackedVector2Array()  # into Shade.tex(); empty until a shaded shape is added
 	var xf := Transform2D.IDENTITY
 	var tint := 0.0
+	var shaded := true
 	var _one := PackedColorArray()
+
+	func _init(lit := true) -> void:
+		shaded = lit
 
 	func reset() -> void:
 		pts.resize(0)
 		cols.resize(0)
+		uvs.resize(0)
 		xf = Transform2D.IDENTITY
 		tint = 0.0
+
+	func _on() -> bool:
+		return shaded and Shade.on
+
+	## Adds triangles `q` (already placed) in `col`, shaded through `uv`.
+	func _put(q: PackedVector2Array, col: Color, uv: PackedVector2Array) -> void:
+		if uvs.size() != pts.size():
+			uvs.resize(pts.size())  # (flat shapes before this read UV 0,0: unshaded)
+		pts.append_array(q)
+		if tint > 0.0:
+			col = Color(col.lerp(Color(1.0, 0.97, 0.92), tint), col.a)
+		_one.resize(q.size())
+		_one.fill(Color(col.r * Shade.GAIN, col.g * Shade.GAIN, col.b * Shade.GAIN, col.a))
+		cols.append_array(_one)
+		uvs.append_array(uv)
+
+	## A shape in local space lit as a flat face (its bounds fill the material).
+	func _face(local: PackedVector2Array, col: Color, m := Shade.SLAB) -> void:
+		_put(xf * local, col, Shade.face_uvs(local, m))
 
 	static func fan(n: int) -> PackedVector2Array:
 		if not _fans.has(n):
@@ -3730,22 +3767,46 @@ class Pen:
 		_one.fill(col)
 		cols.append_array(_one)
 
-	func circle(at: Vector2, r: float, col: Color, n := 0) -> void:
-		var tris := fan(n if n > 0 else sides(r))
+	## A circle, shaded as a sphere (lit = false: flat, like draw_circle).
+	func circle(at: Vector2, r: float, col: Color, n := 0, lit := true) -> void:
+		var k := n if n > 0 else sides(r)
+		var tris := fan(k)
+		if lit and _on() and col.a > 0.0:
+			_put((xf * Transform2D(0.0, Vector2(r, r), 0.0, at)) * tris, col, Shade.disc_uvs(tris, k, Shade.BALL))
+			return
 		pts.append_array((xf * Transform2D(0.0, Vector2(r, r), 0.0, at)) * tris)
 		_fill(col, tris.size())
 
-	func oval(at: Vector2, rad: Vector2, angle: float, col: Color, n := 0) -> void:
-		var tris := fan(n if n > 0 else sides(maxf(rad.x, rad.y)))
+	func oval(at: Vector2, rad: Vector2, angle: float, col: Color, n := 0, lit := true) -> void:
+		var k := n if n > 0 else sides(maxf(rad.x, rad.y))
+		var tris := fan(k)
+		if lit and _on() and col.a > 0.0:
+			_put((xf * Transform2D(angle, rad, 0.0, at)) * tris, col, Shade.disc_uvs(tris, k, Shade.BALL, -angle))
+			return
 		pts.append_array((xf * Transform2D(angle, rad, 0.0, at)) * tris)
 		_fill(col, tris.size())
+
+	## A soft-edged oval (shadows, glows), in one quad.
+	func soft(at: Vector2, rad: Vector2, col: Color) -> void:
+		if not Shade.on:
+			oval(at, rad * 0.8, 0.0, Color(col, col.a * 0.7), 0, false)
+			return
+		var a := at - rad
+		var e := at + rad
+		uvs.resize(pts.size())
+		pts.append_array(xf * PackedVector2Array([a, Vector2(e.x, a.y), e, a, e, Vector2(a.x, e.y)]))
+		_fill(col, 6)
+		uvs.append_array(Shade.box_uvs(Shade.SOFT))
 
 	## A ball lit from the top-left, with a soft outline (like Draw.ball).
 	func ball(at: Vector2, r: float, col: Color, outline := true) -> void:
 		if outline:
 			if r >= 6.0:  # the soft rim; small balls don't need it
-				circle(at, r + 2.5, Color(Pal.OUTLINE, 0.3))
-			circle(at, r + 1.6, Pal.OUTLINE)
+				circle(at, r + 2.5, Color(Pal.OUTLINE, 0.3), 0, false)
+			circle(at, r + 1.6, Pal.OUTLINE, 0, false)
+		if _on():
+			circle(at, r, col)
+			return
 		circle(at, r, col.darkened(0.35))
 		circle(at + Vector2(-r * 0.12, -r * 0.14), r * 0.86, col)
 		circle(at + Vector2(-r * 0.32, -r * 0.36), r * 0.34, Color(col.lightened(0.45), 0.55))
@@ -3753,41 +3814,63 @@ class Pen:
 	## An oval ball (bodies), lit the same way.
 	func egg(at: Vector2, rad: Vector2, angle: float, col: Color, outline := true) -> void:
 		if outline:
-			oval(at, rad + Vector2(2.5, 2.5), angle, Color(Pal.OUTLINE, 0.3))
-			oval(at, rad + Vector2(1.6, 1.6), angle, Pal.OUTLINE)
+			oval(at, rad + Vector2(2.5, 2.5), angle, Color(Pal.OUTLINE, 0.3), 0, false)
+			oval(at, rad + Vector2(1.6, 1.6), angle, Pal.OUTLINE, 0, false)
+		if _on():
+			oval(at, rad, angle, col)
+			return
 		var m := minf(rad.x, rad.y)
 		oval(at, rad, angle, col.darkened(0.35))
 		oval(at + Vector2(-m * 0.12, -m * 0.14), rad * 0.86, angle, col)
 		oval(at + Vector2(-m * 0.3, -m * 0.34), rad * 0.36, angle, Color(col.lightened(0.45), 0.5))
 
 	## A straight band from a to b, wa wide at a and wb at b.
-	func quad(a: Vector2, b: Vector2, wa: float, col: Color, wb := -1.0) -> void:
+	## A band (shaded across its width as a cylinder; lit = false: flat).
+	func quad(a: Vector2, b: Vector2, wa: float, col: Color, wb := -1.0, lit := true) -> void:
 		var d := b - a
 		if d.length_squared() < 0.0001:
 			return
 		if wb < 0.0:
 			wb = wa
 		var o := d.normalized().orthogonal() * 0.5
-		pts.append_array(xf * PackedVector2Array([a + o * wa, b + o * wb, b - o * wb, a + o * wa, b - o * wb, a - o * wa]))
+		var q := xf * PackedVector2Array([a + o * wa, b + o * wb, b - o * wb, a + o * wa, b - o * wb, a - o * wa])
+		if lit and _on() and maxf(wa, wb) >= 1.6 and col.a > 0.0:
+			var sq := int(roundf(clampf(o.normalized().dot(LIGHT.normalized()) * 2.5, -1.0, 1.0) * 20.0))
+			var uv = _quad_uv.get(sq)
+			if uv == null:
+				var up := 0.5 - 0.5 * sq / 20.0
+				var dn := 0.5 + 0.5 * sq / 20.0
+				uv = Shade.region(Shade.TUBE) * PackedVector2Array([Vector2(up, up), Vector2(up, up), Vector2(dn, dn), Vector2(up, up), Vector2(dn, dn), Vector2(dn, dn)])
+				_quad_uv[sq] = uv
+			_put(q, col, uv)
+			return
+		pts.append_array(q)
 		_fill(col, 6)
 
 	func tri(a: Vector2, b: Vector2, c: Vector2, col: Color) -> void:
+		if _on() and col.a > 0.0:
+			_face(PackedVector2Array([a, b, c]), col)
+			return
 		pts.append_array(xf * PackedVector2Array([a, b, c]))
 		_fill(col, 3)
 
-	func rect(r: Rect2, col: Color) -> void:
+	func rect(r: Rect2, col: Color, lit := true) -> void:
 		var a := r.position
 		var b := r.end
-		pts.append_array(xf * PackedVector2Array([a, Vector2(b.x, a.y), b, a, b, Vector2(a.x, b.y)]))
+		var q := PackedVector2Array([a, Vector2(b.x, a.y), b, a, b, Vector2(a.x, b.y)])
+		if lit and _on() and col.a > 0.0:
+			_put(xf * q, col, Shade.box_uvs(Shade.SLAB))
+			return
+		pts.append_array(xf * q)
 		_fill(col, 6)
 
 	## A thick outlined stroke with round ends (limbs, handles).
 	func limb(a: Vector2, b: Vector2, col: Color, w: float, outline := true) -> void:
 		if outline:
 			var ow := w + 3.2
-			quad(a, b, ow, Pal.OUTLINE)
-			circle(a, ow * 0.5, Pal.OUTLINE, 8)
-			circle(b, ow * 0.5, Pal.OUTLINE, 8)
+			quad(a, b, ow, Pal.OUTLINE, -1.0, false)
+			circle(a, ow * 0.5, Pal.OUTLINE, 8, false)
+			circle(b, ow * 0.5, Pal.OUTLINE, 8, false)
 		quad(a, b, w, col)
 		circle(a, w * 0.5, col, 8)
 		circle(b, w * 0.5, col, 8)
@@ -3804,8 +3887,8 @@ class Pen:
 			nrm[i] = (p[mini(i + 1, n - 1)] - p[maxi(i - 1, 0)]).normalized().orthogonal()
 		if outline:
 			_strip(p, nrm, w, 1.0, 3.2, Pal.OUTLINE, 0.0)
-			circle(p[0], w[0] * 0.5 + 1.6, Pal.OUTLINE, 10)
-			circle(p[n - 1], w[n - 1] * 0.5 + 1.6, Pal.OUTLINE, 10)
+			circle(p[0], w[0] * 0.5 + 1.6, Pal.OUTLINE, 10, false)
+			circle(p[n - 1], w[n - 1] * 0.5 + 1.6, Pal.OUTLINE, 10, false)
 		var base := col.darkened(0.3) if shade else col
 		_strip(p, nrm, w, 1.0, 0.0, base, 0.0)
 		circle(p[0], w[0] * 0.5, base, 10)
@@ -3845,11 +3928,12 @@ class Pen:
 	func poly(p: PackedVector2Array, col: Color, outline := 1.6) -> void:
 		if outline > 0.0:
 			if outline >= 1.3:  # the soft rim (thin details go without)
-				fill_poly(grow(p, outline + 0.9), Color(Pal.OUTLINE, 0.3))
-			fill_poly(grow(p, outline), Pal.OUTLINE)
+				fill_poly(grow(p, outline + 0.9), Color(Pal.OUTLINE, 0.3), false)
+			fill_poly(grow(p, outline), Pal.OUTLINE, false)
 		fill_poly(p, col)
 
-	func fill_poly(p: PackedVector2Array, col: Color) -> void:
+	## A filled polygon, lit as a flat face (lit = false: flat).
+	func fill_poly(p: PackedVector2Array, col: Color, lit := true) -> void:
 		var q := xf * p
 		var idx := Geometry2D.triangulate_polygon(q)
 		if idx.is_empty():
@@ -3858,6 +3942,14 @@ class Pen:
 		out.resize(idx.size())
 		for i in idx.size():
 			out[i] = q[idx[i]]
+		if lit and _on() and col.a > 0.0:
+			var fu := Shade.face_uvs(p, Shade.SLAB)
+			var uv := PackedVector2Array()
+			uv.resize(idx.size())
+			for i in idx.size():
+				uv[i] = fu[idx[i]]
+			_put(out, col, uv)
+			return
 		pts.append_array(out)
 		_fill(col, out.size())
 
@@ -3920,4 +4012,4 @@ class Pen:
 	func flush(ci: CanvasItem) -> void:
 		if pts.is_empty():
 			return
-		RenderingServer.canvas_item_add_triangle_array(ci.get_canvas_item(), PackedInt32Array(), pts, cols)
+		Shade.draw_tris(ci.get_canvas_item(), pts, cols, uvs)

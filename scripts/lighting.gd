@@ -45,6 +45,7 @@ extends Node2D
 const Palette := preload("res://scripts/palette.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Secret := preload("res://scripts/secret.gd")
+const Shade := preload("res://scripts/shade.gd")
 
 ## Most lights sent to the shader in a frame (it loops over them per pixel).
 const MAX_LIGHTS := 48
@@ -254,6 +255,9 @@ var climber_light := {}  # the climber's light's shadow state (High)
 var casts := 0  # shadows worked out so far (tests and the dev readout)
 var cast_us := 0  # ...and the time they took, in microseconds
 
+# The screen's finishing pass (finish.gd): grade and bloom, by quality.
+var finish: Node2D
+
 # Glow.
 var glow_layer: Node2D
 var blooms: Array = []  # this frame's halos: [pos, radius, colour (a = strength)]
@@ -299,6 +303,8 @@ func _ready() -> void:
 	glow_layer.draw.connect(_draw_glow)
 	add_child(glow_layer)
 	_bloom_tex = _make_bloom_texture()
+	finish = load("res://scripts/finish.gd").new()
+	add_child(finish)
 	set_tower_look("kraken")
 	set_quality(quality)
 
@@ -311,6 +317,8 @@ func _shader_code(shadows: bool) -> String:
 ## The tower's darkness colour (palette.gd) and how dark its unlit places are.
 func set_tower_look(tower: String) -> void:
 	dark_color = Palette.TOWER_FOG.get(tower, Palette.TOWER_FOG["kraken"])
+	if finish != null:
+		finish.set_tower(tower)
 	_apply_look()
 
 
@@ -360,6 +368,9 @@ func set_quality(q: String) -> void:
 		_apply_look()
 	if glow_layer != null:
 		glow_layer.visible = _q["glow"]
+	if finish != null:
+		finish.set_level(q)
+	Shade.on = q != "low"  # (Low: shapes drawn flat, the plain look at the old cost)
 	blooms.clear()
 
 
@@ -460,6 +471,7 @@ func _process(delta: float) -> void:
 	if not half.is_equal_approx(_half):
 		_half = half
 		queue_redraw()
+		finish.set_half(half)
 	var center := cam.get_screen_center_position() + cam.offset
 	position = center
 	blooms.clear()
