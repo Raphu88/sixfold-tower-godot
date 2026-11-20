@@ -20,6 +20,16 @@ extends Node2D
 ##             climbers do, with marks, and yield instead of dying; one
 ##             round may be your own reflection), the tournament master's
 ##             word between rounds; health and marks are made whole between
+##   advanced  advanced and mark training (training.gd): lessons too, plus
+##             a crowd to fell, creatures to strike with spells, a sparring
+##             rival who yields
+##   first     a new climber's first tournament (training.gd FIRST): two
+##             rounds of the home station's starter monsters, then a human
+##             champion with no marks; the Grace comes win or lose
+##   (A bracket at a Tournament Manager's location (tournaments.gd) has its
+##   layout's pillars, its hazards round the edge and its creatures first.
+##   The essence gathered in here, at the usual amounts, goes with the result
+##   for training.gd to settle a share of; and what each body part did.)
 ##   duel      (from the Dining car: dining.gd) one climber, rival.gd's
 ##             fighter, in the Arena car (arena_car.gd, laid over the room);
 ##             first to yield loses, nobody dies; the stake and your history
@@ -39,6 +49,11 @@ const Reactions := preload("res://scripts/reactions.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 const Dining := preload("res://scripts/dining.gd")
 const ArenaCar := preload("res://scripts/arena_car.gd")
+const Training := preload("res://scripts/training.gd")
+const Tournaments := preload("res://scripts/tournaments.gd")
+const Gear := preload("res://scripts/gear.gd")
+const Essence := preload("res://scripts/essence.gd")
+const Weapons := preload("res://scripts/weapons.gd")
 
 ## How long the result shows before going back (real seconds), and the gap
 ## between rounds.
@@ -94,6 +109,26 @@ var _was_saving := true
 var _view: Control
 var duel_body = null  # a duel from the Dining car: the climber you're fighting (rival.gd)
 var car_view = null  # ...and the Arena car round the room (arena_car.gd)
+# Training and tournaments (training.gd, tournaments.gd): jumps, blows and
+# shots landed, perfect parries, creatures struck by spells, a sparring
+# rival; a monster round's foes; the essence gathered (the usual amounts:
+# training.gd settles its share); the weapon each blow came from, the
+# armour worn, and whether any damage was taken (the first tournament).
+var jumps := 0
+var jumping := false
+var struck := 0
+var _dummy_hits := 0
+var perfects := 0
+var foes_hit := 0
+var spar_body = null
+var round_mobs: Array = []
+var gathered := {}
+var weapons_used := {}
+var armor_base := ""
+var hurt := false
+var hp_last := 0.0
+var _soak0 := {}
+var _csoak0 := {}
 
 
 ## Begins an event (stations.gd event): the fee is paid first (kept even if
@@ -105,14 +140,18 @@ func start(e: Dictionary) -> String:
 	var prof = main.profile
 	var type := String(e.get("type", ""))
 	var duel := type == "duel"  # (a duel from the Dining car: no fee, nothing to unlock)
-	var why := Stations.why_not(prof, type, String(e.get("id", ""))) if not duel else ""
+	var why := Stations.why_not(prof, type, String(e.get("id", "")), String(e.get("station", ""))) if not duel else ""
 	if why != "":
 		return why
 	var fee := Stations.fee(prof, type, String(e["id"])) if not duel else 0
 	if fee > 0:
-		var paid: Dictionary = prof.spend_any(float(fee))
-		if paid.is_empty():
-			return Stations.TEXT["needs_fee"] % fee
+		var fk := Stations.fee_kind(prof, type, String(e["id"]))
+		if fk == "any":
+			var paid: Dictionary = prof.spend_any(float(fee))
+			if paid.is_empty():
+				return Stations.TEXT["needs_fee"] % fee
+		elif not prof.spend(fk, float(fee)):  # (training's fee: crystals of the essence that fits it)
+			return Training.TEXT["needs_kind"] % [fee, Essence.display(fk)]
 		prof.save()
 	on = true
 	ev = e
@@ -136,6 +175,22 @@ func start(e: Dictionary) -> String:
 	opp = null
 	opp_name = ""
 	round_wait = 1.0
+	jumps = 0
+	jumping = false
+	struck = 0
+	_dummy_hits = 0
+	perfects = 0
+	foes_hit = 0
+	spar_body = null
+	round_mobs = []
+	gathered = {}
+	weapons_used = {}
+	hurt = false
+	_soak0 = main.run_soak.duplicate()  # (what each body part does in here is the result's: training.gd)
+	_csoak0 = main.climb_soak.duplicate()
+	main.run_soak = {}
+	if not main.on_hit.is_connected(_on_hit):
+		main.on_hit.connect(_on_hit)
 	_was_saving = prof.saving
 	prof.saving = false  # (nothing done in here is kept but the result)
 	var m = main.menu
@@ -152,6 +207,10 @@ func start(e: Dictionary) -> String:
 	main.ward = true  # (and the stair never opens)
 	main.stair_open = false
 	main.room_view.stair_open = false
+	if type == "tourney" and String(ev.get("hazard", "")) != "" and main.trap_view != null:
+		# The Tournament Manager's location lays its hazards round the edge.
+		main.traps = Tournaments.hazards(String(ev.get("station", "")), main.OPEN_ROOM, maxi(2, int(ev.get("floor", 2))))
+		main.trap_view.reset()
 	var p = main.player
 	p.dead = false
 	p.hp = p.max_health()
@@ -160,6 +219,8 @@ func start(e: Dictionary) -> String:
 	p.poison_t = 0.0
 	p.set_physics_process(true)
 	_fill_marks(p)
+	hp_last = p.hp
+	armor_base = Gear.base_id(p.gear.get("armor", {}))
 	hits0 = p.hits_taken
 	spells0 = p.spells_cast
 	if not p.on_parry.is_connected(_on_parry):
@@ -179,13 +240,21 @@ func start(e: Dictionary) -> String:
 			_setup_lesson()
 			line = Stations.lesson_goal(String(ev["id"]))
 			main.GuideScript.say_text(String(ev.get("say", "")), true)  # (the Entity says how, as it begins)
+		"advanced":
+			_setup_lesson()
+			line = Training.lesson_goal(String(ev["id"]))
+			main.GuideScript.say_text(String(ev.get("say", "")), true)
 		"drill":
 			_setup_drill()
 			line = Stations.drill_goal(String(ev["id"]))
 		"tourney":
 			_setup_tourney()
-			line = Stations.master_line("greet")
-	var eyebrow: String = Stations.TEXT["start_" + type]
+			line = Tournaments.line("here")
+		"first":
+			_setup_tourney()
+			line = String(Training.TEXT["first_line"])
+			main.tip("first_tournament")
+	var eyebrow: String = String(Stations.TEXT.get("start_" + type, Training.TEXT.get("start_" + type, "")))
 	main.banner = {"title": String(ev.get("name", "")).to_upper(), "lines": [eyebrow + "  ·  " + line], "t": 3.0}
 	main.sfx("ready", 0.9, -4.0, 0.0)
 	z_index = 2
@@ -207,7 +276,9 @@ func plan() -> Dictionary:
 	var room: Rect2 = main.OPEN_ROOM
 	var out := {"monsters": [], "pillars": [], "start": room.get_center() + Vector2(0, 150),
 		"stair": Vector2(room.get_center().x, room.position.y - 4000.0), "practice": true}
-	if String(ev.get("type", "")) != "lesson":
+	if String(ev.get("layout", "")) != "" and String(ev.get("type", "")) in ["tourney", "first"]:
+		out["pillars"] = Tournaments.pillars(String(ev["layout"]), room)  # (the location's own arena: tournaments.gd)
+	if not String(ev.get("type", "")) in ["lesson", "advanced"]:
 		return out
 	var c := float(Floors.CELL)
 	match String(ev.get("kind", "")):
@@ -244,6 +315,19 @@ func _setup_lesson() -> void:
 				d.position = c + Vector2(0, -70) + Vector2.from_angle(TAU * i / float(n)) * 46.0
 				main.add_child(d)
 				dummies.append(d)
+		"strike", "shoot":
+			# Striking: dummies close by; shooting: far up the room, out of a blade's reach.
+			var n := clampi(int(ev.get("dummies", 2)), 1, 4)
+			var far: bool = String(ev.get("kind", "")) == "shoot"
+			for i in n:
+				var d = Dummy.new()
+				d.setup_dummy(main)
+				var side := (float(i) - float(n - 1) * 0.5)
+				d.position = Vector2(c.x + side * (360.0 if far else 90.0), room.position.y + (90.0 if far else 230.0))
+				main.add_child(d)
+				dummies.append(d)
+		"spar":
+			_setup_spar()
 		"cure":
 			Reactions.apply(main, p, String(ev.get("state", "soaked")), float(ev.get("seconds", 25.0)))
 	for id in ev.get("give", []):
@@ -289,11 +373,35 @@ func _setup_drill() -> void:
 
 
 ## The bracket's opponents, one a round: a climber with marks (rivals.gd's
-## record), or your reflection.
+## record), your reflection ({}), a round of creatures ({"monsters": [...]})
+## or the first tournament's champion (a fighter with no marks).
 func _setup_tourney() -> void:
 	opponents.clear()
 	for rd in ev.get("rounds", []):
-		opponents.append({} if bool(rd.get("mirror", false)) else _opponent(rd))
+		if bool(rd.get("mirror", false)):
+			opponents.append({})
+		elif rd.has("monsters"):
+			opponents.append({"monsters": (rd["monsters"] as Array).duplicate()})
+		elif bool(rd.get("champion", false)):
+			opponents.append(Training.champion_record(main.get("rivals")))
+		else:
+			opponents.append(_opponent(rd))
+
+
+## Mark training's sparring partner: a climber with marks of their own
+## (as tough as floor 2 for each mark), who yields when beaten.
+func _setup_spar() -> void:
+	var rec := _opponent({"marks": int(ev.get("marks", 1)), "step": int(ev.get("step", 1))})
+	var room: Rect2 = main.OPEN_ROOM
+	var body = load("res://scripts/rival.gd").new()
+	body.setup_rival(main, main.rivals.body_data(rec) if main.get("rivals") != null else {"name": "?"}, false, self)
+	body.position = main.clear_spot(Vector2(room.get_center().x, room.position.y + 150.0), body.radius, [])
+	body.face = (main.player.global_position - body.position).normalized()
+	main.add_child(body)
+	body.aware = true
+	body.notice_t = 0.0
+	spar_body = body
+	opp_name = String(rec.get("name", ""))
 
 
 func _opponent(rd: Dictionary) -> Dictionary:
@@ -302,6 +410,11 @@ func _opponent(rd: Dictionary) -> Dictionary:
 	var n := clampi(int(rd.get("marks", 1)), 1, 3)
 	var ids: Array = Bonds.BONDS.keys()
 	ids.shuffle()
+	var lean := String(ev.get("marks_kind", ""))
+	if lean != "":
+		# The location's rivals: their first mark leans to its tower's essence.
+		var own: Array = ids.filter(func(b): return String(Bonds.BONDS[b].get("affinity", "")) == lean)
+		ids = own + ids.filter(func(b): return not own.has(b))
 	var parts: Array = Bonds.PARTS.duplicate()
 	parts.shuffle()
 	var bl: Array = []
@@ -322,12 +435,15 @@ func _physics_process(delta: float) -> void:
 		return
 	var p = main.player
 	t += delta
+	if p.hp < hp_last - 0.01 or p.hits_taken > hits0:
+		hurt = true  # (any damage taken: not flawless)
+	hp_last = p.hp
 	match String(ev.get("type", "")):
-		"lesson":
+		"lesson", "advanced":
 			_lesson(delta, p)
 		"drill":
 			_drill(delta, p)
-		"tourney":
+		"tourney", "first":
 			_tourney(delta, p)
 		"duel":
 			if t >= float(Dining.RULES["duel_time"]):
@@ -356,8 +472,33 @@ func _lesson(delta: float, p) -> void:
 				rolls += 1
 			rolling = now
 			ok = rolls >= need
+		"jump":
+			var up: bool = float(p.jump_t) > 0.0
+			if up and not jumping:
+				jumps += 1
+			jumping = up
+			ok = jumps >= need
+		"strike", "shoot":
+			# Blows on the dummies, by the weapon in hand (a bow's for shooting).
+			var total := 0
+			for d in dummies:
+				if is_instance_valid(d):
+					total += int(d.hits_taken)
+			if total > _dummy_hits:
+				var ranged: bool = String(Weapons.WEAPONS.get(String(p.weapon), {}).get("slot", "")) == "ranged"
+				if ranged == (String(ev.get("kind", "")) == "shoot"):
+					struck += total - _dummy_hits
+				_dummy_hits = total
+			ok = struck >= need
 		"parry":
-			ok = parries >= need
+			ok = (perfects if bool(ev.get("perfect", false)) else parries) >= need
+		"kills":
+			ok = kills >= need
+		"cast_foes":
+			_watch_foe_casts(delta, p)
+			ok = (best_cast if bool(ev.get("at_once", false)) else foes_hit) >= need
+		"spar":
+			ok = false  # (they yield: on_yield)
 		"belt":
 			used = maxi(used, items0 - _items_held(p))
 			ok = used >= need
@@ -436,20 +577,47 @@ func _watch_casts(delta: float, p) -> void:
 		best_cast = maxi(best_cast, cast_seen.size())
 
 
+## Mark training with creatures: a cast opens a short window, and every
+## creature its spells strike in it counts (in all, and the most at once).
+func _watch_foe_casts(delta: float, p) -> void:
+	if p.spells_cast > spells0:
+		spells0 = p.spells_cast
+		cast_left = CAST_WINDOW
+		cast_seen = {}
+		cast_hits = {}
+		for e in main.enemies():
+			cast_hits[e] = int(e.get_meta("arena_hits", 0))
+	if cast_left > 0.0:
+		cast_left -= delta
+		for e in main.enemies():
+			if is_instance_valid(e) and not cast_seen.has(e) and int(e.get_meta("arena_hits", 0)) > int(cast_hits.get(e, 0)):
+				cast_seen[e] = true
+				foes_hit += 1
+		best_cast = maxi(best_cast, cast_seen.size())
+
+
 ## A bracket: each round's opponent steps up after a pause; when they yield
-## (or your reflection falls) the round is won, health and marks are made
-## whole, and the next one comes; the last won wins the bracket.
+## (or your reflection falls, or a round's creatures are all down) the round
+## is won, health and marks are made whole, and the next one comes; the last
+## won wins the bracket.
 func _tourney(delta: float, p) -> void:
 	var total := opponents.size()
-	if opp == null:
+	if opp == null and round_mobs.is_empty():
 		round_wait -= delta
 		if round_wait <= 0.0 and round_i < total:
 			_send_round(p)
 		return
-	var gone: bool = not is_instance_valid(opp) or bool(opp.get("dead")) or bool(opp.get("standing")) or main.enemies().is_empty()
+	var gone := false
+	if not round_mobs.is_empty():
+		gone = round_mobs.all(func(e): return not is_instance_valid(e) or bool(e.get("dead"))) or main.enemies().is_empty()
+	else:
+		gone = not is_instance_valid(opp) or bool(opp.get("dead")) or bool(opp.get("standing")) or main.enemies().is_empty()
 	if not gone:
 		return
+	if round_mobs.is_empty() and not (opponents[round_i] as Dictionary).is_empty():
+		_gain(String(Towers.TOWERS.get(main.tower, {}).get("essence", "air")), float(Training.USUAL["round"]))  # (a climber beaten: the round's essence)
 	opp = null
+	round_mobs = []
 	rounds_won += 1
 	round_i += 1
 	if rounds_won >= total:
@@ -474,6 +642,27 @@ func _send_round(p) -> void:
 	var tough: Vector2 = Floors.toughness(int(ev.get("floor", 1)))
 	var base: Vector2 = Floors.toughness(maxi(1, int(main.floor_num)))
 	var rd: Dictionary = ev.get("rounds", [])[round_i]
+	var said := Training.round_text(round_i, rd) if String(ev.get("type", "")) == "first" else Tournaments.round_text(rd)
+	if rec.has("monsters"):
+		# A round of creatures: they step in across the top of the room, as
+		# tough as the event's floor; the round is won when all are down.
+		var kinds: Array = rec["monsters"]
+		for i in kinds.size():
+			var x := room.get_center().x + (float(i) - float(kinds.size() - 1) * 0.5) * 150.0
+			var e = main.spawn_enemy(String(kinds[i]), Vector2(x, room.position.y + 130.0 + 30.0 * float(i % 2)))
+			if e == null:
+				continue
+			e.max_hp *= tough.x / maxf(base.x, 0.01)
+			e.hp = e.max_hp
+			e.dmg *= tough.y / maxf(base.y, 0.01)
+			e.aware = true
+			e.notice_t = 0.0
+			main.fx_ring(e.global_position, e.color, 36.0, 0.35, 3.0)
+			round_mobs.append(e)
+		opp_name = Tournaments.round_text(rd)
+		main.banner = {"title": (Stations.TEXT["hud_round"] % [round_i + 1, opponents.size()]).to_upper(), "lines": [said], "t": 2.4}
+		main.sfx("warn_knight", 1.1, -6.0, 0.0)
+		return
 	if rec.is_empty():
 		opp = load("res://scripts/mirror.gd").spawn(main, at)
 		opp_name = Stations.TEXT["mirror"]
@@ -492,7 +681,7 @@ func _send_round(p) -> void:
 	opp.aware = true
 	opp.notice_t = 0.0
 	main.fx_ring(opp.global_position, Color(1.0, 0.8, 0.5), 44.0, 0.4, 3.0)
-	main.banner = {"title": (Stations.TEXT["hud_round"] % [round_i + 1, opponents.size()]).to_upper(), "lines": [Stations.TEXT["vs"] % opp_name, Stations.round_text(rd)], "t": 2.4}
+	main.banner = {"title": (Stations.TEXT["hud_round"] % [round_i + 1, opponents.size()]).to_upper(), "lines": [Stations.TEXT["vs"] % opp_name, said], "t": 2.4}
 	main.sfx("warn_knight", 1.1, -6.0, 0.0)
 
 
@@ -527,6 +716,9 @@ func on_yield(body) -> void:
 	if on and not done and String(ev.get("type", "")) == "duel" and body == duel_body:
 		duel_body = null
 		finish({"won": true})
+	elif on and not done and spar_body != null and body == spar_body:
+		spar_body = null
+		finish({"done": true})  # (mark training: the sparring partner yields)
 
 
 func on_spent(_body) -> void:
@@ -570,17 +762,45 @@ func _spawn(k: String, at: Vector2, soft: bool):
 
 # --- what happens in it ---------------------------------------------------------------------
 
-func _on_parry(_source, _perfect: bool) -> void:
+func _on_parry(_source, perfect: bool) -> void:
 	if on and not done:
 		parries += 1
+		if perfect:
+			perfects += 1
+
+
+## A blow landed on something in the arena (main.gd's on_hit): striking and
+## shooting lessons count blows on their dummies by the weapon in hand; a
+## creature struck is noted for mark training; and in a tournament, the
+## weapon each blow came from (the first tournament's piece follows it).
+func _on_hit(foe, _dmg: float, source: String) -> void:
+	if not on or done or source != "blow" or main.player == null or foe == null or not is_instance_valid(foe):
+		return
+	var p = main.player
+	if dummies.has(foe):
+		return  # (dummies count their own hits: _lesson)
+	foe.set_meta("arena_hits", int(foe.get_meta("arena_hits", 0)) + 1)
+	if String(ev.get("type", "")) in ["first", "tourney"] and float(p.get("cast_t")) <= 0.0:
+		weapons_used[String(p.weapon)] = int(weapons_used.get(String(p.weapon), 0)) + 1
+
+
+## Essence gathered in here, at the usual amount (training.gd settles its share).
+func _gain(kind: String, amount: float) -> void:
+	if amount > 0.0 and Essence.KINDS.has(kind):
+		gathered[kind] = float(gathered.get(kind, 0.0)) + amount
 
 
 ## A foe fell (main.gd on_enemy_killed, which leaves the rest to this: no
-## drops, essence or record in the arena).
+## drops or record in the arena; its essence, at the usual amount, is the
+## result's, and training.gd settles a share of it).
 func on_enemy_killed(e) -> void:
 	kills += 1
 	if e.get("mirror") == true and String(e.get("kind")) != "rival":
 		mirrors += 1
+	elif Essence.DROPS.has(String(e.kind)):
+		var drop: Array = Essence.drop_for(String(e.kind), int(ev.get("floor", 1)))
+		_gain(String(drop[0]), float(drop[1]))
+		_gain(String(Towers.TOWERS.get(main.tower, {}).get("essence", "")), Towers.ESSENCE_BONUS)
 	main.fx_text(e.global_position + Vector2(0, -30), "slain", Color(0.89, 0.71, 0.35))
 	main.fx_ring(e.global_position, e.color, 46.0, 0.4, 4.0)
 	main.fx_burst(e.global_position, Vector2.ZERO, e.color, 16, 300.0)
@@ -596,8 +816,9 @@ func spare() -> bool:
 	if not on:
 		return false
 	if not done:
+		hurt = true
 		match String(ev.get("type", "")):
-			"lesson":
+			"lesson", "advanced":
 				finish.call_deferred({"done": false, "why": Stations.TEXT["result_fell"]})
 			"drill":
 				finish.call_deferred({"score": -1.0, "why": Stations.TEXT["result_fell"]})
@@ -616,7 +837,20 @@ func finish(res: Dictionary) -> void:
 	result["type"] = ev["type"]
 	result["id"] = ev["id"]
 	result["mirrors"] = mirrors
+	result["station"] = String(ev.get("station", ""))
 	var p = main.player
+	if String(ev["type"]) in ["lesson", "advanced"] and bool(result.get("done", false)):
+		# A lesson done: its essence, of its own kind (training.gd USUAL).
+		var lk := String(ev.get("essence", "air"))
+		if lk == "mark":
+			lk = Training.fee_kind(main.profile, String(ev["id"]))
+		_gain(lk, float(Training.USUAL["lesson"]))
+	result["essence"] = gathered.duplicate()
+	result["soak"] = main.run_soak.duplicate()  # (what each body part did in here)
+	if String(ev["type"]) == "first":
+		result["flawless"] = not hurt and p != null and p.hits_taken <= hits0
+		result["used"] = weapons_used.duplicate()
+		result["armor"] = armor_base
 	if p != null:
 		p.set_physics_process(false)
 		p.hp = maxf(p.hp, 1.0)
@@ -625,7 +859,7 @@ func finish(res: Dictionary) -> void:
 	var title := ""
 	var line := ""
 	match String(ev["type"]):
-		"lesson":
+		"lesson", "advanced":
 			var ok: bool = result.get("done", false)
 			title = (Stations.TEXT["lesson_done"] if ok else Stations.TEXT["lesson_todo"])
 			line = String(ev.get("name", "")) if ok else String(result.get("why", ""))
@@ -646,6 +880,14 @@ func finish(res: Dictionary) -> void:
 			main.sfx("clear" if dwon else "ui_back", 1.0, -2.0, 0.0)
 			if duel_body != null and is_instance_valid(duel_body) and not dwon:
 				duel_body.stand_down()  # (they stand down: nobody dies)
+		"first":
+			# The first tournament: the Grace comes win or lose.
+			var total := opponents.size()
+			title = String(Training.TEXT["result_first"]) % [mini(rounds_won, total), total]
+			line = String(Training.TEXT["grace_banner"])
+			main.sfx("clear", 1.0, -2.0, 0.0)
+			if opp != null and is_instance_valid(opp) and opp.has_method("stand_down"):
+				opp.stand_down()
 		_:
 			var won: bool = result.get("won", false)
 			title = (Stations.TEXT["result_win"] % String(ev.get("name", ""))) if won else (Stations.TEXT["result_loss"] % [String(ev.get("name", "")), rounds_won + 1])
@@ -674,6 +916,11 @@ func leave() -> void:
 	var res := result if not result.is_empty() else {"type": ev["type"], "id": ev["id"], "won": false, "done": false, "rounds": rounds_won, "score": -1.0}
 	var stop := String(ev.get("stop", "gym"))
 	var pick := "%s:%s" % [ev["type"], ev["id"]]
+	match String(ev["type"]):
+		"tourney":
+			pick = "bracket:%s" % ev["id"]
+		"first":
+			pick = "manager:here"  # (the first tournament's tile gives way to the Manager's: its card says what you won)
 	var station_id := String(ev.get("station", ""))
 	if main.get_tree().current_scene == main:
 		# The real game: the save as it was before stepping in (nothing in
@@ -698,6 +945,13 @@ func leave() -> void:
 		var shown := Stations.apply_result(prof, res)
 		reopen = {"station": station_id, "stop": stop, "pick": pick, "lines": shown["lines"]}
 	on = false
+	main.run_soak = _soak0  # (what the body did in here went with the result)
+	main.climb_soak = _csoak0
+	main.traps = []
+	if main.trap_view != null:
+		main.trap_view.reset()
+	round_mobs = []
+	spar_body = null
 	if duel_body != null and is_instance_valid(duel_body):
 		duel_body.stand_down()
 	duel_body = null
@@ -793,15 +1047,31 @@ func hud_text() -> String:
 		return dl + "  ·  " + T["hud_time"] % maxi(0, ceili(float(Dining.RULES["duel_time"]) - t))
 	var parts: Array = [String(ev.get("name", ""))]
 	var need := int(ev.get("need", 1))
+	var TT: Dictionary = Training.TEXT
 	match String(ev.get("type", "")):
-		"lesson":
+		"lesson", "advanced":
 			match String(ev.get("kind", "")):
 				"run":
 					parts.append(T["hud_post"] % [mini(post + 1, posts.size()), posts.size()])
 				"roll":
 					parts.append(T["hud_rolls"] % [mini(rolls, need), need])
+				"jump":
+					parts.append(TT["hud_jumps"] % [mini(jumps, need), need])
+				"strike":
+					parts.append(TT["hud_struck"] % [mini(struck, need), need])
+				"shoot":
+					parts.append(TT["hud_shots"] % [mini(struck, need), need])
+				"kills":
+					parts.append(T["hud_kills"] % [mini(kills, need), need])
+				"cast_foes":
+					parts.append(TT["hud_foes"] % [mini(best_cast if bool(ev.get("at_once", false)) else foes_hit, need), need])
+				"spar":
+					parts.append(TT["hud_spar"])
 				"parry":
-					parts.append(T["hud_parry"] % parries)
+					if bool(ev.get("perfect", false)):
+						parts.append(TT["hud_perfect"] % [mini(perfects, need), need])
+					else:
+						parts.append(T["hud_parry"] % parries)
 				"belt":
 					parts.append(T["hud_items"] % [mini(used, need), need])
 				"cast":

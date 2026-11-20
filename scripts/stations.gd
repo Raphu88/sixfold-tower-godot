@@ -4,15 +4,18 @@ extends RefCounted
 ## The engine's map (engine_page.gd) has "Step off" for the station you're
 ## at; a station is a page beside the rail (station_page.gd, drawn by
 ## station_view.gd in the station's own colours) with these stops:
-##   gym     TRAINING: the game's basics taught hands on (LESSONS: moving,
-##           rolling, parrying on the glint, the belt wheel, casting a mark,
-##           states and cures, cracked walls, the ward and the floor's task),
-##           each short, skippable and remembered, with the Entity guiding;
-##           and MEDAL DRILLS (DRILLS: a goal, a medal and a small fee)
-##   arena   the TOURNAMENT: BRACKETS of three rounds against other climbers
-##           (rival.gd's climber, who yields instead of dying), rising
-##           difficulty, a tournament master who speaks (MASTER), a fee, and
-##           renown, crystals and a title for winning. Nobody dies here.
+##   gym     TRAINING: basic training hands on (LESSONS: moving, rolling,
+##           jumping, striking, shooting, parrying on the glint), each short
+##           and remembered, with the Entity guiding (required for the Noble's
+##           Grace, and not skippable before it: training.gd); advanced and
+##           mark training (training.gd); and MEDAL DRILLS (DRILLS: a goal, a
+##           medal and a small fee)
+##   arena   the TOURNAMENT: a new climber's first tournament (training.gd),
+##           then BRACKETS of three rounds run by the travelling Tournament
+##           Manager (tournaments.gd: only where they are, the location's
+##           creatures first, then climbers: rival.gd's, who yield instead of
+##           dying), rising difficulty, a fee, and renown, crystals, items and
+##           a title for winning. Nobody dies here.
 ##   noble   THE NOBLE (noble.gd): grants titles by renown, and gives
 ##           contracts for the towers (contracts.gd)
 ##   board   the RENOWN BOARD: your rank, how far to the next and what it
@@ -29,6 +32,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Towers := preload("res://scripts/towers.gd")
 const Titles := preload("res://scripts/titles.gd")
+const Training := preload("res://scripts/training.gd")
 
 ## The stations: six, each in a major city near its tower (travel.gd: they
 ## sit on a loop in tower order, and the train rides between them). Each has
@@ -67,48 +71,47 @@ static var STATIONS := [
 ## The stops a station can have: their names (a phone's short name), the
 ## line under the name on the rail, and the line under the page's title.
 static var STOPS := {
-	"gym": {"name": "Training", "short": "Training", "line": "Learn the game, hands on", "sub": "Short lessons with the Entity, and medal drills. Nothing here can fell you."},
-	"arena": {"name": "Tournament", "short": "Tourney", "line": "Brackets against climbers", "sub": "Three rounds against other climbers. Nobody dies: the loser yields."},
+	"gym": {"name": "Training", "short": "Training", "line": "Learn the game, hands on", "sub": "Basic, advanced and mark training with the Entity, and medal drills. Nothing here can fell you."},
+	"arena": {"name": "Tournament", "short": "Tourney", "line": "Brackets against climbers", "sub": "Your first tournament, then the Tournament Manager's brackets. Nobody dies: the loser yields."},
 	"noble": {"name": "The Noble", "short": "Noble", "line": "Titles and contracts", "sub": "Titles granted by renown, and contracts for the towers."},
 	"board": {"name": "Renown Board", "short": "Renown", "line": "Rank, next rank, deeds", "sub": "Your rank, what the next one opens, and what the climbers say about you."},
 }
 
-## THE TRAINING BASICS: short hands-on lessons, in order. Each:
+## BASIC TRAINING: six short hands-on lessons, in order, covering every way
+## to move, attack and parry. A climber made with the new start must finish
+## them (and then the first tournament) for the Noble's Grace (training.gd);
+## before the Grace they can't be skipped. Each:
 ##   name, goal  its title and what to do (%d: its number)
 ##   say         the Entity's word as it begins ({move}, {roll}... become
 ##               your keys or buttons)
 ##   kind        run     touch `posts` posts in order
 ##               roll    roll `need` times
+##               jump    jump `need` times
+##               strike  land `need` blows on the dummies with your weapon
+##               shoot   land `need` shots on the far dummies with your bow
 ##               parry   parry `need` blows (soft `foes` swing at you)
-##               belt    use `need` items from your belt (`give` are put on it;
-##                       `hurt`: you start at that share of your health, so a
-##                       Healing Vial has something to mend)
-##               cast    hit `need` of `dummies` dummies with a spell
-##               cure    a `state` is put on you: cure it before `seconds`
-##               wall    break the cracked wall
-##               ward    finish the floor's task: light `pieces` braziers
+##               (advanced and mark training add belt, cast, cure, wall,
+##               ward, kills, cast_foes and spar: training.gd)
+##   essence     the kind of essence it gives when done (training.gd USUAL
+##               "lesson", at a quarter, into the body)
 ##   time        seconds before it ends (not done: try again)
 ##   tips        the Entity's first-time tips it covers (marked told when done)
-## Finishing every one (or skipping it) pays LESSON_REWARD once.
+## Finishing every one (or skipping it, after the Grace) pays LESSON_REWARD once.
 static var LESSONS := {
-	"move": {"name": "Moving", "goal": "Walk to each of the %d posts in turn. The lit one is next.", "kind": "run", "posts": 3, "time": 60,
+	"move": {"name": "Moving", "goal": "Walk to each of the %d posts in turn. The lit one is next.", "kind": "run", "posts": 3, "time": 60, "essence": "air",
 		"say": "Move with {move}. Touch the posts in order: the lit one is next. Take your time.", "tips": ["move"]},
-	"roll": {"name": "Rolling", "goal": "Roll %d times. Arrows pass through you while you roll.", "kind": "roll", "need": 3, "time": 45, "foes": ["archer"], "weak": 0.15,
+	"roll": {"name": "Rolling", "goal": "Roll %d times. Arrows pass through you while you roll.", "kind": "roll", "need": 3, "time": 45, "foes": ["archer"], "weak": 0.15, "essence": "air",
 		"say": "{roll} rolls you a short way, and nothing touches you while you roll. Roll three times; let the archer try.", "tips": []},
-	"parry": {"name": "Parrying on the glint", "goal": "Parry %d blows: press parry as the blow glints.", "kind": "parry", "need": 2, "time": 60, "foes": ["knight"], "weak": 0.2,
+	"jump": {"name": "Jumping", "goal": "Jump %d times. A jump carries you over low hazards and gaps.", "kind": "jump", "need": 3, "time": 45, "essence": "air",
+		"say": "{jump} jumps. While you're in the air, spikes, snares and narrow gaps pass under you. Jump three times.", "tips": []},
+	"strike": {"name": "Striking", "goal": "Land %d blows on the dummies. Keep pressing: the last blow of a combo hits hardest.", "kind": "strike", "need": 4, "dummies": 2, "time": 60, "essence": "blade",
+		"say": "{attack} strikes. Press it again as a blow lands and you chain a combo; its last blow, the finisher, hits hardest and breaks guards.", "tips": []},
+	"shoot": {"name": "Shooting", "goal": "Land %d shots on the far dummies with your bow.", "kind": "shoot", "need": 2, "dummies": 2, "time": 75, "essence": "blade",
+		"say": "Switch to your bow with {weapon}. Hold {attack} to draw, aim, and let go to loose. A full draw flies furthest and hits hardest.", "tips": []},
+	"parry": {"name": "Parrying on the glint", "goal": "Parry %d blows: press parry as the blow glints.", "kind": "parry", "need": 2, "time": 60, "foes": ["knight"], "weak": 0.2, "essence": "iron",
 		"say": "Every blow glints just before it lands. Press {parry} then: no damage, and the attacker staggers.", "tips": ["glint"]},
-	"belt": {"name": "The belt wheel", "goal": "Use %d item from your belt.", "kind": "belt", "need": 1, "time": 60, "give": ["draught", "tonic"], "hurt": 0.6,
-		"say": "Tap {item} to use your current item. Hold {item} and the wheel opens, the world slows: point at another and let go to choose it.", "tips": ["belt_wheel", "belt"]},
-	"cast": {"name": "Casting a mark", "goal": "Hit a dummy with a spell or technique.", "kind": "cast", "need": 1, "dummies": 3, "time": 60,
-		"say": "Your marks cast: {cast}. Hold a mark's button to choose a spell from its wheel, tap it to cast. Hit a dummy.", "tips": ["casting", "spell_wheel"]},
-	"cure": {"name": "States and cures", "goal": "You're soaked. Drink the Cleansing Tonic before it wears off.", "kind": "cure", "state": "soaked", "seconds": 25.0, "time": 24, "give": ["tonic"],
-		"say": "Some blows leave a state on you. The line at the top names it, counts it down and says what cures it. A Cleansing Tonic cures any.", "tips": ["climber_states", "state_soaked"]},
-	"wall": {"name": "Cracked walls", "goal": "Break the cracked wall: the last blow of a combo breaks it.", "kind": "wall", "time": 60,
-		"say": "Dust falls from a cracked wall. A light blow knocks hollow; the finisher, the last blow of a combo, breaks it. Something waits behind them.", "tips": []},
-	"ward": {"name": "The ward and the task", "goal": "Light the %d braziers: stand by each until it catches.", "kind": "ward", "pieces": 2, "time": 75,
-		"say": "On most floors the stair is warded until the floor's task is done. The line at the top names the task and counts it; an arrow points at what's left.", "tips": ["ward", "stair"]},
 }
-static var LESSON_ORDER := ["move", "roll", "parry", "belt", "cast", "cure", "wall", "ward"]
+static var LESSON_ORDER := ["move", "roll", "jump", "strike", "shoot", "parry"]
 ## Renown for finishing the basics, once.
 static var LESSON_REWARD := 10
 
@@ -361,6 +364,8 @@ static func finish_lesson(profile, id: String, how: int) -> Array:
 
 
 static func skip_lesson(profile, id: String) -> Array:
+	if not Training.can_skip(profile):
+		return [Training.TEXT["no_skip"]]  # (basic training is required for the Noble's Grace)
 	return finish_lesson(profile, id, 2)
 
 
@@ -467,11 +472,15 @@ static func best_rounds(profile, id: String) -> int:
 
 
 ## The prize for winning now: {renown, crystals, kind, relic ("yes", "maybe", "")}.
-static func prize(profile, id: String) -> Dictionary:
+## At a station, the crystals are of its tower's kind (tournaments.gd).
+static func prize(profile, id: String, station_id := "") -> Dictionary:
 	var b := bracket(id)
 	var first := not bracket_won(profile, id)
 	var more := 1.0 + Titles.num(profile, "tourney", "prize")
-	var kind := String(Towers.TOWERS.get(String(b.get("tower", "kraken")), {}).get("essence", "stone"))
+	var tw := String(b.get("tower", "kraken"))
+	if station_id != "":
+		tw = String(station(station_id).get("tower", tw))
+	var kind := String(Towers.TOWERS.get(tw, {}).get("essence", "stone"))
 	var rn := float(b.get("renown", 0)) * (1.0 if first else float(REPEAT["renown"])) * more
 	var cr := float(b.get("crystals", 0)) * (1.0 if first else float(REPEAT["crystals"])) * more
 	var relic := ""
@@ -507,9 +516,17 @@ static func fee(profile, type: String, id: String) -> int:
 		"tourney":
 			base = int(bracket(id).get("fee", 0))
 			cut = Titles.num(profile, "tourney", "fee_cut")
+		"advanced":
+			return Training.fee(profile, id)  # (paid in its own kind: fee_kind)
 	if base <= 0:
 		return 0
 	return maxi(0, int(round(float(base) * (1.0 - clampf(cut, 0.0, 1.0)))))
+
+
+## The kind an event's fee is paid in: "any" (crystals of any kind, the
+## biggest first), or an essence (advanced and mark training: training.gd).
+static func fee_kind(profile, type: String, id: String) -> String:
+	return Training.fee_kind(profile, id) if type == "advanced" else "any"
 
 
 ## What an event is, for arena.gd: {"type", "id", "name", "time", "floor",
@@ -525,22 +542,45 @@ static func event(type: String, id: String, station_id := "") -> Dictionary:
 		"drill":
 			ev.merge(DRILLS.get(id, {}), true)
 			ev["stop"] = "gym"
+		"advanced":
+			ev.merge(Training.lesson(id), true)
+			ev["stop"] = "gym"
+			ev["tower"] = String(ev.get("tower", "kraken"))
+		"first":
+			ev.merge(Training.FIRST, true)
+			ev["rounds"] = Training.first_rounds(station_id)
+			ev["tower"] = String(station(station_id).get("tower", "gryphon")) if station_id != "" else "gryphon"
+			ev["layout"] = String(load("res://scripts/tournaments.gd").location(station_id).get("layout", ""))
+			ev["time"] = 0
+			ev["stop"] = "arena"
 		"tourney":
 			var b := bracket(id)
 			ev.merge(b, true)
 			ev["time"] = 0
 			ev["stop"] = "arena"
+			if station_id != "":
+				load("res://scripts/tournaments.gd").adapt(ev, station_id)  # (the Manager's location: its layout, hazards, creatures and rivals)
 	ev["type"] = type
 	ev["id"] = id
 	return ev
 
 
 ## Why an event can't be begun ("" if it can): locked, or the fee unpaid.
-static func why_not(profile, type: String, id: String) -> String:
+## `station_id` (where it would be held) checks the Tournament Manager is
+## there, and that a climber's first tournament comes first.
+static func why_not(profile, type: String, id: String, station_id := "") -> String:
 	match type:
 		"lesson":
 			if not LESSONS.has(id):
 				return "?"
+		"advanced":
+			return Training.why_not(profile, id)
+		"first":
+			if not Training.closed(profile):
+				return Training.TEXT["first_done"]
+			if not Training.basic_done(profile):
+				return Training.TEXT["first_locked"]
+			return ""
 		"drill":
 			if not DRILLS.has(id):
 				return "?"
@@ -554,6 +594,11 @@ static func why_not(profile, type: String, id: String) -> String:
 				return "?"
 			if not bracket_open(profile, id):
 				return TEXT["locked"] % Renown.rank_name(int(b.get("rank", 0)))
+			if Training.closed(profile):
+				return load("res://scripts/tournaments.gd").TEXT["why_first"]
+			var TM = load("res://scripts/tournaments.gd")
+			if station_id != "" and not TM.at(profile, station_id):
+				return String(TM.TEXT["why_away"]) % TM.station_name(TM.here(profile))
 	var f := fee(profile, type, id)
 	if f > 0 and int(profile.crystals_held()) < f:
 		return TEXT["needs_fee"] % (f - int(profile.crystals_held()))
@@ -617,7 +662,7 @@ static func apply_result(profile, res: Dictionary) -> Dictionary:
 				r["rounds"][id] = rounds
 				why = TEXT["deed_rounds"] % [rounds, b["name"]]
 			if out["won"]:
-				var pz := prize(profile, id)
+				var pz := prize(profile, id, String(res.get("station", "")))
 				var num := str(bracket_number(id))
 				r["tiers"][num] = true
 				r["tiers"][num + "_n"] = int(r["tiers"].get(num + "_n", 0)) + 1
@@ -628,10 +673,17 @@ static func apply_result(profile, res: Dictionary) -> Dictionary:
 				why = TEXT["deed_bracket"] % b["name"]
 				if String(pz["relic"]) == "yes" or (String(pz["relic"]) == "maybe" and randf() < RELIC_CHANCE):
 					lines.append(give_relic(profile, String(pz["kind"])))
+				lines.append_array(load("res://scripts/tournaments.gd").reward(profile, String(res.get("station", "")), id))  # (the shared minor reward, and the location's own prize)
 			else:
 				lines.append(TEXT["result_loss"] % [b["name"], rounds + 1])
 				if res.has("why"):
 					lines.append(String(res["why"]))
+		"advanced":
+			lines.append_array(Training.apply_advanced(profile, res))
+		"first":
+			lines.append_array(Training.apply_first(profile, res))
+	# Training's essence: a share of the usual amount (training.gd RATES).
+	lines.append_array(Training.settle(profile, res))
 	if gain > 0:
 		lines.append(TEXT["renown"] % gain)
 	var got := Renown.earn(profile, gain, why)

@@ -33,8 +33,12 @@ const Towers := preload("res://scripts/towers.gd")
 const TrainPage := preload("res://scripts/train_page.gd")
 const Rivals := preload("res://scripts/rivals.gd")
 const Travel := preload("res://scripts/travel.gd")
+const Training := preload("res://scripts/training.gd")
+const Tournaments := preload("res://scripts/tournaments.gd")
 
 static var T := Stations.TEXT
+static var TT := Training.TEXT
+static var TM := Tournaments.TEXT
 static var N := Noble.TEXT
 
 var m  # the menu
@@ -181,7 +185,13 @@ func _default_pick(keys: Array) -> String:
 		"gym":
 			var left := Stations.lessons_left(prof)
 			want = "lesson:" + String(left[0]) if not left.is_empty() else ""
+		"arena":
+			if Training.closed(prof) or (Training.required(prof) and not Training.first_done(prof)):
+				want = "first:first"
 		"noble":
+			if Training.closed(prof):
+				want = "grace:grace"
+				return want if keys.has(want) else (keys[0] if not keys.is_empty() else "")
 			var offer := Renown.on_offer(prof)
 			if not offer.is_empty():
 				want = "title:" + String(offer[0])
@@ -222,7 +232,7 @@ func _top_words(prof) -> void:
 			bits.append(refund)
 			Renown.state(prof).erase("refund")
 			prof.save()
-		for id in STOP_TIPS.get(stop, []):
+		for id in stop_tips(prof):
 			var one: String = main.tip_now(id)
 			if one != "":
 				bits.append(one)
@@ -237,6 +247,34 @@ func _top_words(prof) -> void:
 
 ## The Entity's first-time tips for each stop (entity.gd TIPS).
 const STOP_TIPS := {"gym": ["station", "training"], "arena": ["tournament"], "noble": ["noble", "titles_social", "contracts"], "board": ["renown_board"]}
+
+
+## The tips for the stop you're at now: before the Grace, the Grace and
+## basic training (training.gd); then what has opened since (advanced and
+## mark training, the first rewards, the Tournament Manager).
+func stop_tips(prof) -> Array:
+	var ids: Array = STOP_TIPS.get(stop, []).duplicate()
+	var closed := Training.closed(prof)
+	match stop:
+		"gym":
+			if closed:
+				ids = ["grace", "basic_training"]
+			else:
+				if Training.title_rank(prof) >= 0:
+					ids.append("advanced_training")
+				if Training.marked(prof):
+					ids.append("mark_training")
+		"arena":
+			if closed:
+				ids = ["first_tournament"] if Training.basic_done(prof) else ["grace"]
+			else:
+				if Training.first_done(prof):
+					ids.push_front("first_rewards")
+				ids.append("tourney_manager")
+		"noble":
+			if closed:
+				ids.push_front("grace")
+	return ids
 
 
 ## Where the keys start: the chosen tile.
@@ -341,9 +379,11 @@ func _gym(left: Node) -> void:
 	var prof = _prof()
 	var r := Renown.state(prof)
 	var done_n := Stations.LESSON_ORDER.size() - Stations.lessons_left(prof).size()
-	_section(left, "%s  ·  %s" % [T["lessons"], T["lessons_count"] % [done_n, Stations.LESSON_ORDER.size()]])
-	if not _small():
-		_line(left, T["lessons_all"] if Stations.lessons_done(prof) else T["lessons_note"] % Stations.LESSON_REWARD, UI.DIM)
+	_section(left, "%s  ·  %s" % [TT["basic"], T["lessons_count"] % [done_n, Stations.LESSON_ORDER.size()]])
+	if Training.closed(prof):
+		_line(left, TT["basic_note"], UI.GILT_HI)  # (required for the Noble's Grace: training.gd)
+	elif not _small():
+		_line(left, TT["basic_note_done"] if Stations.lessons_done(prof) else T["lessons_note"] % Stations.LESSON_REWARD, UI.DIM)
 	for id in Stations.LESSON_ORDER:
 		if not Stations.LESSONS.has(id):
 			continue
@@ -352,6 +392,10 @@ func _gym(left: Node) -> void:
 		var tl = _tile(left, "lesson:" + id, String(Stations.LESSONS[id]["name"]), line, "lesson", UI.GILT if st > 0 else Color(0.62, 0.78, 1.0))
 		tl.lit = st == 1
 		tl.medal = 3 if st == 1 else -1
+	if Training.closed(prof):
+		return  # (the rest opens with the Grace)
+	_training_list(left, TT["advanced"], TT["advanced_note"], Training.ADVANCED_ORDER, false)
+	_training_list(left, TT["mark_training"], TT["mark_note"], Training.MARK_ORDER, true)
 	_section(left, T["drills"])
 	for id in Stations.DRILL_ORDER:
 		if not Stations.DRILLS.has(id):
@@ -372,18 +416,62 @@ func _gym(left: Node) -> void:
 		tl.medal = -1 if not open else int(r["drills"].get(id, 0))
 
 
-## The tournament: its master's word, then the brackets.
+## Advanced or mark training: its tiers, each lesson a tile (locked until
+## its tier's title, or for mark training the first mark).
+func _training_list(left: Node, head: String, note: String, order: Array, mark: bool) -> void:
+	var prof = _prof()
+	_section(left, head)
+	if not _small():
+		_line(left, note, UI.DIM)
+	if mark and not Training.marked(prof):
+		_line(left, TT["mark_locked"], UI.FAINT)
+	for id in order:
+		var d := Training.lesson(String(id))
+		if d.is_empty():
+			continue
+		var tier := int(d.get("tier", 0))
+		var locked := not Training.tier_open(prof, tier) or (mark and not Training.marked(prof))
+		var line := ""
+		if locked:
+			line = TT["mark_locked"] if mark and not Training.marked(prof) else Training.locked_text(tier)
+		elif Training.done(prof, String(id)):
+			line = TT["adv_done"]
+		else:
+			line = "%s  ·  %s" % [String(Training.TIERS[tier]["name"]), TT["fee_kind"] % [Training.fee(prof, String(id)), Essence.display(Training.fee_kind(prof, String(id)))]]
+		var tl = _tile(left, "advanced:" + String(id), String(d["name"]), line, "lesson" if not mark else "gym", Color(0.86, 0.7, 1.0) if mark else Color(0.62, 0.9, 0.8))
+		tl.locked = locked
+		tl.lit = Training.done(prof, String(id))
+		tl.medal = 3 if Training.done(prof, String(id)) else -1
+
+
+## The tournament: before the Grace, your first tournament; after it, the
+## travelling Tournament Manager (tournaments.gd), where they are, and the
+## brackets they run.
 func _arena(left: Node) -> void:
 	var prof = _prof()
-	_section(left, String(Stations.MASTER["name"]).capitalize())
+	if Training.required(prof) and not Training.first_done(prof):
+		_section(left, TT["first"])
+		_line(left, TT["first_sub"], UI.GOLD)
+		var open := Training.first_open(prof)
+		var tl = _tile(left, "first:first", String(TT["first"]), TT["first_line"] if open else TT["first_locked"], "arena", UI.GILT_HI)
+		tl.locked = not open
+		return
+	var here := Tournaments.at(prof, station)
+	_section(left, TM["manager"])
 	if not said.has("master"):
-		said["master"] = Stations.master_line("greet")
+		said["master"] = Tournaments.line("here" if here else "away")
 	_line(left, String(said["master"]), UI.GOLD)
+	var mt = _tile(left, "manager:here", TM["here"] if here else TM["away"] % Tournaments.station_name(Tournaments.here(prof)),
+		String(Tournaments.location(station).get("line", "")) if here else TM["away_line"] % Tournaments.station_name(Tournaments.next(prof)), "arena", UI.GILT if here else UI.FAINT)
+	mt.lit = here
 	for b in Stations.BRACKETS:
 		var id := String(b["id"])
 		var open := Stations.bracket_open(prof, id)
 		var line := ""
-		if not open:
+		if not here:
+			line = TM["away_short"] % Tournaments.station_name(Tournaments.here(prof))
+			open = false
+		elif not open:
 			line = T["locked_short"] % Renown.rank_name(int(b.get("rank", 0)))
 		elif Stations.bracket_won(prof, id):
 			line = T["won"] + "  ·  " + Stations.wins_text(Stations.bracket_wins(prof, id))
@@ -405,6 +493,11 @@ func _noble(left: Node) -> void:
 	if not said.has("noble_line"):
 		said["noble_line"] = Noble.line("greet")
 	_line(left, String(said["noble_line"]), UI.GOLD)
+	if Training.required(prof):
+		# The Noble's Grace (training.gd): what lets a climber into the towers.
+		var gt = _tile(left, "grace:grace", String(TT["grace"]), TT["grace_have"] if Training.has_grace(prof) else TT["grace_not"], "title", UI.GILT if Training.has_grace(prof) else UI.GILT_HI)
+		gt.lit = Training.has_grace(prof)
+		gt.medal = 3 if Training.has_grace(prof) else -1
 	_section(left, N["contracts"])
 	if not _small():
 		_line(left, N["contracts_note"] % Contracts.most(prof), UI.DIM)
@@ -526,6 +619,14 @@ func _card() -> void:
 			_rank_card(int(id))
 		"rival":
 			_rival_card(id)
+		"advanced":
+			_advanced_card(id)
+		"first":
+			_first_card()
+		"grace":
+			_grace_card()
+		"manager":
+			_manager_card()
 	if _small():
 		# A short screen: the card's button (and why it's off) right under its
 		# name, where it shows without scrolling.
@@ -625,16 +726,110 @@ func _lesson_card(id: String) -> void:
 	if d.is_empty():
 		return
 	var st := Stations.lesson_state(prof, id)
-	_head(String(d["name"]), "lesson", Color(0.62, 0.78, 1.0) if st == 0 else UI.GILT, T["lessons"])
+	_head(String(d["name"]), "lesson", Color(0.62, 0.78, 1.0) if st == 0 else UI.GILT, TT["basic"])
 	_text(Stations.lesson_goal(id), UI.TEXT)
 	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
 	_text(Entity.fill_keys(String(d.get("say", "")), mode, m.main.pad_ps), Color(0.78, 0.82, 1.0))
 	_text(T["lesson_done"] if st == 1 else (T["lesson_skipped"] if st == 2 else T["lesson_todo"]), UI.GILT if st == 1 else UI.DIM)
 	_button(T["lesson_again"] if st == 1 else T["lesson_begin"], _begin.bind("lesson", id), "begin")
-	if st == 0:
+	if st == 0 and Training.can_skip(prof):
 		_button(T["lesson_skip"], _skip.bind(id), "skip")
+	elif st == 0:
+		_text(TT["no_skip"], UI.DIM, 13)  # (basic training is required for the Noble's Grace)
 	if not _small():
 		_text(T["lessons_note"] % Stations.LESSON_REWARD, UI.FAINT, 13)
+
+
+## Advanced or mark training: its goal, the Entity's word, its tier and
+## partner, the fee in its essence, Begin.
+func _advanced_card(id: String) -> void:
+	var prof = _prof()
+	var d := Training.lesson(id)
+	if d.is_empty():
+		return
+	var mark := Training.is_mark(id)
+	_head(String(d["name"]), "lesson" if not mark else "gym", Color(0.86, 0.7, 1.0) if mark else Color(0.62, 0.9, 0.8), TT["mark_training"] if mark else TT["advanced"])
+	_text(Training.lesson_goal(id), UI.TEXT)
+	var mode := "touch" if m.main.touch_active else ("pad" if m.main.pad_active else "keys")
+	_text(Entity.fill_keys(String(d.get("say", "")), mode, m.main.pad_ps), Color(0.78, 0.82, 1.0))
+	var tier := int(d.get("tier", 0))
+	_text(String(Training.TIERS[tier]["name"]) + "  ·  " + (TT["tier_open"] % String(Training.TIERS[tier]["name"]) if Training.tier_open(prof, tier) else Training.locked_text(tier)), UI.GILT if Training.tier_open(prof, tier) else UI.DIM)
+	if d.has("partner"):
+		_text(TT["partner"] % String(TT["partners"].get(String(d["partner"]), d["partner"])), UI.DIM)
+	var f := Training.fee(prof, id)
+	var k := Training.fee_kind(prof, id)
+	_price(k, f, prof.crystal_total(k) >= float(f), T["fee"])
+	_text(TT["adv_done"] if Training.done(prof, id) else TT["adv_todo"], UI.GILT if Training.done(prof, id) else UI.DIM)
+	_text(TT["adv_pays"] % int(Training.TIERS[tier].get("renown", 0)), UI.GOOD)
+	var why := Training.why_not(prof, id)
+	var b := _button(T["lesson_again"] if Training.done(prof, id) else T["lesson_begin"], _begin.bind("advanced", id), "advanced")
+	b.disabled = why != ""
+	if why != "":
+		_text(why, UI.BAD)
+
+
+## The first tournament: its rounds, its rewards row by row, the Grace.
+func _first_card() -> void:
+	var prof = _prof()
+	_head(String(TT["first"]), "arena", UI.GILT_HI, Stations.stop_name("arena"))
+	_text(TT["first_sub"], UI.TEXT)
+	_section(card, TT["first_rounds"])
+	var rounds := Training.first_rounds(station)
+	for i in rounds.size():
+		_text(Training.round_text(i, rounds[i]), UI.TEXT)
+	_section(card, TT["first_rewards"])
+	_text(TT["first_reward_0"], UI.GILT_HI)
+	for row in Training.REWARDS:
+		var when: String = TT["flawless"] if bool(row.get("flawless", false)) else TT["won_n"] % int(row.get("won", 0))
+		_text(TT["reward_row"] % [when, String(TT["give"].get(String(row["give"]), row["give"]))], UI.GOOD)
+	_text(T["free"], UI.DIM)
+	var why := Stations.why_not(prof, "first", "first", station)
+	var b := _button(TT["first_enter"], _begin.bind("first", "first"), "first")
+	b.disabled = why != ""
+	if why != "":
+		_text(why, UI.BAD)
+
+
+## The Noble's Grace: what it is, whether you have it, and the steps to it.
+func _grace_card() -> void:
+	var prof = _prof()
+	var have := Training.has_grace(prof)
+	_head(String(TT["grace"]), "title", UI.GILT if have else UI.GILT_HI, Noble.name_of(station))
+	_text(TT["grace_what"], UI.TEXT)
+	_text(TT["grace_have"] if have else TT["grace_not"], UI.GOOD if have else UI.BAD)
+	if not have:
+		_text(TT["grace_how"], UI.DIM)
+		var left := Training.basic_left(prof)
+		var n := Stations.LESSON_ORDER.size()
+		_text("%s  ·  %s" % [TT["grace_step_lessons"] % [n - left, n], N["done"] if left == 0 else N["not_done"]], UI.GOOD if left == 0 else UI.DIM)
+		_text("%s  ·  %s" % [TT["grace_step_first"], N["not_done"]], UI.DIM)
+
+
+## The Tournament Manager: where they are, where they go next, and what
+## this location's arena is like (its hazards, creatures and prize).
+func _manager_card() -> void:
+	var prof = _prof()
+	var here := Tournaments.at(prof, station)
+	var loc := Tournaments.location(station)
+	_head(String(TM["manager"]), "arena", UI.GILT if here else UI.FAINT, String(Tournaments.MANAGER["name"]).capitalize())
+	if here:
+		_text(TM["here_line"] % Tournaments.station_name(station), UI.GOOD)
+	else:
+		_text(TM["away"] % Tournaments.station_name(Tournaments.here(prof)), UI.BAD)
+	_text(TM["next_line"] % Tournaments.station_name(Tournaments.next(prof)), UI.DIM)
+	_section(card, TM["location"])
+	_text(String(loc.get("line", "")), UI.TEXT)
+	var hz := String(load("res://scripts/traps.gd").KINDS.get(String(loc.get("hazard", "")), {}).get("name", ""))
+	if hz != "":
+		_text(TM["hazard"] % hz, UI.DIM)
+	_text(TM["creatures"] % ", ".join((loc.get("creatures", []) as Array).map(func(k): return String(k).capitalize())), UI.DIM)
+	_text(TM["minor"] % String(load("res://scripts/items.gd").ITEMS.get(String(Tournaments.MINOR.get("item", "")), {}).get("name", "")), UI.GOOD)
+	var pc := Tournaments.prize_piece(station)
+	if not pc.is_empty():
+		if Tournaments.prize_won(prof, station):
+			_text(TM["prize_have"] % load("res://scripts/gear.gd").display(pc), UI.GILT)
+		else:
+			_text(TM["prize"] % [String(Stations.BRACKETS[clampi(Tournaments.ADVANCED_FROM - 1, 0, Stations.BRACKETS.size() - 1)]["name"]), load("res://scripts/gear.gd").display(pc)], UI.GILT_HI)
 
 
 func _drill_card(id: String) -> void:
@@ -679,11 +874,11 @@ func _bracket_card(id: String) -> void:
 	if Stations.bracket_early(prof, id):
 		_text(T["early"], UI.GOOD)
 	_section(card, T["rounds"])
-	var rounds: Array = b.get("rounds", [])
+	var rounds: Array = Stations.event("tourney", id, station).get("rounds", [])  # (this location's: its creatures first)
 	for i in rounds.size():
-		_text(T["round"] % [i + 1, Stations.round_text(rounds[i])], UI.TEXT)
+		_text(T["round"] % [i + 1, Tournaments.round_text(rounds[i])], UI.TEXT)
 	_fee("tourney", id, int(b.get("fee", 0)), Titles.num(prof, "tourney", "fee_cut"))
-	var pz := Stations.prize(prof, id)
+	var pz := Stations.prize(prof, id, station)
 	var pays: Array = [Renown.TEXT["earned"] % int(pz["renown"]), T["crystals"] % [int(pz["crystals"]), Essence.display(String(pz["kind"]))]]
 	if String(pz["relic"]) == "yes":
 		pays.append(T["relic"])
@@ -701,7 +896,11 @@ func _bracket_card(id: String) -> void:
 	_text(T["rounds_pay"] % int(b.get("round_renown", 0)), UI.DIM)
 	if Stations.best_rounds(prof, id) > 0:
 		_text(T["best_rounds"] % [Stations.best_rounds(prof, id), rounds.size()], UI.DIM)
-	var why := Stations.why_not(prof, "tourney", id)
+	_text(TM["minor"] % String(load("res://scripts/items.gd").ITEMS.get(String(Tournaments.MINOR.get("item", "")), {}).get("name", "")), UI.GOOD)
+	var lp := Tournaments.prize_piece(station)
+	if Stations.bracket_number(id) >= Tournaments.ADVANCED_FROM and not lp.is_empty() and not Tournaments.prize_won(prof, station):
+		_text(TM["prize"] % [String(Stations.BRACKETS[clampi(Tournaments.ADVANCED_FROM - 1, 0, Stations.BRACKETS.size() - 1)]["name"]), load("res://scripts/gear.gd").display(lp)], UI.GILT_HI)
+	var why := Stations.why_not(prof, "tourney", id, station)
 	var btn := _button(T["enter"], _begin.bind("tourney", id), "begin")
 	btn.disabled = why != ""
 	if why != "":
@@ -822,7 +1021,7 @@ func _begin(type: String, id: String) -> void:
 	var ev := Stations.event(type, id, station)
 	var why: String = m.main.arena.start(ev) if m.main != null and m.main.arena != null else "?"
 	if why != "":
-		_again("%s:%s" % ["bracket" if type == "tourney" else type, id], [T["cant"] % why], "ui_back", "begin")
+		_again("%s:%s" % ["bracket" if type == "tourney" else type, id], [T["cant"] % why], "ui_back", type if type in ["advanced", "first"] else "begin")
 
 
 func _skip(id: String) -> void:

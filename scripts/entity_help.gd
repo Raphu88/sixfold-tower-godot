@@ -236,7 +236,7 @@ static var HELP := {
 	"start:look_next": "On to three questions that decide how you begin.",
 	"start:answer": "{desc}",
 	"start:quiz_back": "Back one question (or to your look).",
-	"start:begin": "Makes your climber with these answers and starts your first climb, near your home tower.",
+	"start:begin": "Makes your climber with these answers and takes you to your home station: basic training and a first tournament come before any climb.",
 	"start:change": "Back to the first question, to answer again.",
 	"start:wheel": "A colour of your own: pick it on the wheel, then its brightness and strength.",
 	"start:wheel_done": "Keeps this colour and goes back to the rows.",
@@ -270,6 +270,14 @@ static var HELP := {
 	"station_do:wear": "Wears this title (or takes it off). Only the worn title gives its benefits.",
 	"station_do:take": "Takes this contract. It's tracked at the top of the screen while you climb.",
 	"station_do:drop": "Gives this contract up. The Noble has others.",
+	# --- training and tournaments (training.gd, tournaments.gd) -----------------------------------------
+	"pick:advanced": "{name}: advanced or mark training. {desc}",
+	"pick:first": "Your first tournament: three rounds, then the Noble's Grace, win or lose. Each round won adds a reward.",
+	"pick:grace": "The Noble's Grace: what lets you into the towers. Its card says how to earn it.",
+	"pick:manager": "Where the Tournament Manager is now: {name}. They move on after each climb.",
+	"station_do:first": "Enters your first tournament: monsters, then a champion. Nobody dies, and the Grace comes win or lose.",
+	"station_do:advanced": "Begins this training. Its small fee is paid in the essence that fits it; the first time pays a little renown.",
+	"furnish:grace_lock": "Locked: the towers open once the Noble grants you the Grace. Basic training at the gym, then your first tournament.",
 	# --- the Dining car -----------------------------------------------------------------------------------
 	"dine:diner": "A climber at the tables. Talk to them: a rumor, a wager, a trade or a duel.",
 	"dine:ask_rumor": "Asks for a rumor. What they tell is always true.",
@@ -809,3 +817,10 @@ static func _pick_facts(m, pick: String, f: Dictionary) -> void:
 			var rec: Dictionary = Rv.state(m.main.profile if m != null and m.main != null else null).get(id, {})
 			f["name"] = String(rec.get("name", id))
 			f["desc"] = Rv.marks_text(rec) + ". " + Rv.history_text(rec) + "."
+		"advanced":
+			var Tr = load("res://scripts/training.gd")
+			f["name"] = String(Tr.lesson(id).get("name", id))
+			f["desc"] = Tr.lesson_goal(id)
+		"manager":
+			var Tm = load("res://scripts/tournaments.gd")
+			f["name"] = Tm.station_name(Tm.here(m.main.profile)) if m != null and m.main != null else ""

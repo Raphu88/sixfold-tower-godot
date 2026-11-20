@@ -188,6 +188,19 @@ func _climb_placard(row: Node) -> void:
 	var gl: Label = tp._note(col, T["depart_pack"] % (", ".join(going) if not going.is_empty() else T["depart_none"]), 10.0)
 	gl.add_theme_color_override("font_color", UI.TEXT)
 	tp._note(col, T["depart_risk"], 10.0)
+	var Training = load("res://scripts/training.gd")
+	if Training.closed(prof):
+		# The towers are closed until the Noble's Grace (training.gd): a lock
+		# where the lever would be, and what to do.
+		var cl: Label = tp._note(col, String(Training.TEXT["closed"]) + " " + String(Training.TEXT["closed_how"]), 10.0)
+		cl.add_theme_color_override("font_color", UI.BAD)
+		var lk := LockPlate.new()
+		lk.custom_minimum_size = Vector2(130, 76) if small else Vector2(150, 96)
+		lk.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		lk.set_meta("grace_lock", m.train_tower)
+		lk.set_meta("furnish", "grace_lock")
+		col.add_child(lk)
+		return
 	var lever := TrainView.Lever.new()
 	lever.word = T["lever"]
 	lever.sub = T["lever_for"] % tw["short"]
