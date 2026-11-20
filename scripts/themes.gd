@@ -62,6 +62,14 @@ static var THEMES := {
 		"tint": Color(0.85, 0.6, 1.0, 0.08), "door": "puzzle", "emblem": "lock", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"puzzle_memory": {"name": "Hall of Pedestals", "kind": "mixed", "sub": "Pedestals, each with a sign. The order they want is kept elsewhere on this floor.",
 		"tint": Color(1.0, 0.8, 0.5, 0.07), "door": "puzzle", "emblem": "glyph", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_lanterns": {"name": "Hall of Lanterns", "kind": "mixed", "sub": "Iron lanterns in rows, some lit, some dark. A blow wakes or snuffs its neighbours too.",
+		"tint": Color(1.0, 0.65, 0.35, 0.08), "door": "puzzle", "emblem": "lantern", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_bells": {"name": "Hall of Bells", "kind": "mixed", "sub": "Bells round a shell. They ring a song as you come in: ring it back.",
+		"tint": Color(0.45, 0.7, 1.0, 0.08), "door": "puzzle", "emblem": "bell", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_crucible": {"name": "The Crucible", "kind": "mixed", "sub": "A crucible on an iron floor, and a mould waiting for it. Strike it and it slides.",
+		"tint": Color(1.0, 0.5, 0.25, 0.08), "door": "puzzle", "emblem": "crucible", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
+	"puzzle_pods": {"name": "Hall of Pods", "kind": "mixed", "sub": "Pods round a three-headed idol. Burst only those that show the head it wants.",
+		"tint": Color(0.5, 0.85, 0.45, 0.08), "door": "puzzle", "emblem": "pod", "min_size": Vector2i(0, 0), "towers": [], "feature": "puzzle"},
 	"quiet": {"name": "Quiet Hall", "kind": "calm", "sub": "Dust and silence. Nothing stirs here.", "tint": Color(0, 0, 0, 0),
 		"door": "plank", "min_size": Vector2i(0, 0), "towers": [], "feature": ""},
 	# The floor's task in the gallery (objectives.gd): the rune path, the wardstone.
@@ -175,6 +183,19 @@ static var THEMES := {
 		"tint": Color(1.0, 0.5, 0.2, 0.08), "door": "hazard", "sigil": "ember", "min_size": Vector2i(6, 5), "towers": ["firebird"], "feature": "trap", "decor": "scorch"},
 	"bramble": {"name": "Bramble Hall", "kind": "bad", "sub": "Brambles choke the room, and something in them snaps. Someone has trodden a path.",
 		"tint": Color(0.4, 0.65, 0.25, 0.10), "door": "hazard", "sigil": "thorn", "min_size": Vector2i(6, 5), "towers": ["chimera"], "feature": "trap"},
+	# Each tower's own lair: where its creatures gather (a den) or lie in wait
+	# for whoever walks in (an ambush). (The Wyvern's is its forge yard and
+	# furnace, above.)
+	"roost": {"name": "Harrier Roost", "kind": "bad", "sub": "Feathers and picked bones under the high ledges. The roost's hunters are home.",
+		"tint": Color(0.8, 0.85, 0.95, 0.07), "door": "den", "min_size": Vector2i(5, 5), "towers": ["gryphon"], "feature": "den", "decor": "bones"},
+	"wreck": {"name": "Wrecked Hold", "kind": "bad", "sub": "Broken timbers and bilge water. Things wait under the surface for someone to wade in.",
+		"tint": Color(0.3, 0.55, 0.7, 0.09), "door": "chained", "min_size": Vector2i(6, 5), "towers": ["kraken"], "feature": "ambush", "decor": "ripples", "from": 3, "weight": 0.8},
+	"tomb": {"name": "Sand-Buried Tomb", "kind": "bad", "sub": "Old graves under drifted sand. What was buried here wakes when you walk in.",
+		"tint": Color(0.95, 0.8, 0.5, 0.08), "door": "chained", "min_size": Vector2i(6, 5), "towers": ["manticore"], "feature": "ambush", "decor": "bones", "from": 3, "weight": 0.8},
+	"ashcrypt": {"name": "Ash Crypt", "kind": "bad", "sub": "Urns of ash line the walls, still warm. Something rises from them when disturbed.",
+		"tint": Color(1.0, 0.5, 0.3, 0.08), "door": "chained", "min_size": Vector2i(6, 5), "towers": ["firebird"], "feature": "ambush", "decor": "scorch", "from": 3, "weight": 0.8},
+	"kennel": {"name": "Thornhound Kennel", "kind": "bad", "sub": "Gnawed roots and a smell of wet fur. The pack sleeps here, lightly.",
+		"tint": Color(0.45, 0.6, 0.3, 0.09), "door": "den", "min_size": Vector2i(5, 5), "towers": ["chimera"], "feature": "den", "decor": "bones"},
 }
 
 ## Rules for the rooms with no fixed job (see `assign`).
@@ -195,7 +216,8 @@ const DOOR_ALWAYS := ["mirror"]
 ## themes by feature. Empty: the usual rules.
 static var lean := {}
 
-const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "crypt", "pillars",
+const DOOR_LIKELY := ["den", "landing", "puzzle_eyes", "puzzle_plates", "puzzle_statues", "puzzle_mirrors", "puzzle_crumble", "puzzle_ice", "puzzle_lock", "puzzle_memory", "puzzle_lanterns", "puzzle_bells", "puzzle_crucible", "puzzle_pods", "crypt", "pillars",
+	"roost", "wreck", "tomb", "ashcrypt", "kennel",
 	"hall_runes", "hall_wardstone", "strongroom", "post", "scn_defend", "scn_collapse", "scn_duel", "scn_unseen", "scn_rescue", "scn_gauntlet", "scn_burning_bridge", "scn_thicket"]
 
 

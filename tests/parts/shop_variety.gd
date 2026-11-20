@@ -87,8 +87,10 @@ func _stock_by_rank() -> void:
 		kinds.append(best)
 	var more := true
 	for r in range(1, sizes.size()):
-		more = more and int(sizes[r]) > int(sizes[r - 1])
-	t._check(more and sizes[0] == Train.RACK_SIZE, "the rail has more spaces at every rank (%s)" % [sizes])
+		more = more and int(sizes[r]) >= int(sizes[r - 1])
+	for r in range(1, Renown.OLD_RANKS.size()):  # (the seven older ranks each add spaces; the five between them sometimes only a finer piece)
+		more = more and int(sizes[Renown.OLD_RANKS[r]]) > int(sizes[Renown.OLD_RANKS[r - 1]])
+	t._check(more and sizes[0] == Train.RACK_SIZE, "the rail never shrinks as the rank rises, and grows at each of the older ranks (%s)" % [sizes])
 	t._check(int(kinds[-1]) > int(kinds[0]) + 5 and int(kinds[3]) > int(kinds[1]), "the shelf has more kinds of supply as rank rises (%s)" % [kinds])
 	for r in Renown.RANKS.size():
 		var p = _at(r)

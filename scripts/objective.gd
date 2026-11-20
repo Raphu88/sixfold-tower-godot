@@ -19,6 +19,9 @@ const Items := preload("res://scripts/items.gd")
 
 const GOLD := Color(1.0, 0.84, 0.45)
 const WARD := Color(0.75, 0.55, 1.0)
+const MARK := Color(1.0, 0.35, 0.3)
+const RIFT := Color(0.7, 0.4, 1.0)
+const WISP := Color(0.7, 0.95, 1.0)
 
 var main
 var spec := {}
@@ -45,6 +48,8 @@ var over: Node2D  # the marker over the arrow's target, over the darkness
 var optional_done := false
 var reach_lights: Array = []
 var own_kind := false  # a tower's own kind: main.tower_floor runs it (objectives.gd "module")
+var key_urn := -1  # urns: which one holds the key
+var wisp_state := ""  # wisp: "wait" (not found yet), "follow", "hide" (creatures near it), "rest" (you're too far)
 
 
 func _ready() -> void:
@@ -84,6 +89,19 @@ func setup(s: Dictionary) -> void:
 		reach_lights.append(_light(pedestal, 80.0, GOLD, 0.4))
 	if kind == "keeper":
 		_spawn_keeper()
+	elif kind == "marked":
+		for pc in pieces:
+			_spawn_marked(pc)
+	elif kind == "rifts":
+		for pc in pieces:
+			pc["hp"] = int(_k()["strikes"])
+			pc["spawned"] = 0
+			pc["mobs"] = []
+			pc["t"] = float(_k()["every"]) * 0.5
+	elif kind == "urns":
+		key_urn = randi() % maxi(1, pieces.size())
+	elif kind == "wisp":
+		wisp_state = "wait"
 	queue_redraw()
 
 
@@ -119,6 +137,8 @@ func clear() -> void:
 	reliquary = {}
 	target = []
 	optional_done = false
+	key_urn = -1
+	wisp_state = ""
 	queue_redraw()
 
 
@@ -159,6 +179,14 @@ func _piece_color() -> Color:
 			return Essence.color(main.tower_data().get("essence", "air"))
 		"furnaces":
 			return Color(1.0, 0.6, 0.3)
+		"marked":
+			return MARK
+		"rifts":
+			return RIFT
+		"urns":
+			return Color(0.9, 0.72, 0.5)
+		"wisp":
+			return WISP
 	return GOLD
 
 
@@ -194,6 +222,10 @@ func status_line() -> String:
 			return String(k["status_key"]) if not key.is_empty() else String(k["status"])
 		"wardstone":
 			return String(k["status_wake"]) if not stone_awake else String(k["status"]) % int(charge * 100.0)
+		"wisp":
+			if wisp_state == "hide":
+				return String(k["status_hiding"])
+			return String(k["status"]) if wisp_state == "wait" else String(k["status_led"])
 	return String(k["status"]) % [done_count(), pieces.size()]
 
 
@@ -236,6 +268,10 @@ func _find_target() -> Array:
 			if carried:
 				return [pedestal, String(k["pedestal"])]
 			return [pieces[0]["pos"], String(k["piece"])]
+		"wisp":
+			if wisp_state == "wait" or pieces[0]["pos"].distance_to(from) > float(k["follow"]):
+				return [pieces[0]["pos"], String(k["piece"])]
+			return [pedestal, String(k["pedestal"])]
 		"keeper":
 			if not key.is_empty():
 				return [key["pos"], String(k["key"])]
@@ -277,7 +313,7 @@ func live_targets() -> Array:
 		"runes":
 			if not tablet.get("read", false):
 				out.append(tablet["pos"])
-		"orb":
+		"orb", "wisp":
 			if not carried:
 				out.append(pieces[0]["pos"])
 			out.append(pedestal)
@@ -456,8 +492,90 @@ func _tick(delta: float, p, hurt: bool) -> void:
 							break
 				if pc.has("light") and main.lighting != null:
 					main.lighting.move_light(pc["light"], pc["pos"])
+		"marked":
+			# Each piece follows its marked creature; one gone some other way counts too.
+			for pc in pieces:
+				if pc["state"] == "done":
+					continue
+				var e = pc.get("e")
+				if e == null or not is_instance_valid(e) or e.dead or e.is_queued_for_deletion():
+					_piece_done(pc)
+					continue
+				pc["pos"] = e.global_position
+				if pc.has("light") and main.lighting != null:
+					main.lighting.move_light(pc["light"], pc["pos"])
+		"rifts":
+			for pc in pieces:
+				if pc["state"] == "done":
+					continue
+				pc["mobs"] = pc["mobs"].filter(func(e): return is_instance_valid(e) and not e.dead and not e.is_queued_for_deletion())
+				if pos.distance_to(pc["pos"]) > float(k["near"]) or int(pc["spawned"]) >= int(k["most"]):
+					continue
+				pc["t"] -= delta
+				if pc["t"] <= 0.0:
+					pc["t"] = float(k["every"])
+					if pc["mobs"].size() < int(k["alive"]):
+						var e = _spawn_near(pc["pos"], 170.0)
+						if e != null:
+							pc["mobs"].append(e)
+							pc["spawned"] = int(pc["spawned"]) + 1
+							main.fx_ring(pc["pos"], RIFT, 50.0, 0.4, 3.0)
+							main.sfx("rift", 1.0, -6.0)
+		"urns":
+			# The urn with the key hums as you come near.
+			for i in pieces.size():
+				var pc: Dictionary = pieces[i]
+				pc["hum"] = i == key_urn and pc["state"] != "done" and pos.distance_to(pc["pos"]) < float(k["hum"])
+				if pc["hum"] and not pc.get("heard", false):
+					pc["heard"] = true
+					main.sfx("tip_chime", 0.8, -6.0)
+		"wisp":
+			_tick_wisp(delta, p, k)
 	if not done and kind != "levers" and done_count() == pieces.size() and not pieces.is_empty():
 		_complete()
+
+
+## The lost wisp: found when you come close, then it follows you (slower
+## than you walk) while you stay near; it hides while a creature is near it,
+## and waits if you leave it far behind. At the stair's spot, it's home.
+func _tick_wisp(delta: float, p, k: Dictionary) -> void:
+	var w: Dictionary = pieces[0]
+	if w["state"] == "done":
+		return
+	var pos: Vector2 = p.global_position
+	var scared := false
+	for e in main.enemies():
+		if not e.dead and e.global_position.distance_to(w["pos"]) < float(k["fear"]):
+			scared = true
+			break
+	var d: float = pos.distance_to(w["pos"])
+	if wisp_state == "wait":
+		if d < float(k["follow"]) and not scared and main.clear_line(pos, w["pos"]):
+			wisp_state = "follow"
+			main.fx_text(w["pos"] + Vector2(0, -30), Objectives.TEXT["wisp_found"], WISP)
+			main.sfx("tip_chime", 1.2, -4.0)
+		return
+	var was := wisp_state
+	if scared:
+		wisp_state = "hide"
+	elif d > float(k["follow"]) * 1.8:
+		wisp_state = "rest"
+	else:
+		wisp_state = "follow"
+	if wisp_state == "hide" and was != "hide":
+		main.fx_text(w["pos"] + Vector2(0, -30), Objectives.TEXT["wisp_hides"], WISP)
+	# (with you by the stair's spot, it flies the last of the way itself)
+	var home: bool = pos.distance_to(pedestal) < 90.0
+	if wisp_state == "follow" and (d > 46.0 or home):
+		var spd: float = (p.WALK if "WALK" in p else 150.0) * float(k["speed"])
+		var next: Vector2 = w["pos"] + main.path_dir(w["pos"], pedestal if home else pos) * spd * delta
+		if not main.is_solid(next):
+			w["pos"] = next
+	if w.has("light") and main.lighting != null:
+		main.lighting.move_light(w["light"], w["pos"])
+	if w["pos"].distance_to(pedestal) < 36.0:
+		w["pos"] = pedestal + Vector2(0, -16)
+		_piece_done(w)
 
 
 func _near_wall(q: Vector2) -> bool:
@@ -520,6 +638,9 @@ func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
 	if own_kind and not done and main.get("tower_floor") != null:
 		main.tower_floor.task_strike(self, from, dir, reach, arc_deg)  # (the tower's own kind: bellows, sun stones)
 		return
+	if kind in ["rifts", "urns"] and not done:
+		_strike_piece(from, dir, reach, arc_deg)
+		return
 	if kind != "levers" or done:
 		return
 	for pc in pieces:
@@ -531,6 +652,72 @@ func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
 		_piece_done(pc)
 		main.sfx("slam", 0.9, -4.0)
 		main.shake(2.0)
+
+
+## A blow at a rift (one strike nearer shut) or an urn (it breaks: the key,
+## nothing, or now and then a creature). The nearest one in the swing.
+func _strike_piece(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+	var best := {}
+	var best_d := INF
+	for pc in pieces:
+		if pc["state"] == "done":
+			continue
+		var to: Vector2 = pc["pos"] - from
+		if to.length() > reach + 22.0 or (to.length() > 26.0 and absf(dir.angle_to(to)) > deg_to_rad(arc_deg + 20.0)):
+			continue
+		if to.length() < best_d:
+			best_d = to.length()
+			best = pc
+	if best.is_empty():
+		return
+	var k := _k()
+	if kind == "rifts":
+		best["hp"] = int(best["hp"]) - 1
+		main.shake(2.0)
+		main.fx_burst(best["pos"], Vector2.UP, RIFT, 8, 110.0)
+		if int(best["hp"]) <= 0:
+			main.fx_text(best["pos"] + Vector2(0, -30), Objectives.TEXT["rift_shut"], RIFT)
+			_piece_done(best)
+		else:
+			main.sfx("rift", 1.4, -8.0)
+		return
+	# An urn breaks.
+	var i := pieces.find(best)
+	_piece_done(best)
+	main.sfx("glass_break", 0.8, -2.0)
+	if i == key_urn:
+		main.fx_text(best["pos"] + Vector2(0, -30), Objectives.TEXT["urn_key"], GOLD)
+		main.light_flash(best["pos"], GOLD, 1.4, 1.4, 0.4)
+		for pc in pieces:
+			if pc["state"] != "done":
+				pc["state"] = "done"
+				_drop_light(pc)
+		_complete()
+		return
+	if randf() < float(k.get("lurker", 0.0)):
+		main.fx_text(best["pos"] + Vector2(0, -30), Objectives.TEXT["urn_lurker"], Color(0.95, 0.6, 0.5))
+		var e = _spawn_near(best["pos"], 120.0)
+		if e != null:
+			e.wake()
+	else:
+		main.fx_text(best["pos"] + Vector2(0, -30), Objectives.TEXT["urn_empty"], Color(0.8, 0.75, 0.7))
+
+
+## One of the beast's marked creatures, where a piece lies: a little tougher
+## than its kind, its sign over it (drawn here), asleep until it notices you.
+func _spawn_marked(pc: Dictionary) -> void:
+	var kind_e: String = main.Floors._pick(main.floor_num, 2.0, 99, main.tower_data().get("weights", {}))
+	if kind_e == "":
+		kind_e = "slime"
+	var e = main.spawn_enemy(kind_e, main.clear_spot(pc["pos"], 14.0))
+	if e == null:
+		return
+	e.max_hp *= float(_k().get("hp", 1.5))
+	e.hp = e.max_hp
+	e.set_meta("marked", true)
+	main.floor_total += 1
+	main.foes_changed()
+	pc["e"] = e
 
 
 func _spawn_keeper() -> void:
@@ -558,6 +745,12 @@ func _spawn_keeper() -> void:
 
 ## A monster fell (main.gd): the Keeper drops the stair's key.
 func on_enemy_killed(e) -> void:
+	if kind == "marked" and not done:
+		for pc in pieces:
+			if pc["state"] != "done" and pc.get("e") == e:
+				pc["pos"] = e.global_position
+				main.fx_text(pc["pos"] + Vector2(0, -40), Objectives.TEXT["marked_falls"], MARK)
+				_piece_done(pc)
 	if kind == "keeper" and e == keeper:
 		key = {"pos": main.walkable_point(e.global_position, e.global_position)}
 		keeper = null
@@ -682,13 +875,36 @@ func _draw() -> void:
 					var col := _piece_color()
 					draw_circle(pc["pos"], 9.0 + pulse * 2.0, Color(col, 0.25))
 					draw_circle(pc["pos"], 5.0, Color(col.lightened(0.3), 0.95))
+		"marked":
+			# A red ring on the ground under each marked creature.
+			for pc in pieces:
+				if pc["state"] != "done":
+					draw_arc(pc["pos"] + Vector2(0, 8), 20.0 + pulse * 2.0, 0.0, TAU, 28, Color(MARK, 0.7), 2.5)
+		"rifts":
+			for pc in pieces:
+				_draw_rift(pc, t)
+		"urns":
+			for pc in pieces:
+				_draw_urn(pc, t)
+		"wisp":
+			_draw_pedestal(pedestal, pieces[0]["state"] == "done")
+			_draw_wisp(pieces[0]["pos"], t)
 
 
 ## The gold chevron over the arrow's target, over the darkness.
 func _draw_over() -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	# The beast's sign over each marked creature, over the darkness.
+	if kind == "marked" and not done:
+		for pc in pieces:
+			if pc["state"] != "done":
+				var c: Vector2 = pc["pos"] + Vector2(0, -38.0 - 2.0 * sin(t * 3.0))
+				var pts := PackedVector2Array([c + Vector2(0, -7), c + Vector2(6, 0), c + Vector2(0, 7), c + Vector2(-6, 0), c + Vector2(0, -7)])
+				over.draw_polyline(pts, Color(0, 0, 0, 0.6), 4.0)
+				over.draw_polyline(pts, MARK, 2.0)
+				over.draw_circle(c, 2.0, MARK)
 	if target.is_empty() or done:
 		return
-	var t := Time.get_ticks_msec() / 1000.0
 	var at: Vector2 = target[0] + Vector2(0, -34.0 - 4.0 * sin(t * 4.0))
 	var pts := PackedVector2Array([at + Vector2(-8, -6), at, at + Vector2(8, -6)])
 	over.draw_polyline(pts, Color(0, 0, 0, 0.6), 5.0)
@@ -825,6 +1041,61 @@ func _draw_shard(c: Vector2, t: float) -> void:
 	var pts := PackedVector2Array([c + Vector2(0, -12 + bob), c + Vector2(6, bob), c + Vector2(0, 8 + bob), c + Vector2(-6, bob)])
 	draw_colored_polygon(pts, Color(1.0, 0.85, 0.5, 0.9))
 	draw_polyline(pts + PackedVector2Array([pts[0]]), Palette.OUTLINE, 1.5)
+
+
+## A rift: a jagged tear in the floor, violet light welling up, one pip for
+## each blow it still needs.
+func _draw_rift(pc: Dictionary, t: float) -> void:
+	var c: Vector2 = pc["pos"]
+	if pc["state"] == "done":
+		draw_line(c + Vector2(-14, 2), c + Vector2(14, -2), Color(0.25, 0.2, 0.3, 0.7), 2.0)
+		return
+	var pts := PackedVector2Array([c + Vector2(-18, 3), c + Vector2(-8, -5), c + Vector2(-2, 2), c + Vector2(6, -6), c + Vector2(17, 1),
+		c + Vector2(7, 6), c + Vector2(0, 1), c + Vector2(-9, 7)])
+	draw_colored_polygon(pts, Color(0.08, 0.04, 0.12))
+	var glow := 0.55 + 0.35 * sin(t * 5.0 + c.x)
+	draw_polyline(pts + PackedVector2Array([pts[0]]), Color(RIFT, glow), 2.0)
+	for k in 3:
+		var a := t * 1.5 + k * TAU / 3.0
+		draw_circle(c + Vector2(cos(a) * 10.0, -6.0 - fmod(t * 14.0 + k * 9.0, 22.0)), 2.0, Color(RIFT.lightened(0.3), 0.7))
+	for k in int(pc.get("hp", 0)):
+		draw_circle(c + Vector2((k - (int(pc["hp"]) - 1) * 0.5) * 8.0, 16.0), 2.5, RIFT.lightened(0.2))
+
+
+## An urn: clay, banded; a broken one is a ring of shards. The one with the
+## key hums (rings ripple out of it) while you're near.
+func _draw_urn(pc: Dictionary, t: float) -> void:
+	var c: Vector2 = pc["pos"]
+	if pc["state"] == "done":
+		for k in 5:
+			var v := Vector2.from_angle(k * 1.3 + c.x)
+			draw_colored_polygon(PackedVector2Array([c + v * 10.0, c + v * 14.0 + v.orthogonal() * 3.0, c + v * 15.0 - v.orthogonal() * 2.0]), Color(0.55, 0.38, 0.28))
+		return
+	draw_circle(c + Vector2(0, 10), 11.0, Color(0, 0, 0, 0.3))
+	var body := PackedVector2Array([c + Vector2(-5, -14), c + Vector2(5, -14), c + Vector2(6, -10), c + Vector2(11, -2), c + Vector2(9, 9), c + Vector2(-9, 9), c + Vector2(-11, -2), c + Vector2(-6, -10)])
+	draw_colored_polygon(body, Color(0.62, 0.42, 0.3))
+	draw_polyline(body + PackedVector2Array([body[0]]), Palette.OUTLINE, 1.6)
+	draw_line(c + Vector2(-10, -1), c + Vector2(10, -1), Color(0.85, 0.7, 0.45), 2.0)
+	draw_line(c + Vector2(-9, 4), c + Vector2(9, 4), Color(0.4, 0.26, 0.2), 1.5)
+	if pc.get("hum", false):
+		var k := fmod(t * 1.2, 1.0)
+		draw_arc(c, 14.0 + k * 26.0, 0.0, TAU, 24, Color(GOLD, 0.6 * (1.0 - k)), 2.0)
+
+
+## The lost wisp: a small cold flame with a wavering tail.
+func _draw_wisp(c: Vector2, t: float) -> void:
+	var hiding := wisp_state == "hide"
+	var a := 0.45 if hiding else 1.0
+	var bob := sin(t * 3.0) * 3.0
+	var at := c + Vector2(0, -14 + bob)
+	for k in 4:
+		draw_circle(at + Vector2(sin(t * 4.0 + k) * 3.0, 6.0 + k * 4.0), 5.0 - k, Color(WISP, 0.35 * a))
+	draw_circle(at, 9.0 + sin(t * 6.0), Color(WISP, 0.3 * a))
+	draw_circle(at, 6.0, Color(WISP.lightened(0.2), 0.95 * a))
+	draw_circle(at + Vector2(-2, -1), 1.3, Color(0.2, 0.3, 0.4, a))
+	draw_circle(at + Vector2(2, -1), 1.3, Color(0.2, 0.3, 0.4, a))
+	if wisp_state == "wait":
+		draw_arc(c, 24.0, 0.0, TAU, 28, Color(WISP, 0.3 + 0.2 * sin(t * 3.0)), 2.0)
 
 
 func _draw_reliquary(c: Vector2, taken: bool, pulse: float) -> void:

@@ -43,7 +43,7 @@ static var LINES := {
 static var ROTATION := {"every": 1, "order": ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]}
 
 ## How many of the location's creatures fight a bracket's first round.
-static var BRACKET_CREATURES := {"novice": 2, "open": 3, "masters": 3, "champions": 4}
+static var BRACKET_CREATURES := {"novice": 2, "open": 3, "veterans": 3, "masters": 3, "grand": 4, "champions": 4}
 ## The location's unique prize comes with a bracket from this one up (1 the first).
 static var ADVANCED_FROM := 2
 ## The shared, minor reward for every bracket won: an item packed for the next climb.

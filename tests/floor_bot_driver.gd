@@ -295,7 +295,7 @@ func _pick_foe():
 	var pos: Vector2 = p.global_position
 	var lock_on: bool = main.door_view != null and not main.door_view.lock_status().is_empty()
 	var pz = main.puzzle
-	var quiet_pz: bool = pz != null and pz.kind != "" and not pz.solved and pz.room.has_point(pos) and (not pz.awake or String(pz.kind) in ["ice", "crumble", "statues"])  # (clear the room before the ice, the stones or the plates)
+	var quiet_pz: bool = pz != null and pz.kind != "" and not pz.solved and pz.room.has_point(pos) and (not pz.awake or String(pz.kind) in ["ice", "crumble", "statues", "crucible"])  # (clear the room before the ice, the stones, the plates or the crucible)
 	var cur_room: Rect2 = Rect2()
 	if main.room_at >= 0 and main.room_at < main.room_info.size():
 		cur_room = main.room_info[main.room_at]["rect"]
@@ -318,6 +318,11 @@ func _pick_foe():
 			want = true
 		elif main.objective.kind == "keeper" and e == main.objective.keeper:
 			want = true
+		elif main.objective.kind == "marked" and e.has_meta("marked") and not main.objective.done:
+			want = true
+		elif main.objective.kind == "wisp" and not main.objective.done and main.objective.wisp_state != "" and not main.objective.pieces.is_empty() \
+				and e.global_position.distance_to(main.objective.pieces[0]["pos"]) < float(Objectives.KINDS["wisp"]["fear"]) + 30.0:
+			want = true  # (it scares the wisp: clear it)
 		elif main.scenarios.running() and main.scenarios.active.get("mobs", []).has(e):
 			want = true
 		if want and d < best_d:
@@ -486,6 +491,24 @@ func _task_step() -> Dictionary:
 			var over: Vector2 = (pc["pos"] - pos).normalized() * 24.0 if pos.distance_to(pc["pos"]) < 160.0 else Vector2.ZERO
 			var want: Vector2 = main.walkable_point(pc["pos"], pc["pos"] + over, 10.0)  # (run through it: it flees)
 			return {"pos": want, "act": "chase", "r": 4.0, "why": "a mote"}
+		"marked":
+			var pc := _nearest(ob.pieces.filter(func(x): return x["state"] != "done"))
+			if pc.is_empty():
+				return {"pos": pos, "act": "stand", "r": 999.0, "why": "the marked"}
+			return {"pos": pc["pos"], "act": "walk", "r": 30.0, "why": "a marked creature"}
+		"rifts", "urns":
+			var pc := _nearest(ob.pieces.filter(func(x): return x["state"] != "done"))
+			if pc.is_empty():
+				return {"pos": pos, "act": "stand", "r": 999.0, "why": "the " + k}
+			return {"pos": pc["pos"], "act": "strike", "why": "a rift" if k == "rifts" else "an urn"}
+		"wisp":
+			var w: Dictionary = ob.pieces[0]
+			var follow: float = float(Objectives.KINDS["wisp"]["follow"])
+			if ob.wisp_state == "wait" or pos.distance_to(w["pos"]) > follow * 0.75:
+				return {"pos": w["pos"], "act": "walk", "r": 40.0, "why": "the wisp"}
+			if ob.wisp_state == "hide":
+				return {"pos": w["pos"], "act": "stand", "r": 60.0, "why": "the wisp hides"}
+			return {"pos": ob.pedestal, "act": "walk", "r": 10.0, "why": "leading the wisp"}
 	if ob.own_kind and main.get("tower_floor") != null:
 		return main.tower_floor.bot_task(self)  # (a tower's own kind: its floor script knows the way)
 	return {}
@@ -900,6 +923,40 @@ func _puzzle_step() -> Dictionary:
 			return _plan_ice()
 		"plates":
 			return _plates_step()
+		"lanterns":
+			# Strike the lanterns the puzzle's own solver names, worked out
+			# afresh from the lanterns as they stand.
+			var ans: Array = cur.answer()
+			if ans.is_empty():
+				return {"pos": pos, "act": "stand", "r": 999.0, "why": "the lanterns"}
+			var best: Dictionary = cur.lanterns[ans[0]]
+			for i in ans:
+				if pos.distance_to(cur.lanterns[i]["pos"]) < pos.distance_to(best["pos"]):
+					best = cur.lanterns[i]
+			return {"pos": best["pos"], "act": "strike", "why": "a lantern"}
+		"bells":
+			var b: int = cur.next_bell()
+			if b < 0:
+				# (the song: wait for it, well inside the room so it plays)
+				return {"pos": cur.conch + Vector2(0, 64), "act": "stand", "r": 14.0, "why": "the bells' song"}
+			return {"pos": cur.bells[b]["pos"], "act": "strike", "why": "a bell"}
+		"crucible":
+			# The slag and the crucible: walked round, never into.
+			for rk in cur.rocks:
+				avoid[_tile(cur.center(rk))] = true
+			avoid[_tile(cur.pos)] = true
+			var push: Array = cur.next_push()
+			if push.is_empty():
+				return {"pos": pos, "act": "stand", "r": 999.0, "why": "the crucible"}
+			var stand: Vector2 = push[0]
+			if pos.distance_to(stand) > 10.0:
+				return {"pos": stand, "act": "exact", "why": "beside the crucible"}
+			return {"pos": cur.pos, "act": "strike", "why": "the crucible"}
+		"pods":
+			var q: Dictionary = cur.target_for(pos)
+			if q.is_empty():
+				return {"pos": cur.idol + Vector2(0, 50), "act": "stand", "r": 24.0, "why": "the pods"}
+			return {"pos": q["pos"], "act": "strike", "why": "a pod"}
 	return {}
 
 

@@ -404,7 +404,7 @@ func _update_mode(delta: float, inside: bool) -> void:
 ## doorway, never with a monster in one), and open again when it's solved
 ## or failed.
 func _update_seal() -> void:
-	if sealed or int(cur.SEAL_FROM) > tier or spec.get("entrances", []).is_empty() or main.player.dead:
+	if sealed or solved or locked or int(cur.SEAL_FROM) > tier or spec.get("entrances", []).is_empty() or main.player.dead:
 		return
 	var inner := room.grow(-Floors.CELL * 0.6)
 	if not inner.has_point(main.player.global_position):
