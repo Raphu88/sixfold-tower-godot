@@ -373,7 +373,7 @@ func _ways_in_play() -> void:
 		# Walk away and you get out.
 		p.global_position = c + Vector2(-70, 0)
 		Input.action_press("move_left")
-		await t._wait(0.6)
+		await t._until(func(): return p.global_position.distance_to(c) > 90.0 or main.climbing, 2.0)  # (however busy the machine)
 		Input.action_release("move_left")
 		_check(p.global_position.distance_to(c) > 90.0 and not main.climbing, "walk away from the pull and you get out")
 		var fl: int = main.floor_num

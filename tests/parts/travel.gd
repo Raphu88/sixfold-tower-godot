@@ -398,10 +398,14 @@ func _phone(main) -> void:
 		await t._tap_at(tl[0].get_global_rect().get_center())
 	t._check(menu.train_tower == "gryphon", "a tap on a stop chooses it")
 	menu.tour.start("train")
-	await t._frames(4)
-	var nb: Array = t._all_buttons(menu.train_page.roots.get(menu.train_car)).filter(func(b): return b.get_meta("tour", "") == "next")
+	var next_btn := func() -> Array:
+		return t._all_buttons(menu.train_page.roots.get(menu.train_car)).filter(func(b): return b.get_meta("tour", "") == "next" and b.is_visible_in_tree())
+	await t._until(func(): return next_btn.call().size() == 1, 2.0)  # (the tour bar builds over a few frames)
+	await t._frames(2)
+	var nb: Array = next_btn.call()
 	if nb.size() == 1:
 		await t._tap_at(nb[0].get_global_rect().get_center())
+	await t._until(func(): return menu.tour.step == 1, 1.0)
 	t._check(menu.tour.step == 1, "a tap on Next moves the tour on")
 	menu.tour.skip()
 	main.touch._set_active(false)
