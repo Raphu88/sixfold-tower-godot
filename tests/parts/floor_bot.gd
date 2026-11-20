@@ -229,14 +229,21 @@ func _bot() -> void:
 	var floors := [2, 5, 3, 7]
 	var ok := 0
 	var why: Array = []
+	var slips0: int = main.profile.count("slips")
+	var formed := 0
+	main.climb_shape.barriers_on = true  # (the stair's gate or ward forms, as in play: climb_shape.gd)
 	for i in kinds.size():
 		main.tower = towers[i]
 		Objectives.forced = kinds[i]
 		var r: Dictionary = await Sweep.play(t, main, floors[i], 2.0)  # (twice as fast: the parts run has no --fixed-fps)
 		Objectives.forced = ""
+		if String(main.climb_shape.bar.get("kind", "")) != "":
+			formed += 1  # (the next floor's barrier is forming: the stair always brings one)
 		if r["ok"]:
 			ok += 1
 		else:
 			why.append("%s %d %s: %s" % [towers[i], floors[i], kinds[i], r["why"]])
+	main.climb_shape.barriers_on = false
 	main.tower = "kraken"
-	_check(ok >= kinds.size() - 1, "the bot finishes real floors: walks, fights, does the task, takes the stair (%d of %d) %s" % [ok, kinds.size(), why])
+	_check(ok >= kinds.size() - 1, "the bot finishes real floors past the stair's gate or ward: walks, fights, does the task, takes the stair (%d of %d) %s" % [ok, kinds.size(), why])
+	_check(main.profile.count("slips") == slips0 and formed > 0, "...waiting out each barrier for its task, never slipping past one (%d floors after a stair had one forming)" % formed)

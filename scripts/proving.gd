@@ -164,6 +164,7 @@ var lean_frame := -1
 var said_t := 0.0  # a door's words aren't repeated until this runs out
 var casting := false  # being cast down
 var won_climb := false  # won on this climb (the room is new for every climb)
+var lethal_only := false  # back on floor 6 after a win this climb, the Lethal Proving chosen (climb_shape.gd)
 var wound := 0.0  # the lingering wound (a share of max health)
 var wound_stairs := 0  # stairs left before it closes
 var lights: Array = []
@@ -181,10 +182,11 @@ func _ready() -> void:
 
 # --- the plan ----------------------------------------------------------------------
 
-## Is floor `n` the Proving on this climb? (Never on the first climb, and
-## once won, a fall back to floor 6 finds an ordinary floor there.)
+## Is floor `n` the Proving on this climb? (On the first climb it follows
+## the Regard on floor 6. Once won, a fall back to floor 6 finds an ordinary
+## floor there, unless the Lethal Proving is chosen: climb_shape.gd.)
 func due(n: int) -> bool:
-	return enabled and main != null and not main.first_climb and not won_climb and n == int(Towers.PROVING["floor"])
+	return enabled and main != null and (not won_climb or lethal_only) and n == int(Towers.PROVING["floor"])
 
 
 ## The Proving's floor plan for `tower` (towers.gd data), in the form
@@ -315,6 +317,12 @@ func setup(p: Dictionary) -> void:
 		for d in dv.list:
 			if d["lock"] == "lethal":
 				d["lock"] = "lethal_sealed"
+		dv.queue_redraw()
+	if lethal_only:
+		# (won already this climb: only the Lethal door opens)
+		for d in dv.list:
+			if d["lock"] == "proving":
+				d["lock"] = "proving_shut"
 		dv.queue_redraw()
 	prize = {"pos": p["prize"], "state": "sealed"}
 	# A little light on each door's words, and the shadow's room waits, faintly lit.
@@ -609,6 +617,7 @@ func on_enemy_killed(e) -> void:
 func _win() -> void:
 	stage = "won"
 	won_climb = true
+	lethal_only = false
 	main.profile.note_proving(main.tower)
 	main.profile.save()
 	var dv = main.door_view

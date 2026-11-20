@@ -45,6 +45,7 @@ var step := 1
 var essence := 0.0
 var burned := false
 var faint := false  # a mark taken in defeat: weaker until it catches up
+var faint_power := 0.75  # how strong a faint mark is (a first mark from a death: by the floor reached, climb_shape.gd)
 var overdraw_mult := 1.0  # set for an overdrawn cast: desperate casts are weaker
 var attr_power := 1.0  # Fire density (Intellect): spells hit a little harder
 var attr_fill := 1.0  # Water density (Spirit): marks fill a little faster
@@ -203,11 +204,11 @@ var cost_mult := 1.0
 
 
 func spell_cost(sp: Dictionary) -> float:
-	return float(spell_stat(sp, "cost")) * (1.25 if faint else 1.0) * cost_mult * SecretBonds.tune_mult(tunes, sp["id"], "cost")
+	return float(spell_stat(sp, "cost")) * ((2.0 - faint_power) if faint else 1.0) * cost_mult * SecretBonds.tune_mult(tunes, sp["id"], "cost")
 
 
 func spell_power(sp: Dictionary) -> float:
-	return (0.75 if faint else 1.0) * overdraw_mult * var_power * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
+	return (faint_power if faint else 1.0) * overdraw_mult * var_power * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
 
 
 func spell_damage(sp: Dictionary) -> float:

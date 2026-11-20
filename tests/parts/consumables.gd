@@ -145,10 +145,10 @@ func _drops() -> void:
 	found_other /= climbs
 	var camp_cards := float(I.CAMP_CHOICES * I.CAMP_AFTER.size())
 	_check(found_other >= 2.0 and found_other <= 5.0, "a typical climb finds only a few of the rarer items outright (%.1f; it was about 11)" % found_other)
-	_check(found_other + camp_cards <= 6.5, "...a handful even with every camp's item card taken (%.1f)" % (found_other + camp_cards))
+	_check(found_other + camp_cards <= 7.5, "...a handful even with every camp's item card taken (%.1f, three camps)" % (found_other + camp_cards))
 	_check(found_staples >= 4.0, "...while staples stay common (%.1f a climb)" % found_staples)
 	_check(float(RR.RULES["no_item"]) > 1.0 and float(RR.RULES["item_chance"]) <= 0.06, "a cache seldom holds an item, and one without holds more essence instead")
-	_check(I.CAMP_CHOICES == 1, "a camp offers one item (and two crystals and gear)")
+	_check(I.CAMP_CHOICES == 1 and I.CAMP_CARDS == 3, "a camp offers one item (and a crystal and gear: three cards)")
 	seed(Time.get_ticks_usec())
 
 

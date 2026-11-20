@@ -74,6 +74,7 @@ const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const InscriptionsScript := preload("res://scripts/inscriptions.gd")
 const GlimpsesScript := preload("res://scripts/glimpses.gd")
+const ClimbShapeScript := preload("res://scripts/climb_shape.gd")
 const Flow := preload("res://scripts/essence_flow.gd")
 const RivalsScript := preload("res://scripts/rivals.gd")
 const ContractsScript := preload("res://scripts/contracts.gd")
@@ -178,7 +179,7 @@ var player_start := Vector2.ZERO
 
 # Marks and essence
 var profile  # what carries over between climbs (profile.gd)
-var first_climb := false  # bondless, ending in the Regard
+var first_climb := false  # before the Regard: a climb with no mark yet, until floor 6 (climb_shape.gd)
 var run_essence := {}  # gathered since the last stair (lost if you fall)
 var run_soak := {}  # body-part soak since the last stair
 var climb_essence := {}  # everything gathered this climb
@@ -297,6 +298,7 @@ var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
 var inscriptions  # a stone to read on some floors (inscriptions.gd)
 var glimpses  # the tower's beast glimpsed now and then (glimpses.gd)
+var climb_shape  # the first Regard, the stair's barrier, hordes, the exit and the ending (climb_shape.gd)
 var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
 var contracts  # the Noble's contracts in play: tracked, a thing to retrieve, paid when done (contracts.gd)
 var tower_floor = null  # the tower's own floor, when it has one (floor_styles.gd "module": scripts/towers/tower_floor.gd has its hooks)
@@ -401,6 +403,9 @@ func _ready() -> void:
 	glimpses = GlimpsesScript.new()
 	glimpses.main = self
 	add_child(glimpses)
+	climb_shape = ClimbShapeScript.new()
+	climb_shape.main = self
+	add_child(climb_shape)
 	rivals = RivalsScript.new()
 	rivals.main = self
 	add_child(rivals)
@@ -884,7 +889,8 @@ func _process(delta: float) -> void:
 	if stuck_t <= 0.0:
 		stuck_t = STUCK_EVERY
 		check_stuck()
-	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius:
+	if stair_open and not climbing and not player.dead and player.global_position.distance_to(stair_pos) < STAIR_REACH + player.radius \
+			and climb_shape.lets_climb():  # (a horde after a slip: the stair waits for it, climb_shape.gd)
 		_climb()
 	if not cache.is_empty() and not cache["taken"] and not climbing and not player.dead \
 			and player.global_position.distance_to(cache["pos"]) < float(Floors.CACHE["reach"]) + player.radius:
@@ -1292,6 +1298,7 @@ func _start_floor(n: int) -> void:
 	if camera != null:
 		camera.position = start
 		camera.reset_smoothing()
+	climb_shape.setup_floor(plan)  # (the stair's barrier starts forming: climb_shape.gd)
 
 
 ## The rooms' tints and marks on the floor (themes.gd), springs and camps.
@@ -1645,10 +1652,6 @@ func _arrive() -> void:
 	profile.save()
 	var leaving_camp := in_camp
 	in_camp = false
-	# The top of the first climb: the Regard.
-	if first_climb and floor_num >= ProfileScript.FIRST_CLIMB_FLOORS:
-		_begin_regard(false)
-		return
 	# The summit: the beast has fallen and the climb is complete.
 	if floor_num == int(tower_data().get("summit", 0)):
 		profile.climbs += 1
@@ -1692,7 +1695,7 @@ func _arrive() -> void:
 	elif proving.on:
 		banner = proving.arrival_banner(lines)  # halfway up: the Proving
 		GuideScript.moment("proving", "proving")
-	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb:
+	elif floor_num == int(Towers.PROVING["floor"]) and not first_climb and not proving.won_climb:
 		# (the Proving switched off, as in most tests: a floor with its banner)
 		banner = {"title": String(Towers.PROVING["name"]).to_upper(), "lines": ["Floor %d" % floor_num, Towers.PROVING["line"]] + lines, "t": 3.5, "show": 2}
 		GuideScript.moment("proving", "proving")
@@ -1720,9 +1723,13 @@ func _arrive() -> void:
 	remark_arrival()
 	if layout_on:
 		tip("fog")
+	var forming: String = climb_shape.arrival_line()
+	if forming != "":
+		banner["lines"] = Array(banner.get("lines", [])) + [forming]  # (the stair's barrier is forming: climb_shape.gd)
 	player.set_physics_process(true)
 	sfx("clear", 0.8, -8.0, 0.0)
 	makers.on_arrive()  # (in the quiet after the stair, a Maker may show itself)
+	climb_shape.after_arrive()  # (floor 6 of the first climb: the Regard; floor 6 again: the Lethal Proving offered)
 
 
 # --- camps and items ---------------------------------------------------------------
@@ -1730,7 +1737,7 @@ func _arrive() -> void:
 ## A camp after each floor in Items.CAMP_AFTER (once each), on climbs long
 ## enough to have one. Camps aren't floors: the floor count goes on after.
 func _camp_due() -> bool:
-	return not first_climb and floor_num in Items.CAMP_AFTER and not (floor_num in camps_done) \
+	return floor_num in Items.CAMP_AFTER and not (floor_num in camps_done) \
 		and int(tower_data().get("summit", 0)) >= Items.CAMP_MIN_FLOORS
 
 
@@ -1856,15 +1863,14 @@ func _enter_camp(lines: Array) -> void:
 	var said: Array = [Items.CAMP["sub"]]
 	said.append_array(lines.filter(func(l): return not String(l).begins_with("Rested")))
 	var choices: Array = Items.camp_choices(not player.bonds.is_empty(), tower)
-	# A crystal of the tower's essence and a smaller one of another kind
-	# instead of more items (the rarer items are rare: items.gd CAMP_CHOICES),
-	# and a piece of gear, one rarity row higher (the floor 9 camp's is Rare).
+	# Three cards (items.gd CAMP_CARDS): the item, a crystal of the tower's
+	# essence (instead of more items: the rarer items are rare), and a piece
+	# of gear, one rarity row higher (the floor 6 camp's is Fine at least,
+	# the floor 9 camp's Rare).
 	var camp_kind := String(tower_data().get("essence", "air"))
 	var camp_amount: int = roundi(wings.crystal_amount() * 0.6) if wings != null else 10
 	choices.append("crystal:%s:%d" % [camp_kind, camp_amount])
-	var other_kinds: Array = Essence.KINDS.keys().filter(func(k): return k != camp_kind)
-	choices.append("crystal:%s:%d" % [String(other_kinds[randi() % other_kinds.size()]), maxi(1, roundi(camp_amount * 0.6))])
-	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else "common")))
+	choices.append("gear:" + Gear.code(find_gear("", 1, "rare" if floor_num >= 9 else ("fine" if floor_num >= 6 else "common"))))
 	camp = {"stage": "item", "choices": choices, "lines": said}
 	_note_new_slots(choices)
 	camp_choosing = true
@@ -1884,6 +1890,8 @@ func _camp_card(i: int) -> Dictionary:
 	var pick: String = camp["choices"][i]
 	if pick.begins_with("unbind:") or pick.begins_with("condense:"):
 		return unbound.card(pick)
+	if pick.begins_with("exit:") or pick.begins_with("lethal:"):
+		return climb_shape.card(pick)  # the guardian's exit, or the Lethal Proving again (climb_shape.gd)
 	if pick.begins_with("sb:"):
 		return secret_tools.card(pick)  # a secret bond tool's choice (secret_tools.gd)
 	if pick.begins_with("trade:"):
@@ -1962,6 +1970,9 @@ func choose_camp(i: int) -> void:
 		return
 	if camp["stage"] in ["unbind", "condense"]:
 		unbound.choose(i)
+		return
+	if camp["stage"] in ["exit", "lethal_again"]:
+		climb_shape.choose(i)
 		return
 	if camp["stage"] == "heirloom":
 		keep_heirloom(pick.substr(5))
@@ -2292,6 +2303,8 @@ func _note_climb_start() -> void:
 	climb_paid = false
 	pay_line = ""
 	noticed = []
+	if climb_shape != null:
+		climb_shape.new_climb()
 	if player != null:
 		player.rest_fatigue()  # (every climb starts with max stamina whole)
 	notices.new_climb()  # (the feed and the Entity's log start empty)
@@ -2795,7 +2808,9 @@ func _greet() -> void:
 	if not first_climb:
 		tip("climber")
 	if first_climb:
-		banner = {"title": "YOUR FIRST CLIMB", "lines": ["You bear no mark.", "Climb %d floors. %s is watching." % [ProfileScript.FIRST_CLIMB_FLOORS, beast_name().capitalize()]], "t": 4.0, "long": true}
+		var CT: Dictionary = ClimbShapeScript.TEXT
+		banner = {"title": CT["first_title"], "lines": [CT["first_lines"][0], CT["first_lines"][1] % [ClimbShapeScript.regard_floor(), beast_name().capitalize()]], "t": 4.0, "long": true}
+		tip("first_climb")
 	else:
 		# (and what's handy here: tower_needs.gd)
 		var handy := TowerNeeds.arrival_line(tower)
@@ -2820,8 +2835,6 @@ func _floor_title() -> String:
 		return String(arena.ev.get("name", ""))
 	if in_camp:
 		return Items.CAMP["title"]
-	if first_climb:
-		return "FLOOR %d OF %d" % [floor_num, ProfileScript.FIRST_CLIMB_FLOORS]
 	return "FLOOR %d" % floor_num
 
 
@@ -2838,6 +2851,7 @@ func _give_bonds() -> void:
 		var b = BondScript.new(info["id"], part)
 		b.step = ProfileScript.step_for_xp(float(info["xp"]))
 		b.faint = bool(info["faint"])
+		b.faint_power = float(info.get("power", 0.75))  # (a death mark's strength: climb_shape.gd DEATH_MARK)
 		if old.has(part) and old[part].id == b.id:
 			b.essence = minf(old[part].essence, b.capacity())
 			b.burned = old[part].burned
@@ -3114,12 +3128,13 @@ var regard_mark := {}  # the Regard's mark once granted: {fell, part, id}
 func _grant_regard(fell: bool) -> void:
 	if not regard_mark.is_empty():
 		return
-	pay_climb()  # (the first climb is paid for too, fallen or not: money for the first train)
+	if fell:
+		pay_climb()  # (the first climb is paid for too: money for the first train; reached, it's paid when you leave: climb_shape.gd)
+		profile.climbs += 1
 	if unbound != null and unbound.broke_rules:
 		# A barrier broken on this climb: the beast refuses to mark you (unbound_run.gd).
 		UnboundRun.Unbound.become(profile)
 		profile.regarded = true
-		profile.climbs += 1
 		profile.save()
 		regard_mark = {"fell": fell, "part": "", "id": "", "refused": true}
 		_give_bonds()
@@ -3129,23 +3144,26 @@ func _grant_regard(fell: bool) -> void:
 	if part == "":
 		part = "hand"
 	var id: String = profile.choose_bond(climb_essence, climb_soak)
-	profile.add_bond(part, id, fell)
+	# Fallen, the mark's strength follows the floor reached (climb_shape.gd
+	# DEATH_MARK: 50% on floor 1 up to full on floor 6); reached, it's full.
+	var strength: float = ClimbShapeScript.death_strength(climb_shape.reached()) if fell else 1.0
+	profile.add_bond(part, id, strength < 1.0, strength)
 	profile.regarded = true
-	profile.climbs += 1
 	profile.save()
-	regard_mark = {"fell": fell, "part": part, "id": id}
+	regard_mark = {"fell": fell, "part": part, "id": id, "strength": strength}
 
 
 func _begin_regard(fell: bool) -> void:
 	if not regard.is_empty():
 		return
 	_grant_regard(fell)
-	if not fell:
-		break_belt()  # (survived: what's left on the belt becomes crystals)
-		bring_pack_home()  # (and the pack comes down to the train, which appears now)
-		Vessel.bring_home(self)
-	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "refused": regard_mark.get("refused", false), "t": 0.0, "dark": fade > 0.5}
+	# (Reached: the guardian then offers the exit, and leaving brings the belt,
+	# the pack and the pay home: climb_shape.gd leave_at_regard.)
+	regard = {"fell": regard_mark["fell"], "part": regard_mark["part"], "id": regard_mark["id"], "refused": regard_mark.get("refused", false), "t": 0.0, "dark": fade > 0.5,
+		"exit": not fell, "floor": climb_shape.reached(), "strength": float(regard_mark.get("strength", 1.0))}
 	GuideScript.moment("regard", "regard")
+	if fell and float(regard["strength"]) < 1.0:
+		tip("death_mark")  # (its strength by the floor reached: climb_shape.gd DEATH_MARK)
 	banner = {}
 	regard_pending = false
 	player.set_physics_process(false)
@@ -3175,6 +3193,8 @@ func regard_done() -> bool:
 func end_regard() -> void:
 	if unbound != null and unbound.ask_at_regard():
 		return  # (first: accept the mark, or refuse it)
+	if climb_shape != null and climb_shape.before_leaving():
+		return  # (the floor-6 Regard: leave or climb on; a slip's refusal: the climb goes on; the ending: climb_shape.gd)
 	# Survived (the beast fell, or the Regard without a fall): first keep an heirloom.
 	var survived: bool = not victory.is_empty() or (not regard.is_empty() and not regard.get("fell", false))
 	if survived and not victory.get("recall", false) and not heirloom_offered and _offer_heirloom():
