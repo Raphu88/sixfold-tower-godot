@@ -53,6 +53,8 @@ static var QUESTIONS := [
 			{"id": "hunter", "name": "Hunter", "help": "You start with a shortbow, a dagger and leather armour."},
 			{"id": "labourer", "name": "Labourer", "help": "You start with a war hammer and padded armour."},
 			{"id": "beggar", "name": "Beggar", "help": "You start with a dagger and no armour."},
+			{"id": "scholar", "name": "Scholar", "help": "You start with a sword cane and padded armour."},
+			{"id": "sailor", "name": "Sailor", "help": "You start with a flintlock pistol and leather armour (and the usual sword)."},
 		]},
 	{"id": "home", "ask": "Where did you grow up?",
 		"answers": []},  # (filled from the towers: home_answers)
@@ -66,12 +68,15 @@ static var QUESTIONS := [
 
 ## What each answer gives. Weapons are weapons.gd ids, armour gear.gd ARMOR ids
 ## ("" for none). Every climb also starts with the shortbow (gear.gd
-## start_gear) unless a ranged weapon is given here.
+## start_gear) unless a ranged weapon is given here, and the sword unless a
+## melee weapon is (the Sailor keeps the sword beside the flintlock).
 static var PAST := {
 	"soldier": {"melee": "sword", "ranged": "", "armor": "chain"},
 	"hunter": {"melee": "dagger", "ranged": "shortbow", "armor": "leather"},
 	"labourer": {"melee": "war_hammer", "ranged": "", "armor": "padded"},
 	"beggar": {"melee": "dagger", "ranged": "", "armor": ""},
+	"scholar": {"melee": "sword_cane", "ranged": "", "armor": "padded"},
+	"sailor": {"melee": "", "ranged": "flintlock", "armor": "leather"},
 }
 
 ## How you came to climb: the gear's quality ("fine", "common", or "worn":
