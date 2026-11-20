@@ -183,7 +183,7 @@ static var DIALOGUE := {
 		"lines": ["Making and Unmaking are the core essences, the Makers' own. Choose one and, banked at a stair, half of what you carried settles in your body as core essence: slowly, evenly over your six parts, {core_cap} a part at most. It can't be moved. Your aura is that core essence made visible, and it grows in six steps, at {aura_steps}. Marked or Unbound, each step gives you more. Once every part is full your body is saturated, and nothing more settles. What comes after that, I'll tell you when it's time."],
 		"choices": ["how_unbound", "how", "bye"]},
 	"how_unbound": {"ask": "How do the Unbound grow?", "if": "unbound", "fact": "rules",
-		"lines": ["Each of your six parts is a cup that holds {core_cap}. Banked essence flows into its natural part and fills it slowly, slower the fuller it is. Every {ub_level} is a level. Level {ub_minor} wakes a minor ability, level {ub_gift} a gift, level {ub_tech}, half full, a technique on that part's button, and level 12, full, its capstone. The first essence in a part leads it and must stay at least half; two more at most add their touch. On the train you can move essence between parts. A quarter is the price."],
+		"lines": ["Each of your six parts is a cup that holds {core_cap}. Banked essence flows into its natural part and fills it slowly, slower the fuller it is. Every {ub_level} is a level. Level {ub_minor} wakes a minor ability, level {ub_gift} a gift, level {ub_tech}, half full, a technique on that part's button, and level 12, full, its capstone. The first essence in a part leads it and must stay at least half; two more at most add their touch. On your climber screen's Body tab you can move essence from one part to another, wherever no monster is after you. A quarter is the price."],
 		"choices": ["how_unbound_words", "how_aura", "how", "bye"]},
 	"how_unbound_words": {"ask": "Forms, effects, techniques?", "if": "unbound",
 		"lines": ["A form is the shape a part gives: the hand strikes or throws a bolt, the legs dash or leap. An effect is what an essence does to what it hits: Fire burns, Stone staggers. A technique is the two together: a strike and a burn, Flame Fist. A variation is a small change on top: Wide, Quick, Chain. Your part's essence chooses the effects. You choose the form, at the essence bench."],
@@ -236,7 +236,7 @@ static var DIALOGUE := {
 		"lines": ["{soak}"],
 		"choices": ["marks_grow", "start", "bye"]},
 	"body": {"ask": "What about my body?", "if": "unbound",
-		"lines": ["You carry no marks. You refused them. Your parts fill like cups instead, and a part half full carries a technique on its mark button. Your car's Techniques page shows each part and moves essence between them."],
+		"lines": ["You carry no marks. You refused them. Your parts fill like cups instead, and a part half full carries a technique on its mark button. Your climber screen's Body tab shows each part and moves essence between them."],
 		"choices": ["how_unbound", "how_unbound_words", "start", "bye"]},
 	# --- the climb ------------------------------------------------------------------------
 	"climb": {"ask": "How did my last climb go?", "if": "climbed", "fact": "climb",

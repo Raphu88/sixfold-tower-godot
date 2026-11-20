@@ -67,7 +67,7 @@ static var TEXT := {
 	"empty": "Not yet",
 	"empty_line": "This part carries a technique once it is half full (level 6). Fill it with essence.",
 	"asleep": "Your %s is level %d: half full (level %d) it carries a technique.",
-	"not_in_part": "Move %s into your %s first (Your car · Techniques)",
+	"not_in_part": "Move %s into your %s first (climber screen · Body)",
 	"other_part": "This slot is your %s's: its forms only",
 	"lead": "leads",
 	"strain": "+%d strain",

@@ -19,8 +19,9 @@ extends RefCounted
 ##   and fills it slowly: FILL_COST is how much banked essence ten more take
 ##   at each level (the fuller the part, the slower it fills). A full part
 ##   takes no more: what's left condenses into crystals (essence is never
-##   lost). At the train essence can be MOVED from one part to another; a
-##   share of it is the price (MOVE_COST): unmade on the Unmaking path,
+##   lost). On the climber screen's Body tab (body_move.gd), whenever no
+##   monster is after the climber, essence can be MOVED from one part to
+##   another; a share of it is the price (MOVE_COST): unmade on the Unmaking path,
 ##   turned into core essence on the Making path, condensed into crystals
 ##   before a path is chosen.
 ##   PRIMARY: the first essence in a part leads it and must stay at least
@@ -96,7 +97,7 @@ const STAGES := ["Stir", "Pulse", "Current", "Surge", "Swell", "Torrent", "Tide"
 const STAGE_AT := [0.0, 24.0, 60.0, 108.0, 168.0, 240.0, 324.0, 408.0, 492.0, 576.0, 660.0, 720.0]
 ## At a summit the Unbound condense the tower's essence into a part of their choice (fill).
 const CONDENSE := 6.0
-## Moving essence at the train: this much at a press, and the share it costs.
+## Moving essence (body_move.gd): this much at a press, and the share it costs.
 const MOVE_STEP := 6.0
 const MOVE_COST := 0.25
 ## Going back (the Developer): the densest part takes a mark, its bond
@@ -161,7 +162,7 @@ static var TEXT := {
 	"core_led": "Your %s is core-led: %s",
 	"minor": "Now and then %s carry a touch of %s: %s.",
 	"minor_none": "Its minor ability wakes at level %d.",
-	# Moving essence (technique_page.gd).
+	# Moving essence (body_move.gd).
 	"moved": "Moved %s %s from your %s to your %s",
 	"drained": "Drained %s %s from your %s: %s crystals",
 	"cost_unmade": "%s unmade",
@@ -448,6 +449,22 @@ static func settle_into(prof, part: String, kind: String, banked: float) -> floa
 	return maxf(0.0, left)
 
 
+## How much of a kind a press of Move (or Drain, `to` "") would take out of
+## `from` (0 if none can go): at most `amt`, what's there, and what the
+## target can take once the price is paid (body_move.gd's buttons show it).
+static func move_amount(prof, kind: String, from: String, to: String, amt := MOVE_STEP) -> float:
+	var have := amount(prof, from, kind)
+	if have <= 0.01:
+		return 0.0
+	var want := minf(amt, have)
+	if to != "":
+		var lim := take_limit(prof, to, kind)
+		if lim <= 0.01:
+			return 0.0
+		want = minf(want, lim / (1.0 - MOVE_COST))
+	return want
+
+
 ## Moves essence of a kind from one part to another (`to` "" drains it into
 ## crystals). MOVE_COST of it is the price: unmade (Unmaking), turned into
 ## core (Making), or crystals (no path yet). Returns {"ok", "line", "moved"}.
@@ -455,13 +472,9 @@ static func move(prof, kind: String, from: String, to: String, amt := MOVE_STEP)
 	var have := amount(prof, from, kind)
 	if have <= 0.01:
 		return {"ok": false, "line": TEXT["cant_empty"] % [_display(kind), PART_NAMES[from].to_lower()], "moved": 0.0}
-	var want := minf(amt, have)
-	var keep := 1.0 - MOVE_COST
-	if to != "":
-		var lim := take_limit(prof, to, kind)
-		if lim <= 0.01:
-			return {"ok": false, "line": why_not(prof, to, kind), "moved": 0.0}
-		want = minf(want, lim / keep)
+	var want := move_amount(prof, kind, from, to, amt)
+	if want <= 0.0:
+		return {"ok": false, "line": why_not(prof, to, kind), "moved": 0.0}
 	var out := take(prof, from, kind, want)
 	var price := out * MOVE_COST
 	var arrive := out - price

@@ -9,10 +9,11 @@ extends RefCounted
 ##     fitting), its essences (the part's own mix, shown only), what it will
 ##     do in plain words (and "echoes X"), how it fills, its strain and
 ##     boost, and an optional name (and whether casts boost from carried
-##     essence); then YOUR BODY (each part's cup, and moving essence from
-##     one part to another, at a price) and where each kind of essence
-##     flows (routing);
-##   the climber screen's part cards and stage (menu.gd calls climber());
+##     essence); then a pointer to YOUR BODY (the climber screen's Body
+##     tab, where essence moves between parts: body_move.gd) and where each
+##     kind of essence flows (routing);
+##   the climber screen's part cards and stage (menu.gd calls climber();
+##     pressing a card chooses it to move essence out of: body_move.gd);
 ##   the Developer's way back (secret_page.gd calls core_section());
 ##   the dev tools' section.
 
@@ -23,6 +24,7 @@ const UI := preload("res://scripts/ui.gd")
 const Library := preload("res://scripts/library.gd")
 const TreeRules := preload("res://scripts/tree.gd")
 const EssenceBench := preload("res://scripts/essence_bench.gd")
+const BodyMove := preload("res://scripts/body_move.gd")
 
 static var TEXT := {
 	"title": "Techniques",
@@ -43,18 +45,8 @@ static var TEXT := {
 	"boost_off": "Boost casts with carried essence: off",
 	"name": "Name (optional)",
 	"body": "Your body",
-	"body_note": "Banked essence fills each part slowly. Moving essence costs a quarter of it: %s",
-	"cost_path": {"": "it condenses into crystals until you choose a path.", "life": "it turns into Making, your core essence.", "unmaking": "it is unmade."},
-	"body_row": "%s  ·  level %d  ·  %d of %d  ·  %s",
 	"body_empty": "empty",
 	"body_core": "core %d",
-	"from": "From: %s",
-	"kind": "Essence: %s",
-	"kind_none": "Essence: none",
-	"to": "To: %s",
-	"to_drain": "To: crystals (drain)",
-	"move": "Move %d",
-	"moved_none": "Nothing to move from there.",
 	"routes": "Where banked essence pools",
 	"route": "%s  →  %s",
 	"route_note": "Tap a kind to send it to another part from now on. Its natural part is marked *.",
@@ -210,8 +202,8 @@ static func build(menu) -> void:
 		name.text_submitted.connect(func(s): _rename(menu, sel, s))
 		name.focus_exited.connect(func(): _rename(menu, sel, name.text, false))
 		col.add_child(name)
-	# Your body: each part's cup, and moving essence between them.
-	_body_section(menu)
+	# Your body: on the climber screen's Body tab now (body_move.gd).
+	_body_link(menu)
 	# Routing.
 	menu._section(TEXT["routes"])
 	var og: GridContainer = menu._grid(2 if menu.compact() else 3, 6)
@@ -228,114 +220,19 @@ static func build(menu) -> void:
 	var ab: Button = menu._button(menu.Abilities.TEXT["all"], menu.open.bind("abilities"))
 	ab.set_meta("all_abilities", true)
 	menu._primary(ab)
-	if menu.toast != "":
-		menu._text(menu.toast, menu.GOLD, true)
 	menu._footer()
 
 
-## Your body: a line for each part (its level, fill and mix), then the
-## move: from a part, an essence in it, to another part (or drained into
-## crystals), MOVE_STEP at a press, a quarter of it the price (unbound.gd move).
-static func _body_section(menu) -> void:
-	var prof = menu.main.profile
+## Your body: each part's cup and moving essence between them are on the
+## climber screen's Body tab (body_move.gd); here, a line and the way there.
+static func _body_link(menu) -> void:
 	menu._section(TEXT["body"])
-	menu._note(TEXT["body_note"] % String(TEXT["cost_path"].get(String(prof.path), TEXT["cost_path"][""])))
-	for part in Unbound.PARTS:
-		var bits: Array = []
-		for k in Unbound.mix(prof, part):
-			bits.append("%s %d" % [Tech.display(k), int(round(Unbound.amount(prof, part, k)))])
-		if Unbound.core(prof, part) >= 0.5:
-			bits.append(TEXT["body_core"] % int(round(Unbound.core(prof, part))))
-		var line: String = TEXT["body_row"] % [Unbound.PART_NAMES[part], Unbound.level(prof, part), int(Unbound.fill(prof, part)), int(Unbound.Core.CAP),
-			", ".join(bits) if not bits.is_empty() else TEXT["body_empty"]]
-		var l: Label = menu._small_label(line, menu.main.unbound.part_color(prof, part).lightened(0.25) if menu.main.unbound != null else menu.TEXT)
-		l.set_meta("body_part", part)
-		menu.box.add_child(l)
-	var from := _move_from(menu)
-	var kinds := Unbound.mix(prof, from)
-	var kind := String(menu.get_meta("move_kind", ""))
-	if not kind in kinds:
-		kind = String(kinds[0]) if not kinds.is_empty() else ""
-	var to := String(menu.get_meta("move_to", ""))
-	if to == from:
-		to = ""
-	var row: GridContainer = menu._grid(2 if menu.compact() else 4, 6)
-	var fb: Button = menu._button(TEXT["from"] % Unbound.PART_NAMES[from], _cycle_from.bind(menu), row)
-	fb.set_meta("help", "ub_move_from")
-	var kb: Button = menu._button(TEXT["kind"] % Tech.display(kind) if kind != "" else TEXT["kind_none"], _cycle_kind.bind(menu), row)
-	kb.set_meta("help", "ub_move_kind")
-	if kind != "":
-		kb.add_theme_color_override("font_color", Tech.color(kind).lightened(0.2))
-	var tb: Button = menu._button(TEXT["to"] % Unbound.PART_NAMES[to] if to != "" else TEXT["to_drain"], _cycle_to.bind(menu), row)
-	tb.set_meta("help", "ub_move_to")
-	var mb: Button = menu._button(TEXT["move"] % int(Unbound.MOVE_STEP), _do_move.bind(menu), row)
-	mb.set_meta("help", "ub_move")
-	mb.disabled = kind == "" or not menu.main.on_train
-	for b in [fb, kb, tb, mb]:
-		UI.keep_text(b)
-
-
-static func _move_from(menu) -> String:
-	var from := String(menu.get_meta("move_from", ""))
-	return from if from in Unbound.PARTS else Unbound.PARTS[0]
-
-
-static func _cycle_from(menu) -> void:
-	var at := Unbound.PARTS.find(_move_from(menu))
-	menu.set_meta("move_from", Unbound.PARTS[(at + 1) % Unbound.PARTS.size()])
-	menu.remove_meta("move_kind")
-	menu._want_focus = {"meta": "help", "value": "ub_move_from"}
-	menu.open("techniques", menu.opened_direct)
-
-
-static func _cycle_kind(menu) -> void:
-	var kinds := Unbound.mix(menu.main.profile, _move_from(menu))
-	if kinds.is_empty():
-		return
-	var at := kinds.find(String(menu.get_meta("move_kind", "")))
-	menu.set_meta("move_kind", kinds[(at + 1) % kinds.size()])
-	menu._want_focus = {"meta": "help", "value": "ub_move_kind"}
-	menu.open("techniques", menu.opened_direct)
-
-
-static func _cycle_to(menu) -> void:
-	var from := _move_from(menu)
-	var order: Array = [""]
-	for pt in Unbound.PARTS:
-		if pt != from:
-			order.append(pt)
-	var at := order.find(String(menu.get_meta("move_to", "")))
-	menu.set_meta("move_to", order[(at + 1) % order.size()])
-	menu._want_focus = {"meta": "help", "value": "ub_move_to"}
-	menu.open("techniques", menu.opened_direct)
-
-
-static func _do_move(menu) -> void:
-	var main = menu.main
-	var prof = main.profile
-	var from := _move_from(menu)
-	var kinds := Unbound.mix(prof, from)
-	var kind := String(menu.get_meta("move_kind", ""))
-	if not kind in kinds:
-		kind = String(kinds[0]) if not kinds.is_empty() else ""
-	var to := String(menu.get_meta("move_to", ""))
-	if to == from:
-		to = ""
-	if kind == "":
-		menu.toast = TEXT["moved_none"]
-	else:
-		var got: Dictionary = Unbound.move(prof, kind, from, to)
-		menu.toast = String(got["line"])
-		if bool(got["ok"]):
-			main.sfx("pour", 1.0, -4.0, 0.0)
-			main.tip("unbound_move")
-		else:
-			main.sfx("ui_back", 1.0, -6.0, 0.0)
-	menu.toast_t = 4.0
-	prof.save()
-	main._give_bonds()
-	menu._want_focus = {"meta": "help", "value": "ub_move"}
-	menu.open("techniques", menu.opened_direct)
+	menu._note(BodyMove.TEXT["page_note"])
+	var b: Button = menu._button(BodyMove.TEXT["open"], BodyMove.open_body.bind(menu))
+	b.set_meta("help", "ub_body_open")
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	b.custom_minimum_size.x = 280.0
+	UI.keep_text(b)
 
 
 ## Casts boost from carried essence (on), or never spend it (off).
@@ -488,6 +385,7 @@ static func climber(menu, grid: GridContainer) -> void:
 		b.add_theme_font_size_override("font_size", 13 if small else 14)
 		b.add_theme_color_override("font_color", col.lightened(0.25))
 		b.set_meta("part", part)
+		BodyMove.card(menu, b, part)  # (pressed: move essence out of this part)
 		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		grid.add_child(b)
 

@@ -271,7 +271,7 @@ func _words() -> void:
 	for d in [U.TEXT, Core.TEXT, Secret.TEXT, Secret.STEP_TEXT, U.SIGNATURES, U.CORE_TECHS, U.GIFTS]:
 		texts.append(str(d).to_lower())
 	var E = load("res://scripts/entity.gd")
-	for id in ["unbound", "unbound_fill", "unbound_minor", "unbound_half", "unbound_learned", "unbound_full", "unbound_pure", "unbound_core_led", "unbound_move",
+	for id in ["unbound", "unbound_fill", "unbound_minor", "unbound_half", "unbound_learned", "unbound_full", "unbound_pure", "unbound_core_led", "unbound_body", "unbound_move",
 			"aura", "core_essence", "core_saturated", "flow_2", "flow_3", "flow_4", "flow_5", "flow_6"]:
 		var e: Dictionary = E.TIPS.get(id, {})
 		_check(e.has("tip") and e.has("more") and String(e["tip"]).length() < 140, "the Entity explains '%s' the first time (a short line and an Archive account)" % id)
@@ -281,7 +281,7 @@ func _words() -> void:
 		_check(Talk.DIALOGUE.has(id) and id in Talk.DIALOGUE["how"]["choices"], "'How does it work?' has '%s'" % Talk.DIALOGUE.get(id, {}).get("ask", id))
 		texts.append(str(Talk.DIALOGUE.get(id, {})).to_lower())
 	var Help = load("res://scripts/entity_help.gd")
-	for id in ["ub_move_from", "ub_move_kind", "ub_move_to", "ub_move", "ub_route"]:
+	for id in ["ub_part", "ub_move_from", "ub_move_kind", "ub_move_to", "ub_move", "ub_drain", "ub_body_open", "ub_route"]:
 		_check(Help.HELP.has(id), "the move buttons have hover help (%s)" % id)
 	var all := " ".join(texts)
 	var found: Array = BANNED.filter(func(w): return all.contains(w))
