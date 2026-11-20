@@ -399,6 +399,12 @@ func _beast_rules() -> void:
 	p.attack_cd = 0.0
 	p._fire_bolt()
 	_check(m.get_children().size() - before >= 3, "Spinecaster: each bolt looses two barbs beside it")
+	# (The bolt and barbs hang in the air during the hit-pause: cleared now,
+	# or a slow frame lets them fly into the foes spawned next and kill them.)
+	for c in m.get_children().slice(before):
+		if "vel" in c and "friendly" in c:
+			c.queue_free()
+	await t._frames(1)
 	var v = await t._dummy(p.global_position + Vector2(300, 200))
 	p.ranged_hit(v, 2.0, Vector2.RIGHT, 0.0, false, true)
 	_check(v.venom >= 2, "...and every barb poisons")
