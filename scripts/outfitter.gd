@@ -61,13 +61,13 @@ static var NODES := {
 	"scroll_aside": {"branch": "prices", "rank": 2, "cost": 30, "needs": ["fair_price"], "title": "",
 		"name": "A scroll kept aside", "desc": "The recall scroll costs 40 of any kind, not 60.",
 		"say": "I'll keep one under the counter for you."},
-	"better_share": {"branch": "prices", "rank": 3, "cost": 45, "needs": ["scroll_aside"], "title": "",
+	"better_share": {"branch": "prices", "rank": 4, "cost": 45, "needs": ["scroll_aside"], "title": "",
 		"name": "A better share", "desc": "He pays half a piece's price when you sell it, not 40%.",
 		"say": "Your finds sell well. I'll pay you better for them."},
-	"regular": {"branch": "prices", "rank": 4, "cost": 60, "needs": ["better_share"], "title": "",
+	"regular": {"branch": "prices", "rank": 6, "cost": 60, "needs": ["better_share"], "title": "",
 		"name": "A regular's discount", "desc": "He takes 10% off everything he sells (in place of 5%).",
 		"say": "You're a regular now. Regulars pay less."},
-	"old_friend": {"branch": "prices", "rank": 5, "cost": 90, "needs": ["regular"], "title": "goldhand",
+	"old_friend": {"branch": "prices", "rank": 8, "cost": 90, "needs": ["regular"], "title": "goldhand",
 		"name": "An old friend's price", "desc": "He takes 15% off everything he sells, and pays 55% of a piece's price when you sell it.",
 		"say": "Goldhand, is it? Then it's an old friend's price."},
 	# Stock
@@ -77,16 +77,16 @@ static var NODES := {
 	"charm_tray": {"branch": "stock", "rank": 2, "cost": 30, "needs": ["wide_rack"], "title": "",
 		"name": "A charm tray", "desc": "One more charm in his tray each visit.",
 		"say": "Charms, then. I know a few who make them."},
-	"better_stock": {"branch": "stock", "rank": 3, "cost": 45, "needs": ["charm_tray"], "title": "",
+	"better_stock": {"branch": "stock", "rank": 4, "cost": 45, "needs": ["charm_tray"], "title": "",
 		"name": "Better stock", "desc": "Rail pieces come Fine at least a quarter of the time, and today's piece is likelier Rare, now and then Storied.",
 		"say": "I'll stop selling you the dented ones."},
-	"rare_hook": {"branch": "stock", "rank": 4, "cost": 60, "needs": ["better_stock"], "title": "",
+	"rare_hook": {"branch": "stock", "rank": 6, "cost": 60, "needs": ["better_stock"], "title": "",
 		"name": "A Rare on the hook", "desc": "One Rare piece always hangs on his rail.",
 		"say": "There's always one good piece. Now it's yours to look at first."},
-	"special_order": {"branch": "stock", "rank": 5, "cost": 90, "needs": ["rare_hook"], "title": "",
+	"special_order": {"branch": "stock", "rank": 8, "cost": 90, "needs": ["rare_hook"], "title": "",
 		"name": "Special order", "desc": "He holds one piece you choose, from the rail or the case, until you come back for it.",
 		"say": "Point at it and I'll keep it back. One at a time."},
-	"relic_offer": {"branch": "stock", "rank": 6, "cost": 120, "needs": ["special_order"], "title": "beastfeller",
+	"relic_offer": {"branch": "stock", "rank": 10, "cost": 120, "needs": ["special_order"], "title": "beastfeller",
 		"name": "A relic, offered once", "desc": "He brings out a relic, a Storied named piece, just for you. It waits in his case until you buy it. Once only.",
 		"say": "A Beastfeller should see this. I don't show it to many."},
 	# Gifts
@@ -96,10 +96,10 @@ static var NODES := {
 	"visit_gift": {"branch": "gifts", "rank": 2, "cost": 30, "needs": ["staple_gift"], "title": "",
 		"name": "Something for coming by", "desc": "Each visit after a climb he gives you 4 crystals of the tower you came from.",
 		"say": "Come back down and there's something waiting."},
-	"rank_gift": {"branch": "gifts", "rank": 3, "cost": 45, "needs": ["visit_gift"], "title": "",
+	"rank_gift": {"branch": "gifts", "rank": 4, "cost": 45, "needs": ["visit_gift"], "title": "",
 		"name": "A gift for each rank", "desc": "Each time you rise a rank he gives you a Fine piece, into your stash (crystals instead if it's full).",
 		"say": "When word of you grows, I'll mark it."},
-	"kit_gift": {"branch": "gifts", "rank": 4, "cost": 60, "needs": ["rank_gift"], "title": "helping_hand",
+	"kit_gift": {"branch": "gifts", "rank": 6, "cost": 60, "needs": ["rank_gift"], "title": "helping_hand",
 		"name": "A climber's kit", "desc": "A Stamina Vial and a Cleansing Tonic go on your belt too, each climb (if there's room).",
 		"say": "You help others up. Let me help you."},
 	# Info
@@ -109,10 +109,10 @@ static var NODES := {
 	"best_buy": {"branch": "info", "rank": 2, "cost": 25, "needs": ["tower_tip"], "title": "",
 		"name": "His pick for you", "desc": "He points out the piece on his rail or in his case that beats yours by the most.",
 		"say": "I'll tell you which one I'd buy, in your boots."},
-	"weak_spot": {"branch": "info", "rank": 3, "cost": 40, "needs": ["best_buy"], "title": "",
+	"weak_spot": {"branch": "info", "rank": 4, "cost": 40, "needs": ["best_buy"], "title": "",
 		"name": "Climbers' talk", "desc": "Each visit after a climb he tells you a monster's weakness, from the tower you came from, and it goes in your Bestiary.",
 		"say": "Climbers talk at my counter. Now I'll pass it on."},
-	"contract_hint": {"branch": "info", "rank": 4, "cost": 50, "needs": ["weak_spot"], "title": "trusted",
+	"contract_hint": {"branch": "info", "rank": 6, "cost": 50, "needs": ["weak_spot"], "title": "trusted",
 		"name": "Where it lies", "desc": "When you reach the floor of a contract's thing to retrieve, he has told you which way it lies from where you start.",
 		"say": "The Noble's errands? I hear where those things end up."},
 }
@@ -153,8 +153,8 @@ static var STOCK_ODDS := {"fine": 50, "rare": 45, "storied": 5}
 
 ## The upgrades a rank used to unlock (train.gd UPGRADES, before the tree):
 ## old id -> [the node that does the same, the rank that unlocked it].
-static var OLD_UPGRADES := {"wide_rack": ["wide_rack", 1], "scroll": ["scroll_aside", 2], "stock": ["better_stock", 3],
-	"discount": ["regular", 4], "order": ["special_order", 5]}
+static var OLD_UPGRADES := {"wide_rack": ["wide_rack", 1], "scroll": ["scroll_aside", 2], "stock": ["better_stock", 4],
+	"discount": ["regular", 6], "order": ["special_order", 8]}  # (ranks on the twelve-rank ladder: renown.gd OLD_RANKS)
 
 static var TEXT := {
 	"title": "The outfitter's upgrades",
@@ -259,7 +259,7 @@ static func bought_count(profile) -> int:
 
 # --- the nodes ---------------------------------------------------------------------------
 
-## The trunk's nodes: "rank0" (Unknown) to "rank6" (Celebrated).
+## The trunk's nodes: "rank0" (Unknown) to "rank11" (Legendary), one a rank.
 static func trunk_ids() -> Array:
 	var out: Array = []
 	for i in Renown.RANKS.size():

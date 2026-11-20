@@ -18,7 +18,7 @@ const Renown := preload("res://scripts/renown.gd")
 
 ## Each branch's colour (and the trunk's): ui.gd OUTFIT_TREE.
 const TINT := UI.OUTFIT_TREE
-const ROWS := 7
+const ROWS := 12  # one row a renown rank (renown.gd RANKS)
 ## A node's button is at least this big (view px), for a finger; its medallion may be drawn smaller.
 const TOUCH := 36.0
 

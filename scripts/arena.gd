@@ -368,6 +368,15 @@ func _setup_drill() -> void:
 				d.position = c + Vector2(0, -70) + Vector2.from_angle(TAU * i / float(n)) * 46.0
 				main.add_child(d)
 				dummies.append(d)
+		"shoot":
+			# Far up the room, out of a blade's reach (as in the shooting lesson).
+			var n := clampi(int(ev.get("dummies", 3)), 1, 4)
+			for i in n:
+				var d = Dummy.new()
+				d.setup_dummy(main)
+				d.position = Vector2(c.x + (float(i) - float(n - 1) * 0.5) * 300.0, room.position.y + 90.0)
+				main.add_child(d)
+				dummies.append(d)
 	for k in ev.get("foes", []):
 		_spawn(String(k), _spot(), true)
 
@@ -539,7 +548,21 @@ func _drill(delta: float, p) -> void:
 	match kind:
 		"parry":
 			if t >= limit:
-				finish({"score": float(parries)})
+				finish({"score": float(perfects if bool(ev.get("perfect", false)) else parries)})
+		"shoot":
+			# Shots on the far dummies with a bow (a blade's blows don't count).
+			var total := 0
+			for d in dummies:
+				if is_instance_valid(d):
+					total += int(d.hits_taken)
+			if total > _dummy_hits:
+				if String(Weapons.WEAPONS.get(String(p.weapon), {}).get("slot", "")) == "ranged":
+					struck += total - _dummy_hits
+				_dummy_hits = total
+			if struck >= int(ev.get("need", 6)):
+				finish({"score": snappedf(t, 0.1)})
+			elif t >= limit:
+				finish({"score": -1.0, "why": Stations.TEXT["result_time"]})
 		"kills":
 			if kills >= int(ev.get("need", 5)):
 				finish({"score": snappedf(t, 0.1)})
@@ -1086,7 +1109,12 @@ func hud_text() -> String:
 		"drill":
 			match String(ev.get("kind", "")):
 				"parry":
-					parts.append(T["hud_parry"] % parries)
+					if bool(ev.get("perfect", false)):
+						parts.append(TT["hud_perfect"] % [perfects, int(ev.get("medals", [0, 0, 1])[2])])
+					else:
+						parts.append(T["hud_parry"] % parries)
+				"shoot":
+					parts.append(TT["hud_shots"] % [mini(struck, int(ev.get("need", 6))), int(ev.get("need", 6))])
 				"kills":
 					parts.append(T["hud_kills"] % [mini(kills, int(ev.get("need", 5))), int(ev.get("need", 5))])
 				"dodge":

@@ -18,7 +18,7 @@ extends RefCounted
 ##                fee_cut    a share off the medal drills' fee (1 = free)
 ##                extra      true: the extra drills open
 ##   tourney    the tournament master (stations.gd BRACKETS):
-##                early      brackets open this many ranks sooner
+##                early      brackets open this many ranks sooner (two: about a bracket)
 ##                prize      a share more on a bracket's prize (renown and crystals)
 ##                fee_cut    a share off the entry fee
 ##   outfitter  the Outfitter's Car (train.gd, shop.gd):
@@ -56,7 +56,7 @@ static var SOCIAL := {
 		"rivals": {"text": "Climbers trade a little kinder: they ask a tenth less.", "friendly": true, "trade_ask": 0.9},
 	},
 	"contender": {
-		"tourney": {"text": "Brackets open a rank sooner, and entry costs half.", "early": 1, "fee_cut": 0.5},
+		"tourney": {"text": "Brackets open two ranks sooner, and entry costs half.", "early": 2, "fee_cut": 0.5},
 		"rivals": {"text": "Climbers take your bets.", "bets": true},
 	},
 	"beastfeller": {
@@ -90,7 +90,7 @@ static var SOCIAL := {
 		"travel": {"text": "Fares cost a quarter less.", "fare_cut": 0.25},
 	},
 	"ironclad": {
-		"tourney": {"text": "Brackets open a rank sooner, and prizes are a quarter bigger.", "early": 1, "prize": 0.25},
+		"tourney": {"text": "Brackets open two ranks sooner, and prizes are a quarter bigger.", "early": 2, "prize": 0.25},
 		"outfitter": {"text": "One more Fine piece hangs on his rail for you.", "first_look": 1},
 	},
 	"goldhand": {
@@ -102,7 +102,7 @@ static var SOCIAL := {
 		"rivals": {"text": "Climbers take your bets.", "bets": true},
 	},
 	"champion": {
-		"tourney": {"text": "Brackets open a rank sooner, entry is free, and prizes are half again as big.", "early": 1, "fee_cut": 1.0, "prize": 0.5},
+		"tourney": {"text": "Brackets open two ranks sooner, entry is free, and prizes are half again as big.", "early": 2, "fee_cut": 1.0, "prize": 0.5},
 		"outfitter": {"text": "He takes 8% off, and today's piece comes a rarity higher.", "discount": 0.08, "today": true},
 	},
 	"talked_of": {

@@ -10,7 +10,7 @@ extends RefCounted
 ## the stair (objective.gd runs it; floors.gd asks `place` for the pieces).
 ##
 ## The kinds are plain data (names, words, counts, timings: all in the Data
-## editor). Each of the eight puzzles (puzzles/catalog.gd) is a kind too:
+## editor). Each of the twelve puzzles (puzzles/catalog.gd) is a kind too:
 ## then the gallery holds that puzzle, and solving it is the task.
 ##   braziers   stand by each brazier until it catches; a blow puts out the
 ##              one you're lighting
@@ -25,6 +25,14 @@ extends RefCounted
 ##              charges
 ##   shards     gather the key shards, each guarded, in different rooms
 ##   motes      catch the motes that drift away from you, in different rooms
+##   marked     slay the creatures the beast has marked, in different rooms
+##   rifts      strike each rift shut; while you're near, it lets creatures
+##              through
+##   urns       break the urns to find the stair's key (one hums as you
+##              come near); an empty one may hold a creature
+##   wisp       find the lost wisp and lead it to the stair: it follows while
+##              you stay close, and hides while creatures are near it
+## (Twelve shared kinds and six of the towers' own: eighteen, by sixes.)
 ## The towers' own kinds (each only in its tower, run by its floor script):
 ##   sluices    (the Kraken's) the way into the stair room is flooded deep;
 ##              turn each sluice wheel (stand at it) to drain it
@@ -71,6 +79,17 @@ static var KINDS := {
 		"status": "Motes caught %d of %d", "piece": "Mote", "count": [[3, 4], [8, 5], [99, 6]], "weight": 0.9,
 		"flee": 150.0, "speed": 0.62, "names": {"gryphon": "Catch the Wind Motes", "kraken": "Catch the Tide Motes",
 			"wyvern": "Catch the Ember Motes", "manticore": "Catch the Sand Motes", "firebird": "Catch the Spark Motes", "chimera": "Catch the Seed Motes"}},
+	"marked": {"name": "Slay the Marked", "hint": "The beast has marked some of its creatures with its sign. Hunt every one of them down.",
+		"status": "Marked slain %d of %d", "piece": "Marked", "count": [[3, 2], [99, 3]], "weight": 1.0, "hp": 1.5},
+	"rifts": {"name": "Close the Rifts", "hint": "Rifts in the floor let the beast's creatures through while you're near. Strike each one shut.",
+		"status": "Rifts closed %d of %d", "piece": "Rift", "count": [[4, 2], [99, 3]], "weight": 1.0,
+		"strikes": 3, "every": 6.5, "alive": 2, "most": 5, "near": 240.0},
+	"urns": {"name": "Search the Urns", "hint": "The stair's key is hidden in one of the urns. Break them to search; the right one hums as you come near.",
+		"status": "Urns searched %d of %d", "piece": "Urn", "count": [[3, 4], [7, 5], [99, 6]], "weight": 1.0,
+		"hum": 150.0, "lurker": 0.3},
+	"wisp": {"name": "Lead the Lost Wisp", "hint": "A lost wisp waits far from the stair. It follows while you stay close, and hides while creatures are near it. Lead it to the stair.",
+		"status": "Find the lost wisp", "status_led": "Lead the wisp to the stair", "status_hiding": "The wisp hides: clear the creatures near it",
+		"piece": "Wisp", "pedestal": "Stair", "count": [[99, 1]], "weight": 1.0, "follow": 150.0, "speed": 0.7, "fear": 110.0},
 	"sluices": {"name": "Drain the Stairwell", "hint": "The way to the stair is flooded. Turn every sluice wheel to send the water elsewhere.",
 		"status": "Sluices turned %d of %d", "piece": "Sluice", "count": [[4, 2], [99, 3]], "weight": 1.6,
 		"towers": ["kraken"], "module": "res://scripts/towers/kraken_floor.gd",
@@ -124,6 +143,13 @@ static var TEXT := {
 	"asleep": "It sleeps. Cut the one that's awake",
 	"wakes": "Another heart-root wakes",
 	"recede": "The thorns recede from the stair",
+	"marked_falls": "A marked creature falls",
+	"rift_shut": "The rift closes",
+	"urn_empty": "Empty",
+	"urn_lurker": "Something was inside",
+	"urn_key": "The stair's key!",
+	"wisp_found": "The wisp follows you",
+	"wisp_hides": "The wisp hides",
 }
 ## When it's done: essence at the stair (this, plus this much a floor).
 static var REWARD := {"essence": 6.0, "per_floor": 2.0, "light": 230.0}
@@ -190,7 +216,7 @@ static func pick(floor_num: int, tid: String) -> String:
 		if allowed(k, tid):
 			table[k] = float(KINDS[k].get("weight", 1.0))
 	for k in Catalog.TYPES:
-		table[k] = float(PUZZLE_WEIGHT["signature"] if Catalog.SIGNATURE.get(tid, "") == k else PUZZLE_WEIGHT["base"])
+		table[k] = float(PUZZLE_WEIGHT["signature"] if Catalog.is_signature(k, tid) else PUZZLE_WEIGHT["base"])
 	var fresh := {}
 	for k in table:
 		if not (k in climb_used):
@@ -291,7 +317,7 @@ static func place(kind: String, infos: Array, adj: Array, monsters: Array, stair
 			if not spec.has("tablet"):
 				return {}
 			return spec
-		"orb":
+		"orb", "wisp":
 			var far: Array = cands.duplicate()
 			far.sort_custom(func(a, b): return _far_score(a, dist, adj, stair_i) > _far_score(b, dist, adj, stair_i))
 			for i in far:

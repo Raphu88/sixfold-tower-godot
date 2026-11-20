@@ -100,7 +100,7 @@ static var PIECE_ARMOR := "leather"
 static var TIERS := [
 	{"name": "First tier", "title_rank": 0, "fee": 2, "renown": 2},
 	{"name": "Second tier", "title_rank": 1, "fee": 4, "renown": 3},
-	{"name": "Third tier", "title_rank": 3, "fee": 6, "renown": 4},
+	{"name": "Third tier", "title_rank": 4, "fee": 6, "renown": 4},
 ]
 
 ## Advanced and mark lessons (the arena runs them as lessons: stations.gd's

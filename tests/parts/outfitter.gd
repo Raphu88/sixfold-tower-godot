@@ -136,7 +136,7 @@ func _opening() -> void:
 	Renown.state(p)["points"] = Renown.needed(2)
 	t._check(Out.status(p, "scroll_aside") == "open" and Out.status(p, "better_share") == "locked", "...then opens; the one after waits for it")
 	# A node that needs a title: the title must be granted.
-	var q = _at(5, 500.0)
+	var q = _at(Renown.OLD_RANKS[5], 500.0)
 	_own(q, ["fair_price", "scroll_aside", "better_share", "regular"])
 	t._check(Out.status(q, "old_friend") == "locked" and Out.locks(q, "old_friend").size() == 1 and String(Out.locks(q, "old_friend")[0]).contains(Renown.title_name("goldhand")),
 		"a node that needs a title says which (%s)" % [Out.locks(q, "old_friend")])
@@ -148,7 +148,7 @@ func _opening() -> void:
 # --- prices ------------------------------------------------------------------------------------------
 
 func _prices() -> void:
-	var p = _at(6, 500.0)
+	var p = _at(Renown.OLD_RANKS[6], 500.0)
 	var g := Gear.make("plate", "fine", Gear.roll_traits("plate", "fine"))
 	var full := Train.buy_price(p, g)
 	var scroll := int(Train.supply_price(p, "scroll")[1])
@@ -180,7 +180,7 @@ func _prices() -> void:
 # --- stock ---------------------------------------------------------------------------------------------
 
 func _stock() -> void:
-	var p = _at(5, 500.0)
+	var p = _at(Renown.OLD_RANKS[5], 500.0)
 	var rack := Train.rack_size(p)
 	var charms := Shop.charm_count(p)
 	_own(p, ["wide_rack"])
@@ -193,7 +193,7 @@ func _stock() -> void:
 	t._check(Out.today_odds(p, Train.TODAY_ODDS) == Train.TODAY_ODDS, "without better stock, today's piece rolls as it did")
 	_own(p, ["better_stock"])
 	t._check(Out.today_odds(p, Train.TODAY_ODDS) == Out.STOCK_ODDS and Out.fine_floor(p) == int(Out.FX["rack_fine"]), "better stock: today's odds and Fine pieces on the rail")
-	var low = _at(5)
+	var low = _at(Renown.OLD_RANKS[5])
 	var always := true
 	var none_without := 0
 	_own(p, ["rare_hook"])
@@ -208,7 +208,7 @@ func _stock() -> void:
 	_own(p, ["special_order"])
 	var g0: Dictionary = Train.outfit(p)[0]
 	t._check(Train.hold(p, 0) == "" and Gear.same(Train.order(p), g0), "the special order holds a piece for you")
-	Renown.state(p)["points"] = Renown.needed(6)
+	Renown.state(p)["points"] = Renown.needed(Renown.OLD_RANKS[6])
 	Renown.state(p)["titles"] = ["beastfeller"]
 	t._check(Out.unique(p).is_empty() and Out.buy(p, "relic_offer") == "", "a Beastfeller at the top rank buys a relic, offered once")
 	var relic := Out.unique(p)
@@ -219,13 +219,13 @@ func _stock() -> void:
 	Out._offer_relic(p)
 	t._check(Out.unique(p).is_empty(), "...and never offered again")
 	# Rank still opens weapons and the shelf (the trunk).
-	t._check(Train.rack_size(_at(1)) > Train.rack_size(_at(0)) and Train.rack_size(_at(6)) > Train.rack_size(_at(3)), "the trunk: every rank adds rail spaces, free")
+	t._check(Train.rack_size(_at(1)) > Train.rack_size(_at(0)) and Train.rack_size(_at(Renown.OLD_RANKS[6])) > Train.rack_size(_at(Renown.OLD_RANKS[3])), "the trunk: every rank adds rail spaces, free")
 
 
 # --- gifts and word ---------------------------------------------------------------------------------------
 
 func _gifts_and_word() -> void:
-	var p = _at(4, 300.0)
+	var p = _at(Renown.OLD_RANKS[4], 300.0)
 	p.last_tower = "kraken"
 	p.climbs = 3
 	var water := float(p.crystal_total("water"))
@@ -246,13 +246,13 @@ func _gifts_and_word() -> void:
 	p.store = {}
 	Train.stock(p)
 	t._check(p.chest.size() == stash, "a gift for each rank: nothing until you rise")
-	Renown.state(p)["points"] = Renown.needed(5)
+	Renown.state(p)["points"] = Renown.needed(Renown.OLD_RANKS[4] + 1)
 	p.store = {}
 	Train.stock(p)
-	t._check(p.chest.size() == stash + 1 and Gear.rarity(p.chest[-1]) == "fine" and Array(p.store["word"]).any(func(w): return String(w).contains(Renown.rank_name(5))),
+	t._check(p.chest.size() == stash + 1 and Gear.rarity(p.chest[-1]) == "fine" and Array(p.store["word"]).any(func(w): return String(w).contains(Renown.rank_name(Renown.OLD_RANKS[4] + 1))),
 		"...a Fine piece into your stash on a new rank, and he says for which")
 	# Climbers' talk: a monster's weakness, into the Bestiary.
-	var q = _at(3, 300.0)
+	var q = _at(Renown.OLD_RANKS[3], 300.0)
 	q.last_tower = "kraken"
 	q.climbs = 2
 	_own(q, ["tower_tip", "best_buy", "weak_spot"])
@@ -271,7 +271,7 @@ func _old_saves() -> void:
 		var path := TestRun.path("user://outfitter_old.cfg")
 		var cfg := ConfigFile.new()
 		cfg.set_value("profile", "regarded", true)
-		cfg.set_value("renown", "state", {"points": Renown.needed(int(case[0])), "order": ""})
+		cfg.set_value("renown", "state", {"points": Renown.needed(Renown.OLD_RANKS[int(case[0])]), "order": ""})
 		cfg.set_value("train", "store", {"outfit": ["", ""], "today": ""})
 		cfg.save(path)
 		var p = ProfileScript.new()
@@ -282,9 +282,9 @@ func _old_saves() -> void:
 		got.sort()
 		var want: Array = case[1].duplicate()
 		want.sort()
-		t._check(got == want, "an old save at the rank of %s keeps its upgrades as nodes of the tree (%s)" % [Renown.rank_name(int(case[0])), got])
+		t._check(got == want, "an old save at the rank of %s keeps its upgrades as nodes of the tree (%s)" % [Renown.rank_name(Renown.OLD_RANKS[int(case[0])]), got])
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	var p2 = _at(5, 100.0)
+	var p2 = _at(Renown.OLD_RANKS[5], 100.0)
 	t._check(Train.upgraded(p2, "order") == false and Train.rack_size(p2) == Train.RACK_SIZE + Shop.rail_extra(p2), "a new climber at the same rank has bought nothing yet")
 	_own(p2, ["special_order"])
 	t._check(Train.upgraded(p2, "order"), "an old upgrade's id still names its node")
@@ -393,7 +393,7 @@ func _tree_ui(main) -> void:
 		"the tree marks a node bought, open or locked")
 	var up: Control = tv.buttons["charm_tray"].find_valid_focus_neighbor(SIDE_TOP) if tv != null else null
 	var across: Control = tv.buttons["charm_tray"].find_valid_focus_neighbor(SIDE_RIGHT) if tv != null else null
-	t._check(up == tv.buttons["better_stock"] and across != null and String(across.get_meta("slot", "")).begins_with("tree:"), "the keys and a controller step from node to node (up: %s)" % (up.get_meta("slot", "") if up != null else "none"))
+	t._check(up != null and String(up.get_meta("slot", "")).begins_with("tree:") and up.position.y < tv.buttons["charm_tray"].position.y and across != null and String(across.get_meta("slot", "")).begins_with("tree:"), "the keys and a controller step from node to node (up: %s)" % (up.get_meta("slot", "") if up != null else "none"))
 	var labels: Array = t._all_labels(menu.details).map(func(l): return l.text)
 	t._check(labels.has(Out.node_desc("charm_tray")) and labels.any(func(s): return s.contains(Renown.rank_name(2))) and labels.any(func(s): return s.contains(Out.node_name("wide_rack"))),
 		"its card says what it does and what opens it (%s)" % [labels])
@@ -450,11 +450,11 @@ func _phone(main) -> void:
 	var nodes: Array = t._all_buttons(menu.train_page.roots["store"]).filter(func(b): return String(b.get_meta("slot", "")).begins_with("tree:") and b.is_visible_in_tree())
 	t._check(menu.train_store == "tree" and nodes.size() == Out.all_ids().size(), "a tap shows the tree (%d nodes)" % nodes.size())
 	t._check(nodes.all(func(b): return b.size.y >= 36.0 and b.size.x >= 36.0), "...every node big enough for a finger (36 or more)")
-	var node = nodes.filter(func(b): return b.get_meta("slot") == "tree:wide_rack")
+	var node = nodes.filter(func(b): return b.get_meta("slot") == "tree:relic_offer")
 	if not node.is_empty():
 		await t._tap_at(node[0].get_global_transform_with_canvas() * (node[0].size / 2.0))
 		await t._frames(3)
-	t._check(menu.inv_sel == "tree:wide_rack", "a tap on a node shows its card")
+	t._check(menu.inv_sel == "tree:relic_offer", "a tap on a node shows its card (one near your rank, where the tree opens)")
 	var back: Array = t._car_buttons("store_tab", "shop")
 	if back.size() == 1:
 		await t._tap_at(back[0].get_global_rect().get_center())

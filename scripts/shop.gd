@@ -39,14 +39,21 @@ const Needs := preload("res://scripts/tower_needs.gd")
 const TRAIN := "res://scripts/train.gd"  # (loaded when needed: the train preloads this)
 
 ## One row per renown rank, Unknown first.
+## (Twelve rows for the twelve ranks: the seven older ranks keep their old
+## rows; the five between them and on top take a small step each.)
 static var RANK_STOCK := [
 	{"rail": 0, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 6},
 	{"rail": 1, "charms": 0, "fine": 0, "rare": 0, "named": 0, "relic": 0, "kinds": 8},
 	{"rail": 2, "charms": 0, "fine": 10, "rare": 0, "named": 0, "relic": 0, "kinds": 10},
+	{"rail": 2, "charms": 0, "fine": 18, "rare": 0, "named": 0, "relic": 0, "kinds": 10},
 	{"rail": 3, "charms": 1, "fine": 25, "rare": 0, "named": 0, "relic": 0, "kinds": 11},
+	{"rail": 3, "charms": 1, "fine": 28, "rare": 3, "named": 4, "relic": 0, "kinds": 11},
 	{"rail": 4, "charms": 1, "fine": 30, "rare": 6, "named": 8, "relic": 0, "kinds": 12},
+	{"rail": 5, "charms": 1, "fine": 32, "rare": 8, "named": 10, "relic": 4, "kinds": 12},
 	{"rail": 6, "charms": 2, "fine": 35, "rare": 10, "named": 12, "relic": 8, "kinds": 13},
+	{"rail": 7, "charms": 2, "fine": 38, "rare": 12, "named": 15, "relic": 12, "kinds": 13},
 	{"rail": 8, "charms": 2, "fine": 40, "rare": 14, "named": 18, "relic": 16, "kinds": 14},
+	{"rail": 8, "charms": 2, "fine": 42, "rare": 15, "named": 20, "relic": 18, "kinds": 14},
 ]
 
 ## The supplies that are always on his shelf.
@@ -60,18 +67,18 @@ static var SHELF_RANK := {
 	"edge_oil": 1, "antidote": 1,
 	"salts": 2, "flare": 2, "warding_oil": 2, "tincture_water": 2, "tincture_fire": 2, "tincture_air": 2,
 	"tincture_stone": 2, "tincture_iron": 2, "tincture_blade": 2,
-	"haste": 3, "stoneskin": 3, "heartroot": 3,
-	"net": 4, "lodestone": 4, "briar_tonic": 4, "springheel": 4,
-	"lantern_oil": 5, "gale_feather": 5, "stillwater": 5,
-	"unmaking_ash": 6, "seeing_scroll": 6, "thunder_jar": 6,
+	"haste": 4, "stoneskin": 4, "heartroot": 4,
+	"net": 6, "lodestone": 6, "briar_tonic": 6, "springheel": 6,
+	"lantern_oil": 8, "gale_feather": 8, "stillwater": 8,
+	"unmaking_ash": 10, "seeing_scroll": 10, "thunder_jar": 10,
 }
 
 ## The rank a weapon starts to hang on the rail at (not listed: from the start).
 static var WEAPON_RANK := {
 	"cane": 1, "longbow": 1, "flail": 1,
 	"flintlock": 2, "crossbow": 2, "sword_cane": 2, "rapier": 2,
-	"greatsword": 3, "war_hammer": 3,
-	"revolver": 4,
+	"greatsword": 4, "war_hammer": 4,
+	"revolver": 6,
 }
 
 ## The slots a title can tilt toward, by group.

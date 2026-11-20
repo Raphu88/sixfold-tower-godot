@@ -2079,11 +2079,11 @@ func _puzzle_tests() -> void:
 		var tid: String = main.Towers.ORDER[n % 6]
 		var k: String = C.pick(2 + n % 10, tid)
 		picks[k] = true
-		if C.SIGNATURE.get(tid, "") == k:
+		if C.is_signature(k, tid):
 			sig[tid] = int(sig.get(tid, 0)) + 1
 	_check(picks.size() == C.TYPES.size(), "every kind of puzzle turns up (%s)" % [picks.keys()])
-	_check(int(sig.get("gryphon", 0)) > 35 and int(sig.get("wyvern", 0)) > 35 and int(sig.get("manticore", 0)) > 35,
-		"the Gryphon favours mirrors, the Wyvern the crumbling path, the Manticore the statues (%s of 100 each)" % [sig])
+	_check(int(sig.get("gryphon", 0)) > 45 and int(sig.get("wyvern", 0)) > 45 and int(sig.get("manticore", 0)) > 45,
+		"each tower favours its own two (the Gryphon mirrors and eyes, the Wyvern the crumbling path and the crucible, the Manticore statues and plates: %s of 100 each)" % [sig])
 	_check(C.tier_for(2) == 1 and C.tier_for(3) == 1 and C.tier_for(4) == 2 and C.tier_for(8) == 2 and C.tier_for(9) == 3 and C.tier_for(11) == 3,
 		"tiers: 1 on floors 2-3, 2 on 4-8, 3 on 9-11")
 	_check(C.mode_for(3) == "quiet" and C.mode_for(C.PRESSURE_FROM) == "pressure", "quiet mode low down, pressure mode higher up")
@@ -2110,6 +2110,11 @@ func _puzzle_tests() -> void:
 	var p = main.player
 	var pz = main.puzzle
 	main._start_floor(3)
+	if main.objective.kind == "marked":
+		var Obj = load("res://scripts/objectives.gd")
+		Obj.forced = "shards"  # (slaying the marked is that task: killing every monster would do it)
+		main._start_floor(3)
+		Obj.forced = ""
 	for e in main.enemies():
 		e.set_physics_process(false)
 	await _frames(2)

@@ -144,6 +144,58 @@ static func reserved(ctx: Dictionary, t: Vector2i) -> bool:
 	return ctx.get("reserved", {}).has(t)
 
 
+## Where a block of `size` local tiles fits, centred in the room as near as
+## it can be, with `margin` tiles of open floor round it, every tile open and
+## none kept clear: its top-left tile, or Vector2i(-1, -1) if it won't fit.
+## (The lanterns, the bells, the crucible's floor and the pods use it.)
+static func fit_block(ctx: Dictionary, size: Vector2i, margin := 1) -> Vector2i:
+	var rows: Array = ctx.get("rows", [])
+	if rows.is_empty():
+		return Vector2i(-1, -1)
+	var w := String(rows[0]).length()
+	var h := rows.size()
+	var mid := Vector2i((w - size.x) / 2, (h - size.y) / 2)
+	for shift in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+		var o: Vector2i = mid + shift
+		if o.x - margin < 0 or o.y - margin < 0 or o.x + size.x + margin > w or o.y + size.y + margin > h:
+			continue
+		var ok := true
+		for y in range(o.y - margin, o.y + size.y + margin):
+			for x in range(o.x - margin, o.x + size.x + margin):
+				var t := Vector2i(x, y)
+				ok = ok and open_tile(ctx, t) and not reserved(ctx, t)
+				if not ok:
+					break
+			if not ok:
+				break
+		if ok:
+			return o
+	return Vector2i(-1, -1)
+
+
+## The local tiles of a block and its margin (a spec's "reserve").
+static func block_tiles(o: Vector2i, size: Vector2i, margin := 1) -> Array:
+	var out: Array = []
+	for y in range(o.y - margin, o.y + size.y + margin):
+		for x in range(o.x - margin, o.x + size.x + margin):
+			out.append(Vector2i(x, y))
+	return out
+
+
+## The nearest of `list` (dictionaries with "pos") in a swing, or null.
+func nearest_in_swing(list: Array, from: Vector2, dir: Vector2, reach: float, arc_deg: float, ok := Callable()):
+	var best = null
+	var best_d := INF
+	for q in list:
+		if ok.is_valid() and not ok.call(q):
+			continue
+		var d: float = from.distance_to(q["pos"])
+		if d < best_d and in_swing(from, dir, q["pos"], reach, arc_deg):
+			best_d = d
+			best = q
+	return best
+
+
 ## Whether a swing from `from` toward `dir` reaches `at`.
 func in_swing(from: Vector2, dir: Vector2, at: Vector2, reach: float, arc_deg: float, slack := 18.0) -> bool:
 	var to := at - from
