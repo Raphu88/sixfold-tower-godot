@@ -33,6 +33,7 @@ var guest := 0.0  # the interrupter's presence, 0..1
 var guest_to := 0.0
 var listening := false
 var options: Array = []
+var confront := false  # it comes to confront a climber who slips past the stairs' barriers (climb_shape.gd)
 var _last_us := 0
 
 
@@ -40,7 +41,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	options = makers.answers()
+	options = makers.confront_answers() if confront else makers.answers()
 	_last_us = Time.get_ticks_usec()
 
 
@@ -144,7 +145,7 @@ func advance() -> void:
 func choose(i: int) -> void:
 	if stage != "answer" or i < 0 or i >= options.size() or not can_advance():
 		return
-	result = makers.answer(maker, String(options[i]["id"]))
+	result = makers.confront_answer(maker, String(options[i]["id"])) if confront else makers.answer(maker, String(options[i]["id"]))
 	if way == "contradict" and interrupter != "":
 		result["lines"].append(Makers.TEXT["contradict"] % Makers.MAKERS[interrupter]["Name"])
 	elif listening:
@@ -229,12 +230,12 @@ func _draw() -> void:
 	var lines: Array = []
 	match stage:
 		"speech", "rise":
-			lines = Makers.MAKERS[maker]["speech"]
+			lines = _speech()
 		"interrupt":
 			speaker = interrupter
 			lines = Makers.MAKERS[interrupter]["interrupt"]
 		"answer":
-			lines = [Makers.MAKERS[maker]["speech"][-1]]
+			lines = [_speech()[-1]]
 		"verdict":
 			lines = [result.get("reply", "")] if String(result.get("reply", "")) != "" else []
 			if result.get("reply", "") == "" and interrupter != "":
@@ -273,6 +274,11 @@ func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(clock * 4.0)
 		var prompt: String = _say("Press Enter or click", "Press {a}", "Tap") + " " + Makers.TEXT["go_on"]
 		UI.draw_text(self, font, Vector2(0, vs.y - 16.0), prompt, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, Color(UI.DIM, 0.5 + 0.5 * pulse))
+
+
+## What it says as it shows itself: its own speech, or its confrontation's.
+func _speech() -> Array:
+	return main.climb_shape.CONFRONT["speech"] if confront else Makers.MAKERS[maker]["speech"]
 
 
 func _draw_cards(vs: Vector2, font: Font, col: Color) -> void:

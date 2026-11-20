@@ -1935,7 +1935,7 @@ func _climber_marks(prof) -> void:
 	if Unbound.is_on(prof):
 		_note(TechniquePage.TEXT["climber_note"])
 	elif prof.bonds.is_empty():
-		_note("Your first climb is bondless. Reach the top and the tower's beast takes notice: the body part you used most takes your first mark.")
+		_note("Your first climb starts with no mark. Reach floor 6 and the tower's guardian takes notice: the body part you used most takes your first mark.")
 	else:
 		_note("Bonds grow across climbs from the essence you bank at each stair, up to step 5. Choose a mark to see every spell, what each step brings, and its body and passive effects.")
 
@@ -2033,7 +2033,7 @@ func _climber_record(prof) -> void:
 	_pair(g, "Tower", t["name"], Essence.color(t["essence"]))
 	_pair(g, "Floor", "%d" % main.floor_num)
 	_pair(g, "Essence", "%s" % Essence.display(t["essence"]), Essence.color(t["essence"]))
-	_pair(g, "Kind of climb", "the bondless first climb" if main.first_climb else "a climb with your marks")
+	_pair(g, "Kind of climb", "the first climb, before the Regard" if main.first_climb else "a climb with your marks")
 	_section("Your record", left)
 	var r := _grid_in(left)
 	if compact():

@@ -4,10 +4,12 @@ extends RefCounted
 ## your last mark. Each climber is saved in their own slot's file (slots.gd:
 ## user://climber_1.cfg to climber_6.cfg); save_path says which.
 ##
-## The first climb is bondless. It ends in the Regard: the tower's beast
-## takes notice and your most-used body part takes its first mark. Fall
-## during the first climb and you're still regarded, but the mark is faint:
-## it must soak up FAINT_DEBT essence before it can grow.
+## The first climb starts with no mark. Floor 6 opens with the Regard: the
+## tower's beast takes notice and your most-used body part takes its first
+## mark (climb_shape.gd). Fall before it and you're still regarded, but the
+## mark is faint, as strong as the floor you reached (climb_shape.gd
+## DEATH_MARK): it must soak up its debt of essence (FAINT_DEBT for a mark
+## at FAINT_POWER, more for a weaker one) before it can grow.
 
 const Bonds := preload("res://scripts/bonds.gd")
 const Gear := preload("res://scripts/gear.gd")
@@ -18,8 +20,12 @@ const Flow := preload("res://scripts/essence_flow.gd")
 ## Slot 1's file (main.gd points save_path at the current slot's: slots.gd).
 const SAVE_PATH := "user://climber_1.cfg"
 
-const FIRST_CLIMB_FLOORS := 3
+## The floor the first climb's Regard opens (climb_shape.gd REGARD).
+const FIRST_CLIMB_FLOORS := 6
 static var FAINT_DEBT := 80.0
+## A faint mark's usual strength (a fall's chance mark); its debt is
+## FAINT_DEBT at this strength, and grows as the strength falls.
+const FAINT_POWER := 0.75
 ## Growth needed to reach each step (index = step - 1). Only the marks' share
 ## of what you bank grows marks (essence_flow.gd SPLIT): each kind goes to the
 ## marks of that kind and counts AFFINITY_WEIGHT; a kind no mark is made of
@@ -627,9 +633,13 @@ func choose_bond(essence: Dictionary, style: Dictionary = {}) -> String:
 	return best
 
 
-## Marks a body part with a bond. Faint marks owe FAINT_DEBT essence first.
-func add_bond(part: String, id: String, faint: bool) -> void:
-	bonds[part] = {"id": id, "xp": 0.0, "faint": faint, "debt": FAINT_DEBT if faint else 0.0}
+## Marks a body part with a bond. Faint marks owe essence first: FAINT_DEBT
+## at FAINT_POWER, scaled by how far short of full `strength` is (a first
+## mark from a death: climb_shape.gd DEATH_MARK; -1 for FAINT_POWER).
+func add_bond(part: String, id: String, faint: bool, strength := -1.0) -> void:
+	var power: float = (strength if strength > 0.0 else FAINT_POWER) if faint else 1.0
+	var debt: float = FAINT_DEBT * (1.0 - power) / (1.0 - FAINT_POWER) if faint else 0.0
+	bonds[part] = {"id": id, "xp": 0.0, "faint": faint, "debt": debt, "power": power}
 	soak.erase(part)
 	tally = {}
 

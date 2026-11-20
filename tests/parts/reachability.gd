@@ -270,8 +270,10 @@ func _regard_once() -> void:
 	main.end_regard()
 	_check(main.camp_choosing and main.camp.get("stage", "") == "unbind", "dismissing it offers to accept or refuse the mark")
 	main.unbound.choose(0)  # accept
+	_check(main.camp_choosing and main.camp.get("stage", "") == "exit", "accepting moves on to the guardian's exit (climb_shape.gd)")
+	main.choose_camp(0)  # leave with the mark
 	var heir: bool = main.camp_choosing and main.camp.get("stage", "") == "heirloom"
-	_check(heir, "accepting moves on to the heirloom choice")
+	_check(heir, "leaving moves on to the heirloom choice")
 	if heir:
 		main.keep_heirloom("")
 	_check(not main.camp_choosing and main.regard.is_empty(), "keeping an heirloom ends the Regard (the game reloads into the train: the climber is regarded now)")

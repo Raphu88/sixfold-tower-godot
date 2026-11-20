@@ -454,14 +454,16 @@ static func kill_drop(floor_num: int, marked := true, tower := "", chance := DRO
 # --- camps ---------------------------------------------------------------------
 
 ## On climbs of at least CAMP_MIN_FLOORS, taking the stair of each of these
-## floors leads to a camp first: a safe room with a fire, a full rest and an
-## item to take. (Camps aren't floors: the next floor is still the next one.)
-const CAMP_AFTER := [3, 9]
+## floors leads to a camp first: a safe room with a fire, a full rest and a
+## card to take. Three camps a climb, the first climb's too. (Camps aren't
+## floors: the next floor is still the next one.)
+const CAMP_AFTER := [3, 6, 9]
 const CAMP_MIN_FLOORS := 5
-## How many item cards a camp offers (beside a crystal of the tower's essence,
-## a smaller crystal of another kind and a piece of gear: main.gd
-## _enter_camp). One: the rarer items are rare.
+## How many item cards a camp offers (beside a crystal of the tower's essence
+## and a piece of gear: main.gd _enter_camp). One: the rarer items are rare.
 const CAMP_CHOICES := 1
+## The cards a camp offers in all: the item, the crystal and the gear.
+const CAMP_CARDS := 3
 
 static var CAMP := {
 	"title": "CAMP",

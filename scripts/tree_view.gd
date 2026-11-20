@@ -47,7 +47,7 @@ static var TEXT := {
 	"head_unbound": "%s  ·  level %d of 12",
 	"head_none": "%s  ·  no mark yet",
 	"none": "No mark here yet. This part %s; once it's full, a summit marks it.",
-	"first": "Your first climb is bondless. At its top the tower's beast takes notice, and the part you used most takes your first mark. Its tree grows here.",
+	"first": "No mark yet. On your first climb, floor 6 opens with the Regard: the tower's guardian takes notice, and the part you used most takes your first mark. Its tree grows here.",
 	"or": "or",
 	"steps": "Steps %d–%d",
 	"steps_short": "steps %d–%d",
