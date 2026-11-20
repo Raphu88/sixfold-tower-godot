@@ -581,19 +581,31 @@ static func _mail(b, region: PackedVector2Array, col: Color, step := 5.0) -> voi
 		row += 1
 
 
-## Behind everything: a backpack's bag over the shoulders, its bedroll on top.
+## Behind everything: a backpack's bag behind the shoulders, its bedroll on top.
 static func front_behind(b, lk: Dictionary) -> void:
 	if String(lk.get("pack", "")) != "pack":
 		return
+	# The bag behind the shoulders (its top just over them), the bedroll
+	# rolled across its top, behind the neck, its rolled ends peeking out
+	# over the shoulders. Scaled with the build.
 	var pc: Color = lk.get("pack_col", Palette.WOOD)
-	var bag := _p([-34, -92, 34, -92, 38, -40, -38, -40])
+	var wx: float = lk.get("wx", 1.0)
+	var bag := _sx(_p([-29, -80, 29, -80, 33, -38, -33, -38]), wx)
 	b.poly(bag, pc.darkened(0.12), 1.6)
-	b.polygon(_p([-34, -92, 0, -92, 0, -40, -38, -40]), pc)
-	# The bedroll strapped on top.
-	b.poly(_p([-40, -104, 40, -104, 42, -92, -42, -92]), pc.lightened(0.2), 1.4)
-	for x in [-26.0, 26.0]:
-		b.line(Vector2(x, -105), Vector2(x, -91), pc.darkened(0.45), 2.0)
+	b.polygon(_sx(_p([-29, -80, 0, -80, 0, -38, -33, -38]), wx), pc)
 	_trim(b, lk, "backpack", bag)
+	var roll := pc.lightened(0.2)
+	var y := -80.0
+	var rl := 36.0 * wx
+	b.stroke(Vector2(-rl, y), Vector2(rl, y), roll, 9.0)
+	b.line(Vector2(-rl, y - 2.2), Vector2(rl, y - 2.2), Color(roll.lightened(0.3), 0.5), 1.4)
+	for x in [-20.0, 20.0]:
+		b.line(Vector2(x * wx, y - 5.4), Vector2(x * wx, y + 5.4), pc.darkened(0.45), 2.2)
+	for sg in [-1.0, 1.0]:
+		var end := Vector2(sg * rl, y)
+		b.dot(end, 4.5, roll.darkened(0.06 if sg < 0.0 else 0.22))
+		b.arc(end, 2.4, 0.0, TAU * 0.85, 9, Color(pc.darkened(0.4), 0.85), 1.0)
+		b.dot(end, 0.9, Color(pc.darkened(0.4), 0.85))
 
 
 ## Over the legs: the boots (studs, laces, tall wading boots), a fine pair's edge.
