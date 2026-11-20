@@ -43,6 +43,17 @@ static var DROPS := {
 	"ashwing": ["fire", 4.5],  # (the Firebird's tower: scripts/towers/ashwing.gd)
 	"briar": ["blade", 5.0],  # (the Chimera's tower: scripts/towers/briar.gd)
 	"mimic": ["iron", 2.0],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
+	"husk": ["iron", 5.0],  # (every tower: scripts/foes/)
+	"bellringer": ["iron", 2.0],
+	"squall": ["air", 3.0],  # (the Gryphon's tower)
+	"rookery": ["air", 3.0],
+	"stormstone": ["air", 4.0],
+	"inkling": ["water", 3.0],  # (the Kraken's tower)
+	"drowned": ["water", 5.0],
+	"driftbell": ["water", 3.0],
+	"stoker": ["fire", 4.0],  # (the Wyvern's tower)
+	"slagworm": ["fire", 4.0],
+	"riveter": ["iron", 3.0],
 }
 
 
