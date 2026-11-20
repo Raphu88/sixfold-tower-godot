@@ -173,6 +173,9 @@ func _box(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_help"):
 		show_help = not show_help
+		if main.menu != null:  # (remembered, so it stays as you left it)
+			main.menu.settings["help"] = show_help
+			main.menu.save_settings()
 	var p = main.player
 	if p != null:
 		# The trail holds for a moment, then drains down to the real value.
@@ -747,15 +750,23 @@ func _draw_help(size: Vector2, font: Font) -> void:
 			continue
 		help.append([k, row[0]])
 		key_w = maxf(key_w, font.get_string_size(k, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
-	var box_w := key_w + 176.0
-	var box := Rect2(size.x - box_w - 16.0, 14, box_w, 20 + help.size() * 17)
+	# Wide enough for the longest line (each description fits), never off the screen.
+	var desc_w := 0.0
+	for h in help:
+		desc_w = maxf(desc_w, font.get_string_size(h[1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
+	var title := "Press H to hide this list"
+	desc_w = maxf(desc_w, font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x - key_w - 10.0)
+	var box_w := minf(key_w + desc_w + 34.0, size.x - 32.0)
+	var box := Rect2(size.x - box_w - 16.0, 14, box_w, 38 + help.size() * 17)
 	var pb := Draw.Batch.new()
 	UI.plate_into(pb, box)
 	pb.flush(self)
+	draw_string(font, Vector2(box.position.x + 12, box.position.y + 22), title, HORIZONTAL_ALIGNMENT_LEFT, box_w - 24.0, 14, TEXT.darkened(0.25))
+	var room := box_w - key_w - 34.0  # (a line still too long is cut at the plate's edge, not past it)
 	for i in help.size():
-		var row_y := box.position.y + 24 + i * 17
+		var row_y := box.position.y + 42 + i * 17
 		draw_string(font, Vector2(box.position.x + 12, row_y), help[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, GOLD)
-		draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, TEXT)
+		draw_string(font, Vector2(box.position.x + key_w + 22, row_y), help[i][1], HORIZONTAL_ALIGNMENT_LEFT, room, 14, TEXT)
 
 
 ## The dev readout (dev tools): frame rate, draw calls and what's in the room.
