@@ -611,7 +611,7 @@ func _prize() -> void:
 func _leave_remains() -> void:
 	if main == null or _last.pts.is_empty() or not is_inside_tree():
 		return
-	_spawn_remains(main, position, _last.pts, _last.cols, radius)
+	_spawn_remains(main, position, _last.pts, _last.cols, radius, _last.uvs)
 
 
 # --- drawing ------------------------------------------------------------------------
@@ -659,6 +659,7 @@ func _draw() -> void:
 		ghost[i] += off
 	_last.pts = b.pts.duplicate()
 	_last.cols = b.cols.duplicate()
+	_last.uvs = b.uvs.duplicate()
 	draw_set_transform(Vector2(0, lift))
 	RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), PackedInt32Array(), ghost, gcols)
 	b.flush(self)

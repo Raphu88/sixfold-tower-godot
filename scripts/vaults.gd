@@ -20,6 +20,7 @@ extends Node2D
 
 const Palette := preload("res://scripts/palette.gd")
 const Draw := preload("res://scripts/draw_util.gd")
+const ChestArt := preload("res://scripts/chest_art.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
@@ -429,12 +430,13 @@ func _draw() -> void:
 					_draw_chains(b, c["pos"])
 	b.flush(self)
 	var pulse2 := 0.5 + 0.5 * sin(t * 3.0)
-	for m in mimics:
-		load("res://scripts/mimic.gd").draw_waiting(self, m[0], pulse2, t)
-		if m[1]:
-			var cb := Draw.Batch.new()
-			_draw_chains(cb, m[0]["pos"])
-			cb.flush(self)
+	if not mimics.is_empty():
+		var cb := Draw.Batch.new()
+		for m in mimics:
+			load("res://scripts/mimic.gd").draw_waiting(cb, m[0], pulse2, t)
+			if m[1]:
+				_draw_chains(cb, m[0]["pos"])
+		cb.flush(self)
 	var font := ThemeDB.fallback_font
 	for s in main.wings.secrets:
 		if s["open"] and String(s.get("content", "")) == "tithe" and s.get("vault", "") == "sealed":
@@ -459,18 +461,14 @@ func _draw_floor(b, s: Dictionary, t: float) -> void:
 		b.dot(Vector2(x, r.end.y - f * r.size.y), 1.5, Color(0.8, 0.75, 1.0, 0.5 * sin(f * PI)))
 
 
+## A vault's chest (chest_art.gd): rich, its gear chest in a darker,
+## plum-stained wood; chained while the vault is sealed.
 func _draw_chest(b, c: Dictionary, unchained: bool, pulse: float) -> void:
 	var at: Vector2 = c["pos"]
 	var wood := Color(0.5, 0.36, 0.2) if c["kind"] != "gear" else Color(0.42, 0.3, 0.36)
-	b.rect(Rect2(at + Vector2(-13, -2), Vector2(26, 16)), Palette.OUTLINE)
-	b.rect(Rect2(at + Vector2(-11, 0), Vector2(22, 12)), wood)
+	ChestArt.draw(b, at, {"rich": true, "wood": wood, "ready": unchained, "taken": c["taken"], "pulse": pulse, "t": Time.get_ticks_msec() * 0.001})
 	if c["taken"]:
-		b.rect(Rect2(at + Vector2(-11, -12), Vector2(22, 6)), wood.darkened(0.25))
 		return
-	b.rect(Rect2(at + Vector2(-12, -8), Vector2(24, 9)), wood.lightened(0.1))
-	b.line(at + Vector2(-12, 0), at + Vector2(12, 0), Color(0.75, 0.66, 0.42), 2.0)
-	var lock_col := Color(1.0, 0.84, 0.45, 0.6 + 0.4 * pulse) if unchained else Color(0.75, 0.25, 0.2)
-	b.rect(Rect2(at + Vector2(-2.5, -2), Vector2(5, 6)), lock_col)
 	if unchained:
 		b.arc(at + Vector2(0, 4), 20.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.2 + 0.25 * pulse), 2.0)
 

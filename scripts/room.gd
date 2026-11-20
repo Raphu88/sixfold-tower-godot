@@ -347,7 +347,8 @@ func _draw() -> void:
 				batch.rect(Rect2(r.position.x, inner.end.y, r.size.x, r.end.y - inner.end.y), Palette.FLOOR_GAP)
 				batch.rect(Rect2(r.position.x, inner.position.y, inner.position.x - r.position.x, inner.size.y), Palette.FLOOR_GAP)
 				batch.rect(Rect2(inner.end.x, inner.position.y, r.end.x - inner.end.x, inner.size.y), Palette.FLOOR_GAP)
-				batch.rect(inner, base)
+				# The stone, a touch brighter at its top-left (toward the light) than its lower right.
+				batch.shade_rect(inner, base.lightened(0.07), base, base.darkened(0.12), base)
 				# Bevel: lit top-left edges, shadowed bottom-right edges.
 				batch.line(inner.position, Vector2(inner.end.x, inner.position.y), base.lightened(0.08), 1.5)
 				batch.line(inner.position, Vector2(inner.position.x, inner.end.y), base.lightened(0.04), 1.5)
@@ -613,21 +614,24 @@ func _draw_layout() -> void:
 						var b := Rect2(Vector2(face.position.x + bx - off, by), Vector2(18.0, face.size.y / 3.0)).intersection(face)
 						if b.size.x > 1.0:
 							batch.rect(b.grow(-1.0), Palette.WALL_FACE.lightened(_hash(x * 3 + int(bx), y * 3 + row, 5) * 0.12))
-				# Its shadow on the floor.
-				batch.rect(Rect2(tile.position + Vector2(0, TILE), Vector2(TILE, 8.0)), Color(0, 0, 0, 0.22))
+				# Its shadow on the floor: dark at the wall's foot, fading out.
+				batch.fade_rect(Rect2(tile.position + Vector2(0, TILE), Vector2(TILE, 16.0)), Color(0, 0, 0, 0.4), Vector2.UP)
 			if open_n:
 				batch.line(tile.position, Vector2(tile.end.x, tile.position.y), Palette.WALL_EDGE, 2.0)
 			if open_w:
 				batch.line(tile.position, Vector2(tile.position.x, tile.end.y), Palette.WALL_EDGE, 2.0)
+				batch.fade_rect(Rect2(tile.position - Vector2(10, 0), Vector2(10, TILE)), Color(0, 0, 0, 0.2), Vector2.RIGHT)  # (the floor darkening where it meets the wall)
 			if open_e:
 				batch.line(Vector2(tile.end.x, tile.position.y), tile.end, Palette.WALL_EDGE, 2.0)
+				batch.fade_rect(Rect2(Vector2(tile.end.x, tile.position.y), Vector2(14, TILE)), Color(0, 0, 0, 0.3), Vector2.LEFT)  # (in the wall's shade, away from the light)
 
 
 ## A low wall inside a room, seen from above: a shadow, a stone top and a
 ## short brick face toward the viewer.
 func _draw_cover(b: Rect2) -> void:
 	var face_h := 14.0
-	batch.rect(Rect2(b.position + Vector2(4, b.size.y), Vector2(b.size.x, 8.0)), Color(0, 0, 0, 0.28))
+	batch.fade_rect(Rect2(b.position + Vector2(3, b.size.y), Vector2(b.size.x + 2.0, 14.0)), Color(0, 0, 0, 0.42), Vector2.UP)
+	batch.fade_rect(Rect2(Vector2(b.end.x, b.position.y + 4.0), Vector2(9.0, b.size.y)), Color(0, 0, 0, 0.3), Vector2.LEFT)
 	batch.rect(b.grow(1.5), Palette.OUTLINE)
 	var top := Rect2(b.position, Vector2(b.size.x, b.size.y - face_h))
 	var face := Rect2(Vector2(b.position.x, b.end.y - face_h), Vector2(b.size.x, face_h))
@@ -642,6 +646,7 @@ func _draw_cover(b: Rect2) -> void:
 			batch.rect(cap, Palette.WALL_TOP.lightened(0.1 + shade))
 			batch.line(cap.position, Vector2(cap.end.x, cap.position.y), Palette.WALL_EDGE, 1.5)
 	batch.rect(face, Palette.WALL_FACE)
+	batch.fade_rect(Rect2(face.position, Vector2(face.size.x, face_h * 0.5)), Color(0, 0, 0, 0.28), Vector2.UP)  # (under the capstones' lip)
 	var off := 0.0
 	for row in 2:
 		var by := face.position.y + row * face_h * 0.5
@@ -702,17 +707,15 @@ func _draw_cache(c: CanvasItem, t: float) -> void:
 
 
 func _draw_pillar(c, pos: Vector2, r: float) -> void:
-	# Seen from above: a round stone column with a shadow, rim and cap.
-	var shadow := PackedVector2Array()
-	for i in 24:
-		var a := TAU * i / 24.0
-		shadow.append(pos + Vector2(r * 0.25, r * 0.55) + Vector2(cos(a), sin(a) * 0.55) * r * 1.15)
-	c.polygon(shadow, Color(0, 0, 0, 0.35))
+	# Seen from above: a round stone column, its soft shadow falling away from
+	# the light and dark right at its foot, a lit rim and a worn cap.
+	c.soft(pos + Vector2(r * 0.45, r * 0.6), Vector2(r * 1.6, r * 1.05), Color(0, 0, 0, 0.42))
+	c.soft(pos + Vector2(r * 0.1, r * 0.2), Vector2(r * 1.3, r * 1.2), Color(0, 0, 0, 0.32))
 	c.circle(pos, r + 2.0, Palette.OUTLINE)
-	c.circle(pos, r, Palette.WALL_FACE.darkened(0.15))
-	c.circle(pos + Vector2(-r * 0.1, -r * 0.12), r * 0.86, Palette.WALL_FACE)
+	c.disc(pos, r, Palette.WALL_FACE)
 	c.arc(pos, r * 0.62, 0.0, TAU, 32, Palette.WALL_FACE.darkened(0.25), 1.5)
-	c.circle(pos + Vector2(-r * 0.3, -r * 0.34), r * 0.25, Color(Palette.WALL_EDGE.lightened(0.2), 0.5))
+	c.arc(pos, r * 0.62 + 1.4, PI * 1.0, PI * 1.5, 12, Color(Palette.WALL_EDGE.lightened(0.25), 0.35), 1.0)
+	c.arc(pos, r - 1.2, PI * 0.95, PI * 1.6, 16, Color(Palette.WALL_EDGE.lightened(0.3), 0.45), 1.4)
 	# A few cracks so pillars aren't identical.
 	var h := _hash(int(pos.x), int(pos.y))
 	for i in 2:
@@ -805,9 +808,10 @@ func _draw_walls() -> void:
 			x += brick.x
 		y += brick.y
 		row += 1
-	# Shadow the wall casts onto the floor.
-	for i in 5:
-		batch.rect(Rect2(r.position.x, r.position.y + i * 4.0, r.size.x, 4.0), Color(0, 0, 0, 0.32 - i * 0.06))
+	# Shadow the wall casts onto the floor, and the darkening where the floor meets the side walls.
+	batch.fade_rect(Rect2(r.position.x, r.position.y, r.size.x, 26.0), Color(0, 0, 0, 0.42), Vector2.UP)
+	batch.fade_rect(Rect2(r.position.x, r.position.y, 12.0, r.size.y), Color(0, 0, 0, 0.18), Vector2.LEFT)
+	batch.fade_rect(Rect2(r.end.x - 18.0, r.position.y, 18.0, r.size.y), Color(0, 0, 0, 0.3), Vector2.RIGHT)
 
 	# Pillars at the corners.
 	for px in [r.position.x - wall, r.end.x - 6.0]:

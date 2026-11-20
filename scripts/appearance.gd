@@ -42,6 +42,7 @@ extends RefCounted
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
 const GearLook := preload("res://scripts/gear_look.gd")
+const Shade := preload("res://scripts/shade.gd")
 
 ## The option rows: [key, name]. The editor shows them a tab at a time (TABS).
 static var ROWS := [
@@ -752,8 +753,11 @@ static func draw_cloak(b, lx: Vector2, f: Vector2, sd: Vector2, light: Vector2, 
 	b.polygon(_cloth(pts, f, sd, lx + light * 3.0, mid, 0.45, smooth), Color(cloak.lightened(0.3), 0.45))
 	var back: float = (pts[pts.size() / 2] as Vector2).x if style == "tattered" else (pts[4] as Vector2).x  # (the hem's furthest point)
 	var w: float = lk.get("width", 1.0)
-	for sgn in [-1.0, 1.0]:  # folds down the back
-		b.line(lx + _q(f, sd, -3.0, sgn * 4.5 * w), lx + _q(f, sd, lerpf(-3.0, back, 0.82), sgn * 3.0 * w + d.y + sway * 0.8), cloak.darkened(0.38), 1.3)
+	for sgn in [-1.0, 1.0]:  # folds down the back: a crease, and the ridge beside it in the light
+		var fa: Vector2 = lx + _q(f, sd, -3.0, sgn * 4.5 * w)
+		var fe: Vector2 = lx + _q(f, sd, lerpf(-3.0, back, 0.82), sgn * 3.0 * w + d.y + sway * 0.8)
+		b.line(fa + light * 1.1, fe + light * 1.1, Color(cloak.lightened(0.3), 0.4), 1.1)
+		b.line(fa, fe, cloak.darkened(0.38), 1.3)
 	_tower_pattern(b, lx, f, sd, light, lk, pts, mid, back, smooth, sway, d)
 	if lk.get("trim_on", false):
 		b.path(_cloth(pts, f, sd, lx + light * 0.4, mid, 0.93, smooth), lk["trim"], 1.3, true)
@@ -1404,6 +1408,16 @@ static func draw_fallen_body(b, f: Vector2, sd: Vector2, light: Vector2, lk: Dic
 
 ## The whole front figure, in layers (see the top of the file).
 static func draw_front(b, lk: Dictionary) -> void:
+	b.begin_form(FRONT_FORM, Shade.FORM)  # the whole figure lit from the left (shade.gd)
+	_draw_front(b, lk)
+	b.end_form()
+
+
+## The front figure's frame for its overall light (shade.gd FORM).
+const FRONT_FORM := Rect2(-72, -150, 144, 290)
+
+
+static func _draw_front(b, lk: Dictionary) -> void:
 	var gear: bool = lk.get("gear_on", false)  # (dressed in worn gear: gear_look.gd)
 	if gear:
 		GearLook.front_behind(b, lk)  # gear: a backpack, a slung bow
@@ -1414,6 +1428,10 @@ static func draw_front(b, lk: Dictionary) -> void:
 	_front_tunic(b, lk)  # clothes: the tunic, its skirt, the belt
 	if gear:
 		GearLook.front_chest(b, lk)  # gear: body armour, a pack's straps
+	# Shade where the arms meet the body (the arms go over the middle of it).
+	var wx: float = lk.get("wx", 1.0)
+	for sg in [-1.0, 1.0]:
+		b.soft(Vector2(sg * 27.0 * wx, -36.0), Vector2(11.0, 30.0), Color(0, 0, 0, 0.3 if sg > 0.0 else 0.2))
 	_front_arms(b, lk)  # body: arms in their sleeves, hands
 	if String(lk.get("cloak_style", "long")) == "poncho":
 		# A poncho over the upper arms, the hands out from under it: what's
@@ -1429,6 +1447,7 @@ static func draw_front(b, lk: Dictionary) -> void:
 		_front_mantle(b, lk)  # clothes: the cloak's mantle over the shoulders
 	if gear:
 		GearLook.front_shoulders(b, lk)  # gear: pauldrons, the amulet
+	b.soft(Vector2(3.0, -74.0), Vector2(30.0, 11.0), Color(0, 0, 0, 0.32))  # the head's shadow on the shoulders
 	draw_front_head(b, lk)  # head: the hood or hair, the face, what's at the neck
 	if gear:
 		GearLook.front_head(b, lk)  # gear: a cap, a helm or a mail coif
@@ -1502,8 +1521,10 @@ static func _front_cloak(b, lk: Dictionary) -> void:
 	if small:
 		folds = []
 	var fk := wc * (0.78 if style == "wrapped" else 1.0)  # (a wrapped cloak hangs closer: its folds too)
-	for fl in folds:
+	for fl in folds:  # each fold: its crease, and the ridge beside it catching the light
+		b.line(Vector2(fl[0] * fk - 2.6, fl[1] + 2.0), Vector2(fl[2] * fk - 3.0, fl[3] - 2.0), Color(cloak.lightened(0.28), 0.32), 2.2)
 		b.line(Vector2(fl[0] * fk, fl[1]), Vector2(fl[2] * fk, fl[3]), Color(cloak.darkened(0.5), 0.75), 1.8)
+		b.line(Vector2(fl[0] * fk + 1.8, fl[1] + 2.0), Vector2(fl[2] * fk + 2.2, fl[3] - 2.0), Color(cloak.darkened(0.3), 0.3), 2.0)
 	if short:
 		b.line(Vector2(-50 * fk, 8), Vector2(-52 * fk, 28), Color(cloak.lightened(0.3), 0.35), 1.4)
 	elif not small:

@@ -3236,6 +3236,8 @@ func _draw() -> void:
 	_sd = body.basis_xform(side)
 	_light = body.basis_xform(Draw.LIGHT_DIR)
 	var b := Draw.Batch.new()
+	b.light = _light
+	b.begin_form(Rect2(-19, -16, 32, 32), Draw.Shade.DOME)  # one soft dome of light over the whole climber (shade.gd)
 	if dead:
 		_draw_fallen(b, look)
 	elif roll_t > 0.0:
@@ -3325,6 +3327,8 @@ func _draw_standing(b, look: Dictionary, t: float) -> void:
 	Appearance.draw_torso(b, lx, _f, _sd, _light, look)
 	_draw_armor_detail(b, lx, look)
 	GearLook.tower_chest(b, lx, _f, _sd, _light, look, t)  # (an amulet, a fine chest piece's glow)
+	# The head's shadow on the shoulders and cloak, falling away from the light.
+	b.soft(lx + _at(-0.5, 0.0) - _light.normalized() * 2.2, Vector2(9.5, 9.5), Color(0, 0, 0, 0.34))
 	Appearance.draw_head(b, lx + _at(-0.5, 0.0), _f, _sd, _light, look, sway, d)
 	GearLook.tower_head(b, lx + _at(-0.5, 0.0), _f, _sd, _light, look, t)  # (a candle, a feather, a fine helm's crest)
 	var sh_y: float = look.get("sh_y", 9.3)  # (wider apart on a broad build)
