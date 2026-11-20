@@ -355,7 +355,8 @@ func _ways_in_play() -> void:
 		var w: Dictionary = wd.ways[0]
 		var c: Vector2 = w["pos"]
 		w["force"] = 0.0
-		await t._ticks(5)
+		await t._until(func(): return float(w["s"]) == 0.0, 3.0)  # (the floor may have begun with its tide already draining)
+		await t._ticks(2)
 		_check(float(w["s"]) == 0.0 and not wd._swallows(w, c), "while the water stays, it's only a drain: walkable")
 		w.erase("force")
 		var b: Dictionary = main.tower_floor.basins[int(w["basin"])]
@@ -370,11 +371,20 @@ func _ways_in_play() -> void:
 		p.knock = Vector2.ZERO
 		await t._ticks(10)
 		_check(p.global_position.distance_to(c) < 68.0 and p.knock.dot(Vector2.RIGHT) > 10.0, "...and drags you toward its eye")
-		# Walk away and you get out.
-		p.global_position = c + Vector2(-70, 0)
-		Input.action_press("move_left")
+		# Walk away and you get out (the way with the most open floor: a wall close by would stop anyone).
+		var away := Vector2.LEFT
+		var acts := {Vector2.RIGHT: "move_right", Vector2.LEFT: "move_left", Vector2.DOWN: "move_down", Vector2.UP: "move_up"}
+		for d in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
+			var open := true
+			for k in range(70, 200, 20):
+				open = open and not main.is_solid(c + d * k)
+			if open:
+				away = d
+				break
+		p.global_position = c + away * 70.0
+		Input.action_press(acts[away])
 		await t._until(func(): return p.global_position.distance_to(c) > 90.0 or main.climbing, 2.0)  # (however busy the machine)
-		Input.action_release("move_left")
+		Input.action_release(acts[away])
 		_check(p.global_position.distance_to(c) > 90.0 and not main.climbing, "walk away from the pull and you get out")
 		var fl: int = main.floor_num
 		w["force"] = 1.0

@@ -947,6 +947,8 @@ func end_meeting(result: Dictionary) -> void:
 	if not main.menu_open():
 		get_tree().paused = false
 	quiet_t = maxf(quiet_t, 1.5)
+	if main.get("portals") != null:
+		main.portals.maker_return()  # (back out of the Maker's pocket dimension: a portal closes behind you)
 	var gains: Dictionary = result.get("gains", {})
 	for k in gains:
 		give_secret(k, float(gains[k]))

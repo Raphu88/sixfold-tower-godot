@@ -612,6 +612,8 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	# Every room pays off: rooms with nothing of their own get a chest (opened
 	# once the room's monsters are down, or when reached).
 	var chests := _chests(infos, monsters, objective, scenarios)
+	# The floor's portals (portals.gd): asleep until the floor wakes them.
+	var portals := _portals(infos, doors, links, monsters, floor_num)
 	for i in infos.size():
 		var info: Dictionary = infos[i]
 		ids.append(info["id"])
@@ -646,6 +648,8 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		keep.append(c["pos"])
 	for r in rests + traders + vaults:
 		keep.append(r["pos"])
+	for pt in portals:
+		keep.append(pt["pos"])
 	for r in rivals:
 		keep.append(r["pos"])
 		keep.append(r["pos"] + Vector2(34, 8))  # (a wounded climber's hoard, beside them)
@@ -658,7 +662,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 		"torches": torches + kept_torches, "springs": springs, "camps": camps, "wings": wings, "secrets": secrets,
 		"safe_rooms": safe_rooms, "hazard_rooms": hazard_rooms, "wet_rooms": wet_rooms, "doorways": doorways, "locks": locks,
 		"objective": objective, "chests": chests, "cracks": cracks, "rests": rests, "traders": traders, "rivals": rivals, "scenarios": scenarios, "vaults": vaults,
-		"loops": loops.size(), "keep": keep, "ok": ok, "bridges": infos.filter(func(x): return x.has("bridge")).map(func(x): return x["bridge"])}
+		"portals": portals, "loops": loops.size(), "keep": keep, "ok": ok, "bridges": infos.filter(func(x): return x.has("bridge")).map(func(x): return x["bridge"])}
 	if not cache.is_empty():
 		plan["cache"] = cache
 		plan["cache_room"] = cache_room
@@ -666,11 +670,93 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	# channels, sand, sun... keeping clear of what matters (it may set ok false).
 	if own != null and ok:
 		own.shape_plan(plan, infos, links, floor_num, tower)
+	# (a portal never stands over a gap, water or ground nobody walks)
+	plan["portals"] = plan["portals"].filter(func(pt): return not (plan.get("chasms", []) + plan.get("impassable", [])).any(func(r): return r.grow(CELL * 0.5).has_point(pt["pos"])))
 	if plan.get("ok", false):
 		load("res://scripts/mimic.gd").plan(plan, floor_num)  # (a chest that bites back)
 		load("res://scripts/inscriptions.gd").plan(plan, infos, floor_num, String(tower.get("beast_kind", "")))  # (a stone to read)
 		load("res://scripts/summit_blades.gd").plan(plan, infos, floor_num, String(tower.get("beast_kind", "")))  # (a quiet spot for a Summit Blade)
 	return plan
+
+
+## --- portals --------------------------------------------------------------------
+##
+## Every floor of rooms has a few PORTALS (portals.gd runs and draws them):
+## always in the entrance and the stair hall, the rest spread over the floor
+## (each as far, by corridors, from the others as can be). Only in rooms the
+## climber can walk to from the start through no locked or barred door, so
+## a portal can't carry anyone past a lock; never in the puzzle's gallery, a
+## scenario room, a trap room, a mirror room or a strongroom (they hold their
+## own tests).
+## How many, by floor (3 or 6: counted in sixes).
+static var PORTALS := [{"to": 9, "count": 3}, {"to": 99, "count": 6}]
+
+
+static func portal_count(floor_num: int) -> int:
+	for p in PORTALS:
+		if floor_num <= int(p["to"]):
+			return int(p["count"])
+	return int(PORTALS[-1]["count"])
+
+
+## [{pos, room}] for the floor's portals.
+static func _portals(infos: Array, doors: Array, links: Array, monsters: Array, floor_num: int) -> Array:
+	if floor_num < 2 or infos.size() < 3:
+		return []
+	# Rooms reached from the start through doors that aren't locked or barred.
+	var blocked := {}
+	for d in doors:
+		if String(d.get("lock", "")) != "":
+			blocked[str(d["tiles"])] = true
+	var adj: Array = []
+	for i in infos.size():
+		adj.append([])
+	for l in links:
+		if blocked.has(str(l["link"]["door"])):
+			continue
+		adj[l["c"]].append(l["p"])
+		adj[l["p"]].append(l["c"])
+	var dist := Objectives._graph_dist(adj, 0)
+	var ok_rooms: Array = []
+	for i in infos.size():
+		if int(dist[i]) >= 999:
+			continue
+		var th: Dictionary = Themes.get_theme(infos[i]["theme"])
+		if infos[i]["role"] == "gallery" or th["feature"] in ["scenario", "mirror", "vault", "trap"] or String(infos[i]["theme"]) == Mirror.THEME:
+			continue
+		ok_rooms.append(i)
+	var picked: Array = []
+	var stair_i := _index_of_role(infos, "stair")
+	for i in [0, stair_i]:
+		if i in ok_rooms:
+			picked.append(i)
+	var want := portal_count(floor_num)
+	while picked.size() < want:
+		# The room farthest (by corridors) from every portal so far.
+		var best := -1
+		var best_d := -1
+		for i in ok_rooms:
+			if i in picked:
+				continue
+			var dd: Array = Objectives._graph_dist(adj, i)
+			var near := 9999
+			for j in picked:
+				near = mini(near, int(dd[j]))
+			if near > best_d:
+				best_d = near
+				best = i
+		if best < 0:
+			break
+		picked.append(best)
+	var out: Array = []
+	var taken: Array = []
+	for i in picked:
+		var pos := Objectives._spot(infos[i], monsters, 1, false, taken, 80.0)
+		if pos == Vector2.INF:
+			continue
+		taken.append(pos)
+		out.append({"pos": pos, "room": i})
+	return out
 
 
 ## Every corridor of the floor: [{c (the room whose wall holds its door),
@@ -1358,19 +1444,25 @@ static func cache_amount(floor_num: int) -> float:
 ##   door, with a 3x3 VAULT ALCOVE cut into one of its other walls behind a
 ##   one-tile vault door (wings.gd draws the seal on it, runs the wing's
 ##   challenge and the vault's reward);
-##   a SECRET room is a small room joined by a corridor one tile wide whose
-##   first tile, in the spine room's wall, stays a wall until the climber
-##   leans on it (wings.gd). Some hold a Tithe Door: an alcove like a
-##   vault's, opened by paying unbanked essence.
+##   a SECRET room is a POCKET DIMENSION (portals.gd, vaults.gd): a small
+##   room carved into the kept cell with NO way to it on foot, rock all
+##   round. Its way in is a hidden spot in the spine room's wall (the
+##   "mouth", one tile, the only tile of its old passage still carved): it
+##   stays a wall until the climber leans on it or breaks it, and then a
+##   portal opens in it to the room, and another inside leads back. The room
+##   holds a small vault (vaults.gd): three chests, some vaults guarded.
 ## A kept cell whose room won't fit stays solid rock.
 
 ## A wing room's size in tiles [min w, max w, min h, max h] (the alcove must
 ## also fit in the cell, which can trim the side it's cut into).
 const WING_SIZE := [9, 11, 7, 9]
-const SECRET_SIZE := [5, 7, 4, 6]
+const SECRET_SIZE := [7, 9, 6, 7]
 const ALCOVE := 3  # the vault alcove is this many tiles square
-## What a secret room holds (weights; wings.gd fills it).
-const SECRET_CONTENTS := {"cache": 3.0, "crystals": 3.0, "tithe": 2.0}
+## How a pocket dimension's vault is guarded (weights; vaults.gd runs it):
+## "open" (nothing: walk up to the chests), "tithe" (a lock: a Tithe Stone
+## asks for unbanked essence), "puzzle" (runes on the floor to step on in
+## the order they light), "keeper" (a vault Keeper to beat first).
+static var SECRET_CONTENTS := {"open": 3.0, "tithe": 1.0, "puzzle": 1.0, "keeper": 1.0}
 
 
 ## Carves the kept cells. `walk` is the floor's walkable area so far (to stay
@@ -1400,10 +1492,7 @@ static func _carve_kept(infos: Array, wings: Array, secrets: Array, walk: Array,
 	var made_s: Array = []
 	for k in secrets:
 		var content := _weighted(SECRET_CONTENTS)
-		var s := _carve_one(infos, k, SECRET_SIZE, content == "tithe", 1, taken)
-		if s.is_empty() and content == "tithe":
-			content = "cache"
-			s = _carve_one(infos, k, SECRET_SIZE, false, 1, taken)
+		var s := _carve_one(infos, k, SECRET_SIZE, false, 1, taken)
 		if s.is_empty():
 			continue
 		s["kind"] = "secret"
@@ -1483,12 +1572,16 @@ static func _carve_one(infos: Array, keep: Dictionary, lim: Array, alcove: bool,
 		var corr: Rect2i = link["corridor"]
 		var door: Array = link["door"]
 		if width == 1:
-			# A narrow passage: the first of the two tiles.
+			# A pocket dimension (a secret room): no passage, only the hidden
+			# spot in the spine room's wall (one tile), with rock between it
+			# and the room.
 			if link["horiz"]:
 				corr.size = Vector2i(1, corr.size.y)
 			else:
 				corr.size = Vector2i(corr.size.x, 1)
 			door = [door[0]]
+			if maxi(corr.size.x, corr.size.y) < 2:
+				continue
 		var tiles := Rect2i(info["pos"], info["size"])
 		var out := {"cell": cell, "parent": keep["parent"], "area": keep["area"], "tiles": tiles,
 			"rect": Rect2(ORIGIN + Vector2(tiles.position) * CELL, Vector2(tiles.size) * CELL),
@@ -1504,6 +1597,9 @@ static func _carve_one(infos: Array, keep: Dictionary, lim: Array, alcove: bool,
 				m.x = corr.position.x if d == Vector2i.RIGHT else corr.end.x - 1
 			mouth.append(m)
 		out["mouth"] = mouth
+		if width == 1:
+			corr = Rect2i(mouth[0], Vector2i.ONE)  # (all that's carved of the old passage: the hidden spot)
+			out["corridor"] = Rect2(ORIGIN + Vector2(corr.position) * CELL, Vector2(CELL, CELL))
 		var opened: Array = [tiles, corr]
 		if alcove:
 			var vd: Vector2i

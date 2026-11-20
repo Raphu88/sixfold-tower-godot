@@ -37,6 +37,12 @@ var looks := 0  # times sight was worked out (tests and the dev readout)
 ## worked out, and around where it was worked out before that.
 var ease_box := Rect2i()
 var see_open := PackedByteArray()  # rock the eye sees across (main.tower_floor sight_open: a tower's abyss), or empty
+## While the climber is in a pocket dimension (portals.gd): its tiles (with
+## their walls). Everything else is dark, the floor out of sight and mind.
+var pocket := Rect2i()
+## The pocket dimensions that are open (their tiles, portals.gd): out of
+## them, they stay dark however well you saw them from inside.
+var away: Array = []
 
 
 func _ready() -> void:
@@ -46,6 +52,8 @@ func _ready() -> void:
 ## A new floor: forget everything (or switch off, on floors without rooms).
 func reset() -> void:
 	last_tile = Vector2i(-999, -999)
+	pocket = Rect2i()
+	away = []
 	if main == null or not main.layout_on or main.solid.is_empty():
 		grid = Vector2i.ZERO
 		visible = false
@@ -146,6 +154,14 @@ func _line_clear(a: Vector2i, b: Vector2i) -> bool:
 
 
 func _target(i: int) -> float:
+	if pocket.has_area():
+		if not pocket.has_point(Vector2i(i % grid.x, i / grid.x)):
+			return DARK  # (in a pocket dimension: only the pocket shows)
+	elif not away.is_empty():
+		var tl := Vector2i(i % grid.x, i / grid.x)
+		for r in away:
+			if r.has_point(tl):
+				return DARK  # (on the floor: a pocket isn't part of it)
 	if vis[i] == 1:
 		return 0.0
 	return REMEMBERED if seen[i] == 1 else DARK
@@ -169,6 +185,21 @@ func _ease(delta: float) -> void:
 				moving = true
 	easing = moving
 	_upload()
+
+
+## Into a pocket dimension (its tiles) or back out (an empty rect): the
+## fog eases over the whole floor to show only where the climber is.
+func set_pocket(r: Rect2i) -> void:
+	if r == pocket:
+		return
+	pocket = r
+	if grid == Vector2i.ZERO:
+		return
+	last_tile = Vector2i(-999, -999)
+	ease_box = Rect2i(Vector2i.ZERO, grid)
+	_look()
+	ease_box = Rect2i(Vector2i.ZERO, grid)
+	_snap()
 
 
 ## Jumps straight to the right fog (a new floor).
