@@ -1367,7 +1367,14 @@ func _terrain_tests() -> void:
 	var kind: String = main.cache["kind"]
 	main.cache["taken"] = false  # (earlier checks on this floor may have walked the climber over it)
 	var before := float(main.run_essence.get(kind, 0.0))
-	p.global_position = main.cache["pos"] + Vector2(0, 70)
+	# Stand near it on open floor (a spot inside a wall would push you onto it).
+	var near_spot: Vector2 = main.cache["pos"] + Vector2(0, 70)
+	for off in [Vector2(0, 70), Vector2(0, -70), Vector2(70, 0), Vector2(-70, 0), Vector2(50, 50), Vector2(-50, 50), Vector2(50, -50), Vector2(-50, -50)]:
+		var q: Vector2 = main.cache["pos"] + off
+		if not main.is_solid(q) and not main.in_chasm(q) and [Vector2(18, 0), Vector2(-18, 0), Vector2(0, 18), Vector2(0, -18)].all(func(o): return not main.is_solid(q + o)):
+			near_spot = q
+			break
+	p.global_position = near_spot
 	await _frames(2)
 	_check(not main.cache["taken"], "the cache stays shut until you walk onto it")
 	p.global_position = main.cache["pos"]
