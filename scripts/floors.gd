@@ -669,6 +669,7 @@ static func _build(infos: Array, themes: Array, floor_num: int, tower: Dictionar
 	if plan.get("ok", false):
 		load("res://scripts/mimic.gd").plan(plan, floor_num)  # (a chest that bites back)
 		load("res://scripts/inscriptions.gd").plan(plan, infos, floor_num, String(tower.get("beast_kind", "")))  # (a stone to read)
+		load("res://scripts/summit_blades.gd").plan(plan, infos, floor_num, String(tower.get("beast_kind", "")))  # (a quiet spot for a Summit Blade)
 	return plan
 
 

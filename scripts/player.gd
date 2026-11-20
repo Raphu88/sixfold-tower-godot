@@ -26,6 +26,8 @@ const Charms := preload("res://scripts/charms.gd")
 ## "The climber's core numbers"); these read them, so a change shows at once.
 const Combat := preload("res://scripts/combat.gd")
 const Wheel := preload("res://scripts/wheel.gd")
+const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand: a second weapon, a shield or a wand)
+const SummitBlades := preload("res://scripts/summit_blades.gd")  # (a Summit Blade at your hip)
 ## Damage multiplier for striking a foe from behind.
 var BACKSTAB_MULT: float:
 	get: return float(Combat.CLIMBER["backstab"])
@@ -235,6 +237,11 @@ var spells_cast := 0  # Spellweave Ring: every third spell is free
 var guard_floor := {}  # once-a-floor rules used: rule -> the floor
 var triune_n := 0  # Triune Fang: which head strikes next
 var rebirth_used := false  # Sunplume Mantle: once a climb
+var off_cd := 0.0  # the off-hand's wand: until it can cast again (offhand.gd)
+var off_flash := 0.0  # the off-hand piece flashes (a block, a cast)
+var guard_on := false  # guarding with a shield (parry held past its window)
+var guard_force := false  # (tests: hold the guard without the parry button)
+var blade_cd := 0.0  # the carried Summit Blade's power: until it can fire again (summit_blades.gd)
 ## The flow (secret.gd): the path's essence banked, which lives in your
 ## shadow. main.gd set_flow gives the path and its step; the numbers below
 ## follow from them (secret.gd EFFECTS).
@@ -786,6 +793,7 @@ func _physics_process(delta: float) -> void:
 		elif reload_t > 0.0 and wkind() in ["crossbow", "gun"]:
 			spd *= wdata()["reload_move"]  # you can walk while you reload
 		spd *= attr_speed * armor()["walk"] * (1.0 + gfx("walk"))  # heavy armor slows you a little; boots
+		spd *= Offhand.walk_mult(self)  # (guarding behind a shield: offhand.gd)
 		var laden := bag_slow()
 		if laden > 0.0:
 			spd *= 1.0 - laden  # a big bag nearly full (gear.gd BAG)
@@ -1126,6 +1134,8 @@ func _read_buffer() -> void:
 		pressed = "attack"  # (not a click that dismissed the Entity's bubble)
 	elif Input.is_action_just_pressed("parry"):
 		pressed = "parry"
+	elif Input.is_action_just_pressed("offhand"):
+		pressed = "offhand"  # (the off-hand's wand: offhand.gd)
 	# The item button and the d-pad down: tap to use (or pick the next),
 	# hold to open the belt wheel and choose (see _update_item_hold).
 	for src in ["use_item", "item_next"]:
@@ -1200,12 +1210,16 @@ func _try_action(action: String, input: Vector2) -> bool:
 		"item":
 			use_item()
 			return true
+		"offhand":
+			return Offhand.cast(self)
 	if action.begins_with("cast_"):
 		return _try_cast(action.substr(5))
 	return true
 
 
 func _tick_timers(delta: float) -> void:
+	Offhand.tick(self, delta)
+	blade_cd = maxf(0.0, blade_cd - delta)
 	roll_cd -= delta
 	iframes -= delta
 	attack_cd -= delta
@@ -1512,10 +1526,11 @@ func _try_attack() -> bool:
 
 func _melee() -> bool:
 	var w := wdata()
-	var chain: Array = w["combo"]
+	var chain: Array = Offhand.chain(self, w["combo"])  # (an off-hand weapon adds its strike before the finisher)
 	if combo_t <= 0.0 or combo >= chain.size():
 		combo = 0
 	swing = chain[combo]
+	var off: bool = swing.get("offhand", false)
 	var heavy: bool = swing["heavy"]
 	combo = (combo + 1) % chain.size()
 	spend_sta(swing["sta"] * (1.0 - gfx("chain")), true)  # Grip Wraps
@@ -1530,10 +1545,10 @@ func _melee() -> bool:
 		attack_cd *= 1.0 - lerpf(desperate_speed, desperate_speed_low, clampf(1.0 - hp / max_hp, 0.0, 1.0))  # Desperation
 	combo_t = attack_cd + COMBO_WINDOW
 	swing_t = w["swing_time"]
-	Anim.swing(main, global_position, aim, float(swing["range"]), deg_to_rad(float(swing["arc"])), float(swing["side"]), String(w["style"]), heavy)  # (sparks along the swing's path)
+	Anim.swing(main, global_position, aim, float(swing["range"]), deg_to_rad(float(swing["arc"])), float(swing["side"]), String(swing.get("style", w["style"])), heavy)  # (sparks along the swing's path)
 	lunge_t = 0.08
 	lunge_speed = swing["lunge"]
-	var snd: String = w["sound"]
+	var snd: String = w["sound"] if not off else "swing_light"
 	if heavy and not snd.ends_with("_heavy"):
 		snd += "_heavy"
 	main.sfx(snd, float(w.get("pitch", 1.0)) * (1.0 + 0.06 * combo))
@@ -1541,9 +1556,11 @@ func _melee() -> bool:
 	var dmg: float = STRIKE_DAMAGE * swing["dmg"] * attr_strength * (1.0 + gfx("strike"))  # gloves and rings
 	if heavy:
 		dmg *= 1.0 + gfx("finisher")  # Leather Gloves
-	if weapon == "fists":
+	if off:
+		dmg *= Offhand.strike_power(self)  # (the off-hand weapon's own rarity and wear)
+	elif weapon == "fists":
 		dmg *= 1.0 + gfx("fist")  # Grip Wraps, Studded Gloves: the body's own blows
-	if weapon != "fists" and weapon == gear_id("melee"):
+	elif weapon == gear_id("melee"):
 		dmg *= Gear.weapon_power(gear["melee"])  # its rarity; a badly worn weapon hits softer
 	if edge_t > 0.0:
 		dmg *= float(Items.ITEMS["edge_oil"]["mult"])  # Edge Oil
@@ -1569,8 +1586,15 @@ func _melee() -> bool:
 		if absf(aim.angle_to(to)) > deg_to_rad(swing["arc"]):
 			continue
 		var blade: bool = swing.get("blade", false)
+		if off:
+			_strike(e, dmg, to.normalized(), swing["knock"], false, "hit_stab")
+			Offhand.struck(self, e)  # (the Ember Dirk's pool; its wear)
+			hits += 1
+			continue
 		_strike(e, dmg, to.normalized(), swing["knock"], heavy, String(w.get("blade_sound", w["hit_sound"])) if blade else w["hit_sound"], w.get("rocks", false), float(w.get("backstab", 0.0)), float(swing.get("stagger", 0.0)))
 		_melee_rules(e, heavy)
+		if heavy:
+			SummitBlades.on_finisher(self, e)  # (the carried Summit Blade's power)
 		if kindle_t > 0.0:
 			_kindled_strike(e)
 		if blade and rule("draw_venom") > 0.0 and not e.dead:
@@ -2722,6 +2746,12 @@ func receive_attack(dmg: float, source, unblockable := false) -> void:
 			dmg *= 0.3
 			main.fx_text(global_position + Vector2(0, -30), "Blocked", Color(0.85, 0.71, 0.42))
 			main.sfx("hit_armor", 1.0, -2.0)
+	# A shield (offhand.gd): parry held past its window blocks blows from in front.
+	var guarded := Offhand.block(self, dmg, source)
+	if guarded >= 0.0:
+		dmg = guarded
+		if dmg <= 0.0:
+			return
 	if hurt_t > 0.0:
 		return
 	# Pressure II (Deepcaller): a badly hurt foe near you hits softer.
@@ -3026,6 +3056,7 @@ func _on_parry(source, perfect := false) -> void:
 		barrier_hp = maxf(barrier_hp, minf(barrier_max, barrier_hp + barrier_max * BondScript.Bonds.passive_num("warden", 2, "restore")))
 		main.fx_ring(global_position, barrier_color, radius + 14.0, 0.25, 3.0)
 	on_parry.emit(source, perfect)
+	SummitBlades.on_parry(self, source, perfect)  # (the carried Summit Blade's power)
 	BondScript.wyvern().parry_heat(self, perfect)  # (Heat III: parries add heat)
 	sta = minf(sta_cap(), sta + (30.0 if perfect else 12.0) + gfx("parry_sta"))  # (a Duelist's Ring)
 	var at: Vector2 = global_position + aim * (radius + 8.0)
@@ -3196,6 +3227,7 @@ func _draw() -> void:
 		_draw_marks(side, t)
 		if item_count("vessel") > 0:
 			load("res://scripts/vessel.gd").draw_on_climber(self, t)  # (at the hip, glowing with what it holds)
+		SummitBlades.draw_on_climber(self, t)  # (a Summit Blade at the hip, or a found one carried on the back)
 	if overlay != null:
 		overlay.queue_redraw()
 
@@ -3545,7 +3577,7 @@ func _draw_swing_trail(c: Node2D) -> void:
 	var heavy: bool = swing["heavy"]
 	var reach: float = swing["range"]
 	var col := Color(1.0, 0.88, 0.55) if heavy else Color(0.95, 0.97, 1.0)
-	match String(w["style"]):
+	match String(swing.get("style", w["style"])):  # (an off-hand strike has its own)
 		"arc":
 			var a := aim.angle()
 			var half := deg_to_rad(swing["arc"])
@@ -3589,17 +3621,17 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 			var two_hands: bool = w["class"] == "heavy"
 			var grip := side * (radius * (0.5 if two_hands else 0.95)) + dir * (7.0 if two_hands else 4.0)
 			var along := dir.rotated(0.8 if two_hands else 0.5)
-			if swing_t > 0.0:
+			if swing_t > 0.0 and not swing.get("offhand", false):
 				var k: float = 1.0 - swing_t / w["swing_time"]
 				var half := deg_to_rad(swing["arc"])
 				var sweep: float = swing["side"]
 				along = dir.rotated(lerpf(-half * sweep, half * sweep, minf(1.0, k * 1.6)))
 				grip = along * 10.0
-			elif attack_cd > 0.0:
+			elif attack_cd > 0.0 and not swing.get("offhand", false):
 				along = dir.rotated(deg_to_rad(swing["arc"]) * swing["side"])
 				grip = along * 10.0
 			var length: float = float(w.get("length", 24.0)) + (2.0 if swing.get("heavy", false) else 0.0)
-			var glint := 1.0 if swing_t > 0.0 else 0.0
+			var glint := 1.0 if swing_t > 0.0 and not swing.get("offhand", false) else 0.0
 			_wep_seg = [grip, grip + along * length]
 			if weapon in ["cane", "sword_cane"]:
 				# A cane; the sword-cane's blade is out for its finisher (and its recovery).
@@ -3651,7 +3683,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 			var length2: float = float(w.get("length", 14.0))
 			var rest := side * (radius * 0.85) + dir * 2.0
 			var ext := 0.0
-			if swing_t > 0.0:
+			if swing_t > 0.0 and not swing.get("offhand", false):
 				var k2: float = 1.0 - swing_t / w["swing_time"]
 				ext = sin(PI * minf(1.0, k2 * 1.3))
 			elif attack_cd > 0.0:
@@ -3678,7 +3710,7 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 				var rest2: Vector2 = dir * (radius * 0.7) + side * sgn * radius * 0.75
 				var pos: Vector2 = rest2
 				var r := 3.8
-				if swing_t > 0.0 and sgn == swing["side"]:
+				if swing_t > 0.0 and sgn == swing["side"] and not swing.get("offhand", false):
 					var k3: float = 1.0 - swing_t / w["swing_time"]
 					var ext2: float = sin(PI * minf(1.0, k3 * 1.2))
 					pos = rest2.lerp(dir * swing["range"], ext2)
@@ -3733,10 +3765,13 @@ func _draw_weapon(b, sh_w: Vector2, sh_o: Vector2, look: Dictionary, s: float) -
 					b.stroke(catch_at, front + dir * 5.0, Color(0.6, 0.45, 0.3), 1.6)
 			hands.append([sh_w, back + dir * 3.0, 3.0])
 			hands.append([sh_o, back + dir * 12.0 - side * 4.0, 2.8])
+	var draw_off: Callable = Offhand.tower_hand(self, b, hands, sh_o, free, dir, side)  # (the off-hand piece: offhand.gd)
 	for h in hands:
 		b.stroke(h[0], h[1], sleeve, 3.4)
 	if draw_weapon.is_valid():
 		draw_weapon.call()
+	if draw_off.is_valid():
+		draw_off.call()
 	for h in hands:
 		b.ball(h[1], h[2], look["hand"], true, _light)
 	if not hands.is_empty():

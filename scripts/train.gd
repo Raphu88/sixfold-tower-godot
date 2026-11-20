@@ -86,6 +86,9 @@ static var BASE_PRICE := {
 	# Charms (charms.gd): Commons cost half this, Fine twice it, Rare four times.
 	"lucky_knot": 12, "pocket_clasp": 14, "belt_hook": 14, "feather_token": 14, "iron_brooch": 14, "ward_stone": 15, "tide_shell": 16,
 	"wardbreaker": 14, "mending_bead": 15, "keepers_purse": 18, "ashen_knot": 18, "gale_charm": 16, "bulwark_stone": 16,
+	# The off-hand (offhand.gd): blades, shields and wands (wands are Fine by nature).
+	"parrying_dagger": 10, "hand_axe": 11, "ember_dirk": 12, "buckler": 10, "kite_shield": 14, "tide_ward": 13,
+	"cairn_wand": 12, "edge_wand": 12, "iron_wand": 12, "gale_wand": 12, "cinder_wand": 12, "tide_wand": 12,
 }
 static var DEFAULT_PRICE := 10
 ## Commons are the everyday buy, at half their base price (the owner's call:
@@ -126,7 +129,7 @@ static var CLIMB_PAY := {"per_floor": 2, "per_best": 3}
 ## name) to say: by its slot.
 const SLOT_KIND := {
 	"armor": "stone", "helm": "stone", "gloves": "blade", "melee": "blade", "legs": "iron", "ranged": "iron",
-	"boots": "air", "cloak": "air", "amulet": "fire", "ring": "water", "backpack": "iron", "charm": "water",
+	"boots": "air", "cloak": "air", "amulet": "fire", "ring": "water", "backpack": "iron", "charm": "water", "offhand": "blade",
 }
 
 ## The words of the train's pages.
@@ -885,17 +888,17 @@ static func pack_up(profile, player) -> void:
 # the train wears the loadout already (dress), so the climber screen and
 # the figure show it.
 
-## The slots you can wear something in (not the off-hand: kept for later).
-const WEAR_SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "charm"]
+## The slots you can wear something in.
+const WEAR_SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "charm", "offhand"]
 
 ## The sorts and filters of the stash screen (stash_page.gd): [id, name].
 ## A slot filter is "all" or a slot (Gear.slot_of); an essence filter "all"
 ## or a kind.
 static var STASH_SORTS := [["newest", "Newest"], ["rarity", "Rarity"], ["slot", "Slot"], ["kind", "Essence"], ["price", "Price"]]
 static var SLOT_FILTERS := [["all", "All slots"], ["melee", "Melee"], ["ranged", "Ranged"], ["armor", "Chest"], ["helm", "Helm"], ["gloves", "Gloves"],
-	["legs", "Legs"], ["boots", "Boots"], ["cloak", "Cloak"], ["amulet", "Amulet"], ["ring", "Rings"], ["backpack", "Backpack"], ["charm", "Charms"]]
+	["legs", "Legs"], ["boots", "Boots"], ["cloak", "Cloak"], ["amulet", "Amulet"], ["ring", "Rings"], ["backpack", "Backpack"], ["charm", "Charms"], ["offhand", "Off-hand"]]
 ## The outfit rail's filter, and where selling shows pieces from: [id, name].
-const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm"]
+const SLOT_ORDER := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm", "offhand"]
 
 
 ## What you'd wear with these chosen pieces (`wear`, else profile.wear):

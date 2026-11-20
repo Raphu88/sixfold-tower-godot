@@ -176,6 +176,11 @@ var rivals := {}
 ## The Dining car (dining.gd): who sits there this visit, your open
 ## wagers, what's been offered. {} for an old save.
 var dining := {}
+## Summit Blades (summit_blades.gd): the blades bonded for good, their
+## awakening and the one carried. {} for an old save.
+var summit_blades := {}
+## Deeds (deeds.gd): the deeds done and their counters. {} for an old save.
+var deeds := {}
 
 static var ATTRIBUTES := {
 	"air": {"name": "Agility", "bonus": "move speed"},
@@ -285,6 +290,8 @@ func reset() -> void:
 	bestiary = {}
 	rivals = {}
 	dining = {}
+	summit_blades = {}
+	deeds = {}
 	save()
 
 
@@ -376,6 +383,10 @@ func load_save() -> void:
 	rivals = rv if rv is Dictionary else {}
 	var dn = cfg.get_value("dining", "state", {})
 	dining = dn if dn is Dictionary else {}
+	var sb = cfg.get_value("summit", "blades", {})
+	summit_blades = sb if sb is Dictionary else {}
+	var dd = cfg.get_value("deeds", "state", {})
+	deeds = dd if dd is Dictionary else {}
 	var tr = cfg.get_value("tree", "state", {}) if cfg.has_section_key("tree", "state") else null
 	if tr is Dictionary:
 		tree = tr
@@ -433,6 +444,8 @@ func save() -> void:
 	cfg.set_value("bestiary", "met", bestiary)
 	cfg.set_value("rivals", "met", rivals)
 	cfg.set_value("dining", "state", dining)
+	cfg.set_value("summit", "blades", summit_blades)
+	cfg.set_value("deeds", "state", deeds)
 	cfg.set_value("slot", "played", int(Time.get_unix_time_from_system()))  # (the climber picker: when last played)
 	cfg.save(save_path)
 

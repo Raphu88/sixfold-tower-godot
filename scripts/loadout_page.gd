@@ -84,7 +84,7 @@ static var TEXT := {
 	"empty_chest": "An empty space in your stash. Pieces kept here are safe on the train.",
 	"supply_card": "Packed for your next climb: %d.",
 	"put_back": "Put one back (what you paid comes back)",
-	"offhand": "Kept for later: off-hand pieces will change how you parry.",
+	"offhand": "Your off-hand: a second one-handed weapon (an extra strike in your chains), a shield (hold parry to block) or a wand (a small power from its own essence pool). Two-handed weapons and bows put it away while they're in hand. The Outfitter's Car sometimes has one.",
 	"tag_heir": "Heir",
 	"tag_pack": "Pack",
 	"tag_wear": "Set",
@@ -352,7 +352,7 @@ func _worn_card(slot: String) -> void:
 	var g = e.get("rec", null)
 	if g == null:
 		_head("empty", "", TEXT["no_armor"] if slot == "armor" else "%s: %s" % [Gear.SLOT_NAMES.get(slot, slot), TEXT["empty"]], UI.DIM)
-		m._detail_text(TEXT["empty_charm"] if slot == "charm" else (TEXT["empty_bag"] if slot == "backpack" else TEXT["empty_slot"]), UI.DIM)
+		m._detail_text(TEXT["empty_charm"] if slot == "charm" else (TEXT["empty_bag"] if slot == "backpack" else (TEXT["offhand"] if slot == "offhand" else TEXT["empty_slot"])), UI.DIM)
 	else:
 		_head("gear", g, Gear.display(g), Gear.color(g))
 		var from := String(e.get("from", ""))

@@ -92,7 +92,7 @@ static var TEXT := {
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
 		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
-		"charm": "Refill a charm's spent charge with crystals of its kind (anyone). A Rune Artist can also craft new charms here.",
+		"charm": "Refill a charm's spent charge, or an off-hand piece's pool, with crystals of its kind (anyone). A Rune Artist can also craft new charms here.",
 	},
 	"where_wear": "You'll wear it when you set off.",
 	"heirlooms": "Heirlooms",
@@ -611,6 +611,8 @@ static func charm_refs(profile) -> Array:
 	var out: Array = []
 	if Charms.charge_max(profile.wear.get("charm", {})) > 0:
 		out.append("wear:charm")
+	if Charms.charge_max(profile.wear.get("offhand", {})) > 0:
+		out.append("wear:offhand")  # (an enchanted off-hand piece's own pool: offhand.gd)
 	for ref in pieces(profile):
 		if Charms.charge_max(piece(profile, ref)) > 0:
 			out.append(ref)

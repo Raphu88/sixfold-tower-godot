@@ -50,6 +50,7 @@ const PAD := {
 	JOY_BUTTON_DPAD_UP: "inventory",
 	JOY_BUTTON_START: "pause",  # Start (Options)
 	JOY_BUTTON_BACK: "restart",  # View (Share): hold to restart; a short press opens the climber screen (pad.gd)
+	JOY_BUTTON_LEFT_STICK: "offhand",  # LS (L3), pressed in: the off-hand's wand (offhand.gd)
 }
 
 ## View (Share): a press shorter than this (seconds) opens the climber
@@ -94,6 +95,8 @@ const HELP := [
 	["jump", "Z", "{a}"],
 	["strike / hold to draw", "Left click / J", "{rt}"],
 	["parry", "Right click / K", "{lt}"],
+	["block (a shield: hold parry)", "hold Right click / K", "hold {lt}"],
+	["off-hand wand", "U / middle click", "press {ls}"],
 	["weapon", "1 2 3 / wheel", "{rb} / D-pad left right"],
 	["cast marks (hold: choose a spell)", "Q E F C X V", "hold {lb} + {x} {a} {b} {y} {rb} {rt}"],
 	["use item / next (hold: choose on the wheel)", "G / T", "{x} / D-pad down"],
@@ -133,6 +136,7 @@ static func setup() -> void:
 	_bind("jump", [_key(KEY_Z)])
 	_bind("attack", [_mouse(MOUSE_BUTTON_LEFT), _key(KEY_J)])
 	_bind("parry", [_mouse(MOUSE_BUTTON_RIGHT), _key(KEY_K)])
+	_bind("offhand", [_key(KEY_U), _mouse(MOUSE_BUTTON_MIDDLE)])  # the off-hand's wand (offhand.gd)
 	_bind("cast_hand", [_key(KEY_Q)])
 	_bind("cast_legs", [_key(KEY_E)])
 	_bind("cast_heart", [_key(KEY_F)])
