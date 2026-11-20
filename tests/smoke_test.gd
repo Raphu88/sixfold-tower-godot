@@ -6910,6 +6910,11 @@ func _spawn(kind: String, pos: Vector2):
 	e.position = pos
 	main.add_child(e)
 	await _frames(1)
+	# (Something left in the room, such as shots hanging in a hit-pause, can
+	# kill it in that frame: calling into a freed node crashes the engine.)
+	if not is_instance_valid(e):
+		_check(false, "a %s spawned for a test was killed in its first frame (something left in the room struck it)" % kind)
+		return null
 	e.set_physics_process(false)
 	return e
 
