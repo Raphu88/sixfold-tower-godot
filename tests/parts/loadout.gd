@@ -341,7 +341,7 @@ func _screens() -> void:
 		await t._frames(3)
 	_check(menu.page == "loadout" and menu.rail.visible, "the Loadout opens beside the rail")
 	var doll: Array = menu.box.find_children("*", "Button", true, false).filter(func(b): return String(b.get_meta("slot", "")).begins_with("worn:"))
-	_check(doll.size() == 13, "a paper doll of every slot, the charm's too (%d)" % doll.size())
+	_check(doll.size() == 14, "a paper doll of every slot, the charm's and the off-hand's too (%d)" % doll.size())
 	var packs: Array = menu.box.find_children("*", "Button", true, false).filter(func(b): return String(b.get_meta("slot", "")).begins_with("pack:"))
 	_check(packs.size() == p.pack_size(), "the pack shows its %d spaces" % p.pack_size())
 	var labels: Array = t._all_labels(menu.box).map(func(l): return l.text)

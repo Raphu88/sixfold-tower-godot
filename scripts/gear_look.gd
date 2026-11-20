@@ -40,6 +40,7 @@ const Gear := preload("res://scripts/gear.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const Palette := preload("res://scripts/palette.gd")
 const UI := preload("res://scripts/ui.gd")
+const Offhand := preload("res://scripts/offhand.gd")
 
 ## The looks of the chest by weight, and of the other worn slots, by piece.
 ## (Pieces not listed look like their slot's plain kind.)
@@ -249,6 +250,11 @@ static func extras(look: Dictionary, gear: Dictionary, in_hand := "") -> void:
 	look["slung"] = ranged if slot != "ranged" else melee
 	look["slung_col"] = Gear.color(gear.get("ranged" if slot != "ranged" else "melee", {}))
 	look["named_weapon"] = Gear.named_id(gear.get(slot, {})) if slot != "" else ""
+	# The off-hand piece, in the other hand while that hand is free (offhand.gd).
+	var oh = gear.get("offhand", {})
+	look["offhand"] = Gear.base_id(oh) if Gear.is_gear(oh) and not Offhand.two_handed(hand) else ""
+	look["offhand_col"] = Gear.color(oh) if Gear.is_gear(oh) else Color.WHITE
+	_mark(look, "offhand", oh)
 
 
 ## A slot's rarity edge ("<slot>_edge": its rarity's colour, Fine and up; a
@@ -655,6 +661,7 @@ static func front_arms(b, lk: Dictionary) -> void:
 				b.stroke(el + (wr - el) * 0.15, wr - (wr - el) * 0.1, col.darkened(0.1 + shade), 12.0 * thick)  # vambrace
 				b.ball(el, 5.0, col.darkened(shade), true)  # couter
 	_front_weapon(b, lk)
+	Offhand.front(b, lk, false)  # (an off-hand blade or wand, its grip under the glove)
 	var glove: String = lk.get("glove", "")
 	var gc: Color = lk.get("glove_col", lk["hand"])
 	for sg in [-1.0, 1.0]:
@@ -700,6 +707,7 @@ static func front_arms(b, lk: Dictionary) -> void:
 			var re := _edge(lk, pair[0])
 			if re.a > 0.0:
 				UI.glow_into(b, at, 6.0, re, 0.5)
+	Offhand.front(b, lk, true)  # (a shield, over the hand that holds it)
 
 
 ## The weapon in the figure's right hand (on the viewer's left), drawn

@@ -229,7 +229,7 @@ func _book_entries() -> void:
 	var menu = main.menu
 	await t._key_tap(KEY_TAB)
 	_check(menu.page == "climber" and menu.panel.get_theme_stylebox("panel") is Book.BookStyle, "Tab opens the book")
-	_check(t._all_buttons(menu).filter(func(b): return b.has_meta("ribbon")).size() == 5, "...with a ribbon for each section")
+	_check(t._all_buttons(menu).filter(func(b): return b.has_meta("ribbon")).size() == M.CLIMBER_TABS.size(), "...with a ribbon for each section")
 	menu.close()
 	await t._frames(2)
 	menu.open("pause")

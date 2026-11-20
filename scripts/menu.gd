@@ -58,6 +58,7 @@ const EntityTalk := preload("res://scripts/entity_talk.gd")
 const EntityHelp := preload("res://scripts/entity_help.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Charms := preload("res://scripts/charms.gd")
+const Offhand := preload("res://scripts/offhand.gd")  # (the off-hand slot: offhand.gd)
 
 static var GOLD: Color:  # (UI.GOLD, read each time: the Data editor can change it)
 	get: return UI.GOLD
@@ -80,7 +81,7 @@ const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_
 ## grow; Marks is the body and each mark's growth ("Body" for the Unbound,
 ## who carry no marks).
 ## (The Entity's Archive is the Library now: its own page, and a car on the train.)
-const CLIMBER_TABS := [["abilities", "Abilities"], ["tree", "Tree"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"]]
+const CLIMBER_TABS := [["abilities", "Abilities"], ["tree", "Tree"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["deeds", "Deeds"]]
 const MARKS_TAB_INDEX := 2
 const UNBOUND_MARKS_TAB := "Body"
 ## Settings & Controls: its two tabs (the train's car shows them too).
@@ -1837,6 +1838,8 @@ func _page_climber() -> void:
 			_climber_essence(prof)
 		"record":
 			_climber_record(prof)
+		"deeds":
+			load("res://scripts/deeds_page.gd").build(self)  # (the deeds and the Summit Blades: deeds_page.gd)
 		_:
 			_climber_marks(prof)
 	_footer()
@@ -2771,7 +2774,7 @@ func _page_inventory() -> void:
 					continue
 				var s := _heir_cell(grid, slot, cell, caption) if heirs else _worn_cell(grid, p, slot, cell, caption)
 				keys.append(s.get_meta("slot"))
-	# Beside the doll: fists (weapon slot 1), the off-hand (kept for later),
+	# Beside the doll: fists (weapon slot 1), the off-hand (offhand.gd),
 	# the charm, gear at your feet and a camp's rune.
 	var side := VBoxContainer.new()
 	side.add_theme_constant_override("separation", 4)
@@ -2785,10 +2788,7 @@ func _page_inventory() -> void:
 		fs.corner = "1"
 		keys.append("gear:fists")
 	if not packed:
-		var off := _slot(side, "heir:offhand" if heirs else "gear:offhand", cell, Gear.SLOT_NAMES["offhand"] if caption else "")
-		off.kind = "heir" if heirs else "gear"
-		off.locked = true
-		off.slot_name = Gear.SLOT_NAMES["offhand"]
+		var off := _heir_cell(side, "offhand", cell, caption) if heirs else _worn_cell(side, p, "offhand", cell, caption)
 		keys.append(off.get_meta("slot"))
 		var ch := _heir_cell(side, "charm", cell, caption) if heirs else _worn_cell(side, p, "charm", cell, caption)
 		keys.append(ch.get_meta("slot"))
@@ -3000,7 +3000,7 @@ func _slot_pressed(key: String) -> void:
 ## Where each carried slot is, in words.
 const WHERE := {
 	"fists": "Slot 1: always with you", "melee": "Slot 2: your melee weapon", "ranged": "Slot 3: your ranged weapon",
-	"armor": "Chest", "ring1": "Ring (left hand)", "ring2": "Ring (right hand)",
+	"armor": "Chest", "ring1": "Ring (left hand)", "ring2": "Ring (right hand)", "offhand": "Off-hand: a second weapon, a shield or a wand",
 }
 
 
@@ -3034,10 +3034,6 @@ func _show_details(key: String) -> void:
 		return
 	match kind:
 		"gear":
-			if arg == "offhand":
-				_detail_head("lock", null, Gear.SLOT_NAMES["offhand"], DIM)
-				_detail_text("Kept for later: off-hand pieces will change how you parry.", DIM)
-				return
 			var g = "fists" if arg == "fists" else p.gear.get(arg, {})
 			var has: bool = arg == "fists" or Gear.is_gear(g)
 			var none := "No armor" if arg == "armor" else "Empty"
@@ -3051,6 +3047,9 @@ func _show_details(key: String) -> void:
 			elif not has:
 				_detail_text(WHERE.get(arg, Gear.SLOT_NAMES.get(arg, arg)), DIM)
 			if not has:
+				if arg == "offhand":
+					_detail_text(Offhand.TEXT["empty"], DIM)
+					return
 				if arg != "armor":
 					_detail_text("Nothing here yet. Slain monsters, caches, camps and vaults may give you a piece for it.", DIM)
 					return
@@ -3064,6 +3063,14 @@ func _show_details(key: String) -> void:
 				fb.disabled = p.dead or held < amount
 				fb.set_meta("help", "feed_charm")
 				_detail_text(Charms.TEXT["run_note"] if held >= amount else Charms.TEXT["short_run"] % [amount, held], DIM)
+			if arg == "offhand" and has and Offhand.has_pool(g) and Charms.missing(g) > 0 and not _on_train():
+				# An off-hand piece's pool (offhand.gd): fed like a charm, with essence you haven't banked yet.
+				var oamount := Charms.refill_amount(g, main.profile)
+				var oheld := int(Charms.unbanked(main))
+				var ob := _button(Charms.TEXT["refill_run"] % oamount, _feed_offhand, details)
+				ob.disabled = p.dead or oheld < oamount
+				ob.set_meta("help", "feed_offhand")
+				_detail_text(Charms.TEXT["run_note"] if oheld >= oamount else Charms.TEXT["short_run"] % [oamount, oheld], DIM)
 			var other = _compare_with(p, arg, g)
 			_detail_stats(g if has else "", other)
 			if arg in ["armor", "helm", "legs"] and p.protection() > 0.0:
@@ -3101,7 +3108,7 @@ func _show_details(key: String) -> void:
 			var title := Gear.heirloom_slot_name(arg) + " heirloom"
 			if Gear.heirloom_planned(arg):
 				_detail_head("lock", null, title, DIM)
-				_detail_text("Kept for later: off-hand pieces aren't in the tower yet.", DIM)
+				_detail_text("Kept for later.", DIM)
 			elif g == null:
 				_detail_head("heir", null, title, DIM)
 				_detail_text("Empty. Survive a climb and you may keep the piece you wear here." if arg != "rings" else "Empty. Survive a climb and you may keep the rings you wear: both together.", DIM)
@@ -3356,6 +3363,18 @@ func _wear_pack(i: int, into: String) -> void:
 
 func _drop_pack(i: int) -> void:
 	main.drop_from_pack(i)
+	open("inventory", opened_direct)
+
+
+## Feeds the off-hand piece's own pool essence you haven't banked yet (offhand.gd).
+func _feed_offhand() -> void:
+	var g: Dictionary = Offhand.piece(main.player)
+	if g.is_empty():
+		return
+	if Offhand.refill_unbanked(main, g) == "":
+		main.sfx("craft", 1.1, -4.0, 0.0)
+		main.note_event("gear", Charms.TEXT["refilled"] % Gear.display(g), Gear.color(g))
+	inv_sel = "gear:offhand"
 	open("inventory", opened_direct)
 
 

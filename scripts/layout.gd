@@ -124,7 +124,7 @@ const GROUPS := {
 	# (the top-middle lane: one banner at a time, and the status lines under it)
 	"group.notices": {"name": "Top notices", "of": ["hud.lane", "hud.status"]},
 	"group.touch_actions": {"name": "Action buttons", "sets": ["touch"], "loose": true,
-		"of": ["touch.attack", "touch.roll", "touch.jump", "touch.parry", "touch.weapon", "touch.item", "touch.item_next", "touch.take", "touch.tools",
+		"of": ["touch.attack", "touch.roll", "touch.jump", "touch.parry", "touch.weapon", "touch.item", "touch.item_next", "touch.take", "touch.tools", "touch.offhand",
 			"touch.mark_1", "touch.mark_2", "touch.mark_3", "touch.mark_4", "touch.mark_5", "touch.mark_6"]},
 	"group.touch_menu": {"name": "Menu buttons", "sets": ["touch"], "of": ["touch.inventory", "touch.climber", "touch.menu", "touch.fullscreen"]},
 }
@@ -147,6 +147,7 @@ const TOUCH := [
 	["item_next", "Next item", "br", Vector2(-478, -48), 22.0],
 	["take", "Take", "br", Vector2(-400, -372), 34.0],
 	["tools", "Tools", "br", Vector2(-505, -235), 28.0],
+	["offhand", "Off-hand", "br", Vector2(-505, -130), 28.0],  # (only with a wand in a free hand: offhand.gd)
 	# One cast button per mark you carry, in these spots, in body order.
 	["mark_1", "Mark button 1", "br", Vector2(-282, -222), 34.0],
 	["mark_2", "Mark button 2", "br", Vector2(-52, -262), 34.0],
