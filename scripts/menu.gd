@@ -3655,7 +3655,7 @@ func _page_dev() -> void:
 
 	_section("Finds (dropped at your feet) and named pieces")
 	var fgrid := _grid(4, 6)
-	for r in ["fine", "rare", "storied"]:
+	for r in ["fine", "rare", "masterwork", "storied"]:
 		_button("A %s find" % Gear.RARITIES[r]["name"], _dev_find.bind(r), fgrid)
 	for n in Gear.NAMED_ORDER:
 		_button(Gear.NAMED[n]["name"], _dev_named.bind(n), fgrid)
@@ -4665,7 +4665,23 @@ class Slot extends Button:
 		if body.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= room:
 			UI.draw_text(self, body, Vector2(x, mid + 5.0), line, HORIZONTAL_ALIGNMENT_LEFT, room, fs, col)
 		else:
-			UI.draw_text_lines(self, body, Vector2(x, mid - 2.0), line, HORIZONTAL_ALIGNMENT_LEFT, room, 12, 2, col)
+			# A long name ("Fine Padded Armor of the Lantern" beside a price, an
+			# arrow and a tag) wraps onto two lines, smaller if it must, then
+			# three, so every letter shows (the hover help names it in full too).
+			var most := 2
+			var fs2 := 12
+			while fs2 > UI.FIT_FLOOR and _row_lines(body, line, room, fs2) > most:
+				fs2 -= 1
+			if _row_lines(body, line, room, fs2) > most:
+				most = 3
+			var lh := body.get_height(fs2)
+			var n := mini(_row_lines(body, line, room, fs2), most)
+			var top := mid - lh * n * 0.5 + body.get_ascent(fs2)
+			UI.draw_text_lines(self, body, Vector2(x, top), line, HORIZONTAL_ALIGNMENT_LEFT, room, fs2, most, col)
+
+	## How many lines a row's name takes wrapped to `room` at size `fs`.
+	func _row_lines(f: Font, text: String, room: float, fs: int) -> int:
+		return maxi(1, int(round(f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, room, fs).y / maxf(f.get_height(fs), 1.0))))
 
 
 ## The big icon at the top of the inventory's details (and the record's heirlooms).

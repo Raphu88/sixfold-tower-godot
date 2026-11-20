@@ -56,7 +56,7 @@ const NO_OUTLINE := 4
 const THIN := 8  # a thinner outline (a part laid over another)
 
 ## How strongly each rarity glows behind an icon.
-const RARITY_GLOW := {"common": 0.0, "fine": 0.5, "rare": 0.68, "storied": 0.85, "regarded": 1.0}
+const RARITY_GLOW := {"common": 0.0, "fine": 0.5, "rare": 0.68, "masterwork": 0.76, "storied": 0.85, "regarded": 1.0}
 ## The bounce light on a shape's shadowed edges: a cool violet-white.
 const BOUNCE := Color(0.72, 0.7, 0.98)
 

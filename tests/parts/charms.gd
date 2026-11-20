@@ -63,7 +63,7 @@ func _fresh_player():
 
 func _data() -> void:
 	var all: Array = C.all()
-	_check(all.size() >= 10 and all.size() <= 14, "between ten and fourteen charms (%d)" % all.size())
+	_check(all.size() >= 10 and all.size() % 6 == 0, "ten or more charms, counted by sixes (%d)" % all.size())
 	var kinds := {}
 	var rar := {}
 	var ok := true

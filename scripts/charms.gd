@@ -39,6 +39,10 @@ const TRAIN := "res://scripts/train.gd"  # (loaded when needed: the train preloa
 ##   mend        falling below "below" of your health heals "heal" over "time"
 ##   rally       a blow that would fell you leaves you at "health" of yours
 ##   gust        a blow that lands on you hurls the foes within "radius" back
+##   breath      running out of stamina fills "share" of it back at once
+##   veil        a blow that lands on you while you're below "below" of your
+##               health wraps you in mist "radius" wide for "time" seconds:
+##               monsters in it lose track of you (as a Smoke Bomb; beasts don't)
 static var CHARGES := {
 	"wardbreak": {"name": "Snap the ward", "desc": "the first time a shell or guard would turn your blow, its ward snaps: for 20 seconds your blows and arrows go through shells and guards",
 		"max": 1, "refill": 12, "duration": 20.0, "foes": ["shellback", "knight", "mirror"]},
@@ -48,6 +52,10 @@ static var CHARGES := {
 		"max": 1, "refill": 30, "health": 0.3},
 	"gust": {"name": "Gust", "desc": "a blow that lands on you hurls the foes around you back",
 		"max": 3, "refill": 6, "radius": 120.0, "push": 560.0, "dmg": 4.0},
+	"breath": {"name": "Second breath", "desc": "running out of stamina fills half of it back at once",
+		"max": 2, "refill": 8, "share": 0.5},
+	"veil": {"name": "Veil of mist", "desc": "a blow that lands on you below half your health wraps you in mist for 4 seconds: monsters inside lose track of you (beasts don't)",
+		"max": 2, "refill": 10, "below": 0.5, "radius": 90.0, "time": 4.0},
 	# The off-hand's own essence pools (offhand.gd): an enchanted off-hand
 	# piece's power, a use spent each time it fires, refilled as a charge is.
 	"ember_strike": {"name": "Ember strike", "desc": "its off-hand stab sets the foe burning (3 every half second for 3 seconds)",
@@ -80,13 +88,14 @@ static var CRAFT := {
 	"ember_charm": {"fire": 30}, "feather_token": {"air": 30}, "iron_brooch": {"iron": 30}, "ward_stone": {"stone": 32},
 	"tide_shell": {"water": 34}, "wardbreaker": {"blade": 30}, "mending_bead": {"water": 32},
 	"keepers_purse": {"iron": 70}, "ashen_knot": {"fire": 70}, "gale_charm": {"air": 65}, "bulwark_stone": {"stone": 65},
+	"hunters_token": {"air": 10}, "brass_bellows": {"iron": 30}, "duelists_ribbon": {"blade": 65}, "mist_pearl": {"water": 70},
 }
 
 ## Recipes a Rune Artist must LEARN before crafting (the rest are known
 ## from the start): a renown rank teaches some (renown.gd RANK_OPENS
 ## "recipe"), and a noble's contract now and then teaches one (contracts.gd).
 ## Learned ones are kept with the climber (renown.gd state "recipes").
-static var LOCKED := ["mending_bead", "keepers_purse", "tide_shell", "bulwark_stone", "gale_charm", "ashen_knot"]
+static var LOCKED := ["mending_bead", "keepers_purse", "tide_shell", "bulwark_stone", "gale_charm", "ashen_knot", "duelists_ribbon", "mist_pearl"]
 
 ## The outfitter's rail (train.gd roll_outfit): "rack" charms hang on it
 ## every visit, Common by nature, or a Fine charm "fine" times in 100.

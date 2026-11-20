@@ -73,8 +73,8 @@ static var TODAY_ODDS := {"fine": 75, "rare": 25}
 ## never Common: their number here is what a plain one would cost.
 static var BASE_PRICE := {
 	"dagger": 10, "sword": 12, "axe": 12, "mace": 12, "spear": 12, "greatsword": 15, "war_hammer": 15, "cane": 8, "sword_cane": 14,
-	"shortbow": 12, "longbow": 14, "crossbow": 15, "flintlock": 16, "revolver": 18,
-	"padded": 8, "leather": 12, "chain": 16, "plate": 20,
+	"shortbow": 12, "longbow": 14, "crossbow": 15, "flintlock": 16, "revolver": 18, "rapier": 13, "flail": 13, "sling": 8,
+	"padded": 8, "leather": 12, "chain": 16, "plate": 20, "robe": 10, "scale": 18,
 	"cloth_hood": 8, "leather_cap": 10, "iron_helm": 14, "grip_wraps": 10, "leather_gloves": 10, "gauntlets": 14,
 	"padded_trousers": 8, "leather_leggings": 10, "chain_leggings": 14, "soft_boots": 10, "climbing_boots": 10, "hobnail_boots": 12,
 	"travel_cloak": 8, "dusk_cloak": 12, "satchel": 12, "belt_pouch": 15,
@@ -86,6 +86,8 @@ static var BASE_PRICE := {
 	# Charms (charms.gd): Commons cost half this, Fine twice it, Rare four times.
 	"lucky_knot": 12, "pocket_clasp": 14, "belt_hook": 14, "feather_token": 14, "iron_brooch": 14, "ward_stone": 15, "tide_shell": 16,
 	"wardbreaker": 14, "mending_bead": 15, "keepers_purse": 18, "ashen_knot": 18, "gale_charm": 16, "bulwark_stone": 16,
+	"hunters_token": 12, "brass_bellows": 14, "duelists_ribbon": 17, "mist_pearl": 17,
+	"dancers_slippers": 11, "falcon_pendant": 12,
 	# The off-hand (offhand.gd): blades, shields and wands (wands are Fine by nature).
 	"parrying_dagger": 10, "hand_axe": 11, "ember_dirk": 12, "buckler": 10, "kite_shield": 14, "tide_ward": 13,
 	"cairn_wand": 12, "edge_wand": 12, "iron_wand": 12, "gale_wand": 12, "cinder_wand": 12, "tide_wand": 12,
@@ -95,7 +97,7 @@ static var DEFAULT_PRICE := 10
 ## "I can never afford anything"); Fine and up kept their prices, so a Fine
 ## piece costs 4x its Common and finds still sell well. A beast's Regarded
 ## piece is the dearest of all (it sells for the most).
-static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "storied": 8.0, "regarded": 14.0}
+static var RARITY_PRICE := {"common": 0.5, "fine": 2.0, "rare": 4.0, "masterwork": 6.0, "storied": 8.0, "regarded": 14.0}
 ## The staples (items.gd "staple": the Healing and Stamina Vials and the
 ## Essence Vial) cost half their small worth (items.gd "value") at the
 ## store: cheap enough for every climber. Everything else is rarer and costs its full worth. (A belt left
@@ -626,7 +628,7 @@ static func roll_today(profile = null) -> Dictionary:
 			rar = r
 			break
 	if profile != null and Shop.title_today(profile):  # (the worn title: a rarity higher, titles.gd)
-		rar = "rare" if rar == "fine" else ("storied" if rar == "rare" else rar)
+		rar = "rare" if rar == "fine" else ("masterwork" if rar == "rare" else rar)  # (a plain piece: the next plain rarity up)
 	var base := Gear.random_gear("", [], true, rar)
 	for i in 12:
 		if not Gear.traits_for(Gear.trait_slot(base)).is_empty():

@@ -106,6 +106,7 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 | Wading Boots | Boots | water doesn't slow you; traps and burning floor hurt 10% less |
 | Feather Cape | Cloak | jumps carry 15% farther and rolls 4% farther |
 | Herb Pouch | Backpack | healing items heal 25% more; your pack holds 3 |
+| Dancer's Slippers | Boots | the parry window is 6% longer; you're ready to roll again 12% sooner |
 
 **Rings and amulets** (Fine, so they never wear; enchanted by nature, each in its own essence, which its card names; you wear two rings and both count):
 
@@ -118,6 +119,9 @@ Gear is everything you carry and wear. Weapons live in `scripts/weapons.gd`; arm
 | Sunstone Pendant | Amulet | your light reaches 20% farther; spells hit 3% harder |
 | Silver Ring | Ring | the parry window is 6% longer; a perfect parry heals you 3 |
 | Jade Ring | Ring | +12 max stamina |
+| Falcon Pendant | Amulet | bows, crossbows and pistols hit 5% harder; bows draw and crossbows reload 6% faster |
+
+Forty-two worn pieces in all (besides the six chest pieces, the charms and the off-hand), by sixes.
 
 **Rare by nature** (found only as Rare finds; never wear):
 
@@ -194,6 +198,12 @@ The old game's "sacred swords", renamed (`scripts/summit_blades.gd`). **One blad
 | Ashen Knot | Rare | Fire | poison and burning floor hurt 15% less | **Rally** (1; 30): a blow that would fell you leaves you standing at 30% of your health |
 | Gale Charm | Rare | Air | you walk 4% faster | **Gust** (3; 6): a blow that lands on you hurls the foes around you back |
 | Bulwark Stone | Rare | Stone | +15 health and 4% damage taken off | |
+| Hunter's Token | Common | | bows, crossbows and pistols hit 5% harder | |
+| Brass Bellows | Fine | Iron | stamina refills 4% faster | **Second breath** (2; 8): running out of stamina fills half of it back at once |
+| Duelist's Ribbon | Rare | Blade | ripostes and backstabs hit 15% harder; the parry window is 5% longer | |
+| Mist Pearl | Rare | Water | monsters notice you 10% later | **Veil of mist** (2; 10): a blow that lands on you below half your health wraps you in mist for 4 s (as a Smoke Bomb: monsters inside lose track of you; beasts don't) |
+
+Eighteen charms, by sixes (`tests/parts/six_gear.gd` checks every gear and item list's count). The Duelist's Ribbon and the Mist Pearl are recipes a Rune Artist learns from a noble's contract.
 
 **Where charms come from:** a **Rune Artist crafts** them at the workshop bench's Charms counter (`CRAFT`: 10 to 70 crystals of the charm's kind; it goes into your stash), the **outfitter** keeps one in his charm tray every visit (`SHOP`: Common, or Fine 30% of the time; priced like other pieces from `BASE_PRICE`), and the towers hold them **now and then** (`LOOT`): a vault's third card is a charm 20% of the time, a secret room's crystals come with one 30% of the time, and a slain monster leaves one very rarely (0.4%); a found charm's rarity rolls like other finds, one row higher (a Storied roll is Rare). Charms are never a plain gear drop (`drop_weight` 0). They come home like other worn gear (a recall scroll or the summit; a fall loses them, save the Keeper's Purse), can be kept as an **heirloom** (the Charm heirloom slot; a charge it spends on a climb stays spent on the heirloom, `keep_heirloom`), and show on the climber as a small charm at the hip. The Entity explains them the first time you find, wear or craft one, in "How do charms work?" and on every new button. **Old saves:** a packed Wardbreaker Charm consumable gives back the crystals paid for it (`OLD_ITEMS`); an Ember Charm kept or worn as an amulet moves to the charm slot.
 
@@ -203,7 +213,7 @@ The old game's "sacred swords", renamed (`scripts/summit_blades.gd`). **One blad
 
 ### Rarities and traits: ordinary, enchanted and relics
 
-Gear comes in five **rarities** (`RARITIES` in `gear.gd`), each with its colour on the floor label, the drop's glint, the inventory slot's edge and the card: **Common** (parchment), **Fine** (green, 1 trait, weapons +5% damage), **Rare** (blue, 2 traits, weapons +10%), **Storied** (amber, its own named rule and 1 trait, weapons +12%) and **Regarded** (gold, a beast's own weapon or armour: its own named rule and **4 traits**, weapons +15%; see **Regarded pieces** below). Rings and amulets are Fine by nature, so they carry one trait fewer. Backpacks take no traits. Only plain **Common** pieces wear; anything with a trait, and anything finer, never does.
+Gear comes in six **rarities** (`RARITIES` in `gear.gd`), each with its colour on the floor label, the drop's glint, the inventory slot's edge and the card: **Common** (parchment), **Fine** (green, 1 trait, weapons +5% damage), **Rare** (blue, 2 traits, weapons +10%), **Masterwork** (violet, a maker's finest plain work: 3 traits and no name of its own, weapons +11%; only from floor 10 up (`MASTERWORK_FROM`) and seldom, never on the outfitter's rail, so growth stays slow; the Entity explains it the first time), **Storied** (amber, its own named rule and 1 trait, weapons +12%) and **Regarded** (gold, a beast's own weapon or armour: its own named rule and **4 traits**, weapons +15%; see **Regarded pieces** below). Rings and amulets are Fine by nature, so they carry one trait fewer. Backpacks take no traits. Only plain **Common** pieces wear; anything with a trait, and anything finer, never does.
 
 **Ordinary or enchanted** (the owner's direction: "keep tiers but make each piece exciting; some not enchanted and some enchanted"). A **Common** piece is **ordinary**: not enchanted, no traits, only its own use, and every base piece has one clear use of its own (no two the same; the cards say "ordinary"). **Fine** and **Rare** pieces are **enchanted**: their traits, and their card's first line says "Enchanted: <essence> essence" in that essence's colour (the essence of its first trait). Rings and amulets are enchanted by nature, each in its own essence (`PIECES` "kind"); the Climber's Pack and the Bandolier are Rare by nature but ordinary. **Storied** and **Regarded** pieces are **relics**: a name, their own rule, and a card line saying whether they're enchanted (the Lastbell Revolver isn't). Helpers in `gear.gd`: `enchanted`, `enchant_kind`, `shot_kind`. **Relics' histories:** every named piece has a `history` in `NAMED`, blank for the owner to write (in `gear.gd`, or the Data editor's Words → Gear → Named pieces); a card shows it only once it isn't blank.
 
@@ -211,12 +221,13 @@ Gear comes in five **rarities** (`RARITIES` in `gear.gd`), each with its colour 
 
 **Rarity by floor** (slain monsters; caches, camps and vaults roll one row higher; `RARITY_ODDS`):
 
-| Floors | Common | Fine | Rare | Storied |
-| --- | --- | --- | --- | --- |
-| 1 to 3 | 80% | 20% | 0% | 0% |
-| 4 to 6 | 60% | 32% | 8% | 0% |
-| 7 to 9 | 45% | 38% | 15% | 2% |
-| 10 to 12 | 35% | 40% | 20% | 5% |
+| Floors | Common | Fine | Rare | Masterwork | Storied |
+| --- | --- | --- | --- | --- | --- |
+| 1 to 3 | 80% | 20% | 0% | 0% | 0% |
+| 4 to 6 | 60% | 32% | 8% | 0% | 0% |
+| 7 to 9 | 45% | 38% | 15% | 0% | 2% |
+| 10 to 12 | 35% | 40% | 19% | 1% | 5% |
+| (one row higher) | 25% | 40% | 24% | 3% | 8% |
 
 Storied pieces are only found from floor 7 up. A **Rare** or better find gets a line in its rarity's colour in the left feed ("RARE: Axe of the Riposte"; see **What the game tells you**), and is kept in the Entity's log.
 
@@ -244,6 +255,12 @@ Storied pieces are only found from floor 7 up. A **Rare** or better find gets a 
 | of Shadows | Air | monsters notice you 10% later | 15% | cloak, boots, helm, ranged |
 | of Striding | Air | rolls carry 5% farther | 8% | boots, legs, cloak |
 | of the Lantern | Fire | your light reaches 10% farther | 15% | helm, amulet, cloak, chest |
+| of Finishing | Blade | a chain's finisher hits 8% harder | 12% | melee, gloves, rings, off-hand |
+| of Grace | Water | a perfect parry heals you 2 | 3 | gloves, rings, amulet, off-hand |
+| of Cleansing | Water | poison wears off 10% sooner and burning floor hurts that much less | 15% | cloak, chest, amulet, boots |
+| of Zeal | Fire | each kill gives back 3 stamina | 5 | melee, ranged, rings, helm |
+
+Twenty-four traits, by sixes. Poison-and-fire protection from gear stops at 60% (`CAPS`).
 
 The faint traits (Edges, Wind, Second Wind, Hunt, Kindling, Well, Mending, Quick Draw, Striding) were made noticeable; the caps below keep stacking in check. Ranged weapons can now carry fire, water, iron and blade traits too, so an enchanted pistol can fire every essence's shot.
 
@@ -307,6 +324,8 @@ The faint traits (Edges, Wind, Second Wind, Hunt, Kindling, Well, Mending, Quick
 | War Hammer | heavy | the slowest and heaviest, 2 hits: every blow rocks, and the finisher staggers (half as long on a beast) | 16 to 24 | 74 | 52 to 56 |
 | Walking Cane | light | quick, light blows; the hooked finisher staggers (a riposte's opening), and the parry window is 20% longer while it's in hand | 5 to 9 | 30 | 44 to 48 |
 | Sword-Cane | light | two quick cane blows, then the blade comes out of the cane for a long, hard finisher (drawn with the empty cane in the other hand) | 5 to 17 | 38 | 44 to 60 |
+| Rapier | light | long, slim, one-handed thrusts; while it's in hand ripostes and backstabs hit 40% harder (`riposte`) | 6 to 12 | 37 | 58 to 66 |
+| Flail | medium | a spiked ball on a chain: its blows go through guards and shells (`through`), a knight's guard and a shellback's shell as if they weren't there | 9 to 15 | 66 | 50 to 56 |
 
 **Ranged weapons:**
 
@@ -317,6 +336,9 @@ The faint traits (Edges, Wind, Second Wind, Hunt, Kindling, Well, Mending, Quick
 | Crossbow | press to fire a fast, strong bolt at once (24 damage; it rocks what it hits), then a 1.1 s reload you can't skip. You can walk (a little slower) while it reloads; the slot and the phone's attack button fill back up. |
 | Flintlock Pistol | one heavy shot (34 damage, short range): it rocks what it hits, throws it back harder than any bolt and kicks you back; then a long 2.2 s reload |
 | Revolver | six quick shots (10 each, 0.2 s apart), then a 2 s reload of all six |
+| Sling | drawn like a bow: hold to whirl (0.6 s), release to throw a stone (5 to 17 damage). A stone never pierces, but a full whirl rocks what it hits; light on stamina, and you walk at 70% while it whirls (`stone`) |
+
+Eighteen weapons, by sixes, your fists among them. The rapier, the flail and the sling each get a first-time word from the Entity, and its "How do weapons and rarities work?" topic covers them.
 
 **Pistols** (`kind: "gun"` in `weapons.gd`) go in the ranged slot. An ordinary pistol starts reloading by itself once it's empty; reloading is something you do, so **a roll breaks it off** (it starts again from the beginning after the roll), and so does putting the pistol away. You walk a little slower while reloading (`reload_move`), and the quick-draw traits and Archer's Bracers reload pistols faster. Lead shot that lands fills your hand's mark as arrows and bolts do. The HUD's weapon slot shades while it reloads and shows a pip for each shot (lit while loaded); on a phone the attack button reads "Revolver 4/6" and its ring fills as it reloads. The sounds are the bank's own, pitched: thunder and a crossbow's clack for the flintlock, a quick clack and a ring of steel for the revolver, powder poured and a ramrod's click, a ratchet and a lock's turn for reloading.
 
@@ -342,6 +364,8 @@ Weapon classes matter elsewhere too: Blade Forger's **Weapon Memory** throws mor
 | Leather Armor | 15% | +12% | -5% | -5% | -2% |
 | Chain Mail | 25% | +30% | -12% | -13% | -5% |
 | Plate Armor | 35% | +55% | -24% | -25% | -10% |
+| Warded Robe | 5% | +2% | -1% | normal | normal (and spells hit 6% harder: ARMOR `fx`) |
+| Scale Mail | 30% | +42% | -18% | -19% | -8% (and light blows can't knock you back) |
 
 **Heirlooms.** Survive a climb (beat its beast, or reach the Regard on the first climb and leave with your mark) and, after the victory screen, you choose **one** piece you wore to keep as an **heirloom**: a card for each slot you fill (any piece already kept is left out), and one to keep nothing new. Your **rings** share one card and are kept **together**. With many cards they sit in two rows. Every later climb starts with your heirlooms in their slots, in full repair. Each slot holds one heirloom (Rings holds both rings); keeping another piece for the same slot replaces it. The heirloom slots are **melee**, **ranged**, **chest**, **helm**, **gloves**, **legs**, **boots**, **cloak**, **amulet**, **rings**, **backpack**, **charm** and **off-hand**. There's one free heirloom per survived climb. The **inventory**'s Heirlooms view shows them on the same body layout, and the climber screen's Record tab lists them. Starting a new climber forgets them. Slots and text live in `HEIRLOOM_SLOTS` and `HEIRLOOM_TEXT` in `scripts/gear.gd`; heirlooms are saved with your profile as records.
 
@@ -374,6 +398,9 @@ The dev tools have a **Gear** row: a button for every weapon, armor and worn pie
 | Ash of Unmaking | Fire (Unmaking) | every foe within reach loses an eighth of its health (a beast 3%) |
 | Gale Feather | Air | a gust hurls the foes around you back (a beast only staggers a step) |
 | Scroll of Seeing | Air | for a minute every hidden trap and secret wall on the floor glints, wherever it is |
+| Thunder Jar | Air | thrown where you aim: a crack of lightning for 14 (+8% a floor), and the foes it catches are stunned for 0.9 s (a beast only jolted) |
+| Springheel Draught | Iron | for 20 s jumps cost no stamina and carry 40% farther, and rolls carry 15% farther |
+| Stillwater Draught | Water | for 20 s the parry window is 40% longer, and every perfect parry heals you 4 |
 | Recall Scroll | Air and Water | from vaults, and always on the train's store shelf for 60 crystal essence of any kind; one at most: read it to leave the tower safely, keeping everything (see **Sealed wings, vaults and secrets**) |
 
 **Staples and the rest** (the owner: "Still lots of consumables. Probably should get rid of minor to greater potions and just go with regular health, stamina and essence, as well as the other utility items"). Three items are **staples** (`staple` in `items.gd`): the **Healing Vial**, the **Stamina Vial** and the **Essence Vial** (it fills your marks, so a bondless climber never finds one). They're cheap at the store (3, 3 and 4: `SUPPLY_PRICE` in `train.gd`, half their small worth), every climb starts with a Healing and a Stamina Vial (`START`), and they're nearly everything slain monsters leave. **Everything else is rare and meaningful**: oils, nets, smoke, flasks, tonics, salts, flares, scrolls and the rest turn up only a few times in a whole climb, so each is worth keeping for its moment; the outfitter's shelf is where you choose them on purpose, at their full worth (10 to 20). Slain monsters (not beasts) leave an item 9% of the time (`DROP_CHANCE`), almost always a staple (a rarer item's `drop_weight` counts only 0.3 beside a staple's: `DROPS` "rare_weight"); walk over it to pick it up. Camps, caches, vaults and fallen climbers never hold a staple. The two items of the secret essences (Heartroot and Ash of Unmaking) are never dropped by monsters (except Heartroot in the Chimera's tower, where it's handy); camps and vaults offer them.

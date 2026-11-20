@@ -61,25 +61,25 @@ static var SHELF_RANK := {
 	"salts": 2, "flare": 2, "warding_oil": 2, "tincture_water": 2, "tincture_fire": 2, "tincture_air": 2,
 	"tincture_stone": 2, "tincture_iron": 2, "tincture_blade": 2,
 	"haste": 3, "stoneskin": 3, "heartroot": 3,
-	"net": 4, "lodestone": 4, "briar_tonic": 4,
-	"lantern_oil": 5, "gale_feather": 5,
-	"unmaking_ash": 6, "seeing_scroll": 6,
+	"net": 4, "lodestone": 4, "briar_tonic": 4, "springheel": 4,
+	"lantern_oil": 5, "gale_feather": 5, "stillwater": 5,
+	"unmaking_ash": 6, "seeing_scroll": 6, "thunder_jar": 6,
 }
 
 ## The rank a weapon starts to hang on the rail at (not listed: from the start).
 static var WEAPON_RANK := {
-	"cane": 1, "longbow": 1,
-	"flintlock": 2, "crossbow": 2, "sword_cane": 2,
+	"cane": 1, "longbow": 1, "flail": 1,
+	"flintlock": 2, "crossbow": 2, "sword_cane": 2, "rapier": 2,
 	"greatsword": 3, "war_hammer": 3,
 	"revolver": 4,
 }
 
 ## The slots a title can tilt toward, by group.
 static var GROUPS := {
-	"blades": ["dagger", "sword", "sword_cane", "greatsword", "axe"],
+	"blades": ["dagger", "sword", "sword_cane", "greatsword", "axe", "rapier"],
 	"guns": ["flintlock", "revolver"],
-	"bows": ["shortbow", "longbow", "crossbow"],
-	"heavy": ["mace", "war_hammer", "greatsword", "axe"],
+	"bows": ["shortbow", "longbow", "crossbow", "sling"],
+	"heavy": ["mace", "war_hammer", "greatsword", "axe", "flail"],
 	"trade": ["satchel", "belt_pouch", "bandolier", "pack", "great_pack", "herb_pouch", "climbers_pack"],
 }
 

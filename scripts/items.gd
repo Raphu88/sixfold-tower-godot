@@ -53,6 +53,7 @@ const STEADY_TIME := 0.6
 
 const ORDER := ["draught", "stamina", "tonic", "vial", "smoke", "fire_flask", "edge_oil", "warding_oil", "haste", "stoneskin", "salts", "flare",
 	"antidote", "heartroot", "net", "lodestone", "briar_tonic", "lantern_oil", "unmaking_ash", "gale_feather", "seeing_scroll",
+	"thunder_jar", "springheel", "stillwater",
 	"scroll", "vessel",
 	# Tinctures (essence_flow.gd): one of each essence.
 	"tincture_air", "tincture_water", "tincture_iron", "tincture_fire", "tincture_stone", "tincture_blade"]
@@ -272,6 +273,35 @@ static var ITEMS := {
 		"duration": 60.0, "buff": {"seek": 6000.0},
 		"drop_weight": 1,
 		"kind": "air", "value": {"air": 16},
+	},
+	# Three more, so the belt's items count by sixes (24, besides the recall
+	# scroll, the vessel and the six tinctures).
+	"thunder_jar": {
+		"name": "Thunder Jar",
+		"short": "Thunder",
+		"desc": "thrown where you aim: it bursts in a crack of lightning for 14, and the foes it catches are stunned for a moment (a beast only jolted)",
+		"color": Color(0.95, 0.89, 0.42),
+		"thrown": true, "range": 160.0, "radius": 58.0, "flight": 0.35, "dmg": 14.0, "per_floor": 0.08, "stun": 0.9,
+		"drop_weight": 1,
+		"kind": "air", "value": {"air": 16},
+	},
+	"springheel": {
+		"name": "Springheel Draught",
+		"short": "Springheel",
+		"desc": "for 20 seconds your jumps cost no stamina and carry 40% farther, and rolls carry 15% farther",
+		"color": Color(0.56, 0.86, 0.8),
+		"duration": 20.0, "buff": {"free_jump": 1.0, "jump": 0.4, "roll_dist": 0.15},
+		"drop_weight": 1,
+		"kind": "iron", "value": {"iron": 12},
+	},
+	"stillwater": {
+		"name": "Stillwater Draught",
+		"short": "Stillwater",
+		"desc": "a cool, calming sip: for 20 seconds the parry window is 40% longer, and every perfect parry heals you 4",
+		"color": Color(0.48, 0.66, 0.96),
+		"duration": 20.0, "buff": {"parry": 0.4, "parry_heal": 4.0},
+		"drop_weight": 1,
+		"kind": "water", "value": {"water": 14},
 	},
 	# From vaults (wings.gd), and always on the train's store shelf, priced
 	# in crystals of any kind (train.gd ANY_PRICE): never dropped or offered at a camp.
@@ -545,6 +575,7 @@ const USE_SOUNDS := {"draught": "drink", "stamina": "drink", "tonic": "drink", "
 	"edge_oil": "use_oil", "warding_oil": "use_ward", "haste": "use_salts", "stoneskin": "use_stone", "salts": "use_salts", "flare": "ready",
 	"antidote": "drink", "heartroot": "drink", "briar_tonic": "drink", "net": "throw", "lodestone": "throw",
 	"lantern_oil": "use_oil", "unmaking_ash": "unmake", "gale_feather": "spell_wind", "seeing_scroll": "tip_chime",
+	"thunder_jar": "throw", "springheel": "use_salts", "stillwater": "drink",
 	"tincture_air": "drink", "tincture_water": "drink", "tincture_iron": "drink", "tincture_fire": "drink", "tincture_stone": "drink", "tincture_blade": "drink"}
 
 
@@ -616,7 +647,7 @@ static func use(id: String, p) -> bool:
 			var last: float = float(data["duration"]) * (ASHWALKER_SMOKE if p.has_bond("ashwalker") else 1.0)
 			main.smokes.append({"pos": p.global_position, "r": float(data["radius"]), "t": last})
 			main.fx_burst(p.global_position, Vector2.ZERO, col, 18, 160.0)
-		"fire_flask", "net", "lodestone":
+		"fire_flask", "net", "lodestone", "thunder_jar":
 			main.throw_flask(p, id)
 		"edge_oil":
 			p.edge_t = float(data["duration"])
@@ -658,10 +689,10 @@ static func use(id: String, p) -> bool:
 			_heal_over_time(p, data, steady)
 			p.add_buff(id, float(data["duration"]), data["buff"])
 			main.fx_burst(p.global_position, Vector2.UP, col, 14, 160.0)
-		"briar_tonic", "lantern_oil", "seeing_scroll":
+		"briar_tonic", "lantern_oil", "seeing_scroll", "springheel", "stillwater":
 			p.add_buff(id, float(data["duration"]), data["buff"])
 			main.fx_text(above, {"briar_tonic": "Briars", "lantern_oil": "Your light grows",
-				"seeing_scroll": "The hidden shows itself"}[id], col)
+				"seeing_scroll": "The hidden shows itself", "springheel": "Light on your feet", "stillwater": "Calm and still"}[id], col)
 			if id == "lantern_oil":
 				main.light_flash(p.global_position, col, 1.6, 2.0, 0.4)
 			elif id == "seeing_scroll":
@@ -762,6 +793,20 @@ static func burst(main, f: Dictionary) -> void:
 				e.knock = dir * float(data["pull"]) * minf(1.0, to.length() / 60.0) * (0.15 if e.is_boss() else 1.0)
 			main.light_flash(pos, col, 1.4, 1.8, 0.35)
 			main.sfx("zap", 0.6, -3.0)
+		"thunder_jar":
+			var pts: Array = [pos]
+			for e in main.targets():
+				var to: Vector2 = e.global_position - pos
+				if e.dead or to.length() > float(f["r"]) + e.radius:
+					continue
+				e.take_hit(float(f.get("dmg", data["dmg"])), to.normalized() if to.length() > 1.0 else Vector2.ZERO, 60.0)
+				if not e.is_boss():
+					e.stagger(float(data["stun"]))  # (a beast is only jolted: it shrugs off the stun)
+				pts.append(e.global_position)
+			if pts.size() > 1:
+				main.fx_bolt(pts, col)
+			main.light_flash(pos, col, 1.6, 2.0, 0.3)
+			main.sfx("zap", 0.9, -2.0)
 	main.fx_ring(pos, col, float(f["r"]), 0.35, 5.0)
 	main.fx_burst(pos, Vector2.ZERO, col, 16, 240.0)
 
@@ -1087,6 +1132,41 @@ static func _item_art(b, id: String, s: float) -> void:
 			b.circle(ec, 0.6 * u, Color(0.08, 0.06, 0.12), 10)
 			Art.soft(b, ec, 5.0 * u, Color(col, 0.3))
 			Art.orb(b, Vector2(2.6, 4.6) * u, 1.8 * u, Color(0.3, 0.46, 0.86), s, "gem")
+		"thunder_jar":
+			# A squat clay jar sealed with wax, a bolt painted on it, sparks at the lid.
+			var bc := Vector2(0, 2.6) * u
+			var jar := Art.smooth(Art.pts(c, u, [Vector2(-3.2, -5.4), Vector2(3.2, -5.4), Vector2(6.2, -1.0), Vector2(6.0, 6.0), Vector2(3.8, 8.8),
+				Vector2(-3.8, 8.8), Vector2(-6.0, 6.0), Vector2(-6.2, -1.0)]), 3)
+			Art.shape(b, jar, Color(0.62, 0.44, 0.32), s, "")
+			Art.shape(b, Art.rrect(Rect2(Vector2(-3.8, -7.4) * u, Vector2(7.6, 2.6) * u), 0.8 * u, 2), Color(0.78, 0.22, 0.2), s, "", Art.THIN)  # the wax seal
+			Art.bolt(b, bc + Vector2(-1.6, -4.0) * u, bc + Vector2(1.2, 4.4) * u, maxf(0.7, 0.9 * u), col, 4)
+			Art.soft(b, Vector2(0, -8.4) * u, 4.4 * u, Color(col, 0.5))
+			Art.spark(b, Vector2(3.6, -9.6) * u, 1.8 * u, Color(1, 1, 0.8, 0.95))
+			if lod > 0:
+				Art.spark(b, Vector2(-3.4, -10.4) * u, 1.3 * u, Color(1, 1, 0.8, 0.85))
+		"springheel":
+			# A tall bottle of sea-green draught with a coiled spring on its label.
+			var body := Art.rrect(Rect2(Vector2(-4.0, -3.2) * u, Vector2(8.0, 12.4) * u), 2.6 * u)
+			body = _with_neck(body, Rect2(Vector2(-1.5, -6.4) * u, Vector2(3.0, 3.6) * u))
+			Art.glass(b, body, s, col, -0.4 * u)
+			_cork(b, Rect2(Vector2(-2.1, -9.4) * u, Vector2(4.2, 3.2) * u), s)
+			var lc := Vector2(0, 3.4) * u
+			Art.shape(b, Art.rrect(Rect2(lc - Vector2(2.8, 2.8) * u, Vector2(5.6, 5.6) * u), 0.8 * u, 3), Art.PAPER, s, "", Art.THIN | Art.NO_RIM)
+			var prev := lc + Vector2(-1.8, 2.0) * u
+			for k in 9:
+				var at := lc + Vector2(-1.8 + k * 0.45, 2.0 - k * 0.5) * u + Vector2(0, (0.9 if k % 2 == 0 else -0.9)) * u
+				b.line(prev, at, col.darkened(0.45), maxf(0.5, 0.4 * u))
+				prev = at
+			Art.shine(b, Vector2(-2.6, -0.6) * u, 0.5 * u, 2.2 * u, 0.0, 0.5)
+		"stillwater":
+			# A round flask of still blue water, a ripple drawn on the glass.
+			var bc := Vector2(0, 3.0) * u
+			var r := 6.4 * u
+			Art.glass(b, _flask(bc, r, Rect2(Vector2(-1.7, -6.0) * u, Vector2(3.4, 3.4) * u)), s, col, bc.y - r * 0.3, 0.3)
+			_cork(b, Rect2(Vector2(-2.3, -9.0) * u, Vector2(4.6, 3.2) * u), s)
+			for k in 2:
+				b.arc(bc + Vector2(0.6, 1.4) * u, (1.4 + k * 1.6) * u, PI * 0.1, PI * 0.9, 10, Color(1, 1, 1, 0.55 - k * 0.15), maxf(0.5, 0.4 * u))
+			Art.shine(b, bc + Vector2(-3.0, -2.3) * u, 0.9 * u, 2.0 * u)
 		_:
 			Art.orb(b, c, s * 0.5, col, s)
 

@@ -267,6 +267,13 @@ func _draw_into(c) -> void:
 		if not friendly:
 			c.draw_circle(Vector2.ZERO, 6.0, Color(1.0, 0.35, 0.3, 0.25))  # (a monster's shot glows red, as its arrows do)
 		return
+	if style == "stone":
+		# A sling's stone: a grey pebble with a short streak (gold when a full whirl rocks).
+		c.draw_line(-dir * 22.0, Vector2.ZERO, Color(1.0, 0.85, 0.45, 0.3) if heavy else Color(0.9, 0.9, 0.85, 0.22), 4.0)
+		c.draw_circle(Vector2.ZERO, 3.8, Color(0.06, 0.05, 0.07))
+		c.draw_circle(Vector2.ZERO, 3.0, Color(0.62, 0.6, 0.56))
+		c.draw_circle(Vector2(-0.8, -0.8), 1.1, Color(0.86, 0.84, 0.8))
+		return
 	if style == "bolt":
 		# A crossbow bolt: short, thick and fast, with a long streak.
 		c.draw_line(-dir * 40.0, -dir * 6.0, Color(1.0, 0.9, 0.6, 0.22), 5.0)
