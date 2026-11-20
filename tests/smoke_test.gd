@@ -9771,10 +9771,10 @@ func _appearance_tests() -> void:
 	var d: Dictionary = A.look(A.DEFAULTS)
 	_check(d["cloak"] == P.CLIMBER_CLOAK and d["skin"] == P.CLIMBER_SKIN and d["tunic"] == P.CLIMBER_TUNIC and d["hair"] == P.CLIMBER_HAIR and d["boot"] == P.CLIMBER_BOOT and d["eyes"] == P.OUTLINE and d["hood_up"] and d["hair_style"] == "short", "the default look is the climber's look from before (teal hood up, brown hair and tunic)")
 	_check(prof.appearance == A.DEFAULTS and p.appearance_look == d and main.climber_look == d, "a climber with no choice yet wears it, in the tower and on the climber screen")
-	var sizes_ok: bool = A.OPTIONS["skin"].size() == 6 and A.OPTIONS["cloak"].size() == 6 and A.OPTIONS["hair"].size() == 15 and A.OPTIONS["build"].size() == 10
+	var sizes_ok: bool = A.OPTIONS["skin"].size() == 6 and A.OPTIONS["cloak"].size() == 6 and A.OPTIONS["hair"].size() == 18 and A.OPTIONS["build"].size() == 12
 	for key in A.OPTIONS:
 		sizes_ok = sizes_ok and A.index_of(key, A.DEFAULTS[key]) >= 0
-	_check(sizes_ok, "the options are data: 6 skin presets, 6 cloak colours, 15 hair styles, 10 builds, each default among them")
+	_check(sizes_ok, "the options are data: 6 skin presets, 6 cloak colours, 18 hair styles, 12 builds, each default among them")
 	# New climber: the introduction, the name, then the creation page, before the first climb.
 	main.new_climber()
 	await _until(func(): return menu.page == "intro", 2.0)
@@ -9843,8 +9843,8 @@ func _appearance_tests() -> void:
 	var hood = page.rows["hood"]
 	menu.scroll.ensure_control_visible(hood)
 	await _frames(2)
-	await _tap_at(hood.get_global_transform() * Vector2(hood.size.x - 20.0, hood.size.y * 0.5))
-	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood down)")
+	await _tap_at(hood.get_global_transform() * Vector2(hood._label_w() + 20.0, hood.size.y * 0.5))  # (the left arrow: up, back round to down)
+	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood up, back round to down)")
 	main.touch._set_active(false)
 	var lk: Dictionary = p.appearance_look.duplicate()
 	p._piece_look(lk, true)

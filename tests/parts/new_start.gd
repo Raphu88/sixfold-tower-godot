@@ -115,7 +115,23 @@ func _results() -> void:
 		"hunter": {"melee": "dagger", "armor": "leather", "ranged": "shortbow"},
 		"labourer": {"melee": "war_hammer", "armor": "padded", "ranged": ""},
 		"beggar": {"melee": "dagger", "armor": "", "ranged": ""},
+		"scholar": {"melee": "sword_cane", "armor": "padded", "ranged": ""},
+		"sailor": {"melee": "", "armor": "leather", "ranged": "flintlock"},
 	}
+	_check(NewStart.answers(NewStart.QUESTIONS[0]).size() == 6 and want.keys().all(func(k): return NewStart.PAST.has(k)), "six past jobs, each with its gear")
+	# Counts by sixes: every list a new climber chooses from holds a multiple of six, or exactly three.
+	var lists := {"intro": NewStart.INTRO.size(), "tabs": Appearance.TABS.size(), "pronouns": Pronouns.CHOICES.size(), "questions": NewStart.QUESTIONS.size()}
+	for q in NewStart.QUESTIONS:
+		lists["answers:" + String(q["id"])] = NewStart.answers(q).size()
+	for key in Appearance.OPTIONS:
+		lists["look:" + key] = Appearance.OPTIONS[key].size()
+	for key in Appearance.EXTRA_OPTIONS:
+		lists["look:" + key] = Appearance.EXTRA_OPTIONS[key].size()
+	var off: Array = []
+	for k in lists:
+		if int(lists[k]) != 3 and int(lists[k]) % 6 != 0:
+			off.append("%s=%d" % [k, lists[k]])
+	_check(off.is_empty(), "every creation list counts by sixes, or is exactly three (%s)" % [off])
 	var gear_ok := true
 	for past in want:
 		var p = _fresh_profile()
