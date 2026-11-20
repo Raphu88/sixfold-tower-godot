@@ -53,7 +53,8 @@ func _floor(tid: String, n: int, kind := "") -> void:
 	await t._ticks(2)
 	main.banner = {}
 	for e in main.enemies():
-		e.set_physics_process(false)
+		if is_instance_valid(e):
+			e.set_physics_process(false)
 
 
 ## Only this scenario turns up for now (the others wait for a floor 99); gives back what to restore.
@@ -89,6 +90,8 @@ func _spawn(kind: String, pos: Vector2):
 	e.position = pos
 	main.add_child(e)
 	await t._ticks(1)
+	if not is_instance_valid(e):  # (killed in its first frame by something left over: never call into a freed node, it crashes the engine)
+		return null
 	e.set_physics_process(false)
 	return e
 
