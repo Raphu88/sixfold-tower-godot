@@ -13,7 +13,8 @@ extends RefCounted
 ##   quiz         new_start.gd QUESTIONS, one at a time, then a summary of
 ##                what you'll begin with, Change answers and Begin
 ## Begin gives the answers' results (new_start.gd apply), makes the climber
-## and starts the first climb in the home tower. Back (Esc, B, the Back
+## and takes them to their home station, where basic training and the first
+## tournament earn the Noble's Grace before any climb (training.gd). Back (Esc, B, the Back
 ## buttons) goes a step back all the way to the title.
 ##
 ## Every word is in new_start.gd TEXT and INTRO (and the Entity's tips in
@@ -333,6 +334,7 @@ static func begin(m) -> void:
 		m.open("quiz")
 		return
 	NewStart.apply(prof, picks)
+	load("res://scripts/training.gd").require(prof)  # (the towers wait for the Noble's Grace: training.gd)
 	prof.created = true
 	prof.save()
 	NewStart.note_made()
@@ -345,7 +347,13 @@ static func begin(m) -> void:
 	reset()
 	m.close()
 	if main.choosing_tower and not main.on_train:
-		main.choose_tower(prof.home)
+		# To the home station: basic training and the first tournament come
+		# before any climb (training.gd).
+		prof.station = ""
+		prof.last_tower = prof.home
+		main.tower = prof.home
+		main.open_train()
+		m.go_station(load("res://scripts/travel.gd").home(prof))
 
 
 static func _mode(main) -> String:

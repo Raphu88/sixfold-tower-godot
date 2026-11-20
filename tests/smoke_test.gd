@@ -8383,7 +8383,7 @@ func _entity_tests() -> void:
 		if not (e["group"] in groups) or String(e["tip"]).length() > 170 or String(e["more"]).length() < 60 or String(e["name"]) == "":
 			bad.append(id)
 		for w in ["attunement", "spire", "trial", "judgment", "mana"]:
-			if (String(e["tip"]) + " " + String(e["more"])).to_lower().contains(w):
+			if RegEx.create_from_string("\\b" + w + "\\b").search((String(e["tip"]) + " " + String(e["more"])).to_lower()) != null:  # (whole words: "the Tournament Manager" is fine)
 				bad.append(id + ":" + w)
 	_check(bad.is_empty(), "every tip has a group, a short line and a fuller account (bad: %s)" % [bad])
 	var need := ["move", "glint", "essence", "bank", "regard", "ward", "puzzle_eyes", "puzzle_plates", "traps", "trap_room", "hidden_trap",
@@ -9771,10 +9771,10 @@ func _appearance_tests() -> void:
 	var d: Dictionary = A.look(A.DEFAULTS)
 	_check(d["cloak"] == P.CLIMBER_CLOAK and d["skin"] == P.CLIMBER_SKIN and d["tunic"] == P.CLIMBER_TUNIC and d["hair"] == P.CLIMBER_HAIR and d["boot"] == P.CLIMBER_BOOT and d["eyes"] == P.OUTLINE and d["hood_up"] and d["hair_style"] == "short", "the default look is the climber's look from before (teal hood up, brown hair and tunic)")
 	_check(prof.appearance == A.DEFAULTS and p.appearance_look == d and main.climber_look == d, "a climber with no choice yet wears it, in the tower and on the climber screen")
-	var sizes_ok: bool = A.OPTIONS["skin"].size() == 6 and A.OPTIONS["cloak"].size() == 6 and A.OPTIONS["hair"].size() == 15 and A.OPTIONS["build"].size() == 10
+	var sizes_ok: bool = A.OPTIONS["skin"].size() == 6 and A.OPTIONS["cloak"].size() == 6 and A.OPTIONS["hair"].size() == 18 and A.OPTIONS["build"].size() == 12
 	for key in A.OPTIONS:
 		sizes_ok = sizes_ok and A.index_of(key, A.DEFAULTS[key]) >= 0
-	_check(sizes_ok, "the options are data: 6 skin presets, 6 cloak colours, 15 hair styles, 10 builds, each default among them")
+	_check(sizes_ok, "the options are data: 6 skin presets, 6 cloak colours, 18 hair styles, 12 builds, each default among them")
 	# New climber: the introduction, the name, then the creation page, before the first climb.
 	main.new_climber()
 	await _until(func(): return menu.page == "intro", 2.0)
@@ -9843,8 +9843,8 @@ func _appearance_tests() -> void:
 	var hood = page.rows["hood"]
 	menu.scroll.ensure_control_visible(hood)
 	await _frames(2)
-	await _tap_at(hood.get_global_transform() * Vector2(hood.size.x - 20.0, hood.size.y * 0.5))
-	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood down)")
+	await _tap_at(hood.get_global_transform() * Vector2(hood._label_w() + 20.0, hood.size.y * 0.5))  # (the left arrow: up, back round to down)
+	_check(prof.appearance["hood"] == "down" and not p.appearance_look["hood_up"] and not main.climber_look["hood_up"], "a tap on an arrow steps it (hood up, back round to down)")
 	main.touch._set_active(false)
 	var lk: Dictionary = p.appearance_look.duplicate()
 	p._piece_look(lk, true)
@@ -9911,8 +9911,8 @@ func _appearance_tests() -> void:
 		ab[0].pressed.emit()
 		await _frames(2)
 	_check(menu.page == "appearance" and page.finish.text.begins_with(A.TEXT["done"]), "...which opens the same editor, ending in Done")
-	var tunic0: String = prof.appearance["tunic"]
-	page.show_tab("body")
+	var tunic0: String = prof.appearance.get("tunic", A.DEFAULTS["tunic"])  # (an older look may lack the clothes colour)
+	page.show_tab("clothes")  # (the clothes colour lives on the Clothes tab)
 	page.rows["tunic"].change(1)
 	_check(prof.appearance["tunic"] != tunic0 and main.climber_look["tunic"] == A.color_of("tunic", prof.appearance["tunic"]), "a change there is kept, and the climber screen's figure draws from it")
 	menu.go_back()

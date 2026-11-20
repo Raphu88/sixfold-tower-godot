@@ -313,6 +313,24 @@ func _lessons(main) -> void:
 					p.roll_t = 0.0
 					await t.physics_frame
 					await t.physics_frame
+			"jump":
+				for i in int(d["need"]):
+					p.jump_t = 0.3
+					await t.physics_frame
+					await t.physics_frame
+					p.jump_t = 0.0
+					await t.physics_frame
+					await t.physics_frame
+			"strike", "shoot":
+				t._check(arena.dummies.size() == int(d.get("dummies", 2)), "%s: its dummies stand ready" % id)
+				var was: String = p.weapon
+				p.weapon = "shortbow" if String(d["kind"]) == "shoot" else "sword"
+				for i in int(d["need"]):
+					arena.dummies[i % arena.dummies.size()].take_hit(1.0, Vector2.ZERO)
+				await t.physics_frame
+				await t.physics_frame
+				await t.physics_frame
+				p.weapon = was
 			"parry":
 				for i in int(d["need"]):
 					p.on_parry.emit(null, false)
@@ -406,7 +424,10 @@ func _tourney(main) -> void:
 	var prof = main.profile
 	var arena = main.arena
 	var menu = main.menu
-	var station: String = menu.station_page.station
+	prof.climbs = 0  # (the travelling Tournament Manager is where this station is: tournaments.gd ROTATION)
+	var station: String = load("res://scripts/tournaments.gd").here(prof)
+	menu.go_station(station, "arena")
+	await t._frames(2)
 	prof.add_crystal("fire", 200.0)
 	var r := Renown.state(prof)
 	r["tiers"] = {}
@@ -414,14 +435,22 @@ func _tourney(main) -> void:
 	var held: float = prof.crystals_held()
 	var pts := Renown.points(prof)
 	var b: Dictionary = Stations.bracket("novice")
-	var pz := Stations.prize(prof, "novice")
+	var pz := Stations.prize(prof, "novice", station)
 	var why: String = arena.start(Stations.event("tourney", "novice", station))
 	t._check(why == "" and prof.crystals_held() == held - Stations.fee(prof, "tourney", "novice"), "a bracket takes its entry fee")
 	var k0: float = prof.crystal_total(String(pz["kind"]))
-	var rounds: Array = b["rounds"]
+	var rounds: Array = arena.ev["rounds"]
 	var climbers := 0
+	var creatures := 0
 	for i in rounds.size():
-		await t._until(func(): return arena.opp != null or arena.done, 5.0)
+		await t._until(func(): return arena.opp != null or not arena.round_mobs.is_empty() or arena.done, 5.0)
+		if not arena.round_mobs.is_empty():
+			creatures += 1  # (the location's creatures: the first round, tournaments.gd)
+			for e in arena.round_mobs.duplicate():
+				if is_instance_valid(e):
+					e.take_hit(999999.0, Vector2.ZERO)
+			await t._frames(3)
+			continue
 		if arena.opp == null:
 			break
 		var o = arena.opp
@@ -429,7 +458,7 @@ func _tourney(main) -> void:
 			climbers += 1
 		o.take_hit(999999.0, Vector2.ZERO)
 		await t._frames(3)
-	t._check(climbers == rounds.size(), "each round is another climber with marks (%d of %d)" % [climbers, rounds.size()])
+	t._check(creatures == 1 and climbers == rounds.size() - 1, "the first round is the location's creatures, each other round another climber with marks (%d, %d of %d)" % [creatures, climbers, rounds.size()])
 	await _wait_done(main)
 	t._check(Stations.bracket_won(prof, "novice") and Stations.best_rounds(prof, "novice") == rounds.size(), "beating all three wins the bracket")
 	var gain := int(b["round_renown"]) * rounds.size() + int(pz["renown"])
@@ -438,7 +467,7 @@ func _tourney(main) -> void:
 	# Knocked down: you yield, never die, and the bracket ends.
 	pts = Renown.points(prof)
 	arena.start(Stations.event("tourney", "novice", station))
-	await t._until(func(): return arena.opp != null, 5.0)
+	await t._until(func(): return arena.opp != null or not arena.round_mobs.is_empty(), 5.0)
 	var p = main.player
 	p.hurt_t = 0.0
 	p.iframes = 0.0

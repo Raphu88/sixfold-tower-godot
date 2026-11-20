@@ -115,7 +115,23 @@ func _results() -> void:
 		"hunter": {"melee": "dagger", "armor": "leather", "ranged": "shortbow"},
 		"labourer": {"melee": "war_hammer", "armor": "padded", "ranged": ""},
 		"beggar": {"melee": "dagger", "armor": "", "ranged": ""},
+		"scholar": {"melee": "sword_cane", "armor": "padded", "ranged": ""},
+		"sailor": {"melee": "", "armor": "leather", "ranged": "flintlock"},
 	}
+	_check(NewStart.answers(NewStart.QUESTIONS[0]).size() == 6 and want.keys().all(func(k): return NewStart.PAST.has(k)), "six past jobs, each with its gear")
+	# Counts by sixes: every list a new climber chooses from holds a multiple of six, or exactly three.
+	var lists := {"intro": NewStart.INTRO.size(), "tabs": Appearance.TABS.size(), "pronouns": Pronouns.CHOICES.size(), "questions": NewStart.QUESTIONS.size()}
+	for q in NewStart.QUESTIONS:
+		lists["answers:" + String(q["id"])] = NewStart.answers(q).size()
+	for key in Appearance.OPTIONS:
+		lists["look:" + key] = Appearance.OPTIONS[key].size()
+	for key in Appearance.EXTRA_OPTIONS:
+		lists["look:" + key] = Appearance.EXTRA_OPTIONS[key].size()
+	var off: Array = []
+	for k in lists:
+		if int(lists[k]) != 3 and int(lists[k]) % 6 != 0:
+			off.append("%s=%d" % [k, lists[k]])
+	_check(off.is_empty(), "every creation list counts by sixes, or is exactly three (%s)" % [off])
 	var gear_ok := true
 	for past in want:
 		var p = _fresh_profile()
@@ -244,9 +260,15 @@ func _flow() -> void:
 	_button_with(menu, "begin").pressed.emit()
 	await t._frames(3)
 	var prof = main.profile
-	_check(prof.created and prof.home == "manticore" and main.tower == "manticore" and not main.choosing_tower and not menu.is_open(), "Begin makes the climber and starts the first climb at the home tower")
+	var Tr = load("res://scripts/training.gd")
+	_check(prof.created and prof.home == "manticore" and main.tower == "manticore" and main.on_train and menu.page == "station" and menu.station_page.station == "manticore" and Tr.closed(prof),
+		"Begin makes the climber and takes them to their home station, the towers closed until the Noble's Grace (training.gd)")
 	_check(main.player.gear_id("melee") == "dagger" and main.player.gear_id("ranged") == "shortbow" and main.player.gear_id("armor") == "leather" and Gear.rarity(main.player.gear["armor"]) == "fine", "...dressed as a hunter born into it")
 	_check(NewStart.can_skip_intro(), "...and later climbers may skip the introduction")
+	menu.station_page.station = ""  # (the rest of this part is the start's pages again)
+	main.on_train = false
+	menu.close()
+	await t._frames(1)
 	StartPages.begin_start(menu)
 	await t._frames(2)
 	_check(_buttons(menu).any(func(b): return b.text == NewStart.TEXT["intro_skip"]), "the introduction offers Skip once a climber has been made")
