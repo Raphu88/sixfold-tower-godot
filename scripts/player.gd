@@ -834,6 +834,8 @@ func _auto_aim() -> void:
 	var best = null
 	var best_d := reach
 	for e in main.targets():
+		if e.has_meta("look_away"):
+			continue  # (a basilisk's glare: walking away turns you away from it)
 		var d: float = global_position.distance_to(e.global_position)
 		if d < best_d:
 			best_d = d

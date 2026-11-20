@@ -31,6 +31,16 @@ static var MONSTERS := {
 	"bloomcap": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},
 	"thornhound": {"cost": 0.9, "weight": 1.0, "from": 1, "only": true},
 	"mongrel": {"cost": 2.2, "weight": 1.0, "from": 3, "only": true},
+	# The Manticore's, the Firebird's and the Chimera's newer monsters (scripts/towers/brood.gd).
+	"basilisk": {"cost": 2.0, "weight": 1.0, "from": 3, "only": true},  # (its glare slows you: scripts/towers/basilisk.gd)
+	"carrion": {"cost": 1.4, "weight": 1.0, "from": 4, "only": true},  # (dives on the badly hurt: scripts/towers/carrion.gd)
+	"cairn": {"cost": 2.6, "weight": 1.0, "from": 5, "only": true},  # (rebuilds itself: scripts/towers/cairn.gd)
+	"flamemoth": {"cost": 1.0, "weight": 1.0, "from": 3, "only": true},  # (drawn to light, fed by fire: scripts/towers/flamemoth.gd)
+	"salamander": {"cost": 1.8, "weight": 1.0, "from": 4, "only": true},  # (swims through burning floor: scripts/towers/salamander.gd)
+	"kindler": {"cost": 2.2, "weight": 1.0, "from": 5, "only": true},  # (rekindles the fallen: scripts/towers/kindler.gd)
+	"leafmantis": {"cost": 1.6, "weight": 1.0, "from": 3, "only": true},  # (unseen among leaves: scripts/towers/leafmantis.gd)
+	"graftling": {"cost": 1.8, "weight": 1.0, "from": 4, "only": true},  # (steals a part: scripts/towers/graftling.gd)
+	"hydra": {"cost": 2.6, "weight": 1.0, "from": 5, "only": true},  # (heads grow back: scripts/towers/hydra.gd)
 }
 const MAX_MONSTERS := 9
 ## How the climb gets harder with height (the Data editor's "Monsters"):

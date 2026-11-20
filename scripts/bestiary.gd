@@ -118,6 +118,15 @@ static var BESTIARY := {
 	"burrower": {"name": "Burrower",
 		"desc": "Swims under the sand, seen only as a moving mound, and can't be struck there. Stand on sand near it and a ring marks the spot under you: it erupts out of it a moment later (can't be parried: step or roll off the ring), then stays up a moment. On stone it must come up: it crawls slowly, takes more from every blow and can only bite (parry it). Lure it onto the stone.",
 		"states": "", "lore": ""},
+	"basilisk": {"name": "Basilisk",
+		"desc": "A low lizard that keeps its distance. Every few seconds its eyes begin to glow and a pale cone fills toward you, then it glints and glares. Stand in the glare facing it and you're slowed; turn away while its eyes glow and it does nothing. Strike it and the glare breaks off. Up close it bites (parry it).",
+		"states": "Struck while it gazes, its glare is broken off.", "lore": ""},
+	"carrion": {"name": "Carrion",
+		"desc": "A vulture that circles high over the courts, out of reach: only its shadow crosses the floor. It waits until you're badly hurt (or it's the last foe about), then cries out and dives: a red ring follows you, it glints and drops onto the spot (parry it, or step out of the ring). Then it stands on the floor a moment before it climbs back up.",
+		"states": "While it circles high, blows can't reach it. A parried dive brings it down staggered.", "lore": ""},
+	"cairn": {"name": "Cairn",
+		"desc": "A heap of stones that pulls itself together into a stone figure as you pass. It walks slowly and swings heavily (a long wind-up, then a wide arc: parry it, and it's open after). Light blows don't rock it. Beaten down it falls apart and rebuilds a few seconds later, unless a heavy blow (a finisher, a heavy weapon, a blast) scatters the stones.",
+		"states": "As rubble, only a heavy blow touches it: it scatters for good.", "lore": ""},
 	"manticore": {"name": "Manticore",
 		"desc": "Swipes a claw up close (parry it), looses a volley of three poisoned tail spikes (parry them), and roars, bursting out all around it (can't be parried: roll through it).",
 		"states": "", "lore": ""},
@@ -131,6 +140,15 @@ static var BESTIARY := {
 	"ashwing": {"name": "Ashwing",
 		"desc": "An ember-bird that circles, glints and dives through where you stood, trailing fire. The first time it falls it sinks into a heap of glowing ash and rises again a few seconds later, unless the ash is struck or soaked first.",
 		"states": "Fire doesn't burn it. Soaking its ash (water, or a soaking spell) keeps it from rising.", "lore": ""},
+	"flamemoth": {"name": "Flamemoth",
+		"desc": "A swarm of glowing moths drawn to light and fire: burning floor, torches, a kindler's torch, you if you're burning. Near a light it circles it and forgets you unless you come close, and burning floor feeds it. It tightens into a ball, glints and darts through where you stood (parry it); its touch burns.",
+		"states": "Fire makes it grow (bigger, tougher, harder-hitting) instead of burning it. Soaked, thrown up or shoved hard, the swarm disperses: most of its health gone.", "lore": ""},
+	"salamander": {"name": "Salamander",
+		"desc": "A fire lizard that swims through burning floor, seen only as a heat shimmer, where nothing can touch it. Come near the edge and it surfaces, glints and lunges to bite (parry it), then lies on the floor a moment. With no fire near it kindles a pool of its own: a red ring round it (step out: it can't be parried), and the floor bursts alight.",
+		"states": "Fire doesn't burn it. Put its fire out (water, or soak it) and it's thrown out, dazed and open.", "lore": ""},
+	"kindler": {"name": "Kindler",
+		"desc": "A hooded torch-bearer that keeps its distance. While it lives, the fallen leave heaps of smouldering ash; it walks to one and channels a beam of fire into it, and the fallen rises again as a weak, ash-grey copy. Strike it while it channels to interrupt it. Soak the ash, or stand on it a moment to stamp it out, or kill the kindler first. Up close it swipes its torch (parry it).",
+		"states": "Ash-risen copies leave nothing when they crumble.", "lore": ""},
 	"firebird": {"name": "Firebird",
 		"desc": "Swoops straight through you in a burning line that leaves fire behind (parry it), calls a firestorm of four spots, one where you stand (can't be parried: get out of the circles), and fans out seven embers (parry them). The first time it falls it burns to ashes and rises again: save something for then.",
 		"states": "As ashes, blows don't touch it.", "lore": ""},
@@ -144,6 +162,15 @@ static var BESTIARY := {
 	"briar": {"name": "Briar",
 		"desc": "Hides as a bush, often beside brambles. Come close, or linger near, and it lashes out, grabs you and drags you toward it, squeezing (a roll breaks free). Then it stands and swipes until it can hide again.",
 		"states": "Fire flushes it out of hiding: it reels, burning, open to blows.", "lore": ""},
+	"leafmantis": {"name": "Leafmantis",
+		"desc": "A leaf-green mantis, nearly invisible while it stands still among leaves and brambles. Come near and the leaves rustle, it rears up and glints, then darts in with a fast double slash (parry the first and the second never comes; a roll takes you through both). Out in the open it stalks you and slashes the same way, until it can slip back into hiding.",
+		"states": "Fire flushes it out of hiding; burning or soaked it can't hide.", "lore": ""},
+	"graftling": {"name": "Graftling",
+		"desc": "A stitched-together creature. Alone it only claws, but beside another monster it reaches out with tendrils (strike it to break them) and tears a part away, grafting it onto itself where you can see it: a hound's legs (a leap), a mongrel's quills (three thrown spikes), an iron arm (a slam in front of it) or a stinging tail (a poisoned sting). Each glints with its own telegraph, and each can be parried.",
+		"states": "", "lore": ""},
+	"hydra": {"name": "Hydra whelp",
+		"desc": "A squat young serpent with several heads. They rear back together, glint, then bite one after another in front of it (parry the first and the rest stop). Enough damage cuts off a head, and two grow back from the stump a few seconds later, up to five.",
+		"states": "Burning when a head falls, or set burning soon after, the stump is seared and never grows back.", "lore": ""},
 	"chimera": {"name": "Chimera",
 		"desc": "Three beasts in one. The lion mauls up close (parry it) and breathes fire down a narrow cone (can't be parried: roll or step aside); the goat charges in a straight line (parry it, or let it hit a wall and it's stunned); the serpent tail spits poisoned spikes (parry them).",
 		"states": "", "lore": ""},
@@ -190,12 +217,13 @@ static var TEXT := {
 }
 
 ## Kinds that hide under water, sand or leaves (they can't be struck there).
-const HIDERS := ["lurker", "deepfin", "burrower", "briar"]
+const HIDERS := ["lurker", "deepfin", "burrower", "briar", "salamander", "leafmantis"]
 ## A monster this near the climber, and on screen, has been seen (px).
 const NEAR := 460.0
 ## How a monster stands for its picture (the state it's drawn in), and
 ## which way it faces: toward you, a little to the side.
-const POSE := {"lurker": "up", "deepfin": "stranded", "burrower": "up", "briar": "rooted", "ashwing": "rest", "harrier": "perch", "bat": "hover", "mimic": "chase"}
+const POSE := {"lurker": "up", "deepfin": "stranded", "burrower": "up", "briar": "rooted", "ashwing": "rest", "harrier": "perch", "bat": "hover", "mimic": "chase",
+	"carrion": "ground", "cairn": "chase", "salamander": "walk", "leafmantis": "stalk", "kindler": "chase", "flamemoth": "hover"}
 const FACE := Vector2(0.42, 0.91)
 ## How a level reads (0 not met .. 5 the last tier).
 const LEVEL_NAMES := ["", "tier_seen", "tier_fought", "tier_slain", "tier_slain", "tier_slain"]

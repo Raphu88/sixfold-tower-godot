@@ -720,6 +720,9 @@ const FAVOUR := {
 	"harrier": ["shortbow", "feather_cape", "climbing_boots"],
 	"ashwing": ["shortbow", "cloth_hood", "feather_cape", "padded"],
 	"briar": ["leather", "travel_cloak", "herb_pouch", "ranger_breeches", "leather_gloves"],
+	"carrion": ["shortbow", "feather_cape", "dusk_cloak"], "basilisk": ["leather", "leather_cap", "viper_ring"], "cairn": ["war_hammer", "mace", "hobnail_boots"],
+	"kindler": ["cloth_hood", "travel_cloak", "padded"], "flamemoth": ["shortbow", "cloth_hood", "padded"], "salamander": ["spear", "leather", "wading_boots"],
+	"graftling": ["axe", "leather", "leather_gloves"], "hydra": ["axe", "greatsword", "leather_leggings"], "leafmantis": ["dagger", "sword_cane", "leather_gloves"],
 }
 
 

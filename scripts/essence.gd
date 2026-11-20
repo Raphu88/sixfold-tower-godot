@@ -42,7 +42,11 @@ static var DROPS := {
 	"harrier": ["air", 4.0],  # (the Gryphon's tower: scripts/towers/harrier.gd)
 	"ashwing": ["fire", 4.5],  # (the Firebird's tower: scripts/towers/ashwing.gd)
 	"briar": ["blade", 5.0],  # (the Chimera's tower: scripts/towers/briar.gd)
-	"mimic": ["iron", 2.0],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
+	"mimic": ["iron", 2.0],
+	# The Manticore's, the Firebird's and the Chimera's newer monsters (scripts/towers/brood.gd).
+	"carrion": ["stone", 4.0], "basilisk": ["stone", 5.0], "cairn": ["stone", 6.0],
+	"kindler": ["fire", 5.0], "flamemoth": ["fire", 3.0], "salamander": ["fire", 4.5],
+	"graftling": ["blade", 4.5], "hydra": ["blade", 6.0], "leafmantis": ["blade", 4.0],  # (every tower: scripts/mimic.gd spills the rest, in the tower's essence)
 }
 
 
