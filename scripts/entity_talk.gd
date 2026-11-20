@@ -72,7 +72,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_start", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
+		"choices": ["how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_bags", "how_shop", "how_ward", "how_secret", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "start", "bye"]},
 	"how_start": {"ask": "How did my start work?", "fact": "start",
 		"lines": ["Three questions made your start. What you did before gave your weapon and armour: Soldier a sword and chain, Hunter a shortbow, a dagger and leather, Labourer a war hammer and padding, Beggar a dagger and nothing. They're heirlooms, so every climb begins with them. Where you grew up chose your first tower and your home station. Why you climb set how hard it was: born into it, fine gear, {born_crystals} crystals and a family title; hired, common gear, {hired_crystals} crystals, a title and a contract; self made, worn gear and nothing else, but renown a quarter faster until a first title. {start_line}"],
 		"choices": ["how_titles", "how_renown", "how", "bye"]},
@@ -111,7 +111,17 @@ static var DIALOGUE := {
 		"choices": ["how_titles", "how_tourney", "how", "bye"]},
 	"how_tourney": {"ask": "How do tournaments work?", "fact": "titles",
 		"lines": ["Brackets of three rounds against other climbers, at a station. Nobody dies: knocked down, you yield. Health and marks are made whole between rounds. A fee to enter; renown for each round past your best; winning pays renown, crystals, a title from the Noble, and in the higher brackets a relic. Brackets open with rank: {brackets}."],
-		"choices": ["how_titles", "how_renown", "how", "bye"]},
+		"choices": ["how_manager", "how_titles", "how_renown", "how", "bye"]},
+	# Training and tournaments (training.gd, tournaments.gd).
+	"how_grace": {"ask": "The Noble's Grace and my first tournament?", "fact": "training",
+		"lines": ["Every climber needs the Noble's Grace before a tower will have them. A new climber earns it at home: the {lessons} lessons of basic training at the gym, then one tournament of {rounds} rounds, monsters and then a champion fighter. The Grace comes win or lose. Each round won adds a reward: a Healing Vial, a recall scroll, then a Fine piece of the kind you fought with most; no damage at all, and a tincture of each essence too. {grace_line}"],
+		"choices": ["how_training", "how_manager", "how", "bye"]},
+	"how_training": {"ask": "Basic, advanced and mark training?", "fact": "training",
+		"lines": ["Basic training: {lessons} lessons on moving, attacking and parrying, any time, free. Its essence, and your first tournament's, goes into your body only, {quarter} of the usual: it shows which part you use most, so where your first mark will be. Advanced training opens in {tiers} tiers with the titles the Noble grants you; mark training with your first mark, against dummies, summoned creatures and human rivals. Each try costs a few crystals of the essence that fits it, and pays {half} of the usual essence."],
+		"choices": ["how_grace", "how_manager", "how", "bye"]},
+	"how_manager": {"ask": "Who is the Tournament Manager?", "fact": "training",
+		"lines": ["After your first, tournaments belong to {manager}, who moves round the six stations, a stop after each of your climbs. Each place has its own arena: pillars, hazards, the creatures of the first round, and rivals whose marks lean to its tower. Entry costs a fee. A win pays renown, crystals, essence ({half} of the usual), a Healing Vial anywhere, and the first win of a higher bracket at each place, a prize found only there. {manager_line}"],
+		"choices": ["how_tourney", "how_grace", "how", "bye"]},
 	"how_fall": {"ask": "What comes home: a fall, a recall, a summit?", "fact": "rules",
 		"lines": ["A fall: your pack, what you wear and your belt are lost, unbanked essence too (a Keeper's Purse keeps itself and one piece), and {weapon} of the time the weapon in your hand. Never an heirloom, never the starting sword or bow. A recall scroll: you leave safe with what you wear and your pack, and unbanked essence becomes crystals. A summit: you may keep one piece as an heirloom, and what's left on your belt becomes crystals."],
 		"choices": ["how_belt", "how", "bye"]},
@@ -372,6 +382,8 @@ static func facts(main, n: Dictionary) -> Dictionary:
 			f = load("res://scripts/travel.gd").talk_facts(main.profile if main != null else null)
 		"start":
 			f = _fact_start(main)
+		"training":
+			f = load("res://scripts/training.gd").talk_facts(main.profile if main != null else null)
 	if main != null:
 		f["floor"] = f.get("floor", main.get("floor_num"))
 	return f
@@ -799,6 +811,9 @@ static func hints(main) -> Array:
 		return out
 	var prof = main.profile
 	var p = main.player
+	var grace: String = load("res://scripts/training.gd").hint(prof)  # (the towers closed until the Noble's Grace: what comes first)
+	if grace != "":
+		out.append(grace)
 	if not bool(main.on_train):
 		var carried := 0.0
 		for k in main.run_essence:

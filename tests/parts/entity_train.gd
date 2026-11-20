@@ -659,7 +659,7 @@ func _banned() -> void:
 	var found: Array = []
 	for s in all:
 		for w in BANNED:
-			if String(s).to_lower().contains(w):
+			if RegEx.create_from_string("\\b" + w + "\\b").search(String(s).to_lower()) != null:  # (whole words: "the Tournament Manager" is fine)
 				found.append(s)
 	_check(found.is_empty() and all.size() > 100, "no banned words in the Entity's new tables (%d lines; %s)" % [all.size(), found])
 	var reg = load("res://scripts/data_registry.gd")

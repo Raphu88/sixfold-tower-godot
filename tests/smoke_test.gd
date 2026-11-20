@@ -8367,7 +8367,7 @@ func _entity_tests() -> void:
 		if not (e["group"] in groups) or String(e["tip"]).length() > 170 or String(e["more"]).length() < 60 or String(e["name"]) == "":
 			bad.append(id)
 		for w in ["attunement", "spire", "trial", "judgment", "mana"]:
-			if (String(e["tip"]) + " " + String(e["more"])).to_lower().contains(w):
+			if RegEx.create_from_string("\\b" + w + "\\b").search((String(e["tip"]) + " " + String(e["more"])).to_lower()) != null:  # (whole words: "the Tournament Manager" is fine)
 				bad.append(id + ":" + w)
 	_check(bad.is_empty(), "every tip has a group, a short line and a fuller account (bad: %s)" % [bad])
 	var need := ["move", "glint", "essence", "bank", "regard", "ward", "puzzle_eyes", "puzzle_plates", "traps", "trap_room", "hidden_trap",

@@ -38,6 +38,7 @@ const WingsScript := preload("res://scripts/wings.gd")
 const GuideScript := preload("res://scripts/guide.gd")
 const Slots := preload("res://scripts/slots.gd")
 const NewStart := preload("res://scripts/new_start.gd")  # (a new climber's start: the questionnaire's results, the one-time clearing)
+const Training := preload("res://scripts/training.gd")  # (the required start: basic training, the first tournament and the Noble's Grace)
 const StartPages := preload("res://scripts/start_pages.gd")
 const Pronouns := preload("res://scripts/pronouns.gd")
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
@@ -433,6 +434,7 @@ func _ready() -> void:
 		profile.load_save()
 	best_floor = profile.best_floor
 	first_climb = not profile.regarded
+	climb_soak = Training.first_soak(profile)  # (before the first mark, training decided which body part is used most)
 	Bestiary.attach(self)  # (the Bestiary hears every blow that lands on a monster)
 	unbound = UnboundRun.new()
 	unbound.main = self
@@ -2710,7 +2712,7 @@ func beast_name() -> String:
 ## (its menu opens once the title has gone: _ready, menu.gd close).
 func await_tower() -> void:
 	choosing_tower = true
-	on_train = profile.regarded
+	on_train = profile.regarded or Training.lives_on_train(profile)  # (a new climber waits at their station until their first climb)
 	if on_train:
 		sfx_ambience("train")
 		Train.stock(profile)
@@ -2752,7 +2754,7 @@ func _rank_on_train() -> void:
 ## Leaves the train for a tower: your pack and packed supplies come with
 ## you (train.gd pack_up), then the climb starts.
 func depart(id: String) -> void:
-	if not on_train or not Towers.TOWERS.has(id):
+	if not on_train or not Towers.TOWERS.has(id) or Training.closed(profile):  # (the towers are closed until the Noble's Grace)
 		return
 	sfx("train_whistle", 1.0, 0.0, 0.0)
 	choose_tower(id)  # (packs up and leaves the train)

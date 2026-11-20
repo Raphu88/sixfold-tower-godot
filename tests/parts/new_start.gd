@@ -244,9 +244,15 @@ func _flow() -> void:
 	_button_with(menu, "begin").pressed.emit()
 	await t._frames(3)
 	var prof = main.profile
-	_check(prof.created and prof.home == "manticore" and main.tower == "manticore" and not main.choosing_tower and not menu.is_open(), "Begin makes the climber and starts the first climb at the home tower")
+	var Tr = load("res://scripts/training.gd")
+	_check(prof.created and prof.home == "manticore" and main.tower == "manticore" and main.on_train and menu.page == "station" and menu.station_page.station == "manticore" and Tr.closed(prof),
+		"Begin makes the climber and takes them to their home station, the towers closed until the Noble's Grace (training.gd)")
 	_check(main.player.gear_id("melee") == "dagger" and main.player.gear_id("ranged") == "shortbow" and main.player.gear_id("armor") == "leather" and Gear.rarity(main.player.gear["armor"]) == "fine", "...dressed as a hunter born into it")
 	_check(NewStart.can_skip_intro(), "...and later climbers may skip the introduction")
+	menu.station_page.station = ""  # (the rest of this part is the start's pages again)
+	main.on_train = false
+	menu.close()
+	await t._frames(1)
 	StartPages.begin_start(menu)
 	await t._frames(2)
 	_check(_buttons(menu).any(func(b): return b.text == NewStart.TEXT["intro_skip"]), "the introduction offers Skip once a climber has been made")

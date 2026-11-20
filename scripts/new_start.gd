@@ -96,7 +96,7 @@ static var TEXT := {
 	"home_help": "You grew up near %s. Your first climb is there, and its station is your home.",
 	"back": "Back",
 	"change": "Change answers",
-	"begin": "Begin your first climb",
+	"begin": "Begin: to your home station",
 	"summary": "How you begin",
 	"sum_gear": "Gear: %s",
 	"sum_home": "Home: near %s",
