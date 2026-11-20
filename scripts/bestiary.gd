@@ -830,7 +830,7 @@ static func shape(kind: String) -> Dictionary:
 	var key := "%s %s" % [kind, Color(t.get("color", Color.WHITE)).to_html()]
 	if _shapes.has(key):
 		return _shapes[key]
-	var out := {"pts": PackedVector2Array(), "cols": PackedColorArray(), "glow": PackedVector2Array(), "glow_cols": PackedColorArray(), "bounds": Rect2(-10, -10, 20, 20), "shadow": 0}
+	var out := {"pts": PackedVector2Array(), "cols": PackedColorArray(), "uvs": PackedVector2Array(), "glow": PackedVector2Array(), "glow_cols": PackedColorArray(), "bounds": Rect2(-10, -10, 20, 20), "shadow": 0}
 	if t.is_empty():
 		return out
 	var e = Enemy.make(kind)
@@ -844,6 +844,7 @@ static func shape(kind: String) -> Dictionary:
 	RenderingServer.canvas_item_clear(e.get_canvas_item())
 	out["pts"] = e._pen.pts.duplicate()
 	out["cols"] = e._pen.cols.duplicate()
+	out["uvs"] = e._pen.uvs.duplicate()
 	out["glow"] = e._glow.pts.duplicate()
 	out["glow_cols"] = e._glow.cols.duplicate()
 	e.free()
@@ -889,7 +890,7 @@ static func paint(ci: CanvasItem, kind: String, rect: Rect2, known: bool) -> voi
 	var item := ci.get_canvas_item()
 	if known:
 		ci.draw_set_transform(at, 0.0, Vector2(fit, fit))
-		RenderingServer.canvas_item_add_triangle_array(item, PackedInt32Array(), pts, s["cols"])
+		Enemy.Draw.Shade.draw_tris(item, pts, s["cols"], s.get("uvs", PackedVector2Array()))
 		var glow: PackedVector2Array = s["glow"]
 		if not glow.is_empty():
 			RenderingServer.canvas_item_add_triangle_array(item, PackedInt32Array(), glow, s["glow_cols"])

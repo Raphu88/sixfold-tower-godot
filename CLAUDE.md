@@ -50,6 +50,6 @@ Screenshots can be rendered with `xvfb-run -a -s "-screen 0 1280x720x24" godot -
 - `.github/workflows/web.yml` tests it and publishes it beside the full game: https://raphu88.github.io/sixfold-tower-godot/lite/
 
 ## Project
-- Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd` (world) and `scripts/ui.gd` (menus and HUD).
+- Everything visual is drawn in code (no art files). Colours live in `scripts/palette.gd` (world) and `scripts/ui.gd` (menus and HUD). Volume comes from the shading toolkit (`scripts/shade.gd`, used through `draw_util.gd` Batch helpers like `ball`, `poly`, `stroke`, `box`, `bar`, `contact`): use it for new drawings so everything is lit the same way (top-left), and keep warnings, text and HUD bars flat.
 - Sounds are built from CC0 packs by `tools/build_audio.py`; see `CREDITS.md` and the README. Only use CC0 assets, except fonts: the owner allows SIL Open Font License (OFL) fonts, credited in `CREDITS.md` with their license file shipped alongside. One more exception, for Six Towers LITE only: its spoken voice clips are recorded with the Kokoro voice (Apache 2.0), which the owner approved; credited in `lite/CREDITS.md`.
 - See README.md for the design, controls and file layout.

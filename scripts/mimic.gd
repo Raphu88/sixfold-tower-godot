@@ -21,6 +21,7 @@ extends "res://scripts/enemy.gd"
 const Items := preload("res://scripts/items.gd")
 const Essence := preload("res://scripts/essence.gd")
 const RoomRewards := preload("res://scripts/room_rewards.gd")
+const ChestArt := preload("res://scripts/chest_art.gd")
 
 ## from: the first floor; chance: how often a floor with a chest has one;
 ## essence: what it spills, times a rich chest's; item / gear: the chances of
@@ -233,19 +234,14 @@ func _overlay_extra(o) -> void:
 
 ## A mimic waiting as a chest, drawn by room_rewards.gd (the same chest,
 ## with its tell): `c` the chest's record, `t` the time.
-static func draw_waiting(ci: CanvasItem, c: Dictionary, pulse: float, t: float) -> void:
+## Into Batch `b` (draw_util.gd), with the other chests.
+static func draw_waiting(b, c: Dictionary, pulse: float, t: float) -> void:
 	var at: Vector2 = c["pos"]
 	var phase := fmod(t + at.x * 0.013, 5.2)
 	var breath := 0.9 if phase < 0.5 else 0.0  # (now and then the lid lifts a hair)
-	ci.draw_rect(Rect2(at + Vector2(-13, -2), Vector2(26, 16)), Palette.OUTLINE)
-	var wood := Color(0.45, 0.3, 0.18)
-	ci.draw_rect(Rect2(at + Vector2(-11, 0), Vector2(22, 12)), wood)
-	ci.draw_rect(Rect2(at + Vector2(-12, -8 - breath), Vector2(24, 9)), wood.lightened(0.1))
-	if breath > 0.0:
-		ci.draw_rect(Rect2(at + Vector2(-11, 0.5 - breath), Vector2(22, breath + 0.4)), C_MAW)
-		ci.draw_colored_polygon(PackedVector2Array([at + Vector2(3, 0.2 - breath), at + Vector2(4.2, 2.2), at + Vector2(5.4, 0.2 - breath)]), C_TOOTH)
-	ci.draw_line(at + Vector2(-12, 0), at + Vector2(12, 0), Color(0.62, 0.58, 0.52), 2.0)
-	var lock_col := Color(1.0, 0.84, 0.45, 0.6 + 0.4 * pulse) if c["open"] else Color(0.75, 0.25, 0.2)
-	ci.draw_rect(Rect2(at + Vector2(-2.5, -2), Vector2(5, 6)), lock_col)
+	ChestArt.draw(b, at, {"ready": c["open"], "lift": breath, "pulse": pulse, "t": t})
+	if breath > 0.0:  # the tell: the dark of a maw at the seam, and a pale tooth
+		b.rect(Rect2(at + Vector2(-11, 0.5 - breath), Vector2(22, breath + 0.6)), C_MAW)
+		b.polygon(PackedVector2Array([at + Vector2(3, 0.2 - breath), at + Vector2(4.2, 2.4), at + Vector2(5.4, 0.2 - breath)]), C_TOOTH)
 	if c["open"]:
-		ci.draw_arc(at + Vector2(0, 4), 20.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.2 + 0.25 * pulse), 2.0)
+		b.arc(at + Vector2(0, 4), 20.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.2 + 0.25 * pulse), 2.0)

@@ -15,6 +15,8 @@ const Essence := preload("res://scripts/essence.gd")
 const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Palette := preload("res://scripts/palette.gd")
+const Draw := preload("res://scripts/draw_util.gd")
+const ChestArt := preload("res://scripts/chest_art.gd")
 
 static var TEXT := {
 	"chest": "Spoils: +%d essence",
@@ -229,13 +231,15 @@ func _draw() -> void:
 	var pulse := 0.5 + 0.5 * sin(t * 3.0)
 	for br in bridges:
 		_draw_bridge(br["rect"], br["vertical"])
+	var cb := Draw.Batch.new()  # every chest (and waiting mimic) in one draw call
 	for c in chests:
 		if c.get("sprung", false):
 			continue
 		if c.get("mimic", false):
-			load("res://scripts/mimic.gd").draw_waiting(self, c, pulse, t)
+			load("res://scripts/mimic.gd").draw_waiting(cb, c, pulse, t)
 		else:
-			_draw_chest(c, pulse)
+			_draw_chest(cb, c, pulse, t)
+	cb.flush(self)
 	for v in vaults:
 		var at: Vector2 = v["pos"]
 		draw_rect(Rect2(at + Vector2(-12, -6), Vector2(24, 18)), Palette.OUTLINE)
@@ -286,17 +290,10 @@ func _draw_bridge(r: Rect2, vertical: bool) -> void:
 		draw_line(Vector2(r.end.x - 3, r.position.y - 4), r.end + Vector2(-3, 4), rope, 2.0)
 
 
-func _draw_chest(c: Dictionary, pulse: float) -> void:
+## A chest (chest_art.gd): shut while its guards stand, its lock glowing and
+## a gold ring round it once it can be opened, standing open once taken.
+func _draw_chest(b, c: Dictionary, pulse: float, t: float) -> void:
 	var at: Vector2 = c["pos"]
-	draw_rect(Rect2(at + Vector2(-13, -2), Vector2(26, 16)), Palette.OUTLINE)
-	var wood := Color(0.45, 0.3, 0.18) if not c["rich"] else Color(0.5, 0.36, 0.2)
-	draw_rect(Rect2(at + Vector2(-11, 0), Vector2(22, 12)), wood)
-	if c["taken"]:
-		draw_rect(Rect2(at + Vector2(-11, -12), Vector2(22, 6)), wood.darkened(0.25))
-		return
-	draw_rect(Rect2(at + Vector2(-12, -8), Vector2(24, 9)), wood.lightened(0.1))
-	draw_line(at + Vector2(-12, 0), at + Vector2(12, 0), Color(0.62, 0.58, 0.52), 2.0)
-	var lock_col := Color(1.0, 0.84, 0.45, 0.6 + 0.4 * pulse) if c["open"] else Color(0.75, 0.25, 0.2)
-	draw_rect(Rect2(at + Vector2(-2.5, -2), Vector2(5, 6)), lock_col)
-	if c["open"]:
-		draw_arc(at + Vector2(0, 4), 20.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.2 + 0.25 * pulse), 2.0)
+	ChestArt.draw(b, at, {"rich": c["rich"], "ready": c["open"], "taken": c["taken"], "pulse": pulse, "t": t})
+	if c["open"] and not c["taken"]:
+		b.arc(at + Vector2(0, 4), 20.0, 0.0, TAU, 24, Color(1.0, 0.84, 0.45, 0.2 + 0.25 * pulse), 2.0)

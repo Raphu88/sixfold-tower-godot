@@ -54,6 +54,17 @@ static var TOWER_TINT := {
 	"firebird": Color(0.92, 0.7, 0.62),
 	"chimera": Color(0.74, 0.88, 0.68),
 }
+## Each tower's grade in the screen's finishing pass (finish.gd): [the tint
+## lifted into its shadows, the warmth or coolness of its light].
+static var TOWER_GRADE := {
+	"gryphon": [Color(0.008, 0.014, 0.03), Color(0.98, 1.0, 1.03)],
+	"kraken": [Color(0.0, 0.025, 0.035), Color(0.95, 1.02, 1.04)],
+	"wyvern": [Color(0.04, 0.012, 0.004), Color(1.05, 0.99, 0.94)],
+	"manticore": [Color(0.035, 0.022, 0.0), Color(1.05, 1.01, 0.93)],
+	"firebird": [Color(0.04, 0.01, 0.02), Color(1.06, 0.98, 0.95)],
+	"chimera": [Color(0.004, 0.03, 0.008), Color(0.98, 1.04, 0.96)],
+	"other": [Color(0.01, 0.01, 0.025), Color(1.0, 1.0, 1.0)],
+}
 static var FOG_UNSEEN :=Color(0.016, 0.012, 0.031)  # places out of the climber's sight
 static var VIGNETTE := 0.45  # how much the screen's corners darken
 static var PLAYER_LIGHT := Color(1.0, 0.88, 0.74)  # the climber's own glow
