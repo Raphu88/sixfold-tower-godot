@@ -220,11 +220,11 @@ func _firebird_system() -> void:
 	var keep_regrow: float = FB.RULES["regrow"]
 	FB.RULES["regrow"] = 1.0
 	p.global_position = b["a"]
-	await t._ticks(3)
+	await t._ticks(6)
 	p.global_position = Rect2(b["slice"]).get_center()
-	await t._ticks(3)
+	await t._ticks(6)
 	p.global_position = b["b"]
-	await t._ticks(3)
+	await t._ticks(6)
 	# Step off the far end onto firm ground (an island's edge can be rock or abyss straight ahead).
 	var along: Vector2 = (Vector2(b["b"]) - Vector2(b["a"])).normalized()
 	var far: Vector2 = Vector2(b["b"]) + along * 50.0
@@ -232,14 +232,15 @@ func _firebird_system() -> void:
 		var picked := false
 		for k in 7:
 			var q: Vector2 = Vector2(b["b"]) + along.rotated(floorf((k + 1) / 2.0) * 0.35 * (1 - 2 * (k % 2))) * dist
-			if not main.is_solid(q) and not main.in_chasm(q) and not Rect2(b["corridor"]).grow(main.player.radius).has_point(q):
+			var firm := [Vector2.ZERO, Vector2(24, 0), Vector2(-24, 0), Vector2(0, 24), Vector2(0, -24)].all(func(o): return not main.is_solid(q + o) and not main.in_chasm(q + o))  # (well clear of any edge: no teeter)
+			if firm and not Rect2(b["corridor"]).grow(main.player.radius).has_point(q):
 				far = q
 				picked = true
 				break
 		if picked:
 			break
 	p.global_position = far
-	await t._ticks(3)
+	await t._until(func(): return b["state"] == "smoulder", 1.5)  # (a few ticks, however busy the machine)
 	_check(b["state"] == "smoulder", "crossing a burning bridge sets it smouldering behind you")
 	await t._until(func(): return b["state"] == "burnt", 3.0)
 	var gone: bool = main.in_chasm(Rect2(b["slice"]).get_center())
@@ -369,7 +370,8 @@ func _burning_bridge() -> void:
 	for i in 60:
 		await _floor("firebird", 3 + i % 3, "shards")
 		for s in main.scenarios.list:
-			if s["kind"] == "burning_bridge":
+			# (the chasm's middle can sit under the bridge's planks: take a room where it's open air)
+			if s["kind"] == "burning_bridge" and main.in_chasm(Rect2(s["chasms"][0]).get_center()):
 				sc = s
 		if not sc.is_empty():
 			fb = _sys("firebird")

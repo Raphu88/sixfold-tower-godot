@@ -9911,8 +9911,8 @@ func _appearance_tests() -> void:
 		ab[0].pressed.emit()
 		await _frames(2)
 	_check(menu.page == "appearance" and page.finish.text.begins_with(A.TEXT["done"]), "...which opens the same editor, ending in Done")
-	var tunic0: String = prof.appearance["tunic"]
-	page.show_tab("body")
+	var tunic0: String = prof.appearance.get("tunic", A.DEFAULTS["tunic"])  # (an older look may lack the clothes colour)
+	page.show_tab("clothes")  # (the clothes colour lives on the Clothes tab)
 	page.rows["tunic"].change(1)
 	_check(prof.appearance["tunic"] != tunic0 and main.climber_look["tunic"] == A.color_of("tunic", prof.appearance["tunic"]), "a change there is kept, and the climber screen's figure draws from it")
 	menu.go_back()
