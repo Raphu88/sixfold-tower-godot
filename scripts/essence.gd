@@ -54,6 +54,10 @@ static var DROPS := {
 	"stoker": ["fire", 4.0],  # (the Wyvern's tower)
 	"slagworm": ["fire", 4.0],
 	"riveter": ["iron", 3.0],
+	# The Manticore's, the Firebird's and the Chimera's newer monsters (scripts/towers/brood.gd).
+	"carrion": ["stone", 4.0], "basilisk": ["stone", 5.0], "cairn": ["stone", 6.0],
+	"kindler": ["fire", 5.0], "flamemoth": ["fire", 3.0], "salamander": ["fire", 4.5],
+	"graftling": ["blade", 4.5], "hydra": ["blade", 6.0], "leafmantis": ["blade", 4.0],
 }
 
 

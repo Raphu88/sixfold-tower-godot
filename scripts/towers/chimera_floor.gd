@@ -219,7 +219,7 @@ static func shape_plan(plan: Dictionary, infos: Array, links: Array, floor_num: 
 	for b in out["brambles"]:
 		btiles.append_array(b["tiles"])
 	for m in plan["monsters"]:
-		if String(m[0]) != "briar":
+		if not String(m[0]) in ["briar", "leafmantis"]:
 			continue
 		# (never in a puzzle's hall: a bush that won't budge would stand in the puzzle's way)
 		var in_puzzle := false
@@ -477,7 +477,7 @@ func blast(pos: Vector2, r: float) -> void:
 		if not pd["burst"] and Vector2(pd["pos"]).distance_to(pos) < r + 20.0:
 			burst(pd)
 	for e in main.enemies():
-		if e.kind == "briar" and e.global_position.distance_to(pos) < r + 50.0 and e.has_method("flush"):
+		if e.kind in ["briar", "leafmantis"] and e.global_position.distance_to(pos) < r + 50.0 and e.has_method("flush"):
 			e.flush()
 
 

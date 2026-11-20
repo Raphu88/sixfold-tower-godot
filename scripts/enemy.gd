@@ -9,7 +9,8 @@ extends CharacterBody2D
 ## Slimes and archers flinch when hit; knights don't while winding up.
 
 ## The sound a hit makes on this monster's body, layered over the weapon's.
-const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime", "mimic": "hit_armor", "husk": "hit_armor", "bellringer": "", "squall": "", "rookery": "", "stormstone": "hit_armor", "inkling": "hit_slime", "drowned": "hit_slime", "driftbell": "hit_slime", "stoker": "", "slagworm": "hit_slime", "riveter": "hit_armor"}
+const MATERIAL := {"slime": "hit_slime", "knight": "hit_armor", "archer": "", "bat": "", "thunderling": "", "gryphon": "hit_armor", "lurker": "hit_slime", "shellback": "hit_armor", "kraken": "hit_slime", "cinder": "", "smith": "hit_armor", "wyvern": "hit_armor", "scorpling": "hit_armor", "ram": "hit_armor", "manticore": "hit_armor", "wisp": "", "bloomcap": "hit_slime", "firebird": "", "thornhound": "", "mongrel": "hit_slime", "chimera": "hit_armor", "deepfin": "hit_slime", "harrier": "", "ashwing": "", "briar": "hit_slime", "mimic": "hit_armor", "husk": "hit_armor", "bellringer": "", "squall": "", "rookery": "", "stormstone": "hit_armor", "inkling": "hit_slime", "drowned": "hit_slime", "driftbell": "hit_slime", "stoker": "", "slagworm": "hit_slime", "riveter": "hit_armor",
+	"carrion": "", "basilisk": "hit_armor", "cairn": "hit_blunt", "kindler": "", "flamemoth": "", "salamander": "hit_slime", "graftling": "hit_slime", "hydra": "hit_slime", "leafmantis": ""}
 
 const Palette := preload("res://scripts/palette.gd")
 const Anim := preload("res://scripts/anim.gd")
@@ -86,14 +87,23 @@ static var TYPES := {
 	"scorpling": {"hp": 20.0, "speed": 85.0, "radius": 10.0, "color": Color(0.72, 0.55, 0.32), "dmg": 7.0, "weight": 0.6},
 	"ram": {"hp": 70.0, "speed": 50.0, "radius": 17.0, "color": Color(0.62, 0.58, 0.52), "dmg": 16.0, "weight": 5.0},
 	"burrower": {"hp": 34.0, "speed": 110.0, "radius": 13.0, "color": Color(0.78, 0.62, 0.38), "dmg": 13.0, "weight": 1.5},  # (scripts/towers/burrower.gd)
+	"carrion": {"hp": 30.0, "speed": 95.0, "radius": 13.0, "color": Color(0.36, 0.28, 0.23), "dmg": 15.0, "weight": 1.2},  # (scripts/towers/carrion.gd)
+	"basilisk": {"hp": 40.0, "speed": 55.0, "radius": 13.0, "color": Color(0.55, 0.62, 0.36), "dmg": 11.0, "weight": 2.0},  # (scripts/towers/basilisk.gd)
+	"cairn": {"hp": 56.0, "speed": 36.0, "radius": 15.0, "color": Color(0.62, 0.56, 0.48), "dmg": 17.0, "weight": 6.0},  # (scripts/towers/cairn.gd)
 	"manticore": {"hp": 326.0, "speed": 76.0, "radius": 28.0, "color": Color(0.82, 0.52, 0.3), "dmg": 18.0, "weight": 35.0, "boss": true},
 	# The Firebird's tower
 	"wisp": {"hp": 14.0, "speed": 110.0, "radius": 9.0, "color": Color(1.0, 0.75, 0.35), "dmg": 8.0, "weight": 0.3},
 	"bloomcap": {"hp": 34.0, "speed": 0.0, "radius": 14.0, "color": Color(0.88, 0.42, 0.32), "dmg": 13.0, "weight": 60.0},
+	"kindler": {"hp": 30.0, "speed": 70.0, "radius": 12.0, "color": Color(0.36, 0.32, 0.32), "dmg": 10.0, "weight": 1.0},  # (scripts/towers/kindler.gd)
+	"flamemoth": {"hp": 16.0, "speed": 100.0, "radius": 10.0, "color": Color(1.0, 0.7, 0.35), "dmg": 7.0, "weight": 0.3},  # (scripts/towers/flamemoth.gd)
+	"salamander": {"hp": 34.0, "speed": 85.0, "radius": 12.0, "color": Color(0.92, 0.42, 0.2), "dmg": 12.0, "weight": 1.2},  # (scripts/towers/salamander.gd)
 	"firebird": {"hp": 306.0, "speed": 90.0, "radius": 26.0, "color": Color(1.0, 0.55, 0.2), "dmg": 17.0, "weight": 30.0, "boss": true},
 	# The Chimera's tower
 	"thornhound": {"hp": 22.0, "speed": 125.0, "radius": 11.0, "color": Color(0.5, 0.38, 0.3), "dmg": 9.0, "weight": 0.8},
 	"mongrel": {"hp": 52.0, "speed": 62.0, "radius": 15.0, "color": Color(0.62, 0.5, 0.42), "dmg": 13.0, "weight": 3.0},
+	"graftling": {"hp": 38.0, "speed": 70.0, "radius": 13.0, "color": Color(0.55, 0.42, 0.5), "dmg": 11.0, "weight": 1.6},  # (scripts/towers/graftling.gd)
+	"hydra": {"hp": 50.0, "speed": 50.0, "radius": 14.0, "color": Color(0.36, 0.5, 0.34), "dmg": 12.0, "weight": 3.0},  # (scripts/towers/hydra.gd)
+	"leafmantis": {"hp": 26.0, "speed": 110.0, "radius": 11.0, "color": Color(0.42, 0.62, 0.3), "dmg": 13.0, "weight": 0.9},  # (scripts/towers/leafmantis.gd)
 	"chimera": {"hp": 354.0, "speed": 80.0, "radius": 30.0, "color": Color(0.78, 0.6, 0.36), "dmg": 18.0, "weight": 40.0, "boss": true},
 	# Found in every tower: a chest that bites back (scripts/mimic.gd)
 	"mimic": {"hp": 46.0, "speed": 70.0, "radius": 14.0, "color": Color(0.5, 0.34, 0.2), "dmg": 13.0, "weight": 2.5},
@@ -120,10 +130,13 @@ const WEAKNESS := {
 	"squall": "strike while it spins up", "rookery": "break the nest", "stormstone": "let a monster stand nearer",
 	"inkling": "walk out of the ink", "drowned": "step out before it bursts", "driftbell": "strike between sparks",
 	"stoker": "slay it: its fires die down", "slagworm": "jump the slag", "riveter": "parry the hot rivet back",
+	"carrion": "stay healthy, then parry the dive", "basilisk": "look away while its eyes glow", "cairn": "a heavy blow on its rubble",
+	"kindler": "interrupt it, or soak the ash", "flamemoth": "water or wind; never fire", "salamander": "put out its fire",
+	"graftling": "keep it from the others", "hydra": "burn the wound", "leafmantis": "watch for the rustle, parry the first slash",
 }
 const BOSSES := ["gryphon", "kraken", "wyvern", "manticore", "firebird", "chimera"]
 ## Monsters that fly over chasms.
-const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier", "ashwing", "squall", "driftbell", "riveter"]
+const FLIERS := ["bat", "gryphon", "cinder", "wyvern", "wisp", "firebird", "harrier", "ashwing", "squall", "driftbell", "riveter", "carrion", "flamemoth"]
 ## Monsters that swim through deep water (the Kraken's tower), where others can't wade.
 const SWIMMERS := ["lurker", "kraken", "deepfin"]
 ## Kinds with a script of their own (a tower's creature): spawn them with make().
@@ -135,7 +148,10 @@ const SUBKINDS := {"golem": "res://scripts/towers/forge_golem.gd", "burrower": "
 	"husk": "res://scripts/foes/husk.gd", "bellringer": "res://scripts/foes/bellringer.gd",
 	"squall": "res://scripts/foes/squall.gd", "rookery": "res://scripts/foes/rookery.gd", "stormstone": "res://scripts/foes/stormstone.gd",
 	"inkling": "res://scripts/foes/inkling.gd", "drowned": "res://scripts/foes/drowned.gd", "driftbell": "res://scripts/foes/driftbell.gd",
-	"stoker": "res://scripts/foes/stoker.gd", "slagworm": "res://scripts/foes/slagworm.gd", "riveter": "res://scripts/foes/riveter.gd"}
+	"stoker": "res://scripts/foes/stoker.gd", "slagworm": "res://scripts/foes/slagworm.gd", "riveter": "res://scripts/foes/riveter.gd",
+	"carrion": "res://scripts/towers/carrion.gd", "basilisk": "res://scripts/towers/basilisk.gd", "cairn": "res://scripts/towers/cairn.gd",
+	"kindler": "res://scripts/towers/kindler.gd", "flamemoth": "res://scripts/towers/flamemoth.gd", "salamander": "res://scripts/towers/salamander.gd",
+	"graftling": "res://scripts/towers/graftling.gd", "hydra": "res://scripts/towers/hydra.gd", "leafmantis": "res://scripts/towers/leafmantis.gd"}
 
 
 ## A new monster of the kind: this script, or the kind's own (SUBKINDS). Call
@@ -306,6 +322,9 @@ static var CHAMPION := {"hp": 3.0, "dmg": 1.3, "size": 1.35, "weight": 3.0, "sla
 ## rising off it over the darkness.
 var shade := false
 static var SHADE := {"color": Color(0.5, 0.44, 0.78), "keep": 0.3, "alpha": 0.82, "wisp": Color(0.72, 0.64, 1.0)}
+## An ash-risen copy (a kindler rekindled it: towers/kindler.gd): drawn in
+## ash-grey toward `color`, `keep` of its own colour kept.
+static var ASHEN := {"color": Color(0.46, 0.43, 0.42), "keep": 0.3}
 ## A mirror image of the climber (mirror.gd, which extends this script): a
 ## great foe that leaves mostly Unmaking (secret.gd SOURCES "mirror").
 var mirror := false
@@ -2397,6 +2416,8 @@ func _draw() -> void:
 	if shade:
 		_fade_to_shade(p)
 		_fade_to_shade(_glow)
+	elif has_meta("ashen"):
+		_fade_to_ash(p)
 	p.flush(self)
 	if overlay != null:
 		overlay.queue_redraw()
@@ -2413,6 +2434,16 @@ func _fade_to_shade(p) -> void:
 		var l := c.get_luminance()
 		var ghost := Color(tint.r * (0.45 + l), tint.g * (0.45 + l), tint.b * (0.45 + l))
 		p.cols[i] = Color(c.lerp(ghost, 1.0 - keep), c.a * a)
+
+
+## An ash-risen copy's body: every colour greyed toward ASHEN's.
+func _fade_to_ash(p) -> void:
+	var tint: Color = ASHEN["color"]
+	var keep := float(ASHEN["keep"])
+	for i in p.cols.size():
+		var c: Color = p.cols[i]
+		var l := c.get_luminance()
+		p.cols[i] = Color(c.lerp(Color(tint.r * (0.5 + l), tint.g * (0.5 + l), tint.b * (0.5 + l)), 1.0 - keep), c.a)
 
 
 ## On death the body slumps and fades where it fell (the room's burst and
