@@ -48,6 +48,24 @@ static var CHARGES := {
 		"max": 1, "refill": 30, "health": 0.3},
 	"gust": {"name": "Gust", "desc": "a blow that lands on you hurls the foes around you back",
 		"max": 3, "refill": 6, "radius": 120.0, "push": 560.0, "dmg": 4.0},
+	# The off-hand's own essence pools (offhand.gd): an enchanted off-hand
+	# piece's power, a use spent each time it fires, refilled as a charge is.
+	"ember_strike": {"name": "Ember strike", "desc": "its off-hand stab sets the foe burning (3 every half second for 3 seconds)",
+		"max": 6, "refill": 3, "dmg": 3.0, "time": 3.0},
+	"tide_block": {"name": "Undertow", "desc": "a blow you block sends a wave out that hurls the foes around you back",
+		"max": 3, "refill": 6, "radius": 110.0, "push": 480.0, "dmg": 4.0},
+	"wand_stone": {"name": "Hurl stone", "desc": "a stone that hits for 12 and staggers the foe",
+		"max": 6, "refill": 3, "dmg": 12.0, "stagger": 0.6, "speed": 520.0},
+	"wand_blade": {"name": "Shard fan", "desc": "three spinning shards, 6 each",
+		"max": 6, "refill": 3, "dmg": 6.0, "shards": 3, "fan": 0.22, "speed": 640.0},
+	"wand_iron": {"name": "Iron ward", "desc": "a 20-point barrier round you for 6 seconds",
+		"max": 3, "refill": 6, "shield": 20.0, "time": 6.0},
+	"wand_air": {"name": "Gust", "desc": "a gust that hurls the foes in front of you back, for 4",
+		"max": 6, "refill": 3, "dmg": 4.0, "reach": 130.0, "half": 40.0, "push": 520.0},
+	"wand_fire": {"name": "Cinder bolt", "desc": "a bolt for 8 that sets the foe burning",
+		"max": 6, "refill": 3, "dmg": 8.0, "burn": 3.0, "burn_t": 3.0, "speed": 560.0},
+	"wand_water": {"name": "Chill bolt", "desc": "a cold bolt for 8 that slows the foe for 2 seconds",
+		"max": 6, "refill": 3, "dmg": 8.0, "chill": 2.0, "speed": 560.0},
 }
 
 ## The auras' numbers: the Tide Shell's shield grows back once you've gone

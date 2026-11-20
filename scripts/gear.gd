@@ -19,7 +19,7 @@ extends RefCounted
 ##
 ## You wear: fists (always), a melee weapon, a ranged weapon, a chest piece
 ## (armor), a helm, gloves, legs, boots, a cloak, an amulet, two rings and a
-## backpack. An off-hand slot is kept for later. Gear is per climb: every
+## backpack, a charm and an off-hand piece (offhand.gd). Gear is per climb: every
 ## climb starts with a sword, a shortbow and nothing else, except for slots
 ## holding an heirloom (below).
 
@@ -53,12 +53,12 @@ const PACK_SIZE := 4
 static var BAG := {"none": 2, "heavy_at": 0.75}
 
 ## The carried slots, in the order the inventory and the save list them.
-## "offhand" is kept for later (always empty for now).
+## "offhand" holds a second one-handed weapon, a shield or a wand (offhand.gd).
 const SLOTS := ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring1", "ring2", "backpack", "charm", "offhand"]
 ## The slots added by worn pieces (PIECES), besides weapons and the chest.
 ## The charm slot holds one charm (charms.gd): never used up, a passive that
 ## is always on and, on some, a charge refilled by feeding it essence.
-const PIECE_SLOTS := ["helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm"]
+const PIECE_SLOTS := ["helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "backpack", "charm", "offhand"]
 static var SLOT_NAMES := {
 	"fists": "Fists", "melee": "Melee", "ranged": "Ranged", "armor": "Chest", "helm": "Helm", "gloves": "Gloves",
 	"legs": "Legs", "boots": "Boots", "cloak": "Cloak", "amulet": "Amulet", "ring": "Ring", "ring1": "Ring",
@@ -71,7 +71,7 @@ const DOLL := [
 	["melee", "armor", "ranged"],
 	["ring1", "gloves", "ring2"],
 	["backpack", "legs", "boots"],
-	["", "charm", ""],
+	["offhand", "charm", ""],
 ]
 
 ## Rarities, from plain to the tower's own notice. Better pieces carry
@@ -121,19 +121,19 @@ const TRAIT_ORDER := ["vigor", "footing", "mending", "venom", "edges", "riposte"
 	"shadows", "striding", "kindling", "embers", "lantern", "well", "calm"]
 static var TRAITS := {
 	"vigor": {"name": "of Vigor", "short": "Vigor", "kind": "stone", "key": "health", "fine": 6.0, "rare": 10.0,
-		"slots": ["helm", "armor", "legs", "cloak", "amulet"], "desc": "+%s health"},
+		"slots": ["helm", "armor", "legs", "cloak", "amulet", "offhand"], "desc": "+%s health"},
 	"footing": {"name": "of Footing", "short": "Footing", "kind": "stone", "key": "footing", "fine": 0.15, "rare": 0.25,
 		"slots": ["boots", "legs"], "desc": "traps and burning floor hurt %s less"},
 	"edges": {"name": "of Edges", "short": "Edges", "kind": "blade", "key": "strike", "fine": 0.05, "rare": 0.08,
-		"slots": ["melee", "gloves", "ring"], "desc": "strikes hit %s harder"},
+		"slots": ["melee", "gloves", "ring", "offhand"], "desc": "strikes hit %s harder"},
 	"riposte": {"name": "of the Riposte", "short": "Riposte", "kind": "blade", "key": "riposte", "fine": 0.08, "rare": 0.12,
-		"slots": ["melee", "gloves", "ranged"], "desc": "ripostes and backstabs hit %s harder"},
+		"slots": ["melee", "gloves", "ranged", "offhand"], "desc": "ripostes and backstabs hit %s harder"},
 	"breath": {"name": "of Breath", "short": "Breath", "kind": "iron", "key": "stamina", "fine": 8.0, "rare": 12.0,
 		"slots": ["legs", "armor", "cloak"], "desc": "+%s max stamina"},
 	"second_wind": {"name": "of Second Wind", "short": "Second Wind", "kind": "iron", "key": "regen", "fine": 0.06, "rare": 0.10,
-		"slots": ["ring", "amulet", "armor", "ranged"], "desc": "stamina refills %s faster"},
+		"slots": ["ring", "amulet", "armor", "ranged", "offhand"], "desc": "stamina refills %s faster"},
 	"thorns": {"name": "of Thorns", "short": "Thorns", "kind": "iron", "key": "thorns", "fine": 3.0, "rare": 5.0,
-		"slots": ["armor", "gloves"], "desc": "foes that strike you up close take %s damage"},
+		"slots": ["armor", "gloves", "offhand"], "desc": "foes that strike you up close take %s damage"},
 	"wind": {"name": "of the Wind", "short": "Wind", "kind": "air", "key": "walk", "fine": 0.04, "rare": 0.06,
 		"slots": ["boots", "cloak", "legs"], "desc": "you walk %s faster"},
 	"rolling": {"name": "of Rolling", "short": "Rolling", "kind": "air", "key": "roll_cost", "fine": 0.05, "rare": 0.08,
@@ -141,13 +141,13 @@ static var TRAITS := {
 	"hunt": {"name": "of the Hunt", "short": "Hunt", "kind": "air", "key": "ranged", "fine": 0.08, "rare": 0.12,
 		"slots": ["ranged", "gloves", "helm"], "desc": "bows, crossbows and pistols hit %s harder"},
 	"kindling": {"name": "of Kindling", "short": "Kindling", "kind": "fire", "key": "spell", "fine": 0.06, "rare": 0.09,
-		"slots": ["amulet", "ring", "helm"], "desc": "spells hit %s harder"},
+		"slots": ["amulet", "ring", "helm", "offhand"], "desc": "spells hit %s harder"},
 	"embers": {"name": "of Embers", "short": "Embers", "kind": "fire", "key": "embers", "fine": 0.10, "rare": 0.15,
 		"slots": ["melee", "gloves", "ranged"], "desc": "hits have a %s chance to set the foe burning"},
 	"well": {"name": "of the Well", "short": "Well", "kind": "water", "key": "fill", "fine": 0.06, "rare": 0.09,
-		"slots": ["amulet", "ring", "helm", "ranged"], "desc": "marks fill %s faster"},
+		"slots": ["amulet", "ring", "helm", "ranged", "offhand"], "desc": "marks fill %s faster"},
 	"calm": {"name": "of Calm", "short": "Calm", "kind": "water", "key": "parry", "fine": 0.05, "rare": 0.08,
-		"slots": ["gloves", "helm", "ring"], "desc": "the parry window is %s longer"},
+		"slots": ["gloves", "helm", "ring", "offhand"], "desc": "the parry window is %s longer"},
 	"mending": {"name": "of Mending", "short": "Mending", "kind": "stone", "key": "kill_heal", "fine": 2.0, "rare": 3.0,
 		"slots": ["melee", "ranged", "amulet"], "desc": "each kill heals you %s"},
 	"venom": {"name": "of Venom", "short": "Venom", "kind": "stone", "key": "venom_chance", "fine": 0.08, "rare": 0.12,
@@ -350,7 +350,7 @@ const HEIRLOOM_SLOTS := [
 	{"id": "rings", "name": "Rings", "gear": "ring"},
 	{"id": "backpack", "name": "Backpack", "gear": "backpack"},
 	{"id": "charm", "name": "Charm", "gear": "charm"},
-	{"id": "offhand", "name": "Off-hand", "planned": true},
+	{"id": "offhand", "name": "Off-hand", "gear": "offhand"},
 ]
 static var HEIRLOOM_TEXT := {
 	"title": "CHOOSE AN HEIRLOOM",
@@ -515,6 +515,8 @@ const PIECE_ORDER := [
 	"herb_pouch", "wolf_tooth", "sunstone_pendant", "silver_ring", "jade_ring", "viper_ring", "bandolier", "pack", "great_pack",
 	"lucky_knot", "pocket_clasp", "belt_hook", "feather_token", "iron_brooch", "ward_stone", "tide_shell", "wardbreaker", "mending_bead",
 	"keepers_purse", "ashen_knot", "gale_charm", "bulwark_stone",
+	"parrying_dagger", "hand_axe", "ember_dirk", "buckler", "kite_shield", "tide_ward",
+	"cairn_wand", "edge_wand", "iron_wand", "gale_wand", "cinder_wand", "tide_wand",
 ]
 static var PIECES := {
 	"cloth_hood": {"slot": "helm", "name": "Cloth Hood", "short": "Hood", "desc": "a deep hood of plain cloth: your light reaches 10% farther, and it hides your face (monsters notice you 8% later)",
@@ -634,6 +636,36 @@ static var PIECES := {
 		"walk": 0.04, "charge": "gust", "rarity": "rare", "color": Color(0.66, 0.86, 0.96), "drop_weight": 0},
 	"bulwark_stone": {"kind": "stone", "slot": "charm", "name": "Bulwark Stone", "short": "Bulwark", "desc": "a heavy grey stone, banded in bronze: +15 health and 4% damage taken off",
 		"health": 15.0, "reduce": 0.04, "rarity": "rare", "color": Color(0.6, 0.58, 0.54), "drop_weight": 0},
+	# The off-hand (offhand.gd, which says what each does in a fight): a
+	# second one-handed weapon (an off-hand strike in your chains), a shield
+	# (hold parry to block) or a wand (the off-hand button: a small power).
+	# Enchanted ones (the Ember Dirk, the Tide Ward, every wand: Fine by
+	# nature) have their own essence pool ("charge": charms.gd CHARGES),
+	# refilled like a charm's charge.
+	"parrying_dagger": {"slot": "offhand", "name": "Parrying Dagger", "short": "Parrier", "desc": "a thin blade for the off hand, with a curled guard: it adds a quick stab to your strike chains",
+		"color": Color(0.74, 0.76, 0.82), "drop_weight": 3},
+	"hand_axe": {"slot": "offhand", "name": "Hand Axe", "short": "Hand Axe", "desc": "a short axe for the off hand: it adds a hacking chop to your strike chains",
+		"color": Color(0.7, 0.72, 0.76), "drop_weight": 3},
+	"ember_dirk": {"kind": "fire", "slot": "offhand", "name": "Ember Dirk", "short": "Ember Dirk", "desc": "a dirk whose edge glows like a coal: its off-hand stab sets foes burning, from its own pool",
+		"charge": "ember_strike", "rarity": "fine", "color": Color(0.9, 0.46, 0.26), "drop_weight": 1},
+	"buckler": {"slot": "offhand", "name": "Buckler", "short": "Buckler", "desc": "a small round shield: hold parry to block, taking 45% off blows from in front",
+		"color": Color(0.62, 0.48, 0.32), "drop_weight": 3},
+	"kite_shield": {"slot": "offhand", "name": "Kite Shield", "short": "Kite", "desc": "a tall shield: hold parry to block, taking 75% off blows from in front, though each costs more stamina; heavy",
+		"heavy": true, "color": Color(0.52, 0.56, 0.66), "drop_weight": 2},
+	"tide_ward": {"kind": "water", "slot": "offhand", "name": "Tide Ward", "short": "Tide Ward", "desc": "a round shield painted with waves: blocking with it sends a wave out, from its own pool",
+		"charge": "tide_block", "rarity": "fine", "color": Color(0.36, 0.6, 0.72), "drop_weight": 1},
+	"cairn_wand": {"kind": "stone", "slot": "offhand", "name": "Cairn Wand", "short": "Cairn", "desc": "a wand tipped with a grey stone: it hurls a stone that staggers",
+		"charge": "wand_stone", "rarity": "fine", "color": Color(0.55, 0.5, 0.44), "drop_weight": 1},
+	"edge_wand": {"kind": "blade", "slot": "offhand", "name": "Edge Wand", "short": "Edge", "desc": "a wand tipped with a steel leaf: it throws a fan of spinning shards",
+		"charge": "wand_blade", "rarity": "fine", "color": Color(0.5, 0.42, 0.36), "drop_weight": 1},
+	"iron_wand": {"kind": "iron", "slot": "offhand", "name": "Iron Wand", "short": "Iron", "desc": "a heavy wand with an iron knob: it raises a barrier round you",
+		"charge": "wand_iron", "rarity": "fine", "color": Color(0.46, 0.46, 0.5), "drop_weight": 1},
+	"gale_wand": {"kind": "air", "slot": "offhand", "name": "Gale Wand", "short": "Gale", "desc": "a wand with a feather bound at its tip: a gust hurls the foes in front of you back",
+		"charge": "wand_air", "rarity": "fine", "color": Color(0.62, 0.6, 0.52), "drop_weight": 1},
+	"cinder_wand": {"kind": "fire", "slot": "offhand", "name": "Cinder Wand", "short": "Cinder", "desc": "a charred wand that never stops smouldering: a bolt that sets foes burning",
+		"charge": "wand_fire", "rarity": "fine", "color": Color(0.34, 0.26, 0.24), "drop_weight": 1},
+	"tide_wand": {"kind": "water", "slot": "offhand", "name": "Tide Wand", "short": "Tide", "desc": "a pale driftwood wand with a glass bead: a cold bolt that slows foes",
+		"charge": "wand_water", "rarity": "fine", "color": Color(0.7, 0.66, 0.58), "drop_weight": 1},
 }
 ## The numbers effects() adds up, and how the inventory names them:
 ## [key, label, as a share (%) or a count, higher is better, (shown as a
@@ -1351,6 +1383,8 @@ static func stats(id) -> Array:
 		rows.append_array(_fx_rows(effects(id)))
 	elif PIECES.has(b):
 		rows = _fx_rows(effects(id))
+		if PIECES[b]["slot"] == "offhand":
+			rows = load(OFFHAND).stat_rows(id) + rows  # (its strike, block or pool: offhand.gd)
 	else:
 		var a := armor(id)
 		var red := float(a["reduce"]) * (factor(id) if id is Dictionary else 1.0)
@@ -1471,6 +1505,8 @@ static func describe(g) -> Array:
 	var what := desc(g)
 	lines.append(what.left(1).to_upper() + what.substr(1) + ".")
 	var r := rec(g)
+	if slot_of(r) == "offhand":
+		lines[0] += " " + " ".join(load(OFFHAND).use_lines(r))  # (what it does in the off hand: offhand.gd)
 	var tags: Array = [rarity_name(r)]
 	if not enchanted(r) and not NAMED.has(named_id(r)):
 		tags.append(TEXT["ordinary"])
@@ -1519,7 +1555,9 @@ static func trait_lines(g) -> Array:
 			out.append([trait_text(t, r["rarity"], int(r.get("rank", 0))), Essence.color(TRAITS[t]["kind"])])
 	if r.has("rune"):
 		out.append([rune_text(r["rune"]), LASTING_RUNES[r["rune"]]["color"]])
-	if PIECES.get(base_id(r), {}).has("charge"):
+	if slot_of(r) == "offhand":
+		out.append_array(load(OFFHAND).card_lines(r))  # (an enchanted one's own pool: offhand.gd)
+	elif PIECES.get(base_id(r), {}).has("charge"):
 		# A charm's charge (charms.gd): how many are left, what it does, how it refills.
 		var lines: Array = load(CHARMS).charge_lines(r)
 		var full: bool = load(CHARMS).missing(r) <= 0
@@ -1529,6 +1567,7 @@ static func trait_lines(g) -> Array:
 
 
 const CHARMS := "res://scripts/charms.gd"  # (loaded when needed: charms.gd preloads this)
+const OFFHAND := "res://scripts/offhand.gd"  # (loaded when needed: it preloads this)
 
 
 ## A random piece of gear (its id), weighted by how common each is. A
@@ -2492,6 +2531,8 @@ static func _piece_icon(b, id: String, c: Vector2, s: float, named := "", tint :
 			_ring(b, id, c, u, s, lod, base_col, named)
 		"charm":
 			_charm_icon(b, id, c, u, s, lod, base_col)
+		"offhand":
+			load(OFFHAND).icon_into(b, id, c, s, base_col)
 		_:
 			Art.orb(b, c, s * 0.5, base_col, s)
 

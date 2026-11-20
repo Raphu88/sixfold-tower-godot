@@ -472,6 +472,10 @@ func _ordinary_and_enchanted() -> void:
 			what = "%s" % G.ARMOR[id]["reduce"]
 			if float(G.ARMOR[id]["reduce"]) <= 0.0:
 				blank.append(id)
+		elif G.slot_of(id) == "offhand":
+			what = str(load("res://scripts/offhand.gd").USES.get(id, {}))  # (an off-hand piece's use is in a fight: offhand.gd)
+			if what == "{}":
+				blank.append(id)
 		else:
 			var fx := G.effects(g)
 			if fx.is_empty():

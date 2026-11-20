@@ -298,6 +298,8 @@ var cracks  # the floor's cracked walls (cracks.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
 var inscriptions  # a stone to read on some floors (inscriptions.gd)
+var summit_blades  # each tower's hidden Summit Blade, found, carried and bonded (summit_blades.gd)
+var deeds_watch  # the climber's deeds, noticed as they're done (deeds.gd)
 var glimpses  # the tower's beast glimpsed now and then (glimpses.gd)
 var climb_shape  # the first Regard, the stair's barrier, hordes, the exit and the ending (climb_shape.gd)
 var rivals  # other climbers met in the tower: trade, duel, team up, rescue (rivals.gd)
@@ -401,6 +403,12 @@ func _ready() -> void:
 	inscriptions = InscriptionsScript.new()
 	inscriptions.main = self
 	add_child(inscriptions)
+	summit_blades = load("res://scripts/summit_blades.gd").new()
+	summit_blades.main = self
+	add_child(summit_blades)
+	deeds_watch = load("res://scripts/deeds.gd").new()
+	deeds_watch.main = self
+	add_child(deeds_watch)
 	glimpses = GlimpsesScript.new()
 	glimpses.main = self
 	add_child(glimpses)
@@ -1195,6 +1203,7 @@ func _start_floor(n: int) -> void:
 	scenarios.setup(plan if not in_camp else {})
 	room_rewards.setup(plan if not in_camp else {})
 	inscriptions.setup(plan if not in_camp else {})
+	summit_blades.setup(plan if not in_camp else {})
 	glimpses.setup(plan if not in_camp else {})
 	rivals.setup(plan if not in_camp else {})  # (the one beside you parts at the stair; this floor's rivals)
 	makers.setup_floor()  # (maybe a Maker's fragment in a secret room or a vault)
@@ -1667,6 +1676,7 @@ func _arrive() -> void:
 		if paid != "":
 			lines.append(paid)
 		lines.append_array(_keep_beast_pieces())
+		lines.append_array(summit_blades.on_summit())  # (a Summit Blade carried up is bonded for good)
 		var home := bring_pack_home()
 		if home != "":
 			lines.append(home)
@@ -2307,6 +2317,8 @@ func _note_climb_start() -> void:
 	noticed = []
 	if climb_shape != null:
 		climb_shape.new_climb()
+	if summit_blades != null:
+		summit_blades.new_climb()  # (a Summit Blade carried up last time is back in its hiding place)
 	if player != null:
 		player.rest_fatigue()  # (every climb starts with max stamina whole)
 	notices.new_climb()  # (the feed and the Entity's log start empty)

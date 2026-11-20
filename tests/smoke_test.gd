@@ -5256,7 +5256,7 @@ func _heirloom_tests() -> void:
 		_check(want in slots, "heirloom slot: %s" % want)
 	_check(G.heirloom_slot("plate") == "chest" and G.heirloom_slot("axe") == "melee" and G.heirloom_slot("crossbow") == "ranged", "armor is a chest heirloom, weapons melee or ranged")
 	_check(G.heirloom_slot("iron_helm") == "helm" and G.heirloom_slot("garnet_ring") == "rings" and G.heirloom_slot("satchel") == "backpack", "a helm is a helm heirloom, a ring a Rings heirloom")
-	_check(G.gear_slot_for("boots") == "boots" and G.gear_slot_for("offhand") == "" and G.heirloom_planned("offhand"), "the worn slots are real; the off-hand is kept for later")
+	_check(G.gear_slot_for("boots") == "boots" and G.gear_slot_for("offhand") == "offhand" and not G.heirloom_planned("offhand"), "the worn slots are real, the off-hand too (offhand.gd)")
 	# Surviving a climb offers the carried gear as heirlooms.
 	p.take_gear("axe")
 	p.take_gear("chain")
@@ -5305,7 +5305,7 @@ func _heirloom_tests() -> void:
 	main.end_regard()
 	_check(not main.camp_choosing, "a fall on the first climb offers no heirloom")
 	main.regard = {}
-	# The inventory's Heirlooms view shows them on the doll, the off-hand kept for later;
+	# The inventory's Heirlooms view shows them on the doll, the off-hand's slot empty;
 	# so does the climber screen's Record.
 	main.menu.open("inventory")
 	await _frames(2)
@@ -5319,11 +5319,7 @@ func _heirloom_tests() -> void:
 	var pack = _slot("heir:backpack")
 	var off = _slot("heir:offhand")
 	_check(chest != null and chest.id == "chain" and not chest.locked and "Backpack" in texts and pack != null and not pack.locked and pack.empty, "...with the kept chest and the empty slots")
-	_check(off != null and off.locked, "...and the off-hand, locked")
-	off.focus_entered.emit()
-	await _frames(1)
-	texts = _all_labels(main.menu).map(func(l): return l.text)
-	_check(texts.any(func(t): return t.begins_with("Kept for later")), "...which says it's kept for later")
+	_check(off != null and not off.locked and off.empty, "...and the off-hand's, empty (no longer kept for later)")
 	main.menu.inv_view = "worn"
 	main.menu.climber_tab = "record"
 	main.menu.open("climber")
@@ -5382,7 +5378,7 @@ func _gear_slot_tests() -> void:
 	q.free()
 
 	print("the worn slots")
-	_check(G.DOLL.size() == 5 and G.DOLL[0] == ["helm", "amulet", "cloak"] and G.DOLL[1] == ["melee", "armor", "ranged"] and G.DOLL[2] == ["ring1", "gloves", "ring2"] and G.DOLL[3] == ["backpack", "legs", "boots"] and G.DOLL[4] == ["", "charm", ""], "the doll: helm amulet cloak / melee chest ranged / ring gloves ring / backpack legs boots / the charm")
+	_check(G.DOLL.size() == 5 and G.DOLL[0] == ["helm", "amulet", "cloak"] and G.DOLL[1] == ["melee", "armor", "ranged"] and G.DOLL[2] == ["ring1", "gloves", "ring2"] and G.DOLL[3] == ["backpack", "legs", "boots"] and G.DOLL[4] == ["offhand", "charm", ""], "the doll: helm amulet cloak / melee chest ranged / ring gloves ring / backpack legs boots / the off-hand and the charm")
 	var pieces_by_slot := {}
 	for id in G.PIECES:
 		var sl: String = G.PIECES[id]["slot"]
@@ -5392,7 +5388,7 @@ func _gear_slot_tests() -> void:
 	for id in G.PIECES:
 		if G.PIECES[id].get("rarity", "common") == "common":
 			common += 1
-	_check(common == 30, "the thirty Common pieces, the bags and the ordinary charms among them (%d)" % common)
+	_check(common == 34, "the thirty-four Common pieces, the bags, the ordinary charms and the plain off-hand pieces among them (%d)" % common)
 	var words := ""
 	for id in G.PIECES:
 		words += " " + String(G.PIECES[id]["name"]) + " " + String(G.PIECES[id]["desc"])
@@ -5811,7 +5807,7 @@ func _rarity_tests() -> void:
 		var d: Dictionary = G.TRAITS[t]
 		trait_ok = trait_ok and Essence.KINDS.has(d["kind"]) and not d["slots"].is_empty() and float(d["rare"]) > float(d["fine"])
 		for sl in d["slots"]:
-			trait_ok = trait_ok and sl in ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring"]
+			trait_ok = trait_ok and sl in ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "offhand"]
 	_check(trait_ok and G.TRAITS.size() == 20, "twenty traits, each tied to an essence and to the slots it suits")
 	var kinds_seen := {}
 	for t in G.TRAITS:
@@ -8042,7 +8038,7 @@ func _screen_tests() -> void:
 	_check(_menu_button("Close") != null, "...with Close (not Back)")
 	_check(menu.climber_tab == "abilities" and _all_buttons(menu).any(func(b): return b.has_meta("ability")), "...on its Abilities tab at first")
 	var tabs: Array = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 5, "...and its sections, each a ribbon of the book (Abilities, Tree, Marks, Essence, Record; the Archive is the Library now)")
+	_check(tabs.size() == menu.CLIMBER_TABS.size() and tabs.size() == 6, "...and its sections, each a ribbon of the book (Abilities, Tree, Marks, Essence, Record, Deeds; the Archive is the Library now)")
 	tabs[2].pressed.emit()
 	await _frames(1)
 	var cards: Array = menu.find_children("*", "Control", true, false).filter(func(c): return c.get_script() == M.MarkCard)
@@ -8070,7 +8066,7 @@ func _screen_tests() -> void:
 	var draught = _slot("item:draught")
 	_check(draught != null and draught.count == 1 and _slot("item:tonic").count == 1 and _slot("item:vial") == null, "...the belt's items with their counts")
 	_check(_slot("item:stamina") != null and _slot("belt:3") != null and _slot("belt:4") == null, "...the Stamina Vial every climb starts with, and an empty cell (a belt of 4 kinds)")
-	_check(_slot("gear:offhand") != null and _slot("gear:offhand").locked, "...the off-hand kept for later, locked")
+	_check(_slot("gear:offhand") != null and not _slot("gear:offhand").locked and _slot("gear:offhand").empty, "...the off-hand's slot, empty")
 	menu._inv_view("heirlooms")
 	await _frames(2)
 	var planned := 0
@@ -8080,7 +8076,7 @@ func _screen_tests() -> void:
 			heir_cells += 1
 			if b.locked:
 				planned += 1
-	_check(heir_cells == 14 and planned == 1 and not _slot("heir:melee").locked, "...and the Heirlooms view: every slot on the doll (the charm's too), only the off-hand locked (%d cells)" % heir_cells)
+	_check(heir_cells == 14 and planned == 0 and not _slot("heir:melee").locked, "...and the Heirlooms view: every slot on the doll (the charm's and the off-hand's too), none locked (%d cells)" % heir_cells)
 	menu._inv_view("worn")
 	await _frames(2)
 	_check(_slot("rune") == null, "no rune slot without a camp rune")
@@ -14344,7 +14340,7 @@ func _data_editor_tests() -> void:
 	_check(Reg.applied.is_empty() and is_equal_approx(Items.ITEMS["draught"]["heal"], heal) and UI.GOLD.is_equal_approx(Color(0.91, 0.75, 0.42)) and Reg.value("entity/TEXT/heard") == "%d of %d heard", "putting all back restores every table")
 	# Search.
 	var found: Array = Reg.search("BASE_PRICE dagger")
-	_check(found.size() == 1 and found[0]["path"] == "train/BASE_PRICE/dagger", "search finds a field by its key")
+	_check(found.any(func(f): return f["path"] == "train/BASE_PRICE/dagger") and found.size() <= 2, "search finds a field by its key (the Parrying Dagger's matches too)")
 	found = Reg.search("healing draught")
 	_check(found.any(func(f): return f["path"] == "items/ITEMS/draught/name"), "...and by what it says")
 	# Copy and paste: a round trip.

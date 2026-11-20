@@ -4,7 +4,7 @@ extends RefCounted
 ## gilt, an open spread of candlelit parchment (dark vellum, so the menus'
 ## light ink reads on it), a crease down the spine, and a ribbon hanging
 ## from the top edge for each section: Abilities, Tree, Marks (Body for the
-## Unbound), Essence, Record (and Core with a secret bond). Pages turn with
+## Unbound), Essence, Record, Deeds (and Core with a secret bond). Pages turn with
 ## Q / E, LB / RB, a swipe across the page, or a tap on a ribbon; a leaf
 ## lifts and sweeps over as they do (Turn).
 ##
@@ -29,6 +29,7 @@ static var TEXT := {
 static var RIBBONS := {
 	"abilities": Color(0.78, 0.6, 0.24), "tree": Color(0.36, 0.6, 0.34), "marks": Color(0.66, 0.18, 0.2),
 	"essence": Color(0.26, 0.42, 0.7), "record": Color(0.5, 0.32, 0.62), "core": Color(0.7, 0.72, 0.78),
+	"deeds": Color(0.72, 0.5, 0.2),
 }
 static var LEATHER := Color(0.26, 0.11, 0.09)
 static var PAGE := Color(0.155, 0.125, 0.105)

@@ -33,6 +33,7 @@ const UI := preload("res://scripts/ui.gd")
 const Draw := preload("res://scripts/draw_util.gd")
 const Abilities := preload("res://scripts/abilities.gd")
 const Layout := preload("res://scripts/layout.gd")
+const Offhand := preload("res://scripts/offhand.gd")
 
 var main
 var active := false
@@ -49,7 +50,7 @@ var _own := {}  # the actions the touch controls are holding down right now
 ## input state outlives a scene reload).
 const HELD_ACTIONS := ["move_left", "move_right", "move_up", "move_down", "attack", "roll", "parry", "jump",
 	"cast_hand", "cast_legs", "cast_heart", "cast_brow", "cast_throat", "cast_back", "weapon_next", "pause", "interact",
-	"climber", "inventory", "use_item", "item_next", "tool_ring"]
+	"climber", "inventory", "use_item", "item_next", "tool_ring", "offhand"]
 
 
 func _ready() -> void:
@@ -75,6 +76,9 @@ func _layout() -> void:
 	# last tool, hold and slide for the tool ring.
 	if main.secret_tools != null and main.secret_tools.ring_ready():
 		buttons.append(_button("tools", "tool_ring", s))
+	# Off-hand: only while a wand is in a free off hand (offhand.gd): a tap casts it.
+	if main.player != null and Offhand.ready_use(main.player) == "wand":
+		buttons.append(_button("offhand", "offhand", s))
 	# One cast button per mark you carry, in the mark spots, in body order.
 	var i := 0
 	var p = main.player
@@ -368,7 +372,8 @@ func _signature() -> Array:
 		main.secret_tools != null and main.secret_tools.ring_ready()]
 	if p != null:
 		s.append_array([p.dead, p.weapon, snappedf(p.draw_t, 0.04) if p.drawing else -1.0, snappedf(p.reload_t, 0.05), p.ammo_left(), snappedf(p.refill_t, 0.05),
-			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0])
+			p.selected_item(), p.item_count(p.selected_item()) if p.selected_item() != "" else 0,
+			Offhand.ready_use(p), Offhand.pool(Offhand.piece(p)), p.off_cd <= 0.0])  # (the Off-hand button comes and goes with a wand)
 		for part in p.bonds:
 			var b = p.bonds[part]
 			s.append_array([part, b.id, snappedf(b.essence / b.capacity(), 0.01), b.essence >= b.cost(), b.selected])
@@ -471,6 +476,14 @@ func _draw() -> void:
 			"tools":
 				label = "Tools"
 				col = main.secret_tools.SB.color(main.secret_tools.bond())
+			"offhand":
+				var wand := Offhand.piece(p)
+				label = "%d" % Offhand.pool(wand)
+				col = Offhand.Gear.color(wand) if not wand.is_empty() else Color(UI.TEXT, 0.5)
+				var ek := Offhand.Gear.enchant_kind(wand)
+				if ek != "":
+					col = load("res://scripts/essence.gd").color(ek)
+				ready = Offhand.pool(wand) > 0 and p.off_cd <= 0.0
 		# A glassy disc in a dark bezel with a gilt ring and a gloss (ui.gd
 		# button_into): a mark's button carries its emblem and fills with
 		# essence, and glows in its colour once it can cast.
@@ -487,6 +500,11 @@ func _draw() -> void:
 		bt.flush(self)
 		if item_icon != "":
 			Items.draw_icon(self, item_icon, c + Vector2(0, -5), r * 0.42)
+		if b["id"] == "offhand" and p != null and not Offhand.piece(p).is_empty():
+			var wand := Offhand.piece(p)
+			Offhand.Gear.draw_icon(self, wand, c + Vector2(0, -4), r * 0.95, Offhand.Gear.color(wand))  # (the wand itself, its uses under it)
+			draw_string(font, c + Vector2(-r, r * 0.8), label, HORIZONTAL_ALIGNMENT_CENTER, r * 2.0, 13, Color(col, 0.95))
+			continue
 		var fsize := 16 if r > 30.0 else 13
 		if b["id"] == "climber" or b["id"] == "inventory":
 			_draw_top_icon(b["id"], c + Vector2(0, -4), r, Color(col, 0.85))
