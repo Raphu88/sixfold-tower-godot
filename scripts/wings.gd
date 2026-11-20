@@ -24,12 +24,14 @@ extends Node2D
 ## (main.gd's card screen): an essence crystal of one kind or another, a
 ## piece of gear, a recall scroll, or an item.
 ##
-## A SECRET ROOM sits behind a wall tile of a spine room. Its hints: dust
-## drifting down near it now and then when you're close, a hollow knock when
-## you strike it, and Hunter's Keen Eyes outline it. Lean into it (walk into
-## it) for a moment and it grinds open. Inside: an essence cache, a choice
-## of crystals, or a TITHE DOOR (lean on it to pay unbanked essence; it
-## shows only what it asks, never what it keeps).
+## A SECRET ROOM is a POCKET DIMENSION (portals.gd): a room with no way to
+## it on foot, reached through a hidden spot in a spine room's wall. Its
+## hints: dust drifting down near it now and then when you're close, a
+## hollow knock when you strike it, and Hunter's Keen Eyes outline it. Lean
+## into it (walk into it) for a moment, or break it with a finishing blow
+## or a burst, and it gives way: a portal opens in it, to the pocket. A
+## portal inside leads back. The pocket holds a small vault (vaults.gd:
+## three chests, some vaults guarded by a Tithe Stone, runes or a Keeper).
 ##
 ## Cheap: nothing runs for an idle wing but a point-in-rect check, and the
 ## drawing is redrawn 30 times a second only while a seal or a pedestal is
@@ -42,6 +44,7 @@ const Items := preload("res://scripts/items.gd")
 const Gear := preload("res://scripts/gear.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Charms := preload("res://scripts/charms.gd")
+const Vaults := preload("res://scripts/vaults.gd")
 
 ## Every line the wings say, in one place.
 static var TEXT := {
@@ -66,16 +69,11 @@ static var TEXT := {
 	"vault_sub": "Choose one to take.",
 	"vault_lesser_sub": "A lesser prize. Choose one to take.",
 	"knock": "A hollow knock",
-	"secret_open": "The wall grinds open",
-	"secret_title": "A HIDDEN PASSAGE",
-	"cache": "Hidden cache: +%d essence",
+	"secret_open": "A portal opens",
+	"secret_title": "A HIDDEN PORTAL",
+	"secret_line": "It leads somewhere outside the floor. Step in.",
 	"crystals_title": "HIDDEN CRYSTALS",
 	"crystals_sub": "Essence crystals, left here. Choose one to take.",
-	"tithe_title": "A TITHE DOOR",
-	"tithe": "It asks for %d essence you have not banked. It does not say what it keeps.",
-	"tithe_lean": "Lean on it to pay %d unbanked essence.",
-	"tithe_short": "It asks for %d unbanked essence. You carry %d.",
-	"tithe_paid": "The tithe is paid. The door opens.",
 	"crystal_taken": "+ %s",
 	"failsafe": "The room tires of its question.",
 }
@@ -102,11 +100,10 @@ const FAILSAFE := 240.0
 ## or a hidden one holds that fraction. The pedestal opens within reach.
 static var REWARD := {"crystal_base": 16.0, "crystal_per_floor": 4.0, "lesser": 0.5, "hidden": 0.75, "reach": 30.0,
 	"gear": 0.45, "scroll": 0.3, "item": 0.25}
-## Secret rooms: lean this long; dust falls every few seconds within `dust_near`;
-## Keen Eyes outlines the wall within `keen_near`; the cache holds this much
-## more than a good room's cache; a Tithe Door asks base + per_floor * floor.
-static var SECRET := {"lean": 0.75, "dust_every": [2.5, 5.0], "dust_near": 230.0, "keen_near": 300.0, "cache_mult": 1.5, "gear_chance": 0.5,
-	"tithe_base": 18.0, "tithe_per_floor": 4.0}
+## Secret rooms' hidden spots: lean this long; dust falls every few seconds
+## within `dust_near`; Keen Eyes outlines the wall within `keen_near`. (What
+## a pocket's vault holds: vaults.gd.)
+static var SECRET := {"lean": 0.75, "dust_every": [2.5, 5.0], "dust_near": 230.0, "keen_near": 300.0}
 const GOLD := Color(0.95, 0.75, 0.35)
 const DUST := Color(0.6, 0.55, 0.48)
 ## Redraws a second while something animated is on screen.
@@ -179,9 +176,8 @@ func setup(plan: Dictionary) -> void:
 		# tile is a wall with a body of its own.
 		_set_solid(_secret_tiles(s), true)
 		s["body"] = _close([s["mouth"][0]])
-		if s["content"] == "tithe":
-			s["cost"] = SECRET["tithe_base"] + SECRET["tithe_per_floor"] * main.floor_num
-			s["vault"] = "sealed"
+		s["portal_out"] = _tile_center(s["mouth"][0])
+		Vaults.lay_out(s, main.floor_num, main.first_climb, main.Floors.CELL)  # (its portal back, three chests, its guard)
 		secrets.append(s)
 	dirty = true
 	queue_redraw()
@@ -196,11 +192,12 @@ func clear() -> void:
 			if w.has(key) and main.lighting != null:
 				main.lighting.remove_light(w[key])
 	for s in secrets:
-		for key in ["body", "vault_body"]:
+		for key in ["body", "vault_body", "tithe_body"]:
 			if s.get(key) != null and is_instance_valid(s[key]):
 				s[key].queue_free()
-		if s.has("light") and main.lighting != null:
-			main.lighting.remove_light(s["light"])
+		for key in ["light", "niche_light"]:
+			if s.has(key) and main.lighting != null:
+				main.lighting.remove_light(s[key])
 	wings.clear()
 	secrets.clear()
 	active = {}
@@ -354,8 +351,7 @@ func _anim_on_screen() -> bool:
 	for s in secrets:
 		if keen_outlined(s) and view.has_point(_tile_center(s["mouth"][0])):
 			return true
-		if s["open"] and not s["taken"] and view.has_point(s["rect"].get_center()):
-			return true
+
 	return false
 
 
@@ -624,6 +620,9 @@ func _finish(w: Dictionary, vault: String, why: String) -> void:
 	# the mark (main.gd try_earned_mark, essence_flow.gd EARNED).
 	if vault == "open" and not bool(w.get("broken", false)) and main.has_method("try_earned_mark"):
 		main.try_earned_mark(w)
+	# The Regard's challenge met (not given up on): the floor's portals wake.
+	if why != TEXT["failsafe"] and main.get("portals") != null:
+		main.portals.wake("wing")
 
 
 ## The puzzle host's answer for a wing it claimed.
@@ -759,31 +758,7 @@ func _tick_secret(s: Dictionary, delta: float, p) -> void:
 		if _leaning(s["mouth"][0], s["into"], p, s, delta):
 			_open_secret(s)
 		return
-	if s["taken"]:
-		return
-	match String(s["content"]):
-		"cache":
-			if pos.distance_to(s["rect"].get_center()) < 34.0 + p.radius:
-				_take_cache(s)
-		"crystals":
-			if pos.distance_to(s["rect"].get_center()) < float(REWARD["reach"]) + p.radius:
-				s["taken"] = true
-				if s.has("light"):
-					main.lighting.remove_light(s["light"])
-					s.erase("light")
-				main.offer_vault(hidden_crystals(), TEXT["crystals_title"], [TEXT["crystals_sub"]])
-				dirty = true
-		"tithe":
-			if s["vault"] == "sealed":
-				_tick_tithe(s, delta, p)
-			elif s["vault"] == "open" and pos.distance_to(s["pedestal"]) < float(REWARD["reach"]) + p.radius:
-				s["taken"] = true
-				s["vault"] = "taken"
-				if s.has("light"):
-					main.lighting.remove_light(s["light"])
-					s.erase("light")
-				main.offer_vault(vault_choices(false), TEXT["vault_title"], [TEXT["vault_sub"]])
-				dirty = true
+	# (open: its portal is portals.gd's, its vault vaults.gd's)
 
 
 ## Dust sifting down from a secret wall.
@@ -809,49 +784,40 @@ func _leaning(t: Vector2i, into: Vector2, p, st: Dictionary, delta: float) -> bo
 	return false
 
 
-func _open_secret(s: Dictionary) -> void:
+## The hidden spot gives way: the wall crumbles into a niche holding a
+## portal, and the pocket beyond opens (its room no longer rock). `quiet`
+## skips the show (the Designer's rift).
+func _open_secret(s: Dictionary, quiet := false) -> void:
+	if s["open"]:
+		return
 	s["open"] = true
 	Makers.feed(main, "secret_room")
 	var tiles := _secret_tiles(s)
-	if s["content"] == "tithe":
-		tiles.erase(s["vault_door"])
-		s["vault_body"] = _close([s["vault_door"]])
+	tiles.erase(s["mouth"][0])
 	_set_solid(tiles, false)
+	if s.has("tithe_tile"):
+		s["tithe_body"] = _close([s["tithe_tile"]])  # (the Tithe Stone stands in the pocket)
 	_open([s["mouth"][0]], s.get("body"))
 	s["body"] = null
-	main.room_view.queue_redraw()  # (the passage and the room are floor now)
-	var c := _tile_center(s["mouth"][0])
-	main.fx_burst(c, s["into"], Color(0.62, 0.72, 0.79), 16, 140.0)
-	main.fx_text(c + Vector2(0, -24), TEXT["secret_open"], Color(0.62, 0.72, 0.79))
+	main.room_view.queue_redraw()  # (the niche and the pocket are floor now)
+	s["light"] = main.lighting.add_light(s["rect"].get_center(), 170.0, Color(0.62, 0.52, 1.0), 0.55, 0.2)
+	s["niche_light"] = main.lighting.add_light(s["portal_out"], 90.0, Color(0.62, 0.52, 1.0), 0.5, 0.25)
+	if main.get("portals") != null:
+		main.portals.refresh_fog()  # (seen from the floor, the pocket stays dark: it isn't part of it)
+	dirty = true
+	if quiet:
+		return
+	var c: Vector2 = s["portal_out"]
+	main.fx_burst(c, -Vector2(s["into"]), Color(0.62, 0.72, 0.79), 16, 140.0)
+	main.fx_burst(c, Vector2.ZERO, Color(0.62, 0.52, 1.0), 18, 160.0)
+	main.fx_ring(c, Color(0.62, 0.52, 1.0), 60.0, 0.5, 3.0)
+	main.fx_text(c + Vector2(0, -24), TEXT["secret_open"], Color(0.75, 0.68, 1.0))
 	main.sfx("slam", 0.5, -2.0, 0.0)
-	main.sfx("step_plate", 0.4, -4.0, 0.0)
+	main.sfx("rift", 0.9, -4.0, 0.0)
 	main.shake(4.0)
-	if s["content"] == "cache" or s["content"] == "crystals":
-		var col: Color = Essence.color(main.tower_data().get("essence", "air")) if s["content"] == "cache" else GOLD
-		s["light"] = main.lighting.add_light(s["rect"].get_center(), 120.0, col, 0.7, 0.2)
-	if s["content"] == "tithe":
-		s["light"] = main.lighting.add_spot(s["seal_pos"] - Vector2(s["vault_dir"]) * 22.0, -Vector2(s["vault_dir"]), 130.0, 130.0, Color(0.7, 0.85, 1.0), 0.6, 0.15)
-	main.banner = {"title": TEXT["secret_title"], "lines": [], "t": 2.0}
+	main.banner = {"title": TEXT["secret_title"], "lines": [TEXT["secret_line"]], "t": 2.4}
 	main.note_event("secret", main.notices.TEXT["secret"], null, false)
-	dirty = true
-
-
-func _take_cache(s: Dictionary) -> void:
-	s["taken"] = true
-	var kind: String = main.tower_data().get("essence", "air")
-	var amount: float = main.Floors.cache_amount(main.floor_num) * float(SECRET["cache_mult"])
-	var pos: Vector2 = s["rect"].get_center()
-	main.gather_essence(kind, amount, pos)
-	main.notices.feed(TEXT["cache"] % int(amount), Essence.color(kind), "essence")  # (the log has it with the essence)
-	if randf() < float(SECRET["gear_chance"]):
-		main.drop_gear(pos + Vector2(0, 18), main.find_gear("", 1), true)
-	main.fx_ring(pos, Essence.color(kind), 70.0, 0.5, 4.0)
-	main.light_flash(pos, Essence.color(kind), 1.8, 1.8, 0.4)
-	main.sfx("glint", 1.3, -2.0, 0.0)
-	if s.has("light"):
-		main.lighting.remove_light(s["light"])
-		s.erase("light")
-	dirty = true
+	main.tip("pocket")
 
 
 ## Three kinds of crystal, a little smaller than a vault's.
@@ -874,66 +840,35 @@ func charm_chance(where: String) -> float:
 	return charm_odds if charm_odds >= 0.0 else float(Charms.LOOT[where])
 
 
-## A Tithe Door: say what it asks once, then lean on it to pay.
-func _tick_tithe(s: Dictionary, delta: float, p) -> void:
-	var r := _tile_rect([s["vault_door"]])
-	var near: bool = r.grow(p.radius + 40.0).has_point(p.global_position)
-	var cost := int(s["cost"])
-	var held := 0.0
-	for k in main.run_essence:
-		held += float(main.run_essence[k])
-	if near and not s["told"]:
-		s["told"] = true
-		var line: String = TEXT["tithe_lean"] % cost if held >= cost else TEXT["tithe_short"] % [cost, int(held)]
-		main.banner = {"title": TEXT["tithe_title"], "lines": [TEXT["tithe"] % cost, line], "t": 3.5, "inscribed": 1}
-	elif not near:
-		s["told"] = false
-	if _leaning(s["vault_door"], s["vault_dir"], p, s, delta):
-		s["lean_t"] = 0.0
-		if held + 0.001 < cost:
-			main.fx_text(r.get_center() + Vector2(0, -26), TEXT["tithe_short"] % [cost, int(held)], Color(0.85, 0.6, 0.55))
-			main.sfx("hit_armor", 0.6, -6.0, 0.0)
-			return
-		pay_tithe(s)
-
-
-## Pays a Tithe Door from unbanked essence (each kind in its share) and opens it.
+## Pays a pocket vault's Tithe Stone (vaults.gd pay_tithe).
 func pay_tithe(s: Dictionary) -> bool:
-	var cost := float(s["cost"])
-	var held := 0.0
-	for k in main.run_essence:
-		held += float(main.run_essence[k])
-	if held + 0.001 < cost:
-		return false
-	for k in main.run_essence.keys():
-		main.run_essence[k] = maxf(0.0, float(main.run_essence[k]) - cost * float(main.run_essence[k]) / held)
-	s["vault"] = "open"
-	_open([s["vault_door"]], s.get("vault_body"))
-	s["vault_body"] = null
-	main.room_view.queue_redraw()
-	if s.has("light"):
-		main.lighting.remove_light(s["light"])
-	s["light"] = main.lighting.add_light(s["pedestal"], 120.0, GOLD, 0.75, 0.25)
-	main.fx_burst(s["seal_pos"], s["vault_dir"], Color(0.7, 0.85, 1.0), 22, 200.0)
-	main.fx_text(s["seal_pos"] + Vector2(0, -26), TEXT["tithe_paid"], Color(0.7, 0.85, 1.0))
-	main.sfx("clear", 1.1, -4.0, 0.0)
-	dirty = true
-	return true
+	return main.vaults != null and main.vaults.pay_tithe(s)
 
 
 # --- strikes ---------------------------------------------------------------------------
 
-## A melee swing (player.gd): a secret wall knocks hollow; a seal holds.
-func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float) -> void:
+## A melee swing (player.gd): a secret wall knocks hollow (a finishing
+## blow breaks it open: a portal); a seal holds.
+func strike(from: Vector2, dir: Vector2, reach: float, arc_deg: float, heavy := false) -> void:
 	for s in secrets:
 		if s["open"]:
 			continue
 		if _in_swing(from, dir, _tile_center(s["mouth"][0]), reach, arc_deg):
-			knock(s)
+			if heavy:
+				_open_secret(s)
+			else:
+				knock(s)
 	for w in wings:
 		if w["vault"] in ["sealed", "dark"] and _in_swing(from, dir, w["seal_pos"], reach, arc_deg):
 			main.fx_text(w["seal_pos"] + Vector2(0, -26), TEXT["seal_holds"] if w["vault"] == "sealed" else TEXT["seal_dark"], GOLD if w["vault"] == "sealed" else Color(0.6, 0.58, 0.62))
 			main.sfx("hit_armor", 0.8, -6.0, 0.0)
+
+
+## A burst (bombs, flasks, spells: main.explode) breaks a secret wall open too.
+func blast(pos: Vector2, r: float) -> void:
+	for s in secrets:
+		if not s["open"] and _tile_center(s["mouth"][0]).distance_to(pos) < r + 24.0:
+			_open_secret(s)
 
 
 func _in_swing(from: Vector2, dir: Vector2, at: Vector2, reach: float, arc_deg: float) -> bool:
@@ -1000,22 +935,7 @@ func _draw() -> void:
 			if keen_outlined(s):
 				_draw_keen(b, s["mouth"][0], t)
 			continue
-		match String(s["content"]):
-			"cache":
-				_draw_urn(b, s["rect"].get_center(), s["taken"], t)
-			"crystals":
-				_draw_pedestal(b, s["rect"].get_center(), not s["taken"], t)
-			"tithe":
-				_draw_alcove_floor(b, s)
-				if s["vault"] == "sealed":
-					_draw_tithe(b, s, t)
-				_draw_pedestal(b, s["pedestal"], s["vault"] == "open", t)
 	b.flush(self)
-	var font := ThemeDB.fallback_font
-	for s in secrets:
-		if s["open"] and s["content"] == "tithe" and s["vault"] == "sealed":
-			var at: Vector2 = s["seal_pos"] - Vector2(s["vault_dir"]) * 30.0 + Vector2(-30, 4)
-			draw_string(font, at, "%d" % int(s["cost"]), HORIZONTAL_ALIGNMENT_CENTER, 60, 12, Color(0.75, 0.88, 1.0, 0.9))
 
 
 ## Gold lines inlaid in the alcove's floor.
@@ -1131,20 +1051,6 @@ func _draw_gate(b, w: Dictionary) -> void:
 	b.circle(c, 3.0, Color(1.0, 0.85, 0.6))
 
 
-## A cache's urn in a secret room.
-func _draw_urn(b, c: Vector2, empty: bool, t: float) -> void:
-	var col: Color = Essence.color(main.tower_data().get("essence", "air"))
-	b.dot(c + Vector2(0, 12), 12.0, Color(0, 0, 0, 0.3))
-	b.ball(c, 11.0, Color(0.42, 0.33, 0.26))
-	b.rect(Rect2(c + Vector2(-6, -14), Vector2(12, 5)), Palette.OUTLINE)
-	b.rect(Rect2(c + Vector2(-5, -13), Vector2(10, 3)), Color(0.5, 0.4, 0.3))
-	if not empty:
-		var k := 0.6 + 0.4 * sin(t * 2.4)
-		for i in 3:
-			b.dot(c + Vector2(0, -14), 8.0 - i * 2.0, Color(col, 0.15 * k))
-		b.dot(c + Vector2(0, -13), 2.5, col.lightened(0.3))
-
-
 ## Keen Eyes: a faint outline around a secret wall.
 func _draw_keen(b, t0: Vector2i, t: float) -> void:
 	var r := _tile_rect([t0]).grow(-3.0)
@@ -1156,19 +1062,3 @@ func _draw_keen(b, t0: Vector2i, t: float) -> void:
 		for i in n:
 			if i % 2 == 0:
 				b.line(a.lerp(e, float(i) / n), a.lerp(e, float(i + 1) / n), col, 1.5)
-
-
-## A Tithe Door: pale stone with an open hand carved on it and a coin slot.
-func _draw_tithe(b, s: Dictionary, t: float) -> void:
-	var c: Vector2 = s["seal_pos"]
-	var r := Rect2(c - Vector2(20, 20), Vector2(40, 40))
-	var col := Color(0.7, 0.85, 1.0, 0.65 + 0.2 * sin(t * 2.0))
-	b.rect(r, Palette.OUTLINE)
-	b.rect(r.grow(-2.0), Color(0.42, 0.44, 0.5))
-	b.rect(r.grow(-5.0), Color(0.48, 0.5, 0.56))
-	# An open palm, held out.
-	b.rect(Rect2(c + Vector2(-6, -2), Vector2(12, 10)), col)
-	for i in 4:
-		b.rect(Rect2(c + Vector2(-6 + i * 3.2, -10 + absf(i - 1.5) * 1.5), Vector2(2.4, 8)), col)
-	b.rect(Rect2(c + Vector2(6, 0), Vector2(5, 2.5)), col)
-	b.rect(Rect2(c + Vector2(-5, 12), Vector2(10, 2)), Palette.OUTLINE)

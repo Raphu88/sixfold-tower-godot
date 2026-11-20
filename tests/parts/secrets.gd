@@ -1,10 +1,13 @@
 extends RefCounted
-## Secret rooms (wings.gd, floors.gd): carved in kept cells in every tower,
-## their first tile a plain wall (no torch on it, no trap in front of it),
-## shut to sight, fog, paths and bodies until leaned open by keys, a
-## controller or the touch stick; then reachable, seen, lit, and holding what
-## they hold (a cache, three crystals, a Tithe Door); a Maker's fragment on
-## their north wall; and a Designer's rift beside one tears into it.
+## Secret rooms (wings.gd, floors.gd), now POCKET DIMENSIONS (portals.gd,
+## vaults.gd): carved in kept cells in every tower with no way to them on
+## foot, their hidden spot a plain wall tile in a spine room (no torch on
+## it, no trap in front of it), shut to sight, fog, paths and bodies until
+## leaned open by keys, a controller or the touch stick; then a portal in the
+## wall leads in, the room is seen and lit, and it holds its vault (three
+## chests; open, or guarded by a Tithe Stone, runes or a Keeper); a Maker's
+## fragment on their north wall; and a Designer's rift beside one tears
+## into it. (tests/parts/portals.gd has the portals' own tests.)
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 
 const N4 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
@@ -84,11 +87,12 @@ func _carved_everywhere() -> void:
 	for tid in main.Towers.ORDER:
 		main.tower = tid
 		for n in 40:
-			if found.get(tid, 0) >= 3 and (contents.size() == 3 or found.get(tid, 0) >= 8):
-				break  # (three a tower, more until every kind of contents has turned up: they're random)
+			if found.get(tid, 0) >= 3 and (contents.size() == 4 or found.get(tid, 0) >= 8):
+				break  # (three a tower, more until every kind of guard has turned up)
 			var fl: int = 2 + n % 10
 			if fl == 6:
 				continue
+			seed(7300 + n * 13 + tid.length())
 			main._start_floor(fl)
 			await t._frames(1)
 			floors += 1
@@ -106,8 +110,8 @@ func _carved_everywhere() -> void:
 			var side := Vector2i(into.y, into.x)
 			var front := _front(s)
 			var corr: Rect2 = s["corridor"]
-			if minf(corr.size.x, corr.size.y) != main.Floors.CELL or not set.has(mouth) or not set.has(mouth + into):
-				bad["a passage one tile wide, its first tile in the wall"] = true
+			if corr.size != Vector2(main.Floors.CELL, main.Floors.CELL) or not set.has(mouth) or set.has(mouth + into):
+				bad["its hidden spot is all that's carved of a way in (rock behind it)"] = true
 			if not tiles.all(func(k): return _solid(k) and main.astar.is_point_solid(k)):
 				bad["solid to sight and paths"] = true
 			if main.room_view.solid[mouth.y * main.grid_size.x + mouth.x] != 1 or not _solid(mouth + side) or not _solid(mouth - side):
@@ -119,7 +123,9 @@ func _carved_everywhere() -> void:
 					var nb: Vector2i = k + d
 					if set.has(nb) or _solid(nb) or (k == mouth and nb == front):
 						continue
-					bad["no way into it but its first tile (%s)" % tid] = true
+					bad["no way into it but its hidden spot (%s)" % tid] = true
+			if not s.has("chests") or s["chests"].size() != 3 or not s.has("portal_in") or not s["rect"].has_point(s["portal_in"]):
+				bad["a vault of three chests and a portal back, inside the pocket"] = true
 			if _solid(front):
 				bad["open floor in front of it"] = true
 			if main.room_view.torches.any(func(tc): return main._tile_of(tc["pos"]) == mouth):
@@ -138,9 +144,10 @@ func _carved_everywhere() -> void:
 			if main._tiles_in(s["rect"]).any(func(k): return main.fog.vis[k.y * main.grid_size.x + k.x] == 1):
 				bad["the room stays dark in the fog from in front of it (%s)" % tid] = true
 	_check(found.size() == 6, "every tower carves secret rooms (%s over %d floors)" % [found, floors])
-	_check(contents.size() == 3, "...holding a cache, crystals or a Tithe Door (%s)" % [contents.keys()])
+	_check(contents.has("open") and contents.size() >= 3, "...each a vault: open, or guarded by a Tithe Stone, runes or a Keeper (%s)" % [contents.keys()])
 	_check(bad.is_empty(), "...each behind a plain wall tile and shut in every way until it opens%s" % ("" if bad.is_empty() else ": FAILED " + str(bad.keys())))
 	main.tower = "kraken"
+	seed(Time.get_ticks_usec())
 
 
 ## Leans into a secret wall with keys, a controller's stick or the touch
@@ -152,6 +159,8 @@ func _lean_open(how: String) -> void:
 	_check(not s.is_empty(), "a floor with a secret room (%s)" % how)
 	if s.is_empty():
 		return
+	s["content"] = "open"  # (no Keeper rising to knock you about while this looks around)
+	load("res://scripts/vaults.gd").lay_out(s, main.floor_num, false, main.Floors.CELL)
 	var W = main.wings
 	var p = main.player
 	var into: Vector2 = s["into"]
@@ -214,80 +223,48 @@ func _lean_open(how: String) -> void:
 	_check(not early and s["open"], "pressing into it a moment does nothing; leaning on it (%s) grinds it open (early %s, open %s)" % [how, early, s["open"]])
 	if how != "keys":
 		return
-	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth) and not _collides(mc) and not _collides(W._tile_center(mouth + Vector2i(into))),
-		"...its passage and room open to walking and the path grid")
-	# From where the climber leaned (a sealed wing shuts its doors behind
-	# you, so the start may be cut off for now); any open tile of the room
-	# will do, since its middle can hold what it guards.
-	var from_t: Vector2i = main._tile_of(p.global_position)
-	var in_room: Array = W._secret_tiles(s).filter(func(k): return s["rect"].has_point(W._tile_center(k)) and not main.astar.is_point_solid(k))
-	var reached: bool = in_room.any(func(k): return not main.astar.get_id_path(from_t, k).is_empty())
-	_check(reached, "...and the room can be walked into from where you leaned (%s, %d open tiles in it, middle solid: %s)" % [s["content"], in_room.size(), main.astar.is_point_solid(main._tile_of(deep))])
+	_check(not main.is_solid(mc) and not main.is_solid(deep) and not main.astar.is_point_solid(mouth) and not _collides(mc) and s["portal_out"] == mc,
+		"...the wall gives way to a niche holding a portal, and the pocket's room is open")
+	_check(main.astar.get_id_path(main._tile_of(mc - into * 40.0), main._tile_of(deep)).is_empty() and main.is_solid(W._tile_center(mouth + Vector2i(into))),
+		"...yet still no way to it on foot: rock behind the niche")
 	_check(main.room_view.solid[mouth.y * main.grid_size.x + mouth.x] == 0, "...drawn as floor now")
 	await t._frames(2)
 	_check(main.lighting._solid_copy == main.solid, "...and the light's shadows know the walls moved")
-	p.global_position = W._tile_center(s["door"][0]) + into * 30.0
+	main.portals.armed = true
+	main.portals._move_player(s["portal_out"])
 	await t._frames(4)
-	var di: Vector2i = main._tile_of(deep)
-	_check(main.fog.vis[di.y * main.grid_size.x + di.x] == 1, "...and the room is in sight once you step in")
+	var di: Vector2i = main._tile_of(s["rect"].get_center())
+	_check(main.portals.in_pocket() and main.fog.vis[di.y * main.grid_size.x + di.x] == 1, "...and through its portal the room is in sight")
+	main.portals.armed = true
+	main.portals._move_player(s["portal_in"])
+	await t._frames(3)
+	_check(not main.portals.in_pocket(), "...and its portal back leads out")
 
 
-## What each kind holds, found once it's open.
+## How each kind of vault is guarded, laid out once it's set (vaults.gd).
 func _contents() -> void:
-	print("secret rooms: what they hold")
+	print("secret rooms: their vaults")
 	var W = main.wings
-	var p = main.player
-	var s := await _secret_floor("cache")
-	if not s.is_empty():
-		W._open_secret(s)
-		var kind: String = main.tower_data()["essence"]
-		var had: float = float(main.run_essence.get(kind, 0.0))
-		_check(main.lighting.lights.has(s.get("light", -1)), "a hidden cache glows in its room")
-		p.global_position = s["rect"].get_center()
-		await t._until(func(): return s["taken"], 1.0)
-		await t._wait(0.6)
-		_check(s["taken"] and float(main.run_essence.get(kind, 0.0)) > had, "walking onto a hidden cache takes its essence (%.0f)" % (float(main.run_essence.get(kind, 0.0)) - had))
-	_check(not s.is_empty(), "a floor with a hidden cache")
-	s = await _secret_floor("crystals")
-	if not s.is_empty():
-		W._open_secret(s)
-		p.global_position = s["rect"].get_center()
-		await t._frames(3)
-		var choices: Array = main.camp.get("choices", [])
-		_check(main.camp_choosing and choices.size() == 3 and choices.all(func(c): return String(c).begins_with("crystal:") or String(c).begins_with("tincture_")), "a crystal pedestal offers three crystals, now and then a tincture in place of one (%s)" % [choices])
-		var before: float = t._purse(main.profile)
-		main.choose_camp(0)
-		_check(not main.camp_choosing and t._purse(main.profile) > before, "...and one taken is kept")
-	_check(not s.is_empty(), "a floor with a crystal pedestal")
-	s = await _secret_floor("tithe")
-	if not s.is_empty():
-		W._open_secret(s)
-		var vd: Vector2i = s["vault_door"]
-		var vdir: Vector2 = s["vault_dir"]
-		_check(_solid(vd) and _collides(W._tile_center(vd)) and not _solid(vd - Vector2i(vdir)), "a Tithe Door stands shut, open floor before it")
-		var cost := float(s["cost"])
-		main.run_essence = {"fire": cost * 0.5}
-		var key := "move_down" if vdir == Vector2.DOWN else ("move_up" if vdir == Vector2.UP else ("move_right" if vdir == Vector2.RIGHT else "move_left"))
-		p.global_position = W._tile_center(vd) - vdir * 40.0
-		await t._frames(2)
-		Input.action_press(key)
-		await t._wait(1.2)
-		Input.action_release(key)
-		_check(s["vault"] == "sealed" and absf(float(main.run_essence["fire"]) - cost * 0.5) < 0.01 and main.banner.get("title", "") == W.TEXT["tithe_title"],
-			"it says what it asks, and leaning with too little essence pays nothing (asks %d)" % int(cost))
-		main.run_essence = {"fire": cost + 5.0}
-		await t._frames(2)
-		Input.action_press(key)
-		await t._until(func(): return s["vault"] != "sealed", 2.0)
-		Input.action_release(key)
-		_check(s["vault"] == "open" and not _solid(vd) and absf(float(main.run_essence["fire"]) - 5.0) < 0.01, "...leaning with enough pays it from unbanked essence and it opens")
-		p.global_position = s["pedestal"]
-		await t._frames(3)
-		_check(main.camp_choosing and main.camp.get("stage", "") == "vault" and main.camp.get("choices", []).size() == 3, "...and its vault offers a full vault's cards")
-		main.choose_camp(0)
-		main.run_essence = {}
-	_check(not s.is_empty(), "a floor with a Tithe Door")
-	_release_moves()
+	var s := await _secret_floor()
+	_check(not s.is_empty(), "a floor with a secret room")
+	if s.is_empty():
+		return
+	var Vaults = load("res://scripts/vaults.gd")
+	for kind in ["open", "tithe", "puzzle", "keeper"]:
+		s["content"] = kind
+		Vaults.lay_out(s, main.floor_num, false, main.Floors.CELL)
+		var ok: bool = s["chests"].size() == 3 and s["chests"].all(func(c): return s["rect"].has_point(c["pos"]))
+		match kind:
+			"open":
+				ok = ok and s["vault"] == "open"
+			"tithe":
+				ok = ok and s["vault"] == "sealed" and float(s["cost"]) > 0.0 and s["rect"].has_point(s["tithe_pos"])
+			"puzzle":
+				ok = ok and s["vault"] == "sealed" and s["runes"].size() == 3 and s["order"].size() == 3
+			"keeper":
+				ok = ok and s["vault"] == "sealed" and s["keeper_state"] == "waiting"
+		_check(ok, "vault (%s): three chests in the pocket%s" % [kind, "" if kind == "open" else ", chained until its guard is dealt with"])
+	_check(W.SECRET.has("lean") and not W.TEXT.has("tithe_title"), "(the old caches and Tithe Doors are gone: a pocket holds a vault)")
 
 
 ## A Maker's fragment: on the north wall of a secret room, hidden until it opens.

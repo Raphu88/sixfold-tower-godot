@@ -126,7 +126,7 @@ const GROUPS := {
 	"group.touch_actions": {"name": "Action buttons", "sets": ["touch"], "loose": true,
 		"of": ["touch.attack", "touch.roll", "touch.jump", "touch.parry", "touch.weapon", "touch.item", "touch.item_next", "touch.take", "touch.tools",
 			"touch.mark_1", "touch.mark_2", "touch.mark_3", "touch.mark_4", "touch.mark_5", "touch.mark_6"]},
-	"group.touch_menu": {"name": "Menu buttons", "sets": ["touch"], "of": ["touch.inventory", "touch.climber", "touch.menu", "touch.fullscreen"]},
+	"group.touch_menu": {"name": "Menu buttons", "sets": ["touch"], "of": ["touch.map", "touch.inventory", "touch.climber", "touch.menu", "touch.fullscreen"]},
 }
 
 ## The touch buttons (touch.gd), laid out for the phone view: [id, name,
@@ -143,6 +143,7 @@ const TOUCH := [
 	["menu", "Menu", "tr", Vector2(-104, 40), 28.0],
 	["climber", "Climber", "tr", Vector2(-172, 40), 26.0],
 	["inventory", "Bag", "tr", Vector2(-236, 40), 26.0],
+	["map", "Map", "tr", Vector2(-300, 40), 26.0],  # (the floor map: only on a floor of rooms)
 	["item", "Item", "br", Vector2(-395, -48), 34.0],
 	["item_next", "Next item", "br", Vector2(-478, -48), 22.0],
 	["take", "Take", "br", Vector2(-400, -372), 34.0],

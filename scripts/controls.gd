@@ -102,6 +102,7 @@ const HELP := [
 	["pause menu", "Esc / P", "{start}"],
 	["climber screen", "Tab", "{back} (press)"],
 	["inventory", "I", "D-pad up"],
+	["floor map (travel by portal)", "O", "{start}: Floor map"],
 	["restart (hold)", "R", "hold {back}"],
 	["music", "M", "-"],
 	["controls panel", "H", "-"],
@@ -145,6 +146,7 @@ static func setup() -> void:
 	_bind("tool_ring", [_key(KEY_B)])  # a secret bond's tool ring (secret_tools.gd): tap or hold
 	_bind("restart", [_key(KEY_R)])  # hold (main.gd), so a stray press doesn't end the climb
 	_bind("toggle_music", [_key(KEY_M)])
+	_bind("floor_map", [_key(KEY_O)])  # the floor map (portals.gd, floor_map.gd)
 	_bind("toggle_help", [_key(KEY_H)])
 	_bind("arrange", [_key(KEY_F2)])  # Arrange mode (arrange.gd)
 	_bind("new_climber", [_key(KEY_N)])

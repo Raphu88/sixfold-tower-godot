@@ -71,6 +71,8 @@ const Reach := preload("res://scripts/reach.gd")
 const ObjectiveScript := preload("res://scripts/objective.gd")
 const Objectives := preload("res://scripts/objectives.gd")
 const CracksScript := preload("res://scripts/cracks.gd")
+const PortalsScript := preload("res://scripts/portals.gd")
+const VaultsScript := preload("res://scripts/vaults.gd")
 const ScenariosScript := preload("res://scripts/scenarios.gd")
 const RoomRewardsScript := preload("res://scripts/room_rewards.gd")
 const InscriptionsScript := preload("res://scripts/inscriptions.gd")
@@ -295,6 +297,8 @@ var puzzle  # the floor's puzzle, whose solving lifts the stair's ward (puzzle.g
 var ward := false  # the stair is warded until the floor's task is done (objective.gd)
 var objective  # the floor's one task: its pieces, the HUD's line and arrow, the stair's reward (objective.gd)
 var cracks  # the floor's cracked walls (cracks.gd)
+var portals  # the floor's portals, pocket dimensions and the floor map (portals.gd)
+var vaults  # a pocket dimension's vault: chests and guards (vaults.gd)
 var scenarios  # the floor's scenario rooms (scenarios.gd)
 var room_rewards  # chests, strongrooms, rest rooms and traders (room_rewards.gd)
 var inscriptions  # a stone to read on some floors (inscriptions.gd)
@@ -392,6 +396,12 @@ func _ready() -> void:
 	cracks = CracksScript.new()
 	cracks.main = self
 	add_child(cracks)
+	portals = PortalsScript.new()
+	portals.main = self
+	add_child(portals)
+	vaults = VaultsScript.new()
+	vaults.main = self
+	add_child(vaults)
 	scenarios = ScenariosScript.new()
 	scenarios.main = self
 	add_child(scenarios)
@@ -873,6 +883,8 @@ func _process(delta: float) -> void:
 		var CT: Dictionary = ClimbersPage.TEXT
 		banner = {"title": CT["over_banner"], "lines": [CT["over_again"] % (CT["over_tap"] if touch_active else CT["over_key"]), Pronouns.fill(CT["over_lost"])], "t": 3.0, "pri": 2}
 		sfx("warn_knight", 1.2, -6.0, 0.0)
+	if Input.is_action_just_pressed("floor_map") and portals != null:
+		portals.open_map()  # (the floor map: portals.gd, floor_map.gd; it closes itself)
 	if Input.is_action_just_pressed("toggle_music") and audio != null:
 		fx_text(player.global_position + Vector2(0, -44), "Music on" if audio.toggle_music() else "Music off", Color(0.85, 0.82, 0.9))
 	# The stair opens once most of the floor is down; clearing it all rings the gong.
@@ -1191,6 +1203,7 @@ func _start_floor(n: int) -> void:
 	# before the fog and the first drawing (their closed tiles are solid).
 	wings.setup(plan)
 	cracks.setup(plan)  # (cracked walls: solid until broken, their alcoves rock)
+	portals.setup(plan if not in_camp else {})  # (the floor's portals, asleep; pocket dimensions are the secrets')
 	_setup_tower_floor(plan if not in_camp else {})  # (before the scenarios: a tower's scenario lives in it)
 	scenarios.setup(plan if not in_camp else {})
 	room_rewards.setup(plan if not in_camp else {})
@@ -1521,6 +1534,8 @@ var stuck_t := STUCK_EVERY
 func check_stuck() -> Array:
 	if not layout_on or climbing or in_camp or player == null or player.dead or door_view == null or door_view.locked_count() == 0:
 		return []
+	if portals != null and portals.in_pocket():
+		return []  # (in a pocket dimension: the floor is out of reach on foot, and that's as it should be)
 	var c := Reach.live_check(self)
 	if not c["checked"] or c["stair"] or c["blocked"].is_empty():
 		return []
@@ -1558,6 +1573,8 @@ func lift_ward() -> void:
 	if objective != null and objective.kind != "":
 		objective.done = true
 		objective.reward()
+	if portals != null:
+		portals.wake("puzzle" if was_puzzle else "task")  # (a challenge done: the floor's portals wake)
 	if door_view.unlock_puzzle():  # (warded doors open with it)
 		banner["lines"].append(door_view.LOCK_TEXT["puzzle_line"])
 	sfx("clear", 0.9, -2.0, 0.0)
@@ -4263,6 +4280,8 @@ func in_chasm(pos: Vector2) -> bool:
 func explode(pos: Vector2, r: float, dmg: float, color: Color) -> void:
 	if cracks != null:
 		cracks.blast(pos, r)  # (a burst breaks a cracked wall)
+		if wings != null:
+			wings.blast(pos, r)  # (and a secret wall: its portal opens)
 	if tower_floor != null:
 		tower_floor.blast(pos, r)  # (a tower's own ground: the Thornwild's thorns burn)
 	for e in targets():

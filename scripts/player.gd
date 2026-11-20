@@ -1581,7 +1581,7 @@ func _melee() -> bool:
 		main.puzzle.strike(global_position, aim, reach, swing["arc"])
 	# Sealed wings and secret walls: a hollow knock, a seal that holds.
 	if main.wings != null:
-		main.wings.strike(global_position, aim, reach, swing["arc"])
+		main.wings.strike(global_position, aim, reach, swing["arc"], heavy)
 	# A lever for a barred door.
 	if main.door_view != null:
 		main.door_view.strike(global_position, aim, reach, swing["arc"])

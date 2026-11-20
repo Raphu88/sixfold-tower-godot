@@ -299,6 +299,13 @@ static func plan_check(plan: Dictionary) -> Dictionary:
 		if not rect_reached(reach, size, w["rect"]):
 			out["wings"].append(String(w.get("id", "wing")))
 			out["problems"].append("%s can't be reached" % String(w.get("id", "wing")))
+	# Every portal (portals.gd) stands where the climber can walk to and from,
+	# so travelling by one never strands anyone.
+	out["portals"] = []
+	for i in plan.get("portals", []).size():
+		if not near_reached(reach, size, plan["portals"][i]["pos"]):
+			out["portals"].append(i)
+			out["problems"].append("portal %d can't be reached" % i)
 	out["ok"] = out["problems"].is_empty()
 	return out
 

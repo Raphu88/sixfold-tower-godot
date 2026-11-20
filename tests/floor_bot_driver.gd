@@ -237,6 +237,16 @@ func _physics_process(delta: float) -> void:
 		if main.camp.get("choices", []).size() > 0:  # (a vault, the reliquary, a trader, a full belt's swap...)
 			main.choose_camp(0)
 		return
+	# Stepped into a hidden wall's portal (portals.gd): straight back out, as
+	# a player would who wanted the stair; and no floor map left open.
+	if main.get("portals") != null:
+		if main.portals.map_open():
+			main.portals.close_map()
+		if main.portals.in_pocket():
+			_release_all()
+			main.portals.leave_pocket()
+			path = PackedVector2Array()
+			return
 	attack_cd -= delta
 	path_t -= delta
 	nudge_t -= delta

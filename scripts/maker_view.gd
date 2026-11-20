@@ -13,6 +13,7 @@ extends Control
 const UI := preload("res://scripts/ui.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Controls := preload("res://scripts/controls.gd")
+const Portals := preload("res://scripts/portals.gd")
 
 ## Seconds before each stage can be moved on from (the rise moves on by itself).
 const STAGE_MIN := {"rise": 1.4, "speech": 0.9, "interrupt": 1.0, "answer": 0.45, "verdict": 0.9}
@@ -212,6 +213,10 @@ func _draw() -> void:
 	var small := vs.y < 520.0
 	# The world goes dark around it.
 	draw_rect(Rect2(Vector2.ZERO, vs), Color(0.006, 0.003, 0.012, 0.93 * a))
+	# A Maker meets you in a pocket dimension of its own: a portal (one look:
+	# portals.gd) opens where you stand and draws you in, and the void of the
+	# pocket takes the world's place.
+	_draw_pocket(vs, a)
 	# The presence, vast, too big for the screen; the interrupter beside it.
 	var r := vs.y * (0.58 if not small else 0.55)
 	var cy := vs.y * 0.15
@@ -224,7 +229,13 @@ func _draw() -> void:
 	# The climber, small beneath it (for scale).
 	var below := cy + r
 	if stage != "answer":
-		_climber(Vector2(vs.x * 0.5, below + 3.0), 14.0 if small else 20.0, a)
+		var h := 14.0 if small else 20.0
+		var feet := Vector2(vs.x * 0.5, below + 3.0)
+		# On a floating stone in the void, the portal that brought you behind.
+		draw_colored_polygon(PackedVector2Array([feet + Vector2(-h * 2.2, 2), feet + Vector2(h * 2.2, 2), feet + Vector2(h * 1.4, h * 0.7), feet + Vector2(0, h * 1.2), feet + Vector2(-h * 1.5, h * 0.6)]), Color(0.13, 0.11, 0.17, a))
+		draw_line(feet + Vector2(-h * 2.2, 2), feet + Vector2(h * 2.2, 2), Color(Makers.color(maker), 0.35 * a), 1.5)
+		Portals.draw_portal(self, feet + Vector2(h * 1.5, -h * 0.1), h * 0.75, clock, true, a)
+		_climber(feet, h, a)
 	# Who speaks, and what (redacted until written).
 	var speaker := maker
 	var lines: Array = []
@@ -268,12 +279,35 @@ func _draw() -> void:
 			for k in gains:
 				bits.append(Makers.TEXT["secret_gain"] % [int(gains[k]), String(k).capitalize()])
 			UI.draw_text(self, font, Vector2(0, ly + 14.0), "   ".join(bits), HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, UI.GOLD)
+	# The portal that draws you in, over where you stood (first, as the dark rises).
+	if clock < 1.5 and main.player != null and is_instance_valid(main.player):
+		var at: Vector2 = main.player.get_global_transform_with_canvas().origin
+		var zoom: float = main.camera.zoom.x if main.camera != null else 1.0
+		var k := clampf(clock / 0.4, 0.0, 1.0) * clampf((1.5 - clock) / 0.5, 0.0, 1.0)
+		Portals.draw_portal(self, at + Vector2(0, -4) * zoom, 34.0 * zoom * (0.5 + 0.5 * k), clock, true, k)
 	if stage == "answer":
 		_draw_cards(vs, font, col)
 	elif can_advance() and stage != "rise":
 		var pulse := 0.5 + 0.5 * sin(clock * 4.0)
 		var prompt: String = _say("Press Enter or click", "Press {a}", "Tap") + " " + Makers.TEXT["go_on"]
 		UI.draw_text(self, font, Vector2(0, vs.y - 16.0), prompt, HORIZONTAL_ALIGNMENT_CENTER, vs.x, 13, Color(UI.DIM, 0.5 + 0.5 * pulse))
+
+
+## The Maker's pocket dimension: first the portal opening over the climber
+## where they stand in the world (and closing as the dark rises), then the
+## void: slow motes and far stones drifting, faintly lit in its colour.
+func _draw_pocket(vs: Vector2, a: float) -> void:
+	var col := Makers.color(maker)
+	for i in 7:
+		var f := fmod(clock * 0.015 + i * 0.173, 1.0)
+		var c := Vector2(fmod(i * 197.0 + 60.0, vs.x), vs.y * (0.25 + 0.6 * fmod(i * 0.37, 1.0)) - f * 40.0)
+		var r := 8.0 + fmod(i * 13.0, 18.0)
+		draw_colored_polygon(PackedVector2Array([c + Vector2(-r, 0), c + Vector2(r * 0.8, -r * 0.2), c + Vector2(r, r * 0.4), c + Vector2(0, r * 0.9), c + Vector2(-r * 0.7, r * 0.5)]), Color(0.1, 0.085, 0.13, 0.9 * a))
+		draw_line(c + Vector2(-r, 0), c + Vector2(r * 0.8, -r * 0.2), Color(col, 0.18 * a), 1.0)
+	for i in 24:
+		var f := fmod(clock * 0.05 + i * 0.0417, 1.0)
+		var p := Vector2(fmod(i * 83.0 + 17.0, vs.x), vs.y * (1.0 - f))
+		draw_circle(p, 1.2, Color(col.lightened(0.4), 0.35 * a * sin(f * PI)))
 
 
 ## What it says as it shows itself: its own speech, or its confrontation's.
