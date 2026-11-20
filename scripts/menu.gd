@@ -36,6 +36,7 @@ const AppearancePage := preload("res://scripts/appearance_page.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const TechniquePage := preload("res://scripts/technique_page.gd")
+const BodyMove := preload("res://scripts/body_move.gd")  # (the Unbound: moving essence on the Body tab)
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
 const StartPages := preload("res://scripts/start_pages.gd")  # (a new climber's start: the intro, the name, the questionnaire)
@@ -1899,9 +1900,15 @@ func mark_order() -> Array:
 
 
 ## Marks: the climber with its marks glowing, and a card for each body part
-## (press one for its page).
+## (press one for its page). For an Unbound it's the Body tab: each part's
+## cup (press one to move essence out of it), then moving essence
+## (body_move.gd).
 func _climber_marks(prof) -> void:
 	var small := compact()
+	if Unbound.is_on(prof):
+		var told: String = main.tip_now("unbound_body")  # (the first time: what the Body tab does)
+		if told != "":
+			box.add_child(Entity.says(told, 30.0 if small else 38.0))
 	TreeView.repick_panel(self)  # (a step-3 choice made before the Transformations: chosen again, once, for free)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
@@ -1943,6 +1950,8 @@ func _climber_marks(prof) -> void:
 		_text(core_line, Makers.core_color(prof).lightened(0.2), true)  # (a secret bond: makers.gd)
 	if not Unbound.is_on(prof):
 		_climber_synergies(small)
+	else:
+		BodyMove.build(self)  # (moving essence from one part to another: body_move.gd)
 	if small:
 		return
 	if Unbound.is_on(prof):
