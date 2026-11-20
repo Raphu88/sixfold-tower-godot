@@ -842,6 +842,10 @@ static func _draw_arms(b, lk: Dictionary, pose: Dictionary, sh_w: Vector2, sh_o:
 				b.poly(PackedVector2Array([tip, tip - f * 10.0 + sd * 3.6, tip - f * 10.0 - sd * 3.6]), Palette.STEEL, 1.0)
 				hands.append([sh_w, grip2, 3.0])
 				hands.append([sh_o, grip2 - f * 12.0 - sd * 1.5, 2.8])
+			elif id == "rapier":
+				GearLook.tower_rapier(b, grip2, f, length2, glint, lt)
+				hands.append([sh_w, grip2 - f * 2.0, 3.0])
+				hands.append([sh_o, free, 2.8])
 			else:
 				b.sword(grip2, f, length2, glint)
 				hands.append([sh_w, grip2 - f * 2.0, 3.0])
@@ -862,6 +866,11 @@ static func _draw_arms(b, lk: Dictionary, pose: Dictionary, sh_w: Vector2, sh_o:
 				b.stroke(nock, nock + f * (18.0 + 14.0 * kd), Palette.WOOD.lightened(0.2), 1.6)
 			hands.append([sh_w, bgrip + sd * 0.5, 3.0])
 			hands.append([sh_o, nock if pose.has("draw") else free, 2.8])
+		"sling":
+			var shand := sd * (r * 0.8) + f * 4.0
+			GearLook.tower_sling(b, shand, f, float(pose.get("draw", 0.0)), Time.get_ticks_msec() * 0.001, lt)
+			hands.append([sh_w, shand, 3.0])
+			hands.append([sh_o, free, 2.8])
 		"gun":
 			var ggrip := f * (r + 3.0) + sd * 2.0
 			GearLook.tower_gun(b, id, ggrip, f, lt, 0.0, Weapons.WEAPONS[id].get("color", Palette.WOOD))
@@ -896,6 +905,8 @@ static func _draw_arms(b, lk: Dictionary, pose: Dictionary, sh_w: Vector2, sh_o:
 static func _swung(b, id: String, grip: Vector2, along: Vector2, length: float, glint: float, lt: Vector2) -> void:
 	var side := along.orthogonal()
 	match id:
+		"flail":
+			GearLook.tower_flail(b, grip, along, length, glint, lt)
 		"cane", "sword_cane":
 			GearLook.tower_cane(b, id, grip, along, length, glint, lt, false, Weapons.WEAPONS[id].get("color", Palette.WOOD))
 		"axe":

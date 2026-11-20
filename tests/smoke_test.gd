@@ -5390,7 +5390,7 @@ func _gear_slot_tests() -> void:
 	for id in G.PIECES:
 		if G.PIECES[id].get("rarity", "common") == "common":
 			common += 1
-	_check(common == 34, "the thirty-four Common pieces, the bags, the ordinary charms and the plain off-hand pieces among them (%d)" % common)
+	_check(common == 36, "the thirty-six Common pieces, the bags, the ordinary charms and the plain off-hand pieces among them (%d)" % common)
 	var words := ""
 	for id in G.PIECES:
 		words += " " + String(G.PIECES[id]["name"]) + " " + String(G.PIECES[id]["desc"])
@@ -5810,7 +5810,7 @@ func _rarity_tests() -> void:
 		trait_ok = trait_ok and Essence.KINDS.has(d["kind"]) and not d["slots"].is_empty() and float(d["rare"]) > float(d["fine"])
 		for sl in d["slots"]:
 			trait_ok = trait_ok and sl in ["melee", "ranged", "armor", "helm", "gloves", "legs", "boots", "cloak", "amulet", "ring", "offhand"]
-	_check(trait_ok and G.TRAITS.size() == 20, "twenty traits, each tied to an essence and to the slots it suits")
+	_check(trait_ok and G.TRAITS.size() == 24, "twenty-four traits, each tied to an essence and to the slots it suits")
 	var kinds_seen := {}
 	for t in G.TRAITS:
 		kinds_seen[G.TRAITS[t]["kind"]] = true
