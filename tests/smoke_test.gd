@@ -7588,7 +7588,7 @@ func _wing_tests() -> void:
 		await _wait(0.1)
 		if main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w):
 			break
-	_check(main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w), "stepping into the doorway, the seal is in sight, and drawn pulsing")
+	_check(main.fog.vis[fi] == 1 and w["seal_pos"] in W._anim_points(w), "stepping into the doorway, the seal is in sight, and drawn pulsing (seen %s, pulsing %s, climber at %s, door %s)" % [main.fog.vis[fi], w["seal_pos"] in W._anim_points(w), p.global_position, W._tile_rect(w["door"]).get_center()])
 	_check(w["state"] == "idle", "...and the wing stays open until you're really inside")
 	# Walk in: the way shuts behind you.
 	w["condition"] = "untouched"
