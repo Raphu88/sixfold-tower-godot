@@ -29,7 +29,7 @@ static var TEXT := {
 static var RIBBONS := {
 	"abilities": Color(0.78, 0.6, 0.24), "tree": Color(0.36, 0.6, 0.34), "marks": Color(0.66, 0.18, 0.2),
 	"essence": Color(0.26, 0.42, 0.7), "record": Color(0.5, 0.32, 0.62), "core": Color(0.7, 0.72, 0.78),
-	"deeds": Color(0.72, 0.5, 0.2),
+	"deeds": Color(0.72, 0.5, 0.2), "techniques": Color(0.24, 0.58, 0.6),
 }
 static var LEATHER := Color(0.26, 0.11, 0.09)
 static var PAGE := Color(0.155, 0.125, 0.105)
@@ -55,7 +55,8 @@ static func panel_style(compact: bool) -> StyleBox:
 ## chosen one longer and brighter), Q / E (LB / RB) either side.
 static func ribbons(menu, list: Array, current: String, choose: Callable) -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4 if menu.compact() else 6)
+	var many := list.size() > 6  # (seven or more: a little narrower, so they stay on one row)
+	row.add_theme_constant_override("separation", 4 if menu.compact() or many else 6)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.set_meta("ribbons", true)
 	menu.box.add_child(row)
@@ -71,7 +72,7 @@ static func ribbons(menu, list: Array, current: String, choose: Callable) -> voi
 		b.col = RIBBONS.get(t[0], UI.GILT)
 		b.on = t[0] == current
 		b.compact = menu.compact()
-		b.custom_minimum_size = Vector2(96.0, 36.0) if menu.compact() else Vector2(112.0, 42.0)
+		b.custom_minimum_size = Vector2(90.0 if many else 96.0, 36.0) if menu.compact() else Vector2(98.0 if many else 112.0, 42.0)
 		b.set_meta("tab", t[0])
 		b.set_meta("ribbon", t[0])
 		b.pressed.connect(choose.bind(t[0]))

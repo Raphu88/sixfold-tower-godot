@@ -5,7 +5,7 @@ extends RefCounted
 ## contract is at the top of library.gd.
 ##
 ## An effect is chosen for an essence in a technique (the technique's
-## "effects": {kind: effect id}, chosen at the essence bench); it replaces
+## "effects": {kind: effect id}, chosen on the Techniques tab); it replaces
 ## that essence's base effect. Each has a phrase for each kind of form
 ## ("hit", "self" on yourself, "shell", "near" around you; "move" where a
 ## move form differs), and its numbers at full (lead) strength: the second

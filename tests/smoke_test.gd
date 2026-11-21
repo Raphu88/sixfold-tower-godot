@@ -9389,9 +9389,11 @@ func _lost_tests() -> void:
 
 
 ## The bench in the workshop car (bench.gd): anyone brews (packed for the
-## next climb, deducted as the store pays); only a Rune Artist tempers,
-## retraits, joins, inscribes and binds a recall scroll (carry 1); breaking
-## down gives a crystal; the new fields save and load.
+## next climb, deducted as the store pays); tempering, retraiting, joining,
+## inscribing and binding a recall scroll (carry 1) are crafted: by a Rune
+## Artist for the materials, or by the workshop's Rune Artist for anyone
+## else (materials + premium); breaking down gives a crystal; the new fields
+## save and load.
 func _bench_tests() -> void:
 	print("the bench")
 	await _fresh_main()
@@ -9432,7 +9434,8 @@ func _bench_tests() -> void:
 	var brew_d: int = int(B.BREW["draught"]["stone"])
 	_check(brew_d < int(T.item_price("draught")[1]) and int(prof.supplies.get("draught", 0)) == 1 and prof.crystal_total("stone") == 25.0 - brew_d and prof.crystal_count("stone") == 1, "brewing it costs %d Stone, less than the store, and packs it (%s)" % [brew_d, prof.crystals])
 	_check(T.put_back(prof, "draught") and prof.crystal_total("stone") == 25.0 and not prof.supplies.has("draught"), "putting it back returns what was paid")
-	# Not a Rune Artist: tempering is greyed, and says why.
+	# Not a Rune Artist: the workshop's Rune Artist tempers for you, for the
+	# materials and a premium on top; the card says who crafts and how the price is made.
 	prof.heirlooms["melee"] = G.make("spear", "fine", ["edges"])
 	prof.add_crystal("blade", 200.0)
 	menu.train_bench = "temper"
@@ -9440,11 +9443,16 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	var tab: Array = bench_buttons.call("bench_tab", "temper")
-	var labels: Array = _all_labels(menu).map(func(l): return l.text)
+	var crafter: Array = _all_labels(menu).filter(func(l): return l.is_visible_in_tree() and l.has_meta("crafter_line"))
 	var temper: Array = bench_buttons.call("bench_do", "temper")
-	_check(tab.size() == 1 and tab[0].has_meta("greyed") and temper.size() == 1 and temper[0].disabled, "without the Rune Artist's mark, Temper is greyed and its button off")
-	_check(labels.any(func(t): return t.begins_with("Only a Rune Artist can temper")), "...and the card says a Rune Artist could do it")
-	_check(B.temper(prof, "heir:melee").contains("Rune Artist") and int(B.piece(prof, "heir:melee")["rank"]) == 0 and prof.crystal_total("blade") == 200.0, "...and tempering does nothing")
+	var npc: Array = bench_buttons.call("rune_artist", true)
+	_check(npc.size() == 1 and npc[0].get_meta("help", "") == "rune_artist_npc", "the Rune Artist stands at the bench, with the Entity's help on them")
+	_check(tab.size() == 1 and not tab[0].has_meta("greyed") and temper.size() == 1 and not temper[0].disabled, "without the Rune Artist's mark, Temper is open: the Rune Artist crafts for you")
+	_check(crafter.size() == 1 and crafter[0].get_meta("crafter_line") == "artist" and crafter[0].text.contains("20 Blade materials + 10 Blade premium"), "...and the card says so: materials + premium (%s)" % (crafter[0].text if not crafter.is_empty() else ""))
+	_check(B.temper(prof, "heir:melee") == "" and int(B.piece(prof, "heir:melee")["rank"]) == 1 and prof.crystal_total("blade") == 170.0, "...tempering to +1 costs 20 Blade + 10 premium")
+	prof.heirlooms["melee"] = G.make("spear", "fine", ["edges"])
+	prof.crystals = []
+	prof.add_crystal("blade", 200.0)
 	# A Rune Artist tempers: asks once, then the rank and its numbers go up.
 	prof.add_bond("brow", "rune_artist", false)
 	var strike0: float = G.effects(prof.heirlooms["melee"])["strike"]
@@ -9452,7 +9460,8 @@ func _bench_tests() -> void:
 	menu.open("train")
 	await _frames(2)
 	temper = bench_buttons.call("bench_do", "temper")
-	_check(temper.size() == 1 and not temper[0].disabled and not bench_buttons.call("bench_tab", "temper")[0].has_meta("greyed"), "a Rune Artist can temper")
+	crafter = _all_labels(menu).filter(func(l): return l.is_visible_in_tree() and l.has_meta("crafter_line"))
+	_check(temper.size() == 1 and not temper[0].disabled and crafter.size() == 1 and crafter[0].get_meta("crafter_line") == "you", "a Rune Artist tempers it themselves (the card says so)")
 	if temper.size() == 1:
 		temper[0].pressed.emit()
 		await _frames(2)
@@ -9494,12 +9503,13 @@ func _bench_tests() -> void:
 	_check(B.inscribe(prof, "heir:melee", "sharpness") == "" and prof.crystal_total("iron") == 0.0, "a Rune Artist inscribes a lasting Rune of Sharpness for 25 Iron")
 	_check(is_equal_approx(G.effects(prof.heirlooms["melee"])["strike"], strike2 + 0.1), "...strikes 10% harder from that piece")
 	_check(G.rune_strokes("sharpness") == G.rune_strokes("sharpness") and G.rune_strokes("sharpness").size() >= 3 and G.rune_strokes("sharpness") != G.rune_strokes("warding"), "a rune's strokes are hashed from its id")
-	# The recall scroll: only a Rune Artist binds one, and you carry one.
+	# The recall scroll: crafted (the workshop's Rune Artist for 45 Air + 45
+	# Water, a Rune Artist for 30 + 30), and you carry one.
 	prof.add_crystal("air", 60.0)
 	prof.add_crystal("water", 60.0 - prof.crystal_total("water"))
 	var ra: Dictionary = prof.bonds["brow"]
 	prof.bonds.erase("brow")
-	_check(B.brew(prof, p, "scroll").contains("Rune Artist") and not prof.supplies.has("scroll"), "only a Rune Artist can bind a recall scroll")
+	_check(B.brew_cost(prof, "scroll") == {"air": 45, "water": 45}, "without the mark, the Rune Artist binds a recall scroll for 30 Air + 30 Water and a premium (%s)" % [B.brew_cost(prof, "scroll")])
 	prof.bonds["brow"] = ra
 	_check(B.brew(prof, p, "scroll") == "" and int(prof.supplies["scroll"]) == 1 and prof.crystal_total("air") == 30.0 and prof.crystal_total("water") == 30.0, "a Rune Artist binds one for 30 Air and 30 Water")
 	_check(B.brew(prof, p, "scroll") != "" and int(prof.supplies["scroll"]) == 1, "...and carries only one")
@@ -10878,7 +10888,6 @@ func _ub_fresh() -> void:
 func _unbound_tests() -> void:
 	var U = load("res://scripts/unbound.gd")
 	var T = load("res://scripts/technique.gd")
-	var TP = load("res://scripts/technique_page.gd")
 	print("the Unbound: refusing at the Regard")
 	await _fresh_main()
 	paused = false
@@ -11230,33 +11239,15 @@ func _unbound_tests() -> void:
 
 	print("the Unbound: pages")
 	main.on_train = true
-	main.menu.open("techniques")
+	main.menu.set_meta("tech_slot", 0)
+	main.menu.climber_tab = "techniques"
+	main.menu.open("climber")
 	await _frames(2)
-	# The essence bench builds techniques: the page shows a technique's
-	# essences (its gems) but has no buttons to change them, only the way to the bench.
-	var gem_labels := 0
-	var bench_btn: Button = null
-	var gem_btns := 0
-	var stack: Array = [main.menu]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		stack.append_array(n.get_children())
-		if n is Label and n.has_meta("tech_gem_label"):
-			gem_labels += 1
-		if n is Button and n.has_meta("tech_gem"):
-			gem_btns += 1
-		if n is Button and n.has_meta("tech_bench"):
-			bench_btn = n
+	# The Techniques tab: an effect button for each of the part's essences, the lead first.
+	var fx_btns: Array = _all_buttons(main.menu).filter(func(b): return b.is_visible_in_tree() and b.has_meta("tech_fx"))
 	var lead: String = T.display(String(U.state(prof)["techs"][0]["kinds"][0]))
-	var shows_lead := false
-	stack = [main.menu]
-	while not stack.is_empty():
-		var n: Node = stack.pop_back()
-		stack.append_array(n.get_children())
-		if n is Label and n.has_meta("tech_gem_label") and String(n.text).begins_with(lead):
-			shows_lead = true
-	_check(gem_labels == T.weights(U.state(prof)["techs"][0]).size() and gem_btns == 0 and shows_lead, "the technique page shows the part's essences (%d gems, the lead %s) with no buttons to change them" % [gem_labels, lead])
-	_check(bench_btn != null and not bench_btn.disabled, "...and its button builds at the essence bench")
+	_check(fx_btns.size() == U.state(prof)["techs"][0]["kinds"].size() and not fx_btns.is_empty() and String(fx_btns[0].text).begins_with(lead) and not fx_btns[0].disabled,
+		"the Techniques tab shows the part's essences, the lead %s first, each with its effect to change" % lead)
 	main.menu.open("climber")
 	await _frames(2)
 	_check(main.menu._climber_line().begins_with("Unbound") and main.menu._climber_line().contains(U.stage_name(prof)), "the climber screen shows the stage")
@@ -11943,12 +11934,13 @@ func _vessel_tests() -> void:
 	_check(p.item_count("vessel") == 1 and is_equal_approx(V.carried(p)["amount"], 7.0) and prof.vessels.size() == 1, "...and departing puts it on your belt, still holding 7")
 	p.items.erase("vessel")
 	p.vessel = {}
-	# A Rune Artist brews one; nobody else can.
+	# Without the mark, the workshop's Rune Artist brews one for the
+	# materials and a premium; a Rune Artist for the materials alone.
 	prof.vessels = []
 	prof.crystals = []  # (the belt broken above left a little Iron: the Stamina Vial)
 	for k in V.BREW:
 		prof.add_crystal(k, float(V.BREW[k]))
-	_check(V.brew(prof).contains("Rune Artist") and prof.vessels.is_empty(), "only a Rune Artist can brew a vessel")
+	_check(V.brew(prof) != "" and prof.vessels.is_empty() and int(V.brew_cost(prof)["iron"]) == int(V.BREW["iron"]) + ceili(float(V.BREW["iron"]) * float(B.PREMIUM["share"])), "without the mark, a vessel costs its materials and the Rune Artist's premium (%s)" % B.cost_text(V.brew_cost(prof)))
 	prof.add_bond("brow", "rune_artist", false)
 	_check(V.brew(prof) == "" and prof.vessels.size() == 1 and V.fill(prof.vessels[0]) == 0.0 and prof.crystal_total("iron") == 0.0, "a Rune Artist brews one (%s), empty, into the chest" % B.cost_text(V.BREW))
 	# Very rarely, a vault offers one.
@@ -13887,13 +13879,9 @@ func _abilities_tests() -> void:
 	main.await_tower()
 	main.open_train()
 	await _frames(3)
-	menu.open("techniques", true)
-	await _frames(2)
-	var all_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("all_abilities"))
-	_check(all_b.size() == 1, "the techniques page offers all your abilities")
-	all_b[0].pressed.emit()
+	menu.open("abilities", true)
 	await _frames(3)
-	_check(menu.page == "climber" and menu.climber_tab == "abilities" and menu.rail.visible, "...which opens the Abilities page beside the train's rail")
+	_check(menu.page == "climber" and menu.climber_tab == "abilities" and menu.rail.visible, "the Abilities page opens beside the train's rail")
 	var try_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("try_abilities"))
 	_check(try_b.size() == 1 and not _all_buttons(menu).filter(func(b): return b.has_meta("change_techniques")).is_empty(), "...with Try your abilities and Change techniques")
 	var save_path: String = main.profile.save_path
@@ -14936,7 +14924,7 @@ func _pages_fit(tag: String) -> Array:
 			out.append("%s arrange button %s doesn't fit (%s, %d px words)" % [tag, b[0], b[1], fs])
 	var pages :=[["pause", ""], ["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"], ["mark", "hand"],
 		["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"], ["library", ""], ["settings", "settings"], ["settings", "controls"],
-		["dev", ""], ["data", ""], ["painter", ""], ["confirm_new", ""], ["climbers", ""], ["appearance", ""], ["techniques", ""]]
+		["dev", ""], ["data", ""], ["painter", ""], ["confirm_new", ""], ["climbers", ""], ["appearance", ""]]
 	for pg in pages:
 		match pg[0]:
 			"climber":

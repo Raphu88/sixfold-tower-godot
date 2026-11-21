@@ -304,15 +304,23 @@ func _where_from() -> void:
 	var prof = m.profile
 	prof.crystals = []
 	prof.chest = []
-	# A Rune Artist crafts one at the bench.
+	# Crafted at the bench: by the workshop's Rune Artist for a climber
+	# without the mark (materials + premium), by a Rune Artist for the materials.
 	prof.bonds = {}
-	_check(Bench.craft(prof, "wardbreaker").begins_with("!") and prof.chest.is_empty(), "only a Rune Artist crafts a charm")
+	var mats := int(C.CRAFT["wardbreaker"]["blade"])
+	var with_fee := int(Bench.craft_cost("wardbreaker", prof)["blade"])
+	_check(Bench.craft(prof, "wardbreaker").begins_with("!") and prof.chest.is_empty(), "a charm takes its crystals")
+	prof.add_crystal("blade", 100.0)
+	_check(with_fee > mats and Bench.craft(prof, "wardbreaker") == "chest" and int(prof.crystal_total("blade")) == 100 - with_fee,
+		"without the mark the Rune Artist crafts it for you: %d materials + a premium (%d in all)" % [mats, with_fee])
+	prof.chest = []
+	prof.crystals = []
 	prof.add_bond("brow", "rune_artist", false)
 	_check(Bench.craft(prof, "wardbreaker").begins_with("!"), "...given the essence")
 	prof.add_crystal("blade", 100.0)
-	_check(Bench.craft(prof, "wardbreaker") == "chest" and prof.chest.size() == 1 and G.base_id(prof.chest[0]) == "wardbreaker" and int(prof.crystal_total("blade")) == 100 - int(C.CRAFT["wardbreaker"]["blade"]),
-		"a Rune Artist crafts a Wardbreaker Charm into the stash, for its crystals")
-	_check(Bench.COUNTERS.any(func(c): return c[0] == "charm") and Bench.locked(prof, "charm") == "", "the bench has a Charms counter, open to anyone (crafting asks for a Rune Artist)")
+	_check(Bench.craft(prof, "wardbreaker") == "chest" and prof.chest.size() == 1 and G.base_id(prof.chest[0]) == "wardbreaker" and int(prof.crystal_total("blade")) == 100 - mats,
+		"a Rune Artist crafts a Wardbreaker Charm into the stash, for its crystals alone")
+	_check(Bench.COUNTERS.any(func(c): return c[0] == "charm"), "the bench has a Charms counter, open to anyone")
 	# The outfitter sells them.
 	var rack: Array = Train.roll_outfit(prof)
 	var charms: Array = rack.filter(func(g): return C.is_charm(g))

@@ -53,7 +53,7 @@ static var enabled := true
 const PAGE_NAMES := {
 	"pause": "Pause menu", "settings": "Settings", "controls": "Controls", "climber": "Climber book",
 	"inventory": "Inventory", "mark": "Mark page", "library": "Library", "dev": "Dev tools",
-	"data": "Edit game data", "appearance": "Appearance", "techniques": "Techniques",
+	"data": "Edit game data", "appearance": "Appearance",
 	"climbers": "Climbers", "confirm_new": "Start over", "padsetup": "Controller setup", "train": "Train", "station": "Station",
 	"talk": "Talking with the Entity", "pour": "Crystals and tinctures",
 }

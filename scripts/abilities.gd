@@ -31,7 +31,7 @@ const UI := preload("res://scripts/ui.gd")
 const Library := preload("res://scripts/library.gd")
 const TreeRules := preload("res://scripts/tree.gd")
 ## Every entry is a grimoire card (grimoire_card.gd: the same card the
-## book's Tree and the essence bench show).
+## book's Tree and the Techniques tab show).
 const GrimoireCard := preload("res://scripts/grimoire_card.gd")
 const KeyBadge := GrimoireCard.KeyBadge
 ## The Tree (tree_view.gd): every entry links to its node there, "On the body map".
@@ -421,7 +421,7 @@ static func build(menu) -> void:
 			line.add_child(_map_link(menu, at, small))
 		if card.selected:
 			_scroll_to(menu, card)
-	# What next: practice (on the train), the techniques page, every step.
+	# What next: practice (on the train), the Techniques tab, every step.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -431,8 +431,8 @@ static func build(menu) -> void:
 		tb.set_meta("try_abilities", true)
 		menu._primary(tb)
 		tb.custom_minimum_size.x = 200.0
-	if Unbound.is_on(prof) and main.on_train:
-		var cb: Button = menu._button(TEXT["change"], menu.open.bind("techniques", true), row)
+	if Unbound.is_on(prof):
+		var cb: Button = menu._button(TEXT["change"], menu.open_techniques, row)  # (the Techniques tab: technique_tab.gd)
 		cb.set_meta("change_techniques", true)
 		cb.custom_minimum_size.x = 180.0
 	elif not prof.bonds.is_empty() and not Unbound.is_on(prof):

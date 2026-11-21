@@ -147,13 +147,15 @@ func run(smoke) -> void:
 	t.root.size = was_size
 	menu.close()
 	await t._frames(2)
-	# The Techniques page only points to the Body tab now.
+	# The Techniques tab only points to the Body tab.
 	main.on_train = true
-	menu.open("techniques", true)
+	menu.set_meta("tech_slot", 0)
+	menu.climber_tab = "techniques"
+	menu.open("climber", true)
 	await t._frames(3)
 	var old_move: Array = t._all_buttons(menu).filter(func(b): return String(b.get_meta("help", "")).begins_with("ub_move") or b.get_meta("help", "") == "ub_drain")
 	var go := _one("ub_body_open")
-	_check(old_move.is_empty() and go != null, "the Techniques page has no move controls, only the way to the Body tab")
+	_check(old_move.is_empty() and go != null, "the Techniques tab has no move controls, only the way to the Body tab")
 	if go != null:
 		go.pressed.emit()
 		await t._frames(3)

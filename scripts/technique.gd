@@ -9,7 +9,7 @@ extends RefCounted
 ##   the PART gives its shape (SHAPES: the hand strikes or throws a bolt, the
 ##   legs dash or leap, the back raises a shell or pushes, the throat shouts
 ##   in a cone or pulls, the brow marks a foe or sees through fog, the heart
-##   works on yourself); the climber chooses it at the essence bench;
+##   works on yourself); the climber chooses it on the Techniques tab (technique_tab.gd);
 ##   its KINDS are the part's own mix (unbound.gd sync_tech: what leads the
 ##   part, then its modifiers), and "w" their weights (the lead at 1, each
 ##   modifier by its share, the core essence's touch by its share of the
@@ -23,7 +23,7 @@ extends RefCounted
 ## Boost: if you carry its essences unbanked (COST by how many kinds, paid in
 ## those kinds in proportion, the lead counting double; the path's essence
 ## from your unbanked flow), a cast spends them and hits BOOST harder. It's
-## automatic (on unless switched off on the techniques page): nothing to
+## automatic (on unless switched off on the Techniques tab): nothing to
 ## hold on a phone.
 ## Strain: STRAIN by how many kinds (unbound_run.gd adds it, and erupts at
 ## 100). Strength: the part's level (unbound.gd power).

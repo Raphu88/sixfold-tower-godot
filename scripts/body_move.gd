@@ -40,8 +40,6 @@ static var TEXT := {
 	"empty": "Your %s holds no essence to move.",
 	"no_target": "No other part can take %s now: each is full, already holds three kinds, or its lead would fall under half.",
 	"hunted": "A monster is hunting you. Moving essence waits until no monster is after you.",
-	"page_note": "Your body parts, and moving essence between them, are on the climber screen's Body tab.",
-	"open": "Open Body (climber screen)",
 }
 ## How long the last press's result stays under the control (ms).
 const SAID_MS := 12000
@@ -288,6 +286,6 @@ static func _redraw(menu, help: String) -> void:
 	menu.scroll.scroll_vertical = sv
 
 
-## From the Techniques page: the climber screen, on the Body tab.
+## From the Techniques tab: the climber screen, on the Body tab.
 static func open_body(menu) -> void:
 	menu._set_climber_tab("marks")

@@ -46,7 +46,7 @@ const Guide := preload("res://scripts/guide.gd")
 ## The pages it shows on: the train's and the pause menu's (not the title,
 ## the dev tools' editors, the controller setup, which listens to every
 ## button, or a talk with it).
-const PAGES := ["train", "station", "loadout", "stash", "climber", "mark", "library", "settings", "controls", "techniques", "title", "climbers", "intro", "create_name", "create", "quiz",
+const PAGES := ["train", "station", "loadout", "stash", "climber", "mark", "library", "settings", "controls", "title", "climbers", "intro", "create_name", "create", "quiz",
 	"pause", "inventory", "pour", "appearance", "confirm_new", "dev"]
 ## Seconds: a hover waits this long before the sphere moves (keys a little
 ## less), goes back this long after the pointer leaves, and a finger is
