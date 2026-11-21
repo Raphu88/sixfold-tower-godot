@@ -2,8 +2,7 @@ extends RefCounted
 ## THE TREE: the rules of how a climber grows, for both paths (the book's
 ## Tree section draws it: tree_view.gd). Every choice is for good.
 ##
-## MARKS: each bond's tree is its steps (1 to 5 today; 6 to 12 show as
-## "Coming soon"). Step 1 and step 5 are its spells. Steps 2 and 4 are
+## MARKS: each bond's tree is its steps, 1 to 12. Step 1 and step 5 are its spells. Steps 2 and 4 are
 ## FORKS: today's spell, or the tower's alternative (library.gd MARK_FORKS,
 ## from scripts/spells/<tower>.gd). Step 3 is a fork of VARIATIONS of the
 ## bond's first spell: today's change (named in FORKS "change"), or a
@@ -12,6 +11,10 @@ extends RefCounted
 ## (so a climber who never chooses plays as before). Once chosen, the other
 ## side is gone for good. A side not written yet is a "Coming soon" card
 ## that can't be chosen; while it is, the fork isn't ready.
+## Steps 6 to 12 (mark_ascent.gd, the same rhythm as the Unbound's levels):
+## 6 the passive's rank IV, 7, 9 and 11 a fork of two upgrades, 8 the great
+## spell's Apex+, 10 a second Transformation (a fork of two), 12 the Zenith.
+## Those forks have no side in use until chosen: nothing changes until then.
 ##
 ## THE UNBOUND: one tree per body part, a node at the part levels that
 ## bring something (a level is 10 fill, 12 levels: unbound.gd): the minor
@@ -46,10 +49,11 @@ extends RefCounted
 const Library := preload("res://scripts/library.gd")
 const Bonds := preload("res://scripts/bonds.gd")
 const Unbound := preload("res://scripts/unbound.gd")
+const Ascent := preload("res://scripts/mark_ascent.gd")
 
 const FORK_STEPS := [2, 3, 4]
-## The highest step a mark reaches today, and the steps the tree shows.
-const MAX_STEP := 5
+## The highest step a mark reaches, and the steps the tree shows.
+const MAX_STEP := 12
 const SHOWN_STEPS := 12
 ## Learning an Unbound fork's passed side: the part must be this many levels
 ## past the node, and it costs SKIP_COST[0] + SKIP_COST[1] x the node's level
@@ -65,7 +69,7 @@ static var TEXT := {
 	"step": "Step %d",
 	"level": "Level %d",
 	"later": "Coming soon",
-	"later_says": "Marks will grow past step 5 in a later update.",
+	"later_says": "This step isn't written yet.",
 	"needs_step": "at step %d",
 	"needs_level": "at level %d",
 	"forms": "Your forms",
@@ -160,7 +164,7 @@ static func mark_choice(p, bond_id: String, step: int) -> String:
 ## Every recorded choice of a bond: {step (int): option id} (bond.gd choices).
 static func mark_choices(p, bond_id: String) -> Dictionary:
 	var out := {}
-	for s in FORK_STEPS:
+	for s in FORK_STEPS + Ascent.FORKS:
 		var c := mark_choice(p, bond_id, s)
 		if c != "":
 			out[s] = c
@@ -272,6 +276,10 @@ static func mark_nodes(p, part: String) -> Array:
 	for s in range(1, SHOWN_STEPS + 1):
 		var n := {"id": "mark:%s:%d" % [bond_id, s], "path": "mark", "part": part, "bond": bond_id, "at": s, "title": TEXT["step"] % s,
 			"needs": TEXT["needs_step"] % s, "chosen": "", "options": []}
+		if s >= Ascent.RANK4_STEP:
+			_high_node(p, n, bond_id, s, step)
+			out.append(n)
+			continue
 		if s > MAX_STEP:
 			n["kind"] = "later"
 			n["state"] = "later"
@@ -312,6 +320,52 @@ static func mark_nodes(p, part: String) -> Array:
 		n["options"] = [a, b]
 		out.append(n)
 	return out
+
+
+## A mark's node at steps 6 to 12 (mark_ascent.gd): rank IV, a fork of
+## two upgrades (7, 9, 11) or Transformations (10), the Apex+ (8), the
+## Zenith (12). Each option carries "help" (its hover help, entity_help.gd).
+static func _high_node(p, n: Dictionary, bond_id: String, s: int, step: int) -> void:
+	var col: Color = Bonds.BONDS[bond_id]["color"]
+	var reached := step >= s
+	if s == Ascent.RANK4_STEP:
+		var pd: Dictionary = Bonds.BONDS[bond_id]["passive"]
+		var r4 := Ascent.rank4(bond_id)
+		var built := not r4.is_empty()
+		n["kind"] = "passive"
+		n["options"] = [{"id": "rank4_" + bond_id, "kind": "passive", "name": Ascent.TEXT["rank4"] % String(pd["name"]), "says": String(r4.get("says", "")) if built else Library.TEXT["coming_says"],
+			"built": built, "state": ("owned" if reached else "locked") if built else "placeholder", "color": col, "help": "bud_rank4"}]
+		n["state"] = ("owned" if reached else "locked") if built else "later"
+		return
+	if s in Ascent.FORKS:
+		var sides := Ascent.sides(bond_id, s)
+		var c := mark_choice(p, bond_id, s)
+		n["kind"] = "fork"
+		n["chosen"] = c
+		var kind := "transform" if s == Ascent.TRANSFORM_STEP else "upgrade"
+		var opts: Array = []
+		for o in sides:
+			var st := "locked"
+			if reached:
+				st = "available" if c == "" else ("owned" if String(o["id"]) == c else "passed")
+			opts.append({"id": String(o["id"]), "kind": kind, "name": String(o["name"]), "says": String(o["says"]), "built": true, "state": st, "color": col,
+				"help": "bud_transform" if kind == "transform" else "bud_upgrade"})
+		n["options"] = opts
+		if opts.size() < 2:
+			n["state"] = "later"
+		elif not reached:
+			n["state"] = "locked"
+		else:
+			n["state"] = "ready" if c == "" else "owned"
+		return
+	var one := Ascent.single(bond_id, s)
+	var zen := s == Ascent.ZENITH_STEP
+	var built := not one.is_empty()
+	n["kind"] = "zenith" if zen else "apex"
+	n["options"] = [{"id": String(one.get("id", "later_%s_%d" % [bond_id, s])), "kind": "zenith" if zen else "apex", "name": String(one.get("name", Library.TEXT["coming"])),
+		"says": String(one.get("says", Library.TEXT["coming_says"])), "built": built, "state": ("owned" if reached else "locked") if built else "placeholder", "color": col,
+		"help": "bud_zenith" if zen else "bud_apex"}]
+	n["state"] = ("owned" if reached else "locked") if built else "later"
 
 
 ## The marks whose step-3 choice may be chosen again, once, for free

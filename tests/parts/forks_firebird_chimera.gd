@@ -100,7 +100,7 @@ func _foes(offsets: Array) -> Array:
 func _old_saves() -> void:
 	print("the Firebird's and Chimera's forks: old saves keep today's spells")
 	for bond_id in TOWERS:
-		await _bonded(bond_id, 1800.0)
+		await _bonded(bond_id, float(load("res://scripts/profile.gd").STEP_XP[4]))
 		var main = t.main
 		var b = main.player.bonds[TOWERS[bond_id]]
 		var plain: Array = B.BONDS[bond_id]["spells"].map(func(sp): return sp["id"])
@@ -143,7 +143,7 @@ func _all_forks_written() -> void:
 
 func _flame_contractor() -> void:
 	print("the forks: Flame Contractor")
-	await _bonded("flame_contractor", 150.0)
+	await _bonded("flame_contractor", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	p.aim = Vector2.RIGHT
@@ -159,11 +159,11 @@ func _flame_contractor() -> void:
 		await t._frames(2)
 	_check(n0 >= 1 and friendly.call() >= n0 + 3, "...walking leaves burning ground behind you (%d -> %d patches)" % [n0, friendly.call()])
 	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
-	main.profile.bonds["hand"]["xp"] = 450.0
+	main.profile.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	main._give_bonds()
 	_check(_choose("flame_contractor", 3, "quickfire"), "%s can be chosen at step 3" % TR.fork_alt("flame_contractor", 3)["name"])
 	# Step 4: Detonate.
-	main.profile.bonds["hand"]["xp"] = 1000.0
+	main.profile.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	_check(_choose("flame_contractor", 4, "detonate"), "Detonate can be chosen at step 4")
 	main.flames.clear()
@@ -187,7 +187,7 @@ func _flame_contractor() -> void:
 
 func _flamewing() -> void:
 	print("the forks: Flamewing")
-	await _bonded("flamewing", 150.0)
+	await _bonded("flamewing", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	p.aim = Vector2.RIGHT
@@ -208,11 +208,11 @@ func _flamewing() -> void:
 	_check(is_equal_approx(paid, 0.0), "...and it's free in Firebird Form, as Wingburst is (%.1f)" % paid)
 	p.firebird_t = 0.0
 	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
-	main.profile.bonds["heart"]["xp"] = 450.0
+	main.profile.bonds["heart"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	main._give_bonds()
 	_check(_choose("flamewing", 3, "broad"), "%s can be chosen at step 3" % TR.fork_alt("flamewing", 3)["name"])
 	# Step 4: Heat Haze.
-	main.profile.bonds["heart"]["xp"] = 1000.0
+	main.profile.bonds["heart"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	_check(_choose("flamewing", 4, "heat_haze"), "Heat Haze can be chosen at step 4")
 	b = _mark("flamewing", "heat_haze")
@@ -229,7 +229,7 @@ func _flamewing() -> void:
 
 func _rekindler() -> void:
 	print("the forks: Rekindler")
-	await _bonded("rekindler", 150.0)
+	await _bonded("rekindler", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	p.aim = Vector2.RIGHT
@@ -253,11 +253,11 @@ func _rekindler() -> void:
 	_cast(b)
 	_check(p.hp == 1.0, "...never your last health")
 	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
-	main.profile.bonds["back"]["xp"] = 450.0
+	main.profile.bonds["back"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	main._give_bonds()
 	_check(_choose("rekindler", 3, "deep_burn"), "%s can be chosen at step 3" % TR.fork_alt("rekindler", 3)["name"])
 	# Step 4: Backdraft.
-	main.profile.bonds["back"]["xp"] = 1000.0
+	main.profile.bonds["back"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	_check(_choose("rekindler", 4, "backdraft"), "Backdraft can be chosen at step 4")
 	b = _mark("rekindler", "backdraft")
@@ -277,7 +277,7 @@ func _rekindler() -> void:
 
 func _covenant() -> void:
 	print("the forks: Covenant")
-	await _bonded("covenant", 150.0)
+	await _bonded("covenant", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	p.aim = Vector2.RIGHT
@@ -304,11 +304,11 @@ func _covenant() -> void:
 	Engine.time_scale = 1.0
 	_check(is_instance_valid(ally) and is_equal_approx(ally.dmg, dmg0) and is_equal_approx(ally.speed, spd0), "...and it wears off after 8 seconds")
 	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
-	main.profile.bonds["hand"]["xp"] = 450.0
+	main.profile.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	main._give_bonds()
 	_check(_choose("covenant", 3, "mighty"), "%s can be chosen at step 3" % TR.fork_alt("covenant", 3)["name"])
 	# Step 4: Release.
-	main.profile.bonds["hand"]["xp"] = 1000.0
+	main.profile.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	_check(_choose("covenant", 4, "release"), "Release can be chosen at step 4")
 	b = _mark("covenant", "release")
@@ -328,7 +328,7 @@ func _covenant() -> void:
 
 func _grafter() -> void:
 	print("the forks: Grafter")
-	await _bonded("grafter", 150.0)
+	await _bonded("grafter", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	p.aim = Vector2.RIGHT
@@ -348,11 +348,11 @@ func _grafter() -> void:
 	await t._wait(0.2)
 	_check(main.grafts.size() == 1, "...which binds when you walk over it, as ever")
 	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
-	main.profile.bonds["legs"]["xp"] = 450.0
+	main.profile.bonds["legs"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	main._give_bonds()
 	_check(_choose("grafter", 3, "echoing"), "%s can be chosen at step 3" % TR.fork_alt("grafter", 3)["name"])
 	# Step 4: Bud.
-	main.profile.bonds["legs"]["xp"] = 1000.0
+	main.profile.bonds["legs"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	_check(_choose("grafter", 4, "graft_bud"), "Bud can be chosen at step 4")
 	b = _mark("grafter", "graft_bud")
@@ -381,7 +381,7 @@ func _grafter() -> void:
 
 func _surgeon() -> void:
 	print("the forks: Surgeon")
-	await _bonded("surgeon", 150.0)
+	await _bonded("surgeon", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	p.aim = Vector2.RIGHT
@@ -397,11 +397,11 @@ func _surgeon() -> void:
 	await t._wait(1.3)
 	_check(foe.hp < cut - 2.0 and p.hp > hp0, "...it bleeds, and you heal for part of it (%.0f -> %.0f, +%.1f)" % [cut, foe.hp, p.hp - hp0])
 	# Step 3: its second side, a Transformation (tests/parts/marks_firebird_chimera.gd tests what it does).
-	main.profile.bonds["brow"]["xp"] = 450.0
+	main.profile.bonds["brow"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	main._give_bonds()
 	_check(_choose("surgeon", 3, "chained"), "%s can be chosen at step 3" % TR.fork_alt("surgeon", 3)["name"])
 	# Step 4: Anesthetize.
-	main.profile.bonds["brow"]["xp"] = 1000.0
+	main.profile.bonds["brow"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	_check(_choose("surgeon", 4, "anesthetize"), "Anesthetize can be chosen at step 4")
 	b = _mark("surgeon", "anesthetize")

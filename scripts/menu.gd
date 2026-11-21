@@ -1965,7 +1965,7 @@ func _climber_marks(prof) -> void:
 	elif prof.bonds.is_empty():
 		_note("Your first climb starts with no mark. Reach floor 6 and the tower's guardian takes notice: the body part you used most takes your first mark.")
 	else:
-		_note("Bonds grow across climbs from the essence you bank at each stair, up to step 5. Choose a mark to see every spell, what each step brings, and its body and passive effects.")
+		_note("Bonds grow across climbs from the essence you bank at each stair, up to step 12. Choose a mark to see every spell, what each step brings, and its body and passive effects.")
 
 
 ## The synergies the climber holds (synergies.gd): the traits their marks

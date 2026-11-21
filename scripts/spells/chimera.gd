@@ -579,7 +579,7 @@ static func _bud(bond, p) -> void:
 		if a.has_meta("graft_bud"):
 			a._fade_ally()
 	var seconds: float = float(bond.stat("duration")) * (float(bond.stat("bare")) if bare else 1.0) * (0.5 if bond._overdrawn() else 1.0)  # overdrawn: it withers sooner
-	var a = main.spawn_ally(kind, p.global_position + p.aim * 44.0, bond.step, seconds)
+	var a = main.spawn_ally(kind, p.global_position + p.aim * 44.0, bond.ally_step() if bond.has_method("ally_step") else bond.step, seconds)
 	a.set_meta("graft_bud", true)
 	main.fx_text(a.global_position + Vector2(0, -a.radius - 26.0), TEXT["bud_bare"] if bare else TEXT["bud"] % kind, col)
 	# Tendrils grow from you to it.

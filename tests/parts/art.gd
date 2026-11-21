@@ -42,8 +42,8 @@ func _marked() -> void:
 	main.pad._set_active(false)
 	main.grant_test_bonds()
 	main.profile.add_bond("brow", "warden", false)
-	main.profile.bonds["hand"]["xp"] = 500.0
-	main.profile.bonds["brow"]["xp"] = 1000.0
+	main.profile.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
+	main.profile.bonds["brow"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	main._give_bonds()
 	for e in main.enemies():
 		e.set_physics_process(false)
@@ -115,12 +115,15 @@ func _drawn() -> void:
 	var states := {}
 	for b in _buds():
 		states[b.get_meta("bud_state")] = true
-	_check(states.has("in_use") and states.has("available") and states.has("locked") and states.has("placeholder") and states.has("owned"),
-		"buds for every state of a marked tree: yours, in use, a ready choice, locked, coming soon (%s)" % [states.keys()])
+	_check(states.has("in_use") and states.has("available") and states.has("locked") and states.has("owned"),
+		"buds for every state of a marked tree: yours, in use, a ready choice, locked (%s)" % [states.keys()])
 	var locked = _bud("|lightning_rod")
 	_check(locked != null and locked.aux == TR.TEXT["needs_step"] % 4, "a locked bud says what opens it (%s)" % (locked.aux if locked != null else ""))
-	var later: Array = _buds().filter(func(b): return String(b.option.get("kind", "")) == "later")
-	_check(later.size() == 1 and later[0].aux.contains("6") and later[0].aux.contains("12"), "the steps still to come share one faint bud (%s)" % (later[0].aux if later.size() == 1 else ""))
+	var zen: Array = _buds().filter(func(b): return String(b.option.get("kind", "")) == "zenith")
+	_check(zen.size() == 1 and zen[0].glyph == "crown" and zen[0].get_meta("help", "") == "bud_zenith" and zen[0].aux == TR.TEXT["needs_step"] % 12,
+		"steps 6 to 12 are on the tree: the Zenith's bud wears a crown, says it opens at step 12 and has its hover help")
+	var ups: Array = _buds().filter(func(b): return String(b.option.get("kind", "")) == "upgrade")
+	_check(ups.size() == 6 and ups.all(func(b): return b.get_meta("help", "") == "bud_upgrade"), "...the upgrades of steps 7, 9 and 11, two each, with their hover help (%d)" % ups.size())
 	_check(map.parts.size() == 6 and map.parts["hand"].ready_fork and map.parts["hand"].on, "a node on each part; the hand's pulses (a ready fork) and is the chosen one")
 	await t._frames(3)
 	TR.choose(main.profile, "mark:stormcaller:2", "ball_lightning")

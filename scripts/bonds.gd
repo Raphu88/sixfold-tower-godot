@@ -15,7 +15,7 @@ extends RefCounted
 ##             a later step does to an existing spell.
 ##
 ## Bonds grow across climbs from essence banked at stairs (see profile.gd),
-## up to step 5. Designs follow the owner's Magic Redesign pages.
+## up to step 12 (steps 6 to 12: mark_ascent.gd). Designs follow the owner's Magic Redesign pages.
 ##
 ## Spell types (the code that runs them lives in bond.gd):
 ##   call_lightning, chain, rod, thunderhead  (Stormcaller)
@@ -680,6 +680,11 @@ static func step_note(id: String, step: int) -> String:
 	var pr := passive_rank(step)
 	if pr > passive_rank(step - 1) and passive_line(id, pr) != "":
 		bits.append(PASSIVE_NOTE % [String(BONDS[id]["passive"]["name"]), RANK_NAMES[pr], passive_line(id, pr)])
+	# Steps 7 to 12: a choice of two, the Apex+ or the Zenith (mark_ascent.gd).
+	if step >= 7:
+		var hi: String = _ascent().step_note(id, step)
+		if hi != "":
+			bits.append(hi)
 	return ", ".join(bits)
 
 
@@ -690,11 +695,29 @@ static var FORK_NOTE := "or %s: choose in your book"
 # --- passive ranks ----------------------------------------------------------------------------
 
 ## A bond's passive grows with the mark: rank I from the start, rank II at
-## step 3 and rank III at step 5 (PASSIVE_RANK_AT: rank -> the step it
+## step 3, rank III at step 5 and rank IV at step 6 (PASSIVE_RANK_AT: rank -> the step it
 ## comes at). Each rank's line and numbers are the passive's "ranks"
 ## ({rank: {"says", numbers...}}); a passive without them stays as it is.
-static var PASSIVE_RANK_AT := {2: 3, 3: 5}
-static var RANK_NAMES := {1: "I", 2: "II", 3: "III"}
+static var PASSIVE_RANK_AT := {2: 3, 3: 5, 4: 6}
+static var RANK_NAMES := {1: "I", 2: "II", 3: "III", 4: "IV"}
+## Rank IV (step 6) raises numbers of ranks II and III instead of adding a
+## rule (mark_ascent.gd "rank4": its line and its "boost"). The game reads
+## a passive's numbers wherever it applies (passive_num) without knowing
+## the climber, so HELD says which marks are at rank IV: bond id -> rank,
+## set as the climber's marks are given (main.gd _give_bonds: set_held).
+static var HELD := {}
+
+
+## The climber's marks, as their passive ranks (from their bonds: id, step).
+static func set_held(bonds: Array) -> void:
+	HELD = {}
+	for b in bonds:
+		if b != null and "id" in b and "step" in b:
+			HELD[String(b.id)] = maxi(int(HELD.get(String(b.id), 0)), passive_rank(int(b.step)))
+
+
+static func _ascent() -> Script:
+	return load("res://scripts/mark_ascent.gd")
 ## A step-note's words when the passive grows (its name, the rank, its new line).
 static var PASSIVE_NOTE := "%s grows to rank %s: %s"
 ## The passive's name with its rank, and its line for a rank still ahead.
@@ -715,7 +738,9 @@ static func passive_rank(step: int) -> int:
 static func passive_line(id: String, rank: int) -> String:
 	if not BONDS.has(id):
 		return ""
-	var r = BONDS[id]["passive"].get("ranks", {}).get(rank, {})
+	if rank == 4:
+		return String(_ascent().rank4(id).get("says", ""))
+	var r =BONDS[id]["passive"].get("ranks", {}).get(rank, {})
 	return String(r.get("says", "")) if r is Dictionary else ""
 
 
@@ -723,6 +748,10 @@ static func passive_line(id: String, rank: int) -> String:
 static func passive_num(id: String, rank: int, key: String, fallback := 0.0) -> float:
 	if not BONDS.has(id):
 		return fallback
+	if int(HELD.get(id, 0)) >= 4:  # (rank IV raises this number: mark_ascent.gd "boost")
+		var up = _ascent().rank4(id).get("boost", {}).get(rank, {})
+		if up is Dictionary and up.has(key):
+			return float(up[key])
 	var r = BONDS[id]["passive"].get("ranks", {}).get(rank, {})
 	return float(r.get(key, fallback)) if r is Dictionary else fallback
 
@@ -736,7 +765,7 @@ static func passive_at(id: String, step: int) -> Dictionary:
 	var ranked: bool = pd.has("ranks") and not (pd["ranks"] as Dictionary).is_empty()
 	var desc := String(pd["desc"])
 	var ahead: Array = []
-	for k in [2, 3]:
+	for k in [2, 3, 4]:
 		var line := passive_line(id, k)
 		if line == "":
 			continue

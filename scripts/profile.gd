@@ -34,9 +34,13 @@ const FAINT_POWER := 0.75
 ## (floor 6) grows the mark you used most by PROVING_GROWTH, and tinctures
 ## steer essence into one mark (essence_flow.gd TINCTURE "mark_boost": a
 ## tincture's essence is concentrated). The pace is measured in climbs by
-## tests/progression_measure.gd (a mark is a long companion: step 2 after
-## about 3 climbs, step 3 about 9, step 4 about 18, step 5 about 30).
-static var STEP_XP := [0.0, 150.0, 450.0, 900.0, 1500.0]
+## tests/progression_measure.gd, and held to the owner's pace by
+## tests/parts/progression.gd: a typical climber's first mark reaches step 5
+## after about 5 climbs, step 6 about 8 and step 12 about 22 (about 9 when
+## summiting its tower every climb), the same pace as the Unbound's Nodes.
+## Steps 6 to 12 bring the passive's rank IV, three forks of upgrades, the
+## Apex+, a second Transformation and the Zenith (mark_ascent.gd).
+static var STEP_XP := [0.0, 100.0, 160.0, 210.0, 260.0, 480.0, 560.0, 640.0, 700.0, 780.0, 860.0, 950.0]
 static var AFFINITY_WEIGHT := 2.0
 static var OTHER_WEIGHT := 0.25
 static var STEP_RATE := 0.075
@@ -929,7 +933,7 @@ func body_drag() -> float:
 	return float(BODY_DRAG[clampi(bonds.size(), 0, BODY_DRAG.size() - 1)])
 
 
-## The Proving's gift: a mark grows PROVING_GROWTH (not past step 5, and
+## The Proving's gift: a mark grows PROVING_GROWTH (not past its last step, and
 ## not slowed by the marks you carry; a faint mark pays its debt first).
 ## Returns {"grown": growth added, "step": its step after, "up": true if it
 ## reached a new step}; {} with no such mark or one grown as far as it goes.

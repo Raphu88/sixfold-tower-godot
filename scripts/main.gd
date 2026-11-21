@@ -1666,6 +1666,7 @@ func _arrive() -> void:
 	for l in grew:
 		kinds[l] = "mark"
 	lines.append_array(grew)
+	_high_step_tips()  # (a mark at step 6, or its Zenith: the Entity explains, the first time)
 	run_essence = {}
 	run_soak = {}
 	for l in _bank_flow():
@@ -2895,6 +2896,7 @@ func _give_bonds() -> void:
 		b.attr_power = 1.0 + profile.attribute("fire")
 		b.attr_fill = 1.0 + profile.attribute("water")
 		player.bonds[part] = b
+	BondScript.Bonds.set_held(player.bonds.values())  # (which marks are at rank IV: bonds.gd HELD)
 	# Hunter's Keen Eyes (and Smokeborn): you see farther in the dark (lighting.player_reach).
 	# Essence density: small passive bonuses, one per attribute.
 	player.attr_speed = 1.0 + profile.attribute("air")
@@ -3005,7 +3007,7 @@ func show_victory(lines: Array) -> void:
 
 ## Winning the Proving (proving.gd): one of your marks grows (profile.gd
 ## PROVING_GROWTH), the one whose body part you used most this climb (not
-## past step 5). Returns a line.
+## past its last step). Returns a line.
 func proving_raise() -> String:
 	var best := ""
 	var most := -1.0
@@ -3499,6 +3501,20 @@ func tip(id: String) -> bool:
 	return GuideScript.tip(id)
 
 
+## The Entity on a mark's high steps (mark_ascent.gd), the first time a mark
+## reaches them: step 6 (rank IV and what follows), then step 12 (the Zenith).
+func _high_step_tips() -> void:
+	if UnboundRun.Unbound.is_on(profile):
+		return
+	var top := 0
+	for part in profile.bonds:
+		top = maxi(top, ProfileScript.step_for_xp(float(profile.bonds[part]["xp"])))
+	if top >= 12:
+		tip("mark_zenith")
+	elif top >= 6:
+		tip("mark_high")
+
+
 ## The same, inside a menu (the train): the tip's line to show there and
 ## then the first time, else "" (guide.gd tell). Shown as the Entity's line
 ## on a page (entity.gd says), it stays until it's sent away: until then
@@ -3706,7 +3722,7 @@ func dev_set_mark(part: String, id: String, step: int) -> void:
 	if id == "":
 		profile.bonds.erase(part)
 	else:
-		profile.bonds[part] = {"id": id, "xp": ProfileScript.STEP_XP[clampi(step, 1, 5) - 1], "faint": false, "debt": 0.0}
+		profile.bonds[part] = {"id": id, "xp": ProfileScript.STEP_XP[clampi(step, 1, ProfileScript.STEP_XP.size()) - 1], "faint": false, "debt": 0.0}
 		profile.soak.erase(part)
 		profile.regarded = true
 		first_climb = false
