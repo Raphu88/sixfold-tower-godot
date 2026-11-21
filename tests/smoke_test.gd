@@ -11540,17 +11540,24 @@ func _secret_deep_tests() -> void:
 	_check(moved_any and moved_ok, "Move shifts a trap up to %d tiles to open floor, never leaving a tile with no safe moment (%d traps, %s)" % [SB.MOVE_TILES, movable.size(), why_not])
 	# Raise and sink walls.
 	var spot := Vector2.ZERO
-	for info in main.room_info:
+	var spot_aim := Vector2.RIGHT
+	for info in main.room_info:  # (any room, facing any way: some layouts leave no room facing right)
+		if spot != Vector2.ZERO:
+			break
 		var c: Vector2 = info["rect"].get_center()
-		if not main.is_solid(c) and info["rect"].size.x >= 6 * Tr.C:
+		if main.is_solid(c) or minf(info["rect"].size.x, info["rect"].size.y) < 4 * Tr.C and maxf(info["rect"].size.x, info["rect"].size.y) < 6 * Tr.C:
+			continue
+		for dir in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:
 			var ctx: Dictionary = D._trap_ctx()
-			p.global_position = c + Vector2(-2.5 * Tr.C, 0)
-			p.aim = Vector2.RIGHT
-			if not D._stretch(SB.RAISE_AHEAD, SB.RAISE_LEN, ctx).is_empty():
+			p.global_position = c - dir * 2.5 * Tr.C
+			p.aim = dir
+			if not main.is_solid(p.global_position) and not D._stretch(SB.RAISE_AHEAD, SB.RAISE_LEN, ctx).is_empty():
 				spot = p.global_position
+				spot_aim = dir
 				break
 	_check(spot != Vector2.ZERO, "an open room to raise a wall in")
-	p.aim = Vector2.RIGHT
+	p.global_position = spot
+	p.aim = spot_aim
 	var tiles: Array = D._stretch(SB.RAISE_AHEAD, SB.RAISE_LEN, D._trap_ctx())
 	var could: Array = D._reachable(D._goals())
 	_check(D.raise_wall(SB.WALL_TIME, "raise") == "" and main._is_solid_tile(tiles[0].x, tiles[0].y) and main.astar.is_point_solid(tiles[0]), "Raise: a stretch of wall rises (solid for bodies, sight and paths)")
