@@ -11092,9 +11092,9 @@ func _unbound_tests() -> void:
 	_check("unmaking" in U.kinds_for(prof) and not ("life" in U.kinds_for(prof)), "only your own path's core essence")
 	prof.path = ""
 	var TreeR = load("res://scripts/tree.gd")
-	U.put(prof, "hand", "blade", 70.0)
+	U.set_nodes(prof, {"hand": {"blade": float(U.LEVELS[6])}})
 	_check(not ("volley" in TreeR.owned_forms(prof, "hand")), "the hand's Volley isn't open at level 7")
-	U.put(prof, "hand", "blade", 10.0)
+	U.set_nodes(prof, {"hand": {"blade": float(U.LEVELS[7])}})
 	_check("volley" in TreeR.owned_forms(prof, "hand"), "...it opens at level 8")
 
 	print("the Unbound: casting, filling, boosting and strain")
