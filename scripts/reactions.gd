@@ -93,9 +93,10 @@ static var REACTIONS := {
 
 ## How reactions behave: "per_step" more damage for each step of your
 ## strongest mark past the first; at most "depth" reactions set off by one
-## another in a row (a chain through a crowd stops there); "word" the size
+## another in a row (a chain through a crowd stops there); "per_high_step"
+## for each step past 5; "word" the size
 ## of the word that rises.
-static var RULES := {"per_step": 0.15, "depth": 4, "word": 17.0, "word_time": 1.1}
+static var RULES := {"per_step": 0.15, "per_high_step": 0.05, "depth": 4, "word": 17.0, "word_time": 1.1}
 
 ## A reaction set off by two climbers together (a rival fighting beside you,
 ## rivals.gd): one state was theirs and the other yours. Under the word, a
@@ -303,7 +304,8 @@ static func scale(main) -> float:
 		for b in main.player.bonds.values():
 			if b != null and "step" in b:
 				best = maxi(best, int(b.step))
-	return 1.0 + float(RULES["per_step"]) * float(best - 1)
+	# (steps past 5 add less: "per_high_step", so a step-12 mark's reactions don't run away)
+	return 1.0 + float(RULES["per_step"]) * float(mini(best, 5) - 1) + float(RULES.get("per_high_step", 0.0)) * float(maxi(best - 5, 0))
 
 
 ## Who gave a foe a state, when a rival climber did (their name, and until

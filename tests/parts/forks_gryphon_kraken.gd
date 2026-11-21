@@ -195,11 +195,11 @@ func _old_saves() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
 	cfg.set_value("profile", "bonds", {
-		"hand": {"id": "hunter", "xp": 1800.0, "faint": false, "debt": 0.0},
-		"legs": {"id": "windwalker", "xp": 1000.0, "faint": false, "debt": 0.0},
-		"heart": {"id": "deepcaller", "xp": 450.0, "faint": false, "debt": 0.0},
-		"throat": {"id": "tidecaller", "xp": 1800.0, "faint": false, "debt": 0.0},
-		"brow": {"id": "warden", "xp": 150.0, "faint": false, "debt": 0.0},
+		"hand": {"id": "hunter", "xp": float(load("res://scripts/profile.gd").STEP_XP[4]), "faint": false, "debt": 0.0},
+		"legs": {"id": "windwalker", "xp": float(load("res://scripts/profile.gd").STEP_XP[3]), "faint": false, "debt": 0.0},
+		"heart": {"id": "deepcaller", "xp": float(load("res://scripts/profile.gd").STEP_XP[2]), "faint": false, "debt": 0.0},
+		"throat": {"id": "tidecaller", "xp": float(load("res://scripts/profile.gd").STEP_XP[4]), "faint": false, "debt": 0.0},
+		"brow": {"id": "warden", "xp": float(load("res://scripts/profile.gd").STEP_XP[1]), "faint": false, "debt": 0.0},
 	})
 	cfg.save(path)
 	var old = P.new()
@@ -221,7 +221,7 @@ func _old_saves() -> void:
 		if today != now or not TR.alt_change(bid, TR.mark_choices(old, bid)).is_empty():
 			same = false
 	_check(same, "...and its marks know exactly today's spells and changes")
-	old.bonds["heart"]["xp"] = 1000.0
+	old.bonds["heart"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	_check(TR.ready_forks(old, "heart") == ["mark:deepcaller:4"], "a fork still ahead opens as the mark grows (Deepcaller's step 4: Siphon or Drown)")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	# A climber who never chooses plays as before, with every fork ready.

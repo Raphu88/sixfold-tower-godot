@@ -11,6 +11,8 @@ const TreeRules := preload("res://scripts/tree.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Synergies := preload("res://scripts/synergies.gd")
 const Particles := preload("res://scripts/particles.gd")
+## Steps 6 to 12: the upgrades in force change the spells' numbers (spell_stat).
+const Ascent := preload("res://scripts/mark_ascent.gd")
 ## The Gryphon's and the Kraken's content files run their marks' passive
 ## ranks and Apex upgrades (taken_mult, on_kill, the great spells): loaded
 ## when needed, never preloaded (library.gd loads them as it starts).
@@ -37,7 +39,7 @@ const DRENCH_KINDS := ["lightning", "frost"]
 static var PART_NAMES := Bonds.PART_NAMES
 const PART_FILLS := Bonds.PART_FILLS
 const PART_BURN := Bonds.PART_BURN
-const MAX_STEP := 5
+const MAX_STEP := 12
 
 var id: String
 var part: String
@@ -136,9 +138,43 @@ func spell_stat(sp: Dictionary, key: String):
 			value = steps[s][key]
 	if not alt.is_empty() and alt.has("variation"):
 		value = Library.mark_stat(String(alt["variation"]), key, value)  # (Wide, Long, Quick...)
+	if step >= 7:
+		value = Ascent.mod_value(ascent_ups(), String(sp["id"]), key, value)  # (steps 7 to 12: the upgrades chosen, mark_ascent.gd)
 	if not edits.is_empty():
 		value = SecretBonds.edit_stat(edits, sp["id"], key, value)  # the Developer's Edit
 	return value
+
+
+## The upgrades of steps 7 to 12 in force (mark_ascent.gd in_force), kept
+## until the step or the choices change.
+var _ups: Array = []
+var _ups_key := ""
+
+
+func ascent_ups() -> Array:
+	var k := "%d|%s" % [step, str(choices)]
+	if k != _ups_key:
+		_ups_key = k
+		_ups = Ascent.in_force(id, step, choices)
+	return _ups
+
+
+## A surge from the high steps (mark_ascent.gd fx "surge"): this mark's
+## spells hit harder until then (msec).
+var surge_until := 0
+var surge_power := 0.0
+## When each high-step effect may fire again (scripts/spells/ascent.gd "every").
+var fx_ready := {}
+
+
+func surge_mult() -> float:
+	return 1.0 + surge_power if Time.get_ticks_msec() < surge_until else 1.0
+
+
+## The step a creature called by this mark is made at: steps past 5 count
+## half (enemy.gd setup_ally grows a creature with the step).
+func ally_step() -> int:
+	return mini(step, 5) + maxi(step - 5, 0) / 2
 
 
 func display_name() -> String:
@@ -170,8 +206,9 @@ func color() -> Color:
 	return data()["color"]
 
 
+## A mark holds 10 more essence a step up to step 5, then 5 more a step.
 func capacity() -> float:
-	return 30.0 + 10.0 * step
+	return 30.0 + 10.0 * mini(step, 5) + 5.0 * maxi(step - 5, 0)
 
 
 func cost() -> float:
@@ -208,7 +245,7 @@ func spell_cost(sp: Dictionary) -> float:
 
 
 func spell_power(sp: Dictionary) -> float:
-	return (faint_power if faint else 1.0) * overdraw_mult * var_power * attr_power * gear_power * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
+	return (faint_power if faint else 1.0) * overdraw_mult * var_power * attr_power * gear_power * surge_mult() * SecretBonds.tune_mult(tunes, sp["id"], "power") * SecretBonds.edit_mult(edits, sp["id"], "power")
 
 
 func spell_damage(sp: Dictionary) -> float:
@@ -1641,7 +1678,7 @@ func _call(p) -> void:
 			break
 		var kind: String = retinue[p.call_index % retinue.size()]
 		p.call_index += 1
-		main.spawn_ally(kind, p.global_position + p.aim.rotated(0.8 * (i - 0.5)) * 40.0, step, seconds)
+		main.spawn_ally(kind, p.global_position + p.aim.rotated(0.8 * (i - 0.5)) * 40.0, ally_step(), seconds)
 	main.sfx("ready", 0.7)
 
 
@@ -1687,7 +1724,7 @@ func _grand_call(p) -> void:
 	# Apex: they arrive empowered (`might`), and it drains the whole mark only if `drains`.
 	var might: float = float(stat("might")) if stat("might") != null else 1.0
 	for i in kinds.size():
-		var a = main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, step, float(stat("duration")) * _stay())
+		var a = main.spawn_ally(kinds[i], p.global_position + Vector2.from_angle(TAU * i / kinds.size()) * 60.0, ally_step(), float(stat("duration")) * _stay())
 		if might != 1.0:
 			a.max_hp *= might
 			a.hp = a.max_hp

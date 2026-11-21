@@ -76,6 +76,9 @@ static var TEXT := {
 	"dev_forget": "Forget every choice",
 	"dev_open": "Open the Tree",
 }
+## The glyph of a mark's high-step bud when its words don't suggest one
+## (the Zenith always wears the crown).
+const HIGH_GLYPHS := {"passive": "kinds", "upgrade": "spark", "apex": "spark", "transform": "spark", "zenith": "crown"}
 ## How long an armed choice waits for its second press (ms).
 const ARM_MS := 4000
 ## The body map's layout, [computer, phone]: the figure's size beside the
@@ -98,10 +101,18 @@ static func build(menu) -> void:
 	var part := current_part(menu)
 	var nodes: Array = TreeRules.nodes(prof, part)
 	# The Entity, the first time a fork is ready: choices are for good.
+	var told := ""
 	if TreeRules.is_fork_ready(prof):
-		var told: String = main.tip_now("tree_fork")
-		if told != "":
-			menu.box.add_child(menu.Entity.says(told, 30.0 if small else 38.0))
+		told = main.tip_now("tree_fork")
+	# ...and the first time a mark's high steps (6 to 12) or its Zenith show here.
+	if told == "" and prof.bonds.has(part) and not Unbound.is_on(prof):
+		var st: int = prof.step_for_xp(float(prof.bonds[part]["xp"]))
+		if st >= 12:
+			told = main.tip_now("mark_zenith")
+		elif st >= 6:
+			told = main.tip_now("mark_high")
+	if told != "":
+		menu.box.add_child(menu.Entity.says(told, 30.0 if small else 38.0))
 	var sel := _selected(menu, nodes)
 	var map := TreeMap.new()
 	map.menu = menu
@@ -426,6 +437,9 @@ static func bud_glyph(node: Dictionary, opt: Dictionary) -> String:
 	var kind := String(opt.get("kind", ""))
 	if kind == "later":
 		return ""
+	if HIGH_GLYPHS.has(kind):  # (steps 6 to 12: the words' glyph, else the kind's)
+		var w := GrimoireCard.from_words(String(opt.get("says", "")) + " " + String(opt.get("name", "")))
+		return HIGH_GLYPHS[kind] if kind == "zenith" or w == "" else w
 	if kind == "form":
 		return GrimoireCard.form_glyph(String(opt.get("form", opt.get("id", ""))))
 	if kind == "variation":
@@ -701,6 +715,8 @@ class TreeMap extends Control:
 				b.flash_until = flash_at + View.FLASH_MS if key == flash else 0
 				b.set_meta("bud", key)
 				b.set_meta("bud_state", o.get("state", ""))
+				if String(o.get("help", "")) != "":
+					b.set_meta("help", String(o["help"]))  # (steps 6 to 12: what this kind of bud is, entity_help.gd)
 				b.pressed.connect(func(): View._select(menu, key))
 				add_child(b)
 				buds[key] = b

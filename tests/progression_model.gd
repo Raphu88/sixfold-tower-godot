@@ -139,10 +139,11 @@ static func _essence(tower: String, f: int) -> Dictionary:
 	return out
 
 
-## The first climb (1-based) the first mark reached each step 2..5 (0: not within the climbs).
+## The first climb (1-based) the first mark reached each step from 2 to the
+## last (0: not within the climbs).
 static func climbs_to_steps(steps: Array) -> Dictionary:
 	var out := {}
-	for st in range(2, 6):
+	for st in range(2, Profile.STEP_XP.size() + 1):
 		out[st] = 0
 		for i in steps.size():
 			if int(steps[i]) >= st:

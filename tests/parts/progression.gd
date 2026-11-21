@@ -11,9 +11,14 @@ const Model := preload("res://tests/progression_model.gd")
 
 ## Climbs (after the bondless first) for each step, a typical climber: half
 ## the climbs in the mark's tower, a summit every other climb. [least, most].
-const TYPICAL := {2: [3, 4], 3: [7, 10], 4: [15, 21], 5: [30, 45]}
+## The owner's pace (21 November): one mark at step 12 after about 20 to 25
+## climbs (8 to 10 summiting every climb), the same as an Unbound's Node at
+## level 12; step 6 a few climbs after step 5.
+const TYPICAL := {2: [2, 3], 3: [3, 4], 4: [3, 5], 5: [4, 6], 6: [7, 10], 9: [12, 17], 12: [20, 25]}
 ## Every climb a summit in the mark's own tower: the fastest honest pace.
-const SUMMITS := {2: [2, 3], 3: [3, 6], 4: [7, 12], 5: [16, 28]}
+const SUMMITS := {2: [1, 2], 3: [2, 3], 4: [2, 3], 5: [3, 4], 6: [3, 5], 12: [8, 10]}
+## Step 6 comes this many climbs after step 5, typically: [least, most].
+const SIX_AFTER_FIVE := [2, 5]
 ## The second mark: [least, most] climbs, typical; never before this many summiting.
 const SECOND := [6, 12]
 const SECOND_FASTEST := 5
@@ -29,6 +34,8 @@ func run(smoke) -> void:
 	for st in TYPICAL:
 		var c := int(steps[st])
 		t._check(c >= TYPICAL[st][0] and c <= TYPICAL[st][1], "a typical climber's first mark reaches step %d after %d climbs (%d to %d)" % [st, c, TYPICAL[st][0], TYPICAL[st][1]])
+	var gap := int(steps[6]) - int(steps[5])
+	t._check(gap >= SIX_AFTER_FIVE[0] and gap <= SIX_AFTER_FIVE[1], "step 6 comes %d climbs after step 5 (%d to %d)" % [gap, SIX_AFTER_FIVE[0], SIX_AFTER_FIVE[1]])
 	var fast: Dictionary = Model.climbs_to_steps(Model.run("summits", 50)["steps"])
 	for st in SUMMITS:
 		var c := int(fast[st])
@@ -43,6 +50,7 @@ func run(smoke) -> void:
 	var push: Dictionary = Model.tincture_push()
 	t._check(float(push[1]) >= 0.08 and float(push[1]) <= 0.3, "a tincture of its own kind takes a mark %d%% of the way from step 1 to 2" % roundi(float(push[1]) * 100.0))
 	t._check(float(push[4]) >= 0.02, "...and still %d%% of the way from step 4 to 5" % roundi(float(push[4]) * 100.0))
+	t._check(float(push[11]) >= 0.02 and float(push[11]) <= 0.4, "...and %d%% of the way from step 11 to 12" % roundi(float(push[11]) * 100.0))
 	# The Proving's gift is a push too, but no longer a whole step.
 	var P = load("res://scripts/profile.gd")
 	t._check(P.PROVING_GROWTH > 0.0 and P.PROVING_GROWTH < float(P.STEP_XP[1]), "winning the Proving grows a mark %d, less than a step" % int(P.PROVING_GROWTH))

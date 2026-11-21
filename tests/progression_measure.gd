@@ -22,14 +22,14 @@ func _init() -> void:
 static func report() -> void:
 	var P = load("res://scripts/profile.gd")
 	print("STEP_XP %s  STEP_RATE %.3f  AFFINITY %.2f  OTHER %.2f" % [P.STEP_XP, P.STEP_RATE, P.AFFINITY_WEIGHT, P.OTHER_WEIGHT])
-	print("pattern    earned | step2 step3 step4 step5 | 2nd mark | growth after climbs 1,3,5,10,20,30")
+	print("pattern    earned | step2 step3 step4 step5 step6 step12 | 2nd mark | growth after climbs 1,3,5,10,20,30")
 	for pat in Model.PATTERNS:
 		for earned in [false, true]:
 			var r: Dictionary = Model.run(pat, 40, earned)
 			var c: Dictionary = Model.climbs_to_steps(r["steps"])
 			var xp: Array = r["xp"]
-			print("%-10s %-6s |  %3s   %3s   %3s   %3s  |   %3s    | %d %d %d %d %d %d" % [pat, "yes" if earned else "no",
-				_n(c[2]), _n(c[3]), _n(c[4]), _n(c[5]), _n(r["second"]),
+			print("%-10s %-6s |  %3s   %3s   %3s   %3s   %3s   %3s   |   %3s    | %d %d %d %d %d %d" % [pat, "yes" if earned else "no",
+				_n(c[2]), _n(c[3]), _n(c[4]), _n(c[5]), _n(c.get(6, 0)), _n(c.get(12, 0)), _n(r["second"]),
 				xp[0], xp[2], xp[4], xp[9], xp[19], xp[29]])
 	var push: Dictionary = Model.tincture_push()
 	var bits := []
