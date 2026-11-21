@@ -5167,8 +5167,8 @@ class MarkCard extends Button:
 
 
 ## The top of a mark's page: its medallion large and glowing, its name, the
-## body part and essence, growth toward the next step, and the five steps
-## with the banked essence each needs.
+## body part and essence, growth toward the next step, and every step
+## (twelve), the one reached ringed.
 class MarkHero extends Control:
 	const Bonds := preload("res://scripts/bonds.gd")
 	const ProfileScript := preload("res://scripts/profile.gd")
@@ -5225,29 +5225,32 @@ class MarkHero extends Control:
 		gb.flush(self)
 		UI.draw_medallion(self, mc, r, col, data["affinity"], k, step, 0.0, faint)
 		UI.draw_title(self, Vector2(x, 42), data["name"], 34, col.lightened(0.15), HORIZONTAL_ALIGNMENT_LEFT, -1, 0.5)
-		var sub := "%s mark  ·  %s essence  ·  %s" % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), "faint" if faint else "step %d of 5" % step]
+		var sub := "%s mark  ·  %s essence  ·  %s" % [Bonds.PART_NAMES[part], Essence.display(data["affinity"]), "faint" if faint else "step %d of %d" % [step, ProfileScript.STEP_XP.size()]]
 		UI.draw_text(self, font, Vector2(x, 60), sub, HORIZONTAL_ALIGNMENT_LEFT, w, 15, UI.DIM)
 		UI.draw_bar(self, Rect2(Vector2(x, 70), Vector2(w, 9)), k, col)
 		UI.draw_text(self, font, Vector2(x, 96), grow, HORIZONTAL_ALIGNMENT_LEFT, w, 14, Color(UI.BAD, 0.9) if faint else UI.TEXT)
-		# The five steps and the banked essence each needs.
+		# Every step (twelve), the one reached ringed in gold.
 		var ly := h - 24.0
-		var gap := w / 4.0
+		var n_steps: int = ProfileScript.STEP_XP.size()
+		var gap := w / float(n_steps - 1)
+		var dr := clampf(gap * 0.36, 5.0, 8.6)  # (the dots shrink to fit twelve on a phone)
 		var b := UI.Draw.Batch.new()
 		b.rect(Rect2(Vector2(x, ly - 1.0), Vector2(w, 2.0)), Color(1, 1, 1, 0.08))
 		b.rect(Rect2(Vector2(x, ly - 1.0), Vector2(gap * (step - 1), 2.0)), Color(col, 0.7))
-		for s in 5:
+		for s in n_steps:
 			var p := Vector2(x + gap * s, ly)
 			var reached := s + 1 <= step
-			b.dot(p, 8.6, UI.OUTLINE)
-			b.dot(p, 7.2, col.darkened(0.25) if reached else Color(0.13, 0.12, 0.16))
+			b.dot(p, dr, UI.OUTLINE)
+			b.dot(p, dr - 1.4, col.darkened(0.25) if reached else Color(0.13, 0.12, 0.16))
 			if reached:
-				b.dot(p + Vector2(-1.5, -1.5), 4.2, Color(col.lightened(0.3), 0.6))
+				b.dot(p + Vector2(-1.2, -1.2), dr * 0.5, Color(col.lightened(0.3), 0.6))
 			if s + 1 == step:
-				b.arc(p, 10.6, 0.0, TAU, 24, UI.GOLD, 1.6)
+				b.arc(p, dr + 2.0, 0.0, TAU, 24, UI.GOLD, 1.6)
 		b.flush(self)
-		for s in 5:
+		var fs := 13 if dr >= 7.0 else 10
+		for s in n_steps:
 			var p := Vector2(x + gap * s, ly)
-			UI.draw_text(self, font, p + Vector2(-8, 4), str(s + 1), HORIZONTAL_ALIGNMENT_CENTER, 16, 13, UI.OUTLINE if s + 1 <= step else UI.DIM)
+			UI.draw_text(self, font, p + Vector2(-8, 4), str(s + 1), HORIZONTAL_ALIGNMENT_CENTER, 16, fs, UI.OUTLINE if s + 1 <= step else UI.DIM)
 			var need := "start" if s == 0 else "%d" % int(ProfileScript.STEP_XP[s])
 			UI.draw_text(self, font, p + Vector2(-30, 23), need, HORIZONTAL_ALIGNMENT_CENTER, 60, 12, UI.FAINT)
 
