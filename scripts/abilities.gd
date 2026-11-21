@@ -52,7 +52,7 @@ const TEXT := {
 	"mark_more": "Body: %s, %s.   Passive: %s, %s.",
 	"tech_sub": "%s  ·  %s  ·  %s",
 	"empty": "Empty slot",
-	"empty_does": "Nothing on this button yet. Its Node carries a technique once it reaches level 6: it grows as you use it.",
+	"empty_does": "Nothing on this button yet. Its Node carries a technique once it reaches level 3: it grows as you use it.",
 	"empty_sub": "%s button  ·  level %d of 12",
 	"empty_sub_asleep": "%s button  ·  its Node is asleep",
 	# The button to press: [keys, controller, touch].

@@ -144,9 +144,10 @@ func _tree_rules() -> void:
 	prof = main.profile
 	var U = load("res://scripts/unbound.gd")
 	nodes = TR.nodes(prof, "hand")
-	_check(nodes.map(func(n): return n["kind"]) == ["minor", "gift", "forms", "fork", "form", "fork", "form", "fork", "capstone"] and nodes.map(func(n): return int(n["at"])) == [3, 5, 6, 7, 8, 9, 10, 11, 12],
-		"an Unbound part's tree: the minor ability at 3, the gift at 5, forms at 6 (half full), forks at 7, 9 and 11, new forms at 8 and 10, the capstone at 12")
-	_check(nodes[2]["options"].map(func(o): return o["id"]) == ["strike", "bolt"] and nodes[2]["options"].all(func(o): return o["state"] == "owned"), "...today's forms are owned at half full")
+	_check(nodes.map(func(n): return n["kind"]) == ["minor", "forms", "gift", "forms", "fork", "form", "fork", "form", "fork", "capstone"] and nodes.map(func(n): return int(n["at"])) == [1, 3, 5, 6, 7, 8, 9, 10, 11, 12],
+		"an Unbound part's tree: the minor ability at 1 (waking), a young technique at 3, the gift at 5, the full technique at 6, forks at 7, 9 and 11, new forms at 8 and 10, the capstone at 12")
+	_check(nodes[1]["options"].map(func(o): return o["id"]) == ["strike", "young_hand"] and nodes[3]["options"].map(func(o): return o["id"]) == ["bolt", "full_hand"] and nodes[3]["options"].all(func(o): return o["state"] == "owned"), "...the first form at 3, the other at 6 (owned at level 6)")
+	_check(TR.owned_forms(prof, "hand") == ["strike", "bolt"], "...both starting forms are open at level 6")
 	_check(not TR.is_fork_ready(prof, "hand") and TR.owned_variations(prof).is_empty(), "at level 6 nothing to choose yet")
 	U.set_nodes(prof, {"hand": {"blade": U.LEVELS[7]}})
 	_check(U.level(prof, "hand") == 8 and TR.is_fork_ready(prof, "hand"), "at level 8 the level-7 fork is ready")

@@ -5,10 +5,10 @@ extends Node2D
 ## the Regard, condensing at a summit). Words and numbers are
 ## here and in unbound.gd / technique.gd.
 ##
-## TECHNIQUES: a Node at level 6 (unbound.gd TECH_LEVEL) carries one, on its
+## TECHNIQUES: a Node at level 3 (unbound.gd TECH_LEVEL) carries one, on its
 ##   mark button; give() brings each up to date with its Node's essence
 ##   (unbound.gd sync_techs) and says the first time a Node awakens, grows
-##   with use, reaches level 6 or 12, is pure or core-led (the Entity's moments).
+##   with use, reaches level 3, 6 or 12, is pure or core-led (the Entity's moments).
 ## USE: what a Node's technique spends on a cast (and its boost), or before
 ##   it has one what its own action does, is noted as use (unbound.gd
 ##   note_use): refilled at the stair, it grows the Node.
@@ -146,7 +146,7 @@ func give() -> void:
 
 
 ## The first time a Node awakens (its minor ability), grows with use,
-## reaches level 6 (it learns a technique) or 12, is pure or core-led: the
+## reaches level 3 (it learns a young technique), 6 (the full one) or 12, is pure or core-led: the
 ## Entity says what it means. (A sleeping Node's first moment is on the
 ## Body tab: node_asleep.)
 func _notice(prof, learned: Array) -> void:
@@ -161,6 +161,8 @@ func _notice(prof, learned: Array) -> void:
 				main.tip("node_awake")
 			if was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
 				main.tip("unbound_half")
+			if was < Unbound.FULL_TECH_LEVEL and lv >= Unbound.FULL_TECH_LEVEL:
+				main.tip("unbound_full_tech")
 			if was < Unbound.MAX_LEVEL and lv >= Unbound.MAX_LEVEL:
 				main.tip("unbound_full")
 		if not Unbound.awake(prof, part):

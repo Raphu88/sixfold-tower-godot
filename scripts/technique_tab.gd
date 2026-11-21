@@ -14,7 +14,7 @@ extends RefCounted
 ##              Beside it, in plain words: its name, what it does, "Echoes
 ##              ..." when the mix comes close to a bond's spell, how it fills
 ##              and what one cast strains, the part's level. A part not yet
-##              half full says how far it has to go.
+##              at level 3 says how far it has to go.
 ##   FORM       the forms this part has opened (the hand's Strike and Bolt,
 ##              Volley later...); the ones still locked dark with their level.
 ##   EFFECTS    a button for each essence in the part (its own mix, leading
@@ -94,7 +94,7 @@ static var TEXT := {
 	"echoes": "Echoes %s: %s",
 	"one_line": "%s: %s",
 	"touch": "; a touch of %s",
-	"empty_line": "This Node carries a technique once it reaches level 6. It grows as you use it.",
+	"empty_line": "This Node carries a technique once it reaches level 3. It grows as you use it.",
 	"gifts": "What Your Nodes Give",
 	"gift_asleep": "%s: asleep. It wakes once enough essence has soaked into it.",
 	"gift_minor": "%s: %s",
@@ -441,6 +441,8 @@ static func _card(menu, part: String, t: Dictionary) -> void:
 		if bool(t.get("core", false)):
 			_line(col, TEXT["core_tech"], Tech.color(String(prof.path)).lightened(0.2), 14)
 		_line(col, Tech.describe(t), menu.TEXT, 15 if small else 16).set_meta("tech_desc", true)
+		if Unbound.tech_young(prof, part):
+			_line(col, Unbound.TEXT["young"] % [int(round(Unbound.power(prof, part) * 100.0)), Unbound.FULL_TECH_LEVEL], menu.DIM, 14).set_meta("tech_young", true)
 		var echo := echo_line(t)
 		if echo != "":
 			_line(col, echo, Color(0.79, 0.65, 1.0), 14).set_meta("tech_echo", true)

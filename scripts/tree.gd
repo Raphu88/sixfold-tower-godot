@@ -17,9 +17,10 @@ extends RefCounted
 ## Those forks have no side in use until chosen: nothing changes until then.
 ##
 ## THE UNBOUND: one tree per body part, a node at the part levels that
-## bring something (a level is 10 fill, 12 levels: unbound.gd): the minor
-## ability at 3, the gift at 5, today's forms at 6 (half full: techniques
-## open), a fork of two variations at 7, 9 and 11, a new form at 8 and 10,
+## bring something (12 levels, waking at 1: unbound.gd LEVELS): the minor
+## ability at 1 (waking), a young technique at 3 (its first form only), the
+## gift at 5, the full technique at 6 (its other starting forms, its other
+## essences), a fork of two variations at 7, 9 and 11, a new form at 8 and 10,
 ## and at 12 (full) the capstone, with the signature of a pure part (the
 ## layout: library.gd TREE, from unbound_forms.gd).
 ## Effects open as each essence pools in the body (effect_open). A fork's
@@ -77,6 +78,10 @@ static var TEXT := {
 	"kinds": "One more essence",
 	"kinds_says": "Techniques from this part combine %d essences.",
 	"minor": "Minor ability",
+	"young": "A young technique",
+	"young_says": "Its first form, made of its lead essence alone, at %d%% strength. It comes into its own at level %d.",
+	"full_tech": "The full technique",
+	"full_tech_says": "Its other essences join the technique, its other starting forms open, and it hits at full strength.",
 	"minor_lead": "Its lead essence decides what it does: %s",
 	"signature": "Signature: %s",
 	"signature_says": "%s. Only when one essence fills this part all alone (%s).",
@@ -445,11 +450,20 @@ static func unbound_nodes(p, part: String) -> Array:
 			n["options"] = [{"id": "minor_" + part, "kind": "kinds", "name": TEXT["minor"], "says": Unbound.minor_text(p, part),
 				"built": true, "state": "owned" if reached else "locked", "color": col}]
 			n["state"] = "owned" if reached else "locked"
-		elif L == Unbound.TECH_LEVEL:
+		elif L == Unbound.TECH_LEVEL or L == Unbound.FULL_TECH_LEVEL:
+			# The young technique (its first form), then the full one (the rest).
 			n["kind"] = "forms"
-			for f in Library.BASE_FORMS.get(part, []):
+			var base: Array = Library.BASE_FORMS.get(part, [])
+			var some: Array = base.slice(0, 1) if L == Unbound.TECH_LEVEL else base.slice(1)
+			for f in some:
 				var fe := Library.form(f)
 				n["options"].append({"id": f, "kind": "form", "form": f, "name": fe["name"], "says": fe["says"], "built": true, "state": "owned" if reached else "locked", "color": col})
+			if L == Unbound.TECH_LEVEL:
+				n["options"].append({"id": "young_" + part, "kind": "kinds", "name": TEXT["young"], "says": TEXT["young_says"] % [int(round(Unbound.YOUNG_POWER * 100.0)), Unbound.FULL_TECH_LEVEL],
+					"built": true, "state": "owned" if reached else "locked", "color": col})
+			else:
+				n["options"].append({"id": "full_" + part, "kind": "kinds", "name": TEXT["full_tech"], "says": TEXT["full_tech_says"],
+					"built": true, "state": "owned" if reached else "locked", "color": col})
 			n["state"] = "owned" if reached else "locked"
 		elif L == Unbound.GIFT_LEVEL:
 			n["kind"] = "gift"
@@ -507,7 +521,7 @@ static func unbound_nodes(p, part: String) -> Array:
 			n["options"].append(_signature_option(p, part, col))
 			n["state"] = "later" if not built else ("owned" if reached else "locked")
 		else:
-			continue  # (levels 1, 2 and 4 bring nothing of their own: the part fills on)
+			continue  # (levels 2 and 4 bring nothing of their own: the part fills on)
 		out.append(n)
 	return out
 
@@ -584,6 +598,8 @@ static func owned_forms(p, part: String) -> Array:
 	if not Unbound.is_on(p):
 		return out
 	var lv: int = Unbound.level(p, part)
+	if lv < Unbound.FULL_TECH_LEVEL:
+		return out.slice(0, 1)  # (a young technique: its first form only)
 	var lay := _layout(part)
 	for L in lay:
 		var spec = lay[L]

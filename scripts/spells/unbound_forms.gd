@@ -8,9 +8,9 @@ extends RefCounted
 ##                                          can be learned later: tree.gd learn_skipped)
 ##   {"form": form id}                       a new form opens at this level
 ##   {"capstone": entry}                     the part's capstone (level 12, full)
-## A part levels by fill (unbound.gd: 10 a level, 12 levels). Level 3 (the
-## minor ability), 5 (the gift) and 6 (half full: today's forms, techniques
-## open) are filled in by tree.gd from unbound.gd; forks are at 7, 9 and 11,
+## A part levels by size (unbound.gd LEVELS: waking at 1, 12 levels). Level
+## 1 (the minor ability), 3 (a young technique), 5 (the gift) and 6 (the full
+## technique) are filled in by tree.gd from unbound.gd; forks are at 7, 9 and 11,
 ## new forms at 8 and 10. A pure part's signature form (unbound.gd
 ## SIGNATURES: Blink) opens at 12 with the capstone.
 ##
