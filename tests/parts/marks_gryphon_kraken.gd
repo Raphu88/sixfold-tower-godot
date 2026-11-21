@@ -167,7 +167,7 @@ func _words() -> void:
 		"side B keeps the old choice ids, so old saves map by themselves")
 	_check(B.passive_rank(1) == 1 and B.passive_rank(2) == 1 and B.passive_rank(3) == 2 and B.passive_rank(4) == 2 and B.passive_rank(5) == 3, "a passive is rank I, II from step 3, III at step 5")
 	var pa: Dictionary = B.passive_at("stormcaller", 3)
-	_check(pa["name"] == "Static II" and String(pa["desc"]).contains(B.passive_line("stormcaller", 2)) and pa["ahead"].size() == 1, "its card shows the rank and the new line, and the rank ahead (%s)" % pa["name"])
+	_check(pa["name"] == "Static II" and String(pa["desc"]).contains(B.passive_line("stormcaller", 2)) and pa["ahead"].size() == 2, "its card shows the rank and the new line, and the ranks ahead (III, and IV at step 6) (%s)" % pa["name"])
 	_check(B.step_note("warden", 3).contains(B.passive_line("warden", 2)) and B.step_note("warden", 5).contains(B.passive_line("warden", 3)), "the step notes say the passive grows")
 
 

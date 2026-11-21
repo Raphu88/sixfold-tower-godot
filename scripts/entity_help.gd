@@ -261,6 +261,11 @@ static var HELP := {
 	"change_techniques": "Opens the Techniques tab: change each part's technique.",
 	"part": "{words}: this mark's own page.",
 	"bud": "A choice on the Tree. Choose it to see it.",
+	"bud_rank4": "Step 6: this mark's passive grows to rank IV. It comes by itself; nothing to choose.",
+	"bud_upgrade": "An upgrade to this mark's spells (step 7, 9 or 11). Choose one of the two, for good; until you do, nothing changes.",
+	"bud_apex": "Step 8: the mark's great spell grows stronger. It comes by itself.",
+	"bud_transform": "Step 10: a second Transformation of the mark's first spell. Choose one of the two, for good.",
+	"bud_zenith": "Step 12, the Zenith: the mark's greatest power. Every spell of this mark does something more.",
 	"tree_act:choose": "Chooses this for good.",
 	"tree_act:learn": "Learns this.",
 	# --- a station ---------------------------------------------------------------------------------------

@@ -21,9 +21,9 @@ const ONLY_B := {"blade_forger": "echo", "flameblade": "brand", "rune_artist": "
 const APEX := {"blade_forger": "leave edges on the floor", "flameblade": "erupts in a ring of fire", "rune_artist": "moves with you",
 	"sandshaper": "buried", "venomist": "refills your mark", "ashwalker": "leaps to a second foe"}
 ## Steps by banked essence (profile.gd STEP_XP).
-const STEP2 := 150.0
-const STEP3 := 450.0
-const STEP5 := 1800.0
+var STEP2: float = float(load("res://scripts/profile.gd").STEP_XP[1])
+var STEP3: float = float(load("res://scripts/profile.gd").STEP_XP[2])
+var STEP5: float = float(load("res://scripts/profile.gd").STEP_XP[4])  # (step 5)
 
 var t
 var TR = load("res://scripts/tree.gd")

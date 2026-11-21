@@ -33,14 +33,14 @@ func _check(cond: bool, what: String) -> void:
 
 
 ## A marked climber: Stormcaller on the hand at step 3, Windwalker on the legs.
-func _marked(step_xp := 500.0) -> void:
+func _marked(step_xp := -1.0) -> void:
 	await t._fresh_main()
 	t.paused = false
 	var main = _main()
 	main.touch._set_active(false)
 	main.pad._set_active(false)
 	main.grant_test_bonds()
-	main.profile.bonds["hand"]["xp"] = step_xp
+	main.profile.bonds["hand"]["xp"] = step_xp if step_xp >= 0.0 else float(load("res://scripts/profile.gd").STEP_XP[2])  # (step 3)
 	main._give_bonds()
 	for e in main.enemies():
 		e.set_physics_process(false)
@@ -102,9 +102,9 @@ func _tree_rules() -> void:
 	var prof = main.profile
 	var TR = load("res://scripts/tree.gd")
 	var nodes: Array = TR.nodes(prof, "hand")
-	_check(nodes.size() == 12 and nodes[0]["kind"] == "spell" and nodes[1]["kind"] == "fork" and nodes[2]["kind"] == "fork" and nodes[3]["kind"] == "fork" and nodes[5]["kind"] == "later" and nodes[11]["kind"] == "later",
-		"a mark's tree: steps 1 to 5, forks at 2, 3 and 4, and 6 to 12 coming soon")
-	_check(nodes[5]["options"][0]["name"] == "Coming soon", "...each of steps 6 to 12 named Coming soon (%s)" % nodes[5]["options"][0]["name"])
+	_check(nodes.size() == 12 and nodes.map(func(n): return n["kind"]) == ["spell", "fork", "fork", "fork", "spell", "passive", "fork", "apex", "fork", "fork", "fork", "zenith"],
+		"a mark's tree: steps 1 to 12, forks at 2, 3 and 4, rank IV at 6, forks at 7, 9, 10 and 11, the Apex+ at 8 and the Zenith at 12")
+	_check(not nodes.any(func(n): return n["options"].any(func(o): return o["name"] == "Coming soon")), "...none of them Coming soon any more")
 	_check(TR.is_fork_ready(prof, "hand") and TR.ready_forks(prof, "hand") == ["mark:stormcaller:2", "mark:stormcaller:3"], "at step 3 the forks at 2 and 3 are ready (%s)" % [TR.ready_forks(prof, "hand")])
 	_check(not TR.is_fork_ready(prof, "legs"), "...a step-1 mark has none")
 	_check(TR.available(prof, "mark:stormcaller:4").is_empty(), "a fork not reached yet can't be chosen")
@@ -114,10 +114,10 @@ func _tree_rules() -> void:
 	L.MARK_FORKS["stormcaller"][4] = {"id": "thunderclap", "name": "Thunderclap", "placeholder": true, "learn": 4, "desc": "a burst that stuns every charged foe"}
 	var n4: Dictionary = TR.node(prof, "mark:stormcaller:4")
 	_check(n4["options"][1]["state"] == "placeholder" and n4["options"][1]["name"] == "Thunderclap", "a side not written yet shows as a placeholder (Thunderclap)")
-	prof.bonds["hand"]["xp"] = 1000.0
+	prof.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[3])
 	_check(TR.node(prof, "mark:stormcaller:4")["state"] == "owned" and not TR.choose(prof, "mark:stormcaller:4", "thunderclap"), "...and can't be chosen even once reached (its fork isn't ready: today's side stays)")
 	L.MARK_FORKS["stormcaller"][4] = written
-	prof.bonds["hand"]["xp"] = 500.0
+	prof.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[2])
 	_check(not TR.choose(prof, "mark:stormcaller:2", "nothing"), "an option that isn't there is refused")
 	_check(TR.choose(prof, "mark:stormcaller:2", "ball_lightning"), "choosing Ball Lightning at step 2")
 	_check(not TR.choose(prof, "mark:stormcaller:2", "chain_lightning") and TR.mark_choice(prof, "stormcaller", 2) == "ball_lightning", "...is for good: the other side can't be chosen after")
@@ -188,7 +188,7 @@ func _saves() -> void:
 	# An old save: a Stormcaller at step 3 and a Warden at step 4, no tree.
 	var cfg := ConfigFile.new()
 	cfg.set_value("profile", "regarded", true)
-	cfg.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": 500.0, "faint": false, "debt": 0.0}, "brow": {"id": "warden", "xp": 1000.0, "faint": false, "debt": 0.0},
+	cfg.set_value("profile", "bonds", {"hand": {"id": "stormcaller", "xp": float(load("res://scripts/profile.gd").STEP_XP[2]), "faint": false, "debt": 0.0}, "brow": {"id": "warden", "xp": float(load("res://scripts/profile.gd").STEP_XP[3]), "faint": false, "debt": 0.0},
 		"legs": {"id": "windwalker", "xp": 0.0, "faint": false, "debt": 0.0}})
 	cfg.save(path)
 	var old = P.new()
@@ -328,8 +328,8 @@ func _tree_choice() -> void:
 	var buds: Array = menu.find_children("*", "Button", true, false).filter(func(b): return b.has_meta("bud"))
 	var bl: Array = buds.filter(func(b): return String(b.get_meta("bud")).ends_with("|ball_lightning"))
 	_check(bl.size() == 1 and bl[0].get_meta("bud_state") == "available", "Ball Lightning is a bud to choose")
-	_check(buds.any(func(b): return b.get_meta("bud_state") == "placeholder") and buds.any(func(b): return b.get_meta("bud_state") == "locked") and buds.any(func(b): return b.get_meta("bud_state") == "in_use"),
-		"...beside one in use, one locked and one coming soon")
+	_check(buds.any(func(b): return b.get_meta("bud_state") == "locked") and buds.any(func(b): return b.get_meta("bud_state") == "in_use"),
+		"...beside one in use and one locked")
 	if bl.size() == 1:
 		bl[0].pressed.emit()
 		await t._frames(2)

@@ -102,6 +102,12 @@ func begin(m, id: String, at_step: int, cast := true, waves := WAVES, speed := 1
 		for st in alts:  # (the other side of these forks: 2 and 4 the tower's other spell, 3 the second Transformation)
 			if int(st) <= at_step and not TR.fork_alt(id, int(st)).is_empty():
 				TR.choose(main.profile, "mark:%s:%d" % [id, int(st)], String(TR.fork_alt(id, int(st))["id"]))
+		# The high steps' forks (mark_ascent.gd: 7, 9, 10, 11): the first side, or the second where `alts` names that step.
+		var Asc = load("res://scripts/mark_ascent.gd")
+		for st in Asc.FORKS:
+			var sides: Array = Asc.sides(id, int(st))
+			if int(st) <= at_step and sides.size() == 2:
+				TR.choose(main.profile, "mark:%s:%d" % [id, int(st)], String(sides[1 if st in alts else 0]["id"]))
 	main._give_bonds()
 	for e in main.enemies():
 		e.queue_free()

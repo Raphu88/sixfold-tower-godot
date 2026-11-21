@@ -9,8 +9,8 @@ const TOWERS := {
 	"flame_contractor": "hand", "flamewing": "heart", "rekindler": "back",
 	"covenant": "hand", "grafter": "legs", "surgeon": "brow",
 }
-const STEP3 := 450.0
-const STEP5 := 1800.0
+var STEP3: float = float(load("res://scripts/profile.gd").STEP_XP[2])
+var STEP5: float = float(load("res://scripts/profile.gd").STEP_XP[4])  # (step 5)
 
 var t
 var TR = load("res://scripts/tree.gd")
@@ -434,7 +434,7 @@ func _arterial() -> void:
 func _fire_passives() -> void:
 	print("passive ranks: Kindled, Fireproof, Last Ember")
 	# Kindled II: your burning ground spreads.
-	await _bonded("flame_contractor", 150.0)
+	await _bonded("flame_contractor", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	_foes([])
@@ -490,7 +490,7 @@ func _fire_passives() -> void:
 	_check(p.hp == p.max_hp and p.aura_heat > 0.0 and b.essence > 0.0, "Fireproof III: fire that would hurt you feeds the aura (heat %.0f, essence %.1f)" % [p.aura_heat, b.essence])
 	main.flames = []
 	# Last Ember II: twice a floor.
-	await _bonded("rekindler", 150.0)
+	await _bonded("rekindler", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	main = t.main
 	p = main.player
 	foe = _foes([Vector2(30, 0)])[0]
@@ -533,7 +533,7 @@ func _fire_passives() -> void:
 func _chimera_passives() -> void:
 	print("passive ranks: Kinship, Grafting, Diagnosis")
 	# Kinship II: creatures stay longer; III: a falling creature heals you.
-	await _bonded("covenant", 150.0)
+	await _bonded("covenant", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var main = t.main
 	var p = main.player
 	_foes([])
@@ -563,7 +563,7 @@ func _chimera_passives() -> void:
 	c.receive_attack(9999.0, null)
 	_check(absf(p.hp - 50.0 - want) < 0.5, "Kinship III: a creature that falls heals you (+%.1f)" % (p.hp - 50.0))
 	# Grafting II: grafts give health; III: a new graft heals its part's burn.
-	await _bonded("grafter", 150.0)
+	await _bonded("grafter", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	main = t.main
 	p = main.player
 	var m0: float = p.max_health()
@@ -585,7 +585,7 @@ func _chimera_passives() -> void:
 	p.bonds["legs"].burned = true
 	_check(main.add_graft(_kind_for(main, "legs")) and not p.bonds["legs"].burned, "Grafting III: a new graft heals its body part's burn")
 	# Diagnosis II: a strike where it's weak staggers; III: Mend heals more near bleeding foes.
-	await _bonded("surgeon", 150.0)
+	await _bonded("surgeon", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	main = t.main
 	p = main.player
 	var foe = _foes([Vector2(30, 0)], 900.0)[0]

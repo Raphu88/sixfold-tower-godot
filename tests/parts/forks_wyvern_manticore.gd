@@ -147,7 +147,7 @@ func _old_saves() -> void:
 		prof.set("tree", {})
 		prof.bonds.clear()
 		prof.add_bond("hand", bid, false)
-		prof.bonds["hand"]["xp"] = 1800.0
+		prof.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[4])
 		TR.migrate(prof)
 		var ch: Dictionary = TR.mark_choices(prof, bid)
 		var want := {2: TR.default_option(bid, 2), 3: TR.CHANGE, 4: TR.default_option(bid, 4)}
@@ -158,7 +158,7 @@ func _old_saves() -> void:
 			ok = false
 		# A mark that just reached step 2 has a ready fork, and plays as before until it chooses.
 		prof.set("tree", {})
-		prof.bonds["hand"]["xp"] = 150.0
+		prof.bonds["hand"]["xp"] = float(load("res://scripts/profile.gd").STEP_XP[1])
 		main._give_bonds()
 		hb = main.player.bonds["hand"]
 		if not TR.is_fork_ready(prof, "hand") or hb.spells().map(func(sp): return sp["id"]) != today.slice(0, 2):
@@ -171,7 +171,7 @@ func _old_saves() -> void:
 
 func _tethered_blade() -> void:
 	print("  Tethered Blade")
-	var main = await _climber("blade_forger", 150.0)
+	var main = await _climber("blade_forger", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var p = main.player
 	_choose("blade_forger", 2, "tethered_blade")
 	var e = await _foe(p.global_position + Vector2(170, 0))
@@ -184,7 +184,7 @@ func _tethered_blade() -> void:
 
 func _falling_swords() -> void:
 	print("  Falling Swords")
-	var main = await _climber("blade_forger", 1000.0)
+	var main = await _climber("blade_forger", float(load("res://scripts/profile.gd").STEP_XP[3]))
 	var p = main.player
 	_choose("blade_forger", 4, "falling_swords")
 	var e = await _foe(p.global_position + Vector2(150, 0))
@@ -197,7 +197,7 @@ func _falling_swords() -> void:
 
 func _flame_wheel() -> void:
 	print("  Flame Wheel")
-	var main = await _climber("flameblade", 150.0)
+	var main = await _climber("flameblade", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var p = main.player
 	_choose("flameblade", 2, "flame_wheel")
 	var a = await _foe(p.global_position + Vector2(45, 0))
@@ -211,7 +211,7 @@ func _flame_wheel() -> void:
 
 func _blazing_lunge() -> void:
 	print("  Blazing Lunge")
-	var main = await _climber("flameblade", 1000.0)
+	var main = await _climber("flameblade", float(load("res://scripts/profile.gd").STEP_XP[3]))
 	var p = main.player
 	_choose("flameblade", 4, "blazing_lunge")
 	var e = await _foe(p.global_position + Vector2(80, 22))
@@ -225,7 +225,7 @@ func _blazing_lunge() -> void:
 
 func _rune_brand() -> void:
 	print("  Rune Brand")
-	var main = await _climber("rune_artist", 150.0)
+	var main = await _climber("rune_artist", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var p = main.player
 	_choose("rune_artist", 2, "rune_brand")
 	var e = await _foe(p.global_position + Vector2(120, 0))
@@ -242,7 +242,7 @@ func _rune_brand() -> void:
 
 func _binding_circle() -> void:
 	print("  Binding Circle")
-	var main = await _climber("rune_artist", 1000.0)
+	var main = await _climber("rune_artist", float(load("res://scripts/profile.gd").STEP_XP[3]))
 	var p = main.player
 	_choose("rune_artist", 4, "binding_circle")
 	var e = await _foe(p.global_position + Vector2(120, 0))
@@ -260,7 +260,7 @@ func _binding_circle() -> void:
 
 func _sandblast() -> void:
 	print("  Sandblast")
-	var main = await _climber("sandshaper", 150.0)
+	var main = await _climber("sandshaper", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var p = main.player
 	_choose("sandshaper", 2, "sandblast")
 	var e = await _foe(p.global_position + Vector2(70, 0))
@@ -271,7 +271,7 @@ func _sandblast() -> void:
 
 func _quicksand() -> void:
 	print("  Quicksand")
-	var main = await _climber("sandshaper", 1000.0)
+	var main = await _climber("sandshaper", float(load("res://scripts/profile.gd").STEP_XP[3]))
 	var p = main.player
 	_choose("sandshaper", 4, "quicksand")
 	var e = await _foe(p.global_position + Vector2(150, 10))
@@ -285,7 +285,7 @@ func _quicksand() -> void:
 
 func _contagion() -> void:
 	print("  Contagion")
-	var main = await _climber("venomist", 150.0)
+	var main = await _climber("venomist", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var p = main.player
 	_choose("venomist", 2, "contagion")
 	var a = await _foe(p.global_position + Vector2(130, 0))
@@ -299,7 +299,7 @@ func _contagion() -> void:
 
 func _enfeeble() -> void:
 	print("  Enfeeble")
-	var main = await _climber("venomist", 1000.0)
+	var main = await _climber("venomist", float(load("res://scripts/profile.gd").STEP_XP[3]))
 	var p = main.player
 	_choose("venomist", 4, "enfeeble")
 	var e = await _foe(p.global_position + Vector2(80, 0))
@@ -317,7 +317,7 @@ func _enfeeble() -> void:
 
 func _ash_step() -> void:
 	print("  Ash Step")
-	var main = await _climber("ashwalker", 150.0)
+	var main = await _climber("ashwalker", float(load("res://scripts/profile.gd").STEP_XP[1]))
 	var p = main.player
 	_choose("ashwalker", 2, "ash_step")
 	var from: Vector2 = p.global_position
@@ -330,7 +330,7 @@ func _ash_step() -> void:
 
 func _cinder_trail() -> void:
 	print("  Cinder Trail")
-	var main = await _climber("ashwalker", 1000.0)
+	var main = await _climber("ashwalker", float(load("res://scripts/profile.gd").STEP_XP[3]))
 	var p = main.player
 	_choose("ashwalker", 4, "cinder_trail")
 	var count := func(): return main.flames.filter(func(f): return f.get("friendly", false)).size()
