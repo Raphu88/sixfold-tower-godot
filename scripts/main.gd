@@ -2114,7 +2114,7 @@ func consume_crystal(kind: String) -> Array:
 	var name := Essence.display(kind).to_lower()
 	var lines: Array = []
 	if UnboundRun.Unbound.is_on(profile):
-		lines.append(Flow.TEXT["ate_raw"] % [int(amount), name, String(UnboundRun.Unbound.PART_NAMES.get(UnboundRun.Unbound.part_for(profile, kind), "")).to_lower()])
+		lines.append(Flow.TEXT["ate_raw"] % [int(amount), name, UnboundRun.Unbound.node_name(UnboundRun.Unbound.part_for(profile, kind))])
 	elif float(poured["marks"]) > 0.0:
 		lines.append(Flow.TEXT["ate"] % [int(amount), name, int(round(float(poured["body"]))), int(round(float(poured["marks"])))])
 	else:
@@ -2334,6 +2334,8 @@ func _note_climb_start() -> void:
 	noticed = []
 	if climb_shape != null:
 		climb_shape.new_climb()
+	if UnboundRun.Unbound.is_on(profile):
+		UnboundRun.Unbound.new_climb(profile)  # (the Nodes' growth by use starts again: unbound.gd USE climb_cap)
 	if summit_blades != null:
 		summit_blades.new_climb()  # (a Summit Blade carried up last time is back in its hiding place)
 	if player != null:

@@ -14,12 +14,14 @@ extends RefCounted
 ## (secret.gd STEPS and EFFECTS: six steps, the same for marked climbers and
 ## the Unbound).
 ##
-## The Unbound (unbound.gd) share each part's CAP between their own essence
-## and the core: the core takes room in every part, and their own essence
-## can't push it out. So for them the body saturates sooner, and a part whose
-## core is at least half of what it holds becomes CORE-LED (unbound.gd). A
-## core-led part slowly ABSORBS its other essences into core (ABSORB of them
-## at each stair). Their per-part core is kept in profile.unbound["core"]
+## The Unbound's body parts are Nodes (unbound.gd). Each part's CAP is
+## shared between the Node's own essence (at most its size) and the core:
+## the core takes room in every part, and their own essence can't push it
+## out (a Node holds less while core fills its part). So for them the body
+## saturates sooner, and a Node whose core is at least half of what it
+## holds becomes CORE-LED (unbound.gd). A
+## core-led Node slowly ABSORBS its other essences into core (ABSORB of them
+## at each stair). Their per-Node core is kept in profile.unbound["core"]
 ## (part -> amount, always adding up to profile.flow); a marked climber's is
 ## simply flow / 6.
 
@@ -64,11 +66,18 @@ static func own(prof, part: String) -> float:
 	return _unbound().own(prof, part)
 
 
+## What one body part can hold, its own essence and core together (CAP:
+## the same for everyone; an Unbound's own essence is also kept within its
+## Node's size, unbound.gd room).
+static func cap_of(_prof, _part: String) -> float:
+	return CAP
+
+
 ## How much core essence the body can hold now (every part's free room).
 static func capacity(prof) -> float:
 	var total := 0.0
 	for part in PARTS:
-		total += maxf(0.0, CAP - own(prof, part))
+		total += maxf(0.0, cap_of(prof, part) - own(prof, part))
 	return total
 
 
@@ -138,7 +147,7 @@ static func sync(prof) -> void:
 	var core: Dictionary = st["core"]
 	var have := 0.0
 	for part in PARTS:
-		var c := clampf(float(core.get(part, 0.0)), 0.0, maxf(0.0, CAP - U.own(prof, part)))
+		var c := clampf(float(core.get(part, 0.0)), 0.0, maxf(0.0, cap_of(prof, part) - U.own(prof, part)))
 		core[part] = c
 		have += c
 	if prof.path == "":
@@ -150,7 +159,7 @@ static func sync(prof) -> void:
 	if want > have + 0.001:
 		var room := {}
 		for part in PARTS:
-			room[part] = maxf(0.0, CAP - U.own(prof, part) - float(core[part]))
+			room[part] = maxf(0.0, cap_of(prof, part) - U.own(prof, part) - float(core[part]))
 		var got := spread(room, want - have)
 		for part in PARTS:
 			core[part] = float(core[part]) + float(got[part])
@@ -177,7 +186,7 @@ static func bank(prof, carried: float) -> Dictionary:
 		var st: Dictionary = U.state(prof)
 		var room := {}
 		for part in PARTS:
-			room[part] = maxf(0.0, CAP - U.own(prof, part) - float(st["core"].get(part, 0.0)))
+			room[part] = maxf(0.0, cap_of(prof, part) - U.own(prof, part) - float(st["core"].get(part, 0.0)))
 		var got := spread(room, add)
 		for part in PARTS:
 			st["core"][part] = float(st["core"].get(part, 0.0)) + float(got[part])
@@ -203,12 +212,12 @@ static func add(prof, amount: float, part := "") -> float:
 	var st: Dictionary = U.state(prof)
 	var got := {}
 	if part != "":
-		var room := maxf(0.0, CAP - U.own(prof, part) - float(st["core"].get(part, 0.0)))
+		var room := maxf(0.0, cap_of(prof, part) - U.own(prof, part) - float(st["core"].get(part, 0.0)))
 		got[part] = minf(amount, room)
 	else:
 		var room2 := {}
 		for pt in PARTS:
-			room2[pt] = maxf(0.0, CAP - U.own(prof, pt) - float(st["core"].get(pt, 0.0)))
+			room2[pt] = maxf(0.0, cap_of(prof, pt) - U.own(prof, pt) - float(st["core"].get(pt, 0.0)))
 		got = spread(room2, amount)
 	var added := 0.0
 	for pt in got:

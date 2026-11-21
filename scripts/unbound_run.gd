@@ -5,10 +5,13 @@ extends Node2D
 ## the Regard, condensing at a summit). Words and numbers are
 ## here and in unbound.gd / technique.gd.
 ##
-## TECHNIQUES: a part half full (unbound.gd TECH_LEVEL) carries one, on its
-##   mark button; give() brings each up to date with its part's essence
-##   (unbound.gd sync_techs) and says the first time a part fills, wakes,
-##   is half full, full, pure or core-led (the Entity's moments).
+## TECHNIQUES: a Node at level 6 (unbound.gd TECH_LEVEL) carries one, on its
+##   mark button; give() brings each up to date with its Node's essence
+##   (unbound.gd sync_techs) and says the first time a Node awakens, grows
+##   with use, reaches level 6 or 12, is pure or core-led (the Entity's moments).
+## USE: what a Node's technique spends on a cast (and its boost), or before
+##   it has one what its own action does, is noted as use (unbound.gd
+##   note_use): refilled at the stair, it grows the Node.
 ## MINOR ABILITIES: from unbound.gd MINOR_LEVEL, now and then a part's own
 ##   action carries a touch of what leads it to the nearest foe (_minor).
 ## FILL: each technique fills from its body part's actions (part_action, from
@@ -142,23 +145,28 @@ func give() -> void:
 	_sync()
 
 
-## The first time a part fills, wakes (its minor ability), is half full (it
-## learns a technique), full, pure or core-led: the Entity says what it means.
+## The first time a Node awakens (its minor ability), grows with use,
+## reaches level 6 (it learns a technique) or 12, is pure or core-led: the
+## Entity says what it means. (A sleeping Node's first moment is on the
+## Body tab: node_asleep.)
 func _notice(prof, learned: Array) -> void:
-	var seen: Dictionary = Unbound.state(prof)["seen"]
+	var st: Dictionary = Unbound.state(prof)
+	var seen: Dictionary = st["seen"]
 	for part in Unbound.PARTS:
 		var lv := Unbound.level(prof, part)
 		var was := int(seen.get(part, 0))
 		if lv > was:
 			seen[part] = lv
-			if was < 1:
-				main.tip("unbound_fill")
 			if was < Unbound.MINOR_LEVEL and lv >= Unbound.MINOR_LEVEL:
-				main.tip("unbound_minor")
+				main.tip("node_awake")
 			if was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
 				main.tip("unbound_half")
 			if was < Unbound.MAX_LEVEL and lv >= Unbound.MAX_LEVEL:
 				main.tip("unbound_full")
+		if not Unbound.awake(prof, part):
+			continue
+		if float(st["grown"].get(part, 0.0)) > 0.05:
+			main.tip("node_grows")
 		if Unbound.pure(prof, part):
 			main.tip("unbound_pure")
 		if Unbound.core_led(prof, part):
@@ -186,14 +194,19 @@ func add_strain(part: String, amount: float) -> void:
 
 
 ## A body part did its thing (player.gd _part_action): the techniques of
-## that part fill, as a mark's bond would.
+## that Node fill, as a mark's bond would; a Node awake without a technique
+## yet is used by it (unbound.gd note_use "action": it grows the Node).
 func part_action(part: String, amount: float) -> void:
 	var p = main.player
 	if p == null or amount <= 0.0:
 		return
+	var has_tech := false
 	for b in p.bonds.values():
 		if "tech" in b and b.tech_part() == part:
 			b.fill(amount)
+			has_tech = true
+	if not has_tech:
+		Unbound.note_use(main.profile, part, amount, "action")
 	_sync()
 	_minor(part)
 
@@ -243,9 +256,14 @@ func cast(b, p) -> void:
 	var need: float = b.capacity()
 	var missing := clampf(need - b.essence, 0.0, need)
 	b.essence = maxf(0.0, b.essence - need)
+	Unbound.note_use(prof, part, need - missing, "cast")  # (what the cast spent: refilled at the stair, it grows the Node)
 	if bool(Unbound.state(prof).get("boost", true)) and boost_pay(t):
 		power *= 1.0 + Tech.BOOST
 		boosts += 1
+		var paid := 0.0
+		for k in Tech.cost(t, prof):
+			paid += float(Tech.cost(t, prof)[k])
+		Unbound.note_use(prof, part, paid, "boost")
 		main.fx_text(p.global_position + Vector2(0, -66), Tech.TEXT["boosted"], Tech.color(Tech.lead(t)).lightened(0.3))
 		main.fx_ring(p.global_position, Tech.color(Tech.lead(t)), 34.0, 0.3, 2.5)
 	if hot:
@@ -778,12 +796,21 @@ func card(pick: String) -> Dictionary:
 		var part := pick.substr(9)
 		var kind := String(c.get("kind", "air"))
 		var prof = main.profile
-		var fits := minf(Unbound.CONDENSE, Unbound.take_limit(prof, part, kind))
-		var now := Unbound.level_for(Unbound.fill(prof, part) + fits)
-		var desc: String = Unbound.TEXT["condense_desc"] % [Tech.display(kind), Unbound.PART_NAMES[part].to_lower(), now] if fits > 0.01 \
-			else Unbound.TEXT["condense_full"] % [Unbound.PART_NAMES[part].to_lower(), Tech.display(kind)]
-		return {"name": Unbound.TEXT["condense_card"] % [int(round(fits)), Unbound.PART_NAMES[part]], "item": "",
-			"desc": desc, "color": part_color(prof, part), "note": Unbound.TEXT["level"] % Unbound.level(prof, part)}
+		var name: String = Unbound.node_name(part)
+		var desc := ""
+		var note := ""
+		if not Unbound.awake(prof, part):
+			desc = Unbound.TEXT["condense_sleep"] % [Tech.display(kind), name]
+			note = Unbound.TEXT["asleep"]  # (a sleeping Node shows no numbers)
+		else:
+			var after: float = Unbound.condense_size(prof, part)
+			if after > Unbound.size(prof, part) + 0.01:
+				desc = Unbound.TEXT["condense_desc"] % [Tech.display(kind), name, Unbound._num(after), Unbound.level_for(after)]
+			else:
+				desc = Unbound.TEXT["condense_full"] % [name, Tech.display(kind)]
+			note = Unbound.TEXT["level"] % Unbound.level(prof, part)
+		return {"name": Unbound.TEXT["condense_card"] % name, "item": "",
+			"desc": desc, "color": part_color(prof, part), "note": note}
 	var part2 := String(c.get("part", "hand"))
 	var id := String(c.get("id", ""))
 	var bname: String = Bonds.BONDS[id]["name"] if Bonds.BONDS.has(id) else "?"
@@ -805,12 +832,12 @@ func choose(i: int) -> void:
 	if pick.begins_with("condense:"):
 		var part := pick.substr(9)
 		var kind := String(c.get("kind", "air"))
-		var got := Unbound.put(prof, part, kind, Unbound.CONDENSE)
-		Unbound.Core.sync(prof)
+		var before := {part: Unbound.level(prof, part)}
+		Unbound.condense(prof, part, kind)
 		prof.save()
 		main._give_bonds()
-		if got > 0.01:
-			lines.append(Unbound.TEXT["condensed"] % [int(round(got)), Tech.display(kind), Unbound.PART_NAMES[part].to_lower()])
+		lines.append(Unbound.TEXT["condensed"] % [Tech.display(kind), Unbound.node_name(part)])
+		lines.append_array(prof.unbound_levels(before))
 		_close_cards()
 		main.fx_ring(main.player.global_position, part_color(prof, part), 60.0, 0.6, 4.0)
 		main.show_victory(lines)
@@ -853,10 +880,10 @@ func _close_cards() -> void:
 
 # --- how it looks -----------------------------------------------------------------------
 
-## A part's main colour: what leads it (the core's colour when it's
-## core-led; its natural kind's while it's empty).
+## A Node's main colour: what leads it (the core's colour when it's
+## core-led; its natural kind's while it's empty or asleep).
 static func part_color(prof, part: String) -> Color:
-	var best := Unbound.lead(prof, part)
+	var best := Unbound.lead(prof, part) if Unbound.awake(prof, part) else ""
 	if best == "":
 		best = Unbound.PART_KIND[part]
 	return Tech.color(best)
@@ -869,6 +896,8 @@ func draw_veins(c: CanvasItem, p, side: Vector2, t: float) -> void:
 	var prof = main.profile
 	var b := Draw.Batch.new()
 	for part in Unbound.PARTS:
+		if not Unbound.awake(prof, part):
+			continue  # (a sleeping Node shows no veins yet)
 		var lv := Unbound.level(prof, part)
 		var at: Vector2 = p._mark_anchor(part, side)
 		var col := vein_color(prof, part, t)
@@ -913,6 +942,8 @@ func glow_into(c: CanvasItem, p) -> void:
 	var b := Draw.Batch.new()
 	var lifted := Vector2(0, -p.jump_height())
 	for part in Unbound.PARTS:
+		if not Unbound.awake(prof, part):
+			continue
 		var lv := Unbound.level(prof, part)
 		var col := vein_color(prof, part, t)
 		var at: Vector2 = lifted + p._mark_anchor(part, p.aim.orthogonal())

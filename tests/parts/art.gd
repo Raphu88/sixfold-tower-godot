@@ -56,7 +56,7 @@ func _unbound() -> void:
 	var main = _main()
 	var prof = main.profile
 	var U = load("res://scripts/unbound.gd")
-	prof.part_density = {"hand": {"blade": U.LEVELS[9]}, "legs": {"air": U.LEVELS[3]}}
+	U.set_nodes(prof, {"hand": {"blade": U.LEVELS[9]}, "legs": {"air": U.LEVELS[3]}})
 	load("res://scripts/tree.gd").choose(prof, "unbound:hand:7", "split")
 	main._give_bonds()
 	main.touch._set_active(false)
@@ -338,7 +338,7 @@ func _links() -> void:
 	await t._frames(3)
 	links = menu.find_children("*", "Button", true, false).filter(func(b): return b.has_meta("map_link"))
 	var techs: Array = load("res://scripts/abilities.gd").entries(main).filter(func(e): return e["kind"] == "technique")
-	_check(links.size() == techs.size() and techs.size() > 0, "every technique links to the body map (%d of %d)" % [links.size(), techs.size()])
+	_check(menu.climber_tab == "techniques" and links.size() == 1 and techs.size() > 0, "the Unbound's Techniques tab (where Abilities leads them) links the chosen technique to the body map (%d)" % links.size())
 	var first: Dictionary = techs[0] if not techs.is_empty() else {}
 	var mine: Array = links.filter(func(b): return String(b.get_meta("map_link")).begins_with(String(first.get("tech", {}).get("part", "?"))))
 	if not mine.is_empty():
@@ -347,6 +347,10 @@ func _links() -> void:
 	_check(menu.climber_tab == "tree" and String(menu.get_meta("tree_sel", "")).ends_with("|" + String(first.get("tech", {}).get("shape", "?"))), "%s's link opens its part's tree on its form (%s)" % [first.get("name", ""), menu.get_meta("tree_sel", "")])
 	back = t._all_buttons(menu).filter(func(b): return b.get_meta("tree_link", "") == String(first.get("id", "")))
 	_check(back.size() == 1, "...and the form's card links back to that technique")
+	if back.size() == 1:
+		back[0].pressed.emit()
+		await t._frames(3)
+	_check(menu.climber_tab == "techniques" and int(menu.get_meta("tech_slot", -1)) == int(String(first.get("id", "tech_0")).substr(5)), "...which opens the Techniques tab on that technique")
 	menu.close()
 	await t._frames(2)
 

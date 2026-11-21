@@ -1,13 +1,17 @@
 extends RefCounted
-## The reworked Unbound (unbound.gd), core essence (core.gd) and the aura
-## (secret.gd): body parts fill like cups of 120, a level every 10 (12),
-## the primary kept at least half and three kinds at most, the minor
-## ability at 3, a technique at 6 (half full), the capstone and a pure
-## part's signature at 12 (Blink); moving essence at a price; core essence
-## banked slowly, spread evenly, stopping once the body is saturated,
-## core-led parts and their core technique; the aura's six steps; growth
-## kept slow (the pace of a part, in climbs); the Entity's words for all of
-## it; and an old profile loads without trouble.
+## The Unbound's Nodes (unbound.gd), core essence (core.gd) and the aura
+## (secret.gd): six Nodes asleep at size 0, soaking up routed essence until
+## they wake at 30; awake, what they hold (up to their size) and their size,
+## grown only by use refilled at the stair (never past the climb's cap, and
+## casting more than you bank adds nothing); a level every 10 of size (12),
+## the primary kept at least half and three kinds at most, the minor ability
+## at 3 (waking), a technique at 6, the capstone and a pure Node's
+## signature at 12 (Blink); attributes from the Nodes' sizes; moving
+## essence at a price (feeding a sleeping Node; never changing a size); core
+## essence banked slowly, spread evenly, stopping once the body is
+## saturated, core-led Nodes and their core technique; the aura's six steps;
+## the pace in climbs (tests/progression_model.gd run_unbound); the Entity's
+## words for all of it; and an old profile becomes Nodes without losing growth.
 ## Run by smoke_test.gd (_part_tests); `t` is the smoke test.
 const TestRun := preload("res://scripts/test_run.gd")
 
@@ -16,11 +20,21 @@ const Core := preload("res://scripts/core.gd")
 const Secret := preload("res://scripts/secret.gd")
 const BANNED := ["attunement", "spire", "trial", "judgment", "mana"]
 
-## Climbs (after the first) before the own tower's natural part reaches a
-## level: [least, most]. A typical climber (half the climbs in that tower, a
-## summit every other climb), and one who summits that tower every climb.
-const TYPICAL := {3: [1, 2], 6: [2, 4], 12: [36, 56]}
-const SUMMITS := {6: [1, 2], 12: [12, 22]}
+## The pace of the Nodes, in climbs after the first (tests/progression_model.gd
+## run_unbound: a typical climber climbs their own tower half the time and
+## summits every other climb; using their awake Nodes as a typical climber
+## does). [least, most].
+## The main Node (the own tower's kind's): awake after about one climb.
+const MAIN_AWAKE := [1, 1]
+## Level 12: a typical climber (the owner's target: 20 to 25 attempts), and
+## one who summits every climb (8 to 10).
+const MAIN_TOP := [19, 26]
+const MAIN_TOP_SUMMITS := [8, 11]
+## The other Nodes awake: each kind to its own Node; routing to wake them.
+const OTHERS_AWAKE := [2, 12]
+const OTHERS_AWAKE_ROUTED := [2, 6]
+## All six at level 12, routing as they fill (the owner's target: 50 to 60).
+const ALL_TOP := [50, 66]
 
 var t
 var T
@@ -33,6 +47,7 @@ func run(smoke) -> void:
 	TR = load("res://scripts/tree.gd")
 	print("the Unbound reworked: cups, core essence, the aura")
 	_cups()
+	_nodes()
 	_moving()
 	_core()
 	_core_led()
@@ -62,20 +77,15 @@ func _cups() -> void:
 	_check(U.MINOR_LEVEL == 3 and U.TECH_LEVEL == 6 and U.LEVELS[U.TECH_LEVEL - 1] == 60.0, "the minor ability at level 3 (30), techniques at 6 (60, half full), the capstone at 12 (full)")
 	# The first essence leads; another may come in only while the first stays at least half.
 	U.put(p, "hand", "fire", 30.0)
-	_check(U.primary(p, "hand") == "fire" and is_equal_approx(U.take_limit(p, "hand", "stone"), 30.0), "the first essence in a part leads it; another may grow to match it (30)")
+	_check(U.primary(p, "hand") == "fire" and is_equal_approx(U.kind_limit(p, "hand", "stone"), 30.0), "the first essence in a Node leads it; another may grow to match it (30)")
 	_check(is_equal_approx(U.put(p, "hand", "stone", 50.0), 30.0) and is_equal_approx(U.amount(p, "hand", "stone"), 30.0), "...no further: the lead stays at least half")
-	_check(U.take_limit(p, "hand", "air") == 0.0 and U.why_not(p, "hand", "air") != "", "a third kind needs room for the lead's half (%s)" % U.why_not(p, "hand", "air"))
+	U.set_size(p, "hand", 120.0)
+	_check(U.take_limit(p, "hand", "air") == 0.0 and U.why_not(p, "hand", "air").contains("half"), "a third kind needs room for the lead's half (%s)" % U.why_not(p, "hand", "air"))
 	U.put(p, "hand", "fire", 30.0)
 	_check(U.put(p, "hand", "air", 10.0) > 0.0 and U.mix(p, "hand") == ["fire", "stone", "air"], "with the lead grown, a third comes in: three kinds, the lead first")
 	U.put(p, "hand", "fire", 6.0)
 	_check(U.take_limit(p, "hand", "water") == 0.0 and U.why_not(p, "hand", "water").contains("three"), "a fourth kind can't come in")
-	# Slow, slower as it fills; never past full.
-	var q = _prof()
-	var left: float = U.settle_into(q, "legs", "air", float(U.FILL_COST[0]))
-	_check(left < 0.01 and is_equal_approx(U.fill(q, "legs"), U.LEVEL_SIZE), "%d banked essence fill the first 10" % int(U.FILL_COST[0]))
-	_check(_rising(U.FILL_COST), "each level costs more banked essence than the last (%s)" % str(U.FILL_COST))
-	left = U.settle_into(q, "legs", "air", 999999.0)
-	_check(is_equal_approx(U.fill(q, "legs"), Core.CAP) and left > 0.0 and U.level(q, "legs") == 12, "a part never fills past 120: the rest is left over")
+	_check(_rising(U.GROW_COST), "each level of size costs more essence than the last (%s)" % str(U.GROW_COST))
 	var r = _prof()
 	r.part_density = {"legs": {"air": 120.0}}
 	U.state(r)["primary"] = {"legs": "air"}
@@ -85,14 +95,14 @@ func _cups() -> void:
 	# Levels bring their pieces.
 	var s = _prof()
 	U.put(s, "brow", "fire", 29.0)
-	_check(not U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("3"), "below level 3, no minor ability yet")
+	_check(not U.awake(s, "brow") and not U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("3"), "below size 30 a Node sleeps: no minor ability yet")
 	U.put(s, "brow", "fire", 1.0)
-	_check(U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("parries") and U.minor_text(s, "brow").contains("Fire"), "at level 3 it wakes: %s" % U.minor_text(s, "brow"))
-	_check(U.sync_techs(s).is_empty() and U.tech_of(s, U.PARTS.find("brow")).is_empty(), "below half full, no technique")
+	_check(U.awake(s, "brow") and U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("parries") and U.minor_text(s, "brow").contains("Fire"), "at size 30 (level 3) it wakes: %s" % U.minor_text(s, "brow"))
+	_check(U.sync_techs(s).is_empty() and U.tech_of(s, U.PARTS.find("brow")).is_empty(), "below level 6, no technique")
 	U.put(s, "brow", "fire", 30.0)
 	var learned: Array = U.sync_techs(s)
 	var bt: Dictionary = U.tech_of(s, U.PARTS.find("brow"))
-	_check(learned == ["brow"] and T.valid(bt) and bt["shape"] == "mark" and bt["kinds"] == ["fire"], "half full, the part learns its first form by itself (%s)" % T.title(bt))
+	_check(learned == ["brow"] and T.valid(bt) and bt["shape"] == "mark" and bt["kinds"] == ["fire"], "at level 6 the Node learns its first form by itself (%s)" % T.title(bt))
 	_check(U.sync_techs(s).is_empty(), "...once")
 	U.put(s, "hand", "fire", 60.0)
 	U.sync_techs(s)
@@ -109,6 +119,57 @@ func _cups() -> void:
 	_check(U.tech_weights(w, "throat")["water"] == 1.0 and U.tech_weights(w, "throat")["stone"] > small, "a modifier acts more the bigger its share (%.2f, then %.2f)" % [small, U.tech_weights(w, "throat")["stone"]])
 
 
+## The Nodes: asleep, soaking, waking; holding up to their size; growing
+## only by use, at most the climb's cap; attributes from their sizes.
+func _nodes() -> void:
+	var p = _prof()
+	_check(U.PARTS.all(func(pt): return not U.awake(p, pt) and U.size(p, pt) == 0.0 and U.fill(p, pt) == 0.0), "a new Unbound's six Nodes all sleep, at size 0, holding nothing")
+	_check(U.node_name("hand") == "Hand Node" and U.why_not(p, "hand", "blade").contains("asleep"), "they're called Nodes, and a sleeping one takes nothing in (%s)" % U.why_not(p, "hand", "blade"))
+	var left: float = U.settle_into(p, "legs", "air", float(U.GROW_COST[0]))
+	_check(left < 0.01 and is_equal_approx(U.size(p, "legs"), U.LEVEL_SIZE) and U.own(p, "legs") == 0.0, "asleep, %d banked essence soak in: size 10, still holding nothing" % int(U.GROW_COST[0]))
+	left = U.settle_into(p, "legs", "air", float(U.GROW_COST[1]) + float(U.GROW_COST[2]) + 50.0)
+	_check(U.awake(p, "legs") and is_equal_approx(U.size(p, "legs"), U.WAKE_SIZE) and is_equal_approx(U.own(p, "legs"), U.WAKE_SIZE) and is_equal_approx(left, 20.0), "at size 30 it wakes; what's left fills what it holds, up to its size, and the rest is left over (%.1f)" % left)
+	left = U.settle_into(p, "legs", "air", 500.0)
+	_check(is_equal_approx(U.size(p, "legs"), U.WAKE_SIZE) and is_equal_approx(left, 500.0), "awake but unused, it doesn't grow: banked essence it can't hold is left over (to crystals)")
+	U.note_use(p, "legs", 50.0, "cast")
+	_check(is_equal_approx(U.used(p, "legs"), 50.0 * float(U.USE["cast"])), "a cast's spent essence counts as use (%.0f)" % U.used(p, "legs"))
+	left = U.settle_into(p, "legs", "air", 500.0)
+	var want: float = U.WAKE_SIZE + 50.0 * float(U.USE["cast"]) * U.LEVEL_SIZE / float(U.GROW_COST[3])
+	_check(is_equal_approx(U.size(p, "legs"), want) and is_equal_approx(left, 500.0 - 50.0 * float(U.USE["cast"]) - (want - U.WAKE_SIZE)), "at the stair the use is refilled from what's banked into it, which stretches it (size %.1f; the refill is used up)" % U.size(p, "legs"))
+	_check(is_equal_approx(U.own(p, "legs"), U.size(p, "legs")), "...and it tops up what it holds to its new size")
+	U.note_use(p, "legs", 999.0, "cast")
+	U.settle_into(p, "legs", "air", 10.0)
+	var s1: float = U.size(p, "legs")
+	U.end_stair(p)
+	U.settle_into(p, "legs", "air", 99999.0)
+	_check(is_equal_approx(U.size(p, "legs"), s1), "use not refilled at its stair is gone: casting more than you bank adds nothing")
+	var q = _prof()
+	U.set_size(q, "hand", 40.0)
+	for i in 30:
+		U.note_use(q, "hand", 99999.0, "cast")
+		U.settle_into(q, "hand", "blade", 99999.0)
+		U.end_stair(q)
+	_check(U.size(q, "hand") <= 40.0 + float(U.USE["climb_cap"]) + 0.01, "spamming casts on every floor grows a Node at most %d size a climb (%.1f)" % [int(U.USE["climb_cap"]), U.size(q, "hand") - 40.0])
+	U.new_climb(q)
+	U.note_use(q, "hand", 99999.0, "cast")
+	var s2: float = U.size(q, "hand")
+	U.settle_into(q, "hand", "blade", 99999.0)
+	_check(U.size(q, "hand") > s2, "...and the next climb it can grow again")
+	U.note_use(q, "heart", 100.0, "cast")
+	_check(U.used(q, "heart") == 0.0, "a sleeping Node isn't used")
+	# Attributes from the Nodes' sizes.
+	var a = _prof()
+	U.put(a, "legs", "air", 60.0)
+	U.put(a, "hand", "blade", 40.0)
+	U.put(a, "hand", "air", 20.0)
+	_check(is_equal_approx(U.attr_size(a, "air"), 60.0 + 20.0) and is_equal_approx(U.attr_size(a, "blade"), 40.0), "attributes count each awake Node's size for the essences it holds, by share (Air %.0f, Blade %.0f)" % [U.attr_size(a, "air"), U.attr_size(a, "blade")])
+	_check(a.attribute("air") > a.attribute("blade") and a.attribute("blade") > 0.0 and a.attribute("stone") == 0.0 and a.attribute("air") < a.ATTRIBUTE_CAP, "...and give the Unbound their bonuses (Agility +%.1f%%)" % (a.attribute("air") * 100.0))
+	a.density = {"stone": 9999.0}
+	_check(a.attribute("stone") == 0.0, "the old banked density no longer counts for the Unbound")
+	U.put(a, "brow", "fire", 20.0)
+	_check(U.attr_size(a, "fire") == 0.0, "a sleeping Node counts for nothing")
+
+
 func _rising(a: Array) -> bool:
 	for i in range(1, a.size()):
 		if float(a[i]) <= float(a[i - 1]):
@@ -120,10 +181,15 @@ func _moving() -> void:
 	var p = _prof()
 	U.put(p, "legs", "air", 60.0)
 	U.put(p, "hand", "blade", 60.0)
+	U.set_size(p, "hand", 120.0)
 	var c0: float = p.crystal_total("air")
 	var got: Dictionary = U.move(p, "air", "legs", "hand", 12.0)
 	_check(got["ok"] and is_equal_approx(U.amount(p, "legs", "air"), 48.0) and is_equal_approx(U.amount(p, "hand", "air"), 9.0), "moving 12 Air from the legs to the hand: 9 arrive, a quarter is the price")
 	_check(p.crystal_total("air") >= c0 + 2.0, "...before a path, the price condenses into crystals (%s)" % got["line"])
+	_check(is_equal_approx(U.size(p, "legs"), 60.0) and is_equal_approx(U.size(p, "hand"), 120.0), "moving never changes a Node's size")
+	var h0: float = U.size(p, "heart")
+	var fed: Dictionary = U.move(p, "air", "legs", "heart", 6.0)
+	_check(fed["ok"] and U.size(p, "heart") > h0 and U.own(p, "heart") == 0.0 and String(fed["line"]).contains("sleeping"), "moved into a sleeping Node, it soaks in and brings it closer to waking: %s" % fed["line"])
 	p.path = "life"
 	var f0: float = float(p.flow)
 	U.move(p, "air", "legs", "hand", 8.0)
@@ -137,6 +203,7 @@ func _moving() -> void:
 	U.put(q, "hand", "fire", 60.0)
 	U.put(q, "hand", "stone", 20.0)
 	U.put(q, "hand", "air", 20.0)
+	U.set_size(q, "hand", 120.0)
 	U.put(q, "legs", "water", 30.0)
 	var bad: Dictionary = U.move(q, "water", "legs", "hand", 6.0)
 	_check(not bad["ok"] and String(bad["line"]).contains("three") and is_equal_approx(U.amount(q, "legs", "water"), 30.0), "a move the target's rules won't take is refused, and nothing moves: %s" % bad["line"])
@@ -186,7 +253,7 @@ func _core_led() -> void:
 	U.move(p, "air", "legs", "", 50.0)
 	_check(U.core_led(p, "legs") and U.lead(p, "legs") == "unmaking", "drained until the core is at least half, it leads the part: core-led")
 	Core.add(p, 40.0, "legs")
-	_check(U.awake(p, "legs") and U.tech_kinds(p, "legs")[0] == "unmaking", "...its technique is led by the core (%s)" % str(U.tech_kinds(p, "legs")))
+	_check(U.tech_ready(p, "legs") and U.tech_kinds(p, "legs")[0] == "unmaking", "...its technique is led by the core (%s)" % str(U.tech_kinds(p, "legs")))
 	U.sync_techs(p)
 	var lt: Dictionary = U.tech_of(p, U.PARTS.find("legs"))
 	_check(bool(lt.get("core", false)) and T.title(lt) == String(U.CORE_TECHS["legs"]["unmaking"]), "a core technique, with its own name (%s)" % T.title(lt))
@@ -194,6 +261,7 @@ func _core_led() -> void:
 	var own0: float = U.own(p, "legs")
 	var lines: Array = U.absorb(p)
 	_check(U.own(p, "legs") < own0 and not lines.is_empty(), "at each stair the core slowly absorbs the part's other essence (%.1f to %.1f)" % [own0, U.own(p, "legs")])
+	U.set_size(p, "legs", 120.0)
 	Core.add(p, 999.0, "legs")
 	_check(U.level(p, "legs") == 12 and is_equal_approx(U.core_power(p, "legs"), float(U.CORE_POWER[1])), "full, %.1fx" % float(U.CORE_POWER[1]))
 
@@ -228,60 +296,52 @@ func _aura() -> void:
 	_check(Secret.display("life") == "Making" and Secret.display("unmaking") == "Unmaking", "the core essences are Making and Unmaking")
 
 
-## The pace of an Unbound part, in climbs: the own tower's natural part,
-## from the measured essence a climb banks (tests/progression_model.gd).
+## The pace of the Nodes, in climbs (tests/progression_model.gd run_unbound:
+## the game's own bookkeeping over climbs of measured essence).
 func _pace() -> void:
 	var M = load("res://tests/progression_model.gd")
-	var typ := _climbs_to(M, M.PATTERNS["typical"])
-	for lv in TYPICAL:
-		var c := int(typ.get(lv, 999))
-		_check(c >= int(TYPICAL[lv][0]) and c <= int(TYPICAL[lv][1]), "a typical Unbound's main part reaches level %d after %d climbs (%d to %d)" % [lv, c, TYPICAL[lv][0], TYPICAL[lv][1]])
-	var fast := _climbs_to(M, M.PATTERNS["summits"])
-	for lv in SUMMITS:
-		var c := int(fast.get(lv, 999))
-		_check(c >= int(SUMMITS[lv][0]) and c <= int(SUMMITS[lv][1]), "summiting that tower every climb, level %d after %d climbs (%d to %d)" % [lv, c, SUMMITS[lv][0], SUMMITS[lv][1]])
-
-
-func _climbs_to(M, pattern: Array) -> Dictionary:
-	var Flow = load("res://scripts/essence_flow.gd")
-	var share: float = 1.0 - Flow.default_crystal_share()
-	var kind: String = "air"
-	var mix: float = float(M.MIX[M.OWN_TOWER].get(kind, 0.0))
-	var p = _prof()
-	# The bondless first climb (3 floors) came into the body first.
-	U.settle_into(p, "legs", kind, (M.ESSENCE[0] + M.ESSENCE[1] + M.ESSENCE[2]) * share * mix)
-	var out := {}
-	for i in 80:
-		var c: Dictionary = pattern[i % pattern.size()]
-		var top := int(c["top"])
-		var banked := 0.0
-		for f in (top if top == 12 else top - 1):
-			banked += float(M.ESSENCE[f])
-		var own_mix: float = mix if bool(c["own"]) else 0.04
-		U.settle_into(p, "legs", kind, banked * share * own_mix)
-		var lv := U.level(p, "legs")
-		for want in [3, 6, 9, 12]:
-			if lv >= want and not out.has(want):
-				out[want] = i + 1
-	return out
+	var typ: Dictionary = M.run_unbound("typical", 45)
+	var main_part := "legs"  # (the own tower's kind, Air, flows to the Legs Node)
+	var aw := int(typ["awake"][main_part])
+	_check(aw >= MAIN_AWAKE[0] and aw <= MAIN_AWAKE[1], "a typical Unbound's main Node wakes after %d climb (%d to %d)" % [aw, MAIN_AWAKE[0], MAIN_AWAKE[1]])
+	var top := int(typ["top"][main_part])
+	_check(top >= MAIN_TOP[0] and top <= MAIN_TOP[1], "...and reaches level 12 after %d climbs (%d to %d)" % [top, MAIN_TOP[0], MAIN_TOP[1]])
+	var others: Array = U.PARTS.filter(func(pt): return pt != main_part)
+	var late: int = others.map(func(pt): return int(typ["awake"][pt])).max()
+	var soon: int = others.map(func(pt): return int(typ["awake"][pt])).min()
+	_check(soon >= OTHERS_AWAKE[0] and late <= OTHERS_AWAKE[1] and others.all(func(pt): return int(typ["awake"][pt]) > 0), "each other Node wakes after %d to %d climbs, its own kind flowing to it (%d to %d)" % [soon, late, OTHERS_AWAKE[0], OTHERS_AWAKE[1]])
+	var spam: Dictionary = M.run_unbound("typical", 45, "spam")
+	_check(int(spam["top"][main_part]) >= top - 2, "spamming casts doesn't race ahead: level 12 after %d climbs (typical %d)" % [int(spam["top"][main_part]), top])
+	var idle: Dictionary = M.run_unbound("typical", 45, "none")
+	_check(float(idle["sizes"][44][main_part]) < float(typ["sizes"][9][main_part]), "never using it, a Node grows only from summits' condensing: size %.0f after 45 climbs (%.0f used, after 10)" % [float(idle["sizes"][44][main_part]), float(typ["sizes"][9][main_part])])
+	var fast: Dictionary = M.run_unbound("summits", 30)
+	var ft := int(fast["top"][main_part])
+	_check(ft >= MAIN_TOP_SUMMITS[0] and ft <= MAIN_TOP_SUMMITS[1], "summiting every climb, level 12 after %d climbs (%d to %d)" % [ft, MAIN_TOP_SUMMITS[0], MAIN_TOP_SUMMITS[1]])
+	var routed: Dictionary = M.run_unbound("typical", 80, "typical", "spread")
+	var rl: int = others.map(func(pt): return int(routed["awake"][pt])).max()
+	var rs: int = others.map(func(pt): return int(routed["awake"][pt])).min()
+	_check(rs >= OTHERS_AWAKE_ROUTED[0] and rl <= OTHERS_AWAKE_ROUTED[1] and rl > 0, "routing essence to them, the others wake after %d to %d climbs (%d to %d)" % [rs, rl, OTHERS_AWAKE_ROUTED[0], OTHERS_AWAKE_ROUTED[1]])
+	var all_top: int = U.PARTS.map(func(pt): return int(routed["top"][pt])).max()
+	var all_ok: bool = U.PARTS.all(func(pt): return int(routed["top"][pt]) > 0) and all_top >= ALL_TOP[0] and all_top <= ALL_TOP[1]
+	_check(all_ok, "all six at level 12 takes %d climbs (%d to %d)" % [all_top, ALL_TOP[0], ALL_TOP[1]])
 
 
 func _words() -> void:
 	var texts: Array = []
-	for d in [U.TEXT, Core.TEXT, Secret.TEXT, Secret.STEP_TEXT, U.SIGNATURES, U.CORE_TECHS, U.GIFTS]:
+	for d in [U.TEXT, Core.TEXT, Secret.TEXT, Secret.STEP_TEXT, U.SIGNATURES, U.CORE_TECHS, U.GIFTS, load("res://scripts/technique_page.gd").TEXT, load("res://scripts/body_move.gd").TEXT]:
 		texts.append(str(d).to_lower())
 	var E = load("res://scripts/entity.gd")
-	for id in ["unbound", "unbound_fill", "unbound_minor", "unbound_half", "unbound_learned", "unbound_full", "unbound_pure", "unbound_core_led", "unbound_body", "unbound_move",
+	for id in ["unbound", "node_asleep", "node_awake", "node_grows", "unbound_essence", "unbound_half", "unbound_learned", "unbound_full", "unbound_pure", "unbound_core_led", "unbound_body", "unbound_move",
 			"aura", "core_essence", "core_saturated", "flow_2", "flow_3", "flow_4", "flow_5", "flow_6"]:
 		var e: Dictionary = E.TIPS.get(id, {})
 		_check(e.has("tip") and e.has("more") and String(e["tip"]).length() < 140, "the Entity explains '%s' the first time (a short line and an Archive account)" % id)
 		texts.append(str(e).to_lower())
 	var Talk = load("res://scripts/entity_talk.gd")
-	for id in ["how_aura", "how_unbound", "how_unbound_words"]:
+	for id in ["how_aura", "how_unbound", "how_nodes", "how_unbound_words"]:
 		_check(Talk.DIALOGUE.has(id) and id in Talk.DIALOGUE["how"]["choices"], "'How does it work?' has '%s'" % Talk.DIALOGUE.get(id, {}).get("ask", id))
 		texts.append(str(Talk.DIALOGUE.get(id, {})).to_lower())
 	var Help = load("res://scripts/entity_help.gd")
-	for id in ["ub_part", "ub_move_from", "ub_move_kind", "ub_move_to", "ub_move", "ub_drain", "ub_body_open", "ub_route"]:
+	for id in ["ub_part", "ub_part_asleep", "ub_move_from", "ub_move_kind", "ub_move_to", "ub_move", "ub_drain", "ub_body_open", "ub_route"]:
 		_check(Help.HELP.has(id), "the move buttons have hover help (%s)" % id)
 	var all := " ".join(texts)
 	var found: Array = BANNED.filter(func(w): return all.contains(w))
@@ -305,6 +365,8 @@ func _old_profile() -> void:
 	p.load_save()
 	_check(U.is_on(p) and U.own(p, "hand") <= Core.CAP + 0.01 and U.mix(p, "hand").size() <= U.MAX_KINDS and not p.part_density.has("nowhere"), "an old Unbound's cups are made to fit (the hand: %.0f, %d kinds)" % [U.own(p, "hand"), U.mix(p, "hand").size()])
 	_check(float(p.flow) <= Core.capacity(p) + 0.01 and U.level(p, "hand") == 12, "...its old flow fits the body's room (%.0f)" % float(p.flow))
+	_check(U.awake(p, "hand") and is_equal_approx(U.size(p, "hand"), 120.0), "...its full hand became a full Hand Node (size 120): no growth lost")
+	_check(not U.awake(p, "legs") and is_equal_approx(U.size(p, "legs"), 20.0) and U.own(p, "legs") == 0.0 and p.crystal_total("air") >= 20.0, "...its legs, under 30, sleep, keeping 20 toward waking; the Air they held condenses into crystals")
 	var learned: Array = U.sync_techs(p)
 	_check(String(U.state(p)["techs"][0].get("part", "")) == "hand" and T.valid(U.tech_of(p, 0)), "...and its slots follow their parts (the hand's slot is the hand's)")
 	_check(learned.size() <= 6, "(no crash bringing old slots up to date)")

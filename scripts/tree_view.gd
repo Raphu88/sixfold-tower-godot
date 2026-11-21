@@ -45,6 +45,7 @@ static var TEXT := {
 	"head_mark": "%s  ·  %s  ·  step %d of %d",
 	"head_faint": "%s  ·  %s  ·  faint",
 	"head_unbound": "%s  ·  level %d of 12",
+	"head_asleep": "%s  ·  asleep",
 	"head_none": "%s  ·  no mark yet",
 	"none": "No mark here yet. This part %s; once it's full, a summit marks it.",
 	"first": "No mark yet. On your first climb, floor 6 opens with the Regard: the tower's guardian takes notice, and the part you used most takes your first mark. Its tree grows here.",
@@ -149,7 +150,9 @@ static func ready_part(prof) -> String:
 static func _head(prof, part: String) -> String:
 	var name: String = Bonds.PART_NAMES[part]
 	if Unbound.is_on(prof):
-		return TEXT["head_unbound"] % [name, Unbound.level(prof, part)]
+		if not Unbound.awake(prof, part):
+			return TEXT["head_asleep"] % Unbound.node_name(part)  # (a sleeping Node shows no numbers)
+		return TEXT["head_unbound"] % [Unbound.node_name(part), Unbound.level(prof, part)]
 	if prof.bonds.has(part):
 		var info: Dictionary = prof.bonds[part]
 		var bname: String = Bonds.BONDS[info["id"]]["name"]
@@ -284,6 +287,11 @@ static func ability_of(main, part: String, node: Dictionary, opt: Dictionary) ->
 ## Turns the book to Abilities with an entry picked out (it glows, and the
 ## page scrolls to it).
 static func open_abilities(menu, id: String) -> void:
+	if Unbound.is_on(menu.main.profile) and id.begins_with("tech_"):
+		menu.set_meta("tech_slot", int(id.substr(5)))  # (the Unbound: their Techniques tab, on that slot)
+		menu._want_focus = {"meta": "tech_slot", "value": int(id.substr(5))}
+		menu._set_climber_tab("abilities")
+		return
 	menu.set_meta("abilities_focus", id)
 	menu._want_focus = {"meta": "ability", "value": id}
 	menu._set_climber_tab("abilities")
@@ -1179,6 +1187,8 @@ class TreeMap extends Control:
 	func _veins_into(b, pt: String, c: Color, chosen: bool) -> void:
 		var prof = main.profile
 		var at: Vector2 = BV.SPOTS[pt]
+		if not Unbound.awake(prof, pt):
+			return  # (a sleeping Node shows no veins yet)
 		var lv := Unbound.level(prof, pt)
 		var vc := Color(c, 0.4 + 0.05 * lv)
 		if not chosen:
@@ -1216,8 +1226,8 @@ class TreeMap extends Control:
 			var sub := "unmarked"
 			var sub_col := UI.FAINT
 			if unbound:
-				sub = "level %d" % Unbound.level(prof, pt)
-				sub_col = View._part_color(prof, pt).lightened(0.15)
+				sub = ("level %d" % Unbound.level(prof, pt)) if Unbound.awake(prof, pt) else "asleep"
+				sub_col = View._part_color(prof, pt).lightened(0.15) if Unbound.awake(prof, pt) else UI.FAINT
 			elif not info.is_empty():
 				var data: Dictionary = Bonds.BONDS[info["id"]]
 				sub = data["name"]

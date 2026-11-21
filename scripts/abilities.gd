@@ -52,8 +52,9 @@ const TEXT := {
 	"mark_more": "Body: %s, %s.   Passive: %s, %s.",
 	"tech_sub": "%s  ·  %s  ·  %s",
 	"empty": "Empty slot",
-	"empty_does": "Nothing on this button yet. This body part carries a technique once it is half full (level 6): fill it with essence.",
+	"empty_does": "Nothing on this button yet. Its Node carries a technique once it reaches level 6: it grows as you use it.",
 	"empty_sub": "%s button  ·  level %d of 12",
+	"empty_sub_asleep": "%s button  ·  its Node is asleep",
 	# The button to press: [keys, controller, touch].
 	"press": ["%s", "%s + %s", "tap"],
 	"hold": ["hold %s", "hold %s + %s", "hold, slide"],
@@ -155,7 +156,7 @@ static func entries(main, menu = null) -> Array:
 				out.append(_technique(main, button, i, t))
 			else:
 				out.append({"kind": "empty", "part": button, "id": "tech_%d" % i, "name": TEXT["empty"], "color": UI.FAINT, "affinity": "",
-					"sub": TEXT["empty_sub"] % [Bonds.PART_NAMES[button], Unbound.level(prof, button)], "does": TEXT["empty_does"], "press": press(main, button), "cost": "",
+					"sub": TEXT["empty_sub"] % [Bonds.PART_NAMES[button], Unbound.level(prof, button)] if Unbound.awake(prof, button) else TEXT["empty_sub_asleep"] % Bonds.PART_NAMES[button], "does": TEXT["empty_does"], "press": press(main, button), "cost": "",
 					"locked": true, "learn": 0, "selected": false, "step": 0, "more": [], "tag": "", "tag_color": UI.DIM})
 		return out
 	for part in Bonds.PARTS:
@@ -248,7 +249,7 @@ static func _technique(main, button: String, i: int, t: Dictionary) -> Dictionar
 			var v: float = float(sh[k]) * (power if k in ["damage", "shield"] else 1.0)
 			nums.append(SHAPE_WORDS[k] % _num(v))
 	more.append(TEXT["more_shape"] % [g, "  ·  ".join(nums)])
-	more.append(TEXT["more_power"] % [g, Bonds.PART_NAMES[part].to_lower(), Unbound.level(prof, part), _num(power)])
+	more.append(TEXT["more_power"] % [g, Unbound.node_name(part), Unbound.level(prof, part), _num(power)])
 	return {"kind": "technique", "part": button, "id": "tech_%d" % i, "name": Tech.title(t), "color": Tech.color(lead),
 		"affinity": lead if lead in Unbound.NATURAL else "", "sub": TEXT["tech_sub"] % [Unbound.PART_NAMES[part], sh["name"], ", ".join(kinds)],
 		"does": Tech.describe(t), "press": press(main, button), "cost": "%s  ·  %s" % [TEXT["fill"] % int(round(charge)), TEXT["strain"] % int(Tech.strain(t))],

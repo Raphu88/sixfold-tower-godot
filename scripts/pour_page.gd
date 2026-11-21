@@ -161,7 +161,7 @@ func _crystal_card(k: String) -> void:
 	var step := mini(int(Items.CRYSTAL["step"]), held)
 	var sh: Dictionary = Flow.shares(0.0)
 	if Unbound.is_on(prof):
-		m._detail_text(Flow.TEXT["crystal_flow_raw"] % [step, String(Unbound.PART_NAMES.get(Unbound.part_for(prof, k), "")).to_lower()], UI.DIM)
+		m._detail_text(Flow.TEXT["crystal_flow_raw"] % [step, Unbound.node_name(Unbound.part_for(prof, k))], UI.DIM)
 	elif prof.bonds.is_empty():
 		m._detail_text(Flow.TEXT["crystal_flow_body"] % step, UI.DIM)
 	else:
@@ -202,7 +202,7 @@ func target_text(part: String, kind: String) -> String:
 	var prof = _prof()
 	var name := String(Bonds.PART_NAMES[part])
 	if Unbound.is_on(prof):
-		return Flow.TEXT["target_raw"] % [name, Unbound.level(prof, part)]
+		return Flow.TEXT["target_raw"] % [Unbound.node_name(part), Unbound.level(prof, part)] if Unbound.awake(prof, part) else Flow.TEXT["target_asleep"] % Unbound.node_name(part)
 	if prof.bonds.has(part):
 		var info: Dictionary = prof.bonds[part]
 		var bd: Dictionary = Bonds.BONDS.get(String(info["id"]), {})

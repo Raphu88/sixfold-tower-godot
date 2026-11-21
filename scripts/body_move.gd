@@ -1,16 +1,18 @@
 extends RefCounted
-## MOVING ESSENCE, on the climber screen's Body tab (the Unbound's Marks tab:
+## MOVING ESSENCE, on the climber screen's Body tab (the Unbound's Nodes:
 ## menu.gd _climber_marks). It's the body's own doing, so it works wherever
 ## the climber screen opens (on the train, at a camp, at a stair, in a
 ## climb), except while a monster is after the climber (hunted).
 ##
-## Under the part cards (technique_page.gd climber: press a card to move
-## out of that part), one control:
-##   From     the part to move out of (a card pressed, or this button)
+## Under the Node cards (technique_page.gd climber: press a card to choose
+## that Node: an awake one to move out of, a sleeping one to feed), one control:
+##   From     the awake Node to move out of (a card pressed, or this button)
 ##   Essence  which of its essences
-##   To       the part it goes into: by default the first other part that can
-##            take it; pressing it skips the parts that can't (full, three
-##            kinds already, or their lead would fall under half)
+##   To       the Node it goes into: by default the first other Node that can
+##            take it; pressing it skips the Nodes that can't (full, three
+##            kinds already, or their lead would fall under half). A sleeping
+##            Node always can: what arrives soaks in and brings it closer to
+##            waking (unbound.gd feed). Moving never changes a Node's size.
 ##   Move     MOVE_STEP at a press, the amount and the price on the button
 ## then a line under it: what Move will do, or why it can't (unbound.gd
 ## why_not), and the result of the last press; and a separate
@@ -23,7 +25,11 @@ const UI := preload("res://scripts/ui.gd")
 
 static var TEXT := {
 	"title": "Move essence",
-	"note": "Press a part above (or From), then choose the essence and where it goes. A quarter of what you move is the price: %s",
+	"note": "Press a Node above (or From), then choose the essence and where it goes: another awake Node, or a sleeping one to feed it. Moving doesn't change a Node's size. A quarter of what you move is the price: %s",
+	"none_awake": "None of your Nodes is awake yet, so there's nothing to move. Banked essence soaks into each until it wakes.",
+	"to_asleep": "To: %s (asleep: feed it)",
+	"move_feed": "Feed %s to %s  ·  costs %s",
+	"will_feed": "Feeds %s %s from your %s to your sleeping %s: it soaks in. %s of it is the price: %s",
 	"cost_path": {"": "it condenses into crystals until you choose a path.", "life": "it turns into Making, your core essence.", "unmaking": "it is unmade."},
 	"from": "From: %s",
 	"kind": "Essence: %s %s",
@@ -38,7 +44,7 @@ static var TEXT := {
 	"will": "Moves %s %s from your %s to your %s. %s of it is the price: %s",
 	"price": {"": "it condenses into crystals.", "life": "it turns into Making.", "unmaking": "it is unmade."},
 	"empty": "Your %s holds no essence to move.",
-	"no_target": "No other part can take %s now: each is full, already holds three kinds, or its lead would fall under half.",
+	"no_target": "No other Node can take %s now: each awake one is full, already holds three kinds, or its lead would fall under half.",
 	"hunted": "A monster is hunting you. Moving essence waits until no monster is after you.",
 }
 ## How long the last press's result stays under the control (ms).
@@ -64,15 +70,30 @@ static func hunted(main) -> bool:
 	return false
 
 
-## The parts (other than `from`) that can take some of `kind` now.
+## The Nodes (other than `from`) that can take some of `kind` now: awake
+## ones with room for it, and every sleeping one (it soaks in).
 static func targets(prof, from: String, kind: String) -> Array:
 	var out: Array = []
 	if kind == "":
 		return out
 	for pt in Unbound.PARTS:
-		if pt != from and Unbound.take_limit(prof, pt, kind) > 0.01:
+		if pt != from and (not Unbound.awake(prof, pt) or Unbound.take_limit(prof, pt, kind) > 0.01):
 			out.append(pt)
 	return out
+
+
+## The awake Nodes (only they hold essence to move out).
+static func awake_nodes(prof) -> Array:
+	return Unbound.PARTS.filter(func(pt): return Unbound.awake(prof, pt))
+
+
+## The Node chosen on the Body tab (its levels show under the cards): the
+## last card pressed, else the From Node.
+static func picked(menu) -> String:
+	var pt := String(menu.get_meta("node_pick", ""))
+	if pt in Unbound.PARTS:
+		return pt
+	return String(plan(menu)["from"])
 
 
 ## Everything the control shows: {from, kinds, kind, targets, to, amount,
@@ -81,8 +102,9 @@ static func plan(menu) -> Dictionary:
 	var main = menu.main
 	var prof = main.profile
 	var from := String(menu.get_meta("move_from", ""))
-	if not from in Unbound.PARTS:
-		from = Unbound.PARTS[0]
+	var woke := awake_nodes(prof)
+	if not from in woke:
+		from = String(woke[0]) if not woke.is_empty() else Unbound.PARTS[0]
 	var kinds := Unbound.mix(prof, from)
 	var kind := String(menu.get_meta("move_kind", ""))
 	if not kind in kinds:
@@ -98,13 +120,14 @@ static func plan(menu) -> Dictionary:
 	if h:
 		reason = TEXT["hunted"]
 	elif kind == "":
-		reason = TEXT["empty"] % Unbound.PART_NAMES[from].to_lower()
+		reason = TEXT["empty"] % Unbound.node_name(from)
 	elif to == "":
 		reason = TEXT["no_target"] % Tech.display(kind)
 	elif amt <= 0.01:
 		reason = Unbound.why_not(prof, to, kind)
 	return {"from": from, "kinds": kinds, "kind": kind, "targets": tg, "to": to, "amount": amt, "price": amt * Unbound.MOVE_COST,
-		"drain": drain, "reason": reason, "hunted": h, "can_move": not h and amt > 0.01, "can_drain": not h and drain > 0.01}
+		"drain": drain, "reason": reason, "hunted": h, "can_move": not h and amt > 0.01, "can_drain": not h and drain > 0.01,
+		"feed": to != "" and not Unbound.awake(prof, to), "none_awake": woke.is_empty()}
 
 
 # --- the control ---------------------------------------------------------------------------
@@ -115,6 +138,13 @@ static func build(menu) -> void:
 	var prof = main.profile
 	var p := plan(menu)
 	menu._section(TEXT["title"])
+	if bool(p["none_awake"]):
+		var nl: Label = menu._small_label(TEXT["none_awake"], menu.DIM)
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nl.custom_minimum_size.x = 280.0
+		nl.set_meta("move_none_awake", true)
+		menu.box.add_child(nl)
+		return
 	if not menu.compact():
 		menu._note(TEXT["note"] % String(TEXT["cost_path"].get(String(prof.path), TEXT["cost_path"][""])))
 	var row: GridContainer = menu._grid(2 if menu.compact() else 4, 6)
@@ -122,7 +152,7 @@ static func build(menu) -> void:
 	var from: String = p["from"]
 	var kind: String = p["kind"]
 	var to: String = p["to"]
-	var fb: Button = menu._button(TEXT["from"] % Unbound.PART_NAMES[from], _cycle_from.bind(menu), row)
+	var fb: Button = menu._button(TEXT["from"] % Unbound.node_name(from), _cycle_from.bind(menu), row)
 	fb.set_meta("help", "ub_move_from")
 	fb.add_theme_color_override("font_color", _part_color(menu, from).lightened(0.25))
 	var kb: Button = menu._button(TEXT["kind"] % [Tech.display(kind), Unbound._num(Unbound.amount(prof, from, kind))] if kind != "" else TEXT["kind_none"], _cycle_kind.bind(menu), row)
@@ -130,7 +160,7 @@ static func build(menu) -> void:
 	if kind != "":
 		kb.add_theme_color_override("font_color", Tech.color(kind).lightened(0.2))
 	kb.disabled = p["kinds"].size() < 2  # (only one essence there: nothing to choose)
-	var tb: Button = menu._button(TEXT["to"] % Unbound.PART_NAMES[to] if to != "" else TEXT["to_none"], _cycle_to.bind(menu), row)
+	var tb: Button = menu._button((TEXT["to_asleep"] if p["feed"] else TEXT["to"]) % Unbound.node_name(to) if to != "" else TEXT["to_none"], _cycle_to.bind(menu), row)
 	tb.set_meta("help", "ub_move_to")
 	if to != "":
 		tb.add_theme_color_override("font_color", _part_color(menu, to).lightened(0.25))
@@ -139,7 +169,7 @@ static func build(menu) -> void:
 	if p["hunted"]:
 		move_text = TEXT["wait"]
 	elif p["can_move"]:
-		move_text = TEXT["move"] % [Unbound._num(p["amount"]), Unbound.PART_NAMES[to], Unbound._num(p["price"])]
+		move_text = (TEXT["move_feed"] if p["feed"] else TEXT["move"]) % [Unbound._num(p["amount"]), Unbound.node_name(to), Unbound._num(p["price"])]
 	var mb: Button = menu._button(move_text, _do_move.bind(menu, false), row)
 	mb.set_meta("help", "ub_move")
 	mb.disabled = not p["can_move"]
@@ -151,7 +181,7 @@ static func build(menu) -> void:
 	var line := String(p["reason"])
 	var bad := line != ""
 	if not bad and p["can_move"]:
-		line = TEXT["will"] % [Unbound._num(p["amount"]), Tech.display(kind), Unbound.PART_NAMES[from].to_lower(), Unbound.PART_NAMES[to].to_lower(),
+		line = (TEXT["will_feed"] if p["feed"] else TEXT["will"]) % [Unbound._num(p["amount"]), Tech.display(kind), Unbound.node_name(from), Unbound.node_name(to),
 			Unbound._num(p["price"]), String(TEXT["price"].get(String(prof.path), TEXT["price"][""]))]
 	if line != "":
 		var why: Label = menu._small_label(line, UI.BAD if bad else menu.DIM)
@@ -180,12 +210,14 @@ static func build(menu) -> void:
 	UI.keep_text(db)
 
 
-## A part card on the Body tab (technique_page.gd climber): pressing it
-## chooses that part to move out of; the chosen one has a gold edge.
+## A Node card on the Body tab (technique_page.gd climber): pressing it
+## chooses that Node (its levels show under the cards): an awake one to move
+## out of, a sleeping one to feed. The chosen one has a gold edge.
 static func card(menu, b: Button, part: String) -> void:
-	b.set_meta("help", "ub_part")
-	b.pressed.connect(pick_from.bind(menu, part))
-	if part == String(plan(menu)["from"]):
+	var asleep := not Unbound.awake(menu.main.profile, part)
+	b.set_meta("help", "ub_part_asleep" if asleep else "ub_part")
+	b.pressed.connect(pick_node.bind(menu, part))
+	if part == picked(menu):
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = Color(0.2, 0.16, 0.1, 0.9)
 		sb.border_color = UI.GOLD
@@ -203,8 +235,22 @@ static func _part_color(menu, part: String) -> Color:
 
 # --- pressing ------------------------------------------------------------------------------
 
+## A Node card pressed: chosen (its levels show), and an awake one is the
+## Node to move out of, a sleeping one the Node to feed.
+static func pick_node(menu, part: String) -> void:
+	menu.set_meta("node_pick", part)
+	if Unbound.awake(menu.main.profile, part):
+		pick_from(menu, part)
+		return
+	menu.set_meta("move_to", part)
+	menu.remove_meta("move_said")
+	menu.main.sfx("ui_confirm", 1.0, -6.0, 0.0)
+	_redraw(menu, "ub_move_to")
+
+
 static func pick_from(menu, part: String) -> void:
 	menu.set_meta("move_from", part)
+	menu.set_meta("node_pick", part)
 	menu.remove_meta("move_kind")
 	menu.remove_meta("move_to")
 	menu.remove_meta("move_said")
@@ -212,9 +258,13 @@ static func pick_from(menu, part: String) -> void:
 	_redraw(menu, "ub_move_from")  # (the focus goes to the control: on a phone it scrolls into view)
 
 
+## The next awake Node to move out of.
 static func _cycle_from(menu) -> void:
-	var at := Unbound.PARTS.find(String(plan(menu)["from"]))
-	pick_from(menu, Unbound.PARTS[(at + 1) % Unbound.PARTS.size()])
+	var woke := awake_nodes(menu.main.profile)
+	if woke.is_empty():
+		return
+	var at := woke.find(String(plan(menu)["from"]))
+	pick_from(menu, woke[(at + 1) % woke.size()])
 
 
 static func _cycle_kind(menu) -> void:
@@ -236,6 +286,7 @@ static func _cycle_to(menu) -> void:
 		menu.main.sfx("ui_back", 1.0, -6.0, 0.0)
 		return
 	menu.set_meta("move_to", tg[(tg.find(p["to"]) + 1) % tg.size()])
+	menu.set_meta("node_pick", String(menu.get_meta("move_to")))
 	menu.remove_meta("move_said")
 	_redraw(menu, "ub_move_to")
 
@@ -286,6 +337,6 @@ static func _redraw(menu, help: String) -> void:
 	menu.scroll.scroll_vertical = sv
 
 
-## From the Techniques tab: the climber screen, on the Body tab.
+## From the Techniques tab: the climber screen, on the Body tab (the Nodes).
 static func open_body(menu) -> void:
 	menu._set_climber_tab("marks")
