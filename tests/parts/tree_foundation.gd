@@ -148,7 +148,7 @@ func _tree_rules() -> void:
 		"an Unbound part's tree: the minor ability at 3, the gift at 5, forms at 6 (half full), forks at 7, 9 and 11, new forms at 8 and 10, the capstone at 12")
 	_check(nodes[2]["options"].map(func(o): return o["id"]) == ["strike", "bolt"] and nodes[2]["options"].all(func(o): return o["state"] == "owned"), "...today's forms are owned at half full")
 	_check(not TR.is_fork_ready(prof, "hand") and TR.owned_variations(prof).is_empty(), "at level 6 nothing to choose yet")
-	prof.part_density = {"hand": {"blade": U.LEVELS[7]}}
+	U.set_nodes(prof, {"hand": {"blade": U.LEVELS[7]}})
 	_check(U.level(prof, "hand") == 8 and TR.is_fork_ready(prof, "hand"), "at level 8 the level-7 fork is ready")
 	_check("volley" in TR.owned_forms(prof, "hand") and not "brand" in TR.owned_forms(prof, "hand"), "...and Volley (level 8) is open; Brand (level 10) isn't")
 	_check(TR.node(prof, "unbound:hand:10")["options"][0]["state"] == "locked" and TR.node(prof, "unbound:hand:12")["state"] == "locked", "forms and capstones not reached yet are locked (tests/parts/unbound_forms.gd tests them)")
@@ -162,13 +162,13 @@ func _tree_rules() -> void:
 	var paid: Dictionary = TR.learn_skipped(prof, "unbound:hand:7", "quick")
 	_check(int(paid.get("air", 0)) == TR.skipped_cost(7) and is_equal_approx(prof.crystal_total("air"), 100.0 - TR.skipped_cost(7)), "...and costs %d of it" % TR.skipped_cost(7))
 	_check("split" in TR.owned_variations(prof) and "quick" in TR.owned_variations(prof), "the Unbound can come to own both sides")
-	prof.part_density = {"hand": {"blade": U.LEVELS[6]}}
+	U.set_nodes(prof, {"hand": {"blade": U.LEVELS[6]}})
 	TR.state(prof)["unbound"].erase("hand")
 	TR.state(prof)["learned"].erase("hand")
 	TR.choose(prof, "unbound:hand:7", "quick")
 	_check(TR.node(prof, "unbound:hand:7")["options"][0]["state"] == "passed", "...but only once the part is a level past the fork")
 	# Effects open as essence pools in the body.
-	prof.part_density = {"legs": {"air": 20.0}}
+	U.set_nodes(prof, {"legs": {"air": 20.0}})
 	_check(TR.effect_open(prof, "spark") and not TR.effect_open(prof, "lift"), "an effect opens once enough of its essence fills the body (Spark at 12 Air)")
 	var rows: Array = TR.effect_rows(prof, "legs")
 	_check(rows.any(func(r): return r["id"] == "spark" and r["state"] == "owned") and rows.any(func(r): return r["id"] == "gust" and r["state"] == "locked"), "...shown on the legs' tree (Gust, at 72, still locked)")
@@ -357,7 +357,7 @@ func _tree_choice() -> void:
 	menu = main.menu
 	var prof = main.profile
 	var U = load("res://scripts/unbound.gd")
-	prof.part_density = {"hand": {"blade": U.LEVELS[7]}}
+	U.set_nodes(prof, {"hand": {"blade": U.LEVELS[7]}})
 	TR.choose(prof, "unbound:hand:7", "split")
 	prof.add_crystal("stone", 200.0)
 	menu.climber_tab = "tree"

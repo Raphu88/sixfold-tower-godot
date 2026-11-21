@@ -86,6 +86,24 @@ const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_
 const CLIMBER_TABS := [["abilities", "Abilities"], ["tree", "Tree"], ["marks", "Marks"], ["essence", "Essence"], ["record", "Record"], ["deeds", "Deeds"]]
 const MARKS_TAB_INDEX := 2
 const UNBOUND_MARKS_TAB := "Body"
+## The Unbound's tabs: their Nodes (Body), their Techniques (with what the
+## Abilities tab shows a marked climber), their Essence (aura, core essence,
+## crystals); then the Tree, Record and Deeds as for everyone. (No Abilities
+## and no Marks: they carry no marks.)
+const UNBOUND_TABS := [["marks", "Body"], ["techniques", "Techniques"], ["essence", "Essence"], ["tree", "Tree"], ["record", "Record"], ["deeds", "Deeds"]]
+## The words on the Unbound's Essence tab (_unbound_essence).
+static var UNBOUND_ESSENCE := {
+	"aura": "Your Aura",
+	"no_path": "No aura yet: it comes with a path (Making or Unmaking), from the Makers.",
+	"core": "Core Essence",
+	"no_core": "No core essence: it comes with a path.",
+	"core_note": "Banked at a stair, half of the %s you carry settles in your body as core essence, a little in every Node. It can't be moved, and it sets your aura.",
+	"crystals": "Crystals",
+	"crystal": "%d %s",
+	"unbanked": "Unbanked This Climb",
+	"unbanked_none": "None yet: slain monsters leave essence; bank it at the stair. Boosts spend it.",
+	"note": "Your Nodes' sizes and what each holds are on the Body tab. Banked essence that a Node can't hold condenses into crystals, the train's money.",
+}
 ## Settings & Controls: its two tabs (the train's car shows them too).
 const SETTINGS_TABS := [["settings", "Settings"], ["controls", "Controls"]]
 ## Below this screen height (a phone, drawn 1.5x) the pages tighten up to fit.
@@ -561,7 +579,7 @@ func _update_peek() -> void:
 	if not peeking and Time.get_ticks_msec() - _peek_at >= PEEK_MS:
 		peeking = true
 		_peek_prev = climber_tab
-		if climber_tab != "abilities":
+		if climber_tab != abilities_tab():
 			_quiet = true
 			open("abilities", true)
 			_quiet = false
@@ -988,8 +1006,8 @@ func open(which: String, direct := false) -> void:
 		which = "painter"  # (trying a room from the painter: the pause key goes back to it)
 	if which == "abilities":
 		# The Abilities page: the climber screen on its first tab (from play,
-		# the train's pages, or a peek).
-		climber_tab = "abilities"
+		# the train's pages, or a peek); for the Unbound, their Techniques tab.
+		climber_tab = abilities_tab()
 		which = "climber"
 		direct = direct or page == ""
 	if which == "inventory" and _on_train():
@@ -1837,6 +1855,8 @@ func _page_climber() -> void:
 	var who: String = prof.appearance.get("name", "")
 	_header(who if who != "" else "Climber", _climber_line(), Book.TEXT["name"])
 	var tabs := climber_tabs()
+	if climber_tab == "abilities" and not tabs.any(func(t): return t[0] == climber_tab):
+		climber_tab = abilities_tab()  # (an Unbound: their Techniques tab holds what Abilities would)
 	Book.ribbons(self, tabs, climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks", _set_climber_tab)  # (the book's sections)
 	_gap(0 if compact() else 2)
 	match climber_tab if tabs.any(func(t): return t[0] == climber_tab) else "marks":
@@ -1859,20 +1879,28 @@ func _page_climber() -> void:
 	_footer()
 
 
-## The climber screen's tabs: the Unbound's Marks tab is their Body, and
-## they get a Techniques tab beside it (technique_tab.gd); a secret bond
-## adds its Core tab (secret_page.gd).
+## The climber screen's tabs: the Unbound have their own (UNBOUND_TABS:
+## Body, Techniques, Essence, then the Tree, Record and Deeds); a secret
+## bond adds its Core tab (secret_page.gd).
 func climber_tabs() -> Array:
 	var tabs: Array = CLIMBER_TABS.duplicate(true)
 	if main != null and main.profile != null and Unbound.is_on(main.profile):
-		tabs[MARKS_TAB_INDEX][1] = UNBOUND_MARKS_TAB  # (no marks: their body's raw essence)
-		tabs.insert(MARKS_TAB_INDEX + 1, TechTab.tab())
+		tabs = UNBOUND_TABS.duplicate(true)
 	if main != null and main.profile != null and main.SecretBonds.has_bond(main.profile):
 		tabs.append(SecretPage.TAB)
 	return tabs
 
 
+## The tab "Abilities" opens: Abilities, or for the Unbound their Techniques.
+func abilities_tab() -> String:
+	if main != null and main.profile != null and Unbound.is_on(main.profile):
+		return TechTab.TAB_ID
+	return "abilities"
+
+
 func _set_climber_tab(id: String) -> void:
+	if id == "abilities":
+		id = abilities_tab()
 	var ids: Array = climber_tabs().map(func(t): return t[0])
 	var dir := signi(ids.find(id) - ids.find(climber_tab))
 	climber_tab = id
@@ -1906,13 +1934,16 @@ func mark_order() -> Array:
 
 
 ## Marks: the climber with its marks glowing, and a card for each body part
-## (press one for its page). For an Unbound it's the Body tab: each part's
-## cup (press one to move essence out of it), then moving essence
-## (body_move.gd).
+## (press one for its page). For an Unbound it's the Body tab: a card for
+## each of their six Nodes (asleep, or awake with its size, level and what
+## it holds; press one to choose it), what the chosen Node's levels bring,
+## the attributes the Nodes give, then moving essence (body_move.gd).
 func _climber_marks(prof) -> void:
 	var small := compact()
 	if Unbound.is_on(prof):
 		var told: String = main.tip_now("unbound_body")  # (the first time: what the Body tab does)
+		if told == "" and Unbound.PARTS.any(func(pt): return not Unbound.awake(prof, pt)):
+			told = main.tip_now("node_asleep")  # (the first time a sleeping Node shows: it sleeps, no numbers)
 		if told != "":
 			box.add_child(Entity.says(told, 30.0 if small else 38.0))
 	TreeView.repick_panel(self)  # (a step-3 choice made before the Transformations: chosen again, once, for free)
@@ -1957,7 +1988,9 @@ func _climber_marks(prof) -> void:
 	if not Unbound.is_on(prof):
 		_climber_synergies(small)
 	else:
-		BodyMove.build(self)  # (moving essence from one part to another: body_move.gd)
+		TechniquePage.node_levels(self, BodyMove.picked(self))  # (the chosen Node: what its levels bring)
+		TechniquePage.attributes(self)  # (Agility, Strength...: from the Nodes' sizes)
+		BodyMove.build(self)  # (moving essence from one Node to another: body_move.gd)
 	if small:
 		return
 	if Unbound.is_on(prof):
@@ -2014,8 +2047,13 @@ func _climber_synergies(small: bool) -> void:
 
 
 ## Essence: density by type (each is an attribute with a small bonus), where
-## it has settled in the body, and what you carry unbanked this climb.
+## it has settled in the body, and what you carry unbanked this climb. The
+## Unbound's shows no density (their Nodes' sizes are on the Body tab): their
+## aura, their core essence and their crystals.
 func _climber_essence(prof) -> void:
+	if Unbound.is_on(prof):
+		_unbound_essence(prof)
+		return
 	var view := EssenceView.new()
 	view.main = main
 	view.custom_minimum_size = Vector2(0, EssenceView.height(compact()))
@@ -2038,6 +2076,59 @@ func _climber_essence(prof) -> void:
 	UI.keep_text(pour)
 	if not compact():
 		_note("Your body's share of the essence you bank at a stair settles in you as density, in the body parts that earned it. Each type gives a small passive bonus that grows ever slower, up to %d%%." % int(round(prof.ATTRIBUTE_CAP * 100.0)))
+
+
+## The Unbound's Essence tab: the aura (FlowView), the core essence in
+## their body, their crystals by kind (and Crystals and tinctures, to eat or
+## drink them), and what they carry unbanked this climb (boosts spend it).
+func _unbound_essence(prof) -> void:
+	var small := compact()
+	var told: String = main.tip_now("unbound_essence")  # (the first time: what this tab holds now)
+	if told != "":
+		box.add_child(Entity.says(told, 30.0 if small else 38.0))
+	var Core = load("res://scripts/core.gd")
+	var Secret = load("res://scripts/secret.gd")
+	_section(UNBOUND_ESSENCE["aura"])
+	if prof.path != "":
+		var fv := FlowView.new()
+		fv.main = main
+		fv.custom_minimum_size = Vector2(0, FlowView.height(prof.flow_step(), small))
+		box.add_child(fv)
+	else:
+		_note(UNBOUND_ESSENCE["no_path"])
+	_section(UNBOUND_ESSENCE["core"])
+	var cl := _small_label(UNBOUND_ESSENCE["no_core"] if prof.path == "" else Core.TEXT["total"] % [int(round(Core.total(prof))), int(round(Core.capacity(prof)))], DIM)
+	cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cl.custom_minimum_size.x = 280.0
+	cl.set_meta("core_line", true)
+	box.add_child(cl)
+	if prof.path != "" and not small:
+		_note(UNBOUND_ESSENCE["core_note"] % Secret.display(prof.path))
+	_section(UNBOUND_ESSENCE["crystals"])
+	var g := _grid(3 if small else 6, 6)
+	g.set_meta("crystals", true)
+	for kind in ["air", "blade", "stone", "iron", "fire", "water"]:
+		var n: int = int(prof.crystal_total(kind))
+		var l := _small_label(UNBOUND_ESSENCE["crystal"] % [n, Essence.display(kind)], Essence.color(kind).lightened(0.25) if n > 0 else FAINT)
+		l.set_meta("crystal", kind)
+		g.add_child(l)
+	var pour := _button(PourPage.Flow.TEXT["open"], open_pour.bind(""))
+	pour.set_meta("help", "pour:open")
+	pour.custom_minimum_size = Vector2(240, 38)
+	pour.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	UI.keep_text(pour)
+	var bits: Array = []
+	for kind in main.run_essence:
+		if float(main.run_essence[kind]) >= 1.0:
+			bits.append("%d %s" % [int(main.run_essence[kind]), Essence.display(kind)])
+	_section(UNBOUND_ESSENCE["unbanked"])
+	var ul := _small_label(", ".join(bits) if not bits.is_empty() else UNBOUND_ESSENCE["unbanked_none"], DIM)
+	ul.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ul.custom_minimum_size.x = 280.0
+	ul.set_meta("unbanked", true)
+	box.add_child(ul)
+	if not small:
+		_note(UNBOUND_ESSENCE["note"])
 
 
 ## Record: the climb you're on and your record on the left, your heirlooms
@@ -4856,8 +4947,9 @@ class BodyView extends Control:
 			var sub := "unmarked"
 			var sub_col := UI.FAINT
 			if UnboundRef.is_on(prof):
-				sub = "level %d" % UnboundRef.level(prof, part)
-				sub_col = _vein_col(part, t)
+				# (a Node: its level once awake; a sleeping one shows no numbers)
+				sub = ("level %d" % UnboundRef.level(prof, part)) if UnboundRef.awake(prof, part) else "asleep"
+				sub_col = _vein_col(part, t) if UnboundRef.awake(prof, part) else UI.FAINT
 			elif not info.is_empty():
 				var data: Dictionary = Bonds.BONDS[info["id"]]
 				sub = data["name"]
@@ -4910,6 +5002,9 @@ class BodyView extends Control:
 	func _veins(b, part: String, t: float) -> void:
 		var prof = main.profile
 		var at: Vector2 = SPOTS[part]
+		if not UnboundRef.awake(prof, part):
+			b.dot(at, 3.0, Color(0.7, 0.68, 0.8, 0.25))  # (a sleeping Node: a faint dim seed)
+			return
 		var lv := UnboundRef.level(prof, part)
 		var col := _vein_col(part, t)
 		UI.glow_into(b, at, 10.0 + 2.2 * lv, col, 0.35 + 0.12 * lv)

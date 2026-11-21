@@ -109,10 +109,10 @@ func _opening() -> void:
 		var fe: Dictionary = F.FORMS[id]
 		var part := String(fe["part"])
 		var at := int(fe["opens"])
-		prof.part_density = {part: {String(U.PART_KIND[part]): float(U.LEVELS[at - 2])}}
+		U.set_nodes(prof, {part: {String(U.PART_KIND[part]): float(U.LEVELS[at - 2])}})
 		var before: bool = id in TR.owned_forms(prof, part)
 		var st_before := String(TR.node(prof, "unbound:%s:%d" % [part, at])["options"][0]["state"])
-		prof.part_density = {part: {String(U.PART_KIND[part]): float(U.LEVELS[at - 1])}}
+		U.set_nodes(prof, {part: {String(U.PART_KIND[part]): float(U.LEVELS[at - 1])}})
 		var after: bool = id in TR.owned_forms(prof, part)
 		var st_after := String(TR.node(prof, "unbound:%s:%d" % [part, at])["options"][0]["state"])
 		if before or not after or st_before != "locked" or st_after != "owned" or not T.valid({"part": part, "shape": id, "kinds": ["fire"]}):
@@ -120,13 +120,13 @@ func _opening() -> void:
 			bad.append(id)
 	_check(ok, "each form is locked a level short and opens at its level (%s)" % [bad])
 	# Capstones: locked until level 12 (full), then yours; no Coming later left on an Unbound tree.
-	prof.part_density = {}
+	U.set_nodes(prof, {})
 	var later := 0
 	for part in U.PARTS:
-		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[10])}
+		U.set_node(prof, part, {String(U.PART_KIND[part]): float(U.LEVELS[10])})
 	var locked: bool = U.PARTS.all(func(part): return TR.node(prof, "unbound:%s:12" % part)["state"] == "locked" and not F.capstone_on(prof, part))
 	for part in U.PARTS:
-		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[11])}
+		U.set_node(prof, part, {String(U.PART_KIND[part]): float(U.LEVELS[11])})
 	var owned: bool = U.PARTS.all(func(part): return TR.node(prof, "unbound:%s:12" % part)["state"] == "owned" and F.capstone_on(prof, part))
 	for part in U.PARTS:
 		for n in TR.unbound_nodes(prof, part):
@@ -173,7 +173,7 @@ func _casting() -> void:
 	var strain_fails: Array = []
 	for id in F.FORMS:
 		var part := String(F.FORMS[id]["part"])
-		prof.part_density = {part: {String(U.PART_KIND[part]): float(U.LEVELS[9])}}
+		U.set_nodes(prof, {part: {String(U.PART_KIND[part]): float(U.LEVELS[9])}})
 		var cases: Array = []
 		for m in mixes:
 			cases.append({"kinds": m})
@@ -269,9 +269,9 @@ func _casting() -> void:
 ## Puts every part at a level (12: full, the capstone) and rebuilds the climber.
 func _levels(level: int) -> void:
 	var prof = t.main.profile
-	prof.part_density = {}
+	U.set_nodes(prof, {})
 	for part in U.PARTS:
-		prof.part_density[part] = {String(U.PART_KIND[part]): float(U.LEVELS[level - 1])}
+		U.set_node(prof, part, {String(U.PART_KIND[part]): float(U.LEVELS[level - 1])})
 	t.main._give_bonds()
 	t.main.player.iframes = 9999.0
 	await t._frames(3)

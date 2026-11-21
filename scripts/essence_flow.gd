@@ -15,7 +15,7 @@ extends RefCounted
 ## The crystal share is the "To crystals" setting (train.gd CONDENSE_*); the
 ## body and the marks share what's left in SPLIT's proportions. With no mark
 ## to take it (the first climb), the marks' share goes to the body; the
-## Unbound pool everything but the crystals raw in their parts.
+## Unbound send everything but the crystals to their Nodes (unbound.gd).
 ##
 ## CRYSTALS can be eaten (the climber's book, the Inventory, Your Car): their
 ## essence flows the same natural way, minus the crystal share. No steering.
@@ -65,16 +65,16 @@ static var TEXT := {
 	# The stair's line: what was banked and where it went.
 	"split": "Banked %d: %d to your body, %d to your marks, %d into crystals",
 	"split_body": "Banked %d: %d to your body, %d into crystals",
-	"split_raw": "Banked %d: %d pools raw in your body, %d into crystals",
+	"split_raw": "Banked %d: %d to your Nodes, %d into crystals",
 	# Eating crystals.
 	"ate": "Ate %d %s: %d to your body, %d to your marks",
 	"ate_body": "Ate %d %s: it soaks into your body",
-	"ate_raw": "Ate %d %s: it pools raw in your %s",
+	"ate_raw": "Ate %d %s: it flows to your %s",
 	# Tinctures.
 	"drank": "%s: %s",
 	"to_mark": "+%d growth for %s",
 	"to_soak": "your %s soaks it up (%d%% full)",
-	"to_raw": "it pools raw in your %s",
+	"to_raw": "it flows to your %s",
 	"faint_paid": "it pays down the faint mark's debt",
 	# The page (pour_page.gd).
 	"title": "Crystals and tinctures",
@@ -88,7 +88,7 @@ static var TEXT := {
 	"crystal_card": "%d %s essence in your crystal.",
 	"crystal_flow": "Eaten, %d flows the natural way: %d%% to your body, %d%% to your marks. You can't steer it.",
 	"crystal_flow_body": "Eaten, %d soaks into your body the natural way. You can't steer it.",
-	"crystal_flow_raw": "Eaten, %d pools raw in your %s, as banked essence does.",
+	"crystal_flow_raw": "Eaten, %d flows to your %s, as banked essence does.",
 	"eat": "Eat %d",
 	"tincture_card": "Holds %d %s essence. Drink it and choose where it goes:",
 	"tincture_have": "You have %d (%s).",
@@ -100,6 +100,7 @@ static var TEXT := {
 	"target_soak": "%s: unmarked, %d%% full",
 	"target_full": "%s: full, ready for a mark",
 	"target_raw": "%s: level %d",
+	"target_asleep": "%s: asleep",
 	"none_crystal": "No %s crystal yet.",
 	"drink_from_bench": "Drink one",
 	"drink_from_loadout": "Drink it now",

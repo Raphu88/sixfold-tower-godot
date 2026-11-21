@@ -102,14 +102,20 @@ func _split() -> void:
 	prof = t.main.profile
 	out = prof.pour({"water": 100.0}, {"brow": 1.0}, 0.3)
 	_check(float(out["marks"]) == 0.0 and is_equal_approx(float(out["body"]), 70.0), "with no mark, the marks' share goes to the body (%.1f)" % out["body"])
-	# The Unbound: everything but the crystals pools raw.
+	# The Unbound: everything but the crystals goes to their Nodes: a sleeping
+	# Node soaks it all in; an awake one, unused, holds only up to its size.
 	await t._ub_fresh()
 	prof = t.main.profile
 	var U = load("res://scripts/unbound.gd")
-	var raw0: float = U.raw(prof, "legs")
-	var cost0: float = float(U.FILL_COST[U.level(prof, "legs")])
+	U.set_size(prof, "legs", 20.0)
+	prof.part_density.erase("legs")
+	var c0: float = prof.crystal_total("air")
 	out = prof.pour({"air": 50.0}, {}, 0.3)
-	_check(is_equal_approx(U.raw(prof, "legs") - raw0, 35.0 * U.LEVEL_SIZE / cost0) and prof.crystal_total("air") >= 15.0, "the Unbound: everything but the crystals fills its part, slowly (%.2f)" % (U.raw(prof, "legs") - raw0))
+	_check(is_equal_approx(U.size(prof, "legs"), 20.0 + 35.0 * U.LEVEL_SIZE / float(U.GROW_COST[2])) and prof.crystal_total("air") - c0 == 15.0, "the Unbound: everything but the crystals soaks into a sleeping Node (size %.2f)" % U.size(prof, "legs"))
+	var hand0: float = U.size(prof, "hand")
+	c0 = prof.crystal_total("blade")
+	out = prof.pour({"blade": 50.0}, {}, 0.3)
+	_check(is_equal_approx(U.size(prof, "hand"), hand0) and prof.crystal_total("blade") - c0 == 50.0, "...an awake, full Node never used takes none: it condenses into crystals")
 
 
 func _stair_line() -> void:

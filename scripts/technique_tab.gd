@@ -24,6 +24,10 @@ extends RefCounted
 ##              on its spout): press one to put it on, again to take it off;
 ##              those not yours yet sit dark.
 ##   NAME and BOOST, then where each kind of banked essence flows (routing).
+##   GIFTS      what the Abilities tab shows a marked climber, for the six
+##              Nodes in plain words: each Node's minor ability and gift (or
+##              when it comes; a sleeping Node only that it sleeps), and on
+##              the train "Try your abilities" (the practice room).
 ##
 ## Every press changes the slot AT ONCE (saved and carried straight away):
 ## there's no draft and no "Set" button, so nothing can be lost by choosing
@@ -55,10 +59,12 @@ static var TEXT := {
 	"tab": "Techniques",
 	"slot": "%s  %s",
 	"slot_sleep": "%s · level %d",
+	"slot_asleep": "%s · asleep",
 	"locked": "You can look here anywhere. Techniques change only on the train, between climbs.",
 	"title": "%s  ·  %s",
-	"level": "%s: level %d of %d  ·  %d of %d full",
-	"asleep": "Half full (level %d) it carries a technique. %d more to fill.",
+	"level": "%s: level %d of %d  ·  size %s of %d",
+	"asleep": "At level %d it carries a technique: %s more size. It grows as you use it.",
+	"sleeping": "This Node is asleep. Essence routed to it soaks in, and when enough has, it wakes; at level %d it carries a technique.",
 	"core_tech": "Core technique: your core essence leads this part",
 	"fill": "%s: full at %d, then it casts for nothing  ·  strain +%d of 100",
 	"boost": "Boost: spends %s you carry unbanked for +%d%% power",
@@ -73,13 +79,13 @@ static var TEXT := {
 	"share": "%d%%",
 	"more": "  ›",
 	"essences_note": "These essences are your %s's own mix. To change them, move essence on the Body tab.",
-	"fill_note": "Banked essence fills it slowly; the Body tab can move essence into your %s from another part.",
+	"fill_note": "Use makes a Node grow; the Body tab can move essence into your %s from another Node (or feed it while it sleeps).",
 	"body": "Body tab",
 	"variation": "Variation",
 	"none": "None",
 	"routes": "Where banked essence pools",
 	"route": "%s  →  %s",
-	"route_note": "Tap a kind to send it to another part from now on. Its natural part is marked *.",
+	"route_note": "Tap a kind to send it to another Node from now on (a sleeping Node soaks it in and wakes sooner). Its natural Node is marked *.",
 	"note": "Every press changes the technique at once: there's nothing to set and nothing to lose. Its essences come from the part itself; the form, each essence's effect and the variation are yours.",
 	"set": "%s now casts %s.",
 	"set_echo": "%s now casts %s. Found an echo: %s",
@@ -88,7 +94,14 @@ static var TEXT := {
 	"echoes": "Echoes %s: %s",
 	"one_line": "%s: %s",
 	"touch": "; a touch of %s",
-	"empty_line": "This part carries a technique once it is half full (level 6). Fill it with essence.",
+	"empty_line": "This Node carries a technique once it reaches level 6. It grows as you use it.",
+	"gifts": "What Your Nodes Give",
+	"gift_asleep": "%s: asleep. It wakes once enough essence has soaked into it.",
+	"gift_minor": "%s: %s",
+	"gift_has": "Gift: %s, %s.",
+	"gift_at": "Gift at level %d: %s, %s.",
+	"try": "Try your abilities",
+	"try_note": "On the train, Try your abilities opens a safe practice room with training dummies.",
 }
 ## Each variation's fitting, in the order they're offered.
 const FITTING_ORDER := ["wide", "long", "quick", "split", "lingering", "chain", "delayed", "mirrored", "echo", "charged"]
@@ -233,7 +246,7 @@ static func echo_line(t: Dictionary) -> String:
 static func apply(menu, i: int, t: Dictionary) -> bool:
 	var main = menu.main
 	var prof = main.profile
-	if not can_edit(main) or i < 0 or i >= Unbound.PARTS.size() or not Tech.valid(t) or not Unbound.awake(prof, Unbound.PARTS[i]):
+	if not can_edit(main) or i < 0 or i >= Unbound.PARTS.size() or not Tech.valid(t) or not Unbound.tech_ready(prof, Unbound.PARTS[i]):
 		return false
 	var techs: Array = Unbound.state(prof)["techs"]
 	if str(techs[i]) == str(t):
@@ -243,7 +256,7 @@ static func apply(menu, i: int, t: Dictionary) -> bool:
 	prof.save()
 	main._give_bonds()
 	var key := _key(menu, i)
-	var where: String = key if key != "" else Unbound.PART_NAMES[Unbound.PARTS[i]]
+	var where: String = key if key != "" else Unbound.node_name(Unbound.PARTS[i])
 	var line: String = TEXT["set_echo"] % [where, Tech.title(techs[i]), Library.echo_of(techs[i])["name"]] if found else TEXT["set"] % [where, Tech.title(techs[i])]
 	menu.set_meta("tech_said", {"line": line, "ms": Time.get_ticks_msec(), "echo": found})
 	return true
@@ -279,7 +292,7 @@ static func build(menu) -> void:
 		var part: String = Unbound.PARTS[i]
 		var t := Unbound.tech_of(prof, i)
 		var key := _key(menu, i)
-		var label: String = Tech.title(t) if Tech.valid(t) else TEXT["slot_sleep"] % [Unbound.PART_NAMES[part], Unbound.level(prof, part)]
+		var label: String = Tech.title(t) if Tech.valid(t) else (TEXT["slot_sleep"] % [Unbound.node_name(part), Unbound.level(prof, part)] if Unbound.awake(prof, part) else TEXT["slot_asleep"] % Unbound.node_name(part))
 		var b: Button = menu._button(TEXT["slot"] % [key, label] if key != "" else label, _pick_slot.bind(menu, i), grid)
 		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		b.custom_minimum_size.x = 0
@@ -299,6 +312,7 @@ static func build(menu) -> void:
 	var part: String = Unbound.PARTS[sel]
 	var t := Unbound.tech_of(prof, sel)
 	_card(menu, part, t)
+	_map_row(menu, sel, part, t)
 	if not t.is_empty():
 		_form_row(menu, part, t, edit)
 		_effect_row(menu, part, t, edit)
@@ -307,8 +321,70 @@ static func build(menu) -> void:
 	else:
 		_body_row(menu, part, false)
 	_routes(menu, edit)
+	_gifts(menu)
+	_practice(menu)
 	if not small:
 		menu._note(TEXT["note"])
+
+
+## "On the body map" under the card (as the Abilities tab has for a marked
+## climber's spells): the book's Tree on this technique's form.
+static func _map_row(menu, sel: int, part: String, t: Dictionary) -> void:
+	if not Tech.valid(t):
+		return
+	var TreeView = load("res://scripts/tree_view.gd")
+	var at: Array = TreeView.node_of(menu.main, {"kind": "technique", "part": part, "tech": t, "id": "tech_%d" % sel})
+	if at.is_empty():
+		return
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu.box.add_child(row)
+	row.add_child(load("res://scripts/abilities.gd")._map_link(menu, at, menu.compact()))
+
+
+## What the Abilities tab shows a marked climber, for the Unbound: each
+## Node's minor ability and gift in plain words (a sleeping Node: only that
+## it sleeps).
+static func _gifts(menu) -> void:
+	var prof = menu.main.profile
+	menu._section(TEXT["gifts"])
+	var g: GridContainer = menu._grid(1 if menu.compact() else 2, 6)
+	g.set_meta("tech_gifts", true)
+	for part in Unbound.PARTS:
+		var line := ""
+		var col: Color = menu.DIM
+		if not Unbound.awake(prof, part):
+			line = TEXT["gift_asleep"] % Unbound.node_name(part)
+			col = menu.FAINT
+		else:
+			var gift: Dictionary = Unbound.GIFTS.get(part, {})
+			var gl: String = TEXT["gift_has"] % [String(gift.get("name", "")), String(gift.get("desc", ""))] if Unbound.has_gift(prof, part) \
+				else TEXT["gift_at"] % [Unbound.GIFT_LEVEL, String(gift.get("name", "")), String(gift.get("desc", ""))]
+			line = TEXT["gift_minor"] % [Unbound.node_name(part), Unbound.minor_text(prof, part)] + " " + gl
+			col = Tech.color(Unbound.lead(prof, part) if Unbound.lead(prof, part) != "" else String(Unbound.PART_KIND[part])).lightened(0.3)
+		var l: Label = menu._small_label(line, col)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 240.0
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.set_meta("tech_gift", part)
+		g.add_child(l)
+
+
+## "Try your abilities" (the practice room, on the train), as the Abilities tab offers it.
+static func _practice(menu) -> void:
+	var main = menu.main
+	if main.on_train and main.practice != null:
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		menu._gap(2)
+		menu.box.add_child(row)
+		var tb: Button = menu._button(TEXT["try"], func(): main.practice.start(), row)
+		tb.set_meta("try_abilities", true)
+		tb.custom_minimum_size.x = 220.0
+		UI.keep_text(tb)
+	elif not menu.compact():
+		menu._note(TEXT["try_note"])
 
 
 ## The chosen slot's card: the drawn preview, and what it does in plain words.
@@ -340,6 +416,7 @@ static func _card(menu, part: String, t: Dictionary) -> void:
 	gauge.strain = Tech.strain(t) if not t.is_empty() else 0.0
 	gauge.custom_minimum_size = Vector2(62, 72) if small else Vector2(78, 84)
 	gauge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	gauge.visible = Unbound.awake(prof, part)  # (a sleeping Node shows no numbers)
 	pv.add_child(gauge)
 	# The words.
 	var col := VBoxContainer.new()
@@ -348,15 +425,17 @@ static func _card(menu, part: String, t: Dictionary) -> void:
 	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(col)
 	var lv := Unbound.level(prof, part)
-	var head: String = TEXT["title"] % [Unbound.PART_NAMES[part], Tech.title(t)] if not t.is_empty() else String(Unbound.PART_NAMES[part])
+	var head: String = TEXT["title"] % [Unbound.node_name(part), Tech.title(t)] if not t.is_empty() else Unbound.node_name(part)
 	var hl: Label = menu._small_label(head, Tech.color(Tech.lead(t)).lightened(0.25) if not t.is_empty() else menu.TEXT)
 	hl.add_theme_font_size_override("font_size", 18 if small else 20)
 	hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hl.set_meta("tech_title", true)
 	col.add_child(hl)
-	if t.is_empty():
-		var need := maxf(0.0, float(Unbound.LEVELS[Unbound.TECH_LEVEL - 1]) - Unbound.fill(prof, part))
-		_line(col, TEXT["asleep"] % [Unbound.TECH_LEVEL, int(ceil(need))] if need > 0.0 else Tech.TEXT["empty"], menu.TEXT, 15).set_meta("tech_asleep", true)
+	if t.is_empty() and not Unbound.awake(prof, part):
+		_line(col, TEXT["sleeping"] % Unbound.TECH_LEVEL, menu.TEXT, 15).set_meta("tech_asleep", true)  # (no numbers while it sleeps)
+	elif t.is_empty():
+		var need := maxf(0.0, float(Unbound.LEVELS[Unbound.TECH_LEVEL - 1]) - Unbound.size(prof, part))
+		_line(col, TEXT["asleep"] % [Unbound.TECH_LEVEL, Unbound._num(need)] if need > 0.0 else Tech.TEXT["empty"], menu.TEXT, 15).set_meta("tech_asleep", true)
 		_line(col, Unbound.minor_text(prof, part), menu.DIM, 14)
 	else:
 		if bool(t.get("core", false)):
@@ -370,7 +449,8 @@ static func _card(menu, part: String, t: Dictionary) -> void:
 		_line(col, TEXT["fill"] % [fills, int(round(Tech.charge(t, prof))), int(round(Tech.strain(t)))], menu.GOLD, 14)
 		var on: bool = bool(Unbound.state(prof).get("boost", true))
 		_line(col, TEXT["boost"] % [Tech.cost_text(t, prof), int(Tech.BOOST * 100.0)], menu.GOLD if on else menu.DIM, 14)
-	_line(col, TEXT["level"] % [Unbound.PART_NAMES[part], lv, Unbound.MAX_LEVEL, int(Unbound.fill(prof, part)), int(Unbound.Core.CAP)], menu.DIM, 13)
+	if Unbound.awake(prof, part):
+		_line(col, TEXT["level"] % [Unbound.node_name(part), lv, Unbound.MAX_LEVEL, Unbound._num(Unbound.size(prof, part)), int(Unbound.Core.CAP)], menu.DIM, 13)
 	var said: Dictionary = menu.get_meta("tech_said", {})
 	if not said.is_empty() and Time.get_ticks_msec() - int(said.get("ms", 0)) < SAID_MS:
 		_line(col, String(said["line"]), Color(0.79, 0.65, 1.0) if bool(said.get("echo", false)) else UI.GOOD, 14).set_meta("tech_said", true)
@@ -430,7 +510,7 @@ static func _effect_row(menu, part: String, t: Dictionary, edit: bool) -> void:
 ## A line on where the part's essences come from, and the way to the Body
 ## tab (where essence moves between parts).
 static func _body_row(menu, part: String, awake: bool) -> void:
-	var nl: Label = menu._small_label((TEXT["essences_note"] if awake else TEXT["fill_note"]) % Unbound.PART_NAMES[part].to_lower(), menu.DIM)
+	var nl: Label = menu._small_label((TEXT["essences_note"] if awake else TEXT["fill_note"]) % Unbound.node_name(part), menu.DIM)
 	nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nl.custom_minimum_size.x = 280.0
 	var row := HBoxContainer.new()

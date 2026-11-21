@@ -344,12 +344,29 @@ func _tab_builds() -> void:
 	_check(echo_l.size() == 1 and echo_l[0].text.begins_with("Echoes Gale Lift"), "the card says \"Echoes Gale Lift\"")
 	var said: Array = _tab_labels("tech_said")
 	_check("gale_lift" in TR.state(prof)["echoes"] and said.size() == 1 and said[0].text.contains("Gale Lift"), "the change records the echo for the climber, and says so")
-	# A part not yet half full: nothing to change.
-	prof.part_density["brow"] = {"fire": 20.0}
+	# What the Abilities tab showed: each Node's minor ability and gift, and the practice room.
+	_check(_tab_labels("tech_gift").size() == 6 and _tab_buttons("try_abilities").size() == 1, "the tab also says what each Node gives (minor ability, gift) and offers Try your abilities on the train")
+	# A Node below level 6: nothing to change.
+	U.set_size(prof, "brow", 40.0)
 	main._give_bonds()
 	await _press("tech_slot", 3)
 	var asleep: Array = _tab_labels("tech_asleep")
-	_check(asleep.size() == 1 and asleep[0].text.contains("more to fill") and _tab_buttons("tech_form").is_empty(), "a part not yet half full says how far it has to go, and offers nothing to change")
+	_check(asleep.size() == 1 and asleep[0].text.contains("more size") and _tab_buttons("tech_form").is_empty(), "a Node below level 6 says how far it has to grow, and offers nothing to change")
+	# A sleeping Node: no numbers at all.
+	U.set_size(prof, "brow", 20.0)
+	main._give_bonds()
+	menu.open("climber", menu.opened_direct)
+	await t._frames(3)
+	asleep = _tab_labels("tech_asleep")
+	var digits := RegEx.new()
+	digits.compile("[0-9]")
+	var slot3: Array = _tab_buttons("tech_slot", 3)
+	_check(asleep.size() == 1 and asleep[0].text.contains("asleep") and slot3.size() == 1 and slot3[0].text.contains("asleep") and digits.search(slot3[0].text.substr(2)) == null, "a sleeping Node's slot and card say it sleeps (%s)" % (slot3[0].text if not slot3.is_empty() else "none"))
+	var gift3: Array = _tab_labels("tech_gift").filter(func(l): return l.get_meta("tech_gift") == "brow")
+	_check(gift3.size() == 1 and gift3[0].text.contains("asleep") and digits.search(gift3[0].text) == null, "...and so does its line under What Your Nodes Give")
+	U.set_size(prof, "brow", 60.0)
+	U.put(prof, "brow", "fire", 60.0)
+	main._give_bonds()
 	# Saved and loaded.
 	var path := TestRun.path("user://techniques_tab_test.cfg")
 	prof.save_path = path
