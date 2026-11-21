@@ -402,7 +402,7 @@ static func density_short(profile, g) -> String:
 		return ""
 	var need := int(TEMPER_DENSITY[k])
 	var kind := Train.gear_kind(r)
-	var have := int(profile.density.get(kind, 0.0))
+	var have := int(profile.body_density(kind) if profile.has_method("body_density") else profile.density.get(kind, 0.0))  # (the Unbound: their Nodes' sizes)
 	if have >= need:
 		return ""
 	return TEXT["density"] % [need, Essence.display(kind), have]

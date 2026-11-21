@@ -159,3 +159,113 @@ static func tincture_push() -> Dictionary:
 	for st in range(1, Profile.STEP_XP.size()):
 		out[st] = gain / (float(Profile.STEP_XP[st]) - float(Profile.STEP_XP[st - 1]))
 	return out
+
+
+# --- the Unbound's Nodes ----------------------------------------------------------------
+
+## A typical Unbound's use of each awake Node a floor: its technique cast
+## this many times (each spending a one-kind technique's charge, and a
+## boost's essence), or before it has a technique, this much of its own
+## action (what would fill one: strikes, rolls, parries...).
+const UB_CASTS := 3.0
+const UB_ACTION := 150.0
+## A caster who spams: this many times the typical use.
+const UB_SPAM := 10.0
+
+
+## Runs `climbs` climbs of `pattern` (PATTERNS key) for an Unbound who
+## refused the mark on their first climb (floors 1-5 banked, then the
+## Regard). `use`: "typical", "spam" or "none" (how hard they use their
+## awake Nodes); `routing`: "natural" (each kind to its own Node) or
+## "spread" (the climb's own kind, once its Node is awake, wakes the next
+## sleeping Node; a kind whose Node is at level 12 goes to the smallest Node
+## that isn't). Each summit condenses into the biggest awake Node that isn't
+## full. Returns {"sizes": [after each climb, part -> size], "awake": part ->
+## the climb it woke (0: never), "top": part -> the climb it reached level 12
+## (0: never)}.
+static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural") -> Dictionary:
+	var U = load("res://scripts/unbound.gd")
+	var Tech = load("res://scripts/technique.gd")
+	var prof = Profile.new()
+	prof.saving = false
+	var cs: float = Flow.default_crystal_share()
+	for f in range(1, Profile.FIRST_CLIMB_FLOORS):
+		prof.pour(_essence(OWN_TOWER, f), STYLE, cs)
+	prof.regarded = true
+	U.become(prof)
+	var woke := {}
+	var top := {}
+	var sizes: Array = []
+	var others: Array = Towers.ORDER.filter(func(t): return t != OWN_TOWER)
+	var oi := 0
+	var list: Array = PATTERNS[pattern]
+	var k: float = float({"typical": 1.0, "spam": UB_SPAM, "none": 0.0}.get(use, 1.0))
+	var charge := float(Tech.CHARGE[0])
+	var boost := float(Tech.COST[0])
+	for c in climbs:
+		var how: Dictionary = list[c % list.size()]
+		var tower: String = OWN_TOWER
+		if not bool(how["own"]):
+			tower = others[oi % others.size()]
+			oi += 1
+		var last := int(how["top"]) if int(how["top"]) >= Towers.SUMMIT else int(how["top"]) - 1
+		U.new_climb(prof)
+		if routing == "spread":
+			_ub_spread(prof, U, String(Towers.TOWERS[tower]["essence"]))
+		for f in range(1, last + 1):
+			if k > 0.0:
+				for part in U.PARTS:
+					if U.tech_ready(prof, part):
+						U.note_use(prof, part, UB_CASTS * charge * k, "cast")
+						U.note_use(prof, part, UB_CASTS * boost * k, "boost")
+					else:
+						U.note_use(prof, part, UB_ACTION * k, "action")
+			prof.pour(_essence(tower, f), {}, cs)
+		if last >= Towers.SUMMIT:
+			var best := ""
+			for part in U.PARTS:
+				if U.awake(prof, part) and U.size(prof, part) < 119.99 and (best == "" or U.size(prof, part) > U.size(prof, best)):
+					best = part
+			if best != "":
+				U.condense(prof, best, String(Towers.TOWERS[tower]["essence"]))
+		var now := {}
+		for part in U.PARTS:
+			now[part] = U.size(prof, part)
+			if not woke.has(part) and U.awake(prof, part):
+				woke[part] = c + 1
+			if not top.has(part) and U.level(prof, part) >= U.MAX_LEVEL:
+				top[part] = c + 1
+		sizes.append(now)
+	for part in U.PARTS:
+		if not woke.has(part):
+			woke[part] = 0
+		if not top.has(part):
+			top[part] = 0
+	return {"sizes": sizes, "awake": woke, "top": top}
+
+
+## "spread" routing, before a climb in a tower of `climb_kind`.
+static func _ub_spread(prof, U, climb_kind: String) -> void:
+	var small := ""
+	var sleeper := ""
+	for part in U.PARTS:
+		if U.size(prof, part) < 119.99 and (small == "" or U.size(prof, part) < U.size(prof, small)):
+			small = part
+		if not U.awake(prof, part) and (sleeper == "" or U.size(prof, part) > U.size(prof, sleeper)):
+			sleeper = part
+	for kind in U.NATURAL:
+		var home: String = U.NATURAL[kind]
+		var send := home
+		if U.level(prof, home) >= U.MAX_LEVEL and small != "":
+			send = small
+		elif kind == climb_kind and U.awake(prof, home) and sleeper != "":
+			send = sleeper  # (wake the next one)
+		U.route(prof, kind, send)
+
+
+## The climbs until a part reached a size (or 0), from run_unbound's sizes.
+static func climbs_to_size(sizes: Array, part: String, want: float) -> int:
+	for i in sizes.size():
+		if float(sizes[i].get(part, 0.0)) >= want - 0.0001:
+			return i + 1
+	return 0

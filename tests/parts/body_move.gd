@@ -33,13 +33,16 @@ func run(smoke) -> void:
 	prof.part_density["legs"] = {"air": 120.0}
 	U.put(prof, "brow", "water", 20.0)
 	U.put(prof, "brow", "air", 10.0)
+	for pt in ["heart", "throat", "back", "brow"]:
+		U.set_size(prof, pt, 120.0)  # (room to take more: a Node holds at most its size)
 	U.Core.sync(prof)
 	for m in ["move_from", "move_kind", "move_to", "move_said"]:
 		menu.remove_meta(m)
 	menu.climber_tab = "marks"
 	menu.open("climber")
 	await t._frames(3)
-	_check(menu.climber_tabs()[menu.MARKS_TAB_INDEX][1] == "Body", "an Unbound's Marks tab is the Body tab")
+	_check(menu.climber_tabs().map(func(x): return x[1]).slice(0, 3) == ["Body", "Techniques", "Essence"] and not menu.climber_tabs().any(func(x): return x[0] == "abilities"), "an Unbound's tabs start Body, Techniques, Essence (no Abilities, no Marks)")
+	_check(not _first_meta(menu.box, "attributes") == null and not _first_meta(menu.box, "node_levels") == null, "the Body tab shows the chosen Node's levels and the attributes")
 	var cards: Array = _with("help", "ub_part")
 	_check(cards.size() == 6, "each body part's card is a button (%d)" % cards.size())
 	var p := BM.plan(menu)
@@ -87,7 +90,7 @@ func run(smoke) -> void:
 		_one("ub_move_to").pressed.emit()
 		await t._frames(2)
 		seen[BM.plan(menu)["to"]] = true
-	_check(not seen.has("legs") and not seen.has("brow") and not seen.has("") and not seen.has("back") and seen.size() == 3, "pressing To offers only parts that can take Stone: %s" % str(seen.keys()))
+	_check(not seen.has("legs") and not seen.has("brow") and not seen.has("") and not seen.has("back") and seen.size() == 3, "pressing To offers only Nodes that can take Stone: %s" % str(seen.keys()))
 	# A target that can't take it (as when it has just filled): why, right there.
 	menu.set_meta("move_to", "brow")
 	menu.open("climber", menu.opened_direct)
@@ -126,6 +129,32 @@ func run(smoke) -> void:
 	e.queue_free()
 	await t._frames(2)
 	_check(not BM.hunted(main), "no monster left: free to move")
+	# A sleeping Node: its card shows no numbers; pressing it makes it the
+	# Node to feed; its levels say only that it sleeps.
+	U.set_size(prof, "throat", 0.0)
+	prof.part_density.erase("throat")
+	U.state(prof)["primary"].erase("throat")
+	U.set_size(prof, "throat", 20.0)
+	menu.open("climber", menu.opened_direct)
+	await t._frames(3)
+	var sleepy: Array = _with("help", "ub_part_asleep")
+	var digits := RegEx.new()
+	digits.compile("[0-9]")
+	_check(sleepy.size() == 1 and sleepy[0].get_meta("part", "") == "throat" and digits.search(sleepy[0].text) == null and sleepy[0].text.contains("sleep"), "a sleeping Node's card says it sleeps, with no numbers (%s)" % (sleepy[0].text.replace("\n", " / ") if not sleepy.is_empty() else "none"))
+	if not sleepy.is_empty():
+		sleepy[0].pressed.emit()
+		await t._frames(3)
+	p = BM.plan(menu)
+	var lv_l: Control = _first_meta(menu.box, "node_levels")
+	_check(p["to"] == "throat" and bool(p["feed"]) and _one("ub_move_to") != null and _one("ub_move_to").text.contains("asleep"), "pressing it makes it the Node to feed (%s)" % (_one("ub_move_to").text if _one("ub_move_to") != null else "none"))
+	_check(lv_l != null and lv_l is Label and String(lv_l.get_meta("node_levels")) == "throat" and digits.search(lv_l.text.replace("10", "")) == null, "...and under the cards, only that it sleeps and how it wakes")
+	var th0: float = U.size(prof, "throat")
+	_one("ub_move").pressed.emit()
+	await t._frames(3)
+	_check(U.size(prof, "throat") > th0 and U.own(prof, "throat") == 0.0 and not _labels("move_said").is_empty() and _labels("move_said")[0].text.begins_with("Fed"), "Feed: the essence soaks into the sleeping Node (%s)" % (_labels("move_said")[0].text if not _labels("move_said").is_empty() else "none"))
+	U.set_size(prof, "throat", 120.0)
+	menu.remove_meta("move_to")
+	menu.remove_meta("node_pick")
 	# A phone: the page stays where it was after a press, and fits 844x390.
 	var was_size: Vector2i = t.root.size
 	t.root.size = Vector2i(844, 390)
@@ -166,9 +195,10 @@ func run(smoke) -> void:
 	# The Entity's words.
 	var Help = load("res://scripts/entity_help.gd")
 	var E = load("res://scripts/entity.gd")
-	for id in ["ub_part", "ub_move_from", "ub_move_kind", "ub_move_to", "ub_move", "ub_drain", "ub_body_open"]:
+	for id in ["ub_part", "ub_part_asleep", "ub_move_from", "ub_move_kind", "ub_move_to", "ub_move", "ub_drain", "ub_body_open"]:
 		_check(Help.HELP.has(id), "hover and hold help for %s" % id)
 	_check(E.TIPS.has("unbound_body") and String(E.TIPS["unbound_body"]["tip"]).length() < 140, "the Entity explains the Body tab the first time")
+	_check(E.TIPS.has("node_asleep") and String(E.TIPS["node_asleep"]["tip"]).length() < 140, "...and a sleeping Node the first time one shows")
 	var words := (str(E.TIPS["unbound_move"]) + str(E.TIPS["unbound"]) + str(load("res://scripts/entity_talk.gd").DIALOGUE["how_unbound"])).to_lower()
 	_check(not words.contains("techniques page show") and words.contains("body tab"), "the Entity's words send you to the Body tab, not the Techniques page")
 

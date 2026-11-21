@@ -705,22 +705,25 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 	for part in style:
 		style_total += maxf(0.0, float(style[part]))
 	var levels_before := {}
+	var grown_before := {}
 	if unbound:
 		for part in Unbound.PARTS:
 			levels_before[part] = Unbound.level(self, part)
+			grown_before[part] = float(Unbound.state(self)["grown"].get(part, 0.0))
 	for kind in to_body:
 		var b := float(to_body[kind])
 		if b <= 0.0:
 			continue
 		density[kind] = float(density.get(kind, 0.0)) + b
 		if unbound:
-			# (the Unbound: it fills its part, slowly; what can't go in condenses)
+			# (the Unbound: it soaks into a sleeping Node, or tops up an awake
+			# one and refills its use, growing it; what can't go in condenses)
 			var left := Unbound.settle(self, kind, b)
 			var spill := floorf(left)
 			if spill >= 1.0:
 				add_crystal(kind, spill)
 				out["made"][kind] = float(out["made"].get(kind, 0.0)) + spill
-				out["lines"].append(Unbound.TEXT["spill"] % [String(Bonds.PART_NAMES[Unbound.part_for(self, kind)]).to_lower(), Flow.Essence.display(kind), int(spill)])
+				out["lines"].append(Unbound.TEXT["spill"] % [Unbound.node_name(Unbound.part_for(self, kind)), Flow.Essence.display(kind), int(spill)])
 		elif style_total > 0.0:
 			for part in style:
 				var pd: Dictionary = part_density.get(part, {})
@@ -736,33 +739,40 @@ func pour(essence: Dictionary, run_soak: Dictionary, crystal_share := 0.0) -> Di
 		out["lines"] = feed_marks(to_marks)
 	if unbound:
 		out["lines"].append_array(Unbound.absorb(self))
-		out["lines"].append_array(unbound_levels(levels_before))
+		out["lines"].append_array(unbound_levels(levels_before, grown_before))
+		Unbound.end_stair(self)  # (use not refilled here is gone)
 	return out
 
 
-## The stair's lines for an Unbound's parts that filled to a new level
-## (`before`: part -> level before): a part waking, half full, full, pure.
-func unbound_levels(before: Dictionary) -> Array:
+## The stair's lines for an Unbound's Nodes (`before`: part -> level
+## before; `grown_before`: part -> size grown by use this climb, before): a
+## Node awakening, reaching a new level (its technique, level 12, pure), or
+## growing with use. A sleeping Node says nothing: it shows no numbers.
+func unbound_levels(before: Dictionary, grown_before := {}) -> Array:
 	var lines: Array = []
 	var Tech = load("res://scripts/technique.gd")
+	var st: Dictionary = Unbound.state(self)
 	for part in Unbound.PARTS:
 		var was := int(before.get(part, 0))
 		var lv := Unbound.level(self, part)
-		if lv <= was:
+		var name := Unbound.node_name(part)
+		if lv > was:
+			if was < Unbound.MAX_LEVEL and lv >= Unbound.MAX_LEVEL:
+				var sig := Unbound.signature(self, part)
+				if not sig.is_empty():
+					lines.append(Unbound.TEXT["pure_up"] % [Tech.display(Unbound.primary(self, part)), name, String(sig["name"])])
+				else:
+					lines.append(Unbound.TEXT["full_up"] % [name, "its capstone wakes"])
+			elif was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
+				lines.append(Unbound.TEXT["tech_up"] % [name, lv, "a technique"])
+			elif was < Unbound.MINOR_LEVEL and lv >= Unbound.MINOR_LEVEL:
+				lines.append(Unbound.TEXT["awake_up"] % [name, Unbound.minor_text(self, part)])
+			elif lv >= Unbound.MINOR_LEVEL:
+				lines.append(Unbound.TEXT["level_up"] % [name, lv])
 			continue
-		var name := String(Bonds.PART_NAMES[part]).to_lower()
-		if was < Unbound.MAX_LEVEL and lv >= Unbound.MAX_LEVEL:
-			var sig := Unbound.signature(self, part)
-			if not sig.is_empty():
-				lines.append(Unbound.TEXT["pure_up"] % [Tech.display(Unbound.primary(self, part)), name, String(sig["name"])])
-			else:
-				lines.append(Unbound.TEXT["full_up"] % [name, "its capstone wakes"])
-		elif was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
-			lines.append(Unbound.TEXT["tech_up"] % [name, "a technique"])
-		elif was < Unbound.MINOR_LEVEL and lv >= Unbound.MINOR_LEVEL:
-			lines.append(Unbound.TEXT["minor_up"] % [name, Unbound.minor_text(self, part)])
-		else:
-			lines.append(Unbound.TEXT["level_up"] % [name, lv])
+		var g := float(st["grown"].get(part, 0.0)) - float(grown_before.get(part, 0.0))
+		if g >= 0.05 and lv >= Unbound.MINOR_LEVEL:
+			lines.append(Unbound.TEXT["grew"] % [name, Unbound._num(Unbound.size(self, part))])
 	return lines
 
 
@@ -860,21 +870,19 @@ func drink(kind: String, amount: float, part: String) -> Dictionary:
 	if amount <= 0.0 or not part in Bonds.PARTS:
 		return {"lines": lines, "said": said}
 	if Unbound.is_on(self):
-		# (a tincture's essence is concentrated: it fills the part as much as
-		# more banked essence would, if the part's rules let it in; what
-		# can't go in condenses into crystals)
-		var why := Unbound.why_not(self, part, kind)
-		if why != "":
-			add_crystal(kind, floorf(amount))
-			return {"lines": lines, "said": why}
+		# (a tincture's essence is concentrated: it goes into the Node as
+		# much more banked essence would: soaking into a sleeping Node, or
+		# topping up an awake one and refilling its use; what can't go in
+		# condenses into crystals)
 		var boost := float(Flow.TINCTURE.get("mark_boost", 1.0))
 		var before := {part: Unbound.level(self, part)}
+		var grown0 := {part: float(Unbound.state(self)["grown"].get(part, 0.0))}
 		var left := Unbound.settle_into(self, part, kind, amount * boost)
 		if left / boost >= 1.0:
 			add_crystal(kind, floorf(left / boost))
 		density[kind] = float(density.get(kind, 0.0)) + amount
-		lines = unbound_levels(before)
-		said = String(Flow.TEXT["to_raw"]) % String(Bonds.PART_NAMES[part]).to_lower()
+		lines = unbound_levels(before, grown0)
+		said = String(Flow.TEXT["to_raw"]) % Unbound.node_name(part)
 	elif bonds.has(part):
 		var info: Dictionary = Bonds.BONDS[bonds[part]["id"]]
 		var gain := amount * (AFFINITY_WEIGHT if String(info["affinity"]) == kind else OTHER_WEIGHT) * float(Flow.TINCTURE.get("mark_boost", 1.0))
@@ -919,9 +927,20 @@ func flow_step() -> int:
 
 
 ## An attribute's small passive bonus (0 to ATTRIBUTE_CAP) from its density.
+## The Unbound's comes from their Nodes' sizes instead (unbound.gd attr_size).
 func attribute(kind: String) -> float:
+	if Unbound.is_on(self):
+		return ATTRIBUTE_CAP * Unbound.attr_share(self, kind)
 	var d := float(density.get(kind, 0.0))
 	return ATTRIBUTE_CAP * d / (d + ATTRIBUTE_HALF)
+
+
+## The density settled in you of a kind (the bench's tempering asks for it):
+## for the Unbound, the size their Nodes count for it (unbound.gd attr_size).
+func body_density(kind: String) -> float:
+	if Unbound.is_on(self):
+		return Unbound.attr_size(self, kind)
+	return float(density.get(kind, 0.0))
 
 
 ## How much the body's marks slow every part's filling (BODY_DRAG).

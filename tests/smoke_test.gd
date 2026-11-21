@@ -8685,7 +8685,7 @@ func _economy_tests() -> void:
 	var cond: Dictionary = ub.condense({"blade": 40.0}, share)
 	ub.bank(cond["keep"], {})
 	var part: String = U.part_for(ub, "blade")
-	_check(ub.crystal_total("blade") == floorf(40.0 * share) and is_equal_approx(float(ub.part_density.get(part, {}).get("blade", 0.0)), (40.0 - floorf(40.0 * share)) * U.LEVEL_SIZE / float(U.FILL_COST[0])), "the Unbound condense the same share; only the rest fills the %s (slowly)" % part)
+	_check(ub.crystal_total("blade") == floorf(40.0 * share) and is_equal_approx(U.size(ub, part), (40.0 - floorf(40.0 * share)) * U.LEVEL_SIZE / float(U.GROW_COST[0])) and U.own(ub, part) == 0.0, "the Unbound condense the same share; only the rest soaks into the sleeping %s Node (slowly)" % part)
 	# The setting: on the Settings page, saved with the settings.
 	menu.open("settings")
 	await _frames(2)
@@ -11052,29 +11052,29 @@ func _unbound_tests() -> void:
 	main.victory = {}
 	U.become(prof)  # (the parts and pages below are an Unbound's)
 
-	print("the Unbound: body parts fill like cups")
-	prof.part_density = {}
+	print("the Unbound: Nodes wake from banked essence")
+	U.set_nodes(prof, {})
 	U.state(prof)["primary"] = {}
 	U.state(prof)["core"] = {}
 	prof.path = ""
 	prof.flow = 0.0
 	prof.bank({"fire": 60.0, "air": 30.0}, {"hand": 5.0})
-	_check(is_equal_approx(U.amount(prof, "brow", "fire"), 60.0 * U.LEVEL_SIZE / U.FILL_COST[0]) and U.amount(prof, "legs", "air") > 0.0, "banked essence fills its natural part, slowly (60 Fire: %.1f in the brow)" % U.amount(prof, "brow", "fire"))
-	_check(not prof.part_density.has("hand"), "...not where you used your body")
+	_check(is_equal_approx(U.size(prof, "brow"), 60.0 * U.LEVEL_SIZE / U.GROW_COST[0]) and U.size(prof, "legs") > 0.0 and U.own(prof, "brow") == 0.0, "banked essence soaks into its natural Node, slowly (60 Fire: the Brow Node's size %.1f, still asleep)" % U.size(prof, "brow"))
+	_check(not prof.part_density.has("hand") and U.size(prof, "hand") == 0.0, "...not where you used your body")
 	U.route(prof, "fire", "hand")
 	prof.bank({"fire": 60.0}, {})
-	_check(U.amount(prof, "hand", "fire") > 0.0, "routing sends a kind to another part from then on")
+	_check(U.size(prof, "hand") > 0.0, "routing sends a kind to another Node from then on")
 	U.route(prof, "fire", "brow")
 	_check(U.level_for(0.0) == 0 and U.level_for(30.0) == 3 and U.level_for(99999.0) == 12, "a level every 10, 0 to 12")
 	prof.part_density = {}
 	for pt in U.PARTS:
 		U.put(prof, pt, String(U.PART_KIND[pt]), 120.0)
-	_check(U.stage_name(prof) == "Unbound" and U.stage(prof) == 12, "the stages, by the body's total fill: the last is Unbound")
-	prof.part_density = {}
+	_check(U.stage_name(prof) == "Unbound" and U.stage(prof) == 12, "the stages, by the Nodes' total size: the last is Unbound")
+	U.set_nodes(prof, {})
 	_check(U.stage_name(prof) == "Stir", "...the first is Stir")
 
 	print("the Unbound: a part's essence makes its technique")
-	prof.part_density = {}
+	U.set_nodes(prof, {})
 	U.state(prof)["primary"] = {}
 	U.put(prof, "throat", "fire", 60.0)
 	U.put(prof, "throat", "air", 30.0)
@@ -11232,9 +11232,10 @@ func _unbound_tests() -> void:
 	await _frames(2)
 	_check(main.camp_choosing and main.camp.get("stage", "") == "condense" and main.camp["choices"].size() == 6 and prof.bonds.is_empty(), "at a summit the Unbound take no mark: they choose a part to condense into")
 	var kind: String = main.tower_data().get("essence", "air")
-	var had: float = U.amount(prof, U.PARTS[2], kind)
+	var had: float = U.size(prof, U.PARTS[2])
+	_check(main.camp_card(2)["desc"].contains("size") and main.camp_card(2)["name"].contains("Node"), "each card names a Node and the size it would reach (%s)" % main.camp_card(2)["desc"])
 	main.choose_camp(2)
-	_check(is_equal_approx(U.amount(prof, U.PARTS[2], kind), had + U.CONDENSE) and not main.victory.is_empty(), "the tower's essence condenses there, then the victory")
+	_check(U.size(prof, U.PARTS[2]) > had and U.amount(prof, U.PARTS[2], kind) > 0.0 and not main.victory.is_empty(), "the tower's essence condenses there (the Node grows a little: %.1f to %.1f), then the victory" % [had, U.size(prof, U.PARTS[2])])
 	main.victory = {}
 
 	print("the Unbound: pages")
@@ -13817,9 +13818,9 @@ func _abilities_tests() -> void:
 	_check(more_text.contains("Fills") and more_text.contains("Strain") and more_text.contains("Boost") and more_text.contains("wind-up"), "...and in more: how it fills, its strain, its boost and its numbers")
 	menu.open("abilities")
 	await _frames(3)
-	cards = _all_buttons(menu).filter(func(b): return b.has_meta("ability") and b.is_visible_in_tree())
+	cards = _all_buttons(menu).filter(func(b): return b.has_meta("tech_slot") and b.is_visible_in_tree())
 	tabs = _all_buttons(menu).filter(func(b): return b.has_meta("tab"))
-	_check(cards.size() == 6 and tabs[menu.MARKS_TAB_INDEX].text == menu.UNBOUND_MARKS_TAB, "the page shows the six (and the Marks tab is the Body for the Unbound)")
+	_check(menu.climber_tab == "techniques" and cards.size() == 6 and tabs[0].text == menu.UNBOUND_MARKS_TAB and not tabs.any(func(b): return b.text == "Abilities"), "for the Unbound, Abilities opens their Techniques tab: the six (their tabs start with Body; no Abilities tab)")
 	_check(_all_buttons(menu).filter(func(b): return b.has_meta("try_abilities")).is_empty(), "...with no practice room in a climb")
 	menu.close()
 	await _frames(2)
@@ -13881,9 +13882,9 @@ func _abilities_tests() -> void:
 	await _frames(3)
 	menu.open("abilities", true)
 	await _frames(3)
-	_check(menu.page == "climber" and menu.climber_tab == "abilities" and menu.rail.visible, "the Abilities page opens beside the train's rail")
+	_check(menu.page == "climber" and menu.climber_tab == "techniques" and menu.rail.visible, "for the Unbound the Abilities page is their Techniques tab, beside the train's rail")
 	var try_b: Array = _all_buttons(menu).filter(func(b): return b.has_meta("try_abilities"))
-	_check(try_b.size() == 1 and not _all_buttons(menu).filter(func(b): return b.has_meta("change_techniques")).is_empty(), "...with Try your abilities and Change techniques")
+	_check(try_b.size() == 1 and not _all_buttons(menu).filter(func(b): return b.has_meta("tech_form")).is_empty(), "...with Try your abilities and the techniques to change")
 	var save_path: String = main.profile.save_path
 	if FileAccess.file_exists(TestRun.path("user://practice_test_save.cfg")):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TestRun.path("user://practice_test_save.cfg")))
@@ -13921,7 +13922,7 @@ func _abilities_tests() -> void:
 	_check(leave_b.size() == 1 and _menu_button("Restart this climb") == null, "the pause menu offers Back to the train")
 	leave_b[0].pressed.emit()
 	await _frames(4)
-	_check(not pr.on and main.on_train and menu.page == "climber" and menu.climber_tab == "abilities", "...which returns to the train, on the Abilities page")
+	_check(not pr.on and main.on_train and menu.page == "climber" and menu.climber_tab == "techniques", "...which returns to the train, on the Techniques tab (the Unbound's Abilities)")
 	_check(main.enemies().filter(func(e): return e.kind == "dummy" and not e.is_queued_for_deletion()).is_empty() and main.profile.saving and not main.dev_no_death, "...the dummies gone, saving and dying as before")
 	if FileAccess.file_exists(TestRun.path("user://practice_test_save.cfg")):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TestRun.path("user://practice_test_save.cfg")))

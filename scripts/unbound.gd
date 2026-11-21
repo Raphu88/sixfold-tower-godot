@@ -13,34 +13,52 @@ extends RefCounted
 ##   choice). After the first climb a marked climber can't become Unbound.
 ##   It's for good, except through the Developer (a secret bond): its holder
 ##   can let the beasts mark them again (return_to_marks).
-## A BODY PART IS A CUP (profile.part_density: part -> {kind: amount})
-##   Each part holds CAP (120). Banked essence flows into its natural part
-##   (Blade the hand, Air the legs...), or wherever it's ROUTED at the train,
-##   and fills it slowly: FILL_COST is how much banked essence ten more take
-##   at each level (the fuller the part, the slower it fills). A full part
-##   takes no more: what's left condenses into crystals (essence is never
-##   lost). On the climber screen's Body tab (body_move.gd), whenever no
-##   monster is after the climber, essence can be MOVED from one part to
-##   another; a share of it is the price (MOVE_COST): unmade on the Unmaking path,
-##   turned into core essence on the Making path, condensed into crystals
-##   before a path is chosen.
-##   PRIMARY: the first essence in a part leads it and must stay at least
-##   half of the part's own essence (an essence that would push it under
-##   can't come in). At most MAX_KINDS kinds a part. The others are
-##   MODIFIERS: each adds its touch to every technique of the part, stronger
+## NODES. The Unbound's six body parts are called NODES (the Hand Node, the
+##   Legs Node...; marked climbers keep "body parts"). A Node has two numbers:
+##   what it HOLDS (profile.part_density: part -> {kind: amount}; it powers
+##   the Node's techniques and can be moved) and its SIZE, its density
+##   (state "size": how much it can hold, 0 to CAP 120). It never holds more
+##   than its size: banked essence that doesn't fit condenses into crystals
+##   (essence is never lost).
+##   ASLEEP: a Node starts asleep, at size 0, holding nothing. Banked essence
+##     routed to it (its natural kind: Blade the hand, Air the legs...; or
+##     wherever a kind is ROUTED at the train) soaks into it and grows its
+##     size, GROW_COST banked essence for 10 more at its level; moving
+##     essence into it feeds it the same way. At WAKE_SIZE (30) it AWAKENS.
+##     While it sleeps the player sees no numbers for it, only that it sleeps.
+##   AWAKE: banked essence tops up what it holds (up to its size). Its size
+##     grows by USE: what its techniques spend (and the boosts they pay), or
+##     before it has a technique what its own action does (USE weights),
+##     asks for that much back at the next stair; the essence banked into the
+##     Node that refills it is used up, stretching it (GROW_COST for 10 at
+##     its level), at most USE "climb_cap" size a climb. Use not refilled at
+##     a stair is gone, so casting more than you bank adds nothing. Moving
+##     essence never changes a size. (note_use, settle_into.)
+##   On the climber screen's Body tab (body_move.gd), whenever no monster is
+##   after the climber, essence can be MOVED from one awake Node to another,
+##   or fed to a sleeping one; a share of it is the price (MOVE_COST):
+##   unmade on the Unmaking path, turned into core essence on the Making
+##   path, condensed into crystals before a path is chosen.
+##   PRIMARY: the first essence in a Node leads it and must stay at least
+##   half of the Node's own essence (an essence that would push it under
+##   can't come in). At most MAX_KINDS kinds a Node. The others are
+##   MODIFIERS: each adds its touch to every technique of the Node, stronger
 ##   the bigger its share. The core essence (core.gd) takes room in every
-##   part and adds its own touch, but counts for neither rule; once it's at
-##   least half of what a part holds, the part is CORE-LED: the core leads
+##   Node and adds its own touch, but counts for neither rule; once it's at
+##   least half of what a Node holds, the Node is CORE-LED: the core leads
 ##   it, its technique becomes a core technique (CORE_TECHS, stronger at
-##   half full and again at full: CORE_POWER) and the core slowly absorbs
-##   the other essences (core.gd ABSORB).
-##   LEVELS: every LEVEL_SIZE (10) of fill is a level, 0 to MAX_LEVEL (12).
-##   Level MINOR_LEVEL wakes the part's MINOR ability (a touch of its lead
-##   essence on the part's own action), GIFT_LEVEL brings its gift,
-##   TECH_LEVEL (half full) opens its techniques (it learns the first by
-##   itself: change its form on the Techniques tab), then the tree's forks
-##   and forms, and at MAX_LEVEL (full) its capstone, and its SIGNATURE if
-##   one essence fills it all (a pure part). The total sets the STAGE.
+##   level 6 and again at 12: CORE_POWER) and the core slowly absorbs the
+##   other essences (core.gd ABSORB).
+##   LEVELS: every LEVEL_SIZE (10) of size is a level, 0 to MAX_LEVEL (12).
+##   Level MINOR_LEVEL (waking) brings the Node's MINOR ability (a touch of
+##   its lead essence on its own action), GIFT_LEVEL its gift, TECH_LEVEL its
+##   techniques (it learns the first by itself: change its form on the
+##   Techniques tab), then the tree's forks and forms, and at MAX_LEVEL its
+##   capstone, and its SIGNATURE if one essence fills it all (a pure Node).
+##   The total size sets the STAGE.
+##   ATTRIBUTES (Agility, Strength...: profile.gd attribute) come from the
+##   awake Nodes' sizes: each Node's size counts for the essences it holds,
+##   in proportion (attr_size); ATTR "half" is where a bonus is half its cap.
 ## Profile state lives in profile.unbound (state() fills in its keys).
 
 const Core := preload("res://scripts/core.gd")
@@ -51,16 +69,28 @@ static var PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "bro
 const NATURAL := {"blade": "hand", "air": "legs", "stone": "back", "water": "throat", "fire": "brow", "iron": "heart"}
 ## Each part's main colour (its natural essence's), for the veins.
 const PART_KIND := {"hand": "blade", "legs": "air", "back": "stone", "throat": "water", "brow": "fire", "heart": "iron"}
-## Fill per level, and the levels.
+## Size per level, and the levels.
 const LEVEL_SIZE := 10.0
 const MAX_LEVEL := 12
-## The fill each level needs (index = level - 1): 10, 20 ... 120.
+## The size each level needs (index = level - 1): 10, 20 ... 120.
 static var LEVELS := [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0]
-## Banked essence that ten more fill take, at each level (index = the part's level now).
-static var FILL_COST := [60.0, 90.0, 120.0, 180.0, 270.0, 400.0, 600.0, 900.0, 1300.0, 1900.0, 2700.0, 3900.0]
+## Essence that ten more size take, at each level (index = the Node's level
+## now): banked essence soaked in while it sleeps (levels 0-2), and refilled
+## use once it's awake (3 on). Slow, and slower the bigger the Node.
+static var GROW_COST := [60.0, 90.0, 120.0, 130.0, 160.0, 220.0, 320.0, 450.0, 620.0, 860.0, 1200.0, 1700.0]
+## Growth by use. Essence a Node's technique spends on a cast counts "cast"
+## times as use, a boost's essence "boost" times; before the Node has a
+## technique, its own action (what would fill one: player.gd _part_action)
+## counts "action" times. At most "climb_cap" size grows by use in one climb.
+static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5, "climb_cap": 18.0}
+## Attributes from the Nodes' sizes: an attribute's bonus is half its cap
+## (profile.gd ATTRIBUTE_CAP) at "half" size counted for its essence.
+static var ATTR := {"half": 60.0}
 const MINOR_LEVEL := 3
 const GIFT_LEVEL := 5
 const TECH_LEVEL := 6
+## A sleeping Node awakens at this size (level MINOR_LEVEL: its minor ability wakes).
+const WAKE_SIZE := 30.0
 ## Kinds of essence a part holds at most (the core essence not counted).
 const MAX_KINDS := 3
 ## A part's core essence must be at least this much to lead it.
@@ -95,8 +125,10 @@ const MINOR_ACTS := {"hand": "your weapon strikes", "legs": "your rolls", "heart
 ## The stages, from the body's total fill (index = stage - 1).
 const STAGES := ["Stir", "Pulse", "Current", "Surge", "Swell", "Torrent", "Tide", "Tempest", "Deluge", "Maelstrom", "Cataclysm", "Unbound"]
 const STAGE_AT := [0.0, 24.0, 60.0, 108.0, 168.0, 240.0, 324.0, 408.0, 492.0, 576.0, 660.0, 720.0]
-## At a summit the Unbound condense the tower's essence into a part of their choice (fill).
-const CONDENSE := 6.0
+## At a summit the Unbound condense this much of the tower's essence into a
+## Node of their choice: it grows it as that much refilled use would (or
+## soaks into a sleeping one), and tops up what it holds.
+static var CONDENSE := 60.0
 ## Moving essence (body_move.gd): this much at a press, and the share it costs.
 const MOVE_STEP := 6.0
 const MOVE_COST := 0.25
@@ -128,54 +160,61 @@ static var CORE_TECHS := {
 
 static var TEXT := {
 	"name": "Unbound",
+	"node": "%s Node",
+	"asleep": "asleep",
 	"refuse_title": "THE BEAST OFFERS A MARK",
-	"refuse_lines": ["Take it, and you are marked as every climber is.", "Refuse it, and essence fills your body raw. There is no road back."],
+	"refuse_lines": ["Take it, and you are marked as every climber is.", "Refuse it, and essence wakes your body raw. There is no road back."],
 	"accept_name": "Accept the mark",
 	"accept_desc": "Take the %s mark on your %s. Your bonds grow as they always have.",
 	"refuse_name": "Refuse it",
-	"refuse_desc": "Become Unbound: no tower bond, now or later. Banked essence fills your six body parts raw, and a part half full gives you a technique of your own.",
+	"refuse_desc": "Become Unbound: no tower bond, now or later. Banked essence wakes six Nodes in your body; each grows as you use it and gives you techniques of your own.",
 	"refuse_note": "for good",
 	"refuse_again": "Tap again to refuse, for good",
 	"refuse_again_keys": "Press again to refuse, for good",
 	"refused_title": "REFUSED",
-	"refused_lines": ["You broke a barrier on your first climb.", "%s will not mark you.", "You are Unbound.", "Banked essence fills your six body parts raw."],
+	"refused_lines": ["You broke a barrier on your first climb.", "%s will not mark you.", "You are Unbound.", "Banked essence will wake six Nodes in your body."],
 	"accepted": "Essence takes hold in your %s: the %s mark",
 	"stage": "%s  ·  stage %d of 12",
 	"climber_line": "Unbound  ·  %s  ·  %d %s  ·  best floor %d",
 	"level": "level %d",
 	"condense_title": "CONDENSE",
-	"condense_sub": "No mark for the Unbound. Draw the tower's %s essence into one part.",
-	"condense_card": "+%d %s",
-	"condense_desc": "%s essence fills your %s: level %d now.",
-	"condense_full": "Your %s can't take %s now.",
-	"condensed": "%d %s essence condenses in your %s",
+	"condense_sub": "No mark for the Unbound. Draw the tower's %s essence into one Node.",
+	"condense_card": "%s",
+	"condense_desc": "%s essence stretches your %s: size %s of 120, level %d.",
+	"condense_sleep": "%s essence soaks into your sleeping %s, bringing it closer to waking.",
+	"condense_full": "Your %s is as big as it grows. The %s essence tops up what it holds.",
+	"condensed": "%s essence condenses into your %s",
 	"back_title": "MARKED AGAIN",
 	"back": "Raw essence settles back into a bond: the %s mark on your %s.",
 	"back_none": "Raw essence settles back into you. Your next marks will come sooner.",
-	# Filling, at the stair.
-	"level_up": "Your %s fills to level %d",
-	"minor_up": "Your %s wakes: %s",
-	"tech_up": "Your %s is half full: it learns %s",
-	"full_up": "Your %s is full: %s",
+	# Waking and growing, at the stair.
+	"level_up": "Your %s grows to level %d",
+	"awake_up": "Your %s awakens: %s",
+	"tech_up": "Your %s reaches level %d: it learns %s",
+	"full_up": "Your %s reaches level 12: %s",
 	"pure_up": "Pure %s fills your %s: %s",
-	"spill": "Your %s can't take more %s: %d condenses into crystals",
+	"grew": "Your %s grows with use (size %s)",
+	"spill": "Your %s can't hold more %s: %d condenses into crystals",
 	"core_led": "Your %s is core-led: %s",
 	"minor": "Now and then %s carry a touch of %s: %s.",
-	"minor_none": "Its minor ability wakes at level %d.",
+	"minor_none": "Its minor ability wakes when it awakens (level %d).",
 	# Moving essence (body_move.gd).
 	"moved": "Moved %s %s from your %s to your %s",
+	"fed": "Fed %s %s from your %s to your sleeping %s",
 	"drained": "Drained %s %s from your %s: %s crystals",
 	"cost_unmade": "%s unmade",
 	"cost_core": "%s turned into Making",
 	"cost_crystals": "%s condensed into crystals",
 	"cant_kinds": "Your %s already holds three kinds",
 	"cant_primary": "%s must stay at least half of your %s",
-	"cant_full": "Your %s is full",
+	"cant_full": "Your %s is full: it grows only with use",
 	"cant_empty": "No %s in your %s",
+	"cant_asleep": "Your %s is asleep: it holds nothing yet",
 }
 
 
 ## The climber's Unbound state, with every key filled in (old saves have none).
+## ("size" is left out here: _sizes() makes it, converting an old save.)
 static func state(prof) -> Dictionary:
 	var st = prof.get("unbound")
 	if not (st is Dictionary):
@@ -200,6 +239,10 @@ static func state(prof) -> Dictionary:
 		st["core"] = {}  # part -> core essence there (core.gd)
 	if not (st.get("seen") is Dictionary):
 		st["seen"] = {}  # part -> the highest level it has shown (the first-time moments)
+	if not (st.get("used") is Dictionary):
+		st["used"] = {}  # part -> use waiting to be refilled at the next stair (note_use)
+	if not (st.get("grown") is Dictionary):
+		st["grown"] = {}  # part -> size grown by use this climb (USE "climb_cap")
 	return st
 
 
@@ -207,8 +250,14 @@ static func is_on(prof) -> bool:
 	return prof != null and bool(state(prof).get("on", false))
 
 
+## A Node's name: "Hand Node".
+static func node_name(part: String) -> String:
+	return TEXT["node"] % PART_NAMES.get(part, part)
+
+
 ## An old save's cups made to fit (an older Unbound's huge raw density):
-## each part's own essence at most CAP, at most MAX_KINDS kinds.
+## each part's own essence at most CAP, at most MAX_KINDS kinds; then its
+## Nodes made from them (_sizes: each part's fill becomes its size).
 static func tidy(prof) -> void:
 	if not is_on(prof):
 		return
@@ -229,7 +278,137 @@ static func tidy(prof) -> void:
 			for k in keep:
 				keep[k] = float(keep[k]) * Core.CAP / t
 		prof.part_density[part] = keep
+	_sizes(prof)
 	Core.sync(prof)
+
+
+# --- the Nodes' sizes ---------------------------------------------------------------------
+
+## The Nodes' sizes (state "size": part -> size). An Unbound from before the
+## Nodes has none yet: each part's fill (its own essence and core) becomes
+## its Node's size, so no growth is lost. A Node under WAKE_SIZE stays asleep
+## and keeps that size as its progress toward waking; it holds nothing, so
+## its own essence condenses into crystals (its core stays).
+static func _sizes(prof) -> Dictionary:
+	var st := state(prof)
+	if st.get("size") is Dictionary:
+		return st["size"]
+	var sz := {}
+	if not bool(st.get("on", false)):
+		return sz  # (a marked climber: no Nodes, nothing kept)
+	st["size"] = sz
+	for part in PARTS:
+		var c := float(st["core"].get(part, 0.0))
+		var s := minf(Core.CAP, own(prof, part) + c)  # (its old fill: its level is kept)
+		sz[part] = s
+		if s < WAKE_SIZE - 0.0001:
+			var pd = prof.part_density.get(part, {})
+			if pd is Dictionary:
+				for k in pd:
+					var whole := floorf(maxf(0.0, float(pd[k])))
+					if whole >= 1.0:
+						prof.add_crystal(String(k), whole)
+			prof.part_density.erase(part)
+			st["primary"].erase(part)
+	return sz
+
+
+## A Node's size: its density, how much of its own essence it can hold (0
+## to CAP). It is never less than what it holds (essence put straight in by
+## the dev tools or a test stretches it).
+static func size(prof, part: String) -> float:
+	var sz := _sizes(prof)
+	var s := float(sz.get(part, 0.0))
+	var held := own(prof, part)
+	if held > s + 0.0001 and is_on(prof):
+		s = minf(Core.CAP, held)
+		sz[part] = s
+	return s
+
+
+## True once a Node has awakened (size WAKE_SIZE). Asleep, it holds nothing,
+## shows no numbers, and only soaks up the essence routed to it.
+static func awake(prof, part: String) -> bool:
+	return is_on(prof) and size(prof, part) >= WAKE_SIZE - 0.0001
+
+
+## Sets a Node's size outright (the dev tools, tests): what it holds kept within it.
+static func set_size(prof, part: String, s: float) -> void:
+	_sizes(prof)[part] = clampf(s, 0.0, Core.CAP)
+	var pd = prof.part_density.get(part, {})
+	var o := own(prof, part)
+	if pd is Dictionary and o > s and o > 0.0:
+		for kind in pd.keys():
+			pd[kind] = float(pd[kind]) * s / o
+
+
+## Sets what the Nodes hold (part -> {kind: amount}) and makes each Node's
+## size exactly that (the dev tools and tests: a quick way to a level).
+static func set_nodes(prof, holds: Dictionary) -> void:
+	prof.part_density = holds.duplicate(true)
+	var sz := _sizes(prof)
+	for part in PARTS:
+		sz[part] = minf(Core.CAP, own(prof, part))
+
+
+## The same for one Node.
+static func set_node(prof, part: String, holds: Dictionary) -> void:
+	prof.part_density[part] = holds.duplicate(true)
+	_sizes(prof)[part] = minf(Core.CAP, own(prof, part))
+
+
+## Grows a Node by `essence` worth (GROW_COST for 10 at each level), up to
+## `top` size. Returns the essence used.
+static func _grow(prof, part: String, essence: float, top: float) -> float:
+	var left := essence
+	var sz := _sizes(prof)
+	top = minf(top, Core.CAP)
+	for _i in 64:
+		var s := size(prof, part)
+		if left <= 0.0001 or s >= top - 0.0001:
+			break
+		var lv := level_for(s)
+		if lv >= MAX_LEVEL:
+			break
+		var cost := float(GROW_COST[mini(lv, GROW_COST.size() - 1)])
+		var to_next := minf(float(LEVELS[lv]) - s, top - s)
+		if to_next <= 0.0001:
+			to_next = minf(LEVEL_SIZE, top - s)
+		var g := minf(left * LEVEL_SIZE / cost, to_next)
+		if g <= 0.00001:
+			break
+		sz[part] = s + g
+		left -= g * cost / LEVEL_SIZE
+	return essence - maxf(0.0, left)
+
+
+## Use waiting to be refilled at the next stair.
+static func used(prof, part: String) -> float:
+	return float(state(prof)["used"].get(part, 0.0))
+
+
+## A Node was used: `essence` spent by its technique ("cast"), on a boost
+## ("boost"), or its own action before it has a technique ("action"). It asks
+## for that much (times USE[how]) back at the next stair. Asleep, nothing.
+static func note_use(prof, part: String, essence: float, how := "cast") -> void:
+	if essence <= 0.0 or not part in PARTS or not awake(prof, part):
+		return
+	var st := state(prof)
+	st["used"][part] = used(prof, part) + essence * float(USE.get(how, 1.0))
+
+
+## A new climb: its growth by use starts again (USE "climb_cap"); use left
+## from the last climb is gone.
+static func new_climb(prof) -> void:
+	var st := state(prof)
+	st["used"] = {}
+	st["grown"] = {}
+
+
+## After a stair: use that wasn't refilled is gone (casting more than you
+## bank adds nothing).
+static func end_stair(prof) -> void:
+	state(prof)["used"] = {}
 
 
 # --- where essence goes ----------------------------------------------------------------
@@ -252,7 +431,7 @@ static func route(prof, kind: String, part: String) -> void:
 		routes[kind] = part
 
 
-## A part's own essence (its cup, the core not counted).
+## A Node's own essence (what it holds, the core not counted).
 static func own(prof, part: String) -> float:
 	var total := 0.0
 	var pd = prof.part_density.get(part, {})
@@ -324,12 +503,12 @@ static func lead(prof, part: String) -> String:
 	return String(prof.path) if core_led(prof, part) else primary(prof, part)
 
 
-## How full a part is: its own essence and its core (at most CAP).
+## What a body part holds: the Node's own essence and its core (at most CAP).
 static func fill(prof, part: String) -> float:
 	return minf(Core.CAP, own(prof, part) + core(prof, part))
 
 
-## (The name older code uses for a part's fill.)
+## (The name older code uses for what a part holds.)
 static func raw(prof, part: String) -> float:
 	return fill(prof, part)
 
@@ -338,57 +517,73 @@ static func level_for(amt: float) -> int:
 	return clampi(int(floor(amt / LEVEL_SIZE + 0.0001)), 0, MAX_LEVEL)
 
 
+## A Node's level, from its size.
 static func level(prof, part: String) -> int:
-	return level_for(fill(prof, part))
+	return level_for(size(prof, part))
 
 
-## Fill to the next level (0 at the top).
+## Size to the next level (0 at the top).
 static func next_need(prof, part: String) -> float:
 	var lv := level(prof, part)
 	if lv >= MAX_LEVEL:
 		return 0.0
-	return float(LEVELS[lv]) - fill(prof, part)
+	return float(LEVELS[lv]) - size(prof, part)
 
 
-## Room left in a part (for its own essence or core).
+## Room left in a Node for its own essence: within its size, and within
+## its part's CAP beside the core there; none while it sleeps.
 static func room(prof, part: String) -> float:
-	return maxf(0.0, Core.CAP - own(prof, part) - core(prof, part))
-
-
-## How much of a kind (fill) a part can still take: its room, no fourth
-## kind, and the primary kept at least half of its own essence.
-static func take_limit(prof, part: String, kind: String) -> float:
-	var r := room(prof, part)
-	if r <= 0.0:
+	if not awake(prof, part):
 		return 0.0
+	var o := own(prof, part)
+	return maxf(0.0, minf(size(prof, part) - o, Core.CAP - o - core(prof, part)))
+
+
+## How much of a kind a Node's rules let in, its room aside: no fourth
+## kind, and the primary kept at least half of its own essence.
+static func kind_limit(prof, part: String, kind: String) -> float:
 	var m := mix(prof, part)
 	if m.is_empty():
-		return r
+		return INF
 	if not kind in m and m.size() >= MAX_KINDS:
 		return 0.0
 	var p := primary(prof, part)
 	if kind == p:
-		return r
-	return clampf(2.0 * amount(prof, part, p) - own(prof, part), 0.0, r)
+		return INF
+	return maxf(0.0, 2.0 * amount(prof, part, p) - own(prof, part))
 
 
-## Why a kind can't go into a part ("" if it can).
+## How much of a kind a Node can still hold: its room, within its rules.
+static func take_limit(prof, part: String, kind: String) -> float:
+	var r := room(prof, part)
+	if r <= 0.0:
+		return 0.0
+	return clampf(kind_limit(prof, part, kind), 0.0, r)
+
+
+## Why a kind can't go into a Node ("" if it can).
 static func why_not(prof, part: String, kind: String) -> String:
+	if not awake(prof, part):
+		return TEXT["cant_asleep"] % node_name(part)
 	if room(prof, part) <= 0.0:
-		return TEXT["cant_full"] % PART_NAMES[part].to_lower()
+		return TEXT["cant_full"] % node_name(part)
 	if take_limit(prof, part, kind) > 0.0:
 		return ""
 	var m := mix(prof, part)
 	if not kind in m and m.size() >= MAX_KINDS:
-		return TEXT["cant_kinds"] % PART_NAMES[part].to_lower()
-	return TEXT["cant_primary"] % [_display(primary(prof, part)), PART_NAMES[part].to_lower()]
+		return TEXT["cant_kinds"] % node_name(part)
+	return TEXT["cant_primary"] % [_display(primary(prof, part)), node_name(part)]
 
 
-## Puts up to `amt` fill of a kind into a part (within take_limit). Returns what went in.
+## Puts up to `amt` of a kind straight into a Node, within its kind rules
+## (the dev tools and tests; the game's own paths keep to take_limit, so a
+## Node never holds more than its size). The size stretches to fit. Returns
+## what went in.
 static func put(prof, part: String, kind: String, amt: float) -> float:
 	if amt <= 0.0 or not part in PARTS:
 		return 0.0
-	var g := minf(amt, take_limit(prof, part, kind))
+	var g := minf(amt, kind_limit(prof, part, kind))
+	g = minf(g, maxf(0.0, Core.CAP - own(prof, part) - core(prof, part)))
 	if g <= 0.0:
 		return 0.0
 	var was_empty := mix(prof, part).is_empty()
@@ -397,6 +592,7 @@ static func put(prof, part: String, kind: String, amt: float) -> float:
 	prof.part_density[part] = pd
 	if was_empty:
 		state(prof)["primary"][part] = kind
+	size(prof, part)  # (stretched to fit)
 	return g
 
 
@@ -417,47 +613,91 @@ static func take(prof, part: String, kind: String, amt: float) -> float:
 	return g
 
 
-## Banked essence of one kind fills its part (profile.gd pour), slowly: ten
-## fill cost FILL_COST at the part's level. Returns the banked essence left
-## over (the part full, or the rules keeping it out).
+## Banked essence of one kind goes to its Node (profile.gd pour). Returns
+## the banked essence left over (to condense into crystals).
 static func settle(prof, kind: String, banked: float) -> float:
 	return settle_into(prof, part_for(prof, kind), kind, banked)
 
 
+## Essence of a kind into one Node. Asleep, it soaks in and grows the size
+## (GROW_COST), all of it used, until the Node awakens; awake, it tops up
+## what the Node holds, then refills the Node's use (used up, growing it, at
+## most USE "climb_cap" a climb), then tops up again. Returns what's left.
 static func settle_into(prof, part: String, kind: String, banked: float) -> float:
+	if banked <= 0.0 or not part in PARTS:
+		return maxf(0.0, banked)
 	var left := banked
-	for _i in 64:
-		if left <= 0.0001:
-			break
-		var lim := take_limit(prof, part, kind)
-		if lim <= 0.0001:
-			break
-		var f := fill(prof, part)
-		var lv := level_for(f)
-		if lv >= MAX_LEVEL:
-			break
-		var cost := float(FILL_COST[mini(lv, FILL_COST.size() - 1)])
-		var to_next := float(LEVELS[lv]) - f
-		if to_next <= 0.0001:
-			to_next = LEVEL_SIZE
-		var g := minf(left * LEVEL_SIZE / cost, minf(lim, to_next))
-		if g <= 0.00001:
-			break
-		put(prof, part, kind, g)
-		left -= g * cost / LEVEL_SIZE
+	if not awake(prof, part):
+		left -= _grow(prof, part, left, WAKE_SIZE)
+		if not awake(prof, part):
+			Core.sync(prof)
+			return 0.0  # (all of it soaked in)
+	left -= put(prof, part, kind, minf(left, take_limit(prof, part, kind)))
+	var st := state(prof)
+	var want := used(prof, part)
+	if want > 0.0001 and left > 0.0001:
+		var s0 := size(prof, part)
+		var cap_left := maxf(0.0, float(USE.get("climb_cap", 30.0)) - float(st["grown"].get(part, 0.0)))
+		var spent := _grow(prof, part, minf(want, left), s0 + cap_left)
+		st["used"][part] = maxf(0.0, want - spent)
+		st["grown"][part] = float(st["grown"].get(part, 0.0)) + size(prof, part) - s0
+		left -= spent
+		left -= put(prof, part, kind, minf(left, take_limit(prof, part, kind)))
 	Core.sync(prof)
 	return maxf(0.0, left)
+
+
+## Feeds `amt` of a kind to a sleeping Node (moving essence into it): it
+## soaks in as banked essence would. Returns what it took.
+static func feed(prof, part: String, kind: String, amt: float) -> float:
+	if awake(prof, part):
+		return 0.0
+	var left := settle_into(prof, part, kind, amt)
+	return amt - left
+
+
+## A summit's condensing (CONDENSE of the tower's essence into one Node):
+## a sleeping Node soaks it in; an awake one grows as that much refilled use
+## would (outside the climb's cap: it's the summit's gift), then tops up what
+## it holds. What can't go in is let go.
+static func condense(prof, part: String, kind: String) -> void:
+	if not part in PARTS:
+		return
+	var left := float(CONDENSE)
+	if not awake(prof, part):
+		left -= _grow(prof, part, left, WAKE_SIZE)
+	if awake(prof, part) and left > 0.0001:
+		left -= put(prof, part, kind, minf(left, take_limit(prof, part, kind)))
+		_grow(prof, part, left, Core.CAP)
+		put(prof, part, kind, take_limit(prof, part, kind))  # (the tower's essence fills the room it made)
+	Core.sync(prof)
+
+
+## The size an awake Node would reach from a summit's condensing (its card).
+static func condense_size(prof, part: String) -> float:
+	var s := size(prof, part)
+	var left := float(CONDENSE) - minf(float(CONDENSE), maxf(0.0, s - own(prof, part)))
+	while left > 0.0001 and s < Core.CAP - 0.0001:
+		var lv := level_for(s)
+		var cost := float(GROW_COST[mini(lv, GROW_COST.size() - 1)])
+		var g := minf(left * LEVEL_SIZE / cost, maxf(0.0001, float(LEVELS[mini(lv, MAX_LEVEL - 1)]) - s))
+		s += g
+		left -= g * cost / LEVEL_SIZE
+	return minf(s, Core.CAP)
 
 
 ## How much of a kind a press of Move (or Drain, `to` "") would take out of
 ## `from` (0 if none can go): at most `amt`, what's there, and what the
 ## target can take once the price is paid (body_move.gd's buttons show it).
+## A sleeping target takes any amount (it soaks in).
 static func move_amount(prof, kind: String, from: String, to: String, amt := MOVE_STEP) -> float:
+	if not awake(prof, from):
+		return 0.0
 	var have := amount(prof, from, kind)
 	if have <= 0.01:
 		return 0.0
 	var want := minf(amt, have)
-	if to != "":
+	if to != "" and awake(prof, to):
 		var lim := take_limit(prof, to, kind)
 		if lim <= 0.01:
 			return 0.0
@@ -465,13 +705,14 @@ static func move_amount(prof, kind: String, from: String, to: String, amt := MOV
 	return want
 
 
-## Moves essence of a kind from one part to another (`to` "" drains it into
-## crystals). MOVE_COST of it is the price: unmade (Unmaking), turned into
-## core (Making), or crystals (no path yet). Returns {"ok", "line", "moved"}.
+## Moves essence of a kind from one Node to another (`to` "" drains it into
+## crystals; a sleeping `to` is fed: it soaks in). MOVE_COST of it is the
+## price: unmade (Unmaking), turned into core (Making), or crystals (no path
+## yet). Moving never changes a size. Returns {"ok", "line", "moved"}.
 static func move(prof, kind: String, from: String, to: String, amt := MOVE_STEP) -> Dictionary:
 	var have := amount(prof, from, kind)
 	if have <= 0.01:
-		return {"ok": false, "line": TEXT["cant_empty"] % [_display(kind), PART_NAMES[from].to_lower()], "moved": 0.0}
+		return {"ok": false, "line": TEXT["cant_empty"] % [_display(kind), node_name(from)], "moved": 0.0}
 	var want := move_amount(prof, kind, from, to, amt)
 	if want <= 0.0:
 		return {"ok": false, "line": why_not(prof, to, kind), "moved": 0.0}
@@ -479,14 +720,18 @@ static func move(prof, kind: String, from: String, to: String, amt := MOVE_STEP)
 	var price := out * MOVE_COST
 	var arrive := out - price
 	var line := ""
-	if to != "":
-		put(prof, to, kind, arrive)
-		line = TEXT["moved"] % [_num(out), _display(kind), PART_NAMES[from].to_lower(), PART_NAMES[to].to_lower()]
+	if to != "" and not awake(prof, to):
+		feed(prof, to, kind, arrive)
+		line = TEXT["fed"] % [_num(out), _display(kind), node_name(from), node_name(to)]
+	elif to != "":
+		var g := minf(arrive, take_limit(prof, to, kind))
+		put(prof, to, kind, g)
+		line = TEXT["moved"] % [_num(out), _display(kind), node_name(from), node_name(to)]
 	else:
 		var c := int(floor(arrive))
 		if c >= 1:
 			prof.add_crystal(kind, float(c))
-		line = TEXT["drained"] % [_num(out), _display(kind), PART_NAMES[from].to_lower(), str(c)]
+		line = TEXT["drained"] % [_num(out), _display(kind), node_name(from), str(c)]
 	match String(prof.path):
 		"unmaking":
 			line += "  ·  " + TEXT["cost_unmade"] % _num(price)
@@ -519,13 +764,14 @@ static func absorb(prof) -> Array:
 		for k in mix(prof, part):
 			take(prof, part, k, x * amount(prof, part, k) / o)
 		Core.add(prof, x, part)
-		lines.append(Core.TEXT["absorbed"] % [PART_NAMES[part].to_lower(), int(ceil(x)), "essence"])
+		lines.append(Core.TEXT["absorbed"] % [node_name(part), int(ceil(x)), "essence"])
 	return lines
 
 
-## True once one essence alone fills a part (the core not counted): its signature.
+## True once one essence alone fills a Node at full size (the core taking
+## none of it): its signature.
 static func pure(prof, part: String) -> bool:
-	return mix(prof, part).size() == 1 and fill(prof, part) >= Core.CAP - 0.01 and not core_led(prof, part)
+	return mix(prof, part).size() == 1 and size(prof, part) >= Core.CAP - 0.01 and fill(prof, part) >= Core.CAP - 0.01 and not core_led(prof, part)
 
 
 ## The signature a pure, full part brings ({} if none).
@@ -535,8 +781,8 @@ static func signature(prof, part: String) -> Dictionary:
 	return SIGNATURES.get("%s:%s" % [part, primary(prof, part)], {})
 
 
-## A part can carry a technique: half full, with something to lead it.
-static func awake(prof, part: String) -> bool:
+## A Node can carry a technique: level TECH_LEVEL, with something to lead it.
+static func tech_ready(prof, part: String) -> bool:
 	return level(prof, part) >= TECH_LEVEL and lead(prof, part) != ""
 
 
@@ -572,18 +818,42 @@ static func gift(prof, key: String) -> float:
 ## A part's minor ability, in words.
 static func minor_text(prof, part: String) -> String:
 	var k := lead(prof, part)
-	if k == "" or level(prof, part) < MINOR_LEVEL:
+	if k == "" or not awake(prof, part):
 		return TEXT["minor_none"] % MINOR_LEVEL
 	var T = load("res://scripts/technique.gd")
 	return TEXT["minor"] % [MINOR_ACTS[part], T.display(k), String(T.KINDS.get(k, {}).get("hit", ""))]
 
 
-## The body's total fill (the six parts).
+## The body's total size (the six Nodes).
 static func total(prof) -> float:
 	var t := 0.0
 	for part in PARTS:
-		t += fill(prof, part)
+		t += size(prof, part)
 	return t
+
+
+## The size counted for an essence's attribute (profile.gd attribute): each
+## awake Node's size, shared among the essences it holds in proportion to
+## how much of each (all of it to its natural essence while it holds none).
+static func attr_size(prof, kind: String) -> float:
+	if not is_on(prof):
+		return 0.0
+	var t := 0.0
+	for part in PARTS:
+		if not awake(prof, part):
+			continue
+		var o := own(prof, part)
+		if o > 0.01:
+			t += size(prof, part) * amount(prof, part, kind) / o
+		elif String(PART_KIND[part]) == kind:
+			t += size(prof, part)
+	return t
+
+
+## An attribute's share of its cap (0 to 1) from attr_size: half at ATTR "half".
+static func attr_share(prof, kind: String) -> float:
+	var s := attr_size(prof, kind)
+	return s / (s + maxf(1.0, float(ATTR.get("half", 60.0))))
 
 
 static func stage(prof) -> int:
@@ -678,7 +948,7 @@ static func sync_techs(prof) -> Array:
 		if not (t is Dictionary):
 			t = {}
 			techs[i] = t
-		if not awake(prof, part):
+		if not tech_ready(prof, part):
 			continue
 		if t.is_empty() or String(t.get("part", "")) != part:
 			techs[i] = {"name": "", "part": part, "shape": String(Library.BASE_FORMS[part][0])}
@@ -691,7 +961,7 @@ static func sync_techs(prof) -> Array:
 ## The technique a slot carries now ({} while its part sleeps).
 static func tech_of(prof, i: int) -> Dictionary:
 	var techs: Array = state(prof)["techs"]
-	if i < 0 or i >= techs.size() or not awake(prof, PARTS[i]):
+	if i < 0 or i >= techs.size() or not tech_ready(prof, PARTS[i]):
 		return {}
 	var t = techs[i]
 	return t if t is Dictionary and not t.is_empty() else {}
@@ -700,8 +970,9 @@ static func tech_of(prof, i: int) -> Dictionary:
 # --- becoming Unbound, and going back ------------------------------------------
 
 ## Becomes Unbound: no tower bonds from now on (any carried are given up).
-## No techniques yet: the essence already in the body flows into its
-## natural parts, and a part half full will learn one.
+## Six Nodes, all asleep at size 0: the essence already in the body soaks
+## into each kind's natural Node (the first climb's essence is enough to
+## nearly wake one). No techniques yet: a Node learns one at TECH_LEVEL.
 static func become(prof) -> void:
 	var st := state(prof)
 	var was_on := bool(st["on"])
@@ -722,6 +993,11 @@ static func become(prof) -> void:
 		st["primary"] = {}
 		st["core"] = {}
 		st["seen"] = {}
+		st["used"] = {}
+		st["grown"] = {}
+		st["size"] = {}
+		for part in PARTS:
+			st["size"][part] = 0.0
 		st["techs"] = []
 		for i in PARTS.size():
 			st["techs"].append({})
@@ -740,16 +1016,16 @@ static func can_return(prof) -> bool:
 	return is_on(prof) and String(prof.core_mark) == "developer"
 
 
-## The Developer lets the tower beasts mark them again: the densest part
+## The Developer lets the tower beasts mark them again: the biggest Node
 ## takes a mark (its bond chosen by what's pooled there), growing from
-## SETTLE of its fill; the other parts keep SETTLE of theirs as soak.
+## SETTLE of its size; the other parts keep SETTLE of theirs as soak.
 ## Returns {part, id} ("" for none).
 static func return_to_marks(prof) -> Dictionary:
 	if not can_return(prof):
 		return {}
 	var fills := {}
 	for part in PARTS:
-		fills[part] = fill(prof, part)
+		fills[part] = size(prof, part)
 	var st := state(prof)
 	st["on"] = false
 	prof.bonds = {}
