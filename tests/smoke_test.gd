@@ -10859,7 +10859,7 @@ func _ub_starters(prof) -> void:
 	U.state(prof)["primary"] = {}
 	for i in U.PARTS.size():
 		var r: Dictionary = T.recipe(T.STARTERS[i])
-		U.put(prof, U.PARTS[i], String(r["kinds"][0]), float(U.LEVELS[U.TECH_LEVEL - 1]))
+		U.put(prof, U.PARTS[i], String(r["kinds"][0]), float(U.LEVELS[U.FULL_TECH_LEVEL - 1]))
 		U.state(prof)["techs"][i] = r
 
 
@@ -10877,7 +10877,7 @@ func _ub_fresh() -> void:
 	prof.part_density = {}
 	U.state(prof)["primary"] = {}
 	for part in U.PARTS:
-		U.put(prof, part, String(U.PART_KIND[part]), float(U.LEVELS[U.TECH_LEVEL - 1]))
+		U.put(prof, part, String(U.PART_KIND[part]), float(U.LEVELS[U.FULL_TECH_LEVEL - 1]))
 	main.unbound.minor_chance = 0.0
 	main._give_bonds()
 	for e in main.enemies():
@@ -10911,8 +10911,8 @@ func _unbound_tests() -> void:
 	_check(main.camp_choosing and int(main.camp["armed"]) == 1 and not U.is_on(prof), "the first press only arms the refusal")
 	main.choose_camp(1)
 	_check(U.is_on(prof) and prof.bonds.is_empty() and main.camp.get("stage", "") != "unbind", "refusing makes you Unbound and no mark is taken")
-	_check(p.bonds.is_empty() and U.state(prof)["techs"].all(func(t): return t.is_empty()), "a new Unbound carries no technique yet: a part must be half full first")
-	_check(U.PARTS.all(func(pt): return U.level(prof, pt) < U.TECH_LEVEL), "...no part is half full yet (what the body had flows into its natural parts)")
+	_check(p.bonds.is_empty() and U.state(prof)["techs"].all(func(t): return t.is_empty()), "a new Unbound carries no technique yet: a part must reach level 3 first")
+	_check(U.PARTS.all(func(pt): return U.level(prof, pt) < U.TECH_LEVEL), "...no part is at level 3 yet (what the body had flows into its natural parts)")
 	main.camp_choosing = false
 	main.camp = {}
 	# Accepting changes nothing.
@@ -11065,7 +11065,7 @@ func _unbound_tests() -> void:
 	prof.bank({"fire": 60.0}, {})
 	_check(U.size(prof, "hand") > 0.0, "routing sends a kind to another Node from then on")
 	U.route(prof, "fire", "brow")
-	_check(U.level_for(0.0) == 0 and U.level_for(30.0) == 3 and U.level_for(99999.0) == 12, "a level every 10, 0 to 12")
+	_check(U.level_for(0.0) == 0 and U.level_for(30.0) == 1 and U.level_for(99999.0) == 12, "asleep is level 0, waking is level 1, full is 12")
 	prof.part_density = {}
 	for pt in U.PARTS:
 		U.put(prof, pt, String(U.PART_KIND[pt]), 120.0)

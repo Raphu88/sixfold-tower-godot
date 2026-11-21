@@ -268,13 +268,13 @@ static func _dev_barriers(menu) -> void:
 	menu._say("A barrier broken: the Regard will refuse you" if run.broke_rules else "No barrier broken: the Regard will offer the mark")
 
 
-## Dev: a Node 10 bigger (and filled to its new size).
+## Dev: a Node one level bigger (and filled to its new size).
 static func _dev_density(menu, part: String) -> void:
 	var prof = menu.main.profile
 	var k: String = Unbound.primary(prof, part)
 	if k == "":
 		k = Unbound.PART_KIND[part]
-	Unbound.set_size(prof, part, Unbound.size(prof, part) + Unbound.LEVEL_SIZE)
+	Unbound.set_size(prof, part, Unbound.size(prof, part) + maxf(Unbound.next_need(prof, part), 0.01))
 	if Unbound.awake(prof, part):
 		Unbound.put(prof, part, k, Unbound.take_limit(prof, part, k))
 	Unbound.Core.sync(prof)

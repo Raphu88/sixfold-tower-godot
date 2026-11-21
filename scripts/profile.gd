@@ -767,6 +767,8 @@ func unbound_levels(before: Dictionary, grown_before := {}) -> Array:
 					lines.append(Unbound.TEXT["pure_up"] % [Tech.display(Unbound.primary(self, part)), name, String(sig["name"])])
 				else:
 					lines.append(Unbound.TEXT["full_up"] % [name, "its capstone wakes"])
+			elif was < Unbound.FULL_TECH_LEVEL and lv >= Unbound.FULL_TECH_LEVEL:
+				lines.append(Unbound.TEXT["full_tech_up"] % [name, lv])
 			elif was < Unbound.TECH_LEVEL and lv >= Unbound.TECH_LEVEL:
 				lines.append(Unbound.TEXT["tech_up"] % [name, lv, "a technique"])
 			elif was < Unbound.MINOR_LEVEL and lv >= Unbound.MINOR_LEVEL:

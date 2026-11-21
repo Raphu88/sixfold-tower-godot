@@ -49,12 +49,17 @@ extends RefCounted
 ##   it, its technique becomes a core technique (CORE_TECHS, stronger at
 ##   level 6 and again at 12: CORE_POWER) and the core slowly absorbs the
 ##   other essences (core.gd ABSORB).
-##   LEVELS: every LEVEL_SIZE (10) of size is a level, 0 to MAX_LEVEL (12).
-##   Level MINOR_LEVEL (waking) brings the Node's MINOR ability (a touch of
-##   its lead essence on its own action), GIFT_LEVEL its gift, TECH_LEVEL its
-##   techniques (it learns the first by itself: change its form on the
-##   Techniques tab), then the tree's forks and forms, and at MAX_LEVEL its
-##   capstone, and its SIGNATURE if one essence fills it all (a pure Node).
+##   LEVELS: a sleeping Node is level 0; it wakes at level 1 (WAKE_SIZE 30)
+##   and the levels run to MAX_LEVEL (12) at size 120 (the LEVELS table).
+##   Level MINOR_LEVEL (1, waking) brings the Node's MINOR ability (a touch
+##   of its lead essence on its own action), TECH_LEVEL (3) a YOUNG technique
+##   (limited: its first form only, its lead essence only, YOUNG_POWER
+##   strength), GIFT_LEVEL (5) its gift, FULL_TECH_LEVEL (6) the full
+##   technique (its other essences join, its other starting forms open, full
+##   strength; change its form on the Techniques tab), then the tree's forks
+##   and forms, and at MAX_LEVEL its capstone, and its SIGNATURE if one
+##   essence fills it all (a pure Node). Growth costs go by size, in bands of
+##   COST_BAND (10): GROW_COST.
 ##   The total size sets the STAGE.
 ##   ATTRIBUTES (Agility, Strength...: profile.gd attribute) come from the
 ##   awake Nodes' sizes: each Node's size counts for the essences it holds,
@@ -69,14 +74,17 @@ static var PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "bro
 const NATURAL := {"blade": "hand", "air": "legs", "stone": "back", "water": "throat", "fire": "brow", "iron": "heart"}
 ## Each part's main colour (its natural essence's), for the veins.
 const PART_KIND := {"hand": "blade", "legs": "air", "back": "stone", "throat": "water", "brow": "fire", "heart": "iron"}
-## Size per level, and the levels.
-const LEVEL_SIZE := 10.0
+## Growth costs go by size, in bands of this much (GROW_COST).
+const COST_BAND := 10.0
+## (The old name: a band of size.)
+const LEVEL_SIZE := COST_BAND
 const MAX_LEVEL := 12
-## The size each level needs (index = level - 1): 10, 20 ... 120.
-static var LEVELS := [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0]
-## Essence that ten more size take, at each level (index = the Node's level
-## now): banked essence soaked in while it sleeps (levels 0-2), and refilled
-## use once it's awake (3 on). Slow, and slower the bigger the Node.
+## The size each level needs (index = level - 1): level 1 is waking (30),
+## level 12 is full (120).
+static var LEVELS := [30.0, 38.0, 46.0, 54.0, 62.0, 70.0, 78.0, 86.0, 94.0, 102.0, 111.0, 120.0]
+## Essence that ten more size take, in each band of COST_BAND size (index =
+## floor(size / 10)): banked essence soaked in while it sleeps (sizes 0-30),
+## and refilled use once it's awake. Slow, and slower the bigger the Node.
 static var GROW_COST := [60.0, 90.0, 120.0, 130.0, 160.0, 220.0, 320.0, 450.0, 620.0, 860.0, 1200.0, 1700.0]
 ## Growth by use. Essence a Node's technique spends on a cast counts "cast"
 ## times as use, a boost's essence "boost" times; before the Node has a
@@ -86,16 +94,21 @@ static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5, "climb_cap": 18.0}
 ## Attributes from the Nodes' sizes: an attribute's bonus is half its cap
 ## (profile.gd ATTRIBUTE_CAP) at "half" size counted for its essence.
 static var ATTR := {"half": 60.0}
-const MINOR_LEVEL := 3
+const MINOR_LEVEL := 1
+## A young technique: its first form, its lead essence alone, weaker.
+const TECH_LEVEL := 3
 const GIFT_LEVEL := 5
-const TECH_LEVEL := 6
-## A sleeping Node awakens at this size (level MINOR_LEVEL: its minor ability wakes).
+## The full technique: its other essences join, its other forms open.
+const FULL_TECH_LEVEL := 6
+## A young technique's strength at TECH_LEVEL, rising to 1x at FULL_TECH_LEVEL.
+const YOUNG_POWER := 0.6
+## A sleeping Node awakens at this size (level 1, MINOR_LEVEL: its minor ability wakes).
 const WAKE_SIZE := 30.0
 ## Kinds of essence a part holds at most (the core essence not counted).
 const MAX_KINDS := 3
 ## A part's core essence must be at least this much to lead it.
 const CORE_LED_MIN := 6.0
-## Techniques from a part hit this much harder at level 12 (1x at TECH_LEVEL).
+## Techniques from a part hit this much harder at level 12 (1x at FULL_TECH_LEVEL).
 const MAX_POWER := 2.0
 ## A modifier essence acts at twice its share of the part's own essence (at
 ## most 1, at least MOD_MIN); the core at twice its share of all the part
@@ -104,7 +117,7 @@ const MAX_POWER := 2.0
 const MOD_MIN := 0.15
 const CORE_MOD := 0.75
 const LED_MOD := 0.25
-## A core technique hits this much harder: half full, full.
+## A core technique hits this much harder: from FULL_TECH_LEVEL, and full.
 const CORE_POWER := [1.5, 2.0]
 ## Each part's gift at GIFT_LEVEL.
 const GIFTS := {
@@ -191,6 +204,8 @@ static var TEXT := {
 	"level_up": "Your %s grows to level %d",
 	"awake_up": "Your %s awakens: %s",
 	"tech_up": "Your %s reaches level %d: it learns %s",
+	"full_tech_up": "Your %s reaches level %d: its technique comes into its own (its other essences join, its other forms open, full strength)",
+	"young": "Young technique: its first form and its lead essence only, %d%% strength. At level %d its other essences join and its other forms open.",
 	"full_up": "Your %s reaches level 12: %s",
 	"pure_up": "Pure %s fills your %s: %s",
 	"grew": "Your %s grows with use (size %s)",
@@ -367,18 +382,18 @@ static func _grow(prof, part: String, essence: float, top: float) -> float:
 		var s := size(prof, part)
 		if left <= 0.0001 or s >= top - 0.0001:
 			break
-		var lv := level_for(s)
-		if lv >= MAX_LEVEL:
+		if s >= Core.CAP - 0.0001:
 			break
-		var cost := float(GROW_COST[mini(lv, GROW_COST.size() - 1)])
-		var to_next := minf(float(LEVELS[lv]) - s, top - s)
+		var b := cost_band(s)
+		var cost := float(GROW_COST[b])
+		var to_next := minf(float(b + 1) * COST_BAND - s, top - s)
 		if to_next <= 0.0001:
-			to_next = minf(LEVEL_SIZE, top - s)
-		var g := minf(left * LEVEL_SIZE / cost, to_next)
+			to_next = minf(COST_BAND, top - s)
+		var g := minf(left * COST_BAND / cost, to_next)
 		if g <= 0.00001:
 			break
 		sz[part] = s + g
-		left -= g * cost / LEVEL_SIZE
+		left -= g * cost / COST_BAND
 	return essence - maxf(0.0, left)
 
 
@@ -514,7 +529,16 @@ static func raw(prof, part: String) -> float:
 
 
 static func level_for(amt: float) -> int:
-	return clampi(int(floor(amt / LEVEL_SIZE + 0.0001)), 0, MAX_LEVEL)
+	var lv := 0
+	for i in LEVELS.size():
+		if amt + 0.0001 >= float(LEVELS[i]):
+			lv = i + 1
+	return lv
+
+
+## The band of size a Node's growth is priced at (GROW_COST's index).
+static func cost_band(s: float) -> int:
+	return clampi(int(floor(s / COST_BAND + 0.0001)), 0, GROW_COST.size() - 1)
 
 
 ## A Node's level, from its size.
@@ -678,11 +702,11 @@ static func condense_size(prof, part: String) -> float:
 	var s := size(prof, part)
 	var left := float(CONDENSE) - minf(float(CONDENSE), maxf(0.0, s - own(prof, part)))
 	while left > 0.0001 and s < Core.CAP - 0.0001:
-		var lv := level_for(s)
-		var cost := float(GROW_COST[mini(lv, GROW_COST.size() - 1)])
-		var g := minf(left * LEVEL_SIZE / cost, maxf(0.0001, float(LEVELS[mini(lv, MAX_LEVEL - 1)]) - s))
+		var b := cost_band(s)
+		var cost := float(GROW_COST[b])
+		var g := minf(left * COST_BAND / cost, maxf(0.0001, float(b + 1) * COST_BAND - s))
 		s += g
-		left -= g * cost / LEVEL_SIZE
+		left -= g * cost / COST_BAND
 	return minf(s, Core.CAP)
 
 
@@ -786,15 +810,27 @@ static func tech_ready(prof, part: String) -> bool:
 	return level(prof, part) >= TECH_LEVEL and lead(prof, part) != ""
 
 
-## How much harder this part's techniques hit (1x at TECH_LEVEL, MAX_POWER at 12).
+## A young technique (TECH_LEVEL to FULL_TECH_LEVEL): limited to its first
+## form and its lead essence, and weaker (power).
+static func tech_young(prof, part: String) -> bool:
+	var lv := level(prof, part)
+	return lv >= TECH_LEVEL and lv < FULL_TECH_LEVEL
+
+
+## How much harder this part's techniques hit: YOUNG_POWER at TECH_LEVEL,
+## 1x at FULL_TECH_LEVEL, MAX_POWER at 12.
 static func power(prof, part: String) -> float:
-	var k := clampf(float(level(prof, part) - TECH_LEVEL) / float(MAX_LEVEL - TECH_LEVEL), 0.0, 1.0)
+	var lv := level(prof, part)
+	if lv < FULL_TECH_LEVEL:
+		var y := clampf(float(lv - TECH_LEVEL) / float(FULL_TECH_LEVEL - TECH_LEVEL), 0.0, 1.0)
+		return YOUNG_POWER + (1.0 - YOUNG_POWER) * y
+	var k := clampf(float(lv - FULL_TECH_LEVEL) / float(MAX_LEVEL - FULL_TECH_LEVEL), 0.0, 1.0)
 	return 1.0 + (MAX_POWER - 1.0) * k
 
 
 ## A core technique's extra strength (1 when the part isn't core-led).
 static func core_power(prof, part: String) -> float:
-	if not core_led(prof, part):
+	if not core_led(prof, part) or tech_young(prof, part):
 		return 1.0
 	return float(CORE_POWER[1]) if level(prof, part) >= MAX_LEVEL else float(CORE_POWER[0])
 
@@ -888,9 +924,10 @@ static func max_kinds(_prof, _part: String) -> int:
 ## isn't one of them: it adds its touch through tech_weights).
 static func tech_kinds(prof, part: String) -> Array:
 	var m := mix(prof, part)
+	var young := tech_young(prof, part)  # (a young technique: its lead alone)
 	if core_led(prof, part):
-		return [String(prof.path)] + m.slice(0, MAX_KINDS - 1)
-	return m
+		return [String(prof.path)] if young else [String(prof.path)] + m.slice(0, MAX_KINDS - 1)
+	return m.slice(0, 1) if young else m
 
 
 ## The weight each essence acts with in a part's techniques: the lead 1, a
@@ -911,7 +948,7 @@ static func tech_weights(prof, part: String) -> Dictionary:
 		else:
 			out[k] = clampf(2.0 * amount(prof, part, k) / o, MOD_MIN, 1.0)
 	var c := core(prof, part)
-	if prof.path != "" and not led and c > 0.01:
+	if prof.path != "" and not led and c > 0.01 and not tech_young(prof, part):
 		out[String(prof.path)] = clampf(2.0 * c / maxf(fill(prof, part), 0.01), 0.0, CORE_MOD)
 	return out
 
@@ -934,7 +971,7 @@ static func sync_tech(prof, t: Dictionary, part: String) -> void:
 		t.erase("core_name")
 
 
-## Every slot brought up to date; a part that has just woken (half full)
+## Every slot brought up to date; a part that has just reached TECH_LEVEL
 ## learns its first form by itself. Returns the parts that learned one.
 static func sync_techs(prof) -> Array:
 	var learned: Array = []
@@ -972,7 +1009,7 @@ static func tech_of(prof, i: int) -> Dictionary:
 ## Becomes Unbound: no tower bonds from now on (any carried are given up).
 ## Six Nodes, all asleep at size 0: the essence already in the body soaks
 ## into each kind's natural Node (the first climb's essence is enough to
-## nearly wake one). No techniques yet: a Node learns one at TECH_LEVEL.
+## nearly wake one). No techniques yet: a Node learns a young one at TECH_LEVEL.
 static func become(prof) -> void:
 	var st := state(prof)
 	var was_on := bool(st["on"])

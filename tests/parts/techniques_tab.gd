@@ -346,12 +346,12 @@ func _tab_builds() -> void:
 	_check("gale_lift" in TR.state(prof)["echoes"] and said.size() == 1 and said[0].text.contains("Gale Lift"), "the change records the echo for the climber, and says so")
 	# What the Abilities tab showed: each Node's minor ability and gift, and the practice room.
 	_check(_tab_labels("tech_gift").size() == 6 and _tab_buttons("try_abilities").size() == 1, "the tab also says what each Node gives (minor ability, gift) and offers Try your abilities on the train")
-	# A Node below level 6: nothing to change.
+	# A Node below level 3: nothing to change.
 	U.set_size(prof, "brow", 40.0)
 	main._give_bonds()
 	await _press("tech_slot", 3)
 	var asleep: Array = _tab_labels("tech_asleep")
-	_check(asleep.size() == 1 and asleep[0].text.contains("more size") and _tab_buttons("tech_form").is_empty(), "a Node below level 6 says how far it has to grow, and offers nothing to change")
+	_check(asleep.size() == 1 and asleep[0].text.contains("more size") and _tab_buttons("tech_form").is_empty(), "a Node below level 3 says how far it has to grow, and offers nothing to change")
 	# A sleeping Node: no numbers at all.
 	U.set_size(prof, "brow", 20.0)
 	main._give_bonds()

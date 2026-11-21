@@ -401,6 +401,6 @@ func _old_saves() -> void:
 	U.sync_techs(old)
 	var ht: Dictionary = U.tech_of(old, 0)
 	_check(U.is_on(old) and T.valid(ht) and ht["part"] == "hand" and ht["kinds"] == ["blade"] and U.tech_of(old, 1).is_empty(), "an old Unbound save loads: its slots follow their parts (the hand's carries a Blade technique, the legs' waits for half full)")
-	_check(TR.owned_forms(old, "hand") == ["strike", "bolt", "volley", "brand"] and TR.owned_forms(old, "legs") == ["dash", "leap"], "...and opens only the forms its levels reach")
+	_check(TR.owned_forms(old, "hand") == ["strike", "bolt", "volley"] and TR.owned_forms(old, "legs") == ["dash"], "...and opens only the forms its levels reach (size 100 is level 9; a sleeping Node only its first form)")
 	_check(not U.PARTS.any(func(part): return F.capstone_on(old, part)), "...and no capstone before level 12")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

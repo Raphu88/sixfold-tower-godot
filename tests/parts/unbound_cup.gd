@@ -73,8 +73,8 @@ func _prof():
 
 func _cups() -> void:
 	var p = _prof()
-	_check(U.MAX_LEVEL == 12 and is_equal_approx(Core.CAP, 120.0) and U.LEVELS.size() == 12 and is_equal_approx(U.LEVELS[11], 120.0), "a part holds 120, a level every 10, 12 levels")
-	_check(U.MINOR_LEVEL == 3 and U.TECH_LEVEL == 6 and U.LEVELS[U.TECH_LEVEL - 1] == 60.0, "the minor ability at level 3 (30), techniques at 6 (60, half full), the capstone at 12 (full)")
+	_check(U.MAX_LEVEL == 12 and is_equal_approx(Core.CAP, 120.0) and U.LEVELS.size() == 12 and is_equal_approx(U.LEVELS[11], 120.0), "a part holds 120, 12 levels")
+	_check(U.MINOR_LEVEL == 1 and U.LEVELS[0] == U.WAKE_SIZE and U.TECH_LEVEL == 3 and U.FULL_TECH_LEVEL == 6 and U.level_for(U.WAKE_SIZE) == 1 and U.level_for(U.WAKE_SIZE - 0.5) == 0, "a Node wakes at level 1 (size 30) with its minor ability, a young technique at 3, the full technique at 6, the capstone at 12 (full)")
 	# The first essence leads; another may come in only while the first stays at least half.
 	U.put(p, "hand", "fire", 30.0)
 	_check(U.primary(p, "hand") == "fire" and is_equal_approx(U.kind_limit(p, "hand", "stone"), 30.0), "the first essence in a Node leads it; another may grow to match it (30)")
@@ -95,20 +95,27 @@ func _cups() -> void:
 	# Levels bring their pieces.
 	var s = _prof()
 	U.put(s, "brow", "fire", 29.0)
-	_check(not U.awake(s, "brow") and not U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("3"), "below size 30 a Node sleeps: no minor ability yet")
+	_check(not U.awake(s, "brow") and not U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("1"), "below size 30 a Node sleeps: no minor ability yet")
 	U.put(s, "brow", "fire", 1.0)
-	_check(U.awake(s, "brow") and U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("parries") and U.minor_text(s, "brow").contains("Fire"), "at size 30 (level 3) it wakes: %s" % U.minor_text(s, "brow"))
-	_check(U.sync_techs(s).is_empty() and U.tech_of(s, U.PARTS.find("brow")).is_empty(), "below level 6, no technique")
-	U.put(s, "brow", "fire", 30.0)
+	_check(U.awake(s, "brow") and U.has_minor(s, "brow") and U.minor_text(s, "brow").contains("parries") and U.minor_text(s, "brow").contains("Fire"), "at size 30 (level 1) it wakes: %s" % U.minor_text(s, "brow"))
+	_check(U.sync_techs(s).is_empty() and U.tech_of(s, U.PARTS.find("brow")).is_empty(), "below level 3, no technique")
+	U.put(s, "brow", "fire", 16.0)
 	var learned: Array = U.sync_techs(s)
 	var bt: Dictionary = U.tech_of(s, U.PARTS.find("brow"))
-	_check(learned == ["brow"] and T.valid(bt) and bt["shape"] == "mark" and bt["kinds"] == ["fire"], "at level 6 the Node learns its first form by itself (%s)" % T.title(bt))
+	_check(U.level(s, "brow") == 3 and learned == ["brow"] and T.valid(bt) and bt["shape"] == "mark" and bt["kinds"] == ["fire"], "at level 3 the Node learns its first form by itself (%s)" % T.title(bt))
+	_check(U.tech_young(s, "brow") and is_equal_approx(U.power(s, "brow"), U.YOUNG_POWER) and load("res://scripts/tree.gd").owned_forms(s, "brow") == ["mark"], "...a young technique: its first form only, at %d%% strength" % int(U.YOUNG_POWER * 100.0))
+	U.put(s, "brow", "water", 10.0)
+	U.sync_techs(s)
+	_check(U.tech_kinds(s, "brow") == ["fire"] and U.tech_of(s, U.PARTS.find("brow"))["kinds"] == ["fire"], "...and its lead essence alone (the Water waits)")
+	U.put(s, "brow", "fire", 14.0)
+	U.sync_techs(s)
+	_check(U.level(s, "brow") == 6 and not U.tech_young(s, "brow") and U.tech_kinds(s, "brow") == ["fire", "water"] and load("res://scripts/tree.gd").owned_forms(s, "brow") == ["mark", "sight"] and is_equal_approx(U.power(s, "brow"), 1.0), "at level 6 it comes into its own: the Water joins, the other form opens, full strength")
 	_check(U.sync_techs(s).is_empty(), "...once")
-	U.put(s, "hand", "fire", 60.0)
+	U.put(s, "hand", "fire", 70.0)
 	U.sync_techs(s)
 	_check(T.title(U.tech_of(s, 0)) == "Flame Fist", "its name comes from the form and the essence: Fire and the fists, Flame Fist (%s)" % T.title(U.tech_of(s, 0)))
 	_check(is_equal_approx(U.power(s, "hand"), 1.0) and U.has_gift(s, "hand"), "a technique starts at its base strength at level 6 (the gift came at 5)")
-	U.put(s, "hand", "fire", 60.0)
+	U.put(s, "hand", "fire", 50.0)
 	_check(is_equal_approx(U.power(s, "hand"), U.MAX_POWER) and load("res://scripts/spells/unbound_forms.gd").capstone_on(s, "hand"), "full, it hits %dx as hard and its capstone wakes" % int(U.MAX_POWER))
 	# A modifier's touch grows with its share.
 	var w = _prof()
@@ -247,10 +254,10 @@ func _core() -> void:
 func _core_led() -> void:
 	var p = _prof()
 	p.path = "unmaking"
-	U.put(p, "legs", "air", 60.0)
+	U.put(p, "legs", "air", 70.0)
 	Core.bank(p, 120.0)
 	_check(not U.core_led(p, "legs") and U.tech_weights(p, "legs").has("unmaking"), "the core adds its own touch to every technique")
-	U.move(p, "air", "legs", "", 50.0)
+	U.move(p, "air", "legs", "", 60.0)
 	_check(U.core_led(p, "legs") and U.lead(p, "legs") == "unmaking", "drained until the core is at least half, it leads the part: core-led")
 	Core.add(p, 40.0, "legs")
 	_check(U.tech_ready(p, "legs") and U.tech_kinds(p, "legs")[0] == "unmaking", "...its technique is led by the core (%s)" % str(U.tech_kinds(p, "legs")))
@@ -279,7 +286,7 @@ func _pure() -> void:
 	var hand_sig: Dictionary = U.SIGNATURES.get("hand:blade", {})
 	_check(not hand_sig.has("form"), "the other signatures are still to come (Coming soon)")
 	var nodes: Array = TR.unbound_nodes(p, "legs")
-	_check(nodes.map(func(n): return int(n["at"])) == [3, 5, 6, 7, 8, 9, 10, 11, 12], "the tree: the minor ability, the gift, forms, forks, new forms and the capstone (%s)" % str(nodes.map(func(n): return n["at"])))
+	_check(nodes.map(func(n): return int(n["at"])) == [1, 3, 5, 6, 7, 8, 9, 10, 11, 12], "the tree: the minor ability, the young technique, the gift, the full technique, forks, new forms and the capstone (%s)" % str(nodes.map(func(n): return n["at"])))
 	var last: Dictionary = nodes[-1]
 	_check(last["options"].size() == 2 and last["options"][1].get("form", "") == "blink" and last["options"][1]["state"] == "owned", "...the last node holds the capstone and, pure, the signature")
 
@@ -331,7 +338,7 @@ func _words() -> void:
 	for d in [U.TEXT, Core.TEXT, Secret.TEXT, Secret.STEP_TEXT, U.SIGNATURES, U.CORE_TECHS, U.GIFTS, load("res://scripts/technique_page.gd").TEXT, load("res://scripts/body_move.gd").TEXT]:
 		texts.append(str(d).to_lower())
 	var E = load("res://scripts/entity.gd")
-	for id in ["unbound", "node_asleep", "node_awake", "node_grows", "unbound_essence", "unbound_half", "unbound_learned", "unbound_full", "unbound_pure", "unbound_core_led", "unbound_body", "unbound_move",
+	for id in ["unbound", "node_asleep", "node_awake", "node_grows", "unbound_essence", "unbound_half", "unbound_full_tech", "unbound_learned", "unbound_full", "unbound_pure", "unbound_core_led", "unbound_body", "unbound_move",
 			"aura", "core_essence", "core_saturated", "flow_2", "flow_3", "flow_4", "flow_5", "flow_6"]:
 		var e: Dictionary = E.TIPS.get(id, {})
 		_check(e.has("tip") and e.has("more") and String(e["tip"]).length() < 140, "the Entity explains '%s' the first time (a short line and an Archive account)" % id)
