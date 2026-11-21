@@ -38,7 +38,7 @@ extends RefCounted
 ##   Level MINOR_LEVEL wakes the part's MINOR ability (a touch of its lead
 ##   essence on the part's own action), GIFT_LEVEL brings its gift,
 ##   TECH_LEVEL (half full) opens its techniques (it learns the first by
-##   itself: change its form at the essence bench), then the tree's forks
+##   itself: change its form on the Techniques tab), then the tree's forks
 ##   and forms, and at MAX_LEVEL (full) its capstone, and its SIGNATURE if
 ##   one essence fills it all (a pure part). The total sets the STAGE.
 ## Profile state lives in profile.unbound (state() fills in its keys).

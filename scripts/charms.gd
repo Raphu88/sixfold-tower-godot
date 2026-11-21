@@ -12,7 +12,7 @@ extends RefCounted
 ##     refills on its own. You refill it by FEEDING IT ESSENCE, on the train
 ##     at the workshop bench with crystals of the charm's kind, or in the
 ##     tower from the inventory, with essence you haven't banked yet.
-## Charms come from a Rune Artist's bench (CRAFT), the outfitter's rail
+## Charms come from the workshop bench (CRAFT), the outfitter's rail
 ## (SHOP) and, now and then, the towers (LOOT: vaults, secret rooms, a rare
 ## drop). They come home like other worn gear (a recall or the summit) and
 ## are lost on a fall like it (but the Keeper's Purse keeps itself and its
@@ -80,8 +80,9 @@ static var CHARGES := {
 ## "tide_wait" seconds without being hit, at "tide_rate" points a second.
 static var AURA := {"tide_wait": 6.0, "tide_rate": 6.0}
 
-## A Rune Artist crafts charms at the workshop bench (bench.gd, its Charms
-## counter): what each costs, in crystals. A crafted charm goes into your
+## Charms are crafted at the workshop bench (bench.gd, its Charms counter:
+## by a Rune Artist, or the workshop's Rune Artist for anyone else, materials
+## + premium): what each costs, in crystals. A crafted charm goes into your
 ## stash (your pack if the stash is full).
 static var CRAFT := {
 	"lucky_knot": {"iron": 10}, "pocket_clasp": {"iron": 12}, "belt_hook": {"iron": 12},
@@ -91,7 +92,7 @@ static var CRAFT := {
 	"hunters_token": {"air": 10}, "brass_bellows": {"iron": 30}, "duelists_ribbon": {"blade": 65}, "mist_pearl": {"water": 70},
 }
 
-## Recipes a Rune Artist must LEARN before crafting (the rest are known
+## Recipes a climber must LEARN before crafting (the rest are known
 ## from the start): a renown rank teaches some (renown.gd RANK_OPENS
 ## "recipe"), and a noble's contract now and then teaches one (contracts.gd).
 ## Learned ones are kept with the climber (renown.gd state "recipes").
@@ -137,11 +138,10 @@ static var TEXT := {
 	"crafted": "Crafted: %s, in your stash",
 	"crafted_pack": "Crafted: %s, in your pack",
 	"no_room": "your stash and pack are full",
-	"needs_rune_artist": "Only a Rune Artist can craft a charm. A Rune Artist could make it here, given the essence.",
 	"refill_head": "Your charms",
 	"craft_head": "Craft a charm",
 	"nothing_spent": "Every charm you own is charged.",
-	"note": "Refill a charm's charge with crystals of its kind (anyone). A Rune Artist can also craft new charms here.",
+	"note": "Refill a charm's charge with crystals of its kind. New charms are crafted here too: by you if you carry the Rune Artist's mark, else by the workshop's Rune Artist.",
 	"old_refund": "%s became a charm: what you paid came back (%s)",
 	"recipe_locked": "A recipe not yet learned. Your renown rank teaches it (%s), or a noble's contract may.",
 	"recipe_contract": "A recipe not yet learned. A noble's contract may teach it.",
@@ -419,7 +419,7 @@ static func shop_stock(count := -1) -> Array:
 	return out
 
 
-## The charms a Rune Artist can craft, in order.
+## The charms the bench can craft, in order.
 static func craftable() -> Array:
 	return all().filter(func(id): return CRAFT.has(id))
 

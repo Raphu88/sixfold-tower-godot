@@ -12,14 +12,15 @@ extends RefCounted
 ## crystals like the rest of the belt (main.gd break_belt skips it). From the
 ## chest it can be packed onto your belt for the next climb, to keep filling.
 ##
-## Where one comes from: a Rune Artist brews it at the workshop's bench
+## Where one comes from: crafted at the workshop's bench (by a Rune Artist,
+## or the workshop's Rune Artist for anyone else: bench.gd)
 ## (BREW, expensive), and very rarely a vault offers one (VAULT_CHANCE).
 ##
 ## What a FULL vessel is for (the owner hasn't chosen, so all three are
 ## choices the player makes; vessel_page.gd puts them on the train):
 ##   trade     the outfitter buys it (TRADE): a crystal of one kind of your
 ##             choice, or a smaller amount of every kind (more in all)
-##   bench     a Rune Artist works it into a piece: tempered one rank past
+##   bench     crafted into a piece at the workshop's bench: tempered one rank past
 ##             the limit (+3 to +4, gear.gd RANK_CAP), or a deep rune, a
 ##             lasting rune at the Inscribe spell's full strength (gear.gd
 ##             LASTING_RUNES "deep_*")
@@ -47,7 +48,8 @@ const ID := "vessel"
 static var CAPACITY := 30.0
 ## The chance a full vault prize offers a vessel as its third card.
 static var VAULT_CHANCE := 0.04
-## Brewing one at the bench (a Rune Artist only).
+## Brewing one at the bench: its materials (the workshop's Rune Artist adds
+## a premium for anyone without the mark: bench.gd price).
 static var BREW := {"iron": 60, "water": 45, "air": 45}
 ## The outfitter's trade for a full vessel: `one` of a single kind you
 ## choose, or `each` of every kind.
@@ -82,7 +84,7 @@ static var TEXT := {
 	"took": "Packed for your next climb: the vessel",
 	"left": "Back in the stash: the vessel",
 	"belt_full": "your belt can't hold another kind",
-	"uses": "A full vessel can be traded to the outfitter (the store's Sell), worked into a piece by a Rune Artist (the bench's Vessel counter), offered to the Maker of Marks as the Developer's bribe, or carried up and offered to a Maker when you plead for a change of path.",
+	"uses": "A full vessel can be traded to the outfitter (the store's Sell), worked into a piece at the workshop's bench (the Vessel counter), offered to the Maker of Marks as the Developer's bribe, or carried up and offered to a Maker when you plead for a change of path.",
 	"trade_title": "The outfitter will trade for it",
 	"trade_one": "%d %s",
 	"trade_mixed": "%d of every kind (%d in all)",
@@ -107,7 +109,7 @@ static var TEXT := {
 	"deep_has": "it already carries that deep rune",
 	"deep_tempered": "Tempered past the limit: %s",
 	"deep_inscribed": "Inscribed: %s on %s",
-	"deep_note": "With a full vessel a Rune Artist can go past the bench's limits: one rank past +%d, or a deep rune at the Inscribe spell's full strength (twice a lasting rune's).",
+	"deep_note": "With a full vessel the bench can go past its limits: one rank past +%d, or a deep rune at the Inscribe spell's full strength (twice a lasting rune's).",
 	# Dev tools
 	"dev": "Vessel",
 	"dev_empty": "Give an empty vessel",
@@ -456,13 +458,16 @@ static func trade(profile, i: int, choice: String) -> String:
 	return ", ".join(bits) if choice != "mixed" else TEXT["trade_mixed"] % [int(TRADE["each"]), int(TRADE["each"]) * Essence.KINDS.size()]
 
 
-# --- the bench (a Rune Artist) ---------------------------------------------------------------
+# --- the bench (crafted: by a Rune Artist, or the workshop's for you) -------------------------
+
+## What brewing one costs you: its materials, plus the Rune Artist's premium
+## for anyone without the mark.
+static func brew_cost(profile) -> Dictionary:
+	return Bench.price(profile, BREW)
+
 
 static func brew_why(profile) -> String:
-	var lock := Bench.locked(profile, "vessel")
-	if lock != "":
-		return lock
-	return Bench.short_of(profile, BREW)
+	return Bench.short_of(profile, brew_cost(profile))
 
 
 ## Brews an empty vessel into the chest. "" if brewed, else why not.
@@ -470,16 +475,20 @@ static func brew(profile) -> String:
 	var why := brew_why(profile)
 	if why != "":
 		return why
-	Bench.pay(profile, BREW)
+	Bench.pay(profile, brew_cost(profile))
 	profile.vessels.append(make())
 	profile.save()
 	return ""
 
 
+## The workshop's Rune Artist's fee for working a full vessel into a piece
+## (a Rune Artist works it for nothing more than the vessel).
+static func work_fee(profile, ref: String) -> Dictionary:
+	var g := Bench.piece(profile, ref)
+	return Bench.work_fee(profile, Bench.Train.gear_kind(g)) if not g.is_empty() else {}
+
+
 static func deep_temper_why(profile, ref: String) -> String:
-	var lock := Bench.locked(profile, "vessel")
-	if lock != "":
-		return lock
 	var g := Bench.piece(profile, ref)
 	if g.is_empty() or not Bench.temperable(g):
 		return Bench.TEXT["no_temper"]
@@ -489,7 +498,7 @@ static func deep_temper_why(profile, ref: String) -> String:
 		return TEXT["deep_only"] % Gear.MAX_RANK
 	if full_index(profile) < 0:
 		return TEXT["no_full"]
-	return ""
+	return Bench.short_of(profile, work_fee(profile, ref))
 
 
 ## Tempers a +3 piece one rank past the limit, using up a full vessel. "" if done.
@@ -497,6 +506,7 @@ static func deep_temper(profile, ref: String) -> String:
 	var why := deep_temper_why(profile, ref)
 	if why != "":
 		return why
+	Bench.pay(profile, work_fee(profile, ref))
 	var g := Bench.piece(profile, ref)
 	g["rank"] = Gear.RANK_CAP
 	Bench.put(profile, ref, g)
@@ -516,9 +526,6 @@ static func deep_runes() -> Array:
 
 
 static func deep_rune_why(profile, ref: String, rune: String) -> String:
-	var lock := Bench.locked(profile, "vessel")
-	if lock != "":
-		return lock
 	var g := Bench.piece(profile, ref)
 	if g.is_empty() or not Gear.LASTING_RUNES.has(deep_id(rune)):
 		return Bench.TEXT["nothing"]
@@ -526,7 +533,7 @@ static func deep_rune_why(profile, ref: String, rune: String) -> String:
 		return TEXT["deep_has"]
 	if full_index(profile) < 0:
 		return TEXT["no_full"]
-	return ""
+	return Bench.short_of(profile, work_fee(profile, ref))
 
 
 ## Inscribes a deep rune (replacing any rune there), using up a full vessel. "" if done.
@@ -534,6 +541,7 @@ static func deep_rune(profile, ref: String, rune: String) -> String:
 	var why := deep_rune_why(profile, ref, rune)
 	if why != "":
 		return why
+	Bench.pay(profile, work_fee(profile, ref))
 	var g := Bench.piece(profile, ref)
 	g["rune"] = deep_id(rune)
 	Bench.put(profile, ref, g)

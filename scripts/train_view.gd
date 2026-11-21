@@ -2426,6 +2426,114 @@ class Outfitter extends Control:
 		b.flush(self)
 
 
+## The Rune Artist who works the workshop's bench (bench.gd ARTIST): drawn
+## in code, standing behind the bench's edge in an indigo robe trimmed in
+## rune-light, a leather apron, round spectacles and a bun, a stylus raised
+## whose tip glows, a rune shining on the robe. A Button (no box of its own),
+## so the pointer, a held finger, the keys and a controller reach it: the
+## Entity explains it (entity_help.gd "rune_artist_npc"), and a press makes
+## it talk (train_page.gd).
+class RuneArtist extends Button:
+	const UI := preload("res://scripts/ui.gd")
+	const Art := preload("res://scripts/train_art.gd")
+	const Gear := preload("res://scripts/gear.gd")
+	const ROBE := Color(0.2, 0.17, 0.36)
+	const APRON := Color(0.42, 0.27, 0.15)
+	const SKIN := Color(0.78, 0.6, 0.47)
+	const HAIR := Color(0.18, 0.12, 0.1)
+	const RUNE := Color(0.62, 0.66, 1.0)  # (the Rune Artist's colour, as the bench's slate)
+	var t := 0.0
+	var _acc := 0.0
+
+	func _ready() -> void:
+		focus_mode = Control.FOCUS_ALL
+		clip_text = true
+		for st in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+			add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "font_disabled_color"]:
+			add_theme_color_override(c, Color(0, 0, 0, 0))
+		for s in [focus_entered, focus_exited, mouse_entered, mouse_exited]:
+			s.connect(queue_redraw)
+
+	func _process(delta: float) -> void:
+		t += delta
+		_acc += delta
+		# (the stylus's glow breathes: a few times a second, only while on screen)
+		if _acc < 1.0 / 10.0 or not is_visible_in_tree():
+			return
+		_acc = 0.0
+		queue_redraw()
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var r := minf(w * 0.24, h * 0.17)  # the head's radius
+		var c := Vector2(w * 0.5, h * 0.24)  # the head
+		var hot := is_hovered() or has_focus()
+		var glow := 0.75 + 0.25 * sin(t * 2.4)
+		var b := UI.Draw.Batch.new()
+		Art.light(b, c + Vector2(0, r * 1.6), Vector2(r * 3.4, r * 3.6), Color(RUNE, 0.16 + (0.08 if hot else 0.0)))
+		# The robe, from the shoulders down to the bench's edge, lit from the left.
+		var top := c.y + r * 0.95
+		var foot := h * 0.97
+		var robe := PackedVector2Array([Vector2(c.x - r * 1.75, foot), Vector2(c.x - r * 1.5, top + r * 0.35), Vector2(c.x - r * 0.55, top),
+			Vector2(c.x + r * 0.55, top), Vector2(c.x + r * 1.5, top + r * 0.35), Vector2(c.x + r * 1.75, foot)])
+		b.poly(robe, ROBE, 1.4)
+		# A rune-light trim down its front and round the collar.
+		b.line(Vector2(c.x - r * 0.5, top + r * 0.05), Vector2(c.x - r * 0.62, foot), Color(RUNE, 0.55), maxf(1.0, r * 0.08))
+		b.line(Vector2(c.x + r * 0.5, top + r * 0.05), Vector2(c.x + r * 0.62, foot), Color(RUNE, 0.4), maxf(1.0, r * 0.08))
+		b.arc(Vector2(c.x, top - r * 0.1), r * 0.6, 0.2, PI - 0.2, 10, Color(RUNE, 0.6), maxf(1.0, r * 0.1))
+		# The leather apron, its strap and a pocket of chalk.
+		var apron := PackedVector2Array([Vector2(c.x - r * 0.75, top + r * 0.95), Vector2(c.x + r * 0.75, top + r * 0.95),
+			Vector2(c.x + r * 0.95, foot), Vector2(c.x - r * 0.95, foot)])
+		b.poly(apron, APRON, 1.0)
+		b.line(Vector2(c.x - r * 0.62, top + r * 0.95), Vector2(c.x - r * 0.3, top + r * 0.1), APRON.darkened(0.2), maxf(1.0, r * 0.1))
+		b.line(Vector2(c.x + r * 0.62, top + r * 0.95), Vector2(c.x + r * 0.3, top + r * 0.1), APRON.darkened(0.2), maxf(1.0, r * 0.1))
+		b.box(Rect2(c.x + r * 0.15, top + r * 1.5, r * 0.5, r * 0.4), APRON.darkened(0.25))
+		b.rect(Rect2(c.x + r * 0.25, top + r * 1.38, r * 0.1, r * 0.2), Color(0.92, 0.92, 0.88))
+		# A rune shining on the robe's breast (gear.gd's lasting runes).
+		Gear.rune_into(b, "warding", Vector2(c.x - r * 1.22, top + r * 2.15), r * 0.3, Color(RUNE, 0.55 + 0.4 * glow), false)
+		# The left arm across the apron; the right raised, the stylus in hand.
+		var sh_r := Vector2(c.x + r * 1.25, top + r * 0.4)
+		var hand := Vector2(c.x + r * 1.65, top - r * 0.35)
+		b.stroke(sh_r, Vector2(c.x + r * 1.7, top + r * 0.9), ROBE.lightened(0.05), r * 0.5)
+		b.stroke(Vector2(c.x + r * 1.7, top + r * 0.9), hand, ROBE.lightened(0.08), r * 0.42)
+		b.stroke(Vector2(c.x - r * 1.25, top + r * 0.45), Vector2(c.x - r * 0.4, top + r * 1.55), ROBE.darkened(0.1), r * 0.46)
+		b.ball(Vector2(c.x - r * 0.3, top + r * 1.6), r * 0.2, SKIN)
+		var tip := hand + Vector2(r * 0.5, -r * 0.75)
+		b.stroke(hand + Vector2(-r * 0.1, r * 0.15), tip, Color(0.28, 0.2, 0.14), maxf(1.2, r * 0.1))
+		b.ball(hand, r * 0.22, SKIN)
+		Art.light(b, tip, Vector2(r * 0.9, r * 0.9), Color(RUNE, 0.55 * glow))
+		b.dot(tip, r * 0.1, Color(0.9, 0.92, 1.0))
+		# The head: a bun of dark hair, round spectacles, a calm face.
+		b.ball(c + Vector2(r * 0.15, -r * 0.85), r * 0.38, HAIR)
+		b.ball(c, r * 0.68, SKIN)
+		b.polygon(PackedVector2Array([c + Vector2(-r * 0.68, -r * 0.05), c + Vector2(-r * 0.55, -r * 0.5), c + Vector2(0, -r * 0.72),
+			c + Vector2(r * 0.55, -r * 0.5), c + Vector2(r * 0.68, -r * 0.05), c + Vector2(r * 0.45, -r * 0.35), c + Vector2(-r * 0.45, -r * 0.35)]), HAIR)
+		for side in [-1.0, 1.0]:
+			var e := c + Vector2(side * r * 0.27, -r * 0.02)
+			b.dot(e, r * 0.06, Color(0.12, 0.08, 0.06))
+			b.arc(e, r * 0.2, 0.0, TAU, 14, Art.GILT, maxf(1.0, r * 0.06))
+			b.dot(e + Vector2(-r * 0.07, -r * 0.07), r * 0.04, Color(0.9, 0.95, 1.0, 0.7))
+		b.line(c + Vector2(-r * 0.07, -r * 0.02), c + Vector2(r * 0.07, -r * 0.02), Art.GILT, maxf(1.0, r * 0.05))
+		b.arc(c + Vector2(0, r * 0.28), r * 0.16, 0.3, PI - 0.3, 8, Color(0.45, 0.22, 0.18), maxf(1.0, r * 0.05))
+		b.flush(self)
+		if hot and not _touching():
+			var ring := UI.rounded(Rect2(Vector2(1, 1), size - Vector2(2, 2)), 6.0)
+			ring.append(ring[0])
+			draw_polyline(ring, Color(UI.GILT, 0.3), 4.0, true)
+			draw_polyline(ring, UI.GILT_HI, 1.4, true)
+
+	## On a phone nothing shows the focus (a tap is its own highlight).
+	func _touching() -> bool:
+		var n := get_parent()
+		while n != null:
+			if n.has_method("rail_showing"):
+				return n.main != null and n.main.touch_active
+			n = n.get_parent()
+		return false
+
+
 ## The outfitter's face, small, beside what he says: drawn in code.
 class OutfitterFace extends Control:
 	const BRASS := Color(0.86, 0.64, 0.3)

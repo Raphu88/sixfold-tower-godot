@@ -2,24 +2,28 @@ extends RefCounted
 ## The bench in the workshop car (train.gd), between climbs. Its counters:
 ##   brew      make a consumable, packed onto your belt for your next climb
 ##             (anyone can; a Rune Artist brews for less)
-##   temper    raise a piece's rank, +1 to +3 (Rune Artist)
-##   retrait   swap one trait for a new one of the essence you pay (Rune Artist)
-##   join      two Fine pieces for the same slot become one Rare (Rune Artist)
+##   temper    raise a piece's rank, +1 to +3 (crafted)
+##   retrait   swap one trait for a new one of the essence you pay (crafted)
+##   join      two Fine pieces for the same slot become one Rare (crafted)
 ##   break     a piece or a packed item becomes a crystal of its kind, as the
 ##             store's Sell does
 ##   inscribe  a lasting rune on a piece, at half the Inscribe spell's
-##             strength (Rune Artist; gear.gd LASTING_RUNES)
-##   recall    bind a recall scroll (Rune Artist; carry 1)
-##   vessel    brew a vessel, or work a full one into a piece (Rune Artist;
+##             strength (crafted; gear.gd LASTING_RUNES)
+##   recall    bind a recall scroll (crafted; carry 1)
+##   vessel    brew a vessel, or work a full one into a piece (crafted;
 ##             vessel.gd, vessel_page.gd)
 ##   tincture  craft a tincture from crystals of its kind (anyone; a Rune
 ##             Artist for less), packed for your next climb, or drink one
 ##             (essence_flow.gd; its own section below)
 ##   charm     refill a charm's spent charge with crystals of its kind
-##             (anyone), or craft a new charm (Rune Artist; charms.gd CRAFT)
+##             (anyone), or craft a new charm (crafted; charms.gd CRAFT)
 ## The Rune Artist is the master crafter: given the essence and the skill,
-## they can make pretty much anything. Without that bond the enchanting
-## counters stay greyed, and say a Rune Artist could do it.
+## they can make pretty much anything. The CRAFTED work is open to every
+## climber: one with the Rune Artist's mark crafts it with their own
+## essence; anyone else has the workshop's Rune Artist (someone standing at
+## the bench: ARTIST below) craft it for them, paying the same materials
+## plus the Rune Artist's premium (PREMIUM: a share on top of the
+## materials, or a small fee for work that takes no crystals).
 ##
 ## The bench works on your heirlooms and on the pieces in your pack and
 ## chest. A piece is named by a "ref": "heir:melee", "heir:rings:1",
@@ -44,9 +48,29 @@ const COUNTERS := [
 	["break", "Break down", "Break"], ["inscribe", "Inscribe", "Inscribe"], ["recall", "Recall scroll", "Recall"],
 	["vessel", "Vessel", "Vessel"], ["tincture", "Tinctures", "Tinct."], ["charm", "Charms", "Charms"],
 ]
-## Counters only a Rune Artist can use. (The vessel's counter: brewing one,
-## and working a full one into a piece; vessel.gd holds its rules.)
-const RUNE_ARTIST_ONLY := ["temper", "retrait", "join", "inscribe", "recall", "vessel"]
+## The crafted work: a Rune Artist does it, or the workshop's Rune Artist
+## does it for you (materials + premium). (The vessel's counter: brewing
+## one, and working a full one into a piece; vessel.gd holds its rules. The
+## Charms counter's crafting is crafted too; its refilling is anyone's.)
+const CRAFTED := ["temper", "retrait", "join", "inscribe", "recall", "vessel", "charm"]
+
+## The Rune Artist who works the workshop's bench for those without the
+## mark: a placeholder name (the story will name them), how the counters
+## say it, and what they say.
+static var ARTIST := {
+	"name": "(The Rune Artist)",
+	"greeting": "Bring me the essence and I'll craft what your marks can't. My hands cost a little on top.",
+	"lines": ["Temper, retrait, join, a lasting rune, a charm: bring the crystals.", "The materials are yours. The craft is mine, and so is the premium.", "Mind the slate. The runes on it bite."],
+	"marked": "A Rune Artist yourself. The bench is yours: I'll keep out of your light.",
+	"you_craft": "You craft it with your own essence: %s.",
+	"crafts": "%s crafts it for you: %s materials + %s premium.",
+	"crafts_work": "%s does the work for you: %s premium.",
+}
+## What the Rune Artist charges on top: `share` of the materials (rounded
+## up, at least 1 of each kind), or, for work that takes no crystals (a full
+## vessel worked into a piece), `work` of the piece's own kind. Kept modest:
+## everything else in the game grows slowly.
+static var PREMIUM := {"share": 0.5, "work": 10}
 
 ## Brewing: what each consumable costs at the bench (a little less than the
 ## store asks: you do the work; the basic supplies follow the store's
@@ -81,8 +105,6 @@ static var INSCRIBE := {"iron": 25}
 static var TEXT := {
 	"title": "The bench",
 	"rune_artist": "Rune Artist",
-	"needs_rune_artist": "Only a Rune Artist can %s. A Rune Artist could do it here, given the essence.",
-	"verbs": {"temper": "temper a piece", "retrait": "swap a trait", "join": "join two pieces", "inscribe": "inscribe a lasting rune", "recall": "bind a recall scroll", "vessel": "brew a vessel or work a full one into a piece", "charm": "craft a charm"},
 	"notes": {
 		"brew": "Anyone can brew. What you make is packed onto your belt for your next climb.",
 		"temper": "Raise a piece's rank, +1 to +3. Each rank makes its traits 25% stronger (of their base), and a weapon hit 4% harder.",
@@ -93,7 +115,7 @@ static var TEXT := {
 		"recall": "Bind a recall scroll for your next climb: read it in the tower to leave safely, keeping everything. You carry one.",
 		"vessel": "Brew a vessel that catches the secret essence that isn't your path, or work a full one into a piece: one rank past +3, or a deep rune.",
 		"tincture": "Craft a tincture from crystals of its kind. Drink it to send its essence where you choose: one mark, or an unmarked body part.",
-		"charm": "Refill a charm's spent charge, or an off-hand piece's pool, with crystals of its kind (anyone). A Rune Artist can also craft new charms here.",
+		"charm": "Refill a charm's spent charge, or an off-hand piece's pool, with crystals of its kind (anyone). New charms are crafted here too: by you with the Rune Artist's mark, else by the workshop's Rune Artist."
 	},
 	"where_wear": "You'll wear it when you set off.",
 	"heirlooms": "Heirlooms",
@@ -148,7 +170,7 @@ static var TEXT := {
 }
 
 
-# --- who can do what ------------------------------------------------------------------
+# --- who crafts -------------------------------------------------------------------------
 
 ## Do you carry the Rune Artist's mark?
 static func rune_artist(profile) -> bool:
@@ -158,11 +180,49 @@ static func rune_artist(profile) -> bool:
 	return false
 
 
-## Why a counter can't be used: "" if it can, else a plain line.
-static func locked(profile, counter: String) -> String:
-	if counter in RUNE_ARTIST_ONLY and not rune_artist(profile):
-		return TEXT["needs_rune_artist"] % TEXT["verbs"][counter]
-	return ""
+## True when the workshop's Rune Artist crafts for you (you lack the mark).
+static func artist_crafts(profile) -> bool:
+	return profile != null and not rune_artist(profile)
+
+
+## The Rune Artist's premium on crafted work's materials ({kind: amount};
+## {} when you craft it yourself, or there's nothing to pay for).
+static func premium(profile, cost: Dictionary) -> Dictionary:
+	var out := {}
+	if not artist_crafts(profile):
+		return out
+	for k in cost:
+		if int(cost[k]) > 0:
+			out[k] = maxi(1, ceili(float(cost[k]) * float(PREMIUM["share"])))
+	return out
+
+
+## What crafted work costs you: its materials, plus the premium when the
+## workshop's Rune Artist crafts it for you. (With no profile: the materials.)
+static func price(profile, cost: Dictionary) -> Dictionary:
+	var out := cost.duplicate()
+	var extra := premium(profile, cost)
+	for k in extra:
+		out[k] = int(out.get(k, 0)) + int(extra[k])
+	return out
+
+
+## The fee for crafted work that takes no crystals of its own (a full vessel
+## worked into a piece), in `kind`: {} for a Rune Artist.
+static func work_fee(profile, kind: String) -> Dictionary:
+	return {kind: int(PREMIUM["work"])} if artist_crafts(profile) and kind != "" else {}
+
+
+## Who crafts this and what it costs, in one line: "You craft it with your
+## own essence: 20 Blade." or "(The Rune Artist) crafts it for you: 20 Blade
+## materials + 10 Blade premium." `cost` is the materials; `fee` a work fee
+## (for work that takes no crystals).
+static func crafter_line(profile, cost: Dictionary, fee := {}) -> String:
+	if not artist_crafts(profile):
+		return ARTIST["you_craft"] % cost_text(cost) if not cost.is_empty() else ""
+	if cost.is_empty():
+		return ARTIST["crafts_work"] % [ARTIST["name"], cost_text(fee)] if not fee.is_empty() else ""
+	return ARTIST["crafts"] % [ARTIST["name"], cost_text(cost), cost_text(premium(profile, cost))]
 
 
 # --- costs and paying -------------------------------------------------------------------
@@ -284,12 +344,15 @@ static func brews() -> Array:
 	return Items.ORDER.filter(func(id): return BREW.has(id) and id != "scroll")
 
 
-## What brewing one costs you ({kind: amount}): a Rune Artist pays less
-## (but the recall scroll, only theirs to bind, costs what it costs).
+## What brewing one costs you ({kind: amount}): a Rune Artist pays less.
+## The recall scroll is crafted work: its materials, plus the Rune Artist's
+## premium for anyone without the mark.
 static func brew_cost(profile, id: String) -> Dictionary:
 	var base: Dictionary = BREW.get(id, {})
+	if id == "scroll":
+		return price(profile, base)
 	var out := {}
-	var k := RUNE_ARTIST_BREW if rune_artist(profile) and id != "scroll" else 1.0
+	var k := RUNE_ARTIST_BREW if rune_artist(profile) else 1.0
 	for kind in base:
 		out[kind] = maxi(1, int(round(float(base[kind]) * k)))
 	return out
@@ -299,10 +362,6 @@ static func brew_cost(profile, id: String) -> Dictionary:
 static func brew(profile, player, id: String) -> String:
 	if not BREW.has(id):
 		return TEXT["belt_full"]
-	if id == "scroll":
-		var lock := locked(profile, "recall")
-		if lock != "":
-			return lock
 	if Train.supply_room(profile, player, id) <= 0:
 		return TEXT["belt_full"] if id != "scroll" else TEXT["scroll_carry"].to_lower().trim_suffix(".")
 	var cost := brew_cost(profile, id)
@@ -324,13 +383,15 @@ static func temperable(g) -> bool:
 	return not r["traits"].is_empty() or Gear.slot_of(r) in ["melee", "ranged"]
 
 
-## What tempering a piece to its next rank costs ({kind: amount}; {} at +3).
-static func temper_cost(g) -> Dictionary:
+## What tempering a piece to its next rank costs ({kind: amount}; {} at +3):
+## its materials, plus the premium when the Rune Artist crafts it for
+## `profile` (none given: the materials alone).
+static func temper_cost(g, profile = null) -> Dictionary:
 	var r := Gear.rec(g)
 	var k := int(r.get("rank", 0))
 	if r.is_empty() or k >= Gear.MAX_RANK:
 		return {}
-	return {Train.gear_kind(r): int(round(float(TEMPER[k]) * float(TEMPER_RARITY.get(r["rarity"], 1.0))))}
+	return price(profile, {Train.gear_kind(r): int(round(float(TEMPER[k]) * float(TEMPER_RARITY.get(r["rarity"], 1.0))))})
 
 
 ## Why the next rank needs more density, in words, or "".
@@ -349,9 +410,6 @@ static func density_short(profile, g) -> String:
 
 ## Why a piece can't be tempered now, or "".
 static func temper_why(profile, ref: String) -> String:
-	var lock := locked(profile, "temper")
-	if lock != "":
-		return lock
 	var g := piece(profile, ref)
 	if not temperable(g):
 		return TEXT["no_temper"]
@@ -360,7 +418,7 @@ static func temper_why(profile, ref: String) -> String:
 	var dens := density_short(profile, g)
 	if dens != "":
 		return dens
-	return short_of(profile, temper_cost(g))
+	return short_of(profile, temper_cost(g, profile))
 
 
 ## Tempers a piece one rank higher. "" if done, else why not.
@@ -369,7 +427,7 @@ static func temper(profile, ref: String) -> String:
 	if why != "":
 		return why
 	var g := piece(profile, ref)
-	pay(profile, temper_cost(g))
+	pay(profile, temper_cost(g, profile))
 	g["rank"] = int(g["rank"]) + 1
 	put(profile, ref, g)
 	profile.save()
@@ -395,23 +453,21 @@ static func retrait_options(g, which: int) -> Dictionary:
 	return out
 
 
-static func retrait_cost(g, kind: String) -> Dictionary:
+## Retraiting's materials (and the premium for `profile`, as temper_cost).
+static func retrait_cost(g, kind: String, profile = null) -> Dictionary:
 	var r := Gear.rec(g)
 	var k := RETRAIT_RARE if Gear.rarity_rank(r.get("rarity", "common")) >= Gear.rarity_rank("rare") else 1.0
-	return {kind: int(round(RETRAIT * k))}
+	return price(profile, {kind: int(round(RETRAIT * k))})
 
 
 ## Why a piece's trait can't be swapped for one of `kind` now, or "".
 static func retrait_why(profile, ref: String, which: int, kind: String) -> String:
-	var lock := locked(profile, "retrait")
-	if lock != "":
-		return lock
 	var g := piece(profile, ref)
 	if g.is_empty() or g["traits"].is_empty():
 		return TEXT["no_retrait"]
 	if not retrait_options(g, which).has(kind):
 		return TEXT["no_new_trait"]
-	return short_of(profile, retrait_cost(g, kind))
+	return short_of(profile, retrait_cost(g, kind, profile))
 
 
 ## Swaps trait number `which` for a random trait of `kind` that fits.
@@ -422,7 +478,7 @@ static func retrait(profile, ref: String, which: int, kind: String) -> String:
 		return why
 	var g := piece(profile, ref)
 	var pool: Array = retrait_options(g, which)[kind]
-	pay(profile, retrait_cost(g, kind))
+	pay(profile, retrait_cost(g, kind, profile))
 	var traits: Array = g["traits"].duplicate()
 	traits[which] = pool[randi() % pool.size()]
 	g["traits"] = traits
@@ -447,8 +503,9 @@ static func partners(profile, ref: String) -> Array:
 	return pieces(profile).filter(func(o): return o != ref and joinable(piece(profile, o)) and Gear.slot_of(piece(profile, o)) == Gear.slot_of(g))
 
 
-static func join_cost(g) -> Dictionary:
-	return {Train.gear_kind(g): JOIN}
+## Joining's materials (and the premium for `profile`, as temper_cost).
+static func join_cost(g, profile = null) -> Dictionary:
+	return price(profile, {Train.gear_kind(g): JOIN})
 
 
 ## The Rare piece two Fine pieces make: the first's base, a trait from each
@@ -468,15 +525,12 @@ static func joined(a, b) -> Dictionary:
 
 
 static func join_why(profile, ref: String, other: String) -> String:
-	var lock := locked(profile, "join")
-	if lock != "":
-		return lock
 	var g := piece(profile, ref)
 	if not joinable(g):
 		return TEXT["no_join"]
 	if not (other in partners(profile, ref)):
 		return TEXT["no_partner"]
-	return short_of(profile, join_cost(g))
+	return short_of(profile, join_cost(g, profile))
 
 
 ## Joins two Fine pieces into one Rare. It takes the place of an heirloom
@@ -487,7 +541,7 @@ static func join(profile, ref: String, other: String) -> String:
 		return why
 	var a := piece(profile, ref)
 	var b := piece(profile, other)
-	pay(profile, join_cost(a))
+	pay(profile, join_cost(a, profile))
 	var made := joined(a, b)
 	var keep := other if _keeps_other(ref, other) else ref
 	put(profile, keep, made)
@@ -544,14 +598,16 @@ static func break_down(profile, thing: String) -> String:
 
 # --- inscribing ------------------------------------------------------------------------------------
 
+## A lasting rune's materials (and the premium for `profile`, as temper_cost).
+static func inscribe_cost(profile = null) -> Dictionary:
+	return price(profile, INSCRIBE)
+
+
 static func inscribe_why(profile, ref: String, rune: String) -> String:
-	var lock := locked(profile, "inscribe")
-	if lock != "":
-		return lock
 	var g := piece(profile, ref)
 	if g.is_empty() or not Gear.LASTING_RUNES.has(rune) or Gear.LASTING_RUNES[rune].get("deep", false):  # (a deep rune takes a vessel)
 		return TEXT["nothing"]
-	return short_of(profile, INSCRIBE)
+	return short_of(profile, inscribe_cost(profile))
 
 
 ## Inscribes a lasting rune on a piece (replacing one already there).
@@ -561,7 +617,7 @@ static func inscribe(profile, ref: String, rune: String) -> String:
 	if why != "":
 		return why
 	var g := piece(profile, ref)
-	pay(profile, INSCRIBE)
+	pay(profile, inscribe_cost(profile))
 	g["rune"] = rune
 	put(profile, ref, g)
 	profile.save()
@@ -649,31 +705,30 @@ static func refill(profile, ref: String) -> String:
 	return ""
 
 
-## What crafting a charm costs (charms.gd CRAFT).
-static func craft_cost(id: String) -> Dictionary:
-	return Charms.CRAFT.get(id, {})
+## What crafting a charm costs (charms.gd CRAFT): its materials, plus the
+## premium when the Rune Artist crafts it for `profile`.
+static func craft_cost(id: String, profile = null) -> Dictionary:
+	return price(profile, Charms.CRAFT.get(id, {}))
 
 
 ## Why a charm can't be crafted now, or "".
 static func craft_why(profile, id: String) -> String:
-	if not rune_artist(profile):
-		return Charms.TEXT["needs_rune_artist"]
 	if not Charms.CRAFT.has(id):
 		return TEXT["nothing"]
 	if not Charms.recipe_known(profile, id):
 		return Charms.recipe_why(profile, id)  # (a recipe your rank or a contract teaches: charms.gd LOCKED)
 	if profile.chest.size() >= Train.CHEST_SIZE and profile.pack.size() >= Train.pack_size_with(profile, profile.wear):
 		return Charms.TEXT["no_room"]
-	return short_of(profile, craft_cost(id))
+	return short_of(profile, craft_cost(id, profile))
 
 
-## A Rune Artist crafts a charm: into the stash (the pack if the stash is
+## A charm is crafted (by you, or the Rune Artist for you): into the stash (the pack if the stash is
 ## full). Returns "chest" or "pack" (where it went), or why not ("!why").
 static func craft(profile, id: String) -> String:
 	var why := craft_why(profile, id)
 	if why != "":
 		return "!" + why
-	pay(profile, craft_cost(id))
+	pay(profile, craft_cost(id, profile))
 	var g := Gear.make(id)
 	var to := "chest" if profile.chest.size() < Train.CHEST_SIZE else "pack"
 	(profile.chest if to == "chest" else profile.pack).append(g)

@@ -157,9 +157,9 @@ static func bench_card(tp, arg: String) -> void:
 	var m = tp.m
 	if arg == "vbrew":
 		tp._head("vessel", Vessel.code(Vessel.make()), V["brew_title"], UI.GOLD)
-		tp._lock_line("vessel")
 		m._detail_text(V["brew_desc"], UI.TEXT)
-		var why: String = tp._cost_lines(Vessel.BREW, Bench.TEXT["cost"])
+		var why: String = tp._cost_lines(Vessel.brew_cost(prof), Bench.TEXT["cost"])
+		tp._crafter_line(Vessel.BREW)
 		if why == "":
 			why = Vessel.brew_why(prof)
 		var b: Button = m._button(V["brew"], _brew.bind(tp), m.details)
@@ -172,9 +172,9 @@ static func bench_card(tp, arg: String) -> void:
 	var g: Dictionary = tp._bench_head(arg)
 	if g.is_empty():
 		return
-	tp._lock_line("vessel")
 	tp._trait_list(g)
 	var full: int = Vessel.full_list(prof).size()
+	tp._crafter_line({}, Vessel.work_fee(prof, arg))
 	m._detail_text(V["full_count"] % full, UI.GOLD if full > 0 else UI.DIM)
 	# One rank past the limit.
 	var k := int(g["rank"])
@@ -201,7 +201,7 @@ static func bench_card(tp, arg: String) -> void:
 		b.add_theme_color_override("font_color", Color(Gear.LASTING_RUNES[d]["color"]).lightened(0.1))
 	if g.has("rune"):
 		m._detail_text(Bench.TEXT["replaces_rune"], UI.DIM)
-	tp._why_line(rwhy if rwhy != V["deep_has"] else "")  # (the Rune Artist's line is said once, above)
+	tp._why_line(rwhy if rwhy != V["deep_has"] else "")
 
 
 static func _brew(tp) -> void:

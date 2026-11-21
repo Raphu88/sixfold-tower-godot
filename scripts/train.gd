@@ -12,7 +12,7 @@ extends RefCounted
 ##             selling what you brought down
 ##   personal  your own car: what you'll wear (the Loadout, loadout_page.gd),
 ##             your pack and your stash (the storage chest, stash_page.gd)
-##   workshop  the workshop car: the bench (bench.gd): brewing for anyone,
+##   workshop  the workshop car: the bench (bench.gd) and its Rune Artist: brewing for anyone,
 ##             enchanting for a Rune Artist, and breaking things down
 ##   dining    the Dining car: other climbers at its tables (dining.gd,
 ##             dining_page.gd): rumors, wagers, trades, and duels fought
@@ -187,7 +187,6 @@ static var TEXT := {
 	"trunk_short": "Inventory",
 	"looks": "Appearance",  # how you look (appearance_page.gd)
 	"looks_short": "Looks",
-	"techniques": "Techniques",  # the Unbound's (technique_page.gd)
 	"loadout": "Loadout",  # what you'll wear, and your pack (loadout_page.gd)
 	"loadout_short": "Loadout",
 	"stash": "Stash",  # the stash screen (stash_page.gd)

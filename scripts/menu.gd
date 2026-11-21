@@ -36,6 +36,7 @@ const AppearancePage := preload("res://scripts/appearance_page.gd")
 const Makers := preload("res://scripts/makers.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const TechniquePage := preload("res://scripts/technique_page.gd")
+const TechTab := preload("res://scripts/technique_tab.gd")  # (the Unbound's Techniques tab on the climber screen)
 const BodyMove := preload("res://scripts/body_move.gd")  # (the Unbound: moving essence on the Body tab)
 const ClimbersPage := preload("res://scripts/climbers_page.gd")
 const Slots := preload("res://scripts/slots.gd")
@@ -74,7 +75,7 @@ const SETTINGS_PATH := "user://sixfold.cfg"
 ## How wide each page's panel is (it shrinks to fit a small screen).
 const WIDTHS := {"pause": 440.0, "settings": 660.0, "controls": 660.0, "confirm_new": 440.0, "library": 760.0,
 	"dev": 660.0, "data": 860.0, "climber": 800.0, "inventory": 800.0, "mark": 800.0, "train": 860.0,
-	"create": 960.0, "appearance": 960.0, "techniques": 720.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0,
+	"create": 960.0, "appearance": 960.0, "climbers": 860.0, "loadout": 980.0, "stash": 980.0, "station": 920.0,
 	"talk": 620.0, "pour": 860.0}
 ## The climber screen is the book (book.gd): its sections, [id, name], each
 ## a ribbon. Abilities (abilities.gd) comes first: what you can cast and
@@ -263,7 +264,7 @@ func _ready() -> void:
 	get_viewport().gui_focus_changed.connect(func(_c): if page != "" and main != null and not _hovering and not _quiet: main.sfx("ui_move"))
 	get_viewport().gui_focus_changed.connect(_focus_changed)
 	load_settings()
-	if CLIMBER_TABS.any(func(t): return t[0] == settings["climber_tab"]) or settings["climber_tab"] == SecretPage.TAB[0]:
+	if CLIMBER_TABS.any(func(t): return t[0] == settings["climber_tab"]) or settings["climber_tab"] in [SecretPage.TAB[0], TechTab.TAB_ID]:
 		climber_tab = settings["climber_tab"]
 	apply_settings()
 
@@ -1845,6 +1846,8 @@ func _page_climber() -> void:
 			TreeView.build(self)
 		"core":
 			SecretPage.build(self)
+		"techniques":
+			TechTab.build(self)  # (the Unbound's techniques: technique_tab.gd)
 		"essence":
 			_climber_essence(prof)
 		"record":
@@ -1856,11 +1859,14 @@ func _page_climber() -> void:
 	_footer()
 
 
-## The climber screen's tabs: a secret bond adds its Core tab (secret_page.gd).
+## The climber screen's tabs: the Unbound's Marks tab is their Body, and
+## they get a Techniques tab beside it (technique_tab.gd); a secret bond
+## adds its Core tab (secret_page.gd).
 func climber_tabs() -> Array:
 	var tabs: Array = CLIMBER_TABS.duplicate(true)
 	if main != null and main.profile != null and Unbound.is_on(main.profile):
 		tabs[MARKS_TAB_INDEX][1] = UNBOUND_MARKS_TAB  # (no marks: their body's raw essence)
+		tabs.insert(MARKS_TAB_INDEX + 1, TechTab.tab())
 	if main != null and main.profile != null and main.SecretBonds.has_bond(main.profile):
 		tabs.append(SecretPage.TAB)
 	return tabs
@@ -3838,9 +3844,9 @@ func _page_appearance() -> void:
 	look_page.build("edit")
 
 
-## The Unbound's techniques (technique_page.gd), from your car on the train.
-func _page_techniques() -> void:
-	TechniquePage.build(self)
+## The climber screen on the Unbound's Techniques tab (technique_tab.gd).
+func open_techniques() -> void:
+	_set_climber_tab(TechTab.TAB_ID)
 
 
 ## Opens the appearance editor; Back returns to `from` ("climber", or the

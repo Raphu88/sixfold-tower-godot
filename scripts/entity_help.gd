@@ -29,8 +29,9 @@ extends RefCounted
 ## below): {piece} (the piece or item), {desc} (what it does, from its own
 ## card), {price}, {versus} (better or worse than what you'd wear), {slot},
 ## {from} (where a worn piece comes from), {tower}, {essence}, {best},
-## {beast}, {station}, {count}, {car}, {shelf}, {heard}, {total}, {locked}
-## (" Only a Rune Artist can." or nothing), {choice}, {words} (the
+## {beast}, {station}, {count}, {car}, {shelf}, {heard}, {total}, {crafter}
+## (on a crafted counter: who crafts it, you or the workshop's Rune
+## Artist), {artist} (the Rune Artist's name), {choice}, {words} (the
 ## button's own words). A blank left unfilled is dropped.
 ##
 ## Never the story here: these are plain facts about the buttons.
@@ -116,7 +117,6 @@ static var HELP := {
 	"car_page:climber": "Your climber's book: abilities, the tree, marks, essence and your record.",
 	"car_page:loadout": "The Loadout: what you'll wear, your pack and your belt, drawn large.",
 	"car_page:appearance": "How you look. Looks never change how you play.",
-	"car_page:techniques": "Your techniques: what each mark button casts.",
 	"equip": "Wear {piece}. What it replaces goes back where this came from.",
 	"move:chest": "Moves {piece} into your stash. It stays on the train.",
 	"move:pack": "Moves {piece} into your pack. It goes up the tower with you.",
@@ -129,18 +129,17 @@ static var HELP := {
 	"cycler:kind": "Shows only the pieces of one essence.",
 	# --- the workshop ---------------------------------------------------------------------------
 	"bench_tab:brew": "Brew: supplies for your belt, a little cheaper than the outfitter's.",
-	"bench_tab:temper": "Temper: raise a piece's rank, +1 to +3.{locked}",
-	"bench_tab:retrait": "Retrait: swap one of a piece's traits.{locked}",
-	"bench_tab:join": "Join: two Fine pieces for one slot become one Rare.{locked}",
+	"bench_tab:temper": "Temper: raise a piece's rank, +1 to +3.{crafter}",
+	"bench_tab:retrait": "Retrait: swap one of a piece's traits.{crafter}",
+	"bench_tab:join": "Join: two Fine pieces for one slot become one Rare.{crafter}",
 	"bench_tab:break": "Break down: a piece or a packed item becomes crystals.",
-	"bench_tab:inscribe": "Inscribe: a lasting rune on one piece.{locked}",
-	"bench_tab:recall": "Recall scroll: bind one to leave a climb safely.{locked}",
-	"bench_tab:vessel": "Vessel: brew one, or work a full one into a piece.{locked}",
+	"bench_tab:inscribe": "Inscribe: a lasting rune on one piece.{crafter}",
+	"bench_tab:recall": "Recall scroll: bind one to leave a climb safely.{crafter}",
+	"bench_tab:vessel": "Vessel: brew one, or work a full one into a piece.{crafter}",
 	"bench_tab:tincture": "Tinctures: craft one from crystals of its kind, or drink one you've packed.",
-	"bench_tab:charm": "Charms: refill a charm's spent charge with crystals of its kind, or (a Rune Artist) craft a new charm.",
-	"bench_tab": "{counter}.{locked}",
-	"bench_drawer:essence": "The essence bench: build your techniques.{locked}",
-	"bench_drawer:brew": "Back to the bench's counters.",
+	"bench_tab:charm": "Charms: refill a charm's spent charge with crystals of its kind, or craft a new charm.{crafter}",
+	"bench_tab": "{counter}.{crafter}",
+	"rune_artist_npc": "{artist}, who works the bench. Without the Rune Artist's mark, they craft for you: the same crystals plus a premium on top. Press to hear them.",
 	"slot:bench:item": "{piece}, {price} to brew: {desc}.",
 	"slot:bench:supply": "{piece}, packed on your belt. It can be broken down for crystals.",
 	"slot:bench": "{piece}: {counter} it here.",
@@ -156,7 +155,7 @@ static var HELP := {
 	"slot:crystal": "{piece}: {count} essence. Choose it to eat some.",
 	"slot:crystal:empty": "{piece}: none yet. Stairs condense crystals, and the outfitter pays for every climb.",
 	"slot:tincture": "{piece}: choose it, then choose where it goes.",
-	"slot:bench:craft": "{piece}, a charm a Rune Artist can craft for {price}: {desc}.",
+	"slot:bench:craft": "{piece}, a charm the bench crafts for {price}: {desc}.",
 	"slot:bench:charm": "{piece}: a charm you own. Choose it to see its charge, and refill it with crystals of its kind.",
 	"bench_do:refill": "Refills {piece}'s charge with crystals of its kind. Press it twice.",
 	"bench_do:craft": "Crafts {piece}: it goes into your stash. Press it twice.",
@@ -179,16 +178,12 @@ static var HELP := {
 	"vessel_pack": "Packs the vessel for your next climb, or leaves it here.",
 	"vessel_trade": "Trades the vessel's essence. Press it twice.",
 	"vessel_brew": "Brews an empty vessel.",
-	"bench_vial": "An essence and how much of it fills your body. Its tap stands open if it's in this slot's body part; to add it, move it there on the climber screen's Body tab.",
-	"bench_mould": "The technique's shape.",
-	"bench_fx": "An effect for the technique.",
-	"bench_fitting": "A fitting for the technique.",
-	"bench_slot": "A mark button for the technique.",
-	"bench_save": "Sets the technique in its slot.",
-	"bench_name": "The technique's name.",
-	"bench_from": "A technique you already have, to change.",
-	"bench_draft": "A technique in the works.",
-	"tech_slot": "A body part's mark button and the technique it casts (once the part is half full).",
+	"tech_slot": "A body part's mark button and the technique it casts (once the part is half full). Press to see and change it below.",
+	"tech_form": "A form: the shape this part's technique takes. Press to use it; it changes at once. A dark one opens as the part fills.",
+	"tech_fx": "What this essence does in the technique. Press for its next effect that has opened; more open as that essence pools in you.",
+	"tech_fitting": "A variation, drawn as a fitting on the globe's spout. Press to put it on (in place of another), again to take it off. Dark ones grow on a part's tree.",
+	"tech_name": "Name the technique (optional). Left empty, it keeps the name its form and essence give it.",
+	"tech_boost": "On: a cast spends essence you carry unbanked, if it holds the technique's essences, and hits harder. Off: carried essence is never spent.",
 	"ub_part": "One of your body parts: its level, how full it is (120 at most) and the essences in it. Press it to move essence out of it (Move essence, below).",
 	"ub_move_from": "The body part to move essence out of. Press for the next part, or press a part's card above.",
 	"ub_move_kind": "Which essence in that part to move. Press for the next one.",
@@ -256,12 +251,13 @@ static var HELP := {
 	"tab:marks": "Your marks, and how far each has grown.",
 	"tab:essence": "What you've banked, by essence, and where it settled.",
 	"tab:record": "Your record, as I keep it.",
+	"tab:techniques": "Your techniques: what each mark button casts, and where you change them.",
 	"ribbon": "{words}: a page of your book.",
 	"ability": "{ability}: {desc}.",
 	"map_link": "Shows it on the body map, on the Tree.",
 	"try_abilities": "Try your abilities on dummies, here on the train.",
 	"steps": "Every mark's steps, on the Marks page of your book.",
-	"change_techniques": "Change which technique each mark button casts.",
+	"change_techniques": "Opens the Techniques tab: change each part's technique.",
 	"part": "{words}: this mark's own page.",
 	"bud": "A choice on the Tree. Choose it to see it.",
 	"tree_act:choose": "Chooses this for good.",
@@ -388,7 +384,8 @@ static var TEXT := {
 	"better": "It beats what you'd wear.",
 	"worse": "What you'd wear is better.",
 	"even": "About as good as what you'd wear.",
-	"locked": " Only a Rune Artist can.",
+	"crafter_you": " You craft it yourself.",
+	"crafter_artist": " The Rune Artist here crafts it for you: materials + premium.",
 	"counted": "%d of %d",
 	"best": "Your best there: floor %d.",
 	"best_none": "You haven't climbed it yet.",
@@ -400,11 +397,10 @@ static var TEXT := {
 const TAGS := [
 	["help", "raw"], ["rail", "v"], ["slot", "slot"], ["buy", "buy"], ["tower", ""], ["depart", ""], ["go_station", ""], ["station", ""],
 	["board", "v"], ["store_tab", "v"], ["tree_buy", ""], ["put_back", ""], ["sell", ""],
-	["equip", ""], ["move", "move"], ["unequip", "tail"], ["brew", ""], ["bench_tab", "v"], ["bench_drawer", "v"],
+	["equip", ""], ["move", "move"], ["unequip", "tail"], ["brew", ""], ["bench_tab", "v"],
 	["bench_do", "v"], ["retrait", ""], ["retrait_pick", ""], ["join", ""], ["inscribe", ""],
 	["vessel_pack", ""], ["vessel_trade", ""], ["vessel_brew", ""],
-	["bench_vial", ""], ["bench_mould", ""], ["bench_fx", ""], ["bench_fitting", ""], ["bench_slot", ""], ["bench_save", ""],
-	["bench_name", ""], ["bench_from", ""], ["bench_draft", ""], ["tech_slot", ""],
+	["tech_slot", ""],
 	["shelf", "shelf"], ["archive", ""], ["bestiary", ""], ["bestiary_locked", ""], ["panel_tab", "v"], ["ribbon", "tabbed"], ["tab", "v"], ["choice_key", "setting"], ["setting", "setting"],
 	["over", ""], ["car_page", "v"], ["open_stash", ""], ["cycler", "v"], ["pick", "head"], ["station_do", "v"],
 	["map_link", ""], ["ability", ""], ["try_abilities", ""], ["change_techniques", ""], ["part", ""], ["bud", ""], ["tree_act", "v"], ["back", ""], ["close", ""],
@@ -666,7 +662,7 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		if s.begins_with("bench:item:") and prof != null:
 			f["price"] = Train.paid_text(Bench.brew_cost(prof, s.get_slice(":", 2)))
 		if s.begins_with("bench:craft:"):
-			f["price"] = Train.paid_text(Bench.craft_cost(s.get_slice(":", 2)))
+			f["price"] = Train.paid_text(Bench.craft_cost(s.get_slice(":", 2), prof))
 		if (s.begins_with("outfit:") or s == "today" or s == "order" or s == "unique") and prof != null and Gear.is_gear(b.get("rec")):
 			f["price"] = Train.price_text(Train.gear_kind(b.get("rec")), Train.buy_price(prof, b.get("rec")))
 		if s.begins_with("tree:") and prof != null:
@@ -732,10 +728,13 @@ static func facts(m, b: Control, key: String) -> Dictionary:
 		if prof != null:
 			f["count"] = String(TEXT["counted"]) % [prof.chest.size(), Train.CHEST_SIZE]
 	# The workshop's drawers.
-	if head == "bench_tab" or head == "bench_drawer":
+	if head == "bench_tab":
 		var c := str(b.get_meta(head))
-		f["counter"] = _counter_name(c) if head == "bench_tab" else words(b)
-		f["locked"] = String(TEXT["locked"]) if bool(b.get_meta("greyed", false)) else ""
+		f["counter"] = _counter_name(c)
+		if c in Bench.CRAFTED and prof != null:
+			f["crafter"] = String(TEXT["crafter_artist"] if Bench.artist_crafts(prof) else TEXT["crafter_you"])
+	if key == "rune_artist_npc":
+		f["artist"] = String(Bench.ARTIST["name"])
 	# The library.
 	if head == "shelf":
 		var gid := str(b.get_meta("shelf"))

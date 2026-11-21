@@ -30,7 +30,6 @@ const Train := preload("res://scripts/train.gd")
 const Bench := preload("res://scripts/bench.gd")
 const Stations := preload("res://scripts/stations.gd")
 const Appearance := preload("res://scripts/appearance.gd")
-const EssenceBench := preload("res://scripts/essence_bench.gd")
 const Unbound := preload("res://scripts/unbound.gd")
 const Renown := preload("res://scripts/renown.gd")
 const Shop := preload("res://scripts/shop.gd")
@@ -656,7 +655,7 @@ class Sweep:
 			["climber", "abilities"], ["climber", "tree"], ["climber", "marks"], ["climber", "essence"], ["climber", "record"],
 			["mark", "hand"], ["mark", "legs"], ["mark", "brow"], ["mark", "heart"], ["mark", "throat"], ["mark", "back"],
 			["library", ""], ["library", "bestiary"], ["inventory", "worn"], ["inventory", "pack"], ["inventory", "heirlooms"],
-			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["techniques", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"],
+			["dev", ""], ["data", ""], ["confirm_new", ""], ["climbers", ""], ["talk", "start"], ["talk", "marks"], ["talk", "tower_hazards"],
 			["pour", "crystal"], ["pour", "tincture"]]
 		for t in Appearance.TABS:
 			list.append(["appearance", t[0]])
@@ -772,7 +771,6 @@ class Sweep:
 		var views: Array = [["engine", "towers"], ["engine", "stations"], ["store", "shop"], ["store", "sell"], ["store", "tree"], ["personal", ""], ["library", ""], ["library", "bestiary"], ["settings", "settings"], ["settings", "controls"]]
 		for c in Bench.COUNTERS:
 			views.append(["workshop", c[0]])
-		views.append(["workshop", EssenceBench.COUNTER])
 		if light:
 			views = [["engine", "towers"], ["store", "shop"], ["store", "tree"], ["personal", ""], ["workshop", "brew"], ["workshop", "temper"], ["settings", "settings"], ["library", "bestiary"]]
 		var tp = menu.train_page

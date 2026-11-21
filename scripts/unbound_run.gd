@@ -15,7 +15,7 @@ extends Node2D
 ##   player.gd _part_action), like a mark's bond; full, it casts without
 ##   spending anything (technique.gd CHARGE); cast early and the missing
 ##   share adds strain. BOOST: carried essence of its kinds is spent on a
-##   cast for more power (automatic; the techniques page can switch it off).
+##   cast for more power (automatic; the Techniques tab can switch it off).
 ## STRAIN: each cast strains the technique's body part. Above HOT its
 ##   techniques hit HOT_POWER harder but may waver (WAVER: half strength,
 ##   off aim); at ERUPT the part erupts: you lose ERUPT_HURT of your health

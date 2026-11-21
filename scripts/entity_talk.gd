@@ -72,7 +72,7 @@ static var DIALOGUE := {
 	# to "how"'s choices.
 	"how": {"ask": "How do things work here?",
 		"lines": ["Which part? I'll keep it short.", "Ask. The rules are simpler than they look. Mostly."],
-		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_offhand", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_unbound_words", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
+		"choices": ["how_controls", "how_start", "how_grace", "how_training", "how_stamina", "how_essence", "how_marks", "how_new_mark", "how_synergies", "how_renown", "how_travel", "how_titles", "how_contracts", "how_tourney", "how_manager", "how_climb", "how_first_mark", "how_barrier", "how_fall", "how_belt", "how_wheel", "how_states", "how_handy", "how_charms", "how_workshop", "how_offhand", "how_gear", "how_summit", "how_deeds", "how_bags", "how_shop", "how_ward", "how_secret", "how_portals", "how_aura", "how_unbound", "how_unbound_words", "how_unbound_techniques", "how_bestiary", "how_rivals", "how_dining", "how_bets", "how_duels", "how_glows", "how_ways_down", "how_foes", "start", "bye"]},
 	"how_controls": {"ask": "What are the controls?", "fact": "controls",
 		"lines": ["{controls_how}", "{controls_list}", "Press H any time to show or hide this list in the corner of the screen. Settings & Controls lets you change any key."],
 		"choices": ["how", "bye"]},
@@ -150,8 +150,11 @@ static var DIALOGUE := {
 		"lines": ["{handy} They turn up more often there, though like every item but the staples they're still a rare find; the outfitter's shelf says where each is handy, if you'd rather bring one."],
 		"choices": ["how_states", "tower", "how", "bye"]},
 	"how_charms": {"ask": "How do charms work?", "fact": "rules",
-		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. A Rune Artist crafts them; the outfitter sells {charm_shop}; vaults and secret rooms sometimes hold one."],
-		"choices": ["how_bags", "how", "bye"]},
+		"lines": ["You wear one charm, in its slot under the others. It's never used up: its gift is on while you wear it. Some hold a charge that fires by itself when its moment comes. Spent, it stays spent until you feed it essence: at the workshop bench with crystals of its kind, or in the tower from the inventory with essence you haven't banked. The Workshop crafts them (with the Rune Artist's mark you craft them yourself; without it, {artist} does it for you); the outfitter sells {charm_shop}; vaults and secret rooms sometimes hold one."],
+		"choices": ["how_workshop", "how_bags", "how", "bye"]},
+	"how_workshop": {"ask": "The Workshop and its Rune Artist?", "fact": "rules",
+		"lines": ["The Workshop's bench has a counter for each kind of work. Brewing, breaking down, tinctures and refilling charms are anyone's. The rest is crafting: tempering, swapping a trait, joining two pieces, a lasting rune, a recall scroll, a vessel, a new charm. With the Rune Artist's mark you craft it yourself with your own essence, and brew for less. Without the mark, {artist} at the bench crafts it for you. You bring the same crystals a Rune Artist would use, plus {artist_premium} on top for the craft, and {artist_work} when a full vessel does the work. Every card says who crafts and what the price is made of."],
+		"choices": ["how_charms", "how", "bye"]},
 	"how_offhand": {"ask": "How does the off-hand work?",
 		"lines": ["Your off-hand holds a second one-handed weapon, a shield or a wand. A second blade puts its own strike into your chains, just before the finisher. A shield blocks while you keep holding parry after the parry's moment: blows from in front hurt less, and each costs stamina; run dry and the guard breaks. A clean parry still beats a block. A wand casts a small power with the off-hand button. Enchanted ones have their own pool of uses, fed with essence like a charm. Two-handed weapons and bows need both hands: the off-hand waits."],
 		"choices": ["how_charms", "how", "bye"]},
@@ -189,8 +192,11 @@ static var DIALOGUE := {
 		"lines": ["Each of your six parts is a cup that holds {core_cap}. Banked essence flows into its natural part and fills it slowly, slower the fuller it is. Every {ub_level} is a level. Level {ub_minor} wakes a minor ability, level {ub_gift} a gift, level {ub_tech}, half full, a technique on that part's button, and level 12, full, its capstone. The first essence in a part leads it and must stay at least half; two more at most add their touch. On your climber screen's Body tab you can move essence from one part to another, wherever no monster is after you. A quarter is the price."],
 		"choices": ["how_unbound_words", "how_aura", "how", "bye"]},
 	"how_unbound_words": {"ask": "Forms, effects, techniques?", "if": "unbound",
-		"lines": ["A form is the shape a part gives: the hand strikes or throws a bolt, the legs dash or leap. An effect is what an essence does to what it hits: Fire burns, Stone staggers. A technique is the two together: a strike and a burn, Flame Fist. A variation is a small change on top: Wide, Quick, Chain. Your part's essence chooses the effects. You choose the form, at the essence bench."],
-		"choices": ["how_unbound", "how", "bye"]},
+		"lines": ["A form is the shape a part gives: the hand strikes or throws a bolt, the legs dash or leap. An effect is what an essence does to what it hits: Fire burns, Stone staggers. A technique is the two together: a strike and a burn, Flame Fist. A variation is a small change on top: Wide, Quick, Chain. Your part's essence chooses the effects. You choose the form, each essence's effect and the variation, on your climber screen's Techniques tab."],
+		"choices": ["how_unbound_techniques", "how_unbound", "how", "bye"]},
+	"how_unbound_techniques": {"ask": "The Techniques tab?", "if": "unbound",
+		"lines": ["Your climber screen's Techniques tab holds all six. Choose a part along the top. Its card says what its technique does, in plain words, and draws it in a glass globe: the form inside, the part's essences poured in, the variation on its spout, and a dial for the strain one cast adds. Under it: Form, an Effect for each essence, a Variation, its name, Boost, and where each kind of banked essence flows. Every press changes the technique at once, so nothing is ever lost. You can look anywhere, but you change techniques only on the train, between climbs. The essences themselves are the part's own: move them on the Body tab."],
+		"choices": ["how_unbound_words", "how_unbound", "how", "bye"]},
 	"how_bestiary": {"ask": "What is the Bestiary?", "fact": "rules",
 		"lines": ["My notes on every monster, in the Library. An entry starts when you see one and grows when you fight it. Slay it {bestiary_slain} times and it adds its health, then what it's weak to, then how it takes states. A beast takes {bestiary_beast}."],
 		"choices": ["how_secret", "how", "bye"]},
@@ -719,6 +725,12 @@ static func _fact_rules() -> Dictionary:
 		"core_cap": int(Unbound.Core.CAP), "aura_steps": ", ".join(load("res://scripts/secret.gd").STEPS.map(func(v): return str(int(v)))),
 		"ub_level": int(Unbound.LEVEL_SIZE), "ub_minor": Unbound.MINOR_LEVEL, "ub_gift": Unbound.GIFT_LEVEL, "ub_tech": Unbound.TECH_LEVEL,
 	})
+	# The workshop's Rune Artist (bench.gd ARTIST, PREMIUM).
+	var Bench = load("res://scripts/bench.gd")
+	f["artist"] = String(Bench.ARTIST["name"])
+	var share := float(Bench.PREMIUM["share"])
+	f["artist_premium"] = "half the materials again" if is_equal_approx(share, 0.5) else "%d%% of the materials" % int(round(share * 100.0))
+	f["artist_work"] = "a fee of %d crystals of the piece's kind" % int(Bench.PREMIUM["work"])
 	# Charms and bags (charms.gd, gear.gd BAG): from their tables.
 	var Shop = load("res://scripts/shop.gd")
 	var last: Dictionary = Shop.RANK_STOCK[-1]
