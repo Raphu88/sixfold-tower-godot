@@ -8717,7 +8717,9 @@ func _economy_tests() -> void:
 	main.floor_num = 4
 	main.run_essence = {"water": 30.0}
 	main._arrive()
-	_check(prof.crystals.is_empty(), "at 0% nothing condenses")
+	var m0 := roundi(30.0 * 4.0 / 7.0)
+	var want0: String = main.Flow.TEXT["split"] % [30, 30 - m0, m0, 0]
+	_check(main.banner.get("lines", []).has(want0), "at 0%% none of the stair's essence goes to crystals (only what the marks can't take condenses): %s" % str(main.banner.get("lines", [])))
 	M.settings["condense"] = T.CONDENSE_DEFAULT
 	# The outfitter pays for a fall: per floor reached, more past your best.
 	await _fresh_main()

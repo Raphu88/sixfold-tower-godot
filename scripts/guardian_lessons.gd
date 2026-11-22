@@ -102,7 +102,7 @@ static var RUMOURS := {
 static func is_guardian(main, e) -> bool:
 	if e == null or not is_instance_valid(e) or main == null or main.get("profile") == null:
 		return false
-	if not e.is_boss() or bool(e.shade) or bool(e.ally) or bool(e.get("mirror")):
+	if not e.has_method("is_boss") or not e.is_boss() or bool(e.get("shade")) or bool(e.get("ally")) or bool(e.get("mirror")):
 		return false
 	var ar = main.get("arena")
 	return not (ar != null and is_instance_valid(ar) and bool(ar.get("on")))
