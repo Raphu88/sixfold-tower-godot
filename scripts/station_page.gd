@@ -491,7 +491,7 @@ func _noble(left: Node) -> void:
 	var prof = _prof()
 	_section(left, Noble.name_of(station))
 	if not said.has("noble_line"):
-		said["noble_line"] = Noble.line("greet")
+		said["noble_line"] = Noble.greet(prof)  # (now and then a rumour of the guardians: guardian_lessons.gd)
 	_line(left, String(said["noble_line"]), UI.GOLD)
 	if Training.required(prof):
 		# The Noble's Grace (training.gd): what lets a climber into the towers.

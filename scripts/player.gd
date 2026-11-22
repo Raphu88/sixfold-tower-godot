@@ -18,6 +18,7 @@ const Anim := preload("res://scripts/anim.gd")
 const Holes := preload("res://scripts/holes.gd")
 const Reactions := preload("res://scripts/reactions.gd")
 const Synergies := preload("res://scripts/synergies.gd")
+const GuardianLessons := preload("res://scripts/guardian_lessons.gd")
 const Essence := preload("res://scripts/essence.gd")
 const Bestiary := preload("res://scripts/bestiary.gd")
 const Charms := preload("res://scripts/charms.gd")
@@ -2248,7 +2249,9 @@ func _release_cast() -> void:
 	main.cast_hits = 0
 	var sb_cast = main.secret_tools.before_cast(b) if main.secret_tools != null else null  # (the Developer's Splice)
 	main.counting_hits = true
+	main.blow_ctx = GuardianLessons.cast_ctx(b, cast_part)  # (what the cast is, for a guardian's lessons)
 	Synergies.cast(main, self, b)  # (the spell, and the traits your other marks lend it: synergies.gd)
+	main.blow_ctx = {}
 	main.counting_hits = false
 	if main.hints != null:
 		main.hints.cast_done(b)  # (the first cast of each: its name and what it does)
@@ -3124,6 +3127,7 @@ func _on_parry(source, perfect := false) -> void:
 		source.set_meta("watched", Time.get_ticks_msec() * 0.001 + 3.0)
 	# The brow fills when you parry.
 	_part_action("brow", 9.0 if perfect else 6.0, 18.0 if perfect else 12.0)
+	GuardianLessons.note_parry(main, source)  # (a guardian notes how it's fought)
 	if source.has_method("on_parried"):
 		source.on_parried(perfect)
 
@@ -3134,6 +3138,7 @@ func on_dodge() -> void:
 		return
 	dodge_cd = 0.3
 	_part_action("legs", 4.0, 10.0)
+	GuardianLessons.note_roll(main)  # (a guardian notes how it's fought)
 	if gfx("dodge_haste") > 0.0:
 		dodge_haste_t = 2.0  # Phantom Treads
 	main.fx_text(global_position + Vector2(0, -30), "Dodged", Color(0.75, 0.9, 1.0))

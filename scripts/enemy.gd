@@ -38,6 +38,12 @@ static func _bond() -> Script:
 ## The rules every attack keeps live in combat.gd FOES (the Data editor's
 ## "The climber's core numbers"); these read them.
 const Combat := preload("res://scripts/combat.gd")
+const Lessons := preload("res://scripts/guardian_lessons.gd")
+## A guardian (a tower's beast at its summit) watches how it's fought, for
+## the lesson it teaches the others if it falls, and fights with what the
+## fallen ones taught it (guardian_lessons.gd).
+var lesson_tally := {}
+var lessons := {}
 var GLINT_LEAD: float:  # seconds from the glint to the hit
 	get: return float(Combat.FOES["glint_lead"])
 var FLINCH_TIME: float:
@@ -635,6 +641,8 @@ func _physics_process(delta: float) -> void:
 			_chimera(delta, dir, dist, p)
 		_:
 			_act(delta, dir, dist, p)
+	if is_boss() and not shade and not ally:
+		Lessons.steer(main, self, dir, dist)  # (a guardian's lessons: it keeps its distance, or presses in, between attacks)
 	# Water slows walking monsters too (not fliers or the ones that live in it),
 	# but never an attack already on its way: the glint promised its timing.
 	# A Deepcaller's Pressure slows the badly hurt.
@@ -746,6 +754,8 @@ func _wind(delta: float, travel := 0.0) -> bool:
 func _begin_wind(new_state: String, duration: float) -> void:
 	state = new_state
 	state_t = duration
+	if is_boss() and not shade and not ally:
+		state_t = Lessons.wind(main, self, duration)  # (a guardian taught by a parrier's killer: its wind-ups vary)
 	glinted = false
 
 
@@ -2130,6 +2140,10 @@ func take_hit(amount: float, dir: Vector2, force := 140.0, heavy := false, pierc
 	if challenged_t > 0.0:
 		amount *= 1.5  # Challenged foes take more damage
 	amount *= _bond().taken_mult(main, self)  # (Static II, Quarry II, the Maelstrom's drench)
+	if is_boss() and not shade and not ally:
+		amount = Lessons.taken(main, self, amount)  # (a guardian notes the blow, then its lessons take their share)
+		if amount <= 0.0:
+			return  # (a shot sidestepped)
 	if open_t > 0.0 and stun <= 0.0:
 		amount *= OPEN_MULT  # caught recovering from its attack
 		main.fx_text(global_position + Vector2(0, -radius - 34.0), "Opening!", Color(1.0, 0.85, 0.45))

@@ -277,6 +277,8 @@ func _rumors() -> void:
 	var tw := "kraken"
 	var bad: Array = []
 	var seen := {}
+	var kept_lessons: Dictionary = prof.guardians
+	prof.guardians = {"gryphon": {"beast": "the Gryphon", "ess": {"fire": 0.8}, "forms": {"shot": 0.7}, "parts": {"brow": 0.7}, "near": 0.2, "rolls": 3, "parries": 0, "dmg": 300}}  # (a guardian has fallen: the rumours of its lesson)
 	for r in D.RUMORS:
 		for i in 6:
 			var f := D.fact(prof, String(r["fact"]), tw, "")
@@ -289,6 +291,7 @@ func _rumors() -> void:
 			if text.contains("{"):
 				bad.append("%s left a blank: %s" % [r["fact"], text])
 	_check(bad.is_empty(), "every rumor's fact is true by the game's own tables (%s)" % [bad.slice(0, 3)])
+	prof.guardians = kept_lessons
 	_check(seen.size() >= D.RUMORS.size() - 1, "...and nearly every kind of rumor has something to say (%s)" % [seen.keys()])
 	# A weakness heard fills that Bestiary line.
 	var keep: Array = D.RUMORS
@@ -335,6 +338,9 @@ func _fact_true(prof, f: Dictionary) -> bool:
 					for o in D.bet_offers(prof, r2, "kraken"):
 						best = maxf(best, float(o["odds"]))
 			return absf(best - float(f["odds_value"])) < 0.001
+		"guardians":
+			var GL = load("res://scripts/guardian_lessons.gd")
+			return not GL.rumour_facts(prof).is_empty() and String(f["rumour"]).length() > 8
 	return false
 
 

@@ -180,10 +180,12 @@ const UB_SPAM := 10.0
 ## "spread" (the climb's own kind, once its Node is awake, wakes the next
 ## sleeping Node; a kind whose Node is at level 12 goes to the smallest Node
 ## that isn't). Each summit condenses into the biggest awake Node that isn't
-## full. Returns {"sizes": [after each climb, part -> size], "awake": part ->
-## the climb it woke (0: never), "top": part -> the climb it reached level 12
-## (0: never)}.
-static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural") -> Dictionary:
+## full. `sealed`: the Nodes sealed on the train after the first climb
+## (unbound.gd seal: a focused Unbound; their essence flows to the open
+## Nodes). Returns {"sizes": [after each climb, part -> size], "awake": part
+## -> the climb it woke (0: never), "top": part -> the climb it reached level
+## 12 (0: never)}.
+static func run_unbound(pattern: String, climbs: int, use := "typical", routing := "natural", sealed := []) -> Dictionary:
 	var U = load("res://scripts/unbound.gd")
 	var Tech = load("res://scripts/technique.gd")
 	var prof = Profile.new()
@@ -193,6 +195,8 @@ static func run_unbound(pattern: String, climbs: int, use := "typical", routing 
 		prof.pour(_essence(OWN_TOWER, f), STYLE, cs)
 	prof.regarded = true
 	U.become(prof)
+	for part in sealed:
+		U.seal(prof, String(part))
 	var woke := {}
 	var top := {}
 	var sizes: Array = []

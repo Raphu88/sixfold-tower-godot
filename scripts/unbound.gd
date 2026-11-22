@@ -31,9 +31,22 @@ extends RefCounted
 ##     before it has a technique what its own action does (USE weights),
 ##     asks for that much back at the next stair; the essence banked into the
 ##     Node that refills it is used up, stretching it (GROW_COST for 10 at
-##     its level), at most USE "climb_cap" size a climb. Use not refilled at
-##     a stair is gone, so casting more than you bank adds nothing. Moving
-##     essence never changes a size. (note_use, settle_into.)
+##     its level). There is no cap a climb: banked essence (refills cost it)
+##     and strain (pushing techniques builds strain toward an eruption) hold
+##     the pace. Use not refilled at a stair is gone, so casting more than you
+##     bank adds nothing. Moving essence never changes a size. (note_use,
+##     settle_into.)
+##   SEALING (the Unbound choose; the marked can't): on the train, on the
+##     Body tab (node_seal.gd), an Unbound can SEAL a Node. A sealed Node
+##     takes no essence: banked essence that would pool there (its natural
+##     kind, or routed there) flows to the open Nodes instead (part_for:
+##     the biggest open Node; routing skips sealed Nodes). Sealing gives the
+##     Node up: what it holds condenses into crystals, its size is gone, and
+##     with it its technique, gift, minor ability and attributes. At least
+##     one Node stays open. Each sealed Node makes the open ones stronger:
+##     their growth from refilled use (SEAL "growth") and their techniques'
+##     power (SEAL "power"). Unsealing is allowed: the Node starts asleep at
+##     size 0. (seal, unseal, sealed, growth_mult, seal_power.)
 ##   On the climber screen's Body tab (body_move.gd), whenever no monster is
 ##   after the climber, essence can be MOVED from one awake Node to another,
 ##   or fed to a sleeping one; a share of it is the price (MOVE_COST):
@@ -76,13 +89,25 @@ const MAX_LEVEL := 12
 static var LEVELS := [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0]
 ## Essence that ten more size take, at each level (index = the Node's level
 ## now): banked essence soaked in while it sleeps (levels 0-2), and refilled
-## use once it's awake (3 on). Slow, and slower the bigger the Node.
-static var GROW_COST := [60.0, 90.0, 120.0, 130.0, 160.0, 220.0, 320.0, 450.0, 620.0, 860.0, 1200.0, 1700.0]
+## use once it's awake (3 on). Slow, and slower the bigger the Node. (With no
+## cap a climb, banked essence alone holds the pace: tests/progression_model.gd
+## run_unbound, held to its bands by tests/parts/unbound_cup.gd.)
+static var GROW_COST := [60.0, 90.0, 120.0, 140.0, 175.0, 240.0, 345.0, 485.0, 670.0, 930.0, 1300.0, 1835.0]
 ## Growth by use. Essence a Node's technique spends on a cast counts "cast"
 ## times as use, a boost's essence "boost" times; before the Node has a
 ## technique, its own action (what would fill one: player.gd _part_action)
-## counts "action" times. At most "climb_cap" size grows by use in one climb.
-static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5, "climb_cap": 18.0}
+## counts "action" times. No cap a climb: banked essence and strain hold the pace.
+static var USE := {"cast": 2.0, "boost": 2.0, "action": 0.5}
+## Sealing: each sealed Node makes every open Node's growth from refilled use
+## "growth" faster and its techniques "power" stronger (adding up: two
+## sealed, twice that). Banked essence that would pool in a sealed Node
+## flows on to an open one, but only "flow" of it gets through; the rest
+## condenses into crystals on the way (essence is never lost). A focused
+## Unbound trades breadth for depth, not speed: one open Node reaches level
+## 12 a little sooner than a broad climber's main Node, not drastically
+## (tests/progression_model.gd run_unbound with `sealed`; held by
+## tests/parts/sealing.gd).
+static var SEAL := {"growth": 0.04, "power": 0.06, "flow": 0.1}
 ## Attributes from the Nodes' sizes: an attribute's bonus is half its cap
 ## (profile.gd ATTRIBUTE_CAP) at "half" size counted for its essence.
 static var ATTR := {"half": 60.0}
@@ -210,6 +235,17 @@ static var TEXT := {
 	"cant_full": "Your %s is full: it grows only with use",
 	"cant_empty": "No %s in your %s",
 	"cant_asleep": "Your %s is asleep: it holds nothing yet",
+	"cant_sealed": "Your %s is sealed: it takes no essence",
+	"spill_sealed": "%s essence finds its Node sealed: %d condenses into crystals on the way to your open Nodes",
+	# Sealing (node_seal.gd has the Body tab's words).
+	"sealed": "sealed",
+	"seal_unbound": "Only the Unbound can seal a Node",
+	"seal_already": "Your %s is already sealed",
+	"seal_train": "Sealing and unsealing happen only on the train",
+	"seal_last": "At least one Node stays open",
+	"sealed_line": "Sealed your %s: what it held condensed into %d crystals",
+	"unseal_open": "Your %s isn't sealed",
+	"unsealed_line": "Unsealed your %s: it starts again asleep, at size 0",
 }
 
 
@@ -242,7 +278,9 @@ static func state(prof) -> Dictionary:
 	if not (st.get("used") is Dictionary):
 		st["used"] = {}  # part -> use waiting to be refilled at the next stair (note_use)
 	if not (st.get("grown") is Dictionary):
-		st["grown"] = {}  # part -> size grown by use this climb (USE "climb_cap")
+		st["grown"] = {}  # part -> size grown by use this climb (the stair's "grows with use" line)
+	if not (st.get("sealed") is Dictionary):
+		st["sealed"] = {}  # part -> true: sealed (seal); old saves have none
 	return st
 
 
@@ -315,8 +353,10 @@ static func _sizes(prof) -> Dictionary:
 
 ## A Node's size: its density, how much of its own essence it can hold (0
 ## to CAP). It is never less than what it holds (essence put straight in by
-## the dev tools or a test stretches it).
+## the dev tools or a test stretches it). A sealed Node's is 0.
 static func size(prof, part: String) -> float:
+	if sealed(prof, part):
+		return 0.0
 	var sz := _sizes(prof)
 	var s := float(sz.get(part, 0.0))
 	var held := own(prof, part)
@@ -357,9 +397,9 @@ static func set_node(prof, part: String, holds: Dictionary) -> void:
 	_sizes(prof)[part] = minf(Core.CAP, own(prof, part))
 
 
-## Grows a Node by `essence` worth (GROW_COST for 10 at each level), up to
-## `top` size. Returns the essence used.
-static func _grow(prof, part: String, essence: float, top: float) -> float:
+## Grows a Node by `essence` worth (GROW_COST for 10 at each level, divided
+## by `rate`: the sealed Nodes' bonus), up to `top` size. Returns the essence used.
+static func _grow(prof, part: String, essence: float, top: float, rate := 1.0) -> float:
 	var left := essence
 	var sz := _sizes(prof)
 	top = minf(top, Core.CAP)
@@ -370,7 +410,7 @@ static func _grow(prof, part: String, essence: float, top: float) -> float:
 		var lv := level_for(s)
 		if lv >= MAX_LEVEL:
 			break
-		var cost := float(GROW_COST[mini(lv, GROW_COST.size() - 1)])
+		var cost := float(GROW_COST[mini(lv, GROW_COST.size() - 1)]) / maxf(0.01, rate)
 		var to_next := minf(float(LEVELS[lv]) - s, top - s)
 		if to_next <= 0.0001:
 			to_next = minf(LEVEL_SIZE, top - s)
@@ -397,8 +437,8 @@ static func note_use(prof, part: String, essence: float, how := "cast") -> void:
 	st["used"][part] = used(prof, part) + essence * float(USE.get(how, 1.0))
 
 
-## A new climb: its growth by use starts again (USE "climb_cap"); use left
-## from the last climb is gone.
+## A new climb: use left from the last climb is gone (and the count behind
+## the stair's "grows with use" line starts again).
 static func new_climb(prof) -> void:
 	var st := state(prof)
 	st["used"] = {}
@@ -413,22 +453,136 @@ static func end_stair(prof) -> void:
 
 # --- where essence goes ----------------------------------------------------------------
 
-## Where a kind pools when banked (its natural part, or where it's routed).
+## Where a kind pools when banked (its natural part, or where it's routed);
+## a sealed Node takes none: then the biggest open Node (open_default).
 static func part_for(prof, kind: String) -> String:
 	var routes: Dictionary = state(prof)["routes"]
 	var to := String(routes.get(kind, ""))
-	return to if to in PARTS else String(NATURAL.get(kind, "hand"))
+	var at := to if to in PARTS else String(NATURAL.get(kind, "hand"))
+	return open_default(prof) if sealed(prof, at) else at
 
 
-## Routes a kind to a part (its natural part clears the route).
+## Routes a kind to a part (its natural part clears the route). A sealed
+## Node can't be routed to.
 static func route(prof, kind: String, part: String) -> void:
-	if not NATURAL.has(kind) or not part in PARTS:
+	if not NATURAL.has(kind) or not part in PARTS or sealed(prof, part):
 		return
 	var routes: Dictionary = state(prof)["routes"]
 	if part == NATURAL[kind]:
 		routes.erase(kind)
 	else:
 		routes[kind] = part
+
+
+# --- sealing ----------------------------------------------------------------------------------
+
+## True while a Node is sealed (it takes no essence and gives nothing).
+static func sealed(prof, part: String) -> bool:
+	if prof == null or not (prof.get("unbound") is Dictionary):
+		return false
+	var s = prof.unbound.get("sealed")
+	return s is Dictionary and bool(s.get(part, false)) and bool(prof.unbound.get("on", false))
+
+
+static func sealed_count(prof) -> int:
+	var n := 0
+	for part in PARTS:
+		if sealed(prof, part):
+			n += 1
+	return n
+
+
+## The Nodes not sealed.
+static func open_parts(prof) -> Array:
+	return PARTS.filter(func(pt): return not sealed(prof, pt))
+
+
+## Where a sealed Node's essence goes instead: the biggest open Node (an awake
+## one first; on a tie, the first in PARTS).
+static func open_default(prof) -> String:
+	var best := ""
+	var most := -1.0
+	for pt in open_parts(prof):
+		var s := size(prof, pt)
+		if s > most + 0.0001:
+			most = s
+			best = pt
+	return best if best != "" else String(PARTS[0])
+
+
+## Each sealed Node makes the open Nodes' growth from refilled use faster.
+static func growth_mult(prof) -> float:
+	return 1.0 + float(SEAL.get("growth", 0.0)) * sealed_count(prof)
+
+
+## ...and their techniques hit harder.
+static func seal_power(prof) -> float:
+	return 1.0 + float(SEAL.get("power", 0.0)) * sealed_count(prof)
+
+
+## Why a Node can't be sealed now ("" if it can): only an Unbound, only on
+## the train, and at least one Node stays open.
+static func why_not_seal(prof, part: String, on_train: bool) -> String:
+	if not is_on(prof) or not part in PARTS:
+		return TEXT["seal_unbound"]
+	if sealed(prof, part):
+		return TEXT["seal_already"] % node_name(part)
+	if not on_train:
+		return TEXT["seal_train"]
+	if open_parts(prof).size() <= 1:
+		return TEXT["seal_last"]
+	return ""
+
+
+## Seals a Node: what it holds condenses into crystals (whole crystals; the
+## core there moves to the other parts), its size, technique, gift, minor
+## ability and attributes are gone, and its routes go back to the open
+## Nodes. Returns {"ok", "line", "crystals"}.
+static func seal(prof, part: String, on_train := true) -> Dictionary:
+	var why := why_not_seal(prof, part, on_train)
+	if why != "":
+		return {"ok": false, "line": why, "crystals": 0}
+	var st := state(prof)
+	var made := 0
+	var pd = prof.part_density.get(part, {})
+	if pd is Dictionary:
+		for k in pd:
+			var whole := int(floor(maxf(0.0, float(pd[k])) + 0.0001))
+			if whole >= 1:
+				prof.add_crystal(String(k), float(whole))
+				made += whole
+	prof.part_density.erase(part)
+	_sizes(prof)[part] = 0.0
+	st["primary"].erase(part)
+	st["used"].erase(part)
+	st["grown"].erase(part)
+	st["seen"][part] = 0
+	var i := PARTS.find(part)
+	if i >= 0 and i < st["techs"].size():
+		st["techs"][i] = {}
+	st["sealed"][part] = true
+	for k in st["routes"].keys():
+		if String(st["routes"][k]) == part:
+			st["routes"].erase(k)
+	st["core"][part] = 0.0
+	Core.sync(prof)
+	return {"ok": true, "line": TEXT["sealed_line"] % [node_name(part), made], "crystals": made}
+
+
+## Opens a sealed Node again: it starts asleep, at size 0, holding nothing.
+## Only on the train. Returns {"ok", "line"}.
+static func unseal(prof, part: String, on_train := true) -> Dictionary:
+	if not sealed(prof, part):
+		return {"ok": false, "line": TEXT["unseal_open"] % node_name(part)}
+	if not on_train:
+		return {"ok": false, "line": TEXT["seal_train"]}
+	var st := state(prof)
+	st["sealed"].erase(part)
+	_sizes(prof)[part] = 0.0
+	prof.part_density.erase(part)
+	st["seen"][part] = 0
+	Core.sync(prof)
+	return {"ok": true, "line": TEXT["unsealed_line"] % node_name(part)}
 
 
 ## A Node's own essence (what it holds, the core not counted).
@@ -563,6 +717,8 @@ static func take_limit(prof, part: String, kind: String) -> float:
 
 ## Why a kind can't go into a Node ("" if it can).
 static func why_not(prof, part: String, kind: String) -> String:
+	if sealed(prof, part):
+		return TEXT["cant_sealed"] % node_name(part)
 	if not awake(prof, part):
 		return TEXT["cant_asleep"] % node_name(part)
 	if room(prof, part) <= 0.0:
@@ -580,7 +736,7 @@ static func why_not(prof, part: String, kind: String) -> String:
 ## Node never holds more than its size). The size stretches to fit. Returns
 ## what went in.
 static func put(prof, part: String, kind: String, amt: float) -> float:
-	if amt <= 0.0 or not part in PARTS:
+	if amt <= 0.0 or not part in PARTS or sealed(prof, part):
 		return 0.0
 	var g := minf(amt, kind_limit(prof, part, kind))
 	g = minf(g, maxf(0.0, Core.CAP - own(prof, part) - core(prof, part)))
@@ -616,15 +772,28 @@ static func take(prof, part: String, kind: String, amt: float) -> float:
 ## Banked essence of one kind goes to its Node (profile.gd pour). Returns
 ## the banked essence left over (to condense into crystals).
 static func settle(prof, kind: String, banked: float) -> float:
+	if diverted(prof, kind):
+		var on := banked * float(SEAL.get("flow", 1.0))
+		return banked - on + settle_into(prof, part_for(prof, kind), kind, on)
 	return settle_into(prof, part_for(prof, kind), kind, banked)
+
+
+## True when a kind would pool in a sealed Node (its natural Node, or where
+## it's routed) and flows on to an open one instead (SEAL "flow" of it; the
+## rest condenses into crystals on the way).
+static func diverted(prof, kind: String) -> bool:
+	var to := String(state(prof)["routes"].get(kind, ""))
+	var at := to if to in PARTS else String(NATURAL.get(kind, "hand"))
+	return sealed(prof, at)
 
 
 ## Essence of a kind into one Node. Asleep, it soaks in and grows the size
 ## (GROW_COST), all of it used, until the Node awakens; awake, it tops up
-## what the Node holds, then refills the Node's use (used up, growing it, at
-## most USE "climb_cap" a climb), then tops up again. Returns what's left.
+## what the Node holds, then refills the Node's use (used up, growing it:
+## faster for each sealed Node, growth_mult), then tops up again. A sealed
+## Node takes nothing. Returns what's left.
 static func settle_into(prof, part: String, kind: String, banked: float) -> float:
-	if banked <= 0.0 or not part in PARTS:
+	if banked <= 0.0 or not part in PARTS or sealed(prof, part):
 		return maxf(0.0, banked)
 	var left := banked
 	if not awake(prof, part):
@@ -637,8 +806,7 @@ static func settle_into(prof, part: String, kind: String, banked: float) -> floa
 	var want := used(prof, part)
 	if want > 0.0001 and left > 0.0001:
 		var s0 := size(prof, part)
-		var cap_left := maxf(0.0, float(USE.get("climb_cap", 30.0)) - float(st["grown"].get(part, 0.0)))
-		var spent := _grow(prof, part, minf(want, left), s0 + cap_left)
+		var spent := _grow(prof, part, minf(want, left), Core.CAP, growth_mult(prof))
 		st["used"][part] = maxf(0.0, want - spent)
 		st["grown"][part] = float(st["grown"].get(part, 0.0)) + size(prof, part) - s0
 		left -= spent
@@ -650,7 +818,7 @@ static func settle_into(prof, part: String, kind: String, banked: float) -> floa
 ## Feeds `amt` of a kind to a sleeping Node (moving essence into it): it
 ## soaks in as banked essence would. Returns what it took.
 static func feed(prof, part: String, kind: String, amt: float) -> float:
-	if awake(prof, part):
+	if awake(prof, part) or sealed(prof, part):
 		return 0.0
 	var left := settle_into(prof, part, kind, amt)
 	return amt - left
@@ -661,7 +829,7 @@ static func feed(prof, part: String, kind: String, amt: float) -> float:
 ## would (outside the climb's cap: it's the summit's gift), then tops up what
 ## it holds. What can't go in is let go.
 static func condense(prof, part: String, kind: String) -> void:
-	if not part in PARTS:
+	if not part in PARTS or sealed(prof, part):
 		return
 	var left := float(CONDENSE)
 	if not awake(prof, part):
@@ -691,7 +859,7 @@ static func condense_size(prof, part: String) -> float:
 ## target can take once the price is paid (body_move.gd's buttons show it).
 ## A sleeping target takes any amount (it soaks in).
 static func move_amount(prof, kind: String, from: String, to: String, amt := MOVE_STEP) -> float:
-	if not awake(prof, from):
+	if not awake(prof, from) or (to != "" and sealed(prof, to)):
 		return 0.0
 	var have := amount(prof, from, kind)
 	if have <= 0.01:
@@ -786,10 +954,11 @@ static func tech_ready(prof, part: String) -> bool:
 	return level(prof, part) >= TECH_LEVEL and lead(prof, part) != ""
 
 
-## How much harder this part's techniques hit (1x at TECH_LEVEL, MAX_POWER at 12).
+## How much harder this part's techniques hit (1x at TECH_LEVEL, MAX_POWER at
+## 12), and harder still for each sealed Node (seal_power).
 static func power(prof, part: String) -> float:
 	var k := clampf(float(level(prof, part) - TECH_LEVEL) / float(MAX_LEVEL - TECH_LEVEL), 0.0, 1.0)
-	return 1.0 + (MAX_POWER - 1.0) * k
+	return (1.0 + (MAX_POWER - 1.0) * k) * seal_power(prof)
 
 
 ## A core technique's extra strength (1 when the part isn't core-led).
@@ -995,6 +1164,7 @@ static func become(prof) -> void:
 		st["seen"] = {}
 		st["used"] = {}
 		st["grown"] = {}
+		st["sealed"] = {}
 		st["size"] = {}
 		for part in PARTS:
 			st["size"][part] = 0.0
@@ -1028,6 +1198,7 @@ static func return_to_marks(prof) -> Dictionary:
 		fills[part] = size(prof, part)
 	var st := state(prof)
 	st["on"] = false
+	st["sealed"] = {}
 	prof.bonds = {}
 	prof.soak = {}
 	prof.tally = {}

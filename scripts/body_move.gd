@@ -77,7 +77,7 @@ static func targets(prof, from: String, kind: String) -> Array:
 	if kind == "":
 		return out
 	for pt in Unbound.PARTS:
-		if pt != from and (not Unbound.awake(prof, pt) or Unbound.take_limit(prof, pt, kind) > 0.01):
+		if pt != from and not Unbound.sealed(prof, pt) and (not Unbound.awake(prof, pt) or Unbound.take_limit(prof, pt, kind) > 0.01):
 			out.append(pt)
 	return out
 
@@ -111,7 +111,7 @@ static func plan(menu) -> Dictionary:
 		kind = String(kinds[0]) if not kinds.is_empty() else ""
 	var tg := targets(prof, from, kind)
 	var to := String(menu.get_meta("move_to", ""))
-	if not to in Unbound.PARTS or to == from:
+	if not to in Unbound.PARTS or to == from or Unbound.sealed(prof, to):
 		to = String(tg[0]) if not tg.is_empty() else ""  # (never drain by default)
 	var amt := Unbound.move_amount(prof, kind, from, to) if kind != "" and to != "" else 0.0
 	var drain := Unbound.move_amount(prof, kind, from, "") if kind != "" else 0.0
@@ -215,7 +215,7 @@ static func build(menu) -> void:
 ## out of, a sleeping one to feed. The chosen one has a gold edge.
 static func card(menu, b: Button, part: String) -> void:
 	var asleep := not Unbound.awake(menu.main.profile, part)
-	b.set_meta("help", "ub_part_asleep" if asleep else "ub_part")
+	b.set_meta("help", "ub_part_sealed" if Unbound.sealed(menu.main.profile, part) else ("ub_part_asleep" if asleep else "ub_part"))
 	b.pressed.connect(pick_node.bind(menu, part))
 	if part == picked(menu):
 		var sb := StyleBoxFlat.new()
@@ -241,6 +241,11 @@ static func pick_node(menu, part: String) -> void:
 	menu.set_meta("node_pick", part)
 	if Unbound.awake(menu.main.profile, part):
 		pick_from(menu, part)
+		return
+	if Unbound.sealed(menu.main.profile, part):
+		menu.remove_meta("move_said")
+		menu.main.sfx("ui_confirm", 1.0, -6.0, 0.0)
+		_redraw(menu, "ub_part_sealed")  # (chosen: its seal under the cards; it takes no essence)
 		return
 	menu.set_meta("move_to", part)
 	menu.remove_meta("move_said")

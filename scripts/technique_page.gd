@@ -50,7 +50,7 @@ static var TEXT := {
 	"part_tech_at": "A technique at level %d",
 	"gift": "%s: %s",
 	"gift_at": "At level %d: %s",
-	"climber_note": "Each Node has a size (its density: how much it can hold, 120 at most) and what it holds. A Node sleeps until banked essence has soaked into it; awake, it grows as you use it: what its techniques spend comes back from the essence you bank into it, and stretches it a little. Every 10 of size is a level: 3 wakes it (a minor ability), 5 a gift, 6 a technique, 12 its capstone.",
+	"climber_note": "Each Node has a size (its density: how much it can hold, 120 at most) and what it holds. A Node sleeps until banked essence has soaked into it; awake, it grows as you use it: what its techniques spend comes back from the essence you bank into it, and stretches it a little. Every 10 of size is a level: 3 wakes it (a minor ability), 5 a gift, 6 a technique, 12 its capstone. On the train you can seal a Node: it gives up so the open ones grow deeper.",
 }
 const ARM_MS := 4000
 
@@ -72,7 +72,13 @@ static func climber(menu, grid: GridContainer) -> void:
 		var col: Color = menu.main.unbound.part_color(prof, part) if menu.main.unbound != null else UI.TEXT
 		var lines: Array = []
 		var asleep := not Unbound.awake(prof, part)
-		if asleep:
+		var sealed := Unbound.sealed(prof, part)
+		if sealed:
+			var ST: Dictionary = load("res://scripts/node_seal.gd").TEXT
+			lines.append(ST["card_head"] % Unbound.node_name(part))
+			lines.append(ST["card_line"])
+			col = Color(0.55, 0.55, 0.6)
+		elif asleep:
 			lines.append(TEXT["node_asleep_head"] % Unbound.node_name(part))
 			lines.append(TEXT["node_asleep"])
 			col = col.darkened(0.35)
@@ -99,6 +105,7 @@ static func climber(menu, grid: GridContainer) -> void:
 		b.add_theme_color_override("font_color", col.lightened(0.25))
 		b.set_meta("part", part)
 		b.set_meta("node_asleep", asleep)
+		b.set_meta("node_sealed", sealed)
 		BodyMove.card(menu, b, part)  # (pressed: this Node chosen: its levels below, and moving essence)
 		UI.keep_text(b)  # (its words whole: smaller, then wrapped, never cut)
 		grid.add_child(b)
@@ -112,7 +119,8 @@ static func node_levels(menu, part: String) -> void:
 	var TreeRules = load("res://scripts/tree.gd")
 	menu._section(TEXT["levels_title"] % Unbound.node_name(part))
 	if not Unbound.awake(prof, part):
-		var l: Label = menu._small_label(TEXT["levels_asleep"] % Unbound.node_name(part), menu.DIM)
+		var words: String = load("res://scripts/node_seal.gd").TEXT["levels"] if Unbound.sealed(prof, part) else TEXT["levels_asleep"]
+		var l: Label = menu._small_label(words % Unbound.node_name(part), menu.DIM)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size.x = 280.0
 		l.set_meta("node_levels", part)

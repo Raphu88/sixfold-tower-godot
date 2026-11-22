@@ -218,6 +218,7 @@ var hints  # names in play: ready labels, first casts, the long-press card (abil
 var counting_hits := false  # while a spell is cast: count the foes it hits
 var weapon_blow := false  # while a weapon's blow lands (player.gd _strike): main.on_hit's blows are the weapon's
 var cast_hits := 0
+var blow_ctx := {}  # while a cast's blows land: their essences, form group and Node or mark (guardian_lessons.gd ctx_of)
 var new_climber_t := 0.0
 ## How the climber looks, worked out from profile.appearance once per change
 ## (appearance.gd look()): the climber screen's figure draws from it.
@@ -4374,6 +4375,8 @@ func spawn_projectile(pos: Vector2, vel: Vector2, dmg: float) -> Node2D:
 	p.position = pos
 	p.vel = vel
 	p.dmg = dmg
+	if not blow_ctx.is_empty():
+		p.ctx = load("res://scripts/guardian_lessons.gd").as_shot(blow_ctx)  # (a cast's shot carries what it is: guardian_lessons.gd)
 	add_child(p)
 	return p
 
@@ -4401,6 +4404,7 @@ func on_enemy_killed(e) -> void:
 		contracts.on_kill(String(e.kind))  # (a slay contract counts it: contracts.gd)
 	MakersScript.feed(self, "beast" if e.is_boss() and not e.shade else ("champion" if e.champion else "kill"))
 	if e.is_boss() and not e.shade:  # (the Proving's shadow of a beast isn't the beast)
+		load("res://scripts/guardian_lessons.gd").learn(self, e)  # (it teaches the other guardians how its killer fought)
 		profile.note_beast(tower)
 		Renown.on_beast(profile, beast_name())
 		GuideScript.say("beast_slain", {"beast": beast_name()})

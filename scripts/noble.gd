@@ -23,7 +23,11 @@ static var LINES := {
 	"taken": ["\"Good. Bring me word when it's done.\"", "\"I'll know when it's done. I always do.\""],
 	"dropped": ["\"Another time, then.\"", "\"Pity. Someone else will take it.\""],
 	"empty": ["\"Nothing for you today. Climb, and come back.\""],
+	"rumour": ["\"A word from the towers, since you climb them:\"", "\"My people bring me news of the guardians:\""],
 }
+## How often the Noble's greeting carries a rumour of what the guardians
+## have learned (guardian_lessons.gd), once any guardian has fallen.
+static var RUMOUR_CHANCE := 0.6
 
 static var TEXT := {
 	"titles": "Titles",
@@ -62,6 +66,16 @@ static var TEXT := {
 static func line(key: String) -> String:
 	var pool: Array = LINES.get(key, [])
 	return String(pool[randi() % pool.size()]) if not pool.is_empty() else ""
+
+
+## The Noble's greeting: a line, and now and then (RUMOUR_CHANCE; `chance`
+## for tests) a rumour of what the guardians have learned.
+static func greet(prof, chance := -1.0) -> String:
+	var said := line("greet")
+	var r: String = load("res://scripts/guardian_lessons.gd").rumour(prof)
+	if r != "" and randf() < (RUMOUR_CHANCE if chance < 0.0 else chance):
+		said += " " + line("rumour") + " " + r
+	return said
 
 
 ## The Noble's name: the station's own Noble (stations.gd STATIONS "noble"),

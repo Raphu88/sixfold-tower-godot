@@ -55,6 +55,7 @@ const TEXT := {
 	"empty_does": "Nothing on this button yet. Its Node carries a technique once it reaches level 6: it grows as you use it.",
 	"empty_sub": "%s button  ·  level %d of 12",
 	"empty_sub_asleep": "%s button  ·  its Node is asleep",
+	"empty_sub_sealed": "%s button  ·  its Node is sealed",
 	# The button to press: [keys, controller, touch].
 	"press": ["%s", "%s + %s", "tap"],
 	"hold": ["hold %s", "hold %s + %s", "hold, slide"],
@@ -156,7 +157,7 @@ static func entries(main, menu = null) -> Array:
 				out.append(_technique(main, button, i, t))
 			else:
 				out.append({"kind": "empty", "part": button, "id": "tech_%d" % i, "name": TEXT["empty"], "color": UI.FAINT, "affinity": "",
-					"sub": TEXT["empty_sub"] % [Bonds.PART_NAMES[button], Unbound.level(prof, button)] if Unbound.awake(prof, button) else TEXT["empty_sub_asleep"] % Bonds.PART_NAMES[button], "does": TEXT["empty_does"], "press": press(main, button), "cost": "",
+					"sub": TEXT["empty_sub"] % [Bonds.PART_NAMES[button], Unbound.level(prof, button)] if Unbound.awake(prof, button) else (TEXT["empty_sub_sealed"] if Unbound.sealed(prof, button) else TEXT["empty_sub_asleep"]) % Bonds.PART_NAMES[button], "does": TEXT["empty_does"], "press": press(main, button), "cost": "",
 					"locked": true, "learn": 0, "selected": false, "step": 0, "more": [], "tag": "", "tag_color": UI.DIM})
 		return out
 	for part in Bonds.PARTS:
