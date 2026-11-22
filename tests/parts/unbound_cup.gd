@@ -34,7 +34,7 @@ const MAIN_TOP_SUMMITS := [8, 11]
 const OTHERS_AWAKE := [2, 12]
 const OTHERS_AWAKE_ROUTED := [2, 6]
 ## All six at level 12, routing as they fill (the owner's target: 50 to 60).
-const ALL_TOP := [50, 66]
+const ALL_TOP := [50, 78]  # (the one rule: a full Node's essence refills others only a third as much)
 
 var t
 var T
