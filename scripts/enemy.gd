@@ -190,6 +190,15 @@ const SPARK_RADIUS := 95.0
 const RAKE_REACH := 85.0
 const RAKE_ARC := 70.0
 const DIVE_RADIUS := 78.0
+## Low blows (_low_blow): along the floor, so a jump clears them (and fills
+## the legs). A knight's leg sweep all round it, a shellback's slam (its
+## shockwave rings out); the kraken's tentacle sweep and the wyvern's tail
+## sweep go low too. A chevron ring warns of them (_low_marks).
+const LOW_SWEEP_REACH := 74.0
+const LOW_SWEEP_CHANCE := 0.3
+const LOW_SWEEP_FLOOR := 3  # (knights learn it a few floors up)
+const SHELL_SLAM_RADIUS := 92.0
+const SHELL_SLAM_CHANCE := 0.35
 
 var kind := "slime"
 var voice_at := 0  # when it may cry out again (msec; _hurt_voice)
@@ -849,6 +858,13 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta):
 				_slash(p)
 				_end_attack("recover", 0.9)
+		"wind_low":
+			velocity = Vector2.ZERO
+			if _wind(delta):
+				main.fx_ring(global_position, Color(1.0, 0.45, 0.3), LOW_SWEEP_REACH, 0.3, 4.0)
+				main.sfx("swing_heavy", 0.7)
+				_low_blow(p, LOW_SWEEP_REACH, dmg * 0.8, true)
+				_end_attack("recover", 1.0)
 		"wind_lunge":
 			velocity = Vector2.ZERO
 			if not glinted:
@@ -874,8 +890,13 @@ func _knight(delta: float, dir: Vector2, dist: float, p) -> void:
 		_:  # chase
 			if dist < 75.0 and main.request_attack(self):
 				lunge_dir = dir
-				_begin_wind("wind_slash", 0.6)
-				main.sfx("warn_knight")  # armour rattles as it winds up
+				if int(main.get("floor_num")) >= LOW_SWEEP_FLOOR and randf() < LOW_SWEEP_CHANCE:
+					_begin_wind("wind_low", 0.8)  # a leg sweep all round: jump it
+					main.sfx("warn_knight", 0.8)
+					main.tip("low_sweep")
+				else:
+					_begin_wind("wind_slash", 0.6)
+					main.sfx("warn_knight")  # armour rattles as it winds up
 			elif dist > 120.0 and dist < 200.0 and randf() < delta * 0.8 and main.request_attack(self):
 				lunge_dir = dir
 				_begin_wind("wind_lunge", 0.7)
@@ -1125,6 +1146,15 @@ func _shellback(delta: float, dir: Vector2, dist: float, p) -> void:
 				if to.length() < 66.0 + p.radius and absf(face.angle_to(to)) < deg_to_rad(55.0):
 					p.receive_attack(dmg, self)
 				_end_attack("recover", 1.0)
+		"wind_slam":
+			velocity = Vector2.ZERO
+			if _wind(delta):
+				main.fx_ring(global_position, Color(0.55, 0.75, 0.85), SHELL_SLAM_RADIUS, 0.4, 5.0)
+				main.fx_burst(global_position, Vector2.ZERO, Color(0.6, 0.7, 0.75), 12, 200.0)
+				main.sfx("slam", 0.8)
+				main.shake(5.0)
+				_low_blow(p, SHELL_SLAM_RADIUS, dmg, true)
+				_end_attack("recover", 1.3)
 		"recover", "idle":
 			state_t -= delta
 			velocity = Vector2.ZERO
@@ -1132,8 +1162,16 @@ func _shellback(delta: float, dir: Vector2, dist: float, p) -> void:
 				state = "chase"
 		_:
 			if dist < 60.0 and main.request_attack(self):
-				_begin_wind("wind_bash", 0.7)
-				main.sfx("warn_shellback")
+				# Behind it (where its shell can't turn your blows), it more
+				# often rears and slams the floor: roll out, or jump the wave.
+				var behind := face.dot(dir) < 0.0
+				if randf() < (SHELL_SLAM_CHANCE * 1.5 if behind else SHELL_SLAM_CHANCE):
+					_begin_wind("wind_slam", 0.9)
+					main.sfx("warn_shellback", 0.8)
+					main.tip("low_sweep")
+				else:
+					_begin_wind("wind_bash", 0.7)
+					main.sfx("warn_shellback")
 			else:
 				velocity = dir * speed
 
@@ -1154,9 +1192,7 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta):
 				main.fx_cone(global_position, lunge_dir, SWEEP_REACH, deg_to_rad(SWEEP_ARC), Color(0.9, 0.4, 0.5))
 				main.sfx("swing_heavy", 0.5)
-				var to: Vector2 = p.global_position - global_position
-				if to.length() <= SWEEP_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(SWEEP_ARC):
-					p.receive_attack(dmg, self)
+				_low_blow(p, SWEEP_REACH, dmg, false, lunge_dir, deg_to_rad(SWEEP_ARC))  # (low: parry it, or jump it)
 				_end_attack("recover", 1.2)
 		"wind_slam":
 			velocity = Vector2.ZERO
@@ -1194,6 +1230,7 @@ func _kraken(delta: float, dir: Vector2, dist: float, p) -> void:
 			elif dist < SWEEP_REACH - 30.0 and randf() < 0.5:
 				_begin_wind("wind_sweep", 0.7)
 				main.sfx("warn_kraken")
+				main.tip("low_sweep")
 			elif randf() < 0.5:
 				slam_spots = [p.global_position]
 				for i in 2:
@@ -1278,9 +1315,7 @@ func _wyvern(delta: float, dir: Vector2, dist: float, p) -> void:
 			if _wind(delta):
 				main.fx_cone(global_position, lunge_dir, TAIL_REACH + 10.0, deg_to_rad(TAIL_ARC), Color(1.0, 0.45, 0.3))
 				main.sfx("swing_heavy", 0.6)
-				var to: Vector2 = p.global_position - global_position
-				if to.length() <= TAIL_REACH + p.radius and absf(lunge_dir.angle_to(to)) <= deg_to_rad(TAIL_ARC):
-					p.receive_attack(dmg, self)
+				_low_blow(p, TAIL_REACH, dmg, false, lunge_dir, deg_to_rad(TAIL_ARC))  # (low: parry it, or jump it)
 				_end_attack("recover", 1.2)
 		"wind_breath":
 			velocity = Vector2.ZERO
@@ -1530,8 +1565,12 @@ func _bloomcap(delta: float, dir: Vector2, dist: float, p) -> void:
 				main.fx_ring(lob_spot, Color(1.0, 0.5, 0.25), LOB_RADIUS, 0.35, 5.0)
 				main.fx_burst(lob_spot, Vector2.ZERO, Color(1.0, 0.55, 0.25), 12, 220.0)
 				main.sfx("burn", 1.1, -4.0)
-				if p.global_position.distance_to(lob_spot) < LOB_RADIUS + p.radius and not p.in_air():
-					p.receive_attack(dmg, self, true)
+				if p.global_position.distance_to(lob_spot) < LOB_RADIUS + p.radius:
+					if p.in_air():
+						if p.has_method("on_leap"):
+							p.on_leap()  # (jumped over it: the legs fill)
+					else:
+						p.receive_attack(dmg, self, true)
 				main.add_flame(lob_spot, 30.0, 2.5)
 				_end_attack("recover", 1.6)
 		"recover", "idle":
@@ -1594,8 +1633,12 @@ func _firebird(delta: float, dir: Vector2, dist: float, p) -> void:
 					main.fx_ring(spot, color, STORM_RADIUS, 0.4, 5.0)
 					main.fx_burst(spot, Vector2.UP, Color(1.0, 0.6, 0.25), 12, 260.0)
 					main.add_flame(spot, 28.0, 1.6)
-					if p.global_position.distance_to(spot) < STORM_RADIUS + p.radius and not p.in_air():
-						p.receive_attack(dmg, self, true)
+					if p.global_position.distance_to(spot) < STORM_RADIUS + p.radius:
+						if p.in_air():
+							if p.has_method("on_leap"):
+								p.on_leap()  # (jumped over it: the legs fill)
+						else:
+							p.receive_attack(dmg, self, true)
 				main.sfx("burn", 0.6)
 				main.light_flash(p.global_position, color, 2.0, 1.6, 0.4)
 				main.shake(7.0)
@@ -2635,6 +2678,12 @@ func _draw_knight(p: Pen, t: float, f: Vector2) -> void:
 		ang = -0.2
 		gx = radius * 0.55
 		gy = -6.0 * _wk(0.7)
+	elif state == "wind_low":
+		var kl := _wk(0.8)  # the blade swung down and back, flat to the floor
+		ang = -1.1 - 2.2 * kl
+		gx = radius * (0.9 + 0.2 * kl)
+		gy = 3.0 + 4.0 * kl
+		rate = 18.0
 	elif state == "lunge":
 		ang = -0.1
 		gx = radius * 0.4
@@ -2783,6 +2832,7 @@ func _draw_lurker(p: Pen, t: float, f: Vector2) -> void:
 func _draw_shellback(p: Pen, t: float, f: Vector2) -> void:
 	var s := f.orthogonal()
 	var bash := _ease("bash", _wk(0.7) if state == "wind_bash" else 0.0, 12.0)
+	var rear := _ease("rear", _wk(0.9) if state == "wind_slam" else 0.0, 12.0)  # (rearing up to slam)
 	# Stubby legs paddle as it walks.
 	for sgn in [-1.0, 1.0]:
 		for k in 2:
@@ -2796,8 +2846,8 @@ func _draw_shellback(p: Pen, t: float, f: Vector2) -> void:
 	p.circle(head + f * 2.6 + s * 2.4, 1.2, Palette.OUTLINE, 8)
 	p.circle(head + f * 2.6 - s * 2.4, 1.2, Palette.OUTLINE, 8)
 	# The shell: a domed oval of plates, its front rim armoured.
-	var c := f * 2.0 * bash
-	var rad := Vector2(radius, radius * 0.86)
+	var c := f * 2.0 * bash + Vector2(0, -6.0 * rear)
+	var rad := Vector2(radius, radius * 0.86) * (1.0 + 0.1 * rear)
 	p.egg(c, rad, f.angle(), color.darkened(0.08))
 	var plate := color.lightened(0.08)
 	p.oval(c + Vector2(-1.0, -1.2), Vector2(radius * 0.36, radius * 0.32), f.angle(), color.darkened(0.35), 14)
@@ -3415,6 +3465,41 @@ func _target(o: Pen, at: Vector2, r: float, k: float, base_alpha: float, edge_w 
 	o.arc(at, r * k, 0.0, TAU, 1.5, Color(Palette.DANGER, 0.8), 32)
 
 
+## A low blow's sign: small upward chevrons (jump!) along its edge, from
+## angle `a0` to `a1`, rising and falling so they read at a glance.
+func _low_marks(o: Pen, reach: float, a0: float, a1: float) -> void:
+	var span := a1 - a0
+	var n := maxi(3, int(round(absf(span) * reach / 34.0)))
+	var full := absf(span - TAU) < 0.01
+	var bob := 2.0 * sin(Time.get_ticks_msec() * 0.012)
+	for i in n:
+		var a := a0 + span * (float(i) + (0.0 if full else 0.5)) / float(n)
+		var at := Vector2.from_angle(a) * (reach - 9.0) + Vector2(0, bob)
+		o.quad(at + Vector2(-4.5, 2.5), at + Vector2(0, -2.5), 1.6, Color(Palette.DANGER, 0.85))
+		o.quad(at + Vector2(0, -2.5), at + Vector2(4.5, 2.5), 1.6, Color(Palette.DANGER, 0.85))
+
+
+## A low blow (a leg sweep, a slam's shockwave, a tentacle or tail swept
+## along the floor) within `reach` (and within `half` radians of `dir`, if
+## one is given). It can't touch you in the air: a jump clears it (the legs
+## fill). `unblockable`: no parry either (roll through or out of it).
+## Returns true if it struck.
+func _low_blow(p, reach: float, amount: float, unblockable: bool, dir := Vector2.ZERO, half := PI) -> bool:
+	if p == null or not is_instance_valid(p) or p.dead:
+		return false
+	var to: Vector2 = p.global_position - global_position
+	if to.length() > reach + p.radius:
+		return false
+	if dir != Vector2.ZERO and absf(dir.angle_to(to)) > half:
+		return false
+	if p.in_air():
+		if p.has_method("on_leap"):
+			p.on_leap()
+		return false
+	p.receive_attack(amount, self, unblockable)
+	return true
+
+
 ## A fan of thin aim lines.
 func _fan(o: Pen, n: int, step_deg: float, length: float) -> void:
 	for i in n:
@@ -3431,6 +3516,12 @@ func _draw_overlay() -> void:
 	var danger := Palette.DANGER
 	if kind == "knight" and state == "wind_slash":
 		_cone(o, SLASH_REACH, SLASH_ARC, _wk(0.6), 0.1)
+	if kind == "knight" and state == "wind_low":
+		_target(o, Vector2.ZERO, LOW_SWEEP_REACH, _wk(0.8), 0.08)
+		_low_marks(o, LOW_SWEEP_REACH, 0.0, TAU)
+	if kind == "shellback" and state == "wind_slam":
+		_target(o, Vector2.ZERO, SHELL_SLAM_RADIUS, _wk(0.9), 0.08)
+		_low_marks(o, SHELL_SLAM_RADIUS, 0.0, TAU)
 	if kind == "knight" and state == "wind_lunge":
 		var k := 1.0 - state_t / 0.7
 		var reach := 140.0
@@ -3459,6 +3550,7 @@ func _draw_overlay() -> void:
 			var ks := _wk(0.7)
 			o.wedge(Vector2.ZERO, SWEEP_REACH, la - half, la + half, Color(danger, 0.08 + 0.12 * ks), 24)
 			o.arc(Vector2.ZERO, SWEEP_REACH * ks, la - half, la + half, 2.0, Color(danger, 0.7), 24)
+			_low_marks(o, SWEEP_REACH, la - half, la + half)
 		if state == "wind_slam":
 			for spot in slam_spots:
 				_target(o, spot - global_position, SLAM_RADIUS, _wk(0.9), 0.1)
@@ -3537,6 +3629,7 @@ func _draw_overlay() -> void:
 	if kind == "wyvern":
 		if state == "wind_tail":
 			_cone(o, TAIL_REACH, TAIL_ARC, _wk(0.6), 0.1, 0.75)
+			_low_marks(o, TAIL_REACH, lunge_dir.angle() - deg_to_rad(TAIL_ARC), lunge_dir.angle() + deg_to_rad(TAIL_ARC))
 		if state == "wind_breath":
 			_cone(o, BREATH_REACH, BREATH_ARC, _wk(0.8), 0.1, 0.75)
 		if state == "wind_embers":

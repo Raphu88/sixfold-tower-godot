@@ -129,6 +129,7 @@ var hurt := false
 var hp_last := 0.0
 var _soak0 := {}
 var _csoak0 := {}
+var _worn0 := {}
 
 
 ## Begins an event (stations.gd event): the fee is paid first (kept even if
@@ -189,6 +190,8 @@ func start(e: Dictionary) -> String:
 	_soak0 = main.run_soak.duplicate()  # (what each body part does in here is the result's: training.gd)
 	_csoak0 = main.climb_soak.duplicate()
 	main.run_soak = {}
+	_worn0 = main.soak_worn.duplicate()
+	main.soak_worn = {}  # (fading starts fresh in here: part_soak.gd)
 	if not main.on_hit.is_connected(_on_hit):
 		main.on_hit.connect(_on_hit)
 	_was_saving = prof.saving
@@ -971,6 +974,7 @@ func leave() -> void:
 	on = false
 	main.run_soak = _soak0  # (what the body did in here went with the result)
 	main.climb_soak = _csoak0
+	main.soak_worn = _worn0
 	main.traps = []
 	if main.trap_view != null:
 		main.trap_view.reset()

@@ -92,11 +92,11 @@ static var TIDBITS := {
 	# --- creatures (the first time each notices you in a climb) ------------------------------
 	"creature:slime": ["A slime hops straight at you. Step aside, or parry the hop."],
 	"creature:archer": ["An archer locks its aim before it looses: a red line. Parry the arrow and it goes back."],
-	"creature:knight": ["A knight winds up its lunge: a filling red bar. Parry it and the knight staggers."],
+	"creature:knight": ["A knight winds up its lunge: a filling red bar. Parry it and the knight staggers.", "Red chevrons round a knight: it sweeps low. Jump."],
 	"creature:bat": ["Bats circle, then swoop through where you stood. Move as they glint."],
 	"creature:thunderling": ["A thunderling sparks before it bursts. The ring can't be parried: step out or roll."],
 	"creature:lurker": ["A lurker can't be struck under the water. Hit it while it's up."],
-	"creature:shellback": ["A shellback's shell turns blows from the front. Get behind it, or hit it hard."],
+	"creature:shellback": ["A shellback's shell turns blows from the front. Get behind it, or hit it hard.", "A shellback rearing up will slam the floor. Jump the ring, or roll out of it."],
 	"creature:deepfin": ["A deepfin leaps from deep water. Parry the leap, then hit it while it's stranded."],
 	"creature:cinder": ["A cinder spits a burning ember. Parry it and the ember turns back."],
 	"creature:smith": ["A smith's hammer can be parried, but it hits hard. The floor burns where it lands."],

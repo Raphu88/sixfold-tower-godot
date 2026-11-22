@@ -188,6 +188,7 @@ var run_essence := {}  # gathered since the last stair (lost if you fall)
 var run_soak := {}  # body-part soak since the last stair
 var climb_essence := {}  # everything gathered this climb
 var climb_soak := {}  # everything soaked this climb
+var soak_worn := {}  # fade group -> units soaked since the last stair (part_soak.gd: each further one soaks less)
 ## The secret essences (secret.gd): the path's essence gathered since the
 ## last stair (the flow, unbanked: lost if you fall), and what rose before
 ## the path was chosen, waiting on the choice ({kind, amount, pos}).
@@ -1687,6 +1688,7 @@ func _arrive() -> void:
 	_high_step_tips()  # (a mark at step 6, or its Zenith: the Entity explains, the first time)
 	run_essence = {}
 	run_soak = {}
+	soak_worn = {}  # (the stair starts each part's fading again: part_soak.gd)
 	for l in _bank_flow():
 		kinds[l] = "banked"
 		lines.append(l)
@@ -2240,6 +2242,7 @@ func read_recall() -> void:
 			made.append("%d %s" % [int(round(amount)), Essence.display(k).to_lower()])
 	run_essence = {}
 	run_soak = {}
+	soak_worn = {}
 	# The flow you carried is lost (the owner's call): a scroll keeps crystals, not the flow.
 	var flow_lines: Array = []
 	if run_flow >= 1.0 and profile.path != "":
@@ -3117,7 +3120,8 @@ func soak_coming(part: String) -> float:
 		total += maxf(0.0, float(style[pt]))
 	if total <= 0.0:
 		return 0.0
-	return profile.soak_gain(part, carried * body * maxf(0.0, float(style.get(part, 0.0))) / total)
+	var gain: float = profile.soak_gain(part, carried * body * maxf(0.0, float(style.get(part, 0.0))) / total)
+	return minf(gain, maxf(0.0, profile.soak_cap(part) - float(profile.soak.get(part, 0.0))))  # (only the leading part fills past profile.gd FORMING_OTHERS)
 
 
 ## An unmarked part at least Flow.EARNED "near" of the way to a mark ("" if none).

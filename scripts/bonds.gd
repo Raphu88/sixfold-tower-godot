@@ -41,8 +41,8 @@ extends RefCounted
 const PARTS := ["hand", "legs", "heart", "brow", "throat", "back"]
 static var PART_NAMES := {"hand": "Hand", "legs": "Legs", "heart": "Heart", "brow": "Brow", "throat": "Throat", "back": "Back"}
 const PART_FILLS := {
-	"hand": "fills when you land weapon strikes",
-	"legs": "fills when you roll through an attack",
+	"hand": "fills when your weapon strikes and shots land",
+	"legs": "fills when you roll or jump clear of an attack, or leap a gap or hazard",
 	"heart": "fills when you take a hit and survive",
 	"brow": "fills when you parry",
 	"throat": "fills when one action hits several foes",
