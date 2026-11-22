@@ -37,7 +37,7 @@ static var TEXT := {
 	"node": "Node",
 	"nodes": "Nodes",
 	"card_head": "%s  ·  sealed",
-	"card_line": "Sealed: it takes no essence. Your open Nodes grow deeper for it.",
+	"card_line": "Takes no essence; your open Nodes grow deeper.",
 	"levels": "Your %s is sealed. It has no levels while it stays sealed: unseal it on the train and it starts again asleep, at size 0.",
 	"tree": "sealed",
 }

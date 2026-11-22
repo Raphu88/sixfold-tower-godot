@@ -120,6 +120,10 @@ func _words() -> void:
 	var texts := (str(GL.TEXT) + str(GL.RUMOURS) + str(tip) + str(topic) + str(load("res://scripts/noble.gd").LINES)).to_lower()
 	var found: Array = BANNED.filter(func(w): return texts.contains(w))
 	_check(found.is_empty(), "none of the owner's banned words in the guardians' lessons (%s)" % ", ".join(found))
+	var Reg = load("res://scripts/data_registry.gd")
+	_check(not Reg.field("guardian_lessons/LEARN/resist").is_empty() and not Reg.field("guardian_lessons/LEARN/cap").is_empty() and not Reg.fields_in("guardian_words").is_empty()
+		and not Reg.field("unbound/SEAL/growth").is_empty() and not Reg.fields_in("unbound_words").filter(func(f): return String(f["path"]).begins_with("node_seal/")).is_empty(),
+		"the lessons' numbers and words, and sealing's, are in the Data editor")
 
 
 ## In play: a guardian notes how it's fought, and slain it leaves its
